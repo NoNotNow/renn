@@ -47,9 +47,19 @@
       "properties": {
         "gravity": { "$ref": "#/$defs/Vec3" },
         "ambientLight": { "$ref": "#/$defs/Color" },
+        "directionalLight": { "$ref": "#/$defs/DirectionalLightConfig" },
         "skyColor": { "$ref": "#/$defs/Color" },
         "skybox": { "type": "string" },
         "camera": { "$ref": "#/$defs/CameraConfig" }
+      },
+      "additionalProperties": false
+    },
+    "DirectionalLightConfig": {
+      "type": "object",
+      "properties": {
+        "direction": { "$ref": "#/$defs/Vec3" },
+        "color": { "$ref": "#/$defs/Color" },
+        "intensity": { "type": "number" }
       },
       "additionalProperties": false
     },

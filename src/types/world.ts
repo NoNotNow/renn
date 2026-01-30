@@ -17,9 +17,16 @@ export interface CameraConfig {
   fov?: number
 }
 
+export interface DirectionalLightConfig {
+  direction?: Vec3
+  color?: Color
+  intensity?: number
+}
+
 export interface WorldSettings {
   gravity?: Vec3
   ambientLight?: Color
+  directionalLight?: DirectionalLightConfig
   skyColor?: Color
   skybox?: string
   camera?: CameraConfig

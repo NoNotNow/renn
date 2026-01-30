@@ -43,6 +43,21 @@ export function loadWorld(
     scene.add(new THREE.AmbientLight(new THREE.Color(r, g, b), 1))
   }
 
+  const dirLightConfig = world.world.directionalLight
+  const dirDirection = dirLightConfig?.direction ?? [1, 2, 1]
+  const dirColor = dirLightConfig?.color ?? [1, 0.98, 0.9]
+  const dirIntensity = dirLightConfig?.intensity ?? 1.2
+  const dirLight = new THREE.DirectionalLight(
+    new THREE.Color(dirColor[0], dirColor[1], dirColor[2]),
+    dirIntensity
+  )
+  const [dx, dy, dz] = dirDirection
+  const dist = 50
+  dirLight.position.set(dx * dist, dy * dist, dz * dist)
+  dirLight.target.position.set(0, 0, 0)
+  scene.add(dirLight)
+  scene.add(dirLight.target)
+
   const skyColor = world.world.skyColor
   if (skyColor) {
     const [r, g, b] = skyColor

@@ -5,6 +5,11 @@ export const sampleWorld: RennWorld = {
   world: {
     gravity: [0, -9.81, 0],
     ambientLight: [0.3, 0.3, 0.35],
+    directionalLight: {
+      direction: [1, 2, 1],
+      color: [1, 0.98, 0.9],
+      intensity: 1.2,
+    },
     skyColor: [0.4, 0.6, 0.9],
     camera: { mode: 'follow', target: 'ball', distance: 8, height: 2 },
   },
