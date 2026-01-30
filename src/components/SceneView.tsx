@@ -90,11 +90,16 @@ export default function SceneView({
     camera.aspect = w / h
     camera.updateProjectionMatrix()
 
-    // Initialize physics
+    // Initialize physics (async - guard against effect cleanup before completion)
+    let cancelled = false
     if (runPhysics) {
       const gravity = gravityEnabled ? (loadedWorld.world.gravity ?? DEFAULT_GRAVITY) : ZERO_GRAVITY
       import('@/physics/rapierPhysics').then((mod) => {
         mod.createPhysicsWorld(loadedWorld, entities).then((pw) => {
+          if (cancelled) {
+            pw.dispose()
+            return
+          }
           pw.setGravity(gravity)
           physicsRef.current = pw
         })
@@ -147,6 +152,7 @@ export default function SceneView({
     ro.observe(container)
 
     return () => {
+      cancelled = true
       ro.disconnect()
       window.removeEventListener('resize', onResize)
       cancelAnimationFrame(frameRef.current)

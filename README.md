@@ -19,6 +19,11 @@ npm run dev
 
 Then open http://localhost:5173
 
+## Tests
+
+- **Unit + component:** `npm run test` (watch) or `npm run test:run`
+- **E2E (Playwright):** `npm run test:e2e` — uses system Chrome; start dev server first or let Playwright start it (`reuseExistingServer: true`)
+
 ## Usage
 
 - **Builder** (`/`): Create and edit worlds. Save to browser storage, download as ZIP, upload to restore. Entity list, property panel, script panel (Monaco), asset upload. Edit mode runs physics so the scene feels alive.

@@ -18,4 +18,5 @@ test.describe('Builder add entity', () => {
 
     expect(pageErrors).toEqual([])
   })
+
 })

@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import SceneView from '@/components/SceneView'
 import ScriptPanel from '@/components/ScriptPanel'
 import AssetPanel from '@/components/AssetPanel'
@@ -144,6 +144,21 @@ export default function Builder() {
     uiLogger.click('Builder', 'Play - navigate to play mode')
     window.location.href = `/play?world=${encodeURIComponent(JSON.stringify(world))}`
   }, [world])
+
+  const sceneWorld = useMemo(
+    () => ({
+      ...world,
+      world: {
+        ...world.world,
+        camera: {
+          ...world.world.camera,
+          target: cameraTarget,
+          mode: cameraMode,
+        },
+      },
+    }),
+    [world, cameraTarget, cameraMode]
+  )
 
   const handleAddEntity = useCallback(
     (shapeType: AddableShapeType) => {
@@ -319,17 +334,7 @@ export default function Builder() {
         <main style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
           <div style={{ flex: 1, minHeight: 300 }}>
             <SceneView
-              world={{
-                ...world,
-                world: {
-                  ...world.world,
-                  camera: {
-                    ...world.world.camera,
-                    target: cameraTarget,
-                    mode: cameraMode,
-                  },
-                },
-              }}
+              world={sceneWorld}
               assets={assets}
               runPhysics
               runScripts
