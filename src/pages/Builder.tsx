@@ -4,9 +4,11 @@ import ScriptPanel from '@/components/ScriptPanel'
 import AssetPanel from '@/components/AssetPanel'
 import PropertyPanel from '@/components/PropertyPanel'
 import { sampleWorld } from '@/data/sampleWorld'
+import { createDefaultEntity, type AddableShapeType } from '@/data/entityDefaults'
 import { createIndexedDbPersistence } from '@/persistence/indexedDb'
 import type { RennWorld } from '@/types/world'
 import type { ProjectMeta } from '@/persistence/types'
+import { uiLogger } from '@/utils/uiLogger'
 
 const persistence = createIndexedDbPersistence()
 
@@ -20,8 +22,10 @@ export default function Builder() {
   const [cameraMode, setCameraMode] = useState(sampleWorld.world.camera?.mode ?? 'follow')
   const [rightTab, setRightTab] = useState<'properties' | 'scripts' | 'assets'>('properties')
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const addEntitySelectRef = useRef<HTMLSelectElement>(null)
 
   const loadProjects = useCallback(() => {
+    uiLogger.click('Builder', 'Refresh project list')
     persistence.listProjects().then(setProjects)
   }, [])
 
@@ -30,6 +34,7 @@ export default function Builder() {
   }, [loadProjects])
 
   const handleNew = useCallback(() => {
+    uiLogger.click('Builder', 'New project')
     setWorld(sampleWorld)
     setAssets(new Map())
     setCurrentProjectId(null)
@@ -38,6 +43,7 @@ export default function Builder() {
 
   const handleOpen = useCallback(
     (id: string) => {
+      uiLogger.select('Builder', 'Open project', { projectId: id })
       persistence.loadProject(id).then(({ world: w, assets: a }) => {
         setWorld(w)
         setAssets(a)
@@ -51,6 +57,7 @@ export default function Builder() {
   const handleSave = useCallback(() => {
     const id = currentProjectId ?? `proj_${Date.now()}`
     const name = projects.find((p) => p.id === id)?.name ?? `World ${projects.length + 1}`
+    uiLogger.click('Builder', 'Save project', { projectId: id, projectName: name })
     persistence.saveProject(id, name, { world, assets }).then(() => {
       setCurrentProjectId(id)
       loadProjects()
@@ -60,6 +67,7 @@ export default function Builder() {
   const handleSaveAs = useCallback(() => {
     const name = prompt('Project name:', `World ${projects.length + 1}`) ?? `World ${projects.length + 1}`
     const id = `proj_${Date.now()}`
+    uiLogger.click('Builder', 'Save as new project', { projectId: id, projectName: name })
     persistence.saveProject(id, name, { world, assets }).then(() => {
       setCurrentProjectId(id)
       loadProjects()
@@ -70,6 +78,7 @@ export default function Builder() {
     const id = currentProjectId
     if (!id) return
     if (!confirm('Delete this project?')) return
+    uiLogger.delete('Builder', 'Delete project', { projectId: id })
     persistence.deleteProject(id).then(() => {
       handleNew()
       loadProjects()
@@ -78,6 +87,7 @@ export default function Builder() {
 
   const handleExport = useCallback(() => {
     const id = currentProjectId
+    uiLogger.click('Builder', 'Export/Download project', { projectId: id ?? 'unsaved', format: id ? 'zip' : 'json' })
     if (!id) {
       const blob = new Blob([JSON.stringify(world, null, 2)], { type: 'application/json' })
       const a = document.createElement('a')
@@ -95,6 +105,7 @@ export default function Builder() {
   }, [currentProjectId, world])
 
   const handleImport = useCallback(() => {
+    uiLogger.click('Builder', 'Import/Upload project - open file dialog')
     fileInputRef.current?.click()
   }, [])
 
@@ -103,6 +114,7 @@ export default function Builder() {
       const file = e.target.files?.[0]
       if (!file) return
       const isZip = file.name.toLowerCase().endsWith('.zip')
+      uiLogger.upload('Builder', 'Import project file', { fileName: file.name, fileType: isZip ? 'zip' : 'json', fileSize: file.size })
       if (isZip) {
         persistence.importProject(file).then(({ id }) => {
           loadProjects()
@@ -128,8 +140,37 @@ export default function Builder() {
   )
 
   const handlePlay = useCallback(() => {
+    uiLogger.click('Builder', 'Play - navigate to play mode')
     window.location.href = `/play?world=${encodeURIComponent(JSON.stringify(world))}`
   }, [world])
+
+  const handleAddEntity = useCallback(
+    (shapeType: AddableShapeType) => {
+      const newEntity = createDefaultEntity(shapeType)
+      uiLogger.select('Builder', 'Add entity', { shapeType, entityId: newEntity.id })
+      setWorld((prev) => ({
+        ...prev,
+        entities: [...prev.entities, newEntity],
+      }))
+      setSelectedEntityId(newEntity.id)
+      addEntitySelectRef.current && (addEntitySelectRef.current.value = '')
+    },
+    []
+  )
+
+  const handleDeleteEntity = useCallback(
+    (entityId: string) => {
+      const entity = world.entities.find((e) => e.id === entityId)
+      uiLogger.delete('Builder', 'Delete entity', { entityId, entityName: entity?.name })
+      const newEntities = world.entities.filter((e) => e.id !== entityId)
+      setWorld((prev) => ({ ...prev, entities: newEntities }))
+      if (selectedEntityId === entityId) setSelectedEntityId(null)
+      if (cameraTarget === entityId) {
+        setCameraTarget(newEntities[0]?.id ?? '')
+      }
+    },
+    [world.entities, selectedEntityId, cameraTarget]
+  )
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -167,6 +208,23 @@ export default function Builder() {
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
         <aside style={{ width: 240, borderRight: '1px solid #ccc', padding: 8, overflow: 'auto' }}>
           <h3 style={{ margin: '0 0 8px' }}>Entities</h3>
+          <select
+            ref={addEntitySelectRef}
+            value=""
+            onChange={(e) => {
+              const v = e.target.value as AddableShapeType
+              if (v) handleAddEntity(v)
+            }}
+            style={{ display: 'block', width: '100%', marginBottom: 8 }}
+            title="Add entity"
+          >
+            <option value="">Add entity...</option>
+            <option value="box">Add box</option>
+            <option value="sphere">Add sphere</option>
+            <option value="cylinder">Add cylinder</option>
+            <option value="capsule">Add capsule</option>
+            <option value="plane">Add plane</option>
+          </select>
           <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
             {world.entities.map((e) => (
               <li key={e.id}>
@@ -180,7 +238,10 @@ export default function Builder() {
                     border: 'none',
                     cursor: 'pointer',
                   }}
-                  onClick={() => setSelectedEntityId(e.id)}
+                  onClick={() => {
+                    uiLogger.click('Builder', 'Select entity', { entityId: e.id, entityName: e.name })
+                    setSelectedEntityId(e.id)
+                  }}
                 >
                   {e.name ?? e.id}
                 </button>
@@ -192,10 +253,14 @@ export default function Builder() {
             Target
             <select
               value={cameraTarget}
-              onChange={(e) => setCameraTarget(e.target.value)}
+              onChange={(e) => {
+                uiLogger.change('Builder', 'Change camera target', { target: e.target.value })
+                setCameraTarget(e.target.value)
+              }}
             >
+              <option value="">— None —</option>
               {world.entities.map((e) => (
-                <option key={e.id} value={e.id}>{e.id}</option>
+                <option key={e.id} value={e.id}>{e.name ?? e.id}</option>
               ))}
             </select>
           </label>
@@ -203,7 +268,10 @@ export default function Builder() {
             Mode
             <select
               value={cameraMode}
-              onChange={(e) => setCameraMode(e.target.value as 'follow' | 'firstPerson' | 'thirdPerson')}
+              onChange={(e) => {
+                uiLogger.change('Builder', 'Change camera mode', { mode: e.target.value })
+                setCameraMode(e.target.value as 'follow' | 'firstPerson' | 'thirdPerson')
+              }}
             >
               <option value="follow">Follow</option>
               <option value="thirdPerson">Third person</option>
@@ -245,7 +313,10 @@ export default function Builder() {
                     cursor: 'pointer',
                     textTransform: 'capitalize',
                   }}
-                  onClick={() => setRightTab(tab)}
+                  onClick={() => {
+                    uiLogger.click('Builder', 'Switch right panel tab', { tab })
+                    setRightTab(tab)
+                  }}
                 >
                   {tab}
                 </button>
@@ -253,7 +324,12 @@ export default function Builder() {
             </div>
             <div style={{ flex: 1, overflow: 'auto', minHeight: 200 }}>
               {rightTab === 'properties' && (
-                <PropertyPanel world={world} selectedEntityId={selectedEntityId} onWorldChange={setWorld} />
+                <PropertyPanel
+                  world={world}
+                  selectedEntityId={selectedEntityId}
+                  onWorldChange={setWorld}
+                  onDeleteEntity={handleDeleteEntity}
+                />
               )}
               {rightTab === 'scripts' && (
                 <ScriptPanel world={world} onWorldChange={setWorld} />

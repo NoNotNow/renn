@@ -102,11 +102,13 @@ export class PhysicsWorld {
           shape.radius * Math.max(scale[0], scale[2])
         )
 
-      case 'capsule':
+      case 'capsule': {
+        const halfHeight = Math.max(1e-4, (shape.height / 2 - shape.radius) * scale[1])
         return RAPIER.ColliderDesc.capsule(
-          (shape.height / 2 - shape.radius) * scale[1],
+          halfHeight,
           shape.radius * Math.max(scale[0], scale[2])
         )
+      }
 
       case 'plane': {
         // Create a large thin box for ground plane

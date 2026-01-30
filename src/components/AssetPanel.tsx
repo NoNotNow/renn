@@ -1,5 +1,6 @@
 import { useRef } from 'react'
 import type { RennWorld } from '@/types/world'
+import { uiLogger } from '@/utils/uiLogger'
 
 export interface AssetPanelProps {
   assets: Map<string, Blob>
@@ -15,12 +16,15 @@ export default function AssetPanel({ assets, world, onAssetsChange, onWorldChang
   const worldAssets = world.assets ?? {}
 
   const handleUpload = () => {
+    uiLogger.click('AssetPanel', 'Upload asset - open file dialog')
     fileInputRef.current?.click()
   }
 
   const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (!files?.length) return
+    const fileDetails = Array.from(files).map(f => ({ name: f.name, size: f.size, type: f.type }))
+    uiLogger.upload('AssetPanel', 'Upload asset files', { fileCount: files.length, files: fileDetails })
     const next = new Map(assets)
     const nextWorldAssets = { ...worldAssets }
     for (let i = 0; i < files.length; i++) {
@@ -35,6 +39,7 @@ export default function AssetPanel({ assets, world, onAssetsChange, onWorldChang
   }
 
   const handleRemove = (id: string) => {
+    uiLogger.delete('AssetPanel', 'Remove asset', { assetId: id })
     const next = new Map(assets)
     next.delete(id)
     const nextWorldAssets = { ...worldAssets }

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import Editor from '@monaco-editor/react'
 import type { RennWorld } from '@/types/world'
+import { uiLogger } from '@/utils/uiLogger'
 
 export interface ScriptPanelProps {
   world: RennWorld
@@ -16,6 +17,7 @@ export default function ScriptPanel({ world, onWorldChange }: ScriptPanelProps) 
 
   const handleEditorChange = (value: string | undefined) => {
     if (!selectedId) return
+    uiLogger.change('ScriptPanel', 'Edit script content', { scriptId: selectedId, contentLength: value?.length ?? 0 })
     onWorldChange({
       ...world,
       scripts: {
@@ -28,6 +30,7 @@ export default function ScriptPanel({ world, onWorldChange }: ScriptPanelProps) 
   const handleAdd = () => {
     const id = prompt('Script ID:', `script_${Date.now()}`)
     if (!id) return
+    uiLogger.click('ScriptPanel', 'Add new script', { scriptId: id })
     onWorldChange({
       ...world,
       scripts: { ...scripts, [id]: '// game.log("hello");' },
@@ -37,6 +40,7 @@ export default function ScriptPanel({ world, onWorldChange }: ScriptPanelProps) 
 
   const handleRemove = () => {
     if (!selectedId) return
+    uiLogger.delete('ScriptPanel', 'Remove script', { scriptId: selectedId })
     const next = { ...scripts }
     delete next[selectedId]
     onWorldChange({ ...world, scripts: next })
@@ -48,7 +52,10 @@ export default function ScriptPanel({ world, onWorldChange }: ScriptPanelProps) 
       <div style={{ padding: 8, display: 'flex', gap: 8, borderBottom: '1px solid #ccc' }}>
         <select
           value={selectedId ?? ''}
-          onChange={(e) => setSelectedId(e.target.value || null)}
+          onChange={(e) => {
+            uiLogger.select('ScriptPanel', 'Select script', { scriptId: e.target.value })
+            setSelectedId(e.target.value || null)
+          }}
         >
           <option value="">— Select script —</option>
           {scriptIds.map((id) => (
