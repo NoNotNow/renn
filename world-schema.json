@@ -1,0 +1,172 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://renn.example.com/world.json",
+  "title": "RennWorld",
+  "description": "3D game world with physics, entities, assets, and scripts",
+  "type": "object",
+  "required": ["version", "world", "entities"],
+  "properties": {
+    "version": { "type": "string", "const": "1.0" },
+    "world": { "$ref": "#/$defs/WorldSettings" },
+    "entities": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Entity" },
+      "minItems": 0
+    },
+    "assets": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/AssetRef" }
+    },
+    "scripts": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "Vec3": {
+      "type": "array",
+      "items": { "type": "number" },
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "Quat": {
+      "type": "array",
+      "items": { "type": "number" },
+      "minItems": 4,
+      "maxItems": 4
+    },
+    "Color": {
+      "type": "array",
+      "items": { "type": "number" },
+      "minItems": 3,
+      "maxItems": 4
+    },
+    "WorldSettings": {
+      "type": "object",
+      "properties": {
+        "gravity": { "$ref": "#/$defs/Vec3" },
+        "ambientLight": { "$ref": "#/$defs/Color" },
+        "skyColor": { "$ref": "#/$defs/Color" },
+        "skybox": { "type": "string" },
+        "camera": { "$ref": "#/$defs/CameraConfig" }
+      },
+      "additionalProperties": false
+    },
+    "CameraConfig": {
+      "type": "object",
+      "properties": {
+        "mode": { "enum": ["firstPerson", "thirdPerson", "follow"] },
+        "target": { "type": "string" },
+        "distance": { "type": "number" },
+        "height": { "type": "number" },
+        "fov": { "type": "number" }
+      },
+      "additionalProperties": false
+    },
+    "AssetRef": {
+      "type": "object",
+      "properties": {
+        "path": { "type": "string" },
+        "type": { "enum": ["texture", "model", "cubeTexture"] }
+      },
+      "additionalProperties": false
+    },
+    "Shape": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["type", "width", "height", "depth"],
+          "properties": {
+            "type": { "const": "box" },
+            "width": { "type": "number" },
+            "height": { "type": "number" },
+            "depth": { "type": "number" }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["type", "radius"],
+          "properties": {
+            "type": { "const": "sphere" },
+            "radius": { "type": "number" }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["type", "radius", "height"],
+          "properties": {
+            "type": { "const": "cylinder" },
+            "radius": { "type": "number" },
+            "height": { "type": "number" }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["type", "radius", "height"],
+          "properties": {
+            "type": { "const": "capsule" },
+            "radius": { "type": "number" },
+            "height": { "type": "number" }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["type"],
+          "properties": {
+            "type": { "const": "plane" },
+            "normal": { "$ref": "#/$defs/Vec3" }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["type", "model"],
+          "properties": {
+            "type": { "const": "trimesh" },
+            "model": { "type": "string" }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "MaterialRef": {
+      "type": "object",
+      "properties": {
+        "color": { "$ref": "#/$defs/Color" },
+        "map": { "type": "string" },
+        "roughness": { "type": "number" },
+        "metalness": { "type": "number" }
+      },
+      "additionalProperties": false
+    },
+    "EntityScripts": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "Entity": {
+      "type": "object",
+      "required": ["id"],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "bodyType": { "enum": ["static", "dynamic", "kinematic"] },
+        "shape": { "$ref": "#/$defs/Shape" },
+        "position": { "$ref": "#/$defs/Vec3" },
+        "rotation": { "$ref": "#/$defs/Quat" },
+        "scale": { "$ref": "#/$defs/Vec3" },
+        "model": { "type": "string" },
+        "material": { "$ref": "#/$defs/MaterialRef" },
+        "mass": { "type": "number" },
+        "restitution": { "type": "number" },
+        "friction": { "type": "number" },
+        "scripts": { "$ref": "#/$defs/EntityScripts" }
+      },
+      "additionalProperties": false
+    }
+  }
+}
