@@ -1,42 +1,14 @@
-import type { RennWorld, Entity, Vec3, Quat, Shape, Color } from '@/types/world'
+import type { RennWorld, Entity, Vec3, Quat, Shape } from '@/types/world'
 import { getDefaultShapeForType, type AddableShapeType } from '@/data/entityDefaults'
 import { uiLogger } from '@/utils/uiLogger'
+import Vec3Field from './Vec3Field'
+import QuatField from './QuatField'
 
 export interface PropertyPanelProps {
   world: RennWorld
   selectedEntityId: string | null
   onWorldChange: (world: RennWorld) => void
   onDeleteEntity?: (entityId: string) => void
-}
-
-function vec3ToString(v: Vec3): string {
-  return `${v[0]}, ${v[1]}, ${v[2]}`
-}
-
-function quatToString(q: Quat): string {
-  return `${q[0]}, ${q[1]}, ${q[2]}, ${q[3]}`
-}
-
-function parseVec3(s: string): Vec3 | null {
-  const parts = s.split(',').map((x) => parseFloat(x.trim()))
-  if (parts.length !== 3 || parts.some(Number.isNaN)) return null
-  return [parts[0], parts[1], parts[2]]
-}
-
-function parseQuat(s: string): Quat | null {
-  const parts = s.split(',').map((x) => parseFloat(x.trim()))
-  if (parts.length !== 4 || parts.some(Number.isNaN)) return null
-  return [parts[0], parts[1], parts[2], parts[3]]
-}
-
-function colorToString(c: Color): string {
-  return `${c[0]}, ${c[1]}, ${c[2]}`
-}
-
-function parseColor(s: string): Color | null {
-  const parts = s.split(',').map((x) => parseFloat(x.trim()))
-  if (parts.length !== 3 || parts.some(Number.isNaN)) return null
-  return [parts[0], parts[1], parts[2]]
 }
 
 const ADDABLE_SHAPE_TYPES: AddableShapeType[] = ['box', 'sphere', 'cylinder', 'capsule', 'plane']
@@ -69,8 +41,7 @@ export default function PropertyPanel({ world, selectedEntityId, onWorldChange, 
 
   const shapeType = (entity.shape?.type ?? 'box') as AddableShapeType
   const effectiveShapeType = ADDABLE_SHAPE_TYPES.includes(shapeType) ? shapeType : 'box'
-  const color = entity.material?.color ?? [0.7, 0.7, 0.7]
-  const colorStr = colorToString(color)
+  const color: Vec3 = (entity.material?.color ?? [0.7, 0.7, 0.7]).slice(0, 3) as Vec3
 
   const updateShape = (shape: Shape) => updateEntity({ shape })
   const setShapeType = (newType: AddableShapeType) => {
@@ -249,51 +220,37 @@ export default function PropertyPanel({ world, selectedEntityId, onWorldChange, 
           </>
         )
       })()}
-      <label style={{ display: 'block', marginBottom: 8 }}>
-        Position (x, y, z)
-        <input
-          type="text"
-          value={vec3ToString(position)}
-          onChange={(e) => {
-            const v = parseVec3(e.target.value)
-            if (v) {
-              uiLogger.change('PropertyPanel', 'Change position', { entityId: entity.id, oldValue: position, newValue: v })
-              updateEntity({ position: v })
-            }
-          }}
-          style={{ display: 'block', width: '100%' }}
-        />
-      </label>
-      <label style={{ display: 'block', marginBottom: 8 }}>
-        Rotation (quat x, y, z, w)
-        <input
-          type="text"
-          value={quatToString(rotation)}
-          onChange={(e) => {
-            const q = parseQuat(e.target.value)
-            if (q) {
-              uiLogger.change('PropertyPanel', 'Change rotation', { entityId: entity.id, oldValue: rotation, newValue: q })
-              updateEntity({ rotation: q })
-            }
-          }}
-          style={{ display: 'block', width: '100%' }}
-        />
-      </label>
-      <label style={{ display: 'block', marginBottom: 8 }}>
-        Scale (x, y, z)
-        <input
-          type="text"
-          value={vec3ToString(scale)}
-          onChange={(e) => {
-            const v = parseVec3(e.target.value)
-            if (v) {
-              uiLogger.change('PropertyPanel', 'Change scale', { entityId: entity.id, oldValue: scale, newValue: v })
-              updateEntity({ scale: v })
-            }
-          }}
-          style={{ display: 'block', width: '100%' }}
-        />
-      </label>
+      <Vec3Field
+        label="Position"
+        value={position}
+        onChange={(v) => {
+          uiLogger.change('PropertyPanel', 'Change position', { entityId: entity.id, oldValue: position, newValue: v })
+          updateEntity({ position: v })
+        }}
+        sensitivity={0.05}
+        idPrefix={`${entity.id}-position`}
+      />
+      <QuatField
+        label="Rotation (quat)"
+        value={rotation}
+        onChange={(q) => {
+          uiLogger.change('PropertyPanel', 'Change rotation', { entityId: entity.id, oldValue: rotation, newValue: q })
+          updateEntity({ rotation: q })
+        }}
+        idPrefix={`${entity.id}-rotation`}
+      />
+      <Vec3Field
+        label="Scale"
+        value={scale}
+        onChange={(v) => {
+          uiLogger.change('PropertyPanel', 'Change scale', { entityId: entity.id, oldValue: scale, newValue: v })
+          updateEntity({ scale: v })
+        }}
+        min={0.01}
+        step={0.1}
+        sensitivity={0.01}
+        idPrefix={`${entity.id}-scale`}
+      />
       <label style={{ display: 'block', marginBottom: 8 }}>
         Body type
         <select
@@ -360,21 +317,20 @@ export default function PropertyPanel({ world, selectedEntityId, onWorldChange, 
         />
       </label>
       <h4 style={{ margin: '12px 0 8px' }}>Material</h4>
-      <label style={{ display: 'block', marginBottom: 8 }}>
-        Color (r, g, b 0–1)
-        <input
-          type="text"
-          value={colorStr}
-          onChange={(e) => {
-            const c = parseColor(e.target.value)
-            if (c) {
-              uiLogger.change('PropertyPanel', 'Change color', { entityId: entity.id, oldValue: color, newValue: c })
-              updateEntity({ material: { ...entity.material, color: c } })
-            }
-          }}
-          style={{ display: 'block', width: '100%' }}
-        />
-      </label>
+      <Vec3Field
+        label="Color (R, G, B 0–1)"
+        value={color}
+        onChange={(c) => {
+          uiLogger.change('PropertyPanel', 'Change color', { entityId: entity.id, oldValue: color, newValue: c })
+          updateEntity({ material: { ...entity.material, color: c } })
+        }}
+        min={0}
+        max={1}
+        step={0.01}
+        sensitivity={0.005}
+        axisLabels={['R', 'G', 'B']}
+        idPrefix={`${entity.id}-color`}
+      />
       <label style={{ display: 'block', marginBottom: 8 }}>
         Roughness
         <input

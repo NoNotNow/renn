@@ -58,4 +58,20 @@ describe('PropertyPanel', () => {
     await user.type(widthInput, '2')
     expect(onWorldChange).toHaveBeenCalled()
   })
+
+  it('changing Position X calls onWorldChange with updated entity position', async () => {
+    const user = userEvent.setup()
+    const onWorldChange = vi.fn()
+    const world = worldWithBox()
+    const entityId = world.entities[0].id
+    renderPropertyPanel(world, entityId, onWorldChange)
+    const positionXInput = screen.getByLabelText(/position x/i)
+    await user.clear(positionXInput)
+    await user.type(positionXInput, '1')
+    expect(onWorldChange).toHaveBeenCalled()
+    const lastCall = onWorldChange.mock.calls[onWorldChange.mock.calls.length - 1]
+    const updatedWorld = lastCall[0]
+    const updatedEntity = updatedWorld.entities.find((e) => e.id === entityId)
+    expect(updatedEntity?.position).toEqual([1, 0, 0])
+  })
 })

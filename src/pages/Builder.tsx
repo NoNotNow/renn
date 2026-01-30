@@ -20,6 +20,7 @@ export default function Builder() {
   const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null)
   const [cameraTarget, setCameraTarget] = useState(sampleWorld.world.camera?.target ?? 'ball')
   const [cameraMode, setCameraMode] = useState(sampleWorld.world.camera?.mode ?? 'follow')
+  const [gravityEnabled, setGravityEnabled] = useState(true)
   const [rightTab, setRightTab] = useState<'properties' | 'scripts' | 'assets'>('properties')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const addEntitySelectRef = useRef<HTMLSelectElement>(null)
@@ -203,6 +204,41 @@ export default function Builder() {
         <button type="button" onClick={loadProjects}>Refresh list</button>
         <button type="button" onClick={handleDelete} disabled={!currentProjectId}>Delete</button>
         <button type="button" onClick={handlePlay}>Play</button>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 8 }}>
+          <span>Gravity</span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={gravityEnabled}
+            onClick={() => {
+              setGravityEnabled((v) => !v)
+              uiLogger.change('Builder', 'Toggle gravity', { enabled: !gravityEnabled })
+            }}
+            style={{
+              width: 40,
+              height: 22,
+              borderRadius: 11,
+              border: '1px solid #888',
+              background: gravityEnabled ? '#4a9' : '#ccc',
+              cursor: 'pointer',
+              position: 'relative',
+            }}
+          >
+            <span
+              style={{
+                position: 'absolute',
+                top: 2,
+                left: gravityEnabled ? 20 : 2,
+                width: 16,
+                height: 16,
+                borderRadius: '50%',
+                background: '#fff',
+                boxShadow: '0 1px 2px rgba(0,0,0,0.2)',
+                transition: 'left 0.15s ease',
+              }}
+            />
+          </button>
+        </label>
       </header>
 
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
@@ -297,6 +333,7 @@ export default function Builder() {
               assets={assets}
               runPhysics
               runScripts
+              gravityEnabled={gravityEnabled}
             />
           </div>
 

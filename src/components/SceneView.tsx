@@ -2,6 +2,7 @@ import { useRef, useEffect, useCallback } from 'react'
 import * as THREE from 'three'
 import { loadWorld } from '@/loader/loadWorld'
 import type { RennWorld } from '@/types/world'
+import { DEFAULT_GRAVITY } from '@/types/world'
 import type { LoadedEntity } from '@/loader/loadWorld'
 import { CameraController } from '@/camera/cameraController'
 import { createGameAPI } from '@/scripts/gameApi'
@@ -9,12 +10,14 @@ import { ScriptRunner } from '@/scripts/scriptRunner'
 import type { PhysicsWorld } from '@/physics/rapierPhysics'
 
 const FIXED_DT = 1 / 60
+const ZERO_GRAVITY: [number, number, number] = [0, 0, 0]
 
 export interface SceneViewProps {
   world: RennWorld
   assets?: Map<string, Blob>
   runPhysics?: boolean
   runScripts?: boolean
+  gravityEnabled?: boolean
   className?: string
 }
 
@@ -23,6 +26,7 @@ export default function SceneView({
   assets: _assets = new Map(),
   runPhysics = true,
   runScripts = true,
+  gravityEnabled = true,
   className = '',
 }: SceneViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -87,11 +91,11 @@ export default function SceneView({
     camera.updateProjectionMatrix()
 
     // Initialize physics
-    let physicsWorld: PhysicsWorld | null = null
     if (runPhysics) {
+      const gravity = gravityEnabled ? (loadedWorld.world.gravity ?? DEFAULT_GRAVITY) : ZERO_GRAVITY
       import('@/physics/rapierPhysics').then((mod) => {
         mod.createPhysicsWorld(loadedWorld, entities).then((pw) => {
-          physicsWorld = pw
+          pw.setGravity(gravity)
           physicsRef.current = pw
         })
       })
@@ -102,14 +106,15 @@ export default function SceneView({
       const dt = FIXED_DT
       timeRef.current += dt
 
-      // Step physics and sync transforms
-      if (physicsWorld && runPhysics) {
-        physicsWorld.step(dt)
-        physicsWorld.syncToMeshes()
+      // Use physicsRef.current (not closure) so we never step after dispose
+      const pw = physicsRef.current
+      if (pw && runPhysics) {
+        pw.step(dt)
+        pw.syncToMeshes()
 
         // Handle collision events
         if (scriptRunnerRef.current && runScripts) {
-          const collisions = physicsWorld.getCollisions()
+          const collisions = pw.getCollisions()
           for (const { entityIdA, entityIdB } of collisions) {
             scriptRunnerRef.current.runOnCollision(entityIdA, entityIdB)
             scriptRunnerRef.current.runOnCollision(entityIdB, entityIdA)
@@ -145,21 +150,28 @@ export default function SceneView({
       ro.disconnect()
       window.removeEventListener('resize', onResize)
       cancelAnimationFrame(frameRef.current)
+      const pw = physicsRef.current
+      physicsRef.current = null // Prevent animate from stepping disposed world
+      if (pw) pw.dispose()
       renderer.dispose()
       if (container && renderer.domElement.parentNode === container) {
         container.removeChild(renderer.domElement)
-      }
-      if (physicsRef.current) {
-        physicsRef.current.dispose()
       }
       sceneRef.current = null
       cameraRef.current = null
       rendererRef.current = null
       cameraCtrlRef.current = null
       scriptRunnerRef.current = null
-      physicsRef.current = null
     }
-  }, [world, runPhysics, runScripts, getMeshById])
+  }, [world, runPhysics, runScripts, gravityEnabled, getMeshById])
+
+  useEffect(() => {
+    if (!runPhysics) return
+    const pw = physicsRef.current
+    if (!pw) return
+    const gravity = gravityEnabled ? (world.world.gravity ?? DEFAULT_GRAVITY) : ZERO_GRAVITY
+    pw.setGravity(gravity)
+  }, [gravityEnabled, world.world.gravity, runPhysics])
 
   return <div ref={containerRef} className={className} style={{ width: '100%', height: '100%' }} />
 }
