@@ -8,7 +8,7 @@ const ADDABLE_SHAPE_TYPES: AddableShapeType[] = ['box', 'sphere', 'cylinder', 'c
 function minimalWorld(entities: RennWorld['entities']): RennWorld {
   return {
     version: '1.0',
-    world: { gravity: [0, -9.81, 0], camera: { mode: 'follow', target: '', distance: 10, height: 2 } },
+    world: { gravity: [0, -9.81, 0], camera: { control: 'free', mode: 'follow', target: '', distance: 10, height: 2 } },
     entities,
   }
 }

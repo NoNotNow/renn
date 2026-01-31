@@ -14,7 +14,7 @@ function worldWithBox(): RennWorld {
   const boxEntity = createDefaultEntity('box')
   return {
     version: '1.0',
-    world: { camera: { mode: 'follow', target: boxEntity.id } },
+    world: { camera: { control: 'free', mode: 'follow', target: boxEntity.id } },
     entities: [boxEntity],
   }
 }
@@ -23,7 +23,7 @@ function worldWithCylinder(): RennWorld {
   const entity = createDefaultEntity('cylinder')
   return {
     version: '1.0',
-    world: { camera: { mode: 'follow', target: entity.id } },
+    world: { camera: { control: 'free', mode: 'follow', target: entity.id } },
     entities: [entity],
   }
 }

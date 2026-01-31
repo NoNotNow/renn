@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render } from '@testing-library/react'
-import SceneView from '@/components/SceneView'
+import SceneView, { type SceneViewHandle } from '@/components/SceneView'
 import type { RennWorld } from '@/types/world'
 
 vi.mock('three', async (importOriginal) => {
@@ -23,7 +23,7 @@ const minimalWorld: RennWorld = {
   version: '1.0',
   world: {
     gravity: [0, -9.81, 0],
-    camera: { mode: 'follow', target: 'box', distance: 10, height: 2 },
+    camera: { control: 'free', mode: 'follow', target: 'box', distance: 10, height: 2 },
   },
   entities: [
     {
@@ -96,5 +96,17 @@ describe('SceneView', () => {
     }).not.toThrow()
     const container = document.querySelector('div[style*="width: 100%"]')
     expect(container).toBeInTheDocument()
+  })
+
+  it('exposes setViewPreset via ref', () => {
+    const ref = { current: null as SceneViewHandle | null }
+    render(
+      <SceneView ref={ref} world={minimalWorld} runPhysics={false} runScripts={false} />
+    )
+    expect(ref.current).not.toBeNull()
+    expect(ref.current?.setViewPreset).toBeTypeOf('function')
+    expect(() => ref.current?.setViewPreset('top')).not.toThrow()
+    expect(() => ref.current?.setViewPreset('front')).not.toThrow()
+    expect(() => ref.current?.setViewPreset('right')).not.toThrow()
   })
 })

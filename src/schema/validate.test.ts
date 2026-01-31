@@ -11,7 +11,7 @@ function worldWithOneEntityPerShape(): RennWorld {
     version: '1.0',
     world: {
       gravity: [0, -9.81, 0],
-      camera: { mode: 'follow', target: entities[0].id, distance: 10, height: 2 },
+      camera: { control: 'free', mode: 'follow', target: entities[0].id, distance: 10, height: 2 },
     },
     entities,
   }
@@ -30,7 +30,7 @@ describe('validateWorldDocument', () => {
   it('throws for payload missing required "id" on entity', () => {
     const invalid = {
       version: '1.0',
-      world: { camera: { mode: 'follow', target: '' } },
+      world: { camera: { control: 'free', mode: 'follow', target: '' } },
       entities: [{ bodyType: 'static' }],
     }
     expect(() => validateWorldDocument(invalid)).toThrow(/Invalid world/)
@@ -39,7 +39,7 @@ describe('validateWorldDocument', () => {
   it('throws for invalid entity shape structure', () => {
     const invalid: unknown = {
       version: '1.0',
-      world: { camera: { mode: 'follow', target: '' } },
+      world: { camera: { control: 'free', mode: 'follow', target: '' } },
       entities: [
         {
           id: 'bad',

@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
-import SceneView from '@/components/SceneView'
+import SceneView, { type SceneViewHandle } from '@/components/SceneView'
 import Switch from '@/components/Switch'
 import ScriptPanel from '@/components/ScriptPanel'
 import AssetPanel from '@/components/AssetPanel'
@@ -32,6 +32,9 @@ export default function Builder() {
   const [projects, setProjects] = useState<ProjectMeta[]>([])
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null)
   const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null)
+  const [cameraControl, setCameraControl] = useState<'free' | 'follow' | 'top' | 'front' | 'right'>(
+    (sampleWorld.world.camera?.control ?? 'free') as 'free' | 'follow' | 'top' | 'front' | 'right'
+  )
   const [cameraTarget, setCameraTarget] = useState(sampleWorld.world.camera?.target ?? 'ball')
   const [cameraMode, setCameraMode] = useState(sampleWorld.world.camera?.mode ?? 'follow')
   const [gravityEnabled, setGravityEnabled] = useState(true)
@@ -39,6 +42,7 @@ export default function Builder() {
   const [rightTab, setRightTab] = useState<'properties' | 'scripts' | 'assets'>('properties')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const addEntitySelectRef = useRef<HTMLSelectElement>(null)
+  const sceneViewRef = useRef<SceneViewHandle>(null)
 
   const loadProjects = useCallback(() => {
     uiLogger.click('Builder', 'Refresh project list')
@@ -65,6 +69,9 @@ export default function Builder() {
         setAssets(a)
         setCurrentProjectId(id)
         setSelectedEntityId(null)
+        setCameraControl((w.world.camera?.control ?? 'free') as 'free' | 'follow' | 'top' | 'front' | 'right')
+        setCameraTarget(w.world.camera?.target ?? '')
+        setCameraMode(w.world.camera?.mode ?? 'follow')
       })
     },
     []
@@ -167,12 +174,13 @@ export default function Builder() {
         ...world.world,
         camera: {
           ...world.world.camera,
+          control: cameraControl,
           target: cameraTarget,
           mode: cameraMode,
         },
       },
     }),
-    [world, cameraTarget, cameraMode]
+    [world, cameraControl, cameraTarget, cameraMode]
   )
 
   const handleAddEntity = useCallback(
@@ -306,39 +314,61 @@ export default function Builder() {
           </ul>
           <h3 style={{ margin: '16px 0 8px' }}>Camera</h3>
           <label>
-            Target
+            Control
             <select
-              value={cameraTarget}
+              value={cameraControl}
               onChange={(e) => {
-                uiLogger.change('Builder', 'Change camera target', { target: e.target.value })
-                setCameraTarget(e.target.value)
+                const value = e.target.value as 'free' | 'follow' | 'top' | 'front' | 'right'
+                uiLogger.change('Builder', 'Change camera control', { control: value })
+                setCameraControl(value)
               }}
             >
-              <option value="">— None —</option>
-              {world.entities.map((e) => (
-                <option key={e.id} value={e.id}>{e.name ?? e.id}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Mode
-            <select
-              value={cameraMode}
-              onChange={(e) => {
-                uiLogger.change('Builder', 'Change camera mode', { mode: e.target.value })
-                setCameraMode(e.target.value as 'follow' | 'firstPerson' | 'thirdPerson')
-              }}
-            >
+              <option value="free">Free (WASD)</option>
               <option value="follow">Follow</option>
-              <option value="thirdPerson">Third person</option>
-              <option value="firstPerson">First person</option>
+              <option value="top">Top</option>
+              <option value="front">Front</option>
+              <option value="right">Right</option>
             </select>
           </label>
+          {cameraControl === 'follow' && (
+            <>
+              <label>
+                Target
+                <select
+                  value={cameraTarget}
+                  onChange={(e) => {
+                    uiLogger.change('Builder', 'Change camera target', { target: e.target.value })
+                    setCameraTarget(e.target.value)
+                  }}
+                >
+                  <option value="">— None —</option>
+                  {world.entities.map((e) => (
+                    <option key={e.id} value={e.id}>{e.name ?? e.id}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Mode
+                <select
+                  value={cameraMode}
+                  onChange={(e) => {
+                    uiLogger.change('Builder', 'Change camera mode', { mode: e.target.value })
+                    setCameraMode(e.target.value as 'follow' | 'firstPerson' | 'thirdPerson')
+                  }}
+                >
+                  <option value="follow">Follow</option>
+                  <option value="thirdPerson">Third person</option>
+                  <option value="firstPerson">First person</option>
+                </select>
+              </label>
+            </>
+          )}
         </aside>
 
         <main style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
           <div style={{ flex: 1, minHeight: 300 }}>
             <SceneView
+              ref={sceneViewRef}
               world={sceneWorld}
               assets={assets}
               runPhysics

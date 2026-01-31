@@ -77,7 +77,7 @@ export function loadWorld(
     scene.background = new THREE.Color(r, g, b)
   }
 
-  scene.userData.camera = world.world.camera ?? { mode: 'follow', target: '', distance: 10, height: 2 }
+  scene.userData.camera = world.world.camera ?? { control: 'free', mode: 'follow', target: '', distance: 10, height: 2 }
   scene.userData.world = world
 
   const entities: LoadedEntity[] = []

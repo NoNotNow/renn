@@ -1,10 +1,10 @@
-import { useRef, useEffect, useCallback } from 'react'
+import { useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react'
 import * as THREE from 'three'
 import { loadWorld } from '@/loader/loadWorld'
 import type { RennWorld, Vec3 } from '@/types/world'
 import { DEFAULT_GRAVITY } from '@/types/world'
 import type { LoadedEntity } from '@/loader/loadWorld'
-import { CameraController } from '@/camera/cameraController'
+import { CameraController, DEFAULT_FREE_FLY_KEYS } from '@/camera/cameraController'
 import { createGameAPI } from '@/scripts/gameApi'
 import { ScriptRunner } from '@/scripts/scriptRunner'
 import type { PhysicsWorld } from '@/physics/rapierPhysics'
@@ -26,7 +26,11 @@ export interface SceneViewProps {
   onEntityPositionChange?: (entityId: string, position: Vec3) => void
 }
 
-export default function SceneView({
+export interface SceneViewHandle {
+  setViewPreset: (preset: 'top' | 'front' | 'right') => void
+}
+
+function SceneViewInner({
   world,
   assets: _assets = new Map(),
   runPhysics = true,
@@ -37,7 +41,7 @@ export default function SceneView({
   selectedEntityId: _selectedEntityId,
   onSelectEntity,
   onEntityPositionChange,
-}: SceneViewProps) {
+}: SceneViewProps, ref: React.Ref<SceneViewHandle>) {
   const containerRef = useRef<HTMLDivElement>(null)
   const sceneRef = useRef<THREE.Scene | null>(null)
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null)
@@ -50,6 +54,12 @@ export default function SceneView({
   const frameRef = useRef<number>(0)
   const editorPropsRef = useRef({ onSelectEntity, onEntityPositionChange })
   editorPropsRef.current = { onSelectEntity, onEntityPositionChange }
+  const freeFlyKeysRef = useRef({ ...DEFAULT_FREE_FLY_KEYS })
+  useImperativeHandle(ref, () => ({
+    setViewPreset: (preset: 'top' | 'front' | 'right') => {
+      cameraCtrlRef.current?.setViewPreset(preset)
+    },
+  }), [])
   const dragStateRef = useRef<{
     entityId: string
     plane: THREE.Plane
@@ -109,6 +119,49 @@ export default function SceneView({
     if (dirLight) dirLight.castShadow = shadowsEnabled
     camera.aspect = w / h
     camera.updateProjectionMatrix()
+
+    // Free camera: keyboard state for WASD + Shift (ignore when typing in inputs)
+    const keys = freeFlyKeysRef.current
+    const isEditableElement = (): boolean => {
+      const el = document.activeElement
+      if (!el) return false
+      const tag = el.tagName
+      return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (el as HTMLElement).isContentEditable
+    }
+    const onKeyDown = (e: KeyboardEvent): void => {
+      if (isEditableElement()) return
+      switch (e.code) {
+        case 'KeyW': keys.w = true; break
+        case 'KeyA': keys.a = true; break
+        case 'KeyS': keys.s = true; break
+        case 'KeyD': keys.d = true; break
+        case 'ShiftLeft':
+        case 'ShiftRight': keys.shift = true; break
+        default: return
+      }
+    }
+    const onKeyUp = (e: KeyboardEvent): void => {
+      if (isEditableElement()) return
+      switch (e.code) {
+        case 'KeyW': keys.w = false; break
+        case 'KeyA': keys.a = false; break
+        case 'KeyS': keys.s = false; break
+        case 'KeyD': keys.d = false; break
+        case 'ShiftLeft':
+        case 'ShiftRight': keys.shift = false; break
+        default: return
+      }
+    }
+    const onBlur = (): void => {
+      keys.w = false
+      keys.a = false
+      keys.s = false
+      keys.d = false
+      keys.shift = false
+    }
+    window.addEventListener('keydown', onKeyDown)
+    window.addEventListener('keyup', onKeyUp)
+    window.addEventListener('blur', onBlur)
 
     let removePointerListeners: (() => void) | null = null
     // Editor: pointer handling for click-to-select and drag-to-move
@@ -245,7 +298,13 @@ export default function SceneView({
         scriptRunnerRef.current.runOnUpdate(dt)
       }
 
-      if (cameraCtrlRef.current) cameraCtrlRef.current.update(dt)
+      const ctrl = cameraCtrlRef.current
+      if (ctrl) {
+        if ((ctrl.getConfig().control ?? 'free') === 'free') {
+          ctrl.setFreeFlyInput(freeFlyKeysRef.current)
+        }
+        ctrl.update(dt)
+      }
 
       if (renderer && scene && camera) {
         renderer.render(scene, camera)
@@ -266,6 +325,9 @@ export default function SceneView({
     ro.observe(container)
 
     return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('keyup', onKeyUp)
+      window.removeEventListener('blur', onBlur)
       removePointerListeners?.()
       cancelled = true
       ro.disconnect()
@@ -306,3 +368,7 @@ export default function SceneView({
 
   return <div ref={containerRef} className={className} style={{ width: '100%', height: '100%' }} />
 }
+
+const SceneView = forwardRef<SceneViewHandle, SceneViewProps>(SceneViewInner)
+SceneView.displayName = 'SceneView'
+export default SceneView

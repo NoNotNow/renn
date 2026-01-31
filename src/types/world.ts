@@ -9,7 +9,10 @@ export type Color = [number, number, number] | [number, number, number, number]
 
 export type CameraMode = 'firstPerson' | 'thirdPerson' | 'follow'
 
+export type CameraControl = 'free' | 'follow' | 'top' | 'front' | 'right'
+
 export interface CameraConfig {
+  control?: CameraControl
   mode: CameraMode
   target: string
   distance?: number

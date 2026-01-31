@@ -11,7 +11,7 @@ export const sampleWorld: RennWorld = {
       intensity: 1.2,
     },
     skyColor: [0.4, 0.6, 0.9],
-    camera: { mode: 'follow', target: 'ball', distance: 8, height: 2 },
+    camera: { control: 'free', mode: 'follow', target: 'ball', distance: 8, height: 2 },
   },
   assets: {},
   entities: [

@@ -10,7 +10,7 @@ function minimalWorldWithShapes(): RennWorld {
     version: '1.0',
     world: {
       gravity: [0, -9.81, 0],
-      camera: { mode: 'follow', target: entities[0].id, distance: 10, height: 2 },
+      camera: { control: 'free', mode: 'follow', target: entities[0].id, distance: 10, height: 2 },
     },
     entities,
   }

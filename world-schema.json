@@ -66,6 +66,7 @@
     "CameraConfig": {
       "type": "object",
       "properties": {
+        "control": { "enum": ["free", "follow", "top", "front", "right"] },
         "mode": { "enum": ["firstPerson", "thirdPerson", "follow"] },
         "target": { "type": "string" },
         "distance": { "type": "number" },
