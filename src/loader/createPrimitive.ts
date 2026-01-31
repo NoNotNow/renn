@@ -1,6 +1,5 @@
 import * as THREE from 'three'
 import type { Shape, Vec3, Quat, MaterialRef } from '@/types/world'
-import { DEFAULT_SCALE, DEFAULT_ROTATION } from '@/types/world'
 
 function colorFromRef(material: MaterialRef | undefined): THREE.Color {
   if (material?.color && Array.isArray(material.color)) {
@@ -87,15 +86,4 @@ export function buildEntityMesh(
     mesh.quaternion.premultiply(q)
   }
   return mesh
-}
-
-export function applyEntityTransform(
-  mesh: THREE.Mesh,
-  position: Vec3,
-  rotation: Quat,
-  scale: Vec3
-): void {
-  mesh.position.set(position[0], position[1], position[2])
-  mesh.quaternion.set(rotation[0], rotation[1], rotation[2], rotation[3])
-  mesh.scale.set(scale[0], scale[1], scale[2])
 }

@@ -85,7 +85,7 @@ export function createIndexedDbPersistence(): PersistenceAPI {
     },
 
     async exportProject(id: string): Promise<Blob> {
-      const { JSZip } = await import('jszip')
+      const JSZip = (await import('jszip')).default
       const { world, assets } = await this.loadProject(id)
       const zip = new JSZip()
       zip.file('world.json', JSON.stringify(world, null, 2))
@@ -100,7 +100,7 @@ export function createIndexedDbPersistence(): PersistenceAPI {
     },
 
     async importProject(file: File): Promise<{ id: string }> {
-      const { JSZip } = await import('jszip')
+      const JSZip = (await import('jszip')).default
       const { validateWorldDocument } = await import('@/schema/validate')
       const zip = await JSZip.loadAsync(file)
       const worldFile = zip.file('world.json')

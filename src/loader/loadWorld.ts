@@ -9,6 +9,7 @@ import {
 } from '@/types/world'
 import { buildEntityMesh } from './createPrimitive'
 import type { AssetResolver } from './assetResolver'
+import { getSceneUserData } from '@/types/sceneUserData'
 
 export interface LoadedEntity {
   entity: Entity
@@ -33,9 +34,10 @@ export function loadWorld(
   const world = worldData as RennWorld
 
   const scene = new THREE.Scene()
+  const userData = getSceneUserData(scene)
 
   const gravity = world.world.gravity ?? DEFAULT_GRAVITY
-  scene.userData.gravity = gravity
+  userData.gravity = gravity
 
   const ambient = world.world.ambientLight
   if (ambient) {
@@ -69,7 +71,7 @@ export function loadWorld(
   shadowCam.updateProjectionMatrix()
   scene.add(dirLight)
   scene.add(dirLight.target)
-  ;(scene.userData as { directionalLight?: THREE.DirectionalLight }).directionalLight = dirLight
+  userData.directionalLight = dirLight
 
   const skyColor = world.world.skyColor
   if (skyColor) {
@@ -77,8 +79,8 @@ export function loadWorld(
     scene.background = new THREE.Color(r, g, b)
   }
 
-  scene.userData.camera = world.world.camera ?? { control: 'free', mode: 'follow', target: '', distance: 10, height: 2 }
-  scene.userData.world = world
+  userData.camera = world.world.camera ?? { control: 'free', mode: 'follow', target: '', distance: 10, height: 2 }
+  userData.world = world
 
   const entities: LoadedEntity[] = []
 

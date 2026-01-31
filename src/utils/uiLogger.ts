@@ -104,5 +104,5 @@ export const uiLogger = new UILogger()
 
 // Make it available globally for debugging
 if (typeof window !== 'undefined') {
-  ;(window as any).uiLogger = uiLogger
+  (window as Window & { uiLogger?: UILogger }).uiLogger = uiLogger
 }

@@ -2,16 +2,18 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
-import Builder, { updateEntityPosition } from '@/pages/Builder'
+import { forwardRef } from 'react'
+import Builder from '@/pages/Builder'
+import { updateEntityPosition } from '@/utils/worldUtils'
 import { sampleWorld } from '@/data/sampleWorld'
 import type { RennWorld, Vec3 } from '@/types/world'
 
 const sceneViewProps: Record<string, unknown> = {}
 vi.mock('@/components/SceneView', () => ({
-  default: (props: Record<string, unknown>) => {
+  default: forwardRef((props: Record<string, unknown>, _ref) => {
     Object.assign(sceneViewProps, props)
     return <div data-testid="scene-view" />
-  },
+  }),
 }))
 
 vi.mock('@/persistence/indexedDb', () => ({
