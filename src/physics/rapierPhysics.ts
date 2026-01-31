@@ -8,15 +8,14 @@ export type CollisionPair = { entityIdA: string; entityIdB: string }
 
 export class PhysicsWorld {
   private world: RAPIER.World
-  private eventQueue: RAPIER.EventQueue
   private bodyMap: Map<string, RAPIER.RigidBody> = new Map()
   private colliderMap: Map<string, RAPIER.Collider> = new Map()
   private colliderHandleToEntityId: Map<number, string> = new Map()
   private entityToMesh: Map<string, THREE.Mesh> = new Map()
+  private lastCollisions: CollisionPair[] = []
 
   constructor(gravity: [number, number, number] = DEFAULT_GRAVITY) {
     this.world = new RAPIER.World({ x: gravity[0], y: gravity[1], z: gravity[2] })
-    this.eventQueue = new RAPIER.EventQueue(true)
   }
 
   setGravity(gravity: [number, number, number]): void {
@@ -132,7 +131,18 @@ export class PhysicsWorld {
   }
 
   step(_dt: number): void {
-    this.world.step(this.eventQueue)
+    const eventQueue = new RAPIER.EventQueue(true)
+    this.world.step(eventQueue)
+    this.lastCollisions = []
+    eventQueue.drainCollisionEvents((handle1: number, handle2: number, started: boolean) => {
+      if (!started) return
+      const entityIdA = this.colliderHandleToEntityId.get(handle1)
+      const entityIdB = this.colliderHandleToEntityId.get(handle2)
+      if (entityIdA && entityIdB) {
+        this.lastCollisions.push({ entityIdA, entityIdB })
+      }
+    })
+    eventQueue.free()
   }
 
   syncToMeshes(): void {
@@ -151,20 +161,7 @@ export class PhysicsWorld {
   }
 
   getCollisions(): CollisionPair[] {
-    const pairs: CollisionPair[] = []
-
-    this.eventQueue.drainCollisionEvents((handle1: number, handle2: number, started: boolean) => {
-      if (!started) return // Only report collision start events
-
-      const entityIdA = this.colliderHandleToEntityId.get(handle1)
-      const entityIdB = this.colliderHandleToEntityId.get(handle2)
-
-      if (entityIdA && entityIdB) {
-        pairs.push({ entityIdA, entityIdB })
-      }
-    })
-
-    return pairs
+    return this.lastCollisions
   }
 
   getBody(entityId: string): RAPIER.RigidBody | undefined {
@@ -204,7 +201,7 @@ export class PhysicsWorld {
     this.colliderMap.clear()
     this.colliderHandleToEntityId.clear()
     this.entityToMesh.clear()
-    this.eventQueue.free()
+    this.lastCollisions = []
     this.world.free()
   }
 }
@@ -213,7 +210,8 @@ let rapierInitialized = false
 
 export async function initRapier(): Promise<void> {
   if (rapierInitialized) return
-  await RAPIER.init()
+  // Pass single object to satisfy Rapier 0.19+ init API (avoids deprecation warning)
+  await RAPIER.init({})
   rapierInitialized = true
 }
 

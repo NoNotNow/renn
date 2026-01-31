@@ -1,7 +1,7 @@
 import { useRef, useEffect, useCallback } from 'react'
 import * as THREE from 'three'
 import { loadWorld } from '@/loader/loadWorld'
-import type { RennWorld } from '@/types/world'
+import type { RennWorld, Vec3 } from '@/types/world'
 import { DEFAULT_GRAVITY } from '@/types/world'
 import type { LoadedEntity } from '@/loader/loadWorld'
 import { CameraController } from '@/camera/cameraController'
@@ -18,7 +18,12 @@ export interface SceneViewProps {
   runPhysics?: boolean
   runScripts?: boolean
   gravityEnabled?: boolean
+  shadowsEnabled?: boolean
   className?: string
+  /** Editor-only: select entity by clicking in viewport */
+  selectedEntityId?: string | null
+  onSelectEntity?: (entityId: string | null) => void
+  onEntityPositionChange?: (entityId: string, position: Vec3) => void
 }
 
 export default function SceneView({
@@ -27,7 +32,11 @@ export default function SceneView({
   runPhysics = true,
   runScripts = true,
   gravityEnabled = true,
+  shadowsEnabled = true,
   className = '',
+  selectedEntityId: _selectedEntityId,
+  onSelectEntity,
+  onEntityPositionChange,
 }: SceneViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const sceneRef = useRef<THREE.Scene | null>(null)
@@ -39,6 +48,13 @@ export default function SceneView({
   const entitiesRef = useRef<LoadedEntity[]>([])
   const timeRef = useRef(0)
   const frameRef = useRef<number>(0)
+  const editorPropsRef = useRef({ onSelectEntity, onEntityPositionChange })
+  editorPropsRef.current = { onSelectEntity, onEntityPositionChange }
+  const dragStateRef = useRef<{
+    entityId: string
+    plane: THREE.Plane
+    intersectionTarget: THREE.Vector3
+  } | null>(null)
 
   const getMeshById = useCallback((id: string): THREE.Mesh | null => {
     const scene = sceneRef.current
@@ -85,10 +101,108 @@ export default function SceneView({
     const h = Math.max(container.clientHeight || 600, 1)
     renderer.setSize(w, h)
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+    renderer.shadowMap.enabled = shadowsEnabled
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap
     container.appendChild(renderer.domElement)
     rendererRef.current = renderer
+    const dirLight = (scene.userData as { directionalLight?: THREE.DirectionalLight }).directionalLight
+    if (dirLight) dirLight.castShadow = shadowsEnabled
     camera.aspect = w / h
     camera.updateProjectionMatrix()
+
+    let removePointerListeners: (() => void) | null = null
+    // Editor: pointer handling for click-to-select and drag-to-move
+    if (onSelectEntity) {
+      const canvas = renderer.domElement
+      const raycaster = new THREE.Raycaster()
+      const ndc = new THREE.Vector2()
+      const cameraDir = new THREE.Vector3()
+      const intersectionTarget = new THREE.Vector3()
+
+      const getEntityMeshes = (): THREE.Object3D[] =>
+        scene.children.filter((o) => o.userData?.entityId != null)
+
+      const setNdcFromEvent = (e: PointerEvent): void => {
+        const rect = canvas.getBoundingClientRect()
+        ndc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1
+        ndc.y = -((e.clientY - rect.top) / rect.height) * 2 + 1
+      }
+
+      const onPointerDown = (e: PointerEvent): void => {
+        setNdcFromEvent(e)
+        raycaster.setFromCamera(ndc, camera)
+        const hits = raycaster.intersectObjects(getEntityMeshes(), true)
+        const hit = hits[0]
+        if (!hit?.object?.userData?.entityId) {
+          editorPropsRef.current.onSelectEntity?.(null)
+          return
+        }
+        const entityId = hit.object.userData.entityId as string
+        const mesh = hit.object as THREE.Mesh
+        editorPropsRef.current.onSelectEntity?.(entityId)
+        camera.getWorldDirection(cameraDir)
+        const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(
+          cameraDir.clone().negate(),
+          mesh.position.clone()
+        )
+        dragStateRef.current = {
+          entityId,
+          plane,
+          intersectionTarget: intersectionTarget.clone(),
+        }
+        canvas.setPointerCapture(e.pointerId)
+      }
+
+      const onPointerMove = (e: PointerEvent): void => {
+        const drag = dragStateRef.current
+        if (!drag) return
+        setNdcFromEvent(e)
+        raycaster.setFromCamera(ndc, camera)
+        if (!raycaster.ray.intersectPlane(drag.plane, drag.intersectionTarget)) return
+        const scene = sceneRef.current
+        const mesh = scene?.getObjectByName(drag.entityId)
+        if (mesh instanceof THREE.Mesh) {
+          mesh.position.copy(drag.intersectionTarget)
+          physicsRef.current?.setPosition(
+            drag.entityId,
+            drag.intersectionTarget.x,
+            drag.intersectionTarget.y,
+            drag.intersectionTarget.z
+          )
+        }
+      }
+
+      const onPointerUp = (e: PointerEvent): void => {
+        const drag = dragStateRef.current
+        if (drag) {
+          const scene = sceneRef.current
+          const mesh = scene?.getObjectByName(drag.entityId)
+          if (mesh instanceof THREE.Mesh) {
+            const pos = mesh.position
+            editorPropsRef.current.onEntityPositionChange?.(drag.entityId, [
+              pos.x,
+              pos.y,
+              pos.z,
+            ])
+          }
+          canvas.releasePointerCapture(e.pointerId)
+          dragStateRef.current = null
+        }
+      }
+
+      canvas.addEventListener('pointerdown', onPointerDown)
+      canvas.addEventListener('pointermove', onPointerMove)
+      canvas.addEventListener('pointerup', onPointerUp)
+      canvas.addEventListener('pointercancel', onPointerUp)
+
+      removePointerListeners = (): void => {
+        canvas.removeEventListener('pointerdown', onPointerDown)
+        canvas.removeEventListener('pointermove', onPointerMove)
+        canvas.removeEventListener('pointerup', onPointerUp)
+        canvas.removeEventListener('pointercancel', onPointerUp)
+        dragStateRef.current = null
+      }
+    }
 
     // Initialize physics (async - guard against effect cleanup before completion)
     let cancelled = false
@@ -152,6 +266,7 @@ export default function SceneView({
     ro.observe(container)
 
     return () => {
+      removePointerListeners?.()
       cancelled = true
       ro.disconnect()
       window.removeEventListener('resize', onResize)
@@ -178,6 +293,16 @@ export default function SceneView({
     const gravity = gravityEnabled ? (world.world.gravity ?? DEFAULT_GRAVITY) : ZERO_GRAVITY
     pw.setGravity(gravity)
   }, [gravityEnabled, world.world.gravity, runPhysics])
+
+  useEffect(() => {
+    const renderer = rendererRef.current
+    const scene = sceneRef.current
+    if (renderer) renderer.shadowMap.enabled = shadowsEnabled
+    const dirLight = scene?.userData
+      ? (scene.userData as { directionalLight?: THREE.DirectionalLight }).directionalLight
+      : undefined
+    if (dirLight) dirLight.castShadow = shadowsEnabled
+  }, [shadowsEnabled])
 
   return <div ref={containerRef} className={className} style={{ width: '100%', height: '100%' }} />
 }

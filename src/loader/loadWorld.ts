@@ -55,8 +55,21 @@ export function loadWorld(
   const dist = 50
   dirLight.position.set(dx * dist, dy * dist, dz * dist)
   dirLight.target.position.set(0, 0, 0)
+  dirLight.castShadow = true
+  dirLight.shadow.mapSize.width = 2048
+  dirLight.shadow.mapSize.height = 2048
+  dirLight.shadow.bias = -0.0001
+  const shadowCam = dirLight.shadow.camera
+  shadowCam.left = -40
+  shadowCam.right = 40
+  shadowCam.top = 40
+  shadowCam.bottom = -40
+  shadowCam.near = 0.5
+  shadowCam.far = 150
+  shadowCam.updateProjectionMatrix()
   scene.add(dirLight)
   scene.add(dirLight.target)
+  ;(scene.userData as { directionalLight?: THREE.DirectionalLight }).directionalLight = dirLight
 
   const skyColor = world.world.skyColor
   if (skyColor) {
@@ -86,6 +99,9 @@ export function loadWorld(
     mesh.userData.entityId = entity.id
     mesh.userData.entity = entity
     mesh.userData.bodyType = entity.bodyType ?? 'static'
+    const isPlane = shape?.type === 'plane'
+    mesh.castShadow = !isPlane
+    mesh.receiveShadow = true
 
     scene.add(mesh)
     entities.push({ entity, mesh })

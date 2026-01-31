@@ -1,16 +1,30 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import SceneView from '@/components/SceneView'
+import Switch from '@/components/Switch'
 import ScriptPanel from '@/components/ScriptPanel'
 import AssetPanel from '@/components/AssetPanel'
 import PropertyPanel from '@/components/PropertyPanel'
 import { sampleWorld } from '@/data/sampleWorld'
 import { createDefaultEntity, type AddableShapeType } from '@/data/entityDefaults'
 import { createIndexedDbPersistence } from '@/persistence/indexedDb'
-import type { RennWorld } from '@/types/world'
+import type { RennWorld, Vec3 } from '@/types/world'
 import type { ProjectMeta } from '@/persistence/types'
 import { uiLogger } from '@/utils/uiLogger'
 
 const persistence = createIndexedDbPersistence()
+
+export function updateEntityPosition(
+  world: RennWorld,
+  entityId: string,
+  position: Vec3
+): RennWorld {
+  return {
+    ...world,
+    entities: world.entities.map((e) =>
+      e.id === entityId ? { ...e, position } : e
+    ),
+  }
+}
 
 export default function Builder() {
   const [world, setWorld] = useState<RennWorld>(sampleWorld)
@@ -21,6 +35,7 @@ export default function Builder() {
   const [cameraTarget, setCameraTarget] = useState(sampleWorld.world.camera?.target ?? 'ball')
   const [cameraMode, setCameraMode] = useState(sampleWorld.world.camera?.mode ?? 'follow')
   const [gravityEnabled, setGravityEnabled] = useState(true)
+  const [shadowsEnabled, setShadowsEnabled] = useState(true)
   const [rightTab, setRightTab] = useState<'properties' | 'scripts' | 'assets'>('properties')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const addEntitySelectRef = useRef<HTMLSelectElement>(null)
@@ -188,6 +203,13 @@ export default function Builder() {
     [world.entities, selectedEntityId, cameraTarget]
   )
 
+  const handleEntityPositionChange = useCallback(
+    (entityId: string, position: Vec3) => {
+      setWorld((prev) => updateEntityPosition(prev, entityId, position))
+    },
+    []
+  )
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <header style={{ padding: '8px 12px', display: 'flex', gap: 8, alignItems: 'center', borderBottom: '1px solid #ccc' }}>
@@ -219,41 +241,24 @@ export default function Builder() {
         <button type="button" onClick={loadProjects}>Refresh list</button>
         <button type="button" onClick={handleDelete} disabled={!currentProjectId}>Delete</button>
         <button type="button" onClick={handlePlay}>Play</button>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 8 }}>
-          <span>Gravity</span>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={gravityEnabled}
-            onClick={() => {
-              setGravityEnabled((v) => !v)
-              uiLogger.change('Builder', 'Toggle gravity', { enabled: !gravityEnabled })
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 8 }}>
+          <Switch
+            checked={gravityEnabled}
+            onChange={(v) => {
+              setGravityEnabled(v)
+              uiLogger.change('Builder', 'Toggle gravity', { enabled: v })
             }}
-            style={{
-              width: 40,
-              height: 22,
-              borderRadius: 11,
-              border: '1px solid #888',
-              background: gravityEnabled ? '#4a9' : '#ccc',
-              cursor: 'pointer',
-              position: 'relative',
+            label="Gravity"
+          />
+          <Switch
+            checked={shadowsEnabled}
+            onChange={(v) => {
+              setShadowsEnabled(v)
+              uiLogger.change('Builder', 'Toggle shadows', { enabled: v })
             }}
-          >
-            <span
-              style={{
-                position: 'absolute',
-                top: 2,
-                left: gravityEnabled ? 20 : 2,
-                width: 16,
-                height: 16,
-                borderRadius: '50%',
-                background: '#fff',
-                boxShadow: '0 1px 2px rgba(0,0,0,0.2)',
-                transition: 'left 0.15s ease',
-              }}
-            />
-          </button>
-        </label>
+            label="Shadows"
+          />
+        </div>
       </header>
 
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
@@ -339,6 +344,10 @@ export default function Builder() {
               runPhysics
               runScripts
               gravityEnabled={gravityEnabled}
+              shadowsEnabled={shadowsEnabled}
+              selectedEntityId={selectedEntityId}
+              onSelectEntity={setSelectedEntityId}
+              onEntityPositionChange={handleEntityPositionChange}
             />
           </div>
 
