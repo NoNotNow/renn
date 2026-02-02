@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest'
 import * as THREE from 'three'
 import { PhysicsWorld, initRapier, createPhysicsWorld } from './rapierPhysics'
+import { RenderItemRegistry } from '@/runtime/renderItemRegistry'
 import type { Entity, RennWorld } from '@/types/world'
 import type { LoadedEntity } from '@/loader/loadWorld'
 
@@ -97,7 +98,7 @@ describe('PhysicsWorld', () => {
     pw.dispose()
   })
 
-  it('syncs physics to mesh transforms', () => {
+  it('syncs physics to mesh transforms via registry', () => {
     const pw = new PhysicsWorld()
     const entity: Entity = {
       id: 'ball',
@@ -111,13 +112,15 @@ describe('PhysicsWorld', () => {
     )
     mesh.position.set(0, 5, 0)
     pw.addEntity(entity, mesh)
-    
+
+    const registry = RenderItemRegistry.create([{ entity, mesh }], pw)
+
     // Step physics
     for (let i = 0; i < 10; i++) {
       pw.step(1 / 60)
     }
-    pw.syncToMeshes()
-    
+    registry.syncFromPhysics()
+
     // Mesh position should be updated
     expect(mesh.position.y).toBeLessThan(5)
     pw.dispose()

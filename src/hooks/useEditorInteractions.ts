@@ -2,12 +2,14 @@ import { useRef, useEffect } from 'react'
 import * as THREE from 'three'
 import type { Vec3 } from '@/types/world'
 import type { PhysicsWorld } from '@/physics/rapierPhysics'
+import type { RenderItemRegistry } from '@/runtime/renderItemRegistry'
 
 export interface EditorInteractionsProps {
   scene: THREE.Scene | null
   camera: THREE.PerspectiveCamera | null
   renderer: THREE.WebGLRenderer | null
   physicsRef: React.RefObject<PhysicsWorld | null>
+  registryRef: React.RefObject<RenderItemRegistry | null>
   onSelectEntity?: (entityId: string | null) => void
   onEntityPositionChange?: (entityId: string, position: Vec3) => void
 }
@@ -17,6 +19,7 @@ export function useEditorInteractions({
   camera,
   renderer,
   physicsRef,
+  registryRef,
   onSelectEntity,
   onEntityPositionChange,
 }: EditorInteractionsProps) {
@@ -78,30 +81,36 @@ export function useEditorInteractions({
       setNdcFromEvent(e)
       raycaster.setFromCamera(ndc, camera)
       if (!raycaster.ray.intersectPlane(drag.plane, drag.intersectionTarget)) return
-      const mesh = scene.getObjectByName(drag.entityId)
-      if (mesh instanceof THREE.Mesh) {
-        mesh.position.copy(drag.intersectionTarget)
-        physicsRef.current?.setPosition(
-          drag.entityId,
-          drag.intersectionTarget.x,
-          drag.intersectionTarget.y,
-          drag.intersectionTarget.z
-        )
+      const pos: Vec3 = [
+        drag.intersectionTarget.x,
+        drag.intersectionTarget.y,
+        drag.intersectionTarget.z,
+      ]
+      const reg = registryRef.current
+      if (reg) {
+        reg.setPosition(drag.entityId, pos)
+      } else {
+        const mesh = scene.getObjectByName(drag.entityId)
+        if (mesh instanceof THREE.Mesh) {
+          mesh.position.copy(drag.intersectionTarget)
+          physicsRef.current?.setPosition(drag.entityId, pos[0], pos[1], pos[2])
+        }
       }
     }
 
     const onPointerUp = (e: PointerEvent): void => {
       const drag = dragStateRef.current
       if (drag) {
-        const mesh = scene.getObjectByName(drag.entityId)
-        if (mesh instanceof THREE.Mesh) {
-          const pos = mesh.position
-          editorPropsRef.current.onEntityPositionChange?.(drag.entityId, [
-            pos.x,
-            pos.y,
-            pos.z,
-          ])
-        }
+        const reg = registryRef.current
+        const pos: Vec3 = reg
+          ? (reg.getPosition(drag.entityId) ?? [0, 0, 0])
+          : (() => {
+              const mesh = scene.getObjectByName(drag.entityId)
+              return mesh instanceof THREE.Mesh
+                ? [mesh.position.x, mesh.position.y, mesh.position.z]
+                : [0, 0, 0]
+            })()
+        editorPropsRef.current.onEntityPositionChange?.(drag.entityId, pos)
         canvas.releasePointerCapture(e.pointerId)
         dragStateRef.current = null
       }
@@ -119,7 +128,7 @@ export function useEditorInteractions({
       canvas.removeEventListener('pointercancel', onPointerUp)
       dragStateRef.current = null
     }
-  }, [scene, camera, renderer, onSelectEntity, physicsRef])
+  }, [scene, camera, renderer, onSelectEntity, physicsRef, registryRef])
 
   return { dragStateRef }
 }

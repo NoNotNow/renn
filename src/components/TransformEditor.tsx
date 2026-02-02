@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import type { Vec3, Quat } from '@/types/world'
 import Vec3Field from './Vec3Field'
 import QuatField from './QuatField'
@@ -11,6 +12,7 @@ export interface TransformEditorProps {
   onPositionChange: (position: Vec3) => void
   onRotationChange: (rotation: Quat) => void
   onScaleChange: (scale: Vec3) => void
+  getCurrentPose?: (id: string) => { position: Vec3; rotation: Quat }
 }
 
 export default function TransformEditor({
@@ -21,14 +23,36 @@ export default function TransformEditor({
   onPositionChange,
   onRotationChange,
   onScaleChange,
+  getCurrentPose,
 }: TransformEditorProps) {
+  const [displayPosition, setDisplayPosition] = useState(position)
+  const [displayRotation, setDisplayRotation] = useState(rotation)
+
+  // Poll current pose from registry if available
+  useEffect(() => {
+    if (!getCurrentPose) {
+      setDisplayPosition(position)
+      setDisplayRotation(rotation)
+      return
+    }
+
+    const interval = setInterval(() => {
+      const pose = getCurrentPose(entityId)
+      setDisplayPosition(pose.position)
+      setDisplayRotation(pose.rotation)
+    }, 100)
+
+    return () => clearInterval(interval)
+  }, [entityId, getCurrentPose, position, rotation])
+
   return (
     <>
       <Vec3Field
         label="Position"
-        value={position}
+        value={displayPosition}
         onChange={(v) => {
-          uiLogger.change('PropertyPanel', 'Change position', { entityId, oldValue: position, newValue: v })
+          uiLogger.change('PropertyPanel', 'Change position', { entityId, oldValue: displayPosition, newValue: v })
+          setDisplayPosition(v)
           onPositionChange(v)
         }}
         sensitivity={0.05}
@@ -36,9 +60,10 @@ export default function TransformEditor({
       />
       <QuatField
         label="Rotation (quat)"
-        value={rotation}
+        value={displayRotation}
         onChange={(q) => {
-          uiLogger.change('PropertyPanel', 'Change rotation', { entityId, oldValue: rotation, newValue: q })
+          uiLogger.change('PropertyPanel', 'Change rotation', { entityId, oldValue: displayRotation, newValue: q })
+          setDisplayRotation(q)
           onRotationChange(q)
         }}
         idPrefix={`${entityId}-rotation`}

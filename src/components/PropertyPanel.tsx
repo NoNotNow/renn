@@ -1,4 +1,4 @@
-import type { RennWorld, Entity } from '@/types/world'
+import type { RennWorld, Entity, Vec3, Quat } from '@/types/world'
 import { uiLogger } from '@/utils/uiLogger'
 import TransformEditor from './TransformEditor'
 import ShapeEditor from './ShapeEditor'
@@ -10,9 +10,18 @@ export interface PropertyPanelProps {
   selectedEntityId: string | null
   onWorldChange: (world: RennWorld) => void
   onDeleteEntity?: (entityId: string) => void
+  getCurrentPose?: (id: string) => { position: Vec3; rotation: Quat }
+  onEntityPoseChange?: (id: string, pose: { position?: Vec3; rotation?: Quat }) => void
 }
 
-export default function PropertyPanel({ world, selectedEntityId, onWorldChange, onDeleteEntity }: PropertyPanelProps) {
+export default function PropertyPanel({
+  world,
+  selectedEntityId,
+  onWorldChange,
+  onDeleteEntity,
+  getCurrentPose,
+  onEntityPoseChange,
+}: PropertyPanelProps) {
   const entity = selectedEntityId
     ? world.entities.find((e) => e.id === selectedEntityId)
     : null
@@ -75,9 +84,22 @@ export default function PropertyPanel({ world, selectedEntityId, onWorldChange, 
         position={position}
         rotation={rotation}
         scale={scale}
-        onPositionChange={(v) => updateEntity({ position: v })}
-        onRotationChange={(q) => updateEntity({ rotation: q })}
+        onPositionChange={(v) => {
+          if (onEntityPoseChange) {
+            onEntityPoseChange(entity.id, { position: v })
+          } else {
+            updateEntity({ position: v })
+          }
+        }}
+        onRotationChange={(q) => {
+          if (onEntityPoseChange) {
+            onEntityPoseChange(entity.id, { rotation: q })
+          } else {
+            updateEntity({ rotation: q })
+          }
+        }}
         onScaleChange={(v) => updateEntity({ scale: v })}
+        getCurrentPose={getCurrentPose}
       />
 
       <PhysicsEditor

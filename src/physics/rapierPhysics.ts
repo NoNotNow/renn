@@ -11,7 +11,6 @@ export class PhysicsWorld {
   private bodyMap: Map<string, RAPIER.RigidBody> = new Map()
   private colliderMap: Map<string, RAPIER.Collider> = new Map()
   private colliderHandleToEntityId: Map<number, string> = new Map()
-  private entityToMesh: Map<string, THREE.Mesh> = new Map()
   private lastCollisions: CollisionPair[] = []
 
   constructor(gravity: [number, number, number] = DEFAULT_GRAVITY) {
@@ -22,7 +21,7 @@ export class PhysicsWorld {
     this.world.gravity = { x: gravity[0], y: gravity[1], z: gravity[2] }
   }
 
-  addEntity(entity: Entity, mesh: THREE.Mesh): void {
+  addEntity(entity: Entity, _mesh: THREE.Mesh): void {
     const bodyType = entity.bodyType ?? 'static'
     const position = entity.position ?? [0, 0, 0]
     const rotation = entity.rotation ?? [0, 0, 0, 1]
@@ -49,7 +48,6 @@ export class PhysicsWorld {
     // Create the rigid body
     const rigidBody = this.world.createRigidBody(rigidBodyDesc)
     this.bodyMap.set(entity.id, rigidBody)
-    this.entityToMesh.set(entity.id, mesh)
 
     // Create collider for the shape
     const colliderDesc = this.createColliderDesc(entity.shape, entity)
@@ -145,21 +143,6 @@ export class PhysicsWorld {
     eventQueue.free()
   }
 
-  syncToMeshes(): void {
-    for (const [entityId, body] of this.bodyMap) {
-      if (!body.isDynamic() && !body.isKinematic()) continue
-
-      const mesh = this.entityToMesh.get(entityId)
-      if (!mesh) continue
-
-      const pos = body.translation()
-      const rot = body.rotation()
-
-      mesh.position.set(pos.x, pos.y, pos.z)
-      mesh.quaternion.set(rot.x, rot.y, rot.z, rot.w)
-    }
-  }
-
   getCollisions(): CollisionPair[] {
     return this.lastCollisions
   }
@@ -200,7 +183,6 @@ export class PhysicsWorld {
     this.bodyMap.clear()
     this.colliderMap.clear()
     this.colliderHandleToEntityId.clear()
-    this.entityToMesh.clear()
     this.lastCollisions = []
     this.world.free()
   }

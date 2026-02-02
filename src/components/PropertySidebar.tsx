@@ -2,7 +2,7 @@ import { useState } from 'react'
 import PropertyPanel from './PropertyPanel'
 import ScriptPanel from './ScriptPanel'
 import AssetPanel from './AssetPanel'
-import type { RennWorld } from '@/types/world'
+import type { RennWorld, Vec3, Quat } from '@/types/world'
 import { uiLogger } from '@/utils/uiLogger'
 
 type RightTab = 'properties' | 'scripts' | 'assets'
@@ -14,6 +14,8 @@ export interface PropertySidebarProps {
   onWorldChange: (world: RennWorld) => void
   onAssetsChange: (assets: Map<string, Blob>) => void
   onDeleteEntity: (entityId: string) => void
+  getCurrentPose?: (id: string) => { position: Vec3; rotation: Quat }
+  onEntityPoseChange?: (id: string, pose: { position?: Vec3; rotation?: Quat }) => void
 }
 
 export default function PropertySidebar({
@@ -23,6 +25,8 @@ export default function PropertySidebar({
   onWorldChange,
   onAssetsChange,
   onDeleteEntity,
+  getCurrentPose,
+  onEntityPoseChange,
 }: PropertySidebarProps) {
   const [rightTab, setRightTab] = useState<RightTab>('properties')
 
@@ -56,6 +60,8 @@ export default function PropertySidebar({
             selectedEntityId={selectedEntityId}
             onWorldChange={onWorldChange}
             onDeleteEntity={onDeleteEntity}
+            getCurrentPose={getCurrentPose}
+            onEntityPoseChange={onEntityPoseChange}
           />
         )}
         {rightTab === 'scripts' && (

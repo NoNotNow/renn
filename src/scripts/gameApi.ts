@@ -1,8 +1,8 @@
 /**
  * Minimal game API exposed to user scripts (main-thread, trusted).
  * Scripts receive this as global `game`.
+ * Pose read/write goes through the runtime registry (getPosition/setPosition).
  */
-import * as THREE from 'three'
 import type { Entity } from '@/types/world'
 import type { PhysicsWorld } from '@/physics/rapierPhysics'
 
@@ -18,14 +18,16 @@ export interface GameAPI {
 }
 
 export interface GameAPIOptions {
-  getMeshById: (id: string) => THREE.Mesh | null
+  getPosition: (id: string) => [number, number, number] | null
+  setPosition: (id: string, x: number, y: number, z: number) => void
   getPhysicsWorld: () => PhysicsWorld | null
   entities: Entity[]
   timeRef: { current: number }
 }
 
 export function createGameAPI(
-  getMeshById: (id: string) => THREE.Mesh | null,
+  getPosition: (id: string) => [number, number, number] | null,
+  setPosition: (id: string, x: number, y: number, z: number) => void,
   getPhysicsWorld: () => PhysicsWorld | null = () => null,
   entities: Entity[] = [],
   timeRef: { current: number } = { current: 0 }
@@ -41,19 +43,10 @@ export function createGameAPI(
       return entities.find((e) => e.id === id)
     },
     getPosition(id: string): [number, number, number] | null {
-      const mesh = getMeshById(id)
-      if (!mesh) return null
-      return [mesh.position.x, mesh.position.y, mesh.position.z]
+      return getPosition(id)
     },
     setPosition(id: string, x: number, y: number, z: number) {
-      const mesh = getMeshById(id)
-      if (mesh) {
-        mesh.position.set(x, y, z)
-      }
-      const physics = getPhysicsWorld()
-      if (physics) {
-        physics.setPosition(id, x, y, z)
-      }
+      setPosition(id, x, y, z)
     },
     applyForce(id: string, x: number, y: number, z: number) {
       const physics = getPhysicsWorld()

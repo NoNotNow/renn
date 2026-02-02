@@ -5,7 +5,7 @@ import EntitySidebar from '@/components/EntitySidebar'
 import PropertySidebar from '@/components/PropertySidebar'
 import { createDefaultEntity, type AddableShapeType } from '@/data/entityDefaults'
 import { useProjectManagement } from '@/hooks/useProjectManagement'
-import type { Vec3 } from '@/types/world'
+import type { Vec3, Quat } from '@/types/world'
 import { uiLogger } from '@/utils/uiLogger'
 import { updateEntityPosition } from '@/utils/worldUtils'
 
@@ -91,6 +91,79 @@ export default function Builder() {
     [setWorld]
   )
 
+  const handleReload = useCallback(() => {
+    sceneViewRef.current?.reload()
+  }, [])
+
+  const handleNewWithReload = useCallback(() => {
+    handleNew()
+    // Reload after state settles
+    setTimeout(() => handleReload(), 0)
+  }, [handleNew, handleReload])
+
+  const handleOpenWithReload = useCallback(
+    (id: string) => {
+      handleOpen(id)
+      // Reload after state settles
+      setTimeout(() => handleReload(), 0)
+    },
+    [handleOpen, handleReload]
+  )
+
+  const getCurrentPose = useCallback(
+    (id: string): { position: Vec3; rotation: Quat } => {
+      const reg = sceneViewRef.current?.getAllPoses()
+      const savedPose = reg?.get(id)
+      if (savedPose) return savedPose
+      const entity = world.entities.find((e) => e.id === id)
+      return {
+        position: entity?.position ?? [0, 0, 0],
+        rotation: entity?.rotation ?? [0, 0, 0, 1],
+      }
+    },
+    [world.entities]
+  )
+
+  const handleEntityPoseChange = useCallback((id: string, pose: { position?: Vec3; rotation?: Quat }) => {
+    sceneViewRef.current?.updateEntityPose(id, pose)
+  }, [])
+
+  const handleSaveWithSync = useCallback(async () => {
+    const allPoses = sceneViewRef.current?.getAllPoses()
+    if (allPoses) {
+      // Sync poses back to world before saving
+      setWorld((prev) => ({
+        ...prev,
+        entities: prev.entities.map((e) => {
+          const pose = allPoses.get(e.id)
+          return pose ? { ...e, position: pose.position, rotation: pose.rotation } : e
+        }),
+      }))
+      // Wait for state to settle, then save
+      setTimeout(() => handleSave(), 0)
+    } else {
+      handleSave()
+    }
+  }, [handleSave, setWorld])
+
+  const handleSaveAsWithSync = useCallback(async () => {
+    const allPoses = sceneViewRef.current?.getAllPoses()
+    if (allPoses) {
+      // Sync poses back to world before saving
+      setWorld((prev) => ({
+        ...prev,
+        entities: prev.entities.map((e) => {
+          const pose = allPoses.get(e.id)
+          return pose ? { ...e, position: pose.position, rotation: pose.rotation } : e
+        }),
+      }))
+      // Wait for state to settle, then save
+      setTimeout(() => handleSaveAs(), 0)
+    } else {
+      handleSaveAs()
+    }
+  }, [handleSaveAs, setWorld])
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <BuilderHeader
@@ -98,15 +171,16 @@ export default function Builder() {
         currentProjectId={currentProjectId}
         gravityEnabled={gravityEnabled}
         shadowsEnabled={shadowsEnabled}
-        onNew={handleNew}
-        onSave={handleSave}
-        onSaveAs={handleSaveAs}
+        onNew={handleNewWithReload}
+        onSave={handleSaveWithSync}
+        onSaveAs={handleSaveAsWithSync}
         onExport={handleExport}
         onImport={handleImport}
-        onOpen={handleOpen}
+        onOpen={handleOpenWithReload}
         onRefresh={loadProjects}
         onDelete={handleDelete}
         onPlay={handlePlay}
+        onReload={handleReload}
         onGravityChange={setGravityEnabled}
         onShadowsChange={setShadowsEnabled}
         fileInputRef={fileInputRef}
@@ -150,6 +224,8 @@ export default function Builder() {
             onWorldChange={setWorld}
             onAssetsChange={setAssets}
             onDeleteEntity={handleDeleteEntity}
+            getCurrentPose={getCurrentPose}
+            onEntityPoseChange={handleEntityPoseChange}
           />
         </main>
       </div>

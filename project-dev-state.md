@@ -2,7 +2,7 @@
 
 Track what’s done and what’s left. Update this file as you complete or add work.
 
-Last updated: 2025-01-31
+Last updated: 2026-01-31
 
 ---
 

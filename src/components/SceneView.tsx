@@ -1,13 +1,14 @@
 import { useRef, useEffect, forwardRef, useImperativeHandle, useState } from 'react'
 import * as THREE from 'three'
 import { loadWorld } from '@/loader/loadWorld'
-import type { RennWorld, Vec3 } from '@/types/world'
+import type { RennWorld, Vec3, Quat } from '@/types/world'
 import { DEFAULT_GRAVITY } from '@/types/world'
 import type { LoadedEntity } from '@/loader/loadWorld'
 import { CameraController } from '@/camera/cameraController'
 import { createGameAPI } from '@/scripts/gameApi'
 import { ScriptRunner } from '@/scripts/scriptRunner'
 import type { PhysicsWorld } from '@/physics/rapierPhysics'
+import { RenderItemRegistry } from '@/runtime/renderItemRegistry'
 import { useKeyboardInput } from '@/hooks/useKeyboardInput'
 import { useEditorInteractions } from '@/hooks/useEditorInteractions'
 import { getSceneUserData } from '@/types/sceneUserData'
@@ -30,6 +31,9 @@ export interface SceneViewProps {
 
 export interface SceneViewHandle {
   setViewPreset: (preset: 'top' | 'front' | 'right') => void
+  reload: () => void
+  updateEntityPose: (id: string, pose: { position?: Vec3; rotation?: Quat }) => void
+  getAllPoses: () => Map<string, { position: Vec3; rotation: Quat }> | null
 }
 
 function SceneViewInner({
@@ -48,12 +52,16 @@ function SceneViewInner({
   const [scene, setScene] = useState<THREE.Scene | null>(null)
   const [camera, setCamera] = useState<THREE.PerspectiveCamera | null>(null)
   const [renderer, setRenderer] = useState<THREE.WebGLRenderer | null>(null)
+  const [reloadTrigger, setReloadTrigger] = useState(0)
   const cameraCtrlRef = useRef<CameraController | null>(null)
   const scriptRunnerRef = useRef<ScriptRunner | null>(null)
   const physicsRef = useRef<PhysicsWorld | null>(null)
+  const registryRef = useRef<RenderItemRegistry | null>(null)
+  const savedPosesRef = useRef<Map<string, { position: Vec3; rotation: Quat }> | null>(null)
   const entitiesRef = useRef<LoadedEntity[]>([])
   const timeRef = useRef(0)
   const frameRef = useRef<number>(0)
+  const effectIdRef = useRef(0)
 
   const freeFlyKeysRef = useKeyboardInput()
 
@@ -62,6 +70,7 @@ function SceneViewInner({
     camera,
     renderer,
     physicsRef,
+    registryRef,
     onSelectEntity,
     onEntityPositionChange,
   })
@@ -70,12 +79,25 @@ function SceneViewInner({
     setViewPreset: (preset: 'top' | 'front' | 'right') => {
       cameraCtrlRef.current?.setViewPreset(preset)
     },
+    reload: () => {
+      savedPosesRef.current = null // Clear saved poses to reload from JSON
+      setReloadTrigger((t) => t + 1)
+    },
+    updateEntityPose: (id: string, pose: { position?: Vec3; rotation?: Quat }) => {
+      if (pose.position) registryRef.current?.setPosition(id, pose.position)
+      if (pose.rotation) registryRef.current?.setRotation(id, pose.rotation)
+    },
+    getAllPoses: () => registryRef.current?.getAllPoses() ?? null,
   }), [])
 
   // Main scene setup effect
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
+
+    // Increment effect ID to detect stale async operations
+    effectIdRef.current += 1
+    const currentEffectId = effectIdRef.current
 
     const { scene: loadedScene, entities, world: loadedWorld } = loadWorld(world)
     entitiesRef.current = entities
@@ -87,6 +109,8 @@ function SceneViewInner({
     setCamera(cam)
 
     const getEntityPosition = (entityId: string): THREE.Vector3 | null => {
+      const reg = registryRef.current
+      if (reg) return reg.getPositionAsVector3(entityId) ?? null
       const obj = loadedScene.getObjectByName(entityId)
       return obj instanceof THREE.Mesh ? obj.position.clone() : null
     }
@@ -99,11 +123,13 @@ function SceneViewInner({
     cameraCtrlRef.current = cameraCtrl
 
     const getPhysicsWorld = () => physicsRef.current
+    const getPositionForGame = (id: string): Vec3 | null =>
+      registryRef.current?.getPosition(id) ?? null
+    const setPositionForGame = (id: string, x: number, y: number, z: number): void =>
+      registryRef.current?.setPosition(id, [x, y, z])
     const gameApi = createGameAPI(
-      (id) => {
-        const obj = loadedScene.getObjectByName(id)
-        return obj instanceof THREE.Mesh ? obj : null
-      },
+      getPositionForGame,
+      setPositionForGame,
       getPhysicsWorld,
       loadedWorld.entities,
       timeRef
@@ -132,39 +158,68 @@ function SceneViewInner({
     cam.aspect = w / h
     cam.updateProjectionMatrix()
 
+    // Helper to apply saved poses to registry
+    const applySavedPoses = () => {
+      const savedPoses = savedPosesRef.current
+      if (!savedPoses || !registryRef.current) return
+      for (const [id, pose] of savedPoses) {
+        const item = registryRef.current.get(id)
+        if (item) {
+          item.setPosition(pose.position)
+          item.setRotation(pose.rotation)
+        }
+      }
+      savedPosesRef.current = null
+    }
+
     // Initialize physics
     let cancelled = false
     if (runPhysics) {
       const gravity = gravityEnabled ? (loadedWorld.world.gravity ?? DEFAULT_GRAVITY) : ZERO_GRAVITY
       import('@/physics/rapierPhysics').then((mod) => {
         mod.createPhysicsWorld(loadedWorld, entities).then((pw) => {
-          if (cancelled) {
+          // Check if this effect is still active
+          if (cancelled || effectIdRef.current !== currentEffectId) {
             pw.dispose()
             return
           }
           pw.setGravity(gravity)
           physicsRef.current = pw
+          registryRef.current = RenderItemRegistry.create(entities, pw)
+          applySavedPoses()
         })
       })
+    } else {
+      registryRef.current = RenderItemRegistry.create(entities, null)
+      applySavedPoses()
     }
 
     // Animation loop
     const animate = (): void => {
+      if (cancelled) return // Stop if effect is cleaning up
       frameRef.current = requestAnimationFrame(animate)
       const dt = FIXED_DT
       timeRef.current += dt
 
       const pw = physicsRef.current
-      if (pw && runPhysics) {
-        pw.step(dt)
-        pw.syncToMeshes()
+      if (pw && runPhysics && !cancelled) {
+        try {
+          pw.step(dt)
+          registryRef.current?.syncFromPhysics()
 
-        if (scriptRunnerRef.current && runScripts) {
-          const collisions = pw.getCollisions()
-          for (const { entityIdA, entityIdB } of collisions) {
-            scriptRunnerRef.current.runOnCollision(entityIdA, entityIdB)
-            scriptRunnerRef.current.runOnCollision(entityIdB, entityIdA)
+          if (scriptRunnerRef.current && runScripts) {
+            const collisions = pw.getCollisions()
+            for (const { entityIdA, entityIdB } of collisions) {
+              scriptRunnerRef.current.runOnCollision(entityIdA, entityIdB)
+              scriptRunnerRef.current.runOnCollision(entityIdB, entityIdA)
+            }
           }
+        } catch (e) {
+          // Suppress errors if we're being cleaned up
+          if (!cancelled) {
+            console.error('Physics step error:', e)
+          }
+          return
         }
       }
 
@@ -174,13 +229,13 @@ function SceneViewInner({
 
       const ctrl = cameraCtrlRef.current
       if (ctrl) {
-        if ((ctrl.getConfig().control ?? 'free') === 'free') {
+        if ((ctrl.getConfig().control ?? 'free') === 'free' && freeFlyKeysRef.current) {
           ctrl.setFreeFlyInput(freeFlyKeysRef.current)
         }
         ctrl.update(dt)
       }
 
-      if (rend && loadedScene && cam) {
+      if (rend && loadedScene && cam && !cancelled) {
         rend.render(loadedScene, cam)
       }
     }
@@ -200,24 +255,54 @@ function SceneViewInner({
     ro.observe(container)
 
     return () => {
+      // Set cancelled first to stop animation loop
       cancelled = true
-      ro.disconnect()
-      window.removeEventListener('resize', onResize)
-      cancelAnimationFrame(frameRef.current)
+      
+      // Clear physics ref IMMEDIATELY to stop animation loop from using it
       const pw = physicsRef.current
       physicsRef.current = null
-      if (pw) pw.dispose()
-      rend.dispose()
-      if (container && rend.domElement.parentNode === container) {
-        container.removeChild(rend.domElement)
+      
+      // Cancel animation frame and remove event listeners
+      cancelAnimationFrame(frameRef.current)
+      ro.disconnect()
+      window.removeEventListener('resize', onResize)
+      
+      // Clear refs immediately to prevent any further use
+      cameraCtrlRef.current = null
+      scriptRunnerRef.current = null
+      
+      // Save poses before clearing registry
+      savedPosesRef.current = registryRef.current?.getAllPoses() ?? null
+      registryRef.current?.clear()
+      registryRef.current = null
+      
+      // Dispose physics world (after animation loop is stopped)
+      if (pw) {
+        try {
+          pw.dispose()
+        } catch (e) {
+          console.warn('Error disposing physics world:', e)
+        }
       }
+      
+      // Clean up renderer
+      if (rend) {
+        try {
+          rend.dispose()
+          if (container && rend.domElement.parentNode === container) {
+            container.removeChild(rend.domElement)
+          }
+        } catch (e) {
+          console.warn('Error disposing renderer:', e)
+        }
+      }
+      
+      // Clear state
       setScene(null)
       setCamera(null)
       setRenderer(null)
-      cameraCtrlRef.current = null
-      scriptRunnerRef.current = null
     }
-  }, [world, runPhysics, runScripts, gravityEnabled, shadowsEnabled, freeFlyKeysRef])
+  }, [reloadTrigger, runPhysics, runScripts, gravityEnabled, shadowsEnabled, freeFlyKeysRef])
 
   // Update gravity when it changes
   useEffect(() => {

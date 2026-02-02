@@ -16,6 +16,7 @@ export interface BuilderHeaderProps {
   onRefresh: () => void
   onDelete: () => void
   onPlay: () => void
+  onReload: () => void
   onGravityChange: (enabled: boolean) => void
   onShadowsChange: (enabled: boolean) => void
   fileInputRef: React.RefObject<HTMLInputElement | null>
@@ -36,6 +37,7 @@ export default function BuilderHeader({
   onRefresh,
   onDelete,
   onPlay,
+  onReload,
   onGravityChange,
   onShadowsChange,
   fileInputRef,
@@ -71,6 +73,16 @@ export default function BuilderHeader({
       <button type="button" onClick={onRefresh}>Refresh list</button>
       <button type="button" onClick={onDelete} disabled={!currentProjectId}>Delete</button>
       <button type="button" onClick={onPlay}>Play</button>
+      <button
+        type="button"
+        onClick={() => {
+          onReload()
+          uiLogger.click('Builder', 'Reload scene from JSON')
+        }}
+        title="Reset scene to saved JSON state (discards runtime changes)"
+      >
+        Reload
+      </button>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 8 }}>
         <Switch
           checked={gravityEnabled}

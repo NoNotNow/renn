@@ -84,7 +84,7 @@ describe('PropertyPanel', () => {
     expect(onWorldChange).toHaveBeenCalled()
     const lastCall = onWorldChange.mock.calls[onWorldChange.mock.calls.length - 1]
     const updatedWorld = lastCall[0]
-    const updatedEntity = updatedWorld.entities.find((e) => e.id === entityId)
+    const updatedEntity = updatedWorld.entities.find((e: Entity) => e.id === entityId)
     expect(updatedEntity?.position).toEqual([1, 0, 0])
   })
 
