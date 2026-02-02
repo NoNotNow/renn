@@ -65,11 +65,13 @@ describe('RenderItemRegistry', () => {
     )
     const pw = new PhysicsWorld()
     pw.addEntity(entity, mesh)
+    pw.setGravity([0, 0, 0])
     const entities: LoadedEntity[] = [{ entity, mesh }]
     const registry = RenderItemRegistry.create(entities, pw)
     const item = registry.get('ball')
     expect(item).toBeDefined()
     expect(item!.hasPhysicsBody()).toBe(true)
+    pw.step(0)
     registry.syncFromPhysics()
     expect(registry.getPosition('ball')).toEqual([0, 5, 0])
     pw.dispose()

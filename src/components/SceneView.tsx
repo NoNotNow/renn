@@ -179,6 +179,7 @@ function SceneViewInner({
       frameRef.current = requestAnimationFrame(animate)
       const dt = FIXED_DT
       timeRef.current += dt
+      
 
       const pw = physicsRef.current
       if (pw && runPhysics && !cancelled) {

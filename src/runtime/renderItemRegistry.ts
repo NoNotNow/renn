@@ -10,6 +10,7 @@ import { RenderItem } from './renderItem'
  */
 export class RenderItemRegistry {
   private items = new Map<string, RenderItem>()
+  private physicsWorld: PhysicsWorld | null = null
 
   /**
    * Build registry from loaded entities and physics world. Call after
@@ -17,6 +18,7 @@ export class RenderItemRegistry {
    */
   static create(loadedEntities: LoadedEntity[], physicsWorld: PhysicsWorld | null): RenderItemRegistry {
     const registry = new RenderItemRegistry()
+    registry.physicsWorld = physicsWorld
     for (const { entity, mesh } of loadedEntities) {
       const body = physicsWorld?.getBody(entity.id) ?? null
       registry.items.set(entity.id, new RenderItem(entity, mesh, body))
@@ -64,12 +66,20 @@ export class RenderItemRegistry {
   /**
    * Copy body translation/rotation to mesh for all items that have a body.
    * Call once per frame after physics.step().
+   * Uses cached transforms to avoid WASM aliasing errors.
    */
   syncFromPhysics(): void {
+    if (!this.physicsWorld) return
+    
     for (const item of this.items.values()) {
-      if (!item.hasPhysicsBody() || !item.body) continue
-      const pos = item.body.translation()
-      const rot = item.body.rotation()
+      if (!item.hasPhysicsBody()) continue
+      
+      // Use cached transforms instead of direct body access to avoid WASM aliasing
+      const cached = this.physicsWorld.getCachedTransform(item.entity.id)
+      if (!cached) continue
+      
+      const pos = cached.position
+      const rot = cached.rotation
       item.mesh.position.set(pos.x, pos.y, pos.z)
       item.mesh.quaternion.set(rot.x, rot.y, rot.z, rot.w)
     }
@@ -92,5 +102,6 @@ export class RenderItemRegistry {
 
   clear(): void {
     this.items.clear()
+    this.physicsWorld = null
   }
 }

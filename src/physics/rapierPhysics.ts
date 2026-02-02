@@ -6,15 +6,25 @@ import { DEFAULT_GRAVITY } from '@/types/world'
 
 export type CollisionPair = { entityIdA: string; entityIdB: string }
 
+export type CachedTransform = {
+  position: { x: number; y: number; z: number }
+  rotation: { x: number; y: number; z: number; w: number }
+}
+
 export class PhysicsWorld {
   private world: RAPIER.World
   private bodyMap: Map<string, RAPIER.RigidBody> = new Map()
   private colliderMap: Map<string, RAPIER.Collider> = new Map()
   private colliderHandleToEntityId: Map<number, string> = new Map()
   private lastCollisions: CollisionPair[] = []
+  private disposed: boolean = false
+  private stepping: boolean = false
+  private cachedTransforms: Map<string, CachedTransform> = new Map()
+  private eventQueue: RAPIER.EventQueue | null = null
 
   constructor(gravity: [number, number, number] = DEFAULT_GRAVITY) {
     this.world = new RAPIER.World({ x: gravity[0], y: gravity[1], z: gravity[2] })
+    this.eventQueue = new RAPIER.EventQueue(true)
   }
 
   setGravity(gravity: [number, number, number]): void {
@@ -41,9 +51,24 @@ export class PhysicsWorld {
         break
     }
 
-    // Set position and rotation
+    // Set position
     rigidBodyDesc.setTranslation(position[0], position[1], position[2])
-    rigidBodyDesc.setRotation({ x: rotation[0], y: rotation[1], z: rotation[2], w: rotation[3] })
+    
+    // Validate and normalize quaternion to prevent WASM errors
+    const quat = { x: rotation[0], y: rotation[1], z: rotation[2], w: rotation[3] }
+    const length = Math.sqrt(quat.x ** 2 + quat.y ** 2 + quat.z ** 2 + quat.w ** 2)
+    if (length < 0.0001 || !isFinite(length)) {
+      console.warn(`[PhysicsWorld] Invalid quaternion for entity ${entity.id}, using identity`)
+      rigidBodyDesc.setRotation({ x: 0, y: 0, z: 0, w: 1 })
+    } else {
+      // Normalize quaternion
+      rigidBodyDesc.setRotation({
+        x: quat.x / length,
+        y: quat.y / length,
+        z: quat.z / length,
+        w: quat.w / length
+      })
+    }
 
     // Create the rigid body
     const rigidBody = this.world.createRigidBody(rigidBodyDesc)
@@ -129,18 +154,43 @@ export class PhysicsWorld {
   }
 
   step(_dt: number): void {
-    const eventQueue = new RAPIER.EventQueue(true)
-    this.world.step(eventQueue)
-    this.lastCollisions = []
-    eventQueue.drainCollisionEvents((handle1: number, handle2: number, started: boolean) => {
-      if (!started) return
-      const entityIdA = this.colliderHandleToEntityId.get(handle1)
-      const entityIdB = this.colliderHandleToEntityId.get(handle2)
-      if (entityIdA && entityIdB) {
-        this.lastCollisions.push({ entityIdA, entityIdB })
+    if (this.disposed || this.stepping) {
+      return
+    }
+    if (!this.eventQueue) {
+      return
+    }
+    
+    this.stepping = true
+    try {
+      this.world.step(this.eventQueue)
+      
+      // Cache transforms AFTER step to avoid WASM aliasing errors
+      for (const [entityId, body] of this.bodyMap) {
+        if (body.isDynamic() || body.isKinematic()) {
+          const pos = body.translation()
+          const rot = body.rotation()
+          const storedPos = { x: pos.x, y: pos.y, z: pos.z }
+          const storedRot = { x: rot.x, y: rot.y, z: rot.z, w: rot.w }
+          this.cachedTransforms.set(entityId, {
+            position: storedPos,
+            rotation: storedRot
+          })
+        }
       }
-    })
-    eventQueue.free()
+      
+      this.lastCollisions = []
+      this.eventQueue.drainCollisionEvents((handle1: number, handle2: number, started: boolean) => {
+        if (!started) return
+        const entityIdA = this.colliderHandleToEntityId.get(handle1)
+        const entityIdB = this.colliderHandleToEntityId.get(handle2)
+        if (entityIdA && entityIdB) {
+          this.lastCollisions.push({ entityIdA, entityIdB })
+        }
+      })
+    } finally {
+      this.stepping = false
+    }
   }
 
   getCollisions(): CollisionPair[] {
@@ -149,6 +199,10 @@ export class PhysicsWorld {
 
   getBody(entityId: string): RAPIER.RigidBody | undefined {
     return this.bodyMap.get(entityId)
+  }
+
+  getCachedTransform(entityId: string): CachedTransform | undefined {
+    return this.cachedTransforms.get(entityId)
   }
 
   setPosition(entityId: string, x: number, y: number, z: number): void {
@@ -180,21 +234,41 @@ export class PhysicsWorld {
   }
 
   dispose(): void {
+    if (this.disposed) return
+    this.disposed = true
+    
+    if (this.stepping) {
+      console.warn('[PhysicsWorld] Disposing while step in progress')
+    }
+    
     this.bodyMap.clear()
     this.colliderMap.clear()
     this.colliderHandleToEntityId.clear()
     this.lastCollisions = []
+    this.cachedTransforms.clear()
+    
+    if (this.eventQueue) {
+      this.eventQueue.free()
+      this.eventQueue = null
+    }
+    
     this.world.free()
   }
 }
 
 let rapierInitialized = false
+let rapierInitPromise: Promise<void> | null = null
 
 export async function initRapier(): Promise<void> {
   if (rapierInitialized) return
-  // Pass single object to satisfy Rapier 0.19+ init API (avoids deprecation warning)
-  await RAPIER.init({})
-  rapierInitialized = true
+  if (rapierInitPromise) {
+    await rapierInitPromise
+    return
+  }
+  rapierInitPromise = RAPIER.init().then(() => {
+    rapierInitialized = true
+  })
+  await rapierInitPromise
 }
 
 export async function createPhysicsWorld(
