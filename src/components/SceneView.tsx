@@ -27,11 +27,11 @@ export interface SceneViewProps {
   selectedEntityId?: string | null
   onSelectEntity?: (entityId: string | null) => void
   onEntityPositionChange?: (entityId: string, position: Vec3) => void
+  version?: number
 }
 
 export interface SceneViewHandle {
   setViewPreset: (preset: 'top' | 'front' | 'right') => void
-  reload: () => void
   updateEntityPose: (id: string, pose: { position?: Vec3; rotation?: Quat }) => void
   getAllPoses: () => Map<string, { position: Vec3; rotation: Quat }> | null
 }
@@ -47,17 +47,16 @@ function SceneViewInner({
   selectedEntityId: _selectedEntityId,
   onSelectEntity,
   onEntityPositionChange,
+  version = 0,
 }: SceneViewProps, ref: React.Ref<SceneViewHandle>) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [scene, setScene] = useState<THREE.Scene | null>(null)
   const [camera, setCamera] = useState<THREE.PerspectiveCamera | null>(null)
   const [renderer, setRenderer] = useState<THREE.WebGLRenderer | null>(null)
-  const [reloadTrigger, setReloadTrigger] = useState(0)
   const cameraCtrlRef = useRef<CameraController | null>(null)
   const scriptRunnerRef = useRef<ScriptRunner | null>(null)
   const physicsRef = useRef<PhysicsWorld | null>(null)
   const registryRef = useRef<RenderItemRegistry | null>(null)
-  const savedPosesRef = useRef<Map<string, { position: Vec3; rotation: Quat }> | null>(null)
   const entitiesRef = useRef<LoadedEntity[]>([])
   const timeRef = useRef(0)
   const frameRef = useRef<number>(0)
@@ -78,10 +77,6 @@ function SceneViewInner({
   useImperativeHandle(ref, () => ({
     setViewPreset: (preset: 'top' | 'front' | 'right') => {
       cameraCtrlRef.current?.setViewPreset(preset)
-    },
-    reload: () => {
-      savedPosesRef.current = null // Clear saved poses to reload from JSON
-      setReloadTrigger((t) => t + 1)
     },
     updateEntityPose: (id: string, pose: { position?: Vec3; rotation?: Quat }) => {
       if (pose.position) registryRef.current?.setPosition(id, pose.position)
@@ -158,20 +153,6 @@ function SceneViewInner({
     cam.aspect = w / h
     cam.updateProjectionMatrix()
 
-    // Helper to apply saved poses to registry
-    const applySavedPoses = () => {
-      const savedPoses = savedPosesRef.current
-      if (!savedPoses || !registryRef.current) return
-      for (const [id, pose] of savedPoses) {
-        const item = registryRef.current.get(id)
-        if (item) {
-          item.setPosition(pose.position)
-          item.setRotation(pose.rotation)
-        }
-      }
-      savedPosesRef.current = null
-    }
-
     // Initialize physics
     let cancelled = false
     if (runPhysics) {
@@ -186,12 +167,10 @@ function SceneViewInner({
           pw.setGravity(gravity)
           physicsRef.current = pw
           registryRef.current = RenderItemRegistry.create(entities, pw)
-          applySavedPoses()
         })
       })
     } else {
       registryRef.current = RenderItemRegistry.create(entities, null)
-      applySavedPoses()
     }
 
     // Animation loop
@@ -271,8 +250,7 @@ function SceneViewInner({
       cameraCtrlRef.current = null
       scriptRunnerRef.current = null
       
-      // Save poses before clearing registry
-      savedPosesRef.current = registryRef.current?.getAllPoses() ?? null
+      // Clear registry
       registryRef.current?.clear()
       registryRef.current = null
       
@@ -302,7 +280,7 @@ function SceneViewInner({
       setCamera(null)
       setRenderer(null)
     }
-  }, [reloadTrigger, runPhysics, runScripts, gravityEnabled, shadowsEnabled, freeFlyKeysRef])
+  }, [world, version, runPhysics, runScripts, gravityEnabled, shadowsEnabled, freeFlyKeysRef])
 
   // Update gravity when it changes
   useEffect(() => {

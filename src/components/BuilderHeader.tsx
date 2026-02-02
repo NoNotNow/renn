@@ -4,7 +4,11 @@ import { uiLogger } from '@/utils/uiLogger'
 
 export interface BuilderHeaderProps {
   projects: ProjectMeta[]
-  currentProjectId: string | null
+  currentProject: {
+    id: string | null
+    name: string
+    isDirty: boolean
+  }
   gravityEnabled: boolean
   shadowsEnabled: boolean
   onNew: () => void
@@ -16,7 +20,6 @@ export interface BuilderHeaderProps {
   onRefresh: () => void
   onDelete: () => void
   onPlay: () => void
-  onReload: () => void
   onGravityChange: (enabled: boolean) => void
   onShadowsChange: (enabled: boolean) => void
   fileInputRef: React.RefObject<HTMLInputElement | null>
@@ -25,7 +28,7 @@ export interface BuilderHeaderProps {
 
 export default function BuilderHeader({
   projects,
-  currentProjectId,
+  currentProject,
   gravityEnabled,
   shadowsEnabled,
   onNew,
@@ -37,7 +40,6 @@ export default function BuilderHeader({
   onRefresh,
   onDelete,
   onPlay,
-  onReload,
   onGravityChange,
   onShadowsChange,
   fileInputRef,
@@ -45,7 +47,10 @@ export default function BuilderHeader({
 }: BuilderHeaderProps) {
   return (
     <header style={{ padding: '8px 12px', display: 'flex', gap: 8, alignItems: 'center', borderBottom: '1px solid #ccc' }}>
-      <strong>Renn Builder</strong>
+      <strong>
+        {currentProject.name}
+        {currentProject.isDirty && ' *'}
+      </strong>
       <button type="button" onClick={onNew}>New</button>
       <button type="button" onClick={onSave}>Save</button>
       <button type="button" onClick={onSaveAs}>Save as</button>
@@ -59,30 +64,20 @@ export default function BuilderHeader({
         onChange={onFileChange}
       />
       <select
-        value={currentProjectId ?? ''}
+        value={currentProject.id ?? ''}
         onChange={(e) => {
           const v = e.target.value
           if (v) onOpen(v)
         }}
       >
-        <option value="">— No project —</option>
+        <option value="">New Project</option>
         {projects.map((p) => (
           <option key={p.id} value={p.id}>{p.name}</option>
         ))}
       </select>
       <button type="button" onClick={onRefresh}>Refresh list</button>
-      <button type="button" onClick={onDelete} disabled={!currentProjectId}>Delete</button>
+      <button type="button" onClick={onDelete} disabled={!currentProject.id}>Delete</button>
       <button type="button" onClick={onPlay}>Play</button>
-      <button
-        type="button"
-        onClick={() => {
-          onReload()
-          uiLogger.click('Builder', 'Reload scene from JSON')
-        }}
-        title="Reset scene to saved JSON state (discards runtime changes)"
-      >
-        Reload
-      </button>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 8 }}>
         <Switch
           checked={gravityEnabled}

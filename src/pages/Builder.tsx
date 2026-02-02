@@ -1,30 +1,32 @@
-import { useState, useCallback, useRef, useMemo } from 'react'
+import { useState, useCallback, useRef, useMemo, useEffect, type SetStateAction } from 'react'
 import SceneView, { type SceneViewHandle } from '@/components/SceneView'
 import BuilderHeader from '@/components/BuilderHeader'
 import EntitySidebar from '@/components/EntitySidebar'
 import PropertySidebar from '@/components/PropertySidebar'
 import { createDefaultEntity, type AddableShapeType } from '@/data/entityDefaults'
-import { useProjectManagement } from '@/hooks/useProjectManagement'
+import { useProjectContext } from '@/hooks/useProjectContext'
 import type { Vec3, Quat } from '@/types/world'
 import { uiLogger } from '@/utils/uiLogger'
 import { updateEntityPosition } from '@/utils/worldUtils'
 
 export default function Builder() {
   const {
+    currentProject,
     world,
     assets,
     projects,
-    currentProjectId,
-    setWorld,
-    setAssets,
-    loadProjects,
-    handleNew,
-    handleOpen,
-    handleSave,
-    handleSaveAs,
-    handleDelete,
-    handleExport,
-    handleImport,
+    version,
+    newProject,
+    loadProject,
+    saveProject,
+    saveProjectAs,
+    deleteProject,
+    refreshProjects,
+    updateWorld,
+    updateAssets,
+    syncPosesFromScene,
+    exportProject,
+    importProject,
     onFileChange,
     handlePlay,
     fileInputRef,
@@ -34,7 +36,7 @@ export default function Builder() {
     setCameraControl,
     setCameraTarget,
     setCameraMode,
-  } = useProjectManagement()
+  } = useProjectContext()
 
   const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null)
   const [gravityEnabled, setGravityEnabled] = useState(true)
@@ -61,13 +63,13 @@ export default function Builder() {
     (shapeType: AddableShapeType) => {
       const newEntity = createDefaultEntity(shapeType)
       uiLogger.select('Builder', 'Add entity', { shapeType, entityId: newEntity.id })
-      setWorld((prev) => ({
+      updateWorld((prev) => ({
         ...prev,
         entities: [...prev.entities, newEntity],
       }))
       setSelectedEntityId(newEntity.id)
     },
-    [setWorld]
+    [updateWorld]
   )
 
   const handleDeleteEntity = useCallback(
@@ -75,39 +77,33 @@ export default function Builder() {
       const entity = world.entities.find((e) => e.id === entityId)
       uiLogger.delete('Builder', 'Delete entity', { entityId, entityName: entity?.name })
       const newEntities = world.entities.filter((e) => e.id !== entityId)
-      setWorld((prev) => ({ ...prev, entities: newEntities }))
+      updateWorld((prev) => ({ ...prev, entities: newEntities }))
       if (selectedEntityId === entityId) setSelectedEntityId(null)
       if (cameraTarget === entityId) {
         setCameraTarget(newEntities[0]?.id ?? '')
       }
     },
-    [world.entities, selectedEntityId, cameraTarget, setWorld, setCameraTarget]
+    [world.entities, selectedEntityId, cameraTarget, updateWorld, setCameraTarget]
   )
 
   const handleEntityPositionChange = useCallback(
     (entityId: string, position: Vec3) => {
-      setWorld((prev) => updateEntityPosition(prev, entityId, position))
+      updateWorld((prev) => updateEntityPosition(prev, entityId, position))
     },
-    [setWorld]
+    [updateWorld]
   )
 
-  const handleReload = useCallback(() => {
-    sceneViewRef.current?.reload()
-  }, [])
+  const handleNew = useCallback(() => {
+    if (currentProject.isDirty && !confirm('Discard unsaved changes?')) return
+    newProject()
+  }, [currentProject.isDirty, newProject])
 
-  const handleNewWithReload = useCallback(() => {
-    handleNew()
-    // Reload after state settles
-    setTimeout(() => handleReload(), 0)
-  }, [handleNew, handleReload])
-
-  const handleOpenWithReload = useCallback(
+  const handleOpen = useCallback(
     (id: string) => {
-      handleOpen(id)
-      // Reload after state settles
-      setTimeout(() => handleReload(), 0)
+      if (currentProject.isDirty && !confirm('Discard unsaved changes?')) return
+      loadProject(id)
     },
-    [handleOpen, handleReload]
+    [currentProject.isDirty, loadProject]
   )
 
   const getCurrentPose = useCallback(
@@ -128,59 +124,61 @@ export default function Builder() {
     sceneViewRef.current?.updateEntityPose(id, pose)
   }, [])
 
-  const handleSaveWithSync = useCallback(async () => {
-    const allPoses = sceneViewRef.current?.getAllPoses()
-    if (allPoses) {
-      // Sync poses back to world before saving
-      setWorld((prev) => ({
-        ...prev,
-        entities: prev.entities.map((e) => {
-          const pose = allPoses.get(e.id)
-          return pose ? { ...e, position: pose.position, rotation: pose.rotation } : e
-        }),
-      }))
-      // Wait for state to settle, then save
-      setTimeout(() => handleSave(), 0)
-    } else {
-      handleSave()
-    }
-  }, [handleSave, setWorld])
+  const handleWorldChange = useCallback((newWorld: typeof world) => {
+    updateWorld(() => newWorld)
+  }, [updateWorld])
 
-  const handleSaveAsWithSync = useCallback(async () => {
+  const handleAssetsChange = useCallback((newAssets: typeof assets) => {
+    updateAssets(() => newAssets)
+  }, [updateAssets])
+
+  // Warn before leaving if there are unsaved changes
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (currentProject.isDirty) {
+        e.preventDefault()
+        e.returnValue = ''
+      }
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [currentProject.isDirty])
+
+  const handleSave = useCallback(async () => {
     const allPoses = sceneViewRef.current?.getAllPoses()
     if (allPoses) {
-      // Sync poses back to world before saving
-      setWorld((prev) => ({
-        ...prev,
-        entities: prev.entities.map((e) => {
-          const pose = allPoses.get(e.id)
-          return pose ? { ...e, position: pose.position, rotation: pose.rotation } : e
-        }),
-      }))
-      // Wait for state to settle, then save
-      setTimeout(() => handleSaveAs(), 0)
-    } else {
-      handleSaveAs()
+      syncPosesFromScene(allPoses)
     }
-  }, [handleSaveAs, setWorld])
+    await saveProject()
+  }, [syncPosesFromScene, saveProject])
+
+  const handleSaveAs = useCallback(async () => {
+    const name = prompt('Project name:', `World ${projects.length + 1}`)
+    if (!name) return
+    
+    const allPoses = sceneViewRef.current?.getAllPoses()
+    if (allPoses) {
+      syncPosesFromScene(allPoses)
+    }
+    await saveProjectAs(name)
+  }, [syncPosesFromScene, saveProjectAs, projects.length])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <BuilderHeader
         projects={projects}
-        currentProjectId={currentProjectId}
+        currentProject={currentProject}
         gravityEnabled={gravityEnabled}
         shadowsEnabled={shadowsEnabled}
-        onNew={handleNewWithReload}
-        onSave={handleSaveWithSync}
-        onSaveAs={handleSaveAsWithSync}
-        onExport={handleExport}
-        onImport={handleImport}
-        onOpen={handleOpenWithReload}
-        onRefresh={loadProjects}
-        onDelete={handleDelete}
+        onNew={handleNew}
+        onSave={handleSave}
+        onSaveAs={handleSaveAs}
+        onExport={exportProject}
+        onImport={importProject}
+        onOpen={handleOpen}
+        onRefresh={refreshProjects}
+        onDelete={() => currentProject.id && deleteProject(currentProject.id)}
         onPlay={handlePlay}
-        onReload={handleReload}
         onGravityChange={setGravityEnabled}
         onShadowsChange={setShadowsEnabled}
         fileInputRef={fileInputRef}
@@ -207,6 +205,7 @@ export default function Builder() {
               ref={sceneViewRef}
               world={sceneWorld}
               assets={assets}
+              version={version}
               runPhysics
               runScripts
               gravityEnabled={gravityEnabled}
@@ -221,8 +220,8 @@ export default function Builder() {
             world={world}
             assets={assets}
             selectedEntityId={selectedEntityId}
-            onWorldChange={setWorld}
-            onAssetsChange={setAssets}
+            onWorldChange={handleWorldChange}
+            onAssetsChange={handleAssetsChange}
             onDeleteEntity={handleDeleteEntity}
             getCurrentPose={getCurrentPose}
             onEntityPoseChange={handleEntityPoseChange}
