@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { forwardRef } from 'react'
 import Builder from '@/pages/Builder'
+import { ProjectProvider } from '@/contexts/ProjectContext'
 import { updateEntityPosition } from '@/utils/worldUtils'
 import { sampleWorld } from '@/data/sampleWorld'
 import type { RennWorld, Vec3 } from '@/types/world'
@@ -30,7 +31,9 @@ vi.mock('@/persistence/indexedDb', () => ({
 function renderBuilder() {
   return render(
     <MemoryRouter>
-      <Builder />
+      <ProjectProvider>
+        <Builder />
+      </ProjectProvider>
     </MemoryRouter>
   )
 }
