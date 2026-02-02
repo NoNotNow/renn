@@ -43,6 +43,41 @@ export default function Builder() {
   const [shadowsEnabled, setShadowsEnabled] = useState(true)
   const sceneViewRef = useRef<SceneViewHandle>(null)
 
+  // Drawer states with localStorage persistence
+  const [leftDrawerOpen, setLeftDrawerOpen] = useState(() => {
+    try {
+      const saved = localStorage.getItem('leftDrawerOpen')
+      return saved ? JSON.parse(saved) : true
+    } catch {
+      return true
+    }
+  })
+  const [rightDrawerOpen, setRightDrawerOpen] = useState(() => {
+    try {
+      const saved = localStorage.getItem('rightDrawerOpen')
+      return saved ? JSON.parse(saved) : true
+    } catch {
+      return true
+    }
+  })
+
+  // Persist drawer states
+  useEffect(() => {
+    try {
+      localStorage.setItem('leftDrawerOpen', JSON.stringify(leftDrawerOpen))
+    } catch {
+      // Ignore localStorage errors in test environment
+    }
+  }, [leftDrawerOpen])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('rightDrawerOpen', JSON.stringify(rightDrawerOpen))
+    } catch {
+      // Ignore localStorage errors in test environment
+    }
+  }, [rightDrawerOpen])
+
   const sceneWorld = useMemo(
     () => ({
       ...world,
@@ -185,7 +220,25 @@ export default function Builder() {
         onFileChange={onFileChange}
       />
 
-      <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
+      <div style={{ position: 'relative', flex: 1, minHeight: 0, width: '100%' }}>
+        {/* Canvas takes full width */}
+        <main style={{ width: '100%', height: '100%' }}>
+          <SceneView
+            ref={sceneViewRef}
+            world={sceneWorld}
+            assets={assets}
+            version={version}
+            runPhysics
+            runScripts
+            gravityEnabled={gravityEnabled}
+            shadowsEnabled={shadowsEnabled}
+            selectedEntityId={selectedEntityId}
+            onSelectEntity={setSelectedEntityId}
+            onEntityPositionChange={handleEntityPositionChange}
+          />
+        </main>
+
+        {/* Sidebars overlay on top */}
         <EntitySidebar
           entities={world.entities}
           selectedEntityId={selectedEntityId}
@@ -197,36 +250,22 @@ export default function Builder() {
           onCameraControlChange={setCameraControl}
           onCameraTargetChange={setCameraTarget}
           onCameraModeChange={setCameraMode}
+          isOpen={leftDrawerOpen}
+          onToggle={() => setLeftDrawerOpen(!leftDrawerOpen)}
         />
 
-        <main style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-          <div style={{ flex: 1, minHeight: 300 }}>
-            <SceneView
-              ref={sceneViewRef}
-              world={sceneWorld}
-              assets={assets}
-              version={version}
-              runPhysics
-              runScripts
-              gravityEnabled={gravityEnabled}
-              shadowsEnabled={shadowsEnabled}
-              selectedEntityId={selectedEntityId}
-              onSelectEntity={setSelectedEntityId}
-              onEntityPositionChange={handleEntityPositionChange}
-            />
-          </div>
-
-          <PropertySidebar
-            world={world}
-            assets={assets}
-            selectedEntityId={selectedEntityId}
-            onWorldChange={handleWorldChange}
-            onAssetsChange={handleAssetsChange}
-            onDeleteEntity={handleDeleteEntity}
-            getCurrentPose={getCurrentPose}
-            onEntityPoseChange={handleEntityPoseChange}
-          />
-        </main>
+        <PropertySidebar
+          world={world}
+          assets={assets}
+          selectedEntityId={selectedEntityId}
+          onWorldChange={handleWorldChange}
+          onAssetsChange={handleAssetsChange}
+          onDeleteEntity={handleDeleteEntity}
+          getCurrentPose={getCurrentPose}
+          onEntityPoseChange={handleEntityPoseChange}
+          isOpen={rightDrawerOpen}
+          onToggle={() => setRightDrawerOpen(!rightDrawerOpen)}
+        />
       </div>
     </div>
   )
