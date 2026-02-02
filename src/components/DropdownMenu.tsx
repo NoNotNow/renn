@@ -110,11 +110,12 @@ export default function DropdownMenu({ label, items, onOpenChange }: DropdownMen
         aria-expanded={isOpen}
         style={{
           padding: '6px 12px',
-          background: isOpen ? '#e0e0e0' : 'transparent',
+          background: isOpen ? '#232836' : 'transparent',
           border: 'none',
           cursor: 'pointer',
           fontSize: '14px',
           fontFamily: 'inherit',
+          color: '#e6e9f2',
         }}
       >
         {label}
@@ -128,9 +129,9 @@ export default function DropdownMenu({ label, items, onOpenChange }: DropdownMen
             top: '100%',
             left: 0,
             minWidth: '200px',
-            background: 'white',
-            border: '1px solid #ccc',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+            background: '#1b1f2a',
+            border: '1px solid #2f3545',
+            boxShadow: '0 2px 12px rgba(0,0,0,0.55)',
             zIndex: 1000,
             padding: '4px 0',
           }}
@@ -142,7 +143,7 @@ export default function DropdownMenu({ label, items, onOpenChange }: DropdownMen
                   key={`sep-${index}`}
                   style={{
                     height: '1px',
-                    background: '#e0e0e0',
+                    background: '#2f3545',
                     margin: '4px 0',
                   }}
                 />
@@ -164,8 +165,8 @@ export default function DropdownMenu({ label, items, onOpenChange }: DropdownMen
                 style={{
                   padding: '8px 16px',
                   cursor: item.disabled ? 'not-allowed' : 'pointer',
-                  background: isFocused && !item.disabled ? '#e8f4fd' : 'transparent',
-                  color: item.disabled ? '#999' : '#000',
+                  background: isFocused && !item.disabled ? '#2b3550' : 'transparent',
+                  color: item.disabled ? '#6b7280' : '#e6e9f2',
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
@@ -175,7 +176,7 @@ export default function DropdownMenu({ label, items, onOpenChange }: DropdownMen
               >
                 <span>{item.label}</span>
                 {item.shortcut && (
-                  <span style={{ color: '#666', fontSize: '12px' }}>
+                  <span style={{ color: '#9aa4b2', fontSize: '12px' }}>
                     {item.shortcut}
                   </span>
                 )}

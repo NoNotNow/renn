@@ -101,7 +101,7 @@ describe('Builder', () => {
     })
     const newEntityButton = screen.getByRole('button', { name: /^entity_\d+$/ })
     expect(newEntityButton).toBeInTheDocument()
-    expect(newEntityButton).toHaveStyle({ background: '#e0e0ff' })
+    expect(newEntityButton).toHaveStyle({ background: '#2b3550' })
   })
 
   it('passes editor props to SceneView: selectedEntityId, onSelectEntity, onEntityPositionChange', async () => {

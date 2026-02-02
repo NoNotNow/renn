@@ -60,9 +60,9 @@ export default function PropertySidebar({
           transform: 'translateY(-50%)',
           width: 20,
           height: 60,
-          background: '#fff',
-          border: '1px solid #ccc',
-          borderRight: isOpen ? '1px solid #ccc' : 'none',
+          background: '#1b1f2a',
+          border: '1px solid #2f3545',
+          borderRight: isOpen ? '1px solid #2f3545' : 'none',
           borderRadius: isOpen ? '4px 0 0 4px' : '0 4px 4px 0',
           cursor: 'pointer',
           display: 'flex',
@@ -71,17 +71,17 @@ export default function PropertySidebar({
           fontSize: 14,
           zIndex: 1001,
           transition: 'all 0.2s ease',
-          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-          color: '#333',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.45)',
+          color: '#e6e9f2',
           pointerEvents: 'auto',
         }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.background = '#f5f5f5'
-          e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)'
+          e.currentTarget.style.background = '#232836'
+          e.currentTarget.style.boxShadow = '0 2px 10px rgba(0,0,0,0.55)'
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.background = '#fff'
-          e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)'
+          e.currentTarget.style.background = '#1b1f2a'
+          e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.45)'
         }}
       >
         {isOpen ? '▶' : '◀'}
@@ -90,26 +90,27 @@ export default function PropertySidebar({
       <aside
         style={{
           width: isOpen ? 320 : 0,
-          borderLeft: '1px solid #ccc',
+          borderLeft: '1px solid #2f3545',
           display: 'flex',
           flexDirection: 'column',
           minHeight: 0,
           overflow: 'hidden',
           transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-          backgroundColor: '#fff',
-          boxShadow: isOpen ? '-2px 0 8px rgba(0,0,0,0.1)' : 'none',
+          backgroundColor: 'rgba(27, 31, 42, 0.92)',
+          boxShadow: isOpen ? '-2px 0 12px rgba(0,0,0,0.45)' : 'none',
+          color: '#e6e9f2',
         }}
       >
       {isOpen && (
         <>
-          <div style={{ display: 'flex', borderBottom: '1px solid #ccc' }}>
+          <div style={{ display: 'flex', borderBottom: '1px solid #2f3545' }}>
             {(['properties', 'scripts', 'assets'] as const).map((tab) => (
               <button
                 key={tab}
                 type="button"
                 style={{
                   padding: '8px 12px',
-                  background: rightTab === tab ? '#e0e0ff' : 'transparent',
+                  background: rightTab === tab ? '#2b3550' : 'transparent',
                   border: 'none',
                   cursor: 'pointer',
                   textTransform: 'capitalize',
@@ -121,7 +122,7 @@ export default function PropertySidebar({
                 }}
                 onMouseEnter={(e) => {
                   if (rightTab !== tab) {
-                    e.currentTarget.style.background = '#f0f0f0'
+                    e.currentTarget.style.background = '#20263a'
                   }
                 }}
                 onMouseLeave={(e) => {

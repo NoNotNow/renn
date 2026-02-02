@@ -5,4 +5,24 @@ html, body, #root {
   margin: 0;
   height: 100%;
   font-family: system-ui, -apple-system, sans-serif;
+  background-color: #0f1115;
+  color: #e6e9f2;
+}
+
+body {
+  color-scheme: dark;
+}
+
+a {
+  color: #8ab4ff;
+}
+
+input, select, textarea, button {
+  font-family: inherit;
+}
+
+input, select, textarea {
+  background-color: #1b1f2a;
+  color: #e6e9f2;
+  border: 1px solid #2f3545;
 }

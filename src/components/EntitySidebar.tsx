@@ -58,14 +58,15 @@ export default function EntitySidebar({
       <aside
         style={{
           width: isOpen ? 240 : 0,
-          borderRight: '1px solid #ccc',
+          borderRight: '1px solid #2f3545',
           padding: isOpen ? 8 : 0,
           overflow: isOpen ? 'auto' : 'hidden',
           transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1), padding 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-          backgroundColor: '#fff',
+          backgroundColor: 'rgba(27, 31, 42, 0.92)',
           display: 'flex',
           flexDirection: 'column',
-          boxShadow: isOpen ? '2px 0 8px rgba(0,0,0,0.1)' : 'none',
+          color: '#e6e9f2',
+          boxShadow: isOpen ? '2px 0 12px rgba(0,0,0,0.45)' : 'none',
         }}
       >
       {isOpen && (
@@ -97,7 +98,7 @@ export default function EntitySidebar({
                     width: '100%',
                     textAlign: 'left',
                     padding: '4px 8px',
-                    background: selectedEntityId === e.id ? '#e0e0ff' : 'transparent',
+                    background: selectedEntityId === e.id ? '#2b3550' : 'transparent',
                     border: 'none',
                     cursor: 'pointer',
                     transition: 'background 0.15s ease',
@@ -108,7 +109,7 @@ export default function EntitySidebar({
                   }}
                   onMouseEnter={(e) => {
                     if (selectedEntityId !== e.currentTarget.textContent) {
-                      e.currentTarget.style.background = '#f0f0f0'
+                      e.currentTarget.style.background = '#20263a'
                     }
                   }}
                   onMouseLeave={(e) => {
@@ -192,9 +193,9 @@ export default function EntitySidebar({
           transform: 'translateY(-50%)',
           width: 20,
           height: 60,
-          background: '#fff',
-          border: '1px solid #ccc',
-          borderLeft: isOpen ? '1px solid #ccc' : 'none',
+          background: '#1b1f2a',
+          border: '1px solid #2f3545',
+          borderLeft: isOpen ? '1px solid #2f3545' : 'none',
           borderRadius: isOpen ? '0 4px 4px 0' : '4px 0 0 4px',
           cursor: 'pointer',
           display: 'flex',
@@ -203,17 +204,17 @@ export default function EntitySidebar({
           fontSize: 14,
           zIndex: 1001,
           transition: 'all 0.2s ease',
-          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-          color: '#333',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.45)',
+          color: '#e6e9f2',
           pointerEvents: 'auto',
         }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.background = '#f5f5f5'
-          e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)'
+          e.currentTarget.style.background = '#232836'
+          e.currentTarget.style.boxShadow = '0 2px 10px rgba(0,0,0,0.55)'
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.background = '#fff'
-          e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)'
+          e.currentTarget.style.background = '#1b1f2a'
+          e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.45)'
         }}
       >
         {isOpen ? '◀' : '▶'}

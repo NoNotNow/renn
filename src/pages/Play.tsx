@@ -27,7 +27,7 @@ export default function Play() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <header style={{ padding: '8px 12px', display: 'flex', gap: 8, alignItems: 'center', borderBottom: '1px solid #ccc' }}>
+      <header style={{ padding: '8px 12px', display: 'flex', gap: 8, alignItems: 'center', borderBottom: '1px solid #2f3545', background: '#171a22', color: '#e6e9f2' }}>
         <Link to="/">Back to Builder</Link>
         <div style={{ marginLeft: 'auto' }}>
           <Switch

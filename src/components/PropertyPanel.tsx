@@ -29,7 +29,7 @@ export default function PropertyPanel({
   if (!entity) {
     return (
       <div style={{ padding: 8 }}>
-        <p style={{ color: '#666' }}>Select an entity</p>
+        <p style={{ color: '#9aa4b2' }}>Select an entity</p>
       </div>
     )
   }
@@ -130,8 +130,9 @@ export default function PropertyPanel({
           style={{
             marginTop: 16,
             padding: '8px 12px',
-            background: '#fcc',
-            border: '1px solid #c99',
+            background: '#3a1b1b',
+            border: '1px solid #6b2a2a',
+            color: '#f4d6d6',
             borderRadius: 4,
             cursor: 'pointer',
           }}

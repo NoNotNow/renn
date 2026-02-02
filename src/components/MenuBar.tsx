@@ -12,8 +12,8 @@ export default function MenuBar({ children }: MenuBarProps) {
         display: 'flex',
         alignItems: 'center',
         gap: '0',
-        background: '#f5f5f5',
-        borderBottom: '1px solid #d0d0d0',
+        background: '#171a22',
+        borderBottom: '1px solid #2f3545',
       }}
     >
       {children}

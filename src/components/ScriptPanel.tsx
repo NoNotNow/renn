@@ -49,7 +49,7 @@ export default function ScriptPanel({ world, onWorldChange }: ScriptPanelProps) 
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <div style={{ padding: 8, display: 'flex', gap: 8, borderBottom: '1px solid #ccc' }}>
+      <div style={{ padding: 8, display: 'flex', gap: 8, borderBottom: '1px solid #2f3545' }}>
         <select
           value={selectedId ?? ''}
           onChange={(e) => {
@@ -69,6 +69,7 @@ export default function ScriptPanel({ world, onWorldChange }: ScriptPanelProps) 
         <Editor
           height="100%"
           language="javascript"
+          theme="vs-dark"
           value={source}
           onChange={handleEditorChange}
           options={{ minimap: { enabled: false } }}

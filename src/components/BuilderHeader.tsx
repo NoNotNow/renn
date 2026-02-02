@@ -127,9 +127,9 @@ export default function BuilderHeader({
   ]
 
   return (
-    <header>
+    <header style={{ background: '#171a22', borderBottom: '1px solid #2f3545', color: '#e6e9f2' }}>
       <div style={{ display: 'flex', alignItems: 'center' }}>
-        <div style={{ padding: '6px 12px', fontWeight: 'bold', fontSize: '14px' }}>
+        <div style={{ padding: '6px 12px', fontWeight: 'bold', fontSize: '14px', color: '#e6e9f2' }}>
           {currentProject.name}
           {currentProject.isDirty && ' *'}
         </div>
@@ -147,8 +147,8 @@ export default function BuilderHeader({
           alignItems: 'center',
           gap: 12,
           padding: '6px 12px',
-          background: '#fafafa',
-          borderBottom: '1px solid #d0d0d0',
+          background: '#171a22',
+          borderBottom: '1px solid #2f3545',
         }}
       >
         <Switch
@@ -197,20 +197,21 @@ export default function BuilderHeader({
         >
           <div
             style={{
-              background: 'white',
+              background: '#1b1f2a',
               padding: '24px',
               borderRadius: '8px',
               minWidth: '400px',
               maxWidth: '600px',
               maxHeight: '80vh',
               overflow: 'auto',
+              border: '1px solid #2f3545',
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 style={{ margin: '0 0 16px 0', fontSize: '18px' }}>Open Project</h2>
+            <h2 style={{ margin: '0 0 16px 0', fontSize: '18px', color: '#e6e9f2' }}>Open Project</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {projects.length === 0 ? (
-                <p style={{ color: '#666', margin: 0 }}>No saved projects</p>
+                <p style={{ color: '#9aa4b2', margin: 0 }}>No saved projects</p>
               ) : (
                 projects.map((project) => (
                   <button
@@ -223,8 +224,9 @@ export default function BuilderHeader({
                     style={{
                       padding: '12px',
                       textAlign: 'left',
-                      border: '1px solid #ddd',
-                      background: currentProject.id === project.id ? '#e8f4fd' : 'white',
+                      border: '1px solid #2f3545',
+                      background: currentProject.id === project.id ? '#2b3550' : '#1b1f2a',
+                      color: '#e6e9f2',
                       cursor: 'pointer',
                       borderRadius: '4px',
                       fontSize: '14px',
@@ -242,6 +244,9 @@ export default function BuilderHeader({
                 marginTop: '16px',
                 padding: '8px 16px',
                 width: '100%',
+                background: '#232836',
+                color: '#e6e9f2',
+                border: '1px solid #2f3545',
               }}
             >
               Cancel
