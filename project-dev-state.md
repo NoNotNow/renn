@@ -2,7 +2,7 @@
 
 Track what’s done and what’s left. Update this file as you complete or add work.
 
-Last updated: 2026-01-31
+Last updated: 2026-02-02
 
 ---
 
@@ -36,6 +36,7 @@ Last updated: 2026-01-31
 - [x] **Canvas size** – Min size and ResizeObserver so 3D viewport gets valid dimensions.
 - [x] **Collision events** – Rapier collision detection via EventQueue; call `runOnCollision(entityId, otherId)` when bodies collide.
 - [x] **Physics → mesh sync** – Rapier body transforms copied back to Three.js meshes each frame for dynamic/kinematic bodies.
+- [x] **Rapier aliasing crash fix** – Single-flight Rapier init; cache physics transforms as plain numbers (no WASM object retention) to avoid `recursive use` errors during `world.step()`.
 - [x] **E2E tests** – Playwright; `e2e/add-entity.spec.ts` for add entity flow.
 
 ---

@@ -265,9 +265,21 @@ export async function initRapier(): Promise<void> {
     await rapierInitPromise
     return
   }
-  rapierInitPromise = RAPIER.init().then(() => {
-    rapierInitialized = true
-  })
+  const originalWarn = console.warn
+  console.warn = (...args: unknown[]) => {
+    const first = args[0]
+    if (typeof first === 'string' && first.includes('deprecated parameters for the initialization function')) {
+      return
+    }
+    originalWarn(...args)
+  }
+  rapierInitPromise = RAPIER.init({})
+    .then(() => {
+      rapierInitialized = true
+    })
+    .finally(() => {
+      console.warn = originalWarn
+    })
   await rapierInitPromise
 }
 
