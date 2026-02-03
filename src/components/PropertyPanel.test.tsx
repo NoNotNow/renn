@@ -173,15 +173,13 @@ describe('PropertyPanel', () => {
       expect(updatedEntity?.rotation?.[0]).toBe(0.5)
     })
 
-    it('changing Color R updates entity material color', async () => {
-      const user = userEvent.setup()
+    it('changing Color updates entity material color', async () => {
       const onWorldChange = vi.fn()
       const world = worldWithBox()
       const entityId = world.entities[0].id
       renderPropertyPanel(world, entityId, onWorldChange)
-      const colorRInput = screen.getByLabelText(/color \(r, g, b 0–1\) r/i)
-      await user.tripleClick(colorRInput)
-      await user.keyboard('1')
+      const colorInput = screen.getByLabelText(/material color/i)
+      fireEvent.change(colorInput, { target: { value: '#ff0000' } })
       expect(onWorldChange).toHaveBeenCalled()
       const lastCall = onWorldChange.mock.calls[onWorldChange.mock.calls.length - 1]
       const updatedEntity = lastCall[0].entities.find((e: { id: string }) => e.id === entityId)
