@@ -3,6 +3,7 @@ export interface SwitchProps {
   onChange: (checked: boolean) => void
   label?: string
   disabled?: boolean
+  size?: 'normal' | 'compact'
 }
 
 export default function Switch({
@@ -10,10 +11,20 @@ export default function Switch({
   onChange,
   label,
   disabled = false,
+  size = 'normal',
 }: SwitchProps) {
+  const isCompact = size === 'compact'
+  const buttonWidth = isCompact ? 32 : 40
+  const buttonHeight = isCompact ? 18 : 22
+  const knobSize = isCompact ? 12 : 16
+  const knobOffset = 2
+  const knobCheckedLeft = buttonWidth - knobSize - knobOffset
+  const fontSize = isCompact ? 12 : 14
+  const gap = isCompact ? 4 : 6
+
   return (
-    <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-      {label != null && <span>{label}</span>}
+    <label style={{ display: 'flex', alignItems: 'center', gap }}>
+      {label != null && <span style={{ fontSize }}>{label}</span>}
       <button
         type="button"
         role="switch"
@@ -21,9 +32,9 @@ export default function Switch({
         disabled={disabled}
         onClick={() => onChange(!checked)}
         style={{
-          width: 40,
-          height: 22,
-          borderRadius: 11,
+          width: buttonWidth,
+          height: buttonHeight,
+          borderRadius: buttonHeight / 2,
           border: '1px solid #2f3545',
           background: checked ? '#2f9d6a' : '#2a303d',
           cursor: disabled ? 'not-allowed' : 'pointer',
@@ -33,10 +44,10 @@ export default function Switch({
         <span
           style={{
             position: 'absolute',
-            top: 2,
-            left: checked ? 20 : 2,
-            width: 16,
-            height: 16,
+            top: knobOffset,
+            left: checked ? knobCheckedLeft : knobOffset,
+            width: knobSize,
+            height: knobSize,
             borderRadius: '50%',
             background: '#e6e9f2',
             boxShadow: '0 1px 3px rgba(0,0,0,0.5)',

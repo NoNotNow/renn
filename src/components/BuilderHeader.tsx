@@ -128,45 +128,39 @@ export default function BuilderHeader({
 
   return (
     <header style={{ background: '#171a22', borderBottom: '1px solid #2f3545', color: '#e6e9f2' }}>
-      <div style={{ display: 'flex', alignItems: 'center' }}>
-        <div style={{ padding: '6px 12px', fontWeight: 'bold', fontSize: '14px', color: '#e6e9f2' }}>
-          {currentProject.name}
-          {currentProject.isDirty && ' *'}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          <div style={{ padding: '6px 12px', fontWeight: 'bold', fontSize: '14px', color: '#e6e9f2' }}>
+            {currentProject.name}
+            {currentProject.isDirty && ' *'}
+          </div>
+          <MenuBar>
+            <DropdownMenu label="File" items={fileMenuItems} />
+            <DropdownMenu label="View" items={viewMenuItems} />
+            <DropdownMenu label="Project" items={projectMenuItems} />
+          </MenuBar>
         </div>
-        <MenuBar>
-          <DropdownMenu label="File" items={fileMenuItems} />
-          <DropdownMenu label="View" items={viewMenuItems} />
-          <DropdownMenu label="Project" items={projectMenuItems} />
-        </MenuBar>
-      </div>
 
-      {/* Toolbar row with toggles */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12,
-          padding: '6px 12px',
-          background: '#171a22',
-          borderBottom: '1px solid #2f3545',
-        }}
-      >
-        <Switch
-          checked={gravityEnabled}
-          onChange={(v) => {
-            onGravityChange(v)
-            uiLogger.change('Builder', 'Toggle gravity', { enabled: v })
-          }}
-          label="Gravity"
-        />
-        <Switch
-          checked={shadowsEnabled}
-          onChange={(v) => {
-            onShadowsChange(v)
-            uiLogger.change('Builder', 'Toggle shadows', { enabled: v })
-          }}
-          label="Shadows"
-        />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 12px' }}>
+          <Switch
+            size="compact"
+            checked={gravityEnabled}
+            onChange={(v) => {
+              onGravityChange(v)
+              uiLogger.change('Builder', 'Toggle gravity', { enabled: v })
+            }}
+            label="Gravity"
+          />
+          <Switch
+            size="compact"
+            checked={shadowsEnabled}
+            onChange={(v) => {
+              onShadowsChange(v)
+              uiLogger.change('Builder', 'Toggle shadows', { enabled: v })
+            }}
+            label="Shadows"
+          />
+        </div>
       </div>
 
       {/* Hidden file input for import */}
