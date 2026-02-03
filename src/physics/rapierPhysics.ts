@@ -3,6 +3,7 @@ import * as THREE from 'three'
 import type { LoadedEntity } from '@/loader/loadWorld'
 import type { RennWorld, Shape, Entity } from '@/types/world'
 import { DEFAULT_GRAVITY } from '@/types/world'
+import { extractMeshGeometry, getGeometryInfo } from '@/utils/geometryExtractor'
 
 export type CollisionPair = { entityIdA: string; entityIdB: string }
 
@@ -31,7 +32,7 @@ export class PhysicsWorld {
     this.world.gravity = { x: gravity[0], y: gravity[1], z: gravity[2] }
   }
 
-  addEntity(entity: Entity, _mesh: THREE.Mesh): void {
+  addEntity(entity: Entity, mesh: THREE.Mesh): void {
     const bodyType = entity.bodyType ?? 'static'
     const position = entity.position ?? [0, 0, 0]
     const rotation = entity.rotation ?? [0, 0, 0, 1]
@@ -74,8 +75,8 @@ export class PhysicsWorld {
     const rigidBody = this.world.createRigidBody(rigidBodyDesc)
     this.bodyMap.set(entity.id, rigidBody)
 
-    // Create collider for the shape
-    const colliderDesc = this.createColliderDesc(entity.shape, entity)
+    // Create collider for the shape (pass mesh for trimesh extraction)
+    const colliderDesc = this.createColliderDesc(entity.shape, entity, mesh)
     if (colliderDesc) {
       // Set physics properties
       colliderDesc.setRestitution(entity.restitution ?? 0)
@@ -96,7 +97,7 @@ export class PhysicsWorld {
     }
   }
 
-  private createColliderDesc(shape: Shape | undefined, entity: Entity): RAPIER.ColliderDesc | null {
+  private createColliderDesc(shape: Shape | undefined, entity: Entity, mesh?: THREE.Mesh): RAPIER.ColliderDesc | null {
     if (!shape) {
       // Default to a unit box
       return RAPIER.ColliderDesc.cuboid(0.5, 0.5, 0.5)
@@ -142,11 +143,44 @@ export class PhysicsWorld {
         return colliderDesc
       }
 
-      case 'trimesh':
-        // For trimesh, we'd need the actual mesh vertices
-        // For now, fall back to a box
-        console.warn('[PhysicsWorld] Trimesh colliders not yet implemented, using box fallback')
+      case 'trimesh': {
+        // Check if we have a mesh with trimesh metadata
+        if (mesh && mesh.userData.isTrimeshSource) {
+          try {
+            // Extract geometry from the trimesh scene (stored in userData)
+            const sourceScene = mesh.userData.trimeshScene || mesh
+            const extractedGeometry = extractMeshGeometry(sourceScene, false)
+            
+            if (extractedGeometry && extractedGeometry.vertices.length > 0 && extractedGeometry.indices.length > 0) {
+              // Apply entity scale to vertices
+              const scaledVertices = new Float32Array(extractedGeometry.vertices.length)
+              for (let i = 0; i < extractedGeometry.vertices.length; i += 3) {
+                scaledVertices[i] = extractedGeometry.vertices[i] * scale[0]
+                scaledVertices[i + 1] = extractedGeometry.vertices[i + 1] * scale[1]
+                scaledVertices[i + 2] = extractedGeometry.vertices[i + 2] * scale[2]
+              }
+              
+              const info = getGeometryInfo({ vertices: scaledVertices, indices: extractedGeometry.indices })
+              console.log(`[PhysicsWorld] Creating trimesh collider: ${info.vertexCount} vertices, ${info.triangleCount} triangles`)
+              
+              // Warn about large meshes
+              if (info.triangleCount > 10000) {
+                console.warn(`[PhysicsWorld] Large trimesh (${info.triangleCount} triangles) may impact performance`)
+              }
+              
+              return RAPIER.ColliderDesc.trimesh(scaledVertices, extractedGeometry.indices)
+            } else {
+              console.warn('[PhysicsWorld] Failed to extract geometry from trimesh, using box fallback')
+            }
+          } catch (error) {
+            console.error('[PhysicsWorld] Error creating trimesh collider:', error)
+          }
+        }
+        
+        // Fallback to box if extraction fails or no mesh provided
+        console.warn('[PhysicsWorld] Trimesh collider could not be created, using box fallback')
         return RAPIER.ColliderDesc.cuboid(0.5, 0.5, 0.5)
+      }
 
       default:
         return RAPIER.ColliderDesc.cuboid(0.5, 0.5, 0.5)

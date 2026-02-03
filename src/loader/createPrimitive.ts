@@ -136,12 +136,21 @@ export async function createPrimitiveMesh(
             // Extract the first mesh or create a group
             const firstMesh = modelScene.children.find(child => child instanceof THREE.Mesh) as THREE.Mesh
             if (firstMesh) {
+              // Store metadata for physics extraction
+              firstMesh.userData.isTrimeshSource = true
+              firstMesh.userData.trimeshModel = shape.model
+              // Store the entire scene for proper geometry extraction
+              firstMesh.userData.trimeshScene = modelScene
               return firstMesh
             }
             
             // If no mesh found, wrap the scene in a mesh with dummy geometry
             const wrapperMesh = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.1), mat)
             wrapperMesh.add(modelScene)
+            // Store metadata for physics extraction
+            wrapperMesh.userData.isTrimeshSource = true
+            wrapperMesh.userData.trimeshModel = shape.model
+            wrapperMesh.userData.trimeshScene = modelScene
             return wrapperMesh
           }
         } catch (error) {
