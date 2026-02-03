@@ -4,7 +4,7 @@ import BuilderHeader from '@/components/BuilderHeader'
 import EntitySidebar from '@/components/EntitySidebar'
 import PropertySidebar from '@/components/PropertySidebar'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
-import { createDefaultEntity, type AddableShapeType } from '@/data/entityDefaults'
+import { createDefaultEntity, createBulkEntities, type AddableShapeType, type BulkEntityParams } from '@/data/entityDefaults'
 import { useProjectContext } from '@/hooks/useProjectContext'
 import { useLocalStorageState } from '@/hooks/useLocalStorageState'
 import type { Vec3, Quat } from '@/types/world'
@@ -74,6 +74,26 @@ export default function Builder() {
         entities: [...prev.entities, newEntity],
       }))
       setSelectedEntityId(newEntity.id)
+    },
+    [updateWorld]
+  )
+
+  const handleBulkAddEntities = useCallback(
+    (params: BulkEntityParams) => {
+      const newEntities = createBulkEntities(params)
+      uiLogger.select('Builder', 'Bulk add entities', { 
+        count: params.count, 
+        shape: params.shape,
+        bodyType: params.bodyType,
+      })
+      updateWorld((prev) => ({
+        ...prev,
+        entities: [...prev.entities, ...newEntities],
+      }))
+      // Select the first created entity
+      if (newEntities.length > 0) {
+        setSelectedEntityId(newEntities[0].id)
+      }
     },
     [updateWorld]
   )
@@ -236,6 +256,7 @@ export default function Builder() {
           cameraMode={cameraMode}
           onSelectEntity={setSelectedEntityId}
           onAddEntity={handleAddEntity}
+          onBulkAddEntities={handleBulkAddEntities}
           onCameraControlChange={setCameraControl}
           onCameraTargetChange={setCameraTarget}
           onCameraModeChange={setCameraMode}
