@@ -50,21 +50,40 @@ export function useEditorInteractions({
       ndc.y = -((e.clientY - rect.top) / rect.height) * 2 + 1
     }
 
+    const findEntityMesh = (obj: THREE.Object3D): THREE.Object3D | null => {
+      let current: THREE.Object3D | null = obj
+      while (current) {
+        if (current.userData?.entityId) {
+          return current
+        }
+        current = current.parent
+      }
+      return null
+    }
+
     const onPointerDown = (e: PointerEvent): void => {
       setNdcFromEvent(e)
       raycaster.setFromCamera(ndc, camera)
       const hits = raycaster.intersectObjects(getEntityMeshes(), true)
       const hit = hits[0]
-      if (!hit?.object?.userData?.entityId) {
+      if (!hit?.object) {
         editorPropsRef.current.onSelectEntity?.(null)
         return
       }
-      const entityId = hit.object.userData.entityId as string
-      const mesh = hit.object as THREE.Mesh
+      
+      // Find the entity mesh by traversing up the hierarchy
+      const entityMesh = findEntityMesh(hit.object)
+      if (!entityMesh?.userData?.entityId) {
+        editorPropsRef.current.onSelectEntity?.(null)
+        return
+      }
+      
+      const entityId = entityMesh.userData.entityId as string
+      const mesh = entityMesh as THREE.Mesh
       editorPropsRef.current.onSelectEntity?.(entityId)
       
       // Check if entity is locked - prevent dragging but allow selection
-      const entity = hit.object.userData.entity
+      const entity = entityMesh.userData.entity
       if (entity?.locked) {
         return
       }
