@@ -4,6 +4,7 @@ import ScriptPanel from './ScriptPanel'
 import AssetPanel from './AssetPanel'
 import type { RennWorld, Vec3, Quat } from '@/types/world'
 import { uiLogger } from '@/utils/uiLogger'
+import SidebarTabs from './SidebarTabs'
 
 type RightTab = 'properties' | 'scripts' | 'assets'
 
@@ -103,51 +104,14 @@ export default function PropertySidebar({
       >
       {isOpen && (
         <>
-          <div
-            style={{
-              display: 'flex',
-              gap: 6,
-              padding: 6,
-              borderBottom: '1px solid #2f3545',
-              background: 'rgba(17, 20, 28, 0.9)',
+          <SidebarTabs
+            tabs={['properties', 'scripts', 'assets'] as const}
+            activeTab={rightTab}
+            onTabChange={(tab) => {
+              uiLogger.click('Builder', 'Switch right panel tab', { tab })
+              setRightTab(tab)
             }}
-          >
-            {(['properties', 'scripts', 'assets'] as const).map((tab) => (
-              <button
-                key={tab}
-                type="button"
-                style={{
-                  padding: '6px 10px',
-                  background: rightTab === tab ? '#2b3550' : 'transparent',
-                  border: '1px solid transparent',
-                  borderRadius: 6,
-                  cursor: 'pointer',
-                  fontSize: 12,
-                  color: '#e6e9f2',
-                  textTransform: 'capitalize',
-                  transition: 'background 0.2s ease',
-                }}
-                onClick={() => {
-                  uiLogger.click('Builder', 'Switch right panel tab', { tab })
-                  setRightTab(tab)
-                }}
-                onMouseEnter={(e) => {
-                  if (rightTab !== tab) {
-                    e.currentTarget.style.background = '#20263a'
-                    e.currentTarget.style.border = '1px solid #2f3545'
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (rightTab !== tab) {
-                    e.currentTarget.style.background = 'transparent'
-                    e.currentTarget.style.border = '1px solid transparent'
-                  }
-                }}
-              >
-                {tab}
-              </button>
-            ))}
-          </div>
+          />
           <div style={{ flex: 1, overflow: 'auto', minHeight: 200 }}>
         {rightTab === 'properties' && (
           <PropertyPanel

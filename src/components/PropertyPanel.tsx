@@ -4,6 +4,7 @@ import TransformEditor from './TransformEditor'
 import ShapeEditor from './ShapeEditor'
 import PhysicsEditor from './PhysicsEditor'
 import MaterialEditor from './MaterialEditor'
+import { sectionStyle, sectionTitleStyle, fieldLabelStyle } from './sharedStyles'
 
 export interface PropertyPanelProps {
   world: RennWorld
@@ -22,25 +23,6 @@ export default function PropertyPanel({
   getCurrentPose,
   onEntityPoseChange,
 }: PropertyPanelProps) {
-  const sectionStyle = {
-    padding: 8,
-    border: '1px solid #2f3545',
-    borderRadius: 8,
-    background: 'rgba(17, 20, 28, 0.6)',
-  }
-  const sectionTitleStyle = {
-    margin: '0 0 6px',
-    fontSize: '0.75em',
-    letterSpacing: '0.08em',
-    color: '#9aa4b2',
-    textTransform: 'uppercase' as const,
-  }
-  const fieldLabelStyle = {
-    display: 'block',
-    marginBottom: 6,
-    fontSize: 12,
-    color: '#c4cbd8',
-  }
   const inputStyle = {
     display: 'block',
     width: '100%',

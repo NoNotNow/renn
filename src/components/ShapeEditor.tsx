@@ -1,18 +1,9 @@
 import type { Shape } from '@/types/world'
 import { getDefaultShapeForType, type AddableShapeType } from '@/data/entityDefaults'
 import { uiLogger } from '@/utils/uiLogger'
+import { sidebarRowStyle, sidebarLabelStyle, sidebarInputStyle } from './sharedStyles'
 
 const ADDABLE_SHAPE_TYPES: AddableShapeType[] = ['box', 'sphere', 'cylinder', 'capsule', 'plane']
-
-const rowStyle = {
-  display: 'grid',
-  gridTemplateColumns: '96px 1fr',
-  alignItems: 'center',
-  gap: 8,
-  marginBottom: 6,
-}
-const labelStyle = { fontSize: 12, color: '#c4cbd8' }
-const inputStyle = { display: 'block', width: '100%' }
 
 export interface ShapeEditorProps {
   entityId: string
@@ -34,8 +25,8 @@ export default function ShapeEditor({
 
   return (
     <>
-      <div style={rowStyle}>
-        <label htmlFor={`${entityId}-shape`} style={labelStyle}>
+      <div style={sidebarRowStyle}>
+        <label htmlFor={`${entityId}-shape`} style={sidebarLabelStyle}>
           Shape
         </label>
         <select
@@ -45,7 +36,7 @@ export default function ShapeEditor({
             uiLogger.change('PropertyPanel', 'Change shape type', { entityId, oldType: effectiveShapeType, newType: e.target.value })
             setShapeType(e.target.value as AddableShapeType)
           }}
-          style={inputStyle}
+          style={sidebarInputStyle}
         >
           <option value="box">Box</option>
           <option value="sphere">Sphere</option>
@@ -58,8 +49,8 @@ export default function ShapeEditor({
         const s = shape
         return (
           <>
-            <div style={rowStyle}>
-              <label htmlFor={`${entityId}-box-width`} style={labelStyle}>
+            <div style={sidebarRowStyle}>
+              <label htmlFor={`${entityId}-box-width`} style={sidebarLabelStyle}>
                 Width
               </label>
               <input
@@ -78,11 +69,11 @@ export default function ShapeEditor({
                     depth: s.depth,
                   })
                 }}
-                style={inputStyle}
+                style={sidebarInputStyle}
               />
             </div>
-            <div style={rowStyle}>
-              <label htmlFor={`${entityId}-box-height`} style={labelStyle}>
+            <div style={sidebarRowStyle}>
+              <label htmlFor={`${entityId}-box-height`} style={sidebarLabelStyle}>
                 Height
               </label>
               <input
@@ -101,11 +92,11 @@ export default function ShapeEditor({
                     depth: s.depth,
                   })
                 }}
-                style={inputStyle}
+                style={sidebarInputStyle}
               />
             </div>
-            <div style={rowStyle}>
-              <label htmlFor={`${entityId}-box-depth`} style={labelStyle}>
+            <div style={sidebarRowStyle}>
+              <label htmlFor={`${entityId}-box-depth`} style={sidebarLabelStyle}>
                 Depth
               </label>
               <input
@@ -124,15 +115,15 @@ export default function ShapeEditor({
                     depth: newValue,
                   })
                 }}
-                style={inputStyle}
+                style={sidebarInputStyle}
               />
             </div>
           </>
         )
       })()}
       {shape?.type === 'sphere' && (
-        <div style={rowStyle}>
-          <label htmlFor={`${entityId}-sphere-radius`} style={labelStyle}>
+        <div style={sidebarRowStyle}>
+          <label htmlFor={`${entityId}-sphere-radius`} style={sidebarLabelStyle}>
             Radius
           </label>
           <input
@@ -146,7 +137,7 @@ export default function ShapeEditor({
               uiLogger.change('PropertyPanel', 'Change sphere radius', { entityId, oldValue: shape.radius, newValue })
               onShapeChange({ type: 'sphere', radius: newValue })
             }}
-            style={inputStyle}
+            style={sidebarInputStyle}
           />
         </div>
       )}
@@ -155,8 +146,8 @@ export default function ShapeEditor({
         const type = s.type
         return (
           <>
-            <div style={rowStyle}>
-              <label htmlFor={`${entityId}-${type}-radius`} style={labelStyle}>
+            <div style={sidebarRowStyle}>
+              <label htmlFor={`${entityId}-${type}-radius`} style={sidebarLabelStyle}>
                 Radius
               </label>
               <input
@@ -174,11 +165,11 @@ export default function ShapeEditor({
                     height: s.height,
                   })
                 }}
-                style={inputStyle}
+                style={sidebarInputStyle}
               />
             </div>
-            <div style={rowStyle}>
-              <label htmlFor={`${entityId}-${type}-height`} style={labelStyle}>
+            <div style={sidebarRowStyle}>
+              <label htmlFor={`${entityId}-${type}-height`} style={sidebarLabelStyle}>
                 Height
               </label>
               <input
@@ -196,7 +187,7 @@ export default function ShapeEditor({
                     height: newValue,
                   })
                 }}
-                style={inputStyle}
+                style={sidebarInputStyle}
               />
             </div>
           </>

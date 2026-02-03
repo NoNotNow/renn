@@ -1,7 +1,9 @@
-import { useRef, useCallback } from 'react'
+import { useRef, useCallback, useState } from 'react'
 import type { Entity, CameraMode } from '@/types/world'
 import type { AddableShapeType } from '@/data/entityDefaults'
 import { uiLogger } from '@/utils/uiLogger'
+import SidebarTabs from './SidebarTabs'
+import { sidebarRowStyle, sidebarLabelStyle, fieldLabelStyle } from './sharedStyles'
 
 export interface EntitySidebarProps {
   entities: Entity[]
@@ -18,6 +20,8 @@ export interface EntitySidebarProps {
   onToggle: () => void
 }
 
+type LeftTab = 'entities' | 'camera'
+
 export default function EntitySidebar({
   entities,
   selectedEntityId,
@@ -32,6 +36,7 @@ export default function EntitySidebar({
   isOpen,
   onToggle,
 }: EntitySidebarProps) {
+  const [leftTab, setLeftTab] = useState<LeftTab>('camera')
   const addEntitySelectRef = useRef<HTMLSelectElement>(null)
 
   const handleAddEntity = useCallback(
@@ -59,7 +64,6 @@ export default function EntitySidebar({
         style={{
           width: isOpen ? 240 : 0,
           borderRight: '1px solid #2f3545',
-          padding: isOpen ? 8 : 0,
           overflow: isOpen ? 'auto' : 'hidden',
           transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1), padding 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
           backgroundColor: 'rgba(27, 31, 42, 0.92)',
@@ -71,109 +75,140 @@ export default function EntitySidebar({
       >
       {isOpen && (
         <>
-          <h3 style={{ margin: '0 0 8px' }}>Entities</h3>
-          <select
-            ref={addEntitySelectRef}
-            value=""
-            onChange={(e) => {
-              const v = e.target.value as AddableShapeType
-              if (v) handleAddEntity(v)
+          <SidebarTabs
+            tabs={['entities', 'camera'] as const}
+            activeTab={leftTab}
+            onTabChange={(tab) => {
+              uiLogger.click('Builder', 'Switch left panel tab', { tab })
+              setLeftTab(tab)
             }}
-            style={{ display: 'block', width: '100%', marginBottom: 8 }}
-            title="Add entity"
-          >
-            <option value="">Add entity...</option>
-            <option value="box">Add box</option>
-            <option value="sphere">Add sphere</option>
-            <option value="cylinder">Add cylinder</option>
-            <option value="capsule">Add capsule</option>
-            <option value="plane">Add plane</option>
-          </select>
-          <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-            {entities.map((e) => (
-              <li key={e.id}>
-                <button
-                  type="button"
-                  style={{
-                    width: '100%',
-                    textAlign: 'left',
-                    padding: '4px 8px',
-                    background: selectedEntityId === e.id ? '#2b3550' : 'transparent',
-                    border: 'none',
-                    cursor: 'pointer',
-                    transition: 'background 0.15s ease',
-                  }}
-                  onClick={() => {
-                    uiLogger.click('Builder', 'Select entity', { entityId: e.id, entityName: e.name })
-                    onSelectEntity(e.id)
-                  }}
-                  onMouseEnter={(e) => {
-                    if (selectedEntityId !== e.currentTarget.textContent) {
-                      e.currentTarget.style.background = '#20263a'
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (selectedEntityId !== e.currentTarget.textContent) {
-                      e.currentTarget.style.background = 'transparent'
-                    }
-                  }}
-                >
-                  {e.name ?? e.id}
-                </button>
-              </li>
-            ))}
-          </ul>
-          <h3 style={{ margin: '16px 0 8px' }}>Camera</h3>
-          <label>
-            Control
-            <select
-              value={cameraControl}
-              onChange={(e) => {
-                const value = e.target.value as 'free' | 'follow' | 'top' | 'front' | 'right'
-                uiLogger.change('Builder', 'Change camera control', { control: value })
-                onCameraControlChange(value)
-              }}
-            >
-              <option value="free">Free (WASD)</option>
-              <option value="follow">Follow</option>
-              <option value="top">Top</option>
-              <option value="front">Front</option>
-              <option value="right">Right</option>
-            </select>
-          </label>
-          {cameraControl === 'follow' && (
-            <>
-              <label>
-                Target
-                <select
-                  value={cameraTarget}
-                  onChange={(e) => {
-                    uiLogger.change('Builder', 'Change camera target', { target: e.target.value })
-                    onCameraTargetChange(e.target.value)
-                  }}
-                >
-                  <option value="">— None —</option>
+          />
+          <div style={{ padding: 10 }}>
+            {leftTab === 'entities' && (
+              <>
+                <label style={fieldLabelStyle}>
+                  Add
+                  <select
+                    ref={addEntitySelectRef}
+                    value=""
+                    onChange={(e) => {
+                      const v = e.target.value as AddableShapeType
+                      if (v) handleAddEntity(v)
+                    }}
+                    style={{ display: 'block', width: '100%', marginTop: 4 }}
+                    title="Add entity"
+                  >
+                    <option value="">—</option>
+                    <option value="box">Box</option>
+                    <option value="sphere">Sphere</option>
+                    <option value="cylinder">Cylinder</option>
+                    <option value="capsule">Capsule</option>
+                    <option value="plane">Plane</option>
+                  </select>
+                </label>
+                <ul style={{ listStyle: 'none', padding: 0, margin: '12px 0 0 0' }}>
                   {entities.map((e) => (
-                    <option key={e.id} value={e.id}>{e.name ?? e.id}</option>
+                    <li key={e.id}>
+                      <button
+                        type="button"
+                        style={{
+                          width: '100%',
+                          textAlign: 'left',
+                          padding: '4px 8px',
+                          background: selectedEntityId === e.id ? '#2b3550' : 'transparent',
+                          border: 'none',
+                          cursor: 'pointer',
+                          transition: 'background 0.15s ease',
+                        }}
+                        onClick={() => {
+                          uiLogger.click('Builder', 'Select entity', { entityId: e.id, entityName: e.name })
+                          onSelectEntity(e.id)
+                        }}
+                        onMouseEnter={(e) => {
+                          if (selectedEntityId !== e.currentTarget.textContent) {
+                            e.currentTarget.style.background = '#20263a'
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (selectedEntityId !== e.currentTarget.textContent) {
+                            e.currentTarget.style.background = 'transparent'
+                          }
+                        }}
+                      >
+                        {e.name ?? e.id}
+                      </button>
+                    </li>
                   ))}
-                </select>
-              </label>
-              <label>
-                Mode
-                <select
-                  value={cameraMode}
-                  onChange={(e) => {
-                    uiLogger.change('Builder', 'Change camera mode', { mode: e.target.value })
-                    onCameraModeChange(e.target.value as CameraMode)
-                  }}
-                >
-                  <option value="follow">Follow</option>
-                  <option value="thirdPerson">Third person</option>
-                  <option value="firstPerson">First person</option>
-                </select>
-              </label>
-            </>
-          )}
+                </ul>
+              </>
+            )}
+            {leftTab === 'camera' && (
+              <>
+                <div style={sidebarRowStyle}>
+                  <label htmlFor="camera-control" style={sidebarLabelStyle}>
+                    Control
+                  </label>
+                  <select
+                    id="camera-control"
+                    value={cameraControl}
+                    onChange={(e) => {
+                      const value = e.target.value as 'free' | 'follow' | 'top' | 'front' | 'right'
+                      uiLogger.change('Builder', 'Change camera control', { control: value })
+                      onCameraControlChange(value)
+                    }}
+                    style={{ display: 'block', width: '100%' }}
+                  >
+                    <option value="free">Free (WASD)</option>
+                    <option value="follow">Follow</option>
+                    <option value="top">Top</option>
+                    <option value="front">Front</option>
+                    <option value="right">Right</option>
+                  </select>
+                </div>
+                {cameraControl === 'follow' && (
+                  <>
+                    <div style={sidebarRowStyle}>
+                      <label htmlFor="camera-target" style={sidebarLabelStyle}>
+                        Target
+                      </label>
+                      <select
+                        id="camera-target"
+                        value={cameraTarget}
+                        onChange={(e) => {
+                          uiLogger.change('Builder', 'Change camera target', { target: e.target.value })
+                          onCameraTargetChange(e.target.value)
+                        }}
+                        style={{ display: 'block', width: '100%' }}
+                      >
+                        <option value="">— None —</option>
+                        {entities.map((e) => (
+                          <option key={e.id} value={e.id}>{e.name ?? e.id}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div style={sidebarRowStyle}>
+                      <label htmlFor="camera-mode" style={sidebarLabelStyle}>
+                        Mode
+                      </label>
+                      <select
+                        id="camera-mode"
+                        value={cameraMode}
+                        onChange={(e) => {
+                          uiLogger.change('Builder', 'Change camera mode', { mode: e.target.value })
+                          onCameraModeChange(e.target.value as CameraMode)
+                        }}
+                        style={{ display: 'block', width: '100%' }}
+                      >
+                        <option value="follow">Follow</option>
+                        <option value="thirdPerson">Third person</option>
+                        <option value="firstPerson">First person</option>
+                      </select>
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+          </div>
         </>
       )}
       </aside>

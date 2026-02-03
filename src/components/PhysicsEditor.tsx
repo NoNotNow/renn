@@ -1,15 +1,6 @@
 import type { Entity } from '@/types/world'
 import { uiLogger } from '@/utils/uiLogger'
-
-const rowStyle = {
-  display: 'grid',
-  gridTemplateColumns: '96px 1fr',
-  alignItems: 'center',
-  gap: 8,
-  marginBottom: 6,
-}
-const labelStyle = { fontSize: 12, color: '#c4cbd8' }
-const inputStyle = { display: 'block', width: '100%' }
+import { sidebarRowStyle, sidebarLabelStyle, sidebarInputStyle } from './sharedStyles'
 
 export interface PhysicsEditorProps {
   entityId: string
@@ -36,8 +27,8 @@ export default function PhysicsEditor({
 }: PhysicsEditorProps) {
   return (
     <>
-      <div style={rowStyle}>
-        <label htmlFor={`${entityId}-body-type`} style={labelStyle}>
+      <div style={sidebarRowStyle}>
+        <label htmlFor={`${entityId}-body-type`} style={sidebarLabelStyle}>
           Body type
         </label>
         <select
@@ -47,7 +38,7 @@ export default function PhysicsEditor({
             uiLogger.change('PropertyPanel', 'Change body type', { entityId, oldValue: bodyType, newValue: e.target.value })
             onBodyTypeChange(e.target.value as Entity['bodyType'])
           }}
-          style={inputStyle}
+          style={sidebarInputStyle}
         >
           <option value="static">Static</option>
           <option value="dynamic">Dynamic</option>
@@ -56,8 +47,8 @@ export default function PhysicsEditor({
       </div>
       {bodyType === 'dynamic' && (
         <>
-          <div style={rowStyle}>
-            <label htmlFor={`${entityId}-mass`} style={labelStyle}>
+          <div style={sidebarRowStyle}>
+            <label htmlFor={`${entityId}-mass`} style={sidebarLabelStyle}>
               Mass
             </label>
             <input
@@ -71,11 +62,11 @@ export default function PhysicsEditor({
                 uiLogger.change('PropertyPanel', 'Change mass', { entityId, oldValue: mass, newValue })
                 onMassChange(newValue)
               }}
-              style={inputStyle}
+              style={sidebarInputStyle}
             />
           </div>
-          <div style={rowStyle}>
-            <label htmlFor={`${entityId}-restitution`} style={labelStyle}>
+          <div style={sidebarRowStyle}>
+            <label htmlFor={`${entityId}-restitution`} style={sidebarLabelStyle}>
               Restitution
             </label>
             <input
@@ -90,13 +81,13 @@ export default function PhysicsEditor({
                 uiLogger.change('PropertyPanel', 'Change restitution', { entityId, oldValue: restitution, newValue })
                 onRestitutionChange(newValue)
               }}
-              style={inputStyle}
+              style={sidebarInputStyle}
             />
           </div>
         </>
       )}
-      <div style={rowStyle}>
-        <label htmlFor={`${entityId}-friction`} style={labelStyle}>
+      <div style={sidebarRowStyle}>
+        <label htmlFor={`${entityId}-friction`} style={sidebarLabelStyle}>
           Friction
         </label>
         <input
@@ -110,7 +101,7 @@ export default function PhysicsEditor({
             uiLogger.change('PropertyPanel', 'Change friction', { entityId, oldValue: friction, newValue })
             onFrictionChange(newValue)
           }}
-          style={inputStyle}
+          style={sidebarInputStyle}
         />
       </div>
     </>

@@ -1,15 +1,6 @@
 import type { Vec3, MaterialRef } from '@/types/world'
 import { uiLogger } from '@/utils/uiLogger'
-
-const rowStyle = {
-  display: 'grid',
-  gridTemplateColumns: '96px 1fr',
-  alignItems: 'center',
-  gap: 8,
-  marginBottom: 6,
-}
-const labelStyle = { fontSize: 12, color: '#c4cbd8' }
-const inputStyle = { display: 'block', width: '100%' }
+import { sidebarRowStyle, sidebarLabelStyle, sidebarInputStyle } from './sharedStyles'
 
 const clampUnit = (value: number) => Math.max(0, Math.min(1, value))
 
@@ -50,8 +41,8 @@ export default function MaterialEditor({
   return (
     <>
       <h4 style={{ margin: '12px 0 8px' }}>Material</h4>
-      <div style={rowStyle}>
-        <label htmlFor={`${entityId}-material-color`} style={labelStyle}>
+      <div style={sidebarRowStyle}>
+        <label htmlFor={`${entityId}-material-color`} style={sidebarLabelStyle}>
           Color
         </label>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -80,8 +71,8 @@ export default function MaterialEditor({
           </span>
         </div>
       </div>
-      <div style={rowStyle}>
-        <label htmlFor={`${entityId}-roughness`} style={labelStyle}>
+      <div style={sidebarRowStyle}>
+        <label htmlFor={`${entityId}-roughness`} style={sidebarLabelStyle}>
           Roughness
         </label>
         <input
@@ -96,11 +87,11 @@ export default function MaterialEditor({
             uiLogger.change('PropertyPanel', 'Change roughness', { entityId, oldValue: roughness, newValue })
             onMaterialChange({ ...material, roughness: newValue })
           }}
-          style={inputStyle}
+          style={sidebarInputStyle}
         />
       </div>
-      <div style={rowStyle}>
-        <label htmlFor={`${entityId}-metalness`} style={labelStyle}>
+      <div style={sidebarRowStyle}>
+        <label htmlFor={`${entityId}-metalness`} style={sidebarLabelStyle}>
           Metalness
         </label>
         <input
@@ -115,7 +106,7 @@ export default function MaterialEditor({
             uiLogger.change('PropertyPanel', 'Change metalness', { entityId, oldValue: metalness, newValue })
             onMaterialChange({ ...material, metalness: newValue })
           }}
-          style={inputStyle}
+          style={sidebarInputStyle}
         />
       </div>
     </>

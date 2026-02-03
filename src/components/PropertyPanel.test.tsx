@@ -15,7 +15,13 @@ function worldWithBox(): RennWorld {
   return {
     version: '1.0',
     world: { camera: { control: 'free', mode: 'follow', target: boxEntity.id } },
-    entities: [boxEntity],
+    entities: [
+      {
+        ...boxEntity,
+        position: [0, 0, 0],
+        scale: [1, 1, 1],
+      },
+    ],
   }
 }
 
@@ -24,7 +30,13 @@ function worldWithCylinder(): RennWorld {
   return {
     version: '1.0',
     world: { camera: { control: 'free', mode: 'follow', target: entity.id } },
-    entities: [entity],
+    entities: [
+      {
+        ...entity,
+        position: [0, 0, 0],
+        scale: [1, 1, 1],
+      },
+    ],
   }
 }
 

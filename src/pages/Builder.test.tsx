@@ -81,6 +81,7 @@ describe('Builder', () => {
     await act(async () => {
       await Promise.resolve()
     })
+    await userEvent.click(screen.getByRole('button', { name: 'entities' }))
     expect(screen.getByTitle('Add entity')).toBeInTheDocument()
     const entityList = screen.getByRole('list')
     expect(entityList).toBeInTheDocument()
@@ -90,6 +91,7 @@ describe('Builder', () => {
   it('adds entity when selecting "Add box" and selects the new entity', async () => {
     const user = userEvent.setup()
     renderBuilder()
+    await user.click(screen.getByRole('button', { name: 'entities' }))
     const entityList = screen.getByRole('list')
     const initialCount = entityList.children.length
 
@@ -135,6 +137,7 @@ describe('Builder', () => {
     await act(async () => {
       await Promise.resolve()
     })
+    await user.click(screen.getByRole('button', { name: 'entities' }))
     const ballButton = screen.getByRole('button', { name: 'ball' })
     await user.click(ballButton)
     expect(sceneViewProps.selectedEntityId).toBe('ball')
