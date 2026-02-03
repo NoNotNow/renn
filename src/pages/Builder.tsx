@@ -3,8 +3,10 @@ import SceneView, { type SceneViewHandle } from '@/components/SceneView'
 import BuilderHeader from '@/components/BuilderHeader'
 import EntitySidebar from '@/components/EntitySidebar'
 import PropertySidebar from '@/components/PropertySidebar'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { createDefaultEntity, type AddableShapeType } from '@/data/entityDefaults'
 import { useProjectContext } from '@/hooks/useProjectContext'
+import { useLocalStorageState } from '@/hooks/useLocalStorageState'
 import type { Vec3, Quat } from '@/types/world'
 import { uiLogger } from '@/utils/uiLogger'
 import { updateEntityPosition } from '@/utils/worldUtils'
@@ -44,39 +46,8 @@ export default function Builder() {
   const sceneViewRef = useRef<SceneViewHandle>(null)
 
   // Drawer states with localStorage persistence
-  const [leftDrawerOpen, setLeftDrawerOpen] = useState(() => {
-    try {
-      const saved = localStorage.getItem('leftDrawerOpen')
-      return saved ? JSON.parse(saved) : true
-    } catch {
-      return true
-    }
-  })
-  const [rightDrawerOpen, setRightDrawerOpen] = useState(() => {
-    try {
-      const saved = localStorage.getItem('rightDrawerOpen')
-      return saved ? JSON.parse(saved) : true
-    } catch {
-      return true
-    }
-  })
-
-  // Persist drawer states
-  useEffect(() => {
-    try {
-      localStorage.setItem('leftDrawerOpen', JSON.stringify(leftDrawerOpen))
-    } catch {
-      // Ignore localStorage errors in test environment
-    }
-  }, [leftDrawerOpen])
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('rightDrawerOpen', JSON.stringify(rightDrawerOpen))
-    } catch {
-      // Ignore localStorage errors in test environment
-    }
-  }, [rightDrawerOpen])
+  const [leftDrawerOpen, setLeftDrawerOpen] = useLocalStorageState('leftDrawerOpen', true)
+  const [rightDrawerOpen, setRightDrawerOpen] = useLocalStorageState('rightDrawerOpen', true)
 
   const sceneWorld = useMemo(
     () => ({
@@ -230,19 +201,30 @@ export default function Builder() {
       <div style={{ position: 'relative', flex: 1, minHeight: 0, width: '100%' }}>
         {/* Canvas takes full width */}
         <main style={{ width: '100%', height: '100%' }}>
-          <SceneView
-            ref={sceneViewRef}
-            world={sceneWorld}
-            assets={assets}
-            version={version}
-            runPhysics
-            runScripts
-            gravityEnabled={gravityEnabled}
-            shadowsEnabled={shadowsEnabled}
-            selectedEntityId={selectedEntityId}
-            onSelectEntity={setSelectedEntityId}
-            onEntityPositionChange={handleEntityPositionChange}
-          />
+          <ErrorBoundary
+            fallback={
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', background: '#171a22', color: '#e6e9f2' }}>
+                <div style={{ textAlign: 'center' }}>
+                  <h2>Scene Error</h2>
+                  <p>The 3D scene encountered an error. Try reloading the project.</p>
+                </div>
+              </div>
+            }
+          >
+            <SceneView
+              ref={sceneViewRef}
+              world={sceneWorld}
+              assets={assets}
+              version={version}
+              runPhysics
+              runScripts
+              gravityEnabled={gravityEnabled}
+              shadowsEnabled={shadowsEnabled}
+              selectedEntityId={selectedEntityId}
+              onSelectEntity={setSelectedEntityId}
+              onEntityPositionChange={handleEntityPositionChange}
+            />
+          </ErrorBoundary>
         </main>
 
         {/* Sidebars overlay on top */}

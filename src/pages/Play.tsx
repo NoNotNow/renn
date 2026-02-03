@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import SceneView from '@/components/SceneView'
 import Switch from '@/components/Switch'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { sampleWorld } from '@/data/sampleWorld'
 import { validateWorldDocument } from '@/schema/validate'
 import type { RennWorld } from '@/types/world'
@@ -38,7 +39,9 @@ export default function Play() {
         </div>
       </header>
       <main style={{ flex: 1, minHeight: 0 }}>
-        <SceneView world={world} runPhysics runScripts gravityEnabled={gravityEnabled} />
+        <ErrorBoundary>
+          <SceneView world={world} runPhysics runScripts gravityEnabled={gravityEnabled} />
+        </ErrorBoundary>
       </main>
     </div>
   )

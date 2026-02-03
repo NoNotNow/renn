@@ -51,8 +51,24 @@ export function createAssetResolver(assets: Map<string, Blob>): DisposableAssetR
  * Simple resolver function for backward compatibility.
  * WARNING: This version doesn't provide cleanup - blob URLs will leak.
  * Prefer createAssetResolver() which returns a disposable resolver.
+ * 
+ * @deprecated Use createAssetResolver() and call dispose() when done to prevent memory leaks
  */
 export function createSimpleAssetResolver(assets: Map<string, Blob>): (assetId: string) => string | null {
   const resolver = createAssetResolver(assets)
+  // Store resolver reference to enable cleanup if needed
+  ;(createSimpleAssetResolver as any)._lastResolver = resolver
   return resolver.resolve
+}
+
+/**
+ * Cleanup method for the last simple resolver created.
+ * This is a workaround for the deprecated createSimpleAssetResolver.
+ */
+export function disposeLastSimpleResolver(): void {
+  const resolver = (createSimpleAssetResolver as any)._lastResolver
+  if (resolver) {
+    resolver.dispose()
+    ;(createSimpleAssetResolver as any)._lastResolver = null
+  }
 }

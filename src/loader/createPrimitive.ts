@@ -31,6 +31,10 @@ function applyTransform(
 /**
  * Creates a Three.js mesh for the given shape and material.
  * Does not set position/rotation/scale; caller applies those.
+ * 
+ * IMPORTANT: Caller is responsible for disposing geometry and material when done:
+ *   mesh.geometry.dispose()
+ *   mesh.material.dispose()
  */
 export function createPrimitiveMesh(
   shape: Shape,
@@ -65,6 +69,22 @@ export function createPrimitiveMesh(
   }
 
   return new THREE.Mesh(geometry, mat)
+}
+
+/**
+ * Helper function to dispose a mesh and its resources
+ */
+export function disposeMesh(mesh: THREE.Mesh): void {
+  if (mesh.geometry) {
+    mesh.geometry.dispose()
+  }
+  if (mesh.material) {
+    if (Array.isArray(mesh.material)) {
+      mesh.material.forEach(mat => mat.dispose())
+    } else {
+      mesh.material.dispose()
+    }
+  }
 }
 
 /**

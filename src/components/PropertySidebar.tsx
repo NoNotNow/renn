@@ -4,6 +4,7 @@ import ScriptPanel from './ScriptPanel'
 import AssetPanel from './AssetPanel'
 import type { RennWorld, Vec3, Quat } from '@/types/world'
 import { uiLogger } from '@/utils/uiLogger'
+import { SidebarToggleButton } from '@/components/SidebarToggleButton'
 import SidebarTabs from './SidebarTabs'
 
 type RightTab = 'properties' | 'scripts' | 'assets'
@@ -47,46 +48,12 @@ export default function PropertySidebar({
       pointerEvents: isOpen ? 'auto' : 'none',
     }}>
       {/* Toggle button - always visible */}
-      <button
-        type="button"
-        onClick={() => {
-          uiLogger.click('Builder', 'Toggle right drawer', { isOpen })
-          onToggle()
-        }}
-        aria-label={isOpen ? 'Collapse right sidebar' : 'Expand right sidebar'}
-        style={{
-          position: 'absolute',
-          left: isOpen ? -16 : -16,
-          top: '50%',
-          transform: 'translateY(-50%)',
-          width: 20,
-          height: 60,
-          background: '#1b1f2a',
-          border: '1px solid #2f3545',
-          borderRight: isOpen ? '1px solid #2f3545' : 'none',
-          borderRadius: isOpen ? '4px 0 0 4px' : '0 4px 4px 0',
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: 14,
-          zIndex: 1001,
-          transition: 'all 0.2s ease',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.45)',
-          color: '#e6e9f2',
-          pointerEvents: 'auto',
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background = '#232836'
-          e.currentTarget.style.boxShadow = '0 2px 10px rgba(0,0,0,0.55)'
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = '#1b1f2a'
-          e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.45)'
-        }}
-      >
-        {isOpen ? '▶' : '◀'}
-      </button>
+      <SidebarToggleButton
+        isOpen={isOpen}
+        onToggle={onToggle}
+        side="right"
+        logContext="Toggle right drawer"
+      />
 
       <aside
         style={{

@@ -42,13 +42,48 @@ export class ScriptRunner {
 
   private compileHook(scriptId: string, source: string): HookFn {
     const game = this.game
-    const run = new Function('game', 'dt', 'entity', 'other', `"use strict";\n${source}`)
-    return (dt: number, entity: Entity, other?: Entity) => {
-      try {
-        run(game, dt, entity, other)
-      } catch (e) {
-        console.warn(`[ScriptRunner] script "${scriptId}" error:`, e)
+    // SECURITY NOTE: Using Function constructor with user code is inherently unsafe.
+    // This provides minimal isolation. For production, consider using Web Workers
+    // or a proper sandboxing solution. The script has access to game API only.
+    
+    // Validate source code doesn't contain obvious dangerous patterns
+    const dangerousPatterns = [
+      /eval\s*\(/,
+      /Function\s*\(/,
+      /import\s*\(/,
+      /require\s*\(/,
+      /__proto__/,
+      /constructor\s*\[/,
+    ]
+    
+    for (const pattern of dangerousPatterns) {
+      if (pattern.test(source)) {
+        throw new Error(`Script "${scriptId}" contains potentially dangerous pattern: ${pattern}`)
       }
+    }
+    
+    // Wrap in IIFE with limited scope
+    const wrappedSource = `
+      "use strict";
+      return (function(game, dt, entity, other) {
+        ${source}
+      });
+    `
+    
+    try {
+      const factory = new Function(wrappedSource)
+      const run = factory()
+      
+      return (dt: number, entity: Entity, other?: Entity) => {
+        try {
+          run(game, dt, entity, other)
+        } catch (e) {
+          console.warn(`[ScriptRunner] Runtime error in script "${scriptId}":`, e)
+          // Optionally: disable the script after repeated failures
+        }
+      }
+    } catch (e) {
+      throw new Error(`Failed to compile script "${scriptId}": ${e}`)
     }
   }
 

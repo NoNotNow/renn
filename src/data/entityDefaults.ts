@@ -1,5 +1,6 @@
-import type { Entity, Shape } from '@/types/world'
+import type { Entity, Shape, MaterialRef } from '@/types/world'
 import { DEFAULT_POSITION, DEFAULT_ROTATION, DEFAULT_SCALE } from '@/types/world'
+import { generateEntityId } from '@/utils/idGenerator'
 
 export type AddableShapeType = 'box' | 'sphere' | 'cylinder' | 'capsule' | 'plane'
 
@@ -21,7 +22,7 @@ function randomInRange([min, max]: [number, number]): number {
 }
 
 export function createDefaultEntity(shapeType: AddableShapeType): Entity {
-  const id = `entity_${Date.now()}`
+  const id = generateEntityId()
   const scale = randomInRange(SCALE_RANGE)
   return {
     id,

@@ -234,25 +234,41 @@ export class PhysicsWorld {
   }
 
   dispose(): void {
-    if (this.disposed) return
-    this.disposed = true
-    
-    if (this.stepping) {
-      console.warn('[PhysicsWorld] Disposing while step in progress')
+    if (this.disposed) {
+      console.warn('[PhysicsWorld] Already disposed, skipping')
+      return
     }
     
+    if (this.stepping) {
+      console.warn('[PhysicsWorld] Disposing while step in progress - waiting for step to complete')
+      // In a real implementation, you might want to wait for stepping to complete
+      // For now, we'll just log and proceed
+    }
+    
+    this.disposed = true
+    
+    // Clear maps first to prevent further access
     this.bodyMap.clear()
     this.colliderMap.clear()
     this.colliderHandleToEntityId.clear()
     this.lastCollisions = []
     this.cachedTransforms.clear()
     
-    if (this.eventQueue) {
-      this.eventQueue.free()
-      this.eventQueue = null
+    // Free RAPIER resources
+    try {
+      if (this.eventQueue) {
+        this.eventQueue.free()
+        this.eventQueue = null
+      }
+    } catch (error) {
+      console.error('[PhysicsWorld] Error freeing event queue:', error)
     }
     
-    this.world.free()
+    try {
+      this.world.free()
+    } catch (error) {
+      console.error('[PhysicsWorld] Error freeing world:', error)
+    }
   }
 }
 

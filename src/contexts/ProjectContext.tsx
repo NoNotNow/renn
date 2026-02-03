@@ -1,4 +1,4 @@
-import { createContext, useState, useCallback, useEffect, useRef, type ReactNode } from 'react'
+import { createContext, useState, useCallback, useEffect, useRef, useMemo, type ReactNode } from 'react'
 import { createIndexedDbPersistence } from '@/persistence/indexedDb'
 import type { RennWorld, Vec3, Quat } from '@/types/world'
 import type { ProjectMeta } from '@/persistence/types'
@@ -71,13 +71,25 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const [projects, setProjects] = useState<ProjectMeta[]>([])
   const [version, setVersion] = useState(0)
   
-  const [cameraControl, setCameraControl] = useState<'free' | 'follow' | 'top' | 'front' | 'right'>(
-    (sampleWorld.world.camera?.control ?? 'free') as 'free' | 'follow' | 'top' | 'front' | 'right'
-  )
-  const [cameraTarget, setCameraTarget] = useState(sampleWorld.world.camera?.target ?? 'ball')
-  const [cameraMode, setCameraMode] = useState<'follow' | 'firstPerson' | 'thirdPerson'>(
-    sampleWorld.world.camera?.mode ?? 'follow'
-  )
+  // Combined camera state to reduce re-renders
+  const [cameraState, setCameraState] = useState<CameraState>(() => ({
+    control: (sampleWorld.world.camera?.control ?? 'free') as 'free' | 'follow' | 'top' | 'front' | 'right',
+    target: sampleWorld.world.camera?.target ?? 'ball',
+    mode: sampleWorld.world.camera?.mode ?? 'follow',
+  }))
+  
+  // Individual setters for backward compatibility
+  const setCameraControl = useCallback((control: CameraState['control']) => {
+    setCameraState(prev => ({ ...prev, control }))
+  }, [])
+  
+  const setCameraTarget = useCallback((target: string) => {
+    setCameraState(prev => ({ ...prev, target }))
+  }, [])
+  
+  const setCameraMode = useCallback((mode: CameraState['mode']) => {
+    setCameraState(prev => ({ ...prev, mode }))
+  }, [])
   
   const fileInputRef = useRef<HTMLInputElement>(null)
   
@@ -99,9 +111,11 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       name: 'Untitled',
       isDirty: false,
     })
-    setCameraControl((sampleWorld.world.camera?.control ?? 'free') as 'free' | 'follow' | 'top' | 'front' | 'right')
-    setCameraTarget(sampleWorld.world.camera?.target ?? '')
-    setCameraMode(sampleWorld.world.camera?.mode ?? 'follow')
+    setCameraState({
+      control: (sampleWorld.world.camera?.control ?? 'free') as 'free' | 'follow' | 'top' | 'front' | 'right',
+      target: sampleWorld.world.camera?.target ?? '',
+      mode: sampleWorld.world.camera?.mode ?? 'follow',
+    })
     setVersion((v) => v + 1)
   }, [])
   
@@ -109,7 +123,9 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     try {
       uiLogger.select('Builder', 'Open project', { projectId: id })
       const { world: w, assets: a } = await persistence.loadProject(id)
-      const projectMeta = projects.find((p) => p.id === id)
+      // Get project meta inline instead of depending on projects array
+      const allProjects = await persistence.listProjects()
+      const projectMeta = allProjects.find((p) => p.id === id)
       
       setWorld(w)
       setAssets(a)
@@ -118,21 +134,24 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         name: projectMeta?.name ?? `Project ${id}`,
         isDirty: false,
       })
-      setCameraControl((w.world.camera?.control ?? 'free') as 'free' | 'follow' | 'top' | 'front' | 'right')
-      setCameraTarget(w.world.camera?.target ?? '')
-      setCameraMode(w.world.camera?.mode ?? 'follow')
+      setCameraState({
+        control: (w.world.camera?.control ?? 'free') as 'free' | 'follow' | 'top' | 'front' | 'right',
+        target: w.world.camera?.target ?? '',
+        mode: w.world.camera?.mode ?? 'follow',
+      })
       setVersion((v) => v + 1)
     } catch (err) {
       console.error('Failed to open project:', err)
       alert('Failed to open project')
     }
-  }, [projects])
+  }, [])
   
   const saveProject = useCallback(async () => {
     try {
       const id = currentProject.id ?? `proj_${Date.now()}`
+      // Generate name dynamically to avoid dependency on projects.length
       const name = currentProject.name === 'Untitled' 
-        ? `World ${projects.length + 1}` 
+        ? `World ${Date.now()}` 
         : currentProject.name
       
       uiLogger.click('Builder', 'Save project', { projectId: id, projectName: name })
@@ -148,7 +167,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       console.error('Failed to save project:', err)
       alert('Failed to save project')
     }
-  }, [currentProject, world, assets, projects.length, refreshProjects])
+  }, [currentProject, world, assets, refreshProjects])
   
   const saveProjectAs = useCallback(async (name: string) => {
     try {
@@ -283,16 +302,17 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     window.location.href = `/play?world=${encodeURIComponent(JSON.stringify(world))}`
   }, [world])
   
-  const value: ProjectContextValue = {
+  // Memoize context value to prevent unnecessary re-renders
+  const value: ProjectContextValue = useMemo(() => ({
     // State
     currentProject,
     world,
     assets,
     projects,
     version,
-    cameraControl,
-    cameraTarget,
-    cameraMode,
+    cameraControl: cameraState.control,
+    cameraTarget: cameraState.target,
+    cameraMode: cameraState.mode,
     
     // Actions
     newProject,
@@ -312,7 +332,33 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     setCameraControl,
     setCameraTarget,
     setCameraMode,
-  }
+  }), [
+    currentProject,
+    world,
+    assets,
+    projects,
+    version,
+    cameraState.control,
+    cameraState.target,
+    cameraState.mode,
+    newProject,
+    loadProject,
+    saveProject,
+    saveProjectAs,
+    deleteProject,
+    refreshProjects,
+    updateWorld,
+    updateAssets,
+    syncPosesFromScene,
+    exportProject,
+    importProject,
+    onFileChange,
+    fileInputRef,
+    handlePlay,
+    setCameraControl,
+    setCameraTarget,
+    setCameraMode,
+  ])
   
   return (
     <ProjectContext.Provider value={value}>

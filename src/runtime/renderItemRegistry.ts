@@ -100,7 +100,26 @@ export class RenderItemRegistry {
     return poses
   }
 
+  /**
+   * Clear all items and dispose resources.
+   * Note: This does NOT dispose the physics world - caller should dispose it separately
+   * to avoid double-free issues.
+   */
   clear(): void {
+    // Dispose THREE.js resources for each mesh
+    for (const item of this.items.values()) {
+      if (item.mesh.geometry) {
+        item.mesh.geometry.dispose()
+      }
+      if (item.mesh.material) {
+        if (Array.isArray(item.mesh.material)) {
+          item.mesh.material.forEach(mat => mat.dispose())
+        } else {
+          item.mesh.material.dispose()
+        }
+      }
+    }
+    
     this.items.clear()
     this.physicsWorld = null
   }

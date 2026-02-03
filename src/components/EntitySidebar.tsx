@@ -2,6 +2,7 @@ import { useRef, useCallback, useState } from 'react'
 import type { Entity, CameraMode } from '@/types/world'
 import type { AddableShapeType } from '@/data/entityDefaults'
 import { uiLogger } from '@/utils/uiLogger'
+import { SidebarToggleButton } from '@/components/SidebarToggleButton'
 import SidebarTabs from './SidebarTabs'
 import { sidebarRowStyle, sidebarLabelStyle, fieldLabelStyle } from './sharedStyles'
 
@@ -218,46 +219,12 @@ export default function EntitySidebar({
       </aside>
 
       {/* Toggle button - always visible */}
-      <button
-        type="button"
-        onClick={() => {
-          uiLogger.click('Builder', 'Toggle left drawer', { isOpen })
-          onToggle()
-        }}
-        aria-label={isOpen ? 'Collapse left sidebar' : 'Expand left sidebar'}
-        style={{
-          position: 'absolute',
-          right: isOpen ? -16 : -16,
-          top: '50%',
-          transform: 'translateY(-50%)',
-          width: 20,
-          height: 60,
-          background: '#1b1f2a',
-          border: '1px solid #2f3545',
-          borderLeft: isOpen ? '1px solid #2f3545' : 'none',
-          borderRadius: isOpen ? '0 4px 4px 0' : '4px 0 0 4px',
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: 14,
-          zIndex: 1001,
-          transition: 'all 0.2s ease',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.45)',
-          color: '#e6e9f2',
-          pointerEvents: 'auto',
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background = '#232836'
-          e.currentTarget.style.boxShadow = '0 2px 10px rgba(0,0,0,0.55)'
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = '#1b1f2a'
-          e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.45)'
-        }}
-      >
-        {isOpen ? '◀' : '▶'}
-      </button>
+      <SidebarToggleButton
+        isOpen={isOpen}
+        onToggle={onToggle}
+        side="left"
+        logContext="Toggle left drawer"
+      />
     </div>
   )
 }

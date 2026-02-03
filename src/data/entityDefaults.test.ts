@@ -17,7 +17,8 @@ describe('createDefaultEntity', () => {
   it.each(ADDABLE_SHAPE_TYPES)('creates valid entity for shape type %s', (shapeType) => {
     const entity = createDefaultEntity(shapeType)
     expect(entity.id).toBeDefined()
-    expect(entity.id).toMatch(/^entity_\d+$/)
+    // Updated regex to match new ID format: entity_timestamp_randomstring
+    expect(entity.id).toMatch(/^entity_\d+_[a-z0-9]+$/)
     expect(entity.shape).toBeDefined()
     expect(entity.shape?.type).toBe(shapeType)
     expect(entity.position[0]).toBeGreaterThanOrEqual(-0.35)
