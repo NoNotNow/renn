@@ -27,6 +27,7 @@ export interface BuilderHeaderProps {
   onShadowsChange: (enabled: boolean) => void
   fileInputRef: React.RefObject<HTMLInputElement | null>
   onFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void
+  onResetCamera: () => void
 }
 
 export default function BuilderHeader({
@@ -47,6 +48,7 @@ export default function BuilderHeader({
   onShadowsChange,
   fileInputRef,
   onFileChange,
+  onResetCamera,
 }: BuilderHeaderProps) {
   const [showProjectSelector, setShowProjectSelector] = useState(false)
 
@@ -96,10 +98,7 @@ export default function BuilderHeader({
     {
       type: 'item',
       label: 'Reset Camera',
-      onClick: () => {
-        // TODO: Implement camera reset
-        console.log('Reset camera')
-      },
+      onClick: onResetCamera,
     },
   ]
 

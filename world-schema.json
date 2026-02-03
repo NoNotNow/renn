@@ -71,7 +71,9 @@
         "target": { "type": "string" },
         "distance": { "type": "number" },
         "height": { "type": "number" },
-        "fov": { "type": "number" }
+        "fov": { "type": "number" },
+        "defaultPosition": { "$ref": "#/$defs/Vec3" },
+        "defaultRotation": { "$ref": "#/$defs/Quat" }
       },
       "additionalProperties": false
     },

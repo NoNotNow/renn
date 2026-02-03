@@ -18,6 +18,8 @@ export interface CameraConfig {
   distance?: number
   height?: number
   fov?: number
+  defaultPosition?: Vec3
+  defaultRotation?: Quat
 }
 
 export interface DirectionalLightConfig {

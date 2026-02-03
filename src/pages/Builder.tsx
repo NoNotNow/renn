@@ -196,6 +196,11 @@ export default function Builder() {
     await saveProjectAs(name)
   }, [syncPosesFromScene, saveProjectAs, projects.length])
 
+  const handleResetCamera = useCallback(() => {
+    sceneViewRef.current?.resetCamera()
+    uiLogger.click('Builder', 'Reset camera to default position')
+  }, [])
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <BuilderHeader
@@ -216,6 +221,7 @@ export default function Builder() {
         onShadowsChange={setShadowsEnabled}
         fileInputRef={fileInputRef}
         onFileChange={onFileChange}
+        onResetCamera={handleResetCamera}
       />
 
       <div style={{ position: 'relative', flex: 1, minHeight: 0, width: '100%' }}>

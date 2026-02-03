@@ -34,6 +34,7 @@ export interface SceneViewHandle {
   setViewPreset: (preset: 'top' | 'front' | 'right') => void
   updateEntityPose: (id: string, pose: { position?: Vec3; rotation?: Quat }) => void
   getAllPoses: () => Map<string, { position: Vec3; rotation: Quat }> | null
+  resetCamera: () => void
 }
 
 function SceneViewInner({
@@ -88,7 +89,23 @@ function SceneViewInner({
       if (pose.rotation) registryRef.current?.setRotation(id, pose.rotation)
     },
     getAllPoses: () => registryRef.current?.getAllPoses() ?? null,
-  }), [])
+    resetCamera: () => {
+      if (!camera) return
+      
+      // Clear saved camera state so it doesn't restore old position
+      savedCameraStateRef.current = null
+      
+      // Get default position and rotation from world config
+      const cameraConfig = world.world.camera
+      const defaultPos = cameraConfig?.defaultPosition ?? [0, 5, 10]
+      const defaultRot = cameraConfig?.defaultRotation ?? [0, 0, 0, 1]
+      
+      // Reset camera position and rotation
+      camera.position.set(defaultPos[0], defaultPos[1], defaultPos[2])
+      camera.quaternion.set(defaultRot[0], defaultRot[1], defaultRot[2], defaultRot[3])
+      camera.up.set(0, 1, 0)
+    }
+  }), [camera, world.world.camera])
 
   // Main scene setup effect
   useEffect(() => {
