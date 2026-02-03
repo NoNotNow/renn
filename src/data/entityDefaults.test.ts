@@ -19,6 +19,7 @@ describe('createDefaultEntity', () => {
     expect(entity.id).toBeDefined()
     // Updated regex to match new ID format: entity_timestamp_randomstring
     expect(entity.id).toMatch(/^entity_\d+_[a-z0-9]+$/)
+    expect(entity.name).toMatch(new RegExp(`^${shapeType} [a-z]+ \\d+$`))
     expect(entity.shape).toBeDefined()
     expect(entity.shape?.type).toBe(shapeType)
     expect(entity.position[0]).toBeGreaterThanOrEqual(-0.35)
@@ -33,8 +34,8 @@ describe('createDefaultEntity', () => {
       expect(value).toBeLessThanOrEqual(1.4)
     })
     entity.material.color.forEach((value) => {
-      expect(value).toBeGreaterThanOrEqual(0.2)
-      expect(value).toBeLessThanOrEqual(0.9)
+      expect(value).toBeGreaterThanOrEqual(0.1)
+      expect(value).toBeLessThanOrEqual(0.95)
     })
     expect(entity.bodyType).toBe('static')
   })

@@ -6,6 +6,7 @@ test.describe('Builder add entity', () => {
     page.on('pageerror', (err) => pageErrors.push(err))
 
     await page.goto('/')
+    await page.getByRole('button', { name: 'entities' }).click()
     await expect(page.getByTitle('Add entity')).toBeVisible()
 
     const entityList = page.getByRole('list')
@@ -14,7 +15,7 @@ test.describe('Builder add entity', () => {
     await page.getByTitle('Add entity').selectOption('box')
 
     await expect(entityList.locator('li')).toHaveCount(initialCount + 1)
-    await expect(page.getByRole('button', { name: /^entity_\d+$/ })).toBeVisible()
+    await expect(page.getByRole('button', { name: /^box [a-z]+ \d+$/ })).toBeVisible()
 
     expect(pageErrors).toEqual([])
   })

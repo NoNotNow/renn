@@ -101,8 +101,7 @@ describe('Builder', () => {
     await waitFor(() => {
       expect(entityList.children).toHaveLength(initialCount + 1)
     })
-    // Updated regex to match new ID format: entity_timestamp_randomstring
-    const newEntityButton = screen.getByRole('button', { name: /^entity_\d+_[a-z0-9]+$/ })
+    const newEntityButton = screen.getByRole('button', { name: /^box [a-z]+ \d+$/ })
     expect(newEntityButton).toBeInTheDocument()
     expect(newEntityButton).toHaveStyle({ background: '#2b3550' })
   })
