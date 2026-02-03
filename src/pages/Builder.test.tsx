@@ -114,7 +114,6 @@ describe('Builder', () => {
     expect(sceneViewProps.selectedEntityId).toBe(null)
     expect(typeof sceneViewProps.onSelectEntity).toBe('function')
     expect(typeof sceneViewProps.onEntityPositionChange).toBe('function')
-    expect(sceneViewProps.gravityEnabled).toBe(true)
     expect(sceneViewProps.shadowsEnabled).toBe(true)
   })
 

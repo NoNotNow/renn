@@ -1,7 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import SceneView from '@/components/SceneView'
-import Switch from '@/components/Switch'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { sampleWorld } from '@/data/sampleWorld'
 import { validateWorldDocument } from '@/schema/validate'
@@ -23,24 +22,16 @@ function parseWorldFromSearchParams(searchParams: URLSearchParams): RennWorld {
 
 export default function Play() {
   const [searchParams] = useSearchParams()
-  const [gravityEnabled, setGravityEnabled] = useState(true)
   const world = useMemo(() => parseWorldFromSearchParams(searchParams), [searchParams])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <header style={{ padding: '8px 12px', display: 'flex', gap: 8, alignItems: 'center', borderBottom: '1px solid #2f3545', background: '#171a22', color: '#e6e9f2' }}>
         <Link to="/">Back to Builder</Link>
-        <div style={{ marginLeft: 'auto' }}>
-          <Switch
-            checked={gravityEnabled}
-            onChange={(v) => setGravityEnabled(v)}
-            label="Gravity"
-          />
-        </div>
       </header>
       <main style={{ flex: 1, minHeight: 0 }}>
         <ErrorBoundary>
-          <SceneView world={world} runPhysics runScripts gravityEnabled={gravityEnabled} />
+          <SceneView world={world} runPhysics runScripts />
         </ErrorBoundary>
       </main>
     </div>

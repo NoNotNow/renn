@@ -12,7 +12,6 @@ export interface BuilderHeaderProps {
     name: string
     isDirty: boolean
   }
-  gravityEnabled: boolean
   shadowsEnabled: boolean
   onNew: () => void
   onSave: () => void
@@ -23,7 +22,6 @@ export interface BuilderHeaderProps {
   onRefresh: () => void
   onDelete: () => void
   onPlay: () => void
-  onGravityChange: (enabled: boolean) => void
   onShadowsChange: (enabled: boolean) => void
   fileInputRef: React.RefObject<HTMLInputElement | null>
   onFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void
@@ -33,7 +31,6 @@ export interface BuilderHeaderProps {
 export default function BuilderHeader({
   projects,
   currentProject,
-  gravityEnabled,
   shadowsEnabled,
   onNew,
   onSave,
@@ -44,7 +41,6 @@ export default function BuilderHeader({
   onRefresh,
   onDelete,
   onPlay,
-  onGravityChange,
   onShadowsChange,
   fileInputRef,
   onFileChange,
@@ -141,15 +137,6 @@ export default function BuilderHeader({
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 12px' }}>
-          <Switch
-            size="compact"
-            checked={gravityEnabled}
-            onChange={(v) => {
-              onGravityChange(v)
-              uiLogger.change('Builder', 'Toggle gravity', { enabled: v })
-            }}
-            label="Gravity"
-          />
           <Switch
             size="compact"
             checked={shadowsEnabled}

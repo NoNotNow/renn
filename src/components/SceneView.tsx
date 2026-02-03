@@ -14,7 +14,6 @@ import { useEditorInteractions } from '@/hooks/useEditorInteractions'
 import { getSceneUserData } from '@/types/sceneUserData'
 
 const FIXED_DT = 1 / 60
-const ZERO_GRAVITY: [number, number, number] = [0, 0, 0]
 
 export interface SceneViewProps {
   world: RennWorld
@@ -22,7 +21,6 @@ export interface SceneViewProps {
   assets?: Map<string, Blob>
   runPhysics?: boolean
   runScripts?: boolean
-  gravityEnabled?: boolean
   shadowsEnabled?: boolean
   className?: string
   selectedEntityId?: string | null
@@ -44,7 +42,6 @@ function SceneViewInner({
   assets: _assets = new Map(),
   runPhysics = true,
   runScripts = true,
-  gravityEnabled = true,
   shadowsEnabled = true,
   className = '',
   selectedEntityId: _selectedEntityId,
@@ -194,7 +191,7 @@ function SceneViewInner({
     // Initialize physics
     let cancelled = false
     if (runPhysics) {
-      const gravity = gravityEnabled ? (loadedWorld.world.gravity ?? DEFAULT_GRAVITY) : ZERO_GRAVITY
+      const gravity = loadedWorld.world.gravity ?? DEFAULT_GRAVITY
       import('@/physics/rapierPhysics').then((mod) => {
         mod.createPhysicsWorld(loadedWorld, entities).then((pw) => {
           // Check if this effect is still active
@@ -331,7 +328,7 @@ function SceneViewInner({
       setCamera(null)
       setRenderer(null)
     }
-  }, [world, version, runPhysics, runScripts, gravityEnabled, shadowsEnabled, freeFlyKeysRef])
+  }, [world, version, runPhysics, runScripts, shadowsEnabled, freeFlyKeysRef])
 
   // Update camera config when it changes (without reloading the world)
   useEffect(() => {
@@ -344,9 +341,9 @@ function SceneViewInner({
     if (!runPhysics) return
     const pw = physicsRef.current
     if (!pw) return
-    const gravity = gravityEnabled ? (world.world.gravity ?? DEFAULT_GRAVITY) : ZERO_GRAVITY
+    const gravity = world.world.gravity ?? DEFAULT_GRAVITY
     pw.setGravity(gravity)
-  }, [gravityEnabled, world.world.gravity, runPhysics])
+  }, [world.world.gravity, runPhysics])
 
   // Update shadows when setting changes
   useEffect(() => {
@@ -356,6 +353,16 @@ function SceneViewInner({
       if (sceneUserData.directionalLight) sceneUserData.directionalLight.castShadow = shadowsEnabled
     }
   }, [shadowsEnabled, renderer, scene])
+
+  // Update sky color when it changes (without full reload)
+  useEffect(() => {
+    if (!scene) return
+    const skyColor = world.world.skyColor
+    if (skyColor) {
+      const [r, g, b] = skyColor
+      scene.background = new THREE.Color(r, g, b)
+    }
+  }, [world.world.skyColor, scene])
 
   return <div ref={containerRef} className={className} style={{ width: '100%', height: '100%' }} />
 }

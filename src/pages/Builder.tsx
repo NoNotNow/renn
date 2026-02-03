@@ -40,7 +40,6 @@ export default function Builder() {
   } = useProjectContext()
 
   const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null)
-  const [gravityEnabled, setGravityEnabled] = useState(true)
   const [shadowsEnabled, setShadowsEnabled] = useState(true)
   const sceneViewRef = useRef<SceneViewHandle>(null)
 
@@ -199,7 +198,6 @@ export default function Builder() {
       <BuilderHeader
         projects={projects}
         currentProject={currentProject}
-        gravityEnabled={gravityEnabled}
         shadowsEnabled={shadowsEnabled}
         onNew={handleNew}
         onSave={handleSave}
@@ -210,7 +208,6 @@ export default function Builder() {
         onRefresh={refreshProjects}
         onDelete={() => currentProject.id && deleteProject(currentProject.id)}
         onPlay={handlePlay}
-        onGravityChange={setGravityEnabled}
         onShadowsChange={setShadowsEnabled}
         fileInputRef={fileInputRef}
         onFileChange={onFileChange}
@@ -238,7 +235,6 @@ export default function Builder() {
               version={version}
               runPhysics
               runScripts
-              gravityEnabled={gravityEnabled}
               shadowsEnabled={shadowsEnabled}
               selectedEntityId={selectedEntityId}
               onSelectEntity={setSelectedEntityId}
@@ -254,12 +250,14 @@ export default function Builder() {
           cameraControl={cameraControl}
           cameraTarget={cameraTarget}
           cameraMode={cameraMode}
+          world={world}
           onSelectEntity={setSelectedEntityId}
           onAddEntity={handleAddEntity}
           onBulkAddEntities={handleBulkAddEntities}
           onCameraControlChange={setCameraControl}
           onCameraTargetChange={setCameraTarget}
           onCameraModeChange={setCameraMode}
+          onWorldChange={handleWorldChange}
           isOpen={leftDrawerOpen}
           onToggle={() => setLeftDrawerOpen(!leftDrawerOpen)}
         />

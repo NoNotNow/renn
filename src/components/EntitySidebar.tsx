@@ -1,8 +1,9 @@
 import { useRef, useCallback, useState } from 'react'
-import type { Entity, CameraMode, Color } from '@/types/world'
+import type { Entity, CameraMode, Color, RennWorld } from '@/types/world'
 import type { AddableShapeType, BulkEntityParams } from '@/data/entityDefaults'
 import { uiLogger } from '@/utils/uiLogger'
 import Sidebar from './layout/Sidebar'
+import WorldPanel from './WorldPanel'
 import { sidebarRowStyle, sidebarLabelStyle, fieldLabelStyle, sectionStyle, sectionTitleStyle } from './sharedStyles'
 
 export interface EntitySidebarProps {
@@ -11,17 +12,19 @@ export interface EntitySidebarProps {
   cameraControl: 'free' | 'follow' | 'top' | 'front' | 'right'
   cameraTarget: string
   cameraMode: CameraMode
+  world: RennWorld
   onSelectEntity: (id: string) => void
   onAddEntity: (shapeType: AddableShapeType) => void
   onBulkAddEntities: (params: BulkEntityParams) => void
   onCameraControlChange: (control: 'free' | 'follow' | 'top' | 'front' | 'right') => void
   onCameraTargetChange: (target: string) => void
   onCameraModeChange: (mode: CameraMode) => void
+  onWorldChange: (world: RennWorld) => void
   isOpen: boolean
   onToggle: () => void
 }
 
-type LeftTab = 'entities' | 'camera' | 'actions'
+type LeftTab = 'entities' | 'camera' | 'actions' | 'world'
 
 export default function EntitySidebar({
   entities,
@@ -29,12 +32,14 @@ export default function EntitySidebar({
   cameraControl,
   cameraTarget,
   cameraMode,
+  world,
   onSelectEntity,
   onAddEntity,
   onBulkAddEntities,
   onCameraControlChange,
   onCameraTargetChange,
   onCameraModeChange,
+  onWorldChange,
   isOpen,
   onToggle,
 }: EntitySidebarProps) {
@@ -144,7 +149,7 @@ export default function EntitySidebar({
       side="left"
       isOpen={isOpen}
       onToggle={onToggle}
-      tabs={['entities', 'camera', 'actions'] as const}
+      tabs={['entities', 'camera', 'actions', 'world'] as const}
       activeTab={leftTab}
       onTabChange={handleTabChange}
       toggleLogContext="Toggle left drawer"
@@ -760,6 +765,9 @@ export default function EntitySidebar({
                   Create {bulkCount} Entities
                 </button>
               </div>
+            )}
+            {leftTab === 'world' && (
+              <WorldPanel world={world} onWorldChange={onWorldChange} />
             )}
       </div>
     </Sidebar>
