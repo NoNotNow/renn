@@ -61,6 +61,11 @@ function SceneViewInner({
   const timeRef = useRef(0)
   const frameRef = useRef<number>(0)
   const effectIdRef = useRef(0)
+  const savedCameraStateRef = useRef<{
+    position: THREE.Vector3
+    quaternion: THREE.Quaternion
+    up: THREE.Vector3
+  } | null>(null)
 
   const freeFlyKeysRef = useKeyboardInput()
 
@@ -99,8 +104,22 @@ function SceneViewInner({
     setScene(loadedScene)
 
     const cam = new THREE.PerspectiveCamera(50, 1, 0.1, 1000)
-    cam.position.set(0, 5, 10)
-    cam.lookAt(0, 0, 0)
+    
+    // Check if we should restore saved camera state
+    const cameraConfig = world.world.camera
+    const controlMode = cameraConfig?.control ?? 'free'
+    const shouldRestore = controlMode === 'free' && savedCameraStateRef.current
+
+    if (shouldRestore && savedCameraStateRef.current) {
+      // Restore saved position, rotation, and up vector
+      cam.position.copy(savedCameraStateRef.current.position)
+      cam.quaternion.copy(savedCameraStateRef.current.quaternion)
+      cam.up.copy(savedCameraStateRef.current.up)
+    } else {
+      // Use default position for new cameras or non-free modes
+      cam.position.set(0, 5, 10)
+      cam.lookAt(0, 0, 0)
+    }
     setCamera(cam)
 
     const getEntityPosition = (entityId: string): THREE.Vector3 | null => {
@@ -235,6 +254,18 @@ function SceneViewInner({
     ro.observe(container)
 
     return () => {
+      // Save camera state if in free mode before cleanup
+      if (cam && cameraCtrl) {
+        const config = cameraCtrl.getConfig()
+        if ((config.control ?? 'free') === 'free') {
+          savedCameraStateRef.current = {
+            position: cam.position.clone(),
+            quaternion: cam.quaternion.clone(),
+            up: cam.up.clone(),
+          }
+        }
+      }
+      
       // Set cancelled first to stop animation loop
       cancelled = true
       
