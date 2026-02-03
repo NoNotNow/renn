@@ -119,6 +119,9 @@ export default function EntitySidebar({
                           border: 'none',
                           cursor: 'pointer',
                           transition: 'background 0.15s ease',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
                         }}
                         onClick={() => {
                           uiLogger.click('Builder', 'Select entity', { entityId: e.id, entityName: e.name })
@@ -135,7 +138,8 @@ export default function EntitySidebar({
                           }
                         }}
                       >
-                        {e.name ?? e.id}
+                        {e.locked && <span style={{ fontSize: 11, opacity: 0.7 }}>🔒</span>}
+                        <span>{e.name ?? e.id}</span>
                       </button>
                     </li>
                   ))}

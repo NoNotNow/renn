@@ -76,6 +76,7 @@ export interface Entity {
   restitution?: number
   friction?: number
   scripts?: EntityScripts
+  locked?: boolean
 }
 
 export interface RennWorld {

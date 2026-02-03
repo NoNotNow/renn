@@ -26,12 +26,14 @@ export interface MaterialEditorProps {
   entityId: string
   material: MaterialRef | undefined
   onMaterialChange: (material: MaterialRef) => void
+  disabled?: boolean
 }
 
 export default function MaterialEditor({
   entityId,
   material,
   onMaterialChange,
+  disabled = false,
 }: MaterialEditorProps) {
   const color: Vec3 = (material?.color ?? [0.7, 0.7, 0.7]).slice(0, 3) as Vec3
   const roughness = material?.roughness ?? 0.5
@@ -63,8 +65,9 @@ export default function MaterialEditor({
               borderRadius: 4,
               border: '1px solid #2f3545',
               background: 'transparent',
-              cursor: 'pointer',
+              cursor: disabled ? 'not-allowed' : 'pointer',
             }}
+            disabled={disabled}
           />
           <span style={{ fontSize: 12, color: '#9aa4b2' }}>
             {color.map((c) => clampUnit(c).toFixed(2)).join(', ')}
@@ -88,6 +91,7 @@ export default function MaterialEditor({
             onMaterialChange({ ...material, roughness: newValue })
           }}
           style={sidebarInputStyle}
+          disabled={disabled}
         />
       </div>
       <div style={sidebarRowStyle}>
@@ -107,6 +111,7 @@ export default function MaterialEditor({
             onMaterialChange({ ...material, metalness: newValue })
           }}
           style={sidebarInputStyle}
+          disabled={disabled}
         />
       </div>
     </>

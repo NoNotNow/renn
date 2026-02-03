@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import PropertyPanel from '@/components/PropertyPanel'
 import { sampleWorld } from '@/data/sampleWorld'
 import { createDefaultEntity } from '@/data/entityDefaults'
-import type { RennWorld } from '@/types/world'
+import type { RennWorld, Entity } from '@/types/world'
 
 vi.mock('@/utils/uiLogger', () => ({
   uiLogger: { change: vi.fn(), delete: vi.fn(), click: vi.fn(), log: vi.fn(), select: vi.fn(), upload: vi.fn() },
@@ -250,6 +250,107 @@ describe('PropertyPanel', () => {
       const updatedEntity = lastCall[0].entities.find((e: { id: string }) => e.id === entityId)
       expect(updatedEntity?.shape?.type).toBe('cylinder')
       expect((updatedEntity?.shape as { radius?: number })?.radius).toBe(0.8)
+    })
+  })
+
+  describe('entity lock functionality', () => {
+    it('shows lock indicator for locked entities', () => {
+      const world = worldWithBox()
+      world.entities[0].locked = true
+      renderPropertyPanel(world, world.entities[0].id)
+      expect(screen.getByRole('heading', { name: /🔒/ })).toBeInTheDocument()
+    })
+
+    it('shows locked button when entity is locked', () => {
+      const world = worldWithBox()
+      world.entities[0].locked = true
+      renderPropertyPanel(world, world.entities[0].id)
+      expect(screen.getByTitle('Unlock entity')).toBeInTheDocument()
+    })
+
+    it('shows unlocked button when entity is not locked', () => {
+      const world = worldWithBox()
+      renderPropertyPanel(world, world.entities[0].id)
+      expect(screen.getByTitle('Lock entity')).toBeInTheDocument()
+    })
+
+    it('clicking lock button toggles lock state', async () => {
+      const user = userEvent.setup()
+      const onWorldChange = vi.fn()
+      const world = worldWithBox()
+      renderPropertyPanel(world, world.entities[0].id, onWorldChange)
+      const lockButton = screen.getByTitle('Lock entity')
+      await user.click(lockButton)
+      expect(onWorldChange).toHaveBeenCalled()
+      const lastCall = onWorldChange.mock.calls[onWorldChange.mock.calls.length - 1]
+      const updatedEntity = lastCall[0].entities.find((e: { id: string }) => e.id === world.entities[0].id)
+      expect(updatedEntity?.locked).toBe(true)
+    })
+
+    it('disables name input when entity is locked', () => {
+      const world = worldWithBox()
+      world.entities[0].locked = true
+      renderPropertyPanel(world, world.entities[0].id)
+      const nameInput = screen.getByLabelText(/^name$/i)
+      expect(nameInput).toBeDisabled()
+    })
+
+    it('disables shape inputs when entity is locked', () => {
+      const world = worldWithBox()
+      world.entities[0].locked = true
+      renderPropertyPanel(world, world.entities[0].id)
+      expect(screen.getByLabelText(/shape/i)).toBeDisabled()
+      expect(screen.getByLabelText(/width/i)).toBeDisabled()
+      expect(screen.getByLabelText(/height/i)).toBeDisabled()
+      expect(screen.getByLabelText(/depth/i)).toBeDisabled()
+    })
+
+    it('disables transform inputs when entity is locked', () => {
+      const world = worldWithBox()
+      world.entities[0].locked = true
+      renderPropertyPanel(world, world.entities[0].id)
+      expect(screen.getByLabelText(/position x/i)).toBeDisabled()
+      expect(screen.getByLabelText(/position y/i)).toBeDisabled()
+      expect(screen.getByLabelText(/position z/i)).toBeDisabled()
+      expect(screen.getByLabelText(/scale x/i)).toBeDisabled()
+      expect(screen.getByLabelText(/scale y/i)).toBeDisabled()
+      expect(screen.getByLabelText(/scale z/i)).toBeDisabled()
+    })
+
+    it('disables physics inputs when entity is locked', () => {
+      const world = worldWithBox()
+      world.entities[0].locked = true
+      renderPropertyPanel(world, world.entities[0].id)
+      expect(screen.getByLabelText(/body type/i)).toBeDisabled()
+      expect(screen.getByLabelText(/friction/i)).toBeDisabled()
+    })
+
+    it('disables material inputs when entity is locked', () => {
+      const world = worldWithBox()
+      world.entities[0].locked = true
+      renderPropertyPanel(world, world.entities[0].id)
+      expect(screen.getByLabelText(/material color/i)).toBeDisabled()
+      expect(screen.getByLabelText(/roughness/i)).toBeDisabled()
+      expect(screen.getByLabelText(/metalness/i)).toBeDisabled()
+    })
+
+    it('disables delete button when entity is locked', () => {
+      const world = worldWithBox()
+      world.entities[0].locked = true
+      renderPropertyPanel(world, world.entities[0].id, vi.fn(), vi.fn())
+      const deleteButton = screen.getByRole('button', { name: /delete entity/i })
+      expect(deleteButton).toBeDisabled()
+    })
+
+    it('does not call onDeleteEntity when clicking delete on locked entity', async () => {
+      const user = userEvent.setup()
+      const onDeleteEntity = vi.fn()
+      const world = worldWithBox()
+      world.entities[0].locked = true
+      renderPropertyPanel(world, world.entities[0].id, vi.fn(), onDeleteEntity)
+      const deleteButton = screen.getByRole('button', { name: /delete entity/i })
+      await user.click(deleteButton)
+      expect(onDeleteEntity).not.toHaveBeenCalled()
     })
   })
 })

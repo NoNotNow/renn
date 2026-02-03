@@ -110,6 +110,13 @@ export default function Builder() {
   const handleDeleteEntity = useCallback(
     (entityId: string) => {
       const entity = world.entities.find((e) => e.id === entityId)
+      
+      // Prevent deletion of locked entities
+      if (entity?.locked) {
+        alert('Cannot delete a locked entity. Unlock it first.')
+        return
+      }
+      
       uiLogger.delete('Builder', 'Delete entity', { entityId, entityName: entity?.name })
       const newEntities = world.entities.filter((e) => e.id !== entityId)
       updateWorld((prev) => ({ ...prev, entities: newEntities }))

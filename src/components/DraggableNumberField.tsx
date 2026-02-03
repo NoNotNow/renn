@@ -12,6 +12,7 @@ export interface DraggableNumberFieldProps {
   sensitivity?: number
   label?: string
   id?: string
+  disabled?: boolean
 }
 
 function clamp(value: number, min: number | undefined, max: number | undefined): number {
@@ -29,6 +30,7 @@ export default function DraggableNumberField({
   sensitivity = DEFAULT_SENSITIVITY,
   label,
   id,
+  disabled = false,
 }: DraggableNumberFieldProps) {
   const scrubRef = useRef<{ startValue: number; startX: number; deadZoneUsed: boolean } | null>(null)
 
@@ -94,18 +96,19 @@ export default function DraggableNumberField({
       id={id}
       value={value}
       onChange={handleChange}
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
-      onPointerCancel={handlePointerCancel}
+      onPointerDown={disabled ? undefined : handlePointerDown}
+      onPointerMove={disabled ? undefined : handlePointerMove}
+      onPointerUp={disabled ? undefined : handlePointerUp}
+      onPointerCancel={disabled ? undefined : handlePointerCancel}
       aria-label={label}
       min={min}
       max={max}
       step={step}
+      disabled={disabled}
       style={{
         width: '100%',
         minWidth: 0,
-        cursor: 'ew-resize',
+        cursor: disabled ? 'not-allowed' : 'ew-resize',
         boxSizing: 'border-box',
       }}
     />

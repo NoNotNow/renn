@@ -11,6 +11,7 @@ export interface Vec3FieldProps {
   sensitivity?: number
   axisLabels?: [string, string, string]
   idPrefix?: string
+  disabled?: boolean
 }
 
 const DEFAULT_AXIS_LABELS: [string, string, string] = ['X', 'Y', 'Z']
@@ -25,6 +26,7 @@ export default function Vec3Field({
   sensitivity,
   axisLabels = DEFAULT_AXIS_LABELS,
   idPrefix = 'vec3',
+  disabled = false,
 }: Vec3FieldProps) {
   const [xLabel, yLabel, zLabel] = axisLabels
 
@@ -53,6 +55,7 @@ export default function Vec3Field({
           step={step}
           sensitivity={sensitivity}
           label={`${label} ${xLabel}`}
+          disabled={disabled}
         />
         <span style={{ fontSize: '0.7em', color: '#9aa4b2' }}>{yLabel}</span>
         <DraggableNumberField
@@ -64,6 +67,7 @@ export default function Vec3Field({
           step={step}
           sensitivity={sensitivity}
           label={`${label} ${yLabel}`}
+          disabled={disabled}
         />
         <span style={{ fontSize: '0.7em', color: '#9aa4b2' }}>{zLabel}</span>
         <DraggableNumberField
@@ -75,6 +79,7 @@ export default function Vec3Field({
           step={step}
           sensitivity={sensitivity}
           label={`${label} ${zLabel}`}
+          disabled={disabled}
         />
       </div>
     </div>

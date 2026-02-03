@@ -175,7 +175,8 @@
         "mass": { "type": "number" },
         "restitution": { "type": "number" },
         "friction": { "type": "number" },
-        "scripts": { "$ref": "#/$defs/EntityScripts" }
+        "scripts": { "$ref": "#/$defs/EntityScripts" },
+        "locked": { "type": "boolean" }
       },
       "additionalProperties": false
     }

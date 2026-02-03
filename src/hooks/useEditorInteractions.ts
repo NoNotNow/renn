@@ -62,6 +62,13 @@ export function useEditorInteractions({
       const entityId = hit.object.userData.entityId as string
       const mesh = hit.object as THREE.Mesh
       editorPropsRef.current.onSelectEntity?.(entityId)
+      
+      // Check if entity is locked - prevent dragging but allow selection
+      const entity = hit.object.userData.entity
+      if (entity?.locked) {
+        return
+      }
+      
       camera.getWorldDirection(cameraDir)
       const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(
         cameraDir.clone().negate(),

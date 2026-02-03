@@ -12,6 +12,7 @@ export interface PhysicsEditorProps {
   onMassChange: (mass: number) => void
   onRestitutionChange: (restitution: number) => void
   onFrictionChange: (friction: number) => void
+  disabled?: boolean
 }
 
 export default function PhysicsEditor({
@@ -24,6 +25,7 @@ export default function PhysicsEditor({
   onMassChange,
   onRestitutionChange,
   onFrictionChange,
+  disabled = false,
 }: PhysicsEditorProps) {
   return (
     <>
@@ -39,6 +41,7 @@ export default function PhysicsEditor({
             onBodyTypeChange(e.target.value as Entity['bodyType'])
           }}
           style={sidebarInputStyle}
+          disabled={disabled}
         >
           <option value="static">Static</option>
           <option value="dynamic">Dynamic</option>
@@ -63,6 +66,7 @@ export default function PhysicsEditor({
                 onMassChange(newValue)
               }}
               style={sidebarInputStyle}
+              disabled={disabled}
             />
           </div>
           <div style={sidebarRowStyle}>
@@ -82,6 +86,7 @@ export default function PhysicsEditor({
                 onRestitutionChange(newValue)
               }}
               style={sidebarInputStyle}
+              disabled={disabled}
             />
           </div>
         </>
@@ -102,6 +107,7 @@ export default function PhysicsEditor({
             onFrictionChange(newValue)
           }}
           style={sidebarInputStyle}
+          disabled={disabled}
         />
       </div>
     </>

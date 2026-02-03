@@ -13,6 +13,7 @@ export interface TransformEditorProps {
   onRotationChange: (rotation: Quat) => void
   onScaleChange: (scale: Vec3) => void
   getCurrentPose?: (id: string) => { position: Vec3; rotation: Quat }
+  disabled?: boolean
 }
 
 export default function TransformEditor({
@@ -24,6 +25,7 @@ export default function TransformEditor({
   onRotationChange,
   onScaleChange,
   getCurrentPose,
+  disabled = false,
 }: TransformEditorProps) {
   const [displayPosition, setDisplayPosition] = useState(position)
   const [displayRotation, setDisplayRotation] = useState(rotation)
@@ -57,6 +59,7 @@ export default function TransformEditor({
         }}
         sensitivity={0.05}
         idPrefix={`${entityId}-position`}
+        disabled={disabled}
       />
       <QuatField
         label="Rotation (quat)"
@@ -67,6 +70,7 @@ export default function TransformEditor({
           onRotationChange(q)
         }}
         idPrefix={`${entityId}-rotation`}
+        disabled={disabled}
       />
       <Vec3Field
         label="Scale"
@@ -79,6 +83,7 @@ export default function TransformEditor({
         step={0.1}
         sensitivity={0.01}
         idPrefix={`${entityId}-scale`}
+        disabled={disabled}
       />
     </>
   )

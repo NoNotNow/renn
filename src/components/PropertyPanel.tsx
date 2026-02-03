@@ -54,14 +54,40 @@ export default function PropertyPanel({
   const position = entity.position ?? [0, 0, 0]
   const rotation = entity.rotation ?? [0, 0, 0, 1]
   const scale = entity.scale ?? [1, 1, 1]
+  const isLocked = entity.locked ?? false
 
   return (
     <div style={{ padding: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <h3 style={{ margin: '0 0 2px', fontSize: 14, fontWeight: 600 }}>
+      <h3 style={{ margin: '0 0 2px', fontSize: 14, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+        {isLocked && <span style={{ fontSize: 12 }}>🔒</span>}
         {entity.name ?? entity.id}
       </h3>
       <div style={sectionStyle}>
-        <div style={sectionTitleStyle}>Entity</div>
+        <div style={{ ...sectionTitleStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span>Entity</span>
+          <button
+            type="button"
+            onClick={() => {
+              uiLogger.change('PropertyPanel', 'Toggle entity lock', { entityId: entity.id, locked: !isLocked })
+              updateEntity({ locked: !isLocked })
+            }}
+            title={isLocked ? 'Unlock entity' : 'Lock entity'}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              padding: 4,
+              fontSize: 14,
+              lineHeight: 1,
+              opacity: 0.8,
+              transition: 'opacity 0.15s ease',
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
+            onMouseLeave={(e) => e.currentTarget.style.opacity = '0.8'}
+          >
+            {isLocked ? '🔒' : '🔓'}
+          </button>
+        </div>
         <label style={fieldLabelStyle}>
           Name
           <input
@@ -73,6 +99,7 @@ export default function PropertyPanel({
               updateEntity({ name: e.target.value || undefined })
             }}
             style={inputStyle}
+            disabled={isLocked}
           />
         </label>
         <label style={fieldLabelStyle}>
@@ -92,6 +119,7 @@ export default function PropertyPanel({
           entityId={entity.id}
           shape={entity.shape}
           onShapeChange={(shape) => updateEntity({ shape })}
+          disabled={isLocked}
         />
       </div>
 
@@ -118,6 +146,7 @@ export default function PropertyPanel({
           }}
           onScaleChange={(v) => updateEntity({ scale: v })}
           getCurrentPose={getCurrentPose}
+          disabled={isLocked}
         />
       </div>
 
@@ -133,6 +162,7 @@ export default function PropertyPanel({
           onMassChange={(mass) => updateEntity({ mass })}
           onRestitutionChange={(restitution) => updateEntity({ restitution })}
           onFrictionChange={(friction) => updateEntity({ friction })}
+          disabled={isLocked}
         />
       </div>
 
@@ -142,6 +172,7 @@ export default function PropertyPanel({
           entityId={entity.id}
           material={entity.material}
           onMaterialChange={(material) => updateEntity({ material })}
+          disabled={isLocked}
         />
       </div>
 
@@ -152,13 +183,14 @@ export default function PropertyPanel({
             uiLogger.delete('PropertyPanel', 'Delete entity button clicked', { entityId: entity.id, entityName: entity.name })
             onDeleteEntity(entity.id)
           }}
+          disabled={isLocked}
           style={{
             padding: '8px 12px',
-            background: '#3a1b1b',
-            border: '1px solid #6b2a2a',
-            color: '#f4d6d6',
+            background: isLocked ? '#2a2a2a' : '#3a1b1b',
+            border: isLocked ? '1px solid #3a3a3a' : '1px solid #6b2a2a',
+            color: isLocked ? '#666' : '#f4d6d6',
             borderRadius: 6,
-            cursor: 'pointer',
+            cursor: isLocked ? 'not-allowed' : 'pointer',
             alignSelf: 'stretch',
           }}
         >

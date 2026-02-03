@@ -10,6 +10,7 @@ export interface QuatFieldProps {
   step?: number
   sensitivity?: number
   idPrefix?: string
+  disabled?: boolean
 }
 
 const COMPONENT_LABELS: [string, string, string, string] = ['x', 'y', 'z', 'w']
@@ -23,6 +24,7 @@ export default function QuatField({
   step,
   sensitivity,
   idPrefix = 'quat',
+  disabled = false,
 }: QuatFieldProps) {
   const handleX = (n: number) => onChange([n, value[1], value[2], value[3]])
   const handleY = (n: number) => onChange([value[0], n, value[2], value[3]])
@@ -62,6 +64,7 @@ export default function QuatField({
               step={step}
               sensitivity={sensitivity}
               label={`${label} ${compLabel}`}
+              disabled={disabled}
             />
           </div>
         ))}

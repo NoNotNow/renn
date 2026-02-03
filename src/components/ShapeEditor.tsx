@@ -9,12 +9,14 @@ export interface ShapeEditorProps {
   entityId: string
   shape: Shape | undefined
   onShapeChange: (shape: Shape) => void
+  disabled?: boolean
 }
 
 export default function ShapeEditor({
   entityId,
   shape,
   onShapeChange,
+  disabled = false,
 }: ShapeEditorProps) {
   const shapeType = (shape?.type ?? 'box') as AddableShapeType
   const effectiveShapeType = ADDABLE_SHAPE_TYPES.includes(shapeType) ? shapeType : 'box'
@@ -37,6 +39,7 @@ export default function ShapeEditor({
             setShapeType(e.target.value as AddableShapeType)
           }}
           style={sidebarInputStyle}
+          disabled={disabled}
         >
           <option value="box">Box</option>
           <option value="sphere">Sphere</option>
@@ -70,6 +73,7 @@ export default function ShapeEditor({
                   })
                 }}
                 style={sidebarInputStyle}
+                disabled={disabled}
               />
             </div>
             <div style={sidebarRowStyle}>
@@ -93,6 +97,7 @@ export default function ShapeEditor({
                   })
                 }}
                 style={sidebarInputStyle}
+                disabled={disabled}
               />
             </div>
             <div style={sidebarRowStyle}>
@@ -116,6 +121,7 @@ export default function ShapeEditor({
                   })
                 }}
                 style={sidebarInputStyle}
+                disabled={disabled}
               />
             </div>
           </>
@@ -138,6 +144,7 @@ export default function ShapeEditor({
               onShapeChange({ type: 'sphere', radius: newValue })
             }}
             style={sidebarInputStyle}
+            disabled={disabled}
           />
         </div>
       )}
@@ -166,6 +173,7 @@ export default function ShapeEditor({
                   })
                 }}
                 style={sidebarInputStyle}
+                disabled={disabled}
               />
             </div>
             <div style={sidebarRowStyle}>
@@ -188,6 +196,7 @@ export default function ShapeEditor({
                   })
                 }}
                 style={sidebarInputStyle}
+                disabled={disabled}
               />
             </div>
           </>

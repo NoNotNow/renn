@@ -21,6 +21,7 @@ export const sampleWorld: RennWorld = {
       shape: { type: 'plane' },
       position: [0, 0, 0],
       material: { color: [0.3, 0.5, 0.3] },
+      locked: true,
     },
     {
       id: 'ball',
