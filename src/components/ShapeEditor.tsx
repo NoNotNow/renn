@@ -1,15 +1,27 @@
-import type { Shape } from '@/types/world'
+import { useState } from 'react'
+import type { Shape, RennWorld } from '@/types/world'
 import { getDefaultShapeForType, type AddableShapeType } from '@/data/entityDefaults'
 import SelectInput from './form/SelectInput'
 import NumberInput from './form/NumberInput'
+import ModelDialog from './ModelDialog'
+import ModelThumbnail from './ModelThumbnail'
+import { ModelManager } from '@/utils/modelManager'
+import { createIndexedDbPersistence } from '@/persistence/indexedDb'
+import { sidebarRowStyle, sidebarLabelStyle } from './sharedStyles'
 
-const ADDABLE_SHAPE_TYPES: AddableShapeType[] = ['box', 'sphere', 'cylinder', 'capsule', 'plane']
+const persistence = createIndexedDbPersistence()
+
+const ADDABLE_SHAPE_TYPES: AddableShapeType[] = ['box', 'sphere', 'cylinder', 'capsule', 'plane', 'trimesh']
 
 export interface ShapeEditorProps {
   entityId: string
   shape: Shape | undefined
   onShapeChange: (shape: Shape) => void
   disabled?: boolean
+  assets?: Map<string, Blob>
+  world?: RennWorld
+  onAssetsChange?: (assets: Map<string, Blob>) => void
+  onWorldChange?: (world: RennWorld) => void
 }
 
 export default function ShapeEditor({
@@ -17,7 +29,13 @@ export default function ShapeEditor({
   shape,
   onShapeChange,
   disabled = false,
+  assets = new Map(),
+  world,
+  onAssetsChange,
+  onWorldChange,
 }: ShapeEditorProps) {
+  const [modelDialogOpen, setModelDialogOpen] = useState(false)
+  
   const shapeType = (shape?.type ?? 'box') as AddableShapeType
   const effectiveShapeType = ADDABLE_SHAPE_TYPES.includes(shapeType) ? shapeType : 'box'
 
@@ -38,6 +56,7 @@ export default function ShapeEditor({
           { value: 'cylinder', label: 'Cylinder' },
           { value: 'capsule', label: 'Capsule' },
           { value: 'plane', label: 'Plane' },
+          { value: 'trimesh', label: 'Trimesh (3D Model)' },
         ]}
         disabled={disabled}
         entityId={entityId}
@@ -163,6 +182,128 @@ export default function ShapeEditor({
               entityId={entityId}
               propertyName="capsule height"
             />
+          </>
+        )
+      })()}
+      {shape?.type === 'trimesh' && (() => {
+        const s = shape
+        return (
+          <>
+            <div style={sidebarRowStyle}>
+              <label style={sidebarLabelStyle}>Model</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {s.model && assets.get(s.model) ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setModelDialogOpen(true)}
+                      disabled={disabled}
+                      title="Click to change model"
+                      style={{
+                        padding: 0,
+                        background: 'transparent',
+                        border: 'none',
+                        cursor: disabled ? 'not-allowed' : 'pointer',
+                        display: 'flex',
+                        transition: 'opacity 0.15s ease',
+                        opacity: disabled ? 0.5 : 1,
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!disabled) e.currentTarget.style.opacity = '0.8'
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!disabled) e.currentTarget.style.opacity = '1'
+                      }}
+                    >
+                      <ModelThumbnail assetId={s.model} blob={assets.get(s.model)} size={32} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onShapeChange({ type: 'trimesh', model: '' })
+                      }}
+                      disabled={disabled}
+                      title="Remove model"
+                      style={{
+                        padding: '6px 8px',
+                        background: disabled ? '#2a2a2a' : '#3a1b1b',
+                        border: disabled ? '1px solid #2f3545' : '1px solid #6b2a2a',
+                        color: disabled ? '#666' : '#f4d6d6',
+                        borderRadius: 6,
+                        cursor: disabled ? 'not-allowed' : 'pointer',
+                        fontSize: 14,
+                        lineHeight: 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        minWidth: 28,
+                      }}
+                    >
+                      🗑️
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setModelDialogOpen(true)}
+                    disabled={disabled}
+                    style={{
+                      flex: 1,
+                      padding: '6px 12px',
+                      background: disabled ? '#2a2a2a' : '#1a1a1a',
+                      border: '1px solid #2f3545',
+                      color: disabled ? '#666' : '#e6e9f2',
+                      borderRadius: 6,
+                      cursor: disabled ? 'not-allowed' : 'pointer',
+                      fontSize: 12,
+                      transition: 'background-color 0.15s ease',
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!disabled) e.currentTarget.style.background = '#222'
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!disabled) e.currentTarget.style.background = '#1a1a1a'
+                    }}
+                  >
+                    Select Model
+                  </button>
+                )}
+              </div>
+            </div>
+            <div style={{ fontSize: 11, color: '#666', marginTop: 4, paddingLeft: 8 }}>
+              Model for visual and physics collision
+            </div>
+            {world && (
+              <ModelDialog
+                isOpen={modelDialogOpen}
+                onClose={() => setModelDialogOpen(false)}
+                assets={assets}
+                world={world}
+                selectedModelId={s.model}
+                onSelectModel={(assetId) => {
+                  onShapeChange({ type: 'trimesh', model: assetId ?? '' })
+                }}
+                onUploadModel={async (file: File, assetId: string) => {
+                  // Validate using ModelManager
+                  const validation = ModelManager.validateModelFile(file)
+                  if (!validation.valid) {
+                    throw new Error(validation.error)
+                  }
+                  
+                  // Save to global store
+                  await persistence.saveAsset(assetId, file)
+                  
+                  // Update in-memory assets Map
+                  const nextAssets = new Map(assets)
+                  nextAssets.set(assetId, file)
+                  onAssetsChange?.(nextAssets)
+                  
+                  // Update world assets reference
+                  const nextWorldAssets = { ...world.assets, [assetId]: { path: `assets/${file.name}`, type: 'model' } }
+                  onWorldChange?.({ ...world, assets: nextWorldAssets })
+                }}
+              />
+            )}
           </>
         )
       })()}

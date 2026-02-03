@@ -4,6 +4,7 @@ import TransformEditor from './TransformEditor'
 import ShapeEditor from './ShapeEditor'
 import PhysicsEditor from './PhysicsEditor'
 import MaterialEditor from './MaterialEditor'
+import ModelEditor from './ModelEditor'
 import { sectionStyle, sectionTitleStyle, fieldLabelStyle } from './sharedStyles'
 
 export interface PropertyPanelProps {
@@ -124,6 +125,10 @@ export default function PropertyPanel({
           shape={entity.shape}
           onShapeChange={(shape) => updateEntity({ shape })}
           disabled={isLocked}
+          assets={assets}
+          world={world}
+          onAssetsChange={onAssetsChange}
+          onWorldChange={onWorldChange}
         />
       </div>
 
@@ -178,6 +183,20 @@ export default function PropertyPanel({
           assets={assets}
           world={world}
           onMaterialChange={(material) => updateEntity({ material })}
+          onWorldChange={onWorldChange}
+          onAssetsChange={onAssetsChange}
+          disabled={isLocked}
+        />
+      </div>
+
+      <div style={sectionStyle}>
+        <div style={sectionTitleStyle}>3D Model</div>
+        <ModelEditor
+          entityId={entity.id}
+          model={entity.model}
+          assets={assets}
+          world={world}
+          onModelChange={(model) => updateEntity({ model })}
           onWorldChange={onWorldChange}
           onAssetsChange={onAssetsChange}
           disabled={isLocked}

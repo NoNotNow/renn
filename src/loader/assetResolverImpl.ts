@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import type { GLTF } from './assetResolver'
 
 /**
  * Asset resolver that creates blob URLs for assets.
@@ -7,6 +8,7 @@ import * as THREE from 'three'
 export interface DisposableAssetResolver {
   resolve: (assetId: string) => string | null
   loadTexture: (assetId: string, loader: THREE.TextureLoader) => Promise<THREE.Texture | null>
+  loadModel: (assetId: string, loader: any) => Promise<GLTF | null>
   dispose: () => void
 }
 
@@ -56,6 +58,26 @@ export function createAssetResolver(assets: Map<string, Blob>): DisposableAssetR
     }
   }
 
+  const loadModel = async (assetId: string, loader: any): Promise<GLTF | null> => {
+    const url = resolve(assetId)
+    if (!url) return null
+    
+    try {
+      const gltf = await new Promise<GLTF>((resolve, reject) => {
+        loader.load(
+          url,
+          (gltf: GLTF) => resolve(gltf),
+          undefined,
+          (error: any) => reject(error)
+        )
+      })
+      return gltf
+    } catch (error) {
+      console.error(`Failed to load model for asset ${assetId}:`, error)
+      return null
+    }
+  }
+
   const dispose = (): void => {
     for (const url of urlCache.values()) {
       try {
@@ -67,7 +89,7 @@ export function createAssetResolver(assets: Map<string, Blob>): DisposableAssetR
     urlCache.clear()
   }
 
-  return { resolve, loadTexture, dispose }
+  return { resolve, loadTexture, loadModel, dispose }
 }
 
 /**

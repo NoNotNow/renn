@@ -2,7 +2,7 @@ import type { Entity, Shape, Color, Vec3, Quat } from '@/types/world'
 import { DEFAULT_POSITION, DEFAULT_ROTATION, DEFAULT_SCALE } from '@/types/world'
 import { generateEntityId } from '@/utils/idGenerator'
 
-export type AddableShapeType = 'box' | 'sphere' | 'cylinder' | 'capsule' | 'plane'
+export type AddableShapeType = 'box' | 'sphere' | 'cylinder' | 'capsule' | 'plane' | 'trimesh'
 
 const DEFAULT_SHAPES: Record<AddableShapeType, Shape> = {
   box: { type: 'box', width: 1, height: 1, depth: 1 },
@@ -10,6 +10,7 @@ const DEFAULT_SHAPES: Record<AddableShapeType, Shape> = {
   cylinder: { type: 'cylinder', radius: 0.5, height: 1 },
   capsule: { type: 'capsule', radius: 0.25, height: 1 },
   plane: { type: 'plane' },
+  trimesh: { type: 'trimesh', model: '' },
 }
 
 const SCALE_RANGE: [number, number] = [0.6, 1.4]

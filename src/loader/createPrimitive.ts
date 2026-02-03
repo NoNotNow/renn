@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { GLTFLoader } from 'three-stdlib'
 import type { Shape, Vec3, Quat, MaterialRef } from '@/types/world'
 import type { DisposableAssetResolver } from './assetResolverImpl'
 
@@ -112,9 +113,46 @@ export async function createPrimitiveMesh(
       geometry = new THREE.PlaneGeometry(size * 2, size * 2)
       break
     }
-    case 'trimesh':
+    case 'trimesh': {
+      // Load model if assetResolver is available
+      if (shape.model && assetResolver) {
+        const gltfLoader = new GLTFLoader()
+        try {
+          const gltf = await assetResolver.loadModel(shape.model, gltfLoader)
+          if (gltf) {
+            // Clone the loaded scene to create a new instance
+            const modelScene = gltf.scene.clone(true)
+            
+            // Apply material if specified
+            if (materialRef) {
+              const material = await materialFromRef(materialRef, assetResolver)
+              modelScene.traverse((child) => {
+                if (child instanceof THREE.Mesh) {
+                  child.material = material
+                }
+              })
+            }
+            
+            // Extract the first mesh or create a group
+            const firstMesh = modelScene.children.find(child => child instanceof THREE.Mesh) as THREE.Mesh
+            if (firstMesh) {
+              return firstMesh
+            }
+            
+            // If no mesh found, wrap the scene in a mesh with dummy geometry
+            const wrapperMesh = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.1), mat)
+            wrapperMesh.add(modelScene)
+            return wrapperMesh
+          }
+        } catch (error) {
+          console.error(`Failed to load trimesh model ${shape.model}:`, error)
+        }
+      }
+      // Fallback to box geometry
+      console.warn('[createPrimitive] Trimesh model not loaded, using box fallback')
       geometry = new THREE.BoxGeometry(1, 1, 1)
       break
+    }
     default:
       geometry = new THREE.BoxGeometry(1, 1, 1)
   }
@@ -141,6 +179,7 @@ export function disposeMesh(mesh: THREE.Mesh): void {
 /**
  * Builds a mesh for an entity: primitive from shape (or placeholder for trimesh/model).
  * Applies position, rotation, scale from entity.
+ * If modelId is provided, loads and uses the 3D model for visuals (shape still used for physics).
  */
 export async function buildEntityMesh(
   shape: Shape | undefined,
@@ -148,9 +187,62 @@ export async function buildEntityMesh(
   position: Vec3,
   rotation: Quat,
   scale: Vec3,
-  assetResolver?: DisposableAssetResolver
+  assetResolver?: DisposableAssetResolver,
+  modelId?: string
 ): Promise<THREE.Mesh> {
   const s = shape ?? { type: 'box' as const, width: 1, height: 1, depth: 1 }
+  
+  // If entity.model is specified, try to load it
+  if (modelId && assetResolver) {
+    const gltfLoader = new GLTFLoader()
+    try {
+      const gltf = await assetResolver.loadModel(modelId, gltfLoader)
+      if (gltf) {
+        // Clone the loaded scene
+        const modelScene = gltf.scene.clone(true)
+        
+        // Apply material if specified
+        if (materialRef) {
+          const material = await materialFromRef(materialRef, assetResolver)
+          modelScene.traverse((child) => {
+            if (child instanceof THREE.Mesh) {
+              child.material = material
+            }
+          })
+        }
+        
+        // Find the first mesh in the scene or create wrapper
+        let resultMesh: THREE.Mesh
+        const firstMesh = modelScene.children.find(child => child instanceof THREE.Mesh) as THREE.Mesh
+        if (firstMesh) {
+          resultMesh = firstMesh
+          // Add remaining children to the mesh
+          modelScene.children.forEach(child => {
+            if (child !== firstMesh) {
+              resultMesh.add(child)
+            }
+          })
+        } else {
+          // Wrap the scene in a mesh with tiny geometry
+          resultMesh = new THREE.Mesh(
+            new THREE.BoxGeometry(0.01, 0.01, 0.01),
+            new THREE.MeshStandardMaterial({ visible: false })
+          )
+          resultMesh.add(modelScene)
+        }
+        
+        applyTransform(resultMesh, position, rotation, scale)
+        // Store that this mesh uses a model
+        resultMesh.userData.usesModel = true
+        resultMesh.userData.modelId = modelId
+        return resultMesh
+      }
+    } catch (error) {
+      console.error(`Failed to load entity model ${modelId}:`, error)
+    }
+  }
+  
+  // Default: create mesh from shape
   const mesh = await createPrimitiveMesh(s, materialRef, assetResolver)
   applyTransform(mesh, position, rotation, scale)
   if (s.type === 'plane') {

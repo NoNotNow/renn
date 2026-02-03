@@ -95,7 +95,7 @@ export async function loadWorld(
 
     const shape = entity.shape
     const mesh = shape
-      ? await buildEntityMesh(shape, entity.material, position, rotation, scale, assetResolver ?? undefined)
+      ? await buildEntityMesh(shape, entity.material, position, rotation, scale, assetResolver ?? undefined, entity.model)
       : new THREE.Mesh(
           new THREE.BoxGeometry(1, 1, 1),
           new THREE.MeshStandardMaterial({ color: 0x888888 })

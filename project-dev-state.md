@@ -2,7 +2,7 @@
 
 Track what’s done and what’s left. Update this file as you complete or add work.
 
-Last updated: 2026-02-03
+Last updated: 2026-02-03 (Added 3D model asset support)
 
 ---
 
@@ -50,14 +50,19 @@ Last updated: 2026-02-03
 - [x] **Utility functions** – New utilities: `colorUtils.ts` (color generation), `idGenerator.ts` (unique IDs), `numberUtils.ts` (number operations), `validation.ts` (input validation).
 - [x] **Unsaved changes warning** – Warn user when navigating away from unsaved project changes.
 - [x] **UI/UX improvements** – Modern dark design with improved spacing, consistent styling, better visual hierarchy, and responsive layouts.
+- [x] **Texture system** – Complete texture workflow: `TextureManager` utility, `TextureDialog` for uploading/selecting textures, `TextureThumbnail` for previews, `TextureSelector` integration in MaterialEditor; drag-and-drop support, validation, IndexedDB persistence.
+- [x] **3D model asset support** – Complete 3D model workflow: `ModelManager` utility for GLB validation, `ModelDialog` for uploading/selecting models, `ModelThumbnail` for previews, `ModelEditor` for applying models to entities; two application modes: `entity.model` (visual only, shape for physics) and `trimesh` shape type (both visual and physics); GLTFLoader integration via three-stdlib; drag-and-drop support, validation, IndexedDB persistence. **Note:** Only GLB format (self-contained binary) is supported to avoid external dependency issues; GLTF files with external buffers/textures are rejected with helpful error message.
 
 ---
 
 ## To do
 
 ### High priority
-- [ ] **Apply textures from assets** – Loader currently uses placeholder materials; resolve `material.map` (asset ID) to texture via asset resolver and apply to meshes.
-- [ ] **Load 3D models from assets** – When entity has `model` (asset ID), load glTF/GLB from assets and use for mesh (and optionally trimesh collision).
+- [x] **Apply textures from assets** – ✅ Implemented: Texture resolver in asset loader; `material.map` (asset ID) resolved to texture via asset resolver and applied to meshes with advanced properties (UV repeat, wrap modes, offset, rotation).
+- [x] **Load 3D models from assets** – ✅ Implemented: Two approaches supported:
+  - **entity.model**: Visual model only (shape still used for physics collision)
+  - **trimesh shape**: Model used for both visual and physics (currently uses box fallback for physics)
+  - GLTFLoader integration, material application, transform handling, error fallbacks
 
 ### Medium priority
 - [ ] **Replace on import** – UI flow: after import, let user choose “New project” or “Replace existing” and pick which project to overwrite.
@@ -65,6 +70,8 @@ Last updated: 2026-02-03
 - [ ] **Third-person orbit** – Orbit camera around target with pitch/yaw; optional camera collision.
 
 ### Lower priority / later
+- [ ] **Trimesh physics collision** – Currently trimesh shapes use box fallback for physics; future enhancement: extract vertices from GLTF and create Rapier trimesh collider for accurate mesh-based collision.
+- [ ] **3D model thumbnails** – Currently model thumbnails show 📦 icon; future enhancement: render actual 3D previews using Three.js canvas thumbnails.
 - [ ] **Backend** – Node.js API, PostgreSQL, S3-compatible storage; EU hoster (see plan §7.2). Defer until needed.
 - [ ] **Script sandbox** – If scripts are ever shared/untrusted, run in Worker or cross-origin iframe.
 - [ ] **World schema versioning** – Strict vs best-effort when `version` changes; migration path.
