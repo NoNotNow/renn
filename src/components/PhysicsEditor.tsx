@@ -3,7 +3,7 @@ import { uiLogger } from '@/utils/uiLogger'
 
 const rowStyle = {
   display: 'grid',
-  gridTemplateColumns: 'auto 1fr',
+  gridTemplateColumns: '96px 1fr',
   alignItems: 'center',
   gap: 8,
   marginBottom: 6,

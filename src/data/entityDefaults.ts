@@ -11,16 +11,36 @@ const DEFAULT_SHAPES: Record<AddableShapeType, Shape> = {
   plane: { type: 'plane' },
 }
 
+const COLOR_RANGE: [number, number] = [0.2, 0.9]
+const SCALE_RANGE: [number, number] = [0.6, 1.4]
+const DISPLACEMENT_RANGE: [number, number] = [-0.35, 0.35]
+const DISPLACEMENT_Y_RANGE: [number, number] = [0, 0.35]
+
+function randomInRange([min, max]: [number, number]): number {
+  return min + Math.random() * (max - min)
+}
+
 export function createDefaultEntity(shapeType: AddableShapeType): Entity {
   const id = `entity_${Date.now()}`
+  const scale = randomInRange(SCALE_RANGE)
   return {
     id,
     bodyType: 'static',
     shape: { ...DEFAULT_SHAPES[shapeType] },
-    position: [...DEFAULT_POSITION],
+    position: [
+      DEFAULT_POSITION[0] + randomInRange(DISPLACEMENT_RANGE),
+      DEFAULT_POSITION[1] + randomInRange(DISPLACEMENT_Y_RANGE),
+      DEFAULT_POSITION[2] + randomInRange(DISPLACEMENT_RANGE),
+    ],
     rotation: [...DEFAULT_ROTATION],
-    scale: [...DEFAULT_SCALE],
-    material: { color: [0.7, 0.7, 0.7] },
+    scale: [DEFAULT_SCALE[0] * scale, DEFAULT_SCALE[1] * scale, DEFAULT_SCALE[2] * scale],
+    material: {
+      color: [
+        randomInRange(COLOR_RANGE),
+        randomInRange(COLOR_RANGE),
+        randomInRange(COLOR_RANGE),
+      ],
+    },
   }
 }
 
