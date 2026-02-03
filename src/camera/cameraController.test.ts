@@ -100,7 +100,7 @@ describe('CameraController', () => {
     // Camera should be in front looking at origin
     expect(camera.position.z).toBe(15)
     expect(camera.position.x).toBe(0)
-    expect(camera.position.y).toBe(0)
+    expect(camera.position.y).toBe(3)
   })
 
   it('sets view preset to right', () => {
@@ -116,7 +116,7 @@ describe('CameraController', () => {
     
     // Camera should be on right side looking at origin
     expect(camera.position.x).toBe(15)
-    expect(camera.position.y).toBe(0)
+    expect(camera.position.y).toBe(3)
     expect(camera.position.z).toBe(0)
   })
 

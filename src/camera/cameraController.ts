@@ -83,12 +83,12 @@ export class CameraController {
         this.camera.lookAt(origin)
         break
       case 'front':
-        this.camera.position.set(0, 0, VIEW_PRESET_DISTANCE)
+        this.camera.position.set(0, 3, VIEW_PRESET_DISTANCE)
         this.camera.up.set(0, 1, 0)
         this.camera.lookAt(origin)
         break
       case 'right':
-        this.camera.position.set(VIEW_PRESET_DISTANCE, 0, 0)
+        this.camera.position.set(VIEW_PRESET_DISTANCE, 3, 0)
         this.camera.up.set(0, 1, 0)
         this.camera.lookAt(origin)
         break
