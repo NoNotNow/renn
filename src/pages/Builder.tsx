@@ -9,7 +9,6 @@ import { useProjectContext } from '@/hooks/useProjectContext'
 import { useLocalStorageState } from '@/hooks/useLocalStorageState'
 import type { Vec3, Quat } from '@/types/world'
 import { uiLogger } from '@/utils/uiLogger'
-import { updateEntityPosition } from '@/utils/worldUtils'
 
 export default function Builder() {
   const {
@@ -115,9 +114,9 @@ export default function Builder() {
 
   const handleEntityPositionChange = useCallback(
     (entityId: string, position: Vec3) => {
-      updateWorld((prev) => updateEntityPosition(prev, entityId, position))
+      sceneViewRef.current?.updateEntityPose(entityId, { position })
     },
-    [updateWorld]
+    []
   )
 
   const handleNew = useCallback(() => {
