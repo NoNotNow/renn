@@ -8,7 +8,7 @@ import {
   DEFAULT_SCALE,
 } from '@/types/world'
 import { buildEntityMesh } from './createPrimitive'
-import type { AssetResolver } from './assetResolver'
+import { createAssetResolver, type DisposableAssetResolver } from './assetResolverImpl'
 import { getSceneUserData } from '@/types/sceneUserData'
 
 export interface LoadedEntity {
@@ -20,16 +20,17 @@ export interface LoadWorldResult {
   scene: THREE.Scene
   entities: LoadedEntity[]
   world: RennWorld
+  assetResolver: DisposableAssetResolver | null
 }
 
 /**
  * Loads a world document: validates, builds Three.js scene and entity meshes.
  * Does not run physics or scripts; caller attaches physics and script runner.
  */
-export function loadWorld(
+export async function loadWorld(
   worldData: unknown,
-  _resolveAsset?: AssetResolver
-): LoadWorldResult {
+  assets?: Map<string, Blob>
+): Promise<LoadWorldResult> {
   validateWorldDocument(worldData)
   const world = worldData as RennWorld
 
@@ -82,6 +83,9 @@ export function loadWorld(
   userData.camera = world.world.camera ?? { control: 'free', mode: 'follow', target: '', distance: 10, height: 2 }
   userData.world = world
 
+  // Create asset resolver if assets are provided
+  const assetResolver = assets ? createAssetResolver(assets) : null
+
   const entities: LoadedEntity[] = []
 
   for (const entity of world.entities) {
@@ -91,7 +95,7 @@ export function loadWorld(
 
     const shape = entity.shape
     const mesh = shape
-      ? buildEntityMesh(shape, entity.material, position, rotation, scale)
+      ? await buildEntityMesh(shape, entity.material, position, rotation, scale, assetResolver ?? undefined)
       : new THREE.Mesh(
           new THREE.BoxGeometry(1, 1, 1),
           new THREE.MeshStandardMaterial({ color: 0x888888 })
@@ -109,5 +113,5 @@ export function loadWorld(
     entities.push({ entity, mesh })
   }
 
-  return { scene, entities, world }
+  return { scene, entities, world, assetResolver }
 }

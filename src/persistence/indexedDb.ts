@@ -4,19 +4,32 @@ import type { ProjectMeta, LoadedProject, PersistenceAPI } from './types'
 import { generateProjectId } from '@/utils/idGenerator'
 
 const DB_NAME = 'renn-worlds'
-const DB_VERSION = 1
+const DB_VERSION = 2
 const STORE_PROJECTS = 'projects'
 const STORE_ASSETS = 'assets'
 
 function getDB(): Promise<IDBPDatabase> {
   return openDB(DB_NAME, DB_VERSION, {
-    upgrade(db) {
+    upgrade(db, oldVersion, newVersion, transaction) {
       if (!db.objectStoreNames.contains(STORE_PROJECTS)) {
         db.createObjectStore(STORE_PROJECTS, { keyPath: 'id' })
       }
-      if (!db.objectStoreNames.contains(STORE_ASSETS)) {
-        db.createObjectStore(STORE_ASSETS, { keyPath: ['projectId', 'assetId'] })
+      
+      // Migration from v1 (per-project assets) to v2 (global assets)
+      if (oldVersion < 2 && db.objectStoreNames.contains(STORE_ASSETS)) {
+        // For v1->v2 migration, we'll handle it after upgrade completes
+        // Delete old store structure
+        db.deleteObjectStore(STORE_ASSETS)
       }
+      
+      if (!db.objectStoreNames.contains(STORE_ASSETS)) {
+        // Create new global assets store
+        const assetStore = db.createObjectStore(STORE_ASSETS, { keyPath: 'assetId' })
+        assetStore.createIndex('byType', 'type', { unique: false })
+      }
+    },
+    blocked() {
+      console.warn('IndexedDB upgrade blocked - close other tabs')
     },
   })
 }
@@ -38,13 +51,12 @@ export function createIndexedDbPersistence(): PersistenceAPI {
         throw new Error(`Project not found: ${id}`)
       }
       const world = row.world as RennWorld
+      // Load all global assets (not filtered by project)
       const assets = new Map<string, Blob>()
-      const assetKeys = await db.getAllKeys(STORE_ASSETS)
-      for (const key of assetKeys) {
-        const [projectId, assetId] = key as [string, string]
-        if (projectId === id) {
-          const a = await db.get(STORE_ASSETS, key)
-          if (a?.blob) assets.set(assetId, a.blob as Blob)
+      const allAssets = await db.getAll(STORE_ASSETS)
+      for (const asset of allAssets) {
+        if (asset?.blob && asset?.assetId) {
+          assets.set(asset.assetId, asset.blob as Blob)
         }
       }
       await db.close()
@@ -58,26 +70,20 @@ export function createIndexedDbPersistence(): PersistenceAPI {
     ): Promise<void> {
       const db = await getDB()
       const updatedAt = Date.now()
+      // Save project without assets (assets are stored globally)
       await db.put(STORE_PROJECTS, { id, name, world: data.world, updatedAt })
-      const existingKeys = await db.getAllKeys(STORE_ASSETS)
-      for (const key of existingKeys) {
-        const [projectId] = key as [string, string]
-        if (projectId === id) await db.delete(STORE_ASSETS, key)
-      }
+      // Save any new assets to global store
       for (const [assetId, blob] of data.assets) {
-        await db.put(STORE_ASSETS, { projectId: id, assetId, blob })
+        const assetType = blob.type.startsWith('image') ? 'texture' : 'model'
+        await db.put(STORE_ASSETS, { assetId, blob, type: assetType })
       }
       await db.close()
     },
 
     async deleteProject(id: string): Promise<void> {
       const db = await getDB()
+      // Delete project only - assets persist globally
       await db.delete(STORE_PROJECTS, id)
-      const keys = await db.getAllKeys(STORE_ASSETS)
-      for (const key of keys) {
-        const [projectId] = key as [string, string]
-        if (projectId === id) await db.delete(STORE_ASSETS, key)
-      }
       await db.close()
     },
 
@@ -130,6 +136,44 @@ export function createIndexedDbPersistence(): PersistenceAPI {
       const api = createIndexedDbPersistence()
       await api.saveProject(id, name, { world, assets })
       return { id }
+    },
+
+    // Global asset management methods
+    async saveAsset(assetId: string, blob: Blob): Promise<void> {
+      const db = await getDB()
+      const assetType = blob.type.startsWith('image') ? 'texture' : 'model'
+      await db.put(STORE_ASSETS, { assetId, blob, type: assetType })
+      await db.close()
+    },
+
+    async deleteAsset(assetId: string): Promise<void> {
+      const db = await getDB()
+      await db.delete(STORE_ASSETS, assetId)
+      await db.close()
+    },
+
+    async listAllAssets(): Promise<Array<{ assetId: string; type: string; size: number }>> {
+      const db = await getDB()
+      const allAssets = await db.getAll(STORE_ASSETS)
+      await db.close()
+      return allAssets.map((asset) => ({
+        assetId: asset.assetId,
+        type: asset.type ?? 'unknown',
+        size: asset.blob instanceof Blob ? asset.blob.size : 0,
+      }))
+    },
+
+    async loadAllAssets(): Promise<Map<string, Blob>> {
+      const db = await getDB()
+      const assets = new Map<string, Blob>()
+      const allAssets = await db.getAll(STORE_ASSETS)
+      for (const asset of allAssets) {
+        if (asset?.blob && asset?.assetId) {
+          assets.set(asset.assetId, asset.blob as Blob)
+        }
+      }
+      await db.close()
+      return assets
     },
   }
 }

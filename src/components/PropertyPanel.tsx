@@ -8,8 +8,10 @@ import { sectionStyle, sectionTitleStyle, fieldLabelStyle } from './sharedStyles
 
 export interface PropertyPanelProps {
   world: RennWorld
+  assets: Map<string, Blob>
   selectedEntityId: string | null
   onWorldChange: (world: RennWorld) => void
+  onAssetsChange?: (assets: Map<string, Blob>) => void
   onDeleteEntity?: (entityId: string) => void
   getCurrentPose?: (id: string) => { position: Vec3; rotation: Quat }
   onEntityPoseChange?: (id: string, pose: { position?: Vec3; rotation?: Quat }) => void
@@ -17,8 +19,10 @@ export interface PropertyPanelProps {
 
 export default function PropertyPanel({
   world,
+  assets,
   selectedEntityId,
   onWorldChange,
+  onAssetsChange,
   onDeleteEntity,
   getCurrentPose,
   onEntityPoseChange,
@@ -171,7 +175,11 @@ export default function PropertyPanel({
         <MaterialEditor
           entityId={entity.id}
           material={entity.material}
+          assets={assets}
+          world={world}
           onMaterialChange={(material) => updateEntity({ material })}
+          onWorldChange={onWorldChange}
+          onAssetsChange={onAssetsChange}
           disabled={isLocked}
         />
       </div>

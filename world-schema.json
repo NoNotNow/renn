@@ -153,7 +153,12 @@
         "color": { "$ref": "#/$defs/Color" },
         "map": { "type": "string" },
         "roughness": { "type": "number" },
-        "metalness": { "type": "number" }
+        "metalness": { "type": "number" },
+        "mapRepeat": { "$ref": "#/$defs/Vec3" },
+        "mapWrapS": { "enum": ["repeat", "clampToEdge", "mirroredRepeat"] },
+        "mapWrapT": { "enum": ["repeat", "clampToEdge", "mirroredRepeat"] },
+        "mapRotation": { "type": "number" },
+        "mapOffset": { "$ref": "#/$defs/Vec3" }
       },
       "additionalProperties": false
     },

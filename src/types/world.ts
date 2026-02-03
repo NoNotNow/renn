@@ -55,6 +55,12 @@ export interface MaterialRef {
   map?: string
   roughness?: number
   metalness?: number
+  // Advanced texture properties
+  mapRepeat?: Vec3  // [x, y] UV repeat
+  mapWrapS?: 'repeat' | 'clampToEdge' | 'mirroredRepeat'
+  mapWrapT?: 'repeat' | 'clampToEdge' | 'mirroredRepeat'
+  mapRotation?: number  // rotation in radians
+  mapOffset?: Vec3  // [x, y] UV offset
 }
 
 export interface EntityScripts {

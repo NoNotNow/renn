@@ -1,6 +1,11 @@
 import { useRef } from 'react'
 import type { RennWorld } from '@/types/world'
 import { uiLogger } from '@/utils/uiLogger'
+import { TextureManager } from '@/utils/textureManager'
+import { createIndexedDbPersistence } from '@/persistence/indexedDb'
+import TextureThumbnail from './TextureThumbnail'
+
+const persistence = createIndexedDbPersistence()
 
 export interface AssetPanelProps {
   assets: Map<string, Blob>
@@ -20,7 +25,7 @@ export default function AssetPanel({ assets, world, onAssetsChange, onWorldChang
     fileInputRef.current?.click()
   }
 
-  const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (!files?.length) return
     const fileDetails = Array.from(files).map(f => ({ name: f.name, size: f.size, type: f.type }))
@@ -32,14 +37,35 @@ export default function AssetPanel({ assets, world, onAssetsChange, onWorldChang
       const id = file.name.replace(/\.[^.]+$/, '') || `asset_${Date.now()}_${i}`
       next.set(id, file)
       nextWorldAssets[id] = { path: `assets/${file.name}`, type: file.type.startsWith('image') ? 'texture' : 'model' }
+      
+      // Save to global store immediately
+      try {
+        await persistence.saveAsset(id, file)
+      } catch (err) {
+        console.error(`Failed to save asset ${id}:`, err)
+      }
     }
     onAssetsChange(next)
     onWorldChange({ ...world, assets: nextWorldAssets })
     e.target.value = ''
   }
 
-  const handleRemove = (id: string) => {
+  const handleRemove = async (id: string) => {
+    // Warn user that this is a global asset
+    if (!confirm('This asset is available to all projects. Delete it from the global library?')) {
+      return
+    }
+    
     uiLogger.delete('AssetPanel', 'Remove asset', { assetId: id })
+    
+    // Remove from global store
+    try {
+      await persistence.deleteAsset(id)
+    } catch (err) {
+      console.error(`Failed to delete asset ${id}:`, err)
+    }
+    
+    // Update local state
     const next = new Map(assets)
     next.delete(id)
     const nextWorldAssets = { ...worldAssets }
@@ -61,12 +87,35 @@ export default function AssetPanel({ assets, world, onAssetsChange, onWorldChang
         onChange={onFileChange}
       />
       <ul style={{ listStyle: 'none', padding: 0, marginTop: 8 }}>
-        {assetIds.map((id) => (
-          <li key={id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-            <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>{id}</span>
-            <button type="button" onClick={() => handleRemove(id)}>Remove</button>
-          </li>
-        ))}
+        {assetIds.map((id) => {
+          const blob = assets.get(id)
+          if (!blob) return null
+          
+          return (
+            <li key={id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <TextureThumbnail assetId={id} blob={blob} size={40} />
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2, overflow: 'hidden' }}>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', fontSize: 12 }}>{id}</span>
+                <span style={{ fontSize: 10, color: '#666' }}>{TextureManager.formatFileSize(blob.size)}</span>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => handleRemove(id)}
+                style={{
+                  padding: '4px 8px',
+                  fontSize: 11,
+                  background: '#3a1b1b',
+                  border: '1px solid #6b2a2a',
+                  color: '#f4d6d6',
+                  borderRadius: 4,
+                  cursor: 'pointer',
+                }}
+              >
+                Remove
+              </button>
+            </li>
+          )
+        })}
       </ul>
     </div>
   )

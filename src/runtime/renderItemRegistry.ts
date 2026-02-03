@@ -113,9 +113,20 @@ export class RenderItemRegistry {
       }
       if (item.mesh.material) {
         if (Array.isArray(item.mesh.material)) {
-          item.mesh.material.forEach(mat => mat.dispose())
+          item.mesh.material.forEach(mat => {
+            // Dispose textures before disposing material
+            if (mat instanceof THREE.MeshStandardMaterial) {
+              if (mat.map) mat.map.dispose()
+            }
+            mat.dispose()
+          })
         } else {
-          item.mesh.material.dispose()
+          const mat = item.mesh.material
+          // Dispose textures before disposing material
+          if (mat instanceof THREE.MeshStandardMaterial) {
+            if (mat.map) mat.map.dispose()
+          }
+          mat.dispose()
         }
       }
     }

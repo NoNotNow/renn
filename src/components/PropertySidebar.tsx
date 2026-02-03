@@ -55,8 +55,10 @@ export default function PropertySidebar({
         {rightTab === 'properties' && (
           <PropertyPanel
             world={world}
+            assets={assets}
             selectedEntityId={selectedEntityId}
             onWorldChange={onWorldChange}
+            onAssetsChange={onAssetsChange}
             onDeleteEntity={onDeleteEntity}
             getCurrentPose={getCurrentPose}
             onEntityPoseChange={onEntityPoseChange}

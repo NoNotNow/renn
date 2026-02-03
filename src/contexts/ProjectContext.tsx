@@ -104,14 +104,21 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     persistence.listProjects().then(setProjects).catch(console.error)
   }, [])
   
+  // Load global assets on app initialization
   useEffect(() => {
     refreshProjects()
+    // Load all global assets once on app start
+    persistence.loadAllAssets().then((globalAssets) => {
+      setAssets(globalAssets)
+    }).catch((err) => {
+      console.error('Failed to load global assets:', err)
+    })
   }, [refreshProjects])
   
   const newProject = useCallback(() => {
     uiLogger.click('Builder', 'New project')
     setWorld(sampleWorld)
-    setAssets(new Map())
+    // Assets remain global - don't clear them when creating new project
     setCurrentProject({
       id: null,
       name: 'Untitled',
@@ -128,13 +135,14 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const loadProject = useCallback(async (id: string) => {
     try {
       uiLogger.select('Builder', 'Open project', { projectId: id })
-      const { world: w, assets: a } = await persistence.loadProject(id)
+      const { world: w } = await persistence.loadProject(id)
+      // Assets are already loaded globally, don't reload them
       // Get project meta inline instead of depending on projects array
       const allProjects = await persistence.listProjects()
       const projectMeta = allProjects.find((p) => p.id === id)
       
       setWorld(w)
-      setAssets(a)
+      // Assets remain global - don't change them when loading project
       setCurrentProject({
         id,
         name: projectMeta?.name ?? `Project ${id}`,
@@ -161,6 +169,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         : currentProject.name
       
       uiLogger.click('Builder', 'Save project', { projectId: id, projectName: name })
+      // Save project - assets are already in global store, just pass them for reference
       await persistence.saveProject(id, name, { world, assets })
       
       setCurrentProject({
@@ -215,8 +224,20 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     setCurrentProject((prev) => ({ ...prev, isDirty: true }))
   }, [])
   
-  const updateAssets = useCallback((updater: (prev: Map<string, Blob>) => Map<string, Blob>) => {
-    setAssets(updater)
+  const updateAssets = useCallback(async (updater: (prev: Map<string, Blob>) => Map<string, Blob>) => {
+    setAssets((prev) => {
+      const next = updater(prev)
+      // Save new assets to global store immediately
+      for (const [assetId, blob] of next) {
+        if (!prev.has(assetId)) {
+          // New asset - save to global store
+          persistence.saveAsset(assetId, blob).catch((err) => {
+            console.error(`Failed to save asset ${assetId}:`, err)
+          })
+        }
+      }
+      return next
+    })
     setCurrentProject((prev) => ({ ...prev, isDirty: true }))
   }, [])
   

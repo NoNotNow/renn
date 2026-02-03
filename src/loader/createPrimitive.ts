@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import type { Shape, Vec3, Quat, MaterialRef } from '@/types/world'
+import type { DisposableAssetResolver } from './assetResolverImpl'
 
 function colorFromRef(material: MaterialRef | undefined): THREE.Color {
   if (material?.color && Array.isArray(material.color)) {
@@ -9,12 +10,61 @@ function colorFromRef(material: MaterialRef | undefined): THREE.Color {
   return new THREE.Color(0.7, 0.7, 0.7)
 }
 
-function materialFromRef(material: MaterialRef | undefined): THREE.MeshStandardMaterial {
-  return new THREE.MeshStandardMaterial({
+async function materialFromRef(
+  material: MaterialRef | undefined,
+  assetResolver?: DisposableAssetResolver
+): Promise<THREE.MeshStandardMaterial> {
+  const mat = new THREE.MeshStandardMaterial({
     color: colorFromRef(material),
     roughness: material?.roughness ?? 0.5,
     metalness: material?.metalness ?? 0,
   })
+
+  // Load texture if map is specified
+  if (material?.map && assetResolver) {
+    const textureLoader = new THREE.TextureLoader()
+    const texture = await assetResolver.loadTexture(material.map, textureLoader)
+    
+    if (texture) {
+      mat.map = texture
+      mat.needsUpdate = true
+
+      // Apply advanced texture properties
+      if (material.mapRepeat) {
+        const [x, y] = material.mapRepeat
+        texture.repeat.set(x, y)
+      }
+      
+      if (material.mapWrapS) {
+        const wrapMap: Record<string, THREE.Wrapping> = {
+          repeat: THREE.RepeatWrapping,
+          clampToEdge: THREE.ClampToEdgeWrapping,
+          mirroredRepeat: THREE.MirroredRepeatWrapping,
+        }
+        texture.wrapS = wrapMap[material.mapWrapS] ?? THREE.RepeatWrapping
+      }
+      
+      if (material.mapWrapT) {
+        const wrapMap: Record<string, THREE.Wrapping> = {
+          repeat: THREE.RepeatWrapping,
+          clampToEdge: THREE.ClampToEdgeWrapping,
+          mirroredRepeat: THREE.MirroredRepeatWrapping,
+        }
+        texture.wrapT = wrapMap[material.mapWrapT] ?? THREE.RepeatWrapping
+      }
+      
+      if (material.mapOffset) {
+        const [x, y] = material.mapOffset
+        texture.offset.set(x, y)
+      }
+      
+      if (material.mapRotation !== undefined) {
+        texture.rotation = material.mapRotation
+      }
+    }
+  }
+
+  return mat
 }
 
 function applyTransform(
@@ -36,11 +86,12 @@ function applyTransform(
  *   mesh.geometry.dispose()
  *   mesh.material.dispose()
  */
-export function createPrimitiveMesh(
+export async function createPrimitiveMesh(
   shape: Shape,
-  materialRef: MaterialRef | undefined
-): THREE.Mesh {
-  const mat = materialFromRef(materialRef)
+  materialRef: MaterialRef | undefined,
+  assetResolver?: DisposableAssetResolver
+): Promise<THREE.Mesh> {
+  const mat = await materialFromRef(materialRef, assetResolver)
   let geometry: THREE.BufferGeometry
 
   switch (shape.type) {
@@ -91,15 +142,16 @@ export function disposeMesh(mesh: THREE.Mesh): void {
  * Builds a mesh for an entity: primitive from shape (or placeholder for trimesh/model).
  * Applies position, rotation, scale from entity.
  */
-export function buildEntityMesh(
+export async function buildEntityMesh(
   shape: Shape | undefined,
   materialRef: MaterialRef | undefined,
   position: Vec3,
   rotation: Quat,
-  scale: Vec3
-): THREE.Mesh {
+  scale: Vec3,
+  assetResolver?: DisposableAssetResolver
+): Promise<THREE.Mesh> {
   const s = shape ?? { type: 'box' as const, width: 1, height: 1, depth: 1 }
-  const mesh = createPrimitiveMesh(s, materialRef)
+  const mesh = await createPrimitiveMesh(s, materialRef, assetResolver)
   applyTransform(mesh, position, rotation, scale)
   if (s.type === 'plane') {
     const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0))
