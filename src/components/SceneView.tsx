@@ -1,7 +1,7 @@
 import { useRef, useEffect, forwardRef, useImperativeHandle, useState } from 'react'
 import * as THREE from 'three'
 import { loadWorld } from '@/loader/loadWorld'
-import type { RennWorld, Vec3, Quat } from '@/types/world'
+import type { RennWorld, Vec3, Quat, CameraConfig } from '@/types/world'
 import { DEFAULT_GRAVITY } from '@/types/world'
 import type { LoadedEntity } from '@/loader/loadWorld'
 import { CameraController } from '@/camera/cameraController'
@@ -18,6 +18,7 @@ const ZERO_GRAVITY: [number, number, number] = [0, 0, 0]
 
 export interface SceneViewProps {
   world: RennWorld
+  cameraConfig?: CameraConfig
   assets?: Map<string, Blob>
   runPhysics?: boolean
   runScripts?: boolean
@@ -39,6 +40,7 @@ export interface SceneViewHandle {
 
 function SceneViewInner({
   world,
+  cameraConfig,
   assets: _assets = new Map(),
   runPhysics = true,
   runScripts = true,
@@ -123,8 +125,8 @@ function SceneViewInner({
     const cam = new THREE.PerspectiveCamera(50, 1, 0.1, 1000)
     
     // Check if we should restore saved camera state
-    const cameraConfig = world.world.camera
-    const controlMode = cameraConfig?.control ?? 'free'
+    const currentCameraConfig = cameraConfig ?? world.world.camera
+    const controlMode = currentCameraConfig?.control ?? 'free'
     const shouldRestore = controlMode === 'free' && savedCameraStateRef.current
 
     if (shouldRestore && savedCameraStateRef.current) {
@@ -330,6 +332,12 @@ function SceneViewInner({
       setRenderer(null)
     }
   }, [world, version, runPhysics, runScripts, gravityEnabled, shadowsEnabled, freeFlyKeysRef])
+
+  // Update camera config when it changes (without reloading the world)
+  useEffect(() => {
+    if (!cameraCtrlRef.current || !cameraConfig) return
+    cameraCtrlRef.current.setConfig(cameraConfig)
+  }, [cameraConfig])
 
   // Update gravity when it changes
   useEffect(() => {

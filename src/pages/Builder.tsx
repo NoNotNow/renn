@@ -49,20 +49,14 @@ export default function Builder() {
   const [leftDrawerOpen, setLeftDrawerOpen] = useLocalStorageState('leftDrawerOpen', true)
   const [rightDrawerOpen, setRightDrawerOpen] = useLocalStorageState('rightDrawerOpen', true)
 
-  const sceneWorld = useMemo(
+  const sceneCameraConfig = useMemo(
     () => ({
-      ...world,
-      world: {
-        ...world.world,
-        camera: {
-          ...world.world.camera,
-          control: cameraControl,
-          target: cameraTarget,
-          mode: cameraMode,
-        },
-      },
+      ...world.world.camera,
+      control: cameraControl,
+      target: cameraTarget,
+      mode: cameraMode,
     }),
-    [world, cameraControl, cameraTarget, cameraMode]
+    [world.world.camera, cameraControl, cameraTarget, cameraMode]
   )
 
   const handleAddEntity = useCallback(
@@ -239,7 +233,8 @@ export default function Builder() {
           >
             <SceneView
               ref={sceneViewRef}
-              world={sceneWorld}
+              world={world}
+              cameraConfig={sceneCameraConfig}
               assets={assets}
               version={version}
               runPhysics

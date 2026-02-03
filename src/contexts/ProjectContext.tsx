@@ -13,6 +13,12 @@ interface CurrentProject {
   isDirty: boolean
 }
 
+interface CameraState {
+  control: 'free' | 'follow' | 'top' | 'front' | 'right'
+  target: string
+  mode: 'follow' | 'firstPerson' | 'thirdPerson'
+}
+
 interface ProjectContextState {
   currentProject: CurrentProject
   world: RennWorld
