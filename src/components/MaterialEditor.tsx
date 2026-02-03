@@ -88,52 +88,81 @@ export default function MaterialEditor({
       <div style={sidebarRowStyle}>
         <label style={sidebarLabelStyle}>Texture</label>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {material?.map && assets.get(material.map) && (
-            <TextureThumbnail assetId={material.map} blob={assets.get(material.map)} size={32} />
-          )}
-          <button
-            type="button"
-            onClick={() => setTextureDialogOpen(true)}
-            disabled={disabled}
-            style={{
-              flex: 1,
-              padding: '6px 12px',
-              background: disabled ? '#2a2a2a' : '#1a1a1a',
-              border: '1px solid #2f3545',
-              color: disabled ? '#666' : '#e6e9f2',
-              borderRadius: 6,
-              cursor: disabled ? 'not-allowed' : 'pointer',
-              fontSize: 12,
-              transition: 'background-color 0.15s ease',
-            }}
-            onMouseEnter={(e) => {
-              if (!disabled) e.currentTarget.style.background = '#222'
-            }}
-            onMouseLeave={(e) => {
-              if (!disabled) e.currentTarget.style.background = '#1a1a1a'
-            }}
-          >
-            {material?.map ? 'Change Texture' : 'Add Texture'}
-          </button>
-          {material?.map && (
+          {material?.map && assets.get(material.map) ? (
+            <>
+              <button
+                type="button"
+                onClick={() => setTextureDialogOpen(true)}
+                disabled={disabled}
+                title="Click to change texture"
+                style={{
+                  padding: 0,
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: disabled ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  transition: 'opacity 0.15s ease',
+                  opacity: disabled ? 0.5 : 1,
+                }}
+                onMouseEnter={(e) => {
+                  if (!disabled) e.currentTarget.style.opacity = '0.8'
+                }}
+                onMouseLeave={(e) => {
+                  if (!disabled) e.currentTarget.style.opacity = '1'
+                }}
+              >
+                <TextureThumbnail assetId={material.map} blob={assets.get(material.map)} size={32} />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  uiLogger.change('PropertyPanel', 'Remove texture', { entityId, oldValue: material?.map })
+                  onMaterialChange({ ...material, map: undefined })
+                }}
+                disabled={disabled}
+                title="Remove texture"
+                style={{
+                  padding: '6px 8px',
+                  background: disabled ? '#2a2a2a' : '#3a1b1b',
+                  border: disabled ? '1px solid #2f3545' : '1px solid #6b2a2a',
+                  color: disabled ? '#666' : '#f4d6d6',
+                  borderRadius: 6,
+                  cursor: disabled ? 'not-allowed' : 'pointer',
+                  fontSize: 14,
+                  lineHeight: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  minWidth: 28,
+                }}
+              >
+                🗑️
+              </button>
+            </>
+          ) : (
             <button
               type="button"
-              onClick={() => {
-                uiLogger.change('PropertyPanel', 'Remove texture', { entityId, oldValue: material?.map })
-                onMaterialChange({ ...material, map: undefined })
-              }}
+              onClick={() => setTextureDialogOpen(true)}
               disabled={disabled}
               style={{
+                flex: 1,
                 padding: '6px 12px',
-                background: disabled ? '#2a2a2a' : '#3a1b1b',
-                border: disabled ? '1px solid #2f3545' : '1px solid #6b2a2a',
-                color: disabled ? '#666' : '#f4d6d6',
+                background: disabled ? '#2a2a2a' : '#1a1a1a',
+                border: '1px solid #2f3545',
+                color: disabled ? '#666' : '#e6e9f2',
                 borderRadius: 6,
                 cursor: disabled ? 'not-allowed' : 'pointer',
                 fontSize: 12,
+                transition: 'background-color 0.15s ease',
+              }}
+              onMouseEnter={(e) => {
+                if (!disabled) e.currentTarget.style.background = '#222'
+              }}
+              onMouseLeave={(e) => {
+                if (!disabled) e.currentTarget.style.background = '#1a1a1a'
               }}
             >
-              Remove
+              Add Texture
             </button>
           )}
         </div>
