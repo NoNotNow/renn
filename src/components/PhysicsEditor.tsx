@@ -1,6 +1,6 @@
 import type { Entity } from '@/types/world'
-import { uiLogger } from '@/utils/uiLogger'
-import { sidebarRowStyle, sidebarLabelStyle, sidebarInputStyle } from './sharedStyles'
+import SelectInput from './form/SelectInput'
+import NumberInput from './form/NumberInput'
 
 export interface PhysicsEditorProps {
   entityId: string
@@ -29,87 +29,61 @@ export default function PhysicsEditor({
 }: PhysicsEditorProps) {
   return (
     <>
-      <div style={sidebarRowStyle}>
-        <label htmlFor={`${entityId}-body-type`} style={sidebarLabelStyle}>
-          Body type
-        </label>
-        <select
-          id={`${entityId}-body-type`}
-          value={bodyType}
-          onChange={(e) => {
-            uiLogger.change('PropertyPanel', 'Change body type', { entityId, oldValue: bodyType, newValue: e.target.value })
-            onBodyTypeChange(e.target.value as Entity['bodyType'])
-          }}
-          style={sidebarInputStyle}
-          disabled={disabled}
-        >
-          <option value="static">Static</option>
-          <option value="dynamic">Dynamic</option>
-          <option value="kinematic">Kinematic</option>
-        </select>
-      </div>
+      <SelectInput
+        id={`${entityId}-body-type`}
+        label="Body type"
+        value={bodyType}
+        onChange={(value) => onBodyTypeChange(value as Entity['bodyType'])}
+        options={[
+          { value: 'static', label: 'Static' },
+          { value: 'dynamic', label: 'Dynamic' },
+          { value: 'kinematic', label: 'Kinematic' },
+        ]}
+        disabled={disabled}
+        entityId={entityId}
+        propertyName="body type"
+      />
       {bodyType === 'dynamic' && (
         <>
-          <div style={sidebarRowStyle}>
-            <label htmlFor={`${entityId}-mass`} style={sidebarLabelStyle}>
-              Mass
-            </label>
-            <input
-              id={`${entityId}-mass`}
-              type="number"
-              min={0}
-              step={0.1}
-              value={mass}
-              onChange={(e) => {
-                const newValue = parseFloat(e.target.value) || 0
-                uiLogger.change('PropertyPanel', 'Change mass', { entityId, oldValue: mass, newValue })
-                onMassChange(newValue)
-              }}
-              style={sidebarInputStyle}
-              disabled={disabled}
-            />
-          </div>
-          <div style={sidebarRowStyle}>
-            <label htmlFor={`${entityId}-restitution`} style={sidebarLabelStyle}>
-              Restitution
-            </label>
-            <input
-              id={`${entityId}-restitution`}
-              type="number"
-              min={0}
-              max={1}
-              step={0.1}
-              value={restitution}
-              onChange={(e) => {
-                const newValue = parseFloat(e.target.value) || 0
-                uiLogger.change('PropertyPanel', 'Change restitution', { entityId, oldValue: restitution, newValue })
-                onRestitutionChange(newValue)
-              }}
-              style={sidebarInputStyle}
-              disabled={disabled}
-            />
-          </div>
+          <NumberInput
+            id={`${entityId}-mass`}
+            label="Mass"
+            value={mass}
+            onChange={onMassChange}
+            min={0}
+            step={0.1}
+            defaultValue={0}
+            disabled={disabled}
+            entityId={entityId}
+            propertyName="mass"
+          />
+          <NumberInput
+            id={`${entityId}-restitution`}
+            label="Restitution"
+            value={restitution}
+            onChange={onRestitutionChange}
+            min={0}
+            max={1}
+            step={0.1}
+            defaultValue={0}
+            disabled={disabled}
+            entityId={entityId}
+            propertyName="restitution"
+          />
         </>
       )}
-      <div style={sidebarRowStyle}>
-        <label htmlFor={`${entityId}-friction`} style={sidebarLabelStyle}>
-          Friction
-        </label>
-        <input
-          id={`${entityId}-friction`}
-          type="number"
-          min={0}
-          step={0.1}
-          value={friction}
-          onChange={(e) => {
-            const newValue = parseFloat(e.target.value) || 0
-            uiLogger.change('PropertyPanel', 'Change friction', { entityId, oldValue: friction, newValue })
-            onFrictionChange(newValue)
-          }}
-          style={sidebarInputStyle}
-          disabled={disabled}
-        />
-      </div>
+      <NumberInput
+        id={`${entityId}-friction`}
+        label="Friction"
+        value={friction}
+        onChange={onFrictionChange}
+        min={0}
+        step={0.1}
+        defaultValue={0}
+        disabled={disabled}
+        entityId={entityId}
+        propertyName="friction"
+      />
     </>
   )
 }

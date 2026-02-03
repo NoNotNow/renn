@@ -1,6 +1,7 @@
 import { openDB, type IDBPDatabase } from 'idb'
 import type { RennWorld } from '@/types/world'
 import type { ProjectMeta, LoadedProject, PersistenceAPI } from './types'
+import { generateProjectId } from '@/utils/idGenerator'
 
 const DB_NAME = 'renn-worlds'
 const DB_VERSION = 1
@@ -18,10 +19,6 @@ function getDB(): Promise<IDBPDatabase> {
       }
     },
   })
-}
-
-function generateId(): string {
-  return `proj_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
 }
 
 export function createIndexedDbPersistence(): PersistenceAPI {
@@ -128,7 +125,7 @@ export function createIndexedDbPersistence(): PersistenceAPI {
           assets.set(assetId, blob)
         }
       }
-      const id = generateId()
+      const id = generateProjectId()
       const name = file.name.replace(/\.zip$/i, '') || `Imported ${new Date().toLocaleString()}`
       const api = createIndexedDbPersistence()
       await api.saveProject(id, name, { world, assets })

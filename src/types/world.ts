@@ -91,3 +91,13 @@ export const DEFAULT_GRAVITY: Vec3 = [0, -9.81, 0]
 export const DEFAULT_POSITION: Vec3 = [0, 0, 0]
 export const DEFAULT_ROTATION: Quat = [0, 0, 0, 1]
 export const DEFAULT_SCALE: Vec3 = [1, 1, 1]
+
+/**
+ * Complete entity pose (position and rotation)
+ */
+export type EntityPose = { position: Vec3; rotation: Quat }
+
+/**
+ * Partial entity pose (either position or rotation, or both)
+ */
+export type PartialEntityPose = { position?: Vec3; rotation?: Quat }

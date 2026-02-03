@@ -1,7 +1,7 @@
 import type { Shape } from '@/types/world'
 import { getDefaultShapeForType, type AddableShapeType } from '@/data/entityDefaults'
-import { uiLogger } from '@/utils/uiLogger'
-import { sidebarRowStyle, sidebarLabelStyle, sidebarInputStyle } from './sharedStyles'
+import SelectInput from './form/SelectInput'
+import NumberInput from './form/NumberInput'
 
 const ADDABLE_SHAPE_TYPES: AddableShapeType[] = ['box', 'sphere', 'cylinder', 'capsule', 'plane']
 
@@ -27,178 +27,142 @@ export default function ShapeEditor({
 
   return (
     <>
-      <div style={sidebarRowStyle}>
-        <label htmlFor={`${entityId}-shape`} style={sidebarLabelStyle}>
-          Shape
-        </label>
-        <select
-          id={`${entityId}-shape`}
-          value={effectiveShapeType}
-          onChange={(e) => {
-            uiLogger.change('PropertyPanel', 'Change shape type', { entityId, oldType: effectiveShapeType, newType: e.target.value })
-            setShapeType(e.target.value as AddableShapeType)
-          }}
-          style={sidebarInputStyle}
-          disabled={disabled}
-        >
-          <option value="box">Box</option>
-          <option value="sphere">Sphere</option>
-          <option value="cylinder">Cylinder</option>
-          <option value="capsule">Capsule</option>
-          <option value="plane">Plane</option>
-        </select>
-      </div>
+      <SelectInput
+        id={`${entityId}-shape`}
+        label="Shape"
+        value={effectiveShapeType}
+        onChange={(value) => setShapeType(value as AddableShapeType)}
+        options={[
+          { value: 'box', label: 'Box' },
+          { value: 'sphere', label: 'Sphere' },
+          { value: 'cylinder', label: 'Cylinder' },
+          { value: 'capsule', label: 'Capsule' },
+          { value: 'plane', label: 'Plane' },
+        ]}
+        disabled={disabled}
+        entityId={entityId}
+        propertyName="shape type"
+        logComponent="PropertyPanel"
+      />
       {shape?.type === 'box' && (() => {
         const s = shape
         return (
           <>
-            <div style={sidebarRowStyle}>
-              <label htmlFor={`${entityId}-box-width`} style={sidebarLabelStyle}>
-                Width
-              </label>
-              <input
-                id={`${entityId}-box-width`}
-                type="number"
-                min={0.01}
-                step={0.1}
-                value={s.width}
-                onChange={(e) => {
-                  const newValue = parseFloat(e.target.value) || 0.01
-                  uiLogger.change('PropertyPanel', 'Change box width', { entityId, oldValue: s.width, newValue })
-                  onShapeChange({
-                    type: 'box',
-                    width: newValue,
-                    height: s.height,
-                    depth: s.depth,
-                  })
-                }}
-                style={sidebarInputStyle}
-                disabled={disabled}
-              />
-            </div>
-            <div style={sidebarRowStyle}>
-              <label htmlFor={`${entityId}-box-height`} style={sidebarLabelStyle}>
-                Height
-              </label>
-              <input
-                id={`${entityId}-box-height`}
-                type="number"
-                min={0.01}
-                step={0.1}
-                value={s.height}
-                onChange={(e) => {
-                  const newValue = parseFloat(e.target.value) || 0.01
-                  uiLogger.change('PropertyPanel', 'Change box height', { entityId, oldValue: s.height, newValue })
-                  onShapeChange({
-                    type: 'box',
-                    width: s.width,
-                    height: newValue,
-                    depth: s.depth,
-                  })
-                }}
-                style={sidebarInputStyle}
-                disabled={disabled}
-              />
-            </div>
-            <div style={sidebarRowStyle}>
-              <label htmlFor={`${entityId}-box-depth`} style={sidebarLabelStyle}>
-                Depth
-              </label>
-              <input
-                id={`${entityId}-box-depth`}
-                type="number"
-                min={0.01}
-                step={0.1}
-                value={s.depth}
-                onChange={(e) => {
-                  const newValue = parseFloat(e.target.value) || 0.01
-                  uiLogger.change('PropertyPanel', 'Change box depth', { entityId, oldValue: s.depth, newValue })
-                  onShapeChange({
-                    type: 'box',
-                    width: s.width,
-                    height: s.height,
-                    depth: newValue,
-                  })
-                }}
-                style={sidebarInputStyle}
-                disabled={disabled}
-              />
-            </div>
+            <NumberInput
+              id={`${entityId}-box-width`}
+              label="Width"
+              value={s.width}
+              onChange={(newValue) => onShapeChange({ type: 'box', width: newValue, height: s.height, depth: s.depth })}
+              min={0.01}
+              step={0.1}
+              defaultValue={0.01}
+              disabled={disabled}
+              entityId={entityId}
+              propertyName="box width"
+            />
+            <NumberInput
+              id={`${entityId}-box-height`}
+              label="Height"
+              value={s.height}
+              onChange={(newValue) => onShapeChange({ type: 'box', width: s.width, height: newValue, depth: s.depth })}
+              min={0.01}
+              step={0.1}
+              defaultValue={0.01}
+              disabled={disabled}
+              entityId={entityId}
+              propertyName="box height"
+            />
+            <NumberInput
+              id={`${entityId}-box-depth`}
+              label="Depth"
+              value={s.depth}
+              onChange={(newValue) => onShapeChange({ type: 'box', width: s.width, height: s.height, depth: newValue })}
+              min={0.01}
+              step={0.1}
+              defaultValue={0.01}
+              disabled={disabled}
+              entityId={entityId}
+              propertyName="box depth"
+            />
           </>
         )
       })()}
-      {shape?.type === 'sphere' && (
-        <div style={sidebarRowStyle}>
-          <label htmlFor={`${entityId}-sphere-radius`} style={sidebarLabelStyle}>
-            Radius
-          </label>
-          <input
+      {shape?.type === 'sphere' && (() => {
+        const s = shape
+        return (
+          <NumberInput
             id={`${entityId}-sphere-radius`}
-            type="number"
+            label="Radius"
+            value={s.radius}
+            onChange={(newValue) => onShapeChange({ type: 'sphere', radius: newValue })}
             min={0.01}
             step={0.1}
-            value={shape.radius}
-            onChange={(e) => {
-              const newValue = parseFloat(e.target.value) || 0.01
-              uiLogger.change('PropertyPanel', 'Change sphere radius', { entityId, oldValue: shape.radius, newValue })
-              onShapeChange({ type: 'sphere', radius: newValue })
-            }}
-            style={sidebarInputStyle}
+            defaultValue={0.01}
             disabled={disabled}
+            entityId={entityId}
+            propertyName="sphere radius"
           />
-        </div>
-      )}
-      {(shape?.type === 'cylinder' || shape?.type === 'capsule') && (() => {
+        )
+      })()}
+      {shape?.type === 'cylinder' && (() => {
         const s = shape
-        const type = s.type
         return (
           <>
-            <div style={sidebarRowStyle}>
-              <label htmlFor={`${entityId}-${type}-radius`} style={sidebarLabelStyle}>
-                Radius
-              </label>
-              <input
-                id={`${entityId}-${type}-radius`}
-                type="number"
-                min={0.01}
-                step={0.1}
-                value={s.radius}
-                onChange={(e) => {
-                  const newValue = parseFloat(e.target.value) || 0.01
-                  uiLogger.change('PropertyPanel', `Change ${type} radius`, { entityId, oldValue: s.radius, newValue })
-                  onShapeChange({
-                    type,
-                    radius: newValue,
-                    height: s.height,
-                  })
-                }}
-                style={sidebarInputStyle}
-                disabled={disabled}
-              />
-            </div>
-            <div style={sidebarRowStyle}>
-              <label htmlFor={`${entityId}-${type}-height`} style={sidebarLabelStyle}>
-                Height
-              </label>
-              <input
-                id={`${entityId}-${type}-height`}
-                type="number"
-                min={0.01}
-                step={0.1}
-                value={s.height}
-                onChange={(e) => {
-                  const newValue = parseFloat(e.target.value) || 0.01
-                  uiLogger.change('PropertyPanel', `Change ${type} height`, { entityId, oldValue: s.height, newValue })
-                  onShapeChange({
-                    type,
-                    radius: s.radius,
-                    height: newValue,
-                  })
-                }}
-                style={sidebarInputStyle}
-                disabled={disabled}
-              />
-            </div>
+            <NumberInput
+              id={`${entityId}-cylinder-radius`}
+              label="Radius"
+              value={s.radius}
+              onChange={(newValue) => onShapeChange({ type: 'cylinder', radius: newValue, height: s.height })}
+              min={0.01}
+              step={0.1}
+              defaultValue={0.01}
+              disabled={disabled}
+              entityId={entityId}
+              propertyName="cylinder radius"
+            />
+            <NumberInput
+              id={`${entityId}-cylinder-height`}
+              label="Height"
+              value={s.height}
+              onChange={(newValue) => onShapeChange({ type: 'cylinder', radius: s.radius, height: newValue })}
+              min={0.01}
+              step={0.1}
+              defaultValue={0.01}
+              disabled={disabled}
+              entityId={entityId}
+              propertyName="cylinder height"
+            />
+          </>
+        )
+      })()}
+      {shape?.type === 'capsule' && (() => {
+        const s = shape
+        return (
+          <>
+            <NumberInput
+              id={`${entityId}-capsule-radius`}
+              label="Radius"
+              value={s.radius}
+              onChange={(newValue) => onShapeChange({ type: 'capsule', radius: newValue, height: s.height })}
+              min={0.01}
+              step={0.1}
+              defaultValue={0.01}
+              disabled={disabled}
+              entityId={entityId}
+              propertyName="capsule radius"
+            />
+            <NumberInput
+              id={`${entityId}-capsule-height`}
+              label="Height"
+              value={s.height}
+              onChange={(newValue) => onShapeChange({ type: 'capsule', radius: s.radius, height: newValue })}
+              min={0.01}
+              step={0.1}
+              defaultValue={0.01}
+              disabled={disabled}
+              entityId={entityId}
+              propertyName="capsule height"
+            />
           </>
         )
       })()}

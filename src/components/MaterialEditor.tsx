@@ -1,26 +1,9 @@
 import type { Vec3, MaterialRef } from '@/types/world'
 import { uiLogger } from '@/utils/uiLogger'
-import { sidebarRowStyle, sidebarLabelStyle, sidebarInputStyle } from './sharedStyles'
-
-const clampUnit = (value: number) => Math.max(0, Math.min(1, value))
-
-const colorToHex = (color: Vec3) => {
-  const [r, g, b] = color.map((c) => Math.round(clampUnit(c) * 255)) as Vec3
-  return `#${[r, g, b]
-    .map((channel) => channel.toString(16).padStart(2, '0'))
-    .join('')}`
-}
-
-const hexToColor = (hex: string): Vec3 => {
-  const sanitized = hex.replace('#', '')
-  if (sanitized.length !== 6) {
-    return [0.7, 0.7, 0.7]
-  }
-  const r = parseInt(sanitized.slice(0, 2), 16) / 255
-  const g = parseInt(sanitized.slice(2, 4), 16) / 255
-  const b = parseInt(sanitized.slice(4, 6), 16) / 255
-  return [r, g, b]
-}
+import { clampUnit } from '@/utils/numberUtils'
+import { colorToHex, hexToColor } from '@/utils/colorUtils'
+import NumberInput from './form/NumberInput'
+import { sidebarRowStyle, sidebarLabelStyle } from './sharedStyles'
 
 export interface MaterialEditorProps {
   entityId: string
@@ -74,46 +57,32 @@ export default function MaterialEditor({
           </span>
         </div>
       </div>
-      <div style={sidebarRowStyle}>
-        <label htmlFor={`${entityId}-roughness`} style={sidebarLabelStyle}>
-          Roughness
-        </label>
-        <input
-          id={`${entityId}-roughness`}
-          type="number"
-          min={0}
-          max={1}
-          step={0.1}
-          value={roughness}
-          onChange={(e) => {
-            const newValue = parseFloat(e.target.value) ?? 0.5
-            uiLogger.change('PropertyPanel', 'Change roughness', { entityId, oldValue: roughness, newValue })
-            onMaterialChange({ ...material, roughness: newValue })
-          }}
-          style={sidebarInputStyle}
-          disabled={disabled}
-        />
-      </div>
-      <div style={sidebarRowStyle}>
-        <label htmlFor={`${entityId}-metalness`} style={sidebarLabelStyle}>
-          Metalness
-        </label>
-        <input
-          id={`${entityId}-metalness`}
-          type="number"
-          min={0}
-          max={1}
-          step={0.1}
-          value={metalness}
-          onChange={(e) => {
-            const newValue = parseFloat(e.target.value) ?? 0
-            uiLogger.change('PropertyPanel', 'Change metalness', { entityId, oldValue: metalness, newValue })
-            onMaterialChange({ ...material, metalness: newValue })
-          }}
-          style={sidebarInputStyle}
-          disabled={disabled}
-        />
-      </div>
+      <NumberInput
+        id={`${entityId}-roughness`}
+        label="Roughness"
+        value={roughness}
+        onChange={(value) => onMaterialChange({ ...material, roughness: value })}
+        min={0}
+        max={1}
+        step={0.1}
+        defaultValue={0.5}
+        disabled={disabled}
+        entityId={entityId}
+        propertyName="roughness"
+      />
+      <NumberInput
+        id={`${entityId}-metalness`}
+        label="Metalness"
+        value={metalness}
+        onChange={(value) => onMaterialChange({ ...material, metalness: value })}
+        min={0}
+        max={1}
+        step={0.1}
+        defaultValue={0}
+        disabled={disabled}
+        entityId={entityId}
+        propertyName="metalness"
+      />
     </>
   )
 }

@@ -1,4 +1,5 @@
 import { useRef, useCallback } from 'react'
+import { clamp } from '@/utils/numberUtils'
 
 const DEAD_ZONE_PX = 2
 const DEFAULT_SENSITIVITY = 0.01
@@ -15,7 +16,10 @@ export interface DraggableNumberFieldProps {
   disabled?: boolean
 }
 
-function clamp(value: number, min: number | undefined, max: number | undefined): number {
+function clampWithOptional(value: number, min: number | undefined, max: number | undefined): number {
+  if (min !== undefined && max !== undefined) {
+    return clamp(value, min, max)
+  }
   if (min !== undefined && value < min) return min
   if (max !== undefined && value > max) return max
   return value
@@ -58,7 +62,7 @@ export default function DraggableNumberField({
       if (!scrub.deadZoneUsed && Math.abs(deltaX) < DEAD_ZONE_PX) return
       scrub.deadZoneUsed = true
       const deltaValue = deltaX * sensitivity
-      const newValue = clamp(scrub.startValue + deltaValue, min, max)
+      const newValue = clampWithOptional(scrub.startValue + deltaValue, min, max)
       onChange(newValue)
     },
     [onChange, sensitivity, min, max]
@@ -82,10 +86,10 @@ export default function DraggableNumberField({
 
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      const parsed = parseFloat(e.target.value)
-      if (!Number.isNaN(parsed)) {
-        onChange(clamp(parsed, min, max))
-      }
+    const parsed = parseFloat(e.target.value)
+    if (!Number.isNaN(parsed)) {
+      onChange(clampWithOptional(parsed, min, max))
+    }
     },
     [onChange, min, max]
   )

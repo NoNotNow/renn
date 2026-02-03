@@ -2,8 +2,7 @@ import { useRef, useCallback, useState } from 'react'
 import type { Entity, CameraMode } from '@/types/world'
 import type { AddableShapeType } from '@/data/entityDefaults'
 import { uiLogger } from '@/utils/uiLogger'
-import { SidebarToggleButton } from '@/components/SidebarToggleButton'
-import SidebarTabs from './SidebarTabs'
+import Sidebar from './layout/Sidebar'
 import { sidebarRowStyle, sidebarLabelStyle, fieldLabelStyle } from './sharedStyles'
 
 export interface EntitySidebarProps {
@@ -50,42 +49,23 @@ export default function EntitySidebar({
     [onAddEntity]
   )
 
+  const handleTabChange = (tab: string) => {
+    uiLogger.click('Builder', 'Switch left panel tab', { tab })
+    setLeftTab(tab as LeftTab)
+  }
+
   return (
-    <div style={{ 
-      position: 'absolute', 
-      left: 0, 
-      top: 0, 
-      bottom: 0, 
-      display: 'flex', 
-      height: '100%',
-      zIndex: 100,
-      pointerEvents: isOpen ? 'auto' : 'none',
-    }}>
-      <aside
-        style={{
-          width: isOpen ? 240 : 0,
-          borderRight: '1px solid #2f3545',
-          overflow: isOpen ? 'auto' : 'hidden',
-          transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1), padding 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-          backgroundColor: 'rgba(27, 31, 42, 0.92)',
-          display: 'flex',
-          flexDirection: 'column',
-          color: '#e6e9f2',
-          boxShadow: isOpen ? '2px 0 12px rgba(0,0,0,0.45)' : 'none',
-        }}
-      >
-      {isOpen && (
-        <>
-          <SidebarTabs
-            tabs={['entities', 'camera'] as const}
-            activeTab={leftTab}
-            onTabChange={(tab) => {
-              uiLogger.click('Builder', 'Switch left panel tab', { tab })
-              setLeftTab(tab)
-            }}
-          />
-          <div style={{ padding: 10 }}>
-            {leftTab === 'entities' && (
+    <Sidebar
+      side="left"
+      isOpen={isOpen}
+      onToggle={onToggle}
+      tabs={['entities', 'camera'] as const}
+      activeTab={leftTab}
+      onTabChange={handleTabChange}
+      toggleLogContext="Toggle left drawer"
+    >
+      <div style={{ padding: 10 }}>
+        {leftTab === 'entities' && (
               <>
                 <label style={fieldLabelStyle}>
                   Add
@@ -213,18 +193,7 @@ export default function EntitySidebar({
                 )}
               </>
             )}
-          </div>
-        </>
-      )}
-      </aside>
-
-      {/* Toggle button - always visible */}
-      <SidebarToggleButton
-        isOpen={isOpen}
-        onToggle={onToggle}
-        side="left"
-        logContext="Toggle left drawer"
-      />
-    </div>
+      </div>
+    </Sidebar>
   )
 }

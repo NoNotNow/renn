@@ -1,13 +1,6 @@
 import * as THREE from 'three'
 import type { CameraConfig, CameraControl, CameraMode } from '@/types/world'
-
-export interface FreeFlyKeys {
-  w: boolean
-  a: boolean
-  s: boolean
-  d: boolean
-  shift: boolean
-}
+import type { FreeFlyKeys } from '@/types/camera'
 
 export const DEFAULT_FREE_FLY_KEYS: FreeFlyKeys = {
   w: false,
