@@ -123,7 +123,18 @@ export default function PropertyPanel({
         <ShapeEditor
           entityId={entity.id}
           shape={entity.shape}
-          onShapeChange={(shape) => updateEntity({ shape })}
+          onShapeChange={(shape) => {
+            // When switching to trimesh, clear entity.model since trimesh uses shape.model
+            if (shape.type === 'trimesh' && entity.model) {
+              uiLogger.change('PropertyPanel', 'Clear entity model when switching to trimesh', { 
+                entityId: entity.id, 
+                clearedModel: entity.model 
+              })
+              updateEntity({ shape, model: undefined })
+            } else {
+              updateEntity({ shape })
+            }
+          }}
           disabled={isLocked}
           assets={assets}
           world={world}
@@ -189,19 +200,21 @@ export default function PropertyPanel({
         />
       </div>
 
-      <div style={sectionStyle}>
-        <div style={sectionTitleStyle}>3D Model</div>
-        <ModelEditor
-          entityId={entity.id}
-          model={entity.model}
-          assets={assets}
-          world={world}
-          onModelChange={(model) => updateEntity({ model })}
-          onWorldChange={onWorldChange}
-          onAssetsChange={onAssetsChange}
-          disabled={isLocked}
-        />
-      </div>
+      {entity.shape?.type !== 'trimesh' && (
+        <div style={sectionStyle}>
+          <div style={sectionTitleStyle}>3D Model</div>
+          <ModelEditor
+            entityId={entity.id}
+            model={entity.model}
+            assets={assets}
+            world={world}
+            onModelChange={(model) => updateEntity({ model })}
+            onWorldChange={onWorldChange}
+            onAssetsChange={onAssetsChange}
+            disabled={isLocked}
+          />
+        </div>
+      )}
 
       {onDeleteEntity && (
         <button

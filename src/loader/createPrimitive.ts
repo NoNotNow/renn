@@ -154,7 +154,7 @@ export async function createPrimitiveMesh(
             return wrapperMesh
           }
         } catch (error) {
-          console.error(`Failed to load trimesh model ${shape.model}:`, error)
+          console.error(`[createPrimitive] Failed to load trimesh model ${shape.model}:`, error)
         }
       }
       // Fallback to box geometry

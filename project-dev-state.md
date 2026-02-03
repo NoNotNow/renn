@@ -53,6 +53,7 @@ Last updated: 2026-02-03 (Added 3D model asset support)
 - [x] **Texture system** – Complete texture workflow: `TextureManager` utility, `TextureDialog` for uploading/selecting textures, `TextureThumbnail` for previews, `TextureSelector` integration in MaterialEditor; drag-and-drop support, validation, IndexedDB persistence.
 - [x] **3D model asset support** – Complete 3D model workflow: `ModelManager` utility for GLB validation, `ModelDialog` for uploading/selecting models, `ModelThumbnail` for previews, `ModelEditor` for applying models to entities; two application modes: `entity.model` (visual only, shape for physics) and `trimesh` shape type (both visual and physics); GLTFLoader integration via three-stdlib; drag-and-drop support, validation, IndexedDB persistence. **Note:** Only GLB format (self-contained binary) is supported to avoid external dependency issues; GLTF files with external buffers/textures are rejected with helpful error message.
 - [x] **Trimesh physics collision** – Full implementation of mesh-based physics collision using Rapier's trimesh collider API; `geometryExtractor` utility extracts vertices and indices from Three.js meshes; handles multiple meshes, indexed/non-indexed geometry, transform application, and scale; automatic warnings for large meshes (>10K triangles); graceful fallback to box collider on errors; supports concave geometry; comprehensive test coverage (11 tests).
+- [x] **Mesh simplification for trimesh** – Optional per-entity collision mesh simplification using Three.js SimplifyModifier (Progressive Mesh Polygon Reduction algorithm); configurable via `shape.simplification` with `maxTriangles` target or `targetReduction` percentage; UI toggle in ShapeEditor with max triangle slider; automatic error handling with fallback to original geometry; no external dependencies; comprehensive test coverage (13 tests); typical performance improvement: 4x faster physics step for complex models.
 
 ---
 
@@ -73,7 +74,7 @@ Last updated: 2026-02-03 (Added 3D model asset support)
 
 ### Lower priority / later
 - [ ] **3D model thumbnails** – Currently model thumbnails show 📦 icon; future enhancement: render actual 3D previews using Three.js canvas thumbnails.
-- [ ] **Collision mesh optimization** – Add automatic mesh simplification for large models (>10K triangles) to improve physics performance; allow separate visual and collision meshes.
+- [ ] **Separate collision meshes** – Allow specifying separate visual and collision models for ultimate control over performance vs quality trade-offs.
 - [ ] **Backend** – Node.js API, PostgreSQL, S3-compatible storage; EU hoster (see plan §7.2). Defer until needed.
 - [ ] **Script sandbox** – If scripts are ever shared/untrusted, run in Worker or cross-origin iframe.
 - [ ] **World schema versioning** – Strict vs best-effort when `version` changes; migration path.

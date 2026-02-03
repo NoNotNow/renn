@@ -1,9 +1,10 @@
 import RAPIER from '@dimforge/rapier3d-compat'
 import * as THREE from 'three'
 import type { LoadedEntity } from '@/loader/loadWorld'
-import type { RennWorld, Shape, Entity } from '@/types/world'
+import type { RennWorld, Shape, Entity, TrimeshSimplificationConfig } from '@/types/world'
 import { DEFAULT_GRAVITY } from '@/types/world'
 import { extractMeshGeometry, getGeometryInfo } from '@/utils/geometryExtractor'
+import { simplifyGeometry, shouldSimplifyGeometry } from '@/utils/meshSimplifier'
 
 export type CollisionPair = { entityIdA: string; entityIdB: string }
 
@@ -149,7 +150,7 @@ export class PhysicsWorld {
           try {
             // Extract geometry from the trimesh scene (stored in userData)
             const sourceScene = mesh.userData.trimeshScene || mesh
-            const extractedGeometry = extractMeshGeometry(sourceScene, false)
+            let extractedGeometry = extractMeshGeometry(sourceScene, false)
             
             if (extractedGeometry && extractedGeometry.vertices.length > 0 && extractedGeometry.indices.length > 0) {
               // Apply entity scale to vertices
@@ -160,17 +161,52 @@ export class PhysicsWorld {
                 scaledVertices[i + 2] = extractedGeometry.vertices[i + 2] * scale[2]
               }
               
-              const info = getGeometryInfo({ vertices: scaledVertices, indices: extractedGeometry.indices })
-              console.log(`[PhysicsWorld] Creating trimesh collider: ${info.vertexCount} vertices, ${info.triangleCount} triangles`)
+              extractedGeometry = { vertices: scaledVertices, indices: extractedGeometry.indices }
               
-              // Warn about large meshes
-              if (info.triangleCount > 10000) {
-                console.warn(`[PhysicsWorld] Large trimesh (${info.triangleCount} triangles) may impact performance`)
+              const originalInfo = getGeometryInfo(extractedGeometry)
+              
+              // Check if simplification is needed
+              const trimeshShape = shape as { type: 'trimesh'; model: string; simplification?: TrimeshSimplificationConfig }
+              if (shouldSimplifyGeometry(originalInfo.triangleCount, trimeshShape.simplification)) {
+                console.log(`[PhysicsWorld] Simplifying trimesh: ${originalInfo.triangleCount} triangles`)
+                
+                try {
+                  const simplificationResult = simplifyGeometry(extractedGeometry, trimeshShape.simplification!)
+                  
+                  // Check if simplification actually worked
+                  if (simplificationResult.reductionPercentage > 0) {
+                    extractedGeometry = {
+                      vertices: simplificationResult.vertices,
+                      indices: simplificationResult.indices
+                    }
+                    
+                    console.log(
+                      `[PhysicsWorld] Simplified: ${simplificationResult.originalTriangleCount} → ` +
+                      `${simplificationResult.simplifiedTriangleCount} triangles ` +
+                      `(${simplificationResult.reductionPercentage.toFixed(1)}% reduction)`
+                    )
+                  } else {
+                    console.warn(
+                      `[PhysicsWorld] Simplification failed or target already met (${simplificationResult.originalTriangleCount} triangles). ` +
+                      `Using original geometry. Try adjusting maxTriangles threshold.`
+                    )
+                  }
+                } catch (error) {
+                  console.error('[PhysicsWorld] Simplification error, using original geometry:', error)
+                }
               }
               
-              return RAPIER.ColliderDesc.trimesh(scaledVertices, extractedGeometry.indices)
+              const finalInfo = getGeometryInfo(extractedGeometry)
+              console.log(`[PhysicsWorld] Creating trimesh collider: ${finalInfo.vertexCount} vertices, ${finalInfo.triangleCount} triangles`)
+              
+              // Warn about large meshes
+              if (finalInfo.triangleCount > 10000) {
+                console.warn(`[PhysicsWorld] Large trimesh (${finalInfo.triangleCount} triangles) may impact performance. Consider enabling simplification.`)
+              }
+              
+              return RAPIER.ColliderDesc.trimesh(extractedGeometry.vertices, extractedGeometry.indices)
             } else {
-              console.warn('[PhysicsWorld] Failed to extract geometry from trimesh, using box fallback')
+              console.warn('[PhysicsWorld] Failed to extract geometry from trimesh (empty or null), using box fallback')
             }
           } catch (error) {
             console.error('[PhysicsWorld] Error creating trimesh collider:', error)

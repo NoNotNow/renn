@@ -141,7 +141,16 @@
           "required": ["type", "model"],
           "properties": {
             "type": { "const": "trimesh" },
-            "model": { "type": "string" }
+            "model": { "type": "string" },
+            "simplification": {
+              "type": "object",
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "maxTriangles": { "type": "number", "minimum": 500 },
+                "targetReduction": { "type": "number", "minimum": 0, "maximum": 1 }
+              },
+              "additionalProperties": false
+            }
           },
           "additionalProperties": false
         }

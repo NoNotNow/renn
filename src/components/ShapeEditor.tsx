@@ -5,6 +5,7 @@ import SelectInput from './form/SelectInput'
 import NumberInput from './form/NumberInput'
 import ModelDialog from './ModelDialog'
 import ModelThumbnail from './ModelThumbnail'
+import Switch from './Switch'
 import { ModelManager } from '@/utils/modelManager'
 import { createIndexedDbPersistence } from '@/persistence/indexedDb'
 import { sidebarRowStyle, sidebarLabelStyle } from './sharedStyles'
@@ -271,8 +272,65 @@ export default function ShapeEditor({
               </div>
             </div>
             <div style={{ fontSize: 11, color: '#666', marginTop: 4, paddingLeft: 8 }}>
-              Model for visual and physics collision
+              Model for visual and physics collision. Note: Trimesh shapes use their own model instead of the separate 3D Model section.
             </div>
+            
+            {/* Simplification Configuration */}
+            {s.model && (
+              <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #2f3545' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <label style={{ fontSize: 12, color: '#9aa4b2' }}>Simplify Collision Mesh</label>
+                  <Switch
+                    checked={s.simplification?.enabled ?? false}
+                    onChange={(enabled) => {
+                      onShapeChange({
+                        type: 'trimesh',
+                        model: s.model,
+                        simplification: { 
+                          enabled,
+                          maxTriangles: s.simplification?.maxTriangles ?? 5000
+                        }
+                      })
+                    }}
+                    disabled={disabled}
+                  />
+                </div>
+                
+                {s.simplification?.enabled && (
+                  <>
+                    <NumberInput
+                      id={`${entityId}-simplification-maxTriangles`}
+                      label="Max Triangles"
+                      value={s.simplification.maxTriangles ?? 5000}
+                      onChange={(value) => {
+                        // Enforce minimum of 500 triangles to prevent simplification failures
+                        const clampedValue = Math.max(500, value)
+                        onShapeChange({
+                          type: 'trimesh',
+                          model: s.model,
+                          simplification: { 
+                            enabled: s.simplification?.enabled ?? true,
+                            maxTriangles: clampedValue 
+                          }
+                        })
+                      }}
+                      min={500}
+                      max={50000}
+                      step={100}
+                      defaultValue={5000}
+                      disabled={disabled}
+                      entityId={entityId}
+                      propertyName="simplification maxTriangles"
+                    />
+                    
+                    <div style={{ fontSize: 10, color: '#666', marginTop: 4, paddingLeft: 8 }}>
+                      Reduces collision mesh complexity for better performance
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+            
             {world && (
               <ModelDialog
                 isOpen={modelDialogOpen}

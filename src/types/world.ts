@@ -42,13 +42,19 @@ export interface AssetRef {
   type?: 'texture' | 'model' | 'cubeTexture'
 }
 
+export interface TrimeshSimplificationConfig {
+  enabled?: boolean  // Whether to enable simplification
+  maxTriangles?: number  // Maximum triangles (e.g., 5000)
+  targetReduction?: number  // Alternative: percentage to reduce (0.0-1.0, e.g., 0.5 = 50% reduction)
+}
+
 export type Shape =
   | { type: 'box'; width: number; height: number; depth: number }
   | { type: 'sphere'; radius: number }
   | { type: 'cylinder'; radius: number; height: number }
   | { type: 'capsule'; radius: number; height: number }
   | { type: 'plane'; normal?: Vec3 }
-  | { type: 'trimesh'; model: string }
+  | { type: 'trimesh'; model: string; simplification?: TrimeshSimplificationConfig }
 
 export interface MaterialRef {
   color?: Color

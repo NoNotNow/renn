@@ -10,7 +10,14 @@ const DEFAULT_SHAPES: Record<AddableShapeType, Shape> = {
   cylinder: { type: 'cylinder', radius: 0.5, height: 1 },
   capsule: { type: 'capsule', radius: 0.25, height: 1 },
   plane: { type: 'plane' },
-  trimesh: { type: 'trimesh', model: '' },
+  trimesh: {
+    type: 'trimesh',
+    model: '',
+    simplification: {
+      enabled: false,
+      maxTriangles: 5000
+    }
+  },
 }
 
 const SCALE_RANGE: [number, number] = [0.6, 1.4]
