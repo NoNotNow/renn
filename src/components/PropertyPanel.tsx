@@ -22,13 +22,39 @@ export default function PropertyPanel({
   getCurrentPose,
   onEntityPoseChange,
 }: PropertyPanelProps) {
+  const sectionStyle = {
+    padding: 8,
+    border: '1px solid #2f3545',
+    borderRadius: 8,
+    background: 'rgba(17, 20, 28, 0.6)',
+  }
+  const sectionTitleStyle = {
+    margin: '0 0 6px',
+    fontSize: '0.75em',
+    letterSpacing: '0.08em',
+    color: '#9aa4b2',
+    textTransform: 'uppercase' as const,
+  }
+  const fieldLabelStyle = {
+    display: 'block',
+    marginBottom: 6,
+    fontSize: 12,
+    color: '#c4cbd8',
+  }
+  const inputStyle = {
+    display: 'block',
+    width: '100%',
+    padding: '6px 8px',
+    borderRadius: 6,
+  }
+
   const entity = selectedEntityId
     ? world.entities.find((e) => e.id === selectedEntityId)
     : null
 
   if (!entity) {
     return (
-      <div style={{ padding: 8 }}>
+      <div style={{ padding: 10 }}>
         <p style={{ color: '#9aa4b2' }}>Select an entity</p>
       </div>
     )
@@ -48,77 +74,94 @@ export default function PropertyPanel({
   const scale = entity.scale ?? [1, 1, 1]
 
   return (
-    <div style={{ padding: 8 }}>
-      <h3 style={{ margin: '0 0 8px' }}>{entity.name ?? entity.id}</h3>
-      <label style={{ display: 'block', marginBottom: 8 }}>
-        Name
-        <input
-          type="text"
-          value={entity.name ?? ''}
-          placeholder={entity.id}
-          onChange={(e) => {
-            uiLogger.change('PropertyPanel', 'Change entity name', { entityId: entity.id, oldName: entity.name, newName: e.target.value })
-            updateEntity({ name: e.target.value || undefined })
+    <div style={{ padding: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <h3 style={{ margin: '0 0 2px', fontSize: 14, fontWeight: 600 }}>
+        {entity.name ?? entity.id}
+      </h3>
+      <div style={sectionStyle}>
+        <div style={sectionTitleStyle}>Entity</div>
+        <label style={fieldLabelStyle}>
+          Name
+          <input
+            type="text"
+            value={entity.name ?? ''}
+            placeholder={entity.id}
+            onChange={(e) => {
+              uiLogger.change('PropertyPanel', 'Change entity name', { entityId: entity.id, oldName: entity.name, newName: e.target.value })
+              updateEntity({ name: e.target.value || undefined })
+            }}
+            style={inputStyle}
+          />
+        </label>
+        <label style={fieldLabelStyle}>
+          ID
+          <input
+            type="text"
+            value={entity.id}
+            readOnly
+            style={inputStyle}
+          />
+        </label>
+      </div>
+
+      <div style={sectionStyle}>
+        <div style={sectionTitleStyle}>Shape</div>
+        <ShapeEditor
+          entityId={entity.id}
+          shape={entity.shape}
+          onShapeChange={(shape) => updateEntity({ shape })}
+        />
+      </div>
+
+      <div style={sectionStyle}>
+        <div style={sectionTitleStyle}>Transform</div>
+        <TransformEditor
+          entityId={entity.id}
+          position={position}
+          rotation={rotation}
+          scale={scale}
+          onPositionChange={(v) => {
+            if (onEntityPoseChange) {
+              onEntityPoseChange(entity.id, { position: v })
+            } else {
+              updateEntity({ position: v })
+            }
           }}
-          style={{ display: 'block', width: '100%' }}
+          onRotationChange={(q) => {
+            if (onEntityPoseChange) {
+              onEntityPoseChange(entity.id, { rotation: q })
+            } else {
+              updateEntity({ rotation: q })
+            }
+          }}
+          onScaleChange={(v) => updateEntity({ scale: v })}
+          getCurrentPose={getCurrentPose}
         />
-      </label>
-      <label style={{ display: 'block', marginBottom: 8 }}>
-        ID
-        <input
-          type="text"
-          value={entity.id}
-          readOnly
-          style={{ display: 'block', width: '100%' }}
+      </div>
+
+      <div style={sectionStyle}>
+        <div style={sectionTitleStyle}>Physics</div>
+        <PhysicsEditor
+          entityId={entity.id}
+          bodyType={entity.bodyType}
+          mass={entity.mass ?? 1}
+          restitution={entity.restitution ?? 0}
+          friction={entity.friction ?? 0.5}
+          onBodyTypeChange={(bodyType) => updateEntity({ bodyType })}
+          onMassChange={(mass) => updateEntity({ mass })}
+          onRestitutionChange={(restitution) => updateEntity({ restitution })}
+          onFrictionChange={(friction) => updateEntity({ friction })}
         />
-      </label>
+      </div>
 
-      <ShapeEditor
-        entityId={entity.id}
-        shape={entity.shape}
-        onShapeChange={(shape) => updateEntity({ shape })}
-      />
-
-      <TransformEditor
-        entityId={entity.id}
-        position={position}
-        rotation={rotation}
-        scale={scale}
-        onPositionChange={(v) => {
-          if (onEntityPoseChange) {
-            onEntityPoseChange(entity.id, { position: v })
-          } else {
-            updateEntity({ position: v })
-          }
-        }}
-        onRotationChange={(q) => {
-          if (onEntityPoseChange) {
-            onEntityPoseChange(entity.id, { rotation: q })
-          } else {
-            updateEntity({ rotation: q })
-          }
-        }}
-        onScaleChange={(v) => updateEntity({ scale: v })}
-        getCurrentPose={getCurrentPose}
-      />
-
-      <PhysicsEditor
-        entityId={entity.id}
-        bodyType={entity.bodyType}
-        mass={entity.mass ?? 1}
-        restitution={entity.restitution ?? 0}
-        friction={entity.friction ?? 0.5}
-        onBodyTypeChange={(bodyType) => updateEntity({ bodyType })}
-        onMassChange={(mass) => updateEntity({ mass })}
-        onRestitutionChange={(restitution) => updateEntity({ restitution })}
-        onFrictionChange={(friction) => updateEntity({ friction })}
-      />
-
-      <MaterialEditor
-        entityId={entity.id}
-        material={entity.material}
-        onMaterialChange={(material) => updateEntity({ material })}
-      />
+      <div style={sectionStyle}>
+        <div style={sectionTitleStyle}>Material</div>
+        <MaterialEditor
+          entityId={entity.id}
+          material={entity.material}
+          onMaterialChange={(material) => updateEntity({ material })}
+        />
+      </div>
 
       {onDeleteEntity && (
         <button
@@ -128,13 +171,13 @@ export default function PropertyPanel({
             onDeleteEntity(entity.id)
           }}
           style={{
-            marginTop: 16,
             padding: '8px 12px',
             background: '#3a1b1b',
             border: '1px solid #6b2a2a',
             color: '#f4d6d6',
-            borderRadius: 4,
+            borderRadius: 6,
             cursor: 'pointer',
+            alignSelf: 'stretch',
           }}
         >
           Delete entity

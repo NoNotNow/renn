@@ -37,20 +37,22 @@ export default function QuatField({
   ]
 
   return (
-    <div style={{ marginBottom: 8 }}>
-      <div style={{ marginBottom: 4, fontSize: '0.9em' }}>{label}</div>
-      <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+    <div style={{ marginBottom: 6 }}>
+      <div style={{ marginBottom: 2, fontSize: '0.85em', color: '#c4cbd8' }}>{label}</div>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'auto 1fr auto 1fr auto 1fr auto 1fr',
+          alignItems: 'center',
+          gap: 6,
+        }}
+      >
         {components.map(({ key, value: v, onChange: onCompChange, label: compLabel }) => (
           <div
             key={key}
-            style={{ flex: '1 1 0', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}
+            style={{ display: 'contents' }}
           >
-            <label
-              htmlFor={`${idPrefix}-${key}`}
-              style={{ fontSize: '0.75em', color: '#666' }}
-            >
-              {compLabel}
-            </label>
+            <span style={{ fontSize: '0.7em', color: '#9aa4b2' }}>{compLabel}</span>
             <DraggableNumberField
               id={`${idPrefix}-${key}`}
               value={v}

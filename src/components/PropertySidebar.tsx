@@ -89,7 +89,7 @@ export default function PropertySidebar({
 
       <aside
         style={{
-          width: isOpen ? 320 : 0,
+          width: isOpen ? 300 : 0,
           borderLeft: '1px solid #2f3545',
           display: 'flex',
           flexDirection: 'column',
@@ -103,16 +103,27 @@ export default function PropertySidebar({
       >
       {isOpen && (
         <>
-          <div style={{ display: 'flex', borderBottom: '1px solid #2f3545' }}>
+          <div
+            style={{
+              display: 'flex',
+              gap: 6,
+              padding: 6,
+              borderBottom: '1px solid #2f3545',
+              background: 'rgba(17, 20, 28, 0.9)',
+            }}
+          >
             {(['properties', 'scripts', 'assets'] as const).map((tab) => (
               <button
                 key={tab}
                 type="button"
                 style={{
-                  padding: '8px 12px',
+                  padding: '6px 10px',
                   background: rightTab === tab ? '#2b3550' : 'transparent',
-                  border: 'none',
+                  border: '1px solid transparent',
+                  borderRadius: 6,
                   cursor: 'pointer',
+                  fontSize: 12,
+                  color: '#e6e9f2',
                   textTransform: 'capitalize',
                   transition: 'background 0.2s ease',
                 }}
@@ -123,11 +134,13 @@ export default function PropertySidebar({
                 onMouseEnter={(e) => {
                   if (rightTab !== tab) {
                     e.currentTarget.style.background = '#20263a'
+                    e.currentTarget.style.border = '1px solid #2f3545'
                   }
                 }}
                 onMouseLeave={(e) => {
                   if (rightTab !== tab) {
                     e.currentTarget.style.background = 'transparent'
+                    e.currentTarget.style.border = '1px solid transparent'
                   }
                 }}
               >

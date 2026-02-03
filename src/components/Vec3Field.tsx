@@ -33,54 +33,49 @@ export default function Vec3Field({
   const handleZ = (n: number) => onChange([value[0], value[1], n])
 
   return (
-    <div style={{ marginBottom: 8 }}>
-      <div style={{ marginBottom: 4, fontSize: '0.9em' }}>{label}</div>
-      <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-        <div style={{ flex: '1 1 0', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <label htmlFor={`${idPrefix}-x`} style={{ fontSize: '0.75em', color: '#666' }}>
-            {xLabel}
-          </label>
-          <DraggableNumberField
-            id={`${idPrefix}-x`}
-            value={value[0]}
-            onChange={handleX}
-            min={min}
-            max={max}
-            step={step}
-            sensitivity={sensitivity}
-            label={`${label} ${xLabel}`}
-          />
-        </div>
-        <div style={{ flex: '1 1 0', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <label htmlFor={`${idPrefix}-y`} style={{ fontSize: '0.75em', color: '#666' }}>
-            {yLabel}
-          </label>
-          <DraggableNumberField
-            id={`${idPrefix}-y`}
-            value={value[1]}
-            onChange={handleY}
-            min={min}
-            max={max}
-            step={step}
-            sensitivity={sensitivity}
-            label={`${label} ${yLabel}`}
-          />
-        </div>
-        <div style={{ flex: '1 1 0', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <label htmlFor={`${idPrefix}-z`} style={{ fontSize: '0.75em', color: '#666' }}>
-            {zLabel}
-          </label>
-          <DraggableNumberField
-            id={`${idPrefix}-z`}
-            value={value[2]}
-            onChange={handleZ}
-            min={min}
-            max={max}
-            step={step}
-            sensitivity={sensitivity}
-            label={`${label} ${zLabel}`}
-          />
-        </div>
+    <div style={{ marginBottom: 6 }}>
+      <div style={{ marginBottom: 2, fontSize: '0.85em', color: '#c4cbd8' }}>{label}</div>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'auto 1fr auto 1fr auto 1fr',
+          alignItems: 'center',
+          gap: 6,
+        }}
+      >
+        <span style={{ fontSize: '0.7em', color: '#9aa4b2' }}>{xLabel}</span>
+        <DraggableNumberField
+          id={`${idPrefix}-x`}
+          value={value[0]}
+          onChange={handleX}
+          min={min}
+          max={max}
+          step={step}
+          sensitivity={sensitivity}
+          label={`${label} ${xLabel}`}
+        />
+        <span style={{ fontSize: '0.7em', color: '#9aa4b2' }}>{yLabel}</span>
+        <DraggableNumberField
+          id={`${idPrefix}-y`}
+          value={value[1]}
+          onChange={handleY}
+          min={min}
+          max={max}
+          step={step}
+          sensitivity={sensitivity}
+          label={`${label} ${yLabel}`}
+        />
+        <span style={{ fontSize: '0.7em', color: '#9aa4b2' }}>{zLabel}</span>
+        <DraggableNumberField
+          id={`${idPrefix}-z`}
+          value={value[2]}
+          onChange={handleZ}
+          min={min}
+          max={max}
+          step={step}
+          sensitivity={sensitivity}
+          label={`${label} ${zLabel}`}
+        />
       </div>
     </div>
   )

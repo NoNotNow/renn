@@ -1,7 +1,14 @@
 import type { Vec3, MaterialRef } from '@/types/world'
 import { uiLogger } from '@/utils/uiLogger'
 
-const labelStyle = { display: 'block', marginBottom: 8 }
+const rowStyle = {
+  display: 'grid',
+  gridTemplateColumns: 'auto 1fr',
+  alignItems: 'center',
+  gap: 8,
+  marginBottom: 6,
+}
+const labelStyle = { fontSize: 12, color: '#c4cbd8' }
 const inputStyle = { display: 'block', width: '100%' }
 
 const clampUnit = (value: number) => Math.max(0, Math.min(1, value))
@@ -43,10 +50,13 @@ export default function MaterialEditor({
   return (
     <>
       <h4 style={{ margin: '12px 0 8px' }}>Material</h4>
-      <label style={labelStyle}>
-        Color
+      <div style={rowStyle}>
+        <label htmlFor={`${entityId}-material-color`} style={labelStyle}>
+          Color
+        </label>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <input
+            id={`${entityId}-material-color`}
             type="color"
             value={colorHex}
             onChange={(e) => {
@@ -69,10 +79,13 @@ export default function MaterialEditor({
             {color.map((c) => clampUnit(c).toFixed(2)).join(', ')}
           </span>
         </div>
-      </label>
-      <label style={labelStyle}>
-        Roughness
+      </div>
+      <div style={rowStyle}>
+        <label htmlFor={`${entityId}-roughness`} style={labelStyle}>
+          Roughness
+        </label>
         <input
+          id={`${entityId}-roughness`}
           type="number"
           min={0}
           max={1}
@@ -85,10 +98,13 @@ export default function MaterialEditor({
           }}
           style={inputStyle}
         />
-      </label>
-      <label style={labelStyle}>
-        Metalness
+      </div>
+      <div style={rowStyle}>
+        <label htmlFor={`${entityId}-metalness`} style={labelStyle}>
+          Metalness
+        </label>
         <input
+          id={`${entityId}-metalness`}
           type="number"
           min={0}
           max={1}
@@ -101,7 +117,7 @@ export default function MaterialEditor({
           }}
           style={inputStyle}
         />
-      </label>
+      </div>
     </>
   )
 }

@@ -4,7 +4,14 @@ import { uiLogger } from '@/utils/uiLogger'
 
 const ADDABLE_SHAPE_TYPES: AddableShapeType[] = ['box', 'sphere', 'cylinder', 'capsule', 'plane']
 
-const labelStyle = { display: 'block', marginBottom: 8 }
+const rowStyle = {
+  display: 'grid',
+  gridTemplateColumns: 'auto 1fr',
+  alignItems: 'center',
+  gap: 8,
+  marginBottom: 6,
+}
+const labelStyle = { fontSize: 12, color: '#c4cbd8' }
 const inputStyle = { display: 'block', width: '100%' }
 
 export interface ShapeEditorProps {
@@ -27,9 +34,12 @@ export default function ShapeEditor({
 
   return (
     <>
-      <label style={labelStyle}>
-        Shape
+      <div style={rowStyle}>
+        <label htmlFor={`${entityId}-shape`} style={labelStyle}>
+          Shape
+        </label>
         <select
+          id={`${entityId}-shape`}
           value={effectiveShapeType}
           onChange={(e) => {
             uiLogger.change('PropertyPanel', 'Change shape type', { entityId, oldType: effectiveShapeType, newType: e.target.value })
@@ -43,14 +53,17 @@ export default function ShapeEditor({
           <option value="capsule">Capsule</option>
           <option value="plane">Plane</option>
         </select>
-      </label>
+      </div>
       {shape?.type === 'box' && (() => {
         const s = shape
         return (
           <>
-            <label style={labelStyle}>
-              Width
+            <div style={rowStyle}>
+              <label htmlFor={`${entityId}-box-width`} style={labelStyle}>
+                Width
+              </label>
               <input
+                id={`${entityId}-box-width`}
                 type="number"
                 min={0.01}
                 step={0.1}
@@ -67,10 +80,13 @@ export default function ShapeEditor({
                 }}
                 style={inputStyle}
               />
-            </label>
-            <label style={labelStyle}>
-              Height
+            </div>
+            <div style={rowStyle}>
+              <label htmlFor={`${entityId}-box-height`} style={labelStyle}>
+                Height
+              </label>
               <input
+                id={`${entityId}-box-height`}
                 type="number"
                 min={0.01}
                 step={0.1}
@@ -87,10 +103,13 @@ export default function ShapeEditor({
                 }}
                 style={inputStyle}
               />
-            </label>
-            <label style={labelStyle}>
-              Depth
+            </div>
+            <div style={rowStyle}>
+              <label htmlFor={`${entityId}-box-depth`} style={labelStyle}>
+                Depth
+              </label>
               <input
+                id={`${entityId}-box-depth`}
                 type="number"
                 min={0.01}
                 step={0.1}
@@ -107,14 +126,17 @@ export default function ShapeEditor({
                 }}
                 style={inputStyle}
               />
-            </label>
+            </div>
           </>
         )
       })()}
       {shape?.type === 'sphere' && (
-        <label style={labelStyle}>
-          Radius
+        <div style={rowStyle}>
+          <label htmlFor={`${entityId}-sphere-radius`} style={labelStyle}>
+            Radius
+          </label>
           <input
+            id={`${entityId}-sphere-radius`}
             type="number"
             min={0.01}
             step={0.1}
@@ -126,16 +148,19 @@ export default function ShapeEditor({
             }}
             style={inputStyle}
           />
-        </label>
+        </div>
       )}
       {(shape?.type === 'cylinder' || shape?.type === 'capsule') && (() => {
         const s = shape
         const type = s.type
         return (
           <>
-            <label style={labelStyle}>
-              Radius
+            <div style={rowStyle}>
+              <label htmlFor={`${entityId}-${type}-radius`} style={labelStyle}>
+                Radius
+              </label>
               <input
+                id={`${entityId}-${type}-radius`}
                 type="number"
                 min={0.01}
                 step={0.1}
@@ -151,10 +176,13 @@ export default function ShapeEditor({
                 }}
                 style={inputStyle}
               />
-            </label>
-            <label style={labelStyle}>
-              Height
+            </div>
+            <div style={rowStyle}>
+              <label htmlFor={`${entityId}-${type}-height`} style={labelStyle}>
+                Height
+              </label>
               <input
+                id={`${entityId}-${type}-height`}
                 type="number"
                 min={0.01}
                 step={0.1}
@@ -170,7 +198,7 @@ export default function ShapeEditor({
                 }}
                 style={inputStyle}
               />
-            </label>
+            </div>
           </>
         )
       })()}

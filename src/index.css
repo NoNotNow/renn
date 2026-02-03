@@ -35,4 +35,6 @@ input, select, textarea {
   background-color: #1b1f2a;
   color: #e6e9f2;
   border: 1px solid #2f3545;
+  padding: 6px 8px;
+  border-radius: 6px;
 }

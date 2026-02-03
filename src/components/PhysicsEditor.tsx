@@ -1,7 +1,14 @@
 import type { Entity } from '@/types/world'
 import { uiLogger } from '@/utils/uiLogger'
 
-const labelStyle = { display: 'block', marginBottom: 8 }
+const rowStyle = {
+  display: 'grid',
+  gridTemplateColumns: 'auto 1fr',
+  alignItems: 'center',
+  gap: 8,
+  marginBottom: 6,
+}
+const labelStyle = { fontSize: 12, color: '#c4cbd8' }
 const inputStyle = { display: 'block', width: '100%' }
 
 export interface PhysicsEditorProps {
@@ -29,9 +36,12 @@ export default function PhysicsEditor({
 }: PhysicsEditorProps) {
   return (
     <>
-      <label style={labelStyle}>
-        Body type
+      <div style={rowStyle}>
+        <label htmlFor={`${entityId}-body-type`} style={labelStyle}>
+          Body type
+        </label>
         <select
+          id={`${entityId}-body-type`}
           value={bodyType}
           onChange={(e) => {
             uiLogger.change('PropertyPanel', 'Change body type', { entityId, oldValue: bodyType, newValue: e.target.value })
@@ -43,12 +53,15 @@ export default function PhysicsEditor({
           <option value="dynamic">Dynamic</option>
           <option value="kinematic">Kinematic</option>
         </select>
-      </label>
+      </div>
       {bodyType === 'dynamic' && (
         <>
-          <label style={labelStyle}>
-            Mass
+          <div style={rowStyle}>
+            <label htmlFor={`${entityId}-mass`} style={labelStyle}>
+              Mass
+            </label>
             <input
+              id={`${entityId}-mass`}
               type="number"
               min={0}
               step={0.1}
@@ -60,10 +73,13 @@ export default function PhysicsEditor({
               }}
               style={inputStyle}
             />
-          </label>
-          <label style={labelStyle}>
-            Restitution
+          </div>
+          <div style={rowStyle}>
+            <label htmlFor={`${entityId}-restitution`} style={labelStyle}>
+              Restitution
+            </label>
             <input
+              id={`${entityId}-restitution`}
               type="number"
               min={0}
               max={1}
@@ -76,12 +92,15 @@ export default function PhysicsEditor({
               }}
               style={inputStyle}
             />
-          </label>
+          </div>
         </>
       )}
-      <label style={labelStyle}>
-        Friction
+      <div style={rowStyle}>
+        <label htmlFor={`${entityId}-friction`} style={labelStyle}>
+          Friction
+        </label>
         <input
+          id={`${entityId}-friction`}
           type="number"
           min={0}
           step={0.1}
@@ -93,7 +112,7 @@ export default function PhysicsEditor({
           }}
           style={inputStyle}
         />
-      </label>
+      </div>
     </>
   )
 }
