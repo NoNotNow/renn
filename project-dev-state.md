@@ -2,7 +2,7 @@
 
 Track what’s done and what’s left. Update this file as you complete or add work.
 
-Last updated: 2026-02-02
+Last updated: 2026-02-03
 
 ---
 
@@ -11,10 +11,11 @@ Last updated: 2026-02-02
 ### Core
 - [x] **JSON schema** – `world-schema.json` (draft 2020-12) and validation in `src/schema/validate.ts` (Ajv 2020 dialect).
 - [x] **World loader** – Parse and validate world JSON; build Three.js scene and entity meshes (`src/loader/loadWorld.ts`, `createPrimitive.ts`).
-- [x] **Physics** – Direct Rapier WASM integration with proper collider shapes (ball, box, cylinder, capsule, plane as cuboid); physics-to-mesh sync; collision events via EventQueue (`src/physics/rapierPhysics.ts`).
+- [x] **Physics** – Direct Rapier WASM integration with proper collider shapes (ball, box, cylinder, capsule, plane as cuboid); physics-to-mesh sync; collision events via EventQueue; cached transforms to prevent WASM aliasing errors (`src/physics/rapierPhysics.ts`).
 - [x] **Camera controller** – Free fly, follow, top/front/right presets; follow / third-person / first-person modes; target entity, distance, height (`src/camera/cameraController.ts`).
-- [x] **Script runner** – Main-thread execution with `game` API; hooks `onSpawn`, `onUpdate`, `onCollision` by script ID (`src/scripts/scriptRunner.ts`, `gameApi.ts`).
+- [x] **Script runner** – Main-thread execution with `game` API; hooks `onSpawn`, `onUpdate`, `onCollision` by script ID; enhanced error handling and logging (`src/scripts/scriptRunner.ts`, `gameApi.ts`).
 - [x] **Asset resolver** – Interface and blob-URL implementation for textures/models (`src/loader/assetResolver.ts`, `assetResolverImpl.ts`).
+- [x] **Render item registry** – Centralized management of entity render items; body→mesh sync; cached transform access to avoid WASM aliasing (`src/runtime/renderItemRegistry.ts`, `renderItem.ts`).
 
 ### Persistence
 - [x] **Persistence API** – `listProjects`, `loadProject`, `saveProject`, `deleteProject`, `exportProject`, `importProject` (`src/persistence/types.ts`, `indexedDb.ts`).
@@ -27,17 +28,28 @@ Last updated: 2026-02-02
 - [x] **Script panel** – Monaco editor; list scripts by ID; add/remove.
 - [x] **Asset panel** – Upload textures/models; list by ID; remove.
 - [x] **Play view** – Separate route `/play`; load world from URL query or sample; full physics + scripts.
-- [x] **Entity creation/deletion** – Add entities (box, sphere, cylinder, capsule, plane) via EntitySidebar; delete via PropertyPanel; defaults from `entityDefaults.ts`.
+- [x] **Entity creation/deletion** – Add entities (box, sphere, cylinder, capsule, plane) via EntitySidebar; delete via PropertyPanel; defaults from `entityDefaults.ts` with randomized colors and slight position offsets.
 - [x] **In-scene interaction** – Click to select entity; drag to move (via `useEditorInteractions`); selection highlights.
 - [x] **UI logger** – Centralized `uiLogger` (`src/utils/uiLogger.ts`) for clicks, changes, selects, uploads, deletes; console output and in-memory store; `UI_LOGGING.md` docs.
+- [x] **Project context** – Comprehensive `ProjectContext` (`src/contexts/ProjectContext.tsx`) with state management, dirty tracking, project CRUD operations, and memoized values.
+- [x] **Reusable form components** – `NumberInput`, `SelectInput`, `VectorField` in `src/components/form/` for consistent UI patterns.
+- [x] **Layout components** – Reusable `Sidebar` component (`src/components/layout/`); `SidebarTabs`, `SidebarToggleButton` for better UI structure.
+- [x] **Error boundary** – React error boundary (`src/components/ErrorBoundary.tsx`) to catch and display component errors gracefully.
+- [x] **Shared styles** – Centralized UI styles in `src/components/sharedStyles.ts` for consistency.
+- [x] **Local storage state** – Custom hook `useLocalStorageState` (`src/hooks/useLocalStorageState.ts`) for persisting UI preferences.
 
 ### Fixes / polish
 - [x] **Schema validation** – Use Ajv 2020 dialect so draft 2020-12 schema and `$defs` work.
 - [x] **Canvas size** – Min size and ResizeObserver so 3D viewport gets valid dimensions.
 - [x] **Collision events** – Rapier collision detection via EventQueue; call `runOnCollision(entityId, otherId)` when bodies collide.
-- [x] **Physics → mesh sync** – Rapier body transforms copied back to Three.js meshes each frame for dynamic/kinematic bodies.
+- [x] **Physics → mesh sync** – Rapier body transforms copied back to Three.js meshes each frame for dynamic/kinematic bodies via `RenderItemRegistry.syncFromPhysics()`.
 - [x] **Rapier aliasing crash fix** – Single-flight Rapier init; cache physics transforms as plain numbers (no WASM object retention) to avoid `recursive use` errors during `world.step()`.
 - [x] **E2E tests** – Playwright; `e2e/add-entity.spec.ts` for add entity flow.
+- [x] **Test helpers** – Comprehensive test helper utilities (`src/test/helpers/`) for entity, physics, React, Three.js, and world testing.
+- [x] **Configuration constants** – Centralized config in `src/config/constants.ts` for DB, UI logger, entity defaults, assets, physics, materials, and geometry.
+- [x] **Utility functions** – New utilities: `colorUtils.ts` (color generation), `idGenerator.ts` (unique IDs), `numberUtils.ts` (number operations), `validation.ts` (input validation).
+- [x] **Unsaved changes warning** – Warn user when navigating away from unsaved project changes.
+- [x] **UI/UX improvements** – Modern dark design with improved spacing, consistent styling, better visual hierarchy, and responsive layouts.
 
 ---
 
