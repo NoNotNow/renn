@@ -1,6 +1,7 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import type { RennWorld } from '@/types/world'
 import { ModelManager } from '@/utils/modelManager'
+import { generateModelPreview } from '@/utils/modelPreview'
 import Modal from './Modal'
 import ModelThumbnail from './ModelThumbnail'
 
@@ -26,6 +27,8 @@ export default function ModelDialog({
   const [searchQuery, setSearchQuery] = useState('')
   const [dragActive, setDragActive] = useState(false)
   const [uploadPreview, setUploadPreview] = useState<{ file: File; assetId: string } | null>(null)
+  const [uploadPreviewUrl, setUploadPreviewUrl] = useState<string | null>(null)
+  const [isGeneratingPreview, setIsGeneratingPreview] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const modelAssets = ModelManager.getModelAssets(assets)
@@ -106,6 +109,39 @@ export default function ModelDialog({
       alert('Failed to upload model. Please try again.')
     }
   }, [uploadPreview, onUploadModel, onSelectModel, onClose])
+
+  useEffect(() => {
+    let cancelled = false
+    let url: string | null = null
+
+    if (!uploadPreview) {
+      setUploadPreviewUrl(null)
+      setIsGeneratingPreview(false)
+      return
+    }
+
+    setIsGeneratingPreview(true)
+    generateModelPreview(uploadPreview.file).then((previewBlob) => {
+      if (cancelled) return
+      if (!previewBlob) {
+        setUploadPreviewUrl(null)
+        setIsGeneratingPreview(false)
+        return
+      }
+      url = URL.createObjectURL(previewBlob)
+      setUploadPreviewUrl(url)
+      setIsGeneratingPreview(false)
+    }).catch((error) => {
+      console.error('Failed to generate preview:', error)
+      setUploadPreviewUrl(null)
+      setIsGeneratingPreview(false)
+    })
+
+    return () => {
+      cancelled = true
+      if (url) URL.revokeObjectURL(url)
+    }
+  }, [uploadPreview])
 
   const handleSelectExisting = useCallback((assetId: string) => {
     onSelectModel(assetId)
@@ -259,11 +295,30 @@ export default function ModelDialog({
                   background: '#1a1a1a',
                 }}
               >
-                <ModelThumbnail
-                  assetId={uploadPreview.assetId}
-                  blob={uploadPreview.file}
-                  size={120}
-                />
+                {uploadPreviewUrl ? (
+                  <img
+                    src={uploadPreviewUrl}
+                    alt={uploadPreview.assetId}
+                    style={{
+                      width: 120,
+                      height: 120,
+                      objectFit: 'cover',
+                      borderRadius: 4,
+                      border: '1px solid #2f3545',
+                    }}
+                  />
+                ) : (
+                  <ModelThumbnail
+                    assetId={uploadPreview.assetId}
+                    blob={uploadPreview.file}
+                    size={120}
+                  />
+                )}
+                {isGeneratingPreview && (
+                  <div style={{ fontSize: 10, color: '#666' }}>
+                    Generating preview...
+                  </div>
+                )}
                 <div style={{ fontSize: 11, color: '#9aa4b2', wordBreak: 'break-word' }}>
                   {uploadPreview.assetId}
                 </div>
