@@ -2,8 +2,11 @@ import { useRef } from 'react'
 import type { RennWorld } from '@/types/world'
 import { uiLogger } from '@/utils/uiLogger'
 import { TextureManager } from '@/utils/textureManager'
+import { generateModelPreview } from '@/utils/modelPreview'
+import { ModelManager } from '@/utils/modelManager'
 import { createIndexedDbPersistence } from '@/persistence/indexedDb'
 import TextureThumbnail from './TextureThumbnail'
+import ModelThumbnail from './ModelThumbnail'
 
 const persistence = createIndexedDbPersistence()
 
@@ -35,12 +38,14 @@ export default function AssetPanel({ assets, world, onAssetsChange, onWorldChang
     for (let i = 0; i < files.length; i++) {
       const file = files[i]
       const id = file.name.replace(/\.[^.]+$/, '') || `asset_${Date.now()}_${i}`
+      const isImage = file.type.startsWith('image')
       next.set(id, file)
-      nextWorldAssets[id] = { path: `assets/${file.name}`, type: file.type.startsWith('image') ? 'texture' : 'model' }
+      nextWorldAssets[id] = { path: `assets/${file.name}`, type: isImage ? 'texture' : 'model' }
       
       // Save to global store immediately
       try {
-        await persistence.saveAsset(id, file)
+        const previewBlob = isImage ? null : await generateModelPreview(file)
+        await persistence.saveAsset(id, file, previewBlob)
       } catch (err) {
         console.error(`Failed to save asset ${id}:`, err)
       }
@@ -90,10 +95,16 @@ export default function AssetPanel({ assets, world, onAssetsChange, onWorldChang
         {assetIds.map((id) => {
           const blob = assets.get(id)
           if (!blob) return null
+          const isImage = TextureManager.isImageFile(blob)
+          const isModel = ModelManager.isModelFile(blob)
           
           return (
             <li key={id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-              <TextureThumbnail assetId={id} blob={blob} size={40} />
+              {isModel && !isImage ? (
+                <ModelThumbnail assetId={id} blob={blob} size={40} />
+              ) : (
+                <TextureThumbnail assetId={id} blob={blob} size={40} />
+              )}
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2, overflow: 'hidden' }}>
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', fontSize: 12 }}>{id}</span>
                 <span style={{ fontSize: 10, color: '#666' }}>{TextureManager.formatFileSize(blob.size)}</span>

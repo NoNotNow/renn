@@ -7,6 +7,7 @@ import ModelDialog from './ModelDialog'
 import ModelThumbnail from './ModelThumbnail'
 import Switch from './Switch'
 import { ModelManager } from '@/utils/modelManager'
+import { generateModelPreview } from '@/utils/modelPreview'
 import { createIndexedDbPersistence } from '@/persistence/indexedDb'
 import { sidebarRowStyle, sidebarLabelStyle } from './sharedStyles'
 
@@ -349,7 +350,8 @@ export default function ShapeEditor({
                   }
                   
                   // Save to global store
-                  await persistence.saveAsset(assetId, file)
+                  const previewBlob = await generateModelPreview(file)
+                  await persistence.saveAsset(assetId, file, previewBlob)
                   
                   // Update in-memory assets Map
                   const nextAssets = new Map(assets)

@@ -1,4 +1,8 @@
+import { useEffect, useState } from 'react'
 import { ModelManager } from '@/utils/modelManager'
+import { createIndexedDbPersistence } from '@/persistence/indexedDb'
+
+const persistence = createIndexedDbPersistence()
 
 export interface ModelThumbnailProps {
   assetId: string
@@ -16,8 +20,37 @@ export default function ModelThumbnail({
   onClick,
 }: ModelThumbnailProps) {
   const isModel = blob && ModelManager.isModelFile(blob)
+  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null)
 
-  if (isModel) {
+  useEffect(() => {
+    let url: string | null = null
+    let cancelled = false
+
+    if (!isModel) {
+      setThumbnailUrl(null)
+      return
+    }
+
+    persistence.loadAssetPreview(assetId).then((previewBlob) => {
+      if (cancelled) return
+      if (!previewBlob) {
+        setThumbnailUrl(null)
+        return
+      }
+      url = URL.createObjectURL(previewBlob)
+      setThumbnailUrl(url)
+    }).catch((error) => {
+      console.error(`Failed to load preview for ${assetId}:`, error)
+      setThumbnailUrl(null)
+    })
+
+    return () => {
+      cancelled = true
+      if (url) URL.revokeObjectURL(url)
+    }
+  }, [assetId, isModel])
+
+  if (isModel && thumbnailUrl) {
     return (
       <div
         style={{
@@ -29,24 +62,20 @@ export default function ModelThumbnail({
         }}
         onClick={onClick}
       >
-        <div
+        <img
+          src={thumbnailUrl}
+          alt={assetId}
           style={{
             width: size,
             height: size,
+            objectFit: 'cover',
             borderRadius: 4,
             border: '1px solid #2f3545',
-            background: '#2a2a2a',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: size * 0.5,
-            transition: onClick ? 'background-color 0.15s ease' : undefined,
+            transition: onClick ? 'opacity 0.15s ease' : undefined,
           }}
-          onMouseEnter={onClick ? (e) => { e.currentTarget.style.backgroundColor = '#333' } : undefined}
-          onMouseLeave={onClick ? (e) => { e.currentTarget.style.backgroundColor = '#2a2a2a' } : undefined}
-        >
-          📦
-        </div>
+          onMouseEnter={onClick ? (e) => { e.currentTarget.style.opacity = '0.8' } : undefined}
+          onMouseLeave={onClick ? (e) => { e.currentTarget.style.opacity = '1' } : undefined}
+        />
         {showName && (
           <span
             style={{

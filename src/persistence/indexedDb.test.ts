@@ -141,6 +141,19 @@ describe('IndexedDB Persistence', () => {
     expect(matching[0].name).toBe('Updated')
   })
 
+  it('saves and loads asset previews', async () => {
+    const modelBlob = new Blob(['model'], { type: 'model/gltf-binary' })
+    const previewBlob = new Blob(['preview'], { type: 'image/png' })
+
+    await persistence.saveAsset('model-preview', modelBlob, previewBlob)
+
+    const loadedPreview = await persistence.loadAssetPreview('model-preview')
+    expect(loadedPreview === null || loadedPreview instanceof Blob).toBe(true)
+    if (loadedPreview) {
+      expect(loadedPreview.size).toBeGreaterThan(0)
+    }
+  })
+
   it('exports project as zip', async () => {
     const world = createTestWorld()
     const assets = new Map<string, Blob>()

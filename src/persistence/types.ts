@@ -19,8 +19,9 @@ export interface PersistenceAPI {
   exportProject(id: string): Promise<Blob>
   importProject(file: File): Promise<{ id: string }>
   // Global asset management
-  saveAsset(assetId: string, blob: Blob): Promise<void>
+  saveAsset(assetId: string, blob: Blob, previewBlob?: Blob | null): Promise<void>
   deleteAsset(assetId: string): Promise<void>
   listAllAssets(): Promise<Array<{ assetId: string; type: string; size: number }>>
   loadAllAssets(): Promise<Map<string, Blob>>
+  loadAssetPreview(assetId: string): Promise<Blob | null>
 }

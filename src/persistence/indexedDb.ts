@@ -72,10 +72,22 @@ export function createIndexedDbPersistence(): PersistenceAPI {
       const updatedAt = Date.now()
       // Save project without assets (assets are stored globally)
       await db.put(STORE_PROJECTS, { id, name, world: data.world, updatedAt })
-      // Save any new assets to global store
+      // Save any new assets to global store (preserve existing previews)
+      const existingAssets = await db.getAll(STORE_ASSETS)
+      const existingPreviews = new Map<string, { blob: Blob | ArrayBuffer | null; type: string | null }>()
+      for (const asset of existingAssets) {
+        if (asset?.assetId) {
+          const previewType = typeof asset.previewType === 'string' ? asset.previewType : null
+          const previewBlob = asset.previewBlob instanceof Blob || asset.previewBlob instanceof ArrayBuffer
+            ? asset.previewBlob
+            : null
+          existingPreviews.set(asset.assetId, { blob: previewBlob, type: previewType })
+        }
+      }
       for (const [assetId, blob] of data.assets) {
         const assetType = blob.type.startsWith('image') ? 'texture' : 'model'
-        await db.put(STORE_ASSETS, { assetId, blob, type: assetType })
+        const existingPreview = existingPreviews.get(assetId) ?? { blob: null, type: null }
+        await db.put(STORE_ASSETS, { assetId, blob, type: assetType, previewBlob: existingPreview.blob, previewType: existingPreview.type })
       }
       await db.close()
     },
@@ -139,10 +151,31 @@ export function createIndexedDbPersistence(): PersistenceAPI {
     },
 
     // Global asset management methods
-    async saveAsset(assetId: string, blob: Blob): Promise<void> {
+    async saveAsset(assetId: string, blob: Blob, previewBlob?: Blob | null): Promise<void> {
       const db = await getDB()
       const assetType = blob.type.startsWith('image') ? 'texture' : 'model'
-      await db.put(STORE_ASSETS, { assetId, blob, type: assetType })
+      let resolvedPreview: Blob | ArrayBuffer | null = previewBlob ?? null
+      let resolvedPreviewType: string | null = previewBlob?.type ?? null
+      if (previewBlob === undefined) {
+        const existing = await db.get(STORE_ASSETS, assetId)
+        if (existing?.previewBlob instanceof Blob || existing?.previewBlob instanceof ArrayBuffer) {
+          resolvedPreview = existing.previewBlob
+        } else {
+          resolvedPreview = null
+        }
+        resolvedPreviewType = typeof existing?.previewType === 'string' ? existing.previewType : null
+      }
+      if (previewBlob instanceof Blob) {
+        try {
+          resolvedPreview = await previewBlob.arrayBuffer()
+          resolvedPreviewType = previewBlob.type ?? 'image/png'
+        } catch (error) {
+          console.error('Failed to encode preview blob for storage:', error)
+          resolvedPreview = previewBlob
+          resolvedPreviewType = previewBlob.type ?? 'image/png'
+        }
+      }
+      await db.put(STORE_ASSETS, { assetId, blob, type: assetType, previewBlob: resolvedPreview, previewType: resolvedPreviewType })
       await db.close()
     },
 
@@ -174,6 +207,32 @@ export function createIndexedDbPersistence(): PersistenceAPI {
       }
       await db.close()
       return assets
+    },
+
+    async loadAssetPreview(assetId: string): Promise<Blob | null> {
+      const db = await getDB()
+      const asset = await db.get(STORE_ASSETS, assetId)
+      await db.close()
+      const preview = asset?.previewBlob
+      const previewType = typeof asset?.previewType === 'string' ? asset.previewType : 'image/png'
+      if (preview instanceof Blob) {
+        return preview
+      }
+      if (preview instanceof ArrayBuffer) {
+        return new Blob([preview], { type: previewType })
+      }
+      if (preview && ArrayBuffer.isView(preview)) {
+        return new Blob([preview.buffer], { type: previewType })
+      }
+      if (preview && typeof (preview as Blob).arrayBuffer === 'function') {
+        try {
+          const buffer = await (preview as Blob).arrayBuffer()
+          return new Blob([buffer], { type: (preview as Blob).type ?? previewType })
+        } catch {
+          return null
+        }
+      }
+      return null
     },
   }
 }

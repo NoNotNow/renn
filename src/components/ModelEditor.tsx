@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { RennWorld } from '@/types/world'
 import { uiLogger } from '@/utils/uiLogger'
 import { ModelManager } from '@/utils/modelManager'
+import { generateModelPreview } from '@/utils/modelPreview'
 import { createIndexedDbPersistence } from '@/persistence/indexedDb'
 import ModelDialog from './ModelDialog'
 import ModelThumbnail from './ModelThumbnail'
@@ -140,7 +141,8 @@ export default function ModelEditor({
           }
           
           // Save to global store
-          await persistence.saveAsset(assetId, file)
+          const previewBlob = await generateModelPreview(file)
+          await persistence.saveAsset(assetId, file, previewBlob)
           
           // Update in-memory assets Map (this makes it appear in the Asset Panel)
           const nextAssets = new Map(assets)
