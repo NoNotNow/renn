@@ -120,7 +120,7 @@ describe('RenderItemRegistry', () => {
       ],
     }
     const { loadWorld } = await import('@/loader/loadWorld')
-    const { entities } = loadWorld(world)
+    const { entities } = await loadWorld(world)
     const pw = await createPhysicsWorld(world, entities)
     for (let i = 0; i < 20; i++) pw.step(1 / 60)
     const registry = RenderItemRegistry.create(entities, pw)

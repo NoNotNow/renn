@@ -40,10 +40,17 @@ function worldWithCylinder(): RennWorld {
   }
 }
 
-function renderPropertyPanel(world: RennWorld, selectedEntityId: string | null, onWorldChange = vi.fn(), onDeleteEntity?: (id: string) => void) {
+function renderPropertyPanel(
+  world: RennWorld,
+  selectedEntityId: string | null,
+  onWorldChange = vi.fn(),
+  onDeleteEntity?: (id: string) => void,
+  assets: Map<string, Blob> = new Map()
+) {
   return render(
     <PropertyPanel
       world={world}
+      assets={assets}
       selectedEntityId={selectedEntityId}
       onWorldChange={onWorldChange}
       onDeleteEntity={onDeleteEntity}
@@ -59,9 +66,10 @@ describe('PropertyPanel', () => {
 
   it('shows entity name and shape-specific inputs when box entity selected', () => {
     const world = worldWithBox()
-    const entityId = world.entities[0].id
-    renderPropertyPanel(world, entityId)
-    expect(screen.getByRole('heading', { name: entityId })).toBeInTheDocument()
+    const entity = world.entities[0]
+    const displayName = entity.name ?? entity.id
+    renderPropertyPanel(world, entity.id)
+    expect(screen.getByRole('heading', { name: displayName })).toBeInTheDocument()
     expect(screen.getByLabelText(/width/i)).toBeInTheDocument()
     expect(screen.getByLabelText(/height/i)).toBeInTheDocument()
     expect(screen.getByLabelText(/depth/i)).toBeInTheDocument()
@@ -102,14 +110,12 @@ describe('PropertyPanel', () => {
 
   describe('inspector inputs', () => {
     it('changing Name updates entity name', async () => {
-      const user = userEvent.setup()
       const onWorldChange = vi.fn()
       const world = worldWithBox()
       const entityId = world.entities[0].id
       renderPropertyPanel(world, entityId, onWorldChange)
       const nameInput = screen.getByLabelText(/^name$/i)
-      await user.clear(nameInput)
-      await user.paste('My Box')
+      fireEvent.change(nameInput, { target: { value: 'My Box' } })
       expect(onWorldChange).toHaveBeenCalled()
       const lastCall = onWorldChange.mock.calls[onWorldChange.mock.calls.length - 1]
       const updatedEntity = lastCall[0].entities.find((e: { id: string }) => e.id === entityId)

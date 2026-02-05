@@ -17,17 +17,17 @@ function minimalWorldWithShapes(): RennWorld {
 }
 
 describe('loadWorld', () => {
-  it('loads world with one entity of each primitive shape without throwing', () => {
+  it('loads world with one entity of each primitive shape without throwing', async () => {
     const world = minimalWorldWithShapes()
-    const result = loadWorld(world)
+    const result = await loadWorld(world)
     expect(result.entities).toHaveLength(5)
     expect(result.scene).toBeDefined()
     expect(result.world).toBe(world)
   })
 
-  it('returns one LoadedEntity per world entity with mesh and entity', () => {
+  it('returns one LoadedEntity per world entity with mesh and entity', async () => {
     const world = minimalWorldWithShapes()
-    const { entities } = loadWorld(world)
+    const { entities } = await loadWorld(world)
     for (const loaded of entities) {
       expect(loaded.entity).toBeDefined()
       expect(loaded.entity.id).toBeDefined()

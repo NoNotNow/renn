@@ -10,7 +10,7 @@ const STORE_ASSETS = 'assets'
 
 function getDB(): Promise<IDBPDatabase> {
   return openDB(DB_NAME, DB_VERSION, {
-    upgrade(db, oldVersion, newVersion, transaction) {
+    upgrade(db, oldVersion, _newVersion, _transaction) {
       if (!db.objectStoreNames.contains(STORE_PROJECTS)) {
         db.createObjectStore(STORE_PROJECTS, { keyPath: 'id' })
       }
@@ -107,8 +107,24 @@ export function createIndexedDbPersistence(): PersistenceAPI {
       const assetsFolder = zip.folder('assets')
       if (assetsFolder) {
         for (const [assetId, blob] of assets) {
-          const ext = blob.type.includes('png') ? 'png' : blob.type.includes('glb') ? 'glb' : 'bin'
-          assetsFolder.file(`${assetId}.${ext}`, blob)
+          const assetPayload: unknown = blob
+          const assetType = blob instanceof Blob && typeof blob.type === 'string' ? blob.type : ''
+          const ext = assetType.includes('png') ? 'png' : assetType.includes('glb') ? 'glb' : 'bin'
+          let data: Blob | ArrayBuffer | ArrayBufferView | string | null = null
+          if (assetPayload instanceof Blob) {
+            data = typeof assetPayload.arrayBuffer === 'function' ? await assetPayload.arrayBuffer() : assetPayload
+          } else if (
+            assetPayload instanceof ArrayBuffer ||
+            ArrayBuffer.isView(assetPayload) ||
+            typeof assetPayload === 'string'
+          ) {
+            data = assetPayload
+          }
+          if (!data) {
+            console.warn('Skipping unsupported asset payload during export:', assetId)
+            continue
+          }
+          assetsFolder.file(`${assetId}.${ext}`, data)
         }
       }
       return zip.generateAsync({ type: 'blob' })
@@ -116,7 +132,8 @@ export function createIndexedDbPersistence(): PersistenceAPI {
 
     async importProject(file: File): Promise<{ id: string }> {
       const JSZip = (await import('jszip')).default
-      const { validateWorldDocument } = await import('@/schema/validate')
+      const validateWorldDocument: typeof import('@/schema/validate').validateWorldDocument =
+        (await import('@/schema/validate')).validateWorldDocument
       const zip = await JSZip.loadAsync(file)
       const worldFile = zip.file('world.json')
       if (!worldFile) throw new Error('Invalid project: missing world.json')
@@ -166,11 +183,16 @@ export function createIndexedDbPersistence(): PersistenceAPI {
         resolvedPreviewType = typeof existing?.previewType === 'string' ? existing.previewType : null
       }
       if (previewBlob instanceof Blob) {
-        try {
-          resolvedPreview = await previewBlob.arrayBuffer()
-          resolvedPreviewType = previewBlob.type ?? 'image/png'
-        } catch (error) {
-          console.error('Failed to encode preview blob for storage:', error)
+        if (typeof previewBlob.arrayBuffer === 'function') {
+          try {
+            resolvedPreview = await previewBlob.arrayBuffer()
+            resolvedPreviewType = previewBlob.type ?? 'image/png'
+          } catch (error) {
+            console.error('Failed to encode preview blob for storage:', error)
+            resolvedPreview = previewBlob
+            resolvedPreviewType = previewBlob.type ?? 'image/png'
+          }
+        } else {
           resolvedPreview = previewBlob
           resolvedPreviewType = previewBlob.type ?? 'image/png'
         }
@@ -222,7 +244,11 @@ export function createIndexedDbPersistence(): PersistenceAPI {
         return new Blob([preview], { type: previewType })
       }
       if (preview && ArrayBuffer.isView(preview)) {
-        return new Blob([preview.buffer], { type: previewType })
+        const buffer = preview.buffer
+        if (buffer instanceof ArrayBuffer) {
+          return new Blob([buffer], { type: previewType })
+        }
+        return null
       }
       if (preview && typeof (preview as Blob).arrayBuffer === 'function') {
         try {

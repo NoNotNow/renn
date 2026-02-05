@@ -5,7 +5,7 @@
 export class TextureManager {
   private static readonly MAX_FILE_SIZE = 50 * 1024 * 1024 // 50MB
   private static readonly ALLOWED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp', 'image/bmp']
-  private static readonly thumbnailUrlCache = new Map<string, string>()
+  private static readonly thumbnailUrlCache = new Map<Blob, string>()
 
   /**
    * Validates a texture file before upload.
@@ -63,13 +63,10 @@ export class TextureManager {
    * @returns Object URL string
    */
   static createThumbnailUrl(blob: Blob): string {
-    // Use blob as cache key (blob reference)
-    const cacheKey = `${blob.size}_${blob.type}_${blob.lastModified}`
-    
-    let url = this.thumbnailUrlCache.get(cacheKey)
+    let url = this.thumbnailUrlCache.get(blob)
     if (!url) {
       url = URL.createObjectURL(blob)
-      this.thumbnailUrlCache.set(cacheKey, url)
+      this.thumbnailUrlCache.set(blob, url)
     }
     
     return url

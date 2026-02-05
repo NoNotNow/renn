@@ -25,6 +25,7 @@ vi.mock('@/persistence/indexedDb', () => ({
     deleteProject: vi.fn(),
     exportProject: vi.fn(),
     importProject: vi.fn(),
+    loadAllAssets: vi.fn().mockResolvedValue(new Map()),
   }),
 }))
 
@@ -36,6 +37,17 @@ function renderBuilder() {
       </ProjectProvider>
     </MemoryRouter>
   )
+}
+
+async function openEntitiesTab(user: ReturnType<typeof userEvent.setup>) {
+  const entitiesButton = screen.queryByRole('button', { name: 'entities' })
+  if (entitiesButton) {
+    await user.click(entitiesButton)
+    return
+  }
+  const [overflowButton] = screen.getAllByRole('button', { name: '...' })
+  await user.click(overflowButton)
+  await user.click(screen.getByRole('button', { name: 'entities' }))
 }
 
 describe('updateEntityPosition', () => {
@@ -77,11 +89,12 @@ describe('Builder', () => {
   })
 
   it('renders add entity dropdown and entity list', async () => {
+    const user = userEvent.setup()
     renderBuilder()
     await act(async () => {
       await Promise.resolve()
     })
-    await userEvent.click(screen.getByRole('button', { name: 'entities' }))
+    await openEntitiesTab(user)
     expect(screen.getByTitle('Add entity')).toBeInTheDocument()
     const entityList = screen.getByRole('list')
     expect(entityList).toBeInTheDocument()
@@ -91,7 +104,7 @@ describe('Builder', () => {
   it('adds entity when selecting "Add box" and selects the new entity', async () => {
     const user = userEvent.setup()
     renderBuilder()
-    await user.click(screen.getByRole('button', { name: 'entities' }))
+    await openEntitiesTab(user)
     const entityList = screen.getByRole('list')
     const initialCount = entityList.children.length
 
@@ -136,7 +149,7 @@ describe('Builder', () => {
     await act(async () => {
       await Promise.resolve()
     })
-    await user.click(screen.getByRole('button', { name: 'entities' }))
+    await openEntitiesTab(user)
     const ballButton = screen.getByRole('button', { name: 'ball' })
     await user.click(ballButton)
     expect(sceneViewProps.selectedEntityId).toBe('ball')
