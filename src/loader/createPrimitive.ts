@@ -1,7 +1,8 @@
 import * as THREE from 'three'
 import { GLTFLoader } from 'three-stdlib'
-import type { Shape, Vec3, Quat, MaterialRef } from '@/types/world'
+import type { Shape, Vec3, Rotation, MaterialRef } from '@/types/world'
 import type { DisposableAssetResolver } from './assetResolverImpl'
+import { eulerToQuaternion } from '@/utils/rotationUtils'
 
 function colorFromRef(material: MaterialRef | undefined): THREE.Color {
   if (material?.color && Array.isArray(material.color)) {
@@ -71,11 +72,12 @@ async function materialFromRef(
 function applyTransform(
   mesh: THREE.Mesh,
   position: Vec3,
-  rotation: Quat,
+  rotation: Rotation,
   scale: Vec3
 ): void {
   mesh.position.set(position[0], position[1], position[2])
-  mesh.quaternion.set(rotation[0], rotation[1], rotation[2], rotation[3])
+  const quat = eulerToQuaternion(rotation)
+  mesh.quaternion.copy(quat)
   mesh.scale.set(scale[0], scale[1], scale[2])
 }
 
@@ -194,7 +196,7 @@ export async function buildEntityMesh(
   shape: Shape | undefined,
   materialRef: MaterialRef | undefined,
   position: Vec3,
-  rotation: Quat,
+  rotation: Rotation,
   scale: Vec3,
   assetResolver?: DisposableAssetResolver,
   modelId?: string

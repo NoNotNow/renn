@@ -1,6 +1,6 @@
 import { createContext, useState, useCallback, useEffect, useRef, useMemo, type ReactNode } from 'react'
 import { createIndexedDbPersistence } from '@/persistence/indexedDb'
-import type { RennWorld, Vec3, Quat } from '@/types/world'
+import type { RennWorld, Vec3, Rotation } from '@/types/world'
 import type { ProjectMeta } from '@/persistence/types'
 import { sampleWorld } from '@/data/sampleWorld'
 import { uiLogger } from '@/utils/uiLogger'
@@ -44,7 +44,7 @@ interface ProjectContextActions {
   updateAssets: (updater: (prev: Map<string, Blob>) => Map<string, Blob>) => void
   
   // State sync
-  syncPosesFromScene: (poses: Map<string, { position: Vec3; rotation: Quat }>) => void
+  syncPosesFromScene: (poses: Map<string, { position: Vec3; rotation: Rotation }>) => void
   
   // Export/Import
   exportProject: () => void
@@ -241,7 +241,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     setCurrentProject((prev) => ({ ...prev, isDirty: true }))
   }, [])
   
-  const syncPosesFromScene = useCallback((poses: Map<string, { position: Vec3; rotation: Quat }>) => {
+  const syncPosesFromScene = useCallback((poses: Map<string, { position: Vec3; rotation: Rotation }>) => {
     setWorld((prev) => ({
       ...prev,
       entities: prev.entities.map((e) => {

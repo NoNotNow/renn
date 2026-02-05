@@ -1,8 +1,11 @@
 /** Vec3: position, scale, or Euler (when used for display). */
 export type Vec3 = [number, number, number]
 
-/** Quat: rotation as quaternion [x, y, z, w]. */
-export type Quat = [number, number, number, number]
+/** Rotation: Euler angles in radians [x, y, z]. */
+export type Rotation = [number, number, number]
+
+/** @deprecated Use Rotation instead. Kept for backwards compatibility during migration. */
+export type Quat = Rotation
 
 /** Color: [r, g, b] or [r, g, b, a] 0–1. */
 export type Color = [number, number, number] | [number, number, number, number]
@@ -19,7 +22,7 @@ export interface CameraConfig {
   height?: number
   fov?: number
   defaultPosition?: Vec3
-  defaultRotation?: Quat
+  defaultRotation?: Rotation
 }
 
 export interface DirectionalLightConfig {
@@ -82,7 +85,7 @@ export interface Entity {
   bodyType?: 'static' | 'dynamic' | 'kinematic'
   shape?: Shape
   position?: Vec3
-  rotation?: Quat
+  rotation?: Rotation
   scale?: Vec3
   model?: string
   material?: MaterialRef
@@ -103,15 +106,15 @@ export interface RennWorld {
 
 export const DEFAULT_GRAVITY: Vec3 = [0, -9.81, 0]
 export const DEFAULT_POSITION: Vec3 = [0, 0, 0]
-export const DEFAULT_ROTATION: Quat = [0, 0, 0, 1]
+export const DEFAULT_ROTATION: Rotation = [0, 0, 0]
 export const DEFAULT_SCALE: Vec3 = [1, 1, 1]
 
 /**
  * Complete entity pose (position and rotation)
  */
-export type EntityPose = { position: Vec3; rotation: Quat }
+export type EntityPose = { position: Vec3; rotation: Rotation }
 
 /**
  * Partial entity pose (either position or rotation, or both)
  */
-export type PartialEntityPose = { position?: Vec3; rotation?: Quat }
+export type PartialEntityPose = { position?: Vec3; rotation?: Rotation }

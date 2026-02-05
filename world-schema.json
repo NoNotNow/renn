@@ -30,11 +30,12 @@
       "minItems": 3,
       "maxItems": 3
     },
-    "Quat": {
+    "Rotation": {
       "type": "array",
       "items": { "type": "number" },
-      "minItems": 4,
-      "maxItems": 4
+      "minItems": 3,
+      "maxItems": 3,
+      "description": "Euler angles in radians [x, y, z]"
     },
     "Color": {
       "type": "array",
@@ -73,7 +74,7 @@
         "height": { "type": "number" },
         "fov": { "type": "number" },
         "defaultPosition": { "$ref": "#/$defs/Vec3" },
-        "defaultRotation": { "$ref": "#/$defs/Quat" }
+        "defaultRotation": { "$ref": "#/$defs/Rotation" }
       },
       "additionalProperties": false
     },
@@ -184,7 +185,7 @@
         "bodyType": { "enum": ["static", "dynamic", "kinematic"] },
         "shape": { "$ref": "#/$defs/Shape" },
         "position": { "$ref": "#/$defs/Vec3" },
-        "rotation": { "$ref": "#/$defs/Quat" },
+        "rotation": { "$ref": "#/$defs/Rotation" },
         "scale": { "$ref": "#/$defs/Vec3" },
         "model": { "type": "string" },
         "material": { "$ref": "#/$defs/MaterialRef" },

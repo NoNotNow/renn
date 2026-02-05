@@ -1,4 +1,4 @@
-import type { Entity, Shape, Color, Vec3, Quat } from '@/types/world'
+import type { Entity, Shape, Color, Vec3, Rotation } from '@/types/world'
 import { DEFAULT_POSITION, DEFAULT_ROTATION, DEFAULT_SCALE } from '@/types/world'
 import { generateEntityId } from '@/utils/idGenerator'
 
@@ -105,20 +105,13 @@ export function generateRandomPosition(radius: number, yMin: number = 0, yMax?: 
   return [x, y, z]
 }
 
-export function generateRandomRotation(): Quat {
-  // Generate random quaternion
-  const u1 = Math.random()
-  const u2 = Math.random()
-  const u3 = Math.random()
-  
-  const sqrt1MinusU1 = Math.sqrt(1 - u1)
-  const sqrtU1 = Math.sqrt(u1)
-  
+export function generateRandomRotation(): Rotation {
+  // Generate random Euler angles (in radians)
+  // Each axis can rotate from 0 to 2π
   return [
-    sqrt1MinusU1 * Math.sin(2 * Math.PI * u2),
-    sqrt1MinusU1 * Math.cos(2 * Math.PI * u2),
-    sqrtU1 * Math.sin(2 * Math.PI * u3),
-    sqrtU1 * Math.cos(2 * Math.PI * u3),
+    Math.random() * Math.PI * 2,
+    Math.random() * Math.PI * 2,
+    Math.random() * Math.PI * 2,
   ]
 }
 
@@ -168,7 +161,7 @@ export function createBulkEntities(params: BulkEntityParams): Entity[] {
     }
     
     // Determine rotation
-    const rotation: Quat = params.rotation.mode === 'default' 
+    const rotation: Rotation = params.rotation.mode === 'default' 
       ? [...DEFAULT_ROTATION] 
       : generateRandomRotation()
     

@@ -7,7 +7,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { createDefaultEntity, createBulkEntities, type AddableShapeType, type BulkEntityParams } from '@/data/entityDefaults'
 import { useProjectContext } from '@/hooks/useProjectContext'
 import { useLocalStorageState } from '@/hooks/useLocalStorageState'
-import type { Vec3, Quat } from '@/types/world'
+import type { Vec3, Rotation } from '@/types/world'
 import { uiLogger } from '@/utils/uiLogger'
 
 export default function Builder() {
@@ -132,20 +132,20 @@ export default function Builder() {
   )
 
   const getCurrentPose = useCallback(
-    (id: string): { position: Vec3; rotation: Quat } => {
+    (id: string): { position: Vec3; rotation: Rotation } => {
       const reg = sceneViewRef.current?.getAllPoses()
       const savedPose = reg?.get(id)
       if (savedPose) return savedPose
       const entity = world.entities.find((e) => e.id === id)
       return {
         position: entity?.position ?? [0, 0, 0],
-        rotation: entity?.rotation ?? [0, 0, 0, 1],
+        rotation: entity?.rotation ?? [0, 0, 0],
       }
     },
     [world.entities]
   )
 
-  const handleEntityPoseChange = useCallback((id: string, pose: { position?: Vec3; rotation?: Quat }) => {
+  const handleEntityPoseChange = useCallback((id: string, pose: { position?: Vec3; rotation?: Rotation }) => {
     sceneViewRef.current?.updateEntityPose(id, pose)
   }, [])
 

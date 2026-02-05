@@ -1,8 +1,9 @@
 import { useRef, useEffect, forwardRef, useImperativeHandle, useState } from 'react'
 import * as THREE from 'three'
 import { loadWorld } from '@/loader/loadWorld'
-import type { RennWorld, Vec3, Quat, CameraConfig } from '@/types/world'
-import { DEFAULT_GRAVITY } from '@/types/world'
+import type { RennWorld, Vec3, Rotation, CameraConfig } from '@/types/world'
+import { DEFAULT_GRAVITY, DEFAULT_ROTATION } from '@/types/world'
+import { eulerToQuaternion } from '@/utils/rotationUtils'
 import type { LoadedEntity } from '@/loader/loadWorld'
 import { CameraController } from '@/camera/cameraController'
 import { createGameAPI } from '@/scripts/gameApi'
@@ -31,8 +32,8 @@ export interface SceneViewProps {
 
 export interface SceneViewHandle {
   setViewPreset: (preset: 'top' | 'front' | 'right') => void
-  updateEntityPose: (id: string, pose: { position?: Vec3; rotation?: Quat }) => void
-  getAllPoses: () => Map<string, { position: Vec3; rotation: Quat }> | null
+  updateEntityPose: (id: string, pose: { position?: Vec3; rotation?: Rotation }) => void
+  getAllPoses: () => Map<string, { position: Vec3; rotation: Rotation }> | null
   resetCamera: () => void
 }
 
@@ -84,7 +85,7 @@ function SceneViewInner({
     setViewPreset: (preset: 'top' | 'front' | 'right') => {
       cameraCtrlRef.current?.setViewPreset(preset)
     },
-    updateEntityPose: (id: string, pose: { position?: Vec3; rotation?: Quat }) => {
+    updateEntityPose: (id: string, pose: { position?: Vec3; rotation?: Rotation }) => {
       if (pose.position) registryRef.current?.setPosition(id, pose.position)
       if (pose.rotation) registryRef.current?.setRotation(id, pose.rotation)
     },
@@ -98,11 +99,12 @@ function SceneViewInner({
       // Get default position and rotation from world config
       const cameraConfig = world.world.camera
       const defaultPos = cameraConfig?.defaultPosition ?? [0, 5, 10]
-      const defaultRot = cameraConfig?.defaultRotation ?? [0, 0, 0, 1]
+      const defaultRot = cameraConfig?.defaultRotation ?? DEFAULT_ROTATION
       
       // Reset camera position and rotation
       camera.position.set(defaultPos[0], defaultPos[1], defaultPos[2])
-      camera.quaternion.set(defaultRot[0], defaultRot[1], defaultRot[2], defaultRot[3])
+      const quat = eulerToQuaternion(defaultRot)
+      camera.quaternion.copy(quat)
       camera.up.set(0, 1, 0)
     }
   }), [camera, world.world.camera])

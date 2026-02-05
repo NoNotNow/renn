@@ -2,9 +2,10 @@ import RAPIER from '@dimforge/rapier3d-compat'
 import * as THREE from 'three'
 import type { LoadedEntity } from '@/loader/loadWorld'
 import type { RennWorld, Shape, Entity, TrimeshSimplificationConfig } from '@/types/world'
-import { DEFAULT_GRAVITY } from '@/types/world'
+import { DEFAULT_GRAVITY, DEFAULT_ROTATION } from '@/types/world'
 import { extractMeshGeometry, getGeometryInfo } from '@/utils/geometryExtractor'
 import { simplifyGeometry, shouldSimplifyGeometry } from '@/utils/meshSimplifier'
+import { eulerToRapierQuaternion } from '@/utils/rotationUtils'
 
 export type CollisionPair = { entityIdA: string; entityIdB: string }
 
@@ -36,7 +37,7 @@ export class PhysicsWorld {
   addEntity(entity: Entity, mesh: THREE.Mesh): void {
     const bodyType = entity.bodyType ?? 'static'
     const position = entity.position ?? [0, 0, 0]
-    const rotation = entity.rotation ?? [0, 0, 0, 1]
+    const rotation = entity.rotation ?? DEFAULT_ROTATION
 
     // Create rigid body description
     let rigidBodyDesc: RAPIER.RigidBodyDesc
@@ -56,21 +57,10 @@ export class PhysicsWorld {
     // Set position
     rigidBodyDesc.setTranslation(position[0], position[1], position[2])
     
-    // Validate and normalize quaternion to prevent WASM errors
-    const quat = { x: rotation[0], y: rotation[1], z: rotation[2], w: rotation[3] }
-    const length = Math.sqrt(quat.x ** 2 + quat.y ** 2 + quat.z ** 2 + quat.w ** 2)
-    if (length < 0.0001 || !isFinite(length)) {
-      console.warn(`[PhysicsWorld] Invalid quaternion for entity ${entity.id}, using identity`)
-      rigidBodyDesc.setRotation({ x: 0, y: 0, z: 0, w: 1 })
-    } else {
-      // Normalize quaternion
-      rigidBodyDesc.setRotation({
-        x: quat.x / length,
-        y: quat.y / length,
-        z: quat.z / length,
-        w: quat.w / length
-      })
-    }
+    // Convert Euler angles to quaternion for Rapier
+    const quat = eulerToRapierQuaternion(rotation)
+    // Rapier quaternions are already normalized by eulerToRapierQuaternion
+    rigidBodyDesc.setRotation(quat)
 
     // Create the rigid body
     const rigidBody = this.world.createRigidBody(rigidBodyDesc)
@@ -282,10 +272,11 @@ export class PhysicsWorld {
     }
   }
 
-  setRotation(entityId: string, x: number, y: number, z: number, w: number): void {
+  setRotation(entityId: string, rotation: [number, number, number]): void {
     const body = this.bodyMap.get(entityId)
     if (body) {
-      body.setRotation({ x, y, z, w }, true)
+      const quat = eulerToRapierQuaternion(rotation)
+      body.setRotation(quat, true)
     }
   }
 

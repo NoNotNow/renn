@@ -2,7 +2,7 @@ import { useState } from 'react'
 import PropertyPanel from './PropertyPanel'
 import ScriptPanel from './ScriptPanel'
 import AssetPanel from './AssetPanel'
-import type { RennWorld, Vec3, Quat } from '@/types/world'
+import type { RennWorld, Vec3, Rotation } from '@/types/world'
 import { uiLogger } from '@/utils/uiLogger'
 import Sidebar from './layout/Sidebar'
 
@@ -15,8 +15,8 @@ export interface PropertySidebarProps {
   onWorldChange: (world: RennWorld) => void
   onAssetsChange: (assets: Map<string, Blob>) => void
   onDeleteEntity: (entityId: string) => void
-  getCurrentPose?: (id: string) => { position: Vec3; rotation: Quat }
-  onEntityPoseChange?: (id: string, pose: { position?: Vec3; rotation?: Quat }) => void
+  getCurrentPose?: (id: string) => { position: Vec3; rotation: Rotation }
+  onEntityPoseChange?: (id: string, pose: { position?: Vec3; rotation?: Rotation }) => void
   isOpen: boolean
   onToggle: () => void
 }

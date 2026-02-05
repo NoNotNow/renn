@@ -176,13 +176,13 @@ describe('PropertyPanel', () => {
       expect(updatedEntity?.scale).toEqual([2, 1, 1])
     })
 
-    it('changing Rotation (quat) x updates entity rotation', async () => {
+    it('changing Rotation X updates entity rotation', async () => {
       const user = userEvent.setup()
       const onWorldChange = vi.fn()
       const world = worldWithBox()
       const entityId = world.entities[0].id
       renderPropertyPanel(world, entityId, onWorldChange)
-      const rotationXInput = screen.getByLabelText(/rotation \(quat\) x/i)
+      const rotationXInput = screen.getByLabelText(/rotation x/i)
       await user.clear(rotationXInput)
       await user.type(rotationXInput, '0.5')
       expect(onWorldChange).toHaveBeenCalled()

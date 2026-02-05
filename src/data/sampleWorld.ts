@@ -18,7 +18,7 @@ export const sampleWorld: RennWorld = {
       distance: 8, 
       height: 2,
       defaultPosition: [0, 5, 10],
-      defaultRotation: [0, 0, 0, 1]
+      defaultRotation: [0, 0, 0]
     },
   },
   assets: {},

@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import { validateWorldDocument } from '@/schema/validate'
-import type { RennWorld, Entity, Vec3, Quat } from '@/types/world'
+import type { RennWorld, Entity, Vec3, Rotation } from '@/types/world'
 import {
   DEFAULT_GRAVITY,
   DEFAULT_POSITION,
@@ -90,7 +90,7 @@ export async function loadWorld(
 
   for (const entity of world.entities) {
     const position: Vec3 = entity.position ?? DEFAULT_POSITION
-    const rotation: Quat = entity.rotation ?? DEFAULT_ROTATION
+    const rotation: Rotation = entity.rotation ?? DEFAULT_ROTATION
     const scale: Vec3 = entity.scale ?? DEFAULT_SCALE
 
     const shape = entity.shape

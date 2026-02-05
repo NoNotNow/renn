@@ -31,7 +31,7 @@ export function createWorldWithShapes(shapes: AddableShapeType[]): RennWorld {
     bodyType: 'static' as const,
     shape: getDefaultShapeForType(shapeType),
     position: [index * 2, 0, 0] as [number, number, number],
-    rotation: [0, 0, 0, 1] as [number, number, number, number],
+    rotation: [0, 0, 0] as [number, number, number],
   }))
   
   return createTestWorld({ entities })

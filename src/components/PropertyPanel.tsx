@@ -1,4 +1,4 @@
-import type { RennWorld, Entity, Vec3, Quat } from '@/types/world'
+import type { RennWorld, Entity, Vec3, Rotation } from '@/types/world'
 import { uiLogger } from '@/utils/uiLogger'
 import TransformEditor from './TransformEditor'
 import ShapeEditor from './ShapeEditor'
@@ -14,8 +14,8 @@ export interface PropertyPanelProps {
   onWorldChange: (world: RennWorld) => void
   onAssetsChange?: (assets: Map<string, Blob>) => void
   onDeleteEntity?: (entityId: string) => void
-  getCurrentPose?: (id: string) => { position: Vec3; rotation: Quat }
-  onEntityPoseChange?: (id: string, pose: { position?: Vec3; rotation?: Quat }) => void
+  getCurrentPose?: (id: string) => { position: Vec3; rotation: Rotation }
+  onEntityPoseChange?: (id: string, pose: { position?: Vec3; rotation?: Rotation }) => void
 }
 
 export default function PropertyPanel({
@@ -57,7 +57,7 @@ export default function PropertyPanel({
   }
 
   const position = entity.position ?? [0, 0, 0]
-  const rotation = entity.rotation ?? [0, 0, 0, 1]
+  const rotation = entity.rotation ?? [0, 0, 0]
   const scale = entity.scale ?? [1, 1, 1]
   const isLocked = entity.locked ?? false
 

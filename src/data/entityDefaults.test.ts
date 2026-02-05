@@ -28,7 +28,7 @@ describe('createDefaultEntity', () => {
     expect(entity.position[1]).toBeLessThanOrEqual(0.35)
     expect(entity.position[2]).toBeGreaterThanOrEqual(-0.35)
     expect(entity.position[2]).toBeLessThanOrEqual(0.35)
-    expect(entity.rotation).toEqual([0, 0, 0, 1])
+    expect(entity.rotation).toEqual([0, 0, 0])
     entity.scale.forEach((value) => {
       expect(value).toBeGreaterThanOrEqual(0.6)
       expect(value).toBeLessThanOrEqual(1.4)

@@ -1,8 +1,9 @@
 import * as THREE from 'three'
 import type { LoadedEntity } from '@/loader/loadWorld'
 import type { PhysicsWorld } from '@/physics/rapierPhysics'
-import type { Vec3, Quat } from '@/types/world'
+import type { Vec3, Rotation } from '@/types/world'
 import { RenderItem } from './renderItem'
+import { rapierQuaternionToEuler } from '@/utils/rotationUtils'
 
 /**
  * Registry of render items: one per entity. Owns body→mesh sync each frame.
@@ -54,12 +55,12 @@ export class RenderItemRegistry {
     this.items.get(id)?.setPosition(v)
   }
 
-  getRotation(id: string): Quat | null {
+  getRotation(id: string): Rotation | null {
     const item = this.items.get(id)
     return item ? item.getRotation() : null
   }
 
-  setRotation(id: string, v: Quat): void {
+  setRotation(id: string, v: Rotation): void {
     this.items.get(id)?.setRotation(v)
   }
 
@@ -82,6 +83,8 @@ export class RenderItemRegistry {
       const rot = cached.rotation
       item.mesh.position.set(pos.x, pos.y, pos.z)
       item.mesh.quaternion.set(rot.x, rot.y, rot.z, rot.w)
+      // Note: Rotation is stored as Euler in entity, but mesh uses quaternion
+      // The conversion happens in getRotation() when reading from entity
     }
   }
 
@@ -89,8 +92,8 @@ export class RenderItemRegistry {
    * Get all current poses (position and rotation) for all entities.
    * Used to preserve poses across scene reloads.
    */
-  getAllPoses(): Map<string, { position: Vec3; rotation: Quat }> {
-    const poses = new Map<string, { position: Vec3; rotation: Quat }>()
+  getAllPoses(): Map<string, { position: Vec3; rotation: Rotation }> {
+    const poses = new Map<string, { position: Vec3; rotation: Rotation }>()
     for (const [id, item] of this.items) {
       poses.set(id, {
         position: item.getPosition(),

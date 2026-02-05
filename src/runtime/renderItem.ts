@@ -1,7 +1,8 @@
 import * as THREE from 'three'
 import type RAPIER from '@dimforge/rapier3d-compat'
-import type { Entity, Vec3, Quat } from '@/types/world'
+import type { Entity, Vec3, Rotation } from '@/types/world'
 import { DEFAULT_POSITION, DEFAULT_ROTATION } from '@/types/world'
+import { quaternionToEuler, eulerToRapierQuaternion } from '@/utils/rotationUtils'
 
 /**
  * Runtime representation of an entity: holds references to the serialised entity,
@@ -33,20 +34,20 @@ export class RenderItem {
   }
 
   /** Returns rotation from mesh (physics-driven) or entity (static). */
-  getRotation(): Quat {
+  getRotation(): Rotation {
     if (this.body) {
-      const q = this.mesh.quaternion
-      return [q.x, q.y, q.z, q.w]
+      return quaternionToEuler(this.mesh.quaternion)
     }
     return this.entity.rotation ?? DEFAULT_ROTATION
   }
 
   /** Writes rotation to body + mesh (and mesh only for static). Does not write back to entity. */
-  setRotation(v: Quat): void {
-    const [x, y, z, w] = v
-    this.mesh.quaternion.set(x, y, z, w)
+  setRotation(v: Rotation): void {
+    const quat = new THREE.Quaternion().setFromEuler(new THREE.Euler(v[0], v[1], v[2], 'XYZ'))
+    this.mesh.quaternion.copy(quat)
     if (this.body) {
-      this.body.setRotation({ x, y, z, w }, true)
+      const rapierQuat = eulerToRapierQuaternion(v)
+      this.body.setRotation(rapierQuat, true)
     }
   }
 

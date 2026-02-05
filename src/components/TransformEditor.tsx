@@ -1,18 +1,17 @@
 import { useState, useEffect } from 'react'
-import type { Vec3, Quat } from '@/types/world'
+import type { Vec3, Rotation } from '@/types/world'
 import Vec3Field from './Vec3Field'
-import QuatField from './QuatField'
 import { uiLogger } from '@/utils/uiLogger'
 
 export interface TransformEditorProps {
   entityId: string
   position: Vec3
-  rotation: Quat
+  rotation: Rotation
   scale: Vec3
   onPositionChange: (position: Vec3) => void
-  onRotationChange: (rotation: Quat) => void
+  onRotationChange: (rotation: Rotation) => void
   onScaleChange: (scale: Vec3) => void
-  getCurrentPose?: (id: string) => { position: Vec3; rotation: Quat }
+  getCurrentPose?: (id: string) => { position: Vec3; rotation: Rotation }
   disabled?: boolean
 }
 
@@ -61,14 +60,15 @@ export default function TransformEditor({
         idPrefix={`${entityId}-position`}
         disabled={disabled}
       />
-      <QuatField
-        label="Rotation (quat)"
+      <Vec3Field
+        label="Rotation"
         value={displayRotation}
-        onChange={(q) => {
-          uiLogger.change('PropertyPanel', 'Change rotation', { entityId, oldValue: displayRotation, newValue: q })
-          setDisplayRotation(q)
-          onRotationChange(q)
+        onChange={(r) => {
+          uiLogger.change('PropertyPanel', 'Change rotation', { entityId, oldValue: displayRotation, newValue: r })
+          setDisplayRotation(r)
+          onRotationChange(r)
         }}
+        axisLabels={['X', 'Y', 'Z']}
         idPrefix={`${entityId}-rotation`}
         disabled={disabled}
       />

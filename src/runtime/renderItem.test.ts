@@ -131,8 +131,8 @@ describe('RenderItemRegistry', () => {
   })
 
   it('getAllPoses returns map of all poses', () => {
-    const entity1: Entity = { id: 'e1', position: [1, 2, 3], rotation: [0, 0, 0, 1] }
-    const entity2: Entity = { id: 'e2', position: [4, 5, 6], rotation: [0, 1, 0, 0] }
+    const entity1: Entity = { id: 'e1', position: [1, 2, 3], rotation: [0, 0, 0] }
+    const entity2: Entity = { id: 'e2', position: [4, 5, 6], rotation: [0, 1, 0] }
     const mesh1 = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial())
     const mesh2 = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial())
     const registry = RenderItemRegistry.create(
@@ -144,8 +144,8 @@ describe('RenderItemRegistry', () => {
     )
     const poses = registry.getAllPoses()
     expect(poses.size).toBe(2)
-    expect(poses.get('e1')).toEqual({ position: [1, 2, 3], rotation: [0, 0, 0, 1] })
-    expect(poses.get('e2')).toEqual({ position: [4, 5, 6], rotation: [0, 1, 0, 0] })
+    expect(poses.get('e1')).toEqual({ position: [1, 2, 3], rotation: [0, 0, 0] })
+    expect(poses.get('e2')).toEqual({ position: [4, 5, 6], rotation: [0, 1, 0] })
   })
 
   it('clear removes all items', () => {
