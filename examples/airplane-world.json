@@ -1,0 +1,113 @@
+{
+  "version": "1.0",
+  "world": {
+    "gravity": [0, -9.81, 0],
+    "wind": [2, 0, 0],
+    "ambientLight": [0.3, 0.3, 0.35],
+    "directionalLight": {
+      "direction": [1, 2, 1],
+      "color": [1, 0.98, 0.9],
+      "intensity": 1.2
+    },
+    "skyColor": [0.4, 0.6, 0.9],
+    "camera": {
+      "control": "follow",
+      "mode": "thirdPerson",
+      "target": "airplane",
+      "distance": 15,
+      "height": 5
+    }
+  },
+  "entities": [
+    {
+      "id": "ground",
+      "name": "Ground",
+      "bodyType": "static",
+      "shape": { "type": "plane" },
+      "position": [0, 0, 0],
+      "material": { "color": [0.3, 0.5, 0.3] },
+      "locked": true
+    },
+    {
+      "id": "airplane",
+      "name": "Player Airplane",
+      "bodyType": "dynamic",
+      "shape": { "type": "box", "width": 2, "height": 0.5, "depth": 4 },
+      "position": [0, 10, 0],
+      "rotation": [0, 0, 0],
+      "mass": 1000,
+      "restitution": 0.1,
+      "friction": 0.5,
+      "transformers": [
+        {
+          "type": "input",
+          "priority": 0,
+          "enabled": true,
+          "inputMapping": {
+            "keyboard": {
+              "w": "thrust",
+              "s": "brake",
+              "a": "roll_left",
+              "d": "roll_right",
+              "space": "boost"
+            },
+            "wheel": {
+              "horizontal": "yaw",
+              "vertical": "pitch"
+            },
+            "sensitivity": {
+              "keyboard": 1.0,
+              "wheel": 0.8
+            }
+          }
+        },
+        {
+          "type": "airplane",
+          "priority": 1,
+          "enabled": true,
+          "params": {
+            "thrustForce": 50.0,
+            "liftCoefficient": 2.5,
+            "dragCoefficient": 0.1,
+            "maxSpeed": 100.0,
+            "pitchSensitivity": 5.0,
+            "yawSensitivity": 5.0,
+            "rollSensitivity": 5.0
+          }
+        }
+      ]
+    },
+    {
+      "id": "butterfly1",
+      "name": "Butterfly",
+      "bodyType": "kinematic",
+      "shape": { "type": "sphere", "radius": 0.2 },
+      "position": [5, 3, 5],
+      "material": { "color": [1, 0.8, 0.2] },
+      "transformers": [
+        {
+          "type": "butterfly",
+          "priority": 0,
+          "params": {
+            "flutterFrequency": 3.0,
+            "flightHeight": 3.0,
+            "wanderRadius": 10.0,
+            "flutterForce": 5.0
+          }
+        }
+      ]
+    },
+    {
+      "id": "tree1",
+      "name": "Tree",
+      "bodyType": "static",
+      "shape": { "type": "cylinder", "radius": 0.5, "height": 5 },
+      "position": [10, 2.5, 10],
+      "material": { "color": [0.2, 0.4, 0.1] },
+      "restitution": 0.3,
+      "friction": 0.8
+    }
+  ],
+  "assets": {},
+  "scripts": {}
+}

@@ -3,6 +3,7 @@ import Switch from './Switch'
 import MenuBar from './MenuBar'
 import DropdownMenu, { type MenuItemConfig } from './DropdownMenu'
 import type { ProjectMeta } from '@/persistence/types'
+import type { Vec3 } from '@/types/world'
 import { uiLogger } from '@/utils/uiLogger'
 
 export interface BuilderHeaderProps {
@@ -26,6 +27,7 @@ export interface BuilderHeaderProps {
   fileInputRef: React.RefObject<HTMLInputElement | null>
   onFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void
   onResetCamera: () => void
+  onApplyDebugForce?: (force: Vec3) => void
 }
 
 export default function BuilderHeader({
@@ -45,6 +47,7 @@ export default function BuilderHeader({
   fileInputRef,
   onFileChange,
   onResetCamera,
+  onApplyDebugForce,
 }: BuilderHeaderProps) {
   const [showProjectSelector, setShowProjectSelector] = useState(false)
 
@@ -121,6 +124,46 @@ export default function BuilderHeader({
     },
   ]
 
+  const debugMenuItems: MenuItemConfig[] = [
+    {
+      type: 'submenu',
+      label: 'Apply Force',
+      disabled: !onApplyDebugForce,
+      items: [
+        {
+          type: 'item',
+          label: 'Upward (1s)',
+          onClick: () => onApplyDebugForce?.([0, 1000, 0]),
+          disabled: !onApplyDebugForce,
+        },
+        {
+          type: 'item',
+          label: 'Forward (1s)',
+          onClick: () => onApplyDebugForce?.([0, 0, -1000]),
+          disabled: !onApplyDebugForce,
+        },
+        {
+          type: 'item',
+          label: 'Backward (1s)',
+          onClick: () => onApplyDebugForce?.([0, 0, 1000]),
+          disabled: !onApplyDebugForce,
+        },
+        {
+          type: 'item',
+          label: 'Right (1s)',
+          onClick: () => onApplyDebugForce?.([1000, 0, 0]),
+          disabled: !onApplyDebugForce,
+        },
+        {
+          type: 'item',
+          label: 'Left (1s)',
+          onClick: () => onApplyDebugForce?.([-1000, 0, 0]),
+          disabled: !onApplyDebugForce,
+        },
+      ],
+    },
+  ]
+
   return (
     <header style={{ background: '#171a22', borderBottom: '1px solid #2f3545', color: '#e6e9f2' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -133,6 +176,7 @@ export default function BuilderHeader({
             <DropdownMenu label="File" items={fileMenuItems} />
             <DropdownMenu label="View" items={viewMenuItems} />
             <DropdownMenu label="Project" items={projectMenuItems} />
+            <DropdownMenu label="Debug" items={debugMenuItems} />
           </MenuBar>
         </div>
 

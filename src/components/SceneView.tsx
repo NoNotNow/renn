@@ -13,6 +13,8 @@ import { RenderItemRegistry } from '@/runtime/renderItemRegistry'
 import { useKeyboardInput } from '@/hooks/useKeyboardInput'
 import { useEditorInteractions } from '@/hooks/useEditorInteractions'
 import { getSceneUserData } from '@/types/sceneUserData'
+import { useRawKeyboardInput, useRawWheelInput, getRawInputSnapshot } from '@/input/rawInput'
+import type { RawInput } from '@/types/transformer'
 
 const FIXED_DT = 1 / 60
 
@@ -35,6 +37,7 @@ export interface SceneViewHandle {
   updateEntityPose: (id: string, pose: { position?: Vec3; rotation?: Rotation }) => void
   getAllPoses: () => Map<string, { position: Vec3; rotation: Rotation }> | null
   resetCamera: () => void
+  applyDebugForce: (entityId: string, force: Vec3, duration: number) => void
 }
 
 function SceneViewInner({
@@ -70,6 +73,11 @@ function SceneViewInner({
   } | null>(null)
 
   const freeFlyKeysRef = useKeyboardInput()
+  const rawKeyboardRef = useRawKeyboardInput()
+  const rawWheelRef = useRawWheelInput(containerRef)
+  
+  // Active debug forces: { entityId, force, endTime }[]
+  const activeDebugForcesRef = useRef<Array<{ entityId: string; force: Vec3; endTime: number }>>([])
 
   useEditorInteractions({
     scene,
@@ -106,6 +114,22 @@ function SceneViewInner({
       const quat = eulerToQuaternion(defaultRot)
       camera.quaternion.copy(quat)
       camera.up.set(0, 1, 0)
+    },
+    applyDebugForce: (entityId: string, force: Vec3, duration: number) => {
+      if (!physicsRef.current) {
+        console.warn('[SceneView] Cannot apply debug force: physics world not initialized')
+        return
+      }
+      
+      // Check if entity exists and is dynamic
+      const body = physicsRef.current.getBody(entityId)
+      if (!body || !body.isDynamic()) {
+        console.warn(`[SceneView] Cannot apply debug force: entity "${entityId}" is not dynamic`)
+        return
+      }
+      
+      const endTime = timeRef.current + duration
+      activeDebugForcesRef.current.push({ entityId, force, endTime })
     }
   }), [camera, world.world.camera])
 
@@ -180,6 +204,7 @@ function SceneViewInner({
       cameraCtrlRef.current = cameraCtrl
 
       const getPhysicsWorld = () => physicsRef.current
+      const getRenderItemRegistry = () => registryRef.current
       const getPositionForGame = (id: string): Vec3 | null =>
         registryRef.current?.getPosition(id) ?? null
       const setPositionForGame = (id: string, x: number, y: number, z: number): void =>
@@ -188,6 +213,7 @@ function SceneViewInner({
         getPositionForGame,
         setPositionForGame,
         getPhysicsWorld,
+        getRenderItemRegistry,
         loadedWorld.entities,
         timeRef
       )
@@ -227,11 +253,21 @@ function SceneViewInner({
             }
             pw.setGravity(gravity)
             physicsRef.current = pw
-            registryRef.current = RenderItemRegistry.create(entities, pw)
+            const rawInputGetter = () => getRawInputSnapshot(rawKeyboardRef, rawWheelRef)
+            RenderItemRegistry.create(entities, pw, rawInputGetter).then(registry => {
+              if (!cancelled && effectIdRef.current === currentEffectId) {
+                registryRef.current = registry
+              }
+            })
           })
         })
       } else {
-        registryRef.current = RenderItemRegistry.create(entities, null)
+        const rawInputGetter = () => getRawInputSnapshot(rawKeyboardRef, rawWheelRef)
+        RenderItemRegistry.create(entities, null, rawInputGetter).then(registry => {
+          if (!cancelled && effectIdRef.current === currentEffectId) {
+            registryRef.current = registry
+          }
+        })
       }
 
       // Animation loop
@@ -245,6 +281,34 @@ function SceneViewInner({
         const pw = physicsRef.current
         if (pw && runPhysics && !cancelled) {
           try {
+            // Apply active debug forces
+            const currentTime = timeRef.current
+            activeDebugForcesRef.current = activeDebugForcesRef.current.filter((debugForce) => {
+              if (currentTime >= debugForce.endTime) {
+                return false // Remove expired forces
+              }
+              // Apply force for this frame
+              pw.applyForce(debugForce.entityId, debugForce.force[0], debugForce.force[1], debugForce.force[2])
+              return true // Keep active forces
+            })
+            
+            // Execute transformers BEFORE physics step
+            // This generates forces that are applied to physics bodies
+            if (registryRef.current) {
+              // Get raw input snapshot
+              const rawInput: RawInput = getRawInputSnapshot(rawKeyboardRef, rawWheelRef)
+              void rawInput
+              
+              // Set raw input getter for InputTransformers
+              registryRef.current.setRawInputGetter(() => rawInput)
+              
+              // Get wind from world settings
+              const wind = world.world.wind
+              
+              // Execute transformers (generates forces)
+              registryRef.current.executeTransformers(dt, wind)
+            }
+            
             pw.step(dt)
             registryRef.current?.syncFromPhysics()
 
@@ -340,6 +404,9 @@ function SceneViewInner({
       // Clear registry
       registryRef.current?.clear()
       registryRef.current = null
+      
+      // Clear debug forces
+      activeDebugForcesRef.current = []
       
       // Dispose physics world (after animation loop is stopped)
       if (pw) {

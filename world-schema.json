@@ -47,6 +47,7 @@
       "type": "object",
       "properties": {
         "gravity": { "$ref": "#/$defs/Vec3" },
+        "wind": { "$ref": "#/$defs/Vec3", "description": "Global wind force vector [x, y, z]" },
         "ambientLight": { "$ref": "#/$defs/Color" },
         "directionalLight": { "$ref": "#/$defs/DirectionalLightConfig" },
         "skyColor": { "$ref": "#/$defs/Color" },
@@ -176,6 +177,72 @@
       "type": "object",
       "additionalProperties": { "type": "string" }
     },
+    "InputMapping": {
+      "type": "object",
+      "properties": {
+        "keyboard": {
+          "type": "object",
+          "properties": {
+            "w": { "type": "string" },
+            "a": { "type": "string" },
+            "s": { "type": "string" },
+            "d": { "type": "string" },
+            "space": { "type": "string" },
+            "shift": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
+        "wheel": {
+          "type": "object",
+          "properties": {
+            "horizontal": { "type": "string" },
+            "vertical": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
+        "sensitivity": {
+          "type": "object",
+          "properties": {
+            "keyboard": { "type": "number" },
+            "wheel": { "type": "number" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "TransformerConfig": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Preset: input, airplane, character, car, animal, butterfly, or 'custom'"
+        },
+        "priority": {
+          "type": "number",
+          "description": "Execution order (lower = earlier), default: 10"
+        },
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable/disable transformer, default: true"
+        },
+        "inputMapping": {
+          "$ref": "#/$defs/InputMapping",
+          "description": "Custom input mapping (only for input transformer)"
+        },
+        "params": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Transformer-specific parameters"
+        },
+        "code": {
+          "type": "string",
+          "description": "Custom transformer code (JavaScript, only for type 'custom')"
+        }
+      },
+      "additionalProperties": false
+    },
     "Entity": {
       "type": "object",
       "required": ["id"],
@@ -193,7 +260,12 @@
         "restitution": { "type": "number" },
         "friction": { "type": "number" },
         "scripts": { "$ref": "#/$defs/EntityScripts" },
-        "locked": { "type": "boolean" }
+        "locked": { "type": "boolean" },
+        "transformers": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/TransformerConfig" },
+          "description": "Transformer chain for this entity"
+        }
       },
       "additionalProperties": false
     }

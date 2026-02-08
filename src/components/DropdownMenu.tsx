@@ -1,11 +1,12 @@
 import { useState, useRef, useEffect, type ReactNode } from 'react'
 
 export interface MenuItemConfig {
-  type: 'item' | 'separator'
+  type: 'item' | 'separator' | 'submenu'
   label?: string
   onClick?: () => void
   disabled?: boolean
   shortcut?: string
+  items?: MenuItemConfig[]
 }
 
 export interface DropdownMenuProps {
@@ -17,10 +18,12 @@ export interface DropdownMenuProps {
 export default function DropdownMenu({ label, items, onOpenChange }: DropdownMenuProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [focusedIndex, setFocusedIndex] = useState(-1)
+  const [openSubmenuIndex, setOpenSubmenuIndex] = useState<number | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
+  const submenuRefs = useRef<Map<number, HTMLDivElement>>(new Map())
 
-  const menuItems = items.filter(item => item.type === 'item')
+  const menuItems = items.filter(item => item.type === 'item' || item.type === 'submenu')
 
   useEffect(() => {
     if (!isOpen) {
@@ -68,11 +71,28 @@ export default function DropdownMenu({ label, items, onOpenChange }: DropdownMen
       if (e.key === 'Enter' && focusedIndex >= 0) {
         e.preventDefault()
         const item = menuItems[focusedIndex]
-        if (item && !item.disabled && item.onClick) {
-          item.onClick()
-          setIsOpen(false)
-          onOpenChange?.(false)
+        if (item && !item.disabled) {
+          if (item.type === 'submenu') {
+            setOpenSubmenuIndex(focusedIndex)
+          } else if (item.onClick) {
+            item.onClick()
+            setIsOpen(false)
+            onOpenChange?.(false)
+          }
         }
+      }
+
+      if (e.key === 'ArrowRight' && focusedIndex >= 0) {
+        e.preventDefault()
+        const item = menuItems[focusedIndex]
+        if (item && item.type === 'submenu' && !item.disabled) {
+          setOpenSubmenuIndex(focusedIndex)
+        }
+      }
+
+      if (e.key === 'ArrowLeft' && openSubmenuIndex !== null) {
+        e.preventDefault()
+        setOpenSubmenuIndex(null)
       }
     }
 
@@ -83,7 +103,7 @@ export default function DropdownMenu({ label, items, onOpenChange }: DropdownMen
       document.removeEventListener('mousedown', handleClickOutside)
       document.removeEventListener('keydown', handleKeyDown)
     }
-  }, [isOpen, focusedIndex, menuItems, onOpenChange])
+  }, [isOpen, focusedIndex, menuItems, onOpenChange, openSubmenuIndex])
 
   const handleToggle = () => {
     const newIsOpen = !isOpen
@@ -91,11 +111,16 @@ export default function DropdownMenu({ label, items, onOpenChange }: DropdownMen
     onOpenChange?.(newIsOpen)
   }
 
-  const handleItemClick = (item: MenuItemConfig) => {
+  const handleItemClick = (item: MenuItemConfig, index: number) => {
     if (item.disabled) return
-    item.onClick?.()
-    setIsOpen(false)
-    onOpenChange?.(false)
+    if (item.type === 'submenu') {
+      setOpenSubmenuIndex(openSubmenuIndex === index ? null : index)
+    } else {
+      item.onClick?.()
+      setIsOpen(false)
+      onOpenChange?.(false)
+      setOpenSubmenuIndex(null)
+    }
   }
 
   let itemIndex = -1
@@ -153,32 +178,131 @@ export default function DropdownMenu({ label, items, onOpenChange }: DropdownMen
             itemIndex++
             const currentItemIndex = itemIndex
             const isFocused = focusedIndex === currentItemIndex
+            const isSubmenuOpen = openSubmenuIndex === currentItemIndex
+            const isSubmenu = item.type === 'submenu'
 
             return (
               <div
                 key={index}
-                role="menuitem"
-                tabIndex={-1}
-                aria-disabled={item.disabled}
-                onClick={() => handleItemClick(item)}
-                onMouseEnter={() => setFocusedIndex(currentItemIndex)}
-                style={{
-                  padding: '8px 16px',
-                  cursor: item.disabled ? 'not-allowed' : 'pointer',
-                  background: isFocused && !item.disabled ? '#2b3550' : 'transparent',
-                  color: item.disabled ? '#6b7280' : '#e6e9f2',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  gap: '24px',
-                  fontSize: '14px',
+                style={{ position: 'relative' }}
+                onMouseEnter={() => {
+                  setFocusedIndex(currentItemIndex)
+                  if (isSubmenu) {
+                    setOpenSubmenuIndex(currentItemIndex)
+                  }
+                }}
+                onMouseLeave={() => {
+                  if (isSubmenu) {
+                    setOpenSubmenuIndex(null)
+                  }
                 }}
               >
-                <span>{item.label}</span>
-                {item.shortcut && (
-                  <span style={{ color: '#9aa4b2', fontSize: '12px' }}>
-                    {item.shortcut}
-                  </span>
+                <div
+                  role="menuitem"
+                  tabIndex={-1}
+                  aria-disabled={item.disabled}
+                  aria-haspopup={isSubmenu ? 'true' : undefined}
+                  aria-expanded={isSubmenu ? isSubmenuOpen : undefined}
+                  onClick={() => handleItemClick(item, currentItemIndex)}
+                  style={{
+                    padding: '8px 16px',
+                    cursor: item.disabled ? 'not-allowed' : 'pointer',
+                    background: isFocused && !item.disabled ? '#2b3550' : 'transparent',
+                    color: item.disabled ? '#6b7280' : '#e6e9f2',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: '24px',
+                    fontSize: '14px',
+                  }}
+                >
+                  <span>{item.label}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    {item.shortcut && (
+                      <span style={{ color: '#9aa4b2', fontSize: '12px' }}>
+                        {item.shortcut}
+                      </span>
+                    )}
+                    {isSubmenu && (
+                      <span style={{ color: '#9aa4b2', fontSize: '12px' }}>▶</span>
+                    )}
+                  </div>
+                </div>
+                {isSubmenu && isSubmenuOpen && item.items && (
+                  <div
+                    ref={(el) => {
+                      if (el) submenuRefs.current.set(currentItemIndex, el)
+                      else submenuRefs.current.delete(currentItemIndex)
+                    }}
+                    role="menu"
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: '100%',
+                      minWidth: '200px',
+                      background: '#1b1f2a',
+                      border: '1px solid #2f3545',
+                      boxShadow: '0 2px 12px rgba(0,0,0,0.55)',
+                      zIndex: 1001,
+                      padding: '4px 0',
+                      marginLeft: '4px',
+                    }}
+                  >
+                    {item.items.map((subItem, subIndex) => {
+                      if (subItem.type === 'separator') {
+                        return (
+                          <div
+                            key={`sub-sep-${subIndex}`}
+                            style={{
+                              height: '1px',
+                              background: '#2f3545',
+                              margin: '4px 0',
+                            }}
+                          />
+                        )
+                      }
+
+                      return (
+                        <div
+                          key={subIndex}
+                          role="menuitem"
+                          tabIndex={-1}
+                          aria-disabled={subItem.disabled}
+                          onClick={() => {
+                            if (subItem.disabled) return
+                            subItem.onClick?.()
+                            setIsOpen(false)
+                            onOpenChange?.(false)
+                            setOpenSubmenuIndex(null)
+                          }}
+                          style={{
+                            padding: '8px 16px',
+                            cursor: subItem.disabled ? 'not-allowed' : 'pointer',
+                            background: 'transparent',
+                            color: subItem.disabled ? '#6b7280' : '#e6e9f2',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            gap: '24px',
+                            fontSize: '14px',
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = subItem.disabled ? 'transparent' : '#2b3550'
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = 'transparent'
+                          }}
+                        >
+                          <span>{subItem.label}</span>
+                          {subItem.shortcut && (
+                            <span style={{ color: '#9aa4b2', fontSize: '12px' }}>
+                              {subItem.shortcut}
+                            </span>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
                 )}
               </div>
             )

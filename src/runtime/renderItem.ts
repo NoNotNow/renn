@@ -3,6 +3,7 @@ import type RAPIER from '@dimforge/rapier3d-compat'
 import type { Entity, Vec3, Rotation } from '@/types/world'
 import { DEFAULT_POSITION, DEFAULT_ROTATION } from '@/types/world'
 import { quaternionToEuler, eulerToRapierQuaternion } from '@/utils/rotationUtils'
+import type { TransformerChain } from '@/transformers/transformer'
 
 /**
  * Runtime representation of an entity: holds references to the serialised entity,
@@ -10,6 +11,8 @@ import { quaternionToEuler, eulerToRapierQuaternion } from '@/utils/rotationUtil
  * body (via mesh after sync) or from entity; no owned copy of pose.
  */
 export class RenderItem {
+  transformerChain: TransformerChain | null = null
+
   constructor(
     readonly entity: Entity,
     readonly mesh: THREE.Mesh,

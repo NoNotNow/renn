@@ -17,15 +17,15 @@ export const sidebarInputStyle = {
 }
 
 export const sectionStyle = {
-  padding: 8,
+  padding: 6,
   border: '1px solid #2f3545',
-  borderRadius: 8,
+  borderRadius: 6,
   background: 'rgba(17, 20, 28, 0.6)',
 }
 
 export const sectionTitleStyle = {
-  margin: '0 0 6px',
-  fontSize: '0.75em',
+  margin: '0 0 4px',
+  fontSize: '0.70em',
   letterSpacing: '0.08em',
   color: '#9aa4b2',
   textTransform: 'uppercase' as const,

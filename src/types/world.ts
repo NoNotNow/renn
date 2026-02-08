@@ -33,6 +33,7 @@ export interface DirectionalLightConfig {
 
 export interface WorldSettings {
   gravity?: Vec3
+  wind?: Vec3
   ambientLight?: Color
   directionalLight?: DirectionalLightConfig
   skyColor?: Color
@@ -94,6 +95,7 @@ export interface Entity {
   friction?: number
   scripts?: EntityScripts
   locked?: boolean
+  transformers?: import('./transformer').TransformerConfig[]
 }
 
 export interface RennWorld {

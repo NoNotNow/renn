@@ -5,6 +5,8 @@ import ShapeEditor from './ShapeEditor'
 import PhysicsEditor from './PhysicsEditor'
 import MaterialEditor from './MaterialEditor'
 import ModelEditor from './ModelEditor'
+import TransformerEditor from './TransformerEditor'
+import CollapsibleSection from './CollapsibleSection'
 import { sectionStyle, sectionTitleStyle, fieldLabelStyle } from './sharedStyles'
 
 export interface PropertyPanelProps {
@@ -62,14 +64,15 @@ export default function PropertyPanel({
   const isLocked = entity.locked ?? false
 
   return (
-    <div style={{ padding: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <div style={{ padding: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
       <h3 style={{ margin: '0 0 2px', fontSize: 14, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
         {isLocked && <span style={{ fontSize: 12 }}>🔒</span>}
         {entity.name ?? entity.id}
       </h3>
-      <div style={sectionStyle}>
-        <div style={{ ...sectionTitleStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span>Entity</span>
+
+      <CollapsibleSection title="Entity" defaultCollapsed={false}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+          <span style={sectionTitleStyle}>Entity</span>
           <button
             type="button"
             onClick={() => {
@@ -116,35 +119,9 @@ export default function PropertyPanel({
             style={inputStyle}
           />
         </label>
-      </div>
+      </CollapsibleSection>
 
-      <div style={sectionStyle}>
-        <div style={sectionTitleStyle}>Shape</div>
-        <ShapeEditor
-          entityId={entity.id}
-          shape={entity.shape}
-          onShapeChange={(shape) => {
-            // When switching to trimesh, clear entity.model since trimesh uses shape.model
-            if (shape.type === 'trimesh' && entity.model) {
-              uiLogger.change('PropertyPanel', 'Clear entity model when switching to trimesh', { 
-                entityId: entity.id, 
-                clearedModel: entity.model 
-              })
-              updateEntity({ shape, model: undefined })
-            } else {
-              updateEntity({ shape })
-            }
-          }}
-          disabled={isLocked}
-          assets={assets}
-          world={world}
-          onAssetsChange={onAssetsChange}
-          onWorldChange={onWorldChange}
-        />
-      </div>
-
-      <div style={sectionStyle}>
-        <div style={sectionTitleStyle}>Transform</div>
+      <CollapsibleSection title="Transform">
         <TransformEditor
           entityId={entity.id}
           position={position}
@@ -168,10 +145,33 @@ export default function PropertyPanel({
           getCurrentPose={getCurrentPose}
           disabled={isLocked}
         />
-      </div>
+      </CollapsibleSection>
 
-      <div style={sectionStyle}>
-        <div style={sectionTitleStyle}>Physics</div>
+      <CollapsibleSection title="Shape">
+        <ShapeEditor
+          entityId={entity.id}
+          shape={entity.shape}
+          onShapeChange={(shape) => {
+            // When switching to trimesh, clear entity.model since trimesh uses shape.model
+            if (shape.type === 'trimesh' && entity.model) {
+              uiLogger.change('PropertyPanel', 'Clear entity model when switching to trimesh', { 
+                entityId: entity.id, 
+                clearedModel: entity.model 
+              })
+              updateEntity({ shape, model: undefined })
+            } else {
+              updateEntity({ shape })
+            }
+          }}
+          disabled={isLocked}
+          assets={assets}
+          world={world}
+          onAssetsChange={onAssetsChange}
+          onWorldChange={onWorldChange}
+        />
+      </CollapsibleSection>
+
+      <CollapsibleSection title="Physics">
         <PhysicsEditor
           entityId={entity.id}
           bodyType={entity.bodyType}
@@ -184,10 +184,9 @@ export default function PropertyPanel({
           onFrictionChange={(friction) => updateEntity({ friction })}
           disabled={isLocked}
         />
-      </div>
+      </CollapsibleSection>
 
-      <div style={sectionStyle}>
-        <div style={sectionTitleStyle}>Material</div>
+      <CollapsibleSection title="Material">
         <MaterialEditor
           entityId={entity.id}
           material={entity.material}
@@ -198,11 +197,10 @@ export default function PropertyPanel({
           onAssetsChange={onAssetsChange}
           disabled={isLocked}
         />
-      </div>
+      </CollapsibleSection>
 
       {entity.shape?.type !== 'trimesh' && (
-        <div style={sectionStyle}>
-          <div style={sectionTitleStyle}>3D Model</div>
+        <CollapsibleSection title="3D Model">
           <ModelEditor
             entityId={entity.id}
             model={entity.model}
@@ -213,7 +211,13 @@ export default function PropertyPanel({
             onAssetsChange={onAssetsChange}
             disabled={isLocked}
           />
-        </div>
+        </CollapsibleSection>
+      )}
+
+      {entity.transformers && entity.transformers.length > 0 && (
+        <CollapsibleSection title="Transformers">
+          <TransformerEditor transformers={entity.transformers} />
+        </CollapsibleSection>
       )}
 
       {onDeleteEntity && (

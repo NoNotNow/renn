@@ -236,6 +236,17 @@ export class PhysicsWorld {
             position: storedPos,
             rotation: storedRot
           })
+          if (entityId === 'car') {
+            const now = Date.now()
+            const lastForceAt = (this as { _carForceAt?: number })._carForceAt ?? 0
+            const nearForce = now - lastForceAt < 400
+            const lastLog = (this as { _lastCarLog?: number })._lastCarLog ?? 0
+            if (now - lastLog > 300) {
+              ;(this as { _lastCarLog?: number })._lastCarLog = now
+              void storedPos
+              void nearForce
+            }
+          }
         }
       }
       
@@ -292,6 +303,46 @@ export class PhysicsWorld {
     if (body && body.isDynamic()) {
       body.addForce({ x, y, z }, true)
     }
+  }
+
+  /**
+   * Apply force from transformer output.
+   * Convenience method that accepts Vec3.
+   */
+  applyForceFromTransformer(entityId: string, force: [number, number, number]): void {
+    if (entityId === 'car') {
+      const body = this.bodyMap.get(entityId)
+      if (body) {
+        ;(this as { _carForceAt?: number })._carForceAt = Date.now()
+      }
+    }
+    this.applyForce(entityId, force[0], force[1], force[2])
+  }
+
+  /**
+   * Apply impulse from transformer output.
+   * Convenience method that accepts Vec3.
+   */
+  applyImpulseFromTransformer(entityId: string, impulse: [number, number, number]): void {
+    this.applyImpulse(entityId, impulse[0], impulse[1], impulse[2])
+  }
+
+  /**
+   * Apply torque (rotational force).
+   */
+  applyTorque(entityId: string, x: number, y: number, z: number): void {
+    const body = this.bodyMap.get(entityId)
+    if (body && body.isDynamic()) {
+      body.addTorque({ x, y, z }, true)
+    }
+  }
+
+  /**
+   * Apply torque from transformer output.
+   * Convenience method that accepts Vec3.
+   */
+  applyTorqueFromTransformer(entityId: string, torque: [number, number, number]): void {
+    this.applyTorque(entityId, torque[0], torque[1], torque[2])
   }
 
   dispose(): void {

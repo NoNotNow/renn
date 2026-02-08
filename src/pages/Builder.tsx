@@ -193,6 +193,31 @@ export default function Builder() {
     uiLogger.click('Builder', 'Reset camera to default position')
   }, [])
 
+  const handleApplyDebugForce = useCallback((force: Vec3) => {
+    if (!selectedEntityId) {
+      alert('Bitte wähle zuerst ein Entity aus, um eine Force anzuwenden.')
+      return
+    }
+    
+    const entity = world.entities.find((e) => e.id === selectedEntityId)
+    if (!entity) {
+      alert(`Entity "${selectedEntityId}" nicht gefunden.`)
+      return
+    }
+    
+    if (entity.bodyType !== 'dynamic') {
+      alert(`Entity "${entity.name ?? entity.id}" ist nicht dynamic. Nur dynamic Entities können Forces empfangen.`)
+      return
+    }
+    
+    sceneViewRef.current?.applyDebugForce(selectedEntityId, force, 1.0)
+    uiLogger.click('Builder', 'Apply debug force', { 
+      entityId: selectedEntityId, 
+      force,
+      duration: 1.0 
+    })
+  }, [selectedEntityId, world.entities])
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <BuilderHeader
@@ -212,6 +237,7 @@ export default function Builder() {
         fileInputRef={fileInputRef}
         onFileChange={onFileChange}
         onResetCamera={handleResetCamera}
+        onApplyDebugForce={handleApplyDebugForce}
       />
 
       <div style={{ position: 'relative', flex: 1, minHeight: 0, width: '100%' }}>
