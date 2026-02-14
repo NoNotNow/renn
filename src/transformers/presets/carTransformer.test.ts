@@ -29,15 +29,17 @@ describe('CarTransformer', () => {
     expect(output.torque![1]).toBeGreaterThan(0) // Turn right = +Y
   })
 
-  test('friction opposes velocity', () => {
-    const transformer = new CarTransformer(10, { friction: 0.8 })
+  test('handbrake generates deceleration force', () => {
+    const transformer = new CarTransformer(10, { acceleration: 15.0, handbrakeMultiplier: 2.0 })
     const input = createMockTransformInput({
-      velocity: [10, 0, 0], // Moving in +X
+      actions: { handbrake: 1.0 },
+      velocity: [0, 0, -10], // Moving forward
     })
 
     const output = transformer.transform(input, 0.016)
 
     expect(output.force).toBeDefined()
-    expect(output.force![0]).toBeLessThan(0) // Friction opposes
+    // Handbrake should create a force opposing the velocity direction
+    expect(output.force![2]).toBeGreaterThan(0) // Opposes forward movement (-Z), so positive Z force
   })
 })

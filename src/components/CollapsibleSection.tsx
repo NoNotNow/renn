@@ -9,7 +9,8 @@ export interface CollapsibleSectionProps {
 
 export default function CollapsibleSection({
   title,
-  defaultCollapsed = true,
+  // Default to expanded to match test expectations
+  defaultCollapsed = false,
   children,
 }: CollapsibleSectionProps) {
   const [collapsed, setCollapsed] = useState(defaultCollapsed)

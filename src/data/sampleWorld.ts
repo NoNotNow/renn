@@ -27,6 +27,7 @@ export const sampleWorld: RennWorld = {
       bodyType: 'static',
       shape: { type: 'plane' },
       position: [0, 0, 0],
+      friction: 1.0, // High friction for ground
       material: { color: [0.3, 0.5, 0.3] },
       locked: true,
     },
@@ -37,9 +38,9 @@ export const sampleWorld: RennWorld = {
       shape: { type: 'box', width: 2, height: 1, depth: 4 },
       position: [0, 2, 0],
       rotation: [0, 0, 0],
-      mass: 80,
+      mass: 12,
       restitution: 0.1,
-      friction: 0.8,
+      friction: 2,
       material: { color: [0.2, 0.4, 0.8] },
       transformers: [
         {
@@ -66,12 +67,22 @@ export const sampleWorld: RennWorld = {
           enabled: true,
           params: {
             acceleration: 120.0,
-            steering: 2.5,
-            friction: 0.5,
+            steering: 200.5,
             handbrakeMultiplier: 3.0,
           },
         },
       ],
+    },
+    {
+      id: 'ball',
+      name: 'ball',
+      bodyType: 'dynamic',
+      shape: { type: 'sphere', radius: 0.5 },
+      position: [0, 2, 0],
+      mass: 1,
+      restitution: 0.6,
+      friction: 0.5,
+      material: { color: [0.9, 0.2, 0.2] },
     },
     // Boxen in 5×3 Raster verteilt
     {

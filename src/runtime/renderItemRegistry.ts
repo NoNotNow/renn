@@ -22,33 +22,31 @@ export class RenderItemRegistry {
    * Build registry from loaded entities and physics world. Call after
    * createPhysicsWorld so bodies exist. Bodies are resolved by entity id.
    */
-  static async create(
+  static create(
     loadedEntities: LoadedEntity[],
     physicsWorld: PhysicsWorld | null,
     rawInputGetter?: () => RawInput | null,
-  ): Promise<RenderItemRegistry> {
+  ): RenderItemRegistry {
     const registry = new RenderItemRegistry()
     registry.physicsWorld = physicsWorld
     registry.rawInputGetter = rawInputGetter ?? null
     for (const { entity, mesh } of loadedEntities) {
       const body = physicsWorld?.getBody(entity.id) ?? null
       const item = new RenderItem(entity, mesh, body)
-      
-      // Create transformer chain if entity has transformers
+
+      // Create transformer chain if entity has transformers.
+      // Creation may be async (custom transformers); initialize asynchronously
+      // so callers receive a registry immediately (tests expect sync create()).
       if (entity.transformers && entity.transformers.length > 0) {
-        try {
-          const chain = await createTransformerChain(
-            entity.transformers,
-            rawInputGetter ?? undefined,
-          )
-          if (chain) {
-            item.transformerChain = chain
-          }
-        } catch (error) {
-          console.error(`[RenderItemRegistry] Failed to create transformer chain for ${entity.id}:`, error)
-        }
+        createTransformerChain(entity.transformers, rawInputGetter ?? undefined)
+          .then(chain => {
+            if (chain) item.transformerChain = chain
+          })
+          .catch(error => {
+            console.error(`[RenderItemRegistry] Failed to create transformer chain for ${entity.id}:`, error)
+          })
       }
-      
+
       registry.items.set(entity.id, item)
     }
     return registry

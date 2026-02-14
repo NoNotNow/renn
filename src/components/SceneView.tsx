@@ -254,20 +254,18 @@ function SceneViewInner({
             pw.setGravity(gravity)
             physicsRef.current = pw
             const rawInputGetter = () => getRawInputSnapshot(rawKeyboardRef, rawWheelRef)
-            RenderItemRegistry.create(entities, pw, rawInputGetter).then(registry => {
-              if (!cancelled && effectIdRef.current === currentEffectId) {
-                registryRef.current = registry
-              }
-            })
+            const registry = RenderItemRegistry.create(entities, pw, rawInputGetter)
+            if (!cancelled && effectIdRef.current === currentEffectId) {
+              registryRef.current = registry
+            }
           })
         })
       } else {
         const rawInputGetter = () => getRawInputSnapshot(rawKeyboardRef, rawWheelRef)
-        RenderItemRegistry.create(entities, null, rawInputGetter).then(registry => {
-          if (!cancelled && effectIdRef.current === currentEffectId) {
-            registryRef.current = registry
-          }
-        })
+        const registry = RenderItemRegistry.create(entities, null, rawInputGetter)
+        if (!cancelled && effectIdRef.current === currentEffectId) {
+          registryRef.current = registry
+        }
       }
 
       // Animation loop

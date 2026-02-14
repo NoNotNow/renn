@@ -66,12 +66,26 @@ export class PhysicsWorld {
     const rigidBody = this.world.createRigidBody(rigidBodyDesc)
     this.bodyMap.set(entity.id, rigidBody)
 
+    // Set damping for dynamic bodies to provide natural friction-like behavior
+    if (bodyType === 'dynamic') {
+      // Linear damping: resists linear motion (like air/rolling resistance)
+      rigidBody.setLinearDamping(0.3)
+      // Angular damping: resists rotation
+      rigidBody.setAngularDamping(0.3)
+    }
+
     // Create collider for the shape (pass mesh for trimesh extraction)
     const colliderDesc = this.createColliderDesc(entity.shape, entity, mesh)
     if (colliderDesc) {
       // Set physics properties
       colliderDesc.setRestitution(entity.restitution ?? 0)
-      colliderDesc.setFriction(entity.friction ?? 0.5)
+      const frictionValue = entity.friction ?? 0.5
+      colliderDesc.setFriction(frictionValue)
+      
+      // Debug: Log friction being applied
+      if (entity.id === 'car' || entity.id === 'ground') {
+        console.log(`[Physics] Entity "${entity.id}" friction set to:`, frictionValue, 'from config:', entity.friction)
+      }
 
       // Enable collision events for entities with onCollision scripts
       if (entity.scripts?.onCollision) {
