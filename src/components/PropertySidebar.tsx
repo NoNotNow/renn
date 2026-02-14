@@ -5,6 +5,7 @@ import AssetPanel from './AssetPanel'
 import type { RennWorld, Vec3, Rotation } from '@/types/world'
 import { uiLogger } from '@/utils/uiLogger'
 import Sidebar from './layout/Sidebar'
+import { TabIcons } from './TabIcons'
 
 type RightTab = 'properties' | 'scripts' | 'assets'
 
@@ -45,7 +46,11 @@ export default function PropertySidebar({
       side="right"
       isOpen={isOpen}
       onToggle={onToggle}
-      tabs={['properties', 'scripts', 'assets'] as const}
+      tabConfig={[
+        { id: 'properties', icon: TabIcons.properties, label: 'Properties' },
+        { id: 'scripts', icon: TabIcons.scripts, label: 'Scripts' },
+        { id: 'assets', icon: TabIcons.assets, label: 'Assets' },
+      ]}
       activeTab={rightTab}
       onTabChange={handleTabChange}
       width={300}

@@ -8,6 +8,7 @@ import { uiLogger } from '@/utils/uiLogger'
 
 export interface BuilderHeaderProps {
   projects: ProjectMeta[]
+  onLeftSidebarToggle?: () => void
   currentProject: {
     id: string | null
     name: string
@@ -32,6 +33,7 @@ export interface BuilderHeaderProps {
 
 export default function BuilderHeader({
   projects,
+  onLeftSidebarToggle,
   currentProject,
   shadowsEnabled,
   onNew,
@@ -168,7 +170,19 @@ export default function BuilderHeader({
     <header style={{ background: '#171a22', borderBottom: '1px solid #2f3545', color: '#e6e9f2' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center' }}>
-          <div style={{ padding: '6px 12px', fontWeight: 'bold', fontSize: '14px', color: '#e6e9f2' }}>
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={onLeftSidebarToggle}
+            onKeyDown={(e) => e.key === 'Enter' && onLeftSidebarToggle?.()}
+            style={{
+              padding: '6px 12px',
+              fontWeight: 'bold',
+              fontSize: '14px',
+              color: '#e6e9f2',
+              cursor: onLeftSidebarToggle ? 'pointer' : 'default',
+            }}
+          >
             {currentProject.name}
             {currentProject.isDirty && ' *'}
           </div>

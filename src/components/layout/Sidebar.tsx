@@ -1,11 +1,11 @@
 import { SidebarToggleButton } from '../SidebarToggleButton'
-import SidebarTabs from '../SidebarTabs'
+import SidebarTabs, { type TabConfig } from '../SidebarTabs'
 
 export interface SidebarProps {
   side: 'left' | 'right'
   isOpen: boolean
   onToggle: () => void
-  tabs: readonly string[]
+  tabConfig: readonly TabConfig<string>[]
   activeTab: string
   onTabChange: (tab: string) => void
   children: React.ReactNode
@@ -17,7 +17,7 @@ export default function Sidebar({
   side,
   isOpen,
   onToggle,
-  tabs,
+  tabConfig,
   activeTab,
   onTabChange,
   children,
@@ -57,7 +57,7 @@ export default function Sidebar({
         {isOpen && (
           <>
             <SidebarTabs
-              tabs={tabs}
+              tabConfig={tabConfig}
               activeTab={activeTab}
               onTabChange={onTabChange}
             />

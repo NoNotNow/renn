@@ -3,6 +3,7 @@ import type { Entity, CameraMode, Color, RennWorld } from '@/types/world'
 import type { AddableShapeType, BulkEntityParams } from '@/data/entityDefaults'
 import { uiLogger } from '@/utils/uiLogger'
 import Sidebar from './layout/Sidebar'
+import { TabIcons } from './TabIcons'
 import WorldPanel from './WorldPanel'
 import { sidebarRowStyle, sidebarLabelStyle, fieldLabelStyle, sectionStyle, sectionTitleStyle } from './sharedStyles'
 
@@ -149,7 +150,12 @@ export default function EntitySidebar({
       side="left"
       isOpen={isOpen}
       onToggle={onToggle}
-      tabs={['entities', 'camera', 'actions', 'world'] as const}
+      tabConfig={[
+        { id: 'entities', icon: TabIcons.entities, label: 'Entities' },
+        { id: 'camera', icon: TabIcons.camera, label: 'Camera' },
+        { id: 'actions', icon: TabIcons.actions, label: 'Actions' },
+        { id: 'world', icon: TabIcons.world, label: 'World' },
+      ]}
       activeTab={leftTab}
       onTabChange={handleTabChange}
       toggleLogContext="Toggle left drawer"

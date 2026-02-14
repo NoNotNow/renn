@@ -222,6 +222,7 @@ export default function Builder() {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <BuilderHeader
         projects={projects}
+        onLeftSidebarToggle={() => setLeftDrawerOpen((prev) => !prev)}
         currentProject={currentProject}
         shadowsEnabled={shadowsEnabled}
         onNew={handleNew}

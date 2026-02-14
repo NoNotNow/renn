@@ -40,14 +40,8 @@ function renderBuilder() {
 }
 
 async function openEntitiesTab(user: ReturnType<typeof userEvent.setup>) {
-  const entitiesButton = screen.queryByRole('button', { name: 'entities' })
-  if (entitiesButton) {
-    await user.click(entitiesButton)
-    return
-  }
-  const [overflowButton] = screen.getAllByRole('button', { name: '...' })
-  await user.click(overflowButton)
-  await user.click(screen.getByRole('button', { name: 'entities' }))
+  const entitiesButton = screen.getByRole('button', { name: /entities/i })
+  await user.click(entitiesButton)
 }
 
 describe('updateEntityPosition', () => {
