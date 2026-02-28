@@ -1,140 +1,58 @@
-# Fix: Car Spinning Persists After Releasing W+D
+# Fix: Car Spinning Persists / Grows Without Input
 
 ## Problem Statement
-When W (throttle) and D (steer_right) are pressed **simultaneously**:
-1. The car starts spinning
-2. After releasing **both keys**, the spinning **persists indefinitely**
-3. The car does not stop rotating
 
-## Root Cause Analysis
+Users report that the car can spin ever faster even without new input: angular momentum increases over time and rotation does not stop after releasing steering keys.
 
-### Input Path (Confirmed Working)
-```
-rawInput.ts:
-  - keydown 'D' → keys.d = true
-  - keyup 'D' → keys.d = false   ✓ Correctly resets
+## Root Cause: Rapier Force Persistence
 
-↓
+Rapier's `addForce()` and `addTorque()` apply **persistent** forces: they remain on the rigid body across simulation steps until manually cleared with `resetForces()` / `resetTorques()`.
 
-inputMapping.ts: applyInputMapping()
-  - Reads keys.d and creates action { steer_right: 1.0 or 0 }  ✓ Correct
+The game loop was:
 
-↓
+1. Each frame: run transformers → `applyForceFromTransformer` / `applyTorqueFromTransformer` → `body.addForce()` / `body.addTorque()`
+2. `world.step(dt)`
+3. Repeat
 
-CarTransformer.transform():
-  - Reads steerRight action value
-  - Generates torque based on steering input
-  - **PROBLEM: Damping logic was incorrectly scoped**
-```
+Because we never called `resetForces()` or `resetTorques()`, every frame's force and torque **accumulated** on the body. So:
 
-### The Bug in Original CarTransformer Code
+- Frame 1: add torque T → effective torque = T  
+- Frame 2: add torque T again → effective torque = 2T  
+- Frame N: effective torque = N×T  
 
-```typescript
-// ORIGINAL (BUGGY) CODE
-if (speed > 0.1) {
-  if (Math.abs(steerAmount) > 0.01) {
-    torque = new THREE.Vector3(0, steerAmount, 0)
-  } else {
-    // Damping code here
-  }
-}
+When the user released the key, we stopped calling `addTorque()`, but the **already accumulated** torque (e.g. 10×T) stayed on the body. The physics step kept applying that same large torque every frame, so angular velocity kept increasing with no new input.
 
-// Problem: When speed drops below 0.1 m/s, NO DAMPING is applied!
-// After W is released, the car coasts and speed decreases
-// When speed < 0.1, damping logic never executes
-// Result: Angular velocity persists indefinitely
-```
+## The Fix: Clear Forces Before Each Frame
 
-### Why It Only Happens with W+D Together
+1. **`PhysicsWorld.resetAllForces()`**  
+   In [`src/physics/rapierPhysics.ts`](src/physics/rapierPhysics.ts), a new method iterates all dynamic bodies and calls `body.resetForces(true)` and `body.resetTorques(true)`.
 
-1. **W alone**: Car accelerates, then coasts. Linear velocity dominates, car naturally stops.
-2. **D alone**: No forward momentum, car doesn't spin much, physics naturally damps.
-3. **W+D together**: 
-   - Car gets forward velocity from W
-   - Car gets angular velocity from D
-   - When keys release: W reduced to 0 (force stops being applied)
-   - Car coasts forward with **persistent angular velocity**
-   - Speed quickly drops below 0.1 m/s threshold
-   - **Damping code never executes because `speed < 0.1`**
-   - Angular velocity continues rotating the body indefinitely
+2. **Call it before applying transformer output**  
+   In [`src/runtime/renderItemRegistry.ts`](src/runtime/renderItemRegistry.ts), `executeTransformers()` calls `this.physicsWorld.resetAllForces()` at the start of each frame, before applying any transformer forces or torques.
 
-## The Fix
+Each frame now applies only that frame’s forces/torques; there is no cross-frame accumulation, so angular velocity decays as expected when the user releases the keys (via Rapier’s angular damping).
 
-**Key insight from transformer pattern:** Each transformer step should have a **single, clear responsibility**.
-
-Separated steering control from angular damping:
-
-```typescript
-// Steering torque (only when moving at speed)
-let torque: THREE.Vector3 | undefined
-const steerAmount = (steerRight - steerLeft) * steering * (speed / 10)
-
-if (speed > 0.1) {
-  torque = new THREE.Vector3(0, steerAmount, 0)
-}
-
-// Angular damping (INDEPENDENT of speed)
-// ALWAYS applies when no steering input
-const steerInput = steerRight - steerLeft
-if (Math.abs(steerInput) < 0.01) {
-  const [wx, wy, wz] = input.angularVelocity
-  
-  if (Math.abs(wy) > 0.01) {
-    const dampingTorque = -wy * 10  // Strong constant damping
-    torque = new THREE.Vector3(0, dampingTorque, 0)
-  }
-}
-```
-
-### Why This Works
-
-1. **Steering is only applied at speed**: `if (speed > 0.1)` prevents steering at standstill ✓
-2. **Damping applies regardless of speed**: Executes independently ✓
-3. **Damping is always active when steering input is released**: `Math.abs(steerInput) < 0.01` ✓
-4. **Strong damping coefficient** (10 vs previous ~0.25): Quickly stops rotation ✓
-
-## Physics Flow Verification
+## Physics Flow After Fix
 
 ```
-Frame N: W+D pressed
-  ├─ InputTransformer: steerRight = 1.0, throttle = 1.0
-  ├─ CarTransformer: torque = [0, steering_value, 0], force = forward
-  └─ PhysicsWorld.applyTorque(): body.addTorque(torque)
-
-Frame N+1: W+D released (keys.w = false, keys.d = false)
-  ├─ InputTransformer: steerRight = 0, throttle = 0
-  ├─ CarTransformer:
-  │  ├─ Steering: speed may be < 0.1, no steering torque ✓
-  │  └─ Damping: steerInput = 0, apply -wy * 10 counter-torque ✓
-  └─ PhysicsWorld.applyTorque(): body.addTorque([0, -angular_velocity * 10, 0])
-
-Frame N+2 onwards:
-  ├─ InputTransformer: steerRight = 0, throttle = 0 (no change)
-  ├─ CarTransformer: Damping continues to apply counter-torque
-  ├─ Angular velocity decreases each frame
-  └─ Eventually stops when |wy| < 0.01
+Each frame:
+  1. resetAllForces()     → clear persistent forces/torques on all dynamic bodies
+  2. executeTransformers  → transformers output force/torque for this frame only
+  3. applyForce / applyTorque → body.addForce / addTorque (once per frame)
+  4. world.step(dt)       → integrate; next frame starts again from step 1
 ```
 
 ## Files Changed
-- [src/transformers/presets/carTransformer.ts](src/transformers/presets/carTransformer.ts)
-  - Separated steering and damping logic
-  - Damping now applies independently of speed threshold
-  - Increased damping strength from ~0.25 to 10
+
+- [`src/physics/rapierPhysics.ts`](src/physics/rapierPhysics.ts) — added `resetAllForces()`
+- [`src/runtime/renderItemRegistry.ts`](src/runtime/renderItemRegistry.ts) — call `resetAllForces()` at top of `executeTransformers()`
 
 ## Testing
 
-The fix maintains:
-- ✓ Steering works when moving (speed > 0.1)
-- ✓ No steering at standstill
-- ✓ Forward/backward throttle unchanged
-- ✓ Friction and handbrake unchanged
-- ✓ Angular velocity properly damped after steering stops
+- **CarTransformer unit tests** ([`src/transformers/presets/carTransformer.test.ts`](src/transformers/presets/carTransformer.test.ts)): zero input → zero output; deterministic and idempotent output.
+- **Rapier force accumulation** ([`src/physics/forceAccumulation.test.ts`](src/physics/forceAccumulation.test.ts)): without reset, torque accumulates and angular velocity grows super-linearly; with `resetAllForces()` before each apply, growth is bounded and angular velocity decays after torque stops.
+- **Game loop integration** ([`src/transformers/integration.test.ts`](src/transformers/integration.test.ts)): steering for 10 frames then release for 20 — angular velocity decays; with no input for 30 frames, angular velocity stays near zero.
 
-## Transformer Pattern Application
+## Previous Approach (Superseded)
 
-This fix demonstrates the **transformer pattern principle**: each transformer handles a **single responsibility**:
-
-1. **Steering Transformer**: "Generate torque based on user input and speed"
-2. **Damping Transformer**: "Dissipate angular momentum when no steering input"
-
-These operate independently, making the system more maintainable and predictable.
+An earlier analysis assumed the bug was in CarTransformer (e.g. damping only when `speed > 0.1`), and proposed adding manual counter-torque in the transformer. The actual bug was at the physics layer (persistent forces/torques never cleared). The correct fix is clearing forces each frame; the CarTransformer does not need manual angular damping for this issue.

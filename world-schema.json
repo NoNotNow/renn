@@ -259,6 +259,8 @@
         "mass": { "type": "number" },
         "restitution": { "type": "number" },
         "friction": { "type": "number" },
+        "linearDamping": { "type": "number" },
+        "angularDamping": { "type": "number" },
         "scripts": { "$ref": "#/$defs/EntityScripts" },
         "locked": { "type": "boolean" },
         "transformers": {

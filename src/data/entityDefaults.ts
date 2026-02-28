@@ -91,6 +91,8 @@ export interface BulkEntityParams {
     mass?: { mode: 'fixed'; value: number } | { mode: 'random'; min: number; max: number }
     friction?: { mode: 'fixed'; value: number } | { mode: 'random'; min: number; max: number }
     restitution?: { mode: 'fixed'; value: number } | { mode: 'random'; min: number; max: number }
+    linearDamping?: { mode: 'fixed'; value: number } | { mode: 'random'; min: number; max: number }
+    angularDamping?: { mode: 'fixed'; value: number } | { mode: 'random'; min: number; max: number }
   }
 }
 
@@ -209,6 +211,18 @@ export function createBulkEntities(params: BulkEntityParams): Entity[] {
       entity.restitution = params.physics.restitution.mode === 'fixed'
         ? params.physics.restitution.value
         : randomInRangeUtil(params.physics.restitution.min, params.physics.restitution.max)
+    }
+
+    if (params.physics.linearDamping !== undefined) {
+      entity.linearDamping = params.physics.linearDamping.mode === 'fixed'
+        ? params.physics.linearDamping.value
+        : randomInRangeUtil(params.physics.linearDamping.min, params.physics.linearDamping.max)
+    }
+
+    if (params.physics.angularDamping !== undefined) {
+      entity.angularDamping = params.physics.angularDamping.mode === 'fixed'
+        ? params.physics.angularDamping.value
+        : randomInRangeUtil(params.physics.angularDamping.min, params.physics.angularDamping.max)
     }
     
     entities.push(entity)

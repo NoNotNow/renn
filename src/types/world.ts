@@ -93,6 +93,8 @@ export interface Entity {
   mass?: number
   restitution?: number
   friction?: number
+  linearDamping?: number
+  angularDamping?: number
   scripts?: EntityScripts
   locked?: boolean
   transformers?: import('./transformer').TransformerConfig[]

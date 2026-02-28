@@ -113,6 +113,7 @@ export class RenderItemRegistry {
    */
   executeTransformers(dt: number, wind?: Vec3): void {
     if (!this.physicsWorld) return
+    this.physicsWorld.resetAllForces()
 
     for (const item of this.items.values()) {
       if (!item.transformerChain) continue

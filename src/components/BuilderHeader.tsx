@@ -22,6 +22,7 @@ export interface BuilderHeaderProps {
   onImport: () => void
   onOpen: (id: string) => void
   onRefresh: () => void
+  onReload: () => void
   onDelete: () => void
   onPlay: () => void
   onShadowsChange: (enabled: boolean) => void
@@ -43,6 +44,7 @@ export default function BuilderHeader({
   onImport,
   onOpen,
   onRefresh,
+  onReload,
   onDelete,
   onPlay,
   onShadowsChange,
@@ -112,6 +114,12 @@ export default function BuilderHeader({
     },
     {
       type: 'separator',
+    },
+    {
+      type: 'item',
+      label: 'Reload',
+      onClick: onReload,
+      disabled: !currentProject.id,
     },
     {
       type: 'item',

@@ -69,9 +69,9 @@ export class PhysicsWorld {
     // Set damping for dynamic bodies to provide natural friction-like behavior
     if (bodyType === 'dynamic') {
       // Linear damping: resists linear motion (like air/rolling resistance)
-      rigidBody.setLinearDamping(0.3)
+      rigidBody.setLinearDamping(entity.linearDamping ?? 0.3)
       // Angular damping: resists rotation
-      rigidBody.setAngularDamping(0.3)
+      rigidBody.setAngularDamping(entity.angularDamping ?? 0.3)
     }
 
     // Create collider for the shape (pass mesh for trimesh extraction)
@@ -288,6 +288,20 @@ export class PhysicsWorld {
 
   getCachedTransform(entityId: string): CachedTransform | undefined {
     return this.cachedTransforms.get(entityId)
+  }
+
+  /**
+   * Clear all persistent forces and torques on dynamic bodies.
+   * Call once per frame before applying transformer forces so that
+   * addForce/addTorque do not accumulate across steps.
+   */
+  resetAllForces(): void {
+    for (const body of this.bodyMap.values()) {
+      if (body.isDynamic()) {
+        body.resetForces(true)
+        body.resetTorques(true)
+      }
+    }
   }
 
   setPosition(entityId: string, x: number, y: number, z: number): void {

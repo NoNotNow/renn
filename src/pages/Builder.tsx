@@ -131,6 +131,12 @@ export default function Builder() {
     [currentProject.isDirty, loadProject]
   )
 
+  const handleReload = useCallback(() => {
+    if (!currentProject.id) return
+    if (currentProject.isDirty && !confirm('Discard unsaved changes and reload from storage?')) return
+    loadProject(currentProject.id)
+  }, [currentProject.id, currentProject.isDirty, loadProject])
+
   const getCurrentPose = useCallback(
     (id: string): { position: Vec3; rotation: Rotation } => {
       const reg = sceneViewRef.current?.getAllPoses()
@@ -232,6 +238,7 @@ export default function Builder() {
         onImport={importProject}
         onOpen={handleOpen}
         onRefresh={refreshProjects}
+        onReload={handleReload}
         onDelete={() => currentProject.id && deleteProject(currentProject.id)}
         onPlay={handlePlay}
         onShadowsChange={setShadowsEnabled}

@@ -7,7 +7,7 @@ import MaterialEditor from './MaterialEditor'
 import ModelEditor from './ModelEditor'
 import TransformerEditor from './TransformerEditor'
 import CollapsibleSection from './CollapsibleSection'
-import { sectionStyle, sectionTitleStyle, fieldLabelStyle } from './sharedStyles'
+import { fieldLabelStyle } from './sharedStyles'
 
 export interface PropertyPanelProps {
   world: RennWorld
@@ -70,9 +70,10 @@ export default function PropertyPanel({
         {entity.name ?? entity.id}
       </h3>
 
-      <CollapsibleSection title="Entity" defaultCollapsed={false}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-          <span style={sectionTitleStyle}>Entity</span>
+      <CollapsibleSection
+        title="Entity"
+        defaultCollapsed={false}
+        trailing={
           <button
             type="button"
             onClick={() => {
@@ -90,12 +91,13 @@ export default function PropertyPanel({
               opacity: 0.8,
               transition: 'opacity 0.15s ease',
             }}
-            onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
-            onMouseLeave={(e) => e.currentTarget.style.opacity = '0.8'}
+            onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+            onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.8')}
           >
             {isLocked ? '🔒' : '🔓'}
           </button>
-        </div>
+        }
+      >
         <label style={fieldLabelStyle}>
           Name
           <input
@@ -178,10 +180,14 @@ export default function PropertyPanel({
           mass={entity.mass ?? 1}
           restitution={entity.restitution ?? 0}
           friction={entity.friction ?? 0.5}
+          linearDamping={entity.linearDamping ?? 0.3}
+          angularDamping={entity.angularDamping ?? 0.3}
           onBodyTypeChange={(bodyType) => updateEntity({ bodyType })}
           onMassChange={(mass) => updateEntity({ mass })}
           onRestitutionChange={(restitution) => updateEntity({ restitution })}
           onFrictionChange={(friction) => updateEntity({ friction })}
+          onLinearDampingChange={(linearDamping) => updateEntity({ linearDamping })}
+          onAngularDampingChange={(angularDamping) => updateEntity({ angularDamping })}
           disabled={isLocked}
         />
       </CollapsibleSection>
@@ -216,7 +222,10 @@ export default function PropertyPanel({
 
       {entity.transformers && entity.transformers.length > 0 && (
         <CollapsibleSection title="Transformers">
-          <TransformerEditor transformers={entity.transformers} />
+          <TransformerEditor
+            transformers={entity.transformers}
+            onChange={(transformers) => updateEntity({ transformers })}
+          />
         </CollapsibleSection>
       )}
 

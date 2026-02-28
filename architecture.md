@@ -80,10 +80,10 @@ renn/
 │   │   ├── BuilderHeader.tsx # Toolbar: New, Save, Save as, Download, Upload, project list, Play, gravity/shadows
 │   │   ├── EntitySidebar.tsx # Entity list, add-entity dropdown, camera control/target/mode
 │   │   ├── PropertySidebar.tsx # Tabs: Properties | Scripts | Assets
-│   │   ├── PropertyPanel.tsx # Edit selected entity (name, shape, transform, physics, material, delete)
+│   │   ├── PropertyPanel.tsx # Edit selected entity (name, shape, transform, physics, material, transformers, delete)
 │   │   ├── TransformEditor.tsx # Position, rotation (QuatField), scale
 │   │   ├── ShapeEditor.tsx   # Shape type + params (box, sphere, cylinder, capsule, plane)
-│   │   ├── PhysicsEditor.tsx # bodyType, mass, restitution, friction
+│   │   ├── PhysicsEditor.tsx # bodyType, mass, restitution, friction, linearDamping, angularDamping
 │   │   ├── MaterialEditor.tsx # color, roughness, metalness
 │   │   ├── ScriptPanel.tsx   # Monaco + script list (add/remove)
 │   │   ├── AssetPanel.tsx    # Upload assets, list by ID
@@ -150,7 +150,7 @@ renn/
 ## World document
 
 - **Root**: `version`, `world` (gravity, lighting, camera), `entities[]`, optional `assets`, optional `scripts`.
-- **Entity**: `id`, `bodyType` (static/dynamic/kinematic), `shape` (box/sphere/cylinder/capsule/plane/trimesh), `position` (Vec3), `rotation` (Quat), `scale`, `model?`, `material?`, `mass`, `restitution`, `friction`, `scripts?` (hook → script ID).
+- **Entity**: `id`, `bodyType` (static/dynamic/kinematic), `shape` (box/sphere/cylinder/capsule/plane/trimesh), `position` (Vec3), `rotation` (Quat), `scale`, `model?`, `material?`, `mass`, `restitution`, `friction`, `linearDamping`, `angularDamping`, `scripts?` (hook → script ID).
 - **Scripts**: map of script ID → source string. Entity `scripts.onUpdate` etc. reference these IDs. Scripts run with a `game` API (read/write positions, entities, time; no DOM/fetch).
 
 See **world-schema.json** and **src/types/world.ts** for the full shape.
