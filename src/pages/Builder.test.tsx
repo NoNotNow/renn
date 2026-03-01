@@ -60,10 +60,19 @@ describe('updateEntityPosition', () => {
   })
 
   it('returns a new world reference (immutable)', () => {
-    const result = updateEntityPosition(sampleWorld, 'ball', [0, 3, 0])
-    expect(result).not.toBe(sampleWorld)
-    expect(result.entities).not.toBe(sampleWorld.entities)
-    expect(sampleWorld.entities.find((e) => e.id === 'ball')?.position).toEqual([0, 2, 0])
+    const worldWithBall: RennWorld = {
+      version: '1.0',
+      world: {},
+      entities: [
+        { id: 'ball', position: [0, 2, 0] },
+        { id: 'other', position: [1, 1, 1] },
+      ],
+    }
+    const result = updateEntityPosition(worldWithBall, 'ball', [0, 3, 0])
+    expect(result).not.toBe(worldWithBall)
+    expect(result.entities).not.toBe(worldWithBall.entities)
+    expect(result.entities.find((e) => e.id === 'ball')?.position).toEqual([0, 3, 0])
+    expect(worldWithBall.entities.find((e) => e.id === 'ball')?.position).toEqual([0, 2, 0])
   })
 
   it('leaves world unchanged when entityId is not found', () => {
@@ -144,8 +153,8 @@ describe('Builder', () => {
       await Promise.resolve()
     })
     await openEntitiesTab(user)
-    const ballButton = screen.getByRole('button', { name: 'ball' })
-    await user.click(ballButton)
-    expect(sceneViewProps.selectedEntityId).toBe('ball')
+    const carButton = screen.getByRole('button', { name: 'Player Car' })
+    await user.click(carButton)
+    expect(sceneViewProps.selectedEntityId).toBe('car')
   })
 })

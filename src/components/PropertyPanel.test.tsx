@@ -40,6 +40,23 @@ function worldWithCylinder(): RennWorld {
   }
 }
 
+function worldWithSphere(): RennWorld {
+  const entity = createDefaultEntity('sphere')
+  return {
+    version: '1.0',
+    world: { camera: { control: 'free', mode: 'follow', target: 'ball' } },
+    entities: [
+      {
+        ...entity,
+        id: 'ball',
+        name: 'ball',
+        position: [0, 0, 0],
+        scale: [1, 1, 1],
+      },
+    ],
+  }
+}
+
 function renderPropertyPanel(
   world: RennWorld,
   selectedEntityId: string | null,
@@ -76,7 +93,8 @@ describe('PropertyPanel', () => {
   })
 
   it('shows shape-specific inputs for sphere when ball selected', () => {
-    renderPropertyPanel(sampleWorld, 'ball')
+    const world = worldWithSphere()
+    renderPropertyPanel(world, 'ball')
     expect(screen.getByRole('heading', { name: 'ball' })).toBeInTheDocument()
     expect(screen.getByLabelText(/radius/i)).toBeInTheDocument()
   })
