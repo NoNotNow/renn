@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react'
 import type { Vec3, Rotation } from '@/types/world'
 import Vec3Field from './Vec3Field'
 import { uiLogger } from '@/utils/uiLogger'
@@ -23,37 +22,15 @@ export default function TransformEditor({
   onPositionChange,
   onRotationChange,
   onScaleChange,
-  getCurrentPose,
   disabled = false,
 }: TransformEditorProps) {
-  const [displayPosition, setDisplayPosition] = useState(position)
-  const [displayRotation, setDisplayRotation] = useState(rotation)
-
-  // Poll current pose from registry if available
-  useEffect(() => {
-    if (!getCurrentPose) {
-      setDisplayPosition(position)
-      setDisplayRotation(rotation)
-      return
-    }
-
-    const interval = setInterval(() => {
-      const pose = getCurrentPose(entityId)
-      setDisplayPosition(pose.position)
-      setDisplayRotation(pose.rotation)
-    }, 100)
-
-    return () => clearInterval(interval)
-  }, [entityId, getCurrentPose, position, rotation])
-
   return (
     <>
       <Vec3Field
         label="Position"
-        value={displayPosition}
+        value={position}
         onChange={(v) => {
-          uiLogger.change('PropertyPanel', 'Change position', { entityId, oldValue: displayPosition, newValue: v })
-          setDisplayPosition(v)
+          uiLogger.change('PropertyPanel', 'Change position', { entityId, oldValue: position, newValue: v })
           onPositionChange(v)
         }}
         sensitivity={0.05}
@@ -62,10 +39,9 @@ export default function TransformEditor({
       />
       <Vec3Field
         label="Rotation"
-        value={displayRotation}
+        value={rotation}
         onChange={(r) => {
-          uiLogger.change('PropertyPanel', 'Change rotation', { entityId, oldValue: displayRotation, newValue: r })
-          setDisplayRotation(r)
+          uiLogger.change('PropertyPanel', 'Change rotation', { entityId, oldValue: rotation, newValue: r })
           onRotationChange(r)
         }}
         axisLabels={['X', 'Y', 'Z']}

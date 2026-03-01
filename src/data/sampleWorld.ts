@@ -40,7 +40,7 @@ export const sampleWorld: RennWorld = {
       rotation: [0, 0, 0],
       mass: 12,
       restitution: 0.1,
-      friction: 2,
+      friction: .1,
       material: { color: [0.2, 0.4, 0.8] },
       transformers: [
         {
@@ -51,8 +51,8 @@ export const sampleWorld: RennWorld = {
             keyboard: {
               w: 'throttle',
               s: 'brake',
-              a: 'steer_left',
-              d: 'steer_right',
+              d: 'steer_left',
+              a: 'steer_right',
               space: 'handbrake',
             },
             sensitivity: {
@@ -66,23 +66,12 @@ export const sampleWorld: RennWorld = {
           priority: 1,
           enabled: true,
           params: {
-            acceleration: 120.0,
-            steering: 200.5,
+            acceleration: 1200.0,
+            steering: 3000.5,
             handbrakeMultiplier: 3.0,
           },
         },
       ],
-    },
-    {
-      id: 'ball',
-      name: 'ball',
-      bodyType: 'dynamic',
-      shape: { type: 'sphere', radius: 0.5 },
-      position: [0, 2, 0],
-      mass: 1,
-      restitution: 0.6,
-      friction: 0.5,
-      material: { color: [0.9, 0.2, 0.2] },
     },
     // Boxen in 5×3 Raster verteilt
     {

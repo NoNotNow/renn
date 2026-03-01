@@ -20,30 +20,33 @@ const baseTextareaStyle: React.CSSProperties = {
 
 export interface TransformerConfigTextareaProps {
   value: TransformerConfig
-  onChange: (updated: TransformerConfig) => void
+  onApply: (updated: TransformerConfig) => void
   disabled?: boolean
 }
 
 function TransformerConfigTextarea({
   value,
-  onChange,
+  onApply,
   disabled = false,
 }: TransformerConfigTextareaProps) {
   const valueStr = JSON.stringify(value, null, 2)
   const [draftText, setDraftText] = useState(valueStr)
   const [isValid, setIsValid] = useState(true)
+  const [parsed, setParsed] = useState<TransformerConfig>(value)
 
   useEffect(() => {
     setDraftText(valueStr)
-  }, [valueStr])
+    setIsValid(true)
+    setParsed(value)
+  }, [valueStr, value])
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const next = e.target.value
     setDraftText(next)
     try {
-      const parsed = JSON.parse(next) as TransformerConfig
+      const p = JSON.parse(next) as TransformerConfig
       setIsValid(true)
-      onChange(parsed)
+      setParsed(p)
     } catch {
       setIsValid(false)
     }
@@ -56,14 +59,37 @@ function TransformerConfigTextarea({
   }
 
   return (
-    <textarea
-      value={draftText}
-      onChange={handleChange}
-      disabled={disabled}
-      style={textareaStyle}
-      spellCheck={false}
-      data-testid="transformer-config-textarea"
-    />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <textarea
+        value={draftText}
+        onChange={handleChange}
+        disabled={disabled}
+        style={textareaStyle}
+        spellCheck={false}
+        data-testid="transformer-config-textarea"
+      />
+      {!isValid && (
+        <span style={{ fontSize: 10, color: '#f87171' }}>Invalid JSON</span>
+      )}
+      <button
+        type="button"
+        onClick={() => onApply(parsed)}
+        disabled={disabled || !isValid}
+        style={{
+          alignSelf: 'flex-end',
+          padding: '4px 10px',
+          fontSize: 11,
+          background: isValid ? '#1e3a5f' : '#2a2a2a',
+          border: isValid ? '1px solid #3b6ea8' : '1px solid #3a3a3a',
+          color: isValid ? '#93c5fd' : '#666',
+          borderRadius: 4,
+          cursor: isValid && !disabled ? 'pointer' : 'not-allowed',
+        }}
+        data-testid="transformer-config-apply"
+      >
+        Apply
+      </button>
+    </div>
   )
 }
 
@@ -131,7 +157,7 @@ export default function TransformerEditor({
               <div style={fieldLabelStyle}>Configuration:</div>
               <TransformerConfigTextarea
                 value={transformer}
-                onChange={(updated) => {
+                onApply={(updated) => {
                   const next = transformers.map((t, i) =>
                     i === index ? updated : t
                   )
