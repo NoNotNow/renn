@@ -23,7 +23,7 @@ export interface BuilderHeaderProps {
   onOpen: (id: string) => void
   onRefresh: () => void
   onReload: () => void
-  onDelete: () => void
+  onDeleteProject: (id: string) => void
   onPlay: () => void
   onShadowsChange: (enabled: boolean) => void
   fileInputRef: React.RefObject<HTMLInputElement | null>
@@ -45,7 +45,7 @@ export default function BuilderHeader({
   onOpen,
   onRefresh,
   onReload,
-  onDelete,
+  onDeleteProject,
   onPlay,
   onShadowsChange,
   fileInputRef,
@@ -55,12 +55,23 @@ export default function BuilderHeader({
 }: BuilderHeaderProps) {
   const [showProjectSelector, setShowProjectSelector] = useState(false)
 
+  const recentProjects = projects.slice(0, 5)
   const fileMenuItems: MenuItemConfig[] = [
     {
       type: 'item',
       label: 'New',
       onClick: onNew,
       shortcut: 'Ctrl+N',
+    },
+    {
+      type: 'submenu',
+      label: 'Recent Projects',
+      disabled: recentProjects.length === 0,
+      items: recentProjects.map((p) => ({
+        type: 'item' as const,
+        label: p.name,
+        onClick: () => onOpen(p.id),
+      })),
     },
     {
       type: 'item',
@@ -119,7 +130,6 @@ export default function BuilderHeader({
       type: 'item',
       label: 'Reload',
       onClick: onReload,
-      disabled: !currentProject.id,
     },
     {
       type: 'item',
@@ -129,7 +139,7 @@ export default function BuilderHeader({
     {
       type: 'item',
       label: 'Delete Project',
-      onClick: onDelete,
+      onClick: () => currentProject.id && onDeleteProject(currentProject.id),
       disabled: !currentProject.id,
     },
   ]
@@ -260,26 +270,55 @@ export default function BuilderHeader({
                 <p style={{ color: '#9aa4b2', margin: 0 }}>No saved projects</p>
               ) : (
                 projects.map((project) => (
-                  <button
+                  <div
                     key={project.id}
-                    type="button"
-                    onClick={() => {
-                      onOpen(project.id)
-                      setShowProjectSelector(false)
-                    }}
                     style={{
-                      padding: '12px',
-                      textAlign: 'left',
-                      border: '1px solid #2f3545',
-                      background: currentProject.id === project.id ? '#2b3550' : '#1b1f2a',
-                      color: '#e6e9f2',
-                      cursor: 'pointer',
-                      borderRadius: '4px',
-                      fontSize: '14px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
                     }}
                   >
-                    {project.name}
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onOpen(project.id)
+                        setShowProjectSelector(false)
+                      }}
+                      style={{
+                        flex: 1,
+                        padding: '12px',
+                        textAlign: 'left',
+                        border: '1px solid #2f3545',
+                        background: currentProject.id === project.id ? '#2b3550' : '#1b1f2a',
+                        color: '#e6e9f2',
+                        cursor: 'pointer',
+                        borderRadius: '4px',
+                        fontSize: '14px',
+                      }}
+                    >
+                      {project.name}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onDeleteProject(project.id)
+                      }}
+                      title="Delete project"
+                      style={{
+                        padding: '8px 12px',
+                        background: '#3d2a2a',
+                        border: '1px solid #4a3535',
+                        color: '#e6e9f2',
+                        cursor: 'pointer',
+                        borderRadius: '4px',
+                        fontSize: '16px',
+                        lineHeight: 1,
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
                 ))
               )}
             </div>

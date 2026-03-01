@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useMemo, useEffect, type SetStateAction } from 'react'
 import SceneView, { type SceneViewHandle } from '@/components/SceneView'
 import BuilderHeader from '@/components/BuilderHeader'
+import SaveDialog from '@/components/SaveDialog'
 import EntitySidebar from '@/components/EntitySidebar'
 import PropertySidebar from '@/components/PropertySidebar'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
@@ -21,6 +22,7 @@ export default function Builder() {
     loadProject,
     saveProject,
     saveProjectAs,
+    saveToProject,
     deleteProject,
     refreshProjects,
     updateWorld,
@@ -41,6 +43,7 @@ export default function Builder() {
 
   const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null)
   const [shadowsEnabled, setShadowsEnabled] = useState(true)
+  const [showSaveDialog, setShowSaveDialog] = useState(false)
   const sceneViewRef = useRef<SceneViewHandle>(null)
 
   // Drawer states with localStorage persistence
@@ -175,24 +178,45 @@ export default function Builder() {
     return () => window.removeEventListener('beforeunload', handler)
   }, [currentProject.isDirty])
 
-  const handleSave = useCallback(async () => {
-    const allPoses = sceneViewRef.current?.getAllPoses()
-    if (allPoses) {
-      syncPosesFromScene(allPoses)
-    }
-    await saveProject()
-  }, [syncPosesFromScene, saveProject])
+  const syncPosesThen = useCallback(
+    async (fn: () => Promise<void>) => {
+      const allPoses = sceneViewRef.current?.getAllPoses()
+      if (allPoses) syncPosesFromScene(allPoses)
+      await fn()
+    },
+    [syncPosesFromScene]
+  )
 
-  const handleSaveAs = useCallback(async () => {
-    const name = prompt('Project name:', `World ${projects.length + 1}`)
-    if (!name) return
-    
-    const allPoses = sceneViewRef.current?.getAllPoses()
-    if (allPoses) {
-      syncPosesFromScene(allPoses)
+  const handleSave = useCallback(async () => {
+    if (!currentProject.id) {
+      setShowSaveDialog(true)
+      return
     }
-    await saveProjectAs(name)
-  }, [syncPosesFromScene, saveProjectAs, projects.length])
+    await syncPosesThen(saveProject)
+  }, [currentProject.id, syncPosesThen, saveProject])
+
+  const handleSaveAs = useCallback(() => {
+    setShowSaveDialog(true)
+  }, [])
+
+  const handleSaveDialogSaveNew = useCallback(
+    async (name: string) => {
+      await syncPosesThen(() => saveProjectAs(name))
+      setShowSaveDialog(false)
+    },
+    [syncPosesThen, saveProjectAs]
+  )
+
+  const handleSaveDialogOverwrite = useCallback(
+    async (id: string) => {
+      await syncPosesThen(() => saveToProject(id))
+      setShowSaveDialog(false)
+    },
+    [syncPosesThen, saveToProject]
+  )
+
+  const saveDialogDefaultName =
+    currentProject.name !== 'Untitled' ? currentProject.name : `World ${projects.length + 1}`
 
   const handleResetCamera = useCallback(() => {
     sceneViewRef.current?.resetCamera()
@@ -239,7 +263,7 @@ export default function Builder() {
         onOpen={handleOpen}
         onRefresh={refreshProjects}
         onReload={handleReload}
-        onDelete={() => currentProject.id && deleteProject(currentProject.id)}
+        onDeleteProject={deleteProject}
         onPlay={handlePlay}
         onShadowsChange={setShadowsEnabled}
         fileInputRef={fileInputRef}
@@ -247,6 +271,16 @@ export default function Builder() {
         onResetCamera={handleResetCamera}
         onApplyDebugForce={handleApplyDebugForce}
       />
+
+      {showSaveDialog && (
+        <SaveDialog
+          projects={projects}
+          defaultName={saveDialogDefaultName}
+          onSaveNew={handleSaveDialogSaveNew}
+          onOverwrite={handleSaveDialogOverwrite}
+          onCancel={() => setShowSaveDialog(false)}
+        />
+      )}
 
       <div style={{ position: 'relative', flex: 1, minHeight: 0, width: '100%' }}>
         {/* Canvas takes full width */}

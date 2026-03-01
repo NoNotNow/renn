@@ -6,6 +6,15 @@ import { sampleWorld } from '@/data/sampleWorld'
 import { uiLogger } from '@/utils/uiLogger'
 
 const persistence = createIndexedDbPersistence()
+const LAST_PROJECT_KEY = 'renn-last-project-id'
+
+function setLastProjectId(id: string): void {
+  try {
+    localStorage.setItem(LAST_PROJECT_KEY, id)
+  } catch {
+    // ignore quota or disabled localStorage
+  }
+}
 
 interface CurrentProject {
   id: string | null
@@ -36,6 +45,7 @@ interface ProjectContextActions {
   loadProject: (id: string) => Promise<void>
   saveProject: () => Promise<void>
   saveProjectAs: (name: string) => Promise<void>
+  saveToProject: (id: string) => Promise<void>
   deleteProject: (id: string) => Promise<void>
   refreshProjects: () => void
   
@@ -104,17 +114,6 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     persistence.listProjects().then(setProjects).catch(console.error)
   }, [])
   
-  // Load global assets on app initialization
-  useEffect(() => {
-    refreshProjects()
-    // Load all global assets once on app start
-    persistence.loadAllAssets().then((globalAssets) => {
-      setAssets(globalAssets)
-    }).catch((err) => {
-      console.error('Failed to load global assets:', err)
-    })
-  }, [refreshProjects])
-  
   const newProject = useCallback(() => {
     uiLogger.click('Builder', 'New project')
     setWorld(sampleWorld)
@@ -154,11 +153,36 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         mode: w.world.camera?.mode ?? 'follow',
       })
       setVersion((v) => v + 1)
+      setLastProjectId(id)
     } catch (err) {
       console.error('Failed to open project:', err)
       alert('Failed to open project')
     }
   }, [])
+
+  // Load global assets and optionally restore last project on app initialization
+  useEffect(() => {
+    let cancelled = false
+    refreshProjects()
+    Promise.all([
+      persistence.listProjects(),
+      persistence.loadAllAssets(),
+    ])
+      .then(([projectList, globalAssets]) => {
+        if (cancelled) return
+        setAssets(globalAssets)
+        const lastId = typeof localStorage !== 'undefined' ? localStorage.getItem(LAST_PROJECT_KEY) : null
+        if (lastId && projectList.some((p) => p.id === lastId)) {
+          loadProject(lastId).catch((err) => {
+            console.error('Failed to restore last project:', err)
+          })
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) console.error('Failed to initialize:', err)
+      })
+    return () => { cancelled = true }
+  }, [refreshProjects, loadProject])
   
   const saveProject = useCallback(async () => {
     try {
@@ -177,12 +201,29 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         name,
         isDirty: false,
       })
+      setLastProjectId(id)
       refreshProjects()
     } catch (err) {
       console.error('Failed to save project:', err)
       alert('Failed to save project')
     }
   }, [currentProject, world, assets, refreshProjects])
+  
+  const saveToProject = useCallback(async (id: string) => {
+    try {
+      const allProjects = await persistence.listProjects()
+      const meta = allProjects.find((p) => p.id === id)
+      const name = meta?.name ?? `Project ${id}`
+      uiLogger.click('Builder', 'Save to existing project', { projectId: id, projectName: name })
+      await persistence.saveProject(id, name, { world, assets })
+      setCurrentProject({ id, name, isDirty: false })
+      setLastProjectId(id)
+      refreshProjects()
+    } catch (err) {
+      console.error('Failed to save to project:', err)
+      alert('Failed to save to project')
+    }
+  }, [world, assets, refreshProjects])
   
   const saveProjectAs = useCallback(async (name: string) => {
     try {
@@ -195,6 +236,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         name,
         isDirty: false,
       })
+      setLastProjectId(id)
       refreshProjects()
     } catch (err) {
       console.error('Failed to save project:', err)
@@ -346,6 +388,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     loadProject,
     saveProject,
     saveProjectAs,
+    saveToProject,
     deleteProject,
     refreshProjects,
     updateWorld,
@@ -372,6 +415,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     loadProject,
     saveProject,
     saveProjectAs,
+    saveToProject,
     deleteProject,
     refreshProjects,
     updateWorld,
