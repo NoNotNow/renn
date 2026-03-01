@@ -25,6 +25,7 @@ High-level architecture of the 3D game world builder and runtime.
 ```
 renn/
 ├── world-schema.json         # JSON Schema for world documents (draft 2020-12)
+├── agent-context/            # Agent-facing docs (transformers, examples, architecture)
 ├── e2e/
 │   └── add-entity.spec.ts    # E2E: add entity flow
 ├── src/
@@ -167,7 +168,7 @@ See **world-schema.json** and **src/types/world.ts** for the full shape.
 ## Key design choices
 
 - **Play is a separate view** (route), not a toggle on the builder.
-- **Edit mode is “alive”**: physics and scripts run in the builder so the scene responds as you edit.
+- **Edit mode is "alive"**: physics and scripts run in the builder so the scene responds as you edit.
 - **Rotation in JSON is quaternion** `[x, y, z, w]` to avoid gimbal lock.
 - **Scripts**: main thread, trusted; `game` API only. Sandbox (Worker/iframe) later if scripts are shared.
 - **Camera**: config in world (mode, target, distance, height); Builder can override target/mode for preview. Free fly (WASD), follow, top/front/right presets.
