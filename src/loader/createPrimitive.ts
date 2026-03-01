@@ -259,6 +259,7 @@ export async function buildEntityMesh(
   if (s.type === 'plane') {
     const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0))
     mesh.quaternion.premultiply(q)
+    mesh.userData.visualBaseQuaternion = q
   }
   return mesh
 }

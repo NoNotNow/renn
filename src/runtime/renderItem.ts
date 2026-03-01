@@ -36,17 +36,30 @@ export class RenderItem {
     }
   }
 
-  /** Returns rotation from mesh (physics-driven) or entity (static). */
+  /** Returns rotation from mesh (physics-driven) or entity (static).
+   *  Compensates for visual base quaternion (e.g. plane layout rotation)
+   *  so the returned value reflects the entity's logical rotation. */
   getRotation(): Rotation {
     if (this.body) {
-      return quaternionToEuler(this.mesh.quaternion)
+      const q = this.mesh.quaternion.clone()
+      const baseQ = this.mesh.userData.visualBaseQuaternion as THREE.Quaternion | undefined
+      if (baseQ) {
+        q.premultiply(baseQ.clone().invert())
+      }
+      return quaternionToEuler(q)
     }
     return this.entity.rotation ?? DEFAULT_ROTATION
   }
 
-  /** Writes rotation to body + mesh (and mesh only for static). Does not write back to entity. */
+  /** Writes rotation to body + mesh (and mesh only for static).
+   *  Re-applies visual base quaternion so the mesh renders correctly.
+   *  Does not write back to entity. */
   setRotation(v: Rotation): void {
     const quat = new THREE.Quaternion().setFromEuler(new THREE.Euler(v[0], v[1], v[2], 'XYZ'))
+    const baseQ = this.mesh.userData.visualBaseQuaternion as THREE.Quaternion | undefined
+    if (baseQ) {
+      quat.premultiply(baseQ)
+    }
     this.mesh.quaternion.copy(quat)
     if (this.body) {
       const rapierQuat = eulerToRapierQuaternion(v)
