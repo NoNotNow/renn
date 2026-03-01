@@ -62,6 +62,18 @@ describe('IndexedDB Persistence', () => {
     expect(loaded.world.entities[1].id).toBe('ball')
   })
 
+  it('preserves entity positions through save and load', async () => {
+    const world = createTestWorld()
+    // ball has position [0, 5, 0] in createTestWorld
+    const assets = new Map<string, Blob>()
+
+    await persistence.saveProject('pos-test', 'Position Test', { world, assets })
+
+    const loaded = await persistence.loadProject('pos-test')
+    const ball = loaded.world.entities.find((e) => e.id === 'ball')
+    expect(ball?.position).toEqual([0, 5, 0])
+  })
+
   it('saves and loads project with assets', async () => {
     const world = createTestWorld()
     const textBlob = new Blob(['test content'], { type: 'text/plain' })

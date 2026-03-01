@@ -83,6 +83,8 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   })
   
   const [world, setWorld] = useState<RennWorld>(sampleWorld)
+  // worldRef mirrors world state synchronously so save functions never read a stale closure value
+  const worldRef = useRef<RennWorld>(sampleWorld)
   const [assets, setAssets] = useState<Map<string, Blob>>(new Map())
   const [projects, setProjects] = useState<ProjectMeta[]>([])
   const [version, setVersion] = useState(0)
@@ -116,6 +118,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   
   const newProject = useCallback(() => {
     uiLogger.click('Builder', 'New project')
+    worldRef.current = sampleWorld
     setWorld(sampleWorld)
     // Assets remain global - don't clear them when creating new project
     setCurrentProject({
@@ -140,6 +143,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       const allProjects = await persistence.listProjects()
       const projectMeta = allProjects.find((p) => p.id === id)
       
+      worldRef.current = w
       setWorld(w)
       // Assets remain global - don't change them when loading project
       setCurrentProject({
@@ -171,7 +175,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       .then(([projectList, globalAssets]) => {
         if (cancelled) return
         setAssets(globalAssets)
-        const lastId = typeof localStorage !== 'undefined' ? localStorage.getItem(LAST_PROJECT_KEY) : null
+        const lastId = (() => { try { return localStorage.getItem(LAST_PROJECT_KEY) } catch { return null } })()
         if (lastId && projectList.some((p) => p.id === lastId)) {
           loadProject(lastId).catch((err) => {
             console.error('Failed to restore last project:', err)
@@ -194,7 +198,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       
       uiLogger.click('Builder', 'Save project', { projectId: id, projectName: name })
       // Save project - assets are already in global store, just pass them for reference
-      await persistence.saveProject(id, name, { world, assets })
+      await persistence.saveProject(id, name, { world: worldRef.current, assets })
       
       setCurrentProject({
         id,
@@ -215,7 +219,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       const meta = allProjects.find((p) => p.id === id)
       const name = meta?.name ?? `Project ${id}`
       uiLogger.click('Builder', 'Save to existing project', { projectId: id, projectName: name })
-      await persistence.saveProject(id, name, { world, assets })
+      await persistence.saveProject(id, name, { world: worldRef.current, assets })
       setCurrentProject({ id, name, isDirty: false })
       setLastProjectId(id)
       refreshProjects()
@@ -229,7 +233,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     try {
       const id = `proj_${Date.now()}`
       uiLogger.click('Builder', 'Save as new project', { projectId: id, projectName: name })
-      await persistence.saveProject(id, name, { world, assets })
+      await persistence.saveProject(id, name, { world: worldRef.current, assets })
       
       setCurrentProject({
         id,
@@ -262,7 +266,9 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   }, [currentProject.id, newProject, refreshProjects])
   
   const updateWorld = useCallback((updater: (prev: RennWorld) => RennWorld) => {
-    setWorld(updater)
+    const next = updater(worldRef.current)
+    worldRef.current = next
+    setWorld(next)
     setCurrentProject((prev) => ({ ...prev, isDirty: true }))
   }, [])
   
@@ -284,13 +290,15 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   }, [])
   
   const syncPosesFromScene = useCallback((poses: Map<string, { position: Vec3; rotation: Rotation }>) => {
-    setWorld((prev) => ({
-      ...prev,
-      entities: prev.entities.map((e) => {
+    const merged: RennWorld = {
+      ...worldRef.current,
+      entities: worldRef.current.entities.map((e) => {
         const pose = poses.get(e.id)
         return pose ? { ...e, position: pose.position, rotation: pose.rotation } : e
       }),
-    }))
+    }
+    worldRef.current = merged
+    setWorld(merged)
   }, [])
   
   const exportProject = useCallback(() => {
@@ -349,6 +357,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       reader.onload = () => {
         try {
           const w = JSON.parse(reader.result as string) as RennWorld
+          worldRef.current = w
           setWorld(w)
           setAssets(new Map())
           setCurrentProject({
