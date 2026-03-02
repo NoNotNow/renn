@@ -118,9 +118,18 @@ export class CameraController {
         this.camera.position.copy(this.currentTarget)
         this.camera.position.y += 1.6
         break
-      case 'thirdPerson':
       case 'follow': {
+        this.currentOffset.set(0, height, distance * 2)
+        const followQ = this.getEntityQuaternion(targetId)
+        if (followQ) this.currentOffset.applyQuaternion(followQ)
+        this.camera.position.copy(this.currentTarget).add(this.currentOffset)
+        this.camera.lookAt(this.currentTarget)
+        break
+      }
+      case 'thirdPerson': {
         this.currentOffset.set(0, height, distance)
+        const thirdPersonQ = this.getEntityQuaternion(targetId)
+        if (thirdPersonQ) this.currentOffset.applyQuaternion(thirdPersonQ)
         this.camera.position.copy(this.currentTarget).add(this.currentOffset)
         this.camera.lookAt(this.currentTarget)
         break

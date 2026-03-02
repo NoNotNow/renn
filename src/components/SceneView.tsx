@@ -196,10 +196,17 @@ function SceneViewInner({
         return obj instanceof THREE.Mesh ? obj.position.clone() : null
       }
 
+      const getEntityQuaternion = (entityId: string): THREE.Quaternion | null => {
+        const reg = registryRef.current
+        if (reg) return reg.getRotationAsQuaternion(entityId) ?? null
+        return null
+      }
+
       cameraCtrl = new CameraController({
         camera: cam,
         scene: loadedScene,
         getEntityPosition,
+        getEntityQuaternion,
       })
       cameraCtrlRef.current = cameraCtrl
 

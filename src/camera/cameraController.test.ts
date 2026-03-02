@@ -199,6 +199,69 @@ describe('CameraController', () => {
     expect(camera.position.y).toBeCloseTo(1.6, 0)
   })
 
+  it('rotates camera offset with target quaternion in follow mode', () => {
+    const { camera, scene, getEntityPosition } = createTestSetup()
+
+    scene.userData.camera = {
+      control: 'follow',
+      mode: 'follow',
+      target: 'player',
+      distance: 10,
+      height: 0,
+    }
+
+    // 90-degree yaw around Y axis: target is now facing +X
+    const yaw90 = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 2)
+    const getEntityQuaternion = vi.fn((_id: string) => yaw90)
+
+    const controller = new CameraController({
+      camera,
+      scene,
+      getEntityPosition,
+      getEntityQuaternion,
+    })
+
+    // Run until smoothing converges
+    for (let i = 0; i < 200; i++) {
+      controller.update(0.016)
+    }
+
+    // Unrotated offset (0, 0, 20) rotated 90-deg around Y becomes (20, 0, 0).
+    // The car now faces -X, so the camera at +X is correctly behind it.
+    expect(camera.position.x).toBeGreaterThan(5)
+    expect(Math.abs(camera.position.z)).toBeLessThan(5)
+  })
+
+  it('rotates camera offset with target quaternion in thirdPerson mode', () => {
+    const { camera, scene, getEntityPosition } = createTestSetup()
+
+    scene.userData.camera = {
+      control: 'follow',
+      mode: 'thirdPerson',
+      target: 'player',
+      distance: 10,
+      height: 0,
+    }
+
+    // 90-degree yaw: car faces -X, camera should land at +X (behind the car)
+    const yaw90 = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 2)
+    const getEntityQuaternion = vi.fn((_id: string) => yaw90)
+
+    const controller = new CameraController({
+      camera,
+      scene,
+      getEntityPosition,
+      getEntityQuaternion,
+    })
+
+    for (let i = 0; i < 200; i++) {
+      controller.update(0.016)
+    }
+
+    expect(camera.position.x).toBeGreaterThan(5)
+    expect(Math.abs(camera.position.z)).toBeLessThan(5)
+  })
+
   it('returns null for missing entity', () => {
     const { camera, scene, getEntityPosition } = createTestSetup()
     

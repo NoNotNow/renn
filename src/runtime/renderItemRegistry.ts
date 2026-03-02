@@ -103,6 +103,20 @@ export class RenderItemRegistry {
     return item ? item.getRotation() : null
   }
 
+  /**
+   * getRotation as THREE.Quaternion for consumers that need a quaternion (e.g. CameraController).
+   * Compensates for visual base quaternion so the result reflects logical rotation.
+   */
+  getRotationAsQuaternion(id: string, out?: THREE.Quaternion): THREE.Quaternion | null {
+    const item = this.items.get(id)
+    if (!item) return null
+    const q = item.mesh.quaternion.clone()
+    const baseQ = item.mesh.userData.visualBaseQuaternion as THREE.Quaternion | undefined
+    if (baseQ) q.premultiply(baseQ.clone().invert())
+    if (out) { out.copy(q); return out }
+    return q
+  }
+
   setRotation(id: string, v: Rotation): void {
     this.items.get(id)?.setRotation(v)
   }
