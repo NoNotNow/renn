@@ -169,9 +169,9 @@ See **world-schema.json** and **src/types/world.ts** for the full shape.
 
 - **Play is a separate view** (route), not a toggle on the builder.
 - **Edit mode is "alive"**: physics and scripts run in the builder so the scene responds as you edit.
-- **Rotation in JSON is quaternion** `[x, y, z, w]` to avoid gimbal lock.
+- **Rotation in JSON is Euler** `[x, y, z]` radians via `Rotation`; legacy `Quat` alias is kept only for backward compatibility during migration.
 - **Scripts**: main thread, trusted; `game` API only. Sandbox (Worker/iframe) later if scripts are shared.
-- **Camera**: config in world (mode, target, distance, height); Builder can override target/mode for preview. Free fly (WASD), follow, top/front/right presets.
+- **Camera**: config in world (mode, target, distance, height); Builder can override target/mode for preview. Free fly (WASD), follow, third person, first person, and top/front/right presets. Follow/third-person offset now rotates with target quaternion from runtime registry.
 - **UI logging**: centralized `uiLogger` for clicks, changes, selects, uploads, deletes; see `UI_LOGGING.md`.
 - **ProjectContext pattern**: single source of truth for project state; all components access state/actions via context; memoized values prevent unnecessary re-renders.
 - **RenderItemRegistry**: centralized entity management; single responsibility for physics-mesh sync; uses cached transforms to avoid WASM aliasing errors.

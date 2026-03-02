@@ -36,7 +36,7 @@
 
 ```
 src/
-├── types/world.ts          # Entity, Shape, Vec3, Quat types
+├── types/world.ts          # Entity, Shape, Vec3, Rotation types
 ├── loader/loadWorld.ts     # World JSON → Three.js scene
 ├── physics/rapierPhysics.ts
 ├── runtime/renderItemRegistry.ts

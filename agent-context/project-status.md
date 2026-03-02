@@ -1,6 +1,6 @@
 # Renn – Project Status
 
-Last updated: 2026-02-03
+Last updated: 2026-03-02
 
 ## Completed
 
@@ -9,6 +9,7 @@ Last updated: 2026-02-03
 - World loader: JSON → Three.js scene + entity meshes
 - Rapier physics: collider shapes, physics→mesh sync, collision events, cached transforms (WASM aliasing fix)
 - Camera controller: free fly, follow, top/front/right presets; first/third person
+- Follow/third-person camera now rotates offset using target entity orientation (quaternion-driven follow behavior)
 - Script runner: main-thread, `game` API, hooks `onSpawn` / `onUpdate` / `onCollision`
 - Asset resolver: textures + 3D models (GLB only) via blob URLs
 
