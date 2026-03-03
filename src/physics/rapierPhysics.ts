@@ -130,6 +130,8 @@ export class PhysicsWorld {
         const h = Math.max(0, (shape.height - 2 * shape.radius)) * sy
         return Math.PI * r * r * h + (4 / 3) * Math.PI * r * r * r
       }
+      case 'plane':
+        return 0 // HalfSpace is infinite; static ground has no density/mass
       default:
         return 0
     }
@@ -172,13 +174,14 @@ export class PhysicsWorld {
       }
 
       case 'plane': {
-        // Create a large thin box for ground plane
-        // Position it so the top surface is at y=0
-        const halfExtents = { x: 100, y: 0.1, z: 100 }
-        const colliderDesc = RAPIER.ColliderDesc.cuboid(halfExtents.x, halfExtents.y, halfExtents.z)
-        // Shift the collider down so top surface aligns with y=0
-        colliderDesc.setTranslation(0, -halfExtents.y, 0)
-        return colliderDesc
+        // Infinite half-space so items never fall through away from center.
+        // Outward normal: up (0, 1, 0) so solid is below the plane at body position.
+        const planeShape = shape as { type: 'plane'; normal?: [number, number, number] }
+        const [nx = 0, ny = 1, nz = 0] = planeShape.normal ?? [0, 1, 0]
+        const len = Math.hypot(nx, ny, nz) || 1
+        const normal = { x: nx / len, y: ny / len, z: nz / len }
+        const halfSpace = new RAPIER.HalfSpace(normal)
+        return new RAPIER.ColliderDesc(halfSpace)
       }
 
       case 'trimesh': {

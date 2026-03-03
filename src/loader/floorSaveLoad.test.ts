@@ -117,6 +117,30 @@ describe('Floor save/load round-trip', () => {
     physics.dispose()
   })
 
+  it('items at offset from center land on infinite plane (no fall-through)', async () => {
+    const world = createWorldWithFloor()
+    const { entities } = await loadWorld(world)
+    const physics = await createPhysicsWorld(world, entities)
+
+    // Place ball far from center; with HalfSpace ground it should still land
+    physics.setPosition('ball', 6, 2, 6)
+    for (let i = 0; i < 120; i++) {
+      physics.step(1 / 60)
+    }
+    const ballY6 = physics.getBody('ball')!.translation().y
+    expect(ballY6).toBeGreaterThan(-1)
+
+    // Same at larger offset (confirms infinite plane)
+    physics.setPosition('ball', 50, 2, 50)
+    for (let i = 0; i < 120; i++) {
+      physics.step(1 / 60)
+    }
+    const ballY50 = physics.getBody('ball')!.translation().y
+    expect(ballY50).toBeGreaterThan(-1)
+
+    physics.dispose()
+  })
+
   it('floor mesh faces upward after save/load', async () => {
     const world = createWorldWithFloor()
     const { entities } = await loadWorld(world)
