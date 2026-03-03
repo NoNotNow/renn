@@ -93,12 +93,45 @@ export class PhysicsWorld {
       }
 
       if (bodyType === 'dynamic' && entity.mass !== undefined) {
-        colliderDesc.setDensity(entity.mass)
+        const volume = this.computeColliderVolume(entity.shape, entity.scale)
+        if (volume > 0) {
+          colliderDesc.setDensity(entity.mass / volume)
+        } else {
+          colliderDesc.setDensity(entity.mass)
+        }
       }
 
       const collider = this.world.createCollider(colliderDesc, rigidBody)
       this.colliderMap.set(entity.id, collider)
       this.colliderHandleToEntityId.set(collider.handle, entity.id)
+    }
+  }
+
+  /** Compute the volume of a collider shape so density = mass / volume. */
+  private computeColliderVolume(shape: Shape | undefined, scale?: [number, number, number]): number {
+    const [sx, sy, sz] = scale ?? [1, 1, 1]
+    if (!shape) return 1 * sx * sy * sz // default unit box
+
+    switch (shape.type) {
+      case 'box':
+        return shape.width * sx * shape.height * sy * shape.depth * sz
+      case 'sphere': {
+        const avgS = (sx + sy + sz) / 3
+        const r = shape.radius * avgS
+        return (4 / 3) * Math.PI * r * r * r
+      }
+      case 'cylinder': {
+        const r = shape.radius * Math.max(sx, sz)
+        const h = shape.height * sy
+        return Math.PI * r * r * h
+      }
+      case 'capsule': {
+        const r = shape.radius * Math.max(sx, sz)
+        const h = Math.max(0, (shape.height - 2 * shape.radius)) * sy
+        return Math.PI * r * r * h + (4 / 3) * Math.PI * r * r * r
+      }
+      default:
+        return 0
     }
   }
 

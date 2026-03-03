@@ -1,10 +1,20 @@
 /**
- * CarTransformer: vehicle physics with steering.
+ * CarTransformer: realistic arcade car physics using the bicycle model.
  *
  * Handles:
- * - Throttle/brake
- * - Steering (turns vehicle)
- * - Handbrake
+ * - Throttle / reverse / engine braking (longitudinal forces)
+ * - Steering via turning radius derived from front-wheel angle (bicycle model)
+ * - Lateral tire grip that keeps the car tracking its heading
+ * - Handbrake: strong braking + reduced lateral grip for drifting
+ * - Max speed tapering: engine force drops to zero near top speed
+ *
+ * All output is via TransformOutput.force and TransformOutput.torque only.
+ * No impulses are used, consistent with the resetAllForces → apply → step pipeline.
+ *
+ * Bicycle model reference:
+ *   turningRadius = wheelbase / tan(steerAngle)
+ *   omega         = forwardSpeed / turningRadius
+ * Lateral grip is modelled as a counter-force opposing sideways velocity.
  */
 
 import { BaseTransformer } from '../transformer'
@@ -12,28 +22,58 @@ import type { TransformInput, TransformOutput } from '@/types/transformer'
 import * as THREE from 'three'
 
 export interface CarTransformerParams {
-  /** Acceleration force */
+  /** Top speed in m/s. Engine force tapers to zero as speed approaches this. Default 25. */
+  maxSpeed?: number
+  /** Engine force magnitude (Newtons). Sized for mass ~12 by default. Default 200. */
   acceleration?: number
-  /** Steering sensitivity */
-  steering?: number
-  /** Handbrake force multiplier */
+  /** Braking force magnitude when brake input is active and moving forward. Default 400. */
+  brakeForce?: number
+  /** Passive deceleration force when coasting (no throttle, no brake). Default 30. */
+  engineBrake?: number
+  /** Maximum front-wheel steering angle in radians. Default 0.5 (~28.6 deg). */
+  maxSteerAngle?: number
+  /** Distance between front and rear axle in world units. Match ~half entity depth. Default 2.0. */
+  wheelbase?: number
+  /**
+   * Lateral grip force multiplier. Higher values = tighter cornering, less sliding.
+   * Applied as force = -lateralSpeed * lateralGrip opposing sideways velocity. Default 25.
+   */
+  lateralGrip?: number
+  /**
+   * Fraction of lateral grip active during handbrake (0–1).
+   * Lower = more slide/drift. Default 0.15.
+   */
+  handbrakeGripFactor?: number
+  /** Handbrake braking force multiplier (applied on top of brakeForce). Default 3. */
   handbrakeMultiplier?: number
+  /**
+   * Scale applied to the computed omega torque to overcome angular damping.
+   * Tune alongside the entity's angularDamping. Default 40.
+   */
+  steeringTorqueScale?: number
 }
 
 const DEFAULT_PARAMS: Required<CarTransformerParams> = {
-  acceleration: 15.0,
-  steering: 0.3,
-  handbrakeMultiplier: 2.0,
+  maxSpeed: 25,
+  acceleration: 200,
+  brakeForce: 400,
+  engineBrake: 30,
+  maxSteerAngle: 0.5,
+  wheelbase: 2.0,
+  lateralGrip: 25,
+  handbrakeGripFactor: 0.15,
+  handbrakeMultiplier: 3,
+  steeringTorqueScale: 40,
 }
+
+/** Speed below which the car is considered stationary for reverse logic. */
+const REVERSE_THRESHOLD = 0.5
 
 export class CarTransformer extends BaseTransformer {
   readonly type = 'car'
   private params: Required<CarTransformerParams>
 
-  constructor(
-    priority: number = 10,
-    params: CarTransformerParams = {},
-  ) {
+  constructor(priority: number = 10, params: CarTransformerParams = {}) {
     super(priority, true)
     this.params = { ...DEFAULT_PARAMS, ...params }
   }
@@ -43,68 +83,108 @@ export class CarTransformer extends BaseTransformer {
   }
 
   transform(input: TransformInput, dt: number): TransformOutput {
-    const { acceleration, steering, handbrakeMultiplier } = this.params
+    const {
+      maxSpeed,
+      acceleration,
+      brakeForce,
+      engineBrake,
+      maxSteerAngle,
+      wheelbase,
+      lateralGrip,
+      handbrakeGripFactor,
+      handbrakeMultiplier,
+      steeringTorqueScale,
+    } = this.params
 
-    // Get actions
+    // Actions
     const throttle = this.getAction(input, 'throttle')
     const brake = this.getAction(input, 'brake')
     const steerLeft = this.getAction(input, 'steer_left')
     const steerRight = this.getAction(input, 'steer_right')
     const handbrake = this.getAction(input, 'handbrake')
 
-    // Current rotation and velocity
+    // ── Orientation ──────────────────────────────────────────────────────────
     const [rx, ry, rz] = input.rotation
     const euler = new THREE.Euler(rx, ry, rz, 'XYZ')
+
+    const forwardDir = new THREE.Vector3(0, 0, -1).applyEuler(euler)
+    const rightDir = new THREE.Vector3(1, 0, 0).applyEuler(euler)
+
+    // ── Local velocity decomposition ─────────────────────────────────────────
     const [vx, vy, vz] = input.velocity
     const velocity = new THREE.Vector3(vx, vy, vz)
     const speed = velocity.length()
 
-    // Forward direction
-    const forwardDir = new THREE.Vector3(0, 0, -1)
-    forwardDir.applyEuler(euler)
+    // Signed speed along the car's forward axis (+forward, -backward)
+    const forwardSpeed = velocity.dot(forwardDir)
+    // Signed speed along the car's right axis (+right, -left)
+    const lateralSpeed = velocity.dot(rightDir)
 
-    // Throttle/brake force
-    const throttleForce = (throttle - brake) * acceleration
-    const forceVec = forwardDir.multiplyScalar(throttleForce)
+    // ── Accumulated force and torque ─────────────────────────────────────────
+    const totalForce = new THREE.Vector3()
+    let steeringTorqueY = 0
 
-    // NOTE: Friction is handled by Rapier physics (collider friction property)
-    // We DO NOT apply manual friction here to avoid double-damping
-    // The car will naturally decelerate due to Rapier's friction model
+    // ── 1. Longitudinal forces ───────────────────────────────────────────────
 
-    // Handbrake (strong deceleration force, only when moving)
-    if (handbrake > 0 && speed > 0.1) {
-      // Handbrake applies a deceleration force opposite to velocity
-      const handbrakeForce = velocity
-        .clone()
-        .normalize()
-        .multiplyScalar(-speed * handbrakeMultiplier * acceleration) // Scale with acceleration for consistency
-      forceVec.add(handbrakeForce)
+    if (handbrake > 0) {
+      // Handbrake: strong braking, no engine
+      if (speed > 0.05) {
+        const handbrakeDecel = handbrakeMultiplier * brakeForce
+        // Apply force opposing current velocity direction
+        totalForce.addScaledVector(velocity.clone().normalize(), -handbrakeDecel)
+      }
+    } else if (throttle > 0) {
+      // Engine force, tapering to zero near maxSpeed
+      const speedRatio = Math.max(0, forwardSpeed / maxSpeed)
+      const taper = Math.max(0, 1 - speedRatio)
+      totalForce.addScaledVector(forwardDir, throttle * acceleration * taper)
+    } else if (brake > 0) {
+      if (forwardSpeed > REVERSE_THRESHOLD) {
+        // Braking while moving forward
+        totalForce.addScaledVector(forwardDir, -brake * brakeForce)
+      } else if (forwardSpeed > -maxSpeed) {
+        // Reverse: brake key held from standstill or while reversing
+        const reverseSpeedRatio = Math.max(0, -forwardSpeed / maxSpeed)
+        const taper = Math.max(0, 1 - reverseSpeedRatio)
+        totalForce.addScaledVector(forwardDir, -brake * acceleration * taper)
+      }
+    } else if (speed > 0.1) {
+      // Engine braking: coasting with no input
+      totalForce.addScaledVector(velocity.clone().normalize(), -engineBrake)
     }
 
-    // Steering torque
-    // Apply immediately at any speed (not gated by speed threshold)
-    // But scale down at very low speeds for stability
-    let torque: THREE.Vector3 | undefined
+    // ── 2. Lateral grip ───────────────────────────────────────────────────────
+    // Counter-force opposing sideways velocity simulates tire grip.
+    const effectiveGrip = handbrake > 0
+      ? lateralGrip * handbrakeGripFactor
+      : lateralGrip
+    totalForce.addScaledVector(rightDir, -lateralSpeed * effectiveGrip)
+
+    // ── 3. Steering (bicycle model) ───────────────────────────────────────────
     const steerInput = steerRight - steerLeft
-    
-    if (steerInput !== 0) {
-      // Active steering input: apply torque proportional to speed and steering input
-      // At low speeds: reduced steering for stability
-      // At high speeds: steering is effective
-      const speedFactor = Math.max(0.2, Math.min(1, speed / 10)) // 0.2-1.0 range
-      const steerAmount = steerInput * steering * speedFactor
-      torque = new THREE.Vector3(0, steerAmount, 0)
+    if (Math.abs(steerInput) > 0.001 && Math.abs(forwardSpeed) > 0.1) {
+      const steerAngle = steerInput * maxSteerAngle
+      // turningRadius = wheelbase / tan(steerAngle)
+      const tanAngle = Math.tan(Math.abs(steerAngle))
+      const turningRadius = wheelbase / Math.max(tanAngle, 0.001)
+      // omega = v / r (angular velocity of heading, rad/s)
+      const omega = forwardSpeed / turningRadius
+      // Scale torque to overcome angular damping and reach desired omega
+      steeringTorqueY = Math.sign(steerAngle) * omega * steeringTorqueScale
     }
-    // NOTE: Angular damping is handled by Rapier physics (rigid body angular damping)
-    // We DO NOT apply manual counter-torque to avoid double-damping
-    // The car will naturally stop rotating due to Rapier's damping
 
-    const output = {
-      force: forceVec.length() > 0.01 ? [forceVec.x, forceVec.y, forceVec.z] : undefined,
-      torque: torque ? [torque.x, torque.y, torque.z] : undefined,
+    // ── Compose output ────────────────────────────────────────────────────────
+    const hasForce = totalForce.lengthSq() > 0.0001
+    const hasTorque = Math.abs(steeringTorqueY) > 0.0001
+
+    return {
+      force: hasForce
+        ? [totalForce.x, totalForce.y, totalForce.z]
+        : undefined,
+      torque: hasTorque
+        ? [0, steeringTorqueY, 0]
+        : undefined,
       earlyExit: false,
     }
-
-    return output
   }
 }

@@ -49,7 +49,7 @@ export const CHARACTER_PRESET: InputMapping = {
 }
 
 /**
- * Car preset: W/S = throttle/brake, A/D = steering
+ * Car preset: W/S = throttle/brake, A/D = steering, Space/Shift = handbrake
  */
 export const CAR_PRESET: InputMapping = {
   keyboard: {
@@ -58,6 +58,7 @@ export const CAR_PRESET: InputMapping = {
     a: 'steer_left',
     d: 'steer_right',
     space: 'handbrake',
+    shift: 'handbrake',
   },
   sensitivity: {
     keyboard: 1.0,

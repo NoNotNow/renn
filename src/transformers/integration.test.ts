@@ -99,7 +99,9 @@ describe('Transformer Integration', () => {
           shape: { type: 'box', width: 2, height: 1, depth: 4 },
           position: [0, 1, 0],
           rotation: [0, 0, 0],
-          mass: 12,
+          // Light mass so the engine and steering torques produce measurable
+          // velocity changes within the short test window (20 frames).
+          mass: 1,
           angularDamping: 0.5,
           transformers: [
             {
@@ -118,7 +120,9 @@ describe('Transformer Integration', () => {
             {
               type: 'car',
               priority: 1,
-              params: { acceleration: 50, steering: 80, handbrakeMultiplier: 2 },
+              // High acceleration so car reaches speed quickly; high steeringTorqueScale
+              // so the resulting steering torque is measurable within 20 frames.
+              params: { acceleration: 100, steeringTorqueScale: 100, handbrakeMultiplier: 2 },
             },
           ],
         },
@@ -134,13 +138,16 @@ describe('Transformer Integration', () => {
       ),
     }))
 
+    const STEER_FRAMES = 20
     let frameIndex = 0
     const rawInputGetter = (): RawInput => ({
       keys: {
-        w: false,
+        // Throttle + steer right — bicycle model requires forward speed to produce
+        // steering torque, so w must be pressed alongside d.
+        w: frameIndex < STEER_FRAMES,
         a: false,
         s: false,
-        d: frameIndex < 10,
+        d: frameIndex < STEER_FRAMES,
         space: false,
         shift: false,
       },
@@ -158,7 +165,7 @@ describe('Transformer Integration', () => {
 
     const dt = 0.016
 
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < STEER_FRAMES; i++) {
       frameIndex = i
       registry.executeTransformers(dt)
       pw.step(dt)
@@ -171,8 +178,8 @@ describe('Transformer Integration', () => {
       avAfter.x * avAfter.x + avAfter.y * avAfter.y + avAfter.z * avAfter.z,
     )
 
-    for (let i = 0; i < 20; i++) {
-      frameIndex = 10 + i
+    for (let i = 0; i < 30; i++) {
+      frameIndex = STEER_FRAMES + i
       registry.executeTransformers(dt)
       pw.step(dt)
       registry.syncFromPhysics()
@@ -221,7 +228,7 @@ describe('Transformer Integration', () => {
                 },
               },
             },
-            { type: 'car', priority: 1, params: { acceleration: 50, steering: 80 } },
+            { type: 'car', priority: 1, params: { acceleration: 50, steeringTorqueScale: 20 } },
           ],
         },
       ],
