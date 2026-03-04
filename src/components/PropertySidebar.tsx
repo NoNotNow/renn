@@ -3,6 +3,7 @@ import PropertyPanel from './PropertyPanel'
 import ScriptPanel from './ScriptPanel'
 import AssetPanel from './AssetPanel'
 import type { RennWorld, Vec3, Rotation } from '@/types/world'
+import { useLocalStorageState } from '@/hooks/useLocalStorageState'
 import { uiLogger } from '@/utils/uiLogger'
 import Sidebar from './layout/Sidebar'
 import { TabIcons } from './TabIcons'
@@ -37,6 +38,7 @@ export default function PropertySidebar({
   onToggle,
 }: PropertySidebarProps) {
   const [rightTab, setRightTab] = useState<RightTab>('properties')
+  const [rightSidebarWidth, setRightSidebarWidth] = useLocalStorageState('rightSidebarWidth', 300)
 
   const handleTabChange = (tab: string) => {
     uiLogger.click('Builder', 'Switch right panel tab', { tab })
@@ -55,7 +57,8 @@ export default function PropertySidebar({
       ]}
       activeTab={rightTab}
       onTabChange={handleTabChange}
-      width={300}
+      width={rightSidebarWidth}
+      onWidthChange={setRightSidebarWidth}
       toggleLogContext="Toggle right drawer"
     >
       <div

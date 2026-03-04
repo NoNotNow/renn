@@ -1,6 +1,7 @@
 import { useRef, useCallback, useState } from 'react'
 import type { Entity, CameraMode, Color, RennWorld } from '@/types/world'
 import type { AddableShapeType, BulkEntityParams } from '@/data/entityDefaults'
+import { useLocalStorageState } from '@/hooks/useLocalStorageState'
 import { uiLogger } from '@/utils/uiLogger'
 import Sidebar from './layout/Sidebar'
 import { TabIcons } from './TabIcons'
@@ -45,6 +46,7 @@ export default function EntitySidebar({
   onToggle,
 }: EntitySidebarProps) {
   const [leftTab, setLeftTab] = useState<LeftTab>('camera')
+  const [leftSidebarWidth, setLeftSidebarWidth] = useLocalStorageState('leftSidebarWidth', 240)
   const addEntitySelectRef = useRef<HTMLSelectElement>(null)
   
   // Bulk creation form state - defaults optimized for maximum collisions
@@ -158,6 +160,8 @@ export default function EntitySidebar({
       ]}
       activeTab={leftTab}
       onTabChange={handleTabChange}
+      width={leftSidebarWidth}
+      onWidthChange={setLeftSidebarWidth}
       toggleLogContext="Toggle left drawer"
     >
       <div style={{ padding: 10 }}>

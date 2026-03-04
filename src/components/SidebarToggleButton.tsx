@@ -1,18 +1,31 @@
 import { uiLogger } from '@/utils/uiLogger'
 
+const RESIZE_HANDLE_TITLE = 'Drag to resize, click to collapse'
+
 interface SidebarToggleButtonProps {
   isOpen: boolean
   onToggle: () => void
   side: 'left' | 'right'
   logContext: string
+  /** When set, this button acts as a resize handle; mousedown is captured and toggle is handled by parent on mouseup when no drag. */
+  onResizeHandleMouseDown?: (e: React.MouseEvent<HTMLButtonElement>) => void
 }
 
-export function SidebarToggleButton({ isOpen, onToggle, side, logContext }: SidebarToggleButtonProps) {
+export function SidebarToggleButton({ isOpen, onToggle, side, logContext, onResizeHandleMouseDown }: SidebarToggleButtonProps) {
   const isLeft = side === 'left'
-  
+  const isResizeHandle = onResizeHandleMouseDown != null
+
   const handleClick = () => {
+    if (isResizeHandle) return
     uiLogger.click('Builder', logContext, { isOpen })
     onToggle()
+  }
+
+  const handleMouseDownCapture = (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (!isResizeHandle) return
+    onResizeHandleMouseDown(e)
+    e.preventDefault()
+    e.stopPropagation()
   }
 
   const handleMouseEnter = (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -42,7 +55,9 @@ export function SidebarToggleButton({ isOpen, onToggle, side, logContext }: Side
     <button
       type="button"
       onClick={handleClick}
+      onMouseDownCapture={isResizeHandle ? handleMouseDownCapture : undefined}
       aria-label={getAriaLabel()}
+      title={isResizeHandle ? RESIZE_HANDLE_TITLE : undefined}
       style={{
         position: 'absolute',
         ...(isLeft ? { right: -16 } : { left: -16 }),
@@ -58,7 +73,7 @@ export function SidebarToggleButton({ isOpen, onToggle, side, logContext }: Side
         borderRadius: isLeft
           ? isOpen ? '0 4px 4px 0' : '4px 0 0 4px'
           : isOpen ? '4px 0 0 4px' : '0 4px 4px 0',
-        cursor: 'pointer',
+        cursor: isResizeHandle ? 'ew-resize' : 'pointer',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
