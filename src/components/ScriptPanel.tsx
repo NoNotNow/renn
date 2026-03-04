@@ -32,6 +32,12 @@ export default function ScriptPanel({ world, selectedEntityId, onWorldChange }: 
   const event = def?.event ?? 'onUpdate'
   const interval = def?.event === 'onTimer' ? def.interval : 1
 
+  // Draft source: local state while typing; only committed to world on Apply
+  const [draftSource, setDraftSource] = useState(source)
+  useEffect(() => {
+    setDraftSource(source)
+  }, [selectedId, source])
+
   useEffect(() => {
     const monaco = monacoRef.current
     if (!monaco) return
@@ -52,18 +58,24 @@ export default function ScriptPanel({ world, selectedEntityId, onWorldChange }: 
   }
 
   const handleEditorChange = (value: string | undefined) => {
+    setDraftSource(value ?? '')
+  }
+
+  const handleApply = () => {
     if (!selectedId) return
-    uiLogger.change('ScriptPanel', 'Edit script content', { scriptId: selectedId, contentLength: value?.length ?? 0 })
+    uiLogger.change('ScriptPanel', 'Apply script', { scriptId: selectedId, contentLength: draftSource.length })
     const current = getDef(scripts, selectedId)
     const nextDef: ScriptDef =
       current?.event === 'onTimer'
-        ? { event: 'onTimer', interval: current.interval, source: value ?? '' }
-        : { event: (current?.event ?? 'onUpdate') as 'onSpawn' | 'onUpdate' | 'onCollision', source: value ?? '' }
+        ? { event: 'onTimer', interval: current.interval, source: draftSource }
+        : { event: (current?.event ?? 'onUpdate') as 'onSpawn' | 'onUpdate' | 'onCollision', source: draftSource }
     onWorldChange({
       ...world,
       scripts: { ...scripts, [selectedId]: nextDef },
     })
   }
+
+  const isDirty = draftSource !== source
 
   const handleEventChange = (newEvent: ScriptEvent) => {
     if (!selectedId) return
@@ -186,13 +198,23 @@ export default function ScriptPanel({ world, selectedEntityId, onWorldChange }: 
           Attach to entity
         </button>
         <button type="button" onClick={handleRemove} disabled={!selectedId}>Remove</button>
+        {selectedId && (
+          <button
+            type="button"
+            onClick={handleApply}
+            disabled={!isDirty}
+            title="Apply script changes to the world (reloads scene)"
+          >
+            Apply
+          </button>
+        )}
       </div>
       <div style={{ flex: 1, minHeight: 0 }}>
         <Editor
           height="100%"
           language="javascript"
           theme="vs-dark"
-          value={source}
+          value={draftSource}
           onChange={handleEditorChange}
           onMount={handleEditorMount}
           options={{ minimap: { enabled: false } }}
