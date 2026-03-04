@@ -10,6 +10,7 @@ import {
 import { buildEntityMesh } from './createPrimitive'
 import { createAssetResolver, type DisposableAssetResolver } from './assetResolverImpl'
 import { getSceneUserData } from '@/types/sceneUserData'
+import { eulerToQuaternion } from '@/utils/rotationUtils'
 
 export interface LoadedEntity {
   entity: Entity
@@ -94,12 +95,24 @@ export async function loadWorld(
     const scale: Vec3 = entity.scale ?? DEFAULT_SCALE
 
     const shape = entity.shape
-    const mesh = shape
-      ? await buildEntityMesh(shape, entity.material, position, rotation, scale, assetResolver ?? undefined, entity.model)
-      : new THREE.Mesh(
-          new THREE.BoxGeometry(1, 1, 1),
-          new THREE.MeshStandardMaterial({ color: 0x888888 })
-        )
+    let mesh: THREE.Mesh
+    try {
+      mesh = shape
+        ? await buildEntityMesh(shape, entity.material, position, rotation, scale, assetResolver ?? undefined, entity.model)
+        : new THREE.Mesh(
+            new THREE.BoxGeometry(1, 1, 1),
+            new THREE.MeshStandardMaterial({ color: 0x888888 })
+          )
+    } catch (err) {
+      console.warn(`[loadWorld] Failed to build mesh for entity "${entity.id}", using placeholder:`, err)
+      mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(1, 1, 1),
+        new THREE.MeshStandardMaterial({ color: 0xff4444, wireframe: true })
+      )
+      mesh.position.set(position[0], position[1], position[2])
+      mesh.quaternion.copy(eulerToQuaternion(rotation))
+      mesh.scale.set(scale[0], scale[1], scale[2])
+    }
 
     mesh.name = entity.id
     mesh.userData.entityId = entity.id

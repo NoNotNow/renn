@@ -68,28 +68,70 @@ export function createIndexedDbPersistence(): PersistenceAPI {
       name: string,
       data: { world: RennWorld; assets: Map<string, Blob> }
     ): Promise<void> {
-      const db = await getDB()
-      const updatedAt = Date.now()
-      // Save project without assets (assets are stored globally)
-      await db.put(STORE_PROJECTS, { id, name, world: data.world, updatedAt })
-      // Save any new assets to global store (preserve existing previews)
-      const existingAssets = await db.getAll(STORE_ASSETS)
-      const existingPreviews = new Map<string, { blob: Blob | ArrayBuffer | null; type: string | null }>()
-      for (const asset of existingAssets) {
-        if (asset?.assetId) {
-          const previewType = typeof asset.previewType === 'string' ? asset.previewType : null
-          const previewBlob = asset.previewBlob instanceof Blob || asset.previewBlob instanceof ArrayBuffer
-            ? asset.previewBlob
-            : null
-          existingPreviews.set(asset.assetId, { blob: previewBlob, type: previewType })
+      let db: IDBPDatabase | null = null
+      const worldSize = JSON.stringify(data.world).length
+      let totalBlobBytes = 0
+      for (const blob of data.assets.values()) {
+        totalBlobBytes += blob?.size ?? 0
+      }
+      console.log('[Persistence] saveProject start', { id, name, assetsCount: data.assets.size, worldSize, totalBlobBytes })
+
+      try {
+        db = await getDB()
+        console.log('[Persistence] DB opened')
+
+        const updatedAt = Date.now()
+        // Save project without assets (assets are stored globally)
+        await db.put(STORE_PROJECTS, { id, name, world: data.world, updatedAt })
+        console.log('[Persistence] Project row written')
+
+        // Save any new assets to global store (preserve existing previews)
+        const existingAssets = await db.getAll(STORE_ASSETS)
+        console.log('[Persistence] Existing assets loaded', { count: existingAssets.length })
+
+        const existingPreviews = new Map<string, { blob: Blob | ArrayBuffer | null; type: string | null }>()
+        for (const asset of existingAssets) {
+          if (asset?.assetId) {
+            const previewType = typeof asset.previewType === 'string' ? asset.previewType : null
+            const previewBlob = asset.previewBlob instanceof Blob || asset.previewBlob instanceof ArrayBuffer
+              ? asset.previewBlob
+              : null
+            existingPreviews.set(asset.assetId, { blob: previewBlob, type: previewType })
+          }
         }
+        const assetEntries = Array.from(data.assets.entries())
+        for (let i = 0; i < assetEntries.length; i++) {
+          const [assetId, blob] = assetEntries[i]
+          const blobSize = blob?.size ?? 0
+          console.log('[Persistence] Writing asset', { index: i + 1, total: assetEntries.length, assetId, blobSize })
+          const assetType = blob.type.startsWith('image') ? 'texture' : 'model'
+          const existingPreview = existingPreviews.get(assetId) ?? { blob: null, type: null }
+          await db.put(STORE_ASSETS, { assetId, blob, type: assetType, previewBlob: existingPreview.blob, previewType: existingPreview.type })
+          console.log('[Persistence] Asset written', { assetId, blobSize })
+        }
+        console.log('[Persistence] All assets written')
+
+        await db.close()
+        db = null
+        console.log('[Persistence] saveProject done')
+      } catch (err) {
+        const e = err as Error & { code?: number }
+        console.error('[Persistence] saveProject error', {
+          name: e?.name,
+          message: e?.message,
+          code: e?.code,
+          stack: e?.stack,
+          toString: err != null ? String(err) : undefined,
+        })
+        if (db) {
+          try {
+            db.close()
+          } catch {
+            // ignore close error
+          }
+        }
+        throw err
       }
-      for (const [assetId, blob] of data.assets) {
-        const assetType = blob.type.startsWith('image') ? 'texture' : 'model'
-        const existingPreview = existingPreviews.get(assetId) ?? { blob: null, type: null }
-        await db.put(STORE_ASSETS, { assetId, blob, type: assetType, previewBlob: existingPreview.blob, previewType: existingPreview.type })
-      }
-      await db.close()
     },
 
     async deleteProject(id: string): Promise<void> {

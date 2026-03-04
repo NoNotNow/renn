@@ -18,6 +18,7 @@ export interface PropertySidebarProps {
   onDeleteEntity: (entityId: string) => void
   getCurrentPose?: (id: string) => { position: Vec3; rotation: Rotation }
   onEntityPoseChange?: (id: string, pose: { position?: Vec3; rotation?: Rotation }) => void
+  onRefreshFromPhysics?: (entityId: string) => void
   isOpen: boolean
   onToggle: () => void
 }
@@ -31,6 +32,7 @@ export default function PropertySidebar({
   onDeleteEntity,
   getCurrentPose,
   onEntityPoseChange,
+  onRefreshFromPhysics,
   isOpen,
   onToggle,
 }: PropertySidebarProps) {
@@ -56,7 +58,13 @@ export default function PropertySidebar({
       width={300}
       toggleLogContext="Toggle right drawer"
     >
-      <div style={{ flex: 1, overflow: 'auto', minHeight: 200 }}>
+      <div
+        style={{
+          flex: 1,
+          overflow: rightTab === 'scripts' ? 'visible' : 'auto',
+          minHeight: 200,
+        }}
+      >
         {rightTab === 'properties' && (
           <PropertyPanel
             world={world}
@@ -67,6 +75,7 @@ export default function PropertySidebar({
             onDeleteEntity={onDeleteEntity}
             getCurrentPose={getCurrentPose}
             onEntityPoseChange={onEntityPoseChange}
+            onRefreshFromPhysics={onRefreshFromPhysics}
           />
         )}
         {rightTab === 'scripts' && (

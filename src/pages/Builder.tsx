@@ -28,6 +28,7 @@ export default function Builder() {
     updateWorld,
     updateAssets,
     syncPosesFromScene,
+    syncPosesToRefOnly,
     exportProject,
     importProject,
     onFileChange,
@@ -158,6 +159,14 @@ export default function Builder() {
     sceneViewRef.current?.updateEntityPose(id, pose)
   }, [])
 
+  const handleRefreshFromPhysics = useCallback(
+    (entityId: string) => {
+      const pose = getCurrentPose(entityId)
+      syncPosesFromScene(new Map([[entityId, pose]]))
+    },
+    [getCurrentPose, syncPosesFromScene]
+  )
+
   const handleWorldChange = useCallback((newWorld: typeof world) => {
     updateWorld(() => newWorld)
   }, [updateWorld])
@@ -181,10 +190,15 @@ export default function Builder() {
   const syncPosesThen = useCallback(
     async (fn: () => Promise<void>) => {
       const allPoses = sceneViewRef.current?.getAllPoses()
-      if (allPoses) syncPosesFromScene(allPoses)
-      await fn()
+      if (allPoses) {
+        syncPosesToRefOnly(allPoses)
+        await fn()
+        syncPosesFromScene(allPoses)
+      } else {
+        await fn()
+      }
     },
-    [syncPosesFromScene]
+    [syncPosesFromScene, syncPosesToRefOnly]
   )
 
   const handleSave = useCallback(async () => {
@@ -339,6 +353,7 @@ export default function Builder() {
           onDeleteEntity={handleDeleteEntity}
           getCurrentPose={getCurrentPose}
           onEntityPoseChange={handleEntityPoseChange}
+          onRefreshFromPhysics={handleRefreshFromPhysics}
           isOpen={rightDrawerOpen}
           onToggle={() => setRightDrawerOpen(!rightDrawerOpen)}
         />

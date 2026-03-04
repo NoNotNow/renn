@@ -55,6 +55,8 @@ interface ProjectContextActions {
   
   // State sync
   syncPosesFromScene: (poses: Map<string, { position: Vec3; rotation: Rotation }>) => void
+  /** Updates only worldRef (no re-render). Use before save so save uses latest poses; flush state after save. */
+  syncPosesToRefOnly: (poses: Map<string, { position: Vec3; rotation: Rotation }>) => void
   
   // Export/Import
   exportProject: () => void
@@ -192,14 +194,21 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     try {
       const id = currentProject.id ?? `proj_${Date.now()}`
       // Generate name dynamically to avoid dependency on projects.length
-      const name = currentProject.name === 'Untitled' 
-        ? `World ${Date.now()}` 
+      const name = currentProject.name === 'Untitled'
+        ? `World ${Date.now()}`
         : currentProject.name
-      
+
+      const assetsSize = assets.size
+      let totalBlobBytes = 0
+      for (const blob of assets.values()) {
+        totalBlobBytes += blob?.size ?? 0
+      }
+      console.log('[Save] Starting save', { projectId: id, projectName: name, assetsCount: assetsSize, totalBlobBytes })
+
       uiLogger.click('Builder', 'Save project', { projectId: id, projectName: name })
       // Save project - assets are already in global store, just pass them for reference
       await persistence.saveProject(id, name, { world: worldRef.current, assets })
-      
+
       setCurrentProject({
         id,
         name,
@@ -208,7 +217,16 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       setLastProjectId(id)
       refreshProjects()
     } catch (err) {
+      const e = err as Error & { code?: number }
       console.error('Failed to save project:', err)
+      console.error('[Save] Error details', {
+        name: e?.name,
+        message: e?.message,
+        code: e?.code,
+        stack: e?.stack,
+        toString: err != null ? String(err) : undefined,
+        userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
+      })
       alert('Failed to save project')
     }
   }, [currentProject, world, assets, refreshProjects])
@@ -289,17 +307,23 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     setCurrentProject((prev) => ({ ...prev, isDirty: true }))
   }, [])
   
+  const mergePosesIntoWorld = useCallback((poses: Map<string, { position: Vec3; rotation: Rotation }>): RennWorld => ({
+    ...worldRef.current,
+    entities: worldRef.current.entities.map((e) => {
+      const pose = poses.get(e.id)
+      return pose ? { ...e, position: pose.position, rotation: pose.rotation } : e
+    }),
+  }), [])
+
+  const syncPosesToRefOnly = useCallback((poses: Map<string, { position: Vec3; rotation: Rotation }>) => {
+    worldRef.current = mergePosesIntoWorld(poses)
+  }, [mergePosesIntoWorld])
+
   const syncPosesFromScene = useCallback((poses: Map<string, { position: Vec3; rotation: Rotation }>) => {
-    const merged: RennWorld = {
-      ...worldRef.current,
-      entities: worldRef.current.entities.map((e) => {
-        const pose = poses.get(e.id)
-        return pose ? { ...e, position: pose.position, rotation: pose.rotation } : e
-      }),
-    }
+    const merged = mergePosesIntoWorld(poses)
     worldRef.current = merged
     setWorld(merged)
-  }, [])
+  }, [mergePosesIntoWorld])
   
   const exportProject = useCallback(() => {
     const id = currentProject.id
@@ -403,6 +427,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     updateWorld,
     updateAssets,
     syncPosesFromScene,
+    syncPosesToRefOnly,
     exportProject,
     importProject,
     onFileChange,
@@ -430,6 +455,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     updateWorld,
     updateAssets,
     syncPosesFromScene,
+    syncPosesToRefOnly,
     exportProject,
     importProject,
     onFileChange,

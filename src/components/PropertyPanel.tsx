@@ -9,6 +9,8 @@ import TransformerEditor from './TransformerEditor'
 import CollapsibleSection from './CollapsibleSection'
 import { fieldLabelStyle } from './sharedStyles'
 
+const refreshIconStyle = { width: 14, height: 14, flexShrink: 0 }
+
 export interface PropertyPanelProps {
   world: RennWorld
   assets: Map<string, Blob>
@@ -18,6 +20,7 @@ export interface PropertyPanelProps {
   onDeleteEntity?: (entityId: string) => void
   getCurrentPose?: (id: string) => { position: Vec3; rotation: Rotation }
   onEntityPoseChange?: (id: string, pose: { position?: Vec3; rotation?: Rotation }) => void
+  onRefreshFromPhysics?: (entityId: string) => void
 }
 
 export default function PropertyPanel({
@@ -29,6 +32,7 @@ export default function PropertyPanel({
   onDeleteEntity,
   getCurrentPose,
   onEntityPoseChange,
+  onRefreshFromPhysics,
 }: PropertyPanelProps) {
   const inputStyle = {
     display: 'block',
@@ -65,10 +69,58 @@ export default function PropertyPanel({
 
   return (
     <div style={{ padding: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <h3 style={{ margin: '0 0 2px', fontSize: 14, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
-        {isLocked && <span style={{ fontSize: 12 }}>🔒</span>}
-        {entity.name ?? entity.id}
-      </h3>
+      <div
+        style={{
+          margin: '0 0 2px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 8,
+          minWidth: 0,
+        }}
+      >
+        <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+          {isLocked && <span style={{ fontSize: 12 }}>🔒</span>}
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {entity.name ?? entity.id}
+          </span>
+        </h3>
+        {onRefreshFromPhysics && (
+          <button
+            type="button"
+            onClick={() => {
+              uiLogger.click('PropertyPanel', 'Refresh from physics', { entityId: entity.id })
+              onRefreshFromPhysics(entity.id)
+            }}
+            title="Refresh position and rotation from physics"
+            style={{
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              padding: 4,
+              lineHeight: 1,
+              opacity: 0.8,
+              transition: 'opacity 0.15s ease',
+              flexShrink: 0,
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+            onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.8')}
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              style={refreshIconStyle}
+            >
+              <path d="M23 4v6h-6M1 20v-6h6" />
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+            </svg>
+          </button>
+        )}
+      </div>
 
       <CollapsibleSection
         title="Entity"

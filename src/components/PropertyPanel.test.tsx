@@ -62,7 +62,8 @@ function renderPropertyPanel(
   selectedEntityId: string | null,
   onWorldChange = vi.fn(),
   onDeleteEntity?: (id: string) => void,
-  assets: Map<string, Blob> = new Map()
+  assets: Map<string, Blob> = new Map(),
+  onRefreshFromPhysics?: (entityId: string) => void
 ) {
   return render(
     <PropertyPanel
@@ -71,6 +72,7 @@ function renderPropertyPanel(
       selectedEntityId={selectedEntityId}
       onWorldChange={onWorldChange}
       onDeleteEntity={onDeleteEntity}
+      onRefreshFromPhysics={onRefreshFromPhysics}
     />
   )
 }
@@ -79,6 +81,24 @@ describe('PropertyPanel', () => {
   it('shows "Select an entity" when no entity selected', () => {
     renderPropertyPanel(sampleWorld, null)
     expect(screen.getByText('Select an entity')).toBeInTheDocument()
+  })
+
+  it('does not show refresh-from-physics button when onRefreshFromPhysics is undefined', () => {
+    const world = worldWithBox()
+    renderPropertyPanel(world, world.entities[0].id)
+    expect(screen.queryByTitle('Refresh position and rotation from physics')).not.toBeInTheDocument()
+  })
+
+  it('calls onRefreshFromPhysics with entity id when refresh button is clicked', async () => {
+    const user = userEvent.setup()
+    const onRefreshFromPhysics = vi.fn()
+    const world = worldWithBox()
+    const entityId = world.entities[0].id
+    renderPropertyPanel(world, entityId, vi.fn(), undefined, new Map(), onRefreshFromPhysics)
+    const refreshButton = screen.getByTitle('Refresh position and rotation from physics')
+    await user.click(refreshButton)
+    expect(onRefreshFromPhysics).toHaveBeenCalledTimes(1)
+    expect(onRefreshFromPhysics).toHaveBeenCalledWith(entityId)
   })
 
   it('shows entity name and shape-specific inputs when box entity selected', () => {
