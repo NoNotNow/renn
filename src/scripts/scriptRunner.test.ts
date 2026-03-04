@@ -14,6 +14,8 @@ function createMockGameAPI(overrides?: Partial<GameAPI>): GameAPI {
     getEntity: vi.fn().mockReturnValue(undefined),
     getPosition: vi.fn().mockReturnValue(null),
     setPosition: vi.fn(),
+    getRotation: vi.fn().mockReturnValue(null),
+    setRotation: vi.fn(),
     applyForce: vi.fn(),
     applyImpulse: vi.fn(),
     setTransformerEnabled: vi.fn(),
@@ -299,5 +301,40 @@ describe('ScriptRunner', () => {
     timerCalled.mockClear()
     runner.runOnUpdate(0.5)
     expect(timerCalled).toHaveBeenCalledWith('player', 0.5)
+  })
+
+  it('ctx.getPosition() and ctx.entity.getPosition() use current entity id when id omitted', () => {
+    const world = createMockWorld({
+      entities: [
+        {
+          id: 'player',
+          scripts: ['poseScript'],
+        },
+      ],
+      scripts: {
+        poseScript: {
+          event: 'onUpdate',
+          source: `
+            ctx.getPosition();
+            ctx.entity.getPosition();
+            ctx.getRotation();
+            ctx.entity.getRotation();
+          `,
+        },
+      },
+    })
+    world.entities = world.entities ?? []
+
+    const game = createMockGameAPI()
+    const getMeshById = vi.fn()
+    const entities = createLoadedEntities(world)
+
+    const runner = new ScriptRunner(world, game, getMeshById, entities)
+    runner.runOnUpdate(0.016)
+
+    expect(game.getPosition).toHaveBeenCalledWith('player')
+    expect(game.getRotation).toHaveBeenCalledWith('player')
+    expect(game.getPosition).toHaveBeenCalledTimes(2)
+    expect(game.getRotation).toHaveBeenCalledTimes(2)
   })
 })

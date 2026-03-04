@@ -12,6 +12,8 @@ export interface GameAPI {
   getEntity(id: string): Entity | undefined
   getPosition(id: string): [number, number, number] | null
   setPosition(id: string, x: number, y: number, z: number): void
+  getRotation(id: string): [number, number, number] | null
+  setRotation(id: string, x: number, y: number, z: number): void
   applyForce(id: string, x: number, y: number, z: number): void
   applyImpulse(id: string, x: number, y: number, z: number): void
   // Transformer control
@@ -23,6 +25,8 @@ export interface GameAPI {
 export interface GameAPIOptions {
   getPosition: (id: string) => [number, number, number] | null
   setPosition: (id: string, x: number, y: number, z: number) => void
+  getRotation: (id: string) => [number, number, number] | null
+  setRotation: (id: string, x: number, y: number, z: number) => void
   getPhysicsWorld: () => PhysicsWorld | null
   getRenderItemRegistry: () => import('@/runtime/renderItemRegistry').RenderItemRegistry | null
   entities: Entity[]
@@ -32,6 +36,8 @@ export interface GameAPIOptions {
 export function createGameAPI(
   getPosition: (id: string) => [number, number, number] | null,
   setPosition: (id: string, x: number, y: number, z: number) => void,
+  getRotation: (id: string) => [number, number, number] | null = () => null,
+  setRotation: (id: string, x: number, y: number, z: number) => void = () => {},
   getPhysicsWorld: () => PhysicsWorld | null = () => null,
   getRenderItemRegistry: () => import('@/runtime/renderItemRegistry').RenderItemRegistry | null = () => null,
   entities: Entity[] = [],
@@ -52,6 +58,12 @@ export function createGameAPI(
     },
     setPosition(id: string, x: number, y: number, z: number) {
       setPosition(id, x, y, z)
+    },
+    getRotation(id: string): [number, number, number] | null {
+      return getRotation(id)
+    },
+    setRotation(id: string, x: number, y: number, z: number) {
+      setRotation(id, x, y, z)
     },
     applyForce(id: string, x: number, y: number, z: number) {
       const physics = getPhysicsWorld()

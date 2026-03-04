@@ -12,14 +12,18 @@ interface Entity {
   rotation?: [number, number, number];
   scale?: [number, number, number];
   bodyType?: 'static' | 'dynamic' | 'kinematic';
+  getPosition(): [number, number, number] | null;
+  getRotation(): [number, number, number] | null;
 }
 interface ScriptCtxBase {
   readonly time: number;
   readonly entity: Entity;
   readonly entities: Entity[];
   getEntity(id: string): Entity | undefined;
-  getPosition(id: string): [number, number, number] | null;
-  setPosition(id: string, x: number, y: number, z: number): void;
+  getPosition(id?: string): [number, number, number] | null;
+  setPosition(id: string | undefined, x: number, y: number, z: number): void;
+  getRotation(id?: string): [number, number, number] | null;
+  setRotation(id: string | undefined, x: number, y: number, z: number): void;
   applyForce(id: string, x: number, y: number, z: number): void;
   applyImpulse(id: string, x: number, y: number, z: number): void;
   setTransformerEnabled(entityId: string, transformerType: string, enabled: boolean): void;

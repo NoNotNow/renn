@@ -11,9 +11,11 @@ export function createMockGameAPI(): GameAPI {
     getEntity: vi.fn().mockReturnValue(null),
     getPosition: vi.fn().mockReturnValue(null),
     setPosition: vi.fn(),
+    getRotation: vi.fn().mockReturnValue(null),
+    setRotation: vi.fn(),
     applyForce: vi.fn(),
     applyImpulse: vi.fn(),
-  }
+  } as unknown as GameAPI
 }
 
 /**

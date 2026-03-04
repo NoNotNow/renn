@@ -216,9 +216,15 @@ function SceneViewInner({
         registryRef.current?.getPosition(id) ?? null
       const setPositionForGame = (id: string, x: number, y: number, z: number): void =>
         registryRef.current?.setPosition(id, [x, y, z])
+      const getRotationForGame = (id: string): Vec3 | null =>
+        registryRef.current?.getRotation(id) ?? null
+      const setRotationForGame = (id: string, x: number, y: number, z: number): void =>
+        registryRef.current?.setRotation(id, [x, y, z])
       const gameApi = createGameAPI(
         getPositionForGame,
         setPositionForGame,
+        getRotationForGame,
+        setRotationForGame,
         getPhysicsWorld,
         getRenderItemRegistry,
         loadedWorld.entities,

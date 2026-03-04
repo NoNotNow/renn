@@ -25,8 +25,13 @@ Scripting lets users run JavaScript in the play runtime. Scripts are **event-bou
 ### Runtime (Play)
 
 - **ScriptRunner** (`src/scripts/scriptRunner.ts`): Compiles each script **once** (via `Function` constructor with validation). Wraps user source as `(function(ctx) { ... })`. Pre-builds **one ctx per (entity, event)** at construction; hot paths only mutate `ctx.dt` / `ctx.other` / timer `elapsed` — **no per-frame allocation**. Uses pre-built lists/maps and `entityMap` for O(1) lookups.
-- **Script context** (`src/scripts/scriptCtx.ts`): `ScriptCtxBase` (time, entity, entities, getPosition, setPosition, applyForce, applyImpulse, setTransformerEnabled, setTransformerParam, log). Event-specific: `OnUpdateCtx.dt`, `OnCollisionCtx.other`, `OnTimerCtx.interval`. Factories: `allocOnSpawnCtx`, `allocOnUpdateCtx`, `allocOnCollisionCtx`, `allocOnTimerCtx`.
+- **Script context** (`src/scripts/scriptCtx.ts`): `ScriptCtxBase` (time, entity, entities, getPosition, setPosition, getRotation, setRotation, applyForce, applyImpulse, setTransformerEnabled, setTransformerParam, log). Event-specific: `OnUpdateCtx.dt`, `OnCollisionCtx.other`, `OnTimerCtx.interval`. Factories: `allocOnSpawnCtx`, `allocOnUpdateCtx`, `allocOnCollisionCtx`, `allocOnTimerCtx`. The script-facing `ctx.entity` is a wrapper that includes runtime pose getters (see below).
 - **Game API** (`src/scripts/gameApi.ts`): Backing for ctx methods; ScriptRunner receives `GameAPI` and builds ctx from it.
+
+**Pose APIs and current entity**
+
+- **`getPosition(id?)`, `setPosition(id?, x, y, z)`, `getRotation(id?)`, `setRotation(id?, x, y, z)`**: When `id` is omitted, the **current entity** (the entity this script is attached to) is used. Example: `ctx.getPosition()` is equivalent to `ctx.getPosition(ctx.entity.id)`.
+- **`ctx.entity`**: In addition to `id`, `name`, `position`, `rotation`, etc. (from the world data), the script-facing entity exposes **`getPosition()`** and **`getRotation()`** that return the **runtime** position and rotation (Euler `[x, y, z]` in radians) of the current entity from the physics/registry layer. Use these when you want the live pose without passing an id (e.g. `ctx.entity.getPosition()`, `ctx.entity.getRotation()`).
 - **Execution** (in `SceneView.tsx`):
   - **onSpawn**: Once per entity after load; pre-built list per entity.
   - **onUpdate**: Every frame; iterates `onUpdateEntries`, sets `ctx.dt`, calls hook.
