@@ -5,14 +5,21 @@ import type { RennWorld } from '@/types/world'
 import type { GameAPI } from './gameApi'
 import type { LoadedEntity } from '@/loader/loadWorld'
 
-function createMockGameAPI(): GameAPI {
+function createMockGameAPI(overrides?: Partial<GameAPI>): GameAPI {
   return {
-    time: { current: 0, delta: 0 },
-    getEntity: vi.fn().mockReturnValue(null),
+    get time() {
+      return 0
+    },
+    entities: [],
+    getEntity: vi.fn().mockReturnValue(undefined),
     getPosition: vi.fn().mockReturnValue(null),
     setPosition: vi.fn(),
     applyForce: vi.fn(),
     applyImpulse: vi.fn(),
+    setTransformerEnabled: vi.fn(),
+    setTransformerParam: vi.fn(),
+    log: vi.fn(),
+    ...overrides,
   }
 }
 
@@ -42,98 +49,96 @@ describe('ScriptRunner', () => {
     const game = createMockGameAPI()
     const getMeshById = vi.fn()
     const entities = createLoadedEntities(world)
-    
+
     const runner = new ScriptRunner(world, game, getMeshById, entities)
     expect(runner).toBeDefined()
   })
 
   it('compiles and runs onSpawn script', () => {
     const spawnCalled = vi.fn()
-    
+
     const world = createMockWorld({
       entities: [
         {
           id: 'player',
-          scripts: { onSpawn: 'onSpawnScript' },
+          scripts: ['onSpawnScript'],
         },
       ],
       scripts: {
-        onSpawnScript: 'game.spawnCalled(entity.id)',
+        onSpawnScript: { event: 'onSpawn', source: 'ctx.log(ctx.entity.id)' },
       },
     })
-    
+    world.entities = world.entities ?? []
+
     const game = {
       ...createMockGameAPI(),
-      spawnCalled,
+      log: spawnCalled,
     } as unknown as GameAPI
-    
+
     const getMeshById = vi.fn()
     const entities = createLoadedEntities(world)
-    
+
     const runner = new ScriptRunner(world, game, getMeshById, entities)
     runner.runOnSpawn('player')
-    
+
     expect(spawnCalled).toHaveBeenCalledWith('player')
   })
 
   it('compiles and runs onUpdate script', () => {
     const updateCalled = vi.fn()
-    
+
     const world = createMockWorld({
       entities: [
         {
           id: 'player',
-          scripts: { onUpdate: 'onUpdateScript' },
+          scripts: ['onUpdateScript'],
         },
       ],
       scripts: {
-        onUpdateScript: 'game.updateCalled(entity.id, dt)',
+        onUpdateScript: { event: 'onUpdate', source: 'ctx.log(ctx.entity.id, ctx.dt)' },
       },
     })
-    
+    world.entities = world.entities ?? []
+
     const game = {
       ...createMockGameAPI(),
-      updateCalled,
+      log: updateCalled,
     } as unknown as GameAPI
-    
+
     const getMeshById = vi.fn()
     const entities = createLoadedEntities(world)
-    
+
     const runner = new ScriptRunner(world, game, getMeshById, entities)
     runner.runOnUpdate(0.016)
-    
+
     expect(updateCalled).toHaveBeenCalledWith('player', 0.016)
   })
 
   it('compiles and runs onCollision script', () => {
     const collisionCalled = vi.fn()
-    
+
     const world = createMockWorld({
       entities: [
-        {
-          id: 'player',
-          scripts: { onCollision: 'onCollisionScript' },
-        },
-        {
-          id: 'enemy',
-        },
+        { id: 'player', scripts: ['onCollisionScript'] },
+        { id: 'enemy' },
       ],
       scripts: {
-        onCollisionScript: 'game.collisionCalled(entity.id, other.id)',
+        onCollisionScript: { event: 'onCollision', source: 'ctx.log(ctx.entity.id, ctx.other.id)' },
       },
     })
-    
+    world.entities = world.entities ?? []
+
     const game = {
       ...createMockGameAPI(),
-      collisionCalled,
+      log: collisionCalled,
     } as unknown as GameAPI
-    
+
     const getMeshById = vi.fn()
     const entities = createLoadedEntities(world)
-    
+
     const runner = new ScriptRunner(world, game, getMeshById, entities)
     runner.runOnCollision('player', 'enemy')
-    
+
     expect(collisionCalled).toHaveBeenCalledWith('player', 'enemy')
   })
 
@@ -142,102 +147,94 @@ describe('ScriptRunner', () => {
       entities: [
         {
           id: 'player',
-          scripts: { onSpawn: 'nonExistentScript' },
+          scripts: ['nonExistentScript'],
         },
       ],
     })
-    
+    world.entities = world.entities ?? []
+
     const game = createMockGameAPI()
     const getMeshById = vi.fn()
     const entities = createLoadedEntities(world)
-    
+
     const runner = new ScriptRunner(world, game, getMeshById, entities)
-    
-    // Should not throw
+
     expect(() => runner.runOnSpawn('player')).not.toThrow()
   })
 
   it('handles script compilation errors', () => {
     const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    
+
     const world = createMockWorld({
       scripts: {
-        badScript: 'this is not valid javascript {{{',
+        badScript: { event: 'onUpdate', source: 'this is not valid javascript {{{' },
       },
     })
-    
+
     const game = createMockGameAPI()
     const getMeshById = vi.fn()
     const entities = createLoadedEntities(world)
-    
-    // Should not throw during construction
+
     expect(() => new ScriptRunner(world, game, getMeshById, entities)).not.toThrow()
     expect(consoleSpy).toHaveBeenCalled()
-    
+
     consoleSpy.mockRestore()
   })
 
   it('handles script runtime errors', () => {
     const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    
+
     const world = createMockWorld({
       entities: [
         {
           id: 'player',
-          scripts: { onUpdate: 'errorScript' },
+          scripts: ['errorScript'],
         },
       ],
       scripts: {
-        errorScript: 'throw new Error("Runtime error!")',
+        errorScript: { event: 'onUpdate', source: 'throw new Error("Runtime error!")' },
       },
     })
-    
+    world.entities = world.entities ?? []
+
     const game = createMockGameAPI()
     const getMeshById = vi.fn()
     const entities = createLoadedEntities(world)
-    
+
     const runner = new ScriptRunner(world, game, getMeshById, entities)
-    
-    // Should not throw
+
     expect(() => runner.runOnUpdate(0.016)).not.toThrow()
     expect(consoleSpy).toHaveBeenCalled()
-    
+
     consoleSpy.mockRestore()
   })
 
   it('runs onUpdate for multiple entities', () => {
     const updateCalled = vi.fn()
-    
+
     const world = createMockWorld({
       entities: [
-        {
-          id: 'player',
-          scripts: { onUpdate: 'onUpdateScript' },
-        },
-        {
-          id: 'enemy',
-          scripts: { onUpdate: 'onUpdateScript' },
-        },
-        {
-          id: 'platform', // No script
-        },
+        { id: 'player', scripts: ['onUpdateScript'] },
+        { id: 'enemy', scripts: ['onUpdateScript'] },
+        { id: 'platform' },
       ],
       scripts: {
-        onUpdateScript: 'game.updateCalled(entity.id)',
+        onUpdateScript: { event: 'onUpdate', source: 'ctx.log(ctx.entity.id)' },
       },
     })
-    
+    world.entities = world.entities ?? []
+
     const game = {
       ...createMockGameAPI(),
-      updateCalled,
+      log: updateCalled,
     } as unknown as GameAPI
-    
+
     const getMeshById = vi.fn()
     const entities = createLoadedEntities(world)
-    
+
     const runner = new ScriptRunner(world, game, getMeshById, entities)
     runner.runOnUpdate(0.016)
-    
+
     expect(updateCalled).toHaveBeenCalledTimes(2)
     expect(updateCalled).toHaveBeenCalledWith('player')
     expect(updateCalled).toHaveBeenCalledWith('enemy')
@@ -248,21 +245,59 @@ describe('ScriptRunner', () => {
       entities: [
         {
           id: 'player',
-          scripts: { onUpdate: 'moveScript' },
+          scripts: ['moveScript'],
         },
       ],
       scripts: {
-        moveScript: 'game.setPosition("player", 1, 2, 3)',
+        moveScript: { event: 'onUpdate', source: 'ctx.setPosition("player", 1, 2, 3)' },
       },
     })
-    
+    world.entities = world.entities ?? []
+
     const game = createMockGameAPI()
     const getMeshById = vi.fn()
     const entities = createLoadedEntities(world)
-    
+
     const runner = new ScriptRunner(world, game, getMeshById, entities)
     runner.runOnUpdate(0.016)
-    
+
     expect(game.setPosition).toHaveBeenCalledWith('player', 1, 2, 3)
+  })
+
+  it('runs onTimer script when interval elapsed', () => {
+    const timerCalled = vi.fn()
+
+    const world = createMockWorld({
+      entities: [
+        {
+          id: 'player',
+          scripts: ['timerScript'],
+        },
+      ],
+      scripts: {
+        timerScript: { event: 'onTimer', interval: 0.5, source: 'ctx.log(ctx.entity.id, ctx.interval)' },
+      },
+    })
+    world.entities = world.entities ?? []
+
+    const game = {
+      ...createMockGameAPI(),
+      log: timerCalled,
+    } as unknown as GameAPI
+
+    const getMeshById = vi.fn()
+    const entities = createLoadedEntities(world)
+
+    const runner = new ScriptRunner(world, game, getMeshById, entities)
+
+    runner.runOnUpdate(0.2)
+    expect(timerCalled).not.toHaveBeenCalled()
+    runner.runOnUpdate(0.2)
+    expect(timerCalled).not.toHaveBeenCalled()
+    runner.runOnUpdate(0.2)
+    expect(timerCalled).toHaveBeenCalledWith('player', 0.5)
+    timerCalled.mockClear()
+    runner.runOnUpdate(0.5)
+    expect(timerCalled).toHaveBeenCalledWith('player', 0.5)
   })
 })

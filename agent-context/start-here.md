@@ -7,7 +7,7 @@
 - **Entity**: a 3D object with shape, physics body, material, optional scripts, and optional transformers.
 - **World**: JSON document (`world-schema.json`) containing entities, gravity, lighting, and camera config.
 - **Transformer**: converts user input or AI intent into physics impulses (see `feature-transformers.md`).
-- **Script**: JavaScript with a `game` API, running on the main thread; hooks: `onSpawn`, `onUpdate`, `onCollision`.
+- **Script**: JavaScript receiving a single `ctx` (event-specific shape); events: `onSpawn`, `onUpdate`, `onCollision`, `onTimer`. See `feature-scripting.md`.
 - **Physics**: Rapier WASM. Forces must be reset each frame (see `bugfix-spinning.md`).
 
 ## Task → file map
@@ -41,7 +41,8 @@ src/
 ├── loader/loadWorld.ts     # World JSON → Three.js scene
 ├── physics/rapierPhysics.ts
 ├── runtime/renderItemRegistry.ts
-├── scripts/gameApi.ts      # game.* API for scripts
+├── scripts/scriptCtx.ts    # ctx types and alloc
+├── scripts/gameApi.ts      # backing for ctx
 ├── transformers/           # Transformer system
 ├── contexts/ProjectContext.tsx
 └── components/SceneView.tsx  # Main render + game loop

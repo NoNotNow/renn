@@ -1,7 +1,7 @@
 import RAPIER from '@dimforge/rapier3d-compat'
 import * as THREE from 'three'
 import type { LoadedEntity } from '@/loader/loadWorld'
-import type { RennWorld, Shape, Entity, TrimeshSimplificationConfig } from '@/types/world'
+import type { RennWorld, Shape, Entity, TrimeshSimplificationConfig, ScriptDef } from '@/types/world'
 import { DEFAULT_GRAVITY, DEFAULT_ROTATION } from '@/types/world'
 import { extractMeshGeometry, getGeometryInfo } from '@/utils/geometryExtractor'
 import { simplifyGeometry, shouldSimplifyGeometry } from '@/utils/meshSimplifier'
@@ -34,7 +34,7 @@ export class PhysicsWorld {
     this.world.gravity = { x: gravity[0], y: gravity[1], z: gravity[2] }
   }
 
-  addEntity(entity: Entity, mesh: THREE.Mesh): void {
+  addEntity(entity: Entity, mesh: THREE.Mesh, scriptDefs?: Record<string, ScriptDef>): void {
     const bodyType = entity.bodyType ?? 'static'
     const position = entity.position ?? [0, 0, 0]
     const rotation = entity.rotation ?? DEFAULT_ROTATION
@@ -88,7 +88,14 @@ export class PhysicsWorld {
       }
 
       // Enable collision events for entities with onCollision scripts
-      if (entity.scripts?.onCollision) {
+      const hasCollisionScript =
+        scriptDefs &&
+        entity.scripts &&
+        entity.scripts.some((id) => {
+          const d = scriptDefs[id]
+          return d && typeof d === 'object' && 'event' in d && d.event === 'onCollision'
+        })
+      if (hasCollisionScript) {
         colliderDesc.setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS)
       }
 
@@ -485,7 +492,7 @@ export async function createPhysicsWorld(
   const physicsWorld = new PhysicsWorld(gravity)
 
   for (const { entity, mesh } of entities) {
-    physicsWorld.addEntity(entity, mesh)
+    physicsWorld.addEntity(entity, mesh, world.scripts)
   }
 
   return physicsWorld

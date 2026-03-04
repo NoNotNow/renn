@@ -19,7 +19,7 @@
     },
     "scripts": {
       "type": "object",
-      "additionalProperties": { "type": "string" }
+      "additionalProperties": { "$ref": "#/$defs/ScriptDef" }
     }
   },
   "additionalProperties": false,
@@ -173,9 +173,33 @@
       },
       "additionalProperties": false
     },
+    "ScriptDef": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["event", "source"],
+          "properties": {
+            "event": { "enum": ["onSpawn", "onUpdate", "onCollision"] },
+            "source": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["event", "interval", "source"],
+          "properties": {
+            "event": { "const": "onTimer" },
+            "interval": { "type": "number", "exclusiveMinimum": 0 },
+            "source": { "type": "string" }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
     "EntityScripts": {
-      "type": "object",
-      "additionalProperties": { "type": "string" }
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Script IDs referring to world.scripts"
     },
     "InputMapping": {
       "type": "object",

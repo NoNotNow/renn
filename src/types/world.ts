@@ -73,7 +73,19 @@ export interface MaterialRef {
   mapOffset?: Vec3  // [x, y] UV offset
 }
 
-export interface EntityScripts {
+/** Event types for entity scripts. Each script declares one event. */
+export type ScriptEvent = 'onSpawn' | 'onUpdate' | 'onCollision' | 'onTimer'
+
+/** Script definition: event-bound at data level. onTimer requires interval (seconds). */
+export type ScriptDef =
+  | { event: 'onSpawn' | 'onUpdate' | 'onCollision'; source: string }
+  | { event: 'onTimer'; interval: number; source: string }
+
+/**
+ * Legacy entity scripts format (event → script ID). Used only for migration from old world JSON.
+ * @internal
+ */
+export interface EntityScriptsLegacy {
   onSpawn?: string
   onUpdate?: string
   onCollision?: string
@@ -95,7 +107,8 @@ export interface Entity {
   friction?: number
   linearDamping?: number
   angularDamping?: number
-  scripts?: EntityScripts
+  /** Script IDs from world.scripts. Each script declares its own event type. */
+  scripts?: string[]
   locked?: boolean
   transformers?: import('./transformer').TransformerConfig[]
 }
@@ -105,7 +118,7 @@ export interface RennWorld {
   world: WorldSettings
   entities: Entity[]
   assets?: Record<string, AssetRef>
-  scripts?: Record<string, string>
+  scripts?: Record<string, ScriptDef>
 }
 
 export const DEFAULT_GRAVITY: Vec3 = [0, -9.81, 0]

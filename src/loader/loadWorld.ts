@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { validateWorldDocument } from '@/schema/validate'
+import { migrateWorldScripts } from '@/scripts/migrateWorld'
 import type { RennWorld, Entity, Vec3, Rotation } from '@/types/world'
 import {
   DEFAULT_GRAVITY,
@@ -32,6 +33,7 @@ export async function loadWorld(
   worldData: unknown,
   assets?: Map<string, Blob>
 ): Promise<LoadWorldResult> {
+  migrateWorldScripts(worldData)
   validateWorldDocument(worldData)
   const world = worldData as RennWorld
 

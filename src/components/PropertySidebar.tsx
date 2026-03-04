@@ -79,7 +79,11 @@ export default function PropertySidebar({
           />
         )}
         {rightTab === 'scripts' && (
-          <ScriptPanel world={world} onWorldChange={onWorldChange} />
+          <ScriptPanel
+            world={world}
+            selectedEntityId={selectedEntityId}
+            onWorldChange={onWorldChange}
+          />
         )}
         {rightTab === 'assets' && (
           <AssetPanel

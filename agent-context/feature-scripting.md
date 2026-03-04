@@ -1,6 +1,6 @@
 # Scripting – Current State & Roadmap
 
-Scripting lets users run JavaScript in the play runtime. Scripts have access to a `game` API and can be triggered by events.
+Scripting lets users run JavaScript in the play runtime. Scripts are **event-bound at the data model level**: each script declares its event type (`onSpawn`, `onUpdate`, `onCollision`, or `onTimer`). They receive a single **`ctx`** argument whose shape varies by event; world, entity, and runtime APIs are on `ctx`.
 
 ---
 
@@ -8,30 +8,38 @@ Scripting lets users run JavaScript in the play runtime. Scripts have access to 
 
 ### Script editor (Builder)
 
-- **ScriptPanel** (`src/components/ScriptPanel.tsx`): Scripts tab in the right sidebar.
-- **Monaco** (`@monaco-editor/react`): Full editor with JavaScript syntax highlighting, basic JS intellisense, dark theme, no minimap.
-- **World-level script registry**: `RennWorld.scripts` is `Record<string, string>` (script ID → source). Users add/remove scripts and pick one to edit in the dropdown.
-- **No entity–script wiring in UI**: Which script runs for which event is stored on the entity (`entity.scripts`), but the PropertyPanel does not yet expose dropdowns to assign script IDs to `onSpawn` / `onUpdate` / `onCollision`. Assignment is only possible by editing the world JSON (or code).
+- **ScriptPanel** (`src/components/ScriptPanel.tsx`): Scripts tab in the right sidebar. Dropdown to select script, **event type picker** (onSpawn / onUpdate / onCollision / onTimer), **interval (seconds)** when event is `onTimer`.
+- **Monaco** (`@monaco-editor/react`): JavaScript editor with **event-specific intellisense**: `addExtraLib` injects a `.d.ts` so `ctx` has the correct type for the selected script’s event (`OnSpawnCtx`, `OnUpdateCtx`, `OnCollisionCtx`, `OnTimerCtx`). See `src/scripts/scriptCtxDecl.ts` for `ctxDeclFor(event)`.
+- **World-level script registry**: `RennWorld.scripts` is `Record<string, ScriptDef>` (script ID → `{ event, source }` or `{ event: 'onTimer', interval, source }`).
+- **Entity–script wiring**: `entity.scripts` is `string[]` (script IDs). The runtime routes by each script’s `event`; no per-entity event map. PropertyPanel does not yet expose UI to assign script IDs to entities (edit world JSON or add scripts in ScriptPanel and attach via future UI).
 
 ### Data model
 
-- **`RennWorld.scripts`**: `Record<string, string>` — script ID → source code.
-- **`Entity.scripts`** (`EntityScripts` in `src/types/world.ts`): optional `onSpawn`, `onUpdate`, `onCollision` — each value is a **script ID** referring to `world.scripts`. The event is thus already associated with the script via this map.
+- **`ScriptEvent`**: `'onSpawn' | 'onUpdate' | 'onCollision' | 'onTimer'`.
+- **`ScriptDef`** (discriminated union in `src/types/world.ts`):
+  - `{ event: 'onSpawn' | 'onUpdate' | 'onCollision'; source: string }`
+  - `{ event: 'onTimer'; interval: number; source: string }`
+- **`RennWorld.scripts`**: `Record<string, ScriptDef>`.
+- **`Entity.scripts`**: optional `string[]` — script IDs. Each script’s `event` is declared on the script def.
 
 ### Runtime (Play)
 
-- **ScriptRunner** (`src/scripts/scriptRunner.ts`): Compiles each script once (via `Function` constructor with validation), stores hooks by script ID, and resolves entity → script IDs from `entity.scripts`.
-- **Game API** (`src/scripts/gameApi.ts`): Scripts receive `game` with `time`, `entities`, `getEntity(id)`, `getPosition` / `setPosition`, `applyForce` / `applyImpulse`, `setTransformerEnabled` / `setTransformerParam`, `log(...)`.
+- **ScriptRunner** (`src/scripts/scriptRunner.ts`): Compiles each script **once** (via `Function` constructor with validation). Wraps user source as `(function(ctx) { ... })`. Pre-builds **one ctx per (entity, event)** at construction; hot paths only mutate `ctx.dt` / `ctx.other` / timer `elapsed` — **no per-frame allocation**. Uses pre-built lists/maps and `entityMap` for O(1) lookups.
+- **Script context** (`src/scripts/scriptCtx.ts`): `ScriptCtxBase` (time, entity, entities, getPosition, setPosition, applyForce, applyImpulse, setTransformerEnabled, setTransformerParam, log). Event-specific: `OnUpdateCtx.dt`, `OnCollisionCtx.other`, `OnTimerCtx.interval`. Factories: `allocOnSpawnCtx`, `allocOnUpdateCtx`, `allocOnCollisionCtx`, `allocOnTimerCtx`.
+- **Game API** (`src/scripts/gameApi.ts`): Backing for ctx methods; ScriptRunner receives `GameAPI` and builds ctx from it.
 - **Execution** (in `SceneView.tsx`):
-  - **onSpawn**: Once per entity when the world is loaded (after ScriptRunner is created), in entity order.
-  - **onUpdate**: Every frame, for each entity that has `scripts.onUpdate` set; receives `(dt, entity)`.
-  - **onCollision**: When physics reports a collision; both entities get `runOnCollision` with `(entityId, otherId)`; script receives `(dt, entity, other)`.
+  - **onSpawn**: Once per entity after load; pre-built list per entity.
+  - **onUpdate**: Every frame; iterates `onUpdateEntries`, sets `ctx.dt`, calls hook.
+  - **onTimer**: Same loop; `elapsed += dt`, fire when `elapsed >= interval`, then `elapsed -= interval`.
+  - **onCollision**: O(1) lookup; set `ctx.other`, call hook.
 
-Scripts are **entity-scoped**: they are tied to an entity via `entity.scripts` and receive that entity (and optionally `other` for collision). There is no world-level “on start” or “every frame for the whole world” hook yet.
+### Migration
+
+- **`migrateWorldScripts`** (`src/scripts/migrateWorld.ts`): Converts legacy world JSON (scripts as `Record<string, string>`, entity.scripts as event→id map) to ScriptDef + `entity.scripts: string[]`. Duplicates a script when the same id was used for multiple events. Called in `loadWorld` **before** `validateWorldDocument`.
 
 ### Security
 
-- ScriptRunner validates source for dangerous patterns (`eval`, `Function(`, `import(`, `require(`, etc.) and runs user code in a strict IIFE with only `game`, `dt`, `entity`, `other` in scope. Still main-thread and not fully sandboxed; see project-status “Script sandbox” for future hardening.
+- ScriptRunner validates source for dangerous patterns and runs user code in a strict IIFE with only `ctx` in scope. Main-thread; see project-status “Script sandbox” for future hardening.
 
 ---
 
@@ -40,35 +48,30 @@ Scripts are **entity-scoped**: they are tied to an entity via `entity.scripts` a
 | Concern              | File |
 |----------------------|------|
 | Script editor UI     | `src/components/ScriptPanel.tsx` |
-| Script types         | `src/types/world.ts` (`EntityScripts`, `RennWorld.scripts`) |
+| Ctx intellisense     | `src/scripts/scriptCtxDecl.ts` |
+| Script types         | `src/types/world.ts` (`ScriptEvent`, `ScriptDef`, `Entity.scripts`) |
+| Ctx types & alloc    | `src/scripts/scriptCtx.ts` |
 | Game API             | `src/scripts/gameApi.ts` |
-| Compile & run hooks  | `src/scripts/scriptRunner.ts` |
-| Wiring in Play       | `src/components/SceneView.tsx` (ScriptRunner creation, runOnSpawn after load, runOnCollision in physics step, runOnUpdate each frame) |
+| Compile & run        | `src/scripts/scriptRunner.ts` |
+| Migration            | `src/scripts/migrateWorld.ts` |
+| Wiring in Play       | `src/components/SceneView.tsx` |
 
 ---
 
 ## Roadmap
 
-1. **Event-driven execution (align UI with model)**  
-   Scripts are already triggered on:
-   - **Start (per-entity)**: `onSpawn` when the program/world loads.  
-   - **Every frame (per-entity)**: `onUpdate`.  
-   - **Collision (per-entity)**: `onCollision`.  
-   The **event is already associated with the script** via `entity.scripts` (e.g. `onUpdate: "myScriptId"`). Remaining work: expose this in the Builder so users can assign a script to each event per entity (e.g. in PropertyPanel: dropdowns for “On spawn”, “On update”, “On collision” that list `world.scripts` keys).
+1. **PropertyPanel UI for entity scripts**  
+   Expose dropdowns (or list) so users can assign script IDs to an entity’s `scripts` array without editing JSON.
 
-2. **World-level / program start**  
-   Add a single **world-level** hook that runs once when play starts (e.g. `RennWorld.onStart?: string` — script ID). ScriptRunner would need a way to run this once after load (no entity; script could use `game.*` only). Optional: world-level “every frame” script for global logic.
+2. **World-level hooks**  
+   Optional `RennWorld.onStart?: string` (script ID) and/or world-level “every frame” script.
 
-3. **Intellisense for `game`**  
-   Monaco currently gives generic JavaScript intellisense. To get autocomplete for `game.*`, add Monaco’s `extraLib` (or `javascriptDefaults.addExtraLib`) with a `.d.ts` declaration file for the `GameAPI` interface so editors see `game.log`, `game.getPosition`, etc.
-
-4. **Optional later**  
-   - Script sandbox (Worker / iframe) for untrusted or shared scripts.  
-   - More events (e.g. “onTriggerEnter”, “onClick”) as the runtime gains those features.
+3. **Optional later**  
+   Script sandbox (Worker / iframe); more events (e.g. onTriggerEnter, onClick).
 
 ---
 
 ## Summary
 
-- **Current**: Scripting window with Monaco (and basic intellisense), world-level script registry, entity-scoped hooks (`onSpawn`, `onUpdate`, `onCollision`) with event–script association stored on the entity; runtime runs them correctly in Play. Builder does not yet let users assign scripts to events per entity.
-- **Roadmap**: (1) PropertyPanel UI to associate script IDs with onSpawn/onUpdate/onCollision per entity; (2) world-level “on start” (and optionally “every frame”); (3) Monaco extraLib for `game` API intellisense; (4) later sandbox and more events.
+- **Current**: Event-bound scripts with `ScriptDef` (event + source, plus `interval` for onTimer). Entity has `scripts: string[]`. Runtime passes a single **`ctx`** (event-specific shape); pre-allocated ctx, zero alloc on hot path. Monaco intellisense for `ctx` via `ctxDeclFor(event)`. Migration from legacy format in loadWorld.
+- **Roadmap**: PropertyPanel UI to attach scripts to entities; world-level onStart; later sandbox and more events.
