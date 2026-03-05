@@ -8,7 +8,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { createDefaultEntity, createBulkEntities, type AddableShapeType, type BulkEntityParams } from '@/data/entityDefaults'
 import { useProjectContext } from '@/hooks/useProjectContext'
 import { useLocalStorageState } from '@/hooks/useLocalStorageState'
-import type { Vec3, Rotation } from '@/types/world'
+import type { Vec3, Rotation, Entity } from '@/types/world'
 import { uiLogger } from '@/utils/uiLogger'
 
 export default function Builder() {
@@ -160,6 +160,41 @@ export default function Builder() {
   const handleEntityPoseChange = useCallback((id: string, pose: { position?: Vec3; rotation?: Rotation }) => {
     sceneViewRef.current?.updateEntityPose(id, pose)
   }, [])
+
+  const handleEntityPhysicsChange = useCallback((id: string, patch: Partial<Entity>) => {
+    sceneViewRef.current?.updateEntityPhysics(id, patch)
+    updateWorld((prev) => ({
+      ...prev,
+      entities: prev.entities.map((e) => (e.id === id ? { ...e, ...patch } : e)),
+    }))
+  }, [updateWorld])
+
+  const handleEntityMaterialChange = useCallback((id: string, patch: Partial<Entity>) => {
+    const updatedEntity = { ...world.entities.find((e) => e.id === id)!, ...patch }
+    void sceneViewRef.current?.updateEntityMaterial(id, updatedEntity)
+    updateWorld((prev) => ({
+      ...prev,
+      entities: prev.entities.map((e) => (e.id === id ? { ...e, ...patch } : e)),
+    }))
+  }, [world.entities, updateWorld])
+
+  const handleEntityShapeChange = useCallback((id: string, patch: Partial<Entity>) => {
+    const updatedEntity = { ...world.entities.find((e) => e.id === id)!, ...patch }
+    const applied = sceneViewRef.current?.updateEntityShape(id, updatedEntity) ?? false
+    if (applied) {
+      updateWorld((prev) => ({
+        ...prev,
+        entities: prev.entities.map((e) => (e.id === id ? { ...e, ...patch } : e)),
+      }))
+    } else {
+      // Trimesh or no scene yet — fall back to full rebuild
+      initialPosesRef.current = sceneViewRef.current?.getAllPoses() ?? null
+      updateWorld((prev) => ({
+        ...prev,
+        entities: prev.entities.map((e) => (e.id === id ? { ...e, ...patch } : e)),
+      }))
+    }
+  }, [world.entities, updateWorld])
 
   const handleRefreshFromPhysics = useCallback(
     (entityId: string) => {
@@ -369,6 +404,9 @@ export default function Builder() {
           onDeleteEntity={handleDeleteEntity}
           getCurrentPose={getCurrentPose}
           onEntityPoseChange={handleEntityPoseChange}
+          onEntityPhysicsChange={handleEntityPhysicsChange}
+          onEntityMaterialChange={handleEntityMaterialChange}
+          onEntityShapeChange={handleEntityShapeChange}
           onRefreshFromPhysics={handleRefreshFromPhysics}
           livePoses={livePoses}
           isOpen={rightDrawerOpen}

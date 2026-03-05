@@ -12,12 +12,15 @@ import type { TransformerChain } from '@/transformers/transformer'
  */
 export class RenderItem {
   transformerChain: TransformerChain | null = null
+  entity: Entity
 
   constructor(
-    readonly entity: Entity,
+    entity: Entity,
     readonly mesh: THREE.Mesh,
     readonly body: RAPIER.RigidBody | null
-  ) {}
+  ) {
+    this.entity = entity
+  }
 
   /** Returns position from mesh (physics-driven) or entity (static). No copy from body in getter. */
   getPosition(): Vec3 {

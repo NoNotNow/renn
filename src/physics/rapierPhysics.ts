@@ -362,6 +362,94 @@ export class PhysicsWorld {
     }
   }
 
+  setLinearDamping(entityId: string, value: number): void {
+    const body = this.bodyMap.get(entityId)
+    if (body) body.setLinearDamping(value)
+  }
+
+  setAngularDamping(entityId: string, value: number): void {
+    const body = this.bodyMap.get(entityId)
+    if (body) body.setAngularDamping(value)
+  }
+
+  setRestitution(entityId: string, value: number): void {
+    const collider = this.colliderMap.get(entityId)
+    if (collider) collider.setRestitution(value)
+  }
+
+  setFriction(entityId: string, value: number): void {
+    const collider = this.colliderMap.get(entityId)
+    if (collider) collider.setFriction(value)
+  }
+
+  setMass(entityId: string, mass: number, shape?: import('@/types/world').Shape, scale?: [number, number, number]): void {
+    const body = this.bodyMap.get(entityId)
+    const collider = this.colliderMap.get(entityId)
+    if (!body || !collider) return
+    if (!body.isDynamic()) return
+    const volume = this.computeColliderVolume(shape, scale)
+    const density = volume > 0 ? mass / volume : mass
+    collider.setDensity(density)
+  }
+
+  /**
+   * Rebuild the collider for an entity with a new shape (e.g. box→sphere or dimension change).
+   * The rigid body is kept; only the collider is removed and recreated.
+   * Physics properties (restitution, friction, mass) are re-applied from the entity.
+   * Active collision events are preserved from the old collider.
+   */
+  updateShape(entityId: string, entity: Entity, mesh: THREE.Mesh): void {
+    const body = this.bodyMap.get(entityId)
+    if (!body) return
+    const oldCollider = this.colliderMap.get(entityId)
+    const hadActiveEvents = oldCollider ? (oldCollider.activeEvents() !== 0) : false
+    if (oldCollider) {
+      this.colliderHandleToEntityId.delete(oldCollider.handle)
+      this.world.removeCollider(oldCollider, true)
+      this.colliderMap.delete(entityId)
+    }
+    const colliderDesc = this.createColliderDesc(entity.shape, entity, mesh)
+    if (!colliderDesc) return
+    colliderDesc.setRestitution(entity.restitution ?? 0)
+    colliderDesc.setFriction(entity.friction ?? 0.5)
+    if (hadActiveEvents) {
+      colliderDesc.setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS)
+    }
+    if (body.isDynamic() && entity.mass !== undefined) {
+      const volume = this.computeColliderVolume(entity.shape, entity.scale)
+      colliderDesc.setDensity(volume > 0 ? entity.mass / volume : entity.mass)
+    }
+    const newCollider = this.world.createCollider(colliderDesc, body)
+    this.colliderMap.set(entityId, newCollider)
+    this.colliderHandleToEntityId.set(newCollider.handle, entityId)
+  }
+
+  setBodyType(entityId: string, type: 'static' | 'dynamic' | 'kinematic', linearDamping?: number, angularDamping?: number): void {
+    const body = this.bodyMap.get(entityId)
+    if (!body) return
+    let rapierType: RAPIER.RigidBodyType
+    switch (type) {
+      case 'dynamic':
+        rapierType = RAPIER.RigidBodyType.Dynamic
+        break
+      case 'kinematic':
+        rapierType = RAPIER.RigidBodyType.KinematicPositionBased
+        break
+      case 'static':
+      default:
+        rapierType = RAPIER.RigidBodyType.Fixed
+        break
+    }
+    body.setBodyType(rapierType, true)
+    if (type === 'dynamic') {
+      body.setLinearDamping(linearDamping ?? 0.3)
+      body.setAngularDamping(angularDamping ?? 0.3)
+    } else {
+      body.setLinvel({ x: 0, y: 0, z: 0 }, true)
+      body.setAngvel({ x: 0, y: 0, z: 0 }, true)
+    }
+  }
+
   applyImpulse(entityId: string, x: number, y: number, z: number): void {
     const body = this.bodyMap.get(entityId)
     if (body && body.isDynamic()) {

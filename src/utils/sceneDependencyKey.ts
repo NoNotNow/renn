@@ -6,9 +6,11 @@ import type { RennWorld, Entity } from '@/types/world'
  * main effect so that edits that don't affect the scene (e.g. entity name, locked)
  * do not trigger a reload.
  *
- * Includes: entity list (id, bodyType, shape, scale, model, material, physics props,
- * scripts, transformers), world.scripts, world.assets refs, world.world lights.
- * Excludes: entity name, locked, position, rotation; world.world gravity, skyColor, camera.
+ * Includes: entity list (id, scale, model, scripts, transformers, and shape only when
+ * trimesh), world.scripts, world.assets refs, world.world lights.
+ * Excludes: entity name, locked, position, rotation, bodyType, mass, restitution,
+ * friction, linearDamping, angularDamping, primitive shape dimensions, material;
+ * world.world gravity, skyColor, camera.
  */
 export function getSceneDependencyKey(world: RennWorld): string {
   const payload: Record<string, unknown> = {
@@ -27,16 +29,11 @@ export function getSceneDependencyKey(world: RennWorld): string {
 function sceneRelevantEntity(entity: Entity): Record<string, unknown> {
   return {
     id: entity.id,
-    bodyType: entity.bodyType,
-    shape: entity.shape,
+    // Only trimesh shapes require a full rebuild (loading a model asset).
+    // Primitive shape changes are handled incrementally via updateEntityShape.
+    trimeshShape: entity.shape?.type === 'trimesh' ? entity.shape : undefined,
     scale: entity.scale,
     model: entity.model,
-    material: entity.material,
-    mass: entity.mass,
-    restitution: entity.restitution,
-    friction: entity.friction,
-    linearDamping: entity.linearDamping,
-    angularDamping: entity.angularDamping,
     scripts: entity.scripts,
     transformers: entity.transformers,
   }

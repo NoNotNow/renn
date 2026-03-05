@@ -54,18 +54,36 @@ describe('getSceneDependencyKey', () => {
     expect(getSceneDependencyKey(a)).toBe(getSceneDependencyKey(b))
   })
 
-  it('returns a different key when entity shape changes', () => {
+  it('returns the same key when a primitive shape changes (incremental path)', () => {
     const a = minimalWorld()
     const b = minimalWorld({
       entities: [{ ...a.entities[0], shape: { type: 'sphere', radius: 2 } }],
     })
+    // Primitive shape changes are handled incrementally — they must NOT trigger a rebuild.
+    expect(getSceneDependencyKey(a)).toBe(getSceneDependencyKey(b))
+  })
+
+  it('returns a different key when shape changes to trimesh (requires asset load)', () => {
+    const a = minimalWorld()
+    const b = minimalWorld({
+      entities: [{ ...a.entities[0], shape: { type: 'trimesh', model: 'my-model' } }],
+    })
     expect(getSceneDependencyKey(a)).not.toBe(getSceneDependencyKey(b))
   })
 
-  it('returns a different key when entity physics or material changes', () => {
+  it('returns the same key when entity physics or material changes (incremental path)', () => {
     const a = minimalWorld()
     const b = minimalWorld({
       entities: [{ ...a.entities[0], mass: 10, material: { color: [1, 0, 0] } }],
+    })
+    // Physics and material are now handled incrementally — must NOT trigger a rebuild.
+    expect(getSceneDependencyKey(a)).toBe(getSceneDependencyKey(b))
+  })
+
+  it('returns a different key when scripts change', () => {
+    const a = minimalWorld()
+    const b = minimalWorld({
+      entities: [{ ...a.entities[0], scripts: ['script-1'] }],
     })
     expect(getSceneDependencyKey(a)).not.toBe(getSceneDependencyKey(b))
   })

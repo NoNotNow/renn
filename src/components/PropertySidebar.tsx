@@ -2,7 +2,7 @@ import { useState } from 'react'
 import PropertyPanel from './PropertyPanel'
 import ScriptPanel from './ScriptPanel'
 import AssetPanel from './AssetPanel'
-import type { RennWorld, Vec3, Rotation } from '@/types/world'
+import type { RennWorld, Vec3, Rotation, Entity } from '@/types/world'
 import { useLocalStorageState } from '@/hooks/useLocalStorageState'
 import { uiLogger } from '@/utils/uiLogger'
 import Sidebar from './layout/Sidebar'
@@ -19,6 +19,9 @@ export interface PropertySidebarProps {
   onDeleteEntity: (entityId: string) => void
   getCurrentPose?: (id: string) => { position: Vec3; rotation: Rotation }
   onEntityPoseChange?: (id: string, pose: { position?: Vec3; rotation?: Rotation }) => void
+  onEntityPhysicsChange?: (id: string, patch: Partial<Entity>) => void
+  onEntityShapeChange?: (id: string, patch: Partial<Entity>) => void
+  onEntityMaterialChange?: (id: string, patch: Partial<Entity>) => void
   onRefreshFromPhysics?: (entityId: string) => void
   livePoses?: Map<string, { position: Vec3; rotation: Rotation }> | null
   isOpen: boolean
@@ -34,6 +37,9 @@ export default function PropertySidebar({
   onDeleteEntity,
   getCurrentPose,
   onEntityPoseChange,
+  onEntityPhysicsChange,
+  onEntityShapeChange,
+  onEntityMaterialChange,
   onRefreshFromPhysics,
   livePoses,
   isOpen,
@@ -80,6 +86,9 @@ export default function PropertySidebar({
             onDeleteEntity={onDeleteEntity}
             getCurrentPose={getCurrentPose}
             onEntityPoseChange={onEntityPoseChange}
+            onEntityPhysicsChange={onEntityPhysicsChange}
+            onEntityShapeChange={onEntityShapeChange}
+            onEntityMaterialChange={onEntityMaterialChange}
             onRefreshFromPhysics={onRefreshFromPhysics}
             livePoses={livePoses}
           />

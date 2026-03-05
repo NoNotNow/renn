@@ -1,7 +1,8 @@
 import { useRef, useEffect, forwardRef, useImperativeHandle, useState, useMemo } from 'react'
 import * as THREE from 'three'
 import { loadWorld } from '@/loader/loadWorld'
-import type { RennWorld, Vec3, Rotation, CameraConfig } from '@/types/world'
+import type { RennWorld, Vec3, Rotation, CameraConfig, Entity } from '@/types/world'
+import type { DisposableAssetResolver } from '@/loader/assetResolverImpl'
 import { DEFAULT_GRAVITY, DEFAULT_ROTATION } from '@/types/world'
 import { eulerToQuaternion } from '@/utils/rotationUtils'
 import type { LoadedEntity } from '@/loader/loadWorld'
@@ -37,9 +38,16 @@ export interface SceneViewProps {
   onPosesRestored?: (poses: Map<string, { position: Vec3; rotation: Rotation }>) => void
 }
 
+export type EntityPhysicsPatch = Partial<Pick<Entity, 'mass' | 'restitution' | 'friction' | 'linearDamping' | 'angularDamping' | 'bodyType'>>
+
 export interface SceneViewHandle {
   setViewPreset: (preset: 'top' | 'front' | 'right') => void
   updateEntityPose: (id: string, pose: { position?: Vec3; rotation?: Rotation }) => void
+  updateEntityPhysics: (id: string, patch: EntityPhysicsPatch) => void
+  /** Hot-swaps geometry and rebuilds collider. Returns false for trimesh (caller must rebuild). */
+  updateEntityShape: (id: string, entity: Entity) => boolean
+  /** Replaces the mesh material asynchronously (fire-and-forget; texture loading may defer). */
+  updateEntityMaterial: (id: string, entity: Entity) => Promise<void>
   getAllPoses: () => Map<string, { position: Vec3; rotation: Rotation }> | null
   resetCamera: () => void
   applyDebugForce: (entityId: string, force: Vec3, duration: number) => void
@@ -70,7 +78,7 @@ function SceneViewInner({
   const physicsRef = useRef<PhysicsWorld | null>(null)
   const registryRef = useRef<RenderItemRegistry | null>(null)
   const entitiesRef = useRef<LoadedEntity[]>([])
-  const assetResolverRef = useRef<{ dispose: () => void } | null>(null)
+  const assetResolverRef = useRef<DisposableAssetResolver | null>(null)
   const timeRef = useRef(0)
   const frameRef = useRef<number>(0)
   const effectIdRef = useRef(0)
@@ -105,6 +113,15 @@ function SceneViewInner({
     updateEntityPose: (id: string, pose: { position?: Vec3; rotation?: Rotation }) => {
       if (pose.position) registryRef.current?.setPosition(id, pose.position)
       if (pose.rotation) registryRef.current?.setRotation(id, pose.rotation)
+    },
+    updateEntityPhysics: (id: string, patch: EntityPhysicsPatch) => {
+      registryRef.current?.updatePhysics(id, patch)
+    },
+    updateEntityShape: (id: string, entity: Entity) => {
+      return registryRef.current?.updateShape(id, entity) ?? false
+    },
+    updateEntityMaterial: async (id: string, entity: Entity) => {
+      await registryRef.current?.updateMaterial(id, entity, assetResolverRef.current ?? undefined)
     },
     getAllPoses: () => registryRef.current?.getAllPoses() ?? null,
     resetCamera: () => {

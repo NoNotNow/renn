@@ -1,7 +1,9 @@
 import * as THREE from 'three'
 import type { LoadedEntity } from '@/loader/loadWorld'
 import type { PhysicsWorld } from '@/physics/rapierPhysics'
-import type { Vec3, Rotation } from '@/types/world'
+import type { Vec3, Rotation, Entity } from '@/types/world'
+import { createShapeGeometry, materialFromRef } from '@/loader/createPrimitive'
+import type { DisposableAssetResolver } from '@/loader/assetResolverImpl'
 import { RenderItem } from './renderItem'
 import { rapierQuaternionToEuler } from '@/utils/rotationUtils'
 import { createTransformerChain } from '@/transformers/transformerRegistry'
@@ -119,6 +121,113 @@ export class RenderItemRegistry {
 
   setRotation(id: string, v: Rotation): void {
     this.items.get(id)?.setRotation(v)
+  }
+
+  /**
+   * Apply incremental physics property changes to an entity's body/collider directly.
+   * Only the properties present in the patch are updated; others are left unchanged.
+   */
+  updatePhysics(id: string, patch: Partial<Pick<Entity, 'mass' | 'restitution' | 'friction' | 'linearDamping' | 'angularDamping' | 'bodyType'>>): void {
+    if (!this.physicsWorld) return
+    const item = this.items.get(id)
+    if (!item) return
+    const pw = this.physicsWorld
+    if (patch.linearDamping !== undefined) pw.setLinearDamping(id, patch.linearDamping)
+    if (patch.angularDamping !== undefined) pw.setAngularDamping(id, patch.angularDamping)
+    if (patch.restitution !== undefined) pw.setRestitution(id, patch.restitution)
+    if (patch.friction !== undefined) pw.setFriction(id, patch.friction)
+    if (patch.mass !== undefined) {
+      const entity = item.entity
+      pw.setMass(id, patch.mass, entity.shape, entity.scale)
+    }
+    if (patch.bodyType !== undefined) {
+      const entity = item.entity
+      pw.setBodyType(id, patch.bodyType, entity.linearDamping, entity.angularDamping)
+    }
+  }
+
+  /**
+   * Hot-swap the mesh geometry and rebuild the physics collider for a primitive shape change.
+   * Returns true if the update was applied, false if the shape is trimesh (caller must fall back
+   * to a full scene rebuild for trimesh shapes).
+   */
+  updateShape(id: string, newEntity: Entity): boolean {
+    if (newEntity.shape?.type === 'trimesh') return false
+    const item = this.items.get(id)
+    if (!item) return false
+
+    const newGeometry = createShapeGeometry(newEntity.shape ?? { type: 'box', width: 1, height: 1, depth: 1 })
+    if (!newGeometry) return false
+
+    const mesh = item.mesh
+    const wasPlane = item.entity.shape?.type === 'plane'
+    const isNowPlane = newEntity.shape?.type === 'plane'
+
+    // Handle plane visual base quaternion transition (plane lies flat via a -90° X rotation)
+    if (wasPlane !== isNowPlane) {
+      const currentRotation = item.getRotation()
+      if (isNowPlane) {
+        const planeQ = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0))
+        mesh.userData.visualBaseQuaternion = planeQ
+      } else {
+        delete mesh.userData.visualBaseQuaternion
+      }
+      // Re-apply rotation so it is consistent with the new (or absent) visual base quaternion
+      item.setRotation(currentRotation)
+    }
+
+    // Swap geometry
+    const oldGeometry = mesh.geometry
+    mesh.geometry = newGeometry
+    oldGeometry.dispose()
+
+    // Update shadow casting (planes don't cast shadows)
+    mesh.castShadow = isNowPlane ? false : true
+
+    // Update entity reference so future operations (e.g. mass change) use the new shape
+    item.entity = newEntity
+    mesh.userData.entity = newEntity
+
+    // Rebuild physics collider with new shape
+    if (this.physicsWorld) {
+      this.physicsWorld.updateShape(id, newEntity, mesh)
+    }
+
+    return true
+  }
+
+  /**
+   * Replace the material on an entity's mesh with one created from the new MaterialRef.
+   * For model-based meshes all child meshes are updated too.
+   * Old material(s) are disposed. Async because texture loading may be required.
+   */
+  async updateMaterial(id: string, newEntity: Entity, assetResolver?: DisposableAssetResolver): Promise<void> {
+    const item = this.items.get(id)
+    if (!item) return
+    const mesh = item.mesh
+    const newMat = await materialFromRef(newEntity.material, assetResolver)
+    const isModelMesh = mesh.userData.usesModel === true || mesh.userData.isTrimeshSource === true
+    if (isModelMesh) {
+      mesh.traverse((child) => {
+        if (child instanceof THREE.Mesh) {
+          const old = child.material
+          child.material = newMat
+          if (old) {
+            if (Array.isArray(old)) old.forEach(m => m.dispose())
+            else old.dispose()
+          }
+        }
+      })
+    } else {
+      const old = mesh.material
+      mesh.material = newMat
+      if (old) {
+        if (Array.isArray(old)) old.forEach(m => m.dispose())
+        else old.dispose()
+      }
+    }
+    item.entity = newEntity
+    mesh.userData.entity = newEntity
   }
 
   /**

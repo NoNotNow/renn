@@ -36,6 +36,9 @@ export interface PropertyPanelProps {
   onDeleteEntity?: (entityId: string) => void
   getCurrentPose?: (id: string) => { position: Vec3; rotation: Rotation }
   onEntityPoseChange?: (id: string, pose: { position?: Vec3; rotation?: Rotation }) => void
+  onEntityPhysicsChange?: (id: string, patch: Partial<Entity>) => void
+  onEntityShapeChange?: (id: string, patch: Partial<Entity>) => void
+  onEntityMaterialChange?: (id: string, patch: Partial<Entity>) => void
   onRefreshFromPhysics?: (entityId: string) => void
   livePoses?: Map<string, { position: Vec3; rotation: Rotation }> | null
 }
@@ -48,6 +51,9 @@ export default function PropertyPanel({
   onAssetsChange,
   onDeleteEntity,
   onEntityPoseChange,
+  onEntityPhysicsChange,
+  onEntityShapeChange,
+  onEntityMaterialChange,
   onRefreshFromPhysics,
   livePoses,
 }: PropertyPanelProps) {
@@ -211,15 +217,23 @@ export default function PropertyPanel({
           entityId={entity.id}
           shape={entity.shape}
           onShapeChange={(shape) => {
-            // When switching to trimesh, clear entity.model since trimesh uses shape.model
-            if (shape.type === 'trimesh' && entity.model) {
+            // Switching to trimesh must also clear entity.model (trimesh uses shape.model)
+            const switchingToTrimesh = shape.type === 'trimesh'
+            const switchingFromTrimesh = entity.shape?.type === 'trimesh'
+            const involvesTrimesh = switchingToTrimesh || switchingFromTrimesh
+            if (switchingToTrimesh && entity.model) {
               uiLogger.change('PropertyPanel', 'Clear entity model when switching to trimesh', { 
                 entityId: entity.id, 
                 clearedModel: entity.model 
               })
-              updateEntity({ shape, model: undefined })
+            }
+            const patch: Partial<Entity> = switchingToTrimesh && entity.model
+              ? { shape, model: undefined }
+              : { shape }
+            if (!involvesTrimesh && onEntityShapeChange) {
+              onEntityShapeChange(entity.id, patch)
             } else {
-              updateEntity({ shape })
+              updateEntity(patch)
             }
           }}
           disabled={isLocked}
@@ -239,12 +253,12 @@ export default function PropertyPanel({
           friction={entity.friction ?? 0.5}
           linearDamping={entity.linearDamping ?? 0.3}
           angularDamping={entity.angularDamping ?? 0.3}
-          onBodyTypeChange={(bodyType) => updateEntity({ bodyType })}
-          onMassChange={(mass) => updateEntity({ mass })}
-          onRestitutionChange={(restitution) => updateEntity({ restitution })}
-          onFrictionChange={(friction) => updateEntity({ friction })}
-          onLinearDampingChange={(linearDamping) => updateEntity({ linearDamping })}
-          onAngularDampingChange={(angularDamping) => updateEntity({ angularDamping })}
+          onBodyTypeChange={(bodyType) => onEntityPhysicsChange ? onEntityPhysicsChange(entity.id, { bodyType }) : updateEntity({ bodyType })}
+          onMassChange={(mass) => onEntityPhysicsChange ? onEntityPhysicsChange(entity.id, { mass }) : updateEntity({ mass })}
+          onRestitutionChange={(restitution) => onEntityPhysicsChange ? onEntityPhysicsChange(entity.id, { restitution }) : updateEntity({ restitution })}
+          onFrictionChange={(friction) => onEntityPhysicsChange ? onEntityPhysicsChange(entity.id, { friction }) : updateEntity({ friction })}
+          onLinearDampingChange={(linearDamping) => onEntityPhysicsChange ? onEntityPhysicsChange(entity.id, { linearDamping }) : updateEntity({ linearDamping })}
+          onAngularDampingChange={(angularDamping) => onEntityPhysicsChange ? onEntityPhysicsChange(entity.id, { angularDamping }) : updateEntity({ angularDamping })}
           disabled={isLocked}
         />
       </CollapsibleSection>
@@ -255,7 +269,11 @@ export default function PropertyPanel({
           material={entity.material}
           assets={assets}
           world={world}
-          onMaterialChange={(material) => updateEntity({ material })}
+          onMaterialChange={(material) =>
+            onEntityMaterialChange
+              ? onEntityMaterialChange(entity.id, { material })
+              : updateEntity({ material })
+          }
           onWorldChange={onWorldChange}
           onAssetsChange={onAssetsChange}
           disabled={isLocked}

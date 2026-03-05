@@ -12,7 +12,7 @@ function colorFromRef(material: MaterialRef | undefined): THREE.Color {
   return new THREE.Color(0.7, 0.7, 0.7)
 }
 
-async function materialFromRef(
+export async function materialFromRef(
   material: MaterialRef | undefined,
   assetResolver?: DisposableAssetResolver
 ): Promise<THREE.MeshStandardMaterial> {
@@ -169,6 +169,32 @@ export async function createPrimitiveMesh(
   }
 
   return new THREE.Mesh(geometry, mat)
+}
+
+/**
+ * Creates only the Three.js geometry for a primitive shape (no mesh, no material).
+ * Returns null for trimesh shapes — those require a full mesh rebuild.
+ * Dimensions come from the shape; entity scale is applied via mesh.scale separately.
+ */
+export function createShapeGeometry(shape: Shape): THREE.BufferGeometry | null {
+  switch (shape.type) {
+    case 'box':
+      return new THREE.BoxGeometry(shape.width, shape.height, shape.depth)
+    case 'sphere':
+      return new THREE.SphereGeometry(shape.radius, 32, 32)
+    case 'cylinder':
+      return new THREE.CylinderGeometry(shape.radius, shape.radius, shape.height, 32)
+    case 'capsule':
+      return new THREE.CapsuleGeometry(shape.radius, Math.max(0, shape.height - 2 * shape.radius), 8, 16)
+    case 'plane': {
+      const size = 100
+      return new THREE.PlaneGeometry(size * 2, size * 2)
+    }
+    case 'trimesh':
+      return null
+    default:
+      return null
+  }
 }
 
 /**
