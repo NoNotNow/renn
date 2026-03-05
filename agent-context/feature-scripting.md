@@ -8,10 +8,11 @@ Scripting lets users run JavaScript in the play runtime. Scripts are **event-bou
 
 ### Script editor (Builder)
 
-- **ScriptPanel** (`src/components/ScriptPanel.tsx`): Scripts tab in the right sidebar. Dropdown to select script, **event type picker** (onSpawn / onUpdate / onCollision / onTimer), **interval (seconds)** when event is `onTimer`.
+- **ScriptPanel** (`src/components/ScriptPanel.tsx`): Scripts tab in the right sidebar. When an entity is selected, shows **"Scripts for [Entity name]"** and a dropdown of scripts attached to that entity (with "Other scripts" for the rest). **Manage scripts** opens **ScriptDialog** to attach/detach scripts for the entity. **Detach from entity** removes the selected script only from the current entity’s `scripts` array; it does **not** delete the script from the world. When the script being edited is used by more than one entity, a **shared-script banner** appears: "This script is shared. Used by: … Changes affect all of them."
+- **ScriptDialog** (`src/components/ScriptDialog.tsx`): Modal to manage which scripts are attached to the selected entity. Lists all world scripts (with search), "Attached to this entity", Attach selected / Detach / Create new script. Similar UX to TextureDialog for texture selection.
 - **Monaco** (`@monaco-editor/react`): JavaScript editor with **event-specific intellisense**: `addExtraLib` injects a `.d.ts` so `ctx` has the correct type for the selected script’s event (`OnSpawnCtx`, `OnUpdateCtx`, `OnCollisionCtx`, `OnTimerCtx`). See `src/scripts/scriptCtxDecl.ts` for `ctxDeclFor(event)`.
-- **World-level script registry**: `RennWorld.scripts` is `Record<string, ScriptDef>` (script ID → `{ event, source }` or `{ event: 'onTimer', interval, source }`).
-- **Entity–script wiring**: `entity.scripts` is `string[]` (script IDs). The runtime routes by each script’s `event`; no per-entity event map. PropertyPanel does not yet expose UI to assign script IDs to entities (edit world JSON or add scripts in ScriptPanel and attach via future UI).
+- **World-level script registry**: `RennWorld.scripts` is `Record<string, ScriptDef>` (script ID → `{ event, source }` or `{ event: 'onTimer', interval, source }`). Scripts exist independently; entities reference them by ID.
+- **Entity–script wiring**: `entity.scripts` is `string[]` (script IDs). The runtime routes by each script’s `event`; no per-entity event map. Assign or remove scripts via ScriptPanel ("Manage scripts") or ScriptDialog.
 
 ### Data model
 
@@ -53,6 +54,7 @@ Scripting lets users run JavaScript in the play runtime. Scripts are **event-bou
 | Concern              | File |
 |----------------------|------|
 | Script editor UI     | `src/components/ScriptPanel.tsx` |
+| Script selector (entity) | `src/components/ScriptDialog.tsx` |
 | Ctx intellisense     | `src/scripts/scriptCtxDecl.ts` |
 | Script types         | `src/types/world.ts` (`ScriptEvent`, `ScriptDef`, `Entity.scripts`) |
 | Ctx types & alloc    | `src/scripts/scriptCtx.ts` |
@@ -66,7 +68,7 @@ Scripting lets users run JavaScript in the play runtime. Scripts are **event-bou
 ## Roadmap
 
 1. **PropertyPanel UI for entity scripts**  
-   Expose dropdowns (or list) so users can assign script IDs to an entity’s `scripts` array without editing JSON.
+   ScriptPanel and ScriptDialog already let users assign/detach script IDs per entity. Optional: show a compact script list or link in PropertyPanel that opens the Scripts tab or ScriptDialog.
 
 2. **World-level hooks**  
    Optional `RennWorld.onStart?: string` (script ID) and/or world-level “every frame” script.
