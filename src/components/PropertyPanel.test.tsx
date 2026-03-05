@@ -63,7 +63,8 @@ function renderPropertyPanel(
   onWorldChange = vi.fn(),
   onDeleteEntity?: (id: string) => void,
   assets: Map<string, Blob> = new Map(),
-  onRefreshFromPhysics?: (entityId: string) => void
+  onRefreshFromPhysics?: (entityId: string) => void,
+  livePoses?: Map<string, { position: [number, number, number]; rotation: [number, number, number] }> | null
 ) {
   return render(
     <PropertyPanel
@@ -73,6 +74,7 @@ function renderPropertyPanel(
       onWorldChange={onWorldChange}
       onDeleteEntity={onDeleteEntity}
       onRefreshFromPhysics={onRefreshFromPhysics}
+      livePoses={livePoses}
     />
   )
 }
@@ -294,6 +296,39 @@ describe('PropertyPanel', () => {
       const updatedEntity = lastCall[0].entities.find((e: { id: string }) => e.id === entityId)
       expect(updatedEntity?.shape?.type).toBe('cylinder')
       expect((updatedEntity?.shape as { radius?: number })?.radius).toBe(0.8)
+    })
+  })
+
+  describe('livePoses (inspector polling)', () => {
+    it('displays position and rotation from livePoses when provided for selected entity', () => {
+      const world = worldWithBox()
+      const entityId = world.entities[0].id
+      const livePoses = new Map([
+        [entityId, { position: [5, 10, 15] as [number, number, number], rotation: [0.1, 0.2, 0.3] as [number, number, number] }],
+      ])
+      renderPropertyPanel(world, entityId, vi.fn(), undefined, new Map(), undefined, livePoses)
+      const positionXInput = screen.getByLabelText(/position x/i)
+      const positionYInput = screen.getByLabelText(/position y/i)
+      const rotationXInput = screen.getByLabelText(/rotation x/i)
+      expect(positionXInput).toHaveValue(5)
+      expect(positionYInput).toHaveValue(10)
+      expect(rotationXInput).toHaveValue(0.1)
+    })
+
+    it('when livePoses is provided, user changing Position X still calls onWorldChange with user value (no update loop)', () => {
+      const onWorldChange = vi.fn()
+      const world = worldWithBox()
+      const entityId = world.entities[0].id
+      const livePoses = new Map([
+        [entityId, { position: [5, 0, 0] as [number, number, number], rotation: [0, 0, 0] as [number, number, number] }],
+      ])
+      renderPropertyPanel(world, entityId, onWorldChange, undefined, new Map(), undefined, livePoses)
+      const positionXInput = screen.getByLabelText(/position x/i)
+      fireEvent.change(positionXInput, { target: { value: '7' } })
+      expect(onWorldChange).toHaveBeenCalled()
+      const lastCall = onWorldChange.mock.calls[onWorldChange.mock.calls.length - 1]
+      const updatedEntity = lastCall[0].entities.find((e: Entity) => e.id === entityId)
+      expect(updatedEntity?.position).toEqual([7, 0, 0])
     })
   })
 

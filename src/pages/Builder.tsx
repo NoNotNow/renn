@@ -45,6 +45,7 @@ export default function Builder() {
   const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null)
   const [shadowsEnabled, setShadowsEnabled] = useState(true)
   const [showSaveDialog, setShowSaveDialog] = useState(false)
+  const [livePoses, setLivePoses] = useState<Map<string, { position: Vec3; rotation: Rotation }> | null>(null)
   const sceneViewRef = useRef<SceneViewHandle>(null)
 
   // Drawer states with localStorage persistence
@@ -174,6 +175,17 @@ export default function Builder() {
   const handleAssetsChange = useCallback((newAssets: typeof assets) => {
     updateAssets(() => newAssets)
   }, [updateAssets])
+
+  // Poll scene poses so the inspector stays in sync with physics/scripts (display only; never calls onWorldChange)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const poses = sceneViewRef.current?.getAllPoses() ?? null
+      if (poses && poses.size > 0) {
+        setLivePoses(poses)
+      }
+    }, 100)
+    return () => clearInterval(interval)
+  }, [])
 
   // Warn before leaving if there are unsaved changes
   useEffect(() => {
@@ -354,6 +366,7 @@ export default function Builder() {
           getCurrentPose={getCurrentPose}
           onEntityPoseChange={handleEntityPoseChange}
           onRefreshFromPhysics={handleRefreshFromPhysics}
+          livePoses={livePoses}
           isOpen={rightDrawerOpen}
           onToggle={() => setRightDrawerOpen(!rightDrawerOpen)}
         />

@@ -17,6 +17,7 @@
 | Overall structure / data flow | `architecture.md` |
 | Entity movement, input, physics behavior | `feature-transformers.md` |
 | Scripts, game API, events, intellisense | `feature-scripting.md` |
+| Property panel, inspector, live poses, no-update-loop | `feature-inspector.md` |
 | What is done / what is left to build | `project-status.md` |
 | Example worlds and JSON configs | `example-worlds.md` |
 | Physics force accumulation quirk | `bugfix-spinning.md` |

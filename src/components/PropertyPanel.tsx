@@ -21,6 +21,7 @@ export interface PropertyPanelProps {
   getCurrentPose?: (id: string) => { position: Vec3; rotation: Rotation }
   onEntityPoseChange?: (id: string, pose: { position?: Vec3; rotation?: Rotation }) => void
   onRefreshFromPhysics?: (entityId: string) => void
+  livePoses?: Map<string, { position: Vec3; rotation: Rotation }> | null
 }
 
 export default function PropertyPanel({
@@ -33,6 +34,7 @@ export default function PropertyPanel({
   getCurrentPose,
   onEntityPoseChange,
   onRefreshFromPhysics,
+  livePoses,
 }: PropertyPanelProps) {
   const inputStyle = {
     display: 'block',
@@ -62,8 +64,9 @@ export default function PropertyPanel({
     })
   }
 
-  const position = entity.position ?? [0, 0, 0]
-  const rotation = entity.rotation ?? [0, 0, 0]
+  const livePose = livePoses?.get(entity.id)
+  const displayPosition = livePose?.position ?? entity.position ?? [0, 0, 0]
+  const displayRotation = livePose?.rotation ?? entity.rotation ?? [0, 0, 0]
   const scale = entity.scale ?? [1, 1, 1]
   const isLocked = entity.locked ?? false
 
@@ -178,8 +181,8 @@ export default function PropertyPanel({
       <CollapsibleSection title="Transform">
         <TransformEditor
           entityId={entity.id}
-          position={position}
-          rotation={rotation}
+          position={displayPosition}
+          rotation={displayRotation}
           scale={scale}
           onPositionChange={(v) => {
             if (onEntityPoseChange) {

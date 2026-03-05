@@ -20,6 +20,7 @@ export interface PropertySidebarProps {
   getCurrentPose?: (id: string) => { position: Vec3; rotation: Rotation }
   onEntityPoseChange?: (id: string, pose: { position?: Vec3; rotation?: Rotation }) => void
   onRefreshFromPhysics?: (entityId: string) => void
+  livePoses?: Map<string, { position: Vec3; rotation: Rotation }> | null
   isOpen: boolean
   onToggle: () => void
 }
@@ -34,6 +35,7 @@ export default function PropertySidebar({
   getCurrentPose,
   onEntityPoseChange,
   onRefreshFromPhysics,
+  livePoses,
   isOpen,
   onToggle,
 }: PropertySidebarProps) {
@@ -79,6 +81,7 @@ export default function PropertySidebar({
             getCurrentPose={getCurrentPose}
             onEntityPoseChange={onEntityPoseChange}
             onRefreshFromPhysics={onRefreshFromPhysics}
+            livePoses={livePoses}
           />
         )}
         {rightTab === 'scripts' && (
