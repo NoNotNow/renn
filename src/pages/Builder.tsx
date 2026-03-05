@@ -296,7 +296,7 @@ export default function Builder() {
         />
       )}
 
-      <div style={{ position: 'relative', flex: 1, minHeight: 0, width: '100%' }}>
+      <div style={{ position: 'relative', flex: 1, minHeight: 0, width: '100%', overflow: 'hidden' }}>
         {/* Canvas takes full width */}
         <main style={{ width: '100%', height: '100%' }}>
           <ErrorBoundary

@@ -71,6 +71,7 @@ function SceneViewInner({
     quaternion: THREE.Quaternion
     up: THREE.Vector3
   } | null>(null)
+  const resizeHandlerRef = useRef<(() => void) | null>(null)
 
   const freeFlyKeysRef = useKeyboardInput()
   const rawKeyboardRef = useRawKeyboardInput()
@@ -366,6 +367,7 @@ function SceneViewInner({
         cam.updateProjectionMatrix()
         rend.setSize(w, h)
       }
+      resizeHandlerRef.current = onResize
       window.addEventListener('resize', onResize)
       ro = new ResizeObserver(onResize)
       ro.observe(container)
@@ -406,7 +408,11 @@ function SceneViewInner({
       if (ro) {
         ro.disconnect()
       }
-      window.removeEventListener('resize', () => {})
+      const resizeHandler = resizeHandlerRef.current
+      if (resizeHandler) {
+        window.removeEventListener('resize', resizeHandler)
+        resizeHandlerRef.current = null
+      }
       
       // Clear refs immediately to prevent any further use
       cameraCtrlRef.current = null
