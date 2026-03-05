@@ -304,3 +304,6 @@ export function createIndexedDbPersistence(): PersistenceAPI {
     },
   }
 }
+
+/** Shared persistence instance for inspector and asset UI. */
+export const defaultPersistence = createIndexedDbPersistence()

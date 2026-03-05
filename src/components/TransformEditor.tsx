@@ -10,7 +10,6 @@ export interface TransformEditorProps {
   onPositionChange: (position: Vec3) => void
   onRotationChange: (rotation: Rotation) => void
   onScaleChange: (scale: Vec3) => void
-  getCurrentPose?: (id: string) => { position: Vec3; rotation: Rotation }
   disabled?: boolean
 }
 

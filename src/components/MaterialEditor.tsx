@@ -3,16 +3,13 @@ import type { Vec3, MaterialRef, RennWorld } from '@/types/world'
 import { uiLogger } from '@/utils/uiLogger'
 import { clampUnit } from '@/utils/numberUtils'
 import { colorToHex, hexToColor } from '@/utils/colorUtils'
-import { TextureManager } from '@/utils/textureManager'
-import { createIndexedDbPersistence } from '@/persistence/indexedDb'
+import { uploadTexture } from '@/utils/assetUpload'
 import NumberInput from './form/NumberInput'
 import SelectInput from './form/SelectInput'
 import Vec3Field from './Vec3Field'
 import TextureDialog from './TextureDialog'
 import TextureThumbnail from './TextureThumbnail'
-import { sidebarRowStyle, sidebarLabelStyle } from './sharedStyles'
-
-const persistence = createIndexedDbPersistence()
+import { sidebarRowStyle, sidebarLabelStyle, thumbnailButtonStyle, thumbnailButtonStyleDisabled, removeButtonStyle, removeButtonStyleDisabled, secondaryButtonStyle, secondaryButtonStyleDisabled } from './sharedStyles'
 
 export interface MaterialEditorProps {
   entityId: string
@@ -88,22 +85,14 @@ export default function MaterialEditor({
       <div style={sidebarRowStyle}>
         <label style={sidebarLabelStyle}>Texture</label>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {material?.map && assets.get(material.map) ? (
+            {material?.map && assets.get(material.map) ? (
             <>
               <button
                 type="button"
                 onClick={() => setTextureDialogOpen(true)}
                 disabled={disabled}
                 title="Click to change texture"
-                style={{
-                  padding: 0,
-                  background: 'transparent',
-                  border: 'none',
-                  cursor: disabled ? 'not-allowed' : 'pointer',
-                  display: 'flex',
-                  transition: 'opacity 0.15s ease',
-                  opacity: disabled ? 0.5 : 1,
-                }}
+                style={{ ...thumbnailButtonStyle, ...(disabled && thumbnailButtonStyleDisabled) }}
                 onMouseEnter={(e) => {
                   if (!disabled) e.currentTarget.style.opacity = '0.8'
                 }}
@@ -121,20 +110,7 @@ export default function MaterialEditor({
                 }}
                 disabled={disabled}
                 title="Remove texture"
-                style={{
-                  padding: '6px 8px',
-                  background: disabled ? '#2a2a2a' : '#3a1b1b',
-                  border: disabled ? '1px solid #2f3545' : '1px solid #6b2a2a',
-                  color: disabled ? '#666' : '#f4d6d6',
-                  borderRadius: 6,
-                  cursor: disabled ? 'not-allowed' : 'pointer',
-                  fontSize: 14,
-                  lineHeight: 1,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  minWidth: 28,
-                }}
+                style={{ ...removeButtonStyle, ...(disabled && removeButtonStyleDisabled) }}
               >
                 🗑️
               </button>
@@ -144,17 +120,7 @@ export default function MaterialEditor({
               type="button"
               onClick={() => setTextureDialogOpen(true)}
               disabled={disabled}
-              style={{
-                flex: 1,
-                padding: '6px 12px',
-                background: disabled ? '#2a2a2a' : '#1a1a1a',
-                border: '1px solid #2f3545',
-                color: disabled ? '#666' : '#e6e9f2',
-                borderRadius: 6,
-                cursor: disabled ? 'not-allowed' : 'pointer',
-                fontSize: 12,
-                transition: 'background-color 0.15s ease',
-              }}
+              style={{ ...secondaryButtonStyle, ...(disabled && secondaryButtonStyleDisabled) }}
               onMouseEnter={(e) => {
                 if (!disabled) e.currentTarget.style.background = '#222'
               }}
@@ -179,23 +145,9 @@ export default function MaterialEditor({
           onMaterialChange({ ...material, map: assetId })
         }}
         onUploadTexture={async (file: File, assetId: string) => {
-          // Validate using TextureManager
-          const validation = TextureManager.validateTextureFile(file)
-          if (!validation.valid) {
-            throw new Error(validation.error)
-          }
-          
-          // Save to global store
-          await persistence.saveAsset(assetId, file)
-          
-          // Update in-memory assets Map (this makes it appear in the Asset Panel)
-          const nextAssets = new Map(assets)
-          nextAssets.set(assetId, file)
+          const { nextAssets, worldAssetEntry } = await uploadTexture(file, assetId, assets)
           onAssetsChange?.(nextAssets)
-          
-          // Update world assets reference
-          const nextWorldAssets = { ...world.assets, [assetId]: { path: `assets/${file.name}`, type: 'texture' } }
-          onWorldChange?.({ ...world, assets: nextWorldAssets })
+          onWorldChange?.({ ...world, assets: { ...world.assets, [assetId]: worldAssetEntry } })
         }}
       />
       

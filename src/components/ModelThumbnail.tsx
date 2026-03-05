@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ModelManager } from '@/utils/modelManager'
-import { createIndexedDbPersistence } from '@/persistence/indexedDb'
-
-const persistence = createIndexedDbPersistence()
+import { defaultPersistence } from '@/persistence/indexedDb'
 
 export interface ModelThumbnailProps {
   assetId: string
@@ -31,7 +29,7 @@ export default function ModelThumbnail({
       return
     }
 
-    persistence.loadAssetPreview(assetId).then((previewBlob) => {
+    defaultPersistence.loadAssetPreview(assetId).then((previewBlob) => {
       if (cancelled) return
       if (!previewBlob) {
         setThumbnailUrl(null)

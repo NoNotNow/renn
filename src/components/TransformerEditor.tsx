@@ -96,11 +96,13 @@ function TransformerConfigTextarea({
 export interface TransformerEditorProps {
   transformers?: TransformerConfig[]
   onChange?: (transformers: TransformerConfig[]) => void
+  disabled?: boolean
 }
 
 export default function TransformerEditor({
   transformers,
   onChange,
+  disabled = false,
 }: TransformerEditorProps) {
   if (!transformers || transformers.length === 0) {
     return (
@@ -163,6 +165,7 @@ export default function TransformerEditor({
                   )
                   onChange?.(next)
                 }}
+                disabled={disabled}
               />
             </div>
           </div>

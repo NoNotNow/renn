@@ -8,9 +8,24 @@ import MaterialEditor from './MaterialEditor'
 import ModelEditor from './ModelEditor'
 import TransformerEditor from './TransformerEditor'
 import CollapsibleSection from './CollapsibleSection'
-import { fieldLabelStyle } from './sharedStyles'
+import { fieldLabelStyle, sidebarTextInputStyle, iconButtonStyle, removeButtonStyle, removeButtonStyleDisabled } from './sharedStyles'
 
-const refreshIconStyle = { width: 14, height: 14, flexShrink: 0 }
+function RefreshIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={{ width: 14, height: 14, flexShrink: 0 }}
+    >
+      <path d="M23 4v6h-6M1 20v-6h6" />
+      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+    </svg>
+  )
+}
 
 export interface PropertyPanelProps {
   world: RennWorld
@@ -32,18 +47,10 @@ export default function PropertyPanel({
   onWorldChange,
   onAssetsChange,
   onDeleteEntity,
-  getCurrentPose,
   onEntityPoseChange,
   onRefreshFromPhysics,
   livePoses,
 }: PropertyPanelProps) {
-  const inputStyle = {
-    display: 'block',
-    width: '100%',
-    padding: '6px 8px',
-    borderRadius: 6,
-  }
-
   const entity = selectedEntityId
     ? world.entities.find((e) => e.id === selectedEntityId)
     : null
@@ -113,31 +120,11 @@ export default function PropertyPanel({
               onRefreshFromPhysics(entity.id)
             }}
             title="Refresh position and rotation from physics"
-            style={{
-              background: 'transparent',
-              border: 'none',
-              cursor: 'pointer',
-              padding: 4,
-              lineHeight: 1,
-              opacity: 0.8,
-              transition: 'opacity 0.15s ease',
-              flexShrink: 0,
-            }}
+            style={{ ...iconButtonStyle, flexShrink: 0 }}
             onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
             onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.8')}
           >
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              style={refreshIconStyle}
-            >
-              <path d="M23 4v6h-6M1 20v-6h6" />
-              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-            </svg>
+            <RefreshIcon />
           </button>
         )}
       </div>
@@ -153,16 +140,7 @@ export default function PropertyPanel({
               updateEntity({ locked: !isLocked })
             }}
             title={isLocked ? 'Unlock entity' : 'Lock entity'}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              cursor: 'pointer',
-              padding: 4,
-              fontSize: 14,
-              lineHeight: 1,
-              opacity: 0.8,
-              transition: 'opacity 0.15s ease',
-            }}
+            style={{ ...iconButtonStyle, fontSize: 14 }}
             onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
             onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.8')}
           >
@@ -188,7 +166,7 @@ export default function PropertyPanel({
                 e.currentTarget.blur()
               }
             }}
-            style={inputStyle}
+            style={sidebarTextInputStyle}
             disabled={isLocked}
           />
         </label>
@@ -198,7 +176,7 @@ export default function PropertyPanel({
             type="text"
             value={entity.id}
             readOnly
-            style={inputStyle}
+            style={sidebarTextInputStyle}
           />
         </label>
       </CollapsibleSection>
@@ -224,7 +202,6 @@ export default function PropertyPanel({
             }
           }}
           onScaleChange={(v) => updateEntity({ scale: v })}
-          getCurrentPose={getCurrentPose}
           disabled={isLocked}
         />
       </CollapsibleSection>
@@ -305,6 +282,7 @@ export default function PropertyPanel({
           <TransformerEditor
             transformers={entity.transformers}
             onChange={(transformers) => updateEntity({ transformers })}
+            disabled={isLocked}
           />
         </CollapsibleSection>
       )}
@@ -318,12 +296,9 @@ export default function PropertyPanel({
           }}
           disabled={isLocked}
           style={{
+            ...removeButtonStyle,
+            ...(isLocked && removeButtonStyleDisabled),
             padding: '8px 12px',
-            background: isLocked ? '#2a2a2a' : '#3a1b1b',
-            border: isLocked ? '1px solid #3a3a3a' : '1px solid #6b2a2a',
-            color: isLocked ? '#666' : '#f4d6d6',
-            borderRadius: 6,
-            cursor: isLocked ? 'not-allowed' : 'pointer',
             alignSelf: 'stretch',
           }}
         >

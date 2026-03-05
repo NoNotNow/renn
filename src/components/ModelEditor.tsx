@@ -1,14 +1,10 @@
 import { useState } from 'react'
 import type { RennWorld } from '@/types/world'
 import { uiLogger } from '@/utils/uiLogger'
-import { ModelManager } from '@/utils/modelManager'
-import { generateModelPreview } from '@/utils/modelPreview'
-import { createIndexedDbPersistence } from '@/persistence/indexedDb'
+import { uploadModel } from '@/utils/assetUpload'
 import ModelDialog from './ModelDialog'
 import ModelThumbnail from './ModelThumbnail'
-import { sidebarRowStyle, sidebarLabelStyle } from './sharedStyles'
-
-const persistence = createIndexedDbPersistence()
+import { sidebarRowStyle, sidebarLabelStyle, thumbnailButtonStyle, thumbnailButtonStyleDisabled, removeButtonStyle, removeButtonStyleDisabled, secondaryButtonStyle, secondaryButtonStyleDisabled } from './sharedStyles'
 
 export interface ModelEditorProps {
   entityId: string
@@ -46,15 +42,7 @@ export default function ModelEditor({
                 onClick={() => setModelDialogOpen(true)}
                 disabled={disabled}
                 title="Click to change model"
-                style={{
-                  padding: 0,
-                  background: 'transparent',
-                  border: 'none',
-                  cursor: disabled ? 'not-allowed' : 'pointer',
-                  display: 'flex',
-                  transition: 'opacity 0.15s ease',
-                  opacity: disabled ? 0.5 : 1,
-                }}
+                style={{ ...thumbnailButtonStyle, ...(disabled && thumbnailButtonStyleDisabled) }}
                 onMouseEnter={(e) => {
                   if (!disabled) e.currentTarget.style.opacity = '0.8'
                 }}
@@ -72,20 +60,7 @@ export default function ModelEditor({
                 }}
                 disabled={disabled}
                 title="Remove model"
-                style={{
-                  padding: '6px 8px',
-                  background: disabled ? '#2a2a2a' : '#3a1b1b',
-                  border: disabled ? '1px solid #2f3545' : '1px solid #6b2a2a',
-                  color: disabled ? '#666' : '#f4d6d6',
-                  borderRadius: 6,
-                  cursor: disabled ? 'not-allowed' : 'pointer',
-                  fontSize: 14,
-                  lineHeight: 1,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  minWidth: 28,
-                }}
+                style={{ ...removeButtonStyle, ...(disabled && removeButtonStyleDisabled) }}
               >
                 🗑️
               </button>
@@ -95,17 +70,7 @@ export default function ModelEditor({
               type="button"
               onClick={() => setModelDialogOpen(true)}
               disabled={disabled}
-              style={{
-                flex: 1,
-                padding: '6px 12px',
-                background: disabled ? '#2a2a2a' : '#1a1a1a',
-                border: '1px solid #2f3545',
-                color: disabled ? '#666' : '#e6e9f2',
-                borderRadius: 6,
-                cursor: disabled ? 'not-allowed' : 'pointer',
-                fontSize: 12,
-                transition: 'background-color 0.15s ease',
-              }}
+              style={{ ...secondaryButtonStyle, ...(disabled && secondaryButtonStyleDisabled) }}
               onMouseEnter={(e) => {
                 if (!disabled) e.currentTarget.style.background = '#222'
               }}
@@ -134,24 +99,9 @@ export default function ModelEditor({
           onModelChange(assetId)
         }}
         onUploadModel={async (file: File, assetId: string) => {
-          // Validate using ModelManager
-          const validation = ModelManager.validateModelFile(file)
-          if (!validation.valid) {
-            throw new Error(validation.error)
-          }
-          
-          // Save to global store
-          const previewBlob = await generateModelPreview(file)
-          await persistence.saveAsset(assetId, file, previewBlob)
-          
-          // Update in-memory assets Map (this makes it appear in the Asset Panel)
-          const nextAssets = new Map(assets)
-          nextAssets.set(assetId, file)
+          const { nextAssets, worldAssetEntry } = await uploadModel(file, assetId, assets)
           onAssetsChange?.(nextAssets)
-          
-          // Update world assets reference
-          const nextWorldAssets = { ...world.assets, [assetId]: { path: `assets/${file.name}`, type: 'model' } }
-          onWorldChange?.({ ...world, assets: nextWorldAssets })
+          onWorldChange?.({ ...world, assets: { ...world.assets, [assetId]: worldAssetEntry } })
         }}
       />
     </>

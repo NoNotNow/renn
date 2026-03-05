@@ -4,11 +4,9 @@ import { uiLogger } from '@/utils/uiLogger'
 import { TextureManager } from '@/utils/textureManager'
 import { generateModelPreview } from '@/utils/modelPreview'
 import { ModelManager } from '@/utils/modelManager'
-import { createIndexedDbPersistence } from '@/persistence/indexedDb'
+import { defaultPersistence } from '@/persistence/indexedDb'
 import TextureThumbnail from './TextureThumbnail'
 import ModelThumbnail from './ModelThumbnail'
-
-const persistence = createIndexedDbPersistence()
 
 export interface AssetPanelProps {
   assets: Map<string, Blob>
@@ -45,7 +43,7 @@ export default function AssetPanel({ assets, world, onAssetsChange, onWorldChang
       // Save to global store immediately
       try {
         const previewBlob = isImage ? null : await generateModelPreview(file)
-        await persistence.saveAsset(id, file, previewBlob)
+        await defaultPersistence.saveAsset(id, file, previewBlob)
       } catch (err) {
         console.error(`Failed to save asset ${id}:`, err)
       }
@@ -65,7 +63,7 @@ export default function AssetPanel({ assets, world, onAssetsChange, onWorldChang
     
     // Remove from global store
     try {
-      await persistence.deleteAsset(id)
+      await defaultPersistence.deleteAsset(id)
     } catch (err) {
       console.error(`Failed to delete asset ${id}:`, err)
     }

@@ -31,12 +31,15 @@ Inspector text and number inputs (entity name, transform, shape, physics, materi
 src/
 ├── pages/Builder.tsx           # livePoses state, polling (getAllPoses every 100ms), getCurrentPose, handleRefreshFromPhysics
 ├── components/
-│   ├── PropertySidebar.tsx    # Tabs; passes world, livePoses, onWorldChange, etc. to PropertyPanel
+│   ├── PropertySidebar.tsx     # Tabs; passes world, livePoses, onWorldChange, etc. to PropertyPanel
 │   ├── PropertyPanel.tsx       # Selected-entity editor; displayPosition/displayRotation from livePoses or entity
+│   ├── sharedStyles.ts        # Inspector UI: sidebarTextInputStyle, iconButtonStyle, removeButtonStyle, secondaryButtonStyle, thumbnailButtonStyle
 │   ├── TransformEditor.tsx    # Position, rotation, scale inputs
 │   ├── ShapeEditor.tsx
 │   ├── PhysicsEditor.tsx
 │   ├── MaterialEditor.tsx
 │   ├── ModelEditor.tsx
 │   └── TransformerEditor.tsx
+├── utils/assetUpload.ts       # uploadModel, uploadTexture; used by ShapeEditor (trimesh), MaterialEditor, ModelEditor
+├── persistence/indexedDb.ts   # defaultPersistence shared by inspector and asset UI
 ```
