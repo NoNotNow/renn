@@ -127,8 +127,10 @@ describe('PropertyPanel', () => {
     const world = worldWithBox()
     renderPropertyPanel(world, world.entities[0].id, onWorldChange)
     const widthInput = screen.getByLabelText(/width/i)
+    await user.click(widthInput)
     await user.clear(widthInput)
     await user.type(widthInput, '2')
+    await user.tab()
     expect(onWorldChange).toHaveBeenCalled()
   })
 
@@ -139,8 +141,10 @@ describe('PropertyPanel', () => {
     const entityId = world.entities[0].id
     renderPropertyPanel(world, entityId, onWorldChange)
     const positionXInput = screen.getByLabelText(/position x/i)
+    await user.click(positionXInput)
     await user.clear(positionXInput)
     await user.type(positionXInput, '1')
+    await user.tab()
     expect(onWorldChange).toHaveBeenCalled()
     const lastCall = onWorldChange.mock.calls[onWorldChange.mock.calls.length - 1]
     const updatedWorld = lastCall[0]
@@ -149,13 +153,15 @@ describe('PropertyPanel', () => {
   })
 
   describe('inspector inputs', () => {
-    it('changing Name updates entity name', async () => {
+    it('changing Name updates entity name on blur', async () => {
       const onWorldChange = vi.fn()
       const world = worldWithBox()
       const entityId = world.entities[0].id
       renderPropertyPanel(world, entityId, onWorldChange)
       const nameInput = screen.getByLabelText(/^name$/i)
+      fireEvent.focus(nameInput)
       fireEvent.change(nameInput, { target: { value: 'My Box' } })
+      fireEvent.blur(nameInput)
       expect(onWorldChange).toHaveBeenCalled()
       const lastCall = onWorldChange.mock.calls[onWorldChange.mock.calls.length - 1]
       const updatedEntity = lastCall[0].entities.find((e: { id: string }) => e.id === entityId)
@@ -188,43 +194,49 @@ describe('PropertyPanel', () => {
       expect(updatedEntity?.bodyType).toBe('dynamic')
     })
 
-    it('changing Friction updates entity friction', () => {
+    it('changing Friction updates entity friction on blur', () => {
       const onWorldChange = vi.fn()
       const world = worldWithBox()
       const entityId = world.entities[0].id
       renderPropertyPanel(world, entityId, onWorldChange)
       const frictionInput = screen.getByLabelText(/friction/i)
+      fireEvent.focus(frictionInput)
       fireEvent.change(frictionInput, { target: { value: '0.8' } })
+      fireEvent.blur(frictionInput)
       expect(onWorldChange).toHaveBeenCalled()
       const lastCall = onWorldChange.mock.calls[onWorldChange.mock.calls.length - 1]
       const updatedEntity = lastCall[0].entities.find((e: { id: string }) => e.id === entityId)
       expect(updatedEntity?.friction).toBe(0.8)
     })
 
-    it('changing Scale X updates entity scale', async () => {
+    it('changing Scale X updates entity scale on blur', async () => {
       const user = userEvent.setup()
       const onWorldChange = vi.fn()
       const world = worldWithBox()
       const entityId = world.entities[0].id
       renderPropertyPanel(world, entityId, onWorldChange)
       const scaleXInput = screen.getByLabelText(/scale x/i)
+      await user.click(scaleXInput)
       await user.tripleClick(scaleXInput)
       await user.keyboard('2')
+      await user.tab()
       expect(onWorldChange).toHaveBeenCalled()
       const lastCall = onWorldChange.mock.calls[onWorldChange.mock.calls.length - 1]
       const updatedEntity = lastCall[0].entities.find((e: { id: string }) => e.id === entityId)
       expect(updatedEntity?.scale).toEqual([2, 1, 1])
     })
 
-    it('changing Rotation X updates entity rotation', async () => {
+    it('changing Rotation X updates entity rotation on blur', async () => {
       const user = userEvent.setup()
       const onWorldChange = vi.fn()
       const world = worldWithBox()
       const entityId = world.entities[0].id
       renderPropertyPanel(world, entityId, onWorldChange)
       const rotationXInput = screen.getByLabelText(/rotation x/i)
+      await user.click(rotationXInput)
       await user.clear(rotationXInput)
       await user.type(rotationXInput, '0.5')
+      await user.tab()
       expect(onWorldChange).toHaveBeenCalled()
       const lastCall = onWorldChange.mock.calls[onWorldChange.mock.calls.length - 1]
       const updatedEntity = lastCall[0].entities.find((e: { id: string }) => e.id === entityId)
@@ -244,28 +256,32 @@ describe('PropertyPanel', () => {
       expect(updatedEntity?.material?.color?.[0]).toBe(1)
     })
 
-    it('changing Roughness updates entity material', () => {
+    it('changing Roughness updates entity material on blur', () => {
       const onWorldChange = vi.fn()
       const world = worldWithBox()
       const entityId = world.entities[0].id
       renderPropertyPanel(world, entityId, onWorldChange)
       const roughnessInput = screen.getByLabelText(/roughness/i)
+      fireEvent.focus(roughnessInput)
       fireEvent.change(roughnessInput, { target: { value: '0.2' } })
+      fireEvent.blur(roughnessInput)
       expect(onWorldChange).toHaveBeenCalled()
       const lastCall = onWorldChange.mock.calls[onWorldChange.mock.calls.length - 1]
       const updatedEntity = lastCall[0].entities.find((e: { id: string }) => e.id === entityId)
       expect(updatedEntity?.material?.roughness).toBe(0.2)
     })
 
-    it('changing Metalness updates entity material', async () => {
+    it('changing Metalness updates entity material on blur', async () => {
       const user = userEvent.setup()
       const onWorldChange = vi.fn()
       const world = worldWithBox()
       const entityId = world.entities[0].id
       renderPropertyPanel(world, entityId, onWorldChange)
       const metalnessInput = screen.getByLabelText(/metalness/i)
+      await user.click(metalnessInput)
       await user.clear(metalnessInput)
       await user.type(metalnessInput, '0.9')
+      await user.tab()
       expect(onWorldChange).toHaveBeenCalled()
       const lastCall = onWorldChange.mock.calls[onWorldChange.mock.calls.length - 1]
       const updatedEntity = lastCall[0].entities.find((e: { id: string }) => e.id === entityId)
@@ -282,7 +298,7 @@ describe('PropertyPanel', () => {
       expect(onDeleteEntity).toHaveBeenCalledWith(entityId)
     })
 
-    it('cylinder entity shows Radius and Height and changing Radius updates shape', () => {
+    it('cylinder entity shows Radius and Height and changing Radius updates shape on blur', () => {
       const onWorldChange = vi.fn()
       const world = worldWithCylinder()
       const entityId = world.entities[0].id
@@ -290,7 +306,9 @@ describe('PropertyPanel', () => {
       expect(screen.getByLabelText(/radius/i)).toBeInTheDocument()
       expect(screen.getByLabelText(/height/i)).toBeInTheDocument()
       const radiusInput = screen.getByLabelText(/radius/i)
+      fireEvent.focus(radiusInput)
       fireEvent.change(radiusInput, { target: { value: '0.8' } })
+      fireEvent.blur(radiusInput)
       expect(onWorldChange).toHaveBeenCalled()
       const lastCall = onWorldChange.mock.calls[onWorldChange.mock.calls.length - 1]
       const updatedEntity = lastCall[0].entities.find((e: { id: string }) => e.id === entityId)
@@ -315,7 +333,7 @@ describe('PropertyPanel', () => {
       expect(rotationXInput).toHaveValue(0.1)
     })
 
-    it('when livePoses is provided, user changing Position X still calls onWorldChange with user value (no update loop)', () => {
+    it('when livePoses is provided, user changing Position X still calls onWorldChange with user value on blur (no update loop)', () => {
       const onWorldChange = vi.fn()
       const world = worldWithBox()
       const entityId = world.entities[0].id
@@ -324,11 +342,49 @@ describe('PropertyPanel', () => {
       ])
       renderPropertyPanel(world, entityId, onWorldChange, undefined, new Map(), undefined, livePoses)
       const positionXInput = screen.getByLabelText(/position x/i)
+      fireEvent.focus(positionXInput)
       fireEvent.change(positionXInput, { target: { value: '7' } })
+      fireEvent.blur(positionXInput)
       expect(onWorldChange).toHaveBeenCalled()
       const lastCall = onWorldChange.mock.calls[onWorldChange.mock.calls.length - 1]
       const updatedEntity = lastCall[0].entities.find((e: Entity) => e.id === entityId)
       expect(updatedEntity?.position).toEqual([7, 0, 0])
+    })
+
+    it('focused position field is not overwritten when livePoses updates', () => {
+      const onWorldChange = vi.fn()
+      const world = worldWithBox()
+      const entityId = world.entities[0].id
+      const livePoses1 = new Map([
+        [entityId, { position: [5, 0, 0] as [number, number, number], rotation: [0, 0, 0] as [number, number, number] }],
+      ])
+      const { rerender } = render(
+        <PropertyPanel
+          world={world}
+          assets={new Map()}
+          selectedEntityId={entityId}
+          onWorldChange={onWorldChange}
+          livePoses={livePoses1}
+        />
+      )
+      const positionXInput = screen.getByLabelText(/position x/i)
+      fireEvent.focus(positionXInput)
+      fireEvent.change(positionXInput, { target: { value: '7' } })
+      expect(positionXInput).toHaveValue(7)
+      const livePoses2 = new Map([
+        [entityId, { position: [99, 0, 0] as [number, number, number], rotation: [0, 0, 0] as [number, number, number] }],
+      ])
+      rerender(
+        <PropertyPanel
+          world={world}
+          assets={new Map()}
+          selectedEntityId={entityId}
+          onWorldChange={onWorldChange}
+          livePoses={livePoses2}
+        />
+      )
+      const positionXAfterRerender = screen.getByLabelText(/position x/i)
+      expect(positionXAfterRerender).toHaveValue(7)
     })
   })
 

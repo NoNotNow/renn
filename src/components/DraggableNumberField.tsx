@@ -1,4 +1,4 @@
-import { useRef, useCallback } from 'react'
+import { useRef, useCallback, useState, useEffect } from 'react'
 import { clamp } from '@/utils/numberUtils'
 
 const DEAD_ZONE_PX = 2
@@ -37,13 +37,52 @@ export default function DraggableNumberField({
   disabled = false,
 }: DraggableNumberFieldProps) {
   const scrubRef = useRef<{ startValue: number; startX: number; deadZoneUsed: boolean } | null>(null)
+  const [isFocused, setIsFocused] = useState(false)
+  const [localValue, setLocalValue] = useState(stringifyValue(value))
+
+  // When not focused, keep displayed value in sync with props
+  useEffect(() => {
+    if (!isFocused) {
+      setLocalValue(stringifyValue(value))
+    }
+  }, [value, isFocused])
+
+  function stringifyValue(n: number): string {
+    return String(n)
+  }
+
+  const displayValue = isFocused ? localValue : stringifyValue(value)
+
+  const handleFocus = useCallback(() => {
+    setIsFocused(true)
+    setLocalValue(stringifyValue(value))
+  }, [value])
+
+  const handleBlur = useCallback(() => {
+    setIsFocused(false)
+    const parsed = parseFloat(localValue)
+    if (!Number.isNaN(parsed) && Number.isFinite(parsed)) {
+      const clamped = clampWithOptional(parsed, min, max)
+      onChange(clamped)
+      setLocalValue(stringifyValue(clamped))
+    } else {
+      setLocalValue(stringifyValue(value))
+      onChange(value)
+    }
+  }, [localValue, value, min, max, onChange])
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<HTMLInputElement>) => {
       if (e.button !== 0) return
       const target = e.target as HTMLInputElement
+      const startValue = isFocused
+        ? (() => {
+            const p = parseFloat(localValue)
+            return Number.isNaN(p) || !Number.isFinite(p) ? value : clampWithOptional(p, min, max)
+          })()
+        : value
       scrubRef.current = {
-        startValue: value,
+        startValue,
         startX: e.clientX,
         deadZoneUsed: false,
       }
@@ -51,7 +90,7 @@ export default function DraggableNumberField({
         target.setPointerCapture(e.pointerId)
       }
     },
-    [value]
+    [value, isFocused, localValue, min, max]
   )
 
   const handlePointerMove = useCallback(
@@ -86,20 +125,33 @@ export default function DraggableNumberField({
 
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-    const parsed = parseFloat(e.target.value)
-    if (!Number.isNaN(parsed)) {
-      onChange(clampWithOptional(parsed, min, max))
-    }
+      if (isFocused) {
+        setLocalValue(e.target.value)
+      } else {
+        const parsed = parseFloat(e.target.value)
+        if (!Number.isNaN(parsed)) {
+          onChange(clampWithOptional(parsed, min, max))
+        }
+      }
     },
-    [onChange, min, max]
+    [onChange, min, max, isFocused]
   )
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' || e.key === 'Return') {
+      e.currentTarget.blur()
+    }
+  }, [])
 
   return (
     <input
       type="number"
       id={id}
-      value={value}
+      value={displayValue}
       onChange={handleChange}
+      onFocus={handleFocus}
+      onBlur={handleBlur}
+      onKeyDown={handleKeyDown}
       onPointerDown={disabled ? undefined : handlePointerDown}
       onPointerMove={disabled ? undefined : handlePointerMove}
       onPointerUp={disabled ? undefined : handlePointerUp}

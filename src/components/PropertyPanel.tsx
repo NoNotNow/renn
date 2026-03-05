@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import type { RennWorld, Entity, Vec3, Rotation } from '@/types/world'
 import { uiLogger } from '@/utils/uiLogger'
 import TransformEditor from './TransformEditor'
@@ -69,6 +70,22 @@ export default function PropertyPanel({
   const displayRotation = livePose?.rotation ?? entity.rotation ?? [0, 0, 0]
   const scale = entity.scale ?? [1, 1, 1]
   const isLocked = entity.locked ?? false
+
+  const [editingName, setEditingName] = useState<string | null>(null)
+  useEffect(() => {
+    setEditingName(null)
+  }, [entity.id])
+
+  const nameDisplayValue = editingName !== null ? editingName : (entity.name ?? '')
+  const handleNameFocus = () => setEditingName(entity.name ?? '')
+  const handleNameBlur = () => {
+    const newName = (editingName ?? entity.name ?? '').trim() || undefined
+    if (newName !== (entity.name ?? undefined)) {
+      uiLogger.change('PropertyPanel', 'Change entity name', { entityId: entity.id, oldName: entity.name, newName: newName ?? '' })
+      updateEntity({ name: newName })
+    }
+    setEditingName(null)
+  }
 
   return (
     <div style={{ padding: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -157,11 +174,19 @@ export default function PropertyPanel({
           Name
           <input
             type="text"
-            value={entity.name ?? ''}
+            value={nameDisplayValue}
             placeholder={entity.id}
             onChange={(e) => {
-              uiLogger.change('PropertyPanel', 'Change entity name', { entityId: entity.id, oldName: entity.name, newName: e.target.value })
-              updateEntity({ name: e.target.value || undefined })
+              if (editingName !== null) {
+                setEditingName(e.target.value)
+              }
+            }}
+            onFocus={handleNameFocus}
+            onBlur={handleNameBlur}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === 'Return') {
+                e.currentTarget.blur()
+              }
             }}
             style={inputStyle}
             disabled={isLocked}

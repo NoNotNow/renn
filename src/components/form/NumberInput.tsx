@@ -1,3 +1,4 @@
+import { useState, useCallback, useEffect } from 'react'
 import { parseNumberInput } from '@/utils/numberUtils'
 import { uiLogger } from '@/utils/uiLogger'
 import { sidebarRowStyle, sidebarLabelStyle, sidebarInputStyle } from '../sharedStyles'
@@ -31,9 +32,26 @@ export default function NumberInput({
   propertyName,
   logComponent = 'PropertyPanel',
 }: NumberInputProps) {
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newValue = parseNumberInput(e.target.value, defaultValue)
-    
+  const [isFocused, setIsFocused] = useState(false)
+  const [localValue, setLocalValue] = useState(String(value))
+
+  useEffect(() => {
+    if (!isFocused) {
+      setLocalValue(String(value))
+    }
+  }, [value, isFocused])
+
+  const displayValue = isFocused ? localValue : String(value)
+
+  const handleFocus = useCallback(() => {
+    setIsFocused(true)
+    setLocalValue(String(value))
+  }, [value])
+
+  const handleBlur = useCallback(() => {
+    setIsFocused(false)
+    const newValue = parseNumberInput(localValue, defaultValue)
+
     if (propertyName && entityId) {
       uiLogger.change(logComponent, `Change ${propertyName}`, {
         entityId,
@@ -41,9 +59,28 @@ export default function NumberInput({
         newValue,
       })
     }
-    
+
     onChange(newValue)
-  }
+    setLocalValue(String(newValue))
+  }, [localValue, value, defaultValue, onChange, propertyName, entityId, logComponent])
+
+  const handleChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (isFocused) {
+        setLocalValue(e.target.value)
+      } else {
+        const newValue = parseNumberInput(e.target.value, defaultValue)
+        onChange(newValue)
+      }
+    },
+    [isFocused, defaultValue, onChange]
+  )
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' || e.key === 'Return') {
+      e.currentTarget.blur()
+    }
+  }, [])
 
   return (
     <div style={sidebarRowStyle}>
@@ -56,8 +93,11 @@ export default function NumberInput({
         min={min}
         max={max}
         step={step}
-        value={value}
+        value={displayValue}
         onChange={handleChange}
+        onFocus={handleFocus}
+        onBlur={handleBlur}
+        onKeyDown={handleKeyDown}
         style={sidebarInputStyle}
         disabled={disabled}
       />
