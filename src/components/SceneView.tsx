@@ -1,4 +1,4 @@
-import { useRef, useEffect, forwardRef, useImperativeHandle, useState } from 'react'
+import { useRef, useEffect, forwardRef, useImperativeHandle, useState, useMemo } from 'react'
 import * as THREE from 'three'
 import { loadWorld } from '@/loader/loadWorld'
 import type { RennWorld, Vec3, Rotation, CameraConfig } from '@/types/world'
@@ -15,6 +15,7 @@ import { useEditorInteractions } from '@/hooks/useEditorInteractions'
 import { getSceneUserData } from '@/types/sceneUserData'
 import { useRawKeyboardInput, useRawWheelInput, getRawInputSnapshot } from '@/input/rawInput'
 import type { RawInput } from '@/types/transformer'
+import { getSceneDependencyKey } from '@/utils/sceneDependencyKey'
 
 const FIXED_DT = 1 / 60
 
@@ -30,6 +31,10 @@ export interface SceneViewProps {
   onSelectEntity?: (entityId: string | null) => void
   onEntityPositionChange?: (entityId: string, position: Vec3) => void
   version?: number
+  /** Ref set by parent before world update; applied to registry after reload and then cleared. */
+  initialPosesRef?: React.MutableRefObject<Map<string, { position: Vec3; rotation: Rotation }> | null>
+  /** Called after initial poses are applied so parent can sync world state. */
+  onPosesRestored?: (poses: Map<string, { position: Vec3; rotation: Rotation }>) => void
 }
 
 export interface SceneViewHandle {
@@ -52,7 +57,10 @@ function SceneViewInner({
   onSelectEntity,
   onEntityPositionChange,
   version = 0,
+  initialPosesRef,
+  onPosesRestored,
 }: SceneViewProps, ref: React.Ref<SceneViewHandle>) {
+  const sceneKey = useMemo(() => getSceneDependencyKey(world), [world])
   const containerRef = useRef<HTMLDivElement>(null)
   const [scene, setScene] = useState<THREE.Scene | null>(null)
   const [camera, setCamera] = useState<THREE.PerspectiveCamera | null>(null)
@@ -271,6 +279,17 @@ function SceneViewInner({
             const registry = RenderItemRegistry.create(entities, pw, rawInputGetter)
             if (!cancelled && effectIdRef.current === currentEffectId) {
               registryRef.current = registry
+              const poses = initialPosesRef?.current
+              if (poses && poses.size > 0) {
+                for (const [id, pose] of poses) {
+                  if (registry.get(id)) {
+                    registry.setPosition(id, pose.position)
+                    registry.setRotation(id, pose.rotation)
+                  }
+                }
+                onPosesRestored?.(poses)
+                if (initialPosesRef) initialPosesRef.current = null
+              }
             }
           })
         })
@@ -279,6 +298,17 @@ function SceneViewInner({
         const registry = RenderItemRegistry.create(entities, null, rawInputGetter)
         if (!cancelled && effectIdRef.current === currentEffectId) {
           registryRef.current = registry
+          const poses = initialPosesRef?.current
+          if (poses && poses.size > 0) {
+            for (const [id, pose] of poses) {
+              if (registry.get(id)) {
+                registry.setPosition(id, pose.position)
+                registry.setRotation(id, pose.rotation)
+              }
+            }
+            onPosesRestored?.(poses)
+            if (initialPosesRef) initialPosesRef.current = null
+          }
         }
       }
 
@@ -451,7 +481,7 @@ function SceneViewInner({
       setCamera(null)
       setRenderer(null)
     }
-  }, [world, version, runPhysics, runScripts, shadowsEnabled, freeFlyKeysRef])
+  }, [sceneKey, version, runPhysics, runScripts, shadowsEnabled, freeFlyKeysRef])
 
   // Update camera config when it changes (without reloading the world)
   useEffect(() => {

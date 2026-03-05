@@ -47,6 +47,7 @@ export default function Builder() {
   const [showSaveDialog, setShowSaveDialog] = useState(false)
   const [livePoses, setLivePoses] = useState<Map<string, { position: Vec3; rotation: Rotation }> | null>(null)
   const sceneViewRef = useRef<SceneViewHandle>(null)
+  const initialPosesRef = useRef<Map<string, { position: Vec3; rotation: Rotation }> | null>(null)
 
   // Drawer states with localStorage persistence
   const [leftDrawerOpen, setLeftDrawerOpen] = useLocalStorageState('leftDrawerOpen', true)
@@ -169,6 +170,7 @@ export default function Builder() {
   )
 
   const handleWorldChange = useCallback((newWorld: typeof world) => {
+    initialPosesRef.current = sceneViewRef.current?.getAllPoses() ?? null
     updateWorld(() => newWorld)
   }, [updateWorld])
 
@@ -333,6 +335,8 @@ export default function Builder() {
               selectedEntityId={selectedEntityId}
               onSelectEntity={setSelectedEntityId}
               onEntityPositionChange={handleEntityPositionChange}
+              initialPosesRef={initialPosesRef}
+              onPosesRestored={syncPosesFromScene}
             />
           </ErrorBoundary>
         </main>

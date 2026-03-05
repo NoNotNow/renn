@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { Shape, RennWorld } from '@/types/world'
-import { getDefaultShapeForType, type AddableShapeType } from '@/data/entityDefaults'
+import { type AddableShapeType } from '@/data/entityDefaults'
+import { shapeWithPreservedSize } from '@/utils/shapeConversion'
 import SelectInput from './form/SelectInput'
 import NumberInput from './form/NumberInput'
 import ModelDialog from './ModelDialog'
@@ -38,7 +39,7 @@ export default function ShapeEditor({
   const effectiveShapeType = ADDABLE_SHAPE_TYPES.includes(shapeType) ? shapeType : 'box'
 
   const setShapeType = (newType: AddableShapeType) => {
-    onShapeChange(getDefaultShapeForType(newType))
+    onShapeChange(shapeWithPreservedSize(shape, newType))
   }
 
   return (
