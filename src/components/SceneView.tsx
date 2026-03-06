@@ -15,6 +15,7 @@ import { useKeyboardInput } from '@/hooks/useKeyboardInput'
 import { useEditorInteractions } from '@/hooks/useEditorInteractions'
 import { getSceneUserData } from '@/types/sceneUserData'
 import { useRawKeyboardInput, useRawWheelInput, getRawInputSnapshot } from '@/input/rawInput'
+import { useRawMouseDrag } from '@/input/rawMouseDrag'
 import type { RawInput } from '@/types/transformer'
 import { getSceneDependencyKey } from '@/utils/sceneDependencyKey'
 
@@ -92,6 +93,7 @@ function SceneViewInner({
   const freeFlyKeysRef = useKeyboardInput()
   const rawKeyboardRef = useRawKeyboardInput()
   const rawWheelRef = useRawWheelInput(containerRef)
+  const rawMouseDragRef = useRawMouseDrag(containerRef)
   
   // Active debug forces: { entityId, force, endTime }[]
   const activeDebugForcesRef = useRef<Array<{ entityId: string; force: Vec3; endTime: number }>>([])
@@ -395,6 +397,12 @@ function SceneViewInner({
         if (ctrl) {
           if ((ctrl.getConfig().control ?? 'free') === 'free' && freeFlyKeysRef.current) {
             ctrl.setFreeFlyInput(freeFlyKeysRef.current)
+          }
+          const drag = rawMouseDragRef.current
+          if (drag && (drag.deltaX !== 0 || drag.deltaY !== 0)) {
+            ctrl.setOrbitDelta(drag.deltaX, drag.deltaY)
+            drag.deltaX = 0
+            drag.deltaY = 0
           }
           ctrl.update(dt)
         }

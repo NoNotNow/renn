@@ -10,6 +10,7 @@ Last updated: 2026-03-02
 - Rapier physics: collider shapes, physics→mesh sync, collision events, cached transforms (WASM aliasing fix)
 - Camera controller: free fly, follow, top/front/right presets; first/third person
 - Follow/third-person camera now rotates offset using target entity orientation (quaternion-driven follow behavior)
+- Follow/third-person orbit: hold middle mouse button and drag to freely orbit the camera around the target (yaw + clamped pitch); orbit resets when switching camera control mode
 - Script runner: main-thread, `game` API, hooks `onSpawn` / `onUpdate` / `onCollision`
 - Asset resolver: textures + 3D models (GLB only) via blob URLs
 
@@ -55,7 +56,7 @@ Last updated: 2026-03-02
 ### Medium priority
 - [ ] **Replace on import** – after import, let user choose "New project" or "Replace existing"
 - [ ] **First-person controls** – pointer lock + mouse driving camera rotation
-- [ ] **Third-person orbit** – orbit camera around target with pitch/yaw; optional camera collision
+- [x] **Third-person orbit** – orbit camera around target with pitch/yaw via middle-mouse drag (follow + thirdPerson modes)
 
 ### Lower priority / later
 - [ ] **TransformerPanel UI** – visual editor for transformer configs in the Builder

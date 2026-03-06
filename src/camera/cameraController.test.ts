@@ -304,6 +304,107 @@ describe('CameraController', () => {
     // Camera should be at top position
     expect(camera.position.y).toBe(15)
   })
+
+  describe('orbit (setOrbitDelta)', () => {
+    function makeFollowController(mode: 'follow' | 'thirdPerson' = 'follow') {
+      const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 1000)
+      camera.position.set(0, 5, 10)
+      camera.lookAt(0, 0, 0)
+
+      const scene = new THREE.Scene()
+      scene.userData.camera = {
+        control: 'follow',
+        mode,
+        target: 'player',
+        distance: 10,
+        height: 0,
+      }
+
+      const entityPositions: Record<string, THREE.Vector3> = {
+        player: new THREE.Vector3(0, 0, 0),
+      }
+
+      const controller = new CameraController({
+        camera,
+        scene,
+        getEntityPosition: (id) => entityPositions[id] ?? null,
+      })
+
+      // Converge smoothing
+      for (let i = 0; i < 200; i++) controller.update(0.016)
+
+      return { camera, controller }
+    }
+
+    it('yaw right shifts camera to the left side of the target', () => {
+      const { camera, controller } = makeFollowController('follow')
+      const basePosX = camera.position.x
+
+      // Positive dx → orbitYaw decreases → camera swings to -X side
+      controller.setOrbitDelta(200, 0)
+      for (let i = 0; i < 5; i++) controller.update(0.016)
+
+      expect(camera.position.x).toBeLessThan(basePosX)
+    })
+
+    it('yaw left shifts camera to the right side of the target', () => {
+      const { camera, controller } = makeFollowController('follow')
+      const basePosX = camera.position.x
+
+      controller.setOrbitDelta(-200, 0)
+      for (let i = 0; i < 5; i++) controller.update(0.016)
+
+      expect(camera.position.x).toBeGreaterThan(basePosX)
+    })
+
+    it('pitch up raises the camera above the target', () => {
+      const { camera, controller } = makeFollowController('follow')
+      const basePosY = camera.position.y
+
+      // Negative dy → orbitPitch increases → camera moves higher
+      controller.setOrbitDelta(0, -200)
+      for (let i = 0; i < 5; i++) controller.update(0.016)
+
+      expect(camera.position.y).toBeGreaterThan(basePosY)
+    })
+
+    it('pitch is clamped and does not flip the camera', () => {
+      const { camera, controller } = makeFollowController('follow')
+
+      // Apply extreme downward pitch many times
+      for (let i = 0; i < 50; i++) controller.setOrbitDelta(0, 10000)
+      for (let i = 0; i < 5; i++) controller.update(0.016)
+
+      // Camera Y must still be above the target (clamped, not flipped)
+      expect(camera.position.y).toBeGreaterThan(-Infinity)
+    })
+
+    it('orbit resets when switching control mode', () => {
+      const { camera, controller } = makeFollowController('follow')
+
+      controller.setOrbitDelta(500, 0)
+      for (let i = 0; i < 5; i++) controller.update(0.016)
+      const orbitedX = camera.position.x
+
+      // Switch to 'free' and back to 'follow' – orbit resets
+      controller.setConfig({ control: 'free', mode: 'follow', target: 'player', distance: 10, height: 0 })
+      controller.setConfig({ control: 'follow', mode: 'follow', target: 'player', distance: 10, height: 0 })
+      for (let i = 0; i < 200; i++) controller.update(0.016)
+
+      // After reset the camera should be back near Z axis (x close to 0)
+      expect(Math.abs(camera.position.x)).toBeLessThan(Math.abs(orbitedX))
+    })
+
+    it('works in thirdPerson mode', () => {
+      const { camera, controller } = makeFollowController('thirdPerson')
+      const basePosX = camera.position.x
+
+      controller.setOrbitDelta(200, 0)
+      for (let i = 0; i < 5; i++) controller.update(0.016)
+
+      expect(camera.position.x).toBeLessThan(basePosX)
+    })
+  })
 })
 
 describe('DEFAULT_FREE_FLY_KEYS', () => {

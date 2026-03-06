@@ -14,6 +14,9 @@ const MOVE_SPEED = 8
 const TURN_SPEED = 2
 const TILT_SPEED = 2
 const VIEW_PRESET_DISTANCE = 15
+const ORBIT_SENSITIVITY = 0.003
+const ORBIT_PITCH_MIN = -Math.PI * 0.44
+const ORBIT_PITCH_MAX = Math.PI * 0.44
 
 export interface CameraControllerOptions {
   camera: THREE.PerspectiveCamera
@@ -35,6 +38,8 @@ export class CameraController {
   private readonly forward = new THREE.Vector3()
   private readonly right = new THREE.Vector3()
   private readonly up = new THREE.Vector3(0, 1, 0)
+  private orbitYaw = 0
+  private orbitPitch = 0
 
   constructor(options: CameraControllerOptions) {
     this.camera = options.camera
@@ -58,8 +63,23 @@ export class CameraController {
   }
 
   setConfig(config: CameraConfig): void {
+    const prevControl = this.config.control
     this.config = config
+    if (config.control !== prevControl) {
+      this.orbitYaw = 0
+      this.orbitPitch = 0
+    }
     this.applyPresetIfControl()
+  }
+
+  /**
+   * Accumulate mouse drag deltas (pixels) into orbit yaw/pitch angles.
+   * Call each frame with the delta since last frame; pass 0,0 when no drag.
+   */
+  setOrbitDelta(dx: number, dy: number): void {
+    this.orbitYaw -= dx * ORBIT_SENSITIVITY
+    this.orbitPitch -= dy * ORBIT_SENSITIVITY
+    this.orbitPitch = Math.max(ORBIT_PITCH_MIN, Math.min(ORBIT_PITCH_MAX, this.orbitPitch))
   }
 
   getConfig(): CameraConfig {
@@ -119,16 +139,16 @@ export class CameraController {
         this.camera.position.y += 1.6
         break
       case 'follow': {
-        this.currentOffset.set(0, height, distance * 2)
         const followQ = this.getEntityQuaternion(targetId)
+        this.currentOffset.copy(this.sphericalOffset(distance * 2, height))
         if (followQ) this.currentOffset.applyQuaternion(followQ)
         this.camera.position.copy(this.currentTarget).add(this.currentOffset)
         this.camera.lookAt(this.currentTarget)
         break
       }
       case 'thirdPerson': {
-        this.currentOffset.set(0, height, distance)
         const thirdPersonQ = this.getEntityQuaternion(targetId)
+        this.currentOffset.copy(this.sphericalOffset(distance, height))
         if (thirdPersonQ) this.currentOffset.applyQuaternion(thirdPersonQ)
         this.camera.position.copy(this.currentTarget).add(this.currentOffset)
         this.camera.lookAt(this.currentTarget)
@@ -138,6 +158,22 @@ export class CameraController {
         this.camera.position.copy(this.currentTarget).add(new THREE.Vector3(0, height, distance))
         this.camera.lookAt(this.currentTarget)
     }
+  }
+
+  /**
+   * Compute a camera offset vector in local space from spherical orbit angles.
+   * The base direction is "behind and above" (positive Z = back, positive Y = up).
+   * orbitYaw rotates horizontally, orbitPitch tilts vertically.
+   */
+  private sphericalOffset(radius: number, height: number): THREE.Vector3 {
+    const totalRadius = Math.sqrt(radius * radius + height * height)
+    const basePitch = Math.atan2(height, radius)
+    const pitch = basePitch + this.orbitPitch
+    const yaw = this.orbitYaw
+    const x = totalRadius * Math.sin(yaw) * Math.cos(pitch)
+    const y = totalRadius * Math.sin(pitch)
+    const z = totalRadius * Math.cos(yaw) * Math.cos(pitch)
+    return new THREE.Vector3(x, y, z)
   }
 
   private updateFreeFly(dt: number): void {
