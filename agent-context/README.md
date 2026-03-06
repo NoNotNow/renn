@@ -11,4 +11,5 @@ Docs for LLM/code agents. Read `start-here.md` first, then only what the task re
 | **feature-world-update-reload** | World update path, rebuild key, incremental vs rebuild, minimal-rebuild strategy |
 | **project-status** | What is built vs. what remains |
 | **example-worlds** | Example JSON configs and world structure |
+| **direction-rotation-coordinates** | Rotation format (Euler [x,y,z] radians), caveats, Reset rotation, detecting orientation |
 | **bugfix-spinning** | Physics force accumulation quirk (Rapier) |

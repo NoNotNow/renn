@@ -124,6 +124,17 @@ export class RenderItemRegistry {
   }
 
   /**
+   * World-space up direction for the entity (Y-up convention). Useful for detecting orientation
+   * (e.g. upside down: getUpVector(id).y < -0.5). Compensates for visual base quaternion.
+   */
+  getUpVector(id: string): Vec3 | null {
+    const q = this.getRotationAsQuaternion(id)
+    if (!q) return null
+    const up = new THREE.Vector3(0, 1, 0).applyQuaternion(q)
+    return [up.x, up.y, up.z]
+  }
+
+  /**
    * Apply incremental physics property changes to an entity's body/collider directly.
    * Only the properties present in the patch are updated; others are left unchanged.
    */

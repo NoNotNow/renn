@@ -21,6 +21,8 @@ export interface ScriptCtxBase {
   setPosition(id: string | undefined, x: number, y: number, z: number): void
   getRotation(id?: string): [number, number, number] | null
   setRotation(id: string | undefined, x: number, y: number, z: number): void
+  /** World-space up direction [x,y,z] (Y-up). Upside down when .y < -0.5. */
+  getUpVector(id?: string): [number, number, number] | null
   applyForce(id: string, x: number, y: number, z: number): void
   applyImpulse(id: string, x: number, y: number, z: number): void
   setTransformerEnabled(entityId: string, transformerType: string, enabled: boolean): void
@@ -74,6 +76,7 @@ function baseCtx(game: GameAPI, entity: Entity): ScriptCtxBase {
     setPosition: (id, x, y, z) => game.setPosition(id ?? entity.id, x, y, z),
     getRotation: (id) => game.getRotation(id ?? entity.id),
     setRotation: (id, x, y, z) => game.setRotation(id ?? entity.id, x, y, z),
+    getUpVector: (id) => game.getUpVector(id ?? entity.id),
     applyForce: (id, x, y, z) => game.applyForce(id, x, y, z),
     applyImpulse: (id, x, y, z) => game.applyImpulse(id, x, y, z),
     setTransformerEnabled: (a, b, c) => game.setTransformerEnabled(a, b, c),

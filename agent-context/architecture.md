@@ -82,7 +82,7 @@ renn/
 │   │   ├── EntitySidebar.tsx # Entity list, add-entity dropdown, camera control/target/mode
 │   │   ├── PropertySidebar.tsx # Tabs: Properties | Scripts | Assets
 │   │   ├── PropertyPanel.tsx # Edit selected entity (name, shape, transform, physics, material, transformers, delete)
-│   │   ├── TransformEditor.tsx # Position, rotation (QuatField), scale
+│   │   ├── TransformEditor.tsx # Position, rotation (Vec3Field, Euler [x,y,z]), scale
 │   │   ├── ShapeEditor.tsx   # Shape type + params (box, sphere, cylinder, capsule, plane)
 │   │   ├── PhysicsEditor.tsx # bodyType, mass, restitution, friction, linearDamping, angularDamping
 │   │   ├── MaterialEditor.tsx # color, roughness, metalness
@@ -93,8 +93,7 @@ renn/
 │   │   ├── ErrorBoundary.tsx # Error boundary for graceful error handling
 │   │   ├── SidebarTabs.tsx   # Tabbed interface for sidebars
 │   │   ├── SidebarToggleButton.tsx # Toggle sidebar visibility
-│   │   ├── Vec3Field.tsx     # Vec3 input
-│   │   ├── QuatField.tsx     # Quaternion input
+│   │   ├── Vec3Field.tsx     # Vec3 input (position, rotation, scale)
 │   │   ├── DraggableNumberField.tsx # Number input with drag
 │   │   ├── Switch.tsx        # Toggle (gravity, shadows)
 │   │   ├── sharedStyles.ts   # Centralized UI styles
@@ -151,7 +150,7 @@ renn/
 ## World document
 
 - **Root**: `version`, `world` (gravity, lighting, camera), `entities[]`, optional `assets`, optional `scripts`.
-- **Entity**: `id`, `bodyType` (static/dynamic/kinematic), `shape` (box/sphere/cylinder/capsule/plane/trimesh), `position` (Vec3), `rotation` (Quat), `scale`, `model?`, `material?`, `mass`, `restitution`, `friction`, `linearDamping`, `angularDamping`, `scripts?` (hook → script ID).
+- **Entity**: `id`, `bodyType` (static/dynamic/kinematic), `shape` (box/sphere/cylinder/capsule/plane/trimesh), `position` (Vec3), `rotation` (Rotation / Euler [x,y,z] radians), `scale`, `model?`, `material?`, `mass`, `restitution`, `friction`, `linearDamping`, `angularDamping`, `scripts?` (hook → script ID).
 - **Scripts**: map of script ID → source string. Entity `scripts.onUpdate` etc. reference these IDs. Scripts run with a `game` API (read/write positions, entities, time; no DOM/fetch).
 
 See **world-schema.json** and **src/types/world.ts** for the full shape.

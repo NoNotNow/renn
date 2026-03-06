@@ -24,6 +24,8 @@ interface ScriptCtxBase {
   setPosition(id: string | undefined, x: number, y: number, z: number): void;
   getRotation(id?: string): [number, number, number] | null;
   setRotation(id: string | undefined, x: number, y: number, z: number): void;
+  /** World-space up direction [x,y,z] (Y-up). Upside down when .y < -0.5. */
+  getUpVector(id?: string): [number, number, number] | null;
   applyForce(id: string, x: number, y: number, z: number): void;
   applyImpulse(id: string, x: number, y: number, z: number): void;
   setTransformerEnabled(entityId: string, transformerType: string, enabled: boolean): void;

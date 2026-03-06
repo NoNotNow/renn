@@ -41,7 +41,7 @@ Then open http://localhost:5173
 ## World format
 
 Worlds are defined in JSON following `world-schema.json` (JSON Schema draft 2020-12). Key features:
-- **Entities**: `id`, `bodyType` (static/dynamic/kinematic), `shape` (box/sphere/cylinder/capsule/plane), `position` (Vec3), `rotation` (Quaternion), `scale`, `material`, physics properties (`mass`, `restitution`, `friction`)
+- **Entities**: `id`, `bodyType` (static/dynamic/kinematic), `shape` (box/sphere/cylinder/capsule/plane), `position` (Vec3), `rotation` (Euler [x,y,z] in radians; see `agent-context/direction-rotation-coordinates.md`), `scale`, `material`, physics properties (`mass`, `restitution`, `friction`)
 - **Scripts**: stored in `world.scripts` by ID; entities reference scripts via hooks (`onSpawn`, `onUpdate`, `onCollision`)
 - **Assets**: optional textures and 3D models referenced by ID
 - **World settings**: gravity, lighting, camera configuration

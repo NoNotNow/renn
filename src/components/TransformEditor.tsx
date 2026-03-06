@@ -36,17 +36,37 @@ export default function TransformEditor({
         idPrefix={`${entityId}-position`}
         disabled={disabled}
       />
-      <Vec3Field
-        label="Rotation"
-        value={rotation}
-        onChange={(r) => {
-          uiLogger.change('PropertyPanel', 'Change rotation', { entityId, oldValue: rotation, newValue: r })
-          onRotationChange(r)
-        }}
-        axisLabels={['X', 'Y', 'Z']}
-        idPrefix={`${entityId}-rotation`}
-        disabled={disabled}
-      />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+        <Vec3Field
+          label="Rotation"
+          value={rotation}
+          onChange={(r) => {
+            uiLogger.change('PropertyPanel', 'Change rotation', { entityId, oldValue: rotation, newValue: r })
+            onRotationChange(r)
+          }}
+          axisLabels={['X', 'Y', 'Z']}
+          idPrefix={`${entityId}-rotation`}
+          disabled={disabled}
+        />
+        <button
+          type="button"
+          title="Reset rotation to 0,0,0"
+          onClick={() => {
+            uiLogger.change('PropertyPanel', 'Reset rotation', { entityId })
+            onRotationChange([0, 0, 0])
+          }}
+          disabled={disabled}
+          style={{
+            flexShrink: 0,
+            padding: '4px 8px',
+            fontSize: 11,
+            cursor: disabled ? 'not-allowed' : 'pointer',
+            opacity: disabled ? 0.5 : 1,
+          }}
+        >
+          Reset
+        </button>
+      </div>
       <Vec3Field
         label="Scale"
         value={scale}

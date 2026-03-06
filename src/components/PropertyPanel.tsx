@@ -201,11 +201,8 @@ export default function PropertyPanel({
             }
           }}
           onRotationChange={(q) => {
-            if (onEntityPoseChange) {
-              onEntityPoseChange(entity.id, { rotation: q })
-            } else {
-              updateEntity({ rotation: q })
-            }
+            if (onEntityPoseChange) onEntityPoseChange(entity.id, { rotation: q })
+            updateEntity({ rotation: q })
           }}
           onScaleChange={(v) => updateEntity({ scale: v })}
           disabled={isLocked}

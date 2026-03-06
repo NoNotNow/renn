@@ -16,6 +16,7 @@ function createMockGameAPI(overrides?: Partial<GameAPI>): GameAPI {
     setPosition: vi.fn(),
     getRotation: vi.fn().mockReturnValue(null),
     setRotation: vi.fn(),
+    getUpVector: vi.fn().mockReturnValue(null),
     applyForce: vi.fn(),
     applyImpulse: vi.fn(),
     setTransformerEnabled: vi.fn(),
