@@ -94,7 +94,7 @@ function SceneViewInner({
   const rawKeyboardRef = useRawKeyboardInput()
   const rawWheelRef = useRawWheelInput(containerRef)
   const rawMouseDragRef = useRawMouseDrag(containerRef)
-  const orbitWheelRef = useRef({ deltaX: 0, deltaY: 0 })
+  const orbitWheelRef = useRef({ deltaX: 0, deltaY: 0, distanceDelta: 0 })
 
   // Active debug forces: { entityId, force, endTime }[]
   const activeDebugForcesRef = useRef<Array<{ entityId: string; force: Vec3; endTime: number }>>([])
@@ -339,17 +339,23 @@ function SceneViewInner({
         const dt = FIXED_DT
         timeRef.current += dt
 
-        // In follow/thirdPerson mode, consume wheel deltas for orbit so transformers don't see them
+        // In follow/thirdPerson mode, consume wheel so transformers don't see it.
+        // Trackpad scroll (deltaX, deltaY) → orbit; pinch + mouse wheel → distance.
         const orbitCtrl = cameraCtrlRef.current
         const orbitCfg = orbitCtrl?.getConfig()
         if (orbitCfg?.control === 'follow' && (orbitCfg.mode === 'follow' || orbitCfg.mode === 'thirdPerson') && rawWheelRef.current) {
-          orbitWheelRef.current.deltaX = rawWheelRef.current.deltaX
-          orbitWheelRef.current.deltaY = rawWheelRef.current.deltaY
-          rawWheelRef.current.deltaX = 0
-          rawWheelRef.current.deltaY = 0
+          const rw = rawWheelRef.current
+          orbitWheelRef.current.deltaX = rw.deltaX
+          orbitWheelRef.current.deltaY = rw.deltaY
+          orbitWheelRef.current.distanceDelta = (rw.pinchDelta ?? 0) + (rw.mouseWheelDelta ?? 0)
+          rw.deltaX = 0
+          rw.deltaY = 0
+          rw.pinchDelta = 0
+          rw.mouseWheelDelta = 0
         } else {
           orbitWheelRef.current.deltaX = 0
           orbitWheelRef.current.deltaY = 0
+          orbitWheelRef.current.distanceDelta = 0
         }
 
         const pw = physicsRef.current
@@ -413,11 +419,16 @@ function SceneViewInner({
           }
           const drag = rawMouseDragRef.current
           const orbitWheel = orbitWheelRef.current
+          // Yaw: drag + trackpad deltaX; Pitch: drag + trackpad deltaY
           const orbitDx = (drag?.deltaX ?? 0) + orbitWheel.deltaX
           const orbitDy = (drag?.deltaY ?? 0) + orbitWheel.deltaY
           if (orbitDx !== 0 || orbitDy !== 0) {
             ctrl.setOrbitDelta(orbitDx, orbitDy)
-            if (drag) { drag.deltaX = 0; drag.deltaY = 0 }
+          }
+          if (drag) { drag.deltaX = 0; drag.deltaY = 0 }
+          if (orbitWheel.distanceDelta !== 0) {
+            ctrl.setOrbitDistanceDelta(orbitWheel.distanceDelta * 0.05)
+            orbitWheel.distanceDelta = 0
           }
           ctrl.update(dt)
         }

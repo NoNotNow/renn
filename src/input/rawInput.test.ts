@@ -71,6 +71,8 @@ describe('useRawWheelInput', () => {
     expect(result.current.current).toEqual({
       deltaX: 0,
       deltaY: 0,
+      pinchDelta: 0,
+      mouseWheelDelta: 0,
     })
   })
 
@@ -97,12 +99,50 @@ describe('useRawWheelInput', () => {
     expect(result.current.current.deltaX).toBe(7)
     expect(result.current.current.deltaY).toBe(2)
   })
+
+  test('ctrl+wheel accumulates pinchDelta and not deltaX/deltaY', () => {
+    const { result } = renderHook(() => useRawWheelInput())
+
+    act(() => {
+      window.dispatchEvent(new WheelEvent('wheel', { deltaY: 10, ctrlKey: true }))
+      window.dispatchEvent(new WheelEvent('wheel', { deltaY: -4, ctrlKey: true }))
+    })
+
+    expect(result.current.current.pinchDelta).toBe(6)
+    expect(result.current.current.deltaX).toBe(0)
+    expect(result.current.current.deltaY).toBe(0)
+  })
+
+  test('wheel with deltaMode 1 (lines) accumulates into mouseWheelDelta', () => {
+    const { result } = renderHook(() => useRawWheelInput())
+
+    act(() => {
+      // deltaMode 1 = DOM_DELTA_LINE, typical for physical mouse wheel
+      window.dispatchEvent(new WheelEvent('wheel', { deltaX: 0, deltaY: 40, deltaMode: 1 }))
+    })
+
+    expect(result.current.current.mouseWheelDelta).toBe(40)
+    expect(result.current.current.deltaX).toBe(0)
+    expect(result.current.current.deltaY).toBe(0)
+  })
+
+  test('pixel-mode small delta goes to deltaX/deltaY (trackpad scroll)', () => {
+    const { result } = renderHook(() => useRawWheelInput())
+
+    act(() => {
+      window.dispatchEvent(new WheelEvent('wheel', { deltaX: 2, deltaY: 2, deltaMode: 0 }))
+    })
+
+    expect(result.current.current.deltaX).toBe(2)
+    expect(result.current.current.deltaY).toBe(2)
+    expect(result.current.current.mouseWheelDelta).toBe(0)
+  })
 })
 
 describe('getRawInputSnapshot', () => {
   test('creates snapshot and resets wheel', () => {
     const keyboardRef = { current: { w: true, a: false, s: false, d: false, space: false, shift: false } }
-    const wheelRef = { current: { deltaX: 10, deltaY: -5 } }
+    const wheelRef = { current: { deltaX: 10, deltaY: -5, pinchDelta: 3, mouseWheelDelta: 7 } }
 
     const snapshot = getRawInputSnapshot(
       keyboardRef as React.RefObject<RawKeyboardState>,
@@ -112,9 +152,13 @@ describe('getRawInputSnapshot', () => {
     expect(snapshot.keys.w).toBe(true)
     expect(snapshot.wheel.deltaX).toBe(10)
     expect(snapshot.wheel.deltaY).toBe(-5)
+    expect(snapshot.wheel.pinchDelta).toBe(3)
+    expect(snapshot.wheel.mouseWheelDelta).toBe(7)
 
     // Wheel should be reset
     expect(wheelRef.current.deltaX).toBe(0)
     expect(wheelRef.current.deltaY).toBe(0)
+    expect(wheelRef.current.pinchDelta).toBe(0)
+    expect(wheelRef.current.mouseWheelDelta).toBe(0)
   })
 })

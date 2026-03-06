@@ -404,6 +404,41 @@ describe('CameraController', () => {
 
       expect(camera.position.x).toBeLessThan(basePosX)
     })
+
+    it('setOrbitDistanceDelta zooms in (smaller distance = camera closer)', () => {
+      const { camera, controller } = makeFollowController('follow')
+      for (let i = 0; i < 200; i++) controller.update(0.016)
+      const baseZ = camera.position.z
+
+      controller.setOrbitDistanceDelta(-5) // zoom in
+      for (let i = 0; i < 5; i++) controller.update(0.016)
+
+      expect(Math.abs(camera.position.z)).toBeLessThan(Math.abs(baseZ))
+    })
+
+    it('setOrbitDistanceDelta zooms out', () => {
+      const { camera, controller } = makeFollowController('follow')
+      for (let i = 0; i < 200; i++) controller.update(0.016)
+      const baseZ = camera.position.z
+
+      controller.setOrbitDistanceDelta(5) // zoom out
+      for (let i = 0; i < 5; i++) controller.update(0.016)
+
+      expect(Math.abs(camera.position.z)).toBeGreaterThan(Math.abs(baseZ))
+    })
+
+    it('orbitDistance is clamped at min', () => {
+      const { controller } = makeFollowController('follow')
+      controller.setOrbitDistanceDelta(-10000)
+      // Should not throw, distance should stay >= 1
+      expect(() => controller.update(0.016)).not.toThrow()
+    })
+
+    it('orbitDistance is clamped at max', () => {
+      const { controller } = makeFollowController('follow')
+      controller.setOrbitDistanceDelta(10000)
+      expect(() => controller.update(0.016)).not.toThrow()
+    })
   })
 })
 

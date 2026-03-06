@@ -30,6 +30,10 @@ export interface RawKeyboardState {
 export interface RawWheelState {
   deltaX: number
   deltaY: number
+  /** Accumulated Ctrl+wheel (trackpad pinch) deltaY. */
+  pinchDelta: number
+  /** Accumulated deltaY from events classified as mouse wheel (zoom only). */
+  mouseWheelDelta: number
 }
 
 /** Combined raw input snapshot captured each frame. */

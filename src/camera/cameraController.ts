@@ -17,6 +17,8 @@ const VIEW_PRESET_DISTANCE = 15
 const ORBIT_SENSITIVITY = 0.003
 const ORBIT_PITCH_MIN = -Math.PI * 0.44
 const ORBIT_PITCH_MAX = Math.PI * 0.44
+const ORBIT_DISTANCE_MIN = 1
+const ORBIT_DISTANCE_MAX = 150
 
 export interface CameraControllerOptions {
   camera: THREE.PerspectiveCamera
@@ -40,6 +42,7 @@ export class CameraController {
   private readonly up = new THREE.Vector3(0, 1, 0)
   private orbitYaw = 0
   private orbitPitch = 0
+  private orbitDistance = 10
 
   constructor(options: CameraControllerOptions) {
     this.camera = options.camera
@@ -54,6 +57,7 @@ export class CameraController {
       height: 2,
     }
     this.config = cam
+    this.orbitDistance = cam.distance ?? 10
     this.applyPresetIfControl()
   }
 
@@ -68,6 +72,7 @@ export class CameraController {
     if (config.control !== prevControl) {
       this.orbitYaw = 0
       this.orbitPitch = 0
+      this.orbitDistance = config.distance ?? 10
     }
     this.applyPresetIfControl()
   }
@@ -80,6 +85,14 @@ export class CameraController {
     this.orbitYaw -= dx * ORBIT_SENSITIVITY
     this.orbitPitch -= dy * ORBIT_SENSITIVITY
     this.orbitPitch = Math.max(ORBIT_PITCH_MIN, Math.min(ORBIT_PITCH_MAX, this.orbitPitch))
+  }
+
+  /** Adjust the orbit distance (zoom). delta > 0 = zoom out, delta < 0 = zoom in. */
+  setOrbitDistanceDelta(delta: number): void {
+    this.orbitDistance = Math.max(
+      ORBIT_DISTANCE_MIN,
+      Math.min(ORBIT_DISTANCE_MAX, this.orbitDistance + delta),
+    )
   }
 
   getConfig(): CameraConfig {
@@ -130,7 +143,6 @@ export class CameraController {
     if (!pos) return
 
     this.currentTarget.lerp(pos, this.smooth)
-    const distance = this.config.distance ?? 10
     const height = this.config.height ?? 2
 
     switch (this.config.mode as CameraMode) {
@@ -140,7 +152,7 @@ export class CameraController {
         break
       case 'follow': {
         const followQ = this.getEntityQuaternion(targetId)
-        this.currentOffset.copy(this.sphericalOffset(distance * 2, height))
+        this.currentOffset.copy(this.sphericalOffset(this.orbitDistance * 2, height))
         if (followQ) this.currentOffset.applyQuaternion(followQ)
         this.camera.position.copy(this.currentTarget).add(this.currentOffset)
         this.camera.lookAt(this.currentTarget)
@@ -148,14 +160,14 @@ export class CameraController {
       }
       case 'thirdPerson': {
         const thirdPersonQ = this.getEntityQuaternion(targetId)
-        this.currentOffset.copy(this.sphericalOffset(distance, height))
+        this.currentOffset.copy(this.sphericalOffset(this.orbitDistance, height))
         if (thirdPersonQ) this.currentOffset.applyQuaternion(thirdPersonQ)
         this.camera.position.copy(this.currentTarget).add(this.currentOffset)
         this.camera.lookAt(this.currentTarget)
         break
       }
       default:
-        this.camera.position.copy(this.currentTarget).add(new THREE.Vector3(0, height, distance))
+        this.camera.position.copy(this.currentTarget).add(new THREE.Vector3(0, height, this.orbitDistance))
         this.camera.lookAt(this.currentTarget)
     }
   }

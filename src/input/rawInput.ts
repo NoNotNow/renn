@@ -24,6 +24,17 @@ const DEFAULT_KEYBOARD_STATE: RawKeyboardState = {
 const DEFAULT_WHEEL_STATE: RawWheelState = {
   deltaX: 0,
   deltaY: 0,
+  pinchDelta: 0,
+  mouseWheelDelta: 0,
+}
+
+/**
+ * Heuristic: event likely from a physical mouse wheel (not trackpad two-finger scroll).
+ * deltaMode !== 0 (lines/pages) is typical for mouse; pixel mode with step-like deltaY also.
+ */
+function isLikelyMouseWheel(e: WheelEvent): boolean {
+  if (e.deltaMode !== 0) return true
+  return Math.abs(e.deltaX) === 0 && Math.abs(e.deltaY) > 4
 }
 
 /**
@@ -148,13 +159,20 @@ export function useRawWheelInput(
     const target = containerRef?.current || window
 
     const onWheel = (e: WheelEvent): void => {
-      // Ignore pinch-zoom (Ctrl+wheel)
-      if (e.ctrlKey) return
-
-      // Prevent default scrolling only on canvas (not in UI panels)
       e.preventDefault()
 
-      // Accumulate deltas
+      if (e.ctrlKey) {
+        // Trackpad pinch-to-zoom: Ctrl+wheel
+        wheel.pinchDelta += e.deltaY
+        return
+      }
+
+      if (isLikelyMouseWheel(e)) {
+        wheel.mouseWheelDelta += e.deltaY
+        return
+      }
+
+      // Trackpad two-finger scroll → orbit (yaw + pitch)
       wheel.deltaX += e.deltaX
       wheel.deltaY += e.deltaY
     }
@@ -195,6 +213,8 @@ export function getRawInputSnapshot(
     wheel: {
       deltaX: wheelState.deltaX,
       deltaY: wheelState.deltaY,
+      pinchDelta: wheelState.pinchDelta,
+      mouseWheelDelta: wheelState.mouseWheelDelta,
     },
   }
   const anyKey = Object.values(snapshot.keys).some(Boolean)
@@ -204,6 +224,8 @@ export function getRawInputSnapshot(
   if (wheel.current) {
     wheel.current.deltaX = 0
     wheel.current.deltaY = 0
+    wheel.current.pinchDelta = 0
+    wheel.current.mouseWheelDelta = 0
   }
 
   return snapshot
