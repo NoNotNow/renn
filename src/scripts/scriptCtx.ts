@@ -50,9 +50,23 @@ export interface OnUpdateCtx extends ScriptCtxBase {
   dt: number
 }
 
+/** Impact data for onCollision: forces from Rapier contact force events. */
+export interface CollisionImpact {
+  /** Sum of all contact forces between the two colliders [x, y, z]. */
+  totalForce: [number, number, number]
+  /** Sum of magnitudes of each force (not magnitude of totalForce). */
+  totalForceMagnitude: number
+  /** Magnitude of the largest force at any contact point. */
+  maxForceMagnitude: number
+  /** World-space unit direction of the strongest force [x, y, z]. */
+  maxForceDirection: [number, number, number]
+}
+
 export interface OnCollisionCtx extends ScriptCtxBase {
   readonly event: 'onCollision'
   other: Entity
+  /** Impact forces for this collision; zeroed when no contact force event. */
+  impact: CollisionImpact
 }
 
 export interface OnTimerCtx extends ScriptCtxBase {
@@ -61,6 +75,14 @@ export interface OnTimerCtx extends ScriptCtxBase {
 }
 
 export type ScriptCtx = OnSpawnCtx | OnUpdateCtx | OnCollisionCtx | OnTimerCtx
+
+/** Default impact when no contact force event; avoids scripts seeing undefined. */
+export const ZERO_IMPACT: CollisionImpact = {
+  totalForce: [0, 0, 0],
+  totalForceMagnitude: 0,
+  maxForceMagnitude: 0,
+  maxForceDirection: [0, 0, 0],
+}
 
 const DETECT_THRESHOLD = 0.5
 const DETECT_TILTED_THRESHOLD = 0.9
@@ -143,7 +165,12 @@ export function allocOnUpdateCtx(game: GameAPI, entity: Entity): OnUpdateCtx {
 }
 
 export function allocOnCollisionCtx(game: GameAPI, entity: Entity): OnCollisionCtx {
-  return { ...baseCtx(game, entity), event: 'onCollision', other: entity }
+  return {
+    ...baseCtx(game, entity),
+    event: 'onCollision',
+    other: entity,
+    impact: { ...ZERO_IMPACT },
+  }
 }
 
 export function allocOnTimerCtx(game: GameAPI, entity: Entity, interval: number): OnTimerCtx {

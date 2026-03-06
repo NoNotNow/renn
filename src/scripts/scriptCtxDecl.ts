@@ -51,7 +51,7 @@ export function ctxDeclFor(event: ScriptEvent): string {
       : event === 'onUpdate'
         ? 'interface OnUpdateCtx extends ScriptCtxBase { readonly event: \'onUpdate\'; dt: number; }\ndeclare const ctx: OnUpdateCtx;'
         : event === 'onCollision'
-          ? 'interface OnCollisionCtx extends ScriptCtxBase { readonly event: \'onCollision\'; other: Entity; }\ndeclare const ctx: OnCollisionCtx;'
+          ? 'interface CollisionImpact { totalForce: [number, number, number]; totalForceMagnitude: number; maxForceMagnitude: number; maxForceDirection: [number, number, number]; }\ninterface OnCollisionCtx extends ScriptCtxBase { readonly event: \'onCollision\'; other: Entity; impact: CollisionImpact; }\ndeclare const ctx: OnCollisionCtx;'
           : 'interface OnTimerCtx extends ScriptCtxBase { readonly event: \'onTimer\'; readonly interval: number; }\ndeclare const ctx: OnTimerCtx;'
   return BASE + decl
 }

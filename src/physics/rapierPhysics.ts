@@ -6,8 +6,15 @@ import { DEFAULT_GRAVITY, DEFAULT_ROTATION } from '@/types/world'
 import { extractMeshGeometry, getGeometryInfo } from '@/utils/geometryExtractor'
 import { simplifyGeometry, shouldSimplifyGeometry } from '@/utils/meshSimplifier'
 import { eulerToRapierQuaternion } from '@/utils/rotationUtils'
+import type { CollisionImpact } from '@/scripts/scriptCtx'
 
-export type CollisionPair = { entityIdA: string; entityIdB: string }
+export type CollisionPair = { entityIdA: string; entityIdB: string; impact?: CollisionImpact }
+
+function pairKey(handle1: number, handle2: number): string {
+  const lo = Math.min(handle1, handle2)
+  const hi = Math.max(handle1, handle2)
+  return `${lo},${hi}`
+}
 
 export type CachedTransform = {
   position: { x: number; y: number; z: number }
@@ -96,7 +103,9 @@ export class PhysicsWorld {
           return d && typeof d === 'object' && 'event' in d && d.event === 'onCollision'
         })
       if (hasCollisionScript) {
-        colliderDesc.setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS)
+        colliderDesc.setActiveEvents(
+          RAPIER.ActiveEvents.COLLISION_EVENTS | RAPIER.ActiveEvents.CONTACT_FORCE_EVENTS
+        )
       }
 
       if (bodyType === 'dynamic' && entity.mass !== undefined) {
@@ -308,12 +317,27 @@ export class PhysicsWorld {
       }
       
       this.lastCollisions = []
+      const forceMap = new Map<string, CollisionImpact>()
+      this.eventQueue.drainContactForceEvents((event: RAPIER.TempContactForceEvent) => {
+        const h1 = event.collider1()
+        const h2 = event.collider2()
+        const key = pairKey(h1, h2)
+        const tf = event.totalForce()
+        const mfd = event.maxForceDirection()
+        forceMap.set(key, {
+          totalForce: [tf.x, tf.y, tf.z],
+          totalForceMagnitude: event.totalForceMagnitude(),
+          maxForceMagnitude: event.maxForceMagnitude(),
+          maxForceDirection: [mfd.x, mfd.y, mfd.z],
+        })
+      })
       this.eventQueue.drainCollisionEvents((handle1: number, handle2: number, started: boolean) => {
         if (!started) return
         const entityIdA = this.colliderHandleToEntityId.get(handle1)
         const entityIdB = this.colliderHandleToEntityId.get(handle2)
         if (entityIdA && entityIdB) {
-          this.lastCollisions.push({ entityIdA, entityIdB })
+          const impact = forceMap.get(pairKey(handle1, handle2))
+          this.lastCollisions.push({ entityIdA, entityIdB, impact })
         }
       })
     } finally {
@@ -413,7 +437,9 @@ export class PhysicsWorld {
     colliderDesc.setRestitution(entity.restitution ?? 0)
     colliderDesc.setFriction(entity.friction ?? 0.5)
     if (hadActiveEvents) {
-      colliderDesc.setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS)
+      colliderDesc.setActiveEvents(
+        RAPIER.ActiveEvents.COLLISION_EVENTS | RAPIER.ActiveEvents.CONTACT_FORCE_EVENTS
+      )
     }
     if (body.isDynamic() && entity.mass !== undefined) {
       const volume = this.computeColliderVolume(entity.shape, entity.scale)

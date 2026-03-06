@@ -400,9 +400,9 @@ function SceneViewInner({
 
             if (scriptRunnerRef.current && runScripts) {
               const collisions = pw.getCollisions()
-              for (const { entityIdA, entityIdB } of collisions) {
-                scriptRunnerRef.current.runOnCollision(entityIdA, entityIdB)
-                scriptRunnerRef.current.runOnCollision(entityIdB, entityIdA)
+              for (const { entityIdA, entityIdB, impact } of collisions) {
+                scriptRunnerRef.current.runOnCollision(entityIdA, entityIdB, impact)
+                scriptRunnerRef.current.runOnCollision(entityIdB, entityIdA, impact)
               }
             }
           } catch (e) {

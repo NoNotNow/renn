@@ -2,12 +2,13 @@ import type * as THREE from 'three'
 import type { RennWorld, Entity, ScriptDef } from '@/types/world'
 import type { GameAPI } from './gameApi'
 import type { LoadedEntity } from '@/loader/loadWorld'
-import type { ScriptCtx, OnSpawnCtx, OnUpdateCtx, OnCollisionCtx, OnTimerCtx } from './scriptCtx'
+import type { ScriptCtx, OnSpawnCtx, OnUpdateCtx, OnCollisionCtx, OnTimerCtx, CollisionImpact } from './scriptCtx'
 import {
   allocOnSpawnCtx,
   allocOnUpdateCtx,
   allocOnCollisionCtx,
   allocOnTimerCtx,
+  ZERO_IMPACT,
 } from './scriptCtx'
 
 type HookFn = (ctx: ScriptCtx) => void
@@ -158,13 +159,22 @@ export class ScriptRunner {
     }
   }
 
-  runOnCollision(entityId: string, otherId: string): void {
+  runOnCollision(entityId: string, otherId: string, impact?: CollisionImpact): void {
     const list = this.onCollisionHooks.get(entityId)
     if (!list) return
     const other = this.entityMap.get(otherId)
     if (!other) return
+    const impactData = impact ?? ZERO_IMPACT
     for (const { fn, ctx } of list) {
       ctx.other = other
+      ctx.impact.totalForce[0] = impactData.totalForce[0]
+      ctx.impact.totalForce[1] = impactData.totalForce[1]
+      ctx.impact.totalForce[2] = impactData.totalForce[2]
+      ctx.impact.totalForceMagnitude = impactData.totalForceMagnitude
+      ctx.impact.maxForceMagnitude = impactData.maxForceMagnitude
+      ctx.impact.maxForceDirection[0] = impactData.maxForceDirection[0]
+      ctx.impact.maxForceDirection[1] = impactData.maxForceDirection[1]
+      ctx.impact.maxForceDirection[2] = impactData.maxForceDirection[2]
       fn(ctx)
     }
   }

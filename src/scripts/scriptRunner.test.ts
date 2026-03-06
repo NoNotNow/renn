@@ -146,6 +146,39 @@ describe('ScriptRunner', () => {
     expect(collisionCalled).toHaveBeenCalledWith('player', 'enemy')
   })
 
+  it('passes impact (forces) to onCollision script when provided', () => {
+    const collisionCalled = vi.fn()
+    const world = createMockWorld({
+      entities: [
+        { id: 'player', scripts: ['onCollisionScript'] },
+        { id: 'enemy' },
+      ],
+      scripts: {
+        onCollisionScript: {
+          event: 'onCollision',
+          source:
+            'ctx.log(ctx.entity.id, ctx.other.id, ctx.impact.totalForceMagnitude, ctx.impact.maxForceDirection[0])',
+        },
+      },
+    })
+    world.entities = world.entities ?? []
+    const game = {
+      ...createMockGameAPI(),
+      log: collisionCalled,
+    } as unknown as GameAPI
+    const getMeshById = vi.fn()
+    const entities = createLoadedEntities(world)
+    const runner = new ScriptRunner(world, game, getMeshById, entities)
+    const impact = {
+      totalForce: [1, 2, 3] as [number, number, number],
+      totalForceMagnitude: 10,
+      maxForceMagnitude: 5,
+      maxForceDirection: [0, 1, 0] as [number, number, number],
+    }
+    runner.runOnCollision('player', 'enemy', impact)
+    expect(collisionCalled).toHaveBeenCalledWith('player', 'enemy', 10, 0)
+  })
+
   it('handles missing script gracefully', () => {
     const world = createMockWorld({
       entities: [
