@@ -11,11 +11,22 @@ export interface ScriptEntity extends Entity {
   getRotation(): [number, number, number] | null
 }
 
+/** Orientation detection helpers. All use threshold 0.5 (and 0.9 for isTilted). Optional id defaults to current entity. */
+export interface DetectHelpers {
+  isUpsideDown(id?: string): boolean
+  isUpright(id?: string): boolean
+  isLyingOnSide(id?: string): boolean
+  isLyingOnBack(id?: string): boolean
+  isLyingOnFront(id?: string): boolean
+  isTilted(id?: string): boolean
+}
+
 /** Base context: game capabilities + current entity. time is a getter. */
 export interface ScriptCtxBase {
   readonly time: number
   readonly entity: ScriptEntity
   readonly entities: Entity[]
+  readonly detect: DetectHelpers
   getEntity(id: string): Entity | undefined
   getPosition(id?: string): [number, number, number] | null
   setPosition(id: string | undefined, x: number, y: number, z: number): void
@@ -51,6 +62,40 @@ export interface OnTimerCtx extends ScriptCtxBase {
 
 export type ScriptCtx = OnSpawnCtx | OnUpdateCtx | OnCollisionCtx | OnTimerCtx
 
+const DETECT_THRESHOLD = 0.5
+const DETECT_TILTED_THRESHOLD = 0.9
+
+function createDetect(game: GameAPI, entity: Entity): DetectHelpers {
+  return {
+    isUpsideDown(id?: string) {
+      const up = game.getUpVector(id ?? entity.id)
+      return up !== null && up[1] < -DETECT_THRESHOLD
+    },
+    isUpright(id?: string) {
+      const up = game.getUpVector(id ?? entity.id)
+      return up !== null && up[1] > DETECT_THRESHOLD
+    },
+    isLyingOnSide(id?: string) {
+      const up = game.getUpVector(id ?? entity.id)
+      return up !== null && Math.abs(up[1]) < DETECT_THRESHOLD
+    },
+    isLyingOnBack(id?: string) {
+      const fwd = game.getForwardVector(id ?? entity.id)
+      if (fwd === null) return false
+      const backY = -fwd[1]
+      return backY < -DETECT_THRESHOLD
+    },
+    isLyingOnFront(id?: string) {
+      const fwd = game.getForwardVector(id ?? entity.id)
+      return fwd !== null && fwd[1] < -DETECT_THRESHOLD
+    },
+    isTilted(id?: string) {
+      const up = game.getUpVector(id ?? entity.id)
+      return up !== null && up[1] < DETECT_TILTED_THRESHOLD
+    },
+  }
+}
+
 function baseCtx(game: GameAPI, entity: Entity): ScriptCtxBase {
   const scriptEntity: ScriptEntity = {
     ...entity,
@@ -61,6 +106,7 @@ function baseCtx(game: GameAPI, entity: Entity): ScriptCtxBase {
       return game.getRotation(entity.id)
     },
   }
+  const detect = createDetect(game, entity)
   return {
     get time() {
       return game.time
@@ -70,6 +116,9 @@ function baseCtx(game: GameAPI, entity: Entity): ScriptCtxBase {
     },
     get entities() {
       return game.entities
+    },
+    get detect() {
+      return detect
     },
     getEntity: (id) => game.getEntity(id),
     getPosition: (id) => game.getPosition(id ?? entity.id),

@@ -15,10 +15,20 @@ interface Entity {
   getPosition(): [number, number, number] | null;
   getRotation(): [number, number, number] | null;
 }
+/** Orientation detection (threshold 0.5; optional id = current entity). */
+interface DetectHelpers {
+  isUpsideDown(id?: string): boolean;
+  isUpright(id?: string): boolean;
+  isLyingOnSide(id?: string): boolean;
+  isLyingOnBack(id?: string): boolean;
+  isLyingOnFront(id?: string): boolean;
+  isTilted(id?: string): boolean;
+}
 interface ScriptCtxBase {
   readonly time: number;
   readonly entity: Entity;
   readonly entities: Entity[];
+  readonly detect: DetectHelpers;
   getEntity(id: string): Entity | undefined;
   getPosition(id?: string): [number, number, number] | null;
   setPosition(id: string | undefined, x: number, y: number, z: number): void;

@@ -251,12 +251,15 @@ function SceneViewInner({
         registryRef.current?.setRotation(id, [x, y, z])
       const getUpVectorForGame = (id: string): Vec3 | null =>
         registryRef.current?.getUpVector(id) ?? null
+      const getForwardVectorForGame = (id: string): Vec3 | null =>
+        registryRef.current?.getForwardVector(id) ?? null
       const gameApi = createGameAPI(
         getPositionForGame,
         setPositionForGame,
         getRotationForGame,
         setRotationForGame,
         getUpVectorForGame,
+        getForwardVectorForGame,
         getPhysicsWorld,
         getRenderItemRegistry,
         loadedWorld.entities,

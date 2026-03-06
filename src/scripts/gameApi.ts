@@ -16,6 +16,8 @@ export interface GameAPI {
   setRotation(id: string, x: number, y: number, z: number): void
   /** World-space up direction [x,y,z] (Y-up). Upside down when .y < -0.5. */
   getUpVector(id: string): [number, number, number] | null
+  /** World-space forward direction [x,y,z] (Three.js -Z). */
+  getForwardVector(id: string): [number, number, number] | null
   applyForce(id: string, x: number, y: number, z: number): void
   applyImpulse(id: string, x: number, y: number, z: number): void
   // Transformer control
@@ -30,6 +32,7 @@ export interface GameAPIOptions {
   getRotation: (id: string) => [number, number, number] | null
   setRotation: (id: string, x: number, y: number, z: number) => void
   getUpVector: (id: string) => [number, number, number] | null
+  getForwardVector: (id: string) => [number, number, number] | null
   getPhysicsWorld: () => PhysicsWorld | null
   getRenderItemRegistry: () => import('@/runtime/renderItemRegistry').RenderItemRegistry | null
   entities: Entity[]
@@ -42,6 +45,7 @@ export function createGameAPI(
   getRotation: (id: string) => [number, number, number] | null = () => null,
   setRotation: (id: string, x: number, y: number, z: number) => void = () => {},
   getUpVector: (id: string) => [number, number, number] | null = () => null,
+  getForwardVector: (id: string) => [number, number, number] | null = () => null,
   getPhysicsWorld: () => PhysicsWorld | null = () => null,
   getRenderItemRegistry: () => import('@/runtime/renderItemRegistry').RenderItemRegistry | null = () => null,
   entities: Entity[] = [],
@@ -71,6 +75,9 @@ export function createGameAPI(
     },
     getUpVector(id: string): [number, number, number] | null {
       return getUpVector(id)
+    },
+    getForwardVector(id: string): [number, number, number] | null {
+      return getForwardVector(id)
     },
     applyForce(id: string, x: number, y: number, z: number) {
       const physics = getPhysicsWorld()

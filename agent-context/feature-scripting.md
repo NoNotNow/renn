@@ -34,7 +34,19 @@ Scripting lets users run JavaScript in the play runtime. Scripts are **event-bou
 - **`getPosition(id?)`, `setPosition(id?, x, y, z)`, `getRotation(id?)`, `setRotation(id?, x, y, z)`**: When `id` is omitted, the **current entity** (the entity this script is attached to) is used. Example: `ctx.getPosition()` is equivalent to `ctx.getPosition(ctx.entity.id)`.
 - **`ctx.entity`**: In addition to `id`, `name`, `position`, `rotation`, etc. (from the world data), the script-facing entity exposes **`getPosition()`** and **`getRotation()`** that return the **runtime** position and rotation (Euler `[x, y, z]` in radians) of the current entity from the physics/registry layer. Use these when you want the live pose without passing an id (e.g. `ctx.entity.getPosition()`, `ctx.entity.getRotation()`).
 
-**Detecting orientation (e.g. upside down):** Do not compare raw Euler components (e.g. “is X near π?”)—the same orientation has many Euler representations. Use **`getUpVector(id?)`** (when available) to get the entity’s world-space up direction `[x, y, z]`. With world up = +Y, the entity is roughly upside down when `getUpVector().y < -0.5`. If you only have `getRotation()`, build the up vector by applying the Euler rotation to `(0, 1, 0)` and then compare that vector’s Y component to world up. See `direction-rotation-coordinates.md` for details.
+**Orientation detection (`ctx.detect`):** Use **`ctx.detect`** for reliable orientation checks (world +Y up, -Z forward). All methods take optional **`id?`** (default: current entity) and return **`boolean`**. Threshold 0.5 (0.9 for `isTilted`). Do not compare raw Euler components.
+
+| Method | Meaning |
+|--------|--------|
+| `ctx.detect.isUpsideDown(id?)` | Entity's up points roughly down (up.y < -0.5). |
+| `ctx.detect.isUpright(id?)` | Up roughly aligns with world +Y (up.y > 0.5). |
+| `ctx.detect.isLyingOnSide(id?)` | Up roughly horizontal (|up.y| < 0.5) — tipped on one side. |
+| `ctx.detect.isLyingOnBack(id?)` | Local back (+Z) points down (lying supine). |
+| `ctx.detect.isLyingOnFront(id?)` | Local front (-Z) points down (lying prone). |
+| `ctx.detect.isTilted(id?)` | Not upright (up.y < 0.9). |
+
+Example: `if (ctx.detect.isUpsideDown()) { ctx.log('Flipped!') }`. See `direction-rotation-coordinates.md` for coordinate conventions.
+
 - **Execution** (in `SceneView.tsx`):
   - **onSpawn**: Once per entity after load; pre-built list per entity.
   - **onUpdate**: Every frame; iterates `onUpdateEntries`, sets `ctx.dt`, calls hook.

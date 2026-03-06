@@ -135,6 +135,16 @@ export class RenderItemRegistry {
   }
 
   /**
+   * World-space forward direction for the entity (Three.js: -Z). Compensates for visual base quaternion.
+   */
+  getForwardVector(id: string): Vec3 | null {
+    const q = this.getRotationAsQuaternion(id)
+    if (!q) return null
+    const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(q)
+    return [fwd.x, fwd.y, fwd.z]
+  }
+
+  /**
    * Apply incremental physics property changes to an entity's body/collider directly.
    * Only the properties present in the patch are updated; others are left unchanged.
    */
