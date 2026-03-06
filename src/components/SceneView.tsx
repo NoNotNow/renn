@@ -94,7 +94,8 @@ function SceneViewInner({
   const rawKeyboardRef = useRawKeyboardInput()
   const rawWheelRef = useRawWheelInput(containerRef)
   const rawMouseDragRef = useRawMouseDrag(containerRef)
-  
+  const orbitWheelRef = useRef({ deltaX: 0, deltaY: 0 })
+
   // Active debug forces: { entityId, force, endTime }[]
   const activeDebugForcesRef = useRef<Array<{ entityId: string; force: Vec3; endTime: number }>>([])
 
@@ -337,7 +338,19 @@ function SceneViewInner({
         frameRef.current = requestAnimationFrame(animate)
         const dt = FIXED_DT
         timeRef.current += dt
-        
+
+        // In follow/thirdPerson mode, consume wheel deltas for orbit so transformers don't see them
+        const orbitCtrl = cameraCtrlRef.current
+        const orbitCfg = orbitCtrl?.getConfig()
+        if (orbitCfg?.control === 'follow' && (orbitCfg.mode === 'follow' || orbitCfg.mode === 'thirdPerson') && rawWheelRef.current) {
+          orbitWheelRef.current.deltaX = rawWheelRef.current.deltaX
+          orbitWheelRef.current.deltaY = rawWheelRef.current.deltaY
+          rawWheelRef.current.deltaX = 0
+          rawWheelRef.current.deltaY = 0
+        } else {
+          orbitWheelRef.current.deltaX = 0
+          orbitWheelRef.current.deltaY = 0
+        }
 
         const pw = physicsRef.current
         if (pw && runPhysics && !cancelled) {
@@ -399,10 +412,12 @@ function SceneViewInner({
             ctrl.setFreeFlyInput(freeFlyKeysRef.current)
           }
           const drag = rawMouseDragRef.current
-          if (drag && (drag.deltaX !== 0 || drag.deltaY !== 0)) {
-            ctrl.setOrbitDelta(drag.deltaX, drag.deltaY)
-            drag.deltaX = 0
-            drag.deltaY = 0
+          const orbitWheel = orbitWheelRef.current
+          const orbitDx = (drag?.deltaX ?? 0) + orbitWheel.deltaX
+          const orbitDy = (drag?.deltaY ?? 0) + orbitWheel.deltaY
+          if (orbitDx !== 0 || orbitDy !== 0) {
+            ctrl.setOrbitDelta(orbitDx, orbitDy)
+            if (drag) { drag.deltaX = 0; drag.deltaY = 0 }
           }
           ctrl.update(dt)
         }
