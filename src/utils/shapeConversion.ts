@@ -3,10 +3,10 @@ import { getDefaultShapeForType, type AddableShapeType } from '@/data/entityDefa
 
 const MIN_SIZE = 0.01
 
-const SIZED_TYPES: AddableShapeType[] = ['box', 'sphere', 'cylinder', 'capsule']
+const SIZED_TYPES: AddableShapeType[] = ['box', 'sphere', 'cylinder', 'capsule', 'cone', 'pyramid', 'ring']
 
 /**
- * Returns a single "characteristic size" for box/sphere/cylinder/capsule so that
+ * Returns a single "characteristic size" for box/sphere/cylinder/capsule/cone/pyramid/ring so that
  * when switching shape type we can preserve relative scale. Returns null for plane/trimesh.
  */
 export function getCharacteristicSize(shape: Shape | undefined): number | null {
@@ -20,6 +20,15 @@ export function getCharacteristicSize(shape: Shape | undefined): number | null {
       return Math.pow(shape.radius * shape.radius * shape.height, 1 / 3)
     case 'capsule':
       return Math.pow(shape.radius * shape.radius * (shape.height + 2 * shape.radius), 1 / 3)
+    case 'cone':
+      return Math.pow((1 / 3) * Math.PI * shape.radius * shape.radius * shape.height, 1 / 3)
+    case 'pyramid':
+      return Math.pow((1 / 3) * shape.baseSize * shape.baseSize * shape.height, 1 / 3)
+    case 'ring': {
+      const h = shape.height ?? 0.1
+      const area = Math.PI * (shape.outerRadius * shape.outerRadius - shape.innerRadius * shape.innerRadius)
+      return Math.pow(area * h, 1 / 3)
+    }
     case 'plane':
     case 'trimesh':
       return null
@@ -53,6 +62,12 @@ export function shapeWithPreservedSize(
       return { type: 'cylinder', radius: s, height: s }
     case 'capsule':
       return { type: 'capsule', radius: s / 2, height: s }
+    case 'cone':
+      return { type: 'cone', radius: s, height: s }
+    case 'pyramid':
+      return { type: 'pyramid', baseSize: s, height: s }
+    case 'ring':
+      return { type: 'ring', innerRadius: s * 0.25, outerRadius: s * 0.5, height: s * 0.1 }
     case 'plane':
     case 'trimesh':
       return getDefaultShapeForType(newType)

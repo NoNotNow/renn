@@ -27,6 +27,29 @@ describe('getCharacteristicSize', () => {
     expect(getCharacteristicSize({ type: 'capsule', radius: r, height: h })).toBeCloseTo(expected, 5)
   })
 
+  it('returns size for cone', () => {
+    const r = 2
+    const h = 3
+    const vol = (1 / 3) * Math.PI * r * r * h
+    expect(getCharacteristicSize({ type: 'cone', radius: r, height: h })).toBeCloseTo(Math.pow(vol, 1 / 3), 5)
+  })
+
+  it('returns size for pyramid', () => {
+    const b = 2
+    const h = 4
+    const vol = (1 / 3) * b * b * h
+    expect(getCharacteristicSize({ type: 'pyramid', baseSize: b, height: h })).toBeCloseTo(Math.pow(vol, 1 / 3), 5)
+  })
+
+  it('returns size for ring', () => {
+    const inner = 0.5
+    const outer = 1
+    const height = 0.2
+    const area = Math.PI * (outer * outer - inner * inner)
+    const vol = area * height
+    expect(getCharacteristicSize({ type: 'ring', innerRadius: inner, outerRadius: outer, height })).toBeCloseTo(Math.pow(vol, 1 / 3), 5)
+  })
+
   it('returns null for plane and trimesh', () => {
     expect(getCharacteristicSize({ type: 'plane' })).toBeNull()
     expect(getCharacteristicSize({ type: 'trimesh', model: '' })).toBeNull()
@@ -79,6 +102,34 @@ describe('shapeWithPreservedSize', () => {
     if (result.type === 'capsule') {
       expect(result.radius).toBe(2)
       expect(result.height).toBe(4)
+    }
+  })
+
+  it('sphere 5 -> cone radius 5 height 5', () => {
+    const result = shapeWithPreservedSize({ type: 'sphere', radius: 5 }, 'cone')
+    expect(result.type).toBe('cone')
+    if (result.type === 'cone') {
+      expect(result.radius).toBe(5)
+      expect(result.height).toBe(5)
+    }
+  })
+
+  it('sphere 6 -> pyramid baseSize 6 height 6', () => {
+    const result = shapeWithPreservedSize({ type: 'sphere', radius: 6 }, 'pyramid')
+    expect(result.type).toBe('pyramid')
+    if (result.type === 'pyramid') {
+      expect(result.baseSize).toBe(6)
+      expect(result.height).toBe(6)
+    }
+  })
+
+  it('sphere 4 -> ring innerRadius 1 outerRadius 2 height 0.4', () => {
+    const result = shapeWithPreservedSize({ type: 'sphere', radius: 4 }, 'ring')
+    expect(result.type).toBe('ring')
+    if (result.type === 'ring') {
+      expect(result.innerRadius).toBeCloseTo(1, 5)
+      expect(result.outerRadius).toBeCloseTo(2, 5)
+      expect(result.height).toBeCloseTo(0.4, 5)
     }
   })
 

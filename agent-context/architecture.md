@@ -45,7 +45,7 @@ renn/
 │   │   └── validate.ts       # validateWorldDocument(), Ajv + world-schema
 │   ├── loader/
 │   │   ├── loadWorld.ts      # loadWorld(data) → scene, entities, world
-│   │   ├── createPrimitive.ts # Mesh from shape + material; plane/box/sphere/…
+│   │   ├── createPrimitive.ts # Mesh from shape + material; plane/box/sphere/cylinder/capsule/cone/pyramid/ring/…
 │   │   ├── assetResolver.ts  # (assetId) => URL | Blob | null
 │   │   └── assetResolverImpl.ts # Blob → object URL
 │   ├── physics/
@@ -83,7 +83,7 @@ renn/
 │   │   ├── PropertySidebar.tsx # Tabs: Properties | Scripts | Assets
 │   │   ├── PropertyPanel.tsx # Edit selected entity (name, shape, transform, physics, material, transformers, delete)
 │   │   ├── TransformEditor.tsx # Position, rotation (Vec3Field, Euler [x,y,z]), scale
-│   │   ├── ShapeEditor.tsx   # Shape type + params (box, sphere, cylinder, capsule, plane)
+│   │   ├── ShapeEditor.tsx   # Shape type + params (box, sphere, cylinder, capsule, cone, pyramid, ring, plane)
 │   │   ├── PhysicsEditor.tsx # bodyType, mass, restitution, friction, linearDamping, angularDamping
 │   │   ├── MaterialEditor.tsx # color, roughness, metalness
 │   │   ├── ScriptPanel.tsx   # Monaco + script list (add/remove)
@@ -150,7 +150,7 @@ renn/
 ## World document
 
 - **Root**: `version`, `world` (gravity, lighting, camera), `entities[]`, optional `assets`, optional `scripts`.
-- **Entity**: `id`, `bodyType` (static/dynamic/kinematic), `shape` (box/sphere/cylinder/capsule/plane/trimesh), `position` (Vec3), `rotation` (Rotation / Euler [x,y,z] radians), `scale`, `model?`, `material?`, `mass`, `restitution`, `friction`, `linearDamping`, `angularDamping`, `scripts?` (hook → script ID).
+- **Entity**: `id`, `bodyType` (static/dynamic/kinematic), `shape` (box/sphere/cylinder/capsule/cone/pyramid/ring/plane/trimesh), `position` (Vec3), `rotation` (Rotation / Euler [x,y,z] radians), `scale`, `model?`, `material?`, `mass`, `restitution`, `friction`, `linearDamping`, `angularDamping`, `scripts?` (hook → script ID).
 - **Scripts**: map of script ID → source string. Entity `scripts.onUpdate` etc. reference these IDs. Scripts run with a `game` API (read/write positions, entities, time; no DOM/fetch).
 
 See **world-schema.json** and **src/types/world.ts** for the full shape.

@@ -131,6 +131,37 @@
         },
         {
           "type": "object",
+          "required": ["type", "radius", "height"],
+          "properties": {
+            "type": { "const": "cone" },
+            "radius": { "type": "number" },
+            "height": { "type": "number" }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["type", "baseSize", "height"],
+          "properties": {
+            "type": { "const": "pyramid" },
+            "baseSize": { "type": "number" },
+            "height": { "type": "number" }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["type", "innerRadius", "outerRadius"],
+          "properties": {
+            "type": { "const": "ring" },
+            "innerRadius": { "type": "number" },
+            "outerRadius": { "type": "number" },
+            "height": { "type": "number" }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
           "required": ["type"],
           "properties": {
             "type": { "const": "plane" },

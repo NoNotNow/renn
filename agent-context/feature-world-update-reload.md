@@ -65,7 +65,7 @@ So: **world changes** go through `onWorldChange` → `updateWorld` → new `worl
 - **Physics properties (mass, restitution, friction, linearDamping, angularDamping, bodyType)**  
   The UI uses `onEntityPhysicsChange(id, patch)`, which calls `SceneView.updateEntityPhysics(id, patch)` → `RenderItemRegistry.updatePhysics` → `PhysicsWorld` setters that mutate the existing Rapier body/collider in-place. The world document is updated via `updateWorld` directly. The rebuild key **excludes** all these properties, so no rebuild occurs.
 
-- **Primitive shape changes (box, sphere, cylinder, capsule, plane)**  
+- **Primitive shape changes (box, sphere, cylinder, capsule, cone, pyramid, ring, plane)**  
   The UI uses `onEntityShapeChange(id, patch)`. Builder calls `sceneViewRef.updateEntityShape(id, entity)` → `RenderItemRegistry.updateShape` → swaps `mesh.geometry` (dispose old, create new via `createShapeGeometry`), handles the plane `visualBaseQuaternion` transition, updates `castShadow`, then calls `PhysicsWorld.updateShape` to rebuild the collider (remove old, create new with all physics props re-applied). The rebuild key includes `trimeshShape` only when the shape type is trimesh, so primitive shape changes don't trigger a rebuild.
 
 - **Material changes**  

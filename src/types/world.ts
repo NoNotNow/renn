@@ -57,6 +57,9 @@ export type Shape =
   | { type: 'sphere'; radius: number }
   | { type: 'cylinder'; radius: number; height: number }
   | { type: 'capsule'; radius: number; height: number }
+  | { type: 'cone'; radius: number; height: number }
+  | { type: 'pyramid'; baseSize: number; height: number }
+  | { type: 'ring'; innerRadius: number; outerRadius: number; height?: number }
   | { type: 'plane'; normal?: Vec3 }
   | { type: 'trimesh'; model: string; simplification?: TrimeshSimplificationConfig }
 

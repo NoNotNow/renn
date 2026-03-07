@@ -10,7 +10,7 @@ import Switch from './Switch'
 import { uploadModel } from '@/utils/assetUpload'
 import { sidebarRowStyle, sidebarLabelStyle, thumbnailButtonStyle, thumbnailButtonStyleDisabled, removeButtonStyle, removeButtonStyleDisabled, secondaryButtonStyle, secondaryButtonStyleDisabled } from './sharedStyles'
 
-const ADDABLE_SHAPE_TYPES: AddableShapeType[] = ['box', 'sphere', 'cylinder', 'capsule', 'plane', 'trimesh']
+const ADDABLE_SHAPE_TYPES: AddableShapeType[] = ['box', 'sphere', 'cylinder', 'capsule', 'cone', 'pyramid', 'ring', 'plane', 'trimesh']
 
 export interface ShapeEditorProps {
   entityId: string
@@ -54,6 +54,9 @@ export default function ShapeEditor({
           { value: 'sphere', label: 'Sphere' },
           { value: 'cylinder', label: 'Cylinder' },
           { value: 'capsule', label: 'Capsule' },
+          { value: 'cone', label: 'Cone' },
+          { value: 'pyramid', label: 'Pyramid' },
+          { value: 'ring', label: 'Ring' },
           { value: 'plane', label: 'Plane' },
           { value: 'trimesh', label: 'Trimesh (3D Model)' },
         ]}
@@ -170,6 +173,105 @@ export default function ShapeEditor({
             entityId={entityId}
             propertyName="capsule height"
           />
+        </>
+      )}
+      {shape?.type === 'cone' && shape && (
+        <>
+          <NumberInput
+            id={`${entityId}-cone-radius`}
+            label="Radius"
+            value={shape.radius}
+            onChange={(newValue) => onShapeChange({ type: 'cone', radius: newValue, height: shape.height })}
+            min={0.01}
+            step={0.1}
+            defaultValue={0.01}
+            disabled={disabled}
+            entityId={entityId}
+            propertyName="cone radius"
+          />
+          <NumberInput
+            id={`${entityId}-cone-height`}
+            label="Height"
+            value={shape.height}
+            onChange={(newValue) => onShapeChange({ type: 'cone', radius: shape.radius, height: newValue })}
+            min={0.01}
+            step={0.1}
+            defaultValue={0.01}
+            disabled={disabled}
+            entityId={entityId}
+            propertyName="cone height"
+          />
+        </>
+      )}
+      {shape?.type === 'pyramid' && shape && (
+        <>
+          <NumberInput
+            id={`${entityId}-pyramid-baseSize`}
+            label="Base size"
+            value={shape.baseSize}
+            onChange={(newValue) => onShapeChange({ type: 'pyramid', baseSize: newValue, height: shape.height })}
+            min={0.01}
+            step={0.1}
+            defaultValue={0.01}
+            disabled={disabled}
+            entityId={entityId}
+            propertyName="pyramid base size"
+          />
+          <NumberInput
+            id={`${entityId}-pyramid-height`}
+            label="Height"
+            value={shape.height}
+            onChange={(newValue) => onShapeChange({ type: 'pyramid', baseSize: shape.baseSize, height: newValue })}
+            min={0.01}
+            step={0.1}
+            defaultValue={0.01}
+            disabled={disabled}
+            entityId={entityId}
+            propertyName="pyramid height"
+          />
+        </>
+      )}
+      {shape?.type === 'ring' && shape && (
+        <>
+          <NumberInput
+            id={`${entityId}-ring-innerRadius`}
+            label="Inner radius"
+            value={shape.innerRadius}
+            onChange={(newValue) => onShapeChange({ type: 'ring', innerRadius: newValue, outerRadius: shape.outerRadius, height: shape.height })}
+            min={0.01}
+            step={0.1}
+            defaultValue={0.01}
+            disabled={disabled}
+            entityId={entityId}
+            propertyName="ring inner radius"
+          />
+          <NumberInput
+            id={`${entityId}-ring-outerRadius`}
+            label="Outer radius"
+            value={shape.outerRadius}
+            onChange={(newValue) => onShapeChange({ type: 'ring', innerRadius: shape.innerRadius, outerRadius: newValue, height: shape.height })}
+            min={0.01}
+            step={0.1}
+            defaultValue={0.01}
+            disabled={disabled}
+            entityId={entityId}
+            propertyName="ring outer radius"
+          />
+          <NumberInput
+            id={`${entityId}-ring-height`}
+            label="Height (collision)"
+            value={shape.height ?? 0.1}
+            onChange={(newValue) => onShapeChange({ type: 'ring', innerRadius: shape.innerRadius, outerRadius: shape.outerRadius, height: newValue })}
+            min={0.01}
+            step={0.1}
+            defaultValue={0.1}
+            disabled={disabled}
+            entityId={entityId}
+            propertyName="ring height"
+          />
+          <div style={{ fontSize: 10, color: '#666', marginTop: 4, paddingLeft: 8 }}>
+            Collision uses cylinder (outer radius, height)
+          </div>
         </>
       )}
       {shape?.type === 'trimesh' && shape && (

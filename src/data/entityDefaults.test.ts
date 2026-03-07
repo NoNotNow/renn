@@ -3,7 +3,7 @@ import { createDefaultEntity, getDefaultShapeForType, type AddableShapeType } fr
 import { validateWorldDocument } from '@/schema/validate'
 import type { RennWorld } from '@/types/world'
 
-const ADDABLE_SHAPE_TYPES: AddableShapeType[] = ['box', 'sphere', 'cylinder', 'capsule', 'plane']
+const ADDABLE_SHAPE_TYPES: AddableShapeType[] = ['box', 'sphere', 'cylinder', 'capsule', 'cone', 'pyramid', 'ring', 'plane']
 
 function minimalWorld(entities: RennWorld['entities']): RennWorld {
   return {

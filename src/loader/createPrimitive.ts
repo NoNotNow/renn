@@ -110,6 +110,24 @@ export async function createPrimitiveMesh(
     case 'capsule':
       geometry = new THREE.CapsuleGeometry(shape.radius, Math.max(0, shape.height - 2 * shape.radius), 8, 16)
       break
+    case 'cone':
+      geometry = new THREE.ConeGeometry(shape.radius, shape.height, 32)
+      break
+    case 'pyramid':
+      geometry = new THREE.ConeGeometry(shape.baseSize / Math.SQRT2, shape.height, 4)
+      break
+    case 'ring': {
+      const ringShape = shape
+      geometry = new THREE.RingGeometry(
+        ringShape.innerRadius,
+        ringShape.outerRadius,
+        32,
+        1,
+        0,
+        Math.PI * 2
+      )
+      break
+    }
     case 'plane': {
       const size = 100
       geometry = new THREE.PlaneGeometry(size * 2, size * 2)
@@ -186,6 +204,21 @@ export function createShapeGeometry(shape: Shape): THREE.BufferGeometry | null {
       return new THREE.CylinderGeometry(shape.radius, shape.radius, shape.height, 32)
     case 'capsule':
       return new THREE.CapsuleGeometry(shape.radius, Math.max(0, shape.height - 2 * shape.radius), 8, 16)
+    case 'cone':
+      return new THREE.ConeGeometry(shape.radius, shape.height, 32)
+    case 'pyramid':
+      return new THREE.ConeGeometry(shape.baseSize / Math.SQRT2, shape.height, 4)
+    case 'ring': {
+      const ringShape = shape
+      return new THREE.RingGeometry(
+        ringShape.innerRadius,
+        ringShape.outerRadius,
+        32,
+        1,
+        0,
+        Math.PI * 2
+      )
+    }
     case 'plane': {
       const size = 100
       return new THREE.PlaneGeometry(size * 2, size * 2)
@@ -282,7 +315,7 @@ export async function buildEntityMesh(
   // Default: create mesh from shape
   const mesh = await createPrimitiveMesh(s, materialRef, assetResolver)
   applyTransform(mesh, position, rotation, scale)
-  if (s.type === 'plane') {
+  if (s.type === 'plane' || s.type === 'ring') {
     const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0))
     mesh.quaternion.premultiply(q)
     mesh.userData.visualBaseQuaternion = q

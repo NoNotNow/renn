@@ -184,6 +184,9 @@ export default function EntitySidebar({
                     <option value="sphere">Sphere</option>
                     <option value="cylinder">Cylinder</option>
                     <option value="capsule">Capsule</option>
+                    <option value="cone">Cone</option>
+                    <option value="pyramid">Pyramid</option>
+                    <option value="ring">Ring</option>
                     <option value="plane">Plane</option>
                   </select>
                 </label>
@@ -324,6 +327,9 @@ export default function EntitySidebar({
                     <option value="sphere">Sphere</option>
                     <option value="cylinder">Cylinder</option>
                     <option value="capsule">Capsule</option>
+                    <option value="cone">Cone</option>
+                    <option value="pyramid">Pyramid</option>
+                    <option value="ring">Ring</option>
                     <option value="plane">Plane</option>
                     <option value="random">Random</option>
                   </select>

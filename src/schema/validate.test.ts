@@ -5,7 +5,7 @@ import { createDefaultEntity, type AddableShapeType } from '@/data/entityDefault
 import type { RennWorld } from '@/types/world'
 
 function worldWithOneEntityPerShape(): RennWorld {
-  const types: AddableShapeType[] = ['box', 'sphere', 'cylinder', 'capsule', 'plane']
+  const types: AddableShapeType[] = ['box', 'sphere', 'cylinder', 'capsule', 'cone', 'pyramid', 'ring', 'plane']
   const entities = types.map((t) => createDefaultEntity(t))
   return {
     version: '1.0',

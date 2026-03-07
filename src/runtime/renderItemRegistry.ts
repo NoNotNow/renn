@@ -181,13 +181,13 @@ export class RenderItemRegistry {
     if (!newGeometry) return false
 
     const mesh = item.mesh
-    const wasPlane = item.entity.shape?.type === 'plane'
-    const isNowPlane = newEntity.shape?.type === 'plane'
+    const wasFlatShape = item.entity.shape?.type === 'plane' || item.entity.shape?.type === 'ring'
+    const isNowFlatShape = newEntity.shape?.type === 'plane' || newEntity.shape?.type === 'ring'
 
-    // Handle plane visual base quaternion transition (plane lies flat via a -90° X rotation)
-    if (wasPlane !== isNowPlane) {
+    // Handle plane/ring visual base quaternion transition (both lie flat via -90° X rotation)
+    if (wasFlatShape !== isNowFlatShape) {
       const currentRotation = item.getRotation()
-      if (isNowPlane) {
+      if (isNowFlatShape) {
         const planeQ = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0))
         mesh.userData.visualBaseQuaternion = planeQ
       } else {
@@ -203,7 +203,7 @@ export class RenderItemRegistry {
     oldGeometry.dispose()
 
     // Update shadow casting (planes don't cast shadows)
-    mesh.castShadow = isNowPlane ? false : true
+    mesh.castShadow = newEntity.shape?.type === 'plane' ? false : true
 
     // Update entity reference so future operations (e.g. mass change) use the new shape
     item.entity = newEntity
