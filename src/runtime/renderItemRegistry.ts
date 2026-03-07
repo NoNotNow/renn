@@ -40,7 +40,7 @@ export class RenderItemRegistry {
       // Creation may be async (custom transformers); initialize asynchronously
       // so callers receive a registry immediately (tests expect sync create()).
       if (entity.transformers && entity.transformers.length > 0) {
-        createTransformerChain(entity.transformers, rawInputGetter ?? undefined)
+        createTransformerChain(entity.transformers, rawInputGetter ?? undefined, entity)
           .then(chain => {
             if (chain) item.transformerChain = chain
           })

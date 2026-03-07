@@ -190,6 +190,8 @@ Tested and working reference config:
 
 All defaults (shown above) work out of the box for mass ~12. For heavier entities, scale `acceleration`, `brakeForce`, `lateralGrip`, and `steeringTorqueScale` proportionally.
 
+**Smooth acceleration (5–10 s to max speed):** `acceleration` is in Newtons. Use `acceleration ≈ mass × maxSpeed / timeToMaxSpeed` (e.g. mass 20, maxSpeed 25, 7.5 s → ~67). Alternatively set `timeToMaxSpeed` (seconds) in car params and the registry will derive acceleration from entity mass.
+
 ## Script API
 
 ```typescript

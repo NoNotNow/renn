@@ -50,4 +50,23 @@ describe('Transformer Registry', () => {
     const config = { type: 'nope' } as any
     await expect(createTransformer(config)).rejects.toThrow(/Unknown transformer type/)
   })
+
+  test('car with timeToMaxSpeed and entity mass derives acceleration', async () => {
+    const config: TransformerConfig = {
+      type: 'car',
+      priority: 1,
+      params: { timeToMaxSpeed: 7.5, maxSpeed: 25, steeringTorqueScale: 40 },
+    }
+    const entity = { id: 'car', mass: 20 } as import('@/types/world').Entity
+    const transformer = await createTransformer(config, undefined, entity)
+    const input = createMockTransformInput({ actions: { throttle: 1.0 }, velocity: [0, 0, 0], rotation: [0, 0, 0] })
+    const output = transformer.transform(input, 0.016)
+    // Resolved acceleration = mass * maxSpeed / timeToMaxSpeed = 20 * 25 / 7.5 = 200/3 ≈ 66.67
+    const expectedForce = (entity.mass! * 25) / 7.5
+    expect(output.force).toBeDefined()
+    const magnitude = Math.sqrt(
+      (output.force![0] ** 2) + (output.force![1] ** 2) + (output.force![2] ** 2),
+    )
+    expect(magnitude).toBeCloseTo(expectedForce, 1)
+  })
 })

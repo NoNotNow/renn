@@ -35,13 +35,18 @@ export const sampleWorld: RennWorld = {
       id: 'car',
       name: 'Player Car',
       bodyType: 'dynamic',
-      shape: { type: 'box', width: 2, height: 1, depth: 4 },
+      shape: { type: 'box', width: 4, height: 1, depth: 8 },
       position: [0, 2, 0],
       rotation: [0, 0, 0],
-      mass: 12,
+      mass: 20,
       restitution: 0.1,
-      friction: .1,
-      material: { color: [0.2, 0.4, 0.8] },
+      friction: 0.01,
+      material: {
+        color: [0.5607843137254902, 0.4980392156862745, 0.4823529411764706],
+        map: '6385886491_5242390365_b',
+        metalness: 0.6,
+        roughness: 0.8,
+      },
       transformers: [
         {
           type: 'input',
@@ -56,8 +61,8 @@ export const sampleWorld: RennWorld = {
               space: 'handbrake',
             },
             sensitivity: {
-              keyboard: 1.0,
-              wheel: 1.0,
+              keyboard: 1,
+              wheel: 1,
             },
           },
         },
@@ -66,12 +71,14 @@ export const sampleWorld: RennWorld = {
           priority: 1,
           enabled: true,
           params: {
-            acceleration: 1200.0,
-            steering: 3000.5,
-            handbrakeMultiplier: 3.0,
+            acceleration: 10000,
+            steeringTorqueScale: 180,
+            handbrakeMultiplier: 3,
           },
         },
       ],
+      angularDamping: 0.3,
+      scripts: ['script', 'timer'],
     },
     // Boxen in 5×3 Raster verteilt
     {

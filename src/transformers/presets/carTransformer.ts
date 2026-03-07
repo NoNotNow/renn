@@ -26,6 +26,11 @@ export interface CarTransformerParams {
   maxSpeed?: number
   /** Engine force magnitude (Newtons). Sized for mass ~12 by default. Default 200. */
   acceleration?: number
+  /**
+   * If set (seconds), the registry derives acceleration from entity mass and maxSpeed
+   * so the car reaches max speed in this time. Overrides acceleration when present.
+   */
+  timeToMaxSpeed?: number
   /** Braking force magnitude when brake input is active and moving forward. Default 400. */
   brakeForce?: number
   /** Passive deceleration force when coasting (no throttle, no brake). Default 30. */
