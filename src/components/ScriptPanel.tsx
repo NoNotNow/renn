@@ -4,6 +4,7 @@ import type { Monaco } from '@monaco-editor/react'
 import type { RennWorld, ScriptDef, ScriptEvent } from '@/types/world'
 import { uiLogger } from '@/utils/uiLogger'
 import { ctxDeclFor, CTX_EXTRA_LIB_URI } from '@/scripts/scriptCtxDecl'
+import CopyableArea from './CopyableArea'
 import ScriptDialog from './ScriptDialog'
 
 const SCRIPT_EVENTS: ScriptEvent[] = ['onSpawn', 'onUpdate', 'onCollision', 'onTimer']
@@ -182,8 +183,15 @@ export default function ScriptPanel({ world, selectedEntityId, onWorldChange }: 
 
   const entityDisplayName = selectedEntity?.name ?? selectedEntity?.id ?? 'Entity'
 
+  const copyPayload = {
+    scripts: world.scripts,
+    selectedEntityId,
+    entityScriptIds: selectedEntity?.scripts ?? [],
+  }
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <CopyableArea copyPayload={copyPayload}>
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <div style={{ padding: 8, display: 'flex', flexDirection: 'column', gap: 8, borderBottom: '1px solid #2f3545' }}>
         {selectedEntityId ? (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 }}>
@@ -368,5 +376,6 @@ export default function ScriptPanel({ world, selectedEntityId, onWorldChange }: 
         />
       )}
     </div>
+    </CopyableArea>
   )
 }

@@ -1,6 +1,7 @@
 import { useRef } from 'react'
 import type { RennWorld } from '@/types/world'
 import { uiLogger } from '@/utils/uiLogger'
+import CopyableArea from './CopyableArea'
 import { TextureManager } from '@/utils/textureManager'
 import { generateModelPreview } from '@/utils/modelPreview'
 import { ModelManager } from '@/utils/modelManager'
@@ -77,19 +78,22 @@ export default function AssetPanel({ assets, world, onAssetsChange, onWorldChang
     onWorldChange({ ...world, assets: nextWorldAssets })
   }
 
+  const copyPayload = { assetIds, worldAssets }
+
   return (
-    <div style={{ padding: 8 }}>
-      <h3 style={{ margin: '0 0 8px' }}>Assets</h3>
-      <button type="button" onClick={handleUpload}>Upload</button>
-      <input
+    <CopyableArea copyPayload={copyPayload}>
+      <div style={{ padding: 8 }}>
+        <h3 style={{ margin: '0 0 8px' }}>Assets</h3>
+        <button type="button" onClick={handleUpload}>Upload</button>
+        <input
         ref={fileInputRef}
         type="file"
         multiple
         accept="image/*,.glb,.gltf"
         style={{ display: 'none' }}
         onChange={onFileChange}
-      />
-      <ul style={{ listStyle: 'none', padding: 0, marginTop: 8 }}>
+        />
+        <ul style={{ listStyle: 'none', padding: 0, marginTop: 8 }}>
         {assetIds.map((id) => {
           const blob = assets.get(id)
           if (!blob) return null
@@ -125,7 +129,8 @@ export default function AssetPanel({ assets, world, onAssetsChange, onWorldChang
             </li>
           )
         })}
-      </ul>
-    </div>
+        </ul>
+      </div>
+    </CopyableArea>
   )
 }

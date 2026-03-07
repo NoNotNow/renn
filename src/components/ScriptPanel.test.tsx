@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { CopyProvider } from '@/contexts/CopyContext'
 import ScriptPanel from '@/components/ScriptPanel'
 import type { RennWorld } from '@/types/world'
 
@@ -33,7 +34,9 @@ describe('ScriptPanel', () => {
   it('shows "Select an entity to edit its scripts" when no entity selected', () => {
     const world = worldWithEntityAndScript()
     render(
-      <ScriptPanel world={world} selectedEntityId={null} onWorldChange={vi.fn()} />
+      <CopyProvider>
+        <ScriptPanel world={world} selectedEntityId={null} onWorldChange={vi.fn()} />
+      </CopyProvider>
     )
     expect(screen.getByText(/select an entity to edit its scripts/i)).toBeInTheDocument()
   })
@@ -41,7 +44,9 @@ describe('ScriptPanel', () => {
   it('shows "Scripts for [Entity name]" and "Manage scripts" when entity selected', () => {
     const world = worldWithEntityAndScript()
     render(
-      <ScriptPanel world={world} selectedEntityId="e1" onWorldChange={vi.fn()} />
+      <CopyProvider>
+        <ScriptPanel world={world} selectedEntityId="e1" onWorldChange={vi.fn()} />
+      </CopyProvider>
     )
     expect(screen.getByText(/scripts for box/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /manage scripts/i })).toBeInTheDocument()
@@ -51,7 +56,9 @@ describe('ScriptPanel', () => {
     const world = worldWithEntityAndScript()
     const onWorldChange = vi.fn()
     render(
-      <ScriptPanel world={world} selectedEntityId="e1" onWorldChange={onWorldChange} />
+      <CopyProvider>
+        <ScriptPanel world={world} selectedEntityId="e1" onWorldChange={onWorldChange} />
+      </CopyProvider>
     )
 
     const detachButton = screen.getByRole('button', { name: /detach from entity/i })
@@ -71,7 +78,9 @@ describe('ScriptPanel', () => {
   it('Detach from entity is disabled when script is not attached to selected entity', async () => {
     const world = worldWithEntityAndScript()
     render(
-      <ScriptPanel world={world} selectedEntityId="e1" onWorldChange={vi.fn()} />
+      <CopyProvider>
+        <ScriptPanel world={world} selectedEntityId="e1" onWorldChange={vi.fn()} />
+      </CopyProvider>
     )
     const comboboxes = screen.getAllByRole('combobox')
     const scriptSelect = comboboxes[0]
@@ -86,7 +95,9 @@ describe('ScriptPanel', () => {
   it('shows shared-script banner when selected script is used by more than one entity', () => {
     const world = worldWithEntityAndScript()
     render(
-      <ScriptPanel world={world} selectedEntityId="e1" onWorldChange={vi.fn()} />
+      <CopyProvider>
+        <ScriptPanel world={world} selectedEntityId="e1" onWorldChange={vi.fn()} />
+      </CopyProvider>
     )
     expect(screen.getByText(/this script is shared/i)).toBeInTheDocument()
     expect(screen.getByText(/used by:.*box.*ball/i)).toBeInTheDocument()

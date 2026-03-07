@@ -2,6 +2,7 @@ import type { RennWorld, Vec3, Color, MaterialRef } from '@/types/world'
 import { DEFAULT_GRAVITY, DEFAULT_SCALE } from '@/types/world'
 import { uiLogger } from '@/utils/uiLogger'
 import { colorToHex, hexToColor } from '@/utils/colorUtils'
+import CopyableArea from './CopyableArea'
 import Vec3Field from './Vec3Field'
 import NumberInput from './form/NumberInput'
 import { sidebarRowStyle, sidebarLabelStyle, sectionStyle, sectionTitleStyle } from './sharedStyles'
@@ -142,8 +143,22 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
   const skyColorHex = colorToHex(skyColor)
   const groundColorHex = colorToHex(groundColor)
 
+  const copyPayload = {
+    world: world.world,
+    groundEntity: groundEntity
+      ? {
+          id: groundEntity.id,
+          name: groundEntity.name,
+          scale: groundScale,
+          material: { color: groundColor, roughness: groundRoughness, metalness: groundMetalness },
+          friction: groundFriction,
+        }
+      : null,
+  }
+
   return (
     <div style={{ padding: 10 }}>
+      <CopyableArea copyPayload={copyPayload}>
       <div style={sectionStyle}>
         <div style={sectionTitleStyle}>Gravity</div>
         <NumberInput
@@ -313,6 +328,7 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
           </p>
         )}
       </div>
+      </CopyableArea>
     </div>
   )
 }

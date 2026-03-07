@@ -6,6 +6,7 @@ import { uiLogger } from '@/utils/uiLogger'
 import Sidebar from './layout/Sidebar'
 import { TabIcons } from './TabIcons'
 import WorldPanel from './WorldPanel'
+import CopyableArea from './CopyableArea'
 import { sidebarRowStyle, sidebarLabelStyle, fieldLabelStyle, sectionStyle, sectionTitleStyle } from './sharedStyles'
 
 export interface EntitySidebarProps {
@@ -166,7 +167,17 @@ export default function EntitySidebar({
     >
       <div style={{ padding: 10 }}>
         {leftTab === 'entities' && (
-              <>
+              <CopyableArea
+                copyPayload={entities.map((e) => ({
+                  id: e.id,
+                  name: e.name,
+                  shape: e.shape?.type,
+                  bodyType: e.bodyType,
+                  position: e.position,
+                  scripts: e.scripts,
+                }))}
+              >
+                <>
                 <label style={fieldLabelStyle}>
                   Add
                   <select
@@ -193,6 +204,7 @@ export default function EntitySidebar({
                 <ul style={{ listStyle: 'none', padding: 0, margin: '12px 0 0 0' }}>
                   {entities.map((e) => (
                     <li key={e.id}>
+                      <CopyableArea copyPayload={e} style={{ display: 'block' }}>
                       <button
                         type="button"
                         style={{
@@ -225,13 +237,18 @@ export default function EntitySidebar({
                         {e.locked && <span style={{ fontSize: 11, opacity: 0.7 }}>🔒</span>}
                         <span>{e.name ?? e.id}</span>
                       </button>
+                      </CopyableArea>
                     </li>
                   ))}
                 </ul>
-              </>
+                </>
+              </CopyableArea>
             )}
             {leftTab === 'camera' && (
-              <>
+              <CopyableArea
+                copyPayload={{ control: cameraControl, target: cameraTarget, mode: cameraMode }}
+              >
+                <>
                 <div style={sidebarRowStyle}>
                   <label htmlFor="camera-control" style={sidebarLabelStyle}>
                     Control
@@ -294,9 +311,28 @@ export default function EntitySidebar({
                     </div>
                   </>
                 )}
-              </>
+                </>
+              </CopyableArea>
             )}
             {leftTab === 'actions' && (
+              <CopyableArea
+                copyPayload={{
+                  bulkCreate: {
+                    count: bulkCount,
+                    shape: bulkShape,
+                    bodyType: bulkBodyType,
+                    size: sizeMode === 'fixed' ? { mode: 'fixed' as const, value: sizeFixed } : { mode: 'random' as const, min: sizeMin, max: sizeMax },
+                    position: positionMode === 'fixed' ? { mode: 'fixed' as const, x: positionX, y: positionY, z: positionZ } : { mode: 'random' as const, radius: spawnRadius, yMin: spawnYMin, yMax: spawnYMax },
+                    color: colorMode === 'fixed' ? { mode: 'fixed' as const, value: [colorR, colorG, colorB] as Color } : { mode: 'random' as const },
+                    rotation: rotationMode === 'default' ? { mode: 'default' as const } : { mode: 'random' as const },
+                    physics: {
+                      ...(massMode !== 'none' && { mass: massMode === 'fixed' ? { mode: 'fixed' as const, value: massFixed } : { mode: 'random' as const, min: massMin, max: massMax } }),
+                      ...(frictionMode !== 'none' && { friction: frictionMode === 'fixed' ? { mode: 'fixed' as const, value: frictionFixed } : { mode: 'random' as const, min: frictionMin, max: frictionMax } }),
+                      ...(restitutionMode !== 'none' && { restitution: restitutionMode === 'fixed' ? { mode: 'fixed' as const, value: restitutionFixed } : { mode: 'random' as const, min: restitutionMin, max: restitutionMax } }),
+                    },
+                  },
+                }}
+              >
               <div style={{ padding: '0 10px 10px 10px', overflowY: 'auto', maxHeight: 'calc(100vh - 100px)' }}>
                 <h3 style={{ margin: '10px 0', fontSize: 14, color: '#e6e9f2' }}>Bulk Create Entities</h3>
                 
@@ -781,6 +817,7 @@ export default function EntitySidebar({
                   Create {bulkCount} Entities
                 </button>
               </div>
+              </CopyableArea>
             )}
             {leftTab === 'world' && (
               <WorldPanel world={world} onWorldChange={onWorldChange} />

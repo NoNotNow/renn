@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { TransformerConfig } from '@/types/transformer'
+import CopyableArea from './CopyableArea'
 import { fieldLabelStyle } from './sharedStyles'
 
 const baseTextareaStyle: React.CSSProperties = {
@@ -119,8 +120,9 @@ export default function TransformerEditor({
         const enabled = transformer.enabled ?? true
 
         return (
-          <div
+          <CopyableArea
             key={index}
+            copyPayload={transformer}
             style={{
               padding: 8,
               border: '1px solid #2f3545',
@@ -168,7 +170,7 @@ export default function TransformerEditor({
                 disabled={disabled}
               />
             </div>
-          </div>
+          </CopyableArea>
         )
       })}
     </div>

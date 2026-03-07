@@ -138,6 +138,7 @@ export default function PropertyPanel({
       <CollapsibleSection
         title="Entity"
         defaultCollapsed={false}
+        copyPayload={entity}
         trailing={
           <button
             type="button"
@@ -187,7 +188,10 @@ export default function PropertyPanel({
         </label>
       </CollapsibleSection>
 
-      <CollapsibleSection title="Transform">
+      <CollapsibleSection
+        title="Transform"
+        copyPayload={{ position: displayPosition, rotation: displayRotation, scale }}
+      >
         <TransformEditor
           entityId={entity.id}
           position={displayPosition}
@@ -209,7 +213,7 @@ export default function PropertyPanel({
         />
       </CollapsibleSection>
 
-      <CollapsibleSection title="Shape">
+      <CollapsibleSection title="Shape" copyPayload={entity.shape ?? {}}>
         <ShapeEditor
           entityId={entity.id}
           shape={entity.shape}
@@ -241,7 +245,17 @@ export default function PropertyPanel({
         />
       </CollapsibleSection>
 
-      <CollapsibleSection title="Physics">
+      <CollapsibleSection
+        title="Physics"
+        copyPayload={{
+          bodyType: entity.bodyType,
+          mass: entity.mass ?? 1,
+          restitution: entity.restitution ?? 0,
+          friction: entity.friction ?? 0.5,
+          linearDamping: entity.linearDamping ?? 0.3,
+          angularDamping: entity.angularDamping ?? 0.3,
+        }}
+      >
         <PhysicsEditor
           entityId={entity.id}
           bodyType={entity.bodyType}
@@ -260,7 +274,7 @@ export default function PropertyPanel({
         />
       </CollapsibleSection>
 
-      <CollapsibleSection title="Material">
+      <CollapsibleSection title="Material" copyPayload={entity.material ?? {}}>
         <MaterialEditor
           entityId={entity.id}
           material={entity.material}
@@ -278,7 +292,7 @@ export default function PropertyPanel({
       </CollapsibleSection>
 
       {entity.shape?.type !== 'trimesh' && (
-        <CollapsibleSection title="3D Model">
+        <CollapsibleSection title="3D Model" copyPayload={entity.model ?? {}}>
           <ModelEditor
             entityId={entity.id}
             model={entity.model}
@@ -293,7 +307,7 @@ export default function PropertyPanel({
       )}
 
       {entity.transformers && entity.transformers.length > 0 && (
-        <CollapsibleSection title="Transformers">
+        <CollapsibleSection title="Transformers" copyPayload={entity.transformers ?? []}>
           <TransformerEditor
             transformers={entity.transformers}
             onChange={(transformers) => updateEntity({ transformers })}

@@ -4,6 +4,7 @@ import BuilderHeader from '@/components/BuilderHeader'
 import SaveDialog from '@/components/SaveDialog'
 import EntitySidebar from '@/components/EntitySidebar'
 import PropertySidebar from '@/components/PropertySidebar'
+import { CopyProvider } from '@/contexts/CopyContext'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { createDefaultEntity, createBulkEntities, type AddableShapeType, type BulkEntityParams } from '@/data/entityDefaults'
 import { useProjectContext } from '@/hooks/useProjectContext'
@@ -313,8 +314,9 @@ export default function Builder() {
   }, [selectedEntityId, world.entities])
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <BuilderHeader
+    <CopyProvider>
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+        <BuilderHeader
         projects={projects}
         onLeftSidebarToggle={() => setLeftDrawerOpen((prev) => !prev)}
         currentProject={currentProject}
@@ -416,5 +418,6 @@ export default function Builder() {
         />
       </div>
     </div>
+    </CopyProvider>
   )
 }
