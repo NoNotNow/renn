@@ -137,6 +137,10 @@ Fraction of max steer angle applied at max speed (0–1). Lower = softer steerin
 
 Steer multiplier at rest (speed=0). Values > 1 boost low-speed turning (e.g. 1.2 = 20% sharper). Default 1.2. Use 1 for no boost.
 
+#### `minSteerSpeed` — steering at standstill
+
+Minimum effective forward speed (m/s) used when throttle/brake+steer held but car is nearly stationary. Default 0 (steering only applies when car has actual speed). Set > 0 (e.g. 0.5) to allow steering torque at standstill.
+
 #### `lateralGrip` — tire grip
 
 ```

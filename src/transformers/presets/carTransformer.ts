@@ -59,7 +59,7 @@ export interface CarTransformerParams {
   /**
    * Minimum effective forward speed (m/s) used for steering when throttle+steer held
    * but car is nearly stationary. Ensures wheels turn immediately when accelerating.
-   * Default 0.5.
+   * Default 0 (steering only applies when car has actual speed).
    */
   minSteerSpeed?: number
   /**
@@ -86,7 +86,7 @@ const DEFAULT_PARAMS: Required<CarTransformerParams> = {
   handbrakeGripFactor: 0.15,
   handbrakeMultiplier: 3,
   steeringTorqueScale: 40,
-  minSteerSpeed: 0.5,
+  minSteerSpeed: 0,
   highSpeedSteerFactor: 0.35,
   lowSpeedSteerFactor: 1.2,
 }

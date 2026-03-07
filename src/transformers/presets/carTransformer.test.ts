@@ -167,7 +167,7 @@ describe('CarTransformer – steering (bicycle model)', () => {
   })
 
   test('steering torque when throttle+steer held at standstill', () => {
-    const t = new CarTransformer(10, { ...DEFAULT, lateralGrip: 0, engineBrake: 0 })
+    const t = new CarTransformer(10, { ...DEFAULT, lateralGrip: 0, engineBrake: 0, minSteerSpeed: 0.5 })
     const output = t.transform(
       createMockTransformInput({
         actions: { throttle: 1.0, steer_right: 1.0 },
@@ -177,6 +177,18 @@ describe('CarTransformer – steering (bicycle model)', () => {
     )
     expect(output.torque).toBeDefined()
     expect(output.torque![1]).toBeGreaterThan(0) // +Y = turn right
+  })
+
+  test('no steering torque at standstill when minSteerSpeed is 0', () => {
+    const t = new CarTransformer(10, { ...DEFAULT, lateralGrip: 0, engineBrake: 0, minSteerSpeed: 0 })
+    const output = t.transform(
+      createMockTransformInput({
+        actions: { throttle: 1.0, steer_right: 1.0 },
+        velocity: [0, 0, 0],
+      }),
+      0.016,
+    )
+    expect(output.torque).toBeUndefined()
   })
 
   test('steering only affects Y axis (no pitch or roll torque)', () => {
