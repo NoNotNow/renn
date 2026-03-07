@@ -144,7 +144,7 @@ describe('CarTransformer – steering (bicycle model)', () => {
   })
 
   test('steering torque scales with forward speed (bicycle model)', () => {
-    const t = new CarTransformer(10, DEFAULT)
+    const t = new CarTransformer(10, { ...DEFAULT, highSpeedSteerFactor: 1 })
     const slow = t.transform(
       createMockTransformInput({ actions: { steer_right: 1.0 }, velocity: [0, 0, -5] }),
       0.016,
@@ -157,13 +157,26 @@ describe('CarTransformer – steering (bicycle model)', () => {
     expect(Math.abs(fast.torque![1])).toBeGreaterThan(Math.abs(slow.torque![1]))
   })
 
-  test('no steering torque when stationary', () => {
+  test('no steering torque when stationary without throttle or brake', () => {
     const t = new CarTransformer(10, { ...DEFAULT, lateralGrip: 0, engineBrake: 0 })
     const output = t.transform(
       createMockTransformInput({ actions: { steer_right: 1.0 }, velocity: [0, 0, 0] }),
       0.016,
     )
     expect(output.torque).toBeUndefined()
+  })
+
+  test('steering torque when throttle+steer held at standstill', () => {
+    const t = new CarTransformer(10, { ...DEFAULT, lateralGrip: 0, engineBrake: 0 })
+    const output = t.transform(
+      createMockTransformInput({
+        actions: { throttle: 1.0, steer_right: 1.0 },
+        velocity: [0, 0, 0],
+      }),
+      0.016,
+    )
+    expect(output.torque).toBeDefined()
+    expect(output.torque![1]).toBeGreaterThan(0) // +Y = turn right
   })
 
   test('steering only affects Y axis (no pitch or roll torque)', () => {
@@ -182,6 +195,26 @@ describe('CarTransformer – steering (bicycle model)', () => {
     const out1 = t.transform(input, 0.016)
     const out2 = t.transform(input, 0.016)
     expect(out1.torque).toEqual(out2.torque)
+  })
+
+  test('steering is softer at high speed (speed-sensitive reduction)', () => {
+    const withReduction = new CarTransformer(10, DEFAULT)
+    const withoutReduction = new CarTransformer(10, { ...DEFAULT, highSpeedSteerFactor: 1 })
+    const atMax = createMockTransformInput({ actions: { steer_right: 1.0 }, velocity: [0, 0, -25] })
+    const withReductionOut = withReduction.transform(atMax, 0.016)
+    const withoutReductionOut = withoutReduction.transform(atMax, 0.016)
+    // At max speed, default params reduce steer angle → lower torque than with no reduction
+    expect(Math.abs(withReductionOut.torque![1])).toBeLessThan(Math.abs(withoutReductionOut.torque![1]))
+  })
+
+  test('steering is steeper at low speed (low-speed boost)', () => {
+    const withBoost = new CarTransformer(10, DEFAULT)
+    const withoutBoost = new CarTransformer(10, { ...DEFAULT, lowSpeedSteerFactor: 1 })
+    const atLowSpeed = createMockTransformInput({ actions: { steer_right: 1.0 }, velocity: [0, 0, -5] })
+    const withBoostOut = withBoost.transform(atLowSpeed, 0.016)
+    const withoutBoostOut = withoutBoost.transform(atLowSpeed, 0.016)
+    // At low speed, default lowSpeedSteerFactor 1.2 boosts steer → higher torque than with no boost
+    expect(Math.abs(withBoostOut.torque![1])).toBeGreaterThan(Math.abs(withoutBoostOut.torque![1]))
   })
 })
 

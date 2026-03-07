@@ -43,7 +43,7 @@ src/
 | `input` | Maps raw keys/wheel → actions | `inputMapping` (keyboard/wheel bindings) |
 | `airplane` | Flight with thrust/lift/drag | `thrustForce`, `liftCoefficient`, `dragCoefficient`, `pitchSensitivity` |
 | `character` | Ground movement + jump | `walkSpeed`, `jumpForce`, `turnSpeed` |
-| `car` | Vehicle physics (bicycle model) | `maxSpeed`, `acceleration`, `brakeForce`, `engineBrake`, `maxSteerAngle`, `wheelbase`, `lateralGrip`, `handbrakeGripFactor`, `handbrakeMultiplier`, `steeringTorqueScale` |
+| `car` | Vehicle physics (bicycle model) | `maxSpeed`, `acceleration`, `brakeForce`, `engineBrake`, `maxSteerAngle`, `wheelbase`, `lateralGrip`, `handbrakeGripFactor`, `handbrakeMultiplier`, `steeringTorqueScale`, `highSpeedSteerFactor`, `lowSpeedSteerFactor` |
 | `animal` | Wander AI | `wanderRadius`, `speed`, `directionChangeInterval` |
 | `butterfly` | Flutter AI | `flutterFrequency`, `flightHeight`, `flutterForce` |
 | `custom` | Inline JS code | `code` (return `{ force, torque, earlyExit }`) |
@@ -79,7 +79,7 @@ The `car` transformer uses the **bicycle model** (standard in arcade racing game
 - **Throttle**: engine force along the car's forward axis, tapering to zero at `maxSpeed`.
 - **Brake / Reverse**: decelerates when moving forward; switches to reverse when near-stationary.
 - **Engine braking**: gentle deceleration when coasting (no throttle, no brake).
-- **Steering**: front-wheel angle → turning radius → Y-axis torque. Speed-dependent: same angle produces a tighter turn at low speed.
+- **Steering**: front-wheel angle → turning radius → Y-axis torque. Speed-dependent: at low speed, `lowSpeedSteerFactor` (default 1.2) boosts steering for tighter turns; at high speed, `highSpeedSteerFactor` (default 0.35) reduces steer angle for softer turns.
 - **Lateral grip**: counter-force opposing sideways velocity keeps the car tracking its heading.
 - **Handbrake**: strong braking + reduced lateral grip for drifting (Space or Shift).
 
@@ -128,6 +128,14 @@ I_y (box) = mass × (width² + depth²) / 12
 | 12   | 2×1×4         | 0.3            | 20   | 25–35               |
 | 12   | 2×1×4         | 2.0            | 20   | 60–80               |
 | 30   | 2.5×1×5       | 0.3            | 78   | 80–120              |
+
+#### `highSpeedSteerFactor` — softer steering at high speed
+
+Fraction of max steer angle applied at max speed (0–1). Lower = softer steering. Default 0.35. Use 1 to disable (full steering at all speeds).
+
+#### `lowSpeedSteerFactor` — steeper turning when slow
+
+Steer multiplier at rest (speed=0). Values > 1 boost low-speed turning (e.g. 1.2 = 20% sharper). Default 1.2. Use 1 for no boost.
 
 #### `lateralGrip` — tire grip
 

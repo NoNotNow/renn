@@ -74,6 +74,7 @@ export const sampleWorld: RennWorld = {
             acceleration: 10000,
             steeringTorqueScale: 180,
             handbrakeMultiplier: 3,
+            minSteerSpeed: 3,
           },
         },
       ],

@@ -56,11 +56,28 @@ export interface CarTransformerParams {
    * Tune alongside the entity's angularDamping. Default 40.
    */
   steeringTorqueScale?: number
+  /**
+   * Minimum effective forward speed (m/s) used for steering when throttle+steer held
+   * but car is nearly stationary. Ensures wheels turn immediately when accelerating.
+   * Default 0.5.
+   */
+  minSteerSpeed?: number
+  /**
+   * Fraction of max steer angle applied at max speed (0–1).
+   * Lower = softer steering at high speed. Default 0.35.
+   */
+  highSpeedSteerFactor?: number
+  /**
+   * Steer multiplier at rest (speed=0). Values > 1 boost low-speed turning.
+   * Default 1.2. Use 1 for no boost.
+   */
+  lowSpeedSteerFactor?: number
 }
 
 const DEFAULT_PARAMS: Required<CarTransformerParams> = {
   maxSpeed: 25,
   acceleration: 200,
+  timeToMaxSpeed: undefined!,
   brakeForce: 400,
   engineBrake: 30,
   maxSteerAngle: 0.5,
@@ -69,6 +86,9 @@ const DEFAULT_PARAMS: Required<CarTransformerParams> = {
   handbrakeGripFactor: 0.15,
   handbrakeMultiplier: 3,
   steeringTorqueScale: 40,
+  minSteerSpeed: 0.5,
+  highSpeedSteerFactor: 0.35,
+  lowSpeedSteerFactor: 1.2,
 }
 
 /** Speed below which the car is considered stationary for reverse logic. */
@@ -77,6 +97,8 @@ const REVERSE_THRESHOLD = 0.5
 export class CarTransformer extends BaseTransformer {
   readonly type = 'car'
   private params: Required<CarTransformerParams>
+  /** Target front-wheel steer angle (radians). Updated each frame from steer input. */
+  private targetSteerAngle = 0
 
   constructor(priority: number = 10, params: CarTransformerParams = {}) {
     super(priority, true)
@@ -99,6 +121,9 @@ export class CarTransformer extends BaseTransformer {
       handbrakeGripFactor,
       handbrakeMultiplier,
       steeringTorqueScale,
+      minSteerSpeed,
+      highSpeedSteerFactor,
+      lowSpeedSteerFactor,
     } = this.params
 
     // Actions
@@ -167,14 +192,28 @@ export class CarTransformer extends BaseTransformer {
 
     // ── 3. Steering (bicycle model) ───────────────────────────────────────────
     const steerInput = steerRight - steerLeft
-    if (Math.abs(steerInput) > 0.001 && Math.abs(forwardSpeed) > 0.1) {
-      const steerAngle = steerInput * maxSteerAngle
-      // turningRadius = wheelbase / tan(steerAngle)
+    // Update target wheel angle each frame regardless of speed
+    this.targetSteerAngle =
+      Math.abs(steerInput) > 0.001 ? steerInput * maxSteerAngle : 0
+
+    if (Math.abs(this.targetSteerAngle) > 0.001) {
+      // Softer at high speed, steeper at low: lerp from lowSpeedSteerFactor at rest to highSpeedSteerFactor at maxSpeed
+      const speedRatio = Math.min(1, Math.abs(forwardSpeed) / maxSpeed)
+      const steerMultiplier =
+        lowSpeedSteerFactor - speedRatio * (lowSpeedSteerFactor - highSpeedSteerFactor)
+      const steerAngle = this.targetSteerAngle * steerMultiplier
       const tanAngle = Math.tan(Math.abs(steerAngle))
       const turningRadius = wheelbase / Math.max(tanAngle, 0.001)
-      // omega = v / r (angular velocity of heading, rad/s)
-      const omega = forwardSpeed / turningRadius
-      // Scale torque to overcome angular damping and reach desired omega
+      // Use minSteerSpeed when throttle/brake+steer held but nearly stationary
+      const effectiveSpeed =
+        Math.abs(forwardSpeed) >= minSteerSpeed
+          ? forwardSpeed
+          : throttle > 0
+            ? minSteerSpeed
+            : brake > 0 && forwardSpeed <= REVERSE_THRESHOLD
+              ? -minSteerSpeed
+              : 0
+      const omega = effectiveSpeed / turningRadius
       steeringTorqueY = Math.sign(steerAngle) * omega * steeringTorqueScale
     }
 
