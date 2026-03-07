@@ -30,6 +30,7 @@ export default function Builder() {
     syncPosesFromScene,
     syncPosesToRefOnly,
     exportProject,
+    copyWorldToClipboard,
     importProject,
     onFileChange,
     handlePlay,
@@ -322,6 +323,7 @@ export default function Builder() {
         onSave={handleSave}
         onSaveAs={handleSaveAs}
         onExport={exportProject}
+        onCopyWorld={copyWorldToClipboard}
         onImport={importProject}
         onOpen={handleOpen}
         onRefresh={refreshProjects}

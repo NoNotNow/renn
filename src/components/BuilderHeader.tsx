@@ -19,6 +19,7 @@ export interface BuilderHeaderProps {
   onSave: () => void
   onSaveAs: () => void
   onExport: () => void
+  onCopyWorld: () => void
   onImport: () => void
   onOpen: (id: string) => void
   onRefresh: () => void
@@ -41,6 +42,7 @@ export default function BuilderHeader({
   onSave,
   onSaveAs,
   onExport,
+  onCopyWorld,
   onImport,
   onOpen,
   onRefresh,
@@ -100,6 +102,11 @@ export default function BuilderHeader({
       type: 'item',
       label: 'Export',
       onClick: onExport,
+    },
+    {
+      type: 'item',
+      label: 'Copy to Clipboard',
+      onClick: onCopyWorld,
     },
     {
       type: 'item',

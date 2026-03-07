@@ -60,6 +60,7 @@ interface ProjectContextActions {
   
   // Export/Import
   exportProject: () => void
+  copyWorldToClipboard: () => void
   importProject: () => void
   onFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void
   fileInputRef: React.RefObject<HTMLInputElement | null>
@@ -352,6 +353,14 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     })
   }, [currentProject.id, world])
   
+  const copyWorldToClipboard = useCallback(() => {
+    uiLogger.click('Builder', 'Copy world to clipboard', { projectId: currentProject.id ?? 'unsaved' })
+    const json = JSON.stringify(world, null, 2)
+    navigator.clipboard.writeText(json).catch(() => {
+      alert('Failed to copy to clipboard')
+    })
+  }, [world, currentProject.id])
+
   const importProject = useCallback(() => {
     uiLogger.click('Builder', 'Import/Upload project - open file dialog')
     fileInputRef.current?.click()
@@ -429,6 +438,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     syncPosesFromScene,
     syncPosesToRefOnly,
     exportProject,
+    copyWorldToClipboard,
     importProject,
     onFileChange,
     fileInputRef,
@@ -457,6 +467,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     syncPosesFromScene,
     syncPosesToRefOnly,
     exportProject,
+    copyWorldToClipboard,
     importProject,
     onFileChange,
     fileInputRef,
