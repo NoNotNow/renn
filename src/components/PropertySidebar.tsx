@@ -1,11 +1,11 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import PropertyPanel from './PropertyPanel'
 import ScriptPanel from './ScriptPanel'
 import AssetPanel from './AssetPanel'
 import type { RennWorld, Vec3, Rotation, Entity } from '@/types/world'
 import { useLocalStorageState } from '@/hooks/useLocalStorageState'
 import { uiLogger } from '@/utils/uiLogger'
-import Sidebar from './layout/Sidebar'
+import Sidebar, { SIDEBAR_MIN_WIDTH } from './layout/Sidebar'
 import { TabIcons } from './TabIcons'
 
 type RightTab = 'properties' | 'scripts' | 'assets'
@@ -48,6 +48,12 @@ export default function PropertySidebar({
   const [rightTab, setRightTab] = useState<RightTab>('properties')
   const [rightSidebarWidth, setRightSidebarWidth] = useLocalStorageState('rightSidebarWidth', 300)
 
+  useEffect(() => {
+    if (rightSidebarWidth < SIDEBAR_MIN_WIDTH) {
+      setRightSidebarWidth(SIDEBAR_MIN_WIDTH)
+    }
+  }, [rightSidebarWidth, setRightSidebarWidth])
+
   const handleTabChange = (tab: string) => {
     uiLogger.click('Builder', 'Switch right panel tab', { tab })
     setRightTab(tab as RightTab)
@@ -72,10 +78,14 @@ export default function PropertySidebar({
       <div
         style={{
           flex: 1,
-          overflow: rightTab === 'scripts' ? 'visible' : 'auto',
           minHeight: 200,
+          minWidth: rightTab === 'scripts' ? SIDEBAR_MIN_WIDTH : undefined,
+          overflow: rightTab === 'scripts' ? 'visible' : 'auto',
+          display: 'flex',
+          flexDirection: 'column',
         }}
       >
+        <div style={{ flex: 1, minHeight: 0, width: '100%', minWidth: rightTab === 'scripts' ? SIDEBAR_MIN_WIDTH : 0, display: 'flex', flexDirection: 'column' }}>
         {rightTab === 'properties' && (
           <PropertyPanel
             world={world}
@@ -108,6 +118,7 @@ export default function PropertySidebar({
             onWorldChange={onWorldChange}
           />
         )}
+        </div>
       </div>
     </Sidebar>
   )

@@ -3,7 +3,7 @@ import { clamp } from '@/utils/numberUtils'
 import { SidebarToggleButton } from '../SidebarToggleButton'
 import SidebarTabs, { type TabConfig } from '../SidebarTabs'
 
-const SIDEBAR_MIN_WIDTH = 200
+export const SIDEBAR_MIN_WIDTH = 280
 const SIDEBAR_MAX_WIDTH = 800
 const RESIZE_THRESHOLD_PX = 5
 
@@ -37,12 +37,14 @@ export default function Sidebar({
   const [isResizing, setIsResizing] = useState(false)
   const resizeRef = useRef<{ startX: number; startWidth: number; resizing: boolean } | null>(null)
 
+  const effectiveWidth = clamp(width, SIDEBAR_MIN_WIDTH, SIDEBAR_MAX_WIDTH)
+
   const handleResizeMouseDown = useCallback(
     (e: React.MouseEvent<HTMLButtonElement>) => {
       if (onWidthChange == null) return
       resizeRef.current = {
         startX: e.clientX,
-        startWidth: width,
+        startWidth: effectiveWidth,
         resizing: false,
       }
       const onMouseMove = (moveEvent: MouseEvent) => {
@@ -72,7 +74,7 @@ export default function Sidebar({
       document.addEventListener('mousemove', onMouseMove)
       document.addEventListener('mouseup', onMouseUp)
     },
-    [isLeft, width, onWidthChange, onToggle]
+    [isLeft, effectiveWidth, onWidthChange, onToggle]
   )
 
   return (
@@ -91,7 +93,8 @@ export default function Sidebar({
     >
       <aside
         style={{
-          width: isOpen ? width : 0,
+          width: isOpen ? effectiveWidth : 0,
+          minWidth: isOpen ? SIDEBAR_MIN_WIDTH : 0,
           [isLeft ? 'borderRight' : 'borderLeft']: '1px solid #2f3545',
           display: 'flex',
           flexDirection: 'column',

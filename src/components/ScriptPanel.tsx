@@ -191,7 +191,7 @@ export default function ScriptPanel({ world, selectedEntityId, onWorldChange }: 
 
   return (
     <CopyableArea copyPayload={copyPayload}>
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', minWidth: 280, minHeight: 0 }}>
       <div style={{ padding: 8, display: 'flex', flexDirection: 'column', gap: 8, borderBottom: '1px solid #2f3545' }}>
         {selectedEntityId ? (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 }}>
@@ -352,7 +352,7 @@ export default function ScriptPanel({ world, selectedEntityId, onWorldChange }: 
         </div>
       )}
 
-      <div style={{ flex: 1, minHeight: 0 }}>
+      <div style={{ flex: 1, minHeight: 200, minWidth: 280, width: '100%', overflow: 'hidden' }}>
         <Editor
           height="100%"
           language="javascript"
