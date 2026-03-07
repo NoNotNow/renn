@@ -18,6 +18,12 @@ export interface GameAPI {
   getUpVector(id: string): [number, number, number] | null
   /** World-space forward direction [x,y,z] (Three.js -Z). */
   getForwardVector(id: string): [number, number, number] | null
+  /** Set entity rotation to identity [0, 0, 0]. */
+  resetRotation(id: string): void
+  /** Add [x, y, z] to entity position. When resetVelocity is true, zeroes linear velocity so the move persists (e.g. under gravity). */
+  addVectorToPosition(id: string, x: number, y: number, z: number, resetVelocity?: boolean): void
+  /** Set entity mesh color (RGB 0–1). */
+  setColor(id: string, r: number, g: number, b: number): void
   applyForce(id: string, x: number, y: number, z: number): void
   applyImpulse(id: string, x: number, y: number, z: number): void
   // Transformer control
@@ -78,6 +84,18 @@ export function createGameAPI(
     },
     getForwardVector(id: string): [number, number, number] | null {
       return getForwardVector(id)
+    },
+    resetRotation(id: string) {
+      const registry = getRenderItemRegistry()
+      if (registry) registry.resetRotation(id)
+    },
+    addVectorToPosition(id: string, x: number, y: number, z: number, resetVelocity?: boolean) {
+      const registry = getRenderItemRegistry()
+      if (registry) registry.addVectorToPosition(id, x, y, z, resetVelocity)
+    },
+    setColor(id: string, r: number, g: number, b: number) {
+      const registry = getRenderItemRegistry()
+      if (registry) registry.setColor(id, r, g, b)
     },
     applyForce(id: string, x: number, y: number, z: number) {
       const physics = getPhysicsWorld()

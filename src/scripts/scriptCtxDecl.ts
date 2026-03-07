@@ -1,21 +1,38 @@
 /**
  * Monaco extraLib declaration strings for script ctx intellisense.
- * Kept in sync with scriptCtx.ts types.
+ * Built from ENTITY_VIEW_METHODS in scriptCtx.ts (single source of truth).
  */
 import type { ScriptEvent } from '@/types/world'
+import { ENTITY_VIEW_METHODS } from './scriptCtx'
 
-const BASE = `
-interface Entity {
+function buildEntityInterface(): string {
+  const methodLines = ENTITY_VIEW_METHODS.map((m) => `  ${m.entityDecl};`).join('\n')
+  return `interface Entity {
   id: string;
   name?: string;
   position?: [number, number, number];
   rotation?: [number, number, number];
   scale?: [number, number, number];
   bodyType?: 'static' | 'dynamic' | 'kinematic';
-  getPosition(): [number, number, number] | null;
-  getRotation(): [number, number, number] | null;
+${methodLines}
+  readonly detect: BoundDetectHelpers;
+}`
 }
-/** Orientation detection (threshold 0.5; optional id = current entity). */
+
+function buildBoundDetectInterface(): string {
+  return `/** Orientation detection bound to one entity (no id param). */
+interface BoundDetectHelpers {
+  isUpsideDown(): boolean;
+  isUpright(): boolean;
+  isLyingOnSide(): boolean;
+  isLyingOnBack(): boolean;
+  isLyingOnFront(): boolean;
+  isTilted(): boolean;
+}`
+}
+
+function buildDetectHelpersInterface(): string {
+  return `/** Orientation detection (threshold 0.5; optional id = current entity). */
 interface DetectHelpers {
   isUpsideDown(id?: string): boolean;
   isUpright(id?: string): boolean;
@@ -23,25 +40,29 @@ interface DetectHelpers {
   isLyingOnBack(id?: string): boolean;
   isLyingOnFront(id?: string): boolean;
   isTilted(id?: string): boolean;
+}`
 }
-interface ScriptCtxBase {
+
+function buildScriptCtxBaseInterface(): string {
+  const methodLines = ENTITY_VIEW_METHODS.map((m) => `  ${m.ctxDecl};`).join('\n')
+  return `interface ScriptCtxBase {
   readonly time: number;
   readonly entity: Entity;
   readonly entities: Entity[];
   readonly detect: DetectHelpers;
   getEntity(id: string): Entity | undefined;
-  getPosition(id?: string): [number, number, number] | null;
-  setPosition(id: string | undefined, x: number, y: number, z: number): void;
-  getRotation(id?: string): [number, number, number] | null;
-  setRotation(id: string | undefined, x: number, y: number, z: number): void;
-  /** World-space up direction [x,y,z] (Y-up). Upside down when .y < -0.5. */
-  getUpVector(id?: string): [number, number, number] | null;
-  applyForce(id: string, x: number, y: number, z: number): void;
-  applyImpulse(id: string, x: number, y: number, z: number): void;
+${methodLines}
   setTransformerEnabled(entityId: string, transformerType: string, enabled: boolean): void;
   setTransformerParam(entityId: string, transformerType: string, paramName: string, value: unknown): void;
   log(...args: unknown[]): void;
+}`
 }
+
+const BASE = `
+${buildEntityInterface()}
+${buildBoundDetectInterface()}
+${buildDetectHelpersInterface()}
+${buildScriptCtxBaseInterface()}
 `
 
 export function ctxDeclFor(event: ScriptEvent): string {

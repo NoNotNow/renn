@@ -421,6 +421,12 @@ export class PhysicsWorld {
     }
   }
 
+  /** Set linear velocity of a body (e.g. zero it after a script-driven position change). */
+  setLinearVelocity(entityId: string, x: number, y: number, z: number): void {
+    const body = this.bodyMap.get(entityId)
+    if (body) body.setLinvel({ x, y, z }, true)
+  }
+
   setLinearDamping(entityId: string, value: number): void {
     const body = this.bodyMap.get(entityId)
     if (body) body.setLinearDamping(value)

@@ -9,6 +9,7 @@ import {
   allocOnCollisionCtx,
   allocOnTimerCtx,
   ZERO_IMPACT,
+  OTHER_REF_SYMBOL,
 } from './scriptCtx'
 
 type HookFn = (ctx: ScriptCtx) => void
@@ -166,7 +167,7 @@ export class ScriptRunner {
     if (!other) return
     const impactData = impact ?? ZERO_IMPACT
     for (const { fn, ctx } of list) {
-      ctx.other = other
+      ;(ctx as Record<symbol, { current: Entity }>)[OTHER_REF_SYMBOL].current = other
       ctx.impact.totalForce[0] = impactData.totalForce[0]
       ctx.impact.totalForce[1] = impactData.totalForce[1]
       ctx.impact.totalForce[2] = impactData.totalForce[2]

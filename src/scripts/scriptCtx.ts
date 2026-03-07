@@ -1,14 +1,61 @@
 /**
  * Script context types and pre-allocation factories.
  * Ctx objects are built once at ScriptRunner construction; only dt/other are mutated at runtime.
+ * Entity-scoped methods are driven by ENTITY_VIEW_METHODS (single source of truth).
  */
 import type { Entity } from '@/types/world'
 import type { GameAPI } from './gameApi'
 
-/** Script-facing entity: serialized Entity plus runtime pose getters (current entity only). */
+/** Descriptor for one entity-scoped method. Drives runtime view, baseCtx delegation, and scriptCtxDecl. */
+export interface EntityViewMethodDescriptor {
+  name: keyof GameAPI
+  /** Number of arguments after id (0 or 3 for x,y,z). */
+  argsAfterId: 0 | 3
+  /** Signature on Entity (no id param). */
+  entityDecl: string
+  /** Signature on ScriptCtxBase (id optional). */
+  ctxDecl: string
+}
+
+/** Single source of truth for entity/other methods. Add new methods here only. */
+export const ENTITY_VIEW_METHODS: EntityViewMethodDescriptor[] = [
+  { name: 'getPosition', argsAfterId: 0, entityDecl: 'getPosition(): [number, number, number] | null', ctxDecl: 'getPosition(id?: string): [number, number, number] | null' },
+  { name: 'getRotation', argsAfterId: 0, entityDecl: 'getRotation(): [number, number, number] | null', ctxDecl: 'getRotation(id?: string): [number, number, number] | null' },
+  { name: 'getUpVector', argsAfterId: 0, entityDecl: 'getUpVector(): [number, number, number] | null', ctxDecl: 'getUpVector(id?: string): [number, number, number] | null' },
+  { name: 'getForwardVector', argsAfterId: 0, entityDecl: 'getForwardVector(): [number, number, number] | null', ctxDecl: 'getForwardVector(id?: string): [number, number, number] | null' },
+  { name: 'setPosition', argsAfterId: 3, entityDecl: 'setPosition(x: number, y: number, z: number): void', ctxDecl: 'setPosition(id: string | undefined, x: number, y: number, z: number): void' },
+  { name: 'setRotation', argsAfterId: 3, entityDecl: 'setRotation(x: number, y: number, z: number): void', ctxDecl: 'setRotation(id: string | undefined, x: number, y: number, z: number): void' },
+  { name: 'resetRotation', argsAfterId: 0, entityDecl: 'resetRotation(): void', ctxDecl: 'resetRotation(id?: string): void' },
+  { name: 'addVectorToPosition', argsAfterId: 3, entityDecl: 'addVectorToPosition(x: number, y: number, z: number, resetVelocity?: boolean): void', ctxDecl: 'addVectorToPosition(id: string | undefined, x: number, y: number, z: number, resetVelocity?: boolean): void' },
+  { name: 'setColor', argsAfterId: 3, entityDecl: 'setColor(r: number, g: number, b: number): void', ctxDecl: 'setColor(id: string | undefined, r: number, g: number, b: number): void' },
+  { name: 'applyForce', argsAfterId: 3, entityDecl: 'applyForce(x: number, y: number, z: number): void', ctxDecl: 'applyForce(id: string, x: number, y: number, z: number): void' },
+  { name: 'applyImpulse', argsAfterId: 3, entityDecl: 'applyImpulse(x: number, y: number, z: number): void', ctxDecl: 'applyImpulse(id: string, x: number, y: number, z: number): void' },
+]
+
+/** Bound detect helpers (no id param; id comes from getId()). */
+export interface BoundDetectHelpers {
+  isUpsideDown(): boolean
+  isUpright(): boolean
+  isLyingOnSide(): boolean
+  isLyingOnBack(): boolean
+  isLyingOnFront(): boolean
+  isTilted(): boolean
+}
+
+/** Script-facing entity: Entity data plus runtime pose/detect methods (current entity only). */
 export interface ScriptEntity extends Entity {
   getPosition(): [number, number, number] | null
   getRotation(): [number, number, number] | null
+  getUpVector(): [number, number, number] | null
+  getForwardVector(): [number, number, number] | null
+  setPosition(x: number, y: number, z: number): void
+  setRotation(x: number, y: number, z: number): void
+  resetRotation(): void
+  addVectorToPosition(x: number, y: number, z: number, resetVelocity?: boolean): void
+  setColor(r: number, g: number, b: number): void
+  applyForce(x: number, y: number, z: number): void
+  applyImpulse(x: number, y: number, z: number): void
+  readonly detect: BoundDetectHelpers
 }
 
 /** Orientation detection helpers. All use threshold 0.5 (and 0.9 for isTilted). Optional id defaults to current entity. */
@@ -32,8 +79,11 @@ export interface ScriptCtxBase {
   setPosition(id: string | undefined, x: number, y: number, z: number): void
   getRotation(id?: string): [number, number, number] | null
   setRotation(id: string | undefined, x: number, y: number, z: number): void
-  /** World-space up direction [x,y,z] (Y-up). Upside down when .y < -0.5. */
   getUpVector(id?: string): [number, number, number] | null
+  getForwardVector(id?: string): [number, number, number] | null
+  resetRotation(id?: string): void
+  addVectorToPosition(id: string | undefined, x: number, y: number, z: number, resetVelocity?: boolean): void
+  setColor(id?: string, r: number, g: number, b: number): void
   applyForce(id: string, x: number, y: number, z: number): void
   applyImpulse(id: string, x: number, y: number, z: number): void
   setTransformerEnabled(entityId: string, transformerType: string, enabled: boolean): void
@@ -62,9 +112,12 @@ export interface CollisionImpact {
   maxForceDirection: [number, number, number]
 }
 
+/** Symbol used by ScriptRunner to set ctx.other's entity ref (no allocation on hot path). */
+export const OTHER_REF_SYMBOL = Symbol('scriptCtxOtherRef')
+
 export interface OnCollisionCtx extends ScriptCtxBase {
   readonly event: 'onCollision'
-  other: Entity
+  other: ScriptEntity
   /** Impact forces for this collision; zeroed when no contact force event. */
   impact: CollisionImpact
 }
@@ -87,48 +140,107 @@ export const ZERO_IMPACT: CollisionImpact = {
 const DETECT_THRESHOLD = 0.5
 const DETECT_TILTED_THRESHOLD = 0.9
 
-function createDetect(game: GameAPI, entity: Entity): DetectHelpers {
+/** Single implementation for detect helpers; getId() supplies entity id. */
+function createDetectForId(game: GameAPI, getId: () => string): DetectHelpers & BoundDetectHelpers {
   return {
     isUpsideDown(id?: string) {
-      const up = game.getUpVector(id ?? entity.id)
+      const up = game.getUpVector(id ?? getId())
       return up !== null && up[1] < -DETECT_THRESHOLD
     },
     isUpright(id?: string) {
-      const up = game.getUpVector(id ?? entity.id)
+      const up = game.getUpVector(id ?? getId())
       return up !== null && up[1] > DETECT_THRESHOLD
     },
     isLyingOnSide(id?: string) {
-      const up = game.getUpVector(id ?? entity.id)
+      const up = game.getUpVector(id ?? getId())
       return up !== null && Math.abs(up[1]) < DETECT_THRESHOLD
     },
     isLyingOnBack(id?: string) {
-      const fwd = game.getForwardVector(id ?? entity.id)
+      const fwd = game.getForwardVector(id ?? getId())
       if (fwd === null) return false
       const backY = -fwd[1]
       return backY < -DETECT_THRESHOLD
     },
     isLyingOnFront(id?: string) {
-      const fwd = game.getForwardVector(id ?? entity.id)
+      const fwd = game.getForwardVector(id ?? getId())
       return fwd !== null && fwd[1] < -DETECT_THRESHOLD
     },
     isTilted(id?: string) {
-      const up = game.getUpVector(id ?? entity.id)
+      const up = game.getUpVector(id ?? getId())
       return up !== null && up[1] < DETECT_TILTED_THRESHOLD
     },
   }
 }
 
-function baseCtx(game: GameAPI, entity: Entity): ScriptCtxBase {
-  const scriptEntity: ScriptEntity = {
-    ...entity,
-    getPosition() {
-      return game.getPosition(entity.id)
+/** Build entity view from method list; getEntityRef() supplies current entity (no allocation). */
+function buildEntityView(game: GameAPI, getEntityRef: () => Entity | null): ScriptEntity {
+  const detect = createDetectForId(game, () => getEntityRef()?.id ?? '') as BoundDetectHelpers
+  const view = {
+    get id() {
+      return getEntityRef()?.id ?? ''
     },
-    getRotation() {
-      return game.getRotation(entity.id)
+    get name() {
+      return getEntityRef()?.name
     },
+    get position() {
+      return getEntityRef()?.position
+    },
+    get rotation() {
+      return getEntityRef()?.rotation
+    },
+    get scale() {
+      return getEntityRef()?.scale
+    },
+    get bodyType() {
+      return getEntityRef()?.bodyType
+    },
+    detect,
+  } as ScriptEntity
+  for (const desc of ENTITY_VIEW_METHODS) {
+    const key = desc.name
+    if (desc.argsAfterId === 0) {
+      (view as Record<string, unknown>)[key] = function () {
+        const e = getEntityRef()
+        if (!e) return null
+        return (game[key] as (id: string) => unknown)(e.id)
+      }
+    } else if (key === 'addVectorToPosition') {
+      (view as Record<string, unknown>)[key] = function (x: number, y: number, z: number, resetVelocity?: boolean) {
+        const e = getEntityRef()
+        if (e) (game.addVectorToPosition)(e.id, x, y, z, resetVelocity)
+      }
+    } else {
+      (view as Record<string, unknown>)[key] = function (x: number, y: number, z: number) {
+        const e = getEntityRef()
+        if (e) (game[key] as (id: string, x: number, y: number, z: number) => void)(e.id, x, y, z)
+      }
+    }
   }
-  const detect = createDetect(game, entity)
+  return view
+}
+
+/** Build ctx delegations from method list (id ?? entity.id). */
+function buildBaseCtxDelegations(game: GameAPI, entity: Entity): Record<string, unknown> {
+  const delegations: Record<string, unknown> = {}
+  for (const desc of ENTITY_VIEW_METHODS) {
+    const key = desc.name
+    if (desc.argsAfterId === 0) {
+      delegations[key] = (id?: string) => (game[key] as (id: string) => unknown)(id ?? entity.id)
+    } else if (key === 'addVectorToPosition') {
+      delegations[key] = (id?: string, x?: number, y?: number, z?: number, resetVelocity?: boolean) =>
+        game.addVectorToPosition(id ?? entity.id, x ?? 0, y ?? 0, z ?? 0, resetVelocity)
+    } else {
+      delegations[key] = (id?: string, x?: number, y?: number, z?: number) =>
+        (game[key] as (id: string, x: number, y: number, z: number) => void)(id ?? entity.id, x ?? 0, y ?? 0, z ?? 0)
+    }
+  }
+  return delegations
+}
+
+function baseCtx(game: GameAPI, entity: Entity): ScriptCtxBase {
+  const scriptEntity = buildEntityView(game, () => entity)
+  const detect = createDetectForId(game, () => entity.id)
+  const delegations = buildBaseCtxDelegations(game, entity)
   return {
     get time() {
       return game.time
@@ -143,17 +255,11 @@ function baseCtx(game: GameAPI, entity: Entity): ScriptCtxBase {
       return detect
     },
     getEntity: (id) => game.getEntity(id),
-    getPosition: (id) => game.getPosition(id ?? entity.id),
-    setPosition: (id, x, y, z) => game.setPosition(id ?? entity.id, x, y, z),
-    getRotation: (id) => game.getRotation(id ?? entity.id),
-    setRotation: (id, x, y, z) => game.setRotation(id ?? entity.id, x, y, z),
-    getUpVector: (id) => game.getUpVector(id ?? entity.id),
-    applyForce: (id, x, y, z) => game.applyForce(id, x, y, z),
-    applyImpulse: (id, x, y, z) => game.applyImpulse(id, x, y, z),
+    ...delegations,
     setTransformerEnabled: (a, b, c) => game.setTransformerEnabled(a, b, c),
     setTransformerParam: (a, b, c, d) => game.setTransformerParam(a, b, c, d),
     log: (...args) => game.log(...args),
-  }
+  } as ScriptCtxBase
 }
 
 export function allocOnSpawnCtx(game: GameAPI, entity: Entity): OnSpawnCtx {
@@ -164,13 +270,16 @@ export function allocOnUpdateCtx(game: GameAPI, entity: Entity): OnUpdateCtx {
   return { ...baseCtx(game, entity), event: 'onUpdate', dt: 0 }
 }
 
-export function allocOnCollisionCtx(game: GameAPI, entity: Entity): OnCollisionCtx {
+export function allocOnCollisionCtx(game: GameAPI, entity: Entity): OnCollisionCtx & { [OTHER_REF_SYMBOL]: { current: Entity } } {
+  const otherRef = { current: entity }
+  const otherView = buildEntityView(game, () => otherRef.current)
   return {
     ...baseCtx(game, entity),
     event: 'onCollision',
-    other: entity,
+    other: otherView,
     impact: { ...ZERO_IMPACT },
-  }
+    [OTHER_REF_SYMBOL]: otherRef,
+  } as OnCollisionCtx & { [OTHER_REF_SYMBOL]: { current: Entity } }
 }
 
 export function allocOnTimerCtx(game: GameAPI, entity: Entity, interval: number): OnTimerCtx {

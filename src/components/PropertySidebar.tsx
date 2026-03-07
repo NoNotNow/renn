@@ -74,6 +74,7 @@ export default function PropertySidebar({
       width={rightSidebarWidth}
       onWidthChange={setRightSidebarWidth}
       toggleLogContext="Toggle right drawer"
+      overflowVisible={rightTab === 'scripts'}
     >
       <div
         style={{
@@ -85,7 +86,7 @@ export default function PropertySidebar({
           flexDirection: 'column',
         }}
       >
-        <div style={{ flex: 1, minHeight: 0, width: '100%', minWidth: rightTab === 'scripts' ? SIDEBAR_MIN_WIDTH : 0, display: 'flex', flexDirection: 'column' }}>
+        <div style={{ flex: 1, minHeight: 0, width: '100%', minWidth: rightTab === 'scripts' ? SIDEBAR_MIN_WIDTH : 0, display: 'flex', flexDirection: 'column', overflow: rightTab === 'scripts' ? 'visible' : undefined }}>
         {rightTab === 'properties' && (
           <PropertyPanel
             world={world}

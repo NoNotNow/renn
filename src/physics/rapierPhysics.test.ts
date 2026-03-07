@@ -149,6 +149,30 @@ describe('PhysicsWorld', () => {
     pw.dispose()
   })
 
+  it('setLinearVelocity sets body linear velocity', () => {
+    const pw = new PhysicsWorld([0, 0, 0])
+    const entity: Entity = {
+      id: 'ball',
+      bodyType: 'dynamic',
+      shape: { type: 'sphere', radius: 0.5 },
+      position: [0, 0, 0],
+    }
+    const mesh = new THREE.Mesh(
+      new THREE.SphereGeometry(0.5),
+      new THREE.MeshBasicMaterial()
+    )
+    pw.addEntity(entity, mesh)
+    pw.applyImpulse('ball', 1, 2, 3)
+    const before = pw.getBody('ball')?.linvel()
+    expect(before?.x).not.toBe(0)
+    pw.setLinearVelocity('ball', 0, 0, 0)
+    const after = pw.getBody('ball')?.linvel()
+    expect(after?.x).toBe(0)
+    expect(after?.y).toBe(0)
+    expect(after?.z).toBe(0)
+    pw.dispose()
+  })
+
   it('applies impulse to dynamic body', () => {
     const pw = new PhysicsWorld([0, 0, 0]) // No gravity for this test
     const entity: Entity = {

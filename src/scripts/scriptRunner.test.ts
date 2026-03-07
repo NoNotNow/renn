@@ -18,6 +18,9 @@ function createMockGameAPI(overrides?: Partial<GameAPI>): GameAPI {
     setRotation: vi.fn(),
     getUpVector: vi.fn().mockReturnValue(null),
     getForwardVector: vi.fn().mockReturnValue(null),
+    resetRotation: vi.fn(),
+    addVectorToPosition: vi.fn(),
+    setColor: vi.fn(),
     applyForce: vi.fn(),
     applyImpulse: vi.fn(),
     setTransformerEnabled: vi.fn(),
@@ -371,5 +374,79 @@ describe('ScriptRunner', () => {
     expect(game.getRotation).toHaveBeenCalledWith('player')
     expect(game.getPosition).toHaveBeenCalledTimes(2)
     expect(game.getRotation).toHaveBeenCalledTimes(2)
+  })
+
+  it('ctx.other has same API as ctx.entity (getPosition, getUpVector, detect.isUpright)', () => {
+    const world = createMockWorld({
+      entities: [
+        { id: 'player', scripts: ['collScript'] },
+        { id: 'enemy' },
+      ],
+      scripts: {
+        collScript: {
+          event: 'onCollision',
+          source: `
+            ctx.other.getPosition();
+            ctx.other.getUpVector();
+            ctx.other.detect.isUpright();
+          `,
+        },
+      },
+    })
+    world.entities = world.entities ?? []
+    const game = createMockGameAPI()
+    const getMeshById = vi.fn()
+    const entities = createLoadedEntities(world)
+    const runner = new ScriptRunner(world, game, getMeshById, entities)
+    runner.runOnCollision('player', 'enemy')
+    expect(game.getPosition).toHaveBeenCalledWith('enemy')
+    expect(game.getUpVector).toHaveBeenCalledWith('enemy')
+    // getUpVector called once by ctx.other.getUpVector(), once by ctx.other.detect.isUpright()
+    expect(game.getUpVector).toHaveBeenCalledTimes(2)
+  })
+
+  it('ctx.setColor and ctx.other.setColor call game.setColor with correct args', () => {
+    const world = createMockWorld({
+      entities: [
+        { id: 'player', scripts: ['colorScript'] },
+        { id: 'enemy' },
+      ],
+      scripts: {
+        colorScript: {
+          event: 'onCollision',
+          source: `
+            ctx.setColor(ctx.entity.id, 1, 0, 0);
+            ctx.other.setColor(0, 1, 0);
+          `,
+        },
+      },
+    })
+    world.entities = world.entities ?? []
+    const game = createMockGameAPI()
+    const getMeshById = vi.fn()
+    const entities = createLoadedEntities(world)
+    const runner = new ScriptRunner(world, game, getMeshById, entities)
+    runner.runOnCollision('player', 'enemy')
+    expect(game.setColor).toHaveBeenCalledWith('player', 1, 0, 0)
+    expect(game.setColor).toHaveBeenCalledWith('enemy', 0, 1, 0)
+  })
+
+  it('ctx.addVectorToPosition with resetVelocity true passes 5th arg to game', () => {
+    const world = createMockWorld({
+      entities: [{ id: 'player', scripts: ['moveScript'] }],
+      scripts: {
+        moveScript: {
+          event: 'onUpdate',
+          source: 'ctx.addVectorToPosition(undefined, 10, 20, 30, true)',
+        },
+      },
+    })
+    world.entities = world.entities ?? []
+    const game = createMockGameAPI()
+    const getMeshById = vi.fn()
+    const entities = createLoadedEntities(world)
+    const runner = new ScriptRunner(world, game, getMeshById, entities)
+    runner.runOnUpdate(0.016)
+    expect(game.addVectorToPosition).toHaveBeenCalledWith('player', 10, 20, 30, true)
   })
 })

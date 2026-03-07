@@ -26,13 +26,21 @@ Scripting lets users run JavaScript in the play runtime. Scripts are **event-bou
 ### Runtime (Play)
 
 - **ScriptRunner** (`src/scripts/scriptRunner.ts`): Compiles each script **once** (via `Function` constructor with validation). Wraps user source as `(function(ctx) { ... })`. Pre-builds **one ctx per (entity, event)** at construction; hot paths only mutate `ctx.dt` / `ctx.other` / `ctx.impact` / timer `elapsed` — **no per-frame allocation**. Uses pre-built lists/maps and `entityMap` for O(1) lookups.
-- **Script context** (`src/scripts/scriptCtx.ts`): `ScriptCtxBase` (time, entity, entities, getPosition, setPosition, getRotation, setRotation, applyForce, applyImpulse, setTransformerEnabled, setTransformerParam, log). Event-specific: `OnUpdateCtx.dt`, `OnCollisionCtx.other` and `OnCollisionCtx.impact` (who you collided with and contact forces), `OnTimerCtx.interval`. Factories: `allocOnSpawnCtx`, `allocOnUpdateCtx`, `allocOnCollisionCtx`, `allocOnTimerCtx`. The script-facing `ctx.entity` is a wrapper that includes runtime pose getters (see below).
+- **Script context** (`src/scripts/scriptCtx.ts`): `ScriptCtxBase` (time, entity, entities, getPosition, setPosition, getRotation, setRotation, getUpVector, getForwardVector, resetRotation, addVectorToPosition, applyForce, applyImpulse, setTransformerEnabled, setTransformerParam, log). Entity-scoped methods are driven by **`ENTITY_VIEW_METHODS`** (single source of truth); `buildEntityView` and `buildBaseCtxDelegations` build the runtime from that list (no duplication). Event-specific: `OnUpdateCtx.dt`, `OnCollisionCtx.other` (ScriptEntity view, same API as `ctx.entity`) and `OnCollisionCtx.impact`, `OnTimerCtx.interval`. Factories: `allocOnSpawnCtx`, `allocOnUpdateCtx`, `allocOnCollisionCtx`, `allocOnTimerCtx`. Detect helpers use **`createDetectForId(game, getId)`** (one implementation for ctx.detect and entity/other.detect).
 - **Game API** (`src/scripts/gameApi.ts`): Backing for ctx methods; ScriptRunner receives `GameAPI` and builds ctx from it.
 
 **Pose APIs and current entity**
 
 - **`getPosition(id?)`, `setPosition(id?, x, y, z)`, `getRotation(id?)`, `setRotation(id?, x, y, z)`**: When `id` is omitted, the **current entity** (the entity this script is attached to) is used. Example: `ctx.getPosition()` is equivalent to `ctx.getPosition(ctx.entity.id)`.
-- **`ctx.entity`**: In addition to `id`, `name`, `position`, `rotation`, etc. (from the world data), the script-facing entity exposes **`getPosition()`** and **`getRotation()`** that return the **runtime** position and rotation (Euler `[x, y, z]` in radians) of the current entity from the physics/registry layer. Use these when you want the live pose without passing an id (e.g. `ctx.entity.getPosition()`, `ctx.entity.getRotation()`).
+- **`ctx.entity`**: In addition to `id`, `name`, `position`, `rotation`, etc. (from the world data), the script-facing entity exposes **`getPosition()`**, **`getRotation()`**, **`getUpVector()`**, **`getForwardVector()`**, **`resetRotation()`**, **`addVectorToPosition(x, y, z, resetVelocity?)`**, **`setColor(r, g, b)`**, **`applyForce(x, y, z)`**, **`applyImpulse(x, y, z)`**, and **`detect`** (e.g. `ctx.entity.detect.isUpright()`) — all bound to the current entity (no id param). Use these when you want the live pose or orientation without passing an id.
+
+- **`ctx.other`** (onCollision only): The other entity in the collision. Has the **same API as `ctx.entity`**: `getPosition()`, `getRotation()`, `getUpVector()`, `getForwardVector()`, `resetRotation()`, `addVectorToPosition(x, y, z, resetVelocity?)`, `setColor(r, g, b)`, `applyForce(x, y, z)`, `applyImpulse(x, y, z)`, and `detect.isUpright()` / `isUpsideDown()` / etc. Example: `ctx.other.getPosition()`, `ctx.other.detect.isUpright()`, `ctx.other.setColor(1, 0, 0)`. The runtime uses a pre-allocated view and only updates an internal ref (no allocation on the hot path).
+
+- **`ctx` root**: Same methods with optional **`id?`** (default: current entity): `getPosition(id?)`, `getRotation(id?)`, `getUpVector(id?)`, `getForwardVector(id?)`, **`resetRotation(id?)`**, **`addVectorToPosition(id?, x, y, z, resetVelocity?)`**, **`setColor(id?, r, g, b)`**, `setPosition(id?, x, y, z)`, `setRotation(id?, x, y, z)`, `applyForce(id, x, y, z)`, `applyImpulse(id, x, y, z)`.
+
+- **`addVectorToPosition(..., resetVelocity?)`**: When **`resetVelocity`** is `true`, the entity's linear velocity is set to zero after the position change. Use this so the displacement persists (e.g. a dynamic body under gravity won't immediately fall back). Example: `ctx.other.addVectorToPosition(50, 50, 50, true)`.
+
+- **`setColor(id?, r, g, b)`**: Set the entity's mesh color (RGB in 0–1). Sync; only updates existing material color. Example: `ctx.entity.setColor(1, 0, 0)` for red, `ctx.setColor(ctx.other.id, 0, 1, 0)` for green on the other entity.
 
 **Orientation detection (`ctx.detect`):** Use **`ctx.detect`** for reliable orientation checks (world +Y up, -Z forward). All methods take optional **`id?`** (default: current entity) and return **`boolean`**. Threshold 0.5 (0.9 for `isTilted`). Do not compare raw Euler components.
 
@@ -51,7 +59,7 @@ Example: `if (ctx.detect.isUpsideDown()) { ctx.log('Flipped!') }`. See `directio
   - **onSpawn**: Once per entity after load; pre-built list per entity.
   - **onUpdate**: Every frame; iterates `onUpdateEntries`, sets `ctx.dt`, calls hook.
   - **onTimer**: Same loop; `elapsed += dt`, fire when `elapsed >= interval`, then `elapsed -= interval`.
-  - **onCollision**: O(1) lookup; set `ctx.other` (the other entity) and `ctx.impact` (contact forces from Rapier: `totalForce`, `totalForceMagnitude`, `maxForceMagnitude`, `maxForceDirection`); then call hook. Impact is zeroed when no contact force event for that pair in the same step.
+  - **onCollision**: O(1) lookup; set the internal ref for `ctx.other` (pre-allocated ScriptEntity view) to the other entity and `ctx.impact` (contact forces from Rapier); then call hook. No allocation on hot path. Impact is zeroed when no contact force event for that pair in the same step.
 
 ### Migration
 

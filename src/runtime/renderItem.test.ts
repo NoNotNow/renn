@@ -148,6 +148,17 @@ describe('RenderItemRegistry', () => {
     expect(poses.get('e2')).toEqual({ position: [4, 5, 6], rotation: [0, 1, 0] })
   })
 
+  it('setColor updates mesh material color', () => {
+    const mat = new THREE.MeshBasicMaterial({ color: 0x808080 })
+    const entity: Entity = { id: 'e', position: [0, 0, 0] }
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), mat)
+    const registry = RenderItemRegistry.create([{ entity, mesh }], null)
+    registry.setColor('e', 1, 0, 0)
+    expect(mat.color.r).toBe(1)
+    expect(mat.color.g).toBe(0)
+    expect(mat.color.b).toBe(0)
+  })
+
   it('clear removes all items', () => {
     const entity: Entity = { id: 'e', position: [0, 0, 0] }
     const mesh = new THREE.Mesh(

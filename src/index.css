@@ -39,6 +39,11 @@ input, select, textarea {
   border-radius: 6px;
 }
 
+/* Script editor: allow IntelliSense dropdown to extend outside the editor area */
+.script-editor-container .overflow-guard {
+  overflow: visible !important;
+}
+
 /* Override Cursor search highlight on menu header */
 header .cursor-search-highlight,
 header .cursor-search-highlight-current {

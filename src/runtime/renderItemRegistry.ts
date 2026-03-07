@@ -19,6 +19,8 @@ export class RenderItemRegistry {
   private items = new Map<string, RenderItem>()
   private physicsWorld: PhysicsWorld | null = null
   private rawInputGetter: (() => RawInput | null) | null = null
+  /** Reused buffer for addVectorToPosition to avoid allocation on hot path. */
+  private _addVecBuf: Vec3 = [0, 0, 0]
 
   /**
    * Build registry from loaded entities and physics world. Call after
@@ -121,6 +123,49 @@ export class RenderItemRegistry {
 
   setRotation(id: string, v: Rotation): void {
     this.items.get(id)?.setRotation(v)
+  }
+
+  /** Set entity rotation to identity [0, 0, 0] (Euler radians). */
+  resetRotation(id: string): void {
+    this.setRotation(id, [0, 0, 0])
+  }
+
+  /** Add a vector to the entity position. Uses internal buffer to avoid allocation. When resetVelocity is true, zeroes linear velocity so the move persists (e.g. under gravity). */
+  addVectorToPosition(id: string, x: number, y: number, z: number, resetVelocity?: boolean): void {
+    const pos = this.getPosition(id)
+    if (!pos) return
+    this._addVecBuf[0] = pos[0] + x
+    this._addVecBuf[1] = pos[1] + y
+    this._addVecBuf[2] = pos[2] + z
+    this.setPosition(id, this._addVecBuf)
+    if (resetVelocity && this.physicsWorld) {
+      this.physicsWorld.setLinearVelocity(id, 0, 0, 0)
+    }
+  }
+
+  /** Set mesh color (RGB 0–1). Sync; only updates material.color on existing materials. */
+  setColor(id: string, r: number, g: number, b: number): void {
+    const item = this.items.get(id)
+    if (!item) return
+    const mesh = item.mesh
+    const setColorOn = (mat: THREE.Material) => {
+      if ('color' in mat && mat.color instanceof THREE.Color) {
+        mat.color.setRGB(r, g, b)
+      }
+    }
+    if (mesh.userData.usesModel === true || mesh.userData.isTrimeshSource === true) {
+      mesh.traverse((child) => {
+        if (child instanceof THREE.Mesh && child.material) {
+          const mats = Array.isArray(child.material) ? child.material : [child.material]
+          mats.forEach(setColorOn)
+        }
+      })
+    } else {
+      if (mesh.material) {
+        const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+        mats.forEach(setColorOn)
+      }
+    }
   }
 
   /**

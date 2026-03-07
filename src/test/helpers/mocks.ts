@@ -15,6 +15,9 @@ export function createMockGameAPI(): GameAPI {
     setRotation: vi.fn(),
     getUpVector: vi.fn().mockReturnValue(null),
     getForwardVector: vi.fn().mockReturnValue(null),
+    resetRotation: vi.fn(),
+    addVectorToPosition: vi.fn(),
+    setColor: vi.fn(),
     applyForce: vi.fn(),
     applyImpulse: vi.fn(),
   } as unknown as GameAPI

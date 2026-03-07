@@ -19,6 +19,8 @@ export interface SidebarProps {
   toggleLogContext: string
   /** When set, the toggle button also acts as a resize handle and this is called with the new width. */
   onWidthChange?: (width: number) => void
+  /** When true, aside uses overflow: visible so content (e.g. Monaco IntelliSense) is not clipped. */
+  overflowVisible?: boolean
 }
 
 export default function Sidebar({
@@ -32,6 +34,7 @@ export default function Sidebar({
   width = 240,
   toggleLogContext,
   onWidthChange,
+  overflowVisible = false,
 }: SidebarProps) {
   const isLeft = side === 'left'
   const [isResizing, setIsResizing] = useState(false)
@@ -99,7 +102,7 @@ export default function Sidebar({
           display: 'flex',
           flexDirection: 'column',
           minHeight: 0,
-          overflow: isOpen ? 'auto' : 'hidden',
+          overflow: isOpen ? (overflowVisible ? 'visible' : 'auto') : 'hidden',
           transition: isResizing ? 'none' : 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1), padding 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
           backgroundColor: 'rgba(27, 31, 42, 0.7)',
           boxShadow: isOpen ? `${isLeft ? '2' : '-2'}px 0 12px rgba(0,0,0,0.45)` : 'none',
