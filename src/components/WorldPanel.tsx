@@ -2,6 +2,7 @@ import type { RennWorld, Vec3, Color, MaterialRef } from '@/types/world'
 import { DEFAULT_GRAVITY, DEFAULT_SCALE } from '@/types/world'
 import { uiLogger } from '@/utils/uiLogger'
 import { colorToHex, hexToColor } from '@/utils/colorUtils'
+import { directionToSpherical, sphericalToDirection } from '@/utils/lightUtils'
 import CopyableArea from './CopyableArea'
 import Vec3Field from './Vec3Field'
 import NumberInput from './form/NumberInput'
@@ -17,7 +18,12 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
   // Convert Vec3 gravity to single positive number (magnitude of Y)
   const gravityValue = Math.abs(gravity[1])
   const skyColor: Vec3 = world.world.skyColor ?? [0.4, 0.6, 0.9]
-  
+  const dirDirection: Vec3 = world.world.directionalLight?.direction ?? [1, 2, 1]
+  const dirColor: Vec3 = (world.world.directionalLight?.color?.slice(0, 3) as Vec3) ?? [1, 0.98, 0.9]
+  const dirIntensity = world.world.directionalLight?.intensity ?? 1.2
+  const ambientColor: Vec3 = (world.world.ambientLight?.slice(0, 3) as Vec3) ?? [0.3, 0.3, 0.35]
+  const { azimuth, elevation } = directionToSpherical(dirDirection)
+
   // Find the first plane entity (ground)
   const groundEntity = world.entities.find((e) => e.shape?.type === 'plane')
   const groundColor: Vec3 = groundEntity?.material?.color 
@@ -47,6 +53,24 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
   const updateSkyColor = (newColor: Vec3) => {
     uiLogger.change('WorldPanel', 'Change sky color', { oldValue: skyColor, newValue: newColor })
     updateWorldSettings({ skyColor: newColor })
+  }
+
+  const updateDirectionalLight = (patch: { direction?: Vec3; color?: Vec3; intensity?: number }) => {
+    const current = world.world.directionalLight ?? {}
+    const next = { ...current, ...patch }
+    uiLogger.change('WorldPanel', 'Change directional light', { oldValue: current, newValue: next })
+    updateWorldSettings({ directionalLight: next })
+  }
+
+  const updateLightAngle = (azimuthDeg: number, elevationDeg: number) => {
+    const clampedEl = Math.max(0, Math.min(90, elevationDeg))
+    const newDirection = sphericalToDirection(azimuthDeg % 360, clampedEl)
+    updateDirectionalLight({ direction: newDirection })
+  }
+
+  const updateAmbientLight = (newColor: Vec3) => {
+    uiLogger.change('WorldPanel', 'Change ambient light', { oldValue: ambientColor, newValue: newColor })
+    updateWorldSettings({ ambientLight: newColor })
   }
 
   const updateGroundColor = (newColor: Vec3) => {
@@ -141,6 +165,8 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
   }
 
   const skyColorHex = colorToHex(skyColor)
+  const dirColorHex = colorToHex(dirColor)
+  const ambientColorHex = colorToHex(ambientColor)
   const groundColorHex = colorToHex(groundColor)
 
   const copyPayload = {
@@ -202,6 +228,100 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
             <span style={{ fontSize: 12, color: '#9aa4b2' }}>
               {skyColor.map((c) => c.toFixed(2)).join(', ')}
             </span>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ ...sectionStyle, marginTop: 12 }}>
+        <div style={sectionTitleStyle}>Light</div>
+        <div style={{ marginTop: 8 }}>
+          <div style={{ ...sectionTitleStyle, fontSize: 11 }}>Directional</div>
+          <NumberInput
+            id="light-azimuth"
+            label="Azimuth (deg)"
+            value={Math.round(azimuth * 10) / 10}
+            onChange={(v) => updateLightAngle(v, elevation)}
+            min={0}
+            max={360}
+            step={1}
+            defaultValue={45}
+            logComponent="WorldPanel"
+          />
+          <NumberInput
+            id="light-elevation"
+            label="Elevation (deg)"
+            value={Math.round(elevation * 10) / 10}
+            onChange={(v) => updateLightAngle(azimuth, v)}
+            min={0}
+            max={90}
+            step={1}
+            defaultValue={55}
+            logComponent="WorldPanel"
+          />
+          <div style={sidebarRowStyle}>
+            <label htmlFor="dir-light-color" style={sidebarLabelStyle}>
+              Color
+            </label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <input
+                id="dir-light-color"
+                type="color"
+                value={dirColorHex}
+                onChange={(e) => updateDirectionalLight({ color: hexToColor(e.target.value) })}
+                aria-label="Directional light color"
+                style={{
+                  width: 28,
+                  height: 22,
+                  padding: 0,
+                  borderRadius: 4,
+                  border: '1px solid #2f3545',
+                  background: 'transparent',
+                  cursor: 'pointer',
+                }}
+              />
+              <span style={{ fontSize: 12, color: '#9aa4b2' }}>
+                {dirColor.map((c) => c.toFixed(2)).join(', ')}
+              </span>
+            </div>
+          </div>
+          <NumberInput
+            id="light-intensity"
+            label="Intensity"
+            value={dirIntensity}
+            onChange={(v) => updateDirectionalLight({ intensity: v })}
+            min={0}
+            step={0.1}
+            defaultValue={1.2}
+            logComponent="WorldPanel"
+          />
+        </div>
+        <div style={{ marginTop: 12 }}>
+          <div style={{ ...sectionTitleStyle, fontSize: 11 }}>Ambient</div>
+          <div style={sidebarRowStyle}>
+            <label htmlFor="ambient-light-color" style={sidebarLabelStyle}>
+              Color
+            </label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <input
+                id="ambient-light-color"
+                type="color"
+                value={ambientColorHex}
+                onChange={(e) => updateAmbientLight(hexToColor(e.target.value))}
+                aria-label="Ambient light color"
+                style={{
+                  width: 28,
+                  height: 22,
+                  padding: 0,
+                  borderRadius: 4,
+                  border: '1px solid #2f3545',
+                  background: 'transparent',
+                  cursor: 'pointer',
+                }}
+              />
+              <span style={{ fontSize: 12, color: '#9aa4b2' }}>
+                {ambientColor.map((c) => c.toFixed(2)).join(', ')}
+              </span>
+            </div>
           </div>
         </div>
       </div>
