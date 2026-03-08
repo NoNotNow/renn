@@ -133,6 +133,9 @@ export interface TransformOutput {
   /** Optional mesh color override [r,g,b] 0–1. Applied by the render loop for display feedback. */
   color?: Vec3
 
+  /** If set, add this delta to current body rotation (Euler [x,y,z] rad). Default undefined so other transformers are unaffected. */
+  addRotation?: Rotation | null
+
   /** If true, stop the chain after this transformer. */
   earlyExit?: boolean
 }

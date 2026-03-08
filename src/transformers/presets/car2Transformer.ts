@@ -1,14 +1,18 @@
 /**
  * CarTransformer2: input-to-color feedback. Maps WASD + handbrake actions
- * to RGB colors and blends them when multiple keys are pressed.
- * No physics output — display feedback only.
+ * to RGB colors and blends them. Outputs impulse and addRotation for precise
+ * steering (friction makes torque-based steering imprecise).
  */
 
 import { BaseTransformer } from '../transformer'
 import type { TransformInput, TransformOutput } from '@/types/transformer'
 import type { Vec3 } from '@/types/world'
 import { clamp } from '@/utils/numberUtils'
-import { computeSteeringTorqueMagnitude, getForwardSpeed, scaleVec3 } from '@/utils/vec3'
+import { eulerDeltaAroundAxis } from '@/utils/rotationUtils'
+import { getForwardSpeed as getForwardSpeedUtil, scaleVec3 } from '@/utils/vec3'
+
+/** Steering: how much yaw per unit distance per unit wheel angle (radians per metre). */
+const STEER_RATE = 0.1
 
 const ACTION_COLORS: Record<string, [number, number, number]> = {
   throttle: [0.2, 0.9, 0.2],
@@ -28,34 +32,41 @@ export class CarTransformer2 extends BaseTransformer {
   
   
   transform(input: TransformInput, deltaTime: number): TransformOutput {
-    this.calculateWheelAngle(input);
+    this.calculateWheelAngle(input)
 
-    const forwardVector= this.getForwardVector(input.rotation)
+    const forwardVector = this.getForwardVector(input.rotation)
     const color = this.setColors(input)
-    const impulse = this.setImpulse(input, deltaTime, forwardVector )
-    const torque: Vec3 = this.setTorque(input, forwardVector)
+    const impulse = this.setImpulse(input, deltaTime, forwardVector)
+    const rotationDelta = this.getRotationDelta(input, deltaTime, this.wheelAngle)
+    const addRotation = rotationDelta;
     return {
       color,
       impulse,
-      torque,
+      addRotation,
       earlyExit: false,
     }
   }
 
-  private setTorque(input: TransformInput, forwardVector: Vec3): Vec3 {
-    const speed = getForwardSpeed(input.velocity, forwardVector)
-    const magnitude = computeSteeringTorqueMagnitude(speed, this.wheelAngle)
+  private getRotationDelta(input: TransformInput, deltaTime: number, wheelAngle: number): Vec3|undefined {
+    if(wheelAngle === 0) return undefined;
+    const forwardDistance = this.getForwardSpeed(input) * deltaTime
     const upVector = this.getUpVector(input.rotation)
-    return scaleVec3(upVector, magnitude)
+    const angleRad = forwardDistance * wheelAngle * STEER_RATE
+    return eulerDeltaAroundAxis(input.rotation, upVector, angleRad)
+  }
+
+  private getForwardSpeed(input: TransformInput): number {
+    const forward = this.getForwardVector(input.rotation)
+    return getForwardSpeedUtil(input.velocity, forward)
   }
 
   private setImpulse(input: TransformInput, _dt: number, forwardVector:Vec3): Vec3 {
     const forward = this.getAction(input, 'throttle');
     const backward = this.getAction(input, 'brake');
     const gasBreakInput = forward  - backward;
-    const gasBreakForce = scaleVec3(forwardVector, 200 * gasBreakInput);
+    const gasBreakForce = scaleVec3(forwardVector, 400 * gasBreakInput);
     const sideSpeed =  this.getSidewaysVelocity(input.velocity, forwardVector); //normalize velocity by only keeping sideWays force
-    const sideForce = scaleVec3(sideSpeed, -100); // cap this at tire sliding force
+    const sideForce = scaleVec3(sideSpeed, -100); // todo cap this at tire sliding force
     return this.addVec3(gasBreakForce, sideForce);
   }
 
@@ -79,12 +90,6 @@ export class CarTransformer2 extends BaseTransformer {
     return color;
   }
 
-
-
-
-
-
-
   private calculateWheelAngle(input:TransformInput){
     const factor = .01;
     const left = this.getAction(input, 'steer_left');
@@ -97,9 +102,12 @@ export class CarTransformer2 extends BaseTransformer {
       if(this.wheelAngle > 0) force = -1;
       else if(this.wheelAngle < 0) force = 1;
 
+
     }
     this.wheelAngle +=  force * factor;
     this.wheelAngle = clamp(this.wheelAngle, -1, 1);
+    //set to 0 when close
+    if(this.wheelAngle < factor && this.wheelAngle > -factor)  this.wheelAngle = 0;
 
 
   }

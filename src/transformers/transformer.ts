@@ -177,6 +177,11 @@ export class TransformerChain {
         accumulated.color = output.color
       }
 
+      // addRotation: last transformer wins
+      if (output.addRotation != null) {
+        accumulated.addRotation = output.addRotation
+      }
+
       // Early exit?
       if (output.earlyExit) {
         accumulated.earlyExit = true
@@ -201,8 +206,12 @@ export class TransformerChain {
       accumulated.torque![2] === 0 &&
       !accumulated.earlyExit
     ) {
-      if (accumulated.color) {
-        return { ...EMPTY_TRANSFORM_OUTPUT, color: accumulated.color }
+      if (accumulated.color ?? accumulated.addRotation != null) {
+        return {
+          ...EMPTY_TRANSFORM_OUTPUT,
+          color: accumulated.color,
+          addRotation: accumulated.addRotation,
+        }
       }
       return EMPTY_TRANSFORM_OUTPUT
     }

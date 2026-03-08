@@ -351,6 +351,15 @@ export class RenderItemRegistry {
       if (output.torque && body) {
         this.physicsWorld.applyTorqueFromTransformer(item.entity.id, output.torque)
       }
+      if (output.addRotation != null && body) {
+        const newRotation: Rotation = [
+          rotation[0] + output.addRotation[0],
+          rotation[1] + output.addRotation[1],
+          rotation[2] + output.addRotation[2],
+        ]
+        this.physicsWorld.setRotation(item.entity.id, newRotation)
+        this.physicsWorld.setAngularVelocity(item.entity.id, 0, 0, 0)
+      }
       if (output.color) {
         this.setColor(item.entity.id, output.color[0], output.color[1], output.color[2])
       }

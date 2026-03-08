@@ -427,6 +427,12 @@ export class PhysicsWorld {
     if (body) body.setLinvel({ x, y, z }, true)
   }
 
+  /** Set angular velocity of a body (e.g. zero it when applying direct rotation from transformer). */
+  setAngularVelocity(entityId: string, x: number, y: number, z: number): void {
+    const body = this.bodyMap.get(entityId)
+    if (body) body.setAngvel({ x, y, z }, true)
+  }
+
   setLinearDamping(entityId: string, value: number): void {
     const body = this.bodyMap.get(entityId)
     if (body) body.setLinearDamping(value)

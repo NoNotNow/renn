@@ -262,4 +262,37 @@ describe('TransformerChain', () => {
 
     expect(output.color).toEqual([0, 1, 0])
   })
+
+  test('addRotation is passed through (last-wins)', () => {
+    const chain = new TransformerChain()
+    chain.add(
+      new MockTransformer(0, () => ({
+        addRotation: [0.1, 0, 0] as [number, number, number],
+      })),
+    )
+    chain.add(
+      new MockTransformer(1, () => ({
+        addRotation: [0, 0.02, 0] as [number, number, number],
+      })),
+    )
+
+    const output = chain.execute(createMockTransformInput(), 0.016)
+
+    expect(output.addRotation).toEqual([0, 0.02, 0])
+  })
+
+  test('addRotation is returned in empty path when only addRotation set', () => {
+    const chain = new TransformerChain()
+    chain.add(
+      new MockTransformer(0, () => ({
+        addRotation: [0, 0.05, 0] as [number, number, number],
+      })),
+    )
+
+    const output = chain.execute(createMockTransformInput(), 0.016)
+
+    expect(output.force).toBeUndefined()
+    expect(output.torque).toBeUndefined()
+    expect(output.addRotation).toEqual([0, 0.05, 0])
+  })
 })

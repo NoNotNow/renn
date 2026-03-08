@@ -61,6 +61,27 @@ export function getUpVectorFromEuler(rotation: Rotation): [number, number, numbe
 }
 
 /**
+ * Euler delta to rotate by angle (radians) around a world-space axis.
+ * currentRotation + returned delta = rotation after applying the turn.
+ */
+export function eulerDeltaAroundAxis(
+  currentRotation: Rotation,
+  axis: [number, number, number],
+  angleRad: number,
+): Rotation {
+  const currentQ = eulerToQuaternion(currentRotation)
+  const axisVec = new THREE.Vector3(axis[0], axis[1], axis[2]).normalize()
+  const deltaQ = new THREE.Quaternion().setFromAxisAngle(axisVec, angleRad)
+  const newQ = deltaQ.clone().multiply(currentQ)
+  const newEuler = quaternionToEuler(newQ)
+  return [
+    newEuler[0] - currentRotation[0],
+    newEuler[1] - currentRotation[1],
+    newEuler[2] - currentRotation[2],
+  ]
+}
+
+/**
  * Convert Rapier quaternion format {x, y, z, w} to Euler angles.
  *
  * @param quat - Rapier quaternion object
