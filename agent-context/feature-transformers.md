@@ -10,6 +10,7 @@ RawInput → InputMapping → TransformInput → TransformerChain → TransformO
 
 - Transformers run in `priority` order (lower = earlier).
 - Outputs are **additive**; a transformer can set `earlyExit` to stop the chain.
+- `TransformOutput.color` (optional [r,g,b] 0–1) is applied by the render loop via `setColor` for display feedback.
 - `resetAllForces()` is called before each frame so forces never accumulate across frames.
 
 ## Key files
@@ -25,6 +26,7 @@ src/
 │       ├── airplaneTransformer.ts            # Flight physics
 │       ├── characterTransformer.ts           # Ground movement + jump
 │       ├── carTransformer.ts                 # Vehicle physics (bicycle model)
+│       ├── car2Transformer.ts                # Input-to-color feedback (WASD → RGB blend)
 │       ├── animalTransformer.ts              # Wander AI
 │       ├── butterflyTransformer.ts           # Flutter AI
 │       └── customTransformer.ts              # eval() user code
@@ -44,6 +46,7 @@ src/
 | `airplane` | Flight with thrust/lift/drag | `thrustForce`, `liftCoefficient`, `dragCoefficient`, `pitchSensitivity` |
 | `character` | Ground movement + jump | `walkSpeed`, `jumpForce`, `turnSpeed` |
 | `car` | Vehicle physics (bicycle model) | `maxSpeed`, `acceleration`, `brakeForce`, `engineBrake`, `maxSteerAngle`, `wheelbase`, `lateralGrip`, `handbrakeGripFactor`, `handbrakeMultiplier`, `steeringTorqueScale`, `highSpeedSteerFactor`, `lowSpeedSteerFactor` |
+| `car2` | Input-to-color feedback (WASD → RGB) | None (uses car preset actions: throttle, brake, steer_left, steer_right, handbrake) |
 | `animal` | Wander AI | `wanderRadius`, `speed`, `directionChangeInterval` |
 | `butterfly` | Flutter AI | `flutterFrequency`, `flightHeight`, `flutterForce` |
 | `custom` | Inline JS code | `code` (return `{ force, torque, earlyExit }`) |
@@ -220,6 +223,6 @@ game.setTransformerParam(entityId, type, paramName, value)
 
 ## Test status
 
-79/79 tests passing (`npx vitest run src/transformers/ src/input/`).
+100/100 tests passing (`npx vitest run src/transformers/ src/input/`).
 
 Remaining optional: TransformerPanel UI component in the Builder.

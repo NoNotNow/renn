@@ -11,7 +11,9 @@ import type {
   TransformOutput,
   Vec3,
 } from '@/types/transformer'
+import type { Rotation } from '@/types/world'
 import { EMPTY_TRANSFORM_OUTPUT, ZERO_VEC3 } from '@/types/transformer'
+import { getForwardVectorFromEuler, getUpVectorFromEuler } from '@/utils/rotationUtils'
 
 /**
  * Abstract base class for all transformers.
@@ -62,6 +64,20 @@ export abstract class BaseTransformer implements Transformer {
    */
   protected scaleVec3(v: Vec3, s: number): Vec3 {
     return [v[0] * s, v[1] * s, v[2] * s]
+  }
+
+  /**
+   * Helper: Get forward direction from Euler rotation (Three.js -Z axis).
+   */
+  protected getForwardVector(rotation: Rotation): Vec3 {
+    return getForwardVectorFromEuler(rotation)
+  }
+
+  /**
+   * Helper: Get up direction from Euler rotation (Three.js Y axis).
+   */
+  protected getUpVector(rotation: Rotation): Vec3 {
+    return getUpVectorFromEuler(rotation)
   }
 }
 
@@ -156,6 +172,11 @@ export class TransformerChain {
         accumulated.torque![2] += output.torque[2]
       }
 
+      // Color: last transformer wins
+      if (output.color) {
+        accumulated.color = output.color
+      }
+
       // Early exit?
       if (output.earlyExit) {
         accumulated.earlyExit = true
@@ -180,6 +201,9 @@ export class TransformerChain {
       accumulated.torque![2] === 0 &&
       !accumulated.earlyExit
     ) {
+      if (accumulated.color) {
+        return { ...EMPTY_TRANSFORM_OUTPUT, color: accumulated.color }
+      }
       return EMPTY_TRANSFORM_OUTPUT
     }
 

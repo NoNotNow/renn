@@ -16,6 +16,7 @@ import { AirplaneTransformer } from './presets/airplaneTransformer'
 import { CharacterTransformer } from './presets/characterTransformer'
 import { CarTransformer } from './presets/carTransformer'
 import type { CarTransformerParams } from './presets/carTransformer'
+import { CarTransformer2 } from './presets/car2Transformer'
 import { AnimalTransformer } from './presets/animalTransformer'
 import { ButterflyTransformer } from './presets/butterflyTransformer'
 import type { InputMapping } from '@/types/transformer'
@@ -63,6 +64,12 @@ export async function createTransformer(
         params.acceleration = (entity.mass * maxSpeed) / timeToMaxSpeed
       }
       const transformer = new CarTransformer(priority, params)
+      transformer.enabled = enabled
+      return transformer
+    }
+
+    case 'car2': {
+      const transformer = new CarTransformer2(priority)
       transformer.enabled = enabled
       return transformer
     }

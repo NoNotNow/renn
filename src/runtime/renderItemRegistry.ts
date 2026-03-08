@@ -351,6 +351,9 @@ export class RenderItemRegistry {
       if (output.torque && body) {
         this.physicsWorld.applyTorqueFromTransformer(item.entity.id, output.torque)
       }
+      if (output.color) {
+        this.setColor(item.entity.id, output.color[0], output.color[1], output.color[2])
+      }
     }
   }
 

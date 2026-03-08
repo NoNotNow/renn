@@ -130,6 +130,9 @@ export interface TransformOutput {
   /** Torque to add (world-space). */
   torque?: Vec3
 
+  /** Optional mesh color override [r,g,b] 0–1. Applied by the render loop for display feedback. */
+  color?: Vec3
+
   /** If true, stop the chain after this transformer. */
   earlyExit?: boolean
 }
@@ -170,6 +173,7 @@ export type PresetTransformerType =
   | 'airplane'
   | 'character'
   | 'car'
+  | 'car2'
   | 'animal'
   | 'butterfly'
 

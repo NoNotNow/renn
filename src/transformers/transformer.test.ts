@@ -6,6 +6,7 @@ import {
 import type {
   TransformInput,
   TransformOutput,
+  Vec3,
 } from '@/types/transformer'
 import {
   createMockTransformInput,
@@ -227,5 +228,38 @@ describe('TransformerChain', () => {
 
     // Second transformer should see accumulated force from first transformer
     expect(receivedAccumulated).toEqual([1, 0, 0])
+  })
+
+  test('color is preserved when force/torque are zero', () => {
+    const chain = new TransformerChain()
+    chain.add(
+      new MockTransformer(0, () => ({
+        color: [0.2, 0.9, 0.2] as Vec3,
+      })),
+    )
+
+    const output = chain.execute(createMockTransformInput(), 0.016)
+
+    expect(output.color).toEqual([0.2, 0.9, 0.2])
+    expect(output.force).toBeUndefined()
+    expect(output.torque).toBeUndefined()
+  })
+
+  test('last transformer color wins when multiple output color', () => {
+    const chain = new TransformerChain()
+    chain.add(
+      new MockTransformer(0, () => ({
+        color: [1, 0, 0] as Vec3,
+      })),
+    )
+    chain.add(
+      new MockTransformer(1, () => ({
+        color: [0, 1, 0] as Vec3,
+      })),
+    )
+
+    const output = chain.execute(createMockTransformInput(), 0.016)
+
+    expect(output.color).toEqual([0, 1, 0])
   })
 })

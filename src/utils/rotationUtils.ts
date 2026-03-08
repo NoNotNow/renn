@@ -38,8 +38,31 @@ export function eulerToRapierQuaternion(euler: Rotation): { x: number; y: number
 }
 
 /**
+ * World-space forward direction from Euler rotation (Three.js -Z axis).
+ *
+ * @param rotation - Euler angles [x, y, z] in radians
+ * @returns Unit forward vector [x, y, z]
+ */
+export function getForwardVectorFromEuler(rotation: Rotation): [number, number, number] {
+  const [rx, ry, rz] = rotation
+  const euler = new THREE.Euler(rx, ry, rz, 'XYZ')
+  const fwd = new THREE.Vector3(0, 0, -1).applyEuler(euler)
+  return [fwd.x, fwd.y, fwd.z]
+}
+
+/**
+ * World-space up direction from Euler rotation (Three.js Y axis).
+ */
+export function getUpVectorFromEuler(rotation: Rotation): [number, number, number] {
+  const [rx, ry, rz] = rotation
+  const euler = new THREE.Euler(rx, ry, rz, 'XYZ')
+  const up = new THREE.Vector3(0, 1, 0).applyEuler(euler)
+  return [up.x, up.y, up.z]
+}
+
+/**
  * Convert Rapier quaternion format {x, y, z, w} to Euler angles.
- * 
+ *
  * @param quat - Rapier quaternion object
  * @returns Euler angles [x, y, z] in radians
  */
