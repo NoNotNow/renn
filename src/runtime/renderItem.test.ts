@@ -159,6 +159,22 @@ describe('RenderItemRegistry', () => {
     expect(mat.color.b).toBe(0)
   })
 
+  it('getColor returns mesh material color after setColor', () => {
+    const mat = new THREE.MeshBasicMaterial()
+    const entity: Entity = { id: 'e', position: [0, 0, 0] }
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), mat)
+    const registry = RenderItemRegistry.create([{ entity, mesh }], null)
+    registry.setColor('e', 1, 0, 0)
+    expect(registry.getColor('e')).toEqual([1, 0, 0])
+  })
+
+  it('getColor returns null for unknown id or no material color', () => {
+    const entity: Entity = { id: 'e', position: [0, 0, 0] }
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial())
+    const registry = RenderItemRegistry.create([{ entity, mesh }], null)
+    expect(registry.getColor('unknown')).toBeNull()
+  })
+
   it('clear removes all items', () => {
     const entity: Entity = { id: 'e', position: [0, 0, 0] }
     const mesh = new THREE.Mesh(

@@ -24,6 +24,8 @@ export interface GameAPI {
   addVectorToPosition(id: string, x: number, y: number, z: number, resetVelocity?: boolean): void
   /** Set entity mesh color (RGB 0–1). */
   setColor(id: string, r: number, g: number, b: number): void
+  /** Get entity mesh color (RGB 0–1). Returns null if no material color. */
+  getColor(id: string): [number, number, number] | null
   applyForce(id: string, x: number, y: number, z: number): void
   applyImpulse(id: string, x: number, y: number, z: number): void
   // Transformer control
@@ -96,6 +98,10 @@ export function createGameAPI(
     setColor(id: string, r: number, g: number, b: number) {
       const registry = getRenderItemRegistry()
       if (registry) registry.setColor(id, r, g, b)
+    },
+    getColor(id: string): [number, number, number] | null {
+      const registry = getRenderItemRegistry()
+      return registry ? registry.getColor(id) : null
     },
     applyForce(id: string, x: number, y: number, z: number) {
       const physics = getPhysicsWorld()

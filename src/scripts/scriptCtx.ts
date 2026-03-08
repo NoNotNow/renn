@@ -28,6 +28,7 @@ export const ENTITY_VIEW_METHODS: EntityViewMethodDescriptor[] = [
   { name: 'resetRotation', argsAfterId: 0, entityDecl: 'resetRotation(): void', ctxDecl: 'resetRotation(id?: string): void' },
   { name: 'addVectorToPosition', argsAfterId: 3, entityDecl: 'addVectorToPosition(x: number, y: number, z: number, resetVelocity?: boolean): void', ctxDecl: 'addVectorToPosition(id: string | undefined, x: number, y: number, z: number, resetVelocity?: boolean): void' },
   { name: 'setColor', argsAfterId: 3, entityDecl: 'setColor(r: number, g: number, b: number): void', ctxDecl: 'setColor(id: string | undefined, r: number, g: number, b: number): void' },
+  { name: 'getColor', argsAfterId: 0, entityDecl: 'getColor(): [number, number, number] | null', ctxDecl: 'getColor(id?: string): [number, number, number] | null' },
   { name: 'applyForce', argsAfterId: 3, entityDecl: 'applyForce(x: number, y: number, z: number): void', ctxDecl: 'applyForce(id: string, x: number, y: number, z: number): void' },
   { name: 'applyImpulse', argsAfterId: 3, entityDecl: 'applyImpulse(x: number, y: number, z: number): void', ctxDecl: 'applyImpulse(id: string, x: number, y: number, z: number): void' },
 ]
@@ -53,6 +54,7 @@ export interface ScriptEntity extends Entity {
   resetRotation(): void
   addVectorToPosition(x: number, y: number, z: number, resetVelocity?: boolean): void
   setColor(r: number, g: number, b: number): void
+  getColor(): [number, number, number] | null
   applyForce(x: number, y: number, z: number): void
   applyImpulse(x: number, y: number, z: number): void
   readonly detect: BoundDetectHelpers
@@ -84,6 +86,7 @@ export interface ScriptCtxBase {
   resetRotation(id?: string): void
   addVectorToPosition(id: string | undefined, x: number, y: number, z: number, resetVelocity?: boolean): void
   setColor(id?: string, r: number, g: number, b: number): void
+  getColor(id?: string): [number, number, number] | null
   applyForce(id: string, x: number, y: number, z: number): void
   applyImpulse(id: string, x: number, y: number, z: number): void
   setTransformerEnabled(entityId: string, transformerType: string, enabled: boolean): void

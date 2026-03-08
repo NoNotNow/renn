@@ -168,6 +168,41 @@ export class RenderItemRegistry {
     }
   }
 
+  /** Get mesh color (RGB 0–1). Returns first material color found, or null if none. */
+  getColor(id: string): [number, number, number] | null {
+    const item = this.items.get(id)
+    if (!item) return null
+    const mesh = item.mesh
+    const readColorFrom = (mat: THREE.Material): [number, number, number] | null => {
+      if ('color' in mat && mat.color instanceof THREE.Color) {
+        return [mat.color.r, mat.color.g, mat.color.b]
+      }
+      return null
+    }
+    if (mesh.userData.usesModel === true || mesh.userData.isTrimeshSource === true) {
+      let result: [number, number, number] | null = null
+      mesh.traverse((child) => {
+        if (result !== null) return
+        if (child instanceof THREE.Mesh && child.material) {
+          const mats = Array.isArray(child.material) ? child.material : [child.material]
+          for (const mat of mats) {
+            result = readColorFrom(mat)
+            if (result !== null) return
+          }
+        }
+      })
+      return result
+    }
+    if (mesh.material) {
+      const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+      for (const mat of mats) {
+        const c = readColorFrom(mat)
+        if (c !== null) return c
+      }
+    }
+    return null
+  }
+
   /**
    * World-space up direction for the entity (Y-up convention). Useful for detecting orientation
    * (e.g. upside down: getUpVector(id).y < -0.5). Compensates for visual base quaternion.
