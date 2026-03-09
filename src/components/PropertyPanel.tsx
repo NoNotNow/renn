@@ -306,15 +306,13 @@ export default function PropertyPanel({
         </CollapsibleSection>
       )}
 
-      {entity.transformers && entity.transformers.length > 0 && (
-        <CollapsibleSection title="Transformers" copyPayload={entity.transformers ?? []}>
-          <TransformerEditor
-            transformers={entity.transformers}
-            onChange={(transformers) => updateEntity({ transformers })}
-            disabled={isLocked}
-          />
-        </CollapsibleSection>
-      )}
+      <CollapsibleSection title="Transformers" copyPayload={entity.transformers ?? []}>
+        <TransformerEditor
+          transformers={entity.transformers ?? []}
+          onChange={(transformers) => updateEntity({ transformers })}
+          disabled={isLocked}
+        />
+      </CollapsibleSection>
 
       {onDeleteEntity && (
         <button

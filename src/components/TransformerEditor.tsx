@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react'
 import type { TransformerConfig } from '@/types/transformer'
 import CopyableArea from './CopyableArea'
-import { fieldLabelStyle } from './sharedStyles'
+import { fieldLabelStyle, iconButtonStyle, removeButtonStyle, removeButtonStyleDisabled } from './sharedStyles'
+import {
+  TRANSFORMER_PRESET_OPTIONS,
+  getDefaultTransformerConfig,
+} from '@/transformers/transformerPresets'
 
 const baseTextareaStyle: React.CSSProperties = {
   margin: 0,
@@ -105,17 +109,63 @@ export default function TransformerEditor({
   onChange,
   disabled = false,
 }: TransformerEditorProps) {
-  if (!transformers || transformers.length === 0) {
-    return (
-      <div style={{ color: '#9aa4b2', fontSize: 12, fontStyle: 'italic' }}>
-        No transformers configured
-      </div>
-    )
+  const [addSelectValue, setAddSelectValue] = useState('')
+  const list = transformers ?? []
+
+  const handleAddTransformer = (type: string) => {
+    if (!type) return
+    const config = getDefaultTransformerConfig(type)
+    onChange?.([...list, config])
+    setAddSelectValue('')
+  }
+
+  const handleRemoveTransformer = (index: number) => {
+    const next = list.filter((_, i) => i !== index)
+    onChange?.(next)
+  }
+
+  const handleMoveTransformer = (fromIndex: number, direction: 'up' | 'down') => {
+    const toIndex = direction === 'up' ? fromIndex - 1 : fromIndex + 1
+    if (toIndex < 0 || toIndex >= list.length) return
+    const next = [...list]
+    ;[next[fromIndex], next[toIndex]] = [next[toIndex], next[fromIndex]]
+    onChange?.(next)
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      {transformers.map((transformer, index) => {
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <div style={fieldLabelStyle}>Add transformer</div>
+        <select
+          value={addSelectValue}
+          onChange={(e) => handleAddTransformer(e.target.value)}
+          disabled={disabled}
+          style={{
+            padding: '6px 8px',
+            fontSize: 12,
+            background: 'rgba(0, 0, 0, 0.3)',
+            border: '1px solid #2f3545',
+            borderRadius: 4,
+            color: '#c4cbd8',
+            cursor: disabled ? 'not-allowed' : 'pointer',
+          }}
+          data-testid="add-transformer-select"
+        >
+          <option value="">Add transformer...</option>
+          {TRANSFORMER_PRESET_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {list.length === 0 ? (
+        <div style={{ color: '#9aa4b2', fontSize: 12, fontStyle: 'italic' }}>
+          No transformers configured
+        </div>
+      ) : (
+        list.map((transformer, index) => {
         const priority = transformer.priority ?? 10
         const enabled = transformer.enabled ?? true
 
@@ -155,6 +205,57 @@ export default function TransformerEditor({
                   {enabled ? 'Enabled' : 'Disabled'}
                 </span>
               </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <button
+                  type="button"
+                  onClick={() => handleMoveTransformer(index, 'up')}
+                  disabled={disabled || index === 0}
+                  style={{
+                    ...iconButtonStyle,
+                    color: '#9aa4b2',
+                    opacity: disabled || index === 0 ? 0.4 : 0.8,
+                    cursor: disabled || index === 0 ? 'not-allowed' : 'pointer',
+                    padding: 2,
+                    fontSize: 12,
+                  }}
+                  title="Move up"
+                  data-testid="move-transformer-up"
+                >
+                  ↑
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleMoveTransformer(index, 'down')}
+                  disabled={disabled || index === list.length - 1}
+                  style={{
+                    ...iconButtonStyle,
+                    color: '#9aa4b2',
+                    opacity: disabled || index === list.length - 1 ? 0.4 : 0.8,
+                    cursor: disabled || index === list.length - 1 ? 'not-allowed' : 'pointer',
+                    padding: 2,
+                    fontSize: 12,
+                  }}
+                  title="Move down"
+                  data-testid="move-transformer-down"
+                >
+                  ↓
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleRemoveTransformer(index)}
+                  disabled={disabled}
+                style={{
+                  ...removeButtonStyle,
+                  ...(disabled && removeButtonStyleDisabled),
+                  padding: '4px 8px',
+                  fontSize: 11,
+                }}
+                title="Remove transformer"
+                data-testid="remove-transformer"
+              >
+                Remove
+              </button>
+            </div>
             </div>
 
             <div style={{ marginTop: 6 }}>
@@ -162,7 +263,7 @@ export default function TransformerEditor({
               <TransformerConfigTextarea
                 value={transformer}
                 onApply={(updated) => {
-                  const next = transformers.map((t, i) =>
+                  const next = list.map((t, i) =>
                     i === index ? updated : t
                   )
                   onChange?.(next)
@@ -172,7 +273,8 @@ export default function TransformerEditor({
             </div>
           </CopyableArea>
         )
-      })}
+      })
+      )}
     </div>
   )
 }

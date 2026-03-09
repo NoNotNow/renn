@@ -11,8 +11,26 @@ import { clamp } from '@/utils/numberUtils'
 import { eulerDeltaAroundAxis } from '@/utils/rotationUtils'
 import { getForwardSpeed as getForwardSpeedUtil, scaleVec3 } from '@/utils/vec3'
 
-/** Steering: how much yaw per unit distance per unit wheel angle (radians per metre). */
-const STEER_RATE = 0.1
+export interface CarTransformer2Params {
+  /** Throttle/brake impulse magnitude. Default 400. */
+  power?: number
+  /** Yaw per distance per wheel angle (radians per metre). Default 0.1. */
+  steeringIntensity?: number
+  /** Wheel angle change rate. Default 0.01. */
+  steeringSpeed?: number
+  /** Sideways grip strength (higher = less sliding). Default 100. */
+  lateralGrip?: number
+  /** Fraction of lateral grip translated into forward impulse when turning (0–1). Default 0.2. */
+  lateralToForwardTransfer?: number
+}
+
+const DEFAULT_CAR2_PARAMS: Required<CarTransformer2Params> = {
+  power: 400,
+  steeringIntensity: 0.1,
+  steeringSpeed: 0.01,
+  lateralGrip: 100,
+  lateralToForwardTransfer: 0.2,
+}
 
 const ACTION_COLORS: Record<string, [number, number, number]> = {
   throttle: [0.2, 0.9, 0.2],
@@ -27,10 +45,18 @@ const MAGNITUDE_THRESHOLD = 0.01
 
 export class CarTransformer2 extends BaseTransformer {
   readonly type = 'car2'
-  wheelAngle: number = 0; // -1 to 1
-  
-  
-  
+  wheelAngle: number = 0 // -1 to 1
+  private params: Required<CarTransformer2Params>
+
+  constructor(priority: number = 10, params: Partial<CarTransformer2Params> = {}) {
+    super(priority, true)
+    this.params = { ...DEFAULT_CAR2_PARAMS, ...params }
+  }
+
+  setParams(params: Partial<CarTransformer2Params>): void {
+    this.params = { ...this.params, ...params }
+  }
+
   transform(input: TransformInput, deltaTime: number): TransformOutput {
     this.calculateWheelAngle(input)
 
@@ -51,7 +77,7 @@ export class CarTransformer2 extends BaseTransformer {
     if(wheelAngle === 0) return undefined;
     const forwardDistance = this.getForwardSpeed(input) * deltaTime
     const upVector = this.getUpVector(input.rotation)
-    const angleRad = forwardDistance * wheelAngle * STEER_RATE
+    const angleRad = forwardDistance * wheelAngle * this.params.steeringIntensity
     return eulerDeltaAroundAxis(input.rotation, upVector, angleRad)
   }
 
@@ -60,14 +86,22 @@ export class CarTransformer2 extends BaseTransformer {
     return getForwardSpeedUtil(input.velocity, forward)
   }
 
-  private setImpulse(input: TransformInput, _dt: number, forwardVector:Vec3): Vec3 {
-    const forward = this.getAction(input, 'throttle');
-    const backward = this.getAction(input, 'brake');
-    const gasBreakInput = forward  - backward;
-    const gasBreakForce = scaleVec3(forwardVector, 400 * gasBreakInput);
-    const sideSpeed =  this.getSidewaysVelocity(input.velocity, forwardVector); //normalize velocity by only keeping sideWays force
-    const sideForce = scaleVec3(sideSpeed, -100); // todo cap this at tire sliding force
-    return this.addVec3(gasBreakForce, sideForce);
+  private setImpulse(input: TransformInput, _dt: number, forwardVector: Vec3): Vec3 {
+    const forward = this.getAction(input, 'throttle')
+    const backward = this.getAction(input, 'brake')
+    const gasBreakInput = forward - backward
+    const gasBreakForce = scaleVec3(forwardVector, this.params.power * gasBreakInput)
+    const sideSpeed = this.getSidewaysVelocity(input.velocity, forwardVector)
+    const magSide = Math.sqrt(
+      sideSpeed[0] ** 2 + sideSpeed[1] ** 2 + sideSpeed[2] ** 2,
+    )
+    const k = this.params.lateralToForwardTransfer
+    const sideForce = scaleVec3(sideSpeed, -this.params.lateralGrip * (1 - k))
+    const forwardFromLateral = scaleVec3(
+      forwardVector,
+      this.params.lateralGrip * magSide * k,
+    )
+    return this.addVec3(gasBreakForce, this.addVec3(sideForce, forwardFromLateral))
   }
 
   private getSidewaysVelocity(velocity: Vec3, forward: Vec3): Vec3 {
@@ -90,26 +124,19 @@ export class CarTransformer2 extends BaseTransformer {
     return color;
   }
 
-  private calculateWheelAngle(input:TransformInput){
-    const factor = .01;
-    const left = this.getAction(input, 'steer_left');
-    const right = this.getAction(input, 'steer_right');
+  private calculateWheelAngle(input: TransformInput): void {
+    const factor = this.params.steeringSpeed
+    const left = this.getAction(input, 'steer_left')
+    const right = this.getAction(input, 'steer_right')
 
-    //apply direction
-    let force =  right - left;
-    if(force === 0){
-      //move to center
-      if(this.wheelAngle > 0) force = -1;
-      else if(this.wheelAngle < 0) force = 1;
-
-
+    let force = right - left
+    if (force === 0) {
+      if (this.wheelAngle > 0) force = -1
+      else if (this.wheelAngle < 0) force = 1
     }
-    this.wheelAngle +=  force * factor;
-    this.wheelAngle = clamp(this.wheelAngle, -1, 1);
-    //set to 0 when close
-    if(this.wheelAngle < factor && this.wheelAngle > -factor)  this.wheelAngle = 0;
-
-
+    this.wheelAngle += force * factor
+    this.wheelAngle = clamp(this.wheelAngle, -1, 1)
+    if (this.wheelAngle < factor && this.wheelAngle > -factor) this.wheelAngle = 0
   }
 
 

@@ -47,7 +47,7 @@ src/
 | `airplane` | Flight with thrust/lift/drag | `thrustForce`, `liftCoefficient`, `dragCoefficient`, `pitchSensitivity` |
 | `character` | Ground movement + jump | `walkSpeed`, `jumpForce`, `turnSpeed` |
 | `car` | Vehicle physics (bicycle model) | `maxSpeed`, `acceleration`, `brakeForce`, `engineBrake`, `maxSteerAngle`, `wheelbase`, `lateralGrip`, `handbrakeGripFactor`, `handbrakeMultiplier`, `steeringTorqueScale`, `highSpeedSteerFactor`, `lowSpeedSteerFactor` |
-| `car2` | Input-to-color feedback (WASD → RGB) + impulse + addRotation for precise steering | None (uses car preset actions: throttle, brake, steer_left, steer_right, handbrake) |
+| `car2` | Input-to-color feedback (WASD → RGB) + impulse + addRotation for precise steering | `power`, `steeringIntensity`, `steeringSpeed`, `lateralGrip`, `lateralToForwardTransfer` (optional; see defaults below) |
 | `animal` | Wander AI | `wanderRadius`, `speed`, `directionChangeInterval` |
 | `butterfly` | Flutter AI | `flutterFrequency`, `flightHeight`, `flutterForce` |
 | `custom` | Inline JS code | `code` (return `{ force, torque, earlyExit }`) |
@@ -207,6 +207,24 @@ Tested and working reference config:
 All defaults (shown above) work out of the box for mass ~12. For heavier entities, scale `acceleration`, `brakeForce`, `lateralGrip`, and `steeringTorqueScale` proportionally.
 
 **Smooth acceleration (5–10 s to max speed):** `acceleration` is in Newtons. Use `acceleration ≈ mass × maxSpeed / timeToMaxSpeed` (e.g. mass 20, maxSpeed 25, 7.5 s → ~67). Alternatively set `timeToMaxSpeed` (seconds) in car params and the registry will derive acceleration from entity mass.
+
+### Car2 transformer params
+
+The `car2` preset (impulse + addRotation + color feedback) accepts optional `params` in JSON. When the car has lateral velocity, part of the countered lateral force is applied as forward impulse so that some lateral energy is translated into forward motion during turns.
+
+| Param | Default | Meaning |
+|-------|---------|---------|
+| `power` | 400 | Throttle/brake impulse magnitude |
+| `steeringIntensity` | 0.1 | Yaw per distance per wheel angle (radians per metre) |
+| `steeringSpeed` | 0.01 | Wheel angle change rate (how fast steer input moves the wheel) |
+| `lateralGrip` | 100 | Sideways grip strength (higher = less sliding) |
+| `lateralToForwardTransfer` | 0.2 | Fraction of lateral grip translated into forward impulse when turning (0–1) |
+
+Example: `{ "type": "car2", "priority": 10, "params": { "power": 500, "steeringIntensity": 0.12, "lateralToForwardTransfer": 0.2 } }`.
+
+### Builder: Add transformer dropdown
+
+In the Builder, when an entity is selected, the Transformers section always shows. Use the "Add transformer" dropdown to add a transformer with a default config for each type (input, airplane, character, car, car2, animal, butterfly, custom). Default configs live in `src/transformers/transformerPresets.ts`.
 
 ## Script API
 

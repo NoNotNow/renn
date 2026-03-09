@@ -16,7 +16,7 @@ import { AirplaneTransformer } from './presets/airplaneTransformer'
 import { CharacterTransformer } from './presets/characterTransformer'
 import { CarTransformer } from './presets/carTransformer'
 import type { CarTransformerParams } from './presets/carTransformer'
-import { CarTransformer2 } from './presets/car2Transformer'
+import { CarTransformer2, type CarTransformer2Params } from './presets/car2Transformer'
 import { AnimalTransformer } from './presets/animalTransformer'
 import { ButterflyTransformer } from './presets/butterflyTransformer'
 import type { InputMapping } from '@/types/transformer'
@@ -69,7 +69,8 @@ export async function createTransformer(
     }
 
     case 'car2': {
-      const transformer = new CarTransformer2(priority)
+      const params = (config.params ?? {}) as Partial<CarTransformer2Params>
+      const transformer = new CarTransformer2(priority, params)
       transformer.enabled = enabled
       return transformer
     }

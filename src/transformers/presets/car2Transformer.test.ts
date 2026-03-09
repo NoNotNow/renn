@@ -74,15 +74,53 @@ describe('CarTransformer2 – color feedback', () => {
   })
 
   test('outputs addRotation (yaw delta) and no torque', () => {
+    // Forward velocity so forwardDistance > 0 and we get non-zero yaw (rotation [0,0,0] => forward -Z)
     const output = t.transform(
-      createMockTransformInput({ actions: { steer_right: 1.0 } }),
+      createMockTransformInput({
+        actions: { steer_right: 1.0 },
+        velocity: [0, 0, -5],
+        rotation: [0, 0, 0],
+      }),
       0.016,
     )
     expect(output.torque).toBeUndefined()
     expect(output.addRotation).toBeDefined()
-    expect(output.addRotation![0]).toBe(0)
-    expect(output.addRotation![2]).toBe(0)
-    // steer_right: wheelAngle moves positive; yawDelta = wheelAngle * TURN_RATE * dt
+    expect(Math.abs(output.addRotation![0])).toBe(0)
+    expect(Math.abs(output.addRotation![2])).toBe(0)
+    // steer_right: wheelAngle moves positive; yaw delta = forwardDistance * wheelAngle * steeringIntensity
     expect(output.addRotation![1]).toBeGreaterThan(0)
+  })
+
+  describe('lateral-to-forward transfer', () => {
+    // rotation [0,0,0] => forward = (0, 0, -1); velocity [5,0,0] is purely lateral
+    const lateralInput = createMockTransformInput({
+      actions: {},
+      velocity: [5, 0, 0],
+      rotation: [0, 0, 0],
+    })
+    const forward: [number, number, number] = [0, 0, -1]
+
+    test('with lateralToForwardTransfer > 0, impulse has forward component from lateral', () => {
+      const tWithTransfer = new CarTransformer2(10, {
+        lateralToForwardTransfer: 0.2,
+        lateralGrip: 100,
+      })
+      const output = tWithTransfer.transform(lateralInput, 0.016)
+      expect(output.impulse).toBeDefined()
+      const dot = (output.impulse![0] * forward[0] + output.impulse![1] * forward[1] + output.impulse![2] * forward[2])
+      // magSide=5, lateralGrip=100, k=0.2 => forwardFromLateral magnitude = 100
+      expect(dot).toBeCloseTo(100, 0)
+    })
+
+    test('with lateralToForwardTransfer = 0, no forward component from lateral', () => {
+      const tNoTransfer = new CarTransformer2(10, {
+        lateralToForwardTransfer: 0,
+        lateralGrip: 100,
+      })
+      const output = tNoTransfer.transform(lateralInput, 0.016)
+      expect(output.impulse).toBeDefined()
+      const dot = (output.impulse![0] * forward[0] + output.impulse![1] * forward[1] + output.impulse![2] * forward[2])
+      expect(dot).toBeCloseTo(0, 0)
+    })
   })
 })
