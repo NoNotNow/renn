@@ -21,6 +21,14 @@ npm run dev
 
 Then open http://localhost:5173
 
+## Deploy to GitHub Pages
+
+```bash
+npm run deploy
+```
+
+Builds the app, copies `index.html` to `404.html` for SPA routing, and pushes the `dist` contents to the `gh-pages` branch. Configure the repo’s Pages source to deploy from the `gh-pages` branch; the site will be at `https://<user>.github.io/renn/`.
+
 ## Tests
 
 - **Unit + component:** `npm run test` (watch) or `npm run test:run`

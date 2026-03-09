@@ -7,7 +7,7 @@ import Play from '@/pages/Play'
 function App() {
   return (
     <ErrorBoundary>
-      <BrowserRouter>
+      <BrowserRouter basename="/renn">
         <ProjectProvider>
           <Routes>
             <Route path="/" element={<Builder />} />
