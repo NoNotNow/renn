@@ -29,6 +29,10 @@ npm run deploy
 
 Builds the app, copies `index.html` to `404.html` for SPA routing, and pushes the `dist` contents to the `gh-pages` branch. Configure the repo’s Pages source to deploy from the `gh-pages` branch; the site will be at `https://<user>.github.io/renn/`.
 
+## Static default world (gh-pages)
+
+The default world loads from static files in `public/world/` (world.json + assets). On startup, the app tries `loadWorldFromStatic()`; if it succeeds (e.g. on GitHub Pages), that world is used. Otherwise it falls back to IndexedDB and the sample world. Replace the contents of `public/world/` to change the default.
+
 ## Tests
 
 - **Unit + component:** `npm run test` (watch) or `npm run test:run`

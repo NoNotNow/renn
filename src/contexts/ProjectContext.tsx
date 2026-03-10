@@ -3,9 +3,12 @@ import { createIndexedDbPersistence } from '@/persistence/indexedDb'
 import type { RennWorld, Vec3, Rotation } from '@/types/world'
 import type { ProjectMeta } from '@/persistence/types'
 import { sampleWorld } from '@/data/sampleWorld'
+import { loadWorldFromStatic } from '@/loader/loadWorldFromStatic'
+import SplashScreen from '@/components/SplashScreen'
 import { uiLogger } from '@/utils/uiLogger'
 
 const persistence = createIndexedDbPersistence()
+const BASE_URL = import.meta.env.BASE_URL || '/'
 const LAST_PROJECT_KEY = 'renn-last-project-id'
 
 function setLastProjectId(id: string): void {
@@ -29,6 +32,7 @@ interface CameraState {
 }
 
 interface ProjectContextState {
+  initialLoadPending: boolean
   currentProject: CurrentProject
   world: RennWorld
   assets: Map<string, Blob>
@@ -91,6 +95,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const [assets, setAssets] = useState<Map<string, Blob>>(new Map())
   const [projects, setProjects] = useState<ProjectMeta[]>([])
   const [version, setVersion] = useState(0)
+  const [initialLoadPending, setInitialLoadPending] = useState(true)
   
   // Combined camera state to reduce re-renders
   const [cameraState, setCameraState] = useState<CameraState>(() => ({
@@ -167,27 +172,53 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  // Load global assets and optionally restore last project on app initialization
+  // Load world on initialization: try static (gh-pages) first, else IndexedDB
   useEffect(() => {
     let cancelled = false
     refreshProjects()
-    Promise.all([
-      persistence.listProjects(),
-      persistence.loadAllAssets(),
-    ])
-      .then(([projectList, globalAssets]) => {
+
+    loadWorldFromStatic(BASE_URL)
+      .then((staticResult) => {
         if (cancelled) return
-        setAssets(globalAssets)
-        const lastId = (() => { try { return localStorage.getItem(LAST_PROJECT_KEY) } catch { return null } })()
-        if (lastId && projectList.some((p) => p.id === lastId)) {
-          loadProject(lastId).catch((err) => {
-            console.error('Failed to restore last project:', err)
+        if (staticResult) {
+          worldRef.current = staticResult.world
+          setWorld(staticResult.world)
+          setAssets(staticResult.assets)
+          setCurrentProject({ id: null, name: 'Default World', isDirty: false })
+          setCameraState({
+            control: (staticResult.world.world.camera?.control ?? 'free') as 'free' | 'follow' | 'top' | 'front' | 'right',
+            target: staticResult.world.world.camera?.target ?? '',
+            mode: staticResult.world.world.camera?.mode ?? 'follow',
           })
+          setVersion((v) => v + 1)
+          setInitialLoadPending(false)
+          return
         }
+        return Promise.all([
+          persistence.listProjects(),
+          persistence.loadAllAssets(),
+        ]).then(([projectList, globalAssets]) => {
+          if (cancelled) return
+          setAssets(globalAssets)
+          const lastId = (() => { try { return localStorage.getItem(LAST_PROJECT_KEY) } catch { return null } })()
+          if (lastId && projectList.some((p) => p.id === lastId)) {
+            return loadProject(lastId).then(() => {
+              if (!cancelled) setInitialLoadPending(false)
+            }).catch((err) => {
+              console.error('Failed to restore last project:', err)
+              if (!cancelled) setInitialLoadPending(false)
+            })
+          }
+          setInitialLoadPending(false)
+        })
       })
       .catch((err) => {
-        if (!cancelled) console.error('Failed to initialize:', err)
+        if (!cancelled) {
+          console.error('Failed to initialize:', err)
+          setInitialLoadPending(false)
+        }
       })
+
     return () => { cancelled = true }
   }, [refreshProjects, loadProject])
   
@@ -416,6 +447,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   // Memoize context value to prevent unnecessary re-renders
   const value: ProjectContextValue = useMemo(() => ({
     // State
+    initialLoadPending,
     currentProject,
     world,
     assets,
@@ -447,6 +479,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     setCameraTarget,
     setCameraMode,
   }), [
+    initialLoadPending,
     currentProject,
     world,
     assets,
@@ -479,7 +512,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   
   return (
     <ProjectContext.Provider value={value}>
-      {children}
+      {initialLoadPending ? <SplashScreen /> : children}
     </ProjectContext.Provider>
   )
 }

@@ -40,6 +40,10 @@ function renderBuilder() {
 }
 
 async function openEntitiesTab(user: ReturnType<typeof userEvent.setup>) {
+  await waitFor(
+    () => expect(screen.getByRole('button', { name: /entities/i })).toBeInTheDocument(),
+    { timeout: 3000 }
+  )
   const entitiesButton = screen.getByRole('button', { name: /entities/i })
   await user.click(entitiesButton)
 }
