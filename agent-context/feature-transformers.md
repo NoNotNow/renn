@@ -47,7 +47,7 @@ src/
 | `airplane` | Flight with thrust/lift/drag | `thrustForce`, `liftCoefficient`, `dragCoefficient`, `pitchSensitivity` |
 | `character` | Ground movement + jump | `walkSpeed`, `jumpForce`, `turnSpeed` |
 | `car` | Vehicle physics (bicycle model) | `maxSpeed`, `acceleration`, `brakeForce`, `engineBrake`, `maxSteerAngle`, `wheelbase`, `lateralGrip`, `handbrakeGripFactor`, `handbrakeMultiplier`, `steeringTorqueScale`, `highSpeedSteerFactor`, `lowSpeedSteerFactor` |
-| `car2` | Input-to-color feedback (WASD → RGB) + impulse + addRotation for precise steering | `power`, `steeringIntensity`, `steeringSpeed`, `lateralGrip`, `lateralToForwardTransfer` (optional; see defaults below) |
+| `car2` | Input-to-color feedback (WASD → RGB) + impulse + addRotation for precise steering; **physics (impulse/addRotation) only when touching another object** | `power`, `steeringIntensity`, `steeringSpeed`, `lateralGrip`, `lateralToForwardTransfer` (optional; see defaults below) |
 | `animal` | Wander AI | `wanderRadius`, `speed`, `directionChangeInterval` |
 | `butterfly` | Flutter AI | `flutterFrequency`, `flightHeight`, `flutterForce` |
 | `custom` | Inline JS code | `code` (return `{ force, torque, earlyExit }`) |
@@ -211,6 +211,8 @@ All defaults (shown above) work out of the box for mass ~12. For heavier entitie
 ### Car2 transformer params
 
 The `car2` preset (impulse + addRotation + color feedback) accepts optional `params` in JSON. When the car has lateral velocity, part of the countered lateral force is applied as forward impulse so that some lateral energy is translated into forward motion during turns.
+
+**Touch-gating:** Car2 applies **impulse** and **addRotation** only when the entity is touching another object (at least one contact with another collider). When not touching anything (e.g. in mid-air), the transformer still outputs **color** for input feedback but does not output impulse or addRotation, so physics is left unchanged. The runtime sets `input.environment.isTouchingObject` from the physics world’s contact state (from the previous step) before running the transformer chain; car2 reads this and gates its physics output on it.
 
 | Param | Default | Meaning |
 |-------|---------|---------|

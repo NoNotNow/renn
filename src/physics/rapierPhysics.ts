@@ -393,7 +393,26 @@ export class PhysicsWorld {
   }
 
   /**
-   * Clear all persistent forces and torques on dynamic bodies.
+   * Returns true if the entity's collider has at least one contact with another collider.
+   * Uses narrow-phase contact (manifold.numContacts() > 0), not broad-phase pairs.
+   * Ignores pairs where the other collider belongs to the same entity. Uses contact state from the last physics step.
+   */
+  isEntityTouchingAny(entityId: string): boolean {
+    const collider = this.colliderMap.get(entityId)
+    if (!collider) return false
+    let touching = false
+    this.world.contactPairsWith(collider, (other) => {
+      if (touching) return
+      const otherEntityId = this.colliderHandleToEntityId.get(other.handle)
+      if (otherEntityId === entityId) return
+      this.world.contactPair(collider, other, (manifold, _flipped) => {
+        if (manifold.numContacts() > 0) touching = true
+      })
+    })
+    return touching
+  }
+
+  /**
    * Call once per frame before applying transformer forces so that
    * addForce/addTorque do not accumulate across steps.
    */

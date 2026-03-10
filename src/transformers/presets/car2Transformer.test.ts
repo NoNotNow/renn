@@ -80,6 +80,7 @@ describe('CarTransformer2 – color feedback', () => {
         actions: { steer_right: 1.0 },
         velocity: [0, 0, -5],
         rotation: [0, 0, 0],
+        environment: { isTouchingObject: true },
       }),
       0.016,
     )
@@ -97,6 +98,7 @@ describe('CarTransformer2 – color feedback', () => {
       actions: {},
       velocity: [5, 0, 0],
       rotation: [0, 0, 0],
+      environment: { isTouchingObject: true },
     })
     const forward: [number, number, number] = [0, 0, -1]
 
@@ -121,6 +123,52 @@ describe('CarTransformer2 – color feedback', () => {
       expect(output.impulse).toBeDefined()
       const dot = (output.impulse![0] * forward[0] + output.impulse![1] * forward[1] + output.impulse![2] * forward[2])
       expect(dot).toBeCloseTo(0, 0)
+    })
+  })
+
+  describe('touch-gating: physics only when touching', () => {
+    test('when isTouchingObject is false, no impulse and no addRotation', () => {
+      const output = t.transform(
+        createMockTransformInput({
+          actions: { throttle: 1.0, steer_right: 1.0 },
+          velocity: [0, 0, -5],
+          rotation: [0, 0, 0],
+          environment: { isTouchingObject: false },
+        }),
+        0.016,
+      )
+      expect(output.color).toBeDefined()
+      expect(output.impulse).toBeUndefined()
+      expect(output.addRotation).toBeUndefined()
+    })
+
+    test('when isTouchingObject is undefined, no impulse and no addRotation', () => {
+      const output = t.transform(
+        createMockTransformInput({
+          actions: { throttle: 1.0 },
+          velocity: [0, 0, -3],
+          rotation: [0, 0, 0],
+        }),
+        0.016,
+      )
+      expect(output.color).toBeDefined()
+      expect(output.impulse).toBeUndefined()
+      expect(output.addRotation).toBeUndefined()
+    })
+
+    test('when isTouchingObject is true, impulse and addRotation are present', () => {
+      const output = t.transform(
+        createMockTransformInput({
+          actions: { throttle: 1.0, steer_right: 1.0 },
+          velocity: [0, 0, -5],
+          rotation: [0, 0, 0],
+          environment: { isTouchingObject: true },
+        }),
+        0.016,
+      )
+      expect(output.color).toBeDefined()
+      expect(output.impulse).toBeDefined()
+      expect(output.addRotation).toBeDefined()
     })
   })
 })

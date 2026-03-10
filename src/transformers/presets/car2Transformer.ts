@@ -62,9 +62,15 @@ export class CarTransformer2 extends BaseTransformer {
 
     const forwardVector = this.getForwardVector(input.rotation)
     const color = this.setColors(input)
+    const touching = input.environment.isTouchingObject === true
+
+    if (!touching) {
+      return { color, earlyExit: false }
+    }
+
     const impulse = this.setImpulse(input, deltaTime, forwardVector)
     const rotationDelta = this.getRotationDelta(input, deltaTime, this.wheelAngle)
-    const addRotation = rotationDelta;
+    const addRotation = rotationDelta
     return {
       color,
       impulse,

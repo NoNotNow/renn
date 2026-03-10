@@ -87,6 +87,8 @@ export interface EnvironmentState {
   wind?: Vec3
   isGrounded?: boolean
   groundNormal?: Vec3
+  /** True when the entity's collider has at least one contact with another collider. */
+  isTouchingObject?: boolean
 }
 
 /**

@@ -230,6 +230,66 @@ describe('PhysicsWorld', () => {
     
     pw.dispose()
   })
+
+  describe('isEntityTouchingAny', () => {
+    it('returns false when entity has no collider', () => {
+      const pw = new PhysicsWorld()
+      expect(pw.isEntityTouchingAny('nonexistent')).toBe(false)
+      pw.dispose()
+    })
+
+    it('returns false when entity is in the air with no other bodies', () => {
+      const pw = new PhysicsWorld([0, -9.81, 0])
+      const entity: Entity = {
+        id: 'car',
+        bodyType: 'dynamic',
+        shape: { type: 'box', width: 2, height: 1, depth: 4 },
+        position: [0, 10, 0],
+        mass: 12,
+      }
+      const mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(2, 1, 4),
+        new THREE.MeshBasicMaterial()
+      )
+      pw.addEntity(entity, mesh)
+      pw.step(1 / 60)
+      expect(pw.isEntityTouchingAny('car')).toBe(false)
+      pw.dispose()
+    })
+
+    it('returns true for both entities when two bodies are in contact', () => {
+      const pw = new PhysicsWorld([0, -9.81, 0])
+      const ground: Entity = {
+        id: 'ground',
+        bodyType: 'static',
+        shape: { type: 'box', width: 20, height: 0.5, depth: 20 },
+        position: [0, -0.25, 0],
+      }
+      const car: Entity = {
+        id: 'car',
+        bodyType: 'dynamic',
+        shape: { type: 'box', width: 2, height: 1, depth: 4 },
+        position: [0, 2, 0],
+        mass: 12,
+      }
+      const groundMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(20, 0.5, 20),
+        new THREE.MeshBasicMaterial()
+      )
+      const carMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(2, 1, 4),
+        new THREE.MeshBasicMaterial()
+      )
+      pw.addEntity(ground, groundMesh)
+      pw.addEntity(car, carMesh)
+      for (let i = 0; i < 120; i++) {
+        pw.step(1 / 60)
+      }
+      expect(pw.isEntityTouchingAny('car')).toBe(true)
+      expect(pw.isEntityTouchingAny('ground')).toBe(true)
+      pw.dispose()
+    })
+  })
 })
 
 describe('createPhysicsWorld', () => {
