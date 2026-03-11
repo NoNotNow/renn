@@ -45,7 +45,7 @@ renn/
 │   │   └── validate.ts       # validateWorldDocument(), Ajv + world-schema
 │   ├── loader/
 │   │   ├── loadWorld.ts        # loadWorld(data) → scene, entities, world
-│   │   ├── loadWorldFromStatic.ts # loadWorldFromStatic(baseUrl) → world, assets (for gh-pages)
+│   │   ├── loadWorldFromStatic.ts # Static world + assets; rejects text/html (Vite SPA fallback); tries assets/<assetId>.bin before ref.path
 │   │   ├── createPrimitive.ts # Mesh from shape + material; plane/box/sphere/cylinder/capsule/cone/pyramid/ring/…
 │   │   ├── assetResolver.ts  # (assetId) => URL | Blob | null
 │   │   └── assetResolverImpl.ts # Blob → object URL

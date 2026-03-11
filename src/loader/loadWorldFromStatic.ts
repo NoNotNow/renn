@@ -8,16 +8,41 @@ import { migrateWorldScripts } from '@/scripts/migrateWorld'
 
 const ASSET_EXTS = ['.bin', '.png', '.jpg', '.jpeg', '.glb', '.gltf']
 
+function isHtmlContentType(contentType: string | null): boolean {
+  if (!contentType) return false
+  const lower = contentType.toLowerCase().split(';')[0].trim()
+  return lower === 'text/html' || lower === 'application/xhtml+xml'
+}
+
+/**
+ * Fetches a URL as Blob only if the response is not an HTML fallback (SPA shell).
+ * Vite dev returns 200 + text/html for missing files; those must not be stored as assets.
+ */
 async function fetchBlob(url: string): Promise<Blob | null> {
   try {
     const res = await fetch(url)
     if (!res.ok) return null
-    return res.blob()
+    const headerType = res.headers.get('content-type')
+    if (isHtmlContentType(headerType)) {
+      console.warn('[loadWorldFromStatic] Rejected HTML response (likely SPA fallback):', url, headerType)
+      return null
+    }
+    const blob = await res.blob()
+    if (isHtmlContentType(blob.type)) {
+      console.warn('[loadWorldFromStatic] Rejected blob with HTML type:', url, blob.type)
+      return null
+    }
+    return blob
   } catch {
     return null
   }
 }
 
+/**
+ * Candidate URLs for a static asset.
+ * Export-style paths (assets/<assetId>.<ext>) are tried first so stale ref.path
+ * entries do not win before valid shipped assets.
+ */
 function resolveAssetPaths(
   baseUrl: string,
   assetId: string,
@@ -26,13 +51,13 @@ function resolveAssetPaths(
   const candidates: string[] = []
   const base = baseUrl.replace(/\/$/, '') + '/world/'
 
+  for (const ext of ASSET_EXTS) {
+    candidates.push(base + 'assets/' + assetId + ext)
+  }
   if (refPath) {
     const normalized = refPath.replace(/\s/g, '_').replace(/~/g, '_')
     candidates.push(base + refPath)
     candidates.push(base + normalized)
-  }
-  for (const ext of ASSET_EXTS) {
-    candidates.push(base + 'assets/' + assetId + ext)
   }
   return candidates
 }
@@ -57,7 +82,7 @@ function collectReferencedAssetIds(world: RennWorld): Set<string> {
 /**
  * Load world.json and all referenced assets from static URLs.
  * Loads assets from world.assets and those referenced by entities (material.map, shape.model).
- * Tries assets/assetId.bin first (export format), then ref.path variants, then other extensions.
+ * Tries assets/assetId.<ext> first (export format), then ref.path variants.
  */
 export async function loadWorldFromStatic(
   baseUrl: string

@@ -39,9 +39,14 @@ export function createAssetResolver(assets: Map<string, Blob>): DisposableAssetR
   }
 
   const loadTexture = async (assetId: string, loader: THREE.TextureLoader): Promise<THREE.Texture | null> => {
+    const blob = assets.get(assetId)
+    if (!blob) {
+      console.warn(`[AssetResolver] Texture asset not in map: ${assetId}`)
+      return null
+    }
     const url = resolve(assetId)
     if (!url) return null
-    
+    const blobInfo = { size: blob.size, type: blob.type || '(empty)' }
     try {
       const texture = await new Promise<THREE.Texture>((resolve, reject) => {
         loader.load(
@@ -53,7 +58,7 @@ export function createAssetResolver(assets: Map<string, Blob>): DisposableAssetR
       })
       return texture
     } catch (error) {
-      console.error(`Failed to load texture for asset ${assetId}:`, error)
+      console.error(`Failed to load texture for asset ${assetId} (blob ${blobInfo.size} bytes, type ${blobInfo.type}):`, error)
       return null
     }
   }
