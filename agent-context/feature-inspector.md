@@ -43,3 +43,7 @@ src/
 ├── utils/assetUpload.ts       # uploadModel, uploadTexture; used by ShapeEditor (trimesh), MaterialEditor, ModelEditor
 ├── persistence/indexedDb.ts   # defaultPersistence shared by inspector and asset UI
 ```
+
+## Scene picking (click → inspector)
+
+Selection in the 3D view uses a **raycaster** on entity meshes. GLTF/model entities have nested meshes; the first hit is often a **child** without `userData.entityId`. **Resolution**: `findEntityRootForPicking` in `src/utils/entityPicking.ts` walks parents until an object with `entityId` is found. **Load time**: `loadWorld.ts` also traverses each entity mesh and copies `entityId` / `entity` onto descendants so any intersected node identifies the entity. Drag plane uses the **root’s world position** so nested local positions do not skew the drag plane.

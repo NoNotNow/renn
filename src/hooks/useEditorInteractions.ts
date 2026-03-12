@@ -1,5 +1,6 @@
 import { useRef, useEffect } from 'react'
 import * as THREE from 'three'
+import { findEntityRootForPicking } from '@/utils/entityPicking'
 import type { Vec3 } from '@/types/world'
 import type { PhysicsWorld } from '@/physics/rapierPhysics'
 import type { RenderItemRegistry } from '@/runtime/renderItemRegistry'
@@ -44,6 +45,7 @@ export function useEditorInteractions({
     const getEntityMeshes = (): THREE.Object3D[] =>
       scene.children.filter((o) => o.userData?.entityId != null)
 
+
     const setNdcFromEvent = (e: PointerEvent): void => {
       const rect = canvas.getBoundingClientRect()
       ndc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1
@@ -56,24 +58,27 @@ export function useEditorInteractions({
       raycaster.setFromCamera(ndc, camera)
       const hits = raycaster.intersectObjects(getEntityMeshes(), true)
       const hit = hits[0]
-      if (!hit?.object?.userData?.entityId) {
+      const entityRoot = hit?.object ? findEntityRootForPicking(hit.object) : null
+      if (!entityRoot) {
         editorPropsRef.current.onSelectEntity?.(null)
         return
       }
-      const entityId = hit.object.userData.entityId as string
-      const mesh = hit.object as THREE.Mesh
+      const entityId = entityRoot.userData.entityId as string
       editorPropsRef.current.onSelectEntity?.(entityId)
-      
+
       // Check if entity is locked - prevent dragging but allow selection
-      const entity = hit.object.userData.entity
+      const entity = entityRoot.userData.entity
       if (entity?.locked) {
         return
       }
-      
+
+      // Plane through entity root world position (child mesh.position would be local)
       camera.getWorldDirection(cameraDir)
+      const planePoint = new THREE.Vector3()
+      entityRoot.getWorldPosition(planePoint)
       const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(
         cameraDir.clone().negate(),
-        mesh.position.clone()
+        planePoint
       )
       dragStateRef.current = {
         entityId,

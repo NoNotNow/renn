@@ -17,7 +17,7 @@
 | Overall structure / data flow | `architecture.md` |
 | Entity movement, input, physics behavior | `feature-transformers.md` |
 | Scripts, game API, events, intellisense | `feature-scripting.md` |
-| Property panel, inspector, live poses, no-update-loop | `feature-inspector.md` |
+| Property panel, inspector, live poses, picking (incl. 3D model meshes), no-update-loop | `feature-inspector.md` |
 | World update path, rebuild triggers, minimal reload strategy | `feature-world-update-reload.md` |
 | What is done / what is left to build | `project-status.md` |
 | Example worlds and JSON configs | `example-worlds.md` |
