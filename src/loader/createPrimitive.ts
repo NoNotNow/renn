@@ -66,6 +66,15 @@ export async function materialFromRef(
     }
   }
 
+  // Opacity / transparency (default 1 = opaque)
+  const rawOpacity = material?.opacity ?? 1
+  const opacity = Math.min(1, Math.max(0, Number.isFinite(rawOpacity) ? rawOpacity : 1))
+  mat.opacity = opacity
+  mat.transparent = opacity < 1
+  if (opacity < 1) {
+    mat.depthWrite = false
+  }
+
   return mat
 }
 

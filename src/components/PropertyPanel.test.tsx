@@ -271,6 +271,23 @@ describe('PropertyPanel', () => {
       expect(updatedEntity?.material?.roughness).toBe(0.2)
     })
 
+    it('changing Opacity updates entity material on blur', async () => {
+      const user = userEvent.setup()
+      const onWorldChange = vi.fn()
+      const world = worldWithBox()
+      const entityId = world.entities[0].id
+      renderPropertyPanel(world, entityId, onWorldChange)
+      const opacityInput = screen.getByLabelText(/opacity/i)
+      await user.click(opacityInput)
+      await user.clear(opacityInput)
+      await user.type(opacityInput, '0.5')
+      await user.tab()
+      expect(onWorldChange).toHaveBeenCalled()
+      const lastCall = onWorldChange.mock.calls[onWorldChange.mock.calls.length - 1]
+      const updatedEntity = lastCall[0].entities.find((e: { id: string }) => e.id === entityId)
+      expect(updatedEntity?.material?.opacity).toBe(0.5)
+    })
+
     it('changing Metalness updates entity material on blur', async () => {
       const user = userEvent.setup()
       const onWorldChange = vi.fn()

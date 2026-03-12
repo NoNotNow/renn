@@ -31,6 +31,7 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
     : [0.3, 0.5, 0.3]
   const groundRoughness = groundEntity?.material?.roughness ?? 0.5
   const groundMetalness = groundEntity?.material?.metalness ?? 0
+  const groundOpacity = groundEntity?.material?.opacity ?? 1
   const groundFriction = groundEntity?.friction ?? 0.5
   const groundScale: Vec3 = groundEntity?.scale ?? DEFAULT_SCALE
 
@@ -176,7 +177,12 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
           id: groundEntity.id,
           name: groundEntity.name,
           scale: groundScale,
-          material: { color: groundColor, roughness: groundRoughness, metalness: groundMetalness },
+          material: {
+            color: groundColor,
+            roughness: groundRoughness,
+            metalness: groundMetalness,
+            opacity: groundOpacity,
+          },
           friction: groundFriction,
         }
       : null,
@@ -402,6 +408,26 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
                 defaultValue={0}
                 entityId={groundEntity.id}
                 propertyName="metalness"
+                logComponent="WorldPanel"
+              />
+              <NumberInput
+                id="ground-opacity"
+                label="Opacity"
+                value={groundOpacity}
+                onChange={(value) => {
+                  uiLogger.change('WorldPanel', 'Change ground opacity', {
+                    entityId: groundEntity.id,
+                    oldValue: groundOpacity,
+                    newValue: value,
+                  })
+                  updateGroundMaterial({ opacity: value })
+                }}
+                min={0}
+                max={1}
+                step={0.05}
+                defaultValue={1}
+                entityId={groundEntity.id}
+                propertyName="opacity"
                 logComponent="WorldPanel"
               />
             </div>

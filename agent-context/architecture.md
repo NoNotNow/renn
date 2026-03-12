@@ -86,7 +86,7 @@ renn/
 │   │   ├── TransformEditor.tsx # Position, rotation (Vec3Field, Euler [x,y,z]), scale
 │   │   ├── ShapeEditor.tsx   # Shape type + params (box, sphere, cylinder, capsule, cone, pyramid, ring, plane)
 │   │   ├── PhysicsEditor.tsx # bodyType, mass, restitution, friction, linearDamping, angularDamping
-│   │   ├── MaterialEditor.tsx # color, roughness, metalness
+│   │   ├── MaterialEditor.tsx # color, roughness, metalness, opacity (0–1, default 1)
 │   │   ├── ScriptPanel.tsx   # Monaco + script list (add/remove)
 │   │   ├── AssetPanel.tsx    # Upload assets, list by ID
 │   │   ├── MenuBar.tsx       # Menu bar component

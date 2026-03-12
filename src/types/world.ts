@@ -68,6 +68,8 @@ export interface MaterialRef {
   map?: string
   roughness?: number
   metalness?: number
+  /** Opacity 0–1; default 1 (fully opaque). When below 1, renderer uses transparent blending. */
+  opacity?: number
   // Advanced texture properties
   mapRepeat?: Vec3  // [x, y] UV repeat
   mapWrapS?: 'repeat' | 'clampToEdge' | 'mirroredRepeat'

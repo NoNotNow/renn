@@ -38,6 +38,7 @@ export default function MaterialEditor({
   const color: Vec3 = (material?.color ?? [0.7, 0.7, 0.7]).slice(0, 3) as Vec3
   const roughness = material?.roughness ?? 0.5
   const metalness = material?.metalness ?? 0
+  const opacity = material?.opacity ?? 1
   const colorHex = colorToHex(color)
   
   const hasTexture = !!material?.map
@@ -262,6 +263,22 @@ export default function MaterialEditor({
         </div>
       )}
       
+      <NumberInput
+        id={`${entityId}-opacity`}
+        label="Opacity"
+        value={opacity}
+        onChange={(value) => {
+          uiLogger.change('PropertyPanel', 'Change opacity', { entityId, oldValue: opacity, newValue: value })
+          onMaterialChange({ ...material, opacity: value })
+        }}
+        min={0}
+        max={1}
+        step={0.05}
+        defaultValue={1}
+        disabled={disabled}
+        entityId={entityId}
+        propertyName="opacity"
+      />
       <NumberInput
         id={`${entityId}-roughness`}
         label="Roughness"
