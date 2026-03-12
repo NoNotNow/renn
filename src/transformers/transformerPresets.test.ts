@@ -37,9 +37,9 @@ describe('transformerPresets', () => {
   test('car2 preset has user-specified params', () => {
     const config = getDefaultTransformerConfig('car2')
     expect(config.params).toMatchObject({
-      power: 500,
-      steeringIntensity: 0.1,
-      steeringSpeed: 0.01,
+      power: 1000,
+      steeringIntensity: 0.05,
+      steeringSpeed: 0.05,
       lateralGrip: 120,
     })
   })

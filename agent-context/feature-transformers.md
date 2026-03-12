@@ -222,7 +222,7 @@ The `car2` preset (impulse + addRotation + color feedback) accepts optional `par
 | `lateralGrip` | 100 | Sideways grip strength (higher = less sliding) |
 | `lateralToForwardTransfer` | 0.2 | Fraction of lateral grip translated into forward impulse when turning (0–1) |
 
-Example: `{ "type": "car2", "priority": 10, "params": { "power": 500, "steeringIntensity": 0.12, "lateralToForwardTransfer": 0.2 } }`.
+Default preset (Builder + `getDefaultTransformerConfig('car2')`): `{ "type": "car2", "priority": 10, "enabled": true, "params": { "power": 1000, "steeringIntensity": 0.05, "steeringSpeed": 0.05, "lateralGrip": 120 } }`. Optional: `lateralToForwardTransfer` (e.g. `0.2`).
 
 ### Builder: Add transformer dropdown
 

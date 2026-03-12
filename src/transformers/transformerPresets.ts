@@ -76,9 +76,9 @@ export function getDefaultTransformerConfig(type: string): TransformerConfig {
         priority: 10,
         enabled: true,
         params: {
-          power: 500,
-          steeringIntensity: 0.1,
-          steeringSpeed: 0.01,
+          power: 1000,
+          steeringIntensity: 0.05,
+          steeringSpeed: 0.05,
           lateralGrip: 120,
         },
       }
