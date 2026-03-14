@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { CopyProvider } from '@/contexts/CopyContext'
 import ScriptPanel from '@/components/ScriptPanel'
@@ -101,5 +101,40 @@ describe('ScriptPanel', () => {
     )
     expect(screen.getByText(/this script is shared/i)).toBeInTheDocument()
     expect(screen.getByText(/used by:.*box.*ball/i)).toBeInTheDocument()
+  })
+
+  it('ScriptDialog rename updates world.scripts and all entity.scripts', async () => {
+    const world = worldWithEntityAndScript()
+    const onWorldChange = vi.fn()
+    const promptStub = vi.fn(() => 'script_renamed')
+    vi.stubGlobal('prompt', promptStub)
+
+    render(
+      <CopyProvider>
+        <ScriptPanel world={world} selectedEntityId="e1" onWorldChange={onWorldChange} />
+      </CopyProvider>
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: /manage scripts/i }))
+
+    const dialog = screen.getByRole('dialog', { name: /scripts for box/i })
+    const scriptALabel = within(dialog).getAllByText('script_a')[0]
+    await userEvent.click(scriptALabel)
+
+    const renameButton = within(dialog).getByRole('button', { name: /rename/i })
+    await userEvent.click(renameButton)
+
+    expect(promptStub).toHaveBeenCalledWith('New script ID:', 'script_a')
+    expect(onWorldChange).toHaveBeenCalledTimes(1)
+    const nextWorld = onWorldChange.mock.calls[0][0] as RennWorld
+    expect(nextWorld.scripts?.script_a).toBeUndefined()
+    expect(nextWorld.scripts?.script_renamed).toEqual({ event: 'onUpdate', source: '// hello' })
+    expect(nextWorld.scripts?.script_b).toEqual({ event: 'onSpawn', source: '// world' })
+    const e1 = nextWorld.entities.find((e) => e.id === 'e1')
+    const e2 = nextWorld.entities.find((e) => e.id === 'e2')
+    expect(e1?.scripts).toEqual(['script_renamed'])
+    expect(e2?.scripts).toEqual(['script_renamed'])
+
+    vi.unstubAllGlobals()
   })
 })

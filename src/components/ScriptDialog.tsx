@@ -76,7 +76,31 @@ export default function ScriptDialog({
     setSelectedScriptId(id)
   }, [scripts, world, entityScriptIds, onChange, onWorldChange])
 
+  const handleRename = useCallback(() => {
+    if (!selectedScriptId || !onWorldChange) return
+    const def = getDef(scripts, selectedScriptId)
+    if (!def) return
+    const newIdRaw = prompt('New script ID:', selectedScriptId)
+    if (newIdRaw == null) return
+    const newId = newIdRaw.trim()
+    if (!newId || newId === selectedScriptId) return
+    if (scripts[newId]) {
+      alert('A script with this ID already exists.')
+      return
+    }
+    uiLogger.click('ScriptDialog', 'Rename script', { oldId: selectedScriptId, newId })
+    const { [selectedScriptId]: _removed, ...rest } = scripts
+    const nextScripts = { ...rest, [newId]: def }
+    const nextEntities = world.entities.map((e) => ({
+      ...e,
+      scripts: e.scripts?.map((sid) => (sid === selectedScriptId ? newId : sid)) ?? [],
+    }))
+    onWorldChange({ ...world, scripts: nextScripts, entities: nextEntities })
+    setSelectedScriptId(newId)
+  }, [selectedScriptId, scripts, world, onWorldChange])
+
   const isAttached = selectedScriptId && entityScriptIds.includes(selectedScriptId)
+  const canRename = selectedScriptId && onWorldChange
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={`Scripts for ${entityName}`} width={700} height={500}>
@@ -151,22 +175,40 @@ export default function ScriptDialog({
                 })
               )}
             </div>
-            <button
-              type="button"
-              onClick={handleCreateNew}
-              style={{
-                marginTop: 8,
-                padding: '8px 12px',
-                background: '#2d4a2d',
-                border: '1px solid #4a6a4a',
-                color: '#a4d4a4',
-                borderRadius: 6,
-                cursor: 'pointer',
-                fontSize: 12,
-              }}
-            >
-              Create new script
-            </button>
+            <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={handleCreateNew}
+                style={{
+                  padding: '8px 12px',
+                  background: '#2d4a2d',
+                  border: '1px solid #4a6a4a',
+                  color: '#a4d4a4',
+                  borderRadius: 6,
+                  cursor: 'pointer',
+                  fontSize: 12,
+                }}
+              >
+                Create new script
+              </button>
+              <button
+                type="button"
+                onClick={handleRename}
+                disabled={!canRename}
+                title={canRename ? 'Rename selected script' : 'Select a script to rename'}
+                style={{
+                  padding: '8px 12px',
+                  background: canRename ? '#2a3a4a' : '#2a2a2a',
+                  border: canRename ? '1px solid #3f4f5f' : '1px solid #2f3545',
+                  color: canRename ? '#e6e9f2' : '#666',
+                  borderRadius: 6,
+                  cursor: canRename ? 'pointer' : 'not-allowed',
+                  fontSize: 12,
+                }}
+              >
+                Rename
+              </button>
+            </div>
           </div>
 
           {/* Right: Attached to this entity */}
