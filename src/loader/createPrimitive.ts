@@ -3,7 +3,7 @@ import { GLTFLoader } from 'three-stdlib'
 import type { Shape, Vec3, Rotation, MaterialRef } from '@/types/world'
 import type { DisposableAssetResolver } from './assetResolverImpl'
 import { eulerToQuaternion } from '@/utils/rotationUtils'
-import { normalizeSceneToUnitCube } from '@/utils/normalizeModelToUnitCube'
+import { convertZUpToYUpIfNeeded, normalizeSceneToUnitCube } from '@/utils/normalizeModelToUnitCube'
 
 function colorFromRef(material: MaterialRef | undefined): THREE.Color {
   if (material?.color && Array.isArray(material.color)) {
@@ -152,6 +152,7 @@ export async function createPrimitiveMesh(
           if (gltf) {
             // Clone the loaded scene to create a new instance
             const modelScene = gltf.scene.clone(true)
+            convertZUpToYUpIfNeeded(modelScene)
             normalizeSceneToUnitCube(modelScene)
             
             // Always apply lit material so trimesh renders like primitives (responds to lights)
@@ -162,21 +163,14 @@ export async function createPrimitiveMesh(
               }
             })
             
-            // Extract the first mesh or create a group
-            const firstMesh = modelScene.children.find(child => child instanceof THREE.Mesh) as THREE.Mesh
-            if (firstMesh) {
-              // Store metadata for physics extraction
-              firstMesh.userData.isTrimeshSource = true
-              firstMesh.userData.trimeshModel = shape.model
-              // Store the entire scene for proper geometry extraction
-              firstMesh.userData.trimeshScene = modelScene
-              return firstMesh
-            }
-            
-            // If no mesh found, wrap the scene in a mesh with dummy geometry
-            const wrapperMesh = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.1), mat)
+            // Always use a wrapper so modelScene stays intact for physics extraction.
+            // Returning firstMesh directly would detach it from modelScene when added to
+            // the main scene, leaving modelScene empty and causing physics fallback to box.
+            const wrapperMesh = new THREE.Mesh(
+              new THREE.BoxGeometry(0.01, 0.01, 0.01),
+              new THREE.MeshStandardMaterial({ visible: false })
+            )
             wrapperMesh.add(modelScene)
-            // Store metadata for physics extraction
             wrapperMesh.userData.isTrimeshSource = true
             wrapperMesh.userData.trimeshModel = shape.model
             wrapperMesh.userData.trimeshScene = modelScene
@@ -279,6 +273,7 @@ export async function buildEntityMesh(
       if (gltf) {
         // Clone the loaded scene
         const modelScene = gltf.scene.clone(true)
+        convertZUpToYUpIfNeeded(modelScene)
         normalizeSceneToUnitCube(modelScene)
         
         // Always apply lit material so entity.model renders like primitives (responds to lights)

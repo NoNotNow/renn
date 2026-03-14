@@ -1,5 +1,26 @@
 import * as THREE from 'three'
 
+/** Rotation matrix to convert Z-up (e.g. Blender, CAD) to Y-up (Three.js). */
+const Z_UP_TO_Y_UP = new THREE.Matrix4().set(1, 0, 0, 0, 0, 0, 1, 0, 0, -1, 0, 0, 0, 0, 0, 1)
+
+/**
+ * If the scene's bounding box suggests Z-up (Z is the dominant axis), applies a -90° X
+ * rotation to convert to Y-up for Three.js. Mutates the scene in place.
+ * Call before normalizeSceneToUnitCube.
+ */
+export function convertZUpToYUpIfNeeded(scene: THREE.Object3D): void {
+  scene.updateMatrixWorld(true)
+  const box = new THREE.Box3().setFromObject(scene)
+  if (box.isEmpty()) return
+  const size = box.getSize(new THREE.Vector3())
+  const maxDim = Math.max(size.x, size.y, size.z)
+  if (maxDim <= 0) return
+  // If Z is the dominant (tallest) axis, assume Z-up
+  if (size.z >= size.x && size.z >= size.y) {
+    scene.applyMatrix4(Z_UP_TO_Y_UP)
+  }
+}
+
 /**
  * Normalizes a scene so all mesh geometry fits in a 1×1×1 cube centered at the origin.
  * Computes world-space bounding box, then bakes (center + scale) into each mesh's

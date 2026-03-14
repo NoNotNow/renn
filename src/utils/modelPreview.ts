@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { GLTFLoader } from 'three-stdlib'
+import { convertZUpToYUpIfNeeded } from '@/utils/normalizeModelToUnitCube'
 
 const DEFAULT_SIZE = 160
 const DEFAULT_BG = new THREE.Color(0x1a1a1a)
@@ -88,6 +89,7 @@ export async function generateModelPreview(
   try {
     modelScene = await loadModelScene(blob)
     if (!modelScene) return null
+    convertZUpToYUpIfNeeded(modelScene)
     scene.add(modelScene)
     frameCamera(camera, modelScene)
     renderer.render(scene, camera)

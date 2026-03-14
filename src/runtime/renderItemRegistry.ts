@@ -421,8 +421,10 @@ export class RenderItemRegistry {
       const rot = cached.rotation
       item.mesh.position.set(pos.x, pos.y, pos.z)
       item.mesh.quaternion.set(rot.x, rot.y, rot.z, rot.w)
-      // Note: Rotation is stored as Euler in entity, but mesh uses quaternion
-      // The conversion happens in getRotation() when reading from entity
+      const baseQ = item.mesh.userData.visualBaseQuaternion as THREE.Quaternion | undefined
+      if (baseQ) {
+        item.mesh.quaternion.premultiply(baseQ)
+      }
     }
   }
 

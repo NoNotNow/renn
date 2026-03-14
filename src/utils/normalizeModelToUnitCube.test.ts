@@ -1,9 +1,45 @@
 import { describe, it, expect } from 'vitest'
 import * as THREE from 'three'
-import { normalizeSceneToUnitCube } from './normalizeModelToUnitCube'
+import { convertZUpToYUpIfNeeded, normalizeSceneToUnitCube } from './normalizeModelToUnitCube'
 import { extractMeshGeometry, getGeometryInfo } from './geometryExtractor'
 
 const EPS = 1e-5
+
+describe('convertZUpToYUpIfNeeded', () => {
+  it('converts Z-up to Y-up when Z is the dominant axis', () => {
+    // Box with Z as height (2x2x10) = Z-up model
+    const geometry = new THREE.BoxGeometry(2, 2, 10)
+    const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial())
+    const scene = new THREE.Group()
+    scene.add(mesh)
+
+    convertZUpToYUpIfNeeded(scene)
+
+    const box = new THREE.Box3().setFromObject(scene)
+    const size = box.getSize(new THREE.Vector3())
+    // After conversion: old Z (10) should become Y, so Y extent should be largest
+    expect(size.y).toBeGreaterThanOrEqual(size.z - EPS)
+    expect(size.y).toBeGreaterThanOrEqual(size.x - EPS)
+  })
+
+  it('leaves Y-up models unchanged when Y is dominant', () => {
+    const geometry = new THREE.BoxGeometry(2, 10, 2)
+    const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial())
+    const scene = new THREE.Group()
+    scene.add(mesh)
+
+    const boxBefore = new THREE.Box3().setFromObject(scene)
+    const sizeBefore = boxBefore.getSize(new THREE.Vector3())
+    convertZUpToYUpIfNeeded(scene)
+    const boxAfter = new THREE.Box3().setFromObject(scene)
+    const sizeAfter = boxAfter.getSize(new THREE.Vector3())
+
+    // Y-up model should be unchanged
+    expect(sizeAfter.y).toBeCloseTo(sizeBefore.y, 5)
+    expect(sizeAfter.x).toBeCloseTo(sizeBefore.x, 5)
+    expect(sizeAfter.z).toBeCloseTo(sizeBefore.z, 5)
+  })
+})
 
 describe('normalizeSceneToUnitCube', () => {
   it('scales and centers a large box to fit in 1×1×1', () => {
