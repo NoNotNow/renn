@@ -1,4 +1,4 @@
-import { useRef, useCallback, useState } from 'react'
+import { useRef, useCallback, useState, useMemo } from 'react'
 import type { Entity, CameraMode, Color, RennWorld } from '@/types/world'
 import type { AddableShapeType, BulkEntityParams } from '@/data/entityDefaults'
 import { useLocalStorageState } from '@/hooks/useLocalStorageState'
@@ -47,8 +47,18 @@ export default function EntitySidebar({
   onToggle,
 }: EntitySidebarProps) {
   const [leftTab, setLeftTab] = useState<LeftTab>('camera')
+  const [searchQuery, setSearchQuery] = useState('')
   const [leftSidebarWidth, setLeftSidebarWidth] = useLocalStorageState('leftSidebarWidth', 240)
   const addEntitySelectRef = useRef<HTMLSelectElement>(null)
+
+  const filteredEntities = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    if (!q) return entities
+    return entities.filter((e) => {
+      const name = (e.name ?? e.id).toLowerCase()
+      return name.includes(q)
+    })
+  }, [entities, searchQuery])
   
   // Bulk creation form state - defaults optimized for maximum collisions
   const [bulkCount, setBulkCount] = useState(50)
@@ -201,8 +211,75 @@ export default function EntitySidebar({
                     <option value="plane">Plane</option>
                   </select>
                 </label>
-                <ul style={{ listStyle: 'none', padding: 0, margin: '12px 0 0 0' }}>
-                  {entities.map((e) => (
+                <div style={{ marginTop: 8, marginBottom: 8, position: 'relative' }}>
+                  <input
+                    type="text"
+                    placeholder="Search by name..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    aria-label="Search entities"
+                    style={{
+                      width: '100%',
+                      padding: searchQuery ? '8px 32px 8px 32px' : '8px 12px 8px 32px',
+                      borderRadius: 6,
+                      background: '#1a1a1a',
+                      border: '1px solid #2f3545',
+                      color: '#e6e9f2',
+                      fontSize: 14,
+                    }}
+                  />
+                  <span
+                    style={{
+                      position: 'absolute',
+                      left: 10,
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      color: '#9aa4b2',
+                      pointerEvents: 'none',
+                    }}
+                    aria-hidden
+                  >
+                    <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="11" cy="11" r="8" />
+                      <path d="m21 21-4.35-4.35" />
+                    </svg>
+                  </span>
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery('')}
+                      aria-label="Clear search"
+                      title="Clear search"
+                      style={{
+                        position: 'absolute',
+                        right: 8,
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#9aa4b2',
+                        cursor: 'pointer',
+                        padding: 4,
+                        display: 'flex',
+                        alignItems: 'center',
+                        opacity: 0.8,
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.color = '#e6e9f2' }}
+                      onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.8'; e.currentTarget.style.color = '#9aa4b2' }}
+                    >
+                      <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M18 6 6 18M6 6l12 12" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+                <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 0 0' }}>
+                  {filteredEntities.length === 0 ? (
+                    <li style={{ color: '#9aa4b2', fontSize: 13, padding: '8px 0' }}>
+                      {searchQuery.trim() ? `No entities match "${searchQuery.trim()}"` : 'No entities'}
+                    </li>
+                  ) : (
+                    filteredEntities.map((e) => (
                     <li key={e.id}>
                       <CopyableArea copyPayload={e} style={{ display: 'block' }}>
                       <button
@@ -239,7 +316,8 @@ export default function EntitySidebar({
                       </button>
                       </CopyableArea>
                     </li>
-                  ))}
+                    ))
+                  )}
                 </ul>
                 </>
               </CopyableArea>
