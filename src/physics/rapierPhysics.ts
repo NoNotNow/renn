@@ -210,11 +210,38 @@ export class PhysicsWorld {
           shape.radius * Math.max(scale[0], scale[2])
         )
 
-      case 'pyramid':
+      case 'pyramid': {
+        // Square-base pyramid: convex hull of 5 points so collision matches visual (ConeGeometry with 4 segments).
+        // Cone would use a circular base that circumscribes the square, making collision larger than the mesh.
+        const halfH = shape.height / 2
+        const r = shape.baseSize / Math.SQRT2 // half-diagonal of base square (= radius of cone with 4 segments)
+        const [sx, sy, sz] = scale
+        const points = new Float32Array(5 * 3)
+        // Apex (index 0)
+        points[0] = 0
+        points[1] = halfH * sy
+        points[2] = 0
+        // Base corners (same layout as Three.js ConeGeometry with 4 radial segments)
+        points[3] = r * sx
+        points[4] = -halfH * sy
+        points[5] = 0
+        points[6] = 0
+        points[7] = -halfH * sy
+        points[8] = r * sz
+        points[9] = -r * sx
+        points[10] = -halfH * sy
+        points[11] = 0
+        points[12] = 0
+        points[13] = -halfH * sy
+        points[14] = -r * sz
+        const hull = RAPIER.ColliderDesc.convexHull(points)
+        if (hull) return hull
+        // Fallback if convex hull fails (e.g. degenerate points)
         return RAPIER.ColliderDesc.cone(
-          (shape.height / 2) * scale[1],
-          (shape.baseSize / Math.SQRT2) * Math.max(scale[0], scale[2])
+          halfH * sy,
+          r * Math.max(sx, sz)
         )
+      }
 
       case 'ring': {
         const h = (shape.height ?? 0.1) * scale[1]

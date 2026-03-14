@@ -176,6 +176,7 @@ See **world-schema.json** and **src/types/world.ts** for the full shape.
 - **ProjectContext pattern**: single source of truth for project state; all components access state/actions via context; memoized values prevent unnecessary re-renders.
 - **RenderItemRegistry**: centralized entity management; single responsibility for physics-mesh sync; uses cached transforms to avoid WASM aliasing errors.
 - **Visual base quaternion**: Shapes like `plane` require a visual rotation offset (e.g. `-PI/2` on X to lay flat). This offset is stored on `mesh.userData.visualBaseQuaternion` and compensated in `RenderItem.getRotation()`/`setRotation()` so it never leaks into entity data during save.
+- **Pyramid collision**: Pyramid uses a convex-hull collider (5 vertices) in `rapierPhysics.ts` so the collision footprint matches the square-base mesh; a cone collider would use a circular base circumscribing the square and be larger than the visual.
 - **Reusable form components**: consistent UI patterns via shared form components (NumberInput, SelectInput, VectorField).
 - **Configuration constants**: centralized config (`src/config/constants.ts`) for easy maintenance and testing.
 - **Test helpers**: comprehensive test utilities for consistent, maintainable tests.

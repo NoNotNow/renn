@@ -72,7 +72,6 @@ export class CarTransformer2 extends BaseTransformer {
     const rotationDelta = this.getRotationDelta(input, deltaTime, this.wheelAngle)
     const addRotation = rotationDelta
     return {
-      color,
       impulse,
       addRotation,
       earlyExit: false,
