@@ -120,14 +120,16 @@ export async function loadWorld(
     mesh.userData.entityId = entity.id
     mesh.userData.entity = entity
     mesh.userData.bodyType = entity.bodyType ?? 'static'
-    // GLTF/model hierarchies: raycast often hits nested meshes first — propagate so any node identifies the entity
+    const isPlane = shape?.type === 'plane'
+    // GLTF/model hierarchies: propagate userData and set shadow flags on every mesh so trimesh/entity.model cast shadows like primitives
     mesh.traverse((child) => {
       child.userData.entityId = entity.id
       child.userData.entity = entity
+      if (child instanceof THREE.Mesh) {
+        child.castShadow = !isPlane
+        child.receiveShadow = true
+      }
     })
-    const isPlane = shape?.type === 'plane'
-    mesh.castShadow = !isPlane
-    mesh.receiveShadow = true
 
     scene.add(mesh)
     entities.push({ entity, mesh })

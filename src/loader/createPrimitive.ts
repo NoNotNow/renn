@@ -154,15 +154,13 @@ export async function createPrimitiveMesh(
             const modelScene = gltf.scene.clone(true)
             normalizeSceneToUnitCube(modelScene)
             
-            // Apply material if specified
-            if (materialRef) {
-              const material = await materialFromRef(materialRef, assetResolver)
-              modelScene.traverse((child) => {
-                if (child instanceof THREE.Mesh) {
-                  child.material = material
-                }
-              })
-            }
+            // Always apply lit material so trimesh renders like primitives (responds to lights)
+            const material = await materialFromRef(materialRef, assetResolver)
+            modelScene.traverse((child) => {
+              if (child instanceof THREE.Mesh) {
+                child.material = material
+              }
+            })
             
             // Extract the first mesh or create a group
             const firstMesh = modelScene.children.find(child => child instanceof THREE.Mesh) as THREE.Mesh
@@ -283,15 +281,13 @@ export async function buildEntityMesh(
         const modelScene = gltf.scene.clone(true)
         normalizeSceneToUnitCube(modelScene)
         
-        // Apply material if specified
-        if (materialRef) {
-          const material = await materialFromRef(materialRef, assetResolver)
-          modelScene.traverse((child) => {
-            if (child instanceof THREE.Mesh) {
-              child.material = material
-            }
-          })
-        }
+        // Always apply lit material so entity.model renders like primitives (responds to lights)
+        const material = await materialFromRef(materialRef, assetResolver)
+        modelScene.traverse((child) => {
+          if (child instanceof THREE.Mesh) {
+            child.material = material
+          }
+        })
         
         // Find the first mesh in the scene or create wrapper
         let resultMesh: THREE.Mesh

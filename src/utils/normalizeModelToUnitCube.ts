@@ -51,5 +51,7 @@ export function normalizeSceneToUnitCube(scene: THREE.Object3D): void {
     mesh.position.set(0, 0, 0)
     mesh.quaternion.identity()
     mesh.scale.set(1, 1, 1)
+
+    mesh.geometry.computeVertexNormals()
   })
 }
