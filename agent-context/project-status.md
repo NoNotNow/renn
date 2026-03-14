@@ -41,6 +41,7 @@ Last updated: 2026-03-02
 - 3D model workflow: ModelManager, ModelDialog, ModelThumbnail, ModelEditor
 - Two physics modes: `entity.model` (visual only) or `trimesh` shape (visual + physics)
 - Trimesh physics: vertices/indices extracted, concave geometry supported, warnings for >10K triangles
+- Trimesh and entity.model: normalized to 1×1×1 unit cube at import (center + scale baked into geometry via `normalizeSceneToUnitCube`)
 - Mesh simplification: SimplifyModifier, configurable via `shape.simplification`
 
 ### Quality

@@ -3,6 +3,7 @@ import { GLTFLoader } from 'three-stdlib'
 import type { Shape, Vec3, Rotation, MaterialRef } from '@/types/world'
 import type { DisposableAssetResolver } from './assetResolverImpl'
 import { eulerToQuaternion } from '@/utils/rotationUtils'
+import { normalizeSceneToUnitCube } from '@/utils/normalizeModelToUnitCube'
 
 function colorFromRef(material: MaterialRef | undefined): THREE.Color {
   if (material?.color && Array.isArray(material.color)) {
@@ -151,6 +152,7 @@ export async function createPrimitiveMesh(
           if (gltf) {
             // Clone the loaded scene to create a new instance
             const modelScene = gltf.scene.clone(true)
+            normalizeSceneToUnitCube(modelScene)
             
             // Apply material if specified
             if (materialRef) {
@@ -279,6 +281,7 @@ export async function buildEntityMesh(
       if (gltf) {
         // Clone the loaded scene
         const modelScene = gltf.scene.clone(true)
+        normalizeSceneToUnitCube(modelScene)
         
         // Apply material if specified
         if (materialRef) {
