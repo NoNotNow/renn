@@ -197,13 +197,13 @@
         },
         {
           "type": "car2",
-          "priority": 1,
+          "priority": 10,
           "enabled": true,
           "params": {
-            "maxSpeed": 200,
-            "timeToMaxSpeed": 10,
-            "steeringTorqueScale": 120,
-            "handbrakeMultiplier": 3
+            "power": 1000,
+            "steeringIntensity": 0.05,
+            "steeringSpeed": 0.05,
+            "lateralGrip": 120
           }
         }
       ],
