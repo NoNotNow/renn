@@ -183,7 +183,6 @@ export default function MaterialEditor({
                   onMaterialChange({ ...material, mapRepeat: v })
                 }}
                 min={0.1}
-                max={10}
                 step={0.1}
                 axisLabels={['U', 'V', '']}
                 idPrefix={`${entityId}-mapRepeat`}
