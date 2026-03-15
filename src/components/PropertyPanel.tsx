@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import type { RennWorld, Entity, Vec3, Rotation } from '@/types/world'
 import { uiLogger } from '@/utils/uiLogger'
 import TransformEditor from './TransformEditor'
+import Vec3Field from './Vec3Field'
 import ShapeEditor from './ShapeEditor'
 import PhysicsEditor from './PhysicsEditor'
 import MaterialEditor from './MaterialEditor'
@@ -82,6 +83,8 @@ export default function PropertyPanel({
   const displayPosition = livePose?.position ?? entity.position ?? [0, 0, 0]
   const displayRotation = livePose?.rotation ?? entity.rotation ?? [0, 0, 0]
   const scale = entity.scale ?? [1, 1, 1]
+  const modelRotation = entity.modelRotation ?? [0, 0, 0]
+  const modelScale = entity.modelScale ?? [1, 1, 1]
   const isLocked = entity.locked ?? false
 
   const [editingName, setEditingName] = useState<string | null>(null)
@@ -377,6 +380,58 @@ export default function PropertyPanel({
             onModelChange={(model) => updateEntity({ model })}
             onWorldChange={onWorldChange}
             onAssetsChange={onAssetsChange}
+            disabled={isLocked}
+          />
+        </CollapsibleSection>
+      )}
+
+      {(entity.shape?.type === 'trimesh' || entity.model) && (
+        <CollapsibleSection
+          title="Model-Transform"
+          copyPayload={{ modelRotation, modelScale }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+            <Vec3Field
+              label="Model rotation"
+              value={modelRotation}
+              onChange={(r) => {
+                uiLogger.change('PropertyPanel', 'Change model rotation', { entityId: entity.id, oldValue: modelRotation, newValue: r })
+                updateEntity({ modelRotation: r })
+              }}
+              axisLabels={['X', 'Y', 'Z']}
+              idPrefix={`${entity.id}-model-rotation`}
+              disabled={isLocked}
+            />
+            <button
+              type="button"
+              title="Reset model rotation to 0,0,0"
+              onClick={() => {
+                uiLogger.change('PropertyPanel', 'Reset model rotation', { entityId: entity.id })
+                updateEntity({ modelRotation: [0, 0, 0] })
+              }}
+              disabled={isLocked}
+              style={{
+                flexShrink: 0,
+                padding: '4px 8px',
+                fontSize: 11,
+                cursor: isLocked ? 'not-allowed' : 'pointer',
+                opacity: isLocked ? 0.5 : 1,
+              }}
+            >
+              Reset
+            </button>
+          </div>
+          <Vec3Field
+            label="Model scale"
+            value={modelScale}
+            onChange={(v) => {
+              uiLogger.change('PropertyPanel', 'Change model scale', { entityId: entity.id, oldValue: modelScale, newValue: v })
+              updateEntity({ modelScale: v })
+            }}
+            min={0.01}
+            step={0.1}
+            sensitivity={0.01}
+            idPrefix={`${entity.id}-model-scale`}
             disabled={isLocked}
           />
         </CollapsibleSection>

@@ -34,6 +34,8 @@ function sceneRelevantEntity(entity: Entity): Record<string, unknown> {
     trimeshShape: entity.shape?.type === 'trimesh' ? entity.shape : undefined,
     scale: entity.scale,
     model: entity.model,
+    modelRotation: entity.modelRotation,
+    modelScale: entity.modelScale,
     scripts: entity.scripts,
     transformers: entity.transformers,
   }

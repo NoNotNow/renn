@@ -29,4 +29,23 @@ describe('buildEntityMesh', () => {
     expect(mat).toBeInstanceOf(THREE.MeshStandardMaterial)
     expect(mat).not.toBeInstanceOf(THREE.MeshBasicMaterial)
   })
+
+  it('accepts optional modelRotation and modelScale for primitive shape', async () => {
+    const shape: Shape = { type: 'box', width: 1, height: 1, depth: 1 }
+    const mesh = await buildEntityMesh(
+      shape,
+      undefined,
+      [0, 0, 0],
+      [0, 0, 0],
+      [1, 1, 1],
+      undefined,
+      undefined,
+      [0, Math.PI / 2, 0],
+      [2, 1, 1]
+    )
+    expect(mesh).toBeDefined()
+    expect(mesh.scale.x).toBe(1)
+    expect(mesh.scale.y).toBe(1)
+    expect(mesh.scale.z).toBe(1)
+  })
 })

@@ -2,11 +2,37 @@ import RAPIER from '@dimforge/rapier3d-compat'
 import * as THREE from 'three'
 import type { LoadedEntity } from '@/loader/loadWorld'
 import type { RennWorld, Shape, Entity, TrimeshSimplificationConfig, ScriptDef } from '@/types/world'
+import type { Rotation, Vec3 } from '@/types/world'
 import { DEFAULT_GRAVITY, DEFAULT_ROTATION } from '@/types/world'
 import { extractMeshGeometry, getGeometryInfo } from '@/utils/geometryExtractor'
 import { simplifyGeometry, shouldSimplifyGeometry } from '@/utils/meshSimplifier'
-import { eulerToRapierQuaternion } from '@/utils/rotationUtils'
+import { eulerToQuaternion, eulerToRapierQuaternion } from '@/utils/rotationUtils'
 import type { CollisionImpact } from '@/scripts/scriptCtx'
+
+/** Transform vertices by model rotation, model scale, then entity scale (order matches rendering). */
+function transformTrimeshVertices(
+  vertices: Float32Array,
+  modelRotation: Rotation,
+  modelScale: Vec3,
+  entityScale: Vec3
+): Float32Array {
+  const quat = eulerToQuaternion(modelRotation)
+  const [msx, msy, msz] = modelScale
+  const [sx, sy, sz] = entityScale
+  const v = new THREE.Vector3()
+  const out = new Float32Array(vertices.length)
+  for (let i = 0; i < vertices.length; i += 3) {
+    v.set(vertices[i], vertices[i + 1], vertices[i + 2])
+    v.applyQuaternion(quat)
+    v.x *= msx
+    v.y *= msy
+    v.z *= msz
+    out[i] = v.x * sx
+    out[i + 1] = v.y * sy
+    out[i + 2] = v.z * sz
+  }
+  return out
+}
 
 export type CollisionPair = { entityIdA: string; entityIdB: string; impact?: CollisionImpact }
 
@@ -271,15 +297,15 @@ export class PhysicsWorld {
             let extractedGeometry = extractMeshGeometry(sourceScene, false)
             
             if (extractedGeometry && extractedGeometry.vertices.length > 0 && extractedGeometry.indices.length > 0) {
-              // Apply entity scale to vertices
-              const scaledVertices = new Float32Array(extractedGeometry.vertices.length)
-              for (let i = 0; i < extractedGeometry.vertices.length; i += 3) {
-                scaledVertices[i] = extractedGeometry.vertices[i] * scale[0]
-                scaledVertices[i + 1] = extractedGeometry.vertices[i + 1] * scale[1]
-                scaledVertices[i + 2] = extractedGeometry.vertices[i + 2] * scale[2]
-              }
-              
-              extractedGeometry = { vertices: scaledVertices, indices: extractedGeometry.indices }
+              const modelRotation: Rotation = entity.modelRotation ?? [0, 0, 0]
+              const modelScale: Vec3 = entity.modelScale ?? [1, 1, 1]
+              const transformedVertices = transformTrimeshVertices(
+                extractedGeometry.vertices,
+                modelRotation,
+                modelScale,
+                scale
+              )
+              extractedGeometry = { vertices: transformedVertices, indices: extractedGeometry.indices }
               
               const originalInfo = getGeometryInfo(extractedGeometry)
               

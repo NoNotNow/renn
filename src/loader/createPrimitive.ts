@@ -91,6 +91,18 @@ function applyTransform(
   mesh.scale.set(scale[0], scale[1], scale[2])
 }
 
+const DEFAULT_MODEL_ROTATION: Rotation = [0, 0, 0]
+const DEFAULT_MODEL_SCALE: Vec3 = [1, 1, 1]
+
+function applyModelTransform(
+  modelScene: THREE.Object3D,
+  modelRotation: Rotation,
+  modelScale: Vec3
+): void {
+  modelScene.rotation.set(modelRotation[0], modelRotation[1], modelRotation[2])
+  modelScene.scale.set(modelScale[0], modelScale[1], modelScale[2])
+}
+
 export type OriginalMaterialEntry = { mesh: THREE.Mesh; material: THREE.Material }
 
 /** Collect cloned materials from every mesh in the scene for later restore. */
@@ -117,8 +129,12 @@ function collectOriginalMaterialClones(scene: THREE.Object3D): OriginalMaterialE
 export async function createPrimitiveMesh(
   shape: Shape,
   materialRef: MaterialRef | undefined,
-  assetResolver?: DisposableAssetResolver
+  assetResolver?: DisposableAssetResolver,
+  modelRotation?: Rotation,
+  modelScale?: Vec3
 ): Promise<THREE.Mesh> {
+  const rot = modelRotation ?? DEFAULT_MODEL_ROTATION
+  const scl = modelScale ?? DEFAULT_MODEL_SCALE
   const mat = await materialFromRef(materialRef, assetResolver)
   let geometry: THREE.BufferGeometry
 
@@ -184,6 +200,7 @@ export async function createPrimitiveMesh(
               new THREE.MeshStandardMaterial({ visible: false })
             )
             wrapperMesh.add(modelScene)
+            applyModelTransform(modelScene, rot, scl)
             wrapperMesh.userData.isTrimeshSource = true
             wrapperMesh.userData.trimeshModel = shape.model
             wrapperMesh.userData.trimeshScene = modelScene
@@ -267,6 +284,7 @@ export function disposeMesh(mesh: THREE.Mesh): void {
  * Builds a mesh for an entity: primitive from shape (or placeholder for trimesh/model).
  * Applies position, rotation, scale from entity.
  * If modelId is provided, loads and uses the 3D model for visuals (shape still used for physics).
+ * modelRotation and modelScale apply only to the 3D model/trimesh child (relative to item).
  */
 export async function buildEntityMesh(
   shape: Shape | undefined,
@@ -275,10 +293,14 @@ export async function buildEntityMesh(
   rotation: Rotation,
   scale: Vec3,
   assetResolver?: DisposableAssetResolver,
-  modelId?: string
+  modelId?: string,
+  modelRotation?: Rotation,
+  modelScale?: Vec3
 ): Promise<THREE.Mesh> {
   const s = shape ?? { type: 'box' as const, width: 1, height: 1, depth: 1 }
-  
+  const rot = modelRotation ?? DEFAULT_MODEL_ROTATION
+  const scl = modelScale ?? DEFAULT_MODEL_SCALE
+
   // If entity.model is specified, try to load it
   if (modelId && assetResolver) {
     const gltfLoader = new GLTFLoader()
@@ -297,22 +319,12 @@ export async function buildEntityMesh(
             }
           })
         }
-        let resultMesh: THREE.Mesh
-        const firstMesh = modelScene.children.find(child => child instanceof THREE.Mesh) as THREE.Mesh
-        if (firstMesh) {
-          resultMesh = firstMesh
-          modelScene.children.forEach(child => {
-            if (child !== firstMesh) {
-              resultMesh.add(child)
-            }
-          })
-        } else {
-          resultMesh = new THREE.Mesh(
-            new THREE.BoxGeometry(0.01, 0.01, 0.01),
-            new THREE.MeshStandardMaterial({ visible: false })
-          )
-          resultMesh.add(modelScene)
-        }
+        const resultMesh = new THREE.Mesh(
+          new THREE.BoxGeometry(0.01, 0.01, 0.01),
+          new THREE.MeshStandardMaterial({ visible: false })
+        )
+        resultMesh.add(modelScene)
+        applyModelTransform(modelScene, rot, scl)
         applyTransform(resultMesh, position, rotation, scale)
         resultMesh.userData.usesModel = true
         resultMesh.userData.modelId = modelId
@@ -323,9 +335,9 @@ export async function buildEntityMesh(
       console.error(`Failed to load entity model ${modelId}:`, error)
     }
   }
-  
+
   // Default: create mesh from shape
-  const mesh = await createPrimitiveMesh(s, materialRef, assetResolver)
+  const mesh = await createPrimitiveMesh(s, materialRef, assetResolver, rot, scl)
   applyTransform(mesh, position, rotation, scale)
   if (s.type === 'plane' || s.type === 'ring') {
     const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0))

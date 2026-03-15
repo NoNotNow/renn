@@ -151,7 +151,7 @@ renn/
 ## World document
 
 - **Root**: `version`, `world` (gravity, lighting, camera), `entities[]`, optional `assets`, optional `scripts`.
-- **Entity**: `id`, `bodyType` (static/dynamic/kinematic), `shape` (box/sphere/cylinder/capsule/cone/pyramid/ring/plane/trimesh), `position` (Vec3), `rotation` (Rotation / Euler [x,y,z] radians), `scale`, `model?`, `material?`, `mass`, `restitution`, `friction`, `linearDamping`, `angularDamping`, `scripts?` (hook → script ID).
+- **Entity**: `id`, `bodyType` (static/dynamic/kinematic), `shape` (box/sphere/cylinder/capsule/cone/pyramid/ring/plane/trimesh), `position` (Vec3), `rotation` (Rotation / Euler [x,y,z] radians), `scale`, `model?`, `modelRotation?` (Euler radians, applied to model/trimesh only), `modelScale?` (Vec3, applied to model/trimesh only), `material?`, `mass`, `restitution`, `friction`, `linearDamping`, `angularDamping`, `scripts?` (hook → script ID).
 - **Scripts**: map of script ID → source string. Entity `scripts.onUpdate` etc. reference these IDs. Scripts run with a `game` API (read/write positions, entities, time; no DOM/fetch).
 
 See **world-schema.json** and **src/types/world.ts** for the full shape.
@@ -179,6 +179,7 @@ See **world-schema.json** and **src/types/world.ts** for the full shape.
 - **Pyramid collision**: Pyramid uses a convex-hull collider (5 vertices) in `rapierPhysics.ts` so the collision footprint matches the square-base mesh; a cone collider would use a circular base circumscribing the square and be larger than the visual.
 - **Trimesh and entity.model normalization**: At import time (in `createPrimitive.ts`), loaded GLTF scenes for trimesh shapes and for `entity.model` are normalized to fit a 1×1×1 unit cube centered at the origin. `normalizeSceneToUnitCube()` (in `src/utils/normalizeModelToUnitCube.ts`) computes the world bounding box, then bakes center and scale into each mesh’s geometry and resets mesh transforms. Stored geometry is thus in [-0.5, 0.5]³; entity scale is applied in physics and rendering as before.
 - **Trimesh and entity.model rendering**: Trimesh and entity.model use the same lit material (MeshStandardMaterial) and shadow behavior as primitives. A default lit material is applied when no entity material is set; `loadWorld.ts` traverses the mesh hierarchy and sets `castShadow` and `receiveShadow` on every mesh so models cast and receive shadows.
+- **Model-relative transform**: For entities with a 3D model (`entity.model`) or trimesh shape, optional `modelRotation` (Euler [x,y,z] radians) and `modelScale` (Vec3) apply only to the model/trimesh child (relative to item coordinates). This allows correcting model orientation (e.g. car on wheels) and per-axis scaling without changing the entity's world position/rotation/scale. The same transform is applied when building the trimesh collider in `rapierPhysics.ts`.
 - **Reusable form components**: consistent UI patterns via shared form components (NumberInput, SelectInput, VectorField).
 - **Configuration constants**: centralized config (`src/config/constants.ts`) for easy maintenance and testing.
 - **Test helpers**: comprehensive test utilities for consistent, maintainable tests.

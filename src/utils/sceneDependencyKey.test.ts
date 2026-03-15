@@ -87,4 +87,18 @@ describe('getSceneDependencyKey', () => {
     })
     expect(getSceneDependencyKey(a)).not.toBe(getSceneDependencyKey(b))
   })
+
+  it('returns a different key when modelRotation or modelScale changes', () => {
+    const base = minimalWorld({
+      entities: [{ ...minimalWorld().entities[0], shape: { type: 'trimesh', model: 'm1' } }],
+    })
+    const withModelRotation = minimalWorld({
+      entities: [{ ...base.entities[0], modelRotation: [0.1, 0, 0] }],
+    })
+    const withModelScale = minimalWorld({
+      entities: [{ ...base.entities[0], modelScale: [2, 1, 1] }],
+    })
+    expect(getSceneDependencyKey(base)).not.toBe(getSceneDependencyKey(withModelRotation))
+    expect(getSceneDependencyKey(base)).not.toBe(getSceneDependencyKey(withModelScale))
+  })
 })

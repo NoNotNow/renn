@@ -106,6 +106,10 @@ export interface Entity {
   rotation?: Rotation
   scale?: Vec3
   model?: string
+  /** Euler [x,y,z] radians applied to the 3D model/trimesh only (relative to item). */
+  modelRotation?: Rotation
+  /** Scale [x,y,z] applied to the 3D model/trimesh only (relative to item). */
+  modelScale?: Vec3
   material?: MaterialRef
   mass?: number
   restitution?: number

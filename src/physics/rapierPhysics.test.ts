@@ -221,6 +221,28 @@ describe('PhysicsWorld', () => {
     pw.dispose()
   })
 
+  it('creates trimesh collider when entity has modelRotation and modelScale', () => {
+    const pw = new PhysicsWorld()
+    const entity: Entity = {
+      id: 'trimesh-rot',
+      bodyType: 'static',
+      shape: { type: 'trimesh', model: 'test-model' },
+      position: [0, 0, 0],
+      modelRotation: [0, Math.PI / 2, 0],
+      modelScale: [2, 1, 1],
+    }
+    const trimeshMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      new THREE.MeshBasicMaterial()
+    )
+    trimeshMesh.userData.isTrimeshSource = true
+    trimeshMesh.userData.trimeshScene = trimeshMesh
+    pw.addEntity(entity, trimeshMesh)
+    const body = pw.getBody('trimesh-rot')
+    expect(body).toBeDefined()
+    pw.dispose()
+  })
+
   it('creates colliders for different shapes', () => {
     const pw = new PhysicsWorld()
     

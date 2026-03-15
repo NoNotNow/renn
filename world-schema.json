@@ -310,6 +310,8 @@
         "rotation": { "$ref": "#/$defs/Rotation" },
         "scale": { "$ref": "#/$defs/Vec3" },
         "model": { "type": "string" },
+        "modelRotation": { "$ref": "#/$defs/Rotation", "description": "Euler radians applied to model/trimesh only" },
+        "modelScale": { "$ref": "#/$defs/Vec3", "description": "Scale applied to model/trimesh only" },
         "material": { "$ref": "#/$defs/MaterialRef" },
         "mass": { "type": "number" },
         "restitution": { "type": "number" },
