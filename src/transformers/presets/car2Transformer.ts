@@ -1,6 +1,5 @@
 /**
- * CarTransformer2: input-to-color feedback. Maps WASD + handbrake actions
- * to RGB colors and blends them. Outputs impulse and addRotation for precise
+ * CarTransformer2: Maps WASD + handbrake actions outputs impulse and addRotation for precise
  * steering (friction makes torque-based steering imprecise).
  */
 
@@ -32,16 +31,6 @@ const DEFAULT_CAR2_PARAMS: Required<CarTransformer2Params> = {
   lateralToForwardTransfer: 0.2,
 }
 
-const ACTION_COLORS: Record<string, [number, number, number]> = {
-  throttle: [0.2, 0.9, 0.2],
-  brake: [0.9, 0.2, 0.2],
-  steer_left: [0.2, 0.2, 0.9],
-  steer_right: [0.9, 0.2, 0.2],
-  handbrake: [0.9, 0.2, 0.9],
-}
-
-const NEUTRAL_COLOR: [number, number, number] = [0.5, 0, 0.5]
-const MAGNITUDE_THRESHOLD = 0.01
 
 export class CarTransformer2 extends BaseTransformer {
   readonly type = 'car2'
@@ -122,12 +111,6 @@ export class CarTransformer2 extends BaseTransformer {
     ]
   }
 
-  private setColors(input:TransformInput) :[number, number, number]{
-    let color = computeActionColor(input.actions, ACTION_COLORS, NEUTRAL_COLOR, MAGNITUDE_THRESHOLD);
-    color = brightenByWheelAngle(color, this.wheelAngle);
-    return color;
-  }
-
   private calculateWheelAngle(input: TransformInput): void {
     const factor = this.params.steeringSpeed
     const left = this.getAction(input, 'steer_left')
@@ -142,56 +125,4 @@ export class CarTransformer2 extends BaseTransformer {
     this.wheelAngle = clamp(this.wheelAngle, -1, 1)
     if (this.wheelAngle < factor && this.wheelAngle > -factor) this.wheelAngle = 0
   }
-
-
-}
-
-/**
- * Blend colors from actions weighted by magnitude. When no actions exceed threshold, returns neutral.
- */
-function computeActionColor(
-  actions: Record<string, number>,
-  colorMap: Record<string, [number, number, number]>,
-  neutralColor: [number, number, number],
-  magnitudeThreshold: number,
-): [number, number, number] {
-  let rSum = 0
-  let gSum = 0
-  let bSum = 0
-  let totalMagnitude = 0
-
-  for (const [action, color] of Object.entries(colorMap)) {
-    const mag = Math.abs(actions[action] ?? 0)
-    if (mag > magnitudeThreshold) {
-      rSum += color[0] * mag
-      gSum += color[1] * mag
-      bSum += color[2] * mag
-      totalMagnitude += mag
-    }
-  }
-
-  if (totalMagnitude < magnitudeThreshold) {
-    return [...neutralColor]
-  }
-  return [
-    Math.max(0, Math.min(1, rSum / totalMagnitude)),
-    Math.max(0, Math.min(1, gSum / totalMagnitude)),
-    Math.max(0, Math.min(1, bSum / totalMagnitude)),
-  ]
-}
-
-/**
- * Brighten color toward white based on wheel/steer angle (-1 to 1).
- * At angle 0, no change; at |angle| 1, brightens toward white.
- */
-function brightenByWheelAngle(
-  color: [number, number, number],
-  wheelAngle: number,
-): [number, number, number] {
-  const amount = Math.min(1, Math.abs(wheelAngle))
-  return [
-    Math.min(1, color[0] + (1 - color[0]) * amount),
-    Math.min(1, color[1] + (1 - color[1]) * amount),
-    Math.min(1, color[2] + (1 - color[2]) * amount),
-  ]
 }
