@@ -196,6 +196,31 @@ describe('PhysicsWorld', () => {
     pw.dispose()
   })
 
+  it('applies entity.mass to dynamic trimesh via setMass when volume cannot be computed', () => {
+    const pw = new PhysicsWorld()
+    const entity: Entity = {
+      id: 'trimesh-obj',
+      bodyType: 'dynamic',
+      shape: { type: 'trimesh', model: 'test-model' },
+      position: [0, 0, 0],
+      mass: 42,
+    }
+    const trimeshMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      new THREE.MeshBasicMaterial()
+    )
+    trimeshMesh.userData.isTrimeshSource = true
+    trimeshMesh.userData.trimeshScene = trimeshMesh
+
+    pw.addEntity(entity, trimeshMesh)
+
+    const body = pw.getBody('trimesh-obj')
+    expect(body).toBeDefined()
+    expect(body?.isDynamic()).toBe(true)
+    expect(body?.mass()).toBe(42)
+    pw.dispose()
+  })
+
   it('creates colliders for different shapes', () => {
     const pw = new PhysicsWorld()
     

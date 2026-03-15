@@ -113,7 +113,7 @@ export class PhysicsWorld {
         if (volume > 0) {
           colliderDesc.setDensity(entity.mass / volume)
         } else {
-          colliderDesc.setDensity(entity.mass)
+          colliderDesc.setMass(entity.mass) // trimesh, plane when dynamic
         }
       }
 
@@ -164,7 +164,7 @@ export class PhysicsWorld {
       case 'plane':
         return 0 // HalfSpace is infinite; static ground has no density/mass
       default:
-        return 0
+        return 0 // trimesh and unknown shapes; mass is set via setMass when volume is 0
     }
   }
 
@@ -505,8 +505,11 @@ export class PhysicsWorld {
     if (!body || !collider) return
     if (!body.isDynamic()) return
     const volume = this.computeColliderVolume(shape, scale)
-    const density = volume > 0 ? mass / volume : mass
-    collider.setDensity(density)
+    if (volume > 0) {
+      collider.setDensity(mass / volume)
+    } else {
+      collider.setMass(mass)
+    }
   }
 
   /**
@@ -536,7 +539,11 @@ export class PhysicsWorld {
     }
     if (body.isDynamic() && entity.mass !== undefined) {
       const volume = this.computeColliderVolume(entity.shape, entity.scale)
-      colliderDesc.setDensity(volume > 0 ? entity.mass / volume : entity.mass)
+      if (volume > 0) {
+        colliderDesc.setDensity(entity.mass / volume)
+      } else {
+        colliderDesc.setMass(entity.mass)
+      }
     }
     const newCollider = this.world.createCollider(colliderDesc, body)
     this.colliderMap.set(entityId, newCollider)
