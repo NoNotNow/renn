@@ -22,12 +22,17 @@ export default function DropdownMenu({ label, items, onOpenChange }: DropdownMen
   const menuRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
   const submenuRefs = useRef<Map<number, HTMLDivElement>>(new Map())
+  const submenuCloseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const menuItems = items.filter(item => item.type === 'item' || item.type === 'submenu')
 
   useEffect(() => {
     if (!isOpen) {
       setFocusedIndex(-1)
+      if (submenuCloseTimeoutRef.current) {
+        clearTimeout(submenuCloseTimeoutRef.current)
+        submenuCloseTimeoutRef.current = null
+      }
       return
     }
 
@@ -102,6 +107,10 @@ export default function DropdownMenu({ label, items, onOpenChange }: DropdownMen
     return () => {
       document.removeEventListener('mousedown', handleClickOutside)
       document.removeEventListener('keydown', handleKeyDown)
+      if (submenuCloseTimeoutRef.current) {
+        clearTimeout(submenuCloseTimeoutRef.current)
+        submenuCloseTimeoutRef.current = null
+      }
     }
   }, [isOpen, focusedIndex, menuItems, onOpenChange, openSubmenuIndex])
 
@@ -186,6 +195,10 @@ export default function DropdownMenu({ label, items, onOpenChange }: DropdownMen
                 key={index}
                 style={{ position: 'relative' }}
                 onMouseEnter={() => {
+                  if (submenuCloseTimeoutRef.current) {
+                    clearTimeout(submenuCloseTimeoutRef.current)
+                    submenuCloseTimeoutRef.current = null
+                  }
                   setFocusedIndex(currentItemIndex)
                   if (isSubmenu) {
                     setOpenSubmenuIndex(currentItemIndex)
@@ -193,7 +206,11 @@ export default function DropdownMenu({ label, items, onOpenChange }: DropdownMen
                 }}
                 onMouseLeave={() => {
                   if (isSubmenu) {
-                    setOpenSubmenuIndex(null)
+                    if (submenuCloseTimeoutRef.current) clearTimeout(submenuCloseTimeoutRef.current)
+                    submenuCloseTimeoutRef.current = setTimeout(() => {
+                      setOpenSubmenuIndex(null)
+                      submenuCloseTimeoutRef.current = null
+                    }, 200)
                   }
                 }}
               >
@@ -235,6 +252,12 @@ export default function DropdownMenu({ label, items, onOpenChange }: DropdownMen
                       else submenuRefs.current.delete(currentItemIndex)
                     }}
                     role="menu"
+                    onMouseEnter={() => {
+                      if (submenuCloseTimeoutRef.current) {
+                        clearTimeout(submenuCloseTimeoutRef.current)
+                        submenuCloseTimeoutRef.current = null
+                      }
+                    }}
                     style={{
                       position: 'absolute',
                       top: 0,
@@ -245,7 +268,7 @@ export default function DropdownMenu({ label, items, onOpenChange }: DropdownMen
                       boxShadow: '0 2px 12px rgba(0,0,0,0.55)',
                       zIndex: 1001,
                       padding: '4px 0',
-                      marginLeft: '4px',
+                      marginLeft: 0,
                     }}
                   >
                     {item.items.map((subItem, subIndex) => {
