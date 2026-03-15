@@ -298,33 +298,48 @@ export class RenderItemRegistry {
   }
 
   /**
-   * Replace the material on an entity's mesh with one created from the new MaterialRef.
+   * Replace the material on an entity's mesh with one created from the new MaterialRef,
+   * or restore original model materials when newEntity.material is undefined (model/trimesh only).
    * For model-based meshes all child meshes are updated too.
-   * Old material(s) are disposed. Async because texture loading may be required.
+   * Old material(s) are disposed when applying override. Async because texture loading may be required.
    */
   async updateMaterial(id: string, newEntity: Entity, assetResolver?: DisposableAssetResolver): Promise<void> {
     const item = this.items.get(id)
     if (!item) return
     const mesh = item.mesh
-    const newMat = await materialFromRef(newEntity.material, assetResolver)
     const isModelMesh = mesh.userData.usesModel === true || mesh.userData.isTrimeshSource === true
-    if (isModelMesh) {
-      mesh.traverse((child) => {
-        if (child instanceof THREE.Mesh) {
-          const old = child.material
-          child.material = newMat
-          if (old) {
-            if (Array.isArray(old)) old.forEach(m => m.dispose())
-            else old.dispose()
+    if (isModelMesh && newEntity.material === undefined) {
+      const entries = mesh.userData.originalMaterialEntries as Array<{ mesh: THREE.Mesh; material: THREE.Material }> | undefined
+      if (entries && entries.length > 0) {
+        for (const { mesh: childMesh, material: storedMat } of entries) {
+          const current = childMesh.material
+          childMesh.material = storedMat
+          if (current && current !== storedMat) {
+            if (Array.isArray(current)) current.forEach((m) => m.dispose())
+            else current.dispose()
           }
         }
-      })
+      }
     } else {
-      const old = mesh.material
-      mesh.material = newMat
-      if (old) {
-        if (Array.isArray(old)) old.forEach(m => m.dispose())
-        else old.dispose()
+      const newMat = await materialFromRef(newEntity.material, assetResolver)
+      if (isModelMesh) {
+        mesh.traverse((child) => {
+          if (child instanceof THREE.Mesh) {
+            const old = child.material
+            child.material = newMat
+            if (old) {
+              if (Array.isArray(old)) old.forEach((m) => m.dispose())
+              else old.dispose()
+            }
+          }
+        })
+      } else {
+        const old = mesh.material
+        mesh.material = newMat
+        if (old) {
+          if (Array.isArray(old)) old.forEach((m) => m.dispose())
+          else old.dispose()
+        }
       }
     }
     item.entity = newEntity
@@ -449,32 +464,44 @@ export class RenderItemRegistry {
    * to avoid double-free issues.
    */
   clear(): void {
-    // Dispose THREE.js resources for each mesh
     for (const item of this.items.values()) {
-      if (item.mesh.geometry) {
-        item.mesh.geometry.dispose()
+      disposeMeshHierarchy(item.mesh)
+    }
+    this.items.clear()
+    this.physicsWorld = null
+  }
+}
+
+/** Dispose geometry, material (and map) for a mesh and all descendants. Disposes stored originalMaterialEntries. */
+function disposeMeshHierarchy(mesh: THREE.Mesh): void {
+  const disposedMaterials = new Set<THREE.Material>()
+  const disposeMaterial = (mat: THREE.Material): void => {
+    if (disposedMaterials.has(mat)) return
+    disposedMaterials.add(mat)
+    if (mat instanceof THREE.MeshStandardMaterial && mat.map) {
+      mat.map.dispose()
+    }
+    mat.dispose()
+  }
+  mesh.traverse((obj) => {
+    if (obj instanceof THREE.Mesh) {
+      if (obj.geometry) {
+        obj.geometry.dispose()
       }
-      if (item.mesh.material) {
-        if (Array.isArray(item.mesh.material)) {
-          item.mesh.material.forEach(mat => {
-            // Dispose textures before disposing material
-            if (mat instanceof THREE.MeshStandardMaterial) {
-              if (mat.map) mat.map.dispose()
-            }
-            mat.dispose()
-          })
+      if (obj.material) {
+        if (Array.isArray(obj.material)) {
+          obj.material.forEach(disposeMaterial)
         } else {
-          const mat = item.mesh.material
-          // Dispose textures before disposing material
-          if (mat instanceof THREE.MeshStandardMaterial) {
-            if (mat.map) mat.map.dispose()
-          }
-          mat.dispose()
+          disposeMaterial(obj.material)
         }
       }
     }
-    
-    this.items.clear()
-    this.physicsWorld = null
+  })
+  const entries = mesh.userData.originalMaterialEntries as Array<{ mesh: THREE.Mesh; material: THREE.Material }> | undefined
+  if (entries) {
+    for (const { material: storedMat } of entries) {
+      disposeMaterial(storedMat)
+    }
+    delete mesh.userData.originalMaterialEntries
   }
 }

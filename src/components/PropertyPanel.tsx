@@ -8,7 +8,7 @@ import MaterialEditor from './MaterialEditor'
 import ModelEditor from './ModelEditor'
 import TransformerEditor from './TransformerEditor'
 import CollapsibleSection from './CollapsibleSection'
-import { fieldLabelStyle, sidebarTextInputStyle, iconButtonStyle, removeButtonStyle, removeButtonStyleDisabled } from './sharedStyles'
+import { fieldLabelStyle, sidebarTextInputStyle, iconButtonStyle, removeButtonStyle, removeButtonStyleDisabled, secondaryButtonStyle, secondaryButtonStyleDisabled } from './sharedStyles'
 
 function RefreshIcon() {
   return (
@@ -275,20 +275,96 @@ export default function PropertyPanel({
       </CollapsibleSection>
 
       <CollapsibleSection title="Material" copyPayload={entity.material ?? {}}>
-        <MaterialEditor
-          entityId={entity.id}
-          material={entity.material}
-          assets={assets}
-          world={world}
-          onMaterialChange={(material) =>
-            onEntityMaterialChange
-              ? onEntityMaterialChange(entity.id, { material })
-              : updateEntity({ material })
+        {(() => {
+          const isModelOrTrimesh = entity.shape?.type === 'trimesh' || !!entity.model
+          if (isModelOrTrimesh) {
+            if (entity.material == null) {
+              return (
+                <>
+                  <p style={{ margin: '8px 0', fontSize: 12, color: '#9aa4b2' }}>
+                    Using colors from 3D file.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      uiLogger.change('PropertyPanel', 'Override with material', { entityId: entity.id })
+                      const defaultMaterial = { color: [0.7, 0.7, 0.7] as [number, number, number] }
+                      if (onEntityMaterialChange) {
+                        onEntityMaterialChange(entity.id, { material: defaultMaterial })
+                      } else {
+                        updateEntity({ material: defaultMaterial })
+                      }
+                    }}
+                    disabled={isLocked}
+                    style={{
+                      ...secondaryButtonStyle,
+                      ...(isLocked && secondaryButtonStyleDisabled),
+                    }}
+                  >
+                    Override with material
+                  </button>
+                </>
+              )
+            }
+            return (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    uiLogger.change('PropertyPanel', 'Use model colors', { entityId: entity.id })
+                    if (onEntityMaterialChange) {
+                      onEntityMaterialChange(entity.id, { material: undefined })
+                    } else {
+                      updateEntity({ material: undefined })
+                    }
+                  }}
+                  disabled={isLocked}
+                  style={{
+                    fontSize: 12,
+                    background: 'none',
+                    border: 'none',
+                    color: '#7ba3d4',
+                    cursor: isLocked ? 'not-allowed' : 'pointer',
+                    padding: '0 0 8px 0',
+                    marginBottom: 4,
+                  }}
+                >
+                  Use model colors
+                </button>
+                <MaterialEditor
+                  entityId={entity.id}
+                  material={entity.material}
+                  assets={assets}
+                  world={world}
+                  onMaterialChange={(material) =>
+                    onEntityMaterialChange
+                      ? onEntityMaterialChange(entity.id, { material })
+                      : updateEntity({ material })
+                  }
+                  onWorldChange={onWorldChange}
+                  onAssetsChange={onAssetsChange}
+                  disabled={isLocked}
+                />
+              </>
+            )
           }
-          onWorldChange={onWorldChange}
-          onAssetsChange={onAssetsChange}
-          disabled={isLocked}
-        />
+          return (
+            <MaterialEditor
+              entityId={entity.id}
+              material={entity.material}
+              assets={assets}
+              world={world}
+              onMaterialChange={(material) =>
+                onEntityMaterialChange
+                  ? onEntityMaterialChange(entity.id, { material })
+                  : updateEntity({ material })
+              }
+              onWorldChange={onWorldChange}
+              onAssetsChange={onAssetsChange}
+              disabled={isLocked}
+            />
+          )
+        })()}
       </CollapsibleSection>
 
       {entity.shape?.type !== 'trimesh' && (

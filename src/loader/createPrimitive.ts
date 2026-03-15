@@ -91,6 +91,21 @@ function applyTransform(
   mesh.scale.set(scale[0], scale[1], scale[2])
 }
 
+export type OriginalMaterialEntry = { mesh: THREE.Mesh; material: THREE.Material }
+
+/** Collect cloned materials from every mesh in the scene for later restore. */
+function collectOriginalMaterialClones(scene: THREE.Object3D): OriginalMaterialEntry[] {
+  const entries: OriginalMaterialEntry[] = []
+  scene.traverse((child) => {
+    if (child instanceof THREE.Mesh && child.material) {
+      const mat = child.material
+      const cloned = Array.isArray(mat) ? mat.map((m) => m.clone()) : mat.clone()
+      entries.push({ mesh: child, material: cloned as THREE.Material })
+    }
+  })
+  return entries
+}
+
 /**
  * Creates a Three.js mesh for the given shape and material.
  * Does not set position/rotation/scale; caller applies those.
@@ -154,18 +169,16 @@ export async function createPrimitiveMesh(
             const modelScene = gltf.scene.clone(true)
             convertZUpToYUpIfNeeded(modelScene)
             normalizeSceneToUnitCube(modelScene)
-            
-            // Always apply lit material so trimesh renders like primitives (responds to lights)
-            const material = await materialFromRef(materialRef, assetResolver)
-            modelScene.traverse((child) => {
-              if (child instanceof THREE.Mesh) {
-                child.material = material
-              }
-            })
-            
-            // Always use a wrapper so modelScene stays intact for physics extraction.
-            // Returning firstMesh directly would detach it from modelScene when added to
-            // the main scene, leaving modelScene empty and causing physics fallback to box.
+            // Store cloned materials for later restore when user clears override
+            const originalMaterialEntries = collectOriginalMaterialClones(modelScene)
+            if (materialRef !== undefined) {
+              const material = await materialFromRef(materialRef, assetResolver)
+              modelScene.traverse((child) => {
+                if (child instanceof THREE.Mesh) {
+                  child.material = material
+                }
+              })
+            }
             const wrapperMesh = new THREE.Mesh(
               new THREE.BoxGeometry(0.01, 0.01, 0.01),
               new THREE.MeshStandardMaterial({ visible: false })
@@ -174,13 +187,14 @@ export async function createPrimitiveMesh(
             wrapperMesh.userData.isTrimeshSource = true
             wrapperMesh.userData.trimeshModel = shape.model
             wrapperMesh.userData.trimeshScene = modelScene
+            wrapperMesh.userData.originalMaterialEntries = originalMaterialEntries
+            mat.dispose()
             return wrapperMesh
           }
         } catch (error) {
           console.error(`[createPrimitive] Failed to load trimesh model ${shape.model}:`, error)
         }
       }
-      // Fallback to box geometry
       console.warn('[createPrimitive] Trimesh model not loaded, using box fallback')
       geometry = new THREE.BoxGeometry(1, 1, 1)
       break
@@ -271,43 +285,38 @@ export async function buildEntityMesh(
     try {
       const gltf = await assetResolver.loadModel(modelId, gltfLoader)
       if (gltf) {
-        // Clone the loaded scene
         const modelScene = gltf.scene.clone(true)
         convertZUpToYUpIfNeeded(modelScene)
         normalizeSceneToUnitCube(modelScene)
-        
-        // Always apply lit material so entity.model renders like primitives (responds to lights)
-        const material = await materialFromRef(materialRef, assetResolver)
-        modelScene.traverse((child) => {
-          if (child instanceof THREE.Mesh) {
-            child.material = material
-          }
-        })
-        
-        // Find the first mesh in the scene or create wrapper
+        const originalMaterialEntries = collectOriginalMaterialClones(modelScene)
+        if (materialRef !== undefined) {
+          const material = await materialFromRef(materialRef, assetResolver)
+          modelScene.traverse((child) => {
+            if (child instanceof THREE.Mesh) {
+              child.material = material
+            }
+          })
+        }
         let resultMesh: THREE.Mesh
         const firstMesh = modelScene.children.find(child => child instanceof THREE.Mesh) as THREE.Mesh
         if (firstMesh) {
           resultMesh = firstMesh
-          // Add remaining children to the mesh
           modelScene.children.forEach(child => {
             if (child !== firstMesh) {
               resultMesh.add(child)
             }
           })
         } else {
-          // Wrap the scene in a mesh with tiny geometry
           resultMesh = new THREE.Mesh(
             new THREE.BoxGeometry(0.01, 0.01, 0.01),
             new THREE.MeshStandardMaterial({ visible: false })
           )
           resultMesh.add(modelScene)
         }
-        
         applyTransform(resultMesh, position, rotation, scale)
-        // Store that this mesh uses a model
         resultMesh.userData.usesModel = true
         resultMesh.userData.modelId = modelId
+        resultMesh.userData.originalMaterialEntries = originalMaterialEntries
         return resultMesh
       }
     } catch (error) {
