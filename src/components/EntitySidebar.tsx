@@ -384,6 +384,7 @@ export default function EntitySidebar({
                       >
                         <option value="follow">Follow</option>
                         <option value="thirdPerson">Third person</option>
+                        <option value="tracking">Tracking</option>
                         <option value="firstPerson">First person</option>
                       </select>
                     </div>

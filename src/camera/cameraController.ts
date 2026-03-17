@@ -166,6 +166,12 @@ export class CameraController {
         this.camera.lookAt(this.currentTarget)
         break
       }
+      case 'tracking': {
+        this.currentOffset.copy(this.sphericalOffset(this.orbitDistance * 2, height))
+        this.camera.position.copy(this.currentTarget).add(this.currentOffset)
+        this.camera.lookAt(this.currentTarget)
+        break
+      }
       default:
         this.camera.position.copy(this.currentTarget).add(new THREE.Vector3(0, height, this.orbitDistance))
         this.camera.lookAt(this.currentTarget)

@@ -10,7 +10,7 @@ export type Quat = Rotation
 /** Color: [r, g, b] or [r, g, b, a] 0–1. */
 export type Color = [number, number, number] | [number, number, number, number]
 
-export type CameraMode = 'firstPerson' | 'thirdPerson' | 'follow'
+export type CameraMode = 'firstPerson' | 'thirdPerson' | 'follow' | 'tracking'
 
 export type CameraControl = 'free' | 'follow' | 'top' | 'front' | 'right'
 

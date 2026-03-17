@@ -28,7 +28,7 @@ interface CurrentProject {
 interface CameraState {
   control: 'free' | 'follow' | 'top' | 'front' | 'right'
   target: string
-  mode: 'follow' | 'firstPerson' | 'thirdPerson'
+  mode: 'follow' | 'firstPerson' | 'thirdPerson' | 'tracking'
 }
 
 interface ProjectContextState {
@@ -40,7 +40,7 @@ interface ProjectContextState {
   version: number
   cameraControl: 'free' | 'follow' | 'top' | 'front' | 'right'
   cameraTarget: string
-  cameraMode: 'follow' | 'firstPerson' | 'thirdPerson'
+  cameraMode: 'follow' | 'firstPerson' | 'thirdPerson' | 'tracking'
 }
 
 interface ProjectContextActions {
@@ -75,7 +75,7 @@ interface ProjectContextActions {
   // Camera state
   setCameraControl: (control: 'free' | 'follow' | 'top' | 'front' | 'right') => void
   setCameraTarget: (target: string) => void
-  setCameraMode: (mode: 'follow' | 'firstPerson' | 'thirdPerson') => void
+  setCameraMode: (mode: 'follow' | 'firstPerson' | 'thirdPerson' | 'tracking') => void
 }
 
 type ProjectContextValue = ProjectContextState & ProjectContextActions

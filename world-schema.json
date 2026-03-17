@@ -69,7 +69,7 @@
       "type": "object",
       "properties": {
         "control": { "enum": ["free", "follow", "top", "front", "right"] },
-        "mode": { "enum": ["firstPerson", "thirdPerson", "follow"] },
+        "mode": { "enum": ["firstPerson", "thirdPerson", "follow", "tracking"] },
         "target": { "type": "string" },
         "distance": { "type": "number" },
         "height": { "type": "number" },

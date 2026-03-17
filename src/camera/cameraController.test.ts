@@ -262,6 +262,37 @@ describe('CameraController', () => {
     expect(Math.abs(camera.position.z)).toBeLessThan(5)
   })
 
+  it('keeps camera offset in world space in tracking mode (no target rotation)', () => {
+    const { camera, scene, getEntityPosition } = createTestSetup()
+
+    scene.userData.camera = {
+      control: 'follow',
+      mode: 'tracking',
+      target: 'player',
+      distance: 10,
+      height: 0,
+    }
+
+    // 90-degree yaw: target faces +X, but tracking ignores rotation
+    const yaw90 = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 2)
+    const getEntityQuaternion = vi.fn((_id: string) => yaw90)
+
+    const controller = new CameraController({
+      camera,
+      scene,
+      getEntityPosition,
+      getEntityQuaternion,
+    })
+
+    for (let i = 0; i < 200; i++) {
+      controller.update(0.016)
+    }
+
+    // Target at (0, 0, 0); offset is world-space (0, 0, 20), so camera at (0, 0, 20) — not rotated to +X
+    expect(camera.position.z).toBeGreaterThan(15)
+    expect(Math.abs(camera.position.x)).toBeLessThan(5)
+  })
+
   it('returns null for missing entity', () => {
     const { camera, scene, getEntityPosition } = createTestSetup()
     
