@@ -173,23 +173,16 @@ export interface Transformer {
 // ---------------------------------------------------------------------------
 
 /** Known preset transformer types. */
-export type PresetTransformerType =
-  | 'input'
-  | 'airplane'
-  | 'character'
-  | 'car'
-  | 'car2'
-  | 'animal'
-  | 'butterfly'
+export type PresetTransformerType = 'input' | 'car2'
 
-/** Transformer type string — either a preset or 'custom'. */
-export type TransformerType = PresetTransformerType | 'custom' | string
+/** Transformer type string. */
+export type TransformerType = PresetTransformerType | string
 
 /**
  * Serialisable transformer configuration stored in world JSON.
  */
 export interface TransformerConfig {
-  /** Preset name or 'custom'. */
+  /** Preset name. */
   type: TransformerType
 
   /** Execution order (lower = earlier). Default: 10. */
@@ -203,9 +196,6 @@ export interface TransformerConfig {
 
   /** Transformer-specific parameters. */
   params?: Record<string, unknown>
-
-  /** Custom JavaScript code (only for type 'custom'). */
-  code?: string
 }
 
 // ---------------------------------------------------------------------------

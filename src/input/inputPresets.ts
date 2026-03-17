@@ -70,11 +70,9 @@ export const CAR_PRESET: InputMapping = {
  * Get preset by name.
  */
 export function getPresetMapping(
-  presetName: 'airplane' | 'character' | 'car',
+  presetName: 'character' | 'car',
 ): InputMapping {
   switch (presetName) {
-    case 'airplane':
-      return AIRPLANE_PRESET
     case 'character':
       return CHARACTER_PRESET
     case 'car':

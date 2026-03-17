@@ -1,11 +1,19 @@
 import { useEffect, useState } from 'react'
 import type { TransformerConfig } from '@/types/transformer'
+import type { PresetTransformerType } from '@/data/transformerPresets/loader'
 import CopyableArea from './CopyableArea'
+import TransformerTemplateDialog from './TransformerTemplateDialog'
 import { fieldLabelStyle, iconButtonStyle, removeButtonStyle, removeButtonStyleDisabled } from './sharedStyles'
 import {
   TRANSFORMER_PRESET_OPTIONS,
   getDefaultTransformerConfig,
 } from '@/transformers/transformerPresets'
+
+const PRESET_TYPES: PresetTransformerType[] = ['input', 'car2']
+
+function isPresetType(type: string): type is PresetTransformerType {
+  return PRESET_TYPES.includes(type as PresetTransformerType)
+}
 
 const baseTextareaStyle: React.CSSProperties = {
   margin: 0,
@@ -110,6 +118,8 @@ export default function TransformerEditor({
   disabled = false,
 }: TransformerEditorProps) {
   const [addSelectValue, setAddSelectValue] = useState('')
+  const [templateDialogOpen, setTemplateDialogOpen] = useState(false)
+  const [templateDialogTargetIndex, setTemplateDialogTargetIndex] = useState<number | null>(null)
   const list = transformers ?? []
 
   const handleAddTransformer = (type: string) => {
@@ -206,6 +216,28 @@ export default function TransformerEditor({
                 </span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                {isPresetType(transformer.type) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTemplateDialogTargetIndex(index)
+                      setTemplateDialogOpen(true)
+                    }}
+                    disabled={disabled}
+                    style={{
+                      ...iconButtonStyle,
+                      padding: '4px 8px',
+                      fontSize: 11,
+                      color: '#93c5fd',
+                      border: '1px solid #3b6ea8',
+                      background: '#1e3a5f',
+                    }}
+                    title="Load template"
+                    data-testid="load-transformer-template"
+                  >
+                    Templates…
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => handleMoveTransformer(index, 'up')}
@@ -274,6 +306,25 @@ export default function TransformerEditor({
           </CopyableArea>
         )
       })
+      )}
+      {templateDialogTargetIndex !== null && list[templateDialogTargetIndex] && (
+        <TransformerTemplateDialog
+          isOpen={templateDialogOpen}
+          onClose={() => {
+            setTemplateDialogOpen(false)
+            setTemplateDialogTargetIndex(null)
+          }}
+          transformerType={list[templateDialogTargetIndex].type as PresetTransformerType}
+          currentConfig={list[templateDialogTargetIndex]}
+          onLoadTemplate={(config) => {
+            const next = list.map((t, i) =>
+              i === templateDialogTargetIndex ? config : t
+            )
+            onChange?.(next)
+            setTemplateDialogOpen(false)
+            setTemplateDialogTargetIndex(null)
+          }}
+        />
       )}
     </div>
   )

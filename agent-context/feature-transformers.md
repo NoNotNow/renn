@@ -22,35 +22,30 @@ src/
 ├── transformers/
 │   ├── transformer.ts                        # BaseTransformer + TransformerChain
 │   ├── transformerRegistry.ts                # Factory: type string → instance
+│   ├── transformerPresets.ts                 # Default configs for Builder dropdown
 │   └── presets/
 │       ├── inputTransformer.ts               # Raw input → actions (priority 0)
-│       ├── airplaneTransformer.ts            # Flight physics
-│       ├── characterTransformer.ts           # Ground movement + jump
-│       ├── carTransformer.ts                 # Vehicle physics (bicycle model)
-│       ├── car2Transformer.ts                # Input-to-color feedback (WASD → RGB blend)
-│       ├── animalTransformer.ts              # Wander AI
-│       ├── butterflyTransformer.ts           # Flutter AI
-│       └── customTransformer.ts              # eval() user code
+│       └── car2Transformer.ts                 # Impulse + addRotation (touch-gated)
+├── data/transformerPresets/
+│   ├── loader.ts                             # listPresetNames, loadPreset (from JSON files)
+│   ├── car2/                                 # Optional .json templates
+│   └── input/                                # Optional .json templates
 ├── input/
 │   ├── rawInput.ts                           # Keyboard + trackpad capture
 │   ├── inputMapping.ts                       # RawInput → semantic actions
-│   └── inputPresets.ts                       # AIRPLANE_PRESET, CHARACTER_PRESET, CAR_PRESET
+│   └── inputPresets.ts                       # CHARACTER_PRESET, CAR_PRESET
 ├── physics/rapierPhysics.ts                  # applyForce/Impulse/TorqueFromTransformer
 └── runtime/renderItemRegistry.ts             # executeTransformers() called in game loop
 ```
 
 ## Preset transformer reference
 
+Only **input** and **car2** presets are shipped. Template JSON files under `src/data/transformerPresets/<type>/*.json` are loaded at runtime and shown in the Builder’s transformer template dialog (Load / Save as template).
+
 | Type | Purpose | Key params |
 |---|---|---|
 | `input` | Maps raw keys/wheel → actions | `inputMapping` (keyboard/wheel bindings) |
-| `airplane` | Flight with thrust/lift/drag | `thrustForce`, `liftCoefficient`, `dragCoefficient`, `pitchSensitivity` |
-| `character` | Ground movement + jump | `walkSpeed`, `jumpForce`, `turnSpeed` |
-| `car` | Vehicle physics (bicycle model) | `maxSpeed`, `acceleration`, `brakeForce`, `engineBrake`, `maxSteerAngle`, `wheelbase`, `lateralGrip`, `handbrakeGripFactor`, `handbrakeMultiplier`, `steeringTorqueScale`, `highSpeedSteerFactor`, `lowSpeedSteerFactor` |
-| `car2` | Input-to-color feedback (WASD → RGB) + impulse + addRotation for precise steering; **physics (impulse/addRotation) only when touching another object** | `power`, `steeringIntensity`, `steeringSpeed`, `lateralGrip`, `lateralToForwardTransfer` (optional; see defaults below) |
-| `animal` | Wander AI | `wanderRadius`, `speed`, `directionChangeInterval` |
-| `butterfly` | Flutter AI | `flutterFrequency`, `flightHeight`, `flutterForce` |
-| `custom` | Inline JS code | `code` (return `{ force, torque, earlyExit }`) |
+| `car2` | Impulse + addRotation for steering; **physics only when touching another object** | `power`, `steeringIntensity`, `steeringSpeed`, `lateralGrip`, `lateralToForwardTransfer` |
 
 ## Minimal JSON config
 
@@ -63,14 +58,13 @@ src/
       "type": "input",
       "priority": 0,
       "inputMapping": {
-        "keyboard": { "w": "thrust", "s": "brake", "a": "roll_left", "d": "roll_right", "space": "boost" },
-        "wheel": { "horizontal": "yaw", "vertical": "pitch" }
+        "keyboard": { "w": "throttle", "s": "brake", "a": "steer_left", "d": "steer_right", "space": "handbrake" }
       }
     },
     {
-      "type": "airplane",
+      "type": "car2",
       "priority": 1,
-      "params": { "thrustForce": 50.0, "liftCoefficient": 2.5, "dragCoefficient": 0.1 }
+      "params": { "power": 400, "lateralGrip": 100 }
     }
   ]
 }
@@ -224,9 +218,9 @@ The `car2` preset (impulse + addRotation + color feedback) accepts optional `par
 
 Default preset (Builder + `getDefaultTransformerConfig('car2')`): `{ "type": "car2", "priority": 10, "enabled": true, "params": { "power": 1000, "steeringIntensity": 0.05, "steeringSpeed": 0.05, "lateralGrip": 120 } }`. Optional: `lateralToForwardTransfer` (e.g. `0.2`).
 
-### Builder: Add transformer dropdown
+### Builder: Add transformer dropdown and template dialog
 
-In the Builder, when an entity is selected, the Transformers section always shows. Use the "Add transformer" dropdown to add a transformer with a default config for each type (input, airplane, character, car, car2, animal, butterfly, custom). Default configs live in `src/transformers/transformerPresets.ts`.
+In the Builder, when an entity is selected, the Transformers section shows. Use the "Add transformer" dropdown to add a transformer (input or car2) with a default config from `src/transformers/transformerPresets.ts`. For each preset transformer, a **Templates…** button opens the transformer template dialog: load the built-in default or any JSON preset from `src/data/transformerPresets/<type>/*.json`, or save the current config as a template (download JSON or copy to clipboard) to add to that folder.
 
 ## Script API
 

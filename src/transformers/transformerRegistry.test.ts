@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import { createTransformer } from './transformerRegistry'
 import { InputTransformer } from './presets/inputTransformer'
+import { CarTransformer2 } from './presets/car2Transformer'
 import { createMockTransformInput } from '@/test/helpers/transformer'
 import type { TransformerConfig } from '@/types/transformer'
 import { CHARACTER_PRESET } from '@/input/inputPresets'
@@ -27,46 +28,29 @@ describe('Transformer Registry', () => {
     expect(transformer.enabled).toBe(false)
   })
 
-  test('creates CustomTransformer from code and executes it', async () => {
+  test('creates CarTransformer2 from config', async () => {
     const config: TransformerConfig = {
-      type: 'custom',
-      priority: 7,
-      code: 'return { force: [1, 2, 3] };',
+      type: 'car2',
+      priority: 1,
+      params: { power: 500, lateralGrip: 100 },
     }
 
     const transformer = await createTransformer(config)
 
-    // Ensure transformer was created and runs the supplied code
-    const output = transformer.transform(createMockTransformInput(), 0.016)
-    expect(output.force).toEqual([1, 2, 3])
-  })
-
-  test('throws when creating custom transformer without code', async () => {
-    const config = { type: 'custom' } as any
-    await expect(createTransformer(config)).rejects.toThrow()
+    expect(transformer).toBeInstanceOf(CarTransformer2)
+    expect(transformer.type).toBe('car2')
+    const input = createMockTransformInput({
+      actions: { throttle: 1.0 },
+      velocity: [0, 0, 0],
+      rotation: [0, 0, 0],
+      environment: { isTouchingObject: true },
+    })
+    const output = transformer.transform(input, 0.016)
+    expect(output.impulse).toBeDefined()
   })
 
   test('throws for unknown transformer type', async () => {
     const config = { type: 'nope' } as any
     await expect(createTransformer(config)).rejects.toThrow(/Unknown transformer type/)
-  })
-
-  test('car with timeToMaxSpeed and entity mass derives acceleration', async () => {
-    const config: TransformerConfig = {
-      type: 'car',
-      priority: 1,
-      params: { timeToMaxSpeed: 7.5, maxSpeed: 25, steeringTorqueScale: 40 },
-    }
-    const entity = { id: 'car', mass: 20 } as import('@/types/world').Entity
-    const transformer = await createTransformer(config, undefined, entity)
-    const input = createMockTransformInput({ actions: { throttle: 1.0 }, velocity: [0, 0, 0], rotation: [0, 0, 0] })
-    const output = transformer.transform(input, 0.016)
-    // Resolved acceleration = mass * maxSpeed / timeToMaxSpeed = 20 * 25 / 7.5 = 200/3 ≈ 66.67
-    const expectedForce = (entity.mass! * 25) / 7.5
-    expect(output.force).toBeDefined()
-    const magnitude = Math.sqrt(
-      (output.force![0] ** 2) + (output.force![1] ** 2) + (output.force![2] ** 2),
-    )
-    expect(magnitude).toBeCloseTo(expectedForce, 1)
   })
 })

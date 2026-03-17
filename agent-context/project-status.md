@@ -31,10 +31,10 @@ Last updated: 2026-03-02
 ### Transformer system (Phases 1–4)
 - Types, BaseTransformer, TransformerChain
 - Input capture: keyboard + trackpad; input mapping + presets
-- Preset transformers: airplane, character, car, animal, butterfly, custom
+- Preset transformers: **input**, **car2** (others removed)
+- Transformer template dialog: load default or file-based presets from `src/data/transformerPresets/<type>/*.json`; save current config as JSON (download/copy)
 - Physics integration: `applyForce/Impulse/TorqueFromTransformer`, `resetAllForces()`
 - Script API: `setTransformerEnabled`, `setTransformerParam`
-- 53/53 tests passing
 
 ### Assets & models
 - Texture workflow: TextureManager, TextureDialog, TextureThumbnail, TextureSelector

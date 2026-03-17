@@ -6,17 +6,11 @@ import {
 import { CAR_PRESET } from '@/input/inputPresets'
 
 describe('transformerPresets', () => {
-  test('TRANSFORMER_PRESET_OPTIONS includes all preset types', () => {
+  test('TRANSFORMER_PRESET_OPTIONS includes only input and car2', () => {
     const types = TRANSFORMER_PRESET_OPTIONS.map((o) => o.value)
     expect(types).toContain('input')
-    expect(types).toContain('airplane')
-    expect(types).toContain('character')
-    expect(types).toContain('car')
     expect(types).toContain('car2')
-    expect(types).toContain('animal')
-    expect(types).toContain('butterfly')
-    expect(types).toContain('custom')
-    expect(types).toHaveLength(8)
+    expect(types).toHaveLength(2)
   })
 
   test('getDefaultTransformerConfig returns valid config for each type', () => {
@@ -42,10 +36,5 @@ describe('transformerPresets', () => {
       steeringSpeed: 0.05,
       lateralGrip: 120,
     })
-  })
-
-  test('custom preset has minimal code', () => {
-    const config = getDefaultTransformerConfig('custom')
-    expect(config.code).toBe('return {}')
   })
 })
