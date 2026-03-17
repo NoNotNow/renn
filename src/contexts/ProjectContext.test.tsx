@@ -182,3 +182,93 @@ describe('ProjectContext – save includes synced poses', () => {
     expect(savedCar?.position).toEqual(UPDATED_POSITION)
   })
 })
+
+describe('ProjectContext – model persistence', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockListProjects.mockResolvedValue([])
+    mockLoadAllAssets.mockResolvedValue(new Map())
+  })
+
+  it('loadProject populates world.entities model and assets map', async () => {
+    const projectId = 'model-proj'
+    const modelId = 'car.glb'
+    const savedWorldData = {
+      version: '1.0',
+      world: { gravity: [0, -9.81, 0] as Vec3 },
+      entities: [
+        {
+          id: CAR_ID,
+          bodyType: 'dynamic' as const,
+          shape: { type: 'box' as const, width: 2, height: 1, depth: 4 },
+          model: modelId,
+        },
+      ],
+      assets: {
+        [modelId]: { path: `assets/${modelId}`, type: 'model' as const },
+      },
+    }
+
+    const modelBlob = new Blob(['model-bytes'], { type: 'model/gltf-binary' })
+    mockListProjects.mockResolvedValue([{ id: projectId, name: 'Model Project', updatedAt: Date.now() }])
+    mockLoadProject.mockResolvedValue({ world: savedWorldData, assets: new Map([[modelId, modelBlob]]) })
+
+    const captured = renderContext()
+    await flushEffects()
+
+    await act(async () => {
+      await captured.current!.loadProject(projectId)
+    })
+
+    const ctx = captured.current!
+    const loadedEntity = ctx.world.entities.find((e) => e.id === CAR_ID)
+    expect(loadedEntity?.model).toBe(modelId)
+    expect(ctx.assets.has(modelId)).toBe(true)
+  })
+
+  it('saveProject preserves entity.model and world.assets', async () => {
+    const projectId = 'model-proj-save'
+    const modelId = 'car.glb'
+    const savedWorldData = {
+      version: '1.0',
+      world: { gravity: [0, -9.81, 0] as Vec3 },
+      entities: [
+        {
+          id: CAR_ID,
+          bodyType: 'dynamic' as const,
+          shape: { type: 'box' as const, width: 2, height: 1, depth: 4 },
+          model: modelId,
+        },
+      ],
+      assets: {
+        [modelId]: { path: `assets/${modelId}`, type: 'model' as const },
+      },
+    }
+
+    const modelBlob = new Blob(['model-bytes'], { type: 'model/gltf-binary' })
+    mockListProjects.mockResolvedValue([{ id: projectId, name: 'Model Project', updatedAt: Date.now() }])
+    mockLoadProject.mockResolvedValue({ world: savedWorldData, assets: new Map([[modelId, modelBlob]]) })
+
+    const captured = renderContext()
+    await flushEffects()
+
+    // Load project first so currentProject.id is set and world/assets populated
+    await act(async () => {
+      await captured.current!.loadProject(projectId)
+    })
+
+    const ctx = captured.current!
+
+    await act(async () => {
+      await ctx.saveProject()
+    })
+
+    const saveCalls = mockSaveProject.mock.calls
+    expect(saveCalls.length).toBeGreaterThanOrEqual(1)
+    const lastArgs = saveCalls[saveCalls.length - 1]
+    const savedWorld = lastArgs[2].world as { entities: Array<{ id: string; model?: string }>; assets?: Record<string, { path: string; type: string }> }
+    const savedEntity = savedWorld.entities.find((e) => e.id === CAR_ID)
+    expect(savedEntity?.model).toBe(modelId)
+    expect(savedWorld.assets && savedWorld.assets[modelId]).toBeDefined()
+  })
+})

@@ -103,7 +103,15 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     target: sampleWorld.world.camera?.target ?? 'ball',
     mode: sampleWorld.world.camera?.mode ?? 'follow',
   }))
-  
+  const cameraStateRef = useRef<CameraState>({
+    control: (sampleWorld.world.camera?.control ?? 'free') as 'free' | 'follow' | 'top' | 'front' | 'right',
+    target: sampleWorld.world.camera?.target ?? 'ball',
+    mode: sampleWorld.world.camera?.mode ?? 'follow',
+  })
+  useEffect(() => {
+    cameraStateRef.current = cameraState
+  }, [cameraState])
+
   // Individual setters for backward compatibility
   const setCameraControl = useCallback((control: CameraState['control']) => {
     setCameraState(prev => ({ ...prev, control }))
@@ -145,15 +153,22 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const loadProject = useCallback(async (id: string) => {
     try {
       uiLogger.select('Builder', 'Open project', { projectId: id })
-      const { world: w } = await persistence.loadProject(id)
-      // Assets are already loaded globally, don't reload them
+      const { world: w, assets: loadedAssets } = await persistence.loadProject(id)
       // Get project meta inline instead of depending on projects array
       const allProjects = await persistence.listProjects()
       const projectMeta = allProjects.find((p) => p.id === id)
       
       worldRef.current = w
       setWorld(w)
-      // Assets remain global - don't change them when loading project
+      // Merge loaded project assets into global asset map so models/textures are available
+      setAssets((prev) => {
+        if (!loadedAssets || loadedAssets.size === 0) return prev
+        const next = new Map(prev)
+        for (const [assetId, blob] of loadedAssets) {
+          next.set(assetId, blob)
+        }
+        return next
+      })
       setCurrentProject({
         id,
         name: projectMeta?.name ?? `Project ${id}`,
@@ -221,7 +236,25 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
     return () => { cancelled = true }
   }, [refreshProjects, loadProject])
-  
+
+  /** World to persist: current worldRef with camera state (control, target, mode) merged in. */
+  const getWorldToSave = useCallback((): RennWorld => {
+    const cam = cameraStateRef.current
+    const current = worldRef.current
+    return {
+      ...current,
+      world: {
+        ...current.world,
+        camera: {
+          ...current.world.camera,
+          control: cam.control,
+          target: cam.target,
+          mode: cam.mode,
+        },
+      },
+    }
+  }, [])
+
   const saveProject = useCallback(async () => {
     try {
       const id = currentProject.id ?? `proj_${Date.now()}`
@@ -238,8 +271,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       console.log('[Save] Starting save', { projectId: id, projectName: name, assetsCount: assetsSize, totalBlobBytes })
 
       uiLogger.click('Builder', 'Save project', { projectId: id, projectName: name })
-      // Save project - assets are already in global store, just pass them for reference
-      await persistence.saveProject(id, name, { world: worldRef.current, assets })
+      await persistence.saveProject(id, name, { world: getWorldToSave(), assets })
 
       setCurrentProject({
         id,
@@ -261,15 +293,15 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       })
       alert('Failed to save project')
     }
-  }, [currentProject, world, assets, refreshProjects])
-  
+  }, [currentProject, world, assets, refreshProjects, getWorldToSave])
+
   const saveToProject = useCallback(async (id: string) => {
     try {
       const allProjects = await persistence.listProjects()
       const meta = allProjects.find((p) => p.id === id)
       const name = meta?.name ?? `Project ${id}`
       uiLogger.click('Builder', 'Save to existing project', { projectId: id, projectName: name })
-      await persistence.saveProject(id, name, { world: worldRef.current, assets })
+      await persistence.saveProject(id, name, { world: getWorldToSave(), assets })
       setCurrentProject({ id, name, isDirty: false })
       setLastProjectId(id)
       refreshProjects()
@@ -277,13 +309,13 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       console.error('Failed to save to project:', err)
       alert('Failed to save to project')
     }
-  }, [world, assets, refreshProjects])
-  
+  }, [world, assets, refreshProjects, getWorldToSave])
+
   const saveProjectAs = useCallback(async (name: string) => {
     try {
       const id = `proj_${Date.now()}`
       uiLogger.click('Builder', 'Save as new project', { projectId: id, projectName: name })
-      await persistence.saveProject(id, name, { world: worldRef.current, assets })
+      await persistence.saveProject(id, name, { world: getWorldToSave(), assets })
       
       setCurrentProject({
         id,
@@ -296,8 +328,8 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       console.error('Failed to save project:', err)
       alert('Failed to save project')
     }
-  }, [world, assets, refreshProjects])
-  
+  }, [world, assets, refreshProjects, getWorldToSave])
+
   const deleteProject = useCallback(async (id: string) => {
     if (!confirm('Delete this project?')) return
     
@@ -423,6 +455,11 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
           const w = JSON.parse(reader.result as string) as RennWorld
           worldRef.current = w
           setWorld(w)
+          setCameraState({
+            control: (w.world.camera?.control ?? 'free') as 'free' | 'follow' | 'top' | 'front' | 'right',
+            target: w.world.camera?.target ?? '',
+            mode: w.world.camera?.mode ?? 'follow',
+          })
           setAssets(new Map())
           setCurrentProject({
             id: null,

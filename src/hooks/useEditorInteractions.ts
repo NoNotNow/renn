@@ -55,6 +55,7 @@ export function useEditorInteractions({
     const onPointerDown = (e: PointerEvent): void => {
       if (e.button === 1) return // middle mouse reserved for camera orbit
       setNdcFromEvent(e)
+      scene.updateMatrixWorld(true)
       raycaster.setFromCamera(ndc, camera)
       const hits = raycaster.intersectObjects(getEntityMeshes(), true)
       const hit = hits[0]

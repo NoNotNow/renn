@@ -199,6 +199,7 @@ export async function createPrimitiveMesh(
               new THREE.BoxGeometry(0.01, 0.01, 0.01),
               new THREE.MeshStandardMaterial({ visible: false })
             )
+            wrapperMesh.layers.set(1)
             wrapperMesh.add(modelScene)
             applyModelTransform(modelScene, rot, scl)
             wrapperMesh.userData.isTrimeshSource = true
@@ -323,6 +324,7 @@ export async function buildEntityMesh(
           new THREE.BoxGeometry(0.01, 0.01, 0.01),
           new THREE.MeshStandardMaterial({ visible: false })
         )
+        resultMesh.layers.set(1)
         resultMesh.add(modelScene)
         applyModelTransform(modelScene, rot, scl)
         applyTransform(resultMesh, position, rotation, scale)

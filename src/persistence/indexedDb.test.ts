@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import 'fake-indexeddb/auto'
 import { createIndexedDbPersistence } from './indexedDb'
+import { ModelManager } from '@/utils/modelManager'
 import type { RennWorld } from '@/types/world'
 
 function createTestWorld(): RennWorld {
@@ -91,6 +92,44 @@ describe('IndexedDB Persistence', () => {
     // Verify assets were saved and loaded (size check)
     // Note: fake-indexeddb may not fully preserve Blob instances
     expect(loaded.assets.has('texture1')).toBe(true)
+  })
+
+  it('saves and loads project with model entity and assets', async () => {
+    const world: RennWorld = {
+      version: '1.0',
+      world: {
+        gravity: [0, -9.81, 0],
+        assets: undefined,
+      } as unknown as RennWorld['world'],
+      entities: [
+        {
+          id: 'car-entity',
+          bodyType: 'dynamic',
+          shape: { type: 'box', width: 2, height: 1, depth: 4 },
+          model: 'car.glb',
+        },
+      ],
+      assets: {
+        'car.glb': { path: 'assets/car.glb', type: 'model' },
+      },
+    }
+    const modelBlob = new Blob(['model-bytes'], { type: 'model/gltf-binary' })
+    const assets = new Map<string, Blob>([['car.glb', modelBlob]])
+
+    await persistence.saveProject('project-with-model', 'With Model', { world, assets })
+
+    const loaded = await persistence.loadProject('project-with-model')
+    const loadedWorld = loaded.world
+    const loadedEntity = loadedWorld.entities[0]
+
+    expect(loadedEntity.model).toBe('car.glb')
+    expect(loadedWorld.assets && loadedWorld.assets['car.glb']).toBeDefined()
+    expect(loaded.assets.has('car.glb')).toBe(true)
+    const loadedBlob = loaded.assets.get('car.glb')
+    expect(loadedBlob).toBeInstanceOf(Blob)
+    if (loadedBlob) {
+      expect(ModelManager.isModelFile(loadedBlob)).toBe(true)
+    }
   })
 
   it('lists projects after saving', async () => {
