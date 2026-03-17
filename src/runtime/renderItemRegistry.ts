@@ -5,7 +5,7 @@ import type { Vec3, Rotation, Entity } from '@/types/world'
 import { createShapeGeometry, materialFromRef } from '@/loader/createPrimitive'
 import type { DisposableAssetResolver } from '@/loader/assetResolverImpl'
 import { RenderItem } from './renderItem'
-import { rapierQuaternionToEuler } from '@/utils/rotationUtils'
+import { getUpVectorFromRapierQuaternion, quaternionToEuler, rapierQuaternionToEuler } from '@/utils/rotationUtils'
 import { createTransformerChain } from '@/transformers/transformerRegistry'
 import type { TransformInput } from '@/types/transformer'
 import { createEmptyTransformInput } from '@/types/transformer'
@@ -436,12 +436,16 @@ export class RenderItemRegistry {
         this.physicsWorld.applyTorqueFromTransformer(item.entity.id, output.torque)
       }
       if (output.addRotation != null && body) {
-        const newRotation: Rotation = [
-          rotation[0] + output.addRotation[0],
-          rotation[1] + output.addRotation[1],
-          rotation[2] + output.addRotation[2],
-        ]
-        this.physicsWorld.setRotation(item.entity.id, newRotation)
+        // Apply only yaw (addRotation[1]) around body's up axis in quaternion space to avoid Euler wrap and angle limits
+        const rot = cached.rotation
+        const currentQ = new THREE.Quaternion(rot.x, rot.y, rot.z, rot.w)
+        const up = getUpVectorFromRapierQuaternion(rot)
+        const upVec = new THREE.Vector3(up[0], up[1], up[2])
+        const yawRad = -output.addRotation[1]
+        const deltaQ = new THREE.Quaternion().setFromAxisAngle(upVec, yawRad)
+        const newQ = deltaQ.clone().multiply(currentQ)
+        const newEuler = quaternionToEuler(newQ)
+        this.physicsWorld.setRotation(item.entity.id, newEuler)
         this.physicsWorld.setAngularVelocity(item.entity.id, 0, 0, 0)
       }
       if (output.color) {

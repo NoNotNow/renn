@@ -1,0 +1,12 @@
+{
+  "type": "person",
+  "priority": 10,
+  "enabled": true,
+  "params": {
+    "walkForce": 200,
+    "runForce": 350,
+    "maxWalkSpeed": 4,
+    "maxRunSpeed": 8,
+    "turnSpeed": 2
+  }
+}

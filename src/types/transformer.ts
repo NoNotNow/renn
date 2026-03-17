@@ -173,7 +173,7 @@ export interface Transformer {
 // ---------------------------------------------------------------------------
 
 /** Known preset transformer types. */
-export type PresetTransformerType = 'input' | 'car2'
+export type PresetTransformerType = 'input' | 'car2' | 'person'
 
 /** Transformer type string. */
 export type TransformerType = PresetTransformerType | string

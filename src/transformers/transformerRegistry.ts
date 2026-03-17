@@ -12,6 +12,7 @@ import type {
 import { TransformerChain } from './transformer'
 import { InputTransformer } from './presets/inputTransformer'
 import { CarTransformer2, type CarTransformer2Params } from './presets/car2Transformer'
+import { PersonTransformer, type PersonTransformerParams } from './presets/personTransformer'
 import type { InputMapping } from '@/types/transformer'
 import { CHARACTER_PRESET } from '@/input/inputPresets'
 
@@ -37,6 +38,13 @@ export async function createTransformer(
     case 'car2': {
       const params = (config.params ?? {}) as Partial<CarTransformer2Params>
       const transformer = new CarTransformer2(priority, params)
+      transformer.enabled = enabled
+      return transformer
+    }
+
+    case 'person': {
+      const params = (config.params ?? {}) as Partial<PersonTransformerParams>
+      const transformer = new PersonTransformer(priority, params)
       transformer.enabled = enabled
       return transformer
     }

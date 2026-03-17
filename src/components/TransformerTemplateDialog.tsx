@@ -4,7 +4,7 @@ import type { PresetTransformerType } from '@/data/transformerPresets/loader'
 import { listPresetNames, loadPreset } from '@/data/transformerPresets/loader'
 import Modal from './Modal'
 
-const PRESET_TYPES: PresetTransformerType[] = ['input', 'car2']
+const PRESET_TYPES: PresetTransformerType[] = ['input', 'car2', 'person']
 
 export interface TransformerTemplateDialogProps {
   isOpen: boolean

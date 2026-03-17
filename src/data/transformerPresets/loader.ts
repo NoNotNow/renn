@@ -5,7 +5,7 @@
 
 import type { TransformerConfig } from '@/types/transformer'
 
-export type PresetTransformerType = 'input' | 'car2'
+export type PresetTransformerType = 'input' | 'car2' | 'person'
 
 const presetModules = import.meta.glob<string>('./**/*.json', {
   query: '?raw',
@@ -14,7 +14,7 @@ const presetModules = import.meta.glob<string>('./**/*.json', {
 })
 
 function pathToTypeAndName(relativePath: string): { type: PresetTransformerType; name: string } | null {
-  const match = relativePath.match(/^\.\/(car2|input)\/(.+)\.json$/)
+  const match = relativePath.match(/^\.\/(car2|input|person)\/(.+)\.json$/)
   if (!match) return null
   const [, type, name] = match
   return { type: type as PresetTransformerType, name }

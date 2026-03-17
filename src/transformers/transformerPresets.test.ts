@@ -6,11 +6,12 @@ import {
 import { CAR_PRESET } from '@/input/inputPresets'
 
 describe('transformerPresets', () => {
-  test('TRANSFORMER_PRESET_OPTIONS includes only input and car2', () => {
+  test('TRANSFORMER_PRESET_OPTIONS includes input, car2 and person', () => {
     const types = TRANSFORMER_PRESET_OPTIONS.map((o) => o.value)
     expect(types).toContain('input')
     expect(types).toContain('car2')
-    expect(types).toHaveLength(2)
+    expect(types).toContain('person')
+    expect(types).toHaveLength(3)
   })
 
   test('getDefaultTransformerConfig returns valid config for each type', () => {
@@ -35,6 +36,17 @@ describe('transformerPresets', () => {
       steeringIntensity: 0.05,
       steeringSpeed: 0.05,
       lateralGrip: 120,
+    })
+  })
+
+  test('person preset has user-specified params', () => {
+    const config = getDefaultTransformerConfig('person')
+    expect(config.params).toMatchObject({
+      walkForce: 200,
+      runForce: 350,
+      maxWalkSpeed: 4,
+      maxRunSpeed: 8,
+      turnSpeed: 2,
     })
   })
 })

@@ -67,16 +67,34 @@ export const CAR_PRESET: InputMapping = {
 }
 
 /**
+ * Person preset: W/S = walk forward/backward, A/D = turn left/right, Space = run
+ */
+export const PERSON_PRESET: InputMapping = {
+  keyboard: {
+    w: 'forward',
+    s: 'backward',
+    a: 'turn_left',
+    d: 'turn_right',
+    space: 'run',
+  },
+  sensitivity: {
+    keyboard: 1.0,
+  },
+}
+
+/**
  * Get preset by name.
  */
 export function getPresetMapping(
-  presetName: 'character' | 'car',
+  presetName: 'character' | 'car' | 'person',
 ): InputMapping {
   switch (presetName) {
     case 'character':
       return CHARACTER_PRESET
     case 'car':
       return CAR_PRESET
+    case 'person':
+      return PERSON_PRESET
     default:
       return CHARACTER_PRESET // fallback
   }

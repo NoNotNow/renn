@@ -9,6 +9,7 @@ import { CAR_PRESET } from '@/input/inputPresets'
 export const TRANSFORMER_PRESET_OPTIONS: { value: string; label: string }[] = [
   { value: 'input', label: 'input' },
   { value: 'car2', label: 'car2' },
+  { value: 'person', label: 'person' },
 ]
 
 /**
@@ -34,6 +35,19 @@ export function getDefaultTransformerConfig(type: string): TransformerConfig {
           steeringIntensity: 0.05,
           steeringSpeed: 0.05,
           lateralGrip: 120,
+        },
+      }
+    case 'person':
+      return {
+        type: 'person',
+        priority: 10,
+        enabled: true,
+        params: {
+          walkForce: 200,
+          runForce: 350,
+          maxWalkSpeed: 4,
+          maxRunSpeed: 8,
+          turnSpeed: 2,
         },
       }
     default:

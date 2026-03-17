@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest'
 import { createTransformer } from './transformerRegistry'
 import { InputTransformer } from './presets/inputTransformer'
 import { CarTransformer2 } from './presets/car2Transformer'
+import { PersonTransformer } from './presets/personTransformer'
 import { createMockTransformInput } from '@/test/helpers/transformer'
 import type { TransformerConfig } from '@/types/transformer'
 import { CHARACTER_PRESET } from '@/input/inputPresets'
@@ -41,6 +42,27 @@ describe('Transformer Registry', () => {
     expect(transformer.type).toBe('car2')
     const input = createMockTransformInput({
       actions: { throttle: 1.0 },
+      velocity: [0, 0, 0],
+      rotation: [0, 0, 0],
+      environment: { isTouchingObject: true },
+    })
+    const output = transformer.transform(input, 0.016)
+    expect(output.impulse).toBeDefined()
+  })
+
+  test('creates PersonTransformer from config', async () => {
+    const config: TransformerConfig = {
+      type: 'person',
+      priority: 10,
+      params: { walkForce: 150, maxWalkSpeed: 3 },
+    }
+
+    const transformer = await createTransformer(config)
+
+    expect(transformer).toBeInstanceOf(PersonTransformer)
+    expect(transformer.type).toBe('person')
+    const input = createMockTransformInput({
+      actions: { forward: 1.0 },
       velocity: [0, 0, 0],
       rotation: [0, 0, 0],
       environment: { isTouchingObject: true },

@@ -91,3 +91,17 @@ export function rapierQuaternionToEuler(quat: { x: number; y: number; z: number;
   const threeQuat = new THREE.Quaternion(quat.x, quat.y, quat.z, quat.w)
   return quaternionToEuler(threeQuat)
 }
+
+/**
+ * World-space up direction from a Rapier quaternion (body's local Y in world space).
+ */
+export function getUpVectorFromRapierQuaternion(quat: {
+  x: number
+  y: number
+  z: number
+  w: number
+}): [number, number, number] {
+  const q = new THREE.Quaternion(quat.x, quat.y, quat.z, quat.w)
+  const up = new THREE.Vector3(0, 1, 0).applyQuaternion(q)
+  return [up.x, up.y, up.z]
+}
