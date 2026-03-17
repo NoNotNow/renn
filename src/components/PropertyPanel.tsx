@@ -9,24 +9,8 @@ import MaterialEditor from './MaterialEditor'
 import ModelEditor from './ModelEditor'
 import TransformerEditor from './TransformerEditor'
 import CollapsibleSection from './CollapsibleSection'
-import { fieldLabelStyle, sidebarTextInputStyle, iconButtonStyle, removeButtonStyle, removeButtonStyleDisabled, secondaryButtonStyle, secondaryButtonStyleDisabled } from './sharedStyles'
-
-function RefreshIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      style={{ width: 14, height: 14, flexShrink: 0 }}
-    >
-      <path d="M23 4v6h-6M1 20v-6h6" />
-      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-    </svg>
-  )
-}
+import { fieldLabelStyle, sidebarTextInputStyle, iconButtonStyle, entityPanelIconButtonStyle, removeButtonStyle, removeButtonStyleDisabled, secondaryButtonStyle, secondaryButtonStyleDisabled } from './sharedStyles'
+import { EntityPanelIcons } from './EntityPanelIcons'
 
 export interface PropertyPanelProps {
   world: RennWorld
@@ -131,11 +115,12 @@ export default function PropertyPanel({
               onRefreshFromPhysics(entity.id)
             }}
             title="Refresh position and rotation from physics"
-            style={{ ...iconButtonStyle, flexShrink: 0 }}
+            aria-label="Refresh position and rotation from physics"
+            style={entityPanelIconButtonStyle}
             onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
             onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.8')}
           >
-            <RefreshIcon />
+            {EntityPanelIcons.refresh}
           </button>
         )}
       </div>
@@ -152,11 +137,12 @@ export default function PropertyPanel({
               updateEntity({ locked: !isLocked })
             }}
             title={isLocked ? 'Unlock entity' : 'Lock entity'}
-            style={{ ...iconButtonStyle, fontSize: 14 }}
+            aria-label={isLocked ? 'Unlock entity' : 'Lock entity'}
+            style={entityPanelIconButtonStyle}
             onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
             onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.8')}
           >
-            {isLocked ? '🔒' : '🔓'}
+            {isLocked ? EntityPanelIcons.lock : EntityPanelIcons.unlock}
           </button>
         }
       >
@@ -411,6 +397,7 @@ export default function PropertyPanel({
             <button
               type="button"
               title="Reset model rotation to 0,0,0"
+              aria-label="Reset model rotation to 0,0,0"
               onClick={() => {
                 uiLogger.change('PropertyPanel', 'Reset model rotation', { entityId: entity.id })
                 if (onEntityModelTransformChange) {
@@ -421,14 +408,12 @@ export default function PropertyPanel({
               }}
               disabled={isLocked}
               style={{
-                flexShrink: 0,
-                padding: '4px 8px',
-                fontSize: 11,
+                ...entityPanelIconButtonStyle,
                 cursor: isLocked ? 'not-allowed' : 'pointer',
                 opacity: isLocked ? 0.5 : 1,
               }}
             >
-              Reset
+              {EntityPanelIcons.reset}
             </button>
           </div>
           <Vec3Field
@@ -467,14 +452,17 @@ export default function PropertyPanel({
             onDeleteEntity(entity.id)
           }}
           disabled={isLocked}
+          title="Delete entity"
+          aria-label="Delete entity"
           style={{
             ...removeButtonStyle,
             ...(isLocked && removeButtonStyleDisabled),
-            padding: '8px 12px',
+            ...entityPanelIconButtonStyle,
             alignSelf: 'stretch',
+            minHeight: 36,
           }}
         >
-          Delete entity
+          {EntityPanelIcons.trash}
         </button>
       )}
     </div>

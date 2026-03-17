@@ -3,7 +3,8 @@ import type { TransformerConfig } from '@/types/transformer'
 import type { PresetTransformerType } from '@/data/transformerPresets/loader'
 import CopyableArea from './CopyableArea'
 import TransformerTemplateDialog from './TransformerTemplateDialog'
-import { fieldLabelStyle, iconButtonStyle, removeButtonStyle, removeButtonStyleDisabled } from './sharedStyles'
+import { fieldLabelStyle, iconButtonStyle, entityPanelIconButtonStyle, removeButtonStyle, removeButtonStyleDisabled } from './sharedStyles'
+import { EntityPanelIcons } from './EntityPanelIcons'
 import {
   TRANSFORMER_PRESET_OPTIONS,
   getDefaultTransformerConfig,
@@ -88,19 +89,19 @@ function TransformerConfigTextarea({
         type="button"
         onClick={() => onApply(parsed)}
         disabled={disabled || !isValid}
+        title="Apply"
+        aria-label="Apply configuration"
         style={{
+          ...entityPanelIconButtonStyle,
           alignSelf: 'flex-end',
-          padding: '4px 10px',
-          fontSize: 11,
           background: isValid ? '#1e3a5f' : '#2a2a2a',
           border: isValid ? '1px solid #3b6ea8' : '1px solid #3a3a3a',
           color: isValid ? '#93c5fd' : '#666',
-          borderRadius: 4,
           cursor: isValid && !disabled ? 'pointer' : 'not-allowed',
         }}
         data-testid="transformer-config-apply"
       >
-        Apply
+        {EntityPanelIcons.check}
       </button>
     </div>
   )
@@ -176,7 +177,6 @@ export default function TransformerEditor({
         </div>
       ) : (
         list.map((transformer, index) => {
-        const priority = transformer.priority ?? 10
         const enabled = transformer.enabled ?? true
 
         return (
@@ -196,26 +196,27 @@ export default function TransformerEditor({
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 marginBottom: 6,
+                gap: 6,
+                minWidth: 0,
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontWeight: 600, color: '#c4cbd8' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                <span style={{ fontWeight: 600, color: '#c4cbd8', flexShrink: 0 }}>
                   {transformer.type}
                 </span>
-                <span style={{ fontSize: 11, color: '#9aa4b2' }}>
-                  Priority: {priority}
-                </span>
                 <span
+                  title={enabled ? 'Enabled' : 'Disabled'}
+                  aria-label={enabled ? 'Enabled' : 'Disabled'}
                   style={{
-                    fontSize: 11,
-                    color: enabled ? '#4ade80' : '#9aa4b2',
-                    fontWeight: enabled ? 600 : 400,
+                    flexShrink: 0,
+                    width: 8,
+                    height: 8,
+                    borderRadius: '50%',
+                    background: enabled ? '#4ade80' : '#ef4444',
                   }}
-                >
-                  {enabled ? 'Enabled' : 'Disabled'}
-                </span>
+                />
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
                 {isPresetType(transformer.type) && (
                   <button
                     type="button"
@@ -225,17 +226,16 @@ export default function TransformerEditor({
                     }}
                     disabled={disabled}
                     style={{
-                      ...iconButtonStyle,
-                      padding: '4px 8px',
-                      fontSize: 11,
+                      ...entityPanelIconButtonStyle,
                       color: '#93c5fd',
                       border: '1px solid #3b6ea8',
                       background: '#1e3a5f',
                     }}
                     title="Load template"
+                    aria-label="Load template"
                     data-testid="load-transformer-template"
                   >
-                    Templates…
+                    <span style={{ fontSize: 14, lineHeight: 1 }}>{'\u{1F4C2}'}</span>
                   </button>
                 )}
                 <button
@@ -243,50 +243,54 @@ export default function TransformerEditor({
                   onClick={() => handleMoveTransformer(index, 'up')}
                   disabled={disabled || index === 0}
                   style={{
-                    ...iconButtonStyle,
+                    ...entityPanelIconButtonStyle,
+                    minWidth: 24,
+                    minHeight: 24,
+                    padding: 2,
                     color: '#9aa4b2',
                     opacity: disabled || index === 0 ? 0.4 : 0.8,
                     cursor: disabled || index === 0 ? 'not-allowed' : 'pointer',
-                    padding: 2,
-                    fontSize: 12,
                   }}
                   title="Move up"
+                  aria-label="Move up"
                   data-testid="move-transformer-up"
                 >
-                  ↑
+                  {EntityPanelIcons.chevronUp}
                 </button>
                 <button
                   type="button"
                   onClick={() => handleMoveTransformer(index, 'down')}
                   disabled={disabled || index === list.length - 1}
                   style={{
-                    ...iconButtonStyle,
+                    ...entityPanelIconButtonStyle,
+                    minWidth: 24,
+                    minHeight: 24,
+                    padding: 2,
                     color: '#9aa4b2',
                     opacity: disabled || index === list.length - 1 ? 0.4 : 0.8,
                     cursor: disabled || index === list.length - 1 ? 'not-allowed' : 'pointer',
-                    padding: 2,
-                    fontSize: 12,
                   }}
                   title="Move down"
+                  aria-label="Move down"
                   data-testid="move-transformer-down"
                 >
-                  ↓
+                  {EntityPanelIcons.chevronDown}
                 </button>
                 <button
                   type="button"
                   onClick={() => handleRemoveTransformer(index)}
                   disabled={disabled}
-                style={{
-                  ...removeButtonStyle,
-                  ...(disabled && removeButtonStyleDisabled),
-                  padding: '4px 8px',
-                  fontSize: 11,
-                }}
-                title="Remove transformer"
-                data-testid="remove-transformer"
-              >
-                Remove
-              </button>
+                  style={{
+                    ...removeButtonStyle,
+                    ...(disabled && removeButtonStyleDisabled),
+                    ...entityPanelIconButtonStyle,
+                  }}
+                  title="Remove transformer"
+                  aria-label="Remove transformer"
+                  data-testid="remove-transformer"
+                >
+                  {EntityPanelIcons.trash}
+                </button>
             </div>
             </div>
 

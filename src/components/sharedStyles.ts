@@ -57,6 +57,18 @@ export const iconButtonStyle = {
   transition: 'opacity 0.15s ease',
 }
 
+/** Entity panel icon button: square, fixed size for narrow sidebars. */
+export const entityPanelIconButtonStyle = {
+  ...iconButtonStyle,
+  display: 'flex' as const,
+  alignItems: 'center' as const,
+  justifyContent: 'center' as const,
+  minWidth: 28,
+  minHeight: 28,
+  flexShrink: 0,
+  borderRadius: 6,
+}
+
 /** Destructive remove button (e.g. remove texture/model). */
 export const removeButtonStyle = {
   padding: '6px 8px',

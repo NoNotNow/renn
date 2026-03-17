@@ -9,7 +9,8 @@ import SelectInput from './form/SelectInput'
 import Vec3Field from './Vec3Field'
 import TextureDialog from './TextureDialog'
 import TextureThumbnail from './TextureThumbnail'
-import { sidebarRowStyle, sidebarLabelStyle, thumbnailButtonStyle, thumbnailButtonStyleDisabled, removeButtonStyle, removeButtonStyleDisabled, secondaryButtonStyle, secondaryButtonStyleDisabled } from './sharedStyles'
+import { sidebarRowStyle, sidebarLabelStyle, thumbnailButtonStyle, thumbnailButtonStyleDisabled, entityPanelIconButtonStyle, removeButtonStyle, removeButtonStyleDisabled } from './sharedStyles'
+import { EntityPanelIcons } from './EntityPanelIcons'
 
 export interface MaterialEditorProps {
   entityId: string
@@ -111,9 +112,10 @@ export default function MaterialEditor({
                 }}
                 disabled={disabled}
                 title="Remove texture"
-                style={{ ...removeButtonStyle, ...(disabled && removeButtonStyleDisabled) }}
+                aria-label="Remove texture"
+                style={{ ...removeButtonStyle, ...(disabled && removeButtonStyleDisabled), ...entityPanelIconButtonStyle }}
               >
-                🗑️
+                {EntityPanelIcons.trash}
               </button>
             </>
           ) : (
@@ -121,7 +123,15 @@ export default function MaterialEditor({
               type="button"
               onClick={() => setTextureDialogOpen(true)}
               disabled={disabled}
-              style={{ ...secondaryButtonStyle, ...(disabled && secondaryButtonStyleDisabled) }}
+              title="Add texture"
+              aria-label="Add texture"
+              style={{
+                ...entityPanelIconButtonStyle,
+                background: '#1a1a1a',
+                border: '1px solid #2f3545',
+                color: '#e6e9f2',
+                ...(disabled && { opacity: 0.5, cursor: 'not-allowed' as const }),
+              }}
               onMouseEnter={(e) => {
                 if (!disabled) e.currentTarget.style.background = '#222'
               }}
@@ -129,7 +139,7 @@ export default function MaterialEditor({
                 if (!disabled) e.currentTarget.style.background = '#1a1a1a'
               }}
             >
-              Add Texture
+              {EntityPanelIcons.image}
             </button>
           )}
         </div>

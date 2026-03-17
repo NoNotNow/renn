@@ -1,6 +1,8 @@
 import type { Vec3, Rotation } from '@/types/world'
 import Vec3Field from './Vec3Field'
 import { uiLogger } from '@/utils/uiLogger'
+import { entityPanelIconButtonStyle } from './sharedStyles'
+import { EntityPanelIcons } from './EntityPanelIcons'
 
 export interface TransformEditorProps {
   entityId: string
@@ -51,20 +53,19 @@ export default function TransformEditor({
         <button
           type="button"
           title="Reset rotation to 0,0,0"
+          aria-label="Reset rotation to 0,0,0"
           onClick={() => {
             uiLogger.change('PropertyPanel', 'Reset rotation', { entityId })
             onRotationChange([0, 0, 0])
           }}
           disabled={disabled}
           style={{
-            flexShrink: 0,
-            padding: '4px 8px',
-            fontSize: 11,
+            ...entityPanelIconButtonStyle,
             cursor: disabled ? 'not-allowed' : 'pointer',
             opacity: disabled ? 0.5 : 1,
           }}
         >
-          Reset
+          {EntityPanelIcons.reset}
         </button>
       </div>
       <Vec3Field

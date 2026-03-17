@@ -4,7 +4,8 @@ import { uiLogger } from '@/utils/uiLogger'
 import { uploadModel } from '@/utils/assetUpload'
 import ModelDialog from './ModelDialog'
 import ModelThumbnail from './ModelThumbnail'
-import { sidebarRowStyle, sidebarLabelStyle, thumbnailButtonStyle, thumbnailButtonStyleDisabled, removeButtonStyle, removeButtonStyleDisabled, secondaryButtonStyle, secondaryButtonStyleDisabled } from './sharedStyles'
+import { sidebarRowStyle, sidebarLabelStyle, thumbnailButtonStyle, thumbnailButtonStyleDisabled, entityPanelIconButtonStyle, removeButtonStyle, removeButtonStyleDisabled } from './sharedStyles'
+import { EntityPanelIcons } from './EntityPanelIcons'
 
 export interface ModelEditorProps {
   entityId: string
@@ -60,9 +61,10 @@ export default function ModelEditor({
                 }}
                 disabled={disabled}
                 title="Remove model"
-                style={{ ...removeButtonStyle, ...(disabled && removeButtonStyleDisabled) }}
+                aria-label="Remove model"
+                style={{ ...removeButtonStyle, ...(disabled && removeButtonStyleDisabled), ...entityPanelIconButtonStyle }}
               >
-                🗑️
+                {EntityPanelIcons.trash}
               </button>
             </>
           ) : (
@@ -70,7 +72,15 @@ export default function ModelEditor({
               type="button"
               onClick={() => setModelDialogOpen(true)}
               disabled={disabled}
-              style={{ ...secondaryButtonStyle, ...(disabled && secondaryButtonStyleDisabled) }}
+              title="Add model"
+              aria-label="Add model"
+              style={{
+                ...entityPanelIconButtonStyle,
+                background: '#1a1a1a',
+                border: '1px solid #2f3545',
+                color: '#e6e9f2',
+                ...(disabled && { opacity: 0.5, cursor: 'not-allowed' as const }),
+              }}
               onMouseEnter={(e) => {
                 if (!disabled) e.currentTarget.style.background = '#222'
               }}
@@ -78,7 +88,7 @@ export default function ModelEditor({
                 if (!disabled) e.currentTarget.style.background = '#1a1a1a'
               }}
             >
-              Add Model
+              {EntityPanelIcons.cube}
             </button>
           )}
         </div>

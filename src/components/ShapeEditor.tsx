@@ -8,7 +8,8 @@ import ModelDialog from './ModelDialog'
 import ModelThumbnail from './ModelThumbnail'
 import Switch from './Switch'
 import { uploadModel } from '@/utils/assetUpload'
-import { sidebarRowStyle, sidebarLabelStyle, thumbnailButtonStyle, thumbnailButtonStyleDisabled, removeButtonStyle, removeButtonStyleDisabled, secondaryButtonStyle, secondaryButtonStyleDisabled } from './sharedStyles'
+import { sidebarRowStyle, sidebarLabelStyle, thumbnailButtonStyle, thumbnailButtonStyleDisabled, entityPanelIconButtonStyle, removeButtonStyle, removeButtonStyleDisabled } from './sharedStyles'
+import { EntityPanelIcons } from './EntityPanelIcons'
 
 const ADDABLE_SHAPE_TYPES: AddableShapeType[] = ['box', 'sphere', 'cylinder', 'capsule', 'cone', 'pyramid', 'ring', 'plane', 'trimesh']
 
@@ -301,9 +302,10 @@ export default function ShapeEditor({
                     onClick={() => onShapeChange({ type: 'trimesh', model: '' })}
                     disabled={disabled}
                     title="Remove model"
-                    style={{ ...removeButtonStyle, ...(disabled && removeButtonStyleDisabled) }}
+                    aria-label="Remove model"
+                    style={{ ...removeButtonStyle, ...(disabled && removeButtonStyleDisabled), ...entityPanelIconButtonStyle }}
                   >
-                    🗑️
+                    {EntityPanelIcons.trash}
                   </button>
                 </>
               ) : (
@@ -311,7 +313,15 @@ export default function ShapeEditor({
                   type="button"
                   onClick={() => setModelDialogOpen(true)}
                   disabled={disabled}
-                  style={{ ...secondaryButtonStyle, ...(disabled && secondaryButtonStyleDisabled) }}
+                  title="Select model"
+                  aria-label="Select model"
+                  style={{
+                    ...entityPanelIconButtonStyle,
+                    background: '#1a1a1a',
+                    border: '1px solid #2f3545',
+                    color: '#e6e9f2',
+                    ...(disabled && { opacity: 0.5, cursor: 'not-allowed' as const }),
+                  }}
                   onMouseEnter={(e) => {
                     if (!disabled) e.currentTarget.style.background = '#222'
                   }}
@@ -319,7 +329,7 @@ export default function ShapeEditor({
                     if (!disabled) e.currentTarget.style.background = '#1a1a1a'
                   }}
                 >
-                  Select Model
+                  {EntityPanelIcons.cube}
                 </button>
               )}
             </div>
