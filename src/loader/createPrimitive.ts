@@ -302,7 +302,7 @@ export async function buildEntityMesh(
   const rot = modelRotation ?? DEFAULT_MODEL_ROTATION
   const scl = modelScale ?? DEFAULT_MODEL_SCALE
 
-  // If entity.model is specified, try to load it
+  // If entity.model is specified, try to load it: shape-sized root (clickable) + model child (visual only)
   if (modelId && assetResolver) {
     const gltfLoader = new GLTFLoader()
     try {
@@ -320,14 +320,21 @@ export async function buildEntityMesh(
             }
           })
         }
+        // Root mesh uses shape-sized geometry so the full shape is the clickable area (raycast hits this)
+        const shapeGeometry = createShapeGeometry(s)
+        const geometry = shapeGeometry ?? new THREE.BoxGeometry(1, 1, 1)
         const resultMesh = new THREE.Mesh(
-          new THREE.BoxGeometry(0.01, 0.01, 0.01),
-          new THREE.MeshStandardMaterial({ visible: false })
+          geometry,
+          new THREE.MeshBasicMaterial({ visible: false })
         )
-        resultMesh.layers.set(1)
         resultMesh.add(modelScene)
         applyModelTransform(modelScene, rot, scl)
         applyTransform(resultMesh, position, rotation, scale)
+        if (s.type === 'plane' || s.type === 'ring') {
+          const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0))
+          resultMesh.quaternion.premultiply(q)
+          resultMesh.userData.visualBaseQuaternion = q
+        }
         resultMesh.userData.usesModel = true
         resultMesh.userData.modelId = modelId
         resultMesh.userData.originalMaterialEntries = originalMaterialEntries
