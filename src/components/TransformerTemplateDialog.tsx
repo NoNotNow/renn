@@ -2,8 +2,9 @@ import { useState, useCallback, useEffect } from 'react'
 import type { TransformerConfig } from '@/types/transformer'
 import type { PresetTransformerType } from '@/data/transformerPresets/loader'
 import { listPresetNames, loadPreset } from '@/data/transformerPresets/loader'
-import { getDefaultTransformerConfig } from '@/transformers/transformerPresets'
 import Modal from './Modal'
+
+const PRESET_TYPES: PresetTransformerType[] = ['input', 'car2']
 
 export interface TransformerTemplateDialogProps {
   isOpen: boolean
@@ -43,36 +44,36 @@ export default function TransformerTemplateDialog({
 }: TransformerTemplateDialogProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [dialogType, setDialogType] = useState<PresetTransformerType>(transformerType)
   const [saveExpanded, setSaveExpanded] = useState(false)
   const [saveName, setSaveName] = useState('')
 
-  const presetNames = listPresetNames(transformerType)
-  const defaultId = '__default__'
-  const allIds = [defaultId, ...presetNames]
-  const filteredIds = allIds.filter((id) => {
-    const label = id === defaultId ? 'Default' : id
-    return label.toLowerCase().includes(searchQuery.toLowerCase())
-  })
+  const presetNames = listPresetNames(dialogType)
+  const filteredIds = presetNames.filter((name) =>
+    name.toLowerCase().includes(searchQuery.toLowerCase())
+  )
 
   useEffect(() => {
-    if (!isOpen) {
+    if (isOpen) {
+      setDialogType(transformerType)
       setSearchQuery('')
       setSelectedId(null)
       setSaveExpanded(false)
       setSaveName('')
     }
-  }, [isOpen])
+  }, [isOpen, transformerType])
+
+  const handleTypeChange = useCallback((type: PresetTransformerType) => {
+    setDialogType(type)
+    setSelectedId(null)
+  }, [])
 
   const handleLoad = useCallback(async () => {
     if (selectedId === null) return
-    if (selectedId === defaultId) {
-      onLoadTemplate(getDefaultTransformerConfig(transformerType))
-    } else {
-      const config = await loadPreset(transformerType, selectedId)
-      if (config) onLoadTemplate(config)
-    }
+    const config = await loadPreset(dialogType, selectedId)
+    if (config) onLoadTemplate(config)
     onClose()
-  }, [selectedId, transformerType, onLoadTemplate, onClose])
+  }, [selectedId, dialogType, onLoadTemplate, onClose])
 
   const handleSaveDownload = useCallback(() => {
     const name = (saveName.trim() || 'template').replace(/[^a-zA-Z0-9_-]/g, '_')
@@ -99,11 +100,36 @@ export default function TransformerTemplateDialog({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={`Templates: ${transformerType}`}
+      title="Load transformer template"
       width={500}
-      height={480}
+      height={520}
     >
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ fontSize: 13, color: '#9aa4b2' }}>Type:</span>
+          {PRESET_TYPES.map((type) => {
+            const active = dialogType === type
+            return (
+              <button
+                key={type}
+                type="button"
+                onClick={() => handleTypeChange(type)}
+                style={{
+                  padding: '6px 12px',
+                  fontSize: 12,
+                  borderRadius: 6,
+                  border: active ? '1px solid #4a9eff' : '1px solid #2f3545',
+                  background: active ? '#1e2a3a' : 'transparent',
+                  color: active ? '#e6e9f2' : '#9aa4b2',
+                  cursor: 'pointer',
+                }}
+              >
+                {type}
+              </button>
+            )
+          })}
+        </div>
+
         <div>
           <input
             type="text"
@@ -132,16 +158,15 @@ export default function TransformerTemplateDialog({
                 gap: 8,
               }}
             >
-              {filteredIds.map((id) => {
-                const label = id === defaultId ? 'Default' : id
-                const selected = selectedId === id
+              {filteredIds.map((name) => {
+                const selected = selectedId === name
                 return (
                   <div
-                    key={id}
+                    key={name}
                     role="button"
                     tabIndex={0}
-                    onClick={() => setSelectedId(id)}
-                    onKeyDown={(e) => e.key === 'Enter' && setSelectedId(id)}
+                    onClick={() => setSelectedId(name)}
+                    onKeyDown={(e) => e.key === 'Enter' && setSelectedId(name)}
                     style={cardStyle(selected)}
                     onMouseEnter={(e) => {
                       if (!selected) {
@@ -156,7 +181,7 @@ export default function TransformerTemplateDialog({
                       }
                     }}
                   >
-                    {label}
+                    {name}
                   </div>
                 )
               })}
@@ -177,7 +202,7 @@ export default function TransformerTemplateDialog({
           </h3>
           <p style={{ margin: '0 0 8px', fontSize: 11, color: '#9aa4b2' }}>
             Download or copy the current config as JSON. Add the file under{' '}
-            <code style={{ fontSize: 10 }}>src/data/transformerPresets/{transformerType}/</code> to
+            <code style={{ fontSize: 10 }}>src/data/transformerPresets/{currentConfig.type}/</code> to
             use it as a preset.
           </p>
           {!saveExpanded ? (
