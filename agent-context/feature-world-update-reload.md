@@ -13,6 +13,7 @@ flowchart LR
     handleWorldChange[handleWorldChange]
     handlePoseChange[handleEntityPoseChange]
     handlePhysicsChange[handleEntityPhysicsChange]
+    handleModelTransformChange[handleEntityModelTransformChange]
   end
   subgraph context [ProjectContext]
     updateWorld[updateWorld]
@@ -27,10 +28,13 @@ flowchart LR
   PropertyPanel -->|onWorldChange| handleWorldChange
   PropertyPanel -->|onEntityPoseChange| handlePoseChange
   PropertyPanel -->|onEntityPhysicsChange| handlePhysicsChange
+  PropertyPanel -->|onEntityModelTransformChange| handleModelTransformChange
   handleWorldChange --> updateWorld
   handlePoseChange --> SceneViewRef[sceneViewRef.updateEntityPose]
   handlePhysicsChange --> SceneViewRef2[sceneViewRef.updateEntityPhysics]
   handlePhysicsChange --> updateWorld
+  handleModelTransformChange --> SceneViewRef3[sceneViewRef.updateEntityModelTransform]
+  handleModelTransformChange --> updateWorld
   updateWorld --> sceneKey
   sceneKey --> mainEffect
   mainEffect --> loadWorld
@@ -38,12 +42,13 @@ flowchart LR
 ```
 
 1. **PropertyPanel** ([src/components/PropertyPanel.tsx](src/components/PropertyPanel.tsx))  
-   Most edits call `updateEntity(patch)` which builds a new `world` and invokes `onWorldChange(newWorld)`. Transform position/rotation can instead call `onEntityPoseChange(id, pose)`. Physics properties (mass, restitution, friction, damping, bodyType) call `onEntityPhysicsChange(id, patch)` when provided.
+   Most edits call `updateEntity(patch)` which builds a new `world` and invokes `onWorldChange(newWorld)`. Transform position/rotation can instead call `onEntityPoseChange(id, pose)`. Physics properties (mass, restitution, friction, damping, bodyType) call `onEntityPhysicsChange(id, patch)` when provided. Model rotation/scale (for trimesh or entity.model) call `onEntityModelTransformChange(id, patch)` when provided.
 
 2. **Builder** ([src/pages/Builder.tsx](src/pages/Builder.tsx))  
    - `handleWorldChange(newWorld)`: captures current scene poses into `initialPosesRef`, then calls `updateWorld(() => newWorld)`.  
    - `handleEntityPoseChange(id, pose)`: calls `sceneViewRef.current?.updateEntityPose(id, pose)` only (no world state update until an explicit sync, e.g. Refresh from physics or save).  
-   - `handleEntityPhysicsChange(id, patch)`: calls `sceneViewRef.current?.updateEntityPhysics(id, patch)` to update the body/collider directly, then calls `updateWorld(...)` directly (bypassing `handleWorldChange`, so no `initialPosesRef` capture) to keep the document in sync.
+   - `handleEntityPhysicsChange(id, patch)`: calls `sceneViewRef.current?.updateEntityPhysics(id, patch)` to update the body/collider directly, then calls `updateWorld(...)` directly (bypassing `handleWorldChange`, so no `initialPosesRef` capture) to keep the document in sync.  
+   - `handleEntityModelTransformChange(id, patch)`: calls `sceneViewRef.current?.updateEntityModelTransform(id, patch)` to update the mesh's model scene rotation/scale and rebuild trimesh collider, then calls `updateWorld(...)` to keep the document in sync; no full reload.
 
 3. **ProjectContext** ([src/contexts/ProjectContext.tsx](src/contexts/ProjectContext.tsx))  
    - `updateWorld(updater)`: applies updater to previous world, updates `worldRef.current`, calls `setWorld(next)`, marks project dirty.  
@@ -53,7 +58,8 @@ flowchart LR
    - Main setup effect depends on `sceneKey = getSceneDependencyKey(world)` (and version, runPhysics, etc.). When `sceneKey` changes, the effect runs: teardown, `loadWorld(world, assets)`, create physics and registry, then apply `initialPosesRef` and call `onPosesRestored` so Builder can sync poses back.  
    - Separate effects update gravity, sky color, camera config, and shadows **without** running the main effect.  
    - Imperative API: `updateEntityPose(id, pose)` updates the registry (mesh + physics body) directly; no world change and no rebuild.  
-   - Imperative API: `updateEntityPhysics(id, patch)` forwards to `RenderItemRegistry.updatePhysics` → `PhysicsWorld` setters, mutating the body/collider directly; no rebuild.
+   - Imperative API: `updateEntityPhysics(id, patch)` forwards to `RenderItemRegistry.updatePhysics` → `PhysicsWorld` setters, mutating the body/collider directly; no rebuild.  
+   - Imperative API: `updateEntityModelTransform(id, patch)` forwards to `RenderItemRegistry.setModelTransform` → updates the mesh's model-scene child rotation/scale and, for trimesh, calls `PhysicsWorld.updateShape` to rebuild the collider; no full reload.
 
 So: **world changes** go through `onWorldChange` → `updateWorld` → new `world` prop to SceneView. **Whether the scene rebuilds** is decided by the **rebuild key**, not by the fact that `world` changed.
 
@@ -71,6 +77,9 @@ So: **world changes** go through `onWorldChange` → `updateWorld` → new `worl
 - **Material changes**  
   The UI uses `onEntityMaterialChange(id, patch)`. Builder calls `sceneViewRef.updateEntityMaterial(id, entity)` → `RenderItemRegistry.updateMaterial` → `materialFromRef(newMaterial, assetResolver)` (async, may load texture) → replaces `mesh.material` (and all child materials for model meshes), disposing the old one. Material includes `opacity` (0–1, default 1); when opacity is below 1, `materialFromRef` sets `transparent` and adjusts depth write for correct blending. The call is fire-and-forget; world state is updated synchronously. The rebuild key **excludes** `material`, so no rebuild occurs.
 
+- **Model rotation/scale (modelRotation, modelScale)**  
+  The UI uses `onEntityModelTransformChange(id, patch)` when provided. Builder calls `sceneViewRef.updateEntityModelTransform(id, patch)` → `RenderItemRegistry.setModelTransform` → applies rotation/scale to the mesh's model-scene child (trimeshScene or first child for entity.model), updates the in-memory entity, and for trimesh calls `PhysicsWorld.updateShape` to rebuild the collider. The rebuild key **excludes** `modelRotation` and `modelScale` (they are applied incrementally), so no full reload.
+
 - **Trimesh shape changes and other structural properties (scale, model)**  
   These are edited via `onWorldChange(newWorld)`. The rebuild key **includes** `trimeshShape` (for trimesh shapes), `scale`, `model`, `scripts`, `transformers`, and world lights/assets/scripts. So these changes trigger the main setup effect and a full scene rebuild.
 
@@ -81,11 +90,11 @@ Defined in [src/utils/sceneDependencyKey.ts](src/utils/sceneDependencyKey.ts). T
 **Included (change triggers rebuild):**
 
 - **World**: `version`, `assets`, `scripts`, `world.ambientLight`, `world.directionalLight`.
-- **Per entity**: `id`, `trimeshShape` (shape only when `shape.type === 'trimesh'`), `scale`, `model`, `scripts`, `transformers`.
+- **Per entity**: `id`, `trimeshShape` (shape only when `shape.type === 'trimesh'`), `scale`, `model`, `scripts`, `transformers`. (`modelRotation` and `modelScale` are excluded; applied via `updateEntityModelTransform`.)
 
 **Excluded (change does not trigger rebuild):**
 
-- **Per entity**: `name`, `locked`, `position`, `rotation`, `bodyType`, `mass`, `restitution`, `friction`, `linearDamping`, `angularDamping`, primitive shape dimensions, `material`.
+- **Per entity**: `name`, `locked`, `position`, `rotation`, `modelRotation`, `modelScale`, `bodyType`, `mass`, `restitution`, `friction`, `linearDamping`, `angularDamping`, primitive shape dimensions, `material`.
 - **World**: `world.gravity`, `world.skyColor`, `world.camera` (these are applied by dedicated effects in SceneView).
 
 Entity add/remove changes the entity list, so the key changes and a rebuild runs.
@@ -105,6 +114,8 @@ Use this to answer "does changing this property rebuild the scene?"
 | **entity.scale** | Rebuild | In key. |
 | **entity.material** | Incremental | `onEntityMaterialChange` → `RenderItemRegistry.updateMaterial` → `materialFromRef` (async, texture-aware); not in rebuild key. |
 | **entity.model** | Rebuild | In key (trimesh). |
+| **entity.modelRotation** | Incremental | `onEntityModelTransformChange` → `RenderItemRegistry.setModelTransform` → model-scene + trimesh collider rebuild; not in rebuild key. |
+| **entity.modelScale** | Incremental | Same as modelRotation. |
 | **entity.bodyType** | Incremental | `onEntityPhysicsChange` → `PhysicsWorld.setBodyType`; not in rebuild key. |
 | **entity.mass** | Incremental | `onEntityPhysicsChange` → `PhysicsWorld.setMass` (density); not in rebuild key. |
 | **entity.restitution** | Incremental | `onEntityPhysicsChange` → `PhysicsWorld.setRestitution`; not in rebuild key. |
@@ -149,7 +160,7 @@ src/
 ├── components/SceneView.tsx      # sceneKey in effect deps; updateEntityPose/Physics/Shape/Material; gravity/sky/camera effects
 ├── utils/sceneDependencyKey.ts   # getSceneDependencyKey: included vs excluded fields
 ├── physics/rapierPhysics.ts      # PhysicsWorld: setLinearDamping/AngularDamping/Restitution/Friction/Mass/BodyType + updateShape
-├── runtime/renderItemRegistry.ts # setPosition, setRotation, updatePhysics, updateShape, updateMaterial
+├── runtime/renderItemRegistry.ts # setPosition, setRotation, setModelTransform, updatePhysics, updateShape, updateMaterial
 └── loader/createPrimitive.ts     # createShapeGeometry + materialFromRef: hot-swap helpers
 ```
 

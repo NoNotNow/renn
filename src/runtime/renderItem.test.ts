@@ -187,4 +187,54 @@ describe('RenderItemRegistry', () => {
     expect(registry.get('e')).toBeUndefined()
     expect(registry.getPosition('e')).toBeNull()
   })
+
+  it('setModelTransform updates model scene rotation and scale (usesModel)', () => {
+    const modelScene = new THREE.Mesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      new THREE.MeshBasicMaterial()
+    )
+    const rootMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(0.01, 0.01, 0.01),
+      new THREE.MeshBasicMaterial()
+    )
+    rootMesh.add(modelScene)
+    rootMesh.userData.usesModel = true
+    const entity: Entity = { id: 'e', position: [0, 0, 0], model: 'some-model' }
+    const registry = RenderItemRegistry.create([{ entity, mesh: rootMesh }], null)
+    registry.setModelTransform('e', { modelRotation: [0.1, 0.2, 0.3], modelScale: [2, 3, 4] })
+    expect(modelScene.rotation.x).toBe(0.1)
+    expect(modelScene.rotation.y).toBe(0.2)
+    expect(modelScene.rotation.z).toBe(0.3)
+    expect(modelScene.scale.x).toBe(2)
+    expect(modelScene.scale.y).toBe(3)
+    expect(modelScene.scale.z).toBe(4)
+    const item = registry.get('e')
+    expect(item?.entity.modelRotation).toEqual([0.1, 0.2, 0.3])
+    expect(item?.entity.modelScale).toEqual([2, 3, 4])
+  })
+
+  it('setModelTransform updates model scene when mesh has trimeshScene', () => {
+    const modelScene = new THREE.Mesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      new THREE.MeshBasicMaterial()
+    )
+    const rootMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      new THREE.MeshBasicMaterial()
+    )
+    rootMesh.userData.isTrimeshSource = true
+    rootMesh.userData.trimeshScene = modelScene
+    const entity: Entity = {
+      id: 'e',
+      position: [0, 0, 0],
+      shape: { type: 'trimesh', model: 'm1' },
+    }
+    const updateShape = vi.fn()
+    const mockPhysics = { getBody: () => null, updateShape } as unknown as PhysicsWorld
+    const registry = RenderItemRegistry.create([{ entity, mesh: rootMesh }], mockPhysics)
+    registry.setModelTransform('e', { modelRotation: [0, Math.PI / 2, 0], modelScale: [1, 1, 2] })
+    expect(modelScene.rotation.y).toBe(Math.PI / 2)
+    expect(modelScene.scale.z).toBe(2)
+    expect(updateShape).toHaveBeenCalledWith('e', expect.objectContaining({ modelRotation: [0, Math.PI / 2, 0], modelScale: [1, 1, 2] }), rootMesh)
+  })
 })

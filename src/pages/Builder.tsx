@@ -198,6 +198,17 @@ export default function Builder() {
     }
   }, [world.entities, updateWorld])
 
+  const handleEntityModelTransformChange = useCallback(
+    (id: string, patch: { modelRotation?: [number, number, number]; modelScale?: [number, number, number] }) => {
+      sceneViewRef.current?.updateEntityModelTransform(id, patch)
+      updateWorld((prev) => ({
+        ...prev,
+        entities: prev.entities.map((e) => (e.id === id ? { ...e, ...patch } : e)),
+      }))
+    },
+    [updateWorld]
+  )
+
   const handleRefreshFromPhysics = useCallback(
     (entityId: string) => {
       const pose = getCurrentPose(entityId)
@@ -411,6 +422,7 @@ export default function Builder() {
           onEntityPhysicsChange={handleEntityPhysicsChange}
           onEntityMaterialChange={handleEntityMaterialChange}
           onEntityShapeChange={handleEntityShapeChange}
+          onEntityModelTransformChange={handleEntityModelTransformChange}
           onRefreshFromPhysics={handleRefreshFromPhysics}
           livePoses={livePoses}
           isOpen={rightDrawerOpen}

@@ -49,6 +49,8 @@ export interface SceneViewHandle {
   updateEntityShape: (id: string, entity: Entity) => boolean
   /** Replaces the mesh material asynchronously (fire-and-forget; texture loading may defer). */
   updateEntityMaterial: (id: string, entity: Entity) => Promise<void>
+  /** Applies model rotation/scale to the mesh and rebuilds trimesh collider; avoids full reload. */
+  updateEntityModelTransform: (id: string, patch: { modelRotation?: Rotation; modelScale?: Vec3 }) => void
   getAllPoses: () => Map<string, { position: Vec3; rotation: Rotation }> | null
   resetCamera: () => void
   applyDebugForce: (entityId: string, force: Vec3, duration: number) => void
@@ -125,6 +127,9 @@ function SceneViewInner({
     },
     updateEntityMaterial: async (id: string, entity: Entity) => {
       await registryRef.current?.updateMaterial(id, entity, assetResolverRef.current ?? undefined)
+    },
+    updateEntityModelTransform: (id: string, patch: { modelRotation?: Rotation; modelScale?: Vec3 }) => {
+      registryRef.current?.setModelTransform(id, patch)
     },
     getAllPoses: () => registryRef.current?.getAllPoses() ?? null,
     resetCamera: () => {

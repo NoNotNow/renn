@@ -40,6 +40,7 @@ export interface PropertyPanelProps {
   onEntityPhysicsChange?: (id: string, patch: Partial<Entity>) => void
   onEntityShapeChange?: (id: string, patch: Partial<Entity>) => void
   onEntityMaterialChange?: (id: string, patch: Partial<Entity>) => void
+  onEntityModelTransformChange?: (id: string, patch: { modelRotation?: Rotation; modelScale?: Vec3 }) => void
   onRefreshFromPhysics?: (entityId: string) => void
   livePoses?: Map<string, { position: Vec3; rotation: Rotation }> | null
 }
@@ -55,6 +56,7 @@ export default function PropertyPanel({
   onEntityPhysicsChange,
   onEntityShapeChange,
   onEntityMaterialChange,
+  onEntityModelTransformChange,
   onRefreshFromPhysics,
   livePoses,
 }: PropertyPanelProps) {
@@ -396,7 +398,11 @@ export default function PropertyPanel({
               value={modelRotation}
               onChange={(r) => {
                 uiLogger.change('PropertyPanel', 'Change model rotation', { entityId: entity.id, oldValue: modelRotation, newValue: r })
-                updateEntity({ modelRotation: r })
+                if (onEntityModelTransformChange) {
+                  onEntityModelTransformChange(entity.id, { modelRotation: r })
+                } else {
+                  updateEntity({ modelRotation: r })
+                }
               }}
               axisLabels={['X', 'Y', 'Z']}
               idPrefix={`${entity.id}-model-rotation`}
@@ -407,7 +413,11 @@ export default function PropertyPanel({
               title="Reset model rotation to 0,0,0"
               onClick={() => {
                 uiLogger.change('PropertyPanel', 'Reset model rotation', { entityId: entity.id })
-                updateEntity({ modelRotation: [0, 0, 0] })
+                if (onEntityModelTransformChange) {
+                  onEntityModelTransformChange(entity.id, { modelRotation: [0, 0, 0] })
+                } else {
+                  updateEntity({ modelRotation: [0, 0, 0] })
+                }
               }}
               disabled={isLocked}
               style={{
@@ -426,7 +436,11 @@ export default function PropertyPanel({
             value={modelScale}
             onChange={(v) => {
               uiLogger.change('PropertyPanel', 'Change model scale', { entityId: entity.id, oldValue: modelScale, newValue: v })
-              updateEntity({ modelScale: v })
+              if (onEntityModelTransformChange) {
+                onEntityModelTransformChange(entity.id, { modelScale: v })
+              } else {
+                updateEntity({ modelScale: v })
+              }
             }}
             min={0.01}
             step={0.1}

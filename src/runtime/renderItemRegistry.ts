@@ -130,6 +130,39 @@ export class RenderItemRegistry {
     this.setRotation(id, [0, 0, 0])
   }
 
+  /**
+   * Apply model transform (rotation/scale) to the mesh's model scene and, for trimesh, rebuild the collider.
+   * Used for incremental updates so changing modelRotation/modelScale does not trigger a full world reload.
+   */
+  setModelTransform(
+    id: string,
+    patch: { modelRotation?: Rotation; modelScale?: Vec3 }
+  ): void {
+    const item = this.items.get(id)
+    if (!item) return
+    const mesh = item.mesh
+    const modelScene =
+      (mesh.userData.trimeshScene as THREE.Object3D | undefined) ??
+      (mesh.userData.usesModel === true && mesh.children.length > 0 ? mesh.children[0] : null)
+    if (!modelScene) return
+
+    const nextEntity = { ...item.entity, ...patch }
+    const modelRotation: Rotation = nextEntity.modelRotation ?? [0, 0, 0]
+    const modelScale: Vec3 = nextEntity.modelScale ?? [1, 1, 1]
+
+    modelScene.rotation.set(modelRotation[0], modelRotation[1], modelRotation[2])
+    modelScene.scale.set(modelScale[0], modelScale[1], modelScale[2])
+
+    item.entity = nextEntity
+    if (mesh.userData.entity !== undefined) {
+      mesh.userData.entity = nextEntity
+    }
+
+    if (item.entity.shape?.type === 'trimesh' && this.physicsWorld) {
+      this.physicsWorld.updateShape(id, item.entity, mesh)
+    }
+  }
+
   /** Add a vector to the entity position. Uses internal buffer to avoid allocation. When resetVelocity is true, zeroes linear velocity so the move persists (e.g. under gravity). */
   addVectorToPosition(id: string, x: number, y: number, z: number, resetVelocity?: boolean): void {
     const pos = this.getPosition(id)

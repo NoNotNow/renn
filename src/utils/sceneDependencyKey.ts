@@ -8,9 +8,10 @@ import type { RennWorld, Entity } from '@/types/world'
  *
  * Includes: entity list (id, scale, model, scripts, transformers, and shape only when
  * trimesh), world.scripts, world.assets refs, world.world lights.
- * Excludes: entity name, locked, position, rotation, bodyType, mass, restitution,
- * friction, linearDamping, angularDamping, primitive shape dimensions, material;
- * world.world gravity, skyColor, camera.
+ * Excludes: entity name, locked, position, rotation, modelRotation, modelScale,
+ * bodyType, mass, restitution, friction, linearDamping, angularDamping, primitive
+ * shape dimensions, material; world.world gravity, skyColor, camera.
+ * modelRotation and modelScale are applied incrementally via updateEntityModelTransform.
  */
 export function getSceneDependencyKey(world: RennWorld): string {
   const payload: Record<string, unknown> = {
@@ -31,11 +32,10 @@ function sceneRelevantEntity(entity: Entity): Record<string, unknown> {
     id: entity.id,
     // Only trimesh shapes require a full rebuild (loading a model asset).
     // Primitive shape changes are handled incrementally via updateEntityShape.
+    // modelRotation/modelScale are applied incrementally via updateEntityModelTransform.
     trimeshShape: entity.shape?.type === 'trimesh' ? entity.shape : undefined,
     scale: entity.scale,
     model: entity.model,
-    modelRotation: entity.modelRotation,
-    modelScale: entity.modelScale,
     scripts: entity.scripts,
     transformers: entity.transformers,
   }

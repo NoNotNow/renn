@@ -88,7 +88,7 @@ describe('getSceneDependencyKey', () => {
     expect(getSceneDependencyKey(a)).not.toBe(getSceneDependencyKey(b))
   })
 
-  it('returns a different key when modelRotation or modelScale changes', () => {
+  it('returns the same key when only modelRotation or modelScale changes (incremental path)', () => {
     const base = minimalWorld({
       entities: [{ ...minimalWorld().entities[0], shape: { type: 'trimesh', model: 'm1' } }],
     })
@@ -98,7 +98,8 @@ describe('getSceneDependencyKey', () => {
     const withModelScale = minimalWorld({
       entities: [{ ...base.entities[0], modelScale: [2, 1, 1] }],
     })
-    expect(getSceneDependencyKey(base)).not.toBe(getSceneDependencyKey(withModelRotation))
-    expect(getSceneDependencyKey(base)).not.toBe(getSceneDependencyKey(withModelScale))
+    // modelRotation/modelScale are applied incrementally via updateEntityModelTransform.
+    expect(getSceneDependencyKey(base)).toBe(getSceneDependencyKey(withModelRotation))
+    expect(getSceneDependencyKey(base)).toBe(getSceneDependencyKey(withModelScale))
   })
 })

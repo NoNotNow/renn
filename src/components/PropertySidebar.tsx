@@ -22,6 +22,7 @@ export interface PropertySidebarProps {
   onEntityPhysicsChange?: (id: string, patch: Partial<Entity>) => void
   onEntityShapeChange?: (id: string, patch: Partial<Entity>) => void
   onEntityMaterialChange?: (id: string, patch: Partial<Entity>) => void
+  onEntityModelTransformChange?: (id: string, patch: { modelRotation?: Vec3; modelScale?: Vec3 }) => void
   onRefreshFromPhysics?: (entityId: string) => void
   livePoses?: Map<string, { position: Vec3; rotation: Rotation }> | null
   isOpen: boolean
@@ -40,6 +41,7 @@ export default function PropertySidebar({
   onEntityPhysicsChange,
   onEntityShapeChange,
   onEntityMaterialChange,
+  onEntityModelTransformChange,
   onRefreshFromPhysics,
   livePoses,
   isOpen,
@@ -100,6 +102,7 @@ export default function PropertySidebar({
             onEntityPhysicsChange={onEntityPhysicsChange}
             onEntityShapeChange={onEntityShapeChange}
             onEntityMaterialChange={onEntityMaterialChange}
+            onEntityModelTransformChange={onEntityModelTransformChange}
             onRefreshFromPhysics={onRefreshFromPhysics}
             livePoses={livePoses}
           />
