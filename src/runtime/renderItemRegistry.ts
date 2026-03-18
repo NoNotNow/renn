@@ -437,15 +437,12 @@ export class RenderItemRegistry {
       }
       if (output.addRotation != null && body) {
         // Apply only yaw (addRotation[1]) around body's up axis in quaternion space to avoid Euler wrap and angle limits
-        const rot = cached.rotation
-        const currentQ = new THREE.Quaternion(rot.x, rot.y, rot.z, rot.w)
-        const up = getUpVectorFromRapierQuaternion(rot)
-        const upVec = new THREE.Vector3(up[0], up[1], up[2])
-        const yawRad = -output.addRotation[1]
-        const deltaQ = new THREE.Quaternion().setFromAxisAngle(upVec, yawRad)
-        const newQ = deltaQ.clone().multiply(currentQ)
-        const newEuler = quaternionToEuler(newQ)
-        this.physicsWorld.setRotation(item.entity.id, newEuler)
+        const newRotation: Rotation = [
+          rotation[0] + output.addRotation[0],
+          rotation[1] + output.addRotation[1],
+          rotation[2] + output.addRotation[2],
+        ]
+        this.physicsWorld.setRotation(item.entity.id, newRotation)
         this.physicsWorld.setAngularVelocity(item.entity.id, 0, 0, 0)
       }
       if (output.color) {
