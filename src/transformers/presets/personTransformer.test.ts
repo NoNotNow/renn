@@ -15,7 +15,7 @@ describe('PersonTransformer', () => {
         0.016,
       )
       expect(output.impulse).toBeUndefined()
-      expect(output.addRotation).toBeUndefined()
+      expect(output.torque).toBeUndefined()
     })
 
     test('when isTouchingObject is undefined, no impulse and no addRotation', () => {
@@ -26,7 +26,7 @@ describe('PersonTransformer', () => {
         0.016,
       )
       expect(output.impulse).toBeUndefined()
-      expect(output.addRotation).toBeUndefined()
+      expect(output.torque).toBeUndefined()
     })
 
     test('when touching, impulse and addRotation can be present', () => {
@@ -38,7 +38,7 @@ describe('PersonTransformer', () => {
         0.016,
       )
       expect(output.impulse).toBeDefined()
-      expect(output.addRotation).toBeDefined()
+      expect(output.torque).toBeDefined()
     })
   })
 
@@ -113,7 +113,7 @@ describe('PersonTransformer', () => {
   })
 
   describe('turning', () => {
-    test('turn_right produces positive yaw addRotation', () => {
+    test('turn_right produces positive yaw torque', () => {
       const output = t.transform(
         createMockTransformInput({
           actions: { turn_right: 1.0 },
@@ -121,13 +121,13 @@ describe('PersonTransformer', () => {
         }),
         0.016,
       )
-      expect(output.addRotation).toBeDefined()
-      expect(output.addRotation![0]).toBe(0)
-      expect(output.addRotation![2]).toBe(0)
-      expect(output.addRotation![1]).toBeGreaterThan(0)
+      expect(output.torque).toBeDefined()
+      expect(output.torque![0]).toBe(0)
+      expect(output.torque![2]).toBe(0)
+      expect(output.torque![1]).toBeGreaterThan(0)
     })
 
-    test('turn_left produces negative yaw addRotation', () => {
+    test('turn_left produces negative yaw torque', () => {
       const output = t.transform(
         createMockTransformInput({
           actions: { turn_left: 1.0 },
@@ -135,11 +135,11 @@ describe('PersonTransformer', () => {
         }),
         0.016,
       )
-      expect(output.addRotation).toBeDefined()
-      expect(output.addRotation![1]).toBeLessThan(0)
+      expect(output.torque).toBeDefined()
+      expect(output.torque![1]).toBeLessThan(0)
     })
 
-    test('no turn input produces no addRotation', () => {
+    test('no turn input produces no torque', () => {
       const output = t.transform(
         createMockTransformInput({
           actions: { forward: 1.0 },
@@ -148,7 +148,7 @@ describe('PersonTransformer', () => {
         0.016,
       )
       expect(output.impulse).toBeDefined()
-      expect(output.addRotation).toBeUndefined()
+      expect(output.torque).toBeUndefined()
     })
   })
 })

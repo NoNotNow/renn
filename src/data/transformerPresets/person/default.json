@@ -4,9 +4,9 @@
   "enabled": true,
   "params": {
     "walkForce": 200,
-    "runForce": 350,
+    "runForce": 250,
     "maxWalkSpeed": 4,
-    "maxRunSpeed": 8,
-    "turnSpeed": 2
+    "maxRunSpeed": 16,
+    "turnSpeed": 4
   }
 }

@@ -1,12 +1,12 @@
 /**
- * PersonTransformer: WASD walk/run with forward force and in-place turning.
- * Forward/backward impulse is applied only when below configured max speed (stabilizes at cap).
+ * PersonTransformer: WASD walk/run with forward impulse and in-place turning.
+ * Turning is implemented as a physics torque around the entity's local up axis.
  */
 
 import { BaseTransformer } from '../transformer'
 import type { TransformInput, TransformOutput } from '@/types/transformer'
 import type { Vec3 } from '@/types/world'
-import { getForwardSpeed as getForwardSpeedUtil, scaleVec3 } from '@/utils/vec3'
+import { createTorqueAroundAxis, getForwardSpeed as getForwardSpeedUtil, scaleVec3, vec3Length } from '@/utils/vec3'
 
 export interface PersonTransformerParams {
   /** Impulse magnitude when walking. Default 200. */
@@ -44,6 +44,7 @@ export class PersonTransformer extends BaseTransformer {
 
   transform(input: TransformInput, deltaTime: number): TransformOutput {
     const forwardVector = this.getForwardVector(input.rotation)
+    const upVector = this.getUpVector(input.rotation)
     const touching = input.environment.isTouchingObject === true
 
     if (!touching) {
@@ -51,11 +52,11 @@ export class PersonTransformer extends BaseTransformer {
     }
 
     const impulse = this.getMovementImpulse(input, forwardVector)
-    const addRotation = this.getTurnRotation(input, deltaTime)
+    const torque = this.getTorque(input, upVector, deltaTime)
 
     return {
       impulse,
-      addRotation,
+      torque,
       earlyExit: false,
     }
   }
@@ -80,13 +81,27 @@ export class PersonTransformer extends BaseTransformer {
     return scaleVec3(forwardVector, force * Math.sign(moveInput))
   }
 
-  private getTurnRotation(input: TransformInput, deltaTime: number): Vec3 | undefined {
-    const left = this.getAction(input, 'turn_left')
-    const right = this.getAction(input, 'turn_right')
-    const turnInput = right - left
+  private getTorque(input: TransformInput, upVector: Vec3, deltaTime: number): Vec3 | undefined {
+    const turnInput = this.getAction(input, 'turn_left') - this.getAction(input, 'turn_right');
     if (turnInput === 0) return undefined
 
-    const yawDelta = turnInput * this.params.turnSpeed * deltaTime
-    return [0, yawDelta, 0]
+    // Don't exceed max angular velocity magnitude (rough global guard).
+    const angularVelocityMag = vec3Length(input.angularVelocity)
+    if (angularVelocityMag > this.params.turnSpeed) return undefined
+
+    // Target angular velocity around the entity's local "up" axis.
+    const desiredAngularVelocityAlongUp = turnInput * this.params.turnSpeed
+    const currentAngularVelocityAlongUp =
+      input.angularVelocity[0] * upVector[0] +
+      input.angularVelocity[1] * upVector[1] +
+      input.angularVelocity[2] * upVector[2]
+
+    // Simple P controller: torque = required angular acceleration (assuming unit inertia).
+    const angularVelError = desiredAngularVelocityAlongUp - currentAngularVelocityAlongUp
+    const dt = Math.max(deltaTime, 1e-6)
+    const torqueMagnitude = angularVelError / dt
+
+    if (Math.abs(torqueMagnitude) < 1e-6) return undefined
+    return createTorqueAroundAxis(upVector, torqueMagnitude)
   }
 }

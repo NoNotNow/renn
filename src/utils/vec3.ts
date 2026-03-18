@@ -22,3 +22,20 @@ export function computeSteeringTorqueMagnitude(
 ): number {
   return speed * wheelAngle * scale
 }
+
+export function vec3Length(i:Vec3): number {
+  const x = i[0]
+  const y = i[1]
+  const z = i[2]
+  return Math.sqrt(x * x + y * y + z * z)
+}
+
+/**
+ * Create a torque vector that rotates around `axis`.
+ * `axis` is treated as a direction and normalized internally.
+ */
+export function createTorqueAroundAxis(axis: Vec3, torqueMagnitude: number): Vec3 {
+  const axisLen = vec3Length(axis)
+  if (axisLen < 1e-10) return [0, 0, 0]
+  return scaleVec3(axis, torqueMagnitude / axisLen)
+}
