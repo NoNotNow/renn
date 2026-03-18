@@ -1,0 +1,11 @@
+const n=`{
+    "type": "car2",
+    "priority": 10,
+    "enabled": true,
+    "params": {
+      "power": 1000,
+      "steeringIntensity": 0.05,
+      "steeringSpeed": 0.05,
+      "lateralGrip": 120
+    }
+}`;export{n as default};
