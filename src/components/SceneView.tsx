@@ -350,11 +350,15 @@ function SceneViewInner({
         const dt = FIXED_DT
         timeRef.current += dt
 
-        // In follow/thirdPerson mode, consume wheel so transformers don't see it.
+        // In follow / thirdPerson / tracking, consume wheel so transformers don't see it.
         // Trackpad scroll (deltaX, deltaY) → orbit; pinch + mouse wheel → distance.
         const orbitCtrl = cameraCtrlRef.current
         const orbitCfg = orbitCtrl?.getConfig()
-        if (orbitCfg?.control === 'follow' && (orbitCfg.mode === 'follow' || orbitCfg.mode === 'thirdPerson') && rawWheelRef.current) {
+        const orbitFollowModes =
+          orbitCfg?.mode === 'follow' ||
+          orbitCfg?.mode === 'thirdPerson' ||
+          orbitCfg?.mode === 'tracking'
+        if (orbitCfg?.control === 'follow' && orbitFollowModes && rawWheelRef.current) {
           const rw = rawWheelRef.current
           orbitWheelRef.current.deltaX = rw.deltaX
           orbitWheelRef.current.deltaY = rw.deltaY

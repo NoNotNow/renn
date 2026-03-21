@@ -337,7 +337,7 @@ describe('CameraController', () => {
   })
 
   describe('orbit (setOrbitDelta)', () => {
-    function makeFollowController(mode: 'follow' | 'thirdPerson' = 'follow') {
+    function makeFollowController(mode: 'follow' | 'thirdPerson' | 'tracking' = 'follow') {
       const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 1000)
       camera.position.set(0, 5, 10)
       camera.lookAt(0, 0, 0)
@@ -428,6 +428,16 @@ describe('CameraController', () => {
 
     it('works in thirdPerson mode', () => {
       const { camera, controller } = makeFollowController('thirdPerson')
+      const basePosX = camera.position.x
+
+      controller.setOrbitDelta(200, 0)
+      for (let i = 0; i < 5; i++) controller.update(0.016)
+
+      expect(camera.position.x).toBeLessThan(basePosX)
+    })
+
+    it('works in tracking mode (world-space orbit, same yaw as follow)', () => {
+      const { camera, controller } = makeFollowController('tracking')
       const basePosX = camera.position.x
 
       controller.setOrbitDelta(200, 0)
