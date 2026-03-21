@@ -64,7 +64,8 @@ function renderPropertyPanel(
   onDeleteEntity?: (id: string) => void,
   assets: Map<string, Blob> = new Map(),
   onRefreshFromPhysics?: (entityId: string) => void,
-  livePoses?: Map<string, { position: [number, number, number]; rotation: [number, number, number] }> | null
+  livePoses?: Map<string, { position: [number, number, number]; rotation: [number, number, number] }> | null,
+  onCloneEntity?: (entityId: string) => void,
 ) {
   return render(
     <PropertyPanel
@@ -73,6 +74,7 @@ function renderPropertyPanel(
       selectedEntityId={selectedEntityId}
       onWorldChange={onWorldChange}
       onDeleteEntity={onDeleteEntity}
+      onCloneEntity={onCloneEntity}
       onRefreshFromPhysics={onRefreshFromPhysics}
       livePoses={livePoses}
     />
@@ -101,6 +103,23 @@ describe('PropertyPanel', () => {
     await user.click(refreshButton)
     expect(onRefreshFromPhysics).toHaveBeenCalledTimes(1)
     expect(onRefreshFromPhysics).toHaveBeenCalledWith(entityId)
+  })
+
+  it('does not show clone button when onCloneEntity is undefined', () => {
+    const world = worldWithBox()
+    renderPropertyPanel(world, world.entities[0].id)
+    expect(screen.queryByTitle('Clone entity')).not.toBeInTheDocument()
+  })
+
+  it('calls onCloneEntity with entity id when clone button is clicked', async () => {
+    const user = userEvent.setup()
+    const onCloneEntity = vi.fn()
+    const world = worldWithBox()
+    const entityId = world.entities[0].id
+    renderPropertyPanel(world, entityId, vi.fn(), undefined, new Map(), undefined, undefined, onCloneEntity)
+    await user.click(screen.getByTitle('Clone entity'))
+    expect(onCloneEntity).toHaveBeenCalledTimes(1)
+    expect(onCloneEntity).toHaveBeenCalledWith(entityId)
   })
 
   it('shows entity name and shape-specific inputs when box entity selected', () => {

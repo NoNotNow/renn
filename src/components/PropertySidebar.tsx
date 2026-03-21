@@ -18,6 +18,7 @@ export interface PropertySidebarProps {
   onWorldChange: (world: RennWorld) => void
   onAssetsChange: (assets: Map<string, Blob>) => void
   onDeleteEntity: (entityId: string) => void
+  onCloneEntity?: (entityId: string) => void
   getCurrentPose?: (id: string) => { position: Vec3; rotation: Rotation }
   onEntityPoseChange?: (id: string, pose: { position?: Vec3; rotation?: Rotation }) => void
   onEntityPhysicsChange?: (id: string, patch: Partial<Entity>) => void
@@ -38,6 +39,7 @@ export default function PropertySidebar({
   onWorldChange,
   onAssetsChange,
   onDeleteEntity,
+  onCloneEntity,
   getCurrentPose,
   onEntityPoseChange,
   onEntityPhysicsChange,
@@ -100,6 +102,7 @@ export default function PropertySidebar({
             onWorldChange={onWorldChange}
             onAssetsChange={onAssetsChange}
             onDeleteEntity={onDeleteEntity}
+            onCloneEntity={onCloneEntity}
             getCurrentPose={getCurrentPose}
             onEntityPoseChange={onEntityPoseChange}
             onEntityPhysicsChange={onEntityPhysicsChange}

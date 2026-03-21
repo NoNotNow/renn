@@ -10,7 +10,7 @@ import MaterialEditor from './MaterialEditor'
 import ModelEditor from './ModelEditor'
 import TransformerEditor from './TransformerEditor'
 import CollapsibleSection from './CollapsibleSection'
-import { fieldLabelStyle, sidebarTextInputStyle, iconButtonStyle, entityPanelIconButtonStyle, removeButtonStyle, removeButtonStyleDisabled, secondaryButtonStyle, secondaryButtonStyleDisabled } from './sharedStyles'
+import { fieldLabelStyle, sidebarTextInputStyle, entityPanelIconButtonStyle, removeButtonStyle, removeButtonStyleDisabled, secondaryButtonStyle, secondaryButtonStyleDisabled } from './sharedStyles'
 import { EntityPanelIcons } from './EntityPanelIcons'
 
 export interface PropertyPanelProps {
@@ -20,6 +20,7 @@ export interface PropertyPanelProps {
   onWorldChange: (world: RennWorld) => void
   onAssetsChange?: (assets: Map<string, Blob>) => void
   onDeleteEntity?: (entityId: string) => void
+  onCloneEntity?: (entityId: string) => void
   getCurrentPose?: (id: string) => { position: Vec3; rotation: Rotation }
   onEntityPoseChange?: (id: string, pose: { position?: Vec3; rotation?: Rotation }) => void
   onEntityPhysicsChange?: (id: string, patch: Partial<Entity>) => void
@@ -38,6 +39,7 @@ export default function PropertyPanel({
   onWorldChange,
   onAssetsChange,
   onDeleteEntity,
+  onCloneEntity,
   onEntityPoseChange,
   onEntityPhysicsChange,
   onEntityShapeChange,
@@ -110,21 +112,72 @@ export default function PropertyPanel({
             {entity.name ?? entity.id}
           </span>
         </h3>
-        {onRefreshFromPhysics && (
-          <button
-            type="button"
-            onClick={() => {
-              uiLogger.click('PropertyPanel', 'Refresh from physics', { entityId: entity.id })
-              onRefreshFromPhysics(entity.id)
-            }}
-            title="Refresh position and rotation from physics"
-            aria-label="Refresh position and rotation from physics"
-            style={entityPanelIconButtonStyle}
-            onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
-            onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.8')}
+        {(onRefreshFromPhysics || onCloneEntity || onDeleteEntity) && (
+          <div
+            role="group"
+            aria-label="Actions"
+            style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}
           >
-            {EntityPanelIcons.refresh}
-          </button>
+            {onRefreshFromPhysics && (
+              <button
+                type="button"
+                onClick={() => {
+                  uiLogger.click('PropertyPanel', 'Refresh from physics', { entityId: entity.id })
+                  onRefreshFromPhysics(entity.id)
+                }}
+                title="Refresh position and rotation from physics"
+                aria-label="Refresh position and rotation from physics"
+                style={entityPanelIconButtonStyle}
+                onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+                onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.8')}
+              >
+                {EntityPanelIcons.refresh}
+              </button>
+            )}
+            {onCloneEntity && (
+              <button
+                type="button"
+                onClick={() => {
+                  uiLogger.click('PropertyPanel', 'Clone entity', { entityId: entity.id })
+                  onCloneEntity(entity.id)
+                }}
+                title="Clone entity"
+                aria-label="Clone entity"
+                style={entityPanelIconButtonStyle}
+                onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+                onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.8')}
+              >
+                {EntityPanelIcons.clone}
+              </button>
+            )}
+            {onDeleteEntity && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (isLocked) return
+                  uiLogger.delete('PropertyPanel', 'Delete entity button clicked', { entityId: entity.id, entityName: entity.name })
+                  onDeleteEntity(entity.id)
+                }}
+                disabled={isLocked}
+                title="Delete entity"
+                aria-label="Delete entity"
+                style={{
+                  ...entityPanelIconButtonStyle,
+                  ...removeButtonStyle,
+                  padding: 0,
+                  ...(isLocked && removeButtonStyleDisabled),
+                }}
+                onMouseEnter={(e) => {
+                  if (!isLocked) e.currentTarget.style.opacity = '1'
+                }}
+                onMouseLeave={(e) => {
+                  if (!isLocked) e.currentTarget.style.opacity = '0.8'
+                }}
+              >
+                {EntityPanelIcons.trash}
+              </button>
+            )}
+          </div>
         )}
       </div>
 
@@ -450,28 +503,6 @@ export default function PropertyPanel({
           disabled={isLocked}
         />
       </CollapsibleSection>
-
-      {onDeleteEntity && (
-        <button
-          type="button"
-          onClick={() => {
-            uiLogger.delete('PropertyPanel', 'Delete entity button clicked', { entityId: entity.id, entityName: entity.name })
-            onDeleteEntity(entity.id)
-          }}
-          disabled={isLocked}
-          title="Delete entity"
-          aria-label="Delete entity"
-          style={{
-            ...removeButtonStyle,
-            ...(isLocked && removeButtonStyleDisabled),
-            ...entityPanelIconButtonStyle,
-            alignSelf: 'stretch',
-            minHeight: 36,
-          }}
-        >
-          {EntityPanelIcons.trash}
-        </button>
-      )}
     </div>
   )
 }

@@ -1,5 +1,6 @@
 import type { Entity, Shape, Color, Vec3, Rotation } from '@/types/world'
 import { DEFAULT_POSITION, DEFAULT_ROTATION, DEFAULT_SCALE } from '@/types/world'
+import { computeCloneWorldPosition } from '@/utils/clonePlacement'
 import { generateEntityId } from '@/utils/idGenerator'
 
 export type AddableShapeType = 'box' | 'sphere' | 'cylinder' | 'capsule' | 'cone' | 'pyramid' | 'ring' | 'plane' | 'trimesh'
@@ -232,4 +233,21 @@ export function createBulkEntities(params: BulkEntityParams): Entity[] {
   }
   
   return entities
+}
+
+/**
+ * Deep-clone an entity with a new id, scene pose, unlocked; placed beside the source on the same Y plane.
+ */
+export function cloneEntityFrom(
+  source: Entity,
+  pose: { position: Vec3; rotation: Rotation },
+): Entity {
+  const copy = structuredClone(source) as Entity
+  copy.id = generateEntityId()
+  const base = source.name ?? source.id
+  copy.name = `${base} copy`
+  copy.locked = false
+  copy.rotation = [...pose.rotation] as Rotation
+  copy.position = computeCloneWorldPosition(source, pose)
+  return copy
 }

@@ -61,6 +61,16 @@ export function getUpVectorFromEuler(rotation: Rotation): [number, number, numbe
 }
 
 /**
+ * Rotate a local direction by entity Euler (XYZ): world-space vector matching local axis.
+ */
+export function eulerRotateLocalVector(rotation: Rotation, local: [number, number, number]): [number, number, number] {
+  const [rx, ry, rz] = rotation
+  const euler = new THREE.Euler(rx, ry, rz, 'XYZ')
+  const v = new THREE.Vector3(local[0], local[1], local[2]).applyEuler(euler)
+  return [v.x, v.y, v.z]
+}
+
+/**
  * Euler delta to rotate by angle (radians) around a world-space axis.
  * currentRotation + returned delta = rotation after applying the turn.
  */

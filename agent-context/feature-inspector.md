@@ -5,7 +5,7 @@ The inspector is the right-side panel that edits the **selected entity**: name, 
 ## Role
 
 - **PropertySidebar**: Tabs (Properties | Scripts | Assets). When the Properties tab is active, it renders **PropertyPanel**.
-- **PropertyPanel**: Renders sections for the selected entity (Entity, Transform, Shape, Physics, Material, 3D Model, Transformers, Delete). It composes:
+- **PropertyPanel**: Renders sections for the selected entity (Entity, Transform, Shape, Physics, Material, 3D Model, Transformers). The header row includes an **Actions** group (`role="group"`, `aria-label="Actions"`) with icon buttons: **Refresh from physics** (optional), **Clone entity** (optional), **Delete entity** (optional). It composes:
   - TransformEditor (position, rotation, scale)
   - ShapeEditor, PhysicsEditor, MaterialEditor, ModelEditor, TransformerEditor
 
@@ -14,6 +14,7 @@ The inspector is the right-side panel that edits the **selected entity**: name, 
 - **Read**: Inspector gets `world` from ProjectContext (via Builder → PropertySidebar). For the selected entity it also receives optional **livePoses** (position/rotation from the running scene). Position and rotation **display** use `livePoses.get(entity.id)` when present, otherwise `entity.position` / `entity.rotation`.
 - **User edits**: Changing a field calls `onWorldChange(newWorld)` (updates document and marks project dirty) or `onEntityPoseChange(id, pose)` (updates scene only; used for transform when SceneView is available).
 - **Refresh from physics**: The “Refresh” button calls `getCurrentPose(entityId)` then `syncPosesFromScene(poses)` to write current scene poses back into the world (no dirty from this path in ProjectContext).
+- **Clone entity**: The “Clone” button calls `onCloneEntity` → Builder’s `handleCloneEntity`, which uses `cloneEntityFrom` ([`entityDefaults.ts`](src/data/entityDefaults.ts)) with `getCurrentPose` for position/rotation. Placement uses [`clonePlacement.ts`](src/utils/clonePlacement.ts): same **Y** as the source pose, lateral offset in **XZ** from flattened local +X (fallback +Z, then world +X), separation from shape-based half-extent plus a small gap. The clone gets a new id, `name` suffixed with ` copy`, and `locked: false`. Delete stays disabled when the source is locked; clone remains available.
 
 See **architecture.md** for ProjectContext, SceneView, and world/version flow.
 
@@ -29,7 +30,7 @@ Inspector text and number inputs (entity name, transform, shape, physics, materi
 
 ```
 src/
-├── pages/Builder.tsx           # livePoses state, polling (getAllPoses every 100ms), getCurrentPose, handleRefreshFromPhysics
+├── pages/Builder.tsx           # livePoses state, polling (getAllPoses every 100ms), getCurrentPose, handleRefreshFromPhysics, handleCloneEntity
 ├── components/
 │   ├── PropertySidebar.tsx     # Tabs; passes world, livePoses, onWorldChange, etc. to PropertyPanel
 │   ├── PropertyPanel.tsx       # Selected-entity editor; displayPosition/displayRotation from livePoses or entity
@@ -42,6 +43,8 @@ src/
 │   └── TransformerEditor.tsx
 ├── utils/assetUpload.ts       # uploadModel, uploadTexture; used by ShapeEditor (trimesh), MaterialEditor, ModelEditor
 ├── persistence/indexedDb.ts   # defaultPersistence shared by inspector and asset UI
+├── utils/clonePlacement.ts    # clone horizontal placement next to source (same Y plane)
+├── data/entityDefaults.ts     # cloneEntityFrom(deep clone + id/name/pose)
 ```
 
 ## Scene picking (click → inspector)

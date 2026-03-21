@@ -6,7 +6,7 @@ import EntitySidebar from '@/components/EntitySidebar'
 import PropertySidebar from '@/components/PropertySidebar'
 import { CopyProvider } from '@/contexts/CopyContext'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
-import { createDefaultEntity, createBulkEntities, type AddableShapeType, type BulkEntityParams } from '@/data/entityDefaults'
+import { cloneEntityFrom, createDefaultEntity, createBulkEntities, type AddableShapeType, type BulkEntityParams } from '@/data/entityDefaults'
 import { useProjectContext } from '@/hooks/useProjectContext'
 import { useLocalStorageState } from '@/hooks/useLocalStorageState'
 import type { Vec3, Rotation, Entity } from '@/types/world'
@@ -159,6 +159,22 @@ export default function Builder() {
       }
     },
     [world.entities]
+  )
+
+  const handleCloneEntity = useCallback(
+    (entityId: string) => {
+      const source = world.entities.find((e) => e.id === entityId)
+      if (!source) return
+      const pose = getCurrentPose(entityId)
+      const cloned = cloneEntityFrom(source, pose)
+      uiLogger.click('Builder', 'Clone entity', { sourceId: entityId, newId: cloned.id })
+      updateWorld((prev) => ({
+        ...prev,
+        entities: [...prev.entities, cloned],
+      }))
+      setSelectedEntityId(cloned.id)
+    },
+    [world.entities, getCurrentPose, updateWorld]
   )
 
   const handleEntityPoseChange = useCallback((id: string, pose: { position?: Vec3; rotation?: Rotation }) => {
@@ -438,6 +454,7 @@ export default function Builder() {
           onWorldChange={handleWorldChange}
           onAssetsChange={handleAssetsChange}
           onDeleteEntity={handleDeleteEntity}
+          onCloneEntity={handleCloneEntity}
           getCurrentPose={getCurrentPose}
           onEntityPoseChange={handleEntityPoseChange}
           onEntityPhysicsChange={handleEntityPhysicsChange}

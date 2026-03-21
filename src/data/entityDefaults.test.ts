@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { createDefaultEntity, getDefaultShapeForType, type AddableShapeType } from '@/data/entityDefaults'
+import { cloneEntityFrom, createDefaultEntity, getDefaultShapeForType, type AddableShapeType } from '@/data/entityDefaults'
+import { computeCloneWorldPosition } from '@/utils/clonePlacement'
 import { validateWorldDocument } from '@/schema/validate'
 import type { RennWorld } from '@/types/world'
 
@@ -53,5 +54,28 @@ describe('getDefaultShapeForType', () => {
   it.each(ADDABLE_SHAPE_TYPES)('returns shape for %s', (shapeType) => {
     const shape = getDefaultShapeForType(shapeType)
     expect(shape.type).toBe(shapeType)
+  })
+})
+
+describe('cloneEntityFrom', () => {
+  it('assigns new id, name suffix, unlocked, pose, and deep-copies shape', () => {
+    const source = createDefaultEntity('box')
+    source.name = 'Original'
+    source.locked = true
+    const pose = { position: [5, 7, 9] as const, rotation: [0.1, 0.2, 0.3] as const }
+    const clone = cloneEntityFrom(source, pose)
+
+    expect(clone.id).not.toBe(source.id)
+    expect(clone.id).toMatch(/^entity_\d+_[a-z0-9]+$/)
+    expect(clone.name).toBe('Original copy')
+    expect(clone.locked).toBe(false)
+    expect(clone.rotation).toEqual([0.1, 0.2, 0.3])
+    expect(clone.position).toEqual(computeCloneWorldPosition(source, pose))
+
+    clone.shape = { type: 'box', width: 99, height: 1, depth: 1 }
+    expect(source.shape?.type).toBe('box')
+    if (source.shape?.type === 'box') {
+      expect(source.shape.width).not.toBe(99)
+    }
   })
 })
