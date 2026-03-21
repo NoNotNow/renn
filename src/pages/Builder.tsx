@@ -9,7 +9,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { cloneEntityFrom, createDefaultEntity, createBulkEntities, type AddableShapeType, type BulkEntityParams } from '@/data/entityDefaults'
 import { useProjectContext } from '@/hooks/useProjectContext'
 import { useLocalStorageState } from '@/hooks/useLocalStorageState'
-import type { Vec3, Rotation, Entity } from '@/types/world'
+import { cycleCameraMode, type Vec3, type Rotation, type Entity } from '@/types/world'
 import { uiLogger } from '@/utils/uiLogger'
 import { getSceneDependencyKey } from '@/utils/sceneDependencyKey'
 import type { TransformerConfig } from '@/types/transformer'
@@ -66,6 +66,29 @@ export default function Builder() {
     }),
     [world.world.camera, cameraControl, cameraTarget, cameraMode]
   )
+
+  useEffect(() => {
+    const isEditableElement = (): boolean => {
+      const el = document.activeElement
+      if (!el) return false
+      const tag = el.tagName
+      return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (el as HTMLElement).isContentEditable
+    }
+
+    const onKeyDown = (e: KeyboardEvent): void => {
+      if (e.code !== 'Digit0' && e.code !== 'Numpad0') return
+      if (isEditableElement()) return
+      e.preventDefault()
+      setCameraMode((prev) => {
+        const next = cycleCameraMode(prev)
+        uiLogger.change('Builder', 'Change camera mode', { mode: next })
+        return next
+      })
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [setCameraMode])
 
   const handleAddEntity = useCallback(
     (shapeType: AddableShapeType) => {

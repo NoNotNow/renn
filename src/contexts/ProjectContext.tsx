@@ -1,6 +1,6 @@
 import { createContext, useState, useCallback, useEffect, useRef, useMemo, type ReactNode } from 'react'
 import { createIndexedDbPersistence } from '@/persistence/indexedDb'
-import type { RennWorld, Vec3, Rotation } from '@/types/world'
+import type { RennWorld, Vec3, Rotation, CameraMode } from '@/types/world'
 import type { ProjectMeta } from '@/persistence/types'
 import { sampleWorld } from '@/data/sampleWorld'
 import { loadWorldFromStatic } from '@/loader/loadWorldFromStatic'
@@ -28,7 +28,7 @@ interface CurrentProject {
 interface CameraState {
   control: 'free' | 'follow' | 'top' | 'front' | 'right'
   target: string
-  mode: 'follow' | 'firstPerson' | 'thirdPerson' | 'tracking'
+  mode: CameraMode
 }
 
 interface ProjectContextState {
@@ -40,7 +40,7 @@ interface ProjectContextState {
   version: number
   cameraControl: 'free' | 'follow' | 'top' | 'front' | 'right'
   cameraTarget: string
-  cameraMode: 'follow' | 'firstPerson' | 'thirdPerson' | 'tracking'
+  cameraMode: CameraMode
 }
 
 interface ProjectContextActions {
@@ -75,7 +75,7 @@ interface ProjectContextActions {
   // Camera state
   setCameraControl: (control: 'free' | 'follow' | 'top' | 'front' | 'right') => void
   setCameraTarget: (target: string) => void
-  setCameraMode: (mode: 'follow' | 'firstPerson' | 'thirdPerson' | 'tracking') => void
+  setCameraMode: (mode: CameraMode | ((prev: CameraMode) => CameraMode)) => void
 }
 
 type ProjectContextValue = ProjectContextState & ProjectContextActions
@@ -121,9 +121,15 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     setCameraState(prev => ({ ...prev, target }))
   }, [])
   
-  const setCameraMode = useCallback((mode: CameraState['mode']) => {
-    setCameraState(prev => ({ ...prev, mode }))
-  }, [])
+  const setCameraMode = useCallback(
+    (mode: CameraState['mode'] | ((prev: CameraState['mode']) => CameraState['mode'])) => {
+      setCameraState((prev) => ({
+        ...prev,
+        mode: typeof mode === 'function' ? mode(prev.mode) : mode,
+      }))
+    },
+    []
+  )
   
   const fileInputRef = useRef<HTMLInputElement>(null)
   

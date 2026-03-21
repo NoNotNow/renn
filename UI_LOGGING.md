@@ -49,6 +49,7 @@ Example:
 ### Builder.tsx
 - **Clicks**: New, Save, Save As, Download, Upload, Delete, Play, Refresh list, Select entity, Switch tabs
 - **Selects**: Open project, Add entity, Change camera target, Change camera mode
+- **Keyboard**: **0** or **Numpad 0** cycles camera mode (same order as the Camera sidebar Mode dropdown); logged as **Change camera mode** with `{ mode }`
 - **Uploads**: Import project files (JSON/ZIP)
 - **Deletes**: Delete project, Delete entity
 

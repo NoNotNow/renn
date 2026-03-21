@@ -12,6 +12,28 @@ export type Color = [number, number, number] | [number, number, number, number]
 
 export type CameraMode = 'firstPerson' | 'thirdPerson' | 'follow' | 'tracking'
 
+/** UI order for camera mode dropdown and Digit0 / Numpad0 cycle in Builder. */
+export const CAMERA_MODE_CYCLE_ORDER: readonly CameraMode[] = [
+  'follow',
+  'thirdPerson',
+  'tracking',
+  'firstPerson',
+] as const
+
+export const CAMERA_MODE_LABELS: Record<CameraMode, string> = {
+  follow: 'Follow',
+  thirdPerson: 'Third person',
+  tracking: 'Tracking',
+  firstPerson: 'First person',
+}
+
+export function cycleCameraMode(current: CameraMode): CameraMode {
+  const order = CAMERA_MODE_CYCLE_ORDER
+  const i = order.indexOf(current)
+  const next = (i === -1 ? 0 : i + 1) % order.length
+  return order[next]!
+}
+
 export type CameraControl = 'free' | 'follow' | 'top' | 'front' | 'right'
 
 export interface CameraConfig {

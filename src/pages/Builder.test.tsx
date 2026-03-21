@@ -7,7 +7,8 @@ import Builder from '@/pages/Builder'
 import { ProjectProvider } from '@/contexts/ProjectContext'
 import { updateEntityPosition } from '@/utils/worldUtils'
 import { sampleWorld } from '@/data/sampleWorld'
-import type { RennWorld, Vec3 } from '@/types/world'
+import type { RennWorld, Vec3, CameraMode } from '@/types/world'
+import { cycleCameraMode } from '@/types/world'
 
 const sceneViewProps: Record<string, unknown> = {}
 vi.mock('@/components/SceneView', () => ({
@@ -160,5 +161,24 @@ describe('Builder', () => {
     const carButton = screen.getByRole('button', { name: 'Player Car' })
     await user.click(carButton)
     expect(sceneViewProps.selectedEntityId).toBe('car')
+  })
+
+  it('cycles camera mode when Digit0 is pressed (Camera tab, follow control)', async () => {
+    renderBuilder()
+    await act(async () => {
+      await Promise.resolve()
+    })
+    const modeSelect = screen.getByLabelText('Mode') as HTMLSelectElement
+    const initial = modeSelect.value as CameraMode
+
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Digit0', bubbles: true }))
+    })
+    expect(modeSelect.value).toBe(cycleCameraMode(initial))
+
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Numpad0', bubbles: true }))
+    })
+    expect(modeSelect.value).toBe(cycleCameraMode(cycleCameraMode(initial)))
   })
 })

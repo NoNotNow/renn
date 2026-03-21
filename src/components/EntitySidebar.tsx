@@ -1,5 +1,12 @@
 import { useRef, useCallback, useState, useMemo } from 'react'
-import type { Entity, CameraMode, Color, RennWorld } from '@/types/world'
+import {
+  type Entity,
+  type CameraMode,
+  type Color,
+  type RennWorld,
+  CAMERA_MODE_CYCLE_ORDER,
+  CAMERA_MODE_LABELS,
+} from '@/types/world'
 import type { AddableShapeType, BulkEntityParams } from '@/data/entityDefaults'
 import { useLocalStorageState } from '@/hooks/useLocalStorageState'
 import { uiLogger } from '@/utils/uiLogger'
@@ -382,10 +389,11 @@ export default function EntitySidebar({
                         }}
                         style={{ display: 'block', width: '100%' }}
                       >
-                        <option value="follow">Follow</option>
-                        <option value="thirdPerson">Third person</option>
-                        <option value="tracking">Tracking</option>
-                        <option value="firstPerson">First person</option>
+                        {CAMERA_MODE_CYCLE_ORDER.map((mode) => (
+                          <option key={mode} value={mode}>
+                            {CAMERA_MODE_LABELS[mode]}
+                          </option>
+                        ))}
                       </select>
                     </div>
                   </>
