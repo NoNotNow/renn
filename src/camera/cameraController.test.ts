@@ -288,8 +288,8 @@ describe('CameraController', () => {
       controller.update(0.016)
     }
 
-    // Target at (0, 0, 0); offset is world-space (0, 0, 20), so camera at (0, 0, 20) — not rotated to +X
-    expect(camera.position.z).toBeGreaterThan(15)
+    // Target at (0, 0, 0); offset is world-space (0, 0, 60), so camera at (0, 0, 60) — not rotated to +X
+    expect(camera.position.z).toBeGreaterThan(50)
     expect(Math.abs(camera.position.x)).toBeLessThan(5)
   })
 

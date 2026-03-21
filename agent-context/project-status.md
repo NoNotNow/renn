@@ -1,6 +1,6 @@
 # Renn – Project Status
 
-Last updated: 2026-03-02
+Last updated: 2026-03-21
 
 ## Completed
 
@@ -8,7 +8,7 @@ Last updated: 2026-03-02
 - JSON schema (`world-schema.json`, draft 2020-12) + Ajv validation
 - World loader: JSON → Three.js scene + entity meshes
 - Rapier physics: collider shapes, physics→mesh sync, collision events, cached transforms (WASM aliasing fix)
-- Camera controller: free fly, follow, top/front/right presets; first/third person; **tracking** (follows target position only—no entity rotation on the offset; world-space orbit/zoom like follow, larger default distance)
+- Camera controller: free fly, follow, top/front/right presets; first/third person; **tracking** (follows target position only—no entity rotation on the offset; world-space orbit/zoom like follow, 3× follow standoff for default distance)
 - Follow/third-person camera now rotates offset using target entity orientation (quaternion-driven follow behavior)
 - Follow / third-person / tracking orbit: middle-mouse drag, trackpad scroll, pinch, and mouse wheel orbit or zoom around the target; orbit resets when switching camera control mode
 - Script runner: main-thread, `game` API, hooks `onSpawn` / `onUpdate` / `onCollision`
