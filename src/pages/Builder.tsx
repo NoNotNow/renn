@@ -11,6 +11,8 @@ import { useProjectContext } from '@/hooks/useProjectContext'
 import { useLocalStorageState } from '@/hooks/useLocalStorageState'
 import type { Vec3, Rotation, Entity } from '@/types/world'
 import { uiLogger } from '@/utils/uiLogger'
+import { getSceneDependencyKey } from '@/utils/sceneDependencyKey'
+import type { TransformerConfig } from '@/types/transformer'
 
 export default function Builder() {
   const {
@@ -222,6 +224,25 @@ export default function Builder() {
     updateWorld(() => newWorld)
   }, [updateWorld])
 
+  const handleEntityTransformersChange = useCallback(
+    (entityId: string, transformers: TransformerConfig[]) => {
+      const nextEntities = world.entities.map((e) =>
+        e.id === entityId ? { ...e, transformers } : e
+      )
+      const nextWorld = { ...world, entities: nextEntities }
+      const keyBefore = getSceneDependencyKey(world)
+      const keyAfter = getSceneDependencyKey(nextWorld)
+      if (keyBefore !== keyAfter) {
+        initialPosesRef.current = sceneViewRef.current?.getAllPoses() ?? null
+      }
+      updateWorld(() => nextWorld)
+      if (keyBefore === keyAfter) {
+        sceneViewRef.current?.syncEntityTransformers(entityId, transformers)
+      }
+    },
+    [world, updateWorld]
+  )
+
   const handleAssetsChange = useCallback((newAssets: typeof assets) => {
     updateAssets(() => newAssets)
   }, [updateAssets])
@@ -423,6 +444,7 @@ export default function Builder() {
           onEntityMaterialChange={handleEntityMaterialChange}
           onEntityShapeChange={handleEntityShapeChange}
           onEntityModelTransformChange={handleEntityModelTransformChange}
+          onEntityTransformersChange={handleEntityTransformersChange}
           onRefreshFromPhysics={handleRefreshFromPhysics}
           livePoses={livePoses}
           isOpen={rightDrawerOpen}

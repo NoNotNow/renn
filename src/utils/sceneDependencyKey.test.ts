@@ -88,6 +88,27 @@ describe('getSceneDependencyKey', () => {
     expect(getSceneDependencyKey(a)).not.toBe(getSceneDependencyKey(b))
   })
 
+  it('returns the same key when only transformer enabled flags change (incremental sync)', () => {
+    const baseTf = [{ type: 'input' as const, priority: 10, enabled: true }]
+    const a = minimalWorld({
+      entities: [{ ...minimalWorld().entities[0], transformers: baseTf }],
+    })
+    const b = minimalWorld({
+      entities: [{ ...minimalWorld().entities[0], transformers: [{ type: 'input', priority: 10, enabled: false }] }],
+    })
+    expect(getSceneDependencyKey(a)).toBe(getSceneDependencyKey(b))
+  })
+
+  it('returns a different key when transformer type changes', () => {
+    const a = minimalWorld({
+      entities: [{ ...minimalWorld().entities[0], transformers: [{ type: 'input' }] }],
+    })
+    const b = minimalWorld({
+      entities: [{ ...minimalWorld().entities[0], transformers: [{ type: 'car2' }] }],
+    })
+    expect(getSceneDependencyKey(a)).not.toBe(getSceneDependencyKey(b))
+  })
+
   it('returns the same key when only modelRotation or modelScale changes (incremental path)', () => {
     const base = minimalWorld({
       entities: [{ ...minimalWorld().entities[0], shape: { type: 'trimesh', model: 'm1' } }],

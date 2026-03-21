@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import type { RennWorld, Entity, Vec3, Rotation } from '@/types/world'
+import type { TransformerConfig } from '@/types/transformer'
 import { uiLogger } from '@/utils/uiLogger'
 import TransformEditor from './TransformEditor'
 import Vec3Field from './Vec3Field'
@@ -25,6 +26,7 @@ export interface PropertyPanelProps {
   onEntityShapeChange?: (id: string, patch: Partial<Entity>) => void
   onEntityMaterialChange?: (id: string, patch: Partial<Entity>) => void
   onEntityModelTransformChange?: (id: string, patch: { modelRotation?: Rotation; modelScale?: Vec3 }) => void
+  onEntityTransformersChange?: (entityId: string, transformers: TransformerConfig[]) => void
   onRefreshFromPhysics?: (entityId: string) => void
   livePoses?: Map<string, { position: Vec3; rotation: Rotation }> | null
 }
@@ -41,6 +43,7 @@ export default function PropertyPanel({
   onEntityShapeChange,
   onEntityMaterialChange,
   onEntityModelTransformChange,
+  onEntityTransformersChange,
   onRefreshFromPhysics,
   livePoses,
 }: PropertyPanelProps) {
@@ -439,7 +442,11 @@ export default function PropertyPanel({
       <CollapsibleSection title="Transformers" copyPayload={entity.transformers ?? []}>
         <TransformerEditor
           transformers={entity.transformers ?? []}
-          onChange={(transformers) => updateEntity({ transformers })}
+          onChange={(transformers) =>
+            onEntityTransformersChange
+              ? onEntityTransformersChange(entity.id, transformers)
+              : updateEntity({ transformers })
+          }
           disabled={isLocked}
         />
       </CollapsibleSection>

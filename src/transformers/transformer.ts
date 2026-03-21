@@ -120,6 +120,14 @@ export class TransformerChain {
   }
 
   /**
+   * Transformers in the same order as entity.transformers / add order (not sorted by priority).
+   * Used to sync config fields like `enabled` by index.
+   */
+  getInConfigOrder(): readonly Transformer[] {
+    return [...this.transformers]
+  }
+
+  /**
    * Execute the transformer chain.
    * Returns accumulated forces and torques.
    */

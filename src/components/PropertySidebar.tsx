@@ -3,6 +3,7 @@ import PropertyPanel from './PropertyPanel'
 import ScriptPanel from './ScriptPanel'
 import AssetPanel from './AssetPanel'
 import type { RennWorld, Vec3, Rotation, Entity } from '@/types/world'
+import type { TransformerConfig } from '@/types/transformer'
 import { useLocalStorageState } from '@/hooks/useLocalStorageState'
 import { uiLogger } from '@/utils/uiLogger'
 import Sidebar, { SIDEBAR_MIN_WIDTH } from './layout/Sidebar'
@@ -23,6 +24,7 @@ export interface PropertySidebarProps {
   onEntityShapeChange?: (id: string, patch: Partial<Entity>) => void
   onEntityMaterialChange?: (id: string, patch: Partial<Entity>) => void
   onEntityModelTransformChange?: (id: string, patch: { modelRotation?: Vec3; modelScale?: Vec3 }) => void
+  onEntityTransformersChange?: (entityId: string, transformers: TransformerConfig[]) => void
   onRefreshFromPhysics?: (entityId: string) => void
   livePoses?: Map<string, { position: Vec3; rotation: Rotation }> | null
   isOpen: boolean
@@ -42,6 +44,7 @@ export default function PropertySidebar({
   onEntityShapeChange,
   onEntityMaterialChange,
   onEntityModelTransformChange,
+  onEntityTransformersChange,
   onRefreshFromPhysics,
   livePoses,
   isOpen,
@@ -103,6 +106,7 @@ export default function PropertySidebar({
             onEntityShapeChange={onEntityShapeChange}
             onEntityMaterialChange={onEntityMaterialChange}
             onEntityModelTransformChange={onEntityModelTransformChange}
+            onEntityTransformersChange={onEntityTransformersChange}
             onRefreshFromPhysics={onRefreshFromPhysics}
             livePoses={livePoses}
           />

@@ -7,9 +7,8 @@ import type { DisposableAssetResolver } from '@/loader/assetResolverImpl'
 import { RenderItem } from './renderItem'
 import { getUpVectorFromRapierQuaternion, quaternionToEuler, rapierQuaternionToEuler } from '@/utils/rotationUtils'
 import { createTransformerChain } from '@/transformers/transformerRegistry'
-import type { TransformInput } from '@/types/transformer'
+import type { TransformInput, TransformerConfig, RawInput } from '@/types/transformer'
 import { createEmptyTransformInput } from '@/types/transformer'
-import type { RawInput } from '@/types/transformer'
 
 /**
  * Registry of render items: one per entity. Owns body→mesh sync each frame.
@@ -72,6 +71,53 @@ export class RenderItemRegistry {
         }
       }
     }
+  }
+
+  /**
+   * Update serialised transformers on the render item and sync `enabled` on the live chain
+   * when chain length matches config order. Otherwise rebuilds the chain asynchronously.
+   */
+  syncEntityTransformers(id: string, configs: TransformerConfig[] | undefined): void {
+    const item = this.items.get(id)
+    if (!item) return
+
+    const nextEntity: Entity = { ...item.entity, transformers: configs }
+    item.entity = nextEntity
+    if (item.mesh.userData.entity !== undefined) {
+      item.mesh.userData.entity = nextEntity
+    }
+
+    if (!configs?.length) {
+      item.transformerChain = null
+      return
+    }
+
+    const chain = item.transformerChain
+    if (chain) {
+      const order = chain.getInConfigOrder()
+      if (order.length === configs.length) {
+        for (let i = 0; i < configs.length; i++) {
+          order[i].enabled = configs[i].enabled ?? true
+        }
+        return
+      }
+    }
+
+    createTransformerChain(configs, this.rawInputGetter ?? undefined, nextEntity)
+      .then((newChain) => {
+        if (!newChain) return
+        item.transformerChain = newChain
+        if (this.rawInputGetter) {
+          for (const t of newChain.getAll()) {
+            if (t.type === 'input' && 'setRawInputGetter' in t) {
+              ;(t as any).setRawInputGetter(this.rawInputGetter)
+            }
+          }
+        }
+      })
+      .catch((error) => {
+        console.error(`[RenderItemRegistry] syncEntityTransformers failed for ${id}:`, error)
+      })
   }
 
   get(id: string): RenderItem | undefined {

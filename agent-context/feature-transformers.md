@@ -56,6 +56,12 @@ src/
 └── runtime/renderItemRegistry.ts             # executeTransformers() called in game loop
 ```
 
+## Builder: `enabled` without scene reload
+
+- Each transformer row has a green/red dot button that toggles the serialised `enabled` field immediately (not via the JSON Apply button).
+- `getSceneDependencyKey` omits `enabled` from transformer configs so toggling does not trigger a full scene rebuild.
+- `RenderItemRegistry.syncEntityTransformers` updates `item.entity.transformers` and sets `Transformer.enabled` on the live chain (same order as config). Builder calls it when the scene dependency key is unchanged after a transformers edit.
+
 ## Preset transformer reference
 
 Templates live under `src/data/transformerPresets/<type>/*.json` and appear in the Builder transformer template dialog.

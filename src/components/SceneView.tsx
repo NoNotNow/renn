@@ -16,7 +16,7 @@ import { useEditorInteractions } from '@/hooks/useEditorInteractions'
 import { getSceneUserData } from '@/types/sceneUserData'
 import { useRawKeyboardInput, useRawWheelInput, getRawInputSnapshot } from '@/input/rawInput'
 import { useRawMouseDrag } from '@/input/rawMouseDrag'
-import type { RawInput } from '@/types/transformer'
+import type { RawInput, TransformerConfig } from '@/types/transformer'
 import { getSceneDependencyKey } from '@/utils/sceneDependencyKey'
 
 const FIXED_DT = 1 / 60
@@ -51,6 +51,8 @@ export interface SceneViewHandle {
   updateEntityMaterial: (id: string, entity: Entity) => Promise<void>
   /** Applies model rotation/scale to the mesh and rebuilds trimesh collider; avoids full reload. */
   updateEntityModelTransform: (id: string, patch: { modelRotation?: Rotation; modelScale?: Vec3 }) => void
+  /** Sync entity.transformers to runtime chain (e.g. enabled flags) without scene reload. */
+  syncEntityTransformers: (id: string, configs: TransformerConfig[] | undefined) => void
   getAllPoses: () => Map<string, { position: Vec3; rotation: Rotation }> | null
   resetCamera: () => void
   applyDebugForce: (entityId: string, force: Vec3, duration: number) => void
@@ -130,6 +132,9 @@ function SceneViewInner({
     },
     updateEntityModelTransform: (id: string, patch: { modelRotation?: Rotation; modelScale?: Vec3 }) => {
       registryRef.current?.setModelTransform(id, patch)
+    },
+    syncEntityTransformers: (id: string, configs: TransformerConfig[] | undefined) => {
+      registryRef.current?.syncEntityTransformers(id, configs)
     },
     getAllPoses: () => registryRef.current?.getAllPoses() ?? null,
     resetCamera: () => {

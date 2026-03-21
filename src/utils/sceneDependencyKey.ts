@@ -6,8 +6,9 @@ import type { RennWorld, Entity } from '@/types/world'
  * main effect so that edits that don't affect the scene (e.g. entity name, locked)
  * do not trigger a reload.
  *
- * Includes: entity list (id, scale, model, scripts, transformers, and shape only when
- * trimesh), world.scripts, world.assets refs, world.world lights.
+ * Includes: entity list (id, scale, model, scripts, transformers structure, and shape only when
+ * trimesh), world.scripts, world.assets refs, world.world lights. Transformer configs in the key
+ * omit `enabled` — that flag is synced live via RenderItemRegistry.syncEntityTransformers.
  * Excludes: entity name, locked, position, rotation, modelRotation, modelScale,
  * bodyType, mass, restitution, friction, linearDamping, angularDamping, primitive
  * shape dimensions, material; world.world gravity, skyColor, camera.
@@ -37,8 +38,16 @@ function sceneRelevantEntity(entity: Entity): Record<string, unknown> {
     scale: entity.scale,
     model: entity.model,
     scripts: entity.scripts,
-    transformers: entity.transformers,
+    transformers: transformersForSceneKey(entity.transformers),
   }
+}
+
+/** Strips `enabled` so toggling it does not force a full scene rebuild. */
+function transformersForSceneKey(
+  configs: Entity['transformers'],
+): unknown {
+  if (!configs?.length) return configs
+  return configs.map(({ enabled: _omit, ...rest }) => rest)
 }
 
 function sortKeys<T extends Record<string, unknown>>(obj: T): Record<string, unknown> {

@@ -149,6 +149,13 @@ export default function TransformerEditor({
     onChange?.(next)
   }
 
+  const handleToggleEnabled = (index: number) => {
+    const next = list.map((t, i) =>
+      i === index ? { ...t, enabled: !(t.enabled ?? true) } : t
+    )
+    onChange?.(next)
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -210,17 +217,41 @@ export default function TransformerEditor({
                 <span style={{ fontWeight: 600, color: '#c4cbd8', flexShrink: 0 }}>
                   {transformer.type}
                 </span>
-                <span
-                  title={enabled ? 'Enabled' : 'Disabled'}
-                  aria-label={enabled ? 'Enabled' : 'Disabled'}
+                <button
+                  type="button"
+                  onClick={() => handleToggleEnabled(index)}
+                  disabled={disabled}
+                  aria-pressed={enabled}
+                  title={
+                    enabled
+                      ? 'Enabled — click to disable'
+                      : 'Disabled — click to enable'
+                  }
+                  aria-label={enabled ? 'Disable transformer' : 'Enable transformer'}
+                  data-testid={`transformer-enabled-toggle-${index}`}
                   style={{
                     flexShrink: 0,
-                    width: 8,
-                    height: 8,
-                    borderRadius: '50%',
-                    background: enabled ? '#4ade80' : '#ef4444',
+                    minWidth: 22,
+                    minHeight: 22,
+                    padding: 0,
+                    border: 'none',
+                    background: 'transparent',
+                    cursor: disabled ? 'not-allowed' : 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
                   }}
-                />
+                >
+                  <span
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      background: enabled ? '#4ade80' : '#ef4444',
+                      pointerEvents: 'none',
+                    }}
+                  />
+                </button>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
                 {isPresetType(transformer.type) && (
