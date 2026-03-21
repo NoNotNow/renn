@@ -45,7 +45,11 @@ flowchart LR
    Most edits call `updateEntity(patch)` which builds a new `world` and invokes `onWorldChange(newWorld)`. Transform position/rotation can instead call `onEntityPoseChange(id, pose)`. Physics properties (mass, restitution, friction, damping, bodyType) call `onEntityPhysicsChange(id, patch)` when provided. Model rotation/scale (for trimesh or entity.model) call `onEntityModelTransformChange(id, patch)` when provided.
 
 2. **Builder** ([src/pages/Builder.tsx](src/pages/Builder.tsx))  
-   - `handleWorldChange(newWorld)`: captures current scene poses into `initialPosesRef`, then calls `updateWorld(() => newWorld)`.  
+   - `captureScenePosesForNextRebuild()`: copies `sceneViewRef.current?.getAllPoses()` into `initialPosesRef` so the next full scene rebuild reapplies live poses for existing entity ids (avoids snapping everything back to document transforms after physics/simulation).  
+   - `handleWorldChange(newWorld)`: calls `captureScenePosesForNextRebuild()`, then `updateWorld(() => newWorld)`.  
+   - `handleAddEntity`, `handleBulkAddEntities`, `handleDeleteEntity`, `handleCloneEntity`: each calls `captureScenePosesForNextRebuild()` before `updateWorld`, because these paths change the entity list (rebuild key) without going through `handleWorldChange`.  
+   - `handleEntityTransformersChange`: calls `captureScenePosesForNextRebuild()` only when `getSceneDependencyKey` changes (structural transformer edit).  
+   - `handleEntityShapeChange` (trimesh / fallback rebuild branch): calls `captureScenePosesForNextRebuild()` before `updateWorld`.  
    - `handleEntityPoseChange(id, pose)`: calls `sceneViewRef.current?.updateEntityPose(id, pose)` only (no world state update until an explicit sync, e.g. Refresh from physics or save).  
    - `handleEntityPhysicsChange(id, patch)`: calls `sceneViewRef.current?.updateEntityPhysics(id, patch)` to update the body/collider directly, then calls `updateWorld(...)` directly (bypassing `handleWorldChange`, so no `initialPosesRef` capture) to keep the document in sync.  
    - `handleEntityModelTransformChange(id, patch)`: calls `sceneViewRef.current?.updateEntityModelTransform(id, patch)` to update the mesh's model scene rotation/scale and rebuild trimesh collider, then calls `updateWorld(...)` to keep the document in sync; no full reload.

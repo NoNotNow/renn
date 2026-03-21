@@ -53,6 +53,11 @@ export default function Builder() {
   const sceneViewRef = useRef<SceneViewHandle>(null)
   const initialPosesRef = useRef<Map<string, { position: Vec3; rotation: Rotation }> | null>(null)
 
+  /** Snapshot live registry poses so the next scene rebuild (entity add/remove/clone, etc.) does not reset physics-driven positions. */
+  const captureScenePosesForNextRebuild = useCallback(() => {
+    initialPosesRef.current = sceneViewRef.current?.getAllPoses() ?? null
+  }, [])
+
   // Drawer states with localStorage persistence
   const [leftDrawerOpen, setLeftDrawerOpen] = useLocalStorageState('leftDrawerOpen', true)
   const [rightDrawerOpen, setRightDrawerOpen] = useLocalStorageState('rightDrawerOpen', true)
@@ -94,13 +99,14 @@ export default function Builder() {
     (shapeType: AddableShapeType) => {
       const newEntity = createDefaultEntity(shapeType)
       uiLogger.select('Builder', 'Add entity', { shapeType, entityId: newEntity.id })
+      captureScenePosesForNextRebuild()
       updateWorld((prev) => ({
         ...prev,
         entities: [...prev.entities, newEntity],
       }))
       setSelectedEntityId(newEntity.id)
     },
-    [updateWorld]
+    [updateWorld, captureScenePosesForNextRebuild]
   )
 
   const handleBulkAddEntities = useCallback(
@@ -111,6 +117,7 @@ export default function Builder() {
         shape: params.shape,
         bodyType: params.bodyType,
       })
+      captureScenePosesForNextRebuild()
       updateWorld((prev) => ({
         ...prev,
         entities: [...prev.entities, ...newEntities],
@@ -120,7 +127,7 @@ export default function Builder() {
         setSelectedEntityId(newEntities[0].id)
       }
     },
-    [updateWorld]
+    [updateWorld, captureScenePosesForNextRebuild]
   )
 
   const handleDeleteEntity = useCallback(
@@ -134,6 +141,7 @@ export default function Builder() {
       }
       
       uiLogger.delete('Builder', 'Delete entity', { entityId, entityName: entity?.name })
+      captureScenePosesForNextRebuild()
       const newEntities = world.entities.filter((e) => e.id !== entityId)
       updateWorld((prev) => ({ ...prev, entities: newEntities }))
       if (selectedEntityId === entityId) setSelectedEntityId(null)
@@ -141,7 +149,7 @@ export default function Builder() {
         setCameraTarget(newEntities[0]?.id ?? '')
       }
     },
-    [world.entities, selectedEntityId, cameraTarget, updateWorld, setCameraTarget]
+    [world.entities, selectedEntityId, cameraTarget, updateWorld, setCameraTarget, captureScenePosesForNextRebuild]
   )
 
   const handleEntityPositionChange = useCallback(
@@ -191,13 +199,14 @@ export default function Builder() {
       const pose = getCurrentPose(entityId)
       const cloned = cloneEntityFrom(source, pose)
       uiLogger.click('Builder', 'Clone entity', { sourceId: entityId, newId: cloned.id })
+      captureScenePosesForNextRebuild()
       updateWorld((prev) => ({
         ...prev,
         entities: [...prev.entities, cloned],
       }))
       setSelectedEntityId(cloned.id)
     },
-    [world.entities, getCurrentPose, updateWorld]
+    [world.entities, getCurrentPose, updateWorld, captureScenePosesForNextRebuild]
   )
 
   const handleEntityPoseChange = useCallback((id: string, pose: { position?: Vec3; rotation?: Rotation }) => {
@@ -231,13 +240,13 @@ export default function Builder() {
       }))
     } else {
       // Trimesh or no scene yet — fall back to full rebuild
-      initialPosesRef.current = sceneViewRef.current?.getAllPoses() ?? null
+      captureScenePosesForNextRebuild()
       updateWorld((prev) => ({
         ...prev,
         entities: prev.entities.map((e) => (e.id === id ? { ...e, ...patch } : e)),
       }))
     }
-  }, [world.entities, updateWorld])
+  }, [world.entities, updateWorld, captureScenePosesForNextRebuild])
 
   const handleEntityModelTransformChange = useCallback(
     (id: string, patch: { modelRotation?: [number, number, number]; modelScale?: [number, number, number] }) => {
@@ -259,9 +268,9 @@ export default function Builder() {
   )
 
   const handleWorldChange = useCallback((newWorld: typeof world) => {
-    initialPosesRef.current = sceneViewRef.current?.getAllPoses() ?? null
+    captureScenePosesForNextRebuild()
     updateWorld(() => newWorld)
-  }, [updateWorld])
+  }, [updateWorld, captureScenePosesForNextRebuild])
 
   const handleEntityTransformersChange = useCallback(
     (entityId: string, transformers: TransformerConfig[]) => {
@@ -272,14 +281,14 @@ export default function Builder() {
       const keyBefore = getSceneDependencyKey(world)
       const keyAfter = getSceneDependencyKey(nextWorld)
       if (keyBefore !== keyAfter) {
-        initialPosesRef.current = sceneViewRef.current?.getAllPoses() ?? null
+        captureScenePosesForNextRebuild()
       }
       updateWorld(() => nextWorld)
       if (keyBefore === keyAfter) {
         sceneViewRef.current?.syncEntityTransformers(entityId, transformers)
       }
     },
-    [world, updateWorld]
+    [world, updateWorld, captureScenePosesForNextRebuild]
   )
 
   const handleAssetsChange = useCallback((newAssets: typeof assets) => {
