@@ -10,6 +10,8 @@ export const TRANSFORMER_PRESET_OPTIONS: { value: string; label: string }[] = [
   { value: 'input', label: 'input' },
   { value: 'car2', label: 'car2' },
   { value: 'person', label: 'person' },
+  { value: 'targetPoseInput', label: 'targetPoseInput' },
+  { value: 'kinematicMovement', label: 'kinematicMovement' },
 ]
 
 /**
@@ -48,6 +50,31 @@ export function getDefaultTransformerConfig(type: string): TransformerConfig {
           maxWalkSpeed: 4,
           maxRunSpeed: 8,
           turnSpeed: 2,
+        },
+      }
+    case 'targetPoseInput':
+      return {
+        type: 'targetPoseInput',
+        priority: 5,
+        enabled: true,
+        params: {
+          speed: 2,
+          mode: 'cycle',
+          positionEpsilon: 0.05,
+          rotationEpsilon: 0.08,
+          poses: [
+            { position: [0, 0, 0], rotation: [0, 0, 0] },
+            { position: [3, 0, 0], rotation: [0, 0, 0] },
+          ],
+        },
+      }
+    case 'kinematicMovement':
+      return {
+        type: 'kinematicMovement',
+        priority: 6,
+        enabled: true,
+        params: {
+          maxRotationRate: 6.283185307179586,
         },
       }
     default:

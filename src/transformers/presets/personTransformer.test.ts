@@ -113,7 +113,7 @@ describe('PersonTransformer', () => {
   })
 
   describe('turning', () => {
-    test('turn_right produces positive yaw torque', () => {
+    test('turn_right produces negative yaw torque (turn_left − turn_right)', () => {
       const output = t.transform(
         createMockTransformInput({
           actions: { turn_right: 1.0 },
@@ -122,12 +122,12 @@ describe('PersonTransformer', () => {
         0.016,
       )
       expect(output.torque).toBeDefined()
-      expect(output.torque![0]).toBe(0)
-      expect(output.torque![2]).toBe(0)
-      expect(output.torque![1]).toBeGreaterThan(0)
+      expect(Math.abs(output.torque![0])).toBeLessThan(1e-6)
+      expect(Math.abs(output.torque![2])).toBeLessThan(1e-6)
+      expect(output.torque![1]).toBeLessThan(0)
     })
 
-    test('turn_left produces negative yaw torque', () => {
+    test('turn_left produces positive yaw torque (turn_left − turn_right)', () => {
       const output = t.transform(
         createMockTransformInput({
           actions: { turn_left: 1.0 },
@@ -136,7 +136,7 @@ describe('PersonTransformer', () => {
         0.016,
       )
       expect(output.torque).toBeDefined()
-      expect(output.torque![1]).toBeLessThan(0)
+      expect(output.torque![1]).toBeGreaterThan(0)
     })
 
     test('no turn input produces no torque', () => {

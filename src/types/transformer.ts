@@ -92,6 +92,24 @@ export interface EnvironmentState {
 }
 
 /**
+ * Movement intent: where to go and at what linear rate. Sources publish this; they do not
+ * choose kinematic vs force-based motion — movement transformers interpret it.
+ *
+ * `speed` is linear only (m/s), average travel speed toward `pose.position`. Not angular;
+ * not a duration. Rotation policy belongs to the movement transformer, not `target`.
+ */
+export interface TransformTarget {
+  /** Goal pose (world space). */
+  pose: { position: Vec3; rotation: Rotation }
+  /** Linear speed in m/s along translation toward `pose.position`. */
+  speed: number
+  /** Optional curve name for future easing; v1 movers treat as linear motion at `speed`. */
+  curve?: string
+  /** Optional world-space linear velocity hint for future force-based movers. */
+  velocity?: Vec3
+}
+
+/**
  * Input passed into every transformer in the chain.
  * The first transformer receives the raw-mapped actions;
  * subsequent transformers also see accumulated forces from earlier stages.
@@ -118,6 +136,12 @@ export interface TransformInput {
 
   /** Id of the owning entity. */
   entityId: string
+
+  /**
+   * Optional movement intent from target sources (waypoints, AI, etc.).
+   * Last writer wins if multiple transformers mutate it in one frame.
+   */
+  target?: TransformTarget
 }
 
 /**
@@ -137,6 +161,12 @@ export interface TransformOutput {
 
   /** If set, add this delta to current body rotation (Euler [x,y,z] rad). Default undefined so other transformers are unaffected. */
   addRotation?: Rotation | null
+
+  /**
+   * If set, set body pose for this frame (world space). Used by movers such as `kinematicMovement`.
+   * Last-wins in the chain. Runtime zeros linear/angular velocity when applied.
+   */
+  setPose?: { position: Vec3; rotation: Rotation }
 
   /** If true, stop the chain after this transformer. */
   earlyExit?: boolean
@@ -173,7 +203,12 @@ export interface Transformer {
 // ---------------------------------------------------------------------------
 
 /** Known preset transformer types. */
-export type PresetTransformerType = 'input' | 'car2' | 'person'
+export type PresetTransformerType =
+  | 'input'
+  | 'car2'
+  | 'person'
+  | 'targetPoseInput'
+  | 'kinematicMovement'
 
 /** Transformer type string. */
 export type TransformerType = PresetTransformerType | string
@@ -226,5 +261,6 @@ export function createEmptyTransformInput(
     environment: {},
     deltaTime: dt,
     entityId,
+    target: undefined,
   }
 }

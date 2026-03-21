@@ -122,7 +122,6 @@ Output: {"sku":"A123","name":"ACME"}
 
 ---
 
-If you want, I can:
-- Add concrete TypeScript examples and types.
-- Generate a JSON Schema set for a sample pipeline.
-- Create small unit tests for the example transformers.
+## Renn game transformers (movement intent)
+
+This repo’s runtime uses `TransformInput` / `TransformOutput` (see `src/types/transformer.ts`). **Target sources** write optional **`TransformInput.target`**: `pose`, **linear** `speed` (m/s average toward `pose.position`), optional `curve` / `velocity`. That describes *where* and *how fast* to translate, not whether the body is kinematic or force-driven. **Movement transformers** (e.g. `kinematicMovement`) read `target` and emit forces or **`setPose`**. **`target.speed` is never angular**; rotation policy lives on the movement transformer. See `agent-context/feature-transformers.md` for full behavior and file map.

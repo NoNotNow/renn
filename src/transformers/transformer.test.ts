@@ -295,4 +295,46 @@ describe('TransformerChain', () => {
     expect(output.torque).toBeUndefined()
     expect(output.addRotation).toEqual([0, 0.05, 0])
   })
+
+  test('setPose is last-wins', () => {
+    const chain = new TransformerChain()
+    chain.add(
+      new MockTransformer(0, () => ({
+        setPose: {
+          position: [1, 0, 0] as Vec3,
+          rotation: [0, 0, 0] as [number, number, number],
+        },
+      })),
+    )
+    chain.add(
+      new MockTransformer(1, () => ({
+        setPose: {
+          position: [2, 0, 0] as Vec3,
+          rotation: [0, 0.1, 0] as [number, number, number],
+        },
+      })),
+    )
+
+    const output = chain.execute(createMockTransformInput(), 0.016)
+
+    expect(output.setPose?.position[0]).toBe(2)
+    expect(output.setPose?.rotation[1]).toBeCloseTo(0.1)
+  })
+
+  test('setPose is returned in empty path when only setPose set', () => {
+    const chain = new TransformerChain()
+    chain.add(
+      new MockTransformer(0, () => ({
+        setPose: {
+          position: [0, 3, 0] as Vec3,
+          rotation: [0, 0, 0] as [number, number, number],
+        },
+      })),
+    )
+
+    const output = chain.execute(createMockTransformInput(), 0.016)
+
+    expect(output.force).toBeUndefined()
+    expect(output.setPose?.position[1]).toBe(3)
+  })
 })

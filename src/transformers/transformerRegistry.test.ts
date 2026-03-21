@@ -3,6 +3,8 @@ import { createTransformer } from './transformerRegistry'
 import { InputTransformer } from './presets/inputTransformer'
 import { CarTransformer2 } from './presets/car2Transformer'
 import { PersonTransformer } from './presets/personTransformer'
+import { TargetPoseInputTransformer } from './presets/targetPoseInputTransformer'
+import { KinematicMovementTransformer } from './presets/kinematicMovementTransformer'
 import { createMockTransformInput } from '@/test/helpers/transformer'
 import type { TransformerConfig } from '@/types/transformer'
 import { CHARACTER_PRESET } from '@/input/inputPresets'
@@ -69,6 +71,35 @@ describe('Transformer Registry', () => {
     })
     const output = transformer.transform(input, 0.016)
     expect(output.impulse).toBeDefined()
+  })
+
+  test('creates TargetPoseInputTransformer from config', async () => {
+    const config: TransformerConfig = {
+      type: 'targetPoseInput',
+      priority: 5,
+      params: {
+        poses: [{ position: [0, 0, 0], rotation: [0, 0, 0] }],
+        speed: 2,
+      },
+    }
+
+    const transformer = await createTransformer(config)
+
+    expect(transformer).toBeInstanceOf(TargetPoseInputTransformer)
+    expect(transformer.type).toBe('targetPoseInput')
+  })
+
+  test('creates KinematicMovementTransformer from config', async () => {
+    const config: TransformerConfig = {
+      type: 'kinematicMovement',
+      priority: 6,
+      params: { maxRotationRate: 3 },
+    }
+
+    const transformer = await createTransformer(config)
+
+    expect(transformer).toBeInstanceOf(KinematicMovementTransformer)
+    expect(transformer.type).toBe('kinematicMovement')
   })
 
   test('throws for unknown transformer type', async () => {

@@ -445,6 +445,14 @@ export class RenderItemRegistry {
         this.physicsWorld.setRotation(item.entity.id, newRotation)
         this.physicsWorld.setAngularVelocity(item.entity.id, 0, 0, 0)
       }
+      if (output.setPose && body) {
+        const p = output.setPose.position
+        const r = output.setPose.rotation
+        this.physicsWorld.setPosition(item.entity.id, p[0], p[1], p[2])
+        this.physicsWorld.setRotation(item.entity.id, r)
+        this.physicsWorld.setLinearVelocity(item.entity.id, 0, 0, 0)
+        this.physicsWorld.setAngularVelocity(item.entity.id, 0, 0, 0)
+      }
       if (output.color) {
         this.setColor(item.entity.id, output.color[0], output.color[1], output.color[2])
       }

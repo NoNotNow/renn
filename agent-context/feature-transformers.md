@@ -1,6 +1,18 @@
 # Transformers
 
-Transformers convert high-level intent (input, AI) into physics impulses. They do not mutate entity state or call physics APIs directly.
+Transformers convert high-level intent (input, AI, waypoints) into physics impulses or pose commands. They do not call physics APIs directly from `transform()`; the runtime applies `TransformOutput` after the chain runs.
+
+## Target intent vs movement execution
+
+| Layer | Responsibility |
+|--------|------------------|
+| **Target sources** (`targetPoseInput`, future AI/script) | **Where** to go: `TransformInput.target` with `pose`, **linear** `speed` (m/s average along translation toward `pose.position`), optional `curve` / `velocity`. Does **not** specify kinematic vs dynamic vs forces. |
+| **Movement transformers** (`kinematicMovement`, future force-based movers) | **How** to realize intent: read `input.target` and emit forces or `setPose` as designed. |
+
+**Paradigms**
+
+- **`target.speed`** is **linear only** (m/s). It is **not** angular rate and **not** a primary duration knob; segment time is **emergent** (≈ distance / speed for constant-speed translation).
+- **Rotation** toward `target.pose.rotation` is **not** driven by `target.speed`; each movement transformer documents its own rotation policy (e.g. `kinematicMovement` uses slerp with `maxRotationRate`).
 
 ## Data flow
 
@@ -9,9 +21,11 @@ RawInput → InputMapping → TransformInput → TransformerChain → TransformO
 ```
 
 - Transformers run in `priority` order (lower = earlier).
-- Outputs are **additive**; a transformer can set `earlyExit` to stop the chain.
+- **Forces and torques** are **additive**; `color`, `addRotation`, and `setPose` are **last-wins** in the chain.
+- Target sources may **mutate** `TransformInput.target` each frame (last writer wins if multiple write).
 - `TransformOutput.color` (optional [r,g,b] 0–1) is applied by the render loop via `setColor` for display feedback.
-- `TransformOutput.addRotation` (optional Euler delta [x,y,z] rad): when set, the render loop adds it to the current body rotation and calls `physicsWorld.setRotation()`, then zeros angular velocity so physics does not override. Default is undefined so other transformers are unaffected. In the chain, **last-wins** (like color).
+- `TransformOutput.addRotation` (optional Euler delta [x,y,z] rad): when set, the render loop adds it to the current body rotation and calls `physicsWorld.setRotation()`, then zeros angular velocity so physics does not override. Default is undefined so other transformers are unaffected.
+- `TransformOutput.setPose` (optional full world pose): when set, the render loop sets position and rotation and zeros linear/angular velocity. Use with **`bodyType: kinematic`** for scripted paths; dynamic bodies may fight other forces.
 - `resetAllForces()` is called before each frame so forces never accumulate across frames.
 
 ## Key files
@@ -25,11 +39,15 @@ src/
 │   ├── transformerPresets.ts                 # Default configs for Builder dropdown
 │   └── presets/
 │       ├── inputTransformer.ts               # Raw input → actions (priority 0)
-│       └── car2Transformer.ts                 # Impulse + addRotation (touch-gated)
+│       ├── car2Transformer.ts               # Impulse + addRotation (touch-gated)
+│       ├── targetPoseInputTransformer.ts     # Waypoints → TransformInput.target
+│       └── kinematicMovementTransformer.ts   # input.target → TransformOutput.setPose
 ├── data/transformerPresets/
 │   ├── loader.ts                             # listPresetNames, loadPreset (from JSON files)
 │   ├── car2/                                 # Optional .json templates
-│   └── input/                                # Optional .json templates
+│   ├── input/
+│   ├── targetPoseInput/
+│   └── kinematicMovement/
 ├── input/
 │   ├── rawInput.ts                           # Keyboard + trackpad capture
 │   ├── inputMapping.ts                       # RawInput → semantic actions
@@ -40,12 +58,17 @@ src/
 
 ## Preset transformer reference
 
-Only **input** and **car2** presets are shipped. Template JSON files under `src/data/transformerPresets/<type>/*.json` are loaded at runtime and shown in the Builder’s transformer template dialog (Load / Save as template).
+Templates live under `src/data/transformerPresets/<type>/*.json` and appear in the Builder transformer template dialog.
 
 | Type | Purpose | Key params |
 |---|---|---|
 | `input` | Maps raw keys/wheel → actions | `inputMapping` (keyboard/wheel bindings) |
 | `car2` | Impulse + addRotation for steering; **physics only when touching another object** | `power`, `steeringIntensity`, `steeringSpeed`, `lateralGrip`, `lateralToForwardTransfer` |
+| `person` | WASD walk/run + turn torque when grounded | `walkForce`, `runForce`, `maxWalkSpeed`, `maxRunSpeed`, `turnSpeed` |
+| `targetPoseInput` | Waypoint list → **`TransformInput.target`** (pose + linear speed); modes `cycle`, `pingPong`, `stopAtEnd` | `poses`, `speed`, `mode`, `positionEpsilon`, `rotationEpsilon` |
+| `kinematicMovement` | Reads **`input.target`**, emits **`setPose`** (linear move at `target.speed`, rotation via `maxRotationRate`) | `maxRotationRate` |
+
+**Typical kinematic path:** `targetPoseInput` (priority 5) then `kinematicMovement` (priority 6). Entity should use **`bodyType: kinematic`** for clean pose driving.
 
 ## Minimal JSON config
 
@@ -238,6 +261,6 @@ game.setTransformerParam(entityId, type, paramName, value)
 
 ## Test status
 
-100/100 tests passing (`npx vitest run src/transformers/ src/input/`).
+Run `npx vitest run src/transformers/ src/input/`.
 
 Remaining optional: TransformerPanel UI component in the Builder.

@@ -13,6 +13,14 @@ import { TransformerChain } from './transformer'
 import { InputTransformer } from './presets/inputTransformer'
 import { CarTransformer2, type CarTransformer2Params } from './presets/car2Transformer'
 import { PersonTransformer, type PersonTransformerParams } from './presets/personTransformer'
+import {
+  TargetPoseInputTransformer,
+  type TargetPoseInputParams,
+} from './presets/targetPoseInputTransformer'
+import {
+  KinematicMovementTransformer,
+  type KinematicMovementParams,
+} from './presets/kinematicMovementTransformer'
 import type { InputMapping } from '@/types/transformer'
 import { CHARACTER_PRESET } from '@/input/inputPresets'
 
@@ -45,6 +53,20 @@ export async function createTransformer(
     case 'person': {
       const params = (config.params ?? {}) as Partial<PersonTransformerParams>
       const transformer = new PersonTransformer(priority, params)
+      transformer.enabled = enabled
+      return transformer
+    }
+
+    case 'targetPoseInput': {
+      const params = (config.params ?? {}) as Partial<TargetPoseInputParams>
+      const transformer = new TargetPoseInputTransformer(priority, params)
+      transformer.enabled = enabled
+      return transformer
+    }
+
+    case 'kinematicMovement': {
+      const params = (config.params ?? {}) as Partial<KinematicMovementParams>
+      const transformer = new KinematicMovementTransformer(priority, params)
       transformer.enabled = enabled
       return transformer
     }

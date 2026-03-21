@@ -6,12 +6,14 @@ import {
 import { CAR_PRESET } from '@/input/inputPresets'
 
 describe('transformerPresets', () => {
-  test('TRANSFORMER_PRESET_OPTIONS includes input, car2 and person', () => {
+  test('TRANSFORMER_PRESET_OPTIONS includes known preset types', () => {
     const types = TRANSFORMER_PRESET_OPTIONS.map((o) => o.value)
     expect(types).toContain('input')
     expect(types).toContain('car2')
     expect(types).toContain('person')
-    expect(types).toHaveLength(3)
+    expect(types).toContain('targetPoseInput')
+    expect(types).toContain('kinematicMovement')
+    expect(types).toHaveLength(5)
   })
 
   test('getDefaultTransformerConfig returns valid config for each type', () => {

@@ -10,7 +10,13 @@ import {
   getDefaultTransformerConfig,
 } from '@/transformers/transformerPresets'
 
-const PRESET_TYPES: PresetTransformerType[] = ['input', 'car2', 'person']
+const PRESET_TYPES: PresetTransformerType[] = [
+  'input',
+  'car2',
+  'person',
+  'targetPoseInput',
+  'kinematicMovement',
+]
 
 function isPresetType(type: string): type is PresetTransformerType {
   return PRESET_TYPES.includes(type as PresetTransformerType)

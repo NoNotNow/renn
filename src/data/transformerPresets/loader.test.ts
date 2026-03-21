@@ -2,13 +2,11 @@ import { describe, expect, test } from 'vitest'
 import { listPresetNames, loadPreset } from './loader'
 
 describe('transformerPresets loader', () => {
-  test('listPresetNames returns array for car2, input and person', () => {
-    const car2 = listPresetNames('car2')
-    const input = listPresetNames('input')
-    const person = listPresetNames('person')
-    expect(Array.isArray(car2)).toBe(true)
-    expect(Array.isArray(input)).toBe(true)
-    expect(Array.isArray(person)).toBe(true)
+  test('listPresetNames returns array for preset transformer types', () => {
+    for (const type of ['car2', 'input', 'person', 'targetPoseInput', 'kinematicMovement'] as const) {
+      const names = listPresetNames(type)
+      expect(Array.isArray(names)).toBe(true)
+    }
   })
 
   test('loadPreset with non-existent name returns null', async () => {

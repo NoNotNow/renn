@@ -1,8 +1,8 @@
 /**
  * Base Transformer class and TransformerChain implementation.
  *
- * Transformers are executed in a pipeline: each transformer receives
- * the output from previous transformers and can add forces/torques.
+ * Transformers run in a pipeline: forces/torques accumulate; color, addRotation,
+ * and setPose are last-wins per frame.
  */
 
 import type {
@@ -182,6 +182,11 @@ export class TransformerChain {
         accumulated.addRotation = output.addRotation
       }
 
+      // setPose: last transformer wins
+      if (output.setPose) {
+        accumulated.setPose = output.setPose
+      }
+
       // Early exit?
       if (output.earlyExit) {
         accumulated.earlyExit = true
@@ -206,11 +211,16 @@ export class TransformerChain {
       accumulated.torque![2] === 0 &&
       !accumulated.earlyExit
     ) {
-      if (accumulated.color ?? accumulated.addRotation != null) {
+      if (
+        accumulated.color !== undefined ||
+        accumulated.addRotation != null ||
+        accumulated.setPose !== undefined
+      ) {
         return {
           ...EMPTY_TRANSFORM_OUTPUT,
           color: accumulated.color,
           addRotation: accumulated.addRotation,
+          setPose: accumulated.setPose,
         }
       }
       return EMPTY_TRANSFORM_OUTPUT
