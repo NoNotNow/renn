@@ -168,9 +168,12 @@ describe('CameraController', () => {
     expect(camera.position.y).toBeGreaterThan(0)
   })
 
-  it('first person mode positions camera at entity', () => {
+  it('first person mode positions camera at entity and looks along pitched forward', () => {
     const { camera, scene, getEntityPosition, entityPositions } = createTestSetup()
-    
+
+    const identityQ = new THREE.Quaternion()
+    const getEntityQuaternion = vi.fn((_id: string) => identityQ)
+
     scene.userData.camera = {
       control: 'follow',
       mode: 'firstPerson',
@@ -178,25 +181,70 @@ describe('CameraController', () => {
       distance: 10,
       height: 2,
     }
-    
+
     entityPositions.player.set(10, 0, 10)
-    
+
     const controller = new CameraController({
       camera,
       scene,
       getEntityPosition,
+      getEntityQuaternion,
     })
-    
-    // Update multiple times
+
     for (let i = 0; i < 100; i++) {
       controller.update(0.016)
     }
-    
-    // Camera should be at player position (approximately, due to smoothing)
+
     expect(camera.position.x).toBeCloseTo(10, 0)
     expect(camera.position.z).toBeCloseTo(10, 0)
-    // Height should be eye level
     expect(camera.position.y).toBeCloseTo(1.6, 0)
+
+    const expected = new THREE.Vector3(0, 0, -1)
+    const right = new THREE.Vector3(1, 0, 0)
+    expected.applyAxisAngle(right, THREE.MathUtils.degToRad(30)).normalize()
+
+    const dir = new THREE.Vector3()
+    camera.getWorldDirection(dir)
+    expect(dir.x).toBeCloseTo(expected.x, 5)
+    expect(dir.y).toBeCloseTo(expected.y, 5)
+    expect(dir.z).toBeCloseTo(expected.z, 5)
+  })
+
+  it('first person look direction follows entity yaw (not world −Z)', () => {
+    const { camera, scene, getEntityPosition, entityPositions } = createTestSetup()
+
+    const yaw90 = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 2)
+    const getEntityQuaternion = vi.fn((_id: string) => yaw90)
+
+    scene.userData.camera = {
+      control: 'follow',
+      mode: 'firstPerson',
+      target: 'player',
+      distance: 10,
+      height: 2,
+    }
+
+    entityPositions.player.set(0, 0, 0)
+
+    const controller = new CameraController({
+      camera,
+      scene,
+      getEntityPosition,
+      getEntityQuaternion,
+    })
+
+    for (let i = 0; i < 150; i++) {
+      controller.update(0.016)
+    }
+
+    const expected = new THREE.Vector3(0, 0, -1).applyQuaternion(yaw90).normalize()
+    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(yaw90).normalize()
+    expected.applyAxisAngle(right, THREE.MathUtils.degToRad(20)).normalize()
+
+    const dir = new THREE.Vector3()
+    camera.getWorldDirection(dir)
+    expect(dir.dot(expected)).toBeGreaterThan(0.999)
+    expect(Math.abs(dir.x)).toBeGreaterThan(0.5)
   })
 
   it('rotates camera offset with target quaternion in follow mode', () => {

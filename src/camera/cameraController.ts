@@ -20,6 +20,12 @@ const ORBIT_PITCH_MAX = Math.PI * 0.44
 const ORBIT_DISTANCE_MIN = 1
 const ORBIT_DISTANCE_MAX = 150
 
+const FIRST_PERSON_EYE_HEIGHT = 1.6
+/** Pitch above entity forward (local −Z), radians (20°). */
+const FIRST_PERSON_PITCH_UP_RAD = THREE.MathUtils.degToRad(5)
+
+const IDENTITY_QUATERNION = new THREE.Quaternion()
+
 export interface CameraControllerOptions {
   camera: THREE.PerspectiveCamera
   scene: THREE.Scene
@@ -68,8 +74,14 @@ export class CameraController {
 
   setConfig(config: CameraConfig): void {
     const prevControl = this.config.control
+    const prevMode = this.config.mode
     this.config = config
     if (config.control !== prevControl) {
+      this.orbitYaw = 0
+      this.orbitPitch = 0
+      this.orbitDistance = config.distance ?? 10
+    }
+    if (config.mode === 'firstPerson' && prevMode !== 'firstPerson') {
       this.orbitYaw = 0
       this.orbitPitch = 0
       this.orbitDistance = config.distance ?? 10
@@ -146,10 +158,18 @@ export class CameraController {
     const height = this.config.height ?? 2
 
     switch (this.config.mode as CameraMode) {
-      case 'firstPerson':
+      case 'firstPerson': {
         this.camera.position.copy(this.currentTarget)
-        this.camera.position.y += 1.6
+        this.camera.position.y += FIRST_PERSON_EYE_HEIGHT
+        const entityQ = this.getEntityQuaternion(targetId) ?? IDENTITY_QUATERNION
+        this.forward.set(0, 0, -1).applyQuaternion(entityQ).normalize()
+        this.right.set(1, 0, 0).applyQuaternion(entityQ).normalize()
+        this.forward.applyAxisAngle(this.right, FIRST_PERSON_PITCH_UP_RAD).normalize()
+        this.camera.up.set(0, 1, 0)
+        this.currentOffset.copy(this.camera.position).add(this.forward)
+        this.camera.lookAt(this.currentOffset)
         break
+      }
       case 'follow': {
         const followQ = this.getEntityQuaternion(targetId)
         this.currentOffset.copy(this.sphericalOffset(this.orbitDistance * 2, height))
