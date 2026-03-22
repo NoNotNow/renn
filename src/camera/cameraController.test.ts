@@ -1,6 +1,10 @@
 import { describe, it, expect, vi } from 'vitest'
 import * as THREE from 'three'
-import { CameraController, DEFAULT_FREE_FLY_KEYS } from './cameraController'
+import {
+  CameraController,
+  DEFAULT_FREE_FLY_KEYS,
+  DEFAULT_PERSPECTIVE_FOV_DEGREES,
+} from './cameraController'
 
 function createTestSetup() {
   const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 1000)
@@ -191,9 +195,7 @@ describe('CameraController', () => {
       getEntityQuaternion,
     })
 
-    for (let i = 0; i < 100; i++) {
-      controller.update(0.016)
-    }
+    controller.update(0.016)
 
     expect(camera.position.x).toBeCloseTo(10, 0)
     expect(camera.position.z).toBeCloseTo(10, 0)
@@ -201,7 +203,7 @@ describe('CameraController', () => {
 
     const expected = new THREE.Vector3(0, 0, -1)
     const right = new THREE.Vector3(1, 0, 0)
-    expected.applyAxisAngle(right, THREE.MathUtils.degToRad(30)).normalize()
+    expected.applyAxisAngle(right, THREE.MathUtils.degToRad(5)).normalize()
 
     const dir = new THREE.Vector3()
     camera.getWorldDirection(dir)
@@ -233,18 +235,46 @@ describe('CameraController', () => {
       getEntityQuaternion,
     })
 
-    for (let i = 0; i < 150; i++) {
-      controller.update(0.016)
-    }
+    controller.update(0.016)
 
     const expected = new THREE.Vector3(0, 0, -1).applyQuaternion(yaw90).normalize()
     const right = new THREE.Vector3(1, 0, 0).applyQuaternion(yaw90).normalize()
-    expected.applyAxisAngle(right, THREE.MathUtils.degToRad(20)).normalize()
+    expected.applyAxisAngle(right, THREE.MathUtils.degToRad(5)).normalize()
 
     const dir = new THREE.Vector3()
     camera.getWorldDirection(dir)
     expect(dir.dot(expected)).toBeGreaterThan(0.999)
     expect(Math.abs(dir.x)).toBeGreaterThan(0.5)
+  })
+
+  it('first person copies target position in one frame (no position lerp)', () => {
+    const { camera, scene, getEntityPosition, entityPositions } = createTestSetup()
+
+    const identityQ = new THREE.Quaternion()
+    const getEntityQuaternion = vi.fn((_id: string) => identityQ)
+
+    scene.userData.camera = {
+      control: 'follow',
+      mode: 'firstPerson',
+      target: 'player',
+      distance: 10,
+      height: 2,
+    }
+
+    entityPositions.player.set(42, 0, -17)
+
+    const controller = new CameraController({
+      camera,
+      scene,
+      getEntityPosition,
+      getEntityQuaternion,
+    })
+
+    controller.update(0.016)
+
+    expect(camera.position.x).toBeCloseTo(42, 5)
+    expect(camera.position.z).toBeCloseTo(-17, 5)
+    expect(camera.position.y).toBeCloseTo(1.6, 5)
   })
 
   it('rotates camera offset with target quaternion in follow mode', () => {
@@ -527,6 +557,81 @@ describe('CameraController', () => {
       const { controller } = makeFollowController('follow')
       controller.setOrbitDistanceDelta(10000)
       expect(() => controller.update(0.016)).not.toThrow()
+    })
+
+    function makeFirstPersonController() {
+      const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 1000)
+      camera.position.set(0, 5, 10)
+      camera.lookAt(0, 0, 0)
+
+      const scene = new THREE.Scene()
+      scene.userData.camera = {
+        control: 'follow',
+        mode: 'firstPerson',
+        target: 'player',
+        distance: 10,
+        height: 2,
+      }
+
+      const entityPositions: Record<string, THREE.Vector3> = {
+        player: new THREE.Vector3(0, 0, 0),
+      }
+
+      const identityQ = new THREE.Quaternion()
+      const getEntityQuaternion = vi.fn((_id: string) => identityQ)
+
+      const controller = new CameraController({
+        camera,
+        scene,
+        getEntityPosition: (id) => entityPositions[id] ?? null,
+        getEntityQuaternion,
+      })
+
+      controller.update(0.016)
+      return { camera, controller }
+    }
+
+    it('setOrbitDelta yaw changes first-person look direction', () => {
+      const { camera, controller } = makeFirstPersonController()
+      const before = new THREE.Vector3()
+      camera.getWorldDirection(before)
+
+      controller.setOrbitDelta(400, 0)
+      controller.update(0.016)
+
+      const after = new THREE.Vector3()
+      camera.getWorldDirection(after)
+      expect(after.dot(before)).toBeLessThan(0.999)
+    })
+
+    it('setOrbitDistanceDelta adjusts FOV in first person', () => {
+      const { camera, controller } = makeFirstPersonController()
+      expect(camera.fov).toBe(DEFAULT_PERSPECTIVE_FOV_DEGREES)
+
+      controller.setOrbitDistanceDelta(-5)
+      expect(camera.fov).toBeLessThan(DEFAULT_PERSPECTIVE_FOV_DEGREES)
+
+      controller.setOrbitDistanceDelta(10000)
+      expect(camera.fov).toBe(75)
+
+      controller.setOrbitDistanceDelta(-10000)
+      expect(camera.fov).toBe(35)
+    })
+
+    it('leaving first person restores default FOV', () => {
+      const { camera, controller } = makeFirstPersonController()
+      controller.setOrbitDistanceDelta(-20)
+      expect(camera.fov).not.toBe(DEFAULT_PERSPECTIVE_FOV_DEGREES)
+
+      controller.setConfig({
+        control: 'follow',
+        mode: 'thirdPerson',
+        target: 'player',
+        distance: 10,
+        height: 0,
+      })
+
+      expect(camera.fov).toBe(DEFAULT_PERSPECTIVE_FOV_DEGREES)
     })
   })
 })

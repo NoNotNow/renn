@@ -10,7 +10,7 @@ Last updated: 2026-03-21
 - Rapier physics: collider shapes, physics→mesh sync, collision events, cached transforms (WASM aliasing fix)
 - Camera controller: free fly, follow, top/front/right presets; first/third person; **tracking** (follows target position only—no entity rotation on the offset; world-space orbit/zoom like follow, 3× follow standoff for default distance)
 - Follow/third-person camera now rotates offset using target entity orientation (quaternion-driven follow behavior)
-- **First person**: view aligns to target facing (entity quaternion, local −Z forward) with fixed **+20°** pitch up; entering first person resets orbit yaw/pitch/distance so return to third/follow is clean
+- **First person**: no target-position lerp; look uses entity quaternion plus vehicle-local orbit yaw/pitch (shared with SceneView drag/trackpad) and ~**5°** pitch up; mouse wheel / pinch adjusts **FOV** in first person; **FOV returns to 50°** when switching to another mode; entering first person resets orbit yaw/pitch/distance
 - Follow / third-person / tracking orbit: middle-mouse drag, trackpad scroll, pinch, and mouse wheel orbit or zoom around the target; orbit resets when switching camera control mode
 - Script runner: main-thread, `game` API, hooks `onSpawn` / `onUpdate` / `onCollision`
 - Asset resolver: textures + 3D models (GLB only) via blob URLs

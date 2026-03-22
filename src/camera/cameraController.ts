@@ -20,8 +20,15 @@ const ORBIT_PITCH_MAX = Math.PI * 0.44
 const ORBIT_DISTANCE_MIN = 1
 const ORBIT_DISTANCE_MAX = 150
 
+/** Matches SceneView `PerspectiveCamera(50, …)`; restored when leaving first person. */
+export const DEFAULT_PERSPECTIVE_FOV_DEGREES = 50
+const FIRST_PERSON_FOV_MIN = 35
+const FIRST_PERSON_FOV_MAX = 75
+/** Maps wheel/pinch distance delta to FOV change (degrees per unit delta). */
+const FIRST_PERSON_FOV_PER_DISTANCE_DELTA = 0.8
+
 const FIRST_PERSON_EYE_HEIGHT = 1.6
-/** Pitch above entity forward (local −Z), radians (20°). */
+/** Pitch above entity forward (local −Z), radians (5°). */
 const FIRST_PERSON_PITCH_UP_RAD = THREE.MathUtils.degToRad(5)
 
 const IDENTITY_QUATERNION = new THREE.Quaternion()
@@ -75,6 +82,10 @@ export class CameraController {
   setConfig(config: CameraConfig): void {
     const prevControl = this.config.control
     const prevMode = this.config.mode
+    if (prevMode === 'firstPerson' && config.mode !== 'firstPerson') {
+      this.camera.fov = DEFAULT_PERSPECTIVE_FOV_DEGREES
+      this.camera.updateProjectionMatrix()
+    }
     this.config = config
     if (config.control !== prevControl) {
       this.orbitYaw = 0
@@ -101,6 +112,16 @@ export class CameraController {
 
   /** Adjust the orbit distance (zoom). delta > 0 = zoom out, delta < 0 = zoom in. */
   setOrbitDistanceDelta(delta: number): void {
+    if (this.config.mode === 'firstPerson') {
+      const next = THREE.MathUtils.clamp(
+        this.camera.fov + delta * FIRST_PERSON_FOV_PER_DISTANCE_DELTA,
+        FIRST_PERSON_FOV_MIN,
+        FIRST_PERSON_FOV_MAX,
+      )
+      this.camera.fov = next
+      this.camera.updateProjectionMatrix()
+      return
+    }
     this.orbitDistance = Math.max(
       ORBIT_DISTANCE_MIN,
       Math.min(ORBIT_DISTANCE_MAX, this.orbitDistance + delta),
@@ -154,7 +175,11 @@ export class CameraController {
     const pos = this.getEntityPosition(targetId)
     if (!pos) return
 
-    this.currentTarget.lerp(pos, this.smooth)
+    if (this.config.mode === 'firstPerson') {
+      this.currentTarget.copy(pos)
+    } else {
+      this.currentTarget.lerp(pos, this.smooth)
+    }
     const height = this.config.height ?? 2
 
     switch (this.config.mode as CameraMode) {
@@ -162,7 +187,12 @@ export class CameraController {
         this.camera.position.copy(this.currentTarget)
         this.camera.position.y += FIRST_PERSON_EYE_HEIGHT
         const entityQ = this.getEntityQuaternion(targetId) ?? IDENTITY_QUATERNION
-        this.forward.set(0, 0, -1).applyQuaternion(entityQ).normalize()
+        // Vehicle-local yaw (orbitYaw) then pitch (orbitPitch), then entity orientation — same idea as third/follow.
+        this.forward.set(0, 0, -1)
+        this.forward.applyAxisAngle(this.up, this.orbitYaw)
+        this.right.set(1, 0, 0)
+        this.forward.applyAxisAngle(this.right, this.orbitPitch)
+        this.forward.applyQuaternion(entityQ).normalize()
         this.right.set(1, 0, 0).applyQuaternion(entityQ).normalize()
         this.forward.applyAxisAngle(this.right, FIRST_PERSON_PITCH_UP_RAD).normalize()
         this.camera.up.set(0, 1, 0)
