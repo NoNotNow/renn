@@ -13,7 +13,8 @@ describe('transformerPresets', () => {
     expect(types).toContain('person')
     expect(types).toContain('targetPoseInput')
     expect(types).toContain('kinematicMovement')
-    expect(types).toHaveLength(5)
+    expect(types).toContain('wanderer')
+    expect(types).toHaveLength(6)
   })
 
   test('getDefaultTransformerConfig returns valid config for each type', () => {

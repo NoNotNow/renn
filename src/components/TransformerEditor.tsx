@@ -16,6 +16,7 @@ const PRESET_TYPES: PresetTransformerType[] = [
   'person',
   'targetPoseInput',
   'kinematicMovement',
+  'wanderer',
 ]
 
 function isPresetType(type: string): type is PresetTransformerType {

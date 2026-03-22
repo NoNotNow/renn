@@ -12,6 +12,7 @@ export const TRANSFORMER_PRESET_OPTIONS: { value: string; label: string }[] = [
   { value: 'person', label: 'person' },
   { value: 'targetPoseInput', label: 'targetPoseInput' },
   { value: 'kinematicMovement', label: 'kinematicMovement' },
+  { value: 'wanderer', label: 'wanderer' },
 ]
 
 /**
@@ -75,6 +76,24 @@ export function getDefaultTransformerConfig(type: string): TransformerConfig {
         enabled: true,
         params: {
           maxRotationRate: 6.283185307179586,
+        },
+      }
+    case 'wanderer':
+      return {
+        type: 'wanderer',
+        priority: 5,
+        enabled: true,
+        params: {
+          speed: 2,
+          jumpDistance: 3,
+          linear: true,
+          angular: true,
+          perimeter: {
+            center: [0, 0, 0],
+            halfExtents: [5, 5, 5],
+          },
+          positionEpsilon: 0.05,
+          rotationEpsilon: 0.08,
         },
       }
     default:

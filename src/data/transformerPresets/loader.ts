@@ -11,6 +11,7 @@ export type PresetTransformerType =
   | 'person'
   | 'targetPoseInput'
   | 'kinematicMovement'
+  | 'wanderer'
 
 const presetModules = import.meta.glob<string>('./**/*.json', {
   query: '?raw',
@@ -20,7 +21,7 @@ const presetModules = import.meta.glob<string>('./**/*.json', {
 
 function pathToTypeAndName(relativePath: string): { type: PresetTransformerType; name: string } | null {
   const match = relativePath.match(
-    /^\.\/(car2|input|person|targetPoseInput|kinematicMovement)\/(.+)\.json$/,
+    /^\.\/(car2|input|person|targetPoseInput|kinematicMovement|wanderer)\/(.+)\.json$/,
   )
   if (!match) return null
   const [, type, name] = match

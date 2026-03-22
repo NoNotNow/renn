@@ -5,6 +5,7 @@ import { CarTransformer2 } from './presets/car2Transformer'
 import { PersonTransformer } from './presets/personTransformer'
 import { TargetPoseInputTransformer } from './presets/targetPoseInputTransformer'
 import { KinematicMovementTransformer } from './presets/kinematicMovementTransformer'
+import { WandererTransformer } from './presets/wandererTransformer'
 import { createMockTransformInput } from '@/test/helpers/transformer'
 import type { TransformerConfig } from '@/types/transformer'
 import { CHARACTER_PRESET } from '@/input/inputPresets'
@@ -100,6 +101,23 @@ describe('Transformer Registry', () => {
 
     expect(transformer).toBeInstanceOf(KinematicMovementTransformer)
     expect(transformer.type).toBe('kinematicMovement')
+  })
+
+  test('creates WandererTransformer from config', async () => {
+    const config: TransformerConfig = {
+      type: 'wanderer',
+      priority: 5,
+      params: {
+        speed: 2,
+        jumpDistance: 3,
+        perimeter: { center: [0, 0, 0], halfExtents: [5, 5, 5] },
+      },
+    }
+
+    const transformer = await createTransformer(config)
+
+    expect(transformer).toBeInstanceOf(WandererTransformer)
+    expect(transformer.type).toBe('wanderer')
   })
 
   test('throws for unknown transformer type', async () => {

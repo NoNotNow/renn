@@ -209,6 +209,7 @@ export type PresetTransformerType =
   | 'person'
   | 'targetPoseInput'
   | 'kinematicMovement'
+  | 'wanderer'
 
 /** Transformer type string. */
 export type TransformerType = PresetTransformerType | string

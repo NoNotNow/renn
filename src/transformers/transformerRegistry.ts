@@ -21,6 +21,10 @@ import {
   KinematicMovementTransformer,
   type KinematicMovementParams,
 } from './presets/kinematicMovementTransformer'
+import {
+  WandererTransformer,
+  type WandererParams,
+} from './presets/wandererTransformer'
 import type { InputMapping } from '@/types/transformer'
 import { CHARACTER_PRESET } from '@/input/inputPresets'
 
@@ -67,6 +71,13 @@ export async function createTransformer(
     case 'kinematicMovement': {
       const params = (config.params ?? {}) as Partial<KinematicMovementParams>
       const transformer = new KinematicMovementTransformer(priority, params)
+      transformer.enabled = enabled
+      return transformer
+    }
+
+    case 'wanderer': {
+      const params = (config.params ?? {}) as Partial<WandererParams>
+      const transformer = new WandererTransformer(priority, params)
       transformer.enabled = enabled
       return transformer
     }
