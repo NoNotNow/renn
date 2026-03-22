@@ -1,6 +1,6 @@
 /**
- * CarTransformer2: Maps WASD + handbrake actions outputs impulse and addRotation for precise
- * steering (friction makes torque-based steering imprecise).
+ * CarTransformer2: WASD drive impulses + optional jump (semantic action `jump`, e.g. Space);
+ * addRotation for steering. Physics output only while touching another collider.
  */
 
 import { BaseTransformer } from '../transformer'
@@ -21,6 +21,8 @@ export interface CarTransformer2Params {
   lateralGrip?: number
   /** Fraction of lateral grip translated into forward impulse when turning (0–1). Default 0.2. */
   lateralToForwardTransfer?: number
+  /** World-space Y impulse applied once per jump press while grounded (Rapier applyImpulse). Default 200. */
+  jumpImpulse?: number
 }
 
 const DEFAULT_CAR2_PARAMS: Required<CarTransformer2Params> = {
@@ -29,6 +31,7 @@ const DEFAULT_CAR2_PARAMS: Required<CarTransformer2Params> = {
   steeringSpeed: 0.01,
   lateralGrip: 100,
   lateralToForwardTransfer: 0.2,
+  jumpImpulse: 200,
 }
 
 
@@ -36,6 +39,7 @@ export class CarTransformer2 extends BaseTransformer {
   readonly type = 'car2'
   wheelAngle: number = 0 // -1 to 1
   private params: Required<CarTransformer2Params>
+  private jumpHeldPrev = false
 
   constructor(priority: number = 10, params: Partial<CarTransformer2Params> = {}) {
     super(priority, true)
@@ -49,6 +53,10 @@ export class CarTransformer2 extends BaseTransformer {
   transform(input: TransformInput, deltaTime: number): TransformOutput {
     this.calculateWheelAngle(input)
 
+    const jumpHeld = this.getAction(input, 'jump') > 0
+    const jumpRisingEdge = jumpHeld && !this.jumpHeldPrev
+    this.jumpHeldPrev = jumpHeld
+
     const forwardVector = this.getForwardVector(input.rotation)
     const touching = input.environment.isTouchingObject === true
 
@@ -56,7 +64,11 @@ export class CarTransformer2 extends BaseTransformer {
       return { earlyExit: false }
     }
 
-    const impulse = this.setImpulse(input, deltaTime, forwardVector)
+    let impulse = this.setImpulse(input, deltaTime, forwardVector)
+    const ji = this.params.jumpImpulse
+    if (jumpRisingEdge && ji > 0) {
+      impulse = this.addVec3(impulse, [0, ji, 0])
+    }
     const rotationDelta = this.getRotationDelta(input, deltaTime, this.wheelAngle)
     const addRotation = rotationDelta
     return {
@@ -116,7 +128,7 @@ export class CarTransformer2 extends BaseTransformer {
     const left = this.getAction(input, 'steer_left')
     const right = this.getAction(input, 'steer_right')
 
-    let force = right - left
+    let force =  left - right;
     if (force === 0) {
       if (this.wheelAngle > 0) force = -1
       else if (this.wheelAngle < 0) force = 1

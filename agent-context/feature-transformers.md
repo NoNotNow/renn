@@ -46,7 +46,7 @@ src/
 ├── data/transformerPresets/
 │   ├── loader.ts                             # listPresetNames, loadPreset (from JSON files)
 │   ├── car2/                                 # Optional .json templates
-│   ├── input/
+│   ├── input/                                # e.g. keyboard-car.json = car input (Space → jump for car2)
 │   ├── targetPoseInput/
 │   ├── wanderer/
 │   └── kinematicMovement/
@@ -71,7 +71,7 @@ Templates live under `src/data/transformerPresets/<type>/*.json` and appear in t
 | Type | Purpose | Key params |
 |---|---|---|
 | `input` | Maps raw keys/wheel → actions | `inputMapping` (keyboard/wheel bindings) |
-| `car2` | Impulse + addRotation for steering; **physics only when touching another object** | `power`, `steeringIntensity`, `steeringSpeed`, `lateralGrip`, `lateralToForwardTransfer` |
+| `car2` | Impulse + addRotation for steering; optional **jump** (world-Y impulse once per press); **physics only when touching another object** | `power`, `steeringIntensity`, `steeringSpeed`, `lateralGrip`, `lateralToForwardTransfer`, `jumpImpulse` |
 | `person` | WASD walk/run + turn torque when grounded | `walkForce`, `runForce`, `maxWalkSpeed`, `maxRunSpeed`, `turnSpeed` |
 | `targetPoseInput` | Waypoint list → **`TransformInput.target`** (pose + linear speed); modes `cycle`, `pingPong`, `stopAtEnd` | `poses`, `speed`, `mode`, `positionEpsilon`, `rotationEpsilon` |
 | `wanderer` | Random poses within perimeter cube → **`TransformInput.target`**; configurable speed, jump distance, linear/angular toggles | `speed`, `jumpDistance`, `linear`, `angular`, `perimeter` (center, halfExtents), `positionEpsilon`, `rotationEpsilon` |
@@ -90,13 +90,13 @@ Templates live under `src/data/transformerPresets/<type>/*.json` and appear in t
       "type": "input",
       "priority": 0,
       "inputMapping": {
-        "keyboard": { "w": "throttle", "s": "brake", "a": "steer_left", "d": "steer_right", "space": "handbrake" }
+        "keyboard": { "w": "throttle", "s": "brake", "a": "steer_left", "d": "steer_right", "space": "jump" }
       }
     },
     {
       "type": "car2",
       "priority": 1,
-      "params": { "power": 400, "lateralGrip": 100 }
+      "params": { "power": 400, "lateralGrip": 100, "jumpImpulse": 200 }
     }
   ]
 }
@@ -247,8 +247,11 @@ The `car2` preset (impulse + addRotation + color feedback) accepts optional `par
 | `steeringSpeed` | 0.01 | Wheel angle change rate (how fast steer input moves the wheel) |
 | `lateralGrip` | 100 | Sideways grip strength (higher = less sliding) |
 | `lateralToForwardTransfer` | 0.2 | Fraction of lateral grip translated into forward impulse when turning (0–1) |
+| `jumpImpulse` | 200 | World-space +Y impulse applied once per **rising edge** of action `jump` while touching; set `0` to disable |
 
-Default preset (Builder + `getDefaultTransformerConfig('car2')`): `{ "type": "car2", "priority": 10, "enabled": true, "params": { "power": 1000, "steeringIntensity": 0.05, "steeringSpeed": 0.05, "lateralGrip": 120 } }`. Optional: `lateralToForwardTransfer` (e.g. `0.2`).
+Map **Space** (or any key) to the semantic action **`jump`** in the `input` transformer’s `inputMapping` (see `src/data/transformerPresets/input/keyboard-car.json`).
+
+Default preset (Builder + `getDefaultTransformerConfig('car2')`): `{ "type": "car2", "priority": 10, "enabled": true, "params": { "power": 1000, "steeringIntensity": 0.05, "steeringSpeed": 0.05, "lateralGrip": 120, "jumpImpulse": 200 } }`. Optional: `lateralToForwardTransfer` (e.g. `0.2`).
 
 ### Builder: Add transformer dropdown and template dialog
 

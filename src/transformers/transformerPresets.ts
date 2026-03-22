@@ -38,6 +38,7 @@ export function getDefaultTransformerConfig(type: string): TransformerConfig {
           steeringIntensity: 0.05,
           steeringSpeed: 0.05,
           lateralGrip: 120,
+          jumpImpulse: 200,
         },
       }
     case 'person':

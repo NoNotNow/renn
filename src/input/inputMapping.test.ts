@@ -115,7 +115,7 @@ describe('applyInputMapping', () => {
 
     expect(actions.throttle).toBe(1.0)
     expect(actions.steer_left).toBe(1.0)
-    expect(actions.handbrake).toBe(1.0)
+    expect(actions.jump).toBe(1.0)
   })
 
   test('missing mappings are ignored', () => {

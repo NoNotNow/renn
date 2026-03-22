@@ -6,6 +6,7 @@
       "power": 1000,
       "steeringIntensity": 0.05,
       "steeringSpeed": 0.05,
-      "lateralGrip": 120
+      "lateralGrip": 120,
+      "jumpImpulse": 200
     }
 }

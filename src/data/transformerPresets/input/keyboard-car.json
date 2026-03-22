@@ -1,11 +1,17 @@
 {
-    "type": "car2",
-    "priority": 10,
-    "enabled": true,
-    "params": {
-      "power": 1000,
-      "steeringIntensity": 0.05,
-      "steeringSpeed": 0.05,
-      "lateralGrip": 120
+  "type": "input",
+  "priority": 0,
+  "enabled": true,
+  "inputMapping": {
+    "keyboard": {
+      "w": "throttle",
+      "s": "brake",
+      "a": "steer_left",
+      "d": "steer_right",
+      "space": "jump"
+    },
+    "sensitivity": {
+      "keyboard": 1.0
     }
   }
+}

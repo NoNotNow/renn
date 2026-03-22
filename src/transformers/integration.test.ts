@@ -118,7 +118,7 @@ describe('Transformer Integration', () => {
                   s: 'brake',
                   a: 'steer_left',
                   d: 'steer_right',
-                  space: 'handbrake',
+                  space: 'jump',
                 },
               },
             },

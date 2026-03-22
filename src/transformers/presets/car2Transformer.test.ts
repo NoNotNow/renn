@@ -121,4 +121,56 @@ describe('CarTransformer2', () => {
       expect(output.addRotation).toBeDefined()
     })
   })
+
+  describe('jump', () => {
+    test('rising edge while touching adds world-Y jumpImpulse to impulse', () => {
+      const tJump = new CarTransformer2(10, { jumpImpulse: 500 })
+      const output = tJump.transform(
+        createMockTransformInput({
+          actions: { jump: 1.0 },
+          environment: { isTouchingObject: true },
+        }),
+        0.016,
+      )
+      expect(output.impulse).toBeDefined()
+      expect(output.impulse![1]).toBe(500)
+    })
+
+    test('holding jump does not add impulse again on the next frame', () => {
+      const tJump = new CarTransformer2(10, { jumpImpulse: 500 })
+      const grounded = {
+        actions: { jump: 1.0 },
+        environment: { isTouchingObject: true },
+      }
+      tJump.transform(createMockTransformInput(grounded), 0.016)
+      const second = tJump.transform(createMockTransformInput(grounded), 0.016)
+      expect(second.impulse).toBeDefined()
+      expect(second.impulse![1]).toBe(0)
+    })
+
+    test('when not touching, no impulse even on jump rising edge', () => {
+      const tJump = new CarTransformer2(10, { jumpImpulse: 500 })
+      const output = tJump.transform(
+        createMockTransformInput({
+          actions: { jump: 1.0 },
+          environment: { isTouchingObject: false },
+        }),
+        0.016,
+      )
+      expect(output.impulse).toBeUndefined()
+    })
+
+    test('jumpImpulse 0 adds no vertical impulse', () => {
+      const tJump = new CarTransformer2(10, { jumpImpulse: 0 })
+      const output = tJump.transform(
+        createMockTransformInput({
+          actions: { jump: 1.0 },
+          environment: { isTouchingObject: true },
+        }),
+        0.016,
+      )
+      expect(output.impulse).toBeDefined()
+      expect(output.impulse![1]).toBe(0)
+    })
+  })
 })

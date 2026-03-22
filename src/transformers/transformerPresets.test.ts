@@ -39,6 +39,7 @@ describe('transformerPresets', () => {
       steeringIntensity: 0.05,
       steeringSpeed: 0.05,
       lateralGrip: 120,
+      jumpImpulse: 200,
     })
   })
 

@@ -58,7 +58,7 @@ export const sampleWorld: RennWorld = {
               s: 'brake',
               d: 'steer_left',
               a: 'steer_right',
-              space: 'handbrake',
+              space: 'jump',
             },
             sensitivity: {
               keyboard: 1,
@@ -75,6 +75,7 @@ export const sampleWorld: RennWorld = {
             steeringIntensity: 0.05,
             steeringSpeed: 0.05,
             lateralGrip: 120,
+            jumpImpulse: 200,
           },
         },
       ],
