@@ -9,7 +9,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { cloneEntityFrom, createDefaultEntity, createBulkEntities, type AddableShapeType, type BulkEntityParams } from '@/data/entityDefaults'
 import { useProjectContext } from '@/hooks/useProjectContext'
 import { useLocalStorageState } from '@/hooks/useLocalStorageState'
-import { cycleCameraMode, type Vec3, type Rotation, type Entity } from '@/types/world'
+import { cycleCameraMode, DEFAULT_SCALE, type Vec3, type Rotation, type Entity } from '@/types/world'
 import { uiLogger } from '@/utils/uiLogger'
 import { getSceneDependencyKey } from '@/utils/sceneDependencyKey'
 import type { TransformerConfig } from '@/types/transformer'
@@ -51,9 +51,11 @@ export default function Builder() {
   const [gizmoMode, setGizmoMode] = useState<BuilderGizmoMode>('translate')
   const [shadowsEnabled, setShadowsEnabled] = useState(true)
   const [showSaveDialog, setShowSaveDialog] = useState(false)
-  const [livePoses, setLivePoses] = useState<Map<string, { position: Vec3; rotation: Rotation }> | null>(null)
+  const [livePoses, setLivePoses] = useState<
+    Map<string, { position: Vec3; rotation: Rotation; scale: Vec3 }> | null
+  >(null)
   const sceneViewRef = useRef<SceneViewHandle>(null)
-  const initialPosesRef = useRef<Map<string, { position: Vec3; rotation: Rotation }> | null>(null)
+  const initialPosesRef = useRef<Map<string, { position: Vec3; rotation: Rotation; scale?: Vec3 }> | null>(null)
 
   /** Snapshot live registry poses so the next scene rebuild (entity add/remove/clone, etc.) does not reset physics-driven positions. */
   const captureScenePosesForNextRebuild = useCallback(() => {
@@ -107,15 +109,18 @@ export default function Builder() {
 
     const onKeyDown = (e: KeyboardEvent): void => {
       const k = e.key.toLowerCase()
-      if (k !== 'g' && k !== 'r') return
+      if (k !== 'g' && k !== 'r' && k !== 's') return
       if (isEditableElement()) return
       e.preventDefault()
       if (k === 'g') {
         setGizmoMode('translate')
         uiLogger.change('Builder', 'Gizmo mode translate', {})
-      } else {
+      } else if (k === 'r') {
         setGizmoMode('rotate')
         uiLogger.change('Builder', 'Gizmo mode rotate', {})
+      } else {
+        setGizmoMode('scale')
+        uiLogger.change('Builder', 'Gizmo mode scale', {})
       }
     }
 
@@ -180,16 +185,24 @@ export default function Builder() {
     [world.entities, selectedEntityId, cameraTarget, updateWorld, setCameraTarget, captureScenePosesForNextRebuild]
   )
 
+  const handleGizmoModeChange = useCallback((mode: BuilderGizmoMode) => {
+    setGizmoMode(mode)
+    uiLogger.change('Builder', 'Gizmo mode', { mode })
+  }, [])
+
   const handleEntityPoseCommit = useCallback(
-    (entityId: string, pose: { position: Vec3; rotation: Rotation }) => {
+    (entityId: string, pose: { position: Vec3; rotation: Rotation; scale: Vec3 }) => {
       sceneViewRef.current?.updateEntityPose(entityId, {
         position: pose.position,
         rotation: pose.rotation,
+        scale: pose.scale,
       })
       updateWorld((prev) => ({
         ...prev,
         entities: prev.entities.map((e) =>
-          e.id === entityId ? { ...e, position: pose.position, rotation: pose.rotation } : e
+          e.id === entityId
+            ? { ...e, position: pose.position, rotation: pose.rotation, scale: pose.scale }
+            : e
         ),
       }))
       uiLogger.change('Builder', 'Gizmo pose commit', { entityId })
@@ -217,7 +230,7 @@ export default function Builder() {
   }, [currentProject.id, currentProject.isDirty, loadProject])
 
   const getCurrentPose = useCallback(
-    (id: string): { position: Vec3; rotation: Rotation } => {
+    (id: string): { position: Vec3; rotation: Rotation; scale: Vec3 } => {
       const reg = sceneViewRef.current?.getAllPoses()
       const savedPose = reg?.get(id)
       if (savedPose) return savedPose
@@ -225,6 +238,7 @@ export default function Builder() {
       return {
         position: entity?.position ?? [0, 0, 0],
         rotation: entity?.rotation ?? [0, 0, 0],
+        scale: entity?.scale ?? DEFAULT_SCALE,
       }
     },
     [world.entities]
@@ -438,6 +452,8 @@ export default function Builder() {
         projects={projects}
         onLeftSidebarToggle={() => setLeftDrawerOpen((prev) => !prev)}
         currentProject={currentProject}
+        gizmoMode={gizmoMode}
+        onGizmoModeChange={handleGizmoModeChange}
         shadowsEnabled={shadowsEnabled}
         onNew={handleNew}
         onSave={handleSave}

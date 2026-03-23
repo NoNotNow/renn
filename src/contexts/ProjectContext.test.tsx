@@ -72,6 +72,7 @@ async function flushEffects() {
 const CAR_ID = 'car'
 const UPDATED_POSITION: Vec3 = [10, 20, 30]
 const UNCHANGED_ROTATION: Rotation = [0, 0, 0]
+const UNCHANGED_SCALE: Vec3 = [1, 1, 1]
 
 // ------------------------------------------------------------------
 // Tests
@@ -91,8 +92,8 @@ describe('ProjectContext – save includes synced poses', () => {
     const ctx = captured.current!
 
     // Simulate the scene reporting an updated car position
-    const poses = new Map<string, { position: Vec3; rotation: Rotation }>([
-      [CAR_ID, { position: UPDATED_POSITION, rotation: UNCHANGED_ROTATION }],
+    const poses = new Map<string, { position: Vec3; rotation: Rotation; scale: Vec3 }>([
+      [CAR_ID, { position: UPDATED_POSITION, rotation: UNCHANGED_ROTATION, scale: UNCHANGED_SCALE }],
     ])
 
     act(() => {
@@ -134,8 +135,8 @@ describe('ProjectContext – save includes synced poses', () => {
     expect(ctx.currentProject.id).toBe(projectId)
 
     // Sync updated poses
-    const poses = new Map<string, { position: Vec3; rotation: Rotation }>([
-      [CAR_ID, { position: UPDATED_POSITION, rotation: UNCHANGED_ROTATION }],
+    const poses = new Map<string, { position: Vec3; rotation: Rotation; scale: Vec3 }>([
+      [CAR_ID, { position: UPDATED_POSITION, rotation: UNCHANGED_ROTATION, scale: UNCHANGED_SCALE }],
     ])
 
     act(() => {
@@ -164,8 +165,8 @@ describe('ProjectContext – save includes synced poses', () => {
     const ctx = captured.current!
 
     // Sync updated poses into the default world
-    const poses = new Map<string, { position: Vec3; rotation: Rotation }>([
-      [CAR_ID, { position: UPDATED_POSITION, rotation: UNCHANGED_ROTATION }],
+    const poses = new Map<string, { position: Vec3; rotation: Rotation; scale: Vec3 }>([
+      [CAR_ID, { position: UPDATED_POSITION, rotation: UNCHANGED_ROTATION, scale: UNCHANGED_SCALE }],
     ])
 
     act(() => {

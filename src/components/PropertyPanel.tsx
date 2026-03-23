@@ -29,7 +29,7 @@ export interface PropertyPanelProps {
   onEntityModelTransformChange?: (id: string, patch: { modelRotation?: Rotation; modelScale?: Vec3 }) => void
   onEntityTransformersChange?: (entityId: string, transformers: TransformerConfig[]) => void
   onRefreshFromPhysics?: (entityId: string) => void
-  livePoses?: Map<string, { position: Vec3; rotation: Rotation }> | null
+  livePoses?: Map<string, { position: Vec3; rotation: Rotation; scale?: Vec3 }> | null
 }
 
 export default function PropertyPanel({
@@ -73,7 +73,7 @@ export default function PropertyPanel({
   const livePose = livePoses?.get(entity.id)
   const displayPosition = livePose?.position ?? entity.position ?? [0, 0, 0]
   const displayRotation = livePose?.rotation ?? entity.rotation ?? [0, 0, 0]
-  const scale = entity.scale ?? [1, 1, 1]
+  const scale = livePose?.scale ?? entity.scale ?? [1, 1, 1]
   const modelRotation = entity.modelRotation ?? [0, 0, 0]
   const modelScale = entity.modelScale ?? [1, 1, 1]
   const isLocked = entity.locked ?? false

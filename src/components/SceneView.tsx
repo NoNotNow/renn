@@ -15,6 +15,7 @@ import { useKeyboardInput } from '@/hooks/useKeyboardInput'
 import {
   installBuilderPickAndGizmo,
   type BuilderGizmoMode,
+  type BuilderPoseCommit,
 } from '@/editor/transformGizmoController'
 import { getSceneUserData } from '@/types/sceneUserData'
 import { useRawKeyboardInput, useRawWheelInput, getRawInputSnapshot } from '@/input/rawInput'
@@ -35,20 +36,22 @@ export interface SceneViewProps {
   selectedEntityId?: string | null
   onSelectEntity?: (entityId: string | null) => void
   /** Builder: called after a gizmo drag ends with the committed pose. */
-  onEntityPoseCommit?: (entityId: string, pose: { position: Vec3; rotation: Rotation }) => void
+  onEntityPoseCommit?: (entityId: string, pose: BuilderPoseCommit) => void
   gizmoMode?: BuilderGizmoMode
   version?: number
   /** Ref set by parent before world update; applied to registry after reload and then cleared. */
-  initialPosesRef?: React.MutableRefObject<Map<string, { position: Vec3; rotation: Rotation }> | null>
+  initialPosesRef?: React.MutableRefObject<
+    Map<string, { position: Vec3; rotation: Rotation; scale?: Vec3 }> | null
+  >
   /** Called after initial poses are applied so parent can sync world state. */
-  onPosesRestored?: (poses: Map<string, { position: Vec3; rotation: Rotation }>) => void
+  onPosesRestored?: (poses: Map<string, { position: Vec3; rotation: Rotation; scale?: Vec3 }>) => void
 }
 
 export type EntityPhysicsPatch = Partial<Pick<Entity, 'mass' | 'restitution' | 'friction' | 'linearDamping' | 'angularDamping' | 'bodyType'>>
 
 export interface SceneViewHandle {
   setViewPreset: (preset: 'top' | 'front' | 'right') => void
-  updateEntityPose: (id: string, pose: { position?: Vec3; rotation?: Rotation }) => void
+  updateEntityPose: (id: string, pose: { position?: Vec3; rotation?: Rotation; scale?: Vec3 }) => void
   updateEntityPhysics: (id: string, patch: EntityPhysicsPatch) => void
   /** Hot-swaps geometry and rebuilds collider. Returns false for trimesh (caller must rebuild). */
   updateEntityShape: (id: string, entity: Entity) => boolean
@@ -58,7 +61,7 @@ export interface SceneViewHandle {
   updateEntityModelTransform: (id: string, patch: { modelRotation?: Rotation; modelScale?: Vec3 }) => void
   /** Sync entity.transformers to runtime chain (e.g. enabled flags) without scene reload. */
   syncEntityTransformers: (id: string, configs: TransformerConfig[] | undefined) => void
-  getAllPoses: () => Map<string, { position: Vec3; rotation: Rotation }> | null
+  getAllPoses: () => Map<string, { position: Vec3; rotation: Rotation; scale: Vec3 }> | null
   resetCamera: () => void
   applyDebugForce: (entityId: string, force: Vec3, duration: number) => void
 }
@@ -137,9 +140,10 @@ function SceneViewInner({
     setViewPreset: (preset: 'top' | 'front' | 'right') => {
       cameraCtrlRef.current?.setViewPreset(preset)
     },
-    updateEntityPose: (id: string, pose: { position?: Vec3; rotation?: Rotation }) => {
+    updateEntityPose: (id: string, pose: { position?: Vec3; rotation?: Rotation; scale?: Vec3 }) => {
       if (pose.position) registryRef.current?.setPosition(id, pose.position)
       if (pose.rotation) registryRef.current?.setRotation(id, pose.rotation)
+      if (pose.scale) registryRef.current?.setScale(id, pose.scale)
     },
     updateEntityPhysics: (id: string, patch: EntityPhysicsPatch) => {
       registryRef.current?.updatePhysics(id, patch)
@@ -366,6 +370,7 @@ function SceneViewInner({
                   if (registry.get(id)) {
                     registry.setPosition(id, pose.position)
                     registry.setRotation(id, pose.rotation)
+                    if (pose.scale) registry.setScale(id, pose.scale)
                   }
                 }
                 onPosesRestored?.(poses)
@@ -387,6 +392,7 @@ function SceneViewInner({
               if (registry.get(id)) {
                 registry.setPosition(id, pose.position)
                 registry.setRotation(id, pose.rotation)
+                if (pose.scale) registry.setScale(id, pose.scale)
               }
             }
             onPosesRestored?.(poses)

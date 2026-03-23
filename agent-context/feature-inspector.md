@@ -47,6 +47,10 @@ src/
 ├── data/entityDefaults.ts     # cloneEntityFrom(deep clone + id/name/pose)
 ```
 
+## Builder header: gizmo mode
+
+Move / Rotate / Scale toolbar buttons sit next to the **Shadows** switch in `BuilderHeader`. They set `gizmoMode` (`translate` | `rotate` | `scale`); shortcuts **G**, **R**, **S** match. Scale commits update `entity.scale` and rebuild the physics collider via `RenderItemRegistry.setScale` / `commitScalePhysics`.
+
 ## Scene picking (click → inspector)
 
 Selection in the 3D view uses a **raycaster** on entity meshes. GLTF/model entities have nested meshes; the first hit is often a **child** without `userData.entityId`. **Resolution**: `findEntityRootForPicking` in `src/utils/entityPicking.ts` walks parents until an object with `entityId` is found. **Load time**: `loadWorld.ts` also traverses each entity mesh and copies `entityId` / `entity` onto descendants so any intersected node identifies the entity. Drag plane uses the **root’s world position** so nested local positions do not skew the drag plane.

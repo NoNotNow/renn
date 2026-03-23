@@ -144,8 +144,8 @@ describe('RenderItemRegistry', () => {
     )
     const poses = registry.getAllPoses()
     expect(poses.size).toBe(2)
-    expect(poses.get('e1')).toEqual({ position: [1, 2, 3], rotation: [0, 0, 0] })
-    expect(poses.get('e2')).toEqual({ position: [4, 5, 6], rotation: [0, 1, 0] })
+    expect(poses.get('e1')).toEqual({ position: [1, 2, 3], rotation: [0, 0, 0], scale: [1, 1, 1] })
+    expect(poses.get('e2')).toEqual({ position: [4, 5, 6], rotation: [0, 1, 0], scale: [1, 1, 1] })
   })
 
   it('setColor updates mesh material color', () => {

@@ -128,6 +128,7 @@ describe('Builder', () => {
   })
 
   it('passes editor props to SceneView: selectedEntityId, onSelectEntity, onEntityPoseCommit, gizmoMode', async () => {
+    const user = userEvent.setup()
     renderBuilder()
     await act(async () => {
       await Promise.resolve()
@@ -137,6 +138,11 @@ describe('Builder', () => {
     expect(typeof sceneViewProps.onEntityPoseCommit).toBe('function')
     expect(sceneViewProps.gizmoMode).toBe('translate')
     expect(sceneViewProps.shadowsEnabled).toBe(true)
+    expect(screen.getByRole('group', { name: 'Gizmo mode' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Rotate gizmo' }))
+    expect(sceneViewProps.gizmoMode).toBe('rotate')
+    await user.click(screen.getByRole('button', { name: 'Scale gizmo' }))
+    expect(sceneViewProps.gizmoMode).toBe('scale')
   })
 
   it('passes shadowsEnabled false to SceneView when Shadows switch is toggled off', async () => {

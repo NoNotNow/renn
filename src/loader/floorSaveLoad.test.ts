@@ -59,7 +59,7 @@ async function simulateSaveLoadRoundTrip(world: RennWorld): Promise<{
 
   const updatedEntities = world.entities.map((e) => {
     const pose = allPoses.get(e.id)
-    return pose ? { ...e, position: pose.position, rotation: pose.rotation } : e
+    return pose ? { ...e, position: pose.position, rotation: pose.rotation, scale: pose.scale } : e
   })
   const savedWorld: RennWorld = { ...world, entities: updatedEntities }
 
@@ -160,7 +160,7 @@ describe('Floor save/load round-trip', () => {
       ...world,
       entities: world.entities.map((e) => {
         const pose = allPoses.get(e.id)
-        return pose ? { ...e, position: pose.position, rotation: pose.rotation } : e
+        return pose ? { ...e, position: pose.position, rotation: pose.rotation, scale: pose.scale } : e
       }),
     }
     physics1.dispose()
@@ -193,7 +193,7 @@ describe('Floor save/load round-trip', () => {
         ...currentWorld,
         entities: currentWorld.entities.map((e) => {
           const pose = allPoses.get(e.id)
-          return pose ? { ...e, position: pose.position, rotation: pose.rotation } : e
+          return pose ? { ...e, position: pose.position, rotation: pose.rotation, scale: pose.scale } : e
         }),
       }
 

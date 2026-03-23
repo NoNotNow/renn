@@ -27,7 +27,7 @@ export interface PropertySidebarProps {
   onEntityModelTransformChange?: (id: string, patch: { modelRotation?: Vec3; modelScale?: Vec3 }) => void
   onEntityTransformersChange?: (entityId: string, transformers: TransformerConfig[]) => void
   onRefreshFromPhysics?: (entityId: string) => void
-  livePoses?: Map<string, { position: Vec3; rotation: Rotation }> | null
+  livePoses?: Map<string, { position: Vec3; rotation: Rotation; scale?: Vec3 }> | null
   isOpen: boolean
   onToggle: () => void
 }

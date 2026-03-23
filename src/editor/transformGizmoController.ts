@@ -4,7 +4,13 @@ import { findEntityRootForPicking } from '@/utils/entityPicking'
 import type { RenderItemRegistry } from '@/runtime/renderItemRegistry'
 import type { Entity, Rotation, Vec3 } from '@/types/world'
 
-export type BuilderGizmoMode = 'translate' | 'rotate'
+export type BuilderGizmoMode = 'translate' | 'rotate' | 'scale'
+
+export interface BuilderPoseCommit {
+  position: Vec3
+  rotation: Rotation
+  scale: Vec3
+}
 
 export interface InstallBuilderPickAndGizmoParams {
   scene: THREE.Scene
@@ -15,13 +21,13 @@ export interface InstallBuilderPickAndGizmoParams {
   getSelectedId: () => string | null
   getGizmoMode: () => BuilderGizmoMode
   onSelectEntity: (id: string | null) => void
-  onPoseCommit: (entityId: string, pose: { position: Vec3; rotation: Rotation }) => void
+  onPoseCommit: (entityId: string, pose: BuilderPoseCommit) => void
   /** Set true while user drags a gizmo handle (for camera orbit gating). */
   setGizmoDragging: (dragging: boolean) => void
 }
 
 /**
- * Installs TransformControls (translate/rotate only) and click-to-select on the canvas.
+ * Installs TransformControls (translate / rotate / scale) and click-to-select on the canvas.
  * Selection listener is registered after TransformControls.connect() so pointerdown on handles
  * sets dragging before selection runs.
  */
@@ -56,8 +62,13 @@ export function installBuilderPickAndGizmo(
     if (!id || !reg) return
     const item = reg.get(id)
     if (!item) return
-    reg.setPosition(id, [obj.position.x, obj.position.y, obj.position.z])
-    reg.setRotation(id, item.getRotation())
+    const mode = p.getGizmoMode()
+    if (mode === 'scale') {
+      reg.patchScale(id, [obj.scale.x, obj.scale.y, obj.scale.z])
+    } else {
+      reg.setPosition(id, [obj.position.x, obj.position.y, obj.position.z])
+      reg.setRotation(id, item.getRotation())
+    }
   }
 
   const syncAttach = (): void => {
@@ -96,10 +107,15 @@ export function installBuilderPickAndGizmo(
     const id = obj.name
     const reg = p.getRegistry()
     if (!id || !reg) return
+    const mode = p.getGizmoMode()
+    if (mode === 'scale') {
+      reg.commitScalePhysics(id)
+    }
     const pos = reg.getPosition(id)
     const rot = reg.getRotation(id)
-    if (pos && rot) {
-      p.onPoseCommit(id, { position: pos, rotation: rot })
+    const scale = reg.getScale(id)
+    if (pos && rot && scale) {
+      p.onPoseCommit(id, { position: pos, rotation: rot, scale })
     }
   }
 

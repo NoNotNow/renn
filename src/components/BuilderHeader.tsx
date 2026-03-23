@@ -5,6 +5,9 @@ import DropdownMenu, { type MenuItemConfig } from './DropdownMenu'
 import type { ProjectMeta } from '@/persistence/types'
 import type { Vec3 } from '@/types/world'
 import { uiLogger } from '@/utils/uiLogger'
+import type { BuilderGizmoMode } from '@/editor/transformGizmoController'
+import { GizmoMoveIcon, GizmoRotateIcon, GizmoScaleIcon } from '@/components/GizmoModeIcons'
+import { entityPanelIconButtonStyle } from '@/components/sharedStyles'
 
 export interface BuilderHeaderProps {
   projects: ProjectMeta[]
@@ -27,6 +30,8 @@ export interface BuilderHeaderProps {
   onDeleteProject: (id: string) => void
   onPlay: () => void
   onShadowsChange: (enabled: boolean) => void
+  gizmoMode: BuilderGizmoMode
+  onGizmoModeChange: (mode: BuilderGizmoMode) => void
   fileInputRef: React.RefObject<HTMLInputElement | null>
   onFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void
   onResetCamera: () => void
@@ -50,6 +55,8 @@ export default function BuilderHeader({
   onDeleteProject,
   onPlay,
   onShadowsChange,
+  gizmoMode,
+  onGizmoModeChange,
   fileInputRef,
   onFileChange,
   onResetCamera,
@@ -220,6 +227,75 @@ export default function BuilderHeader({
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 12px' }}>
+          <div
+            role="group"
+            aria-label="Gizmo mode"
+            style={{ display: 'flex', alignItems: 'center', gap: 4 }}
+          >
+            <button
+              type="button"
+              title="Move (G)"
+              aria-label="Move gizmo"
+              aria-pressed={gizmoMode === 'translate'}
+              onClick={() => onGizmoModeChange('translate')}
+              style={{
+                ...entityPanelIconButtonStyle,
+                display: 'flex',
+                background: gizmoMode === 'translate' ? '#2a3142' : 'transparent',
+                opacity: gizmoMode === 'translate' ? 1 : 0.85,
+              }}
+              onMouseEnter={(e) => {
+                if (gizmoMode !== 'translate') e.currentTarget.style.opacity = '1'
+              }}
+              onMouseLeave={(e) => {
+                if (gizmoMode !== 'translate') e.currentTarget.style.opacity = '0.85'
+              }}
+            >
+              {GizmoMoveIcon}
+            </button>
+            <button
+              type="button"
+              title="Rotate (R)"
+              aria-label="Rotate gizmo"
+              aria-pressed={gizmoMode === 'rotate'}
+              onClick={() => onGizmoModeChange('rotate')}
+              style={{
+                ...entityPanelIconButtonStyle,
+                display: 'flex',
+                background: gizmoMode === 'rotate' ? '#2a3142' : 'transparent',
+                opacity: gizmoMode === 'rotate' ? 1 : 0.85,
+              }}
+              onMouseEnter={(e) => {
+                if (gizmoMode !== 'rotate') e.currentTarget.style.opacity = '1'
+              }}
+              onMouseLeave={(e) => {
+                if (gizmoMode !== 'rotate') e.currentTarget.style.opacity = '0.85'
+              }}
+            >
+              {GizmoRotateIcon}
+            </button>
+            <button
+              type="button"
+              title="Scale (S)"
+              aria-label="Scale gizmo"
+              aria-pressed={gizmoMode === 'scale'}
+              onClick={() => onGizmoModeChange('scale')}
+              style={{
+                ...entityPanelIconButtonStyle,
+                display: 'flex',
+                background: gizmoMode === 'scale' ? '#2a3142' : 'transparent',
+                opacity: gizmoMode === 'scale' ? 1 : 0.85,
+              }}
+              onMouseEnter={(e) => {
+                if (gizmoMode !== 'scale') e.currentTarget.style.opacity = '1'
+              }}
+              onMouseLeave={(e) => {
+                if (gizmoMode !== 'scale') e.currentTarget.style.opacity = '0.85'
+              }}
+            >
+              {GizmoScaleIcon}
+            </button>
+          </div>
           <Switch
             size="compact"
             checked={shadowsEnabled}

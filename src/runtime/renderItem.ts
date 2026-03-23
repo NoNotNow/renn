@@ -78,6 +78,24 @@ export class RenderItem {
     }
   }
 
+  /** Mesh scale (entity scale); used by collider and gizmo scale mode. */
+  getScale(): Vec3 {
+    return [this.mesh.scale.x, this.mesh.scale.y, this.mesh.scale.z]
+  }
+
+  /**
+   * Updates mesh scale and serialised entity only (no physics).
+   * Used while dragging the scale gizmo; caller commits physics separately.
+   */
+  patchScale(v: Vec3): void {
+    const [sx, sy, sz] = v
+    this.mesh.scale.set(sx, sy, sz)
+    this.entity = { ...this.entity, scale: v }
+    if (this.mesh.userData.entity !== undefined) {
+      this.mesh.userData.entity = this.entity
+    }
+  }
+
   /** Whether pose is driven by physics (body) or from entity. */
   hasPhysicsBody(): boolean {
     return this.body != null

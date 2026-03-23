@@ -58,9 +58,9 @@ interface ProjectContextActions {
   updateAssets: (updater: (prev: Map<string, Blob>) => Map<string, Blob>) => void
   
   // State sync
-  syncPosesFromScene: (poses: Map<string, { position: Vec3; rotation: Rotation }>) => void
+  syncPosesFromScene: (poses: Map<string, { position: Vec3; rotation: Rotation; scale?: Vec3 }>) => void
   /** Updates only worldRef (no re-render). Use before save so save uses latest poses; flush state after save. */
-  syncPosesToRefOnly: (poses: Map<string, { position: Vec3; rotation: Rotation }>) => void
+  syncPosesToRefOnly: (poses: Map<string, { position: Vec3; rotation: Rotation; scale?: Vec3 }>) => void
   
   // Export/Import
   exportProject: () => void
@@ -377,19 +377,25 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     setCurrentProject((prev) => ({ ...prev, isDirty: true }))
   }, [])
   
-  const mergePosesIntoWorld = useCallback((poses: Map<string, { position: Vec3; rotation: Rotation }>): RennWorld => ({
+  const mergePosesIntoWorld = useCallback((poses: Map<string, { position: Vec3; rotation: Rotation; scale?: Vec3 }>): RennWorld => ({
     ...worldRef.current,
     entities: worldRef.current.entities.map((e) => {
       const pose = poses.get(e.id)
-      return pose ? { ...e, position: pose.position, rotation: pose.rotation } : e
+      if (!pose) return e
+      return {
+        ...e,
+        position: pose.position,
+        rotation: pose.rotation,
+        ...(pose.scale !== undefined ? { scale: pose.scale } : {}),
+      }
     }),
   }), [])
 
-  const syncPosesToRefOnly = useCallback((poses: Map<string, { position: Vec3; rotation: Rotation }>) => {
+  const syncPosesToRefOnly = useCallback((poses: Map<string, { position: Vec3; rotation: Rotation; scale?: Vec3 }>) => {
     worldRef.current = mergePosesIntoWorld(poses)
   }, [mergePosesIntoWorld])
 
-  const syncPosesFromScene = useCallback((poses: Map<string, { position: Vec3; rotation: Rotation }>) => {
+  const syncPosesFromScene = useCallback((poses: Map<string, { position: Vec3; rotation: Rotation; scale?: Vec3 }>) => {
     const merged = mergePosesIntoWorld(poses)
     worldRef.current = merged
     setWorld(merged)

@@ -176,6 +176,29 @@ export class RenderItemRegistry {
     this.setRotation(id, [0, 0, 0])
   }
 
+  getScale(id: string): Vec3 | null {
+    const item = this.items.get(id)
+    return item ? item.getScale() : null
+  }
+
+  /** Mesh + entity only; use during scale gizmo drag. */
+  patchScale(id: string, v: Vec3): void {
+    this.items.get(id)?.patchScale(v)
+  }
+
+  /** Rebuild collider after scale gizmo drag (or external scale apply). */
+  commitScalePhysics(id: string): void {
+    const item = this.items.get(id)
+    if (!item || !this.physicsWorld) return
+    this.physicsWorld.updateShape(id, item.entity, item.mesh)
+  }
+
+  /** Apply scale to mesh/entity and rebuild physics collider (inspector / pose sync). */
+  setScale(id: string, v: Vec3): void {
+    this.patchScale(id, v)
+    this.commitScalePhysics(id)
+  }
+
   /**
    * Apply model transform (rotation/scale) to the mesh's model scene and, for trimesh, rebuild the collider.
    * Used for incremental updates so changing modelRotation/modelScale does not trigger a full world reload.
@@ -535,12 +558,13 @@ export class RenderItemRegistry {
    * Get all current poses (position and rotation) for all entities.
    * Used to preserve poses across scene reloads.
    */
-  getAllPoses(): Map<string, { position: Vec3; rotation: Rotation }> {
-    const poses = new Map<string, { position: Vec3; rotation: Rotation }>()
+  getAllPoses(): Map<string, { position: Vec3; rotation: Rotation; scale: Vec3 }> {
+    const poses = new Map<string, { position: Vec3; rotation: Rotation; scale: Vec3 }>()
     for (const [id, item] of this.items) {
       poses.set(id, {
         position: item.getPosition(),
         rotation: item.getRotation(),
+        scale: item.getScale(),
       })
     }
     return poses
