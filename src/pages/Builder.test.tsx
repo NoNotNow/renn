@@ -127,14 +127,15 @@ describe('Builder', () => {
     expect(newEntityButton).toHaveStyle({ background: '#2b3550' })
   })
 
-  it('passes editor props to SceneView: selectedEntityId, onSelectEntity, onEntityPositionChange', async () => {
+  it('passes editor props to SceneView: selectedEntityId, onSelectEntity, onEntityPoseCommit, gizmoMode', async () => {
     renderBuilder()
     await act(async () => {
       await Promise.resolve()
     })
     expect(sceneViewProps.selectedEntityId).toBe(null)
     expect(typeof sceneViewProps.onSelectEntity).toBe('function')
-    expect(typeof sceneViewProps.onEntityPositionChange).toBe('function')
+    expect(typeof sceneViewProps.onEntityPoseCommit).toBe('function')
+    expect(sceneViewProps.gizmoMode).toBe('translate')
     expect(sceneViewProps.shadowsEnabled).toBe(true)
   })
 

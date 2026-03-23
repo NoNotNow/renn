@@ -12,7 +12,10 @@ import { ScriptRunner } from '@/scripts/scriptRunner'
 import type { PhysicsWorld } from '@/physics/rapierPhysics'
 import { RenderItemRegistry } from '@/runtime/renderItemRegistry'
 import { useKeyboardInput } from '@/hooks/useKeyboardInput'
-import { useEditorInteractions } from '@/hooks/useEditorInteractions'
+import {
+  installBuilderPickAndGizmo,
+  type BuilderGizmoMode,
+} from '@/editor/transformGizmoController'
 import { getSceneUserData } from '@/types/sceneUserData'
 import { useRawKeyboardInput, useRawWheelInput, getRawInputSnapshot } from '@/input/rawInput'
 import { useRawMouseDrag } from '@/input/rawMouseDrag'
@@ -31,7 +34,9 @@ export interface SceneViewProps {
   className?: string
   selectedEntityId?: string | null
   onSelectEntity?: (entityId: string | null) => void
-  onEntityPositionChange?: (entityId: string, position: Vec3) => void
+  /** Builder: called after a gizmo drag ends with the committed pose. */
+  onEntityPoseCommit?: (entityId: string, pose: { position: Vec3; rotation: Rotation }) => void
+  gizmoMode?: BuilderGizmoMode
   version?: number
   /** Ref set by parent before world update; applied to registry after reload and then cleared. */
   initialPosesRef?: React.MutableRefObject<Map<string, { position: Vec3; rotation: Rotation }> | null>
@@ -66,9 +71,10 @@ function SceneViewInner({
   runScripts = true,
   shadowsEnabled = true,
   className = '',
-  selectedEntityId: _selectedEntityId,
+  selectedEntityId = null,
   onSelectEntity,
-  onEntityPositionChange,
+  onEntityPoseCommit,
+  gizmoMode = 'translate',
   version = 0,
   initialPosesRef,
   onPosesRestored,
@@ -103,15 +109,29 @@ function SceneViewInner({
   // Active debug forces: { entityId, force, endTime }[]
   const activeDebugForcesRef = useRef<Array<{ entityId: string; force: Vec3; endTime: number }>>([])
 
-  useEditorInteractions({
-    scene,
-    camera,
-    renderer,
-    physicsRef,
-    registryRef,
-    onSelectEntity,
-    onEntityPositionChange,
-  })
+  const worldRef = useRef(world)
+  worldRef.current = world
+  const [registryEpoch, setRegistryEpoch] = useState(0)
+  const gizmoDraggingRef = useRef(false)
+  const disposePickGizmoRef = useRef<(() => void) | null>(null)
+  const syncGizmoAttachRef = useRef<(() => void) | null>(null)
+  const selectedEntityIdRef = useRef<string | null>(null)
+  const gizmoModeRef = useRef<BuilderGizmoMode>('translate')
+  const onSelectEntityRef = useRef(onSelectEntity)
+  const onEntityPoseCommitRef = useRef(onEntityPoseCommit)
+
+  selectedEntityIdRef.current = selectedEntityId ?? null
+  gizmoModeRef.current = gizmoMode
+  onSelectEntityRef.current = onSelectEntity
+  onEntityPoseCommitRef.current = onEntityPoseCommit
+
+  const selectedEntityLocked =
+    selectedEntityId != null &&
+    world.entities.find((e) => e.id === selectedEntityId)?.locked === true
+
+  useEffect(() => {
+    syncGizmoAttachRef.current?.()
+  }, [selectedEntityId, gizmoMode, selectedEntityLocked, sceneKey, registryEpoch])
 
   useImperativeHandle(ref, () => ({
     setViewPreset: (preset: 'top' | 'front' | 'right') => {
@@ -299,6 +319,31 @@ function SceneViewInner({
       cam.aspect = w / h
       cam.updateProjectionMatrix()
 
+      const installPickGizmoIfBuilder = (): void => {
+        if (cancelled || effectIdRef.current !== currentEffectId) return
+        if (!onSelectEntityRef.current || !onEntityPoseCommitRef.current) return
+        if (!cam || !rend) return
+        if (!registryRef.current) return
+        disposePickGizmoRef.current?.()
+        const { dispose, syncAttach } = installBuilderPickAndGizmo({
+          scene: loadedScene,
+          camera: cam,
+          domElement: rend.domElement,
+          getRegistry: () => registryRef.current,
+          getEntity: (id) => worldRef.current.entities.find((e) => e.id === id),
+          getSelectedId: () => selectedEntityIdRef.current,
+          getGizmoMode: () => gizmoModeRef.current,
+          onSelectEntity: (id) => onSelectEntityRef.current?.(id),
+          onPoseCommit: (entityId, pose) => onEntityPoseCommitRef.current?.(entityId, pose),
+          setGizmoDragging: (d) => {
+            gizmoDraggingRef.current = d
+          },
+        })
+        disposePickGizmoRef.current = dispose
+        syncGizmoAttachRef.current = syncAttach
+        syncAttach()
+      }
+
       // Initialize physics
       if (runPhysics) {
         const gravity = loadedWorld.world.gravity ?? DEFAULT_GRAVITY
@@ -326,6 +371,8 @@ function SceneViewInner({
                 onPosesRestored?.(poses)
                 if (initialPosesRef) initialPosesRef.current = null
               }
+              installPickGizmoIfBuilder()
+              setRegistryEpoch((n) => n + 1)
             }
           })
         })
@@ -345,6 +392,8 @@ function SceneViewInner({
             onPosesRestored?.(poses)
             if (initialPosesRef) initialPosesRef.current = null
           }
+          installPickGizmoIfBuilder()
+          setRegistryEpoch((n) => n + 1)
         }
       }
 
@@ -440,9 +489,10 @@ function SceneViewInner({
           }
           const drag = rawMouseDragRef.current
           const orbitWheel = orbitWheelRef.current
+          const skipOrbitFromDrag = gizmoDraggingRef.current
           // Yaw: drag + trackpad deltaX; Pitch: drag + trackpad deltaY
-          const orbitDx = (drag?.deltaX ?? 0) + orbitWheel.deltaX
-          const orbitDy = (drag?.deltaY ?? 0) + orbitWheel.deltaY
+          const orbitDx = skipOrbitFromDrag ? 0 : (drag?.deltaX ?? 0) + orbitWheel.deltaX
+          const orbitDy = skipOrbitFromDrag ? 0 : (drag?.deltaY ?? 0) + orbitWheel.deltaY
           if (orbitDx !== 0 || orbitDy !== 0) {
             ctrl.setOrbitDelta(orbitDx, orbitDy)
           }
@@ -482,6 +532,11 @@ function SceneViewInner({
     return () => {
       // Set cancelled first to stop animation loop
       cancelled = true
+
+      disposePickGizmoRef.current?.()
+      disposePickGizmoRef.current = null
+      syncGizmoAttachRef.current = null
+      gizmoDraggingRef.current = false
       
       // Dispose asset resolver
       if (assetResolverRef.current) {

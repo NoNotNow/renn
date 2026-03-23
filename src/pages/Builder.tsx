@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useMemo, useEffect, type SetStateAction } from 'react'
+import { useState, useCallback, useRef, useMemo, useEffect } from 'react'
 import SceneView, { type SceneViewHandle } from '@/components/SceneView'
 import BuilderHeader from '@/components/BuilderHeader'
 import SaveDialog from '@/components/SaveDialog'
@@ -13,6 +13,7 @@ import { cycleCameraMode, type Vec3, type Rotation, type Entity } from '@/types/
 import { uiLogger } from '@/utils/uiLogger'
 import { getSceneDependencyKey } from '@/utils/sceneDependencyKey'
 import type { TransformerConfig } from '@/types/transformer'
+import type { BuilderGizmoMode } from '@/editor/transformGizmoController'
 
 export default function Builder() {
   const {
@@ -47,6 +48,7 @@ export default function Builder() {
   } = useProjectContext()
 
   const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null)
+  const [gizmoMode, setGizmoMode] = useState<BuilderGizmoMode>('translate')
   const [shadowsEnabled, setShadowsEnabled] = useState(true)
   const [showSaveDialog, setShowSaveDialog] = useState(false)
   const [livePoses, setLivePoses] = useState<Map<string, { position: Vec3; rotation: Rotation }> | null>(null)
@@ -94,6 +96,32 @@ export default function Builder() {
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [setCameraMode])
+
+  useEffect(() => {
+    const isEditableElement = (): boolean => {
+      const el = document.activeElement
+      if (!el) return false
+      const tag = el.tagName
+      return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (el as HTMLElement).isContentEditable
+    }
+
+    const onKeyDown = (e: KeyboardEvent): void => {
+      const k = e.key.toLowerCase()
+      if (k !== 'g' && k !== 'r') return
+      if (isEditableElement()) return
+      e.preventDefault()
+      if (k === 'g') {
+        setGizmoMode('translate')
+        uiLogger.change('Builder', 'Gizmo mode translate', {})
+      } else {
+        setGizmoMode('rotate')
+        uiLogger.change('Builder', 'Gizmo mode rotate', {})
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
 
   const handleAddEntity = useCallback(
     (shapeType: AddableShapeType) => {
@@ -152,11 +180,21 @@ export default function Builder() {
     [world.entities, selectedEntityId, cameraTarget, updateWorld, setCameraTarget, captureScenePosesForNextRebuild]
   )
 
-  const handleEntityPositionChange = useCallback(
-    (entityId: string, position: Vec3) => {
-      sceneViewRef.current?.updateEntityPose(entityId, { position })
+  const handleEntityPoseCommit = useCallback(
+    (entityId: string, pose: { position: Vec3; rotation: Rotation }) => {
+      sceneViewRef.current?.updateEntityPose(entityId, {
+        position: pose.position,
+        rotation: pose.rotation,
+      })
+      updateWorld((prev) => ({
+        ...prev,
+        entities: prev.entities.map((e) =>
+          e.id === entityId ? { ...e, position: pose.position, rotation: pose.rotation } : e
+        ),
+      }))
+      uiLogger.change('Builder', 'Gizmo pose commit', { entityId })
     },
-    []
+    [updateWorld]
   )
 
   const handleNew = useCallback(() => {
@@ -453,7 +491,8 @@ export default function Builder() {
               shadowsEnabled={shadowsEnabled}
               selectedEntityId={selectedEntityId}
               onSelectEntity={setSelectedEntityId}
-              onEntityPositionChange={handleEntityPositionChange}
+              onEntityPoseCommit={handleEntityPoseCommit}
+              gizmoMode={gizmoMode}
               initialPosesRef={initialPosesRef}
               onPosesRestored={syncPosesFromScene}
             />

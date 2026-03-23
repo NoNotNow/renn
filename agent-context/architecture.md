@@ -65,9 +65,10 @@ renn/
 │   ├── data/
 │   │   ├── sampleWorld.ts    # Default world (ground + ball + script)
 │   │   └── entityDefaults.ts # createDefaultEntity(), getDefaultShapeForType()
+│   ├── editor/
+│   │   └── transformGizmoController.ts # Builder: TransformControls + click-to-select; translate/rotate gizmo
 │   ├── hooks/
 │   │   ├── useProjectContext.ts    # Access ProjectContext
-│   │   ├── useEditorInteractions.ts # Raycast select, drag-to-move entity position
 │   │   ├── useKeyboardInput.ts     # WASD free-fly input
 │   │   └── useLocalStorageState.ts # Persist UI state to localStorage
 │   ├── utils/
@@ -127,7 +128,7 @@ renn/
 1. User works in **Builder** (`/`): **ProjectContext** holds `currentProject` (id, name, isDirty), `world`, `assets`, `projects`, camera state; provides actions for project CRUD via IndexedDB.
 2. Layout: **BuilderHeader** (toolbar + gravity/shadows toggles); **EntitySidebar** (entity list, add-entity dropdown, camera control/target/mode); **SceneView** (main canvas); **PropertySidebar** (tabs: Properties, Scripts, Assets).
 3. **SceneView** receives `world` (and optional `assets`). It calls **loadWorld(world)** → scene + entities; then creates **RenderItemRegistry**, sets up **Rapier** (with cached transforms), **CameraController**, **ScriptRunner**, and the render loop.
-4. **useEditorInteractions** (raycast + drag): click entity to select; drag to move. Selection and entity changes call `updateWorld()` from ProjectContext, marking project as dirty.
+4. **Builder viewport** ([transformGizmoController.ts](src/editor/transformGizmoController.ts)): click entity to select, click empty to deselect; **TransformControls** (Three.js addon) for **translate** and **rotate** only (shortcuts **G** / **R**). **Locked** entities can be selected but have no gizmo. **Sizing** stays in the Properties shape fields, not the gizmo. On drag end, pose is written via `updateWorld()` (dirty). **SceneView** disables camera orbit while the gizmo is dragging.
 5. Entity list, **PropertyPanel** (shape, transform, physics, material, delete), **ScriptPanel**, and **AssetPanel** read/write via `updateWorld()` and `updateAssets()` from ProjectContext. Changes trigger SceneView to re-run its effect and rebuild the scene.
 6. **RenderItemRegistry**: manages all entity render items; syncs physics body transforms to meshes each frame using cached transforms (avoiding WASM aliasing).
 7. **Export**: ZIP = `world.json` + `assets/{id}.{ext}`; or JSON only when unsaved. **Import**: parse ZIP/JSON, validate world, save as new project (replace UI can be added).

@@ -66,7 +66,7 @@ describe('SceneView', () => {
 
   it('renders without error when given editor props', () => {
     const onSelectEntity = vi.fn()
-    const onEntityPositionChange = vi.fn()
+    const onEntityPoseCommit = vi.fn()
     expect(() => {
       render(
         <SceneView
@@ -75,12 +75,12 @@ describe('SceneView', () => {
           runScripts={false}
           selectedEntityId={null}
           onSelectEntity={onSelectEntity}
-          onEntityPositionChange={onEntityPositionChange}
+          onEntityPoseCommit={onEntityPoseCommit}
         />
       )
     }).not.toThrow()
     expect(onSelectEntity).not.toHaveBeenCalled()
-    expect(onEntityPositionChange).not.toHaveBeenCalled()
+    expect(onEntityPoseCommit).not.toHaveBeenCalled()
   })
 
   it('renders without error when shadowsEnabled is false', () => {

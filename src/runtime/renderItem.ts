@@ -30,12 +30,16 @@ export class RenderItem {
     return this.entity.position ?? DEFAULT_POSITION
   }
 
-  /** Writes position to body + mesh (and mesh only for static). Does not write back to entity. */
+  /** Writes position to body + mesh (and mesh only for static). Syncs serialised entity for static reads. */
   setPosition(v: Vec3): void {
     const [x, y, z] = v
     this.mesh.position.set(x, y, z)
     if (this.body) {
       this.body.setTranslation({ x, y, z }, true)
+    }
+    this.entity = { ...this.entity, position: v }
+    if (this.mesh.userData.entity !== undefined) {
+      this.mesh.userData.entity = this.entity
     }
   }
 
@@ -56,7 +60,7 @@ export class RenderItem {
 
   /** Writes rotation to body + mesh (and mesh only for static).
    *  Re-applies visual base quaternion so the mesh renders correctly.
-   *  Does not write back to entity. */
+   *  Syncs serialised entity for static reads. */
   setRotation(v: Rotation): void {
     const quat = new THREE.Quaternion().setFromEuler(new THREE.Euler(v[0], v[1], v[2], 'XYZ'))
     const baseQ = this.mesh.userData.visualBaseQuaternion as THREE.Quaternion | undefined
@@ -67,6 +71,10 @@ export class RenderItem {
     if (this.body) {
       const rapierQuat = eulerToRapierQuaternion(v)
       this.body.setRotation(rapierQuat, true)
+    }
+    this.entity = { ...this.entity, rotation: v }
+    if (this.mesh.userData.entity !== undefined) {
+      this.mesh.userData.entity = this.entity
     }
   }
 
