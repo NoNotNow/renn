@@ -30,6 +30,8 @@ export function installBuilderPickAndGizmo(
 ): { dispose: () => void; syncAttach: () => void } {
   const controls = new TransformControls(p.camera, p.domElement)
   controls.setMode('translate')
+  /** Align gizmo axes with the attached object (not world X/Y/Z). */
+  controls.setSpace('local')
 
   const helper = controls.getHelper()
   p.scene.add(helper)
@@ -70,6 +72,7 @@ export function installBuilderPickAndGizmo(
     if (obj instanceof THREE.Mesh) {
       const mode = p.getGizmoMode()
       controls.setMode(mode)
+      controls.setSpace('local')
       if (controls.object !== obj) {
         controls.attach(obj)
       }
