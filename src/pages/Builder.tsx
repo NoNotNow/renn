@@ -14,7 +14,7 @@ import { cycleCameraMode, DEFAULT_SCALE, type Vec3, type Rotation, type Entity }
 import { uiLogger } from '@/utils/uiLogger'
 import { getSceneDependencyKey } from '@/utils/sceneDependencyKey'
 import type { TransformerConfig } from '@/types/transformer'
-import type { BuilderGizmoMode, BuilderPoseCommit } from '@/editor/transformGizmoController'
+import type { BuilderGizmoMode, BuilderPoseCommitEntry } from '@/editor/transformGizmoController'
 import { cloneEditorSnapshot, createEditorHistory, type EditorSnapshot } from '@/editor/editorHistory'
 
 const EDITOR_HISTORY_MAX_DEPTH = 80
@@ -53,7 +53,23 @@ export default function Builder() {
     setCameraMode,
   } = useProjectContext()
 
-  const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null)
+  const [selectedEntityIds, setSelectedEntityIds] = useState<string[]>([])
+
+  const handleSelectEntity = useCallback((id: string | null, options?: { additive?: boolean }) => {
+    const additive = Boolean(options?.additive)
+    setSelectedEntityIds((prev) => {
+      if (id === null) return []
+      if (!additive) return [id]
+      const idx = prev.indexOf(id)
+      if (idx >= 0) return prev.filter((x) => x !== id)
+      return [...prev, id]
+    })
+    if (id !== null) {
+      uiLogger.click('Builder', 'Select entity', { entityId: id, additive })
+    } else {
+      uiLogger.click('Builder', 'Clear entity selection', {})
+    }
+  }, [])
   const [gizmoMode, setGizmoMode] = useState<BuilderGizmoMode>('translate')
   const [shadowsEnabled, setShadowsEnabled] = useState(true)
   const [showSaveDialog, setShowSaveDialog] = useState(false)
@@ -84,9 +100,7 @@ export default function Builder() {
     (snap: EditorSnapshot) => {
       initialPosesRef.current = null
       applyEditorSnapshot(snap)
-      setSelectedEntityId((sel) =>
-        sel && !snap.world.entities.some((e) => e.id === sel) ? null : sel
-      )
+      setSelectedEntityIds((ids) => ids.filter((id) => snap.world.entities.some((e) => e.id === id)))
       const nextCameraTarget =
         cameraTarget && snap.world.entities.some((e) => e.id === cameraTarget)
           ? cameraTarget
@@ -171,6 +185,12 @@ export default function Builder() {
         handleRedo()
         return
       }
+      if (e.key === 'Escape') {
+        if (isEditableElement()) return
+        e.preventDefault()
+        setSelectedEntityIds([])
+        return
+      }
       if (e.code !== 'Digit0' && e.code !== 'Numpad0') return
       if (isEditableElement()) return
       e.preventDefault()
@@ -183,7 +203,7 @@ export default function Builder() {
 
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [setCameraMode, handleUndo, handleRedo])
+  }, [setCameraMode, handleUndo, handleRedo, setSelectedEntityIds])
 
   const handleAddEntity = useCallback(
     (shapeType: AddableShapeType) => {
@@ -195,7 +215,7 @@ export default function Builder() {
         ...prev,
         entities: [...prev.entities, newEntity],
       }))
-      setSelectedEntityId(newEntity.id)
+      setSelectedEntityIds([newEntity.id])
     },
     [updateWorld, captureScenePosesForNextRebuild, pushHistory]
   )
@@ -216,33 +236,32 @@ export default function Builder() {
       }))
       // Select the first created entity
       if (newEntities.length > 0) {
-        setSelectedEntityId(newEntities[0].id)
+        setSelectedEntityIds([newEntities[0]!.id])
       }
     },
     [updateWorld, captureScenePosesForNextRebuild, pushHistory]
   )
 
-  const handleDeleteEntity = useCallback(
-    (entityId: string) => {
-      const entity = world.entities.find((e) => e.id === entityId)
-      
-      // Prevent deletion of locked entities
-      if (entity?.locked) {
-        alert('Cannot delete a locked entity. Unlock it first.')
+  const handleDeleteEntities = useCallback(
+    (entityIds: string[]) => {
+      if (entityIds.length === 0) return
+      const idSet = new Set(entityIds)
+      const locked = entityIds.filter((id) => world.entities.find((e) => e.id === id)?.locked)
+      if (locked.length > 0) {
+        alert('Cannot delete: one or more selected entities are locked. Unlock them first.')
         return
       }
-      
-      uiLogger.delete('Builder', 'Delete entity', { entityId, entityName: entity?.name })
       pushHistory()
       captureScenePosesForNextRebuild()
-      const newEntities = world.entities.filter((e) => e.id !== entityId)
+      const newEntities = world.entities.filter((e) => !idSet.has(e.id))
       updateWorld((prev) => ({ ...prev, entities: newEntities }))
-      if (selectedEntityId === entityId) setSelectedEntityId(null)
-      if (cameraTarget === entityId) {
+      setSelectedEntityIds((sel) => sel.filter((id) => !idSet.has(id)))
+      if (cameraTarget && idSet.has(cameraTarget)) {
         setCameraTarget(newEntities[0]?.id ?? '')
       }
+      uiLogger.delete('Builder', 'Delete entities', { entityIds, count: entityIds.length })
     },
-    [world.entities, selectedEntityId, cameraTarget, updateWorld, setCameraTarget, captureScenePosesForNextRebuild, pushHistory]
+    [world.entities, cameraTarget, updateWorld, setCameraTarget, captureScenePosesForNextRebuild, pushHistory]
   )
 
   const handleGizmoModeChange = useCallback((mode: BuilderGizmoMode) => {
@@ -251,29 +270,33 @@ export default function Builder() {
   }, [])
 
   const handleEntityPoseCommit = useCallback(
-    (entityId: string, pose: BuilderPoseCommit) => {
+    (commits: BuilderPoseCommitEntry[]) => {
+      if (commits.length === 0) return
       pushHistory()
-      sceneViewRef.current?.updateEntityPose(entityId, {
-        position: pose.position,
-        rotation: pose.rotation,
-        scale: pose.scale,
-      })
+      for (const { entityId, pose } of commits) {
+        sceneViewRef.current?.updateEntityPose(entityId, {
+          position: pose.position,
+          rotation: pose.rotation,
+          scale: pose.scale,
+        })
+      }
+      const byId = new Map(commits.map((c) => [c.entityId, c.pose] as const))
       updateWorld((prev) => ({
         ...prev,
-        entities: prev.entities.map((e) =>
-          e.id === entityId
-            ? {
-                ...e,
-                position: pose.position,
-                rotation: pose.rotation,
-                scale: pose.scale,
-                ...(pose.shape !== undefined ? { shape: pose.shape } : {}),
-                ...(pose.modelScale !== undefined ? { modelScale: pose.modelScale } : {}),
-              }
-            : e
-        ),
+        entities: prev.entities.map((e) => {
+          const pose = byId.get(e.id)
+          if (!pose) return e
+          return {
+            ...e,
+            position: pose.position,
+            rotation: pose.rotation,
+            scale: pose.scale,
+            ...(pose.shape !== undefined ? { shape: pose.shape } : {}),
+            ...(pose.modelScale !== undefined ? { modelScale: pose.modelScale } : {}),
+          }
+        }),
       }))
-      uiLogger.change('Builder', 'Gizmo pose commit', { entityId })
+      uiLogger.change('Builder', 'Gizmo pose commit', { count: commits.length, entityIds: commits.map((c) => c.entityId) })
     },
     [updateWorld, pushHistory]
   )
@@ -325,68 +348,82 @@ export default function Builder() {
         ...prev,
         entities: [...prev.entities, cloned],
       }))
-      setSelectedEntityId(cloned.id)
+      setSelectedEntityIds([cloned.id])
     },
     [world.entities, getCurrentPose, updateWorld, captureScenePosesForNextRebuild, pushHistory]
   )
 
   const handleEntityPoseChange = useCallback(
-    (id: string, pose: { position?: Vec3; rotation?: Rotation; scale?: Vec3 }) => {
-      sceneViewRef.current?.updateEntityPose(id, pose)
+    (ids: string[], pose: { position?: Vec3; rotation?: Rotation; scale?: Vec3 }) => {
+      for (const id of ids) {
+        sceneViewRef.current?.updateEntityPose(id, pose)
+      }
     },
     []
   )
 
-  const handleEntityPhysicsChange = useCallback((id: string, patch: Partial<Entity>) => {
-    sceneViewRef.current?.updateEntityPhysics(id, patch)
+  const handleEntityPhysicsChange = useCallback((ids: string[], patch: Partial<Entity>) => {
+    for (const id of ids) {
+      sceneViewRef.current?.updateEntityPhysics(id, patch)
+    }
+    const idSet = new Set(ids)
     updateWorld((prev) => ({
       ...prev,
-      entities: prev.entities.map((e) => (e.id === id ? { ...e, ...patch } : e)),
+      entities: prev.entities.map((e) => (idSet.has(e.id) ? { ...e, ...patch } : e)),
     }))
   }, [updateWorld])
 
-  const handleEntityMaterialChange = useCallback((id: string, patch: Partial<Entity>) => {
-    const updatedEntity = { ...world.entities.find((e) => e.id === id)!, ...patch }
-    void sceneViewRef.current?.updateEntityMaterial(id, updatedEntity)
+  const handleEntityMaterialChange = useCallback((ids: string[], patch: Partial<Entity>) => {
+    for (const id of ids) {
+      const base = world.entities.find((e) => e.id === id)
+      if (base) void sceneViewRef.current?.updateEntityMaterial(id, { ...base, ...patch })
+    }
+    const idSet = new Set(ids)
     updateWorld((prev) => ({
       ...prev,
-      entities: prev.entities.map((e) => (e.id === id ? { ...e, ...patch } : e)),
+      entities: prev.entities.map((e) => (idSet.has(e.id) ? { ...e, ...patch } : e)),
     }))
   }, [world.entities, updateWorld])
 
-  const handleEntityShapeChange = useCallback((id: string, patch: Partial<Entity>) => {
-    const updatedEntity = { ...world.entities.find((e) => e.id === id)!, ...patch }
-    const applied = sceneViewRef.current?.updateEntityShape(id, updatedEntity) ?? false
-    if (applied) {
+  const handleEntityShapeChange = useCallback(
+    (ids: string[], patch: Partial<Entity>) => {
+      let needRebuild = false
+      for (const id of ids) {
+        const updatedEntity = { ...world.entities.find((e) => e.id === id)!, ...patch }
+        const applied = sceneViewRef.current?.updateEntityShape(id, updatedEntity) ?? false
+        if (!applied) needRebuild = true
+      }
+      const idSet = new Set(ids)
+      if (needRebuild) captureScenePosesForNextRebuild()
       updateWorld((prev) => ({
         ...prev,
-        entities: prev.entities.map((e) => (e.id === id ? { ...e, ...patch } : e)),
+        entities: prev.entities.map((e) => (idSet.has(e.id) ? { ...e, ...patch } : e)),
       }))
-    } else {
-      // Trimesh or no scene yet — fall back to full rebuild
-      captureScenePosesForNextRebuild()
-      updateWorld((prev) => ({
-        ...prev,
-        entities: prev.entities.map((e) => (e.id === id ? { ...e, ...patch } : e)),
-      }))
-    }
-  }, [world.entities, updateWorld, captureScenePosesForNextRebuild])
+    },
+    [world.entities, updateWorld, captureScenePosesForNextRebuild]
+  )
 
   const handleEntityModelTransformChange = useCallback(
-    (id: string, patch: { modelRotation?: [number, number, number]; modelScale?: [number, number, number] }) => {
-      sceneViewRef.current?.updateEntityModelTransform(id, patch)
+    (ids: string[], patch: { modelRotation?: [number, number, number]; modelScale?: [number, number, number] }) => {
+      for (const id of ids) {
+        sceneViewRef.current?.updateEntityModelTransform(id, patch)
+      }
+      const idSet = new Set(ids)
       updateWorld((prev) => ({
         ...prev,
-        entities: prev.entities.map((e) => (e.id === id ? { ...e, ...patch } : e)),
+        entities: prev.entities.map((e) => (idSet.has(e.id) ? { ...e, ...patch } : e)),
       }))
     },
     [updateWorld]
   )
 
   const handleRefreshFromPhysics = useCallback(
-    (entityId: string) => {
-      const pose = getCurrentPose(entityId)
-      syncPosesFromScene(new Map([[entityId, pose]]))
+    (entityIds: string[]) => {
+      const m = new Map<string, { position: Vec3; rotation: Rotation; scale: Vec3 }>()
+      for (const id of entityIds) {
+        m.set(id, getCurrentPose(id))
+      }
+      syncPosesFromScene(m)
     },
     [getCurrentPose, syncPosesFromScene]
   )
@@ -397,10 +434,11 @@ export default function Builder() {
   }, [updateWorld, captureScenePosesForNextRebuild])
 
   const handleEntityTransformersChange = useCallback(
-    (entityId: string, transformers: TransformerConfig[]) => {
+    (entityIds: string[], transformers: TransformerConfig[]) => {
       pushHistory()
+      const idSet = new Set(entityIds)
       const nextEntities = world.entities.map((e) =>
-        e.id === entityId ? { ...e, transformers } : e
+        idSet.has(e.id) ? { ...e, transformers } : e
       )
       const nextWorld = { ...world, entities: nextEntities }
       const keyBefore = getSceneDependencyKey(world)
@@ -410,7 +448,9 @@ export default function Builder() {
       }
       updateWorld(() => nextWorld)
       if (keyBefore === keyAfter) {
-        sceneViewRef.current?.syncEntityTransformers(entityId, transformers)
+        for (const id of entityIds) {
+          sceneViewRef.current?.syncEntityTransformers(id, transformers)
+        }
       }
     },
     [world, updateWorld, captureScenePosesForNextRebuild, pushHistory]
@@ -493,30 +533,37 @@ export default function Builder() {
     uiLogger.click('Builder', 'Reset camera to default position')
   }, [])
 
-  const handleApplyDebugForce = useCallback((force: Vec3) => {
-    if (!selectedEntityId) {
-      alert('Bitte wähle zuerst ein Entity aus, um eine Force anzuwenden.')
-      return
-    }
-    
-    const entity = world.entities.find((e) => e.id === selectedEntityId)
-    if (!entity) {
-      alert(`Entity "${selectedEntityId}" nicht gefunden.`)
-      return
-    }
-    
-    if (entity.bodyType !== 'dynamic') {
-      alert(`Entity "${entity.name ?? entity.id}" ist nicht dynamic. Nur dynamic Entities können Forces empfangen.`)
-      return
-    }
-    
-    sceneViewRef.current?.applyDebugForce(selectedEntityId, force, 1.0)
-    uiLogger.click('Builder', 'Apply debug force', { 
-      entityId: selectedEntityId, 
-      force,
-      duration: 1.0 
-    })
-  }, [selectedEntityId, world.entities])
+  const handleApplyDebugForce = useCallback(
+    (force: Vec3) => {
+      if (selectedEntityIds.length === 0) {
+        alert('Bitte wähle zuerst ein oder mehrere Entities aus, um eine Force anzuwenden.')
+        return
+      }
+      const nonDynamic: string[] = []
+      for (const id of selectedEntityIds) {
+        const entity = world.entities.find((e) => e.id === id)
+        if (!entity) continue
+        if (entity.bodyType !== 'dynamic') {
+          nonDynamic.push(entity.name ?? id)
+          continue
+        }
+        sceneViewRef.current?.applyDebugForce(id, force, 1.0)
+      }
+      if (nonDynamic.length > 0 && nonDynamic.length === selectedEntityIds.length) {
+        alert(`Kein dynamic Entity in der Auswahl. Nicht-dynamic: ${nonDynamic.join(', ')}`)
+        return
+      }
+      if (nonDynamic.length > 0) {
+        alert(`Force auf dynamic Entities angewendet. Übersprungen (nicht dynamic): ${nonDynamic.join(', ')}`)
+      }
+      uiLogger.click('Builder', 'Apply debug force', {
+        entityIds: selectedEntityIds,
+        force,
+        duration: 1.0,
+      })
+    },
+    [selectedEntityIds, world.entities]
+  )
 
   void historyTick
   const canUndoHistory = historyRef.current.canUndo()
@@ -587,8 +634,8 @@ export default function Builder() {
               runPhysics
               runScripts
               shadowsEnabled={shadowsEnabled}
-              selectedEntityId={selectedEntityId}
-              onSelectEntity={setSelectedEntityId}
+              selectedEntityIds={selectedEntityIds}
+              onSelectEntity={handleSelectEntity}
               onEntityPoseCommit={handleEntityPoseCommit}
               gizmoMode={gizmoMode}
               initialPosesRef={initialPosesRef}
@@ -600,12 +647,12 @@ export default function Builder() {
         {/* Sidebars overlay on top */}
         <EntitySidebar
           entities={world.entities}
-          selectedEntityId={selectedEntityId}
+          selectedEntityIds={selectedEntityIds}
           cameraControl={cameraControl}
           cameraTarget={cameraTarget}
           cameraMode={cameraMode}
           world={world}
-          onSelectEntity={setSelectedEntityId}
+          onSelectEntity={handleSelectEntity}
           onAddEntity={handleAddEntity}
           onBulkAddEntities={handleBulkAddEntities}
           onCameraControlChange={setCameraControl}
@@ -619,10 +666,10 @@ export default function Builder() {
         <PropertySidebar
           world={world}
           assets={assets}
-          selectedEntityId={selectedEntityId}
+          selectedEntityIds={selectedEntityIds}
           onWorldChange={handleWorldChange}
           onAssetsChange={handleAssetsChange}
-          onDeleteEntity={handleDeleteEntity}
+          onDeleteEntities={handleDeleteEntities}
           onCloneEntity={handleCloneEntity}
           getCurrentPose={getCurrentPose}
           onEntityPoseChange={handleEntityPoseChange}

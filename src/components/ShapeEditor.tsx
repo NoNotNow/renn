@@ -17,6 +17,8 @@ const ADDABLE_SHAPE_TYPES: AddableShapeType[] = ['box', 'sphere', 'cylinder', 'c
 export interface ShapeEditorProps {
   entityId: string
   shape: Shape | undefined
+  /** When true, shape type dropdown shows “—” until the user picks a type (multi-select mismatch). */
+  shapeTypeMixed?: boolean
   onShapeChange: (shape: Shape) => void
   disabled?: boolean
   assets?: Map<string, Blob>
@@ -28,6 +30,7 @@ export interface ShapeEditorProps {
 export default function ShapeEditor({
   entityId,
   shape,
+  shapeTypeMixed = false,
   onShapeChange,
   disabled = false,
   assets = new Map(),
@@ -41,6 +44,7 @@ export default function ShapeEditor({
 
   const shapeType = (shape?.type ?? 'box') as AddableShapeType
   const effectiveShapeType = ADDABLE_SHAPE_TYPES.includes(shapeType) ? shapeType : 'box'
+  const selectShapeValue = shapeTypeMixed ? '' : effectiveShapeType
 
   const setShapeType = (newType: AddableShapeType) => {
     onShapeChange(shapeWithPreservedSize(shape, newType))
@@ -51,7 +55,8 @@ export default function ShapeEditor({
       <SelectInput
         id={`${entityId}-shape`}
         label="Shape"
-        value={effectiveShapeType}
+        value={selectShapeValue}
+        emptyLabel={shapeTypeMixed ? '—' : undefined}
         onBeforeCommit={pushUndo}
         onChange={(value) => setShapeType(value as AddableShapeType)}
         options={[
@@ -70,7 +75,7 @@ export default function ShapeEditor({
         propertyName="shape type"
         logComponent="PropertyPanel"
       />
-      {shape?.type === 'box' && shape && (
+      {!shapeTypeMixed && shape?.type === 'box' && shape && (
         <>
           <NumberInput onBeforeCommit={pushUndo}
             id={`${entityId}-box-width`}
@@ -110,7 +115,7 @@ export default function ShapeEditor({
           />
         </>
       )}
-      {shape?.type === 'sphere' && shape && (
+      {!shapeTypeMixed && shape?.type === 'sphere' && shape && (
         <NumberInput onBeforeCommit={pushUndo}
           id={`${entityId}-sphere-radius`}
           label="Radius"
@@ -124,7 +129,7 @@ export default function ShapeEditor({
           propertyName="sphere radius"
         />
       )}
-      {shape?.type === 'cylinder' && shape && (
+      {!shapeTypeMixed && shape?.type === 'cylinder' && shape && (
         <>
           <NumberInput onBeforeCommit={pushUndo}
             id={`${entityId}-cylinder-radius`}
@@ -152,7 +157,7 @@ export default function ShapeEditor({
           />
         </>
       )}
-      {shape?.type === 'capsule' && shape && (
+      {!shapeTypeMixed && shape?.type === 'capsule' && shape && (
         <>
           <NumberInput onBeforeCommit={pushUndo}
             id={`${entityId}-capsule-radius`}
@@ -180,7 +185,7 @@ export default function ShapeEditor({
           />
         </>
       )}
-      {shape?.type === 'cone' && shape && (
+      {!shapeTypeMixed && shape?.type === 'cone' && shape && (
         <>
           <NumberInput onBeforeCommit={pushUndo}
             id={`${entityId}-cone-radius`}
@@ -208,7 +213,7 @@ export default function ShapeEditor({
           />
         </>
       )}
-      {shape?.type === 'pyramid' && shape && (
+      {!shapeTypeMixed && shape?.type === 'pyramid' && shape && (
         <>
           <NumberInput onBeforeCommit={pushUndo}
             id={`${entityId}-pyramid-baseSize`}
@@ -236,7 +241,7 @@ export default function ShapeEditor({
           />
         </>
       )}
-      {shape?.type === 'ring' && shape && (
+      {!shapeTypeMixed && shape?.type === 'ring' && shape && (
         <>
           <NumberInput onBeforeCommit={pushUndo}
             id={`${entityId}-ring-innerRadius`}
@@ -279,7 +284,7 @@ export default function ShapeEditor({
           </div>
         </>
       )}
-      {shape?.type === 'trimesh' && shape && (
+      {!shapeTypeMixed && shape?.type === 'trimesh' && shape && (
         <>
           <div style={sidebarRowStyle}>
             <label style={sidebarLabelStyle}>Model</label>

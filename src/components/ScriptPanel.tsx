@@ -21,25 +21,37 @@ function getEntitiesUsingScript(world: RennWorld, scriptId: string): { id: strin
   return world.entities.filter((e) => e.scripts?.includes(scriptId)).map((e) => ({ id: e.id, name: e.name }))
 }
 
+function scriptIdsIntersectionForEntities(
+  entities: { scripts?: string[] }[]
+): string[] {
+  if (entities.length === 0) return []
+  let common = new Set(entities[0]!.scripts ?? [])
+  for (let i = 1; i < entities.length; i++) {
+    const next = new Set(entities[i]!.scripts ?? [])
+    common = new Set([...common].filter((id) => next.has(id)))
+  }
+  return [...common]
+}
+
 export interface ScriptPanelProps {
   world: RennWorld
-  selectedEntityId: string | null
+  selectedEntityIds: string[]
   onWorldChange: (world: RennWorld) => void
 }
 
-export default function ScriptPanel({ world, selectedEntityId, onWorldChange }: ScriptPanelProps) {
+export default function ScriptPanel({ world, selectedEntityIds, onWorldChange }: ScriptPanelProps) {
   const undo = useEditorUndo()
   const pushUndo = () => undo?.pushBeforeEdit()
   const scripts = world.scripts ?? {}
   const scriptIds = Object.keys(scripts)
-  const selectedEntity = selectedEntityId
-    ? world.entities.find((e) => e.id === selectedEntityId)
-    : null
-  const entityScriptIds = selectedEntity?.scripts ?? []
+  const selectedEntities = selectedEntityIds
+    .map((id) => world.entities.find((e) => e.id === id))
+    .filter((e): e is NonNullable<typeof e> => e != null)
+  const entityScriptIds = scriptIdsIntersectionForEntities(selectedEntities)
 
-  // When entity is selected, show its scripts first; otherwise all scripts. Default selection: first attached script or first global.
+  // When entities are selected, show shared attached scripts first; otherwise all scripts.
   const attachedScriptIdsOrdered = entityScriptIds.filter((id) => scripts[id] != null)
-  const dropdownOptions = selectedEntityId
+  const dropdownOptions = selectedEntityIds.length > 0
     ? [...attachedScriptIdsOrdered, ...scriptIds.filter((id) => !entityScriptIds.includes(id))]
     : scriptIds
 
@@ -52,14 +64,14 @@ export default function ScriptPanel({ world, selectedEntityId, onWorldChange }: 
   useEffect(() => {
     const selectionValid = selectedId && scriptIds.includes(selectedId)
     if (selectionValid) return
-    if (selectedEntityId && attachedScriptIdsOrdered.length > 0) {
-      setSelectedId(attachedScriptIdsOrdered[0])
+    if (selectedEntityIds.length > 0 && attachedScriptIdsOrdered.length > 0) {
+      setSelectedId(attachedScriptIdsOrdered[0]!)
     } else if (scriptIds.length > 0) {
-      setSelectedId(scriptIds[0])
+      setSelectedId(scriptIds[0]!)
     } else {
       setSelectedId(null)
     }
-  }, [selectedEntityId, attachedScriptIdsOrdered.join(','), scriptIds.join(','), selectedId])
+  }, [selectedEntityIds.join(','), attachedScriptIdsOrdered.join(','), scriptIds.join(','), selectedId])
 
   const def = selectedId ? getDef(scripts, selectedId) : null
   const source = def?.source ?? ''
@@ -143,12 +155,11 @@ export default function ScriptPanel({ world, selectedEntityId, onWorldChange }: 
     pushUndo()
     uiLogger.click('ScriptPanel', 'Add new script', { scriptId: id })
     const nextScripts = { ...scripts, [id]: { event: 'onUpdate' as const, source: '// ctx.log(ctx.entity.id);' } }
+    const idSet = new Set(selectedEntityIds)
     const nextEntities =
-      selectedEntityId
+      selectedEntityIds.length > 0
         ? world.entities.map((e) =>
-            e.id === selectedEntityId
-              ? { ...e, scripts: [...(e.scripts ?? []), id] }
-              : e
+            idSet.has(e.id) ? { ...e, scripts: [...(e.scripts ?? []), id] } : e
           )
         : world.entities
     onWorldChange({
@@ -160,41 +171,49 @@ export default function ScriptPanel({ world, selectedEntityId, onWorldChange }: 
   }
 
   const handleDetachFromEntity = () => {
-    if (!selectedId || !selectedEntityId) return
+    if (!selectedId || selectedEntityIds.length === 0) return
     pushUndo()
     if (!entityScriptIds.includes(selectedId)) return
-    uiLogger.click('ScriptPanel', 'Detach script from entity', { scriptId: selectedId, entityId: selectedEntityId })
+    uiLogger.click('ScriptPanel', 'Detach script from entities', { scriptId: selectedId, entityIds: selectedEntityIds })
     const nextEntityScripts = entityScriptIds.filter((sid) => sid !== selectedId)
+    const idSet = new Set(selectedEntityIds)
     onWorldChange({
       ...world,
       entities: world.entities.map((e) =>
-        e.id === selectedEntityId ? { ...e, scripts: nextEntityScripts } : e
+        idSet.has(e.id) ? { ...e, scripts: nextEntityScripts } : e
       ),
     })
     const remaining = attachedScriptIdsOrdered.filter((sid) => sid !== selectedId)
     setSelectedId(remaining[0] ?? scriptIds.filter((k) => k !== selectedId)[0] ?? null)
   }
 
-  const isAttachedToSelectedEntity = selectedEntityId && selectedId && entityScriptIds.includes(selectedId)
+  const isAttachedToSelectedEntity =
+    selectedEntityIds.length > 0 && selectedId && entityScriptIds.includes(selectedId)
   const entitiesUsingSelectedScript = selectedId ? getEntitiesUsingScript(world, selectedId) : []
   const isSharedScript = entitiesUsingSelectedScript.length > 1
 
   const handleEntityScriptsChange = (nextScriptIds: string[]) => {
-    if (!selectedEntityId) return
+    if (selectedEntityIds.length === 0) return
+    const idSet = new Set(selectedEntityIds)
     onWorldChange({
       ...world,
       entities: world.entities.map((e) =>
-        e.id === selectedEntityId ? { ...e, scripts: nextScriptIds } : e
+        idSet.has(e.id) ? { ...e, scripts: nextScriptIds } : e
       ),
     })
   }
 
-  const entityDisplayName = selectedEntity?.name ?? selectedEntity?.id ?? 'Entity'
+  const entityDisplayName =
+    selectedEntities.length === 0
+      ? 'Entity'
+      : selectedEntities.length === 1
+        ? selectedEntities[0]!.name ?? selectedEntities[0]!.id
+        : `${selectedEntities.length} entities`
 
   const copyPayload = {
     scripts: world.scripts,
-    selectedEntityId,
-    entityScriptIds: selectedEntity?.scripts ?? [],
+    selectedEntityIds,
+    entityScriptIds,
   }
 
   return (
@@ -204,7 +223,7 @@ export default function ScriptPanel({ world, selectedEntityId, onWorldChange }: 
     >
       <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, width: '100%', minWidth: 280, overflow: 'visible' }}>
       <div style={{ padding: 8, display: 'flex', flexDirection: 'column', gap: 8, borderBottom: '1px solid #2f3545' }}>
-        {selectedEntityId ? (
+        {selectedEntityIds.length > 0 ? (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 }}>
             <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#e6e9f2' }}>
               Scripts for {entityDisplayName}
@@ -247,15 +266,15 @@ export default function ScriptPanel({ world, selectedEntityId, onWorldChange }: 
             }}
           >
             <option value="">— Select script —</option>
-            {selectedEntityId && attachedScriptIdsOrdered.length > 0 && (
-              <optgroup label="On this entity">
+            {selectedEntityIds.length > 0 && attachedScriptIdsOrdered.length > 0 && (
+              <optgroup label="On all selected">
                 {attachedScriptIdsOrdered.map((id) => (
                   <option key={id} value={id}>{id}</option>
                 ))}
               </optgroup>
             )}
             {dropdownOptions.filter((id) => !attachedScriptIdsOrdered.includes(id)).length > 0 && (
-              <optgroup label={selectedEntityId ? 'Other scripts' : 'All scripts'}>
+              <optgroup label={selectedEntityIds.length > 0 ? 'Other scripts' : 'All scripts'}>
                 {dropdownOptions.filter((id) => !attachedScriptIdsOrdered.includes(id)).map((id) => (
                   <option key={id} value={id}>{id}</option>
                 ))}
@@ -304,21 +323,21 @@ export default function ScriptPanel({ world, selectedEntityId, onWorldChange }: 
           <button
             type="button"
             onClick={handleDetachFromEntity}
-            disabled={!selectedId || !selectedEntityId || !isAttachedToSelectedEntity}
+            disabled={!selectedId || selectedEntityIds.length === 0 || !isAttachedToSelectedEntity}
             title={
-              !selectedEntityId
+              selectedEntityIds.length === 0
                 ? 'Select an entity first'
                 : !isAttachedToSelectedEntity
-                  ? 'This script is not attached to the selected entity'
-                  : 'Remove this script from the entity (script stays in world)'
+                  ? 'This script is not attached to all selected entities'
+                  : 'Remove this script from all selected entities (script stays in world)'
             }
             style={{
               padding: '6px 12px',
               borderRadius: 6,
               border: '1px solid #2f3545',
-              background: selectedId && selectedEntityId && isAttachedToSelectedEntity ? '#3a2a2a' : '#2a2a2a',
-              color: selectedId && selectedEntityId && isAttachedToSelectedEntity ? '#e6c0c0' : '#666',
-              cursor: selectedId && selectedEntityId && isAttachedToSelectedEntity ? 'pointer' : 'not-allowed',
+              background: selectedId && selectedEntityIds.length > 0 && isAttachedToSelectedEntity ? '#3a2a2a' : '#2a2a2a',
+              color: selectedId && selectedEntityIds.length > 0 && isAttachedToSelectedEntity ? '#e6c0c0' : '#666',
+              cursor: selectedId && selectedEntityIds.length > 0 && isAttachedToSelectedEntity ? 'pointer' : 'not-allowed',
               fontSize: 12,
             }}
           >
@@ -378,12 +397,12 @@ export default function ScriptPanel({ world, selectedEntityId, onWorldChange }: 
         />
       </div>
 
-      {selectedEntityId && (
+      {selectedEntityIds.length > 0 && (
         <ScriptDialog
           isOpen={scriptDialogOpen}
           onClose={() => setScriptDialogOpen(false)}
           world={world}
-          selectedEntityId={selectedEntityId}
+          selectedEntityIds={selectedEntityIds}
           entityScriptIds={entityScriptIds}
           onChange={handleEntityScriptsChange}
           onWorldChange={onWorldChange}

@@ -35,7 +35,7 @@ describe('ScriptPanel', () => {
     const world = worldWithEntityAndScript()
     render(
       <CopyProvider>
-        <ScriptPanel world={world} selectedEntityId={null} onWorldChange={vi.fn()} />
+        <ScriptPanel world={world} selectedEntityIds={[]} onWorldChange={vi.fn()} />
       </CopyProvider>
     )
     expect(screen.getByText(/select an entity to edit its scripts/i)).toBeInTheDocument()
@@ -45,7 +45,7 @@ describe('ScriptPanel', () => {
     const world = worldWithEntityAndScript()
     render(
       <CopyProvider>
-        <ScriptPanel world={world} selectedEntityId="e1" onWorldChange={vi.fn()} />
+        <ScriptPanel world={world} selectedEntityIds={['e1']} onWorldChange={vi.fn()} />
       </CopyProvider>
     )
     expect(screen.getByText(/scripts for box/i)).toBeInTheDocument()
@@ -57,7 +57,7 @@ describe('ScriptPanel', () => {
     const onWorldChange = vi.fn()
     render(
       <CopyProvider>
-        <ScriptPanel world={world} selectedEntityId="e1" onWorldChange={onWorldChange} />
+        <ScriptPanel world={world} selectedEntityIds={['e1']} onWorldChange={onWorldChange} />
       </CopyProvider>
     )
 
@@ -79,7 +79,7 @@ describe('ScriptPanel', () => {
     const world = worldWithEntityAndScript()
     render(
       <CopyProvider>
-        <ScriptPanel world={world} selectedEntityId="e1" onWorldChange={vi.fn()} />
+        <ScriptPanel world={world} selectedEntityIds={['e1']} onWorldChange={vi.fn()} />
       </CopyProvider>
     )
     const comboboxes = screen.getAllByRole('combobox')
@@ -96,7 +96,7 @@ describe('ScriptPanel', () => {
     const world = worldWithEntityAndScript()
     render(
       <CopyProvider>
-        <ScriptPanel world={world} selectedEntityId="e1" onWorldChange={vi.fn()} />
+        <ScriptPanel world={world} selectedEntityIds={['e1']} onWorldChange={vi.fn()} />
       </CopyProvider>
     )
     expect(screen.getByText(/this script is shared/i)).toBeInTheDocument()
@@ -111,7 +111,7 @@ describe('ScriptPanel', () => {
 
     render(
       <CopyProvider>
-        <ScriptPanel world={world} selectedEntityId="e1" onWorldChange={onWorldChange} />
+        <ScriptPanel world={world} selectedEntityIds={['e1']} onWorldChange={onWorldChange} />
       </CopyProvider>
     )
 

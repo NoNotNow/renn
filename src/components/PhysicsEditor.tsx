@@ -5,12 +5,12 @@ import { useEditorUndo } from '@/contexts/EditorUndoContext'
 
 export interface PhysicsEditorProps {
   entityId: string
-  bodyType: Entity['bodyType']
-  mass: number
-  restitution: number
-  friction: number
-  linearDamping: number
-  angularDamping: number
+  bodyType: Entity['bodyType'] | null
+  mass: number | null
+  restitution: number | null
+  friction: number | null
+  linearDamping: number | null
+  angularDamping: number | null
   onBodyTypeChange: (bodyType: Entity['bodyType']) => void
   onMassChange: (mass: number) => void
   onRestitutionChange: (restitution: number) => void
@@ -22,7 +22,7 @@ export interface PhysicsEditorProps {
 
 export default function PhysicsEditor({
   entityId,
-  bodyType = 'static',
+  bodyType,
   mass,
   restitution,
   friction,
@@ -44,7 +44,8 @@ export default function PhysicsEditor({
       <SelectInput
         id={`${entityId}-body-type`}
         label="Body type"
-        value={bodyType}
+        value={bodyType ?? ''}
+        emptyLabel={bodyType == null ? '—' : undefined}
         onBeforeCommit={pushUndo}
         onChange={(value) => onBodyTypeChange(value as Entity['bodyType'])}
         options={[
@@ -56,7 +57,7 @@ export default function PhysicsEditor({
         entityId={entityId}
         propertyName="body type"
       />
-      {bodyType === 'dynamic' && (
+      {(bodyType ?? 'static') === 'dynamic' && (
         <>
           <NumberInput onBeforeCommit={pushUndo}
             id={`${entityId}-mass`}

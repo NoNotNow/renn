@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import type { RennWorld, Entity, Vec3, Rotation } from '@/types/world'
+import { useState, useEffect, useMemo } from 'react'
+import type { RennWorld, Entity, Vec3, Rotation, Shape } from '@/types/world'
 import type { TransformerConfig } from '@/types/transformer'
 import { uiLogger } from '@/utils/uiLogger'
 import TransformEditor from './TransformEditor'
@@ -11,37 +11,70 @@ import ModelEditor from './ModelEditor'
 import TransformerEditor from './TransformerEditor'
 import CollapsibleSection from './CollapsibleSection'
 import Switch from './Switch'
-import { fieldLabelStyle, sidebarTextInputStyle, entityPanelIconButtonStyle, removeButtonStyle, removeButtonStyleDisabled, secondaryButtonStyle, secondaryButtonStyleDisabled } from './sharedStyles'
+import {
+  fieldLabelStyle,
+  sidebarTextInputStyle,
+  entityPanelIconButtonStyle,
+  removeButtonStyle,
+  removeButtonStyleDisabled,
+  secondaryButtonStyle,
+  secondaryButtonStyleDisabled,
+} from './sharedStyles'
 import { EntityPanelIcons } from './EntityPanelIcons'
 import { useEditorUndo } from '@/contexts/EditorUndoContext'
 import type { Vec3UndoProps } from './TransformEditor'
+import {
+  mergeVec3,
+  mergeRotation,
+  mergeShape,
+  mergeMaterial,
+  mergeTransformers,
+  mergeLocked,
+  mergeScale,
+  mergeNumber,
+  mergeBodyType,
+  mergeName,
+  allTrimeshOrAllPrimitiveModelLayout,
+} from '@/utils/entityInspectorMerge'
+import { DEFAULT_POSITION, DEFAULT_ROTATION, DEFAULT_SCALE } from '@/types/world'
+
+function shapePatchForEntity(entity: Entity, shape: Shape): Partial<Entity> {
+  const switchingToTrimesh = shape.type === 'trimesh'
+  if (switchingToTrimesh && entity.model) {
+    return { shape, model: undefined, showShapeWireframe: undefined }
+  }
+  if (switchingToTrimesh) {
+    return { shape, showShapeWireframe: undefined }
+  }
+  return { shape }
+}
 
 export interface PropertyPanelProps {
   world: RennWorld
   assets: Map<string, Blob>
-  selectedEntityId: string | null
+  selectedEntityIds: string[]
   onWorldChange: (world: RennWorld) => void
   onAssetsChange?: (assets: Map<string, Blob>) => void
-  onDeleteEntity?: (entityId: string) => void
+  onDeleteEntities?: (entityIds: string[]) => void
   onCloneEntity?: (entityId: string) => void
-  getCurrentPose?: (id: string) => { position: Vec3; rotation: Rotation }
-  onEntityPoseChange?: (id: string, pose: { position?: Vec3; rotation?: Rotation; scale?: Vec3 }) => void
-  onEntityPhysicsChange?: (id: string, patch: Partial<Entity>) => void
-  onEntityShapeChange?: (id: string, patch: Partial<Entity>) => void
-  onEntityMaterialChange?: (id: string, patch: Partial<Entity>) => void
-  onEntityModelTransformChange?: (id: string, patch: { modelRotation?: Rotation; modelScale?: Vec3 }) => void
-  onEntityTransformersChange?: (entityId: string, transformers: TransformerConfig[]) => void
-  onRefreshFromPhysics?: (entityId: string) => void
+  getCurrentPose?: (id: string) => { position: Vec3; rotation: Rotation; scale?: Vec3 }
+  onEntityPoseChange?: (ids: string[], pose: { position?: Vec3; rotation?: Rotation; scale?: Vec3 }) => void
+  onEntityPhysicsChange?: (ids: string[], patch: Partial<Entity>) => void
+  onEntityShapeChange?: (ids: string[], patch: Partial<Entity>) => void
+  onEntityMaterialChange?: (ids: string[], patch: Partial<Entity>) => void
+  onEntityModelTransformChange?: (ids: string[], patch: { modelRotation?: Rotation; modelScale?: Vec3 }) => void
+  onEntityTransformersChange?: (entityIds: string[], transformers: TransformerConfig[]) => void
+  onRefreshFromPhysics?: (entityIds: string[]) => void
   livePoses?: Map<string, { position: Vec3; rotation: Rotation; scale?: Vec3 }> | null
 }
 
 export default function PropertyPanel({
   world,
   assets,
-  selectedEntityId,
+  selectedEntityIds,
   onWorldChange,
   onAssetsChange,
-  onDeleteEntity,
+  onDeleteEntities,
   onCloneEntity,
   onEntityPoseChange,
   onEntityPhysicsChange,
@@ -62,16 +95,27 @@ export default function PropertyPanel({
         }
       : undefined
 
-  const entity = selectedEntityId
-    ? world.entities.find((e) => e.id === selectedEntityId)
-    : null
+  const entities = useMemo(() => {
+    const list: Entity[] = []
+    for (const id of selectedEntityIds) {
+      const e = world.entities.find((x) => x.id === id)
+      if (e) list.push(e)
+    }
+    return list
+  }, [selectedEntityIds, world.entities])
+
+  const ids = useMemo(() => entities.map((e) => e.id), [entities])
+  const idSet = useMemo(() => new Set(ids), [ids])
+  const isMulti = entities.length > 1
+  const primaryEntity = entities[0]
+  const editorIdPrefix = isMulti ? `multi-${ids.join('-').slice(0, 48)}` : (primaryEntity?.id ?? 'none')
 
   const [editingName, setEditingName] = useState<string | null>(null)
   useEffect(() => {
     setEditingName(null)
-  }, [selectedEntityId])
+  }, [selectedEntityIds.join('\0')])
 
-  if (!entity) {
+  if (entities.length === 0 || !primaryEntity) {
     return (
       <div style={{ padding: 10 }}>
         <p style={{ color: '#9aa4b2' }}>Select an entity</p>
@@ -79,33 +123,91 @@ export default function PropertyPanel({
     )
   }
 
-  const updateEntity = (patch: Partial<Entity>) => {
+  const updateAll = (patch: Partial<Entity>) => {
     onWorldChange({
       ...world,
-      entities: world.entities.map((e) =>
-        e.id === entity.id ? { ...e, ...patch } : e
-      ),
+      entities: world.entities.map((e) => (idSet.has(e.id) ? { ...e, ...patch } : e)),
     })
   }
 
-  const livePose = livePoses?.get(entity.id)
-  const displayPosition = livePose?.position ?? entity.position ?? [0, 0, 0]
-  const displayRotation = livePose?.rotation ?? entity.rotation ?? [0, 0, 0]
-  const scale = livePose?.scale ?? entity.scale ?? [1, 1, 1]
-  const modelRotation = entity.modelRotation ?? [0, 0, 0]
-  const modelScale = entity.modelScale ?? [1, 1, 1]
-  const isLocked = entity.locked ?? false
+  const anyLocked = entities.some((e) => e.locked)
+  const allLocked = entities.every((e) => e.locked)
+  const lockMerged = mergeLocked(entities)
 
-  const nameDisplayValue = editingName !== null ? editingName : (entity.name ?? '')
-  const handleNameFocus = () => setEditingName(entity.name ?? '')
+  const mergedName = mergeName(entities)
+  const displayPosition =
+    mergeVec3(entities, (e) => livePoses?.get(e.id)?.position ?? e.position ?? DEFAULT_POSITION) ??
+    DEFAULT_POSITION
+  const displayRotation =
+    mergeRotation(entities, (e) => livePoses?.get(e.id)?.rotation ?? e.rotation ?? DEFAULT_ROTATION) ??
+    DEFAULT_ROTATION
+  const displayScale =
+    mergeScale(entities) ??
+    mergeVec3(entities, (e) => livePoses?.get(e.id)?.scale ?? e.scale ?? DEFAULT_SCALE) ??
+    DEFAULT_SCALE
+  const mergedShape = mergeShape(entities)
+  const mergedModelRotation = mergeRotation(entities, (e) => e.modelRotation ?? DEFAULT_ROTATION)
+  const mergedModelScale = mergeVec3(entities, (e) => e.modelScale ?? DEFAULT_SCALE)
+  const mergedMaterial = mergeMaterial(entities)
+  const posMerged = mergeVec3(entities, (e) => livePoses?.get(e.id)?.position ?? e.position ?? DEFAULT_POSITION)
+  const rotMerged = mergeRotation(entities, (e) => livePoses?.get(e.id)?.rotation ?? e.rotation ?? DEFAULT_ROTATION)
+  const scaleMerged = mergeScale(entities)
+  const mergedTransformers = mergeTransformers(entities)
+  const mergedBodyType = mergeBodyType(entities)
+  const mergedMass = mergeNumber(entities, (e) => e.mass, 1)
+  const mergedRestitution = mergeNumber(entities, (e) => e.restitution, 0)
+  const mergedFriction = mergeNumber(entities, (e) => e.friction, 0.5)
+  const mergedLinearDamping = mergeNumber(entities, (e) => e.linearDamping, 0.3)
+  const mergedAngularDamping = mergeNumber(entities, (e) => e.angularDamping, 0.3)
+
+  const shapeLayout = allTrimeshOrAllPrimitiveModelLayout(entities)
+  const showShapeMaterialWarning = shapeLayout === 'mixed'
+  const shapeTypesDiffer =
+    entities.length > 0 &&
+    !entities.every((e) => e.shape?.type === entities[0]!.shape?.type)
+
+  const isModelOrTrimeshMerged = (): boolean => {
+    if (entities.length === 0) return false
+    const f = entities[0]!.shape?.type === 'trimesh' || !!entities[0]!.model
+    return entities.every((e) => (e.shape?.type === 'trimesh' || !!e.model) === f)
+  }
+  const isModelOrTrimesh = isModelOrTrimeshMerged()
+
+  const materialAllNull = entities.every((e) => e.material == null)
+  const materialAllSet = entities.every((e) => e.material != null)
+
+  const nameDisplayValue =
+    editingName !== null ? editingName : mergedName !== null ? mergedName : ''
+  const handleNameFocus = () => setEditingName(mergedName ?? '')
   const handleNameBlur = () => {
-    const newName = (editingName ?? entity.name ?? '').trim() || undefined
-    if (newName !== (entity.name ?? undefined)) {
+    const newName = (editingName ?? mergedName ?? '').trim() || undefined
+    if (newName !== (mergedName ?? undefined)) {
       undo?.pushBeforeEdit()
-      uiLogger.change('PropertyPanel', 'Change entity name', { entityId: entity.id, oldName: entity.name, newName: newName ?? '' })
-      updateEntity({ name: newName })
+      uiLogger.change('PropertyPanel', 'Change entity name', { entityIds: ids, newName: newName ?? '' })
+      updateAll({ name: newName })
     }
     setEditingName(null)
+  }
+
+  const handleShapeChange = (shape: Shape) => {
+    if (isMulti) {
+      const nextEntities = world.entities.map((e) => {
+        if (!idSet.has(e.id)) return e
+        return { ...e, ...shapePatchForEntity(e, shape) }
+      })
+      onWorldChange({ ...world, entities: nextEntities })
+      return
+    }
+    const e = primaryEntity
+    const switchingToTrimesh = shape.type === 'trimesh'
+    const switchingFromTrimesh = e.shape?.type === 'trimesh'
+    const involvesTrimesh = switchingToTrimesh || switchingFromTrimesh
+    const patch = shapePatchForEntity(e, shape)
+    if (!involvesTrimesh && onEntityShapeChange) {
+      onEntityShapeChange(ids, patch)
+    } else {
+      updateAll(patch)
+    }
   }
 
   return (
@@ -121,12 +223,16 @@ export default function PropertyPanel({
         }}
       >
         <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-          {isLocked && <span style={{ fontSize: 12 }}>🔒</span>}
+          {anyLocked && <span style={{ fontSize: 12 }}>🔒</span>}
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {entity.name ?? entity.id}
+            {isMulti
+              ? mergedName !== null
+                ? `${mergedName} (${entities.length})`
+                : `Multiple entities (${entities.length})`
+              : (primaryEntity.name ?? primaryEntity.id)}
           </span>
         </h3>
-        {(onRefreshFromPhysics || onCloneEntity || onDeleteEntity) && (
+        {(onRefreshFromPhysics || onCloneEntity || onDeleteEntities) && (
           <div
             role="group"
             aria-label="Actions"
@@ -136,8 +242,8 @@ export default function PropertyPanel({
               <button
                 type="button"
                 onClick={() => {
-                  uiLogger.click('PropertyPanel', 'Refresh from physics', { entityId: entity.id })
-                  onRefreshFromPhysics(entity.id)
+                  uiLogger.click('PropertyPanel', 'Refresh from physics', { entityIds: ids })
+                  onRefreshFromPhysics(ids)
                 }}
                 title="Refresh position and rotation from physics"
                 aria-label="Refresh position and rotation from physics"
@@ -152,40 +258,50 @@ export default function PropertyPanel({
               <button
                 type="button"
                 onClick={() => {
-                  uiLogger.click('PropertyPanel', 'Clone entity', { entityId: entity.id })
-                  onCloneEntity(entity.id)
+                  if (isMulti) return
+                  uiLogger.click('PropertyPanel', 'Clone entity', { entityId: primaryEntity.id })
+                  onCloneEntity(primaryEntity.id)
                 }}
-                title="Clone entity"
+                disabled={isMulti}
+                title={isMulti ? 'Clone one entity at a time' : 'Clone entity'}
                 aria-label="Clone entity"
-                style={entityPanelIconButtonStyle}
-                onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
-                onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.8')}
+                style={{
+                  ...entityPanelIconButtonStyle,
+                  opacity: isMulti ? 0.4 : 0.8,
+                  cursor: isMulti ? 'not-allowed' : 'pointer',
+                }}
+                onMouseEnter={(e) => {
+                  if (!isMulti) e.currentTarget.style.opacity = '1'
+                }}
+                onMouseLeave={(e) => {
+                  if (!isMulti) e.currentTarget.style.opacity = '0.8'
+                }}
               >
                 {EntityPanelIcons.clone}
               </button>
             )}
-            {onDeleteEntity && (
+            {onDeleteEntities && (
               <button
                 type="button"
                 onClick={() => {
-                  if (isLocked) return
-                  uiLogger.delete('PropertyPanel', 'Delete entity button clicked', { entityId: entity.id, entityName: entity.name })
-                  onDeleteEntity(entity.id)
+                  if (anyLocked) return
+                  uiLogger.delete('PropertyPanel', 'Delete entities', { entityIds: ids })
+                  onDeleteEntities(ids)
                 }}
-                disabled={isLocked}
-                title="Delete entity"
+                disabled={anyLocked}
+                title={anyLocked ? 'Cannot delete locked entities' : isMulti ? 'Delete selected entities' : 'Delete entity'}
                 aria-label="Delete entity"
                 style={{
                   ...entityPanelIconButtonStyle,
                   ...removeButtonStyle,
                   padding: 0,
-                  ...(isLocked && removeButtonStyleDisabled),
+                  ...(anyLocked && removeButtonStyleDisabled),
                 }}
                 onMouseEnter={(e) => {
-                  if (!isLocked) e.currentTarget.style.opacity = '1'
+                  if (!anyLocked) e.currentTarget.style.opacity = '1'
                 }}
                 onMouseLeave={(e) => {
-                  if (!isLocked) e.currentTarget.style.opacity = '0.8'
+                  if (!anyLocked) e.currentTarget.style.opacity = '0.8'
                 }}
               >
                 {EntityPanelIcons.trash}
@@ -198,22 +314,31 @@ export default function PropertyPanel({
       <CollapsibleSection
         title="Entity"
         defaultCollapsed={false}
-        copyPayload={entity}
+        copyPayload={isMulti ? entities : primaryEntity}
         trailing={
           <button
             type="button"
             onClick={() => {
               undo?.pushBeforeEdit()
-              uiLogger.change('PropertyPanel', 'Toggle entity lock', { entityId: entity.id, locked: !isLocked })
-              updateEntity({ locked: !isLocked })
+              const nextLocked = lockMerged === null ? !allLocked : !lockMerged
+              uiLogger.change('PropertyPanel', 'Set lock on entities', { entityIds: ids, locked: nextLocked })
+              updateAll({ locked: nextLocked })
             }}
-            title={isLocked ? 'Unlock entity' : 'Lock entity'}
-            aria-label={isLocked ? 'Unlock entity' : 'Lock entity'}
+            title={
+              lockMerged === null
+                ? allLocked
+                  ? 'Unlock all'
+                  : 'Lock all'
+                : lockMerged
+                  ? 'Unlock entity'
+                  : 'Lock entity'
+            }
+            aria-label="Toggle lock"
             style={entityPanelIconButtonStyle}
             onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
             onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.8')}
           >
-            {isLocked ? EntityPanelIcons.lock : EntityPanelIcons.unlock}
+            {allLocked ? EntityPanelIcons.lock : EntityPanelIcons.unlock}
           </button>
         }
       >
@@ -222,7 +347,7 @@ export default function PropertyPanel({
           <input
             type="text"
             value={nameDisplayValue}
-            placeholder={entity.id}
+            placeholder={isMulti ? '—' : primaryEntity.id}
             onChange={(e) => {
               if (editingName !== null) {
                 setEditingName(e.target.value)
@@ -236,14 +361,14 @@ export default function PropertyPanel({
               }
             }}
             style={sidebarTextInputStyle}
-            disabled={isLocked}
+            disabled={anyLocked}
           />
         </label>
         <label style={fieldLabelStyle}>
           ID
           <input
             type="text"
-            value={entity.id}
+            value={isMulti ? '—' : primaryEntity.id}
             readOnly
             style={sidebarTextInputStyle}
           />
@@ -252,313 +377,318 @@ export default function PropertyPanel({
 
       <CollapsibleSection
         title="Transform"
-        copyPayload={{ position: displayPosition, rotation: displayRotation, scale }}
+        copyPayload={{ position: displayPosition, rotation: displayRotation, scale: displayScale }}
       >
         <TransformEditor
-          entityId={entity.id}
-          position={displayPosition}
-          rotation={displayRotation}
-          scale={scale}
+          entityId={editorIdPrefix}
+          position={posMerged === null ? null : posMerged}
+          rotation={rotMerged === null ? null : rotMerged}
+          scale={scaleMerged === null ? null : scaleMerged}
           vec3Undo={vec3Undo}
           onPositionChange={(v) => {
-            if (onEntityPoseChange) {
-              onEntityPoseChange(entity.id, { position: v })
-            } else {
-              updateEntity({ position: v })
-            }
+            onEntityPoseChange?.(ids, { position: v })
+            updateAll({ position: v })
           }}
           onRotationChange={(q) => {
-            if (onEntityPoseChange) onEntityPoseChange(entity.id, { rotation: q })
-            updateEntity({ rotation: q })
+            onEntityPoseChange?.(ids, { rotation: q })
+            updateAll({ rotation: q })
           }}
           onScaleChange={(v) => {
-            updateEntity({ scale: v })
-            onEntityPoseChange?.(entity.id, { scale: v })
+            updateAll({ scale: v })
+            onEntityPoseChange?.(ids, { scale: v })
           }}
-          disabled={isLocked}
+          disabled={anyLocked}
         />
       </CollapsibleSection>
 
-      <CollapsibleSection title="Shape" copyPayload={entity.shape ?? {}}>
-        <ShapeEditor
-          entityId={entity.id}
-          shape={entity.shape}
-          onShapeChange={(shape) => {
-            // Switching to trimesh must also clear entity.model (trimesh uses shape.model)
-            const switchingToTrimesh = shape.type === 'trimesh'
-            const switchingFromTrimesh = entity.shape?.type === 'trimesh'
-            const involvesTrimesh = switchingToTrimesh || switchingFromTrimesh
-            if (switchingToTrimesh && entity.model) {
-              uiLogger.change('PropertyPanel', 'Clear entity model when switching to trimesh', { 
-                entityId: entity.id, 
-                clearedModel: entity.model 
-              })
-            }
-            const patch: Partial<Entity> = switchingToTrimesh && entity.model
-              ? { shape, model: undefined, showShapeWireframe: undefined }
-              : switchingToTrimesh
-                ? { shape, showShapeWireframe: undefined }
-                : { shape }
-            if (!involvesTrimesh && onEntityShapeChange) {
-              onEntityShapeChange(entity.id, patch)
-            } else {
-              updateEntity(patch)
-            }
-          }}
-          disabled={isLocked}
-          assets={assets}
-          world={world}
-          onAssetsChange={onAssetsChange}
-          onWorldChange={onWorldChange}
-        />
-      </CollapsibleSection>
-
-      <CollapsibleSection
-        title="Physics"
-        copyPayload={{
-          bodyType: entity.bodyType,
-          mass: entity.mass ?? 1,
-          restitution: entity.restitution ?? 0,
-          friction: entity.friction ?? 0.5,
-          linearDamping: entity.linearDamping ?? 0.3,
-          angularDamping: entity.angularDamping ?? 0.3,
-        }}
-      >
-        <PhysicsEditor
-          entityId={entity.id}
-          bodyType={entity.bodyType}
-          mass={entity.mass ?? 1}
-          restitution={entity.restitution ?? 0}
-          friction={entity.friction ?? 0.5}
-          linearDamping={entity.linearDamping ?? 0.3}
-          angularDamping={entity.angularDamping ?? 0.3}
-          onBodyTypeChange={(bodyType) => onEntityPhysicsChange ? onEntityPhysicsChange(entity.id, { bodyType }) : updateEntity({ bodyType })}
-          onMassChange={(mass) => onEntityPhysicsChange ? onEntityPhysicsChange(entity.id, { mass }) : updateEntity({ mass })}
-          onRestitutionChange={(restitution) => onEntityPhysicsChange ? onEntityPhysicsChange(entity.id, { restitution }) : updateEntity({ restitution })}
-          onFrictionChange={(friction) => onEntityPhysicsChange ? onEntityPhysicsChange(entity.id, { friction }) : updateEntity({ friction })}
-          onLinearDampingChange={(linearDamping) => onEntityPhysicsChange ? onEntityPhysicsChange(entity.id, { linearDamping }) : updateEntity({ linearDamping })}
-          onAngularDampingChange={(angularDamping) => onEntityPhysicsChange ? onEntityPhysicsChange(entity.id, { angularDamping }) : updateEntity({ angularDamping })}
-          disabled={isLocked}
-        />
-      </CollapsibleSection>
-
-      <CollapsibleSection title="Material" copyPayload={entity.material ?? {}}>
-        {(() => {
-          const isModelOrTrimesh = entity.shape?.type === 'trimesh' || !!entity.model
-          if (isModelOrTrimesh) {
-            if (entity.material == null) {
-              return (
-                <>
-                  <p style={{ margin: '8px 0', fontSize: 12, color: '#9aa4b2' }}>
-                    Using colors from 3D file.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      uiLogger.change('PropertyPanel', 'Override with material', { entityId: entity.id })
-                      const defaultMaterial = { color: [0.7, 0.7, 0.7] as [number, number, number] }
-                      if (onEntityMaterialChange) {
-                        onEntityMaterialChange(entity.id, { material: defaultMaterial })
-                      } else {
-                        updateEntity({ material: defaultMaterial })
-                      }
-                    }}
-                    disabled={isLocked}
-                    style={{
-                      ...secondaryButtonStyle,
-                      ...(isLocked && secondaryButtonStyleDisabled),
-                    }}
-                  >
-                    Override with material
-                  </button>
-                </>
-              )
-            }
-            return (
-              <>
-                <button
-                  type="button"
-                  onClick={() => {
-                    uiLogger.change('PropertyPanel', 'Use model colors', { entityId: entity.id })
-                    if (onEntityMaterialChange) {
-                      onEntityMaterialChange(entity.id, { material: undefined })
-                    } else {
-                      updateEntity({ material: undefined })
-                    }
-                  }}
-                  disabled={isLocked}
-                  style={{
-                    fontSize: 12,
-                    background: 'none',
-                    border: 'none',
-                    color: '#7ba3d4',
-                    cursor: isLocked ? 'not-allowed' : 'pointer',
-                    padding: '0 0 8px 0',
-                    marginBottom: 4,
-                  }}
-                >
-                  Use model colors
-                </button>
-                <MaterialEditor
-                  entityId={entity.id}
-                  material={entity.material}
-                  assets={assets}
-                  world={world}
-                  onMaterialChange={(material) =>
-                    onEntityMaterialChange
-                      ? onEntityMaterialChange(entity.id, { material })
-                      : updateEntity({ material })
-                  }
-                  onWorldChange={onWorldChange}
-                  onAssetsChange={onAssetsChange}
-                  disabled={isLocked}
-                />
-              </>
-            )
-          }
-          return (
-            <MaterialEditor
-              entityId={entity.id}
-              material={entity.material}
+      {showShapeMaterialWarning ? (
+        <p style={{ margin: '4px 0', fontSize: 12, color: '#c9a227' }}>
+          Selected entities mix trimesh, models, and primitives. Edit shape or material for a uniform selection.
+        </p>
+      ) : (
+        <>
+          <CollapsibleSection title="Shape" copyPayload={mergedShape ?? primaryEntity.shape ?? {}}>
+            <ShapeEditor
+              entityId={editorIdPrefix}
+              shape={mergedShape ?? primaryEntity.shape}
+              shapeTypeMixed={shapeTypesDiffer}
+              onShapeChange={handleShapeChange}
+              disabled={anyLocked}
               assets={assets}
               world={world}
-              onMaterialChange={(material) =>
-                onEntityMaterialChange
-                  ? onEntityMaterialChange(entity.id, { material })
-                  : updateEntity({ material })
-              }
-              onWorldChange={onWorldChange}
               onAssetsChange={onAssetsChange}
-              disabled={isLocked}
+              onWorldChange={onWorldChange}
             />
-          )
-        })()}
-      </CollapsibleSection>
+          </CollapsibleSection>
 
-      {entity.shape?.type !== 'trimesh' && (
-        <CollapsibleSection title="3D Model" copyPayload={entity.model ?? {}}>
-          <ModelEditor
-            entityId={entity.id}
-            model={entity.model}
-            assets={assets}
-            world={world}
-            onModelChange={(model) =>
-              updateEntity(
-                model
-                  ? { model }
-                  : { model: undefined, showShapeWireframe: undefined },
-              )
-            }
-            onWorldChange={onWorldChange}
-            onAssetsChange={onAssetsChange}
-            disabled={isLocked}
-          />
-        </CollapsibleSection>
-      )}
+          <CollapsibleSection
+            title="Physics"
+            copyPayload={{
+              bodyType: mergedBodyType ?? 'static',
+              mass: mergedMass ?? 1,
+              restitution: mergedRestitution ?? 0,
+              friction: mergedFriction ?? 0.5,
+              linearDamping: mergedLinearDamping ?? 0.3,
+              angularDamping: mergedAngularDamping ?? 0.3,
+            }}
+          >
+            <PhysicsEditor
+              entityId={editorIdPrefix}
+              bodyType={mergedBodyType}
+              mass={mergedMass}
+              restitution={mergedRestitution}
+              friction={mergedFriction}
+              linearDamping={mergedLinearDamping}
+              angularDamping={mergedAngularDamping}
+              onBodyTypeChange={(bodyType) =>
+                onEntityPhysicsChange ? onEntityPhysicsChange(ids, { bodyType }) : updateAll({ bodyType })
+              }
+              onMassChange={(mass) =>
+                onEntityPhysicsChange ? onEntityPhysicsChange(ids, { mass }) : updateAll({ mass })
+              }
+              onRestitutionChange={(restitution) =>
+                onEntityPhysicsChange ? onEntityPhysicsChange(ids, { restitution }) : updateAll({ restitution })
+              }
+              onFrictionChange={(friction) =>
+                onEntityPhysicsChange ? onEntityPhysicsChange(ids, { friction }) : updateAll({ friction })
+              }
+              onLinearDampingChange={(linearDamping) =>
+                onEntityPhysicsChange ? onEntityPhysicsChange(ids, { linearDamping }) : updateAll({ linearDamping })
+              }
+              onAngularDampingChange={(angularDamping) =>
+                onEntityPhysicsChange ? onEntityPhysicsChange(ids, { angularDamping }) : updateAll({ angularDamping })
+              }
+              disabled={anyLocked}
+            />
+          </CollapsibleSection>
 
-      {(entity.shape?.type === 'trimesh' || entity.model) && (
-        <CollapsibleSection
-          title="Model-Transform"
-          copyPayload={{ modelRotation, modelScale, showShapeWireframe: entity.showShapeWireframe }}
-        >
-          {entity.shape?.type !== 'trimesh' && entity.model ? (
-            <div style={{ marginBottom: 10 }}>
-              <Switch
-                checked={entity.showShapeWireframe ?? false}
-                onChange={(checked) => {
-                  undo?.pushBeforeEdit()
-                  uiLogger.change('PropertyPanel', 'Toggle shape wireframe', {
-                    entityId: entity.id,
-                    value: checked,
-                  })
-                  updateEntity(
-                    checked ? { showShapeWireframe: true } : { showShapeWireframe: undefined },
+          <CollapsibleSection title="Material" copyPayload={mergedMaterial ?? {}}>
+            {(() => {
+              if (!isModelOrTrimesh) {
+                if (mergedMaterial === null) {
+                  return (
+                    <p style={{ margin: '8px 0', fontSize: 12, color: '#9aa4b2' }}>
+                      Material properties differ across selection. Edit one entity or apply a change to set all to the same material.
+                    </p>
                   )
-                }}
-                disabled={isLocked}
-                label="Show shape wireframe"
+                }
+                return (
+                  <MaterialEditor
+                    entityId={editorIdPrefix}
+                    material={mergedMaterial}
+                    assets={assets}
+                    world={world}
+                    onMaterialChange={(material) =>
+                      onEntityMaterialChange ? onEntityMaterialChange(ids, { material }) : updateAll({ material })
+                    }
+                    onWorldChange={onWorldChange}
+                    onAssetsChange={onAssetsChange}
+                    disabled={anyLocked}
+                  />
+                )
+              }
+              if (materialAllNull) {
+                return (
+                  <>
+                    <p style={{ margin: '8px 0', fontSize: 12, color: '#9aa4b2' }}>Using colors from 3D file.</p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        uiLogger.change('PropertyPanel', 'Override with material', { entityIds: ids })
+                        const defaultMaterial = { color: [0.7, 0.7, 0.7] as [number, number, number] }
+                        if (onEntityMaterialChange) {
+                          onEntityMaterialChange(ids, { material: defaultMaterial })
+                        } else {
+                          updateAll({ material: defaultMaterial })
+                        }
+                      }}
+                      disabled={anyLocked}
+                      style={{
+                        ...secondaryButtonStyle,
+                        ...(anyLocked && secondaryButtonStyleDisabled),
+                      }}
+                    >
+                      Override with material
+                    </button>
+                  </>
+                )
+              }
+              if (materialAllSet && mergedMaterial != null) {
+                return (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        uiLogger.change('PropertyPanel', 'Use model colors', { entityIds: ids })
+                        if (onEntityMaterialChange) {
+                          onEntityMaterialChange(ids, { material: undefined })
+                        } else {
+                          updateAll({ material: undefined })
+                        }
+                      }}
+                      disabled={anyLocked}
+                      style={{
+                        fontSize: 12,
+                        background: 'none',
+                        border: 'none',
+                        color: '#7ba3d4',
+                        cursor: anyLocked ? 'not-allowed' : 'pointer',
+                        padding: '0 0 8px 0',
+                        marginBottom: 4,
+                      }}
+                    >
+                      Use model colors
+                    </button>
+                    <MaterialEditor
+                      entityId={editorIdPrefix}
+                      material={mergedMaterial}
+                      assets={assets}
+                      world={world}
+                      onMaterialChange={(material) =>
+                        onEntityMaterialChange
+                          ? onEntityMaterialChange(ids, { material })
+                          : updateAll({ material })
+                      }
+                      onWorldChange={onWorldChange}
+                      onAssetsChange={onAssetsChange}
+                      disabled={anyLocked}
+                    />
+                  </>
+                )
+              }
+              return (
+                <p style={{ fontSize: 12, color: '#9aa4b2' }}>
+                  Material override differs across selection. Set all to file colors or override on each entity type consistently.
+                </p>
+              )
+            })()}
+          </CollapsibleSection>
+
+          {entities.every((e) => e.shape?.type !== 'trimesh') && (
+            <CollapsibleSection title="3D Model" copyPayload={{ model: primaryEntity.model ?? null }}>
+              <ModelEditor
+                entityId={editorIdPrefix}
+                model={entities.every((e) => e.model === entities[0]!.model) ? primaryEntity.model : undefined}
+                modelMixed={!entities.every((e) => e.model === entities[0]!.model)}
+                assets={assets}
+                world={world}
+                onModelChange={(model) =>
+                  updateAll(
+                    model ? { model } : { model: undefined, showShapeWireframe: undefined },
+                  )
+                }
+                onWorldChange={onWorldChange}
+                onAssetsChange={onAssetsChange}
+                disabled={anyLocked}
               />
-              <div style={{ fontSize: 10, color: '#666', marginTop: 4, paddingLeft: 2 }}>
-                Outlines the physics primitive (not the GLTF mesh)
-              </div>
-            </div>
-          ) : null}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-            <Vec3Field
-              label="Model rotation"
-              value={modelRotation}
-              onChange={(r) => {
-                uiLogger.change('PropertyPanel', 'Change model rotation', { entityId: entity.id, oldValue: modelRotation, newValue: r })
-                if (onEntityModelTransformChange) {
-                  onEntityModelTransformChange(entity.id, { modelRotation: r })
-                } else {
-                  updateEntity({ modelRotation: r })
-                }
-              }}
-              axisLabels={['X', 'Y', 'Z']}
-              idPrefix={`${entity.id}-model-rotation`}
-              disabled={isLocked}
-              onScrubStart={vec3Undo?.onScrubStart}
-              onScrubEnd={vec3Undo?.onScrubEnd}
-              onBeforeCommit={vec3Undo?.onBeforeCommit}
-            />
-            <button
-              type="button"
-              title="Reset model rotation to 0,0,0"
-              aria-label="Reset model rotation to 0,0,0"
-              onClick={() => {
-                vec3Undo?.onBeforeCommit?.()
-                uiLogger.change('PropertyPanel', 'Reset model rotation', { entityId: entity.id })
-                if (onEntityModelTransformChange) {
-                  onEntityModelTransformChange(entity.id, { modelRotation: [0, 0, 0] })
-                } else {
-                  updateEntity({ modelRotation: [0, 0, 0] })
-                }
-              }}
-              disabled={isLocked}
-              style={{
-                ...entityPanelIconButtonStyle,
-                cursor: isLocked ? 'not-allowed' : 'pointer',
-                opacity: isLocked ? 0.5 : 1,
+            </CollapsibleSection>
+          )}
+
+          {entities.every((e) => e.shape?.type === 'trimesh' || e.model) && (
+            <CollapsibleSection
+              title="Model-Transform"
+              copyPayload={{
+                modelRotation: mergedModelRotation ?? DEFAULT_ROTATION,
+                modelScale: mergedModelScale ?? DEFAULT_SCALE,
+                showShapeWireframe: primaryEntity.showShapeWireframe,
               }}
             >
-              {EntityPanelIcons.reset}
-            </button>
-          </div>
-          <Vec3Field
-            label="Model scale"
-            value={modelScale}
-            onChange={(v) => {
-              uiLogger.change('PropertyPanel', 'Change model scale', { entityId: entity.id, oldValue: modelScale, newValue: v })
-              if (onEntityModelTransformChange) {
-                onEntityModelTransformChange(entity.id, { modelScale: v })
-              } else {
-                updateEntity({ modelScale: v })
-              }
-            }}
-            min={0.01}
-            step={0.1}
-            sensitivity={0.01}
-            idPrefix={`${entity.id}-model-scale`}
-            disabled={isLocked}
-            onScrubStart={vec3Undo?.onScrubStart}
-            onScrubEnd={vec3Undo?.onScrubEnd}
-            onBeforeCommit={vec3Undo?.onBeforeCommit}
-          />
-        </CollapsibleSection>
-      )}
+              {entities.every((e) => e.shape?.type !== 'trimesh' && e.model) ? (
+                <div style={{ marginBottom: 10 }}>
+                  <Switch
+                    checked={entities.every((e) => e.showShapeWireframe === true)}
+                    onChange={(checked) => {
+                      undo?.pushBeforeEdit()
+                      uiLogger.change('PropertyPanel', 'Toggle shape wireframe', { entityIds: ids, value: checked })
+                      updateAll(checked ? { showShapeWireframe: true } : { showShapeWireframe: undefined })
+                    }}
+                    disabled={anyLocked}
+                    label="Show shape wireframe"
+                  />
+                  <div style={{ fontSize: 10, color: '#666', marginTop: 4, paddingLeft: 2 }}>
+                    Outlines the physics primitive (not the GLTF mesh)
+                  </div>
+                </div>
+              ) : null}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                <Vec3Field
+                  label="Model rotation"
+                  value={mergedModelRotation}
+                  onChange={(r) => {
+                    uiLogger.change('PropertyPanel', 'Change model rotation', { entityIds: ids, newValue: r })
+                    if (onEntityModelTransformChange) {
+                      onEntityModelTransformChange(ids, { modelRotation: r })
+                    } else {
+                      updateAll({ modelRotation: r })
+                    }
+                  }}
+                  axisLabels={['X', 'Y', 'Z']}
+                  idPrefix={`${editorIdPrefix}-model-rotation`}
+                  disabled={anyLocked}
+                  onScrubStart={vec3Undo?.onScrubStart}
+                  onScrubEnd={vec3Undo?.onScrubEnd}
+                  onBeforeCommit={vec3Undo?.onBeforeCommit}
+                />
+                <button
+                  type="button"
+                  title="Reset model rotation to 0,0,0"
+                  aria-label="Reset model rotation to 0,0,0"
+                  onClick={() => {
+                    vec3Undo?.onBeforeCommit?.()
+                    uiLogger.change('PropertyPanel', 'Reset model rotation', { entityIds: ids })
+                    if (onEntityModelTransformChange) {
+                      onEntityModelTransformChange(ids, { modelRotation: [0, 0, 0] })
+                    } else {
+                      updateAll({ modelRotation: [0, 0, 0] })
+                    }
+                  }}
+                  disabled={anyLocked}
+                  style={{
+                    ...entityPanelIconButtonStyle,
+                    cursor: anyLocked ? 'not-allowed' : 'pointer',
+                    opacity: anyLocked ? 0.5 : 1,
+                  }}
+                >
+                  {EntityPanelIcons.reset}
+                </button>
+              </div>
+              <Vec3Field
+                label="Model scale"
+                value={mergedModelScale}
+                onChange={(v) => {
+                  uiLogger.change('PropertyPanel', 'Change model scale', { entityIds: ids, newValue: v })
+                  if (onEntityModelTransformChange) {
+                    onEntityModelTransformChange(ids, { modelScale: v })
+                  } else {
+                    updateAll({ modelScale: v })
+                  }
+                }}
+                min={0.01}
+                step={0.1}
+                sensitivity={0.01}
+                idPrefix={`${editorIdPrefix}-model-scale`}
+                disabled={anyLocked}
+                onScrubStart={vec3Undo?.onScrubStart}
+                onScrubEnd={vec3Undo?.onScrubEnd}
+                onBeforeCommit={vec3Undo?.onBeforeCommit}
+              />
+            </CollapsibleSection>
+          )}
 
-      <CollapsibleSection title="Transformers" copyPayload={entity.transformers ?? []}>
-        <TransformerEditor
-          transformers={entity.transformers ?? []}
-          onChange={(transformers) =>
-            onEntityTransformersChange
-              ? onEntityTransformersChange(entity.id, transformers)
-              : updateEntity({ transformers })
-          }
-          disabled={isLocked}
-        />
-      </CollapsibleSection>
+          <CollapsibleSection title="Transformers" copyPayload={mergedTransformers ?? []}>
+            <TransformerEditor
+              transformers={mergedTransformers === null ? [] : mergedTransformers}
+              transformersMixed={mergedTransformers === null}
+              onChange={(transformers) =>
+                onEntityTransformersChange
+                  ? onEntityTransformersChange(ids, transformers)
+                  : updateAll({ transformers })
+              }
+              disabled={anyLocked}
+            />
+          </CollapsibleSection>
+        </>
+      )}
     </div>
   )
 }

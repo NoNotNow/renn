@@ -127,13 +127,13 @@ describe('Builder', () => {
     expect(newEntityButton).toHaveStyle({ background: '#2b3550' })
   })
 
-  it('passes editor props to SceneView: selectedEntityId, onSelectEntity, onEntityPoseCommit, gizmoMode', async () => {
+  it('passes editor props to SceneView: selectedEntityIds, onSelectEntity, onEntityPoseCommit, gizmoMode', async () => {
     const user = userEvent.setup()
     renderBuilder()
     await act(async () => {
       await Promise.resolve()
     })
-    expect(sceneViewProps.selectedEntityId).toBe(null)
+    expect(sceneViewProps.selectedEntityIds).toEqual([])
     expect(typeof sceneViewProps.onSelectEntity).toBe('function')
     expect(typeof sceneViewProps.onEntityPoseCommit).toBe('function')
     expect(sceneViewProps.gizmoMode).toBe('translate')
@@ -167,7 +167,7 @@ describe('Builder', () => {
     await openEntitiesTab(user)
     const carButton = screen.getByRole('button', { name: 'Player Car' })
     await user.click(carButton)
-    expect(sceneViewProps.selectedEntityId).toBe('car')
+    expect(sceneViewProps.selectedEntityIds).toEqual(['car'])
   })
 
   it('cycles camera mode when Digit0 is pressed (Camera tab, follow control)', async () => {

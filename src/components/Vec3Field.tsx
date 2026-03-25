@@ -3,7 +3,8 @@ import VectorField from './form/VectorField'
 
 export interface Vec3FieldProps {
   label: string
-  value: Vec3
+  /** `null` when selected entities disagree (multi-select). */
+  value: Vec3 | null
   onChange: (v: Vec3) => void
   min?: number
   max?: number

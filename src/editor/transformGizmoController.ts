@@ -3,9 +3,12 @@ import { TransformControls } from 'three/addons/controls/TransformControls.js'
 import { findEntityRootForPicking } from '@/utils/entityPicking'
 import type { RenderItemRegistry } from '@/runtime/renderItemRegistry'
 import type { Entity, Rotation, Shape, Vec3 } from '@/types/world'
+import { quaternionToEuler } from '@/utils/rotationUtils'
 
 /** Floor for each scale axis while dragging; matches rapierPhysics tolerances (~1e-4). */
 export const GIZMO_MIN_AXIS_SCALE = 1e-4
+
+export const BUILDER_SELECTION_PIVOT_NAME = '__builder_selection_pivot__'
 
 export function clampGizmoScaleAxes(x: number, y: number, z: number): Vec3 {
   return [
@@ -13,6 +16,13 @@ export function clampGizmoScaleAxes(x: number, y: number, z: number): Vec3 {
     Math.max(GIZMO_MIN_AXIS_SCALE, y),
     Math.max(GIZMO_MIN_AXIS_SCALE, z),
   ]
+}
+
+function logicalRotationFromMeshWorldQuaternion(mesh: THREE.Mesh, worldQuat: THREE.Quaternion): Rotation {
+  const baseQ = mesh.userData.visualBaseQuaternion as THREE.Quaternion | undefined
+  const q = worldQuat.clone()
+  if (baseQ) q.premultiply(baseQ.clone().invert())
+  return quaternionToEuler(q)
 }
 
 export type BuilderGizmoMode = 'translate' | 'rotate' | 'scale'
@@ -26,18 +36,29 @@ export interface BuilderPoseCommit {
   modelScale?: Vec3
 }
 
+export interface BuilderPoseCommitEntry {
+  entityId: string
+  pose: BuilderPoseCommit
+}
+
 export interface InstallBuilderPickAndGizmoParams {
   scene: THREE.Scene
   camera: THREE.PerspectiveCamera
   domElement: HTMLElement
   getRegistry: () => RenderItemRegistry | null
   getEntity: (id: string) => Entity | undefined
-  getSelectedId: () => string | null
+  getSelectedIds: () => string[]
   getGizmoMode: () => BuilderGizmoMode
-  onSelectEntity: (id: string | null) => void
-  onPoseCommit: (entityId: string, pose: BuilderPoseCommit) => void
+  onSelectEntity: (id: string | null, options?: { additive?: boolean }) => void
+  onPoseCommit: (commits: BuilderPoseCommitEntry[]) => void
   /** Set true while user drags a gizmo handle (for camera orbit gating). */
   setGizmoDragging: (dragging: boolean) => void
+}
+
+type MultiDragState = {
+  pivotStartWorld: THREE.Matrix4
+  meshStartWorld: Map<string, THREE.Matrix4>
+  ids: string[]
 }
 
 /**
@@ -50,17 +71,34 @@ export function installBuilderPickAndGizmo(
 ): { dispose: () => void; syncAttach: () => void } {
   const controls = new TransformControls(p.camera, p.domElement)
   controls.setMode('translate')
-  /** Align gizmo axes with the attached object (not world X/Y/Z). */
+  /** Align gizmo axes with the attached object (single selection only). */
   controls.setSpace('local')
 
   const helper = controls.getHelper()
   p.scene.add(helper)
 
+  const pivot = new THREE.Group()
+  pivot.name = BUILDER_SELECTION_PIVOT_NAME
+  p.scene.add(pivot)
+
   const getEntityMeshes = (): THREE.Object3D[] =>
     p.scene.children.filter((o) => o.userData?.entityId != null)
 
+  const getGizmoTargetIds = (): string[] =>
+    p.getSelectedIds().filter((id) => {
+      const e = p.getEntity(id)
+      return Boolean(e && !e.locked)
+    })
+
   const ndc = new THREE.Vector2()
   const raycaster = new THREE.Raycaster()
+  const deltaMat = new THREE.Matrix4()
+  const invPivotStart = new THREE.Matrix4()
+  const decompPos = new THREE.Vector3()
+  const decompQuat = new THREE.Quaternion()
+  const decompScale = new THREE.Vector3()
+
+  let multiDragState: MultiDragState | null = null
 
   const setNdcFromEvent = (e: PointerEvent): void => {
     const rect = p.domElement.getBoundingClientRect()
@@ -89,41 +127,159 @@ export function installBuilderPickAndGizmo(
     }
   }
 
+  const applyMultiTransformToRegistry = (): void => {
+    if (!multiDragState) return
+    const reg = p.getRegistry()
+    if (!reg) return
+    pivot.updateMatrixWorld(true)
+    const pCurr = pivot.matrixWorld
+    invPivotStart.copy(multiDragState.pivotStartWorld).invert()
+    deltaMat.copy(pCurr).multiply(invPivotStart)
+
+    for (const id of multiDragState.ids) {
+      const m0 = multiDragState.meshStartWorld.get(id)
+      if (!m0) continue
+      const m1 = new THREE.Matrix4().copy(deltaMat).multiply(m0)
+      m1.decompose(decompPos, decompQuat, decompScale)
+      const mesh = p.scene.getObjectByName(id)
+      if (!(mesh instanceof THREE.Mesh)) continue
+      reg.setPosition(id, [decompPos.x, decompPos.y, decompPos.z])
+      reg.setRotation(id, logicalRotationFromMeshWorldQuaternion(mesh, decompQuat))
+      const [sx, sy, sz] = clampGizmoScaleAxes(decompScale.x, decompScale.y, decompScale.z)
+      reg.patchScale(id, [sx, sy, sz])
+    }
+  }
+
   const syncAttach = (): void => {
-    const id = p.getSelectedId()
-    const entity = id ? p.getEntity(id) : undefined
-    const locked = entity?.locked === true
-    if (!id || locked) {
+    const targetIds = getGizmoTargetIds()
+    if (targetIds.length === 0) {
       controls.detach()
       return
     }
-    const obj = p.scene.getObjectByName(id)
-    if (obj instanceof THREE.Mesh) {
-      const mode = p.getGizmoMode()
-      controls.setMode(mode)
-      controls.setSpace('local')
-      if (controls.object !== obj) {
-        controls.attach(obj)
+
+    if (targetIds.length === 1) {
+      const id = targetIds[0]!
+      const obj = p.scene.getObjectByName(id)
+      if (obj instanceof THREE.Mesh) {
+        const mode = p.getGizmoMode()
+        controls.setMode(mode)
+        controls.setSpace('local')
+        if (controls.object !== obj) {
+          controls.attach(obj)
+        }
+      } else {
+        controls.detach()
       }
-    } else {
+      return
+    }
+
+    // Multi: pivot at average position, world-space gizmo
+    const reg = p.getRegistry()
+    if (!reg) {
       controls.detach()
+      return
+    }
+    let sx = 0
+    let sy = 0
+    let sz = 0
+    let n = 0
+    for (const id of targetIds) {
+      const pos = reg.getPosition(id)
+      if (pos) {
+        sx += pos[0]
+        sy += pos[1]
+        sz += pos[2]
+        n += 1
+      }
+    }
+    if (n === 0) {
+      controls.detach()
+      return
+    }
+    pivot.position.set(sx / n, sy / n, sz / n)
+    pivot.quaternion.identity()
+    pivot.scale.set(1, 1, 1)
+    pivot.updateMatrixWorld(true)
+
+    const mode = p.getGizmoMode()
+    controls.setMode(mode)
+    controls.setSpace('world')
+    if (controls.object !== pivot) {
+      controls.attach(pivot)
     }
   }
 
   const onObjectChange = (): void => {
+    if (controls.object === pivot) {
+      applyMultiTransformToRegistry()
+      return
+    }
     mirrorAttachedPoseToRegistry()
   }
 
   const onMouseDown = (): void => {
     p.setGizmoDragging(true)
+    if (controls.object === pivot) {
+      const reg = p.getRegistry()
+      if (!reg) return
+      const ids = getGizmoTargetIds()
+      pivot.updateMatrixWorld(true)
+      const pivotStartWorld = pivot.matrixWorld.clone()
+      const meshStartWorld = new Map<string, THREE.Matrix4>()
+      for (const id of ids) {
+        const mesh = p.scene.getObjectByName(id)
+        if (mesh instanceof THREE.Mesh) {
+          mesh.updateMatrixWorld(true)
+          meshStartWorld.set(id, mesh.matrixWorld.clone())
+        }
+      }
+      multiDragState = { pivotStartWorld, meshStartWorld, ids }
+    }
   }
 
   const onMouseUp = (): void => {
     p.setGizmoDragging(false)
+    const reg = p.getRegistry()
+    if (!reg) return
+
+    if (controls.object === pivot) {
+      const mode = p.getGizmoMode()
+      const ids = multiDragState?.ids ?? getGizmoTargetIds()
+      const commits: BuilderPoseCommitEntry[] = []
+      for (const id of ids) {
+        if (mode === 'scale') {
+          const baked = reg.applyGizmoScaleBake(id)
+          if (!baked) {
+            reg.commitScalePhysics(id)
+          }
+        }
+        const item = reg.get(id)
+        const pos = reg.getPosition(id)
+        const rot = reg.getRotation(id)
+        const scale = reg.getScale(id)
+        if (pos && rot && scale && item) {
+          commits.push({
+            entityId: id,
+            pose: {
+              position: pos,
+              rotation: rot,
+              scale,
+              shape: item.entity.shape,
+              modelScale: item.entity.modelScale,
+            },
+          })
+        }
+      }
+      if (commits.length > 0) {
+        p.onPoseCommit(commits)
+      }
+      multiDragState = null
+      return
+    }
+
     const obj = controls.object
     if (!(obj instanceof THREE.Mesh)) return
     const id = obj.name
-    const reg = p.getRegistry()
     if (!id || !reg) return
     const mode = p.getGizmoMode()
     if (mode === 'scale') {
@@ -137,13 +293,18 @@ export function installBuilderPickAndGizmo(
     const rot = reg.getRotation(id)
     const scale = reg.getScale(id)
     if (pos && rot && scale && item) {
-      p.onPoseCommit(id, {
-        position: pos,
-        rotation: rot,
-        scale,
-        shape: item.entity.shape,
-        modelScale: item.entity.modelScale,
-      })
+      p.onPoseCommit([
+        {
+          entityId: id,
+          pose: {
+            position: pos,
+            rotation: rot,
+            scale,
+            shape: item.entity.shape,
+            modelScale: item.entity.modelScale,
+          },
+        },
+      ])
     }
   }
 
@@ -167,7 +328,8 @@ export function installBuilderPickAndGizmo(
       p.onSelectEntity(null)
       return
     }
-    p.onSelectEntity(entityRoot.userData.entityId as string)
+    const additive = e.shiftKey || e.metaKey
+    p.onSelectEntity(entityRoot.userData.entityId as string, { additive })
   }
 
   p.domElement.addEventListener('pointerdown', onSelectPointerDown)
@@ -181,6 +343,7 @@ export function installBuilderPickAndGizmo(
     controls.removeEventListener('mouseUp', onMouseUp)
     controls.dispose()
     p.scene.remove(helper)
+    p.scene.remove(pivot)
     p.setGizmoDragging(false)
   }
 

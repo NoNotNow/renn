@@ -1,20 +1,22 @@
 # Inspector (Property panel)
 
-The inspector is the right-side panel that edits the **selected entity**: name, transform, shape, physics, material, 3D model, and transformers. It reads from the world document and optional live pose data so the displayed position/rotation stay in sync with the running scene.
+The inspector is the right-side panel that edits the **selection** (one or more entities): name, transform, shape, physics, material, 3D model, transformers, and script attachments. With **multiple** entities selected, fields show a shared value only when all agree; otherwise they appear empty or show a short “mixed” notice. Edits apply to **every** selected entity. It reads from the world document and optional live pose data so displayed poses stay in sync with the running scene.
+
+**Multi-select**: **Shift+click** or **Cmd+click** (Meta) on an entity in the viewport or entity list toggles that entity in the selection; a normal click replaces the selection with one entity. **Escape** clears the selection when focus is not in an input. **Clone** is disabled when more than one entity is selected.
 
 ## Role
 
 - **PropertySidebar**: Tabs (Properties | Scripts | Assets). When the Properties tab is active, it renders **PropertyPanel**.
-- **PropertyPanel**: Renders sections for the selected entity (Entity, Transform, Shape, Physics, Material, 3D Model, Transformers). The header row includes an **Actions** group (`role="group"`, `aria-label="Actions"`) with icon buttons: **Refresh from physics** (optional), **Clone entity** (optional), **Delete entity** (optional). It composes:
+- **PropertyPanel**: Renders sections for the current selection (Entity, Transform, Shape, Physics, Material, 3D Model, Transformers). The header row includes an **Actions** group (`role="group"`, `aria-label="Actions"`) with icon buttons: **Refresh from physics** (optional), **Clone entity** (optional), **Delete** (optional; deletes all selected when any is unlocked). It composes:
   - TransformEditor (position, rotation, scale)
   - ShapeEditor, PhysicsEditor, MaterialEditor, ModelEditor, TransformerEditor
 - **Model-Transform** (when trimesh or `entity.model`): edits `modelRotation` / `modelScale`. For **primitive + 3D Model** (not trimesh), **Show shape wireframe** toggles `entity.showShapeWireframe`: the viewport draws edge lines for the **physics primitive** (same geometry as the invisible picker root), not GLTF triangle wireframe. Trimesh-only entities omit this control. Removing the model or switching the shape to trimesh clears the flag. Runtime sync: `RenderItemRegistry.syncAllShapeWireframeOverlays` + `loadWorld` / `updateShape` via [`shapeWireframeOverlay.ts`](src/loader/shapeWireframeOverlay.ts); does not change [`getSceneDependencyKey`](src/utils/sceneDependencyKey.ts).
 
 ## Data flow
 
-- **Read**: Inspector gets `world` from ProjectContext (via Builder → PropertySidebar). For the selected entity it also receives optional **livePoses** (position/rotation from the running scene). Position and rotation **display** use `livePoses.get(entity.id)` when present, otherwise `entity.position` / `entity.rotation`.
-- **User edits**: Changing a field calls `onWorldChange(newWorld)` (updates document and marks project dirty) or `onEntityPoseChange(id, pose)` (updates scene only; used for transform when SceneView is available).
-- **Refresh from physics**: The “Refresh” button calls `getCurrentPose(entityId)` then `syncPosesFromScene(poses)` to write current scene poses back into the world (no dirty from this path in ProjectContext).
+- **Read**: Inspector gets `world` from ProjectContext (via Builder → PropertySidebar). For each selected id it uses optional **livePoses** for display. Merged values use helpers in [`entityInspectorMerge.ts`](../src/utils/entityInspectorMerge.ts).
+- **User edits**: Changing a field calls `onWorldChange(newWorld)` or bulk scene updates (`onEntityPoseChange(ids, pose)`, `onEntityPhysicsChange(ids, patch)`, etc.).
+- **Refresh from physics**: Refreshes **all** selected entities via `getCurrentPose` + `syncPosesFromScene` for each id.
 - **Clone entity**: The “Clone” button calls `onCloneEntity` → Builder’s `handleCloneEntity`, which uses `cloneEntityFrom` ([`entityDefaults.ts`](src/data/entityDefaults.ts)) with `getCurrentPose` for position/rotation. Placement uses [`clonePlacement.ts`](src/utils/clonePlacement.ts): same **Y** as the source pose, lateral offset in **XZ** from flattened local +X (fallback +Z, then world +X), separation from shape-based half-extent plus a small gap. The clone gets a new id, `name` suffixed with ` copy`, and `locked: false`. Delete stays disabled when the source is locked; clone remains available.
 
 See **architecture.md** for ProjectContext, SceneView, and world/version flow.
@@ -60,7 +62,7 @@ src/
 
 ## Builder header: gizmo mode
 
-Move / Rotate / Scale toolbar buttons sit next to the **Shadows** switch in `BuilderHeader`. They set `gizmoMode` (`translate` | `rotate` | `scale`). Scale commits update `entity.scale` and rebuild the physics collider via `RenderItemRegistry.setScale` / `commitScalePhysics`.
+Move / Rotate / Scale toolbar buttons sit next to the **Shadows** switch in `BuilderHeader`. They set `gizmoMode` (`translate` | `rotate` | `scale`). **One** unlocked selected entity: gizmo attaches to that mesh with **`space: 'local'`**. **Several** unlocked entities: a scene **pivot** at the average position uses **`space: 'world'`**; dragging applies a group transform so all move/rotate/scale together; scale still bakes per entity on mouse up. Scale commits update `entity.scale` (and shape/model bake when applicable) via `RenderItemRegistry`. **Locked** entities stay in the selection but are excluded from the gizmo target set.
 
 ## Scene picking (click → inspector)
 

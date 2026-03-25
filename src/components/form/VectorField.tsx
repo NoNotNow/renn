@@ -2,7 +2,8 @@ import DraggableNumberField from '../DraggableNumberField'
 
 export interface VectorFieldProps<T extends number[]> {
   label: string
-  value: T
+  /** `null` = mixed values (multi-select); empty inputs until user commits a number. */
+  value: T | null
   onChange: (value: T) => void
   componentLabels: string[]
   min?: number
@@ -32,9 +33,10 @@ export default function VectorField<T extends number[]>({
   onBeforeCommit,
 }: VectorFieldProps<T>) {
   const handleComponentChange = (index: number) => (newValue: number) => {
-    const newArray = [...value] as T
+    const template = (value ?? ([0, 0, 0] as unknown as T)) as T
+    const newArray = [...template] as unknown as number[]
     newArray[index] = newValue
-    onChange(newArray)
+    onChange(newArray as T)
   }
 
   const gridColumns = `repeat(${componentLabels.length}, auto 1fr)`
@@ -55,7 +57,7 @@ export default function VectorField<T extends number[]>({
             <span style={{ fontSize: '0.7em', color: '#9aa4b2' }}>{compLabel}</span>
             <DraggableNumberField
               id={`${idPrefix}-${compLabel.toLowerCase()}`}
-              value={value[index]}
+              value={value === null ? null : value[index]!}
               onChange={handleComponentChange(index)}
               min={min}
               max={max}

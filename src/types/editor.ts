@@ -21,6 +21,6 @@ export interface PoseHandlingProps {
  */
 export interface BasePropertyProps {
   world: RennWorld
-  selectedEntityId: string | null
+  selectedEntityIds: string[]
   onWorldChange: (world: RennWorld) => void
 }

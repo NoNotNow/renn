@@ -5,7 +5,8 @@ const DEAD_ZONE_PX = 2
 const DEFAULT_SENSITIVITY = 0.01
 
 export interface DraggableNumberFieldProps {
-  value: number
+  /** Use `null` for “mixed” multi-selection; shows empty until the user enters a value. */
+  value: number | null
   onChange: (n: number) => void
   min?: number
   max?: number
@@ -47,7 +48,7 @@ export default function DraggableNumberField({
 }: DraggableNumberFieldProps) {
   const scrubRef = useRef<{ startValue: number; startX: number; deadZoneUsed: boolean } | null>(null)
   const [isFocused, setIsFocused] = useState(false)
-  const [localValue, setLocalValue] = useState(stringifyValue(value))
+  const [localValue, setLocalValue] = useState(() => stringifyValue(value))
 
   // When not focused, keep displayed value in sync with props
   useEffect(() => {
@@ -56,7 +57,8 @@ export default function DraggableNumberField({
     }
   }, [value, isFocused])
 
-  function stringifyValue(n: number): string {
+  function stringifyValue(n: number | null): string {
+    if (n === null) return ''
     return String(n)
   }
 
@@ -72,14 +74,14 @@ export default function DraggableNumberField({
     const parsed = parseFloat(localValue)
     if (!Number.isNaN(parsed) && Number.isFinite(parsed)) {
       const clamped = clampWithOptional(parsed, min, max)
-      if (clamped !== value) {
+      if (value === null || clamped !== value) {
         onBeforeCommit?.()
       }
       onChange(clamped)
       setLocalValue(stringifyValue(clamped))
     } else {
       setLocalValue(stringifyValue(value))
-      onChange(value)
+      if (value !== null) onChange(value)
     }
   }, [localValue, value, min, max, onChange, onBeforeCommit])
 
@@ -88,12 +90,13 @@ export default function DraggableNumberField({
       if (e.button !== 0) return
       onScrubStart?.()
       const target = e.target as HTMLInputElement
+      const effectiveValue = value ?? 0
       const startValue = isFocused
         ? (() => {
             const p = parseFloat(localValue)
-            return Number.isNaN(p) || !Number.isFinite(p) ? value : clampWithOptional(p, min, max)
+            return Number.isNaN(p) || !Number.isFinite(p) ? effectiveValue : clampWithOptional(p, min, max)
           })()
-        : value
+        : effectiveValue
       scrubRef.current = {
         startValue,
         startX: e.clientX,

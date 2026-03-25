@@ -15,7 +15,7 @@ import { useKeyboardInput } from '@/hooks/useKeyboardInput'
 import {
   installBuilderPickAndGizmo,
   type BuilderGizmoMode,
-  type BuilderPoseCommit,
+  type BuilderPoseCommitEntry,
 } from '@/editor/transformGizmoController'
 import { getSceneUserData } from '@/types/sceneUserData'
 import { useRawKeyboardInput, useRawWheelInput, getRawInputSnapshot } from '@/input/rawInput'
@@ -33,10 +33,10 @@ export interface SceneViewProps {
   runScripts?: boolean
   shadowsEnabled?: boolean
   className?: string
-  selectedEntityId?: string | null
-  onSelectEntity?: (entityId: string | null) => void
-  /** Builder: called after a gizmo drag ends with the committed pose. */
-  onEntityPoseCommit?: (entityId: string, pose: BuilderPoseCommit) => void
+  selectedEntityIds?: string[]
+  onSelectEntity?: (entityId: string | null, options?: { additive?: boolean }) => void
+  /** Builder: called after a gizmo drag ends with the committed poses (one or many). */
+  onEntityPoseCommit?: (commits: BuilderPoseCommitEntry[]) => void
   gizmoMode?: BuilderGizmoMode
   version?: number
   /** Ref set by parent before world update; applied to registry after reload and then cleared. */
@@ -74,7 +74,7 @@ function SceneViewInner({
   runScripts = true,
   shadowsEnabled = true,
   className = '',
-  selectedEntityId = null,
+  selectedEntityIds = [],
   onSelectEntity,
   onEntityPoseCommit,
   gizmoMode = 'translate',
@@ -118,23 +118,21 @@ function SceneViewInner({
   const gizmoDraggingRef = useRef(false)
   const disposePickGizmoRef = useRef<(() => void) | null>(null)
   const syncGizmoAttachRef = useRef<(() => void) | null>(null)
-  const selectedEntityIdRef = useRef<string | null>(null)
+  const selectedEntityIdsRef = useRef<string[]>([])
   const gizmoModeRef = useRef<BuilderGizmoMode>('translate')
   const onSelectEntityRef = useRef(onSelectEntity)
   const onEntityPoseCommitRef = useRef(onEntityPoseCommit)
 
-  selectedEntityIdRef.current = selectedEntityId ?? null
+  selectedEntityIdsRef.current = selectedEntityIds
   gizmoModeRef.current = gizmoMode
   onSelectEntityRef.current = onSelectEntity
   onEntityPoseCommitRef.current = onEntityPoseCommit
 
-  const selectedEntityLocked =
-    selectedEntityId != null &&
-    world.entities.find((e) => e.id === selectedEntityId)?.locked === true
+  const selectionSyncKey = selectedEntityIds.join('\0')
 
   useEffect(() => {
     syncGizmoAttachRef.current?.()
-  }, [selectedEntityId, gizmoMode, selectedEntityLocked, sceneKey, registryEpoch])
+  }, [selectionSyncKey, gizmoMode, sceneKey, registryEpoch])
 
   useEffect(() => {
     registryRef.current?.syncAllShapeWireframeOverlays(world.entities)
@@ -339,10 +337,10 @@ function SceneViewInner({
           domElement: rend.domElement,
           getRegistry: () => registryRef.current,
           getEntity: (id) => worldRef.current.entities.find((e) => e.id === id),
-          getSelectedId: () => selectedEntityIdRef.current,
+          getSelectedIds: () => selectedEntityIdsRef.current,
           getGizmoMode: () => gizmoModeRef.current,
-          onSelectEntity: (id) => onSelectEntityRef.current?.(id),
-          onPoseCommit: (entityId, pose) => onEntityPoseCommitRef.current?.(entityId, pose),
+          onSelectEntity: (id, opts) => onSelectEntityRef.current?.(id, opts),
+          onPoseCommit: (commits) => onEntityPoseCommitRef.current?.(commits),
           setGizmoDragging: (d) => {
             gizmoDraggingRef.current = d
           },

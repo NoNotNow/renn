@@ -116,12 +116,15 @@ function TransformerConfigTextarea({
 
 export interface TransformerEditorProps {
   transformers?: TransformerConfig[]
+  /** Multi-select: stacks differ; edits replace all selected entities' stacks. */
+  transformersMixed?: boolean
   onChange?: (transformers: TransformerConfig[]) => void
   disabled?: boolean
 }
 
 export default function TransformerEditor({
   transformers,
+  transformersMixed = false,
   onChange,
   disabled = false,
 }: TransformerEditorProps) {
@@ -159,6 +162,11 @@ export default function TransformerEditor({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {transformersMixed && (
+        <p style={{ margin: 0, fontSize: 12, color: '#9aa4b2' }}>
+          Transformer stacks differ. Adding or editing replaces the stack on all selected entities.
+        </p>
+      )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
         <div style={fieldLabelStyle}>Add transformer</div>
         <select

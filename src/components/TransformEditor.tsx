@@ -12,9 +12,10 @@ export interface Vec3UndoProps {
 
 export interface TransformEditorProps {
   entityId: string
-  position: Vec3
-  rotation: Rotation
-  scale: Vec3
+  /** `null` = mixed multi-select (empty fields). */
+  position: Vec3 | null
+  rotation: Rotation | null
+  scale: Vec3 | null
   onPositionChange: (position: Vec3) => void
   onRotationChange: (rotation: Rotation) => void
   onScaleChange: (scale: Vec3) => void

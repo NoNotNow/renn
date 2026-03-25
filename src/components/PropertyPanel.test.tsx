@@ -59,11 +59,11 @@ function worldWithSphere(): RennWorld {
 
 function renderPropertyPanel(
   world: RennWorld,
-  selectedEntityId: string | null,
+  selectedEntityIds: string[],
   onWorldChange = vi.fn(),
-  onDeleteEntity?: (id: string) => void,
+  onDeleteEntities?: (ids: string[]) => void,
   assets: Map<string, Blob> = new Map(),
-  onRefreshFromPhysics?: (entityId: string) => void,
+  onRefreshFromPhysics?: (entityIds: string[]) => void,
   livePoses?: Map<string, { position: [number, number, number]; rotation: [number, number, number] }> | null,
   onCloneEntity?: (entityId: string) => void,
 ) {
@@ -71,9 +71,9 @@ function renderPropertyPanel(
     <PropertyPanel
       world={world}
       assets={assets}
-      selectedEntityId={selectedEntityId}
+      selectedEntityIds={selectedEntityIds}
       onWorldChange={onWorldChange}
-      onDeleteEntity={onDeleteEntity}
+      onDeleteEntities={onDeleteEntities}
       onCloneEntity={onCloneEntity}
       onRefreshFromPhysics={onRefreshFromPhysics}
       livePoses={livePoses}
@@ -83,13 +83,13 @@ function renderPropertyPanel(
 
 describe('PropertyPanel', () => {
   it('shows "Select an entity" when no entity selected', () => {
-    renderPropertyPanel(sampleWorld, null)
+    renderPropertyPanel(sampleWorld, [])
     expect(screen.getByText('Select an entity')).toBeInTheDocument()
   })
 
   it('does not show refresh-from-physics button when onRefreshFromPhysics is undefined', () => {
     const world = worldWithBox()
-    renderPropertyPanel(world, world.entities[0].id)
+    renderPropertyPanel(world, [world.entities[0]!.id])
     expect(screen.queryByTitle('Refresh position and rotation from physics')).not.toBeInTheDocument()
   })
 
@@ -98,16 +98,16 @@ describe('PropertyPanel', () => {
     const onRefreshFromPhysics = vi.fn()
     const world = worldWithBox()
     const entityId = world.entities[0].id
-    renderPropertyPanel(world, entityId, vi.fn(), undefined, new Map(), onRefreshFromPhysics)
+    renderPropertyPanel(world, [entityId], vi.fn(), undefined, new Map(), onRefreshFromPhysics)
     const refreshButton = screen.getByTitle('Refresh position and rotation from physics')
     await user.click(refreshButton)
     expect(onRefreshFromPhysics).toHaveBeenCalledTimes(1)
-    expect(onRefreshFromPhysics).toHaveBeenCalledWith(entityId)
+    expect(onRefreshFromPhysics).toHaveBeenCalledWith([entityId])
   })
 
   it('does not show clone button when onCloneEntity is undefined', () => {
     const world = worldWithBox()
-    renderPropertyPanel(world, world.entities[0].id)
+    renderPropertyPanel(world, [world.entities[0]!.id])
     expect(screen.queryByTitle('Clone entity')).not.toBeInTheDocument()
   })
 
@@ -116,7 +116,7 @@ describe('PropertyPanel', () => {
     const onCloneEntity = vi.fn()
     const world = worldWithBox()
     const entityId = world.entities[0].id
-    renderPropertyPanel(world, entityId, vi.fn(), undefined, new Map(), undefined, undefined, onCloneEntity)
+    renderPropertyPanel(world, [entityId], vi.fn(), undefined, new Map(), undefined, undefined, onCloneEntity)
     await user.click(screen.getByTitle('Clone entity'))
     expect(onCloneEntity).toHaveBeenCalledTimes(1)
     expect(onCloneEntity).toHaveBeenCalledWith(entityId)
@@ -126,7 +126,7 @@ describe('PropertyPanel', () => {
     const world = worldWithBox()
     const entity = world.entities[0]
     const displayName = entity.name ?? entity.id
-    renderPropertyPanel(world, entity.id)
+    renderPropertyPanel(world, [entity.id])
     expect(screen.getByRole('heading', { name: displayName })).toBeInTheDocument()
     expect(screen.getByLabelText(/width/i)).toBeInTheDocument()
     expect(screen.getByLabelText(/height/i)).toBeInTheDocument()
@@ -135,7 +135,7 @@ describe('PropertyPanel', () => {
 
   it('shows shape-specific inputs for sphere when ball selected', () => {
     const world = worldWithSphere()
-    renderPropertyPanel(world, 'ball')
+    renderPropertyPanel(world, ['ball'])
     expect(screen.getByRole('heading', { name: 'ball' })).toBeInTheDocument()
     expect(screen.getByLabelText(/radius/i)).toBeInTheDocument()
   })
@@ -144,7 +144,7 @@ describe('PropertyPanel', () => {
     const user = userEvent.setup()
     const onWorldChange = vi.fn()
     const world = worldWithBox()
-    renderPropertyPanel(world, world.entities[0].id, onWorldChange)
+    renderPropertyPanel(world, [world.entities[0]!.id], onWorldChange)
     const widthInput = screen.getByLabelText(/width/i)
     await user.click(widthInput)
     await user.clear(widthInput)
@@ -158,7 +158,7 @@ describe('PropertyPanel', () => {
     const onWorldChange = vi.fn()
     const world = worldWithBox()
     const entityId = world.entities[0].id
-    renderPropertyPanel(world, entityId, onWorldChange)
+    renderPropertyPanel(world, [entityId], onWorldChange)
     const positionXInput = screen.getByLabelText(/position x/i)
     await user.click(positionXInput)
     await user.clear(positionXInput)
@@ -176,7 +176,7 @@ describe('PropertyPanel', () => {
       const onWorldChange = vi.fn()
       const world = worldWithBox()
       const entityId = world.entities[0].id
-      renderPropertyPanel(world, entityId, onWorldChange)
+      renderPropertyPanel(world, [entityId], onWorldChange)
       const nameInput = screen.getByLabelText(/^name$/i)
       fireEvent.focus(nameInput)
       fireEvent.change(nameInput, { target: { value: 'My Box' } })
@@ -192,7 +192,7 @@ describe('PropertyPanel', () => {
       const onWorldChange = vi.fn()
       const world = worldWithBox()
       const entityId = world.entities[0].id
-      renderPropertyPanel(world, entityId, onWorldChange)
+      renderPropertyPanel(world, [entityId], onWorldChange)
       await user.selectOptions(screen.getByLabelText(/shape/i), 'sphere')
       expect(onWorldChange).toHaveBeenCalled()
       const lastCall = onWorldChange.mock.calls[onWorldChange.mock.calls.length - 1]
@@ -205,7 +205,7 @@ describe('PropertyPanel', () => {
       const onWorldChange = vi.fn()
       const world = worldWithBox()
       const entityId = world.entities[0].id
-      renderPropertyPanel(world, entityId, onWorldChange)
+      renderPropertyPanel(world, [entityId], onWorldChange)
       await user.selectOptions(screen.getByLabelText(/body type/i), 'dynamic')
       expect(onWorldChange).toHaveBeenCalled()
       const lastCall = onWorldChange.mock.calls[onWorldChange.mock.calls.length - 1]
@@ -217,7 +217,7 @@ describe('PropertyPanel', () => {
       const onWorldChange = vi.fn()
       const world = worldWithBox()
       const entityId = world.entities[0].id
-      renderPropertyPanel(world, entityId, onWorldChange)
+      renderPropertyPanel(world, [entityId], onWorldChange)
       const frictionInput = screen.getByLabelText(/friction/i)
       fireEvent.focus(frictionInput)
       fireEvent.change(frictionInput, { target: { value: '0.8' } })
@@ -233,7 +233,7 @@ describe('PropertyPanel', () => {
       const onWorldChange = vi.fn()
       const world = worldWithBox()
       const entityId = world.entities[0].id
-      renderPropertyPanel(world, entityId, onWorldChange)
+      renderPropertyPanel(world, [entityId], onWorldChange)
       const scaleXInput = screen.getByLabelText(/scale x/i)
       await user.click(scaleXInput)
       await user.tripleClick(scaleXInput)
@@ -250,7 +250,7 @@ describe('PropertyPanel', () => {
       const onWorldChange = vi.fn()
       const world = worldWithBox()
       const entityId = world.entities[0].id
-      renderPropertyPanel(world, entityId, onWorldChange)
+      renderPropertyPanel(world, [entityId], onWorldChange)
       const rotationXInput = screen.getByLabelText(/rotation x/i)
       await user.click(rotationXInput)
       await user.clear(rotationXInput)
@@ -266,7 +266,7 @@ describe('PropertyPanel', () => {
       const onWorldChange = vi.fn()
       const world = worldWithBox()
       const entityId = world.entities[0].id
-      renderPropertyPanel(world, entityId, onWorldChange)
+      renderPropertyPanel(world, [entityId], onWorldChange)
       const colorInput = screen.getByLabelText(/material color/i)
       fireEvent.change(colorInput, { target: { value: '#ff0000' } })
       expect(onWorldChange).toHaveBeenCalled()
@@ -279,7 +279,7 @@ describe('PropertyPanel', () => {
       const onWorldChange = vi.fn()
       const world = worldWithBox()
       const entityId = world.entities[0].id
-      renderPropertyPanel(world, entityId, onWorldChange)
+      renderPropertyPanel(world, [entityId], onWorldChange)
       const roughnessInput = screen.getByLabelText(/roughness/i)
       fireEvent.focus(roughnessInput)
       fireEvent.change(roughnessInput, { target: { value: '0.2' } })
@@ -295,7 +295,7 @@ describe('PropertyPanel', () => {
       const onWorldChange = vi.fn()
       const world = worldWithBox()
       const entityId = world.entities[0].id
-      renderPropertyPanel(world, entityId, onWorldChange)
+      renderPropertyPanel(world, [entityId], onWorldChange)
       const opacityInput = screen.getByLabelText(/opacity/i)
       await user.click(opacityInput)
       await user.clear(opacityInput)
@@ -312,7 +312,7 @@ describe('PropertyPanel', () => {
       const onWorldChange = vi.fn()
       const world = worldWithBox()
       const entityId = world.entities[0].id
-      renderPropertyPanel(world, entityId, onWorldChange)
+      renderPropertyPanel(world, [entityId], onWorldChange)
       const metalnessInput = screen.getByLabelText(/metalness/i)
       await user.click(metalnessInput)
       await user.clear(metalnessInput)
@@ -324,21 +324,21 @@ describe('PropertyPanel', () => {
       expect(updatedEntity?.material?.metalness).toBe(0.9)
     })
 
-    it('Delete entity button calls onDeleteEntity with entity id', async () => {
+    it('Delete entity button calls onDeleteEntities with entity id', async () => {
       const user = userEvent.setup()
-      const onDeleteEntity = vi.fn()
+      const onDeleteEntities = vi.fn()
       const world = worldWithBox()
       const entityId = world.entities[0].id
-      renderPropertyPanel(world, entityId, vi.fn(), onDeleteEntity)
+      renderPropertyPanel(world, [entityId], vi.fn(), onDeleteEntities)
       await user.click(screen.getByRole('button', { name: /delete entity/i }))
-      expect(onDeleteEntity).toHaveBeenCalledWith(entityId)
+      expect(onDeleteEntities).toHaveBeenCalledWith([entityId])
     })
 
     it('cylinder entity shows Radius and Height and changing Radius updates shape on blur', () => {
       const onWorldChange = vi.fn()
       const world = worldWithCylinder()
       const entityId = world.entities[0].id
-      renderPropertyPanel(world, entityId, onWorldChange)
+      renderPropertyPanel(world, [entityId], onWorldChange)
       expect(screen.getByLabelText(/radius/i)).toBeInTheDocument()
       expect(screen.getByLabelText(/height/i)).toBeInTheDocument()
       const radiusInput = screen.getByLabelText(/radius/i)
@@ -360,7 +360,7 @@ describe('PropertyPanel', () => {
       const livePoses = new Map([
         [entityId, { position: [5, 10, 15] as [number, number, number], rotation: [0.1, 0.2, 0.3] as [number, number, number] }],
       ])
-      renderPropertyPanel(world, entityId, vi.fn(), undefined, new Map(), undefined, livePoses)
+      renderPropertyPanel(world, [entityId], vi.fn(), undefined, new Map(), undefined, livePoses)
       const positionXInput = screen.getByLabelText(/position x/i)
       const positionYInput = screen.getByLabelText(/position y/i)
       const rotationXInput = screen.getByLabelText(/rotation x/i)
@@ -376,7 +376,7 @@ describe('PropertyPanel', () => {
       const livePoses = new Map([
         [entityId, { position: [5, 0, 0] as [number, number, number], rotation: [0, 0, 0] as [number, number, number] }],
       ])
-      renderPropertyPanel(world, entityId, onWorldChange, undefined, new Map(), undefined, livePoses)
+      renderPropertyPanel(world, [entityId], onWorldChange, undefined, new Map(), undefined, livePoses)
       const positionXInput = screen.getByLabelText(/position x/i)
       fireEvent.focus(positionXInput)
       fireEvent.change(positionXInput, { target: { value: '7' } })
@@ -398,7 +398,7 @@ describe('PropertyPanel', () => {
         <PropertyPanel
           world={world}
           assets={new Map()}
-          selectedEntityId={entityId}
+          selectedEntityIds={[entityId]}
           onWorldChange={onWorldChange}
           livePoses={livePoses1}
         />
@@ -414,7 +414,7 @@ describe('PropertyPanel', () => {
         <PropertyPanel
           world={world}
           assets={new Map()}
-          selectedEntityId={entityId}
+          selectedEntityIds={[entityId]}
           onWorldChange={onWorldChange}
           livePoses={livePoses2}
         />
@@ -428,20 +428,20 @@ describe('PropertyPanel', () => {
     it('shows lock indicator for locked entities', () => {
       const world = worldWithBox()
       world.entities[0].locked = true
-      renderPropertyPanel(world, world.entities[0].id)
+      renderPropertyPanel(world, [world.entities[0]!.id])
       expect(screen.getByRole('heading', { name: /🔒/ })).toBeInTheDocument()
     })
 
     it('shows locked button when entity is locked', () => {
       const world = worldWithBox()
       world.entities[0].locked = true
-      renderPropertyPanel(world, world.entities[0].id)
+      renderPropertyPanel(world, [world.entities[0]!.id])
       expect(screen.getByTitle('Unlock entity')).toBeInTheDocument()
     })
 
     it('shows unlocked button when entity is not locked', () => {
       const world = worldWithBox()
-      renderPropertyPanel(world, world.entities[0].id)
+      renderPropertyPanel(world, [world.entities[0]!.id])
       expect(screen.getByTitle('Lock entity')).toBeInTheDocument()
     })
 
@@ -449,7 +449,7 @@ describe('PropertyPanel', () => {
       const user = userEvent.setup()
       const onWorldChange = vi.fn()
       const world = worldWithBox()
-      renderPropertyPanel(world, world.entities[0].id, onWorldChange)
+      renderPropertyPanel(world, [world.entities[0]!.id], onWorldChange)
       const lockButton = screen.getByTitle('Lock entity')
       await user.click(lockButton)
       expect(onWorldChange).toHaveBeenCalled()
@@ -461,7 +461,7 @@ describe('PropertyPanel', () => {
     it('disables name input when entity is locked', () => {
       const world = worldWithBox()
       world.entities[0].locked = true
-      renderPropertyPanel(world, world.entities[0].id)
+      renderPropertyPanel(world, [world.entities[0]!.id])
       const nameInput = screen.getByLabelText(/^name$/i)
       expect(nameInput).toBeDisabled()
     })
@@ -469,7 +469,7 @@ describe('PropertyPanel', () => {
     it('disables shape inputs when entity is locked', () => {
       const world = worldWithBox()
       world.entities[0].locked = true
-      renderPropertyPanel(world, world.entities[0].id)
+      renderPropertyPanel(world, [world.entities[0]!.id])
       expect(screen.getByLabelText(/shape/i)).toBeDisabled()
       expect(screen.getByLabelText(/width/i)).toBeDisabled()
       expect(screen.getByLabelText(/height/i)).toBeDisabled()
@@ -479,7 +479,7 @@ describe('PropertyPanel', () => {
     it('disables transform inputs when entity is locked', () => {
       const world = worldWithBox()
       world.entities[0].locked = true
-      renderPropertyPanel(world, world.entities[0].id)
+      renderPropertyPanel(world, [world.entities[0]!.id])
       expect(screen.getByLabelText(/position x/i)).toBeDisabled()
       expect(screen.getByLabelText(/position y/i)).toBeDisabled()
       expect(screen.getByLabelText(/position z/i)).toBeDisabled()
@@ -491,7 +491,7 @@ describe('PropertyPanel', () => {
     it('disables physics inputs when entity is locked', () => {
       const world = worldWithBox()
       world.entities[0].locked = true
-      renderPropertyPanel(world, world.entities[0].id)
+      renderPropertyPanel(world, [world.entities[0]!.id])
       expect(screen.getByLabelText(/body type/i)).toBeDisabled()
       expect(screen.getByLabelText(/friction/i)).toBeDisabled()
     })
@@ -499,7 +499,7 @@ describe('PropertyPanel', () => {
     it('disables material inputs when entity is locked', () => {
       const world = worldWithBox()
       world.entities[0].locked = true
-      renderPropertyPanel(world, world.entities[0].id)
+      renderPropertyPanel(world, [world.entities[0]!.id])
       expect(screen.getByLabelText(/material color/i)).toBeDisabled()
       expect(screen.getByLabelText(/roughness/i)).toBeDisabled()
       expect(screen.getByLabelText(/metalness/i)).toBeDisabled()
@@ -508,20 +508,20 @@ describe('PropertyPanel', () => {
     it('disables delete button when entity is locked', () => {
       const world = worldWithBox()
       world.entities[0].locked = true
-      renderPropertyPanel(world, world.entities[0].id, vi.fn(), vi.fn())
+      renderPropertyPanel(world, [world.entities[0]!.id], vi.fn(), vi.fn())
       const deleteButton = screen.getByRole('button', { name: /delete entity/i })
       expect(deleteButton).toBeDisabled()
     })
 
-    it('does not call onDeleteEntity when clicking delete on locked entity', async () => {
+    it('does not call onDeleteEntities when clicking delete on locked entity', async () => {
       const user = userEvent.setup()
-      const onDeleteEntity = vi.fn()
+      const onDeleteEntities = vi.fn()
       const world = worldWithBox()
       world.entities[0].locked = true
-      renderPropertyPanel(world, world.entities[0].id, vi.fn(), onDeleteEntity)
+      renderPropertyPanel(world, [world.entities[0]!.id], vi.fn(), onDeleteEntities)
       const deleteButton = screen.getByRole('button', { name: /delete entity/i })
       await user.click(deleteButton)
-      expect(onDeleteEntity).not.toHaveBeenCalled()
+      expect(onDeleteEntities).not.toHaveBeenCalled()
     })
   })
 })

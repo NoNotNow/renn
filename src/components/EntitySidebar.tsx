@@ -20,12 +20,12 @@ import { sidebarRowStyle, sidebarLabelStyle, fieldLabelStyle, sectionStyle, sect
 
 export interface EntitySidebarProps {
   entities: Entity[]
-  selectedEntityId: string | null
+  selectedEntityIds: string[]
   cameraControl: 'free' | 'follow' | 'top' | 'front' | 'right'
   cameraTarget: string
   cameraMode: CameraMode
   world: RennWorld
-  onSelectEntity: (id: string) => void
+  onSelectEntity: (id: string | null, options?: { additive?: boolean }) => void
   onAddEntity: (shapeType: AddableShapeType) => void
   onBulkAddEntities: (params: BulkEntityParams) => void
   onCameraControlChange: (control: 'free' | 'follow' | 'top' | 'front' | 'right') => void
@@ -55,7 +55,7 @@ const SHAPE_FILTER_OPTIONS: { value: 'any' | AddableShapeType; label: string }[]
 
 export default function EntitySidebar({
   entities,
-  selectedEntityId,
+  selectedEntityIds,
   cameraControl,
   cameraTarget,
   cameraMode,
@@ -70,6 +70,7 @@ export default function EntitySidebar({
   isOpen,
   onToggle,
 }: EntitySidebarProps) {
+  const selectedSet = useMemo(() => new Set(selectedEntityIds), [selectedEntityIds])
   const [leftTab, setLeftTab] = useState<LeftTab>('camera')
   const [searchQuery, setSearchQuery] = useState('')
   const [filterHasModel, setFilterHasModel] = useState<TriState>('any')
@@ -486,7 +487,7 @@ export default function EntitySidebar({
                           width: '100%',
                           textAlign: 'left',
                           padding: '4px 8px',
-                          background: selectedEntityId === e.id ? '#2b3550' : 'transparent',
+                          background: selectedSet.has(e.id) ? '#2b3550' : 'transparent',
                           border: 'none',
                           cursor: 'pointer',
                           transition: 'background 0.15s ease',
@@ -494,18 +495,18 @@ export default function EntitySidebar({
                           alignItems: 'center',
                           gap: 6,
                         }}
-                        onClick={() => {
+                        onClick={(ev) => {
                           uiLogger.click('Builder', 'Select entity', { entityId: e.id, entityName: e.name })
-                          onSelectEntity(e.id)
+                          onSelectEntity(e.id, { additive: ev.shiftKey || ev.metaKey })
                         }}
-                        onMouseEnter={(e) => {
-                          if (selectedEntityId !== e.currentTarget.textContent) {
-                            e.currentTarget.style.background = '#20263a'
+                        onMouseEnter={(ev) => {
+                          if (!selectedSet.has(e.id)) {
+                            ev.currentTarget.style.background = '#20263a'
                           }
                         }}
-                        onMouseLeave={(e) => {
-                          if (selectedEntityId !== e.currentTarget.textContent) {
-                            e.currentTarget.style.background = 'transparent'
+                        onMouseLeave={(ev) => {
+                          if (!selectedSet.has(e.id)) {
+                            ev.currentTarget.style.background = 'transparent'
                           }
                         }}
                       >

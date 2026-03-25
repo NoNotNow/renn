@@ -11,6 +11,8 @@ import { useEditorUndo } from '@/contexts/EditorUndoContext'
 export interface ModelEditorProps {
   entityId: string
   model: string | undefined
+  /** Multi-select: models differ */
+  modelMixed?: boolean
   assets: Map<string, Blob>
   world: RennWorld
   onModelChange: (model: string | undefined) => void
@@ -22,6 +24,7 @@ export interface ModelEditorProps {
 export default function ModelEditor({
   entityId,
   model,
+  modelMixed = false,
   assets,
   world,
   onModelChange,
@@ -39,7 +42,9 @@ export default function ModelEditor({
       <div style={sidebarRowStyle}>
         <label style={sidebarLabelStyle}>Model</label>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {model && assets.get(model) ? (
+          {modelMixed ? (
+            <span style={{ fontSize: 12, color: '#9aa4b2' }}>—</span>
+          ) : model && assets.get(model) ? (
             <>
               <button
                 type="button"

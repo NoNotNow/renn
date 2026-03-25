@@ -7,6 +7,8 @@ export interface SelectInputProps {
   value: string
   onChange: (value: string) => void
   options: Array<{ value: string; label: string }>
+  /** When set, adds a first `<option value="">` for mixed / unset multi-select. */
+  emptyLabel?: string
   disabled?: boolean
   entityId?: string
   propertyName?: string
@@ -20,6 +22,7 @@ export default function SelectInput({
   value,
   onChange,
   options,
+  emptyLabel,
   disabled = false,
   entityId,
   propertyName,
@@ -28,6 +31,7 @@ export default function SelectInput({
 }: SelectInputProps) {
   const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newValue = e.target.value
+    if (newValue === '' && emptyLabel !== undefined) return
     if (newValue === value) return
 
     if (propertyName && entityId) {
@@ -54,6 +58,11 @@ export default function SelectInput({
         style={sidebarInputStyle}
         disabled={disabled}
       >
+        {emptyLabel !== undefined && (
+          <option value="" disabled={false}>
+            {emptyLabel}
+          </option>
+        )}
         {options.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}

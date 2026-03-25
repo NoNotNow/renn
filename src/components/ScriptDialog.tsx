@@ -20,7 +20,7 @@ export interface ScriptDialogProps {
   isOpen: boolean
   onClose: () => void
   world: RennWorld
-  selectedEntityId: string | null
+  selectedEntityIds: string[]
   entityScriptIds: string[]
   onChange: (entityScriptIds: string[]) => void
   onWorldChange?: (world: RennWorld) => void
@@ -30,7 +30,7 @@ export default function ScriptDialog({
   isOpen,
   onClose,
   world,
-  selectedEntityId,
+  selectedEntityIds,
   entityScriptIds,
   onChange,
   onWorldChange,
@@ -46,23 +46,30 @@ export default function ScriptDialog({
     id.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
-  const entityName =
-    (selectedEntityId && world.entities.find((e) => e.id === selectedEntityId)?.name) ?? selectedEntityId ?? 'Entity'
+  const entityLabel =
+    selectedEntityIds.length === 0
+      ? 'Entity'
+      : selectedEntityIds.length === 1
+        ? world.entities.find((e) => e.id === selectedEntityIds[0])?.name ?? selectedEntityIds[0]
+        : `${selectedEntityIds.length} entities`
 
   const handleAttach = useCallback(() => {
     if (!selectedScriptId || entityScriptIds.includes(selectedScriptId)) return
-    uiLogger.click('ScriptDialog', 'Attach script to entity', { scriptId: selectedScriptId, entityId: selectedEntityId })
+    uiLogger.click('ScriptDialog', 'Attach script to entities', {
+      scriptId: selectedScriptId,
+      entityIds: selectedEntityIds,
+    })
     pushUndo()
     onChange([...entityScriptIds, selectedScriptId])
-  }, [selectedScriptId, entityScriptIds, selectedEntityId, onChange, pushUndo])
+  }, [selectedScriptId, entityScriptIds, selectedEntityIds, onChange, pushUndo])
 
   const handleDetach = useCallback(
     (scriptId: string) => {
-      uiLogger.click('ScriptDialog', 'Detach script from entity', { scriptId, entityId: selectedEntityId })
+      uiLogger.click('ScriptDialog', 'Detach script from entities', { scriptId, entityIds: selectedEntityIds })
       pushUndo()
       onChange(entityScriptIds.filter((id) => id !== scriptId))
     },
-    [entityScriptIds, selectedEntityId, onChange, pushUndo]
+    [entityScriptIds, selectedEntityIds, onChange, pushUndo]
   )
 
   const handleCreateNew = useCallback(() => {
@@ -106,11 +113,11 @@ export default function ScriptDialog({
     setSelectedScriptId(newId)
   }, [selectedScriptId, scripts, world, onWorldChange, pushUndo])
 
-  const isAttached = selectedScriptId && entityScriptIds.includes(selectedScriptId)
+  const isAttached = Boolean(selectedScriptId && entityScriptIds.includes(selectedScriptId))
   const canRename = selectedScriptId && onWorldChange
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={`Scripts for ${entityName}`} width={700} height={500}>
+    <Modal isOpen={isOpen} onClose={onClose} title={`Scripts for ${entityLabel}`} width={700} height={500}>
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 16 }}>
         <div style={{ display: 'flex', gap: 16, flex: 1, minHeight: 0 }}>
           {/* Left: All scripts */}

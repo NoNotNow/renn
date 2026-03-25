@@ -14,19 +14,19 @@ type RightTab = 'properties' | 'scripts' | 'assets'
 export interface PropertySidebarProps {
   world: RennWorld
   assets: Map<string, Blob>
-  selectedEntityId: string | null
+  selectedEntityIds: string[]
   onWorldChange: (world: RennWorld) => void
   onAssetsChange: (assets: Map<string, Blob>) => void
-  onDeleteEntity: (entityId: string) => void
+  onDeleteEntities: (entityIds: string[]) => void
   onCloneEntity?: (entityId: string) => void
   getCurrentPose?: (id: string) => { position: Vec3; rotation: Rotation }
-  onEntityPoseChange?: (id: string, pose: { position?: Vec3; rotation?: Rotation; scale?: Vec3 }) => void
-  onEntityPhysicsChange?: (id: string, patch: Partial<Entity>) => void
-  onEntityShapeChange?: (id: string, patch: Partial<Entity>) => void
-  onEntityMaterialChange?: (id: string, patch: Partial<Entity>) => void
-  onEntityModelTransformChange?: (id: string, patch: { modelRotation?: Vec3; modelScale?: Vec3 }) => void
-  onEntityTransformersChange?: (entityId: string, transformers: TransformerConfig[]) => void
-  onRefreshFromPhysics?: (entityId: string) => void
+  onEntityPoseChange?: (ids: string[], pose: { position?: Vec3; rotation?: Rotation; scale?: Vec3 }) => void
+  onEntityPhysicsChange?: (ids: string[], patch: Partial<Entity>) => void
+  onEntityShapeChange?: (ids: string[], patch: Partial<Entity>) => void
+  onEntityMaterialChange?: (ids: string[], patch: Partial<Entity>) => void
+  onEntityModelTransformChange?: (ids: string[], patch: { modelRotation?: Vec3; modelScale?: Vec3 }) => void
+  onEntityTransformersChange?: (entityIds: string[], transformers: TransformerConfig[]) => void
+  onRefreshFromPhysics?: (entityIds: string[]) => void
   livePoses?: Map<string, { position: Vec3; rotation: Rotation; scale?: Vec3 }> | null
   isOpen: boolean
   onToggle: () => void
@@ -35,10 +35,10 @@ export interface PropertySidebarProps {
 export default function PropertySidebar({
   world,
   assets,
-  selectedEntityId,
+  selectedEntityIds,
   onWorldChange,
   onAssetsChange,
-  onDeleteEntity,
+  onDeleteEntities,
   onCloneEntity,
   getCurrentPose,
   onEntityPoseChange,
@@ -98,10 +98,10 @@ export default function PropertySidebar({
           <PropertyPanel
             world={world}
             assets={assets}
-            selectedEntityId={selectedEntityId}
+            selectedEntityIds={selectedEntityIds}
             onWorldChange={onWorldChange}
             onAssetsChange={onAssetsChange}
-            onDeleteEntity={onDeleteEntity}
+            onDeleteEntities={onDeleteEntities}
             onCloneEntity={onCloneEntity}
             getCurrentPose={getCurrentPose}
             onEntityPoseChange={onEntityPoseChange}
@@ -117,7 +117,7 @@ export default function PropertySidebar({
         {rightTab === 'scripts' && (
           <ScriptPanel
             world={world}
-            selectedEntityId={selectedEntityId}
+            selectedEntityIds={selectedEntityIds}
             onWorldChange={onWorldChange}
           />
         )}

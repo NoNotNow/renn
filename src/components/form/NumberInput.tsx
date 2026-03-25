@@ -6,7 +6,8 @@ import { sidebarRowStyle, sidebarLabelStyle, sidebarInputStyle } from '../shared
 export interface NumberInputProps {
   id: string
   label: string
-  value: number
+  /** `null` = mixed multi-select (empty field). */
+  value: number | null
   onChange: (value: number) => void
   min?: number
   max?: number
@@ -36,19 +37,19 @@ export default function NumberInput({
   onBeforeCommit,
 }: NumberInputProps) {
   const [isFocused, setIsFocused] = useState(false)
-  const [localValue, setLocalValue] = useState(String(value))
+  const [localValue, setLocalValue] = useState(() => (value === null ? '' : String(value)))
 
   useEffect(() => {
     if (!isFocused) {
-      setLocalValue(String(value))
+      setLocalValue(value === null ? '' : String(value))
     }
   }, [value, isFocused])
 
-  const displayValue = isFocused ? localValue : String(value)
+  const displayValue = isFocused ? localValue : value === null ? '' : String(value)
 
   const handleFocus = useCallback(() => {
     setIsFocused(true)
-    setLocalValue(String(value))
+    setLocalValue(value === null ? '' : String(value))
   }, [value])
 
   const handleBlur = useCallback(() => {
@@ -63,7 +64,7 @@ export default function NumberInput({
       })
     }
 
-    if (newValue !== value) {
+    if (value === null || newValue !== value) {
       onBeforeCommit?.()
     }
     onChange(newValue)

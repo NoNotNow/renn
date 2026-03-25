@@ -73,7 +73,7 @@ describe('SceneView', () => {
           world={minimalWorld}
           runPhysics={false}
           runScripts={false}
-          selectedEntityId={null}
+          selectedEntityIds={[]}
           onSelectEntity={onSelectEntity}
           onEntityPoseCommit={onEntityPoseCommit}
         />
