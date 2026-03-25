@@ -148,6 +148,11 @@ export interface Entity {
   modelRotation?: Rotation
   /** Scale [x,y,z] applied to the 3D model/trimesh only (relative to item). */
   modelScale?: Vec3
+  /**
+   * When true and entity uses a visual model on a primitive shape, render an edge
+   * overlay of the physics primitive (not GLTF triangles). Ignored for trimesh.
+   */
+  showShapeWireframe?: boolean
   material?: MaterialRef
   mass?: number
   restitution?: number

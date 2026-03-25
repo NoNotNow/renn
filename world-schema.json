@@ -333,6 +333,10 @@
         "model": { "type": "string" },
         "modelRotation": { "$ref": "#/$defs/Rotation", "description": "Euler radians applied to model/trimesh only" },
         "modelScale": { "$ref": "#/$defs/Vec3", "description": "Scale applied to model/trimesh only" },
+        "showShapeWireframe": {
+          "type": "boolean",
+          "description": "Outline physics primitive when entity.model is set (not trimesh); not GLTF wireframe"
+        },
         "material": { "$ref": "#/$defs/MaterialRef" },
         "mass": { "type": "number" },
         "restitution": { "type": "number" },

@@ -136,6 +136,10 @@ function SceneViewInner({
     syncGizmoAttachRef.current?.()
   }, [selectedEntityId, gizmoMode, selectedEntityLocked, sceneKey, registryEpoch])
 
+  useEffect(() => {
+    registryRef.current?.syncAllShapeWireframeOverlays(world.entities)
+  }, [world, registryEpoch])
+
   useImperativeHandle(ref, () => ({
     setViewPreset: (preset: 'top' | 'front' | 'right') => {
       cameraCtrlRef.current?.setViewPreset(preset)

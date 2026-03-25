@@ -14,6 +14,7 @@ import {
   bakeScaleIntoPrimitiveShape,
   isModelBackedMesh,
 } from '@/editor/bakeScaleIntoShape'
+import { syncShapeWireframeOverlay } from '@/loader/shapeWireframeOverlay'
 
 /**
  * Registry of render items: one per entity. Owns body→mesh sync each frame.
@@ -127,6 +128,20 @@ export class RenderItemRegistry {
 
   get(id: string): RenderItem | undefined {
     return this.items.get(id)
+  }
+
+  /**
+   * Sync primitive shape wireframe overlays from world entities (entity.model + flag).
+   * Does not trigger full scene reload; safe to call after inspector edits.
+   */
+  syncAllShapeWireframeOverlays(entities: Entity[]): void {
+    for (const entity of entities) {
+      const item = this.items.get(entity.id)
+      if (!item) continue
+      const mesh = item.mesh
+      if (!(mesh instanceof THREE.Mesh) || mesh.userData.usesModel !== true) continue
+      syncShapeWireframeOverlay(mesh, entity)
+    }
   }
 
   getPosition(id: string): Vec3 | null {
@@ -434,6 +449,8 @@ export class RenderItemRegistry {
     if (this.physicsWorld) {
       this.physicsWorld.updateShape(id, newEntity, mesh)
     }
+
+    syncShapeWireframeOverlay(mesh, newEntity)
 
     return true
   }

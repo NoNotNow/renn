@@ -8,6 +8,7 @@ The inspector is the right-side panel that edits the **selected entity**: name, 
 - **PropertyPanel**: Renders sections for the selected entity (Entity, Transform, Shape, Physics, Material, 3D Model, Transformers). The header row includes an **Actions** group (`role="group"`, `aria-label="Actions"`) with icon buttons: **Refresh from physics** (optional), **Clone entity** (optional), **Delete entity** (optional). It composes:
   - TransformEditor (position, rotation, scale)
   - ShapeEditor, PhysicsEditor, MaterialEditor, ModelEditor, TransformerEditor
+- **Model-Transform** (when trimesh or `entity.model`): edits `modelRotation` / `modelScale`. For **primitive + 3D Model** (not trimesh), **Show shape wireframe** toggles `entity.showShapeWireframe`: the viewport draws edge lines for the **physics primitive** (same geometry as the invisible picker root), not GLTF triangle wireframe. Trimesh-only entities omit this control. Removing the model or switching the shape to trimesh clears the flag. Runtime sync: `RenderItemRegistry.syncAllShapeWireframeOverlays` + `loadWorld` / `updateShape` via [`shapeWireframeOverlay.ts`](src/loader/shapeWireframeOverlay.ts); does not change [`getSceneDependencyKey`](src/utils/sceneDependencyKey.ts).
 
 ## Data flow
 

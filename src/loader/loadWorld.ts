@@ -9,6 +9,7 @@ import {
   DEFAULT_SCALE,
 } from '@/types/world'
 import { buildEntityMesh } from './createPrimitive'
+import { syncShapeWireframeOverlay } from './shapeWireframeOverlay'
 import { createAssetResolver, type DisposableAssetResolver } from './assetResolverImpl'
 import { getSceneUserData } from '@/types/sceneUserData'
 import { eulerToQuaternion } from '@/utils/rotationUtils'
@@ -130,6 +131,10 @@ export async function loadWorld(
         child.receiveShadow = true
       }
     })
+
+    if (mesh instanceof THREE.Mesh) {
+      syncShapeWireframeOverlay(mesh, entity)
+    }
 
     scene.add(mesh)
     entities.push({ entity, mesh })

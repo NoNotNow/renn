@@ -10,6 +10,7 @@ import MaterialEditor from './MaterialEditor'
 import ModelEditor from './ModelEditor'
 import TransformerEditor from './TransformerEditor'
 import CollapsibleSection from './CollapsibleSection'
+import Switch from './Switch'
 import { fieldLabelStyle, sidebarTextInputStyle, entityPanelIconButtonStyle, removeButtonStyle, removeButtonStyleDisabled, secondaryButtonStyle, secondaryButtonStyleDisabled } from './sharedStyles'
 import { EntityPanelIcons } from './EntityPanelIcons'
 
@@ -279,8 +280,10 @@ export default function PropertyPanel({
               })
             }
             const patch: Partial<Entity> = switchingToTrimesh && entity.model
-              ? { shape, model: undefined }
-              : { shape }
+              ? { shape, model: undefined, showShapeWireframe: undefined }
+              : switchingToTrimesh
+                ? { shape, showShapeWireframe: undefined }
+                : { shape }
             if (!involvesTrimesh && onEntityShapeChange) {
               onEntityShapeChange(entity.id, patch)
             } else {
@@ -424,7 +427,13 @@ export default function PropertyPanel({
             model={entity.model}
             assets={assets}
             world={world}
-            onModelChange={(model) => updateEntity({ model })}
+            onModelChange={(model) =>
+              updateEntity(
+                model
+                  ? { model }
+                  : { model: undefined, showShapeWireframe: undefined },
+              )
+            }
             onWorldChange={onWorldChange}
             onAssetsChange={onAssetsChange}
             disabled={isLocked}
@@ -435,8 +444,29 @@ export default function PropertyPanel({
       {(entity.shape?.type === 'trimesh' || entity.model) && (
         <CollapsibleSection
           title="Model-Transform"
-          copyPayload={{ modelRotation, modelScale }}
+          copyPayload={{ modelRotation, modelScale, showShapeWireframe: entity.showShapeWireframe }}
         >
+          {entity.shape?.type !== 'trimesh' && entity.model ? (
+            <div style={{ marginBottom: 10 }}>
+              <Switch
+                checked={entity.showShapeWireframe ?? false}
+                onChange={(checked) => {
+                  uiLogger.change('PropertyPanel', 'Toggle shape wireframe', {
+                    entityId: entity.id,
+                    value: checked,
+                  })
+                  updateEntity(
+                    checked ? { showShapeWireframe: true } : { showShapeWireframe: undefined },
+                  )
+                }}
+                disabled={isLocked}
+                label="Show shape wireframe"
+              />
+              <div style={{ fontSize: 10, color: '#666', marginTop: 4, paddingLeft: 2 }}>
+                Outlines the physics primitive (not the GLTF mesh)
+              </div>
+            </div>
+          ) : null}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
             <Vec3Field
               label="Model rotation"
