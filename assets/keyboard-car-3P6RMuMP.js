@@ -1,0 +1,18 @@
+const n=`{
+  "type": "input",
+  "priority": 0,
+  "enabled": true,
+  "inputMapping": {
+    "keyboard": {
+      "w": "throttle",
+      "s": "brake",
+      "a": "steer_left",
+      "d": "steer_right",
+      "space": "jump"
+    },
+    "sensitivity": {
+      "keyboard": 1.0
+    }
+  }
+}
+`;export{n as default};

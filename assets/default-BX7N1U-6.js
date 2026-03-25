@@ -1,11 +1,12 @@
-const n=`{
+const e=`{
     "type": "car2",
     "priority": 10,
     "enabled": true,
     "params": {
-      "power": 1000,
+      "power": 300,
       "steeringIntensity": 0.05,
       "steeringSpeed": 0.05,
-      "lateralGrip": 120
+      "lateralGrip": 120,
+      "jumpImpulse": 200
     }
-}`;export{n as default};
+}`;export{e as default};

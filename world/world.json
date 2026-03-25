@@ -187,7 +187,7 @@
               "s": "brake",
               "d": "steer_left",
               "a": "steer_right",
-              "space": "handbrake"
+              "space": "jump"
             },
             "sensitivity": {
               "keyboard": 1,
@@ -203,7 +203,8 @@
             "power": 1000,
             "steeringIntensity": 0.05,
             "steeringSpeed": 0.05,
-            "lateralGrip": 120
+            "lateralGrip": 120,
+            "jumpImpulse": 200
           }
         }
       ],
