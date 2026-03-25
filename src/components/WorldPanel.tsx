@@ -1,5 +1,5 @@
-import type { RennWorld, Vec3, Color, MaterialRef } from '@/types/world'
-import { DEFAULT_GRAVITY, DEFAULT_SCALE } from '@/types/world'
+import type { RennWorld, Vec3, MaterialRef, WorldSleepingSettings } from '@/types/world'
+import { DEFAULT_GRAVITY, DEFAULT_SCALE, RECOMMENDED_SLEEPING_SETTINGS } from '@/types/world'
 import { uiLogger } from '@/utils/uiLogger'
 import { colorToHex, hexToColor } from '@/utils/colorUtils'
 import { directionToSpherical, sphericalToDirection } from '@/utils/lightUtils'
@@ -17,7 +17,7 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
   const gravity: Vec3 = world.world.gravity ?? DEFAULT_GRAVITY
   // Convert Vec3 gravity to single positive number (magnitude of Y)
   const gravityValue = Math.abs(gravity[1])
-  const skyColor: Vec3 = world.world.skyColor ?? [0.4, 0.6, 0.9]
+  const skyColor: Vec3 = (world.world.skyColor?.slice(0, 3) as Vec3) ?? [0.4, 0.6, 0.9]
   const dirDirection: Vec3 = world.world.directionalLight?.direction ?? [1, 2, 1]
   const dirColor: Vec3 = (world.world.directionalLight?.color?.slice(0, 3) as Vec3) ?? [1, 0.98, 0.9]
   const dirIntensity = world.world.directionalLight?.intensity ?? 1.2
@@ -49,6 +49,27 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
     const newGravity: Vec3 = [0, -Math.abs(value), 0]
     uiLogger.change('WorldPanel', 'Change gravity', { oldValue: gravity, newValue: newGravity })
     updateWorldSettings({ gravity: newGravity })
+  }
+
+  const sleepingDisplay: WorldSleepingSettings =
+    world.world.sleeping ?? RECOMMENDED_SLEEPING_SETTINGS
+
+  const updateSleeping = (patch: Partial<WorldSleepingSettings>) => {
+    const base = world.world.sleeping ?? RECOMMENDED_SLEEPING_SETTINGS
+    const next: WorldSleepingSettings = { ...base, ...patch }
+    uiLogger.change('WorldPanel', 'Change world sleeping', {
+      oldValue: world.world.sleeping,
+      newValue: next,
+    })
+    updateWorldSettings({ sleeping: next })
+  }
+
+  const setRecommendedSleeping = () => {
+    uiLogger.change('WorldPanel', 'Set recommended sleeping', {
+      oldValue: world.world.sleeping,
+      newValue: RECOMMENDED_SLEEPING_SETTINGS,
+    })
+    updateWorldSettings({ sleeping: { ...RECOMMENDED_SLEEPING_SETTINGS } })
   }
 
   const updateSkyColor = (newColor: Vec3) => {
@@ -203,6 +224,59 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
           defaultValue={9.81}
           logComponent="WorldPanel"
         />
+      </div>
+
+      <div style={{ ...sectionStyle, marginTop: 12 }}>
+        <div style={sectionTitleStyle}>Sleep</div>
+        <p style={{ fontSize: 11, color: '#9aa4b2', margin: '0 0 8px' }}>
+          Custom sleep timer: velocities must stay below thresholds for the duration. Negative linear or angular
+          threshold disables that check.
+        </p>
+        <NumberInput
+          id="world-sleep-linear"
+          label="Linear threshold"
+          value={sleepingDisplay.linearThreshold}
+          onChange={(v) => updateSleeping({ linearThreshold: v })}
+          step={0.05}
+          defaultValue={RECOMMENDED_SLEEPING_SETTINGS.linearThreshold}
+          logComponent="WorldPanel"
+        />
+        <NumberInput
+          id="world-sleep-angular"
+          label="Angular threshold (rad/s)"
+          value={sleepingDisplay.angularThreshold}
+          onChange={(v) => updateSleeping({ angularThreshold: v })}
+          step={0.05}
+          defaultValue={RECOMMENDED_SLEEPING_SETTINGS.angularThreshold}
+          logComponent="WorldPanel"
+        />
+        <NumberInput
+          id="world-sleep-time"
+          label="Time until sleep (s)"
+          value={sleepingDisplay.timeUntilSleep}
+          onChange={(v) => updateSleeping({ timeUntilSleep: v })}
+          min={0}
+          step={0.1}
+          defaultValue={RECOMMENDED_SLEEPING_SETTINGS.timeUntilSleep}
+          logComponent="WorldPanel"
+        />
+        <div style={{ marginTop: 8 }}>
+          <button
+            type="button"
+            onClick={setRecommendedSleeping}
+            style={{
+              fontSize: 12,
+              padding: '6px 10px',
+              borderRadius: 4,
+              border: '1px solid #2f3545',
+              background: '#1a1f2e',
+              color: '#e6e9ef',
+              cursor: 'pointer',
+            }}
+          >
+            Set recommended
+          </button>
+        </div>
       </div>
 
       <div style={{ ...sectionStyle, marginTop: 12 }}>

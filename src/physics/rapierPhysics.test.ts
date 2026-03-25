@@ -98,6 +98,35 @@ describe('PhysicsWorld', () => {
     pw.dispose()
   })
 
+  it('applies custom sleep after continuous low velocities when world.sleeping is configured', () => {
+    const sleeping = {
+      linearThreshold: 0.4,
+      angularThreshold: 0.5,
+      timeUntilSleep: 0.2,
+    }
+    const pw = new PhysicsWorld([0, 0, 0], sleeping)
+    const entity: Entity = {
+      id: 'box',
+      bodyType: 'dynamic',
+      shape: { type: 'box', width: 1, height: 1, depth: 1 },
+      position: [0, 10, 0],
+      mass: 1,
+    }
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial())
+    pw.addEntity(entity, mesh)
+    pw.setLinearVelocity('box', 0, 0, 0)
+    pw.setAngularVelocity('box', 0, 0, 0)
+
+    const dt = 1 / 60
+    const steps = Math.ceil(sleeping.timeUntilSleep / dt) + 3
+    for (let i = 0; i < steps; i++) {
+      pw.step(dt)
+    }
+
+    expect(pw.getBody('box')?.isSleeping()).toBe(true)
+    pw.dispose()
+  })
+
   it('syncs physics to mesh transforms via registry', () => {
     const pw = new PhysicsWorld()
     const entity: Entity = {

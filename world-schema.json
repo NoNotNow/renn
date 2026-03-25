@@ -43,11 +43,32 @@
       "minItems": 3,
       "maxItems": 4
     },
+    "SleepingSettings": {
+      "type": "object",
+      "description": "Custom sleep thresholds: body sleeps after velocities stay below thresholds for timeUntilSleep seconds. Negative linearThreshold or angularThreshold disables that axis check (Rapier-style).",
+      "required": ["linearThreshold", "angularThreshold", "timeUntilSleep"],
+      "properties": {
+        "linearThreshold": {
+          "type": "number",
+          "description": "Max linear speed magnitude (length units/s) to count as at rest; negative disables linear check"
+        },
+        "angularThreshold": {
+          "type": "number",
+          "description": "Max angular speed magnitude (rad/s) to count as at rest; negative disables angular check"
+        },
+        "timeUntilSleep": {
+          "type": "number",
+          "description": "Seconds both checks must pass continuously before body.sleep()"
+        }
+      },
+      "additionalProperties": false
+    },
     "WorldSettings": {
       "type": "object",
       "properties": {
         "gravity": { "$ref": "#/$defs/Vec3" },
         "wind": { "$ref": "#/$defs/Vec3", "description": "Global wind force vector [x, y, z]" },
+        "sleeping": { "$ref": "#/$defs/SleepingSettings" },
         "ambientLight": { "$ref": "#/$defs/Color" },
         "directionalLight": { "$ref": "#/$defs/DirectionalLightConfig" },
         "skyColor": { "$ref": "#/$defs/Color" },

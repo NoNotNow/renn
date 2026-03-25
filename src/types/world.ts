@@ -53,9 +53,25 @@ export interface DirectionalLightConfig {
   intensity?: number
 }
 
+/** Rapier-style sleep tuning: negative linearThreshold or angularThreshold disables that velocity check. */
+export interface WorldSleepingSettings {
+  linearThreshold: number
+  angularThreshold: number
+  timeUntilSleep: number
+}
+
+/** Defaults aligned with Rapier docs (~normalized linear 0.4, angular 0.5 rad/s, 2s). */
+export const RECOMMENDED_SLEEPING_SETTINGS: WorldSleepingSettings = {
+  linearThreshold: 0.4,
+  angularThreshold: 0.5,
+  timeUntilSleep: 2.0,
+}
+
 export interface WorldSettings {
   gravity?: Vec3
   wind?: Vec3
+  /** Optional custom sleep timer applied in PhysicsWorld when set. */
+  sleeping?: WorldSleepingSettings
   ambientLight?: Color
   directionalLight?: DirectionalLightConfig
   skyColor?: Color

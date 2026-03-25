@@ -1,7 +1,14 @@
 import RAPIER from '@dimforge/rapier3d-compat'
 import * as THREE from 'three'
 import type { LoadedEntity } from '@/loader/loadWorld'
-import type { RennWorld, Shape, Entity, TrimeshSimplificationConfig, ScriptDef } from '@/types/world'
+import type {
+  RennWorld,
+  Shape,
+  Entity,
+  TrimeshSimplificationConfig,
+  ScriptDef,
+  WorldSleepingSettings,
+} from '@/types/world'
 import type { Rotation, Vec3 } from '@/types/world'
 import { DEFAULT_GRAVITY, DEFAULT_ROTATION } from '@/types/world'
 import { extractMeshGeometry, getGeometryInfo } from '@/utils/geometryExtractor'
@@ -57,10 +64,14 @@ export class PhysicsWorld {
   private stepping: boolean = false
   private cachedTransforms: Map<string, CachedTransform> = new Map()
   private eventQueue: RAPIER.EventQueue | null = null
+  /** When set from world JSON, per-body timers advance toward `body.sleep()`. */
+  private sleepingConfig: WorldSleepingSettings | undefined
+  private customSleepTimers: Map<string, number> = new Map()
 
-  constructor(gravity: [number, number, number] = DEFAULT_GRAVITY) {
+  constructor(gravity: [number, number, number] = DEFAULT_GRAVITY, sleeping?: WorldSleepingSettings) {
     this.world = new RAPIER.World({ x: gravity[0], y: gravity[1], z: gravity[2] })
     this.eventQueue = new RAPIER.EventQueue(true)
+    this.sleepingConfig = sleeping
   }
 
   setGravity(gravity: [number, number, number]): void {
@@ -77,6 +88,9 @@ export class PhysicsWorld {
     switch (bodyType) {
       case 'dynamic':
         rigidBodyDesc = RAPIER.RigidBodyDesc.dynamic()
+        if (this.sleepingConfig) {
+          rigidBodyDesc.setCanSleep(true)
+        }
         break
       case 'kinematic':
         rigidBodyDesc = RAPIER.RigidBodyDesc.kinematicPositionBased()
@@ -367,7 +381,52 @@ export class PhysicsWorld {
     }
   }
 
-  step(_dt: number): void {
+  /**
+   * After Rapier step, optional custom sleep: if `world.sleeping` is set, bodies whose linear/angular
+   * speed stay below thresholds for `timeUntilSleep` seconds call `body.sleep()`.
+   */
+  private applyCustomSleeping(dt: number): void {
+    const cfg = this.sleepingConfig
+    if (!cfg || cfg.timeUntilSleep < 0) {
+      return
+    }
+
+    const { linearThreshold, angularThreshold, timeUntilSleep } = cfg
+
+    for (const [entityId, body] of this.bodyMap) {
+      if (!body.isDynamic()) {
+        continue
+      }
+
+      if (body.isSleeping()) {
+        this.customSleepTimers.delete(entityId)
+        continue
+      }
+
+      const lv = body.linvel()
+      const av = body.angvel()
+      const linMag = Math.hypot(lv.x, lv.y, lv.z)
+      const angMag = Math.hypot(av.x, av.y, av.z)
+
+      const linearOk = linearThreshold < 0 || linMag < linearThreshold
+      const angularOk = angularThreshold < 0 || angMag < angularThreshold
+
+      if (linearOk && angularOk) {
+        const prev = this.customSleepTimers.get(entityId) ?? 0
+        const next = prev + dt
+        if (next >= timeUntilSleep) {
+          body.sleep()
+          this.customSleepTimers.delete(entityId)
+        } else {
+          this.customSleepTimers.set(entityId, next)
+        }
+      } else {
+        this.customSleepTimers.set(entityId, 0)
+      }
+    }
+  }
+
+  step(dt: number): void {
     if (this.disposed || this.stepping) {
       return
     }
@@ -378,7 +437,8 @@ export class PhysicsWorld {
     this.stepping = true
     try {
       this.world.step(this.eventQueue)
-      
+      this.applyCustomSleeping(dt)
+
       // Cache transforms AFTER step to avoid WASM aliasing errors
       for (const [entityId, body] of this.bodyMap) {
         if (body.isDynamic() || body.isKinematic()) {
@@ -676,6 +736,7 @@ export class PhysicsWorld {
     this.colliderHandleToEntityId.clear()
     this.lastCollisions = []
     this.cachedTransforms.clear()
+    this.customSleepTimers.clear()
     
     // Free RAPIER resources
     try {
@@ -729,7 +790,7 @@ export async function createPhysicsWorld(
   await initRapier()
 
   const gravity = world.world.gravity ?? DEFAULT_GRAVITY
-  const physicsWorld = new PhysicsWorld(gravity)
+  const physicsWorld = new PhysicsWorld(gravity, world.world.sleeping)
 
   for (const { entity, mesh } of entities) {
     physicsWorld.addEntity(entity, mesh, world.scripts)
