@@ -99,35 +99,6 @@ export default function Builder() {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [setCameraMode])
 
-  useEffect(() => {
-    const isEditableElement = (): boolean => {
-      const el = document.activeElement
-      if (!el) return false
-      const tag = el.tagName
-      return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (el as HTMLElement).isContentEditable
-    }
-
-    const onKeyDown = (e: KeyboardEvent): void => {
-      const k = e.key.toLowerCase()
-      if (k !== 'g' && k !== 'r' && k !== 's') return
-      if (isEditableElement()) return
-      e.preventDefault()
-      if (k === 'g') {
-        setGizmoMode('translate')
-        uiLogger.change('Builder', 'Gizmo mode translate', {})
-      } else if (k === 'r') {
-        setGizmoMode('rotate')
-        uiLogger.change('Builder', 'Gizmo mode rotate', {})
-      } else {
-        setGizmoMode('scale')
-        uiLogger.change('Builder', 'Gizmo mode scale', {})
-      }
-    }
-
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [])
-
   const handleAddEntity = useCallback(
     (shapeType: AddableShapeType) => {
       const newEntity = createDefaultEntity(shapeType)

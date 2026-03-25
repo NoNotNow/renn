@@ -49,7 +49,7 @@ src/
 
 ## Builder header: gizmo mode
 
-Move / Rotate / Scale toolbar buttons sit next to the **Shadows** switch in `BuilderHeader`. They set `gizmoMode` (`translate` | `rotate` | `scale`); shortcuts **G**, **R**, **S** match. Scale commits update `entity.scale` and rebuild the physics collider via `RenderItemRegistry.setScale` / `commitScalePhysics`.
+Move / Rotate / Scale toolbar buttons sit next to the **Shadows** switch in `BuilderHeader`. They set `gizmoMode` (`translate` | `rotate` | `scale`). Scale commits update `entity.scale` and rebuild the physics collider via `RenderItemRegistry.setScale` / `commitScalePhysics`.
 
 ## Scene picking (click → inspector)
 

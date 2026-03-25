@@ -43,7 +43,7 @@ export const GizmoRotateIcon = (
   </svg>
 )
 
-/** Scale — diagonal resize (Lucide scaling-style). */
+/** Scale — corner brackets + diagonals (Lucide maximize-2). */
 export const GizmoScaleIcon = (
   <svg
     viewBox="0 0 24 24"
@@ -55,9 +55,9 @@ export const GizmoScaleIcon = (
     style={style}
     aria-hidden
   >
-    <path d="M21 3 14 10" />
+    <path d="M15 3h6v6" />
+    <path d="M9 21H3v-6" />
+    <path d="M21 3l-7 7" />
     <path d="M3 21l7-7" />
-    <path d="M12 3H3v9" />
-    <path d="M21 21V12h-9" />
   </svg>
 )
