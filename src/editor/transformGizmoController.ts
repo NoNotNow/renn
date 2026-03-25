@@ -4,6 +4,17 @@ import { findEntityRootForPicking } from '@/utils/entityPicking'
 import type { RenderItemRegistry } from '@/runtime/renderItemRegistry'
 import type { Entity, Rotation, Shape, Vec3 } from '@/types/world'
 
+/** Floor for each scale axis while dragging; matches rapierPhysics tolerances (~1e-4). */
+export const GIZMO_MIN_AXIS_SCALE = 1e-4
+
+export function clampGizmoScaleAxes(x: number, y: number, z: number): Vec3 {
+  return [
+    Math.max(GIZMO_MIN_AXIS_SCALE, x),
+    Math.max(GIZMO_MIN_AXIS_SCALE, y),
+    Math.max(GIZMO_MIN_AXIS_SCALE, z),
+  ]
+}
+
 export type BuilderGizmoMode = 'translate' | 'rotate' | 'scale'
 
 export interface BuilderPoseCommit {
@@ -67,7 +78,11 @@ export function installBuilderPickAndGizmo(
     if (!item) return
     const mode = p.getGizmoMode()
     if (mode === 'scale') {
-      reg.patchScale(id, [obj.scale.x, obj.scale.y, obj.scale.z])
+      const [sx, sy, sz] = clampGizmoScaleAxes(obj.scale.x, obj.scale.y, obj.scale.z)
+      if (sx !== obj.scale.x || sy !== obj.scale.y || sz !== obj.scale.z) {
+        obj.scale.set(sx, sy, sz)
+      }
+      reg.patchScale(id, [sx, sy, sz])
     } else {
       reg.setPosition(id, [obj.position.x, obj.position.y, obj.position.z])
       reg.setRotation(id, item.getRotation())
