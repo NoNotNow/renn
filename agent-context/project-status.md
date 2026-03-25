@@ -21,7 +21,7 @@ Last updated: 2026-03-21
 
 ### Builder UI
 - BuilderHeader: New, Save, Save as, Download, Upload, Play, gravity/shadows toggles
-- EntitySidebar: entity list, add entity dropdown, camera control/target/mode; **0** / **Numpad 0** in Builder cycles camera mode (when focus is not in an editable field)
+- EntitySidebar: entity list (search + collapsible filters by 3D model, shape, transformers, approximate size), add entity dropdown, camera control/target/mode; **0** / **Numpad 0** in Builder cycles camera mode (when focus is not in an editable field)
 - PropertyPanel: TransformEditor, ShapeEditor, PhysicsEditor, MaterialEditor, entity name, delete
 - ScriptPanel: Monaco editor, add/remove scripts
 - AssetPanel: upload textures/models, list/remove

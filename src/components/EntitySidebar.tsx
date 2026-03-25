@@ -10,11 +10,13 @@ import {
 import type { AddableShapeType, BulkEntityParams } from '@/data/entityDefaults'
 import { useLocalStorageState } from '@/hooks/useLocalStorageState'
 import { uiLogger } from '@/utils/uiLogger'
+import { getEntityApproximateSize } from '@/utils/entityApproximateSize'
 import Sidebar from './layout/Sidebar'
 import { TabIcons } from './TabIcons'
 import WorldPanel from './WorldPanel'
 import CopyableArea from './CopyableArea'
-import { sidebarRowStyle, sidebarLabelStyle, fieldLabelStyle, sectionStyle, sectionTitleStyle } from './sharedStyles'
+import CollapsibleSection from './CollapsibleSection'
+import { sidebarRowStyle, sidebarLabelStyle, fieldLabelStyle, sectionStyle, sectionTitleStyle, secondaryButtonStyle } from './sharedStyles'
 
 export interface EntitySidebarProps {
   entities: Entity[]
@@ -36,6 +38,21 @@ export interface EntitySidebarProps {
 
 type LeftTab = 'entities' | 'camera' | 'actions' | 'world'
 
+type TriState = 'any' | 'yes' | 'no'
+
+const SHAPE_FILTER_OPTIONS: { value: 'any' | AddableShapeType; label: string }[] = [
+  { value: 'any', label: 'Any' },
+  { value: 'box', label: 'Box' },
+  { value: 'sphere', label: 'Sphere' },
+  { value: 'cylinder', label: 'Cylinder' },
+  { value: 'capsule', label: 'Capsule' },
+  { value: 'cone', label: 'Cone' },
+  { value: 'pyramid', label: 'Pyramid' },
+  { value: 'ring', label: 'Ring' },
+  { value: 'plane', label: 'Plane' },
+  { value: 'trimesh', label: 'Trimesh' },
+]
+
 export default function EntitySidebar({
   entities,
   selectedEntityId,
@@ -55,17 +72,89 @@ export default function EntitySidebar({
 }: EntitySidebarProps) {
   const [leftTab, setLeftTab] = useState<LeftTab>('camera')
   const [searchQuery, setSearchQuery] = useState('')
+  const [filterHasModel, setFilterHasModel] = useState<TriState>('any')
+  const [filterShape, setFilterShape] = useState<'any' | AddableShapeType>('any')
+  const [filterHasTransformers, setFilterHasTransformers] = useState<TriState>('any')
+  const [filterSizeMin, setFilterSizeMin] = useState('')
+  const [filterSizeMax, setFilterSizeMax] = useState('')
   const [leftSidebarWidth, setLeftSidebarWidth] = useLocalStorageState('leftSidebarWidth', 240)
   const addEntitySelectRef = useRef<HTMLSelectElement>(null)
 
+  const hasActiveEntityFilters = useMemo(
+    () =>
+      filterHasModel !== 'any' ||
+      filterShape !== 'any' ||
+      filterHasTransformers !== 'any' ||
+      filterSizeMin.trim() !== '' ||
+      filterSizeMax.trim() !== '',
+    [filterHasModel, filterShape, filterHasTransformers, filterSizeMin, filterSizeMax]
+  )
+
+  const clearEntityFilters = useCallback(() => {
+    setFilterHasModel('any')
+    setFilterShape('any')
+    setFilterHasTransformers('any')
+    setFilterSizeMin('')
+    setFilterSizeMax('')
+  }, [])
+
   const filteredEntities = useMemo(() => {
+    let list = entities
     const q = searchQuery.trim().toLowerCase()
-    if (!q) return entities
-    return entities.filter((e) => {
-      const name = (e.name ?? e.id).toLowerCase()
-      return name.includes(q)
-    })
-  }, [entities, searchQuery])
+    if (q) {
+      list = list.filter((e) => {
+        const name = (e.name ?? e.id).toLowerCase()
+        return name.includes(q)
+      })
+    }
+    if (filterHasModel === 'yes') {
+      list = list.filter((e) => Boolean(e.model?.trim()))
+    } else if (filterHasModel === 'no') {
+      list = list.filter((e) => !e.model?.trim())
+    }
+    if (filterShape !== 'any') {
+      list = list.filter((e) => e.shape?.type === filterShape)
+    }
+    if (filterHasTransformers === 'yes') {
+      list = list.filter((e) => (e.transformers?.length ?? 0) > 0)
+    } else if (filterHasTransformers === 'no') {
+      list = list.filter((e) => (e.transformers?.length ?? 0) === 0)
+    }
+    const minParsed = parseFloat(filterSizeMin)
+    const maxParsed = parseFloat(filterSizeMax)
+    const hasMin = filterSizeMin.trim() !== '' && !Number.isNaN(minParsed)
+    const hasMax = filterSizeMax.trim() !== '' && !Number.isNaN(maxParsed)
+    if (hasMin || hasMax) {
+      list = list.filter((e) => {
+        const sz = getEntityApproximateSize(e)
+        if (hasMin && sz < minParsed) return false
+        if (hasMax && sz > maxParsed) return false
+        return true
+      })
+    }
+    return list
+  }, [
+    entities,
+    searchQuery,
+    filterHasModel,
+    filterShape,
+    filterHasTransformers,
+    filterSizeMin,
+    filterSizeMax,
+  ])
+
+  const entityListEmptyMessage = useMemo(() => {
+    if (entities.length === 0) return 'No entities'
+    if (filteredEntities.length > 0) return ''
+    const q = searchQuery.trim()
+    const hasSearch = Boolean(q)
+    if (hasSearch && hasActiveEntityFilters) {
+      return `No entities match "${q}" or the current filters`
+    }
+    if (hasSearch) return `No entities match "${q}"`
+    if (hasActiveEntityFilters) return 'No entities match the current filters'
+    return 'No entities'
+  }, [entities.length, filteredEntities.length, searchQuery, hasActiveEntityFilters])
   
   // Bulk creation form state - defaults optimized for maximum collisions
   const [bulkCount, setBulkCount] = useState(50)
@@ -280,10 +369,112 @@ export default function EntitySidebar({
                     </button>
                   )}
                 </div>
+                <CollapsibleSection
+                  title="Filters"
+                  defaultCollapsed
+                  trailing={
+                    hasActiveEntityFilters ? (
+                      <button
+                        type="button"
+                        onClick={clearEntityFilters}
+                        style={{
+                          ...secondaryButtonStyle,
+                          fontSize: 11,
+                          padding: '2px 8px',
+                        }}
+                      >
+                        Clear filters
+                      </button>
+                    ) : undefined
+                  }
+                >
+                  <div style={sidebarRowStyle}>
+                    <label htmlFor="entity-filter-model" style={sidebarLabelStyle}>
+                      3D model
+                    </label>
+                    <select
+                      id="entity-filter-model"
+                      value={filterHasModel}
+                      onChange={(e) => setFilterHasModel(e.target.value as TriState)}
+                      style={{ display: 'block', width: '100%' }}
+                      aria-label="Filter by entity 3D model"
+                    >
+                      <option value="any">Any</option>
+                      <option value="yes">Has model</option>
+                      <option value="no">No model</option>
+                    </select>
+                  </div>
+                  <div style={sidebarRowStyle}>
+                    <label htmlFor="entity-filter-shape" style={sidebarLabelStyle}>
+                      Shape
+                    </label>
+                    <select
+                      id="entity-filter-shape"
+                      value={filterShape}
+                      onChange={(e) =>
+                        setFilterShape(e.target.value as 'any' | AddableShapeType)
+                      }
+                      style={{ display: 'block', width: '100%' }}
+                      aria-label="Filter by shape type"
+                    >
+                      {SHAPE_FILTER_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div style={sidebarRowStyle}>
+                    <label htmlFor="entity-filter-transformers" style={sidebarLabelStyle}>
+                      Transformers
+                    </label>
+                    <select
+                      id="entity-filter-transformers"
+                      value={filterHasTransformers}
+                      onChange={(e) => setFilterHasTransformers(e.target.value as TriState)}
+                      style={{ display: 'block', width: '100%' }}
+                      aria-label="Filter by transformers"
+                    >
+                      <option value="any">Any</option>
+                      <option value="yes">Has transformers</option>
+                      <option value="no">No transformers</option>
+                    </select>
+                  </div>
+                  <div style={sidebarRowStyle}>
+                    <label htmlFor="entity-filter-size-min" style={sidebarLabelStyle}>
+                      Size (min)
+                    </label>
+                    <input
+                      id="entity-filter-size-min"
+                      type="text"
+                      inputMode="decimal"
+                      placeholder="—"
+                      value={filterSizeMin}
+                      onChange={(e) => setFilterSizeMin(e.target.value)}
+                      aria-label="Minimum approximate size"
+                      style={{ display: 'block', width: '100%', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                  <div style={sidebarRowStyle}>
+                    <label htmlFor="entity-filter-size-max" style={sidebarLabelStyle}>
+                      Size (max)
+                    </label>
+                    <input
+                      id="entity-filter-size-max"
+                      type="text"
+                      inputMode="decimal"
+                      placeholder="—"
+                      value={filterSizeMax}
+                      onChange={(e) => setFilterSizeMax(e.target.value)}
+                      aria-label="Maximum approximate size"
+                      style={{ display: 'block', width: '100%', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                </CollapsibleSection>
                 <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 0 0' }}>
                   {filteredEntities.length === 0 ? (
                     <li style={{ color: '#9aa4b2', fontSize: 13, padding: '8px 0' }}>
-                      {searchQuery.trim() ? `No entities match "${searchQuery.trim()}"` : 'No entities'}
+                      {entityListEmptyMessage}
                     </li>
                   ) : (
                     filteredEntities.map((e) => (

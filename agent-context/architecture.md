@@ -74,6 +74,7 @@ renn/
 │   ├── utils/
 │   │   ├── uiLogger.ts       # Centralized UI interaction logging (click, change, select, etc.)
 │   │   ├── worldUtils.ts     # updateEntityPosition, etc.
+│   │   ├── entityApproximateSize.ts # Approximate entity extent for list filters (not physics AABB)
 │   │   ├── colorUtils.ts     # Color generation and utilities
 │   │   ├── idGenerator.ts    # Unique ID generation
 │   │   ├── numberUtils.ts    # Number operations and utilities
@@ -81,7 +82,7 @@ renn/
 │   ├── components/
 │   │   ├── SceneView.tsx     # 3D canvas: load world, physics, scripts, camera, render loop
 │   │   ├── BuilderHeader.tsx # Toolbar: New, Save, Save as, Download, Upload, project list, Play, gravity/shadows
-│   │   ├── EntitySidebar.tsx # Entity list, add-entity dropdown, camera control/target/mode
+│   │   ├── EntitySidebar.tsx # Entity list (search + collapsible filters), add-entity dropdown, camera control/target/mode
 │   │   ├── PropertySidebar.tsx # Tabs: Properties | Scripts | Assets
 │   │   ├── WorldPanel.tsx    # World tab: gravity, sleep thresholds, sky, lights, ground
 │   │   ├── PropertyPanel.tsx # Edit selected entity (name, shape, transform, physics, material, transformers, delete)
@@ -127,7 +128,7 @@ renn/
 ### Builder
 
 1. User works in **Builder** (`/`): **ProjectContext** holds `currentProject` (id, name, isDirty), `world`, `assets`, `projects`, camera state; provides actions for project CRUD via IndexedDB.
-2. Layout: **BuilderHeader** (toolbar + gravity/shadows toggles); **EntitySidebar** (entity list, add-entity dropdown, camera control/target/mode); **SceneView** (main canvas); **PropertySidebar** (tabs: Properties, Scripts, Assets).
+2. Layout: **BuilderHeader** (toolbar + gravity/shadows toggles); **EntitySidebar** (entity list with search and collapsible filters, add-entity dropdown, camera control/target/mode); **SceneView** (main canvas); **PropertySidebar** (tabs: Properties, Scripts, Assets).
 3. **SceneView** receives `world` (and optional `assets`). It calls **loadWorld(world)** → scene + entities; then creates **RenderItemRegistry**, sets up **Rapier** (with cached transforms), **CameraController**, **ScriptRunner**, and the render loop.
 4. **Builder viewport** ([transformGizmoController.ts](src/editor/transformGizmoController.ts)): click entity to select, click empty to deselect; **TransformControls** (Three.js addon) for **translate** and **rotate** only (shortcuts **G** / **R**), with **`space: 'local'`** so gizmo axes follow the selected object’s orientation. **Locked** entities can be selected but have no gizmo. **Sizing** stays in the Properties shape fields, not the gizmo. On drag end, pose is written via `updateWorld()` (dirty). **SceneView** disables camera orbit while the gizmo is dragging.
 5. Entity list, **PropertyPanel** (shape, transform, physics, material, delete), **ScriptPanel**, and **AssetPanel** read/write via `updateWorld()` and `updateAssets()` from ProjectContext. Changes trigger SceneView to re-run its effect and rebuild the scene.
