@@ -6,6 +6,7 @@ import ModelDialog from './ModelDialog'
 import ModelThumbnail from './ModelThumbnail'
 import { sidebarRowStyle, sidebarLabelStyle, thumbnailButtonStyle, thumbnailButtonStyleDisabled, entityPanelIconButtonStyle, removeButtonStyle, removeButtonStyleDisabled } from './sharedStyles'
 import { EntityPanelIcons } from './EntityPanelIcons'
+import { useEditorUndo } from '@/contexts/EditorUndoContext'
 
 export interface ModelEditorProps {
   entityId: string
@@ -28,6 +29,8 @@ export default function ModelEditor({
   onAssetsChange,
   disabled = false,
 }: ModelEditorProps) {
+  const undo = useEditorUndo()
+  const pushUndo = () => undo?.pushBeforeEdit()
   const [modelDialogOpen, setModelDialogOpen] = useState(false)
 
   return (
@@ -56,6 +59,7 @@ export default function ModelEditor({
               <button
                 type="button"
                 onClick={() => {
+                  pushUndo()
                   uiLogger.change('PropertyPanel', 'Remove model', { entityId, oldValue: model })
                   onModelChange(undefined)
                 }}
@@ -105,10 +109,12 @@ export default function ModelEditor({
         world={world}
         selectedModelId={model}
         onSelectModel={(assetId) => {
+          pushUndo()
           uiLogger.change('PropertyPanel', 'Change model', { entityId, oldValue: model, newValue: assetId })
           onModelChange(assetId)
         }}
         onUploadModel={async (file: File, assetId: string) => {
+          pushUndo()
           const { nextAssets, worldAssetEntry } = await uploadModel(file, assetId, assets)
           onAssetsChange?.(nextAssets)
           onWorldChange?.({ ...world, assets: { ...world.assets, [assetId]: worldAssetEntry } })

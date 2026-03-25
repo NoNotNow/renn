@@ -11,6 +11,9 @@ export interface VectorFieldProps<T extends number[]> {
   sensitivity?: number
   idPrefix?: string
   disabled?: boolean
+  onScrubStart?: () => void
+  onScrubEnd?: (hadScrub: boolean) => void
+  onBeforeCommit?: () => void
 }
 
 export default function VectorField<T extends number[]>({
@@ -24,6 +27,9 @@ export default function VectorField<T extends number[]>({
   sensitivity,
   idPrefix = 'vector',
   disabled = false,
+  onScrubStart,
+  onScrubEnd,
+  onBeforeCommit,
 }: VectorFieldProps<T>) {
   const handleComponentChange = (index: number) => (newValue: number) => {
     const newArray = [...value] as T
@@ -57,6 +63,9 @@ export default function VectorField<T extends number[]>({
               sensitivity={sensitivity}
               label={`${label} ${compLabel}`}
               disabled={disabled}
+              onScrubStart={onScrubStart}
+              onScrubEnd={onScrubEnd}
+              onBeforeCommit={onBeforeCommit}
             />
           </div>
         ))}

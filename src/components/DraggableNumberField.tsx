@@ -14,6 +14,12 @@ export interface DraggableNumberFieldProps {
   label?: string
   id?: string
   disabled?: boolean
+  /** Fired on primary pointer down (potential scrub). */
+  onScrubStart?: () => void
+  /** Fired on pointer up/cancel; `true` if the scrub left the dead zone and applied deltas. */
+  onScrubEnd?: (hadScrub: boolean) => void
+  /** Blur/Enter commit that changes the stored number (not used during scrub; scrub uses onScrubEnd). */
+  onBeforeCommit?: () => void
 }
 
 function clampWithOptional(value: number, min: number | undefined, max: number | undefined): number {
@@ -35,6 +41,9 @@ export default function DraggableNumberField({
   label,
   id,
   disabled = false,
+  onScrubStart,
+  onScrubEnd,
+  onBeforeCommit,
 }: DraggableNumberFieldProps) {
   const scrubRef = useRef<{ startValue: number; startX: number; deadZoneUsed: boolean } | null>(null)
   const [isFocused, setIsFocused] = useState(false)
@@ -63,17 +72,21 @@ export default function DraggableNumberField({
     const parsed = parseFloat(localValue)
     if (!Number.isNaN(parsed) && Number.isFinite(parsed)) {
       const clamped = clampWithOptional(parsed, min, max)
+      if (clamped !== value) {
+        onBeforeCommit?.()
+      }
       onChange(clamped)
       setLocalValue(stringifyValue(clamped))
     } else {
       setLocalValue(stringifyValue(value))
       onChange(value)
     }
-  }, [localValue, value, min, max, onChange])
+  }, [localValue, value, min, max, onChange, onBeforeCommit])
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<HTMLInputElement>) => {
       if (e.button !== 0) return
+      onScrubStart?.()
       const target = e.target as HTMLInputElement
       const startValue = isFocused
         ? (() => {
@@ -90,7 +103,7 @@ export default function DraggableNumberField({
         target.setPointerCapture(e.pointerId)
       }
     },
-    [value, isFocused, localValue, min, max]
+    [value, isFocused, localValue, min, max, onScrubStart]
   )
 
   const handlePointerMove = useCallback(
@@ -107,21 +120,33 @@ export default function DraggableNumberField({
     [onChange, sensitivity, min, max]
   )
 
-  const handlePointerUp = useCallback((e: React.PointerEvent<HTMLInputElement>) => {
-    scrubRef.current = null
-    const target = e.target as HTMLInputElement
-    if (typeof target.releasePointerCapture === 'function') {
-      target.releasePointerCapture(e.pointerId)
-    }
-  }, [])
+  const handlePointerUp = useCallback(
+    (e: React.PointerEvent<HTMLInputElement>) => {
+      const scrub = scrubRef.current
+      const hadScrub = scrub?.deadZoneUsed ?? false
+      scrubRef.current = null
+      onScrubEnd?.(hadScrub)
+      const target = e.target as HTMLInputElement
+      if (typeof target.releasePointerCapture === 'function') {
+        target.releasePointerCapture(e.pointerId)
+      }
+    },
+    [onScrubEnd]
+  )
 
-  const handlePointerCancel = useCallback((e: React.PointerEvent<HTMLInputElement>) => {
-    scrubRef.current = null
-    const target = e.target as HTMLInputElement
-    if (typeof target.releasePointerCapture === 'function') {
-      target.releasePointerCapture(e.pointerId)
-    }
-  }, [])
+  const handlePointerCancel = useCallback(
+    (e: React.PointerEvent<HTMLInputElement>) => {
+      const scrub = scrubRef.current
+      const hadScrub = scrub?.deadZoneUsed ?? false
+      scrubRef.current = null
+      onScrubEnd?.(hadScrub)
+      const target = e.target as HTMLInputElement
+      if (typeof target.releasePointerCapture === 'function') {
+        target.releasePointerCapture(e.pointerId)
+      }
+    },
+    [onScrubEnd]
+  )
 
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {

@@ -5,6 +5,7 @@ import SaveDialog from '@/components/SaveDialog'
 import EntitySidebar from '@/components/EntitySidebar'
 import PropertySidebar from '@/components/PropertySidebar'
 import { CopyProvider } from '@/contexts/CopyContext'
+import { EditorUndoProvider, type EditorUndoApi } from '@/contexts/EditorUndoContext'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { cloneEntityFrom, createDefaultEntity, createBulkEntities, type AddableShapeType, type BulkEntityParams } from '@/data/entityDefaults'
 import { useProjectContext } from '@/hooks/useProjectContext'
@@ -14,6 +15,9 @@ import { uiLogger } from '@/utils/uiLogger'
 import { getSceneDependencyKey } from '@/utils/sceneDependencyKey'
 import type { TransformerConfig } from '@/types/transformer'
 import type { BuilderGizmoMode, BuilderPoseCommit } from '@/editor/transformGizmoController'
+import { cloneEditorSnapshot, createEditorHistory, type EditorSnapshot } from '@/editor/editorHistory'
+
+const EDITOR_HISTORY_MAX_DEPTH = 80
 
 export default function Builder() {
   const {
@@ -31,6 +35,8 @@ export default function Builder() {
     refreshProjects,
     updateWorld,
     updateAssets,
+    applyEditorSnapshot,
+    documentEpoch,
     syncPosesFromScene,
     syncPosesToRefOnly,
     exportProject,
@@ -56,6 +62,72 @@ export default function Builder() {
   >(null)
   const sceneViewRef = useRef<SceneViewHandle>(null)
   const initialPosesRef = useRef<Map<string, { position: Vec3; rotation: Rotation; scale?: Vec3 }> | null>(null)
+  const historyRef = useRef(createEditorHistory(EDITOR_HISTORY_MAX_DEPTH))
+  const gestureSnapshotRef = useRef<EditorSnapshot | null>(null)
+  const worldAssetsRef = useRef({ world, assets })
+  worldAssetsRef.current = { world, assets }
+  const [historyTick, setHistoryUi] = useState(0)
+  const bumpHistoryUi = useCallback(() => setHistoryUi((n) => n + 1), [])
+
+  useEffect(() => {
+    historyRef.current.clear()
+    bumpHistoryUi()
+  }, [documentEpoch, bumpHistoryUi])
+
+  const pushHistory = useCallback(() => {
+    const { world: w, assets: a } = worldAssetsRef.current
+    historyRef.current.pushBeforeMutation(w, a)
+    bumpHistoryUi()
+  }, [bumpHistoryUi])
+
+  const applyHistorySnapshot = useCallback(
+    (snap: EditorSnapshot) => {
+      initialPosesRef.current = null
+      applyEditorSnapshot(snap)
+      setSelectedEntityId((sel) =>
+        sel && !snap.world.entities.some((e) => e.id === sel) ? null : sel
+      )
+      const nextCameraTarget =
+        cameraTarget && snap.world.entities.some((e) => e.id === cameraTarget)
+          ? cameraTarget
+          : (snap.world.entities[0]?.id ?? '')
+      setCameraTarget(nextCameraTarget)
+      bumpHistoryUi()
+    },
+    [applyEditorSnapshot, bumpHistoryUi, cameraTarget, setCameraTarget]
+  )
+
+  const handleUndo = useCallback(() => {
+    const { world: w, assets: a } = worldAssetsRef.current
+    const prev = historyRef.current.undo(w, a)
+    if (prev) applyHistorySnapshot(prev)
+  }, [applyHistorySnapshot])
+
+  const handleRedo = useCallback(() => {
+    const { world: w, assets: a } = worldAssetsRef.current
+    const next = historyRef.current.redo(w, a)
+    if (next) applyHistorySnapshot(next)
+  }, [applyHistorySnapshot])
+
+  const editorUndoApi = useMemo<EditorUndoApi>(
+    () => ({
+      pushBeforeEdit: () => {
+        pushHistory()
+      },
+      notifyScrubStart: () => {
+        const { world: w, assets: a } = worldAssetsRef.current
+        gestureSnapshotRef.current = cloneEditorSnapshot(w, a)
+      },
+      notifyScrubEnd: (hadScrub: boolean) => {
+        if (hadScrub && gestureSnapshotRef.current) {
+          historyRef.current.commitCoalescedGesture(gestureSnapshotRef.current)
+          bumpHistoryUi()
+        }
+        gestureSnapshotRef.current = null
+      },
+    }),
+    [pushHistory, bumpHistoryUi]
+  )
 
   /** Snapshot live registry poses so the next scene rebuild (entity add/remove/clone, etc.) does not reset physics-driven positions. */
   const captureScenePosesForNextRebuild = useCallback(() => {
@@ -85,6 +157,20 @@ export default function Builder() {
     }
 
     const onKeyDown = (e: KeyboardEvent): void => {
+      const mod = e.metaKey || e.ctrlKey
+      if (mod && e.key === 'z') {
+        if (isEditableElement()) return
+        e.preventDefault()
+        if (e.shiftKey) handleRedo()
+        else handleUndo()
+        return
+      }
+      if (mod && e.key === 'y') {
+        if (isEditableElement()) return
+        e.preventDefault()
+        handleRedo()
+        return
+      }
       if (e.code !== 'Digit0' && e.code !== 'Numpad0') return
       if (isEditableElement()) return
       e.preventDefault()
@@ -97,10 +183,11 @@ export default function Builder() {
 
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [setCameraMode])
+  }, [setCameraMode, handleUndo, handleRedo])
 
   const handleAddEntity = useCallback(
     (shapeType: AddableShapeType) => {
+      pushHistory()
       const newEntity = createDefaultEntity(shapeType)
       uiLogger.select('Builder', 'Add entity', { shapeType, entityId: newEntity.id })
       captureScenePosesForNextRebuild()
@@ -110,11 +197,12 @@ export default function Builder() {
       }))
       setSelectedEntityId(newEntity.id)
     },
-    [updateWorld, captureScenePosesForNextRebuild]
+    [updateWorld, captureScenePosesForNextRebuild, pushHistory]
   )
 
   const handleBulkAddEntities = useCallback(
     (params: BulkEntityParams) => {
+      pushHistory()
       const newEntities = createBulkEntities(params)
       uiLogger.select('Builder', 'Bulk add entities', { 
         count: params.count, 
@@ -131,7 +219,7 @@ export default function Builder() {
         setSelectedEntityId(newEntities[0].id)
       }
     },
-    [updateWorld, captureScenePosesForNextRebuild]
+    [updateWorld, captureScenePosesForNextRebuild, pushHistory]
   )
 
   const handleDeleteEntity = useCallback(
@@ -145,6 +233,7 @@ export default function Builder() {
       }
       
       uiLogger.delete('Builder', 'Delete entity', { entityId, entityName: entity?.name })
+      pushHistory()
       captureScenePosesForNextRebuild()
       const newEntities = world.entities.filter((e) => e.id !== entityId)
       updateWorld((prev) => ({ ...prev, entities: newEntities }))
@@ -153,7 +242,7 @@ export default function Builder() {
         setCameraTarget(newEntities[0]?.id ?? '')
       }
     },
-    [world.entities, selectedEntityId, cameraTarget, updateWorld, setCameraTarget, captureScenePosesForNextRebuild]
+    [world.entities, selectedEntityId, cameraTarget, updateWorld, setCameraTarget, captureScenePosesForNextRebuild, pushHistory]
   )
 
   const handleGizmoModeChange = useCallback((mode: BuilderGizmoMode) => {
@@ -163,6 +252,7 @@ export default function Builder() {
 
   const handleEntityPoseCommit = useCallback(
     (entityId: string, pose: BuilderPoseCommit) => {
+      pushHistory()
       sceneViewRef.current?.updateEntityPose(entityId, {
         position: pose.position,
         rotation: pose.rotation,
@@ -185,7 +275,7 @@ export default function Builder() {
       }))
       uiLogger.change('Builder', 'Gizmo pose commit', { entityId })
     },
-    [updateWorld]
+    [updateWorld, pushHistory]
   )
 
   const handleNew = useCallback(() => {
@@ -224,6 +314,7 @@ export default function Builder() {
 
   const handleCloneEntity = useCallback(
     (entityId: string) => {
+      pushHistory()
       const source = world.entities.find((e) => e.id === entityId)
       if (!source) return
       const pose = getCurrentPose(entityId)
@@ -236,7 +327,7 @@ export default function Builder() {
       }))
       setSelectedEntityId(cloned.id)
     },
-    [world.entities, getCurrentPose, updateWorld, captureScenePosesForNextRebuild]
+    [world.entities, getCurrentPose, updateWorld, captureScenePosesForNextRebuild, pushHistory]
   )
 
   const handleEntityPoseChange = useCallback(
@@ -307,6 +398,7 @@ export default function Builder() {
 
   const handleEntityTransformersChange = useCallback(
     (entityId: string, transformers: TransformerConfig[]) => {
+      pushHistory()
       const nextEntities = world.entities.map((e) =>
         e.id === entityId ? { ...e, transformers } : e
       )
@@ -321,7 +413,7 @@ export default function Builder() {
         sceneViewRef.current?.syncEntityTransformers(entityId, transformers)
       }
     },
-    [world, updateWorld, captureScenePosesForNextRebuild]
+    [world, updateWorld, captureScenePosesForNextRebuild, pushHistory]
   )
 
   const handleAssetsChange = useCallback((newAssets: typeof assets) => {
@@ -426,7 +518,12 @@ export default function Builder() {
     })
   }, [selectedEntityId, world.entities])
 
+  void historyTick
+  const canUndoHistory = historyRef.current.canUndo()
+  const canRedoHistory = historyRef.current.canRedo()
+
   return (
+    <EditorUndoProvider value={editorUndoApi}>
     <CopyProvider>
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
         <BuilderHeader
@@ -452,6 +549,10 @@ export default function Builder() {
         onFileChange={onFileChange}
         onResetCamera={handleResetCamera}
         onApplyDebugForce={handleApplyDebugForce}
+        canUndo={canUndoHistory}
+        canRedo={canRedoHistory}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
       />
 
       {showSaveDialog && (
@@ -538,5 +639,6 @@ export default function Builder() {
       </div>
     </div>
     </CopyProvider>
+    </EditorUndoProvider>
   )
 }

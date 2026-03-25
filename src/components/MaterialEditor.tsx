@@ -11,6 +11,7 @@ import TextureDialog from './TextureDialog'
 import TextureThumbnail from './TextureThumbnail'
 import { sidebarRowStyle, sidebarLabelStyle, thumbnailButtonStyle, thumbnailButtonStyleDisabled, entityPanelIconButtonStyle, removeButtonStyle, removeButtonStyleDisabled } from './sharedStyles'
 import { EntityPanelIcons } from './EntityPanelIcons'
+import { useEditorUndo } from '@/contexts/EditorUndoContext'
 
 export interface MaterialEditorProps {
   entityId: string
@@ -33,6 +34,17 @@ export default function MaterialEditor({
   onAssetsChange,
   disabled = false,
 }: MaterialEditorProps) {
+  const undo = useEditorUndo()
+  const pushUndo = () => undo?.pushBeforeEdit()
+  const vec3Undo =
+    undo != null
+      ? {
+          onScrubStart: () => undo.notifyScrubStart(),
+          onScrubEnd: (hadScrub: boolean) => undo.notifyScrubEnd(hadScrub),
+          onBeforeCommit: pushUndo,
+        }
+      : {}
+
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [textureDialogOpen, setTextureDialogOpen] = useState(false)
   
@@ -62,6 +74,7 @@ export default function MaterialEditor({
             type="color"
             value={colorHex}
             onChange={(e) => {
+              pushUndo()
               const next = hexToColor(e.target.value)
               uiLogger.change('PropertyPanel', 'Change color', { entityId, oldValue: color, newValue: next })
               onMaterialChange({ ...material, color: next })
@@ -107,6 +120,7 @@ export default function MaterialEditor({
               <button
                 type="button"
                 onClick={() => {
+                  pushUndo()
                   uiLogger.change('PropertyPanel', 'Remove texture', { entityId, oldValue: material?.map })
                   onMaterialChange({ ...material, map: undefined })
                 }}
@@ -152,10 +166,12 @@ export default function MaterialEditor({
         world={world}
         selectedTextureId={material?.map}
         onSelectTexture={(assetId) => {
+          pushUndo()
           uiLogger.change('PropertyPanel', 'Change texture', { entityId, oldValue: material?.map, newValue: assetId })
           onMaterialChange({ ...material, map: assetId })
         }}
         onUploadTexture={async (file: File, assetId: string) => {
+          pushUndo()
           const { nextAssets, worldAssetEntry } = await uploadTexture(file, assetId, assets)
           onAssetsChange?.(nextAssets)
           onWorldChange?.({ ...world, assets: { ...world.assets, [assetId]: worldAssetEntry } })
@@ -197,12 +213,14 @@ export default function MaterialEditor({
                 axisLabels={['U', 'V', '']}
                 idPrefix={`${entityId}-mapRepeat`}
                 disabled={disabled}
+                {...vec3Undo}
               />
               
               <SelectInput
                 id={`${entityId}-mapWrapS`}
                 label="Wrap S"
                 value={mapWrapS}
+                onBeforeCommit={pushUndo}
                 onChange={(value) => {
                   uiLogger.change('PropertyPanel', 'Change texture wrap S', { entityId, oldValue: mapWrapS, newValue: value })
                   onMaterialChange({ ...material, mapWrapS: value as 'repeat' | 'clampToEdge' | 'mirroredRepeat' })
@@ -221,6 +239,7 @@ export default function MaterialEditor({
                 id={`${entityId}-mapWrapT`}
                 label="Wrap T"
                 value={mapWrapT}
+                onBeforeCommit={pushUndo}
                 onChange={(value) => {
                   uiLogger.change('PropertyPanel', 'Change texture wrap T', { entityId, oldValue: mapWrapT, newValue: value })
                   onMaterialChange({ ...material, mapWrapT: value as 'repeat' | 'clampToEdge' | 'mirroredRepeat' })
@@ -248,9 +267,10 @@ export default function MaterialEditor({
                 axisLabels={['U', 'V', '']}
                 idPrefix={`${entityId}-mapOffset`}
                 disabled={disabled}
+                {...vec3Undo}
               />
               
-              <NumberInput
+              <NumberInput onBeforeCommit={pushUndo}
                 id={`${entityId}-mapRotation`}
                 label="Rotation (degrees)"
                 value={(mapRotation * 180) / Math.PI}
@@ -272,7 +292,7 @@ export default function MaterialEditor({
         </div>
       )}
       
-      <NumberInput
+      <NumberInput onBeforeCommit={pushUndo}
         id={`${entityId}-opacity`}
         label="Opacity"
         value={opacity}
@@ -288,7 +308,7 @@ export default function MaterialEditor({
         entityId={entityId}
         propertyName="opacity"
       />
-      <NumberInput
+      <NumberInput onBeforeCommit={pushUndo}
         id={`${entityId}-roughness`}
         label="Roughness"
         value={roughness}
@@ -301,7 +321,7 @@ export default function MaterialEditor({
         entityId={entityId}
         propertyName="roughness"
       />
-      <NumberInput
+      <NumberInput onBeforeCommit={pushUndo}
         id={`${entityId}-metalness`}
         label="Metalness"
         value={metalness}

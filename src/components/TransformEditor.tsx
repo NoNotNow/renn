@@ -4,6 +4,12 @@ import { uiLogger } from '@/utils/uiLogger'
 import { entityPanelIconButtonStyle } from './sharedStyles'
 import { EntityPanelIcons } from './EntityPanelIcons'
 
+export interface Vec3UndoProps {
+  onScrubStart?: () => void
+  onScrubEnd?: (hadScrub: boolean) => void
+  onBeforeCommit?: () => void
+}
+
 export interface TransformEditorProps {
   entityId: string
   position: Vec3
@@ -13,6 +19,8 @@ export interface TransformEditorProps {
   onRotationChange: (rotation: Rotation) => void
   onScaleChange: (scale: Vec3) => void
   disabled?: boolean
+  /** Undo: one step per scrub / blur on draggable vec3 fields; use onBeforeCommit before reset clicks. */
+  vec3Undo?: Vec3UndoProps
 }
 
 export default function TransformEditor({
@@ -24,6 +32,7 @@ export default function TransformEditor({
   onRotationChange,
   onScaleChange,
   disabled = false,
+  vec3Undo,
 }: TransformEditorProps) {
   return (
     <>
@@ -37,6 +46,9 @@ export default function TransformEditor({
         sensitivity={0.05}
         idPrefix={`${entityId}-position`}
         disabled={disabled}
+        onScrubStart={vec3Undo?.onScrubStart}
+        onScrubEnd={vec3Undo?.onScrubEnd}
+        onBeforeCommit={vec3Undo?.onBeforeCommit}
       />
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
         <Vec3Field
@@ -49,12 +61,16 @@ export default function TransformEditor({
           axisLabels={['X', 'Y', 'Z']}
           idPrefix={`${entityId}-rotation`}
           disabled={disabled}
+          onScrubStart={vec3Undo?.onScrubStart}
+          onScrubEnd={vec3Undo?.onScrubEnd}
+          onBeforeCommit={vec3Undo?.onBeforeCommit}
         />
         <button
           type="button"
           title="Reset rotation to 0,0,0"
           aria-label="Reset rotation to 0,0,0"
           onClick={() => {
+            vec3Undo?.onBeforeCommit?.()
             uiLogger.change('PropertyPanel', 'Reset rotation', { entityId })
             onRotationChange([0, 0, 0])
           }}
@@ -80,6 +96,9 @@ export default function TransformEditor({
         sensitivity={0.01}
         idPrefix={`${entityId}-scale`}
         disabled={disabled}
+        onScrubStart={vec3Undo?.onScrubStart}
+        onScrubEnd={vec3Undo?.onScrubEnd}
+        onBeforeCommit={vec3Undo?.onBeforeCommit}
       />
     </>
   )

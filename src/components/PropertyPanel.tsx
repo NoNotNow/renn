@@ -13,6 +13,8 @@ import CollapsibleSection from './CollapsibleSection'
 import Switch from './Switch'
 import { fieldLabelStyle, sidebarTextInputStyle, entityPanelIconButtonStyle, removeButtonStyle, removeButtonStyleDisabled, secondaryButtonStyle, secondaryButtonStyleDisabled } from './sharedStyles'
 import { EntityPanelIcons } from './EntityPanelIcons'
+import { useEditorUndo } from '@/contexts/EditorUndoContext'
+import type { Vec3UndoProps } from './TransformEditor'
 
 export interface PropertyPanelProps {
   world: RennWorld
@@ -50,9 +52,24 @@ export default function PropertyPanel({
   onRefreshFromPhysics,
   livePoses,
 }: PropertyPanelProps) {
+  const undo = useEditorUndo()
+  const vec3Undo: Vec3UndoProps | undefined =
+    undo != null
+      ? {
+          onScrubStart: () => undo.notifyScrubStart(),
+          onScrubEnd: (hadScrub: boolean) => undo.notifyScrubEnd(hadScrub),
+          onBeforeCommit: () => undo.pushBeforeEdit(),
+        }
+      : undefined
+
   const entity = selectedEntityId
     ? world.entities.find((e) => e.id === selectedEntityId)
     : null
+
+  const [editingName, setEditingName] = useState<string | null>(null)
+  useEffect(() => {
+    setEditingName(null)
+  }, [selectedEntityId])
 
   if (!entity) {
     return (
@@ -79,16 +96,12 @@ export default function PropertyPanel({
   const modelScale = entity.modelScale ?? [1, 1, 1]
   const isLocked = entity.locked ?? false
 
-  const [editingName, setEditingName] = useState<string | null>(null)
-  useEffect(() => {
-    setEditingName(null)
-  }, [entity.id])
-
   const nameDisplayValue = editingName !== null ? editingName : (entity.name ?? '')
   const handleNameFocus = () => setEditingName(entity.name ?? '')
   const handleNameBlur = () => {
     const newName = (editingName ?? entity.name ?? '').trim() || undefined
     if (newName !== (entity.name ?? undefined)) {
+      undo?.pushBeforeEdit()
       uiLogger.change('PropertyPanel', 'Change entity name', { entityId: entity.id, oldName: entity.name, newName: newName ?? '' })
       updateEntity({ name: newName })
     }
@@ -190,6 +203,7 @@ export default function PropertyPanel({
           <button
             type="button"
             onClick={() => {
+              undo?.pushBeforeEdit()
               uiLogger.change('PropertyPanel', 'Toggle entity lock', { entityId: entity.id, locked: !isLocked })
               updateEntity({ locked: !isLocked })
             }}
@@ -245,6 +259,7 @@ export default function PropertyPanel({
           position={displayPosition}
           rotation={displayRotation}
           scale={scale}
+          vec3Undo={vec3Undo}
           onPositionChange={(v) => {
             if (onEntityPoseChange) {
               onEntityPoseChange(entity.id, { position: v })
@@ -451,6 +466,7 @@ export default function PropertyPanel({
               <Switch
                 checked={entity.showShapeWireframe ?? false}
                 onChange={(checked) => {
+                  undo?.pushBeforeEdit()
                   uiLogger.change('PropertyPanel', 'Toggle shape wireframe', {
                     entityId: entity.id,
                     value: checked,
@@ -482,12 +498,16 @@ export default function PropertyPanel({
               axisLabels={['X', 'Y', 'Z']}
               idPrefix={`${entity.id}-model-rotation`}
               disabled={isLocked}
+              onScrubStart={vec3Undo?.onScrubStart}
+              onScrubEnd={vec3Undo?.onScrubEnd}
+              onBeforeCommit={vec3Undo?.onBeforeCommit}
             />
             <button
               type="button"
               title="Reset model rotation to 0,0,0"
               aria-label="Reset model rotation to 0,0,0"
               onClick={() => {
+                vec3Undo?.onBeforeCommit?.()
                 uiLogger.change('PropertyPanel', 'Reset model rotation', { entityId: entity.id })
                 if (onEntityModelTransformChange) {
                   onEntityModelTransformChange(entity.id, { modelRotation: [0, 0, 0] })
@@ -521,6 +541,9 @@ export default function PropertyPanel({
             sensitivity={0.01}
             idPrefix={`${entity.id}-model-scale`}
             disabled={isLocked}
+            onScrubStart={vec3Undo?.onScrubStart}
+            onScrubEnd={vec3Undo?.onScrubEnd}
+            onBeforeCommit={vec3Undo?.onBeforeCommit}
           />
         </CollapsibleSection>
       )}

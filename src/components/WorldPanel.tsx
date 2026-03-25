@@ -7,6 +7,7 @@ import CopyableArea from './CopyableArea'
 import Vec3Field from './Vec3Field'
 import NumberInput from './form/NumberInput'
 import { sidebarRowStyle, sidebarLabelStyle, sectionStyle, sectionTitleStyle } from './sharedStyles'
+import { useEditorUndo } from '@/contexts/EditorUndoContext'
 
 export interface WorldPanelProps {
   world: RennWorld
@@ -14,6 +15,17 @@ export interface WorldPanelProps {
 }
 
 export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
+  const undo = useEditorUndo()
+  const pushUndo = () => undo?.pushBeforeEdit()
+  const vec3Undo =
+    undo != null
+      ? {
+          onScrubStart: () => undo.notifyScrubStart(),
+          onScrubEnd: (hadScrub: boolean) => undo.notifyScrubEnd(hadScrub),
+          onBeforeCommit: pushUndo,
+        }
+      : {}
+
   const gravity: Vec3 = world.world.gravity ?? DEFAULT_GRAVITY
   // Convert Vec3 gravity to single positive number (magnitude of Y)
   const gravityValue = Math.abs(gravity[1])
@@ -65,6 +77,7 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
   }
 
   const setRecommendedSleeping = () => {
+    pushUndo()
     uiLogger.change('WorldPanel', 'Set recommended sleeping', {
       oldValue: world.world.sleeping,
       newValue: RECOMMENDED_SLEEPING_SETTINGS,
@@ -214,7 +227,7 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
       <CopyableArea copyPayload={copyPayload}>
       <div style={sectionStyle}>
         <div style={sectionTitleStyle}>Gravity</div>
-        <NumberInput
+        <NumberInput onBeforeCommit={pushUndo}
           id="world-gravity"
           label="Strength"
           value={gravityValue}
@@ -232,7 +245,7 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
           Custom sleep timer: velocities must stay below thresholds for the duration. Negative linear or angular
           threshold disables that check.
         </p>
-        <NumberInput
+        <NumberInput onBeforeCommit={pushUndo}
           id="world-sleep-linear"
           label="Linear threshold"
           value={sleepingDisplay.linearThreshold}
@@ -241,7 +254,7 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
           defaultValue={RECOMMENDED_SLEEPING_SETTINGS.linearThreshold}
           logComponent="WorldPanel"
         />
-        <NumberInput
+        <NumberInput onBeforeCommit={pushUndo}
           id="world-sleep-angular"
           label="Angular threshold (rad/s)"
           value={sleepingDisplay.angularThreshold}
@@ -250,7 +263,7 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
           defaultValue={RECOMMENDED_SLEEPING_SETTINGS.angularThreshold}
           logComponent="WorldPanel"
         />
-        <NumberInput
+        <NumberInput onBeforeCommit={pushUndo}
           id="world-sleep-time"
           label="Time until sleep (s)"
           value={sleepingDisplay.timeUntilSleep}
@@ -291,6 +304,7 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
               type="color"
               value={skyColorHex}
               onChange={(e) => {
+                pushUndo()
                 const next = hexToColor(e.target.value)
                 updateSkyColor(next)
               }}
@@ -316,7 +330,7 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
         <div style={sectionTitleStyle}>Light</div>
         <div style={{ marginTop: 8 }}>
           <div style={{ ...sectionTitleStyle, fontSize: 11 }}>Directional</div>
-          <NumberInput
+          <NumberInput onBeforeCommit={pushUndo}
             id="light-azimuth"
             label="Azimuth (deg)"
             value={Math.round(azimuth * 10) / 10}
@@ -327,7 +341,7 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
             defaultValue={45}
             logComponent="WorldPanel"
           />
-          <NumberInput
+          <NumberInput onBeforeCommit={pushUndo}
             id="light-elevation"
             label="Elevation (deg)"
             value={Math.round(elevation * 10) / 10}
@@ -347,7 +361,10 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
                 id="dir-light-color"
                 type="color"
                 value={dirColorHex}
-                onChange={(e) => updateDirectionalLight({ color: hexToColor(e.target.value) })}
+                onChange={(e) => {
+                  pushUndo()
+                  updateDirectionalLight({ color: hexToColor(e.target.value) })
+                }}
                 aria-label="Directional light color"
                 style={{
                   width: 28,
@@ -364,7 +381,7 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
               </span>
             </div>
           </div>
-          <NumberInput
+          <NumberInput onBeforeCommit={pushUndo}
             id="light-intensity"
             label="Intensity"
             value={dirIntensity}
@@ -386,7 +403,10 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
                 id="ambient-light-color"
                 type="color"
                 value={ambientColorHex}
-                onChange={(e) => updateAmbientLight(hexToColor(e.target.value))}
+                onChange={(e) => {
+                  pushUndo()
+                  updateAmbientLight(hexToColor(e.target.value))
+                }}
                 aria-label="Ambient light color"
                 style={{
                   width: 28,
@@ -421,6 +441,7 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
                   type="color"
                   value={groundColorHex}
                   onChange={(e) => {
+                    pushUndo()
                     const next = hexToColor(e.target.value)
                     updateGroundColor(next)
                   }}
@@ -444,7 +465,7 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
             {/* Material Properties subsection */}
             <div style={{ marginTop: 12 }}>
               <div style={{ ...sectionTitleStyle, fontSize: 11 }}>Material</div>
-              <NumberInput
+              <NumberInput onBeforeCommit={pushUndo}
                 id="ground-roughness"
                 label="Roughness"
                 value={groundRoughness}
@@ -464,7 +485,7 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
                 propertyName="roughness"
                 logComponent="WorldPanel"
               />
-              <NumberInput
+              <NumberInput onBeforeCommit={pushUndo}
                 id="ground-metalness"
                 label="Metalness"
                 value={groundMetalness}
@@ -484,7 +505,7 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
                 propertyName="metalness"
                 logComponent="WorldPanel"
               />
-              <NumberInput
+              <NumberInput onBeforeCommit={pushUndo}
                 id="ground-opacity"
                 label="Opacity"
                 value={groundOpacity}
@@ -509,7 +530,7 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
             {/* Physics Properties subsection */}
             <div style={{ marginTop: 12 }}>
               <div style={{ ...sectionTitleStyle, fontSize: 11 }}>Physics</div>
-              <NumberInput
+              <NumberInput onBeforeCommit={pushUndo}
                 id="ground-friction"
                 label="Friction"
                 value={groundFriction}
@@ -534,6 +555,7 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
                 step={0.1}
                 axisLabels={['X', 'Y', 'Z']}
                 idPrefix="ground-scale"
+                {...vec3Undo}
               />
             </div>
 

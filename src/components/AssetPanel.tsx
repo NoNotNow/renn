@@ -8,6 +8,7 @@ import { ModelManager } from '@/utils/modelManager'
 import { defaultPersistence } from '@/persistence/indexedDb'
 import TextureThumbnail from './TextureThumbnail'
 import ModelThumbnail from './ModelThumbnail'
+import { useEditorUndo } from '@/contexts/EditorUndoContext'
 
 export interface AssetPanelProps {
   assets: Map<string, Blob>
@@ -17,6 +18,8 @@ export interface AssetPanelProps {
 }
 
 export default function AssetPanel({ assets, world, onAssetsChange, onWorldChange }: AssetPanelProps) {
+  const undo = useEditorUndo()
+  const pushUndo = () => undo?.pushBeforeEdit()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const assetIds = Array.from(assets.keys())
@@ -30,6 +33,7 @@ export default function AssetPanel({ assets, world, onAssetsChange, onWorldChang
   const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (!files?.length) return
+    pushUndo()
     const fileDetails = Array.from(files).map(f => ({ name: f.name, size: f.size, type: f.type }))
     uiLogger.upload('AssetPanel', 'Upload asset files', { fileCount: files.length, files: fileDetails })
     const next = new Map(assets)
@@ -61,7 +65,8 @@ export default function AssetPanel({ assets, world, onAssetsChange, onWorldChang
     }
     
     uiLogger.delete('AssetPanel', 'Remove asset', { assetId: id })
-    
+    pushUndo()
+
     // Remove from global store
     try {
       await defaultPersistence.deleteAsset(id)

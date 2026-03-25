@@ -11,6 +11,7 @@ export interface SelectInputProps {
   entityId?: string
   propertyName?: string
   logComponent?: string
+  onBeforeCommit?: () => void
 }
 
 export default function SelectInput({
@@ -23,10 +24,12 @@ export default function SelectInput({
   entityId,
   propertyName,
   logComponent = 'PropertyPanel',
+  onBeforeCommit,
 }: SelectInputProps) {
   const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newValue = e.target.value
-    
+    if (newValue === value) return
+
     if (propertyName && entityId) {
       uiLogger.change(logComponent, `Change ${propertyName}`, {
         entityId,
@@ -34,7 +37,8 @@ export default function SelectInput({
         newValue,
       })
     }
-    
+
+    onBeforeCommit?.()
     onChange(newValue)
   }
 

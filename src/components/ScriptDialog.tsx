@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react'
 import type { RennWorld, ScriptDef } from '@/types/world'
 import { uiLogger } from '@/utils/uiLogger'
 import Modal from './Modal'
+import { useEditorUndo } from '@/contexts/EditorUndoContext'
 
 function getDef(scripts: Record<string, ScriptDef>, id: string): ScriptDef | null {
   const raw = scripts[id]
@@ -34,6 +35,8 @@ export default function ScriptDialog({
   onChange,
   onWorldChange,
 }: ScriptDialogProps) {
+  const undo = useEditorUndo()
+  const pushUndo = () => undo?.pushBeforeEdit()
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedScriptId, setSelectedScriptId] = useState<string | null>(null)
 
@@ -49,15 +52,17 @@ export default function ScriptDialog({
   const handleAttach = useCallback(() => {
     if (!selectedScriptId || entityScriptIds.includes(selectedScriptId)) return
     uiLogger.click('ScriptDialog', 'Attach script to entity', { scriptId: selectedScriptId, entityId: selectedEntityId })
+    pushUndo()
     onChange([...entityScriptIds, selectedScriptId])
-  }, [selectedScriptId, entityScriptIds, selectedEntityId, onChange])
+  }, [selectedScriptId, entityScriptIds, selectedEntityId, onChange, pushUndo])
 
   const handleDetach = useCallback(
     (scriptId: string) => {
       uiLogger.click('ScriptDialog', 'Detach script from entity', { scriptId, entityId: selectedEntityId })
+      pushUndo()
       onChange(entityScriptIds.filter((id) => id !== scriptId))
     },
-    [entityScriptIds, selectedEntityId, onChange]
+    [entityScriptIds, selectedEntityId, onChange, pushUndo]
   )
 
   const handleCreateNew = useCallback(() => {
@@ -68,13 +73,14 @@ export default function ScriptDialog({
       return
     }
     uiLogger.click('ScriptDialog', 'Create new script', { scriptId: id })
+    pushUndo()
     const nextScripts = { ...scripts, [id]: { event: 'onUpdate' as const, source: '// ctx.log(ctx.entity.id);' } }
     if (onWorldChange) {
       onWorldChange({ ...world, scripts: nextScripts })
     }
     onChange([...entityScriptIds, id])
     setSelectedScriptId(id)
-  }, [scripts, world, entityScriptIds, onChange, onWorldChange])
+  }, [scripts, world, entityScriptIds, onChange, onWorldChange, pushUndo])
 
   const handleRename = useCallback(() => {
     if (!selectedScriptId || !onWorldChange) return
@@ -89,6 +95,7 @@ export default function ScriptDialog({
       return
     }
     uiLogger.click('ScriptDialog', 'Rename script', { oldId: selectedScriptId, newId })
+    pushUndo()
     const { [selectedScriptId]: _removed, ...rest } = scripts
     const nextScripts = { ...rest, [newId]: def }
     const nextEntities = world.entities.map((e) => ({
@@ -97,7 +104,7 @@ export default function ScriptDialog({
     }))
     onWorldChange({ ...world, scripts: nextScripts, entities: nextEntities })
     setSelectedScriptId(newId)
-  }, [selectedScriptId, scripts, world, onWorldChange])
+  }, [selectedScriptId, scripts, world, onWorldChange, pushUndo])
 
   const isAttached = selectedScriptId && entityScriptIds.includes(selectedScriptId)
   const canRename = selectedScriptId && onWorldChange

@@ -1,6 +1,7 @@
 import type { Entity } from '@/types/world'
 import SelectInput from './form/SelectInput'
 import NumberInput from './form/NumberInput'
+import { useEditorUndo } from '@/contexts/EditorUndoContext'
 
 export interface PhysicsEditorProps {
   entityId: string
@@ -35,12 +36,16 @@ export default function PhysicsEditor({
   onAngularDampingChange,
   disabled = false,
 }: PhysicsEditorProps) {
+  const undo = useEditorUndo()
+  const pushUndo = () => undo?.pushBeforeEdit()
+
   return (
     <>
       <SelectInput
         id={`${entityId}-body-type`}
         label="Body type"
         value={bodyType}
+        onBeforeCommit={pushUndo}
         onChange={(value) => onBodyTypeChange(value as Entity['bodyType'])}
         options={[
           { value: 'static', label: 'Static' },
@@ -53,7 +58,7 @@ export default function PhysicsEditor({
       />
       {bodyType === 'dynamic' && (
         <>
-          <NumberInput
+          <NumberInput onBeforeCommit={pushUndo}
             id={`${entityId}-mass`}
             label="Mass"
             value={mass}
@@ -65,7 +70,7 @@ export default function PhysicsEditor({
             entityId={entityId}
             propertyName="mass"
           />
-          <NumberInput
+          <NumberInput onBeforeCommit={pushUndo}
             id={`${entityId}-linear-damping`}
             label="Linear damping"
             value={linearDamping}
@@ -77,7 +82,7 @@ export default function PhysicsEditor({
             entityId={entityId}
             propertyName="linear damping"
           />
-          <NumberInput
+          <NumberInput onBeforeCommit={pushUndo}
             id={`${entityId}-angular-damping`}
             label="Angular damping"
             value={angularDamping}
@@ -89,7 +94,7 @@ export default function PhysicsEditor({
             entityId={entityId}
             propertyName="angular damping"
           />
-          <NumberInput
+          <NumberInput onBeforeCommit={pushUndo}
             id={`${entityId}-restitution`}
             label="Restitution"
             value={restitution}
@@ -104,7 +109,7 @@ export default function PhysicsEditor({
           />
         </>
       )}
-      <NumberInput
+      <NumberInput onBeforeCommit={pushUndo}
         id={`${entityId}-friction`}
         label="Friction"
         value={friction}

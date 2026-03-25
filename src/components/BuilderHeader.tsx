@@ -36,6 +36,10 @@ export interface BuilderHeaderProps {
   onFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void
   onResetCamera: () => void
   onApplyDebugForce?: (force: Vec3) => void
+  canUndo?: boolean
+  canRedo?: boolean
+  onUndo?: () => void
+  onRedo?: () => void
 }
 
 export default function BuilderHeader({
@@ -61,6 +65,10 @@ export default function BuilderHeader({
   onFileChange,
   onResetCamera,
   onApplyDebugForce,
+  canUndo = false,
+  canRedo = false,
+  onUndo,
+  onRedo,
 }: BuilderHeaderProps) {
   const [showProjectSelector, setShowProjectSelector] = useState(false)
 
@@ -119,6 +127,23 @@ export default function BuilderHeader({
       type: 'item',
       label: 'Import',
       onClick: onImport,
+    },
+  ]
+
+  const editMenuItems: MenuItemConfig[] = [
+    {
+      type: 'item',
+      label: 'Undo',
+      onClick: onUndo,
+      disabled: !canUndo,
+      shortcut: 'Ctrl+Z',
+    },
+    {
+      type: 'item',
+      label: 'Redo',
+      onClick: onRedo,
+      disabled: !canRedo,
+      shortcut: 'Ctrl+Shift+Z',
     },
   ]
 
@@ -220,6 +245,7 @@ export default function BuilderHeader({
           </div>
           <MenuBar>
             <DropdownMenu label="File" items={fileMenuItems} />
+            <DropdownMenu label="Edit" items={editMenuItems} />
             <DropdownMenu label="View" items={viewMenuItems} />
             <DropdownMenu label="Project" items={projectMenuItems} />
             <DropdownMenu label="Debug" items={debugMenuItems} />

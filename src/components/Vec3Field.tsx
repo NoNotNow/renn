@@ -12,6 +12,9 @@ export interface Vec3FieldProps {
   axisLabels?: [string, string, string]
   idPrefix?: string
   disabled?: boolean
+  onScrubStart?: () => void
+  onScrubEnd?: (hadScrub: boolean) => void
+  onBeforeCommit?: () => void
 }
 
 const DEFAULT_AXIS_LABELS: [string, string, string] = ['X', 'Y', 'Z']
@@ -27,6 +30,9 @@ export default function Vec3Field({
   axisLabels = DEFAULT_AXIS_LABELS,
   idPrefix = 'vec3',
   disabled = false,
+  onScrubStart,
+  onScrubEnd,
+  onBeforeCommit,
 }: Vec3FieldProps) {
   return (
     <VectorField
@@ -40,6 +46,9 @@ export default function Vec3Field({
       sensitivity={sensitivity}
       idPrefix={idPrefix}
       disabled={disabled}
+      onScrubStart={onScrubStart}
+      onScrubEnd={onScrubEnd}
+      onBeforeCommit={onBeforeCommit}
     />
   )
 }

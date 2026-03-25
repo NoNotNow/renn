@@ -10,6 +10,7 @@ import Switch from './Switch'
 import { uploadModel } from '@/utils/assetUpload'
 import { sidebarRowStyle, sidebarLabelStyle, thumbnailButtonStyle, thumbnailButtonStyleDisabled, entityPanelIconButtonStyle, removeButtonStyle, removeButtonStyleDisabled } from './sharedStyles'
 import { EntityPanelIcons } from './EntityPanelIcons'
+import { useEditorUndo } from '@/contexts/EditorUndoContext'
 
 const ADDABLE_SHAPE_TYPES: AddableShapeType[] = ['box', 'sphere', 'cylinder', 'capsule', 'cone', 'pyramid', 'ring', 'plane', 'trimesh']
 
@@ -35,7 +36,9 @@ export default function ShapeEditor({
   onWorldChange,
 }: ShapeEditorProps) {
   const [modelDialogOpen, setModelDialogOpen] = useState(false)
-  
+  const undo = useEditorUndo()
+  const pushUndo = () => undo?.pushBeforeEdit()
+
   const shapeType = (shape?.type ?? 'box') as AddableShapeType
   const effectiveShapeType = ADDABLE_SHAPE_TYPES.includes(shapeType) ? shapeType : 'box'
 
@@ -49,6 +52,7 @@ export default function ShapeEditor({
         id={`${entityId}-shape`}
         label="Shape"
         value={effectiveShapeType}
+        onBeforeCommit={pushUndo}
         onChange={(value) => setShapeType(value as AddableShapeType)}
         options={[
           { value: 'box', label: 'Box' },
@@ -68,7 +72,7 @@ export default function ShapeEditor({
       />
       {shape?.type === 'box' && shape && (
         <>
-          <NumberInput
+          <NumberInput onBeforeCommit={pushUndo}
             id={`${entityId}-box-width`}
             label="Width"
             value={shape.width}
@@ -80,7 +84,7 @@ export default function ShapeEditor({
             entityId={entityId}
             propertyName="box width"
           />
-          <NumberInput
+          <NumberInput onBeforeCommit={pushUndo}
             id={`${entityId}-box-height`}
             label="Height"
             value={shape.height}
@@ -92,7 +96,7 @@ export default function ShapeEditor({
             entityId={entityId}
             propertyName="box height"
           />
-          <NumberInput
+          <NumberInput onBeforeCommit={pushUndo}
             id={`${entityId}-box-depth`}
             label="Depth"
             value={shape.depth}
@@ -107,7 +111,7 @@ export default function ShapeEditor({
         </>
       )}
       {shape?.type === 'sphere' && shape && (
-        <NumberInput
+        <NumberInput onBeforeCommit={pushUndo}
           id={`${entityId}-sphere-radius`}
           label="Radius"
           value={shape.radius}
@@ -122,7 +126,7 @@ export default function ShapeEditor({
       )}
       {shape?.type === 'cylinder' && shape && (
         <>
-          <NumberInput
+          <NumberInput onBeforeCommit={pushUndo}
             id={`${entityId}-cylinder-radius`}
             label="Radius"
             value={shape.radius}
@@ -134,7 +138,7 @@ export default function ShapeEditor({
             entityId={entityId}
             propertyName="cylinder radius"
           />
-          <NumberInput
+          <NumberInput onBeforeCommit={pushUndo}
             id={`${entityId}-cylinder-height`}
             label="Height"
             value={shape.height}
@@ -150,7 +154,7 @@ export default function ShapeEditor({
       )}
       {shape?.type === 'capsule' && shape && (
         <>
-          <NumberInput
+          <NumberInput onBeforeCommit={pushUndo}
             id={`${entityId}-capsule-radius`}
             label="Radius"
             value={shape.radius}
@@ -162,7 +166,7 @@ export default function ShapeEditor({
             entityId={entityId}
             propertyName="capsule radius"
           />
-          <NumberInput
+          <NumberInput onBeforeCommit={pushUndo}
             id={`${entityId}-capsule-height`}
             label="Height"
             value={shape.height}
@@ -178,7 +182,7 @@ export default function ShapeEditor({
       )}
       {shape?.type === 'cone' && shape && (
         <>
-          <NumberInput
+          <NumberInput onBeforeCommit={pushUndo}
             id={`${entityId}-cone-radius`}
             label="Radius"
             value={shape.radius}
@@ -190,7 +194,7 @@ export default function ShapeEditor({
             entityId={entityId}
             propertyName="cone radius"
           />
-          <NumberInput
+          <NumberInput onBeforeCommit={pushUndo}
             id={`${entityId}-cone-height`}
             label="Height"
             value={shape.height}
@@ -206,7 +210,7 @@ export default function ShapeEditor({
       )}
       {shape?.type === 'pyramid' && shape && (
         <>
-          <NumberInput
+          <NumberInput onBeforeCommit={pushUndo}
             id={`${entityId}-pyramid-baseSize`}
             label="Base size"
             value={shape.baseSize}
@@ -218,7 +222,7 @@ export default function ShapeEditor({
             entityId={entityId}
             propertyName="pyramid base size"
           />
-          <NumberInput
+          <NumberInput onBeforeCommit={pushUndo}
             id={`${entityId}-pyramid-height`}
             label="Height"
             value={shape.height}
@@ -234,7 +238,7 @@ export default function ShapeEditor({
       )}
       {shape?.type === 'ring' && shape && (
         <>
-          <NumberInput
+          <NumberInput onBeforeCommit={pushUndo}
             id={`${entityId}-ring-innerRadius`}
             label="Inner radius"
             value={shape.innerRadius}
@@ -246,7 +250,7 @@ export default function ShapeEditor({
             entityId={entityId}
             propertyName="ring inner radius"
           />
-          <NumberInput
+          <NumberInput onBeforeCommit={pushUndo}
             id={`${entityId}-ring-outerRadius`}
             label="Outer radius"
             value={shape.outerRadius}
@@ -258,7 +262,7 @@ export default function ShapeEditor({
             entityId={entityId}
             propertyName="ring outer radius"
           />
-          <NumberInput
+          <NumberInput onBeforeCommit={pushUndo}
             id={`${entityId}-ring-height`}
             label="Height (collision)"
             value={shape.height ?? 0.1}
@@ -299,7 +303,10 @@ export default function ShapeEditor({
                   </button>
                   <button
                     type="button"
-                    onClick={() => onShapeChange({ type: 'trimesh', model: '' })}
+                    onClick={() => {
+                      pushUndo()
+                      onShapeChange({ type: 'trimesh', model: '' })
+                    }}
                     disabled={disabled}
                     title="Remove model"
                     aria-label="Remove model"
@@ -345,6 +352,7 @@ export default function ShapeEditor({
                 <Switch
                   checked={shape.simplification?.enabled ?? false}
                   onChange={(enabled) => {
+                    pushUndo()
                     onShapeChange({
                       type: 'trimesh',
                       model: shape.model,
@@ -360,7 +368,7 @@ export default function ShapeEditor({
 
               {shape.simplification?.enabled && (
                 <>
-                  <NumberInput
+                  <NumberInput onBeforeCommit={pushUndo}
                     id={`${entityId}-simplification-maxTriangles`}
                     label="Max Triangles"
                     value={shape.simplification.maxTriangles ?? 5000}
@@ -398,8 +406,12 @@ export default function ShapeEditor({
               assets={assets}
               world={world}
               selectedModelId={shape.model}
-              onSelectModel={(assetId) => onShapeChange({ type: 'trimesh', model: assetId ?? '' })}
+              onSelectModel={(assetId) => {
+                pushUndo()
+                onShapeChange({ type: 'trimesh', model: assetId ?? '' })
+              }}
               onUploadModel={async (file: File, assetId: string) => {
+                pushUndo()
                 const { nextAssets, worldAssetEntry } = await uploadModel(file, assetId, assets)
                 onAssetsChange?.(nextAssets)
                 onWorldChange?.({ ...world, assets: { ...world.assets, [assetId]: worldAssetEntry } })

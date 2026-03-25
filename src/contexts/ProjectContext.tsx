@@ -6,6 +6,7 @@ import { sampleWorld } from '@/data/sampleWorld'
 import { loadWorldFromStatic } from '@/loader/loadWorldFromStatic'
 import SplashScreen from '@/components/SplashScreen'
 import { uiLogger } from '@/utils/uiLogger'
+import type { EditorSnapshot } from '@/editor/editorHistory'
 
 const persistence = createIndexedDbPersistence()
 const BASE_URL = import.meta.env.BASE_URL || '/'
@@ -38,6 +39,8 @@ interface ProjectContextState {
   assets: Map<string, Blob>
   projects: ProjectMeta[]
   version: number
+  /** Increments when the entire document is replaced (new/load/import); use to reset undo. */
+  documentEpoch: number
   cameraControl: 'free' | 'follow' | 'top' | 'front' | 'right'
   cameraTarget: string
   cameraMode: CameraMode
@@ -56,6 +59,10 @@ interface ProjectContextActions {
   // World editing (marks dirty)
   updateWorld: (updater: (prev: RennWorld) => RennWorld) => void
   updateAssets: (updater: (prev: Map<string, Blob>) => Map<string, Blob>) => void
+  /** Full scene reload (e.g. after undo/redo restores document). */
+  bumpVersion: () => void
+  /** Replace world + assets from snapshot, mark dirty, bump scene version. */
+  applyEditorSnapshot: (snapshot: EditorSnapshot) => void
   
   // State sync
   syncPosesFromScene: (poses: Map<string, { position: Vec3; rotation: Rotation; scale?: Vec3 }>) => void
@@ -95,6 +102,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const [assets, setAssets] = useState<Map<string, Blob>>(new Map())
   const [projects, setProjects] = useState<ProjectMeta[]>([])
   const [version, setVersion] = useState(0)
+  const [documentEpoch, setDocumentEpoch] = useState(0)
   const [initialLoadPending, setInitialLoadPending] = useState(true)
   
   // Combined camera state to reduce re-renders
@@ -154,6 +162,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       mode: sampleWorld.world.camera?.mode ?? 'follow',
     })
     setVersion((v) => v + 1)
+    setDocumentEpoch((e) => e + 1)
   }, [])
   
   const loadProject = useCallback(async (id: string) => {
@@ -186,6 +195,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         mode: w.world.camera?.mode ?? 'follow',
       })
       setVersion((v) => v + 1)
+      setDocumentEpoch((e) => e + 1)
       setLastProjectId(id)
     } catch (err) {
       console.error('Failed to open project:', err)
@@ -212,6 +222,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
             mode: staticResult.world.world.camera?.mode ?? 'follow',
           })
           setVersion((v) => v + 1)
+          setDocumentEpoch((e) => e + 1)
           setInitialLoadPending(false)
           return
         }
@@ -353,6 +364,18 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     }
   }, [currentProject.id, newProject, refreshProjects])
   
+  const bumpVersion = useCallback(() => {
+    setVersion((v) => v + 1)
+  }, [])
+
+  const applyEditorSnapshot = useCallback((snapshot: EditorSnapshot) => {
+    worldRef.current = snapshot.world
+    setWorld(snapshot.world)
+    setAssets(new Map(snapshot.assets))
+    setCurrentProject((prev) => ({ ...prev, isDirty: true }))
+    setVersion((v) => v + 1)
+  }, [])
+
   const updateWorld = useCallback((updater: (prev: RennWorld) => RennWorld) => {
     const next = updater(worldRef.current)
     worldRef.current = next
@@ -479,6 +502,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
             isDirty: false,
           })
           setVersion((v) => v + 1)
+          setDocumentEpoch((e) => e + 1)
         } catch {
           alert('Invalid JSON')
         }
@@ -502,6 +526,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     assets,
     projects,
     version,
+    documentEpoch,
     cameraControl: cameraState.control,
     cameraTarget: cameraState.target,
     cameraMode: cameraState.mode,
@@ -516,6 +541,8 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     refreshProjects,
     updateWorld,
     updateAssets,
+    bumpVersion,
+    applyEditorSnapshot,
     syncPosesFromScene,
     syncPosesToRefOnly,
     exportProject,
@@ -534,6 +561,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     assets,
     projects,
     version,
+    documentEpoch,
     cameraState.control,
     cameraState.target,
     cameraState.mode,
@@ -546,6 +574,8 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     refreshProjects,
     updateWorld,
     updateAssets,
+    bumpVersion,
+    applyEditorSnapshot,
     syncPosesFromScene,
     syncPosesToRefOnly,
     exportProject,

@@ -16,6 +16,8 @@ export interface NumberInputProps {
   entityId?: string
   propertyName?: string
   logComponent?: string
+  /** Called immediately before `onChange` when blur commits a new value (not when unchanged). */
+  onBeforeCommit?: () => void
 }
 
 export default function NumberInput({
@@ -31,6 +33,7 @@ export default function NumberInput({
   entityId,
   propertyName,
   logComponent = 'PropertyPanel',
+  onBeforeCommit,
 }: NumberInputProps) {
   const [isFocused, setIsFocused] = useState(false)
   const [localValue, setLocalValue] = useState(String(value))
@@ -60,9 +63,12 @@ export default function NumberInput({
       })
     }
 
+    if (newValue !== value) {
+      onBeforeCommit?.()
+    }
     onChange(newValue)
     setLocalValue(String(newValue))
-  }, [localValue, value, defaultValue, onChange, propertyName, entityId, logComponent])
+  }, [localValue, value, defaultValue, onChange, onBeforeCommit, propertyName, entityId, logComponent])
 
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -70,10 +76,13 @@ export default function NumberInput({
         setLocalValue(e.target.value)
       } else {
         const newValue = parseNumberInput(e.target.value, defaultValue)
+        if (newValue !== value) {
+          onBeforeCommit?.()
+        }
         onChange(newValue)
       }
     },
-    [isFocused, defaultValue, onChange]
+    [isFocused, defaultValue, onChange, onBeforeCommit, value]
   )
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {

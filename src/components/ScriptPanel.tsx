@@ -6,6 +6,7 @@ import { uiLogger } from '@/utils/uiLogger'
 import { ctxDeclFor, CTX_EXTRA_LIB_URI } from '@/scripts/scriptCtxDecl'
 import CopyableArea from './CopyableArea'
 import ScriptDialog from './ScriptDialog'
+import { useEditorUndo } from '@/contexts/EditorUndoContext'
 
 const SCRIPT_EVENTS: ScriptEvent[] = ['onSpawn', 'onUpdate', 'onCollision', 'onTimer']
 
@@ -27,6 +28,8 @@ export interface ScriptPanelProps {
 }
 
 export default function ScriptPanel({ world, selectedEntityId, onWorldChange }: ScriptPanelProps) {
+  const undo = useEditorUndo()
+  const pushUndo = () => undo?.pushBeforeEdit()
   const scripts = world.scripts ?? {}
   const scriptIds = Object.keys(scripts)
   const selectedEntity = selectedEntityId
@@ -93,6 +96,7 @@ export default function ScriptPanel({ world, selectedEntityId, onWorldChange }: 
 
   const handleApply = () => {
     if (!selectedId) return
+    pushUndo()
     uiLogger.change('ScriptPanel', 'Apply script', { scriptId: selectedId, contentLength: draftSource.length })
     const current = getDef(scripts, selectedId)
     const nextDef: ScriptDef =
@@ -109,6 +113,7 @@ export default function ScriptPanel({ world, selectedEntityId, onWorldChange }: 
 
   const handleEventChange = (newEvent: ScriptEvent) => {
     if (!selectedId) return
+    pushUndo()
     const current = getDef(scripts, selectedId)
     const nextDef: ScriptDef =
       newEvent === 'onTimer'
@@ -119,6 +124,7 @@ export default function ScriptPanel({ world, selectedEntityId, onWorldChange }: 
 
   const handleIntervalChange = (seconds: number) => {
     if (!selectedId || event !== 'onTimer') return
+    pushUndo()
     const current = getDef(scripts, selectedId)
     if (current?.event !== 'onTimer') return
     onWorldChange({
@@ -134,6 +140,7 @@ export default function ScriptPanel({ world, selectedEntityId, onWorldChange }: 
       alert('A script with this ID already exists.')
       return
     }
+    pushUndo()
     uiLogger.click('ScriptPanel', 'Add new script', { scriptId: id })
     const nextScripts = { ...scripts, [id]: { event: 'onUpdate' as const, source: '// ctx.log(ctx.entity.id);' } }
     const nextEntities =
@@ -154,6 +161,7 @@ export default function ScriptPanel({ world, selectedEntityId, onWorldChange }: 
 
   const handleDetachFromEntity = () => {
     if (!selectedId || !selectedEntityId) return
+    pushUndo()
     if (!entityScriptIds.includes(selectedId)) return
     uiLogger.click('ScriptPanel', 'Detach script from entity', { scriptId: selectedId, entityId: selectedEntityId })
     const nextEntityScripts = entityScriptIds.filter((sid) => sid !== selectedId)
