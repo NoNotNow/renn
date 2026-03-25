@@ -9,6 +9,11 @@ import { getUpVectorFromRapierQuaternion, quaternionToEuler, rapierQuaternionToE
 import { createTransformerChain } from '@/transformers/transformerRegistry'
 import type { TransformInput, TransformerConfig, RawInput } from '@/types/transformer'
 import { createEmptyTransformInput } from '@/types/transformer'
+import {
+  bakeMeshScaleIntoModelScaleEntity,
+  bakeScaleIntoPrimitiveShape,
+  isModelBackedMesh,
+} from '@/editor/bakeScaleIntoShape'
 
 /**
  * Registry of render items: one per entity. Owns body→mesh sync each frame.
@@ -191,6 +196,40 @@ export class RenderItemRegistry {
     const item = this.items.get(id)
     if (!item || !this.physicsWorld) return
     this.physicsWorld.updateShape(id, item.entity, item.mesh)
+  }
+
+  /**
+   * Scale gizmo commit: bake mesh.scale into shape dimensions (primitives) or modelScale (model/trimesh wrappers).
+   * Resets mesh.scale and entity.scale to [1,1,1] when baking applies and updates physics.
+   * @returns true if bake was applied; false for plane (no dimension bake) — caller should use commitScalePhysics.
+   */
+  applyGizmoScaleBake(id: string): boolean {
+    const item = this.items.get(id)
+    if (!item) return false
+    const mesh = item.mesh
+    if (!(mesh instanceof THREE.Mesh)) return false
+
+    const meshScale: Vec3 = [mesh.scale.x, mesh.scale.y, mesh.scale.z]
+
+    if (isModelBackedMesh(mesh)) {
+      const nextEntity = bakeMeshScaleIntoModelScaleEntity(item.entity, meshScale)
+      mesh.scale.set(1, 1, 1)
+      item.entity = nextEntity
+      if (mesh.userData.entity !== undefined) {
+        mesh.userData.entity = nextEntity
+      }
+      this.setModelTransform(id, { modelScale: nextEntity.modelScale ?? [1, 1, 1] })
+      return true
+    }
+
+    const baked = bakeScaleIntoPrimitiveShape(item.entity, meshScale)
+    if (!baked) {
+      return false
+    }
+
+    mesh.scale.set(1, 1, 1)
+    this.updateShape(id, baked)
+    return true
   }
 
   /** Apply scale to mesh/entity and rebuild physics collider (inspector / pose sync). */

@@ -84,8 +84,8 @@ So: **world changes** go through `onWorldChange` → `updateWorld` → new `worl
 - **Model rotation/scale (modelRotation, modelScale)**  
   The UI uses `onEntityModelTransformChange(id, patch)` when provided. Builder calls `sceneViewRef.updateEntityModelTransform(id, patch)` → `RenderItemRegistry.setModelTransform` → applies rotation/scale to the mesh's model-scene child (trimeshScene or first child for entity.model), updates the in-memory entity, and for trimesh calls `PhysicsWorld.updateShape` to rebuild the collider. The rebuild key **excludes** `modelRotation` and `modelScale` (they are applied incrementally), so no full reload.
 
-- **Trimesh shape changes and other structural properties (scale, model)**  
-  These are edited via `onWorldChange(newWorld)`. The rebuild key **includes** `trimeshShape` (for trimesh shapes), `scale`, `model`, `scripts`, `transformers`, and world lights/assets/scripts. So these changes trigger the main setup effect and a full scene rebuild.
+- **Trimesh shape changes and other structural properties (model)**  
+  These are edited via `onWorldChange(newWorld)`. The rebuild key **includes** `trimeshShape` (for trimesh shapes), `model`, `scripts`, `transformers`, and world lights/assets/scripts. **Scale** is excluded and applied incrementally via `updateEntityPose` / `setScale`. So trimesh/model/script/transformer changes still trigger a full scene rebuild when the key changes; scale alone does not.
 
 ## Rebuild key: what is included and excluded
 
@@ -94,11 +94,11 @@ Defined in [src/utils/sceneDependencyKey.ts](src/utils/sceneDependencyKey.ts). T
 **Included (change triggers rebuild):**
 
 - **World**: `version`, `assets`, `scripts`, `world.ambientLight`, `world.directionalLight`.
-- **Per entity**: `id`, `trimeshShape` (shape only when `shape.type === 'trimesh'`), `scale`, `model`, `scripts`, `transformers`. (`modelRotation` and `modelScale` are excluded; applied via `updateEntityModelTransform`.)
+- **Per entity**: `id`, `trimeshShape` (shape only when `shape.type === 'trimesh'`), `model`, `scripts`, `transformers`. (`scale`, `modelRotation`, and `modelScale` are excluded; scale via `updateEntityPose`, model transform via `updateEntityModelTransform`.)
 
 **Excluded (change does not trigger rebuild):**
 
-- **Per entity**: `name`, `locked`, `position`, `rotation`, `modelRotation`, `modelScale`, `bodyType`, `mass`, `restitution`, `friction`, `linearDamping`, `angularDamping`, primitive shape dimensions, `material`.
+- **Per entity**: `name`, `locked`, `position`, `rotation`, `scale`, `modelRotation`, `modelScale`, `bodyType`, `mass`, `restitution`, `friction`, `linearDamping`, `angularDamping`, primitive shape dimensions, `material`.
 - **World**: `world.gravity`, `world.skyColor`, `world.camera` (these are applied by dedicated effects in SceneView).
 
 Entity add/remove changes the entity list, so the key changes and a rebuild runs.
@@ -115,7 +115,7 @@ Use this to answer "does changing this property rebuild the scene?"
 | **entity.locked** | Metadata only | Not in rebuild key; drag check may use stale mesh userData until next rebuild. |
 | **entity.shape** (primitive) | Incremental | `onEntityShapeChange` → `RenderItemRegistry.updateShape` → geometry swap + `PhysicsWorld.updateShape`; not in rebuild key. |
 | **entity.shape** (trimesh) | Rebuild | `trimeshShape` in key; requires full mesh reload from asset. |
-| **entity.scale** | Rebuild | In key. |
+| **entity.scale** | Incremental | `onEntityPoseChange` / `updateEntityPose` → `RenderItemRegistry.setScale`; not in rebuild key. |
 | **entity.material** | Incremental | `onEntityMaterialChange` → `RenderItemRegistry.updateMaterial` → `materialFromRef` (async, texture-aware); not in rebuild key. |
 | **entity.model** | Rebuild | In key (trimesh). |
 | **entity.modelRotation** | Incremental | `onEntityModelTransformChange` → `RenderItemRegistry.setModelTransform` → model-scene + trimesh collider rebuild; not in rebuild key. |
@@ -145,8 +145,8 @@ Use this to answer "does changing this property rebuild the scene?"
 
 To make world rebuilds minimal when editing a single entity's remaining structural properties (scale, model):
 
-1. **Scale hot update**  
-   Scale affects both `mesh.scale` (trivial: `mesh.scale.set(x, y, z)`) and Rapier collider dimensions (needs collider rebuild). Route scale changes through a new `onEntityScaleChange` callback; the `PhysicsWorld.updateShape` path already reads `entity.scale` when recreating the collider, so `updateShape` can be reused with the new entity that has updated scale.
+1. **Scale hot update** (implemented)  
+   `entity.scale` is excluded from the scene dependency key. Scale changes go through `SceneView.updateEntityPose` → `RenderItemRegistry.setScale` → `patchScale` + `commitScalePhysics` (collider rebuild). The gizmo scale tool can bake into shape dimensions / `modelScale` on commit so authored size lives in the shape instead of `entity.scale`.
 
 2. **Model hot update**  
    Model changes require async GLTF loading (similar to material). Load the new model via `assetResolverRef`, remove the old mesh from the scene, create a new one, add it, and update the registry entry.

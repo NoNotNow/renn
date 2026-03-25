@@ -22,7 +22,7 @@ export interface PropertyPanelProps {
   onDeleteEntity?: (entityId: string) => void
   onCloneEntity?: (entityId: string) => void
   getCurrentPose?: (id: string) => { position: Vec3; rotation: Rotation }
-  onEntityPoseChange?: (id: string, pose: { position?: Vec3; rotation?: Rotation }) => void
+  onEntityPoseChange?: (id: string, pose: { position?: Vec3; rotation?: Rotation; scale?: Vec3 }) => void
   onEntityPhysicsChange?: (id: string, patch: Partial<Entity>) => void
   onEntityShapeChange?: (id: string, patch: Partial<Entity>) => void
   onEntityMaterialChange?: (id: string, patch: Partial<Entity>) => void
@@ -255,7 +255,10 @@ export default function PropertyPanel({
             if (onEntityPoseChange) onEntityPoseChange(entity.id, { rotation: q })
             updateEntity({ rotation: q })
           }}
-          onScaleChange={(v) => updateEntity({ scale: v })}
+          onScaleChange={(v) => {
+            updateEntity({ scale: v })
+            onEntityPoseChange?.(entity.id, { scale: v })
+          }}
           disabled={isLocked}
         />
       </CollapsibleSection>

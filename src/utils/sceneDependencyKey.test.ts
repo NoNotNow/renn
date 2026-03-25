@@ -54,6 +54,14 @@ describe('getSceneDependencyKey', () => {
     expect(getSceneDependencyKey(a)).toBe(getSceneDependencyKey(b))
   })
 
+  it('returns the same key when only entity scale changes (incremental path)', () => {
+    const a = minimalWorld()
+    const b = minimalWorld({
+      entities: [{ ...a.entities[0], scale: [2, 0.5, 1] }],
+    })
+    expect(getSceneDependencyKey(a)).toBe(getSceneDependencyKey(b))
+  })
+
   it('returns the same key when a primitive shape changes (incremental path)', () => {
     const a = minimalWorld()
     const b = minimalWorld({

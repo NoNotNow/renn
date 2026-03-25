@@ -20,7 +20,7 @@ export interface PropertySidebarProps {
   onDeleteEntity: (entityId: string) => void
   onCloneEntity?: (entityId: string) => void
   getCurrentPose?: (id: string) => { position: Vec3; rotation: Rotation }
-  onEntityPoseChange?: (id: string, pose: { position?: Vec3; rotation?: Rotation }) => void
+  onEntityPoseChange?: (id: string, pose: { position?: Vec3; rotation?: Rotation; scale?: Vec3 }) => void
   onEntityPhysicsChange?: (id: string, patch: Partial<Entity>) => void
   onEntityShapeChange?: (id: string, patch: Partial<Entity>) => void
   onEntityMaterialChange?: (id: string, patch: Partial<Entity>) => void

@@ -13,7 +13,7 @@ import { cycleCameraMode, DEFAULT_SCALE, type Vec3, type Rotation, type Entity }
 import { uiLogger } from '@/utils/uiLogger'
 import { getSceneDependencyKey } from '@/utils/sceneDependencyKey'
 import type { TransformerConfig } from '@/types/transformer'
-import type { BuilderGizmoMode } from '@/editor/transformGizmoController'
+import type { BuilderGizmoMode, BuilderPoseCommit } from '@/editor/transformGizmoController'
 
 export default function Builder() {
   const {
@@ -191,7 +191,7 @@ export default function Builder() {
   }, [])
 
   const handleEntityPoseCommit = useCallback(
-    (entityId: string, pose: { position: Vec3; rotation: Rotation; scale: Vec3 }) => {
+    (entityId: string, pose: BuilderPoseCommit) => {
       sceneViewRef.current?.updateEntityPose(entityId, {
         position: pose.position,
         rotation: pose.rotation,
@@ -201,7 +201,14 @@ export default function Builder() {
         ...prev,
         entities: prev.entities.map((e) =>
           e.id === entityId
-            ? { ...e, position: pose.position, rotation: pose.rotation, scale: pose.scale }
+            ? {
+                ...e,
+                position: pose.position,
+                rotation: pose.rotation,
+                scale: pose.scale,
+                ...(pose.shape !== undefined ? { shape: pose.shape } : {}),
+                ...(pose.modelScale !== undefined ? { modelScale: pose.modelScale } : {}),
+              }
             : e
         ),
       }))
@@ -261,9 +268,12 @@ export default function Builder() {
     [world.entities, getCurrentPose, updateWorld, captureScenePosesForNextRebuild]
   )
 
-  const handleEntityPoseChange = useCallback((id: string, pose: { position?: Vec3; rotation?: Rotation }) => {
-    sceneViewRef.current?.updateEntityPose(id, pose)
-  }, [])
+  const handleEntityPoseChange = useCallback(
+    (id: string, pose: { position?: Vec3; rotation?: Rotation; scale?: Vec3 }) => {
+      sceneViewRef.current?.updateEntityPose(id, pose)
+    },
+    []
+  )
 
   const handleEntityPhysicsChange = useCallback((id: string, patch: Partial<Entity>) => {
     sceneViewRef.current?.updateEntityPhysics(id, patch)

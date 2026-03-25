@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import { TransformControls } from 'three/addons/controls/TransformControls.js'
 import { findEntityRootForPicking } from '@/utils/entityPicking'
 import type { RenderItemRegistry } from '@/runtime/renderItemRegistry'
-import type { Entity, Rotation, Vec3 } from '@/types/world'
+import type { Entity, Rotation, Shape, Vec3 } from '@/types/world'
 
 export type BuilderGizmoMode = 'translate' | 'rotate' | 'scale'
 
@@ -10,6 +10,9 @@ export interface BuilderPoseCommit {
   position: Vec3
   rotation: Rotation
   scale: Vec3
+  /** Present after scale gizmo bake or when syncing from registry; updates world document shape. */
+  shape?: Shape
+  modelScale?: Vec3
 }
 
 export interface InstallBuilderPickAndGizmoParams {
@@ -109,13 +112,23 @@ export function installBuilderPickAndGizmo(
     if (!id || !reg) return
     const mode = p.getGizmoMode()
     if (mode === 'scale') {
-      reg.commitScalePhysics(id)
+      const baked = reg.applyGizmoScaleBake(id)
+      if (!baked) {
+        reg.commitScalePhysics(id)
+      }
     }
+    const item = reg.get(id)
     const pos = reg.getPosition(id)
     const rot = reg.getRotation(id)
     const scale = reg.getScale(id)
-    if (pos && rot && scale) {
-      p.onPoseCommit(id, { position: pos, rotation: rot, scale })
+    if (pos && rot && scale && item) {
+      p.onPoseCommit(id, {
+        position: pos,
+        rotation: rot,
+        scale,
+        shape: item.entity.shape,
+        modelScale: item.entity.modelScale,
+      })
     }
   }
 

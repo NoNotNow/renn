@@ -6,12 +6,13 @@ import type { RennWorld, Entity } from '@/types/world'
  * main effect so that edits that don't affect the scene (e.g. entity name, locked)
  * do not trigger a reload.
  *
- * Includes: entity list (id, scale, model, scripts, transformers structure, and shape only when
+ * Includes: entity list (id, model, scripts, transformers structure, and shape only when
  * trimesh), world.scripts, world.assets refs, world.world lights. Transformer configs in the key
  * omit `enabled` — that flag is synced live via RenderItemRegistry.syncEntityTransformers.
- * Excludes: entity name, locked, position, rotation, modelRotation, modelScale,
+ * Excludes: entity name, locked, position, rotation, scale, modelRotation, modelScale,
  * bodyType, mass, restitution, friction, linearDamping, angularDamping, primitive
  * shape dimensions, material; world.world gravity, skyColor, camera.
+ * Scale is applied incrementally via SceneView.updateEntityPose → RenderItemRegistry.setScale.
  * modelRotation and modelScale are applied incrementally via updateEntityModelTransform.
  */
 export function getSceneDependencyKey(world: RennWorld): string {
@@ -35,7 +36,6 @@ function sceneRelevantEntity(entity: Entity): Record<string, unknown> {
     // Primitive shape changes are handled incrementally via updateEntityShape.
     // modelRotation/modelScale are applied incrementally via updateEntityModelTransform.
     trimeshShape: entity.shape?.type === 'trimesh' ? entity.shape : undefined,
-    scale: entity.scale,
     model: entity.model,
     scripts: entity.scripts,
     transformers: transformersForSceneKey(entity.transformers),
