@@ -84,7 +84,7 @@ renn/
 │   │   ├── BuilderHeader.tsx # Toolbar: New, Save, Save as, Download, Upload, project list, Play, gravity/shadows
 │   │   ├── EntitySidebar.tsx # Entity list (search + collapsible filters), add-entity dropdown, camera control/target/mode
 │   │   ├── PropertySidebar.tsx # Tabs: Properties | Scripts | Assets
-│   │   ├── WorldPanel.tsx    # World tab: gravity, sleep thresholds, sky, lights, ground
+│   │   ├── WorldPanel.tsx    # World tab: gravity, sleep thresholds, sky color + dome texture (`world.skybox`), lights, ground
 │   │   ├── PropertyPanel.tsx # Edit selected entity (name, shape, transform, physics, material, transformers, delete)
 │   │   ├── TransformEditor.tsx # Position, rotation (Vec3Field, Euler [x,y,z]), scale
 │   │   ├── ShapeEditor.tsx   # Shape type + params (box, sphere, cylinder, capsule, cone, pyramid, ring, plane)

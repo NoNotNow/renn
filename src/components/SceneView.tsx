@@ -27,6 +27,20 @@ import { computeDirectionalShadowCameraExtent } from '@/utils/shadowBounds'
 
 const FIXED_DT = 1 / 60
 
+/** Radius inside camera far plane (PerspectiveCamera default far = 1000). */
+const SKY_DOME_RADIUS = 500
+
+function disposeSkyDomeMesh(mesh: THREE.Mesh | null): void {
+  if (!mesh) return
+  mesh.removeFromParent()
+  mesh.geometry.dispose()
+  const mat = mesh.material
+  if (mat instanceof THREE.MeshBasicMaterial) {
+    mat.map?.dispose()
+    mat.dispose()
+  }
+}
+
 export interface SceneViewProps {
   world: RennWorld
   cameraConfig?: CameraConfig
@@ -104,6 +118,7 @@ function SceneViewInner({
   const registryRef = useRef<RenderItemRegistry | null>(null)
   const entitiesRef = useRef<LoadedEntity[]>([])
   const assetResolverRef = useRef<DisposableAssetResolver | null>(null)
+  const skyDomeRef = useRef<THREE.Mesh | null>(null)
   const timeRef = useRef(0)
   const frameRef = useRef<number>(0)
   const effectIdRef = useRef(0)
@@ -578,6 +593,11 @@ function SceneViewInner({
           }
         }
 
+        const dome = skyDomeRef.current
+        if (dome && cam && !cancelled) {
+          dome.position.copy(cam.position)
+        }
+
         if (rend && loadedScene && cam && !cancelled) {
           rend.render(loadedScene, cam)
         }
@@ -612,6 +632,11 @@ function SceneViewInner({
       syncGizmoAttachRef.current = null
       gizmoDraggingRef.current = false
       
+      if (skyDomeRef.current) {
+        disposeSkyDomeMesh(skyDomeRef.current)
+        skyDomeRef.current = null
+      }
+
       // Dispose asset resolver
       if (assetResolverRef.current) {
         assetResolverRef.current.dispose()
@@ -736,6 +761,79 @@ function SceneViewInner({
       scene.background = new THREE.Color(r, g, b)
     }
   }, [world.world.skyColor, scene])
+
+  // Sky dome from `world.world.skybox` texture asset id (incremental; no full scene rebuild).
+  // Load from `_assets` (not only assetResolverRef) so textures uploaded after the last full load resolve correctly.
+  useEffect(() => {
+    if (!scene) {
+      disposeSkyDomeMesh(skyDomeRef.current)
+      skyDomeRef.current = null
+      return
+    }
+
+    const skyboxId = world.world.skybox?.trim()
+    if (!skyboxId) {
+      disposeSkyDomeMesh(skyDomeRef.current)
+      skyDomeRef.current = null
+      return
+    }
+
+    const blob = _assets.get(skyboxId)
+    if (!blob) {
+      console.warn(`[SceneView] Skybox asset id not in project assets map: ${skyboxId}`)
+      disposeSkyDomeMesh(skyDomeRef.current)
+      skyDomeRef.current = null
+      return
+    }
+
+    let cancelled = false
+    const loader = new THREE.TextureLoader()
+
+    void (async () => {
+      const url = URL.createObjectURL(blob)
+      let tex: THREE.Texture | null = null
+      try {
+        tex = await loader.loadAsync(url)
+      } catch (e) {
+        console.warn(`[SceneView] Failed to load skybox texture ${skyboxId}:`, e)
+      } finally {
+        URL.revokeObjectURL(url)
+      }
+
+      if (cancelled || !scene) {
+        tex?.dispose()
+        return
+      }
+      if (!tex) return
+
+      disposeSkyDomeMesh(skyDomeRef.current)
+      skyDomeRef.current = null
+
+      tex.colorSpace = THREE.SRGBColorSpace
+      tex.wrapS = THREE.ClampToEdgeWrapping
+      tex.wrapT = THREE.ClampToEdgeWrapping
+
+      const geo = new THREE.SphereGeometry(SKY_DOME_RADIUS, 64, 32)
+      const mat = new THREE.MeshBasicMaterial({
+        map: tex,
+        side: THREE.BackSide,
+        depthWrite: false,
+        depthTest: false,
+      })
+      const mesh = new THREE.Mesh(geo, mat)
+      mesh.name = '__renn_sky_dome'
+      mesh.frustumCulled = false
+      mesh.renderOrder = -1
+      scene.add(mesh)
+      skyDomeRef.current = mesh
+    })()
+
+    return () => {
+      cancelled = true
+      disposeSkyDomeMesh(skyDomeRef.current)
+      skyDomeRef.current = null
+    }
+  }, [scene, world.world.skybox, _assets])
 
   return <div ref={containerRef} className={className} style={{ width: '100%', height: '100%' }} />
 }

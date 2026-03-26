@@ -133,4 +133,48 @@ describe('loadWorldFromStatic', () => {
     const afterWorldJson = fetchedUrls.filter((u) => u.includes('/world/assets/'))
     expect(afterWorldJson[0]).toContain(`${assetId}.bin`)
   })
+
+  it('loads texture asset referenced only by world.world.skybox', async () => {
+    const skyId = 'night_sky'
+    const world = {
+      version: '1.0',
+      world: {
+        gravity: [0, -9.81, 0],
+        ambientLight: [0.3, 0.3, 0.35],
+        directionalLight: {
+          direction: [1, 2, 1],
+          color: [1, 0.98, 0.9],
+          intensity: 1.2,
+        },
+        skyColor: [0.05, 0.05, 0.1],
+        skybox: skyId,
+        camera: { control: 'free', mode: 'follow', target: '', distance: 10, height: 2 },
+      },
+      assets: {
+        [skyId]: { path: `assets/${skyId}.png`, type: 'texture' },
+      },
+      entities: [],
+    }
+    const fetchMock = vi.mocked(fetch)
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input.toString()
+      if (url.endsWith('/world/world.json')) {
+        return new Response(JSON.stringify(world), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+      if (url.endsWith(`/world/assets/${skyId}.bin`)) {
+        return new Response(new Uint8Array([0x89, 0x50, 0x4e, 0x47]).buffer, {
+          status: 200,
+          headers: { 'Content-Type': 'application/octet-stream' },
+        })
+      }
+      return new Response('not found', { status: 404 })
+    })
+
+    const result = await loadWorldFromStatic(BASE)
+    expect(result).not.toBeNull()
+    expect(result!.assets.has(skyId)).toBe(true)
+  })
 })

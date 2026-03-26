@@ -1,12 +1,23 @@
+import { useState } from 'react'
 import type { RennWorld, Vec3, MaterialRef, WorldSleepingSettings } from '@/types/world'
 import { DEFAULT_GRAVITY, DEFAULT_SCALE, RECOMMENDED_SLEEPING_SETTINGS } from '@/types/world'
 import { uiLogger } from '@/utils/uiLogger'
 import { colorToHex, hexToColor } from '@/utils/colorUtils'
 import { directionToSpherical, sphericalToDirection } from '@/utils/lightUtils'
+import { useProjectContext } from '@/hooks/useProjectContext'
+import { uploadTexture } from '@/utils/assetUpload'
 import CopyableArea from './CopyableArea'
 import Vec3Field from './Vec3Field'
 import NumberInput from './form/NumberInput'
-import { sidebarRowStyle, sidebarLabelStyle, sectionStyle, sectionTitleStyle } from './sharedStyles'
+import TextureDialog from './TextureDialog'
+import TextureThumbnail from './TextureThumbnail'
+import {
+  sidebarRowStyle,
+  sidebarLabelStyle,
+  sectionStyle,
+  sectionTitleStyle,
+  secondaryButtonStyle,
+} from './sharedStyles'
 import { useEditorUndo } from '@/contexts/EditorUndoContext'
 
 export interface WorldPanelProps {
@@ -15,6 +26,8 @@ export interface WorldPanelProps {
 }
 
 export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
+  const { assets, updateAssets } = useProjectContext()
+  const [skyTextureDialogOpen, setSkyTextureDialogOpen] = useState(false)
   const undo = useEditorUndo()
   const pushUndo = () => undo?.pushBeforeEdit()
   const vec3Undo =
@@ -30,6 +43,7 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
   // Convert Vec3 gravity to single positive number (magnitude of Y)
   const gravityValue = Math.abs(gravity[1])
   const skyColor: Vec3 = (world.world.skyColor?.slice(0, 3) as Vec3) ?? [0.4, 0.6, 0.9]
+  const skyboxId = world.world.skybox?.trim() ?? ''
   const dirDirection: Vec3 = world.world.directionalLight?.direction ?? [1, 2, 1]
   const dirColor: Vec3 = (world.world.directionalLight?.color?.slice(0, 3) as Vec3) ?? [1, 0.98, 0.9]
   const dirIntensity = world.world.directionalLight?.intensity ?? 1.2
@@ -206,6 +220,7 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
 
   const copyPayload = {
     world: world.world,
+    skybox: skyboxId || undefined,
     groundEntity: groundEntity
       ? {
           id: groundEntity.id,
@@ -324,6 +339,88 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
             </span>
           </div>
         </div>
+        <p style={{ fontSize: 11, color: '#9aa4b2', margin: '10px 0 0' }}>
+          Sky dome: equirectangular / 360° image (e.g. starfield). Stored as a texture asset;{' '}
+          <code style={{ fontSize: 10 }}>world.world.skybox</code> is the asset id.
+        </p>
+        <div style={{ ...sidebarRowStyle, marginTop: 8, alignItems: 'flex-start' }}>
+          <span style={sidebarLabelStyle}>Dome texture</span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              {skyboxId ? (
+                <TextureThumbnail assetId={skyboxId} blob={assets.get(skyboxId)} size={48} showName />
+              ) : (
+                <span style={{ fontSize: 12, color: '#9aa4b2' }}>None</span>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  uiLogger.click('WorldPanel', 'Open sky dome texture dialog', {})
+                  setSkyTextureDialogOpen(true)
+                }}
+                style={secondaryButtonStyle}
+              >
+                {skyboxId ? 'Change…' : 'Choose / upload…'}
+              </button>
+              {skyboxId ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    pushUndo()
+                    uiLogger.change('WorldPanel', 'Clear sky dome texture', {
+                      oldValue: world.world.skybox,
+                    })
+                    const { skybox: _omit, ...restWorld } = world.world
+                    onWorldChange({ ...world, world: restWorld })
+                  }}
+                  style={{
+                    fontSize: 12,
+                    padding: '6px 10px',
+                    borderRadius: 4,
+                    border: '1px solid #5c2a2a',
+                    background: '#2a1818',
+                    color: '#f4d6d6',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Clear
+                </button>
+              ) : null}
+            </div>
+          </div>
+        </div>
+        <TextureDialog
+          isOpen={skyTextureDialogOpen}
+          onClose={() => setSkyTextureDialogOpen(false)}
+          assets={assets}
+          world={world}
+          selectedTextureId={skyboxId || undefined}
+          onSelectTexture={(assetId) => {
+            pushUndo()
+            if (assetId) {
+              uiLogger.change('WorldPanel', 'Change sky dome texture', {
+                oldValue: world.world.skybox,
+                newValue: assetId,
+              })
+              updateWorldSettings({ skybox: assetId })
+            } else {
+              uiLogger.change('WorldPanel', 'Clear sky dome texture', {
+                oldValue: world.world.skybox,
+              })
+              const { skybox: _omit, ...restWorld } = world.world
+              onWorldChange({ ...world, world: restWorld })
+            }
+          }}
+          onUploadTexture={async (file, assetId) => {
+            pushUndo()
+            const { nextAssets, worldAssetEntry } = await uploadTexture(file, assetId, assets)
+            updateAssets(() => nextAssets)
+            onWorldChange({
+              ...world,
+              assets: { ...(world.assets ?? {}), [assetId]: worldAssetEntry },
+            })
+          }}
+        />
       </div>
 
       <div style={{ ...sectionStyle, marginTop: 12 }}>

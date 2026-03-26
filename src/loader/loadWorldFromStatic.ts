@@ -76,6 +76,10 @@ function collectReferencedAssetIds(world: RennWorld): Set<string> {
   for (const id of Object.keys(world.assets ?? {})) {
     ids.add(id)
   }
+  const skybox = world.world?.skybox
+  if (skybox && typeof skybox === 'string' && skybox.trim()) {
+    ids.add(skybox.trim())
+  }
   return ids
 }
 
