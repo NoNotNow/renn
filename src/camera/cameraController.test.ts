@@ -124,7 +124,7 @@ describe('CameraController', () => {
     expect(camera.position.z).toBe(0)
   })
 
-  it('handles free fly input', () => {
+  it('handles free fly input (W forward, smoothed)', () => {
     const { camera, scene, getEntityPosition } = createTestSetup()
     
     const controller = new CameraController({
@@ -136,10 +136,80 @@ describe('CameraController', () => {
     const initialZ = camera.position.z
     
     controller.setFreeFlyInput({ w: true })
-    controller.update(0.1)
+    for (let i = 0; i < 30; i++) controller.update(1 / 60)
     
     // Camera should have moved forward (negative z when looking at origin from +z)
     expect(camera.position.z).not.toBe(initialZ)
+  })
+
+  it('strafes with D along horizontal right', () => {
+    const { camera, scene, getEntityPosition } = createTestSetup()
+    const controller = new CameraController({ camera, scene, getEntityPosition })
+    const startX = camera.position.x
+    controller.setFreeFlyInput({ d: true })
+    for (let i = 0; i < 45; i++) controller.update(1 / 60)
+    expect(Math.abs(camera.position.x - startX)).toBeGreaterThan(0.05)
+  })
+
+  it('yaws view with arrow keys (quaternion changes)', () => {
+    const { camera, scene, getEntityPosition } = createTestSetup()
+    const controller = new CameraController({ camera, scene, getEntityPosition })
+    const q0 = camera.quaternion.clone()
+    controller.setFreeFlyInput({ arrowRight: true })
+    for (let i = 0; i < 40; i++) controller.update(1 / 60)
+    expect(camera.quaternion.angleTo(q0)).toBeGreaterThan(0.02)
+  })
+
+  it('Shift increases move speed vs no Shift', () => {
+    const { camera, scene, getEntityPosition } = createTestSetup()
+    const start = new THREE.Vector3(0, 5, 10)
+    const ctrlA = new CameraController({ camera, scene, getEntityPosition })
+    ctrlA.setFreeFlyInput({ w: true })
+    for (let i = 0; i < 60; i++) ctrlA.update(1 / 60)
+    const distA = camera.position.distanceTo(start)
+
+    const camB = new THREE.PerspectiveCamera(50, 1, 0.1, 1000)
+    camB.position.copy(start)
+    camB.lookAt(0, 0, 0)
+    const sceneB = new THREE.Scene()
+    sceneB.userData.camera = { control: 'free', mode: 'follow', target: 'player', distance: 10, height: 2 }
+    const ctrlB = new CameraController({
+      camera: camB,
+      scene: sceneB,
+      getEntityPosition,
+    })
+    ctrlB.setFreeFlyInput({ w: true, shift: true })
+    for (let i = 0; i < 60; i++) ctrlB.update(1 / 60)
+    const distB = camB.position.distanceTo(start)
+    expect(distB).toBeGreaterThan(distA * 1.2)
+  })
+
+  it('Alt + W moves along world up (Y increases)', () => {
+    const { camera, scene, getEntityPosition } = createTestSetup()
+    const controller = new CameraController({ camera, scene, getEntityPosition })
+    const y0 = camera.position.y
+    controller.setFreeFlyInput({ w: true, alt: true })
+    for (let i = 0; i < 40; i++) controller.update(1 / 60)
+    expect(camera.position.y).toBeGreaterThan(y0)
+  })
+
+  it('translation accelerates while W is held (boost grows)', () => {
+    const { camera, scene, getEntityPosition } = createTestSetup()
+    const shortCtrl = new CameraController({ camera, scene, getEntityPosition })
+    shortCtrl.setFreeFlyInput({ w: true })
+    for (let i = 0; i < 15; i++) shortCtrl.update(1 / 60)
+    const distShort = camera.position.distanceTo(new THREE.Vector3(0, 5, 10))
+
+    const cam2 = new THREE.PerspectiveCamera(50, 1, 0.1, 1000)
+    cam2.position.set(0, 5, 10)
+    cam2.lookAt(0, 0, 0)
+    const scene2 = new THREE.Scene()
+    scene2.userData.camera = { control: 'free', mode: 'follow', target: 'player', distance: 10, height: 2 }
+    const longCtrl = new CameraController({ camera: cam2, scene: scene2, getEntityPosition })
+    longCtrl.setFreeFlyInput({ w: true })
+    for (let i = 0; i < 120; i++) longCtrl.update(1 / 60)
+    const distLong = cam2.position.distanceTo(new THREE.Vector3(0, 5, 10))
+    expect(distLong).toBeGreaterThan(distShort * 2)
   })
 
   it('force free fly runs while control is follow', () => {

@@ -36,6 +36,13 @@ export function cycleCameraMode(current: CameraMode): CameraMode {
 
 export type CameraControl = 'free' | 'follow' | 'top' | 'front' | 'right'
 
+/** Last Builder free-fly / edit-navigation pose for restore after reload or save. */
+export interface EditorFreePose {
+  position: Vec3
+  /** THREE quaternion [x, y, z, w]. */
+  quaternion: [number, number, number, number]
+}
+
 export interface CameraConfig {
   control?: CameraControl
   mode: CameraMode
@@ -45,6 +52,7 @@ export interface CameraConfig {
   fov?: number
   defaultPosition?: Vec3
   defaultRotation?: Rotation
+  editorFreePose?: EditorFreePose
 }
 
 export interface DirectionalLightConfig {

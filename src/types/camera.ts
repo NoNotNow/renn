@@ -7,4 +7,10 @@ export interface FreeFlyKeys {
   s: boolean
   d: boolean
   shift: boolean
+  /** Alt / Option: W/S move along world up instead of forward. */
+  alt: boolean
+  arrowLeft: boolean
+  arrowRight: boolean
+  arrowUp: boolean
+  arrowDown: boolean
 }

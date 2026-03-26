@@ -1,7 +1,7 @@
 import { useRef, useEffect, forwardRef, useImperativeHandle, useState, useMemo } from 'react'
 import * as THREE from 'three'
 import { loadWorld } from '@/loader/loadWorld'
-import type { RennWorld, Vec3, Rotation, CameraConfig, Entity } from '@/types/world'
+import type { RennWorld, Vec3, Rotation, CameraConfig, Entity, EditorFreePose } from '@/types/world'
 import type { DisposableAssetResolver } from '@/loader/assetResolverImpl'
 import { DEFAULT_GRAVITY, DEFAULT_ROTATION } from '@/types/world'
 import { eulerToQuaternion } from '@/utils/rotationUtils'
@@ -50,6 +50,8 @@ export interface SceneViewProps {
    * Does not change persisted world or camera config.
    */
   editNavigationMode?: boolean
+  /** Builder: session ref for last free-fly pose; merged on save via ProjectContext.getWorldToSave. */
+  editorFreePoseRef?: React.MutableRefObject<EditorFreePose | null>
 }
 
 export type EntityPhysicsPatch = Partial<Pick<Entity, 'mass' | 'restitution' | 'friction' | 'linearDamping' | 'angularDamping' | 'bodyType'>>
@@ -87,6 +89,7 @@ function SceneViewInner({
   initialPosesRef,
   onPosesRestored,
   editNavigationMode = false,
+  editorFreePoseRef,
 }: SceneViewProps, ref: React.Ref<SceneViewHandle>) {
   const sceneKey = useMemo(() => getSceneDependencyKey(world), [world])
   const containerRef = useRef<HTMLDivElement>(null)
@@ -114,6 +117,7 @@ function SceneViewInner({
   const rawWheelRef = useRawWheelInput(containerRef)
   const rawMouseDragRef = useRawMouseDrag(containerRef)
   const orbitWheelRef = useRef({ deltaX: 0, deltaY: 0, distanceDelta: 0 })
+  const lastEditorPoseWriteTimeRef = useRef(0)
 
   // Active debug forces: { entityId, force, endTime }[]
   const activeDebugForcesRef = useRef<Array<{ entityId: string; force: Vec3; endTime: number }>>([])
@@ -176,17 +180,19 @@ function SceneViewInner({
       
       // Clear saved camera state so it doesn't restore old position
       savedCameraStateRef.current = null
+      if (editorFreePoseRef) editorFreePoseRef.current = null
       
       // Get default position and rotation from world config
-      const cameraConfig = world.world.camera
-      const defaultPos = cameraConfig?.defaultPosition ?? [0, 5, 10]
-      const defaultRot = cameraConfig?.defaultRotation ?? DEFAULT_ROTATION
+      const camCfg = world.world.camera
+      const defaultPos = camCfg?.defaultPosition ?? [0, 5, 10]
+      const defaultRot = camCfg?.defaultRotation ?? DEFAULT_ROTATION
       
       // Reset camera position and rotation
       camera.position.set(defaultPos[0], defaultPos[1], defaultPos[2])
       const quat = eulerToQuaternion(defaultRot)
       camera.quaternion.copy(quat)
       camera.up.set(0, 1, 0)
+      cameraCtrlRef.current?.resetFreeFlySmoothing()
     },
     applyDebugForce: (entityId: string, force: Vec3, duration: number) => {
       if (!physicsRef.current) {
@@ -204,7 +210,7 @@ function SceneViewInner({
       const endTime = timeRef.current + duration
       activeDebugForcesRef.current.push({ entityId, force, endTime })
     }
-  }), [camera, world.world.camera])
+  }), [camera, world.world.camera, editorFreePoseRef])
 
   // Main scene setup effect
   useEffect(() => {
@@ -245,18 +251,31 @@ function SceneViewInner({
       // Camera setup
       cam = new THREE.PerspectiveCamera(50, 1, 0.1, 1000)
       
-      // Check if we should restore saved camera state
       const currentCameraConfig = cameraConfig ?? world.world.camera
       const controlMode = currentCameraConfig?.control ?? 'free'
-      const shouldRestore = controlMode === 'free' && savedCameraStateRef.current
+      const useFreePlacement =
+        controlMode === 'free' || editNavigationModeRef.current
+      const sessionSaved = savedCameraStateRef.current
+      const shouldRestoreSession = Boolean(sessionSaved && useFreePlacement)
+      const editorPose = currentCameraConfig?.editorFreePose
 
-      if (shouldRestore && savedCameraStateRef.current) {
-        // Restore saved position, rotation, and up vector
-        cam.position.copy(savedCameraStateRef.current.position)
-        cam.quaternion.copy(savedCameraStateRef.current.quaternion)
-        cam.up.copy(savedCameraStateRef.current.up)
+      if (shouldRestoreSession && sessionSaved) {
+        cam.position.copy(sessionSaved.position)
+        cam.quaternion.copy(sessionSaved.quaternion)
+        cam.up.copy(sessionSaved.up)
+      } else if (useFreePlacement && editorPose) {
+        const [px, py, pz] = editorPose.position
+        cam.position.set(px, py, pz)
+        const [qx, qy, qz, qw] = editorPose.quaternion
+        cam.quaternion.set(qx, qy, qz, qw)
+        cam.up.set(0, 1, 0)
+      } else if (currentCameraConfig?.defaultPosition) {
+        const [px, py, pz] = currentCameraConfig.defaultPosition
+        cam.position.set(px, py, pz)
+        const quat = eulerToQuaternion(currentCameraConfig.defaultRotation ?? DEFAULT_ROTATION)
+        cam.quaternion.copy(quat)
+        cam.up.set(0, 1, 0)
       } else {
-        // Use default position for new cameras or non-free modes
         cam.position.set(0, 5, 10)
         cam.lookAt(0, 0, 0)
       }
@@ -281,6 +300,7 @@ function SceneViewInner({
         getEntityPosition,
         getEntityQuaternion,
       })
+      cameraCtrl.resetFreeFlySmoothing()
       cameraCtrlRef.current = cameraCtrl
 
       const getPhysicsWorld = () => physicsRef.current
@@ -523,6 +543,28 @@ function SceneViewInner({
             orbitWheel.distanceDelta = 0
           }
           ctrl.update(dt)
+
+          const poseSink = editorFreePoseRef
+          if (poseSink && cam && !cancelled) {
+            const cfg = ctrl.getConfig()
+            const navigating =
+              (cfg.control ?? 'free') === 'free' || editNavigationModeRef.current
+            if (navigating) {
+              const t = timeRef.current
+              if (t - lastEditorPoseWriteTimeRef.current >= 0.35) {
+                lastEditorPoseWriteTimeRef.current = t
+                poseSink.current = {
+                  position: [cam.position.x, cam.position.y, cam.position.z],
+                  quaternion: [
+                    cam.quaternion.x,
+                    cam.quaternion.y,
+                    cam.quaternion.z,
+                    cam.quaternion.w,
+                  ],
+                }
+              }
+            }
+          }
         }
 
         if (rend && loadedScene && cam && !cancelled) {
@@ -565,10 +607,12 @@ function SceneViewInner({
         assetResolverRef.current = null
       }
       
-      // Save camera state if in free mode before cleanup
+      // Save camera pose after free-fly or edit-navigation (same-session rebuild / restore).
       if (cam && cameraCtrl) {
         const config = cameraCtrl.getConfig()
-        if ((config.control ?? 'free') === 'free') {
+        const saveFreePose =
+          editNavigationModeRef.current || (config.control ?? 'free') === 'free'
+        if (saveFreePose) {
           savedCameraStateRef.current = {
             position: cam.position.clone(),
             quaternion: cam.quaternion.clone(),
@@ -629,7 +673,7 @@ function SceneViewInner({
       setCamera(null)
       setRenderer(null)
     }
-  }, [sceneKey, version, runPhysics, runScripts, shadowsEnabled, freeFlyKeysRef])
+  }, [sceneKey, version, runPhysics, runScripts, shadowsEnabled, freeFlyKeysRef, editorFreePoseRef])
 
   // Update camera config when it changes (without reloading the world)
   useEffect(() => {

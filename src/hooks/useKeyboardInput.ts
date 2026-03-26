@@ -7,6 +7,11 @@ export const DEFAULT_FREE_FLY_KEYS: FreeFlyKeys = {
   s: false,
   d: false,
   shift: false,
+  alt: false,
+  arrowLeft: false,
+  arrowRight: false,
+  arrowUp: false,
+  arrowDown: false,
 }
 
 function isEditableElement(): boolean {
@@ -31,6 +36,12 @@ export function useKeyboardInput(): React.RefObject<FreeFlyKeys> {
         case 'KeyD': keys.d = true; break
         case 'ShiftLeft':
         case 'ShiftRight': keys.shift = true; break
+        case 'AltLeft':
+        case 'AltRight': keys.alt = true; break
+        case 'ArrowLeft': keys.arrowLeft = true; break
+        case 'ArrowRight': keys.arrowRight = true; break
+        case 'ArrowUp': keys.arrowUp = true; break
+        case 'ArrowDown': keys.arrowDown = true; break
         default: return
       }
     }
@@ -44,6 +55,12 @@ export function useKeyboardInput(): React.RefObject<FreeFlyKeys> {
         case 'KeyD': keys.d = false; break
         case 'ShiftLeft':
         case 'ShiftRight': keys.shift = false; break
+        case 'AltLeft':
+        case 'AltRight': keys.alt = false; break
+        case 'ArrowLeft': keys.arrowLeft = false; break
+        case 'ArrowRight': keys.arrowRight = false; break
+        case 'ArrowUp': keys.arrowUp = false; break
+        case 'ArrowDown': keys.arrowDown = false; break
         default: return
       }
     }
@@ -54,6 +71,11 @@ export function useKeyboardInput(): React.RefObject<FreeFlyKeys> {
       keys.s = false
       keys.d = false
       keys.shift = false
+      keys.alt = false
+      keys.arrowLeft = false
+      keys.arrowRight = false
+      keys.arrowUp = false
+      keys.arrowDown = false
     }
 
     window.addEventListener('keydown', onKeyDown)

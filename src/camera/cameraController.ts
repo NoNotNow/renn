@@ -8,11 +8,33 @@ export const DEFAULT_FREE_FLY_KEYS: FreeFlyKeys = {
   s: false,
   d: false,
   shift: false,
+  alt: false,
+  arrowLeft: false,
+  arrowRight: false,
+  arrowUp: false,
+  arrowDown: false,
 }
 
-const MOVE_SPEED = 8
-const TURN_SPEED = 2
-const TILT_SPEED = 2
+const FREE_FLY_MOVE_SPEED = 8
+const FREE_FLY_SPRINT_MULTIPLIER = 2
+/** Translation speed multiplier while move keys held; grows without a hard cap (safety clamp only). */
+const FREE_FLY_MOVE_BOOST_START = 1
+const FREE_FLY_TRANSLATION_BOOST_ACCEL = 2.2
+const FREE_FLY_TRANSLATION_BOOST_DECAY = 7
+const FREE_FLY_MOVE_BOOST_SAFETY_MAX = 5000
+/** Capped look: max yaw/pitch rate (rad/s) when arrow ramp is saturated. */
+const FREE_FLY_LOOK_YAW_MAX = 0.48
+const FREE_FLY_LOOK_PITCH_MAX = 0.48
+/** Arrow ramp 0..1 rise/fall per second (steering only). */
+const FREE_FLY_LOOK_RAMP_UP = 1.6
+const FREE_FLY_LOOK_RAMP_DOWN = 2.8
+/** Exponential smoothing for move velocity (higher = snappier). */
+const FREE_FLY_MOVE_SMOOTH = 14
+/** Smoothing for yaw/pitch rates toward ramp-limited targets. */
+const FREE_FLY_LOOK_SMOOTH = 16
+/** Elevation from horizontal (asin(forward.y)), radians — same band as orbit pitch. */
+const FREE_FLY_ELEV_MIN = -Math.PI * 0.44
+const FREE_FLY_ELEV_MAX = Math.PI * 0.44
 const VIEW_PRESET_DISTANCE = 15
 const ORBIT_SENSITIVITY = 0.003
 const ORBIT_PITCH_MIN = -Math.PI * 0.44
@@ -42,7 +64,6 @@ export interface CameraControllerOptions {
 
 export class CameraController {
   private camera: THREE.PerspectiveCamera
-  private scene: THREE.Scene
   private getEntityPosition: (entityId: string) => THREE.Vector3 | null
   private getEntityQuaternion: (entityId: string) => THREE.Quaternion | null
   private config: CameraConfig
@@ -58,10 +79,22 @@ export class CameraController {
   private orbitDistance = 10
   /** When true, `update()` runs free-fly only (Builder edit-navigation mode), ignoring `config.control`. */
   private forceFreeFlyNavigation = false
+  private readonly freeFlyMoveVel = new THREE.Vector3()
+  private freeFlyYawRate = 0
+  private freeFlyPitchRate = 0
+  private readonly freeFlyTargetMove = new THREE.Vector3()
+  private readonly freeFlyWorldUp = new THREE.Vector3(0, 1, 0)
+  private readonly freeFlyQuatYaw = new THREE.Quaternion()
+  private readonly freeFlyQuatPitch = new THREE.Quaternion()
+  private readonly freeFlyAxisRightLocal = new THREE.Vector3(1, 0, 0)
+  private readonly freeFlyIntent = new THREE.Vector3()
+  /** Unbounded translation boost while move keys held; decays to FREE_FLY_MOVE_BOOST_START when idle. */
+  private freeFlyMoveBoost = FREE_FLY_MOVE_BOOST_START
+  /** 0..1 ramp for capped arrow look rate. */
+  private freeFlyLookRamp = 0
 
   constructor(options: CameraControllerOptions) {
     this.camera = options.camera
-    this.scene = options.scene
     this.getEntityPosition = options.getEntityPosition
     this.getEntityQuaternion = options.getEntityQuaternion ?? (() => null)
     const cam = (options.scene.userData.camera as CameraConfig) ?? {
@@ -140,6 +173,20 @@ export class CameraController {
     if (keys.s !== undefined) this.freeFlyKeys.s = keys.s
     if (keys.d !== undefined) this.freeFlyKeys.d = keys.d
     if (keys.shift !== undefined) this.freeFlyKeys.shift = keys.shift
+    if (keys.alt !== undefined) this.freeFlyKeys.alt = keys.alt
+    if (keys.arrowLeft !== undefined) this.freeFlyKeys.arrowLeft = keys.arrowLeft
+    if (keys.arrowRight !== undefined) this.freeFlyKeys.arrowRight = keys.arrowRight
+    if (keys.arrowUp !== undefined) this.freeFlyKeys.arrowUp = keys.arrowUp
+    if (keys.arrowDown !== undefined) this.freeFlyKeys.arrowDown = keys.arrowDown
+  }
+
+  /** Reset free-fly dynamics after snapping position/quaternion from outside. */
+  resetFreeFlySmoothing(): void {
+    this.freeFlyMoveVel.set(0, 0, 0)
+    this.freeFlyYawRate = 0
+    this.freeFlyPitchRate = 0
+    this.freeFlyMoveBoost = FREE_FLY_MOVE_BOOST_START
+    this.freeFlyLookRamp = 0
   }
 
   setForceFreeFlyNavigation(enabled: boolean): void {
@@ -165,6 +212,7 @@ export class CameraController {
         this.camera.lookAt(origin)
         break
     }
+    this.resetFreeFlySmoothing()
   }
 
   update(dt: number): void {
@@ -255,26 +303,101 @@ export class CameraController {
   }
 
   private updateFreeFly(dt: number): void {
-    const { w, a, s, d, shift } = this.freeFlyKeys
+    const { w, a, s, d, shift, alt, arrowLeft, arrowRight, arrowUp, arrowDown } = this.freeFlyKeys
+
     this.camera.getWorldDirection(this.forward)
     if (this.forward.lengthSq() < 1e-6) this.forward.set(0, 0, -1)
     this.forward.normalize()
-    this.right.crossVectors(this.up, this.forward)
-    if (this.right.lengthSq() < 1e-6) this.right.set(1, 0, 0)
-    this.right.normalize()
-
-    if (shift) {
-      // W/S = pitch (tilt), A/D = strafe
-      if (w) this.camera.rotateOnWorldAxis(this.right, TILT_SPEED * dt)
-      if (s) this.camera.rotateOnWorldAxis(this.right, -TILT_SPEED * dt)
-      if (a) this.camera.position.addScaledVector(this.right, MOVE_SPEED * dt)
-      if (d) this.camera.position.addScaledVector(this.right, -MOVE_SPEED * dt)
+    // Horizontal strafe axis: worldUp × forward (Y-up).
+    this.right.crossVectors(this.freeFlyWorldUp, this.forward)
+    if (this.right.lengthSq() < 1e-6) {
+      this.right.set(1, 0, 0)
     } else {
-      // W/S = forward/back, A/D = yaw (turn)
-      if (w) this.camera.position.addScaledVector(this.forward, MOVE_SPEED * dt)
-      if (s) this.camera.position.addScaledVector(this.forward, -MOVE_SPEED * dt)
-      if (a) this.camera.rotateOnWorldAxis(this.up, TURN_SPEED * dt)
-      if (d) this.camera.rotateOnWorldAxis(this.up, -TURN_SPEED * dt)
+      this.right.normalize()
     }
+
+    const moveForwardBack = !alt && (w || s)
+    const moveVertical = alt && (w || s)
+    const moveStrafe = a || d
+    const translationKeysActive = moveForwardBack || moveVertical || moveStrafe
+
+    if (translationKeysActive) {
+      this.freeFlyMoveBoost = Math.min(
+        FREE_FLY_MOVE_BOOST_SAFETY_MAX,
+        this.freeFlyMoveBoost + FREE_FLY_TRANSLATION_BOOST_ACCEL * dt,
+      )
+    } else {
+      this.freeFlyMoveBoost = Math.max(
+        FREE_FLY_MOVE_BOOST_START,
+        this.freeFlyMoveBoost - FREE_FLY_TRANSLATION_BOOST_DECAY * dt,
+      )
+    }
+
+    const anyArrow = arrowLeft || arrowRight || arrowUp || arrowDown
+    if (anyArrow) {
+      this.freeFlyLookRamp = Math.min(1, this.freeFlyLookRamp + FREE_FLY_LOOK_RAMP_UP * dt)
+    } else {
+      this.freeFlyLookRamp = Math.max(0, this.freeFlyLookRamp - FREE_FLY_LOOK_RAMP_DOWN * dt)
+    }
+
+    const speedScalar =
+      FREE_FLY_MOVE_SPEED * this.freeFlyMoveBoost * (shift ? FREE_FLY_SPRINT_MULTIPLIER : 1)
+
+    this.freeFlyIntent.set(0, 0, 0)
+    if (alt) {
+      if (w) this.freeFlyIntent.addScaledVector(this.freeFlyWorldUp, 1)
+      if (s) this.freeFlyIntent.addScaledVector(this.freeFlyWorldUp, -1)
+    } else {
+      if (w) this.freeFlyIntent.addScaledVector(this.forward, 1)
+      if (s) this.freeFlyIntent.addScaledVector(this.forward, -1)
+    }
+    if (a) this.freeFlyIntent.addScaledVector(this.right, 1)
+    if (d) this.freeFlyIntent.addScaledVector(this.right, -1)
+
+    if (this.freeFlyIntent.lengthSq() > 1e-12) {
+      this.freeFlyIntent.normalize().multiplyScalar(speedScalar)
+      this.freeFlyTargetMove.copy(this.freeFlyIntent)
+    } else {
+      this.freeFlyTargetMove.set(0, 0, 0)
+    }
+
+    const moveAlpha = 1 - Math.exp(-FREE_FLY_MOVE_SMOOTH * dt)
+    this.freeFlyMoveVel.lerp(this.freeFlyTargetMove, moveAlpha)
+    this.camera.position.addScaledVector(this.freeFlyMoveVel, dt)
+
+    const targetYawMax = FREE_FLY_LOOK_YAW_MAX * this.freeFlyLookRamp
+    const targetPitchMax = FREE_FLY_LOOK_PITCH_MAX * this.freeFlyLookRamp
+    const targetYaw =
+      ((arrowRight ? 1 : 0) - (arrowLeft ? 1 : 0)) * targetYawMax
+    const targetPitch =
+      ((arrowDown ? 1 : 0) - (arrowUp ? 1 : 0)) * targetPitchMax
+
+    const lookAlpha = 1 - Math.exp(-FREE_FLY_LOOK_SMOOTH * dt)
+    this.freeFlyYawRate += (targetYaw - this.freeFlyYawRate) * lookAlpha
+    this.freeFlyPitchRate += (targetPitch - this.freeFlyPitchRate) * lookAlpha
+
+    const deltaYaw = this.freeFlyYawRate * dt
+    if (deltaYaw !== 0) {
+      this.freeFlyQuatYaw.setFromAxisAngle(this.freeFlyWorldUp, -deltaYaw)
+      this.camera.quaternion.premultiply(this.freeFlyQuatYaw)
+    }
+
+    let deltaPitch = this.freeFlyPitchRate * dt
+    if (deltaPitch !== 0) {
+      this.camera.getWorldDirection(this.forward)
+      const elev = Math.asin(THREE.MathUtils.clamp(this.forward.y, -1, 1))
+      const nextElev = elev + deltaPitch
+      if (nextElev > FREE_FLY_ELEV_MAX) {
+        deltaPitch = FREE_FLY_ELEV_MAX - elev
+      } else if (nextElev < FREE_FLY_ELEV_MIN) {
+        deltaPitch = FREE_FLY_ELEV_MIN - elev
+      }
+      if (deltaPitch !== 0) {
+        this.freeFlyQuatPitch.setFromAxisAngle(this.freeFlyAxisRightLocal, -deltaPitch)
+        this.camera.quaternion.multiply(this.freeFlyQuatPitch)
+      }
+    }
+
+    this.camera.up.copy(this.freeFlyWorldUp)
   }
 }

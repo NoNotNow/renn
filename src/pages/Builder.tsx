@@ -51,6 +51,7 @@ export default function Builder() {
     setCameraControl,
     setCameraTarget,
     setCameraMode,
+    editorFreePoseRef,
   } = useProjectContext()
 
   const [selectedEntityIds, setSelectedEntityIds] = useState<string[]>([])
@@ -541,8 +542,17 @@ export default function Builder() {
 
   const handleResetCamera = useCallback(() => {
     sceneViewRef.current?.resetCamera()
+    updateWorld((prev) => {
+      const prevCam = prev.world.camera
+      if (!prevCam) return prev
+      const { editorFreePose: _removed, ...rest } = prevCam
+      return {
+        ...prev,
+        world: { ...prev.world, camera: rest },
+      }
+    })
     uiLogger.click('Builder', 'Reset camera to default position')
-  }, [])
+  }, [updateWorld])
 
   const handleApplyDebugForce = useCallback(
     (force: Vec3) => {
@@ -679,6 +689,7 @@ export default function Builder() {
               initialPosesRef={initialPosesRef}
               onPosesRestored={syncPosesFromScene}
               editNavigationMode={editNavigationMode}
+              editorFreePoseRef={editorFreePoseRef}
             />
           </ErrorBoundary>
         </main>

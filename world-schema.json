@@ -86,6 +86,20 @@
       },
       "additionalProperties": false
     },
+    "EditorFreePose": {
+      "type": "object",
+      "required": ["position", "quaternion"],
+      "properties": {
+        "position": { "$ref": "#/$defs/Vec3" },
+        "quaternion": {
+          "type": "array",
+          "items": { "type": "number" },
+          "minItems": 4,
+          "maxItems": 4
+        }
+      },
+      "additionalProperties": false
+    },
     "CameraConfig": {
       "type": "object",
       "properties": {
@@ -96,7 +110,8 @@
         "height": { "type": "number" },
         "fov": { "type": "number" },
         "defaultPosition": { "$ref": "#/$defs/Vec3" },
-        "defaultRotation": { "$ref": "#/$defs/Rotation" }
+        "defaultRotation": { "$ref": "#/$defs/Rotation" },
+        "editorFreePose": { "$ref": "#/$defs/EditorFreePose" }
       },
       "additionalProperties": false
     },

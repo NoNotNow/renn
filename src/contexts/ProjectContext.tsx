@@ -1,6 +1,6 @@
 import { createContext, useState, useCallback, useEffect, useRef, useMemo, type ReactNode } from 'react'
 import { createIndexedDbPersistence } from '@/persistence/indexedDb'
-import type { RennWorld, Vec3, Rotation, CameraMode } from '@/types/world'
+import type { RennWorld, Vec3, Rotation, CameraMode, EditorFreePose } from '@/types/world'
 import type { ProjectMeta } from '@/persistence/types'
 import { sampleWorld } from '@/data/sampleWorld'
 import { loadWorldFromStatic } from '@/loader/loadWorldFromStatic'
@@ -44,6 +44,8 @@ interface ProjectContextState {
   cameraControl: 'free' | 'follow' | 'top' | 'front' | 'right'
   cameraTarget: string
   cameraMode: CameraMode
+  /** Live Builder free-fly pose for merge on save; synced from SceneView while navigating. */
+  editorFreePoseRef: React.MutableRefObject<EditorFreePose | null>
 }
 
 interface ProjectContextActions {
@@ -104,6 +106,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const [version, setVersion] = useState(0)
   const [documentEpoch, setDocumentEpoch] = useState(0)
   const [initialLoadPending, setInitialLoadPending] = useState(true)
+  const editorFreePoseRef = useRef<EditorFreePose | null>(null)
   
   // Combined camera state to reduce re-renders
   const [cameraState, setCameraState] = useState<CameraState>(() => ({
@@ -156,6 +159,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       name: 'Untitled',
       isDirty: false,
     })
+    editorFreePoseRef.current = null
     setCameraState({
       control: (sampleWorld.world.camera?.control ?? 'free') as 'free' | 'follow' | 'top' | 'front' | 'right',
       target: sampleWorld.world.camera?.target ?? '',
@@ -194,6 +198,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         target: w.world.camera?.target ?? '',
         mode: w.world.camera?.mode ?? 'follow',
       })
+      editorFreePoseRef.current = w.world.camera?.editorFreePose ?? null
       setVersion((v) => v + 1)
       setDocumentEpoch((e) => e + 1)
       setLastProjectId(id)
@@ -221,6 +226,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
             target: staticResult.world.world.camera?.target ?? '',
             mode: staticResult.world.world.camera?.mode ?? 'follow',
           })
+          editorFreePoseRef.current = staticResult.world.world.camera?.editorFreePose ?? null
           setVersion((v) => v + 1)
           setDocumentEpoch((e) => e + 1)
           setInitialLoadPending(false)
@@ -258,15 +264,19 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const getWorldToSave = useCallback((): RennWorld => {
     const cam = cameraStateRef.current
     const current = worldRef.current
+    const docCam = current.world.camera
+    const editorFreePose =
+      editorFreePoseRef.current ?? docCam?.editorFreePose
     return {
       ...current,
       world: {
         ...current.world,
         camera: {
-          ...current.world.camera,
+          ...(docCam ?? { mode: cam.mode, target: cam.target }),
           control: cam.control,
           target: cam.target,
           mode: cam.mode,
+          ...(editorFreePose != null ? { editorFreePose } : {}),
         },
       },
     }
@@ -372,6 +382,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     worldRef.current = snapshot.world
     setWorld(snapshot.world)
     setAssets(new Map(snapshot.assets))
+    editorFreePoseRef.current = snapshot.world.world.camera?.editorFreePose ?? null
     setCurrentProject((prev) => ({ ...prev, isDirty: true }))
     setVersion((v) => v + 1)
   }, [])
@@ -495,6 +506,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
             target: w.world.camera?.target ?? '',
             mode: w.world.camera?.mode ?? 'follow',
           })
+          editorFreePoseRef.current = w.world.camera?.editorFreePose ?? null
           setAssets(new Map())
           setCurrentProject({
             id: null,
@@ -530,6 +542,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     cameraControl: cameraState.control,
     cameraTarget: cameraState.target,
     cameraMode: cameraState.mode,
+    editorFreePoseRef,
     
     // Actions
     newProject,
@@ -565,6 +578,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     cameraState.control,
     cameraState.target,
     cameraState.mode,
+    editorFreePoseRef,
     newProject,
     loadProject,
     saveProject,
