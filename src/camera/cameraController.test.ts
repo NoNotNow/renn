@@ -864,6 +864,116 @@ describe('CameraController', () => {
       expect(camera.fov).toBe(DEFAULT_PERSPECTIVE_FOV_DEGREES)
     })
   })
+
+  describe('edit navigation orbit (force free fly)', () => {
+    it('setOrbitDelta orbits camera around target entity preserving distance to pivot', () => {
+      const { camera, scene, getEntityPosition, entityPositions } = createTestSetup()
+      entityPositions.player.set(0, 0, 0)
+      camera.position.set(10, 5, 0)
+      camera.lookAt(0, 0, 0)
+
+      scene.userData.camera = {
+        control: 'follow',
+        mode: 'thirdPerson',
+        target: 'player',
+        distance: 10,
+        height: 2,
+      }
+
+      const controller = new CameraController({ camera, scene, getEntityPosition })
+      controller.setForceFreeFlyNavigation(true)
+      const pivot = entityPositions.player
+      const distBefore = camera.position.distanceTo(pivot)
+
+      controller.setOrbitDelta(400, 0)
+      controller.update(0.016)
+
+      expect(camera.position.distanceTo(pivot)).toBeCloseTo(distBefore, 3)
+      expect(Math.abs(camera.position.x - 10)).toBeGreaterThan(0.5)
+    })
+
+    it('setOrbitDistanceDelta moves camera closer to pivot in edit navigation (non–first person)', () => {
+      const { camera, scene, getEntityPosition, entityPositions } = createTestSetup()
+      entityPositions.player.set(0, 0, 0)
+      camera.position.set(0, 5, 10)
+      camera.lookAt(0, 0, 0)
+
+      scene.userData.camera = {
+        control: 'follow',
+        mode: 'thirdPerson',
+        target: 'player',
+        distance: 10,
+        height: 2,
+      }
+
+      const controller = new CameraController({ camera, scene, getEntityPosition })
+      controller.setForceFreeFlyNavigation(true)
+      const distBefore = camera.position.distanceTo(entityPositions.player)
+
+      controller.setOrbitDistanceDelta(-2)
+      controller.update(0.016)
+
+      expect(camera.position.distanceTo(entityPositions.player)).toBeLessThan(distBefore)
+    })
+
+    it('setEditNavigationOrbitPivot overrides camera target for orbit pivot', () => {
+      const { camera, scene, getEntityPosition, entityPositions } = createTestSetup()
+      entityPositions.player.set(0, 0, 0)
+      camera.position.set(0, 5, 10)
+      camera.lookAt(0, 0, 0)
+
+      scene.userData.camera = {
+        control: 'follow',
+        mode: 'thirdPerson',
+        target: 'player',
+        distance: 10,
+        height: 2,
+      }
+
+      const controller = new CameraController({ camera, scene, getEntityPosition })
+      controller.setForceFreeFlyNavigation(true)
+      controller.setEditNavigationOrbitPivot({ x: 20, y: 0, z: 0 })
+      const pivot = new THREE.Vector3(20, 0, 0)
+      const distBefore = camera.position.distanceTo(pivot)
+
+      controller.setOrbitDelta(400, 0)
+      controller.update(0.016)
+
+      expect(camera.position.distanceTo(pivot)).toBeCloseTo(distBefore, 3)
+      expect(Math.abs(camera.position.x - 0)).toBeGreaterThan(0.5)
+    })
+
+    it('setOrbitDistanceDelta still adjusts FOV in first person when force free fly is on', () => {
+      const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 1000)
+      camera.position.set(0, 5, 10)
+      camera.lookAt(0, 0, 0)
+
+      const scene = new THREE.Scene()
+      scene.userData.camera = {
+        control: 'follow',
+        mode: 'firstPerson',
+        target: 'player',
+        distance: 10,
+        height: 2,
+      }
+
+      const entityPositions = { player: new THREE.Vector3(0, 0, 0) }
+      const getEntityQuaternion = vi.fn(() => new THREE.Quaternion())
+      const controller = new CameraController({
+        camera,
+        scene,
+        getEntityPosition: (id) => entityPositions[id as keyof typeof entityPositions] ?? null,
+        getEntityQuaternion,
+      })
+      controller.setForceFreeFlyNavigation(true)
+      expect(camera.fov).toBe(DEFAULT_PERSPECTIVE_FOV_DEGREES)
+
+      controller.setOrbitDistanceDelta(-5)
+      controller.update(0.016)
+
+      expect(camera.fov).toBeLessThan(DEFAULT_PERSPECTIVE_FOV_DEGREES)
+    })
+  })
 })
 
 describe('DEFAULT_FREE_FLY_KEYS', () => {

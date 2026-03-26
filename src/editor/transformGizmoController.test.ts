@@ -1,5 +1,41 @@
 import { describe, expect, it } from 'vitest'
-import { clampGizmoScaleAxes, GIZMO_MIN_AXIS_SCALE } from './transformGizmoController'
+import type { RenderItemRegistry } from '@/runtime/renderItemRegistry'
+import type { Entity } from '@/types/world'
+import {
+  averageUnlockedSelectionWorldPosition,
+  clampGizmoScaleAxes,
+  GIZMO_MIN_AXIS_SCALE,
+} from './transformGizmoController'
+
+function entityStub(id: string, locked = false): Entity {
+  return { id, locked } as Entity
+}
+
+describe('averageUnlockedSelectionWorldPosition', () => {
+  it('returns mean position of unlocked selected entities', () => {
+    const reg = {
+      getPosition: (id: string) =>
+        id === 'a' ? ([0, 0, 0] as const) : id === 'b' ? ([10, 0, 10] as const) : null,
+    } as unknown as RenderItemRegistry
+    const entities = [entityStub('a'), entityStub('b')]
+    const getEntity = (id: string) => entities.find((e) => e.id === id)
+    expect(averageUnlockedSelectionWorldPosition(reg, ['a', 'b'], getEntity)).toEqual([5, 0, 5])
+  })
+
+  it('omits locked entities', () => {
+    const reg = {
+      getPosition: (id: string) => (id === 'a' ? ([0, 0, 0] as const) : ([20, 0, 0] as const)),
+    } as unknown as RenderItemRegistry
+    const entities = [entityStub('a'), entityStub('b', true)]
+    const getEntity = (id: string) => entities.find((e) => e.id === id)
+    expect(averageUnlockedSelectionWorldPosition(reg, ['a', 'b'], getEntity)).toEqual([0, 0, 0])
+  })
+
+  it('returns null when no usable positions', () => {
+    const reg = { getPosition: () => null } as unknown as RenderItemRegistry
+    expect(averageUnlockedSelectionWorldPosition(reg, ['x'], () => entityStub('x'))).toBeNull()
+  })
+})
 
 describe('clampGizmoScaleAxes', () => {
   it('leaves positive scales unchanged', () => {

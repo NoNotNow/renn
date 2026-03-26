@@ -37,17 +37,7 @@ import {
   allTrimeshOrAllPrimitiveModelLayout,
 } from '@/utils/entityInspectorMerge'
 import { DEFAULT_POSITION, DEFAULT_ROTATION, DEFAULT_SCALE } from '@/types/world'
-
-function shapePatchForEntity(entity: Entity, shape: Shape): Partial<Entity> {
-  const switchingToTrimesh = shape.type === 'trimesh'
-  if (switchingToTrimesh && entity.model) {
-    return { shape, model: undefined, showShapeWireframe: undefined }
-  }
-  if (switchingToTrimesh) {
-    return { shape, showShapeWireframe: undefined }
-  }
-  return { shape }
-}
+import { applyMultiShapeEdit, shapePatchForEntity } from '@/utils/multiSelectShapeChange'
 
 export interface PropertyPanelProps {
   world: RennWorld
@@ -193,7 +183,7 @@ export default function PropertyPanel({
     if (isMulti) {
       const nextEntities = world.entities.map((e) => {
         if (!idSet.has(e.id)) return e
-        return { ...e, ...shapePatchForEntity(e, shape) }
+        return { ...e, ...applyMultiShapeEdit(e, shape) }
       })
       onWorldChange({ ...world, entities: nextEntities })
       return

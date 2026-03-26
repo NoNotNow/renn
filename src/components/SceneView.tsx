@@ -13,6 +13,7 @@ import type { PhysicsWorld } from '@/physics/rapierPhysics'
 import { RenderItemRegistry } from '@/runtime/renderItemRegistry'
 import { useKeyboardInput } from '@/hooks/useKeyboardInput'
 import {
+  averageUnlockedSelectionWorldPosition,
   installBuilderPickAndGizmo,
   type BuilderGizmoMode,
   type BuilderPoseCommitEntry,
@@ -440,8 +441,8 @@ function SceneViewInner({
         const dt = FIXED_DT
         timeRef.current += dt
 
-        // In follow / thirdPerson / tracking / firstPerson, consume wheel so transformers don't see it.
-        // Trackpad scroll (deltaX, deltaY) → orbit; pinch + mouse wheel → distance (FOV in first person).
+        // Follow + orbit modes: consume wheel so transformers don't see it.
+        // Edit navigation: same — trackpad scroll → orbit; pinch + mouse wheel → distance (FOV in first person).
         const orbitCtrl = cameraCtrlRef.current
         const orbitCfg = orbitCtrl?.getConfig()
         const orbitFollowModes =
@@ -449,13 +450,11 @@ function SceneViewInner({
           orbitCfg?.mode === 'thirdPerson' ||
           orbitCfg?.mode === 'tracking' ||
           orbitCfg?.mode === 'firstPerson'
-        const skipOrbitBecauseEditNav = editNavigationModeRef.current
-        if (
-          !skipOrbitBecauseEditNav &&
-          orbitCfg?.control === 'follow' &&
-          orbitFollowModes &&
-          rawWheelRef.current
-        ) {
+        const editNav = editNavigationModeRef.current
+        const followCameraWheelOrbit =
+          !editNav && orbitCfg?.control === 'follow' && orbitFollowModes
+        const consumeWheelForCameraOrbit = followCameraWheelOrbit || editNav
+        if (rawWheelRef.current && consumeWheelForCameraOrbit) {
           const rw = rawWheelRef.current
           orbitWheelRef.current.deltaX = rw.deltaX
           orbitWheelRef.current.deltaY = rw.deltaY
@@ -471,7 +470,6 @@ function SceneViewInner({
         }
 
         const pw = physicsRef.current
-        const editNav = editNavigationModeRef.current
         if (pw && runPhysics && !cancelled) {
           try {
             const currentTime = timeRef.current
@@ -529,18 +527,28 @@ function SceneViewInner({
           }
           const drag = rawMouseDragRef.current
           const orbitWheel = orbitWheelRef.current
-          const skipOrbitFromDrag = gizmoDraggingRef.current || editNavigationModeRef.current
-          const orbitDx = skipOrbitFromDrag ? 0 : (drag?.deltaX ?? 0) + orbitWheel.deltaX
-          const orbitDy = skipOrbitFromDrag ? 0 : (drag?.deltaY ?? 0) + orbitWheel.deltaY
+          const gizmoDrag = gizmoDraggingRef.current
+          const orbitDx = (gizmoDrag ? 0 : (drag?.deltaX ?? 0)) + orbitWheel.deltaX
+          const orbitDy = (gizmoDrag ? 0 : (drag?.deltaY ?? 0)) + orbitWheel.deltaY
           if (orbitDx !== 0 || orbitDy !== 0) {
             ctrl.setOrbitDelta(orbitDx, orbitDy)
           }
           if (drag) { drag.deltaX = 0; drag.deltaY = 0 }
-          if (orbitWheel.distanceDelta !== 0 && !editNavigationModeRef.current) {
+          if (orbitWheel.distanceDelta !== 0) {
             ctrl.setOrbitDistanceDelta(orbitWheel.distanceDelta * 0.05)
             orbitWheel.distanceDelta = 0
-          } else if (editNavigationModeRef.current) {
-            orbitWheel.distanceDelta = 0
+          }
+          if (editNavigationModeRef.current) {
+            const selPivot = averageUnlockedSelectionWorldPosition(
+              registryRef.current,
+              selectedEntityIdsRef.current,
+              (id) => worldRef.current.entities.find((e) => e.id === id),
+            )
+            ctrl.setEditNavigationOrbitPivot(
+              selPivot ? { x: selPivot[0], y: selPivot[1], z: selPivot[2] } : null,
+            )
+          } else {
+            ctrl.setEditNavigationOrbitPivot(null)
           }
           ctrl.update(dt)
 

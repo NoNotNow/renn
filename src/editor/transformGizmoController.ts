@@ -10,6 +10,34 @@ export const GIZMO_MIN_AXIS_SCALE = 1e-4
 
 export const BUILDER_SELECTION_PIVOT_NAME = '__builder_selection_pivot__'
 
+/**
+ * World-space centroid of selected entities that are unlocked and have a registry pose.
+ * Matches the multi-select gizmo pivot (one entity → its position).
+ */
+export function averageUnlockedSelectionWorldPosition(
+  reg: RenderItemRegistry | null,
+  selectedIds: readonly string[],
+  getEntity: (id: string) => Entity | undefined,
+): Vec3 | null {
+  if (!reg || selectedIds.length === 0) return null
+  let sx = 0
+  let sy = 0
+  let sz = 0
+  let n = 0
+  for (const id of selectedIds) {
+    const e = getEntity(id)
+    if (!e || e.locked) continue
+    const pos = reg.getPosition(id)
+    if (!pos) continue
+    sx += pos[0]
+    sy += pos[1]
+    sz += pos[2]
+    n += 1
+  }
+  if (n === 0) return null
+  return [sx / n, sy / n, sz / n]
+}
+
 export function clampGizmoScaleAxes(x: number, y: number, z: number): Vec3 {
   return [
     Math.max(GIZMO_MIN_AXIS_SCALE, x),
@@ -179,24 +207,12 @@ export function installBuilderPickAndGizmo(
       controls.detach()
       return
     }
-    let sx = 0
-    let sy = 0
-    let sz = 0
-    let n = 0
-    for (const id of targetIds) {
-      const pos = reg.getPosition(id)
-      if (pos) {
-        sx += pos[0]
-        sy += pos[1]
-        sz += pos[2]
-        n += 1
-      }
-    }
-    if (n === 0) {
+    const center = averageUnlockedSelectionWorldPosition(reg, targetIds, p.getEntity)
+    if (!center) {
       controls.detach()
       return
     }
-    pivot.position.set(sx / n, sy / n, sz / n)
+    pivot.position.set(center[0], center[1], center[2])
     pivot.quaternion.identity()
     pivot.scale.set(1, 1, 1)
     pivot.updateMatrixWorld(true)

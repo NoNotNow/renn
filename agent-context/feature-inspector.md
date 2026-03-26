@@ -4,6 +4,82 @@ The inspector is the right-side panel that edits the **selection** (one or more 
 
 **Multi-select**: **Shift+click** or **Cmd+click** (Meta) on an entity in the viewport or entity list toggles that entity in the selection; a normal click replaces the selection with one entity. **Escape** clears the selection when focus is not in an input. **Clone** is disabled when more than one entity is selected.
 
+### Multiselect user stories
+
+**Selection and navigation**
+
+- As a builder, I extend selection with **Shift+click** or **Cmd/Ctrl+click** on the viewport or entity list so I can build arbitrary sets without losing focus.
+- As a builder, I **replace** selection with a normal click on one entity when I want to drill into a single object.
+- As a builder, I press **Escape** to clear selection when I am not typing in an input.
+
+**Transform and gizmo**
+
+- As a builder, I **move / rotate / scale** several unlocked entities at once using the **world-space pivot** at the average position; locked entities stay selected but **do not** participate in the gizmo.
+- As a builder, I edit **position / rotation / scale** in the inspector when all agree; when values **differ**, I see empty fields and committing one triple applies it to **all** selected (uniform override).
+- As a builder, one **gizmo drag** produces **one undo step** for the whole group move.
+
+**Shape and layout**
+
+- As a builder, I select entities with **different primitive types** (e.g. box and sphere) and set shape to **pyramid** so **each** becomes a pyramid sized from **its own** characteristic size (see [`shapeConversion.ts`](../src/utils/shapeConversion.ts) / [`multiSelectShapeChange.ts`](../src/utils/multiSelectShapeChange.ts)).
+- As a builder, I select many objects of the **same** primitive type with **different** numeric parameters: the inspector shows the **primary** (first-selected) entity’s numbers; when I commit a change, **all** selected get those same parameters (uniform bulk edit, not a per-row spreadsheet).
+- As a builder, when my selection **mixes trimesh, GLTF-on-primitive, and plain primitive**, I see the **yellow warning** and narrow the selection before shape/material editing.
+
+**Physics**
+
+- As a builder, I set **body type**, **mass**, **friction**, **restitution**, and **damping** once for every selected entity.
+- As a builder, I use **Refresh from physics** with multiple selected to pull poses from the scene into the document for **each** id in one action.
+
+**Material and appearance**
+
+- As a builder, I paint **color / roughness / metalness / opacity** across selected primitives when the material section is available (merged or uniform override paths).
+- As a builder, with **model + primitive** selections that qualify, I toggle **Show shape wireframe** or **Override with material** in bulk where the UI allows.
+
+**Entity identity and safety**
+
+- As a builder, I **delete** all unlocked selected entities in one action; delete stays disabled if **any** selection is locked.
+- As a builder, I **toggle lock** for the whole selection (mixed lock states are normalized when toggling).
+- As a builder, I see **ID** as `—` when multi; **bulk rename** (name blur) sets the **same** name on every selected entity.
+- As a builder, **Clone** is unavailable with multi-select to avoid ambiguous copies.
+
+**Models and transformers**
+
+- As a builder, I assign the **same GLTF** to multiple primitive-backed entities when the 3D Model section is visible.
+- As a builder, I align **transformer stacks**: when stacks **differ**, I see mixed state; committing applies the **same** stack to **all** selected.
+
+**Copy payload**
+
+- The Entity section’s copy payload is **`entities[]`** when multiple are selected, or a **single entity** when one is selected (`copyPayload` in PropertyPanel).
+
+**Examples**
+
+- **Fleet:** Select many crates → body **dynamic**, high friction, same transformer preset → one undo reverts the batch.
+- **Visual pass:** Select a uniform group (same layout class) → adjust **roughness** together.
+- **Rescue sim:** Select **dynamic** props → **Refresh from physics** after play to commit settled poses.
+
+### Multiselect + undo / systems (contract)
+
+| System | Rule |
+|--------|------|
+| **Discrete inspector edits** | One gesture → one `pushBeforeEdit` / commit path; bulk `updateAll` must **not** fire multiple undo snapshots for a single UI action. |
+| **Vec3 scrubs** | `notifyScrubStart` / `notifyScrubEnd`: one scrub changing many entities still yields **one** undo step when applicable. |
+| **Gizmo** | One undo step per completed group drag (unchanged). |
+| **livePoses** | Display-only; never write `world` from the poller. |
+| **Trimesh / model** | `shapePatchForEntity` still strips `model` / wireframe when switching to trimesh, etc. |
+
+### Property matrix (multiselect)
+
+| Area | Agree | Differ | Bulk edit |
+|------|-------|--------|-----------|
+| Title / Name / ID | Shared values | Mixed / `—` for ID | Name → all same on blur |
+| Lock | One state | Toggle normalizes all | All |
+| Transform | Merged vec3 | Empty (`null`) | All same on commit |
+| Shape | Full editor | Type `—` when types differ | Type change → per-entity size preserve; same-type → uniform |
+| Physics | Merged | Empty | All |
+| Material | Editor | Messages when mixed | All when path active |
+| 3D Model / Model-Transform | Merged / mixed | Mixed messages | All when allowed |
+| Transformers | List | Mixed | All same on commit |
+| Mixed layout | — | Warning hides shape/material | Narrow selection |
+
 ## Role
 
 - **PropertySidebar**: Tabs (Properties | Scripts | Assets). When the Properties tab is active, it renders **PropertyPanel**.
@@ -58,6 +134,7 @@ src/
 ├── persistence/indexedDb.ts   # defaultPersistence shared by inspector and asset UI
 ├── utils/clonePlacement.ts    # clone horizontal placement next to source (same Y plane)
 ├── data/entityDefaults.ts     # cloneEntityFrom(deep clone + id/name/pose)
+├── utils/multiSelectShapeChange.ts  # bulk shape edits; per-entity type conversion when types differ
 ```
 
 ## Builder header: gizmo mode

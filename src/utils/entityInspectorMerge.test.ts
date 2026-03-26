@@ -8,6 +8,12 @@ import {
   mergeName,
   deepEqual,
   allTrimeshOrAllPrimitiveModelLayout,
+  mergeScale,
+  mergeTransformers,
+  mergeLocked,
+  mergeNumber,
+  mergeModelRef,
+  allSameShapeTopology,
 } from './entityInspectorMerge'
 
 function e(partial: Partial<Entity>): Entity {
@@ -65,5 +71,66 @@ describe('entityInspectorMerge', () => {
     const tr = e({ shape: { type: 'trimesh', model: 'm' } })
     const box = e({ shape: { type: 'box', width: 1, height: 1, depth: 1 } })
     expect(allTrimeshOrAllPrimitiveModelLayout([tr, box])).toBe('mixed')
+  })
+
+  it('mergeScale returns value when all match', () => {
+    const entities = [e({ scale: [2, 2, 2] }), e({ scale: [2, 2, 2] })]
+    expect(mergeScale(entities)).toEqual([2, 2, 2])
+  })
+
+  it('mergeScale returns null when values differ', () => {
+    const entities = [e({ scale: [1, 1, 1] }), e({ scale: [2, 1, 1] })]
+    expect(mergeScale(entities)).toBeNull()
+  })
+
+  it('mergeTransformers returns list when identical', () => {
+    const t = [{ type: 'wanderer' as const, config: {} }]
+    const entities = [e({ transformers: t }), e({ transformers: t })]
+    expect(mergeTransformers(entities)).toEqual(t)
+  })
+
+  it('mergeTransformers returns null when stacks differ', () => {
+    const entities = [
+      e({ transformers: [{ type: 'wanderer' as const, config: {} }] }),
+      e({ transformers: [{ type: 'input' as const, config: {} }] }),
+    ]
+    expect(mergeTransformers(entities)).toBeNull()
+  })
+
+  it('mergeLocked returns boolean when all match', () => {
+    expect(mergeLocked([e({ locked: true }), e({ locked: true })])).toBe(true)
+    expect(mergeLocked([e({ locked: false }), e({})])).toBe(false)
+  })
+
+  it('mergeLocked returns null when mixed', () => {
+    expect(mergeLocked([e({ locked: true }), e({ locked: false })])).toBeNull()
+  })
+
+  it('mergeNumber merges mass and friction', () => {
+    expect(mergeNumber([e({ mass: 2 }), e({ mass: 2 })], (x) => x.mass, 1)).toBe(2)
+    expect(mergeNumber([e({ mass: 1 }), e({ mass: 2 })], (x) => x.mass, 1)).toBeNull()
+    expect(
+      mergeNumber([e({ friction: 0.4 }), e({ friction: 0.4 })], (x) => x.friction, 0.5)
+    ).toBe(0.4)
+  })
+
+  it('mergeModelRef returns shared ref or null', () => {
+    expect(mergeModelRef([e({ model: 'a' }), e({ model: 'a' })])).toBe('a')
+    expect(mergeModelRef([e({ model: 'a' }), e({ model: 'b' })])).toBeNull()
+  })
+
+  it('allSameShapeTopology is true only when types match', () => {
+    expect(
+      allSameShapeTopology([
+        e({ shape: { type: 'box', width: 1, height: 1, depth: 1 } }),
+        e({ shape: { type: 'box', width: 2, height: 2, depth: 2 } }),
+      ])
+    ).toBe(true)
+    expect(
+      allSameShapeTopology([
+        e({ shape: { type: 'box', width: 1, height: 1, depth: 1 } }),
+        e({ shape: { type: 'sphere', radius: 1 } }),
+      ])
+    ).toBe(false)
   })
 })

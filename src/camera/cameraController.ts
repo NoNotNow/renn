@@ -38,6 +38,10 @@ const VIEW_PRESET_DISTANCE = 15
 const ORBIT_SENSITIVITY = 0.003
 const ORBIT_DISTANCE_MIN = 1
 const ORBIT_DISTANCE_MAX = 150
+/** View-ray focus distance when edit-navigation orbit has no entity pivot. */
+const EDIT_NAV_FOCUS_FALLBACK_DISTANCE = 12
+/** Min polar angle from +Y (rad) to avoid gimbal flip when orbiting in edit mode. */
+const EDIT_NAV_POLAR_EPS = 0.08
 
 /** Matches SceneView `PerspectiveCamera(50, …)`; restored when leaving first person. */
 export const DEFAULT_PERSPECTIVE_FOV_DEGREES = 50
@@ -76,6 +80,16 @@ export class CameraController {
   private orbitDistance = 10
   /** When true, `update()` runs free-fly only (Builder edit-navigation mode), ignoring `config.control`. */
   private forceFreeFlyNavigation = false
+  /** Per-frame wheel/drag pixels for edit-navigation orbit (not mixed with follow-mode `orbitYaw`/`orbitPitch`). */
+  private editNavOrbitPixelDx = 0
+  private editNavOrbitPixelDy = 0
+  /** Per-frame zoom delta (same units as `setOrbitDistanceDelta` for non–first-person). */
+  private editNavZoomDelta = 0
+  private readonly editNavPivotScratch = new THREE.Vector3()
+  private readonly editNavOffsetScratch = new THREE.Vector3()
+  /** When set, edit-navigation orbit/zoom uses this world point instead of camera target / view focus. */
+  private readonly editNavSelectionPivot = new THREE.Vector3()
+  private editNavUseSelectionPivot = false
   private readonly freeFlyMoveVel = new THREE.Vector3()
   private freeFlyYawRate = 0
   private freeFlyPitchRate = 0
@@ -140,6 +154,11 @@ export class CameraController {
    * Call each frame with the delta since last frame; pass 0,0 when no drag.
    */
   setOrbitDelta(dx: number, dy: number): void {
+    if (this.forceFreeFlyNavigation) {
+      this.editNavOrbitPixelDx += dx
+      this.editNavOrbitPixelDy += dy
+      return
+    }
     this.orbitYaw -= dx * ORBIT_SENSITIVITY
     this.orbitPitch -= dy * ORBIT_SENSITIVITY
   }
@@ -154,6 +173,10 @@ export class CameraController {
       )
       this.camera.fov = next
       this.camera.updateProjectionMatrix()
+      return
+    }
+    if (this.forceFreeFlyNavigation) {
+      this.editNavZoomDelta += delta
       return
     }
     this.orbitDistance = Math.max(
@@ -193,6 +216,19 @@ export class CameraController {
     this.forceFreeFlyNavigation = enabled
   }
 
+  /**
+   * Builder edit navigation: orbit around the selection centroid (or null to use camera target / focus ahead).
+   * Call each frame while edit navigation is active.
+   */
+  setEditNavigationOrbitPivot(world: { x: number; y: number; z: number } | null): void {
+    if (world === null) {
+      this.editNavUseSelectionPivot = false
+      return
+    }
+    this.editNavSelectionPivot.set(world.x, world.y, world.z)
+    this.editNavUseSelectionPivot = true
+  }
+
   setViewPreset(preset: 'top' | 'front' | 'right'): void {
     const origin = new THREE.Vector3(0, 0, 0)
     switch (preset) {
@@ -218,6 +254,7 @@ export class CameraController {
   update(dt: number): void {
     if (this.forceFreeFlyNavigation) {
       this.updateFreeFly(dt)
+      this.applyEditNavigationOrbitZoom()
       return
     }
     const control: CameraControl = this.config.control ?? 'free'
@@ -414,6 +451,90 @@ export class CameraController {
       this.camera.lookAt(this.currentOffset)
     }
 
+    this.camera.up.copy(this.freeFlyWorldUp)
+  }
+
+  /** Turntable orbit + dolly after free-fly: selection pivot if set, else camera target entity, else focus ahead. */
+  private applyEditNavigationOrbitZoom(): void {
+    const dx = this.editNavOrbitPixelDx
+    const dy = this.editNavOrbitPixelDy
+    const zoomDelta = this.editNavZoomDelta
+    this.editNavOrbitPixelDx = 0
+    this.editNavOrbitPixelDy = 0
+    this.editNavZoomDelta = 0
+
+    if (dx === 0 && dy === 0 && zoomDelta === 0) return
+
+    const pivot = this.editNavPivotScratch
+    if (this.editNavUseSelectionPivot) {
+      pivot.copy(this.editNavSelectionPivot)
+    } else {
+      const targetId = this.config.target ?? ''
+      const entityPivot = targetId ? this.getEntityPosition(targetId) : null
+      if (entityPivot) {
+        pivot.copy(entityPivot)
+      } else {
+        this.camera.getWorldDirection(this.forward)
+        if (this.forward.lengthSq() < 1e-12) this.forward.set(0, 0, -1)
+        this.forward.normalize()
+        pivot.copy(this.camera.position).addScaledVector(this.forward, EDIT_NAV_FOCUS_FALLBACK_DISTANCE)
+      }
+    }
+
+    const offset = this.editNavOffsetScratch
+    offset.copy(this.camera.position).sub(pivot)
+    let dist = offset.length()
+    if (dist < 1e-4) {
+      this.camera.getWorldDirection(this.forward)
+      if (this.forward.lengthSq() < 1e-12) this.forward.set(0, 0, -1)
+      this.forward.normalize()
+      offset.copy(this.forward).multiplyScalar(-ORBIT_DISTANCE_MIN)
+      dist = ORBIT_DISTANCE_MIN
+    }
+
+    if (dx !== 0 || dy !== 0) {
+      const yaw = -dx * ORBIT_SENSITIVITY
+      offset.applyAxisAngle(this.freeFlyWorldUp, yaw)
+
+      this.right.crossVectors(this.freeFlyWorldUp, offset)
+      if (this.right.lengthSq() < FREE_FLY_POLE_EPS_SQ) {
+        this.camera.getWorldDirection(this.forward)
+        this.right.crossVectors(this.freeFlyWorldUp, this.forward)
+        if (this.right.lengthSq() < FREE_FLY_POLE_EPS_SQ) {
+          this.right.set(1, 0, 0)
+        }
+      }
+      this.right.normalize()
+
+      const pitch = -dy * ORBIT_SENSITIVITY
+      offset.applyAxisAngle(this.right, pitch)
+
+      const r = offset.length()
+      if (r > 1e-8) {
+        const cosPolar = THREE.MathUtils.clamp(offset.y / r, -1, 1)
+        let polar = Math.acos(cosPolar)
+        const polarMin = EDIT_NAV_POLAR_EPS
+        const polarMax = Math.PI - EDIT_NAV_POLAR_EPS
+        if (polar < polarMin || polar > polarMax) {
+          polar = THREE.MathUtils.clamp(polar, polarMin, polarMax)
+          const horizMag = Math.sin(polar) * r
+          const theta = Math.atan2(offset.x, offset.z)
+          offset.set(
+            horizMag * Math.sin(theta),
+            Math.cos(polar) * r,
+            horizMag * Math.cos(theta),
+          )
+        }
+      }
+    }
+
+    dist = offset.length()
+    if (dist < 1e-6) return
+
+    const newDist = THREE.MathUtils.clamp(dist + zoomDelta, ORBIT_DISTANCE_MIN, ORBIT_DISTANCE_MAX)
+    offset.normalize().multiplyScalar(newDist)
+    this.camera.position.copy(pivot).add(offset)
+    this.camera.lookAt(pivot)
     this.camera.up.copy(this.freeFlyWorldUp)
   }
 }

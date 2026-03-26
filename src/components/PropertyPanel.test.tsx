@@ -2,9 +2,11 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import PropertyPanel from '@/components/PropertyPanel'
+import { EditorUndoProvider, type EditorUndoApi } from '@/contexts/EditorUndoContext'
 import { sampleWorld } from '@/data/sampleWorld'
 import { createDefaultEntity } from '@/data/entityDefaults'
 import type { RennWorld, Entity } from '@/types/world'
+import { shapeWithPreservedSize } from '@/utils/shapeConversion'
 
 vi.mock('@/utils/uiLogger', () => ({
   uiLogger: { change: vi.fn(), delete: vi.fn(), click: vi.fn(), log: vi.fn(), select: vi.fn(), upload: vi.fn() },
@@ -66,8 +68,9 @@ function renderPropertyPanel(
   onRefreshFromPhysics?: (entityIds: string[]) => void,
   livePoses?: Map<string, { position: [number, number, number]; rotation: [number, number, number] }> | null,
   onCloneEntity?: (entityId: string) => void,
+  editorUndo?: EditorUndoApi | null,
 ) {
-  return render(
+  const panel = (
     <PropertyPanel
       world={world}
       assets={assets}
@@ -79,6 +82,41 @@ function renderPropertyPanel(
       livePoses={livePoses}
     />
   )
+  if (editorUndo != null) {
+    return render(<EditorUndoProvider value={editorUndo}>{panel}</EditorUndoProvider>)
+  }
+  return render(panel)
+}
+
+/** Box + sphere, different names, identical material for merge path. */
+function worldBoxAndSphere(): RennWorld {
+  const sharedMaterial = { color: [0.7, 0.7, 0.7] as [number, number, number] }
+  return {
+    version: '1.0',
+    world: { camera: { control: 'free', mode: 'follow', target: 'box-a' } },
+    entities: [
+      {
+        id: 'box-a',
+        name: 'Alpha Box',
+        bodyType: 'static' as const,
+        shape: { type: 'box' as const, width: 4, height: 4, depth: 4 },
+        position: [0, 0, 0] as [number, number, number],
+        rotation: [0, 0, 0] as [number, number, number],
+        scale: [1, 1, 1] as [number, number, number],
+        material: sharedMaterial,
+      },
+      {
+        id: 'sphere-b',
+        name: 'Beta Sphere',
+        bodyType: 'static' as const,
+        shape: { type: 'sphere' as const, radius: 0.25 },
+        position: [2, 0, 0] as [number, number, number],
+        rotation: [0, 0, 0] as [number, number, number],
+        scale: [1, 1, 1] as [number, number, number],
+        material: sharedMaterial,
+      },
+    ],
+  }
 }
 
 describe('PropertyPanel', () => {
@@ -522,6 +560,122 @@ describe('PropertyPanel', () => {
       const deleteButton = screen.getByRole('button', { name: /delete entity/i })
       await user.click(deleteButton)
       expect(onDeleteEntities).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('multiselect', () => {
+    const ids = ['box-a', 'sphere-b'] as const
+
+    it('shows Multiple entities title when names differ', () => {
+      const world = worldBoxAndSphere()
+      renderPropertyPanel(world, [...ids])
+      expect(screen.getByRole('heading', { name: /Multiple entities \(2\)/i })).toBeInTheDocument()
+    })
+
+    it('disables clone when multiple selected', () => {
+      const world = worldBoxAndSphere()
+      renderPropertyPanel(world, [...ids], vi.fn(), undefined, new Map(), undefined, undefined, vi.fn())
+      const cloneBtn = screen.getByTitle('Clone one entity at a time')
+      expect(cloneBtn).toBeDisabled()
+    })
+
+    it('calls onRefreshFromPhysics with all selected ids', async () => {
+      const user = userEvent.setup()
+      const onRefresh = vi.fn()
+      const world = worldBoxAndSphere()
+      renderPropertyPanel(world, [...ids], vi.fn(), undefined, new Map(), onRefresh)
+      await user.click(screen.getByTitle('Refresh position and rotation from physics'))
+      expect(onRefresh).toHaveBeenCalledWith([...ids])
+    })
+
+    it('shape type pyramid applies per-entity preserved sizes and pushBeforeEdit runs once', async () => {
+      const user = userEvent.setup()
+      const onWorldChange = vi.fn()
+      const pushBeforeEdit = vi.fn()
+      const editorUndo: EditorUndoApi = {
+        pushBeforeEdit,
+        notifyScrubStart: vi.fn(),
+        notifyScrubEnd: vi.fn(),
+      }
+      const world = worldBoxAndSphere()
+      renderPropertyPanel(world, [...ids], onWorldChange, undefined, new Map(), undefined, undefined, undefined, editorUndo)
+
+      const shapeSelect = screen.getByLabelText(/^shape$/i)
+      await user.selectOptions(shapeSelect, 'pyramid')
+
+      expect(pushBeforeEdit).toHaveBeenCalledTimes(1)
+      expect(onWorldChange).toHaveBeenCalled()
+      const updatedWorld = onWorldChange.mock.calls[onWorldChange.mock.calls.length - 1]![0] as RennWorld
+      const boxEnt = updatedWorld.entities.find((e: Entity) => e.id === 'box-a')
+      const sphereEnt = updatedWorld.entities.find((e: Entity) => e.id === 'sphere-b')
+      expect(boxEnt?.shape?.type).toBe('pyramid')
+      expect(sphereEnt?.shape?.type).toBe('pyramid')
+      expect(boxEnt?.shape).toEqual(shapeWithPreservedSize(world.entities[0]!.shape, 'pyramid'))
+      expect(sphereEnt?.shape).toEqual(shapeWithPreservedSize(world.entities[1]!.shape, 'pyramid'))
+    })
+
+    it('body type change applies to all selected', async () => {
+      const user = userEvent.setup()
+      const onWorldChange = vi.fn()
+      const world = worldBoxAndSphere()
+      renderPropertyPanel(world, [...ids], onWorldChange)
+      await user.selectOptions(screen.getByLabelText(/body type/i), 'dynamic')
+      const updatedWorld = onWorldChange.mock.calls[onWorldChange.mock.calls.length - 1]![0] as RennWorld
+      expect(updatedWorld.entities.find((e: Entity) => e.id === 'box-a')?.bodyType).toBe('dynamic')
+      expect(updatedWorld.entities.find((e: Entity) => e.id === 'sphere-b')?.bodyType).toBe('dynamic')
+    })
+
+    it('friction blur applies to all selected', () => {
+      const onWorldChange = vi.fn()
+      const world = worldBoxAndSphere()
+      renderPropertyPanel(world, [...ids], onWorldChange)
+      const frictionInput = screen.getByLabelText(/friction/i)
+      fireEvent.focus(frictionInput)
+      fireEvent.change(frictionInput, { target: { value: '0.11' } })
+      fireEvent.blur(frictionInput)
+      const updatedWorld = onWorldChange.mock.calls[onWorldChange.mock.calls.length - 1]![0] as RennWorld
+      expect(updatedWorld.entities.find((e: Entity) => e.id === 'box-a')?.friction).toBe(0.11)
+      expect(updatedWorld.entities.find((e: Entity) => e.id === 'sphere-b')?.friction).toBe(0.11)
+    })
+
+    it('material color change applies to all selected', () => {
+      const onWorldChange = vi.fn()
+      const world = worldBoxAndSphere()
+      renderPropertyPanel(world, [...ids], onWorldChange)
+      const colorInput = screen.getByLabelText(/material color/i)
+      fireEvent.change(colorInput, { target: { value: '#00ff00' } })
+      const updatedWorld = onWorldChange.mock.calls[onWorldChange.mock.calls.length - 1]![0] as RennWorld
+      const a = updatedWorld.entities.find((e: Entity) => e.id === 'box-a')
+      const b = updatedWorld.entities.find((e: Entity) => e.id === 'sphere-b')
+      expect(a?.material?.color?.[0]).toBe(0)
+      expect(a?.material?.color?.[1]).toBe(1)
+      expect(b?.material?.color?.[0]).toBe(0)
+      expect(b?.material?.color?.[1]).toBe(1)
+    })
+
+    it('scale X applies to all selected', async () => {
+      const user = userEvent.setup()
+      const onWorldChange = vi.fn()
+      const world = worldBoxAndSphere()
+      renderPropertyPanel(world, [...ids], onWorldChange)
+      const scaleX = screen.getByLabelText(/scale x/i)
+      await user.click(scaleX)
+      await user.tripleClick(scaleX)
+      await user.keyboard('1.5')
+      await user.tab()
+      const updatedWorld = onWorldChange.mock.calls[onWorldChange.mock.calls.length - 1]![0] as RennWorld
+      expect(updatedWorld.entities.find((e: Entity) => e.id === 'box-a')?.scale).toEqual([1.5, 1, 1])
+      expect(updatedWorld.entities.find((e: Entity) => e.id === 'sphere-b')?.scale).toEqual([1.5, 1, 1])
+    })
+
+    it('lock toggle locks all selected entities', async () => {
+      const user = userEvent.setup()
+      const onWorldChange = vi.fn()
+      const world = worldBoxAndSphere()
+      renderPropertyPanel(world, [...ids], onWorldChange)
+      await user.click(screen.getByTitle('Lock entity'))
+      const updatedWorld = onWorldChange.mock.calls[onWorldChange.mock.calls.length - 1]![0] as RennWorld
+      expect(updatedWorld.entities.every((e: Entity) => e.locked === true)).toBe(true)
     })
   })
 })
