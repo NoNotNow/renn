@@ -38,6 +38,11 @@ import {
 } from '@/utils/entityInspectorMerge'
 import { DEFAULT_POSITION, DEFAULT_ROTATION, DEFAULT_SCALE } from '@/types/world'
 import { applyMultiShapeEdit, shapePatchForEntity } from '@/utils/multiSelectShapeChange'
+import {
+  getMixedDimensionFieldSpecs,
+  patchEntityWithMixedDimension,
+  type MixedDimensionKind,
+} from '@/utils/mixedShapeDimensions'
 
 export interface PropertyPanelProps {
   world: RennWorld
@@ -105,6 +110,13 @@ export default function PropertyPanel({
     setEditingName(null)
   }, [selectedEntityIds.join('\0')])
 
+  const mixedDimensionFields = useMemo(() => {
+    if (entities.length < 2) return undefined
+    if (entities.every((e) => e.shape?.type === entities[0]!.shape?.type)) return undefined
+    const specs = getMixedDimensionFieldSpecs(entities)
+    return specs.length > 0 ? specs : undefined
+  }, [entities])
+
   if (entities.length === 0 || !primaryEntity) {
     return (
       <div style={{ padding: 10 }}>
@@ -155,6 +167,15 @@ export default function PropertyPanel({
   const shapeTypesDiffer =
     entities.length > 0 &&
     !entities.every((e) => e.shape?.type === entities[0]!.shape?.type)
+
+  const handleMixedDimensionChange = (kind: MixedDimensionKind, value: number) => {
+    uiLogger.change('PropertyPanel', 'Mixed shape dimension', { entityIds: ids, kind, value })
+    const nextEntities = world.entities.map((e) => {
+      if (!idSet.has(e.id)) return e
+      return patchEntityWithMixedDimension(e, kind, value)
+    })
+    onWorldChange({ ...world, entities: nextEntities })
+  }
 
   const isModelOrTrimeshMerged = (): boolean => {
     if (entities.length === 0) return false
@@ -403,6 +424,8 @@ export default function PropertyPanel({
               shape={mergedShape ?? primaryEntity.shape}
               shapeTypeMixed={shapeTypesDiffer}
               onShapeChange={handleShapeChange}
+              mixedDimensionFields={mixedDimensionFields}
+              onMixedDimensionChange={isMulti && shapeTypesDiffer ? handleMixedDimensionChange : undefined}
               disabled={anyLocked}
               assets={assets}
               world={world}

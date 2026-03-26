@@ -535,7 +535,9 @@ function SceneViewInner({
           }
           if (drag) { drag.deltaX = 0; drag.deltaY = 0 }
           if (orbitWheel.distanceDelta !== 0) {
-            ctrl.setOrbitDistanceDelta(orbitWheel.distanceDelta * 0.05)
+            // Scale wheel/pinch distance deltas so zoom feels responsive.
+            // Original factor was `0.05`; multiply by 15 => `0.75`.
+            ctrl.setOrbitDistanceDelta(orbitWheel.distanceDelta * 0.75)
             orbitWheel.distanceDelta = 0
           }
           if (editNavigationModeRef.current) {

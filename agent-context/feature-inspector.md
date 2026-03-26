@@ -24,6 +24,21 @@ The inspector is the right-side panel that edits the **selection** (one or more 
 - As a builder, I select many objects of the **same** primitive type with **different** numeric parameters: the inspector shows the **primary** (first-selected) entity’s numbers; when I commit a change, **all** selected get those same parameters (uniform bulk edit, not a per-row spreadsheet).
 - As a builder, when my selection **mixes trimesh, GLTF-on-primitive, and plain primitive**, I see the **yellow warning** and narrow the selection before shape/material editing.
 
+**Mixed shape types (multi-select, different primitives)**
+
+When several entities are selected and **shape types differ** but the shape section is still shown (uniform layout class), shared numeric parameters appear **by semantic role**: values merge only across shapes that actually have that field (`null` / empty when those values disagree). Committing updates **only** entities whose shape supports that parameter; others are unchanged.
+
+- As a builder, I set **Radius** once for any mix of **sphere, cylinder, capsule, and cone** in the selection.
+- As a builder, I set **Height** when **any** selected shape has a vertical extent (**box, cylinder, capsule, cone, pyramid, ring**); e.g. **box + sphere** changes the box only.
+- As a builder, I set **Width** and **Depth** when **any** selected shape is a **box**; only boxes are updated.
+- As a builder, I set **Base size** when **any** selected shape is a **pyramid**; only pyramids are updated.
+- As a builder, the **Shape** type dropdown still shows `—` until I pick a new type; type changes use per-entity size preservation ([`multiSelectShapeChange.ts`](../src/utils/multiSelectShapeChange.ts)).
+- **Non-goals:** ring **inner/outer** radius are not mapped to cylinder **radius** (avoid surprising coupling). **Plane** and **trimesh** do not gain fake shared rows with primitives beyond the rules above.
+
+**Examples:** **Sphere + cylinder** — align **Radius**, then adjust **Height** for the cylinder only. **Box + pyramid** — match **Height** for a common vertical size; **Base size** affects pyramids only.
+
+See [`mixedShapeDimensions.ts`](../src/utils/mixedShapeDimensions.ts).
+
 **Physics**
 
 - As a builder, I set **body type**, **mass**, **friction**, **restitution**, and **damping** once for every selected entity.
@@ -73,7 +88,7 @@ The inspector is the right-side panel that edits the **selection** (one or more 
 | Title / Name / ID | Shared values | Mixed / `—` for ID | Name → all same on blur |
 | Lock | One state | Toggle normalizes all | All |
 | Transform | Merged vec3 | Empty (`null`) | All same on commit |
-| Shape | Full editor | Type `—` when types differ | Type change → per-entity size preserve; same-type → uniform |
+| Shape | Full editor | Type `—` when types differ; shared **Radius / Height / Width / Depth / Base size** when applicable ([`mixedShapeDimensions.ts`](../src/utils/mixedShapeDimensions.ts)) | Type change → per-entity preserve; same-type → uniform; mixed-type numeric → partial per shape |
 | Physics | Merged | Empty | All |
 | Material | Editor | Messages when mixed | All when path active |
 | 3D Model / Model-Transform | Merged / mixed | Mixed messages | All when allowed |
@@ -135,6 +150,7 @@ src/
 ├── utils/clonePlacement.ts    # clone horizontal placement next to source (same Y plane)
 ├── data/entityDefaults.ts     # cloneEntityFrom(deep clone + id/name/pose)
 ├── utils/multiSelectShapeChange.ts  # bulk shape edits; per-entity type conversion when types differ
+├── utils/mixedShapeDimensions.ts   # shared Radius/Height/etc. when multi-select shape types differ
 ```
 
 ## Builder header: gizmo mode

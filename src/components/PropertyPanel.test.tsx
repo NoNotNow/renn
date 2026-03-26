@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import PropertyPanel from '@/components/PropertyPanel'
 import { EditorUndoProvider, type EditorUndoApi } from '@/contexts/EditorUndoContext'
@@ -586,6 +586,24 @@ describe('PropertyPanel', () => {
       renderPropertyPanel(world, [...ids], vi.fn(), undefined, new Map(), onRefresh)
       await user.click(screen.getByTitle('Refresh position and rotation from physics'))
       expect(onRefresh).toHaveBeenCalledWith([...ids])
+    })
+
+    it('mixed shape height updates only box when box and sphere selected', () => {
+      const onWorldChange = vi.fn()
+      const world = worldBoxAndSphere()
+      renderPropertyPanel(world, [...ids], onWorldChange)
+      const heightWrap = screen.getByTestId('shape-mixed-height')
+      const heightInput = within(heightWrap).getByRole('spinbutton')
+      expect(heightInput).toHaveDisplayValue('4')
+      fireEvent.focus(heightInput)
+      fireEvent.change(heightInput, { target: { value: '6' } })
+      fireEvent.blur(heightInput)
+      expect(onWorldChange).toHaveBeenCalled()
+      const updatedWorld = onWorldChange.mock.calls[onWorldChange.mock.calls.length - 1]![0] as RennWorld
+      const boxEnt = updatedWorld.entities.find((e: Entity) => e.id === 'box-a')
+      const sphereEnt = updatedWorld.entities.find((e: Entity) => e.id === 'sphere-b')
+      expect((boxEnt?.shape as { height?: number })?.height).toBe(6)
+      expect(sphereEnt?.shape).toEqual(world.entities[1]!.shape)
     })
 
     it('shape type pyramid applies per-entity preserved sizes and pushBeforeEdit runs once', async () => {

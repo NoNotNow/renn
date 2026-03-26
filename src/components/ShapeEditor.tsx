@@ -11,6 +11,7 @@ import { uploadModel } from '@/utils/assetUpload'
 import { sidebarRowStyle, sidebarLabelStyle, thumbnailButtonStyle, thumbnailButtonStyleDisabled, entityPanelIconButtonStyle, removeButtonStyle, removeButtonStyleDisabled } from './sharedStyles'
 import { EntityPanelIcons } from './EntityPanelIcons'
 import { useEditorUndo } from '@/contexts/EditorUndoContext'
+import type { MixedDimensionFieldSpec, MixedDimensionKind } from '@/utils/mixedShapeDimensions'
 
 const ADDABLE_SHAPE_TYPES: AddableShapeType[] = ['box', 'sphere', 'cylinder', 'capsule', 'cone', 'pyramid', 'ring', 'plane', 'trimesh']
 
@@ -25,6 +26,9 @@ export interface ShapeEditorProps {
   world?: RennWorld
   onAssetsChange?: (assets: Map<string, Blob>) => void
   onWorldChange?: (world: RennWorld) => void
+  /** When shape types differ in multi-select, shared numeric fields (computed in PropertyPanel). */
+  mixedDimensionFields?: MixedDimensionFieldSpec[]
+  onMixedDimensionChange?: (kind: MixedDimensionKind, value: number) => void
 }
 
 export default function ShapeEditor({
@@ -37,6 +41,8 @@ export default function ShapeEditor({
   world,
   onAssetsChange,
   onWorldChange,
+  mixedDimensionFields,
+  onMixedDimensionChange,
 }: ShapeEditorProps) {
   const [modelDialogOpen, setModelDialogOpen] = useState(false)
   const undo = useEditorUndo()
@@ -75,6 +81,42 @@ export default function ShapeEditor({
         propertyName="shape type"
         logComponent="PropertyPanel"
       />
+      {shapeTypeMixed &&
+        mixedDimensionFields &&
+        mixedDimensionFields.length > 0 &&
+        onMixedDimensionChange &&
+        mixedDimensionFields.map((field) => {
+          const label =
+            field.kind === 'radius'
+              ? 'Radius'
+              : field.kind === 'height'
+                ? 'Height'
+                : field.kind === 'width'
+                  ? 'Width'
+                  : field.kind === 'depth'
+                    ? 'Depth'
+                    : 'Base size'
+          return (
+            <div key={field.kind} data-testid={`shape-mixed-${field.kind}`}>
+              <NumberInput
+                onBeforeCommit={pushUndo}
+                id={`${entityId}-mixed-${field.kind}`}
+                label={label}
+                value={field.value}
+                onChange={(newValue) => onMixedDimensionChange(field.kind, newValue)}
+                min={0.01}
+                step={0.1}
+                defaultValue={0.01}
+                disabled={disabled}
+                entityId={entityId}
+                propertyName={`mixed shape ${field.kind}`}
+              />
+              {field.partialNote ? (
+                <div style={{ fontSize: 10, color: '#666', marginTop: 2, paddingLeft: 2 }}>{field.partialNote}</div>
+              ) : null}
+            </div>
+          )
+        })}
       {!shapeTypeMixed && shape?.type === 'box' && shape && (
         <>
           <NumberInput onBeforeCommit={pushUndo}
