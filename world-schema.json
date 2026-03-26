@@ -232,6 +232,7 @@
         "map": { "type": "string" },
         "roughness": { "type": "number" },
         "metalness": { "type": "number" },
+        "opacity": { "type": "number", "description": "Opacity 0..1 (renderer clamps; default 1)" },
         "mapRepeat": { "$ref": "#/$defs/Vec3" },
         "mapWrapS": { "enum": ["repeat", "clampToEdge", "mirroredRepeat"] },
         "mapWrapT": { "enum": ["repeat", "clampToEdge", "mirroredRepeat"] },

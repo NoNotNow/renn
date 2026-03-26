@@ -50,6 +50,30 @@ describe('validateWorldDocument', () => {
     }
     expect(() => validateWorldDocument(invalid)).toThrow(/Invalid world/)
   })
+
+  it('embeds failing instancePath and offending value for additionalProperties', () => {
+    const invalid = structuredClone(sampleWorld) as unknown as any
+    invalid.entities[0].material = { ...(invalid.entities[0].material ?? {}), bogus: 123 }
+
+    expect(() => validateWorldDocument(invalid)).toThrow(/Invalid world/)
+    expect(() => validateWorldDocument(invalid)).toThrow(/\/entities\/0\/material/)
+    expect(() => validateWorldDocument(invalid)).toThrow(/value:/)
+    expect(() => validateWorldDocument(invalid)).toThrow(/bogus/)
+  })
+
+  it('can tolerate additionalProperties by stripping unknown keys', () => {
+    const invalid = structuredClone(sampleWorld) as unknown as any
+    invalid.entities[0].material = { ...(invalid.entities[0].material ?? {}), bogus: 123 }
+
+    expect(() =>
+      validateWorldDocument(invalid, {
+        tolerateAdditionalProperties: true,
+        logAdditionalProperties: false,
+      })
+    ).not.toThrow()
+
+    expect(invalid.entities[0].material).not.toHaveProperty('bogus')
+  })
 })
 
 describe('getValidationErrors', () => {

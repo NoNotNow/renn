@@ -234,7 +234,7 @@ export function createIndexedDbPersistence(): PersistenceAPI {
       const worldFile = zip.file('world.json')
       if (!worldFile) throw new Error('Invalid project: missing world.json')
       const worldJson = JSON.parse(await worldFile.async('string'))
-      validateWorldDocument(worldJson)
+      validateWorldDocument(worldJson, { tolerateAdditionalProperties: true, logAdditionalProperties: true })
       const world = worldJson as RennWorld
       const assets = new Map<string, Blob>()
       const worldAssets = world.assets ?? {}

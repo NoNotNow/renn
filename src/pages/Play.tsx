@@ -11,9 +11,10 @@ function parseWorldFromSearchParams(searchParams: URLSearchParams): RennWorld {
   if (worldParam) {
     try {
       const data = JSON.parse(decodeURIComponent(worldParam)) as unknown
-      validateWorldDocument(data)
+      validateWorldDocument(data, { tolerateAdditionalProperties: true, logAdditionalProperties: true })
       return data as RennWorld
-    } catch {
+    } catch (err) {
+      console.warn('[Play] Invalid world from URL param; falling back to sampleWorld:', err)
       return sampleWorld
     }
   }

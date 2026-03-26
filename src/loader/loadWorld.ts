@@ -36,7 +36,7 @@ export async function loadWorld(
   assets?: Map<string, Blob>
 ): Promise<LoadWorldResult> {
   migrateWorldScripts(worldData)
-  validateWorldDocument(worldData)
+  validateWorldDocument(worldData, { tolerateAdditionalProperties: true, logAdditionalProperties: true })
   const world = worldData as RennWorld
 
   const scene = new THREE.Scene()

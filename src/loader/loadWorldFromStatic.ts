@@ -97,7 +97,7 @@ export async function loadWorldFromStatic(
     if (!res.ok) return null
     const raw = await res.json()
     migrateWorldScripts(raw)
-    validateWorldDocument(raw)
+    validateWorldDocument(raw, { tolerateAdditionalProperties: true, logAdditionalProperties: true })
     const world = raw as RennWorld
 
     const assets = new Map<string, Blob>()
