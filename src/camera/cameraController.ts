@@ -32,15 +32,10 @@ const FREE_FLY_LOOK_RAMP_DOWN = 2.8
 const FREE_FLY_MOVE_SMOOTH = 14
 /** Smoothing for yaw/pitch rates toward ramp-limited targets. */
 const FREE_FLY_LOOK_SMOOTH = 16
-/** Elevation from horizontal (asin(forward.y)), radians — same band as orbit pitch. */
-const FREE_FLY_ELEV_MIN = -Math.PI * 0.44
-const FREE_FLY_ELEV_MAX = Math.PI * 0.44
 /** `worldUp × forward` nearly zero when looking straight up/down — use projected stable right. */
 const FREE_FLY_POLE_EPS_SQ = 1e-6
 const VIEW_PRESET_DISTANCE = 15
 const ORBIT_SENSITIVITY = 0.003
-const ORBIT_PITCH_MIN = -Math.PI * 0.44
-const ORBIT_PITCH_MAX = Math.PI * 0.44
 const ORBIT_DISTANCE_MIN = 1
 const ORBIT_DISTANCE_MAX = 150
 
@@ -88,6 +83,10 @@ export class CameraController {
   private readonly freeFlyWorldUp = new THREE.Vector3(0, 1, 0)
   /** Last valid horizontal right for free-fly pitch when `up × forward` is degenerate. */
   private readonly freeFlyStableRight = new THREE.Vector3(1, 0, 0)
+  /** World-space angular velocity (rad/s) for free-fly look: up * (-yawRate) + right * (-pitchRate). */
+  private readonly freeFlyOmega = new THREE.Vector3()
+  /** Tangent increment `omega × forward * dt` before normalizing forward. */
+  private readonly freeFlyLookTangent = new THREE.Vector3()
   private readonly freeFlyIntent = new THREE.Vector3()
   /** Unbounded translation boost while move keys held; decays to FREE_FLY_MOVE_BOOST_START when idle. */
   private freeFlyMoveBoost = FREE_FLY_MOVE_BOOST_START
@@ -143,7 +142,6 @@ export class CameraController {
   setOrbitDelta(dx: number, dy: number): void {
     this.orbitYaw -= dx * ORBIT_SENSITIVITY
     this.orbitPitch -= dy * ORBIT_SENSITIVITY
-    this.orbitPitch = Math.max(ORBIT_PITCH_MIN, Math.min(ORBIT_PITCH_MAX, this.orbitPitch))
   }
 
   /** Adjust the orbit distance (zoom). delta > 0 = zoom out, delta < 0 = zoom in. */
@@ -378,44 +376,32 @@ export class CameraController {
     this.freeFlyYawRate += (targetYaw - this.freeFlyYawRate) * lookAlpha
     this.freeFlyPitchRate += (targetPitch - this.freeFlyPitchRate) * lookAlpha
 
-    const deltaYaw = this.freeFlyYawRate * dt
-    let deltaPitch = this.freeFlyPitchRate * dt
-
-    if (deltaYaw !== 0 || deltaPitch !== 0) {
+    if (this.freeFlyYawRate !== 0 || this.freeFlyPitchRate !== 0) {
       this.camera.getWorldDirection(this.forward)
       if (this.forward.lengthSq() < 1e-12) this.forward.set(0, 0, -1)
       this.forward.normalize()
 
-      if (deltaYaw !== 0) {
-        this.forward.applyAxisAngle(this.freeFlyWorldUp, -deltaYaw)
-        this.forward.normalize()
-      }
-
-      if (deltaPitch !== 0) {
-        this.right.crossVectors(this.freeFlyWorldUp, this.forward)
+      this.right.crossVectors(this.freeFlyWorldUp, this.forward)
+      if (this.right.lengthSq() < FREE_FLY_POLE_EPS_SQ) {
+        this.right.copy(this.freeFlyStableRight)
+        this.right.addScaledVector(this.forward, -this.forward.dot(this.right))
         if (this.right.lengthSq() < FREE_FLY_POLE_EPS_SQ) {
-          this.right.copy(this.freeFlyStableRight)
+          this.right.set(1, 0, 0)
           this.right.addScaledVector(this.forward, -this.forward.dot(this.right))
-          if (this.right.lengthSq() < FREE_FLY_POLE_EPS_SQ) {
-            this.right.set(1, 0, 0)
-            this.right.addScaledVector(this.forward, -this.forward.dot(this.right))
-          }
         }
-        this.right.normalize()
+      }
+      this.right.normalize()
 
-        const elev = Math.asin(THREE.MathUtils.clamp(this.forward.y, -1, 1))
-        let appliedPitch = deltaPitch
-        const nextElev = elev + appliedPitch
-        if (nextElev > FREE_FLY_ELEV_MAX) {
-          appliedPitch = FREE_FLY_ELEV_MAX - elev
-        } else if (nextElev < FREE_FLY_ELEV_MIN) {
-          appliedPitch = FREE_FLY_ELEV_MIN - elev
-        }
-
-        if (appliedPitch !== 0) {
-          this.forward.applyAxisAngle(this.right, -appliedPitch)
-          this.forward.normalize()
-        }
+      this.freeFlyOmega
+        .copy(this.freeFlyWorldUp)
+        .multiplyScalar(-this.freeFlyYawRate)
+        .addScaledVector(this.right, -this.freeFlyPitchRate)
+      this.freeFlyLookTangent.crossVectors(this.freeFlyOmega, this.forward).multiplyScalar(dt)
+      this.forward.add(this.freeFlyLookTangent)
+      if (this.forward.lengthSq() < 1e-18) {
+        this.forward.set(0, 0, -1)
+      } else {
+        this.forward.normalize()
       }
 
       this.right.crossVectors(this.freeFlyWorldUp, this.forward)

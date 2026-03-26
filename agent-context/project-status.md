@@ -11,7 +11,7 @@ Last updated: 2026-03-21
 - Camera controller: free fly (W/S along view or Alt+W/S vertical, A/D strafe, translation boost ramps up unbounded while keys held, arrow look with capped max turn rate after ramp, Shift = translation sprint only, quaternion look), follow, top/front/right presets; first/third person; **tracking** (follows target position only—no entity rotation on the offset; world-space orbit/zoom like follow, 3× follow standoff for default distance); optional **`editorFreePose`** on saved world for Builder viewport restore
 - Follow/third-person camera now rotates offset using target entity orientation (quaternion-driven follow behavior)
 - **First person**: no target-position lerp; look uses entity quaternion plus vehicle-local orbit yaw/pitch (shared with SceneView drag/trackpad) and ~**5°** pitch up; mouse wheel / pinch adjusts **FOV** in first person; **FOV returns to 50°** when switching to another mode; entering first person resets orbit yaw/pitch/distance
-- Follow / third-person / tracking orbit: middle-mouse drag, trackpad scroll, pinch, and mouse wheel orbit or zoom around the target; orbit resets when switching camera control mode
+- Follow / third-person / tracking orbit: middle-mouse drag, trackpad scroll, pinch, and mouse wheel orbit or zoom around the target; **orbit pitch is not angle-clamped**; orbit resets when switching camera control mode
 - Script runner: main-thread, `game` API, hooks `onSpawn` / `onUpdate` / `onCollision`
 - Asset resolver: textures + 3D models (GLB only) via blob URLs
 

@@ -187,6 +187,114 @@ describe('CameraController', () => {
     expect(camera.quaternion.length()).toBeGreaterThan(0.99)
   })
 
+  /** Orbit-style pitch clamp was ±0.44π; sin that magnitude — free-fly must exceed this to prove no vertical stop. */
+  const LEGACY_ORBIT_ELEV_ABS_SIN_CAP = Math.sin(Math.PI * 0.44)
+
+  describe('free-fly look (tangent ω×forward integration)', () => {
+    function freeFlyScene() {
+      const scene = new THREE.Scene()
+      scene.userData.camera = {
+        control: 'free',
+        mode: 'follow',
+        target: 'player',
+        distance: 10,
+        height: 2,
+      }
+      const getEntityPosition = vi.fn(() => new THREE.Vector3(0, 0, 0))
+      return { scene, getEntityPosition }
+    }
+
+    it('reaches |forward.y| beyond legacy orbit pitch cap (full vertical)', () => {
+      const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 1000)
+      camera.position.set(0, 5, 0)
+      camera.lookAt(10, 5, 0)
+      const { scene, getEntityPosition } = freeFlyScene()
+      const controller = new CameraController({ camera, scene, getEntityPosition })
+      const dir = new THREE.Vector3()
+
+      const run = (keys: { arrowUp?: boolean; arrowDown?: boolean }) => {
+        controller.setFreeFlyInput(keys)
+        for (let i = 0; i < 900; i++) controller.update(1 / 60)
+        camera.getWorldDirection(dir)
+        return dir.y
+      }
+
+      const yUp = run({ arrowUp: true })
+      const cam2 = new THREE.PerspectiveCamera(50, 1, 0.1, 1000)
+      cam2.position.set(0, 5, 0)
+      cam2.lookAt(10, 5, 0)
+      const ctrl2 = new CameraController({ camera: cam2, scene, getEntityPosition })
+      ctrl2.setFreeFlyInput({ arrowDown: true })
+      for (let i = 0; i < 900; i++) ctrl2.update(1 / 60)
+      cam2.getWorldDirection(dir)
+      const yDown = dir.y
+
+      const maxAbs = Math.max(Math.abs(yUp), Math.abs(yDown))
+      expect(maxAbs).toBeGreaterThan(LEGACY_ORBIT_ELEV_ABS_SIN_CAP + 0.008)
+    })
+
+    it('keeps world forward unit length over long mixed arrow input', () => {
+      const { camera, scene, getEntityPosition } = createTestSetup()
+      const controller = new CameraController({ camera, scene, getEntityPosition })
+      controller.setFreeFlyInput({
+        arrowLeft: true,
+        arrowDown: true,
+      })
+      const dir = new THREE.Vector3()
+      for (let i = 0; i < 800; i++) {
+        controller.update(1 / 60)
+        camera.getWorldDirection(dir)
+        expect(dir.length()).toBeGreaterThan(0.999)
+        expect(dir.length()).toBeLessThan(1.001)
+        expect(Number.isFinite(dir.x)).toBe(true)
+      }
+    })
+
+    it('arrow up vs arrow down produce opposite vertical tilt from the same start', () => {
+      const dir = new THREE.Vector3()
+      const run = (arrowUp: boolean, arrowDown: boolean) => {
+        const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 1000)
+        camera.position.set(0, 5, 10)
+        camera.lookAt(0, 0, 0)
+        const scene = new THREE.Scene()
+        scene.userData.camera = {
+          control: 'free',
+          mode: 'follow',
+          target: 'player',
+          distance: 10,
+          height: 2,
+        }
+        const getEntityPosition = vi.fn(() => new THREE.Vector3(0, 0, 0))
+        const controller = new CameraController({ camera, scene, getEntityPosition })
+        camera.getWorldDirection(dir)
+        const yStart = dir.y
+        controller.setFreeFlyInput({ arrowUp, arrowDown })
+        for (let i = 0; i < 360; i++) controller.update(1 / 60)
+        camera.getWorldDirection(dir)
+        return dir.y - yStart
+      }
+
+      const deltaUp = run(true, false)
+      const deltaDown = run(false, true)
+      expect(deltaUp * deltaDown).toBeLessThan(0)
+      expect(Math.abs(deltaUp)).toBeGreaterThan(0.04)
+      expect(Math.abs(deltaDown)).toBeGreaterThan(0.04)
+    })
+
+    it('does not touch orientation when look rates are zero (no arrows)', () => {
+      const { camera, scene, getEntityPosition } = createTestSetup()
+      const controller = new CameraController({ camera, scene, getEntityPosition })
+      const q0 = camera.quaternion.clone()
+      const dir0 = new THREE.Vector3()
+      camera.getWorldDirection(dir0)
+      for (let i = 0; i < 120; i++) controller.update(1 / 60)
+      expect(camera.quaternion.angleTo(q0)).toBeLessThan(1e-6)
+      const dir1 = new THREE.Vector3()
+      camera.getWorldDirection(dir1)
+      expect(dir0.distanceTo(dir1)).toBeLessThan(1e-5)
+    })
+  })
+
   it('Shift increases move speed vs no Shift', () => {
     const { camera, scene, getEntityPosition } = createTestSetup()
     const start = new THREE.Vector3(0, 5, 10)
@@ -599,15 +707,15 @@ describe('CameraController', () => {
       expect(camera.position.y).toBeGreaterThan(basePosY)
     })
 
-    it('pitch is clamped and does not flip the camera', () => {
+    it('extreme orbit pitch deltas stay numerically finite', () => {
       const { camera, controller } = makeFollowController('follow')
 
-      // Apply extreme downward pitch many times
       for (let i = 0; i < 50; i++) controller.setOrbitDelta(0, 10000)
       for (let i = 0; i < 5; i++) controller.update(0.016)
 
-      // Camera Y must still be above the target (clamped, not flipped)
-      expect(camera.position.y).toBeGreaterThan(-Infinity)
+      expect(Number.isFinite(camera.position.x)).toBe(true)
+      expect(Number.isFinite(camera.position.y)).toBe(true)
+      expect(Number.isFinite(camera.position.z)).toBe(true)
     })
 
     it('orbit resets when switching control mode', () => {
