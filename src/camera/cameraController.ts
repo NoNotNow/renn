@@ -35,6 +35,8 @@ const FREE_FLY_LOOK_SMOOTH = 16
 /** Elevation from horizontal (asin(forward.y)), radians — same band as orbit pitch. */
 const FREE_FLY_ELEV_MIN = -Math.PI * 0.44
 const FREE_FLY_ELEV_MAX = Math.PI * 0.44
+/** `worldUp × forward` nearly zero when looking straight up/down — use projected stable right. */
+const FREE_FLY_POLE_EPS_SQ = 1e-6
 const VIEW_PRESET_DISTANCE = 15
 const ORBIT_SENSITIVITY = 0.003
 const ORBIT_PITCH_MIN = -Math.PI * 0.44
@@ -84,9 +86,8 @@ export class CameraController {
   private freeFlyPitchRate = 0
   private readonly freeFlyTargetMove = new THREE.Vector3()
   private readonly freeFlyWorldUp = new THREE.Vector3(0, 1, 0)
-  private readonly freeFlyQuatYaw = new THREE.Quaternion()
-  private readonly freeFlyQuatPitch = new THREE.Quaternion()
-  private readonly freeFlyAxisRightLocal = new THREE.Vector3(1, 0, 0)
+  /** Last valid horizontal right for free-fly pitch when `up × forward` is degenerate. */
+  private readonly freeFlyStableRight = new THREE.Vector3(1, 0, 0)
   private readonly freeFlyIntent = new THREE.Vector3()
   /** Unbounded translation boost while move keys held; decays to FREE_FLY_MOVE_BOOST_START when idle. */
   private freeFlyMoveBoost = FREE_FLY_MOVE_BOOST_START
@@ -187,6 +188,7 @@ export class CameraController {
     this.freeFlyPitchRate = 0
     this.freeFlyMoveBoost = FREE_FLY_MOVE_BOOST_START
     this.freeFlyLookRamp = 0
+    this.freeFlyStableRight.set(1, 0, 0)
   }
 
   setForceFreeFlyNavigation(enabled: boolean): void {
@@ -310,7 +312,7 @@ export class CameraController {
     this.forward.normalize()
     // Horizontal strafe axis: worldUp × forward (Y-up).
     this.right.crossVectors(this.freeFlyWorldUp, this.forward)
-    if (this.right.lengthSq() < 1e-6) {
+    if (this.right.lengthSq() < FREE_FLY_POLE_EPS_SQ) {
       this.right.set(1, 0, 0)
     } else {
       this.right.normalize()
@@ -377,25 +379,53 @@ export class CameraController {
     this.freeFlyPitchRate += (targetPitch - this.freeFlyPitchRate) * lookAlpha
 
     const deltaYaw = this.freeFlyYawRate * dt
-    if (deltaYaw !== 0) {
-      this.freeFlyQuatYaw.setFromAxisAngle(this.freeFlyWorldUp, -deltaYaw)
-      this.camera.quaternion.premultiply(this.freeFlyQuatYaw)
-    }
-
     let deltaPitch = this.freeFlyPitchRate * dt
-    if (deltaPitch !== 0) {
+
+    if (deltaYaw !== 0 || deltaPitch !== 0) {
       this.camera.getWorldDirection(this.forward)
-      const elev = Math.asin(THREE.MathUtils.clamp(this.forward.y, -1, 1))
-      const nextElev = elev + deltaPitch
-      if (nextElev > FREE_FLY_ELEV_MAX) {
-        deltaPitch = FREE_FLY_ELEV_MAX - elev
-      } else if (nextElev < FREE_FLY_ELEV_MIN) {
-        deltaPitch = FREE_FLY_ELEV_MIN - elev
+      if (this.forward.lengthSq() < 1e-12) this.forward.set(0, 0, -1)
+      this.forward.normalize()
+
+      if (deltaYaw !== 0) {
+        this.forward.applyAxisAngle(this.freeFlyWorldUp, -deltaYaw)
+        this.forward.normalize()
       }
+
       if (deltaPitch !== 0) {
-        this.freeFlyQuatPitch.setFromAxisAngle(this.freeFlyAxisRightLocal, -deltaPitch)
-        this.camera.quaternion.multiply(this.freeFlyQuatPitch)
+        this.right.crossVectors(this.freeFlyWorldUp, this.forward)
+        if (this.right.lengthSq() < FREE_FLY_POLE_EPS_SQ) {
+          this.right.copy(this.freeFlyStableRight)
+          this.right.addScaledVector(this.forward, -this.forward.dot(this.right))
+          if (this.right.lengthSq() < FREE_FLY_POLE_EPS_SQ) {
+            this.right.set(1, 0, 0)
+            this.right.addScaledVector(this.forward, -this.forward.dot(this.right))
+          }
+        }
+        this.right.normalize()
+
+        const elev = Math.asin(THREE.MathUtils.clamp(this.forward.y, -1, 1))
+        let appliedPitch = deltaPitch
+        const nextElev = elev + appliedPitch
+        if (nextElev > FREE_FLY_ELEV_MAX) {
+          appliedPitch = FREE_FLY_ELEV_MAX - elev
+        } else if (nextElev < FREE_FLY_ELEV_MIN) {
+          appliedPitch = FREE_FLY_ELEV_MIN - elev
+        }
+
+        if (appliedPitch !== 0) {
+          this.forward.applyAxisAngle(this.right, -appliedPitch)
+          this.forward.normalize()
+        }
       }
+
+      this.right.crossVectors(this.freeFlyWorldUp, this.forward)
+      if (this.right.lengthSq() >= FREE_FLY_POLE_EPS_SQ) {
+        this.right.normalize()
+        this.freeFlyStableRight.copy(this.right)
+      }
+
+      this.currentOffset.copy(this.camera.position).add(this.forward)
+      this.camera.lookAt(this.currentOffset)
     }
 
     this.camera.up.copy(this.freeFlyWorldUp)

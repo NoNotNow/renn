@@ -160,6 +160,33 @@ describe('CameraController', () => {
     expect(camera.quaternion.angleTo(q0)).toBeGreaterThan(0.02)
   })
 
+  it('free fly stays finite near vertical view (pole robustness)', () => {
+    const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 1000)
+    camera.position.set(0, 10, 0)
+    camera.lookAt(0.01, 11, 0)
+    const scene = new THREE.Scene()
+    scene.userData.camera = {
+      control: 'free',
+      mode: 'follow',
+      target: 'player',
+      distance: 10,
+      height: 2,
+    }
+    const getEntityPosition = vi.fn(() => new THREE.Vector3(0, 0, 0))
+    const controller = new CameraController({ camera, scene, getEntityPosition })
+    controller.setFreeFlyInput({ arrowRight: true, arrowUp: true, arrowDown: true })
+    for (let i = 0; i < 120; i++) controller.update(1 / 60)
+    const dir = new THREE.Vector3()
+    camera.getWorldDirection(dir)
+    expect(Number.isFinite(dir.x)).toBe(true)
+    expect(Number.isFinite(dir.y)).toBe(true)
+    expect(Number.isFinite(dir.z)).toBe(true)
+    expect(dir.length()).toBeGreaterThan(0.99)
+    expect(dir.length()).toBeLessThan(1.01)
+    expect(Number.isFinite(camera.position.x)).toBe(true)
+    expect(camera.quaternion.length()).toBeGreaterThan(0.99)
+  })
+
   it('Shift increases move speed vs no Shift', () => {
     const { camera, scene, getEntityPosition } = createTestSetup()
     const start = new THREE.Vector3(0, 5, 10)
