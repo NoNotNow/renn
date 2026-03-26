@@ -13,6 +13,7 @@ import { syncShapeWireframeOverlay } from './shapeWireframeOverlay'
 import { createAssetResolver, type DisposableAssetResolver } from './assetResolverImpl'
 import { getSceneUserData } from '@/types/sceneUserData'
 import { eulerToQuaternion } from '@/utils/rotationUtils'
+import { computeDirectionalShadowCameraExtent } from '@/utils/shadowBounds'
 
 export interface LoadedEntity {
   entity: Entity
@@ -54,6 +55,9 @@ export async function loadWorld(
   const dirDirection = dirLightConfig?.direction ?? [1, 2, 1]
   const dirColor = dirLightConfig?.color ?? [1, 0.98, 0.9]
   const dirIntensity = dirLightConfig?.intensity ?? 1.2
+
+  const shadowExtent = computeDirectionalShadowCameraExtent(world.entities)
+
   const dirLight = new THREE.DirectionalLight(
     new THREE.Color(dirColor[0], dirColor[1], dirColor[2]),
     dirIntensity
@@ -67,10 +71,10 @@ export async function loadWorld(
   dirLight.shadow.mapSize.height = 2048
   dirLight.shadow.bias = -0.0001
   const shadowCam = dirLight.shadow.camera
-  shadowCam.left = -40
-  shadowCam.right = 40
-  shadowCam.top = 40
-  shadowCam.bottom = -40
+  shadowCam.left = -shadowExtent
+  shadowCam.right = shadowExtent
+  shadowCam.top = shadowExtent
+  shadowCam.bottom = -shadowExtent
   shadowCam.near = 0.5
   shadowCam.far = 150
   shadowCam.updateProjectionMatrix()

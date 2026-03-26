@@ -23,6 +23,7 @@ import { useRawKeyboardInput, useRawWheelInput, getRawInputSnapshot } from '@/in
 import { useRawMouseDrag } from '@/input/rawMouseDrag'
 import type { RawInput, TransformerConfig } from '@/types/transformer'
 import { getSceneDependencyKey } from '@/utils/sceneDependencyKey'
+import { computeDirectionalShadowCameraExtent } from '@/utils/shadowBounds'
 
 const FIXED_DT = 1 / 60
 
@@ -708,6 +709,23 @@ function SceneViewInner({
       if (sceneUserData.directionalLight) sceneUserData.directionalLight.castShadow = shadowsEnabled
     }
   }, [shadowsEnabled, renderer, scene])
+
+  // Update the directional shadow camera orthographic bounds when planes change.
+  // Note: plane `scale`/`position` updates in the Builder do not trigger a full scene rebuild.
+  useEffect(() => {
+    if (!scene) return
+    const sceneUserData = getSceneUserData(scene)
+    const dirLight = sceneUserData.directionalLight
+    if (!dirLight) return
+
+    const extent = computeDirectionalShadowCameraExtent(world.entities)
+    const shadowCam = dirLight.shadow.camera
+    shadowCam.left = -extent
+    shadowCam.right = extent
+    shadowCam.top = extent
+    shadowCam.bottom = -extent
+    shadowCam.updateProjectionMatrix()
+  }, [scene, world.entities])
 
   // Update sky color when it changes (without full reload)
   useEffect(() => {

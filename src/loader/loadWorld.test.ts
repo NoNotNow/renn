@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest'
 import { loadWorld } from '@/loader/loadWorld'
 import { createDefaultEntity, type AddableShapeType } from '@/data/entityDefaults'
 import type { RennWorld } from '@/types/world'
+import { getSceneUserData } from '@/types/sceneUserData'
 
 function minimalWorldWithShapes(): RennWorld {
   const types: AddableShapeType[] = ['box', 'sphere', 'cylinder', 'capsule', 'plane']
@@ -86,5 +87,34 @@ describe('loadWorld', () => {
     const mat = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material
     expect(mat).toBeInstanceOf(THREE.MeshStandardMaterial)
     expect(mat).not.toBeInstanceOf(THREE.MeshBasicMaterial)
+  })
+
+  it('sets directional shadow camera bounds based on the largest plane entity', async () => {
+    const plane = createDefaultEntity('plane')
+    plane.position = [10, 0, -20]
+    plane.scale = [2, 3, 1]
+
+    const world: RennWorld = {
+      version: '1.0',
+      world: { gravity: [0, -9.81, 0] },
+      entities: [plane],
+    }
+
+    const { scene } = await loadWorld(world)
+    const sceneUserData = getSceneUserData(scene)
+    const dirLight = sceneUserData.directionalLight
+    expect(dirLight).toBeDefined()
+
+    const baseHalf = 100
+    const halfX = baseHalf * Math.abs(plane.scale[0])
+    const halfZ = baseHalf * Math.abs(plane.scale[1])
+    const bound = Math.max(Math.abs(plane.position[0]) + halfX, Math.abs(plane.position[2]) + halfZ)
+    const expectedExtent = Math.max(bound * 1.1, 40)
+
+    const shadowCam = dirLight!.shadow.camera
+    expect(shadowCam.left).toBeCloseTo(-expectedExtent)
+    expect(shadowCam.right).toBeCloseTo(expectedExtent)
+    expect(shadowCam.top).toBeCloseTo(expectedExtent)
+    expect(shadowCam.bottom).toBeCloseTo(-expectedExtent)
   })
 })
