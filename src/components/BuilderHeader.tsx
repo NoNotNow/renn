@@ -42,6 +42,7 @@ export interface BuilderHeaderProps {
   onRedo?: () => void
   editNavigationMode?: boolean
   onEditNavigationModeToggle?: () => void
+  onOpenPerformanceBooster?: () => void
 }
 
 export default function BuilderHeader({
@@ -73,6 +74,7 @@ export default function BuilderHeader({
   onRedo,
   editNavigationMode = false,
   onEditNavigationModeToggle,
+  onOpenPerformanceBooster,
 }: BuilderHeaderProps) {
   const [showProjectSelector, setShowProjectSelector] = useState(false)
 
@@ -195,6 +197,15 @@ export default function BuilderHeader({
     },
   ]
 
+  const toolsMenuItems: MenuItemConfig[] = [
+    {
+      type: 'item',
+      label: 'Performance booster',
+      onClick: onOpenPerformanceBooster,
+      disabled: !onOpenPerformanceBooster,
+    },
+  ]
+
   const debugMenuItems: MenuItemConfig[] = [
     {
       type: 'submenu',
@@ -260,6 +271,7 @@ export default function BuilderHeader({
             <DropdownMenu label="Edit" items={editMenuItems} />
             <DropdownMenu label="View" items={viewMenuItems} />
             <DropdownMenu label="Project" items={projectMenuItems} />
+            <DropdownMenu label="Tools" items={toolsMenuItems} />
             <DropdownMenu label="Debug" items={debugMenuItems} />
           </MenuBar>
         </div>

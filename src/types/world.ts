@@ -92,10 +92,20 @@ export interface AssetRef {
   type?: 'texture' | 'model' | 'cubeTexture'
 }
 
+/** Mesh decimation backend; `meshoptimizer` is higher quality, `simplifyModifier` is the legacy Three.js path. */
+export type SimplificationAlgorithm = 'meshoptimizer' | 'simplifyModifier'
+
 export interface TrimeshSimplificationConfig {
   enabled?: boolean  // Whether to enable simplification
   maxTriangles?: number  // Maximum triangles (e.g., 5000)
   targetReduction?: number  // Alternative: percentage to reduce (0.0-1.0, e.g., 0.5 = 50% reduction)
+  /** Default `meshoptimizer`. */
+  algorithm?: SimplificationAlgorithm
+  /**
+   * Error scale for meshoptimizer (multiplied by mesh bounding scale from `getScale`).
+   * Typical range ~0.001–0.1; default 0.01.
+   */
+  maxError?: number
 }
 
 export type Shape =

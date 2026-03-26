@@ -216,7 +216,9 @@
               "properties": {
                 "enabled": { "type": "boolean" },
                 "maxTriangles": { "type": "number", "minimum": 500 },
-                "targetReduction": { "type": "number", "minimum": 0, "maximum": 1 }
+                "targetReduction": { "type": "number", "minimum": 0, "maximum": 1 },
+                "algorithm": { "enum": ["meshoptimizer", "simplifyModifier"] },
+                "maxError": { "type": "number", "minimum": 0.0001, "maximum": 1 }
               },
               "additionalProperties": false
             }

@@ -12,7 +12,7 @@ import type {
 import type { Rotation, Vec3 } from '@/types/world'
 import { DEFAULT_GRAVITY, DEFAULT_ROTATION } from '@/types/world'
 import { extractMeshGeometry, getGeometryInfo } from '@/utils/geometryExtractor'
-import { simplifyGeometry, shouldSimplifyGeometry } from '@/utils/meshSimplifier'
+import { simplifyGeometry, shouldSimplifyGeometry, ensureMeshoptSimplifierReady } from '@/utils/meshSimplifier'
 import { eulerToQuaternion, eulerToRapierQuaternion } from '@/utils/rotationUtils'
 import type { CollisionImpact } from '@/scripts/scriptCtx'
 
@@ -325,7 +325,11 @@ export class PhysicsWorld {
               
               // Check if simplification is needed
               const trimeshShape = shape as { type: 'trimesh'; model: string; simplification?: TrimeshSimplificationConfig }
-              if (shouldSimplifyGeometry(originalInfo.triangleCount, trimeshShape.simplification)) {
+              const preSimplified = mesh.userData.trimeshGeometriesSimplified === true
+              if (
+                !preSimplified &&
+                shouldSimplifyGeometry(originalInfo.triangleCount, trimeshShape.simplification)
+              ) {
                 console.log(`[PhysicsWorld] Simplifying trimesh: ${originalInfo.triangleCount} triangles`)
                 
                 try {
@@ -788,6 +792,7 @@ export async function createPhysicsWorld(
   entities: LoadedEntity[]
 ): Promise<PhysicsWorld> {
   await initRapier()
+  await ensureMeshoptSimplifierReady()
 
   const gravity = world.world.gravity ?? DEFAULT_GRAVITY
   const physicsWorld = new PhysicsWorld(gravity, world.world.sleeping)

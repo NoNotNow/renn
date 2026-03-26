@@ -24,6 +24,8 @@ import { useRawMouseDrag } from '@/input/rawMouseDrag'
 import type { RawInput, TransformerConfig } from '@/types/transformer'
 import { getSceneDependencyKey } from '@/utils/sceneDependencyKey'
 import { computeDirectionalShadowCameraExtent } from '@/utils/shadowBounds'
+import { countTrianglesInObject3D } from '@/utils/geometryExtractor'
+import { findEntityRootForPicking } from '@/utils/entityPicking'
 
 const FIXED_DT = 1 / 60
 
@@ -68,6 +70,14 @@ export interface SceneViewProps {
   editNavigationMode?: boolean
   /** Builder: session ref for last free-fly pose; merged on save via ProjectContext.getWorldToSave. */
   editorFreePoseRef?: React.MutableRefObject<EditorFreePose | null>
+  /**
+   * Builder: when `mode` is set, the next click on the canvas picks an entity (raycast)
+   * and calls `onEntityPicked` (Performance booster).
+   */
+  performancePick?: {
+    mode: 'mesh' | 'texture' | null
+    onEntityPicked: (entityId: string) => void
+  } | null
 }
 
 export type EntityPhysicsPatch = Partial<Pick<Entity, 'mass' | 'restitution' | 'friction' | 'linearDamping' | 'angularDamping' | 'bodyType'>>
@@ -87,6 +97,9 @@ export interface SceneViewHandle {
   getAllPoses: () => Map<string, { position: Vec3; rotation: Rotation; scale: Vec3 }> | null
   resetCamera: () => void
   applyDebugForce: (entityId: string, force: Vec3, duration: number) => void
+  /** Builder: root entity mesh (for trimesh, includes wrapper with `userData.trimeshScene`). */
+  getMeshForEntity: (entityId: string) => THREE.Mesh | null
+  getEntityTriangleCount: (entityId: string) => number | null
 }
 
 function SceneViewInner({
@@ -106,6 +119,7 @@ function SceneViewInner({
   onPosesRestored,
   editNavigationMode = false,
   editorFreePoseRef,
+  performancePick = null,
 }: SceneViewProps, ref: React.Ref<SceneViewHandle>) {
   const sceneKey = useMemo(() => getSceneDependencyKey(world), [world])
   const containerRef = useRef<HTMLDivElement>(null)
@@ -167,6 +181,32 @@ function SceneViewInner({
     registryRef.current?.syncAllShapeWireframeOverlays(world.entities)
   }, [world, registryEpoch])
 
+  const perfPickMode = performancePick?.mode
+  const perfPickCb = performancePick?.onEntityPicked
+
+  useEffect(() => {
+    if (!perfPickMode || !scene || !camera || !renderer || !perfPickCb) return
+    const dom = renderer.domElement
+    const raycaster = new THREE.Raycaster()
+    const ndc = new THREE.Vector2()
+    const onDown = (e: PointerEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      const rect = dom.getBoundingClientRect()
+      ndc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1
+      ndc.y = -((e.clientY - rect.top) / rect.height) * 2 + 1
+      raycaster.setFromCamera(ndc, camera)
+      const roots = scene.children.filter((o) => o.userData?.entityId != null)
+      const hits = raycaster.intersectObjects(roots, true)
+      if (hits.length === 0) return
+      const root = findEntityRootForPicking(hits[0]!.object)
+      const id = root?.userData?.entityId
+      if (typeof id === 'string') perfPickCb(id)
+    }
+    dom.addEventListener('pointerdown', onDown, { capture: true })
+    return () => dom.removeEventListener('pointerdown', onDown, { capture: true })
+  }, [scene, camera, renderer, perfPickMode, perfPickCb])
+
   useImperativeHandle(ref, () => ({
     setViewPreset: (preset: 'top' | 'front' | 'right') => {
       cameraCtrlRef.current?.setViewPreset(preset)
@@ -226,7 +266,13 @@ function SceneViewInner({
       
       const endTime = timeRef.current + duration
       activeDebugForcesRef.current.push({ entityId, force, endTime })
-    }
+    },
+    getMeshForEntity: (entityId: string) => registryRef.current?.get(entityId)?.mesh ?? null,
+    getEntityTriangleCount: (entityId: string) => {
+      const m = registryRef.current?.get(entityId)?.mesh
+      if (!m) return null
+      return countTrianglesInObject3D(m)
+    },
   }), [camera, world.world.camera, editorFreePoseRef])
 
   // Main scene setup effect

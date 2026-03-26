@@ -1,10 +1,13 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeAll } from 'vitest'
 import * as THREE from 'three'
-import { simplifyGeometry, shouldSimplifyGeometry } from './meshSimplifier'
+import { simplifyGeometry, shouldSimplifyGeometry, ensureMeshoptSimplifierReady } from './meshSimplifier'
 import { extractMeshGeometry } from './geometryExtractor'
 import type { TrimeshSimplificationConfig } from '@/types/world'
 
 describe('meshSimplifier', () => {
+  beforeAll(async () => {
+    await ensureMeshoptSimplifierReady()
+  })
   describe('simplifyGeometry', () => {
     it('should simplify a high-poly sphere', () => {
       // Create a high-poly sphere

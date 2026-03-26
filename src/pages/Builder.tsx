@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react'
 import SceneView, { type SceneViewHandle } from '@/components/SceneView'
 import BuilderHeader from '@/components/BuilderHeader'
+import PerformanceBoosterDialog from '@/components/PerformanceBoosterDialog'
 import SaveDialog from '@/components/SaveDialog'
 import EntitySidebar from '@/components/EntitySidebar'
 import PropertySidebar from '@/components/PropertySidebar'
@@ -10,12 +11,13 @@ import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { cloneEntityFrom, createDefaultEntity, createBulkEntities, type AddableShapeType, type BulkEntityParams } from '@/data/entityDefaults'
 import { useProjectContext } from '@/hooks/useProjectContext'
 import { useLocalStorageState } from '@/hooks/useLocalStorageState'
-import { cycleCameraMode, DEFAULT_SCALE, type Vec3, type Rotation, type Entity } from '@/types/world'
+import { cycleCameraMode, DEFAULT_SCALE, type Vec3, type Rotation, type Entity, type TrimeshSimplificationConfig } from '@/types/world'
 import { uiLogger } from '@/utils/uiLogger'
 import { getSceneDependencyKey } from '@/utils/sceneDependencyKey'
 import type { TransformerConfig } from '@/types/transformer'
 import type { BuilderGizmoMode, BuilderPoseCommitEntry } from '@/editor/transformGizmoController'
 import { cloneEditorSnapshot, createEditorHistory, type EditorSnapshot } from '@/editor/editorHistory'
+import { downscaleImageBlob } from '@/utils/textureDownscale'
 
 const EDITOR_HISTORY_MAX_DEPTH = 80
 
@@ -75,6 +77,10 @@ export default function Builder() {
   const [shadowsEnabled, setShadowsEnabled] = useState(true)
   const [editNavigationMode, setEditNavigationMode] = useState(false)
   const [showSaveDialog, setShowSaveDialog] = useState(false)
+  const [performanceBoosterOpen, setPerformanceBoosterOpen] = useState(false)
+  const [perfPickMode, setPerfPickMode] = useState<'mesh' | 'texture' | null>(null)
+  const [perfMeshEntityId, setPerfMeshEntityId] = useState<string | null>(null)
+  const [perfTextureEntityId, setPerfTextureEntityId] = useState<string | null>(null)
   const [livePoses, setLivePoses] = useState<
     Map<string, { position: Vec3; rotation: Rotation; scale: Vec3 }> | null
   >(null)
@@ -586,6 +592,40 @@ export default function Builder() {
     [selectedEntityIds, world.entities]
   )
 
+  const handleApplyMeshSimplification = useCallback(
+    (entityId: string, config: TrimeshSimplificationConfig) => {
+      pushHistory()
+      captureScenePosesForNextRebuild()
+      updateWorld((prev) => ({
+        ...prev,
+        entities: prev.entities.map((e) =>
+          e.id === entityId && e.shape?.type === 'trimesh'
+            ? { ...e, shape: { ...e.shape, simplification: { ...config, enabled: true } } }
+            : e
+        ),
+      }))
+    },
+    [updateWorld, captureScenePosesForNextRebuild, pushHistory]
+  )
+
+  const handleApplyTextureDownscale = useCallback(
+    async (entityId: string, maxEdgePx: number) => {
+      const entity = world.entities.find((e) => e.id === entityId)
+      const mapId = entity?.material?.map
+      if (!mapId) throw new Error('No texture on entity')
+      const blob = assets.get(mapId)
+      if (!blob) throw new Error('Texture asset missing')
+      const newBlob = await downscaleImageBlob(blob, maxEdgePx)
+      pushHistory()
+      await updateAssets((prev) => {
+        const next = new Map(prev)
+        next.set(mapId, newBlob)
+        return next
+      })
+    },
+    [world.entities, assets, updateAssets, pushHistory]
+  )
+
   void historyTick
   const canUndoHistory = historyRef.current.canUndo()
   const canRedoHistory = historyRef.current.canRedo()
@@ -629,6 +669,10 @@ export default function Builder() {
             return next
           })
         }}
+        onOpenPerformanceBooster={() => {
+          setPerformanceBoosterOpen(true)
+          uiLogger.click('Builder', 'Open Performance booster', {})
+        }}
       />
 
       {showSaveDialog && (
@@ -640,6 +684,28 @@ export default function Builder() {
           onCancel={() => setShowSaveDialog(false)}
         />
       )}
+
+      <PerformanceBoosterDialog
+        isOpen={performanceBoosterOpen}
+        onClose={() => {
+          setPerformanceBoosterOpen(false)
+          setPerfPickMode(null)
+          setPerfMeshEntityId(null)
+          setPerfTextureEntityId(null)
+        }}
+        world={world}
+        assets={assets}
+        sceneViewRef={sceneViewRef}
+        sceneVersion={version}
+        meshTargetEntityId={perfMeshEntityId}
+        textureTargetEntityId={perfTextureEntityId}
+        onMeshTargetSelected={setPerfMeshEntityId}
+        onTextureTargetSelected={setPerfTextureEntityId}
+        onRequestPickMesh={() => setPerfPickMode('mesh')}
+        onRequestPickTexture={() => setPerfPickMode('texture')}
+        onApplyMesh={handleApplyMeshSimplification}
+        onApplyTexture={handleApplyTextureDownscale}
+      />
 
       <div style={{ position: 'relative', flex: 1, minHeight: 0, width: '100%', overflow: 'hidden' }}>
         {editNavigationMode && (
@@ -690,6 +756,18 @@ export default function Builder() {
               onPosesRestored={syncPosesFromScene}
               editNavigationMode={editNavigationMode}
               editorFreePoseRef={editorFreePoseRef}
+              performancePick={
+                perfPickMode
+                  ? {
+                      mode: perfPickMode,
+                      onEntityPicked: (id: string) => {
+                        if (perfPickMode === 'mesh') setPerfMeshEntityId(id)
+                        if (perfPickMode === 'texture') setPerfTextureEntityId(id)
+                        setPerfPickMode(null)
+                      },
+                    }
+                  : null
+              }
             />
           </ErrorBoundary>
         </main>

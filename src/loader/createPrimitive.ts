@@ -1,9 +1,20 @@
 import * as THREE from 'three'
 import { GLTFLoader } from 'three-stdlib'
-import type { Shape, Vec3, Rotation, MaterialRef } from '@/types/world'
+import type { Shape, Vec3, Rotation, MaterialRef, TrimeshSimplificationConfig } from '@/types/world'
 import type { DisposableAssetResolver } from './assetResolverImpl'
 import { eulerToQuaternion } from '@/utils/rotationUtils'
 import { convertZUpToYUpIfNeeded, normalizeSceneToUnitCube } from '@/utils/normalizeModelToUnitCube'
+import {
+  countTrianglesInObject3D,
+  extractMeshGeometryFromMesh,
+  triangleCountForBufferGeometry,
+} from '@/utils/geometryExtractor'
+import {
+  computeTargetTriangleCount,
+  ensureMeshoptSimplifierReady,
+  shouldSimplifyGeometry,
+  simplifyGeometry,
+} from '@/utils/meshSimplifier'
 
 function colorFromRef(material: MaterialRef | undefined): THREE.Color {
   if (material?.color && Array.isArray(material.color)) {
@@ -119,6 +130,79 @@ function collectOriginalMaterialClones(scene: THREE.Object3D): OriginalMaterialE
 }
 
 /**
+ * Reduces triangle count for rendering (proportional per mesh) using the same simplification
+ * settings as physics. Must run before `applyModelTransform`.
+ */
+async function applyTrimeshVisualSimplification(
+  modelScene: THREE.Object3D,
+  simplification: TrimeshSimplificationConfig
+): Promise<boolean> {
+  await ensureMeshoptSimplifierReady()
+  const totalTris = countTrianglesInObject3D(modelScene)
+  if (!shouldSimplifyGeometry(totalTris, simplification)) return false
+
+  const targetTotal = Math.min(
+    computeTargetTriangleCount(totalTris, simplification),
+    simplification.maxTriangles ?? totalTris
+  )
+
+  const meshes: THREE.Mesh[] = []
+  modelScene.updateWorldMatrix(true, true)
+  modelScene.traverse((c) => {
+    if (c instanceof THREE.Mesh && c.geometry) meshes.push(c)
+  })
+  if (meshes.length === 0) return false
+
+  const meshTrisList = meshes.map((m) => triangleCountForBufferGeometry(m.geometry))
+  let lastNonZero = -1
+  for (let i = 0; i < meshTrisList.length; i++) {
+    if (meshTrisList[i]! > 0) lastNonZero = i
+  }
+  let acc = 0
+  const budgets: number[] = []
+  for (let i = 0; i < meshes.length; i++) {
+    const mt = meshTrisList[i]!
+    if (mt === 0) {
+      budgets.push(0)
+      continue
+    }
+    if (i === lastNonZero) {
+      budgets.push(Math.max(0, targetTotal - acc))
+    } else {
+      const p = Math.floor((mt / totalTris) * targetTotal)
+      budgets.push(p)
+      acc += p
+    }
+  }
+
+  let changed = false
+  for (let i = 0; i < meshes.length; i++) {
+    const mesh = meshes[i]!
+    const meshTris = meshTrisList[i]!
+    const meshTarget = Math.max(1, Math.min(meshTris, budgets[i] ?? 0))
+    if (meshTris <= meshTarget) continue
+
+    const sub: TrimeshSimplificationConfig = {
+      ...simplification,
+      enabled: true,
+      maxTriangles: meshTarget,
+      targetReduction: undefined,
+    }
+    const extracted = extractMeshGeometryFromMesh(mesh)
+    if (!extracted) continue
+    const result = simplifyGeometry(extracted, sub)
+    if (result.reductionPercentage <= 0) continue
+    const newGeom = new THREE.BufferGeometry()
+    newGeom.setAttribute('position', new THREE.BufferAttribute(result.vertices, 3))
+    newGeom.setIndex(new THREE.BufferAttribute(result.indices, 1))
+    mesh.geometry.dispose()
+    mesh.geometry = newGeom
+    changed = true
+  }
+  return changed
+}
+
+/**
  * Creates a Three.js mesh for the given shape and material.
  * Does not set position/rotation/scale; caller applies those.
  * 
@@ -185,6 +269,10 @@ export async function createPrimitiveMesh(
             const modelScene = gltf.scene.clone(true)
             convertZUpToYUpIfNeeded(modelScene)
             normalizeSceneToUnitCube(modelScene)
+            let trimeshGeometriesSimplified = false
+            if (shape.simplification) {
+              trimeshGeometriesSimplified = await applyTrimeshVisualSimplification(modelScene, shape.simplification)
+            }
             // Store cloned materials for later restore when user clears override
             const originalMaterialEntries = collectOriginalMaterialClones(modelScene)
             if (materialRef !== undefined) {
@@ -205,6 +293,7 @@ export async function createPrimitiveMesh(
             wrapperMesh.userData.isTrimeshSource = true
             wrapperMesh.userData.trimeshModel = shape.model
             wrapperMesh.userData.trimeshScene = modelScene
+            wrapperMesh.userData.trimeshGeometriesSimplified = trimeshGeometriesSimplified
             wrapperMesh.userData.originalMaterialEntries = originalMaterialEntries
             mat.dispose()
             return wrapperMesh

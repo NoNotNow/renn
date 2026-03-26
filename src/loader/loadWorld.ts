@@ -14,6 +14,7 @@ import { createAssetResolver, type DisposableAssetResolver } from './assetResolv
 import { getSceneUserData } from '@/types/sceneUserData'
 import { eulerToQuaternion } from '@/utils/rotationUtils'
 import { computeDirectionalShadowCameraExtent } from '@/utils/shadowBounds'
+import { ensureMeshoptSimplifierReady } from '@/utils/meshSimplifier'
 
 export interface LoadedEntity {
   entity: Entity
@@ -38,6 +39,8 @@ export async function loadWorld(
   migrateWorldScripts(worldData)
   validateWorldDocument(worldData, { tolerateAdditionalProperties: true, logAdditionalProperties: true })
   const world = worldData as RennWorld
+
+  await ensureMeshoptSimplifierReady()
 
   const scene = new THREE.Scene()
   const userData = getSceneUserData(scene)

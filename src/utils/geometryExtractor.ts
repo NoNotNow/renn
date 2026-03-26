@@ -157,3 +157,32 @@ export function getGeometryInfo(geometry: ExtractedGeometry): {
 
   return { vertexCount, triangleCount, bounds: { min, max } }
 }
+
+/**
+ * Extract indexed geometry from a single mesh in **world space** (applies mesh world matrix to positions).
+ */
+export function extractMeshGeometryFromMesh(mesh: THREE.Mesh): ExtractedGeometry | null {
+  const geometry = mesh.geometry
+  if (!geometry) return null
+  mesh.updateWorldMatrix(true, false)
+  const matrix = mesh.matrixWorld.clone()
+  return mergeGeometries([geometry], [matrix])
+}
+
+export function triangleCountForBufferGeometry(geometry: THREE.BufferGeometry): number {
+  const index = geometry.getIndex()
+  if (index) return index.count / 3
+  const pos = geometry.getAttribute('position')
+  return pos ? pos.count / 3 : 0
+}
+
+/** Sum triangle counts for all meshes under `root` (for performance / simplification UI). */
+export function countTrianglesInObject3D(root: THREE.Object3D): number {
+  let n = 0
+  root.traverse((obj) => {
+    if (obj instanceof THREE.Mesh && obj.geometry) {
+      n += triangleCountForBufferGeometry(obj.geometry)
+    }
+  })
+  return Math.floor(n)
+}
