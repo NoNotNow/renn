@@ -142,6 +142,31 @@ describe('CameraController', () => {
     expect(camera.position.z).not.toBe(initialZ)
   })
 
+  it('force free fly runs while control is follow', () => {
+    const { camera, scene, getEntityPosition } = createTestSetup()
+
+    scene.userData.camera = {
+      control: 'follow',
+      mode: 'follow',
+      target: 'player',
+      distance: 10,
+      height: 2,
+    }
+
+    const controller = new CameraController({
+      camera,
+      scene,
+      getEntityPosition,
+    })
+
+    const initialZ = camera.position.z
+    controller.setForceFreeFlyNavigation(true)
+    controller.setFreeFlyInput({ w: true })
+    controller.update(0.1)
+
+    expect(camera.position.z).not.toBe(initialZ)
+  })
+
   it('follows target entity in follow mode', () => {
     const { camera, scene, getEntityPosition, entityPositions } = createTestSetup()
     

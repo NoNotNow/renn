@@ -45,6 +45,11 @@ export interface SceneViewProps {
   >
   /** Called after initial poses are applied so parent can sync world state. */
   onPosesRestored?: (poses: Map<string, { position: Vec3; rotation: Rotation; scale?: Vec3 }>) => void
+  /**
+   * Builder: WASD free-fly, no transformer run, physics step paused, scripts paused.
+   * Does not change persisted world or camera config.
+   */
+  editNavigationMode?: boolean
 }
 
 export type EntityPhysicsPatch = Partial<Pick<Entity, 'mass' | 'restitution' | 'friction' | 'linearDamping' | 'angularDamping' | 'bodyType'>>
@@ -81,6 +86,7 @@ function SceneViewInner({
   version = 0,
   initialPosesRef,
   onPosesRestored,
+  editNavigationMode = false,
 }: SceneViewProps, ref: React.Ref<SceneViewHandle>) {
   const sceneKey = useMemo(() => getSceneDependencyKey(world), [world])
   const containerRef = useRef<HTMLDivElement>(null)
@@ -122,6 +128,8 @@ function SceneViewInner({
   const gizmoModeRef = useRef<BuilderGizmoMode>('translate')
   const onSelectEntityRef = useRef(onSelectEntity)
   const onEntityPoseCommitRef = useRef(onEntityPoseCommit)
+  const editNavigationModeRef = useRef(editNavigationMode)
+  editNavigationModeRef.current = editNavigationMode
 
   selectedEntityIdsRef.current = selectedEntityIds
   gizmoModeRef.current = gizmoMode
@@ -421,7 +429,13 @@ function SceneViewInner({
           orbitCfg?.mode === 'thirdPerson' ||
           orbitCfg?.mode === 'tracking' ||
           orbitCfg?.mode === 'firstPerson'
-        if (orbitCfg?.control === 'follow' && orbitFollowModes && rawWheelRef.current) {
+        const skipOrbitBecauseEditNav = editNavigationModeRef.current
+        if (
+          !skipOrbitBecauseEditNav &&
+          orbitCfg?.control === 'follow' &&
+          orbitFollowModes &&
+          rawWheelRef.current
+        ) {
           const rw = rawWheelRef.current
           orbitWheelRef.current.deltaX = rw.deltaX
           orbitWheelRef.current.deltaY = rw.deltaY
@@ -437,44 +451,39 @@ function SceneViewInner({
         }
 
         const pw = physicsRef.current
+        const editNav = editNavigationModeRef.current
         if (pw && runPhysics && !cancelled) {
           try {
-            // Apply active debug forces
             const currentTime = timeRef.current
             activeDebugForcesRef.current = activeDebugForcesRef.current.filter((debugForce) => {
               if (currentTime >= debugForce.endTime) {
-                return false // Remove expired forces
+                return false
               }
-              // Apply force for this frame
-              pw.applyForce(debugForce.entityId, debugForce.force[0], debugForce.force[1], debugForce.force[2])
-              return true // Keep active forces
+              if (!editNav) {
+                pw.applyForce(debugForce.entityId, debugForce.force[0], debugForce.force[1], debugForce.force[2])
+              }
+              return true
             })
-            
-            // Execute transformers BEFORE physics step
-            // This generates forces that are applied to physics bodies
-            if (registryRef.current) {
-              // Get raw input snapshot
-              const rawInput: RawInput = getRawInputSnapshot(rawKeyboardRef, rawWheelRef)
-              void rawInput
-              
-              // Set raw input getter for InputTransformers
-              registryRef.current.setRawInputGetter(() => rawInput)
-              
-              // Get wind from world settings
-              const wind = world.world.wind
-              
-              // Execute transformers (generates forces)
-              registryRef.current.executeTransformers(dt, wind)
-            }
-            
-            pw.step(dt)
-            registryRef.current?.syncFromPhysics()
 
-            if (scriptRunnerRef.current && runScripts) {
-              const collisions = pw.getCollisions()
-              for (const { entityIdA, entityIdB, impact } of collisions) {
-                scriptRunnerRef.current.runOnCollision(entityIdA, entityIdB, impact)
-                scriptRunnerRef.current.runOnCollision(entityIdB, entityIdA, impact)
+            if (!editNav) {
+              // Execute transformers BEFORE physics step
+              if (registryRef.current) {
+                const rawInput: RawInput = getRawInputSnapshot(rawKeyboardRef, rawWheelRef)
+                void rawInput
+                registryRef.current.setRawInputGetter(() => rawInput)
+                const wind = worldRef.current.world.wind
+                registryRef.current.executeTransformers(dt, wind)
+              }
+
+              pw.step(dt)
+              registryRef.current?.syncFromPhysics()
+
+              if (scriptRunnerRef.current && runScripts) {
+                const collisions = pw.getCollisions()
+                for (const { entityIdA, entityIdB, impact } of collisions) {
+                  scriptRunnerRef.current.runOnCollision(entityIdA, entityIdB, impact)
+                  scriptRunnerRef.current.runOnCollision(entityIdB, entityIdA, impact)
+                }
               }
             }
           } catch (e) {
@@ -486,27 +495,31 @@ function SceneViewInner({
           }
         }
 
-        if (scriptRunnerRef.current && runScripts) {
+        if (scriptRunnerRef.current && runScripts && !editNavigationModeRef.current) {
           scriptRunnerRef.current.runOnUpdate(dt)
         }
 
         const ctrl = cameraCtrlRef.current
         if (ctrl) {
-          if ((ctrl.getConfig().control ?? 'free') === 'free' && freeFlyKeysRef.current) {
+          ctrl.setForceFreeFlyNavigation(editNavigationModeRef.current)
+          const useFreeFlyKeys =
+            (ctrl.getConfig().control ?? 'free') === 'free' || editNavigationModeRef.current
+          if (useFreeFlyKeys && freeFlyKeysRef.current) {
             ctrl.setFreeFlyInput(freeFlyKeysRef.current)
           }
           const drag = rawMouseDragRef.current
           const orbitWheel = orbitWheelRef.current
-          const skipOrbitFromDrag = gizmoDraggingRef.current
-          // Yaw: drag + trackpad deltaX; Pitch: drag + trackpad deltaY
+          const skipOrbitFromDrag = gizmoDraggingRef.current || editNavigationModeRef.current
           const orbitDx = skipOrbitFromDrag ? 0 : (drag?.deltaX ?? 0) + orbitWheel.deltaX
           const orbitDy = skipOrbitFromDrag ? 0 : (drag?.deltaY ?? 0) + orbitWheel.deltaY
           if (orbitDx !== 0 || orbitDy !== 0) {
             ctrl.setOrbitDelta(orbitDx, orbitDy)
           }
           if (drag) { drag.deltaX = 0; drag.deltaY = 0 }
-          if (orbitWheel.distanceDelta !== 0) {
+          if (orbitWheel.distanceDelta !== 0 && !editNavigationModeRef.current) {
             ctrl.setOrbitDistanceDelta(orbitWheel.distanceDelta * 0.05)
+            orbitWheel.distanceDelta = 0
+          } else if (editNavigationModeRef.current) {
             orbitWheel.distanceDelta = 0
           }
           ctrl.update(dt)

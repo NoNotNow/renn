@@ -6,6 +6,8 @@ export interface MenuItemConfig {
   onClick?: () => void
   disabled?: boolean
   shortcut?: string
+  /** When true, shows a checkmark (toggle menu items). */
+  checked?: boolean
   items?: MenuItemConfig[]
 }
 
@@ -218,6 +220,7 @@ export default function DropdownMenu({ label, items, onOpenChange }: DropdownMen
                   role="menuitem"
                   tabIndex={-1}
                   aria-disabled={item.disabled}
+                  aria-checked={item.checked === undefined ? undefined : item.checked}
                   aria-haspopup={isSubmenu ? 'true' : undefined}
                   aria-expanded={isSubmenu ? isSubmenuOpen : undefined}
                   onClick={() => handleItemClick(item, currentItemIndex)}
@@ -233,7 +236,21 @@ export default function DropdownMenu({ label, items, onOpenChange }: DropdownMen
                     fontSize: '14px',
                   }}
                 >
-                  <span>{item.label}</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                    <span
+                      style={{
+                        width: '14px',
+                        flexShrink: 0,
+                        color: '#7dd3a0',
+                        fontSize: '12px',
+                        textAlign: 'center',
+                      }}
+                      aria-hidden
+                    >
+                      {item.checked ? '✓' : ''}
+                    </span>
+                    <span>{item.label}</span>
+                  </span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     {item.shortcut && (
                       <span style={{ color: '#9aa4b2', fontSize: '12px' }}>

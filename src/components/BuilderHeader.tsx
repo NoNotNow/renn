@@ -40,6 +40,8 @@ export interface BuilderHeaderProps {
   canRedo?: boolean
   onUndo?: () => void
   onRedo?: () => void
+  editNavigationMode?: boolean
+  onEditNavigationModeToggle?: () => void
 }
 
 export default function BuilderHeader({
@@ -69,6 +71,8 @@ export default function BuilderHeader({
   canRedo = false,
   onUndo,
   onRedo,
+  editNavigationMode = false,
+  onEditNavigationModeToggle,
 }: BuilderHeaderProps) {
   const [showProjectSelector, setShowProjectSelector] = useState(false)
 
@@ -148,6 +152,14 @@ export default function BuilderHeader({
   ]
 
   const viewMenuItems: MenuItemConfig[] = [
+    {
+      type: 'item',
+      label: 'Edit-Modus',
+      checked: editNavigationMode,
+      onClick: onEditNavigationModeToggle,
+      disabled: !onEditNavigationModeToggle,
+      shortcut: 'Ctrl+E',
+    },
     {
       type: 'item',
       label: 'Reset Camera',

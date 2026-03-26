@@ -56,6 +56,8 @@ export class CameraController {
   private orbitYaw = 0
   private orbitPitch = 0
   private orbitDistance = 10
+  /** When true, `update()` runs free-fly only (Builder edit-navigation mode), ignoring `config.control`. */
+  private forceFreeFlyNavigation = false
 
   constructor(options: CameraControllerOptions) {
     this.camera = options.camera
@@ -140,6 +142,10 @@ export class CameraController {
     if (keys.shift !== undefined) this.freeFlyKeys.shift = keys.shift
   }
 
+  setForceFreeFlyNavigation(enabled: boolean): void {
+    this.forceFreeFlyNavigation = enabled
+  }
+
   setViewPreset(preset: 'top' | 'front' | 'right'): void {
     const origin = new THREE.Vector3(0, 0, 0)
     switch (preset) {
@@ -162,6 +168,10 @@ export class CameraController {
   }
 
   update(dt: number): void {
+    if (this.forceFreeFlyNavigation) {
+      this.updateFreeFly(dt)
+      return
+    }
     const control: CameraControl = this.config.control ?? 'free'
     if (control === 'free') {
       this.updateFreeFly(dt)

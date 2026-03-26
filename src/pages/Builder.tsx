@@ -72,6 +72,7 @@ export default function Builder() {
   }, [])
   const [gizmoMode, setGizmoMode] = useState<BuilderGizmoMode>('translate')
   const [shadowsEnabled, setShadowsEnabled] = useState(true)
+  const [editNavigationMode, setEditNavigationMode] = useState(false)
   const [showSaveDialog, setShowSaveDialog] = useState(false)
   const [livePoses, setLivePoses] = useState<
     Map<string, { position: Vec3; rotation: Rotation; scale: Vec3 }> | null
@@ -189,6 +190,16 @@ export default function Builder() {
         if (isEditableElement()) return
         e.preventDefault()
         setSelectedEntityIds([])
+        return
+      }
+      if (mod && !e.shiftKey && e.code === 'KeyE') {
+        if (isEditableElement()) return
+        e.preventDefault()
+        setEditNavigationMode((prev) => {
+          const next = !prev
+          uiLogger.change('Builder', 'Toggle edit navigation mode', { enabled: next })
+          return next
+        })
         return
       }
       if (e.code !== 'Digit0' && e.code !== 'Numpad0') return
@@ -600,6 +611,14 @@ export default function Builder() {
         canRedo={canRedoHistory}
         onUndo={handleUndo}
         onRedo={handleRedo}
+        editNavigationMode={editNavigationMode}
+        onEditNavigationModeToggle={() => {
+          setEditNavigationMode((prev) => {
+            const next = !prev
+            uiLogger.click('Builder', 'Toggle edit navigation mode (menu)', { enabled: next })
+            return next
+          })
+        }}
       />
 
       {showSaveDialog && (
@@ -613,6 +632,25 @@ export default function Builder() {
       )}
 
       <div style={{ position: 'relative', flex: 1, minHeight: 0, width: '100%', overflow: 'hidden' }}>
+        {editNavigationMode && (
+          <div
+            role="status"
+            aria-label="Edit-Modus aktiv"
+            title="Edit-Modus: Navigation"
+            style={{
+              position: 'absolute',
+              top: 10,
+              right: 10,
+              zIndex: 200,
+              width: 12,
+              height: 12,
+              borderRadius: '50%',
+              background: '#e11d48',
+              boxShadow: '0 0 0 2px rgba(0,0,0,0.35)',
+              pointerEvents: 'none',
+            }}
+          />
+        )}
         {/* Canvas takes full width */}
         <main style={{ width: '100%', height: '100%' }}>
           <ErrorBoundary
@@ -640,6 +678,7 @@ export default function Builder() {
               gizmoMode={gizmoMode}
               initialPosesRef={initialPosesRef}
               onPosesRestored={syncPosesFromScene}
+              editNavigationMode={editNavigationMode}
             />
           </ErrorBoundary>
         </main>
