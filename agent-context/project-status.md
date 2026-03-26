@@ -1,6 +1,6 @@
 # Renn – Project Status
 
-Last updated: 2026-03-26
+Last updated: 2026-03-27
 
 ## Completed
 
@@ -43,13 +43,13 @@ Last updated: 2026-03-26
 - Two physics modes: `entity.model` (visual only) or `trimesh` shape (visual + physics)
 - Trimesh physics: vertices/indices extracted, concave geometry supported, warnings for >10K triangles
 - Trimesh and entity.model: normalized to 1×1×1 unit cube at import (center + scale baked into geometry via `normalizeSceneToUnitCube`)
-- Mesh simplification: **meshoptimizer** (default) or legacy Three.js `SimplifyModifier` via `shape.simplification` (`algorithm`, `maxError`, `maxTriangles`, …); same decimation feeds **rendered** GLTF and Rapier when enabled; **Tools → Performance booster** dialog (viewport pick, **scrollable thumbnail grids** for heavy trimeshes / large `material.map` textures, slider preview, texture downscale)
+- Mesh simplification: **meshoptimizer** (default) or legacy Three.js `SimplifyModifier` via `shape.simplification` (`algorithm`, `maxError`, `maxTriangles`, …); same decimation feeds **rendered** GLTF and Rapier when enabled; **Tools → Performance booster** dialog (viewport pick, **scrollable thumbnail grids** for heavy trimeshes / large `material.map` textures, slider preview, texture downscale). **Mesh candidates** are **trimesh (imported GLTF) entities only** with triangle count above the filter; built-in primitives never appear in that list. The triangle filter only affects **who appears** in the grid, not the simplification target (target comes from the **ratio** slider vs. current mesh). **Viewport pick** uses the **nearest** raycast hit (first hit along the ray).
 
 ### Quality
 - Reusable form components: NumberInput, SelectInput, VectorField
 - Centralized config constants, UI logger, shared styles
 - Test helpers: entity, physics, React, Three.js, world utilities
-- E2E tests: Playwright (`e2e/add-entity.spec.ts`)
+- E2E tests: Playwright (`e2e/add-entity.spec.ts`, `e2e/performance-booster.spec.ts`)
 
 ---
 

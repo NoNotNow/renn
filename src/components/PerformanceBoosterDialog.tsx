@@ -220,7 +220,7 @@ export default function PerformanceBoosterDialog({
       const targetTris = Math.max(500, Math.floor(orig * meshRatio))
       const cfg: TrimeshSimplificationConfig = {
         enabled: true,
-        maxTriangles: Math.min(meshThreshold, targetTris),
+        maxTriangles: targetTris,
         algorithm: meshAlgorithm,
         maxError: meshMaxError,
       }
@@ -233,15 +233,28 @@ export default function PerformanceBoosterDialog({
     return () => {
       cancelled = true
     }
-  }, [
-    isOpen,
-    meshTargetEntityId,
-    meshThreshold,
-    meshRatio,
-    meshAlgorithm,
-    meshMaxError,
-    sceneViewRef,
-  ])
+  }, [isOpen, meshTargetEntityId, meshRatio, meshAlgorithm, meshMaxError, sceneVersion, sceneViewRef])
+
+  const meshPreviewTargetTris = useMemo(() => {
+    if (previewOriginal == null) return null
+    return Math.max(500, Math.floor(previewOriginal * meshRatio))
+  }, [previewOriginal, meshRatio])
+
+  /** Target triangle count is at or above current mesh — simplifier will not reduce. */
+  const meshApplyBlockedByRatio =
+    meshPreviewTargetTris != null && previewOriginal != null && meshPreviewTargetTris >= previewOriginal
+
+  const meshApplyBlockedByPreview =
+    previewOriginal != null &&
+    previewSimplified != null &&
+    previewSimplified >= previewOriginal
+
+  const canApplyMeshSimplification =
+    Boolean(meshTargetEntityId && meshEntity?.shape?.type === 'trimesh') &&
+    previewOriginal != null &&
+    previewSimplified != null &&
+    !meshApplyBlockedByRatio &&
+    !meshApplyBlockedByPreview
 
   const handleApplyMeshClick = useCallback(() => {
     if (!meshTargetEntityId || !meshEntity || meshEntity.shape?.type !== 'trimesh') return
@@ -257,7 +270,7 @@ export default function PerformanceBoosterDialog({
     const targetTris = Math.max(500, Math.floor((previewOriginal ?? orig) * meshRatio))
     const cfg: TrimeshSimplificationConfig = {
       enabled: true,
-      maxTriangles: Math.min(meshThreshold, targetTris),
+      maxTriangles: targetTris,
       algorithm: meshAlgorithm,
       maxError: meshMaxError,
     }
@@ -269,7 +282,6 @@ export default function PerformanceBoosterDialog({
   }, [
     meshTargetEntityId,
     meshEntity,
-    meshThreshold,
     meshRatio,
     meshAlgorithm,
     meshMaxError,
@@ -320,7 +332,7 @@ export default function PerformanceBoosterDialog({
 
   return (
     <div style={overlayStyle} onClick={onClose} role="presentation">
-      <div style={panelStyle} onClick={(e) => e.stopPropagation()}>
+      <div style={panelStyle} onClick={(e) => e.stopPropagation()} data-testid="performance-booster-dialog">
         <h2 style={{ margin: '0 0 16px', fontSize: 18 }}>Performance booster</h2>
         <p style={{ margin: '0 0 16px', fontSize: 13, color: '#9aa4b2' }}>
           Unified mesh simplification uses the same decimation for rendering and physics. Choose a candidate below,
@@ -336,6 +348,7 @@ export default function PerformanceBoosterDialog({
             step={100}
             value={meshThreshold}
             onChange={(e) => setMeshThreshold(Number(e.target.value) || 500)}
+            data-testid="mesh-triangle-filter"
             style={{ width: '100%', padding: 8, marginBottom: 8, background: '#232836', border: '1px solid #2f3545', color: '#e6e9f2' }}
           />
           <input
@@ -346,6 +359,9 @@ export default function PerformanceBoosterDialog({
             style={{ width: '100%', padding: 8, marginBottom: 8, background: '#232836', border: '1px solid #2f3545', color: '#e6e9f2' }}
           />
           <div style={labelStyle}>Heavy trimesh entities (click to select)</div>
+          <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 6 }}>
+            Only imported GLTF (trimesh) models are listed; built-in primitives are not mesh candidates.
+          </div>
           {meshFiltered.length === 0 ? (
             <div style={{ fontSize: 12, color: '#6b7280' }}>No entities above threshold — lower the filter or add trimesh models.</div>
           ) : (
@@ -441,17 +457,23 @@ export default function PerformanceBoosterDialog({
               '—'
             )}
           </div>
+          {meshApplyBlockedByRatio && (
+            <div style={{ fontSize: 12, color: '#c96', marginBottom: 8 }}>
+              Lower the target ratio below 100% to reduce triangles.
+            </div>
+          )}
           <button
             type="button"
-            disabled={!meshTargetEntityId || meshEntity?.shape?.type !== 'trimesh'}
+            data-testid="performance-booster-apply-mesh"
+            disabled={!canApplyMeshSimplification}
             onClick={handleApplyMeshClick}
             style={{
               padding: '8px 16px',
               background: '#2b4a6e',
               border: '1px solid #3d6a9e',
               color: '#e6e9f2',
-              cursor: meshTargetEntityId && meshEntity?.shape?.type === 'trimesh' ? 'pointer' : 'not-allowed',
-              opacity: meshTargetEntityId && meshEntity?.shape?.type === 'trimesh' ? 1 : 0.5,
+              cursor: canApplyMeshSimplification ? 'pointer' : 'not-allowed',
+              opacity: canApplyMeshSimplification ? 1 : 0.5,
             }}
           >
             Apply mesh simplification
