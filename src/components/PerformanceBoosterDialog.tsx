@@ -5,7 +5,7 @@ import type { SceneViewHandle } from '@/components/SceneView'
 import ModelThumbnail from '@/components/ModelThumbnail'
 import TextureThumbnail from '@/components/TextureThumbnail'
 import type { RennWorld, TrimeshSimplificationConfig, SimplificationAlgorithm, Entity } from '@/types/world'
-import { extractMeshGeometry } from '@/utils/geometryExtractor'
+import { extractMeshGeometry, getVisualGltfSceneForEntityMesh } from '@/utils/geometryExtractor'
 import { simplifyGeometry, ensureMeshoptSimplifierReady } from '@/utils/meshSimplifier'
 import { getImageBitmapDimensions } from '@/utils/textureDownscale'
 import { uiLogger } from '@/utils/uiLogger'
@@ -49,6 +49,12 @@ const gridStyle: CSSProperties = {
   border: '1px solid #2f3545',
   borderRadius: 6,
   background: '#151820',
+}
+
+/** Trimesh (shape GLTF) or primitive + `entity.model` visual GLTF. */
+function entityHasHeavyMeshCandidate(e: Entity): boolean {
+  if (e.shape?.type === 'trimesh') return true
+  return Boolean(e.model)
 }
 
 function tileStyle(selected: boolean): CSSProperties {
@@ -109,7 +115,7 @@ export default function PerformanceBoosterDialog({
   const [meshSearch, setMeshSearch] = useState('')
   const [textureSearch, setTextureSearch] = useState('')
 
-  /** Trimesh entities with triangle count above meshThreshold (rescanned when dialog opens or scene reloads). */
+  /** Trimesh or entity.model visuals with triangle count above meshThreshold (rescanned when dialog opens or scene reloads). */
   const [meshHeavyList, setMeshHeavyList] = useState<Array<{ entity: Entity; tri: number }>>([])
   /** Entities whose material map image exceeds textureThreshold (max edge px). */
   const [textureHeavyList, setTextureHeavyList] = useState<
@@ -130,7 +136,7 @@ export default function PerformanceBoosterDialog({
       if (cancelled) return
       const list: Array<{ entity: Entity; tri: number }> = []
       for (const e of world.entities) {
-        if (e.shape?.type !== 'trimesh') continue
+        if (!entityHasHeavyMeshCandidate(e)) continue
         const tri = sceneViewRef.current?.getEntityTriangleCount(e.id) ?? 0
         if (tri > meshThreshold) list.push({ entity: e, tri })
       }
@@ -206,7 +212,7 @@ export default function PerformanceBoosterDialog({
     void (async () => {
       await ensureMeshoptSimplifierReady()
       const mesh = sceneViewRef.current?.getMeshForEntity(meshTargetEntityId)
-      const scene = mesh?.userData?.trimeshScene as Group | undefined
+      const scene = mesh ? getVisualGltfSceneForEntityMesh(mesh) : null
       if (!scene) {
         if (!cancelled) {
           setPreviewOriginal(null)
@@ -214,7 +220,7 @@ export default function PerformanceBoosterDialog({
         }
         return
       }
-      const extracted = extractMeshGeometry(scene, false)
+      const extracted = extractMeshGeometry(scene as Group, false)
       if (!extracted || cancelled) return
       const orig = extracted.indices.length / 3
       const targetTris = Math.max(500, Math.floor(orig * meshRatio))
@@ -250,14 +256,14 @@ export default function PerformanceBoosterDialog({
     previewSimplified >= previewOriginal
 
   const canApplyMeshSimplification =
-    Boolean(meshTargetEntityId && meshEntity?.shape?.type === 'trimesh') &&
+    Boolean(meshTargetEntityId && meshEntity && entityHasHeavyMeshCandidate(meshEntity)) &&
     previewOriginal != null &&
     previewSimplified != null &&
     !meshApplyBlockedByRatio &&
     !meshApplyBlockedByPreview
 
   const handleApplyMeshClick = useCallback(() => {
-    if (!meshTargetEntityId || !meshEntity || meshEntity.shape?.type !== 'trimesh') return
+    if (!meshTargetEntityId || !meshEntity || !entityHasHeavyMeshCandidate(meshEntity)) return
     const orig = previewOriginal ?? sceneViewRef.current?.getEntityTriangleCount(meshTargetEntityId) ?? 0
     if (
       previewSimplified != null &&
@@ -335,8 +341,9 @@ export default function PerformanceBoosterDialog({
       <div style={panelStyle} onClick={(e) => e.stopPropagation()} data-testid="performance-booster-dialog">
         <h2 style={{ margin: '0 0 16px', fontSize: 18 }}>Performance booster</h2>
         <p style={{ margin: '0 0 16px', fontSize: 13, color: '#9aa4b2' }}>
-          Unified mesh simplification uses the same decimation for rendering and physics. Choose a candidate below,
-          use viewport pick, adjust settings, then apply.
+          For <strong>trimesh</strong> bodies, decimation matches rendering and physics. For a <strong>3D model on a primitive</strong>,
+          only the visual GLTF is reduced (collision stays the primitive). Choose a candidate below, use viewport pick,
+          adjust settings, then apply.
         </p>
 
         <div style={sectionStyle}>
@@ -358,16 +365,20 @@ export default function PerformanceBoosterDialog({
             onChange={(e) => setMeshSearch(e.target.value)}
             style={{ width: '100%', padding: 8, marginBottom: 8, background: '#232836', border: '1px solid #2f3545', color: '#e6e9f2' }}
           />
-          <div style={labelStyle}>Heavy trimesh entities (click to select)</div>
+          <div style={labelStyle}>Heavy mesh models (click to select)</div>
           <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 6 }}>
-            Only imported GLTF (trimesh) models are listed; built-in primitives are not mesh candidates.
+            Lists trimesh bodies and entities with a <strong>3D model</strong> on a primitive shape (physics shape unchanged).
+            Plain primitives without a model are not listed.
           </div>
           {meshFiltered.length === 0 ? (
-            <div style={{ fontSize: 12, color: '#6b7280' }}>No entities above threshold — lower the filter or add trimesh models.</div>
+            <div style={{ fontSize: 12, color: '#6b7280' }}>
+              No entities above threshold — lower the filter or add a trimesh / 3D model with enough triangles.
+            </div>
           ) : (
             <div style={gridStyle} role="listbox" aria-label="Mesh candidates">
               {meshFiltered.map(({ entity, tri }) => {
-                const modelId = entity.shape?.type === 'trimesh' ? entity.shape.model : ''
+                const modelId =
+                  entity.shape?.type === 'trimesh' ? entity.shape.model : entity.model ?? ''
                 const blob = modelId ? assets.get(modelId) : undefined
                 const selected = meshTargetEntityId === entity.id
                 return (
@@ -451,8 +462,8 @@ export default function PerformanceBoosterDialog({
               <>
                 {previewOriginal} → {previewSimplified} triangles
               </>
-            ) : meshTargetEntityId && meshEntity?.shape?.type !== 'trimesh' ? (
-              <span style={{ color: '#c96' }}>Not a trimesh entity</span>
+            ) : meshTargetEntityId && meshEntity && !entityHasHeavyMeshCandidate(meshEntity) ? (
+              <span style={{ color: '#c96' }}>No GLTF mesh (need trimesh or 3D model on entity)</span>
             ) : (
               '—'
             )}

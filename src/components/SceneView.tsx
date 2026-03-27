@@ -24,7 +24,7 @@ import { useRawMouseDrag } from '@/input/rawMouseDrag'
 import type { RawInput, TransformerConfig } from '@/types/transformer'
 import { getSceneDependencyKey } from '@/utils/sceneDependencyKey'
 import { computeDirectionalShadowCameraExtent } from '@/utils/shadowBounds'
-import { countTrianglesInObject3D } from '@/utils/geometryExtractor'
+import { countVisualModelTriangles } from '@/utils/geometryExtractor'
 import { findEntityRootForPicking } from '@/utils/entityPicking'
 
 const FIXED_DT = 1 / 60
@@ -271,7 +271,7 @@ function SceneViewInner({
     getEntityTriangleCount: (entityId: string) => {
       const m = registryRef.current?.get(entityId)?.mesh
       if (!m) return null
-      return countTrianglesInObject3D(m)
+      return countVisualModelTriangles(m)
     },
   }), [camera, world.world.camera, editorFreePoseRef])
 

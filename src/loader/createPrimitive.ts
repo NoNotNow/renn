@@ -375,6 +375,7 @@ export function disposeMesh(mesh: THREE.Mesh): void {
  * Applies position, rotation, scale from entity.
  * If modelId is provided, loads and uses the 3D model for visuals (shape still used for physics).
  * modelRotation and modelScale apply only to the 3D model/trimesh child (relative to item).
+ * modelSimplification decimates the visual GLTF only (physics stays the primitive).
  */
 export async function buildEntityMesh(
   shape: Shape | undefined,
@@ -385,7 +386,8 @@ export async function buildEntityMesh(
   assetResolver?: DisposableAssetResolver,
   modelId?: string,
   modelRotation?: Rotation,
-  modelScale?: Vec3
+  modelScale?: Vec3,
+  modelSimplification?: TrimeshSimplificationConfig
 ): Promise<THREE.Mesh> {
   const s = shape ?? { type: 'box' as const, width: 1, height: 1, depth: 1 }
   const rot = modelRotation ?? DEFAULT_MODEL_ROTATION
@@ -408,6 +410,9 @@ export async function buildEntityMesh(
               child.material = material
             }
           })
+        }
+        if (modelSimplification?.enabled) {
+          await applyTrimeshVisualSimplification(modelScene, modelSimplification)
         }
         // Root mesh uses shape-sized geometry so the full shape is the clickable area (raycast hits this)
         const shapeGeometry = createShapeGeometry(s)

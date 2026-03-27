@@ -186,3 +186,23 @@ export function countTrianglesInObject3D(root: THREE.Object3D): number {
   })
   return Math.floor(n)
 }
+
+/**
+ * GLTF scene for trimesh (render + physics) or visual-only model on a primitive (`entity.model`).
+ * Excludes the invisible primitive/collider root mesh when present.
+ */
+export function getVisualGltfSceneForEntityMesh(mesh: THREE.Mesh): THREE.Object3D | null {
+  const trimesh = mesh.userData?.trimeshScene as THREE.Object3D | undefined
+  if (trimesh) return trimesh
+  if (mesh.userData?.usesModel === true && mesh.children[0]) {
+    return mesh.children[0] as THREE.Object3D
+  }
+  return null
+}
+
+/** Rendered GLTF triangle count (ignores invisible wrapper geometry for `entity.model` on a primitive). */
+export function countVisualModelTriangles(mesh: THREE.Mesh): number {
+  const vis = getVisualGltfSceneForEntityMesh(mesh)
+  if (vis) return countTrianglesInObject3D(vis)
+  return countTrianglesInObject3D(mesh)
+}

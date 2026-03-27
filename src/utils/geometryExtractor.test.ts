@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest'
 import * as THREE from 'three'
-import { extractMeshGeometry, getGeometryInfo } from './geometryExtractor'
+import {
+  extractMeshGeometry,
+  getGeometryInfo,
+  getVisualGltfSceneForEntityMesh,
+  countVisualModelTriangles,
+  countTrianglesInObject3D,
+} from './geometryExtractor'
 
 describe('geometryExtractor', () => {
   describe('extractMeshGeometry', () => {
@@ -225,6 +231,33 @@ describe('geometryExtractor', () => {
       expect(info.bounds.max.x).toBe(5)
       expect(info.bounds.max.y).toBe(10)
       expect(info.bounds.max.z).toBe(15)
+    })
+  })
+
+  describe('getVisualGltfSceneForEntityMesh', () => {
+    it('returns trimeshScene when set', () => {
+      const root = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial())
+      const gltf = new THREE.Group()
+      gltf.add(new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial()))
+      root.userData.trimeshScene = gltf
+      expect(getVisualGltfSceneForEntityMesh(root)).toBe(gltf)
+    })
+
+    it('returns first child when usesModel', () => {
+      const root = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial())
+      const gltf = new THREE.Group()
+      root.userData.usesModel = true
+      root.add(gltf)
+      expect(getVisualGltfSceneForEntityMesh(root)).toBe(gltf)
+    })
+
+    it('countVisualModelTriangles ignores invisible wrapper for usesModel', () => {
+      const root = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial())
+      const inner = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial())
+      root.userData.usesModel = true
+      root.add(inner)
+      expect(countTrianglesInObject3D(root)).toBe(24)
+      expect(countVisualModelTriangles(root)).toBe(12)
     })
   })
 })

@@ -355,6 +355,18 @@
           "type": "boolean",
           "description": "Outline physics primitive when entity.model is set (not trimesh); not GLTF wireframe"
         },
+        "modelSimplification": {
+          "type": "object",
+          "description": "Visual decimation for entity.model on a primitive; trimesh uses shape.simplification",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "maxTriangles": { "type": "number", "minimum": 500 },
+            "targetReduction": { "type": "number", "minimum": 0, "maximum": 1 },
+            "algorithm": { "enum": ["meshoptimizer", "simplifyModifier"] },
+            "maxError": { "type": "number", "minimum": 0.0001, "maximum": 1 }
+          },
+          "additionalProperties": false
+        },
         "material": { "$ref": "#/$defs/MaterialRef" },
         "mass": { "type": "number" },
         "restitution": { "type": "number" },

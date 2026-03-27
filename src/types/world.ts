@@ -171,6 +171,11 @@ export interface Entity {
    * overlay of the physics primitive (not GLTF triangles). Ignored for trimesh.
    */
   showShapeWireframe?: boolean
+  /**
+   * Mesh decimation for the **visual** GLTF when `model` is set on a non-trimesh shape.
+   * Collision stays the primitive; only rendering is reduced. Trimesh bodies use `shape.simplification` instead.
+   */
+  modelSimplification?: TrimeshSimplificationConfig
   material?: MaterialRef
   mass?: number
   restitution?: number

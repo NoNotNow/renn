@@ -598,11 +598,16 @@ export default function Builder() {
       captureScenePosesForNextRebuild()
       updateWorld((prev) => ({
         ...prev,
-        entities: prev.entities.map((e) =>
-          e.id === entityId && e.shape?.type === 'trimesh'
-            ? { ...e, shape: { ...e.shape, simplification: { ...config, enabled: true } } }
-            : e
-        ),
+        entities: prev.entities.map((e) => {
+          if (e.id !== entityId) return e
+          if (e.shape?.type === 'trimesh') {
+            return { ...e, shape: { ...e.shape, simplification: { ...config, enabled: true } } }
+          }
+          if (e.model) {
+            return { ...e, modelSimplification: { ...config, enabled: true } }
+          }
+          return e
+        }),
       }))
     },
     [updateWorld, captureScenePosesForNextRebuild, pushHistory]

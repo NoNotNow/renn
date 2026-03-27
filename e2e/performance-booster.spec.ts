@@ -15,12 +15,12 @@ test.describe('Performance booster', () => {
     await expect(dialog.getByRole('heading', { name: 'Performance booster' })).toBeVisible()
     await expect(dialog.getByText('Meshes', { exact: true })).toBeVisible()
     await expect(dialog.getByText('Textures', { exact: true })).toBeVisible()
-    await expect(dialog.getByText(/Only imported GLTF \(trimesh\) models are listed/)).toBeVisible()
+    await expect(dialog.getByText(/Lists trimesh bodies and entities with a/)).toBeVisible()
 
     expect(pageErrors).toEqual([])
   })
 
-  test('apply mesh is disabled until a trimesh preview shows reduction', async ({ page }) => {
+  test('apply mesh is disabled until preview shows reduction', async ({ page }) => {
     await page.goto('/')
 
     await page.getByRole('button', { name: 'Tools' }).click()
@@ -41,7 +41,7 @@ test.describe('Performance booster', () => {
     await expect(filter).toHaveValue('8000')
   })
 
-  test('mesh list shows empty state or trimesh candidates', async ({ page }) => {
+  test('mesh list shows empty state or GLTF candidates', async ({ page }) => {
     await page.goto('/')
 
     await page.getByRole('button', { name: 'Tools' }).click()

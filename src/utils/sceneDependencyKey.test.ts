@@ -117,6 +117,27 @@ describe('getSceneDependencyKey', () => {
     expect(getSceneDependencyKey(a)).not.toBe(getSceneDependencyKey(b))
   })
 
+  it('returns a different key when modelSimplification changes (visual rebuild for entity.model)', () => {
+    const a = minimalWorld({
+      entities: [
+        {
+          ...minimalWorld().entities[0],
+          model: 'car',
+          shape: { type: 'box', width: 1, height: 1, depth: 1 },
+        },
+      ],
+    })
+    const b = minimalWorld({
+      entities: [
+        {
+          ...a.entities[0],
+          modelSimplification: { enabled: true, maxTriangles: 3000, algorithm: 'meshoptimizer' as const },
+        },
+      ],
+    })
+    expect(getSceneDependencyKey(a)).not.toBe(getSceneDependencyKey(b))
+  })
+
   it('returns the same key when only modelRotation or modelScale changes (incremental path)', () => {
     const base = minimalWorld({
       entities: [{ ...minimalWorld().entities[0], shape: { type: 'trimesh', model: 'm1' } }],
