@@ -32,6 +32,17 @@ export interface GameAPI {
   setTransformerEnabled(entityId: string, transformerType: string, enabled: boolean): void
   setTransformerParam(entityId: string, transformerType: string, paramName: string, value: unknown): void
   log(...args: unknown[]): void
+  /** Show a transient UI message in play; default duration 10s. */
+  snackbar(message: string, durationSeconds?: number): void
+}
+
+const DEFAULT_SNACKBAR_SECONDS = 10
+
+function normalizeSnackbarSeconds(durationSeconds?: number): number {
+  if (durationSeconds === undefined) return DEFAULT_SNACKBAR_SECONDS
+  const n = Number(durationSeconds)
+  if (!Number.isFinite(n) || n < 0) return DEFAULT_SNACKBAR_SECONDS
+  return n
 }
 
 export interface GameAPIOptions {
@@ -57,7 +68,8 @@ export function createGameAPI(
   getPhysicsWorld: () => PhysicsWorld | null = () => null,
   getRenderItemRegistry: () => import('@/runtime/renderItemRegistry').RenderItemRegistry | null = () => null,
   entities: Entity[] = [],
-  timeRef: { current: number } = { current: 0 }
+  timeRef: { current: number } = { current: 0 },
+  onSnackbar?: (message: string, durationSeconds: number) => void
 ): GameAPI {
   return {
     get time() {
@@ -141,6 +153,10 @@ export function createGameAPI(
     },
     log(...args: unknown[]) {
       console.log('[game]', ...args)
+    },
+    snackbar(message: string, durationSeconds?: number) {
+      const sec = normalizeSnackbarSeconds(durationSeconds)
+      onSnackbar?.(String(message), sec)
     },
   }
 }

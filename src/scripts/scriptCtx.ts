@@ -92,6 +92,7 @@ export interface ScriptCtxBase {
   setTransformerEnabled(entityId: string, transformerType: string, enabled: boolean): void
   setTransformerParam(entityId: string, transformerType: string, paramName: string, value: unknown): void
   log(...args: unknown[]): void
+  snackbar(message: string, durationSeconds?: number): void
 }
 
 export interface OnSpawnCtx extends ScriptCtxBase {
@@ -262,6 +263,7 @@ function baseCtx(game: GameAPI, entity: Entity): ScriptCtxBase {
     setTransformerEnabled: (a, b, c) => game.setTransformerEnabled(a, b, c),
     setTransformerParam: (a, b, c, d) => game.setTransformerParam(a, b, c, d),
     log: (...args) => game.log(...args),
+    snackbar: (message, durationSeconds) => game.snackbar(message, durationSeconds),
   } as ScriptCtxBase
 }
 

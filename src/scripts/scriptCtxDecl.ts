@@ -55,6 +55,7 @@ ${methodLines}
   setTransformerEnabled(entityId: string, transformerType: string, enabled: boolean): void;
   setTransformerParam(entityId: string, transformerType: string, paramName: string, value: unknown): void;
   log(...args: unknown[]): void;
+  snackbar(message: string, durationSeconds?: number): void;
 }`
 }
 

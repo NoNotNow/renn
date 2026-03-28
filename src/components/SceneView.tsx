@@ -26,6 +26,7 @@ import { getSceneDependencyKey } from '@/utils/sceneDependencyKey'
 import { computeDirectionalShadowCameraExtent } from '@/utils/shadowBounds'
 import { countVisualModelTriangles } from '@/utils/geometryExtractor'
 import { findEntityRootForPicking } from '@/utils/entityPicking'
+import { ScriptSnackbar } from '@/components/ScriptSnackbar'
 import { WarningSnackbar } from '@/components/WarningSnackbar'
 
 const FIXED_DT = 1 / 60
@@ -164,6 +165,7 @@ function SceneViewInner({
   const [registryEpoch, setRegistryEpoch] = useState(0)
   const [schemaLoadWarnings, setSchemaLoadWarnings] = useState<string[]>([])
   const dismissSchemaLoadWarnings = useCallback(() => setSchemaLoadWarnings([]), [])
+  const [scriptSnackbarMessage, setScriptSnackbarMessage] = useState<string | null>(null)
   const gizmoDraggingRef = useRef(false)
   const disposePickGizmoRef = useRef<(() => void) | null>(null)
   const syncGizmoAttachRef = useRef<(() => void) | null>(null)
@@ -299,6 +301,7 @@ function SceneViewInner({
     }
 
     let cancelled = false
+    let scriptSnackbarTimerId: ReturnType<typeof window.setTimeout> | undefined
     let cam: THREE.PerspectiveCamera | null = null
     let rend: THREE.WebGLRenderer | null = null
     let cameraCtrl: CameraController | null = null
@@ -394,6 +397,18 @@ function SceneViewInner({
         registryRef.current?.getUpVector(id) ?? null
       const getForwardVectorForGame = (id: string): Vec3 | null =>
         registryRef.current?.getForwardVector(id) ?? null
+      const onScriptSnackbar = (message: string, durationSeconds: number) => {
+        if (scriptSnackbarTimerId !== undefined) {
+          window.clearTimeout(scriptSnackbarTimerId)
+          scriptSnackbarTimerId = undefined
+        }
+        setScriptSnackbarMessage(message)
+        const ms = durationSeconds * 1000
+        scriptSnackbarTimerId = window.setTimeout(() => {
+          scriptSnackbarTimerId = undefined
+          setScriptSnackbarMessage(null)
+        }, ms)
+      }
       const gameApi = createGameAPI(
         getPositionForGame,
         setPositionForGame,
@@ -404,7 +419,8 @@ function SceneViewInner({
         getPhysicsWorld,
         getRenderItemRegistry,
         loadedWorld.entities,
-        timeRef
+        timeRef,
+        onScriptSnackbar
       )
       const scriptRunner = new ScriptRunner(loadedWorld, gameApi, (id) => {
         const obj = loadedScene.getObjectByName(id)
@@ -686,6 +702,12 @@ function SceneViewInner({
     return () => {
       // Set cancelled first to stop animation loop
       cancelled = true
+
+      if (scriptSnackbarTimerId !== undefined) {
+        window.clearTimeout(scriptSnackbarTimerId)
+        scriptSnackbarTimerId = undefined
+      }
+      setScriptSnackbarMessage(null)
 
       disposePickGizmoRef.current?.()
       disposePickGizmoRef.current = null
@@ -969,6 +991,7 @@ function SceneViewInner({
   return (
     <div className={className} style={{ width: '100%', height: '100%', position: 'relative' }}>
       <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+      {scriptSnackbarMessage !== null ? <ScriptSnackbar message={scriptSnackbarMessage} /> : null}
       <WarningSnackbar messages={schemaLoadWarnings} onDismiss={dismissSchemaLoadWarnings} />
     </div>
   )

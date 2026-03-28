@@ -21,6 +21,10 @@ export function createMockGameAPI(): GameAPI {
     getColor: vi.fn().mockReturnValue(null),
     applyForce: vi.fn(),
     applyImpulse: vi.fn(),
+    setTransformerEnabled: vi.fn(),
+    setTransformerParam: vi.fn(),
+    log: vi.fn(),
+    snackbar: vi.fn(),
   } as unknown as GameAPI
 }
 

@@ -27,6 +27,7 @@ function createMockGameAPI(overrides?: Partial<GameAPI>): GameAPI {
     setTransformerEnabled: vi.fn(),
     setTransformerParam: vi.fn(),
     log: vi.fn(),
+    snackbar: vi.fn(),
     ...overrides,
   }
 }

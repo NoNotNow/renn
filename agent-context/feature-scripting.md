@@ -26,7 +26,7 @@ Scripting lets users run JavaScript in the play runtime. Scripts are **event-bou
 ### Runtime (Play)
 
 - **ScriptRunner** (`src/scripts/scriptRunner.ts`): Compiles each script **once** (via `Function` constructor with validation). Wraps user source as `(function(ctx) { ... })`. Pre-builds **one ctx per (entity, event)** at construction; hot paths only mutate `ctx.dt` / `ctx.other` / `ctx.impact` / timer `elapsed` — **no per-frame allocation**. Uses pre-built lists/maps and `entityMap` for O(1) lookups.
-- **Script context** (`src/scripts/scriptCtx.ts`): `ScriptCtxBase` (time, entity, entities, getPosition, setPosition, getRotation, setRotation, getUpVector, getForwardVector, resetRotation, addVectorToPosition, applyForce, applyImpulse, setTransformerEnabled, setTransformerParam, log). Entity-scoped methods are driven by **`ENTITY_VIEW_METHODS`** (single source of truth); `buildEntityView` and `buildBaseCtxDelegations` build the runtime from that list (no duplication). Event-specific: `OnUpdateCtx.dt`, `OnCollisionCtx.other` (ScriptEntity view, same API as `ctx.entity`) and `OnCollisionCtx.impact`, `OnTimerCtx.interval`. Factories: `allocOnSpawnCtx`, `allocOnUpdateCtx`, `allocOnCollisionCtx`, `allocOnTimerCtx`. Detect helpers use **`createDetectForId(game, getId)`** (one implementation for ctx.detect and entity/other.detect).
+- **Script context** (`src/scripts/scriptCtx.ts`): `ScriptCtxBase` (time, entity, entities, getPosition, setPosition, getRotation, setRotation, getUpVector, getForwardVector, resetRotation, addVectorToPosition, applyForce, applyImpulse, setTransformerEnabled, setTransformerParam, log, snackbar). Entity-scoped methods are driven by **`ENTITY_VIEW_METHODS`** (single source of truth); `buildEntityView` and `buildBaseCtxDelegations` build the runtime from that list (no duplication). Event-specific: `OnUpdateCtx.dt`, `OnCollisionCtx.other` (ScriptEntity view, same API as `ctx.entity`) and `OnCollisionCtx.impact`, `OnTimerCtx.interval`. Factories: `allocOnSpawnCtx`, `allocOnUpdateCtx`, `allocOnCollisionCtx`, `allocOnTimerCtx`. Detect helpers use **`createDetectForId(game, getId)`** (one implementation for ctx.detect and entity/other.detect).
 - **Game API** (`src/scripts/gameApi.ts`): Backing for ctx methods; ScriptRunner receives `GameAPI` and builds ctx from it.
 
 **Pose APIs and current entity**
@@ -43,6 +43,8 @@ Scripting lets users run JavaScript in the play runtime. Scripts are **event-bou
 - **`setColor(id?, r, g, b)`**: Set the entity's mesh color (RGB in 0–1). Sync; only updates existing material color. Example: `ctx.entity.setColor(1, 0, 0)` for red, `ctx.setColor(ctx.other.id, 0, 1, 0)` for green on the other entity.
 
 - **`getColor(id?)`**: Get the entity's mesh color (RGB in 0–1). Returns `[r, g, b]` or `null` if no material color. Example: `const c = ctx.entity.getColor()`; `ctx.getColor(ctx.other.id)` for the other entity's color.
+
+- **`ctx.snackbar(message, durationSeconds?)`**: Shows a short-lived overlay at the bottom of the scene view (`SceneView`). Default duration is **10** seconds; pass a second number to customize. Invalid or negative durations fall back to **10**; the message is coerced with `String(message)`.
 
 **Orientation detection (`ctx.detect`):** Use **`ctx.detect`** for reliable orientation checks (world +Y up, -Z forward). All methods take optional **`id?`** (default: current entity) and return **`boolean`**. Threshold 0.5 (0.9 for `isTilted`). Do not compare raw Euler components.
 
@@ -83,6 +85,7 @@ Example: `if (ctx.detect.isUpsideDown()) { ctx.log('Flipped!') }`. See `directio
 | Script types         | `src/types/world.ts` (`ScriptEvent`, `ScriptDef`, `Entity.scripts`) |
 | Ctx types & alloc    | `src/scripts/scriptCtx.ts` |
 | Game API             | `src/scripts/gameApi.ts` |
+| Script snackbar UI   | `src/components/ScriptSnackbar.tsx` (wired from `SceneView` into `createGameAPI`) |
 | Compile & run        | `src/scripts/scriptRunner.ts` |
 | Migration            | `src/scripts/migrateWorld.ts` |
 | Wiring in Play       | `src/components/SceneView.tsx` |
