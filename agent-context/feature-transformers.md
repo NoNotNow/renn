@@ -236,9 +236,11 @@ All defaults (shown above) work out of the box for mass ~12. For heavier entitie
 
 ### Car2 transformer params
 
-The `car2` preset (impulse + addRotation + color feedback) accepts optional `params` in JSON. When the car has lateral velocity, part of the countered lateral force is applied as forward impulse so that some lateral energy is translated into forward motion during turns.
+The `car2` preset (**impulse** + **addRotation**) accepts optional `params` in JSON. When the car has lateral velocity, part of the countered lateral force is applied as forward impulse so that some lateral energy is translated into forward motion during turns.
 
-**Touch-gating:** Car2 applies **impulse** and **addRotation** only when the entity is touching another object (at least one contact with another collider). When not touching anything (e.g. in mid-air), the transformer still outputs **color** for input feedback but does not output impulse or addRotation, so physics is left unchanged. The runtime sets `input.environment.isTouchingObject` from the physics world’s contact state (from the previous step) before running the transformer chain; car2 reads this and gates its physics output on it.
+**Touch-gating:** Car2 applies **impulse** and **addRotation** only when the entity is touching another object (at least one contact with another collider). When not touching anything (e.g. in mid-air), it returns an empty physics output (no impulse, no addRotation, no color). The runtime sets `input.environment.isTouchingObject` from the physics world’s contact state (from the previous step) before running the transformer chain; car2 reads this and gates its physics output on it.
+
+**Chain note:** Transformers may set `TransformOutput.impulse`; `TransformerChain.execute` **adds** impulse components into the accumulated **`force`** vector (see `src/transformers/transformer.ts`). For a typical `car2`-only or `input`+`car2` chain, the play runtime therefore often applies the result via **`output.force`**, not a separate **`output.impulse`**. See [transformer-paradigm-input-and-car2.md](transformer-paradigm-input-and-car2.md) for the full input/car2 split and transferable patterns.
 
 | Param | Default | Meaning |
 |-------|---------|---------|

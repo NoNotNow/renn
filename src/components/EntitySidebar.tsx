@@ -14,6 +14,7 @@ import { getEntityApproximateSize } from '@/utils/entityApproximateSize'
 import Sidebar from './layout/Sidebar'
 import { TabIcons } from './TabIcons'
 import WorldPanel from './WorldPanel'
+import SoundPanel from './SoundPanel'
 import CopyableArea from './CopyableArea'
 import CollapsibleSection from './CollapsibleSection'
 import { sidebarRowStyle, sidebarLabelStyle, fieldLabelStyle, sectionStyle, sectionTitleStyle, secondaryButtonStyle } from './sharedStyles'
@@ -32,11 +33,12 @@ export interface EntitySidebarProps {
   onCameraTargetChange: (target: string) => void
   onCameraModeChange: (mode: CameraMode) => void
   onWorldChange: (world: RennWorld) => void
+  onSoundPlaybackCommand?: (action: 'play' | 'stop') => void
   isOpen: boolean
   onToggle: () => void
 }
 
-type LeftTab = 'entities' | 'camera' | 'actions' | 'world'
+type LeftTab = 'entities' | 'camera' | 'actions' | 'world' | 'sound'
 
 type TriState = 'any' | 'yes' | 'no'
 
@@ -67,6 +69,7 @@ export default function EntitySidebar({
   onCameraTargetChange,
   onCameraModeChange,
   onWorldChange,
+  onSoundPlaybackCommand,
   isOpen,
   onToggle,
 }: EntitySidebarProps) {
@@ -265,6 +268,7 @@ export default function EntitySidebar({
         { id: 'camera', icon: TabIcons.camera, label: 'Camera' },
         { id: 'actions', icon: TabIcons.actions, label: 'Actions' },
         { id: 'world', icon: TabIcons.world, label: 'World' },
+        { id: 'sound', icon: TabIcons.sound, label: 'Sound' },
       ]}
       activeTab={leftTab}
       onTabChange={handleTabChange}
@@ -1100,6 +1104,13 @@ export default function EntitySidebar({
             )}
             {leftTab === 'world' && (
               <WorldPanel world={world} onWorldChange={onWorldChange} />
+            )}
+            {leftTab === 'sound' && (
+              <SoundPanel
+                world={world}
+                onWorldChange={onWorldChange}
+                onPlaybackCommand={onSoundPlaybackCommand}
+              />
             )}
       </div>
     </Sidebar>

@@ -81,6 +81,9 @@ export default function Builder() {
   const [perfPickMode, setPerfPickMode] = useState<'mesh' | 'texture' | null>(null)
   const [perfMeshEntityId, setPerfMeshEntityId] = useState<string | null>(null)
   const [perfTextureEntityId, setPerfTextureEntityId] = useState<string | null>(null)
+  const [soundPlaybackCommand, setSoundPlaybackCommand] = useState<
+    { action: 'play' | 'stop'; nonce: number } | null
+  >(null)
   const [livePoses, setLivePoses] = useState<
     Map<string, { position: Vec3; rotation: Rotation; scale: Vec3 }> | null
   >(null)
@@ -761,6 +764,7 @@ export default function Builder() {
               onPosesRestored={syncPosesFromScene}
               editNavigationMode={editNavigationMode}
               editorFreePoseRef={editorFreePoseRef}
+              soundPlaybackCommand={soundPlaybackCommand}
               performancePick={
                 perfPickMode
                   ? {
@@ -792,6 +796,9 @@ export default function Builder() {
           onCameraTargetChange={setCameraTarget}
           onCameraModeChange={setCameraMode}
           onWorldChange={handleWorldChange}
+          onSoundPlaybackCommand={(action) =>
+            setSoundPlaybackCommand({ action, nonce: Date.now() + Math.random() })
+          }
           isOpen={leftDrawerOpen}
           onToggle={() => setLeftDrawerOpen(!leftDrawerOpen)}
         />

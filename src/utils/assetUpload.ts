@@ -34,6 +34,11 @@ export interface UploadTextureResult {
   worldAssetEntry: { path: string; type: 'texture' }
 }
 
+export interface UploadAudioResult {
+  nextAssets: Map<string, Blob>
+  worldAssetEntry: { path: string; type: 'audio' }
+}
+
 /**
  * Validates, persists, and returns updated assets + world asset entry for a texture upload.
  * Caller should call onAssetsChange(nextAssets) and onWorldChange({ ...world, assets: { ...world.assets, [assetId]: worldAssetEntry } }).
@@ -51,5 +56,35 @@ export async function uploadTexture(
   return {
     nextAssets,
     worldAssetEntry: { path: `assets/${file.name}`, type: 'texture' },
+  }
+}
+
+const AUDIO_MIME_PREFIX = 'audio/'
+const AUDIO_EXTENSIONS = ['.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac']
+
+function isLikelyAudioFile(file: File): boolean {
+  if (file.type.toLowerCase().startsWith(AUDIO_MIME_PREFIX)) return true
+  const lower = file.name.toLowerCase()
+  return AUDIO_EXTENSIONS.some((ext) => lower.endsWith(ext))
+}
+
+/**
+ * Validates, persists, and returns updated assets + world asset entry for an audio upload.
+ * Caller should call onAssetsChange(nextAssets) and onWorldChange({ ...world, assets: { ...world.assets, [assetId]: worldAssetEntry } }).
+ */
+export async function uploadAudio(
+  file: File,
+  assetId: string,
+  assets: Map<string, Blob>
+): Promise<UploadAudioResult> {
+  if (!isLikelyAudioFile(file)) {
+    throw new Error('Unsupported audio file. Please upload MP3, WAV, OGG, M4A, AAC, or FLAC.')
+  }
+  await defaultPersistence.saveAsset(assetId, file)
+  const nextAssets = new Map(assets)
+  nextAssets.set(assetId, file)
+  return {
+    nextAssets,
+    worldAssetEntry: { path: `assets/${file.name}`, type: 'audio' },
   }
 }

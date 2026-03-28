@@ -69,11 +69,22 @@
         "gravity": { "$ref": "#/$defs/Vec3" },
         "wind": { "$ref": "#/$defs/Vec3", "description": "Global wind force vector [x, y, z]" },
         "sleeping": { "$ref": "#/$defs/SleepingSettings" },
+        "sound": { "$ref": "#/$defs/SoundSettings" },
         "ambientLight": { "$ref": "#/$defs/Color" },
         "directionalLight": { "$ref": "#/$defs/DirectionalLightConfig" },
         "skyColor": { "$ref": "#/$defs/Color" },
         "skybox": { "type": "string" },
         "camera": { "$ref": "#/$defs/CameraConfig" }
+      },
+      "additionalProperties": false
+    },
+    "SoundSettings": {
+      "type": "object",
+      "properties": {
+        "assetId": { "type": "string" },
+        "volume": { "type": "number", "minimum": 0, "maximum": 1 },
+        "loop": { "type": "boolean" },
+        "autoplay": { "type": "boolean" }
       },
       "additionalProperties": false
     },
@@ -119,7 +130,7 @@
       "type": "object",
       "properties": {
         "path": { "type": "string" },
-        "type": { "enum": ["texture", "model", "cubeTexture"] }
+        "type": { "enum": ["texture", "model", "cubeTexture", "audio"] }
       },
       "additionalProperties": false
     },

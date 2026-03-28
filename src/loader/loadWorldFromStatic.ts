@@ -6,7 +6,7 @@ import type { RennWorld } from '@/types/world'
 import { validateWorldDocument } from '@/schema/validate'
 import { migrateWorldScripts } from '@/scripts/migrateWorld'
 
-const ASSET_EXTS = ['.bin', '.png', '.jpg', '.jpeg', '.glb', '.gltf']
+const ASSET_EXTS = ['.bin', '.png', '.jpg', '.jpeg', '.glb', '.gltf', '.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac']
 
 function isHtmlContentType(contentType: string | null): boolean {
   if (!contentType) return false
@@ -79,6 +79,10 @@ function collectReferencedAssetIds(world: RennWorld): Set<string> {
   const skybox = world.world?.skybox
   if (skybox && typeof skybox === 'string' && skybox.trim()) {
     ids.add(skybox.trim())
+  }
+  const soundAssetId = world.world?.sound?.assetId
+  if (soundAssetId && typeof soundAssetId === 'string' && soundAssetId.trim()) {
+    ids.add(soundAssetId.trim())
   }
   return ids
 }

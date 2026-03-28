@@ -170,6 +170,19 @@ describe('Builder', () => {
     expect(sceneViewProps.selectedEntityIds).toEqual(['car'])
   })
 
+  it('renders and opens the Sound tab in the left sidebar', async () => {
+    const user = userEvent.setup()
+    renderBuilder()
+    await act(async () => {
+      await Promise.resolve()
+    })
+    const soundTab = screen.getByRole('button', { name: /sound/i })
+    expect(soundTab).toBeInTheDocument()
+    await user.click(soundTab)
+    expect(screen.getByText('Background Sound')).toBeInTheDocument()
+    expect(screen.getByLabelText('Audio')).toBeInTheDocument()
+  })
+
   it('cycles camera mode when Digit0 is pressed (Camera tab, follow control)', async () => {
     renderBuilder()
     await act(async () => {

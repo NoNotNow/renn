@@ -70,6 +70,8 @@ export interface SceneViewProps {
   editNavigationMode?: boolean
   /** Builder: session ref for last free-fly pose; merged on save via ProjectContext.getWorldToSave. */
   editorFreePoseRef?: React.MutableRefObject<EditorFreePose | null>
+  /** Optional command from editor UI to manually control world background sound. */
+  soundPlaybackCommand?: { action: 'play' | 'stop'; nonce: number } | null
   /**
    * Builder: when `mode` is set, the next click on the canvas picks an entity (raycast)
    * and calls `onEntityPicked` (Performance booster).
@@ -119,6 +121,7 @@ function SceneViewInner({
   onPosesRestored,
   editNavigationMode = false,
   editorFreePoseRef,
+  soundPlaybackCommand = null,
   performancePick = null,
 }: SceneViewProps, ref: React.Ref<SceneViewHandle>) {
   const sceneKey = useMemo(() => getSceneDependencyKey(world), [world])
@@ -133,6 +136,8 @@ function SceneViewInner({
   const entitiesRef = useRef<LoadedEntity[]>([])
   const assetResolverRef = useRef<DisposableAssetResolver | null>(null)
   const skyDomeRef = useRef<THREE.Mesh | null>(null)
+  const worldAudioRef = useRef<HTMLAudioElement | null>(null)
+  const worldAudioUrlRef = useRef<string | null>(null)
   const timeRef = useRef(0)
   const frameRef = useRef<number>(0)
   const effectIdRef = useRef(0)
@@ -682,6 +687,15 @@ function SceneViewInner({
         disposeSkyDomeMesh(skyDomeRef.current)
         skyDomeRef.current = null
       }
+      if (worldAudioRef.current) {
+        worldAudioRef.current.pause()
+        worldAudioRef.current.src = ''
+        worldAudioRef.current = null
+      }
+      if (worldAudioUrlRef.current) {
+        URL.revokeObjectURL(worldAudioUrlRef.current)
+        worldAudioUrlRef.current = null
+      }
 
       // Dispose asset resolver
       if (assetResolverRef.current) {
@@ -880,6 +894,68 @@ function SceneViewInner({
       skyDomeRef.current = null
     }
   }, [scene, world.world.skybox, _assets])
+
+  useEffect(() => {
+    const sound = world.world.sound
+    const assetId = sound?.assetId?.trim()
+    const blob = assetId ? _assets.get(assetId) : undefined
+    const volume = Math.max(0, Math.min(1, sound?.volume ?? 1))
+    const loop = sound?.loop ?? true
+    const autoplay = sound?.autoplay ?? true
+
+    if (!assetId || !blob) {
+      if (worldAudioRef.current) {
+        worldAudioRef.current.pause()
+        worldAudioRef.current.src = ''
+        worldAudioRef.current = null
+      }
+      if (worldAudioUrlRef.current) {
+        URL.revokeObjectURL(worldAudioUrlRef.current)
+        worldAudioUrlRef.current = null
+      }
+      return
+    }
+
+    const prev = worldAudioRef.current
+    const sameSource = prev?.dataset.assetId === assetId
+    if (!sameSource) {
+      if (worldAudioRef.current) {
+        worldAudioRef.current.pause()
+        worldAudioRef.current.src = ''
+      }
+      if (worldAudioUrlRef.current) {
+        URL.revokeObjectURL(worldAudioUrlRef.current)
+      }
+      const url = URL.createObjectURL(blob)
+      const audio = new Audio(url)
+      audio.dataset.assetId = assetId
+      worldAudioRef.current = audio
+      worldAudioUrlRef.current = url
+    }
+
+    const audio = worldAudioRef.current
+    if (!audio) return
+    audio.loop = loop
+    audio.volume = volume
+    if (autoplay) {
+      void audio.play().catch(() => {
+        // Browsers may block autoplay until user interaction.
+      })
+    }
+  }, [world.world.sound, _assets])
+
+  useEffect(() => {
+    if (!soundPlaybackCommand) return
+    const audio = worldAudioRef.current
+    if (!audio) return
+    if (soundPlaybackCommand.action === 'play') {
+      void audio.play().catch(() => {
+        // If blocked by autoplay policy, user can retry after interaction.
+      })
+      return
+    }
+    audio.pause()
+  }, [soundPlaybackCommand])
 
   return <div ref={containerRef} className={className} style={{ width: '100%', height: '100%' }} />
 }

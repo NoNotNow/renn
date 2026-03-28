@@ -25,6 +25,7 @@ Last updated: 2026-03-27
 - PropertyPanel: TransformEditor, ShapeEditor, PhysicsEditor, MaterialEditor, entity name, delete
 - ScriptPanel: Monaco editor, add/remove scripts
 - AssetPanel: upload textures/models, list/remove
+- Sound tab: select/upload background audio (`world.sound.assetId`), set `volume`, `loop`, `autoplay`; manual play/stop in Builder; playback runs in Builder and Play
 - Play view: separate route `/play`, loads world from URL query or sample
 - In-scene interactions: click to select, drag to move
 - ProjectContext: single source of truth, dirty tracking, memoized values

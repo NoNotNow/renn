@@ -80,6 +80,7 @@ export interface WorldSettings {
   wind?: Vec3
   /** Optional custom sleep timer applied in PhysicsWorld when set. */
   sleeping?: WorldSleepingSettings
+  sound?: SoundSettings
   ambientLight?: Color
   directionalLight?: DirectionalLightConfig
   skyColor?: Color
@@ -87,9 +88,16 @@ export interface WorldSettings {
   camera?: CameraConfig
 }
 
+export interface SoundSettings {
+  assetId?: string
+  volume?: number
+  loop?: boolean
+  autoplay?: boolean
+}
+
 export interface AssetRef {
   path?: string
-  type?: 'texture' | 'model' | 'cubeTexture'
+  type?: 'texture' | 'model' | 'cubeTexture' | 'audio'
 }
 
 /** Mesh decimation backend; `meshoptimizer` is higher quality, `simplifyModifier` is the legacy Three.js path. */

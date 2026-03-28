@@ -85,6 +85,7 @@ renn/
 │   │   ├── EntitySidebar.tsx # Entity list (search + collapsible filters), add-entity dropdown, camera control/target/mode
 │   │   ├── PropertySidebar.tsx # Tabs: Properties | Scripts | Assets
 │   │   ├── WorldPanel.tsx    # World tab: gravity, sleep thresholds, sky color + dome texture (`world.skybox`), lights, ground
+│   │   ├── SoundPanel.tsx    # Sound tab: background audio asset (`world.sound.assetId`), volume, loop, autoplay, manual play/stop
 │   │   ├── PropertyPanel.tsx # Edit selected entity (name, shape, transform, physics, material, transformers, delete)
 │   │   ├── TransformEditor.tsx # Position, rotation (Vec3Field, Euler [x,y,z]), scale
 │   │   ├── ShapeEditor.tsx   # Shape type + params (box, sphere, cylinder, capsule, cone, pyramid, ring, plane)
@@ -154,7 +155,8 @@ renn/
 
 ## World document
 
-- **Root**: `version`, `world` (gravity, lighting, camera), `entities[]`, optional `assets`, optional `scripts`.
+- **Root**: `version`, `world` (gravity, lighting, camera, optional background sound), `entities[]`, optional `assets`, optional `scripts`.
+- **world.sound** (optional): world-level background audio settings (`assetId`, `volume` 0..1, `loop`, `autoplay`). Runtime applies this in Builder and Play; manual Play/Stop in Builder Sound tab only controls current session playback and is not persisted.
 - **world.sleeping** (optional): `linearThreshold`, `angularThreshold`, `timeUntilSleep`. When present, `PhysicsWorld` runs a per-body timer after each Rapier `step(dt)` and calls `body.sleep()` once both velocity checks pass continuously for `timeUntilSleep` seconds. Negative `linearThreshold` or `angularThreshold` disables that axis check (Rapier-style). Recommended defaults are `RECOMMENDED_SLEEPING_SETTINGS` in `src/types/world.ts` (0.4, 0.5 rad/s, 2s). Configured in the Builder **World** tab (`WorldPanel`).
 - **Entity**: `id`, `bodyType` (static/dynamic/kinematic), `shape` (box/sphere/cylinder/capsule/cone/pyramid/ring/plane/trimesh), `position` (Vec3), `rotation` (Rotation / Euler [x,y,z] radians), `scale`, `model?`, `modelRotation?` (Euler radians, applied to model/trimesh only), `modelScale?` (Vec3, applied to model/trimesh only), `material?`, `mass`, `restitution`, `friction`, `linearDamping`, `angularDamping`, `scripts?` (hook → script ID).
 - **Scripts**: map of script ID → source string. Entity `scripts.onUpdate` etc. reference these IDs. Scripts run with a `game` API (read/write positions, entities, time; no DOM/fetch).

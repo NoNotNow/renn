@@ -16,6 +16,7 @@
 |---|---|
 | Overall structure / data flow | `architecture.md` |
 | Entity movement, input, physics behavior | `feature-transformers.md` |
+| Input + car2 paradigms (layering, presets, transferability) | `transformer-paradigm-input-and-car2.md` |
 | Scripts, game API, events, intellisense | `feature-scripting.md` |
 | Property panel, inspector, live poses, picking (incl. 3D model meshes), no-update-loop | `feature-inspector.md` |
 | World update path, rebuild triggers, minimal reload strategy | `feature-world-update-reload.md` |

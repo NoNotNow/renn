@@ -37,6 +37,9 @@ const minimalWorld: RennWorld = {
 
 describe('SceneView', () => {
   let requestAnimationFrameId: number
+  let playSpy: ReturnType<typeof vi.fn>
+  let pauseSpy: ReturnType<typeof vi.fn>
+  let originalAudio: typeof Audio
 
   beforeEach(() => {
     vi.stubGlobal('requestAnimationFrame', (cb: () => void) => {
@@ -52,9 +55,25 @@ describe('SceneView', () => {
         disconnect() {}
       }
     )
+    playSpy = vi.fn(async () => {})
+    pauseSpy = vi.fn(() => {})
+    originalAudio = globalThis.Audio
+    vi.stubGlobal(
+      'Audio',
+      class MockAudio {
+        loop = false
+        volume = 1
+        src = ''
+        dataset: DOMStringMap = {}
+        constructor(public _url?: string) {}
+        play = playSpy
+        pause = pauseSpy
+      } as unknown as typeof Audio
+    )
   })
 
   afterEach(() => {
+    vi.stubGlobal('Audio', originalAudio)
     vi.unstubAllGlobals()
   })
 
@@ -108,5 +127,48 @@ describe('SceneView', () => {
     expect(() => ref.current?.setViewPreset('top')).not.toThrow()
     expect(() => ref.current?.setViewPreset('front')).not.toThrow()
     expect(() => ref.current?.setViewPreset('right')).not.toThrow()
+  })
+
+  it('applies world sound settings and responds to manual playback command', () => {
+    const worldWithSound: RennWorld = {
+      ...minimalWorld,
+      world: {
+        ...minimalWorld.world,
+        sound: {
+          assetId: 'bgm',
+          volume: 0.6,
+          loop: true,
+          autoplay: false,
+        },
+      },
+      assets: {
+        bgm: { type: 'audio', path: 'assets/bgm.mp3' },
+      },
+    }
+    const assets = new Map<string, Blob>([['bgm', new Blob(['abc'], { type: 'audio/mpeg' })]])
+    const { rerender } = render(
+      <SceneView world={worldWithSound} assets={assets} runPhysics={false} runScripts={false} />
+    )
+    expect(playSpy).not.toHaveBeenCalled()
+    rerender(
+      <SceneView
+        world={worldWithSound}
+        assets={assets}
+        runPhysics={false}
+        runScripts={false}
+        soundPlaybackCommand={{ action: 'play', nonce: 1 }}
+      />
+    )
+    expect(playSpy).toHaveBeenCalled()
+    rerender(
+      <SceneView
+        world={worldWithSound}
+        assets={assets}
+        runPhysics={false}
+        runScripts={false}
+        soundPlaybackCommand={{ action: 'stop', nonce: 2 }}
+      />
+    )
+    expect(pauseSpy).toHaveBeenCalled()
   })
 })
