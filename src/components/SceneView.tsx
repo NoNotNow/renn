@@ -1,4 +1,4 @@
-import { useRef, useEffect, forwardRef, useImperativeHandle, useState, useMemo } from 'react'
+import { useRef, useEffect, forwardRef, useImperativeHandle, useState, useMemo, useCallback } from 'react'
 import * as THREE from 'three'
 import { loadWorld } from '@/loader/loadWorld'
 import type { RennWorld, Vec3, Rotation, CameraConfig, Entity, EditorFreePose } from '@/types/world'
@@ -26,6 +26,7 @@ import { getSceneDependencyKey } from '@/utils/sceneDependencyKey'
 import { computeDirectionalShadowCameraExtent } from '@/utils/shadowBounds'
 import { countVisualModelTriangles } from '@/utils/geometryExtractor'
 import { findEntityRootForPicking } from '@/utils/entityPicking'
+import { WarningSnackbar } from '@/components/WarningSnackbar'
 
 const FIXED_DT = 1 / 60
 
@@ -161,6 +162,8 @@ function SceneViewInner({
   const worldRef = useRef(world)
   worldRef.current = world
   const [registryEpoch, setRegistryEpoch] = useState(0)
+  const [schemaLoadWarnings, setSchemaLoadWarnings] = useState<string[]>([])
+  const dismissSchemaLoadWarnings = useCallback(() => setSchemaLoadWarnings([]), [])
   const gizmoDraggingRef = useRef(false)
   const disposePickGizmoRef = useRef<(() => void) | null>(null)
   const syncGizmoAttachRef = useRef<(() => void) | null>(null)
@@ -301,8 +304,10 @@ function SceneViewInner({
     let cameraCtrl: CameraController | null = null
     let ro: ResizeObserver | null = null
 
+    setSchemaLoadWarnings([])
+
     // Load world asynchronously with assets
-    loadWorld(world, _assets).then(({ scene: loadedScene, entities, world: loadedWorld, assetResolver }) => {
+    loadWorld(world, _assets).then(({ scene: loadedScene, entities, world: loadedWorld, assetResolver, warnings }) => {
       // Check if this effect is still active
       if (cancelled || effectIdRef.current !== currentEffectId) {
         // Dispose resolver if effect was cancelled
@@ -310,6 +315,10 @@ function SceneViewInner({
           assetResolver.dispose()
         }
         return
+      }
+
+      if (warnings.length > 0) {
+        setSchemaLoadWarnings(warnings)
       }
 
       entitiesRef.current = entities
@@ -957,7 +966,12 @@ function SceneViewInner({
     audio.pause()
   }, [soundPlaybackCommand])
 
-  return <div ref={containerRef} className={className} style={{ width: '100%', height: '100%' }} />
+  return (
+    <div className={className} style={{ width: '100%', height: '100%', position: 'relative' }}>
+      <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+      <WarningSnackbar messages={schemaLoadWarnings} onDismiss={dismissSchemaLoadWarnings} />
+    </div>
+  )
 }
 
 const SceneView = forwardRef<SceneViewHandle, SceneViewProps>(SceneViewInner)

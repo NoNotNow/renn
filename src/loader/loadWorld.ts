@@ -26,6 +26,8 @@ export interface LoadWorldResult {
   entities: LoadedEntity[]
   world: RennWorld
   assetResolver: DisposableAssetResolver | null
+  /** Non-fatal schema drift messages (e.g. stripped unknown JSON fields). */
+  warnings: string[]
 }
 
 /**
@@ -37,7 +39,12 @@ export async function loadWorld(
   assets?: Map<string, Blob>
 ): Promise<LoadWorldResult> {
   migrateWorldScripts(worldData)
-  validateWorldDocument(worldData, { tolerateAdditionalProperties: true, logAdditionalProperties: true })
+  const warnings: string[] = []
+  validateWorldDocument(worldData, {
+    tolerateAdditionalProperties: true,
+    logAdditionalProperties: true,
+    warningsOut: warnings,
+  })
   const world = worldData as RennWorld
 
   await ensureMeshoptSimplifierReady()
@@ -158,5 +165,5 @@ export async function loadWorld(
     entities.push({ entity, mesh })
   }
 
-  return { scene, entities, world, assetResolver }
+  return { scene, entities, world, assetResolver, warnings }
 }

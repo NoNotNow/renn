@@ -42,9 +42,9 @@ renn/
 │   ├── contexts/
 │   │   └── ProjectContext.tsx # ProjectProvider: state + actions for projects/world/assets/camera
 │   ├── schema/
-│   │   └── validate.ts       # validateWorldDocument(), Ajv + world-schema
+│   │   └── validate.ts       # validateWorldDocument(), Ajv + world-schema; optional tolerate removes additionalProperty keys iteratively (clone fallback), warningsOut for UI
 │   ├── loader/
-│   │   ├── loadWorld.ts        # loadWorld(data) → scene, entities, world; awaits meshoptimizer WASM before mesh build
+│   │   ├── loadWorld.ts        # loadWorld(data) → scene, entities, world, warnings[]; awaits meshoptimizer WASM before mesh build
 │   │   ├── loadWorldFromStatic.ts # Static world + assets; rejects text/html (Vite SPA fallback); tries assets/<assetId>.bin before ref.path
 │   │   ├── createPrimitive.ts # Mesh from shape + material; plane/box/sphere/cylinder/capsule/cone/pyramid/ring/…
 │   │   ├── assetResolver.ts  # (assetId) => URL | Blob | null

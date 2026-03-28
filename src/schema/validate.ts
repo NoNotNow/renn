@@ -3,17 +3,20 @@ import type { RennWorld } from '@/types/world'
 import worldSchema from '../../world-schema.json'
 
 const ajvStrict = new Ajv({ strict: true, allErrors: true })
-const ajvTolerant = new Ajv({ strict: true, allErrors: true, removeAdditional: true })
 
 let validateWorldStrict: ValidateFunction<RennWorld> | null = null
-let validateWorldTolerant: ValidateFunction<RennWorld> | null = null
 
 export interface ValidateWorldOptions {
   /**
-   * If validation fails *only* due to `additionalProperties`, strip unknown keys and re-validate.
-   * Useful for forward/backward compatibility between schema versions.
+   * If strict validation fails only due to `additionalProperties`, remove those keys (iteratively, using
+   * Ajv error locations) and re-validate. Uses a deep clone as fallback when in-place deletes fail (e.g. frozen
+   * objects). Does not use global `removeAdditional`, which would break `oneOf` shapes in the schema.
    */
   tolerateAdditionalProperties?: boolean
+  /**
+   * When stripping was applied, append human-readable messages (e.g. for a UI snackbar).
+   */
+  warningsOut?: string[]
   /**
    * When tolerant mode strips keys, log warnings with the offending payload.
    * Defaults to true when `tolerateAdditionalProperties` is enabled.
@@ -30,13 +33,6 @@ function getValidatorStrict(): ValidateFunction<RennWorld> {
     validateWorldStrict = ajvStrict.compile(worldSchema as object) as ValidateFunction<RennWorld>
   }
   return validateWorldStrict
-}
-
-function getValidatorTolerant(): ValidateFunction<RennWorld> {
-  if (!validateWorldTolerant) {
-    validateWorldTolerant = ajvTolerant.compile(worldSchema as object) as ValidateFunction<RennWorld>
-  }
-  return validateWorldTolerant
 }
 
 function unescapeJsonPointerSegment(segment: string): string {
@@ -60,6 +56,36 @@ function getValueAtJsonPointer(data: unknown, instancePath: string): unknown {
   return cur
 }
 
+function cloneWorldDocumentForStripping(data: unknown): unknown {
+  try {
+    return structuredClone(data)
+  } catch {
+    return JSON.parse(JSON.stringify(data)) as unknown
+  }
+}
+
+/**
+ * Writes stripped top-level world fields onto the original object (same root reference),
+ * so callers holding the root keep a stable reference while nested data matches the schema.
+ */
+function applyStrippedWorldOntoOriginal(original: unknown, stripped: unknown): void {
+  if (typeof original !== 'object' || original === null || typeof stripped !== 'object' || stripped === null) {
+    return
+  }
+  const o = original as Record<string, unknown>
+  const s = stripped as Record<string, unknown>
+  o.version = s.version
+  o.world = s.world
+  o.entities = s.entities
+  if ('assets' in s) o.assets = s.assets
+  else delete o.assets
+  if ('scripts' in s) o.scripts = s.scripts
+  else delete o.scripts
+  for (const key of Object.keys(o)) {
+    if (!(key in s)) delete o[key]
+  }
+}
+
 function stringifyLimited(value: unknown, maxChars: number): string {
   try {
     const json = JSON.stringify(value, null, 2)
@@ -73,6 +99,46 @@ function stringifyLimited(value: unknown, maxChars: number): string {
 }
 
 type AjvError = { instancePath: string; message: string; keyword?: string; params?: Record<string, unknown> }
+
+function isAdditionalPropertyError(e: AjvError): boolean {
+  if (e.keyword === 'additionalProperties') return true
+  if (e.message.includes('additional properties')) return true
+  if (typeof e.params?.additionalProperty === 'string' || typeof e.params?.additionalProperty === 'number')
+    return true
+  return false
+}
+
+const MAX_STRIP_ROUNDS = 100
+
+/**
+ * Removes keys reported by strict `additionalProperties` errors until the document validates or progress stops.
+ */
+function stripAdditionalPropertiesIteratively(mutate: unknown): boolean {
+  const validateStrict = getValidatorStrict()
+  for (let round = 0; round < MAX_STRIP_ROUNDS; round++) {
+    if (validateStrict(mutate)) return true
+    const errors = (validateStrict.errors ?? []) as unknown as AjvError[]
+    if (errors.length === 0) return false
+    if (!errors.every(isAdditionalPropertyError)) return false
+
+    let removedAny = false
+    for (const e of errors) {
+      const prop = e.params?.additionalProperty
+      const key =
+        typeof prop === 'string' ? prop : typeof prop === 'number' ? String(prop) : null
+      if (key == null) continue
+      const parent = getValueAtJsonPointer(mutate, e.instancePath)
+      if (parent && typeof parent === 'object' && !Array.isArray(parent)) {
+        if (Object.prototype.hasOwnProperty.call(parent, key)) {
+          const deleted = Reflect.deleteProperty(parent as Record<string, unknown>, key)
+          if (deleted) removedAny = true
+        }
+      }
+    }
+    if (!removedAny) return false
+  }
+  return false
+}
 
 function describeValidationErrors(data: unknown, errors: AjvError[], opts: ValidateWorldOptions): string {
   const maxOffendingValueChars = opts.maxOffendingValueChars ?? 2000
@@ -115,24 +181,34 @@ export function validateWorldDocument(data: unknown, options: ValidateWorldOptio
 
   const tolerateAdditionalProperties = options.tolerateAdditionalProperties ?? false
   const logAdditionalProperties = options.logAdditionalProperties ?? tolerateAdditionalProperties
+  const warningsOut = options.warningsOut
 
-  const allAdditionalProperties = errors.every((e) => {
-    if (e.keyword === 'additionalProperties') return true
-    // Ajv typically uses keyword='additionalProperties', but we fall back to message/params
-    // to keep tolerance working across Ajv versions/configs.
-    if (e.message.includes('additional properties')) return true
-    if (typeof e.params?.additionalProperty === 'string' || typeof e.params?.additionalProperty === 'number') return true
-    return false
-  })
+  if (tolerateAdditionalProperties) {
+    const detail = describeValidationErrors(data, errors, options)
 
-  if (tolerateAdditionalProperties && allAdditionalProperties) {
-    if (logAdditionalProperties) {
-      const detail = describeValidationErrors(data, errors, options)
-      console.warn('[validateWorldDocument] Stripping additional properties and re-validating. Details:', detail)
+    if (stripAdditionalPropertiesIteratively(data)) {
+      const summary =
+        'Unknown or deprecated fields were removed so the world could load. Details: ' + detail
+      warningsOut?.push(summary)
+      if (logAdditionalProperties) {
+        console.warn('[validateWorldDocument] ' + summary)
+      }
+      return
     }
-    const validateTolerant = getValidatorTolerant()
-    const validTolerant = validateTolerant(data)
-    if (validTolerant) return
+
+    const stripped = cloneWorldDocumentForStripping(data)
+    if (stripAdditionalPropertiesIteratively(stripped)) {
+      applyStrippedWorldOntoOriginal(data, stripped)
+      if (validateStrict(data)) {
+        const summary =
+          'Unknown or deprecated fields were removed so the world could load. Details: ' + detail
+        warningsOut?.push(summary)
+        if (logAdditionalProperties) {
+          console.warn('[validateWorldDocument] ' + summary)
+        }
+        return
+      }
+    }
   }
 
   const msg = describeValidationErrors(data, errors, options)

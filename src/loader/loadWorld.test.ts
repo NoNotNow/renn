@@ -33,6 +33,7 @@ describe('loadWorld', () => {
     expect(result.entities).toHaveLength(5)
     expect(result.scene).toBeDefined()
     expect(result.world).toBe(world)
+    expect(result.warnings).toEqual([])
   })
 
   it('returns one LoadedEntity per world entity with mesh and entity', async () => {
