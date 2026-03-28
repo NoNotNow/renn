@@ -33,6 +33,14 @@ export const ENTITY_VIEW_METHODS: EntityViewMethodDescriptor[] = [
   { name: 'applyImpulse', argsAfterId: 3, entityDecl: 'applyImpulse(x: number, y: number, z: number): void', ctxDecl: 'applyImpulse(id: string, x: number, y: number, z: number): void' },
 ]
 
+/** Narrow-phase contact neighbors for the bound entity (script-facing). */
+export interface ScriptEntityTouching {
+  /** World entities currently touching this one (distinct others). */
+  get list(): Entity[]
+  /** True when not touching any other entity. */
+  get empty(): boolean
+}
+
 /** Bound detect helpers (no id param; id comes from getId()). */
 export interface BoundDetectHelpers {
   isUpsideDown(): boolean
@@ -58,6 +66,7 @@ export interface ScriptEntity extends Entity {
   applyForce(x: number, y: number, z: number): void
   applyImpulse(x: number, y: number, z: number): void
   readonly detect: BoundDetectHelpers
+  readonly touching: ScriptEntityTouching
 }
 
 /** Orientation detection helpers. All use threshold 0.5 (and 0.9 for isTilted). Optional id defaults to current entity. */
@@ -199,6 +208,21 @@ function buildEntityView(game: GameAPI, getEntityRef: () => Entity | null): Scri
       return getEntityRef()?.bodyType
     },
     detect,
+    touching: {
+      get list(): Entity[] {
+        const e = getEntityRef()
+        if (!e) return []
+        return game
+          .getTouchingEntityIds(e.id)
+          .map((id) => game.getEntity(id))
+          .filter((x): x is Entity => x !== undefined)
+      },
+      get empty(): boolean {
+        const e = getEntityRef()
+        if (!e) return true
+        return game.getTouchingEntityIds(e.id).length === 0
+      },
+    },
   } as ScriptEntity
   for (const desc of ENTITY_VIEW_METHODS) {
     const key = desc.name

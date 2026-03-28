@@ -28,6 +28,8 @@ export interface GameAPI {
   getColor(id: string): [number, number, number] | null
   applyForce(id: string, x: number, y: number, z: number): void
   applyImpulse(id: string, x: number, y: number, z: number): void
+  /** Entity ids in narrow-phase contact with this entity (last physics step); empty if no collider or world. */
+  getTouchingEntityIds(id: string): string[]
   // Transformer control
   setTransformerEnabled(entityId: string, transformerType: string, enabled: boolean): void
   setTransformerParam(entityId: string, transformerType: string, paramName: string, value: unknown): void
@@ -126,6 +128,10 @@ export function createGameAPI(
       if (physics) {
         physics.applyImpulse(id, x, y, z)
       }
+    },
+    getTouchingEntityIds(id: string): string[] {
+      const physics = getPhysicsWorld()
+      return physics ? physics.getTouchingEntityIds(id) : []
     },
     setTransformerEnabled(entityId: string, transformerType: string, enabled: boolean) {
       const registry = getRenderItemRegistry()

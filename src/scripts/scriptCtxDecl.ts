@@ -16,6 +16,15 @@ function buildEntityInterface(): string {
   bodyType?: 'static' | 'dynamic' | 'kinematic';
 ${methodLines}
   readonly detect: BoundDetectHelpers;
+  readonly touching: EntityTouching;
+}`
+}
+
+function buildEntityTouchingInterface(): string {
+  return `/** Narrow-phase contact neighbors (same semantics as physics touching). */
+interface EntityTouching {
+  readonly list: Entity[];
+  readonly empty: boolean;
 }`
 }
 
@@ -60,6 +69,7 @@ ${methodLines}
 }
 
 const BASE = `
+${buildEntityTouchingInterface()}
 ${buildEntityInterface()}
 ${buildBoundDetectInterface()}
 ${buildDetectHelpersInterface()}

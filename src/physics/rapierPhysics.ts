@@ -530,6 +530,24 @@ export class PhysicsWorld {
   }
 
   /**
+   * Entity ids with at least one narrow-phase contact to this entity's collider.
+   * Same rules as {@link isEntityTouchingAny}; each other entity appears once.
+   */
+  getTouchingEntityIds(entityId: string): string[] {
+    const collider = this.colliderMap.get(entityId)
+    if (!collider) return []
+    const seen = new Set<string>()
+    this.world.contactPairsWith(collider, (other) => {
+      const otherEntityId = this.colliderHandleToEntityId.get(other.handle)
+      if (!otherEntityId || otherEntityId === entityId) return
+      this.world.contactPair(collider, other, (manifold, _flipped) => {
+        if (manifold.numContacts() > 0) seen.add(otherEntityId)
+      })
+    })
+    return [...seen]
+  }
+
+  /**
    * Call once per frame before applying transformer forces so that
    * addForce/addTorque do not accumulate across steps.
    */

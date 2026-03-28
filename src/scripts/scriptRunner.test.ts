@@ -24,6 +24,7 @@ function createMockGameAPI(overrides?: Partial<GameAPI>): GameAPI {
     getColor: vi.fn().mockReturnValue(null),
     applyForce: vi.fn(),
     applyImpulse: vi.fn(),
+    getTouchingEntityIds: vi.fn().mockReturnValue([]),
     setTransformerEnabled: vi.fn(),
     setTransformerParam: vi.fn(),
     log: vi.fn(),
@@ -376,6 +377,43 @@ describe('ScriptRunner', () => {
     expect(game.getRotation).toHaveBeenCalledWith('player')
     expect(game.getPosition).toHaveBeenCalledTimes(2)
     expect(game.getRotation).toHaveBeenCalledTimes(2)
+  })
+
+  it('ctx.entity.touching.empty and touching.list use getTouchingEntityIds and getEntity', () => {
+    const worldEntities = [
+      { id: 'player', scripts: ['touchScript'] },
+      { id: 'wall', name: 'Wall' },
+    ]
+    const world = createMockWorld({
+      entities: worldEntities,
+      scripts: {
+        touchScript: {
+          event: 'onUpdate',
+          source: `
+            ctx.log(ctx.entity.touching.empty, ctx.entity.touching.list.map((e) => e.id).join(','));
+          `,
+        },
+      },
+    })
+    world.entities = world.entities ?? []
+
+    const getTouching = vi.fn().mockReturnValue(['wall'])
+    const game = createMockGameAPI({
+      entities: worldEntities,
+      getEntity: vi.fn((id: string) => worldEntities.find((e) => e.id === id)),
+      getTouchingEntityIds: getTouching,
+    })
+    const getMeshById = vi.fn()
+    const entities = createLoadedEntities(world)
+    const runner = new ScriptRunner(world, game, getMeshById, entities)
+    runner.runOnUpdate(0.016)
+
+    expect(getTouching).toHaveBeenCalledWith('player')
+    expect(game.log).toHaveBeenCalledWith(false, 'wall')
+
+    getTouching.mockReturnValue([])
+    runner.runOnUpdate(0.016)
+    expect(game.log).toHaveBeenLastCalledWith(true, '')
   })
 
   it('ctx.other has same API as ctx.entity (getPosition, getUpVector, detect.isUpright)', () => {
