@@ -13,6 +13,7 @@ export const TRANSFORMER_PRESET_OPTIONS: { value: string; label: string }[] = [
   { value: 'targetPoseInput', label: 'targetPoseInput' },
   { value: 'kinematicMovement', label: 'kinematicMovement' },
   { value: 'wanderer', label: 'wanderer' },
+  { value: 'follow', label: 'follow' },
 ]
 
 /**
@@ -95,6 +96,18 @@ export function getDefaultTransformerConfig(type: string): TransformerConfig {
           },
           positionEpsilon: 0.05,
           rotationEpsilon: 0.08,
+        },
+      }
+    case 'follow':
+      return {
+        type: 'follow',
+        priority: 5,
+        enabled: true,
+        params: {
+          targetEntityId: '',
+          speed: 2,
+          linear: true,
+          angular: true,
         },
       }
     default:

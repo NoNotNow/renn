@@ -3,7 +3,15 @@ import { listPresetNames, loadPreset } from './loader'
 
 describe('transformerPresets loader', () => {
   test('listPresetNames returns array for preset transformer types', () => {
-    for (const type of ['car2', 'input', 'person', 'targetPoseInput', 'kinematicMovement', 'wanderer'] as const) {
+    for (const type of [
+      'car2',
+      'input',
+      'person',
+      'targetPoseInput',
+      'kinematicMovement',
+      'wanderer',
+      'follow',
+    ] as const) {
       const names = listPresetNames(type)
       expect(Array.isArray(names)).toBe(true)
     }
@@ -23,5 +31,13 @@ describe('transformerPresets loader', () => {
       center: [0, 0, 0],
       halfExtents: [5, 5, 5],
     })
+  })
+
+  test('loadPreset loads follow default', async () => {
+    const result = await loadPreset('follow', 'default')
+    expect(result).not.toBeNull()
+    expect(result?.type).toBe('follow')
+    expect(result?.params?.speed).toBe(2)
+    expect(result?.params?.targetEntityId).toBe('')
   })
 })

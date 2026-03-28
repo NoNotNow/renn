@@ -6,7 +6,7 @@ Transformers convert high-level intent (input, AI, waypoints) into physics impul
 
 | Layer | Responsibility |
 |--------|------------------|
-| **Target sources** (`targetPoseInput`, `wanderer`, future AI/script) | **Where** to go: `TransformInput.target` with `pose`, **linear** `speed` (m/s average along translation toward `pose.position`), optional `curve` / `velocity`. Does **not** specify kinematic vs dynamic vs forces. |
+| **Target sources** (`targetPoseInput`, `wanderer`, `follow`, future AI/script) | **Where** to go: `TransformInput.target` with `pose`, **linear** `speed` (m/s average along translation toward `pose.position`), optional `curve` / `velocity`. Does **not** specify kinematic vs dynamic vs forces. |
 | **Movement transformers** (`kinematicMovement`, future force-based movers) | **How** to realize intent: read `input.target` and emit forces or `setPose` as designed. |
 
 **Paradigms**
@@ -42,6 +42,7 @@ src/
 │       ├── car2Transformer.ts               # Impulse + addRotation (touch-gated)
 │       ├── targetPoseInputTransformer.ts     # Waypoints → TransformInput.target
 │       ├── wandererTransformer.ts            # Random poses in cube → TransformInput.target
+│       ├── followTransformer.ts              # Another entity's pose → TransformInput.target
 │       └── kinematicMovementTransformer.ts   # input.target → TransformOutput.setPose
 ├── data/transformerPresets/
 │   ├── loader.ts                             # listPresetNames, loadPreset (from JSON files)
@@ -49,6 +50,7 @@ src/
 │   ├── input/                                # e.g. keyboard-car.json = car input (Space → jump for car2)
 │   ├── targetPoseInput/
 │   ├── wanderer/
+│   ├── follow/
 │   └── kinematicMovement/
 ├── input/
 │   ├── rawInput.ts                           # Keyboard + trackpad capture
@@ -75,9 +77,10 @@ Templates live under `src/data/transformerPresets/<type>/*.json` and appear in t
 | `person` | WASD walk/run + turn torque when grounded | `walkForce`, `runForce`, `maxWalkSpeed`, `maxRunSpeed`, `turnSpeed` |
 | `targetPoseInput` | Waypoint list → **`TransformInput.target`** (pose + linear speed); modes `cycle`, `pingPong`, `stopAtEnd` | `poses`, `speed`, `mode`, `positionEpsilon`, `rotationEpsilon` |
 | `wanderer` | Random poses within perimeter cube → **`TransformInput.target`**; configurable speed, jump distance, linear/angular toggles | `speed`, `jumpDistance`, `linear`, `angular`, `perimeter` (center, halfExtents), `positionEpsilon`, `rotationEpsilon` |
+| `follow` | Each frame, copy another item's world pose into **`TransformInput.target`** (pose + linear `speed`); runtime resolves pose via `RenderItemRegistry` (physics cache + mesh fallback) | `targetEntityId`, `speed`, `linear`, `angular` |
 | `kinematicMovement` | Reads **`input.target`**, emits **`setPose`** (linear move at `target.speed`, rotation via `maxRotationRate`) | `maxRotationRate` |
 
-**Typical kinematic path:** `targetPoseInput` or `wanderer` (priority 5) then `kinematicMovement` (priority 6). Entity should use **`bodyType: kinematic`** for clean pose driving.
+**Typical kinematic path:** `targetPoseInput`, `wanderer`, or `follow` (priority 5) then `kinematicMovement` (priority 6). Entity should use **`bodyType: kinematic`** for clean pose driving.
 
 ## Minimal JSON config
 

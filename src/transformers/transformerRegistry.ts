@@ -6,6 +6,7 @@
 
 import type { Entity } from '@/types/world'
 import type {
+  EntityWorldPoseGetter,
   Transformer,
   TransformerConfig,
 } from '@/types/transformer'
@@ -25,6 +26,7 @@ import {
   WandererTransformer,
   type WandererParams,
 } from './presets/wandererTransformer'
+import { FollowTransformer, type FollowParams } from './presets/followTransformer'
 import type { InputMapping } from '@/types/transformer'
 import { CHARACTER_PRESET } from '@/input/inputPresets'
 
@@ -35,6 +37,7 @@ export async function createTransformer(
   config: TransformerConfig,
   rawInputGetter?: () => import('@/types/transformer').RawInput | null,
   entity?: Entity,
+  getEntityWorldPose?: EntityWorldPoseGetter,
 ): Promise<Transformer> {
   const priority = config.priority ?? 10
   const enabled = config.enabled ?? true
@@ -82,6 +85,13 @@ export async function createTransformer(
       return transformer
     }
 
+    case 'follow': {
+      const params = (config.params ?? {}) as Partial<FollowParams>
+      const transformer = new FollowTransformer(priority, params, getEntityWorldPose)
+      transformer.enabled = enabled
+      return transformer
+    }
+
     default:
       throw new Error(`Unknown transformer type: ${config.type}`)
   }
@@ -94,6 +104,7 @@ export async function createTransformerChain(
   configs: TransformerConfig[] | undefined,
   rawInputGetter?: () => import('@/types/transformer').RawInput | null,
   entity?: Entity,
+  getEntityWorldPose?: EntityWorldPoseGetter,
 ): Promise<TransformerChain | null> {
   if (!configs || configs.length === 0) {
     return null
@@ -102,7 +113,12 @@ export async function createTransformerChain(
   const chain = new TransformerChain()
   for (const config of configs) {
     try {
-      const transformer = await createTransformer(config, rawInputGetter, entity)
+      const transformer = await createTransformer(
+        config,
+        rawInputGetter,
+        entity,
+        getEntityWorldPose,
+      )
       chain.add(transformer)
     } catch (error) {
       console.error(`[TransformerRegistry] Failed to create transformer ${config.type}:`, error)

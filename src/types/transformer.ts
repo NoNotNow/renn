@@ -199,6 +199,15 @@ export interface Transformer {
 }
 
 // ---------------------------------------------------------------------------
+// World pose lookup (e.g. follow transformer)
+// ---------------------------------------------------------------------------
+
+/** World pose for an entity; returned by runtime-injected getters. */
+export type EntityWorldPose = { position: Vec3; rotation: Rotation }
+
+export type EntityWorldPoseGetter = (entityId: string) => EntityWorldPose | null
+
+// ---------------------------------------------------------------------------
 // JSON-serialisable configuration
 // ---------------------------------------------------------------------------
 
@@ -210,6 +219,7 @@ export type PresetTransformerType =
   | 'targetPoseInput'
   | 'kinematicMovement'
   | 'wanderer'
+  | 'follow'
 
 /** Transformer type string. */
 export type TransformerType = PresetTransformerType | string

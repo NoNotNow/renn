@@ -6,6 +6,7 @@ import { PersonTransformer } from './presets/personTransformer'
 import { TargetPoseInputTransformer } from './presets/targetPoseInputTransformer'
 import { KinematicMovementTransformer } from './presets/kinematicMovementTransformer'
 import { WandererTransformer } from './presets/wandererTransformer'
+import { FollowTransformer } from './presets/followTransformer'
 import { createMockTransformInput } from '@/test/helpers/transformer'
 import type { TransformerConfig } from '@/types/transformer'
 import { CHARACTER_PRESET } from '@/input/inputPresets'
@@ -118,6 +119,20 @@ describe('Transformer Registry', () => {
 
     expect(transformer).toBeInstanceOf(WandererTransformer)
     expect(transformer.type).toBe('wanderer')
+  })
+
+  test('creates FollowTransformer from config', async () => {
+    const getter = () => ({ position: [0, 0, 0] as const, rotation: [0, 0, 0] as const })
+    const config: TransformerConfig = {
+      type: 'follow',
+      priority: 5,
+      params: { targetEntityId: 'lead', speed: 2 },
+    }
+
+    const transformer = await createTransformer(config, undefined, undefined, getter)
+
+    expect(transformer).toBeInstanceOf(FollowTransformer)
+    expect(transformer.type).toBe('follow')
   })
 
   test('throws for unknown transformer type', async () => {

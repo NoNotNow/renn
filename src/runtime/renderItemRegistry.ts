@@ -7,7 +7,12 @@ import type { DisposableAssetResolver } from '@/loader/assetResolverImpl'
 import { RenderItem } from './renderItem'
 import { getUpVectorFromRapierQuaternion, quaternionToEuler, rapierQuaternionToEuler } from '@/utils/rotationUtils'
 import { createTransformerChain } from '@/transformers/transformerRegistry'
-import type { TransformInput, TransformerConfig, RawInput } from '@/types/transformer'
+import type {
+  EntityWorldPose,
+  TransformInput,
+  TransformerConfig,
+  RawInput,
+} from '@/types/transformer'
 import { createEmptyTransformInput } from '@/types/transformer'
 import {
   bakeMeshScaleIntoModelScaleEntity,
@@ -26,6 +31,23 @@ export class RenderItemRegistry {
   private rawInputGetter: (() => RawInput | null) | null = null
   /** Reused buffer for addVectorToPosition to avoid allocation on hot path. */
   private _addVecBuf: Vec3 = [0, 0, 0]
+
+  /**
+   * World pose for another entity (e.g. follow transformer). Uses the same physics
+   * cache as executeTransformers when present; otherwise render item pose.
+   */
+  private getEntityWorldPoseForTransformers(id: string): EntityWorldPose | null {
+    const cached = this.physicsWorld?.getCachedTransform(id)
+    if (cached) {
+      return {
+        position: [cached.position.x, cached.position.y, cached.position.z],
+        rotation: rapierQuaternionToEuler(cached.rotation),
+      }
+    }
+    const item = this.items.get(id)
+    if (!item) return null
+    return { position: item.getPosition(), rotation: item.getRotation() }
+  }
 
   /**
    * Build registry from loaded entities and physics world. Call after
@@ -47,7 +69,12 @@ export class RenderItemRegistry {
       // Creation may be async (custom transformers); initialize asynchronously
       // so callers receive a registry immediately (tests expect sync create()).
       if (entity.transformers && entity.transformers.length > 0) {
-        createTransformerChain(entity.transformers, rawInputGetter ?? undefined, entity)
+        createTransformerChain(
+          entity.transformers,
+          rawInputGetter ?? undefined,
+          entity,
+          (eid) => registry.getEntityWorldPoseForTransformers(eid),
+        )
           .then(chain => {
             if (chain) item.transformerChain = chain
           })
@@ -109,7 +136,12 @@ export class RenderItemRegistry {
       }
     }
 
-    createTransformerChain(configs, this.rawInputGetter ?? undefined, nextEntity)
+    createTransformerChain(
+      configs,
+      this.rawInputGetter ?? undefined,
+      nextEntity,
+      (eid) => this.getEntityWorldPoseForTransformers(eid),
+    )
       .then((newChain) => {
         if (!newChain) return
         item.transformerChain = newChain

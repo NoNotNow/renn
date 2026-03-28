@@ -11,6 +11,7 @@ const PRESET_TYPES: PresetTransformerType[] = [
   'targetPoseInput',
   'kinematicMovement',
   'wanderer',
+  'follow',
 ]
 
 export interface TransformerTemplateDialogProps {
