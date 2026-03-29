@@ -162,6 +162,7 @@ export default function Builder() {
   // Drawer states with localStorage persistence
   const [leftDrawerOpen, setLeftDrawerOpen] = useLocalStorageState('leftDrawerOpen', true)
   const [rightDrawerOpen, setRightDrawerOpen] = useLocalStorageState('rightDrawerOpen', true)
+  const [showGameHud, setShowGameHud] = useLocalStorageState('builderShowGameHud', false)
 
   const sceneCameraConfig = useMemo(
     () => ({
@@ -677,6 +678,14 @@ export default function Builder() {
             return next
           })
         }}
+        showGameHud={showGameHud}
+        onGameHudToggle={() => {
+          setShowGameHud((prev) => {
+            const next = !prev
+            uiLogger.click('Builder', 'Toggle game HUD (menu)', { enabled: next })
+            return next
+          })
+        }}
         onOpenPerformanceBooster={() => {
           setPerformanceBoosterOpen(true)
           uiLogger.click('Builder', 'Open Performance booster', {})
@@ -777,6 +786,7 @@ export default function Builder() {
                     }
                   : null
               }
+              showGameHud={showGameHud}
             />
           </ErrorBoundary>
         </main>

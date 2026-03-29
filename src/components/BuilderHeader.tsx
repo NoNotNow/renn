@@ -42,6 +42,9 @@ export interface BuilderHeaderProps {
   onRedo?: () => void
   editNavigationMode?: boolean
   onEditNavigationModeToggle?: () => void
+  /** Score/damage HUD overlay on the canvas (same as Play). */
+  showGameHud?: boolean
+  onGameHudToggle?: () => void
   onOpenPerformanceBooster?: () => void
 }
 
@@ -74,6 +77,8 @@ export default function BuilderHeader({
   onRedo,
   editNavigationMode = false,
   onEditNavigationModeToggle,
+  showGameHud = false,
+  onGameHudToggle,
   onOpenPerformanceBooster,
 }: BuilderHeaderProps) {
   const [showProjectSelector, setShowProjectSelector] = useState(false)
@@ -166,6 +171,13 @@ export default function BuilderHeader({
       type: 'item',
       label: 'Reset Camera',
       onClick: onResetCamera,
+    },
+    {
+      type: 'item',
+      label: 'Game HUD',
+      checked: showGameHud,
+      onClick: onGameHudToggle,
+      disabled: !onGameHudToggle,
     },
   ]
 

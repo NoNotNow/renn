@@ -36,6 +36,19 @@ export interface GameAPI {
   log(...args: unknown[]): void
   /** Show a transient UI message in play; default duration 10s. */
   snackbar(message: string, durationSeconds?: number): void
+  /** Play HUD: set score (green). Non-finite or negative values are ignored. Display uses non-negative integers. */
+  setScore(value: number): void
+  /** Play HUD: set damage (red). Non-finite or negative values are ignored. Display uses non-negative integers. */
+  setDamage(value: number): void
+}
+
+/** Partial update for the play-mode HUD overlay. */
+export type HudPatch = { score?: number; damage?: number }
+
+function normalizeHudDisplay(value: unknown): number | null {
+  const n = Number(value)
+  if (!Number.isFinite(n) || n < 0) return null
+  return Math.floor(n)
 }
 
 const DEFAULT_SNACKBAR_SECONDS = 10
@@ -71,7 +84,8 @@ export function createGameAPI(
   getRenderItemRegistry: () => import('@/runtime/renderItemRegistry').RenderItemRegistry | null = () => null,
   entities: Entity[] = [],
   timeRef: { current: number } = { current: 0 },
-  onSnackbar?: (message: string, durationSeconds: number) => void
+  onSnackbar?: (message: string, durationSeconds: number) => void,
+  onHudPatch?: (patch: HudPatch) => void
 ): GameAPI {
   return {
     get time() {
@@ -163,6 +177,16 @@ export function createGameAPI(
     snackbar(message: string, durationSeconds?: number) {
       const sec = normalizeSnackbarSeconds(durationSeconds)
       onSnackbar?.(String(message), sec)
+    },
+    setScore(value: number) {
+      const v = normalizeHudDisplay(value)
+      if (v === null) return
+      onHudPatch?.({ score: v })
+    },
+    setDamage(value: number) {
+      const v = normalizeHudDisplay(value)
+      if (v === null) return
+      onHudPatch?.({ damage: v })
     },
   }
 }

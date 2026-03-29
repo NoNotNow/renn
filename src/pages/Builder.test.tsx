@@ -94,6 +94,9 @@ describe('Builder', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     Object.keys(sceneViewProps).forEach((k) => delete sceneViewProps[k])
+    if (typeof localStorage?.removeItem === 'function') {
+      localStorage.removeItem('builderShowGameHud')
+    }
   })
 
   it('renders add entity dropdown and entity list', async () => {
@@ -138,11 +141,26 @@ describe('Builder', () => {
     expect(typeof sceneViewProps.onEntityPoseCommit).toBe('function')
     expect(sceneViewProps.gizmoMode).toBe('translate')
     expect(sceneViewProps.shadowsEnabled).toBe(true)
+    expect(sceneViewProps.showGameHud).toBe(false)
     expect(screen.getByRole('group', { name: 'Gizmo mode' })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Rotate gizmo' }))
     expect(sceneViewProps.gizmoMode).toBe('rotate')
     await user.click(screen.getByRole('button', { name: 'Scale gizmo' }))
     expect(sceneViewProps.gizmoMode).toBe('scale')
+  })
+
+  it('passes showGameHud true to SceneView after View → Game HUD', async () => {
+    const user = userEvent.setup()
+    renderBuilder()
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(sceneViewProps.showGameHud).toBe(false)
+    await user.click(screen.getByRole('button', { name: 'View' }))
+    await user.click(screen.getByRole('menuitem', { name: /game hud/i }))
+    await waitFor(() => {
+      expect(sceneViewProps.showGameHud).toBe(true)
+    })
   })
 
   it('passes shadowsEnabled false to SceneView when Shadows switch is toggled off', async () => {

@@ -32,7 +32,7 @@ export default function Play() {
       </header>
       <main style={{ flex: 1, minHeight: 0 }}>
         <ErrorBoundary>
-          <SceneView world={world} runPhysics runScripts />
+          <SceneView world={world} runPhysics runScripts showGameHud />
         </ErrorBoundary>
       </main>
     </div>

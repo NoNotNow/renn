@@ -7,7 +7,7 @@ import { DEFAULT_GRAVITY, DEFAULT_ROTATION } from '@/types/world'
 import { eulerToQuaternion } from '@/utils/rotationUtils'
 import type { LoadedEntity } from '@/loader/loadWorld'
 import { CameraController } from '@/camera/cameraController'
-import { createGameAPI } from '@/scripts/gameApi'
+import { createGameAPI, type HudPatch } from '@/scripts/gameApi'
 import { ScriptRunner } from '@/scripts/scriptRunner'
 import type { PhysicsWorld } from '@/physics/rapierPhysics'
 import { RenderItemRegistry } from '@/runtime/renderItemRegistry'
@@ -27,6 +27,7 @@ import { computeDirectionalShadowCameraExtent } from '@/utils/shadowBounds'
 import { countVisualModelTriangles } from '@/utils/geometryExtractor'
 import { findEntityRootForPicking } from '@/utils/entityPicking'
 import { ScriptSnackbar } from '@/components/ScriptSnackbar'
+import { GameHud } from '@/components/GameHud'
 import { WarningSnackbar } from '@/components/WarningSnackbar'
 
 const FIXED_DT = 1 / 60
@@ -82,6 +83,8 @@ export interface SceneViewProps {
     mode: 'mesh' | 'texture' | null
     onEntityPicked: (entityId: string) => void
   } | null
+  /** When true, show score/damage HUD; scripts update via `ctx.setScore` / `ctx.setDamage`. */
+  showGameHud?: boolean
 }
 
 export type EntityPhysicsPatch = Partial<Pick<Entity, 'mass' | 'restitution' | 'friction' | 'linearDamping' | 'angularDamping' | 'bodyType'>>
@@ -125,6 +128,7 @@ function SceneViewInner({
   editorFreePoseRef,
   soundPlaybackCommand = null,
   performancePick = null,
+  showGameHud = false,
 }: SceneViewProps, ref: React.Ref<SceneViewHandle>) {
   const sceneKey = useMemo(() => getSceneDependencyKey(world), [world])
   const containerRef = useRef<HTMLDivElement>(null)
@@ -166,6 +170,8 @@ function SceneViewInner({
   const [schemaLoadWarnings, setSchemaLoadWarnings] = useState<string[]>([])
   const dismissSchemaLoadWarnings = useCallback(() => setSchemaLoadWarnings([]), [])
   const [scriptSnackbarMessage, setScriptSnackbarMessage] = useState<string | null>(null)
+  const [hudScore, setHudScore] = useState(0)
+  const [hudDamage, setHudDamage] = useState(0)
   const gizmoDraggingRef = useRef(false)
   const disposePickGizmoRef = useRef<(() => void) | null>(null)
   const syncGizmoAttachRef = useRef<(() => void) | null>(null)
@@ -308,6 +314,8 @@ function SceneViewInner({
     let ro: ResizeObserver | null = null
 
     setSchemaLoadWarnings([])
+    setHudScore(0)
+    setHudDamage(0)
 
     // Load world asynchronously with assets
     loadWorld(world, _assets).then(({ scene: loadedScene, entities, world: loadedWorld, assetResolver, warnings }) => {
@@ -409,6 +417,12 @@ function SceneViewInner({
           setScriptSnackbarMessage(null)
         }, ms)
       }
+      const onHudPatch = showGameHud
+        ? (patch: HudPatch) => {
+            if (patch.score !== undefined) setHudScore(patch.score)
+            if (patch.damage !== undefined) setHudDamage(patch.damage)
+          }
+        : undefined
       const gameApi = createGameAPI(
         getPositionForGame,
         setPositionForGame,
@@ -420,7 +434,8 @@ function SceneViewInner({
         getRenderItemRegistry,
         loadedWorld.entities,
         timeRef,
-        onScriptSnackbar
+        onScriptSnackbar,
+        onHudPatch
       )
       const scriptRunner = new ScriptRunner(loadedWorld, gameApi, (id) => {
         const obj = loadedScene.getObjectByName(id)
@@ -708,6 +723,8 @@ function SceneViewInner({
         scriptSnackbarTimerId = undefined
       }
       setScriptSnackbarMessage(null)
+      setHudScore(0)
+      setHudDamage(0)
 
       disposePickGizmoRef.current?.()
       disposePickGizmoRef.current = null
@@ -800,7 +817,7 @@ function SceneViewInner({
       setCamera(null)
       setRenderer(null)
     }
-  }, [sceneKey, version, runPhysics, runScripts, shadowsEnabled, freeFlyKeysRef, editorFreePoseRef])
+  }, [sceneKey, version, runPhysics, runScripts, shadowsEnabled, freeFlyKeysRef, editorFreePoseRef, showGameHud])
 
   // Update camera config when it changes (without reloading the world)
   useEffect(() => {
@@ -992,6 +1009,7 @@ function SceneViewInner({
     <div className={className} style={{ width: '100%', height: '100%', position: 'relative' }}>
       <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
       {scriptSnackbarMessage !== null ? <ScriptSnackbar message={scriptSnackbarMessage} /> : null}
+      {showGameHud ? <GameHud score={hudScore} damage={hudDamage} /> : null}
       <WarningSnackbar messages={schemaLoadWarnings} onDismiss={dismissSchemaLoadWarnings} />
     </div>
   )

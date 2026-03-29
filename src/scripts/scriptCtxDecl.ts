@@ -65,6 +65,8 @@ ${methodLines}
   setTransformerParam(entityId: string, transformerType: string, paramName: string, value: unknown): void;
   log(...args: unknown[]): void;
   snackbar(message: string, durationSeconds?: number): void;
+  setScore(value: number): void;
+  setDamage(value: number): void;
 }`
 }
 
