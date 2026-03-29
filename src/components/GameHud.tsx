@@ -243,7 +243,7 @@ const WHEEL_W = 156
 const WHEEL_H = 112
 
 function SteeringWheelHud({ wheelAngle }: { wheelAngle: number }) {
-  const rotDeg = wheelAngle * STEER_VIS_DEG
+  const rotDeg = -wheelAngle * STEER_VIS_DEG
   return (
     <div
       style={{
