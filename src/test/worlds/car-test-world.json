@@ -1,0 +1,58 @@
+{
+  "version": "1.0",
+  "world": {
+    "gravity": [0, -9.81, 0]
+  },
+  "entities": [
+    {
+      "id": "ground",
+      "name": "Ground",
+      "bodyType": "static",
+      "shape": { "type": "box", "width": 200, "height": 1, "depth": 200 },
+      "position": [0, -0.5, 0]
+    },
+    {
+      "id": "car",
+      "name": "Car",
+      "bodyType": "dynamic",
+      "shape": { "type": "box", "width": 2, "height": 0.5, "depth": 4 },
+      "position": [0, 1, 0],
+      "rotation": [0, 0, 0],
+      "mass": 12,
+      "restitution": 0.1,
+      "friction": 0.8,
+      "linearDamping": 0.1,
+      "angularDamping": 0.5,
+      "transformers": [
+        {
+          "type": "input",
+          "priority": 0,
+          "enabled": true,
+          "inputMapping": {
+            "keyboard": {
+              "w": "throttle",
+              "s": "brake",
+              "a": "steer_left",
+              "d": "steer_right",
+              "space": "jump"
+            }
+          }
+        },
+        {
+          "type": "car2",
+          "priority": 10,
+          "enabled": true,
+          "params": {
+            "power": 400,
+            "steeringIntensity": 0.1,
+            "steeringSpeed": 0.01,
+            "lateralGrip": 100,
+            "jumpImpulse": 200
+          }
+        }
+      ]
+    }
+  ],
+  "assets": {},
+  "scripts": {}
+}
