@@ -1,6 +1,11 @@
+import * as THREE from 'three'
 import type { Entity } from '@/types/world'
+import { getSceneUserData } from '@/types/sceneUserData'
 
 const PLANE_GEOMETRY_SIZE = 100
+
+/** Distance from shadow focus point along `world.directionalLight.direction` — must match `loadWorld`. */
+export const DIRECTIONAL_LIGHT_OFFSET_DISTANCE = 50
 /**
  * Directional light shadows use an orthographic camera with `left/right/top/bottom`
  * defining the 2D extent in light-space. We approximate the needed extent by
@@ -42,5 +47,27 @@ export function computeDirectionalShadowCameraExtent(
 
   const padded = maxBound * paddingMultiplier
   return Math.max(padded || 0, minExtent)
+}
+
+/**
+ * Keeps the directional shadow ortho frustum centered on the viewer. The light rays stay
+ * parallel in world space (same offset vector as at origin); only the shadow map coverage moves.
+ */
+export function syncDirectionalLightShadowFocusToCamera(
+  scene: THREE.Scene,
+  camera: THREE.Camera,
+): void {
+  const userData = getSceneUserData(scene)
+  const dirLight = userData.directionalLight
+  if (!dirLight) return
+
+  const dir = userData.world?.world.directionalLight?.direction ?? [1, 2, 1]
+  const [dx, dy, dz] = dir
+  const dist = DIRECTIONAL_LIGHT_OFFSET_DISTANCE
+  const p = camera.position
+
+  dirLight.target.position.set(p.x, p.y, p.z)
+  dirLight.position.set(p.x + dx * dist, p.y + dy * dist, p.z + dz * dist)
+  dirLight.target.updateMatrixWorld()
 }
 

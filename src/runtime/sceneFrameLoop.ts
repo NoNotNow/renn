@@ -16,6 +16,7 @@ import { getRawInputSnapshot } from '@/input/rawInput'
 import type { RawMouseDragState } from '@/input/rawMouseDrag'
 import { averageUnlockedSelectionWorldPosition } from '@/editor/transformGizmoController'
 import { getForwardSpeed } from '@/utils/vec3'
+import { syncDirectionalLightShadowFocusToCamera } from '@/utils/shadowBounds'
 
 export const SCENE_FIXED_DT = 1 / 60
 
@@ -246,6 +247,7 @@ export function runSceneFrame(input: SceneFrameLoopInputs): void {
   }
 
   if (rend && loadedScene && cam && !isCancelled()) {
+    syncDirectionalLightShadowFocusToCamera(loadedScene, cam)
     rend.render(loadedScene, cam)
   }
 }

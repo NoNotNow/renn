@@ -13,7 +13,10 @@ import { syncShapeWireframeOverlay } from './shapeWireframeOverlay'
 import { createAssetResolver, type DisposableAssetResolver } from './assetResolverImpl'
 import { getSceneUserData } from '@/types/sceneUserData'
 import { eulerToQuaternion } from '@/utils/rotationUtils'
-import { computeDirectionalShadowCameraExtent } from '@/utils/shadowBounds'
+import {
+  computeDirectionalShadowCameraExtent,
+  DIRECTIONAL_LIGHT_OFFSET_DISTANCE,
+} from '@/utils/shadowBounds'
 import { ensureMeshoptSimplifierReady } from '@/utils/meshSimplifier'
 
 export interface LoadedEntity {
@@ -74,7 +77,7 @@ export async function loadWorld(
     dirIntensity
   )
   const [dx, dy, dz] = dirDirection
-  const dist = 50
+  const dist = DIRECTIONAL_LIGHT_OFFSET_DISTANCE
   dirLight.position.set(dx * dist, dy * dist, dz * dist)
   dirLight.target.position.set(0, 0, 0)
   dirLight.castShadow = true
