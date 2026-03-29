@@ -46,7 +46,7 @@ renn/
 │   ├── loader/
 │   │   ├── loadWorld.ts        # loadWorld(data) → scene, entities, world, warnings[]; awaits meshoptimizer WASM before mesh build
 │   │   ├── loadWorldFromStatic.ts # Static world + assets; rejects text/html (Vite SPA fallback); tries assets/<assetId>.bin before ref.path
-│   │   ├── createPrimitive.ts # Mesh from shape + material; plane/box/sphere/cylinder/capsule/cone/pyramid/ring/…
+│   │   ├── createPrimitive.ts # Mesh from shape + material; plane/box/sphere/cylinder/capsule/cone/pyramid/ring/…; GLTF trimesh/model paths run normalizeModelTextureUVs after unit-cube normalize so mapRepeat works on bad UVs
 │   │   ├── assetResolver.ts  # (assetId) => URL | Blob | null
 │   │   └── assetResolverImpl.ts # Blob → object URL
 │   ├── physics/

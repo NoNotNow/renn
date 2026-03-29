@@ -4,6 +4,7 @@ import type { Shape, Vec3, Rotation, MaterialRef, TrimeshSimplificationConfig } 
 import type { DisposableAssetResolver } from './assetResolverImpl'
 import { eulerToQuaternion } from '@/utils/rotationUtils'
 import { convertZUpToYUpIfNeeded, normalizeSceneToUnitCube } from '@/utils/normalizeModelToUnitCube'
+import { normalizeModelTextureUVs } from '@/utils/normalizeModelTextureUVs'
 import {
   countTrianglesInObject3D,
   extractMeshGeometryFromMesh,
@@ -279,6 +280,7 @@ export async function createPrimitiveMesh(
             const modelScene = gltf.scene.clone(true)
             convertZUpToYUpIfNeeded(modelScene)
             normalizeSceneToUnitCube(modelScene)
+            normalizeModelTextureUVs(modelScene)
             let trimeshGeometriesSimplified = false
             if (shape.simplification) {
               trimeshGeometriesSimplified = await applyTrimeshVisualSimplification(modelScene, shape.simplification)
@@ -396,6 +398,7 @@ export async function buildEntityMesh(
         const modelScene = gltf.scene.clone(true)
         convertZUpToYUpIfNeeded(modelScene)
         normalizeSceneToUnitCube(modelScene)
+        normalizeModelTextureUVs(modelScene)
         const originalMaterialEntries = collectOriginalMaterialClones(modelScene)
         if (materialRef !== undefined) {
           const material = await materialFromRef(materialRef, assetResolver)
