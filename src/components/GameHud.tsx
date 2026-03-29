@@ -1,6 +1,8 @@
 import type { CSSProperties } from 'react'
 import { useId } from 'react'
 
+import steeringWheelImg from '@/assets/game-hud-steering-wheel.png'
+
 export interface GameHudProps {
   score: number
   damage: number
@@ -235,71 +237,34 @@ function SpeedTachSvg({ speedMs }: { speedMs: number }) {
   )
 }
 
-/**
- * Formula-style yoke: open top, two vertical grips, wide lower bridge (no circular rim).
- */
-function SteeringWheelSvg({ wheelAngle }: { wheelAngle: number }) {
-  const uid = useId().replace(/:/g, '_')
+function SteeringWheelHud({ wheelAngle }: { wheelAngle: number }) {
   const rotDeg = wheelAngle * STEER_VIS_DEG
-  const ox = 64
-  const oy = 50
-
   return (
-    <svg width={128} height={92} viewBox="0 0 128 92" aria-hidden style={{ display: 'block' }}>
-      <defs>
-        <linearGradient id={`${uid}-yokeBody`} x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#242830" />
-          <stop offset="45%" stopColor="#12151c" />
-          <stop offset="100%" stopColor="#1c2128" />
-        </linearGradient>
-        <linearGradient id={`${uid}-yokeGrip`} x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="#1e222a" />
-          <stop offset="50%" stopColor="#2a303c" />
-          <stop offset="100%" stopColor="#181c24" />
-        </linearGradient>
-      </defs>
-      <g transform={`translate(${ox},${oy}) rotate(${rotDeg})`}>
-        <path
-          d="M -54 28 L -54 -16 L -46 -34 L -32 -26 L -27 -10 L -27 28 Z"
-          fill={`url(#${uid}-yokeGrip)`}
-          stroke="rgba(0,0,0,0.55)"
-          strokeWidth={0.65}
-          strokeLinejoin="round"
-        />
-        <path
-          d="M 54 28 L 54 -16 L 46 -34 L 32 -26 L 27 -10 L 27 28 Z"
-          fill={`url(#${uid}-yokeGrip)`}
-          stroke="rgba(0,0,0,0.55)"
-          strokeWidth={0.65}
-          strokeLinejoin="round"
-        />
-        <path
-          d="M -27 28 L -27 -4 L -14 -4 L 0 -14 L 14 -4 L 27 -4 L 27 28 Z"
-          fill={`url(#${uid}-yokeBody)`}
-          stroke="rgba(0,0,0,0.5)"
-          strokeWidth={0.6}
-          strokeLinejoin="round"
-        />
-        <path
-          d="M -18 22 L 0 10 L 18 22"
-          fill="none"
-          stroke="rgba(255,255,255,0.06)"
-          strokeWidth={0.9}
-          strokeLinecap="round"
-        />
-        <path
-          d="M -22 6 L -8 6 M 8 6 L 22 6"
-          fill="none"
-          stroke="rgba(255,255,255,0.05)"
-          strokeWidth={0.6}
-          strokeLinecap="round"
-        />
-        <circle cx={0} cy={8} r={9.5} fill="#06080c" stroke="rgba(255,255,255,0.11)" strokeWidth={1} />
-        <circle cx={0} cy={8} r={5} fill="#141a24" stroke="rgba(255,255,255,0.08)" strokeWidth={0.5} />
-        <circle cx={24} cy={6} r={3.8} fill="#9e1424" stroke="#2a0608" strokeWidth={0.45} />
-        <circle cx={24} cy={6} r={1.6} fill="#1a0a0c" opacity={0.85} />
-      </g>
-    </svg>
+    <div
+      style={{
+        width: 128,
+        height: 92,
+        display: 'block',
+        position: 'relative',
+      }}
+      aria-hidden
+    >
+      <img
+        src={steeringWheelImg}
+        alt=""
+        width={128}
+        height={92}
+        draggable={false}
+        style={{
+          display: 'block',
+          width: 128,
+          height: 92,
+          objectFit: 'contain',
+          transform: `rotate(${rotDeg}deg)`,
+          transformOrigin: '50% 50%',
+        }}
+      />
+    </div>
   )
 }
 
@@ -332,7 +297,7 @@ export function GameHud({ score, damage, speedMs, wheelAngle }: GameHudProps) {
               inset 0 0 0 1px rgba(255, 255, 255, 0.06),
               inset 0 10px 24px rgba(255, 255, 255, 0.04);
           }
-          .rennDriveHudYoke {
+          .rennDriveHudWheel {
             position: absolute;
             left: 50%;
             bottom: 8px;
@@ -340,7 +305,7 @@ export function GameHud({ score, damage, speedMs, wheelAngle }: GameHudProps) {
             transform-origin: center bottom;
           }
           @media (max-width: 720px) {
-            .rennDriveHudYoke {
+            .rennDriveHudWheel {
               transform: translateX(-50%) scale(1.65);
             }
           }
@@ -434,8 +399,8 @@ export function GameHud({ score, damage, speedMs, wheelAngle }: GameHudProps) {
             <SpeedTachSvg speedMs={speedMs} />
           </div>
         </div>
-        <div className="rennDriveHudYoke" style={{ filter: 'drop-shadow(0 10px 18px rgba(0,0,0,0.35))' }}>
-          <SteeringWheelSvg wheelAngle={wheelAngle} />
+        <div className="rennDriveHudWheel" style={{ filter: 'drop-shadow(0 10px 18px rgba(0,0,0,0.35))' }}>
+          <SteeringWheelHud wheelAngle={wheelAngle} />
         </div>
       </div>
     </>
