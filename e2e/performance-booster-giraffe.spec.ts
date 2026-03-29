@@ -70,7 +70,7 @@ test.describe('Performance booster — giraffe GLB fixture', () => {
     await dialog.getByTestId('mesh-triangle-filter').fill('500')
     await dialog.getByRole('option', { name: /Giraffe/i }).click()
 
-    const previewLoc = dialog.getByText(/Preview:\s*\d+/)
+    const previewLoc = dialog.getByTestId('performance-booster-mesh-preview')
     await expect(previewLoc).toBeVisible({ timeout: 60_000 })
     const text = await previewLoc.textContent()
     const m = text?.match(/(\d+)\s*→\s*(\d+)\s*triangles/)
@@ -100,7 +100,7 @@ test.describe('Performance booster — giraffe GLB fixture', () => {
     await dialog.getByRole('option', { name: /Giraffe/i }).click()
     await expect(dialog.getByText(/\d+\s*→\s*\d+\s*triangles/)).toBeVisible({ timeout: 60_000 })
 
-    const previewText = await dialog.getByText(/Preview:\s*\d+/).textContent()
+    const previewText = await dialog.getByTestId('performance-booster-mesh-preview').textContent()
     const m = previewText?.match(/(\d+)\s*→\s*(\d+)\s*triangles/)
     expect(m).toBeTruthy()
     const orig = Number(m![1]!.replace(/,/g, ''))
@@ -183,7 +183,7 @@ test.describe('Performance booster — giraffe GLB fixture', () => {
     await expect(dialog.getByText(/\d+\s*→\s*\d+\s*triangles/)).toBeVisible({ timeout: 60_000 })
 
     const readPreview = async (): Promise<{ orig: number; simp: number }> => {
-      const text = await dialog.getByText(/Preview:\s*\d+/).textContent()
+      const text = await dialog.getByTestId('performance-booster-mesh-preview').textContent()
       const m = text?.match(/(\d+)\s*→\s*(\d+)\s*triangles/)
       expect(m, text).toBeTruthy()
       return {

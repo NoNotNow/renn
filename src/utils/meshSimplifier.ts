@@ -65,7 +65,6 @@ function simplifyWithMeshoptimizer(geometry: ExtractedGeometry, config: TrimeshS
     }
   }
 
-  const indices = new Uint32Array(geometry.indices)
   const positions = geometry.vertices
   const targetIndexCount = Math.max(3, targetTriangleCount * 3)
   // meshoptimizer expects relative error in [0..1] (e.g. 0.01 ≈ 1% of mesh extent). Do NOT multiply by
@@ -73,17 +72,56 @@ function simplifyWithMeshoptimizer(geometry: ExtractedGeometry, config: TrimeshS
   const rawErr = config.maxError ?? 0.01
   const targetError = Number.isFinite(rawErr) ? Math.min(1, Math.max(0, rawErr)) : 0.01
 
-  const [newIndices, _outErr] = MeshoptSimplifier.simplify(
-    indices,
-    positions,
-    3,
-    targetIndexCount,
-    targetError,
-    ['Prune']
-  )
+  /**
+   * Some production GLBs (e.g. complex scanned models) return unchanged topology when simplify is run
+   * with `Prune` only. Try several flag combinations, then simplifySloppy, before giving up.
+   */
+  type MeshoptFlag = 'LockBorder' | 'Sparse' | 'ErrorAbsolute' | 'Prune' | 'Regularize' | 'Permissive'
+  const flagPasses: (MeshoptFlag[] | undefined)[] = [
+    ['Prune'],
+    undefined,
+    ['Permissive'],
+    ['Prune', 'Permissive'],
+  ]
 
-  const triOut = newIndices.length / 3
-  if (triOut < 1) {
+  let newIndices: Uint32Array | null = null
+  for (const flags of flagPasses) {
+    const [out] = MeshoptSimplifier.simplify(
+      new Uint32Array(geometry.indices),
+      positions,
+      3,
+      targetIndexCount,
+      targetError,
+      flags,
+    )
+    const tri = out.length / 3
+    if (tri >= 1 && tri < originalTriangleCount) {
+      newIndices = out
+      break
+    }
+  }
+
+  if (!newIndices) {
+    try {
+      const [sloppy] = MeshoptSimplifier.simplifySloppy(
+        new Uint32Array(geometry.indices),
+        positions,
+        3,
+        null,
+        targetIndexCount,
+        targetError,
+      )
+      const tri = sloppy.length / 3
+      if (tri >= 1 && tri < originalTriangleCount) {
+        newIndices = sloppy
+      }
+    } catch {
+      /* simplifySloppy can throw on degenerate input */
+    }
+  }
+
+  const triOut = newIndices ? newIndices.length / 3 : 0
+  if (!newIndices || triOut < 1) {
     return {
       vertices: geometry.vertices,
       indices: geometry.indices,

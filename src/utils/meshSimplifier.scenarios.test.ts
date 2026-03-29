@@ -121,4 +121,24 @@ describe('meshSimplifier scenarios', () => {
       shouldSimplifyGeometry(1000, { enabled: true, maxTriangles: 5000 }),
     ).toBe(false)
   })
+
+  /**
+   * Regression: meshoptimizer with `Prune` alone sometimes returns the same index count on large,
+   * real-world GLBs. simplifyWithMeshoptimizer must try additional flag sets / simplifySloppy.
+   */
+  it('meshoptimizer path still reduces a high-poly mesh at 50% maxTriangles', () => {
+    const mesh = highPolySphere()
+    const extracted = extractMeshGeometry(mesh, false)
+    expect(extracted).not.toBeNull()
+    const orig = extracted!.indices.length / 3
+    const half = Math.max(500, Math.floor(orig * 0.5))
+    const result = simplifyGeometry(extracted!, {
+      enabled: true,
+      maxTriangles: half,
+      algorithm: 'meshoptimizer',
+      maxError: 0.05,
+    })
+    expect(result.simplifiedTriangleCount).toBeLessThan(orig)
+    expect(result.simplifiedTriangleCount).toBeGreaterThanOrEqual(500)
+  })
 })

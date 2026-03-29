@@ -446,7 +446,7 @@ export default function PerformanceBoosterDialog({
               <strong>{meshTargetEntityId ? meshEntity?.name ?? meshTargetEntityId : '—'}</strong>
             </span>
           </div>
-          <div style={{ fontSize: 13, marginBottom: 8 }}>
+          <div data-testid="performance-booster-mesh-preview" style={{ fontSize: 13, marginBottom: 8 }}>
             Preview:{' '}
             {previewOriginal != null && previewSimplified != null ? (
               <>
