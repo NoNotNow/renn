@@ -40,6 +40,36 @@ const valueStyle: CSSProperties = {
 const MAX_KMH = 180
 const STEER_VIS_DEG = 118
 
+/** Circular chrome bezel around the tach only (px). */
+const TACH_BEZEL_SIZE = 214
+const TACH_BEZEL_INNER_PAD = 6
+
+const tachChromeBezel: CSSProperties = {
+  width: TACH_BEZEL_SIZE,
+  height: TACH_BEZEL_SIZE,
+  minWidth: TACH_BEZEL_SIZE,
+  minHeight: TACH_BEZEL_SIZE,
+  borderRadius: '50%',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  flexShrink: 0,
+  background:
+    'radial-gradient(130% 108% at 50% 18%, #4a5468 0%, #2a3140 28%, #181d28 58%, #05070c 100%)',
+  boxShadow: `
+    0 0 0 1px rgba(255, 255, 255, 0.42),
+    0 0 0 2px rgba(70, 76, 90, 0.98),
+    0 0 0 3px rgba(160, 168, 188, 0.32),
+    0 0 0 5px rgba(18, 20, 28, 0.95),
+    0 0 0 7px rgba(90, 96, 112, 0.2),
+    inset 0 2px 4px rgba(255, 255, 255, 0.26),
+    inset 0 -8px 18px rgba(0, 0, 0, 0.78),
+    0 12px 32px rgba(0, 0, 0, 0.55)
+  `,
+  padding: TACH_BEZEL_INNER_PAD,
+  boxSizing: 'border-box',
+}
+
 /**
  * Upper semicircle (classic tach): center on chord, arc bulges upward.
  * u=0 → left end, u=1 → right end, u=0.5 → top (12 o’clock).
@@ -289,6 +319,31 @@ export function GameHud({ score, damage, speedMs, wheelAngle }: GameHudProps) {
             0%, 100% { filter: drop-shadow(0 0 6px rgba(255, 72, 96, 0.35)); }
             50% { filter: drop-shadow(0 0 14px rgba(255, 100, 120, 0.5)); }
           }
+          .rennTachBezel {
+            position: relative;
+          }
+          .rennTachBezel::after {
+            content: '';
+            position: absolute;
+            inset: 5px;
+            border-radius: 50%;
+            pointer-events: none;
+            box-shadow:
+              inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+              inset 0 10px 24px rgba(255, 255, 255, 0.04);
+          }
+          .rennDriveHudYoke {
+            position: absolute;
+            left: 50%;
+            bottom: 8px;
+            transform: translateX(-50%) scale(2.25);
+            transform-origin: center bottom;
+          }
+          @media (max-width: 720px) {
+            .rennDriveHudYoke {
+              transform: translateX(-50%) scale(1.65);
+            }
+          }
         `}
       </style>
       <div
@@ -356,29 +411,30 @@ export function GameHud({ score, damage, speedMs, wheelAngle }: GameHudProps) {
         aria-label="Speed and steering"
         style={{
           position: 'absolute',
-          left: '50%',
-          bottom: 18,
-          transform: 'translateX(-50%)',
+          left: 0,
+          right: 0,
+          bottom: 14,
           zIndex: 52,
-          display: 'flex',
-          flexDirection: 'row',
-          alignItems: 'flex-end',
-          gap: 4,
-          padding: '10px 16px 12px',
-          borderRadius: 14,
-          border: '1px solid rgba(100, 160, 220, 0.35)',
-          backdropFilter: 'blur(14px)',
-          WebkitBackdropFilter: 'blur(14px)',
-          boxShadow: '0 4px 28px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.07)',
-          backgroundImage: `
-            repeating-linear-gradient(8deg, transparent, transparent 3px, rgba(80, 140, 200, 0.04) 3px, rgba(80, 140, 200, 0.04) 6px),
-            linear-gradient(160deg, rgba(10, 16, 26, 0.88) 0%, rgba(8, 12, 20, 0.92) 100%)
-          `,
           pointerEvents: 'none',
+          minHeight: 240,
         }}
       >
-        <SpeedTachSvg speedMs={speedMs} />
-        <div style={{ paddingBottom: 4 }}>
+        <div
+          className="rennTachBezel"
+          style={{
+            position: 'absolute',
+            left: 'max(12px, 3vw)',
+            bottom: 8,
+            ...tachChromeBezel,
+            paddingTop: 8,
+            paddingBottom: 12,
+          }}
+        >
+          <div style={{ marginTop: 2, filter: 'drop-shadow(0 3px 10px rgba(0,0,0,0.4))' }}>
+            <SpeedTachSvg speedMs={speedMs} />
+          </div>
+        </div>
+        <div className="rennDriveHudYoke" style={{ filter: 'drop-shadow(0 10px 18px rgba(0,0,0,0.35))' }}>
           <SteeringWheelSvg wheelAngle={wheelAngle} />
         </div>
       </div>
