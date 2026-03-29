@@ -43,8 +43,9 @@ const MAX_KMH = 180
 const STEER_VIS_DEG = 118
 
 /** Circular chrome bezel around the tach only (px). */
-const TACH_BEZEL_SIZE = 214
-const TACH_BEZEL_INNER_PAD = 6
+const TACH_BEZEL_SIZE = 152
+/** Thin ring so the dial fills more of the bezel. */
+const TACH_BEZEL_INNER_PAD = 3
 
 const tachChromeBezel: CSSProperties = {
   width: TACH_BEZEL_SIZE,
@@ -56,8 +57,9 @@ const tachChromeBezel: CSSProperties = {
   alignItems: 'center',
   justifyContent: 'center',
   flexShrink: 0,
+  /** ~50% transparent metallic fill so the scene shows through slightly. */
   background:
-    'radial-gradient(130% 108% at 50% 18%, #4a5468 0%, #2a3140 28%, #181d28 58%, #05070c 100%)',
+    'radial-gradient(130% 108% at 50% 18%, rgba(74, 84, 104, 0.5) 0%, rgba(42, 49, 64, 0.5) 28%, rgba(24, 29, 40, 0.5) 58%, rgba(5, 7, 12, 0.5) 100%)',
   boxShadow: `
     0 0 0 1px rgba(255, 255, 255, 0.42),
     0 0 0 2px rgba(70, 76, 90, 0.98),
@@ -108,7 +110,7 @@ function SpeedTachSvg({ speedMs }: { speedMs: number }) {
   for (let v = 0; v <= MAX_KMH; v += 20) majorTicks.push(v)
 
   return (
-    <svg width={200} height={118} viewBox="0 0 200 118" aria-hidden style={{ display: 'block' }}>
+    <svg width={146} height={86} viewBox="0 0 200 118" aria-hidden style={{ display: 'block' }}>
       <defs>
         <linearGradient id={`${uid}-tachArc`} x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" stopColor="rgba(90, 200, 255, 0.45)" />
@@ -237,13 +239,16 @@ function SpeedTachSvg({ speedMs }: { speedMs: number }) {
   )
 }
 
+const WHEEL_W = 156
+const WHEEL_H = 112
+
 function SteeringWheelHud({ wheelAngle }: { wheelAngle: number }) {
   const rotDeg = wheelAngle * STEER_VIS_DEG
   return (
     <div
       style={{
-        width: 128,
-        height: 92,
+        width: WHEEL_W,
+        height: WHEEL_H,
         display: 'block',
         position: 'relative',
       }}
@@ -252,13 +257,13 @@ function SteeringWheelHud({ wheelAngle }: { wheelAngle: number }) {
       <img
         src={steeringWheelImg}
         alt=""
-        width={128}
-        height={92}
+        width={WHEEL_W}
+        height={WHEEL_H}
         draggable={false}
         style={{
           display: 'block',
-          width: 128,
-          height: 92,
+          width: WHEEL_W,
+          height: WHEEL_H,
           objectFit: 'contain',
           transform: `rotate(${rotDeg}deg)`,
           transformOrigin: '50% 50%',
@@ -290,7 +295,7 @@ export function GameHud({ score, damage, speedMs, wheelAngle }: GameHudProps) {
           .rennTachBezel::after {
             content: '';
             position: absolute;
-            inset: 5px;
+            inset: 3px;
             border-radius: 50%;
             pointer-events: none;
             box-shadow:
@@ -301,12 +306,12 @@ export function GameHud({ score, damage, speedMs, wheelAngle }: GameHudProps) {
             position: absolute;
             left: 50%;
             bottom: 8px;
-            transform: translateX(-50%) scale(2.25);
+            transform: translateX(-50%) scale(2.72);
             transform-origin: center bottom;
           }
           @media (max-width: 720px) {
             .rennDriveHudWheel {
-              transform: translateX(-50%) scale(1.65);
+              transform: translateX(-50%) scale(2.05);
             }
           }
         `}
@@ -381,7 +386,7 @@ export function GameHud({ score, damage, speedMs, wheelAngle }: GameHudProps) {
           bottom: 14,
           zIndex: 52,
           pointerEvents: 'none',
-          minHeight: 240,
+          minHeight: 200,
         }}
       >
         <div
@@ -391,8 +396,8 @@ export function GameHud({ score, damage, speedMs, wheelAngle }: GameHudProps) {
             left: 'max(12px, 3vw)',
             bottom: 8,
             ...tachChromeBezel,
-            paddingTop: 8,
-            paddingBottom: 12,
+            paddingTop: 5,
+            paddingBottom: 8,
           }}
         >
           <div style={{ marginTop: 2, filter: 'drop-shadow(0 3px 10px rgba(0,0,0,0.4))' }}>
