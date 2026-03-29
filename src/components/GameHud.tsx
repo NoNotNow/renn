@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react'
+import { useId } from 'react'
 
 export interface GameHudProps {
   score: number
@@ -39,35 +40,45 @@ const valueStyle: CSSProperties = {
 const MAX_KMH = 180
 const STEER_VIS_DEG = 118
 
-function polar(cx: number, cy: number, r: number, deg: number): { x: number; y: number } {
-  const rad = (deg * Math.PI) / 180
-  return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) }
+/** Semicircle arc: center (100,78), r=72, from left (28,78) to right (172,78), bulge downward. */
+const TACH_CX = 100
+const TACH_CY = 78
+const TACH_R = 72
+const TACH_R_TICKS = 66
+const TACH_R_NEEDLE = 58
+
+function tickPoint(valueKmh: number): { x: number; y: number } {
+  const u = Math.min(1, Math.max(0, valueKmh / MAX_KMH))
+  const angle = Math.PI * (1 - u)
+  return {
+    x: TACH_CX + TACH_R_TICKS * Math.cos(angle),
+    y: TACH_CY + TACH_R_TICKS * Math.sin(angle),
+  }
 }
 
 function SpeedTachSvg({ speedMs }: { speedMs: number }) {
+  const uid = useId().replace(/:/g, '_')
   const speedKmh = Math.min(MAX_KMH, Math.abs(speedMs) * 3.6)
   const t = MAX_KMH > 0 ? Math.min(1, speedKmh / MAX_KMH) : 0
-  const needleDeg = 210 - t * 240
-  const cx = 100
-  const cy = 88
-  const rInner = 64
-  const rTicks = 70
+  /** Needle points up (−Y) before rotate; sweep left (π) → right (0): −90° + t·180°. */
+  const needleRotateDeg = -90 + t * 180
+
   const majorTicks: number[] = []
   for (let v = 0; v <= MAX_KMH; v += 20) majorTicks.push(v)
 
   return (
     <svg width={200} height={118} viewBox="0 0 200 118" aria-hidden style={{ display: 'block' }}>
       <defs>
-        <linearGradient id="rennTachArc" x1="0%" y1="0%" x2="100%" y2="100%">
+        <linearGradient id={`${uid}-tachArc`} x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" stopColor="rgba(90, 200, 255, 0.45)" />
           <stop offset="100%" stopColor="rgba(40, 120, 220, 0.25)" />
         </linearGradient>
-        <linearGradient id="rennNeedle" x1="0%" y1="100%" x2="0%" y2="0%">
+        <linearGradient id={`${uid}-needle`} x1="0%" y1="100%" x2="0%" y2="0%">
           <stop offset="0%" stopColor="#ff4d6a" />
           <stop offset="55%" stopColor="#ffb38a" />
           <stop offset="100%" stopColor="#fff5e6" />
         </linearGradient>
-        <filter id="rennNeedleGlow" x="-40%" y="-40%" width="180%" height="180%">
+        <filter id={`${uid}-needleGlow`} x="-40%" y="-40%" width="180%" height="180%">
           <feGaussianBlur stdDeviation="1.2" result="b" />
           <feMerge>
             <feMergeNode in="b" />
@@ -76,17 +87,21 @@ function SpeedTachSvg({ speedMs }: { speedMs: number }) {
         </filter>
       </defs>
       <path
-        d="M 28 78 A 72 72 0 0 1 172 78"
+        d={`M ${TACH_CX - TACH_R} ${TACH_CY} A ${TACH_R} ${TACH_R} 0 0 1 ${TACH_CX + TACH_R} ${TACH_CY}`}
         fill="none"
-        stroke="url(#rennTachArc)"
+        stroke={`url(#${uid}-tachArc)`}
         strokeWidth={5}
         strokeLinecap="round"
       />
       {majorTicks.map((v) => {
-        const tt = v / MAX_KMH
-        const deg = 210 - tt * 240
-        const p0 = polar(cx, cy, rTicks, deg)
-        const p1 = polar(cx, cy, rTicks - (v % 40 === 0 ? 10 : 5), deg)
+        const p0 = tickPoint(v)
+        const u = v / MAX_KMH
+        const angle = Math.PI * (1 - u)
+        const inset = v % 40 === 0 ? 10 : 5
+        const p1 = {
+          x: TACH_CX + (TACH_R_TICKS - inset) * Math.cos(angle),
+          y: TACH_CY + (TACH_R_TICKS - inset) * Math.sin(angle),
+        }
         return (
           <line
             key={v}
@@ -101,10 +116,16 @@ function SpeedTachSvg({ speedMs }: { speedMs: number }) {
         )
       })}
       {[10, 30, 50, 70, 90, 110, 130, 150, 170].map((v) => {
-        const tt = v / MAX_KMH
-        const deg = 210 - tt * 240
-        const p0 = polar(cx, cy, rTicks, deg)
-        const p1 = polar(cx, cy, rTicks - 4, deg)
+        const u = v / MAX_KMH
+        const angle = Math.PI * (1 - u)
+        const p0 = {
+          x: TACH_CX + TACH_R_TICKS * Math.cos(angle),
+          y: TACH_CY + TACH_R_TICKS * Math.sin(angle),
+        }
+        const p1 = {
+          x: TACH_CX + (TACH_R_TICKS - 4) * Math.cos(angle),
+          y: TACH_CY + (TACH_R_TICKS - 4) * Math.sin(angle),
+        }
         return (
           <line
             key={`m-${v}`}
@@ -118,15 +139,25 @@ function SpeedTachSvg({ speedMs }: { speedMs: number }) {
           />
         )
       })}
-      <g transform={`rotate(${needleDeg}, ${cx}, ${cy})`} filter="url(#rennNeedleGlow)">
+      <g
+        transform={`rotate(${needleRotateDeg}, ${TACH_CX}, ${TACH_CY})`}
+        filter={`url(#${uid}-needleGlow)`}
+      >
         <polygon
-          points={`${cx},${cy - 4} ${cx + 3},${cy + 2} ${cx},${cy - rInner + 4} ${cx - 3},${cy + 2}`}
-          fill="url(#rennNeedle)"
+          points={`${TACH_CX},${TACH_CY - 4} ${TACH_CX + 3},${TACH_CY + 2} ${TACH_CX},${TACH_CY - TACH_R_NEEDLE} ${TACH_CX - 3},${TACH_CY + 2}`}
+          fill={`url(#${uid}-needle)`}
         />
-        <circle cx={cx} cy={cy} r={5} fill="#1a1e28" stroke="rgba(255,255,255,0.25)" strokeWidth={1} />
+        <circle
+          cx={TACH_CX}
+          cy={TACH_CY}
+          r={5}
+          fill="#1a1e28"
+          stroke="rgba(255,255,255,0.25)"
+          strokeWidth={1}
+        />
       </g>
       <text
-        x={cx}
+        x={TACH_CX}
         y={106}
         textAnchor="middle"
         fill="rgba(180, 210, 235, 0.9)"
@@ -139,7 +170,7 @@ function SpeedTachSvg({ speedMs }: { speedMs: number }) {
         </tspan>
       </text>
       <text
-        x={cx}
+        x={TACH_CX}
         y={22}
         textAnchor="middle"
         fill="rgba(120, 200, 255, 0.55)"
@@ -157,55 +188,90 @@ function SpeedTachSvg({ speedMs }: { speedMs: number }) {
 }
 
 function SteeringWheelSvg({ wheelAngle }: { wheelAngle: number }) {
-  const rot = wheelAngle * STEER_VIS_DEG
+  const uid = useId().replace(/:/g, '_')
+  /** Match physics: positive wheelAngle = steer left → wheel top moves left (CCW from driver) = negative SVG rotation. */
+  const rotDeg = -wheelAngle * STEER_VIS_DEG
+
   return (
     <svg width={112} height={112} viewBox="0 0 112 112" aria-hidden style={{ display: 'block' }}>
       <defs>
-        <linearGradient id="rennWheelCarbon" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#2a2e38" />
-          <stop offset="35%" stopColor="#1a1d24" />
-          <stop offset="70%" stopColor="#252a32" />
-          <stop offset="100%" stopColor="#12151a" />
+        <linearGradient id={`${uid}-carbon`} x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#2d323c" />
+          <stop offset="50%" stopColor="#151820" />
+          <stop offset="100%" stopColor="#252b35" />
         </linearGradient>
-        <linearGradient id="rennWheelAlcantara" x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" stopColor="#3d3842" />
-          <stop offset="100%" stopColor="#1c1820" />
+        <linearGradient id={`${uid}-paddle`} x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stopColor="#6a5a4a" />
+          <stop offset="100%" stopColor="#2a2218" />
         </linearGradient>
-        <linearGradient id="rennPaddle" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="#4a4a52" />
-          <stop offset="100%" stopColor="#c8a050" />
-        </linearGradient>
+        <clipPath id={`${uid}-rimClip`}>
+          <rect x={-56} y={-56} width={112} height={72} />
+        </clipPath>
       </defs>
-      <g transform={`translate(56,56) rotate(${rot})`}>
-        <rect x={-42} y={-8} width={10} height={28} rx={2} fill="url(#rennPaddle)" opacity={0.92} />
-        <rect x={32} y={-8} width={10} height={28} rx={2} fill="url(#rennPaddle)" opacity={0.92} />
-        <path
-          d="M 0 -46 A 46 46 0 1 1 0 38 L -18 38 Q 0 22 18 38 L 0 38 A 38 38 0 1 0 0 -38 Z"
-          fill="url(#rennWheelAlcantara)"
-          stroke="rgba(0,0,0,0.5)"
-          strokeWidth={0.75}
+      <g transform={`translate(56,56) rotate(${rotDeg})`}>
+        <rect
+          x={-44}
+          y={-10}
+          width={11}
+          height={30}
+          rx={2}
+          fill={`url(#${uid}-paddle)`}
+          stroke="rgba(0,0,0,0.45)"
+          strokeWidth={0.5}
         />
-        <path
-          d="M 0 -50 A 50 50 0 1 1 0 42"
+        <rect
+          x={33}
+          y={-10}
+          width={11}
+          height={30}
+          rx={2}
+          fill={`url(#${uid}-paddle)`}
+          stroke="rgba(0,0,0,0.45)"
+          strokeWidth={0.5}
+        />
+        <circle
+          cx={0}
+          cy={2}
+          r={44}
           fill="none"
-          stroke="url(#rennWheelCarbon)"
-          strokeWidth={7}
+          stroke={`url(#${uid}-carbon)`}
+          strokeWidth={9}
+          strokeLinecap="butt"
+          clipPath={`url(#${uid}-rimClip)`}
+        />
+        <line
+          x1={-32}
+          y1={26}
+          x2={32}
+          y2={26}
+          stroke={`url(#${uid}-carbon)`}
+          strokeWidth={9}
           strokeLinecap="round"
         />
-        <path
-          d="M -24 40 L 24 40"
-          stroke="url(#rennWheelCarbon)"
-          strokeWidth={8}
-          strokeLinecap="round"
+        <ellipse
+          cx={0}
+          cy={4}
+          rx={16}
+          ry={16}
+          fill="#0a0c10"
+          stroke="rgba(255,255,255,0.14)"
+          strokeWidth={1}
         />
-        <ellipse cx={0} cy={0} rx={14} ry={14} fill="#0e1014" stroke="rgba(255,255,255,0.12)" strokeWidth={1} />
-        <circle cx={0} cy={0} r={5} fill="#1c222c" stroke="rgba(200,200,210,0.2)" strokeWidth={0.75} />
-        <line x1={0} y1={-14} x2={0} y2={-36} stroke="rgba(255,255,255,0.08)" strokeWidth={2} strokeLinecap="round" />
+        <circle cx={0} cy={4} r={6} fill="#1e2430" stroke="rgba(200,205,220,0.2)" strokeWidth={0.75} />
         <line
           x1={0}
-          y1={14}
+          y1={4}
           x2={0}
-          y2={36}
+          y2={-34}
+          stroke="rgba(255,255,255,0.12)"
+          strokeWidth={2.5}
+          strokeLinecap="round"
+        />
+        <line
+          x1={0}
+          y1={4}
+          x2={0}
+          y2={38}
           stroke="rgba(255,255,255,0.06)"
           strokeWidth={1.5}
           strokeLinecap="round"
