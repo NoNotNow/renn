@@ -581,6 +581,14 @@ export class PhysicsWorld {
     if (body) body.setLinvel({ x, y, z }, true)
   }
 
+  /** World-space linear velocity for a dynamic body; null if missing or not dynamic. */
+  getLinearVelocity(entityId: string): [number, number, number] | null {
+    const body = this.bodyMap.get(entityId)
+    if (!body || !body.isDynamic()) return null
+    const v = body.linvel()
+    return [v.x, v.y, v.z]
+  }
+
   /** Set angular velocity of a body (e.g. zero it when applying direct rotation from transformer). */
   setAngularVelocity(entityId: string, x: number, y: number, z: number): void {
     const body = this.bodyMap.get(entityId)

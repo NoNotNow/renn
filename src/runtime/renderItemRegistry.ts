@@ -412,6 +412,18 @@ export class RenderItemRegistry {
     return [fwd.x, fwd.y, fwd.z]
   }
 
+  /** First `car2` transformer's wheel angle (−1…1), or null if none. */
+  getCar2WheelAngle(id: string): number | null {
+    const chain = this.items.get(id)?.transformerChain
+    if (!chain) return null
+    for (const t of chain.getAll()) {
+      if (t.type !== 'car2') continue
+      const w = (t as { wheelAngle?: unknown }).wheelAngle
+      if (typeof w === 'number' && Number.isFinite(w)) return w
+    }
+    return null
+  }
+
   /**
    * Apply incremental physics property changes to an entity's body/collider directly.
    * Only the properties present in the patch are updated; others are left unchanged.

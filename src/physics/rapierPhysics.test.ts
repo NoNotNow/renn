@@ -202,6 +202,24 @@ describe('PhysicsWorld', () => {
     pw.dispose()
   })
 
+  it('getLinearVelocity returns setLinearVelocity values for dynamic body', () => {
+    const pw = new PhysicsWorld([0, 0, 0])
+    const entity: Entity = {
+      id: 'dyn',
+      bodyType: 'dynamic',
+      shape: { type: 'sphere', radius: 0.5 },
+      position: [0, 0, 0],
+    }
+    const mesh = new THREE.Mesh(
+      new THREE.SphereGeometry(0.5),
+      new THREE.MeshBasicMaterial()
+    )
+    pw.addEntity(entity, mesh)
+    pw.setLinearVelocity('dyn', 1.25, -2, 3.5)
+    expect(pw.getLinearVelocity('dyn')).toEqual([1.25, -2, 3.5])
+    pw.dispose()
+  })
+
   it('applies impulse to dynamic body', () => {
     const pw = new PhysicsWorld([0, 0, 0]) // No gravity for this test
     const entity: Entity = {

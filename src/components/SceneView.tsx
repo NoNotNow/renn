@@ -23,6 +23,7 @@ import { useRawKeyboardInput, useRawWheelInput, getRawInputSnapshot } from '@/in
 import { useRawMouseDrag } from '@/input/rawMouseDrag'
 import type { RawInput, TransformerConfig } from '@/types/transformer'
 import { getSceneDependencyKey } from '@/utils/sceneDependencyKey'
+import { getForwardSpeed } from '@/utils/vec3'
 import { computeDirectionalShadowCameraExtent } from '@/utils/shadowBounds'
 import { countVisualModelTriangles } from '@/utils/geometryExtractor'
 import { findEntityRootForPicking } from '@/utils/entityPicking'
@@ -172,6 +173,8 @@ function SceneViewInner({
   const [scriptSnackbarMessage, setScriptSnackbarMessage] = useState<string | null>(null)
   const [hudScore, setHudScore] = useState(0)
   const [hudDamage, setHudDamage] = useState(0)
+  const [hudDrive, setHudDrive] = useState({ speedMs: 0, wheelAngle: 0 })
+  const lastHudDriveRef = useRef<{ speedMs: number; wheelAngle: number } | null>(null)
   const gizmoDraggingRef = useRef(false)
   const disposePickGizmoRef = useRef<(() => void) | null>(null)
   const syncGizmoAttachRef = useRef<(() => void) | null>(null)
@@ -684,6 +687,34 @@ function SceneViewInner({
           }
         }
 
+        if (showGameHud) {
+          const camCtrl = cameraCtrlRef.current
+          const targetId = (camCtrl?.getConfig().target ?? '').trim()
+          let speedMs = 0
+          let wheelAngle = 0
+          const pwLoop = physicsRef.current
+          const reg = registryRef.current
+          if (targetId && pwLoop && reg) {
+            const vel = pwLoop.getLinearVelocity(targetId)
+            const forward = reg.getForwardVector(targetId)
+            if (vel && forward) {
+              speedMs = getForwardSpeed(vel, forward)
+            }
+            wheelAngle = reg.getCar2WheelAngle(targetId) ?? 0
+          }
+          const last = lastHudDriveRef.current
+          const epsS = 0.05
+          const epsW = 0.012
+          if (
+            last === null ||
+            Math.abs(last.speedMs - speedMs) > epsS ||
+            Math.abs(last.wheelAngle - wheelAngle) > epsW
+          ) {
+            lastHudDriveRef.current = { speedMs, wheelAngle }
+            setHudDrive({ speedMs, wheelAngle })
+          }
+        }
+
         const dome = skyDomeRef.current
         if (dome && cam && !cancelled) {
           dome.position.copy(cam.position)
@@ -725,6 +756,8 @@ function SceneViewInner({
       setScriptSnackbarMessage(null)
       setHudScore(0)
       setHudDamage(0)
+      lastHudDriveRef.current = null
+      setHudDrive({ speedMs: 0, wheelAngle: 0 })
 
       disposePickGizmoRef.current?.()
       disposePickGizmoRef.current = null
@@ -1009,7 +1042,9 @@ function SceneViewInner({
     <div className={className} style={{ width: '100%', height: '100%', position: 'relative' }}>
       <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
       {scriptSnackbarMessage !== null ? <ScriptSnackbar message={scriptSnackbarMessage} /> : null}
-      {showGameHud ? <GameHud score={hudScore} damage={hudDamage} /> : null}
+      {showGameHud ? (
+        <GameHud score={hudScore} damage={hudDamage} speedMs={hudDrive.speedMs} wheelAngle={hudDrive.wheelAngle} />
+      ) : null}
       <WarningSnackbar messages={schemaLoadWarnings} onDismiss={dismissSchemaLoadWarnings} />
     </div>
   )
