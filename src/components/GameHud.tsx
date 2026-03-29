@@ -40,28 +40,37 @@ const valueStyle: CSSProperties = {
 const MAX_KMH = 180
 const STEER_VIS_DEG = 118
 
-/** Semicircle arc: center (100,78), r=72, from left (28,78) to right (172,78), bulge downward. */
+/**
+ * Upper semicircle (classic tach): center on chord, arc bulges upward.
+ * u=0 → left end, u=1 → right end, u=0.5 → top (12 o’clock).
+ */
 const TACH_CX = 100
-const TACH_CY = 78
+const TACH_CY = 84
 const TACH_R = 72
 const TACH_R_TICKS = 66
 const TACH_R_NEEDLE = 58
 
-function tickPoint(valueKmh: number): { x: number; y: number } {
-  const u = Math.min(1, Math.max(0, valueKmh / MAX_KMH))
-  const angle = Math.PI * (1 - u)
-  return {
-    x: TACH_CX + TACH_R_TICKS * Math.cos(angle),
-    y: TACH_CY + TACH_R_TICKS * Math.sin(angle),
-  }
+/** Radians on upper arc: π (left) → 2π (right), passing through 3π/2 (top). */
+function tachAngleRadForU(u: number): number {
+  const clamped = Math.min(1, Math.max(0, u))
+  return Math.PI * (1 + clamped)
+}
+
+/** Longer ticks toward the top of the dial (u≈0.5); sin peaks at apex. */
+function tickInset(u: number, longMajor: boolean): number {
+  const apex = Math.sin(u * Math.PI)
+  const base = longMajor ? 9 : 6
+  const apexExtra = longMajor ? 14 : 9
+  return base + apex * apexExtra
 }
 
 function SpeedTachSvg({ speedMs }: { speedMs: number }) {
   const uid = useId().replace(/:/g, '_')
   const speedKmh = Math.min(MAX_KMH, Math.abs(speedMs) * 3.6)
   const t = MAX_KMH > 0 ? Math.min(1, speedKmh / MAX_KMH) : 0
-  /** Needle points up (−Y) before rotate; sweep left (π) → right (0): −90° + t·180°. */
-  const needleRotateDeg = -90 + t * 180
+  const θ = tachAngleRadForU(t)
+  /** Default needle along −Y; rotate so it aligns with (cos θ, sin θ) from center. */
+  const needleRotateDeg = (θ * 180) / Math.PI + 90
 
   const majorTicks: number[] = []
   for (let v = 0; v <= MAX_KMH; v += 20) majorTicks.push(v)
@@ -87,20 +96,26 @@ function SpeedTachSvg({ speedMs }: { speedMs: number }) {
         </filter>
       </defs>
       <path
-        d={`M ${TACH_CX - TACH_R} ${TACH_CY} A ${TACH_R} ${TACH_R} 0 0 1 ${TACH_CX + TACH_R} ${TACH_CY}`}
+        d={`M ${TACH_CX - TACH_R} ${TACH_CY} A ${TACH_R} ${TACH_R} 0 0 0 ${TACH_CX + TACH_R} ${TACH_CY}`}
         fill="none"
         stroke={`url(#${uid}-tachArc)`}
         strokeWidth={5}
         strokeLinecap="round"
       />
       {majorTicks.map((v) => {
-        const p0 = tickPoint(v)
         const u = v / MAX_KMH
-        const angle = Math.PI * (1 - u)
-        const inset = v % 40 === 0 ? 10 : 5
+        const angle = tachAngleRadForU(u)
+        const longMajor = v % 40 === 0
+        const inset = tickInset(u, longMajor)
+        const cos = Math.cos(angle)
+        const sin = Math.sin(angle)
+        const p0 = {
+          x: TACH_CX + TACH_R_TICKS * cos,
+          y: TACH_CY + TACH_R_TICKS * sin,
+        }
         const p1 = {
-          x: TACH_CX + (TACH_R_TICKS - inset) * Math.cos(angle),
-          y: TACH_CY + (TACH_R_TICKS - inset) * Math.sin(angle),
+          x: TACH_CX + (TACH_R_TICKS - inset) * cos,
+          y: TACH_CY + (TACH_R_TICKS - inset) * sin,
         }
         return (
           <line
@@ -109,22 +124,25 @@ function SpeedTachSvg({ speedMs }: { speedMs: number }) {
             y1={p0.y}
             x2={p1.x}
             y2={p1.y}
-            stroke={v % 40 === 0 ? 'rgba(200, 230, 255, 0.85)' : 'rgba(160, 190, 220, 0.45)'}
-            strokeWidth={v % 40 === 0 ? 2 : 1}
+            stroke={longMajor ? 'rgba(200, 230, 255, 0.85)' : 'rgba(160, 190, 220, 0.45)'}
+            strokeWidth={longMajor ? 2 : 1}
             strokeLinecap="round"
           />
         )
       })}
       {[10, 30, 50, 70, 90, 110, 130, 150, 170].map((v) => {
         const u = v / MAX_KMH
-        const angle = Math.PI * (1 - u)
+        const angle = tachAngleRadForU(u)
+        const inset = tickInset(u, false)
+        const cos = Math.cos(angle)
+        const sin = Math.sin(angle)
         const p0 = {
-          x: TACH_CX + TACH_R_TICKS * Math.cos(angle),
-          y: TACH_CY + TACH_R_TICKS * Math.sin(angle),
+          x: TACH_CX + TACH_R_TICKS * cos,
+          y: TACH_CY + TACH_R_TICKS * sin,
         }
         const p1 = {
-          x: TACH_CX + (TACH_R_TICKS - 4) * Math.cos(angle),
-          y: TACH_CY + (TACH_R_TICKS - 4) * Math.sin(angle),
+          x: TACH_CX + (TACH_R_TICKS - inset) * cos,
+          y: TACH_CY + (TACH_R_TICKS - inset) * sin,
         }
         return (
           <line
@@ -189,8 +207,7 @@ function SpeedTachSvg({ speedMs }: { speedMs: number }) {
 
 function SteeringWheelSvg({ wheelAngle }: { wheelAngle: number }) {
   const uid = useId().replace(/:/g, '_')
-  /** Match physics: positive wheelAngle = steer left → wheel top moves left (CCW from driver) = negative SVG rotation. */
-  const rotDeg = -wheelAngle * STEER_VIS_DEG
+  const rotDeg = wheelAngle * STEER_VIS_DEG
 
   return (
     <svg width={112} height={112} viewBox="0 0 112 112" aria-hidden style={{ display: 'block' }}>
