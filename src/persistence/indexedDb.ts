@@ -3,6 +3,7 @@ import type { RennWorld } from '@/types/world'
 import type { ProjectMeta, LoadedProject, PersistenceAPI } from './types'
 import { generateProjectId } from '@/utils/idGenerator'
 import { DB_CONFIG } from '@/config/constants'
+import { addAssetsToZipFolder } from '@/utils/assetExport'
 
 const STORE_PROJECTS = DB_CONFIG.stores.projects
 const STORE_ASSETS = DB_CONFIG.stores.assets
@@ -199,29 +200,8 @@ export function createIndexedDbPersistence(): PersistenceAPI {
       const { world, assets } = await this.loadProject(id)
       const zip = new JSZip()
       zip.file('world.json', JSON.stringify(world, null, 2))
-      const assetsFolder = zip.folder('assets')
-      if (assetsFolder) {
-        for (const [assetId, blob] of assets) {
-          const assetPayload: unknown = blob
-          const assetType = blob instanceof Blob && typeof blob.type === 'string' ? blob.type : ''
-          const ext = assetType.includes('png') ? 'png' : assetType.includes('glb') ? 'glb' : 'bin'
-          let data: Blob | ArrayBuffer | ArrayBufferView | string | null = null
-          if (assetPayload instanceof Blob) {
-            data = typeof assetPayload.arrayBuffer === 'function' ? await assetPayload.arrayBuffer() : assetPayload
-          } else if (
-            assetPayload instanceof ArrayBuffer ||
-            ArrayBuffer.isView(assetPayload) ||
-            typeof assetPayload === 'string'
-          ) {
-            data = assetPayload
-          }
-          if (!data) {
-            console.warn('Skipping unsupported asset payload during export:', assetId)
-            continue
-          }
-          assetsFolder.file(`${assetId}.${ext}`, data)
-        }
-      }
+      const assetsFolder = zip.folder('assets')!
+      await addAssetsToZipFolder(assetsFolder, assets, world.assets ?? {})
       return zip.generateAsync({ type: 'blob' })
     },
 

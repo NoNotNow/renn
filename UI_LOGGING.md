@@ -64,7 +64,7 @@ Example:
 - **Deletes**: Delete entity button
 
 ### AssetPanel.tsx
-- **Clicks**: Upload asset button
+- **Clicks**: Upload asset button, Download all assets (bulk ZIP), Download asset (per row)
 - **Uploads**: Upload asset files (images, models)
 - **Deletes**: Remove asset
 

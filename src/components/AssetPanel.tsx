@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import type { RennWorld } from '@/types/world'
 import { uiLogger } from '@/utils/uiLogger'
 import CopyableArea from './CopyableArea'
@@ -9,6 +9,7 @@ import { defaultPersistence } from '@/persistence/indexedDb'
 import TextureThumbnail from './TextureThumbnail'
 import ModelThumbnail from './ModelThumbnail'
 import { useEditorUndo } from '@/contexts/EditorUndoContext'
+import { buildAssetsZipBlob, resolveAssetFilename, triggerBlobDownload } from '@/utils/assetExport'
 
 export interface AssetPanelProps {
   assets: Map<string, Blob>
@@ -21,6 +22,7 @@ export default function AssetPanel({ assets, world, onAssetsChange, onWorldChang
   const undo = useEditorUndo()
   const pushUndo = () => undo?.pushBeforeEdit()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [isExporting, setIsExporting] = useState(false)
 
   const assetIds = Array.from(assets.keys())
   const worldAssets = world.assets ?? {}
@@ -83,13 +85,39 @@ export default function AssetPanel({ assets, world, onAssetsChange, onWorldChang
     onWorldChange({ ...world, assets: nextWorldAssets })
   }
 
+  const handleDownloadAll = async () => {
+    uiLogger.click('AssetPanel', 'Download all assets', { count: assetIds.length })
+    setIsExporting(true)
+    try {
+      const zip = await buildAssetsZipBlob(assets, worldAssets)
+      triggerBlobDownload(zip, 'assets.zip')
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
+  const handleDownloadOne = (id: string, blob: Blob) => {
+    uiLogger.click('AssetPanel', 'Download asset', { assetId: id })
+    const filename = resolveAssetFilename(id, blob, worldAssets[id])
+    triggerBlobDownload(blob, filename)
+  }
+
   const copyPayload = { assetIds, worldAssets }
 
   return (
     <CopyableArea copyPayload={copyPayload}>
       <div style={{ padding: 8 }}>
         <h3 style={{ margin: '0 0 8px' }}>Assets</h3>
-        <button type="button" onClick={handleUpload}>Upload</button>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button type="button" onClick={handleUpload}>Upload</button>
+          <button
+            type="button"
+            onClick={handleDownloadAll}
+            disabled={assetIds.length === 0 || isExporting}
+          >
+            {isExporting ? 'Zipping…' : 'Download all'}
+          </button>
+        </div>
         <input
         ref={fileInputRef}
         type="file"
@@ -116,21 +144,38 @@ export default function AssetPanel({ assets, world, onAssetsChange, onWorldChang
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', fontSize: 12 }}>{id}</span>
                 <span style={{ fontSize: 10, color: '#666' }}>{TextureManager.formatFileSize(blob.size)}</span>
               </div>
-              <button 
-                type="button" 
-                onClick={() => handleRemove(id)}
-                style={{
-                  padding: '4px 8px',
-                  fontSize: 11,
-                  background: '#3a1b1b',
-                  border: '1px solid #6b2a2a',
-                  color: '#f4d6d6',
-                  borderRadius: 4,
-                  cursor: 'pointer',
-                }}
-              >
-                Remove
-              </button>
+              <div style={{ display: 'flex', gap: 4 }}>
+                <button
+                  type="button"
+                  onClick={() => handleDownloadOne(id, blob)}
+                  style={{
+                    padding: '4px 8px',
+                    fontSize: 11,
+                    background: '#1b2a3a',
+                    border: '1px solid #2a4a6b',
+                    color: '#d6eaf4',
+                    borderRadius: 4,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Download
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => handleRemove(id)}
+                  style={{
+                    padding: '4px 8px',
+                    fontSize: 11,
+                    background: '#3a1b1b',
+                    border: '1px solid #6b2a2a',
+                    color: '#f4d6d6',
+                    borderRadius: 4,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Remove
+                </button>
+              </div>
             </li>
           )
         })}

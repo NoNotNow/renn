@@ -1,6 +1,6 @@
 # Renn – Project Status
 
-Last updated: 2026-03-27
+Last updated: 2026-03-29
 
 ## Completed
 
@@ -24,7 +24,7 @@ Last updated: 2026-03-27
 - EntitySidebar: entity list (search + collapsible filters by 3D model, shape, transformers, approximate size), add entity dropdown, camera control/target/mode; **0** / **Numpad 0** in Builder cycles camera mode (when focus is not in an editable field)
 - PropertyPanel: TransformEditor, ShapeEditor, PhysicsEditor, MaterialEditor, entity name, delete
 - ScriptPanel: Monaco editor, add/remove scripts
-- AssetPanel: upload textures/models, list/remove
+- AssetPanel: upload textures/models, list/remove; per-asset download; bulk download all as `assets.zip`
 - Sound tab: select/upload background audio (`world.sound.assetId`), set `volume`, `loop`, `autoplay`; manual play/stop in Builder; playback runs in Builder and Play
 - Play view: separate route `/play`, loads world from URL query or sample
 - In-scene interactions: click to select, drag to move
