@@ -501,7 +501,7 @@ export default function EntitySidebar({
                         }}
                         onClick={(ev) => {
                           uiLogger.click('Builder', 'Select entity', { entityId: e.id, entityName: e.name })
-                          onSelectEntity(e.id, { additive: ev.shiftKey || ev.metaKey })
+                          onSelectEntity(e.id, { additive: ev.shiftKey || ev.metaKey || ev.ctrlKey })
                         }}
                         onMouseEnter={(ev) => {
                           if (!selectedSet.has(e.id)) {

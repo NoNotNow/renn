@@ -344,7 +344,7 @@ export function installBuilderPickAndGizmo(
       p.onSelectEntity(null)
       return
     }
-    const additive = e.shiftKey || e.metaKey
+    const additive = e.shiftKey || e.metaKey || e.ctrlKey
     p.onSelectEntity(entityRoot.userData.entityId as string, { additive })
   }
 
