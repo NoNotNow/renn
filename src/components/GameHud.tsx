@@ -189,14 +189,14 @@ function SpeedTachSvg({ speedMs }: { speedMs: number }) {
       </text>
       <text
         x={TACH_CX}
-        y={22}
+        y={10}
         textAnchor="middle"
-        fill="rgba(120, 200, 255, 0.55)"
+        fill="rgba(140, 215, 255, 0.82)"
         style={{
           fontFamily: '"Orbitron", system-ui, sans-serif',
-          fontSize: 7,
-          letterSpacing: '0.28em',
-          fontWeight: 600,
+          fontSize: 10,
+          letterSpacing: '0.32em',
+          fontWeight: 700,
         }}
       >
         SPEED
@@ -205,94 +205,69 @@ function SpeedTachSvg({ speedMs }: { speedMs: number }) {
   )
 }
 
+/**
+ * Formula-style yoke: open top, two vertical grips, wide lower bridge (no circular rim).
+ */
 function SteeringWheelSvg({ wheelAngle }: { wheelAngle: number }) {
   const uid = useId().replace(/:/g, '_')
   const rotDeg = wheelAngle * STEER_VIS_DEG
+  const ox = 64
+  const oy = 50
 
   return (
-    <svg width={112} height={112} viewBox="0 0 112 112" aria-hidden style={{ display: 'block' }}>
+    <svg width={128} height={92} viewBox="0 0 128 92" aria-hidden style={{ display: 'block' }}>
       <defs>
-        <linearGradient id={`${uid}-carbon`} x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#2d323c" />
-          <stop offset="50%" stopColor="#151820" />
-          <stop offset="100%" stopColor="#252b35" />
+        <linearGradient id={`${uid}-yokeBody`} x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#242830" />
+          <stop offset="45%" stopColor="#12151c" />
+          <stop offset="100%" stopColor="#1c2128" />
         </linearGradient>
-        <linearGradient id={`${uid}-paddle`} x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" stopColor="#6a5a4a" />
-          <stop offset="100%" stopColor="#2a2218" />
+        <linearGradient id={`${uid}-yokeGrip`} x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="#1e222a" />
+          <stop offset="50%" stopColor="#2a303c" />
+          <stop offset="100%" stopColor="#181c24" />
         </linearGradient>
-        <clipPath id={`${uid}-rimClip`}>
-          <rect x={-56} y={-56} width={112} height={72} />
-        </clipPath>
       </defs>
-      <g transform={`translate(56,56) rotate(${rotDeg})`}>
-        <rect
-          x={-44}
-          y={-10}
-          width={11}
-          height={30}
-          rx={2}
-          fill={`url(#${uid}-paddle)`}
-          stroke="rgba(0,0,0,0.45)"
-          strokeWidth={0.5}
+      <g transform={`translate(${ox},${oy}) rotate(${rotDeg})`}>
+        <path
+          d="M -54 28 L -54 -16 L -46 -34 L -32 -26 L -27 -10 L -27 28 Z"
+          fill={`url(#${uid}-yokeGrip)`}
+          stroke="rgba(0,0,0,0.55)"
+          strokeWidth={0.65}
+          strokeLinejoin="round"
         />
-        <rect
-          x={33}
-          y={-10}
-          width={11}
-          height={30}
-          rx={2}
-          fill={`url(#${uid}-paddle)`}
-          stroke="rgba(0,0,0,0.45)"
-          strokeWidth={0.5}
+        <path
+          d="M 54 28 L 54 -16 L 46 -34 L 32 -26 L 27 -10 L 27 28 Z"
+          fill={`url(#${uid}-yokeGrip)`}
+          stroke="rgba(0,0,0,0.55)"
+          strokeWidth={0.65}
+          strokeLinejoin="round"
         />
-        <circle
-          cx={0}
-          cy={2}
-          r={44}
+        <path
+          d="M -27 28 L -27 -4 L -14 -4 L 0 -14 L 14 -4 L 27 -4 L 27 28 Z"
+          fill={`url(#${uid}-yokeBody)`}
+          stroke="rgba(0,0,0,0.5)"
+          strokeWidth={0.6}
+          strokeLinejoin="round"
+        />
+        <path
+          d="M -18 22 L 0 10 L 18 22"
           fill="none"
-          stroke={`url(#${uid}-carbon)`}
-          strokeWidth={9}
-          strokeLinecap="butt"
-          clipPath={`url(#${uid}-rimClip)`}
-        />
-        <line
-          x1={-32}
-          y1={26}
-          x2={32}
-          y2={26}
-          stroke={`url(#${uid}-carbon)`}
-          strokeWidth={9}
-          strokeLinecap="round"
-        />
-        <ellipse
-          cx={0}
-          cy={4}
-          rx={16}
-          ry={16}
-          fill="#0a0c10"
-          stroke="rgba(255,255,255,0.14)"
-          strokeWidth={1}
-        />
-        <circle cx={0} cy={4} r={6} fill="#1e2430" stroke="rgba(200,205,220,0.2)" strokeWidth={0.75} />
-        <line
-          x1={0}
-          y1={4}
-          x2={0}
-          y2={-34}
-          stroke="rgba(255,255,255,0.12)"
-          strokeWidth={2.5}
-          strokeLinecap="round"
-        />
-        <line
-          x1={0}
-          y1={4}
-          x2={0}
-          y2={38}
           stroke="rgba(255,255,255,0.06)"
-          strokeWidth={1.5}
+          strokeWidth={0.9}
           strokeLinecap="round"
         />
+        <path
+          d="M -22 6 L -8 6 M 8 6 L 22 6"
+          fill="none"
+          stroke="rgba(255,255,255,0.05)"
+          strokeWidth={0.6}
+          strokeLinecap="round"
+        />
+        <circle cx={0} cy={8} r={9.5} fill="#06080c" stroke="rgba(255,255,255,0.11)" strokeWidth={1} />
+        <circle cx={0} cy={8} r={5} fill="#141a24" stroke="rgba(255,255,255,0.08)" strokeWidth={0.5} />
+        <circle cx={24} cy={6} r={3.8} fill="#9e1424" stroke="#2a0608" strokeWidth={0.45} />
+        <circle cx={24} cy={6} r={1.6} fill="#1a0a0c" opacity={0.85} />
       </g>
     </svg>
   )
