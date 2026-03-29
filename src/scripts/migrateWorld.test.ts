@@ -64,7 +64,7 @@ describe('migrateWorldScripts', () => {
 })
 
 describe('migrateWorldSimplificationFields', () => {
-  it('clamps trimesh shape.simplification maxError into schema range and maxTriangles to at least 500', () => {
+  it('clamps trimesh shape.simplification maxTriangles to at least 500; leaves maxError uncapped above minimum', () => {
     const world = {
       version: '1.0',
       world: {},
@@ -83,7 +83,7 @@ describe('migrateWorldSimplificationFields', () => {
     migrateWorldSimplificationFields(world, warnings)
     const sim = (world.entities[0] as { shape: { simplification: Record<string, unknown> } }).shape
       .simplification
-    expect(sim.maxError).toBe(1)
+    expect(sim.maxError).toBe(5)
     expect(sim.maxTriangles).toBe(500)
     expect(warnings.length).toBe(1)
     expect(warnings[0]).toMatch(/simplification settings were adjusted/i)
@@ -124,7 +124,7 @@ describe('clampTrimeshSimplificationConfig', () => {
     const a = { enabled: true, maxTriangles: 400, maxError: 2, algorithm: 'meshoptimizer' as const }
     const b = clampTrimeshSimplificationConfig(a)
     expect(b).not.toBe(a)
-    expect(b.maxError).toBe(1)
+    expect(b.maxError).toBe(2)
     expect(b.maxTriangles).toBe(500)
   })
 })

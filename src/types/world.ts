@@ -110,8 +110,8 @@ export interface TrimeshSimplificationConfig {
   /** Default `meshoptimizer`. */
   algorithm?: SimplificationAlgorithm
   /**
-   * Error scale for meshoptimizer (multiplied by mesh bounding scale from `getScale`).
-   * Typical range ~0.001–0.1; default 0.01.
+   * Meshoptimizer relative error vs mesh extent; default 0.01 (≈1%). Not multiplied by `getScale()`.
+   * Larger values allow more aggressive decimation; schema minimum 0.0001, no maximum.
    */
   maxError?: number
 }

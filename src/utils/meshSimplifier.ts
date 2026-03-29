@@ -93,10 +93,11 @@ function simplifyWithMeshoptimizer(geometry: ExtractedGeometry, config: TrimeshS
 
   const positions = geometry.vertices
   const targetIndexCount = Math.max(3, targetTriangleCount * 3)
-  // meshoptimizer expects relative error in [0..1] (e.g. 0.01 ≈ 1% of mesh extent). Do NOT multiply by
-  // getScale() — that made tiny/normalized meshes use an impossibly small budget and produced no reduction.
+  // meshoptimizer: relative error vs mesh extent; typical default 0.01 (≈1%). Values above 1 are allowed for
+  // aggressive decimation. Do NOT multiply by getScale() — that made tiny/normalized meshes use an impossibly
+  // small budget and produced no reduction.
   const rawErr = config.maxError ?? 0.01
-  const targetError = Number.isFinite(rawErr) ? Math.min(1, Math.max(0, rawErr)) : 0.01
+  const targetError = Number.isFinite(rawErr) && rawErr > 0 ? rawErr : 0.01
 
   /**
    * Some production GLBs (e.g. complex scanned models) return unchanged topology when simplify is run

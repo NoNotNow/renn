@@ -423,18 +423,20 @@ export default function PerformanceBoosterDialog({
           </select>
           <div style={labelStyle}>Meshoptimizer error scale</div>
           <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 6 }}>
-            Relative tolerance (0–1), e.g. 0.01 ≈ 1% of mesh extent — higher allows more decimation.
+            Relative to mesh extent; default 0.01 (≈1%). Larger values allow more decimation (no upper cap).
           </div>
           <input
             type="number"
             min={0.0001}
-            max={1}
             step={0.005}
             value={meshMaxError}
             onChange={(e) => {
               const raw = Number(e.target.value)
-              const n = Number.isFinite(raw) ? raw : 0.01
-              setMeshMaxError(Math.min(1, Math.max(0.0001, n)))
+              if (!Number.isFinite(raw) || raw <= 0) {
+                setMeshMaxError(0.01)
+                return
+              }
+              setMeshMaxError(Math.max(0.0001, raw))
             }}
             style={{ width: '100%', padding: 8, marginBottom: 8, background: '#232836', border: '1px solid #2f3545', color: '#e6e9f2' }}
           />

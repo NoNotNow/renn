@@ -3,19 +3,18 @@
  * Call before validateWorldDocument so schema validation sees the new shape.
  *
  * `migrateWorldSimplificationFields` clamps mesh simplification numbers to JSON schema ranges
- * (e.g. maxError 0.0001–1, maxTriangles ≥ 500) so saved worlds stay valid after UI typos.
+ * (maxError ≥ 0.0001, maxTriangles ≥ 500) so saved worlds stay valid after UI typos.
  */
 import type { ScriptDef, EntityScriptsLegacy, TrimeshSimplificationConfig } from '@/types/world'
 
 const SIMPLIFICATION_MIN_MAX_ERROR = 0.0001
-const SIMPLIFICATION_MAX_MAX_ERROR = 1
 const SIMPLIFICATION_MIN_MAX_TRIANGLES = 500
 
 /** In-place clamp; returns true if any field changed. */
 function clampSimplificationRecordInPlace(s: Record<string, unknown>): boolean {
   let changed = false
   if (typeof s.maxError === 'number' && Number.isFinite(s.maxError)) {
-    const c = Math.min(SIMPLIFICATION_MAX_MAX_ERROR, Math.max(SIMPLIFICATION_MIN_MAX_ERROR, s.maxError))
+    const c = Math.max(SIMPLIFICATION_MIN_MAX_ERROR, s.maxError)
     if (c !== s.maxError) {
       s.maxError = c
       changed = true
@@ -38,7 +37,7 @@ function clampSimplificationRecordInPlace(s: Record<string, unknown>): boolean {
 export function clampTrimeshSimplificationConfig(cfg: TrimeshSimplificationConfig): TrimeshSimplificationConfig {
   const next: TrimeshSimplificationConfig = { ...cfg }
   if (typeof next.maxError === 'number' && Number.isFinite(next.maxError)) {
-    next.maxError = Math.min(SIMPLIFICATION_MAX_MAX_ERROR, Math.max(SIMPLIFICATION_MIN_MAX_ERROR, next.maxError))
+    next.maxError = Math.max(SIMPLIFICATION_MIN_MAX_ERROR, next.maxError)
   }
   if (typeof next.maxTriangles === 'number' && Number.isFinite(next.maxTriangles)) {
     next.maxTriangles = Math.max(SIMPLIFICATION_MIN_MAX_TRIANGLES, Math.floor(next.maxTriangles))
@@ -47,7 +46,7 @@ export function clampTrimeshSimplificationConfig(cfg: TrimeshSimplificationConfi
 }
 
 const SIMPLIFICATION_WARNING =
-  'Mesh simplification settings were adjusted to valid ranges (e.g. maxError 0.0001–1, maxTriangles ≥ 500). Re-save the project to persist.'
+  'Mesh simplification settings were adjusted to valid ranges (maxError ≥ 0.0001, maxTriangles ≥ 500). Re-save the project to persist.'
 
 /**
  * Mutates entity `shape.simplification` (trimesh) and `modelSimplification` in place.

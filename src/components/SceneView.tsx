@@ -925,8 +925,8 @@ function SceneViewInner({
           </pre>
           <p style={{ margin: '0 0 16px', fontSize: 13, color: '#9aa4b2', lineHeight: 1.5 }}>
             If you edited mesh simplification by hand, check that <code style={{ color: '#c4d4e8' }}>maxError</code> is
-            between 0.0001 and 1 and <code style={{ color: '#c4d4e8' }}>maxTriangles</code> is at least 500. Current
-            builds clamp these on load when possible; fix the JSON or use Undo in the editor if available.
+            at least 0.0001 and <code style={{ color: '#c4d4e8' }}>maxTriangles</code> is at least 500. Current builds
+            clamp these on load when possible; fix the JSON or use Undo in the editor if available.
           </p>
           <div>
             <button
