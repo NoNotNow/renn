@@ -1,0 +1,29 @@
+{
+  "version": "1.0",
+  "world": {
+    "gravity": [0, -9.81, 0]
+  },
+  "entities": [
+    {
+      "id": "ground",
+      "name": "Ground",
+      "bodyType": "static",
+      "shape": { "type": "plane" },
+      "position": [0, 0, 0]
+    },
+    {
+      "id": "giraffe",
+      "name": "Giraffe",
+      "bodyType": "static",
+      "shape": { "type": "trimesh", "model": "giraffe-test-asset" },
+      "position": [0, 1, 0]
+    }
+  ],
+  "assets": {
+    "giraffe-test-asset": {
+      "type": "model",
+      "path": "assets/giraffe-test-asset.glb"
+    }
+  },
+  "scripts": {}
+}

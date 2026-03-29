@@ -120,3 +120,24 @@ Run all integration tests with:
 ```bash
 npm run test:run
 ```
+
+---
+
+## E2E GLB fixtures (`e2e/fixtures/`)
+
+Playwright tests for the **Performance booster** dialog with a real GLB use [`e2e/fixtures/`](../e2e/fixtures/):
+
+| File | Purpose |
+|------|---------|
+| `giraffe-world.json` | World document: static trimesh entity `giraffe` referencing asset `giraffe-test-asset`. |
+| `giraffe.glb` | User-provided model (not committed by default). |
+| `giraffe-world.zip` | Built bundle: `world.json` + `assets/giraffe-test-asset.glb` for **File → Import**. |
+
+Build the ZIP after adding `giraffe.glb`:
+
+```bash
+npm run test:build-fixtures
+npm run test:e2e -- e2e/performance-booster-giraffe.spec.ts
+```
+
+If `giraffe-world.zip` is missing, the giraffe suite is skipped. See [`e2e/fixtures/README.md`](../e2e/fixtures/README.md).
