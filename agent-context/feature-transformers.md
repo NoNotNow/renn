@@ -24,7 +24,7 @@ RawInput → InputMapping → TransformInput → TransformerChain → TransformO
 - **Forces and torques** are **additive**; `color`, `addRotation`, and `setPose` are **last-wins** in the chain.
 - Target sources may **mutate** `TransformInput.target` each frame (last writer wins if multiple write).
 - `TransformOutput.color` (optional [r,g,b] 0–1) is applied by the render loop via `setColor` for display feedback.
-- `TransformOutput.addRotation` (optional Euler delta [x,y,z] rad): when set, the render loop adds it to the current body rotation and calls `physicsWorld.setRotation()`, then zeros angular velocity so physics does not override. Default is undefined so other transformers are unaffected.
+- `TransformOutput.addRotation` (optional Euler delta [x,y,z] rad): when set, the render loop **adds each component** to the current body Euler rotation, calls `physicsWorld.setRotation()`, then zeros angular velocity. Default is undefined so other transformers are unaffected.
 - `TransformOutput.setPose` (optional full world pose): when set, the render loop sets position and rotation and zeros linear/angular velocity. Use with **`bodyType: kinematic`** for scripted paths; dynamic bodies may fight other forces.
 - `resetAllForces()` is called before each frame so forces never accumulate across frames.
 
@@ -40,6 +40,7 @@ src/
 │   └── presets/
 │       ├── inputTransformer.ts               # Raw input → actions (priority 0)
 │       ├── car2Transformer.ts               # Impulse + addRotation (touch-gated)
+│       ├── personTransformer.ts             # Walk/run + turn when grounded
 │       ├── targetPoseInputTransformer.ts     # Waypoints → TransformInput.target
 │       ├── wandererTransformer.ts            # Random poses in cube → TransformInput.target
 │       ├── followTransformer.ts              # Another entity's pose → TransformInput.target
@@ -48,6 +49,7 @@ src/
 │   ├── loader.ts                             # listPresetNames, loadPreset (from JSON files)
 │   ├── car2/                                 # Optional .json templates
 │   ├── input/                                # e.g. keyboard-car.json = car input (Space → jump for car2)
+│   ├── person/
 │   ├── targetPoseInput/
 │   ├── wanderer/
 │   ├── follow/
@@ -105,138 +107,6 @@ Templates live under `src/data/transformerPresets/<type>/*.json` and appear in t
 }
 ```
 
-## Car transformer: bicycle model
-
-The `car` transformer uses the **bicycle model** (standard in arcade racing games). Key behaviors:
-
-- **Throttle**: engine force along the car's forward axis, tapering to zero at `maxSpeed`.
-- **Brake / Reverse**: decelerates when moving forward; switches to reverse when near-stationary.
-- **Engine braking**: gentle deceleration when coasting (no throttle, no brake).
-- **Steering**: front-wheel angle → turning radius → Y-axis torque. Speed-dependent: at low speed, `lowSpeedSteerFactor` (default 1.2) boosts steering for tighter turns; at high speed, `highSpeedSteerFactor` (default 0.35) reduces steer angle for softer turns.
-- **Lateral grip**: counter-force opposing sideways velocity keeps the car tracking its heading.
-- **Handbrake**: strong braking + reduced lateral grip for drifting (Space or Shift).
-
-All output uses `force` and `torque` only (no impulse), consistent with the `resetAllForces → apply → step` pipeline.
-
-### IMPORTANT: param rename from previous version
-
-The old transformer had a `steering` param. **That param no longer exists.** Passing it is silently ignored. Replace any use of `steering` with `steeringTorqueScale`.
-
-### Defaults are sized for a mass-12 car
-
-All defaults are tuned for a standard car entity (mass 10-15, box ~2x1x4). Entities with `mass` set in JSON get that exact mass in kg — the physics system computes the correct density from the shape volume automatically.
-
-### Param scaling guide
-
-All force/torque params scale with entity mass. The formulas below help choose values for non-default masses.
-
-#### `acceleration` — engine force
-
-```
-acceleration ≈ mass × maxSpeed / desiredSecondsToMax  (+20% for damping overhead)
-```
-
-| mass | maxSpeed | 0–max in ~2s | 0–max in ~4s |
-|------|----------|-------------|-------------|
-| 5    | 25       | 75          | 37          |
-| 12   | 25       | 180         | 90          |
-| 30   | 25       | 450         | 225         |
-
-#### `brakeForce` — stopping force
-
-`brakeForce ≈ 2 × acceleration`. Braking should feel decisive.
-
-#### `steeringTorqueScale` — steering responsiveness
-
-Must overcome angular damping and rotational inertia:
-
-```
-steeringTorqueScale ≈ angularDamping × I_y × 4
-I_y (box) = mass × (width² + depth²) / 12
-```
-
-| mass | Shape (w×h×d) | angularDamping | I_y  | steeringTorqueScale |
-|------|---------------|----------------|------|---------------------|
-| 5    | 1.5×1×3       | 0.3            | 4.7  | 10–15               |
-| 12   | 2×1×4         | 0.3            | 20   | 25–35               |
-| 12   | 2×1×4         | 2.0            | 20   | 60–80               |
-| 30   | 2.5×1×5       | 0.3            | 78   | 80–120              |
-
-#### `highSpeedSteerFactor` — softer steering at high speed
-
-Fraction of max steer angle applied at max speed (0–1). Lower = softer steering. Default 0.35. Use 1 to disable (full steering at all speeds).
-
-#### `lowSpeedSteerFactor` — steeper turning when slow
-
-Steer multiplier at rest (speed=0). Values > 1 boost low-speed turning (e.g. 1.2 = 20% sharper). Default 1.2. Use 1 for no boost.
-
-#### `minSteerSpeed` — steering at standstill
-
-Minimum effective forward speed (m/s) used when throttle/brake+steer held but car is nearly stationary. Default 0 (steering only applies when car has actual speed). Set > 0 (e.g. 0.5) to allow steering torque at standstill.
-
-#### `lateralGrip` — tire grip
-
-```
-lateralGrip ≈ mass × 1.5–2.5   (snappy)
-lateralGrip ≈ mass × 0.3–0.5   (drifty)
-```
-
-#### `wheelbase` — match entity depth
-
-Set to ~half the entity depth (Z dimension). Too small = spin; too large = sluggish.
-
-### Recommended entity config (mass 12, box 2×1×4)
-
-Tested and working reference config:
-
-```json
-{
-  "id": "car",
-  "bodyType": "dynamic",
-  "shape": { "type": "box", "width": 2, "height": 1, "depth": 4 },
-  "mass": 12,
-  "friction": 0.5,
-  "linearDamping": 0.1,
-  "angularDamping": 2.0,
-  "transformers": [
-    {
-      "type": "input",
-      "priority": 0,
-      "inputMapping": {
-        "keyboard": {
-          "w": "throttle",
-          "s": "brake",
-          "a": "steer_left",
-          "d": "steer_right",
-          "space": "handbrake",
-          "shift": "handbrake"
-        }
-      }
-    },
-    {
-      "type": "car",
-      "priority": 1,
-      "params": {
-        "maxSpeed": 25,
-        "acceleration": 200,
-        "brakeForce": 400,
-        "engineBrake": 30,
-        "maxSteerAngle": 0.5,
-        "wheelbase": 2.0,
-        "lateralGrip": 25,
-        "handbrakeGripFactor": 0.15,
-        "handbrakeMultiplier": 3,
-        "steeringTorqueScale": 60
-      }
-    }
-  ]
-}
-```
-
-All defaults (shown above) work out of the box for mass ~12. For heavier entities, scale `acceleration`, `brakeForce`, `lateralGrip`, and `steeringTorqueScale` proportionally.
-
-**Smooth acceleration (5–10 s to max speed):** `acceleration` is in Newtons. Use `acceleration ≈ mass × maxSpeed / timeToMaxSpeed` (e.g. mass 20, maxSpeed 25, 7.5 s → ~67). Alternatively set `timeToMaxSpeed` (seconds) in car params and the registry will derive acceleration from entity mass.
-
 ### Car2 transformer params
 
 The `car2` preset (**impulse** + **addRotation**) accepts optional `params` in JSON. When the car has lateral velocity, part of the countered lateral force is applied as forward impulse so that some lateral energy is translated into forward motion during turns.
@@ -256,11 +126,11 @@ The `car2` preset (**impulse** + **addRotation**) accepts optional `params` in J
 
 Map **Space** (or any key) to the semantic action **`jump`** in the `input` transformer’s `inputMapping` (see `src/data/transformerPresets/input/keyboard-car.json`).
 
-Default preset (Builder + `getDefaultTransformerConfig('car2')`): `{ "type": "car2", "priority": 10, "enabled": true, "params": { "power": 1000, "steeringIntensity": 0.05, "steeringSpeed": 0.05, "lateralGrip": 120, "jumpImpulse": 200 } }`. Optional: `lateralToForwardTransfer` (e.g. `0.2`).
+Default preset (Builder + `getDefaultTransformerConfig('car2')`) matches runtime defaults in `car2Transformer.ts` (same `power`, `steeringIntensity`, `steeringSpeed`, `lateralGrip`, `jumpImpulse`). Optional: `lateralToForwardTransfer` (e.g. `0.2`).
 
 ### Builder: Add transformer dropdown and template dialog
 
-In the Builder, when an entity is selected, the Transformers section shows. Use the "Add transformer" dropdown to add a transformer (input or car2) with a default config from `src/transformers/transformerPresets.ts`. For each preset transformer, a **Templates…** button opens the transformer template dialog: load the built-in default or any JSON preset from `src/data/transformerPresets/<type>/*.json`, or save the current config as a template (download JSON or copy to clipboard) to add to that folder.
+In the Builder, when an entity is selected, the Transformers section shows. Use the **Add transformer** dropdown to add any **preset** type with a default from [`transformerPresets.ts`](../src/transformers/transformerPresets.ts): `input`, `car2`, `person`, `targetPoseInput`, `kinematicMovement`, `wanderer`, `follow`. For each preset row, **Templates…** opens the template dialog: load the built-in default or JSON from `src/data/transformerPresets/<type>/*.json`, or save the current config as a template.
 
 ## Script API
 

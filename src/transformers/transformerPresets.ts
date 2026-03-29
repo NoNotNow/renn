@@ -3,7 +3,7 @@
  * Each preset provides a sensible starting config that users can edit.
  */
 
-import type { TransformerConfig } from '@/types/transformer'
+import type { PresetTransformerType, TransformerConfig } from '@/types/transformer'
 import { CAR_PRESET } from '@/input/inputPresets'
 
 export const TRANSFORMER_PRESET_OPTIONS: { value: string; label: string }[] = [
@@ -15,6 +15,15 @@ export const TRANSFORMER_PRESET_OPTIONS: { value: string; label: string }[] = [
   { value: 'wanderer', label: 'wanderer' },
   { value: 'follow', label: 'follow' },
 ]
+
+/** Preset transformer `type` values (single source for UI + JSON preset folders). */
+export const TRANSFORMER_PRESET_TYPES: PresetTransformerType[] = TRANSFORMER_PRESET_OPTIONS.map(
+  (o) => o.value as PresetTransformerType,
+)
+
+export function isPresetTransformerType(type: string): type is PresetTransformerType {
+  return TRANSFORMER_PRESET_TYPES.includes(type as PresetTransformerType)
+}
 
 /**
  * Returns the default TransformerConfig for the given type.
@@ -35,10 +44,10 @@ export function getDefaultTransformerConfig(type: string): TransformerConfig {
         priority: 10,
         enabled: true,
         params: {
-          power: 1000,
-          steeringIntensity: 0.05,
-          steeringSpeed: 0.05,
-          lateralGrip: 120,
+          power: 400,
+          steeringIntensity: 0.1,
+          steeringSpeed: 0.01,
+          lateralGrip: 100,
           jumpImpulse: 200,
         },
       }

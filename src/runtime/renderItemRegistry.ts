@@ -605,7 +605,7 @@ export class RenderItemRegistry {
         this.physicsWorld.applyTorqueFromTransformer(item.entity.id, output.torque)
       }
       if (output.addRotation != null && body) {
-        // Apply only yaw (addRotation[1]) around body's up axis in quaternion space to avoid Euler wrap and angle limits
+        // Component-wise Euler delta [x,y,z] rad added to current rotation; angular velocity cleared afterward.
         const newRotation: Rotation = [
           rotation[0] + output.addRotation[0],
           rotation[1] + output.addRotation[1],

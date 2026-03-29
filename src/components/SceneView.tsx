@@ -597,7 +597,6 @@ function SceneViewInner({
               // Execute transformers BEFORE physics step
               if (registryRef.current) {
                 const rawInput: RawInput = getRawInputSnapshot(rawKeyboardRef, rawWheelRef)
-                void rawInput
                 registryRef.current.setRawInputGetter(() => rawInput)
                 const wind = worldRef.current.world.wind
                 registryRef.current.executeTransformers(dt, wind)

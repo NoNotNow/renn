@@ -3,16 +3,7 @@
  * Uses Vite's import.meta.glob so files are bundled but loadable at runtime.
  */
 
-import type { TransformerConfig } from '@/types/transformer'
-
-export type PresetTransformerType =
-  | 'input'
-  | 'car2'
-  | 'person'
-  | 'targetPoseInput'
-  | 'kinematicMovement'
-  | 'wanderer'
-  | 'follow'
+import type { PresetTransformerType, TransformerConfig } from '@/types/transformer'
 
 const presetModules = import.meta.glob<string>('./**/*.json', {
   query: '?raw',

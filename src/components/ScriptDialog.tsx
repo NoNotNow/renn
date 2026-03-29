@@ -3,13 +3,7 @@ import type { RennWorld, ScriptDef } from '@/types/world'
 import { uiLogger } from '@/utils/uiLogger'
 import Modal from './Modal'
 import { useEditorUndo } from '@/contexts/EditorUndoContext'
-
-function getDef(scripts: Record<string, ScriptDef>, id: string): ScriptDef | null {
-  const raw = scripts[id]
-  if (raw == null) return null
-  if (typeof raw === 'string') return { event: 'onUpdate', source: raw }
-  return raw
-}
+import { getScriptDef } from '@/scripts/scriptDef'
 
 function getEventLabel(def: ScriptDef | null): string {
   if (!def) return '?'
@@ -91,7 +85,7 @@ export default function ScriptDialog({
 
   const handleRename = useCallback(() => {
     if (!selectedScriptId || !onWorldChange) return
-    const def = getDef(scripts, selectedScriptId)
+    const def = getScriptDef(scripts, selectedScriptId)
     if (!def) return
     const newIdRaw = prompt('New script ID:', selectedScriptId)
     if (newIdRaw == null) return
@@ -156,7 +150,7 @@ export default function ScriptDialog({
                 </div>
               ) : (
                 filteredScriptIds.map((id) => {
-                  const def = getDef(scripts, id)
+                  const def = getScriptDef(scripts, id)
                   const attached = entityScriptIds.includes(id)
                   const selected = selectedScriptId === id
                   return (
@@ -244,7 +238,7 @@ export default function ScriptDialog({
                 <div style={{ fontSize: 12, color: '#9aa4b2' }}>No scripts attached</div>
               ) : (
                 entityScriptIds.map((id) => {
-                  const def = getDef(scripts, id)
+                  const def = getScriptDef(scripts, id)
                   return (
                     <div
                       key={id}

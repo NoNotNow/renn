@@ -32,11 +32,12 @@ import { CHARACTER_PRESET } from '@/input/inputPresets'
 
 /**
  * Create a transformer instance from configuration.
+ * Returns a Promise for a stable async API (e.g. future lazy-loaded presets); the current implementation is synchronous.
  */
 export async function createTransformer(
   config: TransformerConfig,
   rawInputGetter?: () => import('@/types/transformer').RawInput | null,
-  entity?: Entity,
+  _entity?: Entity,
   getEntityWorldPose?: EntityWorldPoseGetter,
 ): Promise<Transformer> {
   const priority = config.priority ?? 10

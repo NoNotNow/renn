@@ -7,7 +7,11 @@ import { BaseTransformer } from '../transformer'
 import type { TransformInput, TransformOutput, TransformTarget } from '@/types/transformer'
 import { EMPTY_TRANSFORM_OUTPUT } from '@/types/transformer'
 import type { Rotation, Vec3 } from '@/types/world'
-import { eulerToQuaternion } from '@/utils/rotationUtils'
+import {
+  positionReached,
+  rotationReached,
+  poseReached,
+} from '@/utils/transformTargetReach'
 
 export type WaypointMode = 'cycle' | 'pingPong' | 'stopAtEnd'
 
@@ -33,31 +37,6 @@ const DEFAULTS: Required<
   mode: 'cycle',
   positionEpsilon: 0.05,
   rotationEpsilon: 0.08,
-}
-
-function positionReached(a: Vec3, b: Vec3, eps: number): boolean {
-  const dx = a[0] - b[0]
-  const dy = a[1] - b[1]
-  const dz = a[2] - b[2]
-  return Math.sqrt(dx * dx + dy * dy + dz * dz) <= eps
-}
-
-function rotationReached(a: Rotation, b: Rotation, epsRad: number): boolean {
-  const qa = eulerToQuaternion(a)
-  const qb = eulerToQuaternion(b)
-  const dot = Math.min(1, Math.abs(qa.dot(qb)))
-  const angle = 2 * Math.acos(dot)
-  return angle <= epsRad
-}
-
-function poseReached(
-  pos: Vec3,
-  rot: Rotation,
-  wp: TargetPoseWaypoint,
-  posEps: number,
-  rotEps: number,
-): boolean {
-  return positionReached(pos, wp.position, posEps) && rotationReached(rot, wp.rotation, rotEps)
 }
 
 export class TargetPoseInputTransformer extends BaseTransformer {

@@ -1,28 +1,14 @@
 import { useEffect, useState } from 'react'
-import type { TransformerConfig } from '@/types/transformer'
-import type { PresetTransformerType } from '@/data/transformerPresets/loader'
+import type { PresetTransformerType, TransformerConfig } from '@/types/transformer'
 import CopyableArea from './CopyableArea'
 import TransformerTemplateDialog from './TransformerTemplateDialog'
-import { fieldLabelStyle, iconButtonStyle, entityPanelIconButtonStyle, removeButtonStyle, removeButtonStyleDisabled } from './sharedStyles'
+import { fieldLabelStyle, entityPanelIconButtonStyle, removeButtonStyle, removeButtonStyleDisabled } from './sharedStyles'
 import { EntityPanelIcons } from './EntityPanelIcons'
 import {
   TRANSFORMER_PRESET_OPTIONS,
   getDefaultTransformerConfig,
+  isPresetTransformerType,
 } from '@/transformers/transformerPresets'
-
-const PRESET_TYPES: PresetTransformerType[] = [
-  'input',
-  'car2',
-  'person',
-  'targetPoseInput',
-  'kinematicMovement',
-  'wanderer',
-  'follow',
-]
-
-function isPresetType(type: string): type is PresetTransformerType {
-  return PRESET_TYPES.includes(type as PresetTransformerType)
-}
 
 const baseTextareaStyle: React.CSSProperties = {
   margin: 0,
@@ -264,7 +250,7 @@ export default function TransformerEditor({
                 </button>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
-                {isPresetType(transformer.type) && (
+                {isPresetTransformerType(transformer.type) && (
                   <button
                     type="button"
                     onClick={() => {
@@ -282,7 +268,7 @@ export default function TransformerEditor({
                     aria-label="Load template"
                     data-testid="load-transformer-template"
                   >
-                    <span style={{ fontSize: 14, lineHeight: 1 }}>{'\u{1F4C2}'}</span>
+                    {EntityPanelIcons.loadTemplate}
                   </button>
                 )}
                 <button

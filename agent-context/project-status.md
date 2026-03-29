@@ -33,13 +33,13 @@ Last updated: 2026-03-27
 ### Transformer system (Phases 1–4)
 - Types, BaseTransformer, TransformerChain
 - Input capture: keyboard + trackpad; input mapping + presets
-- Preset transformers: **input**, **car2** (others removed)
+- Preset transformers: **input**, **car2**, **person**, **targetPoseInput**, **kinematicMovement**, **wanderer**, **follow**
 - Transformer template dialog: load default or file-based presets from `src/data/transformerPresets/<type>/*.json`; save current config as JSON (download/copy)
 - Physics integration: `applyForce/Impulse/TorqueFromTransformer`, `resetAllForces()`
 - Script API: `setTransformerEnabled`, `setTransformerParam`
 
 ### Assets & models
-- Texture workflow: TextureManager, TextureDialog, TextureThumbnail, TextureSelector
+- Texture workflow: TextureManager, TextureDialog, TextureThumbnail
 - 3D model workflow: ModelManager, ModelDialog, ModelThumbnail, ModelEditor
 - Two physics modes: `entity.model` (visual only) or `trimesh` shape (visual + physics)
 - Trimesh physics: vertices/indices extracted, concave geometry supported, warnings for >10K triangles
@@ -50,7 +50,7 @@ Last updated: 2026-03-27
 - Reusable form components: NumberInput, SelectInput, VectorField
 - Centralized config constants, UI logger, shared styles
 - Test helpers: entity, physics, React, Three.js, world utilities
-- E2E tests: Playwright (`e2e/add-entity.spec.ts`, `e2e/performance-booster.spec.ts`)
+- E2E tests: Playwright (`e2e/add-entity.spec.ts`, `e2e/performance-booster.spec.ts`, `e2e/script-panel-layout.spec.ts`, `e2e/multi-select.spec.ts`)
 
 ---
 

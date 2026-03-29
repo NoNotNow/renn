@@ -62,7 +62,7 @@ Scripts receive a `game` API with methods to interact with entities, physics, an
 
 ## Architecture
 
-See `agent-context/` for agent-facing docs (`architecture.md`, `transformers.md`, `examples.md`). Key patterns:
+See `agent-context/` for agent-facing docs (`architecture.md`, `feature-transformers.md`, `example-worlds.md`, `script-examples.md`). Key patterns:
 - **ProjectContext**: centralized state management for projects, world data, and assets
 - **RenderItemRegistry**: manages entity render items and physics-mesh synchronization
 - **Cached transforms**: physics transforms cached as plain numbers to avoid WASM aliasing errors

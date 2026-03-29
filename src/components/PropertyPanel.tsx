@@ -52,7 +52,6 @@ export interface PropertyPanelProps {
   onAssetsChange?: (assets: Map<string, Blob>) => void
   onDeleteEntities?: (entityIds: string[]) => void
   onCloneEntity?: (entityId: string) => void
-  getCurrentPose?: (id: string) => { position: Vec3; rotation: Rotation; scale?: Vec3 }
   onEntityPoseChange?: (ids: string[], pose: { position?: Vec3; rotation?: Rotation; scale?: Vec3 }) => void
   onEntityPhysicsChange?: (ids: string[], patch: Partial<Entity>) => void
   onEntityShapeChange?: (ids: string[], patch: Partial<Entity>) => void

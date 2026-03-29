@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import type { FreeFlyKeys } from '@/types/camera'
+import { isEditableElement } from '@/input/rawInput'
 
 export const DEFAULT_FREE_FLY_KEYS: FreeFlyKeys = {
   w: false,
@@ -12,13 +13,6 @@ export const DEFAULT_FREE_FLY_KEYS: FreeFlyKeys = {
   arrowRight: false,
   arrowUp: false,
   arrowDown: false,
-}
-
-function isEditableElement(): boolean {
-  const el = document.activeElement
-  if (!el) return false
-  const tag = el.tagName
-  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (el as HTMLElement).isContentEditable
 }
 
 export function useKeyboardInput(): React.RefObject<FreeFlyKeys> {

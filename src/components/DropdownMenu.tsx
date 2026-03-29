@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, type ReactNode } from 'react'
+import { useState, useRef, useEffect } from 'react'
 
 export interface MenuItemConfig {
   type: 'item' | 'separator' | 'submenu'

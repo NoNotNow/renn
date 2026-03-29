@@ -1,18 +1,8 @@
 import { useState, useCallback, useEffect } from 'react'
-import type { TransformerConfig } from '@/types/transformer'
-import type { PresetTransformerType } from '@/data/transformerPresets/loader'
+import type { PresetTransformerType, TransformerConfig } from '@/types/transformer'
 import { listPresetNames, loadPreset } from '@/data/transformerPresets/loader'
+import { TRANSFORMER_PRESET_TYPES } from '@/transformers/transformerPresets'
 import Modal from './Modal'
-
-const PRESET_TYPES: PresetTransformerType[] = [
-  'input',
-  'car2',
-  'person',
-  'targetPoseInput',
-  'kinematicMovement',
-  'wanderer',
-  'follow',
-]
 
 export interface TransformerTemplateDialogProps {
   isOpen: boolean
@@ -115,7 +105,7 @@ export default function TransformerTemplateDialog({
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <span style={{ fontSize: 13, color: '#9aa4b2' }}>Type:</span>
-          {PRESET_TYPES.map((type) => {
+          {TRANSFORMER_PRESET_TYPES.map((type) => {
             const active = dialogType === type
             return (
               <button

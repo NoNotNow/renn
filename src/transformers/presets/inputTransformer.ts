@@ -74,7 +74,6 @@ export class InputTransformer extends BaseTransformer {
 
     // Apply mapping to get actions
     const actions = applyInputMapping(rawInput, this.mapping)
-    void Object.values(rawInput.keys).some(Boolean)
 
     // Merge into input actions (overwrite existing)
     input.actions = { ...input.actions, ...actions }

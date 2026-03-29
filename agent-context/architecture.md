@@ -78,7 +78,8 @@ renn/
 │   │   ├── colorUtils.ts     # Color generation and utilities
 │   │   ├── idGenerator.ts    # Unique ID generation
 │   │   ├── numberUtils.ts    # Number operations and utilities
-│   │   └── validation.ts     # Input validation helpers
+│   │   ├── editorConstants.ts # Shared editor epsilons (e.g. VEC_EPS)
+│   │   └── transformTargetReach.ts # position/rotation reached (waypoints, wanderer)
 │   ├── components/
 │   │   ├── SceneView.tsx     # 3D canvas: load world, physics, scripts, camera, render loop
 │   │   ├── BuilderHeader.tsx # Toolbar: New, Save, Save as, Download, Upload, project list, Play, gravity/shadows

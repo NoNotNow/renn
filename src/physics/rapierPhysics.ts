@@ -128,11 +128,6 @@ export class PhysicsWorld {
       colliderDesc.setRestitution(entity.restitution ?? 0)
       const frictionValue = entity.friction ?? 0.5
       colliderDesc.setFriction(frictionValue)
-      
-      // Debug: Log friction being applied
-      if (entity.id === 'car' || entity.id === 'ground') {
-        console.log(`[Physics] Entity "${entity.id}" friction set to:`, frictionValue, 'from config:', entity.friction)
-      }
 
       // Enable collision events for entities with onCollision scripts
       const hasCollisionScript =
@@ -454,17 +449,6 @@ export class PhysicsWorld {
             position: storedPos,
             rotation: storedRot
           })
-          if (entityId === 'car') {
-            const now = Date.now()
-            const lastForceAt = (this as { _carForceAt?: number })._carForceAt ?? 0
-            const nearForce = now - lastForceAt < 400
-            const lastLog = (this as { _lastCarLog?: number })._lastCarLog ?? 0
-            if (now - lastLog > 300) {
-              ;(this as { _lastCarLog?: number })._lastCarLog = now
-              void storedPos
-              void nearForce
-            }
-          }
         }
       }
       
@@ -711,12 +695,6 @@ export class PhysicsWorld {
    * Convenience method that accepts Vec3.
    */
   applyForceFromTransformer(entityId: string, force: [number, number, number]): void {
-    if (entityId === 'car') {
-      const body = this.bodyMap.get(entityId)
-      if (body) {
-        ;(this as { _carForceAt?: number })._carForceAt = Date.now()
-      }
-    }
     this.applyForce(entityId, force[0], force[1], force[2])
   }
 

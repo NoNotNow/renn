@@ -821,7 +821,6 @@ export default function Builder() {
           onAssetsChange={handleAssetsChange}
           onDeleteEntities={handleDeleteEntities}
           onCloneEntity={handleCloneEntity}
-          getCurrentPose={getCurrentPose}
           onEntityPoseChange={handleEntityPoseChange}
           onEntityPhysicsChange={handleEntityPhysicsChange}
           onEntityMaterialChange={handleEntityMaterialChange}

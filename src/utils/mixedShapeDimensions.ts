@@ -1,6 +1,5 @@
 import type { Entity, Shape } from '@/types/world'
-
-const VEC_EPS = 1e-5
+import { VEC_EPS } from '@/utils/editorConstants'
 
 export type MixedDimensionKind = 'radius' | 'height' | 'width' | 'depth' | 'baseSize'
 

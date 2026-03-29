@@ -1,8 +1,7 @@
 import type { Entity, Vec3, Rotation, Shape, MaterialRef } from '@/types/world'
 import type { TransformerConfig } from '@/types/transformer'
 import { DEFAULT_SCALE, DEFAULT_POSITION, DEFAULT_ROTATION } from '@/types/world'
-
-const VEC_EPS = 1e-5
+import { VEC_EPS } from '@/utils/editorConstants'
 
 export function vec3Equal(a: Vec3 | undefined, b: Vec3 | undefined): boolean {
   if (a === undefined && b === undefined) return true

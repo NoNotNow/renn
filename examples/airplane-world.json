@@ -30,12 +30,12 @@
     },
     {
       "id": "airplane",
-      "name": "Player Airplane",
+      "name": "Demo vehicle (car2)",
       "bodyType": "dynamic",
       "shape": { "type": "box", "width": 2, "height": 0.5, "depth": 4 },
       "position": [0, 10, 0],
       "rotation": [0, 0, 0],
-      "mass": 1000,
+      "mass": 12,
       "restitution": 0.1,
       "friction": 0.5,
       "transformers": [
@@ -45,34 +45,28 @@
           "enabled": true,
           "inputMapping": {
             "keyboard": {
-              "w": "thrust",
+              "w": "throttle",
               "s": "brake",
-              "a": "roll_left",
-              "d": "roll_right",
-              "space": "boost"
-            },
-            "wheel": {
-              "horizontal": "yaw",
-              "vertical": "pitch"
+              "a": "steer_left",
+              "d": "steer_right",
+              "space": "jump"
             },
             "sensitivity": {
               "keyboard": 1.0,
-              "wheel": 0.8
+              "wheel": 1.0
             }
           }
         },
         {
-          "type": "airplane",
-          "priority": 1,
+          "type": "car2",
+          "priority": 10,
           "enabled": true,
           "params": {
-            "thrustForce": 50.0,
-            "liftCoefficient": 2.5,
-            "dragCoefficient": 0.1,
-            "maxSpeed": 100.0,
-            "pitchSensitivity": 5.0,
-            "yawSensitivity": 5.0,
-            "rollSensitivity": 5.0
+            "power": 400,
+            "steeringIntensity": 0.1,
+            "steeringSpeed": 0.01,
+            "lateralGrip": 100,
+            "jumpImpulse": 200
           }
         }
       ]
@@ -86,13 +80,28 @@
       "material": { "color": [1, 0.8, 0.2] },
       "transformers": [
         {
-          "type": "butterfly",
-          "priority": 0,
+          "type": "wanderer",
+          "priority": 5,
+          "enabled": true,
           "params": {
-            "flutterFrequency": 3.0,
-            "flightHeight": 3.0,
-            "wanderRadius": 10.0,
-            "flutterForce": 5.0
+            "speed": 2,
+            "jumpDistance": 3,
+            "linear": true,
+            "angular": true,
+            "perimeter": {
+              "center": [5, 3, 5],
+              "halfExtents": [8, 2, 8]
+            },
+            "positionEpsilon": 0.05,
+            "rotationEpsilon": 0.08
+          }
+        },
+        {
+          "type": "kinematicMovement",
+          "priority": 6,
+          "enabled": true,
+          "params": {
+            "maxRotationRate": 6.283185307179586
           }
         }
       ]

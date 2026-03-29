@@ -78,16 +78,3 @@ export function applyInputMapping(
 
   return actions
 }
-
-/**
- * Merge multiple action maps, with later maps overriding earlier ones.
- */
-export function mergeActions(
-  ...actionMaps: Record<string, number>[]
-): Record<string, number> {
-  const merged: Record<string, number> = {}
-  for (const map of actionMaps) {
-    Object.assign(merged, map)
-  }
-  return merged
-}

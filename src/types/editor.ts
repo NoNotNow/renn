@@ -1,4 +1,4 @@
-import type { RennWorld, EntityPose, PartialEntityPose } from './world'
+import type { RennWorld, PartialEntityPose } from './world'
 
 /**
  * Base props for all editor components
@@ -12,7 +12,6 @@ export interface BaseEditorProps {
  * Props for components that handle entity pose changes
  */
 export interface PoseHandlingProps {
-  getCurrentPose?: (id: string) => EntityPose
   onEntityPoseChange?: (id: string, pose: PartialEntityPose) => void
 }
 

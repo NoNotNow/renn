@@ -7,15 +7,9 @@ import { ctxDeclFor, CTX_EXTRA_LIB_URI } from '@/scripts/scriptCtxDecl'
 import CopyableArea from './CopyableArea'
 import ScriptDialog from './ScriptDialog'
 import { useEditorUndo } from '@/contexts/EditorUndoContext'
+import { getScriptDef } from '@/scripts/scriptDef'
 
 const SCRIPT_EVENTS: ScriptEvent[] = ['onSpawn', 'onUpdate', 'onCollision', 'onTimer']
-
-function getDef(scripts: Record<string, ScriptDef>, id: string): ScriptDef | null {
-  const raw = scripts[id]
-  if (raw == null) return null
-  if (typeof raw === 'string') return { event: 'onUpdate', source: raw }
-  return raw
-}
 
 function getEntitiesUsingScript(world: RennWorld, scriptId: string): { id: string; name?: string }[] {
   return world.entities.filter((e) => e.scripts?.includes(scriptId)).map((e) => ({ id: e.id, name: e.name }))
@@ -73,7 +67,7 @@ export default function ScriptPanel({ world, selectedEntityIds, onWorldChange }:
     }
   }, [selectedEntityIds.join(','), attachedScriptIdsOrdered.join(','), scriptIds.join(','), selectedId])
 
-  const def = selectedId ? getDef(scripts, selectedId) : null
+  const def = selectedId ? getScriptDef(scripts, selectedId) : null
   const source = def?.source ?? ''
   const event = def?.event ?? 'onUpdate'
   const interval = def?.event === 'onTimer' ? def.interval : 1
@@ -110,7 +104,7 @@ export default function ScriptPanel({ world, selectedEntityIds, onWorldChange }:
     if (!selectedId) return
     pushUndo()
     uiLogger.change('ScriptPanel', 'Apply script', { scriptId: selectedId, contentLength: draftSource.length })
-    const current = getDef(scripts, selectedId)
+    const current = getScriptDef(scripts, selectedId)
     const nextDef: ScriptDef =
       current?.event === 'onTimer'
         ? { event: 'onTimer', interval: current.interval, source: draftSource }
@@ -126,7 +120,7 @@ export default function ScriptPanel({ world, selectedEntityIds, onWorldChange }:
   const handleEventChange = (newEvent: ScriptEvent) => {
     if (!selectedId) return
     pushUndo()
-    const current = getDef(scripts, selectedId)
+    const current = getScriptDef(scripts, selectedId)
     const nextDef: ScriptDef =
       newEvent === 'onTimer'
         ? { event: 'onTimer', interval: current?.event === 'onTimer' ? current.interval : 1, source: current?.source ?? '' }
@@ -137,7 +131,7 @@ export default function ScriptPanel({ world, selectedEntityIds, onWorldChange }:
   const handleIntervalChange = (seconds: number) => {
     if (!selectedId || event !== 'onTimer') return
     pushUndo()
-    const current = getDef(scripts, selectedId)
+    const current = getScriptDef(scripts, selectedId)
     if (current?.event !== 'onTimer') return
     onWorldChange({
       ...world,

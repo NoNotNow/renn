@@ -80,21 +80,3 @@ export const PERSON_PRESET: InputMapping = {
     keyboard: 1.0,
   },
 }
-
-/**
- * Get preset by name.
- */
-export function getPresetMapping(
-  presetName: 'character' | 'car' | 'person',
-): InputMapping {
-  switch (presetName) {
-    case 'character':
-      return CHARACTER_PRESET
-    case 'car':
-      return CAR_PRESET
-    case 'person':
-      return PERSON_PRESET
-    default:
-      return CHARACTER_PRESET // fallback
-  }
-}

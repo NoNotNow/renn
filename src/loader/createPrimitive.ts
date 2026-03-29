@@ -355,22 +355,6 @@ export function createShapeGeometry(shape: Shape): THREE.BufferGeometry | null {
 }
 
 /**
- * Helper function to dispose a mesh and its resources
- */
-export function disposeMesh(mesh: THREE.Mesh): void {
-  if (mesh.geometry) {
-    mesh.geometry.dispose()
-  }
-  if (mesh.material) {
-    if (Array.isArray(mesh.material)) {
-      mesh.material.forEach(mat => mat.dispose())
-    } else {
-      mesh.material.dispose()
-    }
-  }
-}
-
-/**
  * Builds a mesh for an entity: primitive from shape (or placeholder for trimesh/model).
  * Applies position, rotation, scale from entity.
  * If modelId is provided, loads and uses the 3D model for visuals (shape still used for physics).

@@ -19,7 +19,6 @@ export interface PropertySidebarProps {
   onAssetsChange: (assets: Map<string, Blob>) => void
   onDeleteEntities: (entityIds: string[]) => void
   onCloneEntity?: (entityId: string) => void
-  getCurrentPose?: (id: string) => { position: Vec3; rotation: Rotation }
   onEntityPoseChange?: (ids: string[], pose: { position?: Vec3; rotation?: Rotation; scale?: Vec3 }) => void
   onEntityPhysicsChange?: (ids: string[], patch: Partial<Entity>) => void
   onEntityShapeChange?: (ids: string[], patch: Partial<Entity>) => void
@@ -40,7 +39,6 @@ export default function PropertySidebar({
   onAssetsChange,
   onDeleteEntities,
   onCloneEntity,
-  getCurrentPose,
   onEntityPoseChange,
   onEntityPhysicsChange,
   onEntityShapeChange,
@@ -103,7 +101,6 @@ export default function PropertySidebar({
             onAssetsChange={onAssetsChange}
             onDeleteEntities={onDeleteEntities}
             onCloneEntity={onCloneEntity}
-            getCurrentPose={getCurrentPose}
             onEntityPoseChange={onEntityPoseChange}
             onEntityPhysicsChange={onEntityPhysicsChange}
             onEntityShapeChange={onEntityShapeChange}

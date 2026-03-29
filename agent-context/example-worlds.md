@@ -1,60 +1,53 @@
 # Example Worlds
 
-The full example file lives at `examples/airplane-world.json`. Load it in the Builder to test.
+The example file lives at [`examples/airplane-world.json`](../examples/airplane-world.json). Load it in the Builder to test. (The filename is historical; the scene uses **registry-supported** transformers only.)
 
 ## airplane-world.json
 
-Contains three entities:
+Four entities:
 
 | Entity | Body type | Transformers | Purpose |
-|---|---|---|---|
-| Airplane | dynamic | `input` (priority 0) + `airplane` (priority 1) | Player-controlled flight |
-| Butterfly | kinematic | `butterfly` | AI flutter movement |
-| Tree | static | none | Static scenery |
+|--------|-----------|----------------|---------|
+| `ground` | static | none | Floor |
+| `airplane` | dynamic | `input` + `car2` | Drive with WASD + Space (jump); camera follows (`world.camera.target` = `airplane`) |
+| `butterfly1` | kinematic | `wanderer` + `kinematicMovement` | Random targets in a box, pose-driven motion |
+| `tree1` | static | none | Scenery |
 
-Also includes a global wind effect in `worldSettings`.
+Global **`world.wind`** `[2, 0, 0]` is passed into the transformer pipeline in Play/Builder preview.
 
-### Airplane controls
+### Vehicle controls (`airplane` entity)
 
 | Input | Action |
-|---|---|
-| W | Thrust (forward) |
-| S | Brake |
-| A | Roll left |
-| D | Roll right |
-| Trackpad horizontal | Yaw (turn) |
-| Trackpad vertical | Pitch (nose up/down) |
-| Space | Boost |
+|-------|--------|
+| W / S | Throttle / brake |
+| A / D | Steer |
+| Space | Jump (when touching another collider; car2 touch-gating) |
 
 ### Abbreviated JSON structure
 
 ```json
 {
+  "world": { "wind": [2, 0, 0], "camera": { "target": "airplane" } },
   "entities": [
     {
       "id": "airplane",
-      "bodyType": "dynamic",
       "transformers": [
         {
           "type": "input",
           "priority": 0,
           "inputMapping": {
-            "keyboard": { "w": "thrust", "s": "brake", "a": "roll_left", "d": "roll_right", "space": "boost" },
-            "wheel": { "horizontal": "yaw", "vertical": "pitch" }
+            "keyboard": { "w": "throttle", "s": "brake", "a": "steer_left", "d": "steer_right", "space": "jump" }
           }
         },
-        {
-          "type": "airplane",
-          "priority": 1,
-          "params": { "thrustForce": 50, "liftCoefficient": 2.5, "dragCoefficient": 0.1 }
-        }
+        { "type": "car2", "priority": 10, "params": { "power": 400, "lateralGrip": 100 } }
       ]
     },
     {
-      "id": "butterfly",
+      "id": "butterfly1",
       "bodyType": "kinematic",
       "transformers": [
-        { "type": "butterfly", "params": { "flutterFrequency": 3.0, "flightHeight": 3.0, "flutterForce": 5.0 } }
+        { "type": "wanderer", "priority": 5, "params": { "perimeter": { "center": [5,3,5], "halfExtents": [8,2,8] } } },
+        { "type": "kinematicMovement", "priority": 6 }
       ]
     }
   ]
@@ -63,7 +56,6 @@ Also includes a global wind effect in `worldSettings`.
 
 ### How to test
 
-1. Load `examples/airplane-world.json` in the Builder.
-2. Switch to Play mode.
-3. The airplane entity is automatically set as the camera target.
-4. Fly with W/A/S/D and trackpad gestures.
+1. Import or paste `examples/airplane-world.json` in the Builder.
+2. Open Play (or use live preview).
+3. Camera follows the `airplane` entity; drive with WASD.

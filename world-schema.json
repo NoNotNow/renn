@@ -322,7 +322,7 @@
       "properties": {
         "type": {
           "type": "string",
-          "description": "Preset: input, airplane, character, car, animal, butterfly, or 'custom'"
+          "description": "Built-in preset types: input, car2, person, targetPoseInput, kinematicMovement, wanderer, follow (see transformerRegistry). Other strings are accepted for forward compatibility."
         },
         "priority": {
           "type": "number",

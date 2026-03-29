@@ -21,6 +21,7 @@
 | Property panel, inspector, live poses, picking (incl. 3D model meshes), no-update-loop | `feature-inspector.md` |
 | World update path, rebuild triggers, minimal reload strategy | `feature-world-update-reload.md` |
 | What is done / what is left to build | `project-status.md` |
+| Refactor / cleanup backlog (completed items + follow-ups) | `codebase-cleanup-audit.md` |
 | Example worlds and JSON configs | `example-worlds.md` |
 | Rotation/direction coordinates (Euler, radians, caveats) | `direction-rotation-coordinates.md` |
 | Physics force accumulation quirk | `bugfix-spinning.md` |

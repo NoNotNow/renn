@@ -1,12 +1,8 @@
 /**
- * Resolves asset ID to URL or Blob for loading textures/models.
- * Implementations: in-memory map (builder), IndexedDB (persistence), or server URLs.
+ * GLTF type for model loading (minimal shape used by loaders).
  */
-export type AssetResolver = (assetId: string) => Promise<string | Blob | null> | (string | Blob | null)
+import * as THREE from 'three'
 
-/**
- * GLTF type for model loading
- */
 export interface GLTF {
   scene: THREE.Group
   scenes: THREE.Group[]
@@ -15,10 +11,8 @@ export interface GLTF {
   asset: {
     generator?: string
     version?: string
-    [key: string]: any
+    [key: string]: unknown
   }
-  parser: any
-  userData: any
+  parser: unknown
+  userData: unknown
 }
-
-import * as THREE from 'three'

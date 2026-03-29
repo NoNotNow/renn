@@ -40,7 +40,7 @@ function isLikelyMouseWheel(e: WheelEvent): boolean {
 /**
  * Check if the currently focused element is editable (input, textarea, etc.).
  */
-function isEditableElement(): boolean {
+export function isEditableElement(): boolean {
   const el = document.activeElement
   if (!el) return false
   const tag = el.tagName
@@ -63,9 +63,7 @@ export function useRawKeyboardInput(): React.RefObject<RawKeyboardState> {
     const keys = keysRef.current
 
     const onKeyDown = (e: KeyboardEvent): void => {
-      const editable = isEditableElement()
-      const tracked = e.code === 'KeyW' || e.code === 'KeyA' || e.code === 'KeyS' || e.code === 'KeyD' || e.code === 'Space' || e.code === 'ShiftLeft' || e.code === 'ShiftRight'
-      if (editable) return
+      if (isEditableElement()) return
 
       switch (e.code) {
         case 'KeyW':
@@ -198,14 +196,6 @@ export function getRawInputSnapshot(
 ): RawInput {
   const keys = keyboard.current ?? DEFAULT_KEYBOARD_STATE
   const wheelState = wheel.current ?? DEFAULT_WHEEL_STATE
-  const now = Date.now()
-  if (typeof (getRawInputSnapshot as { _lastLog?: number })._lastLog === 'undefined') {
-    ;(getRawInputSnapshot as { _lastLog?: number })._lastLog = 0
-  }
-  const lastLog = (getRawInputSnapshot as { _lastLog?: number })._lastLog ?? 0
-  if (now - lastLog > 500) {
-    ;(getRawInputSnapshot as { _lastLog?: number })._lastLog = now
-  }
 
   // Read and reset wheel deltas
   const snapshot: RawInput = {
@@ -217,8 +207,6 @@ export function getRawInputSnapshot(
       mouseWheelDelta: wheelState.mouseWheelDelta,
     },
   }
-  const anyKey = Object.values(snapshot.keys).some(Boolean)
-  void anyKey
 
   // Reset wheel deltas for next frame
   if (wheel.current) {

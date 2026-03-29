@@ -10,7 +10,7 @@ import { useEffect, useRef } from 'react'
 import { useRawKeyboardInput, useRawWheelInput, getRawInputSnapshot } from './rawInput'
 import { applyInputMapping } from './inputMapping'
 import { CHARACTER_PRESET } from './inputPresets'
-import type { InputMapping, RawInput } from '@/types/transformer'
+import type { InputMapping } from '@/types/transformer'
 
 /**
  * React hook that provides current input actions.
@@ -38,17 +38,4 @@ export function useInputManager(
   }, [mapping])
 
   return actionsRef
-}
-
-/**
- * Get current input actions synchronously.
- * Useful for non-React contexts or one-time reads.
- */
-export function getCurrentInputActions(
-  keyboardRef: React.RefObject<import('./rawInput').RawKeyboardState>,
-  wheelRef: React.RefObject<import('./rawInput').RawWheelState>,
-  mapping: InputMapping = CHARACTER_PRESET,
-): Record<string, number> {
-  const rawInput = getRawInputSnapshot(keyboardRef, wheelRef)
-  return applyInputMapping(rawInput, mapping)
 }

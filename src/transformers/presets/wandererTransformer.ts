@@ -5,10 +5,10 @@
  */
 
 import { BaseTransformer } from '../transformer'
-import type { TransformInput, TransformOutput, TransformTarget } from '@/types/transformer'
+import type { TransformInput, TransformOutput } from '@/types/transformer'
 import { EMPTY_TRANSFORM_OUTPUT } from '@/types/transformer'
 import type { Rotation, Vec3 } from '@/types/world'
-import { eulerToQuaternion } from '@/utils/rotationUtils'
+import { positionReached, rotationReached } from '@/utils/transformTargetReach'
 
 export interface WandererPerimeter {
   center: Vec3
@@ -44,21 +44,6 @@ const DEFAULTS = {
   angular: true,
   positionEpsilon: 0.05,
   rotationEpsilon: 0.08,
-}
-
-function positionReached(a: Vec3, b: Vec3, eps: number): boolean {
-  const dx = a[0] - b[0]
-  const dy = a[1] - b[1]
-  const dz = a[2] - b[2]
-  return Math.sqrt(dx * dx + dy * dy + dz * dz) <= eps
-}
-
-function rotationReached(a: Rotation, b: Rotation, epsRad: number): boolean {
-  const qa = eulerToQuaternion(a)
-  const qb = eulerToQuaternion(b)
-  const dot = Math.min(1, Math.abs(qa.dot(qb)))
-  const angle = 2 * Math.acos(dot)
-  return angle <= epsRad
 }
 
 /** Sample uniform random direction on unit sphere. */
@@ -166,12 +151,14 @@ export class WandererTransformer extends BaseTransformer {
 
   private pickNewTarget(input: TransformInput): void {
     const { perimeter, jumpDistance, linear, angular } = this.params
-    const pos = linear
+    const pos: Vec3 = linear
       ? jumpDistance > 0
         ? samplePositionWithJump(input.position, jumpDistance, perimeter)
         : samplePositionInPerimeter(perimeter)
-      : [...input.position]
-    const rot = angular ? sampleRandomRotation() : [...input.rotation]
+      : ([input.position[0], input.position[1], input.position[2]] as Vec3)
+    const rot: Rotation = angular
+      ? sampleRandomRotation()
+      : ([input.rotation[0], input.rotation[1], input.rotation[2]] as Rotation)
     this.currentTarget = { position: pos, rotation: rot }
   }
 
@@ -210,8 +197,6 @@ export class WandererTransformer extends BaseTransformer {
 }
 
 export const wandererTestExports = {
-  positionReached,
-  rotationReached,
   samplePositionInPerimeter,
   samplePositionWithJump,
   clampToPerimeter,
