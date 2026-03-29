@@ -42,7 +42,7 @@ renn/
 │   ├── contexts/
 │   │   └── ProjectContext.tsx # ProjectProvider: state + actions for projects/world/assets/camera
 │   ├── schema/
-│   │   └── validate.ts       # validateWorldDocument(), Ajv + world-schema; optional tolerate removes additionalProperty keys iteratively (clone fallback), warningsOut for UI
+│   │   └── validate.ts       # validateWorldDocument(), Ajv + world-schema; optional tolerate removes additionalProperty keys iteratively (clone fallback), warningsOut for UI; mesh simplification numbers are clamped in migrateWorld (maxError 0.0001–1, maxTriangles ≥ 500) before validate on load/import
 │   ├── loader/
 │   │   ├── loadWorld.ts        # loadWorld(data) → scene, entities, world, warnings[]; awaits meshoptimizer WASM before mesh build
 │   │   ├── loadWorldFromStatic.ts # Static world + assets; rejects text/html (Vite SPA fallback); tries assets/<assetId>.bin before ref.path

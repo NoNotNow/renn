@@ -132,7 +132,8 @@ function collectOriginalMaterialClones(scene: THREE.Object3D): OriginalMaterialE
 /**
  * Reduces triangle count for rendering (proportional per mesh) using the same simplification
  * settings as physics. Must run before `applyModelTransform`.
- * Preserves UVs and recomputes vertex normals so textured `MeshStandardMaterial` still shades correctly.
+ * Preserves UVs and per-vertex `color` (when present) and recomputes vertex normals so textured
+ * `MeshStandardMaterial` and **Use model colors** (`vertexColors`) still render correctly.
  */
 export async function applyTrimeshVisualSimplification(
   modelScene: THREE.Object3D,
@@ -199,6 +200,9 @@ export async function applyTrimeshVisualSimplification(
     const nVerts = result.vertices.length / 3
     if (result.uvs && result.uvs.length === nVerts * 2) {
       newGeom.setAttribute('uv', new THREE.BufferAttribute(result.uvs, 2))
+    }
+    if (result.colors && result.colors.length === nVerts * 3) {
+      newGeom.setAttribute('color', new THREE.BufferAttribute(result.colors, 3))
     }
     newGeom.computeVertexNormals()
     mesh.geometry.dispose()

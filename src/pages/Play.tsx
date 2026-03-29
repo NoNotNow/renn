@@ -4,6 +4,7 @@ import SceneView from '@/components/SceneView'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { sampleWorld } from '@/data/sampleWorld'
 import { validateWorldDocument } from '@/schema/validate'
+import { migrateWorldScripts, migrateWorldSimplificationFields } from '@/scripts/migrateWorld'
 import type { RennWorld } from '@/types/world'
 
 function parseWorldFromSearchParams(searchParams: URLSearchParams): RennWorld {
@@ -11,6 +12,8 @@ function parseWorldFromSearchParams(searchParams: URLSearchParams): RennWorld {
   if (worldParam) {
     try {
       const data = JSON.parse(decodeURIComponent(worldParam)) as unknown
+      migrateWorldScripts(data)
+      migrateWorldSimplificationFields(data)
       validateWorldDocument(data, { tolerateAdditionalProperties: true, logAdditionalProperties: true })
       return data as RennWorld
     } catch (err) {

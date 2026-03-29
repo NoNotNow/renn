@@ -9,6 +9,8 @@ export interface SimplificationResult {
   indices: Uint32Array
   /** Preserved when input `ExtractedGeometry.uvs` was present and matched vertex count. */
   uvs?: Float32Array
+  /** Preserved when input `ExtractedGeometry.colors` was present and matched vertex count. */
+  colors?: Float32Array
   originalTriangleCount: number
   simplifiedTriangleCount: number
   reductionPercentage: number
@@ -23,7 +25,8 @@ function compactIndexedMesh(
   vertices: Float32Array,
   indices: Uint32Array,
   uvs?: Float32Array,
-): { vertices: Float32Array; indices: Uint32Array; uvs?: Float32Array } {
+  colors?: Float32Array,
+): { vertices: Float32Array; indices: Uint32Array; uvs?: Float32Array; colors?: Float32Array } {
   const used = new Map<number, number>()
   let next = 0
   const newIndices = new Uint32Array(indices.length)
@@ -41,6 +44,8 @@ function compactIndexedMesh(
   const hasUv =
     uvs !== undefined && uvs.length === vertCount * 2
   const newUvs = hasUv ? new Float32Array(next * 2) : undefined
+  const hasColor = colors !== undefined && colors.length === vertCount * 3
+  const newColors = hasColor ? new Float32Array(next * 3) : undefined
   for (const [oldIdx, newIdx] of used) {
     newVerts[newIdx * 3] = vertices[oldIdx * 3]!
     newVerts[newIdx * 3 + 1] = vertices[oldIdx * 3 + 1]!
@@ -49,8 +54,13 @@ function compactIndexedMesh(
       newUvs[newIdx * 2] = uvs[oldIdx * 2]!
       newUvs[newIdx * 2 + 1] = uvs[oldIdx * 2 + 1]!
     }
+    if (newColors && colors) {
+      newColors[newIdx * 3] = colors[oldIdx * 3]!
+      newColors[newIdx * 3 + 1] = colors[oldIdx * 3 + 1]!
+      newColors[newIdx * 3 + 2] = colors[oldIdx * 3 + 2]!
+    }
   }
-  return { vertices: newVerts, indices: newIndices, uvs: newUvs }
+  return { vertices: newVerts, indices: newIndices, uvs: newUvs, colors: newColors }
 }
 
 export function computeTargetTriangleCount(originalTriangleCount: number, config: TrimeshSimplificationConfig): number {
@@ -74,6 +84,7 @@ function simplifyWithMeshoptimizer(geometry: ExtractedGeometry, config: TrimeshS
       vertices: geometry.vertices,
       indices: geometry.indices,
       uvs: geometry.uvs,
+      colors: geometry.colors,
       originalTriangleCount,
       simplifiedTriangleCount: originalTriangleCount,
       reductionPercentage: 0,
@@ -141,13 +152,14 @@ function simplifyWithMeshoptimizer(geometry: ExtractedGeometry, config: TrimeshS
       vertices: geometry.vertices,
       indices: geometry.indices,
       uvs: geometry.uvs,
+      colors: geometry.colors,
       originalTriangleCount,
       simplifiedTriangleCount: originalTriangleCount,
       reductionPercentage: 0,
     }
   }
 
-  const compacted = compactIndexedMesh(positions, newIndices, geometry.uvs)
+  const compacted = compactIndexedMesh(positions, newIndices, geometry.uvs, geometry.colors)
   const simplifiedTriangleCount = compacted.indices.length / 3
   const reductionPercentage =
     originalTriangleCount > 0
@@ -158,6 +170,7 @@ function simplifyWithMeshoptimizer(geometry: ExtractedGeometry, config: TrimeshS
     vertices: compacted.vertices,
     indices: compacted.indices,
     uvs: compacted.uvs,
+    colors: compacted.colors,
     originalTriangleCount,
     simplifiedTriangleCount,
     reductionPercentage,
@@ -172,6 +185,9 @@ function simplifyWithThreeModifier(geometry: ExtractedGeometry, config: TrimeshS
   if (geometry.uvs && geometry.uvs.length === nPos * 2) {
     bufferGeometry.setAttribute('uv', new THREE.BufferAttribute(geometry.uvs, 2))
   }
+  if (geometry.colors && geometry.colors.length === nPos * 3) {
+    bufferGeometry.setAttribute('color', new THREE.BufferAttribute(geometry.colors, 3))
+  }
 
   const originalTriangleCount = geometry.indices.length / 3
   const originalVertexCount = geometry.vertices.length / 3
@@ -183,6 +199,7 @@ function simplifyWithThreeModifier(geometry: ExtractedGeometry, config: TrimeshS
       vertices: geometry.vertices,
       indices: geometry.indices,
       uvs: geometry.uvs,
+      colors: geometry.colors,
       originalTriangleCount,
       simplifiedTriangleCount: originalTriangleCount,
       reductionPercentage: 0,
@@ -204,6 +221,7 @@ function simplifyWithThreeModifier(geometry: ExtractedGeometry, config: TrimeshS
       vertices: geometry.vertices,
       indices: geometry.indices,
       uvs: geometry.uvs,
+      colors: geometry.colors,
       originalTriangleCount,
       simplifiedTriangleCount: originalTriangleCount,
       reductionPercentage: 0,
@@ -225,6 +243,7 @@ function simplifyWithThreeModifier(geometry: ExtractedGeometry, config: TrimeshS
       vertices: geometry.vertices,
       indices: geometry.indices,
       uvs: geometry.uvs,
+      colors: geometry.colors,
       originalTriangleCount,
       simplifiedTriangleCount: originalTriangleCount,
       reductionPercentage: 0,
@@ -241,6 +260,17 @@ function simplifyWithThreeModifier(geometry: ExtractedGeometry, config: TrimeshS
     }
   }
 
+  const colorAttr = simplifiedGeometry.getAttribute('color')
+  let outColors: Float32Array | undefined
+  if (colorAttr && colorAttr.count === simplifiedVertexCount) {
+    outColors = new Float32Array(simplifiedVertexCount * 3)
+    for (let i = 0; i < simplifiedVertexCount; i++) {
+      outColors[i * 3] = colorAttr.getX(i)
+      outColors[i * 3 + 1] = colorAttr.getY(i)
+      outColors[i * 3 + 2] = colorAttr.getZ(i)
+    }
+  }
+
   const reductionPercentage = ((originalTriangleCount - simplifiedTriangleCount) / originalTriangleCount) * 100
   simplifiedGeometry.dispose()
 
@@ -248,6 +278,7 @@ function simplifyWithThreeModifier(geometry: ExtractedGeometry, config: TrimeshS
     vertices: simplifiedVerticesArray,
     indices: simplifiedIndices,
     uvs: outUvs,
+    colors: outColors,
     originalTriangleCount,
     simplifiedTriangleCount,
     reductionPercentage,

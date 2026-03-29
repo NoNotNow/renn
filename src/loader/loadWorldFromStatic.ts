@@ -4,7 +4,7 @@
  */
 import type { RennWorld } from '@/types/world'
 import { validateWorldDocument } from '@/schema/validate'
-import { migrateWorldScripts } from '@/scripts/migrateWorld'
+import { migrateWorldScripts, migrateWorldSimplificationFields } from '@/scripts/migrateWorld'
 
 const ASSET_EXTS = ['.bin', '.png', '.jpg', '.jpeg', '.glb', '.gltf', '.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac']
 
@@ -101,6 +101,11 @@ export async function loadWorldFromStatic(
     if (!res.ok) return null
     const raw = await res.json()
     migrateWorldScripts(raw)
+    const simplificationWarnings: string[] = []
+    migrateWorldSimplificationFields(raw, simplificationWarnings)
+    for (const w of simplificationWarnings) {
+      console.warn('[loadWorldFromStatic] ' + w)
+    }
     validateWorldDocument(raw, { tolerateAdditionalProperties: true, logAdditionalProperties: true })
     const world = raw as RennWorld
 

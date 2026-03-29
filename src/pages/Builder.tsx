@@ -18,6 +18,7 @@ import type { TransformerConfig } from '@/types/transformer'
 import type { BuilderGizmoMode, BuilderPoseCommitEntry } from '@/editor/transformGizmoController'
 import { cloneEditorSnapshot, createEditorHistory, type EditorSnapshot } from '@/editor/editorHistory'
 import { downscaleImageBlob } from '@/utils/textureDownscale'
+import { clampTrimeshSimplificationConfig } from '@/scripts/migrateWorld'
 
 const EDITOR_HISTORY_MAX_DEPTH = 80
 
@@ -598,6 +599,7 @@ export default function Builder() {
 
   const handleApplyMeshSimplification = useCallback(
     (entityId: string, config: TrimeshSimplificationConfig) => {
+      const safe = clampTrimeshSimplificationConfig({ ...config, enabled: true })
       pushHistory()
       captureScenePosesForNextRebuild()
       updateWorld((prev) => ({
@@ -605,10 +607,10 @@ export default function Builder() {
         entities: prev.entities.map((e) => {
           if (e.id !== entityId) return e
           if (e.shape?.type === 'trimesh') {
-            return { ...e, shape: { ...e.shape, simplification: { ...config, enabled: true } } }
+            return { ...e, shape: { ...e.shape, simplification: safe } }
           }
           if (e.model) {
-            return { ...e, modelSimplification: { ...config, enabled: true } }
+            return { ...e, modelSimplification: safe }
           }
           return e
         }),

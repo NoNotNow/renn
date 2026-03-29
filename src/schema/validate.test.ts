@@ -3,6 +3,7 @@ import { validateWorldDocument, getValidationErrors } from '@/schema/validate'
 import { sampleWorld } from '@/data/sampleWorld'
 import { createDefaultEntity, type AddableShapeType } from '@/data/entityDefaults'
 import type { RennWorld } from '@/types/world'
+import { migrateWorldSimplificationFields } from '@/scripts/migrateWorld'
 
 function worldWithOneEntityPerShape(): RennWorld {
   const types: AddableShapeType[] = ['box', 'sphere', 'cylinder', 'capsule', 'cone', 'pyramid', 'ring', 'plane']
@@ -112,6 +113,35 @@ describe('validateWorldDocument', () => {
     expect(warnings.length).toBe(1)
     expect(warnings[0]).toMatch(/Unknown or deprecated fields/)
     expect(warnings[0]).toMatch(/bogus/)
+  })
+
+  it('rejects trimesh simplification maxError above 1 until migrateWorldSimplificationFields clamps it', () => {
+    const w = {
+      version: '1.0' as const,
+      world: { camera: { control: 'free' as const, mode: 'follow' as const, target: '', distance: 10, height: 2 } },
+      entities: [
+        {
+          id: 'plane_trimesh',
+          shape: {
+            type: 'trimesh' as const,
+            model: 'Neat_Model',
+            simplification: {
+              enabled: true,
+              maxTriangles: 1057,
+              algorithm: 'meshoptimizer' as const,
+              maxError: 5,
+            },
+          },
+        },
+      ],
+    }
+    expect(() => validateWorldDocument(w)).toThrow(/Invalid world/)
+    const warnings: string[] = []
+    migrateWorldSimplificationFields(w, warnings)
+    expect(() => validateWorldDocument(w)).not.toThrow()
+    const shape = w.entities[0].shape as Extract<RennWorld['entities'][0]['shape'], { type: 'trimesh' }>
+    expect(shape.simplification?.maxError).toBe(1)
+    expect(warnings.length).toBe(1)
   })
 
   it('tolerates extra keyboard keys even when parent objects are frozen (deep clone strip)', () => {

@@ -9,6 +9,7 @@ import { extractMeshGeometry, getVisualGltfSceneForEntityMesh } from '@/utils/ge
 import { simplifyGeometry, ensureMeshoptSimplifierReady } from '@/utils/meshSimplifier'
 import { getImageBitmapDimensions } from '@/utils/textureDownscale'
 import { uiLogger } from '@/utils/uiLogger'
+import { clampTrimeshSimplificationConfig } from '@/scripts/migrateWorld'
 import Modal from '@/components/Modal'
 import { theme } from '@/config/theme'
 
@@ -203,12 +204,12 @@ export default function PerformanceBoosterDialog({
       if (!extracted || cancelled) return
       const orig = extracted.indices.length / 3
       const targetTris = Math.max(500, Math.floor(orig * meshRatio))
-      const cfg: TrimeshSimplificationConfig = {
+      const cfg = clampTrimeshSimplificationConfig({
         enabled: true,
         maxTriangles: targetTris,
         algorithm: meshAlgorithm,
         maxError: meshMaxError,
-      }
+      })
       const result = simplifyGeometry(extracted, cfg)
       if (!cancelled) {
         setPreviewOriginal(orig)
@@ -253,12 +254,12 @@ export default function PerformanceBoosterDialog({
       return
     }
     const targetTris = Math.max(500, Math.floor((previewOriginal ?? orig) * meshRatio))
-    const cfg: TrimeshSimplificationConfig = {
+    const cfg = clampTrimeshSimplificationConfig({
       enabled: true,
       maxTriangles: targetTris,
       algorithm: meshAlgorithm,
       maxError: meshMaxError,
-    }
+    })
     onApplyMesh(meshTargetEntityId, cfg)
     uiLogger.change('PerformanceBooster', 'Apply mesh simplification', {
       entityId: meshTargetEntityId,
@@ -430,7 +431,11 @@ export default function PerformanceBoosterDialog({
             max={1}
             step={0.005}
             value={meshMaxError}
-            onChange={(e) => setMeshMaxError(Number(e.target.value) || 0.01)}
+            onChange={(e) => {
+              const raw = Number(e.target.value)
+              const n = Number.isFinite(raw) ? raw : 0.01
+              setMeshMaxError(Math.min(1, Math.max(0.0001, n)))
+            }}
             style={{ width: '100%', padding: 8, marginBottom: 8, background: '#232836', border: '1px solid #2f3545', color: '#e6e9f2' }}
           />
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 8 }}>

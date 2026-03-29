@@ -72,6 +72,7 @@ Example: `if (ctx.detect.isUpsideDown()) { ctx.log('Flipped!') }`. See `directio
 ### Migration
 
 - **`migrateWorldScripts`** (`src/scripts/migrateWorld.ts`): Converts legacy world JSON (scripts as `Record<string, string>`, entity.scripts as event→id map) to ScriptDef + `entity.scripts: string[]`. Duplicates a script when the same id was used for multiple events. Called in `loadWorld` **before** `validateWorldDocument`.
+- **`migrateWorldSimplificationFields`**: Clamps `shape.simplification` (trimesh) and `modelSimplification` so `maxError` is in [0.0001, 1] and `maxTriangles` ≥ 500 (matches JSON schema). Runs after script migration and before validation on load, static load, zip import, and Play URL worlds; can append a warning when values were adjusted.
 
 ### Security
 

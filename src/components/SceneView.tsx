@@ -168,6 +168,8 @@ function SceneViewInner({
   const [registryEpoch, setRegistryEpoch] = useState(0)
   const [schemaLoadWarnings, setSchemaLoadWarnings] = useState<string[]>([])
   const dismissSchemaLoadWarnings = useCallback(() => setSchemaLoadWarnings([]), [])
+  const [worldLoadError, setWorldLoadError] = useState<string | null>(null)
+  const dismissWorldLoadError = useCallback(() => setWorldLoadError(null), [])
   const [scriptSnackbarMessage, setScriptSnackbarMessage] = useState<string | null>(null)
   const [hudScore, setHudScore] = useState(0)
   const [hudDamage, setHudDamage] = useState(0)
@@ -315,6 +317,7 @@ function SceneViewInner({
     let ro: ResizeObserver | null = null
 
     setSchemaLoadWarnings([])
+    setWorldLoadError(null)
     setHudScore(0)
     setHudDamage(0)
 
@@ -328,6 +331,8 @@ function SceneViewInner({
         }
         return
       }
+
+      setWorldLoadError(null)
 
       if (warnings.length > 0) {
         setSchemaLoadWarnings(warnings)
@@ -573,6 +578,13 @@ function SceneViewInner({
     }).catch((err) => {
       if (!cancelled) {
         console.error('Failed to load world:', err)
+        const msg =
+          err instanceof Error
+            ? err.message
+            : typeof err === 'string'
+              ? err
+              : 'Unknown error while loading the world.'
+        setWorldLoadError(msg)
       }
     })
 
@@ -875,6 +887,66 @@ function SceneViewInner({
       style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden' }}
     >
       <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+      {worldLoadError !== null ? (
+        <div
+          role="alert"
+          style={{
+            position: 'absolute',
+            inset: 0,
+            zIndex: 40,
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+            alignItems: 'stretch',
+            padding: 20,
+            boxSizing: 'border-box',
+            background: '#14161c',
+            color: '#e6e9f2',
+            overflow: 'auto',
+          }}
+        >
+          <h2 style={{ margin: '0 0 12px', fontSize: 18, fontWeight: 600 }}>Failed to load world</h2>
+          <pre
+            style={{
+              margin: '0 0 16px',
+              padding: 12,
+              background: '#0d0f14',
+              border: '1px solid #2f3545',
+              borderRadius: 6,
+              fontSize: 12,
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+              flex: '0 1 auto',
+              maxHeight: '45vh',
+              overflow: 'auto',
+            }}
+          >
+            {worldLoadError}
+          </pre>
+          <p style={{ margin: '0 0 16px', fontSize: 13, color: '#9aa4b2', lineHeight: 1.5 }}>
+            If you edited mesh simplification by hand, check that <code style={{ color: '#c4d4e8' }}>maxError</code> is
+            between 0.0001 and 1 and <code style={{ color: '#c4d4e8' }}>maxTriangles</code> is at least 500. Current
+            builds clamp these on load when possible; fix the JSON or use Undo in the editor if available.
+          </p>
+          <div>
+            <button
+              type="button"
+              onClick={dismissWorldLoadError}
+              style={{
+                padding: '8px 16px',
+                fontSize: 13,
+                cursor: 'pointer',
+                background: '#2a3142',
+                border: '1px solid #3d4a62',
+                borderRadius: 6,
+                color: '#e6e9f2',
+              }}
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      ) : null}
       {scriptSnackbarMessage !== null ? <ScriptSnackbar message={scriptSnackbarMessage} /> : null}
       {showGameHud ? (
         <GameHud score={hudScore} damage={hudDamage} speedMs={hudDrive.speedMs} wheelAngle={hudDrive.wheelAngle} />

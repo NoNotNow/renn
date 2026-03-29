@@ -5,6 +5,8 @@ export interface ExtractedGeometry {
   indices: Uint32Array
   /** Per-vertex UVs (2 floats per vertex). Zeros when a source sub-mesh had no `uv` attribute. */
   uvs?: Float32Array
+  /** Per-vertex RGB (3 floats per vertex), only when at least one source mesh had a `color` attribute. */
+  colors?: Float32Array
 }
 
 /**
@@ -67,8 +69,20 @@ function mergeGeometries(
 ): ExtractedGeometry {
   const allVertices: number[] = []
   const allUvs: number[] = []
+  const allColors: number[] = []
   const allIndices: number[] = []
   let vertexOffset = 0
+
+  let sceneUsesVertexColors = false
+  for (let i = 0; i < geometries.length; i++) {
+    const g = geometries[i]
+    const pos = g.getAttribute('position')
+    const col = g.getAttribute('color')
+    if (pos && col && col.count === pos.count) {
+      sceneUsesVertexColors = true
+      break
+    }
+  }
 
   for (let i = 0; i < geometries.length; i++) {
     const geometry = geometries[i]
@@ -86,6 +100,8 @@ function mergeGeometries(
     const vertex = new THREE.Vector3()
     const uvAttr = geometry.getAttribute('uv')
     const hasUv = Boolean(uvAttr && uvAttr.count === vertexCount)
+    const colorAttr = geometry.getAttribute('color')
+    const hasVertexColor = Boolean(colorAttr && colorAttr.count === vertexCount)
 
     for (let j = 0; j < vertexCount; j++) {
       vertex.fromBufferAttribute(positionAttr, j)
@@ -95,6 +111,13 @@ function mergeGeometries(
         allUvs.push(uvAttr!.getX(j), uvAttr!.getY(j))
       } else {
         allUvs.push(0, 0)
+      }
+      if (sceneUsesVertexColors) {
+        if (hasVertexColor) {
+          allColors.push(colorAttr!.getX(j), colorAttr!.getY(j), colorAttr!.getZ(j))
+        } else {
+          allColors.push(1, 1, 1)
+        }
       }
     }
 
@@ -127,11 +150,15 @@ function mergeGeometries(
     }
   }
 
-  return {
+  const base: ExtractedGeometry = {
     vertices: new Float32Array(allVertices),
     indices: new Uint32Array(allIndices),
     uvs: new Float32Array(allUvs),
   }
+  if (sceneUsesVertexColors) {
+    base.colors = new Float32Array(allColors)
+  }
+  return base
 }
 
 /**

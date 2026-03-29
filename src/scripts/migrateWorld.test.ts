@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import { migrateWorldScripts } from './migrateWorld'
+import {
+  migrateWorldScripts,
+  migrateWorldSimplificationFields,
+  clampTrimeshSimplificationConfig,
+} from './migrateWorld'
 
 describe('migrateWorldScripts', () => {
   it('converts legacy scripts map and entity.scripts to new format', () => {
@@ -56,5 +60,71 @@ describe('migrateWorldScripts', () => {
     migrateWorldScripts(world)
     expect(world.scripts).toEqual({ x: { event: 'onUpdate', source: 'ctx.log(1)' } })
     expect(world.entities[0].scripts).toEqual(['x'])
+  })
+})
+
+describe('migrateWorldSimplificationFields', () => {
+  it('clamps trimesh shape.simplification maxError into schema range and maxTriangles to at least 500', () => {
+    const world = {
+      version: '1.0',
+      world: {},
+      entities: [
+        {
+          id: 't',
+          shape: {
+            type: 'trimesh',
+            model: 'm1',
+            simplification: { enabled: true, maxTriangles: 200, maxError: 5, algorithm: 'meshoptimizer' },
+          },
+        },
+      ],
+    }
+    const warnings: string[] = []
+    migrateWorldSimplificationFields(world, warnings)
+    const sim = (world.entities[0] as { shape: { simplification: Record<string, unknown> } }).shape
+      .simplification
+    expect(sim.maxError).toBe(1)
+    expect(sim.maxTriangles).toBe(500)
+    expect(warnings.length).toBe(1)
+    expect(warnings[0]).toMatch(/simplification settings were adjusted/i)
+  })
+
+  it('clamps entity.modelSimplification the same way', () => {
+    const world = {
+      version: '1.0',
+      world: {},
+      entities: [
+        {
+          id: 'e',
+          model: 'vis',
+          shape: { type: 'box', width: 1, height: 1, depth: 1 },
+          modelSimplification: { enabled: true, maxTriangles: 100, maxError: 0 },
+        },
+      ],
+    }
+    migrateWorldSimplificationFields(world)
+    const ms = (world.entities[0] as { modelSimplification: Record<string, unknown> }).modelSimplification
+    expect(ms.maxError).toBe(0.0001)
+    expect(ms.maxTriangles).toBe(500)
+  })
+
+  it('is no-op when simplification absent', () => {
+    const world = {
+      version: '1.0',
+      world: {},
+      entities: [{ id: 'x', shape: { type: 'trimesh', model: 'a' } }],
+    }
+    migrateWorldSimplificationFields(world)
+    expect((world.entities[0] as { shape: object }).shape).toEqual({ type: 'trimesh', model: 'a' })
+  })
+})
+
+describe('clampTrimeshSimplificationConfig', () => {
+  it('returns a new object with clamped maxError and maxTriangles', () => {
+    const a = { enabled: true, maxTriangles: 400, maxError: 2, algorithm: 'meshoptimizer' as const }
+    const b = clampTrimeshSimplificationConfig(a)
+    expect(b).not.toBe(a)
+    expect(b.maxError).toBe(1)
+    expect(b.maxTriangles).toBe(500)
   })
 })
