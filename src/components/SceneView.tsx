@@ -1039,7 +1039,10 @@ function SceneViewInner({
   }, [soundPlaybackCommand])
 
   return (
-    <div className={className} style={{ width: '100%', height: '100%', position: 'relative' }}>
+    <div
+      className={className}
+      style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden' }}
+    >
       <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
       {scriptSnackbarMessage !== null ? <ScriptSnackbar message={scriptSnackbarMessage} /> : null}
       {showGameHud ? (

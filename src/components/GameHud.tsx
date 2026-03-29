@@ -42,16 +42,18 @@ const valueStyle: CSSProperties = {
 const MAX_KMH = 180
 const STEER_VIS_DEG = 118
 
-/** Circular chrome bezel around the tach only (px). */
-const TACH_BEZEL_SIZE = 152
-/** Thin ring so the dial fills more of the bezel. */
-const TACH_BEZEL_INNER_PAD = 3
+/** Fractions of scene (canvas) width — tach bottom-left; wheel bottom-center, larger. */
+const TACH_WIDTH_FRAC = 0.15
+const WHEEL_WIDTH_FRAC = 0.35
+/** Bottom fraction of wheel image cropped (only top 1 − this is visible). */
+const WHEEL_CLIP_BOTTOM_FRAC = 0.4
+/** PNG intrinsic ratio (game-hud-steering-wheel.png); visible strip height = ratio_h × (1 − clip). */
+const WHEEL_IMG_W = 156
+const WHEEL_IMG_H = 112
 
 const tachChromeBezel: CSSProperties = {
-  width: TACH_BEZEL_SIZE,
-  height: TACH_BEZEL_SIZE,
-  minWidth: TACH_BEZEL_SIZE,
-  minHeight: TACH_BEZEL_SIZE,
+  width: '100%',
+  aspectRatio: '1',
   borderRadius: '50%',
   display: 'flex',
   alignItems: 'center',
@@ -70,7 +72,7 @@ const tachChromeBezel: CSSProperties = {
     inset 0 -8px 18px rgba(0, 0, 0, 0.78),
     0 12px 32px rgba(0, 0, 0, 0.55)
   `,
-  padding: TACH_BEZEL_INNER_PAD,
+  padding: 'clamp(2px, 1.8%, 8px)',
   boxSizing: 'border-box',
 }
 
@@ -110,7 +112,12 @@ function SpeedTachSvg({ speedMs }: { speedMs: number }) {
   for (let v = 0; v <= MAX_KMH; v += 20) majorTicks.push(v)
 
   return (
-    <svg width={146} height={86} viewBox="0 0 200 118" aria-hidden style={{ display: 'block' }}>
+    <svg
+      viewBox="0 0 200 118"
+      aria-hidden
+      preserveAspectRatio="xMidYMid meet"
+      style={{ display: 'block', width: '100%', height: 'auto', maxHeight: '100%' }}
+    >
       <defs>
         <linearGradient id={`${uid}-tachArc`} x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" stopColor="rgba(90, 200, 255, 0.45)" />
@@ -239,31 +246,29 @@ function SpeedTachSvg({ speedMs }: { speedMs: number }) {
   )
 }
 
-const WHEEL_W = 156
-const WHEEL_H = 112
-
 function SteeringWheelHud({ wheelAngle }: { wheelAngle: number }) {
   const rotDeg = -wheelAngle * STEER_VIS_DEG
   return (
     <div
       style={{
-        width: WHEEL_W,
-        height: WHEEL_H,
-        display: 'block',
+        width: '100%',
         position: 'relative',
+        display: 'flex',
+        alignItems: 'flex-start',
+        justifyContent: 'center',
       }}
       aria-hidden
     >
       <img
         src={steeringWheelImg}
         alt=""
-        width={WHEEL_W}
-        height={WHEEL_H}
         draggable={false}
         style={{
           display: 'block',
-          width: WHEEL_W,
-          height: WHEEL_H,
+          width: '100%',
+          height: 'auto',
+          maxWidth: '100%',
+          aspectRatio: '156 / 112',
           objectFit: 'contain',
           transform: `rotate(${rotDeg}deg)`,
           transformOrigin: '50% 50%',
@@ -274,7 +279,7 @@ function SteeringWheelHud({ wheelAngle }: { wheelAngle: number }) {
 }
 
 /**
- * Play-mode overlay: score (green), damage (red), drive cluster (tach + wheel) from camera target.
+ * Play-mode overlay: score (green), damage (red); tach bottom-left, wheel bottom-center (lower 40% clipped).
  */
 export function GameHud({ score, damage, speedMs, wheelAngle }: GameHudProps) {
   return (
@@ -295,22 +300,12 @@ export function GameHud({ score, damage, speedMs, wheelAngle }: GameHudProps) {
           .rennTachBezel::after {
             content: '';
             position: absolute;
-            inset: 3px;
+            inset: clamp(2px, 2.5%, 10px);
             border-radius: 50%;
             pointer-events: none;
             box-shadow:
               inset 0 0 0 1px rgba(255, 255, 255, 0.06),
               inset 0 10px 24px rgba(255, 255, 255, 0.04);
-          }
-          /* Top-aligned with tach: scale grows downward from shared top edge. */
-          .rennDriveHudWheel {
-            transform: scale(2.72);
-            transform-origin: center top;
-          }
-          @media (max-width: 720px) {
-            .rennDriveHudWheel {
-              transform: scale(2.05);
-            }
           }
         `}
       </style>
@@ -379,44 +374,51 @@ export function GameHud({ score, damage, speedMs, wheelAngle }: GameHudProps) {
         aria-label="Speed and steering"
         style={{
           position: 'absolute',
-          left: 0,
-          right: 0,
-          bottom: 22,
-          zIndex: 52,
+          inset: 0,
           pointerEvents: 'none',
-          display: 'grid',
-          gridTemplateColumns: '1fr auto 1fr',
-          alignItems: 'start',
-          width: '100%',
-          boxSizing: 'border-box',
+          zIndex: 52,
+          containerType: 'inline-size',
         }}
       >
         <div
+          aria-hidden
           style={{
-            justifySelf: 'start',
-            marginLeft: 'max(12px, 3vw)',
+            position: 'absolute',
+            left: 'max(12px, 1.5%)',
+            bottom: 22,
+            width: `${TACH_WIDTH_FRAC * 100}%`,
+            minWidth: 0,
+            filter: 'drop-shadow(0 3px 10px rgba(0,0,0,0.4))',
           }}
         >
           <div
             className="rennTachBezel"
             style={{
               ...tachChromeBezel,
-              paddingTop: 5,
-              paddingBottom: 8,
+              paddingTop: 'clamp(3px, 2.5%, 8px)',
+              paddingBottom: 'clamp(4px, 3.5%, 10px)',
             }}
           >
-            <div style={{ marginTop: 2, filter: 'drop-shadow(0 3px 10px rgba(0,0,0,0.4))' }}>
+            <div style={{ width: '100%', marginTop: 2 }}>
               <SpeedTachSvg speedMs={speedMs} />
             </div>
           </div>
         </div>
         <div
-          className="rennDriveHudWheel"
-          style={{ filter: 'drop-shadow(0 10px 18px rgba(0,0,0,0.35))' }}
+          style={{
+            position: 'absolute',
+            left: '50%',
+            bottom: 0,
+            width: `${WHEEL_WIDTH_FRAC * 100}cqw`,
+            height: `calc(${WHEEL_WIDTH_FRAC * 100}cqw * ${WHEEL_IMG_H} / ${WHEEL_IMG_W} * ${1 - WHEEL_CLIP_BOTTOM_FRAC})`,
+            minWidth: 0,
+            transform: 'translateX(-50%)',
+            overflow: 'hidden',
+            filter: 'drop-shadow(0 10px 18px rgba(0,0,0,0.35))',
+          }}
         >
           <SteeringWheelHud wheelAngle={wheelAngle} />
         </div>
-        <div aria-hidden style={{ minWidth: 0 }} />
       </div>
     </>
   )
