@@ -196,6 +196,12 @@ export interface Transformer {
    * @param dt     Frame delta time in seconds (also in input.deltaTime).
    */
   transform(input: TransformInput, dt: number): TransformOutput
+
+  /** Present on `input` transformer: inject per-frame raw keyboard/wheel snapshot. */
+  setRawInputGetter?(getter: () => RawInput | null): void
+
+  /** Present on some presets: merge runtime param updates (e.g. from scripts). */
+  setParams?(patch: Record<string, unknown>): void
 }
 
 // ---------------------------------------------------------------------------

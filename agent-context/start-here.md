@@ -43,9 +43,11 @@
 ```
 src/
 ├── types/world.ts          # Entity, Shape, Vec3, Rotation types
+├── config/theme.ts         # UI color/z-index tokens (prefer over scattered hex)
 ├── loader/loadWorld.ts     # World JSON → Three.js scene
 ├── physics/rapierPhysics.ts
 ├── runtime/renderItemRegistry.ts
+├── runtime/sceneFrameLoop.ts  # Per-frame sim/render (called from SceneView rAF)
 ├── scripts/scriptCtx.ts    # ctx types and alloc
 ├── scripts/gameApi.ts      # backing for ctx
 ├── transformers/           # Transformer system

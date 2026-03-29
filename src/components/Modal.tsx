@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
+import { theme } from '@/config/theme'
 
 export interface ModalProps {
   isOpen: boolean
@@ -62,11 +63,11 @@ export default function Modal({
         left: 0,
         right: 0,
         bottom: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+        backgroundColor: theme.bg.modalBackdrop,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        zIndex: 10000,
+        zIndex: theme.zIndex.modal,
         animation: 'fadeIn 0.2s ease-out',
       }}
       onClick={handleBackdropClick}
@@ -97,8 +98,8 @@ export default function Modal({
       <div
         ref={modalRef}
         style={{
-          backgroundColor: '#1a1a1a',
-          border: '1px solid #2f3545',
+          backgroundColor: theme.bg.panelAlt,
+          border: `1px solid ${theme.border.default}`,
           borderRadius: 8,
           width: `${width}px`,
           maxWidth: '90vw',
@@ -114,7 +115,7 @@ export default function Modal({
         <div
           style={{
             padding: '16px 20px',
-            borderBottom: '1px solid #2f3545',
+            borderBottom: `1px solid ${theme.border.default}`,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -126,7 +127,7 @@ export default function Modal({
               margin: 0,
               fontSize: 16,
               fontWeight: 600,
-              color: '#e6e9f2',
+              color: theme.text.primary,
             }}
           >
             {title}
@@ -137,7 +138,7 @@ export default function Modal({
             style={{
               background: 'transparent',
               border: 'none',
-              color: '#9aa4b2',
+              color: theme.text.muted,
               fontSize: 24,
               lineHeight: 1,
               cursor: 'pointer',
@@ -151,7 +152,7 @@ export default function Modal({
               transition: 'background-color 0.15s ease',
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = '#2a2a2a'
+              e.currentTarget.style.backgroundColor = theme.bg.surface
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.backgroundColor = 'transparent'

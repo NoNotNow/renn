@@ -2,6 +2,8 @@
  * Utility class for texture-related operations.
  * Handles validation, ID generation, thumbnail creation, and asset filtering.
  */
+import { generateAssetIdFromFilename } from '@/utils/assetId'
+
 export class TextureManager {
   private static readonly MAX_FILE_SIZE = 50 * 1024 * 1024 // 50MB
   private static readonly ALLOWED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp', 'image/bmp']
@@ -39,21 +41,7 @@ export class TextureManager {
    * @returns A sanitized asset ID
    */
   static generateAssetId(filename: string): string {
-    // Remove extension
-    const nameWithoutExt = filename.replace(/\.[^.]+$/, '')
-    
-    // Sanitize: remove special characters, replace spaces with underscores
-    const sanitized = nameWithoutExt
-      .replace(/[^a-zA-Z0-9_-]/g, '_')
-      .replace(/_+/g, '_')
-      .replace(/^_|_$/g, '')
-    
-    // If empty after sanitization, generate a timestamp-based ID
-    if (!sanitized) {
-      return `texture_${Date.now()}`
-    }
-    
-    return sanitized
+    return generateAssetIdFromFilename(filename, 'texture')
   }
 
   /**

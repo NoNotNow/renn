@@ -11,9 +11,10 @@ import { createGameAPI, type HudPatch } from '@/scripts/gameApi'
 import { ScriptRunner } from '@/scripts/scriptRunner'
 import type { PhysicsWorld } from '@/physics/rapierPhysics'
 import { RenderItemRegistry } from '@/runtime/renderItemRegistry'
+import { restoreInitialPosesIntoRegistry } from '@/runtime/restoreInitialPoses'
+import { runSceneFrame, SCENE_FIXED_DT } from '@/runtime/sceneFrameLoop'
 import { useKeyboardInput } from '@/hooks/useKeyboardInput'
 import {
-  averageUnlockedSelectionWorldPosition,
   installBuilderPickAndGizmo,
   type BuilderGizmoMode,
   type BuilderPoseCommitEntry,
@@ -21,17 +22,14 @@ import {
 import { getSceneUserData } from '@/types/sceneUserData'
 import { useRawKeyboardInput, useRawWheelInput, getRawInputSnapshot } from '@/input/rawInput'
 import { useRawMouseDrag } from '@/input/rawMouseDrag'
-import type { RawInput, TransformerConfig } from '@/types/transformer'
+import type { TransformerConfig } from '@/types/transformer'
 import { getSceneDependencyKey } from '@/utils/sceneDependencyKey'
-import { getForwardSpeed } from '@/utils/vec3'
 import { computeDirectionalShadowCameraExtent } from '@/utils/shadowBounds'
 import { countVisualModelTriangles } from '@/utils/geometryExtractor'
 import { findEntityRootForPicking } from '@/utils/entityPicking'
 import { ScriptSnackbar } from '@/components/ScriptSnackbar'
 import { GameHud } from '@/components/GameHud'
 import { WarningSnackbar } from '@/components/WarningSnackbar'
-
-const FIXED_DT = 1 / 60
 
 /** Radius inside camera far plane (PerspectiveCamera default far = 1000). */
 const SKY_DOME_RADIUS = 500
@@ -505,18 +503,7 @@ function SceneViewInner({
             const registry = RenderItemRegistry.create(entities, pw, rawInputGetter)
             if (!cancelled && effectIdRef.current === currentEffectId) {
               registryRef.current = registry
-              const poses = initialPosesRef?.current
-              if (poses && poses.size > 0) {
-                for (const [id, pose] of poses) {
-                  if (registry.get(id)) {
-                    registry.setPosition(id, pose.position)
-                    registry.setRotation(id, pose.rotation)
-                    if (pose.scale) registry.setScale(id, pose.scale)
-                  }
-                }
-                onPosesRestored?.(poses)
-                if (initialPosesRef) initialPosesRef.current = null
-              }
+              restoreInitialPosesIntoRegistry(registry, initialPosesRef, onPosesRestored)
               installPickGizmoIfBuilder()
               setRegistryEpoch((n) => n + 1)
             }
@@ -527,201 +514,46 @@ function SceneViewInner({
         const registry = RenderItemRegistry.create(entities, null, rawInputGetter)
         if (!cancelled && effectIdRef.current === currentEffectId) {
           registryRef.current = registry
-          const poses = initialPosesRef?.current
-          if (poses && poses.size > 0) {
-            for (const [id, pose] of poses) {
-              if (registry.get(id)) {
-                registry.setPosition(id, pose.position)
-                registry.setRotation(id, pose.rotation)
-                if (pose.scale) registry.setScale(id, pose.scale)
-              }
-            }
-            onPosesRestored?.(poses)
-            if (initialPosesRef) initialPosesRef.current = null
-          }
+          restoreInitialPosesIntoRegistry(registry, initialPosesRef, onPosesRestored)
           installPickGizmoIfBuilder()
           setRegistryEpoch((n) => n + 1)
         }
       }
 
-      // Animation loop
+      // Animation loop (per-frame logic in runtime/sceneFrameLoop.ts)
       const animate = (): void => {
-        if (cancelled) return // Stop if effect is cleaning up
+        if (cancelled) return
         frameRef.current = requestAnimationFrame(animate)
-        const dt = FIXED_DT
-        timeRef.current += dt
-
-        // Follow + orbit modes: consume wheel so transformers don't see it.
-        // Edit navigation: same — trackpad scroll → orbit; pinch + mouse wheel → distance (FOV in first person).
-        const orbitCtrl = cameraCtrlRef.current
-        const orbitCfg = orbitCtrl?.getConfig()
-        const orbitFollowModes =
-          orbitCfg?.mode === 'follow' ||
-          orbitCfg?.mode === 'thirdPerson' ||
-          orbitCfg?.mode === 'tracking' ||
-          orbitCfg?.mode === 'firstPerson'
-        const editNav = editNavigationModeRef.current
-        const followCameraWheelOrbit =
-          !editNav && orbitCfg?.control === 'follow' && orbitFollowModes
-        const consumeWheelForCameraOrbit = followCameraWheelOrbit || editNav
-        if (rawWheelRef.current && consumeWheelForCameraOrbit) {
-          const rw = rawWheelRef.current
-          orbitWheelRef.current.deltaX = rw.deltaX
-          orbitWheelRef.current.deltaY = rw.deltaY
-          orbitWheelRef.current.distanceDelta = (rw.pinchDelta ?? 0) + (rw.mouseWheelDelta ?? 0)
-          rw.deltaX = 0
-          rw.deltaY = 0
-          rw.pinchDelta = 0
-          rw.mouseWheelDelta = 0
-        } else {
-          orbitWheelRef.current.deltaX = 0
-          orbitWheelRef.current.deltaY = 0
-          orbitWheelRef.current.distanceDelta = 0
-        }
-
-        const pw = physicsRef.current
-        if (pw && runPhysics && !cancelled) {
-          try {
-            const currentTime = timeRef.current
-            activeDebugForcesRef.current = activeDebugForcesRef.current.filter((debugForce) => {
-              if (currentTime >= debugForce.endTime) {
-                return false
-              }
-              if (!editNav) {
-                pw.applyForce(debugForce.entityId, debugForce.force[0], debugForce.force[1], debugForce.force[2])
-              }
-              return true
-            })
-
-            if (!editNav) {
-              // Execute transformers BEFORE physics step
-              if (registryRef.current) {
-                const rawInput: RawInput = getRawInputSnapshot(rawKeyboardRef, rawWheelRef)
-                registryRef.current.setRawInputGetter(() => rawInput)
-                const wind = worldRef.current.world.wind
-                registryRef.current.executeTransformers(dt, wind)
-              }
-
-              pw.step(dt)
-              registryRef.current?.syncFromPhysics()
-
-              if (scriptRunnerRef.current && runScripts) {
-                const collisions = pw.getCollisions()
-                for (const { entityIdA, entityIdB, impact } of collisions) {
-                  scriptRunnerRef.current.runOnCollision(entityIdA, entityIdB, impact)
-                  scriptRunnerRef.current.runOnCollision(entityIdB, entityIdA, impact)
-                }
-              }
-            }
-          } catch (e) {
-            // Suppress errors if we're being cleaned up
-            if (!cancelled) {
-              console.error('Physics step error:', e)
-            }
-            return
-          }
-        }
-
-        if (scriptRunnerRef.current && runScripts && !editNavigationModeRef.current) {
-          scriptRunnerRef.current.runOnUpdate(dt)
-        }
-
-        const ctrl = cameraCtrlRef.current
-        if (ctrl) {
-          ctrl.setForceFreeFlyNavigation(editNavigationModeRef.current)
-          const useFreeFlyKeys =
-            (ctrl.getConfig().control ?? 'free') === 'free' || editNavigationModeRef.current
-          if (useFreeFlyKeys && freeFlyKeysRef.current) {
-            ctrl.setFreeFlyInput(freeFlyKeysRef.current)
-          }
-          const drag = rawMouseDragRef.current
-          const orbitWheel = orbitWheelRef.current
-          const gizmoDrag = gizmoDraggingRef.current
-          const orbitDx = (gizmoDrag ? 0 : (drag?.deltaX ?? 0)) + orbitWheel.deltaX
-          const orbitDy = (gizmoDrag ? 0 : (drag?.deltaY ?? 0)) + orbitWheel.deltaY
-          if (orbitDx !== 0 || orbitDy !== 0) {
-            ctrl.setOrbitDelta(orbitDx, orbitDy)
-          }
-          if (drag) { drag.deltaX = 0; drag.deltaY = 0 }
-          if (orbitWheel.distanceDelta !== 0) {
-            // Scale wheel/pinch distance deltas so zoom feels responsive.
-            // Original factor was `0.05`; multiply by 15 => `0.75`.
-            ctrl.setOrbitDistanceDelta(orbitWheel.distanceDelta * 0.75)
-            orbitWheel.distanceDelta = 0
-          }
-          if (editNavigationModeRef.current) {
-            const selPivot = averageUnlockedSelectionWorldPosition(
-              registryRef.current,
-              selectedEntityIdsRef.current,
-              (id) => worldRef.current.entities.find((e) => e.id === id),
-            )
-            ctrl.setEditNavigationOrbitPivot(
-              selPivot ? { x: selPivot[0], y: selPivot[1], z: selPivot[2] } : null,
-            )
-          } else {
-            ctrl.setEditNavigationOrbitPivot(null)
-          }
-          ctrl.update(dt)
-
-          const poseSink = editorFreePoseRef
-          if (poseSink && cam && !cancelled) {
-            const cfg = ctrl.getConfig()
-            const navigating =
-              (cfg.control ?? 'free') === 'free' || editNavigationModeRef.current
-            if (navigating) {
-              const t = timeRef.current
-              if (t - lastEditorPoseWriteTimeRef.current >= 0.35) {
-                lastEditorPoseWriteTimeRef.current = t
-                poseSink.current = {
-                  position: [cam.position.x, cam.position.y, cam.position.z],
-                  quaternion: [
-                    cam.quaternion.x,
-                    cam.quaternion.y,
-                    cam.quaternion.z,
-                    cam.quaternion.w,
-                  ],
-                }
-              }
-            }
-          }
-        }
-
-        if (showGameHud) {
-          const camCtrl = cameraCtrlRef.current
-          const targetId = (camCtrl?.getConfig().target ?? '').trim()
-          let speedMs = 0
-          let wheelAngle = 0
-          const pwLoop = physicsRef.current
-          const reg = registryRef.current
-          if (targetId && pwLoop && reg) {
-            const vel = pwLoop.getLinearVelocity(targetId)
-            const forward = reg.getForwardVector(targetId)
-            if (vel && forward) {
-              speedMs = getForwardSpeed(vel, forward)
-            }
-            wheelAngle = reg.getCar2WheelAngle(targetId) ?? 0
-          }
-          const last = lastHudDriveRef.current
-          const epsS = 0.05
-          const epsW = 0.012
-          if (
-            last === null ||
-            Math.abs(last.speedMs - speedMs) > epsS ||
-            Math.abs(last.wheelAngle - wheelAngle) > epsW
-          ) {
-            lastHudDriveRef.current = { speedMs, wheelAngle }
-            setHudDrive({ speedMs, wheelAngle })
-          }
-        }
-
-        const dome = skyDomeRef.current
-        if (dome && cam && !cancelled) {
-          dome.position.copy(cam.position)
-        }
-
-        if (rend && loadedScene && cam && !cancelled) {
-          rend.render(loadedScene, cam)
-        }
+        runSceneFrame({
+          isCancelled: () => cancelled,
+          fixedDt: SCENE_FIXED_DT,
+          timeRef,
+          rawWheelRef,
+          orbitWheelRef,
+          editNavigationModeRef,
+          cameraCtrlRef,
+          physicsRef,
+          runPhysics,
+          activeDebugForcesRef,
+          registryRef,
+          rawKeyboardRef,
+          worldRef,
+          scriptRunnerRef,
+          runScripts,
+          freeFlyKeysRef,
+          rawMouseDragRef,
+          gizmoDraggingRef,
+          selectedEntityIdsRef,
+          editorFreePoseRef,
+          cam,
+          lastEditorPoseWriteTimeRef,
+          showGameHud,
+          lastHudDriveRef,
+          setHudDrive,
+          skyDomeRef,
+          rend,
+          loadedScene,
+        })
       }
       animate()
 

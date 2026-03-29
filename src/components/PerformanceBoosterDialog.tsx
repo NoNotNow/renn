@@ -9,33 +9,10 @@ import { extractMeshGeometry, getVisualGltfSceneForEntityMesh } from '@/utils/ge
 import { simplifyGeometry, ensureMeshoptSimplifierReady } from '@/utils/meshSimplifier'
 import { getImageBitmapDimensions } from '@/utils/textureDownscale'
 import { uiLogger } from '@/utils/uiLogger'
+import Modal from '@/components/Modal'
+import { theme } from '@/config/theme'
 
-const overlayStyle: CSSProperties = {
-  position: 'fixed',
-  top: 0,
-  left: 0,
-  right: 0,
-  bottom: 0,
-  background: 'rgba(0,0,0,0.55)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  zIndex: 2100,
-}
-
-const panelStyle: CSSProperties = {
-  background: '#1b1f2a',
-  padding: '20px 24px',
-  borderRadius: 8,
-  minWidth: 480,
-  maxWidth: 880,
-  maxHeight: '90vh',
-  overflow: 'auto',
-  border: '1px solid #2f3545',
-  color: '#e6e9f2',
-}
-
-const labelStyle: CSSProperties = { fontSize: 12, color: '#9aa4b2', marginBottom: 4 }
+const labelStyle: CSSProperties = { fontSize: 12, color: theme.text.muted, marginBottom: 4 }
 const sectionStyle: CSSProperties = { marginBottom: 20 }
 
 const gridStyle: CSSProperties = {
@@ -46,9 +23,9 @@ const gridStyle: CSSProperties = {
   overflowY: 'auto',
   padding: 4,
   marginTop: 8,
-  border: '1px solid #2f3545',
+  border: `1px solid ${theme.border.default}`,
   borderRadius: 6,
-  background: '#151820',
+  background: theme.booster.gridBg,
 }
 
 /** Trimesh (shape GLTF) or primitive + `entity.model` visual GLTF. */
@@ -61,8 +38,10 @@ function tileStyle(selected: boolean): CSSProperties {
   return {
     padding: 8,
     borderRadius: 6,
-    border: selected ? '2px solid #5b8fc7' : '1px solid #2f3545',
-    background: selected ? '#243044' : '#1b1f2a',
+    border: selected
+      ? `2px solid ${theme.booster.tileSelectBorder}`
+      : `1px solid ${theme.border.default}`,
+    background: selected ? theme.booster.tileSelectBg : theme.bg.panel,
     cursor: 'pointer',
     textAlign: 'center' as const,
   }
@@ -334,13 +313,10 @@ export default function PerformanceBoosterDialog({
     }
   }, [textureTargetEntityId, world.entities, textureMaxEdge, textureThreshold, assets, onApplyTexture])
 
-  if (!isOpen) return null
-
   return (
-    <div style={overlayStyle} onClick={onClose} role="presentation">
-      <div style={panelStyle} onClick={(e) => e.stopPropagation()} data-testid="performance-booster-dialog">
-        <h2 style={{ margin: '0 0 16px', fontSize: 18 }}>Performance booster</h2>
-        <p style={{ margin: '0 0 16px', fontSize: 13, color: '#9aa4b2' }}>
+    <Modal isOpen={isOpen} onClose={onClose} title="Performance booster" width={880}>
+      <div data-testid="performance-booster-dialog" style={{ color: theme.text.primary }}>
+        <p style={{ margin: '0 0 16px', fontSize: 13, color: theme.text.muted }}>
           For <strong>trimesh</strong> bodies, decimation matches rendering and physics. For a <strong>3D model on a primitive</strong>,
           only the visual GLTF is reduced (collision stays the primitive). Choose a candidate below, use viewport pick,
           adjust settings, then apply.
@@ -356,14 +332,28 @@ export default function PerformanceBoosterDialog({
             value={meshThreshold}
             onChange={(e) => setMeshThreshold(Number(e.target.value) || 500)}
             data-testid="mesh-triangle-filter"
-            style={{ width: '100%', padding: 8, marginBottom: 8, background: '#232836', border: '1px solid #2f3545', color: '#e6e9f2' }}
+            style={{
+              width: '100%',
+              padding: 8,
+              marginBottom: 8,
+              background: theme.bg.input,
+              border: `1px solid ${theme.border.default}`,
+              color: theme.text.primary,
+            }}
           />
           <input
             type="search"
             placeholder="Search candidates…"
             value={meshSearch}
             onChange={(e) => setMeshSearch(e.target.value)}
-            style={{ width: '100%', padding: 8, marginBottom: 8, background: '#232836', border: '1px solid #2f3545', color: '#e6e9f2' }}
+            style={{
+              width: '100%',
+              padding: 8,
+              marginBottom: 8,
+              background: theme.bg.input,
+              border: `1px solid ${theme.border.default}`,
+              color: theme.text.primary,
+            }}
           />
           <div style={labelStyle}>Heavy mesh models (click to select)</div>
           <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 6 }}>
@@ -599,22 +589,7 @@ export default function PerformanceBoosterDialog({
           </button>
         </div>
 
-        <button
-          type="button"
-          onClick={onClose}
-          style={{
-            marginTop: 8,
-            padding: '8px 16px',
-            width: '100%',
-            background: '#232836',
-            color: '#e6e9f2',
-            border: '1px solid #2f3545',
-            cursor: 'pointer',
-          }}
-        >
-          Close
-        </button>
       </div>
-    </div>
+    </Modal>
   )
 }

@@ -1,3 +1,5 @@
+import { theme } from '@/config/theme'
+
 export const sidebarRowStyle = {
   display: 'grid',
   gridTemplateColumns: '96px 1fr',
@@ -6,28 +8,28 @@ export const sidebarRowStyle = {
   marginBottom: 6,
 }
 
-export const sidebarLabelStyle = { 
-  fontSize: 12, 
-  color: '#c4cbd8' 
+export const sidebarLabelStyle = {
+  fontSize: 12,
+  color: theme.text.secondary,
 }
 
-export const sidebarInputStyle = { 
-  display: 'block', 
-  width: '100%' 
+export const sidebarInputStyle = {
+  display: 'block',
+  width: '100%',
 }
 
 export const sectionStyle = {
   padding: 6,
-  border: '1px solid #2f3545',
+  border: `1px solid ${theme.border.default}`,
   borderRadius: 6,
-  background: 'rgba(17, 20, 28, 0.6)',
+  background: theme.bg.section,
 }
 
 export const sectionTitleStyle = {
   margin: '0 0 4px',
   fontSize: '0.70em',
   letterSpacing: '0.08em',
-  color: '#9aa4b2',
+  color: theme.text.muted,
   textTransform: 'uppercase' as const,
 }
 
@@ -35,7 +37,7 @@ export const fieldLabelStyle = {
   display: 'block',
   marginBottom: 6,
   fontSize: 12,
-  color: '#c4cbd8',
+  color: theme.text.secondary,
 }
 
 /** Text input in sidebar (e.g. entity name, ID). */
@@ -72,9 +74,9 @@ export const entityPanelIconButtonStyle = {
 /** Destructive remove button (e.g. remove texture/model). */
 export const removeButtonStyle = {
   padding: '6px 8px',
-  background: '#3a1b1b',
-  border: '1px solid #6b2a2a',
-  color: '#f4d6d6',
+  background: theme.bg.destructive,
+  border: `1px solid ${theme.border.destructive}`,
+  color: theme.text.destructive,
   borderRadius: 6,
   cursor: 'pointer' as const,
   fontSize: 14,
@@ -87,9 +89,9 @@ export const removeButtonStyle = {
 
 /** Remove button when disabled. */
 export const removeButtonStyleDisabled = {
-  background: '#2a2a2a',
-  border: '1px solid #2f3545',
-  color: '#666',
+  background: theme.bg.destructiveMuted,
+  border: `1px solid ${theme.border.destructiveMuted}`,
+  color: theme.text.disabled,
   cursor: 'not-allowed' as const,
 }
 
@@ -97,9 +99,9 @@ export const removeButtonStyleDisabled = {
 export const secondaryButtonStyle = {
   flex: 1,
   padding: '6px 12px',
-  background: '#1a1a1a',
-  border: '1px solid #2f3545',
-  color: '#e6e9f2',
+  background: theme.bg.panelAlt,
+  border: `1px solid ${theme.border.default}`,
+  color: theme.text.primary,
   borderRadius: 6,
   cursor: 'pointer' as const,
   fontSize: 12,
@@ -108,8 +110,8 @@ export const secondaryButtonStyle = {
 
 /** Secondary button when disabled. */
 export const secondaryButtonStyleDisabled = {
-  background: '#2a2a2a',
-  color: '#666',
+  background: theme.bg.surface,
+  color: theme.text.disabled,
   cursor: 'not-allowed' as const,
 }
 

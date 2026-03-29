@@ -14,10 +14,21 @@ Tracks what was cleaned up and what remains optional.
 - **UI:** ErrorBoundary reload button uses theme accent `#8ab4ff`; transformer template button uses `EntityPanelIcons.loadTemplate`.
 - **Behavior:** `getDefaultTransformerConfig('car2')` matches `DEFAULT_CAR2_PARAMS`; `addRotation` comment matches code; `createTransformer` JSDoc explains async signature.
 
+## Intensification pass (2026-03)
+
+- **IndexedDB:** `DB_CONFIG` in `config/constants.ts` is source of truth (`version: 2`); `persistence/indexedDb.ts` and `utils/clearCache.ts` consume it. `window.__clearCache` typed via `declare global`.
+- **Dedup:** `utils/assetId.ts` (`generateAssetIdFromFilename`); `runtime/restoreInitialPoses.ts`; `cameraStateFromWorld()` in `ProjectContext.tsx`.
+- **Play URL:** `handlePlay` uses `${BASE_URL}play?world=...` for GitHub Pages basename.
+- **Theme:** `config/theme.ts` — `sharedStyles.ts`, `Modal.tsx`, `SaveDialog.tsx`, and parts of `PerformanceBoosterDialog.tsx` use tokens; booster-specific keys under `theme.booster` / `theme.button.*`.
+- **Modularity:** `BulkSpawnForm.tsx` (reducer state) extracted from `EntitySidebar.tsx`; per-frame logic in `runtime/sceneFrameLoop.ts` (`runSceneFrame`, `SCENE_FIXED_DT`).
+- **Modals:** `SaveDialog` and `PerformanceBoosterDialog` use `Modal.tsx` (portal, ESC, body scroll, z-index).
+- **Types:** `Transformer` optional `setRawInputGetter` / `setParams`; `renderItemRegistry` / `gameApi` use `typeof … === 'function'`. `schema/validate.ts` entity id resolution avoids `as any`.
+
 ## Optional follow-ups
 
-- Unify custom overlays (`SaveDialog`, project picker, `PerformanceBoosterDialog`) on `Modal.tsx` where practical.
+- Migrate remaining components off raw hex (see ripgrep for `#1b1f2a`, `#2f3545`, etc.) toward `config/theme.ts`.
 - Broader locale/styling tokens (radius scale, full i18n).
 - `isGrounded` still TODO in `renderItemRegistry`.
+- Project picker overlay: unify on `Modal.tsx` if/when it gets a dedicated component.
 
 Run `npm run test:run` after further edits.

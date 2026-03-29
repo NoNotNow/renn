@@ -2,11 +2,10 @@ import { openDB, type IDBPDatabase } from 'idb'
 import type { RennWorld } from '@/types/world'
 import type { ProjectMeta, LoadedProject, PersistenceAPI } from './types'
 import { generateProjectId } from '@/utils/idGenerator'
+import { DB_CONFIG } from '@/config/constants'
 
-const DB_NAME = 'renn-worlds'
-const DB_VERSION = 2
-const STORE_PROJECTS = 'projects'
-const STORE_ASSETS = 'assets'
+const STORE_PROJECTS = DB_CONFIG.stores.projects
+const STORE_ASSETS = DB_CONFIG.stores.assets
 
 /**
  * Returns the ArrayBuffer for a Blob. Uses blob.arrayBuffer() when available (e.g. browser/Node 18+),
@@ -54,7 +53,7 @@ function storedAssetToBlob(asset: StoredAsset): Blob | null {
 }
 
 function getDB(): Promise<IDBPDatabase> {
-  return openDB(DB_NAME, DB_VERSION, {
+  return openDB(DB_CONFIG.name, DB_CONFIG.version, {
     upgrade(db, oldVersion, _newVersion, _transaction) {
       if (!db.objectStoreNames.contains(STORE_PROJECTS)) {
         db.createObjectStore(STORE_PROJECTS, { keyPath: 'id' })

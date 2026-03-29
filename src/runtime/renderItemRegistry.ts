@@ -98,8 +98,8 @@ export class RenderItemRegistry {
       if (item.transformerChain) {
         const transformers = item.transformerChain.getAll()
         for (const transformer of transformers) {
-          if (transformer.type === 'input' && 'setRawInputGetter' in transformer) {
-            ;(transformer as any).setRawInputGetter(getter)
+          if (transformer.type === 'input' && typeof transformer.setRawInputGetter === 'function') {
+            transformer.setRawInputGetter(getter)
           }
         }
       }
@@ -147,8 +147,8 @@ export class RenderItemRegistry {
         item.transformerChain = newChain
         if (this.rawInputGetter) {
           for (const t of newChain.getAll()) {
-            if (t.type === 'input' && 'setRawInputGetter' in t) {
-              ;(t as any).setRawInputGetter(this.rawInputGetter)
+            if (t.type === 'input' && typeof t.setRawInputGetter === 'function' && this.rawInputGetter) {
+              t.setRawInputGetter(this.rawInputGetter)
             }
           }
         }

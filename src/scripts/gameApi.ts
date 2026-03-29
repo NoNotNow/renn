@@ -166,8 +166,8 @@ export function createGameAPI(
       if (!item || !item.transformerChain) return
       const transformers = item.transformerChain.getAll()
       for (const transformer of transformers) {
-        if (transformer.type === transformerType && 'setParams' in transformer) {
-          ;(transformer as any).setParams({ [paramName]: value })
+        if (transformer.type === transformerType && typeof transformer.setParams === 'function') {
+          transformer.setParams({ [paramName]: value })
         }
       }
     },

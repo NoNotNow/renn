@@ -155,10 +155,13 @@ function describeValidationErrors(data: unknown, errors: AjvError[], opts: Valid
         const addPropSuffix = typeof additionalProperty === 'string' ? ` (additionalProperty: ${additionalProperty})` : ''
         const entityMatch = e.instancePath.match(/^\/entities\/(\d+)(?:\/|$)/)
         const entityIndex = entityMatch ? Number(entityMatch[1]) : null
-        const entityId =
-          entityIndex != null && typeof data === 'object' && (data as any)?.entities?.[entityIndex]?.id
-            ? String((data as any).entities[entityIndex].id)
-            : null
+        const entityId = (() => {
+          if (entityIndex == null || typeof data !== 'object' || data === null) return null
+          const entities = (data as { entities?: unknown }).entities
+          if (!Array.isArray(entities)) return null
+          const row = entities[entityIndex] as { id?: unknown } | undefined
+          return row?.id != null ? String(row.id) : null
+        })()
         const entitySuffix = entityId ? `; entityId: ${entityId}` : entityIndex != null ? `; entityIndex: ${entityIndex}` : ''
 
         return `${e.instancePath || '/'}: ${e.message}${addPropSuffix}${entitySuffix}; value: ${valueStr}`

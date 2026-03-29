@@ -2,6 +2,8 @@
  * Utility class for 3D model-related operations.
  * Handles validation, ID generation, and asset filtering for GLB/GLTF models.
  */
+import { generateAssetIdFromFilename } from '@/utils/assetId'
+
 export class ModelManager {
   private static readonly MAX_FILE_SIZE = 100 * 1024 * 1024 // 100MB
   private static readonly ALLOWED_MODEL_TYPES = [
@@ -65,21 +67,7 @@ export class ModelManager {
    * @returns A sanitized asset ID
    */
   static generateAssetId(filename: string): string {
-    // Remove extension
-    const nameWithoutExt = filename.replace(/\.[^.]+$/, '')
-    
-    // Sanitize: remove special characters, replace spaces with underscores
-    const sanitized = nameWithoutExt
-      .replace(/[^a-zA-Z0-9_-]/g, '_')
-      .replace(/_+/g, '_')
-      .replace(/^_|_$/g, '')
-    
-    // If empty after sanitization, generate a timestamp-based ID
-    if (!sanitized) {
-      return `model_${Date.now()}`
-    }
-    
-    return sanitized
+    return generateAssetIdFromFilename(filename, 'model')
   }
 
   /**

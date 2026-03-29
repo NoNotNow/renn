@@ -32,6 +32,16 @@ interface CameraState {
   mode: CameraMode
 }
 
+/** Camera UI state from world document; `targetFallback` when `camera.target` is absent (sample world uses `'ball'`). */
+function cameraStateFromWorld(world: RennWorld, targetFallback = ''): CameraState {
+  const cam = world.world.camera
+  return {
+    control: (cam?.control ?? 'free') as CameraState['control'],
+    target: cam?.target ?? targetFallback,
+    mode: cam?.mode ?? 'follow',
+  }
+}
+
 interface ProjectContextState {
   initialLoadPending: boolean
   currentProject: CurrentProject
@@ -109,16 +119,8 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const editorFreePoseRef = useRef<EditorFreePose | null>(null)
   
   // Combined camera state to reduce re-renders
-  const [cameraState, setCameraState] = useState<CameraState>(() => ({
-    control: (sampleWorld.world.camera?.control ?? 'free') as 'free' | 'follow' | 'top' | 'front' | 'right',
-    target: sampleWorld.world.camera?.target ?? 'ball',
-    mode: sampleWorld.world.camera?.mode ?? 'follow',
-  }))
-  const cameraStateRef = useRef<CameraState>({
-    control: (sampleWorld.world.camera?.control ?? 'free') as 'free' | 'follow' | 'top' | 'front' | 'right',
-    target: sampleWorld.world.camera?.target ?? 'ball',
-    mode: sampleWorld.world.camera?.mode ?? 'follow',
-  })
+  const [cameraState, setCameraState] = useState<CameraState>(() => cameraStateFromWorld(sampleWorld, 'ball'))
+  const cameraStateRef = useRef<CameraState>(cameraStateFromWorld(sampleWorld, 'ball'))
   useEffect(() => {
     cameraStateRef.current = cameraState
   }, [cameraState])
@@ -160,11 +162,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       isDirty: false,
     })
     editorFreePoseRef.current = null
-    setCameraState({
-      control: (sampleWorld.world.camera?.control ?? 'free') as 'free' | 'follow' | 'top' | 'front' | 'right',
-      target: sampleWorld.world.camera?.target ?? '',
-      mode: sampleWorld.world.camera?.mode ?? 'follow',
-    })
+    setCameraState(cameraStateFromWorld(sampleWorld))
     setVersion((v) => v + 1)
     setDocumentEpoch((e) => e + 1)
   }, [])
@@ -193,11 +191,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         name: projectMeta?.name ?? `Project ${id}`,
         isDirty: false,
       })
-      setCameraState({
-        control: (w.world.camera?.control ?? 'free') as 'free' | 'follow' | 'top' | 'front' | 'right',
-        target: w.world.camera?.target ?? '',
-        mode: w.world.camera?.mode ?? 'follow',
-      })
+      setCameraState(cameraStateFromWorld(w))
       editorFreePoseRef.current = w.world.camera?.editorFreePose ?? null
       setVersion((v) => v + 1)
       setDocumentEpoch((e) => e + 1)
@@ -221,11 +215,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
           setWorld(staticResult.world)
           setAssets(staticResult.assets)
           setCurrentProject({ id: null, name: 'Default World', isDirty: false })
-          setCameraState({
-            control: (staticResult.world.world.camera?.control ?? 'free') as 'free' | 'follow' | 'top' | 'front' | 'right',
-            target: staticResult.world.world.camera?.target ?? '',
-            mode: staticResult.world.world.camera?.mode ?? 'follow',
-          })
+          setCameraState(cameraStateFromWorld(staticResult.world))
           editorFreePoseRef.current = staticResult.world.world.camera?.editorFreePose ?? null
           setVersion((v) => v + 1)
           setDocumentEpoch((e) => e + 1)
@@ -501,11 +491,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
           const w = JSON.parse(reader.result as string) as RennWorld
           worldRef.current = w
           setWorld(w)
-          setCameraState({
-            control: (w.world.camera?.control ?? 'free') as 'free' | 'follow' | 'top' | 'front' | 'right',
-            target: w.world.camera?.target ?? '',
-            mode: w.world.camera?.mode ?? 'follow',
-          })
+          setCameraState(cameraStateFromWorld(w))
           editorFreePoseRef.current = w.world.camera?.editorFreePose ?? null
           setAssets(new Map())
           setCurrentProject({
@@ -526,7 +512,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   
   const handlePlay = useCallback(() => {
     uiLogger.click('Builder', 'Play - navigate to play mode')
-    window.location.href = `/play?world=${encodeURIComponent(JSON.stringify(world))}`
+    window.location.href = `${BASE_URL}play?world=${encodeURIComponent(JSON.stringify(world))}`
   }, [world])
   
   // Memoize context value to prevent unnecessary re-renders
