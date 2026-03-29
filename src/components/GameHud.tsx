@@ -302,16 +302,14 @@ export function GameHud({ score, damage, speedMs, wheelAngle }: GameHudProps) {
               inset 0 0 0 1px rgba(255, 255, 255, 0.06),
               inset 0 10px 24px rgba(255, 255, 255, 0.04);
           }
+          /* Top-aligned with tach: scale grows downward from shared top edge. */
           .rennDriveHudWheel {
-            position: absolute;
-            left: 50%;
-            bottom: 8px;
-            transform: translateX(-50%) scale(2.72);
-            transform-origin: center bottom;
+            transform: scale(2.72);
+            transform-origin: center top;
           }
           @media (max-width: 720px) {
             .rennDriveHudWheel {
-              transform: translateX(-50%) scale(2.05);
+              transform: scale(2.05);
             }
           }
         `}
@@ -383,30 +381,42 @@ export function GameHud({ score, damage, speedMs, wheelAngle }: GameHudProps) {
           position: 'absolute',
           left: 0,
           right: 0,
-          bottom: 14,
+          bottom: 22,
           zIndex: 52,
           pointerEvents: 'none',
-          minHeight: 200,
+          display: 'grid',
+          gridTemplateColumns: '1fr auto 1fr',
+          alignItems: 'start',
+          width: '100%',
+          boxSizing: 'border-box',
         }}
       >
         <div
-          className="rennTachBezel"
           style={{
-            position: 'absolute',
-            left: 'max(12px, 3vw)',
-            bottom: 8,
-            ...tachChromeBezel,
-            paddingTop: 5,
-            paddingBottom: 8,
+            justifySelf: 'start',
+            marginLeft: 'max(12px, 3vw)',
           }}
         >
-          <div style={{ marginTop: 2, filter: 'drop-shadow(0 3px 10px rgba(0,0,0,0.4))' }}>
-            <SpeedTachSvg speedMs={speedMs} />
+          <div
+            className="rennTachBezel"
+            style={{
+              ...tachChromeBezel,
+              paddingTop: 5,
+              paddingBottom: 8,
+            }}
+          >
+            <div style={{ marginTop: 2, filter: 'drop-shadow(0 3px 10px rgba(0,0,0,0.4))' }}>
+              <SpeedTachSvg speedMs={speedMs} />
+            </div>
           </div>
         </div>
-        <div className="rennDriveHudWheel" style={{ filter: 'drop-shadow(0 10px 18px rgba(0,0,0,0.35))' }}>
+        <div
+          className="rennDriveHudWheel"
+          style={{ filter: 'drop-shadow(0 10px 18px rgba(0,0,0,0.35))' }}
+        >
           <SteeringWheelHud wheelAngle={wheelAngle} />
         </div>
+        <div aria-hidden style={{ minWidth: 0 }} />
       </div>
     </>
   )
