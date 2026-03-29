@@ -10,7 +10,7 @@ import {
   shouldSimplifyGeometry,
   ensureMeshoptSimplifierReady,
 } from './meshSimplifier'
-import { extractMeshGeometry } from './geometryExtractor'
+import { extractMeshGeometry, extractMeshGeometryFromMesh } from './geometryExtractor'
 
 function highPolySphere(): THREE.Mesh {
   const geometry = new THREE.SphereGeometry(1, 96, 96)
@@ -140,5 +140,32 @@ describe('meshSimplifier scenarios', () => {
     })
     expect(result.simplifiedTriangleCount).toBeLessThan(orig)
     expect(result.simplifiedTriangleCount).toBeGreaterThanOrEqual(500)
+  })
+
+  it('meshoptimizer preserves UVs at ~30% triangle target (textured models)', () => {
+    const mesh = highPolySphere()
+    mesh.updateWorldMatrix(true, false)
+    const extracted = extractMeshGeometryFromMesh(mesh)
+    expect(extracted).not.toBeNull()
+    expect(extracted!.uvs?.length).toBe((extracted!.vertices.length / 3) * 2)
+
+    const orig = extracted!.indices.length / 3
+    const target = Math.max(500, Math.floor(orig * 0.3))
+    const result = simplifyGeometry(extracted!, {
+      enabled: true,
+      maxTriangles: target,
+      algorithm: 'meshoptimizer',
+      maxError: 0.05,
+    })
+
+    expect(result.simplifiedTriangleCount).toBeLessThan(orig)
+    expect(result.uvs?.length).toBe((result.vertices.length / 3) * 2)
+
+    let sumSq = 0
+    const u = result.uvs!
+    for (let i = 0; i < Math.min(u.length, 200); i++) {
+      sumSq += u[i]! * u[i]!
+    }
+    expect(sumSq).toBeGreaterThan(0.05)
   })
 })

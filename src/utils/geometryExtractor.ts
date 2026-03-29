@@ -3,6 +3,8 @@ import * as THREE from 'three'
 export interface ExtractedGeometry {
   vertices: Float32Array
   indices: Uint32Array
+  /** Per-vertex UVs (2 floats per vertex). Zeros when a source sub-mesh had no `uv` attribute. */
+  uvs?: Float32Array
 }
 
 /**
@@ -64,6 +66,7 @@ function mergeGeometries(
   transforms: THREE.Matrix4[]
 ): ExtractedGeometry {
   const allVertices: number[] = []
+  const allUvs: number[] = []
   const allIndices: number[] = []
   let vertexOffset = 0
 
@@ -81,11 +84,18 @@ function mergeGeometries(
     // Extract vertices and apply transform
     const vertexCount = positionAttr.count
     const vertex = new THREE.Vector3()
-    
+    const uvAttr = geometry.getAttribute('uv')
+    const hasUv = Boolean(uvAttr && uvAttr.count === vertexCount)
+
     for (let j = 0; j < vertexCount; j++) {
       vertex.fromBufferAttribute(positionAttr, j)
       vertex.applyMatrix4(transform)
       allVertices.push(vertex.x, vertex.y, vertex.z)
+      if (hasUv) {
+        allUvs.push(uvAttr!.getX(j), uvAttr!.getY(j))
+      } else {
+        allUvs.push(0, 0)
+      }
     }
 
     // Extract or generate indices
@@ -120,6 +130,7 @@ function mergeGeometries(
   return {
     vertices: new Float32Array(allVertices),
     indices: new Uint32Array(allIndices),
+    uvs: new Float32Array(allUvs),
   }
 }
 
