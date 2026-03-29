@@ -87,7 +87,7 @@ const sim = await WorldSimulator.create(myWorldJson as unknown as RennWorld)
 
 ### Integration test infrastructure
 
-Tests live in [`src/test/scenarios/`](../src/test/scenarios/) and use `WorldSimulator` from [`src/test/helpers/worldSimulator.ts`](../src/test/helpers/worldSimulator.ts).
+Tests live in [`src/test/scenarios/`](../src/test/scenarios/). Most use `WorldSimulator` from [`src/test/helpers/worldSimulator.ts`](../src/test/helpers/worldSimulator.ts) (physics + transformers). **`box-model-material.test.ts`** covers Builder-style material hot-swap on a box collider with an attached GLTF visual (`RenderItemRegistry.updateMaterial`) without loading a GLB file.
 
 **WorldSimulator API:**
 

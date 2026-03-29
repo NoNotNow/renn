@@ -525,7 +525,9 @@ export class RenderItemRegistry {
     } else {
       const newMat = await materialFromRef(newEntity.material, assetResolver)
       if (isModelMesh) {
+        // Skip root: invisible shape/proxy hull must not receive the visible PBR override.
         mesh.traverse((child) => {
+          if (child === mesh) return
           if (child instanceof THREE.Mesh) {
             const old = child.material
             child.material = newMat
