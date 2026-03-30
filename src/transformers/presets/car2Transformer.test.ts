@@ -48,6 +48,52 @@ describe('CarTransformer2', () => {
     expect(Math.abs(output.addRotation![1])).toBeGreaterThan(1e-5)
   })
 
+  describe('supportVelocity (velocity relative to surface)', () => {
+    test('when world velocity matches support, steer does not add yaw (no forward speed relative to platform)', () => {
+      const tFresh = new CarTransformer2(10)
+      const output = tFresh.transform(
+        createMockTransformInput({
+          actions: { steer_right: 1.0 },
+          velocity: [5, 0, 0],
+          rotation: [0, 0, 0],
+          environment: {
+            isTouchingObject: true,
+            supportVelocity: [5, 0, 0],
+          },
+        }),
+        0.016,
+      )
+      expect(output.addRotation).toBeDefined()
+      expect(Math.abs(output.addRotation![0])).toBeLessThan(1e-6)
+      expect(Math.abs(output.addRotation![1])).toBeLessThan(1e-6)
+      expect(Math.abs(output.addRotation![2])).toBeLessThan(1e-6)
+    })
+
+    test('when world velocity matches support, lateral grip sees no slip (impulse ~0 without throttle)', () => {
+      const tGrip = new CarTransformer2(10, {
+        lateralToForwardTransfer: 0.2,
+        lateralGrip: 100,
+      })
+      const output = tGrip.transform(
+        createMockTransformInput({
+          actions: {},
+          velocity: [5, 0, 0],
+          rotation: [0, 0, 0],
+          environment: {
+            isTouchingObject: true,
+            supportVelocity: [5, 0, 0],
+          },
+        }),
+        0.016,
+      )
+      expect(output.impulse).toBeDefined()
+      const i = output.impulse!
+      expect(Math.abs(i[0])).toBeLessThan(1e-3)
+      expect(Math.abs(i[1])).toBeLessThan(1e-3)
+      expect(Math.abs(i[2])).toBeLessThan(1e-3)
+    })
+  })
+
   describe('lateral-to-forward transfer', () => {
     const lateralInput = createMockTransformInput({
       actions: {},

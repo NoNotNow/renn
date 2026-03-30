@@ -64,12 +64,13 @@ export class CarTransformer2 extends BaseTransformer {
       return { earlyExit: false }
     }
 
-    let impulse = this.setImpulse(input, deltaTime, forwardVector)
+    const relativeVelocity = this.getLinearVelocityRelativeToSupport(input)
+    let impulse = this.setImpulse(input, deltaTime, forwardVector, relativeVelocity)
     const ji = this.params.jumpImpulse
     if (jumpRisingEdge && ji > 0) {
       impulse = this.addVec3(impulse, [0, ji, 0])
     }
-    const rotationDelta = this.getRotationDelta(input, deltaTime, this.wheelAngle)
+    const rotationDelta = this.getRotationDelta(input, deltaTime, this.wheelAngle, relativeVelocity)
     const addRotation = rotationDelta
     return {
       impulse,
@@ -78,25 +79,46 @@ export class CarTransformer2 extends BaseTransformer {
     }
   }
 
-  private getRotationDelta(input: TransformInput, deltaTime: number, wheelAngle: number): Vec3|undefined {
-    if(wheelAngle === 0) return undefined;
-    const forwardDistance = this.getForwardSpeed(input) * deltaTime
+  /** Linear velocity minus `environment.supportVelocity` when set; else world `input.velocity`. */
+  private getLinearVelocityRelativeToSupport(input: TransformInput): Vec3 {
+    const s = input.environment.supportVelocity
+    if (!s) return input.velocity
+    return [
+      input.velocity[0] - s[0],
+      input.velocity[1] - s[1],
+      input.velocity[2] - s[2],
+    ]
+  }
+
+  private getRotationDelta(
+    input: TransformInput,
+    deltaTime: number,
+    wheelAngle: number,
+    relativeVelocity: Vec3,
+  ): Vec3 | undefined {
+    if (wheelAngle === 0) return undefined
+    const forwardDistance = this.getForwardSpeed(relativeVelocity, input) * deltaTime
     const upVector = this.getUpVector(input.rotation)
     const angleRad = forwardDistance * wheelAngle * this.params.steeringIntensity
     return eulerDeltaAroundAxis(input.rotation, upVector, angleRad)
   }
 
-  private getForwardSpeed(input: TransformInput): number {
+  private getForwardSpeed(relativeVelocity: Vec3, input: TransformInput): number {
     const forward = this.getForwardVector(input.rotation)
-    return getForwardSpeedUtil(input.velocity, forward)
+    return getForwardSpeedUtil(relativeVelocity, forward)
   }
 
-  private setImpulse(input: TransformInput, _dt: number, forwardVector: Vec3): Vec3 {
+  private setImpulse(
+    input: TransformInput,
+    _dt: number,
+    forwardVector: Vec3,
+    relativeVelocity: Vec3,
+  ): Vec3 {
     const forward = this.getAction(input, 'throttle')
     const backward = this.getAction(input, 'brake')
     const gasBreakInput = forward - backward
     const gasBreakForce = scaleVec3(forwardVector, this.params.power * gasBreakInput)
-    const sideSpeed = this.getSidewaysVelocity(input.velocity, forwardVector)
+    const sideSpeed = this.getSidewaysVelocity(relativeVelocity, forwardVector)
     const magSide = Math.sqrt(
       sideSpeed[0] ** 2 + sideSpeed[1] ** 2 + sideSpeed[2] ** 2,
     )

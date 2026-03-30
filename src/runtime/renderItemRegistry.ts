@@ -591,7 +591,14 @@ export class RenderItemRegistry {
       }
       // TODO: Add ground detection
       input.environment.isGrounded = false
-      input.environment.isTouchingObject = this.physicsWorld.isEntityTouchingAny(item.entity.id) ?? false
+      const touching = this.physicsWorld.isEntityTouchingAny(item.entity.id) ?? false
+      input.environment.isTouchingObject = touching
+      if (touching) {
+        const support = this.physicsWorld.getAverageSupportVelocity(item.entity.id)
+        if (support) {
+          input.environment.supportVelocity = support
+        }
+      }
 
       // Execute transformer chain
       const output = item.transformerChain.execute(input, dt)

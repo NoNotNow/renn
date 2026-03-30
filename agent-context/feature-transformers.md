@@ -26,6 +26,7 @@ RawInput → InputMapping → TransformInput → TransformerChain → TransformO
 - `TransformOutput.color` (optional [r,g,b] 0–1) is applied by the render loop via `setColor` for display feedback.
 - `TransformOutput.addRotation` (optional Euler delta [x,y,z] rad): when set, the render loop **adds each component** to the current body Euler rotation, calls `physicsWorld.setRotation()`, then zeros angular velocity. Default is undefined so other transformers are unaffected.
 - `TransformOutput.setPose` (optional full world pose): **kinematic** bodies use Rapier `setNextKinematicTranslation` / `setNextKinematicRotation` before the step so contacts with dynamic bodies get correct friction. **Dynamic** bodies: position/rotation are set and linear/angular velocity are zeroed; scripted pose on dynamic bodies may fight other forces.
+- **`TransformInput.environment`** (filled by the runtime before the chain runs): `isTouchingObject` from narrow-phase contacts; when touching, optional **`supportVelocity`** — world-space linear velocity of contacting bodies averaged at solver contact points (`PhysicsWorld.getAverageSupportVelocity`). **`car2`** uses `input.velocity − supportVelocity` for forward speed (steering yaw), lateral grip, and lateral-to-forward transfer so motion on moving platforms matches motion relative to the surface. Omit `supportVelocity` when airborne or unknown (legacy behavior: world velocity only).
 - `resetAllForces()` is called before each frame so forces never accumulate across frames.
 
 ## Key files
@@ -39,7 +40,7 @@ src/
 │   ├── transformerPresets.ts                 # Default configs for Builder dropdown
 │   └── presets/
 │       ├── inputTransformer.ts               # Raw input → actions (priority 0)
-│       ├── car2Transformer.ts               # Impulse + addRotation (touch-gated)
+│       ├── car2Transformer.ts               # Impulse + addRotation; slip/speed vs supportVelocity
 │       ├── personTransformer.ts             # Walk/run + turn when grounded
 │       ├── targetPoseInputTransformer.ts     # Waypoints → TransformInput.target
 │       ├── wandererTransformer.ts            # Random poses in cube → TransformInput.target

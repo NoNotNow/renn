@@ -532,6 +532,46 @@ export class PhysicsWorld {
   }
 
   /**
+   * Average world-space linear velocity of contacting **other** bodies at solver contact points.
+   * Used so transformers (e.g. car2) can use velocity relative to the surface. Undefined if no samples.
+   */
+  getAverageSupportVelocity(entityId: string): [number, number, number] | undefined {
+    const collider = this.colliderMap.get(entityId)
+    if (!collider) return undefined
+    let sx = 0
+    let sy = 0
+    let sz = 0
+    let n = 0
+    this.world.contactPairsWith(collider, (other) => {
+      const otherEntityId = this.colliderHandleToEntityId.get(other.handle)
+      if (!otherEntityId || otherEntityId === entityId) return
+      const otherBody = other.parent()
+      if (!otherBody) return
+      this.world.contactPair(collider, other, (manifold, _flipped) => {
+        const ns = manifold.numSolverContacts()
+        if (ns > 0) {
+          for (let i = 0; i < ns; i++) {
+            const p = manifold.solverContactPoint(i)
+            const v = otherBody.velocityAtPoint(p)
+            sx += v.x
+            sy += v.y
+            sz += v.z
+            n++
+          }
+        } else if (manifold.numContacts() > 0) {
+          const v = otherBody.linvel()
+          sx += v.x
+          sy += v.y
+          sz += v.z
+          n++
+        }
+      })
+    })
+    if (n === 0) return undefined
+    return [sx / n, sy / n, sz / n]
+  }
+
+  /**
    * Call once per frame before applying transformer forces so that
    * addForce/addTorque do not accumulate across steps.
    */

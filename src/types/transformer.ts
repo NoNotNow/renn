@@ -89,6 +89,11 @@ export interface EnvironmentState {
   groundNormal?: Vec3
   /** True when the entity's collider has at least one contact with another collider. */
   isTouchingObject?: boolean
+  /**
+   * World-space linear velocity of supporting surface at contacts (averaged across solver contacts).
+   * Filled by the runtime when `isTouchingObject` is true; omit when airborne or unknown.
+   */
+  supportVelocity?: Vec3
 }
 
 /**
