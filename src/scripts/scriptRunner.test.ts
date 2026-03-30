@@ -29,6 +29,10 @@ function createMockGameAPI(overrides?: Partial<GameAPI>): GameAPI {
     setTransformerParam: vi.fn(),
     log: vi.fn(),
     snackbar: vi.fn(),
+    setScore: vi.fn(),
+    getScore: vi.fn().mockReturnValue(0),
+    setDamage: vi.fn(),
+    getDamage: vi.fn().mockReturnValue(0),
     ...overrides,
   }
 }
@@ -498,6 +502,28 @@ describe('ScriptRunner', () => {
     expect(game.getColor).toHaveBeenCalledWith('player')
     expect(game.getColor).toHaveBeenCalledWith('enemy')
     expect(game.getColor).toHaveBeenCalledTimes(3)
+  })
+
+  it('ctx.getScore and ctx.getDamage call game getters', () => {
+    const getScore = vi.fn().mockReturnValue(5)
+    const getDamage = vi.fn().mockReturnValue(7)
+    const world = createMockWorld({
+      entities: [{ id: 'player', scripts: ['hudReadScript'] }],
+      scripts: {
+        hudReadScript: {
+          event: 'onUpdate',
+          source: 'ctx.getScore(); ctx.getDamage();',
+        },
+      },
+    })
+    world.entities = world.entities ?? []
+    const game = createMockGameAPI({ getScore, getDamage })
+    const getMeshById = vi.fn()
+    const entities = createLoadedEntities(world)
+    const runner = new ScriptRunner(world, game, getMeshById, entities)
+    runner.runOnUpdate(0.016)
+    expect(getScore).toHaveBeenCalled()
+    expect(getDamage).toHaveBeenCalled()
   })
 
   it('ctx.addVectorToPosition with resetVelocity true passes 5th arg to game', () => {

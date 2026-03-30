@@ -185,8 +185,8 @@
             "keyboard": {
               "w": "throttle",
               "s": "brake",
-              "d": "steer_left",
-              "a": "steer_right",
+              "d": "steer_right",
+              "a": "steer_left",
               "space": "jump"
             },
             "sensitivity": {

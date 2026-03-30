@@ -66,7 +66,9 @@ ${methodLines}
   log(...args: unknown[]): void;
   snackbar(message: string, durationSeconds?: number): void;
   setScore(value: number): void;
+  getScore(): number;
   setDamage(value: number): void;
+  getDamage(): number;
 }`
 }
 

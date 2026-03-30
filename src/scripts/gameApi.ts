@@ -38,8 +38,12 @@ export interface GameAPI {
   snackbar(message: string, durationSeconds?: number): void
   /** Play HUD: set score (green). Non-finite or negative values are ignored. Display uses non-negative integers. */
   setScore(value: number): void
+  /** Last score set via `setScore` in this session (starts at 0). Ignored writes do not change this. */
+  getScore(): number
   /** Play HUD: set damage (red). Non-finite or negative values are ignored. Display uses non-negative integers. */
   setDamage(value: number): void
+  /** Last damage set via `setDamage` in this session (starts at 0). Ignored writes do not change this. */
+  getDamage(): number
 }
 
 /** Partial update for the play-mode HUD overlay. */
@@ -87,6 +91,8 @@ export function createGameAPI(
   onSnackbar?: (message: string, durationSeconds: number) => void,
   onHudPatch?: (patch: HudPatch) => void
 ): GameAPI {
+  let hudScore = 0
+  let hudDamage = 0
   return {
     get time() {
       return timeRef.current
@@ -181,12 +187,20 @@ export function createGameAPI(
     setScore(value: number) {
       const v = normalizeHudDisplay(value)
       if (v === null) return
+      hudScore = v
       onHudPatch?.({ score: v })
+    },
+    getScore() {
+      return hudScore
     },
     setDamage(value: number) {
       const v = normalizeHudDisplay(value)
       if (v === null) return
+      hudDamage = v
       onHudPatch?.({ damage: v })
+    },
+    getDamage() {
+      return hudDamage
     },
   }
 }

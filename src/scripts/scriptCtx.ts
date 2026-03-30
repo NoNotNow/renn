@@ -103,7 +103,9 @@ export interface ScriptCtxBase {
   log(...args: unknown[]): void
   snackbar(message: string, durationSeconds?: number): void
   setScore(value: number): void
+  getScore(): number
   setDamage(value: number): void
+  getDamage(): number
 }
 
 export interface OnSpawnCtx extends ScriptCtxBase {
@@ -291,7 +293,9 @@ function baseCtx(game: GameAPI, entity: Entity): ScriptCtxBase {
     log: (...args) => game.log(...args),
     snackbar: (message, durationSeconds) => game.snackbar(message, durationSeconds),
     setScore: (value) => game.setScore(value),
+    getScore: () => game.getScore(),
     setDamage: (value) => game.setDamage(value),
+    getDamage: () => game.getDamage(),
   } as ScriptCtxBase
 }
 

@@ -153,4 +153,35 @@ describe('createGameAPI HUD', () => {
       api.setDamage(2)
     }).not.toThrow()
   })
+
+  it('getScore returns 0 until a successful setScore', () => {
+    const api = createGameAPI(...fullGameApiArgs)
+    expect(api.getScore()).toBe(0)
+    api.setScore(9.2)
+    expect(api.getScore()).toBe(9)
+  })
+
+  it('getDamage returns 0 until a successful setDamage', () => {
+    const api = createGameAPI(...fullGameApiArgs)
+    expect(api.getDamage()).toBe(0)
+    api.setDamage(4)
+    expect(api.getDamage()).toBe(4)
+  })
+
+  it('does not change getScore when setScore is ignored', () => {
+    const api = createGameAPI(...fullGameApiArgs)
+    api.setScore(2)
+    expect(api.getScore()).toBe(2)
+    api.setScore(-1)
+    api.setScore(NaN)
+    expect(api.getScore()).toBe(2)
+  })
+
+  it('does not change getDamage when setDamage is ignored', () => {
+    const api = createGameAPI(...fullGameApiArgs)
+    api.setDamage(3)
+    expect(api.getDamage()).toBe(3)
+    api.setDamage(-0.5)
+    expect(api.getDamage()).toBe(3)
+  })
 })

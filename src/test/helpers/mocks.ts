@@ -25,6 +25,10 @@ export function createMockGameAPI(): GameAPI {
     setTransformerParam: vi.fn(),
     log: vi.fn(),
     snackbar: vi.fn(),
+    setScore: vi.fn(),
+    getScore: vi.fn().mockReturnValue(0),
+    setDamage: vi.fn(),
+    getDamage: vi.fn().mockReturnValue(0),
   } as unknown as GameAPI
 }
 
