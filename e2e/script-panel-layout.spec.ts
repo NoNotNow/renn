@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test } from '@playwright/test'
 
 test.describe('Script Panel Layout Investigation', () => {
   test('investigate Monaco editor layout and IntelliSense', async ({ page }) => {
@@ -93,7 +93,19 @@ test.describe('Script Panel Layout Investigation', () => {
         // Try to click inside the Monaco editor
         if (monacoExists) {
           const monacoTextArea = page.locator('.monaco-editor textarea').first()
-          await monacoTextArea.click()
+          // Monaco's editable input can briefly be in a readonly/overlay state; clicking is flaky
+          // and can be intercepted by Monaco's internal layers. Focus once it becomes editable.
+          await page
+            .waitForFunction(() => {
+              const el = document.querySelector('.monaco-editor textarea') as HTMLTextAreaElement | null
+              if (!el) return false
+              return !el.readOnly && !el.disabled
+            }, { timeout: 10000 })
+            .catch(() => {})
+
+          await monacoTextArea.evaluate((el) => {
+            ;(el as HTMLTextAreaElement).focus()
+          })
           await page.waitForTimeout(200)
           
           // Type something to trigger IntelliSense

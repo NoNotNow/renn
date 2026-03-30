@@ -10,9 +10,12 @@ test.describe('Performance booster', () => {
     await page.getByRole('button', { name: 'Tools' }).click()
     await page.getByRole('menuitem', { name: 'Performance booster' }).click()
 
-    const dialog = page.getByTestId('performance-booster-dialog')
-    await expect(dialog).toBeVisible()
-    await expect(dialog.getByRole('heading', { name: 'Performance booster' })).toBeVisible()
+    // Modal header title is outside the `data-testid="performance-booster-dialog"` wrapper.
+    const modal = page.getByRole('dialog', { name: /Performance\s*booster/i })
+    await expect(modal).toBeVisible({ timeout: 10000 })
+    await expect(modal.getByRole('heading', { name: /Performance\s*booster/i })).toBeVisible({ timeout: 10000 })
+
+    const dialog = modal.getByTestId('performance-booster-dialog')
     await expect(dialog.getByText('Meshes', { exact: true })).toBeVisible()
     await expect(dialog.getByText('Textures', { exact: true })).toBeVisible()
     await expect(dialog.getByText(/Lists trimesh bodies and entities with a/)).toBeVisible()

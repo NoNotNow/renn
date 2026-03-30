@@ -15,7 +15,11 @@ test.describe('Builder add entity', () => {
     await page.getByTitle('Add entity').selectOption('box')
 
     await expect(entityList.locator('li')).toHaveCount(initialCount + 1)
-    await expect(page.getByRole('button', { name: /^box [a-z]+ \d+$/ })).toBeVisible()
+    // The default world may already contain many "box <color> <n>" entities.
+    // Instead of a strict-mode ambiguous role query, assert on the newly-added list item.
+    const addedEntityButton = entityList.locator('li').nth(initialCount).getByRole('button')
+    await expect(addedEntityButton).toBeVisible()
+    await expect(addedEntityButton).toHaveText(/^box [a-z]+ \d+$/i)
 
     expect(pageErrors).toEqual([])
   })
