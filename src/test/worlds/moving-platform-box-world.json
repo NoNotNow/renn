@@ -1,0 +1,55 @@
+{
+  "version": "1.0",
+  "world": {
+    "gravity": [0, -9.81, 0]
+  },
+  "entities": [
+    {
+      "id": "platform",
+      "name": "Moving platform",
+      "bodyType": "kinematic",
+      "shape": { "type": "box", "width": 20, "height": 0.1, "depth": 20 },
+      "position": [0, 0.05, 0],
+      "rotation": [0, 0, 0],
+      "friction": 0.95,
+      "transformers": [
+        {
+          "type": "targetPoseInput",
+          "priority": 5,
+          "enabled": true,
+          "params": {
+            "speed": 3,
+            "mode": "pingPong",
+            "positionEpsilon": 0.15,
+            "rotationEpsilon": 0.2,
+            "poses": [
+              { "position": [-4, 0.05, 0], "rotation": [0, 0, 0] },
+              { "position": [4, 0.05, 0], "rotation": [0, 0, 0] }
+            ]
+          }
+        },
+        {
+          "type": "kinematicMovement",
+          "priority": 6,
+          "enabled": true,
+          "params": {}
+        }
+      ]
+    },
+    {
+      "id": "crate",
+      "name": "Crate on platform",
+      "bodyType": "dynamic",
+      "shape": { "type": "box", "width": 1, "height": 1, "depth": 1 },
+      "position": [0, 0.6, 0],
+      "rotation": [0, 0, 0],
+      "mass": 2,
+      "friction": 0.95,
+      "restitution": 0,
+      "linearDamping": 0.05,
+      "angularDamping": 0.2
+    }
+  ],
+  "assets": {},
+  "scripts": {}
+}

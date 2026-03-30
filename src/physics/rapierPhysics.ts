@@ -551,6 +551,20 @@ export class PhysicsWorld {
     }
   }
 
+  /**
+   * Pose for kinematic bodies, to run **before** {@link PhysicsWorld.step}.
+   * Uses Rapier’s next-kinematic APIs so interacting dynamic bodies get correct
+   * contact friction (see `RigidBody.setNextKinematicTranslation` in Rapier).
+   * Do not use {@link setPosition} / {@link setRotation} for the same frame on kinematic movers.
+   */
+  setNextKinematicPose(entityId: string, x: number, y: number, z: number, rotation: Rotation): void {
+    const body = this.bodyMap.get(entityId)
+    if (!body || !body.isKinematic()) return
+    const quat = eulerToRapierQuaternion(rotation)
+    body.setNextKinematicTranslation({ x, y, z })
+    body.setNextKinematicRotation(quat)
+  }
+
   setRotation(entityId: string, rotation: [number, number, number]): void {
     const body = this.bodyMap.get(entityId)
     if (body) {

@@ -25,7 +25,7 @@ RawInput → InputMapping → TransformInput → TransformerChain → TransformO
 - Target sources may **mutate** `TransformInput.target` each frame (last writer wins if multiple write).
 - `TransformOutput.color` (optional [r,g,b] 0–1) is applied by the render loop via `setColor` for display feedback.
 - `TransformOutput.addRotation` (optional Euler delta [x,y,z] rad): when set, the render loop **adds each component** to the current body Euler rotation, calls `physicsWorld.setRotation()`, then zeros angular velocity. Default is undefined so other transformers are unaffected.
-- `TransformOutput.setPose` (optional full world pose): when set, the render loop sets position and rotation and zeros linear/angular velocity. Use with **`bodyType: kinematic`** for scripted paths; dynamic bodies may fight other forces.
+- `TransformOutput.setPose` (optional full world pose): **kinematic** bodies use Rapier `setNextKinematicTranslation` / `setNextKinematicRotation` before the step so contacts with dynamic bodies get correct friction. **Dynamic** bodies: position/rotation are set and linear/angular velocity are zeroed; scripted pose on dynamic bodies may fight other forces.
 - `resetAllForces()` is called before each frame so forces never accumulate across frames.
 
 ## Key files
