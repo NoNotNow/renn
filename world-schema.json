@@ -142,7 +142,10 @@
             "fov": { "type": "number" },
             "defaultPosition": { "$ref": "#/$defs/Vec3" },
             "defaultRotation": { "$ref": "#/$defs/Rotation" },
-            "editorFreePose": { "$ref": "#/$defs/EditorFreePose" }
+            "editorFreePose": { "$ref": "#/$defs/EditorFreePose" },
+            "orbitYaw": { "type": "number" },
+            "orbitPitch": { "type": "number" },
+            "orbitDistance": { "type": "number" }
           },
           "additionalProperties": false
         }

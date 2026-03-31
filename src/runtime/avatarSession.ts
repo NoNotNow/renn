@@ -1,5 +1,5 @@
 import type { CameraController } from '@/camera/cameraController'
-import type { AvatarFocusSnapshot, CameraConfig, Entity } from '@/types/world'
+import type { AvatarFocusSnapshot, CameraConfig, Entity, RennWorld } from '@/types/world'
 import {
   buildAvatarFocusSnapshotFromPreferred,
   entityIsPlayableAvatar,
@@ -50,6 +50,16 @@ export class AvatarSession {
 
   getCurrentAvatarId(): string | null {
     return this.controlledEntityIdRef.current
+  }
+
+  /**
+   * Keep entity list and world camera in sync with the live document (Builder edits, JSON apply).
+   * Call before {@link setCurrentAvatar} when the follow target changes so each avatar’s
+   * `preferredCamera` (orbit, mode, control, distance) is read from current `world.entities`.
+   */
+  syncWorld(world: RennWorld): void {
+    this.entities = world.entities
+    this.worldCamera = world.world.camera
   }
 
   /** Returns false if id is missing or not an avatar roster member. */

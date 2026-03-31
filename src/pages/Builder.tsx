@@ -823,6 +823,7 @@ export default function Builder() {
           onSoundPlaybackCommand={(action) =>
             setSoundPlaybackCommand({ action, nonce: Date.now() + Math.random() })
           }
+          getAvatarFocusSnapshot={() => sceneViewRef.current?.getAvatarFocusSnapshot() ?? null}
           isOpen={leftDrawerOpen}
           onToggle={() => setLeftDrawerOpen(!leftDrawerOpen)}
         />

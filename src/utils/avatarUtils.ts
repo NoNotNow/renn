@@ -4,6 +4,7 @@ import type {
   CameraControl,
   CameraMode,
   Entity,
+  EntityPreferredCamera,
 } from '@/types/world'
 import { DEFAULT_PERSPECTIVE_FOV_DEGREES } from '@/camera/cameraController'
 
@@ -50,7 +51,7 @@ const DEFAULT_CONTROL: CameraControl = 'follow'
  */
 export function buildAvatarFocusSnapshotFromPreferred(
   worldCamera: CameraConfig | undefined,
-  preferred: Partial<CameraConfig> | undefined,
+  preferred: EntityPreferredCamera | undefined,
   targetId: string,
 ): AvatarFocusSnapshot {
   const w = worldCamera
@@ -65,6 +66,10 @@ export function buildAvatarFocusSnapshotFromPreferred(
       ? (fovConfig ?? DEFAULT_PERSPECTIVE_FOV_DEGREES)
       : DEFAULT_PERSPECTIVE_FOV_DEGREES
 
+  const orbitYaw = typeof p.orbitYaw === 'number' ? p.orbitYaw : 0
+  const orbitPitch = typeof p.orbitPitch === 'number' ? p.orbitPitch : 0
+  const orbitDistance = typeof p.orbitDistance === 'number' ? p.orbitDistance : distance
+
   return {
     control,
     mode,
@@ -72,9 +77,9 @@ export function buildAvatarFocusSnapshotFromPreferred(
     distance,
     height,
     fov: fovConfig,
-    orbitYaw: 0,
-    orbitPitch: 0,
-    orbitDistance: distance,
+    orbitYaw,
+    orbitPitch,
+    orbitDistance,
     effectiveFovDegrees: effectiveFov,
   }
 }

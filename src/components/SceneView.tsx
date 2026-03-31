@@ -1,7 +1,15 @@
 import { useRef, useEffect, forwardRef, useImperativeHandle, useState, useMemo, useCallback } from 'react'
 import * as THREE from 'three'
 import { loadWorld } from '@/loader/loadWorld'
-import type { RennWorld, Vec3, Rotation, CameraConfig, Entity, EditorFreePose } from '@/types/world'
+import type {
+  RennWorld,
+  Vec3,
+  Rotation,
+  CameraConfig,
+  Entity,
+  EditorFreePose,
+  AvatarFocusSnapshot,
+} from '@/types/world'
 import type { DisposableAssetResolver } from '@/loader/assetResolverImpl'
 import { DEFAULT_GRAVITY, DEFAULT_ROTATION } from '@/types/world'
 import { eulerToQuaternion } from '@/utils/rotationUtils'
@@ -109,6 +117,8 @@ export interface SceneViewHandle {
   /** Builder: root entity mesh (for trimesh, includes wrapper with `userData.trimeshScene`). */
   getMeshForEntity: (entityId: string) => THREE.Mesh | null
   getEntityTriangleCount: (entityId: string) => number | null
+  /** Live follow/orbit camera state for persisting avatar defaults (Builder). */
+  getAvatarFocusSnapshot: () => AvatarFocusSnapshot | null
 }
 
 function SceneViewInner({
@@ -139,6 +149,7 @@ function SceneViewInner({
   const [camera, setCamera] = useState<THREE.PerspectiveCamera | null>(null)
   const [renderer, setRenderer] = useState<THREE.WebGLRenderer | null>(null)
   const cameraCtrlRef = useRef<CameraController | null>(null)
+  const avatarSessionRef = useRef<AvatarSession | null>(null)
   const scriptRunnerRef = useRef<ScriptRunner | null>(null)
   const physicsRef = useRef<PhysicsWorld | null>(null)
   const registryRef = useRef<RenderItemRegistry | null>(null)
@@ -303,6 +314,7 @@ function SceneViewInner({
       if (!m) return null
       return countVisualModelTriangles(m)
     },
+    getAvatarFocusSnapshot: () => cameraCtrlRef.current?.captureAvatarFocusState() ?? null,
   }), [camera, world.world.camera, editorFreePoseRef])
 
   // Main scene setup effect
@@ -421,6 +433,7 @@ function SceneViewInner({
           controlledEntityIdRef: ref,
           onCurrentAvatarChange: (id) => onCurrentAvatarChangeRef.current?.(id),
         })
+        avatarSessionRef.current = avatarSession
       }
 
       const getPhysicsWorld = () => physicsRef.current
@@ -711,6 +724,7 @@ function SceneViewInner({
       }
       
       // Clear refs immediately to prevent any further use
+      avatarSessionRef.current = null
       cameraCtrlRef.current = null
       scriptRunnerRef.current = null
       
@@ -749,11 +763,21 @@ function SceneViewInner({
     }
   }, [sceneKey, version, runPhysics, runScripts, shadowsEnabled, freeFlyKeysRef, editorFreePoseRef, showGameHud])
 
-  // Update camera config when it changes (without reloading the world)
+  // Update camera config when it changes (without reloading the world).
+  // After setConfig, sync AvatarSession with `world` and re-apply follow focus so each avatar’s
+  // persisted preferred (orbit angle, mode, control, distance) is not shared across targets.
   useEffect(() => {
     if (!cameraCtrlRef.current || !cameraConfig) return
-    cameraCtrlRef.current.setConfig(cameraConfig)
-  }, [cameraConfig])
+    const ctrl = cameraCtrlRef.current
+    const session = avatarSessionRef.current
+    if (session) {
+      session.syncWorld(world)
+    }
+    ctrl.setConfig(cameraConfig)
+    if (session && runScripts && runPhysics && cameraConfig.control === 'follow' && cameraConfig.target) {
+      session.setCurrentAvatar(cameraConfig.target)
+    }
+  }, [cameraConfig, world, runScripts, runPhysics])
 
   // Update gravity when it changes
   useEffect(() => {

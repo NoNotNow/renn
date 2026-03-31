@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { Entity, RennWorld, EntityAvatarConfig } from '@/types/world'
+import type { Entity, RennWorld, EntityPreferredCamera, AvatarFocusSnapshot } from '@/types/world'
 import type { TransformerConfig } from '@/types/transformer'
 import type { CameraMode } from '@/types/world'
 import Modal from './Modal'
@@ -8,7 +8,8 @@ import TransformerEditor from './TransformerEditor'
 import EntityScriptEditor from './EntityScriptEditor'
 import CollapsibleSection from './CollapsibleSection'
 import { CAMERA_MODE_CYCLE_ORDER, CAMERA_MODE_LABELS } from '@/types/world'
-import { fieldLabelStyle, sidebarTextInputStyle } from './sharedStyles'
+import { fieldLabelStyle, secondaryButtonStyleDisabled, sidebarTextInputStyle } from './sharedStyles'
+import { theme } from '@/config/theme'
 import { useEditorUndo } from '@/contexts/EditorUndoContext'
 import { uiLogger } from '@/utils/uiLogger'
 import { validateEntityAvatarConfig, normalizeAvatarDraft } from '@/utils/entityAvatarValidation'
@@ -47,6 +48,10 @@ export interface AvatarDialogProps {
   onCameraTargetChange?: (entityId: string) => void
   /** Switch which entity this dialog edits when a roster chip is chosen (e.g. Builder sidebar state). */
   onEditingEntityIdChange?: (entityId: string) => void
+  /** Builder: capture live follow/orbit camera for “set as default”. */
+  onRequestAvatarFocusSnapshot?: () => AvatarFocusSnapshot | null
+  /** Builder camera control; “set default” only when follow (matches runtime camera). */
+  cameraControl?: 'free' | 'follow' | 'top' | 'front' | 'right'
 }
 
 function avatarJsonString(entity: Entity): string {
@@ -63,6 +68,8 @@ export default function AvatarDialog({
   cameraTarget,
   onCameraTargetChange,
   onEditingEntityIdChange,
+  onRequestAvatarFocusSnapshot,
+  cameraControl,
 }: AvatarDialogProps) {
   const undo = useEditorUndo()
 
@@ -132,6 +139,43 @@ export default function AvatarDialog({
 
   if (!isOpen || !entity) return null
 
+  const canSetDefaultCamera =
+    Boolean(onRequestAvatarFocusSnapshot) && cameraControl === 'follow' && entity.avatar?.enabled !== false
+
+  const onSetDefaultCamera = () => {
+    if (!onRequestAvatarFocusSnapshot || !canSetDefaultCamera) return
+    const snap = onRequestAvatarFocusSnapshot()
+    if (!snap) return
+    undo?.pushBeforeEdit()
+    uiLogger.change('AvatarDialog', 'Set preferred camera from live view', { entityId })
+    const nextPref: EntityPreferredCamera = {
+      ...(entity.avatar?.preferredCamera ?? {}),
+      mode: snap.mode,
+      control: snap.control,
+      distance: snap.distance,
+      height: snap.height,
+      fov: snap.mode === 'firstPerson' ? snap.effectiveFovDegrees : snap.fov,
+      orbitYaw: snap.orbitYaw,
+      orbitPitch: snap.orbitPitch,
+      orbitDistance: snap.orbitDistance,
+    }
+    onWorldChange({
+      ...world,
+      entities: world.entities.map((e) =>
+        e.id === entityId
+          ? {
+              ...e,
+              avatar: {
+                ...(e.avatar ?? { enabled: true }),
+                enabled: true,
+                preferredCamera: nextPref,
+              },
+            }
+          : e,
+      ),
+    })
+  }
+
   const preferredMode: CameraMode =
     entity.avatar?.preferredCamera?.mode ?? world.world.camera?.mode ?? 'follow'
 
@@ -142,12 +186,29 @@ export default function AvatarDialog({
   const { line, col, lineText } = pos != null ? lineColFromPosition(draftAvatarJson, pos) : { line: 0, col: 0, lineText: '' }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={`Avatar: ${entity.name ?? entity.id}`} width={720} height={880}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <Modal isOpen={isOpen} onClose={onClose} title={`Avatar · ${entity.name ?? entity.id}`} width={760} height={900}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {onCameraTargetChange && avatarRosterEntities.length > 0 ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <div style={{ fontSize: 12, color: '#9aa4b2', minWidth: 54 }}>Avatars</div>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <div
+            style={{
+              padding: '12px 14px',
+              borderRadius: 8,
+              border: `1px solid ${theme.border.default}`,
+              background: theme.bg.section,
+            }}
+          >
+            <div
+              style={{
+                fontSize: 10,
+                letterSpacing: '0.06em',
+                textTransform: 'uppercase',
+                color: theme.text.muted,
+                marginBottom: 8,
+              }}
+            >
+              Camera focus
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               {avatarRosterEntities.map((e) => {
                 const active = e.id === avatarRosterFocusEntityId
                 return (
@@ -159,18 +220,20 @@ export default function AvatarDialog({
                       onCameraTargetChange(e.id)
                       onEditingEntityIdChange?.(e.id)
                     }}
-                    title={`Camera target: ${e.name ?? e.id}`}
+                    title={`Follow target: ${e.name ?? e.id}`}
                     aria-label={`Select avatar ${e.name ?? e.id}`}
                     aria-pressed={active}
                     style={{
-                      width: 28,
-                      height: 28,
-                      borderRadius: 14,
-                      background: active ? '#2a2d45' : 'rgba(0,0,0,0.2)',
-                      border: active ? '1px solid #4a9eff' : '1px solid #2f3545',
-                      color: '#e6e9f2',
-                      fontSize: 12,
+                      width: 32,
+                      height: 32,
+                      borderRadius: 8,
+                      background: active ? theme.button.pick : theme.bg.input,
+                      border: active ? `1px solid ${theme.booster.tileSelectBorder}` : `1px solid ${theme.border.default}`,
+                      color: theme.text.primary,
+                      fontSize: 13,
+                      fontWeight: 600,
                       cursor: 'pointer',
+                      transition: 'background-color 0.15s ease, border-color 0.15s ease',
                     }}
                   >
                     {avatarEntityIconLetter(e)}
@@ -178,10 +241,13 @@ export default function AvatarDialog({
                 )
               })}
             </div>
+            <p style={{ margin: '10px 0 0', fontSize: 11, lineHeight: 1.45, color: theme.hint }}>
+              Choose which avatar the viewport follows. Editing below applies to the entity named in the title.
+            </p>
           </div>
         ) : null}
 
-        <CollapsibleSection title="Playable + Preferred Camera" defaultCollapsed={false}>
+        <CollapsibleSection title="Playable & camera defaults" defaultCollapsed={false}>
           <Switch
             checked={currentAvatarEnabled}
             onChange={(checked) => {
@@ -194,9 +260,9 @@ export default function AvatarDialog({
             label="Playable avatar"
           />
 
-          <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <div style={{ flex: 1 }}>
+          <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <div style={{ flex: '1 1 200px' }}>
                 <label style={fieldLabelStyle}>Preferred camera mode</label>
                 <select
                   value={preferredMode}
@@ -214,7 +280,13 @@ export default function AvatarDialog({
                     })
                   }}
                   disabled={entity.avatar?.enabled === false}
-                  style={{ ...sidebarTextInputStyle, padding: '6px 8px' }}
+                  style={{
+                    ...sidebarTextInputStyle,
+                    padding: '8px 10px',
+                    background: theme.bg.input,
+                    border: `1px solid ${theme.border.default}`,
+                    color: theme.text.primary,
+                  }}
                 >
                   {CAMERA_MODE_CYCLE_ORDER.map((m) => (
                     <option key={m} value={m}>
@@ -224,7 +296,7 @@ export default function AvatarDialog({
                 </select>
               </div>
 
-              <div style={{ width: 180 }}>
+              <div style={{ width: 180, minWidth: 140 }}>
                 <label style={fieldLabelStyle}>Preferred distance</label>
                 <input
                   type="number"
@@ -235,13 +307,13 @@ export default function AvatarDialog({
                   disabled={entity.avatar?.enabled === false}
                   onChange={(e) => {
                     const raw = e.target.value
-                    const nextPref: NonNullable<EntityAvatarConfig['preferredCamera']> = {
+                    const nextPref: EntityPreferredCamera = {
                       ...(entity.avatar?.preferredCamera ?? {}),
                     }
                     if (raw === '') {
-                      delete (nextPref as any).distance
+                      delete nextPref.distance
                     } else {
-                      ;(nextPref as any).distance = Number(raw)
+                      nextPref.distance = Number(raw)
                     }
                     applyUpdate({
                       avatar: {
@@ -251,9 +323,60 @@ export default function AvatarDialog({
                       },
                     })
                   }}
-                  style={sidebarTextInputStyle}
+                  style={{
+                    ...sidebarTextInputStyle,
+                    background: theme.bg.input,
+                    border: `1px solid ${theme.border.default}`,
+                    color: theme.text.primary,
+                  }}
                 />
               </div>
+            </div>
+
+            <div
+              style={{
+                padding: '12px 14px',
+                borderRadius: 8,
+                border: `1px solid ${theme.border.default}`,
+                background: 'rgba(35, 40, 54, 0.45)',
+              }}
+            >
+              <div style={{ fontSize: 12, color: theme.text.secondary, marginBottom: 8 }}>
+                Saved view for this avatar
+              </div>
+              <p style={{ margin: '0 0 10px', fontSize: 11, lineHeight: 1.5, color: theme.hint }}>
+                When you switch to this avatar (or return after visiting another), the camera uses the saved orbit and
+                distance if no live session memory exists yet.
+              </p>
+              <button
+                type="button"
+                disabled={!canSetDefaultCamera}
+                onClick={onSetDefaultCamera}
+                aria-label="Set current camera as default"
+                data-testid="avatar-set-default-camera"
+                style={{
+                  ...(canSetDefaultCamera ? {} : secondaryButtonStyleDisabled),
+                  width: '100%',
+                  padding: '9px 14px',
+                  fontWeight: 500,
+                  border: `1px solid ${canSetDefaultCamera ? theme.button.applyBorder : theme.border.default}`,
+                  background: canSetDefaultCamera ? theme.button.apply : theme.bg.surface,
+                  color: canSetDefaultCamera ? theme.text.primary : theme.text.disabled,
+                  cursor: canSetDefaultCamera ? 'pointer' : 'not-allowed',
+                  borderRadius: 6,
+                  fontSize: 12,
+                }}
+              >
+                Set current camera as default
+              </button>
+              {!onRequestAvatarFocusSnapshot ? (
+                <p style={{ margin: '8px 0 0', fontSize: 10, color: theme.text.muted }}>Unavailable in this context.</p>
+              ) : cameraControl !== 'follow' ? (
+                <p style={{ margin: '8px 0 0', fontSize: 10, color: theme.text.muted }}>
+                  Switch the Builder camera to <strong style={{ color: theme.text.secondary }}>Follow</strong> to capture
+                  the orbit you see in the viewport.
+                </p>
+              ) : null}
             </div>
           </div>
         </CollapsibleSection>

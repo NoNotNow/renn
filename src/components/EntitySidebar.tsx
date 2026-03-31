@@ -3,6 +3,7 @@ import {
   type Entity,
   type CameraMode,
   type RennWorld,
+  type AvatarFocusSnapshot,
   CAMERA_MODE_CYCLE_ORDER,
   CAMERA_MODE_LABELS,
 } from '@/types/world'
@@ -36,6 +37,8 @@ export interface EntitySidebarProps {
   onCameraModeChange: (mode: CameraMode) => void
   onWorldChange: (world: RennWorld) => void
   onSoundPlaybackCommand?: (action: 'play' | 'stop') => void
+  /** Builder: read live follow/orbit state for “save as default” in Avatar dialog. */
+  getAvatarFocusSnapshot?: () => AvatarFocusSnapshot | null
   isOpen: boolean
   onToggle: () => void
 }
@@ -72,6 +75,7 @@ export default function EntitySidebar({
   onCameraModeChange,
   onWorldChange,
   onSoundPlaybackCommand,
+  getAvatarFocusSnapshot,
   isOpen,
   onToggle,
 }: EntitySidebarProps) {
@@ -518,6 +522,7 @@ export default function EntitySidebar({
                         </div>
                         <button
                           type="button"
+                          aria-label="Edit avatar settings"
                           onClick={() => {
                             if (!avatarRosterFocusEntityId) return
                             setAvatarDialogEntityId(avatarRosterFocusEntityId)
@@ -609,6 +614,8 @@ export default function EntitySidebar({
         cameraTarget={cameraTarget}
         onCameraTargetChange={onCameraTargetChange}
         onEditingEntityIdChange={(id) => setAvatarDialogEntityId(id)}
+        onRequestAvatarFocusSnapshot={getAvatarFocusSnapshot}
+        cameraControl={cameraControl}
       />
     ) : null}
     </>

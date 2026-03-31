@@ -127,5 +127,50 @@ describe('AvatarDialog', () => {
     expect(onCameraTargetChange).toHaveBeenCalledWith('e2')
     expect(onEditingEntityIdChange).toHaveBeenCalledWith('e2')
   })
+
+  it('persists current camera snapshot as preferred defaults when using set default button', async () => {
+    const user = userEvent.setup()
+    const onWorldChange = vi.fn()
+    const world = makeWorld()
+
+    const getAvatarFocusSnapshot = vi.fn(() => ({
+      control: 'follow' as const,
+      mode: 'thirdPerson' as const,
+      target: 'e1',
+      distance: 10,
+      height: 2,
+      fov: 50,
+      orbitYaw: 0.1,
+      orbitPitch: 0.2,
+      orbitDistance: 11,
+      effectiveFovDegrees: 50,
+    }))
+
+    render(
+      <CopyProvider>
+        <AvatarDialog
+          isOpen
+          onClose={() => {}}
+          world={world}
+          entityId="e1"
+          onWorldChange={onWorldChange}
+          onRequestAvatarFocusSnapshot={getAvatarFocusSnapshot}
+          cameraControl="follow"
+        />
+      </CopyProvider>,
+    )
+
+    await user.click(screen.getByRole('button', { name: /set current camera as default/i }))
+    expect(onWorldChange).toHaveBeenCalledTimes(1)
+    const nextWorld = onWorldChange.mock.calls[0]![0] as RennWorld
+    const ent = nextWorld.entities.find((e) => e.id === 'e1')
+    expect(ent?.avatar?.preferredCamera?.orbitYaw).toBeCloseTo(0.1)
+    expect(ent?.avatar?.preferredCamera?.orbitPitch).toBeCloseTo(0.2)
+    expect(ent?.avatar?.preferredCamera?.orbitDistance).toBeCloseTo(11)
+    expect(ent?.avatar?.preferredCamera?.mode).toBe('thirdPerson')
+    expect(ent?.avatar?.preferredCamera?.control).toBe('follow')
+    expect(ent?.avatar?.preferredCamera?.distance).toBe(10)
+    expect(ent?.avatar?.preferredCamera?.height).toBe(2)
+  })
 })
 

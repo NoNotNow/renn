@@ -73,12 +73,21 @@ export interface AvatarFocusSnapshot {
   effectiveFovDegrees: number
 }
 
+/**
+ * Persisted preferred camera for an avatar (subset of {@link CameraConfig} plus orbit saved from the live view).
+ */
+export interface EntityPreferredCamera extends Partial<CameraConfig> {
+  orbitYaw?: number
+  orbitPitch?: number
+  orbitDistance?: number
+}
+
 /** Optional: entity can be selected as play avatar (+ / − cycle, scripts). */
 export interface EntityAvatarConfig {
   /** Default true when `avatar` is present. Set false to omit from the avatar roster. */
   enabled?: boolean
   /** First-time focus defaults when no session snapshot exists for this entity. */
-  preferredCamera?: Partial<CameraConfig>
+  preferredCamera?: EntityPreferredCamera
 }
 
 export interface DirectionalLightConfig {
