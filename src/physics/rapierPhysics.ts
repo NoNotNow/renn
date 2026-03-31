@@ -11,35 +11,16 @@ import type {
 } from '@/types/world'
 import type { Rotation, Vec3 } from '@/types/world'
 import { DEFAULT_GRAVITY, DEFAULT_ROTATION } from '@/types/world'
-import { extractMeshGeometry, getGeometryInfo } from '@/utils/geometryExtractor'
+import type { ExtractedGeometry } from '@/utils/geometryExtractor'
+import {
+  extractMeshGeometry,
+  getGeometryInfo,
+  withTrimeshSceneDetachedFromEntityWrapper,
+} from '@/utils/geometryExtractor'
 import { simplifyGeometry, shouldSimplifyGeometry, ensureMeshoptSimplifierReady } from '@/utils/meshSimplifier'
-import { eulerToQuaternion, eulerToRapierQuaternion } from '@/utils/rotationUtils'
+import { eulerToRapierQuaternion } from '@/utils/rotationUtils'
+import { transformTrimeshVertices } from '@/utils/trimeshTransform'
 import type { CollisionImpact } from '@/scripts/scriptCtx'
-
-/** Transform vertices by model rotation, model scale, then entity scale (order matches rendering). */
-function transformTrimeshVertices(
-  vertices: Float32Array,
-  modelRotation: Rotation,
-  modelScale: Vec3,
-  entityScale: Vec3
-): Float32Array {
-  const quat = eulerToQuaternion(modelRotation)
-  const [msx, msy, msz] = modelScale
-  const [sx, sy, sz] = entityScale
-  const v = new THREE.Vector3()
-  const out = new Float32Array(vertices.length)
-  for (let i = 0; i < vertices.length; i += 3) {
-    v.set(vertices[i], vertices[i + 1], vertices[i + 2])
-    v.applyQuaternion(quat)
-    v.x *= msx
-    v.y *= msy
-    v.z *= msz
-    out[i] = v.x * sx
-    out[i + 1] = v.y * sy
-    out[i + 2] = v.z * sz
-  }
-  return out
-}
 
 export type CollisionPair = { entityIdA: string; entityIdB: string; impact?: CollisionImpact }
 
@@ -301,17 +282,22 @@ export class PhysicsWorld {
         // Check if we have a mesh with trimesh metadata
         if (mesh && mesh.userData.isTrimeshSource) {
           try {
-            // Extract geometry from the trimesh scene (stored in userData)
+            // Extract geometry from the trimesh scene (stored in userData).
+            // Use world transforms so internal GLTF hierarchy (e.g. -90° X on an intermediate node)
+            // matches rendering. Detach from the entity wrapper so entity rotation/position are not
+            // baked in (Rapier applies those on the body). Model rotation/scale from the inspector
+            // are already on `modelScene` via applyModelTransform before this runs.
             const sourceScene = mesh.userData.trimeshScene || mesh
-            let extractedGeometry = extractMeshGeometry(sourceScene, false)
-            
+            let extractedGeometry: ExtractedGeometry | null = null
+            withTrimeshSceneDetachedFromEntityWrapper(sourceScene, () => {
+              extractedGeometry = extractMeshGeometry(sourceScene, true)
+            })
+
             if (extractedGeometry && extractedGeometry.vertices.length > 0 && extractedGeometry.indices.length > 0) {
-              const modelRotation: Rotation = entity.modelRotation ?? [0, 0, 0]
-              const modelScale: Vec3 = entity.modelScale ?? [1, 1, 1]
               const transformedVertices = transformTrimeshVertices(
                 extractedGeometry.vertices,
-                modelRotation,
-                modelScale,
+                [0, 0, 0],
+                [1, 1, 1],
                 scale
               )
               extractedGeometry = { vertices: transformedVertices, indices: extractedGeometry.indices }

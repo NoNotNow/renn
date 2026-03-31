@@ -207,6 +207,24 @@ export function extractMeshGeometryFromMesh(mesh: THREE.Mesh): ExtractedGeometry
   return mergeGeometries([geometry], [matrix])
 }
 
+/**
+ * Temporarily removes `root` from its parent so world matrices exclude the entity wrapper
+ * (outer mesh position/rotation/scale) while still including internal GLTF hierarchy (e.g. Blender
+ * → glTF -90° X on an intermediate node). Used for trimesh physics so colliders match rendering.
+ */
+export function withTrimeshSceneDetachedFromEntityWrapper<T>(root: THREE.Object3D, fn: () => T): T {
+  const parent = root.parent
+  parent?.remove(root)
+  root.updateWorldMatrix(true, true)
+  try {
+    return fn()
+  } finally {
+    if (parent) {
+      parent.add(root)
+    }
+  }
+}
+
 export function triangleCountForBufferGeometry(geometry: THREE.BufferGeometry): number {
   const index = geometry.getIndex()
   if (index) return index.count / 3
