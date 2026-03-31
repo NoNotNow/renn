@@ -62,7 +62,7 @@ export interface PerformanceBoosterDialogProps {
   onTextureTargetSelected: (entityId: string | null) => void
   onRequestPickMesh: () => void
   onRequestPickTexture: () => void
-  onApplyMesh: (entityId: string, config: TrimeshSimplificationConfig) => void
+  onApplyMesh: (entityId: string, config: TrimeshSimplificationConfig) => void | Promise<void>
   onApplyTexture: (entityId: string, maxEdgePx: number) => Promise<void>
 }
 
@@ -242,7 +242,7 @@ export default function PerformanceBoosterDialog({
     !meshApplyBlockedByRatio &&
     !meshApplyBlockedByPreview
 
-  const handleApplyMeshClick = useCallback(() => {
+  const handleApplyMeshClick = useCallback(async () => {
     if (!meshTargetEntityId || !meshEntity || !entityHasHeavyMeshCandidate(meshEntity)) return
     const orig = previewOriginal ?? sceneViewRef.current?.getEntityTriangleCount(meshTargetEntityId) ?? 0
     if (
@@ -260,7 +260,7 @@ export default function PerformanceBoosterDialog({
       algorithm: meshAlgorithm,
       maxError: meshMaxError,
     })
-    onApplyMesh(meshTargetEntityId, cfg)
+    await onApplyMesh(meshTargetEntityId, cfg)
     uiLogger.change('PerformanceBooster', 'Apply mesh simplification', {
       entityId: meshTargetEntityId,
       algorithm: meshAlgorithm,

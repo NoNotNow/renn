@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
-import type { RennWorld, Entity, Vec3, Rotation, Shape } from '@/types/world'
+import type { RennWorld, Entity, Vec3, Rotation, Shape, CameraMode } from '@/types/world'
+import { CAMERA_MODE_CYCLE_ORDER, CAMERA_MODE_LABELS } from '@/types/world'
 import type { TransformerConfig } from '@/types/transformer'
 import { uiLogger } from '@/utils/uiLogger'
 import TransformEditor from './TransformEditor'
@@ -34,6 +35,7 @@ import {
   mergeNumber,
   mergeBodyType,
   mergeName,
+  mergeAvatar,
   allTrimeshOrAllPrimitiveModelLayout,
 } from '@/utils/entityInspectorMerge'
 import { DEFAULT_POSITION, DEFAULT_ROTATION, DEFAULT_SCALE } from '@/types/world'
@@ -154,6 +156,7 @@ export default function PropertyPanel({
   const rotMerged = mergeRotation(entities, (e) => livePoses?.get(e.id)?.rotation ?? e.rotation ?? DEFAULT_ROTATION)
   const scaleMerged = mergeScale(entities)
   const mergedTransformers = mergeTransformers(entities)
+  const mergedAvatar = mergeAvatar(entities)
   const mergedBodyType = mergeBodyType(entities)
   const mergedMass = mergeNumber(entities, (e) => e.mass, 1)
   const mergedRestitution = mergeNumber(entities, (e) => e.restitution, 0)
@@ -686,6 +689,84 @@ export default function PropertyPanel({
               />
             </CollapsibleSection>
           )}
+
+          <CollapsibleSection title="Avatar (play)" copyPayload={mergedAvatar ?? {}}>
+            <Switch
+              checked={
+                mergedAvatar !== undefined &&
+                mergedAvatar !== null &&
+                mergedAvatar.enabled !== false
+              }
+              disabled={anyLocked || mergedAvatar === null}
+              onChange={(checked) => {
+                undo?.pushBeforeEdit()
+                uiLogger.change('PropertyPanel', 'Toggle entity avatar', { entityIds: ids, value: checked })
+                updateAll(checked ? { avatar: { enabled: true } } : { avatar: undefined })
+              }}
+              label="Playable avatar (+/− when Game HUD on, scripts)"
+            />
+            {mergedAvatar === null ? (
+              <div style={{ fontSize: 11, color: '#888', marginTop: 6 }}>Mixed avatar settings</div>
+            ) : null}
+            {!isMulti &&
+            mergedAvatar &&
+            mergedAvatar !== null &&
+            mergedAvatar.enabled !== false ? (
+              <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <label style={fieldLabelStyle}>Preferred camera mode</label>
+                <select
+                  value={primaryEntity.avatar?.preferredCamera?.mode ?? world.world.camera?.mode ?? 'follow'}
+                  onChange={(e) => {
+                    const mode = e.target.value as CameraMode
+                    undo?.pushBeforeEdit()
+                    uiLogger.change('PropertyPanel', 'Avatar preferred camera mode', { entityIds: ids, mode })
+                    const a = primaryEntity.avatar ?? { enabled: true as const }
+                    updateAll({
+                      avatar: {
+                        ...a,
+                        enabled: a.enabled !== false,
+                        preferredCamera: { ...(a.preferredCamera ?? {}), mode },
+                      },
+                    })
+                  }}
+                  disabled={anyLocked}
+                  style={{ ...sidebarTextInputStyle, padding: '6px 8px' }}
+                >
+                  {CAMERA_MODE_CYCLE_ORDER.map((m) => (
+                    <option key={m} value={m}>
+                      {CAMERA_MODE_LABELS[m]}
+                    </option>
+                  ))}
+                </select>
+                <label style={fieldLabelStyle}>Preferred distance</label>
+                <input
+                  type="number"
+                  step={0.5}
+                  min={0}
+                  value={primaryEntity.avatar?.preferredCamera?.distance ?? ''}
+                  placeholder="World default"
+                  onChange={(e) => {
+                    const raw = e.target.value
+                    undo?.pushBeforeEdit()
+                    const a = primaryEntity.avatar ?? { enabled: true as const }
+                    const nextPref = { ...(a.preferredCamera ?? {}) }
+                    if (raw === '') delete nextPref.distance
+                    else nextPref.distance = Number(raw)
+                    uiLogger.change('PropertyPanel', 'Avatar preferred distance', { entityIds: ids, raw })
+                    updateAll({
+                      avatar: {
+                        ...a,
+                        enabled: a.enabled !== false,
+                        preferredCamera: nextPref,
+                      },
+                    })
+                  }}
+                  disabled={anyLocked}
+                  style={sidebarTextInputStyle}
+                />
+              </div>
+            ) : null}
+          </CollapsibleSection>
 
           <CollapsibleSection title="Transformers" copyPayload={mergedTransformers ?? []}>
             <TransformerEditor

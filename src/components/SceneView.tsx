@@ -30,6 +30,7 @@ import { findEntityRootForPicking } from '@/utils/entityPicking'
 import { ScriptSnackbar } from '@/components/ScriptSnackbar'
 import { GameHud } from '@/components/GameHud'
 import { WarningSnackbar } from '@/components/WarningSnackbar'
+import { AvatarSession } from '@/runtime/avatarSession'
 
 /** Radius inside camera far plane (PerspectiveCamera default far = 1000). */
 const SKY_DOME_RADIUS = 500
@@ -84,6 +85,8 @@ export interface SceneViewProps {
   } | null
   /** When true, show score/damage HUD; scripts update via `ctx.setScore` / `ctx.setDamage`. */
   showGameHud?: boolean
+  /** Optional: e.g. Builder `setCameraTarget` when the play avatar changes (+/− or script). */
+  onCurrentAvatarChange?: (entityId: string | null) => void
 }
 
 export type EntityPhysicsPatch = Partial<Pick<Entity, 'mass' | 'restitution' | 'friction' | 'linearDamping' | 'angularDamping' | 'bodyType'>>
@@ -128,6 +131,7 @@ function SceneViewInner({
   soundPlaybackCommand = null,
   performancePick = null,
   showGameHud = false,
+  onCurrentAvatarChange,
 }: SceneViewProps, ref: React.Ref<SceneViewHandle>) {
   const sceneKey = useMemo(() => getSceneDependencyKey(world), [world])
   const containerRef = useRef<HTMLDivElement>(null)
@@ -182,8 +186,15 @@ function SceneViewInner({
   const gizmoModeRef = useRef<BuilderGizmoMode>('translate')
   const onSelectEntityRef = useRef(onSelectEntity)
   const onEntityPoseCommitRef = useRef(onEntityPoseCommit)
+  const onCurrentAvatarChangeRef = useRef(onCurrentAvatarChange)
   const editNavigationModeRef = useRef(editNavigationMode)
   editNavigationModeRef.current = editNavigationMode
+  const showGameHudRef = useRef(showGameHud)
+  showGameHudRef.current = showGameHud
+
+  useEffect(() => {
+    onCurrentAvatarChangeRef.current = onCurrentAvatarChange
+  }, [onCurrentAvatarChange])
 
   selectedEntityIdsRef.current = selectedEntityIds
   gizmoModeRef.current = gizmoMode
@@ -315,6 +326,7 @@ function SceneViewInner({
     let rend: THREE.WebGLRenderer | null = null
     let cameraCtrl: CameraController | null = null
     let ro: ResizeObserver | null = null
+    let removeAvatarKeydown: (() => void) | undefined
 
     setSchemaLoadWarnings([])
     setWorldLoadError(null)
@@ -397,6 +409,20 @@ function SceneViewInner({
       cameraCtrl.resetFreeFlySmoothing()
       cameraCtrlRef.current = cameraCtrl
 
+      let controlledEntityIdRef: { current: string | null } | undefined
+      let avatarSession: AvatarSession | null = null
+      if (runScripts && runPhysics) {
+        const ref: { current: string | null } = { current: null }
+        controlledEntityIdRef = ref
+        avatarSession = new AvatarSession({
+          entities: loadedWorld.entities,
+          worldCamera: (cameraConfig ?? loadedWorld.world.camera) as CameraConfig | undefined,
+          getCameraController: () => cameraCtrl,
+          controlledEntityIdRef: ref,
+          onCurrentAvatarChange: (id) => onCurrentAvatarChangeRef.current?.(id),
+        })
+      }
+
       const getPhysicsWorld = () => physicsRef.current
       const getRenderItemRegistry = () => registryRef.current
       const getPositionForGame = (id: string): Vec3 | null =>
@@ -441,7 +467,8 @@ function SceneViewInner({
         loadedWorld.entities,
         timeRef,
         onScriptSnackbar,
-        onHudPatch
+        onHudPatch,
+        avatarSession,
       )
       const scriptRunner = new ScriptRunner(loadedWorld, gameApi, (id) => {
         const obj = loadedScene.getObjectByName(id)
@@ -505,7 +532,12 @@ function SceneViewInner({
             pw.setGravity(gravity)
             physicsRef.current = pw
             const rawInputGetter = () => getRawInputSnapshot(rawKeyboardRef, rawWheelRef)
-            const registry = RenderItemRegistry.create(entities, pw, rawInputGetter)
+            const registry = RenderItemRegistry.create(
+              entities,
+              pw,
+              rawInputGetter,
+              controlledEntityIdRef,
+            )
             if (!cancelled && effectIdRef.current === currentEffectId) {
               registryRef.current = registry
               restoreInitialPosesIntoRegistry(registry, initialPosesRef, onPosesRestored)
@@ -516,7 +548,7 @@ function SceneViewInner({
         })
       } else {
         const rawInputGetter = () => getRawInputSnapshot(rawKeyboardRef, rawWheelRef)
-        const registry = RenderItemRegistry.create(entities, null, rawInputGetter)
+        const registry = RenderItemRegistry.create(entities, null, rawInputGetter, controlledEntityIdRef)
         if (!cancelled && effectIdRef.current === currentEffectId) {
           registryRef.current = registry
           restoreInitialPosesIntoRegistry(registry, initialPosesRef, onPosesRestored)
@@ -561,6 +593,27 @@ function SceneViewInner({
         })
       }
       animate()
+
+      if (avatarSession) {
+        const onAvatarKeyDown = (e: KeyboardEvent): void => {
+          if (!showGameHudRef.current) return
+          if (avatarSession!.getRosterEntityIds().length < 2) return
+          const t = e.target
+          if (t instanceof HTMLElement) {
+            const tag = t.tagName
+            if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || t.isContentEditable) return
+          }
+          if (e.code === 'Equal' || e.code === 'NumpadAdd') {
+            e.preventDefault()
+            avatarSession!.cycleAvatar(1)
+          } else if (e.code === 'Minus' || e.code === 'NumpadSubtract') {
+            e.preventDefault()
+            avatarSession!.cycleAvatar(-1)
+          }
+        }
+        window.addEventListener('keydown', onAvatarKeyDown)
+        removeAvatarKeydown = () => window.removeEventListener('keydown', onAvatarKeyDown)
+      }
 
       // Resize handling
       const onResize = (): void => {
@@ -647,6 +700,7 @@ function SceneViewInner({
       
       // Cancel animation frame and remove event listeners
       cancelAnimationFrame(frameRef.current)
+      removeAvatarKeydown?.()
       if (ro) {
         ro.disconnect()
       }

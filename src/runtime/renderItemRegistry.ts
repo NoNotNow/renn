@@ -29,6 +29,8 @@ export class RenderItemRegistry {
   private items = new Map<string, RenderItem>()
   private physicsWorld: PhysicsWorld | null = null
   private rawInputGetter: (() => RawInput | null) | null = null
+  /** When set and `current` is non-null, only that entity receives keyboard input via InputTransformer. */
+  private controlledEntityIdRef: { current: string | null } | null = null
   /** Reused buffer for addVectorToPosition to avoid allocation on hot path. */
   private _addVecBuf: Vec3 = [0, 0, 0]
 
@@ -57,10 +59,12 @@ export class RenderItemRegistry {
     loadedEntities: LoadedEntity[],
     physicsWorld: PhysicsWorld | null,
     rawInputGetter?: () => RawInput | null,
+    controlledEntityIdRef?: { current: string | null } | null,
   ): RenderItemRegistry {
     const registry = new RenderItemRegistry()
     registry.physicsWorld = physicsWorld
     registry.rawInputGetter = rawInputGetter ?? null
+    registry.controlledEntityIdRef = controlledEntityIdRef ?? null
     for (const { entity, mesh } of loadedEntities) {
       const body = physicsWorld?.getBody(entity.id) ?? null
       const item = new RenderItem(entity, mesh, body)
@@ -74,6 +78,7 @@ export class RenderItemRegistry {
           rawInputGetter ?? undefined,
           entity,
           (eid) => registry.getEntityWorldPoseForTransformers(eid),
+          registry.controlledEntityIdRef ?? undefined,
         )
           .then(chain => {
             if (chain) item.transformerChain = chain
@@ -141,6 +146,7 @@ export class RenderItemRegistry {
       this.rawInputGetter ?? undefined,
       nextEntity,
       (eid) => this.getEntityWorldPoseForTransformers(eid),
+      this.controlledEntityIdRef ?? undefined,
     )
       .then((newChain) => {
         if (!newChain) return

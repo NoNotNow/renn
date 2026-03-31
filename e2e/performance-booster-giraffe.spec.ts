@@ -81,7 +81,7 @@ test.describe('Performance booster — giraffe GLB fixture', () => {
     expect(simp).toBeLessThan(orig)
   })
 
-  test('Apply stores shape.simplification on trimesh; position unchanged; UI log emitted', async ({
+  test('Apply bakes simplified GLB into assets; shape.simplification cleared in JSON; clipboard; UI log', async ({
     page,
   }) => {
     const consoleLines: string[] = []
@@ -100,21 +100,21 @@ test.describe('Performance booster — giraffe GLB fixture', () => {
     await dialog.getByRole('option', { name: /Giraffe/i }).click()
     await expect(dialog.getByText(/\d+\s*→\s*\d+\s*triangles/)).toBeVisible({ timeout: 60_000 })
 
-    const previewText = await dialog.getByTestId('performance-booster-mesh-preview').textContent()
-    const m = previewText?.match(/(\d+)\s*→\s*(\d+)\s*triangles/)
-    expect(m).toBeTruthy()
-    const orig = Number(m![1]!.replace(/,/g, ''))
-
     await dialog.getByTestId('performance-booster-apply-mesh').click()
 
-    const hasUiLog = consoleLines.some(
-      (l) =>
-        l.includes('[UI CHANGE]') &&
-        l.includes('PerformanceBooster') &&
-        l.includes('Apply mesh simplification') &&
-        l.includes('giraffe'),
-    )
-    expect(hasUiLog).toBe(true)
+    await expect
+      .poll(
+        () =>
+          consoleLines.some(
+            (l) =>
+              l.includes('[UI CHANGE]') &&
+              l.includes('PerformanceBooster') &&
+              l.includes('Apply mesh simplification') &&
+              l.includes('giraffe'),
+          ),
+        { timeout: 120_000 },
+      )
+      .toBe(true)
 
     await page.getByRole('button', { name: 'File' }).click()
     await page.getByRole('menuitem', { name: 'Copy to Clipboard' }).click()
@@ -130,11 +130,9 @@ test.describe('Performance booster — giraffe GLB fixture', () => {
     expect(giraffe).toBeDefined()
     expect(giraffe!.position).toEqual([0, 1, 0])
     expect(giraffe!.shape?.type).toBe('trimesh')
-    expect(giraffe!.shape?.simplification?.enabled).toBe(true)
-    const maxT = giraffe!.shape?.simplification?.maxTriangles
-    expect(maxT).toBeDefined()
-    expect(maxT!).toBeGreaterThanOrEqual(500)
-    expect(maxT!).toBeLessThanOrEqual(Math.max(500, Math.floor(orig * 0.5)) + 1)
+    // Simplification is baked into the model asset; the world document no longer carries simplification flags.
+    expect(giraffe!.shape?.simplification).toBeUndefined()
+    expect(giraffe!.shape?.model).toBeDefined()
   })
 
   test('triangle count on candidate tile drops after Apply (rescanned)', async ({ page }) => {

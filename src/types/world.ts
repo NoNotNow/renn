@@ -55,6 +55,32 @@ export interface CameraConfig {
   editorFreePose?: EditorFreePose
 }
 
+/**
+ * Play session snapshot of follow / orbit / first-person camera for one avatar.
+ * Used only in memory when switching avatars (not persisted to world JSON).
+ */
+export interface AvatarFocusSnapshot {
+  control: CameraControl
+  mode: CameraMode
+  target: string
+  distance?: number
+  height?: number
+  fov?: number
+  orbitYaw: number
+  orbitPitch: number
+  orbitDistance: number
+  /** Live PerspectiveCamera.fov in degrees (first person); kept for restore. */
+  effectiveFovDegrees: number
+}
+
+/** Optional: entity can be selected as play avatar (+ / − cycle, scripts). */
+export interface EntityAvatarConfig {
+  /** Default true when `avatar` is present. Set false to omit from the avatar roster. */
+  enabled?: boolean
+  /** First-time focus defaults when no session snapshot exists for this entity. */
+  preferredCamera?: Partial<CameraConfig>
+}
+
 export interface DirectionalLightConfig {
   direction?: Vec3
   color?: Color
@@ -194,6 +220,8 @@ export interface Entity {
   scripts?: string[]
   locked?: boolean
   transformers?: import('./transformer').TransformerConfig[]
+  /** When set, entity may be the play avatar (input + camera); see EntityAvatarConfig. */
+  avatar?: EntityAvatarConfig
 }
 
 export interface RennWorld {

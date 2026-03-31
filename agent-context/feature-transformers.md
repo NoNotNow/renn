@@ -28,6 +28,7 @@ RawInput → InputMapping → TransformInput → TransformerChain → TransformO
 - `TransformOutput.setPose` (optional full world pose): **kinematic** bodies use Rapier `setNextKinematicTranslation` / `setNextKinematicRotation` before the step so contacts with dynamic bodies get correct friction. **Dynamic** bodies: position/rotation are set and linear/angular velocity are zeroed; scripted pose on dynamic bodies may fight other forces.
 - **`TransformInput.environment`** (filled by the runtime before the chain runs): `isTouchingObject` from narrow-phase contacts; when touching, optional **`supportVelocity`** — world-space linear velocity of contacting bodies averaged at solver contact points (`PhysicsWorld.getAverageSupportVelocity`). **`car2`** uses `input.velocity − supportVelocity` for forward speed (steering yaw), lateral grip, and lateral-to-forward transfer so motion on moving platforms matches motion relative to the surface. Omit `supportVelocity` when airborne or unknown (legacy behavior: world velocity only).
 - `resetAllForces()` is called before each frame so forces never accumulate across frames.
+- **Play avatars:** When the world defines at least one entity with `avatar` and play mode runs scripts + physics, **`InputTransformer`** only maps raw keyboard input for the **current avatar** entity id; other entities’ `input` transformers see empty `actions`. See [feature-scripting.md](feature-scripting.md) (Play avatars).
 
 ## Key files
 

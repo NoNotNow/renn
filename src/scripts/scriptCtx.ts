@@ -106,6 +106,9 @@ export interface ScriptCtxBase {
   getScore(): number
   setDamage(value: number): void
   getDamage(): number
+  getCurrentAvatar(): string | null
+  setCurrentAvatar(entityId: string): boolean
+  cycleAvatar(direction: 1 | -1): void
 }
 
 export interface OnSpawnCtx extends ScriptCtxBase {
@@ -296,6 +299,9 @@ function baseCtx(game: GameAPI, entity: Entity): ScriptCtxBase {
     getScore: () => game.getScore(),
     setDamage: (value) => game.setDamage(value),
     getDamage: () => game.getDamage(),
+    getCurrentAvatar: () => game.getCurrentAvatar(),
+    setCurrentAvatar: (entityId) => game.setCurrentAvatar(entityId),
+    cycleAvatar: (direction) => game.cycleAvatar(direction),
   } as ScriptCtxBase
 }
 

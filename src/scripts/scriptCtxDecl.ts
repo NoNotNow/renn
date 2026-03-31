@@ -69,6 +69,9 @@ ${methodLines}
   getScore(): number;
   setDamage(value: number): void;
   getDamage(): number;
+  getCurrentAvatar(): string | null;
+  setCurrentAvatar(entityId: string): boolean;
+  cycleAvatar(direction: 1 | -1): void;
 }`
 }
 

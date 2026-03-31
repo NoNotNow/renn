@@ -126,6 +126,29 @@
       },
       "additionalProperties": false
     },
+    "EntityAvatarConfig": {
+      "type": "object",
+      "description": "Marks entity as a playable avatar (keyboard/script switch); preferredCamera is optional defaults when focusing this avatar",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "preferredCamera": {
+          "type": "object",
+          "properties": {
+            "control": { "enum": ["free", "follow", "top", "front", "right"] },
+            "mode": { "enum": ["firstPerson", "thirdPerson", "follow", "tracking"] },
+            "target": { "type": "string" },
+            "distance": { "type": "number" },
+            "height": { "type": "number" },
+            "fov": { "type": "number" },
+            "defaultPosition": { "$ref": "#/$defs/Vec3" },
+            "defaultRotation": { "$ref": "#/$defs/Rotation" },
+            "editorFreePose": { "$ref": "#/$defs/EditorFreePose" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
     "AssetRef": {
       "type": "object",
       "properties": {
@@ -390,7 +413,8 @@
           "type": "array",
           "items": { "$ref": "#/$defs/TransformerConfig" },
           "description": "Transformer chain for this entity"
-        }
+        },
+        "avatar": { "$ref": "#/$defs/EntityAvatarConfig" }
       },
       "additionalProperties": false
     }

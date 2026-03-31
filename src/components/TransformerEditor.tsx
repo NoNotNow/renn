@@ -9,6 +9,7 @@ import {
   getDefaultTransformerConfig,
   isPresetTransformerType,
 } from '@/transformers/transformerPresets'
+import { jsonTextareaRows } from '@/utils/jsonTextareaRows'
 
 const baseTextareaStyle: React.CSSProperties = {
   margin: 0,
@@ -17,8 +18,6 @@ const baseTextareaStyle: React.CSSProperties = {
   borderRadius: 4,
   fontSize: 11,
   overflow: 'auto',
-  maxHeight: '200px',
-  minHeight: 80,
   fontFamily: 'monospace',
   whiteSpace: 'pre',
   resize: 'vertical',
@@ -41,11 +40,32 @@ function TransformerConfigTextarea({
   const [draftText, setDraftText] = useState(valueStr)
   const [isValid, setIsValid] = useState(true)
   const [parsed, setParsed] = useState<TransformerConfig>(value)
+  const [parseError, setParseError] = useState<string | null>(null)
+
+  const extractJsonErrorPosition = (message: string): number | null => {
+    const m = /position (\d+)/i.exec(message)
+    if (!m) return null
+    const n = Number(m[1])
+    return Number.isFinite(n) ? n : null
+  }
+
+  const lineColFromPosition = (text: string, pos: number): { line: number; col: number; lineText: string } => {
+    const before = text.slice(0, pos)
+    const parts = before.split('\n')
+    const line = parts.length
+    const col = parts[parts.length - 1]!.length + 1
+    const lineStart = before.lastIndexOf('\n') + 1
+    const lineEnd = text.indexOf('\n', pos)
+    const end = lineEnd >= 0 ? lineEnd : text.length
+    const lineText = text.slice(lineStart, end)
+    return { line, col, lineText }
+  }
 
   useEffect(() => {
     setDraftText(valueStr)
     setIsValid(true)
     setParsed(value)
+    setParseError(null)
   }, [valueStr, value])
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -55,8 +75,11 @@ function TransformerConfigTextarea({
       const p = JSON.parse(next) as TransformerConfig
       setIsValid(true)
       setParsed(p)
-    } catch {
+      setParseError(null)
+    } catch (err) {
       setIsValid(false)
+      const msg = err instanceof Error ? err.message : String(err)
+      setParseError(msg || 'Invalid JSON')
     }
   }
 
@@ -72,13 +95,28 @@ function TransformerConfigTextarea({
         value={draftText}
         onChange={handleChange}
         disabled={disabled}
+        rows={jsonTextareaRows(draftText)}
         style={textareaStyle}
         spellCheck={false}
         data-testid="transformer-config-textarea"
       />
       {!isValid && (
-        <span style={{ fontSize: 10, color: '#f87171' }}>Invalid JSON</span>
+        <span style={{ fontSize: 10, color: '#f87171' }}>
+          Invalid JSON{parseError ? `: ${parseError}` : ''}
+        </span>
       )}
+      {!isValid && parseError ? (
+        (() => {
+          const pos = extractJsonErrorPosition(parseError)
+          if (pos == null) return null
+          const { line, col, lineText } = lineColFromPosition(draftText, pos)
+          return (
+            <pre style={{ margin: 0, fontSize: 10, color: '#f87171', fontFamily: 'monospace' }}>
+              {`Line ${line}, Col ${col}\n${lineText}\n${' '.repeat(Math.max(0, col - 1))}^`}
+            </pre>
+          )
+        })()
+      ) : null}
       <button
         type="button"
         onClick={() => onApply(parsed)}

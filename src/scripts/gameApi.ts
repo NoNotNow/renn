@@ -5,6 +5,7 @@
  */
 import type { Entity } from '@/types/world'
 import type { PhysicsWorld } from '@/physics/rapierPhysics'
+import type { AvatarSession } from '@/runtime/avatarSession'
 
 export interface GameAPI {
   time: number
@@ -44,6 +45,12 @@ export interface GameAPI {
   setDamage(value: number): void
   /** Last damage set via `setDamage` in this session (starts at 0). Ignored writes do not change this. */
   getDamage(): number
+  /** Play avatar entity id, or null if no avatar roster / not in play mode. */
+  getCurrentAvatar(): string | null
+  /** Switch controlled avatar and camera; false if id is not a roster member. */
+  setCurrentAvatar(entityId: string): boolean
+  /** Cycle roster: 1 = next, -1 = previous (no-op if fewer than two avatars). */
+  cycleAvatar(direction: 1 | -1): void
 }
 
 /** Partial update for the play-mode HUD overlay. */
@@ -89,7 +96,8 @@ export function createGameAPI(
   entities: Entity[] = [],
   timeRef: { current: number } = { current: 0 },
   onSnackbar?: (message: string, durationSeconds: number) => void,
-  onHudPatch?: (patch: HudPatch) => void
+  onHudPatch?: (patch: HudPatch) => void,
+  avatarSession?: AvatarSession | null,
 ): GameAPI {
   let hudScore = 0
   let hudDamage = 0
@@ -201,6 +209,15 @@ export function createGameAPI(
     },
     getDamage() {
       return hudDamage
+    },
+    getCurrentAvatar(): string | null {
+      return avatarSession?.getCurrentAvatarId() ?? null
+    },
+    setCurrentAvatar(entityId: string): boolean {
+      return avatarSession?.setCurrentAvatar(entityId) ?? false
+    },
+    cycleAvatar(direction: 1 | -1): void {
+      avatarSession?.cycleAvatar(direction)
     },
   }
 }

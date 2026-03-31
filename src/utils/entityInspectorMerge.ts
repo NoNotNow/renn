@@ -1,4 +1,4 @@
-import type { Entity, Vec3, Rotation, Shape, MaterialRef } from '@/types/world'
+import type { Entity, Vec3, Rotation, Shape, MaterialRef, EntityAvatarConfig } from '@/types/world'
 import type { TransformerConfig } from '@/types/transformer'
 import { DEFAULT_SCALE, DEFAULT_POSITION, DEFAULT_ROTATION } from '@/types/world'
 import { VEC_EPS } from '@/utils/editorConstants'
@@ -119,6 +119,16 @@ export function mergeScripts(entities: Entity[]): string[] | null {
     if (!deepEqual(s0, entities[i]!.scripts)) return null
   }
   return s0 ?? []
+}
+
+/** All lack avatar, all same avatar config, or null if mixed. */
+export function mergeAvatar(entities: Entity[]): EntityAvatarConfig | null | undefined {
+  if (entities.length === 0) return undefined
+  const a0 = entities[0]!.avatar
+  for (let i = 1; i < entities.length; i++) {
+    if (!deepEqual(a0, entities[i]!.avatar)) return null
+  }
+  return a0
 }
 
 export function mergeLocked(entities: Entity[]): boolean | null {

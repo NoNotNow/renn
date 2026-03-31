@@ -29,20 +29,25 @@ export class InputTransformer extends BaseTransformer {
   readonly type = 'input'
   private mapping: InputMapping
   private rawInputGetter: () => RawInput | null
+  /** When set and `current` is non-null, only that entity id receives mapped actions. */
+  private controlledEntityIdRef: { current: string | null } | null
 
   /**
    * @param priority Execution priority (default 0 - runs first)
    * @param mapping Input mapping configuration (defaults to CHARACTER_PRESET)
    * @param rawInputGetter Function that returns current raw input (called each frame)
+   * @param controlledEntityIdRef Optional play avatar id; null `current` disables gating
    */
   constructor(
     priority: number = 0,
     mapping: InputMapping = CHARACTER_PRESET,
     rawInputGetter: () => RawInput | null = () => null,
+    controlledEntityIdRef: { current: string | null } | null = null,
   ) {
     super(priority, true)
     this.mapping = mapping
     this.rawInputGetter = rawInputGetter
+    this.controlledEntityIdRef = controlledEntityIdRef
   }
 
   /**
@@ -64,6 +69,12 @@ export class InputTransformer extends BaseTransformer {
    * This transformer modifies the input.actions map and returns empty output.
    */
   transform(input: TransformInput, dt: number): TransformOutput {
+    const gate = this.controlledEntityIdRef
+    if (gate !== null && gate.current !== null && input.entityId !== gate.current) {
+      input.actions = {}
+      return EMPTY_TRANSFORM_OUTPUT
+    }
+
     // Get current raw input
     const rawInput = this.rawInputGetter()
     if (!rawInput) {

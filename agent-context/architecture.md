@@ -53,7 +53,8 @@ renn/
 │   │   └── rapierPhysics.ts  # initRapier, applyPhysicsToLoadedEntities, addScene, step; cached transforms
 │   ├── runtime/
 │   │   ├── renderItem.ts     # RenderItem: single entity wrapper (mesh + body + pose)
-│   │   └── renderItemRegistry.ts # RenderItemRegistry: manages all render items, physics sync
+│   │   ├── renderItemRegistry.ts # RenderItemRegistry: manages all render items, physics sync; optional input avatar gate
+│   │   └── avatarSession.ts      # Play avatar roster, session camera memory, script/keyboard switch
 │   ├── camera/
 │   │   └── cameraController.ts # CameraController: free / follow / top|front|right; first/third person
 │   ├── scripts/

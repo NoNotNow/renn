@@ -19,6 +19,10 @@ import type { BuilderGizmoMode, BuilderPoseCommitEntry } from '@/editor/transfor
 import { cloneEditorSnapshot, createEditorHistory, type EditorSnapshot } from '@/editor/editorHistory'
 import { downscaleImageBlob } from '@/utils/textureDownscale'
 import { clampTrimeshSimplificationConfig } from '@/scripts/migrateWorld'
+import {
+  applyMeshSimplificationToEntityInWorld,
+  persistSimplifiedMeshAssetFromWorld,
+} from '@/utils/bakeSimplifiedModelAsset'
 
 const EDITOR_HISTORY_MAX_DEPTH = 80
 
@@ -598,25 +602,30 @@ export default function Builder() {
   )
 
   const handleApplyMeshSimplification = useCallback(
-    (entityId: string, config: TrimeshSimplificationConfig) => {
+    async (entityId: string, config: TrimeshSimplificationConfig) => {
       const safe = clampTrimeshSimplificationConfig({ ...config, enabled: true })
       pushHistory()
       captureScenePosesForNextRebuild()
-      updateWorld((prev) => ({
-        ...prev,
-        entities: prev.entities.map((e) => {
-          if (e.id !== entityId) return e
-          if (e.shape?.type === 'trimesh') {
-            return { ...e, shape: { ...e.shape, simplification: safe } }
+      const nextWorld = applyMeshSimplificationToEntityInWorld(world, entityId, safe)
+      updateWorld(() => nextWorld)
+      try {
+        const result = await persistSimplifiedMeshAssetFromWorld(nextWorld, assets, entityId)
+        if (!result.ok) {
+          if (result.reason === 'bake-unchanged') {
+            console.warn(
+              '[PerformanceBooster] Bake produced unchanged geometry; simplification config kept on entity'
+            )
           }
-          if (e.model) {
-            return { ...e, modelSimplification: safe }
-          }
-          return e
-        }),
-      }))
+          return
+        }
+        await updateAssets(() => result.assets)
+        updateWorld(() => result.world)
+      } catch (err) {
+        console.error('[PerformanceBooster] Failed to persist simplified mesh', err)
+        alert('Failed to bake simplified mesh to assets. Simplification settings remain.')
+      }
     },
-    [updateWorld, captureScenePosesForNextRebuild, pushHistory]
+    [world, assets, updateWorld, updateAssets, captureScenePosesForNextRebuild, pushHistory]
   )
 
   const handleApplyTextureDownscale = useCallback(
@@ -789,6 +798,9 @@ export default function Builder() {
                   : null
               }
               showGameHud={showGameHud}
+              onCurrentAvatarChange={(id) => {
+                if (id) setCameraTarget(id)
+              }}
             />
           </ErrorBoundary>
         </main>

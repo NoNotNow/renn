@@ -86,6 +86,28 @@ describe('InputTransformer', () => {
     expect(input.actions.existing).toBe(0.5) // Preserved
   })
 
+  test('gates actions when controlledEntityIdRef targets another entity', () => {
+    const rawInput = createRawInput({ keys: { w: true } })
+    const ref = { current: 'hero' }
+    const transformer = new InputTransformer(0, CHARACTER_PRESET, () => rawInput, ref)
+    const input = createMockTransformInput({ entityId: 'npc' })
+
+    transformer.transform(input, 0.016)
+
+    expect(Object.keys(input.actions)).toHaveLength(0)
+  })
+
+  test('allows actions when entityId matches controlledEntityIdRef', () => {
+    const rawInput = createRawInput({ keys: { w: true } })
+    const ref = { current: 'hero' }
+    const transformer = new InputTransformer(0, CHARACTER_PRESET, () => rawInput, ref)
+    const input = createMockTransformInput({ entityId: 'hero' })
+
+    transformer.transform(input, 0.016)
+
+    expect(input.actions.forward).toBe(1.0)
+  })
+
   test('can update mapping', () => {
     const rawInput = createRawInput({ keys: { w: true } })
     const transformer = new InputTransformer(0, CHARACTER_PRESET, () => rawInput)

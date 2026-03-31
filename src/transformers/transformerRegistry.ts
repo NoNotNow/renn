@@ -39,6 +39,7 @@ export async function createTransformer(
   rawInputGetter?: () => import('@/types/transformer').RawInput | null,
   _entity?: Entity,
   getEntityWorldPose?: EntityWorldPoseGetter,
+  controlledEntityIdRef?: { current: string | null } | null,
 ): Promise<Transformer> {
   const priority = config.priority ?? 10
   const enabled = config.enabled ?? true
@@ -46,7 +47,12 @@ export async function createTransformer(
   switch (config.type) {
     case 'input': {
       const mapping: InputMapping = config.inputMapping ?? CHARACTER_PRESET
-      const transformer = new InputTransformer(priority, mapping, rawInputGetter ?? (() => null))
+      const transformer = new InputTransformer(
+        priority,
+        mapping,
+        rawInputGetter ?? (() => null),
+        controlledEntityIdRef ?? null,
+      )
       transformer.enabled = enabled
       return transformer
     }
@@ -106,6 +112,7 @@ export async function createTransformerChain(
   rawInputGetter?: () => import('@/types/transformer').RawInput | null,
   entity?: Entity,
   getEntityWorldPose?: EntityWorldPoseGetter,
+  controlledEntityIdRef?: { current: string | null } | null,
 ): Promise<TransformerChain | null> {
   if (!configs || configs.length === 0) {
     return null
@@ -119,6 +126,7 @@ export async function createTransformerChain(
         rawInputGetter,
         entity,
         getEntityWorldPose,
+        controlledEntityIdRef,
       )
       chain.add(transformer)
     } catch (error) {

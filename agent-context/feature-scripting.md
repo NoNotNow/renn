@@ -97,6 +97,22 @@ Example: `if (ctx.detect.isUpsideDown()) { ctx.log('Flipped!') }`. See `directio
 
 ---
 
+## Play avatars (camera + input)
+
+Entities may include optional **`avatar`** (`enabled`, `preferredCamera`) in the world JSON; see PropertyPanel **Avatar (play)**. When `runScripts` and `runPhysics` are both on, the runtime builds an **`AvatarSession`** (`src/runtime/avatarSession.ts`): one entity receives keyboard-driven **`input`** transformer actions, and follow-camera **`target`** is updated when switching.
+
+**Session memory:** Orbit yaw/pitch, zoom distance, and first-person FOV are remembered per avatar for the current session only (not saved in the world file).
+
+**Hotkeys** (window `keydown`, ignored while typing in inputs / contenteditable): **`=`** / **`+`** (numpad) = next avatar, **`-`** = previous. In Builder, these run only when **Game HUD** is on and at least two playable avatars exist.
+
+**Script context** (all events, on `ctx`):
+
+- `getCurrentAvatar(): string | null`
+- `setCurrentAvatar(entityId: string): boolean` — `false` if the id is not a roster member
+- `cycleAvatar(direction: 1 | -1): void`
+
+---
+
 ## Roadmap
 
 1. **PropertyPanel UI for entity scripts**  

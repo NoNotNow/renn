@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import type { CameraConfig, CameraControl, CameraMode } from '@/types/world'
+import type { AvatarFocusSnapshot, CameraConfig, CameraControl, CameraMode } from '@/types/world'
 import type { FreeFlyKeys } from '@/types/camera'
 
 export const DEFAULT_FREE_FLY_KEYS: FreeFlyKeys = {
@@ -536,5 +536,53 @@ export class CameraController {
     this.camera.position.copy(pivot).add(offset)
     this.camera.lookAt(pivot)
     this.camera.up.copy(this.freeFlyWorldUp)
+  }
+
+  /** Session snapshot for avatar switching: config + orbit + live FOV. */
+  captureAvatarFocusState(): AvatarFocusSnapshot {
+    const c = this.config
+    return {
+      control: (c.control ?? 'free') as CameraControl,
+      mode: c.mode,
+      target: c.target,
+      distance: c.distance,
+      height: c.height,
+      fov: c.fov,
+      orbitYaw: this.orbitYaw,
+      orbitPitch: this.orbitPitch,
+      orbitDistance: this.orbitDistance,
+      effectiveFovDegrees: this.camera.fov,
+    }
+  }
+
+  /**
+   * Restore camera for an avatar from session memory or preferred defaults.
+   * Mutates `this.config` (typically the same object as `scene.userData.camera`).
+   */
+  applyAvatarFocusState(state: AvatarFocusSnapshot): void {
+    const prevMode = this.config.mode
+
+    if (prevMode === 'firstPerson' && state.mode !== 'firstPerson') {
+      this.camera.fov = DEFAULT_PERSPECTIVE_FOV_DEGREES
+      this.camera.updateProjectionMatrix()
+    }
+
+    this.config.control = state.control
+    this.config.mode = state.mode
+    this.config.target = state.target
+    this.config.distance = state.distance
+    this.config.height = state.height
+    if (state.fov !== undefined) this.config.fov = state.fov
+
+    this.orbitYaw = state.orbitYaw
+    this.orbitPitch = state.orbitPitch
+    this.orbitDistance = state.orbitDistance
+
+    if (state.mode === 'firstPerson') {
+      this.camera.fov = state.effectiveFovDegrees
+      this.camera.updateProjectionMatrix()
+    }
+
+    this.applyPresetIfControl()
   }
 }

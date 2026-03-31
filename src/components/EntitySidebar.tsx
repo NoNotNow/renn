@@ -18,6 +18,8 @@ import CopyableArea from './CopyableArea'
 import BulkSpawnForm from './BulkSpawnForm'
 import CollapsibleSection from './CollapsibleSection'
 import { sidebarRowStyle, sidebarLabelStyle, fieldLabelStyle, secondaryButtonStyle } from './sharedStyles'
+import AvatarDialog from './AvatarDialog'
+import { avatarEntityIconLetter, getAvatarRosterEntityIds } from '@/utils/avatarUtils'
 
 export interface EntitySidebarProps {
   entities: Entity[]
@@ -83,6 +85,20 @@ export default function EntitySidebar({
   const [filterSizeMax, setFilterSizeMax] = useState('')
   const [leftSidebarWidth, setLeftSidebarWidth] = useLocalStorageState('leftSidebarWidth', 240)
   const addEntitySelectRef = useRef<HTMLSelectElement>(null)
+
+  const [avatarDialogOpen, setAvatarDialogOpen] = useState(false)
+  const [avatarDialogEntityId, setAvatarDialogEntityId] = useState<string | null>(null)
+
+  const avatarRosterEntityIds = useMemo(() => getAvatarRosterEntityIds(entities), [entities])
+  const avatarRosterEntities = useMemo(() => {
+    const byId = new Map(entities.map((e) => [e.id, e] as const))
+    return avatarRosterEntityIds.map((id) => byId.get(id)!).filter((e) => Boolean(e))
+  }, [avatarRosterEntityIds, entities])
+
+  const avatarRosterFocusEntityId = useMemo(() => {
+    if (cameraTarget && avatarRosterEntityIds.includes(cameraTarget)) return cameraTarget
+    return avatarRosterEntityIds[0] ?? null
+  }, [cameraTarget, avatarRosterEntityIds])
 
   const hasActiveEntityFilters = useMemo(
     () =>
@@ -176,6 +192,7 @@ export default function EntitySidebar({
   }
 
   return (
+    <>
     <Sidebar
       side="left"
       isOpen={isOpen}
@@ -470,6 +487,58 @@ export default function EntitySidebar({
                 </div>
                 {cameraControl === 'follow' && (
                   <>
+                    {avatarRosterEntities.length > 0 ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                        <div style={{ fontSize: 12, color: '#9aa4b2', minWidth: 54 }}>Avatars</div>
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                          {avatarRosterEntities.map((e) => {
+                            const active = e.id === avatarRosterFocusEntityId
+                            return (
+                              <button
+                                key={e.id}
+                                type="button"
+                                onClick={() => onCameraTargetChange(e.id)}
+                                title={`Camera target: ${e.name ?? e.id}`}
+                                aria-label={`Select avatar ${e.name ?? e.id}`}
+                                style={{
+                                  width: 28,
+                                  height: 28,
+                                  borderRadius: 14,
+                                  background: active ? '#2a2d45' : 'rgba(0,0,0,0.2)',
+                                  border: active ? '1px solid #4a9eff' : '1px solid #2f3545',
+                                  color: '#e6e9f2',
+                                  fontSize: 12,
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                {avatarEntityIconLetter(e)}
+                              </button>
+                            )
+                          })}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!avatarRosterFocusEntityId) return
+                            setAvatarDialogEntityId(avatarRosterFocusEntityId)
+                            setAvatarDialogOpen(true)
+                          }}
+                          disabled={!avatarRosterFocusEntityId}
+                          style={{
+                            marginLeft: 'auto',
+                            padding: '6px 10px',
+                            fontSize: 12,
+                            background: '#1e2a3a',
+                            border: '1px solid #3b6ea8',
+                            color: '#93c5fd',
+                            borderRadius: 6,
+                            cursor: avatarRosterFocusEntityId ? 'pointer' : 'not-allowed',
+                          }}
+                        >
+                          Edit
+                        </button>
+                      </div>
+                    ) : null}
                     <div style={sidebarRowStyle}>
                       <label htmlFor="camera-target" style={sidebarLabelStyle}>
                         Target
@@ -527,5 +596,21 @@ export default function EntitySidebar({
             )}
       </div>
     </Sidebar>
+    {avatarDialogOpen && avatarDialogEntityId ? (
+      <AvatarDialog
+        isOpen={avatarDialogOpen}
+        onClose={() => {
+          setAvatarDialogOpen(false)
+          setAvatarDialogEntityId(null)
+        }}
+        world={world}
+        entityId={avatarDialogEntityId}
+        onWorldChange={onWorldChange}
+        cameraTarget={cameraTarget}
+        onCameraTargetChange={onCameraTargetChange}
+        onEditingEntityIdChange={(id) => setAvatarDialogEntityId(id)}
+      />
+    ) : null}
+    </>
   )
 }
