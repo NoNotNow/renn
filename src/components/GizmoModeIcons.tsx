@@ -61,3 +61,20 @@ export const GizmoScaleIcon = (
     <path d="M3 21l7-7" />
   </svg>
 )
+
+/** Texture paint brush. */
+export const GizmoBrushIcon = (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    style={style}
+    aria-hidden
+  >
+    <path d="M9.06 11.9l8.97-8.97a2.12 2.12 0 0 1 3 3l-8.97 8.97c-.51.51-1.14.9-1.83 1.15l-3.26 1.09 1.09-3.26c.25-.69.64-1.32 1.15-1.83z" />
+    <path d="M7 21h10" />
+  </svg>
+)

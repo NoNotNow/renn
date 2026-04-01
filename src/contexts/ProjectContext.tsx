@@ -1,6 +1,7 @@
 import { createContext, useState, useCallback, useEffect, useRef, useMemo, type ReactNode } from 'react'
 import { createIndexedDbPersistence } from '@/persistence/indexedDb'
-import type { RennWorld, Vec3, Rotation, CameraMode, EditorFreePose } from '@/types/world'
+import type { RennWorld, Vec3, Rotation, CameraMode, EditorFreePose, ModelPreset } from '@/types/world'
+import { applyPresetToEntity } from '@/data/modelPresets'
 import type { ProjectMeta } from '@/persistence/types'
 import { sampleWorld } from '@/data/sampleWorld'
 import { loadWorldFromStatic } from '@/loader/loadWorldFromStatic'
@@ -56,6 +57,8 @@ interface ProjectContextState {
   cameraMode: CameraMode
   /** Live Builder free-fly pose for merge on save; synced from SceneView while navigating. */
   editorFreePoseRef: React.MutableRefObject<EditorFreePose | null>
+  /** Global model presets (IndexedDB, shared across projects). */
+  modelPresets: ModelPreset[]
 }
 
 interface ProjectContextActions {
@@ -95,6 +98,11 @@ interface ProjectContextActions {
   setCameraControl: (control: 'free' | 'follow' | 'top' | 'front' | 'right') => void
   setCameraTarget: (target: string) => void
   setCameraMode: (mode: CameraMode | ((prev: CameraMode) => CameraMode)) => void
+
+  refreshModelPresets: () => Promise<void>
+  saveModelPreset: (preset: ModelPreset) => Promise<void>
+  deleteModelPreset: (id: string) => Promise<void>
+  applyModelPresetToEntities: (entityIds: string[], preset: ModelPreset) => void
 }
 
 type ProjectContextValue = ProjectContextState & ProjectContextActions
@@ -117,6 +125,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const [documentEpoch, setDocumentEpoch] = useState(0)
   const [initialLoadPending, setInitialLoadPending] = useState(true)
   const editorFreePoseRef = useRef<EditorFreePose | null>(null)
+  const [modelPresets, setModelPresets] = useState<ModelPreset[]>([])
   
   // Combined camera state to reduce re-renders
   const [cameraState, setCameraState] = useState<CameraState>(() => cameraStateFromWorld(sampleWorld, 'ball'))
@@ -149,6 +158,15 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const refreshProjects = useCallback(() => {
     uiLogger.click('Builder', 'Refresh project list')
     persistence.listProjects().then(setProjects).catch(console.error)
+  }, [])
+
+  const refreshModelPresets = useCallback(async () => {
+    try {
+      const list = await persistence.listModelPresets()
+      setModelPresets(list)
+    } catch (e) {
+      console.error('Failed to list model presets:', e)
+    }
   }, [])
   
   const newProject = useCallback(() => {
@@ -249,6 +267,11 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
     return () => { cancelled = true }
   }, [refreshProjects, loadProject])
+
+  useEffect(() => {
+    if (initialLoadPending) return
+    refreshModelPresets().catch(console.error)
+  }, [initialLoadPending, refreshModelPresets])
 
   /** World to persist: current worldRef with camera state (control, target, mode) merged in. */
   const getWorldToSave = useCallback((): RennWorld => {
@@ -383,14 +406,42 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     setWorld(next)
     setCurrentProject((prev) => ({ ...prev, isDirty: true }))
   }, [])
+
+  const saveModelPreset = useCallback(async (preset: ModelPreset) => {
+    await persistence.saveModelPreset(preset)
+    // Update UI immediately — avoid awaiting listModelPresets() here: right after save, some
+    // browsers can return a stale empty list when open/close cycles are tight, which cleared the library.
+    setModelPresets((prev) => {
+      const rest = prev.filter((p) => p.id !== preset.id)
+      return [...rest, preset].sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
+    })
+  }, [])
+
+  const deleteModelPreset = useCallback(async (id: string) => {
+    await persistence.deleteModelPreset(id)
+    setModelPresets((prev) => prev.filter((p) => p.id !== id))
+  }, [])
+
+  const applyModelPresetToEntities = useCallback(
+    (entityIds: string[], preset: ModelPreset) => {
+      const idSet = new Set(entityIds)
+      updateWorld((prev) => ({
+        ...prev,
+        entities: prev.entities.map((e) => {
+          if (!idSet.has(e.id)) return e
+          return applyPresetToEntity(e, preset)
+        }),
+      }))
+    },
+    [updateWorld],
+  )
   
   const updateAssets = useCallback(async (updater: (prev: Map<string, Blob>) => Map<string, Blob>) => {
     setAssets((prev) => {
       const next = updater(prev)
-      // Save new assets to global store immediately
       for (const [assetId, blob] of next) {
-        if (!prev.has(assetId)) {
-          // New asset - save to global store
+        const prevBlob = prev.get(assetId)
+        if (prevBlob === undefined || prevBlob !== blob) {
           persistence.saveAsset(assetId, blob).catch((err) => {
             console.error(`Failed to save asset ${assetId}:`, err)
           })
@@ -529,6 +580,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     cameraTarget: cameraState.target,
     cameraMode: cameraState.mode,
     editorFreePoseRef,
+    modelPresets,
     
     // Actions
     newProject,
@@ -553,6 +605,10 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     setCameraControl,
     setCameraTarget,
     setCameraMode,
+    refreshModelPresets,
+    saveModelPreset,
+    deleteModelPreset,
+    applyModelPresetToEntities,
   }), [
     initialLoadPending,
     currentProject,
@@ -565,6 +621,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     cameraState.target,
     cameraState.mode,
     editorFreePoseRef,
+    modelPresets,
     newProject,
     loadProject,
     saveProject,
@@ -587,6 +644,10 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     setCameraControl,
     setCameraTarget,
     setCameraMode,
+    refreshModelPresets,
+    saveModelPreset,
+    deleteModelPreset,
+    applyModelPresetToEntities,
   ])
   
   return (

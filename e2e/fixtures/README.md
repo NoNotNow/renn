@@ -9,3 +9,7 @@
 If `giraffe-world.zip` is missing, the giraffe E2E suite is skipped.
 
 `giraffe-world.json` describes a static trimesh entity that references asset id `giraffe-test-asset`; the ZIP bundles `world.json` and `assets/giraffe-test-asset.glb`.
+
+## Texture brush color E2E
+
+`brush-1x1.png` is a minimal valid 1×1 PNG used by [`e2e/texture-brush-color.spec.ts`](../texture-brush-color.spec.ts) (upload texture → brush tool → color picker).

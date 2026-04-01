@@ -1,4 +1,4 @@
-import type { RennWorld } from '@/types/world'
+import type { RennWorld, ModelPreset } from '@/types/world'
 
 export interface ProjectMeta {
   id: string
@@ -24,4 +24,8 @@ export interface PersistenceAPI {
   listAllAssets(): Promise<Array<{ assetId: string; type: string; size: number }>>
   loadAllAssets(): Promise<Map<string, Blob>>
   loadAssetPreview(assetId: string): Promise<Blob | null>
+  /** Global 3D model / material / shape presets (not tied to a project). */
+  listModelPresets(): Promise<ModelPreset[]>
+  saveModelPreset(preset: ModelPreset): Promise<void>
+  deleteModelPreset(id: string): Promise<void>
 }

@@ -22,6 +22,8 @@ export interface MaterialEditorProps {
   onWorldChange?: (world: RennWorld) => void
   onAssetsChange?: (assets: Map<string, Blob>) => void
   disabled?: boolean
+  /** When set, shows a control to open the layered texture compositor. */
+  onOpenTextureStudio?: () => void | Promise<void>
 }
 
 export default function MaterialEditor({
@@ -33,6 +35,7 @@ export default function MaterialEditor({
   onWorldChange,
   onAssetsChange,
   disabled = false,
+  onOpenTextureStudio,
 }: MaterialEditorProps) {
   const undo = useEditorUndo()
   const pushUndo = () => undo?.pushBeforeEdit()
@@ -158,6 +161,33 @@ export default function MaterialEditor({
           )}
         </div>
       </div>
+
+      {hasTexture && onOpenTextureStudio ? (
+        <div style={{ marginTop: 8 }}>
+          <button
+            type="button"
+            onClick={() => {
+              void onOpenTextureStudio()
+            }}
+            disabled={disabled}
+            aria-label="Open texture maker"
+            data-testid="material-open-texture-maker"
+            style={{
+              ...entityPanelIconButtonStyle,
+              width: '100%',
+              justifyContent: 'center',
+              padding: '6px 8px',
+              fontSize: 11,
+              background: '#2b3550',
+              border: '1px solid #3d4a66',
+              color: '#e6e9f2',
+              ...(disabled ? { opacity: 0.5, cursor: 'not-allowed' as const } : {}),
+            }}
+          >
+            Texture maker…
+          </button>
+        </div>
+      ) : null}
 
       <TextureDialog
         isOpen={textureDialogOpen}

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import PropertyPanel from './PropertyPanel'
 import ScriptPanel from './ScriptPanel'
 import AssetPanel from './AssetPanel'
+import ModelPresetPanel from './ModelPresetPanel'
 import type { RennWorld, Vec3, Rotation, Entity } from '@/types/world'
 import type { TransformerConfig } from '@/types/transformer'
 import { useLocalStorageState } from '@/hooks/useLocalStorageState'
@@ -9,7 +10,7 @@ import { uiLogger } from '@/utils/uiLogger'
 import Sidebar, { SIDEBAR_MIN_WIDTH } from './layout/Sidebar'
 import { TabIcons } from './TabIcons'
 
-type RightTab = 'properties' | 'scripts' | 'assets'
+type RightTab = 'properties' | 'scripts' | 'assets' | 'presets'
 
 export interface PropertySidebarProps {
   world: RennWorld
@@ -29,6 +30,8 @@ export interface PropertySidebarProps {
   livePoses?: Map<string, { position: Vec3; rotation: Rotation; scale?: Vec3 }> | null
   isOpen: boolean
   onToggle: () => void
+  /** Single-entity material panel: open layered texture compositor. */
+  onOpenTextureStudio?: (entityId: string) => void | Promise<void>
 }
 
 export default function PropertySidebar({
@@ -49,6 +52,7 @@ export default function PropertySidebar({
   livePoses,
   isOpen,
   onToggle,
+  onOpenTextureStudio,
 }: PropertySidebarProps) {
   const [rightTab, setRightTab] = useState<RightTab>('properties')
   const [rightSidebarWidth, setRightSidebarWidth] = useLocalStorageState('rightSidebarWidth', 300)
@@ -73,6 +77,7 @@ export default function PropertySidebar({
         { id: 'properties', icon: TabIcons.properties, label: 'Properties' },
         { id: 'scripts', icon: TabIcons.scripts, label: 'Scripts' },
         { id: 'assets', icon: TabIcons.assets, label: 'Assets' },
+        { id: 'presets', icon: TabIcons.presets, label: 'Presets' },
       ]}
       activeTab={rightTab}
       onTabChange={handleTabChange}
@@ -109,6 +114,7 @@ export default function PropertySidebar({
             onEntityTransformersChange={onEntityTransformersChange}
             onRefreshFromPhysics={onRefreshFromPhysics}
             livePoses={livePoses}
+            onOpenTextureStudio={onOpenTextureStudio}
           />
         )}
         {rightTab === 'scripts' && (
@@ -125,6 +131,9 @@ export default function PropertySidebar({
             onAssetsChange={onAssetsChange}
             onWorldChange={onWorldChange}
           />
+        )}
+        {rightTab === 'presets' && (
+          <ModelPresetPanel selectedEntityIds={selectedEntityIds} />
         )}
         </div>
       </div>

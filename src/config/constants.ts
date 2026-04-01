@@ -7,10 +7,11 @@
 export const DB_CONFIG = {
   name: 'renn-worlds',
   /** Must match IndexedDB schema migrations in persistence/indexedDb.ts */
-  version: 2,
+  version: 4,
   stores: {
     projects: 'projects',
     assets: 'assets',
+    modelPresets: 'modelPresets',
   },
 } as const
 
@@ -59,3 +60,6 @@ export const GEOMETRY_CONFIG = {
   cylinderSegments: 32,
   capsuleSegments: { radial: 8, height: 16 },
 } as const
+
+/** On SceneView’s WebGL container; brush popover does not dismiss on pointer-down inside this host. */
+export const BUILDER_SCENE_CANVAS_HOST_ATTR = 'data-builder-scene-canvas-host' as const

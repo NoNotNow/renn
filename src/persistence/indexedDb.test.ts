@@ -42,6 +42,9 @@ describe('IndexedDB Persistence', () => {
     expect(typeof persistence.deleteProject).toBe('function')
     expect(typeof persistence.exportProject).toBe('function')
     expect(typeof persistence.importProject).toBe('function')
+    expect(typeof persistence.listModelPresets).toBe('function')
+    expect(typeof persistence.saveModelPreset).toBe('function')
+    expect(typeof persistence.deleteModelPreset).toBe('function')
   })
 
   it('lists projects (empty initially)', async () => {

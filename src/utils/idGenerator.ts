@@ -24,3 +24,23 @@ export function generateProjectId(): string {
 export function generateEntityId(): string {
   return generateId('entity')
 }
+
+/** ID for a global model preset (IndexedDB). */
+export function generateModelPresetId(): string {
+  return generateId('mpreset')
+}
+
+/** Writable albedo copy for texture brush (never overwrite imported `asset_*` ids in place). */
+export function generatePaintAssetId(): string {
+  return generateId('tex_paint')
+}
+
+/** Flattened texture output for Three.js material.map when using layer compositor. */
+export function generateCompositeAssetId(): string {
+  return generateId('composite')
+}
+
+/** Single layer image in a TextureDocument. */
+export function generateTexLayerAssetId(): string {
+  return generateId('texlayer')
+}

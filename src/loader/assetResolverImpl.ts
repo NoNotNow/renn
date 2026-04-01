@@ -13,18 +13,44 @@ export interface DisposableAssetResolver {
 }
 
 /**
- * Creates an asset resolver that converts blobs to object URLs.
- * Caches URLs to avoid creating duplicates.
- * 
- * @param assets - Map of asset IDs to Blob objects
- * @returns Object with resolve function, loadTexture function, and dispose cleanup
+ * Resolver that reads the current assets map on each resolve (e.g. SceneView `assets` prop updates).
  */
-export function createAssetResolver(assets: Map<string, Blob>): DisposableAssetResolver {
+export function createAssetResolverFromGetter(getAssets: () => Map<string, Blob>): DisposableAssetResolver {
   const urlCache = new Map<string, string>()
+  /** Same id may receive a new Blob instance (e.g. texture paint overwrite); revoke stale URLs. */
+  const blobRefById = new Map<string, Blob>()
 
   const resolve = (assetId: string): string | null => {
+    const assets = getAssets()
     const blob = assets.get(assetId)
-    if (!blob) return null
+    if (!blob) {
+      const staleUrl = urlCache.get(assetId)
+      if (staleUrl) {
+        try {
+          URL.revokeObjectURL(staleUrl)
+        } catch {
+          /* ignore */
+        }
+        urlCache.delete(assetId)
+      }
+      blobRefById.delete(assetId)
+      return null
+    }
+
+    const prevBlob = blobRefById.get(assetId)
+    if (prevBlob !== undefined && prevBlob !== blob) {
+      const staleUrl = urlCache.get(assetId)
+      if (staleUrl) {
+        try {
+          URL.revokeObjectURL(staleUrl)
+        } catch {
+          /* ignore */
+        }
+        urlCache.delete(assetId)
+      }
+    }
+    blobRefById.set(assetId, blob)
+
     let url = urlCache.get(assetId)
     if (!url) {
       try {
@@ -39,7 +65,7 @@ export function createAssetResolver(assets: Map<string, Blob>): DisposableAssetR
   }
 
   const loadTexture = async (assetId: string, loader: THREE.TextureLoader): Promise<THREE.Texture | null> => {
-    const blob = assets.get(assetId)
+    const blob = getAssets().get(assetId)
     if (!blob) {
       console.warn(`[AssetResolver] Texture asset not in map: ${assetId}`)
       return null
@@ -92,7 +118,16 @@ export function createAssetResolver(assets: Map<string, Blob>): DisposableAssetR
       }
     }
     urlCache.clear()
+    blobRefById.clear()
   }
 
   return { resolve, loadTexture, loadModel, dispose }
+}
+
+/**
+ * Creates an asset resolver for a fixed map reference (tests, one-off loads).
+ * Prefer {@link createAssetResolverFromGetter} when the map is replaced over time.
+ */
+export function createAssetResolver(assets: Map<string, Blob>): DisposableAssetResolver {
+  return createAssetResolverFromGetter(() => assets)
 }

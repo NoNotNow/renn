@@ -10,7 +10,7 @@ import type {
   EditorFreePose,
   AvatarFocusSnapshot,
 } from '@/types/world'
-import type { DisposableAssetResolver } from '@/loader/assetResolverImpl'
+import { createAssetResolverFromGetter, type DisposableAssetResolver } from '@/loader/assetResolverImpl'
 import { DEFAULT_GRAVITY, DEFAULT_ROTATION } from '@/types/world'
 import { eulerToQuaternion } from '@/utils/rotationUtils'
 import type { LoadedEntity } from '@/loader/loadWorld'
@@ -23,14 +23,18 @@ import { restoreInitialPosesIntoRegistry } from '@/runtime/restoreInitialPoses'
 import { runSceneFrame, SCENE_FIXED_DT } from '@/runtime/sceneFrameLoop'
 import { useKeyboardInput } from '@/hooks/useKeyboardInput'
 import {
+  DEFAULT_TEXTURE_BRUSH_RGB,
+  TEXTURE_PAINT_RADIUS_PX,
   installBuilderPickAndGizmo,
   type BuilderGizmoMode,
   type BuilderPoseCommitEntry,
+  type TexturePaintStrokePayload,
 } from '@/editor/transformGizmoController'
 import { getSceneUserData } from '@/types/sceneUserData'
 import { useRawKeyboardInput, useRawWheelInput, getRawInputSnapshot } from '@/input/rawInput'
 import { useRawMouseDrag } from '@/input/rawMouseDrag'
 import type { TransformerConfig } from '@/types/transformer'
+import { BUILDER_SCENE_CANVAS_HOST_ATTR } from '@/config/constants'
 import { getSceneDependencyKey } from '@/utils/sceneDependencyKey'
 import { computeDirectionalShadowCameraExtent } from '@/utils/shadowBounds'
 import { countVisualModelTriangles } from '@/utils/geometryExtractor'
@@ -95,6 +99,16 @@ export interface SceneViewProps {
   showGameHud?: boolean
   /** Optional: e.g. Builder `setCameraTarget` when the play avatar changes (+/− or script). */
   onCurrentAvatarChange?: (entityId: string | null) => void
+  /** Builder: persist painted texture after pointer-up (single-entity brush stroke). */
+  onTexturePaintStrokeEnd?: (payload: TexturePaintStrokePayload) => void | Promise<void>
+  /** Builder: snapshot before a brush stroke (undo). */
+  pushUndoBeforePaintStroke?: () => void
+  /** Builder: brush stroke RGB (0–1); alpha is always 1 when painting. */
+  textureBrushRgb?: Vec3
+  /** Builder: brush radius in texture pixels (clamped 1–800 in gizmo controller). */
+  textureBrushRadiusPx?: number
+  /** Builder: paint this asset (e.g. active compositor layer) instead of `entity.material.map`. */
+  getPaintTargetAssetId?: (entityId: string) => string | null
 }
 
 export type EntityPhysicsPatch = Partial<Pick<Entity, 'mass' | 'restitution' | 'friction' | 'linearDamping' | 'angularDamping' | 'bodyType'>>
@@ -142,6 +156,11 @@ function SceneViewInner({
   performancePick = null,
   showGameHud = false,
   onCurrentAvatarChange,
+  onTexturePaintStrokeEnd,
+  pushUndoBeforePaintStroke,
+  textureBrushRgb = DEFAULT_TEXTURE_BRUSH_RGB,
+  textureBrushRadiusPx = TEXTURE_PAINT_RADIUS_PX,
+  getPaintTargetAssetId,
 }: SceneViewProps, ref: React.Ref<SceneViewHandle>) {
   const sceneKey = useMemo(() => getSceneDependencyKey(world), [world])
   const containerRef = useRef<HTMLDivElement>(null)
@@ -180,6 +199,8 @@ function SceneViewInner({
 
   const worldRef = useRef(world)
   worldRef.current = world
+  const assetsRef = useRef(_assets)
+  assetsRef.current = _assets
   const [registryEpoch, setRegistryEpoch] = useState(0)
   const [schemaLoadWarnings, setSchemaLoadWarnings] = useState<string[]>([])
   const dismissSchemaLoadWarnings = useCallback(() => setSchemaLoadWarnings([]), [])
@@ -198,6 +219,16 @@ function SceneViewInner({
   const onSelectEntityRef = useRef(onSelectEntity)
   const onEntityPoseCommitRef = useRef(onEntityPoseCommit)
   const onCurrentAvatarChangeRef = useRef(onCurrentAvatarChange)
+  const onTexturePaintStrokeEndRef = useRef(onTexturePaintStrokeEnd)
+  onTexturePaintStrokeEndRef.current = onTexturePaintStrokeEnd
+  const pushUndoBeforePaintStrokeRef = useRef(pushUndoBeforePaintStroke)
+  pushUndoBeforePaintStrokeRef.current = pushUndoBeforePaintStroke
+  const textureBrushRgbRef = useRef<Vec3>(textureBrushRgb)
+  textureBrushRgbRef.current = textureBrushRgb
+  const textureBrushRadiusPxRef = useRef(textureBrushRadiusPx)
+  textureBrushRadiusPxRef.current = textureBrushRadiusPx
+  const getPaintTargetAssetIdRef = useRef(getPaintTargetAssetId)
+  getPaintTargetAssetIdRef.current = getPaintTargetAssetId
   const editNavigationModeRef = useRef(editNavigationMode)
   editNavigationModeRef.current = editNavigationMode
   const showGameHudRef = useRef(showGameHud)
@@ -364,7 +395,10 @@ function SceneViewInner({
 
       entitiesRef.current = entities
       setScene(loadedScene)
-      assetResolverRef.current = assetResolver
+      if (assetResolver) {
+        assetResolver.dispose()
+      }
+      assetResolverRef.current = createAssetResolverFromGetter(() => assetsRef.current)
 
       // Camera setup
       cam = new THREE.PerspectiveCamera(50, 1, 0.1, 1000)
@@ -525,6 +559,18 @@ function SceneViewInner({
           onPoseCommit: (commits) => onEntityPoseCommitRef.current?.(commits),
           setGizmoDragging: (d) => {
             gizmoDraggingRef.current = d
+          },
+          texturePaint: {
+            getAssets: () => assetsRef.current,
+            getBrushRgba: () => {
+              const c = textureBrushRgbRef.current
+              return [c[0], c[1], c[2], 1] as const
+            },
+            getBrushRadiusPx: () => textureBrushRadiusPxRef.current,
+            getPaintTargetAssetId: (entityId: string) =>
+              getPaintTargetAssetIdRef.current?.(entityId) ?? null,
+            pushUndoBeforePaintStroke: () => pushUndoBeforePaintStrokeRef.current?.(),
+            onStrokeEnd: (payload) => onTexturePaintStrokeEndRef.current?.(payload),
           },
         })
         disposePickGizmoRef.current = dispose
@@ -964,7 +1010,11 @@ function SceneViewInner({
       className={className}
       style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden' }}
     >
-      <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+      <div
+        ref={containerRef}
+        {...{ [BUILDER_SCENE_CANVAS_HOST_ATTR]: true }}
+        style={{ width: '100%', height: '100%' }}
+      />
       {worldLoadError !== null ? (
         <div
           role="alert"

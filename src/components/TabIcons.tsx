@@ -56,4 +56,11 @@ export const TabIcons = {
       <line x1="9" y1="14" x2="15" y2="14" />
     </svg>
   ),
+  presets: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={iconStyle}>
+      <path d="M12 2L2 7l10 5 10-5-10-5z" />
+      <path d="M2 17l10 5 10-5" />
+      <path d="M2 12l10 5 10-5" />
+    </svg>
+  ),
 } as const

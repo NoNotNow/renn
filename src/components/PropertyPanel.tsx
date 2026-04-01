@@ -62,6 +62,7 @@ export interface PropertyPanelProps {
   onEntityTransformersChange?: (entityIds: string[], transformers: TransformerConfig[]) => void
   onRefreshFromPhysics?: (entityIds: string[]) => void
   livePoses?: Map<string, { position: Vec3; rotation: Rotation; scale?: Vec3 }> | null
+  onOpenTextureStudio?: (entityId: string) => void | Promise<void>
 }
 
 export default function PropertyPanel({
@@ -80,6 +81,7 @@ export default function PropertyPanel({
   onEntityTransformersChange,
   onRefreshFromPhysics,
   livePoses,
+  onOpenTextureStudio,
 }: PropertyPanelProps) {
   const undo = useEditorUndo()
   const vec3Undo: Vec3UndoProps | undefined =
@@ -499,6 +501,11 @@ export default function PropertyPanel({
                     onWorldChange={onWorldChange}
                     onAssetsChange={onAssetsChange}
                     disabled={anyLocked}
+                    onOpenTextureStudio={
+                      !isMulti && primaryEntity?.material?.map && onOpenTextureStudio
+                        ? () => onOpenTextureStudio(primaryEntity.id)
+                        : undefined
+                    }
                   />
                 )
               }
@@ -567,6 +574,11 @@ export default function PropertyPanel({
                       onWorldChange={onWorldChange}
                       onAssetsChange={onAssetsChange}
                       disabled={anyLocked}
+                      onOpenTextureStudio={
+                        !isMulti && primaryEntity?.material?.map && onOpenTextureStudio
+                          ? () => onOpenTextureStudio(primaryEntity.id)
+                          : undefined
+                      }
                     />
                   </>
                 )

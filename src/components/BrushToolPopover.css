@@ -1,0 +1,71 @@
+/* react-colorful — scoped overrides (library ships inline base styles) */
+.brush-tool-popover .react-colorful {
+  width: 100%;
+  max-width: 220px;
+  height: 148px;
+  border-radius: 8px;
+}
+
+.brush-tool-popover .react-colorful__saturation {
+  border-radius: 7px 7px 0 0;
+}
+
+.brush-tool-popover .react-colorful__hue {
+  height: 14px;
+  border-radius: 0 0 7px 7px;
+}
+
+.brush-tool-popover .react-colorful__pointer {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+}
+
+.brush-tool-popover__hex {
+  box-sizing: border-box;
+  width: 100%;
+  margin-top: 10px;
+  padding: 7px 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  border: 1px solid #2f3545;
+  border-radius: 6px;
+  background: #13151c;
+  color: #e6e9f2;
+}
+
+.brush-tool-popover__hex:focus {
+  outline: none;
+  border-color: #5b6a8a;
+  box-shadow: 0 0 0 1px #5b6a8a;
+}
+
+.brush-tool-popover__size-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 0 0;
+  cursor: default;
+}
+
+.brush-tool-popover__size-label span {
+  font-size: 11px;
+  color: #9ca3af;
+  white-space: nowrap;
+}
+
+.brush-tool-popover__range {
+  flex: 1;
+  min-width: 0;
+  height: 6px;
+  accent-color: #5b6a8a;
+}
+
+.brush-tool-popover__size-value {
+  font-size: 11px;
+  color: #c4c9d4;
+  min-width: 44px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}

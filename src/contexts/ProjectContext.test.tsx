@@ -12,11 +12,18 @@ import type { Vec3, Rotation } from '@/types/world'
 // vi.hoisted() to ensure the mock functions are available in the factory.
 // ------------------------------------------------------------------
 
-const { mockSaveProject, mockListProjects, mockLoadProject, mockLoadAllAssets } = vi.hoisted(() => ({
+const {
+  mockSaveProject,
+  mockListProjects,
+  mockLoadProject,
+  mockLoadAllAssets,
+  mockListModelPresets,
+} = vi.hoisted(() => ({
   mockSaveProject: vi.fn().mockResolvedValue(undefined),
   mockListProjects: vi.fn().mockResolvedValue([]),
   mockLoadProject: vi.fn(),
   mockLoadAllAssets: vi.fn().mockResolvedValue(new Map()),
+  mockListModelPresets: vi.fn().mockResolvedValue([]),
 }))
 
 vi.mock('@/persistence/indexedDb', () => ({
@@ -32,6 +39,9 @@ vi.mock('@/persistence/indexedDb', () => ({
     listAllAssets: vi.fn().mockResolvedValue([]),
     loadAllAssets: mockLoadAllAssets,
     loadAssetPreview: vi.fn().mockResolvedValue(null),
+    listModelPresets: mockListModelPresets,
+    saveModelPreset: vi.fn().mockResolvedValue(undefined),
+    deleteModelPreset: vi.fn().mockResolvedValue(undefined),
   }),
 }))
 

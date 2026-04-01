@@ -1,12 +1,18 @@
-import { useState } from 'react'
+import { useRef, useState, useLayoutEffect } from 'react'
 import Switch from './Switch'
 import MenuBar from './MenuBar'
 import DropdownMenu, { type MenuItemConfig } from './DropdownMenu'
 import type { ProjectMeta } from '@/persistence/types'
 import type { Vec3 } from '@/types/world'
 import { uiLogger } from '@/utils/uiLogger'
-import type { BuilderGizmoMode } from '@/editor/transformGizmoController'
-import { GizmoMoveIcon, GizmoRotateIcon, GizmoScaleIcon } from '@/components/GizmoModeIcons'
+import {
+  TEXTURE_BRUSH_RADIUS_MAX,
+  TEXTURE_BRUSH_RADIUS_MIN,
+  TEXTURE_PAINT_RADIUS_PX,
+  type BuilderGizmoMode,
+} from '@/editor/transformGizmoController'
+import { GizmoMoveIcon, GizmoBrushIcon, GizmoRotateIcon, GizmoScaleIcon } from '@/components/GizmoModeIcons'
+import { BrushToolPopover } from '@/components/BrushToolPopover'
 import { entityPanelIconButtonStyle } from '@/components/sharedStyles'
 
 export interface BuilderHeaderProps {
@@ -32,6 +38,13 @@ export interface BuilderHeaderProps {
   onShadowsChange: (enabled: boolean) => void
   gizmoMode: BuilderGizmoMode
   onGizmoModeChange: (mode: BuilderGizmoMode) => void
+  /** When true, brush tool is inactive (no texture on selection). */
+  textureBrushDisabled?: boolean
+  /** Shown when `gizmoMode === 'paint'` and brush is enabled. */
+  textureBrushColorHex?: string
+  onTextureBrushColorHexChange?: (hex: string) => void
+  textureBrushRadiusPx?: number
+  onTextureBrushRadiusPxChange?: (px: number) => void
   fileInputRef: React.RefObject<HTMLInputElement | null>
   onFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void
   onResetCamera: () => void
@@ -46,6 +59,8 @@ export interface BuilderHeaderProps {
   showGameHud?: boolean
   onGameHudToggle?: () => void
   onOpenPerformanceBooster?: () => void
+  /** Single textured entity: open layered texture editor. */
+  onOpenTextureStudio?: () => void
 }
 
 export default function BuilderHeader({
@@ -67,6 +82,11 @@ export default function BuilderHeader({
   onShadowsChange,
   gizmoMode,
   onGizmoModeChange,
+  textureBrushDisabled = false,
+  textureBrushColorHex = '#1f1f24',
+  onTextureBrushColorHexChange,
+  textureBrushRadiusPx = TEXTURE_PAINT_RADIUS_PX,
+  onTextureBrushRadiusPxChange,
   fileInputRef,
   onFileChange,
   onResetCamera,
@@ -80,8 +100,29 @@ export default function BuilderHeader({
   showGameHud = false,
   onGameHudToggle,
   onOpenPerformanceBooster,
+  onOpenTextureStudio,
 }: BuilderHeaderProps) {
   const [showProjectSelector, setShowProjectSelector] = useState(false)
+  const [brushPopoverOpen, setBrushPopoverOpen] = useState(false)
+  const brushToolButtonRef = useRef<HTMLButtonElement>(null)
+  const wasPaintGizmoRef = useRef(gizmoMode === 'paint')
+
+  useLayoutEffect(() => {
+    if (wasPaintGizmoRef.current && gizmoMode !== 'paint') {
+      setBrushPopoverOpen(false)
+    }
+    wasPaintGizmoRef.current = gizmoMode === 'paint'
+  }, [gizmoMode])
+
+  const handleBrushToolClick = (): void => {
+    if (textureBrushDisabled) return
+    if (gizmoMode === 'paint') {
+      setBrushPopoverOpen((o) => !o)
+      return
+    }
+    onGizmoModeChange('paint')
+    setBrushPopoverOpen(true)
+  }
 
   const recentProjects = projects.slice(0, 5)
   const fileMenuItems: MenuItemConfig[] = [
@@ -291,6 +332,48 @@ export default function BuilderHeader({
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 12px' }}>
           <div
             role="group"
+            aria-label="Texture brush"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              paddingRight: 10,
+              marginRight: 2,
+              borderRight: '1px solid #2f3545',
+            }}
+          >
+            <button
+              ref={brushToolButtonRef}
+              type="button"
+              title="Paint texture (brush)"
+              aria-label="Brush tool"
+              aria-expanded={brushPopoverOpen}
+              aria-haspopup="dialog"
+              aria-controls={brushPopoverOpen ? 'builder-brush-toolbar-panel' : undefined}
+              aria-pressed={gizmoMode === 'paint'}
+              disabled={textureBrushDisabled}
+              onClick={handleBrushToolClick}
+              style={{
+                ...entityPanelIconButtonStyle,
+                display: 'flex',
+                background: gizmoMode === 'paint' ? '#2a3142' : 'transparent',
+                opacity: textureBrushDisabled ? 0.4 : gizmoMode === 'paint' ? 1 : 0.85,
+                cursor: textureBrushDisabled ? 'not-allowed' : 'pointer',
+              }}
+              onMouseEnter={(e) => {
+                if (textureBrushDisabled) return
+                if (gizmoMode !== 'paint') e.currentTarget.style.opacity = '1'
+              }}
+              onMouseLeave={(e) => {
+                if (textureBrushDisabled) return
+                if (gizmoMode !== 'paint') e.currentTarget.style.opacity = '0.85'
+              }}
+            >
+              {GizmoBrushIcon}
+            </button>
+          </div>
+          <div
+            role="group"
             aria-label="Gizmo mode"
             style={{ display: 'flex', alignItems: 'center', gap: 4 }}
           >
@@ -369,6 +452,21 @@ export default function BuilderHeader({
           />
         </div>
       </div>
+
+      {brushPopoverOpen && !textureBrushDisabled && onTextureBrushColorHexChange ? (
+        <BrushToolPopover
+          open
+          anchorRef={brushToolButtonRef}
+          onClose={() => setBrushPopoverOpen(false)}
+          colorHex={textureBrushColorHex}
+          onColorHexChange={onTextureBrushColorHexChange}
+          radiusPx={textureBrushRadiusPx}
+          onRadiusPxChange={onTextureBrushRadiusPxChange}
+          radiusMin={TEXTURE_BRUSH_RADIUS_MIN}
+          radiusMax={TEXTURE_BRUSH_RADIUS_MAX}
+          onOpenTextureStudio={onOpenTextureStudio}
+        />
+      ) : null}
 
       {/* Hidden file input for import */}
       <input

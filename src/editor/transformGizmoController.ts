@@ -4,6 +4,7 @@ import { findEntityRootForPicking } from '@/utils/entityPicking'
 import type { RenderItemRegistry } from '@/runtime/renderItemRegistry'
 import type { Entity, Rotation, Shape, Vec3 } from '@/types/world'
 import { quaternionToEuler } from '@/utils/rotationUtils'
+import { paintTextureBlob } from '@/utils/texturePaint'
 
 /** Floor for each scale axis while dragging; matches rapierPhysics tolerances (~1e-4). */
 export const GIZMO_MIN_AXIS_SCALE = 1e-4
@@ -53,7 +54,26 @@ function logicalRotationFromMeshWorldQuaternion(mesh: THREE.Mesh, worldQuat: THR
   return quaternionToEuler(q)
 }
 
-export type BuilderGizmoMode = 'translate' | 'rotate' | 'scale'
+export type BuilderGizmoMode = 'translate' | 'rotate' | 'scale' | 'paint'
+
+/** Default brush radius in texture pixels (Builder paint tool). */
+export const TEXTURE_PAINT_RADIUS_PX = 6
+
+/** Min/max brush radius in texture pixels (Builder UI slider). */
+export const TEXTURE_BRUSH_RADIUS_MIN = 1
+export const TEXTURE_BRUSH_RADIUS_MAX = 800
+
+/** Default brush RGBA when no `getBrushRgba` is provided (matches legacy default). */
+export const DEFAULT_TEXTURE_BRUSH_RGBA: readonly [number, number, number, number] = [0.12, 0.12, 0.14, 1]
+
+/** Default brush RGB (0–1) for Builder UI / SceneView prop. */
+export const DEFAULT_TEXTURE_BRUSH_RGB: Vec3 = [0.12, 0.12, 0.14]
+
+export interface TexturePaintStrokePayload {
+  entityId: string
+  mapAssetId: string
+  newBlob: Blob
+}
 
 export interface BuilderPoseCommit {
   position: Vec3
@@ -81,6 +101,18 @@ export interface InstallBuilderPickAndGizmoParams {
   onPoseCommit: (commits: BuilderPoseCommitEntry[]) => void
   /** Set true while user drags a gizmo handle (for camera orbit gating). */
   setGizmoDragging: (dragging: boolean) => void
+  /** When set, brush mode can paint albedo textures on the selected entity. */
+  texturePaint?: {
+    getAssets: () => Map<string, Blob>
+    /** RGBA in 0–1; alpha should stay 1 for opaque strokes. */
+    getBrushRgba: () => readonly [number, number, number, number]
+    /** Texture-space radius in pixels; clamped to [TEXTURE_BRUSH_RADIUS_MIN, TEXTURE_BRUSH_RADIUS_MAX]. */
+    getBrushRadiusPx?: () => number
+    /** When set (e.g. layer compositor), paint this asset id instead of `entity.material.map`. */
+    getPaintTargetAssetId?: (entityId: string) => string | null
+    pushUndoBeforePaintStroke: () => void
+    onStrokeEnd: (payload: TexturePaintStrokePayload) => void | Promise<void>
+  }
 }
 
 type MultiDragState = {
@@ -128,6 +160,16 @@ export function installBuilderPickAndGizmo(
 
   let multiDragState: MultiDragState | null = null
 
+  type PaintStrokeState = {
+    pointerId: number
+    entityId: string
+    mapAssetId: string
+    workingBlob: Blob
+  }
+  let paintStroke: PaintStrokeState | null = null
+  let pendingPaintUv: { u: number; v: number } | null = null
+  let paintFlushRaf = 0
+
   const setNdcFromEvent = (e: PointerEvent): void => {
     const rect = p.domElement.getBoundingClientRect()
     ndc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1
@@ -143,6 +185,7 @@ export function installBuilderPickAndGizmo(
     const item = reg.get(id)
     if (!item) return
     const mode = p.getGizmoMode()
+    if (mode === 'paint') return
     if (mode === 'scale') {
       const [sx, sy, sz] = clampGizmoScaleAxes(obj.scale.x, obj.scale.y, obj.scale.z)
       if (sx !== obj.scale.x || sy !== obj.scale.y || sz !== obj.scale.z) {
@@ -179,6 +222,11 @@ export function installBuilderPickAndGizmo(
   }
 
   const syncAttach = (): void => {
+    if (p.getGizmoMode() === 'paint') {
+      controls.detach()
+      return
+    }
+
     const targetIds = getGizmoTargetIds()
     if (targetIds.length === 0) {
       controls.detach()
@@ -189,8 +237,10 @@ export function installBuilderPickAndGizmo(
       const id = targetIds[0]!
       const obj = p.scene.getObjectByName(id)
       if (obj instanceof THREE.Mesh) {
-        const mode = p.getGizmoMode()
-        controls.setMode(mode)
+        const gizmoMode = p.getGizmoMode()
+        if (gizmoMode === 'translate' || gizmoMode === 'rotate' || gizmoMode === 'scale') {
+          controls.setMode(gizmoMode)
+        }
         controls.setSpace('local')
         if (controls.object !== obj) {
           controls.attach(obj)
@@ -217,8 +267,10 @@ export function installBuilderPickAndGizmo(
     pivot.scale.set(1, 1, 1)
     pivot.updateMatrixWorld(true)
 
-    const mode = p.getGizmoMode()
-    controls.setMode(mode)
+    const gizmoMode = p.getGizmoMode()
+    if (gizmoMode === 'translate' || gizmoMode === 'rotate' || gizmoMode === 'scale') {
+      controls.setMode(gizmoMode)
+    }
     controls.setSpace('world')
     if (controls.object !== pivot) {
       controls.attach(pivot)
@@ -298,6 +350,7 @@ export function installBuilderPickAndGizmo(
     const id = obj.name
     if (!id || !reg) return
     const mode = p.getGizmoMode()
+    if (mode === 'paint') return
     if (mode === 'scale') {
       const baked = reg.applyGizmoScaleBake(id)
       if (!baked) {
@@ -324,6 +377,83 @@ export function installBuilderPickAndGizmo(
     }
   }
 
+  const getStrokeColor = (): readonly [number, number, number, number] =>
+    p.texturePaint?.getBrushRgba?.() ?? DEFAULT_TEXTURE_BRUSH_RGBA
+
+  const getStrokeRadiusPx = (): number => {
+    const g = p.texturePaint?.getBrushRadiusPx
+    const raw = typeof g === 'function' ? g() : TEXTURE_PAINT_RADIUS_PX
+    const n = Math.round(Number(raw))
+    if (!Number.isFinite(n)) return TEXTURE_PAINT_RADIUS_PX
+    return Math.min(TEXTURE_BRUSH_RADIUS_MAX, Math.max(TEXTURE_BRUSH_RADIUS_MIN, n))
+  }
+
+  const flushPaintMove = (): void => {
+    paintFlushRaf = 0
+    if (!paintStroke || !pendingPaintUv) return
+    const { u, v } = pendingPaintUv
+    pendingPaintUv = null
+    void paintTextureBlob(paintStroke.workingBlob, {
+      u,
+      v,
+      radiusPx: getStrokeRadiusPx(),
+      color: getStrokeColor(),
+    })
+      .then((next) => {
+        if (paintStroke) paintStroke.workingBlob = next
+      })
+      .catch((err) => {
+        console.error('[texture paint]', err)
+      })
+  }
+
+  const schedulePaintMoveFlush = (): void => {
+    if (paintFlushRaf !== 0) return
+    paintFlushRaf = window.requestAnimationFrame(() => {
+      flushPaintMove()
+    })
+  }
+
+  const endPaintStroke = async (): Promise<void> => {
+    if (paintFlushRaf !== 0) {
+      window.cancelAnimationFrame(paintFlushRaf)
+      paintFlushRaf = 0
+    }
+    pendingPaintUv = null
+    const st = paintStroke
+    paintStroke = null
+    if (!st || !p.texturePaint) return
+    try {
+      p.domElement.releasePointerCapture(st.pointerId)
+    } catch {
+      /* ignore */
+    }
+    await p.texturePaint.onStrokeEnd({
+      entityId: st.entityId,
+      mapAssetId: st.mapAssetId,
+      newBlob: st.workingBlob,
+    })
+  }
+
+  const onPaintPointerMove = (e: PointerEvent): void => {
+    if (!paintStroke || e.pointerId !== paintStroke.pointerId) return
+    setNdcFromEvent(e)
+    p.scene.updateMatrixWorld(true)
+    raycaster.setFromCamera(ndc, p.camera)
+    const hits = raycaster.intersectObjects(getEntityMeshes(), true)
+    const h = hits[0]
+    const root = h?.object ? findEntityRootForPicking(h.object) : null
+    const hid = root?.userData.entityId as string | undefined
+    if (!h?.uv || hid !== paintStroke.entityId) return
+    pendingPaintUv = { u: h.uv.x, v: h.uv.y }
+    schedulePaintMoveFlush()
+  }
+
+  const onPaintPointerEnd = (e: PointerEvent): void => {
+    if (!paintStroke || e.pointerId !== paintStroke.pointerId) return
+    void endPaintStroke()
+  }
+
   controls.addEventListener('objectChange', onObjectChange)
   controls.addEventListener('mouseDown', onMouseDown)
   controls.addEventListener('mouseUp', onMouseUp)
@@ -340,19 +470,81 @@ export function installBuilderPickAndGizmo(
     const hits = raycaster.intersectObjects(getEntityMeshes(), true)
     const hit = hits[0]
     const entityRoot = hit?.object ? findEntityRootForPicking(hit.object) : null
-    if (!entityRoot) {
+
+    const paintMode = p.getGizmoMode() === 'paint'
+    const tp = p.texturePaint
+
+    if (paintMode && tp) {
+      const selected = p.getSelectedIds()
+      if (
+        selected.length === 1 &&
+        entityRoot &&
+        hit?.uv &&
+        (entityRoot.userData.entityId as string) === selected[0]
+      ) {
+        const sid = selected[0]!
+        const entity = p.getEntity(sid)
+        const mapId = entity?.material?.map
+        const paintTargetId = tp.getPaintTargetAssetId?.(sid) ?? null
+        const paintSourceId = paintTargetId ?? mapId
+        const blob = paintSourceId ? tp.getAssets().get(paintSourceId) : undefined
+        if (paintSourceId && blob) {
+          tp.pushUndoBeforePaintStroke()
+          paintStroke = {
+            pointerId: e.pointerId,
+            entityId: sid,
+            mapAssetId: paintSourceId,
+            workingBlob: blob,
+          }
+          try {
+            p.domElement.setPointerCapture(e.pointerId)
+          } catch {
+            /* ignore */
+          }
+          void paintTextureBlob(blob, {
+            u: hit.uv.x,
+            v: hit.uv.y,
+            radiusPx: getStrokeRadiusPx(),
+            color: getStrokeColor(),
+          })
+            .then((next) => {
+              if (paintStroke?.pointerId === e.pointerId) paintStroke.workingBlob = next
+            })
+            .catch((err) => {
+              console.error('[texture paint]', err)
+            })
+          return
+        }
+      }
+      if (!entityRoot) {
+        return
+      }
+    } else if (!entityRoot) {
       p.onSelectEntity(null)
       return
     }
+
     const additive = e.shiftKey || e.metaKey || e.ctrlKey
     p.onSelectEntity(entityRoot.userData.entityId as string, { additive })
   }
 
   p.domElement.addEventListener('pointerdown', onSelectPointerDown)
+  p.domElement.addEventListener('pointermove', onPaintPointerMove)
+  p.domElement.addEventListener('pointerup', onPaintPointerEnd)
+  p.domElement.addEventListener('pointercancel', onPaintPointerEnd)
 
   syncAttach()
 
   const dispose = (): void => {
+    if (paintFlushRaf !== 0) {
+      window.cancelAnimationFrame(paintFlushRaf)
+      paintFlushRaf = 0
+    }
+    paintStroke = null
+    pendingPaintUv = null
+    p.domElement.removeEventListener('pointermove', onPaintPointerMove)
+    p.domElement.removeEventListener('pointerup', onPaintPointerEnd)
+    p.domElement.removeEventListener('pointercancel', onPaintPointerEnd)
     p.domElement.removeEventListener('pointerdown', onSelectPointerDown)
     controls.removeEventListener('objectChange', onObjectChange)
     controls.removeEventListener('mouseDown', onMouseDown)

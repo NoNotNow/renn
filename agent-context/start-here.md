@@ -19,6 +19,7 @@
 | Input + car2 paradigms (layering, presets, transferability) | `transformer-paradigm-input-and-car2.md` |
 | Scripts, game API, events, intellisense | `feature-scripting.md` |
 | Property panel, inspector, live poses, picking (incl. 3D model meshes), no-update-loop | `feature-inspector.md` |
+| Global model/material/shape presets (IndexedDB, Presets tab) | `architecture.md` (Persistence, ModelPresetPanel) |
 | World update path, rebuild triggers, minimal reload strategy | `feature-world-update-reload.md` |
 | What is done / what is left to build | `project-status.md` |
 | Refactor / cleanup backlog (completed items + follow-ups) | `codebase-cleanup-audit.md` |

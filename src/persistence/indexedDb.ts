@@ -1,5 +1,5 @@
 import { openDB, type IDBPDatabase } from 'idb'
-import type { RennWorld } from '@/types/world'
+import type { RennWorld, ModelPreset } from '@/types/world'
 import type { ProjectMeta, LoadedProject, PersistenceAPI } from './types'
 import { generateProjectId } from '@/utils/idGenerator'
 import { DB_CONFIG } from '@/config/constants'
@@ -7,6 +7,7 @@ import { addAssetsToZipFolder } from '@/utils/assetExport'
 
 const STORE_PROJECTS = DB_CONFIG.stores.projects
 const STORE_ASSETS = DB_CONFIG.stores.assets
+const STORE_MODEL_PRESETS = DB_CONFIG.stores.modelPresets
 
 /**
  * Returns the ArrayBuffer for a Blob. Uses blob.arrayBuffer() when available (e.g. browser/Node 18+),
@@ -71,6 +72,12 @@ function getDB(): Promise<IDBPDatabase> {
         // Create new global assets store
         const assetStore = db.createObjectStore(STORE_ASSETS, { keyPath: 'assetId' })
         assetStore.createIndex('byType', 'type', { unique: false })
+      }
+
+      // Global model presets (v3). v4 bump: create store whenever missing — some DBs reached
+      // version 3 without this store (upgrade guard was `oldVersion < 3`, so 3→3 never ran).
+      if (!db.objectStoreNames.contains(STORE_MODEL_PRESETS)) {
+        db.createObjectStore(STORE_MODEL_PRESETS, { keyPath: 'id' })
       }
     },
     blocked() {
@@ -354,6 +361,25 @@ export function createIndexedDbPersistence(): PersistenceAPI {
         }
       }
       return null
+    },
+
+    async listModelPresets(): Promise<ModelPreset[]> {
+      const db = await getDB()
+      const rows = (await db.getAll(STORE_MODEL_PRESETS)) as ModelPreset[]
+      await db.close()
+      return [...rows].sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
+    },
+
+    async saveModelPreset(preset: ModelPreset): Promise<void> {
+      const db = await getDB()
+      await db.put(STORE_MODEL_PRESETS, preset)
+      await db.close()
+    },
+
+    async deleteModelPreset(id: string): Promise<void> {
+      const db = await getDB()
+      await db.delete(STORE_MODEL_PRESETS, id)
+      await db.close()
     },
   }
 }

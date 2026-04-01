@@ -1,0 +1,389 @@
+.texture-maker-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 4200;
+  pointer-events: none;
+}
+
+.texture-maker-panel {
+  pointer-events: auto;
+  position: fixed;
+  display: flex;
+  flex-direction: column;
+  min-width: 560px;
+  min-height: 360px;
+  max-width: 95vw;
+  max-height: 92vh;
+  background: #1b1f2a;
+  border: 1px solid #2f3545;
+  border-radius: 10px;
+  box-shadow: 0 18px 56px rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+  /* panel resize handle */
+  isolation: isolate;
+}
+
+.texture-maker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: #13151c;
+  border-bottom: 1px solid #2f3545;
+  cursor: grab;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.texture-maker-header:active {
+  cursor: grabbing;
+}
+
+.texture-maker-body {
+  display: flex;
+  flex: 1;
+  flex-direction: row;
+  min-height: 0;
+}
+
+.texture-maker-left {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid #2f3545;
+  overflow: auto;
+  padding: 10px 12px;
+  gap: 12px;
+}
+
+.texture-maker-doc-size {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 8px 10px;
+  background: #161922;
+  border-radius: 8px;
+  border: 1px solid #2a3142;
+  font-size: 11px;
+  color: #9aa4b2;
+}
+
+.texture-maker-doc-size__label {
+  font-weight: 600;
+  color: #c4c9d4;
+  margin-right: 4px;
+}
+
+.texture-maker-doc-size__presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.texture-maker-doc-size__presets button {
+  padding: 4px 8px;
+  font-size: 11px;
+  background: #2a3142;
+  border: 1px solid #3d4558;
+  border-radius: 4px;
+  color: #e6e9f2;
+  cursor: pointer;
+}
+
+.texture-maker-doc-size__presets button:hover:not(:disabled) {
+  background: #323a4e;
+}
+
+.texture-maker-doc-size__presets button.active,
+.texture-maker-doc-size__presets button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.texture-maker-doc-size__custom {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.texture-maker-doc-size__custom input[type='number'] {
+  width: 56px;
+  padding: 4px 6px;
+  font-size: 11px;
+  background: #13151c;
+  border: 1px solid #2f3545;
+  border-radius: 4px;
+  color: #e6e9f2;
+}
+
+.texture-maker-doc-size__times {
+  color: #6b7280;
+}
+
+.texture-maker-doc-size__apply {
+  padding: 4px 10px;
+  font-size: 11px;
+  background: #2b3550;
+  border: 1px solid #3d4a66;
+  border-radius: 4px;
+  color: #e6e9f2;
+  cursor: pointer;
+}
+
+.texture-maker-doc-size__hint {
+  width: 100%;
+  margin: 0;
+  font-size: 10px;
+  color: #6b7280;
+}
+
+.texture-maker-preview-wrap {
+  flex: 1;
+  min-height: 140px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.texture-maker-preview-hint {
+  margin: 0;
+  font-size: 10px;
+  color: #8b95a8;
+  line-height: 1.4;
+  text-align: center;
+  max-width: 360px;
+}
+
+.texture-maker-preview__frame {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  border-radius: 8px;
+  border: 1px solid #2f3545;
+  background: repeating-conic-gradient(#2a2e38 0% 25%, #23262e 0% 50%) 50% / 16px 16px;
+  line-height: 0;
+}
+
+.texture-maker-preview__frame img {
+  display: block;
+  max-width: 100%;
+  max-height: min(320px, 48vh);
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.texture-maker-preview__empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 120px;
+  min-height: 120px;
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.texture-maker-right {
+  width: 280px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: #151821;
+}
+
+.texture-maker-layers {
+  flex-shrink: 0;
+  max-height: 42%;
+  overflow: auto;
+  padding: 8px;
+  border-bottom: 1px solid #2f3545;
+}
+
+.texture-maker-layers__title {
+  font-size: 11px;
+  color: #8b95a8;
+  margin-bottom: 8px;
+}
+
+.texture-maker-layers__actions {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.texture-maker-layers__actions button {
+  font-size: 11px;
+  padding: 6px;
+  background: #2b3550;
+  border: 1px solid #3d4a66;
+  border-radius: 6px;
+  color: #e6e9f2;
+  cursor: pointer;
+}
+
+.texture-maker-file-input {
+  display: none;
+}
+
+.texture-maker-layer-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  margin-bottom: 4px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  font-size: 12px;
+  color: #e6e9f2;
+}
+
+.texture-maker-layer-row.selected {
+  border-color: #5b6a8a;
+  background: #232836;
+}
+
+.texture-maker-layer-row__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.texture-maker-layer-row__icon {
+  padding: 2px 6px;
+  font-size: 11px;
+  background: #2a3142;
+  border: 1px solid #3d4558;
+  border-radius: 4px;
+  color: #e6e9f2;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.texture-maker-layer-row__icon:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.texture-maker-props {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px;
+}
+
+.texture-maker-props__heading {
+  margin: 0 0 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #e6e9f2;
+}
+
+.texture-maker-props__empty {
+  margin: 0;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.texture-maker-props__dest-readout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 10px;
+  margin: 0 0 10px;
+  font-size: 10px;
+  color: #9aa4b2;
+}
+
+.texture-maker-props__dest-readout dt {
+  margin: 0;
+  color: #6b7280;
+}
+
+.texture-maker-props__dest-readout dd {
+  margin: 0;
+  font-weight: 600;
+  color: #c4c9d4;
+}
+
+.texture-maker-props__quick {
+  margin-bottom: 12px;
+}
+
+.texture-maker-props__quick button {
+  width: 100%;
+  padding: 6px 8px;
+  font-size: 10px;
+  background: #2a3142;
+  border: 1px solid #3d4558;
+  border-radius: 4px;
+  color: #e6e9f2;
+  cursor: pointer;
+}
+
+.texture-maker-props__label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+  font-size: 11px;
+  color: #c4c9d4;
+}
+
+.texture-maker-props__label input[type='range'] {
+  width: 100%;
+}
+
+.texture-maker-props__label select,
+.texture-maker-props__label input[type='text'] {
+  padding: 4px 6px;
+  font-size: 12px;
+  background: #13151c;
+  border: 1px solid #2f3545;
+  border-radius: 4px;
+  color: #e6e9f2;
+}
+
+.texture-maker-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 4px;
+  font-size: 11px;
+  color: #8b95a8;
+}
+
+.texture-maker-toolbar button {
+  padding: 4px 8px;
+  font-size: 11px;
+  background: #2a3142;
+  border: 1px solid #3d4558;
+  border-radius: 4px;
+  color: #e6e9f2;
+  cursor: pointer;
+}
+
+.texture-maker-toolbar button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.texture-maker-resize {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 14px;
+  height: 14px;
+  cursor: nwse-resize;
+  opacity: 0.5;
+}
+
+.texture-maker-resize:hover {
+  opacity: 1;
+}

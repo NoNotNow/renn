@@ -13,9 +13,18 @@ import { useProjectContext } from '@/hooks/useProjectContext'
 import { useLocalStorageState } from '@/hooks/useLocalStorageState'
 import { cycleCameraMode, DEFAULT_SCALE, type Vec3, type Rotation, type Entity, type TrimeshSimplificationConfig } from '@/types/world'
 import { uiLogger } from '@/utils/uiLogger'
+import { colorToHex, hexToColor } from '@/utils/colorUtils'
 import { getSceneDependencyKey } from '@/utils/sceneDependencyKey'
 import type { TransformerConfig } from '@/types/transformer'
-import type { BuilderGizmoMode, BuilderPoseCommitEntry } from '@/editor/transformGizmoController'
+import {
+  DEFAULT_TEXTURE_BRUSH_RGB,
+  TEXTURE_BRUSH_RADIUS_MAX,
+  TEXTURE_BRUSH_RADIUS_MIN,
+  TEXTURE_PAINT_RADIUS_PX,
+  type BuilderGizmoMode,
+  type BuilderPoseCommitEntry,
+  type TexturePaintStrokePayload,
+} from '@/editor/transformGizmoController'
 import { cloneEditorSnapshot, createEditorHistory, type EditorSnapshot } from '@/editor/editorHistory'
 import { downscaleImageBlob } from '@/utils/textureDownscale'
 import { clampTrimeshSimplificationConfig } from '@/scripts/migrateWorld'
@@ -23,6 +32,26 @@ import {
   applyMeshSimplificationToEntityInWorld,
   persistSimplifiedMeshAssetFromWorld,
 } from '@/utils/bakeSimplifiedModelAsset'
+import {
+  buildTextureDocument,
+  compositeTextureLayers,
+  createTransparentPngBlob,
+  deserializeDoc,
+  isCompositeMaterialMap,
+  mergeLayerDown,
+  readImageBitmapSize,
+  removeLayerAt,
+  reorderLayer,
+  rasterizeBlobToDimensions,
+  resizeTextureDocument,
+  serializeDocToBlob,
+  texDocAssetId,
+  type TextureDocument,
+  type TextureLayer,
+} from '@/utils/textureCompositor'
+import { generateCompositeAssetId, generateTexLayerAssetId } from '@/utils/idGenerator'
+import { resolvePaintStrokeWriteTarget, TEXTURE_LAYER_PREFIX } from '@/utils/paintAssetRouting'
+import TextureMaker from '@/components/TextureMaker/TextureMaker'
 
 const EDITOR_HISTORY_MAX_DEPTH = 80
 
@@ -79,6 +108,8 @@ export default function Builder() {
     }
   }, [])
   const [gizmoMode, setGizmoMode] = useState<BuilderGizmoMode>('translate')
+  const [textureBrushRgb, setTextureBrushRgb] = useState<Vec3>(() => [...DEFAULT_TEXTURE_BRUSH_RGB])
+  const [textureBrushRadiusPx, setTextureBrushRadiusPx] = useState(TEXTURE_PAINT_RADIUS_PX)
   const [shadowsEnabled, setShadowsEnabled] = useState(true)
   const [editNavigationMode, setEditNavigationMode] = useState(false)
   const [showSaveDialog, setShowSaveDialog] = useState(false)
@@ -100,6 +131,14 @@ export default function Builder() {
   worldAssetsRef.current = { world, assets }
   const [historyTick, setHistoryUi] = useState(0)
   const bumpHistoryUi = useCallback(() => setHistoryUi((n) => n + 1), [])
+  const textureDocsRef = useRef<Map<string, TextureDocument>>(new Map())
+  const selectedLayerByEntityRef = useRef<Map<string, string>>(new Map())
+  const [textureStudioTick, setTextureStudioTick] = useState(0)
+  const bumpTextureStudio = useCallback(() => setTextureStudioTick((t) => t + 1), [])
+  const [textureMakerEntityId, setTextureMakerEntityId] = useState<string | null>(null)
+  const [compositePreviewUrl, setCompositePreviewUrl] = useState<string | null>(null)
+  /** Active layer for compositor paint + Texture Maker highlight. */
+  const [textureMakerLayerId, setTextureMakerLayerId] = useState<string | null>(null)
 
   useEffect(() => {
     historyRef.current.clear()
@@ -157,6 +196,385 @@ export default function Builder() {
       },
     }),
     [pushHistory, bumpHistoryUi]
+  )
+
+  const persistTextureDoc = useCallback(
+    async (
+      entityId: string,
+      doc: TextureDocument,
+      patchAssets?: (next: Map<string, Blob>) => void,
+    ) => {
+      const prev = worldAssetsRef.current.assets
+      const next = new Map(prev)
+      patchAssets?.(next)
+      const comp = await compositeTextureLayers(doc, next)
+      next.set(doc.compositeAssetId, comp)
+      next.set(texDocAssetId(doc.compositeAssetId), serializeDocToBlob(doc))
+      await updateAssets(() => next)
+      textureDocsRef.current.set(entityId, doc)
+      bumpTextureStudio()
+      requestAnimationFrame(() => {
+        const ent = worldAssetsRef.current.world.entities.find((e) => e.id === entityId)
+        if (ent) void sceneViewRef.current?.updateEntityMaterial(entityId, ent)
+      })
+    },
+    [updateAssets, bumpTextureStudio],
+  )
+
+  const activateTextureStudioForEntity = useCallback(
+    async (entityId: string) => {
+      pushHistory()
+      const w = worldAssetsRef.current.world
+      const a = worldAssetsRef.current.assets
+      const entity = w.entities.find((e) => e.id === entityId)
+      const mapId = entity?.material?.map
+      if (!entity || !mapId) return
+
+      if (isCompositeMaterialMap(mapId)) {
+        const sidecar = a.get(texDocAssetId(mapId))
+        if (sidecar) {
+          try {
+            const docLoaded = await deserializeDoc(sidecar)
+            textureDocsRef.current.set(entityId, docLoaded)
+            const top = docLoaded.layers[docLoaded.layers.length - 1]
+            if (top) {
+              selectedLayerByEntityRef.current.set(entityId, top.id)
+              setTextureMakerLayerId(top.id)
+            }
+          } catch {
+            /* ignore corrupt sidecar */
+          }
+        }
+        setTextureMakerEntityId(entityId)
+        bumpTextureStudio()
+        return
+      }
+
+      const sourceBlob = a.get(mapId)
+      if (!sourceBlob) return
+      const { width, height } = await readImageBitmapSize(sourceBlob)
+      const compositeAssetId = generateCompositeAssetId()
+      const bgLayerAssetId = generateTexLayerAssetId()
+      const paintLayerAssetId = generateTexLayerAssetId()
+      const bgBlob = await rasterizeBlobToDimensions(sourceBlob, width, height)
+      const paintBlob = await createTransparentPngBlob(width, height)
+      const docNew = buildTextureDocument({
+        compositeAssetId,
+        width,
+        height,
+        backgroundLayerAssetId: bgLayerAssetId,
+        paintLayerAssetId: paintLayerAssetId,
+      })
+      const next = new Map(a)
+      next.set(bgLayerAssetId, bgBlob)
+      next.set(paintLayerAssetId, paintBlob)
+      const comp = await compositeTextureLayers(docNew, next)
+      next.set(compositeAssetId, comp)
+      next.set(texDocAssetId(compositeAssetId), serializeDocToBlob(docNew))
+      await updateAssets(() => next)
+      updateWorld((prev) => ({
+        ...prev,
+        entities: prev.entities.map((e) =>
+          e.id === entityId ? { ...e, material: { ...e.material, map: compositeAssetId } } : e,
+        ),
+      }))
+      textureDocsRef.current.set(entityId, docNew)
+      const paintL = docNew.layers[1]
+      if (paintL) {
+        selectedLayerByEntityRef.current.set(entityId, paintL.id)
+        setTextureMakerLayerId(paintL.id)
+      }
+      setTextureMakerEntityId(entityId)
+      bumpTextureStudio()
+      requestAnimationFrame(() => {
+        const ent = worldAssetsRef.current.world.entities.find((e) => e.id === entityId)
+        if (ent) void sceneViewRef.current?.updateEntityMaterial(entityId, ent)
+      })
+    },
+    [pushHistory, updateAssets, updateWorld, bumpTextureStudio],
+  )
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      for (const e of world.entities) {
+        const m = e.material?.map
+        if (!m || !isCompositeMaterialMap(m)) continue
+        const sidecar = assets.get(texDocAssetId(m))
+        if (!sidecar) continue
+        try {
+          const d = await deserializeDoc(sidecar)
+          if (!cancelled) {
+            textureDocsRef.current.set(e.id, d)
+            if (!selectedLayerByEntityRef.current.has(e.id)) {
+              const top = d.layers[d.layers.length - 1]
+              if (top) selectedLayerByEntityRef.current.set(e.id, top.id)
+            }
+          }
+        } catch {
+          /* ignore */
+        }
+      }
+      if (!cancelled) bumpTextureStudio()
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [world.entities, assets, bumpTextureStudio])
+
+  useEffect(() => {
+    if (!textureMakerEntityId) {
+      setCompositePreviewUrl((u) => {
+        if (u) URL.revokeObjectURL(u)
+        return null
+      })
+      return
+    }
+    const doc = textureDocsRef.current.get(textureMakerEntityId)
+    const cid = doc?.compositeAssetId
+    const blob = cid ? assets.get(cid) : undefined
+    if (!blob) {
+      setCompositePreviewUrl((u) => {
+        if (u) URL.revokeObjectURL(u)
+        return null
+      })
+      return
+    }
+    const url = URL.createObjectURL(blob)
+    setCompositePreviewUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev)
+      return url
+    })
+    return () => {
+      URL.revokeObjectURL(url)
+    }
+  }, [textureMakerEntityId, assets, textureStudioTick])
+
+  useEffect(() => {
+    if (selectedEntityIds.length !== 1) {
+      selectedLayerByEntityRef.current.clear()
+      setTextureMakerLayerId(null)
+      setTextureMakerEntityId(null)
+    } else if (textureMakerEntityId != null && !selectedEntityIds.includes(textureMakerEntityId)) {
+      setTextureMakerEntityId(null)
+      setTextureMakerLayerId(null)
+    }
+  }, [selectedEntityIds, textureMakerEntityId])
+
+  useEffect(() => {
+    if (!textureMakerEntityId) return
+    const d = textureDocsRef.current.get(textureMakerEntityId)
+    if (!d || d.layers.length === 0) return
+    const fromRef = selectedLayerByEntityRef.current.get(textureMakerEntityId)
+    const valid = Boolean(fromRef && d.layers.some((l) => l.id === fromRef))
+    if (valid && fromRef) {
+      setTextureMakerLayerId(fromRef)
+      return
+    }
+    const top = d.layers[d.layers.length - 1]!
+    selectedLayerByEntityRef.current.set(textureMakerEntityId, top.id)
+    setTextureMakerLayerId(top.id)
+  }, [textureMakerEntityId, textureStudioTick])
+
+  const getPaintTargetAssetId = useCallback(
+    (entityId: string): string | null => {
+      void textureStudioTick
+      void textureMakerLayerId
+      const ent = worldAssetsRef.current.world.entities.find((x) => x.id === entityId)
+      const mid = ent?.material?.map
+      if (!mid || !isCompositeMaterialMap(mid)) return null
+      const doc = textureDocsRef.current.get(entityId)
+      if (!doc) return null
+      const sel = selectedLayerByEntityRef.current.get(entityId)
+      const layer = sel
+        ? doc.layers.find((l) => l.id === sel)
+        : doc.layers[doc.layers.length - 1]
+      return layer?.assetId ?? null
+    },
+    [textureStudioTick, textureMakerLayerId],
+  )
+
+  const handleTextureMakerSelectLayer = useCallback(
+    (layerId: string) => {
+      const eid = textureMakerEntityId
+      if (!eid) return
+      selectedLayerByEntityRef.current.set(eid, layerId)
+      setTextureMakerLayerId(layerId)
+      bumpTextureStudio()
+    },
+    [textureMakerEntityId, bumpTextureStudio],
+  )
+
+  const handleTextureMakerPatchLayer = useCallback(
+    async (
+      layerId: string,
+      patch: Partial<Pick<TextureLayer, 'opacity' | 'blendMode' | 'visible' | 'name' | 'dest'>>,
+    ) => {
+      const eid = textureMakerEntityId
+      if (!eid) return
+      pushHistory()
+      const doc = textureDocsRef.current.get(eid)
+      if (!doc) return
+      const nextDoc: TextureDocument = {
+        ...doc,
+        layers: doc.layers.map((l) => {
+          if (l.id !== layerId) return l
+          if ('dest' in patch && patch.dest === undefined) {
+            const { dest: _omit, ...rest } = { ...l, ...patch }
+            return rest as TextureLayer
+          }
+          return { ...l, ...patch }
+        }),
+      }
+      await persistTextureDoc(eid, nextDoc)
+    },
+    [textureMakerEntityId, persistTextureDoc, pushHistory],
+  )
+
+  const handleTextureMakerResizeDocument = useCallback(
+    async (newW: number, newH: number) => {
+      const eid = textureMakerEntityId
+      if (!eid) return
+      const doc = textureDocsRef.current.get(eid)
+      if (!doc) return
+      const prevAssets = worldAssetsRef.current.assets
+      const { doc: nextDoc, layerBlobs } = await resizeTextureDocument(doc, newW, newH, prevAssets)
+      if (layerBlobs.size === 0) return
+      pushHistory()
+      await persistTextureDoc(eid, nextDoc, (next) => {
+        for (const [aid, blob] of layerBlobs) next.set(aid, blob)
+      })
+    },
+    [textureMakerEntityId, persistTextureDoc, pushHistory],
+  )
+
+  const handleTextureMakerReorderLayer = useCallback(
+    async (fromIndex: number, toIndex: number) => {
+      const eid = textureMakerEntityId
+      if (!eid) return
+      pushHistory()
+      const doc = textureDocsRef.current.get(eid)
+      if (!doc) return
+      const nextDoc = reorderLayer(doc, fromIndex, toIndex)
+      await persistTextureDoc(eid, nextDoc)
+    },
+    [textureMakerEntityId, persistTextureDoc, pushHistory],
+  )
+
+  const handleTextureMakerRemoveLayer = useCallback(
+    async (index: number) => {
+      const eid = textureMakerEntityId
+      if (!eid) return
+      const doc = textureDocsRef.current.get(eid)
+      if (!doc || doc.layers.length <= 1) return
+      pushHistory()
+      const removed = doc.layers[index]
+      if (!removed) return
+      const nextDoc = removeLayerAt(doc, index)
+      await persistTextureDoc(eid, nextDoc, (next) => {
+        next.delete(removed.assetId)
+      })
+      const cur = selectedLayerByEntityRef.current.get(eid)
+      if (cur === removed.id) {
+        const fallback = nextDoc.layers[Math.min(index, nextDoc.layers.length - 1)]
+        if (fallback) {
+          selectedLayerByEntityRef.current.set(eid, fallback.id)
+          setTextureMakerLayerId(fallback.id)
+        }
+      }
+    },
+    [textureMakerEntityId, persistTextureDoc, pushHistory],
+  )
+
+  const handleTextureMakerAddEmptyLayer = useCallback(async () => {
+    const eid = textureMakerEntityId
+    if (!eid) return
+    const doc = textureDocsRef.current.get(eid)
+    if (!doc) return
+    pushHistory()
+    const layerId = generateTexLayerAssetId()
+    const assetId = generateTexLayerAssetId()
+    const blob = await createTransparentPngBlob(doc.width, doc.height)
+    const nextDoc: TextureDocument = {
+      ...doc,
+      layers: [
+        ...doc.layers,
+        {
+          id: layerId,
+          name: `Layer ${doc.layers.length + 1}`,
+          assetId,
+          opacity: 1,
+          blendMode: 'normal',
+          visible: true,
+        },
+      ],
+    }
+    await persistTextureDoc(eid, nextDoc, (next) => {
+      next.set(assetId, blob)
+    })
+    selectedLayerByEntityRef.current.set(eid, layerId)
+    setTextureMakerLayerId(layerId)
+  }, [textureMakerEntityId, persistTextureDoc, pushHistory])
+
+  const handleTextureMakerImportLayer = useCallback(
+    async (file: File) => {
+      const eid = textureMakerEntityId
+      if (!eid) return
+      const doc = textureDocsRef.current.get(eid)
+      if (!doc) return
+      pushHistory()
+      const buf = await file.arrayBuffer()
+      const fileBlob = new Blob([buf], { type: file.type || 'application/octet-stream' })
+      const raster = await rasterizeBlobToDimensions(fileBlob, doc.width, doc.height)
+      const layerId = generateTexLayerAssetId()
+      const assetId = generateTexLayerAssetId()
+      const nextDoc: TextureDocument = {
+        ...doc,
+        layers: [
+          ...doc.layers,
+          {
+            id: layerId,
+            name: file.name.replace(/\.[^/.]+$/, '') || 'Import',
+            assetId,
+            opacity: 1,
+            blendMode: 'normal',
+            visible: true,
+          },
+        ],
+      }
+      await persistTextureDoc(eid, nextDoc, (next) => {
+        next.set(assetId, raster)
+      })
+      selectedLayerByEntityRef.current.set(eid, layerId)
+      setTextureMakerLayerId(layerId)
+    },
+    [textureMakerEntityId, persistTextureDoc, pushHistory],
+  )
+
+  const handleTextureMakerMergeDown = useCallback(
+    async (index: number) => {
+      const eid = textureMakerEntityId
+      if (!eid) return
+      const doc = textureDocsRef.current.get(eid)
+      if (!doc || index < 1) return
+      pushHistory()
+      const prevAssets = worldAssetsRef.current.assets
+      const result = await mergeLayerDown(doc, index, prevAssets)
+      await persistTextureDoc(eid, result.doc, (next) => {
+        next.set(result.bottomAssetId, result.mergedBlob)
+        next.delete(result.removedTopAssetId)
+      })
+      const removedTop = doc.layers[index]
+      const curSel = selectedLayerByEntityRef.current.get(eid)
+      if (removedTop && curSel === removedTop.id) {
+        const newBottom = result.doc.layers[index - 1]
+        if (newBottom) {
+          selectedLayerByEntityRef.current.set(eid, newBottom.id)
+          setTextureMakerLayerId(newBottom.id)
+        }
+      }
+    },
+    [textureMakerEntityId, persistTextureDoc, pushHistory],
   )
 
   /** Snapshot live registry poses so the next scene rebuild (entity add/remove/clone, etc.) does not reset physics-driven positions. */
@@ -646,9 +1064,95 @@ export default function Builder() {
     [world.entities, assets, updateAssets, pushHistory]
   )
 
+  const handleTexturePaintStrokeEnd = useCallback(
+    async (payload: TexturePaintStrokePayload) => {
+      if (payload.mapAssetId.startsWith(TEXTURE_LAYER_PREFIX)) {
+        const doc = textureDocsRef.current.get(payload.entityId)
+        if (doc?.layers.some((l) => l.assetId === payload.mapAssetId)) {
+          const next = new Map(worldAssetsRef.current.assets)
+          next.set(payload.mapAssetId, payload.newBlob)
+          const comp = await compositeTextureLayers(doc, next)
+          next.set(doc.compositeAssetId, comp)
+          next.set(texDocAssetId(doc.compositeAssetId), serializeDocToBlob(doc))
+          await updateAssets(() => next)
+          bumpTextureStudio()
+          requestAnimationFrame(() => {
+            const entity = worldAssetsRef.current.world.entities.find((e) => e.id === payload.entityId)
+            if (entity) void sceneViewRef.current?.updateEntityMaterial(payload.entityId, entity)
+          })
+          return
+        }
+      }
+
+      const { writeAssetId, entityShouldPointToWriteId } = resolvePaintStrokeWriteTarget(payload.mapAssetId)
+      await updateAssets((prev) => {
+        const next = new Map(prev)
+        next.set(writeAssetId, payload.newBlob)
+        return next
+      })
+      if (entityShouldPointToWriteId) {
+        updateWorld((prev) => ({
+          ...prev,
+          entities: prev.entities.map((e) =>
+            e.id === payload.entityId
+              ? {
+                  ...e,
+                  material: { ...e.material, map: writeAssetId },
+                }
+              : e,
+          ),
+        }))
+      }
+      requestAnimationFrame(() => {
+        const entity = worldAssetsRef.current.world.entities.find((e) => e.id === payload.entityId)
+        if (entity) void sceneViewRef.current?.updateEntityMaterial(payload.entityId, entity)
+      })
+    },
+    [updateAssets, updateWorld, bumpTextureStudio],
+  )
+
+  const handleTextureBrushRadiusPxChange = useCallback((px: number) => {
+    const n = Math.round(px)
+    if (!Number.isFinite(n)) return
+    setTextureBrushRadiusPx(Math.min(TEXTURE_BRUSH_RADIUS_MAX, Math.max(TEXTURE_BRUSH_RADIUS_MIN, n)))
+  }, [])
+
+  const textureBrushDisabled = useMemo(() => {
+    if (selectedEntityIds.length !== 1) return true
+    const eid = selectedEntityIds[0]!
+    const e = world.entities.find((x) => x.id === eid)
+    const mapId = e?.material?.map
+    if (!mapId) return true
+    if (!assets.get(mapId)) return true
+    void textureStudioTick
+    if (isCompositeMaterialMap(mapId)) {
+      const doc = textureDocsRef.current.get(eid)
+      if (!doc || doc.layers.length === 0) return true
+    }
+    return false
+  }, [selectedEntityIds, world.entities, assets, textureStudioTick])
+
+  useEffect(() => {
+    if (gizmoMode === 'paint' && textureBrushDisabled) {
+      setGizmoMode('translate')
+    }
+  }, [gizmoMode, textureBrushDisabled])
+
   void historyTick
   const canUndoHistory = historyRef.current.canUndo()
   const canRedoHistory = historyRef.current.canRedo()
+
+  const textureMakerDoc =
+    textureMakerEntityId != null ? textureDocsRef.current.get(textureMakerEntityId) ?? null : null
+
+  const onOpenTextureStudioFromToolbar =
+    selectedEntityIds.length === 1 &&
+    world.entities.find((x) => x.id === selectedEntityIds[0]!)?.material?.map
+      ? () => {
+          const id = selectedEntityIds[0]!
+          void activateTextureStudioForEntity(id)
+        }
+      : undefined
 
   return (
     <EditorUndoProvider value={editorUndoApi}>
@@ -660,6 +1164,11 @@ export default function Builder() {
         currentProject={currentProject}
         gizmoMode={gizmoMode}
         onGizmoModeChange={handleGizmoModeChange}
+        textureBrushDisabled={textureBrushDisabled}
+        textureBrushColorHex={colorToHex(textureBrushRgb)}
+        onTextureBrushColorHexChange={(hex) => setTextureBrushRgb(hexToColor(hex))}
+        textureBrushRadiusPx={textureBrushRadiusPx}
+        onTextureBrushRadiusPxChange={handleTextureBrushRadiusPxChange}
         shadowsEnabled={shadowsEnabled}
         onNew={handleNew}
         onSave={handleSave}
@@ -701,6 +1210,7 @@ export default function Builder() {
           setPerformanceBoosterOpen(true)
           uiLogger.click('Builder', 'Open Performance booster', {})
         }}
+        onOpenTextureStudio={onOpenTextureStudioFromToolbar}
       />
 
       {showSaveDialog && (
@@ -801,6 +1311,11 @@ export default function Builder() {
               onCurrentAvatarChange={(id) => {
                 if (id) setCameraTarget(id)
               }}
+              onTexturePaintStrokeEnd={handleTexturePaintStrokeEnd}
+              pushUndoBeforePaintStroke={() => editorUndoApi.pushBeforeEdit()}
+              textureBrushRgb={textureBrushRgb}
+              textureBrushRadiusPx={textureBrushRadiusPx}
+              getPaintTargetAssetId={getPaintTargetAssetId}
             />
           </ErrorBoundary>
         </main>
@@ -846,7 +1361,29 @@ export default function Builder() {
           livePoses={livePoses}
           isOpen={rightDrawerOpen}
           onToggle={() => setRightDrawerOpen(!rightDrawerOpen)}
+          onOpenTextureStudio={activateTextureStudioForEntity}
         />
+
+        {textureMakerEntityId && textureMakerDoc ? (
+          <TextureMaker
+            entityId={textureMakerEntityId}
+            doc={textureMakerDoc}
+            compositePreviewUrl={compositePreviewUrl}
+            selectedLayerId={textureMakerLayerId}
+            onClose={() => {
+              setTextureMakerEntityId(null)
+              setTextureMakerLayerId(null)
+            }}
+            onSelectLayer={handleTextureMakerSelectLayer}
+            onPatchLayer={handleTextureMakerPatchLayer}
+            onReorderLayer={handleTextureMakerReorderLayer}
+            onRemoveLayer={handleTextureMakerRemoveLayer}
+            onAddEmptyLayer={handleTextureMakerAddEmptyLayer}
+            onImportLayer={handleTextureMakerImportLayer}
+            onMergeDown={handleTextureMakerMergeDown}
+            onResizeDocument={handleTextureMakerResizeDocument}
+          />
+        ) : null}
       </div>
     </div>
     </CopyProvider>

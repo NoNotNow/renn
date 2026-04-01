@@ -233,6 +233,23 @@ export interface Entity {
   avatar?: EntityAvatarConfig
 }
 
+/**
+ * Global (cross-project) preset: visual model + material + shape + entity scale.
+ * Stored in IndexedDB `modelPresets` store, not in RennWorld.
+ */
+export interface ModelPreset {
+  id: string
+  name: string
+  createdAt: number
+  model?: string
+  modelRotation?: Rotation
+  modelScale?: Vec3
+  modelSimplification?: TrimeshSimplificationConfig
+  material?: MaterialRef
+  shape?: Shape
+  scale?: Vec3
+}
+
 export interface RennWorld {
   version: string
   world: WorldSettings
