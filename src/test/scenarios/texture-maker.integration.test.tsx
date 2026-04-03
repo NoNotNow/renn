@@ -210,6 +210,13 @@ describe('TextureMaker (integration)', () => {
     expect(screen.getByTestId('texture-maker-tool-brush')).toBeInTheDocument()
   })
 
+  it('shows pen texel hint when Pen tool is active', () => {
+    setup()
+    expect(screen.queryByTestId('texture-maker-pen-texel-hint')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByTestId('texture-maker-tool-pen'))
+    expect(screen.getByTestId('texture-maker-pen-texel-hint')).toBeInTheDocument()
+  })
+
   it('shows floating brush popover when brush callbacks are wired and Brush tool is active', async () => {
     const onHex = vi.fn()
     const onAlpha = vi.fn()

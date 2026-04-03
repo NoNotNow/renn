@@ -51,6 +51,13 @@ import {
 } from '@/utils/textureCompositor'
 import { generateCompositeAssetId, generateTexLayerAssetId } from '@/utils/idGenerator'
 import { resolvePaintStrokeWriteTarget, TEXTURE_LAYER_PREFIX } from '@/utils/paintAssetRouting'
+import {
+  countWorldAssetReferences,
+  fileExtNoDotFromImageMime,
+  inferEditFamilyFromMaterialMapId,
+  nextEditedTextureAssetKey,
+  sanitizeTextureStem,
+} from '@/utils/textureAssetVersioning'
 import TextureMaker from '@/components/TextureMaker/TextureMaker'
 
 const EDITOR_HISTORY_MAX_DEPTH = 80
@@ -271,12 +278,15 @@ export default function Builder() {
       const paintLayerAssetId = generateTexLayerAssetId()
       const bgBlob = await rasterizeBlobToDimensions(sourceBlob, width, height)
       const paintBlob = await createTransparentPngBlob(width, height)
+      const { stem, extNoDot } = inferEditFamilyFromMaterialMapId(mapId, sourceBlob.type)
       const docNew = buildTextureDocument({
         compositeAssetId,
         width,
         height,
         backgroundLayerAssetId: bgLayerAssetId,
         paintLayerAssetId: paintLayerAssetId,
+        editFamilyStem: stem,
+        editFamilyFileExt: extNoDot,
       })
       const next = new Map(a)
       next.set(bgLayerAssetId, bgBlob)
@@ -661,18 +671,48 @@ export default function Builder() {
     const baseDoc = textureDocsRef.current.get(eid)
 
     pushHistory()
-    await persistTextureDoc(eid, doc, (next) => {
-      // Ensure draft layer rasters are used, and remove rasters for layers deleted during edits.
-      const draftLayerAssetIds = new Set<string>()
-      for (const aid of draftAssets.keys()) draftLayerAssetIds.add(aid)
+    const w0 = worldAssetsRef.current.world
+    const prevAssets = worldAssetsRef.current.assets
+    const next = new Map(prevAssets)
 
-      if (baseDoc) {
-        for (const l of baseDoc.layers) {
-          if (!draftLayerAssetIds.has(l.assetId)) next.delete(l.assetId)
-        }
+    const draftLayerAssetIds = new Set<string>()
+    for (const aid of draftAssets.keys()) draftLayerAssetIds.add(aid)
+    for (const l of baseDoc?.layers ?? []) {
+      if (!doc.layers.some((x) => x.assetId === l.assetId)) {
+        next.delete(l.assetId)
       }
-      for (const [aid, blob] of draftAssets) next.set(aid, blob)
-    })
+    }
+    for (const [aid, blob] of draftAssets) next.set(aid, blob)
+
+    const baked = await compositeTextureLayers(doc, next)
+    const extActual = fileExtNoDotFromImageMime(baked.type)
+    const entity = w0.entities.find((x) => x.id === eid)
+    const stem =
+      doc.editFamilyStem ?? sanitizeTextureStem((entity?.name ?? '').trim() || 'texture')
+    const newAssetId = nextEditedTextureAssetKey(next.keys(), stem, extActual)
+    next.set(newAssetId, baked)
+
+    const oldComposite = doc.compositeAssetId
+    const oldTexDoc = texDocAssetId(oldComposite)
+    const oldLayerIds = doc.layers.map((l) => l.assetId)
+
+    const worldAfter = {
+      ...w0,
+      entities: w0.entities.map((x) =>
+        x.id === eid ? { ...x, material: { ...x.material, map: newAssetId } } : x,
+      ),
+    }
+
+    for (const rid of [oldComposite, oldTexDoc, ...oldLayerIds]) {
+      if (countWorldAssetReferences(worldAfter, rid) === 0) {
+        next.delete(rid)
+      }
+    }
+
+    await updateAssets(() => next)
+    updateWorld(() => worldAfter)
+    textureDocsRef.current.delete(eid)
+    bumpTextureStudio()
     setTextureMakerEntityId(null)
     setTextureMakerLayerId(null)
     setTextureMakerRevertReady(false)
@@ -680,7 +720,11 @@ export default function Builder() {
     setTextureMakerDraftAssets(null)
     textureMakerDraftDocRef.current = null
     textureMakerDraftAssetsRef.current = null
-  }, [textureMakerEntityId, persistTextureDoc, pushHistory])
+    requestAnimationFrame(() => {
+      const ent = worldAssetsRef.current.world.entities.find((x) => x.id === eid)
+      if (ent) void sceneViewRef.current?.updateEntityMaterial(eid, ent)
+    })
+  }, [textureMakerEntityId, pushHistory, updateAssets, updateWorld, bumpTextureStudio])
 
   const handleTextureMakerMergeDown = useCallback(
     async (index: number) => {

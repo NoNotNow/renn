@@ -189,6 +189,13 @@
   max-width: 360px;
 }
 
+.texture-maker-preview-hint__pen {
+  display: block;
+  margin-top: 4px;
+  font-style: italic;
+  color: #a8b0c0;
+}
+
 .texture-maker-preview__frame {
   position: relative;
   display: flex;

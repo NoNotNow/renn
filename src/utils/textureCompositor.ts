@@ -71,6 +71,10 @@ export interface TextureDocument {
   width: number
   height: number
   layers: TextureLayer[]
+  /** Stem for versioned flat exports (`stem_editedN.ext`). Set when opening the studio. */
+  editFamilyStem?: string
+  /** File extension without dot; informational (baked MIME still wins for new keys). */
+  editFamilyFileExt?: string
 }
 
 export function texDocAssetId(compositeAssetId: string): string {
@@ -337,6 +341,8 @@ export interface NewTextureDocumentParams {
   paintLayerAssetId: string
   backgroundName?: string
   paintLayerName?: string
+  editFamilyStem?: string
+  editFamilyFileExt?: string
 }
 
 export function buildTextureDocument(params: NewTextureDocumentParams): TextureDocument {
@@ -348,12 +354,16 @@ export function buildTextureDocument(params: NewTextureDocumentParams): TextureD
     paintLayerAssetId,
     backgroundName = 'Background',
     paintLayerName = 'Paint',
+    editFamilyStem,
+    editFamilyFileExt,
   } = params
   return {
     version: '1',
     compositeAssetId,
     width,
     height,
+    editFamilyStem,
+    editFamilyFileExt,
     layers: [
       {
         id: generateTexLayerAssetId(),

@@ -1,6 +1,7 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useMemo } from 'react'
 import type { RennWorld } from '@/types/world'
 import { TextureManager } from '@/utils/textureManager'
+import { buildTextureDialogGroups, isInternalTextureAssetKey } from '@/utils/textureAssetVersioning'
 import Modal from './Modal'
 import TextureThumbnail from './TextureThumbnail'
 
@@ -18,7 +19,7 @@ export default function TextureDialog({
   isOpen,
   onClose,
   assets,
-  world,
+  world: _world,
   selectedTextureId,
   onSelectTexture,
   onUploadTexture,
@@ -26,12 +27,35 @@ export default function TextureDialog({
   const [searchQuery, setSearchQuery] = useState('')
   const [dragActive, setDragActive] = useState(false)
   const [uploadPreview, setUploadPreview] = useState<{ file: File; assetId: string } | null>(null)
+  const [expandedFamilies, setExpandedFamilies] = useState<Set<string>>(() => new Set())
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const textureAssets = TextureManager.getTextureAssets(assets)
-  const filteredTextures = textureAssets.filter(({ id }) =>
-    id.toLowerCase().includes(searchQuery.toLowerCase())
+  const userTextureAssets = useMemo(
+    () => TextureManager.getTextureAssets(assets).filter(({ id }) => !isInternalTextureAssetKey(id)),
+    [assets],
   )
+  const filteredTextures = useMemo(
+    () =>
+      userTextureAssets.filter(({ id }) => id.toLowerCase().includes(searchQuery.toLowerCase())),
+    [userTextureAssets, searchQuery],
+  )
+  const dialogGroups = useMemo(
+    () => buildTextureDialogGroups(filteredTextures.map((t) => t.id)),
+    [filteredTextures],
+  )
+  const blobById = useMemo(
+    () => new Map(filteredTextures.map((t) => [t.id, t.blob])),
+    [filteredTextures],
+  )
+
+  const toggleFamilyExpanded = useCallback((stem: string) => {
+    setExpandedFamilies((prev) => {
+      const next = new Set(prev)
+      if (next.has(stem)) next.delete(stem)
+      else next.add(stem)
+      return next
+    })
+  }, [])
 
   const handleDragEnter = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -163,66 +187,173 @@ export default function TextureDialog({
                 style={{
                   flex: 1,
                   overflow: 'auto',
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))',
-                  gap: 12,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 10,
                   padding: '8px 0',
                 }}
               >
-                {filteredTextures.map(({ id, blob }) => (
-                  <div
-                    key={id}
-                    onClick={() => handleSelectExisting(id)}
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      gap: 6,
-                      padding: 8,
-                      borderRadius: 6,
-                      border: selectedTextureId === id ? '2px solid #4a9eff' : '1px solid #2f3545',
-                      background: selectedTextureId === id ? '#1e2a3a' : 'transparent',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease',
-                    }}
-                    onMouseEnter={(e) => {
-                      if (selectedTextureId !== id) {
-                        e.currentTarget.style.background = '#2a2a2a'
-                        e.currentTarget.style.borderColor = '#3f4f5f'
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (selectedTextureId !== id) {
-                        e.currentTarget.style.background = 'transparent'
-                        e.currentTarget.style.borderColor = '#2f3545'
-                      }
-                    }}
-                  >
-                    <TextureThumbnail assetId={id} blob={blob} size={80} />
-                    <span
+                {dialogGroups.map((group) => {
+                  if (group.kind === 'single') {
+                    const id = group.id
+                    const blob = blobById.get(id)
+                    if (!blob) return null
+                    return (
+                      <div
+                        key={id}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => handleSelectExisting(id)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleSelectExisting(id)}
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          gap: 12,
+                          padding: 10,
+                          borderRadius: 6,
+                          border: selectedTextureId === id ? '2px solid #4a9eff' : '1px solid #2f3545',
+                          background: selectedTextureId === id ? '#1e2a3a' : 'transparent',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease',
+                        }}
+                        onMouseEnter={(e) => {
+                          if (selectedTextureId !== id) {
+                            e.currentTarget.style.background = '#2a2a2a'
+                            e.currentTarget.style.borderColor = '#3f4f5f'
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (selectedTextureId !== id) {
+                            e.currentTarget.style.background = 'transparent'
+                            e.currentTarget.style.borderColor = '#2f3545'
+                          }
+                        }}
+                      >
+                        <TextureThumbnail assetId={id} blob={blob} size={72} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div
+                            style={{
+                              fontSize: 12,
+                              color: '#e6e9f2',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                            title={id}
+                          >
+                            {id}
+                          </div>
+                          <div style={{ fontSize: 10, color: '#666', marginTop: 4 }}>
+                            {TextureManager.formatFileSize(blob.size)}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  }
+
+                  const { stem, versions } = group
+                  const expanded = expandedFamilies.has(stem)
+                  const latest = versions[0]!
+                  const latestBlob = blobById.get(latest.id)
+
+                  return (
+                    <div
+                      key={stem}
+                      data-testid={`texture-dialog-family-${stem}`}
                       style={{
-                        fontSize: 11,
-                        color: '#9aa4b2',
-                        textAlign: 'center',
+                        borderRadius: 6,
+                        border: '1px solid #2f3545',
                         overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                        width: '100%',
-                      }}
-                      title={id}
-                    >
-                      {id}
-                    </span>
-                    <span
-                      style={{
-                        fontSize: 10,
-                        color: '#666',
+                        background: '#14161c',
                       }}
                     >
-                      {TextureManager.formatFileSize(blob.size)}
-                    </span>
-                  </div>
-                ))}
+                      <button
+                        type="button"
+                        onClick={() => toggleFamilyExpanded(stem)}
+                        style={{
+                          width: '100%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 10,
+                          padding: '10px 12px',
+                          background: '#1a1d26',
+                          border: 'none',
+                          cursor: 'pointer',
+                          color: '#e6e9f2',
+                          textAlign: 'left',
+                        }}
+                      >
+                        <span style={{ fontSize: 12, width: 14, flexShrink: 0 }} aria-hidden>
+                          {expanded ? '▼' : '▶'}
+                        </span>
+                        {latestBlob ? (
+                          <TextureThumbnail assetId={latest.id} blob={latestBlob} size={44} />
+                        ) : null}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600 }}>{stem}</div>
+                          <div style={{ fontSize: 10, color: '#8b95a8' }}>
+                            {versions.length} versions (newest first)
+                          </div>
+                        </div>
+                      </button>
+                      {expanded ? (
+                        <div
+                          style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))',
+                            gap: 10,
+                            padding: 12,
+                            borderTop: '1px solid #2f3545',
+                          }}
+                        >
+                          {versions.map(({ id: vid, n }) => {
+                            const vb = blobById.get(vid)
+                            if (!vb) return null
+                            return (
+                              <div
+                                key={vid}
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => handleSelectExisting(vid)}
+                                onKeyDown={(e) => e.key === 'Enter' && handleSelectExisting(vid)}
+                                style={{
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  alignItems: 'center',
+                                  gap: 6,
+                                  padding: 8,
+                                  borderRadius: 6,
+                                  border:
+                                    selectedTextureId === vid ? '2px solid #4a9eff' : '1px solid #2f3545',
+                                  background: selectedTextureId === vid ? '#1e2a3a' : '#161922',
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                <TextureThumbnail assetId={vid} blob={vb} size={72} />
+                                <span
+                                  style={{
+                                    fontSize: 10,
+                                    color: '#9aa4b2',
+                                    textAlign: 'center',
+                                    wordBreak: 'break-word',
+                                    width: '100%',
+                                  }}
+                                  title={vid}
+                                >
+                                  edited{n}
+                                </span>
+                                <span style={{ fontSize: 9, color: '#666' }}>
+                                  {TextureManager.formatFileSize(vb.size)}
+                                </span>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      ) : null}
+                    </div>
+                  )
+                })}
               </div>
             )}
           </div>

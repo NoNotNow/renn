@@ -678,6 +678,12 @@ export default function TextureMaker({
                 Tools: Transform (move/resize placement), Hand (drag to pan), Brush / Pen (paint the selected layer).
                 Wheel zooms the preview. With Brush or Pen selected, use Color and size for a floating picker (keeps the
                 main builder brush in sync when wired).
+                {studioTool === 'pen' ? (
+                  <span className="texture-maker-preview-hint__pen" data-testid="texture-maker-pen-texel-hint">
+                    {' '}
+                    Pen paints exactly one texture pixel (texel) per dab—zoom the preview in to see it.
+                  </span>
+                ) : null}
               </p>
               <div
                 className="texture-maker-preview__frame"
