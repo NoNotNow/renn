@@ -124,8 +124,9 @@ Polling (or any programmatic display update) must **not** call `onWorldChange` o
 - **Gizmo**: One undo step per completed drag (pointer/mouse up → pose commit in Builder).
 - **Draggable numbers** (`DraggableNumberField` / `Vec3Field`): One undo step per horizontal scrub (after dead zone), or per blur commit when the value changed. `NumberInput` / `SelectInput` record a step when the committed value changes.
 - **Scene sync**: Applying undo/redo uses `applyEditorSnapshot` in ProjectContext (bumps `version` so SceneView reloads and matches the restored document).
+- **Texture Maker**: While the Texture Maker panel is open, undo/redo **first** uses a separate draft stack ([`textureMakerHistory.ts`](../src/utils/textureMakerHistory.ts)) so only the studio draft and preview canvases update; when that stack is empty, behavior matches global undo above. Details: [feature-texture-compositor.md](./feature-texture-compositor.md).
 
-Implementation: [`editorHistory.ts`](../src/editor/editorHistory.ts), [`EditorUndoContext`](../src/contexts/EditorUndoContext.tsx), Builder + panel hooks.
+Implementation: [`editorHistory.ts`](../src/editor/editorHistory.ts), [`textureMakerHistory.ts`](../src/utils/textureMakerHistory.ts), [`EditorUndoContext`](../src/contexts/EditorUndoContext.tsx), Builder + panel hooks.
 
 ## Commit-on-blur
 

@@ -41,6 +41,7 @@ Last updated: 2026-04-03
 ### Assets & models
 - Texture workflow: TextureManager, TextureDialog, TextureThumbnail
 - **Texture Maker Apply** bakes the layered document to a **new** flat image asset named `{stem}_editedN.{ext}` (extension matches baked MIME, typically `.png`); entity `material.map` switches to that asset; prior `composite_*` / `texdoc_*` / layer blobs are removed when unreferenced. `TextureDocument` may carry `editFamilyStem` / `editFamilyFileExt` for naming (set when opening the studio from a texture).
+- **Texture Maker undo/redo** — while the panel is open, menu/keyboard undo first walks a **draft-only** stack (`textureMakerHistory.ts`: document JSON + layer blobs + selected layer) so the Builder scene is not reloaded; when that stack is empty, global editor undo applies. See `agent-context/feature-texture-compositor.md`.
 - **Select Texture** dialog hides internal compositor keys (`composite_*`, `texdoc_*`, `texlayer_*`, `tex_paint_*`) and **groups** `*_editedN.*` variants under a collapsible family row (newest first inside the group).
 - 3D model workflow: ModelManager, ModelDialog, ModelThumbnail, ModelEditor
 - Two physics modes: `entity.model` (visual only) or `trimesh` shape (visual + physics)

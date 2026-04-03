@@ -26,6 +26,7 @@ import {
   type TexturePaintStrokePayload,
 } from '@/editor/transformGizmoController'
 import { cloneEditorSnapshot, createEditorHistory, type EditorSnapshot } from '@/editor/editorHistory'
+import { createTextureMakerHistory, type TextureMakerSnapshot } from '@/utils/textureMakerHistory'
 import { downscaleImageBlob } from '@/utils/textureDownscale'
 import { clampTrimeshSimplificationConfig } from '@/scripts/migrateWorld'
 import {
@@ -159,11 +160,25 @@ export default function Builder() {
   const [textureMakerDraftAssets, setTextureMakerDraftAssets] = useState<Map<string, Blob> | null>(null)
   const textureMakerDraftDocRef = useRef<TextureDocument | null>(null)
   const textureMakerDraftAssetsRef = useRef<Map<string, Blob> | null>(null)
+  const textureMakerHistoryRef = useRef(createTextureMakerHistory(EDITOR_HISTORY_MAX_DEPTH))
+  const textureMakerEntityIdRef = useRef<string | null>(null)
+  const textureMakerLayerIdRef = useRef<string | null>(null)
+  const [textureMakerHistoryTick, setTextureMakerHistoryUi] = useState(0)
+  const bumpTextureMakerHistoryUi = useCallback(() => setTextureMakerHistoryUi((n) => n + 1), [])
+
+  useEffect(() => {
+    textureMakerEntityIdRef.current = textureMakerEntityId
+  }, [textureMakerEntityId])
+  useEffect(() => {
+    textureMakerLayerIdRef.current = textureMakerLayerId
+  }, [textureMakerLayerId])
 
   useEffect(() => {
     historyRef.current.clear()
+    textureMakerHistoryRef.current.clear()
     bumpHistoryUi()
-  }, [documentEpoch, bumpHistoryUi])
+    bumpTextureMakerHistoryUi()
+  }, [documentEpoch, bumpHistoryUi, bumpTextureMakerHistoryUi])
 
   const pushHistory = useCallback(() => {
     const { world: w, assets: a } = worldAssetsRef.current
@@ -186,17 +201,77 @@ export default function Builder() {
     [applyEditorSnapshot, bumpHistoryUi, cameraTarget, setCameraTarget]
   )
 
+  const applyTextureMakerSnapshot = useCallback(
+    (snap: TextureMakerSnapshot) => {
+      const eid = textureMakerEntityIdRef.current
+      textureMakerDraftDocRef.current = snap.doc
+      textureMakerDraftAssetsRef.current = snap.assets
+      setTextureMakerDraftDoc(snap.doc)
+      setTextureMakerDraftAssets(snap.assets)
+      if (eid) {
+        const sel = snap.selectedLayerId
+        const valid = Boolean(sel && snap.doc.layers.some((l) => l.id === sel))
+        if (valid && sel) {
+          selectedLayerByEntityRef.current.set(eid, sel)
+          setTextureMakerLayerId(sel)
+        } else {
+          const top = snap.doc.layers[snap.doc.layers.length - 1]
+          if (top) {
+            selectedLayerByEntityRef.current.set(eid, top.id)
+            setTextureMakerLayerId(top.id)
+          }
+        }
+      }
+      bumpTextureStudio()
+      bumpTextureMakerHistoryUi()
+    },
+    [bumpTextureStudio, bumpTextureMakerHistoryUi],
+  )
+
+  const pushTextureMakerBeforeEdit = useCallback(() => {
+    const eid = textureMakerEntityIdRef.current
+    if (!eid) return
+    const doc = textureMakerDraftDocRef.current
+    const draftAssets = textureMakerDraftAssetsRef.current
+    if (!doc || !draftAssets) return
+    const sel = textureMakerLayerIdRef.current
+    textureMakerHistoryRef.current.pushBeforeMutation(doc, draftAssets, sel)
+    bumpTextureMakerHistoryUi()
+  }, [bumpTextureMakerHistoryUi])
+
   const handleUndo = useCallback(() => {
+    const eid = textureMakerEntityIdRef.current
+    const doc = textureMakerDraftDocRef.current
+    const draftAssets = textureMakerDraftAssetsRef.current
+    const sel = textureMakerLayerIdRef.current
+    if (eid && doc && draftAssets) {
+      const prev = textureMakerHistoryRef.current.undo(doc, draftAssets, sel)
+      if (prev) {
+        applyTextureMakerSnapshot(prev)
+        return
+      }
+    }
     const { world: w, assets: a } = worldAssetsRef.current
-    const prev = historyRef.current.undo(w, a)
-    if (prev) applyHistorySnapshot(prev)
-  }, [applyHistorySnapshot])
+    const histPrev = historyRef.current.undo(w, a)
+    if (histPrev) applyHistorySnapshot(histPrev)
+  }, [applyHistorySnapshot, applyTextureMakerSnapshot])
 
   const handleRedo = useCallback(() => {
+    const eid = textureMakerEntityIdRef.current
+    const doc = textureMakerDraftDocRef.current
+    const draftAssets = textureMakerDraftAssetsRef.current
+    const sel = textureMakerLayerIdRef.current
+    if (eid && doc && draftAssets) {
+      const next = textureMakerHistoryRef.current.redo(doc, draftAssets, sel)
+      if (next) {
+        applyTextureMakerSnapshot(next)
+        return
+      }
+    }
     const { world: w, assets: a } = worldAssetsRef.current
-    const next = historyRef.current.redo(w, a)
-    if (next) applyHistorySnapshot(next)
-  }, [applyHistorySnapshot])
+    const histNext = historyRef.current.redo(w, a)
+    if (histNext) applyHistorySnapshot(histNext)
+  }, [applyHistorySnapshot, applyTextureMakerSnapshot])
 
   const editorUndoApi = useMemo<EditorUndoApi>(
     () => ({
@@ -353,6 +428,8 @@ export default function Builder() {
       setTextureMakerDraftAssets(null)
       textureMakerDraftDocRef.current = null
       textureMakerDraftAssetsRef.current = null
+      textureMakerHistoryRef.current.clear()
+      bumpTextureMakerHistoryUi()
       return
     }
     const doc = textureDocsRef.current.get(textureMakerEntityId)
@@ -391,7 +468,9 @@ export default function Builder() {
     setTextureMakerDraftDoc(draftDoc)
     setTextureMakerDraftAssets(draftAssets)
     setTextureMakerRevertReady(true)
-  }, [textureMakerEntityId])
+    textureMakerHistoryRef.current.clear()
+    bumpTextureMakerHistoryUi()
+  }, [textureMakerEntityId, bumpTextureMakerHistoryUi])
 
   useEffect(() => {
     if (!textureMakerEntityId) {
@@ -482,6 +561,7 @@ export default function Builder() {
     ) => {
       const doc = textureMakerDraftDocRef.current
       if (!doc) return
+      pushTextureMakerBeforeEdit()
       const nextDoc: TextureDocument = {
         ...doc,
         layers: doc.layers.map((l) => {
@@ -496,7 +576,7 @@ export default function Builder() {
       textureMakerDraftDocRef.current = nextDoc
       setTextureMakerDraftDoc(nextDoc)
     },
-    [setTextureMakerDraftDoc],
+    [pushTextureMakerBeforeEdit, setTextureMakerDraftDoc],
   )
 
   const handleTextureMakerResizeDocument = useCallback(
@@ -504,6 +584,7 @@ export default function Builder() {
       const doc = textureMakerDraftDocRef.current
       const prevAssets = textureMakerDraftAssetsRef.current
       if (!doc || !prevAssets) return
+      pushTextureMakerBeforeEdit()
       const { doc: nextDoc, layerBlobs } = await resizeTextureDocument(doc, newW, newH, prevAssets)
       if (layerBlobs.size === 0) return
       const nextAssets = new Map(prevAssets)
@@ -513,18 +594,19 @@ export default function Builder() {
       setTextureMakerDraftDoc(nextDoc)
       setTextureMakerDraftAssets(nextAssets)
     },
-    [setTextureMakerDraftDoc, setTextureMakerDraftAssets],
+    [pushTextureMakerBeforeEdit, setTextureMakerDraftDoc, setTextureMakerDraftAssets],
   )
 
   const handleTextureMakerReorderLayer = useCallback(
     async (fromIndex: number, toIndex: number) => {
       const doc = textureMakerDraftDocRef.current
       if (!doc) return
+      pushTextureMakerBeforeEdit()
       const nextDoc = reorderLayer(doc, fromIndex, toIndex)
       textureMakerDraftDocRef.current = nextDoc
       setTextureMakerDraftDoc(nextDoc)
     },
-    [setTextureMakerDraftDoc],
+    [pushTextureMakerBeforeEdit, setTextureMakerDraftDoc],
   )
 
   const handleTextureMakerRemoveLayer = useCallback(
@@ -534,6 +616,7 @@ export default function Builder() {
       const doc = textureMakerDraftDocRef.current
       const draftAssets = textureMakerDraftAssetsRef.current
       if (!doc || !draftAssets || doc.layers.length <= 1) return
+      pushTextureMakerBeforeEdit()
       const removed = doc.layers[index]
       if (!removed) return
       const nextDoc = removeLayerAt(doc, index)
@@ -553,7 +636,7 @@ export default function Builder() {
         }
       }
     },
-    [textureMakerEntityId, setTextureMakerDraftAssets, setTextureMakerDraftDoc],
+    [pushTextureMakerBeforeEdit, textureMakerEntityId, setTextureMakerDraftAssets, setTextureMakerDraftDoc],
   )
 
   const handleTextureMakerAddEmptyLayer = useCallback(async () => {
@@ -562,6 +645,7 @@ export default function Builder() {
     const doc = textureMakerDraftDocRef.current
     const draftAssets = textureMakerDraftAssetsRef.current
     if (!doc || !draftAssets) return
+    pushTextureMakerBeforeEdit()
     const layerId = generateTexLayerAssetId()
     const assetId = generateTexLayerAssetId()
     const blob = await createTransparentPngBlob(doc.width, doc.height)
@@ -587,7 +671,12 @@ export default function Builder() {
     setTextureMakerDraftAssets(nextAssets)
     selectedLayerByEntityRef.current.set(eid, layerId)
     setTextureMakerLayerId(layerId)
-  }, [textureMakerEntityId, setTextureMakerDraftAssets, setTextureMakerDraftDoc])
+  }, [
+    pushTextureMakerBeforeEdit,
+    textureMakerEntityId,
+    setTextureMakerDraftAssets,
+    setTextureMakerDraftDoc,
+  ])
 
   const handleTextureMakerImportLayer = useCallback(
     async (file: File) => {
@@ -596,6 +685,7 @@ export default function Builder() {
       const doc = textureMakerDraftDocRef.current
       const draftAssets = textureMakerDraftAssetsRef.current
       if (!doc || !draftAssets) return
+      pushTextureMakerBeforeEdit()
       const buf = await file.arrayBuffer()
       const fileBlob = new Blob([buf], { type: file.type || 'application/octet-stream' })
       const raster = await rasterizeBlobToDimensions(fileBlob, doc.width, doc.height)
@@ -624,7 +714,7 @@ export default function Builder() {
       selectedLayerByEntityRef.current.set(eid, layerId)
       setTextureMakerLayerId(layerId)
     },
-    [textureMakerEntityId, setTextureMakerDraftAssets, setTextureMakerDraftDoc],
+    [pushTextureMakerBeforeEdit, textureMakerEntityId, setTextureMakerDraftAssets, setTextureMakerDraftDoc],
   )
 
   const handleTextureMakerRevertToOriginal = useCallback(async () => {
@@ -639,6 +729,7 @@ export default function Builder() {
     ) {
       return
     }
+    pushTextureMakerBeforeEdit()
     const restoredDoc = JSON.parse(JSON.stringify(baseline.doc)) as TextureDocument
     const nextAssets = new Map<string, Blob>()
     for (const [id, blob] of baseline.blobs) {
@@ -660,7 +751,7 @@ export default function Builder() {
     } else if (sel) {
       setTextureMakerLayerId(sel)
     }
-  }, [textureMakerEntityId])
+  }, [pushTextureMakerBeforeEdit, textureMakerEntityId])
 
   const handleTextureMakerApply = useCallback(async () => {
     const eid = textureMakerEntityId
@@ -733,6 +824,7 @@ export default function Builder() {
       const doc = textureMakerDraftDocRef.current
       const draftAssets = textureMakerDraftAssetsRef.current
       if (!doc || !draftAssets || index < 1) return
+      pushTextureMakerBeforeEdit()
       const result = await mergeLayerDown(doc, index, draftAssets)
       const nextAssets = new Map(draftAssets)
       nextAssets.set(result.bottomAssetId, result.mergedBlob)
@@ -752,7 +844,7 @@ export default function Builder() {
         }
       }
     },
-    [textureMakerEntityId, setTextureMakerDraftAssets, setTextureMakerDraftDoc],
+    [pushTextureMakerBeforeEdit, textureMakerEntityId, setTextureMakerDraftAssets, setTextureMakerDraftDoc],
   )
 
   /** Snapshot live registry poses so the next scene rebuild (entity add/remove/clone, etc.) does not reset physics-driven positions. */
@@ -1337,8 +1429,15 @@ export default function Builder() {
   }, [gizmoMode, textureBrushDisabled])
 
   void historyTick
-  const canUndoHistory = historyRef.current.canUndo()
-  const canRedoHistory = historyRef.current.canRedo()
+  void textureMakerHistoryTick
+  const textureMakerStacksActive =
+    textureMakerEntityId != null && textureMakerDraftDoc != null && textureMakerDraftAssets != null
+  const canUndoHistory =
+    (textureMakerStacksActive && textureMakerHistoryRef.current.canUndo()) ||
+    historyRef.current.canUndo()
+  const canRedoHistory =
+    (textureMakerStacksActive && textureMakerHistoryRef.current.canRedo()) ||
+    historyRef.current.canRedo()
 
   const textureMakerDoc =
     textureMakerEntityId != null ? textureDocsRef.current.get(textureMakerEntityId) ?? null : null
@@ -1572,6 +1671,8 @@ export default function Builder() {
             compositePreviewUrl={compositePreviewUrl}
             selectedLayerId={textureMakerLayerId}
             onClose={() => {
+              textureMakerHistoryRef.current.clear()
+              bumpTextureMakerHistoryUi()
               setTextureMakerEntityId(null)
               setTextureMakerLayerId(null)
               setTextureMakerRevertReady(false)
@@ -1598,7 +1699,7 @@ export default function Builder() {
             onTextureBrushAlphaChange={setTextureBrushAlpha}
             onTextureBrushRadiusPxChange={setTextureBrushRadiusPx}
             studioAssets={textureMakerDraftAssets ?? assets}
-            pushUndoBeforePaintStroke={() => editorUndoApi.pushBeforeEdit()}
+            pushUndoBeforePaintStroke={pushTextureMakerBeforeEdit}
             onStudioPaintStrokeEnd={handleTextureMakerStudioPaintStrokeEnd}
           />
         ) : null}

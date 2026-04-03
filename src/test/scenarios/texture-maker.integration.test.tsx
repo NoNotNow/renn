@@ -2,11 +2,13 @@
  * Integration: Texture Maker layout, document resize wiring, layer selection,
  * and non-destructive transform overlay (move / resize handles → dest commit).
  */
+import { useMemo, useRef, useState } from 'react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import TextureMaker from '@/components/TextureMaker/TextureMaker'
 import type { TextureDocument, TextureLayer } from '@/utils/textureCompositor'
 import { generateCompositeAssetId, generateTexLayerAssetId } from '@/utils/idGenerator'
+import { createTextureMakerHistory } from '@/utils/textureMakerHistory'
 
 const TINY_PNG =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
@@ -285,5 +287,125 @@ describe('TextureMaker (integration)', () => {
     expect(onPatchLayer.mock.calls.length).toBe(callsBefore)
     fireEvent.blur(input)
     expect(onPatchLayer).toHaveBeenCalledWith('layer-bg', { name: 'Renamed' })
+  })
+})
+
+function dataUrlToBlob(dataUrl: string): Blob {
+  const comma = dataUrl.indexOf(',')
+  const b64 = dataUrl.slice(comma + 1)
+  const bin = atob(b64)
+  const arr = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i)
+  return new Blob([arr], { type: 'image/png' })
+}
+
+/** Mirrors Builder Texture Maker draft + {@link createTextureMakerHistory} push/undo. */
+function TextureMakerDraftUndoHarness() {
+  const seedDoc = useMemo(() => makeDoc(), [])
+  const pngBlob = useMemo(() => dataUrlToBlob(TINY_PNG), [])
+  const [assets] = useState(
+    () =>
+      new Map<string, Blob>([
+        [seedDoc.layers[0]!.assetId, pngBlob],
+        [seedDoc.layers[1]!.assetId, pngBlob],
+      ]),
+  )
+  const [doc, setDoc] = useState(seedDoc)
+  const [selectedLayerId, setSelectedLayerId] = useState<string | null>('layer-bg')
+  const historyRef = useRef(createTextureMakerHistory(20))
+  const docRef = useRef(doc)
+  const selectedRef = useRef(selectedLayerId)
+  docRef.current = doc
+  selectedRef.current = selectedLayerId
+
+  const pushBeforeMutation = (): void => {
+    historyRef.current.pushBeforeMutation(docRef.current, assets, selectedRef.current)
+  }
+
+  const handlePatchLayer = (
+    layerId: string,
+    patch: Partial<Pick<TextureLayer, 'opacity' | 'blendMode' | 'visible' | 'name' | 'dest'>>,
+  ): void => {
+    pushBeforeMutation()
+    setDoc((prev) => ({
+      ...prev,
+      layers: prev.layers.map((l) => {
+        if (l.id !== layerId) return l
+        if ('dest' in patch && patch.dest === undefined) {
+          const { dest: _omit, ...rest } = { ...l, ...patch }
+          return rest as TextureLayer
+        }
+        return { ...l, ...patch }
+      }),
+    }))
+  }
+
+  const handleUndo = (): void => {
+    const prev = historyRef.current.undo(docRef.current, assets, selectedRef.current)
+    if (!prev) return
+    setDoc(prev.doc)
+    const sel = prev.selectedLayerId
+    const valid = Boolean(sel && prev.doc.layers.some((l) => l.id === sel))
+    setSelectedLayerId(valid && sel ? sel : prev.doc.layers[0]!.id)
+  }
+
+  return (
+    <div>
+      <button type="button" data-testid="harness-undo" onClick={handleUndo}>
+        Undo
+      </button>
+      <TextureMaker
+        entityId="entity_undo_harness"
+        doc={doc}
+        compositePreviewUrl={TINY_PNG}
+        selectedLayerId={selectedLayerId}
+        onClose={() => {}}
+        onApplyTextureMaker={() => {}}
+        onSelectLayer={(id) => setSelectedLayerId(id)}
+        onPatchLayer={handlePatchLayer}
+        onReorderLayer={vi.fn()}
+        onRemoveLayer={vi.fn()}
+        onAddEmptyLayer={vi.fn()}
+        onImportLayer={vi.fn()}
+        onMergeDown={vi.fn()}
+        onResizeDocument={vi.fn()}
+        studioAssets={assets}
+        pushUndoBeforePaintStroke={pushBeforeMutation}
+      />
+    </div>
+  )
+}
+
+describe('TextureMaker draft undo (integration)', () => {
+  const rectMock = {
+    x: 0,
+    y: 0,
+    left: 0,
+    top: 0,
+    width: 100,
+    height: 100,
+    right: 100,
+    bottom: 100,
+    toJSON: () => ({}),
+  } as DOMRect
+
+  let rectSpy: ReturnType<typeof vi.spyOn>
+
+  beforeEach(() => {
+    rectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(rectMock)
+  })
+
+  afterEach(() => {
+    rectSpy.mockRestore()
+  })
+
+  it('undo restores opacity after Builder-style push + patch', () => {
+    render(<TextureMakerDraftUndoHarness />)
+    const slider = screen.getByTestId('texture-maker-opacity-draft') as HTMLInputElement
+    expect(slider.value).toBe('1')
+    fireEvent.change(slider, { target: { value: '0.25' } })
+    expect(slider.value).toBe('0.25')
+    fireEvent.click(screen.getByTestId('harness-undo'))
+    expect((screen.getByTestId('texture-maker-opacity-draft') as HTMLInputElement).value).toBe('1')
   })
 })
