@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import { clampDest, clientToDocPoint, roundDest, transformDestWithDrag } from '@/utils/layerTransformHandles'
+import {
+  clampDest,
+  clientToDocPoint,
+  clientToDocPointFromImageRect,
+  docPointToLayerTexel,
+  roundDest,
+  transformDestWithDrag,
+} from '@/utils/layerTransformHandles'
 
 const start = { x: 10, y: 20, w: 30, h: 40 }
 
@@ -61,5 +68,17 @@ describe('layerTransformHandles', () => {
 
   it('e handle can grow width substantially', () => {
     expect(transformDestWithDrag('e', start, 100, 0)).toEqual({ x: 10, y: 20, w: 130, h: 40 })
+  })
+
+  it('clientToDocPointFromImageRect returns null outside image', () => {
+    const rect = { left: 0, top: 0, width: 100, height: 100 } as DOMRectReadOnly
+    expect(clientToDocPointFromImageRect(-1, 50, rect, 200, 200)).toBeNull()
+    expect(clientToDocPointFromImageRect(50, 50, rect, 200, 200)).toEqual({ x: 100, y: 100 })
+  })
+
+  it('docPointToLayerTexel maps doc into layer pixels', () => {
+    const dest = { x: 0, y: 0, w: 100, h: 100 }
+    expect(docPointToLayerTexel(50, 50, dest, 32, 32)).toEqual({ x: 16, y: 16 })
+    expect(docPointToLayerTexel(-1, 50, dest, 32, 32)).toBeNull()
   })
 })

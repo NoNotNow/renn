@@ -11,7 +11,10 @@ export interface LayerTransformOverlayProps {
   docWidth: number
   docHeight: number
   dest: TextureLayerDest
+  /** Preview frame (for pointer → doc during drag; may extend beyond the image). */
   frameRef: React.RefObject<HTMLElement | null>
+  /** When false, overlay does not capture pointers (e.g. brush or hand tool active). */
+  interactive?: boolean
   onDestLiveChange: (next: TextureLayerDest) => void
   onDestCommit: (next: TextureLayerDest) => void
 }
@@ -21,6 +24,7 @@ export default function LayerTransformOverlay({
   docHeight,
   dest,
   frameRef,
+  interactive = true,
   onDestLiveChange,
   onDestCommit,
 }: LayerTransformOverlayProps) {
@@ -110,7 +114,7 @@ export default function LayerTransformOverlay({
     top,
     width: 12,
     height: 12,
-    pointerEvents: 'auto',
+    pointerEvents: interactive ? 'auto' : 'none',
     cursor,
     border: '2px solid #e6e9f2',
     borderRadius: 2,
@@ -135,6 +139,7 @@ export default function LayerTransformOverlay({
         border: '2px solid #7dd3fc',
         pointerEvents: 'none',
         boxShadow: '0 0 0 1px rgba(0,0,0,0.5)',
+        opacity: interactive ? 1 : 0.45,
       }}
     >
       <button
@@ -146,7 +151,7 @@ export default function LayerTransformOverlay({
         style={{
           position: 'absolute',
           inset: 0,
-          pointerEvents: 'auto',
+          pointerEvents: interactive ? 'auto' : 'none',
           cursor: 'move',
           border: 'none',
           padding: 0,

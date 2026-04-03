@@ -27,12 +27,44 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 10px;
   padding: 10px 12px;
   background: #13151c;
   border-bottom: 1px solid #2f3545;
   cursor: grab;
   user-select: none;
   flex-shrink: 0;
+}
+
+.texture-maker-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.texture-maker-header__btn {
+  padding: 4px 10px;
+  font-size: 12px;
+  background: #2a3142;
+  border: 1px solid #3d4558;
+  border-radius: 6px;
+  color: #e6e9f2;
+  cursor: pointer;
+}
+
+.texture-maker-header__btn:hover:not(:disabled) {
+  background: #323a4e;
+}
+
+.texture-maker-header__btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.texture-maker-header__btn--secondary {
+  background: #2b3550;
+  border-color: #3d4a66;
 }
 
 .texture-maker-header:active {
@@ -159,22 +191,114 @@
 
 .texture-maker-preview__frame {
   position: relative;
-  display: inline-block;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
   max-width: 100%;
   border-radius: 8px;
   border: 1px solid #2f3545;
   background: repeating-conic-gradient(#2a2e38 0% 25%, #23262e 0% 50%) 50% / 16px 16px;
   line-height: 0;
+  touch-action: none;
 }
 
-.texture-maker-preview__frame img {
-  display: block;
+.texture-maker-preview-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px;
+  background: #161922;
+  border-bottom: 1px solid #2a3142;
+  align-items: center;
+  font-size: 10px;
+  color: #8b95a8;
+}
+
+.texture-maker-preview-tools button {
+  padding: 4px 8px;
+  font-size: 11px;
+  background: #2a3142;
+  border: 1px solid #3d4558;
+  border-radius: 4px;
+  color: #e6e9f2;
+  cursor: pointer;
+}
+
+.texture-maker-preview-tools button.active {
+  border-color: #5b6a8a;
+  background: #323a4e;
+}
+
+.texture-maker-brush-options {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  padding: 4px 10px !important;
   max-width: 100%;
-  max-height: min(320px, 48vh);
+}
+
+.texture-maker-brush-options__swatch {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  border: 1px solid #3d4558;
+  flex-shrink: 0;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.25);
+}
+
+.texture-maker-brush-options__label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #e6e9f2;
+}
+
+.texture-maker-brush-options__meta {
+  font-size: 10px;
+  color: #8b95a8;
+  font-variant-numeric: tabular-nums;
+}
+
+.texture-maker-preview-viewport {
+  position: relative;
+  overflow: hidden;
+  min-height: min(320px, 48vh);
+  max-height: min(420px, 56vh);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.texture-maker-preview__viewport-inner {
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
+.texture-maker-preview__stack {
+  position: relative;
+  display: inline-block;
+  line-height: 0;
+}
+
+.texture-maker-preview__stack img {
+  display: block;
+  max-width: none;
   width: auto;
   height: auto;
+  max-height: min(320px, 48vh);
   object-fit: contain;
   image-rendering: pixelated;
+  user-select: none;
+}
+
+.texture-maker-preview__stack canvas {
+  display: block;
+  max-width: none;
+  width: auto;
+  height: auto;
+  max-height: min(320px, 48vh);
+  image-rendering: pixelated;
+  user-select: none;
 }
 
 .texture-maker-preview__empty {
@@ -349,6 +473,19 @@
   color: #e6e9f2;
 }
 
+.texture-maker-props__apply-btn {
+  display: block;
+  width: 100%;
+  margin-bottom: 10px;
+  padding: 6px 8px;
+  font-size: 11px;
+  background: #2b3550;
+  border: 1px solid #3d4a66;
+  border-radius: 4px;
+  color: #e6e9f2;
+  cursor: pointer;
+}
+
 .texture-maker-toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -386,4 +523,30 @@
 
 .texture-maker-resize:hover {
   opacity: 1;
+}
+
+.texture-maker-apply-final {
+  position: absolute;
+  right: 12px;
+  bottom: 26px; /* above the resize handle */
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+  background: #22c55e;
+  border: 1px solid #16a34a;
+  border-radius: 8px;
+  color: #07230f;
+  cursor: pointer;
+  z-index: 5;
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.35);
+}
+
+.texture-maker-apply-final:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+.texture-maker-apply-final:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }

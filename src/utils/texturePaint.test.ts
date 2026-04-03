@@ -5,6 +5,8 @@ import {
   uvToTexelCoords,
   stampCircleOnRgba,
   applyPaintToRgbaBuffer,
+  applyPaintToRgbaBufferTexel,
+  TEXTURE_PAINT_PEN_RADIUS_PX,
 } from './texturePaint'
 
 describe('texturePaint', () => {
@@ -42,6 +44,37 @@ describe('texturePaint', () => {
       expect(data[i]).toBeGreaterThan(200)
       expect(data[i + 1]).toBeLessThan(80)
       expect(data[i + 2]).toBeLessThan(80)
+    })
+  })
+
+  describe('applyPaintToRgbaBufferTexel', () => {
+    it('stamps at integer texel coordinates', () => {
+      const w = 16
+      const h = 16
+      const data = new Uint8ClampedArray(w * h * 4).fill(255)
+      applyPaintToRgbaBufferTexel(w, h, data, {
+        x: 10,
+        y: 5,
+        radiusPx: 2,
+        color: [0, 1, 0, 1],
+      })
+      const i = (5 * w + 10) * 4
+      expect(data[i + 1]).toBeGreaterThan(200)
+    })
+
+    it('pen radius paints a single blended texel', () => {
+      const w = 8
+      const h = 8
+      const data = new Uint8ClampedArray(w * h * 4).fill(255)
+      applyPaintToRgbaBufferTexel(w, h, data, {
+        x: 3,
+        y: 4,
+        radiusPx: TEXTURE_PAINT_PEN_RADIUS_PX,
+        color: [1, 0, 0, 1],
+      })
+      const i = (4 * w + 3) * 4
+      expect(data[i]).toBeGreaterThan(200)
+      expect(data[i + 1]).toBeLessThan(100)
     })
   })
 

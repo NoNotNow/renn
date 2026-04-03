@@ -11,6 +11,21 @@ export function colorToHex(color: Vec3): string {
     .join('')}`
 }
 
+/** Normalize hex strings for pickers (react-colorful expects 6-digit #rrggbb). */
+export function normalizeHexForPicker(hex: string): string {
+  const t = hex.trim()
+  if (!t) return '#808080'
+  const withHash = t.startsWith('#') ? t : `#${t}`
+  if (withHash.length === 4) {
+    const r = withHash[1]
+    const g = withHash[2]
+    const b = withHash[3]
+    return `#${r}${r}${g}${g}${b}${b}`.toLowerCase()
+  }
+  if (withHash.length >= 7) return withHash.slice(0, 7).toLowerCase()
+  return '#808080'
+}
+
 /**
  * Convert a hex color string to a Vec3 color (RGB values 0-1)
  */

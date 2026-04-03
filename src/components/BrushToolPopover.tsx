@@ -2,23 +2,10 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { createPortal } from 'react-dom'
 import { HexColorInput, HexColorPicker } from 'react-colorful'
 import { BUILDER_SCENE_CANVAS_HOST_ATTR } from '@/config/constants'
+import { normalizeHexForPicker } from '@/utils/colorUtils'
 import './BrushToolPopover.css'
 
 const sceneCanvasHostSelector = `[${BUILDER_SCENE_CANVAS_HOST_ATTR}]`
-
-function normalizeHexForPicker(hex: string): string {
-  const t = hex.trim()
-  if (!t) return '#808080'
-  const withHash = t.startsWith('#') ? t : `#${t}`
-  if (withHash.length === 4) {
-    const r = withHash[1]
-    const g = withHash[2]
-    const b = withHash[3]
-    return `#${r}${r}${g}${g}${b}${b}`.toLowerCase()
-  }
-  if (withHash.length >= 7) return withHash.slice(0, 7).toLowerCase()
-  return '#808080'
-}
 
 export interface BrushToolPopoverProps {
   open: boolean
@@ -30,6 +17,9 @@ export interface BrushToolPopoverProps {
   onRadiusPxChange?: (px: number) => void
   radiusMin: number
   radiusMax: number
+  /** Brush opacity 0–1 (alpha when painting). */
+  brushAlpha?: number
+  onBrushAlphaChange?: (alpha: number) => void
   /** Opens layered texture editor for the current textured selection. */
   onOpenTextureStudio?: () => void
 }
@@ -44,6 +34,8 @@ export function BrushToolPopover({
   onRadiusPxChange,
   radiusMin,
   radiusMax,
+  brushAlpha = 1,
+  onBrushAlphaChange,
   onOpenTextureStudio,
 }: BrushToolPopoverProps) {
   const panelRef = useRef<HTMLDivElement>(null)
@@ -134,6 +126,25 @@ export function BrushToolPopover({
         color={pickerHex}
         onChange={(h) => onColorHexChange(normalizeHexForPicker(h))}
       />
+      {onBrushAlphaChange ? (
+        <label className="brush-tool-popover__size-label" htmlFor="builder-texture-brush-opacity">
+          <span>Opacity</span>
+          <input
+            id="builder-texture-brush-opacity"
+            type="range"
+            className="brush-tool-popover__range"
+            data-testid="texture-brush-opacity"
+            min={0}
+            max={1}
+            step={0.01}
+            value={brushAlpha}
+            onChange={(e) => onBrushAlphaChange(Number(e.target.value))}
+            aria-label="Brush opacity"
+            title="Brush opacity"
+          />
+          <span className="brush-tool-popover__size-value">{Math.round(brushAlpha * 100)}%</span>
+        </label>
+      ) : null}
       {onRadiusPxChange ? (
         <label className="brush-tool-popover__size-label" htmlFor="builder-texture-brush-size">
           <span>Size</span>

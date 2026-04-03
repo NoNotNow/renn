@@ -103,8 +103,10 @@ export interface SceneViewProps {
   onTexturePaintStrokeEnd?: (payload: TexturePaintStrokePayload) => void | Promise<void>
   /** Builder: snapshot before a brush stroke (undo). */
   pushUndoBeforePaintStroke?: () => void
-  /** Builder: brush stroke RGB (0–1); alpha is always 1 when painting. */
+  /** Builder: brush stroke RGB (0–1). */
   textureBrushRgb?: Vec3
+  /** Builder: brush stroke alpha (0–1). */
+  textureBrushAlpha?: number
   /** Builder: brush radius in texture pixels (clamped 1–800 in gizmo controller). */
   textureBrushRadiusPx?: number
   /** Builder: paint this asset (e.g. active compositor layer) instead of `entity.material.map`. */
@@ -159,6 +161,7 @@ function SceneViewInner({
   onTexturePaintStrokeEnd,
   pushUndoBeforePaintStroke,
   textureBrushRgb = DEFAULT_TEXTURE_BRUSH_RGB,
+  textureBrushAlpha = 1,
   textureBrushRadiusPx = TEXTURE_PAINT_RADIUS_PX,
   getPaintTargetAssetId,
 }: SceneViewProps, ref: React.Ref<SceneViewHandle>) {
@@ -225,6 +228,8 @@ function SceneViewInner({
   pushUndoBeforePaintStrokeRef.current = pushUndoBeforePaintStroke
   const textureBrushRgbRef = useRef<Vec3>(textureBrushRgb)
   textureBrushRgbRef.current = textureBrushRgb
+  const textureBrushAlphaRef = useRef(textureBrushAlpha)
+  textureBrushAlphaRef.current = textureBrushAlpha
   const textureBrushRadiusPxRef = useRef(textureBrushRadiusPx)
   textureBrushRadiusPxRef.current = textureBrushRadiusPx
   const getPaintTargetAssetIdRef = useRef(getPaintTargetAssetId)
@@ -564,7 +569,9 @@ function SceneViewInner({
             getAssets: () => assetsRef.current,
             getBrushRgba: () => {
               const c = textureBrushRgbRef.current
-              return [c[0], c[1], c[2], 1] as const
+              const a = textureBrushAlphaRef.current
+              const ac = a < 0 ? 0 : a > 1 ? 1 : a
+              return [c[0], c[1], c[2], ac] as const
             },
             getBrushRadiusPx: () => textureBrushRadiusPxRef.current,
             getPaintTargetAssetId: (entityId: string) =>

@@ -70,10 +70,16 @@ describe('TextureMaker (integration)', () => {
     doc?: TextureDocument
     selectedLayerId?: string | null
     compositePreviewUrl?: string | null
+    onRevertToOriginal?: () => void | Promise<void>
+    revertToOriginalAvailable?: boolean
+    onTextureBrushColorHexChange?: (hex: string) => void
+    onTextureBrushAlphaChange?: (alpha: number) => void
+    onTextureBrushRadiusPxChange?: (px: number) => void
   }) {
     const doc = overrides?.doc ?? makeDoc()
     const onPatchLayer = vi.fn()
     const onResizeDocument = vi.fn()
+    const onApplyTextureMaker = vi.fn()
     const selected =
       overrides?.selectedLayerId !== undefined ? overrides.selectedLayerId : 'layer-bg'
     render(
@@ -85,6 +91,7 @@ describe('TextureMaker (integration)', () => {
         }
         selectedLayerId={selected}
         onClose={vi.fn()}
+        onApplyTextureMaker={onApplyTextureMaker}
         onSelectLayer={vi.fn()}
         onPatchLayer={onPatchLayer}
         onReorderLayer={vi.fn()}
@@ -93,9 +100,18 @@ describe('TextureMaker (integration)', () => {
         onImportLayer={vi.fn()}
         onMergeDown={vi.fn()}
         onResizeDocument={onResizeDocument}
+        onRevertToOriginal={overrides?.onRevertToOriginal}
+        revertToOriginalAvailable={
+          overrides?.onRevertToOriginal
+            ? (overrides.revertToOriginalAvailable ?? true)
+            : false
+        }
+        onTextureBrushColorHexChange={overrides?.onTextureBrushColorHexChange}
+        onTextureBrushAlphaChange={overrides?.onTextureBrushAlphaChange}
+        onTextureBrushRadiusPxChange={overrides?.onTextureBrushRadiusPxChange}
       />,
     )
-    return { onPatchLayer, onResizeDocument, doc }
+    return { onPatchLayer, onResizeDocument, onApplyTextureMaker, doc }
   }
 
   it('lays out document size + preview on the left and layers + properties on the right', () => {
@@ -184,7 +200,83 @@ describe('TextureMaker (integration)', () => {
     const h = screen.getByLabelText(/custom height/i)
     fireEvent.change(w, { target: { value: '128' } })
     fireEvent.change(h, { target: { value: '256' } })
-    fireEvent.click(screen.getByRole('button', { name: /^apply$/i }))
+    fireEvent.blur(h)
     expect(onResizeDocument).toHaveBeenCalledWith(128, 256)
+  })
+
+  it('renders preview tool strip', () => {
+    setup()
+    expect(screen.getByTestId('texture-maker-preview-tools')).toBeInTheDocument()
+    expect(screen.getByTestId('texture-maker-tool-brush')).toBeInTheDocument()
+  })
+
+  it('shows floating brush popover when brush callbacks are wired and Brush tool is active', async () => {
+    const onHex = vi.fn()
+    const onAlpha = vi.fn()
+    const onRadius = vi.fn()
+    setup({
+      onTextureBrushColorHexChange: onHex,
+      onTextureBrushAlphaChange: onAlpha,
+      onTextureBrushRadiusPxChange: onRadius,
+    })
+    fireEvent.click(screen.getByTestId('texture-maker-tool-brush'))
+    expect(screen.getByTestId('texture-maker-brush-options')).toBeInTheDocument()
+    fireEvent.click(screen.getByTestId('texture-maker-brush-options'))
+    await waitFor(() => {
+      expect(screen.getByTestId('texture-maker-brush-popover')).toBeInTheDocument()
+    })
+    const opacity = screen.getByTestId('texture-maker-brush-opacity') as HTMLInputElement
+    fireEvent.change(opacity, { target: { value: '0.5' } })
+    expect(onAlpha).toHaveBeenCalledWith(0.5)
+    const size = screen.getByTestId('texture-maker-brush-size') as HTMLInputElement
+    fireEvent.change(size, { target: { value: '24' } })
+    expect(onRadius).toHaveBeenCalledWith(24)
+  })
+
+  it('has a single bottom-right Apply button', () => {
+    const { onApplyTextureMaker } = setup()
+    const apply = screen.getByTestId('texture-maker-apply-final')
+    expect(apply).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: /^Apply$/i })).toHaveLength(1)
+    expect(screen.queryByTestId('texture-maker-apply-opacity')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('texture-maker-apply-name')).not.toBeInTheDocument()
+    fireEvent.click(apply)
+    expect(onApplyTextureMaker).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not show revert until onRevertToOriginal is passed', () => {
+    setup()
+    expect(screen.queryByTestId('texture-maker-revert-original')).not.toBeInTheDocument()
+  })
+
+  it('invokes onRevertToOriginal when Revert to original is clicked', () => {
+    const onRevert = vi.fn()
+    setup({ onRevertToOriginal: onRevert, revertToOriginalAvailable: true })
+    fireEvent.click(screen.getByTestId('texture-maker-revert-original'))
+    expect(onRevert).toHaveBeenCalledTimes(1)
+  })
+
+  it('disables revert when revertToOriginalAvailable is false', () => {
+    setup({ onRevertToOriginal: vi.fn(), revertToOriginalAvailable: false })
+    expect(screen.getByTestId('texture-maker-revert-original')).toBeDisabled()
+  })
+
+  it('patches opacity when slider moves', () => {
+    const { onPatchLayer } = setup()
+    const callsBefore = onPatchLayer.mock.calls.length
+    const slider = screen.getByTestId('texture-maker-opacity-draft')
+    fireEvent.change(slider, { target: { value: '0.25' } })
+    expect(onPatchLayer.mock.calls.length).toBeGreaterThan(callsBefore)
+    expect(onPatchLayer).toHaveBeenCalledWith('layer-bg', { opacity: 0.25 })
+  })
+
+  it('patches name on blur and does not patch on each keystroke', () => {
+    const { onPatchLayer } = setup()
+    const callsBefore = onPatchLayer.mock.calls.length
+    const input = screen.getByTestId('texture-maker-name-draft')
+    fireEvent.change(input, { target: { value: 'Renamed' } })
+    expect(onPatchLayer.mock.calls.length).toBe(callsBefore)
+    fireEvent.blur(input)
+    expect(onPatchLayer).toHaveBeenCalledWith('layer-bg', { name: 'Renamed' })
   })
 })

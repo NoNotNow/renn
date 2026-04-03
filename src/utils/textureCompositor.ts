@@ -111,7 +111,7 @@ export async function deserializeDoc(blob: Blob): Promise<TextureDocument> {
   return { ...raw, layers }
 }
 
-function blendToCanvasOp(mode: BlendMode): GlobalCompositeOperation {
+export function blendModeToCanvasOp(mode: BlendMode): GlobalCompositeOperation {
   return BLEND_TO_CANVAS[mode] ?? 'source-over'
 }
 
@@ -264,7 +264,7 @@ export async function compositeTextureLayers(
         const dest = layerDestOrDefault(layer, doc)
         ctx.save()
         ctx.globalAlpha = Math.min(1, Math.max(0, layer.opacity))
-        ctx.globalCompositeOperation = blendToCanvasOp(layer.blendMode)
+        ctx.globalCompositeOperation = blendModeToCanvasOp(layer.blendMode)
         ctx.drawImage(src, 0, 0, sw, sh, dest.x, dest.y, dest.w, dest.h)
         ctx.restore()
       } finally {

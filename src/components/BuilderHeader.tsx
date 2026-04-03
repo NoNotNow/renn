@@ -45,6 +45,8 @@ export interface BuilderHeaderProps {
   onTextureBrushColorHexChange?: (hex: string) => void
   textureBrushRadiusPx?: number
   onTextureBrushRadiusPxChange?: (px: number) => void
+  textureBrushAlpha?: number
+  onTextureBrushAlphaChange?: (alpha: number) => void
   fileInputRef: React.RefObject<HTMLInputElement | null>
   onFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void
   onResetCamera: () => void
@@ -87,6 +89,8 @@ export default function BuilderHeader({
   onTextureBrushColorHexChange,
   textureBrushRadiusPx = TEXTURE_PAINT_RADIUS_PX,
   onTextureBrushRadiusPxChange,
+  textureBrushAlpha = 1,
+  onTextureBrushAlphaChange,
   fileInputRef,
   onFileChange,
   onResetCamera,
@@ -460,6 +464,8 @@ export default function BuilderHeader({
           onClose={() => setBrushPopoverOpen(false)}
           colorHex={textureBrushColorHex}
           onColorHexChange={onTextureBrushColorHexChange}
+          brushAlpha={textureBrushAlpha}
+          onBrushAlphaChange={onTextureBrushAlphaChange}
           radiusPx={textureBrushRadiusPx}
           onRadiusPxChange={onTextureBrushRadiusPxChange}
           radiusMin={TEXTURE_BRUSH_RADIUS_MIN}

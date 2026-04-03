@@ -104,7 +104,7 @@ export interface InstallBuilderPickAndGizmoParams {
   /** When set, brush mode can paint albedo textures on the selected entity. */
   texturePaint?: {
     getAssets: () => Map<string, Blob>
-    /** RGBA in 0–1; alpha should stay 1 for opaque strokes. */
+    /** RGBA in 0–1 (alpha from Builder brush opacity). */
     getBrushRgba: () => readonly [number, number, number, number]
     /** Texture-space radius in pixels; clamped to [TEXTURE_BRUSH_RADIUS_MIN, TEXTURE_BRUSH_RADIUS_MAX]. */
     getBrushRadiusPx?: () => number

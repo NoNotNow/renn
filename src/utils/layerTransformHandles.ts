@@ -79,6 +79,45 @@ export function clientToDocPoint(
   }
 }
 
+/**
+ * Map pointer to document pixels using the displayed image element rect (handles letterboxing and CSS transforms).
+ * Returns null if the point is outside the image bounds.
+ */
+export function clientToDocPointFromImageRect(
+  clientX: number,
+  clientY: number,
+  imageRect: DOMRectReadOnly,
+  docWidth: number,
+  docHeight: number,
+): { x: number; y: number } | null {
+  if (imageRect.width <= 0 || imageRect.height <= 0) return null
+  const lx = clientX - imageRect.left
+  const ly = clientY - imageRect.top
+  if (lx < 0 || ly < 0 || lx > imageRect.width || ly > imageRect.height) return null
+  return {
+    x: (lx / imageRect.width) * docWidth,
+    y: (ly / imageRect.height) * docHeight,
+  }
+}
+
+/** Map a document-space point into layer bitmap texels using layer placement rect. */
+export function docPointToLayerTexel(
+  docX: number,
+  docY: number,
+  dest: TextureLayerDest,
+  layerPixelWidth: number,
+  layerPixelHeight: number,
+): { x: number; y: number } | null {
+  if (dest.w <= 0 || dest.h <= 0 || layerPixelWidth < 1 || layerPixelHeight < 1) return null
+  if (docX < dest.x || docY < dest.y || docX >= dest.x + dest.w || docY >= dest.y + dest.h) return null
+  const u = (docX - dest.x) / dest.w
+  const v = (docY - dest.y) / dest.h
+  return {
+    x: Math.min(layerPixelWidth - 1, Math.max(0, Math.floor(u * layerPixelWidth))),
+    y: Math.min(layerPixelHeight - 1, Math.max(0, Math.floor(v * layerPixelHeight))),
+  }
+}
+
 export function roundDest(d: TextureLayerDest): TextureLayerDest {
   return {
     x: Math.round(d.x),

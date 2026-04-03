@@ -115,6 +115,28 @@ describe('BuilderHeader texture brush color', () => {
     expect(slider).toHaveValue('42')
   })
 
+  it('calls onTextureBrushAlphaChange when opacity slider changes', async () => {
+    const user = userEvent.setup()
+    const onAlpha = vi.fn()
+    render(
+      <BuilderHeader
+        {...baseProps}
+        gizmoMode="paint"
+        onGizmoModeChange={noop}
+        textureBrushDisabled={false}
+        textureBrushColorHex="#000000"
+        onTextureBrushColorHexChange={noop}
+        textureBrushAlpha={0.5}
+        onTextureBrushAlphaChange={onAlpha}
+        textureBrushRadiusPx={TEXTURE_PAINT_RADIUS_PX}
+        onTextureBrushRadiusPxChange={noop}
+      />,
+    )
+    await openBrushPopover(user)
+    fireEvent.change(screen.getByTestId('texture-brush-opacity'), { target: { value: '0.8' } })
+    expect(onAlpha).toHaveBeenCalledWith(0.8)
+  })
+
   it('selects paint mode and opens popover when brush is clicked from another gizmo', async () => {
     const user = userEvent.setup()
     const onMode = vi.fn()
