@@ -21,6 +21,13 @@ export interface CarTransformer2Params {
   lateralGrip?: number
   /** Fraction of lateral grip translated into forward impulse when turning (0–1). Default 0.2. */
   lateralToForwardTransfer?: number
+  /**
+   * Relative lateral speed (world units) above which `lateralGrip` is scaled by `lateralGripSlipScale`.
+   * Default 2. At or below this speed, full grip applies.
+   */
+  tireGripSlipSpeedThreshold?: number
+  /** Grip multiplier when lateral speed exceeds `tireGripSlipSpeedThreshold`. Default 0.3. */
+  lateralGripSlipScale?: number
   /** World-space Y impulse applied once per jump press while grounded (Rapier applyImpulse). Default 200. */
   jumpImpulse?: number
 }
@@ -31,6 +38,8 @@ const DEFAULT_CAR2_PARAMS: Required<CarTransformer2Params> = {
   steeringSpeed: 0.01,
   lateralGrip: 100,
   lateralToForwardTransfer: 0.2,
+  tireGripSlipSpeedThreshold: 2,
+  lateralGripSlipScale: 0.3,
   jumpImpulse: 200,
 }
 
@@ -123,10 +132,15 @@ export class CarTransformer2 extends BaseTransformer {
       sideSpeed[0] ** 2 + sideSpeed[1] ** 2 + sideSpeed[2] ** 2,
     )
     const k = this.params.lateralToForwardTransfer
-    const sideForce = scaleVec3(sideSpeed, -this.params.lateralGrip * (1 - k))
+    const gripMul =
+      magSide > this.params.tireGripSlipSpeedThreshold
+        ? this.params.lateralGripSlipScale
+        : 1
+    const effectiveLateralGrip = this.params.lateralGrip * gripMul
+    const sideForce = scaleVec3(sideSpeed, -effectiveLateralGrip * (1 - k))
     const forwardFromLateral = scaleVec3(
       forwardVector,
-      this.params.lateralGrip * magSide * k,
+      effectiveLateralGrip * magSide * k,
     )
     return this.addVec3(gasBreakForce, this.addVec3(sideForce, forwardFromLateral))
   }

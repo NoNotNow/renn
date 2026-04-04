@@ -102,11 +102,14 @@ describe('CarTransformer2', () => {
       environment: { isTouchingObject: true },
     })
     const forward: [number, number, number] = [0, 0, -1]
+    /** High threshold so lateral speed 5 stays in full-grip regime for transfer math. */
+    const noSlipGrip = { tireGripSlipSpeedThreshold: 1e6 } as const
 
     test('with lateralToForwardTransfer > 0, impulse has forward component from lateral', () => {
       const tWithTransfer = new CarTransformer2(10, {
         lateralToForwardTransfer: 0.2,
         lateralGrip: 100,
+        ...noSlipGrip,
       })
       const output = tWithTransfer.transform(lateralInput, 0.016)
       expect(output.impulse).toBeDefined()
@@ -118,11 +121,90 @@ describe('CarTransformer2', () => {
       const tNoTransfer = new CarTransformer2(10, {
         lateralToForwardTransfer: 0,
         lateralGrip: 100,
+        ...noSlipGrip,
       })
       const output = tNoTransfer.transform(lateralInput, 0.016)
       expect(output.impulse).toBeDefined()
       const dot = (output.impulse![0] * forward[0] + output.impulse![1] * forward[1] + output.impulse![2] * forward[2])
       expect(dot).toBeCloseTo(0, 0)
+    })
+  })
+
+  describe('tire grip slip threshold', () => {
+    const grounded = { isTouchingObject: true as const }
+    const common = {
+      lateralGrip: 100,
+      lateralToForwardTransfer: 0.2,
+      lateralGripSlipScale: 0.3,
+    }
+
+    test('lateral speed at or below default threshold keeps full lateral correction', () => {
+      const ref = new CarTransformer2(10, {
+        ...common,
+        tireGripSlipSpeedThreshold: 1e6,
+      })
+      const def = new CarTransformer2(10, { ...common })
+      const input = createMockTransformInput({
+        actions: {},
+        velocity: [1, 0, 0],
+        rotation: [0, 0, 0],
+        environment: grounded,
+      })
+      const iRef = ref.transform(input, 0.016).impulse!
+      const iDef = def.transform(input, 0.016).impulse!
+      expect(iDef[0]).toBeCloseTo(iRef[0], 5)
+      expect(iDef[1]).toBeCloseTo(iRef[1], 5)
+      expect(iDef[2]).toBeCloseTo(iRef[2], 5)
+    })
+
+    test('lateral speed above default threshold scales grip by lateralGripSlipScale', () => {
+      const ref = new CarTransformer2(10, {
+        ...common,
+        tireGripSlipSpeedThreshold: 1e6,
+      })
+      const slipping = new CarTransformer2(10, { ...common })
+      const input = createMockTransformInput({
+        actions: {},
+        velocity: [3, 0, 0],
+        rotation: [0, 0, 0],
+        environment: grounded,
+      })
+      const iRef = ref.transform(input, 0.016).impulse!
+      const iSlip = slipping.transform(input, 0.016).impulse!
+      const scale = common.lateralGripSlipScale
+      expect(iSlip[0]).toBeCloseTo(iRef[0] * scale, 5)
+      expect(iSlip[2]).toBeCloseTo(iRef[2] * scale, 5)
+    })
+
+    test('custom tireGripSlipSpeedThreshold is applied (strictly greater than)', () => {
+      const ref = new CarTransformer2(10, {
+        ...common,
+        tireGripSlipSpeedThreshold: 1e6,
+      })
+      const custom = new CarTransformer2(10, {
+        ...common,
+        tireGripSlipSpeedThreshold: 5,
+      })
+      const below = createMockTransformInput({
+        actions: {},
+        velocity: [4, 0, 0],
+        rotation: [0, 0, 0],
+        environment: grounded,
+      })
+      const iRef4 = ref.transform(below, 0.016).impulse!
+      const iCustom4 = custom.transform(below, 0.016).impulse!
+      expect(iCustom4[0]).toBeCloseTo(iRef4[0], 5)
+
+      const above = createMockTransformInput({
+        actions: {},
+        velocity: [6, 0, 0],
+        rotation: [0, 0, 0],
+        environment: grounded,
+      })
+      const iRef6 = ref.transform(above, 0.016).impulse!
+      const iCustom6 = custom.transform(above, 0.016).impulse!
+      const scale = common.lateralGripSlipScale
+      expect(iCustom6[0]).toBeCloseTo(iRef6[0] * scale, 5)
     })
   })
 

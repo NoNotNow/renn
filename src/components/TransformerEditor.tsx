@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { PresetTransformerType, TransformerConfig } from '@/types/transformer'
 import CopyableArea from './CopyableArea'
+import TransformerFieldReference from './TransformerFieldReference'
 import TransformerTemplateDialog from './TransformerTemplateDialog'
 import { fieldLabelStyle, entityPanelIconButtonStyle, removeButtonStyle, removeButtonStyleDisabled } from './sharedStyles'
 import { EntityPanelIcons } from './EntityPanelIcons'
@@ -366,6 +367,23 @@ export default function TransformerEditor({
             </div>
 
             <div style={{ marginTop: 6 }}>
+              <div style={{ marginBottom: 8 }}>
+                {isPresetTransformerType(transformer.type) ? (
+                  <TransformerFieldReference transformerType={transformer.type} />
+                ) : (
+                  <p
+                    style={{
+                      margin: 0,
+                      fontSize: 11,
+                      color: '#9aa4b2',
+                      lineHeight: 1.35,
+                    }}
+                  >
+                    No built-in field reference for this transformer type. Edit JSON carefully or
+                    switch to a preset type.
+                  </p>
+                )}
+              </div>
               <div style={fieldLabelStyle}>Configuration:</div>
               <TransformerConfigTextarea
                 value={transformer}

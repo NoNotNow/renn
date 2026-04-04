@@ -71,7 +71,7 @@ flowchart LR
 
 ### Default parameter values in code
 
-`CarTransformer2` merges ctor params with **`DEFAULT_CAR2_PARAMS`** in the same file (`power`, `steeringIntensity`, `steeringSpeed`, `lateralGrip`, `lateralToForwardTransfer`, `jumpImpulse`). Builder defaults when **adding** a transformer come from **`getDefaultTransformerConfig('car2')`** and can differ from JSON templates (see below).
+`CarTransformer2` merges ctor params with **`DEFAULT_CAR2_PARAMS`** in the same file (`power`, `steeringIntensity`, `steeringSpeed`, `lateralGrip`, `lateralToForwardTransfer`, `tireGripSlipSpeedThreshold`, `lateralGripSlipScale`, `jumpImpulse`). Builder defaults when **adding** a transformer come from **`getDefaultTransformerConfig('car2')`** and can differ from JSON templates (see below).
 
 ---
 
@@ -133,6 +133,7 @@ Individual transformers may set **`TransformOutput.impulse`**. The chain **adds*
 
 ## Key tests (behavior as specified in code)
 
-- [src/transformers/presets/car2Transformer.test.ts](../src/transformers/presets/car2Transformer.test.ts) — touch gating, jump edge, lateral transfer.
+- [src/transformers/presets/car2Transformer.test.ts](../src/transformers/presets/car2Transformer.test.ts) — touch gating, jump edge, lateral transfer, tire grip slip threshold.
+- [src/test/scenarios/car2-tire-grip.test.ts](../src/test/scenarios/car2-tire-grip.test.ts) — integration: slip threshold vs high threshold; low `lateralGrip` slides even with huge threshold.
 - [src/transformers/presets/inputTransformer.test.ts](../src/transformers/presets/inputTransformer.test.ts) — mapping to actions.
 - [src/transformers/integration.test.ts](../src/transformers/integration.test.ts) — chain merges impulse into force.

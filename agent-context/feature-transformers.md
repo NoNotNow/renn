@@ -36,6 +36,7 @@ RawInput → InputMapping → TransformInput → TransformerChain → TransformO
 src/
 ├── types/transformer.ts                      # All TS interfaces
 ├── transformers/
+│   ├── transformerParamDocs.ts               # User-facing field descriptions (Builder tooltips)
 │   ├── transformer.ts                        # BaseTransformer + TransformerChain
 │   ├── transformerRegistry.ts                # Factory: type string → instance
 │   ├── transformerPresets.ts                 # Default configs for Builder dropdown
@@ -77,7 +78,7 @@ Templates live under `src/data/transformerPresets/<type>/*.json` and appear in t
 | Type | Purpose | Key params |
 |---|---|---|
 | `input` | Maps raw keys/wheel → actions | `inputMapping` (keyboard/wheel bindings) |
-| `car2` | Impulse + addRotation for steering; optional **jump** (world-Y impulse once per press); **physics only when touching another object** | `power`, `steeringIntensity`, `steeringSpeed`, `lateralGrip`, `lateralToForwardTransfer`, `jumpImpulse` |
+| `car2` | Impulse + addRotation for steering; optional **jump** (world-Y impulse once per press); **physics only when touching another object** | `power`, `steeringIntensity`, `steeringSpeed`, `lateralGrip`, `lateralToForwardTransfer`, `tireGripSlipSpeedThreshold`, `lateralGripSlipScale`, `jumpImpulse` |
 | `person` | WASD walk/run + turn torque when grounded | `walkForce`, `runForce`, `maxWalkSpeed`, `maxRunSpeed`, `turnSpeed` |
 | `targetPoseInput` | Waypoint list → **`TransformInput.target`** (pose + linear speed); modes `cycle`, `pingPong`, `stopAtEnd` | `poses`, `speed`, `mode`, `positionEpsilon`, `rotationEpsilon` |
 | `wanderer` | Random poses within perimeter cube → **`TransformInput.target`**; configurable speed, jump distance, linear/angular toggles | `speed`, `jumpDistance`, `linear`, `angular`, `perimeter` (center, halfExtents), `positionEpsilon`, `rotationEpsilon` |
@@ -109,6 +110,8 @@ Templates live under `src/data/transformerPresets/<type>/*.json` and appear in t
 }
 ```
 
+**Builder:** In the entity **Transformers** section, each preset row includes a collapsible **Field reference** with hover tooltips on JSON field names; descriptions are maintained in [`transformerParamDocs.ts`](../src/transformers/transformerParamDocs.ts) (keep that file in sync when adding or renaming params).
+
 ### Car2 transformer params
 
 The `car2` preset (**impulse** + **addRotation**) accepts optional `params` in JSON. When the car has lateral velocity, part of the countered lateral force is applied as forward impulse so that some lateral energy is translated into forward motion during turns.
@@ -124,11 +127,13 @@ The `car2` preset (**impulse** + **addRotation**) accepts optional `params` in J
 | `steeringSpeed` | 0.01 | Wheel angle change rate (how fast steer input moves the wheel) |
 | `lateralGrip` | 100 | Sideways grip strength (higher = less sliding) |
 | `lateralToForwardTransfer` | 0.2 | Fraction of lateral grip translated into forward impulse when turning (0–1) |
+| `tireGripSlipSpeedThreshold` | 2 | Relative lateral speed above which grip is multiplied by `lateralGripSlipScale` (sliding); at or below, full `lateralGrip` |
+| `lateralGripSlipScale` | 0.3 | Effective `lateralGrip` multiplier when lateral speed exceeds the threshold |
 | `jumpImpulse` | 200 | World-space +Y impulse applied once per **rising edge** of action `jump` while touching; set `0` to disable |
 
 Map **Space** (or any key) to the semantic action **`jump`** in the `input` transformer’s `inputMapping` (see `src/data/transformerPresets/input/keyboard-car.json`).
 
-Default preset (Builder + `getDefaultTransformerConfig('car2')`) matches runtime defaults in `car2Transformer.ts` (same `power`, `steeringIntensity`, `steeringSpeed`, `lateralGrip`, `jumpImpulse`). Optional: `lateralToForwardTransfer` (e.g. `0.2`).
+Default preset (Builder + `getDefaultTransformerConfig('car2')`) matches runtime defaults in `car2Transformer.ts` (same `power`, `steeringIntensity`, `steeringSpeed`, `lateralGrip`, `tireGripSlipSpeedThreshold`, `lateralGripSlipScale`, `jumpImpulse`). Optional: `lateralToForwardTransfer` (e.g. `0.2`).
 
 ### Builder: Add transformer dropdown and template dialog
 
