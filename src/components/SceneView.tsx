@@ -41,8 +41,10 @@ import { countVisualModelTriangles } from '@/utils/geometryExtractor'
 import { findEntityRootForPicking } from '@/utils/entityPicking'
 import { ScriptSnackbar } from '@/components/ScriptSnackbar'
 import { GameHud } from '@/components/GameHud'
+import { FrameStatsOverlay } from '@/components/FrameStatsOverlay'
 import { WarningSnackbar } from '@/components/WarningSnackbar'
 import { AvatarSession } from '@/runtime/avatarSession'
+import type { SceneFrameTiming } from '@/runtime/frameTiming'
 
 /** Radius inside camera far plane (PerspectiveCamera default far = 1000). */
 const SKY_DOME_RADIUS = 500
@@ -97,6 +99,8 @@ export interface SceneViewProps {
   } | null
   /** When true, show score/damage HUD; scripts update via `ctx.setScore` / `ctx.setDamage`. */
   showGameHud?: boolean
+  /** When true, show last-frame ms breakdown (Builder profiling aid; small `performance.now()` cost). */
+  showFrameStats?: boolean
   /** Optional: e.g. Builder `setCameraTarget` when the play avatar changes (+/− or script). */
   onCurrentAvatarChange?: (entityId: string | null) => void
   /** Builder: persist painted texture after pointer-up (single-entity brush stroke). */
@@ -159,6 +163,7 @@ function SceneViewInner({
   soundPlaybackCommand = null,
   performancePick = null,
   showGameHud = false,
+  showFrameStats = false,
   onCurrentAvatarChange,
   onTexturePaintStrokeEnd,
   pushUndoBeforePaintStroke,
@@ -243,6 +248,7 @@ function SceneViewInner({
   editNavigationModeRef.current = editNavigationMode
   const showGameHudRef = useRef(showGameHud)
   showGameHudRef.current = showGameHud
+  const frameTimingRef = useRef<SceneFrameTiming | null>(null)
 
   useEffect(() => {
     onCurrentAvatarChangeRef.current = onCurrentAvatarChange
@@ -663,6 +669,8 @@ function SceneViewInner({
           skyDomeRef,
           rend,
           loadedScene,
+          recordFrameTiming: showFrameStats,
+          frameTimingRef,
         })
       }
       animate()
@@ -821,7 +829,7 @@ function SceneViewInner({
       setCamera(null)
       setRenderer(null)
     }
-  }, [sceneKey, version, runPhysics, runScripts, shadowsEnabled, freeFlyKeysRef, editorFreePoseRef, showGameHud])
+  }, [sceneKey, version, runPhysics, runScripts, shadowsEnabled, freeFlyKeysRef, editorFreePoseRef, showGameHud, showFrameStats])
 
   // Update camera config when it changes (without reloading the world).
   // After setConfig, sync AvatarSession with `world` and re-apply follow focus so each avatar’s
@@ -1090,6 +1098,7 @@ function SceneViewInner({
         </div>
       ) : null}
       {scriptSnackbarMessage !== null ? <ScriptSnackbar message={scriptSnackbarMessage} /> : null}
+      {showFrameStats ? <FrameStatsOverlay frameTimingRef={frameTimingRef} /> : null}
       {showGameHud ? (
         <GameHud score={hudScore} damage={hudDamage} speedMs={hudDrive.speedMs} wheelAngle={hudDrive.wheelAngle} />
       ) : null}

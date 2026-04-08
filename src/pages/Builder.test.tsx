@@ -96,6 +96,7 @@ describe('Builder', () => {
     Object.keys(sceneViewProps).forEach((k) => delete sceneViewProps[k])
     if (typeof localStorage?.removeItem === 'function') {
       localStorage.removeItem('builderShowGameHud')
+      localStorage.removeItem('builderShowFrameStats')
     }
   })
 
@@ -147,11 +148,26 @@ describe('Builder', () => {
     expect(sceneViewProps.gizmoMode).toBe('translate')
     expect(sceneViewProps.shadowsEnabled).toBe(true)
     expect(sceneViewProps.showGameHud).toBe(false)
+    expect(sceneViewProps.showFrameStats).toBe(false)
     expect(screen.getByRole('group', { name: 'Gizmo mode' })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Rotate gizmo' }))
     expect(sceneViewProps.gizmoMode).toBe('rotate')
     await user.click(screen.getByRole('button', { name: 'Scale gizmo' }))
     expect(sceneViewProps.gizmoMode).toBe('scale')
+  })
+
+  it('passes showFrameStats true to SceneView after View → Frame stats', async () => {
+    const user = userEvent.setup()
+    renderBuilder()
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(sceneViewProps.showFrameStats).toBe(false)
+    await user.click(screen.getByRole('button', { name: 'View' }))
+    await user.click(screen.getByRole('menuitem', { name: /frame stats/i }))
+    await waitFor(() => {
+      expect(sceneViewProps.showFrameStats).toBe(true)
+    })
   })
 
   it('passes showGameHud true to SceneView after View → Game HUD', async () => {

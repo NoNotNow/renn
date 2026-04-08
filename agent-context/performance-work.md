@@ -13,7 +13,7 @@ Working document derived from Firefox profiling on a heavy project (RefreshDrive
 | Status | Item | Notes |
 |--------|------|--------|
 | [ ] | Capture **JS flame charts** (Firefox Profiler JS view or Chrome Performance) for the same bad scene: split time for **physics step**, **`executeTransformers`**, **`runOnUpdate` scripts**, **`renderer.render`**, React/Builder overhead | Confirms where to spend engineering time; this doc’s order may be reshuffled after data. |
-| [ ] | Optional: **in-app frame timing HUD** (fps + last-frame ms breakdown) for regressions without DevTools | Not a substitute for browser profiler once per milestone. |
+| [x] | Optional: **in-app frame timing HUD** (fps + last-frame ms breakdown) for regressions without DevTools | **View → Frame stats** in Builder (`SceneView` `showFrameStats`); persists `builderShowFrameStats`. Sections: transformers, physics, script collisions, `onUpdate`, camera, game HUD, render. |
 
 ---
 
@@ -113,13 +113,13 @@ Working document derived from Firefox profiling on a heavy project (RefreshDrive
 |------|--------|
 | *(initial)* | Created from Firefox trace analysis + codebase performance notes. |
 | *(move)* | Relocated from `ai-context/` to `agent-context/`. |
-| 2026-04-08 | §3 HUD: filter pulse → opacity/scale in `GameHud.tsx`. §7: `userData` clear without `delete` in `updateShape`. §8: Builder live pose poll 220ms. |
+| 2026-04-08 | §1: Frame timing overlay (`frameTiming.ts`, `runSceneFrame`, `FrameStatsOverlay`, View → Frame stats). §3 HUD: opacity/scale pulses. §7: `userData` clear without `delete`. §8: Builder live pose poll 220ms. |
 
 ---
 
 ## References
 
-- Hot loop overview: `src/runtime/sceneFrameLoop.ts`, `src/components/SceneView.tsx`
+- Hot loop overview: `src/runtime/sceneFrameLoop.ts`, `src/runtime/frameTiming.ts`, `src/components/SceneView.tsx`, `src/components/FrameStatsOverlay.tsx`
 - Registry / `updateShape`: `src/runtime/renderItemRegistry.ts`
 - HUD CSS: search **`rennHudPulse`** / **`rennHudPulseScore`** / **`rennHudPulseDamage`** in UI/CSS
 

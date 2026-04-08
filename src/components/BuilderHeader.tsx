@@ -60,6 +60,9 @@ export interface BuilderHeaderProps {
   /** Score/damage HUD overlay on the canvas (same as Play). */
   showGameHud?: boolean
   onGameHudToggle?: () => void
+  /** Last-frame ms breakdown overlay (profiling). */
+  showFrameStats?: boolean
+  onFrameStatsToggle?: () => void
   onOpenPerformanceBooster?: () => void
   /** Single textured entity: open layered texture editor. */
   onOpenTextureStudio?: () => void
@@ -103,6 +106,8 @@ export default function BuilderHeader({
   onEditNavigationModeToggle,
   showGameHud = false,
   onGameHudToggle,
+  showFrameStats = false,
+  onFrameStatsToggle,
   onOpenPerformanceBooster,
   onOpenTextureStudio,
 }: BuilderHeaderProps) {
@@ -223,6 +228,13 @@ export default function BuilderHeader({
       checked: showGameHud,
       onClick: onGameHudToggle,
       disabled: !onGameHudToggle,
+    },
+    {
+      type: 'item',
+      label: 'Frame stats',
+      checked: showFrameStats,
+      onClick: onFrameStatsToggle,
+      disabled: !onFrameStatsToggle,
     },
   ]
 

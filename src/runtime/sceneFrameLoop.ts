@@ -17,6 +17,7 @@ import type { RawMouseDragState } from '@/input/rawMouseDrag'
 import { averageUnlockedSelectionWorldPosition } from '@/editor/transformGizmoController'
 import { getForwardSpeed } from '@/utils/vec3'
 import { syncDirectionalLightShadowFocusToCamera } from '@/utils/shadowBounds'
+import { emptySceneFrameTiming, type SceneFrameTiming } from '@/runtime/frameTiming'
 
 export const SCENE_FIXED_DT = 1 / 60
 
@@ -49,6 +50,11 @@ export interface SceneFrameLoopInputs {
   skyDomeRef: MutableRefObject<THREE.Mesh | null>
   rend: THREE.WebGLRenderer | null
   loadedScene: THREE.Scene | null
+  /**
+   * When true, fills `frameTimingRef` with last-section ms (adds `performance.now()` sampling).
+   */
+  recordFrameTiming: boolean
+  frameTimingRef: MutableRefObject<SceneFrameTiming | null>
 }
 
 /**
@@ -84,7 +90,21 @@ export function runSceneFrame(input: SceneFrameLoopInputs): void {
     skyDomeRef,
     rend,
     loadedScene,
+    recordFrameTiming,
+    frameTimingRef,
   } = input
+
+  const record = recordFrameTiming
+  const timing = record ? emptySceneFrameTiming() : null
+  let prev = record ? performance.now() : 0
+  const frameStart = prev
+
+  const finishTiming = (): void => {
+    if (!timing || !record) return
+    const n = performance.now()
+    timing.frameMs = n - frameStart
+    frameTimingRef.current = timing
+  }
 
   timeRef.current += dt
 
@@ -134,9 +154,19 @@ export function runSceneFrame(input: SceneFrameLoopInputs): void {
           const wind = worldRef.current.world.wind
           registryRef.current.executeTransformers(dt, wind)
         }
+        if (timing) {
+          const n = performance.now()
+          timing.transformersMs = n - prev
+          prev = n
+        }
 
         pw.step(dt)
         registryRef.current?.syncFromPhysics()
+        if (timing) {
+          const n = performance.now()
+          timing.physicsMs = n - prev
+          prev = n
+        }
 
         if (scriptRunnerRef.current && runScripts) {
           const collisions = pw.getCollisions()
@@ -145,17 +175,28 @@ export function runSceneFrame(input: SceneFrameLoopInputs): void {
             scriptRunnerRef.current.runOnCollision(entityIdB, entityIdA, impact)
           }
         }
+        if (timing) {
+          const n = performance.now()
+          timing.scriptCollisionsMs = n - prev
+          prev = n
+        }
       }
     } catch (e) {
       if (!isCancelled()) {
         console.error('Physics step error:', e)
       }
+      finishTiming()
       return
     }
   }
 
   if (scriptRunnerRef.current && runScripts && !editNavigationModeRef.current) {
     scriptRunnerRef.current.runOnUpdate(dt)
+  }
+  if (timing) {
+    const n = performance.now()
+    timing.scriptsOnUpdateMs = n - prev
+    prev = n
   }
 
   const ctrl = cameraCtrlRef.current
@@ -212,6 +253,11 @@ export function runSceneFrame(input: SceneFrameLoopInputs): void {
       }
     }
   }
+  if (timing) {
+    const n = performance.now()
+    timing.cameraMs = n - prev
+    prev = n
+  }
 
   if (showGameHud) {
     const camCtrl = cameraCtrlRef.current
@@ -240,6 +286,11 @@ export function runSceneFrame(input: SceneFrameLoopInputs): void {
       setHudDrive({ speedMs, wheelAngle })
     }
   }
+  if (timing) {
+    const n = performance.now()
+    timing.hudMs = n - prev
+    prev = n
+  }
 
   const dome = skyDomeRef.current
   if (dome && cam && !isCancelled()) {
@@ -250,4 +301,11 @@ export function runSceneFrame(input: SceneFrameLoopInputs): void {
     syncDirectionalLightShadowFocusToCamera(loadedScene, cam)
     rend.render(loadedScene, cam)
   }
+  if (timing) {
+    const n = performance.now()
+    timing.renderMs = n - prev
+    prev = n
+  }
+
+  finishTiming()
 }

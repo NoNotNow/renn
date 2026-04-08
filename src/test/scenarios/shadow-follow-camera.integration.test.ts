@@ -116,6 +116,8 @@ describe('shadow follow camera (integration)', () => {
       skyDomeRef: { current: null },
       rend,
       loadedScene: scene,
+      recordFrameTiming: false,
+      frameTimingRef: { current: null },
     }
 
     runSceneFrame(input)

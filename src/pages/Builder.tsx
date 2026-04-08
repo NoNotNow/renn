@@ -976,6 +976,7 @@ export default function Builder() {
   const [leftDrawerOpen, setLeftDrawerOpen] = useLocalStorageState('leftDrawerOpen', true)
   const [rightDrawerOpen, setRightDrawerOpen] = useLocalStorageState('rightDrawerOpen', true)
   const [showGameHud, setShowGameHud] = useLocalStorageState('builderShowGameHud', false)
+  const [showFrameStats, setShowFrameStats] = useLocalStorageState('builderShowFrameStats', false)
 
   const sceneCameraConfig = useMemo(
     () => ({
@@ -1628,6 +1629,14 @@ export default function Builder() {
             return next
           })
         }}
+        showFrameStats={showFrameStats}
+        onFrameStatsToggle={() => {
+          setShowFrameStats((prev) => {
+            const next = !prev
+            uiLogger.click('Builder', 'Toggle frame stats (menu)', { enabled: next })
+            return next
+          })
+        }}
         onOpenPerformanceBooster={() => {
           setPerformanceBoosterOpen(true)
           uiLogger.click('Builder', 'Open Performance booster', {})
@@ -1730,6 +1739,7 @@ export default function Builder() {
                   : null
               }
               showGameHud={showGameHud}
+              showFrameStats={showFrameStats}
               onCurrentAvatarChange={(id) => {
                 if (id) setCameraTarget(id)
               }}
