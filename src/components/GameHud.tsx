@@ -286,13 +286,14 @@ export function GameHud({ score, damage, speedMs, wheelAngle }: GameHudProps) {
     <>
       <style>
         {`
+          /* opacity + transform — avoid animating filter (expensive repaint / compositor). */
           @keyframes rennHudPulseScore {
-            0%, 100% { filter: drop-shadow(0 0 6px rgba(72, 255, 140, 0.35)); }
-            50% { filter: drop-shadow(0 0 14px rgba(100, 255, 160, 0.55)); }
+            0%, 100% { opacity: 0.92; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.03); }
           }
           @keyframes rennHudPulseDamage {
-            0%, 100% { filter: drop-shadow(0 0 6px rgba(255, 72, 96, 0.35)); }
-            50% { filter: drop-shadow(0 0 14px rgba(255, 100, 120, 0.5)); }
+            0%, 100% { opacity: 0.92; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.03); }
           }
           .rennTachBezel {
             position: relative;
@@ -339,6 +340,7 @@ export function GameHud({ score, damage, speedMs, wheelAngle }: GameHudProps) {
               ...valueStyle,
               color: '#b8ffc8',
               textShadow: '0 0 20px rgba(80, 255, 140, 0.45), 0 0 40px rgba(60, 200, 100, 0.2)',
+              transformOrigin: 'center center',
               animation: 'rennHudPulseScore 3.2s ease-in-out infinite',
             }}
           >
@@ -361,6 +363,7 @@ export function GameHud({ score, damage, speedMs, wheelAngle }: GameHudProps) {
               ...valueStyle,
               color: '#ffb0b8',
               textShadow: '0 0 18px rgba(255, 80, 100, 0.5), 0 0 36px rgba(200, 40, 60, 0.2)',
+              transformOrigin: 'center center',
               animation: 'rennHudPulseDamage 2.8s ease-in-out infinite',
             }}
           >

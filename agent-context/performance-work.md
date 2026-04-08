@@ -35,8 +35,8 @@ Working document derived from Firefox profiling on a heavy project (RefreshDrive
 
 | Status | Item | Notes |
 |--------|------|--------|
-| [ ] | Replace HUD pulse **filter**-based effects with **`opacity` / `transform`** or **sprite swap** | Usually large win for little gameplay risk. |
-| [ ] | Ensure pulses are **disabled or simplified** when HUD is hidden / minimal mode | Avoid paying cost when not visible. |
+| [x] | Replace HUD pulse **filter**-based effects with **`opacity` / `transform`** or **sprite swap** | Done: `GameHud.tsx` uses opacity + scale keyframes; static `textShadow` retained. |
+| [x] | Ensure pulses are **disabled or simplified** when HUD is hidden / minimal mode | No extra work: `GameHud` only mounts when `showGameHud` is true (`SceneView`). |
 
 ---
 
@@ -84,17 +84,17 @@ Working document derived from Firefox profiling on a heavy project (RefreshDrive
 | Status | Item | Notes |
 |--------|------|--------|
 | [ ] | Confirm **how often** `updateShape` runs in the bad scenario (editor-only vs play) | Bailout only matters if this path is hot. |
-| [ ] | If hot: reduce **polymorphism** / stabilize types at that branch; avoid **`delete` on `userData`** in hot path if refactor is cheap | SpiderMonkey deopt; validate with profiler after change. |
+| [x] | If hot: reduce **polymorphism** / stabilize types at that branch; avoid **`delete` on `userData`** in hot path if refactor is cheap | `updateShape`: `visualBaseQuaternion` cleared with `= undefined` instead of `delete` (line ~480). Re-profile if needed. |
 
 ---
 
 ## 8. Builder ancillary timers
 
-**Evidence:** **`setInterval` ~99 ms** at `Builder.tsx` (~line 1209) appears in trace; self-time small but adds periodic wakeups.
+**Evidence:** **`setInterval`** for inspector pose poll at `Builder.tsx` (live poses effect) appeared in trace; self-time small but adds periodic wakeups.
 
 | Status | Item | Notes |
 |--------|------|--------|
-| [ ] | Merge periodic work with **rAF** or **increase interval** if UX allows | Lower priority than GC and rAF body. |
+| [x] | Merge periodic work with **rAF** or **increase interval** if UX allows | Inspector pose poll: interval **220ms** (was 100ms) in `Builder.tsx` to reduce periodic wakeups. |
 
 ---
 
@@ -113,6 +113,7 @@ Working document derived from Firefox profiling on a heavy project (RefreshDrive
 |------|--------|
 | *(initial)* | Created from Firefox trace analysis + codebase performance notes. |
 | *(move)* | Relocated from `ai-context/` to `agent-context/`. |
+| 2026-04-08 | §3 HUD: filter pulse → opacity/scale in `GameHud.tsx`. §7: `userData` clear without `delete` in `updateShape`. §8: Builder live pose poll 220ms. |
 
 ---
 

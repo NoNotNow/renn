@@ -1295,14 +1295,15 @@ export default function Builder() {
     updateAssets(() => newAssets)
   }, [updateAssets])
 
-  // Poll scene poses so the inspector stays in sync with physics/scripts (display only; never calls onWorldChange)
+  // Poll scene poses so the inspector stays in sync with physics/scripts (display only; never calls onWorldChange).
+  // ~220ms limits wakeups vs 100ms while keeping labels usable (see agent-context/performance-work.md §8).
   useEffect(() => {
     const interval = setInterval(() => {
       const poses = sceneViewRef.current?.getAllPoses() ?? null
       if (poses && poses.size > 0) {
         setLivePoses(poses)
       }
-    }, 100)
+    }, 220)
     return () => clearInterval(interval)
   }, [])
 

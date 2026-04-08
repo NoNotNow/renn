@@ -477,7 +477,7 @@ export class RenderItemRegistry {
         const planeQ = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0))
         mesh.userData.visualBaseQuaternion = planeQ
       } else {
-        delete mesh.userData.visualBaseQuaternion
+        mesh.userData.visualBaseQuaternion = undefined
       }
       // Re-apply rotation so it is consistent with the new (or absent) visual base quaternion
       item.setRotation(currentRotation)
