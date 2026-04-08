@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import type { LoadedEntity } from '@/loader/loadWorld'
 import type { PhysicsWorld } from '@/physics/rapierPhysics'
-import type { Vec3, Rotation, Entity } from '@/types/world'
+import type { Vec3, Rotation, Entity, DistanceCullingSettings } from '@/types/world'
 import { createShapeGeometry, materialFromRef } from '@/loader/createPrimitive'
 import type { DisposableAssetResolver } from '@/loader/assetResolverImpl'
 import { RenderItem } from './renderItem'
@@ -22,6 +22,7 @@ import {
 } from '@/editor/bakeScaleIntoShape'
 import { syncShapeWireframeOverlay } from '@/loader/shapeWireframeOverlay'
 import { updateMeshCastShadowFromWorldAabb } from '@/utils/shadowBounds'
+import { getEntityApproximateSize } from '@/utils/entityApproximateSize'
 
 const shapeUpdateShadowBox = new THREE.Box3()
 const shapeUpdateShadowSize = new THREE.Vector3()
@@ -120,6 +121,7 @@ export class RenderItemRegistry {
     for (const { entity, mesh } of loadedEntities) {
       const body = physicsWorld?.getBody(entity.id) ?? null
       const item = new RenderItem(entity, mesh, body)
+      item.worldSize = getEntityApproximateSize(entity)
 
       // Create transformer chain if entity has transformers.
       // Creation may be async (custom transformers); initialize asynchronously
@@ -642,6 +644,44 @@ export class RenderItemRegistry {
   }
 
   /**
+   * Per-frame distance culling: hide entities smaller than `settings.minSize`
+   * when farther than `settings.radius` from the camera. Uses squared distance.
+   */
+  applyDistanceCulling(camPos: THREE.Vector3, settings: DistanceCullingSettings): void {
+    const radiusSq = settings.radius * settings.radius
+    const minSize = settings.minSize
+    for (const item of this.items.values()) {
+      if (item.worldSize >= minSize) {
+        if (item.distanceCulled) {
+          item.distanceCulled = false
+          item.mesh.visible = true
+        }
+        continue
+      }
+      const m = item.mesh.position
+      const dx = m.x - camPos.x
+      const dy = m.y - camPos.y
+      const dz = m.z - camPos.z
+      const distSq = dx * dx + dy * dy + dz * dz
+      const shouldCull = distSq > radiusSq
+      if (shouldCull !== item.distanceCulled) {
+        item.distanceCulled = shouldCull
+        item.mesh.visible = !shouldCull
+      }
+    }
+  }
+
+  /** Restore visibility for all distance-culled entities (call when culling is disabled). */
+  clearDistanceCulling(): void {
+    for (const item of this.items.values()) {
+      if (item.distanceCulled) {
+        item.distanceCulled = false
+        item.mesh.visible = true
+      }
+    }
+  }
+
+  /**
    * Execute transformers for all entities before physics step.
    * This generates forces that are then applied to physics bodies.
    */
@@ -678,6 +718,7 @@ export class RenderItemRegistry {
       const cached = this.physicsWorld.getCachedTransform(item.entity.id)
       if (!cached) continue
       if (cached.isSleeping) continue
+      if (item.distanceCulled) continue
 
       clearActionRecord(this._tfActions)
       input.target = undefined

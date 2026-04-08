@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import type { RennWorld, Vec3, MaterialRef, WorldSleepingSettings } from '@/types/world'
-import { DEFAULT_GRAVITY, DEFAULT_SCALE, RECOMMENDED_SLEEPING_SETTINGS } from '@/types/world'
+import type { RennWorld, Vec3, MaterialRef, WorldSleepingSettings, DistanceCullingSettings } from '@/types/world'
+import { DEFAULT_GRAVITY, DEFAULT_SCALE, RECOMMENDED_SLEEPING_SETTINGS, DEFAULT_DISTANCE_CULLING } from '@/types/world'
 import { uiLogger } from '@/utils/uiLogger'
 import { colorToHex, hexToColor } from '@/utils/colorUtils'
 import { directionToSpherical, sphericalToDirection } from '@/utils/lightUtils'
@@ -97,6 +97,24 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
       newValue: RECOMMENDED_SLEEPING_SETTINGS,
     })
     updateWorldSettings({ sleeping: { ...RECOMMENDED_SLEEPING_SETTINGS } })
+  }
+
+  const culling: DistanceCullingSettings | undefined = world.world.distanceCulling
+  const cullingEnabled = culling !== undefined
+
+  const toggleCulling = (enabled: boolean) => {
+    pushUndo()
+    if (enabled) {
+      updateWorldSettings({ distanceCulling: { ...DEFAULT_DISTANCE_CULLING } })
+    } else {
+      const { distanceCulling: _omit, ...rest } = world.world
+      onWorldChange({ ...world, world: rest })
+    }
+  }
+
+  const updateCulling = (patch: Partial<DistanceCullingSettings>) => {
+    const base = culling ?? DEFAULT_DISTANCE_CULLING
+    updateWorldSettings({ distanceCulling: { ...base, ...patch } })
   }
 
   const updateSkyColor = (newColor: Vec3) => {
@@ -305,6 +323,47 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
             Set recommended
           </button>
         </div>
+      </div>
+
+      <div style={{ ...sectionStyle, marginTop: 12 }}>
+        <div style={sectionTitleStyle}>Distance Culling</div>
+        <p style={{ fontSize: 11, color: '#9aa4b2', margin: '0 0 8px' }}>
+          Hide objects smaller than Min Size when farther than Radius from the camera.
+        </p>
+        <div style={{ ...sidebarRowStyle, marginBottom: 8 }}>
+          <label htmlFor="culling-enabled" style={sidebarLabelStyle}>Enabled</label>
+          <input
+            id="culling-enabled"
+            type="checkbox"
+            checked={cullingEnabled}
+            onChange={(e) => toggleCulling(e.target.checked)}
+            style={{ cursor: 'pointer' }}
+          />
+        </div>
+        {cullingEnabled && (
+          <>
+            <NumberInput onBeforeCommit={pushUndo}
+              id="culling-radius"
+              label="Radius"
+              value={culling!.radius}
+              onChange={(v) => updateCulling({ radius: v })}
+              min={1}
+              step={5}
+              defaultValue={DEFAULT_DISTANCE_CULLING.radius}
+              logComponent="WorldPanel"
+            />
+            <NumberInput onBeforeCommit={pushUndo}
+              id="culling-min-size"
+              label="Min size"
+              value={culling!.minSize}
+              onChange={(v) => updateCulling({ minSize: v })}
+              min={0.01}
+              step={0.1}
+              defaultValue={DEFAULT_DISTANCE_CULLING.minSize}
+              logComponent="WorldPanel"
+            />
+          </>
+        )}
       </div>
 
       <div style={{ ...sectionStyle, marginTop: 12 }}>

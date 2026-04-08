@@ -110,6 +110,18 @@ export const RECOMMENDED_SLEEPING_SETTINGS: WorldSleepingSettings = {
   timeUntilSleep: 2.0,
 }
 
+export interface DistanceCullingSettings {
+  /** Max distance from camera before small objects are hidden. */
+  radius: number
+  /** Objects with approximate world size below this are culled at distance. */
+  minSize: number
+}
+
+export const DEFAULT_DISTANCE_CULLING: DistanceCullingSettings = {
+  radius: 50,
+  minSize: 1.0,
+}
+
 export interface WorldSettings {
   gravity?: Vec3
   wind?: Vec3
@@ -121,6 +133,8 @@ export interface WorldSettings {
   skyColor?: Color
   skybox?: string
   camera?: CameraConfig
+  /** Hide small objects beyond a distance from the camera. */
+  distanceCulling?: DistanceCullingSettings
 }
 
 export interface SoundSettings {

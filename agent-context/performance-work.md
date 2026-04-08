@@ -132,7 +132,8 @@ Chrome DevTools Performance tab with call tree. Users report Chrome is noticeabl
 | [x] | **Shadow map**: lower resolution, tighten frustum, disable `castShadow` on small props | **2026-04-08:** 1024² map; `castShadow` off when world AABB half-extent &lt; 0.3 (`shadowBounds.updateMeshCastShadowFromWorldAabb`); `loadWorld` + `RenderItemRegistry.updateShape`. |
 | [x] | **Pixel ratio** cap: already `min(dpr, 2)`; consider **1.5** or quality setting on low-end | **2026-04-08:** `SceneView` uses `min(dpr, 1.5)` (`MAX_SCENE_PIXEL_RATIO`). Optional user toggle still open. |
 | [~] | **Instancing** for many copies of the same mesh + material | Larger engineering item; big win when applicable. **2026-04-08:** Frame Stats overlay now shows `geometries` count (`renderer.info.memory.geometries`); compare draw calls vs geometries to identify instancing candidates. Architecture outlined in plan (group by geometry+material hash → `InstancedMesh`). |
-| [ ] | **LOD** or simplified far meshes | Medium/large item. |
+| [x] | **Distance culling** for small far objects | `WorldSettings.distanceCulling` (radius + minSize), `RenderItemRegistry.applyDistanceCulling`, UI in `WorldPanel`. Skips rendering + transformers for culled entities. |
+| [ ] | **Multi-resolution LOD** (simplified far meshes) | Separate project — see [feature-lod.md](feature-lod.md). `meshSimplifier.ts` can generate reduced geometries, but `THREE.LOD` swap-distance logic + asset pipeline changes are out of scope for this backlog. |
 
 ---
 
@@ -310,7 +311,8 @@ Improves Builder responsiveness; does not affect standalone Play FPS:
 
 ### What NOT to pursue yet
 
-- **Instancing / LOD**: Large engineering effort. Only valuable when scenes have many copies of the same mesh or many distant objects. Revisit after GPU monitoring (item 5) reveals whether draw calls or fill rate is the bottleneck.
+- **Instancing**: Large engineering effort. Only valuable when scenes have many copies of the same mesh. Revisit after GPU monitoring (item 5) reveals whether draw calls are the bottleneck.
+- **Multi-resolution LOD**: Separate project scoped in [`feature-lod.md`](feature-lod.md). `meshSimplifier.ts` (meshoptimizer + `SimplifyModifier`) generates reduced geometries, but LOD additionally requires `THREE.LOD` swap-distance configuration and asset pipeline changes to pre-generate or cache reduced meshes. **Distance culling** (hide small objects beyond a radius) is implemented as a simpler alternative — see §4.
 - **Physics WASM deopt**: The `Bailout/Invalidate` in Rapier's WASM interop is in library code (`@dimforge/rapier3d-compat.js`). The **primary fix** — reducing how often we call Rapier getters — is **done**: touching cache + velocity/sleeping cache eliminate all per-entity WASM calls from `executeTransformers`. Remaining wrapper churn is limited to the per-step cache-fill loop (one `linvel`+`angvel`+`translation`+`rotation` per awake body).
 - **Script optimization**: Depends on user script content. General guidance (early returns, avoid per-frame `findEntities`/raycasts) belongs in script documentation, not engine optimization work.
 
@@ -340,6 +342,7 @@ Improves Builder responsiveness; does not affect standalone Play FPS:
 | 2026-04-08 | §11 Tier 2 + partial Tier 3: `TransformerChain` cached priority sort + in-place force/torque accumulate; `applyInputMappingInto` / `InputTransformer` / `useInputManager`; `sceneFrameLoop` debug-force in-place compaction; `getLinearVelocityInto` + `getForwardVectorInto` + HUD scratch Vec3; `FrameStatsOverlay` setState throttled ~10 Hz; `GameHud` wrapped in `React.memo`. **Measure:** `npm run test:run -- src/test/scenarios/performance-benchmarks.integration.test.ts` — still sub-quadratic scaling, heap delta near zero (run-to-run variance normal). |
 | 2026-04-08 | §1.2: New Firefox marker table (rAF 23–259 ms, 20 MB nursery, GCMajor, blob 33–232 ms, WebGL DispatchCommands/GetLinkResult/GetFrontBuffer, HUD CSS opacity/transform). §11 #11: `InspectorLivePoseBridge` isolates inspector pose polling from `Builder`. `avatarEntityIconLetter` uses `charAt` for stabler key path. |
 | 2026-04-08 | **§1.3: Chrome Performance trace** — `executeTransformers` 65% of frame; `contactPairsWith`/`contactPair` 497 ms; FinalizationRegistry `__wrap` 4,541 ms / `__destroy_into_raw` 1,451 ms over session. **§5: `rebuildTouchingCache`** — batch per-step touching/support queries replacing O(N) per-entity Rapier calls. `lastCollisions.length = 0` replaces `= []`. `env.wind`/`supportVelocity` use `= undefined` instead of `delete`. Updated bottleneck ranking: WASM wrapper churn now #1. |
+| 2026-04-08 | **§4 distance culling:** `DistanceCullingSettings` (radius + minSize) on `WorldSettings`; `RenderItemRegistry.applyDistanceCulling` hides small objects far from camera (squared-distance, precomputed `worldSize`); `executeTransformers` skips culled entities; `WorldPanel` UI with enabled toggle, radius, min-size inputs. **§4/§11:** split LOD into distance culling (done) and multi-resolution LOD (separate project, see `feature-lod.md`). |
 | 2026-04-08 | **§5 velocity cache + sleep tuning:** `CachedTransform` extended with `linvel`, `angvel`, `isKinematic`, `isSleeping`. `executeTransformers` reads velocity from cache (no `body.linvel()`/`body.angvel()`/`getBody()` calls). `applyCustomSleeping` reads from cache. `getLinearVelocityInto`/`getLinearVelocity` prefer cache. `resetAllForces` skips sleeping bodies. `executeTransformers` skips sleeping entities. `world.timestep = dt` synced in `step()`. **§4:** `FrameStatsOverlay` shows `geometries` count for instancing analysis. **§10:** CachedTransform identity test extended to verify `linvel`/`angvel` sub-object reuse. **Collider guidance:** prefer box/sphere/cylinder over trimesh for dynamic entities. |
 
 ---
@@ -347,6 +350,7 @@ Improves Builder responsiveness; does not affect standalone Play FPS:
 ## References
 
 - Hot loop: `src/runtime/sceneFrameLoop.ts`, `src/runtime/frameTiming.ts`, `src/components/SceneView.tsx`, `src/components/FrameStatsOverlay.tsx`
+- Distance culling: `src/types/world.ts` (`DistanceCullingSettings`), `src/runtime/renderItemRegistry.ts` (`applyDistanceCulling`), `src/components/WorldPanel.tsx`
 - Builder inspector poses: `src/components/InspectorLivePoseBridge.tsx`
 - Transformer chain: `src/transformers/transformer.ts`, `src/input/inputMapping.ts`
 - Registry / `updateShape`: `src/runtime/renderItemRegistry.ts` (~474)

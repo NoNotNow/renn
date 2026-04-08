@@ -5,7 +5,7 @@
 
 import type * as THREE from 'three'
 import type { RefObject, MutableRefObject } from 'react'
-import type { RennWorld, Vec3, EditorFreePose } from '@/types/world'
+import type { RennWorld, Vec3, EditorFreePose, DistanceCullingSettings } from '@/types/world'
 import type { RawInput, RawKeyboardState, RawWheelState } from '@/types/transformer'
 import type { FreeFlyKeys } from '@/types/camera'
 import type { PhysicsWorld } from '@/physics/rapierPhysics'
@@ -298,6 +298,18 @@ export function runSceneFrame(input: SceneFrameLoopInputs): void {
     const n = performance.now()
     timing.hudMs = n - prev
     prev = n
+  }
+
+  // Distance culling pass: hide small objects far from camera.
+  const registry = registryRef.current
+  const cullingSettings: DistanceCullingSettings | undefined =
+    worldRef.current.world.distanceCulling
+  if (registry && cam) {
+    if (cullingSettings) {
+      registry.applyDistanceCulling(cam.position, cullingSettings)
+    } else {
+      registry.clearDistanceCulling()
+    }
   }
 
   const dome = skyDomeRef.current

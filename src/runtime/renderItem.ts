@@ -13,6 +13,10 @@ import type { TransformerChain } from '@/transformers/transformer'
 export class RenderItem {
   transformerChain: TransformerChain | null = null
   entity: Entity
+  /** Approximate world-space extent for distance culling (precomputed at creation). */
+  worldSize = 0
+  /** True when the entity is hidden by distance culling this frame. */
+  distanceCulled = false
 
   constructor(
     entity: Entity,
