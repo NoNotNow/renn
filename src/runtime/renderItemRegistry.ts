@@ -675,11 +675,9 @@ export class RenderItemRegistry {
       if (!item.transformerChain) continue
       if (!item.hasPhysicsBody()) continue
 
-      // Get current physics state
       const cached = this.physicsWorld.getCachedTransform(item.entity.id)
       if (!cached) continue
-
-      const body = this.physicsWorld.getBody(item.entity.id)
+      if (cached.isSleeping) continue
 
       clearActionRecord(this._tfActions)
       input.target = undefined
@@ -697,23 +695,12 @@ export class RenderItemRegistry {
       this._tfPosition[2] = cached.position.z
       rapierQuaternionToEulerInto(cached.rotation, this._tfRotation)
 
-      if (body) {
-        const linvel = body.linvel()
-        this._tfVelocity[0] = linvel.x
-        this._tfVelocity[1] = linvel.y
-        this._tfVelocity[2] = linvel.z
-        const angvel = body.angvel()
-        this._tfAngularVelocity[0] = angvel.x
-        this._tfAngularVelocity[1] = angvel.y
-        this._tfAngularVelocity[2] = angvel.z
-      } else {
-        this._tfVelocity[0] = 0
-        this._tfVelocity[1] = 0
-        this._tfVelocity[2] = 0
-        this._tfAngularVelocity[0] = 0
-        this._tfAngularVelocity[1] = 0
-        this._tfAngularVelocity[2] = 0
-      }
+      this._tfVelocity[0] = cached.linvel.x
+      this._tfVelocity[1] = cached.linvel.y
+      this._tfVelocity[2] = cached.linvel.z
+      this._tfAngularVelocity[0] = cached.angvel.x
+      this._tfAngularVelocity[1] = cached.angvel.y
+      this._tfAngularVelocity[2] = cached.angvel.z
 
       env.wind = wind ?? undefined
       env.isGrounded = false
@@ -739,28 +726,27 @@ export class RenderItemRegistry {
       // Execute transformer chain
       const output = item.transformerChain.execute(input, dt)
 
-      // Apply forces to physics body
-      if (output.force && body) {
+      // Apply forces to physics body (hasPhysicsBody() is guaranteed by loop guard)
+      if (output.force) {
         this.physicsWorld.applyForceFromTransformer(item.entity.id, output.force)
       }
-      if (output.impulse && body) {
+      if (output.impulse) {
         this.physicsWorld.applyImpulseFromTransformer(item.entity.id, output.impulse)
       }
-      if (output.torque && body) {
+      if (output.torque) {
         this.physicsWorld.applyTorqueFromTransformer(item.entity.id, output.torque)
       }
-      if (output.addRotation != null && body) {
-        // Component-wise Euler delta [x,y,z] rad added to current rotation; angular velocity cleared afterward.
+      if (output.addRotation != null) {
         this._addRotationBuf[0] = this._tfRotation[0] + output.addRotation[0]
         this._addRotationBuf[1] = this._tfRotation[1] + output.addRotation[1]
         this._addRotationBuf[2] = this._tfRotation[2] + output.addRotation[2]
         this.physicsWorld.setRotation(item.entity.id, this._addRotationBuf)
         this.physicsWorld.setAngularVelocity(item.entity.id, 0, 0, 0)
       }
-      if (output.setPose && body) {
+      if (output.setPose) {
         const p = output.setPose.position
         const r = output.setPose.rotation
-        if (body.isKinematic()) {
+        if (cached.isKinematic) {
           this.physicsWorld.setNextKinematicPose(item.entity.id, p[0], p[1], p[2], r)
         } else {
           this.physicsWorld.setPosition(item.entity.id, p[0], p[1], p[2])

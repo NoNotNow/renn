@@ -23,6 +23,8 @@ export interface SceneFrameTiming {
   renderCalls: number
   /** From `WebGLRenderer.info.render` after the last `render()` (triangle count). */
   renderTriangles: number
+  /** From `WebGLRenderer.info.memory.geometries` — unique geometry count for instancing analysis. */
+  geometries: number
 }
 
 export function emptySceneFrameTiming(): SceneFrameTiming {
@@ -37,5 +39,6 @@ export function emptySceneFrameTiming(): SceneFrameTiming {
     renderMs: 0,
     renderCalls: 0,
     renderTriangles: 0,
+    geometries: 0,
   }
 }

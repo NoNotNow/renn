@@ -2,7 +2,7 @@
 
 Working document derived from Firefox profiling on a heavy project (RefreshDriver / `requestAnimationFrame`, GC, CSS HUD, JIT notes) and from codebase review. **Items are ordered by typical impact (largest gains first).** Update statuses and notes as work completes.
 
-**Current status (2026-04-08):** JS allocation-reduction work (§2, §6, §7) is **benchmark-validated** — near-zero heap growth, full object reuse, linear scaling (see §10). **Tier 1 GPU**, **Tier 2** hot-path alloc, and **Tier 3** (`FrameStatsOverlay` ~10 Hz, `GameHud` memo, **`InspectorLivePoseBridge`** so inspector pose polling does not re-render full `Builder`) are in code. **Latest Firefox markers** summarized in [§1.2](#12-firefox-marker-export-2026-04-08-builder--play). **Next:** optional DPR toggle; more blob/material prefetch; instancing/LOD when GPU stats justify it.
+**Current status (2026-04-08):** JS allocation-reduction work (§2, §6, §7) is **benchmark-validated** — near-zero heap growth, full object reuse, linear scaling (see §10). **Tier 1 GPU**, **Tier 2** hot-path alloc, and **Tier 3** (`FrameStatsOverlay` ~10 Hz, `GameHud` memo, **`InspectorLivePoseBridge`** so inspector pose polling does not re-render full `Builder`) are in code. **Latest Firefox markers** summarized in [§1.2](#12-firefox-marker-export-2026-04-08-builder--play). **Velocity cache** (`linvel`/`angvel` in `CachedTransform`), **sleep-skip** (sleeping bodies skipped in `resetAllForces` + `executeTransformers`), **timestep sync** (`world.timestep = dt`), and **geometry count** in Frame Stats overlay are implemented. **Next:** optional DPR toggle; more blob/material prefetch; instancing/LOD when GPU stats + geometry count justify it.
 
 **Legend:** `[ ]` not started · `[~]` in progress · `[x]` done
 
@@ -131,7 +131,7 @@ Chrome DevTools Performance tab with call tree. Users report Chrome is noticeabl
 | [ ] | Use **Performance Booster** / **`countVisualModelTriangles`**-style data to find worst entities; simplify meshes (existing meshoptimizer path) | Already partially supported in product. |
 | [x] | **Shadow map**: lower resolution, tighten frustum, disable `castShadow` on small props | **2026-04-08:** 1024² map; `castShadow` off when world AABB half-extent &lt; 0.3 (`shadowBounds.updateMeshCastShadowFromWorldAabb`); `loadWorld` + `RenderItemRegistry.updateShape`. |
 | [x] | **Pixel ratio** cap: already `min(dpr, 2)`; consider **1.5** or quality setting on low-end | **2026-04-08:** `SceneView` uses `min(dpr, 1.5)` (`MAX_SCENE_PIXEL_RATIO`). Optional user toggle still open. |
-| [ ] | **Instancing** for many copies of the same mesh + material | Larger engineering item; big win when applicable. |
+| [~] | **Instancing** for many copies of the same mesh + material | Larger engineering item; big win when applicable. **2026-04-08:** Frame Stats overlay now shows `geometries` count (`renderer.info.memory.geometries`); compare draw calls vs geometries to identify instancing candidates. Architecture outlined in plan (group by geometry+material hash → `InstancedMesh`). |
 | [ ] | **LOD** or simplified far meshes | Medium/large item. |
 
 ---
@@ -145,10 +145,10 @@ Firefox additionally suffers `Bailout / Invalidate` at `GetAliasedVar` in the WA
 | Status | Item | Notes |
 |--------|------|--------|
 | [x] | **Batch touching/support queries**: single `rebuildTouchingCache()` per `step()` instead of N per-entity `contactPairsWith` calls in `executeTransformers` | **2026-04-08:** `PhysicsWorld.rebuildTouchingCache()` builds `Map<entityId, {touching, supportVelocity}>` once per step; `executeTransformers` reads cache. Eliminates O(N) → O(1) Rapier query batches. |
-| [ ] | Replace complex **static trimesh** colliders with **primitives** or simpler hulls where possible | Reduces Rapier step time + contact pair count. |
-| [ ] | Ensure **sleeping** works: avoid constant forces from scripts/transformers when idle | Stops perpetual wake-ups → fewer bodies in touching queries. |
+| [ ] | Replace complex **static trimesh** colliders with **primitives** or simpler hulls where possible | Reduces Rapier step time + contact pair count. **Guidance:** prefer `box`/`sphere`/`cylinder` shapes over `trimesh` for dynamic entities; trimesh broadphase/narrowphase costs scale with vertex count. The existing `meshSimplifier.ts` (meshoptimizer + simplifyModifier) reduces vertex count for trimesh colliders. A future inspector improvement could auto-suggest simpler colliders when a trimesh dynamic body is detected. |
+| [x] | Ensure **sleeping** works: skip sleeping bodies in `resetAllForces` and `executeTransformers`; cache `isSleeping` in `CachedTransform` | **2026-04-08:** `resetAllForces` skips sleeping bodies; `executeTransformers` skips entities with `cached.isSleeping`; cache loop skips position/rotation/velocity update for sleeping bodies (values unchanged). |
 | [ ] | Investigate **`rapierPhysics.ts` cachedTransforms loop** polymorphism: WASM objects returned by `body.translation()` / `body.rotation()` may have varying shapes across calls | Confirm with flame chart; if hot, destructure WASM return values into typed locals before storing. |
-| [ ] | Reduce **`body.linvel()` / `body.angvel()` wrapper churn** in `executeTransformers`: each call creates a WASM wrapper; batch into physics cache alongside transforms | Would further reduce FinalizationRegistry pressure. |
+| [x] | Reduce **`body.linvel()` / `body.angvel()` wrapper churn** in `executeTransformers`: each call creates a WASM wrapper; batch into physics cache alongside transforms | **2026-04-08:** `CachedTransform` extended with `linvel`, `angvel`, `isKinematic`, `isSleeping`. Filled in `step()` cache loop alongside `translation()`/`rotation()`. `executeTransformers` reads `cached.linvel`/`cached.angvel` instead of calling Rapier. `applyCustomSleeping` reads from cache. `getLinearVelocityInto`/`getLinearVelocity` prefer cache with fallback. Removes `getBody()` call from `executeTransformers`. |
 
 ---
 
@@ -222,7 +222,7 @@ npm run test:run -- src/test/scenarios/performance-benchmarks.integration.test.t
 
 | Metric | What it proves | Hardware-independent? |
 |--------|----------------|----------------------|
-| **Object identity** | `CachedTransform` / `contactForceByPair` references survive across frames (§2 reuse) | Yes — deterministic pass/fail |
+| **Object identity** | `CachedTransform` (incl. `linvel`/`angvel` sub-objects) / `contactForceByPair` references survive across frames (§2 reuse) | Yes — deterministic pass/fail |
 | **Heap delta** | Bytes allocated per frame per entity during steady-state simulation (`--expose-gc` via Vitest) | Yes — allocation count is code-determined |
 | **Scaling ratio** | `time(4x entities) / time(1x entities)` stays sub-quadratic (< 6.0; linear = 4.0) | Yes — dimensionless ratio |
 | **Frame time distribution** | CoV, p99/median recorded for GC-spike detection (informational; too noisy under parallel CI) | Partially — ratios are stable on isolated runs |
@@ -258,9 +258,9 @@ Combines Firefox profiling, **Chrome Performance** call tree (§1.3), headless b
 
 | Bottleneck | Evidence | Est. per-frame cost | Addressable? |
 |---|---|---|---|
-| **Rapier WASM wrapper churn** (FinalizationRegistry) | Chrome: **4,541 ms** `__wrap` + **1,451 ms** `__destroy_into_raw` over session; **497 ms / 1,760 ms** per frame in touching queries | **~30 ms/frame** (heavy scene) | **Yes (done 2026-04-08):** `rebuildTouchingCache` batches queries. Further: cache `linvel`/`angvel`. |
+| **Rapier WASM wrapper churn** (FinalizationRegistry) | Chrome: **4,541 ms** `__wrap` + **1,451 ms** `__destroy_into_raw` over session; **497 ms / 1,760 ms** per frame in touching queries | **~30 ms/frame** (heavy scene) | **Yes (done 2026-04-08):** `rebuildTouchingCache` batches queries; `CachedTransform` extended with `linvel`/`angvel`/`isKinematic`/`isSleeping` — eliminates `body.linvel()`/`body.angvel()`/`getBody()` calls from `executeTransformers`. |
 | **GPU fill + shadow pass** | WebGL `DispatchCommands` 27–33 ms; `GetLinkResult` 14 ms sync stall | 30+ ms (exceeds 16.7 ms budget alone) | **Yes:** shadow res, DPR cap, fewer casters |
-| **Rapier WASM step** (core) | Chrome: `wasm-function[1192]` **562 ms** total; headless 51% | ~10 ms | Partially: sleep tuning, simpler colliders |
+| **Rapier WASM step** (core) | Chrome: `wasm-function[1192]` **562 ms** total; headless 51% | ~10 ms | Partially: sleep tuning (**done 2026-04-08** — sleeping bodies skip forces/transformers), `world.timestep = dt` synced, simpler colliders (guidance added) |
 | **Transformer JS** | Chrome: `executeTransformers` **1,148 ms** total (includes touching); headless 46% | ~8 ms | **Yes:** cached sort + in-place **done**; touching cache **done** |
 | **React reconciliation** | ~~Builder `livePoses` every 220 ms~~ → **`InspectorLivePoseBridge`** isolates sidebar | 1–5 ms saved on `Builder` subtree | **Partial:** bridge **done**; `FrameStatsOverlay` throttled |
 | **Remaining JS alloc** | Script APIs, `ScriptRunner`, occasional `Object.keys` in clears | < 1 ms cumulative typical | **Partial:** Tier 2 hot paths addressed |
@@ -311,7 +311,7 @@ Improves Builder responsiveness; does not affect standalone Play FPS:
 ### What NOT to pursue yet
 
 - **Instancing / LOD**: Large engineering effort. Only valuable when scenes have many copies of the same mesh or many distant objects. Revisit after GPU monitoring (item 5) reveals whether draw calls or fill rate is the bottleneck.
-- **Physics WASM deopt**: The `Bailout/Invalidate` in Rapier's WASM interop is in library code (`@dimforge/rapier3d-compat.js`). The **primary fix** is reducing how often we call Rapier getters (touching cache, velocity cache), not changing the library. Further: `body.linvel()` / `body.angvel()` in `executeTransformers` still create wrappers — cacheable in physics step alongside transforms.
+- **Physics WASM deopt**: The `Bailout/Invalidate` in Rapier's WASM interop is in library code (`@dimforge/rapier3d-compat.js`). The **primary fix** — reducing how often we call Rapier getters — is **done**: touching cache + velocity/sleeping cache eliminate all per-entity WASM calls from `executeTransformers`. Remaining wrapper churn is limited to the per-step cache-fill loop (one `linvel`+`angvel`+`translation`+`rotation` per awake body).
 - **Script optimization**: Depends on user script content. General guidance (early returns, avoid per-frame `findEntities`/raycasts) belongs in script documentation, not engine optimization work.
 
 ### Measurement plan
@@ -340,6 +340,7 @@ Improves Builder responsiveness; does not affect standalone Play FPS:
 | 2026-04-08 | §11 Tier 2 + partial Tier 3: `TransformerChain` cached priority sort + in-place force/torque accumulate; `applyInputMappingInto` / `InputTransformer` / `useInputManager`; `sceneFrameLoop` debug-force in-place compaction; `getLinearVelocityInto` + `getForwardVectorInto` + HUD scratch Vec3; `FrameStatsOverlay` setState throttled ~10 Hz; `GameHud` wrapped in `React.memo`. **Measure:** `npm run test:run -- src/test/scenarios/performance-benchmarks.integration.test.ts` — still sub-quadratic scaling, heap delta near zero (run-to-run variance normal). |
 | 2026-04-08 | §1.2: New Firefox marker table (rAF 23–259 ms, 20 MB nursery, GCMajor, blob 33–232 ms, WebGL DispatchCommands/GetLinkResult/GetFrontBuffer, HUD CSS opacity/transform). §11 #11: `InspectorLivePoseBridge` isolates inspector pose polling from `Builder`. `avatarEntityIconLetter` uses `charAt` for stabler key path. |
 | 2026-04-08 | **§1.3: Chrome Performance trace** — `executeTransformers` 65% of frame; `contactPairsWith`/`contactPair` 497 ms; FinalizationRegistry `__wrap` 4,541 ms / `__destroy_into_raw` 1,451 ms over session. **§5: `rebuildTouchingCache`** — batch per-step touching/support queries replacing O(N) per-entity Rapier calls. `lastCollisions.length = 0` replaces `= []`. `env.wind`/`supportVelocity` use `= undefined` instead of `delete`. Updated bottleneck ranking: WASM wrapper churn now #1. |
+| 2026-04-08 | **§5 velocity cache + sleep tuning:** `CachedTransform` extended with `linvel`, `angvel`, `isKinematic`, `isSleeping`. `executeTransformers` reads velocity from cache (no `body.linvel()`/`body.angvel()`/`getBody()` calls). `applyCustomSleeping` reads from cache. `getLinearVelocityInto`/`getLinearVelocity` prefer cache. `resetAllForces` skips sleeping bodies. `executeTransformers` skips sleeping entities. `world.timestep = dt` synced in `step()`. **§4:** `FrameStatsOverlay` shows `geometries` count for instancing analysis. **§10:** CachedTransform identity test extended to verify `linvel`/`angvel` sub-object reuse. **Collider guidance:** prefer box/sphere/cylinder over trimesh for dynamic entities. |
 
 ---
 

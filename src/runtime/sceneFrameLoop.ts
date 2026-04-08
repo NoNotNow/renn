@@ -311,6 +311,7 @@ export function runSceneFrame(input: SceneFrameLoopInputs): void {
     if (timing) {
       timing.renderCalls = rend.info.render.calls
       timing.renderTriangles = rend.info.render.triangles
+      timing.geometries = rend.info.memory.geometries
     }
   }
   if (timing) {

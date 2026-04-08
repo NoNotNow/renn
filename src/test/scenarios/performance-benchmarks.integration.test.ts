@@ -43,26 +43,36 @@ describe('Object reuse (allocation-free hot path)', () => {
     sim.runFrames(5)
 
     const refsBefore = new Map<string, CachedTransform>()
+    const linvelRefsBefore = new Map<string, CachedTransform['linvel']>()
+    const angvelRefsBefore = new Map<string, CachedTransform['angvel']>()
     for (let i = 0; i < 10; i++) {
       const id = `dyn_${i}`
       const ct = pw.getCachedTransform(id)
       expect(ct).toBeDefined()
       refsBefore.set(id, ct!)
+      linvelRefsBefore.set(id, ct!.linvel)
+      angvelRefsBefore.set(id, ct!.angvel)
     }
 
     sim.runFrames(60)
 
     let allReused = true
+    let allVelReused = true
     for (const [id, before] of refsBefore) {
       const after = pw.getCachedTransform(id)
       if (after !== before) allReused = false
       expect(after).toBe(before)
+      if (after!.linvel !== linvelRefsBefore.get(id)) allVelReused = false
+      if (after!.angvel !== angvelRefsBefore.get(id)) allVelReused = false
+      expect(after!.linvel).toBe(linvelRefsBefore.get(id))
+      expect(after!.angvel).toBe(angvelRefsBefore.get(id))
     }
 
     recordBenchmarkResult('CachedTransform identity', {
       entityCount: 10,
       framesRun: 60,
       allReused,
+      allVelReused,
     })
 
     sim.dispose()

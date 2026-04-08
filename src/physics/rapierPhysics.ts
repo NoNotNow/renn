@@ -32,6 +32,10 @@ function pairKey(handle1: number, handle2: number): string {
 export type CachedTransform = {
   position: { x: number; y: number; z: number }
   rotation: { x: number; y: number; z: number; w: number }
+  linvel: { x: number; y: number; z: number }
+  angvel: { x: number; y: number; z: number }
+  isKinematic: boolean
+  isSleeping: boolean
 }
 
 export class PhysicsWorld {
@@ -398,8 +402,9 @@ export class PhysicsWorld {
         continue
       }
 
-      const lv = body.linvel()
-      const av = body.angvel()
+      const ct = this.cachedTransforms.get(entityId)
+      const lv = ct ? ct.linvel : body.linvel()
+      const av = ct ? ct.angvel : body.angvel()
       const linMag = Math.hypot(lv.x, lv.y, lv.z)
       const angMag = Math.hypot(av.x, av.y, av.z)
 
@@ -431,35 +436,58 @@ export class PhysicsWorld {
     
     this.stepping = true
     try {
+      this.world.timestep = dt
       this.world.step(this.eventQueue)
-      this.applyCustomSleeping(dt)
 
-      // Cache transforms AFTER step to avoid WASM aliasing errors.
+      // Cache transforms + velocities AFTER step to avoid WASM aliasing errors.
       // Reuse CachedTransform structs per entity to avoid per-frame allocation / GC.
       for (const [entityId, body] of this.bodyMap) {
-        if (body.isDynamic() || body.isKinematic()) {
+        const isDynamic = body.isDynamic()
+        const isKin = body.isKinematic()
+        if (isDynamic || isKin) {
+          const sleeping = body.isSleeping()
           const pos = body.translation()
           const rot = body.rotation()
+          const lv = body.linvel()
+          const av = body.angvel()
           let ct = this.cachedTransforms.get(entityId)
           if (!ct) {
             ct = {
               position: { x: pos.x, y: pos.y, z: pos.z },
               rotation: { x: rot.x, y: rot.y, z: rot.z, w: rot.w },
+              linvel: { x: lv.x, y: lv.y, z: lv.z },
+              angvel: { x: av.x, y: av.y, z: av.z },
+              isKinematic: isKin,
+              isSleeping: sleeping,
             }
             this.cachedTransforms.set(entityId, ct)
           } else {
-            const p = ct.position
-            p.x = pos.x
-            p.y = pos.y
-            p.z = pos.z
-            const r = ct.rotation
-            r.x = rot.x
-            r.y = rot.y
-            r.z = rot.z
-            r.w = rot.w
+            ct.isSleeping = sleeping
+            if (!sleeping) {
+              const p = ct.position
+              p.x = pos.x
+              p.y = pos.y
+              p.z = pos.z
+              const r = ct.rotation
+              r.x = rot.x
+              r.y = rot.y
+              r.z = rot.z
+              r.w = rot.w
+              const clv = ct.linvel
+              clv.x = lv.x
+              clv.y = lv.y
+              clv.z = lv.z
+              const cav = ct.angvel
+              cav.x = av.x
+              cav.y = av.y
+              cav.z = av.z
+            }
+            ct.isKinematic = isKin
           }
         }
       }
+
+      this.applyCustomSleeping(dt)
 
       if (this.touchingCacheEntityIds.size > 0) {
         this.rebuildTouchingCache()
@@ -503,7 +531,6 @@ export class PhysicsWorld {
     for (const id of ids) {
       this.touchingCacheEntityIds.add(id)
     }
-    this.touchingCacheDirty = true
   }
 
   /**
@@ -678,7 +705,7 @@ export class PhysicsWorld {
    */
   resetAllForces(): void {
     for (const body of this.bodyMap.values()) {
-      if (body.isDynamic()) {
+      if (body.isDynamic() && !body.isSleeping()) {
         body.resetForces(true)
         body.resetTorques(true)
       }
@@ -728,6 +755,13 @@ export class PhysicsWorld {
     entityId: string,
     out: [number, number, number],
   ): boolean {
+    const ct = this.cachedTransforms.get(entityId)
+    if (ct) {
+      out[0] = ct.linvel.x
+      out[1] = ct.linvel.y
+      out[2] = ct.linvel.z
+      return true
+    }
     const body = this.bodyMap.get(entityId)
     if (!body || !body.isDynamic()) return false
     const v = body.linvel()
@@ -739,6 +773,10 @@ export class PhysicsWorld {
 
   /** World-space linear velocity for a dynamic body; null if missing or not dynamic. */
   getLinearVelocity(entityId: string): [number, number, number] | null {
+    const ct = this.cachedTransforms.get(entityId)
+    if (ct) {
+      return [ct.linvel.x, ct.linvel.y, ct.linvel.z]
+    }
     const body = this.bodyMap.get(entityId)
     if (!body || !body.isDynamic()) return null
     const v = body.linvel()

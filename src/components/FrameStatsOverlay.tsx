@@ -91,6 +91,10 @@ export function FrameStatsOverlay({
         <span style={{ color: '#8b98a8' }}>GPU triangles</span>
         <span>{s.renderTriangles.toLocaleString()}</span>
       </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+        <span style={{ color: '#8b98a8' }}>geometries</span>
+        <span>{s.geometries}</span>
+      </div>
     </div>
   )
 }
