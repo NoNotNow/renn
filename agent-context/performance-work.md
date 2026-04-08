@@ -8,30 +8,38 @@ Working document derived from Firefox profiling on a heavy project (RefreshDrive
 
 ## 1. Measure and bound main-thread frame work (rAF)
 
-**Evidence:** Firefox trace showed `requestAnimationFrame callbacks` routinely **~18–40+ ms** per tick (target for 60 fps is **&lt; ~16.7 ms** content-side), with `RefreshDriverTick` reasons including animations and video frame callbacks.
+**Evidence (updated 2026-04-08):** Firefox marker export confirms `requestAnimationFrame callbacks` routinely **22–67 ms** per tick (worst: **331 ms** `LongTask`, two more at 65–67 ms). Target for 60 fps is **< ~16.7 ms**. The 331 ms spike correlates directly with a `GCMajor` (424 ms total, see §2) triggering `DiscardJit` — all compiled JS is thrown away, followed by hundreds of `javascript.ion.compile_time` recompile entries.
 
 | Status | Item | Notes |
 |--------|------|--------|
-| [ ] | Capture **JS flame charts** (Firefox Profiler JS view or Chrome Performance) for the same bad scene: split time for **physics step**, **`executeTransformers`**, **`runOnUpdate` scripts**, **`renderer.render`**, React/Builder overhead | Confirms where to spend engineering time; this doc’s order may be reshuffled after data. |
+| [~] | Capture **JS flame charts** (Firefox Profiler JS view or Chrome Performance) for the same bad scene: split time for **physics step**, **`executeTransformers`**, **`runOnUpdate` scripts**, **`renderer.render`**, React/Builder overhead | Marker data confirms rAF is blown routinely; stack/flame view still needed to rank JS sub-costs inside the rAF callback. |
 | [x] | Optional: **in-app frame timing HUD** (fps + last-frame ms breakdown) for regressions without DevTools | **View → Frame stats** in Builder (`SceneView` `showFrameStats`); persists `builderShowFrameStats`. Sections: transformers, physics, script collisions, `onUpdate`, camera, game HUD, render. |
 
 ---
 
-## 2. Cut allocation churn and GC pauses
+## 2. Cut allocation churn and GC pauses  ← **highest-priority code change**
 
-**Evidence:** Repeated **`GCMinor`**, **`GCMajor` ~95–108 ms**, **`javascript.gc.nursery_bytes` ~17 MB** in trace — indicates **heavy short-lived allocation**, causing jank independent of “average” fps.
+**Evidence (updated 2026-04-08):** Detailed marker trace shows:
+- `GCMinor` fires every **10–16 ms**, costing **4–7 ms** each. Nursery is always exactly **15 MB** (`javascript.gc.nursery_bytes: 15728640`).
+- Nursery promotion rate is **69–98 %** → objects are not short-lived; they survive and tenure to the old heap.
+- `GCMajor` observed at **109 ms** and **424 ms** (`dom.gc_in_progress`). The 424 ms GCMajor fires `DiscardJit` immediately after, discarding all JIT-compiled code, then triggers a cascade of hundreds of `javascript.ion.compile_time` entries → the **331 ms `LongTask`** is this recompile cascade, not JS application code.
+- **Identified hot allocation site** in `rapierPhysics.ts` (per physics step, per dynamic/kinematic body):
+  - `const storedPos = { x, y, z }` — new plain object every frame per body
+  - `const storedRot = { x, y, z, w }` — new plain object every frame per body
+  - `const forceMap = new Map<string, CollisionImpact>()` — new Map every step
 
 | Status | Item | Notes |
 |--------|------|--------|
-| [ ] | Profile **allocation sites** (browser memory tool, sampling, or manual `performance.measure` around suspected loops) | Focus on per-frame paths: registry, scripts, vectors, temporary arrays. |
-| [ ] | Reduce **per-frame object creation** in hot paths (reuse `Vector3`/buffers where the codebase already patterns this; avoid `map`/`filter` allocating in rAF) | Align with existing hot-path style in `ScriptRunner` / registry. |
-| [ ] | Audit **React** updates during play/build: avoid unnecessary state updates that reconcile large trees every frame | Builder already throttles some camera writes; extend pattern where needed. |
+| [ ] | **Fix: preallocate cached-transform objects** in `rapierPhysics.ts` — reuse `{ x, y, z }` / `{ x, y, z, w }` structs per body rather than creating new ones each step; reuse or clear a single `forceMap` | Prime allocation source confirmed. Bodies are iterated every frame. This alone should measurably reduce GCMinor frequency. |
+| [ ] | Profile remaining **allocation sites** (browser memory tool or `performance.measure` around hot loops) | After the physics fix, identify next largest allocators. Focus on: scripts/transformer per-frame arrays, `map`/`filter` in rAF. |
+| [ ] | Reduce remaining **per-frame object creation** (reuse `Vector3`/buffers; avoid `map`/`filter` allocating in rAF) | Align with existing hot-path style in `ScriptRunner` / registry. |
+| [ ] | Audit **React** updates during play: avoid unnecessary state updates that reconcile large trees every frame | Builder already throttles some camera writes; extend pattern where needed. |
 
 ---
 
 ## 3. HUD: replace expensive CSS `filter` animations
 
-**Evidence:** **`CSS animation iteration`** on **`rennHudPulseScore` / `rennHudPulseDamage`** with **`filter`** correlated with heavy ticks. Animating **`filter`** is costly (repaint / compositor).
+**Evidence:** `CSS animation iteration` on `rennHudPulseScore` / `rennHudPulseDamage` with `filter` correlated with heavy ticks. Animating `filter` is costly (repaint / compositor).
 
 | Status | Item | Notes |
 |--------|------|--------|
@@ -42,7 +50,7 @@ Working document derived from Firefox profiling on a heavy project (RefreshDrive
 
 ## 4. Rendering and GPU load (Three.js)
 
-**Impact:** Often **high** for triangle- and fill-rate-heavy scenes; exact rank depends on flame data.
+**Evidence (updated 2026-04-08):** Marker trace shows `PWebGL::Msg_DispatchCommands` taking **27–33 ms** per occurrence (multiple per frame), and `PWebGL::Msg_GetLinkResult` **14 ms** (sync IPC for WebGL shader link, causing `~917 ms Awake` stall) — shader compilation is happening mid-session. GPU work is a confirmed contributor on heavy scenes.
 
 | Status | Item | Notes |
 |--------|------|--------|
@@ -56,12 +64,13 @@ Working document derived from Firefox profiling on a heavy project (RefreshDrive
 
 ## 5. Physics cost
 
-**Impact:** **High** when many bodies or expensive **trimesh** colliders.
+**Evidence (updated 2026-04-08):** `rapierPhysics.ts:422` (`this.stepping = true` context, column 47 = inside the `cachedTransforms` loop) shows repeated `Bailout / Invalidate` at `GetAliasedVar` in the Rapier WASM interop layer (`@dimforge/rapier3d-compat.js`). This is a JIT deopt caused by mixed object shapes from the WASM bridge. Also see §2 for per-frame allocation in this same loop.
 
 | Status | Item | Notes |
 |--------|------|--------|
 | [ ] | Replace complex **static trimesh** colliders with **primitives** or simpler hulls where possible | Reduces Rapier step time. |
 | [ ] | Ensure **sleeping** works: avoid constant forces from scripts/transformers when idle | Stops perpetual wake-ups. |
+| [ ] | Investigate **`rapierPhysics.ts` cachedTransforms loop** polymorphism: WASM objects returned by `body.translation()` / `body.rotation()` may have varying shapes across calls | Confirm with flame chart; if hot, destructure WASM return values into typed locals before storing. |
 
 ---
 
@@ -77,20 +86,23 @@ Working document derived from Firefox profiling on a heavy project (RefreshDrive
 
 ---
 
-## 7. JIT bailout at `renderItemRegistry.ts` (~474)
+## 7. JIT bailouts: `renderItemRegistry.ts` and `renderItem.ts`
 
-**Evidence:** Firefox reported **Bailout / Invalidate** at **`renderItemRegistry.ts:474`** (branch around **plane/ring** visual quaternion handling in `updateShape`).
+**Evidence (updated 2026-04-08):** Two confirmed deopt sites:
+- `renderItemRegistry.ts:474` (`Invalidate`) — branch around plane/ring visual quaternion in `updateShape`. Still appearing in new trace.
+- `renderItem.ts:34` (`Bailout at GetProp`) — inside `setPosition`; `this.mesh.userData.entity` property access is polymorphic (entity shape changes).
 
 | Status | Item | Notes |
 |--------|------|--------|
-| [ ] | Confirm **how often** `updateShape` runs in the bad scenario (editor-only vs play) | Bailout only matters if this path is hot. |
-| [x] | If hot: reduce **polymorphism** / stabilize types at that branch; avoid **`delete` on `userData`** in hot path if refactor is cheap | `updateShape`: `visualBaseQuaternion` cleared with `= undefined` instead of `delete` (line ~480). Re-profile if needed. |
+| [ ] | Confirm **how often** `updateShape` (registry:474) and `setPosition` (renderItem:34) run in the bad play scenario | Bailouts only matter if these paths are hot per frame. |
+| [x] | registry:474 — avoid **`delete` on `userData`** in hot path | `visualBaseQuaternion` cleared with `= undefined` instead of `delete` (~line 480). |
+| [ ] | renderItem:34 — investigate `mesh.userData.entity` write in `setPosition`; if this path is hot, consider removing the redundant `userData` sync | `setPosition` is called every frame for physics-driven bodies (`syncFromPhysics`). The `userData.entity` write may be unnecessary post-init. |
 
 ---
 
 ## 8. Builder ancillary timers
 
-**Evidence:** **`setInterval`** for inspector pose poll at `Builder.tsx` (live poses effect) appeared in trace; self-time small but adds periodic wakeups.
+**Evidence:** `setInterval` for inspector pose poll at `Builder.tsx` (live poses effect) appeared in trace; self-time small but adds periodic wakeups.
 
 | Status | Item | Notes |
 |--------|------|--------|
@@ -98,11 +110,14 @@ Working document derived from Firefox profiling on a heavy project (RefreshDrive
 
 ---
 
-## 9. Assets and textures
+## 9. Assets and textures  ← **new concrete evidence**
+
+**Evidence (2026-04-08):** Marker trace shows `Image Paint blob:` entries with browser image-decode times of **51 ms**, **241 ms**, **34 ms**, **28 ms** (JPEG decode speed 18–84 MB/s → images 0.5–3 MB). These fire inside rAF via `PCompositorManager::Msg_AddSharedSurface` — the texture compositor is generating blob URLs that the browser then decodes mid-frame. A 241 ms image decode directly causes a full frame stall.
 
 | Status | Item | Notes |
 |--------|------|--------|
-| [ ] | Downscale large **composite** / material maps; share **asset ids** across entities | Less VRAM, fewer unique textures. |
+| [ ] | **Avoid mid-play blob decodes**: texture compositor output (blob: URLs) should be fully decoded and uploaded to GPU (via `createImageBitmap` or canvas) **before** entering the play loop, not lazily during rAF | This is the single largest observed blocking event in the texture path. |
+| [ ] | Downscale large **composite** / material maps; share **asset ids** across entities | Less VRAM, fewer unique textures. Smaller blobs → faster decode even if timing issue is not fixed. |
 | [ ] | Fewer **layers** in texture documents where possible | Compositor cost on edit/bake. |
 
 ---
@@ -111,16 +126,19 @@ Working document derived from Firefox profiling on a heavy project (RefreshDrive
 
 | Date | Change |
 |------|--------|
-| *(initial)* | Created from Firefox trace analysis + codebase performance notes. |
+| *(initial)* | Created from Firefox trace analysis + codebase review. |
 | *(move)* | Relocated from `ai-context/` to `agent-context/`. |
 | 2026-04-08 | §1: Frame timing overlay (`frameTiming.ts`, `runSceneFrame`, `FrameStatsOverlay`, View → Frame stats). §3 HUD: opacity/scale pulses. §7: `userData` clear without `delete`. §8: Builder live pose poll 220ms. |
+| 2026-04-08 | Updated from detailed Firefox marker export: §1 concrete rAF numbers + 331ms LongTask; §2 GCMajor→DiscardJit cascade + rapierPhysics allocation hot spot; §4 GPU/shader evidence; §5 Rapier JIT deopt; §7 renderItem.ts:34 new bailout; §9 blob decode timings (51ms, 241ms mid-frame). |
 
 ---
 
 ## References
 
-- Hot loop overview: `src/runtime/sceneFrameLoop.ts`, `src/runtime/frameTiming.ts`, `src/components/SceneView.tsx`, `src/components/FrameStatsOverlay.tsx`
-- Registry / `updateShape`: `src/runtime/renderItemRegistry.ts`
-- HUD CSS: search **`rennHudPulse`** / **`rennHudPulseScore`** / **`rennHudPulseDamage`** in UI/CSS
+- Hot loop: `src/runtime/sceneFrameLoop.ts`, `src/runtime/frameTiming.ts`, `src/components/SceneView.tsx`, `src/components/FrameStatsOverlay.tsx`
+- Registry / `updateShape`: `src/runtime/renderItemRegistry.ts` (~474)
+- Render item: `src/runtime/renderItem.ts` (~34)
+- Physics step + allocation: `src/physics/rapierPhysics.ts` (~422–442)
+- HUD CSS: search `rennHudPulse` / `rennHudPulseScore` / `rennHudPulseDamage`
 
 Listed in [`README.md`](README.md) (this folder).
