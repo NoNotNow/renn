@@ -502,7 +502,7 @@ export default function PropertyPanel({
                     onAssetsChange={onAssetsChange}
                     disabled={anyLocked}
                     onOpenTextureStudio={
-                      !isMulti && primaryEntity?.material?.map && onOpenTextureStudio
+                      !isMulti && onOpenTextureStudio
                         ? () => onOpenTextureStudio(primaryEntity.id)
                         : undefined
                     }
@@ -575,7 +575,7 @@ export default function PropertyPanel({
                       onAssetsChange={onAssetsChange}
                       disabled={anyLocked}
                       onOpenTextureStudio={
-                        !isMulti && primaryEntity?.material?.map && onOpenTextureStudio
+                        !isMulti && onOpenTextureStudio
                           ? () => onOpenTextureStudio(primaryEntity.id)
                           : undefined
                       }

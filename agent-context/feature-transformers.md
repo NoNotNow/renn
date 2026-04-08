@@ -110,7 +110,7 @@ Templates live under `src/data/transformerPresets/<type>/*.json` and appear in t
 }
 ```
 
-**Builder:** In the entity **Transformers** section, each preset row includes a collapsible **Field reference** with hover tooltips on JSON field names; descriptions are maintained in [`transformerParamDocs.ts`](../src/transformers/transformerParamDocs.ts) (keep that file in sync when adding or renaming params).
+**Builder:** In the entity **Transformers** section, each preset row has a **Field reference** (document icon next to **Load template**): click to show or hide hover tooltips for JSON field names; when hidden it takes no space. Descriptions are maintained in [`transformerParamDocs.ts`](../src/transformers/transformerParamDocs.ts) (keep that file in sync when adding or renaming params).
 
 ### Car2 transformer params
 
@@ -137,7 +137,7 @@ Default preset (Builder + `getDefaultTransformerConfig('car2')`) matches runtime
 
 ### Builder: Add transformer dropdown and template dialog
 
-In the Builder, when an entity is selected, the Transformers section shows. Use the **Add transformer** dropdown to add any **preset** type with a default from [`transformerPresets.ts`](../src/transformers/transformerPresets.ts): `input`, `car2`, `person`, `targetPoseInput`, `kinematicMovement`, `wanderer`, `follow`. For each preset row, **Templates…** opens the template dialog: load the built-in default or JSON from `src/data/transformerPresets/<type>/*.json`, or save the current config as a template.
+In the Builder, when an entity is selected, the Transformers section shows. Use the **Add transformer** dropdown to add any **preset** type with a default from [`transformerPresets.ts`](../src/transformers/transformerPresets.ts): `input`, `car2`, `person`, `targetPoseInput`, `kinematicMovement`, `wanderer`, `follow`. For each preset row, **Templates…** opens the template dialog: pick **transformer type** and **template** from dropdowns (search filters the template list), see a **JSON preview** of the selected preset, load the built-in default or JSON from `src/data/transformerPresets/<type>/*.json`, or save the current config as a template.
 
 ## Script API
 

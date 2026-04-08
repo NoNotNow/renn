@@ -61,4 +61,23 @@ describe('TransformerEditor', () => {
     await user.click(screen.getByTestId('transformer-enabled-toggle-0'))
     expect(onChange).not.toHaveBeenCalled()
   })
+
+  it('field reference is hidden by default and toggles with the document button', async () => {
+    const user = userEvent.setup()
+    renderTransformerEditor(
+      <TransformerEditor
+        transformers={[{ type: 'input', priority: 10, enabled: true }]}
+        onChange={vi.fn()}
+        disabled={false}
+      />
+    )
+
+    expect(screen.queryByText('Field reference')).not.toBeInTheDocument()
+
+    await user.click(screen.getByTestId('transformer-field-reference-toggle'))
+    expect(screen.getByText('Field reference')).toBeInTheDocument()
+
+    await user.click(screen.getByTestId('transformer-field-reference-toggle'))
+    expect(screen.queryByText('Field reference')).not.toBeInTheDocument()
+  })
 })

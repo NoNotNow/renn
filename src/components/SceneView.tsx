@@ -111,6 +111,8 @@ export interface SceneViewProps {
   textureBrushRadiusPx?: number
   /** Builder: paint this asset (e.g. active compositor layer) instead of `entity.material.map`. */
   getPaintTargetAssetId?: (entityId: string) => string | null
+  /** Builder: create a default composite texture when the first 3D brush stroke has no map yet. */
+  prepareWorldPaintStroke?: (entityId: string) => Promise<{ mapAssetId: string; blob: Blob } | null>
 }
 
 export type EntityPhysicsPatch = Partial<Pick<Entity, 'mass' | 'restitution' | 'friction' | 'linearDamping' | 'angularDamping' | 'bodyType'>>
@@ -164,6 +166,7 @@ function SceneViewInner({
   textureBrushAlpha = 1,
   textureBrushRadiusPx = TEXTURE_PAINT_RADIUS_PX,
   getPaintTargetAssetId,
+  prepareWorldPaintStroke,
 }: SceneViewProps, ref: React.Ref<SceneViewHandle>) {
   const sceneKey = useMemo(() => getSceneDependencyKey(world), [world])
   const containerRef = useRef<HTMLDivElement>(null)
@@ -234,6 +237,8 @@ function SceneViewInner({
   textureBrushRadiusPxRef.current = textureBrushRadiusPx
   const getPaintTargetAssetIdRef = useRef(getPaintTargetAssetId)
   getPaintTargetAssetIdRef.current = getPaintTargetAssetId
+  const prepareWorldPaintStrokeRef = useRef(prepareWorldPaintStroke)
+  prepareWorldPaintStrokeRef.current = prepareWorldPaintStroke
   const editNavigationModeRef = useRef(editNavigationMode)
   editNavigationModeRef.current = editNavigationMode
   const showGameHudRef = useRef(showGameHud)
@@ -576,6 +581,8 @@ function SceneViewInner({
             getBrushRadiusPx: () => textureBrushRadiusPxRef.current,
             getPaintTargetAssetId: (entityId: string) =>
               getPaintTargetAssetIdRef.current?.(entityId) ?? null,
+            prepareWorldPaintStroke: (entityId: string) =>
+              prepareWorldPaintStrokeRef.current?.(entityId) ?? Promise.resolve(null),
             pushUndoBeforePaintStroke: () => pushUndoBeforePaintStrokeRef.current?.(),
             onStrokeEnd: (payload) => onTexturePaintStrokeEndRef.current?.(payload),
           },

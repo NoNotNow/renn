@@ -162,7 +162,7 @@ export default function MaterialEditor({
         </div>
       </div>
 
-      {hasTexture && onOpenTextureStudio ? (
+      {onOpenTextureStudio ? (
         <div style={{ marginTop: 8 }}>
           <button
             type="button"

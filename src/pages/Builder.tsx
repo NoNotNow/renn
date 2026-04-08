@@ -47,6 +47,8 @@ import {
   resizeTextureDocument,
   serializeDocToBlob,
   texDocAssetId,
+  TEXTURE_NEW_DOCUMENT_DEFAULT_SIZE,
+  TEXTURE_NEW_DOCUMENT_EDIT_FAMILY_STEM,
   type TextureDocument,
   type TextureLayer,
 } from '@/utils/textureCompositor'
@@ -165,6 +167,10 @@ export default function Builder() {
   const textureMakerLayerIdRef = useRef<string | null>(null)
   const [textureMakerHistoryTick, setTextureMakerHistoryUi] = useState(0)
   const bumpTextureMakerHistoryUi = useCallback(() => setTextureMakerHistoryUi((n) => n + 1), [])
+  /** Dedupe concurrent async texture provisioning for the same entity (first 3D brush stroke). */
+  const worldPaintPrepareRef = useRef<Map<string, Promise<{ mapAssetId: string; blob: Blob } | null>>>(
+    new Map(),
+  )
 
   useEffect(() => {
     textureMakerEntityIdRef.current = textureMakerEntityId
@@ -316,14 +322,78 @@ export default function Builder() {
     [updateAssets, bumpTextureStudio],
   )
 
+  /** Creates a blank 500×500 composite + sidecar when the entity has no `material.map`. Does not open Texture Maker. */
+  const provisionBlankCompositeTextureIfMissing = useCallback(
+    async (entityId: string) => {
+      const w = worldAssetsRef.current.world
+      const a = worldAssetsRef.current.assets
+      const entity = w.entities.find((e) => e.id === entityId)
+      if (!entity) return
+      if (entity.material?.map) return
+
+      const width = TEXTURE_NEW_DOCUMENT_DEFAULT_SIZE
+      const height = TEXTURE_NEW_DOCUMENT_DEFAULT_SIZE
+      const compositeAssetId = generateCompositeAssetId()
+      const bgLayerAssetId = generateTexLayerAssetId()
+      const paintLayerAssetId = generateTexLayerAssetId()
+      const bgBlob = await createTransparentPngBlob(width, height)
+      const paintBlob = await createTransparentPngBlob(width, height)
+      const docNew = buildTextureDocument({
+        compositeAssetId,
+        width,
+        height,
+        backgroundLayerAssetId: bgLayerAssetId,
+        paintLayerAssetId: paintLayerAssetId,
+        editFamilyStem: TEXTURE_NEW_DOCUMENT_EDIT_FAMILY_STEM,
+        editFamilyFileExt: 'png',
+      })
+      const next = new Map(a)
+      next.set(bgLayerAssetId, bgBlob)
+      next.set(paintLayerAssetId, paintBlob)
+      const comp = await compositeTextureLayers(docNew, next)
+      next.set(compositeAssetId, comp)
+      next.set(texDocAssetId(compositeAssetId), serializeDocToBlob(docNew))
+      await updateAssets(() => next)
+      updateWorld((prev) => ({
+        ...prev,
+        entities: prev.entities.map((e) =>
+          e.id === entityId ? { ...e, material: { ...e.material, map: compositeAssetId } } : e,
+        ),
+      }))
+      textureDocsRef.current.set(entityId, docNew)
+      const paintL = docNew.layers[1]
+      if (paintL) {
+        selectedLayerByEntityRef.current.set(entityId, paintL.id)
+      }
+      bumpTextureStudio()
+      requestAnimationFrame(() => {
+        const ent = worldAssetsRef.current.world.entities.find((e) => e.id === entityId)
+        if (ent) void sceneViewRef.current?.updateEntityMaterial(entityId, ent)
+      })
+    },
+    [updateAssets, updateWorld, bumpTextureStudio],
+  )
+
   const activateTextureStudioForEntity = useCallback(
     async (entityId: string) => {
       pushHistory()
       const w = worldAssetsRef.current.world
       const a = worldAssetsRef.current.assets
       const entity = w.entities.find((e) => e.id === entityId)
-      const mapId = entity?.material?.map
-      if (!entity || !mapId) return
+      if (!entity) return
+      const mapId = entity.material?.map
+
+      if (!mapId) {
+        await provisionBlankCompositeTextureIfMissing(entityId)
+        setTextureMakerEntityId(entityId)
+        const docNew = textureDocsRef.current.get(entityId)
+        const paintL = docNew?.layers[1]
+        if (paintL) {
+          selectedLayerByEntityRef.current.set(entityId, paintL.id)
+          setTextureMakerLayerId(paintL.id)
+        }
+        return
+      }
 
       if (isCompositeMaterialMap(mapId)) {
         const sidecar = a.get(texDocAssetId(mapId))
@@ -389,7 +459,7 @@ export default function Builder() {
         if (ent) void sceneViewRef.current?.updateEntityMaterial(entityId, ent)
       })
     },
-    [pushHistory, updateAssets, updateWorld, bumpTextureStudio],
+    [pushHistory, updateAssets, updateWorld, bumpTextureStudio, provisionBlankCompositeTextureIfMissing],
   )
 
   useEffect(() => {
@@ -542,6 +612,56 @@ export default function Builder() {
       return layer?.assetId ?? null
     },
     [textureStudioTick, textureMakerLayerId],
+  )
+
+  /** Ensures a paintable layer blob exists for the first 3D brush stroke on an untextured entity. */
+  const prepareWorldPaintStroke = useCallback(
+    async (entityId: string): Promise<{ mapAssetId: string; blob: Blob } | null> => {
+      void textureStudioTick
+      void textureMakerLayerId
+      const ent = worldAssetsRef.current.world.entities.find((e) => e.id === entityId)
+      if (!ent) return null
+
+      const paintTargetId = getPaintTargetAssetId(entityId)
+      const mapId = ent.material?.map
+      const sourceId = paintTargetId ?? mapId ?? null
+      if (sourceId) {
+        const blob = worldAssetsRef.current.assets.get(sourceId)
+        if (blob) return { mapAssetId: sourceId, blob }
+      }
+
+      const inFlight = worldPaintPrepareRef.current.get(entityId)
+      if (inFlight) return inFlight
+
+      const p = (async (): Promise<{ mapAssetId: string; blob: Blob } | null> => {
+        try {
+          pushHistory()
+          await provisionBlankCompositeTextureIfMissing(entityId)
+          const ent2 = worldAssetsRef.current.world.entities.find((e) => e.id === entityId)
+          const mapId2 = ent2?.material?.map
+          if (!mapId2 || !isCompositeMaterialMap(mapId2)) return null
+          const doc = textureDocsRef.current.get(entityId)
+          if (!doc || doc.layers.length < 2) return null
+          const paintLayer = doc.layers[1]!
+          const blob = worldAssetsRef.current.assets.get(paintLayer.assetId)
+          if (!blob) return null
+          bumpTextureStudio()
+          return { mapAssetId: paintLayer.assetId, blob }
+        } finally {
+          worldPaintPrepareRef.current.delete(entityId)
+        }
+      })()
+      worldPaintPrepareRef.current.set(entityId, p)
+      return p
+    },
+    [
+      getPaintTargetAssetId,
+      pushHistory,
+      provisionBlankCompositeTextureIfMissing,
+      bumpTextureStudio,
+      textureStudioTick,
+      textureMakerLayerId,
+    ],
   )
 
   const handleTextureMakerSelectLayer = useCallback(
@@ -1411,8 +1531,11 @@ export default function Builder() {
     if (selectedEntityIds.length !== 1) return true
     const eid = selectedEntityIds[0]!
     const e = world.entities.find((x) => x.id === eid)
-    const mapId = e?.material?.map
-    if (!mapId) return true
+    if (!e) return true
+    const mapId = e.material?.map
+    // No map yet: still enable paint tool so the brush popover (e.g. Open texture maker) is available;
+    // 3D viewport painting starts once material.map exists.
+    if (!mapId) return false
     if (!assets.get(mapId)) return true
     void textureStudioTick
     if (isCompositeMaterialMap(mapId)) {
@@ -1443,8 +1566,7 @@ export default function Builder() {
     textureMakerEntityId != null ? textureDocsRef.current.get(textureMakerEntityId) ?? null : null
 
   const onOpenTextureStudioFromToolbar =
-    selectedEntityIds.length === 1 &&
-    world.entities.find((x) => x.id === selectedEntityIds[0]!)?.material?.map
+    selectedEntityIds.length === 1
       ? () => {
           const id = selectedEntityIds[0]!
           void activateTextureStudioForEntity(id)
@@ -1616,6 +1738,7 @@ export default function Builder() {
               textureBrushAlpha={textureBrushAlpha}
               textureBrushRadiusPx={textureBrushRadiusPx}
               getPaintTargetAssetId={getPaintTargetAssetId}
+              prepareWorldPaintStroke={prepareWorldPaintStroke}
             />
           </ErrorBoundary>
         </main>

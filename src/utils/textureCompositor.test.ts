@@ -13,6 +13,8 @@ import {
   resizeTextureDocument,
   serializeDocToBlob,
   texDocAssetId,
+  TEXTURE_NEW_DOCUMENT_DEFAULT_SIZE,
+  TEXTURE_NEW_DOCUMENT_EDIT_FAMILY_STEM,
   type TextureDocument,
   type TextureLayer,
 } from '@/utils/textureCompositor'
@@ -298,5 +300,24 @@ describe('buildTextureDocument', () => {
     expect(doc.layers).toHaveLength(2)
     expect(doc.layers[0]!.assetId).toBe(bg)
     expect(doc.layers[1]!.assetId).toBe(paint)
+  })
+
+  it('supports blank Texture maker defaults (500×500, custom_texture stem)', () => {
+    const comp = generateCompositeAssetId()
+    const bg = generateTexLayerAssetId()
+    const paint = generateTexLayerAssetId()
+    const doc = buildTextureDocument({
+      compositeAssetId: comp,
+      width: TEXTURE_NEW_DOCUMENT_DEFAULT_SIZE,
+      height: TEXTURE_NEW_DOCUMENT_DEFAULT_SIZE,
+      backgroundLayerAssetId: bg,
+      paintLayerAssetId: paint,
+      editFamilyStem: TEXTURE_NEW_DOCUMENT_EDIT_FAMILY_STEM,
+      editFamilyFileExt: 'png',
+    })
+    expect(doc.width).toBe(500)
+    expect(doc.height).toBe(500)
+    expect(doc.editFamilyStem).toBe('custom_texture')
+    expect(doc.editFamilyFileExt).toBe('png')
   })
 })

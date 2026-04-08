@@ -12,6 +12,10 @@ import {
 } from '@/transformers/transformerPresets'
 import { jsonTextareaRows } from '@/utils/jsonTextareaRows'
 
+function padFieldRefPanelOpen(open: boolean[], length: number): boolean[] {
+  return Array.from({ length }, (_, i) => open[i] ?? false)
+}
+
 const baseTextareaStyle: React.CSSProperties = {
   margin: 0,
   padding: 8,
@@ -157,7 +161,12 @@ export default function TransformerEditor({
   const [addSelectValue, setAddSelectValue] = useState('')
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false)
   const [templateDialogTargetIndex, setTemplateDialogTargetIndex] = useState<number | null>(null)
+  const [fieldRefPanelOpen, setFieldRefPanelOpen] = useState<boolean[]>([])
   const list = transformers ?? []
+
+  useEffect(() => {
+    setFieldRefPanelOpen((prev) => padFieldRefPanelOpen(prev, list.length))
+  }, [list.length])
 
   const handleAddTransformer = (type: string) => {
     if (!type) return
@@ -169,6 +178,7 @@ export default function TransformerEditor({
   const handleRemoveTransformer = (index: number) => {
     const next = list.filter((_, i) => i !== index)
     onChange?.(next)
+    setFieldRefPanelOpen((prev) => prev.filter((_, i) => i !== index))
   }
 
   const handleMoveTransformer = (fromIndex: number, direction: 'up' | 'down') => {
@@ -177,6 +187,12 @@ export default function TransformerEditor({
     const next = [...list]
     ;[next[fromIndex], next[toIndex]] = [next[toIndex], next[fromIndex]]
     onChange?.(next)
+    setFieldRefPanelOpen((prev) => {
+      const p = padFieldRefPanelOpen(prev, list.length)
+      const open = [...p]
+      ;[open[fromIndex], open[toIndex]] = [open[toIndex]!, open[fromIndex]!]
+      return open
+    })
   }
 
   const handleToggleEnabled = (index: number) => {
@@ -290,25 +306,63 @@ export default function TransformerEditor({
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
                 {isPresetTransformerType(transformer.type) && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTemplateDialogTargetIndex(index)
-                      setTemplateDialogOpen(true)
-                    }}
-                    disabled={disabled}
-                    style={{
-                      ...entityPanelIconButtonStyle,
-                      color: '#93c5fd',
-                      border: '1px solid #3b6ea8',
-                      background: '#1e3a5f',
-                    }}
-                    title="Load template"
-                    aria-label="Load template"
-                    data-testid="load-transformer-template"
-                  >
-                    {EntityPanelIcons.loadTemplate}
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTemplateDialogTargetIndex(index)
+                        setTemplateDialogOpen(true)
+                      }}
+                      disabled={disabled}
+                      style={{
+                        ...entityPanelIconButtonStyle,
+                        color: '#93c5fd',
+                        border: '1px solid #3b6ea8',
+                        background: '#1e3a5f',
+                      }}
+                      title="Load template"
+                      aria-label="Load template"
+                      data-testid="load-transformer-template"
+                    >
+                      {EntityPanelIcons.loadTemplate}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFieldRefPanelOpen((prev) => {
+                          const p = padFieldRefPanelOpen(prev, list.length)
+                          const next = [...p]
+                          next[index] = !next[index]
+                          return next
+                        })
+                      }}
+                      disabled={disabled}
+                      aria-pressed={fieldRefPanelOpen[index] ?? false}
+                      style={{
+                        ...entityPanelIconButtonStyle,
+                        color: '#93c5fd',
+                        border:
+                          fieldRefPanelOpen[index] ?? false
+                            ? '1px solid #60a5fa'
+                            : '1px solid #3b6ea8',
+                        background:
+                          fieldRefPanelOpen[index] ?? false ? '#1e40af' : '#1e3a5f',
+                      }}
+                      title={
+                        fieldRefPanelOpen[index] ?? false
+                          ? 'Hide field reference'
+                          : 'Show field reference'
+                      }
+                      aria-label={
+                        fieldRefPanelOpen[index] ?? false
+                          ? 'Hide field reference'
+                          : 'Show field reference'
+                      }
+                      data-testid="transformer-field-reference-toggle"
+                    >
+                      {EntityPanelIcons.document}
+                    </button>
+                  </>
                 )}
                 <button
                   type="button"
@@ -367,10 +421,14 @@ export default function TransformerEditor({
             </div>
 
             <div style={{ marginTop: 6 }}>
-              <div style={{ marginBottom: 8 }}>
-                {isPresetTransformerType(transformer.type) ? (
-                  <TransformerFieldReference transformerType={transformer.type} />
-                ) : (
+              {isPresetTransformerType(transformer.type) ? (
+                (fieldRefPanelOpen[index] ?? false) ? (
+                  <div style={{ marginBottom: 8 }}>
+                    <TransformerFieldReference transformerType={transformer.type} />
+                  </div>
+                ) : null
+              ) : (
+                <div style={{ marginBottom: 8 }}>
                   <p
                     style={{
                       margin: 0,
@@ -382,8 +440,8 @@ export default function TransformerEditor({
                     No built-in field reference for this transformer type. Edit JSON carefully or
                     switch to a preset type.
                   </p>
-                )}
-              </div>
+                </div>
+              )}
               <div style={fieldLabelStyle}>Configuration:</div>
               <TransformerConfigTextarea
                 value={transformer}

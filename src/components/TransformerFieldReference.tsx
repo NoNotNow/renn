@@ -1,5 +1,4 @@
 import type { CSSProperties } from 'react'
-import CollapsibleSection from './CollapsibleSection'
 import { fieldLabelStyle } from './sharedStyles'
 import {
   INPUT_MAPPING_FIELD_DOCS,
@@ -48,7 +47,10 @@ export default function TransformerFieldReference({
   )
 
   return (
-    <CollapsibleSection title="Field reference" defaultCollapsed>
+    <div style={{ marginBottom: 8 }}>
+      <div style={{ fontWeight: 600, color: '#9aa4b2', fontSize: 11, marginBottom: 6 }}>
+        Field reference
+      </div>
       <div style={{ color: '#9aa4b2', fontSize: 10, marginBottom: 8, lineHeight: 1.35 }}>
         Hover a field name for a short description. Edit values in the JSON below.
       </div>
@@ -78,6 +80,6 @@ export default function TransformerFieldReference({
       ) : (
         paramEntries.map(([k, text]) => <DocRow key={k} name={k} text={text} />)
       )}
-    </CollapsibleSection>
+    </div>
   )
 }

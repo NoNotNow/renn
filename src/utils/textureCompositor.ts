@@ -31,6 +31,12 @@ export const TEXTURE_BLEND_MODES: readonly BlendMode[] = [
 /** Common square texture sizes for the document (overall compositor resolution). */
 export const TEXTURE_DOC_SIZE_PRESETS = [256, 512, 1024, 2048] as const
 
+/** Default width/height when opening Texture maker with no existing `material.map`. */
+export const TEXTURE_NEW_DOCUMENT_DEFAULT_SIZE = 500
+
+/** `editFamilyStem` for new blank documents (export keys like `custom_texture_edited1.png`). */
+export const TEXTURE_NEW_DOCUMENT_EDIT_FAMILY_STEM = 'custom_texture'
+
 export const TEXTURE_DOC_SIZE_MIN = 16
 export const TEXTURE_DOC_SIZE_MAX = 4096
 

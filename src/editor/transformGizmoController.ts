@@ -110,6 +110,11 @@ export interface InstallBuilderPickAndGizmoParams {
     getBrushRadiusPx?: () => number
     /** When set (e.g. layer compositor), paint this asset id instead of `entity.material.map`. */
     getPaintTargetAssetId?: (entityId: string) => string | null
+    /**
+     * When no paintable blob exists yet (e.g. no `material.map`), create a default composite texture
+     * and return the layer asset + blob to paint. Used for first 3D brush stroke on an untextured entity.
+     */
+    prepareWorldPaintStroke?: (entityId: string) => Promise<{ mapAssetId: string; blob: Blob } | null>
     pushUndoBeforePaintStroke: () => void
     onStrokeEnd: (payload: TexturePaintStrokePayload) => void | Promise<void>
   }
@@ -488,20 +493,21 @@ export function installBuilderPickAndGizmo(
         const paintTargetId = tp.getPaintTargetAssetId?.(sid) ?? null
         const paintSourceId = paintTargetId ?? mapId
         const blob = paintSourceId ? tp.getAssets().get(paintSourceId) : undefined
-        if (paintSourceId && blob) {
+
+        const beginPaintStroke = (sourceId: string, strokeBlob: Blob): void => {
           tp.pushUndoBeforePaintStroke()
           paintStroke = {
             pointerId: e.pointerId,
             entityId: sid,
-            mapAssetId: paintSourceId,
-            workingBlob: blob,
+            mapAssetId: sourceId,
+            workingBlob: strokeBlob,
           }
           try {
             p.domElement.setPointerCapture(e.pointerId)
           } catch {
             /* ignore */
           }
-          void paintTextureBlob(blob, {
+          void paintTextureBlob(strokeBlob, {
             u: hit.uv.x,
             v: hit.uv.y,
             radiusPx: getStrokeRadiusPx(),
@@ -513,8 +519,26 @@ export function installBuilderPickAndGizmo(
             .catch((err) => {
               console.error('[texture paint]', err)
             })
+        }
+
+        if (paintSourceId && blob) {
+          beginPaintStroke(paintSourceId, blob)
           return
         }
+
+        let cancelled = false
+        const onEarlyEnd = (): void => {
+          cancelled = true
+        }
+        p.domElement.addEventListener('pointerup', onEarlyEnd, { once: true })
+        p.domElement.addEventListener('pointercancel', onEarlyEnd, { once: true })
+        void (tp.prepareWorldPaintStroke?.(sid) ?? Promise.resolve(null)).then((prep) => {
+          p.domElement.removeEventListener('pointerup', onEarlyEnd)
+          p.domElement.removeEventListener('pointercancel', onEarlyEnd)
+          if (cancelled || !prep || p.getGizmoMode() !== 'paint') return
+          beginPaintStroke(prep.mapAssetId, prep.blob)
+        })
+        return
       }
       if (!entityRoot) {
         return
