@@ -25,7 +25,9 @@ export function getSceneDependencyKey(world: RennWorld): string {
       ambientLight: world.world.ambientLight,
       directionalLight: world.world.directionalLight,
     },
-    entities: world.entities.map((e) => sceneRelevantEntity(e)).sort((a, b) => (a.id < b.id ? -1 : 1)),
+    entities: world.entities
+      .map((e) => sceneRelevantEntity(e))
+      .sort((a, b) => String(a.id).localeCompare(String(b.id))),
   }
   return JSON.stringify(payload)
 }

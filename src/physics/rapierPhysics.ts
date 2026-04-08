@@ -11,7 +11,6 @@ import type {
 } from '@/types/world'
 import type { Rotation } from '@/types/world'
 import { DEFAULT_GRAVITY, DEFAULT_ROTATION } from '@/types/world'
-import type { ExtractedGeometry } from '@/utils/geometryExtractor'
 import {
   extractMeshGeometry,
   getGeometryInfo,
@@ -290,10 +289,9 @@ export class PhysicsWorld {
             // baked in (Rapier applies those on the body). Model rotation/scale from the inspector
             // are already on `modelScene` via applyModelTransform before this runs.
             const sourceScene = mesh.userData.trimeshScene || mesh
-            let extractedGeometry: ExtractedGeometry | null = null
-            withTrimeshSceneDetachedFromEntityWrapper(sourceScene, () => {
-              extractedGeometry = extractMeshGeometry(sourceScene, true)
-            })
+            let extractedGeometry = withTrimeshSceneDetachedFromEntityWrapper(sourceScene, () =>
+              extractMeshGeometry(sourceScene, true),
+            )
 
             if (extractedGeometry && extractedGeometry.vertices.length > 0 && extractedGeometry.indices.length > 0) {
               const transformedVertices = transformTrimeshVertices(
@@ -837,7 +835,7 @@ export async function initRapier(): Promise<void> {
     }
     originalWarn(...args)
   }
-  rapierInitPromise = RAPIER.init({})
+  rapierInitPromise = RAPIER.init()
     .then(() => {
       rapierInitialized = true
     })

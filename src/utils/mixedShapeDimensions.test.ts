@@ -59,7 +59,9 @@ describe('mixedShapeDimensions', () => {
 
   it('patchShapeWithMixedDimension updates box width only for width kind', () => {
     const box: Shape = { type: 'box', width: 1, height: 1, depth: 1 }
-    expect(patchShapeWithMixedDimension(box, 'width', 4).width).toBe(4)
+    const boxPatched = patchShapeWithMixedDimension(box, 'width', 4)
+    expect(boxPatched.type).toBe('box')
+    if (boxPatched.type === 'box') expect(boxPatched.width).toBe(4)
     expect(patchShapeWithMixedDimension({ type: 'sphere', radius: 1 }, 'width', 4).type).toBe('sphere')
   })
 

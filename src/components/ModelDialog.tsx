@@ -19,7 +19,7 @@ export default function ModelDialog({
   isOpen,
   onClose,
   assets,
-  world,
+  world: _world,
   selectedModelId,
   onSelectModel,
   onUploadModel,

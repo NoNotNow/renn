@@ -380,7 +380,7 @@ function SceneViewInner({
     }
 
     let cancelled = false
-    let scriptSnackbarTimerId: ReturnType<typeof window.setTimeout> | undefined
+    let scriptSnackbarTimerId: number | undefined
     let cam: THREE.PerspectiveCamera | null = null
     let rend: THREE.WebGLRenderer | null = null
     let cameraCtrl: CameraController | null = null
@@ -510,7 +510,7 @@ function SceneViewInner({
         scriptSnackbarTimerId = window.setTimeout(() => {
           scriptSnackbarTimerId = undefined
           setScriptSnackbarMessage(null)
-        }, ms)
+        }, ms) as unknown as number
       }
       const onHudPatch = showGameHud
         ? (patch: HudPatch) => {

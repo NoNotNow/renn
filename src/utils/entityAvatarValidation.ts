@@ -1,4 +1,4 @@
-import Ajv from 'ajv/dist/2020'
+import Ajv, { type ValidateFunction } from 'ajv/dist/2020'
 import worldSchema from '../../world-schema.json'
 import type { EntityAvatarConfig } from '@/types/world'
 
@@ -11,9 +11,9 @@ const ajv = new Ajv({ strict: true, allErrors: true })
 
 // Compile the avatar definition *from the full schema* so `$ref` targets (Vec3/Rotation/etc.) resolve.
 ajv.addSchema(worldSchema as object, 'world')
-const validateAvatar = ajv.compile({
+const validateAvatar: ValidateFunction<unknown> = ajv.compile({
   $ref: 'world#/$defs/EntityAvatarConfig',
-} as object) as (value: unknown) => boolean
+} as object)
 const getErrors = (): AjvError[] => (validateAvatar.errors ?? []) as unknown as AjvError[]
 
 export function validateEntityAvatarConfig(value: unknown): { valid: boolean; errors: string[] } {

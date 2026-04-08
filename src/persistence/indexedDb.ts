@@ -4,6 +4,7 @@ import type { ProjectMeta, LoadedProject, PersistenceAPI } from './types'
 import { generateProjectId } from '@/utils/idGenerator'
 import { DB_CONFIG } from '@/config/constants'
 import { addAssetsToZipFolder } from '@/utils/assetExport'
+import { validateWorldDocument } from '@/schema/validate'
 
 const STORE_PROJECTS = DB_CONFIG.stores.projects
 const STORE_ASSETS = DB_CONFIG.stores.assets
@@ -214,12 +215,11 @@ export function createIndexedDbPersistence(): PersistenceAPI {
 
     async importProject(file: File): Promise<{ id: string }> {
       const JSZip = (await import('jszip')).default
-      const { validateWorldDocument } = await import('@/schema/validate')
       const { migrateWorldScripts, migrateWorldSimplificationFields } = await import('@/scripts/migrateWorld')
       const zip = await JSZip.loadAsync(file)
       const worldFile = zip.file('world.json')
       if (!worldFile) throw new Error('Invalid project: missing world.json')
-      const worldJson = JSON.parse(await worldFile.async('string'))
+      const worldJson: unknown = JSON.parse(await worldFile.async('string'))
       migrateWorldScripts(worldJson)
       migrateWorldSimplificationFields(worldJson)
       validateWorldDocument(worldJson, { tolerateAdditionalProperties: true, logAdditionalProperties: true })

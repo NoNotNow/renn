@@ -1,4 +1,4 @@
-import { describe, expect, test, vi, beforeEach } from 'vitest'
+import { describe, expect, test } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 import {
   useRawKeyboardInput,
@@ -10,7 +10,7 @@ import type { RawKeyboardState, RawWheelState } from '@/types/transformer'
 describe('useRawKeyboardInput', () => {
   test('initial state is all false', () => {
     const { result } = renderHook(() => useRawKeyboardInput())
-    expect(result.current.current).toEqual({
+    expect(result.current.current!).toEqual({
       w: false,
       a: false,
       s: false,
@@ -28,7 +28,7 @@ describe('useRawKeyboardInput', () => {
       window.dispatchEvent(event)
     })
 
-    expect(result.current.current.w).toBe(true)
+    expect(result.current.current!.w).toBe(true)
   })
 
   test('keyup resets state', () => {
@@ -37,12 +37,12 @@ describe('useRawKeyboardInput', () => {
     act(() => {
       window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyW' }))
     })
-    expect(result.current.current.w).toBe(true)
+    expect(result.current.current!.w).toBe(true)
 
     act(() => {
       window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyW' }))
     })
-    expect(result.current.current.w).toBe(false)
+    expect(result.current.current!.w).toBe(false)
   })
 
   test('blur resets all keys', () => {
@@ -53,22 +53,22 @@ describe('useRawKeyboardInput', () => {
       window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyA' }))
     })
 
-    expect(result.current.current.w).toBe(true)
-    expect(result.current.current.a).toBe(true)
+    expect(result.current.current!.w).toBe(true)
+    expect(result.current.current!.a).toBe(true)
 
     act(() => {
       window.dispatchEvent(new Event('blur'))
     })
 
-    expect(result.current.current.w).toBe(false)
-    expect(result.current.current.a).toBe(false)
+    expect(result.current.current!.w).toBe(false)
+    expect(result.current.current!.a).toBe(false)
   })
 })
 
 describe('useRawWheelInput', () => {
   test('initial state is zero', () => {
     const { result } = renderHook(() => useRawWheelInput())
-    expect(result.current.current).toEqual({
+    expect(result.current.current!).toEqual({
       deltaX: 0,
       deltaY: 0,
       pinchDelta: 0,
@@ -84,8 +84,8 @@ describe('useRawWheelInput', () => {
       window.dispatchEvent(event)
     })
 
-    expect(result.current.current.deltaX).toBe(10)
-    expect(result.current.current.deltaY).toBe(-5)
+    expect(result.current.current!.deltaX).toBe(10)
+    expect(result.current.current!.deltaY).toBe(-5)
   })
 
   test('multiple wheel events accumulate', () => {
@@ -96,8 +96,8 @@ describe('useRawWheelInput', () => {
       window.dispatchEvent(new WheelEvent('wheel', { deltaX: 2, deltaY: -1 }))
     })
 
-    expect(result.current.current.deltaX).toBe(7)
-    expect(result.current.current.deltaY).toBe(2)
+    expect(result.current.current!.deltaX).toBe(7)
+    expect(result.current.current!.deltaY).toBe(2)
   })
 
   test('ctrl+wheel accumulates pinchDelta and not deltaX/deltaY', () => {
@@ -108,9 +108,9 @@ describe('useRawWheelInput', () => {
       window.dispatchEvent(new WheelEvent('wheel', { deltaY: -4, ctrlKey: true }))
     })
 
-    expect(result.current.current.pinchDelta).toBe(6)
-    expect(result.current.current.deltaX).toBe(0)
-    expect(result.current.current.deltaY).toBe(0)
+    expect(result.current.current!.pinchDelta).toBe(6)
+    expect(result.current.current!.deltaX).toBe(0)
+    expect(result.current.current!.deltaY).toBe(0)
   })
 
   test('wheel with deltaMode 1 (lines) accumulates into mouseWheelDelta', () => {
@@ -121,9 +121,9 @@ describe('useRawWheelInput', () => {
       window.dispatchEvent(new WheelEvent('wheel', { deltaX: 0, deltaY: 40, deltaMode: 1 }))
     })
 
-    expect(result.current.current.mouseWheelDelta).toBe(40)
-    expect(result.current.current.deltaX).toBe(0)
-    expect(result.current.current.deltaY).toBe(0)
+    expect(result.current.current!.mouseWheelDelta).toBe(40)
+    expect(result.current.current!.deltaX).toBe(0)
+    expect(result.current.current!.deltaY).toBe(0)
   })
 
   test('pixel-mode small delta goes to deltaX/deltaY (trackpad scroll)', () => {
@@ -133,9 +133,9 @@ describe('useRawWheelInput', () => {
       window.dispatchEvent(new WheelEvent('wheel', { deltaX: 2, deltaY: 2, deltaMode: 0 }))
     })
 
-    expect(result.current.current.deltaX).toBe(2)
-    expect(result.current.current.deltaY).toBe(2)
-    expect(result.current.current.mouseWheelDelta).toBe(0)
+    expect(result.current.current!.deltaX).toBe(2)
+    expect(result.current.current!.deltaY).toBe(2)
+    expect(result.current.current!.mouseWheelDelta).toBe(0)
   })
 })
 

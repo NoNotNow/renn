@@ -1,11 +1,12 @@
 import { describe, expect, test } from 'vitest'
 import { FollowTransformer } from './followTransformer'
 import { createMockTransformInput } from '@/test/helpers/transformer'
+import type { Vec3, Rotation } from '@/types/world'
 
 describe('FollowTransformer', () => {
   const leadPose = {
-    position: [10, 2, -3] as const,
-    rotation: [0, 1.57, 0] as const,
+    position: [10, 2, -3] as Vec3,
+    rotation: [0, 1.57, 0] as Rotation,
   }
 
   test('sets target from lead pose when getter returns pose', () => {
@@ -96,7 +97,7 @@ describe('FollowTransformer', () => {
 
   test('setParams updates targetEntityId', () => {
     const getter = (id: string) =>
-      id === 'b' ? { position: [0, 0, 0] as const, rotation: [0, 0, 0] as const } : null
+      id === 'b' ? { position: [0, 0, 0] as Vec3, rotation: [0, 0, 0] as Rotation } : null
     const t = new FollowTransformer(5, { targetEntityId: 'a' }, getter)
     const input = createMockTransformInput({ entityId: 'follower' })
     t.transform(input, 0.016)

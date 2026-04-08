@@ -94,7 +94,7 @@ export interface ScriptCtxBase {
   getForwardVector(id?: string): [number, number, number] | null
   resetRotation(id?: string): void
   addVectorToPosition(id: string | undefined, x: number, y: number, z: number, resetVelocity?: boolean): void
-  setColor(id?: string, r: number, g: number, b: number): void
+  setColor(id: string | undefined, r: number, g: number, b: number): void
   getColor(id?: string): [number, number, number] | null
   applyForce(id: string, x: number, y: number, z: number): void
   applyImpulse(id: string, x: number, y: number, z: number): void
@@ -234,18 +234,18 @@ function buildEntityView(game: GameAPI, getEntityRef: () => Entity | null): Scri
   for (const desc of ENTITY_VIEW_METHODS) {
     const key = desc.name
     if (desc.argsAfterId === 0) {
-      (view as Record<string, unknown>)[key] = function () {
+      (view as unknown as Record<string, unknown>)[key] = function () {
         const e = getEntityRef()
         if (!e) return null
         return (game[key] as (id: string) => unknown)(e.id)
       }
     } else if (key === 'addVectorToPosition') {
-      (view as Record<string, unknown>)[key] = function (x: number, y: number, z: number, resetVelocity?: boolean) {
+      (view as unknown as Record<string, unknown>)[key] = function (x: number, y: number, z: number, resetVelocity?: boolean) {
         const e = getEntityRef()
         if (e) (game.addVectorToPosition)(e.id, x, y, z, resetVelocity)
       }
     } else {
-      (view as Record<string, unknown>)[key] = function (x: number, y: number, z: number) {
+      (view as unknown as Record<string, unknown>)[key] = function (x: number, y: number, z: number) {
         const e = getEntityRef()
         if (e) (game[key] as (id: string, x: number, y: number, z: number) => void)(e.id, x, y, z)
       }

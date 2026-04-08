@@ -128,17 +128,23 @@ export function migrateWorldScripts(worldData: unknown): void {
     const event = eventList[0] ?? 'onUpdate'
     const source = value
 
+    const toScriptDef = (ev: string): ScriptDef => {
+      if (ev === 'onTimer') return { event: 'onTimer', interval: 1, source }
+      if (ev === 'onSpawn' || ev === 'onUpdate' || ev === 'onCollision') return { event: ev, source }
+      return { event: 'onUpdate', source }
+    }
+
     if (eventList.length <= 1) {
-      ;(scripts as Record<string, ScriptDef>)[scriptId] = { event: event as ScriptDef['event'], source }
+      ;(scripts as Record<string, ScriptDef>)[scriptId] = toScriptDef(event)
       continue
     }
 
     duplicatedScripts.set(scriptId, { firstEvent: event, events: eventsUsed })
-    ;(scripts as Record<string, ScriptDef>)[scriptId] = { event: event as ScriptDef['event'], source }
+    ;(scripts as Record<string, ScriptDef>)[scriptId] = toScriptDef(event)
     for (let i = 1; i < eventList.length; i++) {
-      const e = eventList[i]
+      const e = eventList[i]!
       const newId = `${scriptId}_${e}`
-      ;(scripts as Record<string, ScriptDef>)[newId] = { event: e as ScriptDef['event'], source }
+      ;(scripts as Record<string, ScriptDef>)[newId] = toScriptDef(e)
     }
   }
 

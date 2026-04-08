@@ -7,7 +7,7 @@
 import { BaseTransformer } from '../transformer'
 import type { TransformInput, TransformOutput } from '@/types/transformer'
 import { EMPTY_TRANSFORM_OUTPUT } from '@/types/transformer'
-import type { Rotation, Vec3 } from '@/types/world'
+import type { Vec3 } from '@/types/world'
 import { eulerToQuaternion, quaternionToEuler } from '@/utils/rotationUtils'
 import { vec3Length } from '@/utils/vec3'
 

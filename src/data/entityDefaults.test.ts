@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { cloneEntityFrom, createDefaultEntity, getDefaultShapeForType, type AddableShapeType } from '@/data/entityDefaults'
 import { computeCloneWorldPosition } from '@/utils/clonePlacement'
 import { validateWorldDocument } from '@/schema/validate'
-import type { RennWorld } from '@/types/world'
+import type { RennWorld, Vec3, Rotation } from '@/types/world'
 
 const ADDABLE_SHAPE_TYPES: AddableShapeType[] = ['box', 'sphere', 'cylinder', 'capsule', 'cone', 'pyramid', 'ring', 'plane']
 
@@ -23,18 +23,19 @@ describe('createDefaultEntity', () => {
     expect(entity.name).toMatch(new RegExp(`^${shapeType} [a-z]+ \\d+$`))
     expect(entity.shape).toBeDefined()
     expect(entity.shape?.type).toBe(shapeType)
-    expect(entity.position[0]).toBeGreaterThanOrEqual(-0.35)
-    expect(entity.position[0]).toBeLessThanOrEqual(0.35)
-    expect(entity.position[1]).toBeGreaterThanOrEqual(0)
-    expect(entity.position[1]).toBeLessThanOrEqual(0.35)
-    expect(entity.position[2]).toBeGreaterThanOrEqual(-0.35)
-    expect(entity.position[2]).toBeLessThanOrEqual(0.35)
+    const pos = entity.position!
+    expect(pos[0]).toBeGreaterThanOrEqual(-0.35)
+    expect(pos[0]).toBeLessThanOrEqual(0.35)
+    expect(pos[1]).toBeGreaterThanOrEqual(0)
+    expect(pos[1]).toBeLessThanOrEqual(0.35)
+    expect(pos[2]).toBeGreaterThanOrEqual(-0.35)
+    expect(pos[2]).toBeLessThanOrEqual(0.35)
     expect(entity.rotation).toEqual([0, 0, 0])
-    entity.scale.forEach((value) => {
+    entity.scale!.forEach((value) => {
       expect(value).toBeGreaterThanOrEqual(0.6)
       expect(value).toBeLessThanOrEqual(1.4)
     })
-    entity.material.color.forEach((value) => {
+    entity.material!.color!.forEach((value) => {
       expect(value).toBeGreaterThanOrEqual(0.1)
       expect(value).toBeLessThanOrEqual(0.95)
     })
@@ -62,7 +63,7 @@ describe('cloneEntityFrom', () => {
     const source = createDefaultEntity('box')
     source.name = 'Original'
     source.locked = true
-    const pose = { position: [5, 7, 9] as const, rotation: [0.1, 0.2, 0.3] as const }
+    const pose = { position: [5, 7, 9] as Vec3, rotation: [0.1, 0.2, 0.3] as Rotation }
     const clone = cloneEntityFrom(source, pose)
 
     expect(clone.id).not.toBe(source.id)

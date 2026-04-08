@@ -4,11 +4,12 @@ import { shapeWithPreservedSize } from '@/utils/shapeConversion'
 import { applyMultiShapeEdit, shapePatchForEntity } from '@/utils/multiSelectShapeChange'
 
 function entity(partial: Partial<Entity> & { id: string }): Entity {
+  const { id, bodyType, shape, ...rest } = partial
   return {
-    id: partial.id,
-    bodyType: partial.bodyType ?? 'static',
-    shape: partial.shape ?? { type: 'box', width: 1, height: 1, depth: 1 },
-    ...partial,
+    bodyType: bodyType ?? 'static',
+    shape: shape ?? { type: 'box', width: 1, height: 1, depth: 1 },
+    ...rest,
+    id,
   }
 }
 

@@ -48,7 +48,7 @@ describe('shapeWireframeOverlay', () => {
     mesh.userData.usesModel = true
     syncShapeWireframeOverlay(mesh, baseEntity())
     expect(mesh.children.length).toBe(1)
-    const geom = mesh.children[0].geometry
+    const geom = (mesh.children[0] as THREE.LineSegments).geometry
     const disposeSpy = vi.spyOn(geom, 'dispose')
     syncShapeWireframeOverlay(mesh, baseEntity({ showShapeWireframe: false }))
     expect(mesh.children.length).toBe(0)

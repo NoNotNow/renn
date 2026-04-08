@@ -38,8 +38,15 @@ export function shapeHasBaseSize(shape: Shape | undefined): boolean {
 }
 
 function readRadius(shape: Shape): number | undefined {
-  if (shapeHasRadius(shape)) return shape.radius
-  return undefined
+  switch (shape.type) {
+    case 'sphere':
+    case 'cylinder':
+    case 'capsule':
+    case 'cone':
+      return shape.radius
+    default:
+      return undefined
+  }
 }
 
 function readHeight(shape: Shape): number | undefined {

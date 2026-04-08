@@ -12,7 +12,7 @@ import type {
   Vec3,
 } from '@/types/transformer'
 import type { Rotation } from '@/types/world'
-import { EMPTY_TRANSFORM_OUTPUT, ZERO_VEC3 } from '@/types/transformer'
+import { EMPTY_TRANSFORM_OUTPUT } from '@/types/transformer'
 import { getForwardVectorFromEuler, getUpVectorFromEuler } from '@/utils/rotationUtils'
 
 /**

@@ -5,7 +5,7 @@ import type { Vec3, Rotation, Entity } from '@/types/world'
 import { createShapeGeometry, materialFromRef } from '@/loader/createPrimitive'
 import type { DisposableAssetResolver } from '@/loader/assetResolverImpl'
 import { RenderItem } from './renderItem'
-import { getUpVectorFromRapierQuaternion, quaternionToEuler, rapierQuaternionToEuler } from '@/utils/rotationUtils'
+import { rapierQuaternionToEuler } from '@/utils/rotationUtils'
 import { createTransformerChain } from '@/transformers/transformerRegistry'
 import type {
   EntityWorldPose,

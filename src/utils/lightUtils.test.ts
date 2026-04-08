@@ -19,7 +19,7 @@ describe('lightUtils', () => {
 
     it('converts overhead to elevation 90', () => {
       const dir: [number, number, number] = [0, 1, 0]
-      const { azimuth, elevation } = directionToSpherical(dir)
+      const { elevation } = directionToSpherical(dir)
       expect(elevation).toBeCloseTo(90, 5)
     })
 

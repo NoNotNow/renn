@@ -68,7 +68,7 @@ export class InputTransformer extends BaseTransformer {
    * Transform: convert raw input to actions.
    * This transformer modifies the input.actions map and returns empty output.
    */
-  transform(input: TransformInput, dt: number): TransformOutput {
+  transform(input: TransformInput, _dt: number): TransformOutput {
     const gate = this.controlledEntityIdRef
     if (gate !== null && gate.current !== null && input.entityId !== gate.current) {
       input.actions = {}

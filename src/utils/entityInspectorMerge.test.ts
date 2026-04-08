@@ -84,15 +84,15 @@ describe('entityInspectorMerge', () => {
   })
 
   it('mergeTransformers returns list when identical', () => {
-    const t = [{ type: 'wanderer' as const, config: {} }]
+    const t = [{ type: 'wanderer' as const, params: {} }]
     const entities = [e({ transformers: t }), e({ transformers: t })]
     expect(mergeTransformers(entities)).toEqual(t)
   })
 
   it('mergeTransformers returns null when stacks differ', () => {
     const entities = [
-      e({ transformers: [{ type: 'wanderer' as const, config: {} }] }),
-      e({ transformers: [{ type: 'input' as const, config: {} }] }),
+      e({ transformers: [{ type: 'wanderer' as const, params: {} }] }),
+      e({ transformers: [{ type: 'input' as const, params: {} }] }),
     ]
     expect(mergeTransformers(entities)).toBeNull()
   })

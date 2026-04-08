@@ -1,6 +1,5 @@
 import { describe, test, expect } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
-import { useRef } from 'react'
 import { useRawMouseDrag } from './rawMouseDrag'
 
 function makeContainerRef() {
@@ -14,7 +13,7 @@ describe('useRawMouseDrag', () => {
   test('initial state is zero', () => {
     const containerRef = makeContainerRef()
     const { result } = renderHook(() => useRawMouseDrag(containerRef))
-    expect(result.current.current).toEqual({ deltaX: 0, deltaY: 0 })
+    expect(result.current.current!).toEqual({ deltaX: 0, deltaY: 0 })
   })
 
   test('middle-button drag accumulates deltas', () => {
@@ -27,8 +26,8 @@ describe('useRawMouseDrag', () => {
       window.dispatchEvent(new MouseEvent('mousemove', { clientX: 20, clientY: 8, bubbles: true }))
     })
 
-    expect(result.current.current.deltaX).toBe(20)
-    expect(result.current.current.deltaY).toBe(8)
+    expect(result.current.current!.deltaX).toBe(20)
+    expect(result.current.current!.deltaY).toBe(8)
   })
 
   test('left-button mousedown does not start tracking', () => {
@@ -40,8 +39,8 @@ describe('useRawMouseDrag', () => {
       window.dispatchEvent(new MouseEvent('mousemove', { clientX: 50, clientY: 50, bubbles: true }))
     })
 
-    expect(result.current.current.deltaX).toBe(0)
-    expect(result.current.current.deltaY).toBe(0)
+    expect(result.current.current!.deltaX).toBe(0)
+    expect(result.current.current!.deltaY).toBe(0)
   })
 
   test('middle-button mouseup stops tracking', () => {
@@ -57,8 +56,8 @@ describe('useRawMouseDrag', () => {
     })
 
     // Only the first move (10px) should be accumulated
-    expect(result.current.current.deltaX).toBe(10)
-    expect(result.current.current.deltaY).toBe(10)
+    expect(result.current.current!.deltaX).toBe(10)
+    expect(result.current.current!.deltaY).toBe(10)
   })
 
   test('deltas accumulate across multiple moves', () => {
@@ -72,6 +71,6 @@ describe('useRawMouseDrag', () => {
       window.dispatchEvent(new MouseEvent('mousemove', { clientX: 10, clientY: 0, bubbles: true }))
     })
 
-    expect(result.current.current.deltaX).toBe(10)
+    expect(result.current.current!.deltaX).toBe(10)
   })
 })

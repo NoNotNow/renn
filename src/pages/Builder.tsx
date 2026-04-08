@@ -299,29 +299,6 @@ export default function Builder() {
     [pushHistory, bumpHistoryUi]
   )
 
-  const persistTextureDoc = useCallback(
-    async (
-      entityId: string,
-      doc: TextureDocument,
-      patchAssets?: (next: Map<string, Blob>) => void,
-    ) => {
-      const prev = worldAssetsRef.current.assets
-      const next = new Map(prev)
-      patchAssets?.(next)
-      const comp = await compositeTextureLayers(doc, next)
-      next.set(doc.compositeAssetId, comp)
-      next.set(texDocAssetId(doc.compositeAssetId), serializeDocToBlob(doc))
-      await updateAssets(() => next)
-      textureDocsRef.current.set(entityId, doc)
-      bumpTextureStudio()
-      requestAnimationFrame(() => {
-        const ent = worldAssetsRef.current.world.entities.find((e) => e.id === entityId)
-        if (ent) void sceneViewRef.current?.updateEntityMaterial(entityId, ent)
-      })
-    },
-    [updateAssets, bumpTextureStudio],
-  )
-
   /** Creates a blank 500×500 composite + sidecar when the entity has no `material.map`. Does not open Texture Maker. */
   const provisionBlankCompositeTextureIfMissing = useCallback(
     async (entityId: string) => {

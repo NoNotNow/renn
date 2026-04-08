@@ -156,23 +156,24 @@ export function useRawWheelInput(
     const wheel = wheelRef.current
     const target = containerRef?.current || window
 
-    const onWheel = (e: WheelEvent): void => {
-      e.preventDefault()
+    const onWheel = (e: Event): void => {
+      const ev = e as WheelEvent
+      ev.preventDefault()
 
-      if (e.ctrlKey) {
+      if (ev.ctrlKey) {
         // Trackpad pinch-to-zoom: Ctrl+wheel
-        wheel.pinchDelta += e.deltaY
+        wheel.pinchDelta += ev.deltaY
         return
       }
 
-      if (isLikelyMouseWheel(e)) {
-        wheel.mouseWheelDelta += e.deltaY
+      if (isLikelyMouseWheel(ev)) {
+        wheel.mouseWheelDelta += ev.deltaY
         return
       }
 
       // Trackpad two-finger scroll → orbit (yaw + pitch)
-      wheel.deltaX += e.deltaX
-      wheel.deltaY += e.deltaY
+      wheel.deltaX += ev.deltaX
+      wheel.deltaY += ev.deltaY
     }
 
     // Use passive: false to allow preventDefault()

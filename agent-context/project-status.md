@@ -1,8 +1,11 @@
 # Renn – Project Status
 
-Last updated: 2026-04-03
+Last updated: 2026-04-08
 
 ## Completed
+
+### Tooling (2026-04-08)
+- `npm run build` (`tsc -b` + Vite): resolved project-wide strict TS issues (tests, Monaco typings, Rapier `init`, script migration `ScriptDef`, validation import, geometry/trimesh extraction typing, mocks). Dev dependency: `@types/node` + `tsconfig` `types` includes `node` for `Buffer` / `node:fs` in tests.
 
 ### Core runtime
 - JSON schema (`world-schema.json`, draft 2020-12) + Ajv validation

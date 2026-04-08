@@ -1,8 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { getCharacteristicSize, shapeWithPreservedSize } from './shapeConversion'
 import { getDefaultShapeForType } from '@/data/entityDefaults'
-import type { Shape } from '@/types/world'
-
 describe('getCharacteristicSize', () => {
   it('returns cube root of volume for box', () => {
     expect(getCharacteristicSize({ type: 'box', width: 5, height: 5, depth: 5 })).toBeCloseTo(5, 10)

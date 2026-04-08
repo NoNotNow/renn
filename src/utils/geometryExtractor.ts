@@ -18,7 +18,7 @@ export interface ExtractedGeometry {
  * @returns Extracted geometry with vertices and indices, or null if no valid geometry found
  */
 export function extractMeshGeometry(
-  meshOrGroup: THREE.Mesh | THREE.Group,
+  meshOrGroup: THREE.Object3D,
   applyTransforms: boolean = true
 ): ExtractedGeometry | null {
   const geometries: THREE.BufferGeometry[] = []

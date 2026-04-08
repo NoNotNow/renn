@@ -43,5 +43,5 @@ export function createMockUILogger(): typeof uiLogger {
     log: vi.fn(),
     select: vi.fn(),
     upload: vi.fn(),
-  }
+  } as unknown as typeof uiLogger
 }

@@ -29,6 +29,11 @@ export interface EntityMeshUserData {
 /**
  * Type guard to check if an object has entity userData
  */
-export function hasEntityId(userData: Record<string, unknown>): userData is EntityMeshUserData {
-  return typeof userData.entityId === 'string'
+export function hasEntityId(userData: unknown): userData is EntityMeshUserData {
+  return (
+    typeof userData === 'object' &&
+    userData !== null &&
+    'entityId' in userData &&
+    typeof (userData as { entityId: unknown }).entityId === 'string'
+  )
 }

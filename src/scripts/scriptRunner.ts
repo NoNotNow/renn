@@ -1,5 +1,5 @@
 import type * as THREE from 'three'
-import type { RennWorld, Entity, ScriptDef } from '@/types/world'
+import type { RennWorld, Entity } from '@/types/world'
 import type { GameAPI } from './gameApi'
 import type { LoadedEntity } from '@/loader/loadWorld'
 import type { ScriptCtx, OnSpawnCtx, OnUpdateCtx, OnCollisionCtx, OnTimerCtx, CollisionImpact } from './scriptCtx'
@@ -28,7 +28,6 @@ interface OnTimerEntry {
 
 export class ScriptRunner {
   private game: GameAPI
-  private getMeshById: (id: string) => THREE.Mesh | null
   private hooks: Map<string, HookFn> = new Map()
   private entityMap: Map<string, Entity> = new Map()
   private onUpdateEntries: OnUpdateEntry[] = []
@@ -43,7 +42,7 @@ export class ScriptRunner {
     private entities: LoadedEntity[]
   ) {
     this.game = game
-    this.getMeshById = getMeshById
+    void getMeshById
     for (const { entity } of this.entities) {
       this.entityMap.set(entity.id, entity)
     }
@@ -167,7 +166,7 @@ export class ScriptRunner {
     if (!other) return
     const impactData = impact ?? ZERO_IMPACT
     for (const { fn, ctx } of list) {
-      ;(ctx as Record<symbol, { current: Entity }>)[OTHER_REF_SYMBOL].current = other
+      ;(ctx as unknown as Record<symbol, { current: Entity }>)[OTHER_REF_SYMBOL].current = other
       ctx.impact.totalForce[0] = impactData.totalForce[0]
       ctx.impact.totalForce[1] = impactData.totalForce[1]
       ctx.impact.totalForce[2] = impactData.totalForce[2]

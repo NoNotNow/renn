@@ -89,7 +89,7 @@ interface ProjectContextActions {
   copyWorldToClipboard: () => void
   importProject: () => void
   onFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void
-  fileInputRef: React.RefObject<HTMLInputElement | null>
+  fileInputRef: React.RefObject<HTMLInputElement>
   
   // Play mode
   handlePlay: () => void

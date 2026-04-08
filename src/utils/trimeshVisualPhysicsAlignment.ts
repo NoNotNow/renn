@@ -6,7 +6,6 @@
 
 import * as THREE from 'three'
 import type { TrimeshSimplificationConfig, Vec3 } from '@/types/world'
-import type { ExtractedGeometry } from '@/utils/geometryExtractor'
 import {
   extractMeshGeometry,
   getGeometryInfo,
@@ -31,10 +30,9 @@ export function computePhysicsTrimeshVerticesInBodySpace(
   sourceScene: THREE.Object3D,
   options: TrimeshPhysicsExtractionOptions
 ): Float32Array | null {
-  let extractedGeometry: ExtractedGeometry | null = null
-  withTrimeshSceneDetachedFromEntityWrapper(sourceScene, () => {
-    extractedGeometry = extractMeshGeometry(sourceScene as THREE.Group, true)
-  })
+  const extractedGeometry = withTrimeshSceneDetachedFromEntityWrapper(sourceScene, () =>
+    extractMeshGeometry(sourceScene, true),
+  )
   if (!extractedGeometry || extractedGeometry.vertices.length === 0) {
     return null
   }

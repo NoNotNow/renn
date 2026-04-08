@@ -8,11 +8,7 @@ import type {
   TransformOutput,
   Vec3,
 } from '@/types/transformer'
-import {
-  createMockTransformInput,
-  assertForceEquals,
-  assertEmptyOutput,
-} from '@/test/helpers/transformer'
+import { createMockTransformInput, assertEmptyOutput } from '@/test/helpers/transformer'
 
 // Mock transformer implementations for testing
 class MockTransformer extends BaseTransformer {
@@ -28,7 +24,7 @@ class MockTransformer extends BaseTransformer {
     this.outputFn = outputFn
   }
 
-  transform(input: TransformInput): TransformOutput {
+  transform(input: TransformInput, _dt: number): TransformOutput {
     return this.outputFn(input)
   }
 }
@@ -54,13 +50,11 @@ describe('BaseTransformer', () => {
     expect(transformer.enabled).toBe(false)
   })
 
-  test('helper methods work correctly', () => {
-    const transformer = new MockTransformer(10, (input) => {
-      const action = transformer.getAction(input, 'test')
-      const force = transformer.createForce(1, 2, 3)
-      const torque = transformer.createTorque(0, 1, 0)
-      return { force, torque }
-    })
+  test('transform output passes through from mock callback', () => {
+    const transformer = new MockTransformer(10, () => ({
+      force: [1, 2, 3],
+      torque: [0, 1, 0],
+    }))
 
     const input = createMockTransformInput({ actions: { test: 0.5 } })
     const output = transformer.transform(input, 0.016)

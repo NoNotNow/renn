@@ -8,7 +8,7 @@ import { hasEntityId } from '@/types/sceneUserData'
 export function findEntityRootForPicking(obj: THREE.Object3D | null): THREE.Object3D | null {
   let o: THREE.Object3D | null = obj
   while (o) {
-    if (hasEntityId(o.userData as Record<string, unknown>)) return o
+    if (hasEntityId(o.userData)) return o
     o = o.parent
   }
   return null

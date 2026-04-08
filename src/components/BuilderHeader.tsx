@@ -47,7 +47,7 @@ export interface BuilderHeaderProps {
   onTextureBrushRadiusPxChange?: (px: number) => void
   textureBrushAlpha?: number
   onTextureBrushAlphaChange?: (alpha: number) => void
-  fileInputRef: React.RefObject<HTMLInputElement | null>
+  fileInputRef: React.RefObject<HTMLInputElement>
   onFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void
   onResetCamera: () => void
   onApplyDebugForce?: (force: Vec3) => void

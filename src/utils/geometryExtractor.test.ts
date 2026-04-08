@@ -16,12 +16,13 @@ describe('geometryExtractor', () => {
       const mesh = new THREE.Mesh(geometry, material)
       
       const extracted = extractMeshGeometry(mesh, false)
-      
+
       expect(extracted).not.toBeNull()
-      expect(extracted?.vertices.length).toBeGreaterThan(0)
-      expect(extracted?.indices.length).toBeGreaterThan(0)
-      expect(extracted?.vertices.length % 3).toBe(0) // Multiple of 3
-      expect(extracted?.indices.length % 3).toBe(0) // Triangles
+      if (!extracted) return
+      expect(extracted.vertices.length).toBeGreaterThan(0)
+      expect(extracted.indices.length).toBeGreaterThan(0)
+      expect(extracted.vertices.length % 3).toBe(0) // Multiple of 3
+      expect(extracted.indices.length % 3).toBe(0) // Triangles
     })
 
     it('should extract geometry from a sphere with indexed geometry', () => {

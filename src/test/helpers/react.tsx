@@ -29,5 +29,5 @@ export function createMockPersistence(): ReturnType<typeof createIndexedDbPersis
     deleteProject: vi.fn(),
     exportProject: vi.fn(),
     importProject: vi.fn(),
-  }
+  } as unknown as ReturnType<typeof createIndexedDbPersistence>
 }

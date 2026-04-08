@@ -9,13 +9,14 @@ import { WandererTransformer } from './presets/wandererTransformer'
 import { FollowTransformer } from './presets/followTransformer'
 import { createMockTransformInput } from '@/test/helpers/transformer'
 import type { TransformerConfig } from '@/types/transformer'
+import type { Vec3, Rotation } from '@/types/world'
 import { CHARACTER_PRESET } from '@/input/inputPresets'
 
 describe('Transformer Registry', () => {
   test('creates InputTransformer with given priority, mapping and enabled flag', async () => {
     const rawInput = {
       keys: { w: true, a: false, s: false, d: false, space: false, shift: false },
-      wheel: { deltaX: 0, deltaY: 0 },
+      wheel: { deltaX: 0, deltaY: 0, pinchDelta: 0, mouseWheelDelta: 0 },
     }
 
     const config: TransformerConfig = {
@@ -122,7 +123,10 @@ describe('Transformer Registry', () => {
   })
 
   test('creates FollowTransformer from config', async () => {
-    const getter = () => ({ position: [0, 0, 0] as const, rotation: [0, 0, 0] as const })
+    const getter = () => ({
+      position: [0, 0, 0] as Vec3,
+      rotation: [0, 0, 0] as Rotation,
+    })
     const config: TransformerConfig = {
       type: 'follow',
       priority: 5,

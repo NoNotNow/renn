@@ -6,7 +6,7 @@ import {
   estimateHorizontalHalfExtent,
   horizontalCloneSideDirection,
 } from '@/utils/clonePlacement'
-import type { Entity } from '@/types/world'
+import type { Entity, Vec3, Rotation } from '@/types/world'
 
 function boxEntity(overrides: Partial<Entity> = {}): Entity {
   return {
@@ -51,7 +51,7 @@ describe('horizontalCloneSideDirection', () => {
 describe('computeCloneWorldPosition', () => {
   it('preserves Y and offsets in XZ for identity rotation', () => {
     const source = boxEntity({ scale: [1, 1, 1], shape: { type: 'box', width: 1, height: 1, depth: 1 } })
-    const pose = { position: [10, 3, -2] as const, rotation: [0, 0, 0] as const }
+    const pose = { position: [10, 3, -2] as Vec3, rotation: [0, 0, 0] as Rotation }
     const r = 0.5
     const sep = 2 * r + CLONE_PLANE_GAP
     const p = computeCloneWorldPosition(source, pose)

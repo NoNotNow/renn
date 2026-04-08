@@ -113,7 +113,7 @@ describe('trimesh + Use model colors — performance booster (vertex colors)', (
   })
 
   it('keeps vertex color attribute on the visual mesh after decimation (synthetic GLB-style mesh)', async () => {
-    const { root, visualLeaf, entity } = buildTrimeshLikeVertexColorPlane()
+    const { root, visualLeaf } = buildTrimeshLikeVertexColorPlane()
     const gltfScene = getVisualGltfSceneForEntityMesh(root)
     expect(gltfScene).not.toBeNull()
 

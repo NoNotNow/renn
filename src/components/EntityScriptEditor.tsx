@@ -7,6 +7,7 @@ import { ctxDeclFor, CTX_EXTRA_LIB_URI } from '@/scripts/scriptCtxDecl'
 import ScriptDialog from './ScriptDialog'
 import { useEditorUndo } from '@/contexts/EditorUndoContext'
 import { getScriptDef } from '@/scripts/scriptDef'
+import { addMonacoTypescriptExtraLib } from '@/utils/monacoExtraLib'
 
 const SCRIPT_EVENTS: ScriptEvent[] = ['onSpawn', 'onUpdate', 'onCollision', 'onTimer']
 
@@ -76,7 +77,7 @@ export default function EntityScriptEditor({
     if (!monaco) return
     extraLibRef.current?.dispose()
     const content = ctxDeclFor(event)
-    extraLibRef.current = monaco.languages.typescript.javascriptDefaults.addExtraLib(content, CTX_EXTRA_LIB_URI)
+    extraLibRef.current = addMonacoTypescriptExtraLib(monaco, content, CTX_EXTRA_LIB_URI)
     return () => {
       extraLibRef.current?.dispose()
       extraLibRef.current = null
@@ -87,7 +88,7 @@ export default function EntityScriptEditor({
     monacoRef.current = monaco
     extraLibRef.current?.dispose()
     const content = ctxDeclFor(event)
-    extraLibRef.current = monaco.languages.typescript.javascriptDefaults.addExtraLib(content, CTX_EXTRA_LIB_URI)
+    extraLibRef.current = addMonacoTypescriptExtraLib(monaco, content, CTX_EXTRA_LIB_URI)
   }
 
   const handleEditorChange = (value: string | undefined) => {

@@ -33,6 +33,9 @@ function createMockGameAPI(overrides?: Partial<GameAPI>): GameAPI {
     getScore: vi.fn().mockReturnValue(0),
     setDamage: vi.fn(),
     getDamage: vi.fn().mockReturnValue(0),
+    getCurrentAvatar: vi.fn().mockReturnValue(null),
+    setCurrentAvatar: vi.fn().mockReturnValue(false),
+    cycleAvatar: vi.fn(),
     ...overrides,
   }
 }

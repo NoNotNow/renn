@@ -507,9 +507,11 @@ export function installBuilderPickAndGizmo(
           } catch {
             /* ignore */
           }
+          const uv = hit.uv
+          if (!uv) return
           void paintTextureBlob(strokeBlob, {
-            u: hit.uv.x,
-            v: hit.uv.y,
+            u: uv.x,
+            v: uv.y,
             radiusPx: getStrokeRadiusPx(),
             color: getStrokeColor(),
           })

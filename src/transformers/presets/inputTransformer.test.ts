@@ -4,7 +4,10 @@ import { CHARACTER_PRESET, AIRPLANE_PRESET } from '@/input/inputPresets'
 import { createMockTransformInput } from '@/test/helpers/transformer'
 import type { RawInput } from '@/types/transformer'
 
-function createRawInput(overrides?: Partial<RawInput>): RawInput {
+function createRawInput(overrides?: {
+  keys?: Partial<RawInput['keys']>
+  wheel?: Partial<RawInput['wheel']>
+}): RawInput {
   return {
     keys: {
       w: false,
@@ -13,14 +16,16 @@ function createRawInput(overrides?: Partial<RawInput>): RawInput {
       d: false,
       space: false,
       shift: false,
-      ...overrides?.keys,
+      ...(overrides?.keys ?? {}),
     },
     wheel: {
       deltaX: 0,
       deltaY: 0,
+      pinchDelta: 0,
+      mouseWheelDelta: 0,
       ...overrides?.wheel,
     },
-  }
+  } as RawInput
 }
 
 describe('InputTransformer', () => {
