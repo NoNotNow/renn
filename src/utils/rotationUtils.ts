@@ -97,9 +97,24 @@ export function eulerDeltaAroundAxis(
  * @param quat - Rapier quaternion object
  * @returns Euler angles [x, y, z] in radians
  */
+const _rapierToEulerQuat = new THREE.Quaternion()
+const _rapierToEulerEuler = new THREE.Euler()
+
 export function rapierQuaternionToEuler(quat: { x: number; y: number; z: number; w: number }): Rotation {
   const threeQuat = new THREE.Quaternion(quat.x, quat.y, quat.z, quat.w)
   return quaternionToEuler(threeQuat)
+}
+
+/** Writes Euler XYZ (radians) into `out`; reuses internal Three.js objects (not thread-safe). */
+export function rapierQuaternionToEulerInto(
+  quat: { x: number; y: number; z: number; w: number },
+  out: Rotation,
+): void {
+  _rapierToEulerQuat.set(quat.x, quat.y, quat.z, quat.w)
+  _rapierToEulerEuler.setFromQuaternion(_rapierToEulerQuat, 'XYZ')
+  out[0] = _rapierToEulerEuler.x
+  out[1] = _rapierToEulerEuler.y
+  out[2] = _rapierToEulerEuler.z
 }
 
 /**

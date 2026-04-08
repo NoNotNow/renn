@@ -30,16 +30,23 @@ export class RenderItem {
     return this.entity.position ?? DEFAULT_POSITION
   }
 
-  /** Writes position to body + mesh (and mesh only for static). Syncs serialised entity for static reads. */
+  /** Writes position to body + mesh. Updates `entity.position` in place (same object as `userData.entity` when set). */
   setPosition(v: Vec3): void {
-    const [x, y, z] = v
+    this.setPositionXYZ(v[0], v[1], v[2])
+  }
+
+  /** Same as {@link setPosition} but avoids allocating a temporary `Vec3` (e.g. game API). */
+  setPositionXYZ(x: number, y: number, z: number): void {
     this.mesh.position.set(x, y, z)
     if (this.body) {
       this.body.setTranslation({ x, y, z }, true)
     }
-    this.entity = { ...this.entity, position: v }
-    if (this.mesh.userData.entity !== undefined) {
-      this.mesh.userData.entity = this.entity
+    if (!this.entity.position) {
+      this.entity.position = [x, y, z]
+    } else {
+      this.entity.position[0] = x
+      this.entity.position[1] = y
+      this.entity.position[2] = z
     }
   }
 
@@ -58,23 +65,29 @@ export class RenderItem {
     return this.entity.rotation ?? DEFAULT_ROTATION
   }
 
-  /** Writes rotation to body + mesh (and mesh only for static).
-   *  Re-applies visual base quaternion so the mesh renders correctly.
-   *  Syncs serialised entity for static reads. */
+  /** Writes rotation to body + mesh. Re-applies visual base quaternion. Updates `entity.rotation` in place. */
   setRotation(v: Rotation): void {
-    const quat = new THREE.Quaternion().setFromEuler(new THREE.Euler(v[0], v[1], v[2], 'XYZ'))
+    this.setRotationEuler(v[0], v[1], v[2])
+  }
+
+  /** Same as {@link setRotation} without a temporary `Rotation` array. */
+  setRotationEuler(rx: number, ry: number, rz: number): void {
+    const quat = new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz, 'XYZ'))
     const baseQ = this.mesh.userData.visualBaseQuaternion as THREE.Quaternion | undefined
     if (baseQ) {
       quat.premultiply(baseQ)
     }
     this.mesh.quaternion.copy(quat)
     if (this.body) {
-      const rapierQuat = eulerToRapierQuaternion(v)
+      const rapierQuat = eulerToRapierQuaternion([rx, ry, rz])
       this.body.setRotation(rapierQuat, true)
     }
-    this.entity = { ...this.entity, rotation: v }
-    if (this.mesh.userData.entity !== undefined) {
-      this.mesh.userData.entity = this.entity
+    if (!this.entity.rotation) {
+      this.entity.rotation = [rx, ry, rz]
+    } else {
+      this.entity.rotation[0] = rx
+      this.entity.rotation[1] = ry
+      this.entity.rotation[2] = rz
     }
   }
 

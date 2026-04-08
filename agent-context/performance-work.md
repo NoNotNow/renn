@@ -52,7 +52,7 @@ Use the **same heavy project** as the Firefox marker export so results are compa
 |--------|------|--------|
 | [x] | **Fix: preallocate cached-transform objects** in `rapierPhysics.ts` — reuse `{ x, y, z }` / `{ x, y, z, w }` structs per body rather than creating new ones each step; reuse or clear a single `forceMap` | Implemented: per-entity `CachedTransform` reuse in `step()`; `contactForceByPair` map cleared each step. |
 | [ ] | Profile remaining **allocation sites** (browser memory tool or `performance.measure` around hot loops) | After the physics fix, identify next largest allocators. Focus on: scripts/transformer per-frame arrays, `map`/`filter` in rAF. |
-| [ ] | Reduce remaining **per-frame object creation** (reuse `Vector3`/buffers; avoid `map`/`filter` allocating in rAF) | Align with existing hot-path style in `ScriptRunner` / registry. |
+| [~] | Reduce remaining **per-frame object creation** (reuse `Vector3`/buffers; avoid `map`/`filter` allocating in rAF) | **2026-04-08:** `executeTransformers` reuses one scratch `TransformInput` + fixed Vec3 buffers; `rapierQuaternionToEulerInto`; follow-target pose via `_leadPoseRef` (no alloc when pose comes from physics cache). `InputTransformer` clears/fills `actions` in place (`clearActionRecord`). `RenderItem` pose: in-place `entity.position`/`rotation`; `setPositionXYZ` / `setRotationEuler` for script API (no temp arrays / no entity object spread). Remaining: `TransformerChain.execute` still allocates; `ScriptRunner`; `applyInputMapping` `{}`. |
 | [ ] | Audit **React** updates during play: avoid unnecessary state updates that reconcile large trees every frame | Builder already throttles some camera writes; extend pattern where needed. |
 
 ---
@@ -102,7 +102,7 @@ Use the **same heavy project** as the Firefox marker export so results are compa
 |--------|------|--------|
 | [ ] | Reduce **`onUpdate`** work: early returns, timers, avoid **`findEntities` / raycasts** every frame | Profile-guided. |
 | [ ] | Short **timer intervals** in scripts: only use aggressive intervals when necessary | |
-| [ ] | Long **transformer chains** / expensive types (**follow**, **wanderer**): fewer entities or cheaper configs | |
+| [~] | Long **transformer chains** / expensive types (**follow**, **wanderer**): fewer entities or cheaper configs | Transformer **runtime** alloc reduced: shared scratch input per entity per frame (`renderItemRegistry.ts`); follow lead pose reuse when target has physics cache. |
 
 ---
 
@@ -110,13 +110,13 @@ Use the **same heavy project** as the Firefox marker export so results are compa
 
 **Evidence (updated 2026-04-08):** Two confirmed deopt sites:
 - `renderItemRegistry.ts:474` (`Invalidate`) — branch around plane/ring visual quaternion in `updateShape`. Still appearing in new trace.
-- `renderItem.ts:34` (`Bailout at GetProp`) — inside `setPosition`; `this.mesh.userData.entity` property access is polymorphic (entity shape changes).
+- `renderItem.ts` (`Bailout at GetProp`) — was inside `setPosition` + `userData.entity` sync; **2026-04-08** removed per-call `userData.entity` reassignment on pose writes (in-place entity mutation; same object reference).
 
 | Status | Item | Notes |
 |--------|------|--------|
 | [ ] | Confirm **how often** `updateShape` (registry:474) and `setPosition` (renderItem:34) run in the bad play scenario | Bailouts only matter if these paths are hot per frame. |
 | [x] | registry:474 — avoid **`delete` on `userData`** in hot path | `visualBaseQuaternion` cleared with `= undefined` instead of `delete` (~line 480). |
-| [ ] | renderItem:34 — investigate `mesh.userData.entity` write in `setPosition`; if this path is hot, consider removing the redundant `userData` sync | `setPosition` is called every frame for physics-driven bodies (`syncFromPhysics`). The `userData.entity` write may be unnecessary post-init. |
+| [x] | renderItem — remove redundant **`userData.entity` reassignment** on pose updates | Physics→mesh sync uses `syncFromPhysics` (no `setPosition`). Pose APIs now mutate `entity` in place; `userData.entity` keeps the same reference. |
 
 ---
 
@@ -136,7 +136,7 @@ Use the **same heavy project** as the Firefox marker export so results are compa
 
 | Status | Item | Notes |
 |--------|------|--------|
-| [ ] | **Avoid mid-play blob decodes**: texture compositor output (blob: URLs) should be fully decoded and uploaded to GPU (via `createImageBitmap` or canvas) **before** entering the play loop, not lazily during rAF | This is the single largest observed blocking event in the texture path. |
+| [~] | **Avoid mid-play blob decodes**: texture compositor output (blob: URLs) should be fully decoded and uploaded to GPU (via `createImageBitmap` or canvas) **before** entering the play loop, not lazily during rAF | **Partial:** [`scheduleMaterialTextureDecodePrefetch`](src/loader/prefetchMaterialTextures.ts) runs after `SceneView` load (idle callbacks, `createImageBitmap` + `close()` per `material.map` id). Does not replace `TextureLoader` first use; reduces likelihood decode aligns with rAF. |
 | [ ] | Downscale large **composite** / material maps; share **asset ids** across entities | Less VRAM, fewer unique textures. Smaller blobs → faster decode even if timing issue is not fixed. |
 | [ ] | Fewer **layers** in texture documents where possible | Compositor cost on edit/bake. |
 
@@ -150,7 +150,7 @@ Use the **same heavy project** as the Firefox marker export so results are compa
 
 **World paint:** [`prepareWorldPaintStroke`](src/pages/Builder.tsx) returns layer blobs from `assets`; first use can coincide with stroke start — ensure GPU upload path does not duplicate work already done by [`TextureMaker`](src/components/TextureMaker/TextureMaker.tsx) `ImageBitmap` cache where applicable.
 
-**Next implementation directions:** (1) After world/assets are ready, **prefetch** critical `map` / model assets through the resolver (or `createImageBitmap` + `Texture` from image) **before** starting play, or in an idle callback outside animation frames. (2) For compositor exports, reuse the **bitmap cache** pattern from TextureMaker for any code path that currently hits `TextureLoader` + blob URL on first paint.
+**Next implementation directions:** (1) ~~After world/assets are ready, prefetch~~ **Done (idle bitmap decode)** for entity `material.map` ids — see [`prefetchMaterialTextures.ts`](src/loader/prefetchMaterialTextures.ts). Optional: cache `THREE.Texture` in resolver to avoid second decode on material build. (2) For compositor exports, reuse the **bitmap cache** pattern from TextureMaker for any code path that currently hits `TextureLoader` + blob URL on first paint.
 
 ---
 
@@ -163,6 +163,7 @@ Use the **same heavy project** as the Firefox marker export so results are compa
 | 2026-04-08 | §1: Frame timing overlay (`frameTiming.ts`, `runSceneFrame`, `FrameStatsOverlay`, View → Frame stats). §3 HUD: opacity/scale pulses. §7: `userData` clear without `delete`. §8: Builder live pose poll 220ms. |
 | 2026-04-08 | Updated from detailed Firefox marker export: §1 concrete rAF numbers + 331ms LongTask; §2 GCMajor→DiscardJit cascade + rapierPhysics allocation hot spot; §4 GPU/shader evidence; §5 Rapier JIT deopt; §7 renderItem.ts:34 new bailout; §9 blob decode timings (51ms, 241ms mid-frame). |
 | 2026-04-08 | §2: `rapierPhysics.ts` — reuse `CachedTransform` in place; `contactForceByPair` map reused with `clear()`. §1: flame-chart how-to. §9: code trace for blob/texture paths (`assetResolverImpl`, `SceneView` skybox, Builder preview). |
+| 2026-04-08 | §2/§6: `RenderItemRegistry.executeTransformers` scratch `TransformInput`; `InputTransformer` in-place `actions`; `rapierQuaternionToEulerInto` (`rotationUtils.ts`). §7: pose updates in-place; `setPositionXYZ` / `setRotationEuler`; `SceneView` game API uses them. §9: idle `createImageBitmap` prefetch (`prefetchMaterialTextures.ts` + `SceneView`). |
 
 ---
 
@@ -170,7 +171,9 @@ Use the **same heavy project** as the Firefox marker export so results are compa
 
 - Hot loop: `src/runtime/sceneFrameLoop.ts`, `src/runtime/frameTiming.ts`, `src/components/SceneView.tsx`, `src/components/FrameStatsOverlay.tsx`
 - Registry / `updateShape`: `src/runtime/renderItemRegistry.ts` (~474)
-- Render item: `src/runtime/renderItem.ts` (~34)
+- Render item: `src/runtime/renderItem.ts`
+- Idle texture decode prefetch: `src/loader/prefetchMaterialTextures.ts`
+- Euler helpers: `src/utils/rotationUtils.ts` (`rapierQuaternionToEulerInto`)
 - Physics step + cached transforms: `src/physics/rapierPhysics.ts` (`step()` ~427+, `contactForceByPair`, `dispose`)
 - Blob URL textures: `src/loader/assetResolverImpl.ts`
 - HUD CSS: search `rennHudPulse` / `rennHudPulseScore` / `rennHudPulseDamage`

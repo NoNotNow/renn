@@ -26,7 +26,7 @@ describe('RenderItem', () => {
     expect(item.getPosition()).toEqual([1, 2, 3])
   })
 
-  it('setPosition updates mesh and not entity when no body', () => {
+  it('setPosition updates mesh and entity.position in place when no body', () => {
     const entity: Entity = { id: 'static', position: [0, 0, 0] }
     const mesh = new THREE.Mesh(
       new THREE.BoxGeometry(1, 1, 1),
@@ -37,7 +37,7 @@ describe('RenderItem', () => {
     expect(mesh.position.x).toBe(7)
     expect(mesh.position.y).toBe(8)
     expect(mesh.position.z).toBe(9)
-    expect(entity.position).toEqual([0, 0, 0])
+    expect(entity.position).toEqual([7, 8, 9])
   })
 
   it('hasPhysicsBody returns false when body is null', () => {

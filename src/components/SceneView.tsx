@@ -11,6 +11,10 @@ import type {
   AvatarFocusSnapshot,
 } from '@/types/world'
 import { createAssetResolverFromGetter, type DisposableAssetResolver } from '@/loader/assetResolverImpl'
+import {
+  collectMaterialMapAssetIds,
+  scheduleMaterialTextureDecodePrefetch,
+} from '@/loader/prefetchMaterialTextures'
 import { DEFAULT_GRAVITY, DEFAULT_ROTATION } from '@/types/world'
 import { eulerToQuaternion } from '@/utils/rotationUtils'
 import type { LoadedEntity } from '@/loader/loadWorld'
@@ -416,6 +420,13 @@ function SceneViewInner({
       }
       assetResolverRef.current = createAssetResolverFromGetter(() => assetsRef.current)
 
+      const materialMapIds = collectMaterialMapAssetIds(loadedWorld.entities)
+      scheduleMaterialTextureDecodePrefetch(
+        materialMapIds,
+        () => assetsRef.current,
+        () => cancelled || effectIdRef.current !== currentEffectId,
+      )
+
       // Camera setup
       cam = new THREE.PerspectiveCamera(50, 1, 0.1, 1000)
       
@@ -491,11 +502,11 @@ function SceneViewInner({
       const getPositionForGame = (id: string): Vec3 | null =>
         registryRef.current?.getPosition(id) ?? null
       const setPositionForGame = (id: string, x: number, y: number, z: number): void =>
-        registryRef.current?.setPosition(id, [x, y, z])
+        registryRef.current?.setPositionXYZ(id, x, y, z)
       const getRotationForGame = (id: string): Vec3 | null =>
         registryRef.current?.getRotation(id) ?? null
       const setRotationForGame = (id: string, x: number, y: number, z: number): void =>
-        registryRef.current?.setRotation(id, [x, y, z])
+        registryRef.current?.setRotationEuler(id, x, y, z)
       const getUpVectorForGame = (id: string): Vec3 | null =>
         registryRef.current?.getUpVector(id) ?? null
       const getForwardVectorForGame = (id: string): Vec3 | null =>

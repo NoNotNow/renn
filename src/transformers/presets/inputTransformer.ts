@@ -13,7 +13,7 @@ import type {
   TransformOutput,
   InputMapping,
 } from '@/types/transformer'
-import { EMPTY_TRANSFORM_OUTPUT } from '@/types/transformer'
+import { clearActionRecord, EMPTY_TRANSFORM_OUTPUT } from '@/types/transformer'
 import { applyInputMapping } from '@/input/inputMapping'
 import { CHARACTER_PRESET } from '@/input/inputPresets'
 import type { RawInput } from '@/types/transformer'
@@ -71,23 +71,24 @@ export class InputTransformer extends BaseTransformer {
   transform(input: TransformInput, _dt: number): TransformOutput {
     const gate = this.controlledEntityIdRef
     if (gate !== null && gate.current !== null && input.entityId !== gate.current) {
-      input.actions = {}
+      clearActionRecord(input.actions)
       return EMPTY_TRANSFORM_OUTPUT
     }
 
     // Get current raw input
     const rawInput = this.rawInputGetter()
     if (!rawInput) {
-      // No input available, clear actions
-      input.actions = {}
+      clearActionRecord(input.actions)
       return EMPTY_TRANSFORM_OUTPUT
     }
 
     // Apply mapping to get actions
     const actions = applyInputMapping(rawInput, this.mapping)
 
-    // Merge into input actions (overwrite existing)
-    input.actions = { ...input.actions, ...actions }
+    // Merge into input actions in place (mapped keys overwrite; other keys preserved)
+    for (const k of Object.keys(actions)) {
+      input.actions[k] = actions[k]!
+    }
 
     // InputTransformer doesn't produce forces - it only fills actions
     return EMPTY_TRANSFORM_OUTPUT

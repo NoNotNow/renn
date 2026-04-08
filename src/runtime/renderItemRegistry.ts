@@ -5,15 +5,16 @@ import type { Vec3, Rotation, Entity } from '@/types/world'
 import { createShapeGeometry, materialFromRef } from '@/loader/createPrimitive'
 import type { DisposableAssetResolver } from '@/loader/assetResolverImpl'
 import { RenderItem } from './renderItem'
-import { rapierQuaternionToEuler } from '@/utils/rotationUtils'
+import { rapierQuaternionToEulerInto } from '@/utils/rotationUtils'
 import { createTransformerChain } from '@/transformers/transformerRegistry'
 import type {
   EntityWorldPose,
+  EnvironmentState,
   TransformInput,
   TransformerConfig,
   RawInput,
 } from '@/types/transformer'
-import { createEmptyTransformInput } from '@/types/transformer'
+import { clearActionRecord } from '@/types/transformer'
 import {
   bakeMeshScaleIntoModelScaleEntity,
   bakeScaleIntoPrimitiveShape,
@@ -34,6 +35,42 @@ export class RenderItemRegistry {
   /** Reused buffer for addVectorToPosition to avoid allocation on hot path. */
   private _addVecBuf: Vec3 = [0, 0, 0]
 
+  /** Reused `TransformInput` for executeTransformers (one entity per iteration; cleared each time). */
+  private readonly _tfPosition: Vec3 = [0, 0, 0]
+  private readonly _tfRotation: Rotation = [0, 0, 0]
+  private readonly _tfVelocity: Vec3 = [0, 0, 0]
+  private readonly _tfAngularVelocity: Vec3 = [0, 0, 0]
+  private readonly _tfAccumulatedForce: Vec3 = [0, 0, 0]
+  private readonly _tfAccumulatedTorque: Vec3 = [0, 0, 0]
+  private readonly _tfActions: Record<string, number> = {}
+  private readonly _tfEnvironment: EnvironmentState = {}
+  private readonly _tfInput: TransformInput
+  /** Valid until the next `getEntityWorldPoseForTransformers` call (follow copies values immediately). */
+  private readonly _leadPosePosition: Vec3 = [0, 0, 0]
+  private readonly _leadPoseRotation: Rotation = [0, 0, 0]
+  private readonly _leadPoseRef: EntityWorldPose
+  private readonly _addRotationBuf: Rotation = [0, 0, 0]
+
+  private constructor() {
+    this._tfInput = {
+      actions: this._tfActions,
+      position: this._tfPosition,
+      rotation: this._tfRotation,
+      velocity: this._tfVelocity,
+      angularVelocity: this._tfAngularVelocity,
+      accumulatedForce: this._tfAccumulatedForce,
+      accumulatedTorque: this._tfAccumulatedTorque,
+      environment: this._tfEnvironment,
+      deltaTime: 0,
+      entityId: '',
+      target: undefined,
+    }
+    this._leadPoseRef = {
+      position: this._leadPosePosition,
+      rotation: this._leadPoseRotation,
+    }
+  }
+
   /**
    * World pose for another entity (e.g. follow transformer). Uses the same physics
    * cache as executeTransformers when present; otherwise render item pose.
@@ -41,14 +78,23 @@ export class RenderItemRegistry {
   private getEntityWorldPoseForTransformers(id: string): EntityWorldPose | null {
     const cached = this.physicsWorld?.getCachedTransform(id)
     if (cached) {
-      return {
-        position: [cached.position.x, cached.position.y, cached.position.z],
-        rotation: rapierQuaternionToEuler(cached.rotation),
-      }
+      this._leadPosePosition[0] = cached.position.x
+      this._leadPosePosition[1] = cached.position.y
+      this._leadPosePosition[2] = cached.position.z
+      rapierQuaternionToEulerInto(cached.rotation, this._leadPoseRotation)
+      return this._leadPoseRef
     }
     const item = this.items.get(id)
     if (!item) return null
-    return { position: item.getPosition(), rotation: item.getRotation() }
+    const p = item.getPosition()
+    const r = item.getRotation()
+    this._leadPosePosition[0] = p[0]
+    this._leadPosePosition[1] = p[1]
+    this._leadPosePosition[2] = p[2]
+    this._leadPoseRotation[0] = r[0]
+    this._leadPoseRotation[1] = r[1]
+    this._leadPoseRotation[2] = r[2]
+    return this._leadPoseRef
   }
 
   /**
@@ -206,6 +252,11 @@ export class RenderItemRegistry {
     this.items.get(id)?.setPosition(v)
   }
 
+  /** Hot path: no `Vec3` allocation (e.g. scripts / game API). */
+  setPositionXYZ(id: string, x: number, y: number, z: number): void {
+    this.items.get(id)?.setPositionXYZ(x, y, z)
+  }
+
   getRotation(id: string): Rotation | null {
     const item = this.items.get(id)
     return item ? item.getRotation() : null
@@ -229,9 +280,14 @@ export class RenderItemRegistry {
     this.items.get(id)?.setRotation(v)
   }
 
+  /** Hot path: no `Rotation` array allocation. */
+  setRotationEuler(id: string, rx: number, ry: number, rz: number): void {
+    this.items.get(id)?.setRotationEuler(rx, ry, rz)
+  }
+
   /** Set entity rotation to identity [0, 0, 0] (Euler radians). */
   resetRotation(id: string): void {
-    this.setRotation(id, [0, 0, 0])
+    this.setRotationEuler(id, 0, 0, 0)
   }
 
   getScale(id: string): Vec3 | null {
@@ -564,6 +620,9 @@ export class RenderItemRegistry {
     if (!this.physicsWorld) return
     this.physicsWorld.resetAllForces()
 
+    const input = this._tfInput
+    const env = this._tfEnvironment
+
     for (const item of this.items.values()) {
       if (!item.transformerChain) continue
       if (!item.hasPhysicsBody()) continue
@@ -572,38 +631,60 @@ export class RenderItemRegistry {
       const cached = this.physicsWorld.getCachedTransform(item.entity.id)
       if (!cached) continue
 
-      const position: Vec3 = [cached.position.x, cached.position.y, cached.position.z]
-      const rotation: Rotation = rapierQuaternionToEuler(cached.rotation)
-      
-      // Get velocity from body (if available)
       const body = this.physicsWorld.getBody(item.entity.id)
-      let velocity: Vec3 = [0, 0, 0]
-      let angularVelocity: Vec3 = [0, 0, 0]
+
+      clearActionRecord(this._tfActions)
+      input.target = undefined
+      input.entityId = item.entity.id
+      input.deltaTime = dt
+      this._tfAccumulatedForce[0] = 0
+      this._tfAccumulatedForce[1] = 0
+      this._tfAccumulatedForce[2] = 0
+      this._tfAccumulatedTorque[0] = 0
+      this._tfAccumulatedTorque[1] = 0
+      this._tfAccumulatedTorque[2] = 0
+
+      this._tfPosition[0] = cached.position.x
+      this._tfPosition[1] = cached.position.y
+      this._tfPosition[2] = cached.position.z
+      rapierQuaternionToEulerInto(cached.rotation, this._tfRotation)
+
       if (body) {
         const linvel = body.linvel()
+        this._tfVelocity[0] = linvel.x
+        this._tfVelocity[1] = linvel.y
+        this._tfVelocity[2] = linvel.z
         const angvel = body.angvel()
-        velocity = [linvel.x, linvel.y, linvel.z]
-        angularVelocity = [angvel.x, angvel.y, angvel.z]
+        this._tfAngularVelocity[0] = angvel.x
+        this._tfAngularVelocity[1] = angvel.y
+        this._tfAngularVelocity[2] = angvel.z
+      } else {
+        this._tfVelocity[0] = 0
+        this._tfVelocity[1] = 0
+        this._tfVelocity[2] = 0
+        this._tfAngularVelocity[0] = 0
+        this._tfAngularVelocity[1] = 0
+        this._tfAngularVelocity[2] = 0
       }
 
-      // Build transform input
-      const input: TransformInput = createEmptyTransformInput(item.entity.id, dt)
-      input.position = position
-      input.rotation = rotation
-      input.velocity = velocity
-      input.angularVelocity = angularVelocity
       if (wind) {
-        input.environment.wind = wind
+        env.wind = wind
+      } else {
+        delete env.wind
       }
       // TODO: Add ground detection
-      input.environment.isGrounded = false
+      env.isGrounded = false
       const touching = this.physicsWorld.isEntityTouchingAny(item.entity.id) ?? false
-      input.environment.isTouchingObject = touching
+      env.isTouchingObject = touching
       if (touching) {
         const support = this.physicsWorld.getAverageSupportVelocity(item.entity.id)
         if (support) {
-          input.environment.supportVelocity = support
+          env.supportVelocity = support
+        } else {
+          delete env.supportVelocity
         }
+      } else {
+        delete env.supportVelocity
       }
 
       // Execute transformer chain
@@ -621,12 +702,10 @@ export class RenderItemRegistry {
       }
       if (output.addRotation != null && body) {
         // Component-wise Euler delta [x,y,z] rad added to current rotation; angular velocity cleared afterward.
-        const newRotation: Rotation = [
-          rotation[0] + output.addRotation[0],
-          rotation[1] + output.addRotation[1],
-          rotation[2] + output.addRotation[2],
-        ]
-        this.physicsWorld.setRotation(item.entity.id, newRotation)
+        this._addRotationBuf[0] = this._tfRotation[0] + output.addRotation[0]
+        this._addRotationBuf[1] = this._tfRotation[1] + output.addRotation[1]
+        this._addRotationBuf[2] = this._tfRotation[2] + output.addRotation[2]
+        this.physicsWorld.setRotation(item.entity.id, this._addRotationBuf)
         this.physicsWorld.setAngularVelocity(item.entity.id, 0, 0, 0)
       }
       if (output.setPose && body) {

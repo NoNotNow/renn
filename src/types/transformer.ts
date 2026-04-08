@@ -270,6 +270,13 @@ export const EMPTY_TRANSFORM_OUTPUT: TransformOutput = Object.freeze({
   earlyExit: false,
 })
 
+/** Remove all keys in place (reuse the same `actions` object across frames). */
+export function clearActionRecord(actions: Record<string, number>): void {
+  for (const k of Object.keys(actions)) {
+    delete actions[k]
+  }
+}
+
 export function createEmptyTransformInput(
   entityId: string,
   dt: number,
