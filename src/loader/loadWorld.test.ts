@@ -47,7 +47,7 @@ describe('loadWorld', () => {
     }
   })
 
-  it('sets castShadow and receiveShadow on every mesh in hierarchy (non-plane)', async () => {
+  it('sets castShadow on default-size non-plane meshes and receiveShadow on all meshes', async () => {
     const world: RennWorld = {
       version: '1.0',
       world: { gravity: [0, -9.81, 0] },
@@ -58,6 +58,23 @@ describe('loadWorld', () => {
     expect(meshes.length).toBeGreaterThanOrEqual(1)
     for (const m of meshes) {
       expect(m.castShadow).toBe(true)
+      expect(m.receiveShadow).toBe(true)
+    }
+  })
+
+  it('skips castShadow for very small non-plane meshes (world AABB under threshold)', async () => {
+    const tiny = createDefaultEntity('box')
+    tiny.scale = [0.1, 0.1, 0.1]
+    const world: RennWorld = {
+      version: '1.0',
+      world: { gravity: [0, -9.81, 0] },
+      entities: [tiny],
+    }
+    const { entities } = await loadWorld(world)
+    const meshes = collectMeshes(entities[0].mesh)
+    expect(meshes.length).toBeGreaterThanOrEqual(1)
+    for (const m of meshes) {
+      expect(m.castShadow).toBe(false)
       expect(m.receiveShadow).toBe(true)
     }
   })

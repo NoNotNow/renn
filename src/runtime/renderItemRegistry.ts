@@ -21,6 +21,10 @@ import {
   isModelBackedMesh,
 } from '@/editor/bakeScaleIntoShape'
 import { syncShapeWireframeOverlay } from '@/loader/shapeWireframeOverlay'
+import { updateMeshCastShadowFromWorldAabb } from '@/utils/shadowBounds'
+
+const shapeUpdateShadowBox = new THREE.Box3()
+const shapeUpdateShadowSize = new THREE.Vector3()
 
 /**
  * Registry of render items: one per entity. Owns body→mesh sync each frame.
@@ -50,6 +54,8 @@ export class RenderItemRegistry {
   private readonly _leadPoseRotation: Rotation = [0, 0, 0]
   private readonly _leadPoseRef: EntityWorldPose
   private readonly _addRotationBuf: Rotation = [0, 0, 0]
+  /** Reused for `getForwardVectorInto` / HUD (avoids per-call Vec3 allocation). */
+  private readonly _forwardScratch = new THREE.Vector3()
 
   private constructor() {
     this._tfInput = {
@@ -465,13 +471,26 @@ export class RenderItemRegistry {
   }
 
   /**
+   * World-space forward (−Z in local space) into `out`. Returns false if pose is unavailable.
+   */
+  getForwardVectorInto(id: string, out: Vec3): boolean {
+    const q = this.getRotationAsQuaternion(id)
+    if (!q) return false
+    this._forwardScratch.set(0, 0, -1).applyQuaternion(q)
+    out[0] = this._forwardScratch.x
+    out[1] = this._forwardScratch.y
+    out[2] = this._forwardScratch.z
+    return true
+  }
+
+  /**
    * World-space forward direction for the entity (Three.js: -Z). Compensates for visual base quaternion.
    */
   getForwardVector(id: string): Vec3 | null {
     const q = this.getRotationAsQuaternion(id)
     if (!q) return null
-    const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(q)
-    return [fwd.x, fwd.y, fwd.z]
+    this._forwardScratch.set(0, 0, -1).applyQuaternion(q)
+    return [this._forwardScratch.x, this._forwardScratch.y, this._forwardScratch.z]
   }
 
   /** First `car2` transformer's wheel angle (−1…1), or null if none. */
@@ -544,8 +563,13 @@ export class RenderItemRegistry {
     mesh.geometry = newGeometry
     oldGeometry.dispose()
 
-    // Update shadow casting (planes don't cast shadows)
-    mesh.castShadow = newEntity.shape?.type === 'plane' ? false : true
+    mesh.updateMatrixWorld(true)
+    updateMeshCastShadowFromWorldAabb(
+      mesh,
+      newEntity.shape?.type === 'plane',
+      shapeUpdateShadowBox,
+      shapeUpdateShadowSize,
+    )
 
     // Update entity reference so future operations (e.g. mass change) use the new shape
     item.entity = newEntity

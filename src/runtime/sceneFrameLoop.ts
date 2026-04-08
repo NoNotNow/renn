@@ -21,6 +21,9 @@ import { emptySceneFrameTiming, type SceneFrameTiming } from '@/runtime/frameTim
 
 export const SCENE_FIXED_DT = 1 / 60
 
+const hudVelScratch: Vec3 = [0, 0, 0]
+const hudFwdScratch: Vec3 = [0, 0, 0]
+
 export interface SceneFrameLoopInputs {
   isCancelled: () => boolean
   fixedDt: number
@@ -137,15 +140,19 @@ export function runSceneFrame(input: SceneFrameLoopInputs): void {
   if (pw && runPhysics && !isCancelled()) {
     try {
       const currentTime = timeRef.current
-      activeDebugForcesRef.current = activeDebugForcesRef.current.filter((debugForce) => {
+      const dbg = activeDebugForcesRef.current
+      let w = 0
+      for (let r = 0; r < dbg.length; r++) {
+        const debugForce = dbg[r]!
         if (currentTime >= debugForce.endTime) {
-          return false
+          continue
         }
         if (!editNav) {
           pw.applyForce(debugForce.entityId, debugForce.force[0], debugForce.force[1], debugForce.force[2])
         }
-        return true
-      })
+        dbg[w++] = debugForce
+      }
+      dbg.length = w
 
       if (!editNav) {
         if (registryRef.current) {
@@ -267,10 +274,11 @@ export function runSceneFrame(input: SceneFrameLoopInputs): void {
     const pwLoop = physicsRef.current
     const reg = registryRef.current
     if (targetId && pwLoop && reg) {
-      const vel = pwLoop.getLinearVelocity(targetId)
-      const forward = reg.getForwardVector(targetId)
-      if (vel && forward) {
-        speedMs = getForwardSpeed(vel, forward)
+      if (
+        pwLoop.getLinearVelocityInto(targetId, hudVelScratch) &&
+        reg.getForwardVectorInto(targetId, hudFwdScratch)
+      ) {
+        speedMs = getForwardSpeed(hudVelScratch, hudFwdScratch)
       }
       wheelAngle = reg.getCar2WheelAngle(targetId) ?? 0
     }
@@ -300,6 +308,10 @@ export function runSceneFrame(input: SceneFrameLoopInputs): void {
   if (rend && loadedScene && cam && !isCancelled()) {
     syncDirectionalLightShadowFocusToCamera(loadedScene, cam)
     rend.render(loadedScene, cam)
+    if (timing) {
+      timing.renderCalls = rend.info.render.calls
+      timing.renderTriangles = rend.info.render.triangles
+    }
   }
   if (timing) {
     const n = performance.now()

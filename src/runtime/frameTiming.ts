@@ -19,6 +19,10 @@ export interface SceneFrameTiming {
   hudMs: number
   /** Shadow focus sync + `WebGLRenderer.render` */
   renderMs: number
+  /** From `WebGLRenderer.info.render` after the last `render()` (draw calls). */
+  renderCalls: number
+  /** From `WebGLRenderer.info.render` after the last `render()` (triangle count). */
+  renderTriangles: number
 }
 
 export function emptySceneFrameTiming(): SceneFrameTiming {
@@ -31,5 +35,7 @@ export function emptySceneFrameTiming(): SceneFrameTiming {
     cameraMs: 0,
     hudMs: 0,
     renderMs: 0,
+    renderCalls: 0,
+    renderTriangles: 0,
   }
 }

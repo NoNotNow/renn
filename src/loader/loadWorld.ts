@@ -16,6 +16,7 @@ import { eulerToQuaternion } from '@/utils/rotationUtils'
 import {
   computeDirectionalShadowCameraExtent,
   DIRECTIONAL_LIGHT_OFFSET_DISTANCE,
+  updateMeshCastShadowFromWorldAabb,
 } from '@/utils/shadowBounds'
 import { ensureMeshoptSimplifierReady } from '@/utils/meshSimplifier'
 
@@ -81,8 +82,8 @@ export async function loadWorld(
   dirLight.position.set(dx * dist, dy * dist, dz * dist)
   dirLight.target.position.set(0, 0, 0)
   dirLight.castShadow = true
-  dirLight.shadow.mapSize.width = 2048
-  dirLight.shadow.mapSize.height = 2048
+  dirLight.shadow.mapSize.width = 1024
+  dirLight.shadow.mapSize.height = 1024
   dirLight.shadow.bias = -0.0001
   const shadowCam = dirLight.shadow.camera
   shadowCam.left = -shadowExtent
@@ -109,6 +110,8 @@ export async function loadWorld(
   const assetResolver = assets ? createAssetResolver(assets) : null
 
   const entities: LoadedEntity[] = []
+  const shadowAabbBox = new THREE.Box3()
+  const shadowAabbSize = new THREE.Vector3()
 
   for (const entity of world.entities) {
     const position: Vec3 = entity.position ?? DEFAULT_POSITION
@@ -151,12 +154,13 @@ export async function loadWorld(
     mesh.userData.entity = entity
     mesh.userData.bodyType = entity.bodyType ?? 'static'
     const isPlane = shape?.type === 'plane'
-    // GLTF/model hierarchies: propagate userData and set shadow flags on every mesh so trimesh/entity.model cast shadows like primitives
+    mesh.updateMatrixWorld(true)
+    // GLTF/model hierarchies: propagate userData; shadow cast uses world AABB (skip tiny props — §11 GPU tier)
     mesh.traverse((child) => {
       child.userData.entityId = entity.id
       child.userData.entity = entity
       if (child instanceof THREE.Mesh) {
-        child.castShadow = !isPlane
+        updateMeshCastShadowFromWorldAabb(child, isPlane, shadowAabbBox, shadowAabbSize)
         child.receiveShadow = true
       }
     })

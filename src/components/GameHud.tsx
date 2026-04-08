@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react'
-import { useId } from 'react'
+import { memo, useId } from 'react'
 
 import steeringWheelImg from '@/assets/game-hud-steering-wheel.png'
 
@@ -281,7 +281,7 @@ function SteeringWheelHud({ wheelAngle }: { wheelAngle: number }) {
 /**
  * Play-mode overlay: score (green), damage (red); tach bottom-left, wheel bottom-center (lower 40% clipped).
  */
-export function GameHud({ score, damage, speedMs, wheelAngle }: GameHudProps) {
+export const GameHud = memo(function GameHud({ score, damage, speedMs, wheelAngle }: GameHudProps) {
   return (
     <>
       <style>
@@ -425,4 +425,5 @@ export function GameHud({ score, damage, speedMs, wheelAngle }: GameHudProps) {
       </div>
     </>
   )
-}
+})
+GameHud.displayName = 'GameHud'

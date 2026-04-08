@@ -14,7 +14,7 @@ import type {
   InputMapping,
 } from '@/types/transformer'
 import { clearActionRecord, EMPTY_TRANSFORM_OUTPUT } from '@/types/transformer'
-import { applyInputMapping } from '@/input/inputMapping'
+import { applyInputMappingInto } from '@/input/inputMapping'
 import { CHARACTER_PRESET } from '@/input/inputPresets'
 import type { RawInput } from '@/types/transformer'
 
@@ -82,13 +82,8 @@ export class InputTransformer extends BaseTransformer {
       return EMPTY_TRANSFORM_OUTPUT
     }
 
-    // Apply mapping to get actions
-    const actions = applyInputMapping(rawInput, this.mapping)
-
-    // Merge into input actions in place (mapped keys overwrite; other keys preserved)
-    for (const k of Object.keys(actions)) {
-      input.actions[k] = actions[k]!
-    }
+    // `executeTransformers` cleared `input.actions` before the chain; write mapped keys only.
+    applyInputMappingInto(rawInput, this.mapping, input.actions, false)
 
     // InputTransformer doesn't produce forces - it only fills actions
     return EMPTY_TRANSFORM_OUTPUT

@@ -618,6 +618,23 @@ export class PhysicsWorld {
     if (body) body.setLinvel({ x, y, z }, true)
   }
 
+  /**
+   * Writes world-space linear velocity for a dynamic body into `out`.
+   * @returns false if the body is missing or not dynamic.
+   */
+  getLinearVelocityInto(
+    entityId: string,
+    out: [number, number, number],
+  ): boolean {
+    const body = this.bodyMap.get(entityId)
+    if (!body || !body.isDynamic()) return false
+    const v = body.linvel()
+    out[0] = v.x
+    out[1] = v.y
+    out[2] = v.z
+    return true
+  }
+
   /** World-space linear velocity for a dynamic body; null if missing or not dynamic. */
   getLinearVelocity(entityId: string): [number, number, number] | null {
     const body = this.bodyMap.get(entityId)

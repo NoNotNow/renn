@@ -53,6 +53,9 @@ import type { SceneFrameTiming } from '@/runtime/frameTiming'
 /** Radius inside camera far plane (PerspectiveCamera default far = 1000). */
 const SKY_DOME_RADIUS = 500
 
+/** Cap DPR to reduce fill rate on heavy scenes (Tier 1 GPU — `performance-work.md` §11). */
+const MAX_SCENE_PIXEL_RATIO = 1.5
+
 function disposeSkyDomeMesh(mesh: THREE.Mesh | null): void {
   if (!mesh) return
   mesh.removeFromParent()
@@ -557,9 +560,9 @@ function SceneViewInner({
       const w = Math.max(container.clientWidth || 800, 1)
       const h = Math.max(container.clientHeight || 600, 1)
       rend.setSize(w, h)
-      rend.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+      rend.setPixelRatio(Math.min(window.devicePixelRatio, MAX_SCENE_PIXEL_RATIO))
       rend.shadowMap.enabled = shadowsEnabled
-      rend.shadowMap.type = THREE.PCFSoftShadowMap
+      rend.shadowMap.type = THREE.PCFShadowMap
       container.appendChild(rend.domElement)
       setRenderer(rend)
 

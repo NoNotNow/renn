@@ -71,3 +71,28 @@ export function syncDirectionalLightShadowFocusToCamera(
   dirLight.target.updateMatrixWorld()
 }
 
+/**
+ * World-space half-extent threshold: meshes smaller than this skip `castShadow` to cut shadow-pass
+ * cost (small props are rarely visible in the directional map). See `agent-context/performance-work.md` §11.
+ */
+export const MIN_WORLD_EXTENT_FOR_SHADOW_CAST = 0.3
+
+/**
+ * Sets `castShadow` from the mesh world AABB (max edge × 0.5). Planar entity shapes never cast.
+ * Pass reusable `box` / `size` to avoid per-call allocation.
+ */
+export function updateMeshCastShadowFromWorldAabb(
+  mesh: THREE.Mesh,
+  isPlaneEntityShape: boolean,
+  box: THREE.Box3,
+  size: THREE.Vector3,
+): void {
+  if (isPlaneEntityShape) {
+    mesh.castShadow = false
+    return
+  }
+  box.setFromObject(mesh)
+  box.getSize(size)
+  const halfMax = 0.5 * Math.max(size.x, size.y, size.z)
+  mesh.castShadow = Number.isFinite(halfMax) && halfMax >= MIN_WORLD_EXTENT_FOR_SHADOW_CAST
+}

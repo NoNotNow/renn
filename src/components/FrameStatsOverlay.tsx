@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import type { SceneFrameTiming } from '@/runtime/frameTiming'
 
+/** Limit React setState rate when overlay is on (Tier 3 — `performance-work.md` §11). */
+const FRAME_STATS_UI_MIN_INTERVAL_MS = 100
+
 const PANEL_STYLE: CSSProperties = {
   position: 'absolute',
   left: 8,
@@ -35,6 +38,7 @@ export function FrameStatsOverlay({
 }) {
   const [snapshot, setSnapshot] = useState<SceneFrameTiming | null>(null)
   const fpsEmaRef = useRef(60)
+  const lastUiPushRef = useRef(0)
 
   useEffect(() => {
     let id: number
@@ -44,7 +48,11 @@ export function FrameStatsOverlay({
       if (!s) return
       const instFps = 1000 / s.frameMs
       fpsEmaRef.current = fpsEmaRef.current * 0.85 + instFps * 0.15
-      setSnapshot({ ...s, frameMs: s.frameMs })
+      const now = performance.now()
+      if (now - lastUiPushRef.current >= FRAME_STATS_UI_MIN_INTERVAL_MS) {
+        lastUiPushRef.current = now
+        setSnapshot({ ...s })
+      }
     }
     id = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(id)
@@ -75,6 +83,14 @@ export function FrameStatsOverlay({
           <span>{formatMs(ms)} ms</span>
         </div>
       ))}
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginTop: 6 }}>
+        <span style={{ color: '#8b98a8' }}>GPU draw calls</span>
+        <span>{s.renderCalls}</span>
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+        <span style={{ color: '#8b98a8' }}>GPU triangles</span>
+        <span>{s.renderTriangles.toLocaleString()}</span>
+      </div>
     </div>
   )
 }

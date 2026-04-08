@@ -8,11 +8,14 @@ import type {
 } from '@/types/world'
 import { DEFAULT_PERSPECTIVE_FOV_DEGREES } from '@/camera/cameraController'
 
-/** First letter for avatar roster chips (name or id). */
+/** First letter for avatar roster chips (name or id). Uses `charAt` for a stable hot path (fewer JIT bailouts on key handlers). */
 export function avatarEntityIconLetter(entity: Entity): string {
   const name = entity.name?.trim()
-  if (name) return name[0]!.toUpperCase()
-  return (entity.id[0] ?? '?').toUpperCase()
+  if (name !== undefined && name.length > 0) {
+    return name.charAt(0).toUpperCase()
+  }
+  const id = entity.id
+  return id.length > 0 ? id.charAt(0).toUpperCase() : '?'
 }
 
 /** True if entity participates in the avatar roster (when `avatar` is set and not disabled). */

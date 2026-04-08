@@ -87,12 +87,26 @@ export abstract class BaseTransformer implements Transformer {
  */
 export class TransformerChain {
   private transformers: Transformer[] = []
+  /** Priority-sorted view; invalidated when the chain list changes. */
+  private sorted: Transformer[] = []
+  private sortDirty = true
+
+  private ensureSorted(): void {
+    if (!this.sortDirty) return
+    this.sorted.length = 0
+    for (const t of this.transformers) {
+      this.sorted.push(t)
+    }
+    this.sorted.sort((a, b) => a.priority - b.priority)
+    this.sortDirty = false
+  }
 
   /**
    * Add a transformer to the chain.
    */
   add(transformer: Transformer): void {
     this.transformers.push(transformer)
+    this.sortDirty = true
   }
 
   /**
@@ -102,6 +116,7 @@ export class TransformerChain {
     const index = this.transformers.indexOf(transformer)
     if (index >= 0) {
       this.transformers.splice(index, 1)
+      this.sortDirty = true
     }
   }
 
@@ -110,13 +125,17 @@ export class TransformerChain {
    */
   clear(): void {
     this.transformers = []
+    this.sorted.length = 0
+    this.sortDirty = false
   }
 
   /**
    * Get all transformers (sorted by priority).
+   * Do not mutate the returned array.
    */
   getAll(): readonly Transformer[] {
-    return [...this.transformers].sort((a, b) => a.priority - b.priority)
+    this.ensureSorted()
+    return this.sorted
   }
 
   /**
@@ -129,111 +148,86 @@ export class TransformerChain {
 
   /**
    * Execute the transformer chain.
-   * Returns accumulated forces and torques.
+   * Accumulates into `input.accumulatedForce` / `input.accumulatedTorque` (caller must zero them).
    */
   execute(
     input: TransformInput,
     dt: number,
   ): TransformOutput {
-    // Sort by priority (lower = earlier)
-    const sorted = [...this.transformers].sort(
-      (a, b) => a.priority - b.priority,
-    )
+    this.ensureSorted()
 
-    // Accumulated output
-    const accumulated: TransformOutput = {
-      force: [0, 0, 0],
-      torque: [0, 0, 0],
-      earlyExit: false,
-    }
+    let lastColor: Vec3 | undefined
+    let lastAddRotation: Rotation | null | undefined
+    let lastSetPose: TransformOutput['setPose']
+    let sawEarlyExit = false
 
-    // Current input (will be updated as we go through the chain)
-    let currentInput: TransformInput = { ...input }
+    const f = input.accumulatedForce
+    const tq = input.accumulatedTorque
 
-    for (const transformer of sorted) {
-      // Skip disabled transformers
+    for (const transformer of this.sorted) {
       if (!transformer.enabled) {
         continue
       }
 
-      // Execute transformer
-      const output = transformer.transform(currentInput, dt)
+      const output = transformer.transform(input, dt)
 
-      // Accumulate forces
       if (output.force) {
-        accumulated.force![0] += output.force[0]
-        accumulated.force![1] += output.force[1]
-        accumulated.force![2] += output.force[2]
+        f[0] += output.force[0]
+        f[1] += output.force[1]
+        f[2] += output.force[2]
       }
-
-      // Accumulate impulses (treated as forces for accumulation)
       if (output.impulse) {
-        accumulated.force![0] += output.impulse[0]
-        accumulated.force![1] += output.impulse[1]
-        accumulated.force![2] += output.impulse[2]
+        f[0] += output.impulse[0]
+        f[1] += output.impulse[1]
+        f[2] += output.impulse[2]
       }
-
-      // Accumulate torques
       if (output.torque) {
-        accumulated.torque![0] += output.torque[0]
-        accumulated.torque![1] += output.torque[1]
-        accumulated.torque![2] += output.torque[2]
+        tq[0] += output.torque[0]
+        tq[1] += output.torque[1]
+        tq[2] += output.torque[2]
       }
-
-      // Color: last transformer wins
       if (output.color) {
-        accumulated.color = output.color
+        lastColor = output.color
       }
-
-      // addRotation: last transformer wins
       if (output.addRotation != null) {
-        accumulated.addRotation = output.addRotation
+        lastAddRotation = output.addRotation
       }
-
-      // setPose: last transformer wins
       if (output.setPose) {
-        accumulated.setPose = output.setPose
+        lastSetPose = output.setPose
       }
-
-      // Early exit?
       if (output.earlyExit) {
-        accumulated.earlyExit = true
+        sawEarlyExit = true
         break
-      }
-
-      // Update accumulated forces in input for next transformer
-      currentInput = {
-        ...currentInput,
-        accumulatedForce: accumulated.force!,
-        accumulatedTorque: accumulated.torque!,
       }
     }
 
-    // Return empty output if no forces were generated
     if (
-      accumulated.force![0] === 0 &&
-      accumulated.force![1] === 0 &&
-      accumulated.force![2] === 0 &&
-      accumulated.torque![0] === 0 &&
-      accumulated.torque![1] === 0 &&
-      accumulated.torque![2] === 0 &&
-      !accumulated.earlyExit
+      f[0] === 0 &&
+      f[1] === 0 &&
+      f[2] === 0 &&
+      tq[0] === 0 &&
+      tq[1] === 0 &&
+      tq[2] === 0 &&
+      !sawEarlyExit
     ) {
-      if (
-        accumulated.color !== undefined ||
-        accumulated.addRotation != null ||
-        accumulated.setPose !== undefined
-      ) {
+      if (lastColor !== undefined || lastAddRotation != null || lastSetPose !== undefined) {
         return {
           ...EMPTY_TRANSFORM_OUTPUT,
-          color: accumulated.color,
-          addRotation: accumulated.addRotation,
-          setPose: accumulated.setPose,
+          color: lastColor,
+          addRotation: lastAddRotation,
+          setPose: lastSetPose,
         }
       }
       return EMPTY_TRANSFORM_OUTPUT
     }
 
-    return accumulated
+    return {
+      force: f,
+      torque: tq,
+      earlyExit: sawEarlyExit,
+      color: lastColor,
+      addRotation: lastAddRotation,
+      setPose: lastSetPose,
+    }
   }
 }

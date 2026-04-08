@@ -8,7 +8,7 @@
 
 import { useEffect, useRef } from 'react'
 import { useRawKeyboardInput, useRawWheelInput, getRawInputSnapshot } from './rawInput'
-import { applyInputMapping } from './inputMapping'
+import { applyInputMappingInto } from './inputMapping'
 import { CHARACTER_PRESET } from './inputPresets'
 import type { InputMapping } from '@/types/transformer'
 
@@ -29,8 +29,7 @@ export function useInputManager(
   useEffect(() => {
     const updateActions = () => {
       const rawInput = getRawInputSnapshot(keyboardRef, wheelRef)
-      const actions = applyInputMapping(rawInput, mapping)
-      actionsRef.current = actions
+      applyInputMappingInto(rawInput, mapping, actionsRef.current, true)
       requestAnimationFrame(updateActions)
     }
     const frameId = requestAnimationFrame(updateActions)

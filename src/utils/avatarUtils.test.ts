@@ -1,5 +1,22 @@
 import { describe, it, expect } from 'vitest'
-import { buildAvatarFocusSnapshotFromPreferred } from '@/utils/avatarUtils'
+import { avatarEntityIconLetter, buildAvatarFocusSnapshotFromPreferred } from '@/utils/avatarUtils'
+import type { Entity } from '@/types/world'
+
+describe('avatarEntityIconLetter', () => {
+  it('uses first letter of trimmed name', () => {
+    const e = { id: 'x', name: '  alpha  ' } as Entity
+    expect(avatarEntityIconLetter(e)).toBe('A')
+  })
+
+  it('falls back to first id char when name empty', () => {
+    expect(avatarEntityIconLetter({ id: 'beta', name: '' } as Entity)).toBe('B')
+    expect(avatarEntityIconLetter({ id: 'gamma' } as Entity)).toBe('G')
+  })
+
+  it('returns ? for empty id and no name', () => {
+    expect(avatarEntityIconLetter({ id: '', name: '   ' } as Entity)).toBe('?')
+  })
+})
 
 describe('buildAvatarFocusSnapshotFromPreferred', () => {
   it('uses persisted orbit yaw, pitch, and distance when present on preferred camera', () => {

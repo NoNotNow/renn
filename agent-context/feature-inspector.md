@@ -115,7 +115,7 @@ See **architecture.md** for ProjectContext, SceneView, and world/version flow.
 
 ## No-update-loop rule
 
-Polling (or any programmatic display update) must **not** call `onWorldChange` or `updateEntity`. Live display uses a separate state **livePoses** (held in Builder, passed down). Updating that state only re-renders the inspector; it does not change `world`, so SceneView’s effect (which depends on `world`) does not run and the scene is not reloaded. User edits continue to go through `onWorldChange` / `onEntityPoseChange` only.
+Polling (or any programmatic display update) must **not** call `onWorldChange` or `updateEntity`. Live display uses a separate state **livePoses** (held in [`InspectorLivePoseBridge.tsx`](../src/components/InspectorLivePoseBridge.tsx), passed into `PropertySidebar` via render prop). Updating that state only re-renders the inspector subtree; it does not change `world`, so SceneView’s effect (which depends on `world`) does not run and the scene is not reloaded. User edits continue to go through `onWorldChange` / `onEntityPoseChange` only.
 
 ## Undo / redo (Builder)
 
@@ -136,7 +136,8 @@ Inspector text and number inputs (entity name, transform, shape, physics, materi
 
 ```
 src/
-├── pages/Builder.tsx           # livePoses state, polling (getAllPoses every 100ms), getCurrentPose, handleRefreshFromPhysics, handleCloneEntity
+├── pages/Builder.tsx           # getScenePosesForInspector (SceneView ref), getCurrentPose, handleRefreshFromPhysics, handleCloneEntity
+├── components/InspectorLivePoseBridge.tsx  # livePoses state + polling (~220ms getAllPoses); wraps PropertySidebar
 ├── components/
 │   ├── PropertySidebar.tsx     # Tabs; passes world, livePoses, onWorldChange, etc. to PropertyPanel
 │   ├── PropertyPanel.tsx       # Selected-entity editor; displayPosition/displayRotation from livePoses or entity
