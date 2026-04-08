@@ -17,3 +17,4 @@ Docs for LLM/code agents. Read `start-here.md` first, then only what the task re
 | **codebase-cleanup-audit** | Cleanup backlog and phased execution notes |
 | **direction-rotation-coordinates** | Rotation format (Euler [x,y,z] radians), caveats, Reset rotation, detecting orientation |
 | **bugfix-spinning** | Physics force accumulation quirk (Rapier) |
+| **performance-work** | Performance backlog (ordered work items, Firefox profiling notes) |
