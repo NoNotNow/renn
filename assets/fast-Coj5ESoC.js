@@ -1,4 +1,4 @@
-const n=`{
+const e=`{
     "type": "car2",
     "priority": 10,
     "enabled": true,
@@ -7,6 +7,8 @@ const n=`{
       "steeringIntensity": 0.05,
       "steeringSpeed": 0.05,
       "lateralGrip": 120,
+      "tireGripSlipSpeedThreshold": 2,
+      "lateralGripSlipScale": 0.3,
       "jumpImpulse": 200
     }
-}`;export{n as default};
+}`;export{e as default};

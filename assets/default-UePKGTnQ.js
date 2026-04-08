@@ -7,6 +7,8 @@ const e=`{
       "steeringIntensity": 0.05,
       "steeringSpeed": 0.05,
       "lateralGrip": 120,
+      "tireGripSlipSpeedThreshold": 2,
+      "lateralGripSlipScale": 0.3,
       "jumpImpulse": 200
     }
 }`;export{e as default};
