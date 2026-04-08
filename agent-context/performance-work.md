@@ -12,8 +12,29 @@ Working document derived from Firefox profiling on a heavy project (RefreshDrive
 
 | Status | Item | Notes |
 |--------|------|--------|
-| [~] | Capture **JS flame charts** (Firefox Profiler JS view or Chrome Performance) for the same bad scene: split time for **physics step**, **`executeTransformers`**, **`runOnUpdate` scripts**, **`renderer.render`**, React/Builder overhead | Marker data confirms rAF is blown routinely; stack/flame view still needed to rank JS sub-costs inside the rAF callback. |
+| [~] | Capture **JS flame charts** (Firefox Profiler JS view or Chrome Performance) for the same bad scene: split time for **physics step**, **`executeTransformers`**, **`runOnUpdate` scripts**, **`renderer.render`**, React/Builder overhead | **How-to:** see [§1 procedure](#11-how-to-capture-js-flame-charts). Correlate with **View → Frame stats** (`frameTiming.ts`). Rank sub-costs inside the rAF callback after §2 physics alloc fix. |
 | [x] | Optional: **in-app frame timing HUD** (fps + last-frame ms breakdown) for regressions without DevTools | **View → Frame stats** in Builder (`SceneView` `showFrameStats`); persists `builderShowFrameStats`. Sections: transformers, physics, script collisions, `onUpdate`, camera, game HUD, render. |
+
+### 1.1 How to capture JS flame charts
+
+Use the **same heavy project** as the Firefox marker export so results are comparable.
+
+**Firefox Profiler**
+
+1. Install [profiler.firefox.com](https://profiler.firefox.com) (or use built-in profiler).
+2. Record while entering **Play** and reproducing the bad scene for **10–30 s**.
+3. In the processed profile, open the **JS** / **call tree** view and filter or expand the stack around **`requestAnimationFrame`** / **`RefreshDriver`** (or search for app symbols: `runSceneFrame`, `PhysicsWorld.step`, `executeTransformers`, `ScriptRunner`, `WebGLRenderer.render`).
+4. Note **self time** vs **total time** for: physics step, transformer pass, script `onUpdate`, `syncFromPhysics`, render.
+
+**Chrome DevTools**
+
+1. **Performance** panel → record → same play scenario → stop.
+2. Enable **JavaScript samples** if available; inspect the **Main** thread flame chart.
+3. Search for the same symbols or for **Animation frame fired** / **rAF** and expand children.
+
+**What to record in this doc:** Approximate % of frame time in each bucket (physics / transformers / scripts / render / React) and the hottest 2–3 function names for follow-up (§4–§7).
+
+**Automated tests:** `npm run test:run` covers runtime helpers; **Frame stats** is a manual sanity check on a heavy scene after physics changes.
 
 ---
 
@@ -23,14 +44,13 @@ Working document derived from Firefox profiling on a heavy project (RefreshDrive
 - `GCMinor` fires every **10–16 ms**, costing **4–7 ms** each. Nursery is always exactly **15 MB** (`javascript.gc.nursery_bytes: 15728640`).
 - Nursery promotion rate is **69–98 %** → objects are not short-lived; they survive and tenure to the old heap.
 - `GCMajor` observed at **109 ms** and **424 ms** (`dom.gc_in_progress`). The 424 ms GCMajor fires `DiscardJit` immediately after, discarding all JIT-compiled code, then triggers a cascade of hundreds of `javascript.ion.compile_time` entries → the **331 ms `LongTask`** is this recompile cascade, not JS application code.
-- **Identified hot allocation site** in `rapierPhysics.ts` (per physics step, per dynamic/kinematic body):
-  - `const storedPos = { x, y, z }` — new plain object every frame per body
-  - `const storedRot = { x, y, z, w }` — new plain object every frame per body
-  - `const forceMap = new Map<string, CollisionImpact>()` — new Map every step
+- **Identified hot allocation site** in `rapierPhysics.ts` (per physics step, per dynamic/kinematic body) — **addressed 2026-04-08**:
+  - Previously: `storedPos` / `storedRot` — new plain objects every frame per body; `new Map()` for contact forces every step.
+  - Now: **reuse** `CachedTransform` entries in `cachedTransforms` (mutate `position` / `rotation` in place); **`contactForceByPair.clear()`** then refill (single `Map`).
 
 | Status | Item | Notes |
 |--------|------|--------|
-| [ ] | **Fix: preallocate cached-transform objects** in `rapierPhysics.ts` — reuse `{ x, y, z }` / `{ x, y, z, w }` structs per body rather than creating new ones each step; reuse or clear a single `forceMap` | Prime allocation source confirmed. Bodies are iterated every frame. This alone should measurably reduce GCMinor frequency. |
+| [x] | **Fix: preallocate cached-transform objects** in `rapierPhysics.ts` — reuse `{ x, y, z }` / `{ x, y, z, w }` structs per body rather than creating new ones each step; reuse or clear a single `forceMap` | Implemented: per-entity `CachedTransform` reuse in `step()`; `contactForceByPair` map cleared each step. |
 | [ ] | Profile remaining **allocation sites** (browser memory tool or `performance.measure` around hot loops) | After the physics fix, identify next largest allocators. Focus on: scripts/transformer per-frame arrays, `map`/`filter` in rAF. |
 | [ ] | Reduce remaining **per-frame object creation** (reuse `Vector3`/buffers; avoid `map`/`filter` allocating in rAF) | Align with existing hot-path style in `ScriptRunner` / registry. |
 | [ ] | Audit **React** updates during play: avoid unnecessary state updates that reconcile large trees every frame | Builder already throttles some camera writes; extend pattern where needed. |
@@ -120,6 +140,18 @@ Working document derived from Firefox profiling on a heavy project (RefreshDrive
 | [ ] | Downscale large **composite** / material maps; share **asset ids** across entities | Less VRAM, fewer unique textures. Smaller blobs → faster decode even if timing issue is not fixed. |
 | [ ] | Fewer **layers** in texture documents where possible | Compositor cost on edit/bake. |
 
+### 9.1 Code trace (implementation planning)
+
+**Runtime material / model loading (most meshes):** [`src/loader/assetResolverImpl.ts`](src/loader/assetResolverImpl.ts) — `URL.createObjectURL(blob)` per asset id (cached in `urlCache`); `loadTexture` uses `THREE.TextureLoader` against that URL. **JPEG/PNG decode runs when the loader completes**, which can align with rAF if loading is triggered during play or after late asset updates.
+
+**Skybox:** [`src/components/SceneView.tsx`](src/components/SceneView.tsx) — skybox `useEffect` creates a **new** blob URL per load and `TextureLoader.loadAsync`; decode is async but still main-thread **Image** decode when the loader finishes.
+
+**Editor composite preview:** [`src/pages/Builder.tsx`](src/pages/Builder.tsx) — `URL.createObjectURL(blob)` for texture-maker composite preview (`compositePreviewUrl`); revokes on change. Primarily editor UX, not play loop.
+
+**World paint:** [`prepareWorldPaintStroke`](src/pages/Builder.tsx) returns layer blobs from `assets`; first use can coincide with stroke start — ensure GPU upload path does not duplicate work already done by [`TextureMaker`](src/components/TextureMaker/TextureMaker.tsx) `ImageBitmap` cache where applicable.
+
+**Next implementation directions:** (1) After world/assets are ready, **prefetch** critical `map` / model assets through the resolver (or `createImageBitmap` + `Texture` from image) **before** starting play, or in an idle callback outside animation frames. (2) For compositor exports, reuse the **bitmap cache** pattern from TextureMaker for any code path that currently hits `TextureLoader` + blob URL on first paint.
+
 ---
 
 ## Changelog
@@ -130,6 +162,7 @@ Working document derived from Firefox profiling on a heavy project (RefreshDrive
 | *(move)* | Relocated from `ai-context/` to `agent-context/`. |
 | 2026-04-08 | §1: Frame timing overlay (`frameTiming.ts`, `runSceneFrame`, `FrameStatsOverlay`, View → Frame stats). §3 HUD: opacity/scale pulses. §7: `userData` clear without `delete`. §8: Builder live pose poll 220ms. |
 | 2026-04-08 | Updated from detailed Firefox marker export: §1 concrete rAF numbers + 331ms LongTask; §2 GCMajor→DiscardJit cascade + rapierPhysics allocation hot spot; §4 GPU/shader evidence; §5 Rapier JIT deopt; §7 renderItem.ts:34 new bailout; §9 blob decode timings (51ms, 241ms mid-frame). |
+| 2026-04-08 | §2: `rapierPhysics.ts` — reuse `CachedTransform` in place; `contactForceByPair` map reused with `clear()`. §1: flame-chart how-to. §9: code trace for blob/texture paths (`assetResolverImpl`, `SceneView` skybox, Builder preview). |
 
 ---
 
@@ -138,7 +171,8 @@ Working document derived from Firefox profiling on a heavy project (RefreshDrive
 - Hot loop: `src/runtime/sceneFrameLoop.ts`, `src/runtime/frameTiming.ts`, `src/components/SceneView.tsx`, `src/components/FrameStatsOverlay.tsx`
 - Registry / `updateShape`: `src/runtime/renderItemRegistry.ts` (~474)
 - Render item: `src/runtime/renderItem.ts` (~34)
-- Physics step + allocation: `src/physics/rapierPhysics.ts` (~422–442)
+- Physics step + cached transforms: `src/physics/rapierPhysics.ts` (`step()` ~427+, `contactForceByPair`, `dispose`)
+- Blob URL textures: `src/loader/assetResolverImpl.ts`
 - HUD CSS: search `rennHudPulse` / `rennHudPulseScore` / `rennHudPulseDamage`
 
 Listed in [`README.md`](README.md) (this folder).

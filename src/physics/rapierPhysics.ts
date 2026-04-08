@@ -9,7 +9,7 @@ import type {
   ScriptDef,
   WorldSleepingSettings,
 } from '@/types/world'
-import type { Rotation, Vec3 } from '@/types/world'
+import type { Rotation } from '@/types/world'
 import { DEFAULT_GRAVITY, DEFAULT_ROTATION } from '@/types/world'
 import type { ExtractedGeometry } from '@/utils/geometryExtractor'
 import {
@@ -44,6 +44,8 @@ export class PhysicsWorld {
   private disposed: boolean = false
   private stepping: boolean = false
   private cachedTransforms: Map<string, CachedTransform> = new Map()
+  /** Reused each step in drainContactForceEvents; cleared before fill. */
+  private contactForceByPair: Map<string, CollisionImpact> = new Map()
   private eventQueue: RAPIER.EventQueue | null = null
   /** When set from world JSON, per-body timers advance toward `body.sleep()`. */
   private sleepingConfig: WorldSleepingSettings | undefined
@@ -424,29 +426,42 @@ export class PhysicsWorld {
       this.world.step(this.eventQueue)
       this.applyCustomSleeping(dt)
 
-      // Cache transforms AFTER step to avoid WASM aliasing errors
+      // Cache transforms AFTER step to avoid WASM aliasing errors.
+      // Reuse CachedTransform structs per entity to avoid per-frame allocation / GC.
       for (const [entityId, body] of this.bodyMap) {
         if (body.isDynamic() || body.isKinematic()) {
           const pos = body.translation()
           const rot = body.rotation()
-          const storedPos = { x: pos.x, y: pos.y, z: pos.z }
-          const storedRot = { x: rot.x, y: rot.y, z: rot.z, w: rot.w }
-          this.cachedTransforms.set(entityId, {
-            position: storedPos,
-            rotation: storedRot
-          })
+          let ct = this.cachedTransforms.get(entityId)
+          if (!ct) {
+            ct = {
+              position: { x: pos.x, y: pos.y, z: pos.z },
+              rotation: { x: rot.x, y: rot.y, z: rot.z, w: rot.w },
+            }
+            this.cachedTransforms.set(entityId, ct)
+          } else {
+            const p = ct.position
+            p.x = pos.x
+            p.y = pos.y
+            p.z = pos.z
+            const r = ct.rotation
+            r.x = rot.x
+            r.y = rot.y
+            r.z = rot.z
+            r.w = rot.w
+          }
         }
       }
-      
+
       this.lastCollisions = []
-      const forceMap = new Map<string, CollisionImpact>()
+      this.contactForceByPair.clear()
       this.eventQueue.drainContactForceEvents((event: RAPIER.TempContactForceEvent) => {
         const h1 = event.collider1()
         const h2 = event.collider2()
         const key = pairKey(h1, h2)
         const tf = event.totalForce()
         const mfd = event.maxForceDirection()
-        forceMap.set(key, {
+        this.contactForceByPair.set(key, {
           totalForce: [tf.x, tf.y, tf.z],
           totalForceMagnitude: event.totalForceMagnitude(),
           maxForceMagnitude: event.maxForceMagnitude(),
@@ -458,7 +473,7 @@ export class PhysicsWorld {
         const entityIdA = this.colliderHandleToEntityId.get(handle1)
         const entityIdB = this.colliderHandleToEntityId.get(handle2)
         if (entityIdA && entityIdB) {
-          const impact = forceMap.get(pairKey(handle1, handle2))
+          const impact = this.contactForceByPair.get(pairKey(handle1, handle2))
           this.lastCollisions.push({ entityIdA, entityIdB, impact })
         }
       })
@@ -784,6 +799,7 @@ export class PhysicsWorld {
     this.colliderHandleToEntityId.clear()
     this.lastCollisions = []
     this.cachedTransforms.clear()
+    this.contactForceByPair.clear()
     this.customSleepTimers.clear()
     
     // Free RAPIER resources
