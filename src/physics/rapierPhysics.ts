@@ -50,6 +50,16 @@ export class PhysicsWorld {
   private sleepingConfig: WorldSleepingSettings | undefined
   private customSleepTimers: Map<string, number> = new Map()
 
+  /**
+   * Per-entity touching/support cache, rebuilt once per step() from narrow-phase.
+   * Avoids N separate contactPairsWith+contactPair calls during executeTransformers,
+   * which otherwise create thousands of temporary WASM wrapper objects per frame
+   * (each triggering FinalizationRegistry register/unregister overhead).
+   */
+  private touchingCache: Map<string, { touching: boolean; supportVelocity?: [number, number, number] }> = new Map()
+  /** Entity ids that need touching cache rebuilt each step (set by caller). */
+  private touchingCacheEntityIds: Set<string> = new Set()
+
   constructor(gravity: [number, number, number] = DEFAULT_GRAVITY, sleeping?: WorldSleepingSettings) {
     this.world = new RAPIER.World({ x: gravity[0], y: gravity[1], z: gravity[2] })
     this.eventQueue = new RAPIER.EventQueue(true)
@@ -451,7 +461,11 @@ export class PhysicsWorld {
         }
       }
 
-      this.lastCollisions = []
+      if (this.touchingCacheEntityIds.size > 0) {
+        this.rebuildTouchingCache()
+      }
+
+      this.lastCollisions.length = 0
       this.contactForceByPair.clear()
       this.eventQueue.drainContactForceEvents((event: RAPIER.TempContactForceEvent) => {
         const h1 = event.collider1()
@@ -477,6 +491,94 @@ export class PhysicsWorld {
       })
     } finally {
       this.stepping = false
+    }
+  }
+
+  /**
+   * Mark entity ids whose touching/support data should be cached after each step.
+   * Called once when transformer set changes, not per frame.
+   */
+  setTouchingCacheEntityIds(ids: Iterable<string>): void {
+    this.touchingCacheEntityIds.clear()
+    for (const id of ids) {
+      this.touchingCacheEntityIds.add(id)
+    }
+    this.touchingCacheDirty = true
+  }
+
+  /**
+   * Read cached touching/support state for an entity (from last step).
+   * Falls back to live query if entity is not in the cache set.
+   */
+  getCachedTouching(entityId: string): { touching: boolean; supportVelocity?: [number, number, number] } | undefined {
+    return this.touchingCache.get(entityId)
+  }
+
+  /**
+   * Rebuild touching cache for all registered entity ids in one pass.
+   * Replaces per-entity contactPairsWith+contactPair calls, dramatically reducing
+   * WASM wrapper object churn (FinalizationRegistry overhead).
+   */
+  private rebuildTouchingCache(): void {
+    for (const entityId of this.touchingCacheEntityIds) {
+      const collider = this.colliderMap.get(entityId)
+      if (!collider) {
+        const entry = this.touchingCache.get(entityId)
+        if (entry) {
+          entry.touching = false
+          entry.supportVelocity = undefined
+        }
+        continue
+      }
+
+      let touching = false
+      let sx = 0, sy = 0, sz = 0, n = 0
+
+      this.world.contactPairsWith(collider, (other) => {
+        const otherEntityId = this.colliderHandleToEntityId.get(other.handle)
+        if (!otherEntityId || otherEntityId === entityId) return
+        this.world.contactPair(collider, other, (manifold, _flipped) => {
+          const ns = manifold.numSolverContacts()
+          if (ns > 0) {
+            touching = true
+            const otherBody = other.parent()
+            if (otherBody) {
+              for (let i = 0; i < ns; i++) {
+                const p = manifold.solverContactPoint(i)
+                const v = otherBody.velocityAtPoint(p)
+                sx += v.x; sy += v.y; sz += v.z
+                n++
+              }
+            }
+          } else if (manifold.numContacts() > 0) {
+            touching = true
+            const otherBody = other.parent()
+            if (otherBody) {
+              const v = otherBody.linvel()
+              sx += v.x; sy += v.y; sz += v.z
+              n++
+            }
+          }
+        })
+      })
+
+      let entry = this.touchingCache.get(entityId)
+      if (!entry) {
+        entry = { touching: false }
+        this.touchingCache.set(entityId, entry)
+      }
+      entry.touching = touching
+      if (n > 0) {
+        if (!entry.supportVelocity) {
+          entry.supportVelocity = [sx / n, sy / n, sz / n]
+        } else {
+          entry.supportVelocity[0] = sx / n
+          entry.supportVelocity[1] = sy / n
+          entry.supportVelocity[2] = sz / n
+        }
+      } else {
+        entry.supportVelocity = undefined
+      }
     }
   }
 

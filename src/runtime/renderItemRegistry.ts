@@ -133,7 +133,10 @@ export class RenderItemRegistry {
           registry.controlledEntityIdRef ?? undefined,
         )
           .then(chain => {
-            if (chain) item.transformerChain = chain
+            if (chain) {
+              item.transformerChain = chain
+              registry._tfEntityIdsDirty = true
+            }
           })
           .catch(error => {
             console.error(`[RenderItemRegistry] Failed to create transformer chain for ${entity.id}:`, error)
@@ -179,6 +182,7 @@ export class RenderItemRegistry {
 
     if (!configs?.length) {
       item.transformerChain = null
+      this._tfEntityIdsDirty = true
       return
     }
 
@@ -203,6 +207,7 @@ export class RenderItemRegistry {
       .then((newChain) => {
         if (!newChain) return
         item.transformerChain = newChain
+        this._tfEntityIdsDirty = true
         if (this.rawInputGetter) {
           for (const t of newChain.getAll()) {
             if (t.type === 'input' && typeof t.setRawInputGetter === 'function' && this.rawInputGetter) {
@@ -640,9 +645,28 @@ export class RenderItemRegistry {
    * Execute transformers for all entities before physics step.
    * This generates forces that are then applied to physics bodies.
    */
+  private _tfEntityIds: string[] = []
+  private _tfEntityIdsDirty = true
+
+  /** Mark the transformer entity set as needing resync (call on add/remove). */
+  markTransformerSetDirty(): void {
+    this._tfEntityIdsDirty = true
+  }
+
   executeTransformers(dt: number, wind?: Vec3): void {
     if (!this.physicsWorld) return
     this.physicsWorld.resetAllForces()
+
+    if (this._tfEntityIdsDirty) {
+      this._tfEntityIds.length = 0
+      for (const item of this.items.values()) {
+        if (item.transformerChain && item.hasPhysicsBody()) {
+          this._tfEntityIds.push(item.entity.id)
+        }
+      }
+      this.physicsWorld.setTouchingCacheEntityIds(this._tfEntityIds)
+      this._tfEntityIdsDirty = false
+    }
 
     const input = this._tfInput
     const env = this._tfEnvironment
@@ -691,24 +715,25 @@ export class RenderItemRegistry {
         this._tfAngularVelocity[2] = 0
       }
 
-      if (wind) {
-        env.wind = wind
-      } else {
-        delete env.wind
-      }
-      // TODO: Add ground detection
+      env.wind = wind ?? undefined
       env.isGrounded = false
-      const touching = this.physicsWorld.isEntityTouchingAny(item.entity.id) ?? false
-      env.isTouchingObject = touching
-      if (touching) {
-        const support = this.physicsWorld.getAverageSupportVelocity(item.entity.id)
-        if (support) {
-          env.supportVelocity = support
+      const cachedTouch = this.physicsWorld.getCachedTouching(item.entity.id)
+      if (cachedTouch) {
+        env.isTouchingObject = cachedTouch.touching
+        if (cachedTouch.supportVelocity) {
+          env.supportVelocity = cachedTouch.supportVelocity
         } else {
-          delete env.supportVelocity
+          env.supportVelocity = undefined
         }
       } else {
-        delete env.supportVelocity
+        const touching = this.physicsWorld.isEntityTouchingAny(item.entity.id) ?? false
+        env.isTouchingObject = touching
+        if (touching) {
+          const support = this.physicsWorld.getAverageSupportVelocity(item.entity.id)
+          env.supportVelocity = support ?? undefined
+        } else {
+          env.supportVelocity = undefined
+        }
       }
 
       // Execute transformer chain

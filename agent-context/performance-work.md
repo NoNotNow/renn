@@ -60,6 +60,36 @@ Captured on `localhost` with Game HUD, physics, and inspector open. Representati
 
 **Headless check after this change:** `npm run test:run -- src/test/scenarios/performance-benchmarks.integration.test.ts` — still sub-quadratic scaling and near-zero heap delta (does not reflect browser GPU/GC).
 
+### 1.3 Chrome Performance trace (2026-04-08, Builder + Play)
+
+Chrome DevTools Performance tab with call tree. Users report Chrome is noticeably smoother than Firefox. INP **49 ms**, CLS **0**.
+
+| Call tree entry | Self time | Total time | Notes |
+|----------------|-----------|------------|-------|
+| **Animation frame fired** | — | **1,872 ms** | Entire rAF |
+| **`SceneView.tsx:654:23`** (`animate`) | 0.6 ms | **1,786 ms** | Frame entry |
+| **`runSceneFrame`** (`sceneFrameLoop.ts:66:17`) | — | **1,760 ms** | Frame body |
+| **`executeTransformers`** (`renderItemRegistry.ts:643:3`) | — | **1,148 ms** | **65% of frame** |
+| **`rapierPhysics.ts:504:43`** (`isEntityTouchingAny` + `getAverageSupportVelocity`) | — | **497 ms** | Per-entity `contactPairsWith` + `contactPair` |
+| **`contactPair`** (`@dimforge_rapier3d-compat:4510:1`) | — | **486 ms** | Narrow-phase WASM queries |
+| **`wasm-function[1192]`** | — | **562 ms** | Rapier WASM core step |
+| **`wasm-to-js` boundary** | — | **562 ms** | WASM→JS bridge |
+| **Minor GC** | 0.3 ms | — | Much smaller than Firefox |
+
+**AI summary of the full trace (whole session):**
+
+| Category | Total self time | Details |
+|----------|----------------|---------|
+| **`__wrap`** (FinalizationRegistry `.register`) | **4,541 ms** | Temporary WASM JS wrapper creation; **4,291 ms** in `b.register` |
+| **`__destroy_into_raw`** (`.unregister`) | **1,451 ms** | Destroying wrapper pointers; **1,424 ms** in `b.unregister` |
+| **`contactManifold` + `numContactManifolds`** | **5,600+ ms** total | Per-entity narrow-phase walks via `contactPairsWith` |
+
+**Root cause:** Each call to `contactPairsWith`→`contactPair`→manifold/contact getters creates **temporary JS wrapper objects** around WASM pointers. Rapier's `rapier.mjs` registers every wrapper with `FinalizationRegistry` for pointer cleanup. With N entities × M contact pairs × K manifolds per frame, this creates **thousands of short-lived wrapper objects per second**, dominating the main thread.
+
+**Fix (2026-04-08):** Batch touching/support queries into `PhysicsWorld.rebuildTouchingCache()` called once per `step()`, replacing N per-entity `contactPairsWith` + `contactPair` calls in `executeTransformers`. The cache is keyed by entity id; `executeTransformers` reads from cache instead of querying Rapier per entity. This does **not** reduce WASM wrapper creation within a single batch pass (Rapier's bridge always wraps), but eliminates **redundant repeated queries** — the total contact-pair walk count drops from O(N × contacts) to O(contacts) per frame.
+
+**Browser difference:** Chrome's V8 GC handles short-lived objects better than Firefox's SpiderMonkey nursery (20 MB nursery → 4–7 ms `GCMinor`). The **same WASM wrapper churn** exists in both, but Firefox additionally suffers JIT bailout cascades (`DiscardJit` → ion recompile) and longer GC pauses. Chrome's FinalizationRegistry overhead is real but lower latency.
+
 ---
 
 ## 2. Cut allocation churn and GC pauses  ← **highest-priority code change**
@@ -106,15 +136,19 @@ Captured on `localhost` with Game HUD, physics, and inspector open. Representati
 
 ---
 
-## 5. Physics cost
+## 5. Physics cost — **WASM wrapper churn is the dominant bottleneck**
 
-**Evidence (updated 2026-04-08):** `rapierPhysics.ts:422` (`this.stepping = true` context, column 47 = inside the `cachedTransforms` loop) shows repeated `Bailout / Invalidate` at `GetAliasedVar` in the Rapier WASM interop layer (`@dimforge/rapier3d-compat.js`). This is a JIT deopt caused by mixed object shapes from the WASM bridge. Also see §2 for per-frame allocation in this same loop.
+**Evidence (updated 2026-04-08):** Chrome Performance trace (§1.3) confirms **`executeTransformers`** takes **65% of frame time** (1,148 ms / 1,760 ms). Within that, **497 ms** is `isEntityTouchingAny` + `getAverageSupportVelocity` — per-entity narrow-phase contact queries via `contactPairsWith` + `contactPair`. Each query creates temporary JS wrapper objects (Rapier `__wrap` / `FinalizationRegistry`): **4,541 ms** in `__wrap` and **1,451 ms** in `__destroy_into_raw` over the full session.
+
+Firefox additionally suffers `Bailout / Invalidate` at `GetAliasedVar` in the WASM interop (`@dimforge/rapier3d-compat.js`) causing JIT deopt cascades.
 
 | Status | Item | Notes |
 |--------|------|--------|
-| [ ] | Replace complex **static trimesh** colliders with **primitives** or simpler hulls where possible | Reduces Rapier step time. |
-| [ ] | Ensure **sleeping** works: avoid constant forces from scripts/transformers when idle | Stops perpetual wake-ups. |
+| [x] | **Batch touching/support queries**: single `rebuildTouchingCache()` per `step()` instead of N per-entity `contactPairsWith` calls in `executeTransformers` | **2026-04-08:** `PhysicsWorld.rebuildTouchingCache()` builds `Map<entityId, {touching, supportVelocity}>` once per step; `executeTransformers` reads cache. Eliminates O(N) → O(1) Rapier query batches. |
+| [ ] | Replace complex **static trimesh** colliders with **primitives** or simpler hulls where possible | Reduces Rapier step time + contact pair count. |
+| [ ] | Ensure **sleeping** works: avoid constant forces from scripts/transformers when idle | Stops perpetual wake-ups → fewer bodies in touching queries. |
 | [ ] | Investigate **`rapierPhysics.ts` cachedTransforms loop** polymorphism: WASM objects returned by `body.translation()` / `body.rotation()` may have varying shapes across calls | Confirm with flame chart; if hot, destructure WASM return values into typed locals before storing. |
+| [ ] | Reduce **`body.linvel()` / `body.angvel()` wrapper churn** in `executeTransformers`: each call creates a WASM wrapper; batch into physics cache alongside transforms | Would further reduce FinalizationRegistry pressure. |
 
 ---
 
@@ -220,18 +254,23 @@ But user-visible FPS has not improved because **the dominant bottleneck is GPU-b
 
 ### Evidence-based bottleneck ranking
 
-Combines Firefox profiling data, headless benchmark phase split, and code audit:
+Combines Firefox profiling, **Chrome Performance** call tree (§1.3), headless benchmarks, and code audit:
 
 | Bottleneck | Evidence | Est. per-frame cost | Addressable? |
 |---|---|---|---|
+| **Rapier WASM wrapper churn** (FinalizationRegistry) | Chrome: **4,541 ms** `__wrap` + **1,451 ms** `__destroy_into_raw` over session; **497 ms / 1,760 ms** per frame in touching queries | **~30 ms/frame** (heavy scene) | **Yes (done 2026-04-08):** `rebuildTouchingCache` batches queries. Further: cache `linvel`/`angvel`. |
 | **GPU fill + shadow pass** | WebGL `DispatchCommands` 27–33 ms; `GetLinkResult` 14 ms sync stall | 30+ ms (exceeds 16.7 ms budget alone) | **Yes:** shadow res, DPR cap, fewer casters |
-| **Rapier WASM step** | 51% of headless frame; `Bailout/Invalidate` in WASM interop | ~10 ms (heavy scene) | Partially: sleep tuning, simpler colliders |
-| **Transformer JS** | 46% of headless frame; chain cost dominated by preset logic | ~8 ms | **Yes:** cached sort + in-place accumulate **done**; profile presets next |
-| **Texture decode stalls** | 241 ms blob decode mid-frame (sporadic) | 30–240 ms when it hits | Partially: prefetch done; full decode before play not yet |
+| **Rapier WASM step** (core) | Chrome: `wasm-function[1192]` **562 ms** total; headless 51% | ~10 ms | Partially: sleep tuning, simpler colliders |
+| **Transformer JS** | Chrome: `executeTransformers` **1,148 ms** total (includes touching); headless 46% | ~8 ms | **Yes:** cached sort + in-place **done**; touching cache **done** |
 | **React reconciliation** | ~~Builder `livePoses` every 220 ms~~ → **`InspectorLivePoseBridge`** isolates sidebar | 1–5 ms saved on `Builder` subtree | **Partial:** bridge **done**; `FrameStatsOverlay` throttled |
 | **Remaining JS alloc** | Script APIs, `ScriptRunner`, occasional `Object.keys` in clears | < 1 ms cumulative typical | **Partial:** Tier 2 hot paths addressed |
 
 **Key insight:** The headless benchmark phase split (physics 51%, transformers 46%, sync 3%) **excludes** `renderer.render` (Three.js GPU submit), which the Vitest harness cannot measure. In the browser, GPU work dominates — the 27–33 ms WebGL dispatch alone exceeds the entire 16.7 ms frame budget.
+
+**Key insights:**
+- Chrome call tree (§1.3): `executeTransformers` at **65%** of frame; **nearly half** is per-entity `contactPairsWith`/`contactPair` WASM wrapper churn → **addressed by `rebuildTouchingCache`**.
+- Firefox amplifies the same cost with `GCMinor` (nursery promotion), JIT bailouts, and longer GC pauses.
+- The headless benchmark phase split (physics 51%, transformers 46%, sync 3%) **excludes** `renderer.render` (Three.js GPU submit). In the browser, GPU + WASM wrapper overhead together dominate.
 
 ### Prioritized action plan
 
@@ -272,7 +311,7 @@ Improves Builder responsiveness; does not affect standalone Play FPS:
 ### What NOT to pursue yet
 
 - **Instancing / LOD**: Large engineering effort. Only valuable when scenes have many copies of the same mesh or many distant objects. Revisit after GPU monitoring (item 5) reveals whether draw calls or fill rate is the bottleneck.
-- **Physics WASM deopt**: The `Bailout/Invalidate` in Rapier's WASM interop is in library code (`@dimforge/rapier3d-compat.js`). Destructuring WASM return values might help, but the gain is speculative and hard to measure without Rapier source changes.
+- **Physics WASM deopt**: The `Bailout/Invalidate` in Rapier's WASM interop is in library code (`@dimforge/rapier3d-compat.js`). The **primary fix** is reducing how often we call Rapier getters (touching cache, velocity cache), not changing the library. Further: `body.linvel()` / `body.angvel()` in `executeTransformers` still create wrappers — cacheable in physics step alongside transforms.
 - **Script optimization**: Depends on user script content. General guidance (early returns, avoid per-frame `findEntities`/raycasts) belongs in script documentation, not engine optimization work.
 
 ### Measurement plan
@@ -300,6 +339,7 @@ Improves Builder responsiveness; does not affect standalone Play FPS:
 | 2026-04-08 | §4 / §11 Tier 1 implemented: 1024² shadows, `PCFShadowMap`, DPR cap 1.5, AABB-based `castShadow` (`updateMeshCastShadowFromWorldAabb`), frame stats GPU draw calls + triangles. |
 | 2026-04-08 | §11 Tier 2 + partial Tier 3: `TransformerChain` cached priority sort + in-place force/torque accumulate; `applyInputMappingInto` / `InputTransformer` / `useInputManager`; `sceneFrameLoop` debug-force in-place compaction; `getLinearVelocityInto` + `getForwardVectorInto` + HUD scratch Vec3; `FrameStatsOverlay` setState throttled ~10 Hz; `GameHud` wrapped in `React.memo`. **Measure:** `npm run test:run -- src/test/scenarios/performance-benchmarks.integration.test.ts` — still sub-quadratic scaling, heap delta near zero (run-to-run variance normal). |
 | 2026-04-08 | §1.2: New Firefox marker table (rAF 23–259 ms, 20 MB nursery, GCMajor, blob 33–232 ms, WebGL DispatchCommands/GetLinkResult/GetFrontBuffer, HUD CSS opacity/transform). §11 #11: `InspectorLivePoseBridge` isolates inspector pose polling from `Builder`. `avatarEntityIconLetter` uses `charAt` for stabler key path. |
+| 2026-04-08 | **§1.3: Chrome Performance trace** — `executeTransformers` 65% of frame; `contactPairsWith`/`contactPair` 497 ms; FinalizationRegistry `__wrap` 4,541 ms / `__destroy_into_raw` 1,451 ms over session. **§5: `rebuildTouchingCache`** — batch per-step touching/support queries replacing O(N) per-entity Rapier calls. `lastCollisions.length = 0` replaces `= []`. `env.wind`/`supportVelocity` use `= undefined` instead of `delete`. Updated bottleneck ranking: WASM wrapper churn now #1. |
 
 ---
 
