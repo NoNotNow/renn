@@ -2,6 +2,8 @@
 
 Working document derived from Firefox profiling on a heavy project (RefreshDriver / `requestAnimationFrame`, GC, CSS HUD, JIT notes) and from codebase review. **Items are ordered by typical impact (largest gains first).** Update statuses and notes as work completes.
 
+**Current status (2026-04-08):** JS allocation-reduction work (§2, §6, §7) is **benchmark-validated** — near-zero heap growth, full object reuse, linear scaling (see §10). However, **users cannot yet see the difference** because the dominant bottleneck is **GPU-bound rendering** (WebGL dispatch 27–33 ms per frame, exceeding the 16.7 ms budget by itself). See §11 for a prioritized strategy that addresses the GPU bottleneck first.
+
 **Legend:** `[ ]` not started · `[~]` in progress · `[x]` done
 
 ---
@@ -182,6 +184,85 @@ npm run test:run -- src/test/scenarios/performance-benchmarks.integration.test.t
 
 ---
 
+## 11. Strategic approach: where time goes and what moves the needle
+
+### Why users cannot see the difference (yet)
+
+The allocation-reduction work (§2, §6, §7) is **provably effective** — automated benchmarks (§10) confirm:
+
+- **Heap growth: -75 bytes/frame** (near-zero retained allocation during steady-state simulation).
+- **Object reuse: 100%** — `CachedTransform` and `contactForceByPair` Map references survive across frames.
+- **Scaling: 3.65x** for 4x entity count (linear).
+
+But user-visible FPS has not improved because **the dominant bottleneck is GPU-bound rendering, not JS-side GC**. The allocation fixes prevent the catastrophic 331 ms GC→DiscardJit→recompile cascade, but do not reduce the **steady-state GPU + physics cost** that keeps frames above 16.7 ms on heavy scenes.
+
+### Evidence-based bottleneck ranking
+
+Combines Firefox profiling data, headless benchmark phase split, and code audit:
+
+| Bottleneck | Evidence | Est. per-frame cost | Addressable? |
+|---|---|---|---|
+| **GPU fill + shadow pass** | WebGL `DispatchCommands` 27–33 ms; `GetLinkResult` 14 ms sync stall | 30+ ms (exceeds 16.7 ms budget alone) | **Yes:** shadow res, DPR cap, fewer casters |
+| **Rapier WASM step** | 51% of headless frame; `Bailout/Invalidate` in WASM interop | ~10 ms (heavy scene) | Partially: sleep tuning, simpler colliders |
+| **Transformer JS** | 46% of headless frame; `TransformerChain.execute` allocates per entity per frame | ~8 ms | **Yes:** pre-sort, reuse accumulated/input |
+| **Texture decode stalls** | 241 ms blob decode mid-frame (sporadic) | 30–240 ms when it hits | Partially: prefetch done; full decode before play not yet |
+| **React reconciliation** | Builder `livePoses` every 220 ms; `FrameStatsOverlay` setState every frame | 1–5 ms per rerender | **Yes:** ref + targeted update, `React.memo` |
+| **Remaining JS alloc** | `applyInputMapping {}`, `TransformerChain` spread, HUD `getAll()` sort | < 1 ms cumulative | **Yes:** low-effort fixes |
+
+**Key insight:** The headless benchmark phase split (physics 51%, transformers 46%, sync 3%) **excludes** `renderer.render` (Three.js GPU submit), which the Vitest harness cannot measure. In the browser, GPU work dominates — the 27–33 ms WebGL dispatch alone exceeds the entire 16.7 ms frame budget.
+
+### Prioritized action plan
+
+#### Tier 1 — GPU-bound (biggest user-visible wins)
+
+Users will see FPS improvement on heavy scenes. These directly reduce the dominant bottleneck:
+
+| # | Item | Where | Rationale |
+|---|------|-------|-----------|
+| 1 | **Shadow map 2048 → 1024** (or dynamic by entity count) | [`loadWorld.ts`](../src/loader/loadWorld.ts) :84–85 | Halves shadow pass fill; shadows still usable |
+| 2 | **`PCFSoftShadowMap` → `PCFShadowMap`** | [`SceneView.tsx`](../src/components/SceneView.tsx) :562 | Cheaper filtering; visible quality difference is small |
+| 3 | **Selective `castShadow`**: disable on entities with bounding sphere < 0.3 | [`loadWorld.ts`](../src/loader/loadWorld.ts) :159 | Currently ALL non-plane meshes cast shadows; small props are invisible in the shadow map |
+| 4 | **DPR quality setting**: user toggle or auto-detect; cap at 1.5 or 1.0 on low-end | [`SceneView.tsx`](../src/components/SceneView.tsx) :560 | Currently fixed `min(dpr, 2)` — lowering to 1.5 reduces fill by ~44% |
+| 5 | **GPU budget monitoring**: expose `renderer.info.render.calls` and `.triangles` in Frame Stats overlay | [`FrameStatsOverlay.tsx`](../src/components/FrameStatsOverlay.tsx) | Currently **zero** GPU metrics in the codebase; needed to guide all further GPU work |
+
+#### Tier 2 — Remaining JS allocation (prevents spikes, moderate steady-state gain)
+
+Completes the allocation-reduction campaign from §2. Validated by the headless benchmarks:
+
+| # | Item | Where | Frequency |
+|---|------|-------|-----------|
+| 6 | **`TransformerChain.execute`**: pre-sort on add/remove (not per `execute`); reuse one `accumulated` + one `currentInput` scratch per chain | [`transformer.ts`](../src/transformers/transformer.ts) :139–151, :205–209 | Per entity per frame |
+| 7 | **`applyInputMapping`**: accept reusable `Record` instead of `{}` every call; avoid `Object.keys` in merge | [`inputMapping.ts`](../src/input/inputMapping.ts) :34 + [`inputTransformer.ts`](../src/transformers/presets/inputTransformer.ts) :86 | Per input-entity per frame |
+| 8 | **HUD `getAll()` sort**: cache sorted transformer list; invalidate on add/remove | [`transformer.ts`](../src/transformers/transformer.ts) :118–119 | Per HUD frame (called from `getCar2WheelAngle`) |
+| 9 | **`sceneFrameLoop` debug-force filter**: in-place splice instead of `Array.filter` | [`sceneFrameLoop.ts`](../src/runtime/sceneFrameLoop.ts) :140–148 | Per physics frame (when debug forces exist) |
+| 10 | **`getLinearVelocity` / `getForwardVector`**: return into caller buffers, not new `[x,y,z]` | [`rapierPhysics.ts`](../src/physics/rapierPhysics.ts) :622 + [`renderItemRegistry.ts`](../src/runtime/renderItemRegistry.ts) :470 | Per HUD frame |
+
+#### Tier 3 — React overhead (Builder-mode specific)
+
+Improves Builder responsiveness; does not affect standalone Play FPS:
+
+| # | Item | Where | Rationale |
+|---|------|-------|-----------|
+| 11 | **Builder `livePoses`**: store in ref, push updates only to PropertySidebar (not full Builder rerender) | [`Builder.tsx`](../src/pages/Builder.tsx) :1276–1286 | Currently triggers full `Builder` rerender → all children every 220 ms |
+| 12 | **`FrameStatsOverlay`**: cap setState to ~10 Hz or use direct DOM writes | [`FrameStatsOverlay.tsx`](../src/components/FrameStatsOverlay.tsx) :39–51 | Currently calls `setState` at ~60 fps when overlay is on |
+| 13 | **`React.memo` on `GameHud`** | [`GameHud.tsx`](../src/components/GameHud.tsx) | Prevents rerenders from unrelated parent state changes |
+
+### What NOT to pursue yet
+
+- **Instancing / LOD**: Large engineering effort. Only valuable when scenes have many copies of the same mesh or many distant objects. Revisit after GPU monitoring (item 5) reveals whether draw calls or fill rate is the bottleneck.
+- **Physics WASM deopt**: The `Bailout/Invalidate` in Rapier's WASM interop is in library code (`@dimforge/rapier3d-compat.js`). Destructuring WASM return values might help, but the gain is speculative and hard to measure without Rapier source changes.
+- **Script optimization**: Depends on user script content. General guidance (early returns, avoid per-frame `findEntities`/raycasts) belongs in script documentation, not engine optimization work.
+
+### Measurement plan
+
+| Tier | How to validate |
+|------|-----------------|
+| Tier 1 (GPU) | **Browser-based**: Frame Stats overlay (after adding `renderer.info` in item 5) + Chrome/Firefox profiler on the heavy test scene. The headless Vitest benchmarks cannot measure GPU cost. |
+| Tier 2 (JS alloc) | **Automated**: `performance-benchmarks.integration.test.ts` — heap delta stays near zero; transformer phase share should decrease after item 6. |
+| Tier 3 (React) | **React DevTools Profiler** or manual observation in Builder; check component render count per 220 ms interval before/after. |
+
+---
+
 ## Changelog
 
 | Date | Change |
@@ -193,6 +274,7 @@ npm run test:run -- src/test/scenarios/performance-benchmarks.integration.test.t
 | 2026-04-08 | §2: `rapierPhysics.ts` — reuse `CachedTransform` in place; `contactForceByPair` map reused with `clear()`. §1: flame-chart how-to. §9: code trace for blob/texture paths (`assetResolverImpl`, `SceneView` skybox, Builder preview). |
 | 2026-04-08 | §2/§6: `RenderItemRegistry.executeTransformers` scratch `TransformInput`; `InputTransformer` in-place `actions`; `rapierQuaternionToEulerInto` (`rotationUtils.ts`). §7: pose updates in-place; `setPositionXYZ` / `setRotationEuler`; `SceneView` game API uses them. §9: idle `createImageBitmap` prefetch (`prefetchMaterialTextures.ts` + `SceneView`). |
 | 2026-04-08 | §10: Automated performance benchmark integration tests — object identity, heap delta, scaling linearity, frame-time distribution, phase breakdown. `benchmarkUtils.ts`, `WorldSimulator.runFramesTimed()`, `--expose-gc` in Vitest config. |
+| 2026-04-08 | §11: Strategic approach — bottleneck analysis (GPU is dominant, not GC), three-tier prioritized action plan (GPU shadow/DPR first, then JS alloc completion, then React overhead), exclusions rationale, measurement plan per tier. Updated intro with current status. |
 
 ---
 
