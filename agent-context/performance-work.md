@@ -154,6 +154,34 @@ Use the **same heavy project** as the Firefox marker export so results are compa
 
 ---
 
+## 10. Automated performance benchmarks
+
+Integration tests that measure hardware-independent metrics to validate optimizations and guard against regressions. Run with:
+
+```bash
+npm run test:run -- src/test/scenarios/performance-benchmarks.integration.test.ts
+```
+
+| Metric | What it proves | Hardware-independent? |
+|--------|----------------|----------------------|
+| **Object identity** | `CachedTransform` / `contactForceByPair` references survive across frames (§2 reuse) | Yes — deterministic pass/fail |
+| **Heap delta** | Bytes allocated per frame per entity during steady-state simulation (`--expose-gc` via Vitest) | Yes — allocation count is code-determined |
+| **Scaling ratio** | `time(4x entities) / time(1x entities)` stays sub-quadratic (< 6.0; linear = 4.0) | Yes — dimensionless ratio |
+| **Frame time distribution** | CoV, p99/median recorded for GC-spike detection (informational; too noisy under parallel CI) | Partially — ratios are stable on isolated runs |
+| **Phase breakdown** | % of frame in transformers / physics / sync; tracks where the bottleneck shifts | Partially — proportions are stable |
+
+**Files:**
+- Test: [`src/test/scenarios/performance-benchmarks.integration.test.ts`](../src/test/scenarios/performance-benchmarks.integration.test.ts)
+- Helpers: [`src/test/helpers/benchmarkUtils.ts`](../src/test/helpers/benchmarkUtils.ts) (heap measurement, stats, world factory)
+- Simulator: [`src/test/helpers/worldSimulator.ts`](../src/test/helpers/worldSimulator.ts) (`runFramesTimed()`, `getPhysicsWorld()`)
+
+**What regressions look like:**
+- Object identity test fails → someone re-introduced per-frame `new` in the physics cache or Map path.
+- Heap delta > 2 KB/frame → new allocation site in the hot loop (profile with `performance.measure` or browser memory tool).
+- Scaling ratio > 6 → quadratic cost crept in (nested entity loops, broadphase regression).
+
+---
+
 ## Changelog
 
 | Date | Change |
@@ -164,6 +192,7 @@ Use the **same heavy project** as the Firefox marker export so results are compa
 | 2026-04-08 | Updated from detailed Firefox marker export: §1 concrete rAF numbers + 331ms LongTask; §2 GCMajor→DiscardJit cascade + rapierPhysics allocation hot spot; §4 GPU/shader evidence; §5 Rapier JIT deopt; §7 renderItem.ts:34 new bailout; §9 blob decode timings (51ms, 241ms mid-frame). |
 | 2026-04-08 | §2: `rapierPhysics.ts` — reuse `CachedTransform` in place; `contactForceByPair` map reused with `clear()`. §1: flame-chart how-to. §9: code trace for blob/texture paths (`assetResolverImpl`, `SceneView` skybox, Builder preview). |
 | 2026-04-08 | §2/§6: `RenderItemRegistry.executeTransformers` scratch `TransformInput`; `InputTransformer` in-place `actions`; `rapierQuaternionToEulerInto` (`rotationUtils.ts`). §7: pose updates in-place; `setPositionXYZ` / `setRotationEuler`; `SceneView` game API uses them. §9: idle `createImageBitmap` prefetch (`prefetchMaterialTextures.ts` + `SceneView`). |
+| 2026-04-08 | §10: Automated performance benchmark integration tests — object identity, heap delta, scaling linearity, frame-time distribution, phase breakdown. `benchmarkUtils.ts`, `WorldSimulator.runFramesTimed()`, `--expose-gc` in Vitest config. |
 
 ---
 
@@ -177,5 +206,6 @@ Use the **same heavy project** as the Firefox marker export so results are compa
 - Physics step + cached transforms: `src/physics/rapierPhysics.ts` (`step()` ~427+, `contactForceByPair`, `dispose`)
 - Blob URL textures: `src/loader/assetResolverImpl.ts`
 - HUD CSS: search `rennHudPulse` / `rennHudPulseScore` / `rennHudPulseDamage`
+- Performance benchmarks: `src/test/scenarios/performance-benchmarks.integration.test.ts`, `src/test/helpers/benchmarkUtils.ts`
 
 Listed in [`README.md`](README.md) (this folder).

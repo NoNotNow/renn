@@ -49,6 +49,14 @@ function buildLoadedEntities(world: RennWorld): LoadedEntity[] {
   }))
 }
 
+/** Per-frame timing breakdown for benchmark analysis. */
+export interface FramePhaseTiming {
+  transformersMs: number
+  physicsStepMs: number
+  syncMs: number
+  totalMs: number
+}
+
 /**
  * Snapshot of all dynamic/kinematic entity states at a point in time.
  * Useful for logging before converting to assertions.
@@ -183,6 +191,31 @@ export class WorldSimulator {
     this.runFrames(Math.round(seconds / dt), dt)
   }
 
+  /**
+   * Like `runFrames` but returns per-frame phase timings (milliseconds).
+   * Useful for benchmarks that need to measure where time is spent without
+   * depending on absolute wall-clock speed.
+   */
+  runFramesTimed(count: number, dt = DEFAULT_DT): FramePhaseTiming[] {
+    const timings: FramePhaseTiming[] = []
+    for (let i = 0; i < count; i++) {
+      const t0 = performance.now()
+      this.registry.executeTransformers(dt, this.wind)
+      const t1 = performance.now()
+      this.physicsWorld.step(dt)
+      const t2 = performance.now()
+      this.registry.syncFromPhysics()
+      const t3 = performance.now()
+      timings.push({
+        transformersMs: t1 - t0,
+        physicsStepMs: t2 - t1,
+        syncMs: t3 - t2,
+        totalMs: t3 - t0,
+      })
+    }
+    return timings
+  }
+
   // ---------------------------------------------------------------------------
   // State reading
   // ---------------------------------------------------------------------------
@@ -233,6 +266,15 @@ export class WorldSimulator {
       }
     }
     return result
+  }
+
+  // ---------------------------------------------------------------------------
+  // Test-only accessors
+  // ---------------------------------------------------------------------------
+
+  /** Exposes the underlying PhysicsWorld for benchmark / introspection tests. */
+  getPhysicsWorld(): PhysicsWorld {
+    return this.physicsWorld
   }
 
   // ---------------------------------------------------------------------------
