@@ -2,7 +2,7 @@
 
 Separate project from the current performance backlog. The existing `meshSimplifier.ts` can generate reduced geometries, but full LOD requires swap-distance logic, `THREE.LOD` integration, and asset pipeline changes for multi-resolution storage.
 
-**Prerequisite:** Distance culling (hide small objects beyond a radius) is already implemented as a simpler alternative. LOD is the next step for scenes where distant objects should still be visible but at lower detail.
+**Prerequisite:** Distance culling (max distance and/or minimum size/distance ratio from camera; optional physics/script sleep) is implemented as a simpler alternative. LOD is the next step for scenes where distant objects should still be visible but at lower detail.
 
 ## What exists today (reusable)
 

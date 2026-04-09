@@ -63,6 +63,8 @@ export class PhysicsWorld {
   private touchingCache: Map<string, { touching: boolean; supportVelocity?: [number, number, number] }> = new Map()
   /** Entity ids that need touching cache rebuilt each step (set by caller). */
   private touchingCacheEntityIds: Set<string> = new Set()
+  /** Bodies disabled via distance-culling sleep (Rapier `setEnabled(false)`). */
+  private culledForDistance: Set<string> = new Set()
 
   constructor(gravity: [number, number, number] = DEFAULT_GRAVITY, sleeping?: WorldSleepingSettings) {
     this.world = new RAPIER.World({ x: gravity[0], y: gravity[1], z: gravity[2] })
@@ -396,6 +398,9 @@ export class PhysicsWorld {
       if (!body.isDynamic()) {
         continue
       }
+      if (this.culledForDistance.has(entityId)) {
+        continue
+      }
 
       if (body.isSleeping()) {
         this.customSleepTimers.delete(entityId)
@@ -442,6 +447,9 @@ export class PhysicsWorld {
       // Cache transforms + velocities AFTER step to avoid WASM aliasing errors.
       // Reuse CachedTransform structs per entity to avoid per-frame allocation / GC.
       for (const [entityId, body] of this.bodyMap) {
+        if (this.culledForDistance.has(entityId)) {
+          continue
+        }
         const isDynamic = body.isDynamic()
         const isKin = body.isKinematic()
         if (isDynamic || isKin) {
@@ -704,12 +712,34 @@ export class PhysicsWorld {
    * addForce/addTorque do not accumulate across steps.
    */
   resetAllForces(): void {
-    for (const body of this.bodyMap.values()) {
+    for (const [entityId, body] of this.bodyMap) {
+      if (this.culledForDistance.has(entityId)) continue
       if (body.isDynamic() && !body.isSleeping()) {
         body.resetForces(true)
         body.resetTorques(true)
       }
     }
+  }
+
+  /** Disable rigid body + colliders for distance culling (no simulation cost). Idempotent. */
+  disableBodyForCulling(entityId: string): void {
+    const body = this.bodyMap.get(entityId)
+    if (!body || this.culledForDistance.has(entityId)) return
+    body.setEnabled(false)
+    this.culledForDistance.add(entityId)
+  }
+
+  /** Re-enable body after distance culling; wakes dynamic bodies. Idempotent. */
+  enableBodyFromCulling(entityId: string): void {
+    if (!this.culledForDistance.has(entityId)) return
+    const body = this.bodyMap.get(entityId)
+    if (body) {
+      body.setEnabled(true)
+      if (body.isDynamic()) {
+        body.wakeUp()
+      }
+    }
+    this.culledForDistance.delete(entityId)
   }
 
   setPosition(entityId: string, x: number, y: number, z: number): void {
@@ -956,6 +986,7 @@ export class PhysicsWorld {
     this.cachedTransforms.clear()
     this.contactForceByPair.clear()
     this.customSleepTimers.clear()
+    this.culledForDistance.clear()
     
     // Free RAPIER resources
     try {

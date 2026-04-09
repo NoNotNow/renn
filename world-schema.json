@@ -63,6 +63,27 @@
       },
       "additionalProperties": false
     },
+    "DistanceCullingSettings": {
+      "type": "object",
+      "required": ["maxDistance", "minSizeDistanceRatio"],
+      "properties": {
+        "maxDistance": {
+          "type": "number",
+          "minimum": 0.1,
+          "description": "Cull when camera–object distance exceeds this (world units)"
+        },
+        "minSizeDistanceRatio": {
+          "type": "number",
+          "minimum": 0.0001,
+          "description": "Cull when worldSize/distance is below this ratio (squared test in engine)"
+        },
+        "sleepCulled": {
+          "type": "boolean",
+          "description": "Disable physics and skip scripts for culled entities"
+        }
+      },
+      "additionalProperties": false
+    },
     "WorldSettings": {
       "type": "object",
       "properties": {
@@ -74,7 +95,14 @@
         "directionalLight": { "$ref": "#/$defs/DirectionalLightConfig" },
         "skyColor": { "$ref": "#/$defs/Color" },
         "skybox": { "type": "string" },
-        "camera": { "$ref": "#/$defs/CameraConfig" }
+        "camera": { "$ref": "#/$defs/CameraConfig" },
+        "distanceCulling": {
+          "description": "Omitted = engine defaults (enabled). false = disabled.",
+          "oneOf": [
+            { "type": "boolean", "enum": [false] },
+            { "$ref": "#/$defs/DistanceCullingSettings" }
+          ]
+        }
       },
       "additionalProperties": false
     },

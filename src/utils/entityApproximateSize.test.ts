@@ -29,13 +29,13 @@ describe('getEntityApproximateSize', () => {
     expect(getEntityApproximateSize(e)).toBe(2)
   })
 
-  it('uses nominal span for plane', () => {
+  it('uses default plane geometry max edge times scale', () => {
     const e: Entity = {
       id: 'd',
       shape: { type: 'plane' },
       scale: [1, 1, 1],
     }
-    expect(getEntityApproximateSize(e)).toBe(10)
+    expect(getEntityApproximateSize(e)).toBe(200)
   })
 
   it('uses scale only for trimesh (unknown mesh bounds)', () => {

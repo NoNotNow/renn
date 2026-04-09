@@ -4,6 +4,9 @@
  *
  * `migrateWorldSimplificationFields` clamps mesh simplification numbers to JSON schema ranges
  * (maxError ≥ 0.0001, maxTriangles ≥ 500) so saved worlds stay valid after UI typos.
+ *
+ * `migrateDistanceCullingFields` converts legacy `radius` / `minSize` to `maxDistance` /
+ * `minSizeDistanceRatio`.
  */
 import type { ScriptDef, EntityScriptsLegacy, TrimeshSimplificationConfig } from '@/types/world'
 
@@ -164,4 +167,23 @@ export function migrateWorldScripts(worldData: unknown): void {
     }
     entity.scripts = ids
   }
+}
+
+/** Mutates `world.world.distanceCulling` in place when it uses legacy `radius` / `minSize`. */
+export function migrateDistanceCullingFields(worldData: unknown): void {
+  if (!worldData || typeof worldData !== 'object') return
+  const root = worldData as Record<string, unknown>
+  const world = root.world as Record<string, unknown> | undefined
+  if (!world) return
+  const dc = world.distanceCulling
+  if (!dc || typeof dc !== 'object' || dc === null) return
+  const o = dc as Record<string, unknown>
+  if (o.maxDistance !== undefined) return
+  if (typeof o.radius !== 'number' || !Number.isFinite(o.radius)) return
+  const radius = o.radius
+  const minSize = typeof o.minSize === 'number' && Number.isFinite(o.minSize) ? o.minSize : 1.0
+  delete o.radius
+  delete o.minSize
+  o.maxDistance = radius
+  o.minSizeDistanceRatio = radius > 0 ? minSize / radius : 0.02
 }

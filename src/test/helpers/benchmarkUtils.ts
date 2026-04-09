@@ -184,7 +184,8 @@ export function createBenchmarkWorld(
 
   return {
     version: '1.0',
-    world: { gravity: [0, -9.81, 0] },
+    /** Explicitly off so frame benchmarks measure physics/transformers, not distance culling. */
+    world: { gravity: [0, -9.81, 0], distanceCulling: false },
     entities,
     assets: {},
     scripts: {},

@@ -5,7 +5,8 @@
 
 import type * as THREE from 'three'
 import type { RefObject, MutableRefObject } from 'react'
-import type { RennWorld, Vec3, EditorFreePose, DistanceCullingSettings } from '@/types/world'
+import type { RennWorld, Vec3, EditorFreePose } from '@/types/world'
+import { resolveDistanceCullingSettings } from '@/types/world'
 import type { RawInput, RawKeyboardState, RawWheelState } from '@/types/transformer'
 import type { FreeFlyKeys } from '@/types/camera'
 import type { PhysicsWorld } from '@/physics/rapierPhysics'
@@ -174,19 +175,6 @@ export function runSceneFrame(input: SceneFrameLoopInputs): void {
           timing.physicsMs = n - prev
           prev = n
         }
-
-        if (scriptRunnerRef.current && runScripts) {
-          const collisions = pw.getCollisions()
-          for (const { entityIdA, entityIdB, impact } of collisions) {
-            scriptRunnerRef.current.runOnCollision(entityIdA, entityIdB, impact)
-            scriptRunnerRef.current.runOnCollision(entityIdB, entityIdA, impact)
-          }
-        }
-        if (timing) {
-          const n = performance.now()
-          timing.scriptCollisionsMs = n - prev
-          prev = n
-        }
       }
     } catch (e) {
       if (!isCancelled()) {
@@ -195,15 +183,6 @@ export function runSceneFrame(input: SceneFrameLoopInputs): void {
       finishTiming()
       return
     }
-  }
-
-  if (scriptRunnerRef.current && runScripts && !editNavigationModeRef.current) {
-    scriptRunnerRef.current.runOnUpdate(dt)
-  }
-  if (timing) {
-    const n = performance.now()
-    timing.scriptsOnUpdateMs = n - prev
-    prev = n
   }
 
   const ctrl = cameraCtrlRef.current
@@ -266,6 +245,51 @@ export function runSceneFrame(input: SceneFrameLoopInputs): void {
     prev = n
   }
 
+  // Distance culling after camera update so visibility + script/physics sleep match current view.
+  const registry = registryRef.current
+  const resolvedCulling = resolveDistanceCullingSettings(worldRef.current.world.distanceCulling)
+  if (registry && cam && !isCancelled()) {
+    if (resolvedCulling) {
+      registry.applyDistanceCulling(cam.position, resolvedCulling)
+    } else {
+      registry.clearDistanceCulling()
+    }
+  }
+
+  const scriptSkipIds = registry?.culledSleepingEntityIds
+
+  if (pw && runPhysics && !isCancelled() && !editNav) {
+    try {
+      if (scriptRunnerRef.current && runScripts) {
+        const collisions = pw.getCollisions()
+        for (const { entityIdA, entityIdB, impact } of collisions) {
+          scriptRunnerRef.current.runOnCollision(entityIdA, entityIdB, impact, scriptSkipIds)
+          scriptRunnerRef.current.runOnCollision(entityIdB, entityIdA, impact, scriptSkipIds)
+        }
+      }
+      if (timing) {
+        const n = performance.now()
+        timing.scriptCollisionsMs = n - prev
+        prev = n
+      }
+    } catch (e) {
+      if (!isCancelled()) {
+        console.error('Script collision error:', e)
+      }
+      finishTiming()
+      return
+    }
+  }
+
+  if (scriptRunnerRef.current && runScripts && !editNavigationModeRef.current) {
+    scriptRunnerRef.current.runOnUpdate(dt, scriptSkipIds)
+  }
+  if (timing) {
+    const n = performance.now()
+    timing.scriptsOnUpdateMs = n - prev
+    prev = n
+  }
+
   if (showGameHud) {
     const camCtrl = cameraCtrlRef.current
     const targetId = (camCtrl?.getConfig().target ?? '').trim()
@@ -298,18 +322,6 @@ export function runSceneFrame(input: SceneFrameLoopInputs): void {
     const n = performance.now()
     timing.hudMs = n - prev
     prev = n
-  }
-
-  // Distance culling pass: hide small objects far from camera.
-  const registry = registryRef.current
-  const cullingSettings: DistanceCullingSettings | undefined =
-    worldRef.current.world.distanceCulling
-  if (registry && cam) {
-    if (cullingSettings) {
-      registry.applyDistanceCulling(cam.position, cullingSettings)
-    } else {
-      registry.clearDistanceCulling()
-    }
   }
 
   const dome = skyDomeRef.current

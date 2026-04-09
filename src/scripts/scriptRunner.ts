@@ -15,11 +15,13 @@ import {
 type HookFn = (ctx: ScriptCtx) => void
 
 interface OnUpdateEntry {
+  entityId: string
   fn: HookFn
   ctx: OnUpdateCtx
 }
 
 interface OnTimerEntry {
+  entityId: string
   fn: HookFn
   ctx: OnTimerCtx
   interval: number
@@ -77,6 +79,7 @@ export class ScriptRunner {
           }
           case 'onUpdate': {
             this.onUpdateEntries.push({
+              entityId: entity.id,
               fn,
               ctx: allocOnUpdateCtx(this.game, entity),
             })
@@ -90,6 +93,7 @@ export class ScriptRunner {
           }
           case 'onTimer': {
             this.onTimerEntries.push({
+              entityId: entity.id,
               fn,
               ctx: allocOnTimerCtx(this.game, entity, def.interval),
               interval: def.interval,
@@ -145,12 +149,15 @@ export class ScriptRunner {
     }
   }
 
-  runOnUpdate(dt: number): void {
-    for (const { fn, ctx } of this.onUpdateEntries) {
+  runOnUpdate(dt: number, skipEntityIds?: ReadonlySet<string>): void {
+    const skip = skipEntityIds
+    for (const { entityId, fn, ctx } of this.onUpdateEntries) {
+      if (skip?.has(entityId)) continue
       ctx.dt = dt
       fn(ctx)
     }
     for (const entry of this.onTimerEntries) {
+      if (skip?.has(entry.entityId)) continue
       entry.elapsed += dt
       if (entry.elapsed >= entry.interval) {
         entry.elapsed -= entry.interval
@@ -159,7 +166,13 @@ export class ScriptRunner {
     }
   }
 
-  runOnCollision(entityId: string, otherId: string, impact?: CollisionImpact): void {
+  runOnCollision(
+    entityId: string,
+    otherId: string,
+    impact?: CollisionImpact,
+    skipEntityIds?: ReadonlySet<string>,
+  ): void {
+    if (skipEntityIds?.has(entityId)) return
     const list = this.onCollisionHooks.get(entityId)
     if (!list) return
     const other = this.entityMap.get(otherId)

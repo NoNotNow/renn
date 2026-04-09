@@ -99,21 +99,23 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
     updateWorldSettings({ sleeping: { ...RECOMMENDED_SLEEPING_SETTINGS } })
   }
 
-  const culling: DistanceCullingSettings | undefined = world.world.distanceCulling
-  const cullingEnabled = culling !== undefined
+  const cullingRaw = world.world.distanceCulling
+  /** Omitted or object = on; `false` = user disabled. */
+  const cullingEnabled = cullingRaw !== false
+  const cullingValues: DistanceCullingSettings =
+    typeof cullingRaw === 'object' && cullingRaw !== null ? cullingRaw : DEFAULT_DISTANCE_CULLING
 
   const toggleCulling = (enabled: boolean) => {
     pushUndo()
     if (enabled) {
       updateWorldSettings({ distanceCulling: { ...DEFAULT_DISTANCE_CULLING } })
     } else {
-      const { distanceCulling: _omit, ...rest } = world.world
-      onWorldChange({ ...world, world: rest })
+      updateWorldSettings({ distanceCulling: false })
     }
   }
 
   const updateCulling = (patch: Partial<DistanceCullingSettings>) => {
-    const base = culling ?? DEFAULT_DISTANCE_CULLING
+    const base = cullingValues
     updateWorldSettings({ distanceCulling: { ...base, ...patch } })
   }
 
@@ -328,7 +330,8 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
       <div style={{ ...sectionStyle, marginTop: 12 }}>
         <div style={sectionTitleStyle}>Distance Culling</div>
         <p style={{ fontSize: 11, color: '#9aa4b2', margin: '0 0 8px' }}>
-          Hide objects smaller than Min Size when farther than Radius from the camera.
+          On by default. Objects are hidden when beyond Max Distance <strong>or</strong> when their
+          apparent size/distance ratio is below Min ratio (camera to object center).
         </p>
         <div style={{ ...sidebarRowStyle, marginBottom: 8 }}>
           <label htmlFor="culling-enabled" style={sidebarLabelStyle}>Enabled</label>
@@ -343,25 +346,43 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
         {cullingEnabled && (
           <>
             <NumberInput onBeforeCommit={pushUndo}
-              id="culling-radius"
-              label="Radius"
-              value={culling!.radius}
-              onChange={(v) => updateCulling({ radius: v })}
+              id="culling-max-distance"
+              label="Max distance"
+              value={cullingValues.maxDistance}
+              onChange={(v) => updateCulling({ maxDistance: v })}
               min={1}
               step={5}
-              defaultValue={DEFAULT_DISTANCE_CULLING.radius}
+              defaultValue={DEFAULT_DISTANCE_CULLING.maxDistance}
               logComponent="WorldPanel"
             />
             <NumberInput onBeforeCommit={pushUndo}
-              id="culling-min-size"
-              label="Min size"
-              value={culling!.minSize}
-              onChange={(v) => updateCulling({ minSize: v })}
-              min={0.01}
-              step={0.1}
-              defaultValue={DEFAULT_DISTANCE_CULLING.minSize}
+              id="culling-min-ratio"
+              label="Min size/distance ratio"
+              value={cullingValues.minSizeDistanceRatio}
+              onChange={(v) => updateCulling({ minSizeDistanceRatio: v })}
+              min={0.001}
+              step={0.005}
+              defaultValue={DEFAULT_DISTANCE_CULLING.minSizeDistanceRatio}
               logComponent="WorldPanel"
             />
+            <div style={{ ...sidebarRowStyle, marginBottom: 8, alignItems: 'flex-start' }}>
+              <label htmlFor="culling-sleep" style={sidebarLabelStyle}>Sleep culled</label>
+              <div style={{ flex: 1 }}>
+                <input
+                  id="culling-sleep"
+                  type="checkbox"
+                  checked={cullingValues.sleepCulled === true}
+                  onChange={(e) => {
+                    pushUndo()
+                    updateCulling({ sleepCulled: e.target.checked })
+                  }}
+                  style={{ cursor: 'pointer' }}
+                />
+                <p style={{ fontSize: 10, color: '#7a8494', margin: '4px 0 0' }}>
+                  Freeze physics for culled objects and skip their transformers and scripts until visible again.
+                </p>
+              </div>
+            </div>
           </>
         )}
       </div>

@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { GLTFLoader } from 'three-stdlib'
 import type { Shape, Vec3, Rotation, MaterialRef, TrimeshSimplificationConfig } from '@/types/world'
 import type { DisposableAssetResolver } from './assetResolverImpl'
+import { PLANE_GEOMETRY_MAX_EDGE } from './planeGeometryConstants'
 import { eulerToQuaternion } from '@/utils/rotationUtils'
 import { convertZUpToYUpIfNeeded, normalizeSceneToUnitCube } from '@/utils/normalizeModelToUnitCube'
 import { normalizeModelTextureUVs } from '@/utils/normalizeModelTextureUVs'
@@ -264,11 +265,9 @@ export async function createPrimitiveMesh(
       )
       break
     }
-    case 'plane': {
-      const size = 100
-      geometry = new THREE.PlaneGeometry(size * 2, size * 2)
+    case 'plane':
+      geometry = new THREE.PlaneGeometry(PLANE_GEOMETRY_MAX_EDGE, PLANE_GEOMETRY_MAX_EDGE)
       break
-    }
     case 'trimesh': {
       // Load model if assetResolver is available
       if (shape.model && assetResolver) {
@@ -355,10 +354,8 @@ export function createShapeGeometry(shape: Shape): THREE.BufferGeometry | null {
         Math.PI * 2
       )
     }
-    case 'plane': {
-      const size = 100
-      return new THREE.PlaneGeometry(size * 2, size * 2)
-    }
+    case 'plane':
+      return new THREE.PlaneGeometry(PLANE_GEOMETRY_MAX_EDGE, PLANE_GEOMETRY_MAX_EDGE)
     case 'trimesh':
       return null
     default:

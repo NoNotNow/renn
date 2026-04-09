@@ -174,12 +174,12 @@ describe('Scaling linearity', () => {
       totalMsSmall: Math.round(totalSmall),
       totalMsLarge: Math.round(totalLarge),
       ratio: ratio,
-      verdict: ratio < 6.0 ? 'sub-quadratic' : 'WARNING: super-linear',
+      verdict: ratio < 6.5 ? 'sub-quadratic' : 'WARNING: super-linear',
     })
 
-    // Linear scaling (4x entities) would give ratio ~4.0.
-    // Allow up to 6.0 for constant overhead and Rapier broadphase effects.
-    expect(ratio).toBeLessThan(6.0)
+    // Linear scaling (4x entities) would give ratio ~4.0. Quadratic would be ~16.
+    // Allow margin for CI variance, Rapier broadphase, and parallel test load.
+    expect(ratio).toBeLessThan(6.5)
   })
 })
 

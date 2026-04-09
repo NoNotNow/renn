@@ -1,6 +1,10 @@
 import * as THREE from 'three'
 import { validateWorldDocument } from '@/schema/validate'
-import { migrateWorldScripts, migrateWorldSimplificationFields } from '@/scripts/migrateWorld'
+import {
+  migrateWorldScripts,
+  migrateWorldSimplificationFields,
+  migrateDistanceCullingFields,
+} from '@/scripts/migrateWorld'
 import type { RennWorld, Entity, Vec3, Rotation } from '@/types/world'
 import {
   DEFAULT_GRAVITY,
@@ -44,6 +48,7 @@ export async function loadWorld(
 ): Promise<LoadWorldResult> {
   migrateWorldScripts(worldData)
   const warnings: string[] = []
+  migrateDistanceCullingFields(worldData)
   migrateWorldSimplificationFields(worldData, warnings)
   validateWorldDocument(worldData, {
     tolerateAdditionalProperties: true,

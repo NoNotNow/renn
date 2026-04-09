@@ -111,15 +111,21 @@ export const RECOMMENDED_SLEEPING_SETTINGS: WorldSleepingSettings = {
 }
 
 export interface DistanceCullingSettings {
-  /** Max distance from camera before small objects are hidden. */
-  radius: number
-  /** Objects with approximate world size below this are culled at distance. */
-  minSize: number
+  /**
+   * Hard maximum distance from camera to object position. Beyond this, objects are culled
+   * unless their cached mesh-derived size exceeds the camera distance (large objects stay
+   * eligible for drawing past this cap; see distance culling in `RenderItemRegistry`).
+   */
+  maxDistance: number
+  /** Minimum size/distance ratio (worldSize / distance) -- below this ratio objects are culled. */
+  minSizeDistanceRatio: number
+  /** When true, culled objects freeze physics and skip transformers and scripts. */
+  sleepCulled?: boolean
 }
 
 export const DEFAULT_DISTANCE_CULLING: DistanceCullingSettings = {
-  radius: 50,
-  minSize: 1.0,
+  maxDistance: 1000,
+  minSizeDistanceRatio: 0.02,
 }
 
 export interface WorldSettings {
@@ -133,8 +139,25 @@ export interface WorldSettings {
   skyColor?: Color
   skybox?: string
   camera?: CameraConfig
-  /** Hide small objects beyond a distance from the camera. */
-  distanceCulling?: DistanceCullingSettings
+  /**
+   * Distance culling from camera. Omitted = enabled with {@link DEFAULT_DISTANCE_CULLING}.
+   * `false` = disabled (explicit opt-out).
+   */
+  distanceCulling?: DistanceCullingSettings | false
+}
+
+/**
+ * Resolves world distance culling for the frame loop.
+ * - `undefined` → defaults (enabled by default)
+ * - `false` → explicitly disabled
+ * - object → use as-is
+ */
+export function resolveDistanceCullingSettings(
+  culling: WorldSettings['distanceCulling'],
+): DistanceCullingSettings | null {
+  if (culling === false) return null
+  if (culling === undefined) return DEFAULT_DISTANCE_CULLING
+  return culling
 }
 
 export interface SoundSettings {

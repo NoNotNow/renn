@@ -22,7 +22,8 @@ import {
 } from '@/editor/bakeScaleIntoShape'
 import { syncShapeWireframeOverlay } from '@/loader/shapeWireframeOverlay'
 import { updateMeshCastShadowFromWorldAabb } from '@/utils/shadowBounds'
-import { getEntityApproximateSize } from '@/utils/entityApproximateSize'
+import { computeMeshWorldMaxExtent } from '@/utils/meshWorldExtent'
+import { distanceCullingShouldCull } from '@/utils/distanceCullingMath'
 
 const shapeUpdateShadowBox = new THREE.Box3()
 const shapeUpdateShadowSize = new THREE.Vector3()
@@ -37,8 +38,17 @@ export class RenderItemRegistry {
   private rawInputGetter: (() => RawInput | null) | null = null
   /** When set and `current` is non-null, only that entity receives keyboard input via InputTransformer. */
   private controlledEntityIdRef: { current: string | null } | null = null
+  /** Entity ids that are distance-culled with `sleepCulled` — skip their game scripts. */
+  private readonly _culledSleepingForScripts = new Set<string>()
+  /** Previous frame's `sleepCulled` flag (for toggling off world sleep). */
+  private _lastCullingSleepCulled: boolean | undefined
   /** Reused buffer for addVectorToPosition to avoid allocation on hot path. */
   private _addVecBuf: Vec3 = [0, 0, 0]
+
+  /** Read-only ids for {@link ScriptRunner} to skip per entity (distance culling + sleep). */
+  get culledSleepingEntityIds(): ReadonlySet<string> {
+    return this._culledSleepingForScripts
+  }
 
   /** Reused `TransformInput` for executeTransformers (one entity per iteration; cleared each time). */
   private readonly _tfPosition: Vec3 = [0, 0, 0]
@@ -121,7 +131,7 @@ export class RenderItemRegistry {
     for (const { entity, mesh } of loadedEntities) {
       const body = physicsWorld?.getBody(entity.id) ?? null
       const item = new RenderItem(entity, mesh, body)
-      item.worldSize = getEntityApproximateSize(entity)
+      registry.refreshCullingWorldSize(item)
 
       // Create transformer chain if entity has transformers.
       // Creation may be async (custom transformers); initialize asynchronously
@@ -316,8 +326,11 @@ export class RenderItemRegistry {
   /** Rebuild collider after scale gizmo drag (or external scale apply). */
   commitScalePhysics(id: string): void {
     const item = this.items.get(id)
-    if (!item || !this.physicsWorld) return
-    this.physicsWorld.updateShape(id, item.entity, item.mesh)
+    if (!item) return
+    if (this.physicsWorld) {
+      this.physicsWorld.updateShape(id, item.entity, item.mesh)
+    }
+    this.refreshCullingWorldSize(item)
   }
 
   /**
@@ -391,6 +404,7 @@ export class RenderItemRegistry {
     if (item.entity.shape?.type === 'trimesh' && this.physicsWorld) {
       this.physicsWorld.updateShape(id, item.entity, mesh)
     }
+    this.refreshCullingWorldSize(item)
   }
 
   /** Add a vector to the entity position. Uses internal buffer to avoid allocation. When resetVelocity is true, zeroes linear velocity so the move persists (e.g. under gravity). */
@@ -589,6 +603,8 @@ export class RenderItemRegistry {
 
     syncShapeWireframeOverlay(mesh, newEntity)
 
+    this.refreshCullingWorldSize(item)
+
     return true
   }
 
@@ -643,27 +659,70 @@ export class RenderItemRegistry {
     mesh.userData.entity = newEntity
   }
 
+  private refreshCullingWorldSize(item: RenderItem): void {
+    item.worldSize = computeMeshWorldMaxExtent(item.mesh, item.entity)
+  }
+
   /**
-   * Per-frame distance culling: hide entities smaller than `settings.minSize`
-   * when farther than `settings.radius` from the camera. Uses squared distance.
+   * Cached {@link RenderItem.worldSize}: max edge of world AABB from the mesh hierarchy
+   * (see {@link refreshCullingWorldSize}). Refreshed on load and when scale/shape/model changes.
+   *
+   * Per-frame: hide when beyond `maxDistance` **unless** `worldSize > cameraDistance`
+   * (large objects still count as near for the hard cap), or when `worldSize/dist`
+   * falls below `minSizeDistanceRatio` (squared math, no `sqrt`).
+   * Optional `sleepCulled` freezes physics and registers ids for script skipping.
    */
   applyDistanceCulling(camPos: THREE.Vector3, settings: DistanceCullingSettings): void {
-    const radiusSq = settings.radius * settings.radius
-    const minSize = settings.minSize
-    for (const item of this.items.values()) {
-      if (item.worldSize >= minSize) {
-        if (item.distanceCulled) {
-          item.distanceCulled = false
-          item.mesh.visible = true
+    const sleepCulled = settings.sleepCulled === true
+    const pw = this.physicsWorld
+
+    if (this._lastCullingSleepCulled === true && !sleepCulled) {
+      for (const item of this.items.values()) {
+        if (item.distanceCullingPhysicsFrozen && pw) {
+          pw.enableBodyFromCulling(item.entity.id)
         }
-        continue
+        item.distanceCullingPhysicsFrozen = false
+        this._culledSleepingForScripts.delete(item.entity.id)
       }
+    }
+    this._lastCullingSleepCulled = sleepCulled
+
+    for (const item of this.items.values()) {
       const m = item.mesh.position
       const dx = m.x - camPos.x
       const dy = m.y - camPos.y
       const dz = m.z - camPos.z
       const distSq = dx * dx + dy * dy + dz * dz
-      const shouldCull = distSq > radiusSq
+
+      const ws = item.worldSize
+      const shouldCull = distanceCullingShouldCull(
+        distSq,
+        ws,
+        settings.maxDistance,
+        settings.minSizeDistanceRatio,
+      )
+
+      const wantScriptSleep = shouldCull && sleepCulled
+      const shouldFreezeBody = wantScriptSleep && item.hasPhysicsBody()
+
+      if (shouldFreezeBody) {
+        if (pw && !item.distanceCullingPhysicsFrozen) {
+          pw.disableBodyForCulling(item.entity.id)
+          item.distanceCullingPhysicsFrozen = true
+        }
+      } else {
+        if (item.distanceCullingPhysicsFrozen && pw) {
+          pw.enableBodyFromCulling(item.entity.id)
+        }
+        item.distanceCullingPhysicsFrozen = false
+      }
+
+      if (wantScriptSleep) {
+        this._culledSleepingForScripts.add(item.entity.id)
+      } else {
+        this._culledSleepingForScripts.delete(item.entity.id)
+      }
+
       if (shouldCull !== item.distanceCulled) {
         item.distanceCulled = shouldCull
         item.mesh.visible = !shouldCull
@@ -671,14 +730,21 @@ export class RenderItemRegistry {
     }
   }
 
-  /** Restore visibility for all distance-culled entities (call when culling is disabled). */
+  /** Restore visibility and physics; call when culling is disabled. */
   clearDistanceCulling(): void {
+    const pw = this.physicsWorld
     for (const item of this.items.values()) {
+      if (item.distanceCullingPhysicsFrozen && pw) {
+        pw.enableBodyFromCulling(item.entity.id)
+      }
+      item.distanceCullingPhysicsFrozen = false
       if (item.distanceCulled) {
         item.distanceCulled = false
         item.mesh.visible = true
       }
     }
+    this._culledSleepingForScripts.clear()
+    this._lastCullingSleepCulled = undefined
   }
 
   /**
@@ -812,7 +878,8 @@ export class RenderItemRegistry {
     
     for (const item of this.items.values()) {
       if (!item.hasPhysicsBody()) continue
-      
+      if (item.distanceCullingPhysicsFrozen) continue
+
       // Use cached transforms instead of direct body access to avoid WASM aliasing
       const cached = this.physicsWorld.getCachedTransform(item.entity.id)
       if (!cached) continue

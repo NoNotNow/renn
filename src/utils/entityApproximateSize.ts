@@ -1,8 +1,6 @@
 import type { Entity, Shape } from '@/types/world'
 import { DEFAULT_SCALE } from '@/types/world'
-
-/** Default plane extent when the shape has no dimensions (matches test helper plane mesh). */
-const PLANE_NOMINAL_SPAN = 10
+import { PLANE_GEOMETRY_MAX_EDGE } from '@/loader/planeGeometryConstants'
 
 /** Ring height fallback when omitted (see entityDefaults ring default). */
 const RING_DEFAULT_HEIGHT = 0.1
@@ -34,7 +32,7 @@ function localCharacteristicLength(shape: Shape): number {
       return Math.max(2 * shape.outerRadius, h)
     }
     case 'plane':
-      return PLANE_NOMINAL_SPAN
+      return PLANE_GEOMETRY_MAX_EDGE
     case 'trimesh':
       return 1
   }

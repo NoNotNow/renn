@@ -13,10 +13,15 @@ import type { TransformerChain } from '@/transformers/transformer'
 export class RenderItem {
   transformerChain: TransformerChain | null = null
   entity: Entity
-  /** Approximate world-space extent for distance culling (precomputed at creation). */
+  /**
+   * Max edge of world-space AABB of the mesh hierarchy, for distance culling.
+   * Cached in `RenderItemRegistry` until scale, shape, or model transform changes.
+   */
   worldSize = 0
   /** True when the entity is hidden by distance culling this frame. */
   distanceCulled = false
+  /** True when this entity's physics body was disabled for distance-culling sleep. */
+  distanceCullingPhysicsFrozen = false
 
   constructor(
     entity: Entity,
