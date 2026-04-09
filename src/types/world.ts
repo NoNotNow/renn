@@ -12,7 +12,7 @@ export type Color = [number, number, number] | [number, number, number, number]
 
 export type CameraMode = 'firstPerson' | 'thirdPerson' | 'follow' | 'tracking'
 
-/** UI order for camera mode dropdown and Digit0 / Numpad0 cycle in Builder. */
+/** UI order for camera mode dropdown and Digit0 / Numpad0 cycle in Builder; Digit1 / Numpad1 cycle active play avatar (see AvatarSession). */
 export const CAMERA_MODE_CYCLE_ORDER: readonly CameraMode[] = [
   'follow',
   'thirdPerson',
@@ -110,22 +110,29 @@ export const RECOMMENDED_SLEEPING_SETTINGS: WorldSleepingSettings = {
   timeUntilSleep: 2.0,
 }
 
+/** Distance-based hide + optional physics/script sleep; see `applyDistanceCulling`. */
 export interface DistanceCullingSettings {
-  /**
-   * Hard maximum distance from camera to object position. Beyond this, objects are culled
-   * unless their cached mesh-derived size exceeds the camera distance (large objects stay
-   * eligible for drawing past this cap; see distance culling in `RenderItemRegistry`).
-   */
   maxDistance: number
-  /** Minimum size/distance ratio (worldSize / distance) -- below this ratio objects are culled. */
   minSizeDistanceRatio: number
-  /** When true, culled objects freeze physics and skip transformers and scripts. */
+  /** When true, freeze Rapier bodies and skip scripts for culled entities. */
   sleepCulled?: boolean
 }
 
+/** Engine defaults when `distanceCulling` is omitted. */
 export const DEFAULT_DISTANCE_CULLING: DistanceCullingSettings = {
-  maxDistance: 1000,
+  maxDistance: 2000,
   minSizeDistanceRatio: 0.02,
+}
+
+/**
+ * `undefined` → defaults (culling on). `false` → off. Object is merged over defaults.
+ */
+export function resolveDistanceCullingSettings(
+  raw: false | DistanceCullingSettings | undefined,
+): DistanceCullingSettings | null {
+  if (raw === false) return null
+  if (raw == null) return { ...DEFAULT_DISTANCE_CULLING }
+  return { ...DEFAULT_DISTANCE_CULLING, ...raw }
 }
 
 export interface WorldSettings {
@@ -133,31 +140,17 @@ export interface WorldSettings {
   wind?: Vec3
   /** Optional custom sleep timer applied in PhysicsWorld when set. */
   sleeping?: WorldSleepingSettings
+  /**
+   * Omitted = enabled with {@link DEFAULT_DISTANCE_CULLING}. `false` = disabled.
+   * Legacy `radius` / `minSize` are migrated to `maxDistance` / `minSizeDistanceRatio`.
+   */
+  distanceCulling?: false | DistanceCullingSettings
   sound?: SoundSettings
   ambientLight?: Color
   directionalLight?: DirectionalLightConfig
   skyColor?: Color
   skybox?: string
   camera?: CameraConfig
-  /**
-   * Distance culling from camera. Omitted = enabled with {@link DEFAULT_DISTANCE_CULLING}.
-   * `false` = disabled (explicit opt-out).
-   */
-  distanceCulling?: DistanceCullingSettings | false
-}
-
-/**
- * Resolves world distance culling for the frame loop.
- * - `undefined` → defaults (enabled by default)
- * - `false` → explicitly disabled
- * - object → use as-is
- */
-export function resolveDistanceCullingSettings(
-  culling: WorldSettings['distanceCulling'],
-): DistanceCullingSettings | null {
-  if (culling === false) return null
-  if (culling === undefined) return DEFAULT_DISTANCE_CULLING
-  return culling
 }
 
 export interface SoundSettings {

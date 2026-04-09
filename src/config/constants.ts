@@ -7,7 +7,7 @@
 export const DB_CONFIG = {
   name: 'renn-worlds',
   /** Must match IndexedDB schema migrations in persistence/indexedDb.ts */
-  version: 4,
+  version: 5,
   stores: {
     projects: 'projects',
     assets: 'assets',

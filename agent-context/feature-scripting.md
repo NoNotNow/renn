@@ -103,7 +103,7 @@ Entities may include optional **`avatar`** (`enabled`, `preferredCamera`) in the
 
 **Session memory:** Orbit yaw/pitch, zoom distance, and first-person FOV are remembered per avatar for the current session only (not saved in the world file).
 
-**Hotkeys** (window `keydown`, ignored while typing in inputs / contenteditable): **`=`** / **`+`** (numpad) = next avatar, **`-`** = previous. In Builder, these run only when **Game HUD** is on and at least two playable avatars exist.
+**Hotkeys** (window `keydown`, ignored while typing in inputs / contenteditable): In **Builder**, **`1`** / **numpad 1** cycles to the next active play avatar when at least two playable avatars exist (same guard as camera mode **`0`**; not gated on Game HUD). With **Game HUD** on, **`=`** / **`+`** (numpad) = next avatar and **`-`** = previous (also requires at least two playable avatars).
 
 **Script context** (all events, on `ctx`):
 

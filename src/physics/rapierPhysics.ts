@@ -450,49 +450,7 @@ export class PhysicsWorld {
         if (this.culledForDistance.has(entityId)) {
           continue
         }
-        const isDynamic = body.isDynamic()
-        const isKin = body.isKinematic()
-        if (isDynamic || isKin) {
-          const sleeping = body.isSleeping()
-          const pos = body.translation()
-          const rot = body.rotation()
-          const lv = body.linvel()
-          const av = body.angvel()
-          let ct = this.cachedTransforms.get(entityId)
-          if (!ct) {
-            ct = {
-              position: { x: pos.x, y: pos.y, z: pos.z },
-              rotation: { x: rot.x, y: rot.y, z: rot.z, w: rot.w },
-              linvel: { x: lv.x, y: lv.y, z: lv.z },
-              angvel: { x: av.x, y: av.y, z: av.z },
-              isKinematic: isKin,
-              isSleeping: sleeping,
-            }
-            this.cachedTransforms.set(entityId, ct)
-          } else {
-            ct.isSleeping = sleeping
-            if (!sleeping) {
-              const p = ct.position
-              p.x = pos.x
-              p.y = pos.y
-              p.z = pos.z
-              const r = ct.rotation
-              r.x = rot.x
-              r.y = rot.y
-              r.z = rot.z
-              r.w = rot.w
-              const clv = ct.linvel
-              clv.x = lv.x
-              clv.y = lv.y
-              clv.z = lv.z
-              const cav = ct.angvel
-              cav.x = av.x
-              cav.y = av.y
-              cav.z = av.z
-            }
-            ct.isKinematic = isKin
-          }
-        }
+        this.syncCachedTransformFromBody(entityId, body, false)
       }
 
       this.applyCustomSleeping(dt)
@@ -738,8 +696,67 @@ export class PhysicsWorld {
       if (body.isDynamic()) {
         body.wakeUp()
       }
+      this.customSleepTimers.delete(entityId)
+      this.syncCachedTransformFromBody(entityId, body, true)
     }
     this.culledForDistance.delete(entityId)
+  }
+
+  /**
+   * Copy rigid-body pose/velocities into {@link cachedTransforms}.
+   * @param full - if true, always write pose/vel (e.g. after distance-cull re-enable so transformers
+   *   do not read stale `isSleeping` from before `setEnabled(false)`). If false, matches post-step
+   *   behaviour: skip pose/velocity when sleeping to avoid churn.
+   */
+  private syncCachedTransformFromBody(
+    entityId: string,
+    body: RAPIER.RigidBody,
+    full: boolean,
+  ): void {
+    const isDynamic = body.isDynamic()
+    const isKin = body.isKinematic()
+    if (!isDynamic && !isKin) return
+
+    const sleeping = body.isSleeping()
+    const pos = body.translation()
+    const rot = body.rotation()
+    const lv = body.linvel()
+    const av = body.angvel()
+    let ct = this.cachedTransforms.get(entityId)
+    if (!ct) {
+      ct = {
+        position: { x: pos.x, y: pos.y, z: pos.z },
+        rotation: { x: rot.x, y: rot.y, z: rot.z, w: rot.w },
+        linvel: { x: lv.x, y: lv.y, z: lv.z },
+        angvel: { x: av.x, y: av.y, z: av.z },
+        isKinematic: isKin,
+        isSleeping: sleeping,
+      }
+      this.cachedTransforms.set(entityId, ct)
+      return
+    }
+
+    ct.isSleeping = sleeping
+    ct.isKinematic = isKin
+    if (full || !sleeping) {
+      const p = ct.position
+      p.x = pos.x
+      p.y = pos.y
+      p.z = pos.z
+      const r = ct.rotation
+      r.x = rot.x
+      r.y = rot.y
+      r.z = rot.z
+      r.w = rot.w
+      const clv = ct.linvel
+      clv.x = lv.x
+      clv.y = lv.y
+      clv.z = lv.z
+      const cav = ct.angvel
+      cav.x = av.x
+      cav.y = av.y
+      cav.z = av.z
+    }
   }
 
   setPosition(entityId: string, x: number, y: number, z: number): void {

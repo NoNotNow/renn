@@ -5,7 +5,6 @@ import PerformanceBoosterDialog from '@/components/PerformanceBoosterDialog'
 import SaveDialog from '@/components/SaveDialog'
 import EntitySidebar from '@/components/EntitySidebar'
 import PropertySidebar from '@/components/PropertySidebar'
-import { InspectorLivePoseBridge } from '@/components/InspectorLivePoseBridge'
 import { CopyProvider } from '@/contexts/CopyContext'
 import { EditorUndoProvider, type EditorUndoApi } from '@/contexts/EditorUndoContext'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
@@ -131,6 +130,9 @@ export default function Builder() {
   const [perfTextureEntityId, setPerfTextureEntityId] = useState<string | null>(null)
   const [soundPlaybackCommand, setSoundPlaybackCommand] = useState<
     { action: 'play' | 'stop'; nonce: number } | null
+  >(null)
+  const [livePoses, setLivePoses] = useState<
+    Map<string, { position: Vec3; rotation: Rotation; scale: Vec3 }> | null
   >(null)
   const sceneViewRef = useRef<SceneViewHandle>(null)
   const initialPosesRef = useRef<Map<string, { position: Vec3; rotation: Rotation; scale?: Vec3 }> | null>(null)
@@ -295,6 +297,29 @@ export default function Builder() {
       },
     }),
     [pushHistory, bumpHistoryUi]
+  )
+
+  const persistTextureDoc = useCallback(
+    async (
+      entityId: string,
+      doc: TextureDocument,
+      patchAssets?: (next: Map<string, Blob>) => void,
+    ) => {
+      const prev = worldAssetsRef.current.assets
+      const next = new Map(prev)
+      patchAssets?.(next)
+      const comp = await compositeTextureLayers(doc, next)
+      next.set(doc.compositeAssetId, comp)
+      next.set(texDocAssetId(doc.compositeAssetId), serializeDocToBlob(doc))
+      await updateAssets(() => next)
+      textureDocsRef.current.set(entityId, doc)
+      bumpTextureStudio()
+      requestAnimationFrame(() => {
+        const ent = worldAssetsRef.current.world.entities.find((e) => e.id === entityId)
+        if (ent) void sceneViewRef.current?.updateEntityMaterial(entityId, ent)
+      })
+    },
+    [updateAssets, bumpTextureStudio],
   )
 
   /** Creates a blank 500×500 composite + sidecar when the entity has no `material.map`. Does not open Texture Maker. */
@@ -951,7 +976,6 @@ export default function Builder() {
   const [leftDrawerOpen, setLeftDrawerOpen] = useLocalStorageState('leftDrawerOpen', true)
   const [rightDrawerOpen, setRightDrawerOpen] = useLocalStorageState('rightDrawerOpen', true)
   const [showGameHud, setShowGameHud] = useLocalStorageState('builderShowGameHud', false)
-  const [showFrameStats, setShowFrameStats] = useLocalStorageState('builderShowFrameStats', false)
 
   const sceneCameraConfig = useMemo(
     () => ({
@@ -1002,6 +1026,14 @@ export default function Builder() {
         })
         return
       }
+      if (e.code === 'Digit1' || e.code === 'Numpad1') {
+        if (isEditableElement()) return
+        e.preventDefault()
+        if (sceneViewRef.current?.cycleActiveAvatar()) {
+          uiLogger.change('Builder', 'Cycle active avatar', {})
+        }
+        return
+      }
       if (e.code !== 'Digit0' && e.code !== 'Numpad0') return
       if (isEditableElement()) return
       e.preventDefault()
@@ -1014,7 +1046,7 @@ export default function Builder() {
 
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [setCameraMode, handleUndo, handleRedo, setSelectedEntityIds])
+  }, [setCameraMode, handleUndo, handleRedo, setSelectedEntityIds, sceneViewRef])
 
   const handleAddEntity = useCallback(
     (shapeType: AddableShapeType) => {
@@ -1271,10 +1303,16 @@ export default function Builder() {
     updateAssets(() => newAssets)
   }, [updateAssets])
 
-  const getScenePosesForInspector = useCallback(
-    () => sceneViewRef.current?.getAllPoses() ?? null,
-    [],
-  )
+  // Poll scene poses so the inspector stays in sync with physics/scripts (display only; never calls onWorldChange)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const poses = sceneViewRef.current?.getAllPoses() ?? null
+      if (poses && poses.size > 0) {
+        setLivePoses(poses)
+      }
+    }, 100)
+    return () => clearInterval(interval)
+  }, [])
 
   // Warn before leaving if there are unsaved changes
   useEffect(() => {
@@ -1597,14 +1635,6 @@ export default function Builder() {
             return next
           })
         }}
-        showFrameStats={showFrameStats}
-        onFrameStatsToggle={() => {
-          setShowFrameStats((prev) => {
-            const next = !prev
-            uiLogger.click('Builder', 'Toggle frame stats (menu)', { enabled: next })
-            return next
-          })
-        }}
         onOpenPerformanceBooster={() => {
           setPerformanceBoosterOpen(true)
           uiLogger.click('Builder', 'Open Performance booster', {})
@@ -1707,7 +1737,6 @@ export default function Builder() {
                   : null
               }
               showGameHud={showGameHud}
-              showFrameStats={showFrameStats}
               onCurrentAvatarChange={(id) => {
                 if (id) setCameraTarget(id)
               }}
@@ -1745,30 +1774,26 @@ export default function Builder() {
           onToggle={() => setLeftDrawerOpen(!leftDrawerOpen)}
         />
 
-        <InspectorLivePoseBridge getPoses={getScenePosesForInspector}>
-          {(livePoses) => (
-            <PropertySidebar
-              world={world}
-              assets={assets}
-              selectedEntityIds={selectedEntityIds}
-              onWorldChange={handleWorldChange}
-              onAssetsChange={handleAssetsChange}
-              onDeleteEntities={handleDeleteEntities}
-              onCloneEntity={handleCloneEntity}
-              onEntityPoseChange={handleEntityPoseChange}
-              onEntityPhysicsChange={handleEntityPhysicsChange}
-              onEntityMaterialChange={handleEntityMaterialChange}
-              onEntityShapeChange={handleEntityShapeChange}
-              onEntityModelTransformChange={handleEntityModelTransformChange}
-              onEntityTransformersChange={handleEntityTransformersChange}
-              onRefreshFromPhysics={handleRefreshFromPhysics}
-              livePoses={livePoses}
-              isOpen={rightDrawerOpen}
-              onToggle={() => setRightDrawerOpen(!rightDrawerOpen)}
-              onOpenTextureStudio={activateTextureStudioForEntity}
-            />
-          )}
-        </InspectorLivePoseBridge>
+        <PropertySidebar
+          world={world}
+          assets={assets}
+          selectedEntityIds={selectedEntityIds}
+          onWorldChange={handleWorldChange}
+          onAssetsChange={handleAssetsChange}
+          onDeleteEntities={handleDeleteEntities}
+          onCloneEntity={handleCloneEntity}
+          onEntityPoseChange={handleEntityPoseChange}
+          onEntityPhysicsChange={handleEntityPhysicsChange}
+          onEntityMaterialChange={handleEntityMaterialChange}
+          onEntityShapeChange={handleEntityShapeChange}
+          onEntityModelTransformChange={handleEntityModelTransformChange}
+          onEntityTransformersChange={handleEntityTransformersChange}
+          onRefreshFromPhysics={handleRefreshFromPhysics}
+          livePoses={livePoses}
+          isOpen={rightDrawerOpen}
+          onToggle={() => setRightDrawerOpen(!rightDrawerOpen)}
+          onOpenTextureStudio={activateTextureStudioForEntity}
+        />
 
         {textureMakerEntityId && textureMakerDoc ? (
           <TextureMaker

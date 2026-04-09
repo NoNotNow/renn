@@ -75,8 +75,8 @@ function getDB(): Promise<IDBPDatabase> {
         assetStore.createIndex('byType', 'type', { unique: false })
       }
 
-      // Global model presets (v3). v4 bump: create store whenever missing — some DBs reached
-      // version 3 without this store (upgrade guard was `oldVersion < 3`, so 3→3 never ran).
+      // Global model presets (v3+). Create whenever missing: some DBs reached a version without
+      // this store (e.g. upgrade skipped), and IndexedDB does not re-run upgrade until version bumps.
       if (!db.objectStoreNames.contains(STORE_MODEL_PRESETS)) {
         db.createObjectStore(STORE_MODEL_PRESETS, { keyPath: 'id' })
       }

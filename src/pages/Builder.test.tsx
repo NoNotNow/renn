@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
-import { forwardRef } from 'react'
+import { forwardRef, useImperativeHandle } from 'react'
 import Builder from '@/pages/Builder'
 import { ProjectProvider } from '@/contexts/ProjectContext'
 import { updateEntityPosition } from '@/utils/worldUtils'
@@ -10,9 +10,28 @@ import { sampleWorld } from '@/data/sampleWorld'
 import type { RennWorld, Vec3, CameraMode } from '@/types/world'
 import { cycleCameraMode } from '@/types/world'
 
+/** Minimal SceneViewHandle stub so Builder ref calls do not throw in tests. */
+const sceneViewRefMocks = vi.hoisted(() => ({
+  setViewPreset: vi.fn(),
+  updateEntityPose: vi.fn(),
+  updateEntityPhysics: vi.fn(),
+  updateEntityShape: vi.fn(() => false),
+  updateEntityMaterial: vi.fn(() => Promise.resolve()),
+  updateEntityModelTransform: vi.fn(),
+  syncEntityTransformers: vi.fn(),
+  getAllPoses: vi.fn(() => null),
+  resetCamera: vi.fn(),
+  applyDebugForce: vi.fn(),
+  getMeshForEntity: vi.fn(() => null),
+  getEntityTriangleCount: vi.fn(() => null),
+  getAvatarFocusSnapshot: vi.fn(() => null),
+  cycleActiveAvatar: vi.fn(),
+}))
+
 const sceneViewProps: Record<string, unknown> = {}
 vi.mock('@/components/SceneView', () => ({
-  default: forwardRef((props: Record<string, unknown>, _ref) => {
+  default: forwardRef(function MockSceneView(props: Record<string, unknown>, ref) {
+    useImperativeHandle(ref, () => sceneViewRefMocks)
     Object.assign(sceneViewProps, props)
     return <div data-testid="scene-view" />
   }),
@@ -96,7 +115,6 @@ describe('Builder', () => {
     Object.keys(sceneViewProps).forEach((k) => delete sceneViewProps[k])
     if (typeof localStorage?.removeItem === 'function') {
       localStorage.removeItem('builderShowGameHud')
-      localStorage.removeItem('builderShowFrameStats')
     }
   })
 
@@ -148,26 +166,11 @@ describe('Builder', () => {
     expect(sceneViewProps.gizmoMode).toBe('translate')
     expect(sceneViewProps.shadowsEnabled).toBe(true)
     expect(sceneViewProps.showGameHud).toBe(false)
-    expect(sceneViewProps.showFrameStats).toBe(false)
     expect(screen.getByRole('group', { name: 'Gizmo mode' })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Rotate gizmo' }))
     expect(sceneViewProps.gizmoMode).toBe('rotate')
     await user.click(screen.getByRole('button', { name: 'Scale gizmo' }))
     expect(sceneViewProps.gizmoMode).toBe('scale')
-  })
-
-  it('passes showFrameStats true to SceneView after View → Frame stats', async () => {
-    const user = userEvent.setup()
-    renderBuilder()
-    await act(async () => {
-      await Promise.resolve()
-    })
-    expect(sceneViewProps.showFrameStats).toBe(false)
-    await user.click(screen.getByRole('button', { name: 'View' }))
-    await user.click(screen.getByRole('menuitem', { name: /frame stats/i }))
-    await waitFor(() => {
-      expect(sceneViewProps.showFrameStats).toBe(true)
-    })
   })
 
   it('passes showGameHud true to SceneView after View → Game HUD', async () => {
@@ -239,5 +242,23 @@ describe('Builder', () => {
       window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Numpad0', bubbles: true }))
     })
     expect(modeSelect.value).toBe(cycleCameraMode(cycleCameraMode(initial)))
+  })
+
+  it('calls SceneView cycleActiveAvatar when Digit1 or Numpad1 is pressed', async () => {
+    sceneViewRefMocks.cycleActiveAvatar.mockReturnValue(true)
+    renderBuilder()
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Digit1', bubbles: true }))
+    })
+    expect(sceneViewRefMocks.cycleActiveAvatar).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Numpad1', bubbles: true }))
+    })
+    expect(sceneViewRefMocks.cycleActiveAvatar).toHaveBeenCalledTimes(2)
   })
 })

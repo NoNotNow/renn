@@ -11,10 +11,6 @@ import type {
   AvatarFocusSnapshot,
 } from '@/types/world'
 import { createAssetResolverFromGetter, type DisposableAssetResolver } from '@/loader/assetResolverImpl'
-import {
-  collectMaterialMapAssetIds,
-  scheduleMaterialTextureDecodePrefetch,
-} from '@/loader/prefetchMaterialTextures'
 import { DEFAULT_GRAVITY, DEFAULT_ROTATION } from '@/types/world'
 import { eulerToQuaternion } from '@/utils/rotationUtils'
 import type { LoadedEntity } from '@/loader/loadWorld'
@@ -45,16 +41,11 @@ import { countVisualModelTriangles } from '@/utils/geometryExtractor'
 import { findEntityRootForPicking } from '@/utils/entityPicking'
 import { ScriptSnackbar } from '@/components/ScriptSnackbar'
 import { GameHud } from '@/components/GameHud'
-import { FrameStatsOverlay } from '@/components/FrameStatsOverlay'
 import { WarningSnackbar } from '@/components/WarningSnackbar'
 import { AvatarSession } from '@/runtime/avatarSession'
-import type { SceneFrameTiming } from '@/runtime/frameTiming'
 
 /** Radius inside camera far plane (PerspectiveCamera default far = 1000). */
 const SKY_DOME_RADIUS = 500
-
-/** Cap DPR to reduce fill rate on heavy scenes (Tier 1 GPU — `performance-work.md` §11). */
-const MAX_SCENE_PIXEL_RATIO = 1.5
 
 function disposeSkyDomeMesh(mesh: THREE.Mesh | null): void {
   if (!mesh) return
@@ -106,8 +97,6 @@ export interface SceneViewProps {
   } | null
   /** When true, show score/damage HUD; scripts update via `ctx.setScore` / `ctx.setDamage`. */
   showGameHud?: boolean
-  /** When true, show last-frame ms breakdown (Builder profiling aid; small `performance.now()` cost). */
-  showFrameStats?: boolean
   /** Optional: e.g. Builder `setCameraTarget` when the play avatar changes (+/− or script). */
   onCurrentAvatarChange?: (entityId: string | null) => void
   /** Builder: persist painted texture after pointer-up (single-entity brush stroke). */
@@ -148,6 +137,8 @@ export interface SceneViewHandle {
   getEntityTriangleCount: (entityId: string) => number | null
   /** Live follow/orbit camera state for persisting avatar defaults (Builder). */
   getAvatarFocusSnapshot: () => AvatarFocusSnapshot | null
+  /** Advance active play avatar when roster has 2+ members (Builder Digit1 / Numpad1). */
+  cycleActiveAvatar: () => boolean
 }
 
 function SceneViewInner({
@@ -170,7 +161,6 @@ function SceneViewInner({
   soundPlaybackCommand = null,
   performancePick = null,
   showGameHud = false,
-  showFrameStats = false,
   onCurrentAvatarChange,
   onTexturePaintStrokeEnd,
   pushUndoBeforePaintStroke,
@@ -255,7 +245,6 @@ function SceneViewInner({
   editNavigationModeRef.current = editNavigationMode
   const showGameHudRef = useRef(showGameHud)
   showGameHudRef.current = showGameHud
-  const frameTimingRef = useRef<SceneFrameTiming | null>(null)
 
   useEffect(() => {
     onCurrentAvatarChangeRef.current = onCurrentAvatarChange
@@ -369,6 +358,12 @@ function SceneViewInner({
       return countVisualModelTriangles(m)
     },
     getAvatarFocusSnapshot: () => cameraCtrlRef.current?.captureAvatarFocusState() ?? null,
+    cycleActiveAvatar: () => {
+      const session = avatarSessionRef.current
+      if (!session || session.getRosterEntityIds().length < 2) return false
+      session.cycleAvatar(1)
+      return true
+    },
   }), [camera, world.world.camera, editorFreePoseRef])
 
   // Main scene setup effect
@@ -387,7 +382,7 @@ function SceneViewInner({
     }
 
     let cancelled = false
-    let scriptSnackbarTimerId: number | undefined
+    let scriptSnackbarTimerId: ReturnType<typeof window.setTimeout> | undefined
     let cam: THREE.PerspectiveCamera | null = null
     let rend: THREE.WebGLRenderer | null = null
     let cameraCtrl: CameraController | null = null
@@ -422,13 +417,6 @@ function SceneViewInner({
         assetResolver.dispose()
       }
       assetResolverRef.current = createAssetResolverFromGetter(() => assetsRef.current)
-
-      const materialMapIds = collectMaterialMapAssetIds(loadedWorld.entities)
-      scheduleMaterialTextureDecodePrefetch(
-        materialMapIds,
-        () => assetsRef.current,
-        () => cancelled || effectIdRef.current !== currentEffectId,
-      )
 
       // Camera setup
       cam = new THREE.PerspectiveCamera(50, 1, 0.1, 1000)
@@ -505,11 +493,11 @@ function SceneViewInner({
       const getPositionForGame = (id: string): Vec3 | null =>
         registryRef.current?.getPosition(id) ?? null
       const setPositionForGame = (id: string, x: number, y: number, z: number): void =>
-        registryRef.current?.setPositionXYZ(id, x, y, z)
+        registryRef.current?.setPosition(id, [x, y, z])
       const getRotationForGame = (id: string): Vec3 | null =>
         registryRef.current?.getRotation(id) ?? null
       const setRotationForGame = (id: string, x: number, y: number, z: number): void =>
-        registryRef.current?.setRotationEuler(id, x, y, z)
+        registryRef.current?.setRotation(id, [x, y, z])
       const getUpVectorForGame = (id: string): Vec3 | null =>
         registryRef.current?.getUpVector(id) ?? null
       const getForwardVectorForGame = (id: string): Vec3 | null =>
@@ -524,7 +512,7 @@ function SceneViewInner({
         scriptSnackbarTimerId = window.setTimeout(() => {
           scriptSnackbarTimerId = undefined
           setScriptSnackbarMessage(null)
-        }, ms) as unknown as number
+        }, ms)
       }
       const onHudPatch = showGameHud
         ? (patch: HudPatch) => {
@@ -560,9 +548,9 @@ function SceneViewInner({
       const w = Math.max(container.clientWidth || 800, 1)
       const h = Math.max(container.clientHeight || 600, 1)
       rend.setSize(w, h)
-      rend.setPixelRatio(Math.min(window.devicePixelRatio, MAX_SCENE_PIXEL_RATIO))
+      rend.setPixelRatio(Math.min(window.devicePixelRatio, 2))
       rend.shadowMap.enabled = shadowsEnabled
-      rend.shadowMap.type = THREE.PCFShadowMap
+      rend.shadowMap.type = THREE.PCFSoftShadowMap
       container.appendChild(rend.domElement)
       setRenderer(rend)
 
@@ -683,8 +671,6 @@ function SceneViewInner({
           skyDomeRef,
           rend,
           loadedScene,
-          recordFrameTiming: showFrameStats,
-          frameTimingRef,
         })
       }
       animate()
@@ -843,7 +829,7 @@ function SceneViewInner({
       setCamera(null)
       setRenderer(null)
     }
-  }, [sceneKey, version, runPhysics, runScripts, shadowsEnabled, freeFlyKeysRef, editorFreePoseRef, showGameHud, showFrameStats])
+  }, [sceneKey, version, runPhysics, runScripts, shadowsEnabled, freeFlyKeysRef, editorFreePoseRef, showGameHud])
 
   // Update camera config when it changes (without reloading the world).
   // After setConfig, sync AvatarSession with `world` and re-apply follow focus so each avatar’s
@@ -1112,7 +1098,6 @@ function SceneViewInner({
         </div>
       ) : null}
       {scriptSnackbarMessage !== null ? <ScriptSnackbar message={scriptSnackbarMessage} /> : null}
-      {showFrameStats ? <FrameStatsOverlay frameTimingRef={frameTimingRef} /> : null}
       {showGameHud ? (
         <GameHud score={hudScore} damage={hudDamage} speedMs={hudDrive.speedMs} wheelAngle={hudDrive.wheelAngle} />
       ) : null}
