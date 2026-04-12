@@ -5,6 +5,7 @@ import {
   resolveAssetFilename,
   buildAssetsZipBlob,
   addAssetsToZipFolder,
+  sanitizeZipExportBasename,
 } from './assetExport'
 
 const pngBlob = new Blob(['png-data'], { type: 'image/png' })
@@ -49,6 +50,25 @@ describe('resolveAssetFilename', () => {
 
   it('uses id.bin for unknown MIME with no path', () => {
     expect(resolveAssetFilename('unknown', unknownBlob, undefined)).toBe('unknown.bin')
+  })
+})
+
+describe('sanitizeZipExportBasename', () => {
+  it('keeps simple alphanumeric names', () => {
+    expect(sanitizeZipExportBasename('MyLevel', 'fb')).toBe('MyLevel')
+  })
+
+  it('replaces spaces and punctuation with single underscores', () => {
+    expect(sanitizeZipExportBasename('My Cool World!', 'fb')).toBe('My_Cool_World')
+  })
+
+  it('strips trailing .zip from the label before sanitizing', () => {
+    expect(sanitizeZipExportBasename('backup.ZIP', 'fb')).toBe('backup')
+  })
+
+  it('returns fallback when empty after sanitize', () => {
+    expect(sanitizeZipExportBasename('   ', 'world-abc')).toBe('world-abc')
+    expect(sanitizeZipExportBasename('___', 'world-abc')).toBe('world-abc')
   })
 })
 

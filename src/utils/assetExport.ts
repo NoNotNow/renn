@@ -1,6 +1,6 @@
 /**
  * Helpers for downloading individual assets and bundling all assets into a ZIP.
- * Used by AssetPanel (per-row download, bulk download) and re-used by exportProject.
+ * Used by AssetPanel (per-row download, bulk download), full project ZIP export, and persistence export.
  */
 import type { AssetRef } from '@/types/world'
 
@@ -89,6 +89,19 @@ function deduplicateFilename(name: string, used: Set<string>): string {
     candidate = `${stem}_${counter}${ext}`
   }
   return candidate
+}
+
+/**
+ * Single-segment basename safe for a downloaded `.zip` (no path separators or odd control chars).
+ * Strips a trailing `.zip` from the raw label. Returns `fallback` if nothing usable remains.
+ */
+export function sanitizeZipExportBasename(rawName: string, fallback: string): string {
+  const withoutZipSuffix = rawName.trim().replace(/\.zip$/i, '')
+  const sanitized = withoutZipSuffix
+    .replace(/[^a-zA-Z0-9_-]/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_|_$/g, '')
+  return sanitized || fallback
 }
 
 /** Trigger a browser download for a Blob. Cleans up the object URL after a tick. */

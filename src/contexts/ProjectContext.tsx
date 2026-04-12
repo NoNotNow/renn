@@ -7,6 +7,7 @@ import { sampleWorld } from '@/data/sampleWorld'
 import { loadWorldFromStatic } from '@/loader/loadWorldFromStatic'
 import SplashScreen from '@/components/SplashScreen'
 import { uiLogger } from '@/utils/uiLogger'
+import { sanitizeZipExportBasename } from '@/utils/assetExport'
 import type { EditorSnapshot } from '@/editor/editorHistory'
 
 const persistence = createIndexedDbPersistence()
@@ -495,13 +496,14 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     persistence.exportProject(id).then((blob) => {
       const a = document.createElement('a')
       a.href = URL.createObjectURL(blob)
-      a.download = `world-${id}.zip`
+      const base = sanitizeZipExportBasename(currentProject.name, `world-${id}`)
+      a.download = `${base}.zip`
       a.click()
     }).catch((err) => {
       console.error('Failed to export project:', err)
       alert('Failed to export project')
     })
-  }, [currentProject.id, world])
+  }, [currentProject.id, currentProject.name, world])
   
   const copyWorldToClipboard = useCallback(() => {
     uiLogger.click('Builder', 'Copy world to clipboard', { projectId: currentProject.id ?? 'unsaved' })

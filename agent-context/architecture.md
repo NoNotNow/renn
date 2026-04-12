@@ -171,7 +171,7 @@ See **world-schema.json** and **src/types/world.ts** for the full shape.
 ## Persistence
 
 - **PersistenceAPI** is implemented first with **IndexedDB**: `projects` (world JSON per project), `assets` (global asset blobs shared across projects), and **`modelPresets`** (global `ModelPreset` records: model + material + shape + scale fields; not part of `RennWorld` or ZIP export). Schema version is `DB_CONFIG.version` in `src/config/constants.ts` (v5+ bumps re-run upgrade so `modelPresets` is created if a prior version left it missing). Same interface can later be backed by a REST API + Postgres + S3.
-- **Export**: one ZIP per project (`world.json` + `assets/`); unsaved projects export as JSON. **Import**: validate, then save as new project (replace UI can be added). Model presets stay in the browser DB and are not included in project ZIP/JSON.
+- **Export**: one ZIP per project (`world.json` + `assets/`); the browser download filename is the current project (world) name, sanitized for the filesystem, with fallback `world-{id}.zip` if the name is empty. Unsaved projects export as `world.json`. **Import**: validate, then save as new project (replace UI can be added). Model presets stay in the browser DB and are not included in project ZIP/JSON.
 
 ---
 
