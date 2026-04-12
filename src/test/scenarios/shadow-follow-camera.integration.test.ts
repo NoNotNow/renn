@@ -118,6 +118,7 @@ describe('shadow follow camera (integration)', () => {
       loadedScene: scene,
       recordFrameTiming: false,
       frameTimingRef: { current: null },
+      skipRender: false,
     }
 
     runSceneFrame(input)
@@ -126,5 +127,54 @@ describe('shadow follow camera (integration)', () => {
     expect(dirLight.target.position.x).toBeCloseTo(-420)
     expect(dirLight.target.position.y).toBeCloseTo(30)
     expect(dirLight.target.position.z).toBeCloseTo(310)
+  })
+
+  it('skipRender skips WebGL render', async () => {
+    const world = minimalWorld()
+    const { scene } = await loadWorld(world)
+    const cam = new THREE.PerspectiveCamera()
+
+    const rend = {
+      shadowMap: { enabled: true },
+      render: vi.fn(),
+    } as unknown as InstanceType<typeof THREE.WebGLRenderer>
+
+    const input: SceneFrameLoopInputs = {
+      isCancelled: () => false,
+      fixedDt: SCENE_FIXED_DT,
+      timeRef: { current: 0 },
+      rawWheelRef: { current: null },
+      orbitWheelRef: { current: { deltaX: 0, deltaY: 0, distanceDelta: 0 } },
+      editNavigationModeRef: { current: false },
+      cameraCtrlRef: { current: null },
+      physicsRef: { current: null },
+      runPhysics: false,
+      activeDebugForcesRef: { current: [] },
+      registryRef: { current: null },
+      rawKeyboardRef: { current: null },
+      worldRef: { current: world },
+      scriptRunnerRef: { current: null },
+      runScripts: false,
+      freeFlyKeysRef: { current: null },
+      rawMouseDragRef: { current: null },
+      gizmoDraggingRef: { current: false },
+      selectedEntityIdsRef: { current: [] },
+      editorFreePoseRef: undefined,
+      cam,
+      lastEditorPoseWriteTimeRef: { current: 0 },
+      showGameHud: false,
+      lastHudDriveRef: { current: null },
+      setHudDrive: () => {},
+      skyDomeRef: { current: null },
+      rend,
+      loadedScene: scene,
+      recordFrameTiming: false,
+      frameTimingRef: { current: null },
+      skipRender: true,
+    }
+
+    runSceneFrame(input)
+
+    expect(rend.render).not.toHaveBeenCalled()
   })
 })

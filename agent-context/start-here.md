@@ -49,7 +49,7 @@ src/
 ├── loader/loadWorld.ts     # World JSON → Three.js scene
 ├── physics/rapierPhysics.ts
 ├── runtime/renderItemRegistry.ts
-├── runtime/sceneFrameLoop.ts  # Per-frame sim/render (called from SceneView rAF)
+├── runtime/sceneFrameLoop.ts  # Per-frame sim/render; semi-fixed accumulator helper (world `simulation` settings)
 ├── scripts/scriptCtx.ts    # ctx types and alloc
 ├── scripts/gameApi.ts      # backing for ctx
 ├── transformers/           # Transformer system

@@ -351,6 +351,7 @@ Improves Builder responsiveness; does not affect standalone Play FPS:
 ## References
 
 - Hot loop: `src/runtime/sceneFrameLoop.ts`, `src/runtime/frameTiming.ts`, `src/components/SceneView.tsx`, `src/components/FrameStatsOverlay.tsx`
+- **2026-04-12:** Semi-fixed timestep in `SceneView` (`advanceSemiFixedAccumulator`, `world.world.simulation`); frame stats overlay toggled by `world.world.showFrameStats` (World panel). Full rAF wall time overwrites `frameMs` when multiple sim steps run per tick.
 - Distance culling: `src/types/world.ts` (`DistanceCullingSettings`), `src/runtime/renderItemRegistry.ts` (`applyDistanceCulling`, `refreshCullingWorldSize`), `src/physics/rapierPhysics.ts` (`disableBodyForCulling` / `enableBodyFromCulling`; uncull refreshes `cachedTransforms` + clears per-body custom sleep timer), `src/utils/meshWorldExtent.ts`, `src/utils/distanceCullingMath.ts`, `src/components/WorldPanel.tsx`
 - Builder inspector poses: `src/components/InspectorLivePoseBridge.tsx`
 - Transformer chain: `src/transformers/transformer.ts`, `src/input/inputMapping.ts`

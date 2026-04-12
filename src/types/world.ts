@@ -135,6 +135,38 @@ export function resolveDistanceCullingSettings(
   return { ...DEFAULT_DISTANCE_CULLING, ...raw }
 }
 
+/** Fixed-step bounds: 15 Hz … 240 Hz (seconds per step). */
+export const SIMULATION_FIXED_DT_MIN = 1 / 240
+export const SIMULATION_FIXED_DT_MAX = 1 / 15
+
+export const SIMULATION_MAX_STEPS_MIN = 1
+export const SIMULATION_MAX_STEPS_MAX = 10
+
+/** Semi-fixed timestep tuning; see `resolveSimulationSettings` and SceneView accumulator. */
+export interface SimulationSettings {
+  /** Simulation step in seconds. Default 1/60. Clamped to {@link SIMULATION_FIXED_DT_MIN}…{@link SIMULATION_FIXED_DT_MAX}. */
+  fixedDt?: number
+  /** Max physics/transformer steps per render frame (spiral-of-death guard). Default 4. Clamped 1…10. */
+  maxStepsPerFrame?: number
+}
+
+export const DEFAULT_SIMULATION: Required<SimulationSettings> = {
+  fixedDt: 1 / 60,
+  maxStepsPerFrame: 4,
+}
+
+export function resolveSimulationSettings(raw?: SimulationSettings): Required<SimulationSettings> {
+  const fixedDt = raw?.fixedDt ?? DEFAULT_SIMULATION.fixedDt
+  const maxStepsPerFrame = raw?.maxStepsPerFrame ?? DEFAULT_SIMULATION.maxStepsPerFrame
+  return {
+    fixedDt: Math.min(SIMULATION_FIXED_DT_MAX, Math.max(SIMULATION_FIXED_DT_MIN, fixedDt)),
+    maxStepsPerFrame: Math.min(
+      SIMULATION_MAX_STEPS_MAX,
+      Math.max(SIMULATION_MAX_STEPS_MIN, Math.floor(maxStepsPerFrame)),
+    ),
+  }
+}
+
 export interface WorldSettings {
   gravity?: Vec3
   wind?: Vec3
@@ -151,6 +183,10 @@ export interface WorldSettings {
   skyColor?: Color
   skybox?: string
   camera?: CameraConfig
+  /** Semi-fixed timestep (accumulator); omit for {@link DEFAULT_SIMULATION}. */
+  simulation?: SimulationSettings
+  /** When true, show last-frame ms / fps overlay on the scene canvas. */
+  showFrameStats?: boolean
 }
 
 export interface SoundSettings {

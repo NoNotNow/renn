@@ -84,6 +84,24 @@
       },
       "additionalProperties": false
     },
+    "SimulationSettings": {
+      "type": "object",
+      "description": "Semi-fixed timestep: fixedDt physics step and max catch-up steps per render frame",
+      "properties": {
+        "fixedDt": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Simulation step in seconds (e.g. 1/60 for 60 Hz); runtime clamps to ~15–240 Hz"
+        },
+        "maxStepsPerFrame": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "description": "Max physics steps per rAF tick (spiral-of-death guard)"
+        }
+      },
+      "additionalProperties": false
+    },
     "WorldSettings": {
       "type": "object",
       "properties": {
@@ -96,6 +114,11 @@
         "skyColor": { "$ref": "#/$defs/Color" },
         "skybox": { "type": "string" },
         "camera": { "$ref": "#/$defs/CameraConfig" },
+        "simulation": { "$ref": "#/$defs/SimulationSettings" },
+        "showFrameStats": {
+          "type": "boolean",
+          "description": "Overlay last-frame timing / fps on the scene canvas"
+        },
         "distanceCulling": {
           "description": "Omitted = engine defaults (enabled). false = disabled.",
           "oneOf": [

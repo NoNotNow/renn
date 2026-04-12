@@ -1219,7 +1219,9 @@ This file maps the repository structure and gives a short description of each tr
 - Runtime or configuration source code.
 
 ### `src/runtime/sceneFrameLoop.ts`
-- Runtime or configuration source code.
+- Per-frame simulation and render: `runSceneFrame` (physics, transformers, scripts, camera, HUD, Three.js `render`).
+- Semi-fixed timestep helper: `advanceSemiFixedAccumulator` (used by `SceneView` rAF loop with `world.world.simulation`).
+- Optional flags: `skipSimulation` / `variableFrameDt` (render-only ticks), `skipRender` (multi-step catch-up), `recordFrameTiming` + `frameTimingRef` for `FrameStatsOverlay`.
 
 ### `src/schema/validate.test.ts`
 - Automated tests covering behavior and regressions.

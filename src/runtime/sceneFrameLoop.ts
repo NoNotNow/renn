@@ -22,6 +22,24 @@ import { emptySceneFrameTiming, type SceneFrameTiming } from '@/runtime/frameTim
 
 export const SCENE_FIXED_DT = 1 / 60
 
+/**
+ * One semi-fixed-timestep tick: add elapsed wall time (clamped), return how many fixed steps to run
+ * and the remaining accumulator (seconds).
+ */
+export function advanceSemiFixedAccumulator(input: {
+  accumulator: number
+  elapsedSec: number
+  fixedDt: number
+  maxStepsPerFrame: number
+}): { accumulator: number; stepsToRun: number } {
+  const maxElapsed = input.maxStepsPerFrame * input.fixedDt
+  const clampedElapsed = Math.min(Math.max(0, input.elapsedSec), maxElapsed)
+  let acc = input.accumulator + clampedElapsed
+  const stepsToRun = Math.min(Math.floor(acc / input.fixedDt), input.maxStepsPerFrame)
+  acc -= stepsToRun * input.fixedDt
+  return { accumulator: acc, stepsToRun }
+}
+
 const hudVelScratch: Vec3 = [0, 0, 0]
 const hudFwdScratch: Vec3 = [0, 0, 0]
 
@@ -59,6 +77,15 @@ export interface SceneFrameLoopInputs {
    */
   recordFrameTiming: boolean
   frameTimingRef: MutableRefObject<SceneFrameTiming | null>
+  /**
+   * When true, skip simulation time advance, physics, transformers, and script collision handling.
+   * Used when the semi-fixed accumulator has no full step this rAF (render-only tick).
+   */
+  skipSimulation?: boolean
+  /** Seconds for `CameraController.update` and `runOnUpdate` when `skipSimulation` is true. */
+  variableFrameDt?: number
+  /** When true, skip the final WebGL `render` (multi-step accumulator intermediates). */
+  skipRender?: boolean
 }
 
 /**
@@ -96,7 +123,13 @@ export function runSceneFrame(input: SceneFrameLoopInputs): void {
     loadedScene,
     recordFrameTiming,
     frameTimingRef,
+    skipSimulation = false,
+    variableFrameDt = 0,
+    skipRender = false,
   } = input
+
+  const simAdvance = !skipSimulation
+  const logicDt = simAdvance ? dt : variableFrameDt
 
   const record = recordFrameTiming
   const timing = record ? emptySceneFrameTiming() : null
@@ -110,7 +143,9 @@ export function runSceneFrame(input: SceneFrameLoopInputs): void {
     frameTimingRef.current = timing
   }
 
-  timeRef.current += dt
+  if (simAdvance) {
+    timeRef.current += dt
+  }
 
   const orbitCtrl = cameraCtrlRef.current
   const orbitCfg = orbitCtrl?.getConfig()
@@ -138,7 +173,7 @@ export function runSceneFrame(input: SceneFrameLoopInputs): void {
   }
 
   const pw = physicsRef.current
-  if (pw && runPhysics && !isCancelled()) {
+  if (simAdvance && pw && runPhysics && !isCancelled()) {
     try {
       const currentTime = timeRef.current
       const dbg = activeDebugForcesRef.current
@@ -221,7 +256,7 @@ export function runSceneFrame(input: SceneFrameLoopInputs): void {
     } else {
       ctrl.setEditNavigationOrbitPivot(null)
     }
-    ctrl.update(dt)
+    ctrl.update(logicDt)
 
     const poseSink = editorFreePoseRef
     if (poseSink && cam && !isCancelled()) {
@@ -258,7 +293,7 @@ export function runSceneFrame(input: SceneFrameLoopInputs): void {
 
   const scriptSkipIds = registry?.culledSleepingEntityIds
 
-  if (pw && runPhysics && !isCancelled() && !editNav) {
+  if (simAdvance && pw && runPhysics && !isCancelled() && !editNav) {
     try {
       if (scriptRunnerRef.current && runScripts) {
         const collisions = pw.getCollisions()
@@ -282,7 +317,7 @@ export function runSceneFrame(input: SceneFrameLoopInputs): void {
   }
 
   if (scriptRunnerRef.current && runScripts && !editNavigationModeRef.current) {
-    scriptRunnerRef.current.runOnUpdate(dt, scriptSkipIds)
+    scriptRunnerRef.current.runOnUpdate(logicDt, scriptSkipIds)
   }
   if (timing) {
     const n = performance.now()
@@ -329,7 +364,7 @@ export function runSceneFrame(input: SceneFrameLoopInputs): void {
     dome.position.copy(cam.position)
   }
 
-  if (rend && loadedScene && cam && !isCancelled()) {
+  if (!skipRender && rend && loadedScene && cam && !isCancelled()) {
     syncDirectionalLightShadowFocusToCamera(loadedScene, cam)
     rend.render(loadedScene, cam)
     if (timing) {
@@ -340,7 +375,7 @@ export function runSceneFrame(input: SceneFrameLoopInputs): void {
   }
   if (timing) {
     const n = performance.now()
-    timing.renderMs = n - prev
+    timing.renderMs = skipRender ? 0 : n - prev
     prev = n
   }
 

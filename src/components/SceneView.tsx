@@ -11,7 +11,7 @@ import type {
   AvatarFocusSnapshot,
 } from '@/types/world'
 import { createAssetResolverFromGetter, type DisposableAssetResolver } from '@/loader/assetResolverImpl'
-import { DEFAULT_GRAVITY, DEFAULT_ROTATION } from '@/types/world'
+import { DEFAULT_GRAVITY, DEFAULT_ROTATION, resolveSimulationSettings } from '@/types/world'
 import { eulerToQuaternion } from '@/utils/rotationUtils'
 import type { LoadedEntity } from '@/loader/loadWorld'
 import { CameraController } from '@/camera/cameraController'
@@ -20,7 +20,8 @@ import { ScriptRunner } from '@/scripts/scriptRunner'
 import type { PhysicsWorld } from '@/physics/rapierPhysics'
 import { RenderItemRegistry } from '@/runtime/renderItemRegistry'
 import { restoreInitialPosesIntoRegistry } from '@/runtime/restoreInitialPoses'
-import { runSceneFrame, SCENE_FIXED_DT } from '@/runtime/sceneFrameLoop'
+import { runSceneFrame, advanceSemiFixedAccumulator } from '@/runtime/sceneFrameLoop'
+import type { SceneFrameTiming } from '@/runtime/frameTiming'
 import { useKeyboardInput } from '@/hooks/useKeyboardInput'
 import {
   DEFAULT_TEXTURE_BRUSH_RGB,
@@ -41,6 +42,7 @@ import { countVisualModelTriangles } from '@/utils/geometryExtractor'
 import { findEntityRootForPicking } from '@/utils/entityPicking'
 import { ScriptSnackbar } from '@/components/ScriptSnackbar'
 import { GameHud } from '@/components/GameHud'
+import { FrameStatsOverlay } from '@/components/FrameStatsOverlay'
 import { WarningSnackbar } from '@/components/WarningSnackbar'
 import { AvatarSession } from '@/runtime/avatarSession'
 
@@ -187,6 +189,7 @@ function SceneViewInner({
   const worldAudioUrlRef = useRef<string | null>(null)
   const timeRef = useRef(0)
   const frameRef = useRef<number>(0)
+  const frameTimingRef = useRef<SceneFrameTiming | null>(null)
   const effectIdRef = useRef(0)
   const savedCameraStateRef = useRef<{
     position: THREE.Vector3
@@ -382,7 +385,7 @@ function SceneViewInner({
     }
 
     let cancelled = false
-    let scriptSnackbarTimerId: ReturnType<typeof window.setTimeout> | undefined
+    let scriptSnackbarTimerId: number | undefined
     let cam: THREE.PerspectiveCamera | null = null
     let rend: THREE.WebGLRenderer | null = null
     let cameraCtrl: CameraController | null = null
@@ -638,42 +641,104 @@ function SceneViewInner({
         }
       }
 
-      // Animation loop (per-frame logic in runtime/sceneFrameLoop.ts)
-      const animate = (): void => {
+      // Semi-fixed timestep: accumulator in rAF; see `resolveSimulationSettings` / World panel.
+      let lastRafTime: number | null = null
+      let simAccumulator = 0
+
+      const animate = (rafTime: number): void => {
         if (cancelled) return
         frameRef.current = requestAnimationFrame(animate)
-        runSceneFrame({
-          isCancelled: () => cancelled,
-          fixedDt: SCENE_FIXED_DT,
-          timeRef,
-          rawWheelRef,
-          orbitWheelRef,
-          editNavigationModeRef,
-          cameraCtrlRef,
-          physicsRef,
-          runPhysics,
-          activeDebugForcesRef,
-          registryRef,
-          rawKeyboardRef,
-          worldRef,
-          scriptRunnerRef,
-          runScripts,
-          freeFlyKeysRef,
-          rawMouseDragRef,
-          gizmoDraggingRef,
-          selectedEntityIdsRef,
-          editorFreePoseRef,
-          cam,
-          lastEditorPoseWriteTimeRef,
-          showGameHud,
-          lastHudDriveRef,
-          setHudDrive,
-          skyDomeRef,
-          rend,
-          loadedScene,
+
+        const sim = resolveSimulationSettings(worldRef.current.world.simulation)
+        const { fixedDt, maxStepsPerFrame } = sim
+        const recordStats = worldRef.current.world.showFrameStats === true
+
+        const elapsedSec = lastRafTime == null ? 0 : Math.max(0, (rafTime - lastRafTime) / 1000)
+        lastRafTime = rafTime
+
+        const { accumulator: nextAcc, stepsToRun } = advanceSemiFixedAccumulator({
+          accumulator: simAccumulator,
+          elapsedSec,
+          fixedDt,
+          maxStepsPerFrame,
         })
+        simAccumulator = nextAcc
+        const clampedElapsed = Math.min(
+          Math.max(0, elapsedSec),
+          maxStepsPerFrame * fixedDt,
+        )
+
+        const tickStart = recordStats ? performance.now() : 0
+
+        const pushFrame = (opts: {
+          fixedDt: number
+          skipSimulation: boolean
+          variableFrameDt: number
+          skipRender: boolean
+        }): void => {
+          runSceneFrame({
+            isCancelled: () => cancelled,
+            fixedDt: opts.fixedDt,
+            skipSimulation: opts.skipSimulation,
+            variableFrameDt: opts.variableFrameDt,
+            skipRender: opts.skipRender,
+            timeRef,
+            rawWheelRef,
+            orbitWheelRef,
+            editNavigationModeRef,
+            cameraCtrlRef,
+            physicsRef,
+            runPhysics,
+            activeDebugForcesRef,
+            registryRef,
+            rawKeyboardRef,
+            worldRef,
+            scriptRunnerRef,
+            runScripts,
+            freeFlyKeysRef,
+            rawMouseDragRef,
+            gizmoDraggingRef,
+            selectedEntityIdsRef,
+            editorFreePoseRef,
+            cam,
+            lastEditorPoseWriteTimeRef,
+            showGameHud,
+            lastHudDriveRef,
+            setHudDrive,
+            skyDomeRef,
+            rend,
+            loadedScene,
+            recordFrameTiming: recordStats,
+            frameTimingRef,
+          })
+        }
+
+        if (stepsToRun === 0) {
+          pushFrame({
+            fixedDt: 0,
+            skipSimulation: true,
+            variableFrameDt: clampedElapsed,
+            skipRender: false,
+          })
+        } else {
+          for (let i = 0; i < stepsToRun; i++) {
+            pushFrame({
+              fixedDt,
+              skipSimulation: false,
+              variableFrameDt: 0,
+              skipRender: i < stepsToRun - 1,
+            })
+          }
+        }
+
+        if (recordStats) {
+          const snap = frameTimingRef.current
+          if (snap) {
+            snap.frameMs = performance.now() - tickStart
+          }
+        }
       }
-      animate()
+      frameRef.current = requestAnimationFrame(animate)
 
       if (avatarSession) {
         const onAvatarKeyDown = (e: KeyboardEvent): void => {
@@ -1101,6 +1166,7 @@ function SceneViewInner({
       {showGameHud ? (
         <GameHud score={hudScore} damage={hudDamage} speedMs={hudDrive.speedMs} wheelAngle={hudDrive.wheelAngle} />
       ) : null}
+      {world.world.showFrameStats ? <FrameStatsOverlay frameTimingRef={frameTimingRef} /> : null}
       <WarningSnackbar messages={schemaLoadWarnings} onDismiss={dismissSchemaLoadWarnings} />
     </div>
   )
