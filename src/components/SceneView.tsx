@@ -650,11 +650,12 @@ function SceneViewInner({
         frameRef.current = requestAnimationFrame(animate)
 
         const sim = resolveSimulationSettings(worldRef.current.world.simulation)
-        const { fixedDt, maxStepsPerFrame } = sim
+        const { fixedDt, maxStepsPerFrame, timeScale } = sim
         const recordStats = worldRef.current.world.showFrameStats === true
 
-        const elapsedSec = lastRafTime == null ? 0 : Math.max(0, (rafTime - lastRafTime) / 1000)
+        const rawElapsed = lastRafTime == null ? 0 : Math.max(0, (rafTime - lastRafTime) / 1000)
         lastRafTime = rafTime
+        const elapsedSec = rawElapsed * timeScale
 
         const { accumulator: nextAcc, stepsToRun } = advanceSemiFixedAccumulator({
           accumulator: simAccumulator,

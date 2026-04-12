@@ -86,7 +86,7 @@
     },
     "SimulationSettings": {
       "type": "object",
-      "description": "Semi-fixed timestep: fixedDt physics step and max catch-up steps per render frame",
+      "description": "Semi-fixed timestep: fixedDt physics step, max catch-up steps per render frame, and time scale",
       "properties": {
         "fixedDt": {
           "type": "number",
@@ -98,6 +98,12 @@
           "minimum": 1,
           "maximum": 10,
           "description": "Max physics steps per rAF tick (spiral-of-death guard)"
+        },
+        "timeScale": {
+          "type": "number",
+          "minimum": 0.1,
+          "maximum": 5,
+          "description": "Simulation speed multiplier (1 = real time, 2 = double speed, 0.5 = slow motion); runtime clamps to 0.1–5"
         }
       },
       "additionalProperties": false

@@ -51,4 +51,32 @@ describe('advanceSemiFixedAccumulator', () => {
     // Elapsed beyond the cap is not added to the accumulator for this tick.
     expect(accumulator).toBeCloseTo(0)
   })
+
+  it('timeScale 2x doubles the effective elapsed passed to the accumulator', () => {
+    const timeScale = 2
+    const rawElapsed = fixedDt // wall 1 tick
+    const scaledElapsed = rawElapsed * timeScale // sim 2 ticks
+    const { stepsToRun, accumulator } = advanceSemiFixedAccumulator({
+      accumulator: 0,
+      elapsedSec: scaledElapsed,
+      fixedDt,
+      maxStepsPerFrame: maxSteps,
+    })
+    expect(stepsToRun).toBe(2)
+    expect(accumulator).toBeCloseTo(0)
+  })
+
+  it('timeScale 0.5x halves the effective elapsed passed to the accumulator', () => {
+    const timeScale = 0.5
+    const rawElapsed = fixedDt
+    const scaledElapsed = rawElapsed * timeScale
+    const { stepsToRun, accumulator } = advanceSemiFixedAccumulator({
+      accumulator: 0,
+      elapsedSec: scaledElapsed,
+      fixedDt,
+      maxStepsPerFrame: maxSteps,
+    })
+    expect(stepsToRun).toBe(0)
+    expect(accumulator).toBeCloseTo(fixedDt * 0.5)
+  })
 })

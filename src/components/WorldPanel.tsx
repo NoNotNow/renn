@@ -87,6 +87,7 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
   const simulation: SimulationSettings = world.world.simulation ?? {}
   const physicsHz = Math.round(1 / (simulation.fixedDt ?? DEFAULT_SIMULATION.fixedDt))
   const maxCatchUpSteps = simulation.maxStepsPerFrame ?? DEFAULT_SIMULATION.maxStepsPerFrame
+  const timeScale = simulation.timeScale ?? DEFAULT_SIMULATION.timeScale
 
   const updateSimulation = (patch: Partial<SimulationSettings>): void => {
     updateWorldSettings({
@@ -95,6 +96,7 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
         fixedDt: world.world.simulation?.fixedDt ?? DEFAULT_SIMULATION.fixedDt,
         maxStepsPerFrame:
           world.world.simulation?.maxStepsPerFrame ?? DEFAULT_SIMULATION.maxStepsPerFrame,
+        timeScale: world.world.simulation?.timeScale ?? DEFAULT_SIMULATION.timeScale,
         ...patch,
       },
     })
@@ -111,6 +113,12 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
     const clamped = Math.min(10, Math.max(1, Math.round(n)))
     uiLogger.change('WorldPanel', 'Change max catch-up steps', { maxStepsPerFrame: clamped })
     updateSimulation({ maxStepsPerFrame: clamped })
+  }
+
+  const updateTimeScale = (v: number): void => {
+    const clamped = Math.min(5, Math.max(0.1, v))
+    uiLogger.change('WorldPanel', 'Change time scale', { timeScale: clamped })
+    updateSimulation({ timeScale: clamped })
   }
 
   const updateGravity = (value: number) => {
@@ -330,6 +338,18 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
           max={10}
           step={1}
           defaultValue={DEFAULT_SIMULATION.maxStepsPerFrame}
+          logComponent="WorldPanel"
+        />
+        <NumberInput
+          onBeforeCommit={pushUndo}
+          id="world-time-scale"
+          label="Time scale"
+          value={timeScale}
+          onChange={updateTimeScale}
+          min={0.1}
+          max={5}
+          step={0.1}
+          defaultValue={DEFAULT_SIMULATION.timeScale}
           logComponent="WorldPanel"
         />
         <div style={{ ...sidebarRowStyle, marginTop: 8 }}>

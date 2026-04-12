@@ -142,28 +142,36 @@ export const SIMULATION_FIXED_DT_MAX = 1 / 15
 export const SIMULATION_MAX_STEPS_MIN = 1
 export const SIMULATION_MAX_STEPS_MAX = 10
 
+export const SIMULATION_TIME_SCALE_MIN = 0.1
+export const SIMULATION_TIME_SCALE_MAX = 5
+
 /** Semi-fixed timestep tuning; see `resolveSimulationSettings` and SceneView accumulator. */
 export interface SimulationSettings {
   /** Simulation step in seconds. Default 1/60. Clamped to {@link SIMULATION_FIXED_DT_MIN}…{@link SIMULATION_FIXED_DT_MAX}. */
   fixedDt?: number
   /** Max physics/transformer steps per render frame (spiral-of-death guard). Default 4. Clamped 1…10. */
   maxStepsPerFrame?: number
+  /** Simulation speed multiplier. 1 = real time, 2 = double speed, 0.5 = half speed. Default 1. Clamped 0.1…5. */
+  timeScale?: number
 }
 
 export const DEFAULT_SIMULATION: Required<SimulationSettings> = {
   fixedDt: 1 / 60,
   maxStepsPerFrame: 4,
+  timeScale: 1,
 }
 
 export function resolveSimulationSettings(raw?: SimulationSettings): Required<SimulationSettings> {
   const fixedDt = raw?.fixedDt ?? DEFAULT_SIMULATION.fixedDt
   const maxStepsPerFrame = raw?.maxStepsPerFrame ?? DEFAULT_SIMULATION.maxStepsPerFrame
+  const timeScale = raw?.timeScale ?? DEFAULT_SIMULATION.timeScale
   return {
     fixedDt: Math.min(SIMULATION_FIXED_DT_MAX, Math.max(SIMULATION_FIXED_DT_MIN, fixedDt)),
     maxStepsPerFrame: Math.min(
       SIMULATION_MAX_STEPS_MAX,
       Math.max(SIMULATION_MAX_STEPS_MIN, Math.floor(maxStepsPerFrame)),
     ),
+    timeScale: Math.min(SIMULATION_TIME_SCALE_MAX, Math.max(SIMULATION_TIME_SCALE_MIN, timeScale)),
   }
 }
 
