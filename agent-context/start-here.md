@@ -26,6 +26,7 @@
 | Example worlds and JSON configs | `example-worlds.md` |
 | Rotation/direction coordinates (Euler, radians, caveats) | `direction-rotation-coordinates.md` |
 | Physics force accumulation quirk | `bugfix-spinning.md` |
+| Planned video textures on materials (milestones, not built yet) | `feature-video-texture-plan.md` |
 
 ## Tech stack (quick ref)
 
