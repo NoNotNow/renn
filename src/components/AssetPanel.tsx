@@ -3,10 +3,12 @@ import type { RennWorld } from '@/types/world'
 import { uiLogger } from '@/utils/uiLogger'
 import CopyableArea from './CopyableArea'
 import { TextureManager } from '@/utils/textureManager'
+import { VideoManager } from '@/utils/videoManager'
 import { generateModelPreview } from '@/utils/modelPreview'
 import { ModelManager } from '@/utils/modelManager'
 import { defaultPersistence } from '@/persistence/indexedDb'
 import TextureThumbnail from './TextureThumbnail'
+import VideoThumbnail from './VideoThumbnail'
 import ModelThumbnail from './ModelThumbnail'
 import { useEditorUndo } from '@/contexts/EditorUndoContext'
 import { buildAssetsZipBlob, resolveAssetFilename, triggerBlobDownload } from '@/utils/assetExport'
@@ -44,12 +46,16 @@ export default function AssetPanel({ assets, world, onAssetsChange, onWorldChang
       const file = files[i]
       const id = file.name.replace(/\.[^.]+$/, '') || `asset_${Date.now()}_${i}`
       const isImage = file.type.startsWith('image')
+      const isVideo = VideoManager.isVideoFile(file)
       next.set(id, file)
-      nextWorldAssets[id] = { path: `assets/${file.name}`, type: isImage ? 'texture' : 'model' }
-      
+      nextWorldAssets[id] = {
+        path: `assets/${file.name}`,
+        type: isImage ? 'texture' : isVideo ? 'video' : 'model',
+      }
+
       // Save to global store immediately
       try {
-        const previewBlob = isImage ? null : await generateModelPreview(file)
+        const previewBlob = isImage || isVideo ? null : await generateModelPreview(file)
         await defaultPersistence.saveAsset(id, file, previewBlob)
       } catch (err) {
         console.error(`Failed to save asset ${id}:`, err)
@@ -122,7 +128,7 @@ export default function AssetPanel({ assets, world, onAssetsChange, onWorldChang
         ref={fileInputRef}
         type="file"
         multiple
-        accept="image/*,.glb,.gltf"
+        accept="image/*,video/*,.glb,.gltf"
         style={{ display: 'none' }}
         onChange={onFileChange}
         />
@@ -131,12 +137,15 @@ export default function AssetPanel({ assets, world, onAssetsChange, onWorldChang
           const blob = assets.get(id)
           if (!blob) return null
           const isImage = TextureManager.isImageFile(blob)
+          const isVideo = VideoManager.isVideoBlob(blob)
           const isModel = ModelManager.isModelFile(blob)
-          
+
           return (
             <li key={id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-              {isModel && !isImage ? (
+              {isModel && !isImage && !isVideo ? (
                 <ModelThumbnail assetId={id} blob={blob} size={40} />
+              ) : isVideo ? (
+                <VideoThumbnail assetId={id} blob={blob} size={40} />
               ) : (
                 <TextureThumbnail assetId={id} blob={blob} size={40} />
               )}

@@ -11,6 +11,7 @@ import type {
   AvatarFocusSnapshot,
 } from '@/types/world'
 import { createAssetResolverFromGetter, type DisposableAssetResolver } from '@/loader/assetResolverImpl'
+import { isVideoMapAsset } from '@/utils/videoManager'
 import { DEFAULT_GRAVITY, DEFAULT_ROTATION, resolveSimulationSettings } from '@/types/world'
 import { eulerToQuaternion } from '@/utils/rotationUtils'
 import type { LoadedEntity } from '@/loader/loadWorld'
@@ -419,7 +420,9 @@ function SceneViewInner({
       if (assetResolver) {
         assetResolver.dispose()
       }
-      assetResolverRef.current = createAssetResolverFromGetter(() => assetsRef.current)
+      assetResolverRef.current = createAssetResolverFromGetter(() => assetsRef.current, {
+        isVideoAsset: (id) => isVideoMapAsset(id, worldRef.current.assets, assetsRef.current),
+      })
 
       // Camera setup
       cam = new THREE.PerspectiveCamera(50, 1, 0.1, 1000)

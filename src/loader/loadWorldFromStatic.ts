@@ -6,7 +6,23 @@ import type { RennWorld } from '@/types/world'
 import { validateWorldDocument } from '@/schema/validate'
 import { migrateWorldScripts, migrateWorldSimplificationFields } from '@/scripts/migrateWorld'
 
-const ASSET_EXTS = ['.bin', '.png', '.jpg', '.jpeg', '.glb', '.gltf', '.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac']
+const ASSET_EXTS = [
+  '.bin',
+  '.png',
+  '.jpg',
+  '.jpeg',
+  '.glb',
+  '.gltf',
+  '.mp3',
+  '.wav',
+  '.ogg',
+  '.m4a',
+  '.aac',
+  '.flac',
+  '.mp4',
+  '.webm',
+  '.mov',
+]
 
 function isHtmlContentType(contentType: string | null): boolean {
   if (!contentType) return false

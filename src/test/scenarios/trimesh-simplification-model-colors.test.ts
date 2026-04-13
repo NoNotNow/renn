@@ -159,6 +159,8 @@ describe('trimesh + Use model colors — performance booster (vertex colors)', (
     const mockResolver: DisposableAssetResolver = {
       resolve: () => null,
       loadTexture: async () => null,
+      loadVideoTexture: async () => null,
+      isVideoAsset: () => false,
       loadModel: async () => null,
       dispose: () => {},
     }

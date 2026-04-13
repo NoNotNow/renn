@@ -20,6 +20,9 @@ export function inferAssetExtension(blob: Blob): string {
   if (mime.includes('audio') || mime.includes('mpeg')) return 'mp3'
   if (mime.includes('ogg')) return 'ogg'
   if (mime.includes('wav')) return 'wav'
+  if (mime.includes('mp4')) return 'mp4'
+  if (mime.includes('webm')) return 'webm'
+  if (mime.includes('quicktime')) return 'mov'
   return 'bin'
 }
 

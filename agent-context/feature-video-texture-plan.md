@@ -1,15 +1,17 @@
 # Video Texture Feature (plan)
 
-**Status:** Planned — not implemented.  
+**Status:** Implemented — see [feature-video-texture.md](feature-video-texture.md).  
 **Overview:** Add video texture support to Renn: upload video files, convert to web-compatible format via ffmpeg.wasm, extend the texture/asset system to handle video, and render videos on entity surfaces using Three.js VideoTexture.
 
 ## Milestone checklist
 
-- [ ] **Milestone 1:** Video upload and conversion pipeline (`videoManager`, `videoConverter`, ffmpeg.wasm). Visual check: convert a file, play result in `<video>`.
-- [ ] **Milestone 2:** Video asset type in data model and persistence (`world.ts`, `assetUpload`, `AssetPanel`, export/import). Visual check: upload video in Asset Panel, export/import ZIP.
-- [ ] **Milestone 3:** Video-aware TextureDialog and conversion progress UI (`TextureDialog`, `VideoConversionDialog`, `VideoThumbnail`, `MaterialEditor`). Visual check: videos in dialog with badges, conversion progress modal.
-- [ ] **Milestone 4:** Three.js VideoTexture rendering (`assetResolverImpl`, `createPrimitive`, `renderItemRegistry`, `SceneView`). Visual check: video plays on entity in Builder and Play.
-- [ ] **Milestone 5:** Cleanup, testing, documentation (integration tests, disposal, prefetch skip, agent-context). Visual check: multi-entity scene, no leaks, `npm test` passes.
+- [x] **Milestone 1:** Video upload and conversion pipeline (`videoManager`, `videoConverter`, ffmpeg.wasm). Visual check: convert a file, play result in `<video>`.
+- [x] **Milestone 2:** Video asset type in data model and persistence (`world.ts`, `assetUpload`, `AssetPanel`, export/import). Visual check: upload video in Asset Panel, export/import ZIP.
+- [x] **Milestone 3:** Video-aware TextureDialog and conversion progress UI (`TextureDialog`, `VideoConversionDialog`, `VideoThumbnail`, `MaterialEditor`). Visual check: videos in dialog with badges, conversion progress modal.
+- [x] **Milestone 4:** Three.js VideoTexture rendering (`assetResolverImpl`, `createPrimitive`, `renderItemRegistry`, `SceneView`). Visual check: video plays on entity in Builder and Play.
+- [x] **Milestone 5:** Cleanup, testing, documentation (integration tests, disposal, prefetch skip, agent-context). Visual check: multi-entity scene, no leaks, `npm test` passes.
+
+**Dev regression (fixed):** Vite + `@ffmpeg/ffmpeg` without `classWorkerURL` broke the internal worker (404 under `.vite/deps/worker.js`), leaving conversion at 0%. **Firefox** also logged `NS_ERROR_DOM_MEDIA_METADATA_ERR` for poster thumbnails when the picked file was not a real MP4 (e.g. tiny/HTML stub). Details: [feature-video-texture.md § Troubleshooting](feature-video-texture.md#troubleshooting-vite-dev--firefox-2026-04).
 
 ---
 

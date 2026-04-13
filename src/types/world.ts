@@ -206,7 +206,7 @@ export interface SoundSettings {
 
 export interface AssetRef {
   path?: string
-  type?: 'texture' | 'model' | 'cubeTexture' | 'audio'
+  type?: 'texture' | 'model' | 'cubeTexture' | 'audio' | 'video'
 }
 
 /** Mesh decimation backend; `meshoptimizer` is higher quality, `simplifyModifier` is the legacy Three.js path. */

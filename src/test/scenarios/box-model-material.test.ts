@@ -85,6 +85,8 @@ describe('box + model visual — material updates', () => {
         tex.needsUpdate = true
         return tex
       },
+      loadVideoTexture: async () => null,
+      isVideoAsset: () => false,
       loadModel: async () => null,
       dispose: () => {},
     }

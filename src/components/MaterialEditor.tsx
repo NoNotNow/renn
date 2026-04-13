@@ -3,12 +3,12 @@ import type { Vec3, MaterialRef, RennWorld } from '@/types/world'
 import { uiLogger } from '@/utils/uiLogger'
 import { clampUnit } from '@/utils/numberUtils'
 import { colorToHex, hexToColor } from '@/utils/colorUtils'
-import { uploadTexture } from '@/utils/assetUpload'
+import { saveVideoMapBlob, uploadTexture } from '@/utils/assetUpload'
 import NumberInput from './form/NumberInput'
 import SelectInput from './form/SelectInput'
 import Vec3Field from './Vec3Field'
 import TextureDialog from './TextureDialog'
-import TextureThumbnail from './TextureThumbnail'
+import { MapMediaThumbnail } from './VideoThumbnail'
 import { sidebarRowStyle, sidebarLabelStyle, thumbnailButtonStyle, thumbnailButtonStyleDisabled, entityPanelIconButtonStyle, removeButtonStyle, removeButtonStyleDisabled } from './sharedStyles'
 import { EntityPanelIcons } from './EntityPanelIcons'
 import { useEditorUndo } from '@/contexts/EditorUndoContext'
@@ -118,7 +118,7 @@ export default function MaterialEditor({
                   if (!disabled) e.currentTarget.style.opacity = '1'
                 }}
               >
-                <TextureThumbnail assetId={material.map} blob={assets.get(material.map)} size={32} />
+                <MapMediaThumbnail assetId={material.map} blob={assets.get(material.map)} size={32} />
               </button>
               <button
                 type="button"
@@ -195,6 +195,7 @@ export default function MaterialEditor({
         assets={assets}
         world={world}
         selectedTextureId={material?.map}
+        allowVideo
         onSelectTexture={(assetId) => {
           pushUndo()
           uiLogger.change('PropertyPanel', 'Change texture', { entityId, oldValue: material?.map, newValue: assetId })
@@ -203,6 +204,12 @@ export default function MaterialEditor({
         onUploadTexture={async (file: File, assetId: string) => {
           pushUndo()
           const { nextAssets, worldAssetEntry } = await uploadTexture(file, assetId, assets)
+          onAssetsChange?.(nextAssets)
+          onWorldChange?.({ ...world, assets: { ...world.assets, [assetId]: worldAssetEntry } })
+        }}
+        onCommitConvertedVideo={async (blob: Blob, assetId: string) => {
+          pushUndo()
+          const { nextAssets, worldAssetEntry } = await saveVideoMapBlob(blob, assetId, assets)
           onAssetsChange?.(nextAssets)
           onWorldChange?.({ ...world, assets: { ...world.assets, [assetId]: worldAssetEntry } })
         }}

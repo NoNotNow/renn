@@ -580,6 +580,7 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
           onClose={() => setSkyTextureDialogOpen(false)}
           assets={assets}
           world={world}
+          allowVideo={false}
           selectedTextureId={skyboxId || undefined}
           onSelectTexture={(assetId) => {
             pushUndo()

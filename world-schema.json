@@ -213,7 +213,7 @@
       "type": "object",
       "properties": {
         "path": { "type": "string" },
-        "type": { "enum": ["texture", "model", "cubeTexture", "audio"] }
+        "type": { "enum": ["texture", "model", "cubeTexture", "audio", "video"] }
       },
       "additionalProperties": false
     },

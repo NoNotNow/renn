@@ -50,6 +50,10 @@ export function scheduleMaterialTextureDecodePrefetch(
         done()
         return
       }
+      if (blob.type.startsWith('video/')) {
+        done()
+        return
+      }
       void createImageBitmap(blob)
         .then((bmp) => {
           bmp.close()

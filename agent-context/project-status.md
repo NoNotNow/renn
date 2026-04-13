@@ -1,6 +1,6 @@
 # Renn – Project Status
 
-Last updated: 2026-04-08
+Last updated: 2026-04-12
 
 ## Completed
 
@@ -16,7 +16,7 @@ Last updated: 2026-04-08
 - **First person**: no target-position lerp; look uses entity quaternion plus vehicle-local orbit yaw/pitch (shared with SceneView drag/trackpad) and ~**5°** pitch up; mouse wheel / pinch adjusts **FOV** in first person; **FOV returns to 50°** when switching to another mode; entering first person resets orbit yaw/pitch/distance
 - Follow / third-person / tracking orbit: middle-mouse drag, trackpad scroll, pinch, and mouse wheel orbit or zoom around the target; **orbit pitch is not angle-clamped**; orbit resets when switching camera control mode
 - Script runner: main-thread, `game` API, hooks `onSpawn` / `onUpdate` / `onCollision`
-- Asset resolver: textures + 3D models (GLB only) via blob URLs
+- Asset resolver: textures, **video map assets** (`VideoTexture`), + 3D models (GLB only) via blob URLs
 
 ### Persistence
 - IndexedDB: projects (id, name, world, updatedAt) + asset blobs
@@ -27,7 +27,7 @@ Last updated: 2026-04-08
 - EntitySidebar: entity list (search + collapsible filters by 3D model, shape, transformers, approximate size), add entity dropdown, camera control/target/mode; **0** / **Numpad 0** in Builder cycles camera mode (when focus is not in an editable field)
 - PropertyPanel: TransformEditor, ShapeEditor, PhysicsEditor, MaterialEditor, entity name, delete
 - ScriptPanel: Monaco editor, add/remove scripts
-- AssetPanel: upload textures/models, list/remove; per-asset download; bulk download all as `assets.zip`
+- AssetPanel: upload textures / **videos** / models, list/remove; per-asset download; bulk download all as `assets.zip`
 - Sound tab: select/upload background audio (`world.sound.assetId`), set `volume`, `loop`, `autoplay`; manual play/stop in Builder; playback runs in Builder and Play
 - Play view: separate route `/play`, loads world from URL query or sample
 - In-scene interactions: click to select, drag to move
@@ -43,6 +43,7 @@ Last updated: 2026-04-08
 
 ### Assets & models
 - Texture workflow: TextureManager, TextureDialog, TextureThumbnail
+- **Video material maps:** `VideoManager`, ffmpeg.wasm transcode (`@ffmpeg/ffmpeg`, max 720p MP4), `VideoConversionDialog`, `VideoThumbnail` / `MapMediaThumbnail`, `AssetRef.type: 'video'`, `THREE.VideoTexture` in `materialFromRef`; sky dome picker still images-only (`allowVideo={false}`). See `agent-context/feature-video-texture.md`.
 - **Texture Maker Apply** bakes the layered document to a **new** flat image asset named `{stem}_editedN.{ext}` (extension matches baked MIME, typically `.png`); entity `material.map` switches to that asset; prior `composite_*` / `texdoc_*` / layer blobs are removed when unreferenced. `TextureDocument` may carry `editFamilyStem` / `editFamilyFileExt` for naming (set when opening the studio from a texture). Opening Texture maker with **no** map creates a 500×500 blank layered doc with stem `custom_texture` (`TEXTURE_NEW_DOCUMENT_*` in `textureCompositor.ts`). The **paint** toolbar control stays enabled for a single selection with no map; the first viewport stroke runs `prepareWorldPaintStroke` to provision the blank composite and apply it before painting.
 - **Texture Maker undo/redo** — while the panel is open, menu/keyboard undo first walks a **draft-only** stack (`textureMakerHistory.ts`: document JSON + layer blobs + selected layer) so the Builder scene is not reloaded; when that stack is empty, global editor undo applies. See `agent-context/feature-texture-compositor.md`.
 - **Select Texture** dialog hides internal compositor keys (`composite_*`, `texdoc_*`, `texlayer_*`, `tex_paint_*`) and **groups** `*_editedN.*` variants under a collapsible family row (newest first inside the group).

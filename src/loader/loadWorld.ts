@@ -15,6 +15,7 @@ import {
 import { buildEntityMesh } from './createPrimitive'
 import { syncShapeWireframeOverlay } from './shapeWireframeOverlay'
 import { createAssetResolver, type DisposableAssetResolver } from './assetResolverImpl'
+import { isVideoMapAsset } from '@/utils/videoManager'
 import { getSceneUserData } from '@/types/sceneUserData'
 import { eulerToQuaternion } from '@/utils/rotationUtils'
 import {
@@ -112,7 +113,11 @@ export async function loadWorld(
   userData.world = world
 
   // Create asset resolver if assets are provided
-  const assetResolver = assets ? createAssetResolver(assets) : null
+  const assetResolver = assets
+    ? createAssetResolver(assets, {
+        isVideoAsset: (id) => isVideoMapAsset(id, world.assets, assets),
+      })
+    : null
 
   const entities: LoadedEntity[] = []
   const shadowAabbBox = new THREE.Box3()

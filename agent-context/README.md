@@ -19,4 +19,5 @@ Docs for LLM/code agents. Read `start-here.md` first, then only what the task re
 | **bugfix-spinning** | Physics force accumulation quirk (Rapier) |
 | **performance-work** | Performance backlog (ordered work items, Firefox profiling notes) |
 | **feature-lod** | Multi-resolution LOD planning (separate project from distance culling) |
-| **feature-video-texture-plan** | Planned milestones for video textures on materials (ffmpeg.wasm, inspector, Three.js VideoTexture) |
+| **feature-video-texture-plan** | Original milestones for video textures (all implemented; see **feature-video-texture**) |
+| **feature-video-texture** | Video map assets: ffmpeg.wasm transcode, inspector picker, Three.js VideoTexture |

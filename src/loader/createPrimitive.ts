@@ -36,11 +36,13 @@ export async function materialFromRef(
     metalness: material?.metalness ?? 0,
   })
 
-  // Load texture if map is specified
+  // Load texture or video map
   if (material?.map && assetResolver) {
     const textureLoader = new THREE.TextureLoader()
-    const texture = await assetResolver.loadTexture(material.map, textureLoader)
-    
+    const texture = assetResolver.isVideoAsset(material.map)
+      ? await assetResolver.loadVideoTexture(material.map)
+      : await assetResolver.loadTexture(material.map, textureLoader)
+
     if (texture) {
       mat.map = texture
       mat.needsUpdate = true
@@ -50,7 +52,7 @@ export async function materialFromRef(
         const [x, y] = material.mapRepeat
         texture.repeat.set(x, y)
       }
-      
+
       if (material.mapWrapS) {
         const wrapMap: Record<string, THREE.Wrapping> = {
           repeat: THREE.RepeatWrapping,
@@ -59,7 +61,7 @@ export async function materialFromRef(
         }
         texture.wrapS = wrapMap[material.mapWrapS] ?? THREE.RepeatWrapping
       }
-      
+
       if (material.mapWrapT) {
         const wrapMap: Record<string, THREE.Wrapping> = {
           repeat: THREE.RepeatWrapping,
@@ -68,12 +70,12 @@ export async function materialFromRef(
         }
         texture.wrapT = wrapMap[material.mapWrapT] ?? THREE.RepeatWrapping
       }
-      
+
       if (material.mapOffset) {
         const [x, y] = material.mapOffset
         texture.offset.set(x, y)
       }
-      
+
       if (material.mapRotation !== undefined) {
         texture.rotation = material.mapRotation
       }

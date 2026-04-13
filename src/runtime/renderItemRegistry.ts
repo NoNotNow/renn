@@ -4,6 +4,7 @@ import type { PhysicsWorld } from '@/physics/rapierPhysics'
 import type { Vec3, Rotation, Entity, DistanceCullingSettings } from '@/types/world'
 import { createShapeGeometry, materialFromRef } from '@/loader/createPrimitive'
 import type { DisposableAssetResolver } from '@/loader/assetResolverImpl'
+import { disposeMaterialOrArray } from '@/utils/videoTextureLifecycle'
 import { RenderItem } from './renderItem'
 import { rapierQuaternionToEulerInto } from '@/utils/rotationUtils'
 import { createTransformerChain } from '@/transformers/transformerRegistry'
@@ -626,8 +627,7 @@ export class RenderItemRegistry {
           const current = childMesh.material
           childMesh.material = storedMat
           if (current && current !== storedMat) {
-            if (Array.isArray(current)) current.forEach((m) => m.dispose())
-            else current.dispose()
+            disposeMaterialOrArray(current)
           }
         }
       }
@@ -640,19 +640,13 @@ export class RenderItemRegistry {
           if (child instanceof THREE.Mesh) {
             const old = child.material
             child.material = newMat
-            if (old) {
-              if (Array.isArray(old)) old.forEach((m) => m.dispose())
-              else old.dispose()
-            }
+            if (old) disposeMaterialOrArray(old)
           }
         })
       } else {
         const old = mesh.material
         mesh.material = newMat
-        if (old) {
-          if (Array.isArray(old)) old.forEach((m) => m.dispose())
-          else old.dispose()
-        }
+        if (old) disposeMaterialOrArray(old)
       }
     }
     item.entity = newEntity

@@ -16,6 +16,8 @@
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.19.3",
+    "@ffmpeg/ffmpeg": "^0.12.10",
+    "@ffmpeg/util": "^0.12.1",
     "@monaco-editor/react": "^4.7.0",
     "ajv": "^8.17.1",
     "idb": "^8.0.0",

@@ -1,6 +1,8 @@
 import { defaultPersistence } from '@/persistence/indexedDb'
 import { ModelManager } from '@/utils/modelManager'
 import { TextureManager } from '@/utils/textureManager'
+import { VideoManager } from '@/utils/videoManager'
+import { convertVideoToWebMp4 } from '@/utils/videoConverter'
 import { generateModelPreview } from '@/utils/modelPreview'
 
 export interface UploadModelResult {
@@ -39,6 +41,11 @@ export interface UploadAudioResult {
   worldAssetEntry: { path: string; type: 'audio' }
 }
 
+export interface UploadVideoResult {
+  nextAssets: Map<string, Blob>
+  worldAssetEntry: { path: string; type: 'video' }
+}
+
 /**
  * Validates, persists, and returns updated assets + world asset entry for a texture upload.
  * Caller should call onAssetsChange(nextAssets) and onWorldChange({ ...world, assets: { ...world.assets, [assetId]: worldAssetEntry } }).
@@ -56,6 +63,54 @@ export async function uploadTexture(
   return {
     nextAssets,
     worldAssetEntry: { path: `assets/${file.name}`, type: 'texture' },
+  }
+}
+
+/**
+ * Validates, transcodes to web MP4 (max 720p), persists, and returns updated assets + world entry.
+ */
+export async function uploadVideo(
+  file: File,
+  assetId: string,
+  assets: Map<string, Blob>,
+  options?: {
+    onConversionProgress?: (ratio: number) => void
+    signal?: AbortSignal
+  },
+): Promise<UploadVideoResult> {
+  const validation = VideoManager.validateVideoFile(file)
+  if (!validation.valid) throw new Error(validation.error)
+  const blob = await convertVideoToWebMp4(file, {
+    onProgress: options?.onConversionProgress,
+    signal: options?.signal,
+  })
+  await defaultPersistence.saveAsset(assetId, blob)
+  const nextAssets = new Map(assets)
+  nextAssets.set(assetId, blob)
+  return {
+    nextAssets,
+    worldAssetEntry: { path: `assets/${assetId}.mp4`, type: 'video' },
+  }
+}
+
+/**
+ * Persist an already-transcoded video blob (e.g. after UI conversion step). Skips ffmpeg.
+ */
+export async function saveVideoMapBlob(
+  blob: Blob,
+  assetId: string,
+  assets: Map<string, Blob>,
+): Promise<UploadVideoResult> {
+  const toStore =
+    blob.type && blob.type.startsWith('video/')
+      ? blob
+      : new Blob([blob], { type: 'video/mp4' })
+  await defaultPersistence.saveAsset(assetId, toStore)
+  const nextAssets = new Map(assets)
+  nextAssets.set(assetId, toStore)
+  return {
+    nextAssets,
+    worldAssetEntry: { path: `assets/${assetId}.mp4`, type: 'video' },
   }
 }
 
