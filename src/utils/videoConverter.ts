@@ -139,7 +139,7 @@ export function resetFfmpegForTests(): void {
 }
 
 /**
- * Transcode to H.264 + AAC MP4, max 1280×720 (preserving aspect ratio).
+ * Transcode to H.264 MP4 (video only, no audio), max 1280×720 (preserving aspect ratio).
  */
 export async function convertVideoToWebMp4(
   file: File,
@@ -177,25 +177,37 @@ export async function convertVideoToWebMp4(
 
     const { fetchFile } = await import('@ffmpeg/util')
 
+    const logLines: string[] = []
+    const logHandler = (entry: { message?: string } | string): void => {
+      const line = typeof entry === 'string' ? entry : (entry?.message ?? '')
+      if (!line.trim()) return
+      logLines.push(line.trimEnd())
+      if (logLines.length > 40) logLines.shift()
+    }
+
     try {
       await ffmpeg.writeFile(inName, await fetchFile(file))
       /** FFmpeg.wasm often emits no `progress` during encode; nudge UI so the bar is not stuck at 0%. */
       onProgress?.(ENCODE_PROGRESS_START)
+      ffmpeg.on('log', logHandler)
+      /**
+       * Video-only output: `-c:a aac` fails with exit 1 when the source has **no audio stream**
+       * (common). Material maps are muted `VideoTexture` anyway; `-an` avoids that class of failure.
+       */
       const args = [
         '-i',
         inName,
         '-vf',
-        "scale='min(1280,iw)':'min(720,ih)':force_original_aspect_ratio=decrease",
+        "scale='min(1280,iw)':'min(720,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2",
         '-c:v',
         'libx264',
         '-preset',
         'ultrafast',
         '-crf',
         '23',
-        '-c:a',
-        'aac',
-        '-b:a',
-        '128k',
+        '-pix_fmt',
+        'yuv420p',
+        '-an',
         '-movflags',
         '+faststart',
         outName,
@@ -204,7 +216,8 @@ export async function convertVideoToWebMp4(
       const code = await ffmpeg.exec(args, undefined, signal ? { signal } : undefined)
       console.warn(`[videoConverter] ffmpeg.exec finished (exit code ${code})`)
       if (code !== 0) {
-        throw new Error(`ffmpeg exited with code ${code}`)
+        const tail = logLines.length ? `\n${logLines.slice(-12).join('\n')}` : ''
+        throw new Error(`ffmpeg exited with code ${code}.${tail}`)
       }
       const data = await ffmpeg.readFile(outName)
       if (!(data instanceof Uint8Array)) {
@@ -221,6 +234,7 @@ export async function convertVideoToWebMp4(
       }
       throw err
     } finally {
+      ffmpeg.off('log', logHandler)
       if (progressHandler) {
         ffmpeg.off('progress', progressHandler)
       }
