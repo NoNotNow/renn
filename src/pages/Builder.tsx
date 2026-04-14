@@ -11,6 +11,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { cloneEntityFrom, createDefaultEntity, createBulkEntities, type AddableShapeType, type BulkEntityParams } from '@/data/entityDefaults'
 import { useProjectContext } from '@/hooks/useProjectContext'
 import { useLocalStorageState } from '@/hooks/useLocalStorageState'
+import { usePointerRevealTimeout } from '@/hooks/usePointerRevealTimeout'
 import { cycleCameraMode, DEFAULT_SCALE, type Vec3, type Rotation, type Entity, type TrimeshSimplificationConfig } from '@/types/world'
 import { uiLogger } from '@/utils/uiLogger'
 import { colorToHex, hexToColor } from '@/utils/colorUtils'
@@ -62,6 +63,7 @@ import {
   sanitizeTextureStem,
 } from '@/utils/textureAssetVersioning'
 import TextureMaker from '@/components/TextureMaker/TextureMaker'
+import { isFullscreenEnabled } from '@/utils/fullscreenApi'
 
 const EDITOR_HISTORY_MAX_DEPTH = 80
 
@@ -962,7 +964,28 @@ export default function Builder() {
     rightDrawerOpenRef.current = rightDrawerOpen
   }, [rightDrawerOpen])
 
+  const builderColumnRef = useRef<HTMLDivElement>(null)
+  const [fullscreenApiSupported, setFullscreenApiSupported] = useState(false)
+  const [builderFullscreenActive, setBuilderFullscreenActive] = useState(false)
+  const { visible: fsChromeVisible, bumpActivity: bumpFsChrome } = usePointerRevealTimeout()
+
+  useEffect(() => {
+    setFullscreenApiSupported(isFullscreenEnabled())
+  }, [])
+
+  useEffect(() => {
+    if (!fullscreenApiSupported) return
+    const bump = () => bumpFsChrome()
+    document.addEventListener('pointermove', bump, { passive: true })
+    document.addEventListener('pointerdown', bump, { passive: true })
+    return () => {
+      document.removeEventListener('pointermove', bump)
+      document.removeEventListener('pointerdown', bump)
+    }
+  }, [fullscreenApiSupported, bumpFsChrome])
+
   const handleSceneFullscreenChange = useCallback((active: boolean) => {
+    setBuilderFullscreenActive(active)
     if (active) {
       drawersBeforeFullscreenRef.current = {
         left: leftDrawerOpenRef.current,
@@ -980,6 +1003,8 @@ export default function Builder() {
     }
   }, [setLeftDrawerOpen, setRightDrawerOpen])
   const [showGameHud, setShowGameHud] = useLocalStorageState('builderShowGameHud', false)
+
+  const builderChromeIdleHidden = builderFullscreenActive && !fsChromeVisible
 
   const sceneCameraConfig = useMemo(
     () => ({
@@ -1588,7 +1613,8 @@ export default function Builder() {
   return (
     <EditorUndoProvider value={editorUndoApi}>
     <CopyProvider>
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <div ref={builderColumnRef} style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+        <div style={{ display: builderChromeIdleHidden ? 'none' : undefined }}>
         <BuilderHeader
         projects={projects}
         onLeftSidebarToggle={() => setLeftDrawerOpen((prev) => !prev)}
@@ -1654,6 +1680,7 @@ export default function Builder() {
         }}
         onOpenTextureStudio={onOpenTextureStudioFromToolbar}
       />
+        </div>
 
       {showSaveDialog && (
         <SaveDialog
@@ -1768,11 +1795,18 @@ export default function Builder() {
               getPaintTargetAssetId={getPaintTargetAssetId}
               prepareWorldPaintStroke={prepareWorldPaintStroke}
               onFullscreenChange={handleSceneFullscreenChange}
+              fullscreenTargetRef={builderColumnRef}
+              fullscreenChromeControl={{ visible: fsChromeVisible, bumpActivity: bumpFsChrome }}
             />
           </ErrorBoundary>
         </main>
 
         {/* Sidebars overlay on top */}
+        <div
+          style={{
+            display: builderChromeIdleHidden ? 'none' : 'contents',
+          }}
+        >
         <EntitySidebar
           entities={world.entities}
           selectedEntityIds={selectedEntityIds}
@@ -1815,6 +1849,7 @@ export default function Builder() {
           onToggle={() => setRightDrawerOpen(!rightDrawerOpen)}
           onOpenTextureStudio={activateTextureStudioForEntity}
         />
+        </div>
 
         {textureMakerEntityId && textureMakerDoc ? (
           <TextureMaker

@@ -130,6 +130,16 @@ export interface SceneViewProps {
   prepareWorldPaintStroke?: (entityId: string) => Promise<{ mapAssetId: string; blob: Blob } | null>
   /** Called when this scene root enters or exits native fullscreen (e.g. Builder restores side drawers). */
   onFullscreenChange?: (active: boolean) => void
+  /**
+   * When set (e.g. Builder), `requestFullscreen` targets this node instead of the SceneView wrapper.
+   * Must be stable for the lifetime of the SceneView instance.
+   */
+  fullscreenTargetRef?: React.RefObject<HTMLElement | null>
+  /**
+   * When set, pointer-reveal for the fullscreen button is driven by the parent (e.g. document-wide
+   * listeners). SceneView does not attach pointer handlers on the scene root for chrome visibility.
+   */
+  fullscreenChromeControl?: { visible: boolean; bumpActivity: () => void }
 }
 
 export type EntityPhysicsPatch = Partial<Pick<Entity, 'mass' | 'restitution' | 'friction' | 'linearDamping' | 'angularDamping' | 'bodyType'>>
@@ -188,6 +198,8 @@ function SceneViewInner({
   getPaintTargetAssetId,
   prepareWorldPaintStroke,
   onFullscreenChange,
+  fullscreenTargetRef,
+  fullscreenChromeControl,
 }: SceneViewProps, ref: React.Ref<SceneViewHandle>) {
   const sceneKey = useMemo(() => getSceneDependencyKey(world), [world])
   const sceneRootRef = useRef<HTMLDivElement>(null)
@@ -298,7 +310,14 @@ function SceneViewInner({
   const prevFullscreenRef = useRef(false)
   const onFullscreenChangeRef = useRef(onFullscreenChange)
   onFullscreenChangeRef.current = onFullscreenChange
-  const { visible: fsChromeVisible, bumpActivity: bumpFsChrome } = usePointerRevealTimeout()
+  const internalReveal = usePointerRevealTimeout()
+  const fsChromeVisible = fullscreenChromeControl?.visible ?? internalReveal.visible
+  const bumpFsChrome = fullscreenChromeControl?.bumpActivity ?? internalReveal.bumpActivity
+  const useExternalFullscreenChrome = fullscreenChromeControl != null
+
+  const getFullscreenTargetEl = useCallback((): HTMLElement | null => {
+    return fullscreenTargetRef?.current ?? sceneRootRef.current
+  }, [fullscreenTargetRef])
 
   useEffect(() => {
     setFullscreenUiSupported(isFullscreenEnabled())
@@ -306,7 +325,7 @@ function SceneViewInner({
 
   useEffect(() => {
     const sync = () => {
-      const el = sceneRootRef.current
+      const el = getFullscreenTargetEl()
       const active = el != null && getFullscreenElement() === el
       setIsSceneFullscreen(active)
       if (prevFullscreenRef.current !== active) {
@@ -317,10 +336,10 @@ function SceneViewInner({
     const remove = addFullscreenChangeListener(sync)
     sync()
     return remove
-  }, [])
+  }, [getFullscreenTargetEl])
 
   const handleFullscreenToggle = useCallback(() => {
-    const el = sceneRootRef.current
+    const el = getFullscreenTargetEl()
     if (el == null) return
     bumpFsChrome()
     if (getFullscreenElement() === el) {
@@ -328,7 +347,7 @@ function SceneViewInner({
       return
     }
     void requestFullscreenElement(el).catch(() => {})
-  }, [bumpFsChrome])
+  }, [bumpFsChrome, getFullscreenTargetEl])
 
   useEffect(() => {
     onCurrentAvatarChangeRef.current = onCurrentAvatarChange
@@ -1176,8 +1195,12 @@ function SceneViewInner({
       ref={sceneRootRef}
       className={className}
       style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden' }}
-      onPointerMove={fullscreenUiSupported ? bumpFsChrome : undefined}
-      onPointerDown={fullscreenUiSupported ? bumpFsChrome : undefined}
+      onPointerMove={
+        fullscreenUiSupported && !useExternalFullscreenChrome ? bumpFsChrome : undefined
+      }
+      onPointerDown={
+        fullscreenUiSupported && !useExternalFullscreenChrome ? bumpFsChrome : undefined
+      }
     >
       <div
         ref={containerRef}

@@ -82,7 +82,7 @@ renn/
 │   │   ├── editorConstants.ts # Shared editor epsilons (e.g. VEC_EPS)
 │   │   └── transformTargetReach.ts # position/rotation reached (waypoints, wanderer)
 │   ├── components/
-│   │   ├── SceneView.tsx     # 3D canvas: load world, physics, scripts, camera, render loop; pointer-reveal fullscreen control (bottom-left, `display:none` when hidden); Esc exits native fullscreen; Builder closes/restores side drawers around fullscreen
+│   │   ├── SceneView.tsx     # 3D canvas: load world, physics, scripts, camera, render loop; pointer-reveal fullscreen control (bottom-left, `display:none` when hidden); Play fullscreen targets scene root; Builder passes `fullscreenTargetRef` (whole column) + document-wide chrome; Esc exits native fullscreen; Builder closes/restores side drawers; in fullscreen, header + sidebars hide with the button when idle
 │   │   ├── BuilderHeader.tsx # Toolbar: New, Save, Save as, Download, Upload, project list, Play, gravity/shadows
 │   │   ├── EntitySidebar.tsx # Entity list (search + collapsible filters), add-entity dropdown, camera control/target/mode
 │   │   ├── PropertySidebar.tsx # Tabs: Properties | Scripts | Assets | Presets
@@ -121,7 +121,7 @@ renn/
 │   │       ├── three.ts      # Three.js test helpers
 │   │       └── world.ts      # World test helpers
 │   └── pages/
-│       ├── Builder.tsx       # Builder: BuilderHeader, EntitySidebar, SceneView, PropertySidebar
+│       ├── Builder.tsx       # Builder: outer column is native fullscreen root; document `pointermove`/`pointerdown` reveal fullscreen chrome; BuilderHeader, EntitySidebar, SceneView, PropertySidebar
 │       └── Play.tsx          # Play: load world from ?world=… or sample; SceneView only
 ```
 
