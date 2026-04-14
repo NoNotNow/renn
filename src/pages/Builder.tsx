@@ -952,6 +952,33 @@ export default function Builder() {
   // Drawer states with localStorage persistence
   const [leftDrawerOpen, setLeftDrawerOpen] = useLocalStorageState('leftDrawerOpen', true)
   const [rightDrawerOpen, setRightDrawerOpen] = useLocalStorageState('rightDrawerOpen', true)
+  const leftDrawerOpenRef = useRef(leftDrawerOpen)
+  const rightDrawerOpenRef = useRef(rightDrawerOpen)
+  const drawersBeforeFullscreenRef = useRef<{ left: boolean; right: boolean } | null>(null)
+  useEffect(() => {
+    leftDrawerOpenRef.current = leftDrawerOpen
+  }, [leftDrawerOpen])
+  useEffect(() => {
+    rightDrawerOpenRef.current = rightDrawerOpen
+  }, [rightDrawerOpen])
+
+  const handleSceneFullscreenChange = useCallback((active: boolean) => {
+    if (active) {
+      drawersBeforeFullscreenRef.current = {
+        left: leftDrawerOpenRef.current,
+        right: rightDrawerOpenRef.current,
+      }
+      setLeftDrawerOpen(false)
+      setRightDrawerOpen(false)
+      return
+    }
+    const snap = drawersBeforeFullscreenRef.current
+    if (snap != null) {
+      setLeftDrawerOpen(snap.left)
+      setRightDrawerOpen(snap.right)
+      drawersBeforeFullscreenRef.current = null
+    }
+  }, [setLeftDrawerOpen, setRightDrawerOpen])
   const [showGameHud, setShowGameHud] = useLocalStorageState('builderShowGameHud', false)
 
   const sceneCameraConfig = useMemo(
@@ -1740,6 +1767,7 @@ export default function Builder() {
               textureBrushRadiusPx={textureBrushRadiusPx}
               getPaintTargetAssetId={getPaintTargetAssetId}
               prepareWorldPaintStroke={prepareWorldPaintStroke}
+              onFullscreenChange={handleSceneFullscreenChange}
             />
           </ErrorBoundary>
         </main>

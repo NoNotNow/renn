@@ -23,6 +23,7 @@ import { restoreInitialPosesIntoRegistry } from '@/runtime/restoreInitialPoses'
 import { runSceneFrame, advanceSemiFixedAccumulator } from '@/runtime/sceneFrameLoop'
 import type { SceneFrameTiming } from '@/runtime/frameTiming'
 import { useKeyboardInput } from '@/hooks/useKeyboardInput'
+import { usePointerRevealTimeout } from '@/hooks/usePointerRevealTimeout'
 import {
   DEFAULT_TEXTURE_BRUSH_RGB,
   TEXTURE_PAINT_RADIUS_PX,
@@ -45,6 +46,13 @@ import { GameHud } from '@/components/GameHud'
 import { FrameStatsOverlay } from '@/components/FrameStatsOverlay'
 import { WarningSnackbar } from '@/components/WarningSnackbar'
 import { AvatarSession } from '@/runtime/avatarSession'
+import {
+  addFullscreenChangeListener,
+  exitFullscreenDocument,
+  getFullscreenElement,
+  isFullscreenEnabled,
+  requestFullscreenElement,
+} from '@/utils/fullscreenApi'
 
 /** Radius inside camera far plane (PerspectiveCamera default far = 1000). */
 const SKY_DOME_RADIUS = 500
@@ -120,6 +128,8 @@ export interface SceneViewProps {
   getPaintTargetAssetId?: (entityId: string) => string | null
   /** Builder: create a default composite texture when the first 3D brush stroke has no map yet. */
   prepareWorldPaintStroke?: (entityId: string) => Promise<{ mapAssetId: string; blob: Blob } | null>
+  /** Called when this scene root enters or exits native fullscreen (e.g. Builder restores side drawers). */
+  onFullscreenChange?: (active: boolean) => void
 }
 
 export type EntityPhysicsPatch = Partial<Pick<Entity, 'mass' | 'restitution' | 'friction' | 'linearDamping' | 'angularDamping' | 'bodyType'>>
@@ -177,8 +187,10 @@ function SceneViewInner({
   textureBrushRadiusPx = TEXTURE_PAINT_RADIUS_PX,
   getPaintTargetAssetId,
   prepareWorldPaintStroke,
+  onFullscreenChange,
 }: SceneViewProps, ref: React.Ref<SceneViewHandle>) {
   const sceneKey = useMemo(() => getSceneDependencyKey(world), [world])
+  const sceneRootRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const [scene, setScene] = useState<THREE.Scene | null>(null)
   const [camera, setCamera] = useState<THREE.PerspectiveCamera | null>(null)
@@ -280,6 +292,43 @@ function SceneViewInner({
   editNavigationModeRef.current = editNavigationMode
   const showGameHudRef = useRef(showGameHud)
   showGameHudRef.current = showGameHud
+
+  const [fullscreenUiSupported, setFullscreenUiSupported] = useState(false)
+  const [isSceneFullscreen, setIsSceneFullscreen] = useState(false)
+  const prevFullscreenRef = useRef(false)
+  const onFullscreenChangeRef = useRef(onFullscreenChange)
+  onFullscreenChangeRef.current = onFullscreenChange
+  const { visible: fsChromeVisible, bumpActivity: bumpFsChrome } = usePointerRevealTimeout()
+
+  useEffect(() => {
+    setFullscreenUiSupported(isFullscreenEnabled())
+  }, [])
+
+  useEffect(() => {
+    const sync = () => {
+      const el = sceneRootRef.current
+      const active = el != null && getFullscreenElement() === el
+      setIsSceneFullscreen(active)
+      if (prevFullscreenRef.current !== active) {
+        prevFullscreenRef.current = active
+        onFullscreenChangeRef.current?.(active)
+      }
+    }
+    const remove = addFullscreenChangeListener(sync)
+    sync()
+    return remove
+  }, [])
+
+  const handleFullscreenToggle = useCallback(() => {
+    const el = sceneRootRef.current
+    if (el == null) return
+    bumpFsChrome()
+    if (getFullscreenElement() === el) {
+      void exitFullscreenDocument().catch(() => {})
+      return
+    }
+    void requestFullscreenElement(el).catch(() => {})
+  }, [bumpFsChrome])
 
   useEffect(() => {
     onCurrentAvatarChangeRef.current = onCurrentAvatarChange
@@ -1124,8 +1173,11 @@ function SceneViewInner({
 
   return (
     <div
+      ref={sceneRootRef}
       className={className}
       style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden' }}
+      onPointerMove={fullscreenUiSupported ? bumpFsChrome : undefined}
+      onPointerDown={fullscreenUiSupported ? bumpFsChrome : undefined}
     >
       <div
         ref={containerRef}
@@ -1200,6 +1252,62 @@ function SceneViewInner({
         <FrameStatsOverlay frameTimingRef={frameTimingRef} onClose={handleFrameStatsClose} />
       ) : null}
       <WarningSnackbar messages={schemaLoadWarnings} onDismiss={dismissSchemaLoadWarnings} />
+      {fullscreenUiSupported ? (
+        <div
+          style={{
+            position: 'absolute',
+            left: 10,
+            bottom: 10,
+            zIndex: 115,
+            display: fsChromeVisible ? 'block' : 'none',
+          }}
+        >
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              handleFullscreenToggle()
+            }}
+            aria-label={isSceneFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+            title={isSceneFullscreen ? 'Exit fullscreen (Esc)' : 'Enter fullscreen'}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 36,
+              height: 36,
+              padding: 0,
+              margin: 0,
+              cursor: 'pointer',
+              color: '#e6e9f2',
+              background: 'rgba(27, 31, 42, 0.88)',
+              border: '1px solid #3d4a62',
+              borderRadius: 6,
+              boxShadow: '0 2px 10px rgba(0,0,0,0.45)',
+            }}
+          >
+            {isSceneFullscreen ? (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+                <path
+                  d="M9 3H3v6M15 3h6v6M9 21H3v-6M15 21h6v-6"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="square"
+                />
+              </svg>
+            ) : (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+                <path
+                  d="M3 9V3h6M21 9V3h-6M3 15v6h6M21 15v6h-6"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="square"
+                />
+              </svg>
+            )}
+          </button>
+        </div>
+      ) : null}
     </div>
   )
 }

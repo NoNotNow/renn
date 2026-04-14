@@ -82,7 +82,7 @@ renn/
 │   │   ├── editorConstants.ts # Shared editor epsilons (e.g. VEC_EPS)
 │   │   └── transformTargetReach.ts # position/rotation reached (waypoints, wanderer)
 │   ├── components/
-│   │   ├── SceneView.tsx     # 3D canvas: load world, physics, scripts, camera, render loop
+│   │   ├── SceneView.tsx     # 3D canvas: load world, physics, scripts, camera, render loop; pointer-reveal fullscreen control (bottom-left, `display:none` when hidden); Esc exits native fullscreen; Builder closes/restores side drawers around fullscreen
 │   │   ├── BuilderHeader.tsx # Toolbar: New, Save, Save as, Download, Upload, project list, Play, gravity/shadows
 │   │   ├── EntitySidebar.tsx # Entity list (search + collapsible filters), add-entity dropdown, camera control/target/mode
 │   │   ├── PropertySidebar.tsx # Tabs: Properties | Scripts | Assets | Presets
