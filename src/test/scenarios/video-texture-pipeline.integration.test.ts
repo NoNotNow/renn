@@ -7,7 +7,9 @@ import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { readFileSync, existsSync } from 'node:fs'
 import { loadWorldFromStatic } from '@/loader/loadWorldFromStatic'
+import { loadWorld } from '@/loader/loadWorld'
 import { createAssetResolver } from '@/loader/assetResolverImpl'
+import { disposeMaterialOrArray } from '@/utils/videoTextureLifecycle'
 import { VideoManager, isVideoMapAsset } from '@/utils/videoManager'
 import { saveVideoMapBlob } from '@/utils/assetUpload'
 import type { RennWorld } from '@/types/world'
@@ -145,6 +147,73 @@ describe('video texture pipeline (integration)', () => {
     })
   })
 
+  /**
+   * Vitest/happy-dom does not implement `HTMLMediaElement.load()` / reliable `error` after revoke.
+   * We still assert the mechanism that causes `net::ERR_FILE_NOT_FOUND` in real browsers: `dispose()` → `revokeObjectURL`.
+   */
+  describe('assetResolver blob URL lifecycle', () => {
+    it('dispose revokes resolve() URLs (do not dispose resolver while VideoTexture still uses that src)', () => {
+      const assets = new Map<string, Blob>([['vid', minimalMp4Blob()]])
+      const resolver = createAssetResolver(assets, {
+        isVideoAsset: (id) => isVideoMapAsset(id, { vid: { type: 'video', path: 'x' } }, assets),
+      })
+      const u = resolver.resolve('vid')
+      expect(u).toMatch(/^blob:/)
+      const revokeSpy = vi.spyOn(URL, 'revokeObjectURL')
+      try {
+        resolver.dispose()
+        expect(revokeSpy).toHaveBeenCalledWith(u)
+      } finally {
+        revokeSpy.mockRestore()
+      }
+    })
+  })
+
+  describe('loadWorld with assets getter', () => {
+    beforeEach(() => {
+      installVideoElementStub()
+    })
+    afterEach(() => {
+      vi.restoreAllMocks()
+    })
+
+    it('reuses same object URL for an id across resolve (getter-backed resolver)', async () => {
+      const assets = new Map<string, Blob>([['vid', minimalMp4Blob()]])
+      const world: RennWorld = {
+        version: '1.0',
+        world: {
+          gravity: [0, -9.81, 0],
+          camera: { control: 'free', mode: 'follow', target: 'b', distance: 10, height: 2 },
+        },
+        assets: { vid: { path: 'assets/vid.mp4', type: 'video' } },
+        entities: [
+          {
+            id: 'b',
+            name: 'Box',
+            bodyType: 'static',
+            shape: { type: 'box', width: 1, height: 1, depth: 1 },
+            position: [0, 0, 0],
+            material: { color: [1, 1, 1], map: 'vid' },
+          },
+        ],
+      }
+
+      const { assetResolver, scene } = await loadWorld(world, () => assets)
+      expect(assetResolver).not.toBeNull()
+      const u1 = assetResolver!.resolve('vid')
+      const u2 = assetResolver!.resolve('vid')
+      expect(u1).toBeTruthy()
+      expect(u1).toBe(u2)
+
+      scene.traverse((o) => {
+        if (o instanceof THREE.Mesh) {
+          disposeMaterialOrArray(o.material)
+        }
+      })
+      assetResolver!.dispose()
+    })
+  })
+
   describe('saveVideoMapBlob + resolver (flow)', () => {
     beforeEach(() => {
       installVideoElementStub()
@@ -187,12 +256,17 @@ describe.skipIf(!runFfmpegIntegration)('convertVideoToWebMp4 (network + wasm)', 
       resetFfmpegForTests()
 
       const dir = path.dirname(fileURLToPath(import.meta.url))
-      const fixturePath = path.join(dir, '../../../public/world/assets/7947392-hd_1920_1080_30fps.mp4')
-      if (!existsSync(fixturePath)) {
-        throw new Error(`Missing fixture: ${fixturePath}`)
+      const candidates = [
+        path.join(dir, '../../../public/world/assets/7947392-hd_1920_1080_30fps.mp4'),
+        path.join(dir, '../../../public/world/assets/1181911-uhd_4096_2160_24fps.mp4'),
+      ]
+      const fixturePath = candidates.find((p) => existsSync(p))
+      if (!fixturePath) {
+        throw new Error(`Missing fixture: tried ${candidates.join(', ')}`)
       }
       const buf = readFileSync(fixturePath)
-      const file = new File([buf], '7947392-hd_1920_1080_30fps.mp4', { type: 'video/mp4' })
+      const base = path.basename(fixturePath)
+      const file = new File([buf], base, { type: 'video/mp4' })
 
       const states: string[] = []
       const progress: number[] = []

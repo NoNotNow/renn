@@ -14,7 +14,11 @@ import {
 } from '@/types/world'
 import { buildEntityMesh } from './createPrimitive'
 import { syncShapeWireframeOverlay } from './shapeWireframeOverlay'
-import { createAssetResolver, type DisposableAssetResolver } from './assetResolverImpl'
+import {
+  createAssetResolver,
+  createAssetResolverFromGetter,
+  type DisposableAssetResolver,
+} from './assetResolverImpl'
 import { isVideoMapAsset } from '@/utils/videoManager'
 import { getSceneUserData } from '@/types/sceneUserData'
 import { eulerToQuaternion } from '@/utils/rotationUtils'
@@ -39,13 +43,16 @@ export interface LoadWorldResult {
   warnings: string[]
 }
 
+/** Asset map or a getter so the resolver stays aligned with live maps (e.g. SceneView `assetsRef`). */
+export type LoadWorldAssetsArg = Map<string, Blob> | (() => Map<string, Blob>)
+
 /**
  * Loads a world document: validates, builds Three.js scene and entity meshes.
  * Does not run physics or scripts; caller attaches physics and script runner.
  */
 export async function loadWorld(
   worldData: unknown,
-  assets?: Map<string, Blob>
+  assets?: LoadWorldAssetsArg
 ): Promise<LoadWorldResult> {
   migrateWorldScripts(worldData)
   const warnings: string[] = []
@@ -112,12 +119,17 @@ export async function loadWorld(
   userData.camera = world.world.camera ?? { control: 'free', mode: 'follow', target: '', distance: 10, height: 2 }
   userData.world = world
 
-  // Create asset resolver if assets are provided
-  const assetResolver = assets
-    ? createAssetResolver(assets, {
-        isVideoAsset: (id) => isVideoMapAsset(id, world.assets, assets),
-      })
-    : null
+  // Create asset resolver if assets are provided (getter = same URLs for scene lifetime; do not dispose mid-load)
+  const assetResolver: DisposableAssetResolver | null =
+    assets === undefined
+      ? null
+      : typeof assets === 'function'
+        ? createAssetResolverFromGetter(assets, {
+            isVideoAsset: (id) => isVideoMapAsset(id, world.assets, assets()),
+          })
+        : createAssetResolver(assets, {
+            isVideoAsset: (id) => isVideoMapAsset(id, world.assets, assets),
+          })
 
   const entities: LoadedEntity[] = []
   const shadowAabbBox = new THREE.Box3()

@@ -10,8 +10,7 @@ import type {
   EditorFreePose,
   AvatarFocusSnapshot,
 } from '@/types/world'
-import { createAssetResolverFromGetter, type DisposableAssetResolver } from '@/loader/assetResolverImpl'
-import { isVideoMapAsset } from '@/utils/videoManager'
+import type { DisposableAssetResolver } from '@/loader/assetResolverImpl'
 import { DEFAULT_GRAVITY, DEFAULT_ROTATION, resolveSimulationSettings } from '@/types/world'
 import { eulerToQuaternion } from '@/utils/rotationUtils'
 import type { LoadedEntity } from '@/loader/loadWorld'
@@ -430,8 +429,8 @@ function SceneViewInner({
     setHudScore(0)
     setHudDamage(0)
 
-    // Load world asynchronously with assets
-    loadWorld(world, _assets).then(({ scene: loadedScene, entities, world: loadedWorld, assetResolver, warnings }) => {
+    // Load world asynchronously with assets (getter keeps blob URLs valid for VideoTextures after load)
+    loadWorld(world, () => assetsRef.current).then(({ scene: loadedScene, entities, world: loadedWorld, assetResolver, warnings }) => {
       // Check if this effect is still active
       if (cancelled || effectIdRef.current !== currentEffectId) {
         // Dispose resolver if effect was cancelled
@@ -449,12 +448,7 @@ function SceneViewInner({
 
       entitiesRef.current = entities
       setScene(loadedScene)
-      if (assetResolver) {
-        assetResolver.dispose()
-      }
-      assetResolverRef.current = createAssetResolverFromGetter(() => assetsRef.current, {
-        isVideoAsset: (id) => isVideoMapAsset(id, worldRef.current.assets, assetsRef.current),
-      })
+      assetResolverRef.current = assetResolver
 
       // Camera setup
       cam = new THREE.PerspectiveCamera(50, 1, 0.1, 1000)

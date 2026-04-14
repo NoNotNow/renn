@@ -44,7 +44,7 @@ renn/
 │   ├── schema/
 │   │   └── validate.ts       # validateWorldDocument(), Ajv + world-schema; optional tolerate removes additionalProperty keys iteratively (clone fallback), warningsOut for UI; mesh simplification numbers are clamped in migrateWorld (maxError ≥ 0.0001, maxTriangles ≥ 500) before validate on load/import
 │   ├── loader/
-│   │   ├── loadWorld.ts        # loadWorld(data) → scene, entities, world, warnings[]; awaits meshoptimizer WASM before mesh build
+│   │   ├── loadWorld.ts        # loadWorld(data, assets?) → scene, entities, world, assetResolver?, warnings[]; assets may be Map or getter () => Map (SceneView); getter keeps blob URLs valid for VideoTexture; awaits meshoptimizer WASM before mesh build
 │   │   ├── loadWorldFromStatic.ts # Static world + assets; rejects text/html (Vite SPA fallback); tries assets/<assetId>.bin before ref.path
 │   │   ├── createPrimitive.ts # Mesh from shape + material; plane/box/sphere/cylinder/capsule/cone/pyramid/ring/…; GLTF trimesh/model paths run normalizeModelTextureUVs after unit-cube normalize so mapRepeat works on bad UVs
 │   │   ├── assetResolver.ts  # (assetId) => URL | Blob | null
