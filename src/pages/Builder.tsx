@@ -1612,6 +1612,15 @@ export default function Builder() {
             return next
           })
         }}
+        showFrameStats={world.world.showFrameStats === true}
+        onFrameStatsToggle={() => {
+          const next = world.world.showFrameStats !== true
+          uiLogger.click('Builder', 'Toggle frame stats (menu)', { enabled: next })
+          handleWorldChange({
+            ...world,
+            world: { ...world.world, showFrameStats: next },
+          })
+        }}
         onOpenPerformanceBooster={() => {
           setPerformanceBoosterOpen(true)
           uiLogger.click('Builder', 'Open Performance booster', {})
@@ -1714,6 +1723,13 @@ export default function Builder() {
                   : null
               }
               showGameHud={showGameHud}
+              onFrameStatsClose={() => {
+                uiLogger.click('Builder', 'Close frame stats overlay', {})
+                handleWorldChange({
+                  ...world,
+                  world: { ...world.world, showFrameStats: false },
+                })
+              }}
               onCurrentAvatarChange={(id) => {
                 if (id) setCameraTarget(id)
               }}

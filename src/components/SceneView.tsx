@@ -100,6 +100,11 @@ export interface SceneViewProps {
   } | null
   /** When true, show score/damage HUD; scripts update via `ctx.setScore` / `ctx.setDamage`. */
   showGameHud?: boolean
+  /**
+   * Builder: persist `showFrameStats: false` when the user closes the overlay.
+   * Omit on Play so close only hides for the session (world is not mutated).
+   */
+  onFrameStatsClose?: () => void
   /** Optional: e.g. Builder `setCameraTarget` when the play avatar changes (+/− or script). */
   onCurrentAvatarChange?: (entityId: string | null) => void
   /** Builder: persist painted texture after pointer-up (single-entity brush stroke). */
@@ -164,6 +169,7 @@ function SceneViewInner({
   soundPlaybackCommand = null,
   performancePick = null,
   showGameHud = false,
+  onFrameStatsClose,
   onCurrentAvatarChange,
   onTexturePaintStrokeEnd,
   pushUndoBeforePaintStroke,
@@ -208,6 +214,32 @@ function SceneViewInner({
 
   // Active debug forces: { entityId, force, endTime }[]
   const activeDebugForcesRef = useRef<Array<{ entityId: string; force: Vec3; endTime: number }>>([])
+
+  const [playFrameStatsDismissed, setPlayFrameStatsDismissed] = useState(false)
+  const prevShowFrameStatsRef = useRef(world.world.showFrameStats === true)
+
+  useEffect(() => {
+    const cur = world.world.showFrameStats === true
+    if (!prevShowFrameStatsRef.current && cur) {
+      setPlayFrameStatsDismissed(false)
+    }
+    prevShowFrameStatsRef.current = cur
+  }, [world.world.showFrameStats])
+
+  const showFrameStatsOverlay =
+    world.world.showFrameStats === true &&
+    (onFrameStatsClose !== undefined ? true : !playFrameStatsDismissed)
+
+  const handleFrameStatsClose = useCallback(() => {
+    if (onFrameStatsClose) {
+      onFrameStatsClose()
+    } else {
+      setPlayFrameStatsDismissed(true)
+    }
+  }, [onFrameStatsClose])
+
+  const recordFrameStatsOverlayRef = useRef(false)
+  recordFrameStatsOverlayRef.current = showFrameStatsOverlay
 
   const worldRef = useRef(world)
   worldRef.current = world
@@ -654,7 +686,7 @@ function SceneViewInner({
 
         const sim = resolveSimulationSettings(worldRef.current.world.simulation)
         const { fixedDt, maxStepsPerFrame, timeScale } = sim
-        const recordStats = worldRef.current.world.showFrameStats === true
+        const recordStats = recordFrameStatsOverlayRef.current
 
         const rawElapsed = lastRafTime == null ? 0 : Math.max(0, (rafTime - lastRafTime) / 1000)
         lastRafTime = rafTime
@@ -1170,7 +1202,9 @@ function SceneViewInner({
       {showGameHud ? (
         <GameHud score={hudScore} damage={hudDamage} speedMs={hudDrive.speedMs} wheelAngle={hudDrive.wheelAngle} />
       ) : null}
-      {world.world.showFrameStats ? <FrameStatsOverlay frameTimingRef={frameTimingRef} /> : null}
+      {showFrameStatsOverlay ? (
+        <FrameStatsOverlay frameTimingRef={frameTimingRef} onClose={handleFrameStatsClose} />
+      ) : null}
       <WarningSnackbar messages={schemaLoadWarnings} onDismiss={dismissSchemaLoadWarnings} />
     </div>
   )

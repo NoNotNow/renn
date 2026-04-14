@@ -15,7 +15,7 @@ Working document derived from Firefox profiling on a heavy project (RefreshDrive
 | Status | Item | Notes |
 |--------|------|--------|
 | [~] | Capture **JS flame charts** (Firefox Profiler JS view or Chrome Performance) for the same bad scene: split time for **physics step**, **`executeTransformers`**, **`runOnUpdate` scripts**, **`renderer.render`**, React/Builder overhead | **How-to:** see [§1 procedure](#11-how-to-capture-js-flame-charts). Correlate with **View → Frame stats** (`frameTiming.ts`). Rank sub-costs inside the rAF callback after §2 physics alloc fix. |
-| [x] | Optional: **in-app frame timing HUD** (fps + last-frame ms breakdown) for regressions without DevTools | **View → Frame stats** in Builder (`SceneView` `showFrameStats`); persists `builderShowFrameStats`. Sections: transformers, physics, script collisions, `onUpdate`, camera, game HUD, render. |
+| [x] | Optional: **in-app frame timing HUD** (fps + last-frame ms breakdown) for regressions without DevTools | **View → Frame stats** in Builder (`world.world.showFrameStats`, World panel); saved with the project. Overlay position only: `localStorage` key `builderFrameStatsOverlayPos`. Sections: transformers, physics, script collisions, `onUpdate`, camera, game HUD, render. |
 
 ### 1.1 How to capture JS flame charts
 
