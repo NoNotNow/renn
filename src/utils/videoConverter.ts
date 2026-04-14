@@ -4,11 +4,25 @@
  */
 import type { FFmpeg } from '@ffmpeg/ffmpeg'
 
-const CORE_VERSION = '0.12.10'
-const FFMPEG_PACKAGE_VERSION = '0.12.10'
-const CORE_BASE = `https://cdn.jsdelivr.net/npm/@ffmpeg/core@${CORE_VERSION}/dist/esm`
-/** Must match installed `@ffmpeg/ffmpeg` — Vite does not ship `worker.js` next to the prebundled entry, so we load this explicitly. */
-const FFMPEG_WORKER_BASE = `https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@${FFMPEG_PACKAGE_VERSION}/dist/esm`
+/**
+ * First WASM load compiles a large module (can be slow on weak devices). Assets are bundled
+ * via {@link ./ffmpegWasmAssetUrls.ts} (same-origin), not a CDN.
+ */
+const FFMPEG_LOAD_TIMEOUT_MS = 300_000
+
+/**
+ * FFmpeg.wasm often does not emit `progress` during libx264 encode (single-thread core).
+ * We reserve [0, ENCODE_PROGRESS_START) for load, then map reported 0–1 into
+ * [ENCODE_PROGRESS_START, ENCODE_PROGRESS_START + ENCODE_PROGRESS_SPAN], then jump to 1 when done.
+ */
+const ENCODE_PROGRESS_START = 0.08
+const ENCODE_PROGRESS_SPAN = 0.87
+
+/** Maps ffmpeg-reported ratio (often 0 until the end) into the dialog progress bar mid-range. */
+export function encodeProgressFromFfmpegRatio(reported: number): number {
+  const t = Math.min(1, Math.max(0, reported))
+  return ENCODE_PROGRESS_START + t * ENCODE_PROGRESS_SPAN
+}
 
 let loadPromise: Promise<FFmpeg> | null = null
 let ffmpegSingleton: FFmpeg | null = null
@@ -19,25 +33,91 @@ function extensionFromFilename(name: string): string {
   return m ? m[1]!.toLowerCase() : 'bin'
 }
 
-async function getFFmpegLoaded(): Promise<FFmpeg> {
+function wrapLoadError(step: string, err: unknown): Error {
+  const base = err instanceof Error ? err.message : String(err)
+  return new Error(`FFmpeg load failed at "${step}": ${base}`)
+}
+
+function loadWithTimeout<T>(p: Promise<T>, ms: number, message: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(message)), ms)
+    p.then(
+      (v) => {
+        clearTimeout(t)
+        resolve(v)
+      },
+      (e) => {
+        clearTimeout(t)
+        reject(e)
+      },
+    )
+  })
+}
+
+export type EncoderLoadState = 'downloading' | 'ready'
+
+type LoadFfmpegOptions = {
+  signal?: AbortSignal
+  onEncoderLoadState?: (state: EncoderLoadState) => void
+}
+
+async function getFFmpegLoaded(opts?: LoadFfmpegOptions): Promise<FFmpeg> {
   if (typeof window === 'undefined') {
     throw new Error('Video conversion is only available in the browser.')
   }
-  if (loadPromise) return loadPromise
+
+  if (loadPromise) {
+    const ff = await loadPromise
+    opts?.onEncoderLoadState?.('ready')
+    return ff
+  }
 
   loadPromise = (async () => {
-    const [{ FFmpeg: FFmpegCtor }, { toBlobURL }] = await Promise.all([
-      import('@ffmpeg/ffmpeg'),
-      import('@ffmpeg/util'),
-    ])
-    const ffmpeg = new FFmpegCtor()
-    await ffmpeg.load({
-      coreURL: await toBlobURL(`${CORE_BASE}/ffmpeg-core.js`, 'text/javascript'),
-      wasmURL: await toBlobURL(`${CORE_BASE}/ffmpeg-core.wasm`, 'application/wasm'),
-      classWorkerURL: await toBlobURL(`${FFMPEG_WORKER_BASE}/worker.js`, 'text/javascript'),
-    })
-    ffmpegSingleton = ffmpeg
-    return ffmpeg
+    let step = 'dynamic import @ffmpeg packages'
+    try {
+      opts?.onEncoderLoadState?.('downloading')
+
+      const loadInner = async (): Promise<FFmpeg> => {
+        const { FFmpeg: FFmpegCtor } = await import('@ffmpeg/ffmpeg')
+        const { ffmpegCoreScriptUrl, ffmpegCoreWasmUrl, ffmpegWorkerScriptUrl } = await import(
+          './ffmpegWasmAssetUrls',
+        )
+        step = 'instantiate FFmpeg'
+        const ffmpeg = new FFmpegCtor()
+
+        const coreURL = ffmpegCoreScriptUrl
+        const wasmURL = ffmpegCoreWasmUrl
+        const classWorkerURL = ffmpegWorkerScriptUrl
+        console.warn(
+          '[videoConverter] Loading bundled FFmpeg assets (same origin; ~31MB wasm — first visit may take a while)…',
+        )
+
+        step = 'ffmpeg.load() initialize wasm'
+        await ffmpeg.load(
+          { coreURL, wasmURL, classWorkerURL },
+          { signal: opts?.signal },
+        )
+        console.warn('[videoConverter] ffmpeg.load() complete (WASM initialized)')
+
+        ffmpegSingleton = ffmpeg
+        return ffmpeg
+      }
+
+      const ffmpeg = await loadWithTimeout(
+        loadInner(),
+        FFMPEG_LOAD_TIMEOUT_MS,
+        `FFmpeg encoder load timed out after ${FFMPEG_LOAD_TIMEOUT_MS / 1000}s (WASM compile / load). Try closing other tabs or a faster machine.`,
+      )
+
+      opts?.onEncoderLoadState?.('ready')
+      return ffmpeg
+    } catch (err) {
+      killFfmpeg()
+      if (opts?.signal?.aborted || (err instanceof DOMException && err.name === 'AbortError')) {
+        throw err
+      }
+      throw wrapLoadError(step, err)
+    }
   })()
 
   return loadPromise
@@ -65,6 +145,7 @@ export async function convertVideoToWebMp4(
   file: File,
   options?: {
     onProgress?: (ratio: number) => void
+    onEncoderLoadState?: (state: EncoderLoadState) => void
     signal?: AbortSignal
   },
 ): Promise<Blob> {
@@ -73,13 +154,17 @@ export async function convertVideoToWebMp4(
   }
 
   const run = async (): Promise<Blob> => {
-    const ffmpeg = await getFFmpegLoaded()
+    const ffmpeg = await getFFmpegLoaded({
+      signal: options?.signal,
+      onEncoderLoadState: options?.onEncoderLoadState,
+    })
     const onProgress = options?.onProgress
     const signal = options?.signal
 
+    /** Map wasm progress (often sparse or missing for libx264) into a visible range. */
     const progressHandler = onProgress
-      ? ({ progress }: { progress: number }): void => {
-          onProgress(Math.min(1, Math.max(0, progress)))
+      ? ({ progress: p }: { progress: number }): void => {
+          onProgress(encodeProgressFromFfmpegRatio(p))
         }
       : null
     if (progressHandler) {
@@ -94,6 +179,8 @@ export async function convertVideoToWebMp4(
 
     try {
       await ffmpeg.writeFile(inName, await fetchFile(file))
+      /** FFmpeg.wasm often emits no `progress` during encode; nudge UI so the bar is not stuck at 0%. */
+      onProgress?.(ENCODE_PROGRESS_START)
       const args = [
         '-i',
         inName,
@@ -113,7 +200,9 @@ export async function convertVideoToWebMp4(
         '+faststart',
         outName,
       ]
+      console.warn('[videoConverter] ffmpeg.exec starting (encode may take a while; progress events are often sparse)…')
       const code = await ffmpeg.exec(args, undefined, signal ? { signal } : undefined)
+      console.warn(`[videoConverter] ffmpeg.exec finished (exit code ${code})`)
       if (code !== 0) {
         throw new Error(`ffmpeg exited with code ${code}`)
       }
@@ -121,6 +210,7 @@ export async function convertVideoToWebMp4(
       if (!(data instanceof Uint8Array)) {
         throw new Error('Expected binary MP4 output from ffmpeg')
       }
+      onProgress?.(1)
       return new Blob([data], { type: 'video/mp4' })
     } catch (err) {
       if (

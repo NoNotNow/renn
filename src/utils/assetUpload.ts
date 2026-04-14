@@ -75,13 +75,17 @@ export async function uploadVideo(
   assets: Map<string, Blob>,
   options?: {
     onConversionProgress?: (ratio: number) => void
+    onEncoderLoadState?: (state: 'downloading' | 'ready') => void
     signal?: AbortSignal
   },
 ): Promise<UploadVideoResult> {
   const validation = VideoManager.validateVideoFile(file)
   if (!validation.valid) throw new Error(validation.error)
+  const content = await VideoManager.validateVideoFileContent(file)
+  if (!content.valid) throw new Error(content.error)
   const blob = await convertVideoToWebMp4(file, {
     onProgress: options?.onConversionProgress,
+    onEncoderLoadState: options?.onEncoderLoadState,
     signal: options?.signal,
   })
   await defaultPersistence.saveAsset(assetId, blob)

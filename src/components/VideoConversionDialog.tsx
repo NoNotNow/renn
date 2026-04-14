@@ -22,6 +22,8 @@ export default function VideoConversionDialog({
   const [progress, setProgress] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [working, setWorking] = useState(false)
+  /** True while ffmpeg.wasm core/worker/wasm are downloading (progress bar stays at 0). */
+  const [encoderLoading, setEncoderLoading] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
   const onCompleteRef = useRef(onComplete)
   const assetIdRef = useRef(assetId)
@@ -33,18 +35,21 @@ export default function VideoConversionDialog({
       setProgress(0)
       setError(null)
       setWorking(false)
+      setEncoderLoading(false)
       return
     }
 
     setProgress(0)
     setError(null)
     setWorking(true)
+    setEncoderLoading(false)
     const ac = new AbortController()
     abortRef.current = ac
 
     void (async () => {
       try {
         const blob = await convertVideoToWebMp4(file, {
+          onEncoderLoadState: (state) => setEncoderLoading(state === 'downloading'),
           onProgress: (p) => setProgress(p),
           signal: ac.signal,
         })
@@ -54,7 +59,10 @@ export default function VideoConversionDialog({
         const msg = e instanceof Error ? e.message : 'Conversion failed'
         setError(msg)
       } finally {
-        if (!ac.signal.aborted) setWorking(false)
+        if (!ac.signal.aborted) {
+          setWorking(false)
+          setEncoderLoading(false)
+        }
       }
     })()
 
@@ -75,8 +83,16 @@ export default function VideoConversionDialog({
     <Modal isOpen={isOpen} onClose={handleCancel} title="Converting video" width={440} height={220}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: 4 }}>
         <p style={{ margin: 0, fontSize: 13, color: '#9aa4b2' }}>
-          Transcoding to MP4 (max 720p). First run downloads the encoder; please wait.
+          Transcoding to MP4 (max 720p). First run loads the encoder (~31MB WASM bundled with the app); please wait.
         </p>
+        {working && encoderLoading ? (
+          <p style={{ margin: 0, fontSize: 12, color: '#c9d4e8' }} data-testid="video-conversion-loading-encoder">
+            Loading encoder…
+          </p>
+        ) : null}
+        {working && !encoderLoading && progress === 0 && !error ? (
+          <p style={{ margin: 0, fontSize: 12, color: '#9aa4b2' }}>Starting transcoding…</p>
+        ) : null}
         {file ? (
           <div style={{ fontSize: 11, color: '#666', wordBreak: 'break-word' }}>{file.name}</div>
         ) : null}
@@ -101,6 +117,8 @@ export default function VideoConversionDialog({
         <div style={{ fontSize: 12, color: '#e6e9f2' }}>
           {error ? (
             <span style={{ color: '#f4a4a4' }}>{error}</span>
+          ) : working && encoderLoading ? (
+            'Preparing…'
           ) : working ? (
             `${Math.round(progress * 100)}%`
           ) : (

@@ -164,6 +164,11 @@ export default function TextureDialog({
         alert('Video import is not available in this dialog.')
         return
       }
+      const content = await VideoManager.validateVideoFileContent(uploadPreview.file)
+      if (!content.valid) {
+        alert(content.error ?? 'Invalid video file.')
+        return
+      }
       setPendingVideoConversion({ file: uploadPreview.file, assetId: uploadPreview.assetId })
       return
     }

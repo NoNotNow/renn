@@ -26,4 +26,10 @@ describe('VideoManager', () => {
     const assets = new Map<string, Blob>([['x', new Blob([], { type: 'video/mp4' })]])
     expect(isVideoMapAsset('x', {}, assets)).toBe(true)
   })
+
+  it('validateVideoFileContent rejects HTML disguised as mp4', async () => {
+    const f = new File(['<!DOCTYPE html><html></html>'], 'x.mp4', { type: 'video/mp4' })
+    const r = await VideoManager.validateVideoFileContent(f)
+    expect(r.valid).toBe(false)
+  })
 })

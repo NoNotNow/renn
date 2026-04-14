@@ -48,6 +48,52 @@ export class VideoManager {
     return { valid: true }
   }
 
+  /**
+   * Async validation: rejects HTML stubs and obvious non-MP4 content for `.mp4` / `video/mp4` picks.
+   * Call from upload / conversion entry points (browser can mis-report MIME for renamed files).
+   */
+  static async validateVideoFileContent(file: File): Promise<{ valid: boolean; error?: string }> {
+    const base = this.validateVideoFile(file)
+    if (!base.valid) return base
+
+    const slice = file.slice(0, 64)
+    const buf =
+      typeof slice.arrayBuffer === 'function'
+        ? await slice.arrayBuffer()
+        : await new Promise<ArrayBuffer>((resolve, reject) => {
+            const reader = new FileReader()
+            reader.onload = () => resolve(reader.result as ArrayBuffer)
+            reader.onerror = () => reject(reader.error)
+            reader.readAsArrayBuffer(slice)
+          })
+    const head = new Uint8Array(buf)
+    const asText = new TextDecoder('utf-8', { fatal: false }).decode(head).trimStart()
+    if (asText.startsWith('<!DOCTYPE') || asText.startsWith('<html')) {
+      return {
+        valid: false,
+        error:
+          'This file is not a video (it looks like a web page). Download the actual video file, not an HTML redirect.',
+      }
+    }
+
+    const lower = file.name.toLowerCase()
+    const mp4Like =
+      lower.endsWith('.mp4') ||
+      lower.endsWith('.m4v') ||
+      file.type.toLowerCase().includes('mp4')
+    if (mp4Like && head.length >= 8) {
+      const brand = String.fromCharCode(head[4]!, head[5]!, head[6]!, head[7]!)
+      if (brand !== 'ftyp' && brand !== 'styp') {
+        return {
+          valid: false,
+          error: 'File does not look like a valid MP4 (missing ISO ftyp header).',
+        }
+      }
+    }
+
+    return { valid: true }
+  }
+
   static generateAssetId(filename: string): string {
     return generateAssetIdFromFilename(filename, 'video')
   }

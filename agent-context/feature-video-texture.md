@@ -5,7 +5,7 @@
 ## Behavior
 
 - **Asset type:** `AssetRef.type` may be `video`. Blobs are typically `video/mp4` after import (transcoded in the browser).
-- **Conversion:** [`src/utils/videoConverter.ts`](../src/utils/videoConverter.ts) loads `@ffmpeg/ffmpeg` lazily from jsDelivr (`@ffmpeg/core` 0.12.x), transcodes to H.264/AAC MP4 with max dimension 1280×720 (aspect preserved).
+- **Conversion:** [`src/utils/videoConverter.ts`](../src/utils/videoConverter.ts) loads `@ffmpeg/ffmpeg` lazily. **`@ffmpeg/core` + worker are bundled** via Vite (`?url` in [`ffmpegWasmAssetUrls.ts`](../src/utils/ffmpegWasmAssetUrls.ts)) and served from the **same origin** as the app (no jsDelivr fetch). Transcodes to H.264/AAC MP4 with max dimension 1280×720 (aspect preserved). Keep `@ffmpeg/core` and `@ffmpeg/ffmpeg` versions aligned in `package.json`.
 - **Inspector:** Material **Texture** picker lists **Images** and **Videos**, uploads images via [`uploadTexture`](../src/utils/assetUpload.ts), videos via conversion dialog then [`saveVideoMapBlob`](../src/utils/assetUpload.ts). Sky dome picker sets `allowVideo={false}` on [`TextureDialog`](../src/components/TextureDialog.tsx).
 - **Three.js:** [`createAssetResolverFromGetter`](../src/loader/assetResolverImpl.ts) exposes `isVideoAsset` + `loadVideoTexture`. [`materialFromRef`](../src/loader/createPrimitive.ts) uses `THREE.VideoTexture` (muted, loop, inline) for video maps. [`disposeMaterialOrArray`](../src/utils/videoTextureLifecycle.ts) pauses the underlying `<video>` before `dispose()`.
 - **Prefetch:** [`prefetchMaterialTextures`](../src/loader/prefetchMaterialTextures.ts) skips `video/*` blobs (no `createImageBitmap`).
@@ -19,19 +19,30 @@
 
 ## Notes
 
-- First conversion downloads ffmpeg WASM (~tens of MB); requires network unless CDN is cached.
+- First conversion **loads** ffmpeg WASM (~32MB) from your deployment / dev server (bundled asset), not a third-party CDN. Deployed `dist/` grows accordingly; `gh-pages` uploads include the `.wasm` file.
 - If `libx264` is unavailable in a given core build, transcoding may fail; errors surface in the conversion dialog.
+- **Upload validation:** [`VideoManager.validateVideoFileContent`](../src/utils/videoManager.ts) runs before conversion (Texture dialog confirm + [`uploadVideo`](../src/utils/assetUpload.ts)). It rejects **HTML stubs** (e.g. download redirect pages saved as `.mp4`) and **non-MP4 magic** for `.mp4` / `video/mp4` files so users see a clear error instead of Firefox `NS_ERROR_DOM_MEDIA_METADATA_ERR` only.
+- **Load diagnostics:** [`videoConverter.ts`](../src/utils/videoConverter.ts) logs load milestones, wraps failures with the step name, applies a **300s** timeout for WASM init/compile (slow devices), and **clears the cached load promise** on failure so the next attempt can retry.
+- **Encode progress:** `@ffmpeg/core` (single-thread) often emits **no** `progress` events during `libx264` encode, so the dialog would sit at **0%** until done. The converter sets a **minimum progress** after the input file is written (~8%), maps any wasm-reported progress into the middle band, then sets **100%** when the output file is read. Console: `ffmpeg.exec starting…` / `finished`.
+- **UI:** [`VideoConversionDialog`](../src/components/VideoConversionDialog.tsx) shows **“Loading encoder…”** while WASM is loading/compiling (progress bar may stay at 0%); then **“Starting transcoding…”** until ffmpeg reports encode progress.
+- **Tests:** [`src/test/scenarios/video-texture-pipeline.integration.test.ts`](../src/test/scenarios/video-texture-pipeline.integration.test.ts) covers validation, static load (mocked fetch), `loadVideoTexture` (stub `<video>`), and `saveVideoMapBlob` + resolver. [`videoConverter.test.ts`](../src/utils/videoConverter.test.ts) covers encode progress mapping. Optional **ffmpeg.wasm** end-to-end: `RUN_FFMPEG_TESTS=1 npm run test:run` (loads bundled WASM + transcodes fixture; long timeout). Fixture: `public/world/assets/7947392-hd_1920_1080_30fps.mp4`.
 
 ---
 
 ## Troubleshooting (Vite dev + Firefox, 2026-04)
+
+### Symptom: conversion modal shows **0%** or **“Loading encoder…”** for a long time (no error)
+
+**Typical cause:** The browser is **fetching and compiling** the bundled **~32MB** WASM (same origin as the app). Slow disks or low-memory devices can take several minutes. The UI stays at 0% until encode progress starts; check the **browser console** for `[videoConverter]` lines.
+
+**If it eventually errors:** Read the message — it includes which step failed (`ffmpeg.load()`, etc.) or a **timeout** after 300s.
 
 ### Symptom: conversion modal stuck at **0%**; Network tab shows **404** on `worker.js`
 
 **Cause:** `@ffmpeg/ffmpeg` constructs its internal Web Worker with `new Worker(new URL('./worker.js', import.meta.url), { type: 'module' })`. Under **Vite**, the library is served from `node_modules/.vite/deps/…`; there is **no** sibling `worker.js` in that folder, so the browser requests e.g.  
 `http://localhost:5173/…/node_modules/.vite/deps/worker.js?worker_file&type=module` → **404**, often with an **empty MIME type**, and the worker is **blocked**. FFmpeg never finishes `load()`, so progress never moves off 0%.
 
-**Fix (implemented):** Pass **`classWorkerURL`** into `ffmpeg.load()` with a real script URL. We use jsDelivr + [`toBlobURL`](../src/utils/videoConverter.ts) for `@ffmpeg/ffmpeg/.../dist/esm/worker.js`, same pattern as `ffmpeg-core.js` / `.wasm`. When bumping `@ffmpeg/ffmpeg`, keep **`FFMPEG_PACKAGE_VERSION`** in [`videoConverter.ts`](../src/utils/videoConverter.ts) aligned with `package.json`.
+**Fix (implemented):** Pass **`classWorkerURL`** into `ffmpeg.load()` with a real script URL. **Current:** worker + core + wasm URLs come from [`ffmpegWasmAssetUrls.ts`](../src/utils/ffmpegWasmAssetUrls.ts) (Vite-bundled). **Historical:** jsDelivr + `toBlobURL` was used before bundling. When bumping `@ffmpeg/ffmpeg` / `@ffmpeg/core`, keep versions aligned and re-run `npm run build` to refresh `dist` assets.
 
 **References:** [`classes.js` in the package](https://github.com/ffmpegwasm/ffmpeg.wasm/blob/main/packages/ffmpeg/src/classes.ts) (Worker URL resolution); Firefox: worker blocked when response is not `application/javascript` / 404.
 
