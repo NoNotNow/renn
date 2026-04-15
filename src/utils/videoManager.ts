@@ -7,7 +7,7 @@ import { isInternalTextureAssetKey } from '@/utils/textureAssetVersioning'
 
 const VIDEO_MIME_PREFIX = 'video/'
 
-const VIDEO_EXTENSIONS = [
+export const VIDEO_EXTENSIONS = [
   '.mp4',
   '.webm',
   '.mov',
@@ -16,7 +16,13 @@ const VIDEO_EXTENSIONS = [
   '.m4v',
   '.ogv',
   '.wmv',
-]
+] as const
+
+/** True if the path or filename ends with a known video extension (ZIP import / refs without MIME). */
+export function isVideoAssetPath(pathOrFilename: string): boolean {
+  const lower = pathOrFilename.toLowerCase()
+  return VIDEO_EXTENSIONS.some((ext) => lower.endsWith(ext))
+}
 
 export class VideoManager {
   /** Pre-conversion upload cap (matches plan). */
@@ -24,8 +30,7 @@ export class VideoManager {
 
   static isVideoFile(file: File): boolean {
     if (file.type.toLowerCase().startsWith(VIDEO_MIME_PREFIX)) return true
-    const lower = file.name.toLowerCase()
-    return VIDEO_EXTENSIONS.some((ext) => lower.endsWith(ext))
+    return isVideoAssetPath(file.name)
   }
 
   static isVideoBlob(blob: Blob): boolean {
@@ -109,6 +114,7 @@ export function isVideoMapAsset(
 ): boolean {
   const ref = worldAssets?.[assetId]
   if (ref?.type === 'video') return true
+  if (ref?.path && isVideoAssetPath(ref.path)) return true
   const blob = assets.get(assetId)
   return blob ? VideoManager.isVideoBlob(blob) : false
 }

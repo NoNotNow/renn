@@ -5,6 +5,7 @@ import { generateProjectId } from '@/utils/idGenerator'
 import { DB_CONFIG } from '@/config/constants'
 import { addAssetsToZipFolder } from '@/utils/assetExport'
 import { collectReferencedAssetIds } from '@/utils/collectReferencedAssetIds'
+import { rehydrateImportedAssetBlob, synthesizeAssetRefForExport } from '@/utils/rehydrateImportedAssetBlob'
 import { validateWorldDocument } from '@/schema/validate'
 
 const STORE_PROJECTS = DB_CONFIG.stores.projects
@@ -219,6 +220,12 @@ export function createIndexedDbPersistence(): PersistenceAPI {
         const ref = worldAssets[assetId]
         if (ref) prunedWorldAssets[assetId] = ref
       }
+      for (const assetId of exportedAssets.keys()) {
+        if (!prunedWorldAssets[assetId]) {
+          const b = exportedAssets.get(assetId)!
+          prunedWorldAssets[assetId] = await synthesizeAssetRefForExport(assetId, b)
+        }
+      }
       const exportWorld: RennWorld = { ...world, assets: prunedWorldAssets }
       const zip = new JSZip()
       zip.file('world.json', JSON.stringify(exportWorld, null, 2))
@@ -244,7 +251,8 @@ export function createIndexedDbPersistence(): PersistenceAPI {
         const path = ref.path ?? `assets/${assetId}.bin`
         const f = zip.file(path)
         if (f) {
-          const blob = await f.async('blob')
+          let blob = await f.async('blob')
+          blob = await rehydrateImportedAssetBlob(blob, ref, path)
           assets.set(assetId, blob)
         }
       }
@@ -254,7 +262,9 @@ export function createIndexedDbPersistence(): PersistenceAPI {
         if (assets.has(assetId)) continue
         const f = zip.file(path)
         if (f) {
-          const blob = await f.async('blob')
+          const ref = worldAssets[assetId]
+          let blob = await f.async('blob')
+          blob = await rehydrateImportedAssetBlob(blob, ref, path)
           assets.set(assetId, blob)
         }
       }

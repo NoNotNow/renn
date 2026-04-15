@@ -27,6 +27,11 @@ describe('VideoManager', () => {
     expect(isVideoMapAsset('x', {}, assets)).toBe(true)
   })
 
+  it('isVideoMapAsset treats .mp4 path as video when blob MIME is missing', () => {
+    const assets = new Map<string, Blob>([['v', new Blob([], { type: 'application/octet-stream' })]])
+    expect(isVideoMapAsset('v', { v: { path: 'assets/v.mp4', type: 'texture' } }, assets)).toBe(true)
+  })
+
   it('validateVideoFileContent rejects HTML disguised as mp4', async () => {
     const f = new File(['<!DOCTYPE html><html></html>'], 'x.mp4', { type: 'video/mp4' })
     const r = await VideoManager.validateVideoFileContent(f)
