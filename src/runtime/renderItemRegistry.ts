@@ -770,6 +770,17 @@ export class RenderItemRegistry {
 
     const input = this._tfInput
     const env = this._tfEnvironment
+    const controlledId = this.controlledEntityIdRef?.current ?? null
+    if (controlledId) {
+      const ctrlItem = this.items.get(controlledId)
+      if (ctrlItem?.transformerChain && ctrlItem.hasPhysicsBody()) {
+        if (ctrlItem.distanceCullingPhysicsFrozen) {
+          this.physicsWorld.enableBodyFromCulling(controlledId)
+          ctrlItem.distanceCullingPhysicsFrozen = false
+        }
+        this.physicsWorld.wakeDynamicAndRefreshTransformCache(controlledId)
+      }
+    }
 
     for (const item of this.items.values()) {
       if (!item.transformerChain) continue
@@ -777,8 +788,9 @@ export class RenderItemRegistry {
 
       const cached = this.physicsWorld.getCachedTransform(item.entity.id)
       if (!cached) continue
-      if (cached.isSleeping) continue
-      if (item.distanceCulled) continue
+      const isControlled = controlledId !== null && item.entity.id === controlledId
+      if (!isControlled && cached.isSleeping) continue
+      if (!isControlled && item.distanceCulled) continue
 
       clearActionRecord(this._tfActions)
       input.target = undefined

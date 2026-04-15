@@ -703,6 +703,23 @@ export class PhysicsWorld {
   }
 
   /**
+   * Wake a dynamic body and refresh {@link cachedTransforms} with a full sync so
+   * the registry’s transformer pass does not skip the entity on stale `isSleeping`.
+   * Used for the play-controlled avatar before `RenderItemRegistry.executeTransformers`.
+   */
+  wakeDynamicAndRefreshTransformCache(entityId: string): void {
+    const body = this.bodyMap.get(entityId)
+    if (!body) return
+    if (body.isDynamic()) {
+      body.wakeUp()
+      this.customSleepTimers.delete(entityId)
+    }
+    if (body.isDynamic() || body.isKinematic()) {
+      this.syncCachedTransformFromBody(entityId, body, true)
+    }
+  }
+
+  /**
    * Copy rigid-body pose/velocities into {@link cachedTransforms}.
    * @param full - if true, always write pose/vel (e.g. after distance-cull re-enable so transformers
    *   do not read stale `isSleeping` from before `setEnabled(false)`). If false, matches post-step
