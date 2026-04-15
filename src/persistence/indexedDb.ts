@@ -1,9 +1,10 @@
 import { openDB, type IDBPDatabase } from 'idb'
-import type { RennWorld, ModelPreset } from '@/types/world'
+import type { AssetRef, RennWorld, ModelPreset } from '@/types/world'
 import type { ProjectMeta, LoadedProject, PersistenceAPI } from './types'
 import { generateProjectId } from '@/utils/idGenerator'
 import { DB_CONFIG } from '@/config/constants'
 import { addAssetsToZipFolder } from '@/utils/assetExport'
+import { collectReferencedAssetIds } from '@/utils/collectReferencedAssetIds'
 import { validateWorldDocument } from '@/schema/validate'
 
 const STORE_PROJECTS = DB_CONFIG.stores.projects
@@ -206,10 +207,23 @@ export function createIndexedDbPersistence(): PersistenceAPI {
     async exportProject(id: string): Promise<Blob> {
       const JSZip = (await import('jszip')).default
       const { world, assets } = await this.loadProject(id)
+      const referenced = collectReferencedAssetIds(world)
+      const exportedAssets = new Map<string, Blob>()
+      for (const assetId of referenced) {
+        const blob = assets.get(assetId)
+        if (blob) exportedAssets.set(assetId, blob)
+      }
+      const worldAssets = world.assets ?? {}
+      const prunedWorldAssets: Record<string, AssetRef> = {}
+      for (const assetId of referenced) {
+        const ref = worldAssets[assetId]
+        if (ref) prunedWorldAssets[assetId] = ref
+      }
+      const exportWorld: RennWorld = { ...world, assets: prunedWorldAssets }
       const zip = new JSZip()
-      zip.file('world.json', JSON.stringify(world, null, 2))
+      zip.file('world.json', JSON.stringify(exportWorld, null, 2))
       const assetsFolder = zip.folder('assets')!
-      await addAssetsToZipFolder(assetsFolder, assets, world.assets ?? {})
+      await addAssetsToZipFolder(assetsFolder, exportedAssets, prunedWorldAssets)
       return zip.generateAsync({ type: 'blob' })
     },
 

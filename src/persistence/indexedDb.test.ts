@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import 'fake-indexeddb/auto'
+import JSZip from 'jszip'
 import { createIndexedDbPersistence } from './indexedDb'
 import { ModelManager } from '@/utils/modelManager'
 import type { RennWorld } from '@/types/world'
@@ -218,6 +219,51 @@ describe('IndexedDB Persistence', () => {
     
     expect(zipBlob).toBeInstanceOf(Blob)
     expect(zipBlob.type).toBe('application/zip')
+  })
+
+  it('export zip includes only referenced assets, not the global library', async () => {
+    const world: RennWorld = {
+      version: '1.0',
+      world: { gravity: [0, -9.81, 0] },
+      entities: [
+        {
+          id: 'ground',
+          bodyType: 'static',
+          shape: { type: 'plane' },
+        },
+        {
+          id: 'textured',
+          bodyType: 'dynamic',
+          shape: { type: 'sphere', radius: 0.5 },
+          position: [0, 2, 0],
+          material: { map: 'usedTex', color: [1, 1, 1] },
+        },
+      ],
+      assets: {
+        usedTex: { path: 'assets/usedTex.png', type: 'texture' },
+      },
+    }
+    const usedBlob = new Blob([Uint8Array.from([1, 2, 3])], { type: 'image/png' })
+    const assets = new Map<string, Blob>([['usedTex', usedBlob]])
+
+    await persistence.saveProject('ref-only-export', 'Ref Only', { world, assets })
+
+    const orphanBlob = new Blob(['orphan-bytes'], { type: 'application/octet-stream' })
+    await persistence.saveAsset('orphan-global', orphanBlob, null)
+
+    const zipBlob = await persistence.exportProject('ref-only-export')
+    const zip = await JSZip.loadAsync(zipBlob)
+
+    const worldJson = JSON.parse(await zip.file('world.json')!.async('string')) as RennWorld
+    expect(Object.keys(worldJson.assets ?? {})).toEqual(['usedTex'])
+    expect(worldJson.assets?.['orphan-global']).toBeUndefined()
+
+    const assetPaths = Object.keys(zip.files).filter(
+      (p) => p.startsWith('assets/') && !zip.files[p]?.dir,
+    )
+    expect(assetPaths.length).toBeGreaterThanOrEqual(1)
+    expect(assetPaths.some((p) => p.includes('orphan-global'))).toBe(false)
+    expect(assetPaths.some((p) => p.includes('usedTex'))).toBe(true)
   })
 
   it('imports project from zip', async () => {

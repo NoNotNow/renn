@@ -3,6 +3,7 @@
  * Used for GitHub Pages deployment where IndexedDB and upload are not available.
  */
 import type { RennWorld } from '@/types/world'
+import { collectReferencedAssetIds } from '@/utils/collectReferencedAssetIds'
 import { validateWorldDocument } from '@/schema/validate'
 import { migrateWorldScripts, migrateWorldSimplificationFields } from '@/scripts/migrateWorld'
 
@@ -76,31 +77,6 @@ function resolveAssetPaths(
     candidates.push(base + normalized)
   }
   return candidates
-}
-
-/** Collect asset IDs referenced in entities (material.map, entity.model, shape.model for trimesh) */
-function collectReferencedAssetIds(world: RennWorld): Set<string> {
-  const ids = new Set<string>()
-  for (const entity of world.entities ?? []) {
-    const map = entity.material?.map
-    if (map && typeof map === 'string') ids.add(map)
-    const shapeModel = entity.shape && entity.shape.type === 'trimesh' ? entity.shape.model : undefined
-    if (shapeModel && typeof shapeModel === 'string') ids.add(shapeModel)
-    const entityModel = entity.model
-    if (entityModel && typeof entityModel === 'string') ids.add(entityModel)
-  }
-  for (const id of Object.keys(world.assets ?? {})) {
-    ids.add(id)
-  }
-  const skybox = world.world?.skybox
-  if (skybox && typeof skybox === 'string' && skybox.trim()) {
-    ids.add(skybox.trim())
-  }
-  const soundAssetId = world.world?.sound?.assetId
-  if (soundAssetId && typeof soundAssetId === 'string' && soundAssetId.trim()) {
-    ids.add(soundAssetId.trim())
-  }
-  return ids
 }
 
 /**
