@@ -1,4 +1,5 @@
 import { useReducer, useCallback, useMemo } from 'react'
+import type { LabelHTMLAttributes } from 'react'
 import type { Color } from '@/types/world'
 import type { AddableShapeType, BulkEntityParams } from '@/data/entityDefaults'
 import { uiLogger } from '@/utils/uiLogger'
@@ -48,6 +49,13 @@ export interface BulkSpawnState {
   restitutionFixed: number
   restitutionMin: number
   restitutionMax: number
+}
+
+function bulkFieldLabel(title: string): Pick<LabelHTMLAttributes<HTMLLabelElement>, 'style' | 'title'> {
+  return {
+    style: { ...sidebarLabelStyle, cursor: 'help' },
+    title,
+  }
 }
 
 const initialBulkSpawnState: BulkSpawnState = {
@@ -225,7 +233,10 @@ export default function BulkSpawnForm({ onBulkAddEntities }: BulkSpawnFormProps)
         <h3 style={{ margin: '10px 0', fontSize: 14, color: theme.text.primary }}>Bulk Create Entities</h3>
 
         <div style={sidebarRowStyle}>
-          <label htmlFor="bulk-count" style={sidebarLabelStyle}>
+          <label
+            htmlFor="bulk-count"
+            {...bulkFieldLabel('How many entities to spawn in one batch (capped at 1000 for performance).')}
+          >
             Count
           </label>
           <input
@@ -242,7 +253,10 @@ export default function BulkSpawnForm({ onBulkAddEntities }: BulkSpawnFormProps)
         </div>
 
         <div style={sidebarRowStyle}>
-          <label htmlFor="bulk-shape" style={sidebarLabelStyle}>
+          <label
+            htmlFor="bulk-shape"
+            {...bulkFieldLabel('Collider primitive for each spawn. Random picks a type independently per entity.')}
+          >
             Shape
           </label>
           <select
@@ -264,7 +278,10 @@ export default function BulkSpawnForm({ onBulkAddEntities }: BulkSpawnFormProps)
         </div>
 
         <div style={sidebarRowStyle}>
-          <label htmlFor="bulk-body-type" style={sidebarLabelStyle}>
+          <label
+            htmlFor="bulk-body-type"
+            {...bulkFieldLabel('Static, dynamic, kinematic, or random per entity (same meanings as the inspector physics body type).')}
+          >
             Body Type
           </label>
           <select
@@ -286,7 +303,10 @@ export default function BulkSpawnForm({ onBulkAddEntities }: BulkSpawnFormProps)
           <h4 style={sectionTitleStyle}>Transform</h4>
 
           <div style={sidebarRowStyle}>
-            <label htmlFor="size-mode" style={sidebarLabelStyle}>
+            <label
+              htmlFor="size-mode"
+              {...bulkFieldLabel('Fixed uses one characteristic size for all spawns; Random Range samples a value between min and max per entity.')}
+            >
               Size
             </label>
             <select
@@ -301,7 +321,10 @@ export default function BulkSpawnForm({ onBulkAddEntities }: BulkSpawnFormProps)
           </div>
           {sizeMode === 'fixed' ? (
             <div style={sidebarRowStyle}>
-              <label htmlFor="size-fixed" style={sidebarLabelStyle}>
+              <label
+                htmlFor="size-fixed"
+                {...bulkFieldLabel('Characteristic dimension in world units (interpretation depends on shape, e.g. radius for spheres).')}
+              >
                 Value
               </label>
               <input
@@ -317,7 +340,10 @@ export default function BulkSpawnForm({ onBulkAddEntities }: BulkSpawnFormProps)
           ) : (
             <>
               <div style={sidebarRowStyle}>
-                <label htmlFor="size-min" style={sidebarLabelStyle}>
+                <label
+                  htmlFor="size-min"
+                  {...bulkFieldLabel('Lower bound for per-entity random size when Size mode is Random Range.')}
+                >
                   Min
                 </label>
                 <input
@@ -331,7 +357,10 @@ export default function BulkSpawnForm({ onBulkAddEntities }: BulkSpawnFormProps)
                 />
               </div>
               <div style={sidebarRowStyle}>
-                <label htmlFor="size-max" style={sidebarLabelStyle}>
+                <label
+                  htmlFor="size-max"
+                  {...bulkFieldLabel('Upper bound for per-entity random size when Size mode is Random Range.')}
+                >
                   Max
                 </label>
                 <input
@@ -348,7 +377,10 @@ export default function BulkSpawnForm({ onBulkAddEntities }: BulkSpawnFormProps)
           )}
 
           <div style={{ ...sidebarRowStyle, marginTop: 8 }}>
-            <label htmlFor="position-mode" style={sidebarLabelStyle}>
+            <label
+              htmlFor="position-mode"
+              {...bulkFieldLabel('Fixed Point spawns all entities at X,Y,Z. Random scatters on a disk of Radius with Y between Y Min and Y Max.')}
+            >
               Position
             </label>
             <select
@@ -406,7 +438,10 @@ export default function BulkSpawnForm({ onBulkAddEntities }: BulkSpawnFormProps)
           ) : (
             <>
               <div style={sidebarRowStyle}>
-                <label htmlFor="spawn-radius" style={sidebarLabelStyle}>
+                <label
+                  htmlFor="spawn-radius"
+                  {...bulkFieldLabel('Horizontal distance from the world origin (XZ plane) for random spawn positions.')}
+                >
                   Radius
                 </label>
                 <input
@@ -420,7 +455,10 @@ export default function BulkSpawnForm({ onBulkAddEntities }: BulkSpawnFormProps)
                 />
               </div>
               <div style={sidebarRowStyle}>
-                <label htmlFor="spawn-y-min" style={sidebarLabelStyle}>
+                <label
+                  htmlFor="spawn-y-min"
+                  {...bulkFieldLabel('Lower bound on vertical position for random spawns (world units).')}
+                >
                   Y Min
                 </label>
                 <input
@@ -433,7 +471,10 @@ export default function BulkSpawnForm({ onBulkAddEntities }: BulkSpawnFormProps)
                 />
               </div>
               <div style={sidebarRowStyle}>
-                <label htmlFor="spawn-y-max" style={sidebarLabelStyle}>
+                <label
+                  htmlFor="spawn-y-max"
+                  {...bulkFieldLabel('Upper bound on vertical position for random spawns (world units).')}
+                >
                   Y Max
                 </label>
                 <input
@@ -449,7 +490,10 @@ export default function BulkSpawnForm({ onBulkAddEntities }: BulkSpawnFormProps)
           )}
 
           <div style={{ ...sidebarRowStyle, marginTop: 8 }}>
-            <label htmlFor="rotation-mode" style={sidebarLabelStyle}>
+            <label
+              htmlFor="rotation-mode"
+              {...bulkFieldLabel('Default keeps neutral orientation; Random assigns a random Euler rotation per entity.')}
+            >
               Rotation
             </label>
             <select
@@ -468,7 +512,10 @@ export default function BulkSpawnForm({ onBulkAddEntities }: BulkSpawnFormProps)
           <h4 style={sectionTitleStyle}>Appearance</h4>
 
           <div style={sidebarRowStyle}>
-            <label htmlFor="color-mode" style={sidebarLabelStyle}>
+            <label
+              htmlFor="color-mode"
+              {...bulkFieldLabel('Fixed uses the RGB fields below (0–1). Random picks a random color per entity.')}
+            >
               Color
             </label>
             <select
@@ -542,7 +589,10 @@ export default function BulkSpawnForm({ onBulkAddEntities }: BulkSpawnFormProps)
           <h4 style={sectionTitleStyle}>Physics</h4>
 
           <div style={sidebarRowStyle}>
-            <label htmlFor="mass-mode" style={sidebarLabelStyle}>
+            <label
+              htmlFor="mass-mode"
+              {...bulkFieldLabel('None skips mass on new bodies (non-dynamic). Fixed/Random applies mass for dynamic spawns.')}
+            >
               Mass
             </label>
             <select
@@ -558,7 +608,10 @@ export default function BulkSpawnForm({ onBulkAddEntities }: BulkSpawnFormProps)
           </div>
           {massMode === 'fixed' ? (
             <div style={sidebarRowStyle}>
-              <label htmlFor="mass-fixed" style={sidebarLabelStyle}>
+              <label
+                htmlFor="mass-fixed"
+                {...bulkFieldLabel('Rigid-body mass applied to every spawned dynamic entity.')}
+              >
                 Value
               </label>
               <input
@@ -574,7 +627,10 @@ export default function BulkSpawnForm({ onBulkAddEntities }: BulkSpawnFormProps)
           ) : massMode === 'random' ? (
             <>
               <div style={sidebarRowStyle}>
-                <label htmlFor="mass-min" style={sidebarLabelStyle}>
+                <label
+                  htmlFor="mass-min"
+                  {...bulkFieldLabel('Lower bound for random mass per dynamic spawn.')}
+                >
                   Min
                 </label>
                 <input
@@ -588,7 +644,10 @@ export default function BulkSpawnForm({ onBulkAddEntities }: BulkSpawnFormProps)
                 />
               </div>
               <div style={sidebarRowStyle}>
-                <label htmlFor="mass-max" style={sidebarLabelStyle}>
+                <label
+                  htmlFor="mass-max"
+                  {...bulkFieldLabel('Upper bound for random mass per dynamic spawn.')}
+                >
                   Max
                 </label>
                 <input
@@ -605,7 +664,10 @@ export default function BulkSpawnForm({ onBulkAddEntities }: BulkSpawnFormProps)
           ) : null}
 
           <div style={{ ...sidebarRowStyle, marginTop: massMode !== 'none' ? 8 : 0 }}>
-            <label htmlFor="friction-mode" style={sidebarLabelStyle}>
+            <label
+              htmlFor="friction-mode"
+              {...bulkFieldLabel('None leaves default friction; Fixed sets one coefficient; Random samples between min and max per entity.')}
+            >
               Friction
             </label>
             <select
@@ -621,7 +683,10 @@ export default function BulkSpawnForm({ onBulkAddEntities }: BulkSpawnFormProps)
           </div>
           {frictionMode === 'fixed' ? (
             <div style={sidebarRowStyle}>
-              <label htmlFor="friction-fixed" style={sidebarLabelStyle}>
+              <label
+                htmlFor="friction-fixed"
+                {...bulkFieldLabel('Contact friction coefficient for every spawn (0 = ice-like, 1 = very grippy).')}
+              >
                 Value (0-1)
               </label>
               <input
@@ -640,7 +705,10 @@ export default function BulkSpawnForm({ onBulkAddEntities }: BulkSpawnFormProps)
           ) : frictionMode === 'random' ? (
             <>
               <div style={sidebarRowStyle}>
-                <label htmlFor="friction-min" style={sidebarLabelStyle}>
+                <label
+                  htmlFor="friction-min"
+                  {...bulkFieldLabel('Minimum friction coefficient when sampling per entity.')}
+                >
                   Min (0-1)
                 </label>
                 <input
@@ -657,7 +725,10 @@ export default function BulkSpawnForm({ onBulkAddEntities }: BulkSpawnFormProps)
                 />
               </div>
               <div style={sidebarRowStyle}>
-                <label htmlFor="friction-max" style={sidebarLabelStyle}>
+                <label
+                  htmlFor="friction-max"
+                  {...bulkFieldLabel('Maximum friction coefficient when sampling per entity.')}
+                >
                   Max (0-1)
                 </label>
                 <input
@@ -677,7 +748,10 @@ export default function BulkSpawnForm({ onBulkAddEntities }: BulkSpawnFormProps)
           ) : null}
 
           <div style={{ ...sidebarRowStyle, marginTop: frictionMode !== 'none' ? 8 : 0 }}>
-            <label htmlFor="restitution-mode" style={sidebarLabelStyle}>
+            <label
+              htmlFor="restitution-mode"
+              {...bulkFieldLabel('None leaves default bounce; Fixed sets one restitution; Random samples between min and max per entity.')}
+            >
               Restitution
             </label>
             <select
@@ -695,7 +769,10 @@ export default function BulkSpawnForm({ onBulkAddEntities }: BulkSpawnFormProps)
           </div>
           {restitutionMode === 'fixed' ? (
             <div style={sidebarRowStyle}>
-              <label htmlFor="restitution-fixed" style={sidebarLabelStyle}>
+              <label
+                htmlFor="restitution-fixed"
+                {...bulkFieldLabel('Bounciness on collision for every spawn (0 = no bounce, 1 = very elastic).')}
+              >
                 Value (0-1)
               </label>
               <input
@@ -716,7 +793,10 @@ export default function BulkSpawnForm({ onBulkAddEntities }: BulkSpawnFormProps)
           ) : restitutionMode === 'random' ? (
             <>
               <div style={sidebarRowStyle}>
-                <label htmlFor="restitution-min" style={sidebarLabelStyle}>
+                <label
+                  htmlFor="restitution-min"
+                  {...bulkFieldLabel('Minimum restitution when sampling per entity.')}
+                >
                   Min (0-1)
                 </label>
                 <input
@@ -733,7 +813,10 @@ export default function BulkSpawnForm({ onBulkAddEntities }: BulkSpawnFormProps)
                 />
               </div>
               <div style={sidebarRowStyle}>
-                <label htmlFor="restitution-max" style={sidebarLabelStyle}>
+                <label
+                  htmlFor="restitution-max"
+                  {...bulkFieldLabel('Maximum restitution when sampling per entity.')}
+                >
                   Max (0-1)
                 </label>
                 <input

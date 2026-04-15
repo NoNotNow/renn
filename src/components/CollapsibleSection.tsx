@@ -9,6 +9,8 @@ export interface CollapsibleSectionProps {
   trailing?: React.ReactNode
   /** When set, right-click on the section header opens "Copy to clipboard" with this payload (JSON). */
   copyPayload?: object | (() => object)
+  /** Native tooltip on the section title (hover). */
+  titleTooltip?: string
   children: React.ReactNode
 }
 
@@ -18,6 +20,7 @@ export default function CollapsibleSection({
   defaultCollapsed = false,
   trailing,
   copyPayload,
+  titleTooltip,
   children,
 }: CollapsibleSectionProps) {
   const [collapsed, setCollapsed] = useState(defaultCollapsed)
@@ -56,7 +59,9 @@ export default function CollapsibleSection({
           onClick={() => setCollapsed(!collapsed)}
         >
           <span style={{ fontSize: '0.7em' }}>{collapsed ? '▶' : '▼'}</span>
-          <span>{title}</span>
+          <span title={titleTooltip} style={titleTooltip ? { cursor: 'help' } : undefined}>
+            {title}
+          </span>
         </div>
         {trailing && (
           <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center' }}>

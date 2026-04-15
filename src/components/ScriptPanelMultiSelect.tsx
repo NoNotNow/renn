@@ -279,7 +279,10 @@ export default function ScriptPanelMultiSelect({ world, selectedEntityIds, onWor
           </select>
           {def && (
             <>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <label
+                style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'help' }}
+                title="When the script runs: spawn, each frame, collision, or on a repeating timer."
+              >
                 Event
                 <select
                   value={event}
@@ -299,7 +302,10 @@ export default function ScriptPanelMultiSelect({ world, selectedEntityIds, onWor
                 </select>
               </label>
               {event === 'onTimer' && (
-                <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <label
+                  style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'help' }}
+                  title="Wall-clock seconds between onTimer callbacks for this script attachment."
+                >
                   Interval (s)
                   <input
                     type="number"

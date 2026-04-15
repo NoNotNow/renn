@@ -101,7 +101,12 @@ export default function MaterialEditor({
       </div>
       
       <div style={sidebarRowStyle}>
-        <label style={sidebarLabelStyle}>Texture</label>
+        <label
+          style={{ ...sidebarLabelStyle, cursor: 'help' }}
+          title="Optional color map (image or video) multiplied with the base color. Uses the project asset id."
+        >
+          Texture
+        </label>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {material?.map && assets.get(material.map) ? (
             <>
@@ -240,6 +245,7 @@ export default function MaterialEditor({
             <div style={{ marginTop: 8, paddingLeft: 8, borderLeft: '2px solid #2f3545' }}>
               <Vec3Field
                 label="UV Repeat"
+                labelTitle="How many times the texture repeats along U and V on the surface. The third value is reserved for advanced mapping."
                 value={mapRepeat}
                 onChange={(v) => {
                   uiLogger.change('PropertyPanel', 'Change texture repeat', { entityId, oldValue: mapRepeat, newValue: v })
@@ -256,6 +262,7 @@ export default function MaterialEditor({
               <SelectInput
                 id={`${entityId}-mapWrapS`}
                 label="Wrap S"
+                labelTitle="Horizontal texture wrap mode: repeat tiles the map; clamp pins edge texels; mirrored repeat tiles with flipped copies."
                 value={mapWrapS}
                 onBeforeCommit={pushUndo}
                 onChange={(value) => {
@@ -275,6 +282,7 @@ export default function MaterialEditor({
               <SelectInput
                 id={`${entityId}-mapWrapT`}
                 label="Wrap T"
+                labelTitle="Vertical texture wrap mode (same options as Wrap S, along the V direction)."
                 value={mapWrapT}
                 onBeforeCommit={pushUndo}
                 onChange={(value) => {
@@ -293,6 +301,7 @@ export default function MaterialEditor({
               
               <Vec3Field
                 label="UV Offset"
+                labelTitle="Shifts the texture in UV space before repeat is applied (typically U and V in 0–1 range)."
                 value={mapOffset}
                 onChange={(v) => {
                   uiLogger.change('PropertyPanel', 'Change texture offset', { entityId, oldValue: mapOffset, newValue: v })
@@ -310,6 +319,7 @@ export default function MaterialEditor({
               <NumberInput onBeforeCommit={pushUndo}
                 id={`${entityId}-mapRotation`}
                 label="Rotation (degrees)"
+                labelTitle="Rotates the UV coordinates around the surface origin before sampling the map."
                 value={(mapRotation * 180) / Math.PI}
                 onChange={(value) => {
                   const radians = (value * Math.PI) / 180
@@ -332,6 +342,7 @@ export default function MaterialEditor({
       <NumberInput onBeforeCommit={pushUndo}
         id={`${entityId}-opacity`}
         label="Opacity"
+        labelTitle="Surface alpha: 1 is fully opaque, 0 is fully transparent (rendering depends on depth/material settings)."
         value={opacity}
         onChange={(value) => {
           uiLogger.change('PropertyPanel', 'Change opacity', { entityId, oldValue: opacity, newValue: value })
@@ -348,6 +359,7 @@ export default function MaterialEditor({
       <NumberInput onBeforeCommit={pushUndo}
         id={`${entityId}-roughness`}
         label="Roughness"
+        labelTitle="Micro-surface scatter: 0 is mirror-like, 1 is fully diffuse (PBR roughness)."
         value={roughness}
         onChange={(value) => onMaterialChange({ ...material, roughness: value })}
         min={0}
@@ -361,6 +373,7 @@ export default function MaterialEditor({
       <NumberInput onBeforeCommit={pushUndo}
         id={`${entityId}-metalness`}
         label="Metalness"
+        labelTitle="0 = dielectric (plastic, paint), 1 = metal (colored by base color and environment reflections)."
         value={metalness}
         onChange={(value) => onMaterialChange({ ...material, metalness: value })}
         min={0}

@@ -14,6 +14,8 @@ export interface SelectInputProps {
   propertyName?: string
   logComponent?: string
   onBeforeCommit?: () => void
+  /** Native tooltip on the label (hover to read). */
+  labelTitle?: string
 }
 
 export default function SelectInput({
@@ -28,6 +30,7 @@ export default function SelectInput({
   propertyName,
   logComponent = 'PropertyPanel',
   onBeforeCommit,
+  labelTitle,
 }: SelectInputProps) {
   const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newValue = e.target.value
@@ -48,7 +51,11 @@ export default function SelectInput({
 
   return (
     <div style={sidebarRowStyle}>
-      <label htmlFor={id} style={sidebarLabelStyle}>
+      <label
+        htmlFor={id}
+        style={labelTitle ? { ...sidebarLabelStyle, cursor: 'help' } : sidebarLabelStyle}
+        title={labelTitle}
+      >
         {label}
       </label>
       <select

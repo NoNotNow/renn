@@ -411,6 +411,7 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
         <NumberInput onBeforeCommit={pushUndo}
           id="world-gravity"
           label="Strength"
+          labelTitle="Magnitude of downward gravity along −Y (scene units per second squared). Uses the absolute value you enter."
           value={gravityValue}
           onChange={updateGravity}
           min={0}
@@ -429,6 +430,7 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
         <NumberInput onBeforeCommit={pushUndo}
           id="world-sleep-linear"
           label="Linear threshold"
+          labelTitle="Speed below which linear motion counts as “still” for the sleep timer. Negative disables the linear-speed check."
           value={sleepingDisplay.linearThreshold}
           onChange={(v) => updateSleeping({ linearThreshold: v })}
           step={0.05}
@@ -438,6 +440,7 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
         <NumberInput onBeforeCommit={pushUndo}
           id="world-sleep-angular"
           label="Angular threshold (rad/s)"
+          labelTitle="Spin rate below which rotation counts as “still”. Negative disables the angular-speed check."
           value={sleepingDisplay.angularThreshold}
           onChange={(v) => updateSleeping({ angularThreshold: v })}
           step={0.05}
@@ -447,6 +450,7 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
         <NumberInput onBeforeCommit={pushUndo}
           id="world-sleep-time"
           label="Time until sleep (s)"
+          labelTitle="Bodies must stay under both enabled thresholds for this long before Rapier may put them to sleep (stop integrating until woken)."
           value={sleepingDisplay.timeUntilSleep}
           onChange={(v) => updateSleeping({ timeUntilSleep: v })}
           min={0}
@@ -480,7 +484,13 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
           apparent size/distance ratio is below Min ratio (camera to object center).
         </p>
         <div style={{ ...sidebarRowStyle, marginBottom: 8 }}>
-          <label htmlFor="culling-enabled" style={sidebarLabelStyle}>Enabled</label>
+          <label
+            htmlFor="culling-enabled"
+            style={{ ...sidebarLabelStyle, cursor: 'help' }}
+            title="When off, no distance-based hiding. When on, objects beyond max distance or too small on screen can be culled."
+          >
+            Enabled
+          </label>
           <input
             id="culling-enabled"
             type="checkbox"
@@ -494,6 +504,7 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
             <NumberInput onBeforeCommit={pushUndo}
               id="culling-max-distance"
               label="Max distance"
+              labelTitle="Objects farther than this from the camera (world units) may be hidden."
               value={cullingValues.maxDistance}
               onChange={(v) => updateCulling({ maxDistance: v })}
               min={1}
@@ -504,6 +515,7 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
             <NumberInput onBeforeCommit={pushUndo}
               id="culling-min-ratio"
               label="Min size/distance ratio"
+              labelTitle="Screen-space size gate: if apparent size divided by distance is below this, the object may be culled even inside max distance."
               value={cullingValues.minSizeDistanceRatio}
               onChange={(v) => updateCulling({ minSizeDistanceRatio: v })}
               min={0.001}
@@ -512,7 +524,13 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
               logComponent="WorldPanel"
             />
             <div style={{ ...sidebarRowStyle, marginBottom: 8, alignItems: 'flex-start' }}>
-              <label htmlFor="culling-sleep" style={sidebarLabelStyle}>Sleep culled</label>
+              <label
+                htmlFor="culling-sleep"
+                style={{ ...sidebarLabelStyle, cursor: 'help' }}
+                title="When culled, optionally freeze physics and skip transformers/scripts until the object is visible again (saves CPU)."
+              >
+                Sleep culled
+              </label>
               <div style={{ flex: 1 }}>
                 <input
                   id="culling-sleep"
@@ -570,7 +588,12 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
           <code style={{ fontSize: 10 }}>world.world.skybox</code> is the asset id.
         </p>
         <div style={{ ...sidebarRowStyle, marginTop: 8, alignItems: 'flex-start' }}>
-          <span style={sidebarLabelStyle}>Dome texture</span>
+          <span
+            style={{ ...sidebarLabelStyle, cursor: 'help' }}
+            title="Equirectangular / 360° environment map id (texture asset). Shown as the sky dome behind the scene."
+          >
+            Dome texture
+          </span>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               {skyboxId ? (
@@ -657,6 +680,7 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
           <NumberInput onBeforeCommit={pushUndo}
             id="light-azimuth"
             label="Azimuth (deg)"
+            labelTitle="Horizontal angle of the directional light around the vertical axis (0–360°)."
             value={Math.round(azimuth * 10) / 10}
             onChange={(v) => updateLightAngle(v, elevation)}
             min={0}
@@ -668,6 +692,7 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
           <NumberInput onBeforeCommit={pushUndo}
             id="light-elevation"
             label="Elevation (deg)"
+            labelTitle="Vertical angle of the light above the horizon (0° = horizontal, 90° = straight down)."
             value={Math.round(elevation * 10) / 10}
             onChange={(v) => updateLightAngle(azimuth, v)}
             min={0}
@@ -708,6 +733,7 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
           <NumberInput onBeforeCommit={pushUndo}
             id="light-intensity"
             label="Intensity"
+            labelTitle="Brightness multiplier for the directional (sun) light before color is applied."
             value={dirIntensity}
             onChange={(v) => updateDirectionalLight({ intensity: v })}
             min={0}
@@ -792,6 +818,7 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
               <NumberInput onBeforeCommit={pushUndo}
                 id="ground-roughness"
                 label="Roughness"
+                labelTitle="Ground plane PBR roughness: 0 glossy, 1 diffuse."
                 value={groundRoughness}
                 onChange={(value) => {
                   uiLogger.change('WorldPanel', 'Change ground roughness', {
@@ -812,6 +839,7 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
               <NumberInput onBeforeCommit={pushUndo}
                 id="ground-metalness"
                 label="Metalness"
+                labelTitle="Ground plane metalness: 0 non-metal, 1 fully metallic reflections."
                 value={groundMetalness}
                 onChange={(value) => {
                   uiLogger.change('WorldPanel', 'Change ground metalness', {
@@ -832,6 +860,7 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
               <NumberInput onBeforeCommit={pushUndo}
                 id="ground-opacity"
                 label="Opacity"
+                labelTitle="Alpha for the ground material (1 = opaque)."
                 value={groundOpacity}
                 onChange={(value) => {
                   uiLogger.change('WorldPanel', 'Change ground opacity', {
@@ -857,6 +886,7 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
               <NumberInput onBeforeCommit={pushUndo}
                 id="ground-friction"
                 label="Friction"
+                labelTitle="Contact friction for the ground collider (higher = more grip)."
                 value={groundFriction}
                 onChange={updateGroundFriction}
                 min={0}
@@ -874,6 +904,7 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
               <div style={{ ...sectionTitleStyle, fontSize: 11 }}>Transform</div>
               <Vec3Field
                 label="Scale"
+                labelTitle="Non-uniform scale of the ground plane mesh and collider."
                 value={groundScale}
                 onChange={updateGroundScale}
                 step={0.1}

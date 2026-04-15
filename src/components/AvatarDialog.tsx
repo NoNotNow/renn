@@ -204,7 +204,9 @@ export default function AvatarDialog({
                 textTransform: 'uppercase',
                 color: theme.text.muted,
                 marginBottom: 8,
+                cursor: 'help',
               }}
+              title="Which playable avatar the builder camera follows; does not change which entity you are editing until you pick from the roster."
             >
               Camera focus
             </div>
@@ -247,8 +249,13 @@ export default function AvatarDialog({
           </div>
         ) : null}
 
-        <CollapsibleSection title="Playable & camera defaults" defaultCollapsed={false}>
+        <CollapsibleSection
+          title="Playable & camera defaults"
+          titleTooltip="Turn the entity into a player-controlled avatar and set default follow camera mode and distance for play mode."
+          defaultCollapsed={false}
+        >
           <Switch
+            labelTitle="When on, this entity can be selected as the runtime player and receives avatar-specific camera defaults."
             checked={currentAvatarEnabled}
             onChange={(checked) => {
               applyUpdate({
@@ -263,7 +270,12 @@ export default function AvatarDialog({
           <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
               <div style={{ flex: '1 1 200px' }}>
-                <label style={fieldLabelStyle}>Preferred camera mode</label>
+                <label
+                  style={{ ...fieldLabelStyle, cursor: 'help' }}
+                  title="Camera behavior when this avatar is active in play (orbit, first person, chase, etc.)."
+                >
+                  Preferred camera mode
+                </label>
                 <select
                   value={preferredMode}
                   onChange={(e) => {
@@ -297,7 +309,12 @@ export default function AvatarDialog({
               </div>
 
               <div style={{ width: 180, minWidth: 140 }}>
-                <label style={fieldLabelStyle}>Preferred distance</label>
+                <label
+                  style={{ ...fieldLabelStyle, cursor: 'help' }}
+                  title="Follow/third-person camera distance; leave empty to inherit the world’s default camera distance."
+                >
+                  Preferred distance
+                </label>
                 <input
                   type="number"
                   step={0.5}

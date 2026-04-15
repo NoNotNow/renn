@@ -39,6 +39,7 @@ export default function TransformEditor({
     <>
       <Vec3Field
         label="Position"
+        labelTitle="World-space position of the entity origin (scene units)."
         value={position}
         onChange={(v) => {
           uiLogger.change('PropertyPanel', 'Change position', { entityId, oldValue: position, newValue: v })
@@ -54,6 +55,7 @@ export default function TransformEditor({
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
         <Vec3Field
           label="Rotation"
+          labelTitle="Euler angles in radians [x, y, z] with XYZ order (same convention as Three.js)."
           value={rotation}
           onChange={(r) => {
             uiLogger.change('PropertyPanel', 'Change rotation', { entityId, oldValue: rotation, newValue: r })
@@ -87,6 +89,7 @@ export default function TransformEditor({
       </div>
       <Vec3Field
         label="Scale"
+        labelTitle="Non-uniform scale multiplier per axis relative to the default shape size."
         value={scale}
         onChange={(v) => {
           uiLogger.change('PropertyPanel', 'Change scale', { entityId, oldValue: scale, newValue: v })

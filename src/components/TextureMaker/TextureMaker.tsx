@@ -691,7 +691,7 @@ export default function TextureMaker({
                 data-testid="texture-maker-preview-frame"
               >
                 <div className="texture-maker-preview-tools" data-testid="texture-maker-preview-tools">
-                  <span>Tool</span>
+                  <span title="Studio tool: transform gizmo, pan, paint with brush or pen.">Tool</span>
                   {(
                     [
                       ['transform', 'Transform'],
@@ -914,7 +914,10 @@ export default function TextureMaker({
                       Reset placement (full canvas)
                     </button>
                   </div>
-                  <label className="texture-maker-props__label">
+                  <label
+                    className="texture-maker-props__label"
+                    title="Layer opacity in the compositor preview; applied live until you bake with Apply."
+                  >
                     Opacity (draft)
                     <input
                       type="range"
@@ -933,7 +936,10 @@ export default function TextureMaker({
                     />
                     <span>{Math.round(opacityDraft * 100)}%</span>
                   </label>
-                  <label className="texture-maker-props__label">
+                  <label
+                    className="texture-maker-props__label"
+                    title="How this layer combines with layers below (standard blend modes)."
+                  >
                     Blend
                     <select
                       value={selectedLayer.blendMode}
@@ -948,7 +954,10 @@ export default function TextureMaker({
                       ))}
                     </select>
                   </label>
-                  <label className="texture-maker-props__label">
+                  <label
+                    className="texture-maker-props__label"
+                    title="Display name for this layer in the stack list."
+                  >
                     Name
                     <input
                       type="text"
@@ -965,7 +974,7 @@ export default function TextureMaker({
                     />
                   </label>
                   <div className="texture-maker-toolbar">
-                    <span>Stack</span>
+                    <span title="Layer draw order: higher items in the list paint above lower ones.">Stack</span>
                     <button
                       type="button"
                       title="Bring forward"

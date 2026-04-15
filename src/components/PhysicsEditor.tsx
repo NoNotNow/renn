@@ -44,6 +44,7 @@ export default function PhysicsEditor({
       <SelectInput
         id={`${entityId}-body-type`}
         label="Body type"
+        labelTitle="Static: fixed in the world (immovable). Dynamic: simulated mass and forces. Kinematic: moved by scripts/transformers without full rigid-body dynamics."
         value={bodyType ?? ''}
         emptyLabel={bodyType == null ? '—' : undefined}
         onBeforeCommit={pushUndo}
@@ -62,6 +63,7 @@ export default function PhysicsEditor({
           <NumberInput onBeforeCommit={pushUndo}
             id={`${entityId}-mass`}
             label="Mass"
+            labelTitle="Rigid-body mass for dynamics. Higher mass resists forces and collisions more."
             value={mass}
             onChange={onMassChange}
             min={0}
@@ -74,6 +76,7 @@ export default function PhysicsEditor({
           <NumberInput onBeforeCommit={pushUndo}
             id={`${entityId}-linear-damping`}
             label="Linear damping"
+            labelTitle="Extra drag on linear velocity each frame. Higher values slow sliding and linear motion faster (air resistance style)."
             value={linearDamping}
             onChange={onLinearDampingChange}
             min={0}
@@ -86,6 +89,7 @@ export default function PhysicsEditor({
           <NumberInput onBeforeCommit={pushUndo}
             id={`${entityId}-angular-damping`}
             label="Angular damping"
+            labelTitle="Extra drag on spin each frame. Higher values stop rotation faster."
             value={angularDamping}
             onChange={onAngularDampingChange}
             min={0}
@@ -98,6 +102,7 @@ export default function PhysicsEditor({
           <NumberInput onBeforeCommit={pushUndo}
             id={`${entityId}-restitution`}
             label="Restitution"
+            labelTitle="Bounciness on collision: 0 = no bounce, 1 = fully elastic along the contact normal (clamped by the solver)."
             value={restitution}
             onChange={onRestitutionChange}
             min={0}
@@ -113,6 +118,7 @@ export default function PhysicsEditor({
       <NumberInput onBeforeCommit={pushUndo}
         id={`${entityId}-friction`}
         label="Friction"
+        labelTitle="Contact friction coefficient. Higher values make surfaces grip more and slide less."
         value={friction}
         onChange={onFrictionChange}
         min={0}

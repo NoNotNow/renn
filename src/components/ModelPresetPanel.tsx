@@ -78,7 +78,12 @@ export default function ModelPresetPanel({ selectedEntityIds }: ModelPresetPanel
           <p style={{ margin: 0, fontSize: 12, color: theme.text.muted }}>Select exactly one entity.</p>
         ) : (
           <>
-            <label style={fieldLabelStyle}>Preset name</label>
+            <label
+              style={{ ...fieldLabelStyle, cursor: 'help' }}
+              title="Label for this reusable bundle (model, material, shape, scale) saved to browser storage."
+            >
+              Preset name
+            </label>
             <input
               type="text"
               value={presetName}

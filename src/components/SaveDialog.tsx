@@ -38,7 +38,14 @@ export default function SaveDialog({
     <Modal isOpen onClose={onCancel} title="Save Project" width={600}>
       <div style={{ marginBottom: '16px' }}>
         <label
-          style={{ display: 'block', marginBottom: '6px', color: theme.text.muted, fontSize: '14px' }}
+          style={{
+            display: 'block',
+            marginBottom: '6px',
+            color: theme.text.muted,
+            fontSize: '14px',
+            cursor: 'help',
+          }}
+          title="Creates a new saved project entry in IndexedDB with this display name; does not overwrite existing projects."
         >
           Save as new project
         </label>
@@ -78,7 +85,10 @@ export default function SaveDialog({
 
       {projects.length > 0 && (
         <div style={{ marginBottom: '16px' }}>
-          <div style={{ marginBottom: '6px', color: theme.text.muted, fontSize: '14px' }}>
+          <div
+            style={{ marginBottom: '6px', color: theme.text.muted, fontSize: '14px', cursor: 'help' }}
+            title="Replaces the selected project’s stored world and metadata with the current editor state."
+          >
             Or overwrite existing project
           </div>
           <div

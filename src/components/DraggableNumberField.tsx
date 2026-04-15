@@ -3,6 +3,7 @@ import { clamp } from '@/utils/numberUtils'
 
 const DEAD_ZONE_PX = 2
 const DEFAULT_SENSITIVITY = 0.01
+const DEFAULT_SCRUB_INPUT_TITLE = 'Drag horizontally to adjust; or type a value.'
 
 export interface DraggableNumberFieldProps {
   /** Use `null` for “mixed” multi-selection; shows empty until the user enters a value. */
@@ -21,6 +22,8 @@ export interface DraggableNumberFieldProps {
   onScrubEnd?: (hadScrub: boolean) => void
   /** Blur/Enter commit that changes the stored number (not used during scrub; scrub uses onScrubEnd). */
   onBeforeCommit?: () => void
+  /** Native tooltip on the input; when omitted but `label` is set, a default scrub hint is shown. */
+  inputTitle?: string
 }
 
 function clampWithOptional(value: number, min: number | undefined, max: number | undefined): number {
@@ -45,7 +48,9 @@ export default function DraggableNumberField({
   onScrubStart,
   onScrubEnd,
   onBeforeCommit,
+  inputTitle,
 }: DraggableNumberFieldProps) {
+  const resolvedInputTitle = inputTitle ?? (label ? DEFAULT_SCRUB_INPUT_TITLE : undefined)
   const scrubRef = useRef<{ startValue: number; startX: number; deadZoneUsed: boolean } | null>(null)
   const [isFocused, setIsFocused] = useState(false)
   const [localValue, setLocalValue] = useState(() => stringifyValue(value))
@@ -185,6 +190,7 @@ export default function DraggableNumberField({
       onPointerUp={disabled ? undefined : handlePointerUp}
       onPointerCancel={disabled ? undefined : handlePointerCancel}
       aria-label={label}
+      title={resolvedInputTitle}
       min={min}
       max={max}
       step={step}

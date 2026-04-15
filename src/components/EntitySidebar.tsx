@@ -227,7 +227,10 @@ export default function EntitySidebar({
                 }))}
               >
                 <>
-                <label style={fieldLabelStyle}>
+                <label
+                  style={{ ...fieldLabelStyle, cursor: 'help' }}
+                  title="Pick a primitive to insert a new entity at the default spawn point."
+                >
                   Add
                   <select
                     ref={addEntitySelectRef}
@@ -314,6 +317,7 @@ export default function EntitySidebar({
                 </div>
                 <CollapsibleSection
                   title="Filters"
+                  titleTooltip="Narrow the entity list by model presence, shape type, transformers, or approximate size."
                   defaultCollapsed
                   trailing={
                     hasActiveEntityFilters ? (
@@ -332,7 +336,11 @@ export default function EntitySidebar({
                   }
                 >
                   <div style={sidebarRowStyle}>
-                    <label htmlFor="entity-filter-model" style={sidebarLabelStyle}>
+                    <label
+                      htmlFor="entity-filter-model"
+                      style={{ ...sidebarLabelStyle, cursor: 'help' }}
+                      title="Filter by whether the entity has a separate visual GLB in the 3D Model slot (not the trimesh shape model)."
+                    >
                       3D model
                     </label>
                     <select
@@ -348,7 +356,11 @@ export default function EntitySidebar({
                     </select>
                   </div>
                   <div style={sidebarRowStyle}>
-                    <label htmlFor="entity-filter-shape" style={sidebarLabelStyle}>
+                    <label
+                      htmlFor="entity-filter-shape"
+                      style={{ ...sidebarLabelStyle, cursor: 'help' }}
+                      title="Restrict the list to one collider primitive type."
+                    >
                       Shape
                     </label>
                     <select
@@ -368,7 +380,11 @@ export default function EntitySidebar({
                     </select>
                   </div>
                   <div style={sidebarRowStyle}>
-                    <label htmlFor="entity-filter-transformers" style={sidebarLabelStyle}>
+                    <label
+                      htmlFor="entity-filter-transformers"
+                      style={{ ...sidebarLabelStyle, cursor: 'help' }}
+                      title="Filter by whether the entity has any transformer stack entries."
+                    >
                       Transformers
                     </label>
                     <select
@@ -384,7 +400,11 @@ export default function EntitySidebar({
                     </select>
                   </div>
                   <div style={sidebarRowStyle}>
-                    <label htmlFor="entity-filter-size-min" style={sidebarLabelStyle}>
+                    <label
+                      htmlFor="entity-filter-size-min"
+                      style={{ ...sidebarLabelStyle, cursor: 'help' }}
+                      title="Approximate largest bounding dimension of the entity (shape + scale); entities smaller than this are hidden."
+                    >
                       Size (min)
                     </label>
                     <input
@@ -399,7 +419,11 @@ export default function EntitySidebar({
                     />
                   </div>
                   <div style={sidebarRowStyle}>
-                    <label htmlFor="entity-filter-size-max" style={sidebarLabelStyle}>
+                    <label
+                      htmlFor="entity-filter-size-max"
+                      style={{ ...sidebarLabelStyle, cursor: 'help' }}
+                      title="Approximate largest bounding dimension; entities larger than this are hidden."
+                    >
                       Size (max)
                     </label>
                     <input
@@ -469,7 +493,11 @@ export default function EntitySidebar({
               >
                 <>
                 <div style={sidebarRowStyle}>
-                  <label htmlFor="camera-control" style={sidebarLabelStyle}>
+                  <label
+                    htmlFor="camera-control"
+                    style={{ ...sidebarLabelStyle, cursor: 'help' }}
+                    title="Free fly with WASD; Follow orbits a target entity; Top/Front/Right are axis-aligned views."
+                  >
                     Control
                   </label>
                   <select
@@ -493,7 +521,12 @@ export default function EntitySidebar({
                   <>
                     {avatarRosterEntities.length > 0 ? (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                        <div style={{ fontSize: 12, color: '#9aa4b2', minWidth: 54 }}>Avatars</div>
+                        <div
+                          style={{ fontSize: 12, color: '#9aa4b2', minWidth: 54, cursor: 'help' }}
+                          title="Entities marked playable (avatar). Click a letter to focus the follow camera; Edit opens avatar settings."
+                        >
+                          Avatars
+                        </div>
                         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                           {avatarRosterEntities.map((e) => {
                             const active = e.id === avatarRosterFocusEntityId
@@ -545,7 +578,11 @@ export default function EntitySidebar({
                       </div>
                     ) : null}
                     <div style={sidebarRowStyle}>
-                      <label htmlFor="camera-target" style={sidebarLabelStyle}>
+                      <label
+                        htmlFor="camera-target"
+                        style={{ ...sidebarLabelStyle, cursor: 'help' }}
+                        title="Entity the follow camera looks at (usually a playable avatar)."
+                      >
                         Target
                       </label>
                       <select
@@ -564,7 +601,11 @@ export default function EntitySidebar({
                       </select>
                     </div>
                     <div style={sidebarRowStyle}>
-                      <label htmlFor="camera-mode" style={sidebarLabelStyle}>
+                      <label
+                        htmlFor="camera-mode"
+                        style={{ ...sidebarLabelStyle, cursor: 'help' }}
+                        title="Follow camera behavior: orbit, first-person, chase, etc. (same modes as world default unless overridden per avatar)."
+                      >
                         Mode
                       </label>
                       <select

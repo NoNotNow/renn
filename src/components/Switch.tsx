@@ -2,6 +2,8 @@ export interface SwitchProps {
   checked: boolean
   onChange: (checked: boolean) => void
   label?: string
+  /** Native tooltip for the whole control (label + switch). */
+  labelTitle?: string
   disabled?: boolean
   size?: 'normal' | 'compact'
 }
@@ -10,6 +12,7 @@ export default function Switch({
   checked,
   onChange,
   label,
+  labelTitle,
   disabled = false,
   size = 'normal',
 }: SwitchProps) {
@@ -23,7 +26,10 @@ export default function Switch({
   const gap = isCompact ? 4 : 6
 
   return (
-    <label style={{ display: 'flex', alignItems: 'center', gap }}>
+    <label
+      style={{ display: 'flex', alignItems: 'center', gap, ...(labelTitle ? { cursor: 'help' } : {}) }}
+      title={labelTitle}
+    >
       {label != null && <span style={{ fontSize }}>{label}</span>}
       <button
         type="button"

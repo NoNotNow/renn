@@ -16,6 +16,10 @@ export interface Vec3FieldProps {
   onScrubStart?: () => void
   onScrubEnd?: (hadScrub: boolean) => void
   onBeforeCommit?: () => void
+  /** Native tooltip on the group label row. */
+  labelTitle?: string
+  /** Optional per-axis tooltips; same order as axisLabels. */
+  axisTitles?: [string, string, string]
 }
 
 const DEFAULT_AXIS_LABELS: [string, string, string] = ['X', 'Y', 'Z']
@@ -34,6 +38,8 @@ export default function Vec3Field({
   onScrubStart,
   onScrubEnd,
   onBeforeCommit,
+  labelTitle,
+  axisTitles,
 }: Vec3FieldProps) {
   return (
     <VectorField
@@ -50,6 +56,8 @@ export default function Vec3Field({
       onScrubStart={onScrubStart}
       onScrubEnd={onScrubEnd}
       onBeforeCommit={onBeforeCommit}
+      labelTitle={labelTitle}
+      axisTitles={axisTitles}
     />
   )
 }

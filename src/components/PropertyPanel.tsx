@@ -328,6 +328,7 @@ export default function PropertyPanel({
 
       <CollapsibleSection
         title="Entity"
+        titleTooltip="Human-readable name, stable id, and lock. Locked entities cannot be deleted and skip property edits."
         defaultCollapsed={false}
         copyPayload={isMulti ? entities : primaryEntity}
         trailing={
@@ -357,7 +358,10 @@ export default function PropertyPanel({
           </button>
         }
       >
-        <label style={fieldLabelStyle}>
+        <label
+          style={{ ...fieldLabelStyle, cursor: 'help' }}
+          title="Shown in the entity list; does not change the internal id."
+        >
           Name
           <input
             type="text"
@@ -379,7 +383,10 @@ export default function PropertyPanel({
             disabled={anyLocked}
           />
         </label>
-        <label style={fieldLabelStyle}>
+        <label
+          style={{ ...fieldLabelStyle, cursor: 'help' }}
+          title="Stable identifier referenced by scripts and links; read-only."
+        >
           ID
           <input
             type="text"
@@ -392,6 +399,7 @@ export default function PropertyPanel({
 
       <CollapsibleSection
         title="Transform"
+        titleTooltip="World-space pose: position, Euler rotation (radians, XYZ order), and per-axis scale."
         copyPayload={{ position: displayPosition, rotation: displayRotation, scale: displayScale }}
       >
         <TransformEditor
@@ -422,7 +430,11 @@ export default function PropertyPanel({
         </p>
       ) : (
         <>
-          <CollapsibleSection title="Shape" copyPayload={mergedShape ?? primaryEntity.shape ?? {}}>
+          <CollapsibleSection
+            title="Shape"
+            titleTooltip="Collider primitive or trimesh from a model; dimensions and simplification live here."
+            copyPayload={mergedShape ?? primaryEntity.shape ?? {}}
+          >
             <ShapeEditor
               entityId={editorIdPrefix}
               shape={mergedShape ?? primaryEntity.shape}
@@ -440,6 +452,7 @@ export default function PropertyPanel({
 
           <CollapsibleSection
             title="Physics"
+            titleTooltip="Rapier rigid body: static / dynamic / kinematic, mass, damping, bounce, and friction."
             copyPayload={{
               bodyType: mergedBodyType ?? 'static',
               mass: mergedMass ?? 1,
@@ -479,7 +492,11 @@ export default function PropertyPanel({
             />
           </CollapsibleSection>
 
-          <CollapsibleSection title="Material" copyPayload={mergedMaterial ?? {}}>
+          <CollapsibleSection
+            title="Material"
+            titleTooltip="PBR surface: base color, optional texture map with UV tweaks, opacity, roughness, and metalness."
+            copyPayload={mergedMaterial ?? {}}
+          >
             {(() => {
               if (!isModelOrTrimesh) {
                 if (mergedMaterial === null) {
@@ -592,7 +609,11 @@ export default function PropertyPanel({
           </CollapsibleSection>
 
           {entities.every((e) => e.shape?.type !== 'trimesh') && (
-            <CollapsibleSection title="3D Model" copyPayload={{ model: primaryEntity.model ?? null }}>
+            <CollapsibleSection
+              title="3D Model"
+              titleTooltip="Optional GLB visual layered on primitive shapes (ignored when the shape itself is trimesh)."
+              copyPayload={{ model: primaryEntity.model ?? null }}
+            >
               <ModelEditor
                 entityId={editorIdPrefix}
                 model={entities.every((e) => e.model === entities[0]!.model) ? primaryEntity.model : undefined}
@@ -614,6 +635,7 @@ export default function PropertyPanel({
           {entities.every((e) => e.shape?.type === 'trimesh' || e.model) && (
             <CollapsibleSection
               title="Model-Transform"
+              titleTooltip="Extra rotation/scale applied to the visual model mesh (and optional physics wireframe preview)."
               copyPayload={{
                 modelRotation: mergedModelRotation ?? DEFAULT_ROTATION,
                 modelScale: mergedModelScale ?? DEFAULT_SCALE,
@@ -623,6 +645,7 @@ export default function PropertyPanel({
               {entities.every((e) => e.shape?.type !== 'trimesh' && e.model) ? (
                 <div style={{ marginBottom: 10 }}>
                   <Switch
+                    labelTitle="Draws the physics primitive outline (box/sphere/etc.), not the high-poly GLTF triangles."
                     checked={entities.every((e) => e.showShapeWireframe === true)}
                     onChange={(checked) => {
                       undo?.pushBeforeEdit()
@@ -640,6 +663,7 @@ export default function PropertyPanel({
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
                 <Vec3Field
                   label="Model rotation"
+                  labelTitle="Euler rotation offset (radians, XYZ) applied to the visual model only."
                   value={mergedModelRotation}
                   onChange={(r) => {
                     uiLogger.change('PropertyPanel', 'Change model rotation', { entityIds: ids, newValue: r })
@@ -681,6 +705,7 @@ export default function PropertyPanel({
               </div>
               <Vec3Field
                 label="Model scale"
+                labelTitle="Per-axis scale multiplier for the visual model relative to its file units."
                 value={mergedModelScale}
                 onChange={(v) => {
                   uiLogger.change('PropertyPanel', 'Change model scale', { entityIds: ids, newValue: v })
@@ -702,8 +727,13 @@ export default function PropertyPanel({
             </CollapsibleSection>
           )}
 
-          <CollapsibleSection title="Avatar (play)" copyPayload={mergedAvatar ?? {}}>
+          <CollapsibleSection
+            title="Avatar (play)"
+            titleTooltip="When enabled, this entity is driven as the player in play mode (camera and input routing)."
+            copyPayload={mergedAvatar ?? {}}
+          >
             <Switch
+              labelTitle="Playable character for the runtime: uses avatar scripts, optional preferred camera, and +/- bindings when the game HUD is visible."
               checked={
                 mergedAvatar !== undefined &&
                 mergedAvatar !== null &&
@@ -725,7 +755,12 @@ export default function PropertyPanel({
             mergedAvatar !== null &&
             mergedAvatar.enabled !== false ? (
               <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <label style={fieldLabelStyle}>Preferred camera mode</label>
+                <label
+                  style={{ ...fieldLabelStyle, cursor: 'help' }}
+                  title="Camera behavior when following this avatar in play mode (overrides world default when set)."
+                >
+                  Preferred camera mode
+                </label>
                 <select
                   value={primaryEntity.avatar?.preferredCamera?.mode ?? world.world.camera?.mode ?? 'follow'}
                   onChange={(e) => {
@@ -750,7 +785,12 @@ export default function PropertyPanel({
                     </option>
                   ))}
                 </select>
-                <label style={fieldLabelStyle}>Preferred distance</label>
+                <label
+                  style={{ ...fieldLabelStyle, cursor: 'help' }}
+                  title="Follow/third-person distance from the avatar; leave empty to use the world camera default."
+                >
+                  Preferred distance
+                </label>
                 <input
                   type="number"
                   step={0.5}
@@ -780,7 +820,11 @@ export default function PropertyPanel({
             ) : null}
           </CollapsibleSection>
 
-          <CollapsibleSection title="Transformers" copyPayload={mergedTransformers ?? []}>
+          <CollapsibleSection
+            title="Transformers"
+            titleTooltip="Ordered stack of input/AI modules that convert controls or intents into forces and impulses on this body."
+            copyPayload={mergedTransformers ?? []}
+          >
             <TransformerEditor
               transformers={mergedTransformers === null ? [] : mergedTransformers}
               transformersMixed={mergedTransformers === null}

@@ -61,6 +61,7 @@ export default function ShapeEditor({
       <SelectInput
         id={`${entityId}-shape`}
         label="Shape"
+        labelTitle="Collider and mesh primitive for this entity. Trimesh builds collision from a 3D model asset (separate from the optional 3D Model visual)."
         value={selectShapeValue}
         emptyLabel={shapeTypeMixed ? '—' : undefined}
         onBeforeCommit={pushUndo}
@@ -102,6 +103,7 @@ export default function ShapeEditor({
                 onBeforeCommit={pushUndo}
                 id={`${entityId}-mixed-${field.kind}`}
                 label={label}
+                labelTitle="One shared dimension written to every selected entity when shapes differ but this field is linked across the selection."
                 value={field.value}
                 onChange={(newValue) => onMixedDimensionChange(field.kind, newValue)}
                 min={0.01}
@@ -312,6 +314,7 @@ export default function ShapeEditor({
           <NumberInput onBeforeCommit={pushUndo}
             id={`${entityId}-ring-height`}
             label="Height (collision)"
+            labelTitle="Extrusion height for the ring’s physics proxy (collision uses a cylinder with outer radius and this height)."
             value={shape.height ?? 0.1}
             onChange={(newValue) => onShapeChange({ type: 'ring', innerRadius: shape.innerRadius, outerRadius: shape.outerRadius, height: newValue })}
             min={0.01}
@@ -329,7 +332,12 @@ export default function ShapeEditor({
       {!shapeTypeMixed && shape?.type === 'trimesh' && shape && (
         <>
           <div style={sidebarRowStyle}>
-            <label style={sidebarLabelStyle}>Model</label>
+            <label
+              style={{ ...sidebarLabelStyle, cursor: 'help' }}
+              title="GLB/GLTF asset used for trimesh collision and rendering. Distinct from the entity’s separate 3D Model field when not using trimesh."
+            >
+              Model
+            </label>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               {shape.model && assets.get(shape.model) ? (
                 <>
@@ -395,7 +403,12 @@ export default function ShapeEditor({
           {shape.model && (
             <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #2f3545' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                <label style={{ fontSize: 12, color: '#9aa4b2' }}>Simplify Collision Mesh</label>
+                <label
+                  style={{ fontSize: 12, color: '#9aa4b2', cursor: 'help' }}
+                  title="When enabled, decimates the collision mesh to at most Max Triangles for faster physics and lower memory."
+                >
+                  Simplify Collision Mesh
+                </label>
                 <Switch
                   checked={shape.simplification?.enabled ?? false}
                   onChange={(enabled) => {
@@ -418,6 +431,7 @@ export default function ShapeEditor({
                   <NumberInput onBeforeCommit={pushUndo}
                     id={`${entityId}-simplification-maxTriangles`}
                     label="Max Triangles"
+                    labelTitle="Upper bound on triangles in the simplified collision mesh. Lower is faster but less faithful to the original shape."
                     value={shape.simplification.maxTriangles ?? 5000}
                     onChange={(value) => {
                       const clampedValue = Math.max(500, value)

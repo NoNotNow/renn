@@ -40,7 +40,12 @@ export default function ModelEditor({
     <>
       <h4 style={{ margin: '12px 0 8px' }}>3D Model</h4>
       <div style={sidebarRowStyle}>
-        <label style={sidebarLabelStyle}>Model</label>
+        <label
+          style={{ ...sidebarLabelStyle, cursor: 'help' }}
+          title="Optional GLB visual layered on primitive shapes. Not used when the entity’s shape is trimesh (that shape carries its own model)."
+        >
+          Model
+        </label>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {modelMixed ? (
             <span style={{ fontSize: 12, color: '#9aa4b2' }}>—</span>

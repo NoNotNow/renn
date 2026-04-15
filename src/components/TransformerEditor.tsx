@@ -210,7 +210,12 @@ export default function TransformerEditor({
         </p>
       )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <div style={fieldLabelStyle}>Add transformer</div>
+        <div
+          style={{ ...fieldLabelStyle, cursor: 'help' }}
+          title="Append a preset transformer to the end of the stack. Order matters: earlier modules run first."
+        >
+          Add transformer
+        </div>
         <select
           value={addSelectValue}
           onChange={(e) => handleAddTransformer(e.target.value)}
@@ -442,7 +447,12 @@ export default function TransformerEditor({
                   </p>
                 </div>
               )}
-              <div style={fieldLabelStyle}>Configuration:</div>
+              <div
+                style={{ ...fieldLabelStyle, cursor: 'help' }}
+                title="JSON config for this transformer. Use the field reference panel when available; Apply commits valid JSON."
+              >
+                Configuration:
+              </div>
               <TransformerConfigTextarea
                 value={transformer}
                 onApply={(updated) => {

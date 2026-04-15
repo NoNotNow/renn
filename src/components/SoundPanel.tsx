@@ -70,7 +70,11 @@ export default function SoundPanel({ world, onWorldChange, onPlaybackCommand }: 
         <div style={sectionStyle}>
           <div style={sectionTitleStyle}>Background Sound</div>
           <div style={sidebarRowStyle}>
-            <label htmlFor="sound-asset" style={sidebarLabelStyle}>
+            <label
+              htmlFor="sound-asset"
+              style={{ ...sidebarLabelStyle, cursor: 'help' }}
+              title="Background loop uploaded to the project. Stored as a world sound asset id."
+            >
               Audio
             </label>
             <select
@@ -163,6 +167,7 @@ export default function SoundPanel({ world, onWorldChange, onPlaybackCommand }: 
           <NumberInput
             id="sound-volume"
             label="Volume"
+            labelTitle="Linear gain for the background sound (0 = silent, 1 = full level)."
             value={volume}
             onChange={(nextVolume) => {
               uiLogger.change('SoundPanel', 'Change sound volume', { oldValue: volume, newValue: nextVolume })
@@ -176,7 +181,12 @@ export default function SoundPanel({ world, onWorldChange, onPlaybackCommand }: 
             logComponent="SoundPanel"
           />
           <div style={{ ...sidebarRowStyle, marginTop: 8 }}>
-            <span style={sidebarLabelStyle}>Loop</span>
+            <span
+              style={{ ...sidebarLabelStyle, cursor: 'help' }}
+              title="When on, the background sound restarts from the beginning after it ends."
+            >
+              Loop
+            </span>
             <Switch
               checked={loop}
               onChange={(checked) => {
@@ -189,7 +199,12 @@ export default function SoundPanel({ world, onWorldChange, onPlaybackCommand }: 
             />
           </div>
           <div style={{ ...sidebarRowStyle, marginTop: 8 }}>
-            <span style={sidebarLabelStyle}>Autoplay</span>
+            <span
+              style={{ ...sidebarLabelStyle, cursor: 'help' }}
+              title="When on, the engine tries to start the background sound when the world loads (browser autoplay rules may still block until user gesture)."
+            >
+              Autoplay
+            </span>
             <Switch
               checked={autoplay}
               onChange={(checked) => {
