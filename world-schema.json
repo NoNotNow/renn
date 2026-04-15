@@ -125,6 +125,16 @@
           "type": "boolean",
           "description": "Overlay last-frame timing / fps on the scene canvas"
         },
+        "logarithmicDepthBuffer": {
+          "type": "boolean",
+          "description": "When false, WebGLRenderer uses linear depth only. Omitted or true: logarithmic depth (default) for better intersection stability at distance"
+        },
+        "videoTextureMaxAnisotropy": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16,
+          "description": "VideoTexture.anisotropy for material video maps (1–16); omitted defaults to 16"
+        },
         "distanceCulling": {
           "description": "Omitted = engine defaults (enabled). false = disabled.",
           "oneOf": [

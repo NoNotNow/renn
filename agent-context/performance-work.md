@@ -6,6 +6,11 @@ Working document derived from Firefox profiling on a heavy project (RefreshDrive
 
 **Legend:** `[ ]` not started · `[~]` in progress · `[x]` done
 
+### Rendering / depth (2026-04-15, updated configurable)
+
+- **World settings** (`world.world`): **`logarithmicDepthBuffer`** — omit or `true` for logarithmic depth (default); `false` disables. **`videoTextureMaxAnisotropy`** — integer **1–16** for `VideoTexture.anisotropy` on material video maps (default **16** when omitted). Toggles live in the **World** panel (simulation section). Changing them **reloads the scene** (same path as other renderer-affecting options).
+- **`modelPreview`** uses the same default as an omitted world flag: logarithmic depth **on** (see `resolvedLogarithmicDepthBuffer(undefined)`).
+
 ---
 
 ## 1. Measure and bound main-thread frame work (rAF)

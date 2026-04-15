@@ -4,6 +4,8 @@ import type { GLTF } from './assetResolver'
 export interface AssetResolverOptions {
   /** When true, {@link loadVideoTexture} is used for material maps instead of {@link loadTexture}. */
   isVideoAsset?: (assetId: string) => boolean
+  /** `VideoTexture.anisotropy` (1–16). Default 16. */
+  videoTextureMaxAnisotropy?: number
 }
 
 /**
@@ -27,6 +29,11 @@ export function createAssetResolverFromGetter(
   options?: AssetResolverOptions,
 ): DisposableAssetResolver {
   const isVideoAsset = options?.isVideoAsset ?? (() => false)
+  const vAniso = options?.videoTextureMaxAnisotropy
+  const videoAnisotropy =
+    vAniso !== undefined && Number.isFinite(vAniso)
+      ? Math.min(16, Math.max(1, Math.floor(vAniso)))
+      : 16
   const urlCache = new Map<string, string>()
   /** Same id may receive a new Blob instance (e.g. texture paint overwrite); revoke stale URLs. */
   const blobRefById = new Map<string, Blob>()
@@ -138,6 +145,7 @@ export function createAssetResolverFromGetter(
       })
       const tex = new THREE.VideoTexture(video)
       tex.colorSpace = THREE.SRGBColorSpace
+      tex.anisotropy = videoAnisotropy
       return tex
     } catch (error) {
       console.error(`Failed to load video texture for asset ${assetId}:`, error)

@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { GLTFLoader } from 'three-stdlib'
 import { convertZUpToYUpIfNeeded } from '@/utils/normalizeModelToUnitCube'
+import { resolvedLogarithmicDepthBuffer } from '@/types/world'
 
 const DEFAULT_SIZE = 160
 const DEFAULT_BG = new THREE.Color(0x1a1a1a)
@@ -73,6 +74,7 @@ export async function generateModelPreview(
   const camera = new THREE.PerspectiveCamera(45, 1, 0.01, 1000)
   const renderer = new THREE.WebGLRenderer({
     antialias: true,
+    logarithmicDepthBuffer: resolvedLogarithmicDepthBuffer(undefined),
     preserveDrawingBuffer: true,
   })
   renderer.setSize(size, size, false)

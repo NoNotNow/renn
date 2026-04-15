@@ -7,6 +7,7 @@ import {
 } from '@/scripts/migrateWorld'
 import type { RennWorld, Entity, Vec3, Rotation } from '@/types/world'
 import {
+  clampVideoTextureMaxAnisotropy,
   DEFAULT_GRAVITY,
   DEFAULT_POSITION,
   DEFAULT_ROTATION,
@@ -119,6 +120,8 @@ export async function loadWorld(
   userData.camera = world.world.camera ?? { control: 'free', mode: 'follow', target: '', distance: 10, height: 2 }
   userData.world = world
 
+  const videoTextureMaxAnisotropy = clampVideoTextureMaxAnisotropy(world.world.videoTextureMaxAnisotropy)
+
   // Create asset resolver if assets are provided (getter = same URLs for scene lifetime; do not dispose mid-load)
   const assetResolver: DisposableAssetResolver | null =
     assets === undefined
@@ -126,9 +129,11 @@ export async function loadWorld(
       : typeof assets === 'function'
         ? createAssetResolverFromGetter(assets, {
             isVideoAsset: (id) => isVideoMapAsset(id, world.assets, assets()),
+            videoTextureMaxAnisotropy,
           })
         : createAssetResolver(assets, {
             isVideoAsset: (id) => isVideoMapAsset(id, world.assets, assets),
+            videoTextureMaxAnisotropy,
           })
 
   const entities: LoadedEntity[] = []

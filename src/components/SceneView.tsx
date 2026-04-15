@@ -11,7 +11,12 @@ import type {
   AvatarFocusSnapshot,
 } from '@/types/world'
 import type { DisposableAssetResolver } from '@/loader/assetResolverImpl'
-import { DEFAULT_GRAVITY, DEFAULT_ROTATION, resolveSimulationSettings } from '@/types/world'
+import {
+  DEFAULT_GRAVITY,
+  DEFAULT_ROTATION,
+  resolveSimulationSettings,
+  resolvedLogarithmicDepthBuffer,
+} from '@/types/world'
 import { eulerToQuaternion } from '@/utils/rotationUtils'
 import type { LoadedEntity } from '@/loader/loadWorld'
 import { CameraController } from '@/camera/cameraController'
@@ -644,7 +649,10 @@ function SceneViewInner({
         scriptRunner.runOnSpawn(entity.id)
       }
 
-      rend = new THREE.WebGLRenderer({ antialias: true })
+      rend = new THREE.WebGLRenderer({
+        antialias: true,
+        logarithmicDepthBuffer: resolvedLogarithmicDepthBuffer(world.world),
+      })
       const w = Math.max(container.clientWidth || 800, 1)
       const h = Math.max(container.clientHeight || 600, 1)
       rend.setSize(w, h)
@@ -992,7 +1000,18 @@ function SceneViewInner({
       setCamera(null)
       setRenderer(null)
     }
-  }, [sceneKey, version, runPhysics, runScripts, shadowsEnabled, freeFlyKeysRef, editorFreePoseRef, showGameHud])
+  }, [
+    sceneKey,
+    version,
+    runPhysics,
+    runScripts,
+    shadowsEnabled,
+    freeFlyKeysRef,
+    editorFreePoseRef,
+    showGameHud,
+    world.world.logarithmicDepthBuffer,
+    world.world.videoTextureMaxAnisotropy,
+  ])
 
   // Update camera config when it changes (without reloading the world).
   // After setConfig, sync AvatarSession with `world` and re-apply follow focus so each avatar’s

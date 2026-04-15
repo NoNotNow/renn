@@ -19,6 +19,8 @@ export interface NumberInputProps {
   logComponent?: string
   /** Called immediately before `onChange` when blur commits a new value (not when unchanged). */
   onBeforeCommit?: () => void
+  /** Native tooltip on the label (hover to read). */
+  labelTitle?: string
 }
 
 export default function NumberInput({
@@ -35,6 +37,7 @@ export default function NumberInput({
   propertyName,
   logComponent = 'PropertyPanel',
   onBeforeCommit,
+  labelTitle,
 }: NumberInputProps) {
   const [isFocused, setIsFocused] = useState(false)
   const [localValue, setLocalValue] = useState(() => (value === null ? '' : String(value)))
@@ -94,7 +97,11 @@ export default function NumberInput({
 
   return (
     <div style={sidebarRowStyle}>
-      <label htmlFor={id} style={sidebarLabelStyle}>
+      <label
+        htmlFor={id}
+        style={labelTitle ? { ...sidebarLabelStyle, cursor: 'help' } : sidebarLabelStyle}
+        title={labelTitle}
+      >
         {label}
       </label>
       <input

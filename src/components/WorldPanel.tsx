@@ -8,11 +8,13 @@ import type {
   SimulationSettings,
 } from '@/types/world'
 import {
+  clampVideoTextureMaxAnisotropy,
   DEFAULT_GRAVITY,
   DEFAULT_SCALE,
   RECOMMENDED_SLEEPING_SETTINGS,
   DEFAULT_DISTANCE_CULLING,
   DEFAULT_SIMULATION,
+  DEFAULT_VIDEO_TEXTURE_MAX_ANISOTROPY,
 } from '@/types/world'
 import { uiLogger } from '@/utils/uiLogger'
 import { colorToHex, hexToColor } from '@/utils/colorUtils'
@@ -320,6 +322,7 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
           onBeforeCommit={pushUndo}
           id="world-physics-hz"
           label="Physics rate (Hz)"
+          labelTitle="Fixed timestep for Rapier: simulation uses fixedDt = 1 / Hz. Higher values react faster and cost more CPU per second of sim time."
           value={physicsHz}
           onChange={updatePhysicsHz}
           min={15}
@@ -332,6 +335,7 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
           onBeforeCommit={pushUndo}
           id="world-max-catchup-steps"
           label="Max catch-up steps / frame"
+          labelTitle="When a display frame takes longer than one physics step, the engine may run several steps in one frame to catch up. This caps how many, so a slow frame cannot trigger unbounded work (spiral of death)."
           value={maxCatchUpSteps}
           onChange={updateMaxCatchUpSteps}
           min={1}
@@ -344,6 +348,7 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
           onBeforeCommit={pushUndo}
           id="world-time-scale"
           label="Time scale"
+          labelTitle="Multiplies real wall-clock elapsed time before it feeds the physics accumulator. 1 = real time, below 1 = slow motion, above 1 = faster simulation."
           value={timeScale}
           onChange={updateTimeScale}
           min={0.1}
@@ -353,7 +358,11 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
           logComponent="WorldPanel"
         />
         <div style={{ ...sidebarRowStyle, marginTop: 8 }}>
-          <label htmlFor="world-show-frame-stats" style={sidebarLabelStyle}>
+          <label
+            htmlFor="world-show-frame-stats"
+            style={{ ...sidebarLabelStyle, cursor: 'help' }}
+            title="Overlays FPS and last-frame milliseconds (physics, scripts, render, etc.) on the scene canvas. Useful for spotting bottlenecks."
+          >
             Show frame stats overlay
           </label>
           <input
@@ -364,6 +373,37 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
             style={{ cursor: 'pointer' }}
           />
         </div>
+        <div style={{ ...sidebarRowStyle, marginTop: 8 }}>
+          <label
+            htmlFor="world-log-depth"
+            style={{ ...sidebarLabelStyle, cursor: 'help' }}
+            title="Improves depth precision over large near–far ranges so coplanar or intersecting opaque meshes flicker less at a distance. Uses a bit more GPU; turn off if you add custom post-processing that assumes linear depth."
+          >
+            Logarithmic depth buffer
+          </label>
+          <input
+            id="world-log-depth"
+            type="checkbox"
+            checked={world.world.logarithmicDepthBuffer !== false}
+            onChange={(e) =>
+              updateWorldSettings({ logarithmicDepthBuffer: e.target.checked ? true : false })
+            }
+            style={{ cursor: 'pointer' }}
+          />
+        </div>
+        <NumberInput
+          onBeforeCommit={pushUndo}
+          id="world-video-anisotropy"
+          label="Video texture anisotropy (1–16)"
+          labelTitle="Controls anisotropic filtering on material video maps. Higher values keep video detail cleaner at shallow viewing angles; 1 is the cheapest. The GPU may clamp the effective value."
+          value={clampVideoTextureMaxAnisotropy(world.world.videoTextureMaxAnisotropy)}
+          onChange={(v) => updateWorldSettings({ videoTextureMaxAnisotropy: clampVideoTextureMaxAnisotropy(v) })}
+          min={1}
+          max={16}
+          step={1}
+          defaultValue={DEFAULT_VIDEO_TEXTURE_MAX_ANISOTROPY}
+          logComponent="WorldPanel"
+        />
       </div>
 
       <div style={sectionStyle}>

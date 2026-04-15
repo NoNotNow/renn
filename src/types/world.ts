@@ -195,6 +195,34 @@ export interface WorldSettings {
   simulation?: SimulationSettings
   /** When true, show last-frame ms / fps overlay on the scene canvas. */
   showFrameStats?: boolean
+  /**
+   * When not `false`, `WebGLRenderer` uses a logarithmic depth buffer (less z-fighting where meshes intersect, especially from far away).
+   * Omitted or `true`: enabled. `false`: disabled (linear depth only).
+   */
+  logarithmicDepthBuffer?: boolean
+  /**
+   * Passed to `THREE.VideoTexture.anisotropy` for material video maps (1–16; GPU may clamp). Higher values improve grazing-angle filtering.
+   * Omitted: {@link DEFAULT_VIDEO_TEXTURE_MAX_ANISOTROPY}.
+   */
+  videoTextureMaxAnisotropy?: number
+}
+
+/** Default `VideoTexture.anisotropy` when `videoTextureMaxAnisotropy` is omitted. */
+export const DEFAULT_VIDEO_TEXTURE_MAX_ANISOTROPY = 16
+
+/** `false` disables logarithmic depth; omitted or `true` enables (default). */
+export function resolvedLogarithmicDepthBuffer(
+  settings?: Pick<WorldSettings, 'logarithmicDepthBuffer'>,
+): boolean {
+  return settings?.logarithmicDepthBuffer !== false
+}
+
+/** Clamp to 1–16 for Three.js `VideoTexture.anisotropy`. */
+export function clampVideoTextureMaxAnisotropy(raw: number | undefined): number {
+  if (raw === undefined) return DEFAULT_VIDEO_TEXTURE_MAX_ANISOTROPY
+  if (!Number.isFinite(raw)) return DEFAULT_VIDEO_TEXTURE_MAX_ANISOTROPY
+  const n = Math.round(raw)
+  return Math.min(16, Math.max(1, n))
 }
 
 export interface SoundSettings {
