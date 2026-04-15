@@ -8,20 +8,27 @@ const FRAME_STATS_UI_MIN_INTERVAL_MS = 100
 
 const DEFAULT_POS = { left: 8, top: 8 }
 
+/** Fixed width so ms/fps/GPU counts do not resize the panel as digits change. */
+const FRAME_STATS_PANEL_WIDTH_PX = 320
+
 const PANEL_BASE: CSSProperties = {
   position: 'absolute',
   zIndex: 150,
   pointerEvents: 'auto',
+  boxSizing: 'border-box',
+  width: FRAME_STATS_PANEL_WIDTH_PX,
+  minWidth: FRAME_STATS_PANEL_WIDTH_PX,
+  maxWidth: FRAME_STATS_PANEL_WIDTH_PX,
   fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
   fontSize: 11,
   lineHeight: 1.35,
+  fontVariantNumeric: 'tabular-nums',
   color: '#e6e9f2',
   textShadow: '0 1px 2px rgba(0,0,0,0.85)',
   background: 'rgba(13,15,20,0.72)',
   border: '1px solid rgba(255,255,255,0.12)',
   borderRadius: 6,
   padding: '8px 10px',
-  minWidth: 200,
 }
 
 function normalizePos(raw: unknown): { left: number; top: number } {
@@ -160,6 +167,9 @@ export function FrameStatsOverlay({
     fontWeight: 600,
     color: '#a8b4c8',
     touchAction: 'none',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
   }
 
   const closeBtnStyle: CSSProperties = {
@@ -173,6 +183,18 @@ export function FrameStatsOverlay({
     border: 'none',
     borderRadius: 4,
     cursor: 'pointer',
+  }
+
+  const statRowStyle: CSSProperties = {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    gap: 12,
+  }
+  const statValueStyle: CSSProperties = {
+    flex: '0 0 auto',
+    textAlign: 'right',
+    minWidth: '13ch',
   }
 
   return (
@@ -198,22 +220,22 @@ export function FrameStatsOverlay({
         </button>
       </div>
       {rows.map(([label, ms]) => (
-        <div key={label} style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-          <span style={{ color: '#8b98a8' }}>{label}</span>
-          <span>{formatMs(ms)} ms</span>
+        <div key={label} style={statRowStyle}>
+          <span style={{ color: '#8b98a8', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
+          <span style={statValueStyle}>{formatMs(ms)} ms</span>
         </div>
       ))}
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginTop: 6 }}>
+      <div style={{ ...statRowStyle, marginTop: 6 }}>
         <span style={{ color: '#8b98a8' }}>GPU draw calls</span>
-        <span>{s.renderCalls}</span>
+        <span style={statValueStyle}>{s.renderCalls}</span>
       </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+      <div style={statRowStyle}>
         <span style={{ color: '#8b98a8' }}>GPU triangles</span>
-        <span>{s.renderTriangles.toLocaleString()}</span>
+        <span style={statValueStyle}>{s.renderTriangles.toLocaleString()}</span>
       </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+      <div style={statRowStyle}>
         <span style={{ color: '#8b98a8' }}>geometries</span>
-        <span>{s.geometries}</span>
+        <span style={statValueStyle}>{s.geometries}</span>
       </div>
     </div>
   )
