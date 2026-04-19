@@ -169,6 +169,29 @@ Other `.tsx` files still contain one-off inline hex (`SceneView.tsx`, `ShapeEdit
 
 ---
 
+## Phase 7 — `runSceneFrame` unit-test coverage (completed, 2026-04-19)
+
+**Performance:** No production code touched. Tests use minimal mocks (no real Rapier / scene), run in ~5 ms total.
+
+### Tests added — `src/runtime/sceneFrameLoop.test.ts` (28 tests)
+Covers branches not exercised by `sceneFrameLoop.accumulator.test.ts` or the `shadow-follow-camera` integration test:
+
+- **Time advance:** `simAdvance` increments `timeRef` by `fixedDt`; `skipSimulation` does not. `variableFrameDt` is what flows into `CameraController.update` when sim is skipped; `fixedDt` otherwise.
+- **Wheel orbit gating:** orbit ref is zeroed when neither `editNav` nor `control=follow + follow-mode`; raw wheel is consumed (and zeroed) in edit-nav and in follow-control + follow-mode; orbit deltas are forwarded to `setOrbitDelta` / `setOrbitDistanceDelta` (with the 0.75 scale on distance) and accumulated with mouse drag; mouse drag is ignored under `gizmoDragging` but still cleared.
+- **Debug forces:** expired entries (past `endTime`) are dropped; live forces are applied via `pw.applyForce`; in `editNav`, no forces apply but expired entries are still trimmed and `pw.step` is skipped.
+- **Distance culling:** `world.distanceCulling === false` calls `clearDistanceCulling`; omitted/undefined merges defaults (`maxDistance: 2000`, `minSizeDistanceRatio: 0.02`) and calls `applyDistanceCulling`.
+- **Sky dome:** position copies camera position each frame; absent sky dome is a no-op.
+- **HUD diff:** initial frame always emits; sub-epsilon changes (Δspeed < 0.05, Δwheel < 0.012) suppress; super-epsilon emits new value.
+- **Editor pose throttling:** below 0.35 s since last write → no write; at/above 0.35 s → writes `[x, y, z]` and updates `lastEditorPoseWriteTimeRef`.
+- **Frame timing recording:** populates `SceneFrameTiming` (frameMs ≥ 0, render info from renderer); `skipRender` zeroes `renderMs` and skips `WebGLRenderer.render`; not allocated when disabled.
+- **Physics error recovery:** `pw.step` throw → `console.error('Physics step error:', …)` once; `runSceneFrame` returns normally and `frameTimingRef` still populated; suppressed when `isCancelled()` (unmount race).
+- **Script gating:** `runOnUpdate` runs without physics; suppressed in edit-nav; collision pairs invoke `runOnCollision` both directions with `culledSleepingEntityIds` passed through.
+
+### Why no `requestAnimationFrame` loop test
+`runSceneFrame` is the per-tick body. The wrapper (`SceneView.useEffect` rAF loop, accumulator → `runSceneFrame` calls) coordinates timing with `performance.now` and `cancelAnimationFrame` — that orchestration is exercised by integration tests (`shadow-follow-camera`, `transformers/integration`, scenarios). Direct rAF loop coverage in unit tests would require fake timers + `globalThis.requestAnimationFrame` polyfill, with low marginal value vs. the integration coverage.
+
+---
+
 ## Remaining larger tasks
 
 ### God files — candidates for splitting
@@ -197,7 +220,7 @@ Other `.tsx` files still contain one-off inline hex (`SceneView.tsx`, `ShapeEdit
 
 Critical modules without dedicated unit tests:
 - `runtime/renderItemRegistry.ts` — covered by integration/scenario tests; direct unit tests deferred (see Phase 5 rationale).
-- `runtime/sceneFrameLoop.ts` — partial (accumulator tests only); the rAF loop body / culling / transformer ordering still untested.
+- `runtime/sceneFrameLoop.ts` — accumulator tests + 28 unit tests for the per-frame body branches (Phase 7). The rAF wrapper loop in `SceneView` is still only exercised via integration tests (`shadow-follow-camera`, scenarios).
 - `utils/modelPreview.ts` — pure framing/disposal helpers extracted to `modelPreviewFraming.ts` and tested (Phase 5). The remaining `generateModelPreview` entry point is WebGL-bound and still has no direct test.
 
 ### Optional — idle material prefetch
@@ -224,8 +247,8 @@ Critical modules without dedicated unit tests:
 - [ ] God file splitting (Builder, SceneView, …)
 - [x] Pure helpers extracted from `modelPreview.ts` and tested (`modelPreviewFraming`)
 - [ ] Test coverage for `renderItemRegistry.ts` — *deferred; integration-tested. See Phase 5.*
-- [ ] Test coverage for `sceneFrameLoop.ts` rAF body (accumulator already covered)
+- [x] Test coverage for `sceneFrameLoop.ts` rAF body (28 branch tests added in Phase 7; rAF loop wrapper still integration-tested)
 - [x] Fix `scriptCtx.time` capture-vs-live bug (Phase 5)
 - [x] Inspector pose polling isolated (`LivePosesPoll` → `PropertySidebar`, not full `Builder`)
 
-Run `npm run test:run` after further edits (currently **115** test files, **935** tests + 3 skipped). In `performance-benchmarks.integration.test.ts`, the **Heap growth** and **Scaling linearity** describes are skipped unless `RUN_PERF_BENCHMARKS=1` (use `npm run test:perf`) so agents avoid flaky wall-clock/heap thresholds; run that before Rapier/frame-loop/allocation hot-path changes.
+Run `npm run test:run` after further edits (currently **116** test files, **963** tests + 3 skipped). In `performance-benchmarks.integration.test.ts`, the **Heap growth** and **Scaling linearity** describes are skipped unless `RUN_PERF_BENCHMARKS=1` (use `npm run test:perf`) so agents avoid flaky wall-clock/heap thresholds; run that before Rapier/frame-loop/allocation hot-path changes.
