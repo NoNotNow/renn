@@ -103,7 +103,16 @@ renn/
 │   │   ├── LivePosesPoll.tsx   # Interval read of SceneView poses → render prop (inspector only; avoids full Builder reconcile)
 │   │   ├── PropertySidebar.tsx # Tabs: Properties | Scripts | Assets | Presets
 │   │   ├── ModelPresetPanel.tsx # Global model/material/shape presets (IndexedDB)
-│   │   ├── WorldPanel.tsx    # World tab: gravity, sleep thresholds, sky color + dome texture (`world.skybox`), lights, ground
+│   │   ├── WorldPanel.tsx    # World tab: thin composition of `world/` sub-sections + copyable JSON snapshot
+│   │   ├── world/            # Per-section sub-panels for the World tab (Phase 11)
+│   │   │   ├── useWorldPanelEdits.ts        # pushUndo / vec3Undo / updateWorldSettings shared by every section
+│   │   │   ├── WorldSimulationSection.tsx   # Physics rate, max catch-up steps, time scale, frame stats, log depth, video anisotropy
+│   │   │   ├── WorldGravitySection.tsx      # Gravity strength
+│   │   │   ├── WorldSleepSection.tsx        # Sleep thresholds + Set recommended
+│   │   │   ├── WorldDistanceCullingSection.tsx # Enable/disable + max distance + min size ratio + sleep-culled
+│   │   │   ├── WorldSkySection.tsx          # Sky color + dome texture (`world.skybox`)
+│   │   │   ├── WorldLightSection.tsx        # Directional (azimuth/elevation/color/intensity) + ambient color
+│   │   │   └── WorldGroundSection.tsx       # First-plane entity color, material, friction, scale (via patchFirstPlaneEntity)
 │   │   ├── SoundPanel.tsx    # Sound tab: background audio asset (`world.sound.assetId`), volume, loop, autoplay, manual play/stop
 │   │   ├── PropertyPanel.tsx # Edit selected entity (name, shape, transform, physics, material, transformers, delete)
 │   │   ├── TransformEditor.tsx # Position, rotation (Vec3Field, Euler [x,y,z]), scale

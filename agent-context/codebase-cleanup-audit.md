@@ -284,21 +284,68 @@ The `useEffect` that builds the renderer / camera / physics / registry / animati
 
 ---
 
+## Phase 11 — `WorldPanel.tsx` split into per-section sub-components (completed, 2026-04-19)
+
+**Performance:** Pure structural refactor. Each section now owns its own state/handlers but the React subtree shape is identical (same `<div style={sectionStyle}>` structure, same number of `NumberInput` / `Vec3Field` instances, same prop callbacks). No new effects, no new memoization, no per-frame work. The `useWorldPanelEdits` hook re-creates the `pushUndo` / `vec3Undo` / `updateWorldSettings` closures on every parent render — same as the previous inline code did. Sections call props they already received from the parent; React reconciles each section independently, but `WorldPanel`'s only state today is `world` itself, so any change still re-renders the whole panel (unchanged behaviour).
+
+### Hook — `useWorldPanelEdits`
+- **`src/components/world/useWorldPanelEdits.ts`** — single source of truth for the edit helpers shared by every section: `pushUndo` (snapshot before discrete edit), `vec3Undo` (gesture bundle for `Vec3Field`, no-op outside `EditorUndoProvider`), `updateWorldSettings(patch)` (shallow merge into `world.world` + forward to `onWorldChange`).
+
+### Section components — `src/components/world/*.tsx`
+| Section | Lines | Responsibility |
+|---------|-------|----------------|
+| `WorldSimulationSection.tsx` | 153 | Physics rate (Hz), max catch-up steps, time scale, show frame stats, logarithmic depth, video texture anisotropy |
+| `WorldGravitySection.tsx` | 41 | Gravity magnitude → `world.world.gravity` |
+| `WorldSleepSection.tsx` | 99 | Linear/angular thresholds, time until sleep, "Set recommended" |
+| `WorldDistanceCullingSection.tsx` | 116 | Enable/disable; max distance; min size/distance ratio; sleep-culled toggle |
+| `WorldSkySection.tsx` | 156 | Sky color + dome texture (`TextureDialog` integration; `useProjectContext` consumer) |
+| `WorldLightSection.tsx` | 151 | Directional light azimuth/elevation/color/intensity + ambient color |
+| `WorldGroundSection.tsx` | 261 | First-plane entity edits (color/material/friction/scale) via `patchFirstPlaneEntity` |
+
+### Container — `WorldPanel.tsx`
+Trimmed from **912 → 68 lines** (-93%). Now only:
+1. Calls `useWorldPanelEdits(world, onWorldChange)`.
+2. Builds a `copyPayload` (delegated to a small pure helper `buildCopyPayload`).
+3. Renders all seven sections inside `<CopyableArea>`.
+
+### Tests — `src/components/WorldPanel.test.tsx`
+7 smoke tests with mocked `useProjectContext` and `uiLogger`:
+- All seven section headings render.
+- "No ground entity found" placeholder when no plane entity exists.
+- Show-frame-stats checkbox toggles `world.world.showFrameStats`.
+- Distance culling toggle off serializes to `false` and pushes undo.
+- Sky color picker writes a `Vec3` into `world.world.skyColor` and pushes undo.
+- "Clear" button on a populated skybox removes `world.world.skybox` and pushes undo.
+- Ground color picker emits a patched world (via `patchFirstPlaneEntity`) and pushes undo.
+
+### Result
+- `WorldPanel.tsx`: **912 → 68 lines** (-93%); seven cohesive sections of 41–261 lines each.
+- Full test suite: **130 files / 1090 tests + 3 skipped** (was 129 / 1083; +1 file / +7 tests).
+
+### Why each section is its own file (not nested in `WorldPanel`)
+- Each section owns 1–4 derived values + 1–3 update helpers. Inlining them all kept `WorldPanel.tsx` over 900 lines and made it impossible to scan responsibilities.
+- The shared edit helpers live in `useWorldPanelEdits`; sections receive a single `edits` prop, so adding/reordering a section is a one-line change in `WorldPanel`.
+- `WorldGroundSection` is the largest (261 lines) because it owns four independent ground-edit closures and an empty-state branch — splitting it further (e.g. into `WorldGroundColor` + `WorldGroundMaterial` + …) would only add boilerplate without isolating any new responsibility.
+
+---
+
 ## Remaining larger tasks
 
 ### God files — candidates for splitting
 
 | File | Lines | Suggested extraction |
 |------|-------|---------------------|
-| `pages/Builder.tsx` | ~1780 | Texture Maker session (~700 lines, see Phase 9 "Why no `useTextureMakerSession`"); selection logic; import/export handlers; pose-sync `syncPosesThen`; **optional:** isolate `livePoses` polling in a narrow wrapper again so `Builder` does not re-render every poll (see performance-work §8 / Tier 3) |
-| `components/SceneView.tsx` | ~1060 | Phase 10 extracted skybox / audio / fullscreen / error overlay / fullscreen button. Remaining: main scene-build `useEffect` (~330 lines, see Phase 10 "Why no SceneView main-effect extraction"); per-frame `pushFrame`/`animate` rAF wrapper; debug forces ref + `applyDebugForce` |
+| `pages/Builder.tsx` | ~1924 | Texture Maker session (~700 lines, see Phase 9 "Why no `useTextureMakerSession`"); selection logic; import/export handlers; pose-sync `syncPosesThen`; **optional:** isolate `livePoses` polling in a narrow wrapper again so `Builder` does not re-render every poll (see performance-work §8 / Tier 3). Also: groups state (`selectedGroupIds`, group action handlers) added by the explorer-groups feature could move into a `useExplorerSelection` hook. |
+| `components/SceneView.tsx` | ~1058 | Phase 10 extracted skybox / audio / fullscreen / error overlay / fullscreen button. Remaining: main scene-build `useEffect` (~330 lines, see Phase 10 "Why no SceneView main-effect extraction"); per-frame `pushFrame`/`animate` rAF wrapper; debug forces ref + `applyDebugForce` |
 | `physics/rapierPhysics.ts` | ~1085 | Collider creation, body management, step logic → separate files |
-| `TextureMaker/TextureMaker.tsx` | ~1030 | Tool logic, layer management → sub-components |
-| `runtime/renderItemRegistry.ts` | ~970 | Transformer execution, culling, mesh sync → separate concerns |
-| `components/WorldPanel.tsx` | ~930 | Ground editing, sim settings, culling UI → sub-panels (ground patch helper done) |
-| `components/PropertyPanel.tsx` | ~840 | Could split per-tab content |
-| `components/TextureDialog.tsx` | ~720 | Asset family grouping, filter logic → hooks (partial: drop zone chrome shared) |
-| `contexts/ProjectContext.tsx` | ~590 | Camera state + model presets extracted (Phase 8). Still owns project save/load, import/export, pose sync, asset persistence — see Phase 8 "Why no separate `useProjectIO`". |
+| `TextureMaker/TextureMaker.tsx` | ~1028 | Tool logic, layer management → sub-components |
+| `runtime/renderItemRegistry.ts` | ~953 | Transformer execution, culling, mesh sync → separate concerns |
+| `components/WorldPanel.tsx` | **68** | ✅ Phase 11 split into `world/` sub-sections + `useWorldPanelEdits` hook. |
+| `components/PropertyPanel.tsx` | ~844 | Could split per-tab content |
+| `components/EntitySidebar.tsx` | ~651 | Grew to host explorer-groups props (see `feature-groups.md`); candidates to extract: camera control row, search/filter state, group action wiring. |
+| `components/EntityExplorerTree.tsx` | ~449 | New from explorer-groups feature; toolbar + tree row rendering could be split. |
+| `components/TextureDialog.tsx` | ~727 | Asset family grouping, filter logic → hooks (partial: drop zone chrome shared) |
+| `contexts/ProjectContext.tsx` | ~587 | Camera state + model presets extracted (Phase 8). Still owns project save/load, import/export, pose sync, asset persistence — see Phase 8 "Why no separate `useProjectIO`". |
 
 ### Raw hex color migration (remaining)
 
@@ -336,11 +383,11 @@ Critical modules without dedicated unit tests:
 - [x] Shared `visualBaseQuaternion` helpers (`utils/visualBaseQuaternion.ts`) + tests
 - [x] CSS theme tokens centralised in `:root` (index.css, BrushToolPopover.css, TextureMaker.css)
 - [x] Test coverage: `data/modelPresets`, `data/sampleWorld`, `scripts/scriptCtx`
-- [~] God file splitting (Builder, SceneView, …) — Phase 8 split `ProjectContext` (662 → 587). Phase 9 split `Builder.tsx` (1892 → 1782) into `useBuilderKeyboardShortcuts`, `useBuilderFullscreenChrome`, `useEditorHistory`. Phase 10 split `SceneView.tsx` (1359 → 1058) into `useSkyDome`, `useWorldAudio`, `useSceneFullscreen` + `SceneFullscreenButton` + `WorldLoadErrorOverlay`. `rapierPhysics`/`TextureMaker`/`renderItemRegistry` still pending; `Builder.tsx` Texture Maker session and the SceneView main effect deferred to future phases.
+- [~] God file splitting (Builder, SceneView, …) — Phase 8 split `ProjectContext` (662 → 587). Phase 9 split `Builder.tsx` (1892 → 1782) into `useBuilderKeyboardShortcuts`, `useBuilderFullscreenChrome`, `useEditorHistory`. Phase 10 split `SceneView.tsx` (1359 → 1058) into `useSkyDome`, `useWorldAudio`, `useSceneFullscreen` + `SceneFullscreenButton` + `WorldLoadErrorOverlay`. Phase 11 split `WorldPanel.tsx` (912 → 68) into seven `world/*Section.tsx` files + `useWorldPanelEdits`. `rapierPhysics`/`TextureMaker`/`renderItemRegistry` still pending; `Builder.tsx` Texture Maker session and the SceneView main effect deferred to future phases. `Builder.tsx` is now back to ~1924 lines after the explorer-groups feature was added by another agent.
 - [x] Pure helpers extracted from `modelPreview.ts` and tested (`modelPreviewFraming`)
 - [ ] Test coverage for `renderItemRegistry.ts` — *deferred; integration-tested. See Phase 5.*
 - [x] Test coverage for `sceneFrameLoop.ts` rAF body (28 branch tests added in Phase 7; rAF loop wrapper still integration-tested)
 - [x] Fix `scriptCtx.time` capture-vs-live bug (Phase 5)
 - [x] Inspector pose polling isolated (`LivePosesPoll` → `PropertySidebar`, not full `Builder`)
 
-Run `npm run test:run` after further edits (currently **125** test files, **1022** tests + 3 skipped). In `performance-benchmarks.integration.test.ts`, the **Heap growth** and **Scaling linearity** describes are skipped unless `RUN_PERF_BENCHMARKS=1` (use `npm run test:perf`) so agents avoid flaky wall-clock/heap thresholds; run that before Rapier/frame-loop/allocation hot-path changes.
+Run `npm run test:run` after further edits (currently **130** test files, **1090** tests + 3 skipped). In `performance-benchmarks.integration.test.ts`, the **Heap growth** and **Scaling linearity** describes are skipped unless `RUN_PERF_BENCHMARKS=1` (use `npm run test:perf`) so agents avoid flaky wall-clock/heap thresholds; run that before Rapier/frame-loop/allocation hot-path changes.
