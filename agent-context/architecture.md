@@ -39,7 +39,8 @@ renn/
 │   ├── config/
 │   │   └── constants.ts      # App-wide constants (DB_CONFIG, BUILDER_SCENE_CANVAS_HOST_ATTR)
 │   ├── contexts/
-│   │   └── ProjectContext.tsx # ProjectProvider: state + actions for projects/world/assets/camera
+│   │   ├── ProjectContext.tsx # ProjectProvider: composes camera + presets hooks; project lifecycle, save/load, import/export, pose sync, asset persistence
+│   │   └── getWorldToSave.ts  # buildWorldToSave(world, cameraState, editorPose) — pure merge of live UI camera into world doc before persist
 │   ├── schema/
 │   │   └── validate.ts       # validateWorldDocument(), Ajv + world-schema; optional tolerate removes additionalProperty keys iteratively (clone fallback), warningsOut for UI; mesh simplification numbers are clamped in migrateWorld (maxError ≥ 0.0001, maxTriangles ≥ 500) before validate on load/import
 │   ├── loader/
@@ -69,6 +70,8 @@ renn/
 │   │   └── transformGizmoController.ts # Builder: TransformControls + click-to-select; translate/rotate/scale gizmo (scale axes clamped)
 │   ├── hooks/
 │   │   ├── useProjectContext.ts    # Access ProjectContext
+│   │   ├── useCameraState.ts       # CameraState (control/target/mode) + ref + setters; cameraStateFromWorld()
+│   │   ├── useModelPresets.ts      # Global model preset library: list/save/delete + applyToEntities (optimistic state)
 │   │   ├── useKeyboardInput.ts     # Free-fly keys (WASD, Shift, Alt, arrows)
 │   │   └── useLocalStorageState.ts # Persist UI state to localStorage
 │   ├── utils/

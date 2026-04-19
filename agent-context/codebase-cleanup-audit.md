@@ -192,6 +192,31 @@ Covers branches not exercised by `sceneFrameLoop.accumulator.test.ts` or the `sh
 
 ---
 
+## Phase 8 — `ProjectContext` slimming via hook extraction (completed, 2026-04-19)
+
+**Performance:** Pure structural refactor. Same state shape, same number of hooks, same memoization pattern. No new effects, no per-frame work, no re-render churn. The extracted helpers run on the same code paths as before; the camera ref keeps the same synchronous mirror semantics so save paths still read the latest UI camera without waiting for a re-render.
+
+### Pure helper — `buildWorldToSave`
+- **`src/contexts/getWorldToSave.ts`** — pure `buildWorldToSave(currentWorld, cameraState, editorFreePose)` returning the `RennWorld` to persist with the live camera UI state and editor free pose merged in. Replaces the inline `getWorldToSave` closure inside `ProjectProvider`.
+- **`src/contexts/getWorldToSave.test.ts`** — 7 tests: control/target/mode override, synthesised camera when world has none, live free pose write, doc free pose fallback, omit when both null, no input mutation, preserves other camera fields (distance/height).
+
+### Hook — `useCameraState`
+- **`src/hooks/useCameraState.ts`** — owns `CameraState` (`control`/`target`/`mode`), the synchronous `cameraStateRef` mirror, and the three setters (`setCameraControl`/`setCameraTarget`/`setCameraMode`). Adds `resetFromWorld(world, fallback?)` for the new/load/import paths that previously inlined `setCameraState(cameraStateFromWorld(...))`. Re-exports `cameraStateFromWorld`.
+- **Consumers:** `ProjectContext.tsx` (single call site).
+
+### Hook — `useModelPresets`
+- **`src/hooks/useModelPresets.ts`** — owns the global model preset library (`modelPresets` state + `refreshModelPresets`, `saveModelPreset`, `deleteModelPreset`, `applyModelPresetToEntities`). Takes `persistence` and `updateWorld` as parameters so it can be unit-tested without the real IndexedDB layer if needed later. Keeps the existing optimistic-update behaviour (avoids stale-empty list right after save).
+- **Consumers:** `ProjectContext.tsx` (single call site).
+
+### Result
+- `src/contexts/ProjectContext.tsx` shrunk from **662 → 587 lines** (-11%); the camera state plumbing (~30 lines) and model preset CRUD (~30 lines) now live in cohesive single-responsibility files. All extracted hooks have a single consumer today, but each is self-contained and unit-test ready.
+- `ProjectContext.test.tsx` (7 tests) and `getWorldToSave.test.ts` (7 tests) all pass; full suite **117 files / 970 tests** (was 116 / 963 — the +7 are the new pure-helper tests).
+
+### Why no separate `useProjectIO` hook (yet)
+Import / export / pose sync still depends on the in-context `worldRef`, `setWorld`, `setAssets`, `setCurrentProject`, and `loadProject`. Extracting a hook would require either passing all of those through (~10 args) or pulling the `useState`/`useRef` declarations into the hook (which would defeat the point of the context). Defer until either a clear new consumer appears or we restructure the project state into a reducer/store.
+
+---
+
 ## Remaining larger tasks
 
 ### God files — candidates for splitting
@@ -206,7 +231,7 @@ Covers branches not exercised by `sceneFrameLoop.accumulator.test.ts` or the `sh
 | `components/WorldPanel.tsx` | ~930 | Ground editing, sim settings, culling UI → sub-panels (ground patch helper done) |
 | `components/PropertyPanel.tsx` | ~840 | Could split per-tab content |
 | `components/TextureDialog.tsx` | ~720 | Asset family grouping, filter logic → hooks (partial: drop zone chrome shared) |
-| `contexts/ProjectContext.tsx` | ~660 | Persistence actions, camera state → split context or custom hooks |
+| `contexts/ProjectContext.tsx` | ~590 | Camera state + model presets extracted (Phase 8). Still owns project save/load, import/export, pose sync, asset persistence — see Phase 8 "Why no separate `useProjectIO`". |
 
 ### Raw hex color migration (remaining)
 
@@ -244,11 +269,11 @@ Critical modules without dedicated unit tests:
 - [x] Shared `visualBaseQuaternion` helpers (`utils/visualBaseQuaternion.ts`) + tests
 - [x] CSS theme tokens centralised in `:root` (index.css, BrushToolPopover.css, TextureMaker.css)
 - [x] Test coverage: `data/modelPresets`, `data/sampleWorld`, `scripts/scriptCtx`
-- [ ] God file splitting (Builder, SceneView, …)
+- [~] God file splitting (Builder, SceneView, …) — Phase 8 split `ProjectContext` (662 → 587). Builder/SceneView/rapierPhysics/TextureMaker/renderItemRegistry still pending.
 - [x] Pure helpers extracted from `modelPreview.ts` and tested (`modelPreviewFraming`)
 - [ ] Test coverage for `renderItemRegistry.ts` — *deferred; integration-tested. See Phase 5.*
 - [x] Test coverage for `sceneFrameLoop.ts` rAF body (28 branch tests added in Phase 7; rAF loop wrapper still integration-tested)
 - [x] Fix `scriptCtx.time` capture-vs-live bug (Phase 5)
 - [x] Inspector pose polling isolated (`LivePosesPoll` → `PropertySidebar`, not full `Builder`)
 
-Run `npm run test:run` after further edits (currently **116** test files, **963** tests + 3 skipped). In `performance-benchmarks.integration.test.ts`, the **Heap growth** and **Scaling linearity** describes are skipped unless `RUN_PERF_BENCHMARKS=1` (use `npm run test:perf`) so agents avoid flaky wall-clock/heap thresholds; run that before Rapier/frame-loop/allocation hot-path changes.
+Run `npm run test:run` after further edits (currently **117** test files, **970** tests + 3 skipped). In `performance-benchmarks.integration.test.ts`, the **Heap growth** and **Scaling linearity** describes are skipped unless `RUN_PERF_BENCHMARKS=1` (use `npm run test:perf`) so agents avoid flaky wall-clock/heap thresholds; run that before Rapier/frame-loop/allocation hot-path changes.
