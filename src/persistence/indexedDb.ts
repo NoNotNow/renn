@@ -128,20 +128,20 @@ export function createIndexedDbPersistence(): PersistenceAPI {
       for (const blob of data.assets.values()) {
         totalBlobBytes += blob?.size ?? 0
       }
-      console.log('[Persistence] saveProject start', { id, name, assetsCount: data.assets.size, worldSize, totalBlobBytes })
+      if (import.meta.env.DEV) console.log('[Persistence] saveProject start', { id, name, assetsCount: data.assets.size, worldSize, totalBlobBytes })
 
       try {
         db = await getDB()
-        console.log('[Persistence] DB opened')
+        if (import.meta.env.DEV) console.log('[Persistence] DB opened')
 
         const updatedAt = Date.now()
         // Save project without assets (assets are stored globally)
         await db.put(STORE_PROJECTS, { id, name, world: data.world, updatedAt })
-        console.log('[Persistence] Project row written')
+        if (import.meta.env.DEV) console.log('[Persistence] Project row written')
 
         // Save any new assets to global store (preserve existing previews)
         const existingAssets = await db.getAll(STORE_ASSETS)
-        console.log('[Persistence] Existing assets loaded', { count: existingAssets.length })
+        if (import.meta.env.DEV) console.log('[Persistence] Existing assets loaded', { count: existingAssets.length })
 
         const existingPreviews = new Map<string, { blob: Blob | ArrayBuffer | null; type: string | null }>()
         for (const asset of existingAssets) {
@@ -158,7 +158,7 @@ export function createIndexedDbPersistence(): PersistenceAPI {
         for (let i = 0; i < assetEntries.length; i++) {
           const [assetId, blob] = assetEntries[i]
           const blobSize = blob?.size ?? 0
-          console.log('[Persistence] Writing asset', { index: i + 1, total: assetEntries.length, assetId, blobSize })
+          if (import.meta.env.DEV) console.log('[Persistence] Writing asset', { index: i + 1, total: assetEntries.length, assetId, blobSize })
           const assetType = blob.type?.startsWith('image') ? 'texture' : 'model'
           const mimeType = blob.type || 'application/octet-stream'
           const existingPreview = existingPreviews.get(assetId) ?? { blob: null, type: null }
@@ -171,13 +171,13 @@ export function createIndexedDbPersistence(): PersistenceAPI {
             previewBlob: existingPreview.blob,
             previewType: existingPreview.type,
           })
-          console.log('[Persistence] Asset written', { assetId, blobSize })
+          if (import.meta.env.DEV) console.log('[Persistence] Asset written', { assetId, blobSize })
         }
-        console.log('[Persistence] All assets written')
+        if (import.meta.env.DEV) console.log('[Persistence] All assets written')
 
         await db.close()
         db = null
-        console.log('[Persistence] saveProject done')
+        if (import.meta.env.DEV) console.log('[Persistence] saveProject done')
       } catch (err) {
         const e = err as Error & { code?: number }
         console.error('[Persistence] saveProject error', {

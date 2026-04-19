@@ -16,7 +16,7 @@ export async function clearIndexedDBCache(): Promise<void> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.deleteDatabase(DB_CONFIG.name)
     request.onsuccess = () => {
-      console.log('[Cache] IndexedDB cleared successfully')
+      if (import.meta.env.DEV) console.log('[Cache] IndexedDB cleared successfully')
       // Reload the page to start fresh
       window.location.reload()
       resolve()
@@ -30,5 +30,5 @@ export async function clearIndexedDBCache(): Promise<void> {
 
 export function setupClearCacheCommand(): void {
   window.__clearCache = clearIndexedDBCache
-  console.log('[Cache] Use window.__clearCache() in console to clear IndexedDB and reload')
+  if (import.meta.env.DEV) console.log('[Cache] Use window.__clearCache() in console to clear IndexedDB and reload')
 }

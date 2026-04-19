@@ -309,7 +309,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       for (const blob of assets.values()) {
         totalBlobBytes += blob?.size ?? 0
       }
-      console.log('[Save] Starting save', { projectId: id, projectName: name, assetsCount: assetsSize, totalBlobBytes })
+      if (import.meta.env.DEV) console.log('[Save] Starting save', { projectId: id, projectName: name, assetsCount: assetsSize, totalBlobBytes })
 
       uiLogger.click('Builder', 'Save project', { projectId: id, projectName: name })
       await persistence.saveProject(id, name, { world: getWorldToSave(), assets })

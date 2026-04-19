@@ -35,10 +35,9 @@ renn/
 │   ├── types/
 │   │   ├── world.ts          # RennWorld, Entity, Shape, Vec3, Quat, etc.
 │   │   ├── sceneUserData.ts  # Typed userData for Scene and entity meshes
-│   │   ├── camera.ts         # Camera-related types
-│   │   └── editor.ts         # Editor-specific types
+│   │   └── camera.ts         # Camera-related types
 │   ├── config/
-│   │   └── constants.ts      # App-wide constants (DB, physics, materials, etc.)
+│   │   └── constants.ts      # App-wide constants (DB_CONFIG, BUILDER_SCENE_CANVAS_HOST_ATTR)
 │   ├── contexts/
 │   │   └── ProjectContext.tsx # ProjectProvider: state + actions for projects/world/assets/camera
 │   ├── schema/

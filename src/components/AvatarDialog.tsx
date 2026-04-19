@@ -15,27 +15,7 @@ import { uiLogger } from '@/utils/uiLogger'
 import { validateEntityAvatarConfig, normalizeAvatarDraft } from '@/utils/entityAvatarValidation'
 import { jsonTextareaRows } from '@/utils/jsonTextareaRows'
 import { avatarEntityIconLetter, getAvatarRosterEntityIds } from '@/utils/avatarUtils'
-
-function extractJsonErrorPosition(message: string): number | null {
-  const m = /position (\d+)/i.exec(message)
-  if (!m) return null
-  const n = Number(m[1])
-  return Number.isFinite(n) ? n : null
-}
-
-function lineColFromPosition(text: string, pos: number): { line: number; col: number; lineText: string } {
-  // pos is an absolute character index inside the string.
-  // JSON.parse's message is usually 0-based.
-  const before = text.slice(0, pos)
-  const parts = before.split('\n')
-  const line = parts.length
-  const col = parts[parts.length - 1]!.length + 1
-  const lineStart = before.lastIndexOf('\n') + 1
-  const lineEnd = text.indexOf('\n', pos)
-  const end = lineEnd >= 0 ? lineEnd : text.length
-  const lineText = text.slice(lineStart, end)
-  return { line, col, lineText }
-}
+import { extractJsonErrorPosition, lineColFromPosition } from '@/utils/jsonParseErrorLocation'
 
 export interface AvatarDialogProps {
   isOpen: boolean

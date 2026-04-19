@@ -327,7 +327,7 @@ export class PhysicsWorld {
                 !preSimplified &&
                 shouldSimplifyGeometry(originalInfo.triangleCount, trimeshShape.simplification)
               ) {
-                console.log(`[PhysicsWorld] Simplifying trimesh: ${originalInfo.triangleCount} triangles`)
+                if (import.meta.env.DEV) console.log(`[PhysicsWorld] Simplifying trimesh: ${originalInfo.triangleCount} triangles`)
                 
                 try {
                   const simplificationResult = simplifyGeometry(extractedGeometry, trimeshShape.simplification!)
@@ -339,7 +339,7 @@ export class PhysicsWorld {
                       indices: simplificationResult.indices
                     }
                     
-                    console.log(
+                    if (import.meta.env.DEV) console.log(
                       `[PhysicsWorld] Simplified: ${simplificationResult.originalTriangleCount} → ` +
                       `${simplificationResult.simplifiedTriangleCount} triangles ` +
                       `(${simplificationResult.reductionPercentage.toFixed(1)}% reduction)`
@@ -356,7 +356,7 @@ export class PhysicsWorld {
               }
               
               const finalInfo = getGeometryInfo(extractedGeometry)
-              console.log(`[PhysicsWorld] Creating trimesh collider: ${finalInfo.vertexCount} vertices, ${finalInfo.triangleCount} triangles`)
+              if (import.meta.env.DEV) console.log(`[PhysicsWorld] Creating trimesh collider: ${finalInfo.vertexCount} vertices, ${finalInfo.triangleCount} triangles`)
               
               // Warn about large meshes
               if (finalInfo.triangleCount > 10000) {

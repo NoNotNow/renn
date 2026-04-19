@@ -11,6 +11,7 @@ import {
   isPresetTransformerType,
 } from '@/transformers/transformerPresets'
 import { jsonTextareaRows } from '@/utils/jsonTextareaRows'
+import { extractJsonErrorPosition, lineColFromPosition } from '@/utils/jsonParseErrorLocation'
 
 function padFieldRefPanelOpen(open: boolean[], length: number): boolean[] {
   return Array.from({ length }, (_, i) => open[i] ?? false)
@@ -46,25 +47,6 @@ function TransformerConfigTextarea({
   const [isValid, setIsValid] = useState(true)
   const [parsed, setParsed] = useState<TransformerConfig>(value)
   const [parseError, setParseError] = useState<string | null>(null)
-
-  const extractJsonErrorPosition = (message: string): number | null => {
-    const m = /position (\d+)/i.exec(message)
-    if (!m) return null
-    const n = Number(m[1])
-    return Number.isFinite(n) ? n : null
-  }
-
-  const lineColFromPosition = (text: string, pos: number): { line: number; col: number; lineText: string } => {
-    const before = text.slice(0, pos)
-    const parts = before.split('\n')
-    const line = parts.length
-    const col = parts[parts.length - 1]!.length + 1
-    const lineStart = before.lastIndexOf('\n') + 1
-    const lineEnd = text.indexOf('\n', pos)
-    const end = lineEnd >= 0 ? lineEnd : text.length
-    const lineText = text.slice(lineStart, end)
-    return { line, col, lineText }
-  }
 
   useEffect(() => {
     setDraftText(valueStr)
