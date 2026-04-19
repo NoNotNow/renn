@@ -98,7 +98,11 @@ renn/
 │   │   ├── SceneFullscreenButton.tsx # Floating bottom-left fullscreen toggle (visible flag controlled by useSceneFullscreen)
 │   │   ├── WorldLoadErrorOverlay.tsx # Full-bleed overlay shown by SceneView when world load fails
 │   │   ├── BuilderHeader.tsx # Toolbar: New, Save, Save as, Download, Upload, project list, Play, gravity/shadows
-│   │   ├── EntitySidebar.tsx # Entity tree explorer (search + collapsible filters), add-entity dropdown, camera control/target/mode; delegates tree to EntityExplorerTree
+│   │   ├── EntitySidebar.tsx # Container: tab chrome + width persistence; delegates body to per-tab components
+│   │   ├── entitySidebar/    # Per-tab content + filter hook
+│   │   │   ├── EntityListPanel.tsx     # "Entities" tab: add-entity, search, filters, EntityExplorerTree
+│   │   │   ├── EntityCameraPanel.tsx   # "Camera" tab: control/target/mode + avatar roster + AvatarDialog
+│   │   │   └── useEntityListFilters.ts # Search + 5 filter dropdowns + derived filteredEntities/emptyMessage
 │   │   ├── EntityExplorerTree.tsx # Phase A explorer groups: tree rows, collapse/rename, Group/Ungroup/Add/Remove toolbar (see feature-groups.md)
 │   │   ├── LivePosesPoll.tsx   # Interval read of SceneView poses → render prop (inspector only; avoids full Builder reconcile)
 │   │   ├── PropertySidebar.tsx # Tabs: Properties | Scripts | Assets | Presets

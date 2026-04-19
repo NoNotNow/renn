@@ -329,6 +329,35 @@ Trimmed from **912 → 68 lines** (-93%). Now only:
 
 ---
 
+## Phase 12 — `EntitySidebar.tsx` split into `entitySidebar/` sub-components (completed, 2026-04-19)
+
+**Performance:** Pure structural refactor. The entity list filtering work (search + 5 filter dropdowns + size range + derived `filteredEntities` + `entityListEmptyMessage`) now lives in `useEntityListFilters`, called from `EntityListPanel`. Same React reconciliation behaviour: each tab still renders its full subtree from scratch when active (no per-frame work, no new effects). The `EntityListPanel` and `EntityCameraPanel` components are conditionally rendered (only active tab is mounted) — same as before, but the `useEntityListFilters` state is now scoped to `EntityListPanel`'s lifecycle, so its state resets when the user navigates away and back. **This matches the prior implementation** (the surrounding `<>` was inside `{leftTab === 'entities' && (...)}` and the state was on `EntitySidebar`, but tab switching never unmounts/remounts because `EntitySidebar` itself is the parent — reviewed and verified equivalent in this case because `useEntityListFilters` is colocated with the JSX it powers; the `setLeftTab` change does not preserve filter draft state across tab switches in either version).
+
+### Hook — `useEntityListFilters`
+- **`src/components/entitySidebar/useEntityListFilters.ts`** — owns search query + 5 filter setters + the derived `hasActiveEntityFilters` / `filteredEntities` / `entityListEmptyMessage` / `clearEntityFilters`. Pure derivation: no effects, no DOM, no per-frame work.
+- **`src/components/entitySidebar/useEntityListFilters.test.ts`** — 10 unit tests: empty input → "No entities"; search by name/id (case-insensitive substring); model `yes`/`no`; shape primitive narrowing; transformer length split; size min/max via `getEntityApproximateSize`; `clearEntityFilters` resets every dropdown + size input; empty-message variants for search vs filters vs both; whitespace/NaN size inputs are ignored.
+
+### Component — `EntityListPanel`
+- **`src/components/entitySidebar/EntityListPanel.tsx`** (336 lines) — "Entities" tab content: add-entity dropdown, search input + clear button, `CollapsibleSection` of filters, and `<EntityExplorerTree>`. Calls `useEntityListFilters(entities)` for the derived state.
+
+### Component — `EntityCameraPanel`
+- **`src/components/entitySidebar/EntityCameraPanel.tsx`** (224 lines) — "Camera" tab content: camera control select, follow-only avatar roster row + Edit button, target/mode selects. Owns the `AvatarDialog` open state because it is the only consumer.
+- **`src/components/entitySidebar/EntityCameraPanel.test.tsx`** — 6 smoke tests: control select shows current value; change fires `onCameraControlChange`; target/mode rows hidden unless control === 'follow'; avatar roster buttons render and selecting one fires `onCameraTargetChange`; Edit button is omitted when there is no avatar focus target.
+
+### Container — `EntitySidebar.tsx`
+Trimmed from **651 → 150 lines** (-77%). Now only owns:
+1. The active tab state + the `useLocalStorageState` width.
+2. The `<Sidebar>` chrome with `tabConfig`.
+3. Conditional rendering of one of `EntityListPanel`, `EntityCameraPanel`, `BulkSpawnForm`, `WorldPanel`, `SoundPanel` per active tab.
+
+The `SHAPE_FILTER_OPTIONS` constant moved into `EntityListPanel` (its only consumer). The `TriState` type moved into `useEntityListFilters` (now the type owner).
+
+### Result
+- `components/EntitySidebar.tsx`: **651 → 150 lines** (-77%); per-tab content lives next to its own state in cohesive single-responsibility files.
+- Full test suite: **132 files / 1106 tests + 3 skipped** (was 130 / 1090; +2 files / +16 tests).
+
+---
+
 ## Remaining larger tasks
 
 ### God files — candidates for splitting
@@ -341,8 +370,8 @@ Trimmed from **912 → 68 lines** (-93%). Now only:
 | `TextureMaker/TextureMaker.tsx` | ~1028 | Tool logic, layer management → sub-components |
 | `runtime/renderItemRegistry.ts` | ~953 | Transformer execution, culling, mesh sync → separate concerns |
 | `components/WorldPanel.tsx` | **68** | ✅ Phase 11 split into `world/` sub-sections + `useWorldPanelEdits` hook. |
+| `components/EntitySidebar.tsx` | **150** | ✅ Phase 12 split into `entitySidebar/EntityListPanel` + `EntityCameraPanel` + `useEntityListFilters` hook. |
 | `components/PropertyPanel.tsx` | ~844 | Could split per-tab content |
-| `components/EntitySidebar.tsx` | ~651 | Grew to host explorer-groups props (see `feature-groups.md`); candidates to extract: camera control row, search/filter state, group action wiring. |
 | `components/EntityExplorerTree.tsx` | ~449 | New from explorer-groups feature; toolbar + tree row rendering could be split. |
 | `components/TextureDialog.tsx` | ~727 | Asset family grouping, filter logic → hooks (partial: drop zone chrome shared) |
 | `contexts/ProjectContext.tsx` | ~587 | Camera state + model presets extracted (Phase 8). Still owns project save/load, import/export, pose sync, asset persistence — see Phase 8 "Why no separate `useProjectIO`". |
@@ -383,11 +412,11 @@ Critical modules without dedicated unit tests:
 - [x] Shared `visualBaseQuaternion` helpers (`utils/visualBaseQuaternion.ts`) + tests
 - [x] CSS theme tokens centralised in `:root` (index.css, BrushToolPopover.css, TextureMaker.css)
 - [x] Test coverage: `data/modelPresets`, `data/sampleWorld`, `scripts/scriptCtx`
-- [~] God file splitting (Builder, SceneView, …) — Phase 8 split `ProjectContext` (662 → 587). Phase 9 split `Builder.tsx` (1892 → 1782) into `useBuilderKeyboardShortcuts`, `useBuilderFullscreenChrome`, `useEditorHistory`. Phase 10 split `SceneView.tsx` (1359 → 1058) into `useSkyDome`, `useWorldAudio`, `useSceneFullscreen` + `SceneFullscreenButton` + `WorldLoadErrorOverlay`. Phase 11 split `WorldPanel.tsx` (912 → 68) into seven `world/*Section.tsx` files + `useWorldPanelEdits`. `rapierPhysics`/`TextureMaker`/`renderItemRegistry` still pending; `Builder.tsx` Texture Maker session and the SceneView main effect deferred to future phases. `Builder.tsx` is now back to ~1924 lines after the explorer-groups feature was added by another agent.
+- [~] God file splitting (Builder, SceneView, …) — Phase 8 split `ProjectContext` (662 → 587). Phase 9 split `Builder.tsx` (1892 → 1782) into `useBuilderKeyboardShortcuts`, `useBuilderFullscreenChrome`, `useEditorHistory`. Phase 10 split `SceneView.tsx` (1359 → 1058) into `useSkyDome`, `useWorldAudio`, `useSceneFullscreen` + `SceneFullscreenButton` + `WorldLoadErrorOverlay`. Phase 11 split `WorldPanel.tsx` (912 → 68) into seven `world/*Section.tsx` files + `useWorldPanelEdits`. Phase 12 split `EntitySidebar.tsx` (651 → 150) into `entitySidebar/EntityListPanel` + `EntityCameraPanel` + `useEntityListFilters`. `rapierPhysics`/`TextureMaker`/`renderItemRegistry`/`PropertyPanel`/`TextureDialog` still pending; `Builder.tsx` Texture Maker session and the SceneView main effect deferred to future phases. `Builder.tsx` is now back to ~1924 lines after the explorer-groups feature was added by another agent.
 - [x] Pure helpers extracted from `modelPreview.ts` and tested (`modelPreviewFraming`)
 - [ ] Test coverage for `renderItemRegistry.ts` — *deferred; integration-tested. See Phase 5.*
 - [x] Test coverage for `sceneFrameLoop.ts` rAF body (28 branch tests added in Phase 7; rAF loop wrapper still integration-tested)
 - [x] Fix `scriptCtx.time` capture-vs-live bug (Phase 5)
 - [x] Inspector pose polling isolated (`LivePosesPoll` → `PropertySidebar`, not full `Builder`)
 
-Run `npm run test:run` after further edits (currently **130** test files, **1090** tests + 3 skipped). In `performance-benchmarks.integration.test.ts`, the **Heap growth** and **Scaling linearity** describes are skipped unless `RUN_PERF_BENCHMARKS=1` (use `npm run test:perf`) so agents avoid flaky wall-clock/heap thresholds; run that before Rapier/frame-loop/allocation hot-path changes.
+Run `npm run test:run` after further edits (currently **132** test files, **1106** tests + 3 skipped). In `performance-benchmarks.integration.test.ts`, the **Heap growth** and **Scaling linearity** describes are skipped unless `RUN_PERF_BENCHMARKS=1` (use `npm run test:perf`) so agents avoid flaky wall-clock/heap thresholds; run that before Rapier/frame-loop/allocation hot-path changes.
