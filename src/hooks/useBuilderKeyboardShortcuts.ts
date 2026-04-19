@@ -31,6 +31,10 @@ export interface BuilderKeyboardShortcutsApi {
   onCycleActiveAvatar: () => boolean
   /** Digit0 / Numpad0 — cycle camera mode (returns next mode for logging) */
   onChangeCameraMode: (next: (prev: CameraMode) => CameraMode) => void
+  /** Cmd/Ctrl + G — group current selection (entities + groups) */
+  onGroupSelection: () => void
+  /** Cmd/Ctrl + Shift + G — ungroup currently selected single group */
+  onUngroupSelection: () => void
 }
 
 /**
@@ -41,6 +45,8 @@ export interface BuilderKeyboardShortcutsApi {
  *   Cmd/Ctrl+E      toggle edit-navigation mode
  *   1 (Digit1)      cycle active avatar
  *   0 (Digit0)      cycle camera mode
+ *   Cmd/Ctrl+G      group current selection
+ *   Cmd/Ctrl+Shift+G  ungroup currently selected group
  *
  * All shortcuts are no-ops while the focus is on an editable element.
  */
@@ -52,6 +58,8 @@ export function useBuilderKeyboardShortcuts(api: BuilderKeyboardShortcutsApi): v
     onToggleEditNavigationMode,
     onCycleActiveAvatar,
     onChangeCameraMode,
+    onGroupSelection,
+    onUngroupSelection,
   } = api
 
   useEffect(() => {
@@ -82,6 +90,13 @@ export function useBuilderKeyboardShortcuts(api: BuilderKeyboardShortcutsApi): v
         onToggleEditNavigationMode()
         return
       }
+      if (mod && e.code === 'KeyG') {
+        if (isEditableElement()) return
+        e.preventDefault()
+        if (e.shiftKey) onUngroupSelection()
+        else onGroupSelection()
+        return
+      }
       if (e.code === 'Digit1' || e.code === 'Numpad1') {
         if (isEditableElement()) return
         e.preventDefault()
@@ -109,5 +124,7 @@ export function useBuilderKeyboardShortcuts(api: BuilderKeyboardShortcutsApi): v
     onToggleEditNavigationMode,
     onCycleActiveAvatar,
     onChangeCameraMode,
+    onGroupSelection,
+    onUngroupSelection,
   ])
 }

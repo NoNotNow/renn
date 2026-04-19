@@ -81,6 +81,8 @@ function applyStrippedWorldOntoOriginal(original: unknown, stripped: unknown): v
   else delete o.assets
   if ('scripts' in s) o.scripts = s.scripts
   else delete o.scripts
+  if ('groups' in s) o.groups = s.groups
+  else delete o.groups
   for (const key of Object.keys(o)) {
     if (!(key in s)) delete o[key]
   }

@@ -16,6 +16,8 @@ function makeApi() {
     onToggleEditNavigationMode: vi.fn(),
     onCycleActiveAvatar: vi.fn(() => true),
     onChangeCameraMode: vi.fn(),
+    onGroupSelection: vi.fn(),
+    onUngroupSelection: vi.fn(),
   }
 }
 
@@ -114,6 +116,23 @@ describe('useBuilderKeyboardShortcuts', () => {
       dispatch({ key: 'Escape' })
     })
     expect(api.onClearSelection).not.toHaveBeenCalled()
+  })
+
+  it('Cmd+G groups; Cmd+Shift+G ungroups', () => {
+    const api = makeApi()
+    renderHook(() => useBuilderKeyboardShortcuts(api))
+
+    act(() => {
+      dispatch({ key: 'g', code: 'KeyG', metaKey: true })
+    })
+    expect(api.onGroupSelection).toHaveBeenCalledTimes(1)
+    expect(api.onUngroupSelection).not.toHaveBeenCalled()
+
+    act(() => {
+      dispatch({ key: 'g', code: 'KeyG', metaKey: true, shiftKey: true })
+    })
+    expect(api.onUngroupSelection).toHaveBeenCalledTimes(1)
+    expect(api.onGroupSelection).toHaveBeenCalledTimes(1)
   })
 
   it('does not log avatar cycle when onCycleActiveAvatar returns false', () => {

@@ -16,6 +16,18 @@ import { useLocalStorageState } from '@/hooks/useLocalStorageState'
 import { useBuilderFullscreenChrome } from '@/hooks/useBuilderFullscreenChrome'
 import { DEFAULT_SCALE, type Vec3, type Rotation, type Entity, type TrimeshSimplificationConfig } from '@/types/world'
 import { useBuilderKeyboardShortcuts } from '@/hooks/useBuilderKeyboardShortcuts'
+import {
+  addToGroup,
+  createGroupFromSelection,
+  dissolveGroup,
+  expandGroupSelection,
+  findGroupContaining,
+  getGroups,
+  pruneGroupMembers,
+  removeFromGroup,
+  renameGroup,
+  setGroupCollapsed,
+} from '@/utils/entityGroups'
 import { uiLogger } from '@/utils/uiLogger'
 import { colorToHex, hexToColor } from '@/utils/colorUtils'
 import { theme } from '@/config/theme'
@@ -106,9 +118,11 @@ export default function Builder() {
   } = useProjectContext()
 
   const [selectedEntityIds, setSelectedEntityIds] = useState<string[]>([])
+  const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([])
 
   const handleSelectEntity = useCallback((id: string | null, options?: { additive?: boolean }) => {
     const additive = Boolean(options?.additive)
+    if (!additive) setSelectedGroupIds([])
     setSelectedEntityIds((prev) => {
       if (id === null) return []
       if (!additive) return [id]
@@ -202,6 +216,7 @@ export default function Builder() {
       initialPosesRef.current = null
       applyEditorSnapshot(snap)
       setSelectedEntityIds((ids) => ids.filter((id) => snap.world.entities.some((e) => e.id === id)))
+      setSelectedGroupIds((gids) => gids.filter((gid) => (snap.world.groups ?? []).some((g) => g.id === gid)))
       const nextCameraTarget =
         cameraTarget && snap.world.entities.some((e) => e.id === cameraTarget)
           ? cameraTarget
@@ -955,10 +970,19 @@ export default function Builder() {
     [world.world.camera, cameraControl, cameraTarget, cameraMode]
   )
 
+  // Forwarding refs so group shortcuts can fire handlers that are declared later in this file.
+  const groupShortcutHandlersRef = useRef<{
+    onGroup: () => void
+    onUngroup: () => void
+  }>({ onGroup: () => {}, onUngroup: () => {} })
+
   useBuilderKeyboardShortcuts({
     onUndo: handleUndo,
     onRedo: handleRedo,
-    onClearSelection: useCallback(() => setSelectedEntityIds([]), []),
+    onClearSelection: useCallback(() => {
+      setSelectedEntityIds([])
+      setSelectedGroupIds([])
+    }, []),
     onToggleEditNavigationMode: useCallback(() => {
       setEditNavigationMode((prev) => {
         const next = !prev
@@ -968,6 +992,8 @@ export default function Builder() {
     }, []),
     onCycleActiveAvatar: useCallback(() => sceneViewRef.current?.cycleActiveAvatar() ?? false, []),
     onChangeCameraMode: setCameraMode,
+    onGroupSelection: useCallback(() => groupShortcutHandlersRef.current.onGroup(), []),
+    onUngroupSelection: useCallback(() => groupShortcutHandlersRef.current.onUngroup(), []),
   })
 
   const handleAddEntity = useCallback(
@@ -1019,7 +1045,10 @@ export default function Builder() {
       pushHistory()
       captureScenePosesForNextRebuild()
       const newEntities = world.entities.filter((e) => !idSet.has(e.id))
-      updateWorld((prev) => ({ ...prev, entities: newEntities }))
+      updateWorld((prev) => {
+        const nextWorld = { ...prev, entities: newEntities }
+        return pruneGroupMembers(nextWorld, idSet)
+      })
       setSelectedEntityIds((sel) => sel.filter((id) => !idSet.has(id)))
       if (cameraTarget && idSet.has(cameraTarget)) {
         setCameraTarget(newEntities[0]?.id ?? '')
@@ -1197,6 +1226,111 @@ export default function Builder() {
     captureScenePosesForNextRebuild()
     updateWorld(() => newWorld)
   }, [updateWorld, captureScenePosesForNextRebuild])
+
+  // ----- Explorer groups (Phase A: organizational only; no scene rebuild) -----
+
+  const handleSelectGroup = useCallback(
+    (groupId: string, options?: { additive?: boolean }) => {
+      const additive = Boolean(options?.additive)
+      const expanded = expandGroupSelection(world, [groupId])
+      uiLogger.click('Builder', 'Select group', { groupId, entityCount: expanded.length, additive })
+      if (additive) {
+        setSelectedGroupIds((prev) => (prev.includes(groupId) ? prev.filter((id) => id !== groupId) : [...prev, groupId]))
+        setSelectedEntityIds((prev) => {
+          const set = new Set(prev)
+          for (const id of expanded) set.add(id)
+          return Array.from(set)
+        })
+      } else {
+        setSelectedGroupIds([groupId])
+        setSelectedEntityIds(expanded)
+      }
+    },
+    [world],
+  )
+
+  const handleCreateGroupFromSelection = useCallback(() => {
+    const ids = [...selectedEntityIds, ...selectedGroupIds]
+    if (ids.length < 2) return
+    pushHistory()
+    let createdGroupId: string | null = null
+    updateWorld((prev) => {
+      const { world: nextWorld, group } = createGroupFromSelection(prev, ids)
+      if (!group) return prev
+      createdGroupId = group.id
+      return nextWorld
+    })
+    if (createdGroupId) {
+      uiLogger.click('Builder', 'Create group', { groupId: createdGroupId, members: ids })
+      setSelectedGroupIds([createdGroupId])
+    }
+  }, [selectedEntityIds, selectedGroupIds, updateWorld, pushHistory])
+
+  const handleUngroup = useCallback(
+    (groupId: string) => {
+      pushHistory()
+      updateWorld((prev) => dissolveGroup(prev, groupId))
+      setSelectedGroupIds((prev) => prev.filter((id) => id !== groupId))
+      uiLogger.click('Builder', 'Ungroup', { groupId })
+    },
+    [updateWorld, pushHistory],
+  )
+
+  const handleAddSelectedToGroup = useCallback(
+    (groupId: string) => {
+      if (selectedEntityIds.length === 0) return
+      pushHistory()
+      updateWorld((prev) => addToGroup(prev, groupId, selectedEntityIds))
+      uiLogger.click('Builder', 'Add to group', { groupId, entityIds: selectedEntityIds })
+    },
+    [selectedEntityIds, updateWorld, pushHistory],
+  )
+
+  const handleRemoveSelectedFromGroup = useCallback(() => {
+    if (selectedEntityIds.length === 0) return
+    pushHistory()
+    updateWorld((prev) => {
+      let nextWorld = prev
+      for (const groupId of getGroups(prev).map((g) => g.id)) {
+        const inThisGroup = selectedEntityIds.filter((eid) => {
+          const parent = findGroupContaining(nextWorld, eid)
+          return parent?.id === groupId
+        })
+        if (inThisGroup.length > 0) {
+          nextWorld = removeFromGroup(nextWorld, groupId, inThisGroup)
+        }
+      }
+      return nextWorld
+    })
+    uiLogger.click('Builder', 'Remove from group', { entityIds: selectedEntityIds })
+  }, [selectedEntityIds, updateWorld, pushHistory])
+
+  const handleToggleGroupCollapsed = useCallback(
+    (groupId: string, collapsed: boolean) => {
+      updateWorld((prev) => setGroupCollapsed(prev, groupId, collapsed))
+    },
+    [updateWorld],
+  )
+
+  const handleRenameGroup = useCallback(
+    (groupId: string, name: string) => {
+      pushHistory()
+      updateWorld((prev) => renameGroup(prev, groupId, name))
+      uiLogger.change('Builder', 'Rename group', { groupId, name })
+    },
+    [updateWorld, pushHistory],
+  )
+
+  // Cmd/Ctrl+G and Cmd/Ctrl+Shift+G: group / ungroup. Cmd+Shift+G ungroups when a single
+  // group is selected; Cmd+G groups the current selection if it has at least 2 members.
+  groupShortcutHandlersRef.current = {
+    onGroup: handleCreateGroupFromSelection,
+    onUngroup: () => {
+      if (selectedEntityIds.length === 0 && selectedGroupIds.length === 1) {
+        handleUngroup(selectedGroupIds[0]!)
+      }
+    },
+  }
 
   const handleEntityTransformersChange = useCallback(
     (entityIds: string[], transformers: TransformerConfig[]) => {
@@ -1690,11 +1824,19 @@ export default function Builder() {
         <EntitySidebar
           entities={world.entities}
           selectedEntityIds={selectedEntityIds}
+          selectedGroupIds={selectedGroupIds}
           cameraControl={cameraControl}
           cameraTarget={cameraTarget}
           cameraMode={cameraMode}
           world={world}
           onSelectEntity={handleSelectEntity}
+          onSelectGroup={handleSelectGroup}
+          onCreateGroupFromSelection={handleCreateGroupFromSelection}
+          onUngroup={handleUngroup}
+          onAddSelectedToGroup={handleAddSelectedToGroup}
+          onRemoveSelectedFromGroup={handleRemoveSelectedFromGroup}
+          onToggleGroupCollapsed={handleToggleGroupCollapsed}
+          onRenameGroup={handleRenameGroup}
           onAddEntity={handleAddEntity}
           onBulkAddEntities={handleBulkAddEntities}
           onCameraControlChange={setCameraControl}

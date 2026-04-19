@@ -126,7 +126,7 @@ describe('Builder', () => {
     })
     await openEntitiesTab(user)
     expect(screen.getByTitle('Add entity')).toBeInTheDocument()
-    const entityList = screen.getByRole('list')
+    const entityList = screen.getByRole('tree', { name: 'Entity explorer' })
     expect(entityList).toBeInTheDocument()
     expect(entityList.children).toHaveLength(sampleWorld.entities.length)
   })
@@ -135,7 +135,7 @@ describe('Builder', () => {
     const user = userEvent.setup()
     renderBuilder()
     await openEntitiesTab(user)
-    const entityList = screen.getByRole('list')
+    const entityList = screen.getByRole('tree', { name: 'Entity explorer' })
     const initialCount = entityList.children.length
 
     const addSelect = screen.getByTitle('Add entity')

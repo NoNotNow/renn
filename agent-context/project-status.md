@@ -25,6 +25,7 @@ Last updated: 2026-04-12
 ### Builder UI
 - BuilderHeader: New, Save, Save as, Download, Upload, Play, gravity/shadows toggles
 - EntitySidebar: entity list (search + collapsible filters by 3D model, shape, transformers, approximate size), add entity dropdown, camera control/target/mode; **0** / **Numpad 0** in Builder cycles camera mode (when focus is not in an editable field)
+- **Explorer Groups (Phase A)**: Blender-style folder tree in EntitySidebar — Group / Ungroup / Add to group / Remove from group toolbar buttons, **Cmd/Ctrl+G** and **Cmd/Ctrl+Shift+G** shortcuts, single-parent invariant, sub-group nesting, collapse/rename, persisted via `RennWorld.groups`. Purely organizational — no runtime/Play-mode effect. See `feature-groups.md`. Phase B (rigging via Rapier joints) is documented in `feature-rigging-roadmap.md`.
 - PropertyPanel: TransformEditor, ShapeEditor, PhysicsEditor, MaterialEditor, entity name, delete
 - ScriptPanel: Monaco editor, add/remove scripts
 - AssetPanel: upload textures / **videos** / models, list/remove; per-asset download; bulk download all as `assets.zip`

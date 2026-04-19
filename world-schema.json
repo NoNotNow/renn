@@ -20,6 +20,11 @@
     "scripts": {
       "type": "object",
       "additionalProperties": { "$ref": "#/$defs/ScriptDef" }
+    },
+    "groups": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/EntityGroup" },
+      "description": "Optional explorer groups (Phase A: organizational only). Members may be entity or sub-group IDs."
     }
   },
   "additionalProperties": false,
@@ -485,6 +490,27 @@
           "description": "Transformer chain for this entity"
         },
         "avatar": { "$ref": "#/$defs/EntityAvatarConfig" }
+      },
+      "additionalProperties": false
+    },
+    "EntityGroup": {
+      "type": "object",
+      "required": ["id", "memberIds"],
+      "description": "Phase A: organizational only — no runtime effect. Phase B reserves the optional `rig` field for joint configuration.",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "memberIds": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Ordered IDs of member entities or sub-groups"
+        },
+        "collapsed": { "type": "boolean", "description": "Explorer UI fold state" },
+        "rig": {
+          "type": "object",
+          "description": "Phase B placeholder: rig/joint configuration. Phase A round-trips opaquely.",
+          "additionalProperties": true
+        }
       },
       "additionalProperties": false
     }

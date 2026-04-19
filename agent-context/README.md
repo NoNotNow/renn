@@ -10,6 +10,8 @@ Docs for LLM/code agents. Read `start-here.md` first, then only what the task re
 | **feature-scripting** | Script editor, game API, event hooks, examples, roadmap |
 | **feature-world-update-reload** | World update path, rebuild key, incremental vs rebuild, minimal-rebuild strategy |
 | **feature-inspector** | Property panel, multiselect, gizmo, undo, live poses, picking |
+| **feature-groups** | Explorer groups (Phase A) — data model, helpers, UI, persistence |
+| **feature-rigging-roadmap** | Rigging concept & roadmap (Phase B) — Rapier joints, UI, story mapping |
 | **feature-texture-compositor** | Texture Maker, paint, layers, undo |
 | **feature-video-texture** | Video map assets: ffmpeg.wasm transcode, inspector picker, Three.js VideoTexture |
 | **feature-lod** | Multi-resolution LOD planning (separate project from distance culling) |

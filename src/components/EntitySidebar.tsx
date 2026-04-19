@@ -22,15 +22,25 @@ import { sidebarRowStyle, sidebarLabelStyle, fieldLabelStyle, secondaryButtonSty
 import AvatarDialog from './AvatarDialog'
 import { avatarEntityIconLetter, getAvatarRosterEntityIds } from '@/utils/avatarUtils'
 import { theme } from '@/config/theme'
+import EntityExplorerTree from './EntityExplorerTree'
 
 export interface EntitySidebarProps {
   entities: Entity[]
   selectedEntityIds: string[]
+  /** Group IDs explicitly selected (in addition to entity selection). */
+  selectedGroupIds: string[]
   cameraControl: 'free' | 'follow' | 'top' | 'front' | 'right'
   cameraTarget: string
   cameraMode: CameraMode
   world: RennWorld
   onSelectEntity: (id: string | null, options?: { additive?: boolean }) => void
+  onSelectGroup: (groupId: string, options?: { additive?: boolean }) => void
+  onCreateGroupFromSelection: () => void
+  onUngroup: (groupId: string) => void
+  onAddSelectedToGroup: (groupId: string) => void
+  onRemoveSelectedFromGroup: () => void
+  onToggleGroupCollapsed: (groupId: string, collapsed: boolean) => void
+  onRenameGroup: (groupId: string, name: string) => void
   onAddEntity: (shapeType: AddableShapeType) => void
   onBulkAddEntities: (params: BulkEntityParams) => void
   onCameraControlChange: (control: 'free' | 'follow' | 'top' | 'front' | 'right') => void
@@ -64,11 +74,19 @@ const SHAPE_FILTER_OPTIONS: { value: 'any' | AddableShapeType; label: string }[]
 export default function EntitySidebar({
   entities,
   selectedEntityIds,
+  selectedGroupIds,
   cameraControl,
   cameraTarget,
   cameraMode,
   world,
   onSelectEntity,
+  onSelectGroup,
+  onCreateGroupFromSelection,
+  onUngroup,
+  onAddSelectedToGroup,
+  onRemoveSelectedFromGroup,
+  onToggleGroupCollapsed,
+  onRenameGroup,
   onAddEntity,
   onBulkAddEntities,
   onCameraControlChange,
@@ -80,7 +98,6 @@ export default function EntitySidebar({
   isOpen,
   onToggle,
 }: EntitySidebarProps) {
-  const selectedSet = useMemo(() => new Set(selectedEntityIds), [selectedEntityIds])
   const [leftTab, setLeftTab] = useState<LeftTab>('camera')
   const [searchQuery, setSearchQuery] = useState('')
   const [filterHasModel, setFilterHasModel] = useState<TriState>('any')
@@ -439,52 +456,21 @@ export default function EntitySidebar({
                     />
                   </div>
                 </CollapsibleSection>
-                <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 0 0' }}>
-                  {filteredEntities.length === 0 ? (
-                    <li style={{ color: theme.text.muted, fontSize: 13, padding: '8px 0' }}>
-                      {entityListEmptyMessage}
-                    </li>
-                  ) : (
-                    filteredEntities.map((e) => (
-                    <li key={e.id}>
-                      <CopyableArea copyPayload={e} style={{ display: 'block' }}>
-                      <button
-                        type="button"
-                        style={{
-                          width: '100%',
-                          textAlign: 'left',
-                          padding: '4px 8px',
-                          background: selectedSet.has(e.id) ? theme.button.primary : 'transparent',
-                          border: 'none',
-                          cursor: 'pointer',
-                          transition: 'background 0.15s ease',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 6,
-                        }}
-                        onClick={(ev) => {
-                          uiLogger.click('Builder', 'Select entity', { entityId: e.id, entityName: e.name })
-                          onSelectEntity(e.id, { additive: ev.shiftKey || ev.metaKey || ev.ctrlKey })
-                        }}
-                        onMouseEnter={(ev) => {
-                          if (!selectedSet.has(e.id)) {
-                            ev.currentTarget.style.background = theme.bg.listHover
-                          }
-                        }}
-                        onMouseLeave={(ev) => {
-                          if (!selectedSet.has(e.id)) {
-                            ev.currentTarget.style.background = 'transparent'
-                          }
-                        }}
-                      >
-                        {e.locked && <span style={{ fontSize: 11, opacity: 0.7 }}>🔒</span>}
-                        <span>{e.name ?? e.id}</span>
-                      </button>
-                      </CopyableArea>
-                    </li>
-                    ))
-                  )}
-                </ul>
+                <EntityExplorerTree
+                  world={world}
+                  visibleEntities={filteredEntities}
+                  selectedEntityIds={selectedEntityIds}
+                  selectedGroupIds={selectedGroupIds}
+                  onSelectEntity={(id, options) => onSelectEntity(id, options)}
+                  onSelectGroup={onSelectGroup}
+                  onCreateGroupFromSelection={onCreateGroupFromSelection}
+                  onUngroup={onUngroup}
+                  onAddSelectedToGroup={onAddSelectedToGroup}
+                  onRemoveSelectedFromGroup={onRemoveSelectedFromGroup}
+                  onToggleGroupCollapsed={onToggleGroupCollapsed}
+                  onRenameGroup={onRenameGroup}
+                  emptyMessage={entityListEmptyMessage}
+                />
                 </>
               </CopyableArea>
             )}

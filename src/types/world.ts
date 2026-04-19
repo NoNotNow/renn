@@ -352,12 +352,39 @@ export interface ModelPreset {
   scale?: Vec3
 }
 
+/**
+ * Phase B placeholder. The rigging feature (joints between members) is described in
+ * `agent-context/feature-rigging-roadmap.md`. Phase A reads/writes the field opaquely so
+ * older worlds round-trip cleanly once Phase B lands.
+ */
+export interface RigConfig {
+  joints?: unknown[]
+}
+
+/**
+ * Organizational grouping of entities (and optionally nested sub-groups). Phase A is
+ * purely visual — no runtime effect, no transform inheritance. See
+ * `agent-context/feature-groups.md`.
+ */
+export interface EntityGroup {
+  id: string
+  name?: string
+  /** Ordered list of member IDs (entity IDs and/or sub-group IDs). */
+  memberIds: string[]
+  /** Phase B: when set, the group is treated as a rig with joints. */
+  rig?: RigConfig
+  /** UI state: collapsed in the explorer tree. */
+  collapsed?: boolean
+}
+
 export interface RennWorld {
   version: string
   world: WorldSettings
   entities: Entity[]
   assets?: Record<string, AssetRef>
   scripts?: Record<string, ScriptDef>
+  /** Optional explorer organization. Members may be entity IDs or sub-group IDs. */
+  groups?: EntityGroup[]
 }
 
 export const DEFAULT_GRAVITY: Vec3 = [0, -9.81, 0]
