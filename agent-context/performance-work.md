@@ -2,7 +2,7 @@
 
 Working document derived from Firefox profiling on a heavy project (RefreshDriver / `requestAnimationFrame`, GC, CSS HUD, JIT notes) and from codebase review. **Items are ordered by typical impact (largest gains first).** Update statuses and notes as work completes.
 
-**Current status (2026-04-08):** JS allocation-reduction work (§2, §6, §7) is **benchmark-validated** — near-zero heap growth, full object reuse, linear scaling (see §10). **Tier 1 GPU**, **Tier 2** hot-path alloc, and **Tier 3** (`FrameStatsOverlay` ~10 Hz, `GameHud` memo, **`InspectorLivePoseBridge`** so inspector pose polling does not re-render full `Builder`) are in code. **Latest Firefox markers** summarized in [§1.2](#12-firefox-marker-export-2026-04-08-builder--play). **Velocity cache** (`linvel`/`angvel` in `CachedTransform`), **sleep-skip** (sleeping bodies skipped in `resetAllForces` + `executeTransformers`), **timestep sync** (`world.timestep = dt`), and **geometry count** in Frame Stats overlay are implemented. **Next:** optional DPR toggle; more blob/material prefetch; instancing/LOD when GPU stats + geometry count justify it.
+**Current status (2026-04-08, doc sync 2026-04-19):** JS allocation-reduction work (§2, §6, §7) is **benchmark-validated** — near-zero heap growth, full object reuse, linear scaling (see §10). **Tier 1 GPU**, **Tier 2** hot-path alloc, and **Tier 3** (`FrameStatsOverlay` ~10 Hz, `GameHud` memo) are in code. **Inspector pose polling** uses [`LivePosesPoll.tsx`](../src/components/LivePosesPoll.tsx) in [`Builder.tsx`](../src/pages/Builder.tsx): interval + state live **under** that wrapper so **`PropertySidebar`** (and siblings inside the render prop) reconcile on the tick — **not** the full `Builder` tree. **Latest Firefox markers** summarized in [§1.2](#12-firefox-marker-export-2026-04-08-builder--play). **Velocity cache**, **sleep-skip**, **timestep sync**, and **geometry count** in Frame Stats overlay are implemented. **Next:** optional DPR toggle; optional idle material prefetch if decode-in-rAF returns; instancing/LOD when GPU stats justify it.
 
 **Legend:** `[ ]` not started · `[~]` in progress · `[x]` done
 
@@ -61,7 +61,7 @@ Captured on `localhost` with Game HUD, physics, and inspector open. Representati
 | **CSS `rennHudPulseScore` / `rennHudPulseDamage`** | Listed as **opacity, transform** iterations | Matches §3 fix (no animated `filter`); markers still appear but are not the multi‑ms line item |
 | **JIT** | `Invalidate` / `Bailout` in bundled **Three** (`chunk-BQJMB3HC.js`), **React** (`chunk-FD5SMSK5.js`), **`avatarUtils.ts`** | `avatarEntityIconLetter` hot path simplified (`charAt`) to reduce key-handler bailouts |
 
-**React Builder:** `setInterval` **219 ms** for inspector pose polling appears as `Builder.tsx` (expected); polling state now lives in **`InspectorLivePoseBridge`** so **`Builder` itself does not re-render** on that interval.
+**React Builder:** `setInterval` (~100 ms) in **`LivePosesPoll`** (used from `Builder.tsx`) updates **`livePoses`** for **`PropertySidebar`** only — **not** a full `Builder` re-render each tick.
 
 **Headless check after this change:** `npm run test:run -- src/test/scenarios/performance-benchmarks.integration.test.ts` — still sub-quadratic scaling and near-zero heap delta (does not reflect browser GPU/GC).
 
@@ -200,7 +200,7 @@ Firefox additionally suffers `Bailout / Invalidate` at `GetAliasedVar` in the WA
 
 | Status | Item | Notes |
 |--------|------|--------|
-| [~] | **Avoid mid-play blob decodes**: texture compositor output (blob: URLs) should be fully decoded and uploaded to GPU (via `createImageBitmap` or canvas) **before** entering the play loop, not lazily during rAF | **Partial:** [`scheduleMaterialTextureDecodePrefetch`](src/loader/prefetchMaterialTextures.ts) runs after `SceneView` load (idle callbacks, `createImageBitmap` + `close()` per `material.map` id). Does not replace `TextureLoader` first use; reduces likelihood decode aligns with rAF. |
+| [~] | **Avoid mid-play blob decodes**: texture compositor output (blob: URLs) should be fully decoded and uploaded to GPU (via `createImageBitmap` or canvas) **before** entering the play loop, not lazily during rAF | **Partial / removed helper:** `prefetchMaterialTextures.ts` was deleted (no production wiring). **Next:** if needed, re-add idle `createImageBitmap` prefetch from `SceneView` after load and document the entry point. |
 | [ ] | Downscale large **composite** / material maps; share **asset ids** across entities | Less VRAM, fewer unique textures. Smaller blobs → faster decode even if timing issue is not fixed. |
 | [ ] | Fewer **layers** in texture documents where possible | Compositor cost on edit/bake. |
 
@@ -214,7 +214,7 @@ Firefox additionally suffers `Bailout / Invalidate` at `GetAliasedVar` in the WA
 
 **World paint:** [`prepareWorldPaintStroke`](src/pages/Builder.tsx) returns layer blobs from `assets`; first use can coincide with stroke start — ensure GPU upload path does not duplicate work already done by [`TextureMaker`](src/components/TextureMaker/TextureMaker.tsx) `ImageBitmap` cache where applicable.
 
-**Next implementation directions:** (1) ~~After world/assets are ready, prefetch~~ **Done (idle bitmap decode)** for entity `material.map` ids — see [`prefetchMaterialTextures.ts`](src/loader/prefetchMaterialTextures.ts). Optional: cache `THREE.Texture` in resolver to avoid second decode on material build. (2) For compositor exports, reuse the **bitmap cache** pattern from TextureMaker for any code path that currently hits `TextureLoader` + blob URL on first paint.
+**Next implementation directions:** (1) Optional **idle bitmap prefetch** for entity `material.map` ids (previous standalone module removed — wire from `SceneView` if profiling shows rAF-aligned decodes). Optional: cache `THREE.Texture` in resolver to avoid second decode on material build. (2) For compositor exports, reuse the **bitmap cache** pattern from TextureMaker for any code path that currently hits `TextureLoader` + blob URL on first paint.
 
 ---
 
@@ -268,7 +268,7 @@ Combines Firefox profiling, **Chrome Performance** call tree (§1.3), headless b
 | **GPU fill + shadow pass** | WebGL `DispatchCommands` 27–33 ms; `GetLinkResult` 14 ms sync stall | 30+ ms (exceeds 16.7 ms budget alone) | **Yes:** shadow res, DPR cap, fewer casters |
 | **Rapier WASM step** (core) | Chrome: `wasm-function[1192]` **562 ms** total; headless 51% | ~10 ms | Partially: sleep tuning (**done 2026-04-08** — sleeping bodies skip forces/transformers), `world.timestep = dt` synced, simpler colliders (guidance added) |
 | **Transformer JS** | Chrome: `executeTransformers` **1,148 ms** total (includes touching); headless 46% | ~8 ms | **Yes:** cached sort + in-place **done**; touching cache **done** |
-| **React reconciliation** | ~~Builder `livePoses` every 220 ms~~ → **`InspectorLivePoseBridge`** isolates sidebar | 1–5 ms saved on `Builder` subtree | **Partial:** bridge **done**; `FrameStatsOverlay` throttled |
+| **React reconciliation** | Builder `livePoses` polling in **`LivePosesPoll`** → `PropertySidebar` subtree | 1–5 ms on inspector path | **Partial:** `FrameStatsOverlay` throttled; pose subtree isolated **2026-04-19** |
 | **Remaining JS alloc** | Script APIs, `ScriptRunner`, occasional `Object.keys` in clears | < 1 ms cumulative typical | **Partial:** Tier 2 hot paths addressed |
 
 **Key insights:**
@@ -297,7 +297,7 @@ Completes the allocation-reduction campaign from §2. Validated by the headless 
 | # | Item | Where | Frequency |
 |---|------|-------|-----------|
 | 6 | **`TransformerChain.execute`**: pre-sort on add/remove (not per `execute`); reuse one `accumulated` + one `currentInput` scratch per chain | [`transformer.ts`](../src/transformers/transformer.ts) | **[x] 2026-04-08** — in-place accumulate into `input`; no `{...input}` per transformer |
-| 7 | **`applyInputMapping`**: accept reusable `Record` instead of `{}` every call; avoid `Object.keys` in merge | [`inputMapping.ts`](../src/input/inputMapping.ts) (`applyInputMappingInto`), [`inputTransformer.ts`](../src/transformers/presets/inputTransformer.ts), [`inputManager.ts`](../src/input/inputManager.ts) | **[x] 2026-04-08** |
+| 7 | **`applyInputMapping`**: accept reusable `Record` instead of `{}` every call; avoid `Object.keys` in merge | [`inputMapping.ts`](../src/input/inputMapping.ts) (`applyInputMappingInto`), [`inputTransformer.ts`](../src/transformers/presets/inputTransformer.ts) | **[x] 2026-04-08** (`inputManager.ts` removed in cleanup) |
 | 8 | **HUD `getAll()` sort**: cache sorted transformer list; invalidate on add/remove | [`transformer.ts`](../src/transformers/transformer.ts) (`sorted` + `sortDirty`) | **[x] 2026-04-08** |
 | 9 | **`sceneFrameLoop` debug-force filter**: in-place splice instead of `Array.filter` | [`sceneFrameLoop.ts`](../src/runtime/sceneFrameLoop.ts) | **[x] 2026-04-08** |
 | 10 | **`getLinearVelocity` / `getForwardVector`**: return into caller buffers, not new `[x,y,z]` | [`rapierPhysics.ts`](../src/physics/rapierPhysics.ts) (`getLinearVelocityInto`), [`renderItemRegistry.ts`](../src/runtime/renderItemRegistry.ts) (`getForwardVectorInto`), [`sceneFrameLoop.ts`](../src/runtime/sceneFrameLoop.ts) HUD scratch | **[x] 2026-04-08** — HUD path; script `getForwardVector` still returns new tuple |
@@ -308,7 +308,7 @@ Improves Builder responsiveness; does not affect standalone Play FPS:
 
 | # | Item | Where | Rationale |
 |---|------|-------|-----------|
-| 11 | **Builder `livePoses`**: store in ref, push updates only to PropertySidebar (not full Builder rerender) | [`InspectorLivePoseBridge.tsx`](../src/components/InspectorLivePoseBridge.tsx) + [`Builder.tsx`](../src/pages/Builder.tsx) | **[x] 2026-04-08** — render-prop bridge; `getScenePosesForInspector` callback |
+| 11 | **Builder `livePoses`**: store in ref, push updates only to PropertySidebar (not full Builder rerender) | [`LivePosesPoll.tsx`](../src/components/LivePosesPoll.tsx) + [`Builder.tsx`](../src/pages/Builder.tsx) + PropertySidebar | **[x] 2026-04-19** — `getPosesRef` + render prop; interval inside `LivePosesPoll` |
 | 12 | **`FrameStatsOverlay`**: cap setState to ~10 Hz or use direct DOM writes | [`FrameStatsOverlay.tsx`](../src/components/FrameStatsOverlay.tsx) | **[x] 2026-04-08** — `FRAME_STATS_UI_MIN_INTERVAL_MS` = 100 |
 | 13 | **`React.memo` on `GameHud`** | [`GameHud.tsx`](../src/components/GameHud.tsx) | **[x] 2026-04-08** |
 
@@ -325,7 +325,7 @@ Improves Builder responsiveness; does not affect standalone Play FPS:
 |------|-----------------|
 | Tier 1 (GPU) | **Browser-based**: Frame Stats overlay (after adding `renderer.info` in item 5) + Chrome/Firefox profiler on the heavy test scene. The headless Vitest benchmarks cannot measure GPU cost. |
 | Tier 2 (JS alloc) | **Automated**: `performance-benchmarks.integration.test.ts` — heap delta stays near zero; transformer phase share should decrease after item 6. |
-| Tier 3 (React) | **React DevTools Profiler**: `Builder` should **not** re-render every 220 ms from pose polling (only `InspectorLivePoseBridge` → `PropertySidebar` path). Compare render counts before/after. |
+| Tier 3 (React) | **React DevTools Profiler**: `Builder` should not reconcile every pose tick; only `LivePosesPoll` + `PropertySidebar` path. |
 
 ---
 
@@ -334,6 +334,7 @@ Improves Builder responsiveness; does not affect standalone Play FPS:
 | Date | Key changes |
 |------|-------------|
 | 2026-04-08 | Tier 1 GPU (shadows 1024², PCFShadowMap, DPR 1.5, AABB castShadow), Tier 2 alloc (CachedTransform reuse, transformer chain, input mapping, debug forces, velocity helpers), Tier 3 React (InspectorLivePoseBridge, FrameStatsOverlay throttle, GameHud memo), Chrome trace analysis, rebuildTouchingCache, velocity/sleeping cache, distance culling, perf benchmarks |
+| 2026-04-19 | Doc sync + cleanup Phase 2: `DEFAULT_FREE_FLY_KEYS` in `types/camera`, `worldGroundPatch`, shared drop-zone / pick-button styles, **`LivePosesPoll`** wired in Builder (Tier 3 row 11). `prefetchMaterialTextures` / unused bridge removed earlier. `TransformerTemplateDialog` test: await async preset load before assert. |
 | 2026-04-09 | Distance culling uncull fix (`enableBodyFromCulling` refreshes cache + clears sleep timer) |
 | 2026-04-15 | Controlled avatar exempt from sleep/cull skips (`wakeDynamicAndRefreshTransformCache`) | While a body is culled with `sleepCulled`, `step()` does not refresh its `CachedTransform`, so `isSleeping` can stay `true` from the last simulated frame. `enableBodyFromCulling` now runs `syncCachedTransformFromBody(..., full)` after `wakeUp()` and clears that entity’s `customSleepTimers` entry so the next frame’s `executeTransformers` (before `step`) sees an awake cache and stale custom-sleep timers do not immediately re-sleep the body. Regression: `rapierPhysics.test.ts` (`enableBodyFromCulling refreshes cached transform…`). |
 
@@ -345,5 +346,5 @@ Improves Builder responsiveness; does not affect standalone Play FPS:
 - Semi-fixed timestep: `advanceSemiFixedAccumulator` in `SceneView`, `world.world.simulation`, `timeScale` (0.1–5)
 - Distance culling: `src/types/world.ts`, `src/runtime/renderItemRegistry.ts`, `src/physics/rapierPhysics.ts`, `src/utils/distanceCullingMath.ts`, `src/components/WorldPanel.tsx`
 - Physics cache: `src/physics/rapierPhysics.ts` (`step()`, `contactForceByPair`, `CachedTransform`)
-- Idle texture prefetch: `src/loader/prefetchMaterialTextures.ts`
+- ~~Idle texture prefetch: `src/loader/prefetchMaterialTextures.ts`~~ (removed; optional reintroduce from `SceneView` if needed)
 - Performance benchmarks: `src/test/scenarios/performance-benchmarks.integration.test.ts`, `src/test/helpers/benchmarkUtils.ts`

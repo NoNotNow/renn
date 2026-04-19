@@ -1,3 +1,4 @@
+import type { CSSProperties, MouseEvent } from 'react'
 import { theme } from '@/config/theme'
 
 export const sidebarRowStyle = {
@@ -130,4 +131,59 @@ export const thumbnailButtonStyle = {
 export const thumbnailButtonStyleDisabled = {
   opacity: 0.5,
   cursor: 'not-allowed' as const,
+}
+
+/** "Add texture" / pick-asset icon buttons in entity panels (same idle/hover as legacy hex). */
+export function secondaryPickIconButtonStyle(disabled: boolean): CSSProperties {
+  return {
+    ...entityPanelIconButtonStyle,
+    background: theme.bg.panelAlt,
+    border: `1px solid ${theme.border.default}`,
+    color: theme.text.primary,
+    ...(disabled ? { opacity: 0.5, cursor: 'not-allowed' as const } : {}),
+  }
+}
+
+export function secondaryPickIconButtonHoverHandlers(disabled: boolean): {
+  onMouseEnter: (e: MouseEvent<HTMLElement>) => void
+  onMouseLeave: (e: MouseEvent<HTMLElement>) => void
+} {
+  const idle = theme.bg.panelAlt
+  const hover = theme.bg.panelAltHover
+  return {
+    onMouseEnter: (e) => {
+      if (!disabled) e.currentTarget.style.background = hover
+    },
+    onMouseLeave: (e) => {
+      if (!disabled) e.currentTarget.style.background = idle
+    },
+  }
+}
+
+/** Dashed upload area: border + background from theme (no drag). */
+export function assetDropZoneChrome(dragActive: boolean): { border: string; background: string } {
+  return {
+    border: `2px dashed ${dragActive ? theme.border.dropZoneActive : theme.border.default}`,
+    background: dragActive ? theme.bg.dropZoneActive : theme.bg.panelAlt,
+  }
+}
+
+export function assetDropZoneHoverHandlers(dragActive: boolean): {
+  onMouseEnter: (e: MouseEvent<HTMLElement>) => void
+  onMouseLeave: (e: MouseEvent<HTMLElement>) => void
+} {
+  return {
+    onMouseEnter: (e) => {
+      if (!dragActive) {
+        e.currentTarget.style.borderColor = theme.border.dropZoneHover
+        e.currentTarget.style.background = theme.bg.panelAltHover
+      }
+    },
+    onMouseLeave: (e) => {
+      if (!dragActive) {
+        e.currentTarget.style.borderColor = theme.border.default
+        e.currentTarget.style.background = theme.bg.panelAlt
+      }
+    },
+  }
 }

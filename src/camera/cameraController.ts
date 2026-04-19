@@ -1,19 +1,6 @@
 import * as THREE from 'three'
 import type { AvatarFocusSnapshot, CameraConfig, CameraControl, CameraMode } from '@/types/world'
-import type { FreeFlyKeys } from '@/types/camera'
-
-export const DEFAULT_FREE_FLY_KEYS: FreeFlyKeys = {
-  w: false,
-  a: false,
-  s: false,
-  d: false,
-  shift: false,
-  alt: false,
-  arrowLeft: false,
-  arrowRight: false,
-  arrowUp: false,
-  arrowDown: false,
-}
+import { DEFAULT_FREE_FLY_KEYS, type FreeFlyKeys } from '@/types/camera'
 
 const FREE_FLY_MOVE_SPEED = 8
 const FREE_FLY_SPRINT_MULTIPLIER = 2

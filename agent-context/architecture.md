@@ -35,7 +35,7 @@ renn/
 │   ├── types/
 │   │   ├── world.ts          # RennWorld, Entity, Shape, Vec3, Quat, etc.
 │   │   ├── sceneUserData.ts  # Typed userData for Scene and entity meshes
-│   │   └── camera.ts         # Camera-related types
+│   │   └── camera.ts         # FreeFlyKeys + DEFAULT_FREE_FLY_KEYS (shared by CameraController, useKeyboardInput)
 │   ├── config/
 │   │   └── constants.ts      # App-wide constants (DB_CONFIG, BUILDER_SCENE_CANVAS_HOST_ATTR)
 │   ├── contexts/
@@ -73,6 +73,8 @@ renn/
 │   │   └── useLocalStorageState.ts # Persist UI state to localStorage
 │   ├── utils/
 │   │   ├── uiLogger.ts       # Centralized UI interaction logging (click, change, select, etc.)
+│   │   ├── worldGroundPatch.ts # patchFirstPlaneEntity (WorldPanel ground edits)
+│   │   ├── jsonParseErrorLocation.ts # JSON.parse error line/column for avatar + transformer textareas
 │   │   ├── worldUtils.ts     # updateEntityPosition, etc.
 │   │   ├── entityApproximateSize.ts # Approximate entity extent for list filters (not physics AABB)
 │   │   ├── colorUtils.ts     # Color generation and utilities
@@ -84,6 +86,7 @@ renn/
 │   │   ├── SceneView.tsx     # 3D canvas: load world, physics, scripts, camera, render loop; pointer-reveal fullscreen control (bottom-left, `display:none` when hidden); Play fullscreen targets scene root; Builder passes `fullscreenTargetRef` (whole column) + document-wide chrome; Esc exits native fullscreen; Builder closes/restores side drawers; in fullscreen, header + sidebars hide with the button when idle
 │   │   ├── BuilderHeader.tsx # Toolbar: New, Save, Save as, Download, Upload, project list, Play, gravity/shadows
 │   │   ├── EntitySidebar.tsx # Entity list (search + collapsible filters), add-entity dropdown, camera control/target/mode
+│   │   ├── LivePosesPoll.tsx   # Interval read of SceneView poses → render prop (inspector only; avoids full Builder reconcile)
 │   │   ├── PropertySidebar.tsx # Tabs: Properties | Scripts | Assets | Presets
 │   │   ├── ModelPresetPanel.tsx # Global model/material/shape presets (IndexedDB)
 │   │   ├── WorldPanel.tsx    # World tab: gravity, sleep thresholds, sky color + dome texture (`world.skybox`), lights, ground
@@ -120,7 +123,7 @@ renn/
 │   │       ├── three.ts      # Three.js test helpers
 │   │       └── world.ts      # World test helpers
 │   └── pages/
-│       ├── Builder.tsx       # Builder: outer column is native fullscreen root; document `pointermove`/`pointerdown` reveal fullscreen chrome; BuilderHeader, EntitySidebar, SceneView, PropertySidebar
+│       ├── Builder.tsx       # Builder: outer column fullscreen root; chrome reveal; BuilderHeader, EntitySidebar, SceneView, LivePosesPoll → PropertySidebar
 │       └── Play.tsx          # Play: load world from ?world=… or sample; SceneView only
 ```
 

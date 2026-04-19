@@ -1,10 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import * as THREE from 'three'
-import {
-  CameraController,
-  DEFAULT_FREE_FLY_KEYS,
-  DEFAULT_PERSPECTIVE_FOV_DEGREES,
-} from './cameraController'
+import { CameraController, DEFAULT_PERSPECTIVE_FOV_DEGREES } from './cameraController'
+import { DEFAULT_FREE_FLY_KEYS } from '@/types/camera'
 
 function createTestSetup() {
   const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 1000)

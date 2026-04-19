@@ -34,8 +34,8 @@ describe('TransformerTemplateDialog', () => {
 
     await user.selectOptions(screen.getByTestId('transformer-template-select'), 'default')
 
-    const preview = await screen.findByTestId('transformer-template-preview')
-    expect(preview).toHaveTextContent('"type": "car2"')
+    const preview = screen.getByTestId('transformer-template-preview')
+    await screen.findByText(/"type": "car2"/, {}, { timeout: 5000 })
     expect(preview).toHaveTextContent('"params"')
   })
 

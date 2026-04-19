@@ -7,6 +7,10 @@ export const theme = {
   bg: {
     panel: '#1b1f2a',
     panelAlt: '#1a1a1a',
+    /** Slightly lighter than `panelAlt`; used for hover on compact pick controls. */
+    panelAltHover: '#222222',
+    /** Drag-over highlight for upload drop zones. */
+    dropZoneActive: '#1e2a3a',
     surface: '#2a2a2a',
     section: 'rgba(17, 20, 28, 0.6)',
     input: '#232836',
@@ -34,6 +38,10 @@ export const theme = {
   hint: '#6b7280',
   border: {
     default: '#2f3545',
+    /** Dashed drop zone border while dragging a file over. */
+    dropZoneActive: '#4a9eff',
+    /** Hover border on idle drop zone (between default and accent). */
+    dropZoneHover: '#3f4f5f',
     destructive: '#6b2a2a',
     destructiveMuted: '#2f3545',
   },

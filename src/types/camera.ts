@@ -14,3 +14,17 @@ export interface FreeFlyKeys {
   arrowUp: boolean
   arrowDown: boolean
 }
+
+/** Initial key state; shared by `CameraController` and `useKeyboardInput`. */
+export const DEFAULT_FREE_FLY_KEYS: FreeFlyKeys = {
+  w: false,
+  a: false,
+  s: false,
+  d: false,
+  shift: false,
+  alt: false,
+  arrowLeft: false,
+  arrowRight: false,
+  arrowUp: false,
+  arrowDown: false,
+}

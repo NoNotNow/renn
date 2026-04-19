@@ -34,6 +34,7 @@ import {
   secondaryButtonStyle,
 } from './sharedStyles'
 import { useEditorUndo } from '@/contexts/EditorUndoContext'
+import { patchFirstPlaneEntity } from '@/utils/worldGroundPatch'
 
 export interface WorldPanelProps {
   world: RennWorld
@@ -199,28 +200,22 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
       console.warn('No ground entity found to update color')
       return
     }
-    
-    uiLogger.change('WorldPanel', 'Change ground color', { 
-      entityId: groundEntity.id, 
-      oldValue: groundColor, 
-      newValue: newColor 
+
+    uiLogger.change('WorldPanel', 'Change ground color', {
+      entityId: groundEntity.id,
+      oldValue: groundColor,
+      newValue: newColor,
     })
-    
-    // Update the ground entity's material color
-    onWorldChange({
-      ...world,
-      entities: world.entities.map((e) =>
-        e.id === groundEntity.id
-          ? {
-              ...e,
-              material: {
-                ...e.material,
-                color: newColor,
-              },
-            }
-          : e
-      ),
-    })
+
+    onWorldChange(
+      patchFirstPlaneEntity(world, groundEntity, (e) => ({
+        ...e,
+        material: {
+          ...e.material,
+          color: newColor,
+        },
+      })),
+    )
   }
 
   const updateGroundMaterial = (materialPatch: Partial<MaterialRef>) => {
@@ -228,21 +223,16 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
       console.warn('No ground entity found to update material')
       return
     }
-    
-    onWorldChange({
-      ...world,
-      entities: world.entities.map((e) =>
-        e.id === groundEntity.id
-          ? {
-              ...e,
-              material: {
-                ...e.material,
-                ...materialPatch,
-              },
-            }
-          : e
-      ),
-    })
+
+    onWorldChange(
+      patchFirstPlaneEntity(world, groundEntity, (e) => ({
+        ...e,
+        material: {
+          ...e.material,
+          ...materialPatch,
+        },
+      })),
+    )
   }
 
   const updateGroundFriction = (newFriction: number) => {
@@ -250,19 +240,14 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
       console.warn('No ground entity found to update friction')
       return
     }
-    
+
     uiLogger.change('WorldPanel', 'Change ground friction', {
       entityId: groundEntity.id,
       oldValue: groundFriction,
       newValue: newFriction,
     })
-    
-    onWorldChange({
-      ...world,
-      entities: world.entities.map((e) =>
-        e.id === groundEntity.id ? { ...e, friction: newFriction } : e
-      ),
-    })
+
+    onWorldChange(patchFirstPlaneEntity(world, groundEntity, (e) => ({ ...e, friction: newFriction })))
   }
 
   const updateGroundScale = (newScale: Vec3) => {
@@ -270,19 +255,14 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
       console.warn('No ground entity found to update scale')
       return
     }
-    
+
     uiLogger.change('WorldPanel', 'Change ground scale', {
       entityId: groundEntity.id,
       oldValue: groundScale,
       newValue: newScale,
     })
-    
-    onWorldChange({
-      ...world,
-      entities: world.entities.map((e) =>
-        e.id === groundEntity.id ? { ...e, scale: newScale } : e
-      ),
-    })
+
+    onWorldChange(patchFirstPlaneEntity(world, groundEntity, (e) => ({ ...e, scale: newScale })))
   }
 
   const skyColorHex = colorToHex(skyColor)

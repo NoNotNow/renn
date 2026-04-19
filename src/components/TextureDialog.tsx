@@ -7,6 +7,7 @@ import Modal from './Modal'
 import TextureThumbnail from './TextureThumbnail'
 import VideoThumbnail, { MapMediaThumbnail } from './VideoThumbnail'
 import VideoConversionDialog from './VideoConversionDialog'
+import { assetDropZoneChrome, assetDropZoneHoverHandlers } from './sharedStyles'
 
 export interface TextureDialogProps {
   isOpen: boolean
@@ -583,24 +584,12 @@ export default function TextureDialog({
                     gap: 12,
                     padding: 24,
                     borderRadius: 6,
-                    border: `2px dashed ${dragActive ? '#4a9eff' : '#2f3545'}`,
-                    background: dragActive ? '#1e2a3a' : '#1a1a1a',
                     cursor: 'pointer',
                     transition: 'all 0.15s ease',
                     minHeight: 200,
+                    ...assetDropZoneChrome(dragActive),
                   }}
-                  onMouseEnter={(e) => {
-                    if (!dragActive) {
-                      e.currentTarget.style.borderColor = '#3f4f5f'
-                      e.currentTarget.style.background = '#222'
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!dragActive) {
-                      e.currentTarget.style.borderColor = '#2f3545'
-                      e.currentTarget.style.background = '#1a1a1a'
-                    }
-                  }}
+                  {...assetDropZoneHoverHandlers(dragActive)}
                 >
                   <div style={{ fontSize: 32 }} aria-hidden>
                     ↑

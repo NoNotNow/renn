@@ -1,19 +1,8 @@
 import { useEffect, useRef } from 'react'
-import type { FreeFlyKeys } from '@/types/camera'
+import { DEFAULT_FREE_FLY_KEYS, type FreeFlyKeys } from '@/types/camera'
 import { isEditableElement } from '@/input/rawInput'
 
-export const DEFAULT_FREE_FLY_KEYS: FreeFlyKeys = {
-  w: false,
-  a: false,
-  s: false,
-  d: false,
-  shift: false,
-  alt: false,
-  arrowLeft: false,
-  arrowRight: false,
-  arrowUp: false,
-  arrowDown: false,
-}
+export { DEFAULT_FREE_FLY_KEYS } from '@/types/camera'
 
 export function useKeyboardInput(): React.RefObject<FreeFlyKeys> {
   const keysRef = useRef<FreeFlyKeys>({ ...DEFAULT_FREE_FLY_KEYS })

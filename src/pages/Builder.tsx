@@ -5,6 +5,7 @@ import PerformanceBoosterDialog from '@/components/PerformanceBoosterDialog'
 import SaveDialog from '@/components/SaveDialog'
 import EntitySidebar from '@/components/EntitySidebar'
 import PropertySidebar from '@/components/PropertySidebar'
+import { LivePosesPoll, type LivePosesMap } from '@/components/LivePosesPoll'
 import { CopyProvider } from '@/contexts/CopyContext'
 import { EditorUndoProvider, type EditorUndoApi } from '@/contexts/EditorUndoContext'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
@@ -133,10 +134,9 @@ export default function Builder() {
   const [soundPlaybackCommand, setSoundPlaybackCommand] = useState<
     { action: 'play' | 'stop'; nonce: number } | null
   >(null)
-  const [livePoses, setLivePoses] = useState<
-    Map<string, { position: Vec3; rotation: Rotation; scale: Vec3 }> | null
-  >(null)
   const sceneViewRef = useRef<SceneViewHandle>(null)
+  const getScenePosesRef = useRef<() => LivePosesMap | null>(() => null)
+  getScenePosesRef.current = () => sceneViewRef.current?.getAllPoses() ?? null
   const initialPosesRef = useRef<Map<string, { position: Vec3; rotation: Rotation; scale?: Vec3 }> | null>(null)
   const historyRef = useRef(createEditorHistory(EDITOR_HISTORY_MAX_DEPTH))
   const gestureSnapshotRef = useRef<EditorSnapshot | null>(null)
@@ -1332,17 +1332,6 @@ export default function Builder() {
     updateAssets(() => newAssets)
   }, [updateAssets])
 
-  // Poll scene poses so the inspector stays in sync with physics/scripts (display only; never calls onWorldChange)
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const poses = sceneViewRef.current?.getAllPoses() ?? null
-      if (poses && poses.size > 0) {
-        setLivePoses(poses)
-      }
-    }, 100)
-    return () => clearInterval(interval)
-  }, [])
-
   // Warn before leaving if there are unsaved changes
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
@@ -1829,26 +1818,30 @@ export default function Builder() {
           onToggle={() => setLeftDrawerOpen(!leftDrawerOpen)}
         />
 
-        <PropertySidebar
-          world={world}
-          assets={assets}
-          selectedEntityIds={selectedEntityIds}
-          onWorldChange={handleWorldChange}
-          onAssetsChange={handleAssetsChange}
-          onDeleteEntities={handleDeleteEntities}
-          onCloneEntity={handleCloneEntity}
-          onEntityPoseChange={handleEntityPoseChange}
-          onEntityPhysicsChange={handleEntityPhysicsChange}
-          onEntityMaterialChange={handleEntityMaterialChange}
-          onEntityShapeChange={handleEntityShapeChange}
-          onEntityModelTransformChange={handleEntityModelTransformChange}
-          onEntityTransformersChange={handleEntityTransformersChange}
-          onRefreshFromPhysics={handleRefreshFromPhysics}
-          livePoses={livePoses}
-          isOpen={rightDrawerOpen}
-          onToggle={() => setRightDrawerOpen(!rightDrawerOpen)}
-          onOpenTextureStudio={activateTextureStudioForEntity}
-        />
+        <LivePosesPoll getPosesRef={getScenePosesRef} intervalMs={100}>
+          {(livePoses) => (
+            <PropertySidebar
+              world={world}
+              assets={assets}
+              selectedEntityIds={selectedEntityIds}
+              onWorldChange={handleWorldChange}
+              onAssetsChange={handleAssetsChange}
+              onDeleteEntities={handleDeleteEntities}
+              onCloneEntity={handleCloneEntity}
+              onEntityPoseChange={handleEntityPoseChange}
+              onEntityPhysicsChange={handleEntityPhysicsChange}
+              onEntityMaterialChange={handleEntityMaterialChange}
+              onEntityShapeChange={handleEntityShapeChange}
+              onEntityModelTransformChange={handleEntityModelTransformChange}
+              onEntityTransformersChange={handleEntityTransformersChange}
+              onRefreshFromPhysics={handleRefreshFromPhysics}
+              livePoses={livePoses}
+              isOpen={rightDrawerOpen}
+              onToggle={() => setRightDrawerOpen(!rightDrawerOpen)}
+              onOpenTextureStudio={activateTextureStudioForEntity}
+            />
+          )}
+        </LivePosesPoll>
         </div>
 
         {textureMakerEntityId && textureMakerDoc ? (

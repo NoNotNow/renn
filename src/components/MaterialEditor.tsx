@@ -9,7 +9,17 @@ import SelectInput from './form/SelectInput'
 import Vec3Field from './Vec3Field'
 import TextureDialog from './TextureDialog'
 import { MapMediaThumbnail } from './VideoThumbnail'
-import { sidebarRowStyle, sidebarLabelStyle, thumbnailButtonStyle, thumbnailButtonStyleDisabled, entityPanelIconButtonStyle, removeButtonStyle, removeButtonStyleDisabled } from './sharedStyles'
+import {
+  sidebarRowStyle,
+  sidebarLabelStyle,
+  thumbnailButtonStyle,
+  thumbnailButtonStyleDisabled,
+  entityPanelIconButtonStyle,
+  removeButtonStyle,
+  removeButtonStyleDisabled,
+  secondaryPickIconButtonStyle,
+  secondaryPickIconButtonHoverHandlers,
+} from './sharedStyles'
 import { EntityPanelIcons } from './EntityPanelIcons'
 import { useEditorUndo } from '@/contexts/EditorUndoContext'
 
@@ -147,19 +157,8 @@ export default function MaterialEditor({
               disabled={disabled}
               title="Add texture"
               aria-label="Add texture"
-              style={{
-                ...entityPanelIconButtonStyle,
-                background: '#1a1a1a',
-                border: '1px solid #2f3545',
-                color: '#e6e9f2',
-                ...(disabled && { opacity: 0.5, cursor: 'not-allowed' as const }),
-              }}
-              onMouseEnter={(e) => {
-                if (!disabled) e.currentTarget.style.background = '#222'
-              }}
-              onMouseLeave={(e) => {
-                if (!disabled) e.currentTarget.style.background = '#1a1a1a'
-              }}
+              style={secondaryPickIconButtonStyle(disabled)}
+              {...secondaryPickIconButtonHoverHandlers(disabled)}
             >
               {EntityPanelIcons.image}
             </button>
