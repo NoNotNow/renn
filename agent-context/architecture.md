@@ -130,6 +130,13 @@ renn/
 │   │   ├── MaterialEditor.tsx # color, roughness, metalness, opacity (0–1, default 1)
 │   │   ├── ScriptPanel.tsx   # Monaco + script list (add/remove)
 │   │   ├── AssetPanel.tsx    # Upload assets, list by ID
+│   │   ├── TextureDialog.tsx # Container: Modal + search input + browse hook + upload hook + asset/upload/footer sub-components + VideoConversionDialog
+│   │   ├── textureDialog/    # Per-section sub-components for the texture/video picker (Phase 14)
+│   │   │   ├── useTextureDialogAssets.ts   # Search + expanded families + derived filteredTextures/dialogGroups/blobById/filteredVideos
+│   │   │   ├── useTextureDialogUpload.ts   # dragActive, uploadPreview, pendingVideoConversion, drag/drop/file-input handlers
+│   │   │   ├── TextureDialogAssetList.tsx  # Left column: image groups (single + family card with versions) + video list
+│   │   │   ├── TextureDialogUploadPanel.tsx # Right column: drop zone + hidden file input + upload preview/confirm
+│   │   │   └── TextureDialogFooter.tsx      # Bottom row: Remove / Cancel / Select (label flips to "Upload & Select")
 │   │   ├── MenuBar.tsx       # Menu bar component
 │   │   ├── DropdownMenu.tsx  # Reusable dropdown menu
 │   │   ├── ErrorBoundary.tsx # Error boundary for graceful error handling

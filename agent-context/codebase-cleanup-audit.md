@@ -350,6 +350,44 @@ Without these fixes, `npm run build` was broken for every contributor; only `npm
 
 ---
 
+## Phase 14 — `TextureDialog.tsx` split into `textureDialog/` sub-components + hooks (completed, 2026-04-19)
+
+**Performance:** Pure structural refactor. Same React subtree shape: `Modal` chrome, the same flex layout, the same number of `TextureThumbnail` / `VideoThumbnail` instances, and identical `useMemo` dependency arrays (search-filter / expanded-family map / videoPickerAssets). No new effects, no per-frame work, no extra allocations. The two new hooks (`useTextureDialogAssets`, `useTextureDialogUpload`) co-locate state with the JSX that consumes it; React reconciles the dialog identically because the parent dialog is mounted only when `isOpen=true` (unchanged).
+
+### Hook — `useTextureDialogAssets`
+- **`src/components/textureDialog/useTextureDialogAssets.ts`** — owns the search input, the `expandedFamilies` set, and every derived list shown in the left column: `filteredTextures` (user images, internal compositor keys excluded), `dialogGroups` (from `buildTextureDialogGroups`), `blobById` (lookup over flat + grouped versions), `filteredVideos` (only when `allowVideo` is true), `leftColumnEmpty`, and `toggleFamilyExpanded`. Pure derivation — no effects.
+- **`src/components/textureDialog/useTextureDialogAssets.test.ts`** — 8 tests: sort + group flag, internal-key filter, case-insensitive search across images and videos, family grouping with newest version first, `toggleFamilyExpanded` flip, `allowVideo=false` suppresses videos, `leftColumnEmpty` flips on empty filter, `blobById` covers grouped versions.
+
+### Hook — `useTextureDialogUpload`
+- **`src/components/textureDialog/useTextureDialogUpload.ts`** — owns drag flag, picker preview (`uploadPreview`), pending video conversion, the `<input type="file">` ref, and the drag/drop/file-input handlers. Encapsulates the validation + asset-id derivation calls (`TextureManager` / `VideoManager`). Exposes `openFilePicker` (drop-zone click) and `resetUpload` (clear preview + drag flag, leaves a pending video conversion intact so the conversion dialog can finish first).
+- **`src/components/textureDialog/useTextureDialogUpload.test.ts`** — 11 tests: idle defaults, drag enter/leave, drop image preview, drop video preview when allowed, drop video silently ignored when `allowVideo=false`, drop unknown file silently ignored, file input alerts on unknown file, file input no-op when empty, `resetUpload` preserves pending conversion, image preferred over video when both dropped together.
+
+### Sub-components — `src/components/textureDialog/*.tsx`
+| File | Lines | Responsibility |
+|---|---|---|
+| `TextureDialogAssetList.tsx` | 331 | Left column: empty-state, "Images (n)" header + flat / family group cards (collapsed by default), "Videos (n)" header + video cards. Single shared `SelectableAssetCard` removes duplication between image and video rows. |
+| `TextureDialogUploadPanel.tsx` | 155 | Right column: hidden `<input>` + upload preview card (Confirm / Cancel) **or** drop zone (drag overlay + Click to pick). Reuses `assetDropZoneChrome` / `assetDropZoneHoverHandlers` from `sharedStyles`. |
+| `TextureDialogFooter.tsx` | 89 | Bottom row: Remove (left) + Cancel/Primary (right). Primary label flips to "Upload & Select" while a preview is staged; disabled when nothing is selected and no preview. |
+
+### Container — `TextureDialog.tsx`
+Trimmed from **727 → 179 lines** (-75%). Now only owns:
+1. Calls `useTextureDialogAssets(assets, world, allowVideo)` and `useTextureDialogUpload(allowVideo)`.
+2. The four cross-section callbacks (`handleSelectExisting`, `handleRemoveTexture`, `handleConfirmUpload`, `handlePrimaryAction`) that bridge browse + upload state with the parent's `onSelectTexture` / `onUploadTexture` / `onCommitConvertedVideo` props.
+3. `<Modal>` chrome + the shared search input row (lifted to the container so both columns react to the same query).
+4. `<VideoConversionDialog>` rendered alongside, gated on `pendingVideoConversion`.
+
+### Tests
+- Suite size: **134 files / 1125 tests + 3 skipped** (was 132 / 1106; +2 hook test files / +19 tests).
+- All existing consumers (`MaterialEditor.tsx`, `world/WorldSkySection.tsx`) work unchanged — the public `TextureDialog` props are identical.
+
+### Why no `TextureDialogFamilyCard` extraction
+The collapsed-family card is logically a third shape, but it embeds: (a) a header button with caret + thumbnail + version count, and (b) an expanded grid that itself reuses the same selection styling as the top-level cards. Splitting it into its own file would only save ~80 lines and force passing the entire `selectedTextureId` + `onSelect` + `blobById` triple through one extra hop. Kept inside `TextureDialogAssetList.tsx` as `FamilyGroupCard`.
+
+### Why `useTextureDialogUpload` does not own `handleConfirmUpload`
+The confirm flow needs the parent's `onUploadTexture` / `onCommitConvertedVideo` / `onSelectTexture` / `onClose` (none of which the hook has access to without taking 4 extra args). Keeping `handleConfirmUpload` in the container preserves the hook's "state + DOM events only" contract; `setPendingVideoConversion` / `resetUpload` are the only state setters the container reaches into.
+
+---
+
 ## Phase 13 — `PropertyPanel.tsx` split into `propertyPanel/` sub-components (completed, 2026-04-19)
 
 **Performance:** Pure structural refactor. Same React subtree shape: each `CollapsibleSection` still mounts identically and the new section components are plain function components without `memo` (parent re-renders propagate the same way as before, identical to the inline JSX). No new effects, no per-frame work, no extra allocations. The `materialAllNull` / `materialAllSet` boolean derivations moved into `MaterialSection` (same arithmetic, same cost — just colocated with the only consumer).
@@ -424,7 +462,7 @@ The `SHAPE_FILTER_OPTIONS` constant moved into `EntityListPanel` (its only consu
 | `components/EntitySidebar.tsx` | **150** | ✅ Phase 12 split into `entitySidebar/EntityListPanel` + `EntityCameraPanel` + `useEntityListFilters` hook. |
 | `components/PropertyPanel.tsx` | **511** | ✅ Phase 13 split into `propertyPanel/PropertyPanelHeader` + `MaterialSection` + `ModelTransformSection` + `AvatarSection`. Remaining: derived-merge block could move into a `usePropertyPanelDerived` hook (deferred — would force extra prop drilling). |
 | `components/EntityExplorerTree.tsx` | ~449 | New from explorer-groups feature; toolbar + tree row rendering could be split. |
-| `components/TextureDialog.tsx` | ~727 | Asset family grouping, filter logic → hooks (partial: drop zone chrome shared) |
+| `components/TextureDialog.tsx` | **179** | ✅ Phase 14 split into `textureDialog/useTextureDialogAssets` + `useTextureDialogUpload` + `TextureDialogAssetList` + `TextureDialogUploadPanel` + `TextureDialogFooter`. |
 | `contexts/ProjectContext.tsx` | ~587 | Camera state + model presets extracted (Phase 8). Still owns project save/load, import/export, pose sync, asset persistence — see Phase 8 "Why no separate `useProjectIO`". |
 
 ### Raw hex color migration (remaining)
@@ -463,7 +501,7 @@ Critical modules without dedicated unit tests:
 - [x] Shared `visualBaseQuaternion` helpers (`utils/visualBaseQuaternion.ts`) + tests
 - [x] CSS theme tokens centralised in `:root` (index.css, BrushToolPopover.css, TextureMaker.css)
 - [x] Test coverage: `data/modelPresets`, `data/sampleWorld`, `scripts/scriptCtx`
-- [~] God file splitting (Builder, SceneView, …) — Phase 8 split `ProjectContext` (662 → 587). Phase 9 split `Builder.tsx` (1892 → 1782) into `useBuilderKeyboardShortcuts`, `useBuilderFullscreenChrome`, `useEditorHistory`. Phase 10 split `SceneView.tsx` (1359 → 1058) into `useSkyDome`, `useWorldAudio`, `useSceneFullscreen` + `SceneFullscreenButton` + `WorldLoadErrorOverlay`. Phase 11 split `WorldPanel.tsx` (912 → 68) into seven `world/*Section.tsx` files + `useWorldPanelEdits`. Phase 12 split `EntitySidebar.tsx` (651 → 150) into `entitySidebar/EntityListPanel` + `EntityCameraPanel` + `useEntityListFilters`. Phase 13 split `PropertyPanel.tsx` (844 → 511) into `propertyPanel/PropertyPanelHeader` + `MaterialSection` + `ModelTransformSection` + `AvatarSection`. `rapierPhysics`/`TextureMaker`/`renderItemRegistry`/`TextureDialog` still pending; `Builder.tsx` Texture Maker session and the SceneView main effect deferred to future phases. `Builder.tsx` is now back to ~1924 lines after the explorer-groups feature was added by another agent.
+- [~] God file splitting (Builder, SceneView, …) — Phase 8 split `ProjectContext` (662 → 587). Phase 9 split `Builder.tsx` (1892 → 1782) into `useBuilderKeyboardShortcuts`, `useBuilderFullscreenChrome`, `useEditorHistory`. Phase 10 split `SceneView.tsx` (1359 → 1058) into `useSkyDome`, `useWorldAudio`, `useSceneFullscreen` + `SceneFullscreenButton` + `WorldLoadErrorOverlay`. Phase 11 split `WorldPanel.tsx` (912 → 68) into seven `world/*Section.tsx` files + `useWorldPanelEdits`. Phase 12 split `EntitySidebar.tsx` (651 → 150) into `entitySidebar/EntityListPanel` + `EntityCameraPanel` + `useEntityListFilters`. Phase 13 split `PropertyPanel.tsx` (844 → 511) into `propertyPanel/PropertyPanelHeader` + `MaterialSection` + `ModelTransformSection` + `AvatarSection`. Phase 14 split `TextureDialog.tsx` (727 → 179) into `textureDialog/useTextureDialogAssets` + `useTextureDialogUpload` + `TextureDialogAssetList` + `TextureDialogUploadPanel` + `TextureDialogFooter`. `rapierPhysics`/`TextureMaker`/`renderItemRegistry` still pending; `Builder.tsx` Texture Maker session and the SceneView main effect deferred to future phases. `Builder.tsx` is now back to ~1924 lines after the explorer-groups feature was added by another agent.
 - [x] Pure helpers extracted from `modelPreview.ts` and tested (`modelPreviewFraming`)
 - [ ] Test coverage for `renderItemRegistry.ts` — *deferred; integration-tested. See Phase 5.*
 - [x] Test coverage for `sceneFrameLoop.ts` rAF body (28 branch tests added in Phase 7; rAF loop wrapper still integration-tested)
@@ -471,4 +509,4 @@ Critical modules without dedicated unit tests:
 - [x] Inspector pose polling isolated (`LivePosesPoll` → `PropertySidebar`, not full `Builder`)
 - [x] `npm run build` (`tsc -b && vite build`) clean — 5 pre-existing TS errors fixed in Phase 13b (useEditorHistory typing, builderColumnRef typing, WorldPanel.test plane shape, scriptCtx.test mock tuple, integration test private access).
 
-Run `npm run test:run` after further edits (currently **132** test files, **1106** tests + 3 skipped — Phase 13 was a behaviour-preserving refactor; existing `PropertyPanel.test.tsx` already covers the rendered output). `npm run build` should also stay clean: it now passes `tsc -b` and is the recommended pre-PR check. In `performance-benchmarks.integration.test.ts`, the **Heap growth** and **Scaling linearity** describes are skipped unless `RUN_PERF_BENCHMARKS=1` (use `npm run test:perf`) so agents avoid flaky wall-clock/heap thresholds; run that before Rapier/frame-loop/allocation hot-path changes.
+Run `npm run test:run` after further edits (currently **134** test files, **1125** tests + 3 skipped — Phase 14 added two hook test files and 19 tests). `npm run build` should also stay clean: it passes `tsc -b` and is the recommended pre-PR check. In `performance-benchmarks.integration.test.ts`, the **Heap growth** and **Scaling linearity** describes are skipped unless `RUN_PERF_BENCHMARKS=1` (use `npm run test:perf`) so agents avoid flaky wall-clock/heap thresholds; run that before Rapier/frame-loop/allocation hot-path changes.
