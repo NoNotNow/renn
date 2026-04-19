@@ -17,6 +17,7 @@ import {
 } from './sharedStyles'
 import { EntityPanelIcons } from './EntityPanelIcons'
 import { useEditorUndo } from '@/contexts/EditorUndoContext'
+import { theme } from '@/config/theme'
 
 export interface ModelEditorProps {
   entityId: string
@@ -58,7 +59,7 @@ export default function ModelEditor({
         </label>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {modelMixed ? (
-            <span style={{ fontSize: 12, color: '#9aa4b2' }}>—</span>
+            <span style={{ fontSize: 12, color: theme.text.muted }}>—</span>
           ) : model && assets.get(model) ? (
             <>
               <button
@@ -107,7 +108,7 @@ export default function ModelEditor({
         </div>
       </div>
 
-      <div style={{ fontSize: 11, color: '#666', marginTop: 4, paddingLeft: 8 }}>
+      <div style={{ fontSize: 11, color: theme.text.disabled, marginTop: 4, paddingLeft: 8 }}>
         Visual model (physics uses shape)
       </div>
 

@@ -22,6 +22,7 @@ import {
 } from './sharedStyles'
 import { EntityPanelIcons } from './EntityPanelIcons'
 import { useEditorUndo } from '@/contexts/EditorUndoContext'
+import { theme } from '@/config/theme'
 
 export interface MaterialEditorProps {
   entityId: string
@@ -98,13 +99,13 @@ export default function MaterialEditor({
               height: 22,
               padding: 0,
               borderRadius: 4,
-              border: '1px solid #2f3545',
+              border: `1px solid ${theme.border.default}`,
               background: 'transparent',
               cursor: disabled ? 'not-allowed' : 'pointer',
             }}
             disabled={disabled}
           />
-          <span style={{ fontSize: 12, color: '#9aa4b2' }}>
+          <span style={{ fontSize: 12, color: theme.text.muted }}>
             {color.map((c) => clampUnit(c).toFixed(2)).join(', ')}
           </span>
         </div>
@@ -182,9 +183,9 @@ export default function MaterialEditor({
               justifyContent: 'center',
               padding: '6px 8px',
               fontSize: 11,
-              background: '#2b3550',
-              border: '1px solid #3d4a66',
-              color: '#e6e9f2',
+              background: theme.button.primary,
+              border: `1px solid ${theme.button.primaryBorder}`,
+              color: theme.text.primary,
               ...(disabled ? { opacity: 0.5, cursor: 'not-allowed' as const } : {}),
             }}
           >
@@ -228,8 +229,8 @@ export default function MaterialEditor({
               width: '100%',
               padding: '6px 8px',
               background: 'transparent',
-              border: '1px solid #2f3545',
-              color: '#9aa4b2',
+              border: `1px solid ${theme.border.default}`,
+              color: theme.text.muted,
               borderRadius: 4,
               cursor: disabled ? 'not-allowed' : 'pointer',
               fontSize: 11,
@@ -241,7 +242,7 @@ export default function MaterialEditor({
           </button>
           
           {showAdvanced && (
-            <div style={{ marginTop: 8, paddingLeft: 8, borderLeft: '2px solid #2f3545' }}>
+            <div style={{ marginTop: 8, paddingLeft: 8, borderLeft: `2px solid ${theme.border.default}` }}>
               <Vec3Field
                 label="UV Repeat"
                 labelTitle="How many times the texture repeats along U and V on the surface. The third value is reserved for advanced mapping."

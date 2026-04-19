@@ -16,6 +16,7 @@ import { usePointerRevealTimeout } from '@/hooks/usePointerRevealTimeout'
 import { cycleCameraMode, DEFAULT_SCALE, type Vec3, type Rotation, type Entity, type TrimeshSimplificationConfig } from '@/types/world'
 import { uiLogger } from '@/utils/uiLogger'
 import { colorToHex, hexToColor } from '@/utils/colorUtils'
+import { theme } from '@/config/theme'
 import { getSceneDependencyKey } from '@/utils/sceneDependencyKey'
 import type { TransformerConfig } from '@/types/transformer'
 import {
@@ -1717,7 +1718,7 @@ export default function Builder() {
               width: 12,
               height: 12,
               borderRadius: '50%',
-              background: '#e11d48',
+              background: theme.status.editMode,
               boxShadow: '0 0 0 2px rgba(0,0,0,0.35)',
               pointerEvents: 'none',
             }}
@@ -1727,7 +1728,7 @@ export default function Builder() {
         <main style={{ width: '100%', height: '100%' }}>
           <ErrorBoundary
             fallback={
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', background: '#171a22', color: '#e6e9f2' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', background: theme.bg.errorFallback, color: theme.text.primary }}>
                 <div style={{ textAlign: 'center' }}>
                   <h2>Scene Error</h2>
                   <p>The 3D scene encountered an error. Try reloading the project.</p>

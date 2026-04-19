@@ -24,6 +24,8 @@ export const theme = {
     codeBlock: '#111418',
     /** Outer frame background for grouped thumbnail / version family cards. */
     thumbnailFrame: '#14161c',
+    /** Background for the ErrorBoundary fallback area inside the main canvas. */
+    errorFallback: '#171a22',
     /** Header strip background for thumbnail family cards. */
     thumbnailHeader: '#1a1d26',
     /** Per-version tile background inside a thumbnail family card. */
@@ -71,6 +73,8 @@ export const theme = {
     enabled: '#4ade80',
     /** Disabled / error indicator dot. */
     disabled: '#ef4444',
+    /** Edit-mode active indicator dot (top-right of canvas). */
+    editMode: '#e11d48',
   },
   /**
    * Filled feedback chrome (status chips, "dirty" / "attached" / selected destructive buttons).
@@ -112,6 +116,12 @@ export const theme = {
     infoSubtle: '#a8c8f0',
     /** Error / invalid (JSON parse, schema). */
     error: '#f87171',
+    /** Inline warning text (e.g. mixed-shape selection notice). */
+    warning: '#c9a227',
+    /** Inline link / action text on transparent background (e.g. "Use model colors"). */
+    linkBlue: '#7ba3d4',
+    /** Hint text shown when a multi-selection has mixed values (e.g. "Mixed avatar settings"). */
+    mixedValues: '#888',
   },
   accent: '#8ab4ff',
   zIndex: {

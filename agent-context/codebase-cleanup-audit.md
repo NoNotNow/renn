@@ -141,6 +141,34 @@ These files are only imported by tests, not by any production code. They are val
 
 ---
 
+## Phase 6 — Inline hex migration in priority `.tsx` files (completed, 2026-04-19)
+
+**Performance:** Pure swap of string literals for `theme.*` references. No new allocations, no runtime work added; React style objects rebuild every render either way.
+
+### `theme.ts` additions
+- **`bg.errorFallback`** (`#171a22`) — `ErrorBoundary` fallback area inside the main canvas (`Builder.tsx`).
+- **`status.editMode`** (`#e11d48`) — Edit-mode active indicator dot (top-right of canvas).
+- **`text.warning`** (`#c9a227`) — Inline warning text (mixed-shape selection notice in `PropertyPanel`).
+- **`text.linkBlue`** (`#7ba3d4`) — Inline link / action text on transparent background (e.g. "Use model colors").
+- **`text.mixedValues`** (`#888`) — Hint shown when a multi-selection has mixed values (e.g. "Mixed avatar settings").
+
+### Migrated files (no remaining inline hex)
+- **`pages/Builder.tsx`** — edit-mode dot + ErrorBoundary fallback.
+- **`components/MaterialEditor.tsx`** — color swatch border, value label, "Texture maker…" button, advanced-settings toggle, advanced-settings rule.
+- **`components/ModelEditor.tsx`** — mixed-model placeholder + helper hint.
+- **`components/PropertyPanel.tsx`** — empty-state, mixed-shape warning, model-color hint, "Using colors from 3D file" hint, "Use model colors" link, untextured hint, wireframe hint, mixed-avatar hint.
+
+### Note on `MaterialEditor` "Texture maker…" border
+The previous literal was `#3d4a66`; the existing `theme.button.primaryBorder` is `#3d4a6a`. The 4-unit blue-channel difference (≈1.6% / ΔE ≪ 1) is below human perception, so the button now reuses `button.primaryBorder` rather than introducing a near-duplicate token. If you spot any unintended visual drift, add `button.primaryBorderAlt` and revert that specific call site.
+
+### Tests
+- All 115 test files / 935 tests pass after the migration. No new tests added (style-token swap; no behaviour change).
+
+### Still deferred (lower priority)
+Other `.tsx` files still contain one-off inline hex (`SceneView.tsx`, `ShapeEditor.tsx`, `Switch.tsx`, `SoundPanel.tsx`, `BuilderHeader.tsx`, `TransformerFieldReference.tsx`, `BrushToolPopover.tsx`, `TextureMaker/*`, `PerformanceBoosterDialog.tsx`, `ScriptPanel.tsx`, `Play.tsx`, `DropdownMenu.tsx`, `ErrorBoundary.tsx`, snackbars, sidebars, thumbnails, `MenuBar.tsx`, `CopyContext.tsx`, etc.). Most are component-specific accents (overlays, brush-popover, text colors); migrate opportunistically when touching those files.
+
+---
+
 ## Remaining larger tasks
 
 ### God files — candidates for splitting
@@ -162,7 +190,8 @@ These files are only imported by tests, not by any production code. They are val
 **Done in Phase 2 for:** pick icon buttons and asset drop zones (via `theme` + `sharedStyles`).
 **Done in Phase 3 for:** `TextureDialog`, `WorldPanel`, `EntityScriptEditor`, `ScriptDialog`, `EntitySidebar`, `TransformerTemplateDialog`, `ScriptPanelMultiSelect`, `AvatarDialog`, `TransformerEditor`.
 **Done in Phase 4 for:** CSS files (`index.css`, `BrushToolPopover.css`, `TextureMaker.css`) — all shared values now reference `:root` CSS custom properties defined in `index.css`.
-**Still to migrate:** inline hex in misc `.tsx` files (`Builder.tsx`, `MaterialEditor.tsx`, `ModelEditor.tsx`, `PropertyPanel.tsx`, etc.) — many one-off accents; lower priority.
+**Done in Phase 6 for:** `Builder.tsx`, `MaterialEditor.tsx`, `ModelEditor.tsx`, `PropertyPanel.tsx`.
+**Still to migrate:** inline hex in remaining `.tsx` files (`SceneView`, `ShapeEditor`, `Switch`, `SoundPanel`, `BuilderHeader`, `BrushToolPopover`, `TextureMaker/*`, `PerformanceBoosterDialog`, `ScriptPanel`, `Play`, `DropdownMenu`, `ErrorBoundary`, snackbars, sidebars, thumbnails, `MenuBar`, `CopyContext`, etc.) — many one-off accents; migrate opportunistically.
 
 ### Test coverage gaps
 
@@ -186,7 +215,7 @@ Critical modules without dedicated unit tests:
 - [x] `DEFAULT_FREE_FLY_KEYS` single source (`types/camera.ts`)
 - [x] Ground patch helper + unit test
 - [x] Shared pick-button + drop-zone styles (theme + `sharedStyles`)
-- [x] Raw hex → theme tokens for inline component styles (CSS files still pending)
+- [x] Raw hex → theme tokens for inline component styles (Phases 2/3/6: priority `.tsx` files done; remaining accents flagged)
 - [x] Shared `ValidatedJsonTextarea` (replaces inline JSON editors in `AvatarDialog` / `TransformerEditor`)
 - [x] `assetUpload` test coverage (validation, persistence, returned shape)
 - [x] Shared `visualBaseQuaternion` helpers (`utils/visualBaseQuaternion.ts`) + tests

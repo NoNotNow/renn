@@ -23,6 +23,7 @@ import {
 } from './sharedStyles'
 import { EntityPanelIcons } from './EntityPanelIcons'
 import { useEditorUndo } from '@/contexts/EditorUndoContext'
+import { theme } from '@/config/theme'
 import type { Vec3UndoProps } from './TransformEditor'
 import {
   mergeVec3,
@@ -123,7 +124,7 @@ export default function PropertyPanel({
   if (entities.length === 0 || !primaryEntity) {
     return (
       <div style={{ padding: 10 }}>
-        <p style={{ color: '#9aa4b2' }}>Select an entity</p>
+        <p style={{ color: theme.text.muted }}>Select an entity</p>
       </div>
     )
   }
@@ -425,7 +426,7 @@ export default function PropertyPanel({
       </CollapsibleSection>
 
       {showShapeMaterialWarning ? (
-        <p style={{ margin: '4px 0', fontSize: 12, color: '#c9a227' }}>
+        <p style={{ margin: '4px 0', fontSize: 12, color: theme.text.warning }}>
           Selected entities mix trimesh, models, and primitives. Edit shape or material for a uniform selection.
         </p>
       ) : (
@@ -501,7 +502,7 @@ export default function PropertyPanel({
               if (!isModelOrTrimesh) {
                 if (mergedMaterial === null) {
                   return (
-                    <p style={{ margin: '8px 0', fontSize: 12, color: '#9aa4b2' }}>
+                    <p style={{ margin: '8px 0', fontSize: 12, color: theme.text.muted }}>
                       Material properties differ across selection. Edit one entity or apply a change to set all to the same material.
                     </p>
                   )
@@ -529,7 +530,7 @@ export default function PropertyPanel({
               if (materialAllNull) {
                 return (
                   <>
-                    <p style={{ margin: '8px 0', fontSize: 12, color: '#9aa4b2' }}>Using colors from 3D file.</p>
+                    <p style={{ margin: '8px 0', fontSize: 12, color: theme.text.muted }}>Using colors from 3D file.</p>
                     <button
                       type="button"
                       onClick={() => {
@@ -570,7 +571,7 @@ export default function PropertyPanel({
                         fontSize: 12,
                         background: 'none',
                         border: 'none',
-                        color: '#7ba3d4',
+                        color: theme.text.linkBlue,
                         cursor: anyLocked ? 'not-allowed' : 'pointer',
                         padding: '0 0 8px 0',
                         marginBottom: 4,
@@ -601,7 +602,7 @@ export default function PropertyPanel({
                 )
               }
               return (
-                <p style={{ fontSize: 12, color: '#9aa4b2' }}>
+                <p style={{ fontSize: 12, color: theme.text.muted }}>
                   Material override differs across selection. Set all to file colors or override on each entity type consistently.
                 </p>
               )
@@ -655,7 +656,7 @@ export default function PropertyPanel({
                     disabled={anyLocked}
                     label="Show shape wireframe"
                   />
-                  <div style={{ fontSize: 10, color: '#666', marginTop: 4, paddingLeft: 2 }}>
+                  <div style={{ fontSize: 10, color: theme.text.disabled, marginTop: 4, paddingLeft: 2 }}>
                     Outlines the physics primitive (not the GLTF mesh)
                   </div>
                 </div>
@@ -748,7 +749,7 @@ export default function PropertyPanel({
               label="Playable avatar (+/− when Game HUD on, scripts)"
             />
             {mergedAvatar === null ? (
-              <div style={{ fontSize: 11, color: '#888', marginTop: 6 }}>Mixed avatar settings</div>
+              <div style={{ fontSize: 11, color: theme.text.mixedValues, marginTop: 6 }}>Mixed avatar settings</div>
             ) : null}
             {!isMulti &&
             mergedAvatar &&
