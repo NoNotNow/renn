@@ -35,6 +35,10 @@ export interface BuilderKeyboardShortcutsApi {
   onGroupSelection: () => void
   /** Cmd/Ctrl + Shift + G — ungroup currently selected single group */
   onUngroupSelection: () => void
+  /** Cmd/Ctrl + C — copy selected entities (skipped when user text is selected) */
+  onCopy: () => void
+  /** Cmd/Ctrl + V — paste entities in front of camera */
+  onPaste: () => void
 }
 
 /**
@@ -47,6 +51,8 @@ export interface BuilderKeyboardShortcutsApi {
  *   0 (Digit0)      cycle camera mode
  *   Cmd/Ctrl+G      group current selection
  *   Cmd/Ctrl+Shift+G  ungroup currently selected group
+ *   Cmd/Ctrl+C      copy selected entities (no-op if UI text is selected)
+ *   Cmd/Ctrl+V      paste in front of camera
  *
  * All shortcuts are no-ops while the focus is on an editable element.
  */
@@ -60,11 +66,26 @@ export function useBuilderKeyboardShortcuts(api: BuilderKeyboardShortcutsApi): v
     onChangeCameraMode,
     onGroupSelection,
     onUngroupSelection,
+    onCopy,
+    onPaste,
   } = api
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent): void => {
       const mod = e.metaKey || e.ctrlKey
+      if (mod && !e.shiftKey && e.key === 'c') {
+        if (isEditableElement()) return
+        if (typeof window !== 'undefined' && (window.getSelection()?.toString().length ?? 0) > 0) return
+        e.preventDefault()
+        onCopy()
+        return
+      }
+      if (mod && !e.shiftKey && e.key === 'v') {
+        if (isEditableElement()) return
+        e.preventDefault()
+        onPaste()
+        return
+      }
       if (mod && e.key === 'z') {
         if (isEditableElement()) return
         e.preventDefault()
@@ -126,5 +147,7 @@ export function useBuilderKeyboardShortcuts(api: BuilderKeyboardShortcutsApi): v
     onChangeCameraMode,
     onGroupSelection,
     onUngroupSelection,
+    onCopy,
+    onPaste,
   ])
 }

@@ -73,7 +73,7 @@ renn/
 │   │   ├── useCameraState.ts       # CameraState (control/target/mode) + ref + setters; cameraStateFromWorld()
 │   │   ├── useModelPresets.ts      # Global model preset library: list/save/delete + applyToEntities (optimistic state)
 │   │   ├── useEditorHistory.ts     # Builder undo/redo: createEditorHistory + gesture coalescing + EditorUndoApi (auto-bumps on undo/redo/clear)
-│   │   ├── useBuilderKeyboardShortcuts.ts # Builder keyboard shortcuts (Cmd+Z/Y, Esc, Cmd+E, Digit0/1) — guards INPUT/TEXTAREA/SELECT focus
+│   │   ├── useBuilderKeyboardShortcuts.ts # Builder shortcuts (Cmd+Z/Y, Esc, Cmd+E, Digit0/1, Cmd+G/Shift+G group/ungroup, Cmd+C/V copy/paste entities) — guards INPUT/TEXTAREA/SELECT; Cmd+C no-op when text is selected
 │   │   ├── useBuilderFullscreenChrome.ts  # Builder column ref + drawer state (localStorage) + fullscreen drawer save/restore + idle-hide reveal
 │   │   ├── useSceneFullscreen.ts   # SceneView fullscreen state: supported/active/toggle + chrome-reveal (internal pointer timer or external control)
 │   │   ├── useSkyDome.ts           # SceneView skybox sphere mesh: load/configure/dispose by `world.world.skybox` asset id
@@ -88,6 +88,7 @@ renn/
 │   │   ├── jsonParseErrorLocation.ts # JSON.parse error line/column for avatar + transformer textareas
 │   │   ├── worldUtils.ts     # updateEntityPosition, etc.
 │   │   ├── entityApproximateSize.ts # Approximate entity extent for list filters (not physics AABB)
+│   │   ├── cameraFrontPlacement.ts # Frustum-fit distance + group anchor in front of camera (Builder Cmd/Ctrl+V paste)
 │   │   ├── colorUtils.ts     # Color generation and utilities
 │   │   ├── idGenerator.ts    # Unique ID generation
 │   │   ├── numberUtils.ts    # Number operations and utilities

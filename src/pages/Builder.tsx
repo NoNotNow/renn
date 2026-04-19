@@ -69,7 +69,7 @@ import {
   type TextureDocument,
   type TextureLayer,
 } from '@/utils/textureCompositor'
-import { generateCompositeAssetId, generateTexLayerAssetId } from '@/utils/idGenerator'
+import { generateCompositeAssetId, generateEntityId, generateTexLayerAssetId } from '@/utils/idGenerator'
 import { resolvePaintStrokeWriteTarget, TEXTURE_LAYER_PREFIX } from '@/utils/paintAssetRouting'
 import {
   countWorldAssetReferences,
@@ -79,6 +79,9 @@ import {
   sanitizeTextureStem,
 } from '@/utils/textureAssetVersioning'
 import TextureMaker from '@/components/TextureMaker/TextureMaker'
+import { getEntityApproximateSize } from '@/utils/entityApproximateSize'
+import { computeMeshWorldMaxExtent } from '@/utils/meshWorldExtent'
+import { placeEntitiesInFrontOfCamera } from '@/utils/cameraFrontPlacement'
 
 const EDITOR_HISTORY_MAX_DEPTH = 80
 
@@ -151,6 +154,8 @@ export default function Builder() {
     { action: 'play' | 'stop'; nonce: number } | null
   >(null)
   const sceneViewRef = useRef<SceneViewHandle>(null)
+  /** In-memory entity clipboard (Cmd/Ctrl+C); paste with Cmd/Ctrl+V in front of camera. */
+  const clipboardRef = useRef<{ entities: Entity[] } | null>(null)
   const getScenePosesRef = useRef<() => LivePosesMap | null>(() => null)
   getScenePosesRef.current = () => sceneViewRef.current?.getAllPoses() ?? null
   const initialPosesRef = useRef<Map<string, { position: Vec3; rotation: Rotation; scale?: Vec3 }> | null>(null)
@@ -976,6 +981,11 @@ export default function Builder() {
     onUngroup: () => void
   }>({ onGroup: () => {}, onUngroup: () => {} })
 
+  const clipboardShortcutHandlersRef = useRef<{
+    onCopy: () => void
+    onPaste: () => void
+  }>({ onCopy: () => {}, onPaste: () => {} })
+
   useBuilderKeyboardShortcuts({
     onUndo: handleUndo,
     onRedo: handleRedo,
@@ -994,6 +1004,8 @@ export default function Builder() {
     onChangeCameraMode: setCameraMode,
     onGroupSelection: useCallback(() => groupShortcutHandlersRef.current.onGroup(), []),
     onUngroupSelection: useCallback(() => groupShortcutHandlersRef.current.onUngroup(), []),
+    onCopy: useCallback(() => clipboardShortcutHandlersRef.current.onCopy(), []),
+    onPaste: useCallback(() => clipboardShortcutHandlersRef.current.onPaste(), []),
   })
 
   const handleAddEntity = useCallback(
@@ -1146,6 +1158,79 @@ export default function Builder() {
     },
     [world.entities, getCurrentPose, updateWorld, captureScenePosesForNextRebuild, pushHistory]
   )
+
+  const handleCopyEntities = useCallback(() => {
+    if (selectedEntityIds.length === 0) return
+    const snapshots: Entity[] = []
+    for (const id of selectedEntityIds) {
+      const src = world.entities.find((e) => e.id === id)
+      if (!src) continue
+      const pose = getCurrentPose(id)
+      const snap = structuredClone(src) as Entity
+      snap.position = [...pose.position] as Vec3
+      snap.rotation = [...pose.rotation] as Rotation
+      snap.scale = [...pose.scale] as Vec3
+      snapshots.push(snap)
+    }
+    if (snapshots.length === 0) return
+    clipboardRef.current = { entities: snapshots }
+    uiLogger.click('Builder', 'Copy entities', {
+      count: snapshots.length,
+      entityIds: snapshots.map((e) => e.id),
+    })
+  }, [selectedEntityIds, world.entities, getCurrentPose])
+
+  const handlePasteEntities = useCallback(() => {
+    const clip = clipboardRef.current
+    if (!clip?.entities.length) return
+    const cam = sceneViewRef.current?.getCameraPose()
+    if (!cam) return
+
+    const extentByEntityId = new Map<string, number>()
+    for (const ent of clip.entities) {
+      const mesh = sceneViewRef.current?.getMeshForEntity(ent.id)
+      if (mesh) {
+        extentByEntityId.set(ent.id, computeMeshWorldMaxExtent(mesh, ent))
+      } else {
+        extentByEntityId.set(ent.id, getEntityApproximateSize(ent))
+      }
+    }
+
+    const positionByOldId = placeEntitiesInFrontOfCamera({
+      camera: cam,
+      entities: clip.entities,
+      extentByEntityId,
+    })
+
+    pushHistory()
+    captureScenePosesForNextRebuild()
+
+    const newEntities: Entity[] = []
+    const newIds: string[] = []
+    for (const src of clip.entities) {
+      const next = structuredClone(src) as Entity
+      next.id = generateEntityId()
+      next.locked = false
+      const base = (src.name ?? src.id).replace(/\s+copy(\s+\d+)?$/i, '').trim() || src.id
+      next.name = `${base} copy`
+      const pos = positionByOldId.get(src.id)
+      if (pos) next.position = pos
+      newEntities.push(next)
+      newIds.push(next.id)
+    }
+
+    updateWorld((prev) => ({
+      ...prev,
+      entities: [...prev.entities, ...newEntities],
+    }))
+    setSelectedEntityIds(newIds)
+    uiLogger.click('Builder', 'Paste entities', { count: newEntities.length, entityIds: newIds })
+  }, [captureScenePosesForNextRebuild, pushHistory, updateWorld])
+
+  clipboardShortcutHandlersRef.current = {
+    onCopy: handleCopyEntities,
+    onPaste: handlePasteEntities,
+  }
 
   const handleEntityPoseChange = useCallback(
     (ids: string[], pose: { position?: Vec3; rotation?: Rotation; scale?: Vec3 }) => {

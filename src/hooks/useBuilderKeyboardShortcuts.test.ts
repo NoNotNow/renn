@@ -18,6 +18,8 @@ function makeApi() {
     onChangeCameraMode: vi.fn(),
     onGroupSelection: vi.fn(),
     onUngroupSelection: vi.fn(),
+    onCopy: vi.fn(),
+    onPaste: vi.fn(),
   }
 }
 
@@ -30,6 +32,37 @@ describe('useBuilderKeyboardShortcuts', () => {
   afterEach(() => {
     prevFocus?.focus()
     document.body.innerHTML = ''
+  })
+
+  it('Cmd+C and Cmd+V invoke copy and paste', () => {
+    const api = makeApi()
+    renderHook(() => useBuilderKeyboardShortcuts(api))
+
+    act(() => {
+      dispatch({ key: 'c', metaKey: true })
+    })
+    expect(api.onCopy).toHaveBeenCalledTimes(1)
+    expect(api.onPaste).not.toHaveBeenCalled()
+
+    act(() => {
+      dispatch({ key: 'v', ctrlKey: true })
+    })
+    expect(api.onPaste).toHaveBeenCalledTimes(1)
+  })
+
+  it('Cmd+C is skipped when there is a non-empty text selection', () => {
+    const api = makeApi()
+    renderHook(() => useBuilderKeyboardShortcuts(api))
+    vi.spyOn(window, 'getSelection').mockReturnValue({
+      toString: () => 'hello',
+    } as unknown as Selection)
+
+    act(() => {
+      dispatch({ key: 'c', metaKey: true })
+    })
+    expect(api.onCopy).not.toHaveBeenCalled()
+
+    vi.restoreAllMocks()
   })
 
   it('Cmd+Z triggers undo, Cmd+Shift+Z and Cmd+Y trigger redo', () => {
@@ -104,6 +137,8 @@ describe('useBuilderKeyboardShortcuts', () => {
     expect(api.onToggleEditNavigationMode).not.toHaveBeenCalled()
     expect(api.onCycleActiveAvatar).not.toHaveBeenCalled()
     expect(api.onChangeCameraMode).not.toHaveBeenCalled()
+    expect(api.onCopy).not.toHaveBeenCalled()
+    expect(api.onPaste).not.toHaveBeenCalled()
   })
 
   it('listener is removed on unmount', () => {

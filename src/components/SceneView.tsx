@@ -131,6 +131,14 @@ export interface SceneViewProps {
 
 export type EntityPhysicsPatch = Partial<Pick<Entity, 'mass' | 'restitution' | 'friction' | 'linearDamping' | 'angularDamping' | 'bodyType'>>
 
+/** Live perspective camera pose for placing pasted entities in front of the view. */
+export interface SceneCameraPose {
+  position: Vec3
+  forward: Vec3
+  fovRadians: number
+  aspect: number
+}
+
 export interface SceneViewHandle {
   setViewPreset: (preset: 'top' | 'front' | 'right') => void
   updateEntityPose: (id: string, pose: { position?: Vec3; rotation?: Rotation; scale?: Vec3 }) => void
@@ -153,6 +161,8 @@ export interface SceneViewHandle {
   getAvatarFocusSnapshot: () => AvatarFocusSnapshot | null
   /** Advance active play avatar when roster has 2+ members (Builder Digit1 / Numpad1). */
   cycleActiveAvatar: () => boolean
+  /** Builder: world-space camera position, forward, vertical FOV (rad), aspect — null if camera not ready. */
+  getCameraPose: () => SceneCameraPose | null
 }
 
 function SceneViewInner({
@@ -425,6 +435,21 @@ function SceneViewInner({
       if (!session || session.getRosterEntityIds().length < 2) return false
       session.cycleAvatar(1)
       return true
+    },
+    getCameraPose: (): SceneCameraPose | null => {
+      const cam = camera
+      if (!cam) return null
+      const pos = new THREE.Vector3()
+      const fwd = new THREE.Vector3()
+      cam.getWorldPosition(pos)
+      cam.getWorldDirection(fwd)
+      const fovRad = THREE.MathUtils.degToRad(cam.fov)
+      return {
+        position: [pos.x, pos.y, pos.z],
+        forward: [fwd.x, fwd.y, fwd.z],
+        fovRadians: fovRad,
+        aspect: cam.aspect,
+      }
     },
   }), [camera, world.world.camera, editorFreePoseRef])
 
