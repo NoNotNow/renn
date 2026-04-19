@@ -1,6 +1,6 @@
 # Video textures on materials
 
-**Status:** Implemented (2026-04). See also [feature-video-texture-plan.md](feature-video-texture-plan.md) for the original milestone breakdown.
+**Status:** Implemented (2026-04).
 
 ## Behavior
 

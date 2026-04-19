@@ -8,7 +8,7 @@
 - **World**: JSON document (`world-schema.json`) containing entities, gravity, lighting, and camera config.
 - **Transformer**: converts user input or AI intent into physics impulses (see `feature-transformers.md`).
 - **Script**: JavaScript receiving a single `ctx` (event-specific shape); events: `onSpawn`, `onUpdate`, `onCollision`, `onTimer`. See `feature-scripting.md`.
-- **Physics**: Rapier WASM. Forces must be reset each frame (see `bugfix-spinning.md`).
+- **Physics**: Rapier WASM. Forces must be reset each frame (see `feature-transformers.md`).
 
 ## Task → file map
 
@@ -25,7 +25,7 @@
 | Refactor / cleanup backlog (completed items + follow-ups) | `codebase-cleanup-audit.md` |
 | Example worlds and JSON configs | `example-worlds.md` |
 | Rotation/direction coordinates (Euler, radians, caveats) | `direction-rotation-coordinates.md` |
-| Physics force accumulation quirk | `bugfix-spinning.md` |
+| Physics force accumulation quirk | `feature-transformers.md` (resetAllForces) |
 | Video textures on materials (transcode, picker, VideoTexture) | `feature-video-texture.md` |
 
 ## Tech stack (quick ref)

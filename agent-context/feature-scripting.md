@@ -126,6 +126,35 @@ Entities may include optional **`avatar`** (`enabled`, `preferredCamera`) in the
 
 ---
 
+## Script examples
+
+### Make collision partners red
+
+On collision, turn the other entity red. Skips entities named "Ground".
+
+**Event:** `onCollision`
+
+```javascript
+ctx.log("MAKE RED: " + ctx.other.name);
+
+if (ctx.other.name === "Ground") return;
+ctx.other.setColor(1, 0, 0);  // RGB 0–1
+```
+
+### Read current entity color
+
+**Event:** any
+
+```javascript
+const color = ctx.entity.getColor();  // current entity
+if (color) ctx.log("My color:", color[0], color[1], color[2]);
+
+// With id (e.g. on collision):
+const otherColor = ctx.getColor(ctx.other.id);
+```
+
+---
+
 ## Summary
 
 - **Current**: Event-bound scripts with `ScriptDef` (event + source, plus `interval` for onTimer). Entity has `scripts: string[]`. Runtime passes a single **`ctx`** (event-specific shape); pre-allocated ctx, zero alloc on hot path. Monaco intellisense for `ctx` via `ctxDeclFor(event)`. Migration from legacy format in loadWorld.

@@ -271,8 +271,6 @@ Combines Firefox profiling, **Chrome Performance** call tree (§1.3), headless b
 | **React reconciliation** | ~~Builder `livePoses` every 220 ms~~ → **`InspectorLivePoseBridge`** isolates sidebar | 1–5 ms saved on `Builder` subtree | **Partial:** bridge **done**; `FrameStatsOverlay` throttled |
 | **Remaining JS alloc** | Script APIs, `ScriptRunner`, occasional `Object.keys` in clears | < 1 ms cumulative typical | **Partial:** Tier 2 hot paths addressed |
 
-**Key insight:** The headless benchmark phase split (physics 51%, transformers 46%, sync 3%) **excludes** `renderer.render` (Three.js GPU submit), which the Vitest harness cannot measure. In the browser, GPU work dominates — the 27–33 ms WebGL dispatch alone exceeds the entire 16.7 ms frame budget.
-
 **Key insights:**
 - Chrome call tree (§1.3): `executeTransformers` at **65%** of frame; **nearly half** is per-entity `contactPairsWith`/`contactPair` WASM wrapper churn → **addressed by `rebuildTouchingCache`**.
 - Firefox amplifies the same cost with `GCMinor` (nursery promotion), JIT bailouts, and longer GC pauses.
@@ -331,43 +329,21 @@ Improves Builder responsiveness; does not affect standalone Play FPS:
 
 ---
 
-## Changelog
+## Changelog (summary)
 
-| Date | Change |
-|------|--------|
-| *(initial)* | Created from Firefox trace analysis + codebase review. |
-| *(move)* | Relocated from `ai-context/` to `agent-context/`. |
-| 2026-04-08 | §1: Frame timing overlay (`frameTiming.ts`, `runSceneFrame`, `FrameStatsOverlay`, View → Frame stats). §3 HUD: opacity/scale pulses. §7: `userData` clear without `delete`. §8: Builder live pose poll 220ms. |
-| 2026-04-08 | Updated from detailed Firefox marker export: §1 concrete rAF numbers + 331ms LongTask; §2 GCMajor→DiscardJit cascade + rapierPhysics allocation hot spot; §4 GPU/shader evidence; §5 Rapier JIT deopt; §7 renderItem.ts:34 new bailout; §9 blob decode timings (51ms, 241ms mid-frame). |
-| 2026-04-08 | §2: `rapierPhysics.ts` — reuse `CachedTransform` in place; `contactForceByPair` map reused with `clear()`. §1: flame-chart how-to. §9: code trace for blob/texture paths (`assetResolverImpl`, `SceneView` skybox, Builder preview). |
-| 2026-04-08 | §2/§6: `RenderItemRegistry.executeTransformers` scratch `TransformInput`; `InputTransformer` in-place `actions`; `rapierQuaternionToEulerInto` (`rotationUtils.ts`). §7: pose updates in-place; `setPositionXYZ` / `setRotationEuler`; `SceneView` game API uses them. §9: idle `createImageBitmap` prefetch (`prefetchMaterialTextures.ts` + `SceneView`). |
-| 2026-04-08 | §10: Automated performance benchmark integration tests — object identity, heap delta, scaling linearity, frame-time distribution, phase breakdown. `benchmarkUtils.ts`, `WorldSimulator.runFramesTimed()`, `--expose-gc` in Vitest config. |
-| 2026-04-08 | §11: Strategic approach — bottleneck analysis (GPU is dominant, not GC), three-tier prioritized action plan (GPU shadow/DPR first, then JS alloc completion, then React overhead), exclusions rationale, measurement plan per tier. Updated intro with current status. |
-| 2026-04-08 | §4 / §11 Tier 1 implemented: 1024² shadows, `PCFShadowMap`, DPR cap 1.5, AABB-based `castShadow` (`updateMeshCastShadowFromWorldAabb`), frame stats GPU draw calls + triangles. |
-| 2026-04-08 | §11 Tier 2 + partial Tier 3: `TransformerChain` cached priority sort + in-place force/torque accumulate; `applyInputMappingInto` / `InputTransformer` / `useInputManager`; `sceneFrameLoop` debug-force in-place compaction; `getLinearVelocityInto` + `getForwardVectorInto` + HUD scratch Vec3; `FrameStatsOverlay` setState throttled ~10 Hz; `GameHud` wrapped in `React.memo`. **Measure:** `npm run test:run -- src/test/scenarios/performance-benchmarks.integration.test.ts` — still sub-quadratic scaling, heap delta near zero (run-to-run variance normal). |
-| 2026-04-08 | §1.2: New Firefox marker table (rAF 23–259 ms, 20 MB nursery, GCMajor, blob 33–232 ms, WebGL DispatchCommands/GetLinkResult/GetFrontBuffer, HUD CSS opacity/transform). §11 #11: `InspectorLivePoseBridge` isolates inspector pose polling from `Builder`. `avatarEntityIconLetter` uses `charAt` for stabler key path. |
-| 2026-04-08 | **§1.3: Chrome Performance trace** — `executeTransformers` 65% of frame; `contactPairsWith`/`contactPair` 497 ms; FinalizationRegistry `__wrap` 4,541 ms / `__destroy_into_raw` 1,451 ms over session. **§5: `rebuildTouchingCache`** — batch per-step touching/support queries replacing O(N) per-entity Rapier calls. `lastCollisions.length = 0` replaces `= []`. `env.wind`/`supportVelocity` use `= undefined` instead of `delete`. Updated bottleneck ranking: WASM wrapper churn now #1. |
-| 2026-04-08 | **§4 distance culling:** `DistanceCullingSettings` (`maxDistance`, `minSizeDistanceRatio`, optional `sleepCulled`) on `WorldSettings`; `applyDistanceCulling` uses squared distance + ratio test; optional Rapier `setEnabled(false)` for culled bodies; `ScriptRunner` skips culled ids when sleeping; `WorldPanel` + `world-schema.json`. Legacy `radius`/`minSize` migrated in `migrateDistanceCullingFields`. **§4/§11:** split LOD into distance culling (done) and multi-resolution LOD (separate project, see `feature-lod.md`). |
-| 2026-04-08 | **§5 velocity cache + sleep tuning:** `CachedTransform` extended with `linvel`, `angvel`, `isKinematic`, `isSleeping`. `executeTransformers` reads velocity from cache (no `body.linvel()`/`body.angvel()`/`getBody()` calls). `applyCustomSleeping` reads from cache. `getLinearVelocityInto`/`getLinearVelocity` prefer cache. `resetAllForces` skips sleeping bodies. `executeTransformers` skips sleeping entities. `world.timestep = dt` synced in `step()`. **§4:** `FrameStatsOverlay` shows `geometries` count for instancing analysis. **§10:** CachedTransform identity test extended to verify `linvel`/`angvel` sub-object reuse. **Collider guidance:** prefer box/sphere/cylinder over trimesh for dynamic entities. |
-| 2026-04-09 | **§4 distance culling uncull:** While a body is culled with `sleepCulled`, `step()` does not refresh its `CachedTransform`, so `isSleeping` can stay `true` from the last simulated frame. `enableBodyFromCulling` now runs `syncCachedTransformFromBody(..., full)` after `wakeUp()` and clears that entity’s `customSleepTimers` entry so the next frame’s `executeTransformers` (before `step`) sees an awake cache and stale custom-sleep timers do not immediately re-sleep the body. Regression: `rapierPhysics.test.ts` (`enableBodyFromCulling refreshes cached transform…`). |
-| 2026-04-15 | **Controlled avatar vs. sleep/cull skips:** `executeTransformers` still skips non-controlled sleeping and distance-culled bodies. The **play-controlled** entity is primed each tick: `enableBodyFromCulling` if `distanceCullingPhysicsFrozen`, then `PhysicsWorld.wakeDynamicAndRefreshTransformCache`; the sleep/cull `continue` guards do not apply to that id so drive input works after avatar switch without a gizmo nudge. Tests: `controlled-entity-transformers-culling.integration.test.ts` (distance cull + `sleepCulled`); `rapierPhysics.test.ts` (`wakeDynamicAndRefreshTransformCache`). |
+| Date | Key changes |
+|------|-------------|
+| 2026-04-08 | Tier 1 GPU (shadows 1024², PCFShadowMap, DPR 1.5, AABB castShadow), Tier 2 alloc (CachedTransform reuse, transformer chain, input mapping, debug forces, velocity helpers), Tier 3 React (InspectorLivePoseBridge, FrameStatsOverlay throttle, GameHud memo), Chrome trace analysis, rebuildTouchingCache, velocity/sleeping cache, distance culling, perf benchmarks |
+| 2026-04-09 | Distance culling uncull fix (`enableBodyFromCulling` refreshes cache + clears sleep timer) |
+| 2026-04-15 | Controlled avatar exempt from sleep/cull skips (`wakeDynamicAndRefreshTransformCache`) | While a body is culled with `sleepCulled`, `step()` does not refresh its `CachedTransform`, so `isSleeping` can stay `true` from the last simulated frame. `enableBodyFromCulling` now runs `syncCachedTransformFromBody(..., full)` after `wakeUp()` and clears that entity’s `customSleepTimers` entry so the next frame’s `executeTransformers` (before `step`) sees an awake cache and stale custom-sleep timers do not immediately re-sleep the body. Regression: `rapierPhysics.test.ts` (`enableBodyFromCulling refreshes cached transform…`). |
 
 ---
 
 ## References
 
 - Hot loop: `src/runtime/sceneFrameLoop.ts`, `src/runtime/frameTiming.ts`, `src/components/SceneView.tsx`, `src/components/FrameStatsOverlay.tsx`
-- **2026-04-12:** Semi-fixed timestep in `SceneView` (`advanceSemiFixedAccumulator`, `world.world.simulation`); frame stats overlay toggled by `world.world.showFrameStats` (World panel). Full rAF wall time overwrites `frameMs` when multiple sim steps run per tick. `timeScale` (0.1–5) multiplies wall elapsed before the accumulator — slow motion / fast forward.
-- Distance culling: `src/types/world.ts` (`DistanceCullingSettings`), `src/runtime/renderItemRegistry.ts` (`applyDistanceCulling`, `refreshCullingWorldSize`), `src/physics/rapierPhysics.ts` (`disableBodyForCulling` / `enableBodyFromCulling`; uncull refreshes `cachedTransforms` + clears per-body custom sleep timer), `src/utils/meshWorldExtent.ts`, `src/utils/distanceCullingMath.ts`, `src/components/WorldPanel.tsx`
-- Builder inspector poses: `src/components/InspectorLivePoseBridge.tsx`
-- Transformer chain: `src/transformers/transformer.ts`, `src/input/inputMapping.ts`
-- Registry / `updateShape`: `src/runtime/renderItemRegistry.ts` (~474)
-- Render item: `src/runtime/renderItem.ts`
-- Idle texture decode prefetch: `src/loader/prefetchMaterialTextures.ts`
-- Euler helpers: `src/utils/rotationUtils.ts` (`rapierQuaternionToEulerInto`)
-- Physics step + cached transforms: `src/physics/rapierPhysics.ts` (`step()` ~427+, `contactForceByPair`, `dispose`)
-- Blob URL textures: `src/loader/assetResolverImpl.ts`
-- HUD CSS: search `rennHudPulse` / `rennHudPulseScore` / `rennHudPulseDamage`
+- Semi-fixed timestep: `advanceSemiFixedAccumulator` in `SceneView`, `world.world.simulation`, `timeScale` (0.1–5)
+- Distance culling: `src/types/world.ts`, `src/runtime/renderItemRegistry.ts`, `src/physics/rapierPhysics.ts`, `src/utils/distanceCullingMath.ts`, `src/components/WorldPanel.tsx`
+- Physics cache: `src/physics/rapierPhysics.ts` (`step()`, `contactForceByPair`, `CachedTransform`)
+- Idle texture prefetch: `src/loader/prefetchMaterialTextures.ts`
 - Performance benchmarks: `src/test/scenarios/performance-benchmarks.integration.test.ts`, `src/test/helpers/benchmarkUtils.ts`
-
-Listed in [`README.md`](README.md) (this folder).
