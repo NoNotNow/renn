@@ -6,6 +6,7 @@ import { PLANE_GEOMETRY_MAX_EDGE } from './planeGeometryConstants'
 import { eulerToQuaternion } from '@/utils/rotationUtils'
 import { convertZUpToYUpIfNeeded, normalizeSceneToUnitCube } from '@/utils/normalizeModelToUnitCube'
 import { normalizeModelTextureUVs } from '@/utils/normalizeModelTextureUVs'
+import { initVisualBaseFromShape } from '@/utils/visualBaseQuaternion'
 import {
   countTrianglesInObject3D,
   extractMeshGeometryFromMesh,
@@ -420,11 +421,7 @@ export async function buildEntityMesh(
         resultMesh.add(modelScene)
         applyModelTransform(modelScene, rot, scl)
         applyTransform(resultMesh, position, rotation, scale)
-        if (s.type === 'plane' || s.type === 'ring') {
-          const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0))
-          resultMesh.quaternion.premultiply(q)
-          resultMesh.userData.visualBaseQuaternion = q
-        }
+        initVisualBaseFromShape(resultMesh, s.type)
         resultMesh.userData.usesModel = true
         resultMesh.userData.modelId = modelId
         resultMesh.userData.originalMaterialEntries = originalMaterialEntries
@@ -438,10 +435,6 @@ export async function buildEntityMesh(
   // Default: create mesh from shape
   const mesh = await createPrimitiveMesh(s, materialRef, assetResolver, rot, scl)
   applyTransform(mesh, position, rotation, scale)
-  if (s.type === 'plane' || s.type === 'ring') {
-    const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0))
-    mesh.quaternion.premultiply(q)
-    mesh.userData.visualBaseQuaternion = q
-  }
+  initVisualBaseFromShape(mesh, s.type)
   return mesh
 }

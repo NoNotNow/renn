@@ -3,7 +3,10 @@ import type RAPIER from '@dimforge/rapier3d-compat'
 import type { Entity, Vec3, Rotation } from '@/types/world'
 import { DEFAULT_POSITION, DEFAULT_ROTATION } from '@/types/world'
 import { quaternionToEuler, eulerToRapierQuaternion } from '@/utils/rotationUtils'
+import { applyVisualBase, stripVisualBase } from '@/utils/visualBaseQuaternion'
 import type { TransformerChain } from '@/transformers/transformer'
+
+const _scratchReadQuat = new THREE.Quaternion()
 
 /**
  * Runtime representation of an entity: holds references to the serialised entity,
@@ -64,11 +67,7 @@ export class RenderItem {
    *  so the returned value reflects the entity's logical rotation. */
   getRotation(): Rotation {
     if (this.body) {
-      const q = this.mesh.quaternion.clone()
-      const baseQ = this.mesh.userData.visualBaseQuaternion as THREE.Quaternion | undefined
-      if (baseQ) {
-        q.premultiply(baseQ.clone().invert())
-      }
+      const q = stripVisualBase(this.mesh.quaternion, this.mesh, _scratchReadQuat)
       return quaternionToEuler(q)
     }
     return this.entity.rotation ?? DEFAULT_ROTATION
@@ -82,10 +81,7 @@ export class RenderItem {
   /** Same as {@link setRotation} without a temporary `Rotation` array. */
   setRotationEuler(rx: number, ry: number, rz: number): void {
     const quat = new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz, 'XYZ'))
-    const baseQ = this.mesh.userData.visualBaseQuaternion as THREE.Quaternion | undefined
-    if (baseQ) {
-      quat.premultiply(baseQ)
-    }
+    applyVisualBase(quat, this.mesh)
     this.mesh.quaternion.copy(quat)
     if (this.body) {
       const rapierQuat = eulerToRapierQuaternion([rx, ry, rz])

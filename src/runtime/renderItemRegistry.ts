@@ -25,6 +25,7 @@ import { syncShapeWireframeOverlay } from '@/loader/shapeWireframeOverlay'
 import { updateMeshCastShadowFromWorldAabb } from '@/utils/shadowBounds'
 import { computeMeshWorldMaxExtent } from '@/utils/meshWorldExtent'
 import { distanceCullingShouldCull } from '@/utils/distanceCullingMath'
+import { applyVisualBase, setVisualBaseFromShape, stripVisualBase } from '@/utils/visualBaseQuaternion'
 
 const shapeUpdateShadowBox = new THREE.Box3()
 const shapeUpdateShadowSize = new THREE.Vector3()
@@ -293,11 +294,7 @@ export class RenderItemRegistry {
   getRotationAsQuaternion(id: string, out?: THREE.Quaternion): THREE.Quaternion | null {
     const item = this.items.get(id)
     if (!item) return null
-    const q = item.mesh.quaternion.clone()
-    const baseQ = item.mesh.userData.visualBaseQuaternion as THREE.Quaternion | undefined
-    if (baseQ) q.premultiply(baseQ.clone().invert())
-    if (out) { out.copy(q); return out }
-    return q
+    return stripVisualBase(item.mesh.quaternion, item.mesh, out ?? new THREE.Quaternion())
   }
 
   setRotation(id: string, v: Rotation): void {
@@ -567,16 +564,9 @@ export class RenderItemRegistry {
     const wasFlatShape = item.entity.shape?.type === 'plane' || item.entity.shape?.type === 'ring'
     const isNowFlatShape = newEntity.shape?.type === 'plane' || newEntity.shape?.type === 'ring'
 
-    // Handle plane/ring visual base quaternion transition (both lie flat via -90° X rotation)
     if (wasFlatShape !== isNowFlatShape) {
       const currentRotation = item.getRotation()
-      if (isNowFlatShape) {
-        const planeQ = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0))
-        mesh.userData.visualBaseQuaternion = planeQ
-      } else {
-        mesh.userData.visualBaseQuaternion = undefined
-      }
-      // Re-apply rotation so it is consistent with the new (or absent) visual base quaternion
+      setVisualBaseFromShape(mesh, newEntity.shape?.type)
       item.setRotation(currentRotation)
     }
 
@@ -894,10 +884,7 @@ export class RenderItemRegistry {
       const rot = cached.rotation
       item.mesh.position.set(pos.x, pos.y, pos.z)
       item.mesh.quaternion.set(rot.x, rot.y, rot.z, rot.w)
-      const baseQ = item.mesh.userData.visualBaseQuaternion as THREE.Quaternion | undefined
-      if (baseQ) {
-        item.mesh.quaternion.premultiply(baseQ)
-      }
+      applyVisualBase(item.mesh.quaternion, item.mesh)
     }
   }
 

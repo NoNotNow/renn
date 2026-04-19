@@ -94,6 +94,33 @@ These files are only imported by tests, not by any production code. They are val
 
 ---
 
+## Phase 4 — Helpers, tests, CSS tokens (completed, 2026-04-19)
+
+**Performance:** No per-frame allocations introduced. `visualBaseQuaternion` helpers re-use a module-level scratch quaternion (`SCRATCH_INVERSE`) instead of the previous `baseQ.clone().invert()` per call — net allocation reduction in the physics-sync hot path and `getRotation` calls.
+
+### Shared `visualBaseQuaternion` helpers
+- **`src/utils/visualBaseQuaternion.ts`** — `isFlatShape`, `createVisualBaseForShape`, `getVisualBase`, `setVisualBaseFromShape`, `initVisualBaseFromShape`, `stripVisualBase`, `applyVisualBase`. Single source of truth for the `mesh.userData.visualBaseQuaternion` pattern (plane / ring lay-flat offset).
+- **Consumers migrated** (no remaining direct `userData.visualBaseQuaternion` writes outside the helper):
+  - `runtime/renderItem.ts` — `getRotation`, `setRotationEuler` use `stripVisualBase` / `applyVisualBase` (plus a module-level read scratch quaternion).
+  - `runtime/renderItemRegistry.ts` — `getRotationAsQuaternion`, `updateShape` flat-shape transition, `syncFromPhysics` hot path.
+  - `loader/createPrimitive.ts` — both flat-shape branches use `initVisualBaseFromShape`.
+  - `editor/transformGizmoController.ts` — `logicalRotationFromMeshWorldQuaternion` uses `stripVisualBase` (with own scratch quaternion).
+- **`src/utils/visualBaseQuaternion.test.ts`** — 17 tests: shape predicate, base creation, set/get/init, `stripVisualBase` (no-op / inverse / no-mutation / out-param), `applyVisualBase` round-trip.
+
+### CSS theme tokens (raw hex centralised)
+- **`src/index.css` `:root`** — added shared CSS custom properties (`--c-bg-*`, `--c-border-*`, `--c-text-*`, `--c-accent`, `--c-success-*`, `--shadow-overlay`) mirroring `theme.ts`.
+- Migrated `index.css`, `components/BrushToolPopover.css`, `components/TextureMaker/TextureMaker.css` to reference the variables. Remaining hex in CSS files are component-specific accents (TextureMaker checker pattern, italic pen hint, `#fff` colorpicker pointer) — kept inline.
+
+### Test coverage additions
+- `src/data/modelPresets.test.ts` — 10 tests (`extractPresetFromEntity`, `applyPresetToEntity`: deep clone, undefined-stripping, round-trip, no-mutate).
+- `src/data/sampleWorld.test.ts` — 7 tests (schema validation, unique ids, camera target, ground singleton, transformer presence, dynamic mass, version).
+- `src/scripts/scriptCtx.test.ts` — 30 tests (entity-method descriptors, `ZERO_IMPACT`, `OTHER_REF_SYMBOL`, alloc functions, entity-view delegation, detect threshold semantics, touching list/empty, ctx pass-through helpers).
+
+### Follow-up flagged during testing
+- **`scriptCtx.time` is captured at allocation, not live.** `baseCtx` defines `get time()` returning `game.time`, but `allocOn{Spawn,Update,Collision,Timer}Ctx` spread the result with `{ ...baseCtx(...) }`, materialising `time` to a static value. Scripts always read `0` (initial `timeRef.current`). Documented in `src/scripts/scriptCtx.test.ts` ("captures game.time at allocation"). Fix: define `time` on the alloc-returned object via `Object.defineProperty` (or wrap baseCtx without spread).
+
+---
+
 ## Remaining larger tasks
 
 ### God files — candidates for splitting
@@ -114,20 +141,15 @@ These files are only imported by tests, not by any production code. They are val
 
 **Done in Phase 2 for:** pick icon buttons and asset drop zones (via `theme` + `sharedStyles`).
 **Done in Phase 3 for:** `TextureDialog`, `WorldPanel`, `EntityScriptEditor`, `ScriptDialog`, `EntitySidebar`, `TransformerTemplateDialog`, `ScriptPanelMultiSelect`, `AvatarDialog`, `TransformerEditor`.
-**Still to migrate:** CSS (`TextureMaker.css`, `index.css`) and any remaining inline hex in non-listed components.
-
-### Duplicated UI patterns (remaining)
-
-- **`visualBaseQuaternion` handling**: extract pure helpers used by `RenderItem`, gizmo, registry, `createPrimitive` (larger refactor).
+**Done in Phase 4 for:** CSS files (`index.css`, `BrushToolPopover.css`, `TextureMaker.css`) — all shared values now reference `:root` CSS custom properties defined in `index.css`.
+**Still to migrate:** inline hex in misc `.tsx` files (`Builder.tsx`, `MaterialEditor.tsx`, `ModelEditor.tsx`, `PropertyPanel.tsx`, etc.) — many one-off accents; lower priority.
 
 ### Test coverage gaps
 
 Critical modules without dedicated tests:
 - `runtime/renderItemRegistry.ts`
 - `runtime/sceneFrameLoop.ts` (partial: accumulator tests exist)
-- `scripts/scriptCtx.ts`
 - `utils/modelPreview.ts` (WebGL-bound; needs jsdom canvas mock or extraction of pure framing/disposal helpers)
-- `data/modelPresets.ts`, `data/sampleWorld.ts`
 
 ### Optional — idle material prefetch
 
@@ -147,8 +169,12 @@ Critical modules without dedicated tests:
 - [x] Raw hex → theme tokens for inline component styles (CSS files still pending)
 - [x] Shared `ValidatedJsonTextarea` (replaces inline JSON editors in `AvatarDialog` / `TransformerEditor`)
 - [x] `assetUpload` test coverage (validation, persistence, returned shape)
+- [x] Shared `visualBaseQuaternion` helpers (`utils/visualBaseQuaternion.ts`) + tests
+- [x] CSS theme tokens centralised in `:root` (index.css, BrushToolPopover.css, TextureMaker.css)
+- [x] Test coverage: `data/modelPresets`, `data/sampleWorld`, `scripts/scriptCtx`
 - [ ] God file splitting (Builder, SceneView, …)
-- [ ] Test coverage for remaining critical runtime modules (`renderItemRegistry`, `scriptCtx`, `modelPreview`)
+- [ ] Test coverage for remaining critical runtime modules (`renderItemRegistry`, `modelPreview`)
+- [ ] Fix `scriptCtx.time` capture-vs-live bug (see Phase 4 follow-up)
 - [x] Inspector pose polling isolated (`LivePosesPoll` → `PropertySidebar`, not full `Builder`)
 
-Run `npm run test:run` after further edits (currently **108** test files, **840** tests + 1 skipped). In `performance-benchmarks.integration.test.ts`, the **Heap growth** and **Scaling linearity** describes are skipped unless `RUN_PERF_BENCHMARKS=1` (use `npm run test:perf`) so agents avoid flaky wall-clock/heap thresholds; run that before Rapier/frame-loop/allocation hot-path changes.
+Run `npm run test:run` after further edits (currently **114** test files, **918** tests + 3 skipped). In `performance-benchmarks.integration.test.ts`, the **Heap growth** and **Scaling linearity** describes are skipped unless `RUN_PERF_BENCHMARKS=1` (use `npm run test:perf`) so agents avoid flaky wall-clock/heap thresholds; run that before Rapier/frame-loop/allocation hot-path changes.

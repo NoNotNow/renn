@@ -1,3 +1,37 @@
+/**
+ * CSS theme tokens — mirror src/config/theme.ts so .css files share the same palette.
+ * If you change a value here, update theme.ts (or vice versa) to keep them in sync.
+ */
+:root {
+  --c-bg-app: #0f1115;
+  --c-bg-panel: #1b1f2a;
+  --c-bg-input: #232836;
+  --c-bg-pick: #2a3142;
+  --c-bg-pick-hover: #323a4e;
+  --c-bg-button-primary: #2b3550;
+  --c-bg-section-dark: #161922;
+  --c-bg-section-darker: #13151c;
+  --c-bg-section-darkest: #151821;
+  --c-bg-thumbnail-frame: #14161c;
+  --c-bg-thumbnail-tile: #161922;
+  --c-border-default: #2f3545;
+  --c-border-pick: #3d4558;
+  --c-border-button-primary: #3d4a66;
+  --c-border-focus: #5b6a8a;
+  --c-border-section: #2a3142;
+  --c-text-primary: #e6e9f2;
+  --c-text-secondary: #c4c9d4;
+  --c-text-muted: #9aa4b2;
+  --c-text-subtle: #8b95a8;
+  --c-text-hint: #6b7280;
+  --c-text-mid: #9ca3af;
+  --c-accent: #8ab4ff;
+  --c-success-bg: #22c55e;
+  --c-success-border: #16a34a;
+  --c-success-text: #07230f;
+  --shadow-overlay: 0 1px 3px rgba(0, 0, 0, 0.45);
+}
+
 * {
   box-sizing: border-box;
 }
@@ -5,8 +39,8 @@ html, body, #root {
   margin: 0;
   height: 100%;
   font-family: system-ui, -apple-system, sans-serif;
-  background-color: #0f1115;
-  color: #e6e9f2;
+  background-color: var(--c-bg-app);
+  color: var(--c-text-primary);
 }
 
 body {
@@ -14,7 +48,7 @@ body {
 }
 
 a {
-  color: #8ab4ff;
+  color: var(--c-accent);
 }
 
 input, select, textarea, button {
@@ -22,9 +56,9 @@ input, select, textarea, button {
 }
 
 button {
-  background-color: #232836;
-  color: #e6e9f2;
-  border: 1px solid #2f3545;
+  background-color: var(--c-bg-input);
+  color: var(--c-text-primary);
+  border: 1px solid var(--c-border-default);
 }
 
 button:disabled {
@@ -32,9 +66,9 @@ button:disabled {
 }
 
 input, select, textarea {
-  background-color: #1b1f2a;
-  color: #e6e9f2;
-  border: 1px solid #2f3545;
+  background-color: var(--c-bg-panel);
+  color: var(--c-text-primary);
+  border: 1px solid var(--c-border-default);
   padding: 6px 8px;
   border-radius: 6px;
 }

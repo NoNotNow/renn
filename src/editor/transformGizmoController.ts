@@ -4,7 +4,10 @@ import { findEntityRootForPicking } from '@/utils/entityPicking'
 import type { RenderItemRegistry } from '@/runtime/renderItemRegistry'
 import type { Entity, Rotation, Shape, Vec3 } from '@/types/world'
 import { quaternionToEuler } from '@/utils/rotationUtils'
+import { stripVisualBase } from '@/utils/visualBaseQuaternion'
 import { paintTextureBlob } from '@/utils/texturePaint'
+
+const _gizmoScratchQuat = new THREE.Quaternion()
 
 /** Floor for each scale axis while dragging; matches rapierPhysics tolerances (~1e-4). */
 export const GIZMO_MIN_AXIS_SCALE = 1e-4
@@ -48,10 +51,7 @@ export function clampGizmoScaleAxes(x: number, y: number, z: number): Vec3 {
 }
 
 function logicalRotationFromMeshWorldQuaternion(mesh: THREE.Mesh, worldQuat: THREE.Quaternion): Rotation {
-  const baseQ = mesh.userData.visualBaseQuaternion as THREE.Quaternion | undefined
-  const q = worldQuat.clone()
-  if (baseQ) q.premultiply(baseQ.clone().invert())
-  return quaternionToEuler(q)
+  return quaternionToEuler(stripVisualBase(worldQuat, mesh, _gizmoScratchQuat))
 }
 
 export type BuilderGizmoMode = 'translate' | 'rotate' | 'scale' | 'paint'

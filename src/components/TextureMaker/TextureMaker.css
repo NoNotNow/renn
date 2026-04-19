@@ -14,8 +14,8 @@
   min-height: 360px;
   max-width: 95vw;
   max-height: 92vh;
-  background: #1b1f2a;
-  border: 1px solid #2f3545;
+  background: var(--c-bg-panel);
+  border: 1px solid var(--c-border-default);
   border-radius: 10px;
   box-shadow: 0 18px 56px rgba(0, 0, 0, 0.55);
   overflow: hidden;
@@ -29,8 +29,8 @@
   justify-content: space-between;
   gap: 10px;
   padding: 10px 12px;
-  background: #13151c;
-  border-bottom: 1px solid #2f3545;
+  background: var(--c-bg-section-darker);
+  border-bottom: 1px solid var(--c-border-default);
   cursor: grab;
   user-select: none;
   flex-shrink: 0;
@@ -46,15 +46,15 @@
 .texture-maker-header__btn {
   padding: 4px 10px;
   font-size: 12px;
-  background: #2a3142;
-  border: 1px solid #3d4558;
+  background: var(--c-bg-pick);
+  border: 1px solid var(--c-border-pick);
   border-radius: 6px;
-  color: #e6e9f2;
+  color: var(--c-text-primary);
   cursor: pointer;
 }
 
 .texture-maker-header__btn:hover:not(:disabled) {
-  background: #323a4e;
+  background: var(--c-bg-pick-hover);
 }
 
 .texture-maker-header__btn:disabled {
@@ -63,8 +63,8 @@
 }
 
 .texture-maker-header__btn--secondary {
-  background: #2b3550;
-  border-color: #3d4a66;
+  background: var(--c-bg-button-primary);
+  border-color: var(--c-border-button-primary);
 }
 
 .texture-maker-header:active {
@@ -83,7 +83,7 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid #2f3545;
+  border-right: 1px solid var(--c-border-default);
   overflow: auto;
   padding: 10px 12px;
   gap: 12px;
@@ -95,16 +95,16 @@
   align-items: center;
   gap: 8px 12px;
   padding: 8px 10px;
-  background: #161922;
+  background: var(--c-bg-section-dark);
   border-radius: 8px;
-  border: 1px solid #2a3142;
+  border: 1px solid var(--c-border-section);
   font-size: 11px;
-  color: #9aa4b2;
+  color: var(--c-text-muted);
 }
 
 .texture-maker-doc-size__label {
   font-weight: 600;
-  color: #c4c9d4;
+  color: var(--c-text-secondary);
   margin-right: 4px;
 }
 
@@ -117,15 +117,15 @@
 .texture-maker-doc-size__presets button {
   padding: 4px 8px;
   font-size: 11px;
-  background: #2a3142;
-  border: 1px solid #3d4558;
+  background: var(--c-bg-pick);
+  border: 1px solid var(--c-border-pick);
   border-radius: 4px;
-  color: #e6e9f2;
+  color: var(--c-text-primary);
   cursor: pointer;
 }
 
 .texture-maker-doc-size__presets button:hover:not(:disabled) {
-  background: #323a4e;
+  background: var(--c-bg-pick-hover);
 }
 
 .texture-maker-doc-size__presets button.active,
@@ -144,23 +144,23 @@
   width: 56px;
   padding: 4px 6px;
   font-size: 11px;
-  background: #13151c;
-  border: 1px solid #2f3545;
+  background: var(--c-bg-section-darker);
+  border: 1px solid var(--c-border-default);
   border-radius: 4px;
-  color: #e6e9f2;
+  color: var(--c-text-primary);
 }
 
 .texture-maker-doc-size__times {
-  color: #6b7280;
+  color: var(--c-text-hint);
 }
 
 .texture-maker-doc-size__apply {
   padding: 4px 10px;
   font-size: 11px;
-  background: #2b3550;
-  border: 1px solid #3d4a66;
+  background: var(--c-bg-button-primary);
+  border: 1px solid var(--c-border-button-primary);
   border-radius: 4px;
-  color: #e6e9f2;
+  color: var(--c-text-primary);
   cursor: pointer;
 }
 
@@ -168,7 +168,7 @@
   width: 100%;
   margin: 0;
   font-size: 10px;
-  color: #6b7280;
+  color: var(--c-text-hint);
 }
 
 .texture-maker-preview-wrap {
@@ -183,7 +183,7 @@
 .texture-maker-preview-hint {
   margin: 0;
   font-size: 10px;
-  color: #8b95a8;
+  color: var(--c-text-subtle);
   line-height: 1.4;
   text-align: center;
   max-width: 360px;
@@ -203,7 +203,7 @@
   align-items: stretch;
   max-width: 100%;
   border-radius: 8px;
-  border: 1px solid #2f3545;
+  border: 1px solid var(--c-border-default);
   background: repeating-conic-gradient(#2a2e38 0% 25%, #23262e 0% 50%) 50% / 16px 16px;
   line-height: 0;
   touch-action: none;
@@ -214,26 +214,26 @@
   flex-wrap: wrap;
   gap: 6px;
   padding: 8px;
-  background: #161922;
-  border-bottom: 1px solid #2a3142;
+  background: var(--c-bg-section-dark);
+  border-bottom: 1px solid var(--c-border-section);
   align-items: center;
   font-size: 10px;
-  color: #8b95a8;
+  color: var(--c-text-subtle);
 }
 
 .texture-maker-preview-tools button {
   padding: 4px 8px;
   font-size: 11px;
-  background: #2a3142;
-  border: 1px solid #3d4558;
+  background: var(--c-bg-pick);
+  border: 1px solid var(--c-border-pick);
   border-radius: 4px;
-  color: #e6e9f2;
+  color: var(--c-text-primary);
   cursor: pointer;
 }
 
 .texture-maker-preview-tools button.active {
-  border-color: #5b6a8a;
-  background: #323a4e;
+  border-color: var(--c-border-focus);
+  background: var(--c-bg-pick-hover);
 }
 
 .texture-maker-brush-options {
@@ -249,7 +249,7 @@
   width: 16px;
   height: 16px;
   border-radius: 4px;
-  border: 1px solid #3d4558;
+  border: 1px solid var(--c-border-pick);
   flex-shrink: 0;
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.25);
 }
@@ -257,12 +257,12 @@
 .texture-maker-brush-options__label {
   font-size: 11px;
   font-weight: 600;
-  color: #e6e9f2;
+  color: var(--c-text-primary);
 }
 
 .texture-maker-brush-options__meta {
   font-size: 10px;
-  color: #8b95a8;
+  color: var(--c-text-subtle);
   font-variant-numeric: tabular-nums;
 }
 
@@ -314,7 +314,7 @@
   justify-content: center;
   min-width: 120px;
   min-height: 120px;
-  color: #6b7280;
+  color: var(--c-text-hint);
   font-size: 12px;
 }
 
@@ -324,7 +324,7 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
-  background: #151821;
+  background: var(--c-bg-section-darkest);
 }
 
 .texture-maker-layers {
@@ -332,12 +332,12 @@
   max-height: 42%;
   overflow: auto;
   padding: 8px;
-  border-bottom: 1px solid #2f3545;
+  border-bottom: 1px solid var(--c-border-default);
 }
 
 .texture-maker-layers__title {
   font-size: 11px;
-  color: #8b95a8;
+  color: var(--c-text-subtle);
   margin-bottom: 8px;
 }
 
@@ -351,10 +351,10 @@
 .texture-maker-layers__actions button {
   font-size: 11px;
   padding: 6px;
-  background: #2b3550;
-  border: 1px solid #3d4a66;
+  background: var(--c-bg-button-primary);
+  border: 1px solid var(--c-border-button-primary);
   border-radius: 6px;
-  color: #e6e9f2;
+  color: var(--c-text-primary);
   cursor: pointer;
 }
 
@@ -371,12 +371,12 @@
   border-radius: 6px;
   border: 1px solid transparent;
   font-size: 12px;
-  color: #e6e9f2;
+  color: var(--c-text-primary);
 }
 
 .texture-maker-layer-row.selected {
-  border-color: #5b6a8a;
-  background: #232836;
+  border-color: var(--c-border-focus);
+  background: var(--c-bg-input);
 }
 
 .texture-maker-layer-row__name {
@@ -389,10 +389,10 @@
 .texture-maker-layer-row__icon {
   padding: 2px 6px;
   font-size: 11px;
-  background: #2a3142;
-  border: 1px solid #3d4558;
+  background: var(--c-bg-pick);
+  border: 1px solid var(--c-border-pick);
   border-radius: 4px;
-  color: #e6e9f2;
+  color: var(--c-text-primary);
   cursor: pointer;
   flex-shrink: 0;
 }
@@ -413,13 +413,13 @@
   margin: 0 0 10px;
   font-size: 12px;
   font-weight: 600;
-  color: #e6e9f2;
+  color: var(--c-text-primary);
 }
 
 .texture-maker-props__empty {
   margin: 0;
   font-size: 12px;
-  color: #6b7280;
+  color: var(--c-text-hint);
 }
 
 .texture-maker-props__dest-readout {
@@ -428,18 +428,18 @@
   gap: 6px 10px;
   margin: 0 0 10px;
   font-size: 10px;
-  color: #9aa4b2;
+  color: var(--c-text-muted);
 }
 
 .texture-maker-props__dest-readout dt {
   margin: 0;
-  color: #6b7280;
+  color: var(--c-text-hint);
 }
 
 .texture-maker-props__dest-readout dd {
   margin: 0;
   font-weight: 600;
-  color: #c4c9d4;
+  color: var(--c-text-secondary);
 }
 
 .texture-maker-props__quick {
@@ -450,10 +450,10 @@
   width: 100%;
   padding: 6px 8px;
   font-size: 10px;
-  background: #2a3142;
-  border: 1px solid #3d4558;
+  background: var(--c-bg-pick);
+  border: 1px solid var(--c-border-pick);
   border-radius: 4px;
-  color: #e6e9f2;
+  color: var(--c-text-primary);
   cursor: pointer;
 }
 
@@ -463,7 +463,7 @@
   gap: 4px;
   margin-bottom: 10px;
   font-size: 11px;
-  color: #c4c9d4;
+  color: var(--c-text-secondary);
 }
 
 .texture-maker-props__label input[type='range'] {
@@ -474,10 +474,10 @@
 .texture-maker-props__label input[type='text'] {
   padding: 4px 6px;
   font-size: 12px;
-  background: #13151c;
-  border: 1px solid #2f3545;
+  background: var(--c-bg-section-darker);
+  border: 1px solid var(--c-border-default);
   border-radius: 4px;
-  color: #e6e9f2;
+  color: var(--c-text-primary);
 }
 
 .texture-maker-props__apply-btn {
@@ -486,10 +486,10 @@
   margin-bottom: 10px;
   padding: 6px 8px;
   font-size: 11px;
-  background: #2b3550;
-  border: 1px solid #3d4a66;
+  background: var(--c-bg-button-primary);
+  border: 1px solid var(--c-border-button-primary);
   border-radius: 4px;
-  color: #e6e9f2;
+  color: var(--c-text-primary);
   cursor: pointer;
 }
 
@@ -500,16 +500,16 @@
   align-items: center;
   margin-top: 4px;
   font-size: 11px;
-  color: #8b95a8;
+  color: var(--c-text-subtle);
 }
 
 .texture-maker-toolbar button {
   padding: 4px 8px;
   font-size: 11px;
-  background: #2a3142;
-  border: 1px solid #3d4558;
+  background: var(--c-bg-pick);
+  border: 1px solid var(--c-border-pick);
   border-radius: 4px;
-  color: #e6e9f2;
+  color: var(--c-text-primary);
   cursor: pointer;
 }
 
@@ -540,10 +540,10 @@
   font-size: 13px;
   font-weight: 800;
   letter-spacing: 0.2px;
-  background: #22c55e;
-  border: 1px solid #16a34a;
+  background: var(--c-success-bg);
+  border: 1px solid var(--c-success-border);
   border-radius: 8px;
-  color: #07230f;
+  color: var(--c-success-text);
   cursor: pointer;
   z-index: 5;
   box-shadow: 0 10px 22px rgba(0, 0, 0, 0.35);

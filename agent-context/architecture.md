@@ -74,6 +74,7 @@ renn/
 │   ├── utils/
 │   │   ├── uiLogger.ts       # Centralized UI interaction logging (click, change, select, etc.)
 │   │   ├── worldGroundPatch.ts # patchFirstPlaneEntity (WorldPanel ground edits)
+│   │   ├── visualBaseQuaternion.ts # plane/ring lay-flat offset helpers (RenderItem, registry, gizmo, createPrimitive)
 │   │   ├── jsonParseErrorLocation.ts # JSON.parse error line/column for avatar + transformer textareas
 │   │   ├── worldUtils.ts     # updateEntityPosition, etc.
 │   │   ├── entityApproximateSize.ts # Approximate entity extent for list filters (not physics AABB)
@@ -187,7 +188,7 @@ See **world-schema.json** and **src/types/world.ts** for the full shape.
 - **UI logging**: centralized `uiLogger` (`src/utils/uiLogger.ts`) for clicks, changes, selects, uploads, deletes. Console format `[UI {TYPE}] {Component} > {Action} | {details}`. In-memory buffer (last 1000) accessible via `window.uiLogger` (`.getLogs()`, `.export()`, `.clear()`).
 - **ProjectContext pattern**: single source of truth for project state; all components access state/actions via context; memoized values prevent unnecessary re-renders.
 - **RenderItemRegistry**: centralized entity management; single responsibility for physics-mesh sync; uses cached transforms to avoid WASM aliasing errors.
-- **Visual base quaternion**: Shapes like `plane` require a visual rotation offset (e.g. `-PI/2` on X to lay flat). This offset is stored on `mesh.userData.visualBaseQuaternion` and compensated in `RenderItem.getRotation()`/`setRotation()` so it never leaks into entity data during save.
+- **Visual base quaternion**: Shapes like `plane` / `ring` require a visual rotation offset (`-PI/2` on X to lay flat). Stored on `mesh.userData.visualBaseQuaternion`. All read/write/init/clear go through `src/utils/visualBaseQuaternion.ts` (`stripVisualBase`, `applyVisualBase`, `setVisualBaseFromShape`, `initVisualBaseFromShape`) — used by `RenderItem`, `RenderItemRegistry` (incl. `syncFromPhysics` hot path), `createPrimitive`, and `transformGizmoController` so the offset never leaks into entity data during save.
 - **Pyramid collision**: Pyramid uses a convex-hull collider (5 vertices) in `rapierPhysics.ts` so the collision footprint matches the square-base mesh; a cone collider would use a circular base circumscribing the square and be larger than the visual.
 - **Trimesh and entity.model normalization**: At import time (in `createPrimitive.ts`), loaded GLTF scenes for trimesh shapes and for `entity.model` are normalized to fit a 1×1×1 unit cube centered at the origin. `normalizeSceneToUnitCube()` (in `src/utils/normalizeModelToUnitCube.ts`) computes the world bounding box, then bakes center and scale into each mesh’s geometry and resets mesh transforms. Stored geometry is thus in [-0.5, 0.5]³; entity scale is applied in physics and rendering as before.
 - **Trimesh and entity.model rendering**: Trimesh and entity.model use the same lit material (MeshStandardMaterial) and shadow behavior as primitives. A default lit material is applied when no entity material is set; `loadWorld.ts` traverses the mesh hierarchy, sets `receiveShadow` on meshes, and sets `castShadow` via world AABB (`updateMeshCastShadowFromWorldAabb` in `shadowBounds.ts`) so large meshes cast shadows and very small props skip casting for GPU cost.

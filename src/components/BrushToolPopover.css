@@ -19,7 +19,7 @@
   width: 16px;
   height: 16px;
   border: 2px solid #fff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+  box-shadow: var(--shadow-overlay);
 }
 
 .brush-tool-popover__hex {
@@ -29,16 +29,16 @@
   padding: 7px 10px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 12px;
-  border: 1px solid #2f3545;
+  border: 1px solid var(--c-border-default);
   border-radius: 6px;
-  background: #13151c;
-  color: #e6e9f2;
+  background: var(--c-bg-section-darker);
+  color: var(--c-text-primary);
 }
 
 .brush-tool-popover__hex:focus {
   outline: none;
-  border-color: #5b6a8a;
-  box-shadow: 0 0 0 1px #5b6a8a;
+  border-color: var(--c-border-focus);
+  box-shadow: 0 0 0 1px var(--c-border-focus);
 }
 
 .brush-tool-popover__size-label {
@@ -51,7 +51,7 @@
 
 .brush-tool-popover__size-label span {
   font-size: 11px;
-  color: #9ca3af;
+  color: var(--c-text-mid);
   white-space: nowrap;
 }
 
@@ -59,12 +59,12 @@
   flex: 1;
   min-width: 0;
   height: 6px;
-  accent-color: #5b6a8a;
+  accent-color: var(--c-border-focus);
 }
 
 .brush-tool-popover__size-value {
   font-size: 11px;
-  color: #c4c9d4;
+  color: var(--c-text-secondary);
   min-width: 44px;
   font-variant-numeric: tabular-nums;
   text-align: right;
