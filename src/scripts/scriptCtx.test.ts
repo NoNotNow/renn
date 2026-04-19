@@ -224,7 +224,7 @@ describe('allocOnCollisionCtx', () => {
 
   it('other view follows OTHER_REF_SYMBOL.current updates without re-allocation', () => {
     const game = makeGameAPI({
-      getPosition: vi.fn((id: string) => (id === 'a' ? [1, 1, 1] : [9, 9, 9])),
+      getPosition: vi.fn((id: string): [number, number, number] => (id === 'a' ? [1, 1, 1] : [9, 9, 9])),
     })
     const ctx = allocOnCollisionCtx(game, makeEntity('self'))
     const a = makeEntity('a')

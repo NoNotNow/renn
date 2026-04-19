@@ -118,7 +118,12 @@ renn/
 │   │   │   ├── WorldLightSection.tsx        # Directional (azimuth/elevation/color/intensity) + ambient color
 │   │   │   └── WorldGroundSection.tsx       # First-plane entity color, material, friction, scale (via patchFirstPlaneEntity)
 │   │   ├── SoundPanel.tsx    # Sound tab: background audio asset (`world.sound.assetId`), volume, loop, autoplay, manual play/stop
-│   │   ├── PropertyPanel.tsx # Edit selected entity (name, shape, transform, physics, material, transformers, delete)
+│   │   ├── PropertyPanel.tsx # Container: orchestrates CollapsibleSections, owns merged-derivation block + name editing; delegates header / material / model-transform / avatar bodies to `propertyPanel/`
+│   │   ├── propertyPanel/    # Per-section sub-components for the Properties tab (Phase 13)
+│   │   │   ├── PropertyPanelHeader.tsx     # Entity name + lock icon + Refresh / Clone / Delete buttons
+│   │   │   ├── MaterialSection.tsx         # 4-branch material body: mixed warning / MaterialEditor / "Override with material" / "Use model colors" + editor
+│   │   │   ├── ModelTransformSection.tsx   # Show-shape-wireframe + model rotation Vec3Field (with reset) + model scale Vec3Field
+│   │   │   └── AvatarSection.tsx           # Playable-avatar Switch + mixed hint + (single-selection) preferred camera mode/distance
 │   │   ├── TransformEditor.tsx # Position, rotation (Vec3Field, Euler [x,y,z]), scale
 │   │   ├── ShapeEditor.tsx   # Shape type + params (box, sphere, cylinder, capsule, cone, pyramid, ring, plane)
 │   │   ├── PhysicsEditor.tsx # bodyType, mass, restitution, friction, linearDamping, angularDamping

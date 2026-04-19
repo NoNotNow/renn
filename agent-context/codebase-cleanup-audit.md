@@ -329,6 +329,57 @@ Trimmed from **912 → 68 lines** (-93%). Now only:
 
 ---
 
+## Phase 13b — Pre-existing `tsc --build` errors fixed (completed, 2026-04-19)
+
+**Performance:** No production code paths changed. Two source files (`useEditorHistory.ts` typing, `useBuilderFullscreenChrome.ts` ref typing) and three test files updated. The `RefObject<…|null>` → `RefObject<…>` change in `useBuilderFullscreenChrome` keeps the same runtime: the underlying `useRef<HTMLDivElement>(null)` already returns the right `RefObject<HTMLDivElement>`; the interface now matches the actual ref type.
+
+### Errors fixed
+1. **`src/hooks/useEditorHistory.ts` (4 errors)** — replaced `RefObject<{world,assets}>` with a small `WorldAssetsRef` interface (`{ current: { world; assets } }`). The parent (`Builder.tsx`) writes `worldAssetsRef.current = { world, assets }` synchronously after every render, so `current` is genuinely never null; the React-19 `RefObject<T>` strictness was a false positive.
+2. **`src/hooks/useBuilderFullscreenChrome.ts`** — interface said `RefObject<HTMLDivElement | null>` (double-nullable); changed to `RefObject<HTMLDivElement>` to match what `useRef<HTMLDivElement>(null)` actually returns. Eliminates the `Builder.tsx:1630` `<div ref={builderColumnRef}>` mismatch.
+3. **`src/components/WorldPanel.test.tsx`** — removed stale `width: 50, depth: 50` from a `plane` shape literal (the schema is `{ type: 'plane'; normal?: Vec3 }` — plane has no width/depth, ground sizing comes from `scale`).
+4. **`src/scripts/scriptCtx.test.ts`** — explicit return type on the `vi.fn` so the inferred mock signature is `(id: string) => [number, number, number]` instead of `(id: string) => number[]`.
+5. **`src/test/scenarios/controlled-entity-transformers-culling.integration.test.ts`** — kept `getEntityWorldPoseForTransformers` private; the test now type-casts via `EntityWorldPoseGetter` (already exported from `@/types/transformer`) at the single access site. Records the test-only escape hatch without weakening the production API.
+
+### Verification
+- `npx tsc --noEmit` → 0 errors (was 5).
+- `npm run build` (`tsc -b && vite build`) → clean (was failing on `tsc -b`).
+- `npm run test:run` → 132 files / 1106 tests + 3 skipped (unchanged).
+
+### Why this matters
+Without these fixes, `npm run build` was broken for every contributor; only `npm run test:run` (Vitest, no strict tsc) ran green. Future agents would have to either ignore the 5 errors or mistakenly believe their own changes broke the build. CI now has a sharp signal for new TS regressions.
+
+---
+
+## Phase 13 — `PropertyPanel.tsx` split into `propertyPanel/` sub-components (completed, 2026-04-19)
+
+**Performance:** Pure structural refactor. Same React subtree shape: each `CollapsibleSection` still mounts identically and the new section components are plain function components without `memo` (parent re-renders propagate the same way as before, identical to the inline JSX). No new effects, no per-frame work, no extra allocations. The `materialAllNull` / `materialAllSet` boolean derivations moved into `MaterialSection` (same arithmetic, same cost — just colocated with the only consumer).
+
+### New sub-components — `src/components/propertyPanel/*.tsx`
+| Component | Lines | Responsibility |
+|---|---|---|
+| `PropertyPanelHeader.tsx` | 150 | Entity name/lock-icon header + Refresh / Clone / Delete action buttons |
+| `MaterialSection.tsx` | 151 | Material section content: 4-branch IIFE (mixed-warning / `MaterialEditor` / "Override with material" / "Use model colors" + editor) replaced with explicit if/return tree |
+| `ModelTransformSection.tsx` | 127 | Show-shape-wireframe toggle + model rotation `Vec3Field` (with reset button) + model scale `Vec3Field` |
+| `AvatarSection.tsx` | 120 | Playable-avatar `Switch`, mixed-avatar hint, single-selection-only preferred camera mode + distance fields |
+
+All four are plain props-in / JSX-out components: no internal state, no effects. Edit/log callbacks come from the parent.
+
+### Container — `PropertyPanel.tsx`
+Trimmed from **844 → 511 lines** (-39%). Now only owns:
+1. The merged-derivation block (`mergeVec3` / `mergeRotation` / `mergeShape` / `mergeMaterial` / `mergeTransformers` / etc. — kept inline because every section reads at least one merged value, and the closures `updateAll` / `handleShapeChange` / `handleMixedDimensionChange` need them).
+2. The `editingName` local state + `nameDisplayValue` / `handleNameFocus` / `handleNameBlur` for the Entity-name input.
+3. The seven `CollapsibleSection` rows (Entity, Transform, [Shape, Physics, Material, 3D Model, Model-Transform, Avatar, Transformers] when shape/material types align), each delegating its body to either an existing editor (`TransformEditor`, `ShapeEditor`, `PhysicsEditor`, `ModelEditor`, `TransformerEditor`) or one of the new section components.
+
+The lock toggle button stays inline because it lives in the `<CollapsibleSection title="Entity" trailing={…}>` slot — extracting it would force splitting the Entity section itself, which is otherwise small.
+
+### Tests
+- All 132 test files / 1106 tests pass without changes. Existing `PropertyPanel.test.tsx` covers the rendered output end-to-end (header buttons, lock toggle, material override branch, avatar switch, model rotation reset) and asserts unchanged behaviour after the refactor.
+
+### Why no `usePropertyPanelDerived` hook (yet)
+Every merged value (`mergedName`, `mergedShape`, `mergedMaterial`, `mergedAvatar`, `mergedBodyType`, `mergedMass`, `mergedFriction`, …) is consumed by either a `CollapsibleSection`'s `copyPayload` prop (which lives in the container JSX) **or** by the closures `updateAll` / `handleShapeChange` / `handleMixedDimensionChange` (which read `world` / `idSet` directly and would need to be passed down anyway). Bundling them into a hook would shrink the file ~40 lines but force every section to receive 5–10 extra props. Defer until either a clear new consumer appears or we reduce the prop drilling first.
+
+---
+
 ## Phase 12 — `EntitySidebar.tsx` split into `entitySidebar/` sub-components (completed, 2026-04-19)
 
 **Performance:** Pure structural refactor. The entity list filtering work (search + 5 filter dropdowns + size range + derived `filteredEntities` + `entityListEmptyMessage`) now lives in `useEntityListFilters`, called from `EntityListPanel`. Same React reconciliation behaviour: each tab still renders its full subtree from scratch when active (no per-frame work, no new effects). The `EntityListPanel` and `EntityCameraPanel` components are conditionally rendered (only active tab is mounted) — same as before, but the `useEntityListFilters` state is now scoped to `EntityListPanel`'s lifecycle, so its state resets when the user navigates away and back. **This matches the prior implementation** (the surrounding `<>` was inside `{leftTab === 'entities' && (...)}` and the state was on `EntitySidebar`, but tab switching never unmounts/remounts because `EntitySidebar` itself is the parent — reviewed and verified equivalent in this case because `useEntityListFilters` is colocated with the JSX it powers; the `setLeftTab` change does not preserve filter draft state across tab switches in either version).
@@ -371,7 +422,7 @@ The `SHAPE_FILTER_OPTIONS` constant moved into `EntityListPanel` (its only consu
 | `runtime/renderItemRegistry.ts` | ~953 | Transformer execution, culling, mesh sync → separate concerns |
 | `components/WorldPanel.tsx` | **68** | ✅ Phase 11 split into `world/` sub-sections + `useWorldPanelEdits` hook. |
 | `components/EntitySidebar.tsx` | **150** | ✅ Phase 12 split into `entitySidebar/EntityListPanel` + `EntityCameraPanel` + `useEntityListFilters` hook. |
-| `components/PropertyPanel.tsx` | ~844 | Could split per-tab content |
+| `components/PropertyPanel.tsx` | **511** | ✅ Phase 13 split into `propertyPanel/PropertyPanelHeader` + `MaterialSection` + `ModelTransformSection` + `AvatarSection`. Remaining: derived-merge block could move into a `usePropertyPanelDerived` hook (deferred — would force extra prop drilling). |
 | `components/EntityExplorerTree.tsx` | ~449 | New from explorer-groups feature; toolbar + tree row rendering could be split. |
 | `components/TextureDialog.tsx` | ~727 | Asset family grouping, filter logic → hooks (partial: drop zone chrome shared) |
 | `contexts/ProjectContext.tsx` | ~587 | Camera state + model presets extracted (Phase 8). Still owns project save/load, import/export, pose sync, asset persistence — see Phase 8 "Why no separate `useProjectIO`". |
@@ -412,11 +463,12 @@ Critical modules without dedicated unit tests:
 - [x] Shared `visualBaseQuaternion` helpers (`utils/visualBaseQuaternion.ts`) + tests
 - [x] CSS theme tokens centralised in `:root` (index.css, BrushToolPopover.css, TextureMaker.css)
 - [x] Test coverage: `data/modelPresets`, `data/sampleWorld`, `scripts/scriptCtx`
-- [~] God file splitting (Builder, SceneView, …) — Phase 8 split `ProjectContext` (662 → 587). Phase 9 split `Builder.tsx` (1892 → 1782) into `useBuilderKeyboardShortcuts`, `useBuilderFullscreenChrome`, `useEditorHistory`. Phase 10 split `SceneView.tsx` (1359 → 1058) into `useSkyDome`, `useWorldAudio`, `useSceneFullscreen` + `SceneFullscreenButton` + `WorldLoadErrorOverlay`. Phase 11 split `WorldPanel.tsx` (912 → 68) into seven `world/*Section.tsx` files + `useWorldPanelEdits`. Phase 12 split `EntitySidebar.tsx` (651 → 150) into `entitySidebar/EntityListPanel` + `EntityCameraPanel` + `useEntityListFilters`. `rapierPhysics`/`TextureMaker`/`renderItemRegistry`/`PropertyPanel`/`TextureDialog` still pending; `Builder.tsx` Texture Maker session and the SceneView main effect deferred to future phases. `Builder.tsx` is now back to ~1924 lines after the explorer-groups feature was added by another agent.
+- [~] God file splitting (Builder, SceneView, …) — Phase 8 split `ProjectContext` (662 → 587). Phase 9 split `Builder.tsx` (1892 → 1782) into `useBuilderKeyboardShortcuts`, `useBuilderFullscreenChrome`, `useEditorHistory`. Phase 10 split `SceneView.tsx` (1359 → 1058) into `useSkyDome`, `useWorldAudio`, `useSceneFullscreen` + `SceneFullscreenButton` + `WorldLoadErrorOverlay`. Phase 11 split `WorldPanel.tsx` (912 → 68) into seven `world/*Section.tsx` files + `useWorldPanelEdits`. Phase 12 split `EntitySidebar.tsx` (651 → 150) into `entitySidebar/EntityListPanel` + `EntityCameraPanel` + `useEntityListFilters`. Phase 13 split `PropertyPanel.tsx` (844 → 511) into `propertyPanel/PropertyPanelHeader` + `MaterialSection` + `ModelTransformSection` + `AvatarSection`. `rapierPhysics`/`TextureMaker`/`renderItemRegistry`/`TextureDialog` still pending; `Builder.tsx` Texture Maker session and the SceneView main effect deferred to future phases. `Builder.tsx` is now back to ~1924 lines after the explorer-groups feature was added by another agent.
 - [x] Pure helpers extracted from `modelPreview.ts` and tested (`modelPreviewFraming`)
 - [ ] Test coverage for `renderItemRegistry.ts` — *deferred; integration-tested. See Phase 5.*
 - [x] Test coverage for `sceneFrameLoop.ts` rAF body (28 branch tests added in Phase 7; rAF loop wrapper still integration-tested)
 - [x] Fix `scriptCtx.time` capture-vs-live bug (Phase 5)
 - [x] Inspector pose polling isolated (`LivePosesPoll` → `PropertySidebar`, not full `Builder`)
+- [x] `npm run build` (`tsc -b && vite build`) clean — 5 pre-existing TS errors fixed in Phase 13b (useEditorHistory typing, builderColumnRef typing, WorldPanel.test plane shape, scriptCtx.test mock tuple, integration test private access).
 
-Run `npm run test:run` after further edits (currently **132** test files, **1106** tests + 3 skipped). In `performance-benchmarks.integration.test.ts`, the **Heap growth** and **Scaling linearity** describes are skipped unless `RUN_PERF_BENCHMARKS=1` (use `npm run test:perf`) so agents avoid flaky wall-clock/heap thresholds; run that before Rapier/frame-loop/allocation hot-path changes.
+Run `npm run test:run` after further edits (currently **132** test files, **1106** tests + 3 skipped — Phase 13 was a behaviour-preserving refactor; existing `PropertyPanel.test.tsx` already covers the rendered output). `npm run build` should also stay clean: it now passes `tsc -b` and is the recommended pre-PR check. In `performance-benchmarks.integration.test.ts`, the **Heap growth** and **Scaling linearity** describes are skipped unless `RUN_PERF_BENCHMARKS=1` (use `npm run test:perf`) so agents avoid flaky wall-clock/heap thresholds; run that before Rapier/frame-loop/allocation hot-path changes.

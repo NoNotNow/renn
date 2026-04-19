@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState, type RefObject } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import type { EditorUndoApi } from '@/contexts/EditorUndoContext'
 import {
   cloneEditorSnapshot,
@@ -7,9 +7,18 @@ import {
 } from '@/editor/editorHistory'
 import type { RennWorld } from '@/types/world'
 
+/**
+ * Live `{ world, assets }` mirror. Always populated by the parent (synchronous
+ * `ref.current = { world, assets }` after every render), so `current` is non-null
+ * at every read site.
+ */
+export interface WorldAssetsRef {
+  current: { world: RennWorld; assets: Map<string, Blob> }
+}
+
 export interface UseEditorHistoryParams {
   /** Live `{ world, assets }` mirror; the hook reads these synchronously to record snapshots. */
-  worldAssetsRef: RefObject<{ world: RennWorld; assets: Map<string, Blob> }>
+  worldAssetsRef: WorldAssetsRef
   /** Maximum number of undo/redo entries to keep. */
   maxDepth: number
 }

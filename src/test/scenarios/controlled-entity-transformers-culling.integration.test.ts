@@ -8,7 +8,7 @@ import { describe, it, expect, beforeAll } from 'vitest'
 import * as THREE from 'three'
 import type { Entity, RennWorld } from '@/types/world'
 import type { LoadedEntity } from '@/loader/loadWorld'
-import type { RawInput } from '@/types/transformer'
+import type { RawInput, EntityWorldPoseGetter } from '@/types/transformer'
 import { createTransformerChain } from '@/transformers/transformerRegistry'
 import { initRapier, createPhysicsWorld } from '@/physics/rapierPhysics'
 import { RenderItemRegistry } from '@/runtime/renderItemRegistry'
@@ -76,7 +76,10 @@ describe('controlled entity transformers vs culling and sleep (integration)', ()
       carCfg,
       rawInputGetter,
       world.entities.find((e) => e.id === 'carFar'),
-      (eid) => registry.getEntityWorldPoseForTransformers(eid),
+      (eid) =>
+        (
+          registry as unknown as { getEntityWorldPoseForTransformers: EntityWorldPoseGetter }
+        ).getEntityWorldPoseForTransformers(eid),
       controlledRef,
     )
     registry.get('carFar')!.transformerChain = chain!

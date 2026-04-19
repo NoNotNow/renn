@@ -35,7 +35,7 @@ function makeWorld(): RennWorld {
         id: 'ground',
         name: 'Ground',
         bodyType: 'static',
-        shape: { type: 'plane', width: 50, depth: 50 },
+        shape: { type: 'plane' },
         position: [0, 0, 0],
         rotation: [0, 0, 0],
         scale: [1, 1, 1],

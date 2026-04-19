@@ -5,7 +5,7 @@ import { isFullscreenEnabled } from '@/utils/fullscreenApi'
 
 export interface BuilderFullscreenChrome {
   /** Ref attached to the Builder column root (becomes the fullscreen target). */
-  builderColumnRef: React.RefObject<HTMLDivElement | null>
+  builderColumnRef: React.RefObject<HTMLDivElement>
   /** Left sidebar drawer open state (persisted to localStorage). */
   leftDrawerOpen: boolean
   setLeftDrawerOpen: (value: boolean | ((prev: boolean) => boolean)) => void

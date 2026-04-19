@@ -1,26 +1,14 @@
 import { useState, useEffect, useMemo } from 'react'
-import type { RennWorld, Entity, Vec3, Rotation, Shape, CameraMode } from '@/types/world'
-import { CAMERA_MODE_CYCLE_ORDER, CAMERA_MODE_LABELS } from '@/types/world'
+import type { RennWorld, Entity, Vec3, Rotation, Shape } from '@/types/world'
 import type { TransformerConfig } from '@/types/transformer'
 import { uiLogger } from '@/utils/uiLogger'
 import TransformEditor from './TransformEditor'
-import Vec3Field from './Vec3Field'
 import ShapeEditor from './ShapeEditor'
 import PhysicsEditor from './PhysicsEditor'
-import MaterialEditor from './MaterialEditor'
 import ModelEditor from './ModelEditor'
 import TransformerEditor from './TransformerEditor'
 import CollapsibleSection from './CollapsibleSection'
-import Switch from './Switch'
-import {
-  fieldLabelStyle,
-  sidebarTextInputStyle,
-  entityPanelIconButtonStyle,
-  removeButtonStyle,
-  removeButtonStyleDisabled,
-  secondaryButtonStyle,
-  secondaryButtonStyleDisabled,
-} from './sharedStyles'
+import { fieldLabelStyle, sidebarTextInputStyle, entityPanelIconButtonStyle } from './sharedStyles'
 import { EntityPanelIcons } from './EntityPanelIcons'
 import { useEditorUndo } from '@/contexts/EditorUndoContext'
 import { theme } from '@/config/theme'
@@ -46,6 +34,10 @@ import {
   patchEntityWithMixedDimension,
   type MixedDimensionKind,
 } from '@/utils/mixedShapeDimensions'
+import PropertyPanelHeader from './propertyPanel/PropertyPanelHeader'
+import MaterialSection from './propertyPanel/MaterialSection'
+import ModelTransformSection from './propertyPanel/ModelTransformSection'
+import AvatarSection from './propertyPanel/AvatarSection'
 
 export interface PropertyPanelProps {
   world: RennWorld
@@ -189,9 +181,6 @@ export default function PropertyPanel({
   }
   const isModelOrTrimesh = isModelOrTrimeshMerged()
 
-  const materialAllNull = entities.every((e) => e.material == null)
-  const materialAllSet = entities.every((e) => e.material != null)
-
   const nameDisplayValue =
     editingName !== null ? editingName : mergedName !== null ? mergedName : ''
   const handleNameFocus = () => setEditingName(mergedName ?? '')
@@ -228,104 +217,17 @@ export default function PropertyPanel({
 
   return (
     <div style={{ padding: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <div
-        style={{
-          margin: '0 0 2px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 8,
-          minWidth: 0,
-        }}
-      >
-        <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-          {anyLocked && <span style={{ fontSize: 12 }}>🔒</span>}
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {isMulti
-              ? mergedName !== null
-                ? `${mergedName} (${entities.length})`
-                : `Multiple entities (${entities.length})`
-              : (primaryEntity.name ?? primaryEntity.id)}
-          </span>
-        </h3>
-        {(onRefreshFromPhysics || onCloneEntity || onDeleteEntities) && (
-          <div
-            role="group"
-            aria-label="Actions"
-            style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}
-          >
-            {onRefreshFromPhysics && (
-              <button
-                type="button"
-                onClick={() => {
-                  uiLogger.click('PropertyPanel', 'Refresh from physics', { entityIds: ids })
-                  onRefreshFromPhysics(ids)
-                }}
-                title="Refresh position and rotation from physics"
-                aria-label="Refresh position and rotation from physics"
-                style={entityPanelIconButtonStyle}
-                onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
-                onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.8')}
-              >
-                {EntityPanelIcons.refresh}
-              </button>
-            )}
-            {onCloneEntity && (
-              <button
-                type="button"
-                onClick={() => {
-                  if (isMulti) return
-                  uiLogger.click('PropertyPanel', 'Clone entity', { entityId: primaryEntity.id })
-                  onCloneEntity(primaryEntity.id)
-                }}
-                disabled={isMulti}
-                title={isMulti ? 'Clone one entity at a time' : 'Clone entity'}
-                aria-label="Clone entity"
-                style={{
-                  ...entityPanelIconButtonStyle,
-                  opacity: isMulti ? 0.4 : 0.8,
-                  cursor: isMulti ? 'not-allowed' : 'pointer',
-                }}
-                onMouseEnter={(e) => {
-                  if (!isMulti) e.currentTarget.style.opacity = '1'
-                }}
-                onMouseLeave={(e) => {
-                  if (!isMulti) e.currentTarget.style.opacity = '0.8'
-                }}
-              >
-                {EntityPanelIcons.clone}
-              </button>
-            )}
-            {onDeleteEntities && (
-              <button
-                type="button"
-                onClick={() => {
-                  if (anyLocked) return
-                  uiLogger.delete('PropertyPanel', 'Delete entities', { entityIds: ids })
-                  onDeleteEntities(ids)
-                }}
-                disabled={anyLocked}
-                title={anyLocked ? 'Cannot delete locked entities' : isMulti ? 'Delete selected entities' : 'Delete entity'}
-                aria-label="Delete entity"
-                style={{
-                  ...entityPanelIconButtonStyle,
-                  ...removeButtonStyle,
-                  padding: 0,
-                  ...(anyLocked && removeButtonStyleDisabled),
-                }}
-                onMouseEnter={(e) => {
-                  if (!anyLocked) e.currentTarget.style.opacity = '1'
-                }}
-                onMouseLeave={(e) => {
-                  if (!anyLocked) e.currentTarget.style.opacity = '0.8'
-                }}
-              >
-                {EntityPanelIcons.trash}
-              </button>
-            )}
-          </div>
-        )}
-      </div>
+      <PropertyPanelHeader
+        entities={entities}
+        ids={ids}
+        primaryEntity={primaryEntity}
+        isMulti={isMulti}
+        anyLocked={anyLocked}
+        mergedName={mergedName}
+        onRefreshFromPhysics={onRefreshFromPhysics}
+        onCloneEntity={onCloneEntity}
+        onDeleteEntities={onDeleteEntities}
+      />
 
       <CollapsibleSection
         title="Entity"
@@ -498,115 +400,23 @@ export default function PropertyPanel({
             titleTooltip="PBR surface: base color, optional texture map with UV tweaks, opacity, roughness, and metalness."
             copyPayload={mergedMaterial ?? {}}
           >
-            {(() => {
-              if (!isModelOrTrimesh) {
-                if (mergedMaterial === null) {
-                  return (
-                    <p style={{ margin: '8px 0', fontSize: 12, color: theme.text.muted }}>
-                      Material properties differ across selection. Edit one entity or apply a change to set all to the same material.
-                    </p>
-                  )
-                }
-                return (
-                  <MaterialEditor
-                    entityId={editorIdPrefix}
-                    material={mergedMaterial}
-                    assets={assets}
-                    world={world}
-                    onMaterialChange={(material) =>
-                      onEntityMaterialChange ? onEntityMaterialChange(ids, { material }) : updateAll({ material })
-                    }
-                    onWorldChange={onWorldChange}
-                    onAssetsChange={onAssetsChange}
-                    disabled={anyLocked}
-                    onOpenTextureStudio={
-                      !isMulti && onOpenTextureStudio
-                        ? () => onOpenTextureStudio(primaryEntity.id)
-                        : undefined
-                    }
-                  />
-                )
-              }
-              if (materialAllNull) {
-                return (
-                  <>
-                    <p style={{ margin: '8px 0', fontSize: 12, color: theme.text.muted }}>Using colors from 3D file.</p>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        uiLogger.change('PropertyPanel', 'Override with material', { entityIds: ids })
-                        const defaultMaterial = { color: [0.7, 0.7, 0.7] as [number, number, number] }
-                        if (onEntityMaterialChange) {
-                          onEntityMaterialChange(ids, { material: defaultMaterial })
-                        } else {
-                          updateAll({ material: defaultMaterial })
-                        }
-                      }}
-                      disabled={anyLocked}
-                      style={{
-                        ...secondaryButtonStyle,
-                        ...(anyLocked && secondaryButtonStyleDisabled),
-                      }}
-                    >
-                      Override with material
-                    </button>
-                  </>
-                )
-              }
-              if (materialAllSet && mergedMaterial != null) {
-                return (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        uiLogger.change('PropertyPanel', 'Use model colors', { entityIds: ids })
-                        if (onEntityMaterialChange) {
-                          onEntityMaterialChange(ids, { material: undefined })
-                        } else {
-                          updateAll({ material: undefined })
-                        }
-                      }}
-                      disabled={anyLocked}
-                      style={{
-                        fontSize: 12,
-                        background: 'none',
-                        border: 'none',
-                        color: theme.text.linkBlue,
-                        cursor: anyLocked ? 'not-allowed' : 'pointer',
-                        padding: '0 0 8px 0',
-                        marginBottom: 4,
-                      }}
-                    >
-                      Use model colors
-                    </button>
-                    <MaterialEditor
-                      entityId={editorIdPrefix}
-                      material={mergedMaterial}
-                      assets={assets}
-                      world={world}
-                      onMaterialChange={(material) =>
-                        onEntityMaterialChange
-                          ? onEntityMaterialChange(ids, { material })
-                          : updateAll({ material })
-                      }
-                      onWorldChange={onWorldChange}
-                      onAssetsChange={onAssetsChange}
-                      disabled={anyLocked}
-                      onOpenTextureStudio={
-                        !isMulti && onOpenTextureStudio
-                          ? () => onOpenTextureStudio(primaryEntity.id)
-                          : undefined
-                      }
-                    />
-                  </>
-                )
-              }
-              return (
-                <p style={{ fontSize: 12, color: theme.text.muted }}>
-                  Material override differs across selection. Set all to file colors or override on each entity type consistently.
-                </p>
-              )
-            })()}
+            <MaterialSection
+              entities={entities}
+              ids={ids}
+              primaryEntity={primaryEntity}
+              isMulti={isMulti}
+              isModelOrTrimesh={isModelOrTrimesh}
+              mergedMaterial={mergedMaterial}
+              editorIdPrefix={editorIdPrefix}
+              assets={assets}
+              world={world}
+              anyLocked={anyLocked}
+              onWorldChange={onWorldChange}
+              onAssetsChange={onAssetsChange}
+              onEntityMaterialChange={onEntityMaterialChange}
+              updateAll={updateAll}
+              onOpenTextureStudio={onOpenTextureStudio}
+            />
           </CollapsibleSection>
 
           {entities.every((e) => e.shape?.type !== 'trimesh') && (
@@ -643,87 +453,17 @@ export default function PropertyPanel({
                 showShapeWireframe: primaryEntity.showShapeWireframe,
               }}
             >
-              {entities.every((e) => e.shape?.type !== 'trimesh' && e.model) ? (
-                <div style={{ marginBottom: 10 }}>
-                  <Switch
-                    labelTitle="Draws the physics primitive outline (box/sphere/etc.), not the high-poly GLTF triangles."
-                    checked={entities.every((e) => e.showShapeWireframe === true)}
-                    onChange={(checked) => {
-                      undo?.pushBeforeEdit()
-                      uiLogger.change('PropertyPanel', 'Toggle shape wireframe', { entityIds: ids, value: checked })
-                      updateAll(checked ? { showShapeWireframe: true } : { showShapeWireframe: undefined })
-                    }}
-                    disabled={anyLocked}
-                    label="Show shape wireframe"
-                  />
-                  <div style={{ fontSize: 10, color: theme.text.disabled, marginTop: 4, paddingLeft: 2 }}>
-                    Outlines the physics primitive (not the GLTF mesh)
-                  </div>
-                </div>
-              ) : null}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                <Vec3Field
-                  label="Model rotation"
-                  labelTitle="Euler rotation offset (radians, XYZ) applied to the visual model only."
-                  value={mergedModelRotation}
-                  onChange={(r) => {
-                    uiLogger.change('PropertyPanel', 'Change model rotation', { entityIds: ids, newValue: r })
-                    if (onEntityModelTransformChange) {
-                      onEntityModelTransformChange(ids, { modelRotation: r })
-                    } else {
-                      updateAll({ modelRotation: r })
-                    }
-                  }}
-                  axisLabels={['X', 'Y', 'Z']}
-                  idPrefix={`${editorIdPrefix}-model-rotation`}
-                  disabled={anyLocked}
-                  onScrubStart={vec3Undo?.onScrubStart}
-                  onScrubEnd={vec3Undo?.onScrubEnd}
-                  onBeforeCommit={vec3Undo?.onBeforeCommit}
-                />
-                <button
-                  type="button"
-                  title="Reset model rotation to 0,0,0"
-                  aria-label="Reset model rotation to 0,0,0"
-                  onClick={() => {
-                    vec3Undo?.onBeforeCommit?.()
-                    uiLogger.change('PropertyPanel', 'Reset model rotation', { entityIds: ids })
-                    if (onEntityModelTransformChange) {
-                      onEntityModelTransformChange(ids, { modelRotation: [0, 0, 0] })
-                    } else {
-                      updateAll({ modelRotation: [0, 0, 0] })
-                    }
-                  }}
-                  disabled={anyLocked}
-                  style={{
-                    ...entityPanelIconButtonStyle,
-                    cursor: anyLocked ? 'not-allowed' : 'pointer',
-                    opacity: anyLocked ? 0.5 : 1,
-                  }}
-                >
-                  {EntityPanelIcons.reset}
-                </button>
-              </div>
-              <Vec3Field
-                label="Model scale"
-                labelTitle="Per-axis scale multiplier for the visual model relative to its file units."
-                value={mergedModelScale}
-                onChange={(v) => {
-                  uiLogger.change('PropertyPanel', 'Change model scale', { entityIds: ids, newValue: v })
-                  if (onEntityModelTransformChange) {
-                    onEntityModelTransformChange(ids, { modelScale: v })
-                  } else {
-                    updateAll({ modelScale: v })
-                  }
-                }}
-                min={0.01}
-                step={0.1}
-                sensitivity={0.01}
-                idPrefix={`${editorIdPrefix}-model-scale`}
-                disabled={anyLocked}
-                onScrubStart={vec3Undo?.onScrubStart}
-                onScrubEnd={vec3Undo?.onScrubEnd}
-                onBeforeCommit={vec3Undo?.onBeforeCommit}
+              <ModelTransformSection
+                entities={entities}
+                ids={ids}
+                editorIdPrefix={editorIdPrefix}
+                mergedModelRotation={mergedModelRotation}
+                mergedModelScale={mergedModelScale}
+                anyLocked={anyLocked}
+                vec3Undo={vec3Undo}
+                onUndoBeforeEdit={undo ? () => undo.pushBeforeEdit() : undefined}
+                onEntityModelTransformChange={onEntityModelTransformChange}
+                updateAll={updateAll}
               />
             </CollapsibleSection>
           )}
@@ -733,92 +473,16 @@ export default function PropertyPanel({
             titleTooltip="When enabled, this entity is driven as the player in play mode (camera and input routing)."
             copyPayload={mergedAvatar ?? {}}
           >
-            <Switch
-              labelTitle="Playable character for the runtime: uses avatar scripts, optional preferred camera, and +/- bindings when the game HUD is visible."
-              checked={
-                mergedAvatar !== undefined &&
-                mergedAvatar !== null &&
-                mergedAvatar.enabled !== false
-              }
-              disabled={anyLocked || mergedAvatar === null}
-              onChange={(checked) => {
-                undo?.pushBeforeEdit()
-                uiLogger.change('PropertyPanel', 'Toggle entity avatar', { entityIds: ids, value: checked })
-                updateAll(checked ? { avatar: { enabled: true } } : { avatar: undefined })
-              }}
-              label="Playable avatar (+/− when Game HUD on, scripts)"
+            <AvatarSection
+              ids={ids}
+              primaryEntity={primaryEntity}
+              isMulti={isMulti}
+              mergedAvatar={mergedAvatar}
+              anyLocked={anyLocked}
+              world={world}
+              onUndoBeforeEdit={undo ? () => undo.pushBeforeEdit() : undefined}
+              updateAll={updateAll}
             />
-            {mergedAvatar === null ? (
-              <div style={{ fontSize: 11, color: theme.text.mixedValues, marginTop: 6 }}>Mixed avatar settings</div>
-            ) : null}
-            {!isMulti &&
-            mergedAvatar &&
-            mergedAvatar !== null &&
-            mergedAvatar.enabled !== false ? (
-              <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <label
-                  style={{ ...fieldLabelStyle, cursor: 'help' }}
-                  title="Camera behavior when following this avatar in play mode (overrides world default when set)."
-                >
-                  Preferred camera mode
-                </label>
-                <select
-                  value={primaryEntity.avatar?.preferredCamera?.mode ?? world.world.camera?.mode ?? 'follow'}
-                  onChange={(e) => {
-                    const mode = e.target.value as CameraMode
-                    undo?.pushBeforeEdit()
-                    uiLogger.change('PropertyPanel', 'Avatar preferred camera mode', { entityIds: ids, mode })
-                    const a = primaryEntity.avatar ?? { enabled: true as const }
-                    updateAll({
-                      avatar: {
-                        ...a,
-                        enabled: a.enabled !== false,
-                        preferredCamera: { ...(a.preferredCamera ?? {}), mode },
-                      },
-                    })
-                  }}
-                  disabled={anyLocked}
-                  style={{ ...sidebarTextInputStyle, padding: '6px 8px' }}
-                >
-                  {CAMERA_MODE_CYCLE_ORDER.map((m) => (
-                    <option key={m} value={m}>
-                      {CAMERA_MODE_LABELS[m]}
-                    </option>
-                  ))}
-                </select>
-                <label
-                  style={{ ...fieldLabelStyle, cursor: 'help' }}
-                  title="Follow/third-person distance from the avatar; leave empty to use the world camera default."
-                >
-                  Preferred distance
-                </label>
-                <input
-                  type="number"
-                  step={0.5}
-                  min={0}
-                  value={primaryEntity.avatar?.preferredCamera?.distance ?? ''}
-                  placeholder="World default"
-                  onChange={(e) => {
-                    const raw = e.target.value
-                    undo?.pushBeforeEdit()
-                    const a = primaryEntity.avatar ?? { enabled: true as const }
-                    const nextPref = { ...(a.preferredCamera ?? {}) }
-                    if (raw === '') delete nextPref.distance
-                    else nextPref.distance = Number(raw)
-                    uiLogger.change('PropertyPanel', 'Avatar preferred distance', { entityIds: ids, raw })
-                    updateAll({
-                      avatar: {
-                        ...a,
-                        enabled: a.enabled !== false,
-                        preferredCamera: nextPref,
-                      },
-                    })
-                  }}
-                  disabled={anyLocked}
-                  style={sidebarTextInputStyle}
-                />
-              </div>
-            ) : null}
           </CollapsibleSection>
 
           <CollapsibleSection
