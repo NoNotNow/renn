@@ -217,13 +217,47 @@ Import / export / pose sync still depends on the in-context `worldRef`, `setWorl
 
 ---
 
+## Phase 9 — `Builder.tsx` slimming via three new hooks (completed, 2026-04-19)
+
+**Performance:** Pure structural refactor. No new effects, no per-frame work, no re-render churn. The three new hooks return stable callback references (verified by test) and re-derive boolean flags inline, so consuming components see the same memoization behaviour as before. The keyboard listener is still a single `window.addEventListener('keydown', …)`. The fullscreen pointer-activity listeners only attach when `isFullscreenEnabled()` is true (unchanged). Editor history `tryUndo`/`tryRedo` now self-bump the UI tick — old call sites that bumped manually still work (one extra render at most when stacking with `applyHistorySnapshot`, which itself bumps).
+
+### Hook — `useBuilderKeyboardShortcuts`
+- **`src/hooks/useBuilderKeyboardShortcuts.ts`** — owns the `window` keydown listener for the Builder shortcuts (`Cmd/Ctrl+Z`/`Y`/`Shift+Z` undo-redo, `Escape` clear selection, `Cmd/Ctrl+E` toggle edit-nav, `Digit1`/`Numpad1` cycle avatar, `Digit0`/`Numpad0` cycle camera mode). Exports `BuilderKeyboardShortcutsApi` so test harness / future consumers wire the same callback shape.
+- The "is editable element" guard is encapsulated; `uiLogger.change('Builder', 'Cycle active avatar')` now fires inside the hook (still gated on `onCycleActiveAvatar()` returning true).
+- **`src/hooks/useBuilderKeyboardShortcuts.test.ts`** — 6 tests: each shortcut dispatches the right callback, all are suppressed on `INPUT` focus, listener removed on unmount, avatar-cycle log only fires when the consumer signals an avatar was changed.
+
+### Hook — `useBuilderFullscreenChrome`
+- **`src/hooks/useBuilderFullscreenChrome.ts`** — owns the left/right drawer open state (`useLocalStorageState`, persisted), the `usePointerRevealTimeout` reveal flag, the fullscreen API support flag, the saved-drawer snapshot (collapse on enter, restore on exit), and the `builderColumnRef`. Returns the merged `builderChromeIdleHidden` derived flag and the `handleSceneFullscreenChange` callback used by `<SceneView onFullscreenChange={…}>`.
+- Pointer listeners are still only attached when `isFullscreenEnabled()` is true.
+- **`src/hooks/useBuilderFullscreenChrome.test.ts`** — 6 tests: defaults, localStorage seeding, drawers collapse-on-enter / restore-on-exit, manually-collapsed drawer survives the round-trip, `builderChromeIdleHidden` flips with chrome reveal, `builderColumnRef` is stable across rerenders.
+
+### Hook — `useEditorHistory`
+- **`src/hooks/useEditorHistory.ts`** — owns `createEditorHistory(maxDepth)` + the gesture-coalescing pre-snapshot ref + the UI tick. Returns `pushBeforeMutation` (snapshots `worldAssetsRef.current`), `tryUndo` / `tryRedo` (auto-bump UI on success — fixes a latent stale-`canUndo` issue from the old inline implementation), `clear` (auto-bump), `bumpUi`, `tick`, `editorUndoApi` (memoized for `EditorUndoProvider`), and the live `canUndo` / `canRedo` booleans. The combined keyboard handler in `Builder.tsx` still composes this with the Texture Maker history (Texture Maker undo wins when its draft is active).
+- **`src/hooks/useEditorHistory.test.ts`** — 9 tests: empty start, push + undo + redo round-trip, clear, `editorUndoApi.pushBeforeEdit`, gesture commit (`scrubStart` + `scrubEnd(true)`), gesture discard (`scrubEnd(false)`), `maxDepth` trimming (oldest dropped), and stable function-identity across rerenders.
+
+### Result
+- `pages/Builder.tsx`: **1892 → 1782 lines** (-5.8%). Editor history (~50 lines), fullscreen chrome (~60 lines), and keyboard shortcuts (~60 lines) now live in cohesive single-responsibility files with their own tests.
+- Full test suite: **120 files / 991 tests + 3 skipped** (was 117 / 970; +3 hook test files / +21 tests).
+
+### Why no `useTextureMakerSession` (yet)
+The Texture Maker session is the largest remaining chunk (~700 lines covering: `textureDocsRef`, draft doc/assets state, baseline + revert, `textureMakerHistoryRef`, layer selection, paint stroke prep / commit, sidecar load, blank-composite provisioning, apply / merge / resize / reorder / add / import / remove handlers). It is tightly coupled to:
+- `pushHistory` (project-level) inside `provisionBlankCompositeTextureIfMissing` and `activateTextureStudioForEntity`,
+- `documentEpoch` (resets the texture maker history alongside the editor history),
+- `selectedEntityIds` (auto-close on selection mismatch),
+- `sceneViewRef.updateEntityMaterial` after each commit / paint stroke,
+- the combined `handleUndo` / `handleRedo` (Texture Maker undo wins when draft is active).
+
+A clean extraction is feasible but warrants its own phase with a careful contract (likely splitting into `useTextureCompositorRegistry` + `useTextureMakerHistory` + `useTextureMakerSession`) and at least integration-level smoke tests (open / paint / undo / apply flow) before refactoring. Out of scope for Phase 9.
+
+---
+
 ## Remaining larger tasks
 
 ### God files — candidates for splitting
 
 | File | Lines | Suggested extraction |
 |------|-------|---------------------|
-| `pages/Builder.tsx` | ~1900 | Selection logic, undo/redo, texture maker state, import/export handlers → custom hooks; **optional:** isolate `livePoses` polling in a narrow wrapper again so `Builder` does not re-render every poll (see performance-work §8 / Tier 3) |
+| `pages/Builder.tsx` | ~1780 | Texture Maker session (~700 lines, see Phase 9 "Why no `useTextureMakerSession`"); selection logic; import/export handlers; pose-sync `syncPosesThen`; **optional:** isolate `livePoses` polling in a narrow wrapper again so `Builder` does not re-render every poll (see performance-work §8 / Tier 3) |
 | `components/SceneView.tsx` | ~1360 | Physics lifecycle, skybox setup, overlay logic → hooks or sub-modules |
 | `physics/rapierPhysics.ts` | ~1085 | Collider creation, body management, step logic → separate files |
 | `TextureMaker/TextureMaker.tsx` | ~1030 | Tool logic, layer management → sub-components |
@@ -269,11 +303,11 @@ Critical modules without dedicated unit tests:
 - [x] Shared `visualBaseQuaternion` helpers (`utils/visualBaseQuaternion.ts`) + tests
 - [x] CSS theme tokens centralised in `:root` (index.css, BrushToolPopover.css, TextureMaker.css)
 - [x] Test coverage: `data/modelPresets`, `data/sampleWorld`, `scripts/scriptCtx`
-- [~] God file splitting (Builder, SceneView, …) — Phase 8 split `ProjectContext` (662 → 587). Builder/SceneView/rapierPhysics/TextureMaker/renderItemRegistry still pending.
+- [~] God file splitting (Builder, SceneView, …) — Phase 8 split `ProjectContext` (662 → 587). Phase 9 split `Builder.tsx` (1892 → 1782) into `useBuilderKeyboardShortcuts`, `useBuilderFullscreenChrome`, `useEditorHistory`. SceneView/rapierPhysics/TextureMaker/renderItemRegistry still pending; `Builder.tsx` Texture Maker session deferred to a future phase.
 - [x] Pure helpers extracted from `modelPreview.ts` and tested (`modelPreviewFraming`)
 - [ ] Test coverage for `renderItemRegistry.ts` — *deferred; integration-tested. See Phase 5.*
 - [x] Test coverage for `sceneFrameLoop.ts` rAF body (28 branch tests added in Phase 7; rAF loop wrapper still integration-tested)
 - [x] Fix `scriptCtx.time` capture-vs-live bug (Phase 5)
 - [x] Inspector pose polling isolated (`LivePosesPoll` → `PropertySidebar`, not full `Builder`)
 
-Run `npm run test:run` after further edits (currently **117** test files, **970** tests + 3 skipped). In `performance-benchmarks.integration.test.ts`, the **Heap growth** and **Scaling linearity** describes are skipped unless `RUN_PERF_BENCHMARKS=1` (use `npm run test:perf`) so agents avoid flaky wall-clock/heap thresholds; run that before Rapier/frame-loop/allocation hot-path changes.
+Run `npm run test:run` after further edits (currently **120** test files, **991** tests + 3 skipped). In `performance-benchmarks.integration.test.ts`, the **Heap growth** and **Scaling linearity** describes are skipped unless `RUN_PERF_BENCHMARKS=1` (use `npm run test:perf`) so agents avoid flaky wall-clock/heap thresholds; run that before Rapier/frame-loop/allocation hot-path changes.

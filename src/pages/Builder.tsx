@@ -7,13 +7,15 @@ import EntitySidebar from '@/components/EntitySidebar'
 import PropertySidebar from '@/components/PropertySidebar'
 import { LivePosesPoll, type LivePosesMap } from '@/components/LivePosesPoll'
 import { CopyProvider } from '@/contexts/CopyContext'
-import { EditorUndoProvider, type EditorUndoApi } from '@/contexts/EditorUndoContext'
+import { EditorUndoProvider } from '@/contexts/EditorUndoContext'
+import { useEditorHistory } from '@/hooks/useEditorHistory'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { cloneEntityFrom, createDefaultEntity, createBulkEntities, type AddableShapeType, type BulkEntityParams } from '@/data/entityDefaults'
 import { useProjectContext } from '@/hooks/useProjectContext'
 import { useLocalStorageState } from '@/hooks/useLocalStorageState'
-import { usePointerRevealTimeout } from '@/hooks/usePointerRevealTimeout'
-import { cycleCameraMode, DEFAULT_SCALE, type Vec3, type Rotation, type Entity, type TrimeshSimplificationConfig } from '@/types/world'
+import { useBuilderFullscreenChrome } from '@/hooks/useBuilderFullscreenChrome'
+import { DEFAULT_SCALE, type Vec3, type Rotation, type Entity, type TrimeshSimplificationConfig } from '@/types/world'
+import { useBuilderKeyboardShortcuts } from '@/hooks/useBuilderKeyboardShortcuts'
 import { uiLogger } from '@/utils/uiLogger'
 import { colorToHex, hexToColor } from '@/utils/colorUtils'
 import { theme } from '@/config/theme'
@@ -28,7 +30,7 @@ import {
   type BuilderPoseCommitEntry,
   type TexturePaintStrokePayload,
 } from '@/editor/transformGizmoController'
-import { cloneEditorSnapshot, createEditorHistory, type EditorSnapshot } from '@/editor/editorHistory'
+import type { EditorSnapshot } from '@/editor/editorHistory'
 import { createTextureMakerHistory, type TextureMakerSnapshot } from '@/utils/textureMakerHistory'
 import { downscaleImageBlob } from '@/utils/textureDownscale'
 import { clampTrimeshSimplificationConfig } from '@/scripts/migrateWorld'
@@ -65,7 +67,6 @@ import {
   sanitizeTextureStem,
 } from '@/utils/textureAssetVersioning'
 import TextureMaker from '@/components/TextureMaker/TextureMaker'
-import { isFullscreenEnabled } from '@/utils/fullscreenApi'
 
 const EDITOR_HISTORY_MAX_DEPTH = 80
 
@@ -139,12 +140,19 @@ export default function Builder() {
   const getScenePosesRef = useRef<() => LivePosesMap | null>(() => null)
   getScenePosesRef.current = () => sceneViewRef.current?.getAllPoses() ?? null
   const initialPosesRef = useRef<Map<string, { position: Vec3; rotation: Rotation; scale?: Vec3 }> | null>(null)
-  const historyRef = useRef(createEditorHistory(EDITOR_HISTORY_MAX_DEPTH))
-  const gestureSnapshotRef = useRef<EditorSnapshot | null>(null)
   const worldAssetsRef = useRef({ world, assets })
   worldAssetsRef.current = { world, assets }
-  const [historyTick, setHistoryUi] = useState(0)
-  const bumpHistoryUi = useCallback(() => setHistoryUi((n) => n + 1), [])
+  const {
+    pushBeforeMutation: pushHistory,
+    tryUndo: tryEditorUndo,
+    tryRedo: tryEditorRedo,
+    clear: clearEditorHistory,
+    bumpUi: bumpHistoryUi,
+    editorUndoApi,
+    tick: historyTick,
+    canUndo: editorCanUndo,
+    canRedo: editorCanRedo,
+  } = useEditorHistory({ worldAssetsRef, maxDepth: EDITOR_HISTORY_MAX_DEPTH })
   const textureDocsRef = useRef<Map<string, TextureDocument>>(new Map())
   const selectedLayerByEntityRef = useRef<Map<string, string>>(new Map())
   const [textureStudioTick, setTextureStudioTick] = useState(0)
@@ -183,17 +191,11 @@ export default function Builder() {
   }, [textureMakerLayerId])
 
   useEffect(() => {
-    historyRef.current.clear()
+    clearEditorHistory()
     textureMakerHistoryRef.current.clear()
     bumpHistoryUi()
     bumpTextureMakerHistoryUi()
-  }, [documentEpoch, bumpHistoryUi, bumpTextureMakerHistoryUi])
-
-  const pushHistory = useCallback(() => {
-    const { world: w, assets: a } = worldAssetsRef.current
-    historyRef.current.pushBeforeMutation(w, a)
-    bumpHistoryUi()
-  }, [bumpHistoryUi])
+  }, [documentEpoch, clearEditorHistory, bumpHistoryUi, bumpTextureMakerHistoryUi])
 
   const applyHistorySnapshot = useCallback(
     (snap: EditorSnapshot) => {
@@ -260,10 +262,9 @@ export default function Builder() {
         return
       }
     }
-    const { world: w, assets: a } = worldAssetsRef.current
-    const histPrev = historyRef.current.undo(w, a)
+    const histPrev = tryEditorUndo()
     if (histPrev) applyHistorySnapshot(histPrev)
-  }, [applyHistorySnapshot, applyTextureMakerSnapshot])
+  }, [tryEditorUndo, applyHistorySnapshot, applyTextureMakerSnapshot])
 
   const handleRedo = useCallback(() => {
     const eid = textureMakerEntityIdRef.current
@@ -277,30 +278,9 @@ export default function Builder() {
         return
       }
     }
-    const { world: w, assets: a } = worldAssetsRef.current
-    const histNext = historyRef.current.redo(w, a)
+    const histNext = tryEditorRedo()
     if (histNext) applyHistorySnapshot(histNext)
-  }, [applyHistorySnapshot, applyTextureMakerSnapshot])
-
-  const editorUndoApi = useMemo<EditorUndoApi>(
-    () => ({
-      pushBeforeEdit: () => {
-        pushHistory()
-      },
-      notifyScrubStart: () => {
-        const { world: w, assets: a } = worldAssetsRef.current
-        gestureSnapshotRef.current = cloneEditorSnapshot(w, a)
-      },
-      notifyScrubEnd: (hadScrub: boolean) => {
-        if (hadScrub && gestureSnapshotRef.current) {
-          historyRef.current.commitCoalescedGesture(gestureSnapshotRef.current)
-          bumpHistoryUi()
-        }
-        gestureSnapshotRef.current = null
-      },
-    }),
-    [pushHistory, bumpHistoryUi]
-  )
+  }, [tryEditorRedo, applyHistorySnapshot, applyTextureMakerSnapshot])
 
   /** Creates a blank 500×500 composite + sidecar when the entity has no `material.map`. Does not open Texture Maker. */
   const provisionBlankCompositeTextureIfMissing = useCallback(
@@ -952,60 +932,18 @@ export default function Builder() {
     initialPosesRef.current = sceneViewRef.current?.getAllPoses() ?? null
   }, [])
 
-  // Drawer states with localStorage persistence
-  const [leftDrawerOpen, setLeftDrawerOpen] = useLocalStorageState('leftDrawerOpen', true)
-  const [rightDrawerOpen, setRightDrawerOpen] = useLocalStorageState('rightDrawerOpen', true)
-  const leftDrawerOpenRef = useRef(leftDrawerOpen)
-  const rightDrawerOpenRef = useRef(rightDrawerOpen)
-  const drawersBeforeFullscreenRef = useRef<{ left: boolean; right: boolean } | null>(null)
-  useEffect(() => {
-    leftDrawerOpenRef.current = leftDrawerOpen
-  }, [leftDrawerOpen])
-  useEffect(() => {
-    rightDrawerOpenRef.current = rightDrawerOpen
-  }, [rightDrawerOpen])
-
-  const builderColumnRef = useRef<HTMLDivElement>(null)
-  const [fullscreenApiSupported, setFullscreenApiSupported] = useState(false)
-  const [builderFullscreenActive, setBuilderFullscreenActive] = useState(false)
-  const { visible: fsChromeVisible, bumpActivity: bumpFsChrome } = usePointerRevealTimeout()
-
-  useEffect(() => {
-    setFullscreenApiSupported(isFullscreenEnabled())
-  }, [])
-
-  useEffect(() => {
-    if (!fullscreenApiSupported) return
-    const bump = () => bumpFsChrome()
-    document.addEventListener('pointermove', bump, { passive: true })
-    document.addEventListener('pointerdown', bump, { passive: true })
-    return () => {
-      document.removeEventListener('pointermove', bump)
-      document.removeEventListener('pointerdown', bump)
-    }
-  }, [fullscreenApiSupported, bumpFsChrome])
-
-  const handleSceneFullscreenChange = useCallback((active: boolean) => {
-    setBuilderFullscreenActive(active)
-    if (active) {
-      drawersBeforeFullscreenRef.current = {
-        left: leftDrawerOpenRef.current,
-        right: rightDrawerOpenRef.current,
-      }
-      setLeftDrawerOpen(false)
-      setRightDrawerOpen(false)
-      return
-    }
-    const snap = drawersBeforeFullscreenRef.current
-    if (snap != null) {
-      setLeftDrawerOpen(snap.left)
-      setRightDrawerOpen(snap.right)
-      drawersBeforeFullscreenRef.current = null
-    }
-  }, [setLeftDrawerOpen, setRightDrawerOpen])
+  const {
+    builderColumnRef,
+    leftDrawerOpen,
+    setLeftDrawerOpen,
+    rightDrawerOpen,
+    setRightDrawerOpen,
+    fsChromeVisible,
+    bumpFsChrome,
+    handleSceneFullscreenChange,
+    builderChromeIdleHidden,
+  } = useBuilderFullscreenChrome()
   const [showGameHud, setShowGameHud] = useLocalStorageState('builderShowGameHud', false)
-
-  const builderChromeIdleHidden = builderFullscreenActive && !fsChromeVisible
 
   const sceneCameraConfig = useMemo(
     () => ({
@@ -1017,66 +955,20 @@ export default function Builder() {
     [world.world.camera, cameraControl, cameraTarget, cameraMode]
   )
 
-  useEffect(() => {
-    const isEditableElement = (): boolean => {
-      const el = document.activeElement
-      if (!el) return false
-      const tag = el.tagName
-      return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (el as HTMLElement).isContentEditable
-    }
-
-    const onKeyDown = (e: KeyboardEvent): void => {
-      const mod = e.metaKey || e.ctrlKey
-      if (mod && e.key === 'z') {
-        if (isEditableElement()) return
-        e.preventDefault()
-        if (e.shiftKey) handleRedo()
-        else handleUndo()
-        return
-      }
-      if (mod && e.key === 'y') {
-        if (isEditableElement()) return
-        e.preventDefault()
-        handleRedo()
-        return
-      }
-      if (e.key === 'Escape') {
-        if (isEditableElement()) return
-        e.preventDefault()
-        setSelectedEntityIds([])
-        return
-      }
-      if (mod && !e.shiftKey && e.code === 'KeyE') {
-        if (isEditableElement()) return
-        e.preventDefault()
-        setEditNavigationMode((prev) => {
-          const next = !prev
-          uiLogger.change('Builder', 'Toggle edit navigation mode', { enabled: next })
-          return next
-        })
-        return
-      }
-      if (e.code === 'Digit1' || e.code === 'Numpad1') {
-        if (isEditableElement()) return
-        e.preventDefault()
-        if (sceneViewRef.current?.cycleActiveAvatar()) {
-          uiLogger.change('Builder', 'Cycle active avatar', {})
-        }
-        return
-      }
-      if (e.code !== 'Digit0' && e.code !== 'Numpad0') return
-      if (isEditableElement()) return
-      e.preventDefault()
-      setCameraMode((prev) => {
-        const next = cycleCameraMode(prev)
-        uiLogger.change('Builder', 'Change camera mode', { mode: next })
+  useBuilderKeyboardShortcuts({
+    onUndo: handleUndo,
+    onRedo: handleRedo,
+    onClearSelection: useCallback(() => setSelectedEntityIds([]), []),
+    onToggleEditNavigationMode: useCallback(() => {
+      setEditNavigationMode((prev) => {
+        const next = !prev
+        uiLogger.change('Builder', 'Toggle edit navigation mode', { enabled: next })
         return next
       })
-    }
-
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [setCameraMode, handleUndo, handleRedo, setSelectedEntityIds, sceneViewRef])
+    }, []),
+    onCycleActiveAvatar: useCallback(() => sceneViewRef.current?.cycleActiveAvatar() ?? false, []),
+    onChangeCameraMode: setCameraMode,
+  })
 
   const handleAddEntity = useCallback(
     (shapeType: AddableShapeType) => {
@@ -1583,11 +1475,9 @@ export default function Builder() {
   const textureMakerStacksActive =
     textureMakerEntityId != null && textureMakerDraftDoc != null && textureMakerDraftAssets != null
   const canUndoHistory =
-    (textureMakerStacksActive && textureMakerHistoryRef.current.canUndo()) ||
-    historyRef.current.canUndo()
+    (textureMakerStacksActive && textureMakerHistoryRef.current.canUndo()) || editorCanUndo
   const canRedoHistory =
-    (textureMakerStacksActive && textureMakerHistoryRef.current.canRedo()) ||
-    historyRef.current.canRedo()
+    (textureMakerStacksActive && textureMakerHistoryRef.current.canRedo()) || editorCanRedo
 
   const textureMakerDoc =
     textureMakerEntityId != null ? textureDocsRef.current.get(textureMakerEntityId) ?? null : null

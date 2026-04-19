@@ -72,6 +72,10 @@ renn/
 │   │   ├── useProjectContext.ts    # Access ProjectContext
 │   │   ├── useCameraState.ts       # CameraState (control/target/mode) + ref + setters; cameraStateFromWorld()
 │   │   ├── useModelPresets.ts      # Global model preset library: list/save/delete + applyToEntities (optimistic state)
+│   │   ├── useEditorHistory.ts     # Builder undo/redo: createEditorHistory + gesture coalescing + EditorUndoApi (auto-bumps on undo/redo/clear)
+│   │   ├── useBuilderKeyboardShortcuts.ts # Builder keyboard shortcuts (Cmd+Z/Y, Esc, Cmd+E, Digit0/1) — guards INPUT/TEXTAREA/SELECT focus
+│   │   ├── useBuilderFullscreenChrome.ts  # Builder column ref + drawer state (localStorage) + fullscreen drawer save/restore + idle-hide reveal
+│   │   ├── usePointerRevealTimeout.ts # Show UI on pointer activity, hide after delay (used by useBuilderFullscreenChrome)
 │   │   ├── useKeyboardInput.ts     # Free-fly keys (WASD, Shift, Alt, arrows)
 │   │   └── useLocalStorageState.ts # Persist UI state to localStorage
 │   ├── utils/
