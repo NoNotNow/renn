@@ -28,7 +28,11 @@ import { restoreInitialPosesIntoRegistry } from '@/runtime/restoreInitialPoses'
 import { runSceneFrame, advanceSemiFixedAccumulator } from '@/runtime/sceneFrameLoop'
 import type { SceneFrameTiming } from '@/runtime/frameTiming'
 import { useKeyboardInput } from '@/hooks/useKeyboardInput'
-import { usePointerRevealTimeout } from '@/hooks/usePointerRevealTimeout'
+import { useSkyDome } from '@/hooks/useSkyDome'
+import { useWorldAudio, type SoundPlaybackCommand } from '@/hooks/useWorldAudio'
+import { useSceneFullscreen } from '@/hooks/useSceneFullscreen'
+import { SceneFullscreenButton } from '@/components/SceneFullscreenButton'
+import { WorldLoadErrorOverlay } from '@/components/WorldLoadErrorOverlay'
 import {
   DEFAULT_TEXTURE_BRUSH_RGB,
   TEXTURE_PAINT_RADIUS_PX,
@@ -51,28 +55,6 @@ import { GameHud } from '@/components/GameHud'
 import { FrameStatsOverlay } from '@/components/FrameStatsOverlay'
 import { WarningSnackbar } from '@/components/WarningSnackbar'
 import { AvatarSession } from '@/runtime/avatarSession'
-import {
-  addFullscreenChangeListener,
-  exitFullscreenDocument,
-  getFullscreenElement,
-  isFullscreenEnabled,
-  requestFullscreenElement,
-} from '@/utils/fullscreenApi'
-
-/** Radius inside camera far plane (PerspectiveCamera default far = 1000). */
-const SKY_DOME_RADIUS = 500
-
-function disposeSkyDomeMesh(mesh: THREE.Mesh | null): void {
-  if (!mesh) return
-  mesh.removeFromParent()
-  mesh.geometry.dispose()
-  const mat = mesh.material
-  if (mat instanceof THREE.MeshBasicMaterial) {
-    mat.map?.dispose()
-    mat.dispose()
-  }
-}
-
 export interface SceneViewProps {
   world: RennWorld
   cameraConfig?: CameraConfig
@@ -101,7 +83,7 @@ export interface SceneViewProps {
   /** Builder: session ref for last free-fly pose; merged on save via ProjectContext.getWorldToSave. */
   editorFreePoseRef?: React.MutableRefObject<EditorFreePose | null>
   /** Optional command from editor UI to manually control world background sound. */
-  soundPlaybackCommand?: { action: 'play' | 'stop'; nonce: number } | null
+  soundPlaybackCommand?: SoundPlaybackCommand | null
   /**
    * Builder: when `mode` is set, the next click on the canvas picks an entity (raycast)
    * and calls `onEntityPicked` (Performance booster).
@@ -219,9 +201,6 @@ function SceneViewInner({
   const registryRef = useRef<RenderItemRegistry | null>(null)
   const entitiesRef = useRef<LoadedEntity[]>([])
   const assetResolverRef = useRef<DisposableAssetResolver | null>(null)
-  const skyDomeRef = useRef<THREE.Mesh | null>(null)
-  const worldAudioRef = useRef<HTMLAudioElement | null>(null)
-  const worldAudioUrlRef = useRef<string | null>(null)
   const timeRef = useRef(0)
   const frameRef = useRef<number>(0)
   const frameTimingRef = useRef<SceneFrameTiming | null>(null)
@@ -310,49 +289,24 @@ function SceneViewInner({
   const showGameHudRef = useRef(showGameHud)
   showGameHudRef.current = showGameHud
 
-  const [fullscreenUiSupported, setFullscreenUiSupported] = useState(false)
-  const [isSceneFullscreen, setIsSceneFullscreen] = useState(false)
-  const prevFullscreenRef = useRef(false)
-  const onFullscreenChangeRef = useRef(onFullscreenChange)
-  onFullscreenChangeRef.current = onFullscreenChange
-  const internalReveal = usePointerRevealTimeout()
-  const fsChromeVisible = fullscreenChromeControl?.visible ?? internalReveal.visible
-  const bumpFsChrome = fullscreenChromeControl?.bumpActivity ?? internalReveal.bumpActivity
-  const useExternalFullscreenChrome = fullscreenChromeControl != null
+  const fullscreen = useSceneFullscreen({
+    sceneRootRef,
+    fullscreenTargetRef,
+    onFullscreenChange,
+    externalChromeControl: fullscreenChromeControl,
+  })
 
-  const getFullscreenTargetEl = useCallback((): HTMLElement | null => {
-    return fullscreenTargetRef?.current ?? sceneRootRef.current
-  }, [fullscreenTargetRef])
+  const { skyDomeRef } = useSkyDome({
+    scene,
+    skyboxAssetId: world.world.skybox,
+    assets: _assets,
+  })
 
-  useEffect(() => {
-    setFullscreenUiSupported(isFullscreenEnabled())
-  }, [])
-
-  useEffect(() => {
-    const sync = () => {
-      const el = getFullscreenTargetEl()
-      const active = el != null && getFullscreenElement() === el
-      setIsSceneFullscreen(active)
-      if (prevFullscreenRef.current !== active) {
-        prevFullscreenRef.current = active
-        onFullscreenChangeRef.current?.(active)
-      }
-    }
-    const remove = addFullscreenChangeListener(sync)
-    sync()
-    return remove
-  }, [getFullscreenTargetEl])
-
-  const handleFullscreenToggle = useCallback(() => {
-    const el = getFullscreenTargetEl()
-    if (el == null) return
-    bumpFsChrome()
-    if (getFullscreenElement() === el) {
-      void exitFullscreenDocument().catch(() => {})
-      return
-    }
-    void requestFullscreenElement(el).catch(() => {})
-  }, [bumpFsChrome, getFullscreenTargetEl])
+  useWorldAudio({
+    sound: world.world.sound,
+    assets: _assets,
+    playbackCommand: soundPlaybackCommand,
+  })
 
   useEffect(() => {
     onCurrentAvatarChangeRef.current = onCurrentAvatarChange
@@ -911,20 +865,9 @@ function SceneViewInner({
       disposePickGizmoRef.current = null
       syncGizmoAttachRef.current = null
       gizmoDraggingRef.current = false
-      
-      if (skyDomeRef.current) {
-        disposeSkyDomeMesh(skyDomeRef.current)
-        skyDomeRef.current = null
-      }
-      if (worldAudioRef.current) {
-        worldAudioRef.current.pause()
-        worldAudioRef.current.src = ''
-        worldAudioRef.current = null
-      }
-      if (worldAudioUrlRef.current) {
-        URL.revokeObjectURL(worldAudioUrlRef.current)
-        worldAudioUrlRef.current = null
-      }
+
+      // `useSkyDome` and `useWorldAudio` own their own dispose; they re-run when
+      // `scene` flips to null (below) and on hook unmount.
 
       // Dispose asset resolver
       if (assetResolverRef.current) {
@@ -1074,152 +1017,14 @@ function SceneViewInner({
     }
   }, [world.world.skyColor, scene])
 
-  // Sky dome from `world.world.skybox` texture asset id (incremental; no full scene rebuild).
-  // Load from `_assets` (not only assetResolverRef) so textures uploaded after the last full load resolve correctly.
-  useEffect(() => {
-    if (!scene) {
-      disposeSkyDomeMesh(skyDomeRef.current)
-      skyDomeRef.current = null
-      return
-    }
-
-    const skyboxId = world.world.skybox?.trim()
-    if (!skyboxId) {
-      disposeSkyDomeMesh(skyDomeRef.current)
-      skyDomeRef.current = null
-      return
-    }
-
-    const blob = _assets.get(skyboxId)
-    if (!blob) {
-      console.warn(`[SceneView] Skybox asset id not in project assets map: ${skyboxId}`)
-      disposeSkyDomeMesh(skyDomeRef.current)
-      skyDomeRef.current = null
-      return
-    }
-
-    let cancelled = false
-    const loader = new THREE.TextureLoader()
-
-    void (async () => {
-      const url = URL.createObjectURL(blob)
-      let tex: THREE.Texture | null = null
-      try {
-        tex = await loader.loadAsync(url)
-      } catch (e) {
-        console.warn(`[SceneView] Failed to load skybox texture ${skyboxId}:`, e)
-      } finally {
-        URL.revokeObjectURL(url)
-      }
-
-      if (cancelled || !scene) {
-        tex?.dispose()
-        return
-      }
-      if (!tex) return
-
-      disposeSkyDomeMesh(skyDomeRef.current)
-      skyDomeRef.current = null
-
-      tex.colorSpace = THREE.SRGBColorSpace
-      tex.wrapS = THREE.ClampToEdgeWrapping
-      tex.wrapT = THREE.ClampToEdgeWrapping
-
-      const geo = new THREE.SphereGeometry(SKY_DOME_RADIUS, 64, 32)
-      const mat = new THREE.MeshBasicMaterial({
-        map: tex,
-        side: THREE.BackSide,
-        depthWrite: false,
-        depthTest: false,
-      })
-      const mesh = new THREE.Mesh(geo, mat)
-      mesh.name = '__renn_sky_dome'
-      mesh.frustumCulled = false
-      mesh.renderOrder = -1
-      scene.add(mesh)
-      skyDomeRef.current = mesh
-    })()
-
-    return () => {
-      cancelled = true
-      disposeSkyDomeMesh(skyDomeRef.current)
-      skyDomeRef.current = null
-    }
-  }, [scene, world.world.skybox, _assets])
-
-  useEffect(() => {
-    const sound = world.world.sound
-    const assetId = sound?.assetId?.trim()
-    const blob = assetId ? _assets.get(assetId) : undefined
-    const volume = Math.max(0, Math.min(1, sound?.volume ?? 1))
-    const loop = sound?.loop ?? true
-    const autoplay = sound?.autoplay ?? true
-
-    if (!assetId || !blob) {
-      if (worldAudioRef.current) {
-        worldAudioRef.current.pause()
-        worldAudioRef.current.src = ''
-        worldAudioRef.current = null
-      }
-      if (worldAudioUrlRef.current) {
-        URL.revokeObjectURL(worldAudioUrlRef.current)
-        worldAudioUrlRef.current = null
-      }
-      return
-    }
-
-    const prev = worldAudioRef.current
-    const sameSource = prev?.dataset.assetId === assetId
-    if (!sameSource) {
-      if (worldAudioRef.current) {
-        worldAudioRef.current.pause()
-        worldAudioRef.current.src = ''
-      }
-      if (worldAudioUrlRef.current) {
-        URL.revokeObjectURL(worldAudioUrlRef.current)
-      }
-      const url = URL.createObjectURL(blob)
-      const audio = new Audio(url)
-      audio.dataset.assetId = assetId
-      worldAudioRef.current = audio
-      worldAudioUrlRef.current = url
-    }
-
-    const audio = worldAudioRef.current
-    if (!audio) return
-    audio.loop = loop
-    audio.volume = volume
-    if (autoplay) {
-      void audio.play().catch(() => {
-        // Browsers may block autoplay until user interaction.
-      })
-    }
-  }, [world.world.sound, _assets])
-
-  useEffect(() => {
-    if (!soundPlaybackCommand) return
-    const audio = worldAudioRef.current
-    if (!audio) return
-    if (soundPlaybackCommand.action === 'play') {
-      void audio.play().catch(() => {
-        // If blocked by autoplay policy, user can retry after interaction.
-      })
-      return
-    }
-    audio.pause()
-  }, [soundPlaybackCommand])
-
+  const allowInternalFsChromePointer = fullscreen.supported && !fullscreen.useExternalChrome
   return (
     <div
       ref={sceneRootRef}
       className={className}
       style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden' }}
-      onPointerMove={
-        fullscreenUiSupported && !useExternalFullscreenChrome ? bumpFsChrome : undefined
-      }
-      onPointerDown={
-        fullscreenUiSupported && !useExternalFullscreenChrome ? bumpFsChrome : undefined
-      }
+      onPointerMove={allowInternalFsChromePointer ? fullscreen.bumpChrome : undefined}
+      onPointerDown={allowInternalFsChromePointer ? fullscreen.bumpChrome : undefined}
     >
       <div
         ref={containerRef}
@@ -1227,64 +1032,7 @@ function SceneViewInner({
         style={{ width: '100%', height: '100%' }}
       />
       {worldLoadError !== null ? (
-        <div
-          role="alert"
-          style={{
-            position: 'absolute',
-            inset: 0,
-            zIndex: 40,
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'center',
-            alignItems: 'stretch',
-            padding: 20,
-            boxSizing: 'border-box',
-            background: '#14161c',
-            color: '#e6e9f2',
-            overflow: 'auto',
-          }}
-        >
-          <h2 style={{ margin: '0 0 12px', fontSize: 18, fontWeight: 600 }}>Failed to load world</h2>
-          <pre
-            style={{
-              margin: '0 0 16px',
-              padding: 12,
-              background: '#0d0f14',
-              border: '1px solid #2f3545',
-              borderRadius: 6,
-              fontSize: 12,
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-word',
-              flex: '0 1 auto',
-              maxHeight: '45vh',
-              overflow: 'auto',
-            }}
-          >
-            {worldLoadError}
-          </pre>
-          <p style={{ margin: '0 0 16px', fontSize: 13, color: '#9aa4b2', lineHeight: 1.5 }}>
-            If you edited mesh simplification by hand, check that <code style={{ color: '#c4d4e8' }}>maxError</code> is
-            at least 0.0001 and <code style={{ color: '#c4d4e8' }}>maxTriangles</code> is at least 500. Current builds
-            clamp these on load when possible; fix the JSON or use Undo in the editor if available.
-          </p>
-          <div>
-            <button
-              type="button"
-              onClick={dismissWorldLoadError}
-              style={{
-                padding: '8px 16px',
-                fontSize: 13,
-                cursor: 'pointer',
-                background: '#2a3142',
-                border: '1px solid #3d4a62',
-                borderRadius: 6,
-                color: '#e6e9f2',
-              }}
-            >
-              Dismiss
-            </button>
-          </div>
-        </div>
+        <WorldLoadErrorOverlay message={worldLoadError} onDismiss={dismissWorldLoadError} />
       ) : null}
       {scriptSnackbarMessage !== null ? <ScriptSnackbar message={scriptSnackbarMessage} /> : null}
       {showGameHud ? (
@@ -1294,61 +1042,12 @@ function SceneViewInner({
         <FrameStatsOverlay frameTimingRef={frameTimingRef} onClose={handleFrameStatsClose} />
       ) : null}
       <WarningSnackbar messages={schemaLoadWarnings} onDismiss={dismissSchemaLoadWarnings} />
-      {fullscreenUiSupported ? (
-        <div
-          style={{
-            position: 'absolute',
-            left: 10,
-            bottom: 10,
-            zIndex: 115,
-            display: fsChromeVisible ? 'block' : 'none',
-          }}
-        >
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              handleFullscreenToggle()
-            }}
-            aria-label={isSceneFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-            title={isSceneFullscreen ? 'Exit fullscreen (Esc)' : 'Enter fullscreen'}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: 36,
-              height: 36,
-              padding: 0,
-              margin: 0,
-              cursor: 'pointer',
-              color: '#e6e9f2',
-              background: 'rgba(27, 31, 42, 0.88)',
-              border: '1px solid #3d4a62',
-              borderRadius: 6,
-              boxShadow: '0 2px 10px rgba(0,0,0,0.45)',
-            }}
-          >
-            {isSceneFullscreen ? (
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-                <path
-                  d="M9 3H3v6M15 3h6v6M9 21H3v-6M15 21h6v-6"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="square"
-                />
-              </svg>
-            ) : (
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-                <path
-                  d="M3 9V3h6M21 9V3h-6M3 15v6h6M21 15v6h-6"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="square"
-                />
-              </svg>
-            )}
-          </button>
-        </div>
+      {fullscreen.supported ? (
+        <SceneFullscreenButton
+          active={fullscreen.active}
+          visible={fullscreen.chromeVisible}
+          onToggle={fullscreen.toggle}
+        />
       ) : null}
     </div>
   )

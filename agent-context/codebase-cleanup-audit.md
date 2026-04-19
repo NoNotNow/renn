@@ -251,6 +251,39 @@ A clean extraction is feasible but warrants its own phase with a careful contrac
 
 ---
 
+## Phase 10 — `SceneView.tsx` slimming via three hooks + two components (completed, 2026-04-19)
+
+**Performance:** Pure structural refactor. Effects keep the same dependency arrays (sky dome on `[scene, skybox, _assets]`, audio on `[sound, _assets]` + `[playbackCommand]`, fullscreen on `[targetEl]` + `[]`). `useSkyDome` returns a stable ref consumed by `runSceneFrame` for per-frame copying — no extra allocations. The fullscreen pointer listener only attaches when `fullscreen.supported && !useExternalChrome` (unchanged guard).
+
+### Hook — `useSkyDome`
+- **`src/hooks/useSkyDome.ts`** — owns `skyDomeRef`, the `disposeSkyDomeMesh` helper, and the `SKY_DOME_RADIUS` constant. Loads the texture via `THREE.TextureLoader.loadAsync`, configures the mesh (`BackSide`, `depthWrite: false`, `depthTest: false`, `renderOrder: -1`, `frustumCulled: false`), adds it to the scene, and disposes on cleanup / scene unmount. Returned ref is consumed by `runSceneFrame` to keep the dome centered on the camera.
+- **`src/hooks/useSkyDome.test.ts`** — 7 tests: helper no-op + dispose chain; null scene; missing/empty asset id; missing asset map entry (warn); load + configure + add to scene + URL revoke + dispose on unmount; dispose when scene becomes null.
+
+### Hook — `useWorldAudio`
+- **`src/hooks/useWorldAudio.ts`** — owns the world background `<audio>` element, its blob URL, and the manual `playbackCommand` listener. Re-creates the element only when `assetId` changes (revokes prior URL); otherwise reapplies `loop`, `volume`, `autoplay`. Cleans up on unmount.
+- **`src/hooks/useWorldAudio.test.ts`** — 9 tests: undefined sound is a no-op; create with autoplay + loop + volume; autoplay false skips play; reuse element on volume/loop change; replace element + revoke URL on assetId change; clamp volume into [0,1]; teardown when sound becomes undefined; play/stop via `playbackCommand`; cleanup on unmount.
+
+### Hook — `useSceneFullscreen`
+- **`src/hooks/useSceneFullscreen.ts`** — feature-detects `isFullscreenEnabled()` once, syncs an `active` flag with the configured target element (or `sceneRootRef`), exposes a `toggle()` that requests / exits fullscreen plus chrome bump, and resolves chrome reveal from either an internal `usePointerRevealTimeout` or a parent-owned `externalChromeControl` (Builder column wrap).
+- **`src/hooks/useSceneFullscreen.test.ts`** — 8 tests: feature detect; idle inactive; toggle requests on target; toggle exits when already fullscreen; `fullscreenTargetRef` overrides scene root; `onFullscreenChange` fires on transitions; external chrome control short-circuits internal timer; missing target ref is a no-op.
+
+### Component — `SceneFullscreenButton`
+- **`src/components/SceneFullscreenButton.tsx`** — floating bottom-left toggle (Enter/Exit svg icons + aria labels). Visibility driven by parent (the `chromeVisible` flag from `useSceneFullscreen`).
+- **`src/components/SceneFullscreenButton.test.tsx`** — 4 tests: enter/exit aria labels; hidden when `visible=false`; click invokes `onToggle` and stops propagation.
+
+### Component — `WorldLoadErrorOverlay`
+- **`src/components/WorldLoadErrorOverlay.tsx`** — full-bleed alert overlay shown by `SceneView` when `loadWorld(...)` throws. Renders the error message in a scrollable `<pre>`, a hint about mesh-simplification clamps, and a Dismiss button.
+- **`src/components/WorldLoadErrorOverlay.test.tsx`** — 3 tests: message rendering; Dismiss callback; heading exposed for assistive tech.
+
+### Result
+- `components/SceneView.tsx`: **1359 → 1058 lines** (-22%). Sky dome (~80 lines), world audio (~60 lines), fullscreen state (~40 lines), error overlay (~55 lines), and fullscreen button (~50 lines) now live in cohesive single-responsibility files with their own tests. The `SoundPlaybackCommand` shape is now exported from `useWorldAudio` and reused by `SceneView`'s prop type.
+- Full test suite: **125 files / 1022 tests + 3 skipped** (was 120 / 991; +5 files / +31 tests).
+
+### Why no SceneView main-effect extraction (yet)
+The `useEffect` that builds the renderer / camera / physics / registry / animation loop is the largest remaining block (~330 lines). It owns ~15 long-lived refs (camera ctrl, avatar session, script runner, physics, registry, asset resolver, …) shared across the rAF body, the cleanup, and `useImperativeHandle`. A clean extraction would require either (a) moving every ref into a hook and re-exposing them all (defeating the cohesion we'd gain), or (b) passing back a single bundled object per build that downstream effects then dereference (still need to coordinate the cleanup chain). Defer until a clear new consumer or a re-architecture (e.g. moving the rAF loop into `useSyncExternalStore` or a dedicated runtime owner).
+
+---
+
 ## Remaining larger tasks
 
 ### God files — candidates for splitting
@@ -258,7 +291,7 @@ A clean extraction is feasible but warrants its own phase with a careful contrac
 | File | Lines | Suggested extraction |
 |------|-------|---------------------|
 | `pages/Builder.tsx` | ~1780 | Texture Maker session (~700 lines, see Phase 9 "Why no `useTextureMakerSession`"); selection logic; import/export handlers; pose-sync `syncPosesThen`; **optional:** isolate `livePoses` polling in a narrow wrapper again so `Builder` does not re-render every poll (see performance-work §8 / Tier 3) |
-| `components/SceneView.tsx` | ~1360 | Physics lifecycle, skybox setup, overlay logic → hooks or sub-modules |
+| `components/SceneView.tsx` | ~1060 | Phase 10 extracted skybox / audio / fullscreen / error overlay / fullscreen button. Remaining: main scene-build `useEffect` (~330 lines, see Phase 10 "Why no SceneView main-effect extraction"); per-frame `pushFrame`/`animate` rAF wrapper; debug forces ref + `applyDebugForce` |
 | `physics/rapierPhysics.ts` | ~1085 | Collider creation, body management, step logic → separate files |
 | `TextureMaker/TextureMaker.tsx` | ~1030 | Tool logic, layer management → sub-components |
 | `runtime/renderItemRegistry.ts` | ~970 | Transformer execution, culling, mesh sync → separate concerns |
@@ -303,11 +336,11 @@ Critical modules without dedicated unit tests:
 - [x] Shared `visualBaseQuaternion` helpers (`utils/visualBaseQuaternion.ts`) + tests
 - [x] CSS theme tokens centralised in `:root` (index.css, BrushToolPopover.css, TextureMaker.css)
 - [x] Test coverage: `data/modelPresets`, `data/sampleWorld`, `scripts/scriptCtx`
-- [~] God file splitting (Builder, SceneView, …) — Phase 8 split `ProjectContext` (662 → 587). Phase 9 split `Builder.tsx` (1892 → 1782) into `useBuilderKeyboardShortcuts`, `useBuilderFullscreenChrome`, `useEditorHistory`. SceneView/rapierPhysics/TextureMaker/renderItemRegistry still pending; `Builder.tsx` Texture Maker session deferred to a future phase.
+- [~] God file splitting (Builder, SceneView, …) — Phase 8 split `ProjectContext` (662 → 587). Phase 9 split `Builder.tsx` (1892 → 1782) into `useBuilderKeyboardShortcuts`, `useBuilderFullscreenChrome`, `useEditorHistory`. Phase 10 split `SceneView.tsx` (1359 → 1058) into `useSkyDome`, `useWorldAudio`, `useSceneFullscreen` + `SceneFullscreenButton` + `WorldLoadErrorOverlay`. `rapierPhysics`/`TextureMaker`/`renderItemRegistry` still pending; `Builder.tsx` Texture Maker session and the SceneView main effect deferred to future phases.
 - [x] Pure helpers extracted from `modelPreview.ts` and tested (`modelPreviewFraming`)
 - [ ] Test coverage for `renderItemRegistry.ts` — *deferred; integration-tested. See Phase 5.*
 - [x] Test coverage for `sceneFrameLoop.ts` rAF body (28 branch tests added in Phase 7; rAF loop wrapper still integration-tested)
 - [x] Fix `scriptCtx.time` capture-vs-live bug (Phase 5)
 - [x] Inspector pose polling isolated (`LivePosesPoll` → `PropertySidebar`, not full `Builder`)
 
-Run `npm run test:run` after further edits (currently **120** test files, **991** tests + 3 skipped). In `performance-benchmarks.integration.test.ts`, the **Heap growth** and **Scaling linearity** describes are skipped unless `RUN_PERF_BENCHMARKS=1` (use `npm run test:perf`) so agents avoid flaky wall-clock/heap thresholds; run that before Rapier/frame-loop/allocation hot-path changes.
+Run `npm run test:run` after further edits (currently **125** test files, **1022** tests + 3 skipped). In `performance-benchmarks.integration.test.ts`, the **Heap growth** and **Scaling linearity** describes are skipped unless `RUN_PERF_BENCHMARKS=1` (use `npm run test:perf`) so agents avoid flaky wall-clock/heap thresholds; run that before Rapier/frame-loop/allocation hot-path changes.
