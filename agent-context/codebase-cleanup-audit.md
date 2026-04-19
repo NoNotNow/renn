@@ -117,7 +117,27 @@ These files are only imported by tests, not by any production code. They are val
 - `src/scripts/scriptCtx.test.ts` — 30 tests (entity-method descriptors, `ZERO_IMPACT`, `OTHER_REF_SYMBOL`, alloc functions, entity-view delegation, detect threshold semantics, touching list/empty, ctx pass-through helpers).
 
 ### Follow-up flagged during testing
-- **`scriptCtx.time` is captured at allocation, not live.** `baseCtx` defines `get time()` returning `game.time`, but `allocOn{Spawn,Update,Collision,Timer}Ctx` spread the result with `{ ...baseCtx(...) }`, materialising `time` to a static value. Scripts always read `0` (initial `timeRef.current`). Documented in `src/scripts/scriptCtx.test.ts` ("captures game.time at allocation"). Fix: define `time` on the alloc-returned object via `Object.defineProperty` (or wrap baseCtx without spread).
+- ~~**`scriptCtx.time` is captured at allocation, not live.**~~ **Fixed in Phase 5.**
+
+---
+
+## Phase 5 — Bug fix + WebGL helper extraction (completed, 2026-04-19)
+
+**Performance:** No hot-path regressions. `attachLiveTime` runs once per ctx allocation (not per frame). `frameCamera` / `disposeObject` extraction is a structural move; identical work, same allocations.
+
+### Fixed: `scriptCtx.time` is now live
+- **`scripts/scriptCtx.ts`** — added `attachLiveTime(target, game)`: a one-line `Object.defineProperty` helper applied after each `{ ...baseCtx(...) }` spread to re-attach a live `get time()` getter. Used by all four alloc functions (`allocOnSpawnCtx`, `allocOnUpdateCtx`, `allocOnCollisionCtx`, `allocOnTimerCtx`).
+- The previous test (`captures game.time at allocation`) was inverted to assert correct behaviour ("exposes a live game.time getter") and three new tests added — one per remaining alloc variant (`onUpdate`, `onCollision`, `onTimer`) — to prevent regression.
+
+### Extracted: `modelPreviewFraming` (testable without WebGL)
+- **`src/utils/modelPreviewFraming.ts`** — extracted `frameCamera`, `disposeObject`, `disposeMaterial` from `modelPreview.ts`. These are pure Three.js math / scene-graph traversal (no GL context needed). Constants (`FRAMING_OFFSET_MULTIPLIER`, `FRAMING_OFFSET_DIRECTION`, `FALLBACK_CAMERA_POSITION`) exported so tests can compute expected values without hard-coding magic numbers.
+- **`src/utils/modelPreview.ts`** — now imports `frameCamera` and `disposeObject` from the new file; only retains the WebGL-bound entry point (`generateModelPreview`).
+- **`src/utils/modelPreviewFraming.test.ts`** — 14 tests: empty-object fallback, offset direction, FOV-fit distance, near/far derivation + clamping, largest-dimension selection, texture disposal, multi-texture material, nested-mesh traversal, material array, non-mesh skip.
+
+### Why no direct unit tests for `renderItemRegistry.ts`
+- Heavy coupling to `RenderItem`, `PhysicsWorld`, Three.js mesh state, transformer chain, and per-frame allocations. Mocking enough surface for meaningful direct coverage would be brittle and high-noise.
+- Existing coverage: 9+ scenario / integration tests already exercise `RenderItemRegistry` end-to-end (`controlled-entity-transformers-culling`, `box-model-material`, `box-model-simplification-texture`, `trimesh-simplification-model-colors`, `transformers/integration`, `editor/transformGizmoController`, `loader/floorSaveLoad`, `physics/rapierPhysics`, plus `runtime/renderItem.test.ts` for the per-item layer).
+- **If a deterministic regression appears,** prefer extending an existing scenario test (or `runtime/renderItem.test.ts`) over building a mock of the registry.
 
 ---
 
@@ -146,10 +166,10 @@ These files are only imported by tests, not by any production code. They are val
 
 ### Test coverage gaps
 
-Critical modules without dedicated tests:
-- `runtime/renderItemRegistry.ts`
-- `runtime/sceneFrameLoop.ts` (partial: accumulator tests exist)
-- `utils/modelPreview.ts` (WebGL-bound; needs jsdom canvas mock or extraction of pure framing/disposal helpers)
+Critical modules without dedicated unit tests:
+- `runtime/renderItemRegistry.ts` — covered by integration/scenario tests; direct unit tests deferred (see Phase 5 rationale).
+- `runtime/sceneFrameLoop.ts` — partial (accumulator tests only); the rAF loop body / culling / transformer ordering still untested.
+- `utils/modelPreview.ts` — pure framing/disposal helpers extracted to `modelPreviewFraming.ts` and tested (Phase 5). The remaining `generateModelPreview` entry point is WebGL-bound and still has no direct test.
 
 ### Optional — idle material prefetch
 
@@ -173,8 +193,10 @@ Critical modules without dedicated tests:
 - [x] CSS theme tokens centralised in `:root` (index.css, BrushToolPopover.css, TextureMaker.css)
 - [x] Test coverage: `data/modelPresets`, `data/sampleWorld`, `scripts/scriptCtx`
 - [ ] God file splitting (Builder, SceneView, …)
-- [ ] Test coverage for remaining critical runtime modules (`renderItemRegistry`, `modelPreview`)
-- [ ] Fix `scriptCtx.time` capture-vs-live bug (see Phase 4 follow-up)
+- [x] Pure helpers extracted from `modelPreview.ts` and tested (`modelPreviewFraming`)
+- [ ] Test coverage for `renderItemRegistry.ts` — *deferred; integration-tested. See Phase 5.*
+- [ ] Test coverage for `sceneFrameLoop.ts` rAF body (accumulator already covered)
+- [x] Fix `scriptCtx.time` capture-vs-live bug (Phase 5)
 - [x] Inspector pose polling isolated (`LivePosesPoll` → `PropertySidebar`, not full `Builder`)
 
-Run `npm run test:run` after further edits (currently **114** test files, **918** tests + 3 skipped). In `performance-benchmarks.integration.test.ts`, the **Heap growth** and **Scaling linearity** describes are skipped unless `RUN_PERF_BENCHMARKS=1` (use `npm run test:perf`) so agents avoid flaky wall-clock/heap thresholds; run that before Rapier/frame-loop/allocation hot-path changes.
+Run `npm run test:run` after further edits (currently **115** test files, **935** tests + 3 skipped). In `performance-benchmarks.integration.test.ts`, the **Heap growth** and **Scaling linearity** describes are skipped unless `RUN_PERF_BENCHMARKS=1` (use `npm run test:perf`) so agents avoid flaky wall-clock/heap thresholds; run that before Rapier/frame-loop/allocation hot-path changes.

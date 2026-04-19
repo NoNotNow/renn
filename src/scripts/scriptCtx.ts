@@ -305,26 +305,41 @@ function baseCtx(game: GameAPI, entity: Entity): ScriptCtxBase {
   } as ScriptCtxBase
 }
 
+/**
+ * Restore the live `time` getter on a ctx after spreading baseCtx.
+ * Object spread materialises getters into static values, so scripts would otherwise
+ * always read the value of `game.time` captured at allocation. Re-attaching a getter
+ * here keeps `ctx.time` live without breaking the alloc-once / mutate-on-hot-path pattern.
+ */
+function attachLiveTime<T extends object>(target: T, game: GameAPI): T {
+  return Object.defineProperty(target, 'time', {
+    get: () => game.time,
+    enumerable: true,
+    configurable: true,
+  })
+}
+
 export function allocOnSpawnCtx(game: GameAPI, entity: Entity): OnSpawnCtx {
-  return { ...baseCtx(game, entity), event: 'onSpawn' }
+  return attachLiveTime({ ...baseCtx(game, entity), event: 'onSpawn' as const }, game)
 }
 
 export function allocOnUpdateCtx(game: GameAPI, entity: Entity): OnUpdateCtx {
-  return { ...baseCtx(game, entity), event: 'onUpdate', dt: 0 }
+  return attachLiveTime({ ...baseCtx(game, entity), event: 'onUpdate' as const, dt: 0 }, game)
 }
 
 export function allocOnCollisionCtx(game: GameAPI, entity: Entity): OnCollisionCtx & { [OTHER_REF_SYMBOL]: { current: Entity } } {
   const otherRef = { current: entity }
   const otherView = buildEntityView(game, () => otherRef.current)
-  return {
+  const ctx = {
     ...baseCtx(game, entity),
-    event: 'onCollision',
+    event: 'onCollision' as const,
     other: otherView,
     impact: { ...ZERO_IMPACT },
     [OTHER_REF_SYMBOL]: otherRef,
-  } as OnCollisionCtx & { [OTHER_REF_SYMBOL]: { current: Entity } }
+  }
+  return attachLiveTime(ctx, game) as OnCollisionCtx & { [OTHER_REF_SYMBOL]: { current: Entity } }
 }
 
 export function allocOnTimerCtx(game: GameAPI, entity: Entity, interval: number): OnTimerCtx {
-  return { ...baseCtx(game, entity), event: 'onTimer', interval }
+  return attachLiveTime({ ...baseCtx(game, entity), event: 'onTimer' as const, interval }, game)
 }

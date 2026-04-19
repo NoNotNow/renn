@@ -141,7 +141,7 @@ describe('allocOnSpawnCtx', () => {
     expect(game.addVectorToPosition).toHaveBeenCalledWith('foo', 1, 0, 0, true)
   })
 
-  it('captures game.time at allocation (spread snapshots the getter)', () => {
+  it('exposes a live game.time getter (re-attached after spread)', () => {
     let now = 5
     const game: GameAPI = {
       ...makeGameAPI(),
@@ -152,7 +152,41 @@ describe('allocOnSpawnCtx', () => {
     const ctx = allocOnSpawnCtx(game, makeEntity())
     expect(ctx.time).toBe(5)
     now = 99
-    expect(ctx.time).toBe(5)
+    expect(ctx.time).toBe(99)
+  })
+})
+
+describe('live time on every alloc variant', () => {
+  function makeTickingGame(): { game: GameAPI; tick: (n: number) => void } {
+    let now = 0
+    const game: GameAPI = {
+      ...makeGameAPI(),
+      get time() {
+        return now
+      },
+    }
+    return { game, tick: (n) => { now = n } }
+  }
+
+  it('allocOnUpdateCtx keeps time live', () => {
+    const { game, tick } = makeTickingGame()
+    const ctx = allocOnUpdateCtx(game, makeEntity())
+    tick(1.5)
+    expect(ctx.time).toBe(1.5)
+  })
+
+  it('allocOnCollisionCtx keeps time live', () => {
+    const { game, tick } = makeTickingGame()
+    const ctx = allocOnCollisionCtx(game, makeEntity())
+    tick(2.25)
+    expect(ctx.time).toBe(2.25)
+  })
+
+  it('allocOnTimerCtx keeps time live', () => {
+    const { game, tick } = makeTickingGame()
+    const ctx = allocOnTimerCtx(game, makeEntity(), 0.5)
+    tick(3.75)
+    expect(ctx.time).toBe(3.75)
   })
 })
 

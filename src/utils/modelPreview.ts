@@ -2,52 +2,10 @@ import * as THREE from 'three'
 import { GLTFLoader } from 'three-stdlib'
 import { convertZUpToYUpIfNeeded } from '@/utils/normalizeModelToUnitCube'
 import { resolvedLogarithmicDepthBuffer } from '@/types/world'
+import { disposeObject, frameCamera } from '@/utils/modelPreviewFraming'
 
 const DEFAULT_SIZE = 160
 const DEFAULT_BG = new THREE.Color(0x1a1a1a)
-
-function disposeMaterial(material: THREE.Material): void {
-  for (const value of Object.values(material)) {
-    if (value instanceof THREE.Texture) {
-      value.dispose()
-    }
-  }
-  material.dispose()
-}
-
-function disposeObject(obj: THREE.Object3D): void {
-  obj.traverse((child) => {
-    if (child instanceof THREE.Mesh) {
-      if (child.geometry) child.geometry.dispose()
-      const material = child.material
-      if (Array.isArray(material)) {
-        material.forEach(disposeMaterial)
-      } else if (material) {
-        disposeMaterial(material)
-      }
-    }
-  })
-}
-
-function frameCamera(camera: THREE.PerspectiveCamera, object: THREE.Object3D): void {
-  const box = new THREE.Box3().setFromObject(object)
-  if (box.isEmpty()) {
-    camera.position.set(2, 2, 2)
-    camera.lookAt(0, 0, 0)
-    return
-  }
-  const center = box.getCenter(new THREE.Vector3())
-  const size = box.getSize(new THREE.Vector3())
-  const maxDim = Math.max(size.x, size.y, size.z)
-  const fov = THREE.MathUtils.degToRad(camera.fov)
-  const distance = maxDim / (2 * Math.tan(fov / 2))
-  const offset = new THREE.Vector3(1, 0.8, 1).normalize().multiplyScalar(distance * 1.8)
-  camera.position.copy(center).add(offset)
-  camera.near = Math.max(distance / 100, 0.01)
-  camera.far = distance * 10
-  camera.lookAt(center)
-  camera.updateProjectionMatrix()
-}
 
 async function loadModelScene(blob: Blob): Promise<THREE.Object3D | null> {
   const url = URL.createObjectURL(blob)
