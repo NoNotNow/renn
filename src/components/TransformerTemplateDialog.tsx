@@ -3,6 +3,7 @@ import type { PresetTransformerType, TransformerConfig } from '@/types/transform
 import { listPresetNames, loadPreset } from '@/data/transformerPresets/loader'
 import { TRANSFORMER_PRESET_TYPES } from '@/transformers/transformerPresets'
 import Modal from './Modal'
+import { theme } from '@/config/theme'
 
 export interface TransformerTemplateDialogProps {
   isOpen: boolean
@@ -16,9 +17,9 @@ const inputStyle: React.CSSProperties = {
   width: '100%',
   padding: '8px 12px',
   borderRadius: 6,
-  background: '#1a1a1a',
-  border: '1px solid #2f3545',
-  color: '#e6e9f2',
+  background: theme.bg.panelAlt,
+  border: `1px solid ${theme.border.default}`,
+  color: theme.text.primary,
   fontSize: 14,
 }
 
@@ -26,17 +27,47 @@ const selectStyle: React.CSSProperties = {
   width: '100%',
   padding: '6px 8px',
   fontSize: 12,
-  background: 'rgba(0, 0, 0, 0.3)',
-  border: '1px solid #2f3545',
+  background: theme.bg.codeOverlay,
+  border: `1px solid ${theme.border.default}`,
   borderRadius: 4,
-  color: '#c4cbd8',
+  color: theme.text.secondary,
   cursor: 'pointer',
 }
 
 const fieldLabelStyle: React.CSSProperties = {
   fontSize: 11,
-  color: '#9aa4b2',
+  color: theme.text.muted,
   marginBottom: 4,
+}
+
+const ghostButtonStyle: React.CSSProperties = {
+  padding: '6px 12px',
+  background: 'transparent',
+  border: `1px solid ${theme.border.default}`,
+  color: theme.text.muted,
+  borderRadius: 4,
+  cursor: 'pointer',
+  fontSize: 12,
+}
+
+const downloadButtonStyle: React.CSSProperties = {
+  padding: '6px 12px',
+  background: theme.feedback.successBg,
+  border: `1px solid ${theme.feedback.successBorder}`,
+  color: theme.feedback.successText,
+  borderRadius: 4,
+  cursor: 'pointer',
+  fontSize: 12,
+}
+
+const copyButtonStyle: React.CSSProperties = {
+  padding: '6px 12px',
+  background: theme.button.info,
+  border: `1px solid ${theme.button.infoBorder}`,
+  color: theme.text.accentBlue,
+  borderRadius: 4,
+  cursor: 'pointer',
+  fontSize: 12,
 }
 
 export default function TransformerTemplateDialog({
@@ -201,7 +232,7 @@ export default function TransformerTemplateDialog({
             <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
               <div style={fieldLabelStyle}>Template</div>
               {filteredIds.length === 0 ? (
-                <div style={{ color: '#9aa4b2', fontSize: 13 }}>
+                <div style={{ color: theme.text.muted, fontSize: 13 }}>
                   {searchQuery ? 'No templates match your search' : 'No templates available'}
                 </div>
               ) : (
@@ -235,7 +266,7 @@ export default function TransformerTemplateDialog({
               minHeight: 0,
             }}
           >
-            <div style={{ ...fieldLabelStyle, marginBottom: 0, fontWeight: 600, color: '#e6e9f2' }}>
+            <div style={{ ...fieldLabelStyle, marginBottom: 0, fontWeight: 600, color: theme.text.primary }}>
               Preview
             </div>
             <pre
@@ -248,21 +279,21 @@ export default function TransformerTemplateDialog({
                 padding: 10,
                 overflow: 'auto',
                 borderRadius: 6,
-                border: '1px solid #2f3545',
-                background: '#111418',
+                border: `1px solid ${theme.border.default}`,
+                background: theme.bg.codeBlock,
                 fontSize: 11,
                 lineHeight: 1.45,
-                color: '#c4cbd8',
+                color: theme.text.secondary,
                 whiteSpace: 'pre-wrap',
                 wordBreak: 'break-word',
               }}
             >
               {previewError ? (
-                <span style={{ color: '#f87171' }}>{previewError}</span>
+                <span style={{ color: theme.text.error }}>{previewError}</span>
               ) : previewText ? (
                 previewText
               ) : (
-                <span style={{ color: '#6b7280', fontStyle: 'italic' }}>
+                <span style={{ color: theme.hint, fontStyle: 'italic' }}>
                   Select a template to preview JSON
                 </span>
               )}
@@ -274,15 +305,15 @@ export default function TransformerTemplateDialog({
           style={{
             padding: 12,
             borderRadius: 6,
-            border: '1px solid #2f3545',
-            background: '#1a1a1a',
+            border: `1px solid ${theme.border.default}`,
+            background: theme.bg.panelAlt,
             flexShrink: 0,
           }}
         >
-          <h3 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 600, color: '#e6e9f2' }}>
+          <h3 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 600, color: theme.text.primary }}>
             Save as template
           </h3>
-          <p style={{ margin: '0 0 8px', fontSize: 11, color: '#9aa4b2' }}>
+          <p style={{ margin: '0 0 8px', fontSize: 11, color: theme.text.muted }}>
             Download or copy the current config as JSON. Add the file under{' '}
             <code style={{ fontSize: 10 }}>src/data/transformerPresets/{currentConfig.type}/</code> to
             use it as a preset.
@@ -291,15 +322,7 @@ export default function TransformerTemplateDialog({
             <button
               type="button"
               onClick={() => setSaveExpanded(true)}
-              style={{
-                padding: '6px 12px',
-                background: 'transparent',
-                border: '1px solid #2f3545',
-                color: '#9aa4b2',
-                borderRadius: 4,
-                cursor: 'pointer',
-                fontSize: 12,
-              }}
+              style={ghostButtonStyle}
             >
               Save as template…
             </button>
@@ -313,34 +336,10 @@ export default function TransformerTemplateDialog({
                 style={{ ...inputStyle, fontSize: 12 }}
               />
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <button
-                  type="button"
-                  onClick={handleSaveDownload}
-                  style={{
-                    padding: '6px 12px',
-                    background: '#2d4a2d',
-                    border: '1px solid #4a6a4a',
-                    color: '#a4d4a4',
-                    borderRadius: 4,
-                    cursor: 'pointer',
-                    fontSize: 12,
-                  }}
-                >
+                <button type="button" onClick={handleSaveDownload} style={downloadButtonStyle}>
                   Download JSON
                 </button>
-                <button
-                  type="button"
-                  onClick={handleSaveCopy}
-                  style={{
-                    padding: '6px 12px',
-                    background: '#1e3a5f',
-                    border: '1px solid #3b6ea8',
-                    color: '#93c5fd',
-                    borderRadius: 4,
-                    cursor: 'pointer',
-                    fontSize: 12,
-                  }}
-                >
+                <button type="button" onClick={handleSaveCopy} style={copyButtonStyle}>
                   Copy to clipboard
                 </button>
                 <button
@@ -349,15 +348,7 @@ export default function TransformerTemplateDialog({
                     setSaveExpanded(false)
                     setSaveName('')
                   }}
-                  style={{
-                    padding: '6px 12px',
-                    background: 'transparent',
-                    border: '1px solid #2f3545',
-                    color: '#9aa4b2',
-                    borderRadius: 4,
-                    cursor: 'pointer',
-                    fontSize: 12,
-                  }}
+                  style={ghostButtonStyle}
                 >
                   Cancel
                 </button>
@@ -372,7 +363,7 @@ export default function TransformerTemplateDialog({
             justifyContent: 'flex-end',
             gap: 8,
             paddingTop: 8,
-            borderTop: '1px solid #2f3545',
+            borderTop: `1px solid ${theme.border.default}`,
             flexShrink: 0,
           }}
         >
@@ -382,8 +373,8 @@ export default function TransformerTemplateDialog({
             style={{
               padding: '8px 16px',
               background: 'transparent',
-              border: '1px solid #2f3545',
-              color: '#9aa4b2',
+              border: `1px solid ${theme.border.default}`,
+              color: theme.text.muted,
               borderRadius: 6,
               cursor: 'pointer',
               fontSize: 12,
@@ -397,9 +388,9 @@ export default function TransformerTemplateDialog({
             disabled={selectedId === null}
             style={{
               padding: '8px 16px',
-              background: selectedId ? '#2d4a2d' : '#2a2a2a',
-              border: selectedId ? '1px solid #4a6a4a' : '1px solid #2f3545',
-              color: selectedId ? '#a4d4a4' : '#666',
+              background: selectedId ? theme.feedback.successBg : theme.bg.surface,
+              border: `1px solid ${selectedId ? theme.feedback.successBorder : theme.border.default}`,
+              color: selectedId ? theme.feedback.successText : theme.text.disabled,
               borderRadius: 6,
               cursor: selectedId ? 'pointer' : 'not-allowed',
               fontSize: 12,

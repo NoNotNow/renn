@@ -3,127 +3,18 @@ import type { PresetTransformerType, TransformerConfig } from '@/types/transform
 import CopyableArea from './CopyableArea'
 import TransformerFieldReference from './TransformerFieldReference'
 import TransformerTemplateDialog from './TransformerTemplateDialog'
+import ValidatedJsonTextarea from './ValidatedJsonTextarea'
 import { fieldLabelStyle, entityPanelIconButtonStyle, removeButtonStyle, removeButtonStyleDisabled } from './sharedStyles'
+import { theme } from '@/config/theme'
 import { EntityPanelIcons } from './EntityPanelIcons'
 import {
   TRANSFORMER_PRESET_OPTIONS,
   getDefaultTransformerConfig,
   isPresetTransformerType,
 } from '@/transformers/transformerPresets'
-import { jsonTextareaRows } from '@/utils/jsonTextareaRows'
-import { extractJsonErrorPosition, lineColFromPosition } from '@/utils/jsonParseErrorLocation'
 
 function padFieldRefPanelOpen(open: boolean[], length: number): boolean[] {
   return Array.from({ length }, (_, i) => open[i] ?? false)
-}
-
-const baseTextareaStyle: React.CSSProperties = {
-  margin: 0,
-  padding: 8,
-  background: 'rgba(0, 0, 0, 0.3)',
-  borderRadius: 4,
-  fontSize: 11,
-  overflow: 'auto',
-  fontFamily: 'monospace',
-  whiteSpace: 'pre',
-  resize: 'vertical',
-  width: '100%',
-  boxSizing: 'border-box',
-}
-
-export interface TransformerConfigTextareaProps {
-  value: TransformerConfig
-  onApply: (updated: TransformerConfig) => void
-  disabled?: boolean
-}
-
-function TransformerConfigTextarea({
-  value,
-  onApply,
-  disabled = false,
-}: TransformerConfigTextareaProps) {
-  const valueStr = JSON.stringify(value, null, 2)
-  const [draftText, setDraftText] = useState(valueStr)
-  const [isValid, setIsValid] = useState(true)
-  const [parsed, setParsed] = useState<TransformerConfig>(value)
-  const [parseError, setParseError] = useState<string | null>(null)
-
-  useEffect(() => {
-    setDraftText(valueStr)
-    setIsValid(true)
-    setParsed(value)
-    setParseError(null)
-  }, [valueStr, value])
-
-  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const next = e.target.value
-    setDraftText(next)
-    try {
-      const p = JSON.parse(next) as TransformerConfig
-      setIsValid(true)
-      setParsed(p)
-      setParseError(null)
-    } catch (err) {
-      setIsValid(false)
-      const msg = err instanceof Error ? err.message : String(err)
-      setParseError(msg || 'Invalid JSON')
-    }
-  }
-
-  const textareaStyle: React.CSSProperties = {
-    ...baseTextareaStyle,
-    color: isValid ? '#c4cbd8' : '#f87171',
-    border: isValid ? '1px solid #2f3545' : '1px solid #dc2626',
-  }
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <textarea
-        value={draftText}
-        onChange={handleChange}
-        disabled={disabled}
-        rows={jsonTextareaRows(draftText)}
-        style={textareaStyle}
-        spellCheck={false}
-        data-testid="transformer-config-textarea"
-      />
-      {!isValid && (
-        <span style={{ fontSize: 10, color: '#f87171' }}>
-          Invalid JSON{parseError ? `: ${parseError}` : ''}
-        </span>
-      )}
-      {!isValid && parseError ? (
-        (() => {
-          const pos = extractJsonErrorPosition(parseError)
-          if (pos == null) return null
-          const { line, col, lineText } = lineColFromPosition(draftText, pos)
-          return (
-            <pre style={{ margin: 0, fontSize: 10, color: '#f87171', fontFamily: 'monospace' }}>
-              {`Line ${line}, Col ${col}\n${lineText}\n${' '.repeat(Math.max(0, col - 1))}^`}
-            </pre>
-          )
-        })()
-      ) : null}
-      <button
-        type="button"
-        onClick={() => onApply(parsed)}
-        disabled={disabled || !isValid}
-        title="Apply"
-        aria-label="Apply configuration"
-        style={{
-          ...entityPanelIconButtonStyle,
-          alignSelf: 'flex-end',
-          background: isValid ? '#1e3a5f' : '#2a2a2a',
-          border: isValid ? '1px solid #3b6ea8' : '1px solid #3a3a3a',
-          color: isValid ? '#93c5fd' : '#666',
-          cursor: isValid && !disabled ? 'pointer' : 'not-allowed',
-        }}
-        data-testid="transformer-config-apply"
-      >
-        {EntityPanelIcons.check}
-      </button>
-    </div>
-  )
 }
 
 export interface TransformerEditorProps {
@@ -187,7 +78,7 @@ export default function TransformerEditor({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {transformersMixed && (
-        <p style={{ margin: 0, fontSize: 12, color: '#9aa4b2' }}>
+        <p style={{ margin: 0, fontSize: 12, color: theme.text.muted }}>
           Transformer stacks differ. Adding or editing replaces the stack on all selected entities.
         </p>
       )}
@@ -205,10 +96,10 @@ export default function TransformerEditor({
           style={{
             padding: '6px 8px',
             fontSize: 12,
-            background: 'rgba(0, 0, 0, 0.3)',
-            border: '1px solid #2f3545',
+            background: theme.bg.codeOverlay,
+            border: `1px solid ${theme.border.default}`,
             borderRadius: 4,
-            color: '#c4cbd8',
+            color: theme.text.secondary,
             cursor: disabled ? 'not-allowed' : 'pointer',
           }}
           data-testid="add-transformer-select"
@@ -223,7 +114,7 @@ export default function TransformerEditor({
       </div>
 
       {list.length === 0 ? (
-        <div style={{ color: '#9aa4b2', fontSize: 12, fontStyle: 'italic' }}>
+        <div style={{ color: theme.text.muted, fontSize: 12, fontStyle: 'italic' }}>
           No transformers configured
         </div>
       ) : (
@@ -236,9 +127,9 @@ export default function TransformerEditor({
             copyPayload={transformer}
             style={{
               padding: 8,
-              border: '1px solid #2f3545',
+              border: `1px solid ${theme.border.default}`,
               borderRadius: 4,
-              background: 'rgba(17, 20, 28, 0.4)',
+              background: theme.bg.sectionMuted,
             }}
           >
             <div
@@ -252,7 +143,7 @@ export default function TransformerEditor({
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-                <span style={{ fontWeight: 600, color: '#c4cbd8', flexShrink: 0 }}>
+                <span style={{ fontWeight: 600, color: theme.text.secondary, flexShrink: 0 }}>
                   {transformer.type}
                 </span>
                 <button
@@ -285,7 +176,7 @@ export default function TransformerEditor({
                       width: 8,
                       height: 8,
                       borderRadius: '50%',
-                      background: enabled ? '#4ade80' : '#ef4444',
+                      background: enabled ? theme.status.enabled : theme.status.disabled,
                       pointerEvents: 'none',
                     }}
                   />
@@ -303,9 +194,9 @@ export default function TransformerEditor({
                       disabled={disabled}
                       style={{
                         ...entityPanelIconButtonStyle,
-                        color: '#93c5fd',
-                        border: '1px solid #3b6ea8',
-                        background: '#1e3a5f',
+                        color: theme.text.accentBlue,
+                        border: `1px solid ${theme.button.infoBorder}`,
+                        background: theme.button.info,
                       }}
                       title="Load template"
                       aria-label="Load template"
@@ -327,13 +218,16 @@ export default function TransformerEditor({
                       aria-pressed={fieldRefPanelOpen[index] ?? false}
                       style={{
                         ...entityPanelIconButtonStyle,
-                        color: '#93c5fd',
-                        border:
+                        color: theme.text.accentBlue,
+                        border: `1px solid ${
                           fieldRefPanelOpen[index] ?? false
-                            ? '1px solid #60a5fa'
-                            : '1px solid #3b6ea8',
+                            ? theme.button.infoActiveBorder
+                            : theme.button.infoBorder
+                        }`,
                         background:
-                          fieldRefPanelOpen[index] ?? false ? '#1e40af' : '#1e3a5f',
+                          fieldRefPanelOpen[index] ?? false
+                            ? theme.button.infoActive
+                            : theme.button.info,
                       }}
                       title={
                         fieldRefPanelOpen[index] ?? false
@@ -360,7 +254,7 @@ export default function TransformerEditor({
                     minWidth: 24,
                     minHeight: 24,
                     padding: 2,
-                    color: '#9aa4b2',
+                    color: theme.text.muted,
                     opacity: disabled || index === 0 ? 0.4 : 0.8,
                     cursor: disabled || index === 0 ? 'not-allowed' : 'pointer',
                   }}
@@ -379,7 +273,7 @@ export default function TransformerEditor({
                     minWidth: 24,
                     minHeight: 24,
                     padding: 2,
-                    color: '#9aa4b2',
+                    color: theme.text.muted,
                     opacity: disabled || index === list.length - 1 ? 0.4 : 0.8,
                     cursor: disabled || index === list.length - 1 ? 'not-allowed' : 'pointer',
                   }}
@@ -420,7 +314,7 @@ export default function TransformerEditor({
                     style={{
                       margin: 0,
                       fontSize: 11,
-                      color: '#9aa4b2',
+                      color: theme.text.muted,
                       lineHeight: 1.35,
                     }}
                   >
@@ -435,15 +329,18 @@ export default function TransformerEditor({
               >
                 Configuration:
               </div>
-              <TransformerConfigTextarea
-                value={transformer}
+              <ValidatedJsonTextarea
+                value={JSON.stringify(transformer, null, 2)}
                 onApply={(updated) => {
                   const next = list.map((t, i) =>
-                    i === index ? updated : t
+                    i === index ? (updated as TransformerConfig) : t
                   )
                   onChange?.(next)
                 }}
                 disabled={disabled}
+                applyVariant="icon"
+                textareaTestId="transformer-config-textarea"
+                applyTestId="transformer-config-apply"
               />
             </div>
           </CopyableArea>

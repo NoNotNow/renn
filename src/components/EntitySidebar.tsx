@@ -21,6 +21,7 @@ import CollapsibleSection from './CollapsibleSection'
 import { sidebarRowStyle, sidebarLabelStyle, fieldLabelStyle, secondaryButtonStyle } from './sharedStyles'
 import AvatarDialog from './AvatarDialog'
 import { avatarEntityIconLetter, getAvatarRosterEntityIds } from '@/utils/avatarUtils'
+import { theme } from '@/config/theme'
 
 export interface EntitySidebarProps {
   entities: Entity[]
@@ -264,9 +265,9 @@ export default function EntitySidebar({
                       width: '100%',
                       padding: searchQuery ? '8px 32px 8px 32px' : '8px 12px 8px 32px',
                       borderRadius: 6,
-                      background: '#1a1a1a',
-                      border: '1px solid #2f3545',
-                      color: '#e6e9f2',
+                      background: theme.bg.panelAlt,
+                      border: `1px solid ${theme.border.default}`,
+                      color: theme.text.primary,
                       fontSize: 14,
                     }}
                   />
@@ -276,7 +277,7 @@ export default function EntitySidebar({
                       left: 10,
                       top: '50%',
                       transform: 'translateY(-50%)',
-                      color: '#9aa4b2',
+                      color: theme.text.muted,
                       pointerEvents: 'none',
                     }}
                     aria-hidden
@@ -299,15 +300,15 @@ export default function EntitySidebar({
                         transform: 'translateY(-50%)',
                         background: 'transparent',
                         border: 'none',
-                        color: '#9aa4b2',
+                        color: theme.text.muted,
                         cursor: 'pointer',
                         padding: 4,
                         display: 'flex',
                         alignItems: 'center',
                         opacity: 0.8,
                       }}
-                      onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.color = '#e6e9f2' }}
-                      onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.8'; e.currentTarget.style.color = '#9aa4b2' }}
+                      onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.color = theme.text.primary }}
+                      onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.8'; e.currentTarget.style.color = theme.text.muted }}
                     >
                       <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <path d="M18 6 6 18M6 6l12 12" />
@@ -440,7 +441,7 @@ export default function EntitySidebar({
                 </CollapsibleSection>
                 <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 0 0' }}>
                   {filteredEntities.length === 0 ? (
-                    <li style={{ color: '#9aa4b2', fontSize: 13, padding: '8px 0' }}>
+                    <li style={{ color: theme.text.muted, fontSize: 13, padding: '8px 0' }}>
                       {entityListEmptyMessage}
                     </li>
                   ) : (
@@ -453,7 +454,7 @@ export default function EntitySidebar({
                           width: '100%',
                           textAlign: 'left',
                           padding: '4px 8px',
-                          background: selectedSet.has(e.id) ? '#2b3550' : 'transparent',
+                          background: selectedSet.has(e.id) ? theme.button.primary : 'transparent',
                           border: 'none',
                           cursor: 'pointer',
                           transition: 'background 0.15s ease',
@@ -467,7 +468,7 @@ export default function EntitySidebar({
                         }}
                         onMouseEnter={(ev) => {
                           if (!selectedSet.has(e.id)) {
-                            ev.currentTarget.style.background = '#20263a'
+                            ev.currentTarget.style.background = theme.bg.listHover
                           }
                         }}
                         onMouseLeave={(ev) => {
@@ -522,7 +523,7 @@ export default function EntitySidebar({
                     {avatarRosterEntities.length > 0 ? (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                         <div
-                          style={{ fontSize: 12, color: '#9aa4b2', minWidth: 54, cursor: 'help' }}
+                          style={{ fontSize: 12, color: theme.text.muted, minWidth: 54, cursor: 'help' }}
                           title="Entities marked playable (avatar). Click a letter to focus the follow camera; Edit opens avatar settings."
                         >
                           Avatars
@@ -541,9 +542,9 @@ export default function EntitySidebar({
                                   width: 28,
                                   height: 28,
                                   borderRadius: 14,
-                                  background: active ? '#2a2d45' : 'rgba(0,0,0,0.2)',
-                                  border: active ? '1px solid #4a9eff' : '1px solid #2f3545',
-                                  color: '#e6e9f2',
+                                  background: active ? theme.bg.primarySubtle : theme.bg.inactiveTile,
+                                  border: `1px solid ${active ? theme.border.dropZoneActive : theme.border.default}`,
+                                  color: theme.text.primary,
                                   fontSize: 12,
                                   cursor: 'pointer',
                                 }}
@@ -566,9 +567,9 @@ export default function EntitySidebar({
                             marginLeft: 'auto',
                             padding: '6px 10px',
                             fontSize: 12,
-                            background: '#1e2a3a',
-                            border: '1px solid #3b6ea8',
-                            color: '#93c5fd',
+                            background: theme.bg.dropZoneActive,
+                            border: `1px solid ${theme.button.infoBorder}`,
+                            color: theme.text.accentBlue,
                             borderRadius: 6,
                             cursor: avatarRosterFocusEntityId ? 'pointer' : 'not-allowed',
                           }}

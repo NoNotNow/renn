@@ -8,8 +8,47 @@ import ScriptDialog from './ScriptDialog'
 import { useEditorUndo } from '@/contexts/EditorUndoContext'
 import { getScriptDef } from '@/scripts/scriptDef'
 import { addMonacoTypescriptExtraLib } from '@/utils/monacoExtraLib'
+import { theme } from '@/config/theme'
 
 const SCRIPT_EVENTS: ScriptEvent[] = ['onSpawn', 'onUpdate', 'onCollision', 'onTimer']
+
+const manageScriptsButtonStyle = {
+  padding: '6px 12px',
+  background: theme.button.selectable,
+  border: `1px solid ${theme.button.selectableBorder}`,
+  color: theme.text.primary,
+  borderRadius: 6,
+  cursor: 'pointer' as const,
+  fontSize: 12,
+}
+
+const monoSelectStyle = {
+  minWidth: 140,
+  padding: '6px 8px',
+  borderRadius: 6,
+  background: theme.bg.panelAlt,
+  border: `1px solid ${theme.border.default}`,
+  color: theme.text.primary,
+  fontSize: 12,
+}
+
+const compactSelectStyle = {
+  padding: '4px 6px',
+  borderRadius: 4,
+  background: theme.bg.panelAlt,
+  border: `1px solid ${theme.border.default}`,
+  color: theme.text.primary,
+  fontSize: 12,
+}
+
+const intervalInputStyle = {
+  width: 64,
+  padding: 4,
+  borderRadius: 4,
+  border: `1px solid ${theme.border.default}`,
+  background: theme.bg.panelAlt,
+  color: theme.text.primary,
+}
 
 function getEntitiesUsingScript(world: RennWorld, scriptId: string): { id: string; name?: string }[] {
   return world.entities.filter((e) => e.scripts?.includes(scriptId)).map((e) => ({ id: e.id, name: e.name }))
@@ -183,7 +222,7 @@ export default function EntityScriptEditor({
 
   if (!entity) {
     return (
-      <p style={{ margin: 0, fontSize: 13, color: '#9aa4b2' }}>Entity not found.</p>
+      <p style={{ margin: 0, fontSize: 13, color: theme.text.muted }}>Entity not found.</p>
     )
   }
 
@@ -199,22 +238,14 @@ export default function EntityScriptEditor({
         overflow: 'visible',
       }}
     >
-      <div style={{ padding: showHeadingRow ? 8 : '0 0 8px', display: 'flex', flexDirection: 'column', gap: 8, borderBottom: '1px solid #2f3545' }}>
+      <div style={{ padding: showHeadingRow ? 8 : '0 0 8px', display: 'flex', flexDirection: 'column', gap: 8, borderBottom: `1px solid ${theme.border.default}` }}>
         {showHeadingRow ? (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 }}>
-            <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#e6e9f2' }}>Scripts for {entityDisplayName}</h3>
+            <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: theme.text.primary }}>Scripts for {entityDisplayName}</h3>
             <button
               type="button"
               onClick={() => setScriptDialogOpen(true)}
-              style={{
-                padding: '6px 12px',
-                background: '#2a3a4a',
-                border: '1px solid #3f4f5f',
-                color: '#e6e9f2',
-                borderRadius: 6,
-                cursor: 'pointer',
-                fontSize: 12,
-              }}
+              style={manageScriptsButtonStyle}
             >
               Manage scripts
             </button>
@@ -224,15 +255,7 @@ export default function EntityScriptEditor({
             <button
               type="button"
               onClick={() => setScriptDialogOpen(true)}
-              style={{
-                padding: '6px 12px',
-                background: '#2a3a4a',
-                border: '1px solid #3f4f5f',
-                color: '#e6e9f2',
-                borderRadius: 6,
-                cursor: 'pointer',
-                fontSize: 12,
-              }}
+              style={manageScriptsButtonStyle}
             >
               Manage scripts
             </button>
@@ -246,15 +269,7 @@ export default function EntityScriptEditor({
               uiLogger.select('EntityScriptEditor', 'Select script', { scriptId: e.target.value })
               setSelectedId(e.target.value || null)
             }}
-            style={{
-              minWidth: 140,
-              padding: '6px 8px',
-              borderRadius: 6,
-              background: '#1a1a1a',
-              border: '1px solid #2f3545',
-              color: '#e6e9f2',
-              fontSize: 12,
-            }}
+            style={monoSelectStyle}
             data-testid="entity-script-select"
           >
             <option value="">— Select script —</option>
@@ -286,14 +301,7 @@ export default function EntityScriptEditor({
                 <select
                   value={event}
                   onChange={(e) => handleEventChange(e.target.value as ScriptEvent)}
-                  style={{
-                    padding: '4px 6px',
-                    borderRadius: 4,
-                    background: '#1a1a1a',
-                    border: '1px solid #2f3545',
-                    color: '#e6e9f2',
-                    fontSize: 12,
-                  }}
+                  style={compactSelectStyle}
                 >
                   {SCRIPT_EVENTS.map((ev) => (
                     <option key={ev} value={ev}>
@@ -311,14 +319,7 @@ export default function EntityScriptEditor({
                     step={0.1}
                     value={interval}
                     onChange={(e) => handleIntervalChange(Number(e.target.value))}
-                    style={{
-                      width: 64,
-                      padding: 4,
-                      borderRadius: 4,
-                      border: '1px solid #2f3545',
-                      background: '#1a1a1a',
-                      color: '#e6e9f2',
-                    }}
+                    style={intervalInputStyle}
                   />
                 </label>
               )}
@@ -330,9 +331,9 @@ export default function EntityScriptEditor({
             style={{
               padding: '6px 12px',
               borderRadius: 6,
-              border: '1px solid #2f3545',
-              background: '#2a2a2a',
-              color: '#e6e9f2',
+              border: `1px solid ${theme.border.default}`,
+              background: theme.bg.surface,
+              color: theme.text.primary,
               cursor: 'pointer',
               fontSize: 12,
             }}
@@ -351,9 +352,9 @@ export default function EntityScriptEditor({
             style={{
               padding: '6px 12px',
               borderRadius: 6,
-              border: '1px solid #2f3545',
-              background: selectedId && isAttachedToEntity ? '#3a2a2a' : '#2a2a2a',
-              color: selectedId && isAttachedToEntity ? '#e6c0c0' : '#666',
+              border: `1px solid ${theme.border.default}`,
+              background: selectedId && isAttachedToEntity ? theme.feedback.destructiveSelectedBg : theme.bg.surface,
+              color: selectedId && isAttachedToEntity ? theme.feedback.destructiveSelectedText : theme.text.disabled,
               cursor: selectedId && isAttachedToEntity ? 'pointer' : 'not-allowed',
               fontSize: 12,
             }}
@@ -369,9 +370,9 @@ export default function EntityScriptEditor({
               style={{
                 padding: '6px 12px',
                 borderRadius: 6,
-                border: '1px solid #4a6a4a',
-                background: isDirty ? '#2d4a2d' : '#2a2a2a',
-                color: isDirty ? '#a4d4a4' : '#666',
+                border: `1px solid ${theme.feedback.successBorder}`,
+                background: isDirty ? theme.feedback.successBg : theme.bg.surface,
+                color: isDirty ? theme.feedback.successText : theme.text.disabled,
                 cursor: isDirty ? 'pointer' : 'not-allowed',
                 fontSize: 12,
               }}
@@ -390,7 +391,7 @@ export default function EntityScriptEditor({
             borderRadius: 6,
             background: 'rgba(74, 158, 255, 0.12)',
             border: '1px solid rgba(74, 158, 255, 0.35)',
-            color: '#a8c8f0',
+            color: theme.text.infoSubtle,
             fontSize: 12,
           }}
           role="status"

@@ -8,6 +8,7 @@ import TextureThumbnail from './TextureThumbnail'
 import VideoThumbnail, { MapMediaThumbnail } from './VideoThumbnail'
 import VideoConversionDialog from './VideoConversionDialog'
 import { assetDropZoneChrome, assetDropZoneHoverHandlers } from './sharedStyles'
+import { theme } from '@/config/theme'
 
 export interface TextureDialogProps {
   isOpen: boolean
@@ -221,9 +222,9 @@ export default function TextureDialog({
                 width: '100%',
                 padding: '8px 12px',
                 borderRadius: 6,
-                background: '#1a1a1a',
-                border: '1px solid #2f3545',
-                color: '#e6e9f2',
+                background: theme.bg.panelAlt,
+                border: `1px solid ${theme.border.default}`,
+                color: theme.text.primary,
                 fontSize: 14,
               }}
             />
@@ -248,7 +249,7 @@ export default function TextureDialog({
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      color: '#9aa4b2',
+                      color: theme.text.muted,
                       fontSize: 14,
                     }}
                   >
@@ -258,7 +259,7 @@ export default function TextureDialog({
 
                 {filteredTextures.length > 0 ? (
                   <>
-                    <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#e6e9f2' }}>
+                    <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: theme.text.primary }}>
                       Images ({filteredTextures.length})
                     </h3>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -282,21 +283,24 @@ export default function TextureDialog({
                                 padding: 10,
                                 borderRadius: 6,
                                 border:
-                                  selectedTextureId === id ? '2px solid #4a9eff' : '1px solid #2f3545',
-                                background: selectedTextureId === id ? '#1e2a3a' : 'transparent',
+                                  selectedTextureId === id
+                                    ? `2px solid ${theme.border.dropZoneActive}`
+                                    : `1px solid ${theme.border.default}`,
+                                background:
+                                  selectedTextureId === id ? theme.bg.dropZoneActive : 'transparent',
                                 cursor: 'pointer',
                                 transition: 'all 0.15s ease',
                               }}
                               onMouseEnter={(e) => {
                                 if (selectedTextureId !== id) {
-                                  e.currentTarget.style.background = '#2a2a2a'
-                                  e.currentTarget.style.borderColor = '#3f4f5f'
+                                  e.currentTarget.style.background = theme.bg.surface
+                                  e.currentTarget.style.borderColor = theme.border.dropZoneHover
                                 }
                               }}
                               onMouseLeave={(e) => {
                                 if (selectedTextureId !== id) {
                                   e.currentTarget.style.background = 'transparent'
-                                  e.currentTarget.style.borderColor = '#2f3545'
+                                  e.currentTarget.style.borderColor = theme.border.default
                                 }
                               }}
                             >
@@ -305,7 +309,7 @@ export default function TextureDialog({
                                 <div
                                   style={{
                                     fontSize: 12,
-                                    color: '#e6e9f2',
+                                    color: theme.text.primary,
                                     overflow: 'hidden',
                                     textOverflow: 'ellipsis',
                                     whiteSpace: 'nowrap',
@@ -314,8 +318,8 @@ export default function TextureDialog({
                                 >
                                   {id}
                                 </div>
-                                <div style={{ fontSize: 10, color: '#8b95a8', marginTop: 4 }}>Image</div>
-                                <div style={{ fontSize: 10, color: '#666', marginTop: 2 }}>
+                                <div style={{ fontSize: 10, color: theme.text.subtle, marginTop: 4 }}>Image</div>
+                                <div style={{ fontSize: 10, color: theme.text.disabled, marginTop: 2 }}>
                                   {TextureManager.formatFileSize(blob.size)}
                                 </div>
                               </div>
@@ -334,9 +338,9 @@ export default function TextureDialog({
                             data-testid={`texture-dialog-family-${stem}`}
                             style={{
                               borderRadius: 6,
-                              border: '1px solid #2f3545',
+                              border: `1px solid ${theme.border.default}`,
                               overflow: 'hidden',
-                              background: '#14161c',
+                              background: theme.bg.thumbnailFrame,
                             }}
                           >
                             <button
@@ -348,10 +352,10 @@ export default function TextureDialog({
                                 alignItems: 'center',
                                 gap: 10,
                                 padding: '10px 12px',
-                                background: '#1a1d26',
+                                background: theme.bg.thumbnailHeader,
                                 border: 'none',
                                 cursor: 'pointer',
-                                color: '#e6e9f2',
+                                color: theme.text.primary,
                                 textAlign: 'left',
                               }}
                             >
@@ -363,7 +367,7 @@ export default function TextureDialog({
                               ) : null}
                               <div style={{ flex: 1, minWidth: 0 }}>
                                 <div style={{ fontSize: 13, fontWeight: 600 }}>{stem}</div>
-                                <div style={{ fontSize: 10, color: '#8b95a8' }}>
+                                <div style={{ fontSize: 10, color: theme.text.subtle }}>
                                   {versions.length} versions (newest first)
                                 </div>
                               </div>
@@ -375,7 +379,7 @@ export default function TextureDialog({
                                   gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))',
                                   gap: 10,
                                   padding: 12,
-                                  borderTop: '1px solid #2f3545',
+                                  borderTop: `1px solid ${theme.border.default}`,
                                 }}
                               >
                                 {versions.map(({ id: vid, n }) => {
@@ -397,9 +401,12 @@ export default function TextureDialog({
                                         borderRadius: 6,
                                         border:
                                           selectedTextureId === vid
-                                            ? '2px solid #4a9eff'
-                                            : '1px solid #2f3545',
-                                        background: selectedTextureId === vid ? '#1e2a3a' : '#161922',
+                                            ? `2px solid ${theme.border.dropZoneActive}`
+                                            : `1px solid ${theme.border.default}`,
+                                        background:
+                                          selectedTextureId === vid
+                                            ? theme.bg.dropZoneActive
+                                            : theme.bg.thumbnailTile,
                                         cursor: 'pointer',
                                       }}
                                     >
@@ -407,7 +414,7 @@ export default function TextureDialog({
                                       <span
                                         style={{
                                           fontSize: 10,
-                                          color: '#9aa4b2',
+                                          color: theme.text.muted,
                                           textAlign: 'center',
                                           wordBreak: 'break-word',
                                           width: '100%',
@@ -416,7 +423,7 @@ export default function TextureDialog({
                                       >
                                         edited{n}
                                       </span>
-                                      <span style={{ fontSize: 9, color: '#666' }}>
+                                      <span style={{ fontSize: 9, color: theme.text.disabled }}>
                                         {TextureManager.formatFileSize(vb.size)}
                                       </span>
                                     </div>
@@ -433,7 +440,7 @@ export default function TextureDialog({
 
                 {allowVideo && filteredVideos.length > 0 ? (
                   <>
-                    <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#e6e9f2' }}>
+                    <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: theme.text.primary }}>
                       Videos ({filteredVideos.length})
                     </h3>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -452,21 +459,24 @@ export default function TextureDialog({
                             padding: 10,
                             borderRadius: 6,
                             border:
-                              selectedTextureId === id ? '2px solid #4a9eff' : '1px solid #2f3545',
-                            background: selectedTextureId === id ? '#1e2a3a' : 'transparent',
+                              selectedTextureId === id
+                                ? `2px solid ${theme.border.dropZoneActive}`
+                                : `1px solid ${theme.border.default}`,
+                            background:
+                              selectedTextureId === id ? theme.bg.dropZoneActive : 'transparent',
                             cursor: 'pointer',
                             transition: 'all 0.15s ease',
                           }}
                           onMouseEnter={(e) => {
                             if (selectedTextureId !== id) {
-                              e.currentTarget.style.background = '#2a2a2a'
-                              e.currentTarget.style.borderColor = '#3f4f5f'
+                              e.currentTarget.style.background = theme.bg.surface
+                              e.currentTarget.style.borderColor = theme.border.dropZoneHover
                             }
                           }}
                           onMouseLeave={(e) => {
                             if (selectedTextureId !== id) {
                               e.currentTarget.style.background = 'transparent'
-                              e.currentTarget.style.borderColor = '#2f3545'
+                              e.currentTarget.style.borderColor = theme.border.default
                             }
                           }}
                         >
@@ -475,7 +485,7 @@ export default function TextureDialog({
                             <div
                               style={{
                                 fontSize: 12,
-                                color: '#e6e9f2',
+                                color: theme.text.primary,
                                 overflow: 'hidden',
                                 textOverflow: 'ellipsis',
                                 whiteSpace: 'nowrap',
@@ -484,8 +494,8 @@ export default function TextureDialog({
                             >
                               {id}
                             </div>
-                            <div style={{ fontSize: 10, color: '#8b95a8', marginTop: 4 }}>Video</div>
-                            <div style={{ fontSize: 10, color: '#666', marginTop: 2 }}>
+                            <div style={{ fontSize: 10, color: theme.text.subtle, marginTop: 4 }}>Video</div>
+                            <div style={{ fontSize: 10, color: theme.text.disabled, marginTop: 2 }}>
                               {TextureManager.formatFileSize(blob.size)}
                             </div>
                           </div>
@@ -505,7 +515,7 @@ export default function TextureDialog({
                 gap: 12,
               }}
             >
-              <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#e6e9f2' }}>
+              <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: theme.text.primary }}>
                 Upload
               </h3>
 
@@ -517,8 +527,8 @@ export default function TextureDialog({
                     gap: 8,
                     padding: 12,
                     borderRadius: 6,
-                    border: '1px solid #2f3545',
-                    background: '#1a1a1a',
+                    border: `1px solid ${theme.border.default}`,
+                    background: theme.bg.panelAlt,
                   }}
                 >
                   <MapMediaThumbnail
@@ -526,10 +536,10 @@ export default function TextureDialog({
                     blob={uploadPreview.file}
                     size={120}
                   />
-                  <div style={{ fontSize: 11, color: '#9aa4b2', wordBreak: 'break-word' }}>
+                  <div style={{ fontSize: 11, color: theme.text.muted, wordBreak: 'break-word' }}>
                     {uploadPreview.assetId}
                   </div>
-                  <div style={{ fontSize: 10, color: '#666' }}>
+                  <div style={{ fontSize: 10, color: theme.text.disabled }}>
                     {TextureManager.formatFileSize(uploadPreview.file.size)}
                     {VideoManager.isVideoFile(uploadPreview.file) ? ' · will transcode' : ''}
                   </div>
@@ -540,9 +550,9 @@ export default function TextureDialog({
                       style={{
                         flex: 1,
                         padding: '6px 12px',
-                        background: '#2d4a2d',
-                        border: '1px solid #4a6a4a',
-                        color: '#a4d4a4',
+                        background: theme.feedback.successBg,
+                        border: `1px solid ${theme.feedback.successBorder}`,
+                        color: theme.feedback.successText,
                         borderRadius: 4,
                         cursor: 'pointer',
                         fontSize: 12,
@@ -557,8 +567,8 @@ export default function TextureDialog({
                         flex: 1,
                         padding: '6px 12px',
                         background: 'transparent',
-                        border: '1px solid #2f3545',
-                        color: '#9aa4b2',
+                        border: `1px solid ${theme.border.default}`,
+                        color: theme.text.muted,
                         borderRadius: 4,
                         cursor: 'pointer',
                         fontSize: 12,
@@ -594,14 +604,14 @@ export default function TextureDialog({
                   <div style={{ fontSize: 32 }} aria-hidden>
                     ↑
                   </div>
-                  <div style={{ fontSize: 12, color: '#9aa4b2', textAlign: 'center' }}>
+                  <div style={{ fontSize: 12, color: theme.text.muted, textAlign: 'center' }}>
                     {dragActive
                       ? 'Drop file here'
                       : allowVideo
                         ? 'Click or drag image / video'
                         : 'Click or drag image to upload'}
                   </div>
-                  <div style={{ fontSize: 10, color: '#666', textAlign: 'center' }}>
+                  <div style={{ fontSize: 10, color: theme.text.disabled, textAlign: 'center' }}>
                     {allowVideo ? 'PNG, JPG, … · MP4, WebM, MOV, …' : 'PNG, JPG, GIF, WEBP'}
                   </div>
                 </div>
@@ -623,7 +633,7 @@ export default function TextureDialog({
               justifyContent: 'space-between',
               alignItems: 'center',
               paddingTop: 16,
-              borderTop: '1px solid #2f3545',
+              borderTop: `1px solid ${theme.border.default}`,
             }}
           >
             <button
@@ -632,9 +642,11 @@ export default function TextureDialog({
               disabled={!selectedTextureId}
               style={{
                 padding: '8px 16px',
-                background: selectedTextureId ? '#3a1b1b' : '#2a2a2a',
-                border: selectedTextureId ? '1px solid #6b2a2a' : '1px solid #2f3545',
-                color: selectedTextureId ? '#f4d6d6' : '#666',
+                background: selectedTextureId ? theme.bg.destructive : theme.bg.surface,
+                border: selectedTextureId
+                  ? `1px solid ${theme.border.destructive}`
+                  : `1px solid ${theme.border.default}`,
+                color: selectedTextureId ? theme.text.destructive : theme.text.disabled,
                 borderRadius: 6,
                 cursor: selectedTextureId ? 'pointer' : 'not-allowed',
                 fontSize: 12,
@@ -649,8 +661,8 @@ export default function TextureDialog({
                 style={{
                   padding: '8px 16px',
                   background: 'transparent',
-                  border: '1px solid #2f3545',
-                  color: '#9aa4b2',
+                  border: `1px solid ${theme.border.default}`,
+                  color: theme.text.muted,
                   borderRadius: 6,
                   cursor: 'pointer',
                   fontSize: 12,
@@ -674,9 +686,16 @@ export default function TextureDialog({
                 disabled={!selectedTextureId && !uploadPreview}
                 style={{
                   padding: '8px 16px',
-                  background: selectedTextureId || uploadPreview ? '#2d4a2d' : '#2a2a2a',
-                  border: selectedTextureId || uploadPreview ? '1px solid #4a6a4a' : '1px solid #2f3545',
-                  color: selectedTextureId || uploadPreview ? '#a4d4a4' : '#666',
+                  background:
+                    selectedTextureId || uploadPreview ? theme.feedback.successBg : theme.bg.surface,
+                  border:
+                    selectedTextureId || uploadPreview
+                      ? `1px solid ${theme.feedback.successBorder}`
+                      : `1px solid ${theme.border.default}`,
+                  color:
+                    selectedTextureId || uploadPreview
+                      ? theme.feedback.successText
+                      : theme.text.disabled,
                   borderRadius: 6,
                   cursor: selectedTextureId || uploadPreview ? 'pointer' : 'not-allowed',
                   fontSize: 12,

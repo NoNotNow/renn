@@ -7,15 +7,14 @@ import Switch from './Switch'
 import TransformerEditor from './TransformerEditor'
 import EntityScriptEditor from './EntityScriptEditor'
 import CollapsibleSection from './CollapsibleSection'
+import ValidatedJsonTextarea, { type JsonContentValidation } from './ValidatedJsonTextarea'
 import { CAMERA_MODE_CYCLE_ORDER, CAMERA_MODE_LABELS } from '@/types/world'
 import { fieldLabelStyle, secondaryButtonStyleDisabled, sidebarTextInputStyle } from './sharedStyles'
 import { theme } from '@/config/theme'
 import { useEditorUndo } from '@/contexts/EditorUndoContext'
 import { uiLogger } from '@/utils/uiLogger'
-import { validateEntityAvatarConfig, normalizeAvatarDraft } from '@/utils/entityAvatarValidation'
-import { jsonTextareaRows } from '@/utils/jsonTextareaRows'
+import { normalizeAvatarDraft } from '@/utils/entityAvatarValidation'
 import { avatarEntityIconLetter, getAvatarRosterEntityIds } from '@/utils/avatarUtils'
-import { extractJsonErrorPosition, lineColFromPosition } from '@/utils/jsonParseErrorLocation'
 
 export interface AvatarDialogProps {
   isOpen: boolean
@@ -69,33 +68,27 @@ export default function AvatarDialog({
 
   const currentAvatarEnabled = entity?.avatar?.enabled !== false
 
-  const [draftAvatarJson, setDraftAvatarJson] = useState<string>(() => avatarJsonString(entity ?? { id: entityId } as Entity))
-  const [jsonParseError, setJsonParseError] = useState<string | null>(null)
-  const [jsonParseValid, setJsonParseValid] = useState<boolean>(true)
-  const [parsedDraft, setParsedDraft] = useState<unknown>(null)
+  const [avatarJsonSeed, setAvatarJsonSeed] = useState<string>(() =>
+    avatarJsonString(entity ?? ({ id: entityId } as Entity)),
+  )
 
   useEffect(() => {
     if (!entity) return
-    setDraftAvatarJson(avatarJsonString(entity))
-    setJsonParseError(null)
-    setJsonParseValid(true)
-    setParsedDraft(entity.avatar ?? null)
+    setAvatarJsonSeed(avatarJsonString(entity))
+    // Re-seed only when switching entities or reopening the dialog so the
+    // textarea preserves unapplied edits while the dialog stays open.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entityId, isOpen])
 
-  const avatarJsonValidation = useMemo(() => {
-    if (!jsonParseValid) return { ok: false, error: jsonParseError ?? 'Invalid JSON.' }
-    const parsed = parsedDraft
-    if (parsed === null) return { ok: true, error: null as string | null }
-    const v = validateEntityAvatarConfig(parsed)
-    if (v.valid) return { ok: true, error: null as string | null }
-    return { ok: false, error: v.errors.join('\n') }
-  }, [jsonParseValid, jsonParseError, parsedDraft])
+  const validateAvatarJson = (parsed: unknown): JsonContentValidation => {
+    const normalized = normalizeAvatarDraft(parsed)
+    if (normalized.error) return { ok: false, error: normalized.error }
+    return { ok: true }
+  }
 
-  const onApplyAvatarJson = () => {
+  const onApplyAvatarJson = (parsed: unknown) => {
     if (!entity) return
-    if (!avatarJsonValidation.ok) return
-    const normalized = normalizeAvatarDraft(parsedDraft)
+    const normalized = normalizeAvatarDraft(parsed)
     if (normalized.error) return
     undo?.pushBeforeEdit()
     uiLogger.change('AvatarDialog', 'Apply avatar JSON', { entityId })
@@ -161,9 +154,6 @@ export default function AvatarDialog({
 
   const preferredDistanceValue: number | '' =
     entity.avatar?.preferredCamera?.distance ?? ''
-
-  const pos = jsonParseError ? extractJsonErrorPosition(jsonParseError) : null
-  const { line, col, lineText } = pos != null ? lineColFromPosition(draftAvatarJson, pos) : { line: 0, col: 0, lineText: '' }
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={`Avatar · ${entity.name ?? entity.id}`} width={760} height={900}>
@@ -379,85 +369,14 @@ export default function AvatarDialog({
         </CollapsibleSection>
 
         <CollapsibleSection title="Avatar JSON (advanced)" defaultCollapsed>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <textarea
-              value={draftAvatarJson}
-              onChange={(e) => {
-                const next = e.target.value
-                setDraftAvatarJson(next)
-                try {
-                  const parsed = JSON.parse(next) as unknown
-                  setJsonParseValid(true)
-                  setJsonParseError(null)
-                  setParsedDraft(parsed)
-                } catch (err) {
-                  const msg = err instanceof Error ? err.message : String(err)
-                  setJsonParseValid(false)
-                  setJsonParseError(msg)
-                  setParsedDraft(null)
-                }
-              }}
-              rows={jsonTextareaRows(draftAvatarJson)}
-              style={{
-                margin: 0,
-                padding: 8,
-                background: 'rgba(0, 0, 0, 0.3)',
-                borderRadius: 4,
-                fontSize: 11,
-                overflow: 'auto',
-                fontFamily: 'monospace',
-                whiteSpace: 'pre',
-                resize: 'vertical',
-                width: '100%',
-                boxSizing: 'border-box',
-                color: jsonParseValid ? '#c4cbd8' : '#f87171',
-                border: jsonParseValid ? '1px solid #2f3545' : '1px solid #dc2626',
-              }}
-              spellCheck={false}
-              data-testid="avatar-json-textarea"
-            />
-
-            {!jsonParseValid && jsonParseError ? (
-              <div style={{ fontSize: 10, color: '#f87171' }}>
-                <div>Invalid JSON: {jsonParseError}</div>
-                {pos != null ? (
-                  <pre style={{ margin: '8px 0 0', color: '#f87171', fontFamily: 'monospace' }}>
-                    {`Line ${line}, Col ${col}\n${lineText}\n${' '.repeat(Math.max(0, col - 1))}^`}
-                  </pre>
-                ) : null}
-              </div>
-            ) : null}
-
-            {jsonParseValid && avatarJsonValidation.ok === false ? (
-              <div style={{ fontSize: 10, color: '#f87171' }}>
-                <div>Avatar config does not match schema:</div>
-                <pre style={{ margin: '6px 0 0', fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>
-                  {avatarJsonValidation.error ?? ''}
-                </pre>
-              </div>
-            ) : null}
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 4 }}>
-              <button
-                type="button"
-                onClick={onApplyAvatarJson}
-                disabled={!avatarJsonValidation.ok}
-                style={{
-                  padding: '6px 12px',
-                  background: avatarJsonValidation.ok ? '#1e3a5f' : '#2a2a2a',
-                  border: '1px solid #3b6ea8',
-                  color: avatarJsonValidation.ok ? '#93c5fd' : '#666',
-                  borderRadius: 6,
-                  cursor: avatarJsonValidation.ok ? 'pointer' : 'not-allowed',
-                  fontSize: 12,
-                }}
-                aria-label="Apply avatar JSON"
-                data-testid="avatar-json-apply"
-              >
-                Apply
-              </button>
-            </div>
-          </div>
+          <ValidatedJsonTextarea
+            value={avatarJsonSeed}
+            validate={validateAvatarJson}
+            onApply={onApplyAvatarJson}
+            applyLabel="Apply"
+            textareaTestId="avatar-json-textarea"
+            applyTestId="avatar-json-apply"
+          />
         </CollapsibleSection>
 
         <CollapsibleSection title="Transformers" defaultCollapsed>

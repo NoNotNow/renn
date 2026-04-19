@@ -35,6 +35,7 @@ import {
 } from './sharedStyles'
 import { useEditorUndo } from '@/contexts/EditorUndoContext'
 import { patchFirstPlaneEntity } from '@/utils/worldGroundPatch'
+import { theme } from '@/config/theme'
 
 export interface WorldPanelProps {
   world: RennWorld
@@ -294,7 +295,7 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
       <CopyableArea copyPayload={copyPayload}>
       <div style={sectionStyle}>
         <div style={sectionTitleStyle}>Simulation</div>
-        <p style={{ fontSize: 11, color: '#9aa4b2', margin: '0 0 8px' }}>
+        <p style={{ fontSize: 11, color: theme.text.muted, margin: '0 0 8px' }}>
           Fixed physics timestep with catch-up: simulation stays near real time when the display drops frames.
           Max catch-up steps caps work per frame to avoid a spiral of death on very slow hardware.
         </p>
@@ -403,7 +404,7 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
 
       <div style={{ ...sectionStyle, marginTop: 12 }}>
         <div style={sectionTitleStyle}>Sleep</div>
-        <p style={{ fontSize: 11, color: '#9aa4b2', margin: '0 0 8px' }}>
+        <p style={{ fontSize: 11, color: theme.text.muted, margin: '0 0 8px' }}>
           Custom sleep timer: velocities must stay below thresholds for the duration. Negative linear or angular
           threshold disables that check.
         </p>
@@ -446,9 +447,9 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
               fontSize: 12,
               padding: '6px 10px',
               borderRadius: 4,
-              border: '1px solid #2f3545',
-              background: '#1a1f2e',
-              color: '#e6e9ef',
+              border: `1px solid ${theme.border.default}`,
+              background: theme.bg.panel,
+              color: theme.text.primary,
               cursor: 'pointer',
             }}
           >
@@ -459,7 +460,7 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
 
       <div style={{ ...sectionStyle, marginTop: 12 }}>
         <div style={sectionTitleStyle}>Distance Culling</div>
-        <p style={{ fontSize: 11, color: '#9aa4b2', margin: '0 0 8px' }}>
+        <p style={{ fontSize: 11, color: theme.text.muted, margin: '0 0 8px' }}>
           On by default. Objects are hidden when beyond Max Distance <strong>or</strong> when their
           apparent size/distance ratio is below Min ratio (camera to object center).
         </p>
@@ -522,7 +523,7 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
                   }}
                   style={{ cursor: 'pointer' }}
                 />
-                <p style={{ fontSize: 10, color: '#7a8494', margin: '4px 0 0' }}>
+                <p style={{ fontSize: 10, color: theme.text.dim, margin: '4px 0 0' }}>
                   Freeze physics for culled objects and skip their transformers and scripts until visible again.
                 </p>
               </div>
@@ -553,17 +554,17 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
                 height: 22,
                 padding: 0,
                 borderRadius: 4,
-                border: '1px solid #2f3545',
+                border: `1px solid ${theme.border.default}`,
                 background: 'transparent',
                 cursor: 'pointer',
               }}
             />
-            <span style={{ fontSize: 12, color: '#9aa4b2' }}>
+            <span style={{ fontSize: 12, color: theme.text.muted }}>
               {skyColor.map((c) => c.toFixed(2)).join(', ')}
             </span>
           </div>
         </div>
-        <p style={{ fontSize: 11, color: '#9aa4b2', margin: '10px 0 0' }}>
+        <p style={{ fontSize: 11, color: theme.text.muted, margin: '10px 0 0' }}>
           Sky dome: equirectangular / 360° image (e.g. starfield). Stored as a texture asset;{' '}
           <code style={{ fontSize: 10 }}>world.world.skybox</code> is the asset id.
         </p>
@@ -579,7 +580,7 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
               {skyboxId ? (
                 <TextureThumbnail assetId={skyboxId} blob={assets.get(skyboxId)} size={48} showName />
               ) : (
-                <span style={{ fontSize: 12, color: '#9aa4b2' }}>None</span>
+                <span style={{ fontSize: 12, color: theme.text.muted }}>None</span>
               )}
               <button
                 type="button"
@@ -606,9 +607,9 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
                     fontSize: 12,
                     padding: '6px 10px',
                     borderRadius: 4,
-                    border: '1px solid #5c2a2a',
-                    background: '#2a1818',
-                    color: '#f4d6d6',
+                    border: `1px solid ${theme.border.destructive}`,
+                    background: theme.bg.destructive,
+                    color: theme.text.destructive,
                     cursor: 'pointer',
                   }}
                 >
@@ -700,12 +701,12 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
                   height: 22,
                   padding: 0,
                   borderRadius: 4,
-                  border: '1px solid #2f3545',
+                  border: `1px solid ${theme.border.default}`,
                   background: 'transparent',
                   cursor: 'pointer',
                 }}
               />
-              <span style={{ fontSize: 12, color: '#9aa4b2' }}>
+              <span style={{ fontSize: 12, color: theme.text.muted }}>
                 {dirColor.map((c) => c.toFixed(2)).join(', ')}
               </span>
             </div>
@@ -743,12 +744,12 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
                   height: 22,
                   padding: 0,
                   borderRadius: 4,
-                  border: '1px solid #2f3545',
+                  border: `1px solid ${theme.border.default}`,
                   background: 'transparent',
                   cursor: 'pointer',
                 }}
               />
-              <span style={{ fontSize: 12, color: '#9aa4b2' }}>
+              <span style={{ fontSize: 12, color: theme.text.muted }}>
                 {ambientColor.map((c) => c.toFixed(2)).join(', ')}
               </span>
             </div>
@@ -781,12 +782,12 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
                     height: 22,
                     padding: 0,
                     borderRadius: 4,
-                    border: '1px solid #2f3545',
+                    border: `1px solid ${theme.border.default}`,
                     background: 'transparent',
                     cursor: 'pointer',
                   }}
                 />
-                <span style={{ fontSize: 12, color: '#9aa4b2' }}>
+                <span style={{ fontSize: 12, color: theme.text.muted }}>
                   {groundColor.map((c) => c.toFixed(2)).join(', ')}
                 </span>
               </div>
@@ -895,12 +896,12 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
             </div>
 
             {/* Entity info */}
-            <div style={{ fontSize: 11, color: '#9aa4b2', marginTop: 8 }}>
+            <div style={{ fontSize: 11, color: theme.text.muted, marginTop: 8 }}>
               Entity: {groundEntity.name ?? groundEntity.id}
             </div>
           </>
         ) : (
-          <p style={{ fontSize: 12, color: '#9aa4b2', margin: 0 }}>
+          <p style={{ fontSize: 12, color: theme.text.muted, margin: 0 }}>
             No ground entity found. Add a plane entity to edit ground properties.
           </p>
         )}

@@ -4,6 +4,7 @@ import { uiLogger } from '@/utils/uiLogger'
 import Modal from './Modal'
 import { useEditorUndo } from '@/contexts/EditorUndoContext'
 import { getScriptDef } from '@/scripts/scriptDef'
+import { theme } from '@/config/theme'
 
 function getEventLabel(def: ScriptDef | null): string {
   if (!def) return '?'
@@ -116,7 +117,7 @@ export default function ScriptDialog({
         <div style={{ display: 'flex', gap: 16, flex: 1, minHeight: 0 }}>
           {/* Left: All scripts */}
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-            <h3 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 600, color: '#e6e9f2' }}>
+            <h3 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 600, color: theme.text.primary }}>
               All scripts ({filteredScriptIds.length})
             </h3>
             <input
@@ -128,9 +129,9 @@ export default function ScriptDialog({
                 width: '100%',
                 padding: '8px 12px',
                 borderRadius: 6,
-                background: '#1a1a1a',
-                border: '1px solid #2f3545',
-                color: '#e6e9f2',
+                background: theme.bg.panelAlt,
+                border: `1px solid ${theme.border.default}`,
+                color: theme.text.primary,
                 fontSize: 14,
                 marginBottom: 8,
               }}
@@ -145,7 +146,7 @@ export default function ScriptDialog({
               }}
             >
               {filteredScriptIds.length === 0 ? (
-                <div style={{ color: '#9aa4b2', fontSize: 14 }}>
+                <div style={{ color: theme.text.muted, fontSize: 14 }}>
                   {searchQuery ? 'No scripts match your search' : 'No scripts in world'}
                 </div>
               ) : (
@@ -163,20 +164,22 @@ export default function ScriptDialog({
                         justifyContent: 'space-between',
                         padding: '8px 12px',
                         borderRadius: 6,
-                        border: selected ? '2px solid #4a9eff' : '1px solid #2f3545',
-                        background: selected ? '#1e2a3a' : 'transparent',
+                        border: `${selected ? '2px' : '1px'} solid ${
+                          selected ? theme.border.dropZoneActive : theme.border.default
+                        }`,
+                        background: selected ? theme.bg.dropZoneActive : 'transparent',
                         cursor: 'pointer',
                         transition: 'all 0.15s ease',
                       }}
                     >
                       <div>
-                        <span style={{ fontWeight: 500, color: '#e6e9f2' }}>{id}</span>
-                        <span style={{ marginLeft: 8, fontSize: 12, color: '#9aa4b2' }}>
+                        <span style={{ fontWeight: 500, color: theme.text.primary }}>{id}</span>
+                        <span style={{ marginLeft: 8, fontSize: 12, color: theme.text.muted }}>
                           {getEventLabel(def)}
                         </span>
                       </div>
                       {attached && (
-                        <span style={{ fontSize: 11, color: '#6a9e6a' }}>Attached</span>
+                        <span style={{ fontSize: 11, color: theme.feedback.successTextSubtle }}>Attached</span>
                       )}
                     </div>
                   )
@@ -189,9 +192,9 @@ export default function ScriptDialog({
                 onClick={handleCreateNew}
                 style={{
                   padding: '8px 12px',
-                  background: '#2d4a2d',
-                  border: '1px solid #4a6a4a',
-                  color: '#a4d4a4',
+                  background: theme.feedback.successBg,
+                  border: `1px solid ${theme.feedback.successBorder}`,
+                  color: theme.feedback.successText,
                   borderRadius: 6,
                   cursor: 'pointer',
                   fontSize: 12,
@@ -206,9 +209,9 @@ export default function ScriptDialog({
                 title={canRename ? 'Rename selected script' : 'Select a script to rename'}
                 style={{
                   padding: '8px 12px',
-                  background: canRename ? '#2a3a4a' : '#2a2a2a',
-                  border: canRename ? '1px solid #3f4f5f' : '1px solid #2f3545',
-                  color: canRename ? '#e6e9f2' : '#666',
+                  background: canRename ? theme.button.selectable : theme.bg.surface,
+                  border: `1px solid ${canRename ? theme.button.selectableBorder : theme.border.default}`,
+                  color: canRename ? theme.text.primary : theme.text.disabled,
                   borderRadius: 6,
                   cursor: canRename ? 'pointer' : 'not-allowed',
                   fontSize: 12,
@@ -226,16 +229,16 @@ export default function ScriptDialog({
               display: 'flex',
               flexDirection: 'column',
               gap: 8,
-              borderLeft: '1px solid #2f3545',
+              borderLeft: `1px solid ${theme.border.default}`,
               paddingLeft: 16,
             }}
           >
-            <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#e6e9f2' }}>
+            <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: theme.text.primary }}>
               Attached to this entity ({entityScriptIds.length})
             </h3>
             <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
               {entityScriptIds.length === 0 ? (
-                <div style={{ fontSize: 12, color: '#9aa4b2' }}>No scripts attached</div>
+                <div style={{ fontSize: 12, color: theme.text.muted }}>No scripts attached</div>
               ) : (
                 entityScriptIds.map((id) => {
                   const def = getScriptDef(scripts, id)
@@ -248,15 +251,15 @@ export default function ScriptDialog({
                         justifyContent: 'space-between',
                         padding: '6px 10px',
                         borderRadius: 6,
-                        background: '#1a1a1a',
-                        border: '1px solid #2f3545',
+                        background: theme.bg.panelAlt,
+                        border: `1px solid ${theme.border.default}`,
                       }}
                     >
                       <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: 12, fontWeight: 500, color: '#e6e9f2', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <div style={{ fontSize: 12, fontWeight: 500, color: theme.text.primary, overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {id}
                         </div>
-                        <div style={{ fontSize: 11, color: '#9aa4b2' }}>{getEventLabel(def)}</div>
+                        <div style={{ fontSize: 11, color: theme.text.muted }}>{getEventLabel(def)}</div>
                       </div>
                       <button
                         type="button"
@@ -265,8 +268,8 @@ export default function ScriptDialog({
                         style={{
                           padding: '4px 8px',
                           background: 'transparent',
-                          border: '1px solid #2f3545',
-                          color: '#9aa4b2',
+                          border: `1px solid ${theme.border.default}`,
+                          color: theme.text.muted,
                           borderRadius: 4,
                           cursor: 'pointer',
                           fontSize: 11,
@@ -286,9 +289,11 @@ export default function ScriptDialog({
               title={isAttached ? 'Already attached' : 'Attach selected script to entity'}
               style={{
                 padding: '8px 12px',
-                background: selectedScriptId && !isAttached ? '#2d4a2d' : '#2a2a2a',
-                border: selectedScriptId && !isAttached ? '1px solid #4a6a4a' : '1px solid #2f3545',
-                color: selectedScriptId && !isAttached ? '#a4d4a4' : '#666',
+                background: selectedScriptId && !isAttached ? theme.feedback.successBg : theme.bg.surface,
+                border: `1px solid ${
+                  selectedScriptId && !isAttached ? theme.feedback.successBorder : theme.border.default
+                }`,
+                color: selectedScriptId && !isAttached ? theme.feedback.successText : theme.text.disabled,
                 borderRadius: 6,
                 cursor: selectedScriptId && !isAttached ? 'pointer' : 'not-allowed',
                 fontSize: 12,
@@ -304,7 +309,7 @@ export default function ScriptDialog({
             display: 'flex',
             justifyContent: 'flex-end',
             paddingTop: 16,
-            borderTop: '1px solid #2f3545',
+            borderTop: `1px solid ${theme.border.default}`,
           }}
         >
           <button
@@ -312,9 +317,9 @@ export default function ScriptDialog({
             onClick={onClose}
             style={{
               padding: '8px 16px',
-              background: '#2d4a2d',
-              border: '1px solid #4a6a4a',
-              color: '#a4d4a4',
+              background: theme.feedback.successBg,
+              border: `1px solid ${theme.feedback.successBorder}`,
+              color: theme.feedback.successText,
               borderRadius: 6,
               cursor: 'pointer',
               fontSize: 12,

@@ -67,6 +67,33 @@ These files are only imported by tests, not by any production code. They are val
 
 ---
 
+## Phase 3 — Component cleanup (completed, 2026-04-19)
+
+**Performance:** No runtime hot paths touched. All edits are component-level: shared component extraction, hex → token swap (same hex values via `theme`), and a new pure-utility test.
+
+### Shared UI — `ValidatedJsonTextarea`
+- **`src/components/ValidatedJsonTextarea.tsx`** — extracted from inline JSON editors in `AvatarDialog` and `TransformerEditor`. Owns draft text, parse state, line/column error, optional content `validate` callback, and the apply button (text or icon variant).
+- **Consumers:** `AvatarDialog.tsx` (passes `validateAvatarJson` for schema-level errors), `TransformerEditor.tsx` (per-transformer config card; uses `applyVariant="icon"`).
+- `src/components/ValidatedJsonTextarea.test.tsx` — covers seeding, apply callback, JSON parse error, custom validate failure, reseeding when `value` changes, icon variant.
+
+### Raw hex → theme tokens
+- **`theme.ts` additions** (no visual changes; same hex values, named):
+  - `bg.codeOverlay`, `bg.codeBlock`, `bg.listHover`, `bg.primarySubtle`, `bg.inactiveTile`, `bg.sectionMuted`, `bg.thumbnailFrame`, `bg.thumbnailHeader`, `bg.thumbnailTile`.
+  - `button.info`, `button.infoActive`, `button.infoBorder`, `button.infoActiveBorder`, `button.disabledBorder`, `button.selectable`, `button.selectableBorder`.
+  - `text.accentBlue`, `text.error`, `text.infoSubtle`, `text.dim`, `text.subtle`.
+  - `border.error`.
+  - `feedback.{successBg,successBorder,successText,successTextSubtle,destructiveSelectedBg,destructiveSelectedText}`.
+- **Migrated components (no remaining raw hex):**
+  - `EntityScriptEditor.tsx`, `ScriptDialog.tsx`, `ScriptPanelMultiSelect.tsx`
+  - `TransformerTemplateDialog.tsx`, `EntitySidebar.tsx`
+  - `WorldPanel.tsx`, `TextureDialog.tsx`
+- Local style consts (`manageScriptsButtonStyle`, `monoSelectStyle`, `compactSelectStyle`, `intervalInputStyle`, etc.) introduced in script-related panels for in-file reuse.
+
+### Test coverage — `assetUpload`
+- `src/utils/assetUpload.test.ts` — 11 tests covering `uploadModel`, `uploadTexture`, `uploadAudio`, `uploadVideo`, `saveVideoMapBlob`. Mocks `defaultPersistence`, `generateModelPreview`, and `convertVideoToWebMp4` so the suite is fast and deterministic. Verifies validation paths, persistence call shape, returned `worldAssetEntry`, and that the input `assets` map is never mutated.
+
+---
+
 ## Remaining larger tasks
 
 ### God files — candidates for splitting
@@ -85,11 +112,12 @@ These files are only imported by tests, not by any production code. They are val
 
 ### Raw hex color migration (remaining)
 
-Many components still use raw hex. **Done in Phase 2 for:** pick icon buttons and asset drop zones (via `theme` + `sharedStyles`). **Still to migrate:** `TextureDialog`, `WorldPanel`, `EntityScriptEditor`, `ScriptDialog`, `EntitySidebar`, `TransformerTemplateDialog`, `ScriptPanelMultiSelect`, CSS (`TextureMaker.css`, `index.css`), etc.
+**Done in Phase 2 for:** pick icon buttons and asset drop zones (via `theme` + `sharedStyles`).
+**Done in Phase 3 for:** `TextureDialog`, `WorldPanel`, `EntityScriptEditor`, `ScriptDialog`, `EntitySidebar`, `TransformerTemplateDialog`, `ScriptPanelMultiSelect`, `AvatarDialog`, `TransformerEditor`.
+**Still to migrate:** CSS (`TextureMaker.css`, `index.css`) and any remaining inline hex in non-listed components.
 
 ### Duplicated UI patterns (remaining)
 
-- **JSON textarea + apply button**: consider shared `ValidatedJsonTextarea` (`AvatarDialog` / `TransformerEditor`).
 - **`visualBaseQuaternion` handling**: extract pure helpers used by `RenderItem`, gizmo, registry, `createPrimitive` (larger refactor).
 
 ### Test coverage gaps
@@ -98,7 +126,7 @@ Critical modules without dedicated tests:
 - `runtime/renderItemRegistry.ts`
 - `runtime/sceneFrameLoop.ts` (partial: accumulator tests exist)
 - `scripts/scriptCtx.ts`
-- `utils/assetUpload.ts`, `utils/modelPreview.ts`
+- `utils/modelPreview.ts` (WebGL-bound; needs jsdom canvas mock or extraction of pure framing/disposal helpers)
 - `data/modelPresets.ts`, `data/sampleWorld.ts`
 
 ### Optional — idle material prefetch
@@ -116,9 +144,11 @@ Critical modules without dedicated tests:
 - [x] `DEFAULT_FREE_FLY_KEYS` single source (`types/camera.ts`)
 - [x] Ground patch helper + unit test
 - [x] Shared pick-button + drop-zone styles (theme + `sharedStyles`)
-- [ ] Raw hex → theme tokens (bulk of components / CSS)
+- [x] Raw hex → theme tokens for inline component styles (CSS files still pending)
+- [x] Shared `ValidatedJsonTextarea` (replaces inline JSON editors in `AvatarDialog` / `TransformerEditor`)
+- [x] `assetUpload` test coverage (validation, persistence, returned shape)
 - [ ] God file splitting (Builder, SceneView, …)
-- [ ] Test coverage for critical runtime modules
+- [ ] Test coverage for remaining critical runtime modules (`renderItemRegistry`, `scriptCtx`, `modelPreview`)
 - [x] Inspector pose polling isolated (`LivePosesPoll` → `PropertySidebar`, not full `Builder`)
 
 Run `npm run test:run` after further edits (currently **108** test files, **840** tests + 1 skipped). In `performance-benchmarks.integration.test.ts`, the **Heap growth** and **Scaling linearity** describes are skipped unless `RUN_PERF_BENCHMARKS=1` (use `npm run test:perf`) so agents avoid flaky wall-clock/heap thresholds; run that before Rapier/frame-loop/allocation hot-path changes.
