@@ -2,9 +2,12 @@
  * Performance benchmark integration tests.
  *
  * All metrics are hardware-independent (bytes, object identity, dimensionless
- * ratios) so results are meaningful across machines.  Run with:
+ * ratios) so results are meaningful across machines. The **Heap growth** and
+ * **Scaling linearity** suites are skipped in default `npm run test:run` (they
+ * assert heap bytes/frame and wall-clock ratios that vary under parallel Vitest).
+ * Run them with:
  *
- *   npm run test:run -- src/test/scenarios/performance-benchmarks.integration.test.ts
+ *   npm run test:perf
  *
  * The `--expose-gc` flag (configured in vite.config.ts) enables accurate heap
  * measurement via `global.gc()`.
@@ -23,6 +26,9 @@ import {
   clearBenchmarkResults,
   createBenchmarkWorld,
 } from '@/test/helpers/benchmarkUtils'
+
+/** Heap + scaling asserts need a quiet machine; set by `npm run test:perf`. */
+const runPerfAssertions = process.env.RUN_PERF_BENCHMARKS === '1'
 
 afterAll(() => {
   printBenchmarkResults()
@@ -105,7 +111,7 @@ describe('Object reuse (allocation-free hot path)', () => {
 // B. Heap growth — bytes per frame (hardware-independent)
 // ---------------------------------------------------------------------------
 
-describe('Heap growth per frame', () => {
+describe.skipIf(!runPerfAssertions)('Heap growth per frame', () => {
   const ENTITY_COUNT = 20
   const FRAME_COUNT = 300
 
@@ -147,7 +153,7 @@ describe('Heap growth per frame', () => {
 // C. Scaling linearity — dimensionless ratio
 // ---------------------------------------------------------------------------
 
-describe('Scaling linearity', () => {
+describe.skipIf(!runPerfAssertions)('Scaling linearity', () => {
   const FRAMES = 200
 
   it('frame time scales sub-quadratically with entity count', async () => {

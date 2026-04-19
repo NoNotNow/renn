@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "test": "vitest",
     "test:run": "vitest run",
+    "test:perf": "RUN_PERF_BENCHMARKS=1 vitest run src/test/scenarios/performance-benchmarks.integration.test.ts",
     "test:build-fixtures": "tsx e2e/helpers/buildGiraffeFixture.ts",
     "test:e2e": "playwright test",
     "deploy": "vite build && cp dist/index.html dist/404.html && npx gh-pages -d dist"

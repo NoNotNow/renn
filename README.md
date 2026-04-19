@@ -36,6 +36,7 @@ The default world loads from static files in `public/world/` (world.json + asset
 ## Tests
 
 - **Unit + component:** `npm run test` (watch) or `npm run test:run`
+- **Performance benchmarks (full suite incl. heap + scaling asserts):** `npm run test:perf` — sets `RUN_PERF_BENCHMARKS=1` for [`performance-benchmarks.integration.test.ts`](src/test/scenarios/performance-benchmarks.integration.test.ts); default `test:run` still runs the file but skips only the two timing/heap-sensitive describes
 - **E2E (Playwright):** `npm run test:e2e` — uses system Chrome; start dev server first or let Playwright start it (`reuseExistingServer: true`)
 
 ## Usage

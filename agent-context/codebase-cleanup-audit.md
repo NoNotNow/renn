@@ -121,4 +121,4 @@ Critical modules without dedicated tests:
 - [ ] Test coverage for critical runtime modules
 - [x] Inspector pose polling isolated (`LivePosesPoll` → `PropertySidebar`, not full `Builder`)
 
-Run `npm run test:run` after further edits (currently **108** test files, **840** tests + 1 skipped).
+Run `npm run test:run` after further edits (currently **108** test files, **840** tests + 1 skipped). In `performance-benchmarks.integration.test.ts`, the **Heap growth** and **Scaling linearity** describes are skipped unless `RUN_PERF_BENCHMARKS=1` (use `npm run test:perf`) so agents avoid flaky wall-clock/heap thresholds; run that before Rapier/frame-loop/allocation hot-path changes.
