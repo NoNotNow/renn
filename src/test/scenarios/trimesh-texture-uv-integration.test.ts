@@ -51,6 +51,7 @@ describe('trimesh + texture — UV normalization integration', () => {
       loadVideoTexture: async () => null,
       isVideoAsset: () => false,
       loadModel: async () => gltfFromScene(source),
+      cacheTexture: () => {},
       dispose: () => {},
     }
 

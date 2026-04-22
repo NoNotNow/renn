@@ -85,6 +85,7 @@ describe('box + model — simplify ~30% then texture (performance booster path)'
       loadVideoTexture: async () => null,
       isVideoAsset: () => false,
       loadModel: async () => null,
+      cacheTexture: () => {},
       dispose: () => {},
     }
 

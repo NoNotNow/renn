@@ -47,6 +47,12 @@ import { useRawMouseDrag } from '@/input/rawMouseDrag'
 import type { TransformerConfig } from '@/types/transformer'
 import { BUILDER_SCENE_CANVAS_HOST_ATTR } from '@/config/constants'
 import { getSceneDependencyKey } from '@/utils/sceneDependencyKey'
+import {
+  collectMaterialMapAssetIds,
+  scheduleMaterialTextureDecodePrefetch,
+  warmUpRendererTextures,
+  type PrefetchDisposer,
+} from '@/loader/prefetchMaterialTextures'
 import { computeDirectionalShadowCameraExtent } from '@/utils/shadowBounds'
 import { countVisualModelTriangles } from '@/utils/geometryExtractor'
 import { findEntityRootForPicking } from '@/utils/entityPicking'
@@ -475,6 +481,7 @@ function SceneViewInner({
     let cameraCtrl: CameraController | null = null
     let ro: ResizeObserver | null = null
     let removeAvatarKeydown: (() => void) | undefined
+    let prefetchDisposer: PrefetchDisposer | null = null
 
     setSchemaLoadWarnings([])
     setWorldLoadError(null)
@@ -823,6 +830,19 @@ function SceneViewInner({
           }
         }
       }
+      // Pre-upload all scene textures to the GPU before the first rAF tick to prevent
+      // `Image Paint blob:` stalls mid-frame on initial render.
+      warmUpRendererTextures(rend, loadedScene)
+
+      // Schedule idle-time texture pre-decode for the next world rebuild.
+      if (assetResolver) {
+        prefetchDisposer = scheduleMaterialTextureDecodePrefetch(
+          assetResolver,
+          collectMaterialMapAssetIds(loadedWorld),
+          (id) => assetsRef.current.get(id),
+        )
+      }
+
       frameRef.current = requestAnimationFrame(animate)
 
       if (avatarSession) {
@@ -875,6 +895,8 @@ function SceneViewInner({
     return () => {
       // Set cancelled first to stop animation loop
       cancelled = true
+      prefetchDisposer?.cancel()
+      prefetchDisposer = null
 
       if (scriptSnackbarTimerId !== undefined) {
         window.clearTimeout(scriptSnackbarTimerId)

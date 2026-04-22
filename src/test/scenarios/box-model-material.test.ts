@@ -88,6 +88,7 @@ describe('box + model visual — material updates', () => {
       loadVideoTexture: async () => null,
       isVideoAsset: () => false,
       loadModel: async () => null,
+      cacheTexture: () => {},
       dispose: () => {},
     }
 

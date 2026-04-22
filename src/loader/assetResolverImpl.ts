@@ -18,6 +18,12 @@ export interface DisposableAssetResolver {
   loadVideoTexture: (assetId: string) => Promise<THREE.VideoTexture | null>
   isVideoAsset: (assetId: string) => boolean
   loadModel: (assetId: string, loader: any) => Promise<GLTF | null>
+  /**
+   * Pre-populate the texture cache for `assetId` with `texture` decoded from `blob`.
+   * `loadTexture` will return the cached texture when called for the same blob identity,
+   * bypassing the decode step. Used by the idle prefetch pass.
+   */
+  cacheTexture: (assetId: string, texture: THREE.Texture, blob: Blob) => void
   dispose: () => void
 }
 
@@ -37,6 +43,12 @@ export function createAssetResolverFromGetter(
   const urlCache = new Map<string, string>()
   /** Same id may receive a new Blob instance (e.g. texture paint overwrite); revoke stale URLs. */
   const blobRefById = new Map<string, Blob>()
+  /**
+   * Decoded-texture cache keyed by asset id. Entry is valid only when `blobRefById.get(id) === currentBlob`.
+   * Populated by `loadTexture` (via createImageBitmap) and by the external idle-prefetch pass.
+   * NOT used for VideoTextures (live `THREE.VideoTexture`).
+   */
+  const textureCache = new Map<string, THREE.Texture>()
 
   const resolve = (assetId: string): string | null => {
     const assets = getAssets()
@@ -52,6 +64,8 @@ export function createAssetResolverFromGetter(
         urlCache.delete(assetId)
       }
       blobRefById.delete(assetId)
+      // Texture for this id is now stale; remove from cache so next load re-decodes.
+      textureCache.delete(assetId)
       return null
     }
 
@@ -66,6 +80,8 @@ export function createAssetResolverFromGetter(
         }
         urlCache.delete(assetId)
       }
+      // Blob changed — cached texture is stale (e.g. texture paint overwrite).
+      textureCache.delete(assetId)
     }
     blobRefById.set(assetId, blob)
 
@@ -88,23 +104,46 @@ export function createAssetResolverFromGetter(
       console.warn(`[AssetResolver] Texture asset not in map: ${assetId}`)
       return null
     }
-    const url = resolve(assetId)
-    if (!url) return null
+
+    // Return cached texture when the backing blob is unchanged (covers prefetch-populated entries
+    // and subsequent world rebuilds with the same assets).
+    const cachedBlob = blobRefById.get(assetId)
+    const cached = textureCache.get(assetId)
+    if (cached && cachedBlob === blob) {
+      return cached
+    }
+
     const blobInfo = { size: blob.size, type: blob.type || '(empty)' }
     try {
-      const texture = await new Promise<THREE.Texture>((resolveTex, reject) => {
-        loader.load(
-          url,
-          (texture) => resolveTex(texture),
-          undefined,
-          (error) => reject(error)
-        )
-      })
+      let texture: THREE.Texture
+      if (typeof createImageBitmap === 'function') {
+        // Off-main-thread decode (Chrome: truly parallel; Firefox: faster than <img>).
+        // `colorSpaceConversion: 'none'` preserves raw pixel data; we set SRGBColorSpace on the texture.
+        const bitmap = await createImageBitmap(blob, { colorSpaceConversion: 'none' })
+        texture = new THREE.Texture(bitmap)
+        texture.colorSpace = THREE.SRGBColorSpace
+        texture.needsUpdate = true
+      } else {
+        // Fallback for environments without createImageBitmap (old browsers, jsdom tests).
+        const url = resolve(assetId)
+        if (!url) return null
+        texture = await new Promise<THREE.Texture>((resolveTex, reject) => {
+          loader.load(url, (t) => resolveTex(t), undefined, (error) => reject(error))
+        })
+      }
+      // Update blob ref and cache for subsequent loads / world rebuilds.
+      blobRefById.set(assetId, blob)
+      textureCache.set(assetId, texture)
       return texture
     } catch (error) {
       console.error(`Failed to load texture for asset ${assetId} (blob ${blobInfo.size} bytes, type ${blobInfo.type}):`, error)
       return null
     }
+  }
+
+  const cacheTexture = (assetId: string, texture: THREE.Texture, blob: Blob): void => {
+    textureCache.set(assetId, texture)
+    blobRefById.set(assetId, blob)
   }
 
   const loadVideoTexture = async (assetId: string): Promise<THREE.VideoTexture | null> => {
@@ -183,9 +222,17 @@ export function createAssetResolverFromGetter(
     }
     urlCache.clear()
     blobRefById.clear()
+    for (const tex of textureCache.values()) {
+      try {
+        tex.dispose()
+      } catch {
+        /* ignore */
+      }
+    }
+    textureCache.clear()
   }
 
-  return { resolve, loadTexture, loadVideoTexture, isVideoAsset, loadModel, dispose }
+  return { resolve, loadTexture, loadVideoTexture, isVideoAsset, loadModel, cacheTexture, dispose }
 }
 
 /**

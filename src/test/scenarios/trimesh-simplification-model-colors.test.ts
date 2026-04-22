@@ -162,6 +162,7 @@ describe('trimesh + Use model colors — performance booster (vertex colors)', (
       loadVideoTexture: async () => null,
       isVideoAsset: () => false,
       loadModel: async () => null,
+      cacheTexture: () => {},
       dispose: () => {},
     }
 
