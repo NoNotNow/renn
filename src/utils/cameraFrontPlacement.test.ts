@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import type { Entity } from '@/types/world'
+import type { Entity, Vec3 } from '@/types/world'
 import {
   CAMERA_FRONT_MIN_DISTANCE,
   computeFrontDistance,
@@ -46,8 +46,8 @@ describe('computeFrontDistance', () => {
 
 describe('placeEntitiesInFrontOfCamera', () => {
   const camera = {
-    position: [0, 0, 0] as const,
-    forward: [0, 0, -1] as const,
+    position: [0, 0, 0] as Vec3,
+    forward: [0, 0, -1] as Vec3,
     fovRadians: (50 * Math.PI) / 180,
     aspect: 1,
   }

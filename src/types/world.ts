@@ -205,10 +205,35 @@ export interface WorldSettings {
    * Omitted: {@link DEFAULT_VIDEO_TEXTURE_MAX_ANISOTROPY}.
    */
   videoTextureMaxAnisotropy?: number
+  /**
+   * WebGL canvas pixel ratio relative to `window.devicePixelRatio`.
+   * - `'low'` → 1× (sharpest perf win on HiDPI)
+   * - `'medium'` / omitted → min(dpr, 1.5) (default)
+   * - `'high'` → min(dpr, 2)
+   */
+  renderPixelRatio?: 'low' | 'medium' | 'high'
 }
 
 /** Default `VideoTexture.anisotropy` when `videoTextureMaxAnisotropy` is omitted. */
 export const DEFAULT_VIDEO_TEXTURE_MAX_ANISOTROPY = 16
+
+/**
+ * Resolve the actual pixel ratio for `WebGLRenderer.setPixelRatio`.
+ * `dpr` defaults to `window.devicePixelRatio` when called in-browser.
+ */
+export function resolvedPixelRatio(
+  settings?: Pick<WorldSettings, 'renderPixelRatio'>,
+  dpr = typeof window !== 'undefined' ? window.devicePixelRatio : 1,
+): number {
+  switch (settings?.renderPixelRatio) {
+    case 'low':
+      return 1
+    case 'high':
+      return Math.min(dpr, 2)
+    default:
+      return Math.min(dpr, 1.5)
+  }
+}
 
 /** `false` disables logarithmic depth; omitted or `true` enables (default). */
 export function resolvedLogarithmicDepthBuffer(

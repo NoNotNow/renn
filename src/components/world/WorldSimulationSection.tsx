@@ -1,4 +1,4 @@
-import type { RennWorld, SimulationSettings } from '@/types/world'
+import type { RennWorld, SimulationSettings, WorldSettings } from '@/types/world'
 import {
   clampVideoTextureMaxAnisotropy,
   DEFAULT_SIMULATION,
@@ -148,6 +148,31 @@ export default function WorldSimulationSection({ world, edits }: WorldSimulation
         defaultValue={DEFAULT_VIDEO_TEXTURE_MAX_ANISOTROPY}
         logComponent="WorldPanel"
       />
+      <div style={{ ...sidebarRowStyle, marginTop: 8 }}>
+        <label
+          htmlFor="world-render-pixel-ratio"
+          style={{ ...sidebarLabelStyle, cursor: 'help' }}
+          title="Controls the WebGL canvas pixel density. Low (1×) is the biggest GPU saving on HiDPI displays. Medium (up to 1.5×, default) balances quality and cost. High (up to 2×) is sharpest but most expensive."
+        >
+          Render quality
+        </label>
+        <select
+          id="world-render-pixel-ratio"
+          value={world.world.renderPixelRatio ?? 'medium'}
+          onChange={(e) => {
+            pushUndo()
+            uiLogger.change('WorldPanel', 'Change render quality', { renderPixelRatio: e.target.value })
+            updateWorldSettings({
+              renderPixelRatio: e.target.value as WorldSettings['renderPixelRatio'],
+            })
+          }}
+          style={{ fontSize: 12, cursor: 'pointer' }}
+        >
+          <option value="low">Low (1×)</option>
+          <option value="medium">Medium (up to 1.5×)</option>
+          <option value="high">High (up to 2×)</option>
+        </select>
+      </div>
     </div>
   )
 }

@@ -97,14 +97,15 @@ export function placeEntitiesInFrontOfCamera(input: PlaceEntitiesInFrontOfCamera
   const out = new Map<string, Vec3>()
   if (entities.length === 0) return out
 
-  const positions = entities.map((e) => e.position)
+  const positions: Vec3[] = entities.map((e) => e.position ?? [0, 0, 0])
   const center = computeGroupCenter(positions)
 
   let enclosingRadius = 0
   for (const ent of entities) {
+    const pos: Vec3 = ent.position ?? [0, 0, 0]
     const ext = extentByEntityId.get(ent.id) ?? 1
     const r = ext * 0.5
-    const d = Math.sqrt(vec3LenSq(vec3Sub(ent.position, center))) + r
+    const d = Math.sqrt(vec3LenSq(vec3Sub(pos, center))) + r
     if (d > enclosingRadius) enclosingRadius = d
   }
 
@@ -114,7 +115,8 @@ export function placeEntitiesInFrontOfCamera(input: PlaceEntitiesInFrontOfCamera
   const anchor = vec3Add(camera.position, vec3Scale(fwd, dist))
 
   for (const ent of entities) {
-    const delta = vec3Sub(ent.position, center)
+    const entPos: Vec3 = ent.position ?? [0, 0, 0]
+    const delta = vec3Sub(entPos, center)
     out.set(ent.id, vec3Add(anchor, delta))
   }
   return out

@@ -16,6 +16,7 @@ import {
   DEFAULT_ROTATION,
   resolveSimulationSettings,
   resolvedLogarithmicDepthBuffer,
+  resolvedPixelRatio,
 } from '@/types/world'
 import { eulerToQuaternion } from '@/utils/rotationUtils'
 import type { LoadedEntity } from '@/loader/loadWorld'
@@ -642,7 +643,7 @@ function SceneViewInner({
       const w = Math.max(container.clientWidth || 800, 1)
       const h = Math.max(container.clientHeight || 600, 1)
       rend.setSize(w, h)
-      rend.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+      rend.setPixelRatio(resolvedPixelRatio(world.world))
       rend.shadowMap.enabled = shadowsEnabled
       rend.shadowMap.type = THREE.PCFSoftShadowMap
       container.appendChild(rend.domElement)
@@ -1036,6 +1037,11 @@ function SceneViewInner({
       if (sceneUserData.directionalLight) sceneUserData.directionalLight.castShadow = shadowsEnabled
     }
   }, [shadowsEnabled, renderer, scene])
+
+  // Update pixel ratio when quality setting changes (no full reload needed)
+  useEffect(() => {
+    if (renderer) renderer.setPixelRatio(resolvedPixelRatio(world.world))
+  }, [world.world.renderPixelRatio, renderer])
 
   // Update the directional shadow camera orthographic bounds when planes change.
   // Note: plane `scale`/`position` updates in the Builder do not trigger a full scene rebuild.
