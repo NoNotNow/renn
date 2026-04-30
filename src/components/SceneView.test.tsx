@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render } from '@testing-library/react'
+import { render, waitFor } from '@testing-library/react'
 import SceneView, { type SceneViewHandle } from '@/components/SceneView'
 import type { RennWorld } from '@/types/world'
 
@@ -81,6 +81,14 @@ describe('SceneView', () => {
     render(<SceneView world={minimalWorld} runPhysics={false} runScripts={false} />)
     const container = document.querySelector('div[style*="width: 100%"]')
     expect(container).toBeInTheDocument()
+  })
+
+  it('hides scene bootstrap overlay after loadWorld completes', async () => {
+    render(<SceneView world={minimalWorld} runPhysics={false} runScripts={false} />)
+    expect(document.querySelector('[data-testid="scene-bootstrap-loading"]')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(document.querySelector('[data-testid="scene-bootstrap-loading"]')).not.toBeInTheDocument()
+    })
   })
 
   it('renders without error when given editor props', () => {

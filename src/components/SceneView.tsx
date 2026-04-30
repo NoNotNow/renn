@@ -61,6 +61,7 @@ import { ScriptSnackbar } from '@/components/ScriptSnackbar'
 import { GameHud } from '@/components/GameHud'
 import { FrameStatsOverlay } from '@/components/FrameStatsOverlay'
 import { WarningSnackbar } from '@/components/WarningSnackbar'
+import IndeterminateLoadingBar from '@/components/IndeterminateLoadingBar'
 import { AvatarSession } from '@/runtime/avatarSession'
 export interface SceneViewProps {
   world: RennWorld
@@ -274,6 +275,8 @@ function SceneViewInner({
   const dismissSchemaLoadWarnings = useCallback(() => setSchemaLoadWarnings([]), [])
   const [worldLoadError, setWorldLoadError] = useState<string | null>(null)
   const dismissWorldLoadError = useCallback(() => setWorldLoadError(null), [])
+  /** Covers async loadWorld + sync GPU texture warm-up until the first animation frame is scheduled. */
+  const [sceneBootstrapPending, setSceneBootstrapPending] = useState(true)
   const [scriptSnackbarMessage, setScriptSnackbarMessage] = useState<string | null>(null)
   const [hudScore, setHudScore] = useState(0)
   const [hudDamage, setHudDamage] = useState(0)
@@ -464,6 +467,8 @@ function SceneViewInner({
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
+
+    setSceneBootstrapPending(true)
 
     // Increment effect ID to detect stale async operations
     effectIdRef.current += 1
@@ -838,6 +843,7 @@ function SceneViewInner({
       // Pre-upload all scene textures to the GPU before the first rAF tick to prevent
       // `Image Paint blob:` stalls mid-frame on initial render.
       warmUpRendererTextures(rend, loadedScene)
+      setSceneBootstrapPending(false)
 
       // Schedule idle-time texture pre-decode for the next world rebuild.
       if (assetResolver) {
@@ -894,10 +900,12 @@ function SceneViewInner({
               ? err
               : 'Unknown error while loading the world.'
         setWorldLoadError(msg)
+        setSceneBootstrapPending(false)
       }
     })
 
     return () => {
+      setSceneBootstrapPending(false)
       // Set cancelled first to stop animation loop
       cancelled = true
       prefetchDisposer?.cancel()
@@ -1088,6 +1096,26 @@ function SceneViewInner({
         {...{ [BUILDER_SCENE_CANVAS_HOST_ATTR]: true }}
         style={{ width: '100%', height: '100%' }}
       />
+      {sceneBootstrapPending ? (
+        <div
+          data-testid="scene-bootstrap-loading"
+          style={{
+            position: 'absolute',
+            inset: 0,
+            zIndex: 20,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 16,
+            background: '#171a22',
+            color: '#e6e9f2',
+          }}
+        >
+          <p style={{ margin: 0, fontSize: 14 }}>Loading scene…</p>
+          <IndeterminateLoadingBar />
+        </div>
+      ) : null}
       {worldLoadError !== null ? (
         <WorldLoadErrorOverlay message={worldLoadError} onDismiss={dismissWorldLoadError} />
       ) : null}
