@@ -2,7 +2,7 @@
 
 Working document derived from Firefox profiling on a heavy project (RefreshDriver / `requestAnimationFrame`, GC, CSS HUD, JIT notes) and from codebase review. **Items are ordered by typical impact (largest gains first).** Update statuses and notes as work completes.
 
-**Current status (2026-04-08, doc sync 2026-04-19):** JS allocation-reduction work (§2, §6, §7) is **benchmark-validated** — near-zero heap growth, full object reuse, linear scaling (see §10). Re-validate heap + scaling asserts with `npm run test:perf` (`RUN_PERF_BENCHMARKS=1`; those two describes are skipped in default `test:run` to avoid flaky thresholds under parallel Vitest). **Tier 1 GPU**, **Tier 2** hot-path alloc, and **Tier 3** (`FrameStatsOverlay` ~10 Hz, `GameHud` memo) are in code. **Inspector pose polling** uses [`LivePosesPoll.tsx`](../src/components/LivePosesPoll.tsx) in [`Builder.tsx`](../src/pages/Builder.tsx): interval + state live **under** that wrapper so **`PropertySidebar`** (and siblings inside the render prop) reconcile on the tick — **not** the full `Builder` tree. **Latest Firefox markers** summarized in [§1.2](#12-firefox-marker-export-2026-04-08-builder--play). **Velocity cache**, **sleep-skip**, **timestep sync**, and **geometry count** in Frame Stats overlay are implemented. **Next:** optional idle material prefetch if decode-in-rAF returns; instancing/LOD when GPU stats justify it.
+**Current status (2026-04-08, doc sync 2026-04-29):** JS allocation-reduction work (§2, §6, §7) is **benchmark-validated** — near-zero heap growth, full object reuse, linear scaling (see §10). Re-validate heap + scaling asserts with `npm run test:perf` (`RUN_PERF_BENCHMARKS=1`; those two describes are skipped in default `test:run` to avoid flaky thresholds under parallel Vitest). **Tier 1 GPU**, **Tier 2** hot-path alloc, and **Tier 3** (`FrameStatsOverlay` ~10 Hz, `GameHud` memo) are in code. **Inspector pose polling** uses [`LivePosesPoll.tsx`](../src/components/LivePosesPoll.tsx) in [`Builder.tsx`](../src/pages/Builder.tsx): interval + state live **under** that wrapper so **`PropertySidebar`** (and siblings inside the render prop) reconcile on the tick — **not** the full `Builder` tree. **Latest Firefox markers** summarized in [§1.2](#12-firefox-marker-export-2026-04-08-builder--play). **Velocity cache**, **sleep-skip**, **timestep sync**, and **geometry count** in Frame Stats overlay are implemented. **Next:** optional idle material prefetch if decode-in-rAF returns; instancing/LOD when GPU stats justify it.
 
 **Legend:** `[ ]` not started · `[~]` in progress · `[x]` done
 
@@ -19,7 +19,7 @@ Working document derived from Firefox profiling on a heavy project (RefreshDrive
 
 | Status | Item | Notes |
 |--------|------|--------|
-| [~] | Capture **JS flame charts** (Firefox Profiler JS view or Chrome Performance) for the same bad scene: split time for **physics step**, **`executeTransformers`**, **`runOnUpdate` scripts**, **`renderer.render`**, React/Builder overhead | **How-to:** see [§1 procedure](#11-how-to-capture-js-flame-charts). Correlate with **View → Frame stats** (`frameTiming.ts`). Rank sub-costs inside the rAF callback after §2 physics alloc fix. |
+| [~] | Capture **JS flame charts** (Firefox Profiler JS view or Chrome Performance) for the same bad scene: split time for **physics step**, **`executeTransformers`**, **`runOnUpdate` scripts**, **`renderer.render`**, React/Builder overhead | **How-to:** see [§1 procedure](#11-how-to-capture-js-flame-charts). **2026-04-29:** Headless **phase %** after cache work in [§1.4](#14-post-cache-phase-split-headless-vs-browser). **Browser** Chrome §1.3-style call tree on the heavy project still **manual** (same steps as §1.1). Correlate with **View → Frame stats** (`frameTiming.ts`). |
 | [x] | Optional: **in-app frame timing HUD** (fps + last-frame ms breakdown) for regressions without DevTools | **View → Frame stats** in Builder (`world.world.showFrameStats`, World panel); saved with the project. Overlay position only: `localStorage` key `builderFrameStatsOverlayPos`. Sections: transformers, physics, script collisions, `onUpdate`, camera, game HUD, render. |
 
 ### 1.1 How to capture JS flame charts
@@ -81,6 +81,22 @@ Chrome DevTools Performance tab with call tree. Users report Chrome is noticeabl
 | **`wasm-to-js` boundary** | — | **562 ms** | WASM→JS bridge |
 | **Minor GC** | 0.3 ms | — | Much smaller than Firefox |
 
+### 1.4 Post-cache phase split (headless vs browser)
+
+**2026-04-29 — headless benchmark (automated):** `npm run test:run -- src/test/scenarios/performance-benchmarks.integration.test.ts` → **Per-phase cost breakdown** test (`WorldSimulator.runFramesTimed`, 20 entities, 300 frames after warmup). Aggregated over all frames:
+
+| Phase | % of frame time | Notes |
+|--------|-----------------|--------|
+| **Physics step** (`physicsWorld.step`) | **~86%** | Includes Rapier **step** and **`rebuildTouchingCache`** (batched touching/support); same wall-clock bucket as the physics timer in the harness |
+| **Transformers** (`executeTransformers`) | **~11%** | Down from the pre-cache Chrome picture where **~65%** of rAF was under `executeTransformers` and much of that was per-entity `contactPair` / `contactPairsWith` — that work now runs once per step inside `step()`, not inside `executeTransformers` |
+| **Sync** (`syncFromPhysics`) | **~3%** | |
+
+Mean frame time in this run: **~0.049 ms** (tiny world, Node/jsdom — **not** comparable to ms/frame in the browser).
+
+**Interpretation:** Headless splits **exclude** `renderer.render`, React, and user **`onUpdate` scripts**. They are useful to confirm that **transformer-pass** time is no longer dominated by redundant contact queries. For **§1.3-style** symbol-level data (rAF → `runSceneFrame` → `WebGLRenderer.render`, etc.), record **Chrome Performance** on the **same heavy Builder + Play project** as §1.3 and add a dated table below or replace §1.3 with a “before / after” note.
+
+**Manual check (browser):** After recording, confirm under **`executeTransformers`** that **`contactPair`** / **`isEntityTouchingAny`** are absent or negligible vs §1.3; expect **`PhysicsWorld.step`** / Rapier / cache fill to carry more of the physics cost instead.
+
 **AI summary of the full trace (whole session):**
 
 | Category | Total self time | Details |
@@ -135,7 +151,7 @@ Chrome DevTools Performance tab with call tree. Users report Chrome is noticeabl
 |--------|------|--------|
 | [ ] | Use **Performance Booster** / **`countVisualModelTriangles`**-style data to find worst entities; simplify meshes (existing meshoptimizer path) | Already partially supported in product. |
 | [x] | **Shadow map**: lower resolution, tighten frustum, disable `castShadow` on small props | **2026-04-08:** 1024² map; `castShadow` off when world AABB half-extent &lt; 0.3 (`shadowBounds.updateMeshCastShadowFromWorldAabb`); `loadWorld` + `RenderItemRegistry.updateShape`. |
-| [x] | **Pixel ratio** cap: already `min(dpr, 2)`; consider **1.5** or quality setting on low-end | **2026-04-08:** `SceneView` uses `min(dpr, 1.5)` (`MAX_SCENE_PIXEL_RATIO`). Optional user toggle still open. |
+| [x] | **Pixel ratio** cap + **user quality** | **`renderPixelRatio`:** `'low'` = 1×, `'medium'` = min(dpr, 1.5) default, `'high'` = min(dpr, 2) — World → Simulation ([`WorldSimulationSection.tsx`](../src/components/world/WorldSimulationSection.tsx)), [`resolvedPixelRatio`](../src/types/world.ts). Reactive `setPixelRatio` in [`SceneView.tsx`](../src/components/SceneView.tsx). |
 | [~] | **Instancing** for many copies of the same mesh + material | Larger engineering item; big win when applicable. **2026-04-08:** Frame Stats overlay now shows `geometries` count (`renderer.info.memory.geometries`); compare draw calls vs geometries to identify instancing candidates. Architecture outlined in plan (group by geometry+material hash → `InstancedMesh`). |
 | [x] | **Distance culling** | `WorldSettings.distanceCulling` (`maxDistance`, `minSizeDistanceRatio`, optional `sleepCulled`); omitted = enabled with defaults; `false` = off. `RenderItem.worldSize` is the max edge of a **world-space mesh AABB** (`computeMeshWorldMaxExtent`), refreshed on load and when scale/shape/model changes — not per frame. Hard `maxDistance` does not cull when `worldSize` exceeds camera distance (large objects). `WorldPanel`. Culled: hide mesh + skip transformers; with `sleepCulled`, freeze Rapier bodies + skip scripts. |
 | [ ] | **Multi-resolution LOD** (simplified far meshes) | Separate project — see [feature-lod.md](feature-lod.md). `meshSimplifier.ts` can generate reduced geometries, but `THREE.LOD` swap-distance logic + asset pipeline changes are out of scope for this backlog. |
@@ -266,15 +282,15 @@ Combines Firefox profiling, **Chrome Performance** call tree (§1.3), headless b
 |---|---|---|---|
 | **Rapier WASM wrapper churn** (FinalizationRegistry) | Chrome: **4,541 ms** `__wrap` + **1,451 ms** `__destroy_into_raw` over session; **497 ms / 1,760 ms** per frame in touching queries | **~30 ms/frame** (heavy scene) | **Yes (done 2026-04-08):** `rebuildTouchingCache` batches queries; `CachedTransform` extended with `linvel`/`angvel`/`isKinematic`/`isSleeping` — eliminates `body.linvel()`/`body.angvel()`/`getBody()` calls from `executeTransformers`. |
 | **GPU fill + shadow pass** | WebGL `DispatchCommands` 27–33 ms; `GetLinkResult` 14 ms sync stall | 30+ ms (exceeds 16.7 ms budget alone) | **Yes:** shadow res, DPR cap, fewer casters |
-| **Rapier WASM step** (core) | Chrome: `wasm-function[1192]` **562 ms** total; headless 51% | ~10 ms | Partially: sleep tuning (**done 2026-04-08** — sleeping bodies skip forces/transformers), `world.timestep = dt` synced, simpler colliders (guidance added) |
-| **Transformer JS** | Chrome: `executeTransformers` **1,148 ms** total (includes touching); headless 46% | ~8 ms | **Yes:** cached sort + in-place **done**; touching cache **done** |
+| **Rapier WASM step** (core + cache fill) | Chrome: `wasm-function[1192]` **562 ms** total; headless **~86%** of sim loop ([§1.4](#14-post-cache-phase-split-headless-vs-browser), 2026-04-29) — **`rebuildTouchingCache` is timed inside `step()`** | ~10 ms browser (heavy scene) | Partially: sleep tuning (**done 2026-04-08**), `world.timestep = dt` synced, simpler colliders (guidance added) |
+| **Transformer JS** | Chrome (pre-cache): `executeTransformers` **1,148 ms** total (included per-entity touching); headless **~11%** post-cache ([§1.4](#14-post-cache-phase-split-headless-vs-browser)) | ~8 ms | **Yes:** cached sort + in-place **done**; touching cache **done** — browser **§1.3-style** re-capture still open to confirm `contactPair` no longer under `executeTransformers` |
 | **React reconciliation** | Builder `livePoses` polling in **`LivePosesPoll`** → `PropertySidebar` subtree | 1–5 ms on inspector path | **Partial:** `FrameStatsOverlay` throttled; pose subtree isolated **2026-04-19** |
 | **Remaining JS alloc** | Script APIs, `ScriptRunner`, occasional `Object.keys` in clears | < 1 ms cumulative typical | **Partial:** Tier 2 hot paths addressed |
 
 **Key insights:**
 - Chrome call tree (§1.3): `executeTransformers` at **65%** of frame; **nearly half** is per-entity `contactPairsWith`/`contactPair` WASM wrapper churn → **addressed by `rebuildTouchingCache`**.
 - Firefox amplifies the same cost with `GCMinor` (nursery promotion), JIT bailouts, and longer GC pauses.
-- The headless benchmark phase split (physics 51%, transformers 46%, sync 3%) **excludes** `renderer.render` (Three.js GPU submit). In the browser, GPU + WASM wrapper overhead together dominate.
+- The headless benchmark phase split (**~86%** physics / **`step()`** incl. `rebuildTouchingCache`, **~11%** transformers, **~3%** sync — [§1.4](#14-post-cache-phase-split-headless-vs-browser), 2026-04-29) **excludes** `renderer.render` (Three.js GPU submit). Older **51% / 46%** figures reflected more touching work attributed to the transformer pass before cache batching moved it into `step()`. In the browser, GPU + WASM overhead still dominate user-visible frame time.
 
 ### Prioritized action plan
 
@@ -334,6 +350,7 @@ Improves Builder responsiveness; does not affect standalone Play FPS:
 | Date | Key changes |
 |------|-------------|
 | 2026-04-08 | Tier 1 GPU (shadows 1024², PCFShadowMap, DPR 1.5, AABB castShadow), Tier 2 alloc (CachedTransform reuse, transformer chain, input mapping, debug forces, velocity helpers), Tier 3 React (InspectorLivePoseBridge, FrameStatsOverlay throttle, GameHud memo), Chrome trace analysis, rebuildTouchingCache, velocity/sleeping cache, distance culling, perf benchmarks |
+| 2026-04-29 | **§1.4** post-cache **headless** phase split (20 entities, 300 frames): transformers ~11%, physics ~86%, sync ~3%; notes on bucket shift after `rebuildTouchingCache`. §1 flame row: partial (browser trace still manual). §4 DPR row aligned with `renderPixelRatio` + §11. |
 | 2026-04-19 | Doc sync + cleanup Phase 2: `DEFAULT_FREE_FLY_KEYS` in `types/camera`, `worldGroundPatch`, shared drop-zone / pick-button styles, **`LivePosesPoll`** wired in Builder (Tier 3 row 11). `prefetchMaterialTextures` / unused bridge removed earlier. `TransformerTemplateDialog` test: await async preset load before assert. |
 | 2026-04-09 | Distance culling uncull fix (`enableBodyFromCulling` refreshes cache + clears sleep timer) |
 | 2026-04-15 | Controlled avatar exempt from sleep/cull skips (`wakeDynamicAndRefreshTransformCache`) | While a body is culled with `sleepCulled`, `step()` does not refresh its `CachedTransform`, so `isSleeping` can stay `true` from the last simulated frame. `enableBodyFromCulling` now runs `syncCachedTransformFromBody(..., full)` after `wakeUp()` and clears that entity’s `customSleepTimers` entry so the next frame’s `executeTransformers` (before `step`) sees an awake cache and stale custom-sleep timers do not immediately re-sleep the body. Regression: `rapierPhysics.test.ts` (`enableBodyFromCulling refreshes cached transform…`). |
