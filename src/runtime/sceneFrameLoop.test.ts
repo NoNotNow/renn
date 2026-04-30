@@ -144,6 +144,35 @@ describe('runSceneFrame — time advance', () => {
     runSceneFrame(input)
     expect(update).toHaveBeenCalledWith(SCENE_FIXED_DT)
   })
+
+  it('applies render interpolation alpha before camera update', () => {
+    const applyInterpolatedVisualPoses = vi.fn()
+    const update = vi.fn()
+    const ctrl = {
+      getConfig: () => ({ control: 'free', mode: 'follow' }),
+      setForceFreeFlyNavigation: () => {},
+      setFreeFlyInput: () => {},
+      setOrbitDelta: () => {},
+      setOrbitDistanceDelta: () => {},
+      setEditNavigationOrbitPivot: () => {},
+      update,
+    } as unknown as CameraController
+    const input = makeBaseInput({
+      cameraCtrlRef: { current: ctrl },
+      registryRef: {
+        current: {
+          applyInterpolatedVisualPoses,
+        } as unknown as RenderItemRegistry,
+      },
+      renderInterpolationAlpha: 0.375,
+    })
+    runSceneFrame(input)
+    expect(applyInterpolatedVisualPoses).toHaveBeenCalledWith(0.375)
+    expect(update).toHaveBeenCalled()
+    expect(applyInterpolatedVisualPoses.mock.invocationCallOrder[0]).toBeLessThan(
+      update.mock.invocationCallOrder[0],
+    )
+  })
 })
 
 describe('runSceneFrame — wheel orbit gating', () => {

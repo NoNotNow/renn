@@ -10,6 +10,7 @@ Working document derived from Firefox profiling on a heavy project (RefreshDrive
 
 - **World settings** (`world.world`): **`logarithmicDepthBuffer`** — omit or `true` for logarithmic depth (default); `false` disables. **`videoTextureMaxAnisotropy`** — integer **1–16** for `VideoTexture.anisotropy` on material video maps (default **16** when omitted). Toggles live in the **World** panel (simulation section). Changing them **reloads the scene** (same path as other renderer-affecting options).
 - **`modelPreview`** uses the same default as an omitted world flag: logarithmic depth **on** (see `resolvedLogarithmicDepthBuffer(undefined)`).
+- **Physics/render smoothing** has a separate work note: [`physics-render-smoothing-work.md`](physics-render-smoothing-work.md). Treat visual interpolation as the first fix; raising physics FPS is a measured performance-cost fallback.
 
 ---
 

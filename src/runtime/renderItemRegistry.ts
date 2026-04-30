@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import type { LoadedEntity } from '@/loader/loadWorld'
-import type { PhysicsWorld } from '@/physics/rapierPhysics'
+import type { CachedTransform, PhysicsWorld } from '@/physics/rapierPhysics'
 import type { Vec3, Rotation, Entity, DistanceCullingSettings } from '@/types/world'
 import { createShapeGeometry, materialFromRef } from '@/loader/createPrimitive'
 import type { DisposableAssetResolver } from '@/loader/assetResolverImpl'
@@ -15,6 +15,7 @@ import type {
   TransformerConfig,
   RawInput,
 } from '@/types/transformer'
+import { interpolateVisualPose } from './visualPoseInterpolation'
 import { clearActionRecord } from '@/types/transformer'
 import {
   bakeMeshScaleIntoModelScaleEntity,
@@ -29,6 +30,16 @@ import { applyVisualBase, setVisualBaseFromShape, stripVisualBase } from '@/util
 
 const shapeUpdateShadowBox = new THREE.Box3()
 const shapeUpdateShadowSize = new THREE.Vector3()
+
+type VisualPoseState = {
+  previousPosition: THREE.Vector3
+  currentPosition: THREE.Vector3
+  visualPosition: THREE.Vector3
+  previousRotation: THREE.Quaternion
+  currentRotation: THREE.Quaternion
+  visualRotation: THREE.Quaternion
+  initialized: boolean
+}
 
 /**
  * Registry of render items: one per entity. Owns body→mesh sync each frame.
@@ -62,6 +73,7 @@ export class RenderItemRegistry {
   private readonly _tfActions: Record<string, number> = {}
   private readonly _tfEnvironment: EnvironmentState = {}
   private readonly _tfInput: TransformInput
+  private readonly _visualPoseStates = new Map<string, VisualPoseState>()
   /** Valid until the next `getEntityWorldPoseForTransformers` call (follow copies values immediately). */
   private readonly _leadPosePosition: Vec3 = [0, 0, 0]
   private readonly _leadPoseRotation: Rotation = [0, 0, 0]
@@ -239,6 +251,40 @@ export class RenderItemRegistry {
     return this.items.get(id)
   }
 
+  private getOrCreateVisualPoseState(id: string): VisualPoseState {
+    let state = this._visualPoseStates.get(id)
+    if (!state) {
+      state = {
+        previousPosition: new THREE.Vector3(),
+        currentPosition: new THREE.Vector3(),
+        visualPosition: new THREE.Vector3(),
+        previousRotation: new THREE.Quaternion(),
+        currentRotation: new THREE.Quaternion(),
+        visualRotation: new THREE.Quaternion(),
+        initialized: false,
+      }
+      this._visualPoseStates.set(id, state)
+    }
+    return state
+  }
+
+  private syncVisualPoseStateFromCached(id: string, cached: CachedTransform): VisualPoseState {
+    const state = this.getOrCreateVisualPoseState(id)
+    if (state.initialized) {
+      state.previousPosition.copy(state.currentPosition)
+      state.previousRotation.copy(state.currentRotation)
+    } else {
+      state.previousPosition.set(cached.position.x, cached.position.y, cached.position.z)
+      state.previousRotation.set(cached.rotation.x, cached.rotation.y, cached.rotation.z, cached.rotation.w)
+      state.initialized = true
+    }
+    state.currentPosition.set(cached.position.x, cached.position.y, cached.position.z)
+    state.currentRotation.set(cached.rotation.x, cached.rotation.y, cached.rotation.z, cached.rotation.w)
+    state.visualPosition.copy(state.currentPosition)
+    state.visualRotation.copy(state.currentRotation)
+    return state
+  }
+
   /**
    * Sync primitive shape wireframe overlays from world entities (entity.model + flag).
    * Does not trigger full scene reload; safe to call after inspector edits.
@@ -255,14 +301,37 @@ export class RenderItemRegistry {
 
   getPosition(id: string): Vec3 | null {
     const item = this.items.get(id)
-    return item ? item.getPosition() : null
+    if (!item) return null
+    const cached = item.hasPhysicsBody() ? this.physicsWorld?.getCachedTransform(id) : undefined
+    if (cached) {
+      return [cached.position.x, cached.position.y, cached.position.z]
+    }
+    return item.getPosition()
   }
 
   /**
-   * getPosition as THREE.Vector3 for consumers that expect a vector (e.g. CameraController).
-   * Writes into out if provided to avoid allocation.
+   * Authoritative position as THREE.Vector3. Writes into out if provided to avoid allocation.
    */
   getPositionAsVector3(id: string, out?: THREE.Vector3): THREE.Vector3 | null {
+    const item = this.items.get(id)
+    if (!item) return null
+    const cached = item.hasPhysicsBody() ? this.physicsWorld?.getCachedTransform(id) : undefined
+    const p = cached ? null : item.getPosition()
+    const x = cached ? cached.position.x : p![0]
+    const y = cached ? cached.position.y : p![1]
+    const z = cached ? cached.position.z : p![2]
+    if (out) {
+      out.set(x, y, z)
+      return out
+    }
+    return new THREE.Vector3(x, y, z)
+  }
+
+  /**
+   * Visual position as THREE.Vector3 for render-facing consumers (e.g. CameraController).
+   * Writes into out if provided to avoid allocation.
+   */
+  getVisualPositionAsVector3(id: string, out?: THREE.Vector3): THREE.Vector3 | null {
     const item = this.items.get(id)
     if (!item) return null
     const [x, y, z] = item.getPosition()
@@ -284,14 +353,37 @@ export class RenderItemRegistry {
 
   getRotation(id: string): Rotation | null {
     const item = this.items.get(id)
-    return item ? item.getRotation() : null
+    if (!item) return null
+    const cached = item.hasPhysicsBody() ? this.physicsWorld?.getCachedTransform(id) : undefined
+    if (cached) {
+      this._leadPoseRotation[0] = 0
+      this._leadPoseRotation[1] = 0
+      this._leadPoseRotation[2] = 0
+      rapierQuaternionToEulerInto(cached.rotation, this._leadPoseRotation)
+      return [this._leadPoseRotation[0], this._leadPoseRotation[1], this._leadPoseRotation[2]]
+    }
+    return item.getRotation()
   }
 
   /**
-   * getRotation as THREE.Quaternion for consumers that need a quaternion (e.g. CameraController).
-   * Compensates for visual base quaternion so the result reflects logical rotation.
+   * Authoritative rotation as THREE.Quaternion. Physics-backed entities read from the cached Rapier pose.
    */
   getRotationAsQuaternion(id: string, out?: THREE.Quaternion): THREE.Quaternion | null {
+    const item = this.items.get(id)
+    if (!item) return null
+    const cached = item.hasPhysicsBody() ? this.physicsWorld?.getCachedTransform(id) : undefined
+    if (cached) {
+      const target = out ?? new THREE.Quaternion()
+      return target.set(cached.rotation.x, cached.rotation.y, cached.rotation.z, cached.rotation.w)
+    }
+    return stripVisualBase(item.mesh.quaternion, item.mesh, out ?? new THREE.Quaternion())
+  }
+
+  /**
+   * Visual rotation as THREE.Quaternion for render-facing consumers (e.g. CameraController).
+   * Compensates for visual base quaternion so the result reflects logical rotation.
+   */
+  getVisualRotationAsQuaternion(id: string, out?: THREE.Quaternion): THREE.Quaternion | null {
     const item = this.items.get(id)
     if (!item) return null
     return stripVisualBase(item.mesh.quaternion, item.mesh, out ?? new THREE.Quaternion())
@@ -879,11 +971,38 @@ export class RenderItemRegistry {
       // Use cached transforms instead of direct body access to avoid WASM aliasing
       const cached = this.physicsWorld.getCachedTransform(item.entity.id)
       if (!cached) continue
-      
-      const pos = cached.position
-      const rot = cached.rotation
-      item.mesh.position.set(pos.x, pos.y, pos.z)
-      item.mesh.quaternion.set(rot.x, rot.y, rot.z, rot.w)
+
+      const state = this.syncVisualPoseStateFromCached(item.entity.id, cached)
+      item.mesh.position.copy(state.currentPosition)
+      item.mesh.quaternion.copy(state.currentRotation)
+      applyVisualBase(item.mesh.quaternion, item.mesh)
+    }
+  }
+
+  /**
+   * Apply display-only interpolation after authoritative physics sync.
+   * Scripts/transformers continue to read cached physics state through authoritative getters.
+   */
+  applyInterpolatedVisualPoses(alpha: number): void {
+    if (!this.physicsWorld) return
+
+    for (const item of this.items.values()) {
+      if (!item.hasPhysicsBody()) continue
+      if (item.distanceCullingPhysicsFrozen) continue
+      const state = this._visualPoseStates.get(item.entity.id)
+      if (!state?.initialized) continue
+
+      interpolateVisualPose(
+        state.visualPosition,
+        state.visualRotation,
+        state.previousPosition,
+        state.currentPosition,
+        state.previousRotation,
+        state.currentRotation,
+        alpha,
+      )
+      item.mesh.position.copy(state.visualPosition)
+      item.mesh.quaternion.copy(state.visualRotation)
       applyVisualBase(item.mesh.quaternion, item.mesh)
     }
   }
@@ -896,8 +1015,8 @@ export class RenderItemRegistry {
     const poses = new Map<string, { position: Vec3; rotation: Rotation; scale: Vec3 }>()
     for (const [id, item] of this.items) {
       poses.set(id, {
-        position: item.getPosition(),
-        rotation: item.getRotation(),
+        position: this.getPosition(id) ?? item.getPosition(),
+        rotation: this.getRotation(id) ?? item.getRotation(),
         scale: item.getScale(),
       })
     }
@@ -914,6 +1033,7 @@ export class RenderItemRegistry {
       disposeMeshHierarchy(item.mesh)
     }
     this.items.clear()
+    this._visualPoseStates.clear()
     this.physicsWorld = null
   }
 }

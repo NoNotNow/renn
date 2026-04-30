@@ -86,6 +86,8 @@ export interface SceneFrameLoopInputs {
   variableFrameDt?: number
   /** When true, skip the final WebGL `render` (multi-step accumulator intermediates). */
   skipRender?: boolean
+  /** Remainder/fixedDt alpha used for display-only interpolation before camera/render. */
+  renderInterpolationAlpha?: number
 }
 
 /**
@@ -126,6 +128,7 @@ export function runSceneFrame(input: SceneFrameLoopInputs): void {
     skipSimulation = false,
     variableFrameDt = 0,
     skipRender = false,
+    renderInterpolationAlpha = 1,
   } = input
 
   const simAdvance = !skipSimulation
@@ -218,6 +221,11 @@ export function runSceneFrame(input: SceneFrameLoopInputs): void {
       finishTiming()
       return
     }
+  }
+
+  const interpolationRegistry = registryRef.current
+  if (interpolationRegistry && typeof interpolationRegistry.applyInterpolatedVisualPoses === 'function') {
+    interpolationRegistry.applyInterpolatedVisualPoses(renderInterpolationAlpha)
   }
 
   const ctrl = cameraCtrlRef.current

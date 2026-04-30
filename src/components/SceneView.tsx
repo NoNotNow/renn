@@ -545,14 +545,14 @@ function SceneViewInner({
 
       const getEntityPosition = (entityId: string): THREE.Vector3 | null => {
         const reg = registryRef.current
-        if (reg) return reg.getPositionAsVector3(entityId) ?? null
+        if (reg) return reg.getVisualPositionAsVector3(entityId) ?? null
         const obj = loadedScene.getObjectByName(entityId)
         return obj instanceof THREE.Mesh ? obj.position.clone() : null
       }
 
       const getEntityQuaternion = (entityId: string): THREE.Quaternion | null => {
         const reg = registryRef.current
-        if (reg) return reg.getRotationAsQuaternion(entityId) ?? null
+        if (reg) return reg.getVisualRotationAsQuaternion(entityId) ?? null
         return null
       }
 
@@ -768,6 +768,7 @@ function SceneViewInner({
           skipSimulation: boolean
           variableFrameDt: number
           skipRender: boolean
+          renderInterpolationAlpha: number
         }): void => {
           runSceneFrame({
             isCancelled: () => cancelled,
@@ -775,6 +776,7 @@ function SceneViewInner({
             skipSimulation: opts.skipSimulation,
             variableFrameDt: opts.variableFrameDt,
             skipRender: opts.skipRender,
+            renderInterpolationAlpha: opts.renderInterpolationAlpha,
             timeRef,
             rawWheelRef,
             orbitWheelRef,
@@ -812,6 +814,7 @@ function SceneViewInner({
             skipSimulation: true,
             variableFrameDt: clampedElapsed,
             skipRender: false,
+            renderInterpolationAlpha: fixedDt > 0 ? simAccumulator / fixedDt : 1,
           })
         } else {
           for (let i = 0; i < stepsToRun; i++) {
@@ -820,6 +823,7 @@ function SceneViewInner({
               skipSimulation: false,
               variableFrameDt: 0,
               skipRender: i < stepsToRun - 1,
+              renderInterpolationAlpha: i < stepsToRun - 1 ? 1 : simAccumulator / fixedDt,
             })
           }
         }

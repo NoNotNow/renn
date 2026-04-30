@@ -130,6 +130,37 @@ describe('RenderItemRegistry', () => {
     pw.dispose()
   })
 
+  it('applies interpolated visual poses without changing authoritative physics pose reads', () => {
+    const entity: Entity = {
+      id: 'ball',
+      bodyType: 'dynamic',
+      shape: { type: 'sphere', radius: 0.5 },
+      position: [0, 0, 0],
+    }
+    const mesh = new THREE.Mesh(
+      new THREE.SphereGeometry(0.5),
+      new THREE.MeshBasicMaterial()
+    )
+    const pw = new PhysicsWorld()
+    pw.addEntity(entity, mesh)
+    pw.setGravity([0, 0, 0])
+    const registry = RenderItemRegistry.create([{ entity, mesh }], pw)
+
+    pw.step(0)
+    registry.syncFromPhysics()
+    pw.setPosition('ball', 10, 0, 0)
+    pw.step(0)
+    registry.syncFromPhysics()
+
+    registry.applyInterpolatedVisualPoses(0.5)
+
+    expect(mesh.position.x).toBeCloseTo(5)
+    expect(registry.getVisualPositionAsVector3('ball')?.x).toBeCloseTo(5)
+    expect(registry.getPosition('ball')).toEqual([10, 0, 0])
+    expect(registry.getPositionAsVector3('ball')?.x).toBeCloseTo(10)
+    pw.dispose()
+  })
+
   it('getAllPoses returns map of all poses', () => {
     const entity1: Entity = { id: 'e1', position: [1, 2, 3], rotation: [0, 0, 0] }
     const entity2: Entity = { id: 'e2', position: [4, 5, 6], rotation: [0, 1, 0] }

@@ -191,10 +191,11 @@ renn/
 ### Runtime pipeline (each frame)
 
 1. Step **physics** (fixed dt); physics world caches all transforms after step.
-2. **RenderItemRegistry** syncs all entity meshes from cached physics transforms.
-3. Run **script** hooks (e.g. onUpdate).
-4. **Camera** controller updates camera from target entity (via RenderItemRegistry).
-5. **Render** scene with Three.js WebGLRenderer.
+2. **RenderItemRegistry** syncs authoritative cached physics transforms and records previous/current visual-pose samples.
+3. Apply display-only interpolation to physics-backed meshes using the accumulator remainder; scripts/transformers keep reading authoritative physics state.
+4. **Camera** controller updates camera from the visual target pose (via RenderItemRegistry).
+5. Run **script** hooks (e.g. onUpdate).
+6. **Render** scene with Three.js WebGLRenderer.
 
 ---
 
