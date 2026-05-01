@@ -3,7 +3,6 @@ import { createIndexedDbPersistence } from '@/persistence/indexedDb'
 import type { RennWorld, Vec3, Rotation, CameraMode, EditorFreePose, ModelPreset } from '@/types/world'
 import type { ProjectMeta } from '@/persistence/types'
 import { sampleWorld } from '@/data/sampleWorld'
-import { loadWorldFromStatic } from '@/loader/loadWorldFromStatic'
 import SplashScreen from '@/components/SplashScreen'
 import { uiLogger } from '@/utils/uiLogger'
 import { sanitizeZipExportBasename } from '@/utils/assetExport'
@@ -180,53 +179,18 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     }
   }, [resetCameraFromWorld])
 
-  // Load world on initialization: try static (gh-pages) first, else IndexedDB
+  // Load world on initialization: always create a new world
   useEffect(() => {
     let cancelled = false
-    refreshProjects()
+    refreshProjects()  // Optional: Projektliste laden, falls du sie trotzdem brauchst
 
-    loadWorldFromStatic(BASE_URL)
-      .then((staticResult) => {
-        if (cancelled) return
-        if (staticResult) {
-          worldRef.current = staticResult.world
-          setWorld(staticResult.world)
-          setAssets(staticResult.assets)
-          setCurrentProject({ id: null, name: 'Default World', isDirty: false })
-          resetCameraFromWorld(staticResult.world)
-          editorFreePoseRef.current = staticResult.world.world.camera?.editorFreePose ?? null
-          setVersion((v) => v + 1)
-          setDocumentEpoch((e) => e + 1)
-          setInitialLoadPending(false)
-          return
-        }
-        return Promise.all([
-          persistence.listProjects(),
-          persistence.loadAllAssets(),
-        ]).then(([projectList, globalAssets]) => {
-          if (cancelled) return
-          setAssets(globalAssets)
-          const lastId = (() => { try { return localStorage.getItem(LAST_PROJECT_KEY) } catch { return null } })()
-          if (lastId && projectList.some((p) => p.id === lastId)) {
-            return loadProject(lastId).then(() => {
-              if (!cancelled) setInitialLoadPending(false)
-            }).catch((err) => {
-              console.error('Failed to restore last project:', err)
-              if (!cancelled) setInitialLoadPending(false)
-            })
-          }
-          setInitialLoadPending(false)
-        })
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          console.error('Failed to initialize:', err)
-          setInitialLoadPending(false)
-        }
-      })
+    if (!cancelled) {
+      newProject()  // Erstellt eine neue Welt
+      setInitialLoadPending(false)
+    }
 
     return () => { cancelled = true }
-  }, [refreshProjects, loadProject, resetCameraFromWorld])
+  }, [refreshProjects, newProject])
 
   /** World to persist: current worldRef with camera state (control, target, mode) merged in. */
   const getWorldToSave = useCallback(
