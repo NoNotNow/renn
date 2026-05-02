@@ -6,6 +6,7 @@ Docs for LLM/code agents. Read `start-here.md` first, then only what the task re
 |------|--------------|
 | **start-here** | Always — orientation, tech stack, task→file map |
 | **architecture** | Overall structure, data flow, component layout |
+| **feature-coding-custom-transformers** | **Status doc**: Code tab, named customs, `api`, migration — docs/tests gaps, open questions |
 | **feature-transformers** | Entity movement, input, physics behavior, force accumulation |
 | **feature-scripting** | Script editor, game API, event hooks, examples, roadmap |
 | **feature-world-update-reload** | World update path, rebuild key, incremental vs rebuild, minimal-rebuild strategy |

@@ -432,6 +432,10 @@
           "type": "string",
           "description": "Built-in preset types: input, car2, person, targetPoseInput, kinematicMovement, wanderer, follow (see transformerRegistry). Other strings are accepted for forward compatibility."
         },
+        "name": {
+          "type": "string",
+          "description": "Optional label for custom transformers (used in the Code tab; unique among custom entries on the same entity)."
+        },
         "priority": {
           "type": "number",
           "description": "Execution order (lower = earlier), default: 10"

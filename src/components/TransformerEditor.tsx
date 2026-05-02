@@ -13,7 +13,8 @@ import {
   getDefaultTransformerConfig,
   isPresetTransformerType,
 } from '@/transformers/transformerPresets'
-import { defaultCustomTransformerCode } from '@/transformers/customCodeTransformer'
+import { nextUniqueCustomTransformerName } from '@/transformers/customTransformerNaming'
+import { effectiveCustomTransformerCode } from '@/transformers/customCodeTransformer'
 import { useEditorUndo } from '@/contexts/EditorUndoContext'
 
 function padFieldRefPanelOpen(open: boolean[], length: number): boolean[] {
@@ -22,10 +23,6 @@ function padFieldRefPanelOpen(open: boolean[], length: number): boolean[] {
 
 function supportsTemplatePickers(type: string): boolean {
   return isPresetTransformerType(type) && type !== 'custom'
-}
-
-function effectiveCustomCode(t: TransformerConfig): string {
-  return typeof t.code === 'string' && t.code.trim() !== '' ? t.code : defaultCustomTransformerCode()
 }
 
 export interface TransformerEditorProps {
@@ -56,7 +53,13 @@ export default function TransformerEditor({
       JSON.stringify(
         list.map((t, i) =>
           t.type === 'custom'
-            ? { i, c: effectiveCustomCode(t), p: t.priority ?? null, pr: JSON.stringify(t.params ?? {}) }
+            ? {
+                i,
+                c: effectiveCustomTransformerCode(t),
+                p: t.priority ?? null,
+                pr: JSON.stringify(t.params ?? {}),
+                n: t.name ?? '',
+              }
             : { i, t: t.type },
         ),
       ),
@@ -68,7 +71,7 @@ export default function TransformerEditor({
     lastCustomSyncKeyRef.current = customCodeSyncKey
     const next: Record<number, string> = {}
     list.forEach((t, i) => {
-      if (t.type === 'custom') next[i] = effectiveCustomCode(t)
+      if (t.type === 'custom') next[i] = effectiveCustomTransformerCode(t)
     })
     setCustomCodeDrafts(next)
   }, [list, customCodeSyncKey])
@@ -80,7 +83,9 @@ export default function TransformerEditor({
   const handleAddTransformer = (type: string) => {
     if (!type) return
     const config = getDefaultTransformerConfig(type)
-    onChange?.([...list, config])
+    const withName =
+      type === 'custom' ? { ...config, name: nextUniqueCustomTransformerName(list) } : config
+    onChange?.([...list, withName])
     setAddSelectValue('')
   }
 
@@ -396,7 +401,7 @@ export default function TransformerEditor({
                   </div>
                   <TransformerCustomCodeEditor
                     value={
-                      customCodeDrafts[index] !== undefined ? customCodeDrafts[index]! : effectiveCustomCode(transformer)
+                      customCodeDrafts[index] !== undefined ? customCodeDrafts[index]! : effectiveCustomTransformerCode(transformer)
                     }
                     onChange={(text) =>
                       setCustomCodeDrafts((prev) => ({ ...prev, [index]: text }))
@@ -408,12 +413,12 @@ export default function TransformerEditor({
                       type="button"
                       disabled={
                         disabled ||
-                        (customCodeDrafts[index] !== undefined ? customCodeDrafts[index]! : effectiveCustomCode(transformer)) === effectiveCustomCode(transformer)
+                        (customCodeDrafts[index] !== undefined ? customCodeDrafts[index]! : effectiveCustomTransformerCode(transformer)) === effectiveCustomTransformerCode(transformer)
                       }
                       onClick={() => {
                         pushUndo()
                         const nextCode =
-                          customCodeDrafts[index] !== undefined ? customCodeDrafts[index]! : effectiveCustomCode(transformer)
+                          customCodeDrafts[index] !== undefined ? customCodeDrafts[index]! : effectiveCustomTransformerCode(transformer)
                         onChange?.(
                           list.map((t, i) => (i === index ? { ...t, code: nextCode } : t)),
                         )

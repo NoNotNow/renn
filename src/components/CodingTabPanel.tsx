@@ -1,14 +1,15 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type CSSProperties } from 'react'
 import type { Entity } from '@/types/world'
 import type { TransformerConfig } from '@/types/transformer'
 import type { RennWorld } from '@/types/world'
 import ScriptPanel from '@/components/ScriptPanel'
 import TransformerEditor from '@/components/TransformerEditor'
 import CopyableArea from '@/components/CopyableArea'
+import CustomTransformerCodeTab from '@/components/CustomTransformerCodeTab'
 import { theme } from '@/config/theme'
 import { mergeTransformers } from '@/utils/entityInspectorMerge'
 
-type CodingSubgroup = 'scripts' | 'transformers'
+type CodingSubgroup = 'scripts' | 'transformers' | 'code'
 
 export interface CodingTabPanelProps {
   world: RennWorld
@@ -17,31 +18,55 @@ export interface CodingTabPanelProps {
   onEntityTransformersChange?: (entityIds: string[], transformers: TransformerConfig[]) => void
 }
 
-const segmentWrap = {
+/** Matches the icon tab strip in `SidebarTabs` so the Code drawer feels one piece with the right sidebar. */
+const CODING_TAB_STRIP_BG = 'rgba(17, 20, 28, 0.72)'
+
+const codingTabListStyle = {
   display: 'flex' as const,
-  gap: 4,
-  flexWrap: 'wrap' as const,
-  alignItems: 'center' as const,
-  padding: '8px',
+  alignItems: 'stretch' as const,
+  flexShrink: 0 as const,
+  gap: 2,
+  padding: '4px 6px 0',
+  background: CODING_TAB_STRIP_BG,
   borderBottom: `1px solid ${theme.border.default}`,
 }
 
-function subgroupButton(active: boolean) {
+function codingTabStyle(active: boolean): CSSProperties {
   return {
-    flex: '1',
-    minWidth: 104,
-    padding: '6px 10px',
+    flex: '0 0 auto',
+    margin: 0,
+    padding: '7px 10px 6px',
     fontSize: 12,
-    fontWeight: active ? (600 as const) : (500 as const),
-    borderRadius: 6,
-    border: active ? `1px solid ${theme.button.selectableBorder}` : `1px solid ${theme.border.default}`,
-    background: active ? theme.button.selectable : theme.bg.surface,
+    fontWeight: active ? 600 : 500,
+    letterSpacing: '0.02em',
+    border: 'none',
+    borderBottom: `2px solid ${active ? theme.accent : 'transparent'}`,
+    marginBottom: -1,
+    borderRadius: '5px 5px 0 0',
+    background: active ? 'rgba(43, 53, 80, 0.28)' : 'transparent',
     color: active ? theme.text.primary : theme.text.secondary,
-    cursor: 'pointer' as const,
+    cursor: 'pointer',
+    whiteSpace: 'nowrap' as const,
+    transition: 'color 0.12s ease, border-color 0.12s ease, background 0.12s ease',
   }
 }
 
-/** Right sidebar workspace: Scripts + Transformers editors for the selection. */
+const ACTIVE_TAB_BG = 'rgba(43, 53, 80, 0.28)'
+const ACTIVE_TAB_BG_HOVER = 'rgba(43, 53, 80, 0.4)'
+
+function codingTabHoverHandlers(tab: CodingSubgroup, subgroup: CodingSubgroup) {
+  const active = subgroup === tab
+  return {
+    onMouseEnter: (e: { currentTarget: HTMLButtonElement }) => {
+      e.currentTarget.style.background = active ? ACTIVE_TAB_BG_HOVER : theme.bg.listHover
+    },
+    onMouseLeave: (e: { currentTarget: HTMLButtonElement }) => {
+      e.currentTarget.style.background = active ? ACTIVE_TAB_BG : 'transparent'
+    },
+  }
+}
+
+/** Right sidebar workspace: Scripts + Transformers + Custom code editors for the selection. */
 export default function CodingTabPanel({
   world,
   selectedEntityIds,
@@ -80,34 +105,68 @@ export default function CodingTabPanel({
 
   return (
     <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-      <div style={segmentWrap}>
+      <div role="tablist" aria-label="Code panel views" style={codingTabListStyle}>
         <button
           type="button"
+          role="tab"
+          id="coding-tab-scripts"
+          aria-selected={subgroup === 'scripts'}
+          {...codingTabHoverHandlers('scripts', subgroup)}
           onClick={() => setSubgroup('scripts')}
-          aria-pressed={subgroup === 'scripts'}
-          style={subgroupButton(subgroup === 'scripts')}
+          style={codingTabStyle(subgroup === 'scripts')}
           data-testid="coding-submenu-scripts"
         >
           Scripts
         </button>
         <button
           type="button"
+          role="tab"
+          id="coding-tab-transformers"
+          aria-selected={subgroup === 'transformers'}
+          {...codingTabHoverHandlers('transformers', subgroup)}
           onClick={() => setSubgroup('transformers')}
-          aria-pressed={subgroup === 'transformers'}
-          style={subgroupButton(subgroup === 'transformers')}
+          style={codingTabStyle(subgroup === 'transformers')}
           data-testid="coding-submenu-transformers"
         >
           Transformers
         </button>
+        <button
+          type="button"
+          role="tab"
+          id="coding-tab-code"
+          aria-selected={subgroup === 'code'}
+          {...codingTabHoverHandlers('code', subgroup)}
+          onClick={() => setSubgroup('code')}
+          style={codingTabStyle(subgroup === 'code')}
+          data-testid="coding-submenu-code"
+        >
+          Code
+        </button>
       </div>
 
-      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'visible' }}>
+      <div
+        key={subgroup}
+        role="tabpanel"
+        aria-labelledby={`coding-tab-${subgroup}`}
+        style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'visible' }}
+      >
         {subgroup === 'scripts' && (
           <ScriptPanel
             world={world}
             selectedEntityIds={selectedEntityIds}
             onWorldChange={onWorldChange}
             collapsibleScriptToolbar
+          />
+        )}
+
+        {subgroup === 'code' && (
+          <CustomTransformerCodeTab
+            selectedEntityIds={selectedEntityIds}
+            entityCount={entities.length}
+            mergedTransformers={mergedTransformers}
+            transformersMixed={mergedTransformers === null}
+            anyLocked={anyLocked}
+            onTransformersCommit={(next) => handleTransformersCommit(next)}
           />
         )}
 

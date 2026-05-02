@@ -5,7 +5,11 @@
 import type { RennWorld } from '@/types/world'
 import { collectReferencedAssetIds } from '@/utils/collectReferencedAssetIds'
 import { validateWorldDocument } from '@/schema/validate'
-import { migrateWorldScripts, migrateWorldSimplificationFields } from '@/scripts/migrateWorld'
+import {
+  migrateWorldScripts,
+  migrateWorldSimplificationFields,
+  migrateCustomTransformerNames,
+} from '@/scripts/migrateWorld'
 
 const ASSET_EXTS = [
   '.bin',
@@ -93,6 +97,7 @@ export async function loadWorldFromStatic(
     if (!res.ok) return null
     const raw = await res.json()
     migrateWorldScripts(raw)
+    migrateCustomTransformerNames(raw)
     const simplificationWarnings: string[] = []
     migrateWorldSimplificationFields(raw, simplificationWarnings)
     for (const w of simplificationWarnings) {

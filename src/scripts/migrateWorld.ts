@@ -187,3 +187,29 @@ export function migrateDistanceCullingFields(worldData: unknown): void {
   o.maxDistance = radius
   o.minSizeDistanceRatio = radius > 0 ? minSize / radius : 0.02
 }
+
+/**
+ * Assigns display names to legacy `type: "custom"` transformers missing `name`
+ * (`Custom`, `Custom 2`, … per entity in stack order).
+ */
+export function migrateCustomTransformerNames(worldData: unknown): void {
+  if (!worldData || typeof worldData !== 'object') return
+  const entities = (worldData as Record<string, unknown>).entities as unknown[] | undefined
+  if (!Array.isArray(entities)) return
+
+  for (const entity of entities) {
+    if (!entity || typeof entity !== 'object') continue
+    const transformers = (entity as Record<string, unknown>).transformers as unknown[] | undefined
+    if (!Array.isArray(transformers)) continue
+
+    let customOrdinal = 0
+    for (const t of transformers) {
+      if (!t || typeof t !== 'object') continue
+      const cfg = t as Record<string, unknown>
+      if (cfg.type !== 'custom') continue
+      if (typeof cfg.name === 'string' && cfg.name.trim() !== '') continue
+      customOrdinal += 1
+      cfg.name = customOrdinal <= 1 ? 'Custom' : `Custom ${customOrdinal}`
+    }
+  }
+}

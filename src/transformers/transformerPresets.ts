@@ -128,7 +128,7 @@ export function getDefaultTransformerConfig(type: string): TransformerConfig {
         type: 'custom',
         priority: 10,
         enabled: true,
-        params: {},
+        params: { power: 120 },
         code: defaultCustomTransformerCode(),
       }
     default:

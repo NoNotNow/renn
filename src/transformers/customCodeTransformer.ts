@@ -9,6 +9,9 @@ import type {
   Vec3,
   Rotation,
 } from '@/types/transformer'
+import { clamp } from '@/utils/numberUtils'
+import { getForwardVectorFromEuler, getUpVectorFromEuler, eulerDeltaAroundAxis } from '@/utils/rotationUtils'
+import { scaleVec3 as scaleVec3Util } from '@/utils/vec3'
 
 function isFiniteNum(n: unknown): n is number {
   return typeof n === 'number' && Number.isFinite(n)
@@ -89,11 +92,43 @@ function sanitizeTransformOutput(raw: unknown): TransformOutput {
   return next
 }
 
+/** Frozen singleton passed as the fifth argument to compiled custom transformer bodies. */
+export interface TransformerRuntimeApi {
+  getAction(input: TransformInput, name: string): number
+  getForwardVector(rotation: Rotation): Vec3
+  getUpVector(rotation: Rotation): Vec3
+  addVec3(a: Vec3, b: Vec3): Vec3
+  scaleVec3(v: Vec3, s: number): Vec3
+  clamp(value: number, min: number, max: number): number
+  eulerDeltaAroundAxis(currentRotation: Rotation, axis: Vec3, angleRad: number): Rotation
+}
+
+function addVec3Impl(a: Vec3, b: Vec3): Vec3 {
+  return [a[0] + b[0], a[1] + b[1], a[2] + b[2]]
+}
+
+export const TRANSFORMER_RUNTIME_API: TransformerRuntimeApi = Object.freeze({
+  getAction: (input: TransformInput, name: string): number => input.actions[name] ?? 0,
+  getForwardVector: (rotation: Rotation): Vec3 => {
+    const v = getForwardVectorFromEuler(rotation)
+    return [v[0], v[1], v[2]]
+  },
+  getUpVector: (rotation: Rotation): Vec3 => {
+    const v = getUpVectorFromEuler(rotation)
+    return [v[0], v[1], v[2]]
+  },
+  addVec3: addVec3Impl,
+  scaleVec3: (v: Vec3, s: number): Vec3 => scaleVec3Util(v, s),
+  clamp,
+  eulerDeltaAroundAxis,
+} satisfies TransformerRuntimeApi)
+
 type CustomTransformFn = (
   input: TransformInput,
   dt: number,
   params: Record<string, unknown>,
   state: Record<string, unknown>,
+  api: TransformerRuntimeApi,
 ) => unknown
 
 function compileCustomTransform(configKey: string, source: string): CustomTransformFn {
@@ -112,7 +147,7 @@ function compileCustomTransform(configKey: string, source: string): CustomTransf
   }
   const wrappedSource = `
       "use strict";
-      return function(input, dt, params, state) {
+      return function(input, dt, params, state, api) {
         ${source}
       };
     `
@@ -148,7 +183,7 @@ export class CustomCodeTransformer implements Transformer {
 
   transform(input: TransformInput, dt: number): TransformOutput {
     try {
-      const raw = this.transformFn(input, dt, this.liveParams, this.state)
+      const raw = this.transformFn(input, dt, this.liveParams, this.state, TRANSFORMER_RUNTIME_API)
       return sanitizeTransformOutput(raw)
     } catch (e) {
       console.warn('[CustomCodeTransformer] Runtime error:', e)
@@ -158,7 +193,14 @@ export class CustomCodeTransformer implements Transformer {
 }
 
 export function defaultCustomTransformerCode(): string {
-  return `// Read input.actions, input.target, input.environment; return forces or pose.
-// Example: return { force: [0, 50, 0] };
-return {}`
+  return `// params (JSON) and api helpers — use the car2 preset in the stack for full vehicle behavior.
+const power = Number(params.power ?? 0);
+if (!input.environment.isTouchingObject || power === 0) return {};
+
+const forward = api.getForwardVector(input.rotation);
+return { impulse: api.scaleVec3(forward, power * dt) };`
+}
+
+export function effectiveCustomTransformerCode(config: TransformerConfig): string {
+  return typeof config.code === 'string' && config.code.trim() !== '' ? config.code : defaultCustomTransformerCode()
 }

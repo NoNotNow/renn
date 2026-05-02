@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   migrateWorldScripts,
   migrateWorldSimplificationFields,
+  migrateCustomTransformerNames,
   clampTrimeshSimplificationConfig,
 } from './migrateWorld'
 
@@ -60,6 +61,44 @@ describe('migrateWorldScripts', () => {
     migrateWorldScripts(world)
     expect(world.scripts).toEqual({ x: { event: 'onUpdate', source: 'ctx.log(1)' } })
     expect(world.entities[0].scripts).toEqual(['x'])
+  })
+})
+
+describe('migrateCustomTransformerNames', () => {
+  it('names nameless custom transformers per entity in stack order', () => {
+    const world = {
+      entities: [
+        {
+          id: 'a',
+          transformers: [
+            { type: 'input', priority: 0 },
+            { type: 'custom', code: 'return {}' },
+            { type: 'custom', name: 'Already', code: 'return {}' },
+            { type: 'custom', code: 'return {}' },
+          ],
+        },
+      ],
+    }
+    migrateCustomTransformerNames(world)
+    const tr = (world.entities[0] as { transformers: { type: string; name?: string }[] }).transformers
+    expect(tr[1].name).toBe('Custom')
+    expect(tr[2].name).toBe('Already')
+    expect(tr[3].name).toBe('Custom 2')
+  })
+
+  it('is no-op when all customs have names', () => {
+    const world = {
+      entities: [
+        {
+          id: 'a',
+          transformers: [{ type: 'custom', name: 'A', code: 'return {}' }],
+        },
+      ],
+    }
+    migrateCustomTransformerNames(world)
+    expect(
+      ((world.entities[0] as { transformers: { name: string }[] }).transformers[0] as { name: string }).name,
+    ).toBe('A')
   })
 })
 

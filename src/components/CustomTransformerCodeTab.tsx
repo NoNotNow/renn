@@ -1,0 +1,386 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { TransformerConfig } from '@/types/transformer'
+import CopyableArea from '@/components/CopyableArea'
+import TransformerCustomCodeEditor from '@/components/TransformerCustomCodeEditor'
+import ValidatedJsonTextarea from '@/components/ValidatedJsonTextarea'
+import { fieldLabelStyle } from '@/components/sharedStyles'
+import { theme } from '@/config/theme'
+import { getDefaultTransformerConfig } from '@/transformers/transformerPresets'
+import { effectiveCustomTransformerCode } from '@/transformers/customCodeTransformer'
+import {
+  ensureUniqueCustomTransformerName,
+  labelCustomTransformer,
+  nextUniqueCustomTransformerName,
+} from '@/transformers/customTransformerNaming'
+import { useEditorUndo } from '@/contexts/EditorUndoContext'
+
+const CODE_DEBOUNCE_MS = 350
+
+export interface CustomTransformerCodeTabProps {
+  selectedEntityIds: string[]
+  entityCount: number
+  /** Merged stack when all selected entities agree; null if mixed. */
+  mergedTransformers: TransformerConfig[] | null
+  transformersMixed: boolean
+  anyLocked: boolean
+  onTransformersCommit: (next: TransformerConfig[]) => void
+}
+
+export default function CustomTransformerCodeTab({
+  selectedEntityIds,
+  entityCount,
+  mergedTransformers,
+  transformersMixed,
+  anyLocked,
+  onTransformersCommit,
+}: CustomTransformerCodeTabProps) {
+  const undo = useEditorUndo()
+  const list = mergedTransformers ?? []
+
+  const customSlots = useMemo(
+    () =>
+      list
+        .map((config, index) => ({ config, index }))
+        .filter((x) => x.config.type === 'custom'),
+    [list],
+  )
+
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null)
+  const [nameDraft, setNameDraft] = useState('')
+  const [codeDraft, setCodeDraft] = useState('')
+
+  const listRef = useRef(list)
+  listRef.current = list
+  const selectedIndexRef = useRef(selectedIndex)
+  selectedIndexRef.current = selectedIndex
+  const codeDraftRef = useRef(codeDraft)
+  codeDraftRef.current = codeDraft
+  const onCommitRef = useRef(onTransformersCommit)
+  onCommitRef.current = onTransformersCommit
+
+  const codeUndoPrimedRef = useRef(false)
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    if (customSlots.length === 0) {
+      setSelectedIndex(null)
+      return
+    }
+    setSelectedIndex((prev) => {
+      if (prev !== null && customSlots.some((s) => s.index === prev)) return prev
+      return customSlots[0]!.index
+    })
+  }, [customSlots])
+
+  const selectedConfig =
+    selectedIndex !== null && list[selectedIndex]?.type === 'custom' ? list[selectedIndex]! : null
+
+  const syncKey = selectedConfig
+    ? `${selectedIndex}:${selectedConfig.code ?? ''}:${selectedConfig.name ?? ''}`
+    : ''
+
+  useEffect(() => {
+    if (!selectedConfig || selectedIndex === null) {
+      setCodeDraft('')
+      setNameDraft('')
+      return
+    }
+    setCodeDraft(effectiveCustomTransformerCode(selectedConfig))
+    setNameDraft(typeof selectedConfig.name === 'string' ? selectedConfig.name : '')
+    codeUndoPrimedRef.current = false
+  }, [syncKey, selectedConfig, selectedIndex])
+
+  useEffect(
+    () => () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current)
+        debounceTimerRef.current = null
+      }
+    },
+    [],
+  )
+
+  const flushPendingCode = useCallback(() => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current)
+      debounceTimerRef.current = null
+    }
+    const idx = selectedIndexRef.current
+    if (idx === null) return
+    const cur = listRef.current
+    if (cur[idx]?.type !== 'custom') return
+    const text = codeDraftRef.current
+    const prevEffective = effectiveCustomTransformerCode(cur[idx]!)
+    if (text === prevEffective) return
+    onCommitRef.current(cur.map((t, i) => (i === idx ? { ...t, code: text } : t)))
+  }, [])
+
+  const changeSelectedIndex = (nextIdx: number) => {
+    flushPendingCode()
+    setSelectedIndex(nextIdx)
+  }
+
+  const scheduleCodeCommit = (text: string) => {
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
+    debounceTimerRef.current = setTimeout(() => {
+      debounceTimerRef.current = null
+      const idx = selectedIndexRef.current
+      if (idx === null) return
+      const cur = listRef.current
+      if (cur[idx]?.type !== 'custom') return
+      onCommitRef.current(cur.map((t, i) => (i === idx ? { ...t, code: text } : t)))
+    }, CODE_DEBOUNCE_MS)
+  }
+
+  const handleCodeChange = (text: string) => {
+    if (!codeUndoPrimedRef.current) {
+      undo?.pushBeforeEdit()
+      codeUndoPrimedRef.current = true
+    }
+    setCodeDraft(text)
+    scheduleCodeCommit(text)
+  }
+
+  const commitName = () => {
+    if (selectedIndex === null) return
+    const c = list[selectedIndex]
+    if (c?.type !== 'custom') return
+    const unique = ensureUniqueCustomTransformerName(nameDraft, list, selectedIndex)
+    if (unique !== nameDraft.trim()) setNameDraft(unique)
+    onTransformersCommit(list.map((t, i) => (i === selectedIndex ? { ...t, name: unique } : t)))
+  }
+
+  const handleAddCustom = () => {
+    flushPendingCode()
+    undo?.pushBeforeEdit()
+    const next = [
+      ...list,
+      { ...getDefaultTransformerConfig('custom'), name: nextUniqueCustomTransformerName(list) },
+    ]
+    onTransformersCommit(next)
+    setSelectedIndex(next.length - 1)
+  }
+
+  const copyPayload = useMemo(
+    () => ({
+      transformers: mergedTransformers,
+      selectedEntityIds,
+      customTab: true as const,
+    }),
+    [mergedTransformers, selectedEntityIds],
+  )
+
+  if (selectedEntityIds.length === 0) {
+    return (
+      <CopyableArea
+        copyPayload={{ ...copyPayload, message: 'empty' }}
+        style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}
+      >
+        <div style={{ padding: 8 }}>
+          <p style={{ margin: 0, fontSize: 13, color: theme.text.muted }}>
+            Select an entity to edit custom transformer code.
+          </p>
+        </div>
+      </CopyableArea>
+    )
+  }
+
+  if (transformersMixed) {
+    return (
+      <CopyableArea copyPayload={copyPayload} style={{ flex: 1, padding: 8 }}>
+        <p style={{ margin: 0, fontSize: 12, color: theme.text.muted }}>
+          Transformer stacks differ across the selection. Align stacks in the Transformers tab or select entities
+          with the same stack.
+        </p>
+      </CopyableArea>
+    )
+  }
+
+  const enabled = selectedConfig ? (selectedConfig.enabled ?? true) : true
+
+  return (
+    <CopyableArea
+      copyPayload={copyPayload}
+      style={{
+        flex: 1,
+        minHeight: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        padding: 8,
+        overflow: 'visible',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
+        <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: theme.text.primary, flex: '1 1 auto' }}>
+          Custom transformer
+          {entityCount > 1 ? ` (${entityCount} entities)` : ''}
+        </h3>
+        <button
+          type="button"
+          onClick={handleAddCustom}
+          disabled={anyLocked}
+          style={{
+            padding: '6px 10px',
+            fontSize: 12,
+            borderRadius: 6,
+            border: `1px solid ${theme.border.default}`,
+            background: theme.bg.surface,
+            color: theme.text.primary,
+            cursor: anyLocked ? 'not-allowed' : 'pointer',
+          }}
+          data-testid="custom-transformer-add"
+        >
+          Add custom
+        </button>
+      </div>
+
+      {customSlots.length === 0 ? (
+        <p style={{ margin: 0, fontSize: 13, color: theme.text.muted }}>
+          No custom transformers on this stack. Add one here or from the Transformers tab.
+        </p>
+      ) : (
+        <>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', marginBottom: 10 }}>
+            <label style={{ fontSize: 12, color: theme.text.secondary, display: 'flex', alignItems: 'center', gap: 6 }}>
+              Custom
+              <select
+                value={selectedIndex ?? ''}
+                onChange={(e) => changeSelectedIndex(Number(e.target.value))}
+                disabled={anyLocked}
+                data-testid="custom-transformer-select"
+                style={{
+                  minWidth: 140,
+                  padding: '4px 8px',
+                  fontSize: 12,
+                  borderRadius: 4,
+                  border: `1px solid ${theme.border.default}`,
+                  background: theme.bg.panelAlt,
+                  color: theme.text.primary,
+                }}
+              >
+                {customSlots.map(({ config, index }) => (
+                  <option key={index} value={index}>
+                    {labelCustomTransformer(config, index)}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label style={{ fontSize: 12, color: theme.text.secondary, display: 'flex', alignItems: 'center', gap: 6 }}>
+              Name
+              <input
+                type="text"
+                value={nameDraft}
+                onChange={(e) => setNameDraft(e.target.value)}
+                onBlur={() => commitName()}
+                disabled={anyLocked}
+                data-testid="custom-transformer-name"
+                style={{
+                  width: 140,
+                  padding: '4px 8px',
+                  fontSize: 12,
+                  borderRadius: 4,
+                  border: `1px solid ${theme.border.default}`,
+                  background: theme.bg.panelAlt,
+                  color: theme.text.primary,
+                }}
+              />
+            </label>
+
+            <button
+              type="button"
+              title={enabled ? 'Transformer enabled' : 'Transformer disabled'}
+              aria-pressed={enabled}
+              disabled={anyLocked || selectedIndex === null}
+              onClick={() => {
+                if (selectedIndex === null) return
+                flushPendingCode()
+                undo?.pushBeforeEdit()
+                onTransformersCommit(
+                  list.map((t, i) =>
+                    i === selectedIndex ? { ...t, enabled: !(t.enabled ?? true) } : t,
+                  ),
+                )
+              }}
+              data-testid="custom-transformer-enabled-led"
+              style={{
+                width: 28,
+                height: 18,
+                borderRadius: 9,
+                border: `1px solid ${theme.border.default}`,
+                padding: 0,
+                background: enabled ? theme.feedback.successBg : theme.bg.surface,
+                boxShadow: enabled ? `inset 0 0 8px rgba(0, 160, 80, 0.35)` : undefined,
+                cursor: anyLocked || selectedIndex === null ? 'not-allowed' : 'pointer',
+              }}
+            />
+
+            <label
+              style={{
+                fontSize: 12,
+                color: theme.text.secondary,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
+              title="Lower runs earlier in the chain."
+            >
+              Priority
+              <input
+                type="number"
+                value={selectedConfig?.priority ?? 10}
+                disabled={anyLocked || selectedIndex === null}
+                onChange={(e) => {
+                  const n = Number(e.target.value)
+                  if (!Number.isFinite(n) || selectedIndex === null) return
+                  flushPendingCode()
+                  onTransformersCommit(list.map((t, i) => (i === selectedIndex ? { ...t, priority: n } : t)))
+                }}
+                style={{
+                  width: 64,
+                  padding: '4px 6px',
+                  borderRadius: 4,
+                  border: `1px solid ${theme.border.default}`,
+                  background: theme.bg.panelAlt,
+                  color: theme.text.primary,
+                  fontSize: 12,
+                }}
+              />
+            </label>
+          </div>
+
+          <div style={{ ...fieldLabelStyle, cursor: 'help' }} title="Debounced live apply to the entity stack.">
+            Code
+          </div>
+          <TransformerCustomCodeEditor
+            value={codeDraft}
+            onChange={handleCodeChange}
+            disabled={anyLocked}
+            minHeightPx={280}
+          />
+
+          <div style={{ ...fieldLabelStyle, cursor: 'help', marginTop: 12 }} title='"params" only; merged into this transformer.'>
+            Params (JSON)
+          </div>
+          <ValidatedJsonTextarea
+            value={JSON.stringify(selectedConfig?.params ?? {}, null, 2)}
+            onApply={(updated) => {
+              if (selectedIndex === null) return
+              const patch =
+                typeof updated === 'object' && updated !== null && !Array.isArray(updated)
+                  ? (updated as Record<string, unknown>)
+                  : {}
+              flushPendingCode()
+              undo?.pushBeforeEdit()
+              onTransformersCommit(list.map((t, i) => (i === selectedIndex ? { ...t, params: patch } : t)))
+            }}
+            disabled={anyLocked}
+            applyVariant="icon"
+            textareaTestId="custom-transformer-params-textarea"
+            applyTestId="custom-transformer-params-apply"
+          />
+        </>
+      )}
+    </CopyableArea>
+  )
+}

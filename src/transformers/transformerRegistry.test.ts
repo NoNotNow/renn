@@ -157,4 +157,14 @@ describe('Transformer Registry', () => {
     const out = t.transform(input, 0.016)
     expect(out.force).toEqual([0, 200, 0])
   })
+
+  test('creates CustomCodeTransformer using runtime api', async () => {
+    const config: TransformerConfig = {
+      type: 'custom',
+      code: 'return { impulse: api.scaleVec3(api.addVec3([1,0,0], [0,1,0]), dt) };',
+    }
+    const t = await createTransformer(config)
+    const out = t.transform(createMockTransformInput(), 0.5)
+    expect(out.impulse).toEqual([0.5, 0.5, 0])
+  })
 })
