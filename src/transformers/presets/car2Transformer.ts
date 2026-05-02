@@ -160,7 +160,9 @@ export class CarTransformer2 extends BaseTransformer {
   }
 
   private calculateWheelAngle(input: TransformInput): void {
-    const factor = this.params.steeringSpeed
+    const currentVehicleSpeed = this.getForwardSpeed(input.velocity, input);
+    const wheelSlowdown = 1 + (currentVehicleSpeed / 50);
+    let factor = this.params.steeringSpeed;
     const left = this.getAction(input, 'steer_left')
     const right = this.getAction(input, 'steer_right')
 
@@ -168,6 +170,8 @@ export class CarTransformer2 extends BaseTransformer {
     if (force === 0) {
       if (this.wheelAngle > 0) force = -1
       else if (this.wheelAngle < 0) force = 1
+    }else{
+      factor /= wheelSlowdown;
     }
     this.wheelAngle += force * factor
     this.wheelAngle = clamp(this.wheelAngle, -1, 1)
