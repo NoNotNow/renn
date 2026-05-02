@@ -74,7 +74,7 @@ renn/
 │   │   ├── useModelPresets.ts      # Global model preset library: list/save/delete + applyToEntities (optimistic state)
 │   │   ├── useEditorHistory.ts     # Builder undo/redo: createEditorHistory + gesture coalescing + EditorUndoApi (auto-bumps on undo/redo/clear)
 │   │   ├── useBuilderKeyboardShortcuts.ts # Builder shortcuts (Cmd+Z/Y, Esc, Cmd+E, Digit0/1, Cmd+G/Shift+G group/ungroup, Cmd+C/V copy/paste entities) — guards INPUT/TEXTAREA/SELECT; Cmd+C no-op when text is selected
-│   │   ├── useBuilderFullscreenChrome.ts  # Builder column ref + drawer state (localStorage) + fullscreen drawer save/restore + idle-hide reveal
+│   │   ├── useBuilderFullscreenChrome.ts  # Builder column ref + sidebars hit-test ref + drawer state (localStorage) + fullscreen drawer save/restore + idle-hide reveal (pinned while pointer over sidebar UI via elementFromPoint)
 │   │   ├── useSceneFullscreen.ts   # SceneView fullscreen state: supported/active/toggle + chrome-reveal (internal pointer timer or external control)
 │   │   ├── useSkyDome.ts           # SceneView skybox sphere mesh: load/configure/dispose by `world.world.skybox` asset id
 │   │   ├── useWorldAudio.ts        # SceneView world background audio element (lifecycle + manual play/stop command)
@@ -95,7 +95,7 @@ renn/
 │   │   ├── editorConstants.ts # Shared editor epsilons (e.g. VEC_EPS)
 │   │   └── transformTargetReach.ts # position/rotation reached (waypoints, wanderer)
 │   ├── components/
-│   │   ├── SceneView.tsx     # 3D canvas: load world, physics, scripts, camera, render loop; delegates skybox to useSkyDome, world audio to useWorldAudio, fullscreen state/toggle to useSceneFullscreen + SceneFullscreenButton; world-load failures render via WorldLoadErrorOverlay; Play fullscreen targets scene root; Builder passes `fullscreenTargetRef` (whole column) + document-wide chrome; Esc exits native fullscreen; Builder closes/restores side drawers; in fullscreen, header + sidebars hide with the button when idle
+│   │   ├── SceneView.tsx     # 3D canvas: load world, physics, scripts, camera, render loop; delegates skybox to useSkyDome, world audio to useWorldAudio, fullscreen state/toggle to useSceneFullscreen + SceneFullscreenButton; world-load failures render via WorldLoadErrorOverlay; Play fullscreen targets scene root; Builder passes `fullscreenTargetRef` (whole column) + document-wide chrome; Esc exits native fullscreen; Builder closes/restores side drawers; in fullscreen, header + sidebars hide with the button when idle (sidebars stay visible while the pointer is over sidebar chrome)
 │   │   ├── SceneFullscreenButton.tsx # Floating bottom-left fullscreen toggle (visible flag controlled by useSceneFullscreen)
 │   │   ├── WorldLoadErrorOverlay.tsx # Full-bleed overlay shown by SceneView when world load fails
 │   │   ├── BuilderHeader.tsx # Toolbar: New, Save, Save as, Download, Upload, project list, Play, gravity/shadows

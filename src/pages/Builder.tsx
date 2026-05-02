@@ -221,6 +221,7 @@ export default function Builder() {
 
   const {
     builderColumnRef,
+    fsSidebarsHitTestRef,
     leftDrawerOpen,
     setLeftDrawerOpen,
     rightDrawerOpen,
@@ -229,6 +230,7 @@ export default function Builder() {
     bumpFsChrome,
     handleSceneFullscreenChange,
     builderChromeIdleHidden,
+    fsChromeControlVisible,
   } = useBuilderFullscreenChrome()
   const [showGameHud, setShowGameHud] = useLocalStorageState('builderShowGameHud', false)
 
@@ -1076,15 +1078,20 @@ export default function Builder() {
               prepareWorldPaintStroke={prepareWorldPaintStroke}
               onFullscreenChange={handleSceneFullscreenChange}
               fullscreenTargetRef={builderColumnRef}
-              fullscreenChromeControl={{ visible: fsChromeVisible, bumpActivity: bumpFsChrome }}
+              fullscreenChromeControl={{ visible: fsChromeControlVisible, bumpActivity: bumpFsChrome }}
             />
           </ErrorBoundary>
         </main>
 
-        {/* Sidebars overlay on top */}
+        {/* Sidebars overlay on top (pointer-events: none so the scene stays interactive; sidebars use auto). */}
         <div
+          ref={fsSidebarsHitTestRef}
           style={{
-            display: builderChromeIdleHidden ? 'none' : 'contents',
+            position: 'absolute',
+            inset: 0,
+            zIndex: 100,
+            pointerEvents: 'none',
+            display: builderChromeIdleHidden ? 'none' : undefined,
           }}
         >
         <EntitySidebar

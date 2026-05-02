@@ -6,6 +6,11 @@ import { isFullscreenEnabled } from '@/utils/fullscreenApi'
 export interface BuilderFullscreenChrome {
   /** Ref attached to the Builder column root (becomes the fullscreen target). */
   builderColumnRef: React.RefObject<HTMLDivElement>
+  /**
+   * Attach to the full-area sidebars overlay wrapper (`position: absolute; inset: 0; pointer-events: none`).
+   * Used to detect when the pointer is over sidebar UI so idle fullscreen auto-hide is suppressed.
+   */
+  fsSidebarsHitTestRef: React.RefObject<HTMLDivElement | null>
   /** Left sidebar drawer open state (persisted to localStorage). */
   leftDrawerOpen: boolean
   setLeftDrawerOpen: (value: boolean | ((prev: boolean) => boolean)) => void
@@ -20,6 +25,8 @@ export interface BuilderFullscreenChrome {
   bumpFsChrome: () => void
   /** True when chrome should be hidden in idle fullscreen. */
   builderChromeIdleHidden: boolean
+  /** Scene fullscreen button visibility in Builder (includes sidebar hover pin). */
+  fsChromeControlVisible: boolean
   /** Pass to SceneView as `onFullscreenChange`. Saves drawer state on enter, restores on exit. */
   handleSceneFullscreenChange: (active: boolean) => void
 }
@@ -28,13 +35,16 @@ export interface BuilderFullscreenChrome {
  * Owns the Builder's fullscreen + drawer chrome state:
  * - left/right drawer open flags (localStorage-persisted)
  * - fullscreen entry/exit (collapses both drawers on enter, restores on exit)
- * - pointer-driven idle reveal (auto-hide chrome after timeout)
+ * - pointer-driven idle reveal (auto-hide chrome after timeout; pinned while pointer is over sidebars)
  *
  * Pointer-move/pointer-down listeners are only attached when the browser actually
  * supports the Fullscreen API.
  */
 export function useBuilderFullscreenChrome(): BuilderFullscreenChrome {
   const builderColumnRef = useRef<HTMLDivElement>(null)
+  const fsSidebarsHitTestRef = useRef<HTMLDivElement | null>(null)
+  const builderFullscreenActiveRef = useRef(false)
+  const pointerOverFsSidebarsRef = useRef(false)
 
   const [leftDrawerOpen, setLeftDrawerOpen] = useLocalStorageState('leftDrawerOpen', true)
   const [rightDrawerOpen, setRightDrawerOpen] = useLocalStorageState('rightDrawerOpen', true)
@@ -51,7 +61,16 @@ export function useBuilderFullscreenChrome(): BuilderFullscreenChrome {
 
   const [fullscreenApiSupported, setFullscreenApiSupported] = useState(false)
   const [builderFullscreenActive, setBuilderFullscreenActive] = useState(false)
+  const [pointerOverFsSidebars, setPointerOverFsSidebars] = useState(false)
   const { visible: fsChromeVisible, bumpActivity: bumpFsChrome } = usePointerRevealTimeout()
+
+  useEffect(() => {
+    builderFullscreenActiveRef.current = builderFullscreenActive
+    if (!builderFullscreenActive) {
+      pointerOverFsSidebarsRef.current = false
+      setPointerOverFsSidebars(false)
+    }
+  }, [builderFullscreenActive])
 
   useEffect(() => {
     setFullscreenApiSupported(isFullscreenEnabled())
@@ -59,12 +78,23 @@ export function useBuilderFullscreenChrome(): BuilderFullscreenChrome {
 
   useEffect(() => {
     if (!fullscreenApiSupported) return
-    const bump = () => bumpFsChrome()
-    document.addEventListener('pointermove', bump, { passive: true })
-    document.addEventListener('pointerdown', bump, { passive: true })
+    const onPointer = (e: PointerEvent) => {
+      bumpFsChrome()
+      if (!builderFullscreenActiveRef.current) return
+      const root = fsSidebarsHitTestRef.current
+      if (root == null) return
+      const el = document.elementFromPoint(e.clientX, e.clientY)
+      const over = el != null && root.contains(el)
+      if (pointerOverFsSidebarsRef.current !== over) {
+        pointerOverFsSidebarsRef.current = over
+        setPointerOverFsSidebars(over)
+      }
+    }
+    document.addEventListener('pointermove', onPointer, { passive: true })
+    document.addEventListener('pointerdown', onPointer, { passive: true })
     return () => {
-      document.removeEventListener('pointermove', bump)
-      document.removeEventListener('pointerdown', bump)
+      document.removeEventListener('pointermove', onPointer)
+      document.removeEventListener('pointerdown', onPointer)
     }
   }, [fullscreenApiSupported, bumpFsChrome])
 
@@ -90,10 +120,13 @@ export function useBuilderFullscreenChrome(): BuilderFullscreenChrome {
     [setLeftDrawerOpen, setRightDrawerOpen],
   )
 
-  const builderChromeIdleHidden = builderFullscreenActive && !fsChromeVisible
+  const builderChromeIdleHidden =
+    builderFullscreenActive && !fsChromeVisible && !pointerOverFsSidebars
+  const fsChromeControlVisible = fsChromeVisible || (builderFullscreenActive && pointerOverFsSidebars)
 
   return {
     builderColumnRef,
+    fsSidebarsHitTestRef,
     leftDrawerOpen,
     setLeftDrawerOpen,
     rightDrawerOpen,
@@ -102,6 +135,7 @@ export function useBuilderFullscreenChrome(): BuilderFullscreenChrome {
     fsChromeVisible,
     bumpFsChrome,
     builderChromeIdleHidden,
+    fsChromeControlVisible,
     handleSceneFullscreenChange,
   }
 }

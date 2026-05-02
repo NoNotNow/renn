@@ -1,6 +1,7 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 import { useBuilderFullscreenChrome } from '@/hooks/useBuilderFullscreenChrome'
+import * as fullscreenApi from '@/utils/fullscreenApi'
 
 function clearDrawerKeys() {
   if (typeof localStorage?.removeItem !== 'function') return
@@ -94,10 +95,73 @@ describe('useBuilderFullscreenChrome', () => {
     expect(result.current.builderChromeIdleHidden).toBe(false)
   })
 
-  it('exposes a stable builderColumnRef ref object', () => {
+  it('exposes stable builderColumnRef and fsSidebarsHitTestRef objects', () => {
     const { result, rerender } = renderHook(() => useBuilderFullscreenChrome())
-    const first = result.current.builderColumnRef
+    const col = result.current.builderColumnRef
+    const hit = result.current.fsSidebarsHitTestRef
     rerender()
-    expect(result.current.builderColumnRef).toBe(first)
+    expect(result.current.builderColumnRef).toBe(col)
+    expect(result.current.fsSidebarsHitTestRef).toBe(hit)
+  })
+
+  it('keeps builder chrome idle-visible while pointer is over the sidebars hit-test root', async () => {
+    vi.useFakeTimers()
+    const elementFromPoint = vi.fn<(nx: number, ny: number) => Element | null>()
+    Object.defineProperty(document, 'elementFromPoint', {
+      configurable: true,
+      writable: true,
+      value: elementFromPoint,
+    })
+    try {
+      const spyEnabled = vi.spyOn(fullscreenApi, 'isFullscreenEnabled').mockReturnValue(true)
+      const { result } = renderHook(() => useBuilderFullscreenChrome())
+      await act(async () => {
+        await Promise.resolve()
+      })
+
+      const root = document.createElement('div')
+      const inner = document.createElement('span')
+      root.appendChild(inner)
+
+      act(() => {
+        result.current.fsSidebarsHitTestRef.current = root
+      })
+      act(() => {
+        result.current.handleSceneFullscreenChange(true)
+      })
+      act(() => {
+        result.current.bumpFsChrome()
+      })
+
+      elementFromPoint.mockReturnValue(inner)
+
+      act(() => {
+        document.dispatchEvent(new PointerEvent('pointermove', { clientX: 10, clientY: 10 }))
+      })
+      expect(result.current.builderChromeIdleHidden).toBe(false)
+
+      act(() => {
+        vi.advanceTimersByTime(10_000)
+      })
+      expect(result.current.fsChromeVisible).toBe(false)
+      expect(result.current.builderChromeIdleHidden).toBe(false)
+
+      elementFromPoint.mockReturnValue(document.body)
+      act(() => {
+        document.dispatchEvent(new PointerEvent('pointermove', { clientX: 50, clientY: 50 }))
+      })
+      expect(result.current.fsChromeVisible).toBe(true)
+      expect(result.current.builderChromeIdleHidden).toBe(false)
+
+      act(() => {
+        vi.advanceTimersByTime(10_000)
+      })
+      expect(result.current.builderChromeIdleHidden).toBe(true)
+
+      spyEnabled.mockRestore()
+    } finally {
+      Reflect.deleteProperty(document, 'elementFromPoint')
+      vi.useRealTimers()
+    }
   })
 })
