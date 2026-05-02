@@ -125,7 +125,8 @@ export async function createTransformerChain(
   }
 
   const chain = new TransformerChain()
-  for (const config of configs) {
+  for (let i = 0; i < configs.length; i++) {
+    const config = configs[i]!
     try {
       const transformer = await createTransformer(
         config,
@@ -134,6 +135,7 @@ export async function createTransformerChain(
         getEntityWorldPose,
         controlledEntityIdRef,
       )
+      transformer.configStackIndex = i
       chain.add(transformer)
     } catch (error) {
       console.error(`[TransformerRegistry] Failed to create transformer ${config.type}:`, error)

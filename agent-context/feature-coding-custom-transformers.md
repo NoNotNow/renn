@@ -95,6 +95,35 @@ Right sidebar **Code** drawer (Builder): **Scripts** | **Transformers** | **Code
 
 ---
 
+## Plan: Transformers tab — live I/O visualization (Builder)
+
+Concise roadmap for **Scripts | Transformers | Code** → **Transformers** segment ([`TransformerEditor.tsx`](../src/components/TransformerEditor.tsx)).
+
+1. **Runtime trace (single entity, opt-in)**  
+   When exactly one entity is selected and the **Transformers** sub-tab is active, record **per-step** snapshots for that entity only: `TransformInput` **before** each `transform()` call and the returned `TransformOutput`. Steps include **`configStackIndex`** (matches stack row order in the UI, not necessarily priority execution order — both are stored so we can debug ordering). **Performance:** no cloning when tracing is off; no tracing when multi-select or wrong tab.
+
+2. **`input` transformer semantics**  
+   `input` mutates `input.actions` and usually returns `{}`. The **output summary** treats **published actions** (delta on `actions`) as active the same way a non-empty `TransformOutput` is active for other transformer types.
+
+3. **UI per stack row**  
+   After configuration: **collapsed-by-default** `<details>` for input snapshot JSON and per-step `transformOutput` JSON (left-aligned). **Summary line color** replaces separate LEDs: green (`theme.status.enabled`) when that signal is active, muted when disabled / no frame, secondary when idle.
+
+4. **Scrolling**  
+   Fix Code-drawer layout so long transformer stacks scroll ([`PropertySidebar.tsx`](../src/components/PropertySidebar.tsx) `overflow: visible` vs [`CodingTabPanel.tsx`](../src/components/CodingTabPanel.tsx) tabpanel). Prefer an inner **`minHeight: 0` + `overflow: auto`** scroll region without clipping Monaco hovers where possible.
+
+5. **Tests (TDD)**  
+   Pure helpers: serialisation / “empty” output detection / input-vs-actions activity rules; **`TransformerChain.execute`** with trace collector; component test for collapsed trace summaries (`data-testid`) and active header color.
+
+---
+
+## Implemented addendum (live trace UI revision)
+
+- **No separate In/Out LED dots**; activity is indicated by **summary text color** on each collapsible.
+- **Custom** transformers: live trace stacks **beside** **Apply code** (Input above Output, flex fills left; Apply **bottom-right** on the same row).
+- **Preset** transformers: trace stays **below** configuration with a top border.
+
+---
+
 ## Open questions (for a follow-up session)
 
 - Should **tab labels** or **in-app hints** spell out “Custom transformer” vs “Code” more clearly for new users?
@@ -109,6 +138,8 @@ Right sidebar **Code** drawer (Builder): **Scripts** | **Transformers** | **Code
 
 | Concern | File |
 |---------|------|
+| Live trace bridge (Builder) | [`transformerTraceBridge.ts`](../src/runtime/transformerTraceBridge.ts) |
+| Trace serialization + activity rules | [`transformerTrace.ts`](../src/transformers/transformerTrace.ts) |
 | Tab shell | [`CodingTabPanel.tsx`](../src/components/CodingTabPanel.tsx) |
 | Code segment UI | [`CustomTransformerCodeTab.tsx`](../src/components/CustomTransformerCodeTab.tsx) |
 | Monaco editor widget | [`TransformerCustomCodeEditor.tsx`](../src/components/TransformerCustomCodeEditor.tsx) |

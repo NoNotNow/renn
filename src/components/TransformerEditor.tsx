@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import type { PresetTransformerType, TransformerConfig } from '@/types/transformer'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import type { PresetTransformerType, TransformerConfig, TransformOutput } from '@/types/transformer'
 import CopyableArea from './CopyableArea'
 import TransformerFieldReference from './TransformerFieldReference'
 import TransformerTemplateDialog from './TransformerTemplateDialog'
@@ -16,6 +16,124 @@ import {
 import { nextUniqueCustomTransformerName } from '@/transformers/customTransformerNaming'
 import { effectiveCustomTransformerCode } from '@/transformers/customCodeTransformer'
 import { useEditorUndo } from '@/contexts/EditorUndoContext'
+import type { TransformerTraceStep } from '@/transformers/transformerTrace'
+import {
+  hasNonZeroSemanticActions,
+  isStructuralTransformOutputActive,
+} from '@/transformers/transformerTrace'
+
+function vec3AnyNonZero(v: readonly [number, number, number] | undefined): boolean {
+  if (!v) return false
+  return v[0] !== 0 || v[1] !== 0 || v[2] !== 0
+}
+
+function summarizeActions(actions: unknown): string {
+  if (!actions || typeof actions !== 'object') return '(idle)'
+  const rec = actions as Record<string, number>
+  const pairs = Object.entries(rec).filter(([, v]) => typeof v === 'number' && v !== 0)
+  if (pairs.length === 0) return '(idle)'
+  return pairs.map(([k, v]) => `${k}=${Number((v as number).toFixed(3))}`).join(', ')
+}
+
+function summarizeTransformOutputBrief(o: TransformOutput): string {
+  if (!isStructuralTransformOutputActive(o)) return '(none)'
+  const tags: string[] = []
+  if (o.earlyExit) tags.push('earlyExit')
+  if (vec3AnyNonZero(o.force)) tags.push('force')
+  if (vec3AnyNonZero(o.impulse)) tags.push('impulse')
+  if (vec3AnyNonZero(o.torque)) tags.push('torque')
+  if (o.color) tags.push('color')
+  if (o.addRotation != null) tags.push('addRotation')
+  if (o.setPose) tags.push('setPose')
+  return tags.join(', ')
+}
+
+const TRACE_JSON_PRE_STYLE: CSSProperties = {
+  margin: '6px 0 0',
+  padding: 8,
+  maxHeight: 220,
+  overflow: 'auto',
+  background: theme.bg.codeOverlay,
+  borderRadius: 4,
+  whiteSpace: 'pre-wrap',
+  wordBreak: 'break-word',
+  color: theme.text.muted,
+  fontSize: 11,
+  textAlign: 'left',
+}
+
+function TransformerLiveTraceDetails({
+  index,
+  step,
+  summaryRowStyle,
+  traceInputSummaryColor,
+  traceOutputSummaryColor,
+  traceInputBrief,
+  traceOutputBrief,
+}: {
+  index: number
+  step: TransformerTraceStep | undefined
+  summaryRowStyle: CSSProperties
+  traceInputSummaryColor: string
+  traceOutputSummaryColor: string
+  traceInputBrief: string
+  traceOutputBrief: string
+}) {
+  const detailsStyle: CSSProperties = {
+    margin: 0,
+    fontSize: 11,
+    width: '100%',
+    maxWidth: '100%',
+    minWidth: 0,
+  }
+
+  return (
+    <>
+      <details style={detailsStyle}>
+        <summary
+          title={
+            step?.skipped
+              ? 'Transformer skipped (disabled)'
+              : 'Semantic actions on wire into this step'
+          }
+          style={{
+            ...summaryRowStyle,
+            color: traceInputSummaryColor,
+          }}
+          data-testid={`transformer-trace-summary-input-${index}`}
+        >
+          Input snapshot · {traceInputBrief}
+        </summary>
+        {step && !step.skipped && step.inputBefore ? (
+          <pre data-testid={`transformer-trace-input-json-${index}`} style={TRACE_JSON_PRE_STYLE}>
+            {JSON.stringify(step.inputBefore, null, 2)}
+          </pre>
+        ) : null}
+      </details>
+      <details style={detailsStyle}>
+        <summary
+          title={
+            step?.skipped
+              ? 'Transformer skipped (disabled)'
+              : 'Return value from transform(); includes published actions for input transformer'
+          }
+          style={{
+            ...summaryRowStyle,
+            color: traceOutputSummaryColor,
+          }}
+          data-testid={`transformer-trace-summary-output-${index}`}
+        >
+          Transform output · {traceOutputBrief}
+        </summary>
+        {step && !step.skipped && step.transformOutput ? (
+          <pre data-testid={`transformer-trace-output-json-${index}`} style={TRACE_JSON_PRE_STYLE}>
+            {JSON.stringify(step.transformOutput, null, 2)}
+          </pre>
+        ) : null}
+      </details>
+    </>
+  )
+}
 
 function padFieldRefPanelOpen(open: boolean[], length: number): boolean[] {
   return Array.from({ length }, (_, i) => open[i] ?? false)
@@ -31,6 +149,11 @@ export interface TransformerEditorProps {
   transformersMixed?: boolean
   onChange?: (transformers: TransformerConfig[]) => void
   disabled?: boolean
+  /**
+   * Builder live trace for the selected entity (Transformers tab + single selection).
+   * When non-null, shows per-row collapsible JSON snapshots (placement differs for custom vs preset).
+   */
+  liveTraceSteps?: TransformerTraceStep[] | null
 }
 
 export default function TransformerEditor({
@@ -38,6 +161,7 @@ export default function TransformerEditor({
   transformersMixed = false,
   onChange,
   disabled = false,
+  liveTraceSteps = null,
 }: TransformerEditorProps) {
   const undo = useEditorUndo()
   const pushUndo = () => undo?.pushBeforeEdit()
@@ -47,6 +171,15 @@ export default function TransformerEditor({
   const [fieldRefPanelOpen, setFieldRefPanelOpen] = useState<boolean[]>([])
   const [customCodeDrafts, setCustomCodeDrafts] = useState<Record<number, string>>({})
   const list = transformers ?? []
+
+  const traceByStackIndex = useMemo(() => {
+    if (!liveTraceSteps) return null
+    const m = new Map<number, TransformerTraceStep>()
+    for (const s of liveTraceSteps) {
+      m.set(s.configStackIndex, s)
+    }
+    return m
+  }, [liveTraceSteps])
 
   const customCodeSyncKey = useMemo(
     () =>
@@ -161,6 +294,38 @@ export default function TransformerEditor({
       ) : (
         list.map((transformer, index) => {
         const enabled = transformer.enabled ?? true
+        const step = traceByStackIndex?.get(index)
+        const inputLit = Boolean(step && !step.skipped && hasNonZeroSemanticActions(step.inputBefore))
+        const outputLit = Boolean(step && !step.skipped && step.outputLedActive)
+
+        const traceSummaryMinHeight = entityPanelIconButtonStyle.minHeight
+        const traceSummaryRowStyle = {
+          cursor: 'pointer' as const,
+          minHeight: traceSummaryMinHeight,
+          display: 'flex' as const,
+          alignItems: 'center' as const,
+          userSelect: 'none' as const,
+        }
+        const traceInputSummaryColor =
+          step?.skipped || !step
+            ? theme.text.muted
+            : inputLit
+              ? theme.status.enabled
+              : theme.text.secondary
+        const traceOutputSummaryColor =
+          step?.skipped || !step
+            ? theme.text.muted
+            : outputLit
+              ? theme.status.enabled
+              : theme.text.secondary
+        const traceInputBrief =
+          step?.skipped ? '(disabled)' : step?.inputBefore ? summarizeActions(step.inputBefore.actions) : '—'
+        const traceOutputBrief =
+          step?.skipped
+            ? '(disabled)'
+            : step?.transformOutput
+              ? summarizeTransformOutputBrief(step.transformOutput)
+              : '—'
 
         return (
           <CopyableArea
@@ -408,7 +573,40 @@ export default function TransformerEditor({
                     }
                     disabled={disabled}
                   />
-                  <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div
+                    style={{
+                      marginTop: 8,
+                      display: 'flex',
+                      flexDirection: 'row',
+                      alignItems: 'flex-end',
+                      gap: 12,
+                      width: '100%',
+                      minWidth: 0,
+                    }}
+                  >
+                    {liveTraceSteps != null ? (
+                      <div
+                        style={{
+                          flex: 1,
+                          minWidth: 0,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'flex-start',
+                          gap: 6,
+                        }}
+                        data-testid={`transformer-live-io-${index}`}
+                      >
+                        <TransformerLiveTraceDetails
+                          index={index}
+                          step={step}
+                          summaryRowStyle={traceSummaryRowStyle}
+                          traceInputSummaryColor={traceInputSummaryColor}
+                          traceOutputSummaryColor={traceOutputSummaryColor}
+                          traceInputBrief={traceInputBrief}
+                          traceOutputBrief={traceOutputBrief}
+                        />
+                      </div>
+                    ) : null}
                     <button
                       type="button"
                       disabled={
@@ -431,6 +629,8 @@ export default function TransformerEditor({
                         color: theme.feedback.successText,
                         cursor: disabled ? 'not-allowed' : 'pointer',
                         fontSize: 12,
+                        flexShrink: 0,
+                        marginLeft: liveTraceSteps != null ? 0 : 'auto',
                       }}
                       data-testid="transformer-custom-code-apply"
                     >
@@ -483,6 +683,37 @@ export default function TransformerEditor({
                 </>
               )}
             </div>
+
+            {liveTraceSteps != null && transformer.type !== 'custom' && (
+              <div
+                style={{
+                  marginTop: 12,
+                  paddingTop: 10,
+                  borderTop: `1px solid ${theme.border.default}`,
+                  textAlign: 'left',
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'flex-start',
+                    gap: 6,
+                  }}
+                  data-testid={`transformer-live-io-${index}`}
+                >
+                  <TransformerLiveTraceDetails
+                    index={index}
+                    step={step}
+                    summaryRowStyle={traceSummaryRowStyle}
+                    traceInputSummaryColor={traceInputSummaryColor}
+                    traceOutputSummaryColor={traceOutputSummaryColor}
+                    traceInputBrief={traceInputBrief}
+                    traceOutputBrief={traceOutputBrief}
+                  />
+                </div>
+              </div>
+            )}
           </CopyableArea>
         )
       })

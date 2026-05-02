@@ -27,6 +27,11 @@ import { updateMeshCastShadowFromWorldAabb } from '@/utils/shadowBounds'
 import { computeMeshWorldMaxExtent } from '@/utils/meshWorldExtent'
 import { distanceCullingShouldCull } from '@/utils/distanceCullingMath'
 import { applyVisualBase, setVisualBaseFromShape, stripVisualBase } from '@/utils/visualBaseQuaternion'
+import {
+  getTransformerTraceTargetEntityId,
+  publishTransformerLiveTrace,
+} from '@/runtime/transformerTraceBridge'
+import type { TransformerTraceStep } from '@/transformers/transformerTrace'
 
 const shapeUpdateShadowBox = new THREE.Box3()
 const shapeUpdateShadowSize = new THREE.Vector3()
@@ -919,7 +924,15 @@ export class RenderItemRegistry {
       }
 
       // Execute transformer chain
-      const output = item.transformerChain.execute(input, dt)
+      const traceTarget = getTransformerTraceTargetEntityId()
+      let traceSteps: TransformerTraceStep[] | undefined
+      if (traceTarget !== null && item.entity.id === traceTarget) {
+        traceSteps = []
+      }
+      const output = item.transformerChain.execute(input, dt, traceSteps)
+      if (traceSteps) {
+        publishTransformerLiveTrace(item.entity.id, traceSteps)
+      }
 
       // Apply forces to physics body (hasPhysicsBody() is guaranteed by loop guard)
       if (output.force) {

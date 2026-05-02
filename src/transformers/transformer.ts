@@ -14,6 +14,12 @@ import type {
 import type { Rotation } from '@/types/world'
 import { EMPTY_TRANSFORM_OUTPUT } from '@/types/transformer'
 import { getForwardVectorFromEuler, getUpVectorFromEuler } from '@/utils/rotationUtils'
+import type { TransformerTraceStep } from '@/transformers/transformerTrace'
+import {
+  cloneTransformOutputForTrace,
+  computeOutputLedActive,
+  serializeTransformInputForTrace,
+} from '@/transformers/transformerTrace'
 
 /**
  * Abstract base class for all transformers.
@@ -153,6 +159,7 @@ export class TransformerChain {
   execute(
     input: TransformInput,
     dt: number,
+    traceSteps?: TransformerTraceStep[],
   ): TransformOutput {
     this.ensureSorted()
 
@@ -165,11 +172,45 @@ export class TransformerChain {
     const tq = input.accumulatedTorque
 
     for (const transformer of this.sorted) {
+      const configStackIndex = transformer.configStackIndex ?? -1
       if (!transformer.enabled) {
+        if (traceSteps) {
+          traceSteps.push({
+            configStackIndex,
+            type: transformer.type,
+            priority: transformer.priority,
+            skipped: true,
+            outputLedActive: false,
+          })
+        }
         continue
       }
 
+      let actionsBefore: Record<string, number> | undefined
+      let inputBeforeSnapshot: TransformerTraceStep['inputBefore']
+      if (traceSteps) {
+        inputBeforeSnapshot = serializeTransformInputForTrace(input)
+        actionsBefore = { ...input.actions }
+      }
+
       const output = transformer.transform(input, dt)
+
+      if (traceSteps && actionsBefore) {
+        traceSteps.push({
+          configStackIndex,
+          type: transformer.type,
+          priority: transformer.priority,
+          skipped: false,
+          inputBefore: inputBeforeSnapshot,
+          transformOutput: cloneTransformOutputForTrace(output),
+          outputLedActive: computeOutputLedActive(
+            transformer.type,
+            output,
+            actionsBefore,
+            { ...input.actions },
+          ),
+        })
+      }
 
       if (output.force) {
         f[0] += output.force[0]

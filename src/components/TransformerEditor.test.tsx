@@ -62,6 +62,33 @@ describe('TransformerEditor', () => {
     expect(onChange).not.toHaveBeenCalled()
   })
 
+  it('shows live trace summaries with active-state header color when liveTraceSteps provided', () => {
+    const steps = [
+      {
+        configStackIndex: 0,
+        type: 'input',
+        priority: 0,
+        skipped: false,
+        inputBefore: { actions: {} },
+        transformOutput: {},
+        outputLedActive: true,
+      },
+    ]
+    renderTransformerEditor(
+      <TransformerEditor
+        transformers={[{ type: 'input', priority: 0, enabled: true }]}
+        onChange={vi.fn()}
+        disabled={false}
+        liveTraceSteps={steps}
+      />
+    )
+
+    expect(screen.getByTestId('transformer-live-io-0')).toBeInTheDocument()
+    const outSummary = screen.getByTestId('transformer-trace-summary-output-0')
+    expect(outSummary).toBeInTheDocument()
+    expect(outSummary).toHaveStyle({ color: 'rgb(74, 222, 128)' })
+  })
+
   it('field reference is hidden by default and toggles with the document button', async () => {
     const user = userEvent.setup()
     renderTransformerEditor(

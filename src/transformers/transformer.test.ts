@@ -8,6 +8,7 @@ import type {
   TransformOutput,
   Vec3,
 } from '@/types/transformer'
+import type { TransformerTraceStep } from '@/transformers/transformerTrace'
 import { createMockTransformInput, assertEmptyOutput } from '@/test/helpers/transformer'
 
 // Mock transformer implementations for testing
@@ -330,5 +331,38 @@ describe('TransformerChain', () => {
 
     expect(output.force).toBeUndefined()
     expect(output.setPose?.position[1]).toBe(3)
+  })
+
+  test('execute collects trace steps in execution order with stack indices', () => {
+    const chain = new TransformerChain()
+    const low = new MockTransformer(0, () => ({ force: [1, 0, 0] }))
+    ;(low as { configStackIndex?: number }).configStackIndex = 1
+    const high = new MockTransformer(10, () => ({}))
+    ;(high as { configStackIndex?: number }).configStackIndex = 0
+    chain.add(low)
+    chain.add(high)
+
+    const steps: TransformerTraceStep[] = []
+    chain.execute(createMockTransformInput(), 0.016, steps)
+
+    expect(steps.map((s) => [s.configStackIndex, s.priority])).toEqual([
+      [1, 0],
+      [0, 10],
+    ])
+    expect(steps[0].outputLedActive).toBe(true)
+    expect(steps[1].outputLedActive).toBe(false)
+  })
+
+  test('execute trace marks skipped disabled transformers', () => {
+    const chain = new TransformerChain()
+    const a = new MockTransformer(0, () => ({}), false)
+    ;(a as { configStackIndex?: number }).configStackIndex = 0
+    chain.add(a)
+
+    const steps: TransformerTraceStep[] = []
+    chain.execute(createMockTransformInput(), 0.016, steps)
+
+    expect(steps).toHaveLength(1)
+    expect(steps[0].skipped).toBe(true)
   })
 })

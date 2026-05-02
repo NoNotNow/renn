@@ -194,6 +194,9 @@ export interface Transformer {
   /** Execution priority — lower values run first. Default 10. */
   readonly priority: number
 
+  /** Index in `entity.transformers` when instantiated from config (Builder live trace UI). */
+  configStackIndex?: number
+
   /** When false the transformer is skipped in the chain. */
   enabled: boolean
 

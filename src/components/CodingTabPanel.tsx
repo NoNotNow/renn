@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useState, useSyncExternalStore, type CSSProperties } from 'react'
 import type { Entity } from '@/types/world'
 import type { TransformerConfig } from '@/types/transformer'
 import type { RennWorld } from '@/types/world'
@@ -8,6 +8,12 @@ import CopyableArea from '@/components/CopyableArea'
 import CustomTransformerCodeTab from '@/components/CustomTransformerCodeTab'
 import { theme } from '@/config/theme'
 import { mergeTransformers } from '@/utils/entityInspectorMerge'
+import {
+  clearTransformerLiveTraceSnapshot,
+  getTransformerLiveTraceSnapshot,
+  setTransformerTraceTargetEntityId,
+  subscribeTransformerLiveTrace,
+} from '@/runtime/transformerTraceBridge'
 
 type CodingSubgroup = 'scripts' | 'transformers' | 'code'
 
@@ -74,6 +80,32 @@ export default function CodingTabPanel({
   onEntityTransformersChange,
 }: CodingTabPanelProps) {
   const [subgroup, setSubgroup] = useState<CodingSubgroup>('scripts')
+
+  useEffect(() => {
+    if (subgroup === 'transformers' && selectedEntityIds.length === 1) {
+      setTransformerTraceTargetEntityId(selectedEntityIds[0]!)
+    } else {
+      setTransformerTraceTargetEntityId(null)
+      clearTransformerLiveTraceSnapshot()
+    }
+    return () => {
+      setTransformerTraceTargetEntityId(null)
+      clearTransformerLiveTraceSnapshot()
+    }
+  }, [subgroup, selectedEntityIds])
+
+  const liveTraceSnapshot = useSyncExternalStore(
+    subscribeTransformerLiveTrace,
+    getTransformerLiveTraceSnapshot,
+    () => null,
+  )
+
+  const liveTraceSteps =
+    subgroup === 'transformers' &&
+    selectedEntityIds.length === 1 &&
+    liveTraceSnapshot?.entityId === selectedEntityIds[0]
+      ? liveTraceSnapshot.steps
+      : null
 
   const entities = useMemo(() => {
     const list: Entity[] = []
@@ -148,7 +180,13 @@ export default function CodingTabPanel({
         key={subgroup}
         role="tabpanel"
         aria-labelledby={`coding-tab-${subgroup}`}
-        style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'visible' }}
+        style={{
+          flex: 1,
+          minHeight: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: subgroup === 'code' ? 'visible' : 'auto',
+        }}
       >
         {subgroup === 'scripts' && (
           <ScriptPanel
@@ -196,19 +234,22 @@ export default function CodingTabPanel({
                   display: 'flex',
                   flexDirection: 'column',
                   padding: 8,
-                  overflow: 'visible',
+                  overflow: 'hidden',
                 }}
               >
                 <h3 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 600, color: theme.text.primary }}>
                   Transformers
                   {entities.length > 1 ? ` (${entities.length} entities)` : ''}
                 </h3>
-                <TransformerEditor
-                  transformers={mergedTransformers === null ? [] : mergedTransformers}
-                  transformersMixed={mergedTransformers === null}
-                  onChange={(next) => handleTransformersCommit(next)}
-                  disabled={anyLocked}
-                />
+                <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+                  <TransformerEditor
+                    transformers={mergedTransformers === null ? [] : mergedTransformers}
+                    transformersMixed={mergedTransformers === null}
+                    onChange={(next) => handleTransformersCommit(next)}
+                    disabled={anyLocked}
+                    liveTraceSteps={liveTraceSteps}
+                  />
+                </div>
               </CopyableArea>
             )}
           </>
