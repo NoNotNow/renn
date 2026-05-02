@@ -10,7 +10,7 @@ export interface BuilderFullscreenChrome {
    * Attach to the full-area sidebars overlay wrapper (`position: absolute; inset: 0; pointer-events: none`).
    * Used to detect when the pointer is over sidebar UI so idle fullscreen auto-hide is suppressed.
    */
-  fsSidebarsHitTestRef: React.RefObject<HTMLDivElement | null>
+  fsSidebarsHitTestRef: React.MutableRefObject<HTMLDivElement | null>
   /** Left sidebar drawer open state (persisted to localStorage). */
   leftDrawerOpen: boolean
   setLeftDrawerOpen: (value: boolean | ((prev: boolean) => boolean)) => void
@@ -42,7 +42,7 @@ export interface BuilderFullscreenChrome {
  */
 export function useBuilderFullscreenChrome(): BuilderFullscreenChrome {
   const builderColumnRef = useRef<HTMLDivElement>(null)
-  const fsSidebarsHitTestRef = useRef<HTMLDivElement | null>(null)
+  const fsSidebarsHitTestRef = useRef<HTMLDivElement>(null)
   const builderFullscreenActiveRef = useRef(false)
   const pointerOverFsSidebarsRef = useRef(false)
 

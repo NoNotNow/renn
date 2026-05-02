@@ -25,12 +25,18 @@ function DocRow({ name, text }: { name: string; text: string }) {
   )
 }
 
-const COMMON_KEYS: (keyof typeof TRANSFORMER_CONFIG_COMMON_DOCS)[] = [
+const COMMON_KEYS_BASE: (keyof typeof TRANSFORMER_CONFIG_COMMON_DOCS)[] = [
   'type',
   'priority',
   'enabled',
   'params',
 ]
+
+function commonKeysFor(transformerType: PresetTransformerType): string[] {
+  const keys = [...COMMON_KEYS_BASE]
+  if (transformerType === 'custom') keys.push('code')
+  return keys as string[]
+}
 
 export interface TransformerFieldReferenceProps {
   transformerType: PresetTransformerType
@@ -56,8 +62,12 @@ export default function TransformerFieldReference({
       </div>
 
       <div style={fieldLabelStyle}>Common JSON keys</div>
-      {COMMON_KEYS.map((key) => (
-        <DocRow key={key} name={key} text={TRANSFORMER_CONFIG_COMMON_DOCS[key]} />
+      {commonKeysFor(transformerType).map((key) => (
+        <DocRow
+          key={key}
+          name={key}
+          text={TRANSFORMER_CONFIG_COMMON_DOCS[key as keyof typeof TRANSFORMER_CONFIG_COMMON_DOCS]}
+        />
       ))}
 
       {transformerType === 'input' && (

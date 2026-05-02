@@ -7,9 +7,16 @@ export interface ScriptPanelProps {
   world: RennWorld
   selectedEntityIds: string[]
   onWorldChange: (world: RennWorld) => void
+  /** When true (Code tab), the script toolbar can fold away to give Monaco more space. */
+  collapsibleScriptToolbar?: boolean
 }
 
-export default function ScriptPanel({ world, selectedEntityIds, onWorldChange }: ScriptPanelProps) {
+export default function ScriptPanel({
+  world,
+  selectedEntityIds,
+  onWorldChange,
+  collapsibleScriptToolbar = false,
+}: ScriptPanelProps) {
   if (selectedEntityIds.length === 0) {
     return (
       <CopyableArea
@@ -34,10 +41,10 @@ export default function ScriptPanel({ world, selectedEntityIds, onWorldChange }:
         copyPayload={{ scripts: world.scripts, selectedEntityIds, entityScriptIds }}
         style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}
       >
-        <EntityScriptEditor world={world} entityId={entityId} onWorldChange={onWorldChange} />
+        <EntityScriptEditor world={world} entityId={entityId} onWorldChange={onWorldChange} collapsibleToolbar={collapsibleScriptToolbar} />
       </CopyableArea>
     )
   }
 
-  return <ScriptPanelMultiSelect world={world} selectedEntityIds={selectedEntityIds} onWorldChange={onWorldChange} />
+  return <ScriptPanelMultiSelect world={world} selectedEntityIds={selectedEntityIds} onWorldChange={onWorldChange} collapsibleToolbar={collapsibleScriptToolbar} />
 }

@@ -64,6 +64,8 @@ export interface EntityScriptEditorProps {
   editorHeightPx?: number
   /** When false, omit the top "Scripts for …" heading row (parent supplies a section title). */
   showHeadingRow?: boolean
+  /** When true, heading + controls row can collapse to enlarge the Monaco area. */
+  collapsibleToolbar?: boolean
 }
 
 export default function EntityScriptEditor({
@@ -73,9 +75,11 @@ export default function EntityScriptEditor({
   editorMinHeight = 200,
   editorHeightPx,
   showHeadingRow = true,
+  collapsibleToolbar = false,
 }: EntityScriptEditorProps) {
   const undo = useEditorUndo()
   const pushUndo = () => undo?.pushBeforeEdit()
+  const [toolbarExpanded, setToolbarExpanded] = useState(true)
   const scripts = world.scripts ?? {}
   const scriptIds = Object.keys(scripts)
   const entity = world.entities.find((e) => e.id === entityId) ?? null
@@ -226,42 +230,32 @@ export default function EntityScriptEditor({
     )
   }
 
-  return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        flex: 1,
-        minHeight: 0,
-        width: '100%',
-        minWidth: 280,
-        overflow: 'visible',
-      }}
-    >
-      <div style={{ padding: showHeadingRow ? 8 : '0 0 8px', display: 'flex', flexDirection: 'column', gap: 8, borderBottom: `1px solid ${theme.border.default}` }}>
+  const scriptToolbarInner = (
+      <div
+        style={{
+          padding: showHeadingRow ? 8 : '0 0 8px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 8,
+          borderBottom: `1px solid ${theme.border.default}`,
+        }}
+      >
         {showHeadingRow ? (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 }}>
-            <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: theme.text.primary }}>Scripts for {entityDisplayName}</h3>
-            <button
-              type="button"
-              onClick={() => setScriptDialogOpen(true)}
-              style={manageScriptsButtonStyle}
-            >
+            <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: theme.text.primary }}>
+              Scripts for {entityDisplayName}
+            </h3>
+            <button type="button" onClick={() => setScriptDialogOpen(true)} style={manageScriptsButtonStyle}>
               Manage scripts
             </button>
           </div>
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 6 }}>
-            <button
-              type="button"
-              onClick={() => setScriptDialogOpen(true)}
-              style={manageScriptsButtonStyle}
-            >
+            <button type="button" onClick={() => setScriptDialogOpen(true)} style={manageScriptsButtonStyle}>
               Manage scripts
             </button>
           </div>
         )}
-
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
           <select
             value={selectedId ?? ''}
@@ -382,6 +376,67 @@ export default function EntityScriptEditor({
           )}
         </div>
       </div>
+  )
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        flex: 1,
+        minHeight: 0,
+        width: '100%',
+        minWidth: 280,
+        overflow: 'visible',
+      }}
+    >
+      {!collapsibleToolbar ? (
+        scriptToolbarInner
+      ) : !toolbarExpanded ? (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 8,
+            padding: '6px 8px',
+            borderBottom: `1px solid ${theme.border.default}`,
+            flexShrink: 0,
+          }}
+        >
+          <span style={{ fontSize: 12, color: theme.text.muted }}>Script toolbar hidden</span>
+          <button
+            type="button"
+            onClick={() => setToolbarExpanded(true)}
+            style={{ ...manageScriptsButtonStyle, padding: '4px 10px', fontSize: 11 }}
+            data-testid="expand-script-toolbar"
+          >
+            Show toolbar
+          </button>
+        </div>
+      ) : (
+        <div style={{ flexShrink: 0 }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '6px 8px 0' }}>
+            <button
+              type="button"
+              onClick={() => setToolbarExpanded(false)}
+              style={{
+                padding: '4px 8px',
+                fontSize: 11,
+                borderRadius: 4,
+                border: `1px solid ${theme.border.default}`,
+                background: theme.bg.surface,
+                color: theme.text.secondary,
+                cursor: 'pointer',
+              }}
+              data-testid="collapse-script-toolbar"
+            >
+              Hide toolbar
+            </button>
+          </div>
+          {scriptToolbarInner}
+        </div>
+      )}
 
       {isSharedScript && selectedId && (
         <div

@@ -143,4 +143,18 @@ describe('Transformer Registry', () => {
     const config = { type: 'nope' } as any
     await expect(createTransformer(config)).rejects.toThrow(/Unknown transformer type/)
   })
+
+  test('creates CustomCodeTransformer and applies sanitized force', async () => {
+    const config: TransformerConfig = {
+      type: 'custom',
+      priority: 3,
+      code: 'return { force: [0, 200, 0] };',
+    }
+    const t = await createTransformer(config)
+    expect(t.type).toBe('custom')
+    expect(t.priority).toBe(3)
+    const input = createMockTransformInput()
+    const out = t.transform(input, 0.016)
+    expect(out.force).toEqual([0, 200, 0])
+  })
 })

@@ -8,7 +8,8 @@ Scripting lets users run JavaScript in the play runtime. Scripts are **event-bou
 
 ### Script editor (Builder)
 
-- **ScriptPanel** (`src/components/ScriptPanel.tsx`): Scripts tab in the right sidebar. When an entity is selected, shows **"Scripts for [Entity name]"** and a dropdown of scripts attached to that entity (with "Other scripts" for the rest). **Manage scripts** opens **ScriptDialog** to attach/detach scripts for the entity. **Detach from entity** removes the selected script only from the current entity’s `scripts` array; it does **not** delete the script from the world. When the script being edited is used by more than one entity, a **shared-script banner** appears: "This script is shared. Used by: … Changes affect all of them."
+- **Code tab** (`CodingTabPanel`): Right sidebar **Code** tab combines **Scripts** and **Transformers** subgroups (entity scripts plus the transformer stack previously under Properties). Scripts can **Hide toolbar** / **Show toolbar** for more Monaco space.
+- **ScriptPanel** (`src/components/ScriptPanel.tsx`): Used inside the Code tab. When an entity is selected, shows **"Scripts for [Entity name]"** and a dropdown of scripts attached to that entity (with "Other scripts" for the rest). **Manage scripts** opens **ScriptDialog** to attach/detach scripts for the entity. **Detach from entity** removes the selected script only from the current entity’s `scripts` array; it does **not** delete the script from the world. When the script being edited is used by more than one entity, a **shared-script banner** appears: "This script is shared. Used by: … Changes affect all of them."
 - **ScriptDialog** (`src/components/ScriptDialog.tsx`): Modal to manage which scripts are attached to the selected entity. Lists all world scripts (with search), "Attached to this entity", Attach selected / Detach / Create new script / Rename. Rename changes a script’s ID in `world.scripts` and updates all entity `scripts` arrays that reference it. Similar UX to TextureDialog for texture selection.
 - **Monaco** (`@monaco-editor/react`): JavaScript editor with **event-specific intellisense**: `addExtraLib` injects a `.d.ts` so `ctx` has the correct type for the selected script’s event (`OnSpawnCtx`, `OnUpdateCtx`, `OnCollisionCtx`, `OnTimerCtx`). See `src/scripts/scriptCtxDecl.ts` for `ctxDeclFor(event)`. For `onCollision` scripts, `ctx.other` (the other entity) and `ctx.impact` (CollisionImpact: `totalForce`, `totalForceMagnitude`, `maxForceMagnitude`, `maxForceDirection`) are discoverable in autocomplete.
 - **World-level script registry**: `RennWorld.scripts` is `Record<string, ScriptDef>` (script ID → `{ event, source }` or `{ event: 'onTimer', interval, source }`). Scripts exist independently; entities reference them by ID.
@@ -84,7 +85,7 @@ Example: `if (ctx.detect.isUpsideDown()) { ctx.log('Flipped!') }`. See `directio
 
 | Concern              | File |
 |----------------------|------|
-| Script editor UI     | `src/components/ScriptPanel.tsx` |
+| Script editor UI     | `src/components/ScriptPanel.tsx`, `CodingTabPanel.tsx` |
 | Script selector (entity) | `src/components/ScriptDialog.tsx` |
 | Ctx intellisense     | `src/scripts/scriptCtxDecl.ts` |
 | Script types         | `src/types/world.ts` (`ScriptEvent`, `ScriptDef`, `Entity.scripts`) |

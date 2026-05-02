@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import type { PresetTransformerType, TransformerConfig } from '@/types/transformer'
 import { listPresetNames, loadPreset } from '@/data/transformerPresets/loader'
-import { TRANSFORMER_PRESET_TYPES } from '@/transformers/transformerPresets'
+import { TRANSFORMER_PRESET_OPTIONS } from '@/transformers/transformerPresets'
 import Modal from './Modal'
 import { theme } from '@/config/theme'
 
@@ -210,9 +210,9 @@ export default function TransformerTemplateDialog({
                 data-testid="transformer-template-type-select"
                 aria-label="Transformer type"
               >
-                {TRANSFORMER_PRESET_TYPES.map((type) => (
-                  <option key={type} value={type}>
-                    {type}
+              {TRANSFORMER_PRESET_OPTIONS.filter((o) => o.value !== 'custom').map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
                   </option>
                 ))}
               </select>

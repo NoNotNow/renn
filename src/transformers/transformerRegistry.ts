@@ -27,6 +27,7 @@ import {
   type WandererParams,
 } from './presets/wandererTransformer'
 import { FollowTransformer, type FollowParams } from './presets/followTransformer'
+import { CustomCodeTransformer } from './customCodeTransformer'
 import type { InputMapping } from '@/types/transformer'
 import { CHARACTER_PRESET } from '@/input/inputPresets'
 
@@ -96,6 +97,11 @@ export async function createTransformer(
       const params = (config.params ?? {}) as Partial<FollowParams>
       const transformer = new FollowTransformer(priority, params, getEntityWorldPose)
       transformer.enabled = enabled
+      return transformer
+    }
+
+    case 'custom': {
+      const transformer = new CustomCodeTransformer(config)
       return transformer
     }
 

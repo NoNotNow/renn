@@ -226,7 +226,6 @@ export default function Builder() {
     setLeftDrawerOpen,
     rightDrawerOpen,
     setRightDrawerOpen,
-    fsChromeVisible,
     bumpFsChrome,
     handleSceneFullscreenChange,
     builderChromeIdleHidden,

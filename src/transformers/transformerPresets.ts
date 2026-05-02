@@ -5,6 +5,7 @@
 
 import type { PresetTransformerType, TransformerConfig } from '@/types/transformer'
 import { CAR_PRESET } from '@/input/inputPresets'
+import { defaultCustomTransformerCode } from './customCodeTransformer'
 
 export const TRANSFORMER_PRESET_OPTIONS: { value: string; label: string }[] = [
   { value: 'input', label: 'input' },
@@ -14,6 +15,7 @@ export const TRANSFORMER_PRESET_OPTIONS: { value: string; label: string }[] = [
   { value: 'kinematicMovement', label: 'kinematicMovement' },
   { value: 'wanderer', label: 'wanderer' },
   { value: 'follow', label: 'follow' },
+  { value: 'custom', label: 'custom (code)' },
 ]
 
 /** Preset transformer `type` values (single source for UI + JSON preset folders). */
@@ -120,6 +122,14 @@ export function getDefaultTransformerConfig(type: string): TransformerConfig {
           linear: true,
           angular: true,
         },
+      }
+    case 'custom':
+      return {
+        type: 'custom',
+        priority: 10,
+        enabled: true,
+        params: {},
+        code: defaultCustomTransformerCode(),
       }
     default:
       return {

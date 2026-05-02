@@ -30,6 +30,12 @@ RawInput → InputMapping → TransformInput → TransformerChain → TransformO
 - `resetAllForces()` is called before each frame so forces never accumulate across frames. Rapier's `addForce()`/`addTorque()` are **persistent** — without reset, each frame's force stacks (N frames → N×F), causing unbounded angular velocity. Fix: `physicsWorld.resetAllForces()` at the start of each frame, before `executeTransformers()`. See `rapierPhysics.ts` and `renderItemRegistry.ts`.
 - **Play avatars:** When the world defines at least one entity with `avatar` and play mode runs scripts + physics, **`InputTransformer`** only maps raw keyboard input for the **current avatar** entity id; other entities’ `input` transformers see empty `actions`. See [feature-scripting.md](feature-scripting.md) (Play avatars).
 
+## Custom code (`type: "custom"`)
+
+- **Builder:** **Code** sidebar tab → **Transformers** subgroup (or **Scripts** for entity scripts). Add **custom (code)** from the transformer dropdown; Monaco edits the `code` field with **Apply code**; tunable **params** are a separate JSON object, available as `params` in the compiled function.
+- **Runtime:** `customCodeTransformer.ts` compiles the source **once** when the chain is built. The body runs as `function (input, dt, params, state) { … }` and must **`return`** a `TransformOutput` or `{}`. `state` is a per-instance mutable object for frame-to-frame memory. Non-finite outputs are stripped.
+- **Performance:** Matches other transformers in engine overhead (no recompile per frame), but user code still runs every physics step per entity—keep it cheap; avoid per-frame allocations.
+
 ## Key files
 
 ```
@@ -39,6 +45,8 @@ src/
 │   ├── transformerParamDocs.ts               # User-facing field descriptions (Builder tooltips)
 │   ├── transformer.ts                        # BaseTransformer + TransformerChain
 │   ├── transformerRegistry.ts                # Factory: type string → instance
+│   ├── customCodeTransformer.ts              # type "custom": compile config.code once
+│   ├── transformerCodeDecl.ts                # Monaco .d.ts for custom transformer authoring
 │   ├── transformerPresets.ts                 # Default configs for Builder dropdown
 │   └── presets/
 │       ├── inputTransformer.ts               # Raw input → actions (priority 0)

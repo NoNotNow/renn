@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { PresetTransformerType, TransformerConfig } from '@/types/transformer'
 import CopyableArea from './CopyableArea'
 import TransformerFieldReference from './TransformerFieldReference'
 import TransformerTemplateDialog from './TransformerTemplateDialog'
 import ValidatedJsonTextarea from './ValidatedJsonTextarea'
+import TransformerCustomCodeEditor from './TransformerCustomCodeEditor'
 import { fieldLabelStyle, entityPanelIconButtonStyle, removeButtonStyle, removeButtonStyleDisabled } from './sharedStyles'
 import { theme } from '@/config/theme'
 import { EntityPanelIcons } from './EntityPanelIcons'
@@ -12,9 +13,19 @@ import {
   getDefaultTransformerConfig,
   isPresetTransformerType,
 } from '@/transformers/transformerPresets'
+import { defaultCustomTransformerCode } from '@/transformers/customCodeTransformer'
+import { useEditorUndo } from '@/contexts/EditorUndoContext'
 
 function padFieldRefPanelOpen(open: boolean[], length: number): boolean[] {
   return Array.from({ length }, (_, i) => open[i] ?? false)
+}
+
+function supportsTemplatePickers(type: string): boolean {
+  return isPresetTransformerType(type) && type !== 'custom'
+}
+
+function effectiveCustomCode(t: TransformerConfig): string {
+  return typeof t.code === 'string' && t.code.trim() !== '' ? t.code : defaultCustomTransformerCode()
 }
 
 export interface TransformerEditorProps {
@@ -31,11 +42,36 @@ export default function TransformerEditor({
   onChange,
   disabled = false,
 }: TransformerEditorProps) {
+  const undo = useEditorUndo()
+  const pushUndo = () => undo?.pushBeforeEdit()
   const [addSelectValue, setAddSelectValue] = useState('')
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false)
   const [templateDialogTargetIndex, setTemplateDialogTargetIndex] = useState<number | null>(null)
   const [fieldRefPanelOpen, setFieldRefPanelOpen] = useState<boolean[]>([])
+  const [customCodeDrafts, setCustomCodeDrafts] = useState<Record<number, string>>({})
   const list = transformers ?? []
+
+  const customCodeSyncKey = useMemo(
+    () =>
+      JSON.stringify(
+        list.map((t, i) =>
+          t.type === 'custom'
+            ? { i, c: effectiveCustomCode(t), p: t.priority ?? null, pr: JSON.stringify(t.params ?? {}) }
+            : { i, t: t.type },
+        ),
+      ),
+    [list],
+  )
+  const lastCustomSyncKeyRef = useRef('')
+  useEffect(() => {
+    if (customCodeSyncKey === lastCustomSyncKeyRef.current) return
+    lastCustomSyncKeyRef.current = customCodeSyncKey
+    const next: Record<number, string> = {}
+    list.forEach((t, i) => {
+      if (t.type === 'custom') next[i] = effectiveCustomCode(t)
+    })
+    setCustomCodeDrafts(next)
+  }, [list, customCodeSyncKey])
 
   useEffect(() => {
     setFieldRefPanelOpen((prev) => padFieldRefPanelOpen(prev, list.length))
@@ -183,68 +219,62 @@ export default function TransformerEditor({
                 </button>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
-                {isPresetTransformerType(transformer.type) && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setTemplateDialogTargetIndex(index)
-                        setTemplateDialogOpen(true)
-                      }}
-                      disabled={disabled}
-                      style={{
-                        ...entityPanelIconButtonStyle,
-                        color: theme.text.accentBlue,
-                        border: `1px solid ${theme.button.infoBorder}`,
-                        background: theme.button.info,
-                      }}
-                      title="Load template"
-                      aria-label="Load template"
-                      data-testid="load-transformer-template"
-                    >
-                      {EntityPanelIcons.loadTemplate}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setFieldRefPanelOpen((prev) => {
-                          const p = padFieldRefPanelOpen(prev, list.length)
-                          const next = [...p]
-                          next[index] = !next[index]
-                          return next
-                        })
-                      }}
-                      disabled={disabled}
-                      aria-pressed={fieldRefPanelOpen[index] ?? false}
-                      style={{
-                        ...entityPanelIconButtonStyle,
-                        color: theme.text.accentBlue,
-                        border: `1px solid ${
-                          fieldRefPanelOpen[index] ?? false
-                            ? theme.button.infoActiveBorder
-                            : theme.button.infoBorder
-                        }`,
-                        background:
-                          fieldRefPanelOpen[index] ?? false
-                            ? theme.button.infoActive
-                            : theme.button.info,
-                      }}
-                      title={
+                {supportsTemplatePickers(transformer.type) ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTemplateDialogTargetIndex(index)
+                      setTemplateDialogOpen(true)
+                    }}
+                    disabled={disabled}
+                    style={{
+                      ...entityPanelIconButtonStyle,
+                      color: theme.text.accentBlue,
+                      border: `1px solid ${theme.button.infoBorder}`,
+                      background: theme.button.info,
+                    }}
+                    title="Load template"
+                    aria-label="Load template"
+                    data-testid="load-transformer-template"
+                  >
+                    {EntityPanelIcons.loadTemplate}
+                  </button>
+                ) : null}
+                {isPresetTransformerType(transformer.type) ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFieldRefPanelOpen((prev) => {
+                        const p = padFieldRefPanelOpen(prev, list.length)
+                        const next = [...p]
+                        next[index] = !next[index]
+                        return next
+                      })
+                    }}
+                    disabled={disabled}
+                    aria-pressed={fieldRefPanelOpen[index] ?? false}
+                    style={{
+                      ...entityPanelIconButtonStyle,
+                      color: theme.text.accentBlue,
+                      border: `1px solid ${
                         fieldRefPanelOpen[index] ?? false
-                          ? 'Hide field reference'
-                          : 'Show field reference'
-                      }
-                      aria-label={
-                        fieldRefPanelOpen[index] ?? false
-                          ? 'Hide field reference'
-                          : 'Show field reference'
-                      }
-                      data-testid="transformer-field-reference-toggle"
-                    >
-                      {EntityPanelIcons.document}
-                    </button>
-                  </>
-                )}
+                          ? theme.button.infoActiveBorder
+                          : theme.button.infoBorder
+                      }`,
+                      background:
+                        fieldRefPanelOpen[index] ?? false ? theme.button.infoActive : theme.button.info,
+                    }}
+                    title={
+                      fieldRefPanelOpen[index] ?? false ? 'Hide field reference' : 'Show field reference'
+                    }
+                    aria-label={
+                      fieldRefPanelOpen[index] ?? false ? 'Hide field reference' : 'Show field reference'
+                    }
+                    data-testid="transformer-field-reference-toggle"
+                  >
+                    {EntityPanelIcons.document}
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   onClick={() => handleMoveTransformer(index, 'up')}
@@ -323,31 +353,138 @@ export default function TransformerEditor({
                   </p>
                 </div>
               )}
-              <div
-                style={{ ...fieldLabelStyle, cursor: 'help' }}
-                title="JSON config for this transformer. Use the field reference panel when available; Apply commits valid JSON."
-              >
-                Configuration:
-              </div>
-              <ValidatedJsonTextarea
-                value={JSON.stringify(transformer, null, 2)}
-                onApply={(updated) => {
-                  const next = list.map((t, i) =>
-                    i === index ? (updated as TransformerConfig) : t
-                  )
-                  onChange?.(next)
-                }}
-                disabled={disabled}
-                applyVariant="icon"
-                textareaTestId="transformer-config-textarea"
-                applyTestId="transformer-config-apply"
-              />
+              {transformer.type === 'custom' ? (
+                <>
+                  <div style={{ marginBottom: 10, display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
+                    <label
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        fontSize: 12,
+                        color: theme.text.secondary,
+                      }}
+                      title="Lower runs earlier in the chain."
+                    >
+                      Priority
+                      <input
+                        type="number"
+                        value={transformer.priority ?? 10}
+                        disabled={disabled}
+                        onChange={(e) => {
+                          const n = Number(e.target.value)
+                          if (!Number.isFinite(n)) return
+                          onChange?.(list.map((t, i) => (i === index ? { ...t, priority: n } : t)))
+                        }}
+                        style={{
+                          width: 64,
+                          padding: '4px 6px',
+                          borderRadius: 4,
+                          border: `1px solid ${theme.border.default}`,
+                          background: theme.bg.panelAlt,
+                          color: theme.text.primary,
+                          fontSize: 12,
+                        }}
+                      />
+                    </label>
+                  </div>
+                  <div
+                    style={{ ...fieldLabelStyle, cursor: 'help' }}
+                    title="JavaScript compiled once after Apply. IntelliSense mirrors input/actions/pose/state."
+                  >
+                    Code
+                  </div>
+                  <TransformerCustomCodeEditor
+                    value={
+                      customCodeDrafts[index] !== undefined ? customCodeDrafts[index]! : effectiveCustomCode(transformer)
+                    }
+                    onChange={(text) =>
+                      setCustomCodeDrafts((prev) => ({ ...prev, [index]: text }))
+                    }
+                    disabled={disabled}
+                  />
+                  <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <button
+                      type="button"
+                      disabled={
+                        disabled ||
+                        (customCodeDrafts[index] !== undefined ? customCodeDrafts[index]! : effectiveCustomCode(transformer)) === effectiveCustomCode(transformer)
+                      }
+                      onClick={() => {
+                        pushUndo()
+                        const nextCode =
+                          customCodeDrafts[index] !== undefined ? customCodeDrafts[index]! : effectiveCustomCode(transformer)
+                        onChange?.(
+                          list.map((t, i) => (i === index ? { ...t, code: nextCode } : t)),
+                        )
+                      }}
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: 6,
+                        border: `1px solid ${theme.feedback.successBorder}`,
+                        background: theme.feedback.successBg,
+                        color: theme.feedback.successText,
+                        cursor: disabled ? 'not-allowed' : 'pointer',
+                        fontSize: 12,
+                      }}
+                      data-testid="transformer-custom-code-apply"
+                    >
+                      Apply code
+                    </button>
+                  </div>
+                  <div
+                    style={{ ...fieldLabelStyle, cursor: 'help', marginTop: 12 }}
+                    title='"params" only; merged into this transformer.'
+                  >
+                    Params (JSON)
+                  </div>
+                  <ValidatedJsonTextarea
+                    value={JSON.stringify(transformer.params ?? {}, null, 2)}
+                    onApply={(updated) => {
+                      const patch = typeof updated === 'object' && updated !== null && !Array.isArray(updated)
+                        ? (updated as Record<string, unknown>)
+                        : {}
+                      onChange?.(
+                        list.map((t, i) => (i === index ? { ...t, params: patch } : t)),
+                      )
+                    }}
+                    disabled={disabled}
+                    applyVariant="icon"
+                    textareaTestId={`transformer-custom-params-textarea-${index}`}
+                    applyTestId={`transformer-custom-params-apply-${index}`}
+                  />
+                </>
+              ) : (
+                <>
+                  <div
+                    style={{ ...fieldLabelStyle, cursor: 'help' }}
+                    title="JSON config for this transformer. Use the field reference panel when available; Apply commits valid JSON."
+                  >
+                    Configuration:
+                  </div>
+                  <ValidatedJsonTextarea
+                    value={JSON.stringify(transformer, null, 2)}
+                    onApply={(updated) => {
+                      const next = list.map((t, i) =>
+                        i === index ? (updated as TransformerConfig) : t
+                      )
+                      onChange?.(next)
+                    }}
+                    disabled={disabled}
+                    applyVariant="icon"
+                    textareaTestId="transformer-config-textarea"
+                    applyTestId="transformer-config-apply"
+                  />
+                </>
+              )}
             </div>
           </CopyableArea>
         )
       })
       )}
-      {templateDialogTargetIndex !== null && list[templateDialogTargetIndex] && (
+      {templateDialogTargetIndex !== null &&
+        list[templateDialogTargetIndex] &&
+        supportsTemplatePickers(list[templateDialogTargetIndex].type) && (
         <TransformerTemplateDialog
           isOpen={templateDialogOpen}
           onClose={() => {

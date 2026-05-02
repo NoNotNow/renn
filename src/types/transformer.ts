@@ -233,6 +233,8 @@ export type PresetTransformerType =
   | 'kinematicMovement'
   | 'wanderer'
   | 'follow'
+  /** User-authored transformer code (serialized on `TransformerConfig.code`). */
+  | 'custom'
 
 /** Transformer type string. */
 export type TransformerType = PresetTransformerType | string
@@ -255,6 +257,12 @@ export interface TransformerConfig {
 
   /** Transformer-specific parameters. */
   params?: Record<string, unknown>
+
+  /**
+   * JavaScript body for type `custom`. Compiled once per reload; receives `input`, `dt`, `params`, `state`.
+   * Must return a `TransformOutput` object (possibly empty `{}`).
+   */
+  code?: string
 }
 
 // ---------------------------------------------------------------------------

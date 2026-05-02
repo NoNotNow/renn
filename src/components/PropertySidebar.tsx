@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import PropertyPanel from './PropertyPanel'
-import ScriptPanel from './ScriptPanel'
+import CodingTabPanel from './CodingTabPanel'
 import AssetPanel from './AssetPanel'
 import ModelPresetPanel from './ModelPresetPanel'
 import type { RennWorld, Vec3, Rotation, Entity } from '@/types/world'
@@ -10,7 +10,7 @@ import { uiLogger } from '@/utils/uiLogger'
 import Sidebar, { SIDEBAR_MIN_WIDTH } from './layout/Sidebar'
 import { TabIcons } from './TabIcons'
 
-type RightTab = 'properties' | 'scripts' | 'assets' | 'presets'
+type RightTab = 'properties' | 'code' | 'assets' | 'presets'
 
 export interface PropertySidebarProps {
   world: RennWorld
@@ -75,7 +75,7 @@ export default function PropertySidebar({
       onToggle={onToggle}
       tabConfig={[
         { id: 'properties', icon: TabIcons.properties, label: 'Properties' },
-        { id: 'scripts', icon: TabIcons.scripts, label: 'Scripts' },
+        { id: 'code', icon: TabIcons.scripts, label: 'Code' },
         { id: 'assets', icon: TabIcons.assets, label: 'Assets' },
         { id: 'presets', icon: TabIcons.presets, label: 'Presets' },
       ]}
@@ -84,19 +84,19 @@ export default function PropertySidebar({
       width={rightSidebarWidth}
       onWidthChange={setRightSidebarWidth}
       toggleLogContext="Toggle right drawer"
-      overflowVisible={rightTab === 'scripts'}
+      overflowVisible={rightTab === 'code'}
     >
       <div
         style={{
           flex: 1,
           minHeight: 200,
-          minWidth: rightTab === 'scripts' ? SIDEBAR_MIN_WIDTH : undefined,
-          overflow: rightTab === 'scripts' ? 'visible' : 'auto',
+          minWidth: rightTab === 'code' ? SIDEBAR_MIN_WIDTH : undefined,
+          overflow: rightTab === 'code' ? 'visible' : 'auto',
           display: 'flex',
           flexDirection: 'column',
         }}
       >
-        <div style={{ flex: 1, minHeight: 0, width: '100%', minWidth: rightTab === 'scripts' ? SIDEBAR_MIN_WIDTH : 0, display: 'flex', flexDirection: 'column', overflow: rightTab === 'scripts' ? 'visible' : undefined }}>
+        <div style={{ flex: 1, minHeight: 0, width: '100%', minWidth: rightTab === 'code' ? SIDEBAR_MIN_WIDTH : 0, display: 'flex', flexDirection: 'column', overflow: rightTab === 'code' ? 'visible' : undefined }}>
         {rightTab === 'properties' && (
           <PropertyPanel
             world={world}
@@ -117,11 +117,12 @@ export default function PropertySidebar({
             onOpenTextureStudio={onOpenTextureStudio}
           />
         )}
-        {rightTab === 'scripts' && (
-          <ScriptPanel
+        {rightTab === 'code' && (
+          <CodingTabPanel
             world={world}
             selectedEntityIds={selectedEntityIds}
             onWorldChange={onWorldChange}
+            onEntityTransformersChange={onEntityTransformersChange}
           />
         )}
         {rightTab === 'assets' && (

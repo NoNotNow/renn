@@ -6,7 +6,6 @@ import TransformEditor from './TransformEditor'
 import ShapeEditor from './ShapeEditor'
 import PhysicsEditor from './PhysicsEditor'
 import ModelEditor from './ModelEditor'
-import TransformerEditor from './TransformerEditor'
 import CollapsibleSection from './CollapsibleSection'
 import { fieldLabelStyle, sidebarTextInputStyle, entityPanelIconButtonStyle } from './sharedStyles'
 import { EntityPanelIcons } from './EntityPanelIcons'
@@ -18,7 +17,6 @@ import {
   mergeRotation,
   mergeShape,
   mergeMaterial,
-  mergeTransformers,
   mergeLocked,
   mergeScale,
   mergeNumber,
@@ -71,7 +69,6 @@ export default function PropertyPanel({
   onEntityShapeChange,
   onEntityMaterialChange,
   onEntityModelTransformChange,
-  onEntityTransformersChange,
   onRefreshFromPhysics,
   livePoses,
   onOpenTextureStudio,
@@ -150,7 +147,6 @@ export default function PropertyPanel({
   const posMerged = mergeVec3(entities, (e) => livePoses?.get(e.id)?.position ?? e.position ?? DEFAULT_POSITION)
   const rotMerged = mergeRotation(entities, (e) => livePoses?.get(e.id)?.rotation ?? e.rotation ?? DEFAULT_ROTATION)
   const scaleMerged = mergeScale(entities)
-  const mergedTransformers = mergeTransformers(entities)
   const mergedAvatar = mergeAvatar(entities)
   const mergedBodyType = mergeBodyType(entities)
   const mergedMass = mergeNumber(entities, (e) => e.mass, 1)
@@ -485,22 +481,6 @@ export default function PropertyPanel({
             />
           </CollapsibleSection>
 
-          <CollapsibleSection
-            title="Transformers"
-            titleTooltip="Ordered stack of input/AI modules that convert controls or intents into forces and impulses on this body."
-            copyPayload={mergedTransformers ?? []}
-          >
-            <TransformerEditor
-              transformers={mergedTransformers === null ? [] : mergedTransformers}
-              transformersMixed={mergedTransformers === null}
-              onChange={(transformers) =>
-                onEntityTransformersChange
-                  ? onEntityTransformersChange(ids, transformers)
-                  : updateAll({ transformers })
-              }
-              disabled={anyLocked}
-            />
-          </CollapsibleSection>
         </>
       )}
     </div>

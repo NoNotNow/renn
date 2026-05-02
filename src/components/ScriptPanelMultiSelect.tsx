@@ -71,10 +71,16 @@ export interface ScriptPanelMultiSelectProps {
   world: RennWorld
   selectedEntityIds: string[]
   onWorldChange: (world: RennWorld) => void
+  collapsibleToolbar?: boolean
 }
 
 /** Multi-entity script editing (intersection of attached scripts). */
-export default function ScriptPanelMultiSelect({ world, selectedEntityIds, onWorldChange }: ScriptPanelMultiSelectProps) {
+export default function ScriptPanelMultiSelect({
+  world,
+  selectedEntityIds,
+  onWorldChange,
+  collapsibleToolbar = false,
+}: ScriptPanelMultiSelectProps) {
   const undo = useEditorUndo()
   const pushUndo = () => undo?.pushBeforeEdit()
   const scripts = world.scripts ?? {}
@@ -92,6 +98,7 @@ export default function ScriptPanelMultiSelect({ world, selectedEntityIds, onWor
 
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [scriptDialogOpen, setScriptDialogOpen] = useState(false)
+  const [toolbarExpanded, setToolbarExpanded] = useState(true)
   const monacoRef = useRef<typeof import('monaco-editor') | null>(null)
   const extraLibRef = useRef<{ dispose(): void } | null>(null)
 
@@ -251,12 +258,7 @@ export default function ScriptPanelMultiSelect({ world, selectedEntityIds, onWor
     entityScriptIds,
   }
 
-  return (
-    <CopyableArea
-      copyPayload={copyPayload}
-      style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}
-    >
-      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, width: '100%', minWidth: 280, overflow: 'visible' }}>
+  const multiToolbarInner = (
       <div style={{ padding: 8, display: 'flex', flexDirection: 'column', gap: 8, borderBottom: `1px solid ${theme.border.default}` }}>
         {selectedEntityIds.length > 0 ? (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 }}>
@@ -400,6 +402,61 @@ export default function ScriptPanelMultiSelect({ world, selectedEntityIds, onWor
           )}
         </div>
       </div>
+  )
+
+  return (
+    <CopyableArea
+      copyPayload={copyPayload}
+      style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, width: '100%', minWidth: 280, overflow: 'visible' }}>
+      {!collapsibleToolbar ? (
+        multiToolbarInner
+      ) : !toolbarExpanded ? (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 8,
+            padding: '6px 8px',
+            borderBottom: `1px solid ${theme.border.default}`,
+            flexShrink: 0,
+          }}
+        >
+          <span style={{ fontSize: 12, color: theme.text.muted }}>Script toolbar hidden</span>
+          <button
+            type="button"
+            onClick={() => setToolbarExpanded(true)}
+            style={{ ...manageScriptsButtonStyle, padding: '4px 10px', fontSize: 11 }}
+            data-testid="expand-script-toolbar-multi"
+          >
+            Show toolbar
+          </button>
+        </div>
+      ) : (
+        <div style={{ flexShrink: 0 }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '6px 8px 0' }}>
+            <button
+              type="button"
+              onClick={() => setToolbarExpanded(false)}
+              style={{
+                padding: '4px 8px',
+                fontSize: 11,
+                borderRadius: 4,
+                border: `1px solid ${theme.border.default}`,
+                background: theme.bg.surface,
+                color: theme.text.secondary,
+                cursor: 'pointer',
+              }}
+              data-testid="collapse-script-toolbar-multi"
+            >
+              Hide toolbar
+            </button>
+          </div>
+          {multiToolbarInner}
+        </div>
+      )}
 
       {isSharedScript && selectedId && (
         <div

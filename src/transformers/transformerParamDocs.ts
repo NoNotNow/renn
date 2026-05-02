@@ -16,6 +16,8 @@ export const TRANSFORMER_CONFIG_COMMON_DOCS: Record<string, string> = {
     'When false, this transformer is skipped for the entity. Default is true if omitted.',
   params:
     'Optional bag of numbers/booleans/objects specific to this transformer type. Keys are documented below for each preset.',
+  code:
+    'For type "custom" only: JavaScript function body compiled once. You receive input, dt, params, state; return force/impulse/torque or pose as in TransformOutput.',
   inputMapping:
     'Only for type "input": maps hardware keys and wheel axes to semantic action names (strings) that downstream transformers read via getAction(name).',
 }
@@ -131,6 +133,8 @@ export const TRANSFORMER_PARAMS_DOCS: {
     angular:
       'When true, target rotation tracks the followed entity.',
   },
+
+  custom: {},
 }
 
 export function getTransformerParamDoc(
