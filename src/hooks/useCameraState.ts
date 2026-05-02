@@ -5,6 +5,8 @@ export interface CameraState {
   control: CameraControl
   target: string
   mode: CameraMode
+  /** Degrees; vertical framing vs target pivot (persisted as CameraConfig.targetVerticalAngle). */
+  targetVerticalAngle: number
 }
 
 /** Camera UI state from world document; `targetFallback` when `camera.target` is absent (sample world uses `'ball'`). */
@@ -14,6 +16,7 @@ export function cameraStateFromWorld(world: RennWorld, targetFallback = ''): Cam
     control: (cam?.control ?? 'free') as CameraControl,
     target: cam?.target ?? targetFallback,
     mode: cam?.mode ?? 'follow',
+    targetVerticalAngle: Math.min(45, Math.max(-45, cam?.targetVerticalAngle ?? 0)),
   }
 }
 
@@ -24,6 +27,7 @@ export interface UseCameraStateResult {
   setCameraControl: (control: CameraControl) => void
   setCameraTarget: (target: string) => void
   setCameraMode: (mode: CameraMode | ((prev: CameraMode) => CameraMode)) => void
+  setCameraTargetVerticalAngle: (degrees: number) => void
   /** Replace the entire camera state from a freshly loaded / imported world. */
   resetFromWorld: (world: RennWorld, targetFallback?: string) => void
 }
@@ -61,6 +65,11 @@ export function useCameraState(initialWorld: RennWorld, initialTargetFallback = 
     [],
   )
 
+  const setCameraTargetVerticalAngle = useCallback((degrees: number) => {
+    const clamped = Math.min(45, Math.max(-45, degrees))
+    setCameraState((prev) => ({ ...prev, targetVerticalAngle: clamped }))
+  }, [])
+
   const resetFromWorld = useCallback((world: RennWorld, targetFallback?: string) => {
     setCameraState(cameraStateFromWorld(world, targetFallback))
   }, [])
@@ -71,6 +80,7 @@ export function useCameraState(initialWorld: RennWorld, initialTargetFallback = 
     setCameraControl,
     setCameraTarget,
     setCameraMode,
+    setCameraTargetVerticalAngle,
     resetFromWorld,
   }
 }

@@ -25,6 +25,7 @@ const CAMERA: CameraState = {
   control: 'follow',
   target: 'box',
   mode: 'thirdPerson',
+  targetVerticalAngle: 0,
 }
 
 describe('buildWorldToSave', () => {
@@ -96,5 +97,17 @@ describe('buildWorldToSave', () => {
     const saved = buildWorldToSave(world, CAMERA, null)
 
     expect(saved.world.camera).toMatchObject({ distance: 12, height: 3 })
+  })
+
+  it('overrides targetVerticalAngle with the live UI state', () => {
+    const world = makeWorld({
+      mode: 'follow',
+      target: 'box',
+      targetVerticalAngle: 5,
+    } as RennWorld['world']['camera'])
+
+    const saved = buildWorldToSave(world, { ...CAMERA, targetVerticalAngle: -12 }, null)
+
+    expect(saved.world.camera?.targetVerticalAngle).toBe(-12)
   })
 })

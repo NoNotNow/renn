@@ -16,15 +16,20 @@ import AvatarDialog from '../AvatarDialog'
 
 export type CameraControl = 'free' | 'follow' | 'top' | 'front' | 'right'
 
+const CAMERA_TARGET_VERTICAL_ANGLE_MIN = -45
+const CAMERA_TARGET_VERTICAL_ANGLE_MAX = 45
+
 export interface EntityCameraPanelProps {
   entities: Entity[]
   world: RennWorld
   cameraControl: CameraControl
   cameraTarget: string
   cameraMode: CameraMode
+  cameraTargetVerticalAngle: number
   onCameraControlChange: (control: CameraControl) => void
   onCameraTargetChange: (target: string) => void
   onCameraModeChange: (mode: CameraMode) => void
+  onCameraTargetVerticalAngleChange: (degrees: number) => void
   onWorldChange: (world: RennWorld) => void
   /** Builder: read live follow/orbit state for "save as default" in Avatar dialog. */
   getAvatarFocusSnapshot?: () => AvatarFocusSnapshot | null
@@ -40,9 +45,11 @@ export default function EntityCameraPanel({
   cameraControl,
   cameraTarget,
   cameraMode,
+  cameraTargetVerticalAngle,
   onCameraControlChange,
   onCameraTargetChange,
   onCameraModeChange,
+  onCameraTargetVerticalAngleChange,
   onWorldChange,
   getAvatarFocusSnapshot,
 }: EntityCameraPanelProps) {
@@ -63,7 +70,12 @@ export default function EntityCameraPanel({
   return (
     <>
       <CopyableArea
-        copyPayload={{ control: cameraControl, target: cameraTarget, mode: cameraMode }}
+        copyPayload={{
+          control: cameraControl,
+          target: cameraTarget,
+          mode: cameraMode,
+          targetVerticalAngle: cameraTargetVerticalAngle,
+        }}
       >
         <>
           <div style={sidebarRowStyle}>
@@ -197,6 +209,34 @@ export default function EntityCameraPanel({
                     </option>
                   ))}
                 </select>
+              </div>
+              <div style={sidebarRowStyle}>
+                <label
+                  htmlFor="camera-target-vertical-angle"
+                  style={{ ...sidebarLabelStyle, cursor: 'help' }}
+                  title="Vertical angle between camera–target ray and world up (degrees). Positive tilts view up so the subject sits lower in frame."
+                >
+                  Vertical angle
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%' }}>
+                  <input
+                    id="camera-target-vertical-angle"
+                    type="range"
+                    min={CAMERA_TARGET_VERTICAL_ANGLE_MIN}
+                    max={CAMERA_TARGET_VERTICAL_ANGLE_MAX}
+                    step={1}
+                    value={cameraTargetVerticalAngle}
+                    onChange={(e) => {
+                      const next = Number(e.target.value)
+                      uiLogger.change('Builder', 'Change camera target vertical angle', { degrees: next })
+                      onCameraTargetVerticalAngleChange(next)
+                    }}
+                    style={{ flex: 1, minWidth: 0 }}
+                  />
+                  <span style={{ fontSize: 12, color: theme.text.muted, width: 36, textAlign: 'right' }}>
+                    {cameraTargetVerticalAngle}°
+                  </span>
+                </div>
               </div>
             </>
           )}

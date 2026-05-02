@@ -28,6 +28,7 @@ export function buildWorldToSave(
         control: cameraState.control,
         target: cameraState.target,
         mode: cameraState.mode,
+        targetVerticalAngle: cameraState.targetVerticalAngle,
         ...(mergedEditorFreePose != null ? { editorFreePose: mergedEditorFreePose } : {}),
       },
     },

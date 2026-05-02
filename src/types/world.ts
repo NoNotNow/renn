@@ -49,6 +49,8 @@ export interface CameraConfig {
   target: string
   distance?: number
   height?: number
+  /** Degrees; shifts look-at above/below target pivot so subject moves down/up in frame (positive → looks higher → subject lower). */
+  targetVerticalAngle?: number
   fov?: number
   defaultPosition?: Vec3
   defaultRotation?: Rotation
@@ -71,6 +73,8 @@ export interface AvatarFocusSnapshot {
   orbitDistance: number
   /** Live PerspectiveCamera.fov in degrees (first person); kept for restore. */
   effectiveFovDegrees: number
+  /** Degrees; vertical framing vs target pivot (−45…45). */
+  targetVerticalAngle?: number
 }
 
 /**

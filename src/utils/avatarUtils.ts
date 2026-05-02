@@ -73,6 +73,14 @@ export function buildAvatarFocusSnapshotFromPreferred(
   const orbitPitch = typeof p.orbitPitch === 'number' ? p.orbitPitch : 0
   const orbitDistance = typeof p.orbitDistance === 'number' ? p.orbitDistance : distance
 
+  const rawVertical =
+    typeof p.targetVerticalAngle === 'number'
+      ? p.targetVerticalAngle
+      : typeof w?.targetVerticalAngle === 'number'
+        ? w.targetVerticalAngle
+        : 0
+  const targetVerticalAngle = Math.min(45, Math.max(-45, rawVertical))
+
   return {
     control,
     mode,
@@ -84,5 +92,6 @@ export function buildAvatarFocusSnapshotFromPreferred(
     orbitPitch,
     orbitDistance,
     effectiveFovDegrees: effectiveFov,
+    targetVerticalAngle,
   }
 }

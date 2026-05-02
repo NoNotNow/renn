@@ -131,6 +131,7 @@ export default function AvatarDialog({
       orbitYaw: snap.orbitYaw,
       orbitPitch: snap.orbitPitch,
       orbitDistance: snap.orbitDistance,
+      targetVerticalAngle: snap.targetVerticalAngle ?? 0,
     }
     onWorldChange({
       ...world,

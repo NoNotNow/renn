@@ -48,4 +48,27 @@ describe('buildAvatarFocusSnapshotFromPreferred', () => {
     expect(snap.orbitPitch).toBe(0)
     expect(snap.orbitDistance).toBe(12)
   })
+
+  it('uses preferred targetVerticalAngle when set', () => {
+    const snap = buildAvatarFocusSnapshotFromPreferred(
+      { mode: 'follow', target: 'a', control: 'follow', targetVerticalAngle: 5 },
+      { mode: 'follow', targetVerticalAngle: -12 },
+      'e2',
+    )
+    expect(snap.targetVerticalAngle).toBe(-12)
+  })
+
+  it('falls back to world camera targetVerticalAngle when preferred omits it', () => {
+    const snap = buildAvatarFocusSnapshotFromPreferred(
+      { mode: 'follow', target: 'a', control: 'follow', targetVerticalAngle: 20 },
+      { mode: 'follow' },
+      'e2',
+    )
+    expect(snap.targetVerticalAngle).toBe(20)
+  })
+
+  it('clamps targetVerticalAngle to ±45 degrees', () => {
+    const snap = buildAvatarFocusSnapshotFromPreferred(undefined, { mode: 'follow', targetVerticalAngle: 99 }, 'x')
+    expect(snap.targetVerticalAngle).toBe(45)
+  })
 })

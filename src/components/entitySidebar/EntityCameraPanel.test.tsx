@@ -41,6 +41,7 @@ function renderPanel(props: Partial<React.ComponentProps<typeof EntityCameraPane
   const onCameraControlChange = vi.fn()
   const onCameraTargetChange = vi.fn()
   const onCameraModeChange = vi.fn()
+  const onCameraTargetVerticalAngleChange = vi.fn()
   const onWorldChange = vi.fn()
   const entities = props.entities ?? []
   const world = props.world ?? makeWorld(entities)
@@ -52,14 +53,23 @@ function renderPanel(props: Partial<React.ComponentProps<typeof EntityCameraPane
         cameraControl={props.cameraControl ?? 'free'}
         cameraTarget={props.cameraTarget ?? ''}
         cameraMode={props.cameraMode ?? 'firstPerson'}
+        cameraTargetVerticalAngle={props.cameraTargetVerticalAngle ?? 0}
         onCameraControlChange={onCameraControlChange}
         onCameraTargetChange={onCameraTargetChange}
         onCameraModeChange={onCameraModeChange}
+        onCameraTargetVerticalAngleChange={onCameraTargetVerticalAngleChange}
         onWorldChange={onWorldChange}
       />
     </CopyProvider>,
   )
-  return { onCameraControlChange, onCameraTargetChange, onCameraModeChange, onWorldChange, ...utils }
+  return {
+    onCameraControlChange,
+    onCameraTargetChange,
+    onCameraModeChange,
+    onCameraTargetVerticalAngleChange,
+    onWorldChange,
+    ...utils,
+  }
 }
 
 describe('EntityCameraPanel', () => {
@@ -80,12 +90,14 @@ describe('EntityCameraPanel', () => {
     renderPanel({ cameraControl: 'free' })
     expect(screen.queryByLabelText('Target')).toBeNull()
     expect(screen.queryByLabelText('Mode')).toBeNull()
+    expect(screen.queryByLabelText('Vertical angle')).toBeNull()
   })
 
-  it('shows target/mode rows when control === "follow"', () => {
+  it('shows target/mode and vertical angle when control === "follow"', () => {
     renderPanel({ cameraControl: 'follow' })
     expect(screen.getByLabelText('Target')).toBeInTheDocument()
     expect(screen.getByLabelText('Mode')).toBeInTheDocument()
+    expect(screen.getByLabelText('Vertical angle')).toBeInTheDocument()
   })
 
   it('renders avatar roster buttons in follow mode and selecting one fires onCameraTargetChange', () => {
@@ -104,5 +116,15 @@ describe('EntityCameraPanel', () => {
   it('Edit button is disabled when there is no avatar focus target', () => {
     renderPanel({ cameraControl: 'follow', entities: [] })
     expect(screen.queryByRole('button', { name: /Edit avatar settings/ })).toBeNull()
+  })
+
+  it('vertical angle slider fires onCameraTargetVerticalAngleChange', () => {
+    const { onCameraTargetVerticalAngleChange } = renderPanel({
+      cameraControl: 'follow',
+      cameraTargetVerticalAngle: 0,
+    })
+    const slider = screen.getByLabelText('Vertical angle') as HTMLInputElement
+    fireEvent.change(slider, { target: { value: '-15' } })
+    expect(onCameraTargetVerticalAngleChange).toHaveBeenCalledWith(-15)
   })
 })

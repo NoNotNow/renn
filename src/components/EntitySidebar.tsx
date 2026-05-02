@@ -24,6 +24,8 @@ export interface EntitySidebarProps {
   cameraControl: 'free' | 'follow' | 'top' | 'front' | 'right'
   cameraTarget: string
   cameraMode: CameraMode
+  /** Degrees; vertical framing vs target pivot (−45…45). */
+  cameraTargetVerticalAngle: number
   world: RennWorld
   onSelectEntity: (id: string | null, options?: { additive?: boolean }) => void
   onSelectGroup: (groupId: string, options?: { additive?: boolean }) => void
@@ -38,6 +40,7 @@ export interface EntitySidebarProps {
   onCameraControlChange: (control: 'free' | 'follow' | 'top' | 'front' | 'right') => void
   onCameraTargetChange: (target: string) => void
   onCameraModeChange: (mode: CameraMode) => void
+  onCameraTargetVerticalAngleChange: (degrees: number) => void
   onWorldChange: (world: RennWorld) => void
   onSoundPlaybackCommand?: (action: 'play' | 'stop') => void
   /** Builder: read live follow/orbit state for "save as default" in Avatar dialog. */
@@ -55,6 +58,7 @@ export default function EntitySidebar({
   cameraControl,
   cameraTarget,
   cameraMode,
+  cameraTargetVerticalAngle,
   world,
   onSelectEntity,
   onSelectGroup,
@@ -69,6 +73,7 @@ export default function EntitySidebar({
   onCameraControlChange,
   onCameraTargetChange,
   onCameraModeChange,
+  onCameraTargetVerticalAngleChange,
   onWorldChange,
   onSoundPlaybackCommand,
   getAvatarFocusSnapshot,
@@ -126,9 +131,11 @@ export default function EntitySidebar({
             cameraControl={cameraControl}
             cameraTarget={cameraTarget}
             cameraMode={cameraMode}
+            cameraTargetVerticalAngle={cameraTargetVerticalAngle}
             onCameraControlChange={onCameraControlChange}
             onCameraTargetChange={onCameraTargetChange}
             onCameraModeChange={onCameraModeChange}
+            onCameraTargetVerticalAngleChange={onCameraTargetVerticalAngleChange}
             onWorldChange={onWorldChange}
             getAvatarFocusSnapshot={getAvatarFocusSnapshot}
           />

@@ -77,6 +77,7 @@ export class CameraController {
   /** When set, edit-navigation orbit/zoom uses this world point instead of camera target / view focus. */
   private readonly editNavSelectionPivot = new THREE.Vector3()
   private editNavUseSelectionPivot = false
+  private readonly followLookAtScratch = new THREE.Vector3()
   private readonly freeFlyMoveVel = new THREE.Vector3()
   private freeFlyYawRate = 0
   private freeFlyPitchRate = 0
@@ -287,7 +288,7 @@ export class CameraController {
         this.currentOffset.copy(this.sphericalOffset(this.orbitDistance * 2, height))
         if (followQ) this.currentOffset.applyQuaternion(followQ)
         this.camera.position.copy(this.currentTarget).add(this.currentOffset)
-        this.camera.lookAt(this.currentTarget)
+        this.lookAtFollowTarget(this.currentTarget)
         break
       }
       case 'thirdPerson': {
@@ -295,19 +296,32 @@ export class CameraController {
         this.currentOffset.copy(this.sphericalOffset(this.orbitDistance, height))
         if (thirdPersonQ) this.currentOffset.applyQuaternion(thirdPersonQ)
         this.camera.position.copy(this.currentTarget).add(this.currentOffset)
-        this.camera.lookAt(this.currentTarget)
+        this.lookAtFollowTarget(this.currentTarget)
         break
       }
       case 'tracking': {
         this.currentOffset.copy(this.sphericalOffset(this.orbitDistance * 2 * 3, height))
         this.camera.position.copy(this.currentTarget).add(this.currentOffset)
-        this.camera.lookAt(this.currentTarget)
+        this.lookAtFollowTarget(this.currentTarget)
         break
       }
       default:
         this.camera.position.copy(this.currentTarget).add(new THREE.Vector3(0, height, this.orbitDistance))
-        this.camera.lookAt(this.currentTarget)
+        this.lookAtFollowTarget(this.currentTarget)
     }
+  }
+
+  /** Shift look-at vertically using {@link CameraConfig.targetVerticalAngle} (degrees). */
+  private lookAtFollowTarget(worldTarget: THREE.Vector3): void {
+    const deg = this.config.targetVerticalAngle ?? 0
+    if (Math.abs(deg) < 1e-9) {
+      this.camera.lookAt(worldTarget)
+      return
+    }
+    const dist = this.camera.position.distanceTo(worldTarget)
+    const dy = dist * Math.tan(THREE.MathUtils.degToRad(deg))
+    this.followLookAtScratch.copy(worldTarget).setY(worldTarget.y + dy)
+    this.camera.lookAt(this.followLookAtScratch)
   }
 
   /**
@@ -539,6 +553,7 @@ export class CameraController {
       orbitPitch: this.orbitPitch,
       orbitDistance: this.orbitDistance,
       effectiveFovDegrees: this.camera.fov,
+      targetVerticalAngle: c.targetVerticalAngle ?? 0,
     }
   }
 
@@ -560,6 +575,7 @@ export class CameraController {
     this.config.distance = state.distance
     this.config.height = state.height
     if (state.fov !== undefined) this.config.fov = state.fov
+    this.config.targetVerticalAngle = state.targetVerticalAngle ?? 0
 
     this.orbitYaw = state.orbitYaw
     this.orbitPitch = state.orbitPitch

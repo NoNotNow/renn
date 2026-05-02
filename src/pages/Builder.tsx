@@ -86,9 +86,11 @@ export default function Builder() {
     cameraControl,
     cameraTarget,
     cameraMode,
+    cameraTargetVerticalAngle,
     setCameraControl,
     setCameraTarget,
     setCameraMode,
+    setCameraTargetVerticalAngle,
     editorFreePoseRef,
   } = useProjectContext()
 
@@ -236,8 +238,9 @@ export default function Builder() {
       control: cameraControl,
       target: cameraTarget,
       mode: cameraMode,
+      targetVerticalAngle: cameraTargetVerticalAngle,
     }),
-    [world.world.camera, cameraControl, cameraTarget, cameraMode]
+    [world.world.camera, cameraControl, cameraTarget, cameraMode, cameraTargetVerticalAngle]
   )
 
   // Forwarding refs so group shortcuts can fire handlers that are declared later in this file.
@@ -1091,6 +1094,7 @@ export default function Builder() {
           cameraControl={cameraControl}
           cameraTarget={cameraTarget}
           cameraMode={cameraMode}
+          cameraTargetVerticalAngle={cameraTargetVerticalAngle}
           world={world}
           onSelectEntity={handleSelectEntity}
           onSelectGroup={handleSelectGroup}
@@ -1105,6 +1109,7 @@ export default function Builder() {
           onCameraControlChange={setCameraControl}
           onCameraTargetChange={setCameraTarget}
           onCameraModeChange={setCameraMode}
+          onCameraTargetVerticalAngleChange={setCameraTargetVerticalAngle}
           onWorldChange={handleWorldChange}
           onSoundPlaybackCommand={(action) =>
             setSoundPlaybackCommand({ action, nonce: Date.now() + Math.random() })

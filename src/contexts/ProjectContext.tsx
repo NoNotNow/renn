@@ -41,6 +41,7 @@ interface ProjectContextState {
   cameraControl: 'free' | 'follow' | 'top' | 'front' | 'right'
   cameraTarget: string
   cameraMode: CameraMode
+  cameraTargetVerticalAngle: number
   /** Live Builder free-fly pose for merge on save; synced from SceneView while navigating. */
   editorFreePoseRef: React.MutableRefObject<EditorFreePose | null>
   /** Global model presets (IndexedDB, shared across projects). */
@@ -84,6 +85,7 @@ interface ProjectContextActions {
   setCameraControl: (control: 'free' | 'follow' | 'top' | 'front' | 'right') => void
   setCameraTarget: (target: string) => void
   setCameraMode: (mode: CameraMode | ((prev: CameraMode) => CameraMode)) => void
+  setCameraTargetVerticalAngle: (degrees: number) => void
 
   refreshModelPresets: () => Promise<void>
   saveModelPreset: (preset: ModelPreset) => Promise<void>
@@ -118,6 +120,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     setCameraControl,
     setCameraTarget,
     setCameraMode,
+    setCameraTargetVerticalAngle,
     resetFromWorld: resetCameraFromWorld,
   } = useCameraState(sampleWorld, 'ball')
 
@@ -470,6 +473,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     cameraControl: cameraState.control,
     cameraTarget: cameraState.target,
     cameraMode: cameraState.mode,
+    cameraTargetVerticalAngle: cameraState.targetVerticalAngle,
     editorFreePoseRef,
     modelPresets,
     
@@ -496,6 +500,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     setCameraControl,
     setCameraTarget,
     setCameraMode,
+    setCameraTargetVerticalAngle,
     refreshModelPresets,
     saveModelPreset,
     deleteModelPreset,
@@ -511,6 +516,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     cameraState.control,
     cameraState.target,
     cameraState.mode,
+    cameraState.targetVerticalAngle,
     editorFreePoseRef,
     modelPresets,
     newProject,
@@ -535,6 +541,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     setCameraControl,
     setCameraTarget,
     setCameraMode,
+    setCameraTargetVerticalAngle,
     refreshModelPresets,
     saveModelPreset,
     deleteModelPreset,

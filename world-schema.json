@@ -196,6 +196,10 @@
         "target": { "type": "string" },
         "distance": { "type": "number" },
         "height": { "type": "number" },
+        "targetVerticalAngle": {
+          "type": "number",
+          "description": "Degrees; vertical look-at offset relative to camera–target distance (positive tilts view up so subject sits lower in frame)"
+        },
         "fov": { "type": "number" },
         "defaultPosition": { "$ref": "#/$defs/Vec3" },
         "defaultRotation": { "$ref": "#/$defs/Rotation" },
@@ -216,6 +220,7 @@
             "target": { "type": "string" },
             "distance": { "type": "number" },
             "height": { "type": "number" },
+            "targetVerticalAngle": { "type": "number" },
             "fov": { "type": "number" },
             "defaultPosition": { "$ref": "#/$defs/Vec3" },
             "defaultRotation": { "$ref": "#/$defs/Rotation" },

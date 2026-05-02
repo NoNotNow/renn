@@ -144,6 +144,7 @@ describe('AvatarDialog', () => {
       orbitPitch: 0.2,
       orbitDistance: 11,
       effectiveFovDegrees: 50,
+      targetVerticalAngle: -10,
     }))
 
     render(
@@ -171,6 +172,7 @@ describe('AvatarDialog', () => {
     expect(ent?.avatar?.preferredCamera?.control).toBe('follow')
     expect(ent?.avatar?.preferredCamera?.distance).toBe(10)
     expect(ent?.avatar?.preferredCamera?.height).toBe(2)
+    expect(ent?.avatar?.preferredCamera?.targetVerticalAngle).toBe(-10)
   })
 })
 
