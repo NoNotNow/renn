@@ -43,6 +43,13 @@ const DEFAULT_CAR2_PARAMS: Required<CarTransformer2Params> = {
   jumpImpulse: 200,
 }
 
+/**
+ * Below this sideways speed (world units / s), lateral grip and lateral→forward transfer are skipped.
+ * Rapier leaves tiny linear-velocity residuals on resting bodies; multiplying them by `lateralGrip`
+ * would keep the body awake and make inspector poses jitter. Throttle/brake impulses still apply.
+ */
+const LATERAL_VELOCITY_DEAD_ZONE = 0.005
+
 
 export class CarTransformer2 extends BaseTransformer {
   readonly type = 'car2'
@@ -131,6 +138,12 @@ export class CarTransformer2 extends BaseTransformer {
     const magSide = Math.sqrt(
       sideSpeed[0] ** 2 + sideSpeed[1] ** 2 + sideSpeed[2] ** 2,
     )
+    if (magSide < LATERAL_VELOCITY_DEAD_ZONE) {
+      if (gasBreakInput === 0) {
+        return [0, 0, 0]
+      }
+      return gasBreakForce
+    }
     const k = this.params.lateralToForwardTransfer
     const gripMul =
       magSide > this.params.tireGripSlipSpeedThreshold

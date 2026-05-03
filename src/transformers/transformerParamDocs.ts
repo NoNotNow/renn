@@ -60,7 +60,7 @@ export const TRANSFORMER_PARAMS_DOCS: {
     steeringSpeed:
       'How fast the virtual wheel responds to steer_left / steer_right actions (per frame). Default 0.01.',
     lateralGrip:
-      'Sideways correction strength vs lateral velocity. Higher = less sliding. Very low values feel icy regardless of slip threshold. Default 100.',
+      'Sideways correction strength vs lateral velocity. Higher = less sliding. Very low values feel icy regardless of slip threshold. Default 100. Lateral slip below ~0.005 world units/s is ignored so solver residuals do not fight resting bodies.',
     lateralToForwardTransfer:
       'Fraction (0–1) of lateral grip that is applied along forward axis when there is sideways motion—some energy can be redirected forward in turns. Default 0.2.',
     tireGripSlipSpeedThreshold:

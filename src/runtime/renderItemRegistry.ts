@@ -869,6 +869,8 @@ export class RenderItemRegistry {
       }
     }
 
+    const traceTargetId = getTransformerTraceTargetEntityId()
+
     for (const item of this.items.values()) {
       if (!item.transformerChain) continue
       if (!item.hasPhysicsBody()) continue
@@ -876,7 +878,10 @@ export class RenderItemRegistry {
       const cached = this.physicsWorld.getCachedTransform(item.entity.id)
       if (!cached) continue
       const isControlled = controlledId !== null && item.entity.id === controlledId
-      if (!isControlled && cached.isSleeping) continue
+      const isTraceTarget = traceTargetId !== null && item.entity.id === traceTargetId
+      // Sleeping dynamics are skipped to save work — unless controlled (always woken above) or the
+      // entity is the Builder transformer trace target (UI needs publishTransformerLiveTrace).
+      if (!isControlled && cached.isSleeping && !isTraceTarget) continue
       if (!isControlled && item.distanceCulled) continue
 
       clearActionRecord(this._tfActions)
@@ -924,9 +929,8 @@ export class RenderItemRegistry {
       }
 
       // Execute transformer chain
-      const traceTarget = getTransformerTraceTargetEntityId()
       let traceSteps: TransformerTraceStep[] | undefined
-      if (traceTarget !== null && item.entity.id === traceTarget) {
+      if (isTraceTarget) {
         traceSteps = []
       }
       const output = item.transformerChain.execute(input, dt, traceSteps)

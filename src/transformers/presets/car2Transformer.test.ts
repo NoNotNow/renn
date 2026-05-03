@@ -92,6 +92,40 @@ describe('CarTransformer2', () => {
       expect(Math.abs(i[1])).toBeLessThan(1e-3)
       expect(Math.abs(i[2])).toBeLessThan(1e-3)
     })
+
+    test('when grounded with no input, tiny lateral velocity does not emit grip impulse (solver dead zone)', () => {
+      const tFresh = new CarTransformer2(10, { lateralGrip: 100, lateralToForwardTransfer: 0.2 })
+      const output = tFresh.transform(
+        createMockTransformInput({
+          actions: {},
+          velocity: [1e-6, 0, 0],
+          rotation: [0, 0, 0],
+          environment: { isTouchingObject: true },
+        }),
+        0.016,
+      )
+      expect(output.impulse).toBeDefined()
+      expect(output.impulse![0]).toBe(0)
+      expect(output.impulse![1]).toBe(0)
+      expect(output.impulse![2]).toBe(0)
+    })
+
+    test('when grounded with throttle, tiny lateral velocity still applies throttle only', () => {
+      const tFresh = new CarTransformer2(10, { power: 400 })
+      const output = tFresh.transform(
+        createMockTransformInput({
+          actions: { throttle: 1 },
+          velocity: [1e-6, 0, 0],
+          rotation: [0, 0, 0],
+          environment: { isTouchingObject: true },
+        }),
+        0.016,
+      )
+      expect(output.impulse).toBeDefined()
+      expect(output.impulse![0]).toBe(0)
+      expect(output.impulse![1]).toBe(0)
+      expect(output.impulse![2]).toBe(-400)
+    })
   })
 
   describe('lateral-to-forward transfer', () => {
