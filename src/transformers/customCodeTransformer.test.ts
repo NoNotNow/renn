@@ -1,11 +1,93 @@
-import { describe, expect, test, vi } from 'vitest'
+import { describe, expect, test, vi, afterEach } from 'vitest'
 import {
   CustomCodeTransformer,
   defaultCustomTransformerCode,
   TRANSFORMER_RUNTIME_API,
   setTransformerSnackbarFn,
+  validateCustomTransformerSource,
 } from './customCodeTransformer'
 import { createMockTransformInput } from '@/test/helpers/transformer'
+import {
+  clearCustomTransformerRuntimeError,
+  getCustomTransformerRuntimeError,
+  publishCustomTransformerRuntimeError,
+} from '@/runtime/customTransformerErrorBridge'
+
+describe('validateCustomTransformerSource', () => {
+  test('returns null for valid legacy body', () => {
+    expect(validateCustomTransformerSource('return { force: [1, 0, 0] };')).toBeNull()
+  })
+
+  test('returns null for valid full function', () => {
+    expect(
+      validateCustomTransformerSource(`function transform(input, dt, params, state, api) {
+      return {};
+    }`),
+    ).toBeNull()
+  })
+
+  test('returns message for syntax error', () => {
+    const msg = validateCustomTransformerSource('return {')
+    expect(msg).not.toBeNull()
+    expect(msg).toContain('Failed to compile')
+  })
+
+  test('returns message for dangerous pattern', () => {
+    const msg = validateCustomTransformerSource('eval(1)')
+    expect(msg).toContain('dangerous pattern')
+  })
+
+  test('uses config key in messages', () => {
+    const msg = validateCustomTransformerSource('eval(1)', 'custom:p42')
+    expect(msg).toContain('custom:p42')
+  })
+})
+
+describe('CustomCodeTransformer runtime bridge', () => {
+  afterEach(() => {
+    clearCustomTransformerRuntimeError()
+  })
+
+  test('publishRuntimeError reports when entity id and stack index are set', () => {
+    const t = new CustomCodeTransformer({
+      type: 'custom',
+      code: `function transform() { throw new Error('runtime-boom'); }`,
+    })
+    t.configStackIndex = 0
+    t.runtimeEntityId = 'ent-a'
+    t.transform(createMockTransformInput({ entityId: 'ent-a' }), 0.1)
+    expect(getCustomTransformerRuntimeError()).toEqual({
+      entityId: 'ent-a',
+      configStackIndex: 0,
+      message: 'runtime-boom',
+    })
+  })
+
+  test('does not publish when entity context is missing', () => {
+    const t = new CustomCodeTransformer({
+      type: 'custom',
+      code: `function transform() { throw new Error('x'); }`,
+    })
+    t.transform(createMockTransformInput(), 0.1)
+    expect(getCustomTransformerRuntimeError()).toBeNull()
+  })
+
+  test('successful transform clears prior error for same target', () => {
+    publishCustomTransformerRuntimeError({
+      entityId: 'ent-b',
+      configStackIndex: 1,
+      message: 'old',
+    })
+    const t = new CustomCodeTransformer({
+      type: 'custom',
+      code: 'return {};',
+    })
+    t.configStackIndex = 1
+    t.runtimeEntityId = 'ent-b'
+    t.transform(createMockTransformInput(), 0.1)
+    expect(getCustomTransformerRuntimeError()).toBeNull()
+  })
+})
 
 describe('CustomCodeTransformer', () => {
   test('legacy body (bare return) still runs for backward compat', () => {

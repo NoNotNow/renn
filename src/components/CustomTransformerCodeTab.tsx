@@ -1,18 +1,22 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { TransformerConfig } from '@/types/transformer'
 import CopyableArea from '@/components/CopyableArea'
-import TransformerCustomCodeEditor from '@/components/TransformerCustomCodeEditor'
+import TransformerCustomCodeEditor, { CUSTOM_CODE_EDITOR_HEIGHT_DEFAULT_PX } from '@/components/TransformerCustomCodeEditor'
 import ValidatedJsonTextarea from '@/components/ValidatedJsonTextarea'
 import { fieldLabelStyle } from '@/components/sharedStyles'
 import { theme } from '@/config/theme'
 import { getDefaultTransformerConfig } from '@/transformers/transformerPresets'
-import { effectiveCustomTransformerCode } from '@/transformers/customCodeTransformer'
+import { effectiveCustomTransformerCode, validateCustomTransformerSource } from '@/transformers/customCodeTransformer'
 import {
   ensureUniqueCustomTransformerName,
   labelCustomTransformer,
   nextUniqueCustomTransformerName,
 } from '@/transformers/customTransformerNaming'
 import { useEditorUndo } from '@/contexts/EditorUndoContext'
+import {
+  getCustomTransformerRuntimeError,
+  subscribeCustomTransformerRuntimeError,
+} from '@/runtime/customTransformerErrorBridge'
 
 const CODE_DEBOUNCE_MS = 350
 
@@ -48,6 +52,7 @@ export default function CustomTransformerCodeTab({
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null)
   const [nameDraft, setNameDraft] = useState('')
   const [codeDraft, setCodeDraft] = useState('')
+  const [codeEditorHeightPx, setCodeEditorHeightPx] = useState(CUSTOM_CODE_EDITOR_HEIGHT_DEFAULT_PX)
 
   const listRef = useRef(list)
   listRef.current = list
@@ -74,6 +79,27 @@ export default function CustomTransformerCodeTab({
 
   const selectedConfig =
     selectedIndex !== null && list[selectedIndex]?.type === 'custom' ? list[selectedIndex]! : null
+
+  const customCompileKey =
+    selectedConfig != null ? `custom:p${selectedConfig.priority ?? 10}` : 'custom'
+
+  const compileError = useMemo(
+    () => validateCustomTransformerSource(codeDraft, customCompileKey),
+    [codeDraft, customCompileKey],
+  )
+
+  const runtimeSnapshot = useSyncExternalStore(
+    subscribeCustomTransformerRuntimeError,
+    getCustomTransformerRuntimeError,
+    () => null,
+  )
+
+  const runtimeErrorForSelection = useMemo(() => {
+    if (runtimeSnapshot == null || selectedIndex === null) return null
+    if (!selectedEntityIds.includes(runtimeSnapshot.entityId)) return null
+    if (runtimeSnapshot.configStackIndex !== selectedIndex) return null
+    return runtimeSnapshot.message
+  }, [runtimeSnapshot, selectedIndex, selectedEntityIds])
 
   const syncKey = selectedConfig
     ? `${selectedIndex}:${selectedConfig.code ?? ''}:${selectedConfig.name ?? ''}`
@@ -356,8 +382,50 @@ export default function CustomTransformerCodeTab({
             value={codeDraft}
             onChange={handleCodeChange}
             disabled={anyLocked}
-            minHeightPx={280}
+            heightPx={codeEditorHeightPx}
+            onHeightPxChange={setCodeEditorHeightPx}
           />
+
+          {compileError ? (
+            <div
+              data-testid="custom-transformer-compile-error"
+              style={{
+                marginTop: 8,
+                padding: '8px 10px',
+                fontSize: 12,
+                lineHeight: 1.45,
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word',
+                color: theme.text.error,
+                border: `1px solid ${theme.border.error}`,
+                borderRadius: 6,
+                background: theme.bg.errorFallback,
+              }}
+            >
+              {compileError}
+            </div>
+          ) : null}
+
+          {runtimeErrorForSelection ? (
+            <div
+              data-testid="custom-transformer-runtime-error"
+              style={{
+                marginTop: 8,
+                padding: '8px 10px',
+                fontSize: 12,
+                lineHeight: 1.45,
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word',
+                color: theme.text.warning,
+                border: `1px solid ${theme.text.warning}`,
+                borderRadius: 6,
+                background: theme.bg.sectionMuted,
+              }}
+            >
+              <div style={{ fontWeight: 600, marginBottom: 4, fontSize: 11 }}>Runtime error</div>
+              {runtimeErrorForSelection}
+            </div>
+          ) : null}
 
           <div style={{ ...fieldLabelStyle, cursor: 'help', marginTop: 12 }} title='"params" only; merged into this transformer.'>
             Params (JSON)

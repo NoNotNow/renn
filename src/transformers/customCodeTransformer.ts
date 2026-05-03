@@ -12,6 +12,10 @@ import type {
 import { clamp } from '@/utils/numberUtils'
 import { getForwardVectorFromEuler, getUpVectorFromEuler, eulerDeltaAroundAxis } from '@/utils/rotationUtils'
 import { scaleVec3 as scaleVec3Util } from '@/utils/vec3'
+import {
+  clearCustomTransformerRuntimeErrorForTarget,
+  publishCustomTransformerRuntimeError,
+} from '@/runtime/customTransformerErrorBridge'
 
 function isFiniteNum(n: unknown): n is number {
   return typeof n === 'number' && Number.isFinite(n)
@@ -180,10 +184,22 @@ function compileCustomTransform(configKey: string, source: string): CustomTransf
   }
 }
 
+/** Authoring-time check: same rules as runtime construction; returns an error message or null if valid. */
+export function validateCustomTransformerSource(source: string, configKey = 'custom'): string | null {
+  try {
+    compileCustomTransform(configKey, source)
+    return null
+  } catch (e) {
+    return e instanceof Error ? e.message : String(e)
+  }
+}
+
 export class CustomCodeTransformer implements Transformer {
   readonly type = 'custom' as const
   readonly priority: number
   enabled: boolean
+  configStackIndex?: number
+  runtimeEntityId?: string
   private readonly liveParams: Record<string, unknown>
   private readonly state: Record<string, unknown> = {}
   private readonly transformFn: CustomTransformFn
@@ -205,11 +221,30 @@ export class CustomCodeTransformer implements Transformer {
   transform(input: TransformInput, dt: number): TransformOutput {
     try {
       const raw = this.transformFn(input, dt, this.liveParams, this.state, TRANSFORMER_RUNTIME_API)
-      return sanitizeTransformOutput(raw)
+      const out = sanitizeTransformOutput(raw)
+      this.clearPublishedRuntimeErrorIfTargeted()
+      return out
     } catch (e) {
       console.warn('[CustomCodeTransformer] Runtime error:', e)
+      this.publishRuntimeError(e)
       return {}
     }
+  }
+
+  private clearPublishedRuntimeErrorIfTargeted(): void {
+    const entityId = this.runtimeEntityId
+    const idx = this.configStackIndex
+    if (entityId != null && typeof idx === 'number' && idx >= 0) {
+      clearCustomTransformerRuntimeErrorForTarget(entityId, idx)
+    }
+  }
+
+  private publishRuntimeError(e: unknown): void {
+    const entityId = this.runtimeEntityId
+    const idx = this.configStackIndex
+    if (entityId == null || typeof idx !== 'number' || idx < 0) return
+    const message = e instanceof Error ? e.message : String(e)
+    publishCustomTransformerRuntimeError({ entityId, configStackIndex: idx, message })
   }
 }
 

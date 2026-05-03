@@ -20,6 +20,9 @@ Right sidebar **Code** drawer (Builder): **Scripts** | **Transformers** | **Code
   - **Name** field (blur commit); uniqueness among customs on the entity via [`customTransformerNaming.ts`](../src/transformers/customTransformerNaming.ts).
   - **Add custom**; **priority**; **Params (JSON)**; **LED-style enabled** toggle.
   - **Monaco** code: **debounced live commit** (~350 ms) to world; undo primed on first edit per selection; flush pending code when switching selected custom row.
+  - **Resizable code height**: drag handle under the Monaco surface (horizontal separator, `ns-resize`).
+  - **Compile errors**: forbidden patterns and `new Function` parse/compile failures from [`validateCustomTransformerSource`](../src/transformers/customCodeTransformer.ts) are shown in a panel **below** the code block.
+  - **Runtime errors**: uncaught exceptions inside `transform()` publish to [`customTransformerErrorBridge`](../src/runtime/customTransformerErrorBridge.ts) when the instance has `runtimeEntityId` / `configStackIndex` (set by [`createTransformerChain`](../src/transformers/transformerRegistry.ts)); the Code tab shows a **Runtime error** panel (amber) for the matching selection and stack row. A successful frame clears the stored error for that target. Duplicates with the same message are not re-notified every frame.
 - **Transformers** segment unchanged as full stack editor (reorder, all presets, **Apply code** for custom rows there).
 
 ### Data & migration
@@ -44,9 +47,9 @@ Right sidebar **Code** drawer (Builder): **Scripts** | **Transformers** | **Code
 
 - [`migrateWorld.test.ts`](../src/scripts/migrateWorld.test.ts) — custom name migration.
 - [`customTransformerNaming.test.ts`](../src/transformers/customTransformerNaming.test.ts).
-- [`customCodeTransformer.test.ts`](../src/transformers/customCodeTransformer.test.ts) — legacy body, `api` usage, default snippet behavior.
+- [`customCodeTransformer.test.ts`](../src/transformers/customCodeTransformer.test.ts) — legacy body, `api` usage, default snippet behavior, `validateCustomTransformerSource`, runtime error bridge (`publish` / clear on success).
 - [`transformerRegistry.test.ts`](../src/transformers/transformerRegistry.test.ts) — custom + `api` factory path.
-- [`CodingTabPanel.test.tsx`](../src/components/CodingTabPanel.test.tsx) — Code tab exposes controls (with `CopyProvider` + `EditorUndoProvider`).
+- [`CodingTabPanel.test.tsx`](../src/components/CodingTabPanel.test.tsx) — Code tab controls (with `CopyProvider` + `EditorUndoProvider`); invalid custom code surfaces compile error under the editor.
 
 ---
 
@@ -141,6 +144,7 @@ Concise roadmap for **Scripts | Transformers | Code** → **Transformers** segme
 | Concern | File |
 |---------|------|
 | Live trace bridge (Builder) | [`transformerTraceBridge.ts`](../src/runtime/transformerTraceBridge.ts) |
+| Custom runtime errors (Builder Code tab) | [`customTransformerErrorBridge.ts`](../src/runtime/customTransformerErrorBridge.ts) |
 | Trace serialization + activity rules | [`transformerTrace.ts`](../src/transformers/transformerTrace.ts) |
 | Tab shell | [`CodingTabPanel.tsx`](../src/components/CodingTabPanel.tsx) |
 | Code segment UI | [`CustomTransformerCodeTab.tsx`](../src/components/CustomTransformerCodeTab.tsx) |

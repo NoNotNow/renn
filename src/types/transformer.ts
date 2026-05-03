@@ -204,6 +204,9 @@ export interface Transformer {
   /** Index in `entity.transformers` when instantiated from config (Builder live trace UI). */
   configStackIndex?: number
 
+  /** Entity this instance drives (set by `createTransformerChain` when an `entity` is passed). */
+  runtimeEntityId?: string
+
   /** When false the transformer is skipped in the chain. */
   enabled: boolean
 

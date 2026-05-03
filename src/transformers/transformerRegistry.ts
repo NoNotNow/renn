@@ -136,6 +136,9 @@ export async function createTransformerChain(
         controlledEntityIdRef,
       )
       transformer.configStackIndex = i
+      if (entity?.id) {
+        transformer.runtimeEntityId = entity.id
+      }
       chain.add(transformer)
     } catch (error) {
       console.error(`[TransformerRegistry] Failed to create transformer ${config.type}:`, error)
