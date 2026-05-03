@@ -3,7 +3,7 @@ import PropertyPanel from './PropertyPanel'
 import CodingTabPanel from './CodingTabPanel'
 import AssetPanel from './AssetPanel'
 import ModelPresetPanel from './ModelPresetPanel'
-import type { RennWorld, Vec3, Rotation, Entity } from '@/types/world'
+import type { RennWorld, Vec3, Rotation, Entity, ModelPreset } from '@/types/world'
 import type { TransformerConfig } from '@/types/transformer'
 import { useLocalStorageState } from '@/hooks/useLocalStorageState'
 import { uiLogger } from '@/utils/uiLogger'
@@ -24,7 +24,10 @@ export interface PropertySidebarProps {
   onEntityPhysicsChange?: (ids: string[], patch: Partial<Entity>) => void
   onEntityShapeChange?: (ids: string[], patch: Partial<Entity>) => void
   onEntityMaterialChange?: (ids: string[], patch: Partial<Entity>) => void
-  onEntityModelTransformChange?: (ids: string[], patch: { modelRotation?: Vec3; modelScale?: Vec3 }) => void
+  onEntityModelTransformChange?: (
+    ids: string[],
+    patch: { modelRotation?: Vec3; modelScale?: Vec3; doubleSided?: boolean },
+  ) => void
   onEntityTransformersChange?: (entityIds: string[], transformers: TransformerConfig[]) => void
   onRefreshFromPhysics?: (entityIds: string[]) => void
   livePoses?: Map<string, { position: Vec3; rotation: Rotation; scale?: Vec3 }> | null
@@ -32,6 +35,8 @@ export interface PropertySidebarProps {
   onToggle: () => void
   /** Single-entity material panel: open layered texture compositor. */
   onOpenTextureStudio?: (entityId: string) => void | Promise<void>
+  /** After preset apply when scene is not rebuilt — sync materials / double-sided to the live registry. */
+  onAfterModelPresetApply?: (previews: { id: string; merged: Entity }[], preset: ModelPreset) => void | Promise<void>
 }
 
 export default function PropertySidebar({
@@ -53,6 +58,7 @@ export default function PropertySidebar({
   isOpen,
   onToggle,
   onOpenTextureStudio,
+  onAfterModelPresetApply,
 }: PropertySidebarProps) {
   const [rightTab, setRightTab] = useState<RightTab>('properties')
   const [rightSidebarWidth, setRightSidebarWidth] = useLocalStorageState('rightSidebarWidth', 300)
@@ -134,7 +140,10 @@ export default function PropertySidebar({
           />
         )}
         {rightTab === 'presets' && (
-          <ModelPresetPanel selectedEntityIds={selectedEntityIds} />
+          <ModelPresetPanel
+            selectedEntityIds={selectedEntityIds}
+            onAfterPresetApply={onAfterModelPresetApply}
+          />
         )}
         </div>
       </div>

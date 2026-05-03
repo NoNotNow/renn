@@ -155,8 +155,13 @@ export interface SceneViewHandle {
   updateEntityShape: (id: string, entity: Entity) => boolean
   /** Replaces the mesh material asynchronously (fire-and-forget; texture loading may defer). */
   updateEntityMaterial: (id: string, entity: Entity) => Promise<void>
-  /** Applies model rotation/scale to the mesh and rebuilds trimesh collider; avoids full reload. */
-  updateEntityModelTransform: (id: string, patch: { modelRotation?: Rotation; modelScale?: Vec3 }) => void
+  /** Applies model rotation/scale / double-sided GLTF shading; rebuilds trimesh collider only when rotation or scale change. */
+  updateEntityModelTransform: (
+    id: string,
+    patch: { modelRotation?: Rotation; modelScale?: Vec3; doubleSided?: boolean }
+  ) => void
+  /** Sync world entity snapshot to registry and GLTF sides only (no texture load). */
+  refreshEntityAppearance: (id: string, entity: Entity) => void
   /** Sync entity.transformers to runtime chain (e.g. enabled flags) without scene reload. */
   syncEntityTransformers: (id: string, configs: TransformerConfig[] | undefined) => void
   getAllPoses: () => Map<string, { position: Vec3; rotation: Rotation; scale: Vec3 }> | null
@@ -391,8 +396,14 @@ function SceneViewInner({
     updateEntityMaterial: async (id: string, entity: Entity) => {
       await registryRef.current?.updateMaterial(id, entity, assetResolverRef.current ?? undefined)
     },
-    updateEntityModelTransform: (id: string, patch: { modelRotation?: Rotation; modelScale?: Vec3 }) => {
+    updateEntityModelTransform: (
+      id: string,
+      patch: { modelRotation?: Rotation; modelScale?: Vec3; doubleSided?: boolean }
+    ) => {
       registryRef.current?.setModelTransform(id, patch)
+    },
+    refreshEntityAppearance: (id: string, entity: Entity) => {
+      registryRef.current?.patchEntityAppearance(id, entity)
     },
     syncEntityTransformers: (id: string, configs: TransformerConfig[] | undefined) => {
       registryRef.current?.syncEntityTransformers(id, configs)

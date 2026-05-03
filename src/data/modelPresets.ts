@@ -6,10 +6,17 @@ const PRESET_ENTITY_KEYS = [
   'modelRotation',
   'modelScale',
   'modelSimplification',
+  'doubleSided',
   'material',
   'shape',
   'scale',
 ] as const
+
+/** Fields that change loadWorld rebuild key; presets touching these don't need incremental scene tweaks. */
+export function presetTouchesSceneRebuild(preset: ModelPreset): boolean {
+  const keys = ['model', 'shape', 'modelSimplification'] as const
+  return keys.some((k) => Object.prototype.hasOwnProperty.call(preset, k))
+}
 
 type PresetEntityKey = (typeof PRESET_ENTITY_KEYS)[number]
 
@@ -42,6 +49,7 @@ export function extractPresetFromEntity(entity: Entity, name: string, now = Date
   if (entity.material !== undefined) preset.material = cloneMaterial(entity.material)
   if (entity.shape !== undefined) preset.shape = cloneShape(entity.shape)
   if (entity.scale !== undefined) preset.scale = [...entity.scale] as Entity['scale']
+  if (entity.doubleSided === true) preset.doubleSided = true
   return preset
 }
 
@@ -83,6 +91,10 @@ export function applyPresetToEntity(entity: Entity, preset: ModelPreset): Entity
         break
       case 'shape':
         next.shape = cloneShape(value as Shape)!
+        break
+      case 'doubleSided':
+        if (value === true) next.doubleSided = true
+        else delete next.doubleSided
         break
       default:
         break

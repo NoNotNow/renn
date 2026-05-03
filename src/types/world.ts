@@ -350,6 +350,8 @@ export interface Entity {
    * Collision stays the primitive; only rendering is reduced. Trimesh bodies use `shape.simplification` instead.
    */
   modelSimplification?: TrimeshSimplificationConfig
+  /** When true, drawable GLTF materials use THREE.DoubleSide. When omitted/false, sides match file defaults via stored clones (or FrontSide under material override). */
+  doubleSided?: boolean
   material?: MaterialRef
   mass?: number
   restitution?: number
@@ -376,6 +378,7 @@ export interface ModelPreset {
   modelRotation?: Rotation
   modelScale?: Vec3
   modelSimplification?: TrimeshSimplificationConfig
+  doubleSided?: boolean
   material?: MaterialRef
   shape?: Shape
   scale?: Vec3

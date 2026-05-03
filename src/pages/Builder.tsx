@@ -12,10 +12,11 @@ import { useEditorHistory } from '@/hooks/useEditorHistory'
 import { useTextureMakerSession } from '@/hooks/useTextureMakerSession'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { cloneEntityFrom, createDefaultEntity, createBulkEntities, type AddableShapeType, type BulkEntityParams } from '@/data/entityDefaults'
+import { presetTouchesSceneRebuild } from '@/data/modelPresets'
 import { useProjectContext } from '@/hooks/useProjectContext'
 import { useLocalStorageState } from '@/hooks/useLocalStorageState'
 import { useBuilderFullscreenChrome } from '@/hooks/useBuilderFullscreenChrome'
-import { DEFAULT_SCALE, type Vec3, type Rotation, type Entity, type TrimeshSimplificationConfig } from '@/types/world'
+import { DEFAULT_SCALE, type Vec3, type Rotation, type Entity, type ModelPreset, type TrimeshSimplificationConfig } from '@/types/world'
 import { useBuilderKeyboardShortcuts } from '@/hooks/useBuilderKeyboardShortcuts'
 import {
   addToGroup,
@@ -552,17 +553,41 @@ export default function Builder() {
   )
 
   const handleEntityModelTransformChange = useCallback(
-    (ids: string[], patch: { modelRotation?: [number, number, number]; modelScale?: [number, number, number] }) => {
+    (ids: string[], patch: { modelRotation?: Rotation; modelScale?: Vec3; doubleSided?: boolean }) => {
       for (const id of ids) {
         sceneViewRef.current?.updateEntityModelTransform(id, patch)
       }
       const idSet = new Set(ids)
       updateWorld((prev) => ({
         ...prev,
-        entities: prev.entities.map((e) => (idSet.has(e.id) ? { ...e, ...patch } : e)),
+        entities: prev.entities.map((e) => {
+          if (!idSet.has(e.id)) return e
+          const merged = { ...e, ...patch } as Entity
+          if (Object.prototype.hasOwnProperty.call(patch, 'doubleSided')) {
+            if (patch.doubleSided !== true) delete merged.doubleSided
+            else merged.doubleSided = true
+          }
+          return merged
+        }),
       }))
     },
     [updateWorld]
+  )
+
+  const handleAfterModelPresetApply = useCallback(
+    async (previews: { id: string; merged: Entity }[], preset: ModelPreset) => {
+      if (presetTouchesSceneRebuild(preset)) return
+      for (const { id, merged } of previews) {
+        const hasMat = Object.prototype.hasOwnProperty.call(preset, 'material')
+        const hasDbl = Object.prototype.hasOwnProperty.call(preset, 'doubleSided')
+        if (hasMat) {
+          await sceneViewRef.current?.updateEntityMaterial(id, merged)
+        } else if (hasDbl) {
+          sceneViewRef.current?.refreshEntityAppearance(id, merged)
+        }
+      }
+    },
+    []
   )
 
   const handleRefreshFromPhysics = useCallback(
@@ -1146,6 +1171,7 @@ export default function Builder() {
               isOpen={rightDrawerOpen}
               onToggle={() => setRightDrawerOpen(!rightDrawerOpen)}
               onOpenTextureStudio={activateTextureStudioForEntity}
+              onAfterModelPresetApply={handleAfterModelPresetApply}
             />
           )}
         </LivePosesPoll>

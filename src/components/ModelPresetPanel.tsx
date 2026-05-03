@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useProjectContext } from '@/hooks/useProjectContext'
-import { extractPresetFromEntity } from '@/data/modelPresets'
+import { extractPresetFromEntity, applyPresetToEntity } from '@/data/modelPresets'
+import type { Entity, ModelPreset } from '@/types/world'
 import { uiLogger } from '@/utils/uiLogger'
 import { useEditorUndo } from '@/contexts/EditorUndoContext'
 import { sectionStyle, sectionTitleStyle, sidebarTextInputStyle, fieldLabelStyle } from './sharedStyles'
@@ -8,9 +9,10 @@ import { theme } from '@/config/theme'
 
 export interface ModelPresetPanelProps {
   selectedEntityIds: string[]
+  onAfterPresetApply?: (previews: { id: string; merged: Entity }[], preset: ModelPreset) => void | Promise<void>
 }
 
-export default function ModelPresetPanel({ selectedEntityIds }: ModelPresetPanelProps) {
+export default function ModelPresetPanel({ selectedEntityIds, onAfterPresetApply }: ModelPresetPanelProps) {
   const {
     world,
     modelPresets,
@@ -41,7 +43,7 @@ export default function ModelPresetPanel({ selectedEntityIds }: ModelPresetPanel
     }
   }
 
-  const handleApply = (presetId: string) => {
+  const handleApply = async (presetId: string) => {
     const preset = modelPresets.find((p) => p.id === presetId)
     if (!preset || selectedEntityIds.length === 0) return
     uiLogger.click('ModelPresetPanel', 'Apply preset to entities', {
@@ -49,7 +51,15 @@ export default function ModelPresetPanel({ selectedEntityIds }: ModelPresetPanel
       entityCount: selectedEntityIds.length,
     })
     undo?.pushBeforeEdit()
+    const previews = selectedEntityIds
+      .map((id) => {
+        const e = world.entities.find((x) => x.id === id)
+        if (!e) return null
+        return { id, merged: applyPresetToEntity(e, preset) }
+      })
+      .filter((p): p is { id: string; merged: Entity } => p !== null)
     applyModelPresetToEntities(selectedEntityIds, preset)
+    await onAfterPresetApply?.(previews, preset)
   }
 
   const handleDelete = async (id: string) => {
@@ -146,7 +156,7 @@ export default function ModelPresetPanel({ selectedEntityIds }: ModelPresetPanel
                 <button
                   type="button"
                   disabled={selectedEntityIds.length === 0}
-                  onClick={() => handleApply(p.id)}
+                  onClick={() => void handleApply(p.id)}
                   style={{
                     padding: '4px 10px',
                     fontSize: 12,

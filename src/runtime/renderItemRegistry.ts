@@ -2,7 +2,12 @@ import * as THREE from 'three'
 import type { LoadedEntity } from '@/loader/loadWorld'
 import type { CachedTransform, PhysicsWorld } from '@/physics/rapierPhysics'
 import type { Vec3, Rotation, Entity, DistanceCullingSettings } from '@/types/world'
-import { createShapeGeometry, materialFromRef } from '@/loader/createPrimitive'
+import {
+  applyModelVisualSides,
+  createShapeGeometry,
+  materialFromRef,
+  resolveGltfVisualContext,
+} from '@/loader/createPrimitive'
 import type { DisposableAssetResolver } from '@/loader/assetResolverImpl'
 import { disposeMaterialOrArray } from '@/utils/videoTextureLifecycle'
 import { RenderItem } from './renderItem'
@@ -470,12 +475,12 @@ export class RenderItemRegistry {
   }
 
   /**
-   * Apply model transform (rotation/scale) to the mesh's model scene and, for trimesh, rebuild the collider.
-   * Used for incremental updates so changing modelRotation/modelScale does not trigger a full world reload.
+   * Apply model transform (rotation/scale/double-sided) to the mesh's model scene and, for trimesh, rebuild collider when rotation or scale changed.
+   * Used for incremental updates so changing these fields does not trigger a full world reload.
    */
   setModelTransform(
     id: string,
-    patch: { modelRotation?: Rotation; modelScale?: Vec3 }
+    patch: { modelRotation?: Rotation; modelScale?: Vec3; doubleSided?: boolean }
   ): void {
     const item = this.items.get(id)
     if (!item) return
@@ -483,23 +488,62 @@ export class RenderItemRegistry {
     const modelScene =
       (mesh.userData.trimeshScene as THREE.Object3D | undefined) ??
       (mesh.userData.usesModel === true && mesh.children.length > 0 ? mesh.children[0] : null)
-    if (!modelScene) return
+    const merged: Entity = { ...item.entity, ...patch }
+    if ('doubleSided' in patch && !patch.doubleSided) {
+      delete merged.doubleSided
+    } else if ('doubleSided' in patch && patch.doubleSided) {
+      merged.doubleSided = true
+    }
+    const nextEntity = merged
 
-    const nextEntity = { ...item.entity, ...patch }
-    const modelRotation: Rotation = nextEntity.modelRotation ?? [0, 0, 0]
-    const modelScale: Vec3 = nextEntity.modelScale ?? [1, 1, 1]
-
-    modelScene.rotation.set(modelRotation[0], modelRotation[1], modelRotation[2])
-    modelScene.scale.set(modelScale[0], modelScale[1], modelScale[2])
+    const rotationOrScaleChanges = patch.modelRotation !== undefined || patch.modelScale !== undefined
+    if (modelScene && rotationOrScaleChanges) {
+      const modelRotation: Rotation = nextEntity.modelRotation ?? [0, 0, 0]
+      const modelScale: Vec3 = nextEntity.modelScale ?? [1, 1, 1]
+      modelScene.rotation.set(modelRotation[0], modelRotation[1], modelRotation[2])
+      modelScene.scale.set(modelScale[0], modelScale[1], modelScale[2])
+    }
 
     item.entity = nextEntity
     if (mesh.userData.entity !== undefined) {
       mesh.userData.entity = nextEntity
     }
 
-    if (item.entity.shape?.type === 'trimesh' && this.physicsWorld) {
+    if (
+      rotationOrScaleChanges &&
+      item.entity.shape?.type === 'trimesh' &&
+      this.physicsWorld
+    ) {
       this.physicsWorld.updateShape(id, item.entity, mesh)
     }
+
+    const ctx = resolveGltfVisualContext(mesh)
+    if (ctx) {
+      applyModelVisualSides(
+        ctx.modelScene,
+        ctx.originalMaterialEntries,
+        nextEntity.doubleSided === true,
+        nextEntity.material !== undefined
+      )
+    }
+    this.refreshCullingWorldSize(item)
+  }
+
+  /** Sync registry entity snapshot and GLTF material sides (no material allocation). */
+  patchEntityAppearance(id: string, entity: Entity): void {
+    const item = this.items.get(id)
+    if (!item) return
+    const mesh = item.mesh
+    item.entity = entity
+    mesh.userData.entity = entity
+    const ctx = resolveGltfVisualContext(mesh)
+    if (!ctx) return
+    applyModelVisualSides(
+      ctx.modelScene,
+      ctx.originalMaterialEntries,
+      entity.doubleSided === true,
+      entity.material !== undefined
+    )
     this.refreshCullingWorldSize(item)
   }
 
@@ -709,7 +753,9 @@ export class RenderItemRegistry {
     const mesh = item.mesh
     const isModelMesh = mesh.userData.usesModel === true || mesh.userData.isTrimeshSource === true
     if (isModelMesh && newEntity.material === undefined) {
-      const entries = mesh.userData.originalMaterialEntries as Array<{ mesh: THREE.Mesh; material: THREE.Material }> | undefined
+      const entries = mesh.userData.originalMaterialEntries as
+        | Array<{ mesh: THREE.Mesh; material: THREE.Material | THREE.Material[] }>
+        | undefined
       if (entries && entries.length > 0) {
         for (const { mesh: childMesh, material: storedMat } of entries) {
           const current = childMesh.material
@@ -720,7 +766,9 @@ export class RenderItemRegistry {
         }
       }
     } else {
-      const newMat = await materialFromRef(newEntity.material, assetResolver)
+      const newMat = await materialFromRef(newEntity.material, assetResolver, {
+        forceDoubleSided: newEntity.doubleSided === true,
+      })
       if (isModelMesh) {
         // Skip root: invisible shape/proxy hull must not receive the visible PBR override.
         mesh.traverse((child) => {
@@ -739,6 +787,17 @@ export class RenderItemRegistry {
     }
     item.entity = newEntity
     mesh.userData.entity = newEntity
+    if (isModelMesh) {
+      const ctx = resolveGltfVisualContext(mesh)
+      if (ctx) {
+        applyModelVisualSides(
+          ctx.modelScene,
+          ctx.originalMaterialEntries,
+          newEntity.doubleSided === true,
+          newEntity.material !== undefined
+        )
+      }
+    }
   }
 
   private refreshCullingWorldSize(item: RenderItem): void {

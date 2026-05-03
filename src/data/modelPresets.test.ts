@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { Entity, ModelPreset } from '@/types/world'
-import { extractPresetFromEntity, applyPresetToEntity } from './modelPresets'
+import { extractPresetFromEntity, applyPresetToEntity, presetTouchesSceneRebuild } from './modelPresets'
 
 function baseEntity(): Entity {
   return {
@@ -66,6 +66,12 @@ describe('extractPresetFromEntity', () => {
     expect(preset.scale).not.toBe(entity.scale)
     expect(preset.material).not.toBe(entity.material)
     expect(preset.shape).not.toBe(entity.shape)
+  })
+
+  it('includes doubleSided when entity marks GLTF double-sided', () => {
+    const entity: Entity = { ...baseEntity(), model: 'x.glb', doubleSided: true }
+    const preset = extractPresetFromEntity(entity, 'd')
+    expect(preset.doubleSided).toBe(true)
   })
 
   it('uses Date.now by default for createdAt', () => {
@@ -189,5 +195,32 @@ describe('applyPresetToEntity', () => {
     }
     const next = applyPresetToEntity(entity, preset)
     expect(next).toEqual(entity)
+  })
+
+  it('applies doubleSided true and clears it when preset has false', () => {
+    const withFlag: Entity = { ...baseEntity(), doubleSided: true }
+    const off: ModelPreset = { id: 'p1', name: 'x', createdAt: 0, doubleSided: false }
+    expect(applyPresetToEntity(withFlag, off)).not.toHaveProperty('doubleSided')
+    const on: ModelPreset = { id: 'p2', name: 'y', createdAt: 0, doubleSided: true }
+    expect(applyPresetToEntity(baseEntity(), on).doubleSided).toBe(true)
+  })
+})
+
+describe('presetTouchesSceneRebuild', () => {
+  it('is true only when preset touches model, shape, or modelSimplification', () => {
+    expect(presetTouchesSceneRebuild({ id: '', name: 'a', createdAt: 0, model: 'x' })).toBe(true)
+    expect(
+      presetTouchesSceneRebuild({ id: '', name: 'a', createdAt: 0, shape: { type: 'box', width: 1, height: 1, depth: 1 } }),
+    ).toBe(true)
+    expect(
+      presetTouchesSceneRebuild({
+        id: '',
+        name: 'a',
+        createdAt: 0,
+        modelSimplification: { enabled: false, maxTriangles: 5000 },
+      }),
+    ).toBe(true)
+    expect(presetTouchesSceneRebuild({ id: '', name: 'a', createdAt: 0, doubleSided: true })).toBe(false)
+    expect(presetTouchesSceneRebuild({ id: '', name: 'a', createdAt: 0, material: { color: [1, 0, 0] } })).toBe(false)
   })
 })

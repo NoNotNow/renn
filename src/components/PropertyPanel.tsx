@@ -49,7 +49,7 @@ export interface PropertyPanelProps {
   onEntityPhysicsChange?: (ids: string[], patch: Partial<Entity>) => void
   onEntityShapeChange?: (ids: string[], patch: Partial<Entity>) => void
   onEntityMaterialChange?: (ids: string[], patch: Partial<Entity>) => void
-  onEntityModelTransformChange?: (ids: string[], patch: { modelRotation?: Rotation; modelScale?: Vec3 }) => void
+  onEntityModelTransformChange?: (ids: string[], patch: { modelRotation?: Rotation; modelScale?: Vec3; doubleSided?: boolean }) => void
   onEntityTransformersChange?: (entityIds: string[], transformers: TransformerConfig[]) => void
   onRefreshFromPhysics?: (entityIds: string[]) => void
   livePoses?: Map<string, { position: Vec3; rotation: Rotation; scale?: Vec3 }> | null
@@ -119,9 +119,17 @@ export default function PropertyPanel({
   }
 
   const updateAll = (patch: Partial<Entity>) => {
+    const applyMerge = (e: Entity): Entity => {
+      const merged = { ...e, ...patch } as Entity
+      if (Object.prototype.hasOwnProperty.call(patch, 'doubleSided')) {
+        if (patch.doubleSided === true) merged.doubleSided = true
+        else delete merged.doubleSided
+      }
+      return merged
+    }
     onWorldChange({
       ...world,
-      entities: world.entities.map((e) => (idSet.has(e.id) ? { ...e, ...patch } : e)),
+      entities: world.entities.map((e) => (idSet.has(e.id) ? applyMerge(e) : e)),
     })
   }
 
@@ -447,6 +455,7 @@ export default function PropertyPanel({
                 modelRotation: mergedModelRotation ?? DEFAULT_ROTATION,
                 modelScale: mergedModelScale ?? DEFAULT_SCALE,
                 showShapeWireframe: primaryEntity.showShapeWireframe,
+                doubleSided: primaryEntity.doubleSided,
               }}
             >
               <ModelTransformSection

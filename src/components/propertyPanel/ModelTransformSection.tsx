@@ -18,7 +18,7 @@ export interface ModelTransformSectionProps {
   onUndoBeforeEdit?: () => void
   onEntityModelTransformChange?: (
     ids: string[],
-    patch: { modelRotation?: Rotation; modelScale?: Vec3 },
+    patch: { modelRotation?: Rotation; modelScale?: Vec3; doubleSided?: boolean },
   ) => void
   updateAll: (patch: Partial<Entity>) => void
 }
@@ -37,9 +37,27 @@ export default function ModelTransformSection({
 }: ModelTransformSectionProps) {
   const showWireframeToggle = entities.every((e) => e.shape?.type !== 'trimesh' && e.model)
   const wireframeChecked = entities.every((e) => e.showShapeWireframe === true)
+  const doubleSidedChecked = entities.every((e) => e.doubleSided === true)
 
   return (
     <>
+      <div style={{ marginBottom: 10 }}>
+        <Switch
+          labelTitle="Renders GLTF/backfaces visible from both sides (THREE.DoubleSide). Off restores each material side from the file (or FrontSide under a shared material override)."
+          checked={doubleSidedChecked}
+          onChange={(checked) => {
+            onUndoBeforeEdit?.()
+            uiLogger.change('PropertyPanel', 'Toggle model double sided', { entityIds: ids, value: checked })
+            if (onEntityModelTransformChange) {
+              onEntityModelTransformChange(ids, { doubleSided: checked })
+            } else {
+              updateAll({ doubleSided: checked ? true : undefined })
+            }
+          }}
+          disabled={anyLocked}
+          label="Double sided (GLTF)"
+        />
+      </div>
       {showWireframeToggle && (
         <div style={{ marginBottom: 10 }}>
           <Switch

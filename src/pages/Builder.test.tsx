@@ -18,6 +18,7 @@ const sceneViewRefMocks = vi.hoisted(() => ({
   updateEntityShape: vi.fn(() => false),
   updateEntityMaterial: vi.fn(() => Promise.resolve()),
   updateEntityModelTransform: vi.fn(),
+  refreshEntityAppearance: vi.fn(),
   syncEntityTransformers: vi.fn(),
   getAllPoses: vi.fn(() => null),
   resetCamera: vi.fn(),

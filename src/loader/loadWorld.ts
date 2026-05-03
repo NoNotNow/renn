@@ -161,7 +161,8 @@ export async function loadWorld(
             entity.model,
             entity.modelRotation,
             entity.modelScale,
-            entity.shape?.type !== 'trimesh' ? entity.modelSimplification : undefined
+            entity.shape?.type !== 'trimesh' ? entity.modelSimplification : undefined,
+            entity.doubleSided
           )
         : new THREE.Mesh(
             new THREE.BoxGeometry(1, 1, 1),

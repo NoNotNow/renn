@@ -27,14 +27,21 @@ function colorFromRef(material: MaterialRef | undefined): THREE.Color {
   return new THREE.Color(0.7, 0.7, 0.7)
 }
 
+export type MaterialFromRefOptions = {
+  /** When true, assigns MeshStandardMaterial.side = DoubleSide; otherwise FrontSide. */
+  forceDoubleSided?: boolean
+}
+
 export async function materialFromRef(
   material: MaterialRef | undefined,
-  assetResolver?: DisposableAssetResolver
+  assetResolver?: DisposableAssetResolver,
+  options?: MaterialFromRefOptions
 ): Promise<THREE.MeshStandardMaterial> {
   const mat = new THREE.MeshStandardMaterial({
     color: colorFromRef(material),
     roughness: material?.roughness ?? 0.5,
     metalness: material?.metalness ?? 0,
+    side: options?.forceDoubleSided ? THREE.DoubleSide : THREE.FrontSide,
   })
 
   // Load texture or video map
@@ -119,7 +126,70 @@ function applyModelTransform(
   modelScene.scale.set(modelScale[0], modelScale[1], modelScale[2])
 }
 
-export type OriginalMaterialEntry = { mesh: THREE.Mesh; material: THREE.Material }
+export type OriginalMaterialEntry = { mesh: THREE.Mesh; material: THREE.Material | THREE.Material[] }
+
+function applySideToMeshMaterials(mesh: THREE.Mesh, side: THREE.Side): void {
+  const m = mesh.material
+  if (Array.isArray(m)) {
+    for (const mat of m) {
+      mat.side = side
+    }
+  } else {
+    m.side = side
+  }
+}
+
+/**
+ * Sets material.side on every mesh under a GLTF visual root.
+ * When `forceDoubleSide`, all drawable materials use DoubleSide.
+ * When `usingMaterialOverride` and not forced, uses FrontSide (no per-file sides on the shared override).
+ * Otherwise restores each slot's side from `originalMaterialEntries` clones (file defaults).
+ */
+export function applyModelVisualSides(
+  modelScene: THREE.Object3D,
+  originalMaterialEntries: OriginalMaterialEntry[] | undefined,
+  forceDoubleSide: boolean,
+  usingMaterialOverride: boolean
+): void {
+  const entries = originalMaterialEntries ?? []
+  const entryMap = new Map<THREE.Mesh, THREE.Material | THREE.Material[]>()
+  for (const e of entries) {
+    entryMap.set(e.mesh, e.material)
+  }
+
+  modelScene.traverse((child) => {
+    if (!(child instanceof THREE.Mesh) || !child.material) return
+    if (forceDoubleSide) {
+      applySideToMeshMaterials(child, THREE.DoubleSide)
+      return
+    }
+    if (usingMaterialOverride) {
+      applySideToMeshMaterials(child, THREE.FrontSide)
+      return
+    }
+    const stored = entryMap.get(child)
+    if (!stored) {
+      applySideToMeshMaterials(child, THREE.FrontSide)
+      return
+    }
+    const cur = child.material
+    if (Array.isArray(cur) && Array.isArray(stored)) {
+      if (cur.length === stored.length) {
+        for (let i = 0; i < cur.length; i++) {
+          cur[i]!.side = stored[i]!.side
+        }
+      } else {
+        applySideToMeshMaterials(child, THREE.FrontSide)
+      }
+      return
+    }
+    if (!Array.isArray(cur) && !Array.isArray(stored)) {
+      cur.side = stored.side
+      return
+    }
+    applySideToMeshMaterials(child, THREE.FrontSide)
+  })
+}
 
 /** Collect cloned materials from every mesh in the scene for later restore. */
 function collectOriginalMaterialClones(scene: THREE.Object3D): OriginalMaterialEntry[] {
@@ -128,10 +198,30 @@ function collectOriginalMaterialClones(scene: THREE.Object3D): OriginalMaterialE
     if (child instanceof THREE.Mesh && child.material) {
       const mat = child.material
       const cloned = Array.isArray(mat) ? mat.map((m) => m.clone()) : mat.clone()
-      entries.push({ mesh: child, material: cloned as THREE.Material })
+      entries.push({ mesh: child, material: cloned })
     }
   })
   return entries
+}
+
+/** GLTF visual subtree + stored material clones for an entity root mesh (model-on-primitive or trimesh). */
+export function resolveGltfVisualContext(root: THREE.Mesh): {
+  modelScene: THREE.Object3D
+  originalMaterialEntries: OriginalMaterialEntry[] | undefined
+} | null {
+  if (root.userData.isTrimeshSource === true) {
+    return {
+      modelScene: root.userData.trimeshScene as THREE.Object3D,
+      originalMaterialEntries: root.userData.originalMaterialEntries as OriginalMaterialEntry[] | undefined,
+    }
+  }
+  if (root.userData.usesModel === true && root.children[0]) {
+    return {
+      modelScene: root.children[0]!,
+      originalMaterialEntries: root.userData.originalMaterialEntries as OriginalMaterialEntry[] | undefined,
+    }
+  }
+  return null
 }
 
 /**
@@ -220,17 +310,23 @@ export async function applyTrimeshVisualSimplification(
 /**
  * Creates a Three.js mesh for the given shape and material.
  * Does not set position/rotation/scale; caller applies those.
- * 
+ *
  * IMPORTANT: Caller is responsible for disposing geometry and material when done:
  *   mesh.geometry.dispose()
  *   mesh.material.dispose()
  */
+export type CreatePrimitiveMeshOptions = {
+  /** Applies to loaded trimesh GLTF visuals only. */
+  doubleSided?: boolean
+}
+
 export async function createPrimitiveMesh(
   shape: Shape,
   materialRef: MaterialRef | undefined,
   assetResolver?: DisposableAssetResolver,
   modelRotation?: Rotation,
-  modelScale?: Vec3
+  modelScale?: Vec3,
+  options?: CreatePrimitiveMeshOptions
 ): Promise<THREE.Mesh> {
   const rot = modelRotation ?? DEFAULT_MODEL_ROTATION
   const scl = modelScale ?? DEFAULT_MODEL_SCALE
@@ -289,14 +385,18 @@ export async function createPrimitiveMesh(
             }
             // Store cloned materials for later restore when user clears override
             const originalMaterialEntries = collectOriginalMaterialClones(modelScene)
-            if (materialRef !== undefined) {
-              const material = await materialFromRef(materialRef, assetResolver)
+            const usingMatOverride = materialRef !== undefined
+            if (usingMatOverride) {
+              const material = await materialFromRef(materialRef, assetResolver, {
+                forceDoubleSided: options?.doubleSided === true,
+              })
               modelScene.traverse((child) => {
                 if (child instanceof THREE.Mesh) {
                   child.material = material
                 }
               })
             }
+            applyModelVisualSides(modelScene, originalMaterialEntries, !!options?.doubleSided, usingMatOverride)
             const wrapperMesh = new THREE.Mesh(
               new THREE.BoxGeometry(0.01, 0.01, 0.01),
               new THREE.MeshStandardMaterial({ visible: false })
@@ -383,7 +483,8 @@ export async function buildEntityMesh(
   modelId?: string,
   modelRotation?: Rotation,
   modelScale?: Vec3,
-  modelSimplification?: TrimeshSimplificationConfig
+  modelSimplification?: TrimeshSimplificationConfig,
+  doubleSided?: boolean
 ): Promise<THREE.Mesh> {
   const s = shape ?? { type: 'box' as const, width: 1, height: 1, depth: 1 }
   const rot = modelRotation ?? DEFAULT_MODEL_ROTATION
@@ -400,8 +501,11 @@ export async function buildEntityMesh(
         normalizeSceneToUnitCube(modelScene)
         normalizeModelTextureUVs(modelScene)
         const originalMaterialEntries = collectOriginalMaterialClones(modelScene)
-        if (materialRef !== undefined) {
-          const material = await materialFromRef(materialRef, assetResolver)
+        const usingMatOverride = materialRef !== undefined
+        if (usingMatOverride) {
+          const material = await materialFromRef(materialRef, assetResolver, {
+            forceDoubleSided: doubleSided === true,
+          })
           modelScene.traverse((child) => {
             if (child instanceof THREE.Mesh) {
               child.material = material
@@ -411,6 +515,7 @@ export async function buildEntityMesh(
         if (modelSimplification?.enabled) {
           await applyTrimeshVisualSimplification(modelScene, modelSimplification)
         }
+        applyModelVisualSides(modelScene, originalMaterialEntries, doubleSided === true, usingMatOverride)
         // Root mesh uses shape-sized geometry so the full shape is the clickable area (raycast hits this)
         const shapeGeometry = createShapeGeometry(s)
         const geometry = shapeGeometry ?? new THREE.BoxGeometry(1, 1, 1)
@@ -433,7 +538,7 @@ export async function buildEntityMesh(
   }
 
   // Default: create mesh from shape
-  const mesh = await createPrimitiveMesh(s, materialRef, assetResolver, rot, scl)
+  const mesh = await createPrimitiveMesh(s, materialRef, assetResolver, rot, scl, { doubleSided })
   applyTransform(mesh, position, rotation, scale)
   initVisualBaseFromShape(mesh, s.type)
   return mesh

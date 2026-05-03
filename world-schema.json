@@ -490,6 +490,10 @@
           },
           "additionalProperties": false
         },
+        "doubleSided": {
+          "type": "boolean",
+          "description": "When true, drawable GLTF materials use THREE.DoubleSide. When omitted, sides follow source materials (stored clones)."
+        },
         "material": { "$ref": "#/$defs/MaterialRef" },
         "mass": { "type": "number" },
         "restitution": { "type": "number" },
