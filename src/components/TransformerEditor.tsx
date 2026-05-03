@@ -18,8 +18,10 @@ import { effectiveCustomTransformerCode } from '@/transformers/customCodeTransfo
 import { useEditorUndo } from '@/contexts/EditorUndoContext'
 import type { TransformerTraceStep } from '@/transformers/transformerTrace'
 import {
+  actionsMapsDiffer,
   hasNonZeroSemanticActions,
   isStructuralTransformOutputActive,
+  summarizePublishedActionsDelta,
 } from '@/transformers/transformerTrace'
 
 function vec3AnyNonZero(v: readonly [number, number, number] | undefined): boolean {
@@ -46,6 +48,41 @@ function summarizeTransformOutputBrief(o: TransformOutput): string {
   if (o.addRotation != null) tags.push('addRotation')
   if (o.setPose) tags.push('setPose')
   return tags.join(', ')
+}
+
+/** Combines physics/pose return value with actions-wire delta for `input` transformers. */
+function summarizeTransformerTraceOutputBrief(
+  transformerType: string,
+  step: TransformerTraceStep | undefined,
+): string {
+  if (!step) return '—'
+  if (step.skipped) return '(disabled)'
+  const structural =
+    step.transformOutput !== undefined
+      ? summarizeTransformOutputBrief(step.transformOutput)
+      : '(none)'
+  const before = step.inputBefore?.actions as Record<string, number> | undefined
+  const after = step.actionsAfter
+  const actionsDeltaBrief =
+    transformerType === 'input' && before && after && actionsMapsDiffer(before, after)
+      ? summarizePublishedActionsDelta(before, after)
+      : null
+
+  if (structural !== '(none)' && actionsDeltaBrief)
+    return `${structural}; actions · ${actionsDeltaBrief}`
+  if (structural !== '(none)') return structural
+  if (actionsDeltaBrief) return `actions · ${actionsDeltaBrief}`
+  return '(none)'
+}
+
+function serializeTransformerTraceOutputJson(step: TransformerTraceStep): unknown {
+  const ret = step.transformOutput ?? {}
+  const before = step.inputBefore?.actions as Record<string, number> | undefined
+  const after = step.actionsAfter
+  if (before && after && actionsMapsDiffer(before, after)) {
+    return { transformReturn: ret, actionsAfter: after }
+  }
+  return ret
 }
 
 const TRACE_JSON_PRE_STYLE: CSSProperties = {
@@ -132,9 +169,9 @@ function TransformerLiveTraceDetails({
         >
           Transform output · {traceOutputBrief}
         </summary>
-        {step && !step.skipped && step.transformOutput ? (
+        {step && !step.skipped && (step.transformOutput !== undefined || step.actionsAfter !== undefined) ? (
           <pre data-testid={`transformer-trace-output-json-${index}`} style={TRACE_JSON_PRE_STYLE}>
-            {JSON.stringify(step.transformOutput, null, 2)}
+            {JSON.stringify(serializeTransformerTraceOutputJson(step), null, 2)}
           </pre>
         ) : null}
       </details>
@@ -327,12 +364,7 @@ export default function TransformerEditor({
               : theme.text.secondary
         const traceInputBrief =
           step?.skipped ? '(disabled)' : step?.inputBefore ? summarizeActions(step.inputBefore.actions) : '—'
-        const traceOutputBrief =
-          step?.skipped
-            ? '(disabled)'
-            : step?.transformOutput
-              ? summarizeTransformOutputBrief(step.transformOutput)
-              : '—'
+        const traceOutputBrief = summarizeTransformerTraceOutputBrief(transformer.type, step)
 
         return (
           <CopyableArea

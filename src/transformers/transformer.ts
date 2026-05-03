@@ -196,6 +196,7 @@ export class TransformerChain {
       const output = transformer.transform(input, dt)
 
       if (traceSteps && actionsBefore) {
+        const actionsAfter = { ...input.actions }
         traceSteps.push({
           configStackIndex,
           type: transformer.type,
@@ -203,11 +204,12 @@ export class TransformerChain {
           skipped: false,
           inputBefore: inputBeforeSnapshot,
           transformOutput: cloneTransformOutputForTrace(output),
+          actionsAfter,
           outputLedActive: computeOutputLedActive(
             transformer.type,
             output,
             actionsBefore,
-            { ...input.actions },
+            actionsAfter,
           ),
         })
       }

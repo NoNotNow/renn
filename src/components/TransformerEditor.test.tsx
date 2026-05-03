@@ -70,7 +70,8 @@ describe('TransformerEditor', () => {
         priority: 0,
         skipped: false,
         inputBefore: { actions: {} },
-        transformOutput: {},
+        transformOutput: { earlyExit: false },
+        actionsAfter: { throttle: 1 },
         outputLedActive: true,
       },
     ]
@@ -86,6 +87,7 @@ describe('TransformerEditor', () => {
     expect(screen.getByTestId('transformer-live-io-0')).toBeInTheDocument()
     const outSummary = screen.getByTestId('transformer-trace-summary-output-0')
     expect(outSummary).toBeInTheDocument()
+    expect(outSummary.textContent).toContain('actions ·')
     expect(outSummary).toHaveStyle({ color: 'rgb(74, 222, 128)' })
   })
 

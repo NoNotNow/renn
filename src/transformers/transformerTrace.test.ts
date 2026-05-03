@@ -7,6 +7,7 @@ import {
   isStructuralTransformOutputActive,
   serializeTransformInputForTrace,
   hasNonZeroSemanticActions,
+  summarizePublishedActionsDelta,
 } from '@/transformers/transformerTrace'
 import { createMockTransformInput } from '@/test/helpers/transformer'
 
@@ -68,5 +69,13 @@ describe('transformerTrace helpers', () => {
     expect(hasNonZeroSemanticActions({ actions: {} })).toBe(false)
     expect(hasNonZeroSemanticActions({ actions: { throttle: 0 } })).toBe(false)
     expect(hasNonZeroSemanticActions({ actions: { throttle: 1 } })).toBe(true)
+  })
+
+  it('summarizePublishedActionsDelta lists changed keys sorted', () => {
+    expect(summarizePublishedActionsDelta({}, { throttle: 0.5 })).toBe('throttle=0.5')
+    expect(summarizePublishedActionsDelta({ steer: 0 }, { steer: 0.25, throttle: 2 })).toBe(
+      'steer=0.25, throttle=2',
+    )
+    expect(summarizePublishedActionsDelta({ x: 1 }, { x: 1 })).toBe('(idle)')
   })
 })

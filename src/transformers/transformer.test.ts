@@ -32,6 +32,25 @@ class MockTransformer extends BaseTransformer {
   }
 }
 
+/** Same as MockTransformer but `type === 'input'` for trace LED semantics. */
+class MockInputTransformer extends BaseTransformer {
+  readonly type = 'input'
+  private outputFn: (input: TransformInput) => TransformOutput
+
+  constructor(
+    priority: number,
+    outputFn: (input: TransformInput) => TransformOutput,
+    enabled = true,
+  ) {
+    super(priority, enabled)
+    this.outputFn = outputFn
+  }
+
+  transform(input: TransformInput, _dt: number): TransformOutput {
+    return this.outputFn(input)
+  }
+}
+
 describe('BaseTransformer', () => {
   test('transform() returns valid TransformOutput', () => {
     const transformer = new MockTransformer(10, () => ({
@@ -353,6 +372,23 @@ describe('TransformerChain', () => {
     ])
     expect(steps[0].outputLedActive).toBe(true)
     expect(steps[1].outputLedActive).toBe(false)
+  })
+
+  test('execute trace records actionsAfter when input.actions mutate', () => {
+    const chain = new TransformerChain()
+    const inputTr = new MockInputTransformer(0, (inp) => {
+      inp.actions.throttle = 0.75
+      return {}
+    })
+    ;(inputTr as { configStackIndex?: number }).configStackIndex = 0
+    chain.add(inputTr)
+
+    const steps: TransformerTraceStep[] = []
+    chain.execute(createMockTransformInput({ actions: {} }), 0.016, steps)
+
+    expect(steps).toHaveLength(1)
+    expect(steps[0].actionsAfter).toEqual({ throttle: 0.75 })
+    expect(steps[0].outputLedActive).toBe(true)
   })
 
   test('execute trace marks skipped disabled transformers', () => {

@@ -14,6 +14,8 @@ export interface TransformerTraceStep {
   inputBefore?: TransformInputTraceSnapshot
   /** Raw return value from transform(); omitted when skipped. */
   transformOutput?: TransformOutput
+  /** `input.actions` after this step (tracing only); shows published semantics for `input` transformers. */
+  actionsAfter?: Record<string, number>
   /** Builder output LED — forces/setPose/etc., or input-mapping publishing actions. */
   outputLedActive: boolean
 }
@@ -101,6 +103,22 @@ export function actionsMapsDiffer(
     if (a !== b) return true
   }
   return false
+}
+
+/** Brief diff string for Builder trace labels when actions changed this step. */
+export function summarizePublishedActionsDelta(
+  before: Record<string, number>,
+  after: Record<string, number>,
+): string {
+  const keys = new Set([...Object.keys(before), ...Object.keys(after)])
+  const parts: string[] = []
+  for (const k of [...keys].sort()) {
+    const b = before[k] ?? 0
+    const a = after[k] ?? 0
+    if (a !== b) parts.push(`${k}=${Number(a.toFixed(3))}`)
+  }
+  if (parts.length === 0) return '(idle)'
+  return parts.join(', ')
 }
 
 /** Output LED for `input` transformer: actions changed by this step. */
