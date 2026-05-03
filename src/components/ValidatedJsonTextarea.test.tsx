@@ -117,4 +117,20 @@ describe('ValidatedJsonTextarea', () => {
     // icon variant renders an svg child
     expect(apply.querySelector('svg')).toBeTruthy()
   })
+
+  it('renders applyRowAccessory left of icon apply button', () => {
+    render(
+      <ValidatedJsonTextarea
+        value={'{}'}
+        onApply={vi.fn()}
+        applyVariant="icon"
+        applyRowAccessory={<span data-testid="accessory">Live</span>}
+        textareaTestId="ta"
+        applyTestId="apply"
+      />,
+    )
+    expect(screen.getByTestId('accessory')).toHaveTextContent('Live')
+    const row = screen.getByTestId('apply').parentElement
+    expect(row).toContainElement(screen.getByTestId('accessory'))
+  })
 })

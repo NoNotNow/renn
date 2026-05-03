@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties } from 'react'
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { theme } from '@/config/theme'
 import { entityPanelIconButtonStyle } from './sharedStyles'
 import { EntityPanelIcons } from './EntityPanelIcons'
@@ -25,6 +25,11 @@ export interface ValidatedJsonTextareaProps {
   disabled?: boolean
   /** Apply control rendering: full-width text button (default) or compact icon button. */
   applyVariant?: 'text' | 'icon'
+  /**
+   * With `applyVariant="icon"`, optional content shown in the same row as the apply button,
+   * left of it, using remaining width (e.g. live I/O summaries).
+   */
+  applyRowAccessory?: ReactNode
   /** Label for the text-variant Apply button. */
   applyLabel?: string
   textareaTestId?: string
@@ -51,6 +56,7 @@ export default function ValidatedJsonTextarea({
   validate,
   disabled = false,
   applyVariant = 'text',
+  applyRowAccessory,
   applyLabel = 'Apply',
   textareaTestId,
   applyTestId,
@@ -132,24 +138,46 @@ export default function ValidatedJsonTextarea({
       ) : null}
 
       {applyVariant === 'icon' ? (
-        <button
-          type="button"
-          onClick={onApplyClick}
-          disabled={!canApply}
-          title="Apply"
-          aria-label="Apply configuration"
+        <div
           style={{
-            ...entityPanelIconButtonStyle,
-            alignSelf: 'flex-end',
-            background: canApply ? theme.button.info : theme.bg.surface,
-            border: `1px solid ${canApply ? theme.button.infoBorder : theme.button.disabledBorder}`,
-            color: canApply ? theme.text.accentBlue : theme.text.disabled,
-            cursor: canApply ? 'pointer' : 'not-allowed',
+            display: 'flex',
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 8,
+            width: '100%',
+            minWidth: 0,
           }}
-          data-testid={applyTestId}
         >
-          {EntityPanelIcons.check}
-        </button>
+          <div
+            style={{
+              flex: '1 1 auto',
+              minWidth: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
+            }}
+          >
+            {applyRowAccessory}
+          </div>
+          <button
+            type="button"
+            onClick={onApplyClick}
+            disabled={!canApply}
+            title="Apply"
+            aria-label="Apply configuration"
+            style={{
+              ...entityPanelIconButtonStyle,
+              flexShrink: 0,
+              background: canApply ? theme.button.info : theme.bg.surface,
+              border: `1px solid ${canApply ? theme.button.infoBorder : theme.button.disabledBorder}`,
+              color: canApply ? theme.text.accentBlue : theme.text.disabled,
+              cursor: canApply ? 'pointer' : 'not-allowed',
+            }}
+            data-testid={applyTestId}
+          >
+            {EntityPanelIcons.check}
+          </button>
+        </div>
       ) : (
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 4 }}>
           <button

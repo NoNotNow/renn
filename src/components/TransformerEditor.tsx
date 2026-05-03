@@ -49,8 +49,8 @@ function summarizeTransformOutputBrief(o: TransformOutput): string {
 }
 
 const TRACE_JSON_PRE_STYLE: CSSProperties = {
-  margin: '6px 0 0',
-  padding: 8,
+  margin: '3px 0 0',
+  padding: 6,
   maxHeight: 220,
   overflow: 'auto',
   background: theme.bg.codeOverlay,
@@ -60,6 +60,14 @@ const TRACE_JSON_PRE_STYLE: CSSProperties = {
   color: theme.text.muted,
   fontSize: 11,
   textAlign: 'left',
+}
+
+const COLLAPSIBLE_TRACE_DETAILS_STYLE: CSSProperties = {
+  margin: 0,
+  fontSize: 11,
+  width: '100%',
+  maxWidth: '100%',
+  minWidth: 0,
 }
 
 function TransformerLiveTraceDetails({
@@ -79,17 +87,16 @@ function TransformerLiveTraceDetails({
   traceInputBrief: string
   traceOutputBrief: string
 }) {
-  const detailsStyle: CSSProperties = {
-    margin: 0,
-    fontSize: 11,
-    width: '100%',
-    maxWidth: '100%',
-    minWidth: 0,
-  }
-
   return (
-    <>
-      <details style={detailsStyle}>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'stretch',
+        gap: 2,
+      }}
+    >
+      <details style={COLLAPSIBLE_TRACE_DETAILS_STYLE}>
         <summary
           title={
             step?.skipped
@@ -110,7 +117,7 @@ function TransformerLiveTraceDetails({
           </pre>
         ) : null}
       </details>
-      <details style={detailsStyle}>
+      <details style={COLLAPSIBLE_TRACE_DETAILS_STYLE}>
         <summary
           title={
             step?.skipped
@@ -131,7 +138,7 @@ function TransformerLiveTraceDetails({
           </pre>
         ) : null}
       </details>
-    </>
+    </div>
   )
 }
 
@@ -298,10 +305,10 @@ export default function TransformerEditor({
         const inputLit = Boolean(step && !step.skipped && hasNonZeroSemanticActions(step.inputBefore))
         const outputLit = Boolean(step && !step.skipped && step.outputLedActive)
 
-        const traceSummaryMinHeight = entityPanelIconButtonStyle.minHeight
         const traceSummaryRowStyle = {
           cursor: 'pointer' as const,
-          minHeight: traceSummaryMinHeight,
+          minHeight: 20,
+          lineHeight: 1.25,
           display: 'flex' as const,
           alignItems: 'center' as const,
           userSelect: 'none' as const,
@@ -578,8 +585,9 @@ export default function TransformerEditor({
                       marginTop: 8,
                       display: 'flex',
                       flexDirection: 'row',
-                      alignItems: 'flex-end',
-                      gap: 12,
+                      flexWrap: 'wrap',
+                      alignItems: 'center',
+                      gap: '6px 10px',
                       width: '100%',
                       minWidth: 0,
                     }}
@@ -587,12 +595,9 @@ export default function TransformerEditor({
                     {liveTraceSteps != null ? (
                       <div
                         style={{
-                          flex: 1,
+                          flex: '0 1 auto',
                           minWidth: 0,
-                          display: 'flex',
-                          flexDirection: 'column',
-                          alignItems: 'flex-start',
-                          gap: 6,
+                          maxWidth: '100%',
                         }}
                         data-testid={`transformer-live-io-${index}`}
                       >
@@ -630,7 +635,7 @@ export default function TransformerEditor({
                         cursor: disabled ? 'not-allowed' : 'pointer',
                         fontSize: 12,
                         flexShrink: 0,
-                        marginLeft: liveTraceSteps != null ? 0 : 'auto',
+                        marginLeft: liveTraceSteps != null ? undefined : 'auto',
                       }}
                       data-testid="transformer-custom-code-apply"
                     >
@@ -660,60 +665,56 @@ export default function TransformerEditor({
                   />
                 </>
               ) : (
-                <>
-                  <div
-                    style={{ ...fieldLabelStyle, cursor: 'help' }}
-                    title="JSON config for this transformer. Use the field reference panel when available; Apply commits valid JSON."
-                  >
-                    Configuration:
-                  </div>
-                  <ValidatedJsonTextarea
-                    value={JSON.stringify(transformer, null, 2)}
-                    onApply={(updated) => {
-                      const next = list.map((t, i) =>
-                        i === index ? (updated as TransformerConfig) : t
-                      )
-                      onChange?.(next)
-                    }}
-                    disabled={disabled}
-                    applyVariant="icon"
-                    textareaTestId="transformer-config-textarea"
-                    applyTestId="transformer-config-apply"
-                  />
-                </>
-              )}
-            </div>
-
-            {liveTraceSteps != null && transformer.type !== 'custom' && (
-              <div
-                style={{
-                  marginTop: 12,
-                  paddingTop: 10,
-                  borderTop: `1px solid ${theme.border.default}`,
-                  textAlign: 'left',
-                }}
-              >
                 <div
                   style={{
                     display: 'flex',
                     flexDirection: 'column',
-                    alignItems: 'flex-start',
-                    gap: 6,
+                    alignItems: 'stretch',
+                    gap: 2,
                   }}
-                  data-testid={`transformer-live-io-${index}`}
                 >
-                  <TransformerLiveTraceDetails
-                    index={index}
-                    step={step}
-                    summaryRowStyle={traceSummaryRowStyle}
-                    traceInputSummaryColor={traceInputSummaryColor}
-                    traceOutputSummaryColor={traceOutputSummaryColor}
-                    traceInputBrief={traceInputBrief}
-                    traceOutputBrief={traceOutputBrief}
-                  />
+                  <details style={COLLAPSIBLE_TRACE_DETAILS_STYLE} open>
+                    <summary
+                      title="JSON config for this transformer. Use the field reference panel when available; Apply commits valid JSON."
+                      style={{
+                        ...traceSummaryRowStyle,
+                        color: theme.text.secondary,
+                      }}
+                      data-testid={`transformer-config-summary-${index}`}
+                    >
+                      Configuration · {transformer.type}
+                    </summary>
+                    <ValidatedJsonTextarea
+                      value={JSON.stringify(transformer, null, 2)}
+                      onApply={(updated) => {
+                        const next = list.map((t, i) =>
+                          i === index ? (updated as TransformerConfig) : t
+                        )
+                        onChange?.(next)
+                      }}
+                      disabled={disabled}
+                      applyVariant="icon"
+                      textareaTestId="transformer-config-textarea"
+                      applyTestId="transformer-config-apply"
+                    />
+                  </details>
+                  {liveTraceSteps != null ? (
+                    <div data-testid={`transformer-live-io-${index}`}>
+                      <TransformerLiveTraceDetails
+                        index={index}
+                        step={step}
+                        summaryRowStyle={traceSummaryRowStyle}
+                        traceInputSummaryColor={traceInputSummaryColor}
+                        traceOutputSummaryColor={traceOutputSummaryColor}
+                        traceInputBrief={traceInputBrief}
+                        traceOutputBrief={traceOutputBrief}
+                      />
+                    </div>
+                  ) : null}
                 </div>
-              </div>
-            )}
+              )}
+            </div>
+
           </CopyableArea>
         )
       })
