@@ -953,6 +953,10 @@ export class PhysicsWorld {
   applyImpulse(entityId: string, x: number, y: number, z: number): void {
     const body = this.bodyMap.get(entityId)
     if (body && body.isDynamic()) {
+      if (body.isSleeping()) {
+        body.wakeUp()
+        this.customSleepTimers.delete(entityId)
+      }
       body.applyImpulse({ x, y, z }, true)
     }
   }
@@ -960,6 +964,10 @@ export class PhysicsWorld {
   applyForce(entityId: string, x: number, y: number, z: number): void {
     const body = this.bodyMap.get(entityId)
     if (body && body.isDynamic()) {
+      if (body.isSleeping()) {
+        body.wakeUp()
+        this.customSleepTimers.delete(entityId)
+      }
       body.addForce({ x, y, z }, true)
     }
   }
@@ -986,6 +994,10 @@ export class PhysicsWorld {
   applyTorque(entityId: string, x: number, y: number, z: number): void {
     const body = this.bodyMap.get(entityId)
     if (body && body.isDynamic()) {
+      if (body.isSleeping()) {
+        body.wakeUp()
+        this.customSleepTimers.delete(entityId)
+      }
       body.addTorque({ x, y, z }, true)
     }
   }

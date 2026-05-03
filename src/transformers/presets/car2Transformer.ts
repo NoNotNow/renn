@@ -53,6 +53,7 @@ const LATERAL_VELOCITY_DEAD_ZONE = 0.005
 
 export class CarTransformer2 extends BaseTransformer {
   readonly type = 'car2'
+  readonly wantsWakeOnAnyInput = true
   wheelAngle: number = 0 // -1 to 1
   private params: Required<CarTransformer2Params>
   private jumpHeldPrev = false

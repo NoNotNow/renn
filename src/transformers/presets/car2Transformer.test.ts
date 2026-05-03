@@ -5,6 +5,10 @@ import { createMockTransformInput } from '@/test/helpers/transformer'
 describe('CarTransformer2', () => {
   const t = new CarTransformer2(10)
 
+  test('opts into wake on keyboard activity when body is asleep', () => {
+    expect(t.wantsWakeOnAnyInput).toBe(true)
+  })
+
   test('when not touching, returns no impulse or addRotation', () => {
     const output = t.transform(
       createMockTransformInput({

@@ -15,8 +15,8 @@ import type {
   TransformerConfig,
   RawInput,
 } from '@/types/transformer'
+import { clearActionRecord, hasTrackedKeyboardActivity } from '@/types/transformer'
 import { interpolateVisualPose } from './visualPoseInterpolation'
-import { clearActionRecord } from '@/types/transformer'
 import {
   bakeMeshScaleIntoModelScaleEntity,
   bakeScaleIntoPrimitiveShape,
@@ -32,6 +32,7 @@ import {
   publishTransformerLiveTrace,
 } from '@/runtime/transformerTraceBridge'
 import type { TransformerTraceStep } from '@/transformers/transformerTrace'
+import type { TransformerChain } from '@/transformers/transformer'
 
 const shapeUpdateShadowBox = new THREE.Box3()
 const shapeUpdateShadowSize = new THREE.Vector3()
@@ -840,6 +841,16 @@ export class RenderItemRegistry {
     this._tfEntityIdsDirty = true
   }
 
+  /** True when the chain includes an enabled preset that opts into wake-on-keyboard-for-sleeping body. */
+  private chainWantsWakeOnKeyboardInput(chain: TransformerChain): boolean {
+    for (const t of chain.getAll()) {
+      if (t.enabled && t.wantsWakeOnAnyInput) {
+        return true
+      }
+    }
+    return false
+  }
+
   executeTransformers(dt: number, wind?: Vec3): void {
     if (!this.physicsWorld) return
     this.physicsWorld.resetAllForces()
@@ -870,18 +881,31 @@ export class RenderItemRegistry {
     }
 
     const traceTargetId = getTransformerTraceTargetEntityId()
+    const rawKeyboardHeld = hasTrackedKeyboardActivity(this.rawInputGetter?.() ?? null)
 
     for (const item of this.items.values()) {
       if (!item.transformerChain) continue
       if (!item.hasPhysicsBody()) continue
 
-      const cached = this.physicsWorld.getCachedTransform(item.entity.id)
+      let cached = this.physicsWorld.getCachedTransform(item.entity.id)
       if (!cached) continue
       const isControlled = controlledId !== null && item.entity.id === controlledId
       const isTraceTarget = traceTargetId !== null && item.entity.id === traceTargetId
       // Sleeping dynamics are skipped to save work — unless controlled (always woken above) or the
-      // entity is the Builder transformer trace target (UI needs publishTransformerLiveTrace).
-      if (!isControlled && cached.isSleeping && !isTraceTarget) continue
+      // Builder transformer trace target (UI needs publishTransformerLiveTrace), or a wake-on-input
+      // transformer (e.g. car2) with held keys so forces can apply.
+      if (!isControlled && cached.isSleeping && !isTraceTarget) {
+        if (
+          !rawKeyboardHeld ||
+          !this.chainWantsWakeOnKeyboardInput(item.transformerChain)
+        ) {
+          continue
+        }
+        this.physicsWorld.wakeDynamicAndRefreshTransformCache(item.entity.id)
+        const refreshed = this.physicsWorld.getCachedTransform(item.entity.id)
+        if (!refreshed || refreshed.isSleeping) continue
+        cached = refreshed
+      }
       if (!isControlled && item.distanceCulled) continue
 
       clearActionRecord(this._tfActions)

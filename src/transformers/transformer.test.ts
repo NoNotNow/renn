@@ -7,7 +7,9 @@ import type {
   TransformInput,
   TransformOutput,
   Vec3,
+  RawInput,
 } from '@/types/transformer'
+import { hasTrackedKeyboardActivity } from '@/types/transformer'
 import type { TransformerTraceStep } from '@/transformers/transformerTrace'
 import { createMockTransformInput, assertEmptyOutput } from '@/test/helpers/transformer'
 
@@ -364,5 +366,41 @@ describe('TransformerChain', () => {
 
     expect(steps).toHaveLength(1)
     expect(steps[0].skipped).toBe(true)
+  })
+})
+
+describe('hasTrackedKeyboardActivity', () => {
+  const inactiveKeys = {
+    w: false,
+    a: false,
+    s: false,
+    d: false,
+    space: false,
+    shift: false,
+  }
+  const emptyWheel = { deltaX: 0, deltaY: 0, pinchDelta: 0, mouseWheelDelta: 0 }
+
+  test('false for null', () => {
+    expect(hasTrackedKeyboardActivity(null)).toBe(false)
+  })
+
+  test('false when no keys held', () => {
+    const raw: RawInput = { keys: inactiveKeys, wheel: emptyWheel }
+    expect(hasTrackedKeyboardActivity(raw)).toBe(false)
+  })
+
+  test('true when any tracked key held', () => {
+    expect(
+      hasTrackedKeyboardActivity({
+        keys: { ...inactiveKeys, w: true },
+        wheel: emptyWheel,
+      }),
+    ).toBe(true)
+    expect(
+      hasTrackedKeyboardActivity({
+        keys: { ...inactiveKeys, space: true },
+        wheel: emptyWheel,
+      }),
+    ).toBe(true)
   })
 })

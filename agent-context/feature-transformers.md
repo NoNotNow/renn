@@ -127,6 +127,8 @@ The `car2` preset (**impulse** + **addRotation**) accepts optional `params` in J
 
 **Touch-gating:** Car2 applies **impulse** and **addRotation** only when the entity is touching another object (at least one contact with another collider). When not touching anything (e.g. in mid-air), it returns an empty physics output (no impulse, no addRotation, no color). The runtime sets `input.environment.isTouchingObject` from the physics world’s contact state (from the previous step) before running the transformer chain; car2 reads this and gates its physics output on it.
 
+**Sleep / wake:** `car2` sets **`Transformer.wantsWakeOnAnyInput`**. If the rigid body has gone to sleep (Rapier or custom `world.sleeping`) and there is keyboard activity on tracked keys (`hasTrackedKeyboardActivity` in [`src/types/transformer.ts`](../src/types/transformer.ts)), `RenderItemRegistry.executeTransformers` wakes the dynamic body before running the chain so idle sleep does not suppress drive input. **`PhysicsWorld.applyImpulse` / `applyForce` / `applyTorque`** call **`wakeUp()`** when applying to a sleeping dynamic body so impulses and merged chain output still simulate.
+
 **Chain note:** Transformers may set `TransformOutput.impulse`; `TransformerChain.execute` **adds** impulse components into the accumulated **`force`** vector (see `src/transformers/transformer.ts`). For a typical `car2`-only or `input`+`car2` chain, the play runtime therefore often applies the result via **`output.force`**, not a separate **`output.impulse`**. See [transformer-paradigm-input-and-car2.md](transformer-paradigm-input-and-car2.md) for the full input/car2 split and transferable patterns.
 
 | Param | Default | Meaning |

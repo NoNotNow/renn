@@ -44,6 +44,13 @@ export interface RawInput {
   wheel: RawWheelState
 }
 
+/** True if any tracked key in {@link RawKeyboardState} is down. Used to wake sleeping drive bodies before transformer pass. */
+export function hasTrackedKeyboardActivity(raw: RawInput | null | undefined): boolean {
+  if (!raw) return false
+  const k = raw.keys
+  return k.w || k.a || k.s || k.d || k.space || k.shift
+}
+
 // ---------------------------------------------------------------------------
 // Input Mapping (configurable per transformer)
 // ---------------------------------------------------------------------------
@@ -199,6 +206,12 @@ export interface Transformer {
 
   /** When false the transformer is skipped in the chain. */
   enabled: boolean
+
+  /**
+   * When true, the runtime wakes a sleeping dynamic body if keyboard activity is detected
+   * ({@link hasTrackedKeyboardActivity}) so the transformer chain is not skipped.
+   */
+  wantsWakeOnAnyInput?: boolean
 
   /**
    * Produce forces / torques for one frame.
