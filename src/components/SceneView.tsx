@@ -63,6 +63,7 @@ import { computeDirectionalShadowCameraExtent } from '@/utils/shadowBounds'
 import { countVisualModelTriangles } from '@/utils/geometryExtractor'
 import { findEntityRootForPicking } from '@/utils/entityPicking'
 import { ScriptSnackbar } from '@/components/ScriptSnackbar'
+import { setTransformerSnackbarFn } from '@/transformers/customCodeTransformer'
 import { GameHud } from '@/components/GameHud'
 import { FrameStatsOverlay } from '@/components/FrameStatsOverlay'
 import { WarningSnackbar } from '@/components/WarningSnackbar'
@@ -627,6 +628,7 @@ function SceneViewInner({
           setScriptSnackbarMessage(null)
         }, ms)
       }
+      setTransformerSnackbarFn(onScriptSnackbar)
       const onHudPatch = showGameHud
         ? (patch: HudPatch) => {
             if (patch.score !== undefined) setHudScore(patch.score)
@@ -923,6 +925,7 @@ function SceneViewInner({
       prefetchDisposer?.cancel()
       prefetchDisposer = null
 
+      setTransformerSnackbarFn(null)
       if (scriptSnackbarTimerId !== undefined) {
         window.clearTimeout(scriptSnackbarTimerId)
         scriptSnackbarTimerId = undefined

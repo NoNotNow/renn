@@ -92,7 +92,7 @@ function sanitizeTransformOutput(raw: unknown): TransformOutput {
   return next
 }
 
-/** Frozen singleton passed as the fifth argument to compiled custom transformer bodies. */
+/** Frozen singleton passed as the fifth argument to compiled custom transformer functions. */
 export interface TransformerRuntimeApi {
   getAction(input: TransformInput, name: string): number
   getForwardVector(rotation: Rotation): Vec3
@@ -101,6 +101,16 @@ export interface TransformerRuntimeApi {
   scaleVec3(v: Vec3, s: number): Vec3
   clamp(value: number, min: number, max: number): number
   eulerDeltaAroundAxis(currentRotation: Rotation, axis: Vec3, angleRad: number): Rotation
+  /** Show a message in the play-mode snackbar. durationSeconds defaults to 4. No-op in tests unless wired via setTransformerSnackbarFn. */
+  log(message: string, durationSeconds?: number): void
+}
+
+type SnackbarFn = (message: string, durationSeconds: number) => void
+let _snackbarFn: SnackbarFn | null = null
+
+/** Wire the runtime snackbar for `api.log`. Call with `null` on teardown. */
+export function setTransformerSnackbarFn(fn: SnackbarFn | null): void {
+  _snackbarFn = fn
 }
 
 function addVec3Impl(a: Vec3, b: Vec3): Vec3 {
@@ -121,6 +131,9 @@ export const TRANSFORMER_RUNTIME_API: TransformerRuntimeApi = Object.freeze({
   scaleVec3: (v: Vec3, s: number): Vec3 => scaleVec3Util(v, s),
   clamp,
   eulerDeltaAroundAxis,
+  log: (message: string, durationSeconds = 4): void => {
+    _snackbarFn?.(String(message), durationSeconds)
+  },
 } satisfies TransformerRuntimeApi)
 
 type CustomTransformFn = (
@@ -130,6 +143,15 @@ type CustomTransformFn = (
   state: Record<string, unknown>,
   api: TransformerRuntimeApi,
 ) => unknown
+
+/**
+ * Detects whether `source` defines a `function transform(...)`.
+ * Allows leading comments/whitespace before the declaration.
+ * Legacy code (bare return statements) falls back to body-wrapping for backward compat.
+ */
+function isFullFunctionSource(source: string): boolean {
+  return /\bfunction\s+transform\s*\(/.test(source)
+}
 
 function compileCustomTransform(configKey: string, source: string): CustomTransformFn {
   const dangerousPatterns = [
@@ -145,12 +167,11 @@ function compileCustomTransform(configKey: string, source: string): CustomTransf
       throw new Error(`Custom transformer "${configKey}" contains potentially dangerous pattern: ${pattern}`)
     }
   }
-  const wrappedSource = `
-      "use strict";
-      return function(input, dt, params, state, api) {
-        ${source}
-      };
-    `
+
+  const wrappedSource = isFullFunctionSource(source)
+    ? `"use strict"; ${source} return transform;`
+    : `"use strict"; return function(input, dt, params, state, api) { ${source} };`
+
   try {
     const factory = new Function(wrappedSource)
     return factory() as CustomTransformFn
@@ -193,75 +214,24 @@ export class CustomCodeTransformer implements Transformer {
 }
 
 export function defaultCustomTransformerCode(): string {
-  return `// ─── Custom Transformer ────────────────────────────────────────────────────
-// Your code is the BODY of: function(input, dt, params, state, api) { ... }
-// Called every physics frame. Return a TransformOutput object (or {} for none).
-//
-// ── Arguments ───────────────────────────────────────────────────────────────
-//
-// input : TransformInput
-//   .actions               Record<string, number>
-//     Mapped keyboard/wheel values, typically 0–1 or -1–1.
-//     Populated by an 'input' transformer earlier in the stack.
-//     Safe read: api.getAction(input, 'thrust')  →  number (0 if absent)
-//   .position              Vec3  [x, y, z]   world-space position (metres)
-//   .rotation              Vec3  [x, y, z]   Euler angles (radians, Three.js -Z = forward)
-//   .velocity              Vec3              world-space linear velocity (m/s)
-//   .angularVelocity       Vec3              world-space angular velocity (rad/s)
-//   .accumulatedForce      Vec3              forces already added by earlier transformers
-//   .accumulatedTorque     Vec3              torques already added by earlier transformers
-//   .environment.isTouchingObject  boolean   true when collider has any contact
-//   .environment.isGrounded        boolean   true when on a ground surface
-//   .environment.groundNormal      Vec3      surface normal at ground contact
-//   .environment.supportVelocity  Vec3       velocity of the supporting surface
-//   .environment.wind              Vec3       optional ambient wind vector
-//   .deltaTime             number            same value as dt (seconds)
-//   .entityId              string            owning entity id
-//   .target                { pose: { position, rotation }, speed }
-//     Optional movement intent written by targetPoseInput transformer.
-//
-// dt : number
-//   Frame delta time in seconds (≈ 0.016 at 60 fps). Use this to make
-//   forces and impulses frame-rate independent.
-//
-// params : Record<string, unknown>
-//   JSON values from the "Params" field in the Code tab — live-editable without reload.
-//   Always cast before use:  const power = Number(params.power ?? 0);
-//
-// state : Record<string, unknown>
-//   Mutable object that persists across frames for this transformer instance only.
-//   Reset when the world reloads or the transformer is recreated.
-//   Example:  state.elapsed = ((state.elapsed as number) ?? 0) + dt;
-//
-// api : TransformerRuntimeApi  (frozen singleton — no imports available)
-//   .getAction(input, name)                      → number  (0 when action absent)
-//   .getForwardVector(rotation)                  → Vec3    (-Z from Euler)
-//   .getUpVector(rotation)                       → Vec3    (+Y from Euler)
-//   .addVec3(a, b)                               → Vec3    component-wise sum
-//   .scaleVec3(v, s)                             → Vec3    v * s
-//   .clamp(value, min, max)                      → number  inclusive clamp
-//   .eulerDeltaAroundAxis(rotation, axis, angle) → Rotation  Euler delta for yaw turns
-//
-// ── Return : TransformOutput ─────────────────────────────────────────────────
-//   Return {} for no effect. All fields are optional.
-//   Non-finite numbers are silently stripped by the runtime.
-//
-//   .force?       Vec3              continuous force added this frame (world-space, N)
-//   .impulse?     Vec3              instantaneous impulse (world-space, N·s)
-//   .torque?      Vec3              continuous torque added this frame (world-space)
-//   .color?       Vec3  [r, g, b]   mesh color override, channels 0–1
-//   .addRotation? Vec3 | null       Euler delta added to rotation this frame (rad)
-//   .setPose?     { position: Vec3, rotation: Vec3 }
-//     Teleport body to exact pose. Last-wins in chain; zeroes linear/angular velocity.
-//     Only meaningful on kinematic bodies.
-//   .earlyExit?   boolean           stop processing the transformer chain after this step
-//
-// ─────────────────────────────────────────────────────────────────────────────
-const power = Number(params.power ?? 0);
-if (!input.environment.isTouchingObject || power === 0) return {};
+  return `// ── Params shape (edit in the Params JSON field above) ───────────────────────
+// { "power": 120 }
 
-const forward = api.getForwardVector(input.rotation);
-return { impulse: api.scaleVec3(forward, power * dt) };`
+/**
+ * @param {TransformInput} input
+ * @param {number} dt
+ * @param {Record<string, unknown>} params
+ * @param {Record<string, unknown>} state
+ * @param {TransformerRuntimeApi} api
+ * @returns {TransformOutput | undefined}
+ */
+function transform(input, dt, params, state, api) {
+  const power = Number(params.power ?? 0);
+  if (!input.environment.isTouchingObject || power === 0) return {};
+
+  const forward = api.getForwardVector(input.rotation);
+  return { impulse: api.scaleVec3(forward, power * dt) };
+}`
 }
 
 export function effectiveCustomTransformerCode(config: TransformerConfig): string {

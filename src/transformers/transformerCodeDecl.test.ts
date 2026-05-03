@@ -1,0 +1,40 @@
+import { describe, expect, test } from 'vitest'
+import { transformerCtxDecl } from './transformerCodeDecl'
+
+describe('transformerCtxDecl', () => {
+  test('ambient declare const restores legacy-body IntelliSense', () => {
+    const decl = transformerCtxDecl()
+    expect(decl).toContain('declare const input: TransformInput')
+    expect(decl).toContain('declare const dt: number')
+    expect(decl).toContain('declare const params: Record<string, unknown>')
+    expect(decl).toContain('declare const state: Record<string, unknown>')
+    expect(decl).toContain('declare const api: TransformerRuntimeApi')
+  })
+
+  test('TransformFn alias documents full signature including return type', () => {
+    const decl = transformerCtxDecl()
+    expect(decl).toMatch(/type\s+TransformFn\b/)
+    expect(decl).toMatch(/TransformerRuntimeApi/)
+    expect(decl).toMatch(/TransformOutput/)
+  })
+
+  test('TransformerRuntimeApi includes snackbar log for IntelliSense parity with runtime', () => {
+    const decl = transformerCtxDecl()
+    expect(decl).toMatch(/interface\s+TransformerRuntimeApi\b[\s\S]*\blog\s*\(message/i)
+    expect(decl).toContain('durationSeconds?: number')
+  })
+
+  test('environment field docs match authoring concerns (touching vs grounded vs support)', () => {
+    const decl = transformerCtxDecl()
+    expect(decl).toMatch(/interface\s+EnvironmentState\b[\s\S]*\/\*/)
+    expect(decl).toContain('supportVelocity')
+    expect(decl).toContain('isGrounded')
+  })
+
+  test('declare const params JSDoc reminds authors to cast JSON values', () => {
+    const decl = transformerCtxDecl()
+    expect(decl).toContain('Params JSON')
+    expect(decl).toContain('Number(params')
+    expect(decl).toContain('declare const params: Record<string, unknown>')
+  })
+})

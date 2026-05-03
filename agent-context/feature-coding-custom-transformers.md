@@ -30,14 +30,15 @@ Right sidebar **Code** drawer (Builder): **Scripts** | **Transformers** | **Code
 
 ### Runtime
 
-- Compiled body signature: `function (input, dt, params, state, api) { … }` in [`customCodeTransformer.ts`](../src/transformers/customCodeTransformer.ts).
+- **Full function authoring**: `TransformerConfig.code` now stores the complete function definition: `function transform(input, dt, params, state, api) { … }`. The runtime detects `function transform(` in the source; legacy body-only code (bare `return` statements) is still wrapped automatically for backward compat.
 - **`TRANSFORMER_RUNTIME_API`**: frozen singleton passed every frame; thin wrappers over shared utils (see table below).
+- **`api.log`**: calls the play-mode snackbar (wired via `setTransformerSnackbarFn` from `SceneView`; no-op in tests unless explicitly wired). `durationSeconds` defaults to 4.
 - **Sanitization**: non-finite / invalid `TransformOutput` fields stripped.
-- **`effectiveCustomTransformerCode`** + **default skeleton** (params + `api` + touching gate); preset default includes `params.power` in [`transformerPresets.ts`](../src/transformers/transformerPresets.ts).
+- **`effectiveCustomTransformerCode`** + **default skeleton**: params shape comment at the top, full `function transform(...)` body with `isTouchingObject` gate; preset default includes `params.power` in [`transformerPresets.ts`](../src/transformers/transformerPresets.ts).
 
 ### Monaco / IntelliSense
 
-- [`transformerCodeDecl.ts`](../src/transformers/transformerCodeDecl.ts): `declare const` for `input`, `dt`, `params`, `state`, **`api`** and `TransformerRuntimeApi` method typings.
+- [`transformerCodeDecl.ts`](../src/transformers/transformerCodeDecl.ts): type declarations for `Vec3`, `TransformInput`, `TransformOutput`, `TransformerRuntimeApi` (including `log`). No longer uses `declare const` for `input/dt/params/state/api` — types flow from the typed function parameters users write in the full-function format.
 
 ### Tests (existing)
 
@@ -51,15 +52,16 @@ Right sidebar **Code** drawer (Builder): **Scripts** | **Transformers** | **Code
 
 ## Runtime `api` surface (authoritative list)
 
-| Method | Purpose |
-|--------|---------|
-| `getAction(input, name)` | `input.actions[name] ?? 0` |
-| `getForwardVector(rotation)` | Forward unit direction from Euler (Three -Z convention). |
-| `getUpVector(rotation)` | Up from Euler. |
-| `addVec3(a, b)` | Component-wise sum. |
-| `scaleVec3(v, s)` | Scale vector. |
-| `clamp(value, min, max)` | Inclusive clamp. |
-| `eulerDeltaAroundAxis(currentRotation, axis, angleRad)` | Euler delta for yaw-like turns around a world axis. |
+| Method | Signature | Purpose |
+|--------|-----------|---------|
+| `getAction` | `(input, name) → number` | `input.actions[name] ?? 0` |
+| `getForwardVector` | `(rotation) → Vec3` | Forward unit direction from Euler (Three -Z convention). |
+| `getUpVector` | `(rotation) → Vec3` | Up from Euler (+Y). |
+| `addVec3` | `(a, b) → Vec3` | Component-wise sum. |
+| `scaleVec3` | `(v, s) → Vec3` | Scale all components by s. |
+| `clamp` | `(value, min, max) → number` | Inclusive clamp. |
+| `eulerDeltaAroundAxis` | `(currentRotation, axis, angleRad) → Rotation` | Euler delta for yaw-like turns around a world axis. |
+| `log` | `(message, durationSeconds?) → void` | Show message in play-mode snackbar. Default duration: 4 s. Wired via `setTransformerSnackbarFn` from `SceneView`; no-op otherwise. |
 
 **Intention:** Port **car2-style** logic gradually without pasting all of [`car2Transformer.ts`](../src/transformers/presets/car2Transformer.ts). Not every `BaseTransformer` helper is exposed yet; extend deliberately.
 
@@ -70,7 +72,7 @@ Right sidebar **Code** drawer (Builder): **Scripts** | **Transformers** | **Code
 ### API / contributor docs
 
 - **Single consolidated reference** for custom transformer authoring: full `TransformInput` / `TransformOutput` field semantics, environment flags, **`api`** JSDoc parity with runtime (parameter meanings, units, when `supportVelocity` is set).
-- **Changelog-style note** for breaking changes: old bodies used 4-arg mental model; now **`api`** is the fifth parameter (legacy code that ignores `api` still runs).
+- **Changelog-style note** for breaking changes: old bodies (bare `return` statements) wrapped automatically; new canonical format is a named `function transform(input, dt, params, state, api)` definition; legacy code still runs via auto-detection.
 - **Security / sandbox**: documented forbidden patterns in `compileCustomTransform` and why (`Function`, `eval`, etc.).
 - **Cross-link** from [feature-transformers.md](feature-transformers.md) “Custom code” section to this doc once API section is stable (avoid duplication drift).
 
@@ -91,7 +93,7 @@ Right sidebar **Code** drawer (Builder): **Scripts** | **Transformers** | **Code
 | **E2E (Playwright)** | Open Code drawer, third tab, edit custom, optional play-mode smoke. |
 | **Migration** | Round-trip export/import with mixed named / legacy custom stacks. |
 | **`api` coverage** | One test per `TransformerRuntimeApi` method against known vectors / angles (golden or tolerance). |
-| **Regression** | Worlds with only 4-arg-era snippets still compile and run. |
+| **Regression** | Worlds with legacy body-only snippets (bare `return` statements) still compile and run via auto-detection. |
 
 ---
 
