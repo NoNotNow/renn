@@ -193,7 +193,70 @@ export class CustomCodeTransformer implements Transformer {
 }
 
 export function defaultCustomTransformerCode(): string {
-  return `// params (JSON) and api helpers — use the car2 preset in the stack for full vehicle behavior.
+  return `// ─── Custom Transformer ────────────────────────────────────────────────────
+// Your code is the BODY of: function(input, dt, params, state, api) { ... }
+// Called every physics frame. Return a TransformOutput object (or {} for none).
+//
+// ── Arguments ───────────────────────────────────────────────────────────────
+//
+// input : TransformInput
+//   .actions               Record<string, number>
+//     Mapped keyboard/wheel values, typically 0–1 or -1–1.
+//     Populated by an 'input' transformer earlier in the stack.
+//     Safe read: api.getAction(input, 'thrust')  →  number (0 if absent)
+//   .position              Vec3  [x, y, z]   world-space position (metres)
+//   .rotation              Vec3  [x, y, z]   Euler angles (radians, Three.js -Z = forward)
+//   .velocity              Vec3              world-space linear velocity (m/s)
+//   .angularVelocity       Vec3              world-space angular velocity (rad/s)
+//   .accumulatedForce      Vec3              forces already added by earlier transformers
+//   .accumulatedTorque     Vec3              torques already added by earlier transformers
+//   .environment.isTouchingObject  boolean   true when collider has any contact
+//   .environment.isGrounded        boolean   true when on a ground surface
+//   .environment.groundNormal      Vec3      surface normal at ground contact
+//   .environment.supportVelocity  Vec3       velocity of the supporting surface
+//   .environment.wind              Vec3       optional ambient wind vector
+//   .deltaTime             number            same value as dt (seconds)
+//   .entityId              string            owning entity id
+//   .target                { pose: { position, rotation }, speed }
+//     Optional movement intent written by targetPoseInput transformer.
+//
+// dt : number
+//   Frame delta time in seconds (≈ 0.016 at 60 fps). Use this to make
+//   forces and impulses frame-rate independent.
+//
+// params : Record<string, unknown>
+//   JSON values from the "Params" field in the Code tab — live-editable without reload.
+//   Always cast before use:  const power = Number(params.power ?? 0);
+//
+// state : Record<string, unknown>
+//   Mutable object that persists across frames for this transformer instance only.
+//   Reset when the world reloads or the transformer is recreated.
+//   Example:  state.elapsed = ((state.elapsed as number) ?? 0) + dt;
+//
+// api : TransformerRuntimeApi  (frozen singleton — no imports available)
+//   .getAction(input, name)                      → number  (0 when action absent)
+//   .getForwardVector(rotation)                  → Vec3    (-Z from Euler)
+//   .getUpVector(rotation)                       → Vec3    (+Y from Euler)
+//   .addVec3(a, b)                               → Vec3    component-wise sum
+//   .scaleVec3(v, s)                             → Vec3    v * s
+//   .clamp(value, min, max)                      → number  inclusive clamp
+//   .eulerDeltaAroundAxis(rotation, axis, angle) → Rotation  Euler delta for yaw turns
+//
+// ── Return : TransformOutput ─────────────────────────────────────────────────
+//   Return {} for no effect. All fields are optional.
+//   Non-finite numbers are silently stripped by the runtime.
+//
+//   .force?       Vec3              continuous force added this frame (world-space, N)
+//   .impulse?     Vec3              instantaneous impulse (world-space, N·s)
+//   .torque?      Vec3              continuous torque added this frame (world-space)
+//   .color?       Vec3  [r, g, b]   mesh color override, channels 0–1
+//   .addRotation? Vec3 | null       Euler delta added to rotation this frame (rad)
+//   .setPose?     { position: Vec3, rotation: Vec3 }
+//     Teleport body to exact pose. Last-wins in chain; zeroes linear/angular velocity.
+//     Only meaningful on kinematic bodies.
+//   .earlyExit?   boolean           stop processing the transformer chain after this step
+//
+// ─────────────────────────────────────────────────────────────────────────────
 const power = Number(params.power ?? 0);
 if (!input.environment.isTouchingObject || power === 0) return {};
 
