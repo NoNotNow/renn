@@ -1,22 +1,7 @@
 import { useEffect } from 'react'
+import { isKeyboardEventInEditableContext } from '@/input/rawInput'
 import { cycleCameraMode, type CameraMode } from '@/types/world'
 import { uiLogger } from '@/utils/uiLogger'
-
-/**
- * Returns true when the focused element is a text input / textarea / select / contentEditable.
- * Keyboard shortcuts that would collide with normal typing are suppressed in those cases.
- */
-function isEditableElement(): boolean {
-  const el = document.activeElement
-  if (!el) return false
-  const tag = el.tagName
-  return (
-    tag === 'INPUT' ||
-    tag === 'TEXTAREA' ||
-    tag === 'SELECT' ||
-    (el as HTMLElement).isContentEditable
-  )
-}
 
 export interface BuilderKeyboardShortcutsApi {
   /** Cmd/Ctrl + Z */
@@ -54,7 +39,7 @@ export interface BuilderKeyboardShortcutsApi {
  *   Cmd/Ctrl+C      copy selected entities (no-op if UI text is selected)
  *   Cmd/Ctrl+V      paste in front of camera
  *
- * All shortcuts are no-ops while the focus is on an editable element.
+ * All shortcuts are no-ops while typing in a text field, select, contentEditable, or code editor.
  */
 export function useBuilderKeyboardShortcuts(api: BuilderKeyboardShortcutsApi): void {
   const {
@@ -72,54 +57,48 @@ export function useBuilderKeyboardShortcuts(api: BuilderKeyboardShortcutsApi): v
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent): void => {
+      if (isKeyboardEventInEditableContext(e)) return
+
       const mod = e.metaKey || e.ctrlKey
       if (mod && !e.shiftKey && e.key === 'c') {
-        if (isEditableElement()) return
         if (typeof window !== 'undefined' && (window.getSelection()?.toString().length ?? 0) > 0) return
         e.preventDefault()
         onCopy()
         return
       }
       if (mod && !e.shiftKey && e.key === 'v') {
-        if (isEditableElement()) return
         e.preventDefault()
         onPaste()
         return
       }
       if (mod && e.key === 'z') {
-        if (isEditableElement()) return
         e.preventDefault()
         if (e.shiftKey) onRedo()
         else onUndo()
         return
       }
       if (mod && e.key === 'y') {
-        if (isEditableElement()) return
         e.preventDefault()
         onRedo()
         return
       }
       if (e.key === 'Escape') {
-        if (isEditableElement()) return
         e.preventDefault()
         onClearSelection()
         return
       }
       if (mod && !e.shiftKey && e.code === 'KeyE') {
-        if (isEditableElement()) return
         e.preventDefault()
         onToggleEditNavigationMode()
         return
       }
       if (mod && e.code === 'KeyG') {
-        if (isEditableElement()) return
         e.preventDefault()
         if (e.shiftKey) onUngroupSelection()
         else onGroupSelection()
         return
       }
       if (e.code === 'Digit1' || e.code === 'Numpad1') {
-        if (isEditableElement()) return
         e.preventDefault()
         if (onCycleActiveAvatar()) {
           uiLogger.change('Builder', 'Cycle active avatar', {})
@@ -127,7 +106,6 @@ export function useBuilderKeyboardShortcuts(api: BuilderKeyboardShortcutsApi): v
         return
       }
       if (e.code !== 'Digit0' && e.code !== 'Numpad0') return
-      if (isEditableElement()) return
       e.preventDefault()
       onChangeCameraMode((prev) => {
         const next = cycleCameraMode(prev)

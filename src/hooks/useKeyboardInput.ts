@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { DEFAULT_FREE_FLY_KEYS, type FreeFlyKeys } from '@/types/camera'
-import { isEditableElement } from '@/input/rawInput'
+import { isKeyboardEventInEditableContext } from '@/input/rawInput'
 
 export { DEFAULT_FREE_FLY_KEYS } from '@/types/camera'
 
@@ -11,7 +11,7 @@ export function useKeyboardInput(): React.RefObject<FreeFlyKeys> {
     const keys = keysRef.current
 
     const onKeyDown = (e: KeyboardEvent): void => {
-      if (isEditableElement()) return
+      if (isKeyboardEventInEditableContext(e)) return
       switch (e.code) {
         case 'KeyW': keys.w = true; break
         case 'KeyA': keys.a = true; break
@@ -30,7 +30,7 @@ export function useKeyboardInput(): React.RefObject<FreeFlyKeys> {
     }
 
     const onKeyUp = (e: KeyboardEvent): void => {
-      if (isEditableElement()) return
+      if (isKeyboardEventInEditableContext(e)) return
       switch (e.code) {
         case 'KeyW': keys.w = false; break
         case 'KeyA': keys.a = false; break

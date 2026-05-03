@@ -116,6 +116,25 @@ describe('useBuilderKeyboardShortcuts', () => {
     expect(api.onChangeCameraMode).toHaveBeenCalledTimes(1)
   })
 
+  it('shortcuts are suppressed while focus is inside .monaco-editor', () => {
+    const api = makeApi()
+    renderHook(() => useBuilderKeyboardShortcuts(api))
+
+    const root = document.createElement('div')
+    root.className = 'monaco-editor'
+    const ta = document.createElement('textarea')
+    root.appendChild(ta)
+    document.body.appendChild(root)
+    ta.focus()
+
+    act(() => {
+      dispatch({ key: 'Escape' })
+      dispatch({ key: '0', code: 'Digit0' })
+    })
+    expect(api.onClearSelection).not.toHaveBeenCalled()
+    expect(api.onChangeCameraMode).not.toHaveBeenCalled()
+  })
+
   it('shortcuts are suppressed while focus is on an INPUT', () => {
     const api = makeApi()
     renderHook(() => useBuilderKeyboardShortcuts(api))

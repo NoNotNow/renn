@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { createPortal } from 'react-dom'
 import { HexColorInput, HexColorPicker } from 'react-colorful'
 import { BUILDER_SCENE_CANVAS_HOST_ATTR } from '@/config/constants'
+import { isKeyboardEventInEditableContext } from '@/input/rawInput'
 import { normalizeHexForPicker } from '@/utils/colorUtils'
 import './BrushToolPopover.css'
 
@@ -84,6 +85,7 @@ export function BrushToolPopover({
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent): void => {
+      if (isKeyboardEventInEditableContext(e)) return
       if (e.key === 'Escape') onClose()
     }
     window.addEventListener('keydown', onKey)

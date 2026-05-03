@@ -43,7 +43,12 @@ import {
   type TexturePaintStrokePayload,
 } from '@/editor/transformGizmoController'
 import { getSceneUserData } from '@/types/sceneUserData'
-import { useRawKeyboardInput, useRawWheelInput, getRawInputSnapshot } from '@/input/rawInput'
+import {
+  useRawKeyboardInput,
+  useRawWheelInput,
+  getRawInputSnapshot,
+  isKeyboardEventInEditableContext,
+} from '@/input/rawInput'
 import { useRawMouseDrag } from '@/input/rawMouseDrag'
 import type { TransformerConfig } from '@/types/transformer'
 import { BUILDER_SCENE_CANVAS_HOST_ATTR } from '@/config/constants'
@@ -871,11 +876,7 @@ function SceneViewInner({
         const onAvatarKeyDown = (e: KeyboardEvent): void => {
           if (!showGameHudRef.current) return
           if (avatarSession!.getRosterEntityIds().length < 2) return
-          const t = e.target
-          if (t instanceof HTMLElement) {
-            const tag = t.tagName
-            if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || t.isContentEditable) return
-          }
+          if (isKeyboardEventInEditableContext(e)) return
           if (e.code === 'Equal' || e.code === 'NumpadAdd') {
             e.preventDefault()
             avatarSession!.cycleAvatar(1)

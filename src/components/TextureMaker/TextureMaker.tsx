@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { isKeyboardEventInEditableContext } from '@/input/rawInput'
 import type { BlendMode, TextureDocument, TextureLayer, TextureLayerDest } from '@/utils/textureCompositor'
 import {
   TEXTURE_BLEND_MODES,
@@ -201,6 +202,7 @@ export default function TextureMaker({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
+      if (isKeyboardEventInEditableContext(e)) return
       if (e.key !== 'Escape') return
       if (studioBrushPopoverOpen) {
         e.preventDefault()

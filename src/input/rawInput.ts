@@ -38,18 +38,41 @@ function isLikelyMouseWheel(e: WheelEvent): boolean {
 }
 
 /**
- * Check if the currently focused element is editable (input, textarea, etc.).
+ * True when `el` is inside a surface where keyboard input should go to the field/editor
+ * (native controls, contentEditable, Monaco, common ARIA patterns), not global shortcuts / game input.
+ */
+export function elementIsInEditableSurface(el: Element | null): boolean {
+  let n: Element | null = el
+  while (n) {
+    if (n instanceof HTMLElement && n.isContentEditable) return true
+    const tag = n.tagName
+    if (tag === 'TEXTAREA' || tag === 'SELECT') return true
+    if (tag === 'INPUT' && (n as HTMLInputElement).type !== 'hidden') return true
+    if (n.classList.contains('monaco-editor')) return true
+    const role = n.getAttribute('role')
+    if (role === 'textbox' || role === 'searchbox' || role === 'combobox') return true
+    n = n.parentElement
+  }
+  return false
+}
+
+/**
+ * Prefer this for `keydown`/`keyup` handlers: uses the event target and `composedPath()` so focus
+ * and shadow/event paths match what the user is typing into.
+ */
+export function isKeyboardEventInEditableContext(e: KeyboardEvent): boolean {
+  const path = typeof e.composedPath === 'function' ? e.composedPath() : []
+  for (const node of path) {
+    if (node instanceof Element && elementIsInEditableSurface(node)) return true
+  }
+  return elementIsInEditableSurface(document.activeElement as Element | null)
+}
+
+/**
+ * Check if the currently focused element is editable (input, textarea, code editor, etc.).
  */
 export function isEditableElement(): boolean {
-  const el = document.activeElement
-  if (!el) return false
-  const tag = el.tagName
-  return (
-    tag === 'INPUT' ||
-    tag === 'TEXTAREA' ||
-    tag === 'SELECT' ||
-    (el as HTMLElement).isContentEditable
-  )
+  return elementIsInEditableSurface(document.activeElement as Element | null)
 }
 
 /**
@@ -63,7 +86,7 @@ export function useRawKeyboardInput(): React.RefObject<RawKeyboardState> {
     const keys = keysRef.current
 
     const onKeyDown = (e: KeyboardEvent): void => {
-      if (isEditableElement()) return
+      if (isKeyboardEventInEditableContext(e)) return
 
       switch (e.code) {
         case 'KeyW':
@@ -89,8 +112,7 @@ export function useRawKeyboardInput(): React.RefObject<RawKeyboardState> {
     }
 
     const onKeyUp = (e: KeyboardEvent): void => {
-      const editable = isEditableElement()
-      if (editable) return
+      if (isKeyboardEventInEditableContext(e)) return
 
       switch (e.code) {
         case 'KeyW':

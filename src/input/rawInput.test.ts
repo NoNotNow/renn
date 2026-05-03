@@ -4,6 +4,8 @@ import {
   useRawKeyboardInput,
   useRawWheelInput,
   getRawInputSnapshot,
+  elementIsInEditableSurface,
+  isKeyboardEventInEditableContext,
 } from './rawInput'
 import type { RawKeyboardState, RawWheelState } from '@/types/transformer'
 
@@ -29,6 +31,20 @@ describe('useRawKeyboardInput', () => {
     })
 
     expect(result.current.current!.w).toBe(true)
+  })
+
+  test('keydown ignores keys while textarea is focused', () => {
+    const { result } = renderHook(() => useRawKeyboardInput())
+    const ta = document.createElement('textarea')
+    document.body.appendChild(ta)
+    ta.focus()
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyW', bubbles: true }))
+    })
+
+    expect(result.current.current!.w).toBe(false)
+    document.body.removeChild(ta)
   })
 
   test('keyup resets state', () => {
@@ -62,6 +78,33 @@ describe('useRawKeyboardInput', () => {
 
     expect(result.current.current!.w).toBe(false)
     expect(result.current.current!.a).toBe(false)
+  })
+})
+
+describe('elementIsInEditableSurface', () => {
+  test('detects textarea', () => {
+    const el = document.createElement('textarea')
+    expect(elementIsInEditableSurface(el)).toBe(true)
+  })
+
+  test('detects descendants of monaco-editor', () => {
+    const root = document.createElement('div')
+    root.className = 'monaco-editor'
+    const inner = document.createElement('div')
+    root.appendChild(inner)
+    expect(elementIsInEditableSurface(inner)).toBe(true)
+  })
+})
+
+describe('isKeyboardEventInEditableContext', () => {
+  test('is true when a text input is focused', () => {
+    const input = document.createElement('input')
+    input.type = 'text'
+    document.body.appendChild(input)
+    input.focus()
+    const e = new KeyboardEvent('keydown', { code: 'KeyA', bubbles: true })
+    expect(isKeyboardEventInEditableContext(e)).toBe(true)
+    document.body.removeChild(input)
   })
 })
 
