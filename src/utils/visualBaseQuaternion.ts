@@ -1,6 +1,6 @@
 /**
- * Helpers for the "visual base quaternion" pattern: shapes like `plane` / `ring`
- * carry a fixed visual rotation offset (e.g. -PI/2 around X to lie flat) on
+ * Helpers for the "visual base quaternion" pattern: `plane` carries a fixed
+ * visual rotation offset (e.g. -PI/2 around X to lie flat) on
  * `mesh.userData.visualBaseQuaternion` so it never leaks into the entity's
  * logical rotation during save / read.
  *
@@ -11,19 +11,19 @@
 import * as THREE from 'three'
 import type { Shape } from '@/types/world'
 
-const FLAT_SHAPE_TYPES = new Set<Shape['type']>(['plane', 'ring'])
+const FLAT_SHAPE_TYPES = new Set<Shape['type']>(['plane'])
 
 const VISUAL_BASE_USERDATA_KEY = 'visualBaseQuaternion'
 
 /** Reusable scratch for `stripVisualBase` (single-threaded JS, no reentrancy). */
 const SCRATCH_INVERSE = new THREE.Quaternion()
 
-/** True when shape type uses a baked visual rotation offset. */
+/** True when shape type uses a baked visual rotation offset (`plane` only). */
 export function isFlatShape(type: Shape['type'] | undefined): boolean {
   return type !== undefined && FLAT_SHAPE_TYPES.has(type)
 }
 
-/** Fresh visual base quaternion for `plane` / `ring`, or undefined for other shapes. */
+/** Fresh visual base quaternion for `plane`, or undefined for other shapes. */
 export function createVisualBaseForShape(type: Shape['type'] | undefined): THREE.Quaternion | undefined {
   if (!isFlatShape(type)) return undefined
   return new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0))

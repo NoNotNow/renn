@@ -42,11 +42,11 @@ renn/
 │   │   ├── ProjectContext.tsx # ProjectProvider: composes camera + presets hooks; project lifecycle, save/load, import/export, pose sync, asset persistence
 │   │   └── getWorldToSave.ts  # buildWorldToSave(world, cameraState, editorPose) — pure merge of live UI camera into world doc before persist
 │   ├── schema/
-│   │   └── validate.ts       # validateWorldDocument(), Ajv + world-schema; optional tolerate removes additionalProperty keys iteratively (clone fallback), warningsOut for UI; mesh simplification numbers are clamped in migrateWorld (maxError ≥ 0.0001, maxTriangles ≥ 500) before validate on load/import
+│   │   └── validate.ts       # validateWorldDocument(), Ajv + world-schema; optional tolerate removes additionalProperty keys iteratively (clone fallback), warningsOut for UI; migrateWorld clamps simplification and converts legacy ring→cylinder before validate on load/import
 │   ├── loader/
 │   │   ├── loadWorld.ts        # loadWorld(data, assets?) → scene, entities, world, assetResolver?, warnings[]; assets may be Map or getter () => Map (SceneView); getter keeps blob URLs valid for VideoTexture; awaits meshoptimizer WASM before mesh build
 │   │   ├── loadWorldFromStatic.ts # Static world + assets; rejects text/html (Vite SPA fallback); tries assets/<assetId>.bin before ref.path
-│   │   ├── createPrimitive.ts # Mesh from shape + material; plane/box/sphere/cylinder/capsule/cone/pyramid/ring/…; GLTF trimesh/model paths run normalizeModelTextureUVs after unit-cube normalize so mapRepeat works on bad UVs
+│   │   ├── createPrimitive.ts # Mesh from shape + material; plane/box/sphere/cylinder/capsule/cone/pyramid; GLTF trimesh/model paths run normalizeModelTextureUVs after unit-cube normalize so mapRepeat works on bad UVs
 │   │   ├── assetResolver.ts  # (assetId) => URL | Blob | null
 │   │   └── assetResolverImpl.ts # Blob → object URL
 │   ├── physics/
@@ -84,7 +84,7 @@ renn/
 │   ├── utils/
 │   │   ├── uiLogger.ts       # Centralized UI interaction logging (click, change, select, etc.)
 │   │   ├── worldGroundPatch.ts # patchFirstPlaneEntity (WorldPanel ground edits)
-│   │   ├── visualBaseQuaternion.ts # plane/ring lay-flat offset helpers (RenderItem, registry, gizmo, createPrimitive)
+│   │   ├── visualBaseQuaternion.ts # plane lay-flat offset helpers (RenderItem, registry, gizmo, createPrimitive)
 │   │   ├── jsonParseErrorLocation.ts # JSON.parse error line/column for avatar + transformer textareas
 │   │   ├── worldUtils.ts     # updateEntityPosition, etc.
 │   │   ├── entityApproximateSize.ts # Approximate entity extent for list filters (not physics AABB)
@@ -126,7 +126,7 @@ renn/
 │   │   │   ├── ModelTransformSection.tsx   # Show-shape-wireframe + model rotation Vec3Field (with reset) + model scale Vec3Field
 │   │   │   └── AvatarSection.tsx           # Playable-avatar Switch + mixed hint + (single-selection) preferred camera mode/distance
 │   │   ├── TransformEditor.tsx # Position, rotation (Vec3Field, Euler [x,y,z]), scale
-│   │   ├── ShapeEditor.tsx   # Shape type + params (box, sphere, cylinder, capsule, cone, pyramid, ring, plane)
+│   │   ├── ShapeEditor.tsx   # Shape type + params (box, sphere, cylinder, capsule, cone, pyramid, plane)
 │   │   ├── PhysicsEditor.tsx # bodyType, mass, restitution, friction, linearDamping, angularDamping
 │   │   ├── MaterialEditor.tsx # color, roughness, metalness, opacity (0–1, default 1)
 │   │   ├── ScriptPanel.tsx   # Monaco + script list (add/remove)
@@ -204,7 +204,7 @@ renn/
 - **Root**: `version`, `world` (gravity, lighting, camera, optional background sound), `entities[]`, optional `assets`, optional `scripts`.
 - **world.sound** (optional): world-level background audio settings (`assetId`, `volume` 0..1, `loop`, `autoplay`). Runtime applies this in Builder and Play; manual Play/Stop in Builder Sound tab only controls current session playback and is not persisted.
 - **world.sleeping** (optional): `linearThreshold`, `angularThreshold`, `timeUntilSleep`. When present, `PhysicsWorld` runs a per-body timer after each Rapier `step(dt)` and calls `body.sleep()` once both velocity checks pass continuously for `timeUntilSleep` seconds. Negative `linearThreshold` or `angularThreshold` disables that axis check (Rapier-style). Recommended defaults are `RECOMMENDED_SLEEPING_SETTINGS` in `src/types/world.ts` (0.4, 0.5 rad/s, 2s). Configured in the Builder **World** tab (`WorldPanel`).
-- **Entity**: `id`, `bodyType` (static/dynamic/kinematic), `shape` (box/sphere/cylinder/capsule/cone/pyramid/ring/plane/trimesh), `position` (Vec3), `rotation` (Rotation / Euler [x,y,z] radians), `scale`, `model?`, `modelRotation?` (Euler radians, applied to model/trimesh only), `modelScale?` (Vec3, applied to model/trimesh only), `doubleSided?` (when `true`, drawable GLTF materials use `THREE.DoubleSide`; omitted/false restores sides from stored clones or `FrontSide` under a single material override), `material?`, `mass`, `restitution`, `friction`, `linearDamping`, `angularDamping`, `scripts?` (hook → script ID).
+- **Entity**: `id`, `bodyType` (static/dynamic/kinematic), `shape` (box/sphere/cylinder/capsule/cone/pyramid/plane/trimesh), `position` (Vec3), `rotation` (Rotation / Euler [x,y,z] radians), `scale`, `model?`, `modelRotation?` (Euler radians, applied to model/trimesh only), `modelScale?` (Vec3, applied to model/trimesh only), `doubleSided?` (when `true`, drawable GLTF materials use `THREE.DoubleSide`; omitted/false restores sides from stored clones or `FrontSide` under a single material override), `material?`, `mass`, `restitution`, `friction`, `linearDamping`, `angularDamping`, `scripts?` (hook → script ID).
 - **Scripts**: map of script ID → source string. Entity `scripts.onUpdate` etc. reference these IDs. Scripts run with a `game` API (read/write positions, entities, time; no DOM/fetch).
 
 See **world-schema.json** and **src/types/world.ts** for the full shape.
@@ -228,7 +228,7 @@ See **world-schema.json** and **src/types/world.ts** for the full shape.
 - **UI logging**: centralized `uiLogger` (`src/utils/uiLogger.ts`) for clicks, changes, selects, uploads, deletes. Console format `[UI {TYPE}] {Component} > {Action} | {details}`. In-memory buffer (last 1000) accessible via `window.uiLogger` (`.getLogs()`, `.export()`, `.clear()`).
 - **ProjectContext pattern**: single source of truth for project state; all components access state/actions via context; memoized values prevent unnecessary re-renders.
 - **RenderItemRegistry**: centralized entity management; single responsibility for physics-mesh sync; uses cached transforms to avoid WASM aliasing errors.
-- **Visual base quaternion**: Shapes like `plane` / `ring` require a visual rotation offset (`-PI/2` on X to lay flat). Stored on `mesh.userData.visualBaseQuaternion`. All read/write/init/clear go through `src/utils/visualBaseQuaternion.ts` (`stripVisualBase`, `applyVisualBase`, `setVisualBaseFromShape`, `initVisualBaseFromShape`) — used by `RenderItem`, `RenderItemRegistry` (incl. `syncFromPhysics` hot path), `createPrimitive`, and `transformGizmoController` so the offset never leaks into entity data during save.
+- **Visual base quaternion**: The **`plane`** shape uses a visual rotation offset (`-PI/2` on X to lay flat). Stored on `mesh.userData.visualBaseQuaternion`. All read/write/init/clear go through `src/utils/visualBaseQuaternion.ts` (`stripVisualBase`, `applyVisualBase`, `setVisualBaseFromShape`, `initVisualBaseFromShape`) — used by `RenderItem`, `RenderItemRegistry` (incl. `syncFromPhysics` hot path), `createPrimitive`, and `transformGizmoController` so the offset never leaks into entity data during save.
 - **Pyramid collision**: Pyramid uses a convex-hull collider (5 vertices) in `rapierPhysics.ts` so the collision footprint matches the square-base mesh; a cone collider would use a circular base circumscribing the square and be larger than the visual.
 - **Trimesh and entity.model normalization**: At import time (in `createPrimitive.ts`), loaded GLTF scenes for trimesh shapes and for `entity.model` are normalized to fit a 1×1×1 unit cube centered at the origin. `normalizeSceneToUnitCube()` (in `src/utils/normalizeModelToUnitCube.ts`) computes the world bounding box, then bakes center and scale into each mesh’s geometry and resets mesh transforms. Stored geometry is thus in [-0.5, 0.5]³; entity scale is applied in physics and rendering as before.
 - **Trimesh and entity.model rendering**: Trimesh and entity.model use the same lit material (MeshStandardMaterial) and shadow behavior as primitives. A default lit material is applied when no entity material is set; `loadWorld.ts` traverses the mesh hierarchy, sets `receiveShadow` on meshes, and sets `castShadow` via world AABB (`updateMeshCastShadowFromWorldAabb` in `shadowBounds.ts`) so large meshes cast shadows and very small props skip casting for GPU cost.

@@ -4,7 +4,7 @@ import { computeCloneWorldPosition } from '@/utils/clonePlacement'
 import { validateWorldDocument } from '@/schema/validate'
 import type { RennWorld, Vec3, Rotation } from '@/types/world'
 
-const ADDABLE_SHAPE_TYPES: AddableShapeType[] = ['box', 'sphere', 'cylinder', 'capsule', 'cone', 'pyramid', 'ring', 'plane']
+const ADDABLE_SHAPE_TYPES: AddableShapeType[] = ['box', 'sphere', 'cylinder', 'capsule', 'cone', 'pyramid', 'plane']
 
 function minimalWorld(entities: RennWorld['entities']): RennWorld {
   return {

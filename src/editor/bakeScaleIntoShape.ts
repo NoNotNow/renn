@@ -77,17 +77,6 @@ export function bakeScaleIntoPrimitiveShape(entity: Entity, meshScale: Vec3): En
           height: shape.height * sy,
         },
       }
-    case 'ring':
-      return {
-        ...entity,
-        scale: DEFAULT_SCALE,
-        shape: {
-          ...shape,
-          innerRadius: shape.innerRadius * maxH,
-          outerRadius: shape.outerRadius * maxH,
-          height: (shape.height ?? 0.1) * sy,
-        },
-      }
     default:
       return null
   }

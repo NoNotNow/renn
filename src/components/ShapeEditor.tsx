@@ -23,7 +23,7 @@ import { EntityPanelIcons } from './EntityPanelIcons'
 import { useEditorUndo } from '@/contexts/EditorUndoContext'
 import type { MixedDimensionFieldSpec, MixedDimensionKind } from '@/utils/mixedShapeDimensions'
 
-const ADDABLE_SHAPE_TYPES: AddableShapeType[] = ['box', 'sphere', 'cylinder', 'capsule', 'cone', 'pyramid', 'ring', 'plane', 'trimesh']
+const ADDABLE_SHAPE_TYPES: AddableShapeType[] = ['box', 'sphere', 'cylinder', 'capsule', 'cone', 'pyramid', 'plane', 'trimesh']
 
 export interface ShapeEditorProps {
   entityId: string
@@ -83,7 +83,6 @@ export default function ShapeEditor({
           { value: 'capsule', label: 'Capsule' },
           { value: 'cone', label: 'Cone' },
           { value: 'pyramid', label: 'Pyramid' },
-          { value: 'ring', label: 'Ring' },
           { value: 'plane', label: 'Plane' },
           { value: 'trimesh', label: 'Trimesh (3D Model)' },
         ]}
@@ -293,50 +292,6 @@ export default function ShapeEditor({
             entityId={entityId}
             propertyName="pyramid height"
           />
-        </>
-      )}
-      {!shapeTypeMixed && shape?.type === 'ring' && shape && (
-        <>
-          <NumberInput onBeforeCommit={pushUndo}
-            id={`${entityId}-ring-innerRadius`}
-            label="Inner radius"
-            value={shape.innerRadius}
-            onChange={(newValue) => onShapeChange({ type: 'ring', innerRadius: newValue, outerRadius: shape.outerRadius, height: shape.height })}
-            min={0.01}
-            step={0.1}
-            defaultValue={0.01}
-            disabled={disabled}
-            entityId={entityId}
-            propertyName="ring inner radius"
-          />
-          <NumberInput onBeforeCommit={pushUndo}
-            id={`${entityId}-ring-outerRadius`}
-            label="Outer radius"
-            value={shape.outerRadius}
-            onChange={(newValue) => onShapeChange({ type: 'ring', innerRadius: shape.innerRadius, outerRadius: newValue, height: shape.height })}
-            min={0.01}
-            step={0.1}
-            defaultValue={0.01}
-            disabled={disabled}
-            entityId={entityId}
-            propertyName="ring outer radius"
-          />
-          <NumberInput onBeforeCommit={pushUndo}
-            id={`${entityId}-ring-height`}
-            label="Height (collision)"
-            labelTitle="Extrusion height for the ring’s physics proxy (collision uses a cylinder with outer radius and this height)."
-            value={shape.height ?? 0.1}
-            onChange={(newValue) => onShapeChange({ type: 'ring', innerRadius: shape.innerRadius, outerRadius: shape.outerRadius, height: newValue })}
-            min={0.01}
-            step={0.1}
-            defaultValue={0.1}
-            disabled={disabled}
-            entityId={entityId}
-            propertyName="ring height"
-          />
-          <div style={{ fontSize: 10, color: '#666', marginTop: 4, paddingLeft: 8 }}>
-            Collision uses cylinder (outer radius, height)
-          </div>
         </>
       )}
       {!shapeTypeMixed && shape?.type === 'trimesh' && shape && (

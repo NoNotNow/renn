@@ -352,18 +352,6 @@ export async function createPrimitiveMesh(
     case 'pyramid':
       geometry = new THREE.ConeGeometry(shape.baseSize / Math.SQRT2, shape.height, 4)
       break
-    case 'ring': {
-      const ringShape = shape
-      geometry = new THREE.RingGeometry(
-        ringShape.innerRadius,
-        ringShape.outerRadius,
-        32,
-        1,
-        0,
-        Math.PI * 2
-      )
-      break
-    }
     case 'plane':
       geometry = new THREE.PlaneGeometry(PLANE_GEOMETRY_MAX_EDGE, PLANE_GEOMETRY_MAX_EDGE)
       break
@@ -446,17 +434,6 @@ export function createShapeGeometry(shape: Shape): THREE.BufferGeometry | null {
       return new THREE.ConeGeometry(shape.radius, shape.height, 32)
     case 'pyramid':
       return new THREE.ConeGeometry(shape.baseSize / Math.SQRT2, shape.height, 4)
-    case 'ring': {
-      const ringShape = shape
-      return new THREE.RingGeometry(
-        ringShape.innerRadius,
-        ringShape.outerRadius,
-        32,
-        1,
-        0,
-        Math.PI * 2
-      )
-    }
     case 'plane':
       return new THREE.PlaneGeometry(PLANE_GEOMETRY_MAX_EDGE, PLANE_GEOMETRY_MAX_EDGE)
     case 'trimesh':

@@ -271,7 +271,6 @@ export default function BulkSpawnForm({ onBulkAddEntities }: BulkSpawnFormProps)
             <option value="capsule">Capsule</option>
             <option value="cone">Cone</option>
             <option value="pyramid">Pyramid</option>
-            <option value="ring">Ring</option>
             <option value="plane">Plane</option>
             <option value="random">Random</option>
           </select>

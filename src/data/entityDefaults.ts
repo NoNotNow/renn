@@ -3,7 +3,7 @@ import { DEFAULT_POSITION, DEFAULT_ROTATION, DEFAULT_SCALE } from '@/types/world
 import { computeCloneWorldPosition } from '@/utils/clonePlacement'
 import { generateEntityId } from '@/utils/idGenerator'
 
-export type AddableShapeType = 'box' | 'sphere' | 'cylinder' | 'capsule' | 'cone' | 'pyramid' | 'ring' | 'plane' | 'trimesh'
+export type AddableShapeType = 'box' | 'sphere' | 'cylinder' | 'capsule' | 'cone' | 'pyramid' | 'plane' | 'trimesh'
 
 const DEFAULT_SHAPES: Record<AddableShapeType, Shape> = {
   box: { type: 'box', width: 1, height: 1, depth: 1 },
@@ -12,7 +12,6 @@ const DEFAULT_SHAPES: Record<AddableShapeType, Shape> = {
   capsule: { type: 'capsule', radius: 0.25, height: 1 },
   cone: { type: 'cone', radius: 0.5, height: 1 },
   pyramid: { type: 'pyramid', baseSize: 1, height: 1 },
-  ring: { type: 'ring', innerRadius: 0.25, outerRadius: 0.5, height: 0.1 },
   plane: { type: 'plane' },
   trimesh: {
     type: 'trimesh',
@@ -122,7 +121,7 @@ export function generateRandomRotation(): Rotation {
 }
 
 function pickRandomShape(): AddableShapeType {
-  const shapes: AddableShapeType[] = ['box', 'sphere', 'cylinder', 'capsule', 'cone', 'pyramid', 'ring']
+  const shapes: AddableShapeType[] = ['box', 'sphere', 'cylinder', 'capsule', 'cone', 'pyramid']
   return shapes[Math.floor(Math.random() * shapes.length)]
 }
 

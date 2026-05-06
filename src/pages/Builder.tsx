@@ -16,7 +16,16 @@ import { presetTouchesSceneRebuild } from '@/data/modelPresets'
 import { useProjectContext } from '@/hooks/useProjectContext'
 import { useLocalStorageState } from '@/hooks/useLocalStorageState'
 import { useBuilderFullscreenChrome } from '@/hooks/useBuilderFullscreenChrome'
-import { DEFAULT_SCALE, type Vec3, type Rotation, type Entity, type ModelPreset, type TrimeshSimplificationConfig } from '@/types/world'
+import {
+  DEFAULT_POSITION,
+  DEFAULT_ROTATION,
+  DEFAULT_SCALE,
+  type Vec3,
+  type Rotation,
+  type Entity,
+  type ModelPreset,
+  type TrimeshSimplificationConfig,
+} from '@/types/world'
 import { useBuilderKeyboardShortcuts } from '@/hooks/useBuilderKeyboardShortcuts'
 import {
   addToGroup,
@@ -509,6 +518,26 @@ export default function Builder() {
       }
     },
     []
+  )
+
+  const handleResetPoseToSavedWorld = useCallback(
+    (entityIds: string[]) => {
+      if (entityIds.length === 0) return
+      const unlockedIds = entityIds.filter((id) => {
+        const e = world.entities.find((x) => x.id === id)
+        return e != null && !e.locked
+      })
+      if (unlockedIds.length === 0) return
+      for (const id of unlockedIds) {
+        const e = world.entities.find((x) => x.id === id)!
+        sceneViewRef.current?.updateEntityPose(id, {
+          position: [...(e.position ?? DEFAULT_POSITION)] as Vec3,
+          rotation: [...(e.rotation ?? DEFAULT_ROTATION)] as Rotation,
+        })
+      }
+      uiLogger.click('Builder', 'Reset pose to saved world', { entityIds: unlockedIds })
+    },
+    [world.entities],
   )
 
   const handleEntityPhysicsChange = useCallback((ids: string[], patch: Partial<Entity>) => {
@@ -1167,6 +1196,7 @@ export default function Builder() {
               onEntityModelTransformChange={handleEntityModelTransformChange}
               onEntityTransformersChange={handleEntityTransformersChange}
               onRefreshFromPhysics={handleRefreshFromPhysics}
+              onResetPoseToSavedWorld={handleResetPoseToSavedWorld}
               livePoses={livePoses}
               isOpen={rightDrawerOpen}
               onToggle={() => setRightDrawerOpen(!rightDrawerOpen)}

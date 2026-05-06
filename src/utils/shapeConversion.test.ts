@@ -32,20 +32,11 @@ describe('getCharacteristicSize', () => {
     expect(getCharacteristicSize({ type: 'cone', radius: r, height: h })).toBeCloseTo(Math.pow(vol, 1 / 3), 5)
   })
 
-  it('returns size for pyramid', () => {
+  it('returns volume^(1/3) for pyramid', () => {
     const b = 2
     const h = 4
     const vol = (1 / 3) * b * b * h
     expect(getCharacteristicSize({ type: 'pyramid', baseSize: b, height: h })).toBeCloseTo(Math.pow(vol, 1 / 3), 5)
-  })
-
-  it('returns size for ring', () => {
-    const inner = 0.5
-    const outer = 1
-    const height = 0.2
-    const area = Math.PI * (outer * outer - inner * inner)
-    const vol = area * height
-    expect(getCharacteristicSize({ type: 'ring', innerRadius: inner, outerRadius: outer, height })).toBeCloseTo(Math.pow(vol, 1 / 3), 5)
   })
 
   it('returns null for plane and trimesh', () => {
@@ -118,16 +109,6 @@ describe('shapeWithPreservedSize', () => {
     if (result.type === 'pyramid') {
       expect(result.baseSize).toBe(6)
       expect(result.height).toBe(6)
-    }
-  })
-
-  it('sphere 4 -> ring innerRadius 1 outerRadius 2 height 0.4', () => {
-    const result = shapeWithPreservedSize({ type: 'sphere', radius: 4 }, 'ring')
-    expect(result.type).toBe('ring')
-    if (result.type === 'ring') {
-      expect(result.innerRadius).toBeCloseTo(1, 5)
-      expect(result.outerRadius).toBeCloseTo(2, 5)
-      expect(result.height).toBeCloseTo(0.4, 5)
     }
   })
 

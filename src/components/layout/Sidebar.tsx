@@ -21,6 +21,8 @@ export interface SidebarProps {
   onWidthChange?: (width: number) => void
   /** When true, aside uses overflow: visible so content (e.g. Monaco IntelliSense) is not clipped. */
   overflowVisible?: boolean
+  /** Rendered at the right end of the tab row (see SidebarTabs `trailing`). */
+  tabsTrailing?: React.ReactNode
 }
 
 export default function Sidebar({
@@ -35,6 +37,7 @@ export default function Sidebar({
   toggleLogContext,
   onWidthChange,
   overflowVisible = false,
+  tabsTrailing,
 }: SidebarProps) {
   const isLeft = side === 'left'
   const [isResizing, setIsResizing] = useState(false)
@@ -115,6 +118,7 @@ export default function Sidebar({
               tabConfig={tabConfig}
               activeTab={activeTab}
               onTabChange={onTabChange}
+              trailing={tabsTrailing}
             />
             {children}
           </>

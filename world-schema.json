@@ -306,17 +306,6 @@
         },
         {
           "type": "object",
-          "required": ["type", "innerRadius", "outerRadius"],
-          "properties": {
-            "type": { "const": "ring" },
-            "innerRadius": { "type": "number" },
-            "outerRadius": { "type": "number" },
-            "height": { "type": "number" }
-          },
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
           "required": ["type"],
           "properties": {
             "type": { "const": "plane" },

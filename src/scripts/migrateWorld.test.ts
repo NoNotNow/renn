@@ -4,6 +4,7 @@ import {
   migrateWorldSimplificationFields,
   migrateCustomTransformerNames,
   clampTrimeshSimplificationConfig,
+  migrateWorldRingShapesToCylinder,
 } from './migrateWorld'
 
 describe('migrateWorldScripts', () => {
@@ -155,6 +156,35 @@ describe('migrateWorldSimplificationFields', () => {
     }
     migrateWorldSimplificationFields(world)
     expect((world.entities[0] as { shape: object }).shape).toEqual({ type: 'trimesh', model: 'a' })
+  })
+})
+
+describe('migrateWorldRingShapesToCylinder', () => {
+  it('converts ring shapes to cylinders matching former physics proxy', () => {
+    const world = {
+      version: '1.0',
+      world: {},
+      entities: [
+        { id: 'a', shape: { type: 'ring', innerRadius: 0.1, outerRadius: 2, height: 0.3 } },
+        { id: 'b', shape: { type: 'box', width: 1, height: 1, depth: 1 } },
+      ],
+    }
+    const warnings: string[] = []
+    migrateWorldRingShapesToCylinder(world, warnings)
+    expect(world.entities[0].shape).toEqual({ type: 'cylinder', radius: 2, height: 0.3 })
+    expect(world.entities[1].shape).toEqual({ type: 'box', width: 1, height: 1, depth: 1 })
+    expect(warnings.length).toBe(1)
+    expect(warnings[0]).toMatch(/ring/i)
+  })
+
+  it('uses defaults when ring radii or height are invalid', () => {
+    const world = {
+      entities: [{ id: 'x', shape: { type: 'ring', innerRadius: 1, outerRadius: NaN } }],
+    }
+    migrateWorldRingShapesToCylinder(world)
+    expect(world.entities[0]).toMatchObject({
+      shape: { type: 'cylinder', radius: 0.5, height: 0.1 },
+    })
   })
 })
 

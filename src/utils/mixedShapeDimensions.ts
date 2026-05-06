@@ -24,8 +24,7 @@ export function shapeHasHeight(shape: Shape | undefined): boolean {
     shape.type === 'cylinder' ||
     shape.type === 'capsule' ||
     shape.type === 'cone' ||
-    shape.type === 'pyramid' ||
-    shape.type === 'ring'
+    shape.type === 'pyramid'
   )
 }
 
@@ -57,8 +56,6 @@ function readHeight(shape: Shape): number | undefined {
     case 'cone':
     case 'pyramid':
       return shape.height
-    case 'ring':
-      return shape.height ?? 0.1
     default:
       return undefined
   }
@@ -155,8 +152,6 @@ export function patchShapeWithMixedDimension(shape: Shape, kind: MixedDimensionK
       if (shape.type === 'capsule') return { ...shape, height: value }
       if (shape.type === 'cone') return { ...shape, height: value }
       if (shape.type === 'pyramid') return { ...shape, height: value }
-      if (shape.type === 'ring')
-        return { type: 'ring', innerRadius: shape.innerRadius, outerRadius: shape.outerRadius, height: value }
       return shape
     case 'width':
       if (shape.type === 'box') return { ...shape, width: value }

@@ -2,9 +2,6 @@ import type { Entity, Shape } from '@/types/world'
 import { DEFAULT_SCALE } from '@/types/world'
 import { PLANE_GEOMETRY_MAX_EDGE } from '@/loader/planeGeometryConstants'
 
-/** Ring height fallback when omitted (see entityDefaults ring default). */
-const RING_DEFAULT_HEIGHT = 0.1
-
 /**
  * Max axis scale magnitude (uniform-ish multiplier for list filtering).
  */
@@ -27,10 +24,6 @@ function localCharacteristicLength(shape: Shape): number {
       return Math.max(2 * shape.radius, shape.height)
     case 'pyramid':
       return Math.max(shape.baseSize, shape.height)
-    case 'ring': {
-      const h = shape.height ?? RING_DEFAULT_HEIGHT
-      return Math.max(2 * shape.outerRadius, h)
-    }
     case 'plane':
       return PLANE_GEOMETRY_MAX_EDGE
     case 'trimesh':

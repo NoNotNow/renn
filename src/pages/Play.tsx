@@ -4,7 +4,7 @@ import SceneView from '@/components/SceneView'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { sampleWorld } from '@/data/sampleWorld'
 import { validateWorldDocument } from '@/schema/validate'
-import { migrateWorldScripts, migrateWorldSimplificationFields, migrateCustomTransformerNames } from '@/scripts/migrateWorld'
+import { migrateWorldScripts, migrateWorldSimplificationFields, migrateCustomTransformerNames, migrateWorldRingShapesToCylinder } from '@/scripts/migrateWorld'
 import type { RennWorld } from '@/types/world'
 
 function parseWorldFromSearchParams(searchParams: URLSearchParams): RennWorld {
@@ -15,6 +15,7 @@ function parseWorldFromSearchParams(searchParams: URLSearchParams): RennWorld {
       migrateWorldScripts(data)
       migrateCustomTransformerNames(data)
       migrateWorldSimplificationFields(data)
+      migrateWorldRingShapesToCylinder(data)
       validateWorldDocument(data, { tolerateAdditionalProperties: true, logAdditionalProperties: true })
       return data as RennWorld
     } catch (err) {

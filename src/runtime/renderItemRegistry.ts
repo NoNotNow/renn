@@ -703,8 +703,8 @@ export class RenderItemRegistry {
     if (!newGeometry) return false
 
     const mesh = item.mesh
-    const wasFlatShape = item.entity.shape?.type === 'plane' || item.entity.shape?.type === 'ring'
-    const isNowFlatShape = newEntity.shape?.type === 'plane' || newEntity.shape?.type === 'ring'
+    const wasFlatShape = item.entity.shape?.type === 'plane'
+    const isNowFlatShape = newEntity.shape?.type === 'plane'
 
     if (wasFlatShape !== isNowFlatShape) {
       const currentRotation = item.getRotation()

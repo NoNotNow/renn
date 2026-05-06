@@ -7,6 +7,8 @@
  *
  * `migrateDistanceCullingFields` converts legacy `radius` / `minSize` to `maxDistance` /
  * `minSizeDistanceRatio`.
+ *
+ * `migrateWorldRingShapesToCylinder` converts removed `ring` shapes to `cylinder` (matches former physics proxy).
  */
 import type { ScriptDef, EntityScriptsLegacy, TrimeshSimplificationConfig } from '@/types/world'
 
@@ -211,5 +213,40 @@ export function migrateCustomTransformerNames(worldData: unknown): void {
       customOrdinal += 1
       cfg.name = customOrdinal <= 1 ? 'Custom' : `Custom ${customOrdinal}`
     }
+  }
+}
+
+const RING_SHAPE_MIGRATION_WARNING =
+  'Shape type "ring" is no longer supported; converted each ring to a cylinder (outer radius → radius, height preserved). Re-save to persist.'
+
+/**
+ * Legacy worlds used `shape.type: "ring"`; collision was already a cylinder from outer radius + height.
+ * Mutates entities in place before schema validation.
+ */
+export function migrateWorldRingShapesToCylinder(worldData: unknown, warningsOut?: string[]): void {
+  if (!worldData || typeof worldData !== 'object') return
+  const entities = (worldData as Record<string, unknown>).entities as unknown[] | undefined
+  if (!Array.isArray(entities)) return
+
+  let anyChanged = false
+  for (const entity of entities) {
+    if (!entity || typeof entity !== 'object') continue
+    const e = entity as Record<string, unknown>
+    const shape = e.shape
+    if (!shape || typeof shape !== 'object') continue
+    const sh = shape as Record<string, unknown>
+    if (sh.type !== 'ring') continue
+
+    const outer =
+      typeof sh.outerRadius === 'number' && Number.isFinite(sh.outerRadius) ? sh.outerRadius : 0.5
+    const hRaw = sh.height
+    const h = typeof hRaw === 'number' && Number.isFinite(hRaw) ? hRaw : 0.1
+
+    e.shape = { type: 'cylinder', radius: outer, height: h }
+    anyChanged = true
+  }
+
+  if (anyChanged && warningsOut) {
+    warningsOut.push(RING_SHAPE_MIGRATION_WARNING)
   }
 }

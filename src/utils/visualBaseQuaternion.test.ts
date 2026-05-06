@@ -15,9 +15,8 @@ function quatNearlyEqual(a: THREE.Quaternion, b: THREE.Quaternion, eps = 1e-6) {
 }
 
 describe('isFlatShape', () => {
-  it('true for plane and ring', () => {
+  it('true for plane', () => {
     expect(isFlatShape('plane')).toBe(true)
-    expect(isFlatShape('ring')).toBe(true)
   })
   it('false for other shapes and undefined', () => {
     expect(isFlatShape('box')).toBe(false)
@@ -31,12 +30,6 @@ describe('createVisualBaseForShape', () => {
     const q = createVisualBaseForShape('plane')!
     const expected = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0))
     expect(quatNearlyEqual(q, expected)).toBe(true)
-  })
-
-  it('returns same quaternion for ring as for plane', () => {
-    const planeQ = createVisualBaseForShape('plane')!
-    const ringQ = createVisualBaseForShape('ring')!
-    expect(quatNearlyEqual(planeQ, ringQ)).toBe(true)
   })
 
   it('returns undefined for non-flat shapes', () => {
@@ -146,7 +139,7 @@ describe('applyVisualBase', () => {
 
   it('stripVisualBase is the inverse of applyVisualBase', () => {
     const mesh = new THREE.Mesh()
-    setVisualBaseFromShape(mesh, 'ring')
+    setVisualBaseFromShape(mesh, 'plane')
     const original = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.1, 0.2, -0.3))
     const world = applyVisualBase(original.clone(), mesh)
     const back = stripVisualBase(world, mesh)

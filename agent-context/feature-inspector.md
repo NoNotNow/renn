@@ -29,11 +29,11 @@ The inspector is the right-side panel that edits the **selection** (one or more 
 When several entities are selected and **shape types differ** but the shape section is still shown (uniform layout class), shared numeric parameters appear **by semantic role**: values merge only across shapes that actually have that field (`null` / empty when those values disagree). Committing updates **only** entities whose shape supports that parameter; others are unchanged.
 
 - As a builder, I set **Radius** once for any mix of **sphere, cylinder, capsule, and cone** in the selection.
-- As a builder, I set **Height** when **any** selected shape has a vertical extent (**box, cylinder, capsule, cone, pyramid, ring**); e.g. **box + sphere** changes the box only.
+- As a builder, I set **Height** when **any** selected shape has a vertical extent (**box, cylinder, capsule, cone, pyramid**); e.g. **box + sphere** changes the box only.
 - As a builder, I set **Width** and **Depth** when **any** selected shape is a **box**; only boxes are updated.
 - As a builder, I set **Base size** when **any** selected shape is a **pyramid**; only pyramids are updated.
 - As a builder, the **Shape** type dropdown still shows `—` until I pick a new type; type changes use per-entity size preservation ([`multiSelectShapeChange.ts`](../src/utils/multiSelectShapeChange.ts)).
-- **Non-goals:** ring **inner/outer** radius are not mapped to cylinder **radius** (avoid surprising coupling). **Plane** and **trimesh** do not gain fake shared rows with primitives beyond the rules above.
+- **Non-goals:** **Plane** and **trimesh** do not gain fake shared rows with primitives beyond the rules above.
 
 **Examples:** **Sphere + cylinder** — align **Radius**, then adjust **Height** for the cylinder only. **Box + pyramid** — match **Height** for a common vertical size; **Base size** affects pyramids only.
 
@@ -97,7 +97,7 @@ See [`mixedShapeDimensions.ts`](../src/utils/mixedShapeDimensions.ts).
 
 ## Role
 
-- **PropertySidebar**: Tabs (Properties | Scripts | Assets). When the Properties tab is active, it renders **PropertyPanel**.
+- **PropertySidebar**: Tabs (Properties | Scripts/Code | Assets | Presets). When **Properties** is active it renders **PropertyPanel**. The tab row’s **right side** always shows **Restore saved position and rotation** (reset icon) on every tab while the handler is wired: Builder calls `SceneView.updateEntityPose` per **unlocked** selected entity with that entity’s persisted world `position` / `rotation` (defaults from [`world.ts`](../src/types/world.ts)); **scale** is unchanged. The control is disabled when nothing is selected or every resolved entity is locked. Inverse direction from **Refresh from physics** (scene → document).
 - **PropertyPanel**: Renders sections for the current selection (Entity, Transform, Shape, Physics, Material, 3D Model, Transformers). The header row includes an **Actions** group (`role="group"`, `aria-label="Actions"`) with icon buttons: **Refresh from physics** (optional), **Clone entity** (optional), **Delete** (optional; deletes all selected when any is unlocked). **JSON** textareas (transformer config, Avatar dialog advanced JSON) use a dynamic `<textarea rows>` from line count, capped at 30 ([`jsonTextareaRows.ts`](../src/utils/jsonTextareaRows.ts)), so short JSON is fully visible without a fixed max-height clip. It composes:
   - TransformEditor (position, rotation, scale)
   - ShapeEditor, PhysicsEditor, MaterialEditor, ModelEditor, TransformerEditor
@@ -109,6 +109,7 @@ See [`mixedShapeDimensions.ts`](../src/utils/mixedShapeDimensions.ts).
 - **Read**: Inspector gets `world` from ProjectContext (via Builder → PropertySidebar). For each selected id it uses optional **livePoses** for display. Merged values use helpers in [`entityInspectorMerge.ts`](../src/utils/entityInspectorMerge.ts).
 - **User edits**: Changing a field calls `onWorldChange(newWorld)` or bulk scene updates (`onEntityPoseChange(ids, pose)`, `onEntityPhysicsChange(ids, patch)`, etc.).
 - **Refresh from physics**: Refreshes **all** selected entities via `getCurrentPose` + `syncPosesFromScene` for each id.
+- **Restore saved pose** (tab-row reset): Writes **document → scene** per entity (`handleResetPoseToSavedWorld` in [`Builder.tsx`](../src/pages/Builder.tsx)); does not mutate `world`.
 - **Clone entity**: The “Clone” button calls `onCloneEntity` → Builder’s `handleCloneEntity`, which uses `cloneEntityFrom` ([`entityDefaults.ts`](src/data/entityDefaults.ts)) with `getCurrentPose` for position/rotation. Placement uses [`clonePlacement.ts`](src/utils/clonePlacement.ts): same **Y** as the source pose, lateral offset in **XZ** from flattened local +X (fallback +Z, then world +X), separation from shape-based half-extent plus a small gap. The clone gets a new id, `name` suffixed with ` copy`, and `locked: false`. Delete stays disabled when the source is locked; clone remains available.
 
 See **architecture.md** for ProjectContext, SceneView, and world/version flow.

@@ -21,7 +21,6 @@ const SHAPE_FILTER_OPTIONS: { value: 'any' | AddableShapeType; label: string }[]
   { value: 'capsule', label: 'Capsule' },
   { value: 'cone', label: 'Cone' },
   { value: 'pyramid', label: 'Pyramid' },
-  { value: 'ring', label: 'Ring' },
   { value: 'plane', label: 'Plane' },
   { value: 'trimesh', label: 'Trimesh' },
 ]
@@ -126,7 +125,6 @@ export default function EntityListPanel({
             <option value="capsule">Capsule</option>
             <option value="cone">Cone</option>
             <option value="pyramid">Pyramid</option>
-            <option value="ring">Ring</option>
             <option value="plane">Plane</option>
           </select>
         </label>

@@ -39,11 +39,6 @@ export function createMeshForShape(shape: Shape): THREE.Mesh {
     case 'pyramid':
       geometry = new THREE.ConeGeometry(shape.baseSize / Math.SQRT2, shape.height, 4)
       break
-    case 'ring': {
-      const ringShape = shape
-      geometry = new THREE.RingGeometry(ringShape.innerRadius, ringShape.outerRadius, 32)
-      break
-    }
     case 'plane':
       geometry = new THREE.PlaneGeometry(10, 10)
       break

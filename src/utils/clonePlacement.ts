@@ -49,8 +49,6 @@ export function estimateHorizontalHalfExtent(entity: Entity): number {
       return shape.radius * Math.max(sx, sz)
     case 'pyramid':
       return 0.5 * shape.baseSize * Math.max(sx, sz)
-    case 'ring':
-      return shape.outerRadius * Math.max(sx, sz)
     case 'plane':
       return 0.5
     case 'trimesh':

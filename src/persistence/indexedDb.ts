@@ -236,7 +236,7 @@ export function createIndexedDbPersistence(): PersistenceAPI {
 
     async importProject(file: File): Promise<{ id: string }> {
       const JSZip = (await import('jszip')).default
-      const { migrateWorldScripts, migrateWorldSimplificationFields, migrateCustomTransformerNames } = await import(
+      const { migrateWorldScripts, migrateWorldSimplificationFields, migrateCustomTransformerNames, migrateWorldRingShapesToCylinder } = await import(
         '@/scripts/migrateWorld'
       )
       const zip = await JSZip.loadAsync(file)
@@ -246,6 +246,7 @@ export function createIndexedDbPersistence(): PersistenceAPI {
       migrateWorldScripts(worldJson)
       migrateCustomTransformerNames(worldJson)
       migrateWorldSimplificationFields(worldJson)
+      migrateWorldRingShapesToCylinder(worldJson)
       validateWorldDocument(worldJson, { tolerateAdditionalProperties: true, logAdditionalProperties: true })
       const world = worldJson as RennWorld
       const assets = new Map<string, Blob>()

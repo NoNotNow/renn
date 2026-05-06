@@ -189,11 +189,6 @@ export class PhysicsWorld {
         const h = shape.height * sy
         return (1 / 3) * b * b * h
       }
-      case 'ring': {
-        const h = (shape.height ?? 0.1) * sy
-        const rOut = shape.outerRadius * Math.max(sx, sz)
-        return Math.PI * rOut * rOut * h
-      }
       case 'plane':
         return 0 // HalfSpace is infinite; static ground has no density/mass
       default:
@@ -273,14 +268,6 @@ export class PhysicsWorld {
         return RAPIER.ColliderDesc.cone(
           halfH * sy,
           r * Math.max(sx, sz)
-        )
-      }
-
-      case 'ring': {
-        const h = (shape.height ?? 0.1) * scale[1]
-        return RAPIER.ColliderDesc.cylinder(
-          h / 2,
-          shape.outerRadius * Math.max(scale[0], scale[2])
         )
       }
 

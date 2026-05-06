@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { EntityPanelIcons } from './EntityPanelIcons'
 import PropertyPanel from './PropertyPanel'
 import CodingTabPanel from './CodingTabPanel'
 import AssetPanel from './AssetPanel'
@@ -7,6 +8,7 @@ import type { RennWorld, Vec3, Rotation, Entity, ModelPreset } from '@/types/wor
 import type { TransformerConfig } from '@/types/transformer'
 import { useLocalStorageState } from '@/hooks/useLocalStorageState'
 import { uiLogger } from '@/utils/uiLogger'
+import { entityPanelIconButtonStyle } from './sharedStyles'
 import Sidebar, { SIDEBAR_MIN_WIDTH } from './layout/Sidebar'
 import { TabIcons } from './TabIcons'
 
@@ -30,6 +32,8 @@ export interface PropertySidebarProps {
   ) => void
   onEntityTransformersChange?: (entityIds: string[], transformers: TransformerConfig[]) => void
   onRefreshFromPhysics?: (entityIds: string[]) => void
+  /** Snap live pose to each entity’s saved world position and rotation (builder scene sync). */
+  onResetPoseToSavedWorld?: (entityIds: string[]) => void
   livePoses?: Map<string, { position: Vec3; rotation: Rotation; scale?: Vec3 }> | null
   isOpen: boolean
   onToggle: () => void
@@ -54,6 +58,7 @@ export default function PropertySidebar({
   onEntityModelTransformChange,
   onEntityTransformersChange,
   onRefreshFromPhysics,
+  onResetPoseToSavedWorld,
   livePoses,
   isOpen,
   onToggle,
@@ -74,6 +79,41 @@ export default function PropertySidebar({
     setRightTab(tab as RightTab)
   }
 
+  const selectedResolvedEntities = selectedEntityIds
+    .map((id) => world.entities.find((e) => e.id === id))
+    .filter((e): e is Entity => e != null)
+  const canResetPoseToSaved =
+    selectedResolvedEntities.length > 0 && selectedResolvedEntities.some((e) => !e.locked)
+
+  const resetPoseTitle = canResetPoseToSaved
+    ? 'Restore saved position and rotation (from world)'
+    : selectedResolvedEntities.length > 0 && selectedResolvedEntities.every((e) => e.locked)
+      ? 'Cannot reset locked entities'
+      : 'Select an entity to restore saved position and rotation'
+
+  const tabsTrailing = onResetPoseToSavedWorld ? (
+    <button
+      type="button"
+      title={resetPoseTitle}
+      aria-label="Restore saved position and rotation"
+      disabled={!canResetPoseToSaved}
+      onClick={() => onResetPoseToSavedWorld(selectedEntityIds)}
+      style={{
+        ...entityPanelIconButtonStyle,
+        cursor: canResetPoseToSaved ? 'pointer' : 'not-allowed',
+        opacity: canResetPoseToSaved ? 0.85 : 0.45,
+      }}
+      onMouseEnter={(e) => {
+        if (canResetPoseToSaved) e.currentTarget.style.opacity = '1'
+      }}
+      onMouseLeave={(e) => {
+        if (canResetPoseToSaved) e.currentTarget.style.opacity = '0.85'
+      }}
+    >
+      {EntityPanelIcons.reset}
+    </button>
+  ) : undefined
+
   return (
     <Sidebar
       side="right"
@@ -91,6 +131,7 @@ export default function PropertySidebar({
       onWidthChange={setRightSidebarWidth}
       toggleLogContext="Toggle right drawer"
       overflowVisible={rightTab === 'code'}
+      tabsTrailing={tabsTrailing}
     >
       <div
         style={{
