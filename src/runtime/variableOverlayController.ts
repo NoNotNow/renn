@@ -17,7 +17,7 @@ export function variableOverlayColumnX(col: number, n: number, groupWidth: numbe
   return -half + (col / (n + 1)) * groupWidth
 }
 
-/** Signed bar extent along Y (world); same scale as `groupWidth` for full-scale values. */
+/** Signed bar extent along overlay local Y (screen-up when oriented to camera); same scale as `groupWidth` for full-scale values. */
 export function variableOverlaySignedBarLength(
   value: number,
   observedMin: number,
@@ -62,11 +62,13 @@ type BarSlot = {
 }
 
 /**
- * World-space variable bars + CSS2D labels at an entity position (no rotation; Y up).
+ * Camera-facing variable bars + CSS2D labels at an entity world position (entity rotation ignored).
+ * Local +Y/+X match screen up/right so bars stay vertical on screen when the view tilts.
  * Uses thin boxes instead of GL lines so stroke width is visible and configurable.
  */
 export class VariableOverlayController {
   readonly root = new THREE.Group()
+  private readonly _camWorldQuat = new THREE.Quaternion()
   private readonly groupWidth: number
   private readonly zeroMesh: THREE.Mesh
   private readonly zeroGeom: THREE.BoxGeometry
@@ -123,13 +125,24 @@ export class VariableOverlayController {
     }
   }
 
-  sync(_entityId: string | null, position: Vec3 | null, slots: VariableOverlaySlotPayload[]): void {
+  sync(
+    _entityId: string | null,
+    position: Vec3 | null,
+    slots: VariableOverlaySlotPayload[],
+    camera?: THREE.Camera | null,
+  ): void {
     const show = Boolean(position && slots.length > 0)
     this.root.visible = show
     if (!show || !position) return
 
     this.root.position.set(position[0], position[1], position[2])
-    this.root.quaternion.identity()
+    if (camera) {
+      camera.updateMatrixWorld()
+      camera.getWorldQuaternion(this._camWorldQuat)
+      this.root.quaternion.copy(this._camWorldQuat)
+    } else {
+      this.root.quaternion.identity()
+    }
 
     const w = this.groupWidth
     const n = slots.length

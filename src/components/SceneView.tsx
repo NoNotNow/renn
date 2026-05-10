@@ -888,7 +888,7 @@ function SceneViewInner({
                 overlay.sync(null, null, [])
                 return
               }
-              overlay.sync(id, pos, getVariableOverlaySlots())
+              overlay.sync(id, pos, getVariableOverlaySlots(), cam)
             },
             css2dRenderer: css2dRendererRef.current,
           })

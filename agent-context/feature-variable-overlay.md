@@ -33,7 +33,7 @@ When **Visualize mode** is active in the Builder, the selected entity shows a se
 | # | Topic | Decision |
 |---|-------|----------|
 | 1 | Mode type | Exclusive — `'visualize'` added to `BuilderGizmoMode`. `TransformControls` detaches. |
-| 2 | Bar orientation | World-space vertical (global Y). Tracks entity world position, ignores rotation. |
+| 2 | Bar orientation | **Screen-vertical:** overlay group uses the camera world quaternion each frame so local +Y/+X match screen up/right (bars stay upright when tilting orbit). Tracks entity **world** position; ignores entity rotation. |
 | 3 | Min/max window | Per-activation. Resets on mode entry, expands monotonically, discarded on exit. |
 | 4 | Column layout | Evenly distributed and centered on entity. 1-based `index`. Last write wins per frame. |
 | 5 | Total group width | Fixed world-space — `BUILDER_VARIABLE_OVERLAY_GROUP_WIDTH` in `transformGizmoController.ts`. |
@@ -41,7 +41,7 @@ When **Visualize mode** is active in the Builder, the selected entity shows a se
 | 7 | Which entities | Selected entity only. No bars if nothing is selected. |
 | 8 | Runtime scope | Builder-only. `api.visualize()` is a no-op in Play mode and tests (nullable `_visualizeFn` pattern from `api.log`). |
 | 9 | History on exit | Discarded immediately when switching away from `'visualize'` mode. |
-| 10 | Negative values | Bidirectional bars. Zero-line spans full group width at entity world-Y. |
+| 10 | Negative values | Bidirectional bars. Zero-line spans full group width through the entity’s world-space anchor, horizontal on screen. |
 
 ---
 
@@ -65,13 +65,13 @@ The call is a no-op unless the visualize bridge is wired (i.e. Builder mode with
 ```
       ▲          │          ▲
       │  (bar)   │  (bar)   │
-──────┼──────────┼──────────┼──────  ← zero-line (entity world position Y)
+──────┼──────────┼──────────┼──────  ← zero-line (through entity world position, horizontal on screen)
       │          │          │
       ▼          │          ▼
    [speed]   [throttle]  [grip]
 ```
 
-- **Zero-line**: thin horizontal **mesh strip** spanning the full group width, at entity world-Y.
+- **Zero-line**: thin **mesh strip** spanning the full group width through the entity’s world position, perpendicular to screen vertical (horizontal on screen).
 - **Bars**: one **mesh column** per slot, updated each frame from bridge data.
 - **Labels**: one `CSS2DObject` per slot, positioned below the zero-line; larger font and vertical (`writing-mode: vertical-rl`) to reduce horizontal overlap between columns.
 - **Heights**: `barHeight = (value / maxAbsValue) * groupWidth`. `maxAbsValue = Math.max(|observedMin|, |observedMax|)` accumulated since activation.
