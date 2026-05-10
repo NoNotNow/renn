@@ -364,6 +364,9 @@ function SceneViewInner({
     syncGizmoAttachRef.current?.()
   }, [selectionSyncKey, gizmoMode, sceneKey, registryEpoch])
 
+  // Re-wire after full scene reload: main effect cleanup calls `setVariableOverlayFn(null)` when
+  // `sceneKey` / `version` change (e.g. adding a transformer). Without re-running, Visualize would
+  // stay active in the UI but the bridge would stay disconnected until gizmo mode toggled.
   useEffect(() => {
     if (gizmoMode !== 'visualize') {
       setVariableOverlayFn(null)
@@ -373,7 +376,7 @@ function SceneViewInner({
     return () => {
       setVariableOverlayFn(null)
     }
-  }, [gizmoMode])
+  }, [gizmoMode, sceneKey, version])
 
   useEffect(() => {
     registryRef.current?.syncAllShapeWireframeOverlays(world.entities)

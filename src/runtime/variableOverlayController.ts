@@ -32,6 +32,28 @@ export function variableOverlaySignedBarLength(
 /** World-space thickness = groupWidth × this factor (mesh bars + zero strip). */
 const STROKE_WIDTH_FACTOR = 0.04
 
+/** Same stacking as `TransformControls` gizmo: draw after scene meshes, not depth-occluded. */
+const OVERLAY_RENDER_ORDER = Infinity
+
+function createOverlayMaterial(initial: THREE.MeshBasicMaterialParameters): THREE.MeshBasicMaterial {
+  return new THREE.MeshBasicMaterial({
+    depthTest: false,
+    depthWrite: false,
+    fog: false,
+    toneMapped: false,
+    transparent: true,
+    ...initial,
+  })
+}
+
+/** Same CSS strings as labels (`THREE.Color.setStyle`); invalid strings fall back to white (Three warns). */
+function setBarMaterialColor(material: THREE.MeshBasicMaterial, cssColor: string): void {
+  material.color.setHex(0xffffff)
+  const s = String(cssColor).trim()
+  if (!s) return
+  material.color.setStyle(s)
+}
+
 type BarSlot = {
   mesh: THREE.Mesh
   material: THREE.MeshBasicMaterial
@@ -58,12 +80,12 @@ export class VariableOverlayController {
 
     const stroke = this.strokeWorld()
     this.zeroGeom = new THREE.BoxGeometry(1, 1, 1)
-    this.zeroMaterial = new THREE.MeshBasicMaterial({
+    this.zeroMaterial = createOverlayMaterial({
       color: 0xffffff,
-      transparent: true,
       opacity: 0.65,
     })
     this.zeroMesh = new THREE.Mesh(this.zeroGeom, this.zeroMaterial)
+    this.zeroMesh.renderOrder = OVERLAY_RENDER_ORDER
     this.zeroMesh.scale.set(this.groupWidth, stroke, stroke)
     this.root.add(this.zeroMesh)
 
@@ -79,16 +101,19 @@ export class VariableOverlayController {
 
   private ensureBarCount(need: number): void {
     while (this.bars.length < need) {
-      const material = new THREE.MeshBasicMaterial()
+      const material = createOverlayMaterial({ opacity: 1 })
       const mesh = new THREE.Mesh(this.barUnitGeom, material)
+      mesh.renderOrder = OVERLAY_RENDER_ORDER
       this.root.add(mesh)
 
       const div = document.createElement('div')
       div.style.fontFamily = 'system-ui, sans-serif'
-      div.style.fontSize = '11px'
+      div.style.fontSize = '15px'
       div.style.fontWeight = '600'
       div.style.pointerEvents = 'none'
       div.style.textShadow = '0 0 2px #000'
+      div.style.writingMode = 'vertical-rl'
+      div.style.textOrientation = 'mixed'
       div.style.whiteSpace = 'nowrap'
       const label = new CSS2DObject(div)
       label.center.set(0.5, 1)
@@ -116,7 +141,7 @@ export class VariableOverlayController {
 
     this.ensureBarCount(n)
 
-    const labelY = -Math.max(0.08, w * 0.06)
+    const labelY = -Math.max(0.16, w * 0.11)
 
     for (let i = 0; i < n; i += 1) {
       const slot = slots[i]!
@@ -133,11 +158,10 @@ export class VariableOverlayController {
       mesh.scale.set(stroke, h, stroke)
       mesh.position.set(x, barLen * 0.5, 0)
 
-      material.color.set(slot.color)
-      material.needsUpdate = true
+      setBarMaterialColor(material, slot.color)
 
       div.textContent = slot.name
-      div.style.color = slot.color
+      div.style.color = slot.color.trim() || '#ffffff'
 
       label.position.set(x, labelY, 0)
     }

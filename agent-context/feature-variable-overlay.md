@@ -10,7 +10,7 @@ Pair with [feature-coding-custom-transformers.md](feature-coding-custom-transfor
 
 Steps 1–3 are **done** in the codebase: `visualize` gizmo mode, `CSS2DRenderer`, `variableOverlayBridge`, `variableOverlayController`, `api.visualize` on `TransformerRuntimeApi`, SceneView wiring, Monaco decls, and docs in `feature-coding-custom-transformers.md`.
 
-**Rendering note:** Bars and zero-line use **scaled `BoxGeometry` meshes** (not `LineSegments`), because WebGL line width is not reliable. Thickness scales with `BUILDER_VARIABLE_OVERLAY_GROUP_WIDTH` via `STROKE_WIDTH_FACTOR` in `variableOverlayController.ts`.
+**Rendering note:** Bars and zero-line use **scaled `BoxGeometry` meshes** (not `LineSegments`), because WebGL line width is not reliable. Thickness scales with `BUILDER_VARIABLE_OVERLAY_GROUP_WIDTH` via `STROKE_WIDTH_FACTOR` in `variableOverlayController.ts`. Bar **fill color** uses the API color string on each slot’s `MeshBasicMaterial` (`THREE.Color.setStyle`). Materials use **`depthTest` / `depthWrite` off and `renderOrder = Infinity`**, matching Three.js `TransformControls`, so bars stay visible when a large selection mesh would otherwise occlude them in depth. Name labels use **larger type with `writing-mode: vertical-rl`** so adjacent columns overlap less in screen space.
 
 **Slot cap:** `VARIABLE_OVERLAY_MAX_INDEX = 16` in `variableOverlayBridge.ts` — higher indices are ignored.
 
@@ -18,11 +18,13 @@ Steps 1–3 are **done** in the codebase: `visualize` gizmo mode, `CSS2DRenderer
 
 **Default custom-transformer snippet:** `api.visualize` runs **before** the `isTouchingObject` / `power === 0` early return (`defaultCustomTransformerCode` in `customCodeTransformer.ts`), so **`power` is plotted every transformer tick** in Builder Visualize mode without needing ground contact; physics impulse behavior is unchanged.
 
+**Scene rebuild:** Adding/removing transformer **configs** changes `getSceneDependencyKey` and forces a full `SceneView` reload. Its cleanup clears `setVariableOverlayFn`; the visualize-only `useEffect` must depend on **`sceneKey` + `version`** (same as the main scene effect) so the bridge is **rewired** while Visualize stays selected.
+
 ---
 
 ## What it is
 
-When **Visualize mode** is active in the Builder, the selected entity shows a set of vertical bar columns floating at its world position. Each bar corresponds to one numeric variable exposed via `api.visualize()` in any custom transformer on that entity. A bidirectional zero-line anchors the bars; bars grow upward for positive values and downward for negative values. A name label rendered via `CSS2DRenderer` appears below each column.
+When **Visualize mode** is active in the Builder, the selected entity shows a set of vertical bar columns floating at its world position. Each bar corresponds to one numeric variable exposed via `api.visualize()` in any custom transformer on that entity. A bidirectional zero-line anchors the bars; bars grow upward for positive values and downward for negative values. A name label rendered via `CSS2DRenderer` appears below each column (upright vertical text per column).
 
 ---
 
@@ -35,7 +37,7 @@ When **Visualize mode** is active in the Builder, the selected entity shows a se
 | 3 | Min/max window | Per-activation. Resets on mode entry, expands monotonically, discarded on exit. |
 | 4 | Column layout | Evenly distributed and centered on entity. 1-based `index`. Last write wins per frame. |
 | 5 | Total group width | Fixed world-space — `BUILDER_VARIABLE_OVERLAY_GROUP_WIDTH` in `transformGizmoController.ts`. |
-| 6 | Label rendering | `CSS2DRenderer` (`three/addons/renderers/CSS2DRenderer`) — HTML `<div>`, pointer-events disabled. |
+| 6 | Label rendering | `CSS2DRenderer` (`three/addons/renderers/CSS2DRenderer`) — HTML `<div>`, pointer-events disabled; vertical column text below the zero-line. |
 | 7 | Which entities | Selected entity only. No bars if nothing is selected. |
 | 8 | Runtime scope | Builder-only. `api.visualize()` is a no-op in Play mode and tests (nullable `_visualizeFn` pattern from `api.log`). |
 | 9 | History on exit | Discarded immediately when switching away from `'visualize'` mode. |
@@ -71,7 +73,7 @@ The call is a no-op unless the visualize bridge is wired (i.e. Builder mode with
 
 - **Zero-line**: thin horizontal **mesh strip** spanning the full group width, at entity world-Y.
 - **Bars**: one **mesh column** per slot, updated each frame from bridge data.
-- **Labels**: one `CSS2DObject` per slot, positioned below the zero-line.
+- **Labels**: one `CSS2DObject` per slot, positioned below the zero-line; larger font and vertical (`writing-mode: vertical-rl`) to reduce horizontal overlap between columns.
 - **Heights**: `barHeight = (value / maxAbsValue) * groupWidth`. `maxAbsValue = Math.max(|observedMin|, |observedMax|)` accumulated since activation.
 - **Column spacing**: `x_i = -groupWidth/2 + (i / (n+1)) * groupWidth` for `n` known slots.
 
