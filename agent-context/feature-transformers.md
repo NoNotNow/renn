@@ -32,8 +32,8 @@ RawInput → InputMapping → TransformInput → TransformerChain → TransformO
 
 ## Custom code (`type: "custom"`)
 
-- **Builder:** Right sidebar **Code** tab (third segment next to **Scripts** and **Transformers**): pick which `custom` row to edit by stack index (labeled with `name`, default `Custom` / `Custom 2`, …). **Transformers** tab still shows the full stack (reorder, presets, JSON). Each custom row has optional serialised **`name`** (unique among `custom` entries on that entity); legacy worlds get names on load via `migrateCustomTransformerNames`.
-- **Code tab** features debounced live commit for Monaco, **Params (JSON)**, **Priority**, rename-on-blur, **Add custom**, and an LED-style **enabled** toggle for the selected custom transformer.
+- **Builder:** Right sidebar **Code** drawer **Transformer code** subtab (middle segment between **Transformers** and **Scripts**): pick which `custom` row to edit by stack index (labeled with `name`, default `Custom` / `Custom 2`, …). **Transformers** subtab still shows the full stack (reorder, presets, JSON). Each custom row has optional serialised **`name`** (unique among `custom` entries on that entity); legacy worlds get names on load via `migrateCustomTransformerNames`.
+- **Transformer code tab** features debounced live commit for Monaco, **Params (JSON)**, **Priority**, rename-on-blur, **Add custom**, and an LED-style **enabled** toggle for the selected custom transformer.
 - **Runtime:** `customCodeTransformer.ts` compiles the source **once** when the chain is built. The body runs as `function (input, dt, params, state, api) { … }` and must **`return`** a `TransformOutput` or `{}`. `state` is a per-instance mutable object. **`api`** is a frozen singleton (`getAction`, `getForwardVector`, `getUpVector`, `addVec3`, `scaleVec3`, `clamp`, `eulerDeltaAroundAxis`) so authors avoid import boilerplate in saved JSON. Non-finite outputs are stripped.
 - **Performance:** Matches other transformers in engine overhead (no recompile per frame), but user code still runs every physics step per entity—keep it cheap; avoid per-frame allocations.
 

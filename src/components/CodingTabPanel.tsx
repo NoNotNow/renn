@@ -72,7 +72,7 @@ function codingTabHoverHandlers(tab: CodingSubgroup, subgroup: CodingSubgroup) {
   }
 }
 
-/** Right sidebar workspace: Scripts + Transformers + Custom code editors for the selection. */
+/** Right sidebar workspace: Transformers stack + Transformer code + Scripts for the selection. */
 export default function CodingTabPanel({
   world,
   selectedEntityIds,
@@ -141,18 +141,6 @@ export default function CodingTabPanel({
         <button
           type="button"
           role="tab"
-          id="coding-tab-scripts"
-          aria-selected={subgroup === 'scripts'}
-          {...codingTabHoverHandlers('scripts', subgroup)}
-          onClick={() => setSubgroup('scripts')}
-          style={codingTabStyle(subgroup === 'scripts')}
-          data-testid="coding-submenu-scripts"
-        >
-          Scripts
-        </button>
-        <button
-          type="button"
-          role="tab"
           id="coding-tab-transformers"
           aria-selected={subgroup === 'transformers'}
           {...codingTabHoverHandlers('transformers', subgroup)}
@@ -172,7 +160,19 @@ export default function CodingTabPanel({
           style={codingTabStyle(subgroup === 'code')}
           data-testid="coding-submenu-code"
         >
-          Code
+          Transformer code
+        </button>
+        <button
+          type="button"
+          role="tab"
+          id="coding-tab-scripts"
+          aria-selected={subgroup === 'scripts'}
+          {...codingTabHoverHandlers('scripts', subgroup)}
+          onClick={() => setSubgroup('scripts')}
+          style={codingTabStyle(subgroup === 'scripts')}
+          data-testid="coding-submenu-scripts"
+        >
+          Scripts
         </button>
       </div>
 

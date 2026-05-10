@@ -1,5 +1,5 @@
 /**
- * Builder UI: last runtime error from a custom transformer for the Code tab.
+ * Builder UI: last runtime error from a custom transformer for the Transformer code tab.
  * Published only when {@link CustomCodeTransformer} has `runtimeEntityId` + `configStackIndex` (set by the registry).
  */
 

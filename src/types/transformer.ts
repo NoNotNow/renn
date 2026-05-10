@@ -265,7 +265,7 @@ export interface TransformerConfig {
   /** Preset name. */
   type: TransformerType
 
-  /** Display name for `custom` transformers (Code tab, uniqueness within entity). */
+  /** Display name for `custom` transformers (Transformer code tab, uniqueness within entity). */
   name?: string
 
   /** Execution order (lower = earlier). Default: 10. */

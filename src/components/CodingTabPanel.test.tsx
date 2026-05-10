@@ -49,7 +49,7 @@ describe('CodingTabPanel', () => {
     clearCustomTransformerRuntimeError()
   })
 
-  it('Code tab exposes custom transformer controls', () => {
+  it('Transformer code tab exposes custom transformer controls', () => {
     const onWorldChange = vi.fn()
     render(
       <CopyProvider>
@@ -67,7 +67,7 @@ describe('CodingTabPanel', () => {
     expect(screen.getByTestId('custom-transformer-name')).toHaveValue('Test')
   })
 
-  it('Code tab shows compile error below the editor when code is invalid', () => {
+  it('Transformer code tab shows compile error below the editor when code is invalid', () => {
     const invalidWorld: RennWorld = {
       ...minimalWorld,
       entities: [

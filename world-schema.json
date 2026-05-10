@@ -423,7 +423,7 @@
         },
         "name": {
           "type": "string",
-          "description": "Optional label for custom transformers (used in the Code tab; unique among custom entries on the same entity)."
+          "description": "Optional label for custom transformers (used in the Transformer code tab; unique among custom entries on the same entity)."
         },
         "priority": {
           "type": "number",

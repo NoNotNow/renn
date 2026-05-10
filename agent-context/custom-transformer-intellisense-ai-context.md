@@ -55,7 +55,7 @@ npm run test:run -- src/utils/monacoExtraLib.test.ts src/transformers/transforme
 ## Todos / follow-ups (not done here)
 
 - [ ] Optional: scoped `checkJs` / diagnostics tuning **only if** real-app completion gaps remain after manual QA in Builder.
-- [ ] E2E: avoid asserting Monaco completion menus (flaky); smoke “Code tab mounts” only if needed.
+- [ ] E2E: avoid asserting Monaco completion menus (flaky); smoke “Transformer code tab mounts” only if needed.
 - [ ] Enrich `.d.ts` / snippets further (e.g. `TransformOutput` field tooltips) as API grows.
 
 ---

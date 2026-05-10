@@ -6,7 +6,7 @@ Working document to align on **what shipped**, **what is thin**, and **what to i
 
 ## Scope
 
-Right sidebar **Code** drawer (Builder): **Scripts** | **Transformers** | **Code** (third segment). This file focuses on the **Code** segment and **`type: "custom"`** transformers: naming, Monaco authoring, live edit path, and the runtime **`api`** surface.
+Right sidebar **Code** drawer (Builder): **Transformers** | **Transformer code** | **Scripts** (middle segment: custom Monaco). This file focuses on the **Transformer code** segment and **`type: "custom"`** transformers: naming, Monaco authoring, live edit path, and the runtime **`api`** surface.
 
 ---
 
@@ -14,15 +14,15 @@ Right sidebar **Code** drawer (Builder): **Scripts** | **Transformers** | **Code
 
 ### UX & layout
 
-- **Three segments** in [`CodingTabPanel.tsx`](../src/components/CodingTabPanel.tsx): Scripts, Transformers, Code. Tab strip uses `role="tablist"` / `tab` / `tabpanel`, accent underline for active tab, content-sized tab labels (`flex: 0 0 auto`, `whiteSpace: nowrap`), strip background aligned with [`SidebarTabs`](../src/components/SidebarTabs.tsx).
-- **Code segment** via [`CustomTransformerCodeTab.tsx`](../src/components/CustomTransformerCodeTab.tsx):
+- **Three segments** in [`CodingTabPanel.tsx`](../src/components/CodingTabPanel.tsx): Transformers, Transformer code, Scripts. Tab strip uses `role="tablist"` / `tab` / `tabpanel`, accent underline for active tab, content-sized tab labels (`flex: 0 0 auto`, `whiteSpace: nowrap`), strip background aligned with [`SidebarTabs`](../src/components/SidebarTabs.tsx).
+- **Transformer code** segment via [`CustomTransformerCodeTab.tsx`](../src/components/CustomTransformerCodeTab.tsx):
   - Dropdown of `custom` rows by **stack index** (label from **`name`**).
   - **Name** field (blur commit); uniqueness among customs on the entity via [`customTransformerNaming.ts`](../src/transformers/customTransformerNaming.ts).
   - **Add custom**; **priority**; **Params (JSON)**; **LED-style enabled** toggle.
   - **Monaco** code: **debounced live commit** (~350 ms) to world; undo primed on first edit per selection; flush pending code when switching selected custom row.
   - **Resizable code height**: drag handle under the Monaco surface (horizontal separator, `ns-resize`).
   - **Compile errors**: forbidden patterns and `new Function` parse/compile failures from [`validateCustomTransformerSource`](../src/transformers/customCodeTransformer.ts) are shown in a panel **below** the code block.
-  - **Runtime errors**: uncaught exceptions inside `transform()` publish to [`customTransformerErrorBridge`](../src/runtime/customTransformerErrorBridge.ts) when the instance has `runtimeEntityId` / `configStackIndex` (set by [`createTransformerChain`](../src/transformers/transformerRegistry.ts)); the Code tab shows a **Runtime error** panel (amber) for the matching selection and stack row. A successful frame clears the stored error for that target. Duplicates with the same message are not re-notified every frame.
+  - **Runtime errors**: uncaught exceptions inside `transform()` publish to [`customTransformerErrorBridge`](../src/runtime/customTransformerErrorBridge.ts) when the instance has `runtimeEntityId` / `configStackIndex` (set by [`createTransformerChain`](../src/transformers/transformerRegistry.ts)); the **Transformer code** tab shows a **Runtime error** panel (amber) for the matching selection and stack row. A successful frame clears the stored error for that target. Duplicates with the same message are not re-notified every frame.
 - **Transformers** segment unchanged as full stack editor (reorder, all presets, **Apply code** for custom rows there).
 
 ### Data & migration
@@ -49,7 +49,7 @@ Right sidebar **Code** drawer (Builder): **Scripts** | **Transformers** | **Code
 - [`customTransformerNaming.test.ts`](../src/transformers/customTransformerNaming.test.ts).
 - [`customCodeTransformer.test.ts`](../src/transformers/customCodeTransformer.test.ts) — legacy body, `api` usage, default snippet behavior, `validateCustomTransformerSource`, runtime error bridge (`publish` / clear on success).
 - [`transformerRegistry.test.ts`](../src/transformers/transformerRegistry.test.ts) — custom + `api` factory path.
-- [`CodingTabPanel.test.tsx`](../src/components/CodingTabPanel.test.tsx) — Code tab controls (with `CopyProvider` + `EditorUndoProvider`); invalid custom code surfaces compile error under the editor.
+- [`CodingTabPanel.test.tsx`](../src/components/CodingTabPanel.test.tsx) — Transformer code tab controls (with `CopyProvider` + `EditorUndoProvider`); invalid custom code surfaces compile error under the editor.
 
 ---
 
@@ -81,7 +81,7 @@ Right sidebar **Code** drawer (Builder): **Scripts** | **Transformers** | **Code
 
 ### User-facing docs
 
-- **Builder walkthrough**: Scripts vs Transformers vs Code; when to use **Add custom** in Code vs **custom (code)** in Transformers; how **names** appear in JSON and in UI; **live edit** vs **Apply code** in Transformers tab.
+- **Builder walkthrough**: Transformers vs Transformer code vs Scripts; when to use **Add custom** in Transformer code vs **custom (code)** in Transformers; how **names** appear in JSON and in UI; **live edit** vs **Apply code** in Transformers tab.
 - **Recipe / snippet library**: minimal impulse example, “grounded only” pattern, pointer to **car2** preset for full vehicle behavior.
 - **Troubleshooting**: compile error vs runtime warning in console; empty `{}` output; performance expectations (heavy code per step).
 
@@ -93,7 +93,7 @@ Right sidebar **Code** drawer (Builder): **Scripts** | **Transformers** | **Code
 |------|------|
 | **CustomTransformerCodeTab** | Debounced commit updates `transformers`; switching row flushes draft; rename uniqueness; LED toggles `enabled`. |
 | **Integration** | Builder `handleEntityTransformersChange` / `syncEntityTransformers` path after Code-tab code edit (scene key unchanged). |
-| **E2E (Playwright)** | Open Code drawer, third tab, edit custom, optional play-mode smoke. |
+| **E2E (Playwright)** | Open Code drawer, **Transformer code** subtab (middle), edit custom, optional play-mode smoke. |
 | **Migration** | Round-trip export/import with mixed named / legacy custom stacks. |
 | **`api` coverage** | One test per `TransformerRuntimeApi` method against known vectors / angles (golden or tolerance). |
 | **Regression** | Worlds with legacy body-only snippets (bare `return` statements) still compile and run via auto-detection. |
@@ -102,7 +102,7 @@ Right sidebar **Code** drawer (Builder): **Scripts** | **Transformers** | **Code
 
 ## Plan: Transformers tab — live I/O visualization (Builder)
 
-Concise roadmap for **Scripts | Transformers | Code** → **Transformers** segment ([`TransformerEditor.tsx`](../src/components/TransformerEditor.tsx)).
+Concise roadmap for **Transformers | Transformer code | Scripts** → **Transformers** segment ([`TransformerEditor.tsx`](../src/components/TransformerEditor.tsx)).
 
 1. **Runtime trace (single entity, opt-in)**  
    When exactly one entity is selected and the **Transformers** sub-tab is active, record **per-step** snapshots for that entity only: `TransformInput` **before** each `transform()` call and the returned `TransformOutput`. Steps include **`configStackIndex`** (matches stack row order in the UI, not necessarily priority execution order — both are stored so we can debug ordering). **Performance:** no cloning when tracing is off; no tracing when multi-select or wrong tab.
@@ -131,7 +131,7 @@ Concise roadmap for **Scripts | Transformers | Code** → **Transformers** segme
 
 ## Open questions (for a follow-up session)
 
-- Should **tab labels** or **in-app hints** spell out “Custom transformer” vs “Code” more clearly for new users?
+- Should **tab labels** or **in-app hints** spell out “custom transformer authoring” vs “Transformer code” more clearly for new users?
 - **Undo coalescing** for rapid debounced commits: current behavior vs desired (single undo step per “session” vs per debounce flush).
 - **`api` growth**: which `BaseTransformer` / car2 helpers to add next (e.g. shared slip logic) without bloating the object.
 - **Export**: whether to enforce **unique `name`** at schema validation time vs UI-only.
@@ -144,7 +144,7 @@ Concise roadmap for **Scripts | Transformers | Code** → **Transformers** segme
 | Concern | File |
 |---------|------|
 | Live trace bridge (Builder) | [`transformerTraceBridge.ts`](../src/runtime/transformerTraceBridge.ts) |
-| Custom runtime errors (Builder Code tab) | [`customTransformerErrorBridge.ts`](../src/runtime/customTransformerErrorBridge.ts) |
+| Custom runtime errors (Builder Transformer code tab) | [`customTransformerErrorBridge.ts`](../src/runtime/customTransformerErrorBridge.ts) |
 | Trace serialization + activity rules | [`transformerTrace.ts`](../src/transformers/transformerTrace.ts) |
 | Tab shell | [`CodingTabPanel.tsx`](../src/components/CodingTabPanel.tsx) |
 | Code segment UI | [`CustomTransformerCodeTab.tsx`](../src/components/CustomTransformerCodeTab.tsx) |
