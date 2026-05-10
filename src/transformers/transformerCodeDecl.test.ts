@@ -18,10 +18,14 @@ describe('transformerCtxDecl', () => {
     expect(decl).toMatch(/TransformOutput/)
   })
 
-  test('TransformerRuntimeApi includes snackbar log for IntelliSense parity with runtime', () => {
+  test('TransformerRuntimeApi lists every runtime helper including getAction and log', () => {
     const decl = transformerCtxDecl()
+    expect(decl).toMatch(/interface\s+TransformerRuntimeApi\b[\s\S]*\bgetAction\b/)
     expect(decl).toMatch(/interface\s+TransformerRuntimeApi\b[\s\S]*\blog\s*\(message/i)
     expect(decl).toContain('durationSeconds?: number')
+    expect(decl).toContain('getUpVector')
+    expect(decl).toContain('addVec3')
+    expect(decl).toContain('eulerDeltaAroundAxis')
   })
 
   test('environment field docs match authoring concerns (touching vs grounded vs support)', () => {

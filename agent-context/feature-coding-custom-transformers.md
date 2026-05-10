@@ -41,7 +41,7 @@ Right sidebar **Code** drawer (Builder): **Scripts** | **Transformers** | **Code
 
 ### Monaco / IntelliSense
 
-- [`transformerCodeDecl.ts`](../src/transformers/transformerCodeDecl.ts): type declarations for `Vec3`, `TransformInput`, `TransformOutput`, `TransformerRuntimeApi` (including `log`). No longer uses `declare const` for `input/dt/params/state/api` — types flow from the typed function parameters users write in the full-function format.
+- [`transformerCodeDecl.ts`](../src/transformers/transformerCodeDecl.ts): type declarations for `Vec3`, `TransformInput`, `TransformOutput`, `TransformerRuntimeApi` (including **`getAction`** and **`log`**). **`declare const` globals** still apply for legacy **body-only** snippets. For **`function transform(…)`**, local parameters shadow those globals: without JSDoc, `input` / `api` stay **implicit `any`** — use **inline `/** @type {TransformInput} */` before `input`** (and likewise for **`TransformerRuntimeApi` on `api`**) or a matching **`@param` block**. Default skeleton ships with inline `@type` so autocomplete works without extra authoring.
 
 ### Tests (existing)
 

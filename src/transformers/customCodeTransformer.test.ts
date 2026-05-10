@@ -139,13 +139,10 @@ describe('CustomCodeTransformer', () => {
     expect(grounded.impulse).toBeDefined()
   })
 
-  test('defaultCustomTransformerCode JSDoc links params to IntelliSense lib types', () => {
+  test('defaultCustomTransformerCode annotates params for IntelliSense (inline @type)', () => {
     const src = defaultCustomTransformerCode()
-    expect(src).toContain('@param {TransformInput} input')
-    expect(src).toContain('@param {number} dt')
-    expect(src).toContain('@param {Record<string, unknown>} params')
-    expect(src).toContain('@param {Record<string, unknown>} state')
-    expect(src).toContain('@param {TransformerRuntimeApi} api')
+    expect(src).toContain('/** @type {TransformInput} */ input')
+    expect(src).toContain('/** @type {TransformerRuntimeApi} */ api')
     expect(src).toContain('@returns {TransformOutput | undefined}')
   })
 

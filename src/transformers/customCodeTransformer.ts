@@ -252,15 +252,17 @@ export function defaultCustomTransformerCode(): string {
   return `// ── Params shape (edit in the Params JSON field above) ───────────────────────
 // { "power": 120 }
 
-/**
- * @param {TransformInput} input
- * @param {number} dt
- * @param {Record<string, unknown>} params
- * @param {Record<string, unknown>} state
- * @param {TransformerRuntimeApi} api
- * @returns {TransformOutput | undefined}
- */
-function transform(input, dt, params, state, api) {
+// JSDoc @type on each parameter below wires Monaco completions for transforms (otherwise parameters become implicit any).
+// Example throttle binding: semantic action names depend on your input transformer mappings.
+
+/** @returns {TransformOutput | undefined} */
+function transform(
+  /** @type {TransformInput} */ input,
+  /** @type {number} */ dt,
+  /** @type {Record<string, unknown>} */ params,
+  /** @type {Record<string, unknown>} */ state,
+  /** @type {TransformerRuntimeApi} */ api,
+) {
   const power = Number(params.power ?? 0);
   if (!input.environment.isTouchingObject || power === 0) return {};
 

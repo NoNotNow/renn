@@ -69,13 +69,13 @@ describe('transformer IntelliSense (TS language service)', () => {
     const source = defaultCustomTransformerCode()
     const lang = createLanguageServiceForUserJs(source)
 
-    const inputDot = completionNames(lang, USER_PATH, positionAfter(source, 'input.'))
+    const inputDot = completionNames(lang, USER_PATH, positionAfter(source, 'if (!input.'))
     expect(inputDot.has('actions')).toBe(true)
     expect(inputDot.has('environment')).toBe(true)
     expect(inputDot.has('velocity')).toBe(true)
     expect(inputDot.has('entityId')).toBe(true)
 
-    const apiDot = completionNames(lang, USER_PATH, positionAfter(source, 'api.'))
+    const apiDot = completionNames(lang, USER_PATH, positionAfter(source, 'const forward = api.'))
     expect(apiDot.has('log')).toBe(true)
     expect(apiDot.has('getAction')).toBe(true)
     expect(apiDot.has('getForwardVector')).toBe(true)
@@ -100,5 +100,26 @@ return {};`
     const lang = createLanguageServiceForUserJs(source)
     const names = completionNames(lang, USER_PATH, positionAfter(source, 'function transform(input, dt, params, state, api) {\n  input.'))
     expect(names.has('actions')).toBe(false)
+  })
+
+  test('full function with inline param @type: input. / api. get typed completions', () => {
+    const source = `function transform(
+  /** @type {TransformInput} */ input,
+  /** @type {number} */ dt,
+  /** @type {Record<string, unknown>} */ params,
+  /** @type {Record<string, unknown>} */ state,
+  /** @type {TransformerRuntimeApi} */ api,
+) {
+  const _in = input.
+  void api.
+  return {};
+}`
+    const lang = createLanguageServiceForUserJs(source)
+    const inputNames = completionNames(lang, USER_PATH, positionAfter(source, 'const _in = input.'))
+    expect(inputNames.has('actions')).toBe(true)
+
+    const apiNames = completionNames(lang, USER_PATH, positionAfter(source, 'void api.'))
+    expect(apiNames.has('getAction')).toBe(true)
+    expect(apiNames.has('clamp')).toBe(true)
   })
 })

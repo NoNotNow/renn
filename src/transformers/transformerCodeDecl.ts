@@ -2,8 +2,8 @@
  * Monaco `.d.ts` content for custom transformer authoring (matches `customCodeTransformer` runner).
  *
  * IntelliSense combines:
- * - **Ambient types** (`TransformInput`, `TransformerRuntimeApi`, …) resolved from JSDoc in the skeleton.
- * - **`declare const`** for legacy snippets that omit `function transform(...)`.
+ * - **Ambient types** (`TransformInput`, `TransformerRuntimeApi`, …) from JSDoc on each `transform` parameter (inline `@type {TransformInput}` before `input`, same for `api`, or a full `@param` block). Without that, a named `function transform(input, …)` keeps parameters as implicit `any` and hides `input.` / `api.` completions — local params shadow the `declare const` globals below.
+ * - **`declare const`** for legacy body-only snippets that never declare `function transform(...)`.
  */
 
 export function transformerCtxDecl(): string {
@@ -112,7 +112,7 @@ type TransformFn = (
 ) => TransformOutput | undefined;
 
 /**
- * Full-function authoring: name it \`transform\` and duplicate the skeleton JSDoc @param/@returns tags.
+ * Full-function authoring: name it \`transform\` and add JSDoc @type (or @param) on each parameter so \`input\` / \`api\` are not implicit any.
  * Legacy bare-return snippets still compile; globals below apply inside the implicit body wrapper.
  */
 
