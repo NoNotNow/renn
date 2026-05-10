@@ -120,7 +120,7 @@ interface TransformerRuntimeApi {
   log(message: string, durationSeconds?: number): void;
   /**
    * Builder visualize mode: push one numeric sample to the variable overlay (selected entity, overlay wired).
-   * Ignores non-finite values. No-op in Play/tests or when overlay is unwired.
+   * Bar fill uses the color parameter; the name label is always white. Ignores non-finite values. No-op in Play/tests or when overlay is unwired.
    */
   visualize(value: number, color: string, name: string, index: number): void;
 }

@@ -174,7 +174,7 @@ export class VariableOverlayController {
       setBarMaterialColor(material, slot.color)
 
       div.textContent = slot.name
-      div.style.color = slot.color.trim() || '#ffffff'
+      div.style.color = '#ffffff'
 
       label.position.set(x, labelY, 0)
     }

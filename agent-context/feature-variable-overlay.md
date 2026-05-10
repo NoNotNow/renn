@@ -10,7 +10,7 @@ Pair with [feature-coding-custom-transformers.md](feature-coding-custom-transfor
 
 Steps 1–3 are **done** in the codebase: `visualize` gizmo mode, `CSS2DRenderer`, `variableOverlayBridge`, `variableOverlayController`, `api.visualize` on `TransformerRuntimeApi`, SceneView wiring, Monaco decls, and docs in `feature-coding-custom-transformers.md`.
 
-**Rendering note:** Bars and zero-line use **scaled `BoxGeometry` meshes** (not `LineSegments`), because WebGL line width is not reliable. Thickness scales with `BUILDER_VARIABLE_OVERLAY_GROUP_WIDTH` via `STROKE_WIDTH_FACTOR` in `variableOverlayController.ts`. Bar **fill color** uses the API color string on each slot’s `MeshBasicMaterial` (`THREE.Color.setStyle`). Materials use **`depthTest` / `depthWrite` off and `renderOrder = Infinity`**, matching Three.js `TransformControls`, so bars stay visible when a large selection mesh would otherwise occlude them in depth. Name labels use **larger type with `writing-mode: vertical-rl`** so adjacent columns overlap less in screen space.
+**Rendering note:** Bars and zero-line use **scaled `BoxGeometry` meshes** (not `LineSegments`), because WebGL line width is not reliable. Thickness scales with `BUILDER_VARIABLE_OVERLAY_GROUP_WIDTH` via `STROKE_WIDTH_FACTOR` in `variableOverlayController.ts`. Bar **fill color** uses the API color string on each slot’s `MeshBasicMaterial` (`THREE.Color.setStyle`). Materials use **`depthTest` / `depthWrite` off and `renderOrder = Infinity`**, matching Three.js `TransformControls`, so bars stay visible when a large selection mesh would otherwise occlude them in depth. Name labels use **larger type with `writing-mode: vertical-rl`** so adjacent columns overlap less in screen space; label text is **always white** for contrast (bar fill still uses the API color).
 
 **Slot cap:** `VARIABLE_OVERLAY_MAX_INDEX = 16` in `variableOverlayBridge.ts` — higher indices are ignored.
 
@@ -52,7 +52,7 @@ api.visualize(value: number, color: string, name: string, index: number): void
 ```
 
 - **`value`** — the number to visualize (any finite value; non-finite is ignored).
-- **`color`** — CSS color string (e.g. `'#ff4444'`, `'cyan'`). Applied to the bar and its label.
+- **`color`** — CSS color string (e.g. `'#ff4444'`, `'cyan'`). Applied to the **bar** only; name labels always render white.
 - **`name`** — short label displayed below the column (e.g. `'speed'`, `'throttle'`).
 - **`index`** — 1-based column slot (1 = first/leftmost), **≤ `VARIABLE_OVERLAY_MAX_INDEX` (16)**. Columns are auto-distributed across the total group width. If two calls use the same index in the same frame, last write wins.
 

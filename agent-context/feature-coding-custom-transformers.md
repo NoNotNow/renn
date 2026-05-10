@@ -75,7 +75,7 @@ Right sidebar **Code** drawer (Builder): **Transformers** | **Transformer code**
 | `clamp` | `(value, min, max) → number` | Inclusive clamp. |
 | `eulerDeltaAroundAxis` | `(currentRotation, axis, angleRad) → Rotation` | Euler delta for yaw-like turns around a world axis. |
 | `log` | `(message, durationSeconds?) → void` | Show message in play-mode snackbar. Default duration: 4 s. Wired via `setTransformerSnackbarFn` from `SceneView`; no-op otherwise. |
-| `visualize` | `(value, color, name, index) → void` | Builder only: push a numeric sample to the variable overlay (`api.visualize(0.7, '#ff4444', 'speed', 1)`). Requires Visualize gizmo mode + single selection + wired bridge; ignores non-finite values and invalid indices (not a positive integer). No-op in Play/tests when unwired. |
+| `visualize` | `(value, color, name, index) → void` | Builder only: push a numeric sample to the variable overlay (`api.visualize(0.7, '#ff4444', 'speed', 1)`). `color` fills the bar; labels are white. Requires Visualize gizmo mode + single selection + wired bridge; ignores non-finite values and invalid indices (not a positive integer). No-op in Play/tests when unwired. |
 
 **Intention:** Port **car2-style** logic gradually without pasting all of [`car2Transformer.ts`](../src/transformers/presets/car2Transformer.ts). Not every `BaseTransformer` helper is exposed yet; extend deliberately.
 
