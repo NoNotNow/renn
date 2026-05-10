@@ -36,12 +36,13 @@ Right sidebar **Code** drawer (Builder): **Transformers** | **Transformer code**
 - **Full function authoring**: `TransformerConfig.code` now stores the complete function definition: `function transform(input, dt, params, state, api) { … }`. The runtime detects `function transform(` in the source; legacy body-only code (bare `return` statements) is still wrapped automatically for backward compat.
 - **`TRANSFORMER_RUNTIME_API`**: frozen singleton passed every frame; thin wrappers over shared utils (see table below).
 - **`api.log`**: calls the play-mode snackbar (wired via `setTransformerSnackbarFn` from `SceneView`; no-op in tests unless explicitly wired). `durationSeconds` defaults to 4.
+- **`api.visualize`**: records overlay samples when Builder **Visualize** gizmo mode is active, the bridge is wired from `SceneView`, and the publishing entity matches the single selection (`variableOverlayBridge` + `publishVariableValue`). No-op in Play mode and tests by default.
 - **Sanitization**: non-finite / invalid `TransformOutput` fields stripped.
-- **`effectiveCustomTransformerCode`** + **default skeleton**: params shape comment at the top, full `function transform(...)` body with `isTouchingObject` gate; preset default includes `params.power` in [`transformerPresets.ts`](../src/transformers/transformerPresets.ts).
+- **`effectiveCustomTransformerCode`** + **default skeleton**: params shape comment at the top, full `function transform(...)` body: **`api.visualize` for `power` before the `isTouchingObject` gate** so Builder Visualize shows the bar without ground contact; impulse still requires touch + nonzero power. Preset default includes `params.power` in [`transformerPresets.ts`](../src/transformers/transformerPresets.ts).
 
 ### Monaco / IntelliSense
 
-- [`transformerCodeDecl.ts`](../src/transformers/transformerCodeDecl.ts): type declarations for `Vec3`, `TransformInput`, `TransformOutput`, `TransformerRuntimeApi` (including **`getAction`** and **`log`**). **`declare const` globals** still apply for legacy **body-only** snippets. For **`function transform(…)`**, local parameters shadow those globals: without JSDoc, `input` / `api` stay **implicit `any`** — use **inline `/** @type {TransformInput} */` before `input`** (and likewise for **`TransformerRuntimeApi` on `api`**) or a matching **`@param` block**. Default skeleton ships with inline `@type` so autocomplete works without extra authoring.
+- [`transformerCodeDecl.ts`](../src/transformers/transformerCodeDecl.ts): type declarations for `Vec3`, `TransformInput`, `TransformOutput`, `TransformerRuntimeApi` (including **`getAction`**, **`log`**, and **`visualize`**). **`declare const` globals** still apply for legacy **body-only** snippets. For **`function transform(…)`**, local parameters shadow those globals: without JSDoc, `input` / `api` stay **implicit `any`** — use **inline `/** @type {TransformInput} */` before `input`** (and likewise for **`TransformerRuntimeApi` on `api`**) or a matching **`@param` block**. Default skeleton ships with inline `@type` so autocomplete works without extra authoring.
 
 ### Tests (existing)
 
@@ -65,6 +66,7 @@ Right sidebar **Code** drawer (Builder): **Transformers** | **Transformer code**
 | `clamp` | `(value, min, max) → number` | Inclusive clamp. |
 | `eulerDeltaAroundAxis` | `(currentRotation, axis, angleRad) → Rotation` | Euler delta for yaw-like turns around a world axis. |
 | `log` | `(message, durationSeconds?) → void` | Show message in play-mode snackbar. Default duration: 4 s. Wired via `setTransformerSnackbarFn` from `SceneView`; no-op otherwise. |
+| `visualize` | `(value, color, name, index) → void` | Builder only: push a numeric sample to the variable overlay (`api.visualize(0.7, '#ff4444', 'speed', 1)`). Requires Visualize gizmo mode + single selection + wired bridge; ignores non-finite values and invalid indices (not a positive integer). No-op in Play/tests when unwired. |
 
 **Intention:** Port **car2-style** logic gradually without pasting all of [`car2Transformer.ts`](../src/transformers/presets/car2Transformer.ts). Not every `BaseTransformer` helper is exposed yet; extend deliberately.
 

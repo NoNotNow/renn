@@ -12,6 +12,12 @@ import {
   getCustomTransformerRuntimeError,
   publishCustomTransformerRuntimeError,
 } from '@/runtime/customTransformerErrorBridge'
+import {
+  clearSlots,
+  getVariableOverlaySlots,
+  setVariableOverlayDisplayEntityId,
+  setVariableOverlayFn,
+} from '@/runtime/variableOverlayBridge'
 
 describe('validateCustomTransformerSource', () => {
   test('returns null for valid legacy body', () => {
@@ -46,6 +52,9 @@ describe('validateCustomTransformerSource', () => {
 describe('CustomCodeTransformer runtime bridge', () => {
   afterEach(() => {
     clearCustomTransformerRuntimeError()
+    setVariableOverlayFn(null)
+    setVariableOverlayDisplayEntityId(null)
+    clearSlots()
   })
 
   test('publishRuntimeError reports when entity id and stack index are set', () => {
@@ -61,6 +70,58 @@ describe('CustomCodeTransformer runtime bridge', () => {
       configStackIndex: 0,
       message: 'runtime-boom',
     })
+  })
+
+  test('api.visualize publishes when bridge is wired and entity matches', () => {
+    setVariableOverlayFn(() => {})
+    setVariableOverlayDisplayEntityId('ent-a')
+    const t = new CustomCodeTransformer({
+      type: 'custom',
+      code: `function transform(input, dt, params, state, api) {
+        api.visualize(1.25, '#ff0', 'x', 2);
+        return {};
+      }`,
+    })
+    t.runtimeEntityId = 'ent-a'
+    t.transform(createMockTransformInput({ entityId: 'ent-a' }), 0.1)
+    const rows = getVariableOverlaySlots()
+    expect(rows).toEqual([expect.objectContaining({ index: 2, value: 1.25, name: 'x' })])
+  })
+
+  test('api.visualize is a no-op for mismatched selection', () => {
+    setVariableOverlayFn(() => {})
+    setVariableOverlayDisplayEntityId('other')
+    const t = new CustomCodeTransformer({
+      type: 'custom',
+      code: `function transform(input, dt, params, state, api) {
+        api.visualize(9, '#ff0', 'x', 1);
+        return {};
+      }`,
+    })
+    t.runtimeEntityId = 'ent-a'
+    t.transform(createMockTransformInput({ entityId: 'ent-a' }), 0.1)
+    expect(getVariableOverlaySlots()).toEqual([])
+  })
+
+  test('default skeleton visualizes power even when not touching ground', () => {
+    setVariableOverlayFn(() => {})
+    setVariableOverlayDisplayEntityId('ent-a')
+    const t = new CustomCodeTransformer({
+      type: 'custom',
+      code: defaultCustomTransformerCode(),
+    })
+    t.runtimeEntityId = 'ent-a'
+    t.setParams({ power: 42 })
+    t.transform(
+      createMockTransformInput({
+        entityId: 'ent-a',
+        environment: { isTouchingObject: false },
+      }),
+      0.1,
+    )
+    expect(getVariableOverlaySlots()).toEqual([
+      expect.objectContaining({ index: 1, value: 42, name: 'power' }),
+    ])
   })
 
   test('does not publish when entity context is missing', () => {

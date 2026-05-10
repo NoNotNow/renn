@@ -77,6 +77,12 @@ export interface SceneFrameLoopInputs {
    */
   recordFrameTiming: boolean
   frameTimingRef: MutableRefObject<SceneFrameTiming | null>
+  /** Optional: run at the very start of each frame (before physics / transformers). */
+  onFrameStart?: () => void
+  /** Optional: run after simulation advances, immediately before the WebGL `render` call. */
+  beforeWebGlRender?: () => void
+  /** Optional: second pass after WebGL for CSS2D labels (same scene + camera). */
+  css2dRenderer?: { render: (scene: THREE.Scene, camera: THREE.Camera) => void } | null
   /**
    * When true, skip simulation time advance, physics, transformers, and script collision handling.
    * Used when the semi-fixed accumulator has no full step this rAF (render-only tick).
@@ -130,6 +136,8 @@ export function runSceneFrame(input: SceneFrameLoopInputs): void {
     skipRender = false,
     renderInterpolationAlpha = 1,
   } = input
+
+  input.onFrameStart?.()
 
   const simAdvance = !skipSimulation
   const logicDt = simAdvance ? dt : variableFrameDt
@@ -373,8 +381,10 @@ export function runSceneFrame(input: SceneFrameLoopInputs): void {
   }
 
   if (!skipRender && rend && loadedScene && cam && !isCancelled()) {
+    input.beforeWebGlRender?.()
     syncDirectionalLightShadowFocusToCamera(loadedScene, cam)
     rend.render(loadedScene, cam)
+    input.css2dRenderer?.render(loadedScene, cam)
     if (timing) {
       timing.renderCalls = rend.info.render.calls
       timing.renderTriangles = rend.info.render.triangles

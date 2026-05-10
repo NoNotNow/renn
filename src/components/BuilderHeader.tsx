@@ -11,7 +11,7 @@ import {
   TEXTURE_PAINT_RADIUS_PX,
   type BuilderGizmoMode,
 } from '@/editor/transformGizmoController'
-import { GizmoMoveIcon, GizmoBrushIcon, GizmoRotateIcon, GizmoScaleIcon } from '@/components/GizmoModeIcons'
+import { GizmoMoveIcon, GizmoBrushIcon, GizmoRotateIcon, GizmoScaleIcon, GizmoVisualizeIcon } from '@/components/GizmoModeIcons'
 import { BrushToolPopover } from '@/components/BrushToolPopover'
 import { entityPanelIconButtonStyle } from '@/components/sharedStyles'
 
@@ -114,13 +114,11 @@ export default function BuilderHeader({
   const [showProjectSelector, setShowProjectSelector] = useState(false)
   const [brushPopoverOpen, setBrushPopoverOpen] = useState(false)
   const brushToolButtonRef = useRef<HTMLButtonElement>(null)
-  const wasPaintGizmoRef = useRef(gizmoMode === 'paint')
 
   useLayoutEffect(() => {
-    if (wasPaintGizmoRef.current && gizmoMode !== 'paint') {
+    if (gizmoMode !== 'paint') {
       setBrushPopoverOpen(false)
     }
-    wasPaintGizmoRef.current = gizmoMode === 'paint'
   }, [gizmoMode])
 
   const handleBrushToolClick = (): void => {
@@ -358,6 +356,27 @@ export default function BuilderHeader({
               borderRight: '1px solid #2f3545',
             }}
           >
+            <button
+              type="button"
+              title="Visualize custom transformer variables"
+              aria-label="Visualize variables"
+              aria-pressed={gizmoMode === 'visualize'}
+              onClick={() => onGizmoModeChange('visualize')}
+              style={{
+                ...entityPanelIconButtonStyle,
+                display: 'flex',
+                background: gizmoMode === 'visualize' ? '#2a3142' : 'transparent',
+                opacity: gizmoMode === 'visualize' ? 1 : 0.85,
+              }}
+              onMouseEnter={(e) => {
+                if (gizmoMode !== 'visualize') e.currentTarget.style.opacity = '1'
+              }}
+              onMouseLeave={(e) => {
+                if (gizmoMode !== 'visualize') e.currentTarget.style.opacity = '0.85'
+              }}
+            >
+              {GizmoVisualizeIcon}
+            </button>
             <button
               ref={brushToolButtonRef}
               type="button"

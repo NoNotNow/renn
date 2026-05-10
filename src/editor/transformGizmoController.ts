@@ -54,7 +54,12 @@ function logicalRotationFromMeshWorldQuaternion(mesh: THREE.Mesh, worldQuat: THR
   return quaternionToEuler(stripVisualBase(worldQuat, mesh, _gizmoScratchQuat))
 }
 
-export type BuilderGizmoMode = 'translate' | 'rotate' | 'scale' | 'paint'
+export type BuilderGizmoMode = 'translate' | 'rotate' | 'scale' | 'paint' | 'visualize'
+
+/**
+ * World-space width for the variable overlay bar group (scale of columns + bar height mapping).
+ */
+export const BUILDER_VARIABLE_OVERLAY_GROUP_WIDTH = 3
 
 /** Default brush radius in texture pixels (Builder paint tool). */
 export const TEXTURE_PAINT_RADIUS_PX = 6
@@ -190,7 +195,7 @@ export function installBuilderPickAndGizmo(
     const item = reg.get(id)
     if (!item) return
     const mode = p.getGizmoMode()
-    if (mode === 'paint') return
+    if (mode === 'paint' || mode === 'visualize') return
     if (mode === 'scale') {
       const [sx, sy, sz] = clampGizmoScaleAxes(obj.scale.x, obj.scale.y, obj.scale.z)
       if (sx !== obj.scale.x || sy !== obj.scale.y || sz !== obj.scale.z) {
@@ -227,7 +232,8 @@ export function installBuilderPickAndGizmo(
   }
 
   const syncAttach = (): void => {
-    if (p.getGizmoMode() === 'paint') {
+    const mode = p.getGizmoMode()
+    if (mode === 'paint' || mode === 'visualize') {
       controls.detach()
       return
     }
@@ -355,7 +361,7 @@ export function installBuilderPickAndGizmo(
     const id = obj.name
     if (!id || !reg) return
     const mode = p.getGizmoMode()
-    if (mode === 'paint') return
+    if (mode === 'paint' || mode === 'visualize') return
     if (mode === 'scale') {
       const baked = reg.applyGizmoScaleBake(id)
       if (!baked) {

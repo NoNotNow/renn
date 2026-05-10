@@ -16,6 +16,9 @@ import {
   clearCustomTransformerRuntimeErrorForTarget,
   publishCustomTransformerRuntimeError,
 } from '@/runtime/customTransformerErrorBridge'
+import { publishVariableValue } from '@/runtime/variableOverlayBridge'
+
+let _customCodeVisualizeEntityId: string | null = null
 
 function isFiniteNum(n: unknown): n is number {
   return typeof n === 'number' && Number.isFinite(n)
@@ -107,6 +110,11 @@ export interface TransformerRuntimeApi {
   eulerDeltaAroundAxis(currentRotation: Rotation, axis: Vec3, angleRad: number): Rotation
   /** Show a message in the play-mode snackbar. durationSeconds defaults to 4. No-op in tests unless wired via setTransformerSnackbarFn. */
   log(message: string, durationSeconds?: number): void
+  /**
+   * Builder visualize mode only: records a numeric sample for the variable overlay when the bridge is wired.
+   * No-op in Play mode, tests, or when visualize gizmo mode is inactive.
+   */
+  visualize(value: number, color: string, name: string, index: number): void
 }
 
 type SnackbarFn = (message: string, durationSeconds: number) => void
@@ -137,6 +145,11 @@ export const TRANSFORMER_RUNTIME_API: TransformerRuntimeApi = Object.freeze({
   eulerDeltaAroundAxis,
   log: (message: string, durationSeconds = 4): void => {
     _snackbarFn?.(String(message), durationSeconds)
+  },
+  visualize: (value: number, color: string, name: string, index: number): void => {
+    const id = _customCodeVisualizeEntityId
+    if (id == null) return
+    publishVariableValue(id, value, color, name, index)
   },
 } satisfies TransformerRuntimeApi)
 
@@ -219,6 +232,8 @@ export class CustomCodeTransformer implements Transformer {
   }
 
   transform(input: TransformInput, dt: number): TransformOutput {
+    const prevVisualizeEntity = _customCodeVisualizeEntityId
+    _customCodeVisualizeEntityId = this.runtimeEntityId ?? null
     try {
       const raw = this.transformFn(input, dt, this.liveParams, this.state, TRANSFORMER_RUNTIME_API)
       const out = sanitizeTransformOutput(raw)
@@ -228,6 +243,8 @@ export class CustomCodeTransformer implements Transformer {
       console.warn('[CustomCodeTransformer] Runtime error:', e)
       this.publishRuntimeError(e)
       return {}
+    } finally {
+      _customCodeVisualizeEntityId = prevVisualizeEntity
     }
   }
 
@@ -253,7 +270,7 @@ export function defaultCustomTransformerCode(): string {
 // { "power": 120 }
 
 // JSDoc @type on each parameter below wires Monaco completions for transforms (otherwise parameters become implicit any).
-// Example throttle binding: semantic action names depend on your input transformer mappings.
+// Example: use api.visualize(...) in Builder with the Visualize toolbar mode to plot live numbers.
 
 /** @returns {TransformOutput | undefined} */
 function transform(
@@ -264,6 +281,8 @@ function transform(
   /** @type {TransformerRuntimeApi} */ api,
 ) {
   const power = Number(params.power ?? 0);
+  // Builder Visualize mode: plot every tick (no-op when overlay unwired). Must run before the touch gate so the bar updates without contact.
+  api.visualize(power, '#48d9ff', 'power', 1);
   if (!input.environment.isTouchingObject || power === 0) return {};
 
   const forward = api.getForwardVector(input.rotation);

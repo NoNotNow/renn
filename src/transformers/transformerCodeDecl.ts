@@ -100,6 +100,11 @@ interface TransformerRuntimeApi {
   eulerDeltaAroundAxis(currentRotation: Rotation, axis: Vec3, angleRad: number): Rotation;
   /** Show message on play snackbar via ScriptSnackbar; default durationSeconds 4. No-op when unwired (e.g. tests). */
   log(message: string, durationSeconds?: number): void;
+  /**
+   * Builder visualize mode: push one numeric sample to the variable overlay (selected entity, overlay wired).
+   * Ignores non-finite values. No-op in Play/tests or when overlay is unwired.
+   */
+  visualize(value: number, color: string, name: string, index: number): void;
 }
 
 /** Type alias for the canonical transform(...) callback (use with optional JSDoc @type referencing TransformFn). */
