@@ -2,7 +2,7 @@
  * Monaco `.d.ts` content for custom transformer authoring (matches `customCodeTransformer` runner).
  *
  * IntelliSense combines:
- * - **Ambient types** (`TransformInput`, `TransformerRuntimeApi`, …) from JSDoc on each `transform` parameter (inline `@type {TransformInput}` before `input`, same for `api`, or a full `@param` block). Without that, a named `function transform(input, …)` keeps parameters as implicit `any` and hides `input.` / `api.` completions — local params shadow the `declare const` globals below.
+ * - **Ambient types** (`TransformInput`, `TransformerRuntimeApi`, `TransformerVecApi`, …) from JSDoc on each `transform` parameter (inline `@type {TransformInput}` before `input`, same for `api`, or a full `@param` block). Without that, a named `function transform(input, …)` keeps parameters as implicit `any` and hides `input.` / `api.` completions — local params shadow the `declare const` globals below.
  * - **`declare const`** for legacy body-only snippets that never declare `function transform(...)`.
  */
 
@@ -48,7 +48,9 @@ interface TransformInput {
   position: Vec3;
   /** Euler angles [x, y, z] in radians. Three.js convention: -Z = forward. */
   rotation: Rotation;
-  /** World-space linear velocity (m/s). */
+  /**
+   * World-space linear velocity (m/s), tuple [x, y, z]. Use v[0]–v[2] or \`api.vec.*\` helpers (e.g. getForwardSpeed with \`api.vec.getForwardVector(input.rotation)\`).
+   */
   velocity: Vec3;
   /** World-space angular velocity (rad/s). */
   angularVelocity: Vec3;
@@ -63,6 +65,20 @@ interface TransformInput {
   entityId: string;
   /** Movement intent from targetPoseInput (or similar earlier in chain). Last writer wins. */
   target?: TransformTarget;
+}
+
+/** Grouped vector helpers for tuple Vec3; use \`api.vec\` after typing \`api\` as \`TransformerRuntimeApi\`. */
+interface TransformerVecApi {
+  /** Unit forward (-Z facing) from Euler. */
+  getForwardVector(rotation: Rotation): Vec3;
+  /** Unit world up (+Y) from Euler. */
+  getUpVector(rotation: Rotation): Vec3;
+  dot(a: Vec3, b: Vec3): number;
+  length(v: Vec3): number;
+  add(a: Vec3, b: Vec3): Vec3;
+  scale(v: Vec3, s: number): Vec3;
+  /** Signed scalar speed along \`forward\` (dot product); prefer unit forward from getForwardVector. */
+  getForwardSpeed(velocity: Vec3, forward: Vec3): number;
 }
 
 interface TransformOutput {
@@ -86,14 +102,16 @@ interface TransformOutput {
 interface TransformerRuntimeApi {
   /** input.actions[name] ?? 0. */
   getAction(input: TransformInput, name: string): number;
-  /** Unit forward (-Z facing) from Euler. */
+  /** Unit forward (-Z facing) from Euler; same as \`api.vec.getForwardVector\`. */
   getForwardVector(rotation: Rotation): Vec3;
-  /** Unit world up (+Y) from Euler. */
+  /** Unit world up (+Y) from Euler; same as \`api.vec.getUpVector\`. */
   getUpVector(rotation: Rotation): Vec3;
-  /** Component-wise sum. */
+  /** Component-wise sum; same as \`api.vec.add\`. */
   addVec3(a: Vec3, b: Vec3): Vec3;
-  /** Multiply each component of v by scalar s. */
+  /** Multiply each component of v by scalar s; same as \`api.vec.scale\`. */
   scaleVec3(v: Vec3, s: number): Vec3;
+  /** Dot, length, add, scale, basis vectors from Euler, getForwardSpeed — grouped Vec3 tuple helpers. */
+  vec: TransformerVecApi;
   /** Clamp value inclusively between min and max. */
   clamp(value: number, min: number, max: number): number;
   /** Euler rotation delta for yaw-like turn around arbitrary world axis (radians). */

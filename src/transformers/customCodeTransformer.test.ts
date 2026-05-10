@@ -171,11 +171,11 @@ describe('CustomCodeTransformer', () => {
     expect(out.force).toEqual([1, 2, 3])
   })
 
-  test('full function uses api.getForwardVector and scaleVec3', () => {
+  test('full function uses api.vec.getForwardVector and api.vec.scale', () => {
     const t = new CustomCodeTransformer({
       type: 'custom',
       code: `function transform(input, dt, params, state, api) {
-        return { impulse: api.scaleVec3(api.getForwardVector([0,0,0]), 5 * dt) };
+        return { impulse: api.vec.scale(api.vec.getForwardVector([0,0,0]), 5 * dt) };
       }`,
     })
     const out = t.transform(
@@ -189,7 +189,8 @@ describe('CustomCodeTransformer', () => {
   test('defaultCustomTransformerCode is a full function, references api, respects touching gate', () => {
     const src = defaultCustomTransformerCode()
     expect(src).toContain('function transform(')
-    expect(src).toContain('api.getForwardVector')
+    expect(src).toContain('api.vec.getForwardVector')
+    expect(src).toContain('api.vec.scale')
     const t = new CustomCodeTransformer({ type: 'custom', code: src, params: { power: 100 } })
     const inAir = t.transform(createMockTransformInput({ environment: {} }), 0.1)
     expect(inAir).toEqual({})
@@ -218,6 +219,22 @@ describe('CustomCodeTransformer', () => {
     } finally {
       setTransformerSnackbarFn(null)
     }
+  })
+
+  test('TRANSFORMER_RUNTIME_API.vec matches tuple math', () => {
+    const api = TRANSFORMER_RUNTIME_API
+    const a: [number, number, number] = [1, 2, 3]
+    const b: [number, number, number] = [4, 5, 6]
+    expect(api.vec.getForwardVector([0, 0, 0])).toEqual(api.getForwardVector([0, 0, 0]))
+    expect(api.vec.getUpVector([0, 0, 0])).toEqual(api.getUpVector([0, 0, 0]))
+    expect(api.vec.dot(a, b)).toBe(32)
+    expect(api.vec.length([3, 4, 0])).toBe(5)
+    expect(api.vec.add([1, 0, 0], [0, 2, 0])).toEqual([1, 2, 0])
+    expect(api.vec.scale([2, 3, 4], 2)).toEqual([4, 6, 8])
+    expect(api.addVec3(a, b)).toEqual(api.vec.add(a, b))
+    expect(api.scaleVec3(a, 2)).toEqual(api.vec.scale(a, 2))
+    const fwd: [number, number, number] = [0, 0, -1]
+    expect(api.vec.getForwardSpeed([0, 0, -5], fwd)).toBe(5)
   })
 
   test('api.log is a no-op when snackbar is not wired', () => {

@@ -34,21 +34,21 @@ Right sidebar **Code** drawer (Builder): **Transformers** | **Transformer code**
 ### Runtime
 
 - **Full function authoring**: `TransformerConfig.code` now stores the complete function definition: `function transform(input, dt, params, state, api) { … }`. The runtime detects `function transform(` in the source; legacy body-only code (bare `return` statements) is still wrapped automatically for backward compat.
-- **`TRANSFORMER_RUNTIME_API`**: frozen singleton passed every frame; thin wrappers over shared utils (see table below).
+- **`TRANSFORMER_RUNTIME_API`**: frozen singleton passed every frame; **`api.vec`** groups tuple vector helpers (`getForwardVector`, `getUpVector`, `dot`, `length`, `add`, `scale`, `getForwardSpeed`); top-level `getForwardVector` / `getUpVector` / `addVec3` / `scaleVec3` delegate to the same implementations (see table below).
 - **`api.log`**: calls the play-mode snackbar (wired via `setTransformerSnackbarFn` from `SceneView`; no-op in tests unless explicitly wired). `durationSeconds` defaults to 4.
 - **`api.visualize`**: records overlay samples when Builder **Visualize** gizmo mode is active, the bridge is wired from `SceneView`, and the publishing entity matches the single selection (`variableOverlayBridge` + `publishVariableValue`). No-op in Play mode and tests by default.
 - **Sanitization**: non-finite / invalid `TransformOutput` fields stripped.
-- **`effectiveCustomTransformerCode`** + **default skeleton**: params shape comment at the top, full `function transform(...)` body: **`api.visualize` for `power` before the `isTouchingObject` gate** so Builder Visualize shows the bar without ground contact; impulse still requires touch + nonzero power. Preset default includes `params.power` in [`transformerPresets.ts`](../src/transformers/transformerPresets.ts).
+- **`effectiveCustomTransformerCode`** + **default skeleton**: params shape comment at the top, full `function transform(...)` body: **`api.visualize` for `power` before the `isTouchingObject` gate** so Builder Visualize shows the bar without ground contact; impulse still requires touch + nonzero power (`api.vec.scale` on **`api.vec.getForwardVector`**). Preset default includes `params.power` in [`transformerPresets.ts`](../src/transformers/transformerPresets.ts).
 
 ### Monaco / IntelliSense
 
-- [`transformerCodeDecl.ts`](../src/transformers/transformerCodeDecl.ts): type declarations for `Vec3`, `TransformInput`, `TransformOutput`, `TransformerRuntimeApi` (including **`getAction`**, **`log`**, and **`visualize`**). **`declare const` globals** still apply for legacy **body-only** snippets. For **`function transform(…)`**, local parameters shadow those globals: without JSDoc, `input` / `api` stay **implicit `any`** — use **inline `/** @type {TransformInput} */` before `input`** (and likewise for **`TransformerRuntimeApi` on `api`**) or a matching **`@param` block**. Default skeleton ships with inline `@type` so autocomplete works without extra authoring.
+- [`transformerCodeDecl.ts`](../src/transformers/transformerCodeDecl.ts): type declarations for `Vec3`, `TransformInput`, `TransformOutput`, `TransformerVecApi`, `TransformerRuntimeApi` (including **`getAction`**, **`log`**, **`visualize`**, and **`vec`**). **`declare const` globals** still apply for legacy **body-only** snippets. For **`function transform(…)`**, local parameters shadow those globals: without JSDoc, `input` / `api` stay **implicit `any`** — use **inline `/** @type {TransformInput} */` before `input`** (and likewise for **`TransformerRuntimeApi` on `api`**) or a matching **`@param` block**. Use **`api.vec.*`** for grouped vector helpers; **`input.velocity`** is a tuple, not an object with methods. Default skeleton ships with inline `@type` so autocomplete works without extra authoring.
 
 ### Tests (existing)
 
 - [`migrateWorld.test.ts`](../src/scripts/migrateWorld.test.ts) — custom name migration.
 - [`customTransformerNaming.test.ts`](../src/transformers/customTransformerNaming.test.ts).
-- [`customCodeTransformer.test.ts`](../src/transformers/customCodeTransformer.test.ts) — legacy body, `api` usage, default snippet behavior, `validateCustomTransformerSource`, runtime error bridge (`publish` / clear on success).
+- [`customCodeTransformer.test.ts`](../src/transformers/customCodeTransformer.test.ts) — legacy body, `api` / `api.vec` usage, default snippet behavior, `validateCustomTransformerSource`, runtime error bridge (`publish` / clear on success).
 - [`transformerRegistry.test.ts`](../src/transformers/transformerRegistry.test.ts) — custom + `api` factory path.
 - [`CodingTabPanel.test.tsx`](../src/components/CodingTabPanel.test.tsx) — Transformer code tab controls (with `CopyProvider` + `EditorUndoProvider`); invalid custom code surfaces compile error under the editor.
 
@@ -56,13 +56,22 @@ Right sidebar **Code** drawer (Builder): **Transformers** | **Transformer code**
 
 ## Runtime `api` surface (authoritative list)
 
+`Vec3` in custom code is always a **tuple** `[x, y, z]`. Vector *operations* are grouped under **`api.vec`** (Monaco completions on `api.vec.` when `api` is typed as `TransformerRuntimeApi`). `input.velocity` uses the same tuple shape — use `[0]`–`[2]` or pass the tuple into `api.vec.*`; tuple values do not have methods.
+
 | Method | Signature | Purpose |
 |--------|-----------|---------|
 | `getAction` | `(input, name) → number` | `input.actions[name] ?? 0` |
 | `getForwardVector` | `(rotation) → Vec3` | Forward unit direction from Euler (Three -Z convention). |
 | `getUpVector` | `(rotation) → Vec3` | Up from Euler (+Y). |
-| `addVec3` | `(a, b) → Vec3` | Component-wise sum. |
-| `scaleVec3` | `(v, s) → Vec3` | Scale all components by s. |
+| `addVec3` | `(a, b) → Vec3` | Component-wise sum (same as `api.vec.add`). |
+| `scaleVec3` | `(v, s) → Vec3` | Scale all components by s (same as `api.vec.scale`). |
+| `vec.getForwardVector` | `(rotation) → Vec3` | Same as `getForwardVector`. |
+| `vec.getUpVector` | `(rotation) → Vec3` | Same as `getUpVector`. |
+| `vec.dot` | `(a, b) → number` | Dot product. |
+| `vec.length` | `(v) → number` | Euclidean length. |
+| `vec.add` | `(a, b) → Vec3` | Component-wise sum. |
+| `vec.scale` | `(v, s) → Vec3` | Scale all components by s. |
+| `vec.getForwardSpeed` | `(velocity, forward) → number` | Signed speed along `forward` (dot product); prefer unit `forward` from `getForwardVector`. |
 | `clamp` | `(value, min, max) → number` | Inclusive clamp. |
 | `eulerDeltaAroundAxis` | `(currentRotation, axis, angleRad) → Rotation` | Euler delta for yaw-like turns around a world axis. |
 | `log` | `(message, durationSeconds?) → void` | Show message in play-mode snackbar. Default duration: 4 s. Wired via `setTransformerSnackbarFn` from `SceneView`; no-op otherwise. |
@@ -97,7 +106,7 @@ Right sidebar **Code** drawer (Builder): **Transformers** | **Transformer code**
 | **Integration** | Builder `handleEntityTransformersChange` / `syncEntityTransformers` path after Code-tab code edit (scene key unchanged). |
 | **E2E (Playwright)** | Open Code drawer, **Transformer code** subtab (middle), edit custom, optional play-mode smoke. |
 | **Migration** | Round-trip export/import with mixed named / legacy custom stacks. |
-| **`api` coverage** | One test per `TransformerRuntimeApi` method against known vectors / angles (golden or tolerance). |
+| **`api` coverage** | One test per `TransformerRuntimeApi` / `api.vec` method against known vectors / angles (golden or tolerance). |
 | **Regression** | Worlds with legacy body-only snippets (bare `return` statements) still compile and run via auto-detection. |
 
 ---

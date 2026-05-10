@@ -5,12 +5,17 @@ export function scaleVec3(v: Vec3, s: number): Vec3 {
   return [v[0] * s, v[1] * s, v[2] * s]
 }
 
+/** Dot product of two Vec3 tuples. */
+export function dotVec3(a: Vec3, b: Vec3): number {
+  return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+}
+
 /**
  * Signed forward speed: velocity along forward axis (subtracts sideways).
  * Returns dot(velocity, forward); positive = forward, negative = backward.
  */
 export function getForwardSpeed(velocity: Vec3, forward: Vec3): number {
-  return velocity[0] * forward[0] + velocity[1] * forward[1] + velocity[2] * forward[2]
+  return dotVec3(velocity, forward)
 }
 
 const STEERING_TORQUE_SCALE = 40

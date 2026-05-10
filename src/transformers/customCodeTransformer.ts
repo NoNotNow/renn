@@ -11,7 +11,12 @@ import type {
 } from '@/types/transformer'
 import { clamp } from '@/utils/numberUtils'
 import { getForwardVectorFromEuler, getUpVectorFromEuler, eulerDeltaAroundAxis } from '@/utils/rotationUtils'
-import { scaleVec3 as scaleVec3Util } from '@/utils/vec3'
+import {
+  dotVec3,
+  getForwardSpeed as getForwardSpeedUtil,
+  scaleVec3 as scaleVec3Util,
+  vec3Length,
+} from '@/utils/vec3'
 import {
   clearCustomTransformerRuntimeErrorForTarget,
   publishCustomTransformerRuntimeError,
@@ -99,13 +104,32 @@ function sanitizeTransformOutput(raw: unknown): TransformOutput {
   return next
 }
 
+/** Vector math exposed as `api.vec.*` (tuple `[x,y,z]`); flat `addVec3` / `scaleVec3` are the same as `vec.add` / `vec.scale`; flat `getForwardVector` / `getUpVector` match `vec.getForwardVector` / `vec.getUpVector`. */
+export interface TransformerVecApi {
+  /** Unit forward (-Z facing) from Euler. */
+  getForwardVector(rotation: Rotation): Vec3
+  /** Unit world up (+Y) from Euler. */
+  getUpVector(rotation: Rotation): Vec3
+  dot(a: Vec3, b: Vec3): number
+  length(v: Vec3): number
+  add(a: Vec3, b: Vec3): Vec3
+  scale(v: Vec3, s: number): Vec3
+  /** Scalar speed along `forward` (unnormalized forward scales the projection). Prefer a unit forward from getForwardVector. */
+  getForwardSpeed(velocity: Vec3, forward: Vec3): number
+}
+
 /** Frozen singleton passed as the fifth argument to compiled custom transformer functions. */
 export interface TransformerRuntimeApi {
   getAction(input: TransformInput, name: string): number
+  /** Same as `api.vec.getForwardVector`. */
   getForwardVector(rotation: Rotation): Vec3
+  /** Same as `api.vec.getUpVector`. */
   getUpVector(rotation: Rotation): Vec3
+  /** Same as `api.vec.add`. */
   addVec3(a: Vec3, b: Vec3): Vec3
+  /** Same as `api.vec.scale`. */
   scaleVec3(v: Vec3, s: number): Vec3
+  vec: TransformerVecApi
   clamp(value: number, min: number, max: number): number
   eulerDeltaAroundAxis(currentRotation: Rotation, axis: Vec3, angleRad: number): Rotation
   /** Show a message in the play-mode snackbar. durationSeconds defaults to 4. No-op in tests unless wired via setTransformerSnackbarFn. */
@@ -129,18 +153,33 @@ function addVec3Impl(a: Vec3, b: Vec3): Vec3 {
   return [a[0] + b[0], a[1] + b[1], a[2] + b[2]]
 }
 
+function vecGetForwardVector(rotation: Rotation): Vec3 {
+  const v = getForwardVectorFromEuler(rotation)
+  return [v[0], v[1], v[2]]
+}
+
+function vecGetUpVector(rotation: Rotation): Vec3 {
+  const v = getUpVectorFromEuler(rotation)
+  return [v[0], v[1], v[2]]
+}
+
+const VEC_API: TransformerVecApi = Object.freeze({
+  getForwardVector: vecGetForwardVector,
+  getUpVector: vecGetUpVector,
+  dot: dotVec3,
+  length: vec3Length,
+  add: addVec3Impl,
+  scale: (v: Vec3, s: number): Vec3 => scaleVec3Util(v, s),
+  getForwardSpeed: getForwardSpeedUtil,
+})
+
 export const TRANSFORMER_RUNTIME_API: TransformerRuntimeApi = Object.freeze({
   getAction: (input: TransformInput, name: string): number => input.actions[name] ?? 0,
-  getForwardVector: (rotation: Rotation): Vec3 => {
-    const v = getForwardVectorFromEuler(rotation)
-    return [v[0], v[1], v[2]]
-  },
-  getUpVector: (rotation: Rotation): Vec3 => {
-    const v = getUpVectorFromEuler(rotation)
-    return [v[0], v[1], v[2]]
-  },
-  addVec3: addVec3Impl,
-  scaleVec3: (v: Vec3, s: number): Vec3 => scaleVec3Util(v, s),
+  getForwardVector: (rotation) => VEC_API.getForwardVector(rotation),
+  getUpVector: (rotation) => VEC_API.getUpVector(rotation),
+  addVec3: (a, b) => VEC_API.add(a, b),
+  scaleVec3: (v, s) => VEC_API.scale(v, s),
+  vec: VEC_API,
   clamp,
   eulerDeltaAroundAxis,
   log: (message: string, durationSeconds = 4): void => {
@@ -285,8 +324,8 @@ function transform(
   api.visualize(power, '#48d9ff', 'power', 1);
   if (!input.environment.isTouchingObject || power === 0) return {};
 
-  const forward = api.getForwardVector(input.rotation);
-  return { impulse: api.scaleVec3(forward, power * dt) };
+  const forward = api.vec.getForwardVector(input.rotation);
+  return { impulse: api.vec.scale(forward, power * dt) };
 }`
 }
 
