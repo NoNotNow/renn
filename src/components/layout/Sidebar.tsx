@@ -1,11 +1,33 @@
-import { useRef, useState, useCallback } from 'react'
+import {
+  useRef,
+  useState,
+  useCallback,
+  useEffect,
+  type CSSProperties,
+  type MouseEvent as ReactMouseEvent,
+  type ReactNode,
+} from 'react'
 import { clamp } from '@/utils/numberUtils'
 import { SidebarToggleButton } from '../SidebarToggleButton'
 import SidebarTabs, { type TabConfig } from '../SidebarTabs'
 
-export const SIDEBAR_MIN_WIDTH = 280
-const SIDEBAR_MAX_WIDTH = 800
+/** Minimum sidebar width (resize + open state). */
+export const SIDEBAR_MIN_WIDTH = 180
+
+const VIEWPORT_RESERVE_PX = 24
 const RESIZE_THRESHOLD_PX = 5
+
+/** Upper bound for sidebar width so the panel stays within the browser viewport. */
+export function getSidebarViewportMaxWidth(): number {
+  if (typeof window === 'undefined') return 100_000
+  return Math.max(SIDEBAR_MIN_WIDTH, window.innerWidth - VIEWPORT_RESERVE_PX)
+}
+
+function clampSidebarWidth(width: number): number {
+  return clamp(width, SIDEBAR_MIN_WIDTH, getSidebarViewportMaxWidth())
+}
+
+export type SidebarLayoutMode = 'overlay' | 'inline'
 
 export interface SidebarProps {
   side: 'left' | 'right'
@@ -14,7 +36,7 @@ export interface SidebarProps {
   tabConfig: readonly TabConfig<string>[]
   activeTab: string
   onTabChange: (tab: string) => void
-  children: React.ReactNode
+  children: ReactNode
   width?: number
   toggleLogContext: string
   /** When set, the toggle button also acts as a resize handle and this is called with the new width. */
@@ -22,7 +44,12 @@ export interface SidebarProps {
   /** When true, aside uses overflow: visible so content (e.g. Monaco IntelliSense) is not clipped. */
   overflowVisible?: boolean
   /** Rendered at the right end of the tab row (see SidebarTabs `trailing`). */
-  tabsTrailing?: React.ReactNode
+  tabsTrailing?: ReactNode
+  /**
+   * `overlay` — absolute positioned over the canvas (default).
+   * `inline` — participates in flex row layout (docked Builder right panel).
+   */
+  layout?: SidebarLayoutMode
 }
 
 export default function Sidebar({
@@ -38,15 +65,24 @@ export default function Sidebar({
   onWidthChange,
   overflowVisible = false,
   tabsTrailing,
+  layout = 'overlay',
 }: SidebarProps) {
   const isLeft = side === 'left'
+  const isOverlay = layout === 'overlay'
   const [isResizing, setIsResizing] = useState(false)
   const resizeRef = useRef<{ startX: number; startWidth: number; resizing: boolean } | null>(null)
 
-  const effectiveWidth = clamp(width, SIDEBAR_MIN_WIDTH, SIDEBAR_MAX_WIDTH)
+  const [_viewportRevision, bumpViewportRevision] = useState(0)
+  useEffect(() => {
+    const onResize = () => bumpViewportRevision((n) => n + 1)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+
+  const effectiveWidth = clampSidebarWidth(width)
 
   const handleResizeMouseDown = useCallback(
-    (e: React.MouseEvent<HTMLButtonElement>) => {
+    (e: ReactMouseEvent<HTMLButtonElement>) => {
       if (onWidthChange == null) return
       resizeRef.current = {
         startX: e.clientX,
@@ -63,7 +99,7 @@ export default function Sidebar({
         }
         if (data.resizing) {
           const delta = isLeft ? moveEvent.clientX - data.startX : data.startX - moveEvent.clientX
-          const newWidth = clamp(data.startWidth + delta, SIDEBAR_MIN_WIDTH, SIDEBAR_MAX_WIDTH)
+          const newWidth = clampSidebarWidth(data.startWidth + delta)
           onWidthChange(newWidth)
         }
       }
@@ -83,20 +119,29 @@ export default function Sidebar({
     [isLeft, effectiveWidth, onWidthChange, onToggle]
   )
 
+  const outerStyle: CSSProperties = {
+    display: 'flex',
+    height: '100%',
+    minHeight: 0,
+    zIndex: 100,
+    pointerEvents: isOpen ? 'auto' : 'none',
+    flexDirection: isLeft ? 'row' : 'row-reverse',
+    ...(isOverlay
+      ? {
+          position: 'absolute',
+          [side]: 0,
+          top: 0,
+          bottom: 0,
+        }
+      : {
+          position: 'relative',
+          flexShrink: 0,
+          alignSelf: 'stretch',
+        }),
+  }
+
   return (
-    <div
-      style={{
-        position: 'absolute',
-        [side]: 0,
-        top: 0,
-        bottom: 0,
-        display: 'flex',
-        height: '100%',
-        zIndex: 100,
-        pointerEvents: isOpen ? 'auto' : 'none',
-        flexDirection: isLeft ? 'row' : 'row-reverse',
-      }}
-    >
+    <div style={outerStyle}>
       <aside
         style={{
           width: isOpen ? effectiveWidth : 0,

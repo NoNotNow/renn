@@ -63,4 +63,18 @@ export const TabIcons = {
       <path d="M2 12l10 5 10-5" />
     </svg>
   ),
+  /** Right inspector floating over the canvas. */
+  panelLayoutFloating: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={iconStyle}>
+      <rect x="2" y="4" width="20" height="16" rx="2" />
+      <rect x="12" y="6" width="9" height="12" rx="1" />
+    </svg>
+  ),
+  /** Right inspector docked beside the canvas. */
+  panelLayoutDocked: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={iconStyle}>
+      <rect x="2" y="4" width="12" height="16" rx="2" />
+      <rect x="14" y="4" width="8" height="16" rx="1" />
+    </svg>
+  ),
 } as const

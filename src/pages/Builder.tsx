@@ -242,6 +242,7 @@ export default function Builder() {
     fsChromeControlVisible,
   } = useBuilderFullscreenChrome()
   const [showGameHud, setShowGameHud] = useLocalStorageState('builderShowGameHud', false)
+  const [rightPanelDocked, setRightPanelDocked] = useLocalStorageState('rightSidebarDocked', false)
 
   const sceneCameraConfig = useMemo(
     () => ({
@@ -1049,193 +1050,259 @@ export default function Builder() {
         onApplyTexture={handleApplyTextureDownscale}
       />
 
-      <div style={{ position: 'relative', flex: 1, minHeight: 0, width: '100%', overflow: 'hidden' }}>
-        {editNavigationMode && (
+      <div
+        ref={fsSidebarsHitTestRef}
+        style={{
+          position: 'relative',
+          flex: 1,
+          minHeight: 0,
+          minWidth: 0,
+          width: '100%',
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'row',
+        }}
+      >
+        <div
+          style={{
+            flex: 1,
+            minWidth: 0,
+            minHeight: 0,
+            position: 'relative',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          {editNavigationMode && (
+            <div
+              role="status"
+              aria-label="Edit-Modus aktiv"
+              title="Edit-Modus: Navigation"
+              style={{
+                position: 'absolute',
+                top: 10,
+                right: 10,
+                zIndex: 200,
+                width: 12,
+                height: 12,
+                borderRadius: '50%',
+                background: theme.status.editMode,
+                boxShadow: '0 0 0 2px rgba(0,0,0,0.35)',
+                pointerEvents: 'none',
+              }}
+            />
+          )}
+          <main style={{ flex: 1, minHeight: 0, width: '100%' }}>
+            <ErrorBoundary
+              fallback={
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', background: theme.bg.errorFallback, color: theme.text.primary }}>
+                  <div style={{ textAlign: 'center' }}>
+                    <h2>Scene Error</h2>
+                    <p>The 3D scene encountered an error. Try reloading the project.</p>
+                  </div>
+                </div>
+              }
+            >
+              <SceneView
+                ref={sceneViewRef}
+                world={world}
+                cameraConfig={sceneCameraConfig}
+                assets={assets}
+                version={version}
+                runPhysics
+                runScripts
+                shadowsEnabled={shadowsEnabled}
+                selectedEntityIds={selectedEntityIds}
+                onSelectEntity={handleSelectEntity}
+                onEntityPoseCommit={handleEntityPoseCommit}
+                gizmoMode={gizmoMode}
+                initialPosesRef={initialPosesRef}
+                onPosesRestored={syncPosesFromScene}
+                editNavigationMode={editNavigationMode}
+                editorFreePoseRef={editorFreePoseRef}
+                soundPlaybackCommand={soundPlaybackCommand}
+                performancePick={
+                  perfPickMode
+                    ? {
+                        mode: perfPickMode,
+                        onEntityPicked: (id: string) => {
+                          if (perfPickMode === 'mesh') setPerfMeshEntityId(id)
+                          if (perfPickMode === 'texture') setPerfTextureEntityId(id)
+                          setPerfPickMode(null)
+                        },
+                      }
+                    : null
+                }
+                showGameHud={showGameHud}
+                onFrameStatsClose={() => {
+                  uiLogger.click('Builder', 'Close frame stats overlay', {})
+                  handleWorldChange({
+                    ...world,
+                    world: { ...world.world, showFrameStats: false },
+                  })
+                }}
+                onCurrentAvatarChange={(id) => {
+                  if (id) setCameraTarget(id)
+                }}
+                onTexturePaintStrokeEnd={handleTexturePaintStrokeEnd}
+                pushUndoBeforePaintStroke={() => editorUndoApi.pushBeforeEdit()}
+                textureBrushRgb={textureBrushRgb}
+                textureBrushAlpha={textureBrushAlpha}
+                textureBrushRadiusPx={textureBrushRadiusPx}
+                getPaintTargetAssetId={getPaintTargetAssetId}
+                prepareWorldPaintStroke={prepareWorldPaintStroke}
+                onFullscreenChange={handleSceneFullscreenChange}
+                fullscreenTargetRef={builderColumnRef}
+                fullscreenChromeControl={{ visible: fsChromeControlVisible, bumpActivity: bumpFsChrome }}
+              />
+            </ErrorBoundary>
+          </main>
+
+          {/* Left overlay + floating right panel (pointer-events: none wrapper; drawers use auto). */}
           <div
-            role="status"
-            aria-label="Edit-Modus aktiv"
-            title="Edit-Modus: Navigation"
             style={{
               position: 'absolute',
-              top: 10,
-              right: 10,
-              zIndex: 200,
-              width: 12,
-              height: 12,
-              borderRadius: '50%',
-              background: theme.status.editMode,
-              boxShadow: '0 0 0 2px rgba(0,0,0,0.35)',
+              inset: 0,
+              zIndex: 100,
               pointerEvents: 'none',
+              display: builderChromeIdleHidden ? 'none' : undefined,
             }}
-          />
-        )}
-        {/* Canvas takes full width */}
-        <main style={{ width: '100%', height: '100%' }}>
-          <ErrorBoundary
-            fallback={
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', background: theme.bg.errorFallback, color: theme.text.primary }}>
-                <div style={{ textAlign: 'center' }}>
-                  <h2>Scene Error</h2>
-                  <p>The 3D scene encountered an error. Try reloading the project.</p>
-                </div>
-              </div>
-            }
           >
-            <SceneView
-              ref={sceneViewRef}
-              world={world}
-              cameraConfig={sceneCameraConfig}
-              assets={assets}
-              version={version}
-              runPhysics
-              runScripts
-              shadowsEnabled={shadowsEnabled}
+            <EntitySidebar
+              entities={world.entities}
               selectedEntityIds={selectedEntityIds}
+              selectedGroupIds={selectedGroupIds}
+              cameraControl={cameraControl}
+              cameraTarget={cameraTarget}
+              cameraMode={cameraMode}
+              cameraTargetVerticalAngle={cameraTargetVerticalAngle}
+              world={world}
               onSelectEntity={handleSelectEntity}
-              onEntityPoseCommit={handleEntityPoseCommit}
-              gizmoMode={gizmoMode}
-              initialPosesRef={initialPosesRef}
-              onPosesRestored={syncPosesFromScene}
-              editNavigationMode={editNavigationMode}
-              editorFreePoseRef={editorFreePoseRef}
-              soundPlaybackCommand={soundPlaybackCommand}
-              performancePick={
-                perfPickMode
-                  ? {
-                      mode: perfPickMode,
-                      onEntityPicked: (id: string) => {
-                        if (perfPickMode === 'mesh') setPerfMeshEntityId(id)
-                        if (perfPickMode === 'texture') setPerfTextureEntityId(id)
-                        setPerfPickMode(null)
-                      },
-                    }
-                  : null
+              onSelectGroup={handleSelectGroup}
+              onCreateGroupFromSelection={handleCreateGroupFromSelection}
+              onUngroup={handleUngroup}
+              onAddSelectedToGroup={handleAddSelectedToGroup}
+              onRemoveSelectedFromGroup={handleRemoveSelectedFromGroup}
+              onToggleGroupCollapsed={handleToggleGroupCollapsed}
+              onRenameGroup={handleRenameGroup}
+              onAddEntity={handleAddEntity}
+              onBulkAddEntities={handleBulkAddEntities}
+              onCameraControlChange={setCameraControl}
+              onCameraTargetChange={setCameraTarget}
+              onCameraModeChange={setCameraMode}
+              onCameraTargetVerticalAngleChange={setCameraTargetVerticalAngle}
+              onWorldChange={handleWorldChange}
+              onSoundPlaybackCommand={(action) =>
+                setSoundPlaybackCommand({ action, nonce: Date.now() + Math.random() })
               }
-              showGameHud={showGameHud}
-              onFrameStatsClose={() => {
-                uiLogger.click('Builder', 'Close frame stats overlay', {})
-                handleWorldChange({
-                  ...world,
-                  world: { ...world.world, showFrameStats: false },
-                })
-              }}
-              onCurrentAvatarChange={(id) => {
-                if (id) setCameraTarget(id)
-              }}
-              onTexturePaintStrokeEnd={handleTexturePaintStrokeEnd}
-              pushUndoBeforePaintStroke={() => editorUndoApi.pushBeforeEdit()}
+              getAvatarFocusSnapshot={() => sceneViewRef.current?.getAvatarFocusSnapshot() ?? null}
+              isOpen={leftDrawerOpen}
+              onToggle={() => setLeftDrawerOpen(!leftDrawerOpen)}
+            />
+
+            {!rightPanelDocked && (
+              <LivePosesPoll getPosesRef={getScenePosesRef} intervalMs={100}>
+                {(livePoses) => (
+                  <PropertySidebar
+                    world={world}
+                    assets={assets}
+                    selectedEntityIds={selectedEntityIds}
+                    onWorldChange={handleWorldChange}
+                    onAssetsChange={handleAssetsChange}
+                    onDeleteEntities={handleDeleteEntities}
+                    onCloneEntity={handleCloneEntity}
+                    onEntityPoseChange={handleEntityPoseChange}
+                    onEntityPhysicsChange={handleEntityPhysicsChange}
+                    onEntityMaterialChange={handleEntityMaterialChange}
+                    onEntityShapeChange={handleEntityShapeChange}
+                    onEntityModelTransformChange={handleEntityModelTransformChange}
+                    onEntityTransformersChange={handleEntityTransformersChange}
+                    onRefreshFromPhysics={handleRefreshFromPhysics}
+                    onResetPoseToSavedWorld={handleResetPoseToSavedWorld}
+                    livePoses={livePoses}
+                    isOpen={rightDrawerOpen}
+                    onToggle={() => setRightDrawerOpen(!rightDrawerOpen)}
+                    dockLayout={false}
+                    onDockLayoutChange={setRightPanelDocked}
+                    onOpenTextureStudio={activateTextureStudioForEntity}
+                    onAfterModelPresetApply={handleAfterModelPresetApply}
+                  />
+                )}
+              </LivePosesPoll>
+            )}
+          </div>
+
+          {textureMakerEntityId && textureMakerDoc ? (
+            <TextureMaker
+              entityId={textureMakerEntityId}
+              doc={textureMakerDraftDoc ?? textureMakerDoc}
+              compositePreviewUrl={compositePreviewUrl}
+              selectedLayerId={textureMakerLayerId}
+              onClose={handleTextureMakerClose}
+              revertToOriginalAvailable={textureMakerRevertReady}
+              onRevertToOriginal={handleTextureMakerRevertToOriginal}
+              onApplyTextureMaker={() => void handleTextureMakerApply()}
+              onSelectLayer={handleTextureMakerSelectLayer}
+              onPatchLayer={handleTextureMakerPatchLayer}
+              onReorderLayer={handleTextureMakerReorderLayer}
+              onRemoveLayer={handleTextureMakerRemoveLayer}
+              onAddEmptyLayer={handleTextureMakerAddEmptyLayer}
+              onImportLayer={handleTextureMakerImportLayer}
+              onMergeDown={handleTextureMakerMergeDown}
+              onResizeDocument={handleTextureMakerResizeDocument}
               textureBrushRgb={textureBrushRgb}
               textureBrushAlpha={textureBrushAlpha}
               textureBrushRadiusPx={textureBrushRadiusPx}
-              getPaintTargetAssetId={getPaintTargetAssetId}
-              prepareWorldPaintStroke={prepareWorldPaintStroke}
-              onFullscreenChange={handleSceneFullscreenChange}
-              fullscreenTargetRef={builderColumnRef}
-              fullscreenChromeControl={{ visible: fsChromeControlVisible, bumpActivity: bumpFsChrome }}
+              onTextureBrushColorHexChange={(hex) => setTextureBrushRgb(hexToColor(hex))}
+              onTextureBrushAlphaChange={setTextureBrushAlpha}
+              onTextureBrushRadiusPxChange={setTextureBrushRadiusPx}
+              studioAssets={textureMakerDraftAssets ?? assets}
+              pushUndoBeforePaintStroke={pushTextureMakerBeforeEdit}
+              onStudioPaintStrokeEnd={handleTextureMakerStudioPaintStrokeEnd}
             />
-          </ErrorBoundary>
-        </main>
-
-        {/* Sidebars overlay on top (pointer-events: none so the scene stays interactive; sidebars use auto). */}
-        <div
-          ref={fsSidebarsHitTestRef}
-          style={{
-            position: 'absolute',
-            inset: 0,
-            zIndex: 100,
-            pointerEvents: 'none',
-            display: builderChromeIdleHidden ? 'none' : undefined,
-          }}
-        >
-        <EntitySidebar
-          entities={world.entities}
-          selectedEntityIds={selectedEntityIds}
-          selectedGroupIds={selectedGroupIds}
-          cameraControl={cameraControl}
-          cameraTarget={cameraTarget}
-          cameraMode={cameraMode}
-          cameraTargetVerticalAngle={cameraTargetVerticalAngle}
-          world={world}
-          onSelectEntity={handleSelectEntity}
-          onSelectGroup={handleSelectGroup}
-          onCreateGroupFromSelection={handleCreateGroupFromSelection}
-          onUngroup={handleUngroup}
-          onAddSelectedToGroup={handleAddSelectedToGroup}
-          onRemoveSelectedFromGroup={handleRemoveSelectedFromGroup}
-          onToggleGroupCollapsed={handleToggleGroupCollapsed}
-          onRenameGroup={handleRenameGroup}
-          onAddEntity={handleAddEntity}
-          onBulkAddEntities={handleBulkAddEntities}
-          onCameraControlChange={setCameraControl}
-          onCameraTargetChange={setCameraTarget}
-          onCameraModeChange={setCameraMode}
-          onCameraTargetVerticalAngleChange={setCameraTargetVerticalAngle}
-          onWorldChange={handleWorldChange}
-          onSoundPlaybackCommand={(action) =>
-            setSoundPlaybackCommand({ action, nonce: Date.now() + Math.random() })
-          }
-          getAvatarFocusSnapshot={() => sceneViewRef.current?.getAvatarFocusSnapshot() ?? null}
-          isOpen={leftDrawerOpen}
-          onToggle={() => setLeftDrawerOpen(!leftDrawerOpen)}
-        />
-
-        <LivePosesPoll getPosesRef={getScenePosesRef} intervalMs={100}>
-          {(livePoses) => (
-            <PropertySidebar
-              world={world}
-              assets={assets}
-              selectedEntityIds={selectedEntityIds}
-              onWorldChange={handleWorldChange}
-              onAssetsChange={handleAssetsChange}
-              onDeleteEntities={handleDeleteEntities}
-              onCloneEntity={handleCloneEntity}
-              onEntityPoseChange={handleEntityPoseChange}
-              onEntityPhysicsChange={handleEntityPhysicsChange}
-              onEntityMaterialChange={handleEntityMaterialChange}
-              onEntityShapeChange={handleEntityShapeChange}
-              onEntityModelTransformChange={handleEntityModelTransformChange}
-              onEntityTransformersChange={handleEntityTransformersChange}
-              onRefreshFromPhysics={handleRefreshFromPhysics}
-              onResetPoseToSavedWorld={handleResetPoseToSavedWorld}
-              livePoses={livePoses}
-              isOpen={rightDrawerOpen}
-              onToggle={() => setRightDrawerOpen(!rightDrawerOpen)}
-              onOpenTextureStudio={activateTextureStudioForEntity}
-              onAfterModelPresetApply={handleAfterModelPresetApply}
-            />
-          )}
-        </LivePosesPoll>
+          ) : null}
         </div>
 
-        {textureMakerEntityId && textureMakerDoc ? (
-          <TextureMaker
-            entityId={textureMakerEntityId}
-            doc={textureMakerDraftDoc ?? textureMakerDoc}
-            compositePreviewUrl={compositePreviewUrl}
-            selectedLayerId={textureMakerLayerId}
-            onClose={handleTextureMakerClose}
-            revertToOriginalAvailable={textureMakerRevertReady}
-            onRevertToOriginal={handleTextureMakerRevertToOriginal}
-            onApplyTextureMaker={() => void handleTextureMakerApply()}
-            onSelectLayer={handleTextureMakerSelectLayer}
-            onPatchLayer={handleTextureMakerPatchLayer}
-            onReorderLayer={handleTextureMakerReorderLayer}
-            onRemoveLayer={handleTextureMakerRemoveLayer}
-            onAddEmptyLayer={handleTextureMakerAddEmptyLayer}
-            onImportLayer={handleTextureMakerImportLayer}
-            onMergeDown={handleTextureMakerMergeDown}
-            onResizeDocument={handleTextureMakerResizeDocument}
-            textureBrushRgb={textureBrushRgb}
-            textureBrushAlpha={textureBrushAlpha}
-            textureBrushRadiusPx={textureBrushRadiusPx}
-            onTextureBrushColorHexChange={(hex) => setTextureBrushRgb(hexToColor(hex))}
-            onTextureBrushAlphaChange={setTextureBrushAlpha}
-            onTextureBrushRadiusPxChange={setTextureBrushRadiusPx}
-            studioAssets={textureMakerDraftAssets ?? assets}
-            pushUndoBeforePaintStroke={pushTextureMakerBeforeEdit}
-            onStudioPaintStrokeEnd={handleTextureMakerStudioPaintStrokeEnd}
-          />
-        ) : null}
+        {rightPanelDocked && (
+          <div
+            style={{
+              flexShrink: 0,
+              height: '100%',
+              minHeight: 0,
+              zIndex: 100,
+              display: builderChromeIdleHidden ? 'none' : undefined,
+            }}
+          >
+            <LivePosesPoll getPosesRef={getScenePosesRef} intervalMs={100}>
+              {(livePoses) => (
+                <PropertySidebar
+                  world={world}
+                  assets={assets}
+                  selectedEntityIds={selectedEntityIds}
+                  onWorldChange={handleWorldChange}
+                  onAssetsChange={handleAssetsChange}
+                  onDeleteEntities={handleDeleteEntities}
+                  onCloneEntity={handleCloneEntity}
+                  onEntityPoseChange={handleEntityPoseChange}
+                  onEntityPhysicsChange={handleEntityPhysicsChange}
+                  onEntityMaterialChange={handleEntityMaterialChange}
+                  onEntityShapeChange={handleEntityShapeChange}
+                  onEntityModelTransformChange={handleEntityModelTransformChange}
+                  onEntityTransformersChange={handleEntityTransformersChange}
+                  onRefreshFromPhysics={handleRefreshFromPhysics}
+                  onResetPoseToSavedWorld={handleResetPoseToSavedWorld}
+                  livePoses={livePoses}
+                  isOpen={rightDrawerOpen}
+                  onToggle={() => setRightDrawerOpen(!rightDrawerOpen)}
+                  dockLayout
+                  onDockLayoutChange={setRightPanelDocked}
+                  onOpenTextureStudio={activateTextureStudioForEntity}
+                  onAfterModelPresetApply={handleAfterModelPresetApply}
+                />
+              )}
+            </LivePosesPoll>
+          </div>
+        )}
       </div>
     </div>
     </CopyProvider>
