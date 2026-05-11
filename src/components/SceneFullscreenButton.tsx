@@ -4,6 +4,11 @@ export interface SceneFullscreenButtonProps {
   active: boolean
   visible: boolean
   onToggle: () => void
+  /**
+   * Called after toggle so focus leaves the button (Space/Enter won’t re-trigger exit fullscreen).
+   * SceneView wires this to focus the WebGL host (`tabIndex={-1}`).
+   */
+  onReturnFocusToScene?: () => void
 }
 
 const containerStyle: CSSProperties = {
@@ -30,7 +35,12 @@ const buttonStyle: CSSProperties = {
 }
 
 /** Floating fullscreen toggle anchored to the bottom-left of a scene host. */
-export function SceneFullscreenButton({ active, visible, onToggle }: SceneFullscreenButtonProps) {
+export function SceneFullscreenButton({
+  active,
+  visible,
+  onToggle,
+  onReturnFocusToScene,
+}: SceneFullscreenButtonProps) {
   return (
     <div style={{ ...containerStyle, display: visible ? 'block' : 'none' }}>
       <button
@@ -38,6 +48,7 @@ export function SceneFullscreenButton({ active, visible, onToggle }: SceneFullsc
         onClick={(e) => {
           e.stopPropagation()
           onToggle()
+          onReturnFocusToScene?.()
         }}
         aria-label={active ? 'Exit fullscreen' : 'Enter fullscreen'}
         title={active ? 'Exit fullscreen (Esc)' : 'Enter fullscreen'}

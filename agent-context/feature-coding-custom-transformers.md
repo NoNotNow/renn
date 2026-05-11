@@ -14,7 +14,7 @@ Right sidebar **Code** drawer (Builder): **Transformers** | **Transformer code**
 
 ### UX & layout
 
-- **Three segments** in [`CodingTabPanel.tsx`](../src/components/CodingTabPanel.tsx): Transformers, Transformer code, Scripts. Tab strip uses `role="tablist"` / `tab` / `tabpanel`, accent underline for active tab, content-sized tab labels (`flex: 0 0 auto`, `whiteSpace: nowrap`), strip background aligned with [`SidebarTabs`](../src/components/SidebarTabs.tsx).
+- **Three segments** in [`CodingTabPanel.tsx`](../src/components/CodingTabPanel.tsx): Transformers, Transformer code, Scripts. Tab strip uses `role="tablist"` / `tab` / `tabpanel`, accent underline for active tab, content-sized tab labels (`flex: 0 0 auto`, `whiteSpace: nowrap`), strip background aligned with [`SidebarTabs`](../src/components/SidebarTabs.tsx). The active segment is persisted (`localStorage` key `builderCodingPanelSubTab`) so switching away from the Code drawer restores it; with no saved value it defaults to **Transformers**.
 - **Transformer code** segment via [`CustomTransformerCodeTab.tsx`](../src/components/CustomTransformerCodeTab.tsx):
   - Dropdown of `custom` rows by **stack index** (label from **`name`**).
   - **Name** field (blur commit); uniqueness among customs on the entity via [`customTransformerNaming.ts`](../src/transformers/customTransformerNaming.ts).

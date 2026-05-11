@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, waitFor } from '@testing-library/react'
+import { render, waitFor, act } from '@testing-library/react'
 import SceneView, { type SceneViewHandle } from '@/components/SceneView'
+import {
+  BUILDER_SCENE_CANVAS_HOST_ATTR,
+  SUPPRESS_ESCAPE_SCENE_FOCUS_ATTR,
+} from '@/config/constants'
 import type { RennWorld } from '@/types/world'
 
 vi.mock('three', async (importOriginal) => {
@@ -89,6 +93,48 @@ describe('SceneView', () => {
     await waitFor(() => {
       expect(document.querySelector('[data-testid="scene-bootstrap-loading"]')).not.toBeInTheDocument()
     })
+  })
+
+  it('Escape from a focused input moves focus to the scene canvas host', async () => {
+    render(<SceneView world={minimalWorld} runPhysics={false} runScripts={false} />)
+    await waitFor(() => {
+      expect(document.querySelector('[data-testid="scene-bootstrap-loading"]')).not.toBeInTheDocument()
+    })
+    const host = document.querySelector(`[${BUILDER_SCENE_CANVAS_HOST_ATTR}]`)
+    expect(host).toBeTruthy()
+
+    const input = document.createElement('input')
+    input.type = 'text'
+    document.body.appendChild(input)
+    input.focus()
+    expect(document.activeElement).toBe(input)
+
+    await act(async () => {
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))
+    })
+
+    expect(document.activeElement).toBe(host)
+    document.body.removeChild(input)
+  })
+
+  it('Escape does not steal focus when the editable target has suppress attribute', async () => {
+    render(<SceneView world={minimalWorld} runPhysics={false} runScripts={false} />)
+    await waitFor(() => {
+      expect(document.querySelector('[data-testid="scene-bootstrap-loading"]')).not.toBeInTheDocument()
+    })
+
+    const input = document.createElement('input')
+    input.type = 'text'
+    input.setAttribute(SUPPRESS_ESCAPE_SCENE_FOCUS_ATTR, '')
+    document.body.appendChild(input)
+    input.focus()
+
+    await act(async () => {
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))
+    })
+
+    expect(document.activeElement).toBe(input)
+    document.body.removeChild(input)
   })
 
   it('renders without error when given editor props', () => {

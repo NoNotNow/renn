@@ -37,7 +37,7 @@ renn/
 │   │   ├── sceneUserData.ts  # Typed userData for Scene and entity meshes
 │   │   └── camera.ts         # FreeFlyKeys + DEFAULT_FREE_FLY_KEYS (shared by CameraController, useKeyboardInput)
 │   ├── config/
-│   │   └── constants.ts      # App-wide constants (DB_CONFIG, BUILDER_SCENE_CANVAS_HOST_ATTR)
+│   │   └── constants.ts      # App-wide constants (DB_CONFIG, BUILDER_SCENE_CANVAS_HOST_ATTR, SUPPRESS_ESCAPE_SCENE_FOCUS_ATTR)
 │   ├── contexts/
 │   │   ├── ProjectContext.tsx # ProjectProvider: composes camera + presets hooks; project lifecycle, save/load, import/export, pose sync, asset persistence
 │   │   └── getWorldToSave.ts  # buildWorldToSave(world, cameraState, editorPose) — pure merge of live UI camera into world doc before persist
@@ -95,7 +95,7 @@ renn/
 │   │   ├── editorConstants.ts # Shared editor epsilons (e.g. VEC_EPS)
 │   │   └── transformTargetReach.ts # position/rotation reached (waypoints, wanderer)
 │   ├── components/
-│   │   ├── SceneView.tsx     # 3D canvas: load world, physics, scripts, camera, render loop; delegates skybox to useSkyDome, world audio to useWorldAudio, fullscreen state/toggle to useSceneFullscreen + SceneFullscreenButton; world-load failures render via WorldLoadErrorOverlay; Play fullscreen targets scene root; Builder passes `fullscreenTargetRef` (whole column) + document-wide chrome; Esc exits native fullscreen; Builder closes/restores side drawers; in fullscreen, header + sidebars hide with the button when idle (sidebars stay visible while the pointer is over sidebar chrome; hit-test wraps the scene row including a docked right panel)
+│   │   ├── SceneView.tsx     # 3D canvas: load world, physics, scripts, camera, render loop; delegates skybox to useSkyDome, world audio to useWorldAudio, fullscreen state/toggle to useSceneFullscreen + SceneFullscreenButton; world-load failures render via WorldLoadErrorOverlay; Play fullscreen targets scene root; Builder passes `fullscreenTargetRef` (whole column) + document-wide chrome; Esc exits native fullscreen; Builder closes/restores side drawers; in fullscreen, header + sidebars hide with the button when idle (sidebars stay visible while the pointer is over sidebar chrome; hit-test wraps the scene row including a docked right panel). **Escape** while a text field / Monaco / similar is focused blurs it and focuses the scene host (`tabIndex={-1}`) so WASD and raw game keys apply again; inline rename uses `data-suppress-escape-scene-focus` so Escape can cancel without blur-to-save running first.
 │   │   ├── SceneFullscreenButton.tsx # Floating bottom-left fullscreen toggle (visible flag controlled by useSceneFullscreen)
 │   │   ├── WorldLoadErrorOverlay.tsx # Full-bleed overlay shown by SceneView when world load fails
 │   │   ├── BuilderHeader.tsx # Toolbar: New, Save, Save as, Download, Upload, project list, Play, gravity/shadows

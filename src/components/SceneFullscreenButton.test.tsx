@@ -36,4 +36,21 @@ describe('SceneFullscreenButton', () => {
     expect(onToggle).toHaveBeenCalledTimes(1)
     expect(onParentClick).not.toHaveBeenCalled()
   })
+
+  it('calls onReturnFocusToScene after toggle', async () => {
+    const onToggle = vi.fn()
+    const onReturnFocusToScene = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <SceneFullscreenButton
+        active={false}
+        visible={true}
+        onToggle={onToggle}
+        onReturnFocusToScene={onReturnFocusToScene}
+      />,
+    )
+    await user.click(screen.getByRole('button'))
+    expect(onToggle).toHaveBeenCalledTimes(1)
+    expect(onReturnFocusToScene).toHaveBeenCalledTimes(1)
+  })
 })

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useSyncExternalStore, type CSSProperties } from 'react'
+import { useEffect, useMemo, useSyncExternalStore, type CSSProperties } from 'react'
 import type { Entity } from '@/types/world'
 import type { TransformerConfig } from '@/types/transformer'
 import type { RennWorld } from '@/types/world'
@@ -14,8 +14,13 @@ import {
   setTransformerTraceTargetEntityId,
   subscribeTransformerLiveTrace,
 } from '@/runtime/transformerTraceBridge'
+import { useLocalStorageState } from '@/hooks/useLocalStorageState'
 
 type CodingSubgroup = 'scripts' | 'transformers' | 'code'
+
+const VALID_CODING_SUBGROUPS = new Set<CodingSubgroup>(['scripts', 'transformers', 'code'])
+const BUILDER_CODING_SUBTAB_KEY = 'builderCodingPanelSubTab'
+const DEFAULT_CODING_SUBGROUP: CodingSubgroup = 'transformers'
 
 export interface CodingTabPanelProps {
   world: RennWorld
@@ -79,7 +84,20 @@ export default function CodingTabPanel({
   onWorldChange,
   onEntityTransformersChange,
 }: CodingTabPanelProps) {
-  const [subgroup, setSubgroup] = useState<CodingSubgroup>('scripts')
+  const [subgroupStored, setSubgroupStored] = useLocalStorageState<CodingSubgroup>(
+    BUILDER_CODING_SUBTAB_KEY,
+    DEFAULT_CODING_SUBGROUP,
+  )
+
+  useEffect(() => {
+    if (!VALID_CODING_SUBGROUPS.has(subgroupStored)) {
+      setSubgroupStored(DEFAULT_CODING_SUBGROUP)
+    }
+  }, [subgroupStored, setSubgroupStored])
+
+  const subgroup: CodingSubgroup = VALID_CODING_SUBGROUPS.has(subgroupStored)
+    ? subgroupStored
+    : DEFAULT_CODING_SUBGROUP
 
   useEffect(() => {
     if (subgroup === 'transformers' && selectedEntityIds.length === 1) {
@@ -144,7 +162,7 @@ export default function CodingTabPanel({
           id="coding-tab-transformers"
           aria-selected={subgroup === 'transformers'}
           {...codingTabHoverHandlers('transformers', subgroup)}
-          onClick={() => setSubgroup('transformers')}
+          onClick={() => setSubgroupStored('transformers')}
           style={codingTabStyle(subgroup === 'transformers')}
           data-testid="coding-submenu-transformers"
         >
@@ -156,7 +174,7 @@ export default function CodingTabPanel({
           id="coding-tab-code"
           aria-selected={subgroup === 'code'}
           {...codingTabHoverHandlers('code', subgroup)}
-          onClick={() => setSubgroup('code')}
+          onClick={() => setSubgroupStored('code')}
           style={codingTabStyle(subgroup === 'code')}
           data-testid="coding-submenu-code"
         >
@@ -168,7 +186,7 @@ export default function CodingTabPanel({
           id="coding-tab-scripts"
           aria-selected={subgroup === 'scripts'}
           {...codingTabHoverHandlers('scripts', subgroup)}
-          onClick={() => setSubgroup('scripts')}
+          onClick={() => setSubgroupStored('scripts')}
           style={codingTabStyle(subgroup === 'scripts')}
           data-testid="coding-submenu-scripts"
         >

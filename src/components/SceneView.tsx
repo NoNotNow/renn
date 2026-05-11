@@ -53,7 +53,10 @@ import {
 } from '@/input/rawInput'
 import { useRawMouseDrag } from '@/input/rawMouseDrag'
 import type { TransformerConfig } from '@/types/transformer'
-import { BUILDER_SCENE_CANVAS_HOST_ATTR } from '@/config/constants'
+import {
+  BUILDER_SCENE_CANVAS_HOST_ATTR,
+  SUPPRESS_ESCAPE_SCENE_FOCUS_ATTR,
+} from '@/config/constants'
 import { getSceneDependencyKey } from '@/utils/sceneDependencyKey'
 import {
   collectMaterialMapAssetIds,
@@ -269,6 +272,24 @@ function SceneViewInner({
     }
     prevShowFrameStatsRef.current = cur
   }, [world.world.showFrameStats])
+
+  useEffect(() => {
+    const onKeyDownCapture = (e: KeyboardEvent): void => {
+      if (e.key !== 'Escape') return
+      if (!isKeyboardEventInEditableContext(e)) return
+      const path = typeof e.composedPath === 'function' ? e.composedPath() : []
+      for (const n of path) {
+        if (n instanceof Element && n.hasAttribute(SUPPRESS_ESCAPE_SCENE_FOCUS_ATTR)) return
+      }
+      const host = containerRef.current
+      if (!host) return
+      const ae = document.activeElement
+      if (ae instanceof HTMLElement) ae.blur()
+      host.focus({ preventScroll: true })
+    }
+    window.addEventListener('keydown', onKeyDownCapture, true)
+    return () => window.removeEventListener('keydown', onKeyDownCapture, true)
+  }, [])
 
   const showFrameStatsOverlay =
     world.world.showFrameStats === true &&
@@ -1187,8 +1208,9 @@ function SceneViewInner({
     >
       <div
         ref={containerRef}
+        tabIndex={-1}
         {...{ [BUILDER_SCENE_CANVAS_HOST_ATTR]: true }}
-        style={{ width: '100%', height: '100%', position: 'relative' }}
+        style={{ width: '100%', height: '100%', position: 'relative', outline: 'none' }}
       />
       {sceneBootstrapPending ? (
         <div
@@ -1226,6 +1248,9 @@ function SceneViewInner({
           active={fullscreen.active}
           visible={fullscreen.chromeVisible}
           onToggle={fullscreen.toggle}
+          onReturnFocusToScene={() => {
+            containerRef.current?.focus({ preventScroll: true })
+          }}
         />
       ) : null}
     </div>

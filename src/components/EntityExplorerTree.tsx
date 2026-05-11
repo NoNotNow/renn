@@ -7,6 +7,7 @@ import {
   getGroupTree,
   type GroupTreeNode,
 } from '@/utils/entityGroups'
+import { SUPPRESS_ESCAPE_SCENE_FOCUS_ATTR } from '@/config/constants'
 import { theme } from '@/config/theme'
 import { uiLogger } from '@/utils/uiLogger'
 import CopyableArea from './CopyableArea'
@@ -178,6 +179,7 @@ function GroupRow({ group, depth, isSelected, memberCount, onSelect, onToggleCol
           <input
             type="text"
             autoFocus
+            {...{ [SUPPRESS_ESCAPE_SCENE_FOCUS_ATTR]: '' }}
             value={draftName}
             onChange={(e) => setDraftName(e.target.value)}
             onBlur={() => {
