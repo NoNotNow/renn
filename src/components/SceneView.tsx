@@ -358,6 +358,8 @@ function SceneViewInner({
   const css2dRendererRef = useRef<CSS2DRenderer | null>(null)
   const variableOverlayControllerRef = useRef<VariableOverlayController | null>(null)
   const coordinateOverlayControllerRef = useRef<CoordinateOverlayController | null>(null)
+  /** Last visualize-mode display entity id; used to clear coordinate lines on selection change only. */
+  const coordinateOverlayDisplayVidRef = useRef<string | null>(null)
 
   const fullscreen = useSceneFullscreen({
     sceneRootRef,
@@ -917,7 +919,10 @@ function SceneViewInner({
               const vid = mode === 'visualize' && ids.length === 1 ? ids[0]! : null
               setVariableOverlayDisplayEntityId(vid)
               setCoordinateOverlayDisplayEntityId(vid)
-              clearCoordinateEntries()
+              if (vid !== coordinateOverlayDisplayVidRef.current) {
+                clearCoordinateEntries()
+                coordinateOverlayDisplayVidRef.current = vid
+              }
             },
             beforeWebGlRender: () => {
               const overlay = variableOverlayControllerRef.current

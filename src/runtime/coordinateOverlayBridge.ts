@@ -1,8 +1,9 @@
 /**
  * Builder coordinate overlay: collects `api.visualizeCoordinate()` calls when wired from SceneView.
  * No-op when `_coordinateFn` is null (Play, tests, or non-visualize gizmo mode).
- * Entries are cleared each frame via `clearCoordinateEntries()` before transformers run,
- * so only current-frame calls are rendered (unlike variable overlay which tracks min/max history).
+ * Entries are cleared at the start of each physics step in `executeTransformers` (so render-only
+ * rAF frames keep the last published lines and do not flicker), and when the visualize display
+ * entity id changes in `SceneView` `onFrameStart`.
  */
 import type { Vec3 } from '@/types/world'
 

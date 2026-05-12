@@ -135,7 +135,7 @@ Bridge: `setVariableOverlayFn`, `publishVariableValue`, `getVariableOverlaySlots
 - **Multi-select:** **No overlay** — display entity id is set only when exactly one entity is selected.
 - **Bar thickness:** **World-space mesh boxes** with `STROKE_WIDTH_FACTOR` (not `Line2` / `LineSegments` width).
 - **Line rendering:** **`CylinderGeometry`** meshes oriented from entity to target coordinate; `depthTest: false`, `renderOrder: Infinity`.
-- **Per-frame clear:** Coordinate entries are cleared in `onFrameStart` each frame (unlike bar slots, which persist min/max history). Stale lines disappear immediately if the transformer stops calling `visualizeCoordinate`.
+- **Per-frame clear:** Coordinate entries are cleared once per **physics step** at the start of `RenderItemRegistry.executeTransformers` (and when the visualize target entity changes), so **render-only** rAF ticks reuse the last step’s lines and do not flicker. Stale targets disappear on the next simulated frame if the transformer stops calling `visualizeCoordinate`.
 
 ---
 

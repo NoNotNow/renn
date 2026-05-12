@@ -38,6 +38,7 @@ import {
 } from '@/runtime/transformerTraceBridge'
 import type { TransformerTraceStep } from '@/transformers/transformerTrace'
 import type { TransformerChain } from '@/transformers/transformer'
+import { clearCoordinateEntries } from '@/runtime/coordinateOverlayBridge'
 
 const shapeUpdateShadowBox = new THREE.Box3()
 const shapeUpdateShadowSize = new THREE.Vector3()
@@ -912,6 +913,7 @@ export class RenderItemRegistry {
 
   executeTransformers(dt: number, wind?: Vec3): void {
     if (!this.physicsWorld) return
+    clearCoordinateEntries()
     this.physicsWorld.resetAllForces()
 
     if (this._tfEntityIdsDirty) {
