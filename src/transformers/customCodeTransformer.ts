@@ -22,6 +22,7 @@ import {
   publishCustomTransformerRuntimeError,
 } from '@/runtime/customTransformerErrorBridge'
 import { publishVariableValue } from '@/runtime/variableOverlayBridge'
+import { publishCoordinateValue } from '@/runtime/coordinateOverlayBridge'
 
 let _customCodeVisualizeEntityId: string | null = null
 
@@ -139,6 +140,11 @@ export interface TransformerRuntimeApi {
    * No-op in Play mode, tests, or when visualize gizmo mode is inactive.
    */
   visualize(value: number, color: string, name: string, index: number): void
+  /**
+   * Builder visualize mode only: draws a line from the entity to the given world-space coordinate.
+   * No-op in Play mode, tests, or when visualize gizmo mode is inactive.
+   */
+  visualizeCoordinate(coordinate: Vec3, color: string): void
 }
 
 type SnackbarFn = (message: string, durationSeconds: number) => void
@@ -189,6 +195,11 @@ export const TRANSFORMER_RUNTIME_API: TransformerRuntimeApi = Object.freeze({
     const id = _customCodeVisualizeEntityId
     if (id == null) return
     publishVariableValue(id, value, color, name, index)
+  },
+  visualizeCoordinate: (coordinate: Vec3, color: string): void => {
+    const id = _customCodeVisualizeEntityId
+    if (id == null) return
+    publishCoordinateValue(id, coordinate, color)
   },
 } satisfies TransformerRuntimeApi)
 

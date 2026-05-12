@@ -18,6 +18,12 @@ import {
   setVariableOverlayDisplayEntityId,
   setVariableOverlayFn,
 } from '@/runtime/variableOverlayBridge'
+import {
+  clearCoordinateEntries,
+  getCoordinateOverlayEntries,
+  setCoordinateOverlayDisplayEntityId,
+  setCoordinateOverlayFn,
+} from '@/runtime/coordinateOverlayBridge'
 
 describe('validateCustomTransformerSource', () => {
   test('returns null for valid legacy body', () => {
@@ -55,6 +61,9 @@ describe('CustomCodeTransformer runtime bridge', () => {
     setVariableOverlayFn(null)
     setVariableOverlayDisplayEntityId(null)
     clearSlots()
+    setCoordinateOverlayFn(null)
+    setCoordinateOverlayDisplayEntityId(null)
+    clearCoordinateEntries()
   })
 
   test('publishRuntimeError reports when entity id and stack index are set', () => {
@@ -101,6 +110,50 @@ describe('CustomCodeTransformer runtime bridge', () => {
     t.runtimeEntityId = 'ent-a'
     t.transform(createMockTransformInput({ entityId: 'ent-a' }), 0.1)
     expect(getVariableOverlaySlots()).toEqual([])
+  })
+
+  test('api.visualizeCoordinate publishes when bridge is wired and entity matches', () => {
+    setCoordinateOverlayFn(() => {})
+    setCoordinateOverlayDisplayEntityId('ent-a')
+    const t = new CustomCodeTransformer({
+      type: 'custom',
+      code: `function transform(input, dt, params, state, api) {
+        api.visualizeCoordinate([10, 0, 5], 'blue');
+        return {};
+      }`,
+    })
+    t.runtimeEntityId = 'ent-a'
+    t.transform(createMockTransformInput({ entityId: 'ent-a' }), 0.1)
+    expect(getCoordinateOverlayEntries()).toEqual([{ coord: [10, 0, 5], color: 'blue' }])
+  })
+
+  test('api.visualizeCoordinate is a no-op for mismatched selection', () => {
+    setCoordinateOverlayFn(() => {})
+    setCoordinateOverlayDisplayEntityId('other')
+    const t = new CustomCodeTransformer({
+      type: 'custom',
+      code: `function transform(input, dt, params, state, api) {
+        api.visualizeCoordinate([1, 2, 3], 'red');
+        return {};
+      }`,
+    })
+    t.runtimeEntityId = 'ent-a'
+    t.transform(createMockTransformInput({ entityId: 'ent-a' }), 0.1)
+    expect(getCoordinateOverlayEntries()).toEqual([])
+  })
+
+  test('api.visualizeCoordinate is a no-op when bridge is not wired', () => {
+    setCoordinateOverlayDisplayEntityId('ent-a')
+    const t = new CustomCodeTransformer({
+      type: 'custom',
+      code: `function transform(input, dt, params, state, api) {
+        api.visualizeCoordinate([0, 0, 0], 'green');
+        return {};
+      }`,
+    })
+    t.runtimeEntityId = 'ent-a'
+    t.transform(createMockTransformInput({ entityId: 'ent-a' }), 0.1)
+    expect(getCoordinateOverlayEntries()).toEqual([])
   })
 
   test('default skeleton visualizes power even when not touching ground', () => {

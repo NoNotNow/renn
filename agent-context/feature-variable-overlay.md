@@ -1,6 +1,6 @@
-# Variable Overlay — design & implementation plan
+# Variable Overlay & Coordinate Overlay — design & implementation plan
 
-Builder feature: visualize numeric values from custom transformer `api.visualize()` calls as bidirectional bar charts anchored to the selected entity in the 3D scene.
+Builder feature: visualize numeric values from custom transformer `api.visualize()` calls as bidirectional bar charts anchored to the selected entity in the 3D scene, and world-space lines from the entity to arbitrary coordinates via `api.visualizeCoordinate()`.
 
 Pair with [feature-coding-custom-transformers.md](feature-coding-custom-transformers.md) and [feature-transformers.md](feature-transformers.md).
 
@@ -9,6 +9,8 @@ Pair with [feature-coding-custom-transformers.md](feature-coding-custom-transfor
 ## Implementation status (shipped)
 
 Steps 1–3 are **done** in the codebase: `visualize` gizmo mode, `CSS2DRenderer`, `variableOverlayBridge`, `variableOverlayController`, `api.visualize` on `TransformerRuntimeApi`, SceneView wiring, Monaco decls, and docs in `feature-coding-custom-transformers.md`.
+
+`api.visualizeCoordinate` is also **done**: `coordinateOverlayBridge`, `coordinateOverlayController`, API surface on `TransformerRuntimeApi`, SceneView wiring, Monaco decls.
 
 **Rendering note:** Bars and zero-line use **scaled `BoxGeometry` meshes** (not `LineSegments`), because WebGL line width is not reliable. Thickness scales with `BUILDER_VARIABLE_OVERLAY_GROUP_WIDTH` via `STROKE_WIDTH_FACTOR` in `variableOverlayController.ts`. Bar **fill color** uses the API color string on each slot’s `MeshBasicMaterial` (`THREE.Color.setStyle`). Materials use **`depthTest` / `depthWrite` off and `renderOrder = Infinity`**, matching Three.js `TransformControls`, so bars stay visible when a large selection mesh would otherwise occlude them in depth. Name labels use **larger type with `writing-mode: vertical-rl`** so adjacent columns overlap less in screen space; label text is **always white** for contrast (bar fill still uses the API color).
 
@@ -105,8 +107,10 @@ Bridge: `setVariableOverlayFn`, `publishVariableValue`, `getVariableOverlaySlots
 | Header button | [`src/components/BuilderHeader.tsx`](../src/components/BuilderHeader.tsx) |
 | Header icons | [`src/components/GizmoModeIcons.tsx`](../src/components/GizmoModeIcons.tsx) |
 | Scene renderer / CSS2DRenderer wiring | [`src/components/SceneView.tsx`](../src/components/SceneView.tsx) |
-| Overlay geometry + labels | [`src/runtime/variableOverlayController.ts`](../src/runtime/variableOverlayController.ts) |
-| Runtime bridge | [`src/runtime/variableOverlayBridge.ts`](../src/runtime/variableOverlayBridge.ts) |
+| Bar overlay geometry + labels | [`src/runtime/variableOverlayController.ts`](../src/runtime/variableOverlayController.ts) |
+| Bar overlay bridge | [`src/runtime/variableOverlayBridge.ts`](../src/runtime/variableOverlayBridge.ts) |
+| Coordinate line geometry | [`src/runtime/coordinateOverlayController.ts`](../src/runtime/coordinateOverlayController.ts) |
+| Coordinate line bridge | [`src/runtime/coordinateOverlayBridge.ts`](../src/runtime/coordinateOverlayBridge.ts) |
 | Custom transformer runtime API | [`src/transformers/customCodeTransformer.ts`](../src/transformers/customCodeTransformer.ts) |
 | Monaco type declarations | [`src/transformers/transformerCodeDecl.ts`](../src/transformers/transformerCodeDecl.ts) |
 
@@ -118,13 +122,37 @@ Bridge: `setVariableOverlayFn`, `publishVariableValue`, `getVariableOverlaySlots
 |------|----------|
 | `variableOverlayBridge` | [`variableOverlayBridge.test.ts`](../src/runtime/variableOverlayBridge.test.ts) — min/max, last-write, entity filter, cap >16, clear on unwire. |
 | Layout math | [`variableOverlayController.test.ts`](../src/runtime/variableOverlayController.test.ts) — column X, signed bar length. |
-| `api.visualize` | [`customCodeTransformer.test.ts`](../src/transformers/customCodeTransformer.test.ts) — wired vs mismatched selection. |
+| `coordinateOverlayBridge` | [`coordinateOverlayBridge.test.ts`](../src/runtime/coordinateOverlayBridge.test.ts) — entity filter, cap, clear, mutation-safety, copy safety. |
+| `api.visualize` / `api.visualizeCoordinate` | [`customCodeTransformer.test.ts`](../src/transformers/customCodeTransformer.test.ts) — wired vs mismatched selection for both APIs. |
 | Integration | Optional: Playwright Builder session (future). |
 
 ---
 
 ## Resolved notes
 
-- **Cap on simultaneous indices:** **16** — see `VARIABLE_OVERLAY_MAX_INDEX`.
-- **Multi-select:** **No bars** — display entity id is set only when exactly one entity is selected.
+- **Cap on simultaneous indices (bars):** **16** — see `VARIABLE_OVERLAY_MAX_INDEX`.
+- **Cap on simultaneous coordinate lines:** **16** — see `COORDINATE_OVERLAY_MAX_COUNT`.
+- **Multi-select:** **No overlay** — display entity id is set only when exactly one entity is selected.
 - **Bar thickness:** **World-space mesh boxes** with `STROKE_WIDTH_FACTOR` (not `Line2` / `LineSegments` width).
+- **Line rendering:** **`CylinderGeometry`** meshes oriented from entity to target coordinate; `depthTest: false`, `renderOrder: Infinity`.
+- **Per-frame clear:** Coordinate entries are cleared in `onFrameStart` each frame (unlike bar slots, which persist min/max history). Stale lines disappear immediately if the transformer stops calling `visualizeCoordinate`.
+
+---
+
+## `api.visualizeCoordinate`
+
+```ts
+api.visualizeCoordinate(coordinate: Vec3, color: string): void
+```
+
+- **`coordinate`** — world-space `[x, y, z]` target point (non-finite components are ignored).
+- **`color`** — CSS color string (e.g. `'blue'`, `'#ff4444'`).
+- Active in Builder Visualize mode with exactly one entity selected; no-op otherwise.
+- Up to 16 lines per frame (`COORDINATE_OVERLAY_MAX_COUNT`); excess calls are dropped.
+
+Example usage:
+
+```js
+// Draw a line to a target waypoint each frame
+api.visualizeCoordinate([0, 0, 0], 'blue');
+```

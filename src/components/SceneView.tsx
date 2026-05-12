@@ -75,6 +75,13 @@ import {
   getVariableOverlaySlots,
 } from '@/runtime/variableOverlayBridge'
 import { VariableOverlayController } from '@/runtime/variableOverlayController'
+import {
+  setCoordinateOverlayFn,
+  setCoordinateOverlayDisplayEntityId,
+  clearCoordinateEntries,
+  getCoordinateOverlayEntries,
+} from '@/runtime/coordinateOverlayBridge'
+import { CoordinateOverlayController } from '@/runtime/coordinateOverlayController'
 import { GameHud } from '@/components/GameHud'
 import { FrameStatsOverlay } from '@/components/FrameStatsOverlay'
 import { WarningSnackbar } from '@/components/WarningSnackbar'
@@ -350,6 +357,7 @@ function SceneViewInner({
   showGameHudRef.current = showGameHud
   const css2dRendererRef = useRef<CSS2DRenderer | null>(null)
   const variableOverlayControllerRef = useRef<VariableOverlayController | null>(null)
+  const coordinateOverlayControllerRef = useRef<CoordinateOverlayController | null>(null)
 
   const fullscreen = useSceneFullscreen({
     sceneRootRef,
@@ -396,6 +404,17 @@ function SceneViewInner({
     setVariableOverlayFn(() => {})
     return () => {
       setVariableOverlayFn(null)
+    }
+  }, [gizmoMode, sceneKey, version])
+
+  useEffect(() => {
+    if (gizmoMode !== 'visualize') {
+      setCoordinateOverlayFn(null)
+      return
+    }
+    setCoordinateOverlayFn(() => {})
+    return () => {
+      setCoordinateOverlayFn(null)
     }
   }, [gizmoMode, sceneKey, version])
 
@@ -733,6 +752,9 @@ function SceneViewInner({
         BUILDER_VARIABLE_OVERLAY_GROUP_WIDTH,
       )
 
+      coordinateOverlayControllerRef.current?.dispose()
+      coordinateOverlayControllerRef.current = new CoordinateOverlayController(loadedScene)
+
       const sceneUserData = getSceneUserData(loadedScene)
       if (sceneUserData.directionalLight) sceneUserData.directionalLight.castShadow = shadowsEnabled
       cam.aspect = w / h
@@ -894,22 +916,28 @@ function SceneViewInner({
               const ids = selectedEntityIdsRef.current
               const vid = mode === 'visualize' && ids.length === 1 ? ids[0]! : null
               setVariableOverlayDisplayEntityId(vid)
+              setCoordinateOverlayDisplayEntityId(vid)
+              clearCoordinateEntries()
             },
             beforeWebGlRender: () => {
               const overlay = variableOverlayControllerRef.current
+              const coordOverlay = coordinateOverlayControllerRef.current
               const mode = gizmoModeRef.current
               const ids = selectedEntityIdsRef.current
               if (!overlay || mode !== 'visualize' || ids.length !== 1) {
                 overlay?.sync(null, null, [])
+                coordOverlay?.sync(null, [])
                 return
               }
               const id = ids[0]!
               const pos = registryRef.current?.getPosition(id)
               if (!pos) {
                 overlay.sync(null, null, [])
+                coordOverlay?.sync(null, [])
                 return
               }
               overlay.sync(id, pos, getVariableOverlaySlots(), cam)
+              coordOverlay?.sync(pos, getCoordinateOverlayEntries())
             },
             css2dRenderer: css2dRendererRef.current,
           })
@@ -1089,6 +1117,8 @@ function SceneViewInner({
       // Clean up renderer
       variableOverlayControllerRef.current?.dispose()
       variableOverlayControllerRef.current = null
+      coordinateOverlayControllerRef.current?.dispose()
+      coordinateOverlayControllerRef.current = null
       const css2d = css2dRendererRef.current
       if (css2d) {
         try {
@@ -1101,6 +1131,7 @@ function SceneViewInner({
         css2dRendererRef.current = null
       }
       setVariableOverlayFn(null)
+      setCoordinateOverlayFn(null)
 
       if (rend) {
         try {

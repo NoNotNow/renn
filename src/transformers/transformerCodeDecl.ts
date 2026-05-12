@@ -123,6 +123,13 @@ interface TransformerRuntimeApi {
    * Bar fill uses the color parameter; the name label is always white. Ignores non-finite values. No-op in Play/tests or when overlay is unwired.
    */
   visualize(value: number, color: string, name: string, index: number): void;
+  /**
+   * Builder visualize mode: draw a line from the entity to the given world-space coordinate.
+   * Useful for visualizing targets, waypoints, or direction vectors. No-op in Play/tests or when overlay is unwired.
+   * @param coordinate World-space [x, y, z] target point.
+   * @param color CSS color string (e.g. 'blue', '#ff0000').
+   */
+  visualizeCoordinate(coordinate: Vec3, color: string): void;
 }
 
 /** Type alias for the canonical transform(...) callback (use with optional JSDoc @type referencing TransformFn). */
