@@ -42,7 +42,7 @@ Right sidebar **Code** drawer (Builder): **Transformers** | **Transformer code**
 
 ### Monaco / IntelliSense
 
-- [`transformerCodeDecl.ts`](../src/transformers/transformerCodeDecl.ts): type declarations for `Vec3`, `TransformInput`, `TransformOutput`, `TransformerVecApi`, `TransformerRuntimeApi` (including **`getAction`**, **`log`**, **`visualize`**, and **`vec`**). **`declare const` globals** still apply for legacy **body-only** snippets. For **`function transform(…)`**, local parameters shadow those globals: without JSDoc, `input` / `api` stay **implicit `any`** — use **inline `/** @type {TransformInput} */` before `input`** (and likewise for **`TransformerRuntimeApi` on `api`**) or a matching **`@param` block**. Use **`api.vec.*`** for grouped vector helpers; **`input.velocity`** is a tuple, not an object with methods. Default skeleton ships with inline `@type` so autocomplete works without extra authoring.
+- [`transformerCodeDecl.ts`](../src/transformers/transformerCodeDecl.ts): type declarations for `Vec3`, `TransformInput`, `TransformOutput`, `TransformerVecApi`, `TransformerRuntimeApi` (including **`getAction`**, **`log`**, **`visualize`**, **`getEntity`** → **`LiveWorldEntity`** / **`WorldEntity`** fields + **`getLivePosition()`**, and **`vec`**). **`declare const` globals** still apply for legacy **body-only** snippets. For **`function transform(…)`**, local parameters shadow those globals: without JSDoc, `input` / `api` stay **implicit `any`** — use **inline `/** @type {TransformInput} */` before `input`** (and likewise for **`TransformerRuntimeApi` on `api`**) or a matching **`@param` block**. Use **`api.vec.*`** for grouped vector helpers; **`input.velocity`** is a tuple, not an object with methods. Default skeleton ships with inline `@type` so autocomplete works without extra authoring.
 
 ### Tests (existing)
 
@@ -76,6 +76,7 @@ Right sidebar **Code** drawer (Builder): **Transformers** | **Transformer code**
 | `eulerDeltaAroundAxis` | `(currentRotation, axis, angleRad) → Rotation` | Euler delta for yaw-like turns around a world axis. |
 | `log` | `(message, durationSeconds?) → void` | Show message in play-mode snackbar. Default duration: 4 s. Wired via `setTransformerSnackbarFn` from `SceneView`; no-op otherwise. |
 | `visualize` | `(value, color, name, index) → void` | Builder only: push a numeric sample to the variable overlay (`api.visualize(0.7, '#ff4444', 'speed', 1)`). `color` fills the bar; labels are white. Requires Visualize gizmo mode + single selection + wired bridge; ignores non-finite values and invalid indices (not a positive integer). No-op in Play/tests when unwired. |
+| `getEntity` | `(id) → LiveWorldEntity \| undefined` | Shallow snapshot of persisted fields plus **`getLivePosition(): Vec3 \| null`** (physics cache / mesh via registry during `executeTransformers`). Prefer **`getLivePosition()`** over **`position`** for moving dynamic bodies. Undefined when the id is missing or entity lookup is unwired. |
 
 **Intention:** Port **car2-style** logic gradually without pasting all of [`car2Transformer.ts`](../src/transformers/presets/car2Transformer.ts). Not every `BaseTransformer` helper is exposed yet; extend deliberately.
 

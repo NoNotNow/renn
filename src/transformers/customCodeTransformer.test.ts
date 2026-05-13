@@ -1,8 +1,11 @@
 import { describe, expect, test, vi, afterEach } from 'vitest'
+import type { Entity } from '@/types/world'
 import {
   CustomCodeTransformer,
   defaultCustomTransformerCode,
   TRANSFORMER_RUNTIME_API,
+  setTransformerRuntimeEntityLookup,
+  setTransformerRuntimeLivePositionLookup,
   setTransformerSnackbarFn,
   validateCustomTransformerSource,
 } from './customCodeTransformer'
@@ -64,6 +67,8 @@ describe('CustomCodeTransformer runtime bridge', () => {
     setCoordinateOverlayFn(null)
     setCoordinateOverlayDisplayEntityId(null)
     clearCoordinateEntries()
+    setTransformerRuntimeEntityLookup(null)
+    setTransformerRuntimeLivePositionLookup(null)
   })
 
   test('publishRuntimeError reports when entity id and stack index are set', () => {
@@ -154,6 +159,61 @@ describe('CustomCodeTransformer runtime bridge', () => {
     t.runtimeEntityId = 'ent-a'
     t.transform(createMockTransformInput({ entityId: 'ent-a' }), 0.1)
     expect(getCoordinateOverlayEntries()).toEqual([])
+  })
+
+  test('api.getEntity returns shallow copy with getLivePosition from live hook', () => {
+    const other: Entity = { id: 'other', name: 'Buddy', position: [0, 0, 0] }
+    setTransformerRuntimeEntityLookup((id) => (id === 'other' ? other : undefined))
+    setTransformerRuntimeLivePositionLookup((id) => (id === 'other' ? [1, 2, 3] : null))
+    const t = new CustomCodeTransformer({
+      type: 'custom',
+      code: `function transform(input, dt, params, state, api) {
+        const e = api.getEntity('other');
+        const p = e && e.getLivePosition();
+        return p && p[0] === 1 && p[1] === 2 && p[2] === 3 ? { impulse: [2, 0, 0] } : {};
+      }`,
+    })
+    const out = t.transform(createMockTransformInput(), 0.1)
+    expect(out.impulse).toEqual([2, 0, 0])
+  })
+
+  test('api.getEntity getLivePosition is null when live hook unwired', () => {
+    const other: Entity = { id: 'other', name: 'Buddy' }
+    setTransformerRuntimeEntityLookup((id) => (id === 'other' ? other : undefined))
+    const t = new CustomCodeTransformer({
+      type: 'custom',
+      code: `function transform(input, dt, params, state, api) {
+        const e = api.getEntity('other');
+        return e && e.getLivePosition() === null ? { impulse: [3, 0, 0] } : {};
+      }`,
+    })
+    const out = t.transform(createMockTransformInput(), 0.1)
+    expect(out.impulse).toEqual([3, 0, 0])
+  })
+
+  test('api.getEntity resolves via setTransformerRuntimeEntityLookup', () => {
+    const other: Entity = { id: 'other', name: 'Buddy' }
+    setTransformerRuntimeEntityLookup((id) => (id === 'other' ? other : undefined))
+    const t = new CustomCodeTransformer({
+      type: 'custom',
+      code: `function transform(input, dt, params, state, api) {
+        const e = api.getEntity('other');
+        return e && e.name === 'Buddy' ? { impulse: [1, 0, 0] } : {};
+      }`,
+    })
+    const out = t.transform(createMockTransformInput(), 0.1)
+    expect(out.impulse).toEqual([1, 0, 0])
+  })
+
+  test('api.getEntity is undefined when lookup is unwired', () => {
+    const t = new CustomCodeTransformer({
+      type: 'custom',
+      code: `function transform(input, dt, params, state, api) {
+        return api.getEntity('any') === undefined ? { impulse: [0, 2, 0] } : {};
+      }`,
+    })
+    const out = t.transform(createMockTransformInput(), 0.1)
+    expect(out.impulse).toEqual([0, 2, 0])
   })
 
   test('default skeleton visualizes power even when not touching ground', () => {

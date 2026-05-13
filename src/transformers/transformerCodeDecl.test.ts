@@ -25,7 +25,9 @@ describe('transformerCtxDecl', () => {
     expect(decl).toContain('durationSeconds?: number')
     expect(decl).toContain('getUpVector')
     expect(decl).toContain('addVec3')
-    expect(decl).toContain('eulerDeltaAroundAxis')
+    expect(decl).toContain('getEntity')
+    expect(decl).toContain('LiveWorldEntity')
+    expect(decl).toContain('getLivePosition')
   })
 
   test('environment field docs match authoring concerns (touching vs grounded vs support)', () => {

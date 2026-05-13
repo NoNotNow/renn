@@ -9,6 +9,7 @@ import type {
   Vec3,
   Rotation,
 } from '@/types/transformer'
+import type { Entity } from '@/types/world'
 import { clamp } from '@/utils/numberUtils'
 import { getForwardVectorFromEuler, getUpVectorFromEuler, eulerDeltaAroundAxis } from '@/utils/rotationUtils'
 import {
@@ -25,6 +26,43 @@ import { publishVariableValue } from '@/runtime/variableOverlayBridge'
 import { publishCoordinateValue } from '@/runtime/coordinateOverlayBridge'
 
 let _customCodeVisualizeEntityId: string | null = null
+
+let _transformerRuntimeGetEntity: ((id: string) => Entity | undefined) | null = null
+
+let _transformerRuntimeGetLivePosition: ((id: string) => Vec3 | null) | null = null
+
+/**
+ * During {@link RenderItemRegistry.executeTransformers}, resolves ids to live {@link Entity}
+ * documents on render items. Cleared to null outside that scope; custom code then sees
+ * `api.getEntity` as always undefined.
+ */
+export function setTransformerRuntimeEntityLookup(fn: ((id: string) => Entity | undefined) | null): void {
+  _transformerRuntimeGetEntity = fn
+}
+
+/**
+ * Same scope as {@link setTransformerRuntimeEntityLookup}; backs {@link TransformerRuntimeEntity.getLivePosition}
+ * (registry physics cache / mesh). Cleared outside transformer execution.
+ */
+export function setTransformerRuntimeLivePositionLookup(fn: ((id: string) => Vec3 | null) | null): void {
+  _transformerRuntimeGetLivePosition = fn
+}
+
+/** Shallow copy of the persisted entity plus live pose helper (see `api.getEntity`). */
+export type TransformerRuntimeEntity = Entity & {
+  /** Current world position from physics cache or mesh; null when hook unwired or pose unavailable. */
+  getLivePosition(): Vec3 | null
+}
+
+function wrapEntityForTransformerRuntime(entity: Entity): TransformerRuntimeEntity {
+  const id = entity.id
+  return {
+    ...entity,
+    getLivePosition(): Vec3 | null {
+      return _transformerRuntimeGetLivePosition?.(id) ?? null
+    },
+  }
+}
 
 function isFiniteNum(n: unknown): n is number {
   return typeof n === 'number' && Number.isFinite(n)
@@ -145,6 +183,11 @@ export interface TransformerRuntimeApi {
    * No-op in Play mode, tests, or when visualize gizmo mode is inactive.
    */
   visualizeCoordinate(coordinate: Vec3, color: string): void
+  /**
+   * Shallow copy of the persisted entity fields plus {@link TransformerRuntimeEntity.getLivePosition}.
+   * Undefined when id is unknown or entity lookup is unwired.
+   */
+  getEntity(id: string): TransformerRuntimeEntity | undefined
 }
 
 type SnackbarFn = (message: string, durationSeconds: number) => void
@@ -200,6 +243,10 @@ export const TRANSFORMER_RUNTIME_API: TransformerRuntimeApi = Object.freeze({
     const id = _customCodeVisualizeEntityId
     if (id == null) return
     publishCoordinateValue(id, coordinate, color)
+  },
+  getEntity: (id: string): TransformerRuntimeEntity | undefined => {
+    const entity = _transformerRuntimeGetEntity?.(id)
+    return entity ? wrapEntityForTransformerRuntime(entity) : undefined
   },
 } satisfies TransformerRuntimeApi)
 

@@ -13,10 +13,15 @@ import { disposeMaterialOrArray } from '@/utils/videoTextureLifecycle'
 import { RenderItem } from './renderItem'
 import { rapierQuaternionToEulerInto } from '@/utils/rotationUtils'
 import { createTransformerChain } from '@/transformers/transformerRegistry'
+import {
+  setTransformerRuntimeEntityLookup,
+  setTransformerRuntimeLivePositionLookup,
+} from '@/transformers/customCodeTransformer'
 import type {
   EntityWorldPose,
   EnvironmentState,
   TransformInput,
+  TransformOutput,
   TransformerConfig,
   RawInput,
 } from '@/types/transformer'
@@ -1018,7 +1023,15 @@ export class RenderItemRegistry {
       if (isTraceTarget) {
         traceSteps = []
       }
-      const output = item.transformerChain.execute(input, dt, traceSteps)
+      let output: TransformOutput
+      setTransformerRuntimeEntityLookup((id) => this.items.get(id)?.entity)
+      setTransformerRuntimeLivePositionLookup((id) => this.getPosition(id))
+      try {
+        output = item.transformerChain.execute(input, dt, traceSteps)
+      } finally {
+        setTransformerRuntimeEntityLookup(null)
+        setTransformerRuntimeLivePositionLookup(null)
+      }
       if (traceSteps) {
         publishTransformerLiveTrace(item.entity.id, traceSteps)
       }

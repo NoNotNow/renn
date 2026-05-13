@@ -2,7 +2,7 @@
  * Monaco `.d.ts` content for custom transformer authoring (matches `customCodeTransformer` runner).
  *
  * IntelliSense combines:
- * - **Ambient types** (`TransformInput`, `TransformerRuntimeApi`, `TransformerVecApi`, …) from JSDoc on each `transform` parameter (inline `@type {TransformInput}` before `input`, same for `api`, or a full `@param` block). Without that, a named `function transform(input, …)` keeps parameters as implicit `any` and hides `input.` / `api.` completions — local params shadow the `declare const` globals below.
+ * - **Ambient types** (`TransformInput`, `TransformerRuntimeApi`, `TransformerVecApi`, `LiveWorldEntity`, …) from JSDoc on each `transform` parameter (inline `@type {TransformInput}` before `input`, same for `api`, or a full `@param` block). Without that, a named `function transform(input, …)` keeps parameters as implicit `any` and hides `input.` / `api.` completions — local params shadow the `declare const` globals below.
  * - **`declare const`** for legacy body-only snippets that never declare `function transform(...)`.
  */
 
@@ -98,6 +98,112 @@ interface TransformOutput {
   earlyExit?: boolean;
 }
 
+/** RGB or RGBA channels 0–1. */
+type Color = [number, number, number] | [number, number, number, number];
+
+type Shape =
+  | { type: 'box'; width: number; height: number; depth: number }
+  | { type: 'sphere'; radius: number }
+  | { type: 'cylinder'; radius: number; height: number }
+  | { type: 'capsule'; radius: number; height: number }
+  | { type: 'cone'; radius: number; height: number }
+  | { type: 'pyramid'; baseSize: number; height: number }
+  | { type: 'plane'; normal?: Vec3 }
+  | { type: 'trimesh'; model: string; simplification?: TrimeshSimplificationConfig };
+
+type SimplificationAlgorithm = 'meshoptimizer' | 'simplifyModifier';
+
+interface TrimeshSimplificationConfig {
+  enabled?: boolean;
+  maxTriangles?: number;
+  targetReduction?: number;
+  algorithm?: SimplificationAlgorithm;
+  maxError?: number;
+}
+
+interface MaterialRef {
+  color?: Color;
+  map?: string;
+  roughness?: number;
+  metalness?: number;
+  opacity?: number;
+  mapRepeat?: Vec3;
+  mapWrapS?: 'repeat' | 'clampToEdge' | 'mirroredRepeat';
+  mapWrapT?: 'repeat' | 'clampToEdge' | 'mirroredRepeat';
+  mapRotation?: number;
+  mapOffset?: Vec3;
+}
+
+interface EntityPreferredCamera {
+  control?: string;
+  mode?: string;
+  target?: string;
+  distance?: number;
+  height?: number;
+  targetVerticalAngle?: number;
+  fov?: number;
+  defaultPosition?: Vec3;
+  defaultRotation?: Rotation;
+  editorFreePose?: unknown;
+  orbitYaw?: number;
+  orbitPitch?: number;
+  orbitDistance?: number;
+}
+
+interface EntityAvatarConfig {
+  enabled?: boolean;
+  preferredCamera?: EntityPreferredCamera;
+}
+
+/** Serialized transformer row from world JSON; \`inputMapping\` depends on \`type\`. */
+interface TransformerConfig {
+  type: string;
+  name?: string;
+  priority?: number;
+  enabled?: boolean;
+  inputMapping?: unknown;
+  params?: Record<string, unknown>;
+  code?: string;
+}
+
+/**
+ * Persisted world entity (same fields as \`Entity\` in src/types/world.ts).
+ * Named \`WorldEntity\` here to avoid clashing with the DOM \`Entity\` type when lib.dom is loaded.
+ */
+interface WorldEntity {
+  id: string;
+  name?: string;
+  bodyType?: 'static' | 'dynamic' | 'kinematic';
+  shape?: Shape;
+  position?: Vec3;
+  rotation?: Rotation;
+  scale?: Vec3;
+  model?: string;
+  modelRotation?: Rotation;
+  modelScale?: Vec3;
+  showShapeWireframe?: boolean;
+  modelSimplification?: TrimeshSimplificationConfig;
+  doubleSided?: boolean;
+  material?: MaterialRef;
+  mass?: number;
+  restitution?: number;
+  friction?: number;
+  linearDamping?: number;
+  angularDamping?: number;
+  scripts?: string[];
+  locked?: boolean;
+  transformers?: TransformerConfig[];
+  avatar?: EntityAvatarConfig;
+}
+
+/**
+ * Result of \`api.getEntity(id)\`: world JSON fields (shallow) plus live pose query.
+ * Prefer \`getLivePosition()\` over \`position\` for dynamic bodies — serialized \`position\` may lag the physics mesh.
+ */
+interface LiveWorldEntity extends WorldEntity {
+  getLivePosition(): Vec3 | null;
+}
+
 /** Frozen singleton; no imports inside saved transformer code — use api.* helpers. */
 interface TransformerRuntimeApi {
   /** input.actions[name] ?? 0. */
@@ -130,6 +236,11 @@ interface TransformerRuntimeApi {
    * @param color CSS color string (e.g. 'blue', '#ff0000').
    */
   visualizeCoordinate(coordinate: Vec3, color: string): void;
+  /**
+   * Shallow snapshot of the persisted entity plus \`getLivePosition()\` (physics cache / mesh when hooks are wired).
+   * Undefined when the id is unknown or the entity lookup hook is unwired.
+   */
+  getEntity(id: string): LiveWorldEntity | undefined;
 }
 
 /** Type alias for the canonical transform(...) callback (use with optional JSDoc @type referencing TransformFn). */

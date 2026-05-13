@@ -80,6 +80,7 @@ describe('transformer IntelliSense (TS language service)', () => {
     expect(apiDot.has('getAction')).toBe(true)
     expect(apiDot.has('getForwardVector')).toBe(true)
     expect(apiDot.has('scaleVec3')).toBe(true)
+    expect(apiDot.has('getEntity')).toBe(true)
   })
 
   test('legacy global `input` body: input. resolves from declare const', () => {
@@ -121,5 +122,29 @@ return {};`
     const apiNames = completionNames(lang, USER_PATH, positionAfter(source, 'void api.'))
     expect(apiNames.has('getAction')).toBe(true)
     expect(apiNames.has('clamp')).toBe(true)
+    expect(apiNames.has('getEntity')).toBe(true)
+  })
+
+  test('LiveWorldEntity from api.getEntity offers getLivePosition', () => {
+    const source = `function transform(
+  /** @type {TransformInput} */ input,
+  /** @type {number} */ dt,
+  /** @type {Record<string, unknown>} */ params,
+  /** @type {Record<string, unknown>} */ state,
+  /** @type {TransformerRuntimeApi} */ api,
+) {
+  const target = api.getEntity('box');
+  if (!target) return {};
+  target.
+  return {};
+}`
+    const lang = createLanguageServiceForUserJs(source)
+    const names = completionNames(
+      lang,
+      USER_PATH,
+      positionAfter(source, 'if (!target) return {};\n  target.'),
+    )
+    expect(names.has('getLivePosition')).toBe(true)
+    expect(names.has('id')).toBe(true)
   })
 })
