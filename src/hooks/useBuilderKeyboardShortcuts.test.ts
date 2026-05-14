@@ -20,6 +20,7 @@ function makeApi() {
     onUngroupSelection: vi.fn(),
     onCopy: vi.fn(),
     onPaste: vi.fn(),
+    onSave: vi.fn(),
   }
 }
 
@@ -48,6 +49,21 @@ describe('useBuilderKeyboardShortcuts', () => {
       dispatch({ key: 'v', ctrlKey: true })
     })
     expect(api.onPaste).toHaveBeenCalledTimes(1)
+  })
+
+  it('Cmd+S invokes onSave', () => {
+    const api = makeApi()
+    renderHook(() => useBuilderKeyboardShortcuts(api))
+
+    act(() => {
+      dispatch({ key: 's', code: 'KeyS', metaKey: true })
+    })
+    expect(api.onSave).toHaveBeenCalledTimes(1)
+
+    act(() => {
+      dispatch({ key: 's', code: 'KeyS', ctrlKey: true })
+    })
+    expect(api.onSave).toHaveBeenCalledTimes(2)
   })
 
   it('Cmd+C is skipped when there is a non-empty text selection', () => {

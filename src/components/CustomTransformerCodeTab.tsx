@@ -239,8 +239,10 @@ function TransformerTraceItem({
         maxWidth: 180,
         opacity: isDragging ? 0.4 : 1,
         background: isDragOver ? theme.bg.panelAlt : 'transparent',
-        transition: 'background 0.2s ease',
-        cursor: 'grab',
+        transition: 'background 0.2s ease, opacity 0.2s ease, transform 0.2s ease',
+        cursor: isDragging ? 'grabbing' : 'grab',
+        transform: isDragging ? 'scale(1.02)' : 'scale(1)',
+        zIndex: isDragging ? 10 : 1,
       }}
     >
       <div
@@ -378,9 +380,23 @@ function TransformerHorizontalTrace({
   const [scrollLeft, setScrollLeft] = useState(0)
   const [isExpanded, setIsExpanded] = useState(false)
   const [addSelectValue, setAddSelectValue] = useState('')
-  const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
-  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
+  const [dragState, setDragState] = useState<{
+    items: { config: TransformerConfig; id: string; originalIndex: number }[]
+    draggedId: string | null
+    dragOverId: string | null
+  } | null>(null)
+
   const traceBarRef = useRef<HTMLDivElement>(null)
+  const configIdMap = useRef<WeakMap<TransformerConfig, string>>(new WeakMap())
+
+  const getStableId = useCallback((t: TransformerConfig) => {
+    let id = configIdMap.current.get(t)
+    if (!id) {
+      id = `t-${Math.random().toString(36).slice(2, 9)}`
+      configIdMap.current.set(t, id)
+    }
+    return id
+  }, [])
 
   const onToggleExpanded = useCallback(() => setIsExpanded((prev) => !prev), [])
 
@@ -405,19 +421,56 @@ function TransformerHorizontalTrace({
     onCommit(next)
   }
 
-  const handleDrop = (targetIndex: number) => {
-    if (draggedIndex === null || draggedIndex === targetIndex) {
-      setDraggedIndex(null)
-      setDragOverIndex(null)
-      return
-    }
+  const handleDragStart = (index: number) => {
+    const items = transformers.map((t, i) => ({
+      config: t,
+      id: getStableId(t),
+      originalIndex: i,
+    }))
+    setDragState({
+      items,
+      draggedId: items[index].id,
+      dragOverId: null,
+    })
+  }
 
-    const next = [...transformers]
-    const [removed] = next.splice(draggedIndex, 1)
-    next.splice(targetIndex, 0, removed)
-    onCommit(next)
-    setDraggedIndex(null)
-    setDragOverIndex(null)
+  const handleDragOver = (e: React.DragEvent, targetIndex: number) => {
+    e.preventDefault()
+    setDragState((prev) => {
+      if (!prev) return null
+      const { items, draggedId } = prev
+      if (!draggedId) return prev
+
+      const currentIndex = items.findIndex((item) => item.id === draggedId)
+      if (currentIndex === -1 || currentIndex === targetIndex) {
+        if (prev.dragOverId !== items[targetIndex].id) {
+          return { ...prev, dragOverId: items[targetIndex].id }
+        }
+        return prev
+      }
+
+      const nextItems = [...items]
+      const [removed] = nextItems.splice(currentIndex, 1)
+      nextItems.splice(targetIndex, 0, removed)
+
+      return {
+        ...prev,
+        items: nextItems,
+        dragOverId: nextItems[targetIndex].id,
+      }
+    })
+  }
+
+  const handleDragEnd = () => {
+    if (dragState) {
+      const next = dragState.items.map((item) => item.config)
+      // Only commit if the order actually changed
+      const changed = next.some((t, i) => t !== transformers[i])
+      if (changed) {
+        onCommit(next)
+      }
+    }
+    setDragState(null)
   }
 
   const traceByStackIndex = useMemo(() => {
@@ -428,6 +481,15 @@ function TransformerHorizontalTrace({
     }
     return m
   }, [liveTraceSteps])
+
+  const displayItems = useMemo(() => {
+    if (dragState) return dragState.items
+    return transformers.map((t, i) => ({
+      config: t,
+      id: getStableId(t),
+      originalIndex: i,
+    }))
+  }, [transformers, dragState, getStableId])
 
   return (
     <div
@@ -450,31 +512,28 @@ function TransformerHorizontalTrace({
       <style>{`
         .transformer-trace-content { display: none; }
         .is-expanded .transformer-trace-content { display: flex; }
+        .transformer-trace-item {
+          transition: background 0.2s ease, opacity 0.2s ease, transform 0.2s ease;
+        }
       `}</style>
-      {transformers.map((t, i) => (
+      {displayItems.map((item, i) => (
         <TransformerTraceItem
-          key={i}
+          key={item.id}
           index={i}
-          transformer={t}
-          step={traceByStackIndex?.get(i)}
+          transformer={item.config}
+          step={traceByStackIndex?.get(item.originalIndex)}
           headerRef={headerRef}
           traceBarRef={traceBarRef}
           scrollLeft={scrollLeft}
           onToggleExpanded={onToggleExpanded}
-          onRemove={() => handleRemoveTransformer(i)}
-          onToggleEnabled={() => handleToggleEnabled(i)}
-          onDragStart={() => setDraggedIndex(i)}
-          onDragOver={(e) => {
-            e.preventDefault()
-            setDragOverIndex(i)
-          }}
-          onDrop={() => handleDrop(i)}
-          onDragEnd={() => {
-            setDraggedIndex(null)
-            setDragOverIndex(null)
-          }}
-          isDragging={draggedIndex === i}
-          isDragOver={dragOverIndex === i && draggedIndex !== i}
+          onRemove={() => handleRemoveTransformer(item.originalIndex)}
+          onToggleEnabled={() => handleToggleEnabled(item.originalIndex)}
+          onDragStart={() => handleDragStart(i)}
+          onDragOver={(e) => handleDragOver(e, i)}
+          onDrop={handleDragEnd}
+          onDragEnd={handleDragEnd}
+          isDragging={dragState?.draggedId === item.id}
+          isDragOver={dragState?.dragOverId === item.id && dragState?.draggedId !== item.id}
         />
       ))}
       <div style={{ padding: '0 8px', borderLeft: `1px solid ${theme.border.default}`, display: 'flex', alignItems: 'center' }}>

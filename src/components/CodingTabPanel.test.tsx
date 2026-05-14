@@ -265,7 +265,9 @@ describe('CodingTabPanel', () => {
     // Simulate drag and drop: drag item 0 and drop on item 1
     fireEvent.dragStart(item0)
     fireEvent.dragOver(item1)
-    fireEvent.drop(item1)
+    // In our live reordering, the items have already swapped in the local state.
+    // We need to trigger dragEnd to commit the change.
+    fireEvent.dragEnd(item0)
 
     expect(onWorldChange).toHaveBeenCalled()
     const updatedWorld = onWorldChange.mock.calls[0][0]

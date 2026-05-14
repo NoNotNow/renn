@@ -24,6 +24,8 @@ export interface BuilderKeyboardShortcutsApi {
   onCopy: () => void
   /** Cmd/Ctrl + V — paste entities in front of camera */
   onPaste: () => void
+  /** Cmd/Ctrl + S — save project */
+  onSave: () => void
 }
 
 /**
@@ -53,6 +55,7 @@ export function useBuilderKeyboardShortcuts(api: BuilderKeyboardShortcutsApi): v
     onUngroupSelection,
     onCopy,
     onPaste,
+    onSave,
   } = api
 
   useEffect(() => {
@@ -69,6 +72,11 @@ export function useBuilderKeyboardShortcuts(api: BuilderKeyboardShortcutsApi): v
       if (mod && !e.shiftKey && e.key === 'v') {
         e.preventDefault()
         onPaste()
+        return
+      }
+      if (mod && !e.shiftKey && e.key === 's') {
+        e.preventDefault()
+        onSave()
         return
       }
       if (mod && e.key === 'z') {
@@ -127,5 +135,6 @@ export function useBuilderKeyboardShortcuts(api: BuilderKeyboardShortcutsApi): v
     onUngroupSelection,
     onCopy,
     onPaste,
+    onSave,
   ])
 }

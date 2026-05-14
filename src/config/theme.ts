@@ -135,6 +135,7 @@ export const theme = {
     modalGlassBlur: 'blur(18px) saturate(140%)',
   },
   zIndex: {
+    header: 10500,
     modal: 10000,
     overlay: 2100,
     save: 2000,

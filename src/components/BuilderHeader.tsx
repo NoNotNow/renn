@@ -11,6 +11,7 @@ import {
   TEXTURE_PAINT_RADIUS_PX,
   type BuilderGizmoMode,
 } from '@/editor/transformGizmoController'
+import { theme } from '@/config/theme'
 import { GizmoMoveIcon, GizmoBrushIcon, GizmoRotateIcon, GizmoScaleIcon, GizmoVisualizeIcon } from '@/components/GizmoModeIcons'
 import { BrushToolPopover } from '@/components/BrushToolPopover'
 import { entityPanelIconButtonStyle } from '@/components/sharedStyles'
@@ -316,7 +317,13 @@ export default function BuilderHeader({
   return (
     <header
       id="builder-app-header"
-      style={{ background: '#171a22', borderBottom: '1px solid #2f3545', color: '#e6e9f2' }}
+      style={{
+        background: '#171a22',
+        borderBottom: '1px solid #2f3545',
+        color: '#e6e9f2',
+        position: 'relative',
+        zIndex: theme.zIndex.header,
+      }}
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center' }}>
