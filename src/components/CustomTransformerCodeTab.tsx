@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
   useSyncExternalStore,
+  type CSSProperties,
   type MouseEvent as ReactMouseEvent,
 } from 'react'
 import { createPortal } from 'react-dom'
@@ -13,9 +14,20 @@ import type { TransformerConfig } from '@/types/transformer'
 import CopyableArea from '@/components/CopyableArea'
 import TransformerCustomCodeEditor, { CUSTOM_CODE_EDITOR_HEIGHT_DEFAULT_PX } from '@/components/TransformerCustomCodeEditor'
 import ValidatedJsonTextarea from '@/components/ValidatedJsonTextarea'
-import { fieldLabelStyle } from '@/components/sharedStyles'
+import { EntityPanelIcons } from '@/components/EntityPanelIcons'
+import { entityPanelIconButtonStyle, fieldLabelStyle } from '@/components/sharedStyles'
 import { theme } from '@/config/theme'
-import { getDefaultTransformerConfig } from '@/transformers/transformerPresets'
+import {
+  hasNonZeroSemanticActions,
+  serializeTransformerTraceOutputJson,
+  summarizeActions,
+  summarizeTransformerTraceOutputBrief,
+  type TransformerTraceStep,
+} from '@/transformers/transformerTrace'
+import {
+  TRANSFORMER_PRESET_OPTIONS,
+  getDefaultTransformerConfig,
+} from '@/transformers/transformerPresets'
 import { effectiveCustomTransformerCode, validateCustomTransformerSource } from '@/transformers/customCodeTransformer'
 import {
   ensureUniqueCustomTransformerName,
@@ -29,6 +41,7 @@ import {
   subscribeCustomTransformerRuntimeError,
 } from '@/runtime/customTransformerErrorBridge'
 import { addFullscreenChangeListener, getFullscreenElement } from '@/utils/fullscreenApi'
+import { isKeyboardEventInEditableContext } from '@/input/rawInput'
 
 /**
  * Portal root for transformer code pop-out.
@@ -101,6 +114,302 @@ function formatCustomRuntimeErrorClipboard(snapshot: {
   return out
 }
 
+const TRACE_JSON_DRAWER_STYLE: CSSProperties = {
+  position: 'absolute',
+  top: '100%',
+  left: 0,
+  zIndex: 100,
+  margin: '4px 0 0',
+  padding: 8,
+  maxHeight: 320,
+  width: 360,
+  overflow: 'auto',
+  background: theme.bg.modalGlassHeader,
+  backdropFilter: 'blur(12px)',
+  border: `1px solid ${theme.border.default}`,
+  borderRadius: 6,
+  boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+  whiteSpace: 'pre-wrap',
+  wordBreak: 'break-word',
+  color: theme.text.muted,
+  fontSize: 11,
+  textAlign: 'left',
+}
+
+function TransformerTraceItem({
+  index,
+  transformer,
+  step,
+  headerRef,
+  traceBarRef,
+  scrollLeft,
+  onToggleExpanded,
+  onRemove,
+}: {
+  index: number
+  transformer: TransformerConfig
+  step: TransformerTraceStep | undefined
+  headerRef: React.RefObject<HTMLDivElement>
+  traceBarRef: React.RefObject<HTMLDivElement>
+  scrollLeft: number
+  onToggleExpanded: () => void
+  onRemove: () => void
+}) {
+  const [inOpen, setInOpen] = useState(false)
+  const [outOpen, setOutOpen] = useState(false)
+  const itemRef = useRef<HTMLDivElement>(null)
+
+  const inputLit = Boolean(step && !step.skipped && hasNonZeroSemanticActions(step.inputBefore))
+  const outputLit = Boolean(step && !step.skipped && step.outputLedActive)
+
+  const traceInputSummaryColor =
+    step?.skipped || !step
+      ? theme.text.muted
+      : inputLit
+        ? theme.status.enabled
+        : theme.text.secondary
+  const traceOutputSummaryColor =
+    step?.skipped || !step
+      ? theme.text.muted
+      : outputLit
+        ? theme.status.enabled
+        : theme.text.secondary
+
+  const traceInputBrief =
+    step?.skipped ? '(disabled)' : step?.inputBefore ? summarizeActions(step.inputBefore.actions) : '—'
+  const traceOutputBrief = summarizeTransformerTraceOutputBrief(transformer.type, step)
+
+  const summaryBaseStyle: CSSProperties = {
+    cursor: 'pointer',
+    fontSize: 10,
+    padding: '2px 6px',
+    borderRadius: 3,
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    maxWidth: 160,
+    listStyle: 'none',
+  }
+
+  // Calculate left position relative to the header.
+  // We use the traceBar's offset within the header + the item's offset within the traceBar - scroll.
+  const headerWidth = headerRef.current?.clientWidth ?? 0
+  const drawerWidth = 360
+  let baseLeft =
+    (traceBarRef.current?.offsetLeft ?? 0) + (itemRef.current?.offsetLeft ?? 0) - scrollLeft
+
+  if (headerWidth > 0 && baseLeft + drawerWidth > headerWidth) {
+    baseLeft = Math.max(10, headerWidth - drawerWidth - 10)
+  }
+
+  return (
+    <div
+      ref={itemRef}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 2,
+        padding: '0 8px',
+        borderLeft: index === 0 ? 'none' : `1px solid ${theme.border.default}`,
+        minWidth: 80,
+        maxWidth: 180,
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 4,
+          marginBottom: 1,
+        }}
+      >
+        <div
+          style={{
+            fontSize: 9,
+            fontWeight: 700,
+            color: theme.text.muted,
+            textTransform: 'uppercase',
+            cursor: 'pointer',
+            userSelect: 'none',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+          onClick={onToggleExpanded}
+        >
+          {transformer.type}
+        </div>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            onRemove()
+          }}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: theme.text.muted,
+            cursor: 'pointer',
+            fontSize: 12,
+            lineHeight: 1,
+            padding: '0 2px',
+            opacity: 0.6,
+          }}
+          title="Remove transformer"
+          onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+          onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.6')}
+        >
+          ×
+        </button>
+      </div>
+      <div className="transformer-trace-content" style={{ flexDirection: 'column', gap: 2, marginTop: 2 }}>
+        <details
+          onToggle={(e) => setInOpen(e.currentTarget.open)}
+          open={inOpen}
+        >
+          <summary
+            style={{ ...summaryBaseStyle, color: traceInputSummaryColor }}
+            title={`Input: ${traceInputBrief}`}
+          >
+            IN: {traceInputBrief}
+          </summary>
+          {inOpen && step && !step.skipped && step.inputBefore && headerRef.current ? (
+            createPortal(
+              <pre style={{ ...TRACE_JSON_DRAWER_STYLE, left: baseLeft }}>
+                {JSON.stringify(step.inputBefore, null, 2)}
+              </pre>,
+              headerRef.current,
+            )
+          ) : null}
+        </details>
+        <details
+          onToggle={(e) => setOutOpen(e.currentTarget.open)}
+          open={outOpen}
+        >
+          <summary
+            style={{ ...summaryBaseStyle, color: traceOutputSummaryColor }}
+            title={`Output: ${traceOutputBrief}`}
+          >
+            OUT: {traceOutputBrief}
+          </summary>
+          {outOpen && step && !step.skipped && (step.transformOutput !== undefined || step.actionsAfter !== undefined) && headerRef.current ? (
+            createPortal(
+              <pre style={{ ...TRACE_JSON_DRAWER_STYLE, left: baseLeft }}>
+                {JSON.stringify(serializeTransformerTraceOutputJson(step), null, 2)}
+              </pre>,
+              headerRef.current,
+            )
+          ) : null}
+        </details>
+      </div>
+    </div>
+  )
+}
+
+function TransformerHorizontalTrace({
+  transformers,
+  liveTraceSteps,
+  headerRef,
+  onCommit,
+}: {
+  transformers: TransformerConfig[]
+  liveTraceSteps: TransformerTraceStep[] | null
+  headerRef: React.RefObject<HTMLDivElement>
+  onCommit: (next: TransformerConfig[]) => void
+}) {
+  const [scrollLeft, setScrollLeft] = useState(0)
+  const [isExpanded, setIsExpanded] = useState(false)
+  const [addSelectValue, setAddSelectValue] = useState('')
+  const traceBarRef = useRef<HTMLDivElement>(null)
+
+  const onToggleExpanded = useCallback(() => setIsExpanded((prev) => !prev), [])
+
+  const handleAddTransformer = (type: string) => {
+    if (!type) return
+    const config = getDefaultTransformerConfig(type)
+    const withName =
+      type === 'custom' ? { ...config, name: nextUniqueCustomTransformerName(transformers) } : config
+    onCommit([...transformers, withName])
+    setAddSelectValue('')
+  }
+
+  const handleRemoveTransformer = (index: number) => {
+    const next = transformers.filter((_, i) => i !== index)
+    onCommit(next)
+  }
+
+  const traceByStackIndex = useMemo(() => {
+    if (!liveTraceSteps) return null
+    const m = new Map<number, TransformerTraceStep>()
+    for (const s of liveTraceSteps) {
+      m.set(s.configStackIndex, s)
+    }
+    return m
+  }, [liveTraceSteps])
+
+  return (
+    <div
+      ref={traceBarRef}
+      className={isExpanded ? 'is-expanded' : ''}
+      onScroll={(e) => setScrollLeft(e.currentTarget.scrollLeft)}
+      style={{
+        display: 'flex',
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 0,
+        overflowX: 'auto',
+        overflowY: 'visible',
+        padding: '4px 0',
+        flex: 1,
+        minWidth: 0,
+        position: 'relative',
+      }}
+    >
+      <style>{`
+        .transformer-trace-content { display: none; }
+        .is-expanded .transformer-trace-content { display: flex; }
+      `}</style>
+      {transformers.map((t, i) => (
+        <TransformerTraceItem
+          key={i}
+          index={i}
+          transformer={t}
+          step={traceByStackIndex?.get(i)}
+          headerRef={headerRef}
+          traceBarRef={traceBarRef}
+          scrollLeft={scrollLeft}
+          onToggleExpanded={onToggleExpanded}
+          onRemove={() => handleRemoveTransformer(i)}
+        />
+      ))}
+      <div style={{ padding: '0 8px', borderLeft: `1px solid ${theme.border.default}`, display: 'flex', alignItems: 'center' }}>
+        <select
+          value={addSelectValue}
+          onChange={(e) => handleAddTransformer(e.target.value)}
+          style={{
+            padding: '2px 4px',
+            fontSize: 10,
+            background: theme.bg.codeOverlay,
+            border: `1px solid ${theme.border.default}`,
+            borderRadius: 4,
+            color: theme.text.muted,
+            cursor: 'pointer',
+            maxWidth: 80,
+          }}
+        >
+          <option value="">+ Add</option>
+          {TRANSFORMER_PRESET_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+      </div>
+    </div>
+  )
+}
+
 export interface CustomTransformerCodeTabProps {
   selectedEntityIds: string[]
   entityCount: number
@@ -111,6 +420,11 @@ export interface CustomTransformerCodeTabProps {
   onTransformersCommit: (next: TransformerConfig[]) => void
   /** Runs when user opens the floating code editor — e.g. collapse side drawers. */
   onTransformerCodePopoutOpen?: () => void
+  /** Same handler as the properties/Code tab strip “restore saved pose” control (optional). */
+  onResetPoseToSavedWorld?: (entityIds: string[]) => void
+  canResetPoseToSaved?: boolean
+  resetPoseTitle?: string
+  liveTraceSteps?: TransformerTraceStep[] | null
 }
 
 export default function CustomTransformerCodeTab({
@@ -121,6 +435,10 @@ export default function CustomTransformerCodeTab({
   anyLocked,
   onTransformersCommit,
   onTransformerCodePopoutOpen,
+  onResetPoseToSavedWorld,
+  canResetPoseToSaved = false,
+  resetPoseTitle = 'Restore saved position and rotation (from world)',
+  liveTraceSteps = null,
 }: CustomTransformerCodeTabProps) {
   const undo = useEditorUndo()
   const { openMenu } = useCopyMenu()
@@ -142,6 +460,7 @@ export default function CustomTransformerCodeTab({
   const [codePopoutOpen, setCodePopoutOpen] = useState(false)
   const builderHeaderBottomInsetPx = useBuilderHeaderBottomInsetPx(codePopoutOpen)
 
+  const popoutHeaderRef = useRef<HTMLDivElement>(null)
   const listRef = useRef(list)
   listRef.current = list
   const selectedIndexRef = useRef(selectedIndex)
@@ -248,11 +567,39 @@ export default function CustomTransformerCodeTab({
   useEffect(() => {
     if (!codePopoutOpen) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') closeCodePopout()
+      if (e.key !== 'Escape' || e.shiftKey) return
+      e.preventDefault()
+      e.stopPropagation()
+      closeCodePopout()
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [codePopoutOpen, closeCodePopout])
+
+  /** Shift+Escape reopens pop-out after Escape closed it (Transformer code segment only). */
+  useEffect(() => {
+    if (codePopoutOpen) return
+    if (selectedEntityIds.length === 0 || transformersMixed || customSlots.length === 0 || anyLocked) return
+
+    const onKeyDown = (e: KeyboardEvent): void => {
+      if (e.key !== 'Escape' || !e.shiftKey) return
+      if (isKeyboardEventInEditableContext(e)) return
+      e.preventDefault()
+      e.stopPropagation()
+      onTransformerCodePopoutOpen?.()
+      setCodePopoutOpen(true)
+    }
+
+    window.addEventListener('keydown', onKeyDown, true)
+    return () => window.removeEventListener('keydown', onKeyDown, true)
+  }, [
+    codePopoutOpen,
+    selectedEntityIds.length,
+    transformersMixed,
+    customSlots.length,
+    anyLocked,
+    onTransformerCodePopoutOpen,
+  ])
 
   useEffect(() => {
     if (!codePopoutOpen) return
@@ -501,8 +848,6 @@ export default function CustomTransformerCodeTab({
                 width: '100%',
                 minHeight: 0,
                 backgroundColor: theme.bg.modalGlass,
-                backdropFilter: theme.effects.modalGlassBlur,
-                WebkitBackdropFilter: theme.effects.modalGlassBlur,
                 border: `1px solid ${theme.border.default}`,
                 borderRadius: 0,
                 display: 'flex',
@@ -514,17 +859,17 @@ export default function CustomTransformerCodeTab({
               onClick={(e) => e.stopPropagation()}
             >
               <div
+                ref={popoutHeaderRef}
                 style={{
                   padding: '12px 16px',
                   borderBottom: `1px solid ${theme.border.default}`,
                   backgroundColor: theme.bg.modalGlassHeader,
-                  backdropFilter: theme.effects.modalGlassBlur,
-                  WebkitBackdropFilter: theme.effects.modalGlassBlur,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   flexShrink: 0,
                   gap: 12,
+                  position: 'relative',
                 }}
               >
                 <h2
@@ -534,13 +879,42 @@ export default function CustomTransformerCodeTab({
                     fontSize: 15,
                     fontWeight: 600,
                     color: theme.text.primary,
-                    flex: '1 1 auto',
+                    flex: '0 0 auto',
                     minWidth: 0,
                   }}
                 >
                   {popoutTitle}
                 </h2>
+                <TransformerHorizontalTrace
+                  transformers={list}
+                  liveTraceSteps={liveTraceSteps}
+                  headerRef={popoutHeaderRef}
+                  onCommit={onTransformersCommit}
+                />
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                  {onResetPoseToSavedWorld ? (
+                    <button
+                      type="button"
+                      data-testid="custom-transformer-code-popout-restore-pose"
+                      title={resetPoseTitle}
+                      aria-label="Restore saved position and rotation"
+                      disabled={!canResetPoseToSaved}
+                      onClick={() => onResetPoseToSavedWorld(selectedEntityIds)}
+                      style={{
+                        ...entityPanelIconButtonStyle,
+                        cursor: canResetPoseToSaved ? 'pointer' : 'not-allowed',
+                        opacity: canResetPoseToSaved ? 0.85 : 0.45,
+                      }}
+                      onMouseEnter={(e) => {
+                        if (canResetPoseToSaved) e.currentTarget.style.opacity = '1'
+                      }}
+                      onMouseLeave={(e) => {
+                        if (canResetPoseToSaved) e.currentTarget.style.opacity = '0.85'
+                      }}
+                    >
+                      {EntityPanelIcons.reset}
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     data-testid="custom-transformer-code-popout-refresh-editor"

@@ -28,6 +28,8 @@ export interface CodingTabPanelProps {
   onWorldChange: (world: RennWorld) => void
   onEntityTransformersChange?: (entityIds: string[], transformers: TransformerConfig[]) => void
   onTransformerCodePopoutOpen?: () => void
+  /** Snap live pose to each entity’s saved world position and rotation (same as properties tab strip). */
+  onResetPoseToSavedWorld?: (entityIds: string[]) => void
 }
 
 /** Matches the icon tab strip in `SidebarTabs` so the Code drawer feels one piece with the right sidebar. */
@@ -85,6 +87,7 @@ export default function CodingTabPanel({
   onWorldChange,
   onEntityTransformersChange,
   onTransformerCodePopoutOpen,
+  onResetPoseToSavedWorld,
 }: CodingTabPanelProps) {
   const [subgroupStored, setSubgroupStored] = useLocalStorageState<CodingSubgroup>(
     BUILDER_CODING_SUBTAB_KEY,
@@ -102,7 +105,7 @@ export default function CodingTabPanel({
     : DEFAULT_CODING_SUBGROUP
 
   useEffect(() => {
-    if (subgroup === 'transformers' && selectedEntityIds.length === 1) {
+    if ((subgroup === 'transformers' || subgroup === 'code') && selectedEntityIds.length === 1) {
       setTransformerTraceTargetEntityId(selectedEntityIds[0]!)
     } else {
       setTransformerTraceTargetEntityId(null)
@@ -121,7 +124,7 @@ export default function CodingTabPanel({
   )
 
   const liveTraceSteps =
-    subgroup === 'transformers' &&
+    (subgroup === 'transformers' || subgroup === 'code') &&
     selectedEntityIds.length === 1 &&
     liveTraceSnapshot?.entityId === selectedEntityIds[0]
       ? liveTraceSnapshot.steps
@@ -140,6 +143,12 @@ export default function CodingTabPanel({
   const idSet = useMemo(() => new Set(ids), [ids])
 
   const anyLocked = entities.some((e) => e.locked)
+  const canResetPoseToSaved = entities.length > 0 && entities.some((e) => !e.locked)
+  const resetPoseTitle = canResetPoseToSaved
+    ? 'Restore saved position and rotation (from world)'
+    : entities.length > 0 && entities.every((e) => e.locked)
+      ? 'Cannot reset locked entities'
+      : 'Select an entity to restore saved position and rotation'
   const mergedTransformers = mergeTransformers(entities)
 
   const updateAllTransformers = (transformers: TransformerConfig[]) => {
@@ -226,6 +235,10 @@ export default function CodingTabPanel({
             anyLocked={anyLocked}
             onTransformersCommit={(next) => handleTransformersCommit(next)}
             onTransformerCodePopoutOpen={onTransformerCodePopoutOpen}
+            onResetPoseToSavedWorld={onResetPoseToSavedWorld}
+            canResetPoseToSaved={canResetPoseToSaved}
+            resetPoseTitle={resetPoseTitle}
+            liveTraceSteps={liveTraceSteps}
           />
         )}
 

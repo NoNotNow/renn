@@ -255,6 +255,7 @@ export default function PropertySidebar({
               onWorldChange={onWorldChange}
               onEntityTransformersChange={onEntityTransformersChange}
               onTransformerCodePopoutOpen={onTransformerCodePopoutOpen}
+              onResetPoseToSavedWorld={onResetPoseToSavedWorld}
             />
           )}
           {rightTab === 'assets' && (

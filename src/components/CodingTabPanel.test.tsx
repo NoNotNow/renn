@@ -104,6 +104,26 @@ describe('CodingTabPanel', () => {
     expect(screen.getByTestId('custom-code-editor-resize-handle')).toBeInTheDocument()
   })
 
+  it('Transformer code pop out header restores saved pose when icon clicked', () => {
+    const onResetPose = vi.fn()
+    render(
+      <CopyProvider>
+        <EditorUndoProvider value={undoApi}>
+          <CodingTabPanel
+            world={minimalWorld}
+            selectedEntityIds={['e1']}
+            onWorldChange={vi.fn()}
+            onResetPoseToSavedWorld={onResetPose}
+          />
+        </EditorUndoProvider>
+      </CopyProvider>,
+    )
+    fireEvent.click(screen.getByTestId('coding-submenu-code'))
+    fireEvent.click(screen.getByTestId('custom-transformer-code-popout-open'))
+    fireEvent.click(screen.getByTestId('custom-transformer-code-popout-restore-pose'))
+    expect(onResetPose).toHaveBeenCalledWith(['e1'])
+  })
+
   it('Transformer code pop out opens overlay and docks back', () => {
     render(
       <CopyProvider>
@@ -135,6 +155,23 @@ describe('CodingTabPanel', () => {
     expect(screen.getByTestId('custom-transformer-code-popout-backdrop')).toBeInTheDocument()
     fireEvent.keyDown(document, { key: 'Escape', code: 'Escape' })
     expect(screen.queryByTestId('custom-transformer-code-popout-backdrop')).not.toBeInTheDocument()
+  })
+
+  it('Transformer code pop out reopens on Shift+Escape after Escape closed it', () => {
+    render(
+      <CopyProvider>
+        <EditorUndoProvider value={undoApi}>
+          <CodingTabPanel world={minimalWorld} selectedEntityIds={['e1']} onWorldChange={vi.fn()} />
+        </EditorUndoProvider>
+      </CopyProvider>,
+    )
+    fireEvent.click(screen.getByTestId('coding-submenu-code'))
+    fireEvent.click(screen.getByTestId('custom-transformer-code-popout-open'))
+    fireEvent.keyDown(document, { key: 'Escape', code: 'Escape' })
+    expect(screen.queryByTestId('custom-transformer-code-popout-backdrop')).not.toBeInTheDocument()
+
+    fireEvent.keyDown(window, { key: 'Escape', code: 'Escape', shiftKey: true })
+    expect(screen.getByTestId('custom-transformer-code-popout-backdrop')).toBeInTheDocument()
   })
 
   it('Transformer code pop out shows compile error in overlay body', () => {

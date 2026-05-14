@@ -8,7 +8,7 @@ export interface BuilderKeyboardShortcutsApi {
   onUndo: () => void
   /** Cmd/Ctrl + Shift + Z, Cmd/Ctrl + Y */
   onRedo: () => void
-  /** Escape — clear selection */
+  /** Escape (without Shift) — clear selection */
   onClearSelection: () => void
   /** Cmd/Ctrl + E — toggle edit-navigation mode */
   onToggleEditNavigationMode: () => void
@@ -30,7 +30,7 @@ export interface BuilderKeyboardShortcutsApi {
  * Wires Builder-level keyboard shortcuts:
  *   Cmd/Ctrl+Z      undo
  *   Cmd/Ctrl+Shift+Z, Cmd/Ctrl+Y  redo
- *   Escape          clear selection
+ *   Escape          clear selection (Shift+Escape is reserved elsewhere, e.g. transformer code pop-out)
  *   Cmd/Ctrl+E      toggle edit-navigation mode
  *   1 (Digit1)      cycle active avatar
  *   0 (Digit0)      cycle camera mode
@@ -82,7 +82,7 @@ export function useBuilderKeyboardShortcuts(api: BuilderKeyboardShortcutsApi): v
         onRedo()
         return
       }
-      if (e.key === 'Escape') {
+      if (e.key === 'Escape' && !e.shiftKey) {
         e.preventDefault()
         onClearSelection()
         return

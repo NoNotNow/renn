@@ -142,6 +142,67 @@ export function computeOutputLedActive(
   )
 }
 
+export function summarizeActions(actions: unknown): string {
+  if (!actions || typeof actions !== 'object') return '(idle)'
+  const rec = actions as Record<string, number>
+  const pairs = Object.entries(rec).filter(([, v]) => typeof v === 'number' && v !== 0)
+  if (pairs.length === 0) return '(idle)'
+  return pairs.map(([k, v]) => `${k}=${Number((v as number).toFixed(3))}`).join(', ')
+}
+
+function vec3AnyNonZero(v: readonly [number, number, number] | undefined): boolean {
+  if (!v) return false
+  return v[0] !== 0 || v[1] !== 0 || v[2] !== 0
+}
+
+export function summarizeTransformOutputBrief(o: TransformOutput): string {
+  if (!isStructuralTransformOutputActive(o)) return '(none)'
+  const tags: string[] = []
+  if (o.earlyExit) tags.push('earlyExit')
+  if (vec3AnyNonZero(o.force)) tags.push('force')
+  if (vec3AnyNonZero(o.impulse)) tags.push('impulse')
+  if (vec3AnyNonZero(o.torque)) tags.push('torque')
+  if (o.color) tags.push('color')
+  if (o.addRotation != null) tags.push('addRotation')
+  if (o.setPose) tags.push('setPose')
+  return tags.join(', ')
+}
+
+/** Combines physics/pose return value with actions-wire delta for `input` transformers. */
+export function summarizeTransformerTraceOutputBrief(
+  transformerType: string,
+  step: TransformerTraceStep | undefined,
+): string {
+  if (!step) return '—'
+  if (step.skipped) return '(disabled)'
+  const structural =
+    step.transformOutput !== undefined
+      ? summarizeTransformOutputBrief(step.transformOutput)
+      : '(none)'
+  const before = step.inputBefore?.actions as Record<string, number> | undefined
+  const after = step.actionsAfter
+  const actionsDeltaBrief =
+    transformerType === 'input' && before && after && actionsMapsDiffer(before, after)
+      ? summarizePublishedActionsDelta(before, after)
+      : null
+
+  if (structural !== '(none)' && actionsDeltaBrief)
+    return `${structural}; actions · ${actionsDeltaBrief}`
+  if (structural !== '(none)') return structural
+  if (actionsDeltaBrief) return `actions · ${actionsDeltaBrief}`
+  return '(none)'
+}
+
+export function serializeTransformerTraceOutputJson(step: TransformerTraceStep): unknown {
+  const ret = step.transformOutput ?? {}
+  const before = step.inputBefore?.actions as Record<string, number> | undefined
+  const after = step.actionsAfter
+  if (before && after && actionsMapsDiffer(before, after)) {
+    return { transformReturn: ret, actionsAfter: after }
+  }
+  return ret
+}
+
 /** Input LED: semantic actions present on the wire into this step. */
 export function hasNonZeroSemanticActions(inputBefore: TransformInputTraceSnapshot | undefined): boolean {
   if (!inputBefore) return false

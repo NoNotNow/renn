@@ -86,12 +86,17 @@ describe('useBuilderKeyboardShortcuts', () => {
     expect(api.onRedo).toHaveBeenCalledTimes(2)
   })
 
-  it('Escape clears selection; Cmd+E toggles edit-nav', () => {
+  it('Escape clears selection; Shift+Escape does not; Cmd+E toggles edit-nav', () => {
     const api = makeApi()
     renderHook(() => useBuilderKeyboardShortcuts(api))
 
     act(() => {
       dispatch({ key: 'Escape' })
+    })
+    expect(api.onClearSelection).toHaveBeenCalledTimes(1)
+
+    act(() => {
+      dispatch({ key: 'Escape', shiftKey: true })
     })
     expect(api.onClearSelection).toHaveBeenCalledTimes(1)
 
