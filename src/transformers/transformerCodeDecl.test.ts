@@ -28,6 +28,8 @@ describe('transformerCtxDecl', () => {
     expect(decl).toContain('getEntity')
     expect(decl).toContain('LiveWorldEntity')
     expect(decl).toContain('getLivePosition')
+    expect(decl).toContain('getWorldPosition')
+    expect(decl).toContain('getStartPosition')
   })
 
   test('environment field docs match authoring concerns (touching vs grounded vs support)', () => {

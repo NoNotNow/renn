@@ -161,6 +161,53 @@ describe('CustomCodeTransformer runtime bridge', () => {
     expect(getCoordinateOverlayEntries()).toEqual([])
   })
 
+  test('api.getWorldPosition uses live-position hook', () => {
+    setTransformerRuntimeLivePositionLookup((id) => (id === 'box' ? [9, 8, 7] : null))
+    const t = new CustomCodeTransformer({
+      type: 'custom',
+      code: `function transform(input, dt, params, state, api) {
+        const p = api.getWorldPosition('box');
+        return p && p[0] === 9 ? { impulse: [1, 0, 0] } : {};
+      }`,
+    })
+    expect(t.transform(createMockTransformInput(), 0.1).impulse).toEqual([1, 0, 0])
+  })
+
+  test('api.getWorldPosition is null when live hook unwired', () => {
+    const t = new CustomCodeTransformer({
+      type: 'custom',
+      code: `function transform(input, dt, params, state, api) {
+        return api.getWorldPosition('box') === null ? { impulse: [0, 1, 0] } : {};
+      }`,
+    })
+    expect(t.transform(createMockTransformInput(), 0.1).impulse).toEqual([0, 1, 0])
+  })
+
+  test('api.getStartPosition reads persisted entity.position', () => {
+    const other: Entity = { id: 'box', position: [4, 5, 6] }
+    setTransformerRuntimeEntityLookup((id) => (id === 'box' ? other : undefined))
+    const t = new CustomCodeTransformer({
+      type: 'custom',
+      code: `function transform(input, dt, params, state, api) {
+        const p = api.getStartPosition('box');
+        return p && p[1] === 5 ? { impulse: [0, 0, 3] } : {};
+      }`,
+    })
+    expect(t.transform(createMockTransformInput(), 0.1).impulse).toEqual([0, 0, 3])
+  })
+
+  test('api.getStartPosition is null when entity missing or position absent', () => {
+    const other: Entity = { id: 'box' }
+    setTransformerRuntimeEntityLookup((id) => (id === 'box' ? other : undefined))
+    const t = new CustomCodeTransformer({
+      type: 'custom',
+      code: `function transform(input, dt, params, state, api) {
+        return api.getStartPosition('box') === null ? { torque: [1, 0, 0] } : {};
+      }`,
+    })
+    expect(t.transform(createMockTransformInput(), 0.1).torque).toEqual([1, 0, 0])
+  })
+
   test('api.getEntity returns shallow copy with getLivePosition from live hook', () => {
     const other: Entity = { id: 'other', name: 'Buddy', position: [0, 0, 0] }
     setTransformerRuntimeEntityLookup((id) => (id === 'other' ? other : undefined))

@@ -81,6 +81,8 @@ describe('transformer IntelliSense (TS language service)', () => {
     expect(apiDot.has('getForwardVector')).toBe(true)
     expect(apiDot.has('scaleVec3')).toBe(true)
     expect(apiDot.has('getEntity')).toBe(true)
+    expect(apiDot.has('getWorldPosition')).toBe(true)
+    expect(apiDot.has('getStartPosition')).toBe(true)
   })
 
   test('legacy global `input` body: input. resolves from declare const', () => {
@@ -123,6 +125,8 @@ return {};`
     expect(apiNames.has('getAction')).toBe(true)
     expect(apiNames.has('clamp')).toBe(true)
     expect(apiNames.has('getEntity')).toBe(true)
+    expect(apiNames.has('getWorldPosition')).toBe(true)
+    expect(apiNames.has('getStartPosition')).toBe(true)
   })
 
   test('LiveWorldEntity from api.getEntity offers getLivePosition', () => {

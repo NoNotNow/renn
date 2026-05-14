@@ -184,6 +184,16 @@ export interface TransformerRuntimeApi {
    */
   visualizeCoordinate(coordinate: Vec3, color: string): void
   /**
+   * Current world position from physics cache or mesh (same as {@link RenderItemRegistry.getPosition} during transformer execution).
+   * Null when id is unknown, pose unavailable, or live-position hook is unwired. Prefer over {@link getEntity} in hot paths (no entity snapshot object).
+   */
+  getWorldPosition(id: string): Vec3 | null
+  /**
+   * Persisted spawn position from world JSON (`entity.position`) for the id. Independent of live physics; may lag moving bodies.
+   * Null when entity lookup is unwired, entity missing, or `position` absent/invalid.
+   */
+  getStartPosition(id: string): Vec3 | null
+  /**
    * Shallow copy of the persisted entity fields plus {@link TransformerRuntimeEntity.getLivePosition}.
    * Undefined when id is unknown or entity lookup is unwired.
    */
@@ -243,6 +253,13 @@ export const TRANSFORMER_RUNTIME_API: TransformerRuntimeApi = Object.freeze({
     const id = _customCodeVisualizeEntityId
     if (id == null) return
     publishCoordinateValue(id, coordinate, color)
+  },
+  getWorldPosition: (id: string): Vec3 | null => _transformerRuntimeGetLivePosition?.(id) ?? null,
+  getStartPosition: (id: string): Vec3 | null => {
+    const entity = _transformerRuntimeGetEntity?.(id)
+    if (!entity) return null
+    const p = readVec3(entity.position)
+    return p ? cloneVec3Tuple(p) : null
   },
   getEntity: (id: string): TransformerRuntimeEntity | undefined => {
     const entity = _transformerRuntimeGetEntity?.(id)

@@ -198,7 +198,7 @@ interface WorldEntity {
 
 /**
  * Result of \`api.getEntity(id)\`: world JSON fields (shallow) plus live pose query.
- * Prefer \`getLivePosition()\` over \`position\` for dynamic bodies — serialized \`position\` may lag the physics mesh.
+ * For hot paths use \`api.getWorldPosition(id)\` / \`api.getStartPosition(id)\` (no snapshot object). Prefer \`getLivePosition()\` over \`position\` on this snapshot for dynamic bodies — serialized \`position\` may lag the physics mesh.
  */
 interface LiveWorldEntity extends WorldEntity {
   getLivePosition(): Vec3 | null;
@@ -236,6 +236,16 @@ interface TransformerRuntimeApi {
    * @param color CSS color string (e.g. 'blue', '#ff0000').
    */
   visualizeCoordinate(coordinate: Vec3, color: string): void;
+  /**
+   * Live world position from physics cache or mesh during transformer execution (same source as registry \`getPosition\`).
+   * Null when unwired or unavailable. No entity snapshot allocation.
+   */
+  getWorldPosition(id: string): Vec3 | null;
+  /**
+   * Persisted \`entity.position\` from world JSON for \`id\` (spawn/start pose). May differ from live pose for dynamic bodies.
+   * Null when unwired, unknown id, or invalid/absent position.
+   */
+  getStartPosition(id: string): Vec3 | null;
   /**
    * Shallow snapshot of the persisted entity plus \`getLivePosition()\` (physics cache / mesh when hooks are wired).
    * Undefined when the id is unknown or the entity lookup hook is unwired.
