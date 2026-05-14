@@ -206,4 +206,71 @@ describe('CodingTabPanel', () => {
     expect(body).toContainElement(screen.getByTestId('custom-transformer-compile-error'))
     expect(screen.getByTestId('custom-transformer-compile-error')).toHaveTextContent(/dangerous pattern/i)
   })
+
+  it('Transformer code pop out horizontal trace allows toggling enabled state', () => {
+    const onWorldChange = vi.fn()
+    render(
+      <CopyProvider>
+        <EditorUndoProvider value={undoApi}>
+          <CodingTabPanel
+            world={minimalWorld}
+            selectedEntityIds={['e1']}
+            onWorldChange={onWorldChange}
+          />
+        </EditorUndoProvider>
+      </CopyProvider>,
+    )
+    fireEvent.click(screen.getByTestId('coding-submenu-code'))
+    fireEvent.click(screen.getByTestId('custom-transformer-code-popout-open'))
+
+    const toggle = screen.getByTestId('transformer-horizontal-enabled-toggle-0')
+    fireEvent.click(toggle)
+
+    expect(onWorldChange).toHaveBeenCalled()
+    const updatedWorld = onWorldChange.mock.calls[0][0]
+    expect(updatedWorld.entities[0].transformers[0].enabled).toBe(false)
+  })
+
+  it('Transformer code pop out horizontal trace allows reordering via drag and drop', () => {
+    const multiTransformerWorld: RennWorld = {
+      ...minimalWorld,
+      entities: [
+        {
+          ...minimalWorld.entities[0]!,
+          transformers: [
+            { type: 'input', priority: 10, enabled: true, params: {} },
+            { type: 'custom', name: 'Second', code: 'return {}', priority: 10, enabled: true, params: {} },
+          ],
+        },
+      ],
+    }
+    const onWorldChange = vi.fn()
+    render(
+      <CopyProvider>
+        <EditorUndoProvider value={undoApi}>
+          <CodingTabPanel
+            world={multiTransformerWorld}
+            selectedEntityIds={['e1']}
+            onWorldChange={onWorldChange}
+          />
+        </EditorUndoProvider>
+      </CopyProvider>,
+    )
+    fireEvent.click(screen.getByTestId('coding-submenu-code'))
+    fireEvent.click(screen.getByTestId('custom-transformer-code-popout-open'))
+
+    const item0 = screen.getByTestId('transformer-horizontal-item-0')
+    const item1 = screen.getByTestId('transformer-horizontal-item-1')
+
+    // Simulate drag and drop: drag item 0 and drop on item 1
+    fireEvent.dragStart(item0)
+    fireEvent.dragOver(item1)
+    fireEvent.drop(item1)
+
+    expect(onWorldChange).toHaveBeenCalled()
+    const updatedWorld = onWorldChange.mock.calls[0][0]
+    // The second transformer (custom) should now be first
+    expect(updatedWorld.entities[0].transformers[0].type).toBe('custom')
+    expect(updatedWorld.entities[0].transformers[1].type).toBe('input')
+  })
 })

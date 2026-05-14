@@ -145,6 +145,13 @@ function TransformerTraceItem({
   scrollLeft,
   onToggleExpanded,
   onRemove,
+  onToggleEnabled,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  onDragEnd,
+  isDragOver,
+  isDragging,
 }: {
   index: number
   transformer: TransformerConfig
@@ -154,11 +161,19 @@ function TransformerTraceItem({
   scrollLeft: number
   onToggleExpanded: () => void
   onRemove: () => void
+  onToggleEnabled: () => void
+  onDragStart: () => void
+  onDragOver: (e: React.DragEvent) => void
+  onDrop: () => void
+  onDragEnd: () => void
+  isDragOver: boolean
+  isDragging: boolean
 }) {
   const [inOpen, setInOpen] = useState(false)
   const [outOpen, setOutOpen] = useState(false)
   const itemRef = useRef<HTMLDivElement>(null)
 
+  const enabled = transformer.enabled ?? true
   const inputLit = Boolean(step && !step.skipped && hasNonZeroSemanticActions(step.inputBefore))
   const outputLit = Boolean(step && !step.skipped && step.outputLedActive)
 
@@ -205,6 +220,15 @@ function TransformerTraceItem({
   return (
     <div
       ref={itemRef}
+      draggable
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDrop={(e) => {
+        e.preventDefault()
+        onDrop()
+      }}
+      onDragEnd={onDragEnd}
+      data-testid={`transformer-horizontal-item-${index}`}
       style={{
         display: 'flex',
         flexDirection: 'column',
@@ -213,6 +237,10 @@ function TransformerTraceItem({
         borderLeft: index === 0 ? 'none' : `1px solid ${theme.border.default}`,
         minWidth: 80,
         maxWidth: 180,
+        opacity: isDragging ? 0.4 : 1,
+        background: isDragOver ? theme.bg.panelAlt : 'transparent',
+        transition: 'background 0.2s ease',
+        cursor: 'grab',
       }}
     >
       <div
@@ -240,28 +268,57 @@ function TransformerTraceItem({
         >
           {transformer.type}
         </div>
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation()
-            onRemove()
-          }}
-          style={{
-            background: 'transparent',
-            border: 'none',
-            color: theme.text.muted,
-            cursor: 'pointer',
-            fontSize: 12,
-            lineHeight: 1,
-            padding: '0 2px',
-            opacity: 0.6,
-          }}
-          title="Remove transformer"
-          onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
-          onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.6')}
-        >
-          ×
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              onToggleEnabled()
+            }}
+            title={enabled ? 'Enabled — click to disable' : 'Disabled — click to enable'}
+            data-testid={`transformer-horizontal-enabled-toggle-${index}`}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '0 2px',
+            }}
+          >
+            <span
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: '50%',
+                background: enabled ? theme.status.enabled : theme.status.disabled,
+              }}
+            />
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              onRemove()
+            }}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: theme.text.muted,
+              cursor: 'pointer',
+              fontSize: 12,
+              lineHeight: 1,
+              padding: '0 2px',
+              opacity: 0.6,
+            }}
+            title="Remove transformer"
+            onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+            onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.6')}
+          >
+            ×
+          </button>
+        </div>
       </div>
       <div className="transformer-trace-content" style={{ flexDirection: 'column', gap: 2, marginTop: 2 }}>
         <details
@@ -321,6 +378,8 @@ function TransformerHorizontalTrace({
   const [scrollLeft, setScrollLeft] = useState(0)
   const [isExpanded, setIsExpanded] = useState(false)
   const [addSelectValue, setAddSelectValue] = useState('')
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
   const traceBarRef = useRef<HTMLDivElement>(null)
 
   const onToggleExpanded = useCallback(() => setIsExpanded((prev) => !prev), [])
@@ -337,6 +396,28 @@ function TransformerHorizontalTrace({
   const handleRemoveTransformer = (index: number) => {
     const next = transformers.filter((_, i) => i !== index)
     onCommit(next)
+  }
+
+  const handleToggleEnabled = (index: number) => {
+    const next = transformers.map((t, i) =>
+      i === index ? { ...t, enabled: !(t.enabled ?? true) } : t
+    )
+    onCommit(next)
+  }
+
+  const handleDrop = (targetIndex: number) => {
+    if (draggedIndex === null || draggedIndex === targetIndex) {
+      setDraggedIndex(null)
+      setDragOverIndex(null)
+      return
+    }
+
+    const next = [...transformers]
+    const [removed] = next.splice(draggedIndex, 1)
+    next.splice(targetIndex, 0, removed)
+    onCommit(next)
+    setDraggedIndex(null)
+    setDragOverIndex(null)
   }
 
   const traceByStackIndex = useMemo(() => {
@@ -381,6 +462,19 @@ function TransformerHorizontalTrace({
           scrollLeft={scrollLeft}
           onToggleExpanded={onToggleExpanded}
           onRemove={() => handleRemoveTransformer(i)}
+          onToggleEnabled={() => handleToggleEnabled(i)}
+          onDragStart={() => setDraggedIndex(i)}
+          onDragOver={(e) => {
+            e.preventDefault()
+            setDragOverIndex(i)
+          }}
+          onDrop={() => handleDrop(i)}
+          onDragEnd={() => {
+            setDraggedIndex(null)
+            setDragOverIndex(null)
+          }}
+          isDragging={draggedIndex === i}
+          isDragOver={dragOverIndex === i && draggedIndex !== i}
         />
       ))}
       <div style={{ padding: '0 8px', borderLeft: `1px solid ${theme.border.default}`, display: 'flex', alignItems: 'center' }}>
