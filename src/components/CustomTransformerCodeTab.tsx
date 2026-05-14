@@ -208,6 +208,13 @@ export default function CustomTransformerCodeTab({
     setCodePopoutOpen(false)
   }, [flushPendingCode])
 
+  /** Close + reopen pop-out so Monaco remounts (escape hatch for bad first paint). */
+  const refreshPopoutMonaco = useCallback(() => {
+    flushPendingCode()
+    setCodePopoutOpen(false)
+    window.setTimeout(() => setCodePopoutOpen(true), 0)
+  }, [flushPendingCode])
+
   useEffect(() => {
     if (!codePopoutOpen) return
     const onKey = (e: KeyboardEvent) => {
@@ -483,6 +490,7 @@ export default function CustomTransformerCodeTab({
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   flexShrink: 0,
+                  gap: 12,
                 }}
               >
                 <h2
@@ -492,28 +500,51 @@ export default function CustomTransformerCodeTab({
                     fontSize: 15,
                     fontWeight: 600,
                     color: theme.text.primary,
+                    flex: '1 1 auto',
+                    minWidth: 0,
                   }}
                 >
                   {popoutTitle}
                 </h2>
-                <button
-                  type="button"
-                  data-testid="custom-transformer-code-popout-close"
-                  onClick={closeCodePopout}
-                  aria-label="Close pop-out editor"
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    color: theme.text.muted,
-                    fontSize: 22,
-                    lineHeight: 1,
-                    cursor: 'pointer',
-                    padding: 4,
-                    borderRadius: 4,
-                  }}
-                >
-                  ×
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                  <button
+                    type="button"
+                    data-testid="custom-transformer-code-popout-refresh-editor"
+                    onClick={refreshPopoutMonaco}
+                    disabled={anyLocked}
+                    title="Reload editor (closes and reopens this window)"
+                    aria-label="Reload editor layout"
+                    style={{
+                      padding: '6px 10px',
+                      fontSize: 12,
+                      borderRadius: 6,
+                      border: `1px solid ${theme.border.default}`,
+                      background: theme.bg.surface,
+                      color: theme.text.primary,
+                      cursor: anyLocked ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    Refresh editor
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="custom-transformer-code-popout-close"
+                    onClick={closeCodePopout}
+                    aria-label="Close pop-out editor"
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: theme.text.muted,
+                      fontSize: 22,
+                      lineHeight: 1,
+                      cursor: 'pointer',
+                      padding: 4,
+                      borderRadius: 4,
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
               </div>
               <div
                 data-testid="custom-transformer-code-popout-body"
@@ -539,6 +570,7 @@ export default function CustomTransformerCodeTab({
                   <TransformerCustomCodeEditor
                     layout="fill"
                     transparent
+                    delayedLayoutMs={200}
                     value={codeDraft}
                     onChange={handleCodeChange}
                     disabled={anyLocked}

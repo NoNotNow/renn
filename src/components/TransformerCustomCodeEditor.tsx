@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useRef, type MouseEvent as ReactMouseEvent } from 'react'
 import Editor from '@monaco-editor/react'
-import type { Monaco } from '@monaco-editor/react'
+import type { OnMount } from '@monaco-editor/react'
+import type { editor } from 'monaco-editor'
 import { addMonacoTypescriptExtraLib } from '@/utils/monacoExtraLib'
 import { transformerCtxDecl, TRANSFORMER_CODE_EXTRA_LIB_URI } from '@/transformers/transformerCodeDecl'
 import { clamp } from '@/utils/numberUtils'
@@ -41,6 +42,10 @@ export interface TransformerCustomCodeEditorProps {
    * the parent panel's frosted-glass appearance.
    */
   transparent?: boolean
+  /** If set (ms ≥ 0), call `editor.layout()` once after this delay (helps flex/portal hosts). */
+  delayedLayoutMs?: number
+  /** Fires once after Monaco mounts with the editor instance. */
+  onEditorReady?: (ed: editor.IStandaloneCodeEditor) => void
 }
 
 export default function TransformerCustomCodeEditor({
@@ -53,10 +58,13 @@ export default function TransformerCustomCodeEditor({
   minHeightPx = CUSTOM_CODE_EDITOR_HEIGHT_MIN_PX,
   maxHeightPx = CUSTOM_CODE_EDITOR_HEIGHT_MAX_PX,
   transparent = false,
+  delayedLayoutMs,
+  onEditorReady,
 }: TransformerCustomCodeEditorProps) {
   const monacoRef = useRef<typeof import('monaco-editor') | null>(null)
   const extraLibRef = useRef<{ dispose(): void } | null>(null)
   const resizeDragRef = useRef<{ startY: number; startHeight: number } | null>(null)
+  const delayedLayoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const uid = useId()
 
   const clampHeight = useCallback((h: number) => clamp(h, minHeightPx, maxHeightPx), [minHeightPx, maxHeightPx])
@@ -102,7 +110,16 @@ export default function TransformerCustomCodeEditor({
     }
   }, [])
 
-  const handleMount = (_ed: unknown, monaco: Monaco) => {
+  useEffect(() => {
+    return () => {
+      if (delayedLayoutTimerRef.current != null) {
+        clearTimeout(delayedLayoutTimerRef.current)
+        delayedLayoutTimerRef.current = null
+      }
+    }
+  }, [])
+
+  const handleMount: OnMount = (ed, monaco) => {
     monacoRef.current = monaco
     extraLibRef.current?.dispose()
     extraLibRef.current = addMonacoTypescriptExtraLib(
@@ -126,6 +143,17 @@ export default function TransformerCustomCodeEditor({
         },
       })
     }
+    if (delayedLayoutTimerRef.current != null) {
+      clearTimeout(delayedLayoutTimerRef.current)
+      delayedLayoutTimerRef.current = null
+    }
+    if (delayedLayoutMs != null && delayedLayoutMs >= 0) {
+      delayedLayoutTimerRef.current = setTimeout(() => {
+        delayedLayoutTimerRef.current = null
+        ed.layout()
+      }, delayedLayoutMs)
+    }
+    onEditorReady?.(ed)
   }
 
   const monacoTheme = transparent ? GLASS_THEME : 'vs-dark'
