@@ -14,6 +14,8 @@ export interface TransformerCustomCodeEditorProps {
   value: string
   onChange: (next: string) => void
   disabled?: boolean
+  /** `fixed`: pixel height + optional resize handle. `fill`: grow inside a flex parent (`flex:1; minHeight:0`). */
+  layout?: 'fixed' | 'fill'
   /** Controlled editor height in pixels. */
   heightPx?: number
   onHeightPxChange?: (next: number) => void
@@ -25,6 +27,7 @@ export default function TransformerCustomCodeEditor({
   value,
   onChange,
   disabled = false,
+  layout = 'fixed',
   heightPx = CUSTOM_CODE_EDITOR_HEIGHT_DEFAULT_PX,
   onHeightPxChange,
   minHeightPx = CUSTOM_CODE_EDITOR_HEIGHT_MIN_PX,
@@ -65,7 +68,7 @@ export default function TransformerCustomCodeEditor({
 
   const handleResizeMouseDown = useCallback(
     (e: ReactMouseEvent<HTMLDivElement>) => {
-      if (onHeightPxChange == null) return
+      if (layout === 'fill' || onHeightPxChange == null) return
       e.preventDefault()
       resizeDragRef.current = {
         startY: e.clientY,
@@ -85,8 +88,37 @@ export default function TransformerCustomCodeEditor({
       document.addEventListener('mousemove', onMove)
       document.addEventListener('mouseup', onUp)
     },
-    [clampHeight, effectiveHeight, onHeightPxChange],
+    [clampHeight, effectiveHeight, layout, onHeightPxChange],
   )
+
+  if (layout === 'fill') {
+    return (
+      <div
+        style={{
+          width: '100%',
+          flex: 1,
+          minHeight: 0,
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
+        <div style={{ flex: 1, minHeight: 0, width: '100%', overflow: 'hidden' }}>
+          <Editor
+            height="100%"
+            language="javascript"
+            theme="vs-dark"
+            value={value}
+            onChange={(v) => onChange(v ?? '')}
+            onMount={handleMount}
+            options={{
+              minimap: { enabled: false },
+              readOnly: disabled,
+            }}
+          />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div style={{ width: '100%' }}>

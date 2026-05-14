@@ -103,4 +103,70 @@ describe('CodingTabPanel', () => {
     expect(screen.getByTestId('custom-transformer-compile-error')).toHaveTextContent(/dangerous pattern/i)
     expect(screen.getByTestId('custom-code-editor-resize-handle')).toBeInTheDocument()
   })
+
+  it('Transformer code pop out opens overlay and docks back', () => {
+    render(
+      <CopyProvider>
+        <EditorUndoProvider value={undoApi}>
+          <CodingTabPanel world={minimalWorld} selectedEntityIds={['e1']} onWorldChange={vi.fn()} />
+        </EditorUndoProvider>
+      </CopyProvider>,
+    )
+    fireEvent.click(screen.getByTestId('coding-submenu-code'))
+    fireEvent.click(screen.getByTestId('custom-transformer-code-popout-open'))
+    expect(screen.getByTestId('custom-transformer-code-popout-backdrop')).toBeInTheDocument()
+    expect(screen.getByTestId('custom-transformer-code-docked-placeholder')).toBeInTheDocument()
+    expect(screen.queryByTestId('custom-code-editor-resize-handle')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByTestId('custom-transformer-code-popout-dock'))
+    expect(screen.queryByTestId('custom-transformer-code-popout-backdrop')).not.toBeInTheDocument()
+    expect(screen.getByTestId('custom-code-editor-resize-handle')).toBeInTheDocument()
+  })
+
+  it('Transformer code pop out closes on Escape', () => {
+    render(
+      <CopyProvider>
+        <EditorUndoProvider value={undoApi}>
+          <CodingTabPanel world={minimalWorld} selectedEntityIds={['e1']} onWorldChange={vi.fn()} />
+        </EditorUndoProvider>
+      </CopyProvider>,
+    )
+    fireEvent.click(screen.getByTestId('coding-submenu-code'))
+    fireEvent.click(screen.getByTestId('custom-transformer-code-popout-open'))
+    expect(screen.getByTestId('custom-transformer-code-popout-backdrop')).toBeInTheDocument()
+    fireEvent.keyDown(document, { key: 'Escape', code: 'Escape' })
+    expect(screen.queryByTestId('custom-transformer-code-popout-backdrop')).not.toBeInTheDocument()
+  })
+
+  it('Transformer code pop out shows compile error in overlay body', () => {
+    const invalidWorld: RennWorld = {
+      ...minimalWorld,
+      entities: [
+        {
+          ...minimalWorld.entities[0]!,
+          transformers: [
+            {
+              type: 'custom',
+              name: 'Bad',
+              code: 'eval(1)',
+              priority: 10,
+              enabled: true,
+              params: {},
+            },
+          ],
+        },
+      ],
+    }
+    render(
+      <CopyProvider>
+        <EditorUndoProvider value={undoApi}>
+          <CodingTabPanel world={invalidWorld} selectedEntityIds={['e1']} onWorldChange={vi.fn()} />
+        </EditorUndoProvider>
+      </CopyProvider>,
+    )
+    fireEvent.click(screen.getByTestId('coding-submenu-code'))
+    fireEvent.click(screen.getByTestId('custom-transformer-code-popout-open'))
+    const body = screen.getByTestId('custom-transformer-code-popout-body')
+    expect(body).toContainElement(screen.getByTestId('custom-transformer-compile-error'))
+    expect(screen.getByTestId('custom-transformer-compile-error')).toHaveTextContent(/dangerous pattern/i)
+  })
 })
