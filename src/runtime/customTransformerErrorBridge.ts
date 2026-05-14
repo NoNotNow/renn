@@ -7,17 +7,26 @@ export type CustomTransformerRuntimeErrorSnapshot = {
   entityId: string
   configStackIndex: number
   message: string
+  stack?: string
+  /** Authoring source bound on the failing transformer instance. */
+  code: string
 }
 
 let snapshot: CustomTransformerRuntimeErrorSnapshot | null = null
 const listeners = new Set<() => void>()
+
+function normStack(stack: string | undefined): string {
+  return typeof stack === 'string' ? stack.trim() : ''
+}
 
 export function publishCustomTransformerRuntimeError(payload: CustomTransformerRuntimeErrorSnapshot): void {
   if (
     snapshot &&
     snapshot.entityId === payload.entityId &&
     snapshot.configStackIndex === payload.configStackIndex &&
-    snapshot.message === payload.message
+    snapshot.message === payload.message &&
+    normStack(snapshot.stack) === normStack(payload.stack) &&
+    snapshot.code === payload.code
   ) {
     return
   }

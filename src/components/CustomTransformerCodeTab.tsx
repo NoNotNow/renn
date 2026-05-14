@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type MouseEvent as ReactMouseEvent,
+} from 'react'
 import type { TransformerConfig } from '@/types/transformer'
 import CopyableArea from '@/components/CopyableArea'
 import TransformerCustomCodeEditor, { CUSTOM_CODE_EDITOR_HEIGHT_DEFAULT_PX } from '@/components/TransformerCustomCodeEditor'
@@ -13,12 +21,29 @@ import {
   nextUniqueCustomTransformerName,
 } from '@/transformers/customTransformerNaming'
 import { useEditorUndo } from '@/contexts/EditorUndoContext'
+import { useCopyMenu } from '@/contexts/CopyContext'
 import {
   getCustomTransformerRuntimeError,
   subscribeCustomTransformerRuntimeError,
 } from '@/runtime/customTransformerErrorBridge'
 
 const CODE_DEBOUNCE_MS = 350
+
+function formatCustomRuntimeErrorClipboard(snapshot: {
+  message: string
+  stack?: string
+  code: string
+}): string {
+  let out = snapshot.message
+  if (snapshot.stack?.trim()) {
+    out += `\n\n${snapshot.stack.trim()}`
+  }
+  if (snapshot.code.trim()) {
+    out += '\n\n---\nTransformer code\n\n'
+    out += snapshot.code
+  }
+  return out
+}
 
 export interface CustomTransformerCodeTabProps {
   selectedEntityIds: string[]
@@ -39,6 +64,7 @@ export default function CustomTransformerCodeTab({
   onTransformersCommit,
 }: CustomTransformerCodeTabProps) {
   const undo = useEditorUndo()
+  const { openMenu } = useCopyMenu()
   const list = mergedTransformers ?? []
 
   const customSlots = useMemo(
@@ -98,8 +124,22 @@ export default function CustomTransformerCodeTab({
     if (runtimeSnapshot == null || selectedIndex === null) return null
     if (!selectedEntityIds.includes(runtimeSnapshot.entityId)) return null
     if (runtimeSnapshot.configStackIndex !== selectedIndex) return null
-    return runtimeSnapshot.message
+    return {
+      message: runtimeSnapshot.message,
+      stack: runtimeSnapshot.stack,
+      code: runtimeSnapshot.code,
+    }
   }, [runtimeSnapshot, selectedIndex, selectedEntityIds])
+
+  const handleRuntimeErrorContextMenu = useCallback(
+    (e: ReactMouseEvent) => {
+      if (runtimeErrorForSelection == null) return
+      e.preventDefault()
+      e.stopPropagation()
+      openMenu(e, () => formatCustomRuntimeErrorClipboard(runtimeErrorForSelection))
+    },
+    [openMenu, runtimeErrorForSelection],
+  )
 
   const syncKey = selectedConfig
     ? `${selectedIndex}:${selectedConfig.code ?? ''}:${selectedConfig.name ?? ''}`
@@ -409,6 +449,7 @@ export default function CustomTransformerCodeTab({
           {runtimeErrorForSelection ? (
             <div
               data-testid="custom-transformer-runtime-error"
+              onContextMenu={handleRuntimeErrorContextMenu}
               style={{
                 marginTop: 8,
                 padding: '8px 10px',
@@ -423,7 +464,62 @@ export default function CustomTransformerCodeTab({
               }}
             >
               <div style={{ fontWeight: 600, marginBottom: 4, fontSize: 11 }}>Runtime error</div>
-              {runtimeErrorForSelection}
+              <div style={{ marginBottom: 4 }}>{runtimeErrorForSelection.message}</div>
+              {runtimeErrorForSelection.stack ? (
+                <details
+                  data-testid="custom-transformer-runtime-stack"
+                  style={{ marginTop: 6, marginBottom: runtimeErrorForSelection.code.trim() ? 6 : 0 }}
+                >
+                  <summary
+                    style={{
+                      cursor: 'pointer',
+                      fontSize: 11,
+                      fontWeight: 600,
+                      userSelect: 'none',
+                    }}
+                  >
+                    Stack trace
+                  </summary>
+                  <pre
+                    style={{
+                      margin: '6px 0 0',
+                      fontSize: 11,
+                      fontFamily: 'ui-monospace, monospace',
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word',
+                    }}
+                  >
+                    {runtimeErrorForSelection.stack}
+                  </pre>
+                </details>
+              ) : null}
+              {runtimeErrorForSelection.code.trim() ? (
+                <details data-testid="custom-transformer-runtime-code">
+                  <summary
+                    style={{
+                      cursor: 'pointer',
+                      fontSize: 11,
+                      fontWeight: 600,
+                      userSelect: 'none',
+                    }}
+                  >
+                    Transformer code
+                  </summary>
+                  <pre
+                    style={{
+                      margin: '6px 0 0',
+                      fontSize: 11,
+                      fontFamily: 'ui-monospace, monospace',
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word',
+                      maxHeight: 240,
+                      overflow: 'auto',
+                    }}
+                  >
+                    {runtimeErrorForSelection.code}
+                  </pre>
+                </details>
+              ) : null}
             </div>
           ) : null}
 

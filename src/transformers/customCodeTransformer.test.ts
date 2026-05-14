@@ -1,4 +1,5 @@
 import { describe, expect, test, vi, afterEach } from 'vitest'
+import type { TransformInput, Vec3 } from '@/types/transformer'
 import type { Entity } from '@/types/world'
 import {
   CustomCodeTransformer,
@@ -27,6 +28,105 @@ import {
   setCoordinateOverlayDisplayEntityId,
   setCoordinateOverlayFn,
 } from '@/runtime/coordinateOverlayBridge'
+
+describe('TransformerRuntimeApi argument validation', () => {
+  test('getForwardVector rejects missing or invalid rotation', () => {
+    expect(() => TRANSFORMER_RUNTIME_API.getForwardVector(undefined as unknown as [number, number, number])).toThrow(
+      /\[TransformerRuntimeApi\.getForwardVector\] expected rotation:/,
+    )
+    expect(() => TRANSFORMER_RUNTIME_API.getForwardVector([0, 0] as unknown as [number, number, number])).toThrow(
+      /\[TransformerRuntimeApi\.getForwardVector\]/,
+    )
+    expect(() => TRANSFORMER_RUNTIME_API.getForwardVector([NaN, 0, 0])).toThrow(
+      /\[TransformerRuntimeApi\.getForwardVector\]/,
+    )
+  })
+
+  test('vec.getForwardVector uses same validation as top-level', () => {
+    expect(() => TRANSFORMER_RUNTIME_API.vec.getForwardVector(undefined as unknown as [number, number, number])).toThrow(
+      /\[TransformerRuntimeApi\.vec\.getForwardVector\]/,
+    )
+  })
+
+  test('vec.add and scaleVec3 reject invalid arguments', () => {
+    expect(() => TRANSFORMER_RUNTIME_API.vec.add([1, 0, 0], [0, 1] as unknown as Vec3)).toThrow(
+      /\[TransformerRuntimeApi\.vec\.add\]/,
+    )
+    expect(() => TRANSFORMER_RUNTIME_API.scaleVec3([1, 0, 0], NaN)).toThrow(/\[TransformerRuntimeApi\.scaleVec3\]/)
+  })
+
+  test('vec.getForwardSpeed rejects non-Vec3', () => {
+    expect(() => TRANSFORMER_RUNTIME_API.vec.getForwardSpeed([0, 0, 1], [0, 1] as unknown as Vec3)).toThrow(
+      /\[TransformerRuntimeApi\.vec\.getForwardSpeed\]/,
+    )
+  })
+
+  test('eulerDeltaAroundAxis rejects invalid args', () => {
+    expect(() =>
+      TRANSFORMER_RUNTIME_API.eulerDeltaAroundAxis(undefined as unknown as [number, number, number], [0, 1, 0], 0.1),
+    ).toThrow(/\[TransformerRuntimeApi\.eulerDeltaAroundAxis\]/)
+    expect(() => TRANSFORMER_RUNTIME_API.eulerDeltaAroundAxis([0, 0, 0], [0, 0] as unknown as Vec3, 0.1)).toThrow(
+      /\[TransformerRuntimeApi\.eulerDeltaAroundAxis\]/,
+    )
+    expect(() => TRANSFORMER_RUNTIME_API.eulerDeltaAroundAxis([0, 0, 0], [0, 1, 0], NaN)).toThrow(
+      /\[TransformerRuntimeApi\.eulerDeltaAroundAxis\]/,
+    )
+  })
+
+  test('clamp rejects non-finite numbers', () => {
+    expect(() => TRANSFORMER_RUNTIME_API.clamp(1, NaN, 3)).toThrow(/\[TransformerRuntimeApi\.clamp\]/)
+  })
+
+  test('getAction rejects invalid input or name', () => {
+    expect(() => TRANSFORMER_RUNTIME_API.getAction(undefined as unknown as TransformInput, 'a')).toThrow(
+      /\[TransformerRuntimeApi\.getAction\] expected input:/,
+    )
+    expect(() => TRANSFORMER_RUNTIME_API.getAction({ actions: [] } as unknown as TransformInput, 'a')).toThrow(
+      /\[TransformerRuntimeApi\.getAction\] expected input\.actions:/,
+    )
+    expect(() =>
+      TRANSFORMER_RUNTIME_API.getAction(createMockTransformInput(), 1 as unknown as string),
+    ).toThrow(/\[TransformerRuntimeApi\.getAction\] expected name:/)
+  })
+
+  test('visualize rejects invalid arguments before publishing', () => {
+    expect(() => TRANSFORMER_RUNTIME_API.visualize(1, '#000', 'x', 0)).toThrow(
+      /\[TransformerRuntimeApi\.visualize\] expected index:/,
+    )
+    expect(() => TRANSFORMER_RUNTIME_API.visualize(1, '#000', 'x', 1.5)).toThrow(
+      /\[TransformerRuntimeApi\.visualize\] expected index:/,
+    )
+    expect(() => TRANSFORMER_RUNTIME_API.visualize(NaN, '#000', 'x', 1)).toThrow(
+      /\[TransformerRuntimeApi\.visualize\] expected value:/,
+    )
+  })
+
+  test('visualizeCoordinate rejects invalid coordinate', () => {
+    expect(() => TRANSFORMER_RUNTIME_API.visualizeCoordinate([0, 1] as unknown as [number, number, number], 'red')).toThrow(
+      /\[TransformerRuntimeApi\.visualizeCoordinate\]/,
+    )
+  })
+
+  test('getWorldPosition rejects non-string id', () => {
+    expect(() => TRANSFORMER_RUNTIME_API.getWorldPosition(123 as unknown as string)).toThrow(
+      /\[TransformerRuntimeApi\.getWorldPosition\] expected id:/,
+    )
+  })
+
+  test('getStartPosition and getEntity reject non-string id', () => {
+    expect(() => TRANSFORMER_RUNTIME_API.getStartPosition(null as unknown as string)).toThrow(
+      /\[TransformerRuntimeApi\.getStartPosition\] expected id:/,
+    )
+    expect(() => TRANSFORMER_RUNTIME_API.getEntity(1 as unknown as string)).toThrow(
+      /\[TransformerRuntimeApi\.getEntity\] expected id:/,
+    )
+  })
+
+  test('log rejects non-string message or invalid duration', () => {
+    expect(() => TRANSFORMER_RUNTIME_API.log(1 as unknown as string)).toThrow(/\[TransformerRuntimeApi\.log\]/)
+    expect(() => TRANSFORMER_RUNTIME_API.log('hi', NaN)).toThrow(/\[TransformerRuntimeApi\.log\]/)
+  })
+})
 
 describe('validateCustomTransformerSource', () => {
   test('returns null for valid legacy body', () => {
@@ -72,18 +172,23 @@ describe('CustomCodeTransformer runtime bridge', () => {
   })
 
   test('publishRuntimeError reports when entity id and stack index are set', () => {
+    const source = `function transform() { throw new Error('runtime-boom'); }`
     const t = new CustomCodeTransformer({
       type: 'custom',
-      code: `function transform() { throw new Error('runtime-boom'); }`,
+      code: source,
     })
     t.configStackIndex = 0
     t.runtimeEntityId = 'ent-a'
     t.transform(createMockTransformInput({ entityId: 'ent-a' }), 0.1)
-    expect(getCustomTransformerRuntimeError()).toEqual({
+    const snap = getCustomTransformerRuntimeError()
+    expect(snap).not.toBeNull()
+    expect(snap).toMatchObject({
       entityId: 'ent-a',
       configStackIndex: 0,
       message: 'runtime-boom',
+      code: source,
     })
+    expect(typeof snap!.stack === 'string' && snap!.stack.includes('runtime-boom')).toBe(true)
   })
 
   test('api.visualize publishes when bridge is wired and entity matches', () => {
@@ -298,6 +403,7 @@ describe('CustomCodeTransformer runtime bridge', () => {
       entityId: 'ent-b',
       configStackIndex: 1,
       message: 'old',
+      code: '',
     })
     const t = new CustomCodeTransformer({
       type: 'custom',

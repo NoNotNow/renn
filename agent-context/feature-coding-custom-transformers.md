@@ -22,7 +22,7 @@ Right sidebar **Code** drawer (Builder): **Transformers** | **Transformer code**
   - **Monaco** code: **debounced live commit** (~350 ms) to world; undo primed on first edit per selection; flush pending code when switching selected custom row.
   - **Resizable code height**: drag handle under the Monaco surface (horizontal separator, `ns-resize`).
   - **Compile errors**: forbidden patterns and `new Function` parse/compile failures from [`validateCustomTransformerSource`](../src/transformers/customCodeTransformer.ts) are shown in a panel **below** the code block.
-  - **Runtime errors**: uncaught exceptions inside `transform()` publish to [`customTransformerErrorBridge`](../src/runtime/customTransformerErrorBridge.ts) when the instance has `runtimeEntityId` / `configStackIndex` (set by [`createTransformerChain`](../src/transformers/transformerRegistry.ts)); the **Transformer code** tab shows a **Runtime error** panel (amber) for the matching selection and stack row. A successful frame clears the stored error for that target. Duplicates with the same message are not re-notified every frame.
+  - **Runtime errors**: uncaught exceptions inside `transform()` publish to [`customTransformerErrorBridge`](../src/runtime/customTransformerErrorBridge.ts) when the instance has `runtimeEntityId` / `configStackIndex` (set by [`createTransformerChain`](../src/transformers/transformerRegistry.ts)); the **Transformer code** tab shows a **Runtime error** panel (amber) for the matching selection and stack row with **expandable Stack trace** and **Transformer code** (authoring source from the failing runtime instance). Right-click copies plain text: message, stack, then a `---` / `Transformer code` section with the full source for bug reports. A successful frame clears the stored error for that target. Duplicate snapshots (same entity, stack index, message, stack trim, and code) are not re-notified every frame.
 - **Transformers** segment unchanged as full stack editor (reorder, all presets, **Apply code** for custom rows there).
 
 ### Data & migration
@@ -34,7 +34,7 @@ Right sidebar **Code** drawer (Builder): **Transformers** | **Transformer code**
 ### Runtime
 
 - **Full function authoring**: `TransformerConfig.code` now stores the complete function definition: `function transform(input, dt, params, state, api) { … }`. The runtime detects `function transform(` in the source; legacy body-only code (bare `return` statements) is still wrapped automatically for backward compat.
-- **`TRANSFORMER_RUNTIME_API`**: frozen singleton passed every frame; **`api.vec`** groups tuple vector helpers (`getForwardVector`, `getUpVector`, `dot`, `length`, `add`, `scale`, `getForwardSpeed`); top-level `getForwardVector` / `getUpVector` / `addVec3` / `scaleVec3` delegate to the same implementations (see table below).
+- **`TRANSFORMER_RUNTIME_API`**: frozen singleton passed every frame; **`api.vec`** groups tuple vector helpers (`getForwardVector`, `getUpVector`, `dot`, `length`, `add`, `scale`, `getForwardSpeed`); top-level `getForwardVector` / `getUpVector` / `addVec3` / `scaleVec3` use the same math as `api.vec.*` (see table below). Invalid arguments throw **`Error`** messages prefixed with **`[TransformerRuntimeApi.…]`** (e.g. expected tuple shape vs. what was passed)—cheap checks only at this boundary; internal helpers stay unchanged.
 - **`api.log`**: calls the play-mode snackbar (wired via `setTransformerSnackbarFn` from `SceneView`; no-op in tests unless explicitly wired). `durationSeconds` defaults to 4.
 - **`api.visualize`**: records overlay samples when Builder **Visualize** gizmo mode is active, the bridge is wired from `SceneView`, and the publishing entity matches the single selection (`variableOverlayBridge` + `publishVariableValue`). No-op in Play mode and tests by default.
 - **Sanitization**: non-finite / invalid `TransformOutput` fields stripped.
@@ -48,7 +48,7 @@ Right sidebar **Code** drawer (Builder): **Transformers** | **Transformer code**
 
 - [`migrateWorld.test.ts`](../src/scripts/migrateWorld.test.ts) — custom name migration.
 - [`customTransformerNaming.test.ts`](../src/transformers/customTransformerNaming.test.ts).
-- [`customCodeTransformer.test.ts`](../src/transformers/customCodeTransformer.test.ts) — legacy body, `api` / `api.vec` usage, default snippet behavior, `validateCustomTransformerSource`, runtime error bridge (`publish` / clear on success).
+- [`customCodeTransformer.test.ts`](../src/transformers/customCodeTransformer.test.ts) — legacy body, `api` / `api.vec` usage, default snippet behavior, `validateCustomTransformerSource`, runtime error bridge (`publish` / clear on success), runtime API argument validation (`[TransformerRuntimeApi.…]` errors).
 - [`transformerRegistry.test.ts`](../src/transformers/transformerRegistry.test.ts) — custom + `api` factory path.
 - [`CodingTabPanel.test.tsx`](../src/components/CodingTabPanel.test.tsx) — Transformer code tab controls (with `CopyProvider` + `EditorUndoProvider`); invalid custom code surfaces compile error under the editor.
 
@@ -75,7 +75,7 @@ Right sidebar **Code** drawer (Builder): **Transformers** | **Transformer code**
 | `clamp` | `(value, min, max) → number` | Inclusive clamp. |
 | `eulerDeltaAroundAxis` | `(currentRotation, axis, angleRad) → Rotation` | Euler delta for yaw-like turns around a world axis. |
 | `log` | `(message, durationSeconds?) → void` | Show message in play-mode snackbar. Default duration: 4 s. Wired via `setTransformerSnackbarFn` from `SceneView`; no-op otherwise. |
-| `visualize` | `(value, color, name, index) → void` | Builder only: push a numeric sample to the variable overlay (`api.visualize(0.7, '#ff4444', 'speed', 1)`). `color` fills the bar; labels are white. Requires Visualize gizmo mode + single selection + wired bridge; ignores non-finite values and invalid indices (not a positive integer). No-op in Play/tests when unwired. |
+| `visualize` | `(value, color, name, index) → void` | Builder only: push a numeric sample to the variable overlay (`api.visualize(0.7, '#ff4444', 'speed', 1)`). `color` fills the bar; labels are white. Requires finite `value`, string `color`/`name`, and integer **`index` 1–16** (see `VARIABLE_OVERLAY_MAX_INDEX`); invalid args throw **`[TransformerRuntimeApi.visualize]`**. Requires Visualize gizmo mode + single selection + wired bridge to display. No-op in Play/tests when unwired (after args are validated). |
 | `getWorldPosition` | `(id) → Vec3 \| null` | Live position from physics cache or mesh during `executeTransformers` (same as registry `getPosition`). Null when unwired or unavailable. No `getEntity` snapshot allocation. |
 | `getStartPosition` | `(id) → Vec3 \| null` | Persisted `entity.position` from world JSON (spawn/start). Null when unwired, unknown id, or missing/invalid position. Independent of live physics. |
 | `getEntity` | `(id) → LiveWorldEntity \| undefined` | Shallow snapshot of persisted fields plus **`getLivePosition(): Vec3 \| null`**. Prefer **`getWorldPosition`** / **`getStartPosition`** on hot paths. Undefined when the id is missing or entity lookup is unwired. |

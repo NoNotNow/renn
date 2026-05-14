@@ -72,6 +72,35 @@ describe('CopyContext', () => {
     expect(screen.queryByRole('menuitem', { name: /copy to clipboard/i })).not.toBeInTheDocument()
   })
 
+  it('writes raw string payload without JSON encoding', () => {
+    function TextTrigger() {
+      const { openMenu } = useCopyMenu()
+      return (
+        <button
+          type="button"
+          onClick={() => {
+            const mockEvent = {
+              preventDefault: vi.fn(),
+              clientX: 100,
+              clientY: 200,
+            } as unknown as React.MouseEvent
+            openMenu(mockEvent, () => 'line1\nline2')
+          }}
+        >
+          Open menu
+        </button>
+      )
+    }
+    render(
+      <CopyProvider>
+        <TextTrigger />
+      </CopyProvider>
+    )
+    fireEvent.click(screen.getByRole('button', { name: /open menu/i }))
+    fireEvent.click(screen.getByRole('menuitem', { name: /copy to clipboard/i }))
+    expect(mockWriteText).toHaveBeenCalledWith('line1\nline2')
+  })
+
   it('useCopyMenu throws when used outside CopyProvider', () => {
     expect(() => render(<TestTrigger />)).toThrow('useCopyMenu must be used within CopyProvider')
   })

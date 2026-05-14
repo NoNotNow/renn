@@ -204,7 +204,7 @@ interface LiveWorldEntity extends WorldEntity {
   getLivePosition(): Vec3 | null;
 }
 
-/** Frozen singleton; no imports inside saved transformer code — use api.* helpers. */
+/** Frozen singleton; no imports inside saved transformer code — use api.* helpers. Invalid arguments throw at runtime with message prefix [TransformerRuntimeApi.…]. */
 interface TransformerRuntimeApi {
   /** input.actions[name] ?? 0. */
   getAction(input: TransformInput, name: string): number;
@@ -226,7 +226,7 @@ interface TransformerRuntimeApi {
   log(message: string, durationSeconds?: number): void;
   /**
    * Builder visualize mode: push one numeric sample to the variable overlay (selected entity, overlay wired).
-   * Bar fill uses the color parameter; the name label is always white. Ignores non-finite values. No-op in Play/tests or when overlay is unwired.
+   * Bar fill uses the color parameter; the name label is always white. Requires finite value, string color/name, integer index 1–16; otherwise throws [TransformerRuntimeApi.visualize]. No-op in Play/tests or when overlay is unwired after validation.
    */
   visualize(value: number, color: string, name: string, index: number): void;
   /**

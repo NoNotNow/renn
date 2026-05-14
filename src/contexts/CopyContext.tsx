@@ -12,11 +12,11 @@ import {
 interface CopyMenuState {
   x: number
   y: number
-  getPayload: () => object
+  getPayload: () => object | string
 }
 
 interface CopyContextValue {
-  openMenu: (e: ReactMouseEvent, getPayload: () => object) => void
+  openMenu: (e: ReactMouseEvent, getPayload: () => object | string) => void
 }
 
 const CopyContext = createContext<CopyContextValue | null>(null)
@@ -33,7 +33,7 @@ function ContextMenu({
   const handleCopy = useCallback(() => {
     try {
       const payload = state.getPayload()
-      const text = JSON.stringify(payload, null, 2)
+      const text = typeof payload === 'string' ? payload : JSON.stringify(payload, null, 2)
       navigator.clipboard.writeText(text).catch(() => {
         alert('Failed to copy to clipboard')
       })
@@ -111,7 +111,7 @@ function ContextMenu({
 
 export function CopyProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<CopyMenuState | null>(null)
-  const openMenu = useCallback((e: ReactMouseEvent, getPayload: () => object) => {
+  const openMenu = useCallback((e: ReactMouseEvent, getPayload: () => object | string) => {
     e.preventDefault()
     setState({ x: e.clientX, y: e.clientY, getPayload })
   }, [])

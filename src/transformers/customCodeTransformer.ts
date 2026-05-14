@@ -10,8 +10,12 @@ import type {
   Rotation,
 } from '@/types/transformer'
 import type { Entity } from '@/types/world'
-import { clamp } from '@/utils/numberUtils'
-import { getForwardVectorFromEuler, getUpVectorFromEuler, eulerDeltaAroundAxis } from '@/utils/rotationUtils'
+import { clamp as clampImpl } from '@/utils/numberUtils'
+import {
+  getForwardVectorFromEuler,
+  getUpVectorFromEuler,
+  eulerDeltaAroundAxis as eulerDeltaAroundAxisImpl,
+} from '@/utils/rotationUtils'
 import {
   dotVec3,
   getForwardSpeed as getForwardSpeedUtil,
@@ -22,7 +26,7 @@ import {
   clearCustomTransformerRuntimeErrorForTarget,
   publishCustomTransformerRuntimeError,
 } from '@/runtime/customTransformerErrorBridge'
-import { publishVariableValue } from '@/runtime/variableOverlayBridge'
+import { publishVariableValue, VARIABLE_OVERLAY_MAX_INDEX } from '@/runtime/variableOverlayBridge'
 import { publishCoordinateValue } from '@/runtime/coordinateOverlayBridge'
 
 let _customCodeVisualizeEntityId: string | null = null
@@ -85,6 +89,59 @@ function readRotation(raw: unknown): Rotation | undefined {
   const o = raw as Rotation | undefined
   const v = readVec3(o ?? null)
   return v ?? undefined
+}
+
+function describeGot(x: unknown): string {
+  if (x === undefined) return 'undefined'
+  if (x === null) return 'null'
+  if (typeof x === 'number') {
+    return Number.isFinite(x) ? `number (${x})` : 'number (non-finite)'
+  }
+  if (typeof x === 'string') {
+    const j = JSON.stringify(x)
+    return j.length <= 52 ? `string (${j})` : `string (${JSON.stringify(x.slice(0, 40))}…)`
+  }
+  if (Array.isArray(x)) return `array(length ${x.length})`
+  if (typeof x === 'object') return 'object'
+  return String(x)
+}
+
+function throwApiError(scope: string, detail: string): never {
+  throw new Error(`[${scope}] ${detail}`)
+}
+
+function requireRotation(scope: string, param: string, raw: unknown): Rotation {
+  const r = readRotation(raw)
+  if (!r) {
+    throwApiError(scope, `expected ${param}: [rx, ry, rz] (radians), got: ${describeGot(raw)}`)
+  }
+  return r
+}
+
+function requireVec3(scope: string, param: string, raw: unknown): Vec3 {
+  const v = readVec3(raw)
+  if (!v) {
+    throwApiError(scope, `expected ${param}: [x, y, z], got: ${describeGot(raw)}`)
+  }
+  return v
+}
+
+function requireFiniteNumber(scope: string, param: string, raw: unknown): number {
+  if (!isFiniteNum(raw)) {
+    throwApiError(scope, `expected ${param}: finite number, got: ${describeGot(raw)}`)
+  }
+  return raw
+}
+
+function requireStringParam(scope: string, param: string, raw: unknown): string {
+  if (typeof raw !== 'string') {
+    throwApiError(scope, `expected ${param}: string, got: ${describeGot(raw)}`)
+  }
+  return raw
+}
+
+function requireEntityId(scope: string, raw: unknown): string {
+  return requireStringParam(scope, 'id', raw)
 }
 
 function readSetPose(raw: unknown): TransformOutput['setPose'] | undefined {
@@ -223,45 +280,161 @@ function vecGetUpVector(rotation: Rotation): Vec3 {
 }
 
 const VEC_API: TransformerVecApi = Object.freeze({
-  getForwardVector: vecGetForwardVector,
-  getUpVector: vecGetUpVector,
-  dot: dotVec3,
-  length: vec3Length,
-  add: addVec3Impl,
-  scale: (v: Vec3, s: number): Vec3 => scaleVec3Util(v, s),
-  getForwardSpeed: getForwardSpeedUtil,
+  getForwardVector: (rotation: Rotation): Vec3 => {
+    const r = requireRotation('TransformerRuntimeApi.vec.getForwardVector', 'rotation', rotation)
+    return vecGetForwardVector(r)
+  },
+  getUpVector: (rotation: Rotation): Vec3 => {
+    const r = requireRotation('TransformerRuntimeApi.vec.getUpVector', 'rotation', rotation)
+    return vecGetUpVector(r)
+  },
+  dot: (a: Vec3, b: Vec3): number => {
+    const av = requireVec3('TransformerRuntimeApi.vec.dot', 'a', a)
+    const bv = requireVec3('TransformerRuntimeApi.vec.dot', 'b', b)
+    return dotVec3(av, bv)
+  },
+  length: (v: Vec3): number => {
+    const vv = requireVec3('TransformerRuntimeApi.vec.length', 'v', v)
+    return vec3Length(vv)
+  },
+  add: (a: Vec3, b: Vec3): Vec3 => {
+    const av = requireVec3('TransformerRuntimeApi.vec.add', 'a', a)
+    const bv = requireVec3('TransformerRuntimeApi.vec.add', 'b', b)
+    return addVec3Impl(av, bv)
+  },
+  scale: (v: Vec3, s: number): Vec3 => {
+    const vv = requireVec3('TransformerRuntimeApi.vec.scale', 'v', v)
+    const ss = requireFiniteNumber('TransformerRuntimeApi.vec.scale', 's', s)
+    return scaleVec3Util(vv, ss)
+  },
+  getForwardSpeed: (velocity: Vec3, forward: Vec3): number => {
+    const vel = requireVec3('TransformerRuntimeApi.vec.getForwardSpeed', 'velocity', velocity)
+    const fwd = requireVec3('TransformerRuntimeApi.vec.getForwardSpeed', 'forward', forward)
+    return getForwardSpeedUtil(vel, fwd)
+  },
 })
 
+function eulerDeltaAroundAxisApi(currentRotation: Rotation, axis: Vec3, angleRad: number): Rotation {
+  const rot = requireRotation('TransformerRuntimeApi.eulerDeltaAroundAxis', 'currentRotation', currentRotation)
+  const ax = requireVec3('TransformerRuntimeApi.eulerDeltaAroundAxis', 'axis', axis)
+  const ang = requireFiniteNumber('TransformerRuntimeApi.eulerDeltaAroundAxis', 'angleRad', angleRad)
+  return eulerDeltaAroundAxisImpl(rot, ax, ang)
+}
+
+function clampApi(value: number, min: number, max: number): number {
+  const v = requireFiniteNumber('TransformerRuntimeApi.clamp', 'value', value)
+  const lo = requireFiniteNumber('TransformerRuntimeApi.clamp', 'min', min)
+  const hi = requireFiniteNumber('TransformerRuntimeApi.clamp', 'max', max)
+  return clampImpl(v, lo, hi)
+}
+
+function getActionApi(input: TransformInput, name: string): number {
+  if (input === null || input === undefined) {
+    throwApiError(
+      'TransformerRuntimeApi.getAction',
+      `expected input: TransformInput object, got: ${describeGot(input)}`,
+    )
+  }
+  if (typeof input !== 'object' || Array.isArray(input)) {
+    throwApiError(
+      'TransformerRuntimeApi.getAction',
+      `expected input: TransformInput object, got: ${describeGot(input)}`,
+    )
+  }
+  if (typeof name !== 'string') {
+    throwApiError('TransformerRuntimeApi.getAction', `expected name: string, got: ${describeGot(name)}`)
+  }
+  const rawActions = (input as { actions?: unknown }).actions
+  if (rawActions !== undefined && rawActions !== null) {
+    if (typeof rawActions !== 'object' || Array.isArray(rawActions)) {
+      throwApiError(
+        'TransformerRuntimeApi.getAction',
+        `expected input.actions: Record<string, number>, got: ${describeGot(rawActions)}`,
+      )
+    }
+  }
+  const actions =
+    rawActions != null && typeof rawActions === 'object' && !Array.isArray(rawActions)
+      ? (rawActions as Record<string, number>)
+      : {}
+  return actions[name] ?? 0
+}
+
 export const TRANSFORMER_RUNTIME_API: TransformerRuntimeApi = Object.freeze({
-  getAction: (input: TransformInput, name: string): number => input.actions[name] ?? 0,
-  getForwardVector: (rotation) => VEC_API.getForwardVector(rotation),
-  getUpVector: (rotation) => VEC_API.getUpVector(rotation),
-  addVec3: (a, b) => VEC_API.add(a, b),
-  scaleVec3: (v, s) => VEC_API.scale(v, s),
+  getAction: getActionApi,
+  getForwardVector: (rotation): Vec3 => {
+    const r = requireRotation('TransformerRuntimeApi.getForwardVector', 'rotation', rotation)
+    return vecGetForwardVector(r)
+  },
+  getUpVector: (rotation): Vec3 => {
+    const r = requireRotation('TransformerRuntimeApi.getUpVector', 'rotation', rotation)
+    return vecGetUpVector(r)
+  },
+  addVec3: (a, b): Vec3 => {
+    const av = requireVec3('TransformerRuntimeApi.addVec3', 'a', a)
+    const bv = requireVec3('TransformerRuntimeApi.addVec3', 'b', b)
+    return addVec3Impl(av, bv)
+  },
+  scaleVec3: (v, s): Vec3 => {
+    const vv = requireVec3('TransformerRuntimeApi.scaleVec3', 'v', v)
+    const ss = requireFiniteNumber('TransformerRuntimeApi.scaleVec3', 's', s)
+    return scaleVec3Util(vv, ss)
+  },
   vec: VEC_API,
-  clamp,
-  eulerDeltaAroundAxis,
+  clamp: clampApi,
+  eulerDeltaAroundAxis: eulerDeltaAroundAxisApi,
   log: (message: string, durationSeconds = 4): void => {
-    _snackbarFn?.(String(message), durationSeconds)
+    if (typeof message !== 'string') {
+      throwApiError('TransformerRuntimeApi.log', `expected message: string, got: ${describeGot(message)}`)
+    }
+    requireFiniteNumber('TransformerRuntimeApi.log', 'durationSeconds', durationSeconds)
+    if (durationSeconds < 0) {
+      throwApiError(
+        'TransformerRuntimeApi.log',
+        `expected durationSeconds: finite number >= 0, got: ${describeGot(durationSeconds)}`,
+      )
+    }
+    _snackbarFn?.(message, durationSeconds)
   },
   visualize: (value: number, color: string, name: string, index: number): void => {
+    requireFiniteNumber('TransformerRuntimeApi.visualize', 'value', value)
+    requireStringParam('TransformerRuntimeApi.visualize', 'color', color)
+    requireStringParam('TransformerRuntimeApi.visualize', 'name', name)
+    if (
+      typeof index !== 'number' ||
+      !Number.isInteger(index) ||
+      index < 1 ||
+      index > VARIABLE_OVERLAY_MAX_INDEX
+    ) {
+      throwApiError(
+        'TransformerRuntimeApi.visualize',
+        `expected index: integer 1–${VARIABLE_OVERLAY_MAX_INDEX}, got: ${describeGot(index)}`,
+      )
+    }
     const id = _customCodeVisualizeEntityId
     if (id == null) return
     publishVariableValue(id, value, color, name, index)
   },
   visualizeCoordinate: (coordinate: Vec3, color: string): void => {
+    const coord = requireVec3('TransformerRuntimeApi.visualizeCoordinate', 'coordinate', coordinate)
+    requireStringParam('TransformerRuntimeApi.visualizeCoordinate', 'color', color)
     const id = _customCodeVisualizeEntityId
     if (id == null) return
-    publishCoordinateValue(id, coordinate, color)
+    publishCoordinateValue(id, coord, color)
   },
-  getWorldPosition: (id: string): Vec3 | null => _transformerRuntimeGetLivePosition?.(id) ?? null,
+  getWorldPosition: (id: string): Vec3 | null => {
+    requireEntityId('TransformerRuntimeApi.getWorldPosition', id)
+    return _transformerRuntimeGetLivePosition?.(id) ?? null
+  },
   getStartPosition: (id: string): Vec3 | null => {
+    requireEntityId('TransformerRuntimeApi.getStartPosition', id)
     const entity = _transformerRuntimeGetEntity?.(id)
     if (!entity) return null
     const p = readVec3(entity.position)
     return p ? cloneVec3Tuple(p) : null
   },
   getEntity: (id: string): TransformerRuntimeEntity | undefined => {
+    requireEntityId('TransformerRuntimeApi.getEntity', id)
     const entity = _transformerRuntimeGetEntity?.(id)
     return entity ? wrapEntityForTransformerRuntime(entity) : undefined
   },
@@ -329,6 +502,7 @@ export class CustomCodeTransformer implements Transformer {
   runtimeEntityId?: string
   private readonly liveParams: Record<string, unknown>
   private readonly state: Record<string, unknown> = {}
+  private readonly authoringCode: string
   private readonly transformFn: CustomTransformFn
 
   constructor(config: TransformerConfig) {
@@ -338,6 +512,7 @@ export class CustomCodeTransformer implements Transformer {
     this.enabled = enabled
     this.liveParams = { ...(config.params ?? {}) }
     const code = typeof config.code === 'string' ? config.code : ''
+    this.authoringCode = code
     this.transformFn = compileCustomTransform(`custom:p${priority}`, code)
   }
 
@@ -375,7 +550,17 @@ export class CustomCodeTransformer implements Transformer {
     const idx = this.configStackIndex
     if (entityId == null || typeof idx !== 'number' || idx < 0) return
     const message = e instanceof Error ? e.message : String(e)
-    publishCustomTransformerRuntimeError({ entityId, configStackIndex: idx, message })
+    const stack =
+      e instanceof Error && typeof e.stack === 'string' && e.stack.trim() !== ''
+        ? e.stack
+        : undefined
+    publishCustomTransformerRuntimeError({
+      entityId,
+      configStackIndex: idx,
+      message,
+      stack,
+      code: this.authoringCode,
+    })
   }
 }
 

@@ -7,8 +7,8 @@ export interface CollapsibleSectionProps {
   defaultCollapsed?: boolean
   /** Rendered on the same line as the title (e.g. lock button). Clicks do not toggle collapse. */
   trailing?: React.ReactNode
-  /** When set, right-click on the section header opens "Copy to clipboard" with this payload (JSON). */
-  copyPayload?: object | (() => object)
+  /** When set, right-click on the section header opens "Copy to clipboard" with this payload (JSON or raw string). */
+  copyPayload?: object | string | (() => object | string)
   /** Native tooltip on the section title (hover). */
   titleTooltip?: string
   children: React.ReactNode
@@ -31,7 +31,9 @@ export default function CollapsibleSection({
       ? (e: React.MouseEvent) => {
           e.preventDefault()
           const getPayload = () =>
-            typeof copyPayload === 'function' ? (copyPayload as () => object)() : copyPayload
+            typeof copyPayload === 'function'
+              ? (copyPayload as () => object | string)()
+              : copyPayload
           copyMenu.openMenu(e, getPayload)
         }
       : undefined
