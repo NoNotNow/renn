@@ -107,7 +107,7 @@ describe('EntityExplorerTree', () => {
     expect(handlers.onSelectGroup).toHaveBeenCalledWith('g1', expect.objectContaining({ additive: false }))
   })
 
-  it('shift-click on a group is additive', async () => {
+  it('shift-click on a group replaces selection like a plain click', async () => {
     const user = userEvent.setup()
     const handlers = renderTree({
       world: makeWorld(
@@ -118,7 +118,30 @@ describe('EntityExplorerTree', () => {
     await user.keyboard('{Shift>}')
     await user.click(screen.getByText('Pair'))
     await user.keyboard('{/Shift}')
-    expect(handlers.onSelectGroup).toHaveBeenCalledWith('g1', expect.objectContaining({ additive: true }))
+    expect(handlers.onSelectGroup).toHaveBeenCalledWith('g1', expect.objectContaining({ additive: false }))
+  })
+
+  it('shift-click on an entity requests range selection with ordered ids', async () => {
+    const user = userEvent.setup()
+    const handlers = renderTree({
+      world: makeWorld([
+        { id: 'a', name: 'Alpha' },
+        { id: 'b', name: 'Bravo' },
+        { id: 'c', name: 'Charlie' },
+      ]),
+    })
+    await user.click(screen.getByText('Alpha'))
+    await user.keyboard('{Shift>}')
+    await user.click(screen.getByText('Charlie'))
+    await user.keyboard('{/Shift}')
+    expect(handlers.onSelectEntity).toHaveBeenLastCalledWith(
+      'c',
+      expect.objectContaining({
+        range: true,
+        additive: false,
+        orderedVisibleEntityIds: ['a', 'b', 'c'],
+      }),
+    )
   })
 
   it('Group button is disabled with a single selection', () => {

@@ -15,6 +15,7 @@ import SoundPanel from './SoundPanel'
 import BulkSpawnForm from './BulkSpawnForm'
 import EntityListPanel from './entitySidebar/EntityListPanel'
 import EntityCameraPanel from './entitySidebar/EntityCameraPanel'
+import type { EntityExplorerSelectEntityOptions } from './EntityExplorerTree'
 
 export interface EntitySidebarProps {
   entities: Entity[]
@@ -27,7 +28,7 @@ export interface EntitySidebarProps {
   /** Degrees; vertical framing vs target pivot (−45…45). */
   cameraTargetVerticalAngle: number
   world: RennWorld
-  onSelectEntity: (id: string | null, options?: { additive?: boolean }) => void
+  onSelectEntity: (id: string | null, options?: EntityExplorerSelectEntityOptions) => void
   onSelectGroup: (groupId: string, options?: { additive?: boolean }) => void
   onCreateGroupFromSelection: () => void
   onUngroup: (groupId: string) => void

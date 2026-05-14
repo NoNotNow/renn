@@ -99,6 +99,49 @@ export function getGroupTree(
 }
 
 /**
+ * Entity row order as rendered in the entity explorer tree: depth-first under the group tree,
+ * skipping entities hidden by `visibleEntityIds`, skipping group subtrees that are not rendered
+ * (filtered empty, or collapsed — children are omitted from order).
+ */
+export function flattenVisibleExplorerEntityIds(
+  world: Pick<RennWorld, 'groups' | 'entities'>,
+  visibleEntityIds: ReadonlySet<string>,
+): string[] {
+  const entityById = new Map(world.entities.map((e) => [e.id, e] as const))
+  const tree = getGroupTree(world)
+  const out: string[] = []
+
+  function subtreeHasVisibleEntity(node: GroupTreeNode): boolean {
+    if (node.kind === 'entity') {
+      return visibleEntityIds.has(node.entityId) && entityById.has(node.entityId)
+    }
+    const childAny = node.children.some(subtreeHasVisibleEntity)
+    const memberTotal = collectEntityIdsInGroup(world, node.group.id).length
+    if (!childAny && memberTotal > 0) return false
+    return childAny || memberTotal === 0
+  }
+
+  function flatten(node: GroupTreeNode): void {
+    if (node.kind === 'entity') {
+      if (!visibleEntityIds.has(node.entityId)) return
+      if (!entityById.has(node.entityId)) return
+      out.push(node.entityId)
+      return
+    }
+    const collapsed = node.group.collapsed ?? false
+    const childAny = node.children.some(subtreeHasVisibleEntity)
+    const memberTotal = collectEntityIdsInGroup(world, node.group.id).length
+    if (!childAny && memberTotal > 0) return
+    if (!collapsed) {
+      for (const c of node.children) flatten(c)
+    }
+  }
+
+  for (const n of tree) flatten(n)
+  return out
+}
+
+/**
  * Recursively collects all entity IDs reachable from a group (including via sub-groups).
  * Cycle-safe.
  */

@@ -4,6 +4,7 @@ import {
   collectEntityIdsInGroup,
   findGroupById,
   findGroupContaining,
+  flattenVisibleExplorerEntityIds,
   getGroupTree,
   type GroupTreeNode,
 } from '@/utils/entityGroups'
@@ -13,6 +14,13 @@ import { uiLogger } from '@/utils/uiLogger'
 import CopyableArea from './CopyableArea'
 import { secondaryButtonStyle } from './sharedStyles'
 
+/** Modifier semantics match Windows Explorer-style lists (entity rows). */
+export type EntityExplorerSelectEntityOptions = {
+  additive?: boolean
+  range?: boolean
+  orderedVisibleEntityIds?: readonly string[]
+}
+
 export interface EntityExplorerTreeProps {
   world: RennWorld
   /** Entities visible after Search/Filters in the parent. */
@@ -20,7 +28,7 @@ export interface EntityExplorerTreeProps {
   selectedEntityIds: string[]
   /** Group IDs that are explicitly selected (separate from entity selection). */
   selectedGroupIds: string[]
-  onSelectEntity: (id: string, options?: { additive?: boolean }) => void
+  onSelectEntity: (id: string, options?: EntityExplorerSelectEntityOptions) => void
   onSelectGroup: (groupId: string, options?: { additive?: boolean }) => void
   onCreateGroupFromSelection: () => void
   onUngroup: (groupId: string) => void
@@ -149,7 +157,10 @@ function GroupRow({ group, depth, isSelected, memberCount, onSelect, onToggleCol
       </button>
       <button
         type="button"
-        onClick={(ev) => onSelect(ev.shiftKey || ev.metaKey || ev.ctrlKey)}
+        onClick={(ev) => {
+          const additive = !ev.shiftKey && (ev.metaKey || ev.ctrlKey)
+          onSelect(additive)
+        }}
         onDoubleClick={() => {
           setDraftName(group.name ?? '')
           setEditing(true)
@@ -221,10 +232,11 @@ interface EntityRowProps {
   entity: Entity
   depth: number
   isSelected: boolean
-  onSelect: (additive: boolean) => void
+  orderedVisibleEntityIds: readonly string[]
+  onSelect: (options: EntityExplorerSelectEntityOptions) => void
 }
 
-function EntityRow({ entity, depth, isSelected, onSelect }: EntityRowProps) {
+function EntityRow({ entity, depth, isSelected, orderedVisibleEntityIds, onSelect }: EntityRowProps) {
   return (
     <div style={{ paddingLeft: depth * ROW_INDENT_PX + 16 /* caret reserve */ }}>
       <CopyableArea copyPayload={entity} style={{ display: 'block' }}>
@@ -244,7 +256,14 @@ function EntityRow({ entity, depth, isSelected, onSelect }: EntityRowProps) {
           }}
           onClick={(ev) => {
             uiLogger.click('Builder', 'Select entity', { entityId: entity.id, entityName: entity.name })
-            onSelect(ev.shiftKey || ev.metaKey || ev.ctrlKey)
+            const shift = ev.shiftKey
+            const additive = !shift && (ev.metaKey || ev.ctrlKey)
+            const range = shift
+            onSelect({
+              additive,
+              range,
+              ...(range ? { orderedVisibleEntityIds } : {}),
+            })
           }}
           onMouseEnter={(ev) => {
             if (!isSelected) ev.currentTarget.style.background = theme.bg.listHover
@@ -277,6 +296,10 @@ export default function EntityExplorerTree({
   emptyMessage,
 }: EntityExplorerTreeProps) {
   const visibleEntityIds = useMemo(() => new Set(visibleEntities.map((e) => e.id)), [visibleEntities])
+  const orderedVisibleEntityIds = useMemo(
+    () => flattenVisibleExplorerEntityIds(world, visibleEntityIds),
+    [world, visibleEntityIds],
+  )
   const entityById = useMemo(() => new Map(world.entities.map((e) => [e.id, e] as const)), [world.entities])
   const selectedEntitySet = useMemo(() => new Set(selectedEntityIds), [selectedEntityIds])
   const selectedGroupSet = useMemo(() => new Set(selectedGroupIds), [selectedGroupIds])
@@ -310,7 +333,8 @@ export default function EntityExplorerTree({
           entity={e}
           depth={depth}
           isSelected={selectedEntitySet.has(node.entityId)}
-          onSelect={(additive) => onSelectEntity(node.entityId, { additive })}
+          orderedVisibleEntityIds={orderedVisibleEntityIds}
+          onSelect={(opts) => onSelectEntity(node.entityId, opts)}
         />
       )
     }

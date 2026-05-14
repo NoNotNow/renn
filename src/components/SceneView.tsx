@@ -96,7 +96,10 @@ export interface SceneViewProps {
   shadowsEnabled?: boolean
   className?: string
   selectedEntityIds?: string[]
-  onSelectEntity?: (entityId: string | null, options?: { additive?: boolean }) => void
+  onSelectEntity?: (
+    entityId: string | null,
+    options?: { additive?: boolean; range?: boolean; orderedVisibleEntityIds?: readonly string[] },
+  ) => void
   /** Builder: called after a gizmo drag ends with the committed poses (one or many). */
   onEntityPoseCommit?: (commits: BuilderPoseCommitEntry[]) => void
   gizmoMode?: BuilderGizmoMode

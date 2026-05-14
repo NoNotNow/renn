@@ -102,7 +102,10 @@ export interface InstallBuilderPickAndGizmoParams {
   getEntity: (id: string) => Entity | undefined
   getSelectedIds: () => string[]
   getGizmoMode: () => BuilderGizmoMode
-  onSelectEntity: (id: string | null, options?: { additive?: boolean }) => void
+  onSelectEntity: (
+    id: string | null,
+    options?: { additive?: boolean; range?: boolean; orderedVisibleEntityIds?: readonly string[] },
+  ) => void
   onPoseCommit: (commits: BuilderPoseCommitEntry[]) => void
   /** Set true while user drags a gizmo handle (for camera orbit gating). */
   setGizmoDragging: (dragging: boolean) => void

@@ -3,7 +3,9 @@ import type { Entity, RennWorld } from '@/types/world'
 import type { AddableShapeType } from '@/data/entityDefaults'
 import CopyableArea from '../CopyableArea'
 import CollapsibleSection from '../CollapsibleSection'
-import EntityExplorerTree from '../EntityExplorerTree'
+import EntityExplorerTree, {
+  type EntityExplorerSelectEntityOptions,
+} from '../EntityExplorerTree'
 import {
   fieldLabelStyle,
   sidebarLabelStyle,
@@ -30,7 +32,7 @@ export interface EntityListPanelProps {
   world: RennWorld
   selectedEntityIds: string[]
   selectedGroupIds: string[]
-  onSelectEntity: (id: string | null, options?: { additive?: boolean }) => void
+  onSelectEntity: (id: string | null, options?: EntityExplorerSelectEntityOptions) => void
   onSelectGroup: (groupId: string, options?: { additive?: boolean }) => void
   onCreateGroupFromSelection: () => void
   onUngroup: (groupId: string) => void

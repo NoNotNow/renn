@@ -2,13 +2,13 @@
 
 The inspector is the right-side panel that edits the **selection** (one or more entities): name, transform, shape, physics, material, 3D model, transformers, and script attachments. With **multiple** entities selected, fields show a shared value only when all agree; otherwise they appear empty or show a short “mixed” notice. Edits apply to **every** selected entity. It reads from the world document and optional live pose data so displayed poses stay in sync with the running scene.
 
-**Multi-select**: **Shift+click** or **Cmd+click** (Meta on macOS) / **Ctrl+click** (Windows/Linux) on an entity in the viewport or entity list toggles that entity in the selection; a normal click replaces the selection with one entity. **Escape** clears the selection when focus is not in an input. **Clone** is disabled when more than one entity is selected.
+**Multi-select**: In the **left entity explorer**, **Cmd/Ctrl+click** toggles one entity in or out of the selection; **Shift+click** selects every entity **between** the anchor (last plain-selected entity) and the clicked row in visible tree order; a normal click replaces the selection with one entity. In the **3D viewport**, **Shift+click** still behaves like **Cmd/Ctrl+click** (toggle into/out of the selection) via the pick handler. **Escape** clears the selection when focus is not in an input. **Clone** is disabled when more than one entity is selected.
 
 ### Multiselect user stories
 
 **Selection and navigation**
 
-- As a builder, I extend selection with **Shift+click** or **Cmd/Ctrl+click** on the viewport or entity list so I can build arbitrary sets without losing focus.
+- As a builder, I extend selection with **Cmd/Ctrl+click** on the viewport (toggle), or **Cmd/Ctrl+click** / **Shift+range** in the entity explorer list as above.
 - As a builder, I **replace** selection with a normal click on one entity when I want to drill into a single object.
 - As a builder, I press **Escape** to clear selection when I am not typing in an input.
 

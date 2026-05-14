@@ -106,23 +106,67 @@ export default function Builder() {
 
   const [selectedEntityIds, setSelectedEntityIds] = useState<string[]>([])
   const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([])
+  /** Anchor for Shift-range selection in the entity explorer (Explorer-style lists). */
+  const selectionAnchorEntityIdRef = useRef<string | null>(null)
 
-  const handleSelectEntity = useCallback((id: string | null, options?: { additive?: boolean }) => {
-    const additive = Boolean(options?.additive)
-    if (!additive) setSelectedGroupIds([])
-    setSelectedEntityIds((prev) => {
-      if (id === null) return []
-      if (!additive) return [id]
-      const idx = prev.indexOf(id)
-      if (idx >= 0) return prev.filter((x) => x !== id)
-      return [...prev, id]
-    })
-    if (id !== null) {
-      uiLogger.click('Builder', 'Select entity', { entityId: id, additive })
-    } else {
-      uiLogger.click('Builder', 'Clear entity selection', {})
+  useEffect(() => {
+    if (selectedEntityIds.length === 0) {
+      selectionAnchorEntityIdRef.current = null
+    } else if (selectedEntityIds.length === 1) {
+      selectionAnchorEntityIdRef.current = selectedEntityIds[0]!
     }
-  }, [])
+  }, [selectedEntityIds])
+
+  const handleSelectEntity = useCallback(
+    (
+      id: string | null,
+      options?: { additive?: boolean; range?: boolean; orderedVisibleEntityIds?: readonly string[] },
+    ) => {
+      const additive = Boolean(options?.additive)
+      const range = Boolean(options?.range)
+      const order = options?.orderedVisibleEntityIds
+
+      if (id === null) {
+        selectionAnchorEntityIdRef.current = null
+        setSelectedGroupIds([])
+        setSelectedEntityIds([])
+        uiLogger.click('Builder', 'Clear entity selection', {})
+        return
+      }
+
+      if (range && order && order.length > 0) {
+        setSelectedGroupIds([])
+        setSelectedEntityIds((prev) => {
+          const anchorId = selectionAnchorEntityIdRef.current ?? prev[0] ?? id
+          let ai = order.indexOf(anchorId)
+          const bi = order.indexOf(id)
+          if (bi < 0) return [id]
+          if (ai < 0) ai = bi
+          const lo = Math.min(ai, bi)
+          const hi = Math.max(ai, bi)
+          return order.slice(lo, hi + 1) as string[]
+        })
+        uiLogger.click('Builder', 'Select entity', { entityId: id, range: true })
+        return
+      }
+
+      if (!additive) {
+        selectionAnchorEntityIdRef.current = id
+        setSelectedGroupIds([])
+        setSelectedEntityIds([id])
+        uiLogger.click('Builder', 'Select entity', { entityId: id, additive: false })
+        return
+      }
+
+      setSelectedEntityIds((prev) => {
+        const idx = prev.indexOf(id)
+        if (idx >= 0) return prev.filter((x) => x !== id)
+        return [...prev, id]
+      })
+      uiLogger.click('Builder', 'Select entity', { entityId: id, additive: true })
+    },
+    [],
+  )
   const [gizmoMode, setGizmoMode] = useState<BuilderGizmoMode>('translate')
   const [textureBrushRgb, setTextureBrushRgb] = useState<Vec3>(() => [...DEFAULT_TEXTURE_BRUSH_RGB])
   const [textureBrushAlpha, setTextureBrushAlpha] = useState(1)
@@ -270,6 +314,7 @@ export default function Builder() {
     onUndo: handleUndo,
     onRedo: handleRedo,
     onClearSelection: useCallback(() => {
+      selectionAnchorEntityIdRef.current = null
       setSelectedEntityIds([])
       setSelectedGroupIds([])
     }, []),
@@ -504,6 +549,7 @@ export default function Builder() {
       entities: [...prev.entities, ...newEntities],
     }))
     setSelectedEntityIds(newIds)
+    selectionAnchorEntityIdRef.current = newIds[0] ?? null
     uiLogger.click('Builder', 'Paste entities', { count: newEntities.length, entityIds: newIds })
   }, [captureScenePosesForNextRebuild, pushHistory, updateWorld])
 
@@ -651,6 +697,7 @@ export default function Builder() {
           return Array.from(set)
         })
       } else {
+        selectionAnchorEntityIdRef.current = expanded[0] ?? null
         setSelectedGroupIds([groupId])
         setSelectedEntityIds(expanded)
       }

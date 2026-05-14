@@ -8,6 +8,7 @@ import {
   expandGroupSelection,
   findGroupById,
   findGroupContaining,
+  flattenVisibleExplorerEntityIds,
   getGroupTree,
   pruneGroupMembers,
   removeFromGroup,
@@ -324,6 +325,28 @@ describe('entityGroups', () => {
     it('returns empty for a healthy world', () => {
       const w = world([entity('a'), entity('b')], [{ id: 'g1', memberIds: ['a', 'b'] }])
       expect(validateGroupReferences(w)).toEqual([])
+    })
+  })
+
+  describe('flattenVisibleExplorerEntityIds', () => {
+    it('lists loose entities in declaration order', () => {
+      const w = world([entity('a'), entity('b')])
+      expect(flattenVisibleExplorerEntityIds(w, new Set(['a', 'b']))).toEqual(['a', 'b'])
+    })
+
+    it('depth-first order matches group memberIds order', () => {
+      const w = world([entity('a'), entity('b')], [{ id: 'g1', memberIds: ['b', 'a'] }])
+      expect(flattenVisibleExplorerEntityIds(w, new Set(['a', 'b']))).toEqual(['b', 'a'])
+    })
+
+    it('omits entities under collapsed groups', () => {
+      const w = world([entity('a')], [{ id: 'g1', memberIds: ['a'], collapsed: true }])
+      expect(flattenVisibleExplorerEntityIds(w, new Set(['a']))).toEqual([])
+    })
+
+    it('filters by visible set', () => {
+      const w = world([entity('a'), entity('b')])
+      expect(flattenVisibleExplorerEntityIds(w, new Set(['b']))).toEqual(['b'])
     })
   })
 })
