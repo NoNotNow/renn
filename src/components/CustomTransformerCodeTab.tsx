@@ -27,6 +27,23 @@ import {
   getCustomTransformerRuntimeError,
   subscribeCustomTransformerRuntimeError,
 } from '@/runtime/customTransformerErrorBridge'
+import { addFullscreenChangeListener, getFullscreenElement } from '@/utils/fullscreenApi'
+
+/**
+ * Returns the element that should host the popout portal — the fullscreen
+ * element when one is active, otherwise `document.body`. Reactively updates
+ * on every fullscreen transition so the portal stays visible in fullscreen mode.
+ */
+function usePortalTarget(): Element {
+  const [target, setTarget] = useState<Element>(() => getFullscreenElement() ?? document.body)
+  useEffect(() => {
+    const sync = () => setTarget(getFullscreenElement() ?? document.body)
+    const remove = addFullscreenChangeListener(sync)
+    sync()
+    return remove
+  }, [])
+  return target
+}
 
 const CODE_DEBOUNCE_MS = 350
 
@@ -66,6 +83,7 @@ export default function CustomTransformerCodeTab({
 }: CustomTransformerCodeTabProps) {
   const undo = useEditorUndo()
   const { openMenu } = useCopyMenu()
+  const portalTarget = usePortalTarget()
   const list = mergedTransformers ?? []
 
   const customSlots = useMemo(
@@ -413,7 +431,7 @@ export default function CustomTransformerCodeTab({
             style={{
               position: 'fixed',
               inset: 0,
-              backgroundColor: theme.bg.overlay,
+              backgroundColor: theme.bg.modalBackdropSoft,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -429,12 +447,14 @@ export default function CustomTransformerCodeTab({
               style={{
                 width: 'min(95vw, 1600px)',
                 height: 'min(92vh, 1200px)',
-                backgroundColor: theme.bg.panelAlt,
+                backgroundColor: theme.bg.modalGlass,
+                backdropFilter: theme.effects.modalGlassBlur,
+                WebkitBackdropFilter: theme.effects.modalGlassBlur,
                 border: `1px solid ${theme.border.default}`,
                 borderRadius: 8,
                 display: 'flex',
                 flexDirection: 'column',
-                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)',
+                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.35)',
                 overflow: 'hidden',
                 boxSizing: 'border-box',
               }}
@@ -444,6 +464,9 @@ export default function CustomTransformerCodeTab({
                 style={{
                   padding: '12px 16px',
                   borderBottom: `1px solid ${theme.border.default}`,
+                  backgroundColor: theme.bg.modalGlassHeader,
+                  backdropFilter: theme.effects.modalGlassBlur,
+                  WebkitBackdropFilter: theme.effects.modalGlassBlur,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
@@ -503,6 +526,7 @@ export default function CustomTransformerCodeTab({
                 >
                   <TransformerCustomCodeEditor
                     layout="fill"
+                    transparent
                     value={codeDraft}
                     onChange={handleCodeChange}
                     disabled={anyLocked}
@@ -513,7 +537,7 @@ export default function CustomTransformerCodeTab({
               </div>
             </div>
           </div>,
-          document.body,
+          portalTarget,
         )
       : null
 

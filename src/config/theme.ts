@@ -18,6 +18,12 @@ export const theme = {
     input: '#232836',
     overlay: 'rgba(0, 0, 0, 0.55)',
     overlayLight: 'rgba(0, 0, 0, 0.5)',
+    /** Lighter dim behind glass modals so the canvas stays visible (custom transformer code popout). */
+    modalBackdropSoft: 'rgba(0, 0, 0, 0.38)',
+    /** Semi-transparent shell for large glass modals; pair with `effects.modalGlassBlur`. */
+    modalGlass: 'rgba(26, 26, 26, 0.52)',
+    /** Slightly denser strip for modal headers over blurred content. */
+    modalGlassHeader: 'rgba(22, 24, 30, 0.72)',
     /** Subtle dark overlay used for monospaced/code surfaces (JSON textarea, transformer add select). */
     codeOverlay: 'rgba(0, 0, 0, 0.3)',
     /** Solid dark code/preview pane background (e.g. transformer template preview). */
@@ -124,6 +130,10 @@ export const theme = {
     mixedValues: '#888',
   },
   accent: '#8ab4ff',
+  effects: {
+    /** Backdrop blur for `bg.modalGlass` surfaces (frosted panel over the scene). */
+    modalGlassBlur: 'blur(18px) saturate(140%)',
+  },
   zIndex: {
     modal: 10000,
     overlay: 2100,

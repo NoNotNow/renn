@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, type MouseEvent as ReactMouseEvent } from 'react'
+import { useCallback, useEffect, useId, useRef, type MouseEvent as ReactMouseEvent } from 'react'
 import Editor from '@monaco-editor/react'
 import type { Monaco } from '@monaco-editor/react'
 import { addMonacoTypescriptExtraLib } from '@/utils/monacoExtraLib'
@@ -9,6 +9,21 @@ import { theme } from '@/config/theme'
 export const CUSTOM_CODE_EDITOR_HEIGHT_MIN_PX = 160
 export const CUSTOM_CODE_EDITOR_HEIGHT_MAX_PX = 720
 export const CUSTOM_CODE_EDITOR_HEIGHT_DEFAULT_PX = 280
+
+/**
+ * Name of the Monaco theme used when `transparent` is true.
+ * Defined once per Monaco instance in `handleMount`; safe to redefine (idempotent overwrite).
+ */
+const GLASS_THEME = 'vs-dark-glass'
+
+/** CSS injected when at least one glass editor is mounted. Scoped via `data-glass-editor`. */
+const GLASS_EDITOR_CSS = `
+[data-glass-editor] .monaco-editor,
+[data-glass-editor] .monaco-editor-background,
+[data-glass-editor] .monaco-editor .margin {
+  background-color: rgba(26, 26, 26, 0.5) !important;
+}
+`
 
 export interface TransformerCustomCodeEditorProps {
   value: string
@@ -21,6 +36,11 @@ export interface TransformerCustomCodeEditorProps {
   onHeightPxChange?: (next: number) => void
   minHeightPx?: number
   maxHeightPx?: number
+  /**
+   * When true the Monaco editor background is made transparent so it inherits
+   * the parent panel's frosted-glass appearance.
+   */
+  transparent?: boolean
 }
 
 export default function TransformerCustomCodeEditor({
@@ -32,12 +52,40 @@ export default function TransformerCustomCodeEditor({
   onHeightPxChange,
   minHeightPx = CUSTOM_CODE_EDITOR_HEIGHT_MIN_PX,
   maxHeightPx = CUSTOM_CODE_EDITOR_HEIGHT_MAX_PX,
+  transparent = false,
 }: TransformerCustomCodeEditorProps) {
   const monacoRef = useRef<typeof import('monaco-editor') | null>(null)
   const extraLibRef = useRef<{ dispose(): void } | null>(null)
   const resizeDragRef = useRef<{ startY: number; startHeight: number } | null>(null)
+  const uid = useId()
 
   const clampHeight = useCallback((h: number) => clamp(h, minHeightPx, maxHeightPx), [minHeightPx, maxHeightPx])
+
+  // Inject / remove the glass CSS whenever `transparent` toggles.
+  useEffect(() => {
+    if (!transparent) return
+    const existing = document.getElementById('monaco-glass-style')
+    let style: HTMLStyleElement
+    if (existing instanceof HTMLStyleElement) {
+      style = existing
+    } else {
+      style = document.createElement('style')
+      style.id = 'monaco-glass-style'
+      style.textContent = GLASS_EDITOR_CSS
+      document.head.appendChild(style)
+    }
+    // Track reference count so the style is only removed when the last glass editor unmounts.
+    const count = Number(style.dataset.refCount ?? 0) + 1
+    style.dataset.refCount = String(count)
+    return () => {
+      const cur = Number(style.dataset.refCount ?? 1) - 1
+      if (cur <= 0) {
+        style.remove()
+      } else {
+        style.dataset.refCount = String(cur)
+      }
+    }
+  }, [transparent])
 
   useEffect(() => {
     const monaco = monacoRef.current
@@ -62,8 +110,25 @@ export default function TransformerCustomCodeEditor({
       transformerCtxDecl(),
       TRANSFORMER_CODE_EXTRA_LIB_URI,
     )
+    if (transparent) {
+      monaco.editor.defineTheme(GLASS_THEME, {
+        base: 'vs-dark',
+        inherit: true,
+        rules: [],
+        colors: {
+          // 8-digit hex: #rrggbbaa — must match the CSS rgba(26,26,26,0.5) above
+          'editor.background': '#1a1a1a80',
+          'editorGutter.background': '#1a1a1a80',
+          'editor.lineHighlightBackground': '#ffffff0a',
+          'editor.lineHighlightBorder': '#ffffff00',
+          'editor.selectionBackground': '#6b7280aa',
+          'scrollbar.shadow': '#00000000',
+        },
+      })
+    }
   }
 
+  const monacoTheme = transparent ? GLASS_THEME : 'vs-dark'
   const effectiveHeight = clampHeight(heightPx)
 
   const handleResizeMouseDown = useCallback(
@@ -94,6 +159,7 @@ export default function TransformerCustomCodeEditor({
   if (layout === 'fill') {
     return (
       <div
+        data-glass-editor={transparent ? uid : undefined}
         style={{
           width: '100%',
           flex: 1,
@@ -106,13 +172,15 @@ export default function TransformerCustomCodeEditor({
           <Editor
             height="100%"
             language="javascript"
-            theme="vs-dark"
+            theme={monacoTheme}
             value={value}
             onChange={(v) => onChange(v ?? '')}
             onMount={handleMount}
             options={{
               minimap: { enabled: false },
               readOnly: disabled,
+              renderLineHighlight: 'all',
+              renderLineHighlightOnlyWhenFocus: true,
             }}
           />
         </div>
@@ -126,13 +194,15 @@ export default function TransformerCustomCodeEditor({
         <Editor
           height={`${effectiveHeight}px`}
           language="javascript"
-          theme="vs-dark"
+          theme={monacoTheme}
           value={value}
           onChange={(v) => onChange(v ?? '')}
           onMount={handleMount}
           options={{
             minimap: { enabled: false },
             readOnly: disabled,
+            renderLineHighlight: 'all',
+            renderLineHighlightOnlyWhenFocus: true,
           }}
         />
       </div>
