@@ -30,18 +30,27 @@ import {
 import { addFullscreenChangeListener, getFullscreenElement } from '@/utils/fullscreenApi'
 
 /**
- * Returns the element that should host the popout portal — the fullscreen
- * element when one is active, otherwise `document.body`. Reactively updates
- * on every fullscreen transition so the portal stays visible in fullscreen mode.
+ * Portal root for transformer code pop-out.
+ *
+ * - **Native fullscreen** — Only `document.fullscreenElement`'s subtree is shown; portals must attach
+ *   there (typically the Builder column).
+ * - **Normal window — `document.body`**: Monaco appends auxiliary nodes (often a **`monaco-area-container`**
+ *   sibling under `document.body`) for overflow widgets/hit-testing; portaling the editor under nested
+ *   Builder markup desynchronizes that layout (~1×1 / invisible editor).
+ *
+ * Mirrors the previous `document.fullscreenElement ?? document.body` strategy, reactive on
+ * `fullscreenchange`.
  */
-function usePortalTarget(): Element {
+function useTransformerCodePopoutPortalRoot(): Element {
   const [target, setTarget] = useState<Element>(() => getFullscreenElement() ?? document.body)
+
   useEffect(() => {
     const sync = () => setTarget(getFullscreenElement() ?? document.body)
     const remove = addFullscreenChangeListener(sync)
     sync()
     return remove
   }, [])
+
   return target
 }
 
@@ -71,6 +80,8 @@ export interface CustomTransformerCodeTabProps {
   transformersMixed: boolean
   anyLocked: boolean
   onTransformersCommit: (next: TransformerConfig[]) => void
+  /** Runs when user opens the floating code editor — e.g. collapse side drawers. */
+  onTransformerCodePopoutOpen?: () => void
 }
 
 export default function CustomTransformerCodeTab({
@@ -80,10 +91,11 @@ export default function CustomTransformerCodeTab({
   transformersMixed,
   anyLocked,
   onTransformersCommit,
+  onTransformerCodePopoutOpen,
 }: CustomTransformerCodeTabProps) {
   const undo = useEditorUndo()
   const { openMenu } = useCopyMenu()
-  const portalTarget = usePortalTarget()
+  const portalTarget = useTransformerCodePopoutPortalRoot()
   const list = mergedTransformers ?? []
 
   const customSlots = useMemo(
@@ -713,7 +725,10 @@ export default function CustomTransformerCodeTab({
                 type="button"
                 data-testid="custom-transformer-code-popout-open"
                 disabled={anyLocked}
-                onClick={() => setCodePopoutOpen(true)}
+                onClick={() => {
+                  onTransformerCodePopoutOpen?.()
+                  setCodePopoutOpen(true)
+                }}
                 style={{
                   padding: '4px 10px',
                   fontSize: 12,

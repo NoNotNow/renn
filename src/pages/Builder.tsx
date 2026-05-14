@@ -284,6 +284,7 @@ export default function Builder() {
     handleSceneFullscreenChange,
     builderChromeIdleHidden,
     fsChromeControlVisible,
+    collapseSideDrawers,
   } = useBuilderFullscreenChrome()
   const [showGameHud, setShowGameHud] = useLocalStorageState('builderShowGameHud', false)
   const [rightPanelDocked, setRightPanelDocked] = useLocalStorageState('rightSidebarDocked', false)
@@ -1273,6 +1274,7 @@ export default function Builder() {
                     onDockLayoutChange={setRightPanelDocked}
                     onOpenTextureStudio={activateTextureStudioForEntity}
                     onAfterModelPresetApply={handleAfterModelPresetApply}
+                    onTransformerCodePopoutOpen={collapseSideDrawers}
                   />
                 )}
               </LivePosesPoll>
@@ -1345,6 +1347,7 @@ export default function Builder() {
                   onDockLayoutChange={setRightPanelDocked}
                   onOpenTextureStudio={activateTextureStudioForEntity}
                   onAfterModelPresetApply={handleAfterModelPresetApply}
+                  onTransformerCodePopoutOpen={collapseSideDrawers}
                 />
               )}
             </LivePosesPoll>

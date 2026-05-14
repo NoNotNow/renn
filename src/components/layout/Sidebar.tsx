@@ -157,17 +157,16 @@ export default function Sidebar({
           color: '#e6e9f2',
         }}
       >
-        {isOpen && (
-          <>
-            <SidebarTabs
-              tabConfig={tabConfig}
-              activeTab={activeTab}
-              onTabChange={onTabChange}
-              trailing={tabsTrailing}
-            />
-            {children}
-          </>
-        )}
+        {/* Keep mounted when closed so portaled UI (e.g. transformer code pop-out) survives drawer collapse. */}
+        <div style={{ display: isOpen ? 'contents' : 'none' }}>
+          <SidebarTabs
+            tabConfig={tabConfig}
+            activeTab={activeTab}
+            onTabChange={onTabChange}
+            trailing={tabsTrailing}
+          />
+          {children}
+        </div>
       </aside>
 
       <SidebarToggleButton

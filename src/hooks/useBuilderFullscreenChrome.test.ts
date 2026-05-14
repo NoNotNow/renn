@@ -55,6 +55,29 @@ describe('useBuilderFullscreenChrome', () => {
     expect(result.current.rightDrawerOpen).toBe(true)
   })
 
+  it('collapseSideDrawers closes both drawers without affecting fullscreen restore from that state', () => {
+    const { result } = renderHook(() => useBuilderFullscreenChrome())
+    expect(result.current.leftDrawerOpen).toBe(true)
+    expect(result.current.rightDrawerOpen).toBe(true)
+
+    act(() => {
+      result.current.collapseSideDrawers()
+    })
+    expect(result.current.leftDrawerOpen).toBe(false)
+    expect(result.current.rightDrawerOpen).toBe(false)
+    expect(result.current.builderFullscreenActive).toBe(false)
+
+    act(() => {
+      result.current.handleSceneFullscreenChange(true)
+    })
+    expect(result.current.builderFullscreenActive).toBe(true)
+    act(() => {
+      result.current.handleSceneFullscreenChange(false)
+    })
+    expect(result.current.leftDrawerOpen).toBe(false)
+    expect(result.current.rightDrawerOpen).toBe(false)
+  })
+
   it('preserves a manually-collapsed drawer through the fullscreen round trip', () => {
     const { result } = renderHook(() => useBuilderFullscreenChrome())
 

@@ -29,6 +29,8 @@ export interface BuilderFullscreenChrome {
   fsChromeControlVisible: boolean
   /** Pass to SceneView as `onFullscreenChange`. Saves drawer state on enter, restores on exit. */
   handleSceneFullscreenChange: (active: boolean) => void
+  /** Close both drawers (e.g. transformer code pop-out) without fullscreen snapshot logic. */
+  collapseSideDrawers: () => void
 }
 
 /**
@@ -120,6 +122,11 @@ export function useBuilderFullscreenChrome(): BuilderFullscreenChrome {
     [setLeftDrawerOpen, setRightDrawerOpen],
   )
 
+  const collapseSideDrawers = useCallback(() => {
+    setLeftDrawerOpen(false)
+    setRightDrawerOpen(false)
+  }, [setLeftDrawerOpen, setRightDrawerOpen])
+
   const builderChromeIdleHidden =
     builderFullscreenActive && !fsChromeVisible && !pointerOverFsSidebars
   const fsChromeControlVisible = fsChromeVisible || (builderFullscreenActive && pointerOverFsSidebars)
@@ -137,5 +144,6 @@ export function useBuilderFullscreenChrome(): BuilderFullscreenChrome {
     builderChromeIdleHidden,
     fsChromeControlVisible,
     handleSceneFullscreenChange,
+    collapseSideDrawers,
   }
 }

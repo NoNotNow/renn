@@ -74,7 +74,7 @@ renn/
 │   │   ├── useModelPresets.ts      # Global model preset library: list/save/delete + applyToEntities (optimistic state)
 │   │   ├── useEditorHistory.ts     # Builder undo/redo: createEditorHistory + gesture coalescing + EditorUndoApi (auto-bumps on undo/redo/clear)
 │   │   ├── useBuilderKeyboardShortcuts.ts # Builder shortcuts (Cmd+Z/Y, Esc, Cmd+E, Digit0/1, Cmd+G/Shift+G group/ungroup, Cmd+C/V copy/paste) — suppressed while typing via `isKeyboardEventInEditableContext` (inputs, select, contentEditable, Monaco `.monaco-editor`, ARIA textbox/searchbox/combobox); Cmd+C no-op when text is selected
-│   │   ├── useBuilderFullscreenChrome.ts  # Builder column ref + sidebars hit-test ref + drawer state (localStorage) + fullscreen drawer save/restore + idle-hide reveal (pinned while pointer over sidebar UI via elementFromPoint)
+│   │   ├── useBuilderFullscreenChrome.ts  # Builder column ref + sidebars hit-test ref + drawer state (localStorage) + fullscreen drawer save/restore + collapseSideDrawers (e.g. transformer code pop-out) + idle-hide reveal (pinned while pointer over sidebar UI via elementFromPoint)
 │   │   ├── useSceneFullscreen.ts   # SceneView fullscreen state: supported/active/toggle + chrome-reveal (internal pointer timer or external control)
 │   │   ├── useSkyDome.ts           # SceneView skybox sphere mesh: load/configure/dispose by `world.world.skybox` asset id
 │   │   ├── useWorldAudio.ts        # SceneView world background audio element (lifecycle + manual play/stop command)

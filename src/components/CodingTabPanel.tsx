@@ -27,6 +27,7 @@ export interface CodingTabPanelProps {
   selectedEntityIds: string[]
   onWorldChange: (world: RennWorld) => void
   onEntityTransformersChange?: (entityIds: string[], transformers: TransformerConfig[]) => void
+  onTransformerCodePopoutOpen?: () => void
 }
 
 /** Matches the icon tab strip in `SidebarTabs` so the Code drawer feels one piece with the right sidebar. */
@@ -83,6 +84,7 @@ export default function CodingTabPanel({
   selectedEntityIds,
   onWorldChange,
   onEntityTransformersChange,
+  onTransformerCodePopoutOpen,
 }: CodingTabPanelProps) {
   const [subgroupStored, setSubgroupStored] = useLocalStorageState<CodingSubgroup>(
     BUILDER_CODING_SUBTAB_KEY,
@@ -223,6 +225,7 @@ export default function CodingTabPanel({
             transformersMixed={mergedTransformers === null}
             anyLocked={anyLocked}
             onTransformersCommit={(next) => handleTransformersCommit(next)}
+            onTransformerCodePopoutOpen={onTransformerCodePopoutOpen}
           />
         )}
 
