@@ -314,7 +314,10 @@ export default function BuilderHeader({
   ]
 
   return (
-    <header style={{ background: '#171a22', borderBottom: '1px solid #2f3545', color: '#e6e9f2' }}>
+    <header
+      id="builder-app-header"
+      style={{ background: '#171a22', borderBottom: '1px solid #2f3545', color: '#e6e9f2' }}
+    >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center' }}>
           <div

@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -52,6 +53,34 @@ function useTransformerCodePopoutPortalRoot(): Element {
   }, [])
 
   return target
+}
+
+/** Pixels from viewport top to the bottom of `#builder-app-header`, so the code pop-out leaves the Builder menu bar visible. */
+function useBuilderHeaderBottomInsetPx(active: boolean): number {
+  const [inset, setInset] = useState(0)
+
+  useLayoutEffect(() => {
+    if (!active || typeof document === 'undefined') return
+    const el = document.getElementById('builder-app-header')
+    if (!el) {
+      setInset(0)
+      return
+    }
+    const update = (): void => {
+      const bot = el.getBoundingClientRect().bottom
+      setInset(Number.isFinite(bot) && bot > 0 ? bot : 0)
+    }
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    window.addEventListener('resize', update)
+    return () => {
+      ro.disconnect()
+      window.removeEventListener('resize', update)
+    }
+  }, [active])
+
+  return inset
 }
 
 const CODE_DEBOUNCE_MS = 350
@@ -111,6 +140,7 @@ export default function CustomTransformerCodeTab({
   const [codeDraft, setCodeDraft] = useState('')
   const [codeEditorHeightPx, setCodeEditorHeightPx] = useState(CUSTOM_CODE_EDITOR_HEIGHT_DEFAULT_PX)
   const [codePopoutOpen, setCodePopoutOpen] = useState(false)
+  const builderHeaderBottomInsetPx = useBuilderHeaderBottomInsetPx(codePopoutOpen)
 
   const listRef = useRef(list)
   listRef.current = list
@@ -449,13 +479,16 @@ export default function CustomTransformerCodeTab({
             data-testid="custom-transformer-code-popout-backdrop"
             style={{
               position: 'fixed',
-              inset: 0,
+              top: builderHeaderBottomInsetPx,
+              left: 0,
+              right: 0,
+              bottom: 0,
               backgroundColor: theme.bg.modalBackdropSoft,
               display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
+              alignItems: 'stretch',
+              justifyContent: 'stretch',
               zIndex: theme.zIndex.modal,
-              padding: 16,
+              padding: 0,
               boxSizing: 'border-box',
             }}
             onClick={(e) => {
@@ -464,16 +497,17 @@ export default function CustomTransformerCodeTab({
           >
             <div
               style={{
-                width: 'min(95vw, 1600px)',
-                height: 'min(92vh, 1200px)',
+                flex: '1 1 auto',
+                width: '100%',
+                minHeight: 0,
                 backgroundColor: theme.bg.modalGlass,
                 backdropFilter: theme.effects.modalGlassBlur,
                 WebkitBackdropFilter: theme.effects.modalGlassBlur,
                 border: `1px solid ${theme.border.default}`,
-                borderRadius: 8,
+                borderRadius: 0,
                 display: 'flex',
                 flexDirection: 'column',
-                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.35)',
+                boxShadow: 'none',
                 overflow: 'hidden',
                 boxSizing: 'border-box',
               }}
