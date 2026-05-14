@@ -146,6 +146,7 @@ function TransformerTraceItem({
   onToggleExpanded,
   onRemove,
   onToggleEnabled,
+  onUpdate,
   onDragStart,
   onDragOver,
   onDrop,
@@ -162,6 +163,7 @@ function TransformerTraceItem({
   onToggleExpanded: () => void
   onRemove: () => void
   onToggleEnabled: () => void
+  onUpdate: (config: TransformerConfig) => void
   onDragStart: () => void
   onDragOver: (e: React.DragEvent) => void
   onDrop: () => void
@@ -171,6 +173,7 @@ function TransformerTraceItem({
 }) {
   const [inOpen, setInOpen] = useState(false)
   const [outOpen, setOutOpen] = useState(false)
+  const [configOpen, setConfigOpen] = useState(false)
   const itemRef = useRef<HTMLDivElement>(null)
 
   const enabled = transformer.enabled ?? true
@@ -302,6 +305,32 @@ function TransformerTraceItem({
             type="button"
             onClick={(e) => {
               e.stopPropagation()
+              setConfigOpen(!configOpen)
+            }}
+            title="Edit configuration"
+            data-testid={`transformer-horizontal-config-toggle-${index}`}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: theme.text.muted,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '0 2px',
+              opacity: configOpen ? 1 : 0.6,
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+            onMouseLeave={(e) => {
+              if (!configOpen) e.currentTarget.style.opacity = '0.6'
+            }}
+          >
+            {EntityPanelIcons.settings}
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
               onRemove()
             }}
             style={{
@@ -361,6 +390,34 @@ function TransformerTraceItem({
             )
           ) : null}
         </details>
+        {configOpen && headerRef.current ? (
+          createPortal(
+            <div
+              style={{
+                ...TRACE_JSON_DRAWER_STYLE,
+                left: baseLeft,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
+              }}
+            >
+              <div style={{ fontSize: 10, fontWeight: 700, color: theme.text.secondary, textTransform: 'uppercase' }}>
+                Config: {transformer.type}
+              </div>
+              <ValidatedJsonTextarea
+                value={JSON.stringify(transformer, null, 2)}
+                onApply={(updated) => {
+                  onUpdate(updated as TransformerConfig)
+                  setConfigOpen(false)
+                }}
+                applyVariant="icon"
+                textareaTestId={`transformer-horizontal-config-textarea-${index}`}
+                applyTestId={`transformer-horizontal-config-apply-${index}`}
+              />
+            </div>,
+            headerRef.current,
+          )
+        ) : null}
       </div>
     </div>
   )
@@ -418,6 +475,12 @@ function TransformerHorizontalTrace({
     const next = transformers.map((t, i) =>
       i === index ? { ...t, enabled: !(t.enabled ?? true) } : t
     )
+    onCommit(next)
+  }
+
+  const handleUpdateTransformer = (index: number, config: TransformerConfig) => {
+    const next = [...transformers]
+    next[index] = config
     onCommit(next)
   }
 
@@ -528,6 +591,7 @@ function TransformerHorizontalTrace({
           onToggleExpanded={onToggleExpanded}
           onRemove={() => handleRemoveTransformer(item.originalIndex)}
           onToggleEnabled={() => handleToggleEnabled(item.originalIndex)}
+          onUpdate={(config) => handleUpdateTransformer(item.originalIndex, config)}
           onDragStart={() => handleDragStart(i)}
           onDragOver={(e) => handleDragOver(e, i)}
           onDrop={handleDragEnd}
