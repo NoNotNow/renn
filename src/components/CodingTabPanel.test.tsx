@@ -174,6 +174,28 @@ describe('CodingTabPanel', () => {
     expect(screen.getByTestId('custom-transformer-code-popout-backdrop')).toBeInTheDocument()
   })
 
+  it('Transformer code pop out allows toggling window opacity', () => {
+    render(
+      <CopyProvider>
+        <EditorUndoProvider value={undoApi}>
+          <CodingTabPanel world={minimalWorld} selectedEntityIds={['e1']} onWorldChange={vi.fn()} />
+        </EditorUndoProvider>
+      </CopyProvider>,
+    )
+    fireEvent.click(screen.getByTestId('coding-submenu-code'))
+    fireEvent.click(screen.getByTestId('custom-transformer-code-popout-open'))
+
+    const toggle = screen.getByTestId('custom-transformer-code-popout-opaque-toggle')
+    expect(toggle).toBeInTheDocument()
+    expect(toggle).toHaveAttribute('title', 'Make window fully opaque')
+
+    fireEvent.click(toggle)
+    expect(toggle).toHaveAttribute('title', 'Make window transparent (50%)')
+
+    fireEvent.click(toggle)
+    expect(toggle).toHaveAttribute('title', 'Make window fully opaque')
+  })
+
   it('Transformer code pop out shows compile error in overlay body', () => {
     const invalidWorld: RennWorld = {
       ...minimalWorld,

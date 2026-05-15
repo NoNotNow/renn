@@ -675,6 +675,7 @@ export default function CustomTransformerCodeTab({
   const [codeDraft, setCodeDraft] = useState('')
   const [codeEditorHeightPx, setCodeEditorHeightPx] = useState(CUSTOM_CODE_EDITOR_HEIGHT_DEFAULT_PX)
   const [codePopoutOpen, setCodePopoutOpen] = useState(false)
+  const [codePopoutOpaque, setCodePopoutOpaque] = useState(false)
   const builderHeaderBottomInsetPx = useBuilderHeaderBottomInsetPx(codePopoutOpen)
 
   const popoutHeaderRef = useRef<HTMLDivElement>(null)
@@ -1060,35 +1061,35 @@ export default function CustomTransformerCodeTab({
             }}
           >
             <div
-              style={{
-                flex: '1 1 auto',
-                width: '100%',
-                minHeight: 0,
-                backgroundColor: theme.bg.modalGlass,
-                border: `1px solid ${theme.border.default}`,
-                borderRadius: 0,
-                display: 'flex',
-                flexDirection: 'column',
-                boxShadow: 'none',
-                overflow: 'hidden',
-                boxSizing: 'border-box',
-              }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div
-                ref={popoutHeaderRef}
                 style={{
-                  padding: '12px 16px',
-                  borderBottom: `1px solid ${theme.border.default}`,
-                  backgroundColor: theme.bg.modalGlassHeader,
+                  flex: '1 1 auto',
+                  width: '100%',
+                  minHeight: 0,
+                  backgroundColor: codePopoutOpaque ? theme.bg.panelAlt : theme.bg.modalGlass,
+                  border: `1px solid ${theme.border.default}`,
+                  borderRadius: 0,
                   display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  flexShrink: 0,
-                  gap: 12,
-                  position: 'relative',
+                  flexDirection: 'column',
+                  boxShadow: 'none',
+                  overflow: 'hidden',
+                  boxSizing: 'border-box',
                 }}
+                onClick={(e) => e.stopPropagation()}
               >
+                <div
+                  ref={popoutHeaderRef}
+                  style={{
+                    padding: '12px 16px',
+                    borderBottom: `1px solid ${theme.border.default}`,
+                    backgroundColor: codePopoutOpaque ? theme.bg.panel : theme.bg.modalGlassHeader,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexShrink: 0,
+                    gap: 12,
+                    position: 'relative',
+                  }}
+                >
                 <h2
                   id="custom-transformer-code-popout-title"
                   style={{
@@ -1109,6 +1110,24 @@ export default function CustomTransformerCodeTab({
                   onCommit={onTransformersCommit}
                 />
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                  <button
+                    type="button"
+                    data-testid="custom-transformer-code-popout-opaque-toggle"
+                    title={codePopoutOpaque ? 'Make window transparent (50%)' : 'Make window fully opaque'}
+                    aria-label="Toggle window opacity"
+                    onClick={() => setCodePopoutOpaque(!codePopoutOpaque)}
+                    style={{
+                      ...entityPanelIconButtonStyle,
+                      opacity: codePopoutOpaque ? 1 : 0.65,
+                      color: codePopoutOpaque ? theme.accent : theme.text.muted,
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+                    onMouseLeave={(e) => {
+                      if (!codePopoutOpaque) e.currentTarget.style.opacity = '0.65'
+                    }}
+                  >
+                    {EntityPanelIcons.opacity}
+                  </button>
                   {onResetPoseToSavedWorld ? (
                     <button
                       type="button"
@@ -1194,7 +1213,7 @@ export default function CustomTransformerCodeTab({
                 >
                   <TransformerCustomCodeEditor
                     layout="fill"
-                    transparent
+                    transparent={!codePopoutOpaque}
                     delayedLayoutMs={200}
                     value={codeDraft}
                     onChange={handleCodeChange}
