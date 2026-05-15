@@ -9,6 +9,7 @@ export interface ModalProps {
   children: React.ReactNode
   width?: number
   height?: number
+  headerExtra?: React.ReactNode
 }
 
 export default function Modal({
@@ -18,6 +19,7 @@ export default function Modal({
   children,
   width = 600,
   height,
+  headerExtra,
 }: ModalProps) {
   const modalRef = useRef<HTMLDivElement>(null)
 
@@ -132,6 +134,7 @@ export default function Modal({
           >
             {title}
           </h2>
+          {headerExtra}
           <button
             type="button"
             onClick={onClose}

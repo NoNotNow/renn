@@ -639,6 +639,7 @@ export interface CustomTransformerCodeTabProps {
   onTransformerCodePopoutOpen?: () => void
   /** Same handler as the properties/Code tab strip “restore saved pose” control (optional). */
   onResetPoseToSavedWorld?: (entityIds: string[]) => void
+  onOpenTransformerDocs?: () => void
   canResetPoseToSaved?: boolean
   resetPoseTitle?: string
   liveTraceSteps?: TransformerTraceStep[] | null
@@ -652,6 +653,7 @@ export default function CustomTransformerCodeTab({
   anyLocked,
   onTransformersCommit,
   onTransformerCodePopoutOpen,
+  onOpenTransformerDocs,
   onResetPoseToSavedWorld,
   canResetPoseToSaved = false,
   resetPoseTitle = 'Restore saved position and rotation (from world)',
@@ -1397,26 +1399,44 @@ export default function CustomTransformerCodeTab({
               Code
             </div>
             {!codePopoutOpen ? (
-              <button
-                type="button"
-                data-testid="custom-transformer-code-popout-open"
-                disabled={anyLocked}
-                onClick={() => {
-                  onTransformerCodePopoutOpen?.()
-                  setCodePopoutOpen(true)
-                }}
-                style={{
-                  padding: '4px 10px',
-                  fontSize: 12,
-                  borderRadius: 6,
-                  border: `1px solid ${theme.border.default}`,
-                  background: theme.bg.surface,
-                  color: theme.text.primary,
-                  cursor: anyLocked ? 'not-allowed' : 'pointer',
-                }}
-              >
-                Pop out
-              </button>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button
+                  type="button"
+                  data-testid="custom-transformer-code-popout-open"
+                  disabled={anyLocked}
+                  onClick={() => {
+                    onTransformerCodePopoutOpen?.()
+                    setCodePopoutOpen(true)
+                  }}
+                  style={{
+                    padding: '4px 10px',
+                    fontSize: 12,
+                    borderRadius: 6,
+                    border: `1px solid ${theme.border.default}`,
+                    background: theme.bg.surface,
+                    color: theme.text.primary,
+                    cursor: anyLocked ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  Pop out
+                </button>
+                <button
+                  type="button"
+                  title="Open transformer coding documentation"
+                  onClick={onOpenTransformerDocs}
+                  style={{
+                    padding: '4px 8px',
+                    fontSize: 12,
+                    borderRadius: 6,
+                    border: `1px solid ${theme.border.default}`,
+                    background: theme.bg.surface,
+                    color: theme.text.primary,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Help
+                </button>
+              </div>
             ) : null}
           </div>
 

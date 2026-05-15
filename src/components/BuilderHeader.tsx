@@ -65,6 +65,7 @@ export interface BuilderHeaderProps {
   showFrameStats?: boolean
   onFrameStatsToggle?: () => void
   onOpenPerformanceBooster?: () => void
+  onOpenTransformerDocs?: () => void
   /** Single textured entity: open layered texture editor. */
   onOpenTextureStudio?: () => void
 }
@@ -110,6 +111,7 @@ export default function BuilderHeader({
   showFrameStats = false,
   onFrameStatsToggle,
   onOpenPerformanceBooster,
+  onOpenTransformerDocs,
   onOpenTextureStudio,
 }: BuilderHeaderProps) {
   const [showProjectSelector, setShowProjectSelector] = useState(false)
@@ -314,6 +316,15 @@ export default function BuilderHeader({
     },
   ]
 
+  const helpMenuItems: MenuItemConfig[] = [
+    {
+      type: 'item',
+      label: 'Transformer Coding Docs',
+      onClick: onOpenTransformerDocs,
+      disabled: !onOpenTransformerDocs,
+    },
+  ]
+
   return (
     <header
       id="builder-app-header"
@@ -350,6 +361,7 @@ export default function BuilderHeader({
             <DropdownMenu label="Project" items={projectMenuItems} />
             <DropdownMenu label="Tools" items={toolsMenuItems} />
             <DropdownMenu label="Debug" items={debugMenuItems} />
+            <DropdownMenu label="Help" items={helpMenuItems} />
           </MenuBar>
         </div>
 

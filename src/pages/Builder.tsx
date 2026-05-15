@@ -61,6 +61,7 @@ import {
 } from '@/utils/bakeSimplifiedModelAsset'
 import { generateEntityId } from '@/utils/idGenerator'
 import TextureMaker from '@/components/TextureMaker/TextureMaker'
+import TransformerDocs from '@/components/TransformerDocs'
 import { getEntityApproximateSize } from '@/utils/entityApproximateSize'
 import { computeMeshWorldMaxExtent } from '@/utils/meshWorldExtent'
 import { placeEntitiesInFrontOfCamera } from '@/utils/cameraFrontPlacement'
@@ -175,6 +176,7 @@ export default function Builder() {
   const [editNavigationMode, setEditNavigationMode] = useState(false)
   const [showSaveDialog, setShowSaveDialog] = useState(false)
   const [performanceBoosterOpen, setPerformanceBoosterOpen] = useState(false)
+  const [transformerDocsOpen, setTransformerDocsOpen] = useState(false)
   const [perfPickMode, setPerfPickMode] = useState<'mesh' | 'texture' | null>(null)
   const [perfMeshEntityId, setPerfMeshEntityId] = useState<string | null>(null)
   const [perfTextureEntityId, setPerfTextureEntityId] = useState<string | null>(null)
@@ -1071,6 +1073,10 @@ export default function Builder() {
           setPerformanceBoosterOpen(true)
           uiLogger.click('Builder', 'Open Performance booster', {})
         }}
+        onOpenTransformerDocs={() => {
+          setTransformerDocsOpen(true)
+          uiLogger.click('Builder', 'Open Transformer docs', {})
+        }}
         onOpenTextureStudio={onOpenTextureStudioFromToolbar}
       />
         </div>
@@ -1105,6 +1111,11 @@ export default function Builder() {
         onRequestPickTexture={() => setPerfPickMode('texture')}
         onApplyMesh={handleApplyMeshSimplification}
         onApplyTexture={handleApplyTextureDownscale}
+      />
+
+      <TransformerDocs
+        isOpen={transformerDocsOpen}
+        onClose={() => setTransformerDocsOpen(false)}
       />
 
       <div
