@@ -79,6 +79,17 @@ describe('WorldPanel composition', () => {
     expect(screen.getByText(/No ground entity found/i)).toBeInTheDocument()
   })
 
+  it('toggling the shadows checkbox calls onWorldChange with shadowsEnabled false', () => {
+    const onWorldChange = vi.fn()
+    renderPanel(makeWorld(), onWorldChange)
+    const checkbox = screen.getByLabelText('Shadows') as HTMLInputElement
+    expect(checkbox.checked).toBe(true)
+    fireEvent.click(checkbox)
+    expect(onWorldChange).toHaveBeenCalledTimes(1)
+    const next = onWorldChange.mock.calls[0][0] as RennWorld
+    expect(next.world.shadowsEnabled).toBe(false)
+  })
+
   it('toggling the show-frame-stats checkbox calls onWorldChange with the new flag', () => {
     const onWorldChange = vi.fn()
     renderPanel(makeWorld(), onWorldChange)

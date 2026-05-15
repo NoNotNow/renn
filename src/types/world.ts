@@ -216,6 +216,11 @@ export interface WorldSettings {
    * - `'high'` → min(dpr, 2)
    */
   renderPixelRatio?: 'low' | 'medium' | 'high'
+  /**
+   * When not `false`, directional-light shadow maps are enabled on the renderer.
+   * Omitted or `true`: enabled. `false`: disabled (saves GPU).
+   */
+  shadowsEnabled?: boolean
 }
 
 /** Default `VideoTexture.anisotropy` when `videoTextureMaxAnisotropy` is omitted. */
@@ -244,6 +249,11 @@ export function resolvedLogarithmicDepthBuffer(
   settings?: Pick<WorldSettings, 'logarithmicDepthBuffer'>,
 ): boolean {
   return settings?.logarithmicDepthBuffer !== false
+}
+
+/** `false` disables shadow maps; omitted or `true` enables (default). */
+export function resolvedShadowsEnabled(settings?: Pick<WorldSettings, 'shadowsEnabled'>): boolean {
+  return settings?.shadowsEnabled !== false
 }
 
 /** Clamp to 1–16 for Three.js `VideoTexture.anisotropy`. */

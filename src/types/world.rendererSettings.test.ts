@@ -4,6 +4,7 @@ import {
   DEFAULT_VIDEO_TEXTURE_MAX_ANISOTROPY,
   resolvedLogarithmicDepthBuffer,
   resolvedPixelRatio,
+  resolvedShadowsEnabled,
 } from './world'
 
 describe('resolvedLogarithmicDepthBuffer', () => {
@@ -15,6 +16,18 @@ describe('resolvedLogarithmicDepthBuffer', () => {
 
   it('is disabled only when false', () => {
     expect(resolvedLogarithmicDepthBuffer({ logarithmicDepthBuffer: false })).toBe(false)
+  })
+})
+
+describe('resolvedShadowsEnabled', () => {
+  it('defaults to enabled when undefined or true', () => {
+    expect(resolvedShadowsEnabled(undefined)).toBe(true)
+    expect(resolvedShadowsEnabled({})).toBe(true)
+    expect(resolvedShadowsEnabled({ shadowsEnabled: true })).toBe(true)
+  })
+
+  it('is disabled only when false', () => {
+    expect(resolvedShadowsEnabled({ shadowsEnabled: false })).toBe(false)
   })
 })
 

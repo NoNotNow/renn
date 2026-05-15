@@ -172,7 +172,6 @@ export default function Builder() {
   const [textureBrushRgb, setTextureBrushRgb] = useState<Vec3>(() => [...DEFAULT_TEXTURE_BRUSH_RGB])
   const [textureBrushAlpha, setTextureBrushAlpha] = useState(1)
   const [textureBrushRadiusPx, setTextureBrushRadiusPx] = useState(TEXTURE_PAINT_RADIUS_PX)
-  const [shadowsEnabled, setShadowsEnabled] = useState(true)
   const [editNavigationMode, setEditNavigationMode] = useState(false)
   const [showSaveDialog, setShowSaveDialog] = useState(false)
   const [performanceBoosterOpen, setPerformanceBoosterOpen] = useState(false)
@@ -1023,7 +1022,6 @@ export default function Builder() {
         onTextureBrushAlphaChange={handleTextureBrushAlphaChange}
         textureBrushRadiusPx={textureBrushRadiusPx}
         onTextureBrushRadiusPxChange={handleTextureBrushRadiusPxChange}
-        shadowsEnabled={shadowsEnabled}
         onNew={handleNew}
         onSave={handleSave}
         onSaveAs={handleSaveAs}
@@ -1035,7 +1033,6 @@ export default function Builder() {
         onReload={handleReload}
         onDeleteProject={deleteProject}
         onPlay={handlePlay}
-        onShadowsChange={setShadowsEnabled}
         fileInputRef={fileInputRef}
         onFileChange={onFileChange}
         onResetCamera={handleResetCamera}
@@ -1179,7 +1176,6 @@ export default function Builder() {
                 version={version}
                 runPhysics
                 runScripts
-                shadowsEnabled={shadowsEnabled}
                 selectedEntityIds={selectedEntityIds}
                 onSelectEntity={handleSelectEntity}
                 onEntityPoseCommit={handleEntityPoseCommit}

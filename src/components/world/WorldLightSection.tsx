@@ -22,6 +22,7 @@ export default function WorldLightSection({ world, edits }: WorldLightSectionPro
   const { azimuth, elevation } = directionToSpherical(dirDirection)
   const dirColorHex = colorToHex(dirColor)
   const ambientColorHex = colorToHex(ambientColor)
+  const shadowsEnabled = world.world.shadowsEnabled !== false
 
   const updateDirectionalLight = (patch: { direction?: Vec3; color?: Vec3; intensity?: number }) => {
     const current = world.world.directionalLight ?? {}
@@ -44,6 +45,26 @@ export default function WorldLightSection({ world, edits }: WorldLightSectionPro
   return (
     <div style={{ ...sectionStyle, marginTop: 12 }}>
       <div style={sectionTitleStyle}>Light</div>
+      <div style={{ ...sidebarRowStyle, marginTop: 8 }}>
+        <label
+          htmlFor="world-shadows-enabled"
+          style={{ ...sidebarLabelStyle, cursor: 'help' }}
+          title="Enables shadow maps from the directional (sun) light. Turning off saves GPU on large scenes."
+        >
+          Shadows
+        </label>
+        <input
+          id="world-shadows-enabled"
+          type="checkbox"
+          checked={shadowsEnabled}
+          onChange={(e) => {
+            const enabled = e.target.checked
+            uiLogger.change('WorldPanel', 'Toggle shadows', { enabled })
+            updateWorldSettings({ shadowsEnabled: enabled ? true : false })
+          }}
+          style={{ cursor: 'pointer' }}
+        />
+      </div>
       <div style={{ marginTop: 8 }}>
         <div style={{ ...sectionTitleStyle, fontSize: 11 }}>Directional</div>
         <NumberInput

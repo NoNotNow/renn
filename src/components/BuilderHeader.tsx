@@ -1,5 +1,4 @@
 import { useRef, useState, useLayoutEffect } from 'react'
-import Switch from './Switch'
 import MenuBar from './MenuBar'
 import DropdownMenu, { type MenuItemConfig } from './DropdownMenu'
 import type { ProjectMeta } from '@/persistence/types'
@@ -24,7 +23,6 @@ export interface BuilderHeaderProps {
     name: string
     isDirty: boolean
   }
-  shadowsEnabled: boolean
   onNew: () => void
   onSave: () => void
   onSaveAs: () => void
@@ -36,7 +34,6 @@ export interface BuilderHeaderProps {
   onReload: () => void
   onDeleteProject: (id: string) => void
   onPlay: () => void
-  onShadowsChange: (enabled: boolean) => void
   gizmoMode: BuilderGizmoMode
   onGizmoModeChange: (mode: BuilderGizmoMode) => void
   /** When true, brush tool is inactive (no texture on selection). */
@@ -74,7 +71,6 @@ export default function BuilderHeader({
   projects,
   onLeftSidebarToggle,
   currentProject,
-  shadowsEnabled,
   onNew,
   onSave,
   onSaveAs,
@@ -86,7 +82,6 @@ export default function BuilderHeader({
   onReload,
   onDeleteProject,
   onPlay,
-  onShadowsChange,
   gizmoMode,
   onGizmoModeChange,
   textureBrushDisabled = false,
@@ -498,15 +493,6 @@ export default function BuilderHeader({
               {GizmoScaleIcon}
             </button>
           </div>
-          <Switch
-            size="compact"
-            checked={shadowsEnabled}
-            onChange={(v) => {
-              onShadowsChange(v)
-              uiLogger.change('Builder', 'Toggle shadows', { enabled: v })
-            }}
-            label="Shadows"
-          />
         </div>
       </div>
 

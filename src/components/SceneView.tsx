@@ -18,6 +18,7 @@ import {
   resolveSimulationSettings,
   resolvedLogarithmicDepthBuffer,
   resolvedPixelRatio,
+  resolvedShadowsEnabled,
 } from '@/types/world'
 import { eulerToQuaternion } from '@/utils/rotationUtils'
 import type { LoadedEntity } from '@/loader/loadWorld'
@@ -93,7 +94,6 @@ export interface SceneViewProps {
   assets?: Map<string, Blob>
   runPhysics?: boolean
   runScripts?: boolean
-  shadowsEnabled?: boolean
   className?: string
   selectedEntityIds?: string[]
   onSelectEntity?: (
@@ -211,7 +211,6 @@ function SceneViewInner({
   assets: _assets = new Map(),
   runPhysics = true,
   runScripts = true,
-  shadowsEnabled = true,
   className = '',
   selectedEntityIds = [],
   onSelectEntity,
@@ -273,6 +272,7 @@ function SceneViewInner({
   const activeDebugForcesRef = useRef<Array<{ entityId: string; force: Vec3; endTime: number }>>([])
 
   const [playFrameStatsDismissed, setPlayFrameStatsDismissed] = useState(false)
+  const shadowsEnabled = resolvedShadowsEnabled(world.world)
   const prevShowFrameStatsRef = useRef(world.world.showFrameStats === true)
 
   useEffect(() => {
@@ -1167,6 +1167,7 @@ function SceneViewInner({
     editorFreePoseRef,
     showGameHud,
     world.world.logarithmicDepthBuffer,
+    world.world.shadowsEnabled,
     world.world.videoTextureMaxAnisotropy,
   ])
 

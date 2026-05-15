@@ -156,14 +156,16 @@ describe('SceneView', () => {
     expect(onEntityPoseCommit).not.toHaveBeenCalled()
   })
 
-  it('renders without error when shadowsEnabled is false', () => {
+  it('renders without error when world shadowsEnabled is false', () => {
     expect(() => {
       render(
         <SceneView
-          world={minimalWorld}
+          world={{
+            ...minimalWorld,
+            world: { ...minimalWorld.world, shadowsEnabled: false },
+          }}
           runPhysics={false}
           runScripts={false}
-          shadowsEnabled={false}
         />
       )
     }).not.toThrow()

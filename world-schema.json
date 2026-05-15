@@ -139,6 +139,10 @@
           "enum": ["low", "medium", "high"],
           "description": "WebGL canvas pixel density. low=1×, medium=min(dpr,1.5) (default), high=min(dpr,2)"
         },
+        "shadowsEnabled": {
+          "type": "boolean",
+          "description": "When false, disables directional-light shadow maps on the renderer. Omitted or true: enabled (default)"
+        },
         "videoTextureMaxAnisotropy": {
           "type": "integer",
           "minimum": 1,

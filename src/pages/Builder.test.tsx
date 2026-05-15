@@ -69,6 +69,14 @@ async function openEntitiesTab(user: ReturnType<typeof userEvent.setup>) {
   await user.click(entitiesButton)
 }
 
+async function openWorldTab(user: ReturnType<typeof userEvent.setup>) {
+  await waitFor(
+    () => expect(screen.getByRole('button', { name: /world/i })).toBeInTheDocument(),
+    { timeout: 3000 },
+  )
+  await user.click(screen.getByRole('button', { name: /world/i }))
+}
+
 describe('updateEntityPosition', () => {
   it('updates the target entity position and leaves others unchanged', () => {
     const world: RennWorld = {
@@ -165,7 +173,7 @@ describe('Builder', () => {
     expect(sceneViewProps.textureBrushRgb).toEqual([0.12, 0.12, 0.14])
     expect(sceneViewProps.textureBrushRadiusPx).toBe(6)
     expect(sceneViewProps.gizmoMode).toBe('translate')
-    expect(sceneViewProps.shadowsEnabled).toBe(true)
+    expect((sceneViewProps.world as RennWorld).world.shadowsEnabled).not.toBe(false)
     expect(sceneViewProps.showGameHud).toBe(false)
     expect(screen.getByRole('group', { name: 'Gizmo mode' })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Rotate gizmo' }))
@@ -188,16 +196,17 @@ describe('Builder', () => {
     })
   })
 
-  it('passes shadowsEnabled false to SceneView when Shadows switch is toggled off', async () => {
+  it('persists shadowsEnabled false on world when Shadows is toggled off in World panel', async () => {
     const user = userEvent.setup()
     renderBuilder()
     await act(async () => {
       await Promise.resolve()
     })
-    const shadowsSwitch = screen.getByRole('switch', { name: 'Shadows' })
-    await user.click(shadowsSwitch)
+    await openWorldTab(user)
+    const shadowsCheckbox = screen.getByLabelText('Shadows')
+    await user.click(shadowsCheckbox)
     await waitFor(() => {
-      expect(sceneViewProps.shadowsEnabled).toBe(false)
+      expect((sceneViewProps.world as RennWorld).world.shadowsEnabled).toBe(false)
     })
   })
 

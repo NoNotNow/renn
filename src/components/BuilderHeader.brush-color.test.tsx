@@ -16,7 +16,6 @@ describe('BuilderHeader texture brush color', () => {
   const baseProps = {
     projects: [] as ProjectMeta[],
     currentProject: { id: null as string | null, name: 'Test', isDirty: false },
-    shadowsEnabled: true,
     onNew: noop,
     onSave: noop,
     onSaveAs: noop,
@@ -28,7 +27,6 @@ describe('BuilderHeader texture brush color', () => {
     onReload: noop,
     onDeleteProject: noop,
     onPlay: noop,
-    onShadowsChange: noop,
     onFileChange: noop as (e: React.ChangeEvent<HTMLInputElement>) => void,
     onResetCamera: noop,
     fileInputRef: createRef<HTMLInputElement>(),
