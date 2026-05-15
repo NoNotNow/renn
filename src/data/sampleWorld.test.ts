@@ -46,4 +46,8 @@ describe('sampleWorld', () => {
   it('declares a deterministic version string', () => {
     expect(sampleWorld.version).toBe('1.0')
   })
+
+  it('disables distance culling by default for new worlds', () => {
+    expect(sampleWorld.world.distanceCulling).toBe(false)
+  })
 })

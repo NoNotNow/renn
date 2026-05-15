@@ -14,6 +14,7 @@ import type { TransformerConfig } from '@/types/transformer'
 import CopyableArea from '@/components/CopyableArea'
 import TransformerCustomCodeEditor, { CUSTOM_CODE_EDITOR_HEIGHT_DEFAULT_PX } from '@/components/TransformerCustomCodeEditor'
 import ValidatedJsonTextarea from '@/components/ValidatedJsonTextarea'
+import { TransformerDocsContent } from './TransformerDocs'
 import { EntityPanelIcons } from '@/components/EntityPanelIcons'
 import { entityPanelIconButtonStyle, fieldLabelStyle } from '@/components/sharedStyles'
 import { theme } from '@/config/theme'
@@ -323,7 +324,7 @@ function TransformerTraceItem({
                 justifyContent: 'center',
                 padding: '0 2px',
                 opacity: isSelected ? 1 : 0.6,
-                color: isSelected ? theme.accent.default : theme.text.muted,
+                color: isSelected ? theme.accent : theme.text.muted,
               }}
               onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
               onMouseLeave={(e) => {
@@ -716,9 +717,12 @@ export default function CustomTransformerCodeTab({
   const [codeEditorHeightPx, setCodeEditorHeightPx] = useState(CUSTOM_CODE_EDITOR_HEIGHT_DEFAULT_PX)
   const [codePopoutOpen, setCodePopoutOpen] = useState(false)
   const [codePopoutOpaque, setCodePopoutOpaque] = useState(false)
+  const [docsOpenInPopout, setDocsOpenInPopout] = useState(false)
+  const [docsAreaWidth, setDocsAreaWidth] = useState(0)
   const builderHeaderBottomInsetPx = useBuilderHeaderBottomInsetPx(codePopoutOpen)
 
   const popoutHeaderRef = useRef<HTMLDivElement>(null)
+  const docsContainerRef = useRef<HTMLDivElement>(null)
   const listRef = useRef(list)
   listRef.current = list
   const selectedIndexRef = useRef(selectedIndex)
@@ -806,6 +810,20 @@ export default function CustomTransformerCodeTab({
     setNameDraft(typeof selectedConfig.name === 'string' ? selectedConfig.name : '')
     codeUndoPrimedRef.current = false
   }, [syncKey, selectedConfig, selectedIndex])
+
+  useEffect(() => {
+    if (!codePopoutOpen || !docsOpenInPopout || typeof window === 'undefined') return
+    const el = docsContainerRef.current
+    if (!el) return
+
+    const update = () => {
+      setDocsAreaWidth(el.clientWidth)
+    }
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [codePopoutOpen, docsOpenInPopout])
 
   const flushPendingCode = useCallback(() => {
     if (debounceTimerRef.current) {
@@ -1192,6 +1210,24 @@ export default function CustomTransformerCodeTab({
                   >
                     {EntityPanelIcons.opacity}
                   </button>
+                  <button
+                    type="button"
+                    data-testid="custom-transformer-code-popout-docs-toggle"
+                    title={docsOpenInPopout ? 'Hide documentation' : 'Show documentation'}
+                    aria-label="Toggle documentation"
+                    onClick={() => setDocsOpenInPopout(!docsOpenInPopout)}
+                    style={{
+                      ...entityPanelIconButtonStyle,
+                      opacity: docsOpenInPopout ? 1 : 0.65,
+                      color: docsOpenInPopout ? theme.accent : theme.text.muted,
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+                    onMouseLeave={(e) => {
+                      if (!docsOpenInPopout) e.currentTarget.style.opacity = '0.65'
+                    }}
+                  >
+                    {EntityPanelIcons.document}
+                  </button>
                   {onResetPoseToSavedWorld ? (
                     <button
                       type="button"
@@ -1260,32 +1296,62 @@ export default function CustomTransformerCodeTab({
                   flex: 1,
                   minHeight: 0,
                   display: 'flex',
-                  flexDirection: 'column',
+                  flexDirection: 'row',
                   padding: 16,
                   overflow: 'hidden',
-                  gap: 0,
+                  gap: docsOpenInPopout ? 16 : 0,
                 }}
               >
                 <div
                   style={{
-                    flex: 1,
+                    flex: docsOpenInPopout ? '1 1 60%' : '1 1 100%',
                     minHeight: 0,
                     display: 'flex',
                     flexDirection: 'column',
                     overflow: 'hidden',
                   }}
                 >
-                  <TransformerCustomCodeEditor
-                    layout="fill"
-                    transparent={!codePopoutOpaque}
-                    delayedLayoutMs={200}
-                    value={codeDraft}
-                    onChange={handleCodeChange}
-                    disabled={anyLocked}
-                  />
+                  <div
+                    style={{
+                      flex: 1,
+                      minHeight: 0,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      overflow: 'hidden',
+                    }}
+                  >
+                    <TransformerCustomCodeEditor
+                      layout="fill"
+                      transparent={!codePopoutOpaque}
+                      delayedLayoutMs={200}
+                      value={codeDraft}
+                      onChange={handleCodeChange}
+                      disabled={anyLocked}
+                    />
+                  </div>
+                  {compileErrorPanel}
+                  {runtimeErrorPanel}
                 </div>
-                {compileErrorPanel}
-                {runtimeErrorPanel}
+
+                {docsOpenInPopout && (
+                  <div
+                    ref={docsContainerRef}
+                    style={{
+                      flex: '1 1 40%',
+                      minWidth: 300,
+                      minHeight: 0,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      overflow: 'hidden',
+                      background: theme.bg.panel,
+                      border: `1px solid ${theme.border.default}`,
+                      borderRadius: 8,
+                      padding: 16,
+                    }}
+                  >
+                    <TransformerDocsContent forceCollapsedChapters={docsAreaWidth < 500} />
+                  </div>
+                )}
               </div>
             </div>
           </div>,

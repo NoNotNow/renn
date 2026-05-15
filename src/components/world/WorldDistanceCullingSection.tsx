@@ -40,8 +40,8 @@ export default function WorldDistanceCullingSection({
     <div style={{ ...sectionStyle, marginTop: 12 }}>
       <div style={sectionTitleStyle}>Distance Culling</div>
       <p style={{ fontSize: 11, color: theme.text.muted, margin: '0 0 8px' }}>
-        On by default. Objects are hidden when beyond Max Distance <strong>or</strong> when their
-        apparent size/distance ratio is below Min ratio (camera to object center).
+        Objects are hidden when beyond Max Distance <strong>or</strong> when their apparent
+        size/distance ratio is below Min ratio (camera to object center).
       </p>
       <div style={{ ...sidebarRowStyle, marginBottom: 8 }}>
         <label

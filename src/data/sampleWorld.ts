@@ -3,6 +3,7 @@ import type {RennWorld} from '@/types/world'
 export const sampleWorld: RennWorld = {
     version: '1.0',
     world: {
+        distanceCulling: false,
         gravity: [0, -100, 0],
         ambientLight: [0.3, 0.3, 0.35],
         directionalLight: {

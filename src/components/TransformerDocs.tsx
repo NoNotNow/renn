@@ -15,7 +15,17 @@ export interface TransformerDocsProps {
   onClose: () => void
 }
 
-export default function TransformerDocs({ isOpen, onClose }: TransformerDocsProps) {
+export interface TransformerDocsContentProps {
+  /** If true, the chapters sidebar is collapsed into a simple list or hidden. */
+  forceCollapsedChapters?: boolean
+  /** Optional extra header element (like search bar). */
+  headerExtra?: React.ReactNode
+}
+
+export function TransformerDocsContent({ 
+  forceCollapsedChapters = false,
+  headerExtra 
+}: TransformerDocsContentProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [activeChapterId, setActiveChapterId] = useState('intro')
   const [isSearching, setIsSearching] = useState(false)
@@ -299,13 +309,6 @@ function transform(input, dt, params, state, api) {
 
   const activeChapter = chapters.find(c => c.id === activeChapterId) || chapters[0]
 
-  useEffect(() => {
-    if (isOpen) {
-      setSearchQuery('')
-      setIsSearching(false)
-    }
-  }, [isOpen])
-
   const handleResultClick = (chapterId: string) => {
     setActiveChapterId(chapterId)
     setIsSearching(false)
@@ -313,7 +316,7 @@ function transform(input, dt, params, state, api) {
   }
 
   const searchBar = (
-    <div style={{ position: 'relative', width: 300, marginLeft: 20 }}>
+    <div style={{ position: 'relative', flex: 1, maxWidth: 300, marginLeft: headerExtra ? 20 : 0 }}>
       <input
         ref={searchInputRef}
         type="search"
@@ -395,59 +398,82 @@ function transform(input, dt, params, state, api) {
   )
 
   return (
-    <Modal 
-      isOpen={isOpen} 
-      onClose={onClose} 
-      title="Transformer Coding Documentation" 
-      width={900} 
-      height={700}
-      headerExtra={searchBar}
-    >
-      <div style={{ display: 'flex', height: '100%', color: theme.text.primary }}>
-        {/* Sidebar */}
-        <div style={{ 
-          width: 200, 
-          borderRight: `1px solid ${theme.border.default}`, 
-          display: 'flex', 
-          flexDirection: 'column',
-          paddingRight: 16
-        }}>
-          <div style={{ flex: 1, overflowY: 'auto' }}>
-            {chapters.map(chapter => (
-              <div
-                key={chapter.id}
-                onClick={() => setActiveChapterId(chapter.id)}
-                style={{
-                  padding: '10px 12px',
-                  cursor: 'pointer',
-                  borderRadius: 4,
-                  marginBottom: 4,
-                  fontSize: 14,
-                  background: activeChapterId === chapter.id ? theme.bg.surface : 'transparent',
-                  color: activeChapterId === chapter.id ? theme.text.primary : theme.text.muted,
-                  transition: 'all 0.15s ease',
-                  fontWeight: activeChapterId === chapter.id ? 600 : 400
-                }}
-                onMouseEnter={(e) => {
-                  if (activeChapterId !== chapter.id) {
-                    e.currentTarget.style.background = theme.bg.panel
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (activeChapterId !== chapter.id) {
-                    e.currentTarget.style.background = 'transparent'
-                  }
-                }}
-              >
-                {chapter.title}
-              </div>
-            ))}
-          </div>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', color: theme.text.primary, overflow: 'hidden' }}>
+      {(headerExtra || searchBar) && (
+        <div style={{ display: 'flex', alignItems: 'center', paddingBottom: 12, borderBottom: `1px solid ${theme.border.default}`, marginBottom: 16 }}>
+          {headerExtra}
+          {searchBar}
         </div>
+      )}
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+        {/* Sidebar */}
+        {!forceCollapsedChapters && (
+          <div style={{ 
+            width: 160, 
+            borderRight: `1px solid ${theme.border.default}`, 
+            display: 'flex', 
+            flexDirection: 'column',
+            paddingRight: 12,
+            flexShrink: 0
+          }}>
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              {chapters.map(chapter => (
+                <div
+                  key={chapter.id}
+                  onClick={() => setActiveChapterId(chapter.id)}
+                  style={{
+                    padding: '8px 10px',
+                    cursor: 'pointer',
+                    borderRadius: 4,
+                    marginBottom: 2,
+                    fontSize: 13,
+                    background: activeChapterId === chapter.id ? theme.bg.surface : 'transparent',
+                    color: activeChapterId === chapter.id ? theme.text.primary : theme.text.muted,
+                    transition: 'all 0.15s ease',
+                    fontWeight: activeChapterId === chapter.id ? 600 : 400
+                  }}
+                  onMouseEnter={(e) => {
+                    if (activeChapterId !== chapter.id) {
+                      e.currentTarget.style.background = theme.bg.panel
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (activeChapterId !== chapter.id) {
+                      e.currentTarget.style.background = 'transparent'
+                    }
+                  }}
+                >
+                  {chapter.title}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Content */}
-        <div style={{ flex: 1, paddingLeft: 24, overflowY: 'auto' }}>
-          <h2 style={{ marginTop: 0, marginBottom: 20, borderBottom: `1px solid ${theme.border.default}`, paddingBottom: 12 }}>
+        <div style={{ flex: 1, paddingLeft: forceCollapsedChapters ? 0 : 20, overflowY: 'auto' }}>
+          {forceCollapsedChapters && (
+            <div style={{ marginBottom: 16 }}>
+              <select
+                value={activeChapterId}
+                onChange={(e) => setActiveChapterId(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '6px 8px',
+                  fontSize: 13,
+                  borderRadius: 4,
+                  border: `1px solid ${theme.border.default}`,
+                  background: theme.bg.panelAlt,
+                  color: theme.text.primary,
+                }}
+              >
+                {chapters.map(c => (
+                  <option key={c.id} value={c.id}>{c.title}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          <h2 style={{ marginTop: 0, marginBottom: 16, borderBottom: `1px solid ${theme.border.default}`, paddingBottom: 8, fontSize: 18 }}>
             {activeChapter.title}
           </h2>
           <div style={{ lineHeight: 1.6, fontSize: 14 }}>
@@ -455,6 +481,25 @@ function transform(input, dt, params, state, api) {
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+export default function TransformerDocs({ isOpen, onClose }: TransformerDocsProps) {
+  useEffect(() => {
+    if (!isOpen) return
+    // Reset any state if needed when opening
+  }, [isOpen])
+
+  return (
+    <Modal 
+      isOpen={isOpen} 
+      onClose={onClose} 
+      title="Transformer Coding Documentation" 
+      width={900} 
+      height={700}
+    >
+      <TransformerDocsContent />
     </Modal>
   )
 }
