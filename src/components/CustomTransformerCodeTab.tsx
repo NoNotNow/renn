@@ -835,6 +835,10 @@ export default function CustomTransformerCodeTab({
 
   const popoutHeaderRef = useRef<HTMLDivElement>(null)
   const docsContainerRef = useRef<HTMLDivElement>(null)
+  const codePopoutOpenRef = useRef(false)
+  const popoutFirstOpenRefreshDoneRef = useRef(false)
+  const firstOpenRefreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  codePopoutOpenRef.current = codePopoutOpen
   const listRef = useRef(list)
   listRef.current = list
   const selectedIndexRef = useRef(selectedIndex)
@@ -959,10 +963,40 @@ export default function CustomTransformerCodeTab({
 
   /** Close + reopen pop-out so Monaco remounts (escape hatch for bad first paint). */
   const refreshPopoutMonaco = useCallback(() => {
+    popoutFirstOpenRefreshDoneRef.current = true
+    if (firstOpenRefreshTimeoutRef.current !== null) {
+      clearTimeout(firstOpenRefreshTimeoutRef.current)
+      firstOpenRefreshTimeoutRef.current = null
+    }
     flushPendingCode()
     setCodePopoutOpen(false)
     window.setTimeout(() => setCodePopoutOpen(true), 0)
   }, [flushPendingCode])
+
+  /** First pop-out open in this mount: same remount as "Refresh editor" after 100ms (Monaco first-paint). */
+  useEffect(() => {
+    if (!codePopoutOpen) {
+      if (firstOpenRefreshTimeoutRef.current !== null) {
+        clearTimeout(firstOpenRefreshTimeoutRef.current)
+        firstOpenRefreshTimeoutRef.current = null
+      }
+      return
+    }
+    if (popoutFirstOpenRefreshDoneRef.current || anyLocked) return
+
+    firstOpenRefreshTimeoutRef.current = window.setTimeout(() => {
+      firstOpenRefreshTimeoutRef.current = null
+      if (!codePopoutOpenRef.current) return
+      refreshPopoutMonaco()
+    }, 100)
+
+    return () => {
+      if (firstOpenRefreshTimeoutRef.current !== null) {
+        clearTimeout(firstOpenRefreshTimeoutRef.current)
+        firstOpenRefreshTimeoutRef.current = null
+      }
+    }
+  }, [anyLocked, codePopoutOpen, refreshPopoutMonaco])
 
   useEffect(() => {
     if (!codePopoutOpen) return
