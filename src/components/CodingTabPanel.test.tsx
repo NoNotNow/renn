@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, act } from '@testing-library/react'
 import CodingTabPanel from './CodingTabPanel'
 import { EditorUndoProvider } from '@/contexts/EditorUndoContext'
 import { CopyProvider } from '@/contexts/CopyContext'
@@ -7,6 +7,7 @@ import type { RennWorld } from '@/types/world'
 import {
   clearCustomTransformerRuntimeError,
 } from '@/runtime/customTransformerErrorBridge'
+import { publishTransformerLiveTrace, clearTransformerLiveTraceSnapshot } from '@/runtime/transformerTraceBridge'
 
 vi.mock('@monaco-editor/react', () => ({
   default: function MockMonacoEditor() {

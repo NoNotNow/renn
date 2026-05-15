@@ -118,12 +118,10 @@ function formatCustomRuntimeErrorClipboard(snapshot: {
 
 const TRACE_JSON_DRAWER_STYLE: CSSProperties = {
   position: 'absolute',
-  top: '100%',
   left: 0,
   zIndex: 100,
   margin: '4px 0 0',
   padding: 8,
-  maxHeight: 320,
   width: 360,
   overflow: 'auto',
   background: theme.bg.modalGlassHeader,
@@ -136,6 +134,112 @@ const TRACE_JSON_DRAWER_STYLE: CSSProperties = {
   color: theme.text.muted,
   fontSize: 11,
   textAlign: 'left',
+}
+
+function MovableTraceDrawer({
+  title,
+  children,
+  onClose,
+  initialLeft,
+  initialTop,
+  portalTarget,
+}: {
+  title: string
+  children: React.ReactNode
+  onClose: () => void
+  initialLeft: number
+  initialTop: number
+  portalTarget: Element
+}) {
+  const [pos, setPos] = useState({ x: initialLeft, y: initialTop })
+  const dragRef = useRef<{ startX: number; startY: number; startPosX: number; startPosY: number } | null>(null)
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest('button')) return
+
+    e.preventDefault()
+    dragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      startPosX: pos.x,
+      startPosY: pos.y,
+    }
+    const onMove = (move: MouseEvent) => {
+      if (!dragRef.current) return
+      const dx = move.clientX - dragRef.current.startX
+      const dy = move.clientY - dragRef.current.startY
+      setPos({
+        x: dragRef.current.startPosX + dx,
+        y: dragRef.current.startPosY + dy,
+      })
+    }
+    const onUp = () => {
+      dragRef.current = null
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }
+
+  return createPortal(
+    <div
+      style={{
+        ...TRACE_JSON_DRAWER_STYLE,
+        position: 'absolute',
+        top: pos.y,
+        left: pos.x,
+        display: 'flex',
+        flexDirection: 'column',
+        padding: 0,
+        overflow: 'hidden',
+      }}
+    >
+      <div
+        onMouseDown={handleMouseDown}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '4px 8px',
+          background: theme.bg.modalGlassHeader,
+          borderBottom: `1px solid ${theme.border.default}`,
+          cursor: 'move',
+          userSelect: 'none',
+          flexShrink: 0,
+        }}
+      >
+        <span style={{ fontSize: 10, fontWeight: 700, color: theme.text.secondary, textTransform: 'uppercase' }}>
+          {title}
+        </span>
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onClose()
+          }}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: theme.text.muted,
+            cursor: 'pointer',
+            fontSize: 16,
+            lineHeight: 1,
+            padding: '0 4px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+          title="Close"
+        >
+          ×
+        </button>
+      </div>
+      <div style={{ padding: 8, overflow: 'auto', flex: 1 }}>
+        {children}
+      </div>
+    </div>,
+    portalTarget
+  )
 }
 
 function TransformerTraceItem({
@@ -396,12 +500,17 @@ function TransformerTraceItem({
             IN: {traceInputBrief}
           </summary>
           {inOpen && step && !step.skipped && step.inputBefore && headerRef.current ? (
-            createPortal(
-              <pre style={{ ...TRACE_JSON_DRAWER_STYLE, left: baseLeft }}>
+            <MovableTraceDrawer
+              title="Input"
+              onClose={() => setInOpen(false)}
+              initialLeft={baseLeft}
+              initialTop={40}
+              portalTarget={headerRef.current}
+            >
+              <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                 {JSON.stringify(step.inputBefore, null, 2)}
-              </pre>,
-              headerRef.current,
-            )
+              </pre>
+            </MovableTraceDrawer>
           ) : null}
         </details>
         <details
@@ -415,28 +524,28 @@ function TransformerTraceItem({
             OUT: {traceOutputBrief}
           </summary>
           {outOpen && step && !step.skipped && (step.transformOutput !== undefined || step.actionsAfter !== undefined) && headerRef.current ? (
-            createPortal(
-              <pre style={{ ...TRACE_JSON_DRAWER_STYLE, left: baseLeft }}>
+            <MovableTraceDrawer
+              title="Output"
+              onClose={() => setOutOpen(false)}
+              initialLeft={baseLeft}
+              initialTop={80}
+              portalTarget={headerRef.current}
+            >
+              <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                 {JSON.stringify(serializeTransformerTraceOutputJson(step), null, 2)}
-              </pre>,
-              headerRef.current,
-            )
+              </pre>
+            </MovableTraceDrawer>
           ) : null}
         </details>
         {configOpen && headerRef.current ? (
-          createPortal(
-            <div
-              style={{
-                ...TRACE_JSON_DRAWER_STYLE,
-                left: baseLeft,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 8,
-              }}
-            >
-              <div style={{ fontSize: 10, fontWeight: 700, color: theme.text.secondary, textTransform: 'uppercase' }}>
-                Config: {transformer.type}
-              </div>
+          <MovableTraceDrawer
+            title={`Config: ${transformer.type}`}
+            onClose={() => setConfigOpen(false)}
+            initialLeft={baseLeft}
+            initialTop={120}
+            portalTarget={headerRef.current}
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <ValidatedJsonTextarea
                 value={JSON.stringify(transformer, null, 2)}
                 onApply={(updated) => {
@@ -447,9 +556,8 @@ function TransformerTraceItem({
                 textareaTestId={`transformer-horizontal-config-textarea-${index}`}
                 applyTestId={`transformer-horizontal-config-apply-${index}`}
               />
-            </div>,
-            headerRef.current,
-          )
+            </div>
+          </MovableTraceDrawer>
         ) : null}
       </div>
     </div>
