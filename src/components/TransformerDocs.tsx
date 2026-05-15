@@ -252,30 +252,47 @@ function transform(input, dt, params, state, api) {
   ], [])
 
   const searchResults = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase()
-    if (!q) return []
+    const query = searchQuery.trim().toLowerCase()
+    if (!query) return []
     
+    const words = query.split(/\s+/).filter(w => w.length > 0)
+    if (words.length === 0) return []
+
     return chapters.map(chapter => {
-      let score = 0
-      if (chapter.title.toLowerCase().includes(q)) score += 10
-      if (chapter.keywords.some(k => k.includes(q))) score += 5
+      const title = chapter.title.toLowerCase()
+      const keywords = chapter.keywords.map(k => k.toLowerCase())
+      const plainText = (chapter.plainText || '').toLowerCase()
       
-      const plainText = chapter.plainText || ''
-      const index = plainText.toLowerCase().indexOf(q)
-      if (index !== -1) {
-        score += 1
-        // Extract preview snippet
+      // Check if all words are present somewhere in the chapter
+      const allWordsMatch = words.every(word => 
+        title.includes(word) || 
+        keywords.some(k => k.includes(word)) || 
+        plainText.includes(word)
+      )
+
+      if (!allWordsMatch) return null
+
+      let score = 0
+      words.forEach(word => {
+        if (title.includes(word)) score += 10
+        if (keywords.some(k => k.includes(word))) score += 5
+        if (plainText.includes(word)) score += 1
+      })
+
+      // Find the best snippet: the one containing the first word found in plainText
+      let snippet = chapter.title
+      const firstWordInText = words.find(word => plainText.includes(word))
+      
+      if (firstWordInText && chapter.plainText) {
+        const index = plainText.indexOf(firstWordInText)
         const start = Math.max(0, index - 40)
-        const end = Math.min(plainText.length, index + q.length + 40)
-        let snippet = plainText.substring(start, end)
+        const end = Math.min(chapter.plainText.length, index + firstWordInText.length + 40)
+        snippet = chapter.plainText.substring(start, end)
         if (start > 0) snippet = '...' + snippet
-        if (end < plainText.length) snippet = snippet + '...'
-        
-        return { chapter, score, snippet }
+        if (end < chapter.plainText.length) snippet = snippet + '...'
       }
       
-      if (score > 0) return { chapter, score, snippet: chapter.title }
-      return null
+      return { chapter, score, snippet }
     }).filter((r): r is { chapter: DocChapter; score: number; snippet: string } => r !== null)
       .sort((a, b) => b.score - a.score)
   }, [chapters, searchQuery])

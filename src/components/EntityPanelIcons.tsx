@@ -109,4 +109,10 @@ export const EntityPanelIcons = {
       <path d="M12 2a10 10 0 0 0 0 20" fill="currentColor" />
     </svg>
   ),
+  code: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}>
+      <polyline points="16 18 22 12 16 6" />
+      <polyline points="8 6 2 12 8 18" />
+    </svg>
+  ),
 } as const

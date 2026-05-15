@@ -151,6 +151,8 @@ function TransformerTraceItem({
   onDragOver,
   onDrop,
   onDragEnd,
+  onSelectCode,
+  isSelected,
   isDragOver,
   isDragging,
 }: {
@@ -168,6 +170,8 @@ function TransformerTraceItem({
   onDragOver: (e: React.DragEvent) => void
   onDrop: () => void
   onDragEnd: () => void
+  onSelectCode?: () => void
+  isSelected?: boolean
   isDragOver: boolean
   isDragging: boolean
 }) {
@@ -301,6 +305,34 @@ function TransformerTraceItem({
               }}
             />
           </button>
+          {transformer.type === 'custom' && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                onSelectCode?.()
+              }}
+              title="Show code"
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: theme.text.muted,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '0 2px',
+                opacity: isSelected ? 1 : 0.6,
+                color: isSelected ? theme.accent.default : theme.text.muted,
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+              onMouseLeave={(e) => {
+                if (!isSelected) e.currentTarget.style.opacity = '0.6'
+              }}
+            >
+              {EntityPanelIcons.code}
+            </button>
+          )}
           <button
             type="button"
             onClick={(e) => {
@@ -428,11 +460,15 @@ function TransformerHorizontalTrace({
   liveTraceSteps,
   headerRef,
   onCommit,
+  onSelectCode,
+  selectedListIndex,
 }: {
   transformers: TransformerConfig[]
   liveTraceSteps: TransformerTraceStep[] | null
   headerRef: React.RefObject<HTMLDivElement>
   onCommit: (next: TransformerConfig[]) => void
+  onSelectCode?: (index: number) => void
+  selectedListIndex?: number
 }) {
   const [scrollLeft, setScrollLeft] = useState(0)
   const [isExpanded, setIsExpanded] = useState(false)
@@ -596,6 +632,8 @@ function TransformerHorizontalTrace({
           onDragOver={(e) => handleDragOver(e, i)}
           onDrop={handleDragEnd}
           onDragEnd={handleDragEnd}
+          onSelectCode={() => onSelectCode?.(item.originalIndex)}
+          isSelected={item.originalIndex === selectedListIndex}
           isDragging={dragState?.draggedId === item.id}
           isDragOver={dragState?.dragOverId === item.id && dragState?.draggedId !== item.id}
         />
@@ -699,10 +737,22 @@ export default function CustomTransformerCodeTab({
       return
     }
     setSelectedIndex((prev) => {
+      // If we already have a valid selection that is still in customSlots, keep it
       if (prev !== null && customSlots.some((s) => s.index === prev)) return prev
+      // Otherwise, default to the first custom slot
       return customSlots[0]!.index
     })
   }, [customSlots])
+
+  // Ensure selectedIndex is set when the popout opens if it wasn't already
+  useEffect(() => {
+    if (codePopoutOpen && selectedIndex === null && customSlots.length > 0) {
+      setSelectedIndex(customSlots[0].index)
+    }
+  }, [codePopoutOpen, selectedIndex, customSlots])
+
+  const selectedSlot =
+    selectedIndex !== null ? customSlots.find((s) => s.index === selectedIndex) : null
 
   const selectedConfig =
     selectedIndex !== null && list[selectedIndex]?.type === 'custom' ? list[selectedIndex]! : null
@@ -845,10 +895,20 @@ export default function CustomTransformerCodeTab({
     [flushPendingCode],
   )
 
-  const changeSelectedIndex = (nextIdx: number) => {
-    flushPendingCode()
-    setSelectedIndex(nextIdx)
-  }
+  const changeSelectedIndex = useCallback(
+    (nextIdx: number) => {
+      flushPendingCode()
+      setSelectedIndex(nextIdx)
+    },
+    [flushPendingCode],
+  )
+
+  const handleSelectCodeFromTrace = useCallback(
+    (listIndex: number) => {
+      changeSelectedIndex(listIndex)
+    },
+    [changeSelectedIndex],
+  )
 
   const scheduleCodeCommit = (text: string) => {
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
@@ -1105,12 +1165,14 @@ export default function CustomTransformerCodeTab({
                 >
                   {popoutTitle}
                 </h2>
-                <TransformerHorizontalTrace
-                  transformers={list}
-                  liveTraceSteps={liveTraceSteps}
-                  headerRef={popoutHeaderRef}
-                  onCommit={onTransformersCommit}
-                />
+      <TransformerHorizontalTrace
+        transformers={list}
+        liveTraceSteps={liveTraceSteps}
+        headerRef={popoutHeaderRef}
+        onCommit={onTransformersCommit}
+        onSelectCode={handleSelectCodeFromTrace}
+        selectedListIndex={selectedSlot?.index}
+      />
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                   <button
                     type="button"
