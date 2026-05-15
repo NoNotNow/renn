@@ -1,4 +1,5 @@
 import {
+  Fragment,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -99,6 +100,84 @@ function useBuilderHeaderBottomInsetPx(active: boolean): number {
 }
 
 const CODE_DEBOUNCE_MS = 350
+
+/** Pipeline link chrome: accent matches trace arrows / rings. */
+const PIPELINE_LINK_STROKE = theme.accent
+
+/** Outlet ring + horizontal shaft + arrow in one SVG so the line begins at the circle edge (no gap). */
+function PipelineStageOutLink({ fill }: { fill: string }) {
+  const cy = 7
+  const r = 4.5
+  const cx = 5.5
+  const strokeW = 1.6
+  // Outer edge of the stroked circle (shaft starts flush with the visible ring).
+  const lineStart = cx + r + strokeW / 2
+
+  return (
+    <div
+      aria-hidden={true}
+      style={{
+        flexShrink: 0,
+        width: 34,
+        height: 14,
+        alignSelf: 'center',
+        marginLeft: -9,
+        marginRight: -9,
+        position: 'relative',
+        zIndex: 2,
+      }}
+    >
+      <svg width="34" height="14" viewBox="0 0 34 14" fill="none" style={{ display: 'block' }}>
+        <circle cx={cx} cy={cy} r={r} fill={fill} stroke={PIPELINE_LINK_STROKE} strokeWidth={strokeW} />
+        <line
+          x1={lineStart}
+          y1={cy}
+          x2="23.5"
+          y2={cy}
+          stroke={PIPELINE_LINK_STROKE}
+          strokeWidth={strokeW}
+          strokeLinecap="round"
+        />
+        <path
+          d="M22.5 4.5 L30 7 L22.5 9.5"
+          fill="none"
+          stroke={PIPELINE_LINK_STROKE}
+          strokeWidth={strokeW}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </div>
+  )
+}
+
+/** Incoming flow into the first stage (arrow overlaps left edge of card). */
+function PipelineLeadInArrow() {
+  return (
+    <div
+      aria-hidden={true}
+      style={{
+        flexShrink: 0,
+        width: 20,
+        height: 14,
+        alignSelf: 'center',
+        marginRight: -10,
+        position: 'relative',
+        zIndex: 2,
+      }}
+    >
+      <svg width="20" height="14" viewBox="0 0 20 14" fill="none" style={{ display: 'block' }}>
+        <path
+          d="M0 7h12 M7 3.5 L13 7 L7 10.5"
+          stroke={PIPELINE_LINK_STROKE}
+          strokeWidth="1.6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </div>
+  )
+}
 
 function formatCustomRuntimeErrorClipboard(snapshot: {
   message: string
@@ -346,12 +425,15 @@ function TransformerTraceItem({
         display: 'flex',
         flexDirection: 'column',
         gap: 2,
-        padding: '0 8px',
-        borderLeft: index === 0 ? 'none' : `1px solid ${theme.border.default}`,
-        minWidth: 80,
-        maxWidth: 180,
+        padding: '8px 10px',
+        boxSizing: 'border-box',
+        border: `1px solid ${theme.border.default}`,
+        borderRadius: 6,
+        background: isDragOver ? theme.bg.panelAlt : theme.bg.sectionMuted,
+        minWidth: 100,
+        maxWidth: 200,
+        flex: '0 0 auto',
         opacity: isDragging ? 0.4 : 1,
-        background: isDragOver ? theme.bg.panelAlt : 'transparent',
         transition: 'background 0.2s ease, opacity 0.2s ease, transform 0.2s ease',
         cursor: isDragging ? 'grabbing' : 'grab',
         transform: isDragging ? 'scale(1.02)' : 'scale(1)',
@@ -724,45 +806,77 @@ function TransformerHorizontalTrace({
           transition: background 0.2s ease, opacity 0.2s ease, transform 0.2s ease;
         }
       `}</style>
+      {displayItems.length > 0 ? <PipelineLeadInArrow /> : null}
       {displayItems.map((item, i) => (
-        <TransformerTraceItem
-          key={item.id}
-          index={i}
-          transformer={item.config}
-          step={traceByStackIndex?.get(item.originalIndex)}
-          headerRef={headerRef}
-          traceBarRef={traceBarRef}
-          scrollLeft={scrollLeft}
-          onToggleExpanded={onToggleExpanded}
-          onRemove={() => handleRemoveTransformer(item.originalIndex)}
-          onToggleEnabled={() => handleToggleEnabled(item.originalIndex)}
-          onUpdate={(config) => handleUpdateTransformer(item.originalIndex, config)}
-          onDragStart={() => handleDragStart(i)}
-          onDragOver={(e) => handleDragOver(e, i)}
-          onDrop={handleDragEnd}
-          onDragEnd={handleDragEnd}
-          onSelectCode={() => onSelectCode?.(item.originalIndex)}
-          isSelected={item.originalIndex === selectedListIndex}
-          isDragging={dragState?.draggedId === item.id}
-          isDragOver={dragState?.dragOverId === item.id && dragState?.draggedId !== item.id}
-        />
+        <Fragment key={item.id}>
+          <div
+            style={{
+              position: 'relative',
+              flex: '0 0 auto',
+              alignSelf: 'center',
+            }}
+          >
+            <TransformerTraceItem
+              index={i}
+              transformer={item.config}
+              step={traceByStackIndex?.get(item.originalIndex)}
+              headerRef={headerRef}
+              traceBarRef={traceBarRef}
+              scrollLeft={scrollLeft}
+              onToggleExpanded={onToggleExpanded}
+              onRemove={() => handleRemoveTransformer(item.originalIndex)}
+              onToggleEnabled={() => handleToggleEnabled(item.originalIndex)}
+              onUpdate={(config) => handleUpdateTransformer(item.originalIndex, config)}
+              onDragStart={() => handleDragStart(i)}
+              onDragOver={(e) => handleDragOver(e, i)}
+              onDrop={handleDragEnd}
+              onDragEnd={handleDragEnd}
+              onSelectCode={() => onSelectCode?.(item.originalIndex)}
+              isSelected={item.originalIndex === selectedListIndex}
+              isDragging={dragState?.draggedId === item.id}
+              isDragOver={dragState?.dragOverId === item.id && dragState?.draggedId !== item.id}
+            />
+          </div>
+          <PipelineStageOutLink
+            fill={
+              dragState?.dragOverId === item.id && dragState?.draggedId !== item.id
+                ? theme.bg.panelAlt
+                : theme.bg.sectionMuted
+            }
+          />
+        </Fragment>
       ))}
-      <div style={{ padding: '0 8px', borderLeft: `1px solid ${theme.border.default}`, display: 'flex', alignItems: 'center' }}>
+      <div
+        style={{
+          position: 'relative',
+          padding: '6px 10px',
+          boxSizing: 'border-box',
+          border: `1px dashed ${theme.border.default}`,
+          borderRadius: 6,
+          background: theme.bg.sectionMuted,
+          display: 'flex',
+          alignItems: 'center',
+          flexShrink: 0,
+          alignSelf: 'center',
+        }}
+      >
         <select
           value={addSelectValue}
           onChange={(e) => handleAddTransformer(e.target.value)}
+          aria-label="Add transformer stage"
           style={{
-            padding: '2px 4px',
+            padding: '4px 6px',
             fontSize: 10,
+            fontWeight: 600,
             background: theme.bg.codeOverlay,
             border: `1px solid ${theme.border.default}`,
             borderRadius: 4,
-            color: theme.text.muted,
+            color: theme.text.secondary,
             cursor: 'pointer',
-            maxWidth: 80,
+            maxWidth: 96,
           }}
         >
-          <option value="">+ Add</option>
+          <option value="">+ Add ▾</option>
           {TRANSFORMER_PRESET_OPTIONS.map((opt) => (
             <option key={opt.value} value={opt.value}>
               {opt.label}
@@ -770,6 +884,7 @@ function TransformerHorizontalTrace({
           ))}
         </select>
       </div>
+      {displayItems.length > 0 ? <PipelineStageOutLink fill={theme.bg.sectionMuted} /> : null}
     </div>
   )
 }
@@ -1309,133 +1424,135 @@ export default function CustomTransformerCodeTab({
                     borderBottom: `1px solid ${theme.border.default}`,
                     backgroundColor: codePopoutOpaque ? theme.bg.panel : theme.bg.modalGlassHeader,
                     display: 'flex',
+                    flexDirection: 'row',
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     flexShrink: 0,
                     gap: 12,
                     position: 'relative',
-                  }}
-                >
-                <h2
-                  id="custom-transformer-code-popout-title"
-                  style={{
-                    margin: 0,
-                    fontSize: 15,
-                    fontWeight: 600,
-                    color: theme.text.primary,
-                    flex: '0 0 auto',
                     minWidth: 0,
                   }}
                 >
-                  {popoutTitle}
-                </h2>
-      <TransformerHorizontalTrace
-        transformers={list}
-        liveTraceSteps={liveTraceSteps}
-        headerRef={popoutHeaderRef}
-        onCommit={onTransformersCommit}
-        onSelectCode={handleSelectCodeFromTrace}
-        selectedListIndex={selectedSlot?.index}
-      />
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                  <button
-                    type="button"
-                    data-testid="custom-transformer-code-popout-opaque-toggle"
-                    title={codePopoutOpaque ? 'Make window transparent (50%)' : 'Make window fully opaque'}
-                    aria-label="Toggle window opacity"
-                    onClick={() => setCodePopoutOpaque(!codePopoutOpaque)}
+                  <h2
+                    id="custom-transformer-code-popout-title"
                     style={{
-                      ...entityPanelIconButtonStyle,
-                      opacity: codePopoutOpaque ? 1 : 0.65,
-                      color: codePopoutOpaque ? theme.accent : theme.text.muted,
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
-                    onMouseLeave={(e) => {
-                      if (!codePopoutOpaque) e.currentTarget.style.opacity = '0.65'
+                      margin: 0,
+                      fontSize: 15,
+                      fontWeight: 600,
+                      color: theme.text.primary,
+                      flex: '0 0 auto',
+                      minWidth: 0,
                     }}
                   >
-                    {EntityPanelIcons.opacity}
-                  </button>
-                  <button
-                    type="button"
-                    data-testid="custom-transformer-code-popout-docs-toggle"
-                    title={docsOpenInPopout ? 'Hide documentation' : 'Show documentation'}
-                    aria-label="Toggle documentation"
-                    onClick={() => setDocsOpenInPopout(!docsOpenInPopout)}
-                    style={{
-                      ...entityPanelIconButtonStyle,
-                      opacity: docsOpenInPopout ? 1 : 0.65,
-                      color: docsOpenInPopout ? theme.accent : theme.text.muted,
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
-                    onMouseLeave={(e) => {
-                      if (!docsOpenInPopout) e.currentTarget.style.opacity = '0.65'
-                    }}
-                  >
-                    {EntityPanelIcons.document}
-                  </button>
-                  {onResetPoseToSavedWorld ? (
+                    {popoutTitle}
+                  </h2>
+                  <TransformerHorizontalTrace
+                    transformers={list}
+                    liveTraceSteps={liveTraceSteps}
+                    headerRef={popoutHeaderRef}
+                    onCommit={onTransformersCommit}
+                    onSelectCode={handleSelectCodeFromTrace}
+                    selectedListIndex={selectedSlot?.index}
+                  />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                     <button
                       type="button"
-                      data-testid="custom-transformer-code-popout-restore-pose"
-                      title={resetPoseTitle}
-                      aria-label="Restore saved position and rotation"
-                      disabled={!canResetPoseToSaved}
-                      onClick={() => onResetPoseToSavedWorld(selectedEntityIds)}
+                      data-testid="custom-transformer-code-popout-opaque-toggle"
+                      title={codePopoutOpaque ? 'Make window transparent (50%)' : 'Make window fully opaque'}
+                      aria-label="Toggle window opacity"
+                      onClick={() => setCodePopoutOpaque(!codePopoutOpaque)}
                       style={{
                         ...entityPanelIconButtonStyle,
-                        cursor: canResetPoseToSaved ? 'pointer' : 'not-allowed',
-                        opacity: canResetPoseToSaved ? 0.85 : 0.45,
+                        opacity: codePopoutOpaque ? 1 : 0.65,
+                        color: codePopoutOpaque ? theme.accent : theme.text.muted,
                       }}
-                      onMouseEnter={(e) => {
-                        if (canResetPoseToSaved) e.currentTarget.style.opacity = '1'
-                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
                       onMouseLeave={(e) => {
-                        if (canResetPoseToSaved) e.currentTarget.style.opacity = '0.85'
+                        if (!codePopoutOpaque) e.currentTarget.style.opacity = '0.65'
                       }}
                     >
-                      {EntityPanelIcons.reset}
+                      {EntityPanelIcons.opacity}
                     </button>
-                  ) : null}
-                  <button
-                    type="button"
-                    data-testid="custom-transformer-code-popout-refresh-editor"
-                    onClick={refreshPopoutMonaco}
-                    disabled={anyLocked}
-                    title="Reload editor (closes and reopens this window)"
-                    aria-label="Reload editor layout"
-                    style={{
-                      padding: '6px 10px',
-                      fontSize: 12,
-                      borderRadius: 6,
-                      border: `1px solid ${theme.border.default}`,
-                      background: theme.bg.surface,
-                      color: theme.text.primary,
-                      cursor: anyLocked ? 'not-allowed' : 'pointer',
-                    }}
-                  >
-                    Refresh editor
-                  </button>
-                  <button
-                    type="button"
-                    data-testid="custom-transformer-code-popout-close"
-                    onClick={closeCodePopout}
-                    aria-label="Close pop-out editor"
-                    style={{
-                      background: 'transparent',
-                      border: 'none',
-                      color: theme.text.muted,
-                      fontSize: 22,
-                      lineHeight: 1,
-                      cursor: 'pointer',
-                      padding: 4,
-                      borderRadius: 4,
-                    }}
-                  >
-                    ×
-                  </button>
+                    <button
+                      type="button"
+                      data-testid="custom-transformer-code-popout-docs-toggle"
+                      title={docsOpenInPopout ? 'Hide documentation' : 'Show documentation'}
+                      aria-label="Toggle documentation"
+                      onClick={() => setDocsOpenInPopout(!docsOpenInPopout)}
+                      style={{
+                        ...entityPanelIconButtonStyle,
+                        opacity: docsOpenInPopout ? 1 : 0.65,
+                        color: docsOpenInPopout ? theme.accent : theme.text.muted,
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+                      onMouseLeave={(e) => {
+                        if (!docsOpenInPopout) e.currentTarget.style.opacity = '0.65'
+                      }}
+                    >
+                      {EntityPanelIcons.document}
+                    </button>
+                    {onResetPoseToSavedWorld ? (
+                      <button
+                        type="button"
+                        data-testid="custom-transformer-code-popout-restore-pose"
+                        title={resetPoseTitle}
+                        aria-label="Restore saved position and rotation"
+                        disabled={!canResetPoseToSaved}
+                        onClick={() => onResetPoseToSavedWorld(selectedEntityIds)}
+                        style={{
+                          ...entityPanelIconButtonStyle,
+                          cursor: canResetPoseToSaved ? 'pointer' : 'not-allowed',
+                          opacity: canResetPoseToSaved ? 0.85 : 0.45,
+                        }}
+                        onMouseEnter={(e) => {
+                          if (canResetPoseToSaved) e.currentTarget.style.opacity = '1'
+                        }}
+                        onMouseLeave={(e) => {
+                          if (canResetPoseToSaved) e.currentTarget.style.opacity = '0.85'
+                        }}
+                      >
+                        {EntityPanelIcons.reset}
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      data-testid="custom-transformer-code-popout-refresh-editor"
+                      onClick={refreshPopoutMonaco}
+                      disabled={anyLocked}
+                      title="Reload editor (closes and reopens this window)"
+                      aria-label="Reload editor layout"
+                      style={{
+                        padding: '6px 10px',
+                        fontSize: 12,
+                        borderRadius: 6,
+                        border: `1px solid ${theme.border.default}`,
+                        background: theme.bg.surface,
+                        color: theme.text.primary,
+                        cursor: anyLocked ? 'not-allowed' : 'pointer',
+                      }}
+                    >
+                      Refresh editor
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="custom-transformer-code-popout-close"
+                      onClick={closeCodePopout}
+                      aria-label="Close pop-out editor"
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: theme.text.muted,
+                        fontSize: 22,
+                        lineHeight: 1,
+                        cursor: 'pointer',
+                        padding: 4,
+                        borderRadius: 4,
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
                 </div>
-              </div>
               <div
                 data-testid="custom-transformer-code-popout-body"
                 style={{
