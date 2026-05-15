@@ -173,7 +173,7 @@ export function summarizeTransformerTraceOutputBrief(
   transformerType: string,
   step: TransformerTraceStep | undefined,
 ): string {
-  if (!step) return '—'
+  if (!step) return '(none)'
   if (step.skipped) return '(disabled)'
   const structural =
     step.transformOutput !== undefined

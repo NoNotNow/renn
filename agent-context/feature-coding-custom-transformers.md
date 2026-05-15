@@ -117,6 +117,38 @@ Right sidebar **Code** drawer (Builder): **Transformers** | **Transformer code**
 - **Recipe / snippet library**: minimal impulse example, “grounded only” pattern, pointer to **car2** preset for full vehicle behavior.
 - **Troubleshooting**: compile error vs runtime warning in console; empty `{}` output; performance expectations (heavy code per step).
 
+#### Recipe: synthetic actions
+
+Same idea as the **`input`** preset: **mutate** `input.actions` (semantic names like `throttle`, `brake`, `steer_left`, `steer_right` for car stacks) and **`return {}`**. Downstream transformers (`car2`, `person`, …) read those values via `getAction` / `input.actions`.
+
+- **Stack order:** lower **priority** runs **first**. Typical car entity: **`input`** (e.g. 0) fills actions from hardware → **`custom`** (between input and movement) overlays or replaces actions → **`car2`** applies physics. Put the custom stage **after** `input` and **before** `car2` so your writes are visible to the mover.
+- **Merging:** assign only the axes you care about; unmentioned keys stay whatever the input stage set (often `0`). To **override** player input for a lane, write your values after `input` has run (higher priority than `input`).
+- **Time bases:** **`new Date()`** is wall-clock (real time); it **does not** pause with Builder Play or track simulation time alone. Prefer **`state` + `dt`** for timers that advance with physics steps (accumulate `(state.timer ?? 0) + dt` in `state`, then branch). Wall-clock is fine for quick demos.
+
+Example shape (abbreviated):
+
+```js
+/** @returns {TransformOutput | undefined} */
+function transform(
+  /** @type {TransformInput} */ input,
+  /** @type {number} */ dt,
+  /** @type {Record<string, unknown>} */ params,
+  /** @type {Record<string, unknown>} */ state,
+  /** @type {TransformerRuntimeApi} */ api,
+) {
+  state.t = (typeof state.t === 'number' ? state.t : 0) + dt;
+
+  // Open-loop cues for a car stack (names match keyboard-car style mappings)
+  if (state.t > 2 && state.t < 5) input.actions.throttle = 0.3;
+  if (input.position[0] > 8) input.actions.steer_right = 1;
+  else if (input.position[0] < -8) input.actions.steer_left = 1;
+
+  return {};
+}
+```
+
+Linked in-app docs: **`TransformerDocs`** (toggle **EN** / **DE**, saved as `rennTransformerDocsLocale`) → e.g. **Mini-Beispiele** / **Wörterbuch** — Codewörter bleiben Englisch; DE ist lockeres „Du“, einfache Sätze, kurze Tooltips (`transformerDocs/glossary.ts`).
+
 ---
 
 ## Testing gaps (to implement later)

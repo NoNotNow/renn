@@ -230,6 +230,47 @@ describe('CodingTabPanel', () => {
     expect(screen.getByTestId('custom-transformer-compile-error')).toHaveTextContent(/dangerous pattern/i)
   })
 
+  it('Transformer code pop out horizontal trace shows idle IN/OUT labels on each stage', () => {
+    const multiTransformerWorld: RennWorld = {
+      ...minimalWorld,
+      entities: [
+        {
+          ...minimalWorld.entities[0]!,
+          transformers: [
+            { type: 'input', priority: 0, enabled: true, params: {} },
+            { type: 'car2', priority: 1, enabled: true, params: {} },
+            {
+              type: 'custom',
+              name: 'Custom',
+              code: 'return {}',
+              priority: 2,
+              enabled: true,
+              params: {},
+            },
+          ],
+        },
+      ],
+    }
+    render(
+      <CopyProvider>
+        <EditorUndoProvider value={undoApi}>
+          <CodingTabPanel
+            world={multiTransformerWorld}
+            selectedEntityIds={['e1']}
+            onWorldChange={vi.fn()}
+          />
+        </EditorUndoProvider>
+      </CopyProvider>,
+    )
+    fireEvent.click(screen.getByTestId('coding-submenu-code'))
+    fireEvent.click(screen.getByTestId('custom-transformer-code-popout-open'))
+
+    expect(screen.getByTestId('transformer-horizontal-item-0')).toHaveTextContent('IN: (idle)')
+    expect(screen.getByTestId('transformer-horizontal-item-0')).toHaveTextContent('OUT: (none)')
+    expect(screen.getByTestId('transformer-horizontal-item-2')).toHaveTextContent('IN: (idle)')
+    expect(screen.getByTestId('transformer-horizontal-item-2')).toHaveTextContent('OUT: (none)')
+  })
+
   it('Transformer code pop out horizontal trace allows toggling enabled state', () => {
     const onWorldChange = vi.fn()
     render(

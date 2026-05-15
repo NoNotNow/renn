@@ -101,80 +101,161 @@ function useBuilderHeaderBottomInsetPx(active: boolean): number {
 
 const CODE_DEBOUNCE_MS = 350
 
-/** Pipeline link chrome: accent matches trace arrows / rings. */
-const PIPELINE_LINK_STROKE = theme.accent
+/** Pipeline geometry — shared so ports, shafts, and chevrons stay on one horizontal axis. */
+const PIPELINE_AXIS_Y = 7
+const PIPELINE_LINK_H = 14
+const PIPELINE_PORT_R = 4
+const PIPELINE_PORT_STROKE = 1.25
+const PIPELINE_PORT_SIZE = PIPELINE_PORT_R * 2 + PIPELINE_PORT_STROKE
+/** Brighter periwinkle chrome for port ring + arrows (mockup). */
+const PIPELINE_CHROME = '#a3b1d6'
+const PIPELINE_ARROW_STROKE_W = 1.5
+/** Small gap between port ring and arrow shaft (mockup). */
+const PIPELINE_PORT_TO_SHAFT_GAP = 2
+/** Shaft begins at the outer edge of the port ring (center on card border + radius + half stroke). */
+const PIPELINE_SHAFT_START_X = PIPELINE_PORT_R + PIPELINE_PORT_STROKE / 2
+/** Cards sit below link SVGs so chevrons are not covered by the next stage (DOM order). */
+const PIPELINE_Z_CARD = 1
+const PIPELINE_Z_LINK = 2
+const PIPELINE_Z_CARD_DRAGGING = 10
 
-/** Outlet ring + horizontal shaft + arrow in one SVG so the line begins at the circle edge (no gap). */
-function PipelineStageOutLink({ fill }: { fill: string }) {
-  const cy = 7
-  const r = 4.5
-  const cx = 5.5
-  const strokeW = 1.6
-  // Outer edge of the stroked circle (shaft starts flush with the visible ring).
-  const lineStart = cx + r + strokeW / 2
+type PipelineArrowGlyphProps = {
+  width: number
+  shaftStartX: number
+  shaftEndX: number
+  tipX: number
+}
 
+/** Shared shaft + wide 45° chevron (tip ends before the next stage box). */
+function PipelineArrowGlyph({ width, shaftStartX, shaftEndX, tipX }: PipelineArrowGlyphProps) {
+  const cy = PIPELINE_AXIS_Y
+  /** 45° chevron: vertical spread matches horizontal run to the tip. */
+  const spread = Math.max(2, tipX - shaftEndX)
+  return (
+    <svg width={width} height={PIPELINE_LINK_H} viewBox={`0 0 ${width} ${PIPELINE_LINK_H}`} fill="none" style={{ display: 'block' }}>
+      <line
+        x1={shaftStartX}
+        y1={cy}
+        x2={shaftEndX}
+        y2={cy}
+        stroke={PIPELINE_CHROME}
+        strokeWidth={PIPELINE_ARROW_STROKE_W}
+        strokeLinecap="round"
+      />
+      <path
+        d={`M${shaftEndX} ${cy - spread} L${tipX} ${cy} L${shaftEndX} ${cy + spread}`}
+        stroke={PIPELINE_CHROME}
+        strokeWidth={PIPELINE_ARROW_STROKE_W}
+        strokeLinecap="butt"
+        strokeLinejoin="miter"
+        fill="none"
+      />
+    </svg>
+  )
+}
+
+/** Hollow outlet ring centered on the card’s right border. */
+function PipelineStagePort({ fill }: { fill: string }) {
+  const half = PIPELINE_PORT_SIZE / 2
   return (
     <div
       aria-hidden={true}
       style={{
-        flexShrink: 0,
-        width: 34,
-        height: 14,
-        alignSelf: 'center',
-        marginLeft: -9,
-        marginRight: -9,
-        position: 'relative',
-        zIndex: 2,
+        position: 'absolute',
+        right: 0,
+        top: '50%',
+        transform: 'translate(50%, -50%)',
+        width: PIPELINE_PORT_SIZE,
+        height: PIPELINE_PORT_SIZE,
+        zIndex: 3,
+        pointerEvents: 'none',
       }}
     >
-      <svg width="34" height="14" viewBox="0 0 34 14" fill="none" style={{ display: 'block' }}>
-        <circle cx={cx} cy={cy} r={r} fill={fill} stroke={PIPELINE_LINK_STROKE} strokeWidth={strokeW} />
-        <line
-          x1={lineStart}
-          y1={cy}
-          x2="23.5"
-          y2={cy}
-          stroke={PIPELINE_LINK_STROKE}
-          strokeWidth={strokeW}
-          strokeLinecap="round"
-        />
-        <path
-          d="M22.5 4.5 L30 7 L22.5 9.5"
-          fill="none"
-          stroke={PIPELINE_LINK_STROKE}
-          strokeWidth={strokeW}
-          strokeLinecap="round"
-          strokeLinejoin="round"
+      <svg
+        width={PIPELINE_PORT_SIZE}
+        height={PIPELINE_PORT_SIZE}
+        viewBox={`0 0 ${PIPELINE_PORT_SIZE} ${PIPELINE_PORT_SIZE}`}
+        fill="none"
+        style={{ display: 'block' }}
+      >
+        <circle
+          cx={half}
+          cy={half}
+          r={PIPELINE_PORT_R}
+          fill={fill}
+          stroke={PIPELINE_CHROME}
+          strokeWidth={PIPELINE_PORT_STROKE}
         />
       </svg>
     </div>
   )
 }
 
-/** Incoming flow into the first stage (arrow overlaps left edge of card). */
-function PipelineLeadInArrow() {
+/** Horizontal shaft + chevron between stages (port lives on the card). */
+function PipelineConnector() {
+  const w = 18
   return (
     <div
       aria-hidden={true}
       style={{
         flexShrink: 0,
-        width: 20,
-        height: 14,
+        width: w,
+        height: PIPELINE_LINK_H,
         alignSelf: 'center',
-        marginRight: -10,
+        marginRight: 0,
         position: 'relative',
-        zIndex: 2,
+        zIndex: PIPELINE_Z_LINK,
       }}
     >
-      <svg width="20" height="14" viewBox="0 0 20 14" fill="none" style={{ display: 'block' }}>
-        <path
-          d="M0 7h12 M7 3.5 L13 7 L7 10.5"
-          stroke={PIPELINE_LINK_STROKE}
-          strokeWidth="1.6"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
+      <PipelineArrowGlyph
+        width={w}
+        shaftStartX={PIPELINE_SHAFT_START_X + PIPELINE_PORT_TO_SHAFT_GAP}
+        shaftEndX={8}
+        tipX={14}
+      />
+    </div>
+  )
+}
+
+/** Incoming flow into the first stage. */
+function PipelineLeadInArrow() {
+  const w = 14
+  return (
+    <div
+      aria-hidden={true}
+      style={{
+        flexShrink: 0,
+        width: w,
+        height: PIPELINE_LINK_H,
+        alignSelf: 'center',
+        marginRight: 0,
+        position: 'relative',
+        zIndex: PIPELINE_Z_LINK,
+      }}
+    >
+      <PipelineArrowGlyph width={w} shaftStartX={0} shaftEndX={5} tipX={11} />
+    </div>
+  )
+}
+
+/** Outgoing flow after the “+ Add” stage (no port ring on dashed tile). */
+function PipelineTrailOutArrow() {
+  const w = 14
+  return (
+    <div
+      aria-hidden={true}
+      style={{
+        position: 'absolute',
+        right: 0,
+        top: '50%',
+        transform: 'translate(50%, -50%)',
+        width: w,
+        height: PIPELINE_LINK_H,
+        zIndex: PIPELINE_Z_LINK,
+        pointerEvents: 'none',
+      }}
+    >
+      <PipelineArrowGlyph width={w} shaftStartX={0} shaftEndX={5} tipX={11} />
     </div>
   )
 }
@@ -328,7 +409,6 @@ function TransformerTraceItem({
   headerRef,
   traceBarRef,
   scrollLeft,
-  onToggleExpanded,
   onRemove,
   onToggleEnabled,
   onUpdate,
@@ -347,7 +427,6 @@ function TransformerTraceItem({
   headerRef: React.RefObject<HTMLDivElement>
   traceBarRef: React.RefObject<HTMLDivElement>
   scrollLeft: number
-  onToggleExpanded: () => void
   onRemove: () => void
   onToggleEnabled: () => void
   onUpdate: (config: TransformerConfig) => void
@@ -382,9 +461,14 @@ function TransformerTraceItem({
         ? theme.status.enabled
         : theme.text.secondary
 
-  const traceInputBrief =
-    step?.skipped ? '(disabled)' : step?.inputBefore ? summarizeActions(step.inputBefore.actions) : '—'
-  const traceOutputBrief = summarizeTransformerTraceOutputBrief(transformer.type, step)
+  const traceInputBrief = step?.skipped
+    ? '(disabled)'
+    : step?.inputBefore
+      ? summarizeActions(step.inputBefore.actions)
+      : '(idle)'
+  const traceOutputBrief = step
+    ? summarizeTransformerTraceOutputBrief(transformer.type, step)
+    : '(none)'
 
   const summaryBaseStyle: CSSProperties = {
     cursor: 'pointer',
@@ -422,6 +506,7 @@ function TransformerTraceItem({
       onDragEnd={onDragEnd}
       data-testid={`transformer-horizontal-item-${index}`}
       style={{
+        position: 'relative',
         display: 'flex',
         flexDirection: 'column',
         gap: 2,
@@ -429,7 +514,7 @@ function TransformerTraceItem({
         boxSizing: 'border-box',
         border: `1px solid ${theme.border.default}`,
         borderRadius: 6,
-        background: isDragOver ? theme.bg.panelAlt : theme.bg.sectionMuted,
+        background: isDragOver ? theme.bg.panelAlt : theme.bg.thumbnailFrame,
         minWidth: 100,
         maxWidth: 200,
         flex: '0 0 auto',
@@ -437,7 +522,8 @@ function TransformerTraceItem({
         transition: 'background 0.2s ease, opacity 0.2s ease, transform 0.2s ease',
         cursor: isDragging ? 'grabbing' : 'grab',
         transform: isDragging ? 'scale(1.02)' : 'scale(1)',
-        zIndex: isDragging ? 10 : 1,
+        zIndex: isDragging ? PIPELINE_Z_CARD_DRAGGING : PIPELINE_Z_CARD,
+        overflow: 'visible',
       }}
     >
       <div
@@ -453,15 +539,13 @@ function TransformerTraceItem({
           style={{
             fontSize: 9,
             fontWeight: 700,
-            color: theme.text.muted,
+            color: theme.text.primary,
             textTransform: 'uppercase',
-            cursor: 'pointer',
             userSelect: 'none',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
           }}
-          onClick={onToggleExpanded}
         >
           {transformer.type}
         </div>
@@ -570,8 +654,12 @@ function TransformerTraceItem({
           </button>
         </div>
       </div>
-      <div className="transformer-trace-content" style={{ flexDirection: 'column', gap: 2, marginTop: 2 }}>
+      <div
+        className="transformer-trace-content"
+        style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 2 }}
+      >
         <details
+          className="transformer-trace-io-row"
           onToggle={(e) => setInOpen(e.currentTarget.open)}
           open={inOpen}
         >
@@ -596,6 +684,7 @@ function TransformerTraceItem({
           ) : null}
         </details>
         <details
+          className="transformer-trace-io-row"
           onToggle={(e) => setOutOpen(e.currentTarget.open)}
           open={outOpen}
         >
@@ -642,6 +731,7 @@ function TransformerTraceItem({
           </MovableTraceDrawer>
         ) : null}
       </div>
+      <PipelineStagePort fill={isDragOver ? theme.bg.panelAlt : theme.bg.thumbnailFrame} />
     </div>
   )
 }
@@ -662,7 +752,6 @@ function TransformerHorizontalTrace({
   selectedListIndex?: number
 }) {
   const [scrollLeft, setScrollLeft] = useState(0)
-  const [isExpanded, setIsExpanded] = useState(false)
   const [addSelectValue, setAddSelectValue] = useState('')
   const [dragState, setDragState] = useState<{
     items: { config: TransformerConfig; id: string; originalIndex: number }[]
@@ -681,8 +770,6 @@ function TransformerHorizontalTrace({
     }
     return id
   }, [])
-
-  const onToggleExpanded = useCallback(() => setIsExpanded((prev) => !prev), [])
 
   const handleAddTransformer = (type: string) => {
     if (!type) return
@@ -784,7 +871,6 @@ function TransformerHorizontalTrace({
   return (
     <div
       ref={traceBarRef}
-      className={isExpanded ? 'is-expanded' : ''}
       onScroll={(e) => setScrollLeft(e.currentTarget.scrollLeft)}
       style={{
         display: 'flex',
@@ -800,11 +886,8 @@ function TransformerHorizontalTrace({
       }}
     >
       <style>{`
-        .transformer-trace-content { display: none; }
-        .is-expanded .transformer-trace-content { display: flex; }
-        .transformer-trace-item {
-          transition: background 0.2s ease, opacity 0.2s ease, transform 0.2s ease;
-        }
+        .transformer-trace-io-row > summary::-webkit-details-marker { display: none; }
+        .transformer-trace-io-row > summary::marker { content: ''; }
       `}</style>
       {displayItems.length > 0 ? <PipelineLeadInArrow /> : null}
       {displayItems.map((item, i) => (
@@ -814,6 +897,7 @@ function TransformerHorizontalTrace({
               position: 'relative',
               flex: '0 0 auto',
               alignSelf: 'center',
+              overflow: 'visible',
             }}
           >
             <TransformerTraceItem
@@ -823,7 +907,6 @@ function TransformerHorizontalTrace({
               headerRef={headerRef}
               traceBarRef={traceBarRef}
               scrollLeft={scrollLeft}
-              onToggleExpanded={onToggleExpanded}
               onRemove={() => handleRemoveTransformer(item.originalIndex)}
               onToggleEnabled={() => handleToggleEnabled(item.originalIndex)}
               onUpdate={(config) => handleUpdateTransformer(item.originalIndex, config)}
@@ -837,13 +920,7 @@ function TransformerHorizontalTrace({
               isDragOver={dragState?.dragOverId === item.id && dragState?.draggedId !== item.id}
             />
           </div>
-          <PipelineStageOutLink
-            fill={
-              dragState?.dragOverId === item.id && dragState?.draggedId !== item.id
-                ? theme.bg.panelAlt
-                : theme.bg.sectionMuted
-            }
-          />
+          <PipelineConnector />
         </Fragment>
       ))}
       <div
@@ -853,11 +930,13 @@ function TransformerHorizontalTrace({
           boxSizing: 'border-box',
           border: `1px dashed ${theme.border.default}`,
           borderRadius: 6,
-          background: theme.bg.sectionMuted,
+          background: theme.bg.thumbnailFrame,
           display: 'flex',
           alignItems: 'center',
           flexShrink: 0,
           alignSelf: 'center',
+          zIndex: PIPELINE_Z_CARD,
+          overflow: 'visible',
         }}
       >
         <select
@@ -883,8 +962,8 @@ function TransformerHorizontalTrace({
             </option>
           ))}
         </select>
+        {displayItems.length > 0 ? <PipelineTrailOutArrow /> : null}
       </div>
-      {displayItems.length > 0 ? <PipelineStageOutLink fill={theme.bg.sectionMuted} /> : null}
     </div>
   )
 }
@@ -1429,6 +1508,7 @@ export default function CustomTransformerCodeTab({
                     gap: 12,
                     position: 'relative',
                     minWidth: 0,
+                    overflow: 'visible',
                   }}
                 >
                   <h2

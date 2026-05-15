@@ -5,7 +5,7 @@ import { theme } from '@/config/theme'
 export interface ModalProps {
   isOpen: boolean
   onClose: () => void
-  title: string
+  title: React.ReactNode
   children: React.ReactNode
   width?: number
   height?: number

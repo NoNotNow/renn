@@ -15,7 +15,7 @@
 | I'm working on… | Read… |
 |---|---|
 | Overall structure / data flow | `architecture.md` |
-| Entity movement, input, physics behavior | `feature-transformers.md` |
+| Entity movement, input, physics behavior | `feature-transformers.md` (in-app **Transformer docs**: EN/DE + `transformerDocs/glossary.ts`) |
 | Input + car2 paradigms (layering, presets, transferability) | `transformer-paradigm-input-and-car2.md` |
 | Scripts, game API, events, intellisense | `feature-scripting.md` |
 | Property panel, inspector, live poses, picking (incl. 3D model meshes), no-update-loop | `feature-inspector.md` |
