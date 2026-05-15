@@ -54,6 +54,7 @@ function makeGameAPI(overrides: Partial<GameAPI> = {}): GameAPI {
     getCurrentAvatar: vi.fn().mockReturnValue(null),
     setCurrentAvatar: vi.fn().mockReturnValue(false),
     cycleAvatar: vi.fn(),
+    raycast: vi.fn().mockReturnValue({ hit: false, distance: 0, entityId: '' }),
     ...overrides,
   }
 }

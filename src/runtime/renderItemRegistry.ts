@@ -16,6 +16,7 @@ import { createTransformerChain } from '@/transformers/transformerRegistry'
 import {
   setTransformerRuntimeEntityLookup,
   setTransformerRuntimeLivePositionLookup,
+  setTransformerRuntimeRaycast,
 } from '@/transformers/customCodeTransformer'
 import type {
   EntityWorldPose,
@@ -1036,11 +1037,15 @@ export class RenderItemRegistry {
       let output: TransformOutput
       setTransformerRuntimeEntityLookup((id) => this.items.get(id)?.entity)
       setTransformerRuntimeLivePositionLookup((id) => this.getPosition(id))
+      setTransformerRuntimeRaycast((origin, dir, maxDist) =>
+        this.physicsWorld.raycast(origin[0], origin[1], origin[2], dir[0], dir[1], dir[2], maxDist),
+      )
       try {
         output = item.transformerChain.execute(input, dt, traceSteps)
       } finally {
         setTransformerRuntimeEntityLookup(null)
         setTransformerRuntimeLivePositionLookup(null)
+        setTransformerRuntimeRaycast(null)
       }
       if (traceSteps) {
         publishTransformerLiveTrace(item.entity.id, traceSteps)

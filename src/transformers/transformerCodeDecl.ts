@@ -98,6 +98,15 @@ interface TransformOutput {
   earlyExit?: boolean;
 }
 
+/** Result of \`api.raycast()\`. */
+interface RaycastResult {
+  hit: boolean;
+  /** Distance along the ray to the hit point. 0 when no hit. */
+  distance: number;
+  /** Id of the hit entity. Empty string when no hit. */
+  entityId: string;
+}
+
 /** RGB or RGBA channels 0–1. */
 type Color = [number, number, number] | [number, number, number, number];
 
@@ -251,6 +260,12 @@ interface TransformerRuntimeApi {
    * Undefined when the id is unknown or the entity lookup hook is unwired.
    */
   getEntity(id: string): LiveWorldEntity | undefined;
+  /**
+   * Cast a ray from \`origin\` (e.g. \`input.position\`) in direction \`fwd\`.
+   * No entity is automatically excluded — offset the origin or filter \`result.entityId\` in your code if needed.
+   * Returns \`{ hit: false, distance: 0, entityId: '' }\` when physics is unavailable or direction is zero-length.
+   */
+  raycast(origin: Vec3, fwd: Vec3, maxDistance?: number): RaycastResult;
 }
 
 /** Type alias for the canonical transform(...) callback (use with optional JSDoc @type referencing TransformFn). */

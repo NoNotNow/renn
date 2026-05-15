@@ -4,7 +4,8 @@
  * Pose read/write goes through the runtime registry (getPosition/setPosition).
  */
 import type { Entity } from '@/types/world'
-import type { PhysicsWorld } from '@/physics/rapierPhysics'
+import type { PhysicsWorld, RaycastResult } from '@/physics/rapierPhysics'
+export type { RaycastResult }
 import type { AvatarSession } from '@/runtime/avatarSession'
 
 export interface GameAPI {
@@ -45,6 +46,11 @@ export interface GameAPI {
   setDamage(value: number): void
   /** Last damage set via `setDamage` in this session (starts at 0). Ignored writes do not change this. */
   getDamage(): number
+  /**
+   * Cast a ray from the entity's current position in the given direction.
+   * The source entity is excluded from results. Returns no-hit when position is unavailable.
+   */
+  raycast(originEntityId: string, dirX: number, dirY: number, dirZ: number, maxDistance?: number): RaycastResult
   /** Play avatar entity id, or null if no avatar roster / not in play mode. */
   getCurrentAvatar(): string | null
   /** Switch controlled avatar and camera; false if id is not a roster member. */
@@ -209,6 +215,14 @@ export function createGameAPI(
     },
     getDamage() {
       return hudDamage
+    },
+    raycast(originEntityId: string, dirX: number, dirY: number, dirZ: number, maxDistance?: number): RaycastResult {
+      const NO_HIT: RaycastResult = { hit: false, distance: 0, entityId: '' }
+      const physics = getPhysicsWorld()
+      if (!physics) return NO_HIT
+      const pos = getPosition(originEntityId)
+      if (!pos) return NO_HIT
+      return physics.raycast(pos[0], pos[1], pos[2], dirX, dirY, dirZ, maxDistance, originEntityId)
     },
     getCurrentAvatar(): string | null {
       return avatarSession?.getCurrentAvatarId() ?? null

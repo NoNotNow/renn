@@ -185,3 +185,56 @@ describe('createGameAPI HUD', () => {
     expect(api.getDamage()).toBe(3)
   })
 })
+
+describe('createGameAPI raycast', () => {
+  const noopPos = () => null as [number, number, number] | null
+  const noopSet = () => {}
+
+  it('returns no-hit when physics world is null', () => {
+    const api = createGameAPI(
+      () => [0, 0, 0],
+      noopSet,
+      noopPos,
+      noopSet,
+      noopPos,
+      noopPos,
+      () => null,
+      () => null,
+    )
+    expect(api.raycast('e1', 0, 0, -1)).toEqual({ hit: false, distance: 0, entityId: '' })
+  })
+
+  it('returns no-hit when entity position is null', () => {
+    const mockPhysics = { raycast: vi.fn() }
+    const api = createGameAPI(
+      () => null,
+      noopSet,
+      noopPos,
+      noopSet,
+      noopPos,
+      noopPos,
+      () => mockPhysics as never,
+      () => null,
+    )
+    expect(api.raycast('e1', 0, 0, -1)).toEqual({ hit: false, distance: 0, entityId: '' })
+    expect(mockPhysics.raycast).not.toHaveBeenCalled()
+  })
+
+  it('delegates to physics world with correct args and excludes origin entity', () => {
+    const mockResult = { hit: true, distance: 5, entityId: 'wall' }
+    const mockPhysics = { raycast: vi.fn().mockReturnValue(mockResult) }
+    const api = createGameAPI(
+      () => [1, 2, 3],
+      noopSet,
+      noopPos,
+      noopSet,
+      noopPos,
+      noopPos,
+      () => mockPhysics as never,
+      () => null,
+    )
+    const result = api.raycast('shooter', 0, 0, -1, 50)
+    expect(mockPhysics.raycast).toHaveBeenCalledWith(1, 2, 3, 0, 0, -1, 50, 'shooter')
+    expect(result).toEqual(mockResult)
+  })
+})

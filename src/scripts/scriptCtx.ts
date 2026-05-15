@@ -4,7 +4,7 @@
  * Entity-scoped methods are driven by ENTITY_VIEW_METHODS (single source of truth).
  */
 import type { Entity } from '@/types/world'
-import type { GameAPI } from './gameApi'
+import type { GameAPI, RaycastResult } from './gameApi'
 
 /** Descriptor for one entity-scoped method. Drives runtime view, baseCtx delegation, and scriptCtxDecl. */
 export interface EntityViewMethodDescriptor {
@@ -109,6 +109,12 @@ export interface ScriptCtxBase {
   getCurrentAvatar(): string | null
   setCurrentAvatar(entityId: string): boolean
   cycleAvatar(direction: 1 | -1): void
+  /**
+   * Cast a ray from the current entity's position in the given direction.
+   * The current entity is automatically excluded from results.
+   * Returns no-hit `{ hit: false, distance: 0, entityId: '' }` when `dir` is null.
+   */
+  raycast(dir: [number, number, number] | null, maxDistance?: number): RaycastResult
 }
 
 export interface OnSpawnCtx extends ScriptCtxBase {
@@ -302,6 +308,10 @@ function baseCtx(game: GameAPI, entity: Entity): ScriptCtxBase {
     getCurrentAvatar: () => game.getCurrentAvatar(),
     setCurrentAvatar: (entityId) => game.setCurrentAvatar(entityId),
     cycleAvatar: (direction) => game.cycleAvatar(direction),
+    raycast: (dir, maxDistance) => {
+      if (!dir) return { hit: false, distance: 0, entityId: '' }
+      return game.raycast(entity.id, dir[0], dir[1], dir[2], maxDistance)
+    },
   } as ScriptCtxBase
 }
 

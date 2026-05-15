@@ -72,10 +72,24 @@ ${methodLines}
   getCurrentAvatar(): string | null;
   setCurrentAvatar(entityId: string): boolean;
   cycleAvatar(direction: 1 | -1): void;
+  /** Cast a ray from the current entity's position. The entity itself is excluded. Returns no-hit when dir is null. */
+  raycast(dir: [number, number, number] | null, maxDistance?: number): RaycastResult;
+}`
+}
+
+function buildRaycastResultInterface(): string {
+  return `/** Result of ctx.raycast(). */
+interface RaycastResult {
+  hit: boolean;
+  /** Distance to the hit point. 0 when no hit. */
+  distance: number;
+  /** Id of the hit entity. Empty string when no hit. */
+  entityId: string;
 }`
 }
 
 const BASE = `
+${buildRaycastResultInterface()}
 ${buildEntityTouchingInterface()}
 ${buildEntityInterface()}
 ${buildBoundDetectInterface()}

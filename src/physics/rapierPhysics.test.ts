@@ -595,3 +595,74 @@ describe('createPhysicsWorld', () => {
     pw.dispose()
   })
 })
+
+describe('PhysicsWorld.raycast', () => {
+  it('hits a static box directly in front', () => {
+    const pw = new PhysicsWorld()
+    const wallEntity: Entity = {
+      id: 'wall',
+      bodyType: 'static',
+      shape: { type: 'box', width: 2, height: 2, depth: 1 },
+      position: [0, 0, -5],
+    }
+    pw.addEntity(wallEntity, new THREE.Mesh(new THREE.BoxGeometry(2, 2, 1), new THREE.MeshBasicMaterial()))
+    pw.step(1 / 60) // Rapier needs a step to build broad-phase structures before raycasting
+
+    const result = pw.raycast(0, 0, 0, 0, 0, -1, 20)
+    expect(result.hit).toBe(true)
+    expect(result.entityId).toBe('wall')
+    expect(result.distance).toBeGreaterThan(0)
+    expect(result.distance).toBeLessThan(20)
+    pw.dispose()
+  })
+
+  it('returns no-hit when ray is aimed away', () => {
+    const pw = new PhysicsWorld()
+    const wallEntity: Entity = {
+      id: 'wall',
+      bodyType: 'static',
+      shape: { type: 'box', width: 2, height: 2, depth: 1 },
+      position: [0, 0, -5],
+    }
+    pw.addEntity(wallEntity, new THREE.Mesh(new THREE.BoxGeometry(2, 2, 1), new THREE.MeshBasicMaterial()))
+    pw.step(1 / 60)
+
+    const result = pw.raycast(0, 0, 0, 0, 0, 1, 20)
+    expect(result.hit).toBe(false)
+    expect(result.distance).toBe(0)
+    expect(result.entityId).toBe('')
+    pw.dispose()
+  })
+
+  it('returns no-hit for zero-length direction', () => {
+    const pw = new PhysicsWorld()
+    const result = pw.raycast(0, 0, 0, 0, 0, 0, 20)
+    expect(result.hit).toBe(false)
+    pw.dispose()
+  })
+
+  it('excludes the specified entity', () => {
+    const pw = new PhysicsWorld()
+    // Shooter at origin, target further in -Z
+    const shooter: Entity = {
+      id: 'shooter',
+      bodyType: 'static',
+      shape: { type: 'box', width: 1, height: 1, depth: 1 },
+      position: [0, 0, 0],
+    }
+    const target: Entity = {
+      id: 'target',
+      bodyType: 'static',
+      shape: { type: 'box', width: 2, height: 2, depth: 1 },
+      position: [0, 0, -5],
+    }
+    pw.addEntity(shooter, new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial()))
+    pw.addEntity(target, new THREE.Mesh(new THREE.BoxGeometry(2, 2, 1), new THREE.MeshBasicMaterial()))
+    pw.step(1 / 60)
+
+    const resultExcluded = pw.raycast(0, 0, 0, 0, 0, -1, 20, 'shooter')
+    expect(resultExcluded.hit).toBe(true)
+    expect(resultExcluded.entityId).toBe('target')
+    pw.dispose()
+  })
+})

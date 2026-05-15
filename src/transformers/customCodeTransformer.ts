@@ -10,6 +10,7 @@ import type {
   Rotation,
 } from '@/types/transformer'
 import type { Entity } from '@/types/world'
+import type { RaycastResult } from '@/physics/rapierPhysics'
 import { clamp as clampImpl } from '@/utils/numberUtils'
 import {
   getForwardVectorFromEuler,
@@ -35,6 +36,8 @@ let _transformerRuntimeGetEntity: ((id: string) => Entity | undefined) | null = 
 
 let _transformerRuntimeGetLivePosition: ((id: string) => Vec3 | null) | null = null
 
+let _transformerRuntimeRaycast: ((origin: Vec3, dir: Vec3, maxDistance?: number) => RaycastResult) | null = null
+
 /**
  * During {@link RenderItemRegistry.executeTransformers}, resolves ids to live {@link Entity}
  * documents on render items. Cleared to null outside that scope; custom code then sees
@@ -50,6 +53,16 @@ export function setTransformerRuntimeEntityLookup(fn: ((id: string) => Entity | 
  */
 export function setTransformerRuntimeLivePositionLookup(fn: ((id: string) => Vec3 | null) | null): void {
   _transformerRuntimeGetLivePosition = fn
+}
+
+/**
+ * Wire the physics raycast backend for `api.raycast`. Set before transformer execution, cleared after.
+ * Takes a raw origin Vec3 to avoid a redundant entity position lookup (callers pass `input.position`).
+ */
+export function setTransformerRuntimeRaycast(
+  fn: ((origin: Vec3, dir: Vec3, maxDistance?: number) => RaycastResult) | null,
+): void {
+  _transformerRuntimeRaycast = fn
 }
 
 /** Shallow copy of the persisted entity plus live pose helper (see `api.getEntity`). */
@@ -255,6 +268,12 @@ export interface TransformerRuntimeApi {
    * Undefined when id is unknown or entity lookup is unwired.
    */
   getEntity(id: string): TransformerRuntimeEntity | undefined
+  /**
+   * Cast a ray from `origin` (e.g. `input.position`) in direction `fwd`.
+   * No entity is excluded — pass a position slightly in front of the entity to avoid self-hits.
+   * Returns `{ hit: false, distance: 0, entityId: '' }` when physics is unavailable or direction is zero-length.
+   */
+  raycast(origin: Vec3, fwd: Vec3, maxDistance?: number): RaycastResult
 }
 
 type SnackbarFn = (message: string, durationSeconds: number) => void
@@ -437,6 +456,15 @@ export const TRANSFORMER_RUNTIME_API: TransformerRuntimeApi = Object.freeze({
     requireEntityId('TransformerRuntimeApi.getEntity', id)
     const entity = _transformerRuntimeGetEntity?.(id)
     return entity ? wrapEntityForTransformerRuntime(entity) : undefined
+  },
+  raycast: (origin: Vec3, fwd: Vec3, maxDistance?: number): RaycastResult => {
+    const NO_HIT: RaycastResult = { hit: false, distance: 0, entityId: '' }
+    const o = requireVec3('TransformerRuntimeApi.raycast', 'origin', origin)
+    const d = requireVec3('TransformerRuntimeApi.raycast', 'fwd', fwd)
+    if (maxDistance !== undefined) {
+      requireFiniteNumber('TransformerRuntimeApi.raycast', 'maxDistance', maxDistance)
+    }
+    return _transformerRuntimeRaycast?.(o, d, maxDistance) ?? NO_HIT
   },
 } satisfies TransformerRuntimeApi)
 

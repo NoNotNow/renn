@@ -23,6 +23,14 @@ import type { CollisionImpact } from '@/scripts/scriptCtx'
 
 export type CollisionPair = { entityIdA: string; entityIdB: string; impact?: CollisionImpact }
 
+export interface RaycastResult {
+  hit: boolean
+  /** Distance along the ray to the hit point. 0 when no hit. */
+  distance: number
+  /** Id of the hit entity. Empty string when no hit. */
+  entityId: string
+}
+
 function pairKey(handle1: number, handle2: number): string {
   const lo = Math.min(handle1, handle2)
   const hi = Math.max(handle1, handle2)
@@ -995,6 +1003,38 @@ export class PhysicsWorld {
    */
   applyTorqueFromTransformer(entityId: string, torque: [number, number, number]): void {
     this.applyTorque(entityId, torque[0], torque[1], torque[2])
+  }
+
+  /**
+   * Cast a ray from `(originX, originY, originZ)` in direction `(dirX, dirY, dirZ)`.
+   * Direction is normalized internally; returns no-hit for zero-length direction.
+   * Optionally excludes a collider by entity id (e.g. the emitting entity).
+   */
+  raycast(
+    originX: number,
+    originY: number,
+    originZ: number,
+    dirX: number,
+    dirY: number,
+    dirZ: number,
+    maxDistance = 100,
+    excludeEntityId?: string,
+  ): RaycastResult {
+    const NO_HIT: RaycastResult = { hit: false, distance: 0, entityId: '' }
+    const len = Math.hypot(dirX, dirY, dirZ)
+    if (len === 0) return NO_HIT
+
+    const nx = dirX / len
+    const ny = dirY / len
+    const nz = dirZ / len
+
+    const ray = new RAPIER.Ray({ x: originX, y: originY, z: originZ }, { x: nx, y: ny, z: nz })
+    const excludeCollider = excludeEntityId ? this.colliderMap.get(excludeEntityId) : undefined
+    const hit = this.world.castRay(ray, maxDistance, true, undefined, undefined, excludeCollider)
+    if (!hit) return NO_HIT
+
+    const entityId = this.colliderHandleToEntityId.get(hit.collider.handle) ?? ''
+    return { hit: true, distance: hit.timeOfImpact, entityId }
   }
 
   dispose(): void {
