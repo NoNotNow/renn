@@ -29,6 +29,7 @@ import {
   TRANSFORMER_PRESET_OPTIONS,
   getDefaultTransformerConfig,
 } from '@/transformers/transformerPresets'
+import { syncPriorities, sortAndSyncPriorities } from '@/transformers/transformerUtils'
 import { effectiveCustomTransformerCode, validateCustomTransformerSource } from '@/transformers/customCodeTransformer'
 import {
   ensureUniqueCustomTransformerName,
@@ -317,7 +318,6 @@ function TransformerTraceItem({
               style={{
                 background: 'transparent',
                 border: 'none',
-                color: theme.text.muted,
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
@@ -499,26 +499,26 @@ function TransformerHorizontalTrace({
     const config = getDefaultTransformerConfig(type)
     const withName =
       type === 'custom' ? { ...config, name: nextUniqueCustomTransformerName(transformers) } : config
-    onCommit([...transformers, withName])
+    onCommit(syncPriorities([...transformers, withName]))
     setAddSelectValue('')
   }
 
   const handleRemoveTransformer = (index: number) => {
     const next = transformers.filter((_, i) => i !== index)
-    onCommit(next)
+    onCommit(syncPriorities(next))
   }
 
   const handleToggleEnabled = (index: number) => {
     const next = transformers.map((t, i) =>
       i === index ? { ...t, enabled: !(t.enabled ?? true) } : t
     )
-    onCommit(next)
+    onCommit(syncPriorities(next))
   }
 
   const handleUpdateTransformer = (index: number, config: TransformerConfig) => {
     const next = [...transformers]
     next[index] = config
-    onCommit(next)
+    onCommit(sortAndSyncPriorities(next))
   }
 
   const handleDragStart = (index: number) => {
@@ -563,9 +563,9 @@ function TransformerHorizontalTrace({
 
   const handleDragEnd = () => {
     if (dragState) {
-      const next = dragState.items.map((item) => item.config)
+      const next = syncPriorities(dragState.items.map((item) => item.config))
       // Only commit if the order actually changed
-      const changed = next.some((t, i) => t !== transformers[i])
+      const changed = next.some((t, i) => t !== transformers[i] || t.priority !== transformers[i].priority)
       if (changed) {
         onCommit(next)
       }
@@ -701,7 +701,11 @@ export default function CustomTransformerCodeTab({
   const undo = useEditorUndo()
   const { openMenu } = useCopyMenu()
   const portalTarget = useTransformerCodePopoutPortalRoot()
-  const list = mergedTransformers ?? []
+  const list = useMemo(() => {
+    const l = [...(mergedTransformers ?? [])]
+    l.sort((a, b) => (a.priority ?? 10) - (b.priority ?? 10))
+    return l
+  }, [mergedTransformers])
 
   const customSlots = useMemo(
     () =>
@@ -837,7 +841,7 @@ export default function CustomTransformerCodeTab({
     const text = codeDraftRef.current
     const prevEffective = effectiveCustomTransformerCode(cur[idx]!)
     if (text === prevEffective) return
-    onCommitRef.current(cur.map((t, i) => (i === idx ? { ...t, code: text } : t)))
+    onCommitRef.current(syncPriorities(cur.map((t, i) => (i === idx ? { ...t, code: text } : t))))
   }, [])
 
   const closeCodePopout = useCallback(() => {
@@ -936,7 +940,7 @@ export default function CustomTransformerCodeTab({
       if (idx === null) return
       const cur = listRef.current
       if (cur[idx]?.type !== 'custom') return
-      onCommitRef.current(cur.map((t, i) => (i === idx ? { ...t, code: text } : t)))
+      onCommitRef.current(syncPriorities(cur.map((t, i) => (i === idx ? { ...t, code: text } : t))))
     }, CODE_DEBOUNCE_MS)
   }
 
@@ -955,16 +959,16 @@ export default function CustomTransformerCodeTab({
     if (c?.type !== 'custom') return
     const unique = ensureUniqueCustomTransformerName(nameDraft, list, selectedIndex)
     if (unique !== nameDraft.trim()) setNameDraft(unique)
-    onTransformersCommit(list.map((t, i) => (i === selectedIndex ? { ...t, name: unique } : t)))
+    onTransformersCommit(syncPriorities(list.map((t, i) => (i === selectedIndex ? { ...t, name: unique } : t))))
   }
 
   const handleAddCustom = () => {
     flushPendingCode()
     undo?.pushBeforeEdit()
-    const next = [
+    const next = syncPriorities([
       ...list,
       { ...getDefaultTransformerConfig('custom'), name: nextUniqueCustomTransformerName(list) },
-    ]
+    ])
     onTransformersCommit(next)
     setSelectedIndex(next.length - 1)
   }
@@ -1459,9 +1463,9 @@ export default function CustomTransformerCodeTab({
                 flushPendingCode()
                 undo?.pushBeforeEdit()
                 onTransformersCommit(
-                  list.map((t, i) =>
+                  syncPriorities(list.map((t, i) =>
                     i === selectedIndex ? { ...t, enabled: !(t.enabled ?? true) } : t,
-                  ),
+                  )),
                 )
               }}
               data-testid="custom-transformer-enabled-led"
@@ -1496,7 +1500,7 @@ export default function CustomTransformerCodeTab({
                   const n = Number(e.target.value)
                   if (!Number.isFinite(n) || selectedIndex === null) return
                   flushPendingCode()
-                  onTransformersCommit(list.map((t, i) => (i === selectedIndex ? { ...t, priority: n } : t)))
+                  onTransformersCommit(sortAndSyncPriorities(list.map((t, i) => (i === selectedIndex ? { ...t, priority: n } : t))))
                 }}
                 style={{
                   width: 64,
@@ -1722,7 +1726,7 @@ export default function CustomTransformerCodeTab({
                   : {}
               flushPendingCode()
               undo?.pushBeforeEdit()
-              onTransformersCommit(list.map((t, i) => (i === selectedIndex ? { ...t, params: patch } : t)))
+              onTransformersCommit(syncPriorities(list.map((t, i) => (i === selectedIndex ? { ...t, params: patch } : t))))
             }}
             disabled={anyLocked}
             applyVariant="icon"

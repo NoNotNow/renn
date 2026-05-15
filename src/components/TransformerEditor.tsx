@@ -13,6 +13,7 @@ import {
   getDefaultTransformerConfig,
   isPresetTransformerType,
 } from '@/transformers/transformerPresets'
+import { syncPriorities, sortAndSyncPriorities } from '@/transformers/transformerUtils'
 import { nextUniqueCustomTransformerName } from '@/transformers/customTransformerNaming'
 import { effectiveCustomTransformerCode } from '@/transformers/customCodeTransformer'
 import { useEditorUndo } from '@/contexts/EditorUndoContext'
@@ -156,7 +157,11 @@ export default function TransformerEditor({
   const [templateDialogTargetIndex, setTemplateDialogTargetIndex] = useState<number | null>(null)
   const [fieldRefPanelOpen, setFieldRefPanelOpen] = useState<boolean[]>([])
   const [customCodeDrafts, setCustomCodeDrafts] = useState<Record<number, string>>({})
-  const list = transformers ?? []
+  const list = useMemo(() => {
+    const l = [...(transformers ?? [])]
+    l.sort((a, b) => (a.priority ?? 10) - (b.priority ?? 10))
+    return l
+  }, [transformers])
 
   const traceByStackIndex = useMemo(() => {
     if (!liveTraceSteps) return null
@@ -204,13 +209,13 @@ export default function TransformerEditor({
     const config = getDefaultTransformerConfig(type)
     const withName =
       type === 'custom' ? { ...config, name: nextUniqueCustomTransformerName(list) } : config
-    onChange?.([...list, withName])
+    onChange?.(syncPriorities([...list, withName]))
     setAddSelectValue('')
   }
 
   const handleRemoveTransformer = (index: number) => {
     const next = list.filter((_, i) => i !== index)
-    onChange?.(next)
+    onChange?.(syncPriorities(next))
     setFieldRefPanelOpen((prev) => prev.filter((_, i) => i !== index))
   }
 
@@ -219,7 +224,7 @@ export default function TransformerEditor({
     if (toIndex < 0 || toIndex >= list.length) return
     const next = [...list]
     ;[next[fromIndex], next[toIndex]] = [next[toIndex], next[fromIndex]]
-    onChange?.(next)
+    onChange?.(syncPriorities(next))
     setFieldRefPanelOpen((prev) => {
       const p = padFieldRefPanelOpen(prev, list.length)
       const open = [...p]
@@ -232,7 +237,7 @@ export default function TransformerEditor({
     const next = list.map((t, i) =>
       i === index ? { ...t, enabled: !(t.enabled ?? true) } : t
     )
-    onChange?.(next)
+    onChange?.(syncPriorities(next))
   }
 
   return (
@@ -525,7 +530,9 @@ export default function TransformerEditor({
                         onChange={(e) => {
                           const n = Number(e.target.value)
                           if (!Number.isFinite(n)) return
-                          onChange?.(list.map((t, i) => (i === index ? { ...t, priority: n } : t)))
+                          onChange?.(
+                            sortAndSyncPriorities(list.map((t, i) => (i === index ? { ...t, priority: n } : t))),
+                          )
                         }}
                         style={{
                           width: 64,
@@ -597,7 +604,7 @@ export default function TransformerEditor({
                         const nextCode =
                           customCodeDrafts[index] !== undefined ? customCodeDrafts[index]! : effectiveCustomTransformerCode(transformer)
                         onChange?.(
-                          list.map((t, i) => (i === index ? { ...t, code: nextCode } : t)),
+                          syncPriorities(list.map((t, i) => (i === index ? { ...t, code: nextCode } : t))),
                         )
                       }}
                       style={{
@@ -624,14 +631,14 @@ export default function TransformerEditor({
                   </div>
                   <ValidatedJsonTextarea
                     value={JSON.stringify(transformer.params ?? {}, null, 2)}
-                    onApply={(updated) => {
-                      const patch = typeof updated === 'object' && updated !== null && !Array.isArray(updated)
-                        ? (updated as Record<string, unknown>)
-                        : {}
-                      onChange?.(
-                        list.map((t, i) => (i === index ? { ...t, params: patch } : t)),
-                      )
-                    }}
+                      onApply={(updated) => {
+                        const patch = typeof updated === 'object' && updated !== null && !Array.isArray(updated)
+                          ? (updated as Record<string, unknown>)
+                          : {}
+                        onChange?.(
+                          syncPriorities(list.map((t, i) => (i === index ? { ...t, params: patch } : t))),
+                        )
+                      }}
                     disabled={disabled}
                     applyVariant="icon"
                     textareaTestId={`transformer-custom-params-textarea-${index}`}
@@ -664,7 +671,7 @@ export default function TransformerEditor({
                         const next = list.map((t, i) =>
                           i === index ? (updated as TransformerConfig) : t
                         )
-                        onChange?.(next)
+                        onChange?.(sortAndSyncPriorities(next))
                       }}
                       disabled={disabled}
                       applyVariant="icon"
@@ -708,7 +715,7 @@ export default function TransformerEditor({
             const next = list.map((t, i) =>
               i === templateDialogTargetIndex ? config : t
             )
-            onChange?.(next)
+            onChange?.(sortAndSyncPriorities(next))
             setTemplateDialogOpen(false)
             setTemplateDialogTargetIndex(null)
           }}

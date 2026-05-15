@@ -109,4 +109,47 @@ describe('TransformerEditor', () => {
     await user.click(screen.getByTestId('transformer-field-reference-toggle'))
     expect(screen.queryByText('Field reference')).not.toBeInTheDocument()
   })
+
+  it('syncs priorities to match the order when moving transformers', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    const transformers = [
+      { type: 'input', priority: 10, enabled: true },
+      { type: 'car2', priority: 20, enabled: true },
+    ]
+    renderTransformerEditor(
+      <TransformerEditor
+        transformers={transformers}
+        onChange={onChange}
+        disabled={false}
+      />
+    )
+
+    await user.click(screen.getAllByTestId('move-transformer-down')[0])
+    expect(onChange).toHaveBeenCalled()
+    const lastCall = onChange.mock.calls[onChange.mock.calls.length - 1][0]
+    expect(lastCall[0].type).toBe('car2')
+    expect(lastCall[0].priority).toBe(0)
+    expect(lastCall[1].type).toBe('input')
+    expect(lastCall[1].priority).toBe(1)
+  })
+
+  it('syncs priorities when adding a transformer', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    renderTransformerEditor(
+      <TransformerEditor
+        transformers={[{ type: 'input', priority: 0, enabled: true }]}
+        onChange={onChange}
+        disabled={false}
+      />
+    )
+
+    await user.selectOptions(screen.getByTestId('add-transformer-select'), 'car2')
+    expect(onChange).toHaveBeenCalled()
+    const lastCall = onChange.mock.calls[onChange.mock.calls.length - 1][0]
+    expect(lastCall).toHaveLength(2)
+    expect(lastCall[0].priority).toBe(0)
+    expect(lastCall[1].priority).toBe(1)
+  })
 })
