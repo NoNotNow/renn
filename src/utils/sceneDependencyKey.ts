@@ -38,21 +38,20 @@ function sceneRelevantEntity(entity: Entity): Record<string, unknown> {
     // Only trimesh shapes require a full rebuild (loading a model asset).
     // Primitive shape changes are handled incrementally via updateEntityShape.
     // modelRotation/modelScale are applied incrementally via updateEntityModelTransform.
+    // Transformer changes (structure, order, code, params) are handled incrementally via syncEntityTransformers.
     trimeshShape: entity.shape?.type === 'trimesh' ? entity.shape : undefined,
     model: entity.model,
     modelSimplification:
       entity.model && entity.shape?.type !== 'trimesh' ? entity.modelSimplification : undefined,
     scripts: entity.scripts,
-    transformers: transformersForSceneKey(entity.transformers),
   }
 }
 
-/** Strips `enabled` so toggling it does not force a full scene rebuild. */
+/** Strips `enabled`, `code`, and `params` so editing them does not force a full scene rebuild. */
 function transformersForSceneKey(
-  configs: Entity['transformers'],
+  _configs: Entity['transformers'],
 ): unknown {
-  if (!configs?.length) return configs
-  return configs.map(({ enabled: _omit, ...rest }) => rest)
+  return undefined
 }
 
 function sortKeys<T extends Record<string, unknown>>(obj: T): Record<string, unknown> {

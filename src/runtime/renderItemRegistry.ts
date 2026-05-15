@@ -233,10 +233,20 @@ export class RenderItemRegistry {
     if (chain) {
       const order = chain.getInConfigOrder()
       if (order.length === configs.length) {
+        let needsRebuild = false
         for (let i = 0; i < configs.length; i++) {
-          order[i].enabled = configs[i].enabled ?? true
+          const t = order[i]
+          const c = configs[i]
+          if (t.needsRebuild && t.needsRebuild(c)) {
+            needsRebuild = true
+            break
+          }
+          t.enabled = c.enabled ?? true
+          if (c.params) {
+            t.setParams(c.params)
+          }
         }
-        return
+        if (!needsRebuild) return
       }
     }
 

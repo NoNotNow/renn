@@ -808,19 +808,12 @@ export default function Builder() {
         idSet.has(e.id) ? { ...e, transformers } : e
       )
       const nextWorld = { ...world, entities: nextEntities }
-      const keyBefore = getSceneDependencyKey(world)
-      const keyAfter = getSceneDependencyKey(nextWorld)
-      if (keyBefore !== keyAfter) {
-        captureScenePosesForNextRebuild()
-      }
       updateWorld(() => nextWorld)
-      if (keyBefore === keyAfter) {
-        for (const id of entityIds) {
-          sceneViewRef.current?.syncEntityTransformers(id, transformers)
-        }
+      for (const id of entityIds) {
+        sceneViewRef.current?.syncEntityTransformers(id, transformers)
       }
     },
-    [world, updateWorld, captureScenePosesForNextRebuild, pushHistory]
+    [world, updateWorld, pushHistory]
   )
 
   const handleAssetsChange = useCallback((newAssets: typeof assets) => {

@@ -64,6 +64,12 @@ export class InputTransformer extends BaseTransformer {
     this.rawInputGetter = getter
   }
 
+  setParams(patch: Record<string, unknown>): void {
+    if (patch.inputMapping) {
+      this.mapping = patch.inputMapping as InputMapping
+    }
+  }
+
   /**
    * Transform: convert raw input to actions.
    * This transformer modifies the input.actions map and returns empty output.

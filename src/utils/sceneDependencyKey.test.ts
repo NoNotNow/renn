@@ -107,14 +107,14 @@ describe('getSceneDependencyKey', () => {
     expect(getSceneDependencyKey(a)).toBe(getSceneDependencyKey(b))
   })
 
-  it('returns a different key when transformer type changes', () => {
+  it('returns the same key when transformer type changes (incremental sync)', () => {
     const a = minimalWorld({
       entities: [{ ...minimalWorld().entities[0], transformers: [{ type: 'input' }] }],
     })
     const b = minimalWorld({
       entities: [{ ...minimalWorld().entities[0], transformers: [{ type: 'car2' }] }],
     })
-    expect(getSceneDependencyKey(a)).not.toBe(getSceneDependencyKey(b))
+    expect(getSceneDependencyKey(a)).toBe(getSceneDependencyKey(b))
   })
 
   it('returns a different key when modelSimplification changes (visual rebuild for entity.model)', () => {
@@ -151,5 +151,25 @@ describe('getSceneDependencyKey', () => {
     // modelRotation/modelScale are applied incrementally via updateEntityModelTransform.
     expect(getSceneDependencyKey(base)).toBe(getSceneDependencyKey(withModelRotation))
     expect(getSceneDependencyKey(base)).toBe(getSceneDependencyKey(withModelScale))
+  })
+
+  it('returns the same key when transformer code or params change (incremental sync)', () => {
+    const a = minimalWorld({
+      entities: [
+        {
+          ...minimalWorld().entities[0],
+          transformers: [{ type: 'custom', code: 'return {};', params: { power: 10 } }],
+        },
+      ],
+    })
+    const b = minimalWorld({
+      entities: [
+        {
+          ...minimalWorld().entities[0],
+          transformers: [{ type: 'custom', code: 'return { force: [0, 1, 0] };', params: { power: 20 } }],
+        },
+      ],
+    })
+    expect(getSceneDependencyKey(a)).toBe(getSceneDependencyKey(b))
   })
 })

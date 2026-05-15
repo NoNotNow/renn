@@ -500,9 +500,9 @@ export class CustomCodeTransformer implements Transformer {
   enabled: boolean
   configStackIndex?: number
   runtimeEntityId?: string
+  readonly authoringCode: string
   private readonly liveParams: Record<string, unknown>
   private readonly state: Record<string, unknown> = {}
-  private readonly authoringCode: string
   private readonly transformFn: CustomTransformFn
 
   constructor(config: TransformerConfig) {
@@ -518,6 +518,13 @@ export class CustomCodeTransformer implements Transformer {
 
   setParams(patch: Record<string, unknown>): void {
     Object.assign(this.liveParams, patch)
+  }
+
+  needsRebuild(config: TransformerConfig): boolean {
+    if (config.type !== this.type) return true
+    if (config.priority !== undefined && config.priority !== this.priority) return true
+    const nextCode = typeof config.code === 'string' ? config.code : ''
+    return nextCode !== this.authoringCode
   }
 
   transform(input: TransformInput, dt: number): TransformOutput {

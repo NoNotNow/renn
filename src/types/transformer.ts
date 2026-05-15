@@ -227,7 +227,10 @@ export interface Transformer {
   setRawInputGetter?(getter: () => RawInput | null): void
 
   /** Present on some presets: merge runtime param updates (e.g. from scripts). */
-  setParams?(patch: Record<string, unknown>): void
+  setParams(patch: Record<string, unknown>): void
+
+  /** Optional: check if this transformer needs to be recreated for the new config. */
+  needsRebuild?(config: TransformerConfig): boolean
 }
 
 // ---------------------------------------------------------------------------

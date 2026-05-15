@@ -37,6 +37,17 @@ export abstract class BaseTransformer implements Transformer {
 
   abstract transform(input: TransformInput, dt: number): TransformOutput
 
+  /** Default: no-op. Presets with params should override. */
+  setParams(_patch: Record<string, unknown>): void {}
+
+  /** Default: rebuild if type or priority changed. */
+  needsRebuild(config: TransformerConfig): boolean {
+    return (
+      config.type !== this.type ||
+      (config.priority !== undefined && config.priority !== this.priority)
+    )
+  }
+
   /**
    * Helper: Get action value, defaulting to 0 if not present.
    */

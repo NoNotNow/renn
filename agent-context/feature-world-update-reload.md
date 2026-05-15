@@ -48,7 +48,7 @@ flowchart LR
    - `captureScenePosesForNextRebuild()`: copies `sceneViewRef.current?.getAllPoses()` into `initialPosesRef` so the next full scene rebuild reapplies live poses for existing entity ids (avoids snapping everything back to document transforms after physics/simulation).  
    - `handleWorldChange(newWorld)`: calls `captureScenePosesForNextRebuild()`, then `updateWorld(() => newWorld)`.  
    - `handleAddEntity`, `handleBulkAddEntities`, `handleDeleteEntity`, `handleCloneEntity`: each calls `captureScenePosesForNextRebuild()` before `updateWorld`, because these paths change the entity list (rebuild key) without going through `handleWorldChange`.  
-   - `handleEntityTransformersChange`: calls `captureScenePosesForNextRebuild()` only when `getSceneDependencyKey` changes (structural transformer edit).  
+   - `handleEntityTransformersChange`: calls `syncEntityTransformers` directly; all transformer changes are now incremental and do not trigger a full scene rebuild.
    - `handleEntityShapeChange` (trimesh / fallback rebuild branch): calls `captureScenePosesForNextRebuild()` before `updateWorld`.  
    - `handleEntityPoseChange(id, pose)`: calls `sceneViewRef.current?.updateEntityPose(id, pose)` only (no world state update until an explicit sync, e.g. Refresh from physics or save).  
    - `handleEntityPhysicsChange(id, patch)`: calls `sceneViewRef.current?.updateEntityPhysics(id, patch)` to update the body/collider directly, then calls `updateWorld(...)` directly (bypassing `handleWorldChange`, so no `initialPosesRef` capture) to keep the document in sync.  
@@ -89,7 +89,7 @@ So: **world changes** go through `onWorldChange` → `updateWorld` → new `worl
   The UI uses `onEntityModelTransformChange(id, patch)` when provided. Builder calls `sceneViewRef.updateEntityModelTransform(id, patch)` → `RenderItemRegistry.setModelTransform` → applies rotation/scale to the mesh's model-scene child when patched, merges `doubleSided`, reconciles sides with `applyModelVisualSides`, and for trimesh calls `PhysicsWorld.updateShape` only when rotation or scale changed. The rebuild key **excludes** these fields (they are applied incrementally), so no full reload.
 
 - **Trimesh shape changes and other structural properties (model)**  
-  These are edited via `onWorldChange(newWorld)`. The rebuild key **includes** `trimeshShape` (for trimesh shapes), `model`, `scripts`, `transformers`, and world lights/assets/scripts. **Scale** is excluded and applied incrementally via `updateEntityPose` / `setScale`. So trimesh/model/script/transformer changes still trigger a full scene rebuild when the key changes; scale alone does not.
+  These are edited via `onWorldChange(newWorld)`. The rebuild key **includes** `trimeshShape` (for trimesh shapes), `model`, `scripts`, and world lights/assets/scripts. **Scale** is excluded and applied incrementally via `updateEntityPose` / `setScale`. So trimesh/model/script changes still trigger a full scene rebuild when the key changes; scale alone does not.
 
 ## Rebuild key: what is included and excluded
 
@@ -98,11 +98,11 @@ Defined in [src/utils/sceneDependencyKey.ts](src/utils/sceneDependencyKey.ts). T
 **Included (change triggers rebuild):**
 
 - **World**: `version`, `assets`, `scripts`, `world.ambientLight`, `world.directionalLight`.
-- **Per entity**: `id`, `trimeshShape` (shape only when `shape.type === 'trimesh'`), `model`, `scripts`, `transformers`. (`scale`, `modelRotation`, `modelScale`, and `doubleSided` GLTF shading are excluded; scale via `updateEntityPose`, model transform and sides via `updateEntityModelTransform`.)
+- **Per entity**: `id`, `trimeshShape` (shape only when `shape.type === 'trimesh'`), `model`, `scripts`. (`scale`, `modelRotation`, `modelScale`, `doubleSided` GLTF shading, and all transformer changes are excluded; scale via `updateEntityPose`, model transform and sides via `updateEntityModelTransform`, transformers via `syncEntityTransformers`.)
 
 **Excluded (change does not trigger rebuild):**
 
-- **Per entity**: `name`, `locked`, `position`, `rotation`, `scale`, `modelRotation`, `modelScale`, `doubleSided`, `bodyType`, `mass`, `restitution`, `friction`, `linearDamping`, `angularDamping`, primitive shape dimensions, `material`.
+- **Per entity**: `name`, `locked`, `position`, `rotation`, `scale`, `modelRotation`, `modelScale`, `doubleSided`, `bodyType`, `mass`, `restitution`, `friction`, `linearDamping`, `angularDamping`, primitive shape dimensions, `material`, `transformers` (structure, order, code, params, enabled).
 - **World**: `world.gravity`, `world.skyColor`, `world.skybox`, `world.camera` (these are applied by dedicated effects in SceneView).
 
 Entity add/remove changes the entity list, so the key changes and a rebuild runs.
@@ -131,7 +131,7 @@ Use this to answer "does changing this property rebuild the scene?"
 | **entity.linearDamping** | Incremental | `onEntityPhysicsChange` → `PhysicsWorld.setLinearDamping`; not in rebuild key. |
 | **entity.angularDamping** | Incremental | `onEntityPhysicsChange` → `PhysicsWorld.setAngularDamping`; not in rebuild key. |
 | **entity.scripts** | Rebuild | In key. |
-| **entity.transformers** | Rebuild | In key. |
+| **entity.transformers** | Incremental | `onEntityTransformersChange` → `syncEntityTransformers`; all structural/config changes handled live; not in rebuild key. |
 | **world.gravity** | Incremental | Dedicated effect: `pw.setGravity(gravity)`. |
 | **world.skyColor** | Incremental | Dedicated effect: `scene.background`. |
 | **world.skybox** | Incremental | Dedicated effect: sky dome mesh + texture from project assets (`world.world.skybox` = texture asset id). |
