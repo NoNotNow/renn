@@ -11,6 +11,12 @@ import { validateWorldDocument } from '@/schema/validate'
 const STORE_PROJECTS = DB_CONFIG.stores.projects
 const STORE_ASSETS = DB_CONFIG.stores.assets
 const STORE_MODEL_PRESETS = DB_CONFIG.stores.modelPresets
+const STORE_PLAY_SESSION = DB_CONFIG.stores.playSession
+
+/** Single row in `playSession` store (Builder → Play handoff). */
+const PLAY_SESSION_RECORD_ID = 'play-session' as const
+
+type PlaySessionRow = { id: typeof PLAY_SESSION_RECORD_ID; world: RennWorld }
 
 /**
  * Returns the ArrayBuffer for a Blob. Uses blob.arrayBuffer() when available (e.g. browser/Node 18+),
@@ -81,6 +87,10 @@ function getDB(): Promise<IDBPDatabase> {
       // this store (e.g. upgrade skipped), and IndexedDB does not re-run upgrade until version bumps.
       if (!db.objectStoreNames.contains(STORE_MODEL_PRESETS)) {
         db.createObjectStore(STORE_MODEL_PRESETS, { keyPath: 'id' })
+      }
+
+      if (!db.objectStoreNames.contains(STORE_PLAY_SESSION)) {
+        db.createObjectStore(STORE_PLAY_SESSION, { keyPath: 'id' })
       }
     },
     blocked() {
@@ -277,6 +287,20 @@ export function createIndexedDbPersistence(): PersistenceAPI {
       const api = createIndexedDbPersistence()
       await api.saveProject(id, name, { world, assets })
       return { id }
+    },
+
+    async savePlaySessionWorld(world: RennWorld): Promise<void> {
+      const db = await getDB()
+      const row: PlaySessionRow = { id: PLAY_SESSION_RECORD_ID, world }
+      await db.put(STORE_PLAY_SESSION, row)
+      await db.close()
+    },
+
+    async loadPlaySessionWorld(): Promise<RennWorld | null> {
+      const db = await getDB()
+      const row = (await db.get(STORE_PLAY_SESSION, PLAY_SESSION_RECORD_ID)) as PlaySessionRow | undefined
+      await db.close()
+      return row?.world ?? null
     },
 
     // Global asset management methods

@@ -19,7 +19,7 @@ Last updated: 2026-04-12
 - Asset resolver: textures, **video map assets** (`VideoTexture`), + 3D models (GLB only) via blob URLs
 
 ### Persistence
-- IndexedDB: projects (id, name, world, updatedAt) + asset blobs
+- IndexedDB: projects (id, name, world, updatedAt) + global asset blobs + **`playSession`** (Builder→Play world snapshot)
 - ZIP export/import: `world.json` + `assets/`
 
 ### Builder UI
@@ -30,7 +30,7 @@ Last updated: 2026-04-12
 - ScriptPanel: Monaco editor, add/remove scripts
 - AssetPanel: upload textures / **videos** / models, list/remove; per-asset download; bulk download all as `assets.zip`
 - Sound tab: select/upload background audio (`world.sound.assetId`), set `volume`, `loop`, `autoplay`; manual play/stop in Builder; playback runs in Builder and Play
-- Play view: separate route `/play`, loads world from URL query or sample
+- Play view: `/play` full-viewport scene only (`SceneView` with **`playMode`** — no menus/gizmo/wireframe HUD); world from IndexedDB session, legacy `?world=`, or sample; global assets loaded
 - In-scene interactions: click to select, drag to move
 - ProjectContext: single source of truth, dirty tracking, memoized values
 

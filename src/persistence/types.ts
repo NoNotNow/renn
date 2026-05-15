@@ -18,6 +18,9 @@ export interface PersistenceAPI {
   deleteProject(id: string): Promise<void>
   exportProject(id: string): Promise<Blob>
   importProject(file: File): Promise<{ id: string }>
+  /** Stash current world for `/play?session=1` (large worlds; not a substitute for Save). */
+  savePlaySessionWorld(world: RennWorld): Promise<void>
+  loadPlaySessionWorld(): Promise<RennWorld | null>
   // Global asset management
   saveAsset(assetId: string, blob: Blob, previewBlob?: Blob | null): Promise<void>
   deleteAsset(assetId: string): Promise<void>

@@ -312,9 +312,11 @@ export default function Builder() {
     onPaste: () => void
   }>({ onCopy: () => {}, onPaste: () => {} })
 
-  const saveShortcutHandlerRef = useRef<{
+  const fileShortcutHandlersRef = useRef<{
     onSave: () => void
-  }>({ onSave: () => {} })
+    onSaveAs: () => void
+    onNew: () => void
+  }>({ onSave: () => {}, onSaveAs: () => {}, onNew: () => {} })
 
   useBuilderKeyboardShortcuts({
     onUndo: handleUndo,
@@ -337,7 +339,10 @@ export default function Builder() {
     onUngroupSelection: useCallback(() => groupShortcutHandlersRef.current.onUngroup(), []),
     onCopy: useCallback(() => clipboardShortcutHandlersRef.current.onCopy(), []),
     onPaste: useCallback(() => clipboardShortcutHandlersRef.current.onPaste(), []),
-    onSave: useCallback(() => saveShortcutHandlerRef.current.onSave(), []),
+    onSave: useCallback(() => fileShortcutHandlersRef.current.onSave(), []),
+    onSaveAs: useCallback(() => fileShortcutHandlersRef.current.onSaveAs(), []),
+    onNew: useCallback(() => fileShortcutHandlersRef.current.onNew(), []),
+    onPlay: handlePlay,
   })
 
   const handleAddEntity = useCallback(
@@ -856,13 +861,15 @@ export default function Builder() {
     await syncPosesThen(saveProject)
   }, [currentProject.id, syncPosesThen, saveProject])
 
-  useEffect(() => {
-    saveShortcutHandlerRef.current.onSave = handleSave
-  }, [handleSave])
-
   const handleSaveAs = useCallback(() => {
     setShowSaveDialog(true)
   }, [])
+
+  useEffect(() => {
+    fileShortcutHandlersRef.current.onSave = handleSave
+    fileShortcutHandlersRef.current.onSaveAs = handleSaveAs
+    fileShortcutHandlersRef.current.onNew = handleNew
+  }, [handleSave, handleSaveAs, handleNew])
 
   const handleSaveDialogSaveNew = useCallback(
     async (name: string) => {

@@ -14,6 +14,7 @@ import { theme } from '@/config/theme'
 import { GizmoMoveIcon, GizmoBrushIcon, GizmoRotateIcon, GizmoScaleIcon, GizmoVisualizeIcon } from '@/components/GizmoModeIcons'
 import { BrushToolPopover } from '@/components/BrushToolPopover'
 import { entityPanelIconButtonStyle } from '@/components/sharedStyles'
+import { formatMenuShortcut } from '@/utils/menuShortcut'
 
 export interface BuilderHeaderProps {
   projects: ProjectMeta[]
@@ -135,7 +136,7 @@ export default function BuilderHeader({
       type: 'item',
       label: 'New',
       onClick: onNew,
-      shortcut: 'Ctrl+N',
+      shortcut: formatMenuShortcut('Ctrl+N'),
     },
     {
       type: 'submenu',
@@ -159,13 +160,13 @@ export default function BuilderHeader({
       type: 'item',
       label: 'Save',
       onClick: onSave,
-      shortcut: 'Ctrl+S',
+      shortcut: formatMenuShortcut('Ctrl+S'),
     },
     {
       type: 'item',
       label: 'Save As...',
       onClick: onSaveAs,
-      shortcut: 'Ctrl+Shift+S',
+      shortcut: formatMenuShortcut('Ctrl+Shift+S'),
     },
     {
       type: 'separator',
@@ -193,14 +194,14 @@ export default function BuilderHeader({
       label: 'Undo',
       onClick: onUndo,
       disabled: !canUndo,
-      shortcut: 'Ctrl+Z',
+      shortcut: formatMenuShortcut('Ctrl+Z'),
     },
     {
       type: 'item',
       label: 'Redo',
       onClick: onRedo,
       disabled: !canRedo,
-      shortcut: 'Ctrl+Shift+Z',
+      shortcut: formatMenuShortcut('Ctrl+Shift+Z'),
     },
   ]
 
@@ -211,7 +212,7 @@ export default function BuilderHeader({
       checked: editNavigationMode,
       onClick: onEditNavigationModeToggle,
       disabled: !onEditNavigationModeToggle,
-      shortcut: 'Ctrl+E',
+      shortcut: formatMenuShortcut('Ctrl+E'),
     },
     {
       type: 'item',
@@ -239,7 +240,7 @@ export default function BuilderHeader({
       type: 'item',
       label: 'Play',
       onClick: onPlay,
-      shortcut: 'Ctrl+P',
+      shortcut: formatMenuShortcut('Ctrl+P'),
     },
     {
       type: 'separator',

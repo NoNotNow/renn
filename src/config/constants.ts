@@ -7,11 +7,13 @@
 export const DB_CONFIG = {
   name: 'renn-worlds',
   /** Must match IndexedDB schema migrations in persistence/indexedDb.ts */
-  version: 5,
+  version: 6,
   stores: {
     projects: 'projects',
     assets: 'assets',
     modelPresets: 'modelPresets',
+    /** Single-record store: latest world snapshot for Builder → Play navigation (avoids huge URLs). */
+    playSession: 'playSession',
   },
 } as const
 

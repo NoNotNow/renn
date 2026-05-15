@@ -21,6 +21,9 @@ function makeApi() {
     onCopy: vi.fn(),
     onPaste: vi.fn(),
     onSave: vi.fn(),
+    onSaveAs: vi.fn(),
+    onNew: vi.fn(),
+    onPlay: vi.fn(),
   }
 }
 
@@ -51,7 +54,7 @@ describe('useBuilderKeyboardShortcuts', () => {
     expect(api.onPaste).toHaveBeenCalledTimes(1)
   })
 
-  it('Cmd+S invokes onSave', () => {
+  it('Cmd+S invokes onSave; Cmd+Shift+S invokes onSaveAs', () => {
     const api = makeApi()
     renderHook(() => useBuilderKeyboardShortcuts(api))
 
@@ -59,11 +62,33 @@ describe('useBuilderKeyboardShortcuts', () => {
       dispatch({ key: 's', code: 'KeyS', metaKey: true })
     })
     expect(api.onSave).toHaveBeenCalledTimes(1)
+    expect(api.onSaveAs).not.toHaveBeenCalled()
 
     act(() => {
       dispatch({ key: 's', code: 'KeyS', ctrlKey: true })
     })
     expect(api.onSave).toHaveBeenCalledTimes(2)
+
+    act(() => {
+      dispatch({ key: 's', code: 'KeyS', metaKey: true, shiftKey: true })
+    })
+    expect(api.onSaveAs).toHaveBeenCalledTimes(1)
+    expect(api.onSave).toHaveBeenCalledTimes(2)
+  })
+
+  it('Cmd+N invokes onNew; Cmd+P invokes onPlay', () => {
+    const api = makeApi()
+    renderHook(() => useBuilderKeyboardShortcuts(api))
+
+    act(() => {
+      dispatch({ key: 'n', code: 'KeyN', metaKey: true })
+    })
+    expect(api.onNew).toHaveBeenCalledTimes(1)
+
+    act(() => {
+      dispatch({ key: 'p', code: 'KeyP', ctrlKey: true })
+    })
+    expect(api.onPlay).toHaveBeenCalledTimes(1)
   })
 
   it('Cmd+C is skipped when there is a non-empty text selection', () => {

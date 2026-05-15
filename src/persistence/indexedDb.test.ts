@@ -46,6 +46,8 @@ describe('IndexedDB Persistence', () => {
     expect(typeof persistence.listModelPresets).toBe('function')
     expect(typeof persistence.saveModelPreset).toBe('function')
     expect(typeof persistence.deleteModelPreset).toBe('function')
+    expect(typeof persistence.savePlaySessionWorld).toBe('function')
+    expect(typeof persistence.loadPlaySessionWorld).toBe('function')
   })
 
   it('lists projects (empty initially)', async () => {
@@ -264,6 +266,15 @@ describe('IndexedDB Persistence', () => {
     expect(assetPaths.length).toBeGreaterThanOrEqual(1)
     expect(assetPaths.some((p) => p.includes('orphan-global'))).toBe(false)
     expect(assetPaths.some((p) => p.includes('usedTex'))).toBe(true)
+  })
+
+  it('savePlaySessionWorld and loadPlaySessionWorld round-trip', async () => {
+    const world = createTestWorld()
+    await persistence.savePlaySessionWorld(world)
+    const loaded = await persistence.loadPlaySessionWorld()
+    expect(loaded).toBeDefined()
+    expect(loaded!.entities).toHaveLength(2)
+    expect(loaded!.entities[0].id).toBe('ground')
   })
 
   it('imports project from zip', async () => {

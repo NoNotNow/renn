@@ -26,6 +26,12 @@ export interface BuilderKeyboardShortcutsApi {
   onPaste: () => void
   /** Cmd/Ctrl + S — save project */
   onSave: () => void
+  /** Cmd/Ctrl + Shift + S — save project as */
+  onSaveAs: () => void
+  /** Cmd/Ctrl + N — new project */
+  onNew: () => void
+  /** Cmd/Ctrl + P — play */
+  onPlay: () => void
 }
 
 /**
@@ -40,6 +46,10 @@ export interface BuilderKeyboardShortcutsApi {
  *   Cmd/Ctrl+Shift+G  ungroup currently selected group
  *   Cmd/Ctrl+C      copy selected entities (no-op if UI text is selected)
  *   Cmd/Ctrl+V      paste in front of camera
+ *   Cmd/Ctrl+S      save
+ *   Cmd/Ctrl+Shift+S  save as
+ *   Cmd/Ctrl+N      new project
+ *   Cmd/Ctrl+P      play
  *
  * All shortcuts are no-ops while typing in a text field, select, contentEditable, or code editor.
  */
@@ -56,6 +66,9 @@ export function useBuilderKeyboardShortcuts(api: BuilderKeyboardShortcutsApi): v
     onCopy,
     onPaste,
     onSave,
+    onSaveAs,
+    onNew,
+    onPlay,
   } = api
 
   useEffect(() => {
@@ -74,9 +87,24 @@ export function useBuilderKeyboardShortcuts(api: BuilderKeyboardShortcutsApi): v
         onPaste()
         return
       }
+      if (mod && e.shiftKey && e.code === 'KeyS') {
+        e.preventDefault()
+        onSaveAs()
+        return
+      }
       if (mod && !e.shiftKey && e.key === 's') {
         e.preventDefault()
         onSave()
+        return
+      }
+      if (mod && !e.shiftKey && e.code === 'KeyN') {
+        e.preventDefault()
+        onNew()
+        return
+      }
+      if (mod && !e.shiftKey && e.code === 'KeyP') {
+        e.preventDefault()
+        onPlay()
         return
       }
       if (mod && e.key === 'z') {
@@ -136,5 +164,8 @@ export function useBuilderKeyboardShortcuts(api: BuilderKeyboardShortcutsApi): v
     onCopy,
     onPaste,
     onSave,
+    onSaveAs,
+    onNew,
+    onPlay,
   ])
 }

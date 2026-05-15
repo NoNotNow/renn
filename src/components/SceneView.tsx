@@ -162,6 +162,11 @@ export interface SceneViewProps {
    * listeners). SceneView does not attach pointer handlers on the scene root for chrome visibility.
    */
   fullscreenChromeControl?: { visible: boolean; bumpActivity: () => void }
+  /**
+   * Play route: disable picking/gizmo, shape wireframe overlays, variable/coordinate overlays,
+   * and frame-stats HUD regardless of world flags.
+   */
+  playMode?: boolean
 }
 
 export type EntityPhysicsPatch = Partial<Pick<Entity, 'mass' | 'restitution' | 'friction' | 'linearDamping' | 'angularDamping' | 'bodyType'>>
@@ -236,6 +241,7 @@ function SceneViewInner({
   onFullscreenChange,
   fullscreenTargetRef,
   fullscreenChromeControl,
+  playMode = false,
 }: SceneViewProps, ref: React.Ref<SceneViewHandle>) {
   const sceneKey = useMemo(() => getSceneDependencyKey(world), [world])
   const sceneRootRef = useRef<HTMLDivElement>(null)
@@ -302,6 +308,7 @@ function SceneViewInner({
   }, [])
 
   const showFrameStatsOverlay =
+    !playMode &&
     world.world.showFrameStats === true &&
     (onFrameStatsClose !== undefined ? true : !playFrameStatsDismissed)
 
@@ -315,6 +322,9 @@ function SceneViewInner({
 
   const recordFrameStatsOverlayRef = useRef(false)
   recordFrameStatsOverlayRef.current = showFrameStatsOverlay
+
+  const playModeRef = useRef(playMode)
+  playModeRef.current = playMode
 
   const worldRef = useRef(world)
   worldRef.current = world
@@ -402,7 +412,7 @@ function SceneViewInner({
   // `sceneKey` / `version` change (e.g. adding a transformer). Without re-running, Visualize would
   // stay active in the UI but the bridge would stay disconnected until gizmo mode toggled.
   useEffect(() => {
-    if (gizmoMode !== 'visualize') {
+    if (playMode || gizmoMode !== 'visualize') {
       setVariableOverlayFn(null)
       return
     }
@@ -410,10 +420,10 @@ function SceneViewInner({
     return () => {
       setVariableOverlayFn(null)
     }
-  }, [gizmoMode, sceneKey, version])
+  }, [playMode, gizmoMode, sceneKey, version])
 
   useEffect(() => {
-    if (gizmoMode !== 'visualize') {
+    if (playMode || gizmoMode !== 'visualize') {
       setCoordinateOverlayFn(null)
       return
     }
@@ -421,17 +431,19 @@ function SceneViewInner({
     return () => {
       setCoordinateOverlayFn(null)
     }
-  }, [gizmoMode, sceneKey, version])
+  }, [playMode, gizmoMode, sceneKey, version])
 
   useEffect(() => {
-    registryRef.current?.syncAllShapeWireframeOverlays(world.entities)
-  }, [world, registryEpoch])
+    const entities =
+      playMode ? world.entities.map((e) => ({ ...e, showShapeWireframe: undefined })) : world.entities
+    registryRef.current?.syncAllShapeWireframeOverlays(entities)
+  }, [world, registryEpoch, playMode])
 
   const perfPickMode = performancePick?.mode
   const perfPickCb = performancePick?.onEntityPicked
 
   useEffect(() => {
-    if (!perfPickMode || !scene || !camera || !renderer || !perfPickCb) return
+    if (playMode || !perfPickMode || !scene || !camera || !renderer || !perfPickCb) return
     const dom = renderer.domElement
     const raycaster = new THREE.Raycaster()
     const ndc = new THREE.Vector2()
@@ -451,7 +463,7 @@ function SceneViewInner({
     }
     dom.addEventListener('pointerdown', onDown, { capture: true })
     return () => dom.removeEventListener('pointerdown', onDown, { capture: true })
-  }, [scene, camera, renderer, perfPickMode, perfPickCb])
+  }, [playMode, scene, camera, renderer, perfPickMode, perfPickCb])
 
   useImperativeHandle(ref, () => ({
     setViewPreset: (preset: 'top' | 'front' | 'right') => {
@@ -752,13 +764,14 @@ function SceneViewInner({
       css2dRendererRef.current = css2d
 
       variableOverlayControllerRef.current?.dispose()
-      variableOverlayControllerRef.current = new VariableOverlayController(
-        loadedScene,
-        BUILDER_VARIABLE_OVERLAY_GROUP_WIDTH,
-      )
+      variableOverlayControllerRef.current = playModeRef.current
+        ? null
+        : new VariableOverlayController(loadedScene, BUILDER_VARIABLE_OVERLAY_GROUP_WIDTH)
 
       coordinateOverlayControllerRef.current?.dispose()
-      coordinateOverlayControllerRef.current = new CoordinateOverlayController(loadedScene)
+      coordinateOverlayControllerRef.current = playModeRef.current
+        ? null
+        : new CoordinateOverlayController(loadedScene)
 
       const sceneUserData = getSceneUserData(loadedScene)
       if (sceneUserData.directionalLight) sceneUserData.directionalLight.castShadow = shadowsEnabled
@@ -767,6 +780,7 @@ function SceneViewInner({
 
       const installPickGizmoIfBuilder = (): void => {
         if (cancelled || effectIdRef.current !== currentEffectId) return
+        if (playModeRef.current) return
         if (!onSelectEntityRef.current || !onEntityPoseCommitRef.current) return
         if (!cam || !rend) return
         if (!registryRef.current) return
@@ -1169,6 +1183,7 @@ function SceneViewInner({
     world.world.logarithmicDepthBuffer,
     world.world.shadowsEnabled,
     world.world.videoTextureMaxAnisotropy,
+    playMode,
   ])
 
   // Update camera config when it changes (without reloading the world).

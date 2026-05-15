@@ -457,8 +457,17 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   
   const handlePlay = useCallback(() => {
     uiLogger.click('Builder', 'Play - navigate to play mode')
-    window.location.href = `${BASE_URL}play?world=${encodeURIComponent(JSON.stringify(world))}`
-  }, [world])
+    const worldToPlay = getWorldToSave()
+    persistence
+      .savePlaySessionWorld(worldToPlay)
+      .then(() => {
+        window.location.href = `${BASE_URL}play?session=1`
+      })
+      .catch((err) => {
+        console.error('Failed to start play mode:', err)
+        alert('Could not start play mode. Please try again.')
+      })
+  }, [getWorldToSave])
   
   // Memoize context value to prevent unnecessary re-renders
   const value: ProjectContextValue = useMemo(() => ({

@@ -34,6 +34,8 @@ vi.mock('@/persistence/indexedDb', () => ({
     deleteProject: vi.fn().mockResolvedValue(undefined),
     exportProject: vi.fn(),
     importProject: vi.fn(),
+    savePlaySessionWorld: vi.fn().mockResolvedValue(undefined),
+    loadPlaySessionWorld: vi.fn().mockResolvedValue(null),
     saveAsset: vi.fn().mockResolvedValue(undefined),
     deleteAsset: vi.fn(),
     listAllAssets: vi.fn().mockResolvedValue([]),

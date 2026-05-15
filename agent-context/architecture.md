@@ -164,7 +164,7 @@ renn/
 │   │       └── world.ts      # World test helpers
 │   └── pages/
 │       ├── Builder.tsx       # Builder: outer column fullscreen root; chrome reveal; BuilderHeader, EntitySidebar, SceneView, LivePosesPoll → PropertySidebar
-│       └── Play.tsx          # Play: load world from ?world=… or sample; SceneView only
+│       └── Play.tsx          # Full-viewport Play: IndexedDB session or legacy `?world=…`; SceneView with `playMode` (no Builder UI)
 ```
 
 ---
@@ -185,8 +185,9 @@ renn/
 
 ### Play
 
-1. **Play** (`/play`) gets world from `?world=...` (JSON) or uses sample world.
-2. **SceneView** runs with that world: physics stepped every frame, scripts (onUpdate, etc.) run, camera follows target, Three.js renders.
+1. **Play** (`/play`) loads the world from the **`playSession` IndexedDB record** when `?session` is present (Builder **Play** writes this and navigates to `/play?session=1`). Legacy **`?world=`** (JSON) is still supported for small payloads. Otherwise the sample world is used. The page is **scene-only** (no Builder chrome/menus); `SceneView` is passed **`playMode`** so picking, gizmo, wireframe overlays, and frame-stats HUD stay disabled.
+2. **SceneView** receives the world and the **global asset blob map** from IndexedDB (`loadAllAssets`) so textures/models resolve like in the Builder.
+3. **SceneView** runs with that world: physics stepped every frame, scripts (onUpdate, etc.) run, camera follows target, Three.js renders.
 
 ### Runtime pipeline (each frame)
 
@@ -213,7 +214,7 @@ See **world-schema.json** and **src/types/world.ts** for the full shape.
 
 ## Persistence
 
-- **PersistenceAPI** is implemented first with **IndexedDB**: `projects` (world JSON per project), `assets` (global asset blobs shared across projects), and **`modelPresets`** (global `ModelPreset` records: model + material + shape + scale fields; not part of `RennWorld` or ZIP export). Schema version is `DB_CONFIG.version` in `src/config/constants.ts` (v5+ bumps re-run upgrade so `modelPresets` is created if a prior version left it missing). Same interface can later be backed by a REST API + Postgres + S3.
+- **PersistenceAPI** is implemented first with **IndexedDB**: `projects` (world JSON per project), `assets` (global asset blobs shared across projects), **`playSession`** (single-row stash for Builder→Play handoff so worlds are not URL-encoded), and **`modelPresets`** (global `ModelPreset` records: model + material + shape + scale fields; not part of `RennWorld` or ZIP export). Schema version is `DB_CONFIG.version` in `src/config/constants.ts` (v6+ adds `playSession`; v5+ bumps re-run upgrade so `modelPresets` is created if a prior version left it missing). Same interface can later be backed by a REST API + Postgres + S3.
 - **Export**: one ZIP per project (`world.json` + `assets/`). The `assets/` folder and the `assets` field in `world.json` include only IDs returned by `collectReferencedAssetIds` in `src/utils/collectReferencedAssetIds.ts` (entities, `world.assets` registry keys in the saved world, skybox, world sound), not every blob in the global asset store. Any referenced blob id missing from `world.assets` gets a synthesized ref (`synthesizeAssetRefForExport`, including MP4 `ftyp` sniff when MIME is wrong). The browser download filename is the current project (world) name, sanitized for the filesystem, with fallback `world-{id}.zip` if the name is empty. Unsaved projects export as `world.json`. **Import**: validate, **rehydrate** each asset blob’s MIME from refs + zip paths, then save as new project (replace UI can be added). Model presets stay in the browser DB and are not included in project ZIP/JSON.
 
 ---
