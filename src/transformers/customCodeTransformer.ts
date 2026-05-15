@@ -572,13 +572,7 @@ export class CustomCodeTransformer implements Transformer {
 }
 
 export function defaultCustomTransformerCode(): string {
-  return `// ── Params shape (edit in the Params JSON field above) ───────────────────────
-// { "power": 120 }
-
-// JSDoc @type on each parameter below wires Monaco completions for transforms (otherwise parameters become implicit any).
-// Example: use api.visualize(...) in Builder with the Visualize toolbar mode to plot live numbers.
-
-/** @returns {TransformOutput | undefined} */
+  return `/** @returns {TransformOutput | undefined} */
 function transform(
   /** @type {TransformInput} */ input,
   /** @type {number} */ dt,
@@ -586,13 +580,8 @@ function transform(
   /** @type {Record<string, unknown>} */ state,
   /** @type {TransformerRuntimeApi} */ api,
 ) {
-  const power = Number(params.power ?? 0);
-  // Builder Visualize mode: plot every tick (no-op when overlay unwired). Must run before the touch gate so the bar updates without contact.
-  api.visualize(power, '#48d9ff', 'power', 1);
-  if (!input.environment.isTouchingObject || power === 0) return {};
-
-  const forward = api.vec.getForwardVector(input.rotation);
-  return { impulse: api.vec.scale(forward, power * dt) };
+  //your code goes here
+  return {  };
 }`
 }
 

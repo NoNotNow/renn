@@ -368,12 +368,25 @@ describe('CustomCodeTransformer runtime bridge', () => {
     expect(out.impulse).toEqual([0, 2, 0])
   })
 
-  test('default skeleton visualizes power even when not touching ground', () => {
+  test('api.visualize before touch gate plots power without ground contact', () => {
     setVariableOverlayFn(() => {})
     setVariableOverlayDisplayEntityId('ent-a')
     const t = new CustomCodeTransformer({
       type: 'custom',
-      code: defaultCustomTransformerCode(),
+      code: `/** @returns {TransformOutput | undefined} */
+function transform(
+  /** @type {TransformInput} */ input,
+  /** @type {number} */ dt,
+  /** @type {Record<string, unknown>} */ params,
+  /** @type {Record<string, unknown>} */ state,
+  /** @type {TransformerRuntimeApi} */ api,
+) {
+  const power = Number(params.power ?? 0);
+  api.visualize(power, '#48d9ff', 'power', 1);
+  if (!input.environment.isTouchingObject || power === 0) return {};
+  const forward = api.vec.getForwardVector(input.rotation);
+  return { impulse: api.vec.scale(forward, power * dt) };
+}`,
     })
     t.runtimeEntityId = 'ent-a'
     t.setParams({ power: 42 })
@@ -452,19 +465,19 @@ describe('CustomCodeTransformer', () => {
     expect(out.impulse).toEqual([fwd[0] * 5 * 0.2, fwd[1] * 5 * 0.2, fwd[2] * 5 * 0.2])
   })
 
-  test('defaultCustomTransformerCode is a full function, references api, respects touching gate', () => {
+  test('defaultCustomTransformerCode is minimal typed stub', () => {
     const src = defaultCustomTransformerCode()
     expect(src).toContain('function transform(')
-    expect(src).toContain('api.vec.getForwardVector')
-    expect(src).toContain('api.vec.scale')
-    const t = new CustomCodeTransformer({ type: 'custom', code: src, params: { power: 100 } })
-    const inAir = t.transform(createMockTransformInput({ environment: {} }), 0.1)
-    expect(inAir).toEqual({})
-    const grounded = t.transform(
-      createMockTransformInput({ environment: { isTouchingObject: true } }),
-      0.1,
-    )
-    expect(grounded.impulse).toBeDefined()
+    expect(src).toContain('//your code goes here')
+    expect(src).not.toContain('api.visualize')
+    const t = new CustomCodeTransformer({ type: 'custom', code: src })
+    expect(t.transform(createMockTransformInput({ environment: {} }), 0.1)).toEqual({})
+    expect(
+      t.transform(
+        createMockTransformInput({ environment: { isTouchingObject: true } }),
+        0.1,
+      ),
+    ).toEqual({})
   })
 
   test('defaultCustomTransformerCode annotates params for IntelliSense (inline @type)', () => {

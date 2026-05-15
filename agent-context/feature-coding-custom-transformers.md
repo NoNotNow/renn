@@ -39,7 +39,7 @@ Right sidebar **Code** drawer (Builder): **Transformers** | **Transformer code**
 - **`api.log`**: calls the play-mode snackbar (wired via `setTransformerSnackbarFn` from `SceneView`; no-op in tests unless explicitly wired). `durationSeconds` defaults to 4.
 - **`api.visualize`**: records overlay samples when Builder **Visualize** gizmo mode is active, the bridge is wired from `SceneView`, and the publishing entity matches the single selection (`variableOverlayBridge` + `publishVariableValue`). No-op in Play mode and tests by default.
 - **Sanitization**: non-finite / invalid `TransformOutput` fields stripped.
-- **`effectiveCustomTransformerCode`** + **default skeleton**: params shape comment at the top, full `function transform(...)` body: **`api.visualize` for `power` before the `isTouchingObject` gate** so Builder Visualize shows the bar without ground contact; impulse still requires touch + nonzero power (`api.vec.scale` on **`api.vec.getForwardVector`**). Preset default includes `params.power` in [`transformerPresets.ts`](../src/transformers/transformerPresets.ts).
+- **`effectiveCustomTransformerCode`** + **default skeleton**: minimal `function transform(...)` with **inline `/** @type {…} */` on each parameter** (and `@returns`) so Monaco completions work immediately; body is a **`//your code goes here`** placeholder and **`return {  };`**. New **custom** presets use empty **`params: {}`** in [`transformerPresets.ts`](../src/transformers/transformerPresets.ts). For **`api.visualize`** patterns (plot every tick even in the air), call **`api.visualize`** before any `isTouchingObject` early-return in your own code — see tests in [`customCodeTransformer.test.ts`](../src/transformers/customCodeTransformer.test.ts).
 
 ### Monaco / IntelliSense
 

@@ -66,16 +66,23 @@ function positionAfter(source: string, needle: string): number {
 
 describe('transformer IntelliSense (TS language service)', () => {
   test('default skeleton: input. and api. offer TransformInput and TransformerRuntimeApi members', () => {
-    const source = defaultCustomTransformerCode()
+    const base = defaultCustomTransformerCode()
+    const source = base.replace(
+      `  //your code goes here
+  return {  };`,
+      `  const _in = input.
+  void api.
+  return {  };`,
+    )
     const lang = createLanguageServiceForUserJs(source)
 
-    const inputDot = completionNames(lang, USER_PATH, positionAfter(source, 'if (!input.'))
+    const inputDot = completionNames(lang, USER_PATH, positionAfter(source, 'const _in = input.'))
     expect(inputDot.has('actions')).toBe(true)
     expect(inputDot.has('environment')).toBe(true)
     expect(inputDot.has('velocity')).toBe(true)
     expect(inputDot.has('entityId')).toBe(true)
 
-    const apiDot = completionNames(lang, USER_PATH, positionAfter(source, 'const forward = api.'))
+    const apiDot = completionNames(lang, USER_PATH, positionAfter(source, 'void api.'))
     expect(apiDot.has('log')).toBe(true)
     expect(apiDot.has('getAction')).toBe(true)
     expect(apiDot.has('getForwardVector')).toBe(true)

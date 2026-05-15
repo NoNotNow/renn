@@ -45,7 +45,7 @@ npm run test:run -- src/utils/monacoExtraLib.test.ts src/transformers/transforme
 ## Progress (implemented)
 
 - [x] Register transformer (and script) extra libs on **both** `typescriptDefaults` and `javascriptDefaults`; composite `dispose()`.
-- [x] Integration tests: `input.` / `api.` on default skeleton; legacy global `input.` body; untyped-params negative case; **inline `@type` positive case**.
+- [x] Integration tests: `input.` / `api.` on default skeleton (via probe lines derived from `defaultCustomTransformerCode()`); legacy global `input.` body; untyped-params negative case; **inline `@type` positive case**.
 - [x] Unit test: mock Monaco verifies dual `addExtraLib` + both disposes.
 - [x] Full `npm run test:run` — green.
 - [x] **`javascriptDefaults.setCompilerOptions({ checkJs: true })`** — **not** added; completions sufficient without global compiler-option side effects.

@@ -18,7 +18,7 @@ Steps 1–3 are **done** in the codebase: `visualize` gizmo mode, `CSS2DRenderer
 
 **Layout helpers (unit-tested):** `variableOverlayColumnX`, `variableOverlaySignedBarLength` in `variableOverlayController.ts`.
 
-**Default custom-transformer snippet:** `api.visualize` runs **before** the `isTouchingObject` / `power === 0` early return (`defaultCustomTransformerCode` in `customCodeTransformer.ts`), so **`power` is plotted every transformer tick** in Builder Visualize mode without needing ground contact; physics impulse behavior is unchanged.
+**Example (`api.visualize` before a touch gate):** If `api.visualize(power, …)` runs **before** an `isTouchingObject` / `power === 0` early return, **`power` is plotted every transformer tick** in Builder Visualize mode without ground contact; physics impulse behavior can still require touch. See the **`api.visualize before touch gate`** test in [`customCodeTransformer.test.ts`](../src/transformers/customCodeTransformer.test.ts).
 
 **Scene rebuild:** Adding/removing transformer **configs** changes `getSceneDependencyKey` and forces a full `SceneView` reload. Its cleanup clears `setVariableOverlayFn`; the visualize-only `useEffect` must depend on **`sceneKey` + `version`** (same as the main scene effect) so the bridge is **rewired** while Visualize stays selected.
 
