@@ -48,11 +48,23 @@ describe('TransformerRuntimeApi argument validation', () => {
     )
   })
 
-  test('vec.add and scaleVec3 reject invalid arguments', () => {
+  test('vec.add, vec.subtract, scaleVec3, normalizeVec3 reject invalid arguments', () => {
     expect(() => TRANSFORMER_RUNTIME_API.vec.add([1, 0, 0], [0, 1] as unknown as Vec3)).toThrow(
       /\[TransformerRuntimeApi\.vec\.add\]/,
     )
+    expect(() => TRANSFORMER_RUNTIME_API.vec.subtract([1, 0, 0], [0, 1] as unknown as Vec3)).toThrow(
+      /\[TransformerRuntimeApi\.vec\.subtract\]/,
+    )
+    expect(() => TRANSFORMER_RUNTIME_API.subtractVec3([1, 0, 0], [0, 1] as unknown as Vec3)).toThrow(
+      /\[TransformerRuntimeApi\.subtractVec3\]/,
+    )
     expect(() => TRANSFORMER_RUNTIME_API.scaleVec3([1, 0, 0], NaN)).toThrow(/\[TransformerRuntimeApi\.scaleVec3\]/)
+    expect(() => TRANSFORMER_RUNTIME_API.vec.normalize([0, 1] as unknown as Vec3)).toThrow(
+      /\[TransformerRuntimeApi\.vec\.normalize\]/,
+    )
+    expect(() => TRANSFORMER_RUNTIME_API.normalizeVec3([0, 1] as unknown as Vec3)).toThrow(
+      /\[TransformerRuntimeApi\.normalizeVec3\]/,
+    )
   })
 
   test('vec.getForwardSpeed rejects non-Vec3', () => {
@@ -507,10 +519,21 @@ describe('CustomCodeTransformer', () => {
     expect(api.vec.getForwardVector([0, 0, 0])).toEqual(api.getForwardVector([0, 0, 0]))
     expect(api.vec.getUpVector([0, 0, 0])).toEqual(api.getUpVector([0, 0, 0]))
     expect(api.vec.dot(a, b)).toBe(32)
+    expect(api.vec.cross([1, 0, 0], [0, 1, 0])).toEqual([0, 0, 1])
+    expect(api.vec.cross([3, -3, 1], [4, 9, 2])).toEqual([-15, -2, 39])
     expect(api.vec.length([3, 4, 0])).toBe(5)
+    const u305 = api.vec.normalize([3, 4, 0])
+    expect(u305[0]).toBeCloseTo(0.6)
+    expect(u305[1]).toBeCloseTo(0.8)
+    expect(u305[2]).toBe(0)
+    expect(api.vec.normalize([0, 0, 0])).toEqual([0, 0, 0])
+    expect(api.normalizeVec3([0, -12, 0])).toEqual([0, -1, 0])
+    expect(api.normalizeVec3([3, 4, 0])).toEqual(api.vec.normalize([3, 4, 0]))
     expect(api.vec.add([1, 0, 0], [0, 2, 0])).toEqual([1, 2, 0])
+    expect(api.vec.subtract([4, 5, 6], [1, 2, 3])).toEqual([3, 3, 3])
     expect(api.vec.scale([2, 3, 4], 2)).toEqual([4, 6, 8])
     expect(api.addVec3(a, b)).toEqual(api.vec.add(a, b))
+    expect(api.subtractVec3(a, b)).toEqual(api.vec.subtract(a, b))
     expect(api.scaleVec3(a, 2)).toEqual(api.vec.scale(a, 2))
     const fwd: [number, number, number] = [0, 0, -1]
     expect(api.vec.getForwardSpeed([0, 0, -5], fwd)).toBe(5)

@@ -10,6 +10,20 @@ export function dotVec3(a: Vec3, b: Vec3): number {
   return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
 }
 
+/** Component-wise difference **a − b**. */
+export function subtractVec3(a: Vec3, b: Vec3): Vec3 {
+  return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
+}
+
+/** Cross product **a × b** (right-handed). */
+export function crossVec3(a: Vec3, b: Vec3): Vec3 {
+  return [
+    a[1] * b[2] - a[2] * b[1],
+    a[2] * b[0] - a[0] * b[2],
+    a[0] * b[1] - a[1] * b[0],
+  ]
+}
+
 /**
  * Signed forward speed: velocity along forward axis (subtracts sideways).
  * Returns dot(velocity, forward); positive = forward, negative = backward.
@@ -35,12 +49,22 @@ export function vec3Length(i:Vec3): number {
   return Math.sqrt(x * x + y * y + z * z)
 }
 
+/** Treat direction as zero when length falls below this (normalize, torque on axis). */
+const VEC3_NORMALIZE_EPS = 1e-10
+
+/** Unit vector in the direction of `v`; `[0, 0, 0]` when length is negligible (below ~1e-10). */
+export function normalizeVec3(v: Vec3): Vec3 {
+  const len = vec3Length(v)
+  if (len < VEC3_NORMALIZE_EPS) return [0, 0, 0]
+  return scaleVec3(v, 1 / len)
+}
+
 /**
  * Create a torque vector that rotates around `axis`.
  * `axis` is treated as a direction and normalized internally.
  */
 export function createTorqueAroundAxis(axis: Vec3, torqueMagnitude: number): Vec3 {
   const axisLen = vec3Length(axis)
-  if (axisLen < 1e-10) return [0, 0, 0]
+  if (axisLen < VEC3_NORMALIZE_EPS) return [0, 0, 0]
   return scaleVec3(axis, torqueMagnitude / axisLen)
 }

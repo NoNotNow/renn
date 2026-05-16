@@ -82,12 +82,17 @@ Right sidebar **Code** drawer (Builder): **Transformers** | **Transformer code**
 | `getForwardVector` | `(rotation) → Vec3` | Forward unit direction from Euler (Three -Z convention). |
 | `getUpVector` | `(rotation) → Vec3` | Up from Euler (+Y). |
 | `addVec3` | `(a, b) → Vec3` | Component-wise sum (same as `api.vec.add`). |
+| `subtractVec3` | `(a, b) → Vec3` | Component-wise difference (same as `api.vec.subtract`). |
 | `scaleVec3` | `(v, s) → Vec3` | Scale all components by s (same as `api.vec.scale`). |
+| `normalizeVec3` | `(v) → Vec3` | Unit direction (same as `api.vec.normalize`). |
 | `vec.getForwardVector` | `(rotation) → Vec3` | Same as `getForwardVector`. |
 | `vec.getUpVector` | `(rotation) → Vec3` | Same as `getUpVector`. |
 | `vec.dot` | `(a, b) → number` | Dot product. |
+| `vec.cross` | `(a, b) → Vec3` | Cross product **a × b** (right-handed). |
 | `vec.length` | `(v) → number` | Euclidean length. |
+| `vec.normalize` | `(v) → Vec3` | Unit vector; `[0,0,0]` when length is negligible. |
 | `vec.add` | `(a, b) → Vec3` | Component-wise sum. |
+| `vec.subtract` | `(a, b) → Vec3` | Component-wise difference (a − b). |
 | `vec.scale` | `(v, s) → Vec3` | Scale all components by s. |
 | `vec.getForwardSpeed` | `(velocity, forward) → number` | Signed speed along `forward` (dot product); prefer unit `forward` from `getForwardVector`. |
 | `clamp` | `(value, min, max) → number` | Inclusive clamp. |

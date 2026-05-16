@@ -25,6 +25,8 @@ describe('transformerCtxDecl', () => {
     expect(decl).toContain('durationSeconds?: number')
     expect(decl).toContain('getUpVector')
     expect(decl).toContain('addVec3')
+    expect(decl).toContain('subtractVec3')
+    expect(decl).toContain('normalizeVec3')
     expect(decl).toContain('getEntity')
     expect(decl).toContain('LiveWorldEntity')
     expect(decl).toContain('getLivePosition')

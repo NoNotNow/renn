@@ -74,8 +74,14 @@ interface TransformerVecApi {
   /** Unit world up (+Y) from Euler. */
   getUpVector(rotation: Rotation): Vec3;
   dot(a: Vec3, b: Vec3): number;
+  /** Cross product **a × b** (right-handed). */
+  cross(a: Vec3, b: Vec3): Vec3;
   length(v: Vec3): number;
+  /** Same direction as \`v\` with length 1; \`[0, 0, 0]\` when length is negligible. */
+  normalize(v: Vec3): Vec3;
   add(a: Vec3, b: Vec3): Vec3;
+  /** Component-wise difference **a − b**. */
+  subtract(a: Vec3, b: Vec3): Vec3;
   scale(v: Vec3, s: number): Vec3;
   /** Signed scalar speed along \`forward\` (dot product); prefer unit forward from getForwardVector. */
   getForwardSpeed(velocity: Vec3, forward: Vec3): number;
@@ -223,9 +229,13 @@ interface TransformerRuntimeApi {
   getUpVector(rotation: Rotation): Vec3;
   /** Component-wise sum; same as \`api.vec.add\`. */
   addVec3(a: Vec3, b: Vec3): Vec3;
+  /** Component-wise difference; same as \`api.vec.subtract\`. */
+  subtractVec3(a: Vec3, b: Vec3): Vec3;
   /** Multiply each component of v by scalar s; same as \`api.vec.scale\`. */
   scaleVec3(v: Vec3, s: number): Vec3;
-  /** Dot, length, add, scale, basis vectors from Euler, getForwardSpeed — grouped Vec3 tuple helpers. */
+  /** Same as \`api.vec.normalize\`. */
+  normalizeVec3(v: Vec3): Vec3;
+  /** Dot, length, normalize, add, subtract, scale, basis vectors from Euler, cross, getForwardSpeed — grouped Vec3 tuple helpers. */
   vec: TransformerVecApi;
   /** Clamp value inclusively between min and max. */
   clamp(value: number, min: number, max: number): number;

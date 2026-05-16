@@ -493,13 +493,23 @@ export function buildTransformerDocsChapters(locale: TransformerDocsLocale): Tra
                 <code>api.vec.add(a, b)</code> — component-wise sum.
               </li>
               <li>
+                <code>api.vec.subtract(a, b)</code> — component-wise difference (a − b).
+              </li>
+              <li>
                 <code>api.vec.scale(v, s)</code> — scale tuple by scalar.
               </li>
               <li>
                 <code>api.vec.length(v)</code> — Euclidean length.
               </li>
               <li>
+                <code>api.vec.normalize(v)</code> — unit vector in the same direction;{' '}
+                <code>[0, 0, 0]</code> when length is negligible.
+              </li>
+              <li>
                 <code>api.vec.dot(a, b)</code> — dot product.
+              </li>
+              <li>
+                <code>api.vec.cross(a, b)</code> — cross product (3D vectors, right-handed).
               </li>
               <li>
                 <code>api.vec.getForwardVector(rotation)</code> — forward basis (−Z facing).
@@ -898,13 +908,23 @@ export function buildTransformerDocsChapters(locale: TransformerDocsLocale): Tra
               <code lang="en">api.vec.add(a, b)</code> – zwei Listen addieren (x zu x, y zu y …).
             </li>
             <li style={{ marginBottom: 6 }}>
+              <code lang="en">api.vec.subtract(a, b)</code> – erste Liste minus zweite (a − b).
+            </li>
+            <li style={{ marginBottom: 6 }}>
               <code lang="en">api.vec.scale(v, s)</code> – alle drei Zahlen mit derselben Zahl malnehmen.
             </li>
             <li style={{ marginBottom: 6 }}>
               <code lang="en">api.vec.length(v)</code> – wie „lang“ der Pfeil ist.
             </li>
             <li style={{ marginBottom: 6 }}>
+              <code lang="en">api.vec.normalize(v)</code> – Pfeil auf Länge 1 bringen (Richtung bleibt); fast Null ergibt{' '}
+              <code lang="en">[0, 0, 0]</code>.
+            </li>
+            <li style={{ marginBottom: 6 }}>
               <code lang="en">api.vec.dot(a, b)</code> – eine Maßzahl wie zwei Pfeile zusammenpassen.
+            </li>
+            <li style={{ marginBottom: 6 }}>
+              <code lang="en">api.vec.cross(a, b)</code> – Kreuzprodukt für 3D-Pfeile (rechte Hand).
             </li>
             <li style={{ marginBottom: 6 }}>
               <code lang="en">api.vec.getForwardVector(rotation)</code> – Pfeil „nach vorn“ aus der Drehung (Spiel benutzt −Z

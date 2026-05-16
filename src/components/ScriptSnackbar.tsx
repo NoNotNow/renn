@@ -15,7 +15,7 @@ export function ScriptSnackbar({ message }: ScriptSnackbarProps) {
         left: 12,
         right: 12,
         bottom: 72,
-        zIndex: 51,
+        zIndex: 53,
         padding: '10px 14px',
         borderRadius: 8,
         background: 'rgba(22, 28, 38, 0.96)',

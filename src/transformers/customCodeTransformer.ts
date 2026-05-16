@@ -18,9 +18,12 @@ import {
   eulerDeltaAroundAxis as eulerDeltaAroundAxisImpl,
 } from '@/utils/rotationUtils'
 import {
+  crossVec3,
   dotVec3,
   getForwardSpeed as getForwardSpeedUtil,
+  normalizeVec3 as normalizeVec3Util,
   scaleVec3 as scaleVec3Util,
+  subtractVec3 as subtractVec3Util,
   vec3Length,
 } from '@/utils/vec3'
 import {
@@ -213,15 +216,21 @@ function sanitizeTransformOutput(raw: unknown): TransformOutput {
   return next
 }
 
-/** Vector math exposed as `api.vec.*` (tuple `[x,y,z]`); flat `addVec3` / `scaleVec3` are the same as `vec.add` / `vec.scale`; flat `getForwardVector` / `getUpVector` match `vec.getForwardVector` / `vec.getUpVector`. */
+/** Vector math exposed as `api.vec.*` (tuple `[x,y,z]`); flat `addVec3` / `subtractVec3` / `scaleVec3` / `normalizeVec3` match `vec.add` / `vec.subtract` / `vec.scale` / `vec.normalize`; flat `getForwardVector` / `getUpVector` match `vec.getForwardVector` / `vec.getUpVector`. Dot and cross are `vec`-only helpers. */
 export interface TransformerVecApi {
   /** Unit forward (-Z facing) from Euler. */
   getForwardVector(rotation: Rotation): Vec3
   /** Unit world up (+Y) from Euler. */
   getUpVector(rotation: Rotation): Vec3
   dot(a: Vec3, b: Vec3): number
+  /** Cross product **a × b** (right-handed). */
+  cross(a: Vec3, b: Vec3): Vec3
   length(v: Vec3): number
+  /** Same direction as `v` with length 1; `[0, 0, 0]` when length is negligible. */
+  normalize(v: Vec3): Vec3
   add(a: Vec3, b: Vec3): Vec3
+  /** Component-wise difference **a − b**. */
+  subtract(a: Vec3, b: Vec3): Vec3
   scale(v: Vec3, s: number): Vec3
   /** Scalar speed along `forward` (unnormalized forward scales the projection). Prefer a unit forward from getForwardVector. */
   getForwardSpeed(velocity: Vec3, forward: Vec3): number
@@ -236,8 +245,12 @@ export interface TransformerRuntimeApi {
   getUpVector(rotation: Rotation): Vec3
   /** Same as `api.vec.add`. */
   addVec3(a: Vec3, b: Vec3): Vec3
+  /** Same as `api.vec.subtract`. */
+  subtractVec3(a: Vec3, b: Vec3): Vec3
   /** Same as `api.vec.scale`. */
   scaleVec3(v: Vec3, s: number): Vec3
+  /** Same as `api.vec.normalize`. */
+  normalizeVec3(v: Vec3): Vec3
   vec: TransformerVecApi
   clamp(value: number, min: number, max: number): number
   eulerDeltaAroundAxis(currentRotation: Rotation, axis: Vec3, angleRad: number): Rotation
@@ -312,14 +325,28 @@ const VEC_API: TransformerVecApi = Object.freeze({
     const bv = requireVec3('TransformerRuntimeApi.vec.dot', 'b', b)
     return dotVec3(av, bv)
   },
+  cross: (a: Vec3, b: Vec3): Vec3 => {
+    const av = requireVec3('TransformerRuntimeApi.vec.cross', 'a', a)
+    const bv = requireVec3('TransformerRuntimeApi.vec.cross', 'b', b)
+    return crossVec3(av, bv)
+  },
   length: (v: Vec3): number => {
     const vv = requireVec3('TransformerRuntimeApi.vec.length', 'v', v)
     return vec3Length(vv)
+  },
+  normalize: (v: Vec3): Vec3 => {
+    const vv = requireVec3('TransformerRuntimeApi.vec.normalize', 'v', v)
+    return normalizeVec3Util(vv)
   },
   add: (a: Vec3, b: Vec3): Vec3 => {
     const av = requireVec3('TransformerRuntimeApi.vec.add', 'a', a)
     const bv = requireVec3('TransformerRuntimeApi.vec.add', 'b', b)
     return addVec3Impl(av, bv)
+  },
+  subtract: (a: Vec3, b: Vec3): Vec3 => {
+    const av = requireVec3('TransformerRuntimeApi.vec.subtract', 'a', a)
+    const bv = requireVec3('TransformerRuntimeApi.vec.subtract', 'b', b)
+    return subtractVec3Util(av, bv)
   },
   scale: (v: Vec3, s: number): Vec3 => {
     const vv = requireVec3('TransformerRuntimeApi.vec.scale', 'v', v)
@@ -394,10 +421,19 @@ export const TRANSFORMER_RUNTIME_API: TransformerRuntimeApi = Object.freeze({
     const bv = requireVec3('TransformerRuntimeApi.addVec3', 'b', b)
     return addVec3Impl(av, bv)
   },
+  subtractVec3: (a, b): Vec3 => {
+    const av = requireVec3('TransformerRuntimeApi.subtractVec3', 'a', a)
+    const bv = requireVec3('TransformerRuntimeApi.subtractVec3', 'b', b)
+    return subtractVec3Util(av, bv)
+  },
   scaleVec3: (v, s): Vec3 => {
     const vv = requireVec3('TransformerRuntimeApi.scaleVec3', 'v', v)
     const ss = requireFiniteNumber('TransformerRuntimeApi.scaleVec3', 's', s)
     return scaleVec3Util(vv, ss)
+  },
+  normalizeVec3: (v): Vec3 => {
+    const vv = requireVec3('TransformerRuntimeApi.normalizeVec3', 'v', v)
+    return normalizeVec3Util(vv)
   },
   vec: VEC_API,
   clamp: clampApi,
