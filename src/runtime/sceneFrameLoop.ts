@@ -232,7 +232,11 @@ export function runSceneFrame(input: SceneFrameLoopInputs): void {
   }
 
   const interpolationRegistry = registryRef.current
-  if (interpolationRegistry && typeof interpolationRegistry.applyInterpolatedVisualPoses === 'function') {
+  if (
+    !editNav &&
+    interpolationRegistry &&
+    typeof interpolationRegistry.applyInterpolatedVisualPoses === 'function'
+  ) {
     interpolationRegistry.applyInterpolatedVisualPoses(renderInterpolationAlpha)
   }
 

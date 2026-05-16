@@ -59,6 +59,8 @@ Implementation slice added:
 - Authoritative registry reads prefer cached physics transforms; camera wiring uses visual pose reads.
 - `SceneView` passes `simAccumulator / fixedDt` into `runSceneFrame`, and the frame loop applies interpolation before camera update/render.
 
+**Edit-navigation (Builder Ctrl+E):** Physics step and `syncFromPhysics()` are skipped while edit-navigation is on, so previous/current visual buffers are not advanced. The frame therefore **does not** call `applyInterpolatedVisualPoses` in that mode; otherwise stale endpoints would overwrite meshes every frame and break TransformControls.
+
 ## Camera follow smoothing
 
 After mesh interpolation works, evaluate camera behavior separately. Meshes can look smoother while the camera still judders if it reads stepped target poses.

@@ -173,6 +173,31 @@ describe('runSceneFrame — time advance', () => {
       update.mock.invocationCallOrder[0],
     )
   })
+
+  it('skips applyInterpolatedVisualPoses in edit-navigation mode (stale buffers would fight gizmo)', () => {
+    const applyInterpolatedVisualPoses = vi.fn()
+    const ctrl = {
+      getConfig: () => ({ control: 'free', mode: 'follow' }),
+      setForceFreeFlyNavigation: () => {},
+      setFreeFlyInput: () => {},
+      setOrbitDelta: () => {},
+      setOrbitDistanceDelta: () => {},
+      setEditNavigationOrbitPivot: () => {},
+      update: vi.fn(),
+    } as unknown as CameraController
+    const input = makeBaseInput({
+      editNavigationModeRef: { current: true },
+      cameraCtrlRef: { current: ctrl },
+      registryRef: {
+        current: {
+          applyInterpolatedVisualPoses,
+        } as unknown as RenderItemRegistry,
+      },
+      renderInterpolationAlpha: 0.5,
+    })
+    runSceneFrame(input)
+    expect(applyInterpolatedVisualPoses).not.toHaveBeenCalled()
+  })
 })
 
 describe('runSceneFrame — wheel orbit gating', () => {
