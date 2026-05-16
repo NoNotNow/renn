@@ -117,6 +117,8 @@ const PIPELINE_SHAFT_START_X = PIPELINE_PORT_R + PIPELINE_PORT_STROKE / 2
 /** Cards sit below link SVGs so chevrons are not covered by the next stage (DOM order). */
 const PIPELINE_Z_CARD = 1
 const PIPELINE_Z_LINK = 2
+/** Stack above connectors so selection glow paints over pipeline links. */
+const PIPELINE_Z_CARD_SELECTED = 4
 const PIPELINE_Z_CARD_DRAGGING = 10
 
 type PipelineArrowGlyphProps = {
@@ -404,6 +406,7 @@ function MovableTraceDrawer({
 
 function TransformerTraceItem({
   index,
+  stackIndex,
   transformer,
   step,
   headerRef,
@@ -422,6 +425,8 @@ function TransformerTraceItem({
   isDragging,
 }: {
   index: number
+  /** Index of this transformer in the full entity stack (for custom display names). */
+  stackIndex: number
   transformer: TransformerConfig
   step: TransformerTraceStep | undefined
   headerRef: React.RefObject<HTMLDivElement>
@@ -444,7 +449,11 @@ function TransformerTraceItem({
   const [configOpen, setConfigOpen] = useState(false)
   const itemRef = useRef<HTMLDivElement>(null)
 
+  const rowLabel =
+    transformer.type === 'custom' ? labelCustomTransformer(transformer, stackIndex) : String(transformer.type)
+
   const enabled = transformer.enabled ?? true
+  const showSelectedChrome = Boolean(isSelected && !isDragging && transformer.type === 'custom')
   const inputLit = Boolean(step && !step.skipped && hasNonZeroSemanticActions(step.inputBefore))
   const outputLit = Boolean(step && !step.skipped && step.outputLedActive)
 
@@ -512,18 +521,24 @@ function TransformerTraceItem({
         gap: 2,
         padding: '8px 10px',
         boxSizing: 'border-box',
-        border: `1px solid ${theme.border.default}`,
+        border: showSelectedChrome ? `1px solid ${theme.accent}` : `1px solid ${theme.border.default}`,
         borderRadius: 6,
         background: isDragOver ? theme.bg.panelAlt : theme.bg.thumbnailFrame,
         minWidth: 100,
         maxWidth: 200,
         flex: '0 0 auto',
         opacity: isDragging ? 0.4 : 1,
-        transition: 'background 0.2s ease, opacity 0.2s ease, transform 0.2s ease',
+        transition:
+          'background 0.2s ease, opacity 0.2s ease, transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease',
         cursor: isDragging ? 'grabbing' : 'grab',
         transform: isDragging ? 'scale(1.02)' : 'scale(1)',
-        zIndex: isDragging ? PIPELINE_Z_CARD_DRAGGING : PIPELINE_Z_CARD,
+        zIndex: isDragging
+          ? PIPELINE_Z_CARD_DRAGGING
+          : showSelectedChrome
+            ? PIPELINE_Z_CARD_SELECTED
+            : PIPELINE_Z_CARD,
         overflow: 'visible',
+        boxShadow: showSelectedChrome ? '0 0 6px rgba(138, 180, 255, 0.18)' : undefined,
       }}
     >
       <div
@@ -537,17 +552,17 @@ function TransformerTraceItem({
       >
         <div
           style={{
-            fontSize: 9,
+            fontSize: 20,
+            fontFamily: 'cursive',
             fontWeight: 700,
             color: theme.text.primary,
-            textTransform: 'uppercase',
             userSelect: 'none',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
           }}
         >
-          {transformer.type}
+          {rowLabel}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           <button
@@ -710,7 +725,7 @@ function TransformerTraceItem({
         </details>
         {configOpen && headerRef.current ? (
           <MovableTraceDrawer
-            title={`Config: ${transformer.type}`}
+            title={`Config: ${rowLabel}`}
             onClose={() => setConfigOpen(false)}
             initialLeft={baseLeft}
             initialTop={120}
@@ -871,14 +886,13 @@ function TransformerHorizontalTrace({
   return (
     <div
       ref={traceBarRef}
+      className="custom-transformer-trace-scroll"
       onScroll={(e) => setScrollLeft(e.currentTarget.scrollLeft)}
       style={{
         display: 'flex',
         flexDirection: 'row',
         alignItems: 'center',
         gap: 0,
-        overflowX: 'auto',
-        overflowY: 'visible',
         padding: '4px 0',
         flex: 1,
         minWidth: 0,
@@ -886,6 +900,11 @@ function TransformerHorizontalTrace({
       }}
     >
       <style>{`
+        .custom-transformer-trace-scroll {
+          overflow-x: auto;
+          overflow-y: visible;
+          overflow-clip-margin: 10px;
+        }
         .transformer-trace-io-row > summary::-webkit-details-marker { display: none; }
         .transformer-trace-io-row > summary::marker { content: ''; }
       `}</style>
@@ -902,6 +921,7 @@ function TransformerHorizontalTrace({
           >
             <TransformerTraceItem
               index={i}
+              stackIndex={item.originalIndex}
               transformer={item.config}
               step={traceByStackIndex?.get(item.originalIndex)}
               headerRef={headerRef}
@@ -1029,7 +1049,7 @@ export default function CustomTransformerCodeTab({
   const docsContainerRef = useRef<HTMLDivElement>(null)
   const codePopoutOpenRef = useRef(false)
   const popoutFirstOpenRefreshDoneRef = useRef(false)
-  const firstOpenRefreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const firstOpenRefreshTimeoutRef = useRef<number | null>(null)
   codePopoutOpenRef.current = codePopoutOpen
   const listRef = useRef(list)
   listRef.current = list
@@ -1041,7 +1061,7 @@ export default function CustomTransformerCodeTab({
   onCommitRef.current = onTransformersCommit
 
   const codeUndoPrimedRef = useRef(false)
-  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const debounceTimerRef = useRef<number | null>(null)
 
   useEffect(() => {
     if (customSlots.length === 0) {
@@ -1062,9 +1082,6 @@ export default function CustomTransformerCodeTab({
       setSelectedIndex(customSlots[0].index)
     }
   }, [codePopoutOpen, selectedIndex, customSlots])
-
-  const selectedSlot =
-    selectedIndex !== null ? customSlots.find((s) => s.index === selectedIndex) : null
 
   const selectedConfig =
     selectedIndex !== null && list[selectedIndex]?.type === 'custom' ? list[selectedIndex]! : null
@@ -1134,8 +1151,8 @@ export default function CustomTransformerCodeTab({
   }, [codePopoutOpen, docsOpenInPopout])
 
   const flushPendingCode = useCallback(() => {
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current)
+    if (debounceTimerRef.current != null) {
+      window.clearTimeout(debounceTimerRef.current)
       debounceTimerRef.current = null
     }
     const idx = selectedIndexRef.current
@@ -1157,7 +1174,7 @@ export default function CustomTransformerCodeTab({
   const refreshPopoutMonaco = useCallback(() => {
     popoutFirstOpenRefreshDoneRef.current = true
     if (firstOpenRefreshTimeoutRef.current !== null) {
-      clearTimeout(firstOpenRefreshTimeoutRef.current)
+      window.clearTimeout(firstOpenRefreshTimeoutRef.current)
       firstOpenRefreshTimeoutRef.current = null
     }
     flushPendingCode()
@@ -1169,7 +1186,7 @@ export default function CustomTransformerCodeTab({
   useEffect(() => {
     if (!codePopoutOpen) {
       if (firstOpenRefreshTimeoutRef.current !== null) {
-        clearTimeout(firstOpenRefreshTimeoutRef.current)
+        window.clearTimeout(firstOpenRefreshTimeoutRef.current)
         firstOpenRefreshTimeoutRef.current = null
       }
       return
@@ -1184,7 +1201,7 @@ export default function CustomTransformerCodeTab({
 
     return () => {
       if (firstOpenRefreshTimeoutRef.current !== null) {
-        clearTimeout(firstOpenRefreshTimeoutRef.current)
+        window.clearTimeout(firstOpenRefreshTimeoutRef.current)
         firstOpenRefreshTimeoutRef.current = null
       }
     }
@@ -1267,8 +1284,8 @@ export default function CustomTransformerCodeTab({
   )
 
   const scheduleCodeCommit = (text: string) => {
-    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
-    debounceTimerRef.current = setTimeout(() => {
+    if (debounceTimerRef.current != null) window.clearTimeout(debounceTimerRef.current)
+    debounceTimerRef.current = window.setTimeout(() => {
       debounceTimerRef.current = null
       const idx = selectedIndexRef.current
       if (idx === null) return
@@ -1343,11 +1360,6 @@ export default function CustomTransformerCodeTab({
   }
 
   const enabled = selectedConfig ? (selectedConfig.enabled ?? true) : true
-
-  const popoutTitle =
-    selectedConfig != null && selectedIndex !== null
-      ? `Code · ${labelCustomTransformer(selectedConfig, selectedIndex)}`
-      : 'Custom transformer code'
 
   const compileErrorPanel = compileError ? (
     <div
@@ -1458,7 +1470,7 @@ export default function CustomTransformerCodeTab({
           <div
             role="dialog"
             aria-modal="true"
-            aria-labelledby="custom-transformer-code-popout-title"
+            aria-label="Custom transformer code editor"
             data-testid="custom-transformer-code-popout-backdrop"
             style={{
               position: 'fixed',
@@ -1489,7 +1501,7 @@ export default function CustomTransformerCodeTab({
                   display: 'flex',
                   flexDirection: 'column',
                   boxShadow: 'none',
-                  overflow: 'hidden',
+                  overflow: 'visible',
                   boxSizing: 'border-box',
                 }}
                 onClick={(e) => e.stopPropagation()}
@@ -1503,7 +1515,7 @@ export default function CustomTransformerCodeTab({
                     display: 'flex',
                     flexDirection: 'row',
                     alignItems: 'center',
-                    justifyContent: 'space-between',
+                    justifyContent: 'flex-start',
                     flexShrink: 0,
                     gap: 12,
                     position: 'relative',
@@ -1511,28 +1523,23 @@ export default function CustomTransformerCodeTab({
                     overflow: 'visible',
                   }}
                 >
-                  <h2
-                    id="custom-transformer-code-popout-title"
-                    style={{
-                      margin: 0,
-                      fontSize: 15,
-                      fontWeight: 600,
-                      color: theme.text.primary,
-                      flex: '0 0 auto',
-                      minWidth: 0,
-                    }}
-                  >
-                    {popoutTitle}
-                  </h2>
                   <TransformerHorizontalTrace
                     transformers={list}
                     liveTraceSteps={liveTraceSteps}
                     headerRef={popoutHeaderRef}
                     onCommit={onTransformersCommit}
                     onSelectCode={handleSelectCodeFromTrace}
-                    selectedListIndex={selectedSlot?.index}
+                    selectedListIndex={selectedIndex ?? undefined}
                   />
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      flexShrink: 0,
+                      marginLeft: 'auto',
+                    }}
+                  >
                     <button
                       type="button"
                       data-testid="custom-transformer-code-popout-opaque-toggle"
