@@ -45,6 +45,7 @@ import {
 } from '@/runtime/customTransformerErrorBridge'
 import { addFullscreenChangeListener, getFullscreenElement } from '@/utils/fullscreenApi'
 import { isKeyboardEventInEditableContext } from '@/input/rawInput'
+import { clamp } from '@/utils/numberUtils'
 
 /**
  * Portal root for transformer code pop-out.
@@ -100,6 +101,12 @@ function useBuilderHeaderBottomInsetPx(active: boolean): number {
 }
 
 const CODE_DEBOUNCE_MS = 350
+
+/** Pop-out horizontal split (code ↔ docs): drag handle and stored panel width (`localStorage`). */
+const POPOUT_DOCS_SPLIT_MIN_PX = 300
+const POPOUT_DOCS_SPLIT_CODE_MIN_PX = 260
+const POPOUT_DOCS_SPLIT_HANDLE_PX = 6
+const POPOUT_DOCS_WIDTH_STORAGE_KEY = 'rennTransformerPopoutDocsWidthPx'
 
 /** Pipeline geometry — shared so ports, shafts, and chevrons stay on one horizontal axis. */
 const PIPELINE_AXIS_Y = 7
@@ -1042,11 +1049,16 @@ export default function CustomTransformerCodeTab({
   const [codePopoutOpen, setCodePopoutOpen] = useState(false)
   const [codePopoutOpaque, setCodePopoutOpaque] = useState(false)
   const [docsOpenInPopout, setDocsOpenInPopout] = useState(false)
+  const [popoutDocsWidthPx, setPopoutDocsWidthPx] = useState(0)
   const [docsAreaWidth, setDocsAreaWidth] = useState(0)
   const builderHeaderBottomInsetPx = useBuilderHeaderBottomInsetPx(codePopoutOpen)
 
   const popoutHeaderRef = useRef<HTMLDivElement>(null)
+  const popoutSplitRowRef = useRef<HTMLDivElement>(null)
   const docsContainerRef = useRef<HTMLDivElement>(null)
+  const popoutDocsWidthRef = useRef(0)
+  const popoutDocsSplitDragRef = useRef<{ startX: number; startWidth: number } | null>(null)
+  popoutDocsWidthRef.current = popoutDocsWidthPx
   const codePopoutOpenRef = useRef(false)
   const popoutFirstOpenRefreshDoneRef = useRef(false)
   const firstOpenRefreshTimeoutRef = useRef<number | null>(null)
@@ -1149,6 +1161,108 @@ export default function CustomTransformerCodeTab({
     ro.observe(el)
     return () => ro.disconnect()
   }, [codePopoutOpen, docsOpenInPopout])
+
+  useLayoutEffect(() => {
+    if (!codePopoutOpen || !docsOpenInPopout || typeof window === 'undefined') return
+    const row = popoutSplitRowRef.current
+    if (!row) return
+
+    const readBounds = () => {
+      const inner = Math.max(0, row.clientWidth - POPOUT_DOCS_SPLIT_HANDLE_PX)
+      const maxDocs = Math.max(POPOUT_DOCS_SPLIT_MIN_PX, inner - POPOUT_DOCS_SPLIT_CODE_MIN_PX)
+      return { inner, maxDocs, minDocs: POPOUT_DOCS_SPLIT_MIN_PX }
+    }
+
+    const applySizing = (): void => {
+      if (popoutDocsSplitDragRef.current !== null) return
+      const bounds = readBounds()
+      setPopoutDocsWidthPx(prev => {
+        let next =
+          prev > 0 && Number.isFinite(prev)
+            ? prev
+            : (() => {
+                try {
+                  const raw = window.localStorage.getItem(POPOUT_DOCS_WIDTH_STORAGE_KEY)
+                  const stored = Number(raw)
+                  return Number.isFinite(stored) ? stored : NaN
+                } catch {
+                  return NaN
+                }
+              })()
+        if (!(next > 0 && Number.isFinite(next))) {
+          next = Math.round(bounds.inner * 0.4)
+        }
+        return clamp(next, bounds.minDocs, bounds.maxDocs)
+      })
+    }
+
+    applySizing()
+    const ro = new ResizeObserver(applySizing)
+    ro.observe(row)
+    return () => ro.disconnect()
+  }, [codePopoutOpen, docsOpenInPopout])
+
+  const handlePopoutDocsSplitMouseDown = useCallback((e: ReactMouseEvent<HTMLDivElement>): void => {
+    e.preventDefault()
+    if (!docsOpenInPopout) return
+    const row = popoutSplitRowRef.current
+    if (!row || row.clientWidth <= 0) return
+
+    const inner = Math.max(0, row.clientWidth - POPOUT_DOCS_SPLIT_HANDLE_PX)
+    const maxDocs = Math.max(POPOUT_DOCS_SPLIT_MIN_PX, inner - POPOUT_DOCS_SPLIT_CODE_MIN_PX)
+
+    const docsMeas = docsContainerRef.current?.getBoundingClientRect()
+    const roundedMeas =
+      docsMeas != null && docsMeas.width > 0 ?
+        Math.round(docsMeas.width)
+      : 0
+    const startBase =
+      roundedMeas >= POPOUT_DOCS_SPLIT_MIN_PX ?
+        roundedMeas
+      : Math.round(Math.max(popoutDocsWidthRef.current || 0, POPOUT_DOCS_SPLIT_MIN_PX))
+
+    const startWidth = clamp(startBase, POPOUT_DOCS_SPLIT_MIN_PX, maxDocs)
+
+    popoutDocsSplitDragRef.current = { startX: e.clientX, startWidth }
+
+    let lastCommitted = startWidth
+
+    const onMove = (move: MouseEvent): void => {
+      const data = popoutDocsSplitDragRef.current
+      if (data == null) return
+
+      const r = popoutSplitRowRef.current
+      if (!r || r.clientWidth <= 0) return
+      const inW = Math.max(0, r.clientWidth - POPOUT_DOCS_SPLIT_HANDLE_PX)
+      const max = Math.max(POPOUT_DOCS_SPLIT_MIN_PX, inW - POPOUT_DOCS_SPLIT_CODE_MIN_PX)
+
+      /** Mouse left ⇒ wider docs column (narrower code); mouse right ⇒ narrower docs — divider follows natural drag direction. */
+      const dx = move.clientX - data.startX
+      const next = clamp(data.startWidth - dx, POPOUT_DOCS_SPLIT_MIN_PX, max)
+      popoutDocsWidthRef.current = next
+      lastCommitted = next
+      setPopoutDocsWidthPx(next)
+    }
+
+    const onUp = (): void => {
+      popoutDocsSplitDragRef.current = null
+      document.body.style.removeProperty('cursor')
+      document.body.style.removeProperty('user-select')
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+      try {
+        window.localStorage.setItem(POPOUT_DOCS_WIDTH_STORAGE_KEY, String(lastCommitted))
+      } catch {
+        /* ignore quota / privacy mode */
+      }
+    }
+
+    document.body.style.cursor = 'ew-resize'
+    document.body.style.userSelect = 'none'
+
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }, [docsOpenInPopout])
 
   const flushPendingCode = useCallback(() => {
     if (debounceTimerRef.current != null) {
@@ -1639,67 +1753,110 @@ export default function CustomTransformerCodeTab({
                   </div>
                 </div>
               <div
-                data-testid="custom-transformer-code-popout-body"
                 style={{
                   flex: 1,
                   minHeight: 0,
                   display: 'flex',
-                  flexDirection: 'row',
+                  flexDirection: 'column',
                   padding: 16,
                   overflow: 'hidden',
-                  gap: docsOpenInPopout ? 16 : 0,
+                  boxSizing: 'border-box',
                 }}
               >
                 <div
+                  ref={popoutSplitRowRef}
+                  data-testid="custom-transformer-code-popout-body"
                   style={{
-                    flex: docsOpenInPopout ? '1 1 60%' : '1 1 100%',
+                    flex: 1,
                     minHeight: 0,
+                    minWidth: 0,
                     display: 'flex',
-                    flexDirection: 'column',
+                    flexDirection: 'row',
                     overflow: 'hidden',
                   }}
                 >
                   <div
                     style={{
-                      flex: 1,
+                      flex:
+                        docsOpenInPopout ?
+                          popoutDocsWidthPx > 0 ?
+                            '1 1 0%'
+                          : '1 1 60%'
+                        : '1 1 100%',
+                      minWidth:
+                        docsOpenInPopout && popoutDocsWidthPx > 0 ?
+                          POPOUT_DOCS_SPLIT_CODE_MIN_PX
+                        : 0,
                       minHeight: 0,
                       display: 'flex',
                       flexDirection: 'column',
                       overflow: 'hidden',
                     }}
                   >
-                    <TransformerCustomCodeEditor
-                      layout="fill"
-                      transparent={!codePopoutOpaque}
-                      delayedLayoutMs={200}
-                      value={codeDraft}
-                      onChange={handleCodeChange}
-                      disabled={anyLocked}
-                    />
+                    <div
+                      style={{
+                        flex: 1,
+                        minHeight: 0,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      <TransformerCustomCodeEditor
+                        layout="fill"
+                        transparent={!codePopoutOpaque}
+                        delayedLayoutMs={200}
+                        value={codeDraft}
+                        onChange={handleCodeChange}
+                        disabled={anyLocked}
+                      />
+                    </div>
+                    {compileErrorPanel}
+                    {runtimeErrorPanel}
                   </div>
-                  {compileErrorPanel}
-                  {runtimeErrorPanel}
-                </div>
 
-                {docsOpenInPopout && (
-                  <div
-                    ref={docsContainerRef}
-                    style={{
-                      flex: '1 1 40%',
-                      minWidth: 300,
-                      minHeight: 0,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      overflow: 'hidden',
-                      background: theme.bg.panel,
-                      border: `1px solid ${theme.border.default}`,
-                      borderRadius: 8,
-                      padding: 16,
-                    }}
-                  >
-                    <TransformerDocsContent forceCollapsedChapters={docsAreaWidth < 500} />
-                  </div>
-                )}
+                  {docsOpenInPopout ?
+                    <>
+                      <div
+                        role="separator"
+                        aria-orientation="vertical"
+                        aria-label="Resize transformer documentation panel width"
+                        title="Drag to resize documentation panel width"
+                        data-testid="custom-transformer-code-popout-docs-split"
+                        onMouseDown={handlePopoutDocsSplitMouseDown}
+                        style={{
+                          flexShrink: 0,
+                          width: POPOUT_DOCS_SPLIT_HANDLE_PX,
+                          alignSelf: 'stretch',
+                          cursor: 'ew-resize',
+                          background: theme.border.default,
+                          borderRadius: 2,
+                          margin: '4px 0',
+                        }}
+                      />
+                      <div
+                        ref={docsContainerRef}
+                        style={{
+                          flex:
+                            popoutDocsWidthPx > 0 ? 'none' : '1 1 40%',
+                          width:
+                            popoutDocsWidthPx > 0 ? popoutDocsWidthPx : undefined,
+                          minWidth: POPOUT_DOCS_SPLIT_MIN_PX,
+                          minHeight: 0,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          overflow: 'hidden',
+                          background: theme.bg.panel,
+                          border: `1px solid ${theme.border.default}`,
+                          borderRadius: 8,
+                          padding: 16,
+                        }}
+                      >
+                        <TransformerDocsContent forceCollapsedChapters={docsAreaWidth < 500} />
+                      </div>
+                    </>
+                  : null}
+                </div>
               </div>
             </div>
           </div>,
