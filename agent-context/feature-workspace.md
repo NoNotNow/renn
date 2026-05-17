@@ -54,6 +54,8 @@ Scripts use `world.scripts: Record<string, ScriptDef>` with `entity.scripts: str
 Three scope subtabs: **Global**, **Project**, **Entity**.
 
 Each scope has **Transformers** and **Scripts** sub-tabs. Items appear as **cards**:
+- Cards of the same type (e.g. same event for scripts, or same name/type for transformers) are **stacked** by default to save space.
+- Clicking a stack expands it to show all individual cards side-by-side.
 - Card content: title (ID/name), type / event, usage count (how many entities reference it).
 - Card actions: **Edit** (opens Transformers or Scripts tab with item selected), **Delete**,
   **Copy**, **Move** (scope reassignment — see R5), **Assign** (to entities, where applicable).

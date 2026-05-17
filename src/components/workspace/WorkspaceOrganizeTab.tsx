@@ -134,6 +134,7 @@ export default function WorkspaceOrganizeTab({
 
   const [scope, setScope] = useState<WorkspaceOrganizeScope>('project')
   const [kind, setKind] = useState<WorkspaceOrganizeKind>('transformers')
+  const [expandedTypes, setExpandedTypes] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     if (entry?.tab === 'organize' && entry.organize) {
@@ -141,6 +142,10 @@ export default function WorkspaceOrganizeTab({
       setKind(entry.organize.kind)
     }
   }, [entry?.tab, entry?.organize?.scope, entry?.organize?.kind])
+
+  useEffect(() => {
+    setExpandedTypes(new Set())
+  }, [scope, kind])
 
   const syncOrganize = useCallback(
     (nextScope: WorkspaceOrganizeScope, nextKind: WorkspaceOrganizeKind) => {
@@ -174,6 +179,39 @@ export default function WorkspaceOrganizeTab({
     }
     return Object.keys(transformers).sort()
   }, [scope, entityIntersectionTransformerIds, transformers, globalTransformers])
+
+  const toggleTypeExpanded = (type: string) => {
+    setExpandedTypes((prev) => {
+      const next = new Set(prev)
+      if (next.has(type)) next.delete(type)
+      else next.add(type)
+      return next
+    })
+  }
+
+  const groupedScripts = useMemo(() => {
+    const registry = scope === 'global' ? globalScripts : scripts
+    const groups: Record<string, string[]> = {}
+    for (const id of scriptIdsForCards) {
+      const def = getScriptDef(registry, id)
+      const title = getScriptEventLabel(def)
+      if (!groups[title]) groups[title] = []
+      groups[title].push(id)
+    }
+    return groups
+  }, [scriptIdsForCards, scope, globalScripts, scripts])
+
+  const groupedTransformers = useMemo(() => {
+    const registry = scope === 'global' ? globalTransformers : transformers
+    const groups: Record<string, string[]> = {}
+    for (const id of transformerIdsForCards) {
+      const def = registry[id]!
+      const title = def.name || def.type
+      if (!groups[title]) groups[title] = []
+      groups[title].push(id)
+    }
+    return groups
+  }, [transformerIdsForCards, scope, globalTransformers, transformers])
 
   const [assignTarget, setAssignTarget] = useState<AssignTarget | null>(null)
   const [assignSelection, setAssignSelection] = useState<Set<string>>(new Set())
@@ -679,140 +717,256 @@ export default function WorkspaceOrganizeTab({
         )}
         {kind === 'scripts' &&
           scope === 'global' &&
-          scriptIdsForCards.map((id) => {
-            const def = getScriptDef(globalScripts, id)
-            const subtitle = getScriptEventLabel(def)
-            const inProject = scripts[id] != null
-            const users = inProject ? getEntitiesUsingScript(world, id) : []
-            const usageLine = inProject
-              ? `Also in this world · used by ${users.length} entity(ies)`
-              : 'Not in this world yet'
-            const assignments = users.map((u) => ({ id: u.id, name: u.name ?? u.id }))
-            return (
-              <WorkspaceOrganizeCard
-                key={id}
-                title={subtitle}
-                subtitle={id}
-                usageLine={usageLine}
-                assignments={assignments}
-                showAssign={showGlobalActions}
-                showDetach={false}
-                showDelete={showGlobalActions}
-                showCopy={showGlobalActions}
-                showRename={showGlobalActions}
-                onEdit={() => handleEdit('scripts', id, 'global')}
-                onAssign={() => handleAssignFromGlobal('scripts', id)}
-                onDetach={() => {}}
-                onCopy={() => handleCopyGlobalScriptToProject(id)}
-                onRename={() => handleRenameGlobalScript(id)}
-                onDelete={() => handleDeleteGlobalScript(id)}
-                onSelectEntity={(eid) => handleEntityLinkClick(eid, id, 'scripts', 'global')}
-                testId={`workspace-organize-card-global-script-${id}`}
-              />
-            )
+          Object.entries(groupedScripts).map(([title, ids]) => {
+            const isExpanded = expandedTypes.has(title)
+            if (ids.length > 1 && !isExpanded) {
+              return (
+                <WorkspaceOrganizeCard
+                  key={`stack-script-${title}`}
+                  title={title}
+                  subtitle={`${ids.length} scripts`}
+                  usageLine="Click to expand"
+                  assignments={[]}
+                  showAssign={false}
+                  showDetach={false}
+                  showDelete={false}
+                  showCopy={false}
+                  showRename={false}
+                  onEdit={() => {}}
+                  onAssign={() => {}}
+                  onDetach={() => {}}
+                  onCopy={() => {}}
+                  onRename={() => {}}
+                  onDelete={() => {}}
+                  stackCount={ids.length}
+                  onExpand={() => toggleTypeExpanded(title)}
+                  testId={`workspace-organize-stack-global-script-${title}`}
+                />
+              )
+            }
+            return ids.map((id) => {
+              const def = getScriptDef(globalScripts, id)
+              const subtitle = getScriptEventLabel(def)
+              const inProject = scripts[id] != null
+              const users = inProject ? getEntitiesUsingScript(world, id) : []
+              const usageLine = inProject
+                ? `Also in this world · used by ${users.length} entity(ies)`
+                : 'Not in this world yet'
+              const assignments = users.map((u) => ({ id: u.id, name: u.name ?? u.id }))
+              return (
+                <WorkspaceOrganizeCard
+                  key={id}
+                  title={subtitle}
+                  subtitle={id}
+                  usageLine={usageLine}
+                  assignments={assignments}
+                  showAssign={showGlobalActions}
+                  showDetach={false}
+                  showDelete={showGlobalActions}
+                  showCopy={showGlobalActions}
+                  showRename={showGlobalActions}
+                  onEdit={() => handleEdit('scripts', id, 'global')}
+                  onAssign={() => handleAssignFromGlobal('scripts', id)}
+                  onDetach={() => {}}
+                  onCopy={() => handleCopyGlobalScriptToProject(id)}
+                  onRename={() => handleRenameGlobalScript(id)}
+                  onDelete={() => handleDeleteGlobalScript(id)}
+                  onSelectEntity={(eid) => handleEntityLinkClick(eid, id, 'scripts', 'global')}
+                  testId={`workspace-organize-card-global-script-${id}`}
+                  onRegroup={isExpanded ? () => toggleTypeExpanded(title) : undefined}
+                />
+              )
+            })
           })}
         {kind === 'transformers' &&
           scope === 'global' &&
-          transformerIdsForCards.map((id) => {
-            const def = globalTransformers[id]!
-            const title = def.name || def.type
-            const subtitle = `${id}${def.enabled === false ? ' · disabled' : ''}`
-            const inProject = transformers[id] != null
-            const users = inProject ? getEntitiesUsingTransformer(world, id) : []
-            const usageLine = inProject
-              ? `Also in this world · used by ${users.length} entity(ies)`
-              : 'Not in this world yet'
-            const assignments = users.map((u) => ({ id: u.id, name: u.name ?? u.id }))
-            return (
-              <WorkspaceOrganizeCard
-                key={id}
-                title={title}
-                subtitle={subtitle}
-                usageLine={usageLine}
-                assignments={assignments}
-                showAssign={showGlobalActions}
-                showDetach={false}
-                showDelete={showGlobalActions}
-                showCopy={showGlobalActions}
-                showRename={showGlobalActions}
-                onEdit={() => handleEdit('transformers', id, 'global')}
-                onAssign={() => handleAssignFromGlobal('transformers', id)}
-                onDetach={() => {}}
-                onCopy={() => handleCopyGlobalTransformerToProject(id)}
-                onRename={() => handleRenameGlobalTransformer(id)}
-                onDelete={() => handleDeleteGlobalTransformer(id)}
-                onSelectEntity={(eid) => handleEntityLinkClick(eid, id, 'transformers', 'global')}
-                testId={`workspace-organize-card-global-tf-${id}`}
-              />
-            )
+          Object.entries(groupedTransformers).map(([title, ids]) => {
+            const isExpanded = expandedTypes.has(title)
+            if (ids.length > 1 && !isExpanded) {
+              return (
+                <WorkspaceOrganizeCard
+                  key={`stack-tf-${title}`}
+                  title={title}
+                  subtitle={`${ids.length} transformers`}
+                  usageLine="Click to expand"
+                  assignments={[]}
+                  showAssign={false}
+                  showDetach={false}
+                  showDelete={false}
+                  showCopy={false}
+                  showRename={false}
+                  onEdit={() => {}}
+                  onAssign={() => {}}
+                  onDetach={() => {}}
+                  onCopy={() => {}}
+                  onRename={() => {}}
+                  onDelete={() => {}}
+                  stackCount={ids.length}
+                  onExpand={() => toggleTypeExpanded(title)}
+                  testId={`workspace-organize-stack-global-tf-${title}`}
+                />
+              )
+            }
+            return ids.map((id) => {
+              const def = globalTransformers[id]!
+              const title = def.name || def.type
+              const subtitle = `${id}${def.enabled === false ? ' · disabled' : ''}`
+              const inProject = transformers[id] != null
+              const users = inProject ? getEntitiesUsingTransformer(world, id) : []
+              const usageLine = inProject
+                ? `Also in this world · used by ${users.length} entity(ies)`
+                : 'Not in this world yet'
+              const assignments = users.map((u) => ({ id: u.id, name: u.name ?? u.id }))
+              return (
+                <WorkspaceOrganizeCard
+                  key={id}
+                  title={title}
+                  subtitle={subtitle}
+                  usageLine={usageLine}
+                  assignments={assignments}
+                  showAssign={showGlobalActions}
+                  showDetach={false}
+                  showDelete={showGlobalActions}
+                  showCopy={showGlobalActions}
+                  showRename={showGlobalActions}
+                  onEdit={() => handleEdit('transformers', id, 'global')}
+                  onAssign={() => handleAssignFromGlobal('transformers', id)}
+                  onDetach={() => {}}
+                  onCopy={() => handleCopyGlobalTransformerToProject(id)}
+                  onRename={() => handleRenameGlobalTransformer(id)}
+                  onDelete={() => handleDeleteGlobalTransformer(id)}
+                  onSelectEntity={(eid) => handleEntityLinkClick(eid, id, 'transformers', 'global')}
+                  testId={`workspace-organize-card-global-tf-${id}`}
+                  onRegroup={isExpanded ? () => toggleTypeExpanded(title) : undefined}
+                />
+              )
+            })
           })}
         {kind === 'scripts' &&
           scope !== 'global' &&
-          scriptIdsForCards.map((id) => {
-            const def = getScriptDef(scripts, id)
-            const users = getEntitiesUsingScript(world, id)
-            const title = getScriptEventLabel(def)
-            const subtitle = id
-            const usageLine = `Used by ${users.length} entity(ies)`
-            const assignments = users.map((u) => ({ id: u.id, name: u.name ?? u.id }))
-            return (
-              <WorkspaceOrganizeCard
-                key={id}
-                title={title}
-                subtitle={subtitle}
-                usageLine={usageLine}
-                assignments={assignments}
-                showAssign={showProjectActions}
-                showDetach={showEntityActions}
-                showDelete={showProjectActions}
-                showCopy={showProjectActions}
-                showRename={showProjectActions}
-                showPromote={showProjectActions}
-                onEdit={() => handleEdit('scripts', id)}
-                onAssign={() => openAssign({ registry: 'scripts', id })}
-                onDetach={() => handleDetachScript(id)}
-                onCopy={() => handleCopyScript(id)}
-                onRename={() => handleRenameScript(id)}
-                onDelete={() => handleDeleteScript(id)}
-                onPromote={() => handlePromoteScriptToGlobal(id)}
-                onSelectEntity={(eid) => handleEntityLinkClick(eid, id, 'scripts', 'project')}
-                testId={`workspace-organize-card-script-${id}`}
-              />
-            )
+          Object.entries(groupedScripts).map(([title, ids]) => {
+            const isExpanded = expandedTypes.has(title)
+            if (ids.length > 1 && !isExpanded) {
+              return (
+                <WorkspaceOrganizeCard
+                  key={`stack-script-${title}`}
+                  title={title}
+                  subtitle={`${ids.length} scripts`}
+                  usageLine="Click to expand"
+                  assignments={[]}
+                  showAssign={false}
+                  showDetach={false}
+                  showDelete={false}
+                  showCopy={false}
+                  showRename={false}
+                  onEdit={() => {}}
+                  onAssign={() => {}}
+                  onDetach={() => {}}
+                  onCopy={() => {}}
+                  onRename={() => {}}
+                  onDelete={() => {}}
+                  stackCount={ids.length}
+                  onExpand={() => toggleTypeExpanded(title)}
+                  testId={`workspace-organize-stack-script-${title}`}
+                />
+              )
+            }
+            return ids.map((id) => {
+              const def = getScriptDef(scripts, id)
+              const users = getEntitiesUsingScript(world, id)
+              const title = getScriptEventLabel(def)
+              const subtitle = id
+              const usageLine = `Used by ${users.length} entity(ies)`
+              const assignments = users.map((u) => ({ id: u.id, name: u.name ?? u.id }))
+              return (
+                <WorkspaceOrganizeCard
+                  key={id}
+                  title={title}
+                  subtitle={subtitle}
+                  usageLine={usageLine}
+                  assignments={assignments}
+                  showAssign={showProjectActions}
+                  showDetach={showEntityActions}
+                  showDelete={showProjectActions}
+                  showCopy={showProjectActions}
+                  showRename={showProjectActions}
+                  showPromote={showProjectActions}
+                  onEdit={() => handleEdit('scripts', id)}
+                  onAssign={() => openAssign({ registry: 'scripts', id })}
+                  onDetach={() => handleDetachScript(id)}
+                  onCopy={() => handleCopyScript(id)}
+                  onRename={() => handleRenameScript(id)}
+                  onDelete={() => handleDeleteScript(id)}
+                  onPromote={() => handlePromoteScriptToGlobal(id)}
+                  onSelectEntity={(eid) => handleEntityLinkClick(eid, id, 'scripts', 'project')}
+                  testId={`workspace-organize-card-script-${id}`}
+                  onRegroup={isExpanded ? () => toggleTypeExpanded(title) : undefined}
+                />
+              )
+            })
           })}
         {kind === 'transformers' &&
           scope !== 'global' &&
-          transformerIdsForCards.map((id) => {
-            const def = transformers[id]!
-            const title = def.name || def.type
-            const subtitle = `${id}${def.enabled === false ? ' · disabled' : ''}`
-            const users = getEntitiesUsingTransformer(world, id)
-            const usageLine = `Used by ${users.length} entity(ies)`
-            const assignments = users.map((u) => ({ id: u.id, name: u.name ?? u.id }))
-            return (
-              <WorkspaceOrganizeCard
-                key={id}
-                title={title}
-                subtitle={subtitle}
-                usageLine={usageLine}
-                assignments={assignments}
-                showAssign={showProjectActions}
-                showDetach={showEntityActions}
-                showDelete={showProjectActions}
-                showCopy={showProjectActions}
-                showRename={showProjectActions}
-                showPromote={showProjectActions}
-                onEdit={() => handleEdit('transformers', id)}
-                onAssign={() => openAssign({ registry: 'transformers', id })}
-                onDetach={() => handleDetachTransformer(id)}
-                onCopy={() => handleCopyTransformer(id)}
-                onRename={() => handleRenameTransformer(id)}
-                onDelete={() => handleDeleteTransformer(id)}
-                onPromote={() => handlePromoteTransformerToGlobal(id)}
-                onSelectEntity={(eid) => handleEntityLinkClick(eid, id, 'transformers', 'project')}
-                testId={`workspace-organize-card-tf-${id}`}
-              />
-            )
+          Object.entries(groupedTransformers).map(([title, ids]) => {
+            const isExpanded = expandedTypes.has(title)
+            if (ids.length > 1 && !isExpanded) {
+              return (
+                <WorkspaceOrganizeCard
+                  key={`stack-tf-${title}`}
+                  title={title}
+                  subtitle={`${ids.length} transformers`}
+                  usageLine="Click to expand"
+                  assignments={[]}
+                  showAssign={false}
+                  showDetach={false}
+                  showDelete={false}
+                  showCopy={false}
+                  showRename={false}
+                  onEdit={() => {}}
+                  onAssign={() => {}}
+                  onDetach={() => {}}
+                  onCopy={() => {}}
+                  onRename={() => {}}
+                  onDelete={() => {}}
+                  stackCount={ids.length}
+                  onExpand={() => toggleTypeExpanded(title)}
+                  testId={`workspace-organize-stack-tf-${title}`}
+                />
+              )
+            }
+            return ids.map((id) => {
+              const def = transformers[id]!
+              const title = def.name || def.type
+              const subtitle = `${id}${def.enabled === false ? ' · disabled' : ''}`
+              const users = getEntitiesUsingTransformer(world, id)
+              const usageLine = `Used by ${users.length} entity(ies)`
+              const assignments = users.map((u) => ({ id: u.id, name: u.name ?? u.id }))
+              return (
+                <WorkspaceOrganizeCard
+                  key={id}
+                  title={title}
+                  subtitle={subtitle}
+                  usageLine={usageLine}
+                  assignments={assignments}
+                  showAssign={showProjectActions}
+                  showDetach={showEntityActions}
+                  showDelete={showProjectActions}
+                  showCopy={showProjectActions}
+                  showRename={showProjectActions}
+                  showPromote={showProjectActions}
+                  onEdit={() => handleEdit('transformers', id)}
+                  onAssign={() => openAssign({ registry: 'transformers', id })}
+                  onDetach={() => handleDetachTransformer(id)}
+                  onCopy={() => handleCopyTransformer(id)}
+                  onRename={() => handleRenameTransformer(id)}
+                  onDelete={() => handleDeleteTransformer(id)}
+                  onPromote={() => handlePromoteTransformerToGlobal(id)}
+                  onSelectEntity={(eid) => handleEntityLinkClick(eid, id, 'transformers', 'project')}
+                  testId={`workspace-organize-card-tf-${id}`}
+                  onRegroup={isExpanded ? () => toggleTypeExpanded(title) : undefined}
+                />
+              )
+            })
           })}
         {kind === 'scripts' && scriptIdsForCards.length === 0 && scope === 'global' && (
           <div style={{ gridColumn: '1 / -1', color: theme.text.muted, fontSize: 13 }}>

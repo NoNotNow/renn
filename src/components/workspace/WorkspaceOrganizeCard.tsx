@@ -48,6 +48,9 @@ export interface WorkspaceOrganizeCardProps {
   onPromote?: () => void
   onSelectEntity?: (id: string) => void
   testId?: string
+  stackCount?: number
+  onExpand?: () => void
+  onRegroup?: () => void
 }
 
 export default function WorkspaceOrganizeCard({
@@ -70,10 +73,82 @@ export default function WorkspaceOrganizeCard({
   onPromote,
   onSelectEntity,
   testId,
+  stackCount = 0,
+  onExpand,
+  onRegroup,
 }: WorkspaceOrganizeCardProps) {
+  const isStack = stackCount > 1
+
   return (
-    <div style={cardStyle} data-testid={testId}>
-      <div style={{ minWidth: 0 }}>
+    <div
+      style={{
+        ...cardStyle,
+        cursor: isStack ? 'pointer' : 'default',
+        position: 'relative',
+        ...(isStack
+          ? {
+              boxShadow: `4px 4px 0 ${theme.bg.panel}, 8px 8px 0 ${theme.border.default}`,
+              marginRight: 8,
+              marginBottom: 8,
+            }
+          : {}),
+      }}
+      data-testid={testId}
+      onClick={isStack ? onExpand : undefined}
+    >
+      {isStack && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 8,
+            right: 8,
+            background: 'rgba(255, 255, 255, 0.1)',
+            color: 'white',
+            fontSize: 10,
+            fontWeight: 'bold',
+            padding: '2px 6px',
+            borderRadius: 10,
+            zIndex: 1,
+            border: '1px solid white',
+          }}
+        >
+          {stackCount}
+        </div>
+      )}
+      {!isStack && onRegroup && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            onRegroup()
+          }}
+          style={{
+            position: 'absolute',
+            top: 6,
+            right: 6,
+            background: 'none',
+            border: 'none',
+            padding: 4,
+            cursor: 'pointer',
+            color: theme.text.muted,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderRadius: 4,
+          }}
+          title="Regroup items"
+          onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)')}
+          onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="3" width="7" height="7" />
+            <rect x="14" y="3" width="7" height="7" />
+            <rect x="14" y="14" width="7" height="7" />
+            <rect x="3" y="14" width="7" height="7" />
+          </svg>
+        </button>
+      )}
+      <div style={{ minWidth: 0, opacity: isStack ? 0.8 : 1, paddingRight: isStack || onRegroup ? 24 : 0 }}>
         <div
           style={{
             fontSize: 13,
