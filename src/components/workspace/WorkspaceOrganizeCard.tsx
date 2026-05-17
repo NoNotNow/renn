@@ -32,7 +32,7 @@ export interface WorkspaceOrganizeCardProps {
   title: string
   subtitle: string
   usageLine: string
-  assignments: string[]
+  assignments: { id: string; name: string }[]
   showAssign: boolean
   showDetach: boolean
   showDelete: boolean
@@ -46,6 +46,7 @@ export interface WorkspaceOrganizeCardProps {
   onRename: () => void
   onDelete: () => void
   onPromote?: () => void
+  onSelectEntity?: (id: string) => void
   testId?: string
 }
 
@@ -67,6 +68,7 @@ export default function WorkspaceOrganizeCard({
   onRename,
   onDelete,
   onPromote,
+  onSelectEntity,
   testId,
 }: WorkspaceOrganizeCardProps) {
   return (
@@ -89,8 +91,41 @@ export default function WorkspaceOrganizeCard({
         <div style={{ fontSize: 11, color: theme.text.secondary, marginTop: 6 }}>{usageLine}</div>
       </div>
       {assignments.length > 0 && (
-        <div style={{ fontSize: 11, color: theme.text.dim, lineHeight: 1.4, maxHeight: 56, overflow: 'auto' }}>
-          {assignments.join(', ')}
+        <div
+          style={{
+            fontSize: 11,
+            color: theme.text.dim,
+            lineHeight: 1.4,
+            maxHeight: 56,
+            overflow: 'auto',
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '0 4px',
+          }}
+        >
+          {assignments.map((u, i) => (
+            <span key={u.id}>
+              <button
+                type="button"
+                onClick={() => onSelectEntity?.(u.id)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  padding: 0,
+                  margin: 0,
+                  fontSize: 'inherit',
+                  color: onSelectEntity ? theme.accent : 'inherit',
+                  cursor: onSelectEntity ? 'pointer' : 'default',
+                  textDecoration: onSelectEntity ? 'underline' : 'none',
+                  textAlign: 'left',
+                }}
+                title={`Select entity: ${u.name} (${u.id})`}
+              >
+                {u.name}
+              </button>
+              {i < assignments.length - 1 ? ',' : ''}
+            </span>
+          ))}
         </div>
       )}
       <div style={actionRowStyle}>

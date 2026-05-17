@@ -1292,6 +1292,7 @@ export default function Builder() {
                     onOpenTextureStudio={activateTextureStudioForEntity}
                     onAfterModelPresetApply={handleAfterModelPresetApply}
                     onTransformerCodePopoutOpen={collapseSideDrawers}
+                    onSelectEntity={handleSelectEntity}
                   />
                 )}
               </LivePosesPoll>
@@ -1365,6 +1366,7 @@ export default function Builder() {
                   onOpenTextureStudio={activateTextureStudioForEntity}
                   onAfterModelPresetApply={handleAfterModelPresetApply}
                   onTransformerCodePopoutOpen={collapseSideDrawers}
+                  onSelectEntity={handleSelectEntity}
                 />
               )}
             </LivePosesPoll>

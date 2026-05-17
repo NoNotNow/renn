@@ -32,6 +32,7 @@ export interface CodingTabPanelProps {
   onTransformerCodePopoutOpen?: () => void
   /** Snap live pose to each entity’s saved world position and rotation (same as properties tab strip). */
   onResetPoseToSavedWorld?: (entityIds: string[]) => void
+  onSelectEntity?: (id: string) => void
 }
 
 /** Matches the icon tab strip in `SidebarTabs` so the Code drawer feels one piece with the right sidebar. */
@@ -128,6 +129,7 @@ export default function CodingTabPanel({
   onEntityTransformersChange,
   onTransformerCodePopoutOpen,
   onResetPoseToSavedWorld,
+  onSelectEntity,
 }: CodingTabPanelProps) {
   const [rawSubgroup, setRawSubgroup] = useLocalStorageState<string>(
     BUILDER_CODING_SUBTAB_KEY,
@@ -418,6 +420,7 @@ export default function CodingTabPanel({
         onResetPoseToSavedWorld={onResetPoseToSavedWorld}
         canResetPoseToSaved={canResetPoseToSaved}
         resetPoseTitle={resetPoseTitle}
+        onSelectEntity={onSelectEntity}
       />
     </div>
   )

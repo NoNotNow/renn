@@ -107,6 +107,7 @@ export interface WorkspaceOrganizeTabProps {
   onOrganizeContextChange?: (scope: WorkspaceOrganizeScope, kind: WorkspaceOrganizeKind) => void
   globalLibrary: GlobalBehaviorLibrary
   onGlobalLibraryChange: (next: GlobalBehaviorLibrary) => void
+  onSelectEntity?: (id: string) => void
 }
 
 export default function WorkspaceOrganizeTab({
@@ -118,6 +119,7 @@ export default function WorkspaceOrganizeTab({
   onOrganizeContextChange,
   globalLibrary,
   onGlobalLibraryChange,
+  onSelectEntity,
 }: WorkspaceOrganizeTabProps) {
   const undo = useEditorUndo()
   const pushUndo = () => undo?.pushBeforeEdit()
@@ -672,7 +674,7 @@ export default function WorkspaceOrganizeTab({
             const usageLine = inProject
               ? `Also in this world · used by ${users.length} entity(ies)`
               : 'Not in this world yet'
-            const assignments = users.map((u) => u.name ?? u.id)
+            const assignments = users.map((u) => ({ id: u.id, name: u.name ?? u.id }))
             return (
               <WorkspaceOrganizeCard
                 key={id}
@@ -691,6 +693,7 @@ export default function WorkspaceOrganizeTab({
                 onCopy={() => handleCopyGlobalScriptToProject(id)}
                 onRename={() => handleRenameGlobalScript(id)}
                 onDelete={() => handleDeleteGlobalScript(id)}
+                onSelectEntity={onSelectEntity}
                 testId={`workspace-organize-card-global-script-${id}`}
               />
             )
@@ -705,7 +708,7 @@ export default function WorkspaceOrganizeTab({
             const usageLine = inProject
               ? `Also in this world · used by ${users.length} entity(ies)`
               : 'Not in this world yet'
-            const assignments = users.map((u) => u.name ?? u.id)
+            const assignments = users.map((u) => ({ id: u.id, name: u.name ?? u.id }))
             return (
               <WorkspaceOrganizeCard
                 key={id}
@@ -724,6 +727,7 @@ export default function WorkspaceOrganizeTab({
                 onCopy={() => handleCopyGlobalTransformerToProject(id)}
                 onRename={() => handleRenameGlobalTransformer(id)}
                 onDelete={() => handleDeleteGlobalTransformer(id)}
+                onSelectEntity={onSelectEntity}
                 testId={`workspace-organize-card-global-tf-${id}`}
               />
             )
@@ -735,7 +739,7 @@ export default function WorkspaceOrganizeTab({
             const users = getEntitiesUsingScript(world, id)
             const subtitle = getScriptEventLabel(def)
             const usageLine = `Used by ${users.length} entity(ies)`
-            const assignments = users.map((u) => u.name ?? u.id)
+            const assignments = users.map((u) => ({ id: u.id, name: u.name ?? u.id }))
             return (
               <WorkspaceOrganizeCard
                 key={id}
@@ -756,6 +760,7 @@ export default function WorkspaceOrganizeTab({
                 onRename={() => handleRenameScript(id)}
                 onDelete={() => handleDeleteScript(id)}
                 onPromote={() => handlePromoteScriptToGlobal(id)}
+                onSelectEntity={onSelectEntity}
                 testId={`workspace-organize-card-script-${id}`}
               />
             )
@@ -767,7 +772,7 @@ export default function WorkspaceOrganizeTab({
             const subtitle = `${def.type}${def.enabled === false ? ' · disabled' : ''}`
             const users = getEntitiesUsingTransformer(world, id)
             const usageLine = `Used by ${users.length} entity(ies)`
-            const assignments = users.map((u) => u.name ?? u.id)
+            const assignments = users.map((u) => ({ id: u.id, name: u.name ?? u.id }))
             return (
               <WorkspaceOrganizeCard
                 key={id}
@@ -788,6 +793,7 @@ export default function WorkspaceOrganizeTab({
                 onRename={() => handleRenameTransformer(id)}
                 onDelete={() => handleDeleteTransformer(id)}
                 onPromote={() => handlePromoteTransformerToGlobal(id)}
+                onSelectEntity={onSelectEntity}
                 testId={`workspace-organize-card-tf-${id}`}
               />
             )

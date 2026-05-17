@@ -33,6 +33,7 @@ export interface EntityCameraPanelProps {
   onWorldChange: (world: RennWorld) => void
   /** Builder: read live follow/orbit state for "save as default" in Avatar dialog. */
   getAvatarFocusSnapshot?: () => AvatarFocusSnapshot | null
+  onSelectEntity?: (id: string | null) => void
 }
 
 /**
@@ -52,6 +53,7 @@ export default function EntityCameraPanel({
   onCameraTargetVerticalAngleChange,
   onWorldChange,
   getAvatarFocusSnapshot,
+  onSelectEntity,
 }: EntityCameraPanelProps) {
   const [avatarDialogOpen, setAvatarDialogOpen] = useState(false)
   const [avatarDialogEntityId, setAvatarDialogEntityId] = useState<string | null>(null)
@@ -257,6 +259,7 @@ export default function EntityCameraPanel({
           onEditingEntityIdChange={(id) => setAvatarDialogEntityId(id)}
           onRequestAvatarFocusSnapshot={getAvatarFocusSnapshot}
           cameraControl={cameraControl}
+          onSelectEntity={onSelectEntity}
         />
       ) : null}
     </>

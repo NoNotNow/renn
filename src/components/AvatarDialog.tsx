@@ -30,6 +30,7 @@ export interface AvatarDialogProps {
   onRequestAvatarFocusSnapshot?: () => AvatarFocusSnapshot | null
   /** Builder camera control; “set default” only when follow (matches runtime camera). */
   cameraControl?: 'free' | 'follow' | 'top' | 'front' | 'right'
+  onSelectEntity?: (id: string | null) => void
 }
 
 function avatarJsonString(entity: Entity): string {
@@ -48,6 +49,7 @@ export default function AvatarDialog({
   onEditingEntityIdChange,
   onRequestAvatarFocusSnapshot,
   cameraControl,
+  onSelectEntity,
 }: AvatarDialogProps) {
   const undo = useEditorUndo()
 
@@ -497,6 +499,7 @@ export default function AvatarDialog({
         world={world}
         selectedEntityIds={[entityId]}
         onWorldChange={onWorldChange}
+        onSelectEntity={onSelectEntity}
       />
     </Modal>
   )

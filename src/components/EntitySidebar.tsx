@@ -139,6 +139,7 @@ export default function EntitySidebar({
             onCameraTargetVerticalAngleChange={onCameraTargetVerticalAngleChange}
             onWorldChange={onWorldChange}
             getAvatarFocusSnapshot={getAvatarFocusSnapshot}
+            onSelectEntity={onSelectEntity}
           />
         )}
         {leftTab === 'actions' && <BulkSpawnForm onBulkAddEntities={onBulkAddEntities} />}

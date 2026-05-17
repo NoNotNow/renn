@@ -80,6 +80,7 @@ export interface WorkspaceScriptsTabProps {
   onOpenOrganizeScripts: () => void
   globalLibrary?: GlobalBehaviorLibrary
   onGlobalLibraryChange?: (next: GlobalBehaviorLibrary) => void
+  onSelectEntity?: (id: string) => void
 }
 
 /** Scripts Workspace body: assigned script chips, event controls, shared Monaco. */
@@ -113,6 +114,7 @@ function WorkspaceScriptsTabEntity({
   setMonacoPayload,
   monacoSlot,
   onOpenOrganizeScripts,
+  onSelectEntity,
 }: WorkspaceScriptsTabProps) {
   const undo = useEditorUndo()
   const pushUndo = () => undo?.pushBeforeEdit()
@@ -517,12 +519,38 @@ function WorkspaceScriptsTabEntity({
             border: '1px solid rgba(74, 158, 255, 0.35)',
             color: theme.text.infoSubtle,
             fontSize: 12,
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '0 4px',
           }}
           role="status"
           data-testid="workspace-shared-script-banner"
         >
-          This script is shared. Used by: {entitiesUsingSelectedScript.map((e) => e.name ?? e.id).join(', ')}. Changes affect
-          all of them.
+          <span>This script is shared. Used by:</span>
+          {entitiesUsingSelectedScript.map((e, i) => (
+            <span key={e.id}>
+              <button
+                type="button"
+                onClick={() => onSelectEntity?.(e.id)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  padding: 0,
+                  margin: 0,
+                  fontSize: 'inherit',
+                  color: onSelectEntity ? theme.accent : 'inherit',
+                  cursor: onSelectEntity ? 'pointer' : 'default',
+                  textDecoration: onSelectEntity ? 'underline' : 'none',
+                  textAlign: 'left',
+                }}
+                title={`Select entity: ${e.name ?? e.id} (${e.id})`}
+              >
+                {e.name ?? e.id}
+              </button>
+              {i < entitiesUsingSelectedScript.length - 1 ? ',' : ''}
+            </span>
+          ))}
+          <span>. Changes affect all of them.</span>
         </div>
       )}
 

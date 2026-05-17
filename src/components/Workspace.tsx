@@ -128,6 +128,7 @@ export interface WorkspaceProps {
   onWorkspaceOpenSideEffects?: () => void
   /** Keeps anchor entry in sync when switching shell tabs or navigating from Organize → editor. */
   onEntryChange?: (next: WorkspaceTarget) => void
+  onSelectEntity?: (id: string) => void
 }
 
 function workspaceTabStyle(active: boolean): CSSProperties {
@@ -164,6 +165,7 @@ export default function Workspace({
   resetPoseTitle,
   onWorkspaceOpenSideEffects,
   onEntryChange,
+  onSelectEntity,
 }: WorkspaceProps) {
   const portalTarget = useWorkspacePortalRoot()
   const builderHeaderBottomInsetPx = useBuilderHeaderBottomInsetPx(open)
@@ -508,6 +510,7 @@ export default function Workspace({
                       onOpenOrganizeScripts={openOrganizeScriptsForEntity}
                       globalLibrary={globalLibrary}
                       onGlobalLibraryChange={persistGlobalLibrary}
+                      onSelectEntity={onSelectEntity}
                     />
                   ) : (
                     <WorkspaceOrganizeTab
@@ -519,6 +522,7 @@ export default function Workspace({
                       onOrganizeContextChange={handleOrganizeContextChange}
                       globalLibrary={globalLibrary}
                       onGlobalLibraryChange={persistGlobalLibrary}
+                      onSelectEntity={onSelectEntity}
                     />
                   )}
                 </div>
