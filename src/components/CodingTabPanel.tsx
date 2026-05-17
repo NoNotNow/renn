@@ -1,13 +1,14 @@
-import { useEffect, useMemo, useSyncExternalStore, type CSSProperties } from 'react'
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore, type CSSProperties } from 'react'
 import type { Entity } from '@/types/world'
 import type { TransformerConfig } from '@/types/transformer'
 import type { RennWorld } from '@/types/world'
-import ScriptPanel from '@/components/ScriptPanel'
-import TransformerEditor from '@/components/TransformerEditor'
-import CopyableArea from '@/components/CopyableArea'
-import CustomTransformerCodeTab from '@/components/CustomTransformerCodeTab'
+import Workspace from '@/components/Workspace'
 import { theme } from '@/config/theme'
-import { mergeTransformers } from '@/utils/entityInspectorMerge'
+import {
+  mergeTransformers,
+  intersectScriptIdsAcrossEntities,
+  intersectTransformerIdsAcrossEntities,
+} from '@/utils/entityInspectorMerge'
 import {
   clearTransformerLiveTraceSnapshot,
   getTransformerLiveTraceSnapshot,
@@ -15,10 +16,11 @@ import {
   subscribeTransformerLiveTrace,
 } from '@/runtime/transformerTraceBridge'
 import { useLocalStorageState } from '@/hooks/useLocalStorageState'
+import type { WorkspaceTarget } from '@/types/workspace'
 
-type CodingSubgroup = 'scripts' | 'transformers' | 'code'
+type CodingSubgroup = 'scripts' | 'transformers'
 
-const VALID_CODING_SUBGROUPS = new Set<CodingSubgroup>(['scripts', 'transformers', 'code'])
+const VALID_CODING_SUBGROUPS = new Set<CodingSubgroup>(['scripts', 'transformers'])
 const BUILDER_CODING_SUBTAB_KEY = 'builderCodingPanelSubTab'
 const DEFAULT_CODING_SUBGROUP: CodingSubgroup = 'transformers'
 
@@ -80,7 +82,45 @@ function codingTabHoverHandlers(tab: CodingSubgroup, subgroup: CodingSubgroup) {
   }
 }
 
-/** Right sidebar workspace: Transformers stack + Transformer code + Scripts for the selection. */
+const inspectorHintStyle: CSSProperties = {
+  margin: '0 0 8px',
+  fontSize: 12,
+  color: theme.text.secondary,
+  lineHeight: 1.45,
+}
+
+const inspectorSectionTitleStyle: CSSProperties = {
+  margin: '0 0 8px',
+  fontSize: 13,
+  fontWeight: 600,
+  color: theme.text.primary,
+}
+
+function nameRowButtonStyle(): CSSProperties {
+  return {
+    width: '100%',
+    margin: '0 0 6px',
+    padding: '10px 12px',
+    borderRadius: 8,
+    border: `1px solid ${theme.border.default}`,
+    background: theme.bg.surface,
+    color: theme.text.primary,
+    textAlign: 'left' as const,
+    cursor: 'pointer',
+    fontSize: 12,
+    lineHeight: 1.35,
+    boxSizing: 'border-box',
+  }
+}
+
+function normalizeCodingSubgroupStored(raw: unknown): CodingSubgroup {
+  const s = typeof raw === 'string' ? raw : ''
+  if (s === 'code') return DEFAULT_CODING_SUBGROUP
+  if (VALID_CODING_SUBGROUPS.has(s as CodingSubgroup)) return s as CodingSubgroup
+  return DEFAULT_CODING_SUBGROUP
+}
+
+/** Right sidebar: transformers + scripts summary; full editing opens the Workspace overlay. */
 export default function CodingTabPanel({
   world,
   selectedEntityIds,
@@ -89,23 +129,72 @@ export default function CodingTabPanel({
   onTransformerCodePopoutOpen,
   onResetPoseToSavedWorld,
 }: CodingTabPanelProps) {
-  const [subgroupStored, setSubgroupStored] = useLocalStorageState<CodingSubgroup>(
+  const [rawSubgroup, setRawSubgroup] = useLocalStorageState<string>(
     BUILDER_CODING_SUBTAB_KEY,
     DEFAULT_CODING_SUBGROUP,
   )
 
   useEffect(() => {
-    if (!VALID_CODING_SUBGROUPS.has(subgroupStored)) {
-      setSubgroupStored(DEFAULT_CODING_SUBGROUP)
-    }
-  }, [subgroupStored, setSubgroupStored])
+    const next = normalizeCodingSubgroupStored(rawSubgroup)
+    if (next !== rawSubgroup) setRawSubgroup(next)
+  }, [rawSubgroup, setRawSubgroup])
 
-  const subgroup: CodingSubgroup = VALID_CODING_SUBGROUPS.has(subgroupStored)
-    ? subgroupStored
-    : DEFAULT_CODING_SUBGROUP
+  const subgroup = normalizeCodingSubgroupStored(rawSubgroup)
+
+  const [workspaceOpen, setWorkspaceOpen] = useState(false)
+  const [workspaceEntry, setWorkspaceEntry] = useState<WorkspaceTarget | null>(null)
+
+  const entities = useMemo(() => {
+    const list: Entity[] = []
+    for (const id of selectedEntityIds) {
+      const entity = world.entities.find((x) => x.id === id)
+      if (entity) list.push(entity)
+    }
+    return list
+  }, [world.entities, selectedEntityIds])
+
+  const openWorkspaceAnchored = useCallback(
+    (anchor: Pick<WorkspaceTarget, 'tab' | 'itemId'>) => {
+      const entityId = selectedEntityIds[0]
+      if (!entityId) return
+      onTransformerCodePopoutOpen?.()
+      setWorkspaceEntry({ entityId, tab: anchor.tab, itemId: anchor.itemId })
+      setWorkspaceOpen(true)
+    },
+    [onTransformerCodePopoutOpen, selectedEntityIds],
+  )
+
+  const handleOpenWorkspace = useCallback(() => {
+    const entityId = selectedEntityIds[0]
+    if (!entityId) return
+    onTransformerCodePopoutOpen?.()
+
+    const worldTf = world.transformers ?? {}
+    let tab: WorkspaceTarget['tab'] = 'transformers'
+    let itemId: string | undefined
+    const tfIdsIntersect = intersectTransformerIdsAcrossEntities(entities)
+    const scIdsIntersect = intersectScriptIdsAcrossEntities(entities)
+
+    if (subgroup === 'scripts') {
+      tab = 'scripts'
+      itemId = scIdsIntersect[0]
+    } else {
+      tab = 'transformers'
+      itemId =
+        tfIdsIntersect.find((id) => worldTf[id]?.type === 'custom') ?? tfIdsIntersect[0]
+    }
+    setWorkspaceEntry({ entityId, tab, itemId })
+    setWorkspaceOpen(true)
+  }, [entities, onTransformerCodePopoutOpen, selectedEntityIds, subgroup, world.transformers])
+
+  const handleCloseWorkspace = useCallback(() => {
+    setWorkspaceOpen(false)
+    setWorkspaceEntry(null)
+  }, [])
 
   useEffect(() => {
-    if ((subgroup === 'transformers' || subgroup === 'code') && selectedEntityIds.length === 1) {
+    const traceActive = selectedEntityIds.length === 1 && (workspaceOpen || subgroup === 'transformers')
+    if (traceActive) {
       setTransformerTraceTargetEntityId(selectedEntityIds[0]!)
     } else {
       setTransformerTraceTargetEntityId(null)
@@ -115,7 +204,7 @@ export default function CodingTabPanel({
       setTransformerTraceTargetEntityId(null)
       clearTransformerLiveTraceSnapshot()
     }
-  }, [subgroup, selectedEntityIds])
+  }, [subgroup, selectedEntityIds, workspaceOpen])
 
   const liveTraceSnapshot = useSyncExternalStore(
     subscribeTransformerLiveTrace,
@@ -124,23 +213,10 @@ export default function CodingTabPanel({
   )
 
   const liveTraceSteps =
-    (subgroup === 'transformers' || subgroup === 'code') &&
-    selectedEntityIds.length === 1 &&
+    selectedEntityIds.length === 1 && (workspaceOpen || subgroup === 'transformers') &&
     liveTraceSnapshot?.entityId === selectedEntityIds[0]
       ? liveTraceSnapshot.steps
       : null
-
-  const entities = useMemo(() => {
-    const list: Entity[] = []
-    for (const id of selectedEntityIds) {
-      const e = world.entities.find((x) => x.id === id)
-      if (e) list.push(e)
-    }
-    return list
-  }, [world.entities, selectedEntityIds])
-
-  const ids = useMemo(() => entities.map((e) => e.id), [entities])
-  const idSet = useMemo(() => new Set(ids), [ids])
 
   const anyLocked = entities.some((e) => e.locked)
   const canResetPoseToSaved = entities.length > 0 && entities.some((e) => !e.locked)
@@ -149,59 +225,82 @@ export default function CodingTabPanel({
     : entities.length > 0 && entities.every((e) => e.locked)
       ? 'Cannot reset locked entities'
       : 'Select an entity to restore saved position and rotation'
-  const mergedTransformers = mergeTransformers(entities)
 
-  const updateAllTransformers = (transformers: TransformerConfig[]) => {
-    const nextEntities = world.entities.map((e) => (idSet.has(e.id) ? { ...e, transformers } : e))
-    onWorldChange({ ...world, entities: nextEntities })
-  }
+  const worldTransformers = world.transformers ?? {}
+  const scriptsReg = world.scripts ?? {}
 
-  const handleTransformersCommit = (transformers: TransformerConfig[]) => {
-    if (onEntityTransformersChange) {
-      onEntityTransformersChange(ids, transformers)
-    } else {
-      updateAllTransformers(transformers)
-    }
-  }
+  const uniformPipelineIds = mergeTransformers(entities)
+  const transformerRowIds = intersectTransformerIdsAcrossEntities(entities)
+
+  const scriptRowIds = intersectScriptIdsAcrossEntities(entities)
+
+  const anyTransformerAssigned = entities.some((e) => (e.transformers?.length ?? 0) > 0)
+  const anyScriptsAssigned = entities.some((e) => (e.scripts?.length ?? 0) > 0)
+
+  const transformerMixedMulti =
+    entities.length > 1 && uniformPipelineIds === null && transformerRowIds.length > 0 && anyTransformerAssigned
+  const showNoSharedTransformersHint =
+    entities.length > 1 && transformerRowIds.length === 0 && anyTransformerAssigned
+  const showNoSharedScriptsHint = entities.length > 1 && scriptRowIds.length === 0 && anyScriptsAssigned
 
   return (
     <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-      <div role="tablist" aria-label="Code panel views" style={codingTabListStyle}>
+      <div
+        style={{
+          ...codingTabListStyle,
+          justifyContent: 'space-between',
+          gap: 8,
+        }}
+      >
+        <div role="tablist" aria-label="Code panel views" style={{ display: 'flex', gap: 2, flexWrap: 'wrap', minWidth: 0 }}>
+          <button
+            type="button"
+            role="tab"
+            id="coding-tab-transformers"
+            aria-selected={subgroup === 'transformers'}
+            {...codingTabHoverHandlers('transformers', subgroup)}
+            onClick={() => setRawSubgroup('transformers')}
+            style={codingTabStyle(subgroup === 'transformers')}
+            data-testid="coding-submenu-transformers"
+          >
+            Transformers
+          </button>
+          <button
+            type="button"
+            role="tab"
+            id="coding-tab-scripts"
+            aria-selected={subgroup === 'scripts'}
+            {...codingTabHoverHandlers('scripts', subgroup)}
+            onClick={() => setRawSubgroup('scripts')}
+            style={codingTabStyle(subgroup === 'scripts')}
+            data-testid="coding-submenu-scripts"
+          >
+            Scripts
+          </button>
+        </div>
         <button
           type="button"
-          role="tab"
-          id="coding-tab-transformers"
-          aria-selected={subgroup === 'transformers'}
-          {...codingTabHoverHandlers('transformers', subgroup)}
-          onClick={() => setSubgroupStored('transformers')}
-          style={codingTabStyle(subgroup === 'transformers')}
-          data-testid="coding-submenu-transformers"
+          data-testid="coding-open-workspace"
+          onClick={handleOpenWorkspace}
+          disabled={selectedEntityIds.length === 0}
+          title={
+            selectedEntityIds.length === 0 ? 'Select an entity to open the workspace' : 'Open behavior workspace (full screen)'
+          }
+          style={{
+            flexShrink: 0,
+            alignSelf: 'center',
+            marginBottom: 4,
+            padding: '6px 10px',
+            fontSize: 12,
+            borderRadius: 6,
+            border: `1px solid ${theme.border.default}`,
+            background: theme.bg.surface,
+            color: theme.text.primary,
+            cursor: selectedEntityIds.length === 0 ? 'not-allowed' : 'pointer',
+            opacity: selectedEntityIds.length === 0 ? 0.5 : 1,
+          }}
         >
-          Transformers
-        </button>
-        <button
-          type="button"
-          role="tab"
-          id="coding-tab-code"
-          aria-selected={subgroup === 'code'}
-          {...codingTabHoverHandlers('code', subgroup)}
-          onClick={() => setSubgroupStored('code')}
-          style={codingTabStyle(subgroup === 'code')}
-          data-testid="coding-submenu-code"
-        >
-          Transformer code
-        </button>
-        <button
-          type="button"
-          role="tab"
-          id="coding-tab-scripts"
-          aria-selected={subgroup === 'scripts'}
-          {...codingTabHoverHandlers('scripts', subgroup)}
-          onClick={() => setSubgroupStored('scripts')}
-          style={codingTabStyle(subgroup === 'scripts')}
-          data-testid="coding-submenu-scripts"
-        >
-          Scripts
+          Open Workspace
         </button>
       </div>
 
@@ -214,81 +313,112 @@ export default function CodingTabPanel({
           minHeight: 0,
           display: 'flex',
           flexDirection: 'column',
-          overflow: subgroup === 'code' ? 'visible' : 'auto',
+          overflow: 'auto',
+          padding: 10,
+          boxSizing: 'border-box',
         }}
       >
-        {subgroup === 'scripts' && (
-          <ScriptPanel
-            world={world}
-            selectedEntityIds={selectedEntityIds}
-            onWorldChange={onWorldChange}
-            collapsibleScriptToolbar
-          />
-        )}
-
-        {subgroup === 'code' && (
-          <CustomTransformerCodeTab
-            selectedEntityIds={selectedEntityIds}
-            entityCount={entities.length}
-            mergedTransformers={mergedTransformers}
-            transformersMixed={mergedTransformers === null}
-            anyLocked={anyLocked}
-            onTransformersCommit={(next) => handleTransformersCommit(next)}
-            onTransformerCodePopoutOpen={onTransformerCodePopoutOpen}
-            onResetPoseToSavedWorld={onResetPoseToSavedWorld}
-            canResetPoseToSaved={canResetPoseToSaved}
-            resetPoseTitle={resetPoseTitle}
-            liveTraceSteps={liveTraceSteps}
-          />
-        )}
-
-        {subgroup === 'transformers' && (
+        {selectedEntityIds.length === 0 ? (
+          <p style={{ ...inspectorHintStyle, margin: 0 }}>Select an entity to view transformers and scripts.</p>
+        ) : subgroup === 'transformers' ? (
           <>
-            {selectedEntityIds.length === 0 ? (
-              <CopyableArea
-                copyPayload={{ transformers: mergedTransformers, selectedEntityIds: [] }}
-                style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}
-              >
-                <div style={{ padding: 8 }}>
-                  <p style={{ margin: 0, fontSize: 13, color: theme.text.muted }}>
-                    Select an entity to edit its transformers.
-                  </p>
-                </div>
-              </CopyableArea>
+            <p style={{ ...inspectorHintStyle, margin: '0 0 10px' }}>
+              Listed in pipeline order — click an item or use Open Workspace for stack editing.
+            </p>
+            <h3 style={inspectorSectionTitleStyle}>Transformers{entities.length > 1 ? ` (${entities.length} selected)` : ''}</h3>
+            {transformerMixedMulti ? (
+              <p style={{ ...inspectorHintStyle, marginTop: 0 }}>
+                Stacks differ between selections — only transformers shared across all selected entities appear here.
+              </p>
+            ) : null}
+            {showNoSharedTransformersHint ? (
+              <p style={{ ...inspectorHintStyle, marginTop: 0 }}>
+                Nothing in common across all selections — open Workspace per entity stack.
+              </p>
+            ) : null}
+            {transformerRowIds.length === 0 ? (
+              <p style={{ ...inspectorHintStyle, marginTop: 0, color: theme.text.muted }}>None attached.</p>
             ) : (
-              <CopyableArea
-                copyPayload={{
-                  transformers: mergedTransformers,
-                  selectedEntityIds,
-                  entityIdsForEdit: ids,
-                }}
-                style={{
-                  flex: 1,
-                  minHeight: 0,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  padding: 8,
-                  overflow: 'hidden',
-                }}
-              >
-                <h3 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 600, color: theme.text.primary }}>
-                  Transformers
-                  {entities.length > 1 ? ` (${entities.length} entities)` : ''}
-                </h3>
-                <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
-                  <TransformerEditor
-                    transformers={mergedTransformers === null ? [] : mergedTransformers}
-                    transformersMixed={mergedTransformers === null}
-                    onChange={(next) => handleTransformersCommit(next)}
+              transformerRowIds.map((tid) => {
+                const cfg = worldTransformers[tid]
+                const slotLabel = cfg?.name ?? cfg?.type ?? tid
+                return (
+                  <button
+                    key={tid}
+                    type="button"
+                    data-testid={`coding-inspector-transformer-${tid}`}
+                    onClick={() => openWorkspaceAnchored({ tab: 'transformers', itemId: tid })}
                     disabled={anyLocked}
-                    liveTraceSteps={liveTraceSteps}
-                  />
-                </div>
-              </CopyableArea>
+                    title={anyLocked ? 'Unlock selection to edit' : 'Open Workspace on this transformer'}
+                    style={{
+                      ...nameRowButtonStyle(),
+                      opacity: anyLocked ? 0.55 : 1,
+                      cursor: anyLocked ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    <strong>{slotLabel}</strong>
+                    <div style={{ color: theme.text.muted, fontSize: 11, marginTop: 2 }}>{tid}</div>
+                  </button>
+                )
+              })
+            )}
+          </>
+        ) : (
+          <>
+            <p style={{ ...inspectorHintStyle, margin: '0 0 10px' }}>
+              Click an attached script to edit in the Workspace, or Manage from the Scripts toolbar there.
+            </p>
+            <h3 style={inspectorSectionTitleStyle}>Scripts{entities.length > 1 ? ` (${entities.length} selected)` : ''}</h3>
+            {showNoSharedScriptsHint ? (
+              <p style={{ ...inspectorHintStyle, marginTop: 0 }}>
+                No scripts shared across all selections — intersection is listed when multiple entities are selected.
+              </p>
+            ) : null}
+            {scriptRowIds.length === 0 ? (
+              <p style={{ ...inspectorHintStyle, marginTop: 0, color: theme.text.muted }}>None attached.</p>
+            ) : (
+              scriptRowIds.map((sid) => {
+                const def = scriptsReg[sid]
+                return (
+                  <button
+                    key={sid}
+                    type="button"
+                    data-testid={`coding-inspector-script-${sid}`}
+                    onClick={() => openWorkspaceAnchored({ tab: 'scripts', itemId: sid })}
+                    disabled={anyLocked}
+                    title={anyLocked ? 'Unlock selection to edit' : 'Open Workspace on this script'}
+                    style={{
+                      ...nameRowButtonStyle(),
+                      opacity: anyLocked ? 0.55 : 1,
+                      cursor: anyLocked ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    <strong>{sid}</strong>
+                    {def?.event ?
+                      <div style={{ color: theme.text.muted, fontSize: 11, marginTop: 2 }}>{def.event}</div>
+                    : null}
+                  </button>
+                )
+              })
             )}
           </>
         )}
       </div>
+
+      <Workspace
+        open={workspaceOpen}
+        onClose={handleCloseWorkspace}
+        entry={workspaceEntry}
+        onEntryChange={setWorkspaceEntry}
+        world={world}
+        selectedEntityIds={selectedEntityIds}
+        onWorldChange={onWorldChange}
+        onEntityTransformersChange={onEntityTransformersChange}
+        liveTransformerTraceSteps={liveTraceSteps}
+        onResetPoseToSavedWorld={onResetPoseToSavedWorld}
+        canResetPoseToSaved={canResetPoseToSaved}
+        resetPoseTitle={resetPoseTitle}
+      />
     </div>
   )
 }

@@ -65,6 +65,7 @@ import TransformerDocs from '@/components/TransformerDocs'
 import { getEntityApproximateSize } from '@/utils/entityApproximateSize'
 import { computeMeshWorldMaxExtent } from '@/utils/meshWorldExtent'
 import { placeEntitiesInFrontOfCamera } from '@/utils/cameraFrontPlacement'
+import { commitTransformerConfigsToWorld } from '@/utils/commitTransformerConfigsToWorld'
 
 const EDITOR_HISTORY_MAX_DEPTH = 80
 
@@ -803,11 +804,11 @@ export default function Builder() {
   const handleEntityTransformersChange = useCallback(
     (entityIds: string[], transformers: TransformerConfig[]) => {
       pushHistory()
-      const idSet = new Set(entityIds)
-      const nextEntities = world.entities.map((e) =>
-        idSet.has(e.id) ? { ...e, transformers } : e
-      )
-      const nextWorld = { ...world, entities: nextEntities }
+      /** Must write configs into `world.transformers` + `entity.transformers` ID arrays (Phase 7 registry); never embed configs on entities. */
+      let nextWorld = world
+      for (const id of entityIds) {
+        nextWorld = commitTransformerConfigsToWorld(nextWorld, id, transformers)
+      }
       updateWorld(() => nextWorld)
       for (const id of entityIds) {
         sceneViewRef.current?.syncEntityTransformers(id, transformers)

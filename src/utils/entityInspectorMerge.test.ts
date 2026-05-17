@@ -14,6 +14,8 @@ import {
   mergeNumber,
   mergeModelRef,
   allSameShapeTopology,
+  intersectScriptIdsAcrossEntities,
+  intersectTransformerIdsAcrossEntities,
 } from './entityInspectorMerge'
 
 function e(partial: Partial<Entity>): Entity {
@@ -84,15 +86,15 @@ describe('entityInspectorMerge', () => {
   })
 
   it('mergeTransformers returns list when identical', () => {
-    const t = [{ type: 'wanderer' as const, params: {} }]
+    const t = ['e_tf0', 'e_tf1']
     const entities = [e({ transformers: t }), e({ transformers: t })]
     expect(mergeTransformers(entities)).toEqual(t)
   })
 
   it('mergeTransformers returns null when stacks differ', () => {
     const entities = [
-      e({ transformers: [{ type: 'wanderer' as const, params: {} }] }),
-      e({ transformers: [{ type: 'input' as const, params: {} }] }),
+      e({ transformers: ['e_tf0'] }),
+      e({ transformers: ['e_tf1'] }),
     ]
     expect(mergeTransformers(entities)).toBeNull()
   })
@@ -132,5 +134,26 @@ describe('entityInspectorMerge', () => {
         e({ shape: { type: 'sphere', radius: 1 } }),
       ])
     ).toBe(false)
+  })
+
+  it('intersectTransformerIdsAcrossEntities preserves first-entity pipeline order across common IDs', () => {
+    expect(
+      intersectTransformerIdsAcrossEntities([
+        e({ transformers: ['a', 'b'] }),
+        e({ transformers: ['b', 'c'] }),
+      ]),
+    ).toEqual(['b'])
+    expect(
+      intersectTransformerIdsAcrossEntities([
+        e({ transformers: ['a', 'b', 'c'] }),
+        e({ transformers: ['b', 'c', 'a'] }),
+      ]),
+    ).toEqual(['a', 'b', 'c'])
+    expect(intersectTransformerIdsAcrossEntities([])).toEqual([])
+    expect(intersectTransformerIdsAcrossEntities([e({ transformers: ['x'] })])).toEqual(['x'])
+  })
+
+  it('intersectScriptIdsAcrossEntities preserves first-entity attachment order', () => {
+    expect(intersectScriptIdsAcrossEntities([e({ scripts: ['s1', 's2'] }), e({ scripts: ['s2', 'q'] })])).toEqual(['s2'])
   })
 })

@@ -77,27 +77,27 @@ describe('validateWorldDocument', () => {
 
   it('tolerates extra inputMapping.keyboard keys (e.g. arrow keys)', () => {
     const w = structuredClone(sampleWorld) as unknown as any
-    w.entities[0].transformers = [
-      {
-        type: 'input',
-        priority: 0,
-        enabled: true,
-        inputMapping: {
-          keyboard: {
-            w: 'pitch_forward',
-            s: 'pitch_back',
-            a: 'roll_left',
-            d: 'roll_right',
-            arrowUp: 'pitch_forward',
-            arrowDown: 'pitch_back',
-          },
+    if (!w.transformers) w.transformers = {}
+    w.transformers['test_tf_input'] = {
+      type: 'input',
+      priority: 0,
+      enabled: true,
+      inputMapping: {
+        keyboard: {
+          w: 'pitch_forward',
+          s: 'pitch_back',
+          a: 'roll_left',
+          d: 'roll_right',
+          arrowUp: 'pitch_forward',
+          arrowDown: 'pitch_back',
         },
       },
-    ]
+    }
+    w.entities[0].transformers = ['test_tf_input']
     expect(() =>
       validateWorldDocument(w, { tolerateAdditionalProperties: true, logAdditionalProperties: false })
     ).not.toThrow()
-    expect(w.entities[0].transformers[0].inputMapping.keyboard).not.toHaveProperty('arrowUp')
+    expect(w.transformers['test_tf_input'].inputMapping.keyboard).not.toHaveProperty('arrowUp')
   })
 
   it('appends warningsOut when stripping unknown fields', () => {
@@ -143,15 +143,15 @@ describe('validateWorldDocument', () => {
     const w = structuredClone(sampleWorld) as unknown as any
     const keyboard = { w: 'pitch_forward', arrowUp: 'pitch_forward' }
     Object.freeze(keyboard)
-    w.entities[0].transformers = [
-      {
-        type: 'input',
-        priority: 0,
-        enabled: true,
-        inputMapping: { keyboard },
-      },
-    ]
-    Object.freeze(w.entities[0].transformers[0].inputMapping)
+    if (!w.transformers) w.transformers = {}
+    w.transformers['test_tf_frozen'] = {
+      type: 'input',
+      priority: 0,
+      enabled: true,
+      inputMapping: { keyboard },
+    }
+    Object.freeze(w.transformers['test_tf_frozen'].inputMapping)
+    w.entities[0].transformers = ['test_tf_frozen']
     expect(() =>
       validateWorldDocument(w, { tolerateAdditionalProperties: true, logAdditionalProperties: false })
     ).not.toThrow()

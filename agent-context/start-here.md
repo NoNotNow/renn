@@ -29,6 +29,7 @@
 | Rotation/direction coordinates (Euler, radians, caveats) | `direction-rotation-coordinates.md` |
 | Physics force accumulation quirk | `feature-transformers.md` (resetAllForces) |
 | Video textures on materials (transcode, picker, VideoTexture) | `feature-video-texture.md` |
+| **Workspace** — unified behavior authoring (scripts + transformers + organize, migration plan) | `feature-workspace.md` |
 
 ## Tech stack (quick ref)
 

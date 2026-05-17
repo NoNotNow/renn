@@ -7,6 +7,7 @@
 import { describe, it, expect, beforeAll } from 'vitest'
 import * as THREE from 'three'
 import type { Entity, RennWorld } from '@/types/world'
+import type { TransformerDef } from '@/types/transformer'
 import type { LoadedEntity } from '@/loader/loadWorld'
 import type { RawInput, EntityWorldPoseGetter } from '@/types/transformer'
 import { createTransformerChain } from '@/transformers/transformerRegistry'
@@ -19,10 +20,26 @@ beforeAll(async () => {
 
 describe('controlled entity transformers vs culling and sleep (integration)', () => {
   it('applies drive forces when controlled vehicle is distance-culled with sleepCulled', async () => {
+    const transformers: Record<string, TransformerDef> = {
+      carFar_tf0: {
+        type: 'input',
+        priority: 0,
+        inputMapping: {
+          keyboard: { w: 'throttle', s: 'brake', a: 'steer_left', d: 'steer_right', space: 'jump' },
+        },
+      },
+      carFar_tf1: {
+        type: 'car2',
+        priority: 1,
+        params: { power: 800, steeringIntensity: 0.1, lateralGrip: 200 },
+      },
+    }
+
     const world: RennWorld = {
       version: '1.0',
       world: { gravity: [0, -9.81, 0] },
       assets: {},
+      transformers,
       entities: [
         {
           id: 'ground',
@@ -37,20 +54,7 @@ describe('controlled entity transformers vs culling and sleep (integration)', ()
           position: [3500, 0.55, 0],
           rotation: [0, 0, 0],
           mass: 1,
-          transformers: [
-            {
-              type: 'input',
-              priority: 0,
-              inputMapping: {
-                keyboard: { w: 'throttle', s: 'brake', a: 'steer_left', d: 'steer_right', space: 'jump' },
-              },
-            },
-            {
-              type: 'car2',
-              priority: 1,
-              params: { power: 800, steeringIntensity: 0.1, lateralGrip: 200 },
-            },
-          ],
+          transformers: ['carFar_tf0', 'carFar_tf1'],
         },
       ],
       scripts: {},
@@ -68,12 +72,13 @@ describe('controlled entity transformers vs culling and sleep (integration)', ()
     })
 
     const pw = await createPhysicsWorld(world, entities)
-    const registry = RenderItemRegistry.create(entities, pw, rawInputGetter, controlledRef)
+    const registry = RenderItemRegistry.create(entities, pw, rawInputGetter, controlledRef, world.transformers)
     registry.setRawInputGetter(rawInputGetter)
 
-    const carCfg = world.entities.find((e) => e.id === 'carFar')!.transformers!
+    const carTransformerIds = world.entities.find((e) => e.id === 'carFar')!.transformers!
+    const carConfigs = carTransformerIds.map(id => world.transformers![id]!)
     const chain = await createTransformerChain(
-      carCfg,
+      carConfigs,
       rawInputGetter,
       world.entities.find((e) => e.id === 'carFar'),
       (eid) =>

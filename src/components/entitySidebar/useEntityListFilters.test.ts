@@ -68,7 +68,7 @@ describe('useEntityListFilters', () => {
 
   it('transformers filter splits on transformers length', () => {
     const entities = [
-      makeEntity('with', { transformers: [{ type: 'noop' }] as Entity['transformers'] }),
+      makeEntity('with', { transformers: ['noop_tf0'] }),
       makeEntity('without'),
     ]
     const { result } = renderHook(() => useEntityListFilters(entities))

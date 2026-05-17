@@ -6,6 +6,7 @@ import {
   migrateDistanceCullingFields,
   migrateCustomTransformerNames,
   migrateWorldRingShapesToCylinder,
+  migrateEntityTransformersToRegistry,
 } from '@/scripts/migrateWorld'
 import type { RennWorld, Entity, Vec3, Rotation } from '@/types/world'
 import {
@@ -61,6 +62,7 @@ export async function loadWorld(
   const warnings: string[] = []
   migrateDistanceCullingFields(worldData)
   migrateCustomTransformerNames(worldData)
+  migrateEntityTransformersToRegistry(worldData)
   migrateWorldSimplificationFields(worldData, warnings)
   migrateWorldRingShapesToCylinder(worldData, warnings)
   validateWorldDocument(worldData, {

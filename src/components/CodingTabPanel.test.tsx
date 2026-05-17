@@ -1,13 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, act } from '@testing-library/react'
+import 'fake-indexeddb/auto'
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import CodingTabPanel from './CodingTabPanel'
 import { EditorUndoProvider } from '@/contexts/EditorUndoContext'
 import { CopyProvider } from '@/contexts/CopyContext'
 import type { RennWorld } from '@/types/world'
-import {
-  clearCustomTransformerRuntimeError,
-} from '@/runtime/customTransformerErrorBridge'
-import { publishTransformerLiveTrace, clearTransformerLiveTraceSnapshot } from '@/runtime/transformerTraceBridge'
+import type { TransformerDef } from '@/types/transformer'
+import { clearCustomTransformerRuntimeError } from '@/runtime/customTransformerErrorBridge'
 
 vi.mock('@monaco-editor/react', () => ({
   default: function MockMonacoEditor() {
@@ -21,26 +20,41 @@ const undoApi = {
   notifyScrubEnd: vi.fn(),
 }
 
+const minimalWorldTransformers: Record<string, TransformerDef> = {
+  e1_tf0: {
+    type: 'custom',
+    name: 'Test',
+    code: 'return {};',
+    priority: 10,
+    enabled: true,
+    params: {},
+  },
+}
+
 const minimalWorld: RennWorld = {
   version: '1.0',
   world: { gravity: [0, -9.81, 0] },
   assets: {},
+  transformers: minimalWorldTransformers,
   entities: [
     {
       id: 'e1',
       bodyType: 'dynamic',
       shape: { type: 'box', width: 1, height: 1, depth: 1 },
       position: [0, 0, 0],
-      transformers: [
-        {
-          type: 'custom',
-          name: 'Test',
-          code: 'return {};',
-          priority: 10,
-          enabled: true,
-          params: {},
-        },
-      ],
+      transformers: ['e1_tf0'],
+    },
+  ],
+}
+
+const worldWithScriptsForWorkspace: RennWorld = {
+  ...minimalWorld,
+  scripts: { scr_workspace: { event: 'onUpdate', source: '// attached' } },
+  entities: [
+    {
+      ...minimalWorld.entities[0]!,
+      transformers: ['e1_tf0'],
+      scripts: ['scr_workspace'],
     },
   ],
 }
@@ -56,57 +70,20 @@ describe('CodingTabPanel', () => {
     clearCustomTransformerRuntimeError()
   })
 
-  it('Transformer code tab exposes custom transformer controls', () => {
-    const onWorldChange = vi.fn()
+  it('shows thin transformer strip with slot labels and IDs', () => {
     render(
       <CopyProvider>
         <EditorUndoProvider value={undoApi}>
-          <CodingTabPanel
-            world={minimalWorld}
-            selectedEntityIds={['e1']}
-            onWorldChange={onWorldChange}
-          />
+          <CodingTabPanel world={minimalWorld} selectedEntityIds={['e1']} onWorldChange={vi.fn()} />
         </EditorUndoProvider>
       </CopyProvider>,
     )
-    fireEvent.click(screen.getByTestId('coding-submenu-code'))
-    expect(screen.getByTestId('custom-transformer-select')).toBeInTheDocument()
-    expect(screen.getByTestId('custom-transformer-name')).toHaveValue('Test')
+    expect(screen.getByTestId('coding-inspector-transformer-e1_tf0')).toHaveTextContent('Test')
+    expect(screen.getByTestId('coding-inspector-transformer-e1_tf0')).toHaveTextContent(/e1_tf0/)
   })
 
-  it('Transformer code tab shows compile error below the editor when code is invalid', () => {
-    const invalidWorld: RennWorld = {
-      ...minimalWorld,
-      entities: [
-        {
-          ...minimalWorld.entities[0]!,
-          transformers: [
-            {
-              type: 'custom',
-              name: 'Bad',
-              code: 'eval(1)',
-              priority: 10,
-              enabled: true,
-              params: {},
-            },
-          ],
-        },
-      ],
-    }
-    render(
-      <CopyProvider>
-        <EditorUndoProvider value={undoApi}>
-          <CodingTabPanel world={invalidWorld} selectedEntityIds={['e1']} onWorldChange={vi.fn()} />
-        </EditorUndoProvider>
-      </CopyProvider>,
-    )
-    fireEvent.click(screen.getByTestId('coding-submenu-code'))
-    expect(screen.getByTestId('custom-transformer-compile-error')).toHaveTextContent(/dangerous pattern/i)
-    expect(screen.getByTestId('custom-code-editor-resize-handle')).toBeInTheDocument()
-  })
-
-  it('Transformer code pop out header restores saved pose when icon clicked', () => {
-    const onResetPose = vi.fn()
+  it('clicking a transformer row opens the Workspace anchored to that ID', async () => {
+    const onTransformerCodePopoutOpen = vi.fn()
     render(
       <CopyProvider>
         <EditorUndoProvider value={undoApi}>
@@ -114,229 +91,94 @@ describe('CodingTabPanel', () => {
             world={minimalWorld}
             selectedEntityIds={['e1']}
             onWorldChange={vi.fn()}
-            onResetPoseToSavedWorld={onResetPose}
+            onTransformerCodePopoutOpen={onTransformerCodePopoutOpen}
           />
         </EditorUndoProvider>
       </CopyProvider>,
     )
-    fireEvent.click(screen.getByTestId('coding-submenu-code'))
-    fireEvent.click(screen.getByTestId('custom-transformer-code-popout-open'))
-    fireEvent.click(screen.getByTestId('custom-transformer-code-popout-restore-pose'))
-    expect(onResetPose).toHaveBeenCalledWith(['e1'])
+    fireEvent.click(screen.getByTestId('coding-inspector-transformer-e1_tf0'))
+    await waitFor(() => expect(screen.getByTestId('workspace-panel')).toBeInTheDocument())
+    expect(onTransformerCodePopoutOpen).toHaveBeenCalled()
+    expect(screen.getByTestId('workspace-tab-transformers')).toHaveAttribute('aria-selected', 'true')
+    expect(within(screen.getByTestId('workspace-panel')).getByText(/Entity e1 · e1_tf0/)).toBeInTheDocument()
   })
 
-  it('Transformer code pop out opens overlay and docks back', () => {
+  it('clicking an attached script row opens the Scripts workspace tab', async () => {
     render(
       <CopyProvider>
         <EditorUndoProvider value={undoApi}>
-          <CodingTabPanel world={minimalWorld} selectedEntityIds={['e1']} onWorldChange={vi.fn()} />
+          <CodingTabPanel world={worldWithScriptsForWorkspace} selectedEntityIds={['e1']} onWorldChange={vi.fn()} />
         </EditorUndoProvider>
       </CopyProvider>,
     )
-    fireEvent.click(screen.getByTestId('coding-submenu-code'))
-    fireEvent.click(screen.getByTestId('custom-transformer-code-popout-open'))
-    expect(screen.getByTestId('custom-transformer-code-popout-backdrop')).toBeInTheDocument()
-    expect(screen.getByTestId('custom-transformer-code-docked-placeholder')).toBeInTheDocument()
-    expect(screen.queryByTestId('custom-code-editor-resize-handle')).not.toBeInTheDocument()
-    fireEvent.click(screen.getByTestId('custom-transformer-code-popout-dock'))
-    expect(screen.queryByTestId('custom-transformer-code-popout-backdrop')).not.toBeInTheDocument()
-    expect(screen.getByTestId('custom-code-editor-resize-handle')).toBeInTheDocument()
+    fireEvent.click(screen.getByTestId('coding-submenu-scripts'))
+    fireEvent.click(screen.getByTestId('coding-inspector-script-scr_workspace'))
+    await waitFor(() => expect(screen.getByTestId('workspace-panel')).toBeInTheDocument())
+    expect(screen.getByTestId('workspace-tab-scripts')).toHaveAttribute('aria-selected', 'true')
   })
 
-  it('Transformer code pop out closes on Escape', () => {
-    render(
-      <CopyProvider>
-        <EditorUndoProvider value={undoApi}>
-          <CodingTabPanel world={minimalWorld} selectedEntityIds={['e1']} onWorldChange={vi.fn()} />
-        </EditorUndoProvider>
-      </CopyProvider>,
-    )
-    fireEvent.click(screen.getByTestId('coding-submenu-code'))
-    fireEvent.click(screen.getByTestId('custom-transformer-code-popout-open'))
-    expect(screen.getByTestId('custom-transformer-code-popout-backdrop')).toBeInTheDocument()
-    fireEvent.keyDown(document, { key: 'Escape', code: 'Escape' })
-    expect(screen.queryByTestId('custom-transformer-code-popout-backdrop')).not.toBeInTheDocument()
-  })
-
-  it('Transformer code pop out reopens on Shift+Escape after Escape closed it', () => {
-    render(
-      <CopyProvider>
-        <EditorUndoProvider value={undoApi}>
-          <CodingTabPanel world={minimalWorld} selectedEntityIds={['e1']} onWorldChange={vi.fn()} />
-        </EditorUndoProvider>
-      </CopyProvider>,
-    )
-    fireEvent.click(screen.getByTestId('coding-submenu-code'))
-    fireEvent.click(screen.getByTestId('custom-transformer-code-popout-open'))
-    fireEvent.keyDown(document, { key: 'Escape', code: 'Escape' })
-    expect(screen.queryByTestId('custom-transformer-code-popout-backdrop')).not.toBeInTheDocument()
-
-    fireEvent.keyDown(window, { key: 'Escape', code: 'Escape', shiftKey: true })
-    expect(screen.getByTestId('custom-transformer-code-popout-backdrop')).toBeInTheDocument()
-  })
-
-  it('Transformer code pop out allows toggling window opacity', () => {
-    render(
-      <CopyProvider>
-        <EditorUndoProvider value={undoApi}>
-          <CodingTabPanel world={minimalWorld} selectedEntityIds={['e1']} onWorldChange={vi.fn()} />
-        </EditorUndoProvider>
-      </CopyProvider>,
-    )
-    fireEvent.click(screen.getByTestId('coding-submenu-code'))
-    fireEvent.click(screen.getByTestId('custom-transformer-code-popout-open'))
-
-    const toggle = screen.getByTestId('custom-transformer-code-popout-opaque-toggle')
-    expect(toggle).toBeInTheDocument()
-    expect(toggle).toHaveAttribute('title', 'Make window fully opaque')
-
-    fireEvent.click(toggle)
-    expect(toggle).toHaveAttribute('title', 'Make window transparent (50%)')
-
-    fireEvent.click(toggle)
-    expect(toggle).toHaveAttribute('title', 'Make window fully opaque')
-  })
-
-  it('Transformer code pop out shows compile error in overlay body', () => {
-    const invalidWorld: RennWorld = {
-      ...minimalWorld,
-      entities: [
-        {
-          ...minimalWorld.entities[0]!,
-          transformers: [
-            {
-              type: 'custom',
-              name: 'Bad',
-              code: 'eval(1)',
-              priority: 10,
-              enabled: true,
-              params: {},
-            },
-          ],
-        },
-      ],
-    }
-    render(
-      <CopyProvider>
-        <EditorUndoProvider value={undoApi}>
-          <CodingTabPanel world={invalidWorld} selectedEntityIds={['e1']} onWorldChange={vi.fn()} />
-        </EditorUndoProvider>
-      </CopyProvider>,
-    )
-    fireEvent.click(screen.getByTestId('coding-submenu-code'))
-    fireEvent.click(screen.getByTestId('custom-transformer-code-popout-open'))
-    const body = screen.getByTestId('custom-transformer-code-popout-body')
-    expect(body).toContainElement(screen.getByTestId('custom-transformer-compile-error'))
-    expect(screen.getByTestId('custom-transformer-compile-error')).toHaveTextContent(/dangerous pattern/i)
-  })
-
-  it('Transformer code pop out horizontal trace shows idle IN/OUT labels on each stage', () => {
-    const multiTransformerWorld: RennWorld = {
-      ...minimalWorld,
-      entities: [
-        {
-          ...minimalWorld.entities[0]!,
-          transformers: [
-            { type: 'input', priority: 0, enabled: true, params: {} },
-            { type: 'car2', priority: 1, enabled: true, params: {} },
-            {
-              type: 'custom',
-              name: 'Custom',
-              code: 'return {}',
-              priority: 2,
-              enabled: true,
-              params: {},
-            },
-          ],
-        },
-      ],
-    }
-    render(
-      <CopyProvider>
-        <EditorUndoProvider value={undoApi}>
-          <CodingTabPanel
-            world={multiTransformerWorld}
-            selectedEntityIds={['e1']}
-            onWorldChange={vi.fn()}
-          />
-        </EditorUndoProvider>
-      </CopyProvider>,
-    )
-    fireEvent.click(screen.getByTestId('coding-submenu-code'))
-    fireEvent.click(screen.getByTestId('custom-transformer-code-popout-open'))
-
-    expect(screen.getByTestId('transformer-horizontal-item-0')).toHaveTextContent('IN: (idle)')
-    expect(screen.getByTestId('transformer-horizontal-item-0')).toHaveTextContent('OUT: (none)')
-    expect(screen.getByTestId('transformer-horizontal-item-2')).toHaveTextContent('IN: (idle)')
-    expect(screen.getByTestId('transformer-horizontal-item-2')).toHaveTextContent('OUT: (none)')
-  })
-
-  it('Transformer code pop out horizontal trace allows toggling enabled state', () => {
-    const onWorldChange = vi.fn()
+  it('Open Workspace opens shell and notifies transformer pop-out listener', async () => {
+    const onTransformerCodePopoutOpen = vi.fn()
     render(
       <CopyProvider>
         <EditorUndoProvider value={undoApi}>
           <CodingTabPanel
             world={minimalWorld}
             selectedEntityIds={['e1']}
-            onWorldChange={onWorldChange}
+            onWorldChange={vi.fn()}
+            onTransformerCodePopoutOpen={onTransformerCodePopoutOpen}
           />
         </EditorUndoProvider>
       </CopyProvider>,
     )
-    fireEvent.click(screen.getByTestId('coding-submenu-code'))
-    fireEvent.click(screen.getByTestId('custom-transformer-code-popout-open'))
-
-    const toggle = screen.getByTestId('transformer-horizontal-enabled-toggle-0')
-    fireEvent.click(toggle)
-
-    expect(onWorldChange).toHaveBeenCalled()
-    const updatedWorld = onWorldChange.mock.calls[0][0]
-    expect(updatedWorld.entities[0].transformers[0].enabled).toBe(false)
+    fireEvent.click(screen.getByTestId('coding-open-workspace'))
+    await waitFor(() => expect(screen.getByTestId('workspace-panel')).toBeInTheDocument())
+    expect(onTransformerCodePopoutOpen).toHaveBeenCalled()
+    expect(within(screen.getByTestId('workspace-panel')).getByText(/Entity e1 · e1_tf0/)).toBeInTheDocument()
   })
 
-  it('Transformer code pop out horizontal trace allows reordering via drag and drop', () => {
-    const multiTransformerWorld: RennWorld = {
-      ...minimalWorld,
-      entities: [
-        {
-          ...minimalWorld.entities[0]!,
-          transformers: [
-            { type: 'input', priority: 10, enabled: true, params: {} },
-            { type: 'custom', name: 'Second', code: 'return {}', priority: 10, enabled: true, params: {} },
-          ],
-        },
-      ],
-    }
-    const onWorldChange = vi.fn()
+  it('Open Workspace from Scripts tab supports Manage → Organize (Entity scope, scripts)', async () => {
     render(
       <CopyProvider>
         <EditorUndoProvider value={undoApi}>
-          <CodingTabPanel
-            world={multiTransformerWorld}
-            selectedEntityIds={['e1']}
-            onWorldChange={onWorldChange}
-          />
+          <CodingTabPanel world={worldWithScriptsForWorkspace} selectedEntityIds={['e1']} onWorldChange={vi.fn()} />
         </EditorUndoProvider>
       </CopyProvider>,
     )
-    fireEvent.click(screen.getByTestId('coding-submenu-code'))
-    fireEvent.click(screen.getByTestId('custom-transformer-code-popout-open'))
+    fireEvent.click(screen.getByTestId('coding-submenu-scripts'))
+    fireEvent.click(screen.getByTestId('coding-open-workspace'))
+    await waitFor(() => expect(screen.getByTestId('workspace-tab-scripts')).toHaveAttribute('aria-selected', 'true'))
+    fireEvent.click(screen.getByRole('button', { name: 'Manage' }))
+    await waitFor(() => expect(screen.getByTestId('workspace-tab-organize')).toHaveAttribute('aria-selected', 'true'))
+    expect(screen.getByTestId('workspace-organize-scope-entity')).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByTestId('workspace-organize-kind-scripts')).toHaveAttribute('aria-selected', 'true')
+  })
 
-    const item0 = screen.getByTestId('transformer-horizontal-item-0')
-    const item1 = screen.getByTestId('transformer-horizontal-item-1')
+  it('Open Workspace is disabled without entity selection', () => {
+    render(
+      <CopyProvider>
+        <EditorUndoProvider value={undoApi}>
+          <CodingTabPanel world={minimalWorld} selectedEntityIds={[]} onWorldChange={vi.fn()} />
+        </EditorUndoProvider>
+      </CopyProvider>,
+    )
+    expect(screen.getByTestId('coding-open-workspace')).toBeDisabled()
+  })
 
-    // Simulate drag and drop: drag item 0 and drop on item 1
-    fireEvent.dragStart(item0)
-    fireEvent.dragOver(item1)
-    // In our live reordering, the items have already swapped in the local state.
-    // We need to trigger dragEnd to commit the change.
-    fireEvent.dragEnd(item0)
-
-    expect(onWorldChange).toHaveBeenCalled()
-    const updatedWorld = onWorldChange.mock.calls[0][0]
-    // The second transformer (custom) should now be first
-    expect(updatedWorld.entities[0].transformers[0].type).toBe('custom')
-    expect(updatedWorld.entities[0].transformers[1].type).toBe('input')
+  it('inspector opens on Transformers when persisted tab ID is legacy "code"', () => {
+    const getItemSpy = vi.spyOn(Storage.prototype, 'getItem').mockImplementation((key: string) =>
+      key === 'builderCodingPanelSubTab' ? JSON.stringify('code') : null,
+    )
+    render(
+      <CopyProvider>
+        <EditorUndoProvider value={undoApi}>
+          <CodingTabPanel world={minimalWorld} selectedEntityIds={['e1']} onWorldChange={vi.fn()} />
+        </EditorUndoProvider>
+      </CopyProvider>,
+    )
+    expect(screen.getByTestId('coding-submenu-transformers')).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByTestId('coding-inspector-transformer-e1_tf0')).toBeInTheDocument()
+    expect(screen.queryByTestId('coding-submenu-code')).toBeNull()
+    getItemSpy.mockRestore()
   })
 })

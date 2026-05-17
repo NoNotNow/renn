@@ -97,22 +97,21 @@ describe('getSceneDependencyKey', () => {
   })
 
   it('returns the same key when only transformer enabled flags change (incremental sync)', () => {
-    const baseTf = [{ type: 'input' as const, priority: 10, enabled: true }]
     const a = minimalWorld({
-      entities: [{ ...minimalWorld().entities[0], transformers: baseTf }],
+      entities: [{ ...minimalWorld().entities[0], transformers: ['e1_tf0'] }],
     })
     const b = minimalWorld({
-      entities: [{ ...minimalWorld().entities[0], transformers: [{ type: 'input', priority: 10, enabled: false }] }],
+      entities: [{ ...minimalWorld().entities[0], transformers: ['e1_tf0'] }],
     })
     expect(getSceneDependencyKey(a)).toBe(getSceneDependencyKey(b))
   })
 
   it('returns the same key when transformer type changes (incremental sync)', () => {
     const a = minimalWorld({
-      entities: [{ ...minimalWorld().entities[0], transformers: [{ type: 'input' }] }],
+      entities: [{ ...minimalWorld().entities[0], transformers: ['e1_tf0'] }],
     })
     const b = minimalWorld({
-      entities: [{ ...minimalWorld().entities[0], transformers: [{ type: 'car2' }] }],
+      entities: [{ ...minimalWorld().entities[0], transformers: ['e1_tf1'] }],
     })
     expect(getSceneDependencyKey(a)).toBe(getSceneDependencyKey(b))
   })
@@ -158,7 +157,7 @@ describe('getSceneDependencyKey', () => {
       entities: [
         {
           ...minimalWorld().entities[0],
-          transformers: [{ type: 'custom', code: 'return {};', params: { power: 10 } }],
+          transformers: ['e1_tf0'],
         },
       ],
     })
@@ -166,7 +165,7 @@ describe('getSceneDependencyKey', () => {
       entities: [
         {
           ...minimalWorld().entities[0],
-          transformers: [{ type: 'custom', code: 'return { force: [0, 1, 0] };', params: { power: 20 } }],
+          transformers: ['e1_tf1'],
         },
       ],
     })

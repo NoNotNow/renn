@@ -370,7 +370,8 @@ export interface Entity {
   /** Script IDs from world.scripts. Each script declares its own event type. */
   scripts?: string[]
   locked?: boolean
-  transformers?: import('./transformer').TransformerConfig[]
+  /** Transformer IDs referencing world.transformers registry. See migrateEntityTransformersToRegistry. */
+  transformers?: string[]
   /** When set, entity may be the play avatar (input + camera); see EntityAvatarConfig. */
   avatar?: EntityAvatarConfig
 }
@@ -424,6 +425,8 @@ export interface RennWorld {
   entities: Entity[]
   assets?: Record<string, AssetRef>
   scripts?: Record<string, ScriptDef>
+  /** World-level transformer registry. entity.transformers holds IDs into this map. */
+  transformers?: Record<string, import('./transformer').TransformerDef>
   /** Optional explorer organization. Members may be entity IDs or sub-group IDs. */
   groups?: EntityGroup[]
 }

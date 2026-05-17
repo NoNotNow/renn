@@ -1,11 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Entity, RennWorld, EntityPreferredCamera, AvatarFocusSnapshot } from '@/types/world'
-import type { TransformerConfig } from '@/types/transformer'
 import type { CameraMode } from '@/types/world'
 import Modal from './Modal'
 import Switch from './Switch'
-import TransformerEditor from './TransformerEditor'
-import EntityScriptEditor from './EntityScriptEditor'
+import Workspace from './Workspace'
 import CollapsibleSection from './CollapsibleSection'
 import ValidatedJsonTextarea, { type JsonContentValidation } from './ValidatedJsonTextarea'
 import { CAMERA_MODE_CYCLE_ORDER, CAMERA_MODE_LABELS } from '@/types/world'
@@ -15,6 +13,7 @@ import { useEditorUndo } from '@/contexts/EditorUndoContext'
 import { uiLogger } from '@/utils/uiLogger'
 import { normalizeAvatarDraft } from '@/utils/entityAvatarValidation'
 import { avatarEntityIconLetter, getAvatarRosterEntityIds } from '@/utils/avatarUtils'
+import type { WorkspaceTarget } from '@/types/workspace'
 
 export interface AvatarDialogProps {
   isOpen: boolean
@@ -64,7 +63,14 @@ export default function AvatarDialog({
     if (cameraTarget && avatarRosterEntityIds.includes(cameraTarget)) return cameraTarget
     return avatarRosterEntityIds[0] ?? null
   }, [cameraTarget, avatarRosterEntityIds])
-  const transformers: TransformerConfig[] = entity?.transformers ?? []
+
+  const [workspaceOpen, setWorkspaceOpen] = useState(false)
+  const [workspaceEntry, setWorkspaceEntry] = useState<WorkspaceTarget | null>(null)
+
+  const openWorkspace = useCallback((tab: 'transformers' | 'scripts', itemId?: string) => {
+    setWorkspaceEntry({ entityId, tab, itemId })
+    setWorkspaceOpen(true)
+  }, [entityId])
 
   const currentAvatarEnabled = entity?.avatar?.enabled !== false
 
@@ -381,28 +387,117 @@ export default function AvatarDialog({
         </CollapsibleSection>
 
         <CollapsibleSection title="Transformers" defaultCollapsed>
-          <TransformerEditor
-            transformers={transformers}
-            onChange={(next) => applyUpdate({ transformers: next })}
-            disabled={false}
-          />
+          <p style={{ margin: '0 0 10px', fontSize: 12, color: theme.text.secondary }}>
+            {entity.transformers && entity.transformers.length > 0
+              ? `${entity.transformers.length} transformer${entity.transformers.length > 1 ? 's' : ''} attached.`
+              : 'No transformers attached.'}
+          </p>
+          {entity.transformers && entity.transformers.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 10 }}>
+              {entity.transformers.map((tid) => {
+                const def = world.transformers?.[tid]
+                return (
+                  <button
+                    key={tid}
+                    type="button"
+                    onClick={() => openWorkspace('transformers', tid)}
+                    style={{
+                      width: '100%',
+                      padding: '8px 10px',
+                      borderRadius: 6,
+                      border: `1px solid ${theme.border.default}`,
+                      background: theme.bg.surface,
+                      color: theme.text.primary,
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      fontSize: 12,
+                    }}
+                  >
+                    <strong>{def?.name ?? def?.type ?? tid}</strong>
+                    <span style={{ color: theme.text.muted, fontSize: 11, marginLeft: 6 }}>{tid}</span>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => openWorkspace('transformers')}
+            style={{
+              padding: '7px 12px',
+              borderRadius: 6,
+              border: `1px solid ${theme.border.default}`,
+              background: theme.bg.surface,
+              color: theme.text.primary,
+              cursor: 'pointer',
+              fontSize: 12,
+            }}
+          >
+            Open Workspace — Transformers
+          </button>
         </CollapsibleSection>
 
         <CollapsibleSection title="Scripts" defaultCollapsed={false}>
-          <p style={{ margin: '0 0 10px', fontSize: 12, color: '#9aa4b2' }}>
-            Select a script snippet, edit code, apply changes, or use Manage scripts to attach and detach snippets from this
-            avatar.
+          <p style={{ margin: '0 0 10px', fontSize: 12, color: theme.text.secondary }}>
+            {entity.scripts && entity.scripts.length > 0
+              ? `${entity.scripts.length} script${entity.scripts.length > 1 ? 's' : ''} attached.`
+              : 'No scripts attached.'}
           </p>
-          <EntityScriptEditor
-            key={entityId}
-            world={world}
-            entityId={entityId}
-            onWorldChange={onWorldChange}
-            showHeadingRow={false}
-            editorHeightPx={280}
-          />
+          {entity.scripts && entity.scripts.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 10 }}>
+              {entity.scripts.map((sid) => {
+                const def = world.scripts?.[sid]
+                return (
+                  <button
+                    key={sid}
+                    type="button"
+                    onClick={() => openWorkspace('scripts', sid)}
+                    style={{
+                      width: '100%',
+                      padding: '8px 10px',
+                      borderRadius: 6,
+                      border: `1px solid ${theme.border.default}`,
+                      background: theme.bg.surface,
+                      color: theme.text.primary,
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      fontSize: 12,
+                    }}
+                  >
+                    <strong>{sid}</strong>
+                    {def?.event && (
+                      <span style={{ color: theme.text.muted, fontSize: 11, marginLeft: 6 }}>{def.event}</span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => openWorkspace('scripts')}
+            style={{
+              padding: '7px 12px',
+              borderRadius: 6,
+              border: `1px solid ${theme.border.default}`,
+              background: theme.bg.surface,
+              color: theme.text.primary,
+              cursor: 'pointer',
+              fontSize: 12,
+            }}
+          >
+            Open Workspace — Scripts
+          </button>
         </CollapsibleSection>
       </div>
+      <Workspace
+        open={workspaceOpen}
+        onClose={() => setWorkspaceOpen(false)}
+        entry={workspaceEntry}
+        world={world}
+        selectedEntityIds={[entityId]}
+        onWorldChange={onWorldChange}
+      />
     </Modal>
   )
 }

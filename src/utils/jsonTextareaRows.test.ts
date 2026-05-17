@@ -11,7 +11,7 @@ describe('jsonTextareaRows', () => {
   })
 
   it(`caps at ${JSON_TEXTAREA_ROWS_CAP}`, () => {
-    const text = Array.from({ length: 40 }, () => 'x').join('\n')
+    const text = Array.from({ length: JSON_TEXTAREA_ROWS_CAP + 10 }, () => 'x').join('\n')
     expect(jsonTextareaRows(text)).toBe(JSON_TEXTAREA_ROWS_CAP)
   })
 })

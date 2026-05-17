@@ -17,6 +17,7 @@ import * as THREE from 'three'
 import { initRapier, createPhysicsWorld, PhysicsWorld } from '@/physics/rapierPhysics'
 import { RenderItemRegistry } from '@/runtime/renderItemRegistry'
 import { createTransformerChain } from '@/transformers/transformerRegistry'
+import { migrateEntityTransformersToRegistry, migrateCustomTransformerNames } from '@/scripts/migrateWorld'
 import type { RennWorld, Entity } from '@/types/world'
 import type { LoadedEntity } from '@/loader/loadWorld'
 import type { RawInput, RawKeyboardState } from '@/types/transformer'
@@ -99,20 +100,28 @@ export class WorldSimulator {
   static async create(world: RennWorld, warmupFrames = 15): Promise<WorldSimulator> {
     await initRapier()
 
+    // Migrate legacy embedded-transformer format to the registry format.
+    // This allows test worlds (JSON) with inline TransformerConfig objects to work transparently.
+    migrateCustomTransformerNames(world)
+    migrateEntityTransformersToRegistry(world)
+
     const entities = buildLoadedEntities(world)
     const physicsWorld = await createPhysicsWorld(world, entities)
 
     let currentKeys: Partial<RawKeyboardState> = {}
     const rawInputGetter = (): RawInput => buildRawInput(currentKeys)
 
-    const registry = RenderItemRegistry.create(entities, physicsWorld, rawInputGetter)
+    const registry = RenderItemRegistry.create(entities, physicsWorld, rawInputGetter, undefined, world.transformers)
 
     // Eagerly build transformer chains for entities that declare them so tests
     // don't need to wait for the async fire-and-forget inside RenderItemRegistry.
     for (const { entity } of entities) {
       if (entity.transformers && entity.transformers.length > 0) {
+        const configs = entity.transformers
+          .map(id => world.transformers?.[id])
+          .filter((c): c is NonNullable<typeof c> => c != null)
         const chain = await createTransformerChain(
-          entity.transformers,
+          configs,
           rawInputGetter,
           entity,
         )

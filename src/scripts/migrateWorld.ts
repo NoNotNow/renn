@@ -216,6 +216,47 @@ export function migrateCustomTransformerNames(worldData: unknown): void {
   }
 }
 
+/**
+ * Migrates entity.transformers from embedded TransformerConfig[] to string[] IDs,
+ * populating world.transformers registry. Safe to call on already-migrated data (no-op).
+ *
+ * ID format: `${entityId}_tf${index}` (0-based index in the original stack).
+ * Call after migrateCustomTransformerNames so custom transformers have names before extraction.
+ */
+export function migrateEntityTransformersToRegistry(worldData: unknown): void {
+  if (!worldData || typeof worldData !== 'object') return
+  const world = worldData as Record<string, unknown>
+  const entities = world.entities as Array<Record<string, unknown>> | undefined
+  if (!Array.isArray(entities)) return
+
+  if (!world.transformers || typeof world.transformers !== 'object') {
+    world.transformers = {}
+  }
+  const registry = world.transformers as Record<string, unknown>
+
+  for (const entity of entities) {
+    if (!entity || typeof entity !== 'object') continue
+    const rawTransformers = entity.transformers
+    if (!Array.isArray(rawTransformers) || rawTransformers.length === 0) continue
+
+    // Skip if already migrated (all elements are strings)
+    if (typeof rawTransformers[0] === 'string') continue
+
+    const entityId = typeof entity.id === 'string' ? entity.id : 'unknown'
+    const ids: string[] = []
+
+    for (let i = 0; i < rawTransformers.length; i++) {
+      const cfg = rawTransformers[i]
+      if (!cfg || typeof cfg !== 'object') continue
+      const id = `${entityId}_tf${i}`
+      registry[id] = cfg
+      ids.push(id)
+    }
+
+    entity.transformers = ids
+  }
+}
+
 const RING_SHAPE_MIGRATION_WARNING =
   'Shape type "ring" is no longer supported; converted each ring to a cylinder (outer radius → radius, height preserved). Re-save to persist.'
 

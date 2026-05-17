@@ -21,6 +21,11 @@
       "type": "object",
       "additionalProperties": { "$ref": "#/$defs/ScriptDef" }
     },
+    "transformers": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/TransformerDef" },
+      "description": "World-level transformer registry. entity.transformers holds IDs into this map."
+    },
     "groups": {
       "type": "array",
       "items": { "$ref": "#/$defs/EntityGroup" },
@@ -453,6 +458,10 @@
       },
       "additionalProperties": false
     },
+    "TransformerDef": {
+      "$ref": "#/$defs/TransformerConfig",
+      "description": "World-level transformer definition (mirrors TransformerConfig; stored in world.transformers registry keyed by ID)."
+    },
     "Entity": {
       "type": "object",
       "required": ["id"],
@@ -497,8 +506,8 @@
         "locked": { "type": "boolean" },
         "transformers": {
           "type": "array",
-          "items": { "$ref": "#/$defs/TransformerConfig" },
-          "description": "Transformer chain for this entity"
+          "items": { "type": "string" },
+          "description": "Transformer IDs referencing world.transformers registry"
         },
         "avatar": { "$ref": "#/$defs/EntityAvatarConfig" }
       },

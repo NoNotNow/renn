@@ -204,7 +204,6 @@ export default function PropertySidebar({
       width={rightSidebarWidth}
       onWidthChange={setRightSidebarWidth}
       toggleLogContext="Toggle right drawer"
-      overflowVisible={rightTab === 'code'}
       tabsTrailing={tabsTrailing}
     >
       <div
@@ -212,7 +211,7 @@ export default function PropertySidebar({
           flex: 1,
           minHeight: 200,
           minWidth: rightTab === 'code' ? SIDEBAR_MIN_WIDTH : undefined,
-          overflow: rightTab === 'code' ? 'visible' : 'auto',
+          overflow: 'auto',
           display: 'flex',
           flexDirection: 'column',
         }}
@@ -225,7 +224,7 @@ export default function PropertySidebar({
             minWidth: rightTab === 'code' ? SIDEBAR_MIN_WIDTH : 0,
             display: 'flex',
             flexDirection: 'column',
-            overflow: rightTab === 'code' ? 'visible' : undefined,
+            overflow: undefined,
           }}
         >
           {rightTab === 'properties' && (

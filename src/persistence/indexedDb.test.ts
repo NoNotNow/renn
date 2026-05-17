@@ -48,6 +48,8 @@ describe('IndexedDB Persistence', () => {
     expect(typeof persistence.deleteModelPreset).toBe('function')
     expect(typeof persistence.savePlaySessionWorld).toBe('function')
     expect(typeof persistence.loadPlaySessionWorld).toBe('function')
+    expect(typeof persistence.loadGlobalBehaviorLibrary).toBe('function')
+    expect(typeof persistence.saveGlobalBehaviorLibrary).toBe('function')
   })
 
   it('lists projects (empty initially)', async () => {
@@ -275,6 +277,22 @@ describe('IndexedDB Persistence', () => {
     expect(loaded).toBeDefined()
     expect(loaded!.entities).toHaveLength(2)
     expect(loaded!.entities[0].id).toBe('ground')
+  })
+
+  it('saveGlobalBehaviorLibrary round-trips with loadGlobalBehaviorLibrary', async () => {
+    const initial = await persistence.loadGlobalBehaviorLibrary()
+    expect(initial.scripts).toEqual({})
+    expect(initial.transformers).toEqual({})
+
+    await persistence.saveGlobalBehaviorLibrary({
+      scripts: { lib_a: { event: 'onUpdate', source: '// x' } },
+      transformers: {
+        tf_lib: { type: 'custom', priority: 10, enabled: true, code: 'export function transform() {}' },
+      },
+    })
+    const loaded = await persistence.loadGlobalBehaviorLibrary()
+    expect(loaded.scripts.lib_a?.source).toBe('// x')
+    expect(loaded.transformers.tf_lib?.type).toBe('custom')
   })
 
   it('imports project from zip', async () => {

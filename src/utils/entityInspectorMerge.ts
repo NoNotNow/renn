@@ -1,5 +1,4 @@
 import type { Entity, Vec3, Rotation, Shape, MaterialRef, EntityAvatarConfig } from '@/types/world'
-import type { TransformerConfig } from '@/types/transformer'
 import { DEFAULT_SCALE, DEFAULT_POSITION, DEFAULT_ROTATION } from '@/types/world'
 import { VEC_EPS } from '@/utils/editorConstants'
 
@@ -103,7 +102,7 @@ export function mergeModelRef(entities: Entity[]): string | null | undefined {
   return v0
 }
 
-export function mergeTransformers(entities: Entity[]): TransformerConfig[] | null {
+export function mergeTransformers(entities: Entity[]): string[] | null {
   if (entities.length === 0) return null
   const t0 = entities[0]!.transformers
   for (let i = 1; i < entities.length; i++) {
@@ -119,6 +118,30 @@ export function mergeScripts(entities: Entity[]): string[] | null {
     if (!deepEqual(s0, entities[i]!.scripts)) return null
   }
   return s0 ?? []
+}
+
+/**
+ * Script IDs present on every selected entity, preserving the first entity's attachment order
+ * where possible (matches `ScriptPanelMultiSelect` intersection UX).
+ */
+export function intersectScriptIdsAcrossEntities(entities: Entity[]): string[] {
+  if (entities.length === 0) return []
+  let common = new Set(entities[0]!.scripts ?? [])
+  for (let i = 1; i < entities.length; i++) {
+    const next = new Set(entities[i]!.scripts ?? [])
+    common = new Set([...common].filter((id) => next.has(id)))
+  }
+  return [...common]
+}
+
+/**
+ * Transformer IDs present on every selected entity, preserving the first entity's pipeline order.
+ */
+export function intersectTransformerIdsAcrossEntities(entities: Entity[]): string[] {
+  if (entities.length === 0) return []
+  const ordered = entities[0]!.transformers ?? []
+  if (entities.length === 1) return [...ordered]
+  return ordered.filter((id) => entities.every((e) => (e.transformers ?? []).includes(id)))
 }
 
 /** All lack avatar, all same avatar config, or null if mixed. */

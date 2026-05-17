@@ -1,4 +1,37 @@
 import type {RennWorld} from '@/types/world'
+import type {TransformerDef} from '@/types/transformer'
+
+const transformers: Record<string, TransformerDef> = {
+    car_tf0: {
+        type: 'input',
+        priority: 0,
+        enabled: true,
+        inputMapping: {
+            keyboard: {
+                w: 'throttle',
+                s: 'brake',
+                a: 'steer_left',
+                d: 'steer_right',
+                space: 'jump',
+            },
+            sensitivity: {
+                keyboard: 1,
+            },
+        },
+    },
+    car_tf1: {
+        type: 'car2',
+        priority: 1,
+        enabled: true,
+        params: {
+            power: 400,
+            steeringIntensity: 0.1,
+            steeringSpeed: 0.05,
+            lateralGrip: 100,
+            jumpImpulse: 2000,
+        },
+    },
+}
 
 export const sampleWorld: RennWorld = {
     version: '1.0',
@@ -20,6 +53,7 @@ export const sampleWorld: RennWorld = {
             height: 4,
         },
     },
+    transformers,
     assets: {},
     entities: [
         {
@@ -57,37 +91,7 @@ export const sampleWorld: RennWorld = {
                 "metalness": 0.4,
                 "roughness": 0.8
             },
-            transformers: [
-                {
-                    type: 'input',
-                    priority: 0,
-                    enabled: true,
-                    inputMapping: {
-                        keyboard: {
-                            w: 'throttle',
-                            s: 'brake',
-                            a: 'steer_left',
-                            d: 'steer_right',
-                            space: 'jump',
-                        },
-                        sensitivity: {
-                            keyboard: 1,
-                        },
-                    },
-                },
-                {
-                    type: 'car2',
-                    priority: 1,
-                    enabled: true,
-                    params: {
-                        power: 400,
-                        steeringIntensity: 0.1,
-                        steeringSpeed: 0.05,
-                        lateralGrip: 100,
-                        jumpImpulse: 2000,
-                    },
-                },
-            ],
+            transformers: ['car_tf0', 'car_tf1'],
             angularDamping: 0.3,
             scripts: ['script', 'timer'],
             scale: [1, 1, 1],

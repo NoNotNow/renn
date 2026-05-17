@@ -5,6 +5,7 @@ import {
   migrateCustomTransformerNames,
   clampTrimeshSimplificationConfig,
   migrateWorldRingShapesToCylinder,
+  migrateEntityTransformersToRegistry,
 } from './migrateWorld'
 
 describe('migrateWorldScripts', () => {
@@ -195,5 +196,95 @@ describe('clampTrimeshSimplificationConfig', () => {
     expect(b).not.toBe(a)
     expect(b.maxError).toBe(2)
     expect(b.maxTriangles).toBe(500)
+  })
+})
+
+describe('migrateEntityTransformersToRegistry', () => {
+  it('extracts embedded TransformerConfig[] into world.transformers and replaces with IDs', () => {
+    const world = {
+      version: '1.0',
+      world: {},
+      entities: [
+        {
+          id: 'car',
+          transformers: [
+            { type: 'input', priority: 0 },
+            { type: 'car2', priority: 1, params: { power: 500 } },
+          ],
+        },
+        {
+          id: 'player',
+          transformers: [{ type: 'custom', name: 'MyScript', code: 'return {}' }],
+        },
+      ],
+    }
+    migrateEntityTransformersToRegistry(world)
+
+    const registry = (world as Record<string, unknown>).transformers as Record<string, unknown>
+    expect(registry).toBeDefined()
+    expect(registry['car_tf0']).toEqual({ type: 'input', priority: 0 })
+    expect(registry['car_tf1']).toEqual({ type: 'car2', priority: 1, params: { power: 500 } })
+    expect(registry['player_tf0']).toEqual({ type: 'custom', name: 'MyScript', code: 'return {}' })
+
+    expect(world.entities[0].transformers).toEqual(['car_tf0', 'car_tf1'])
+    expect(world.entities[1].transformers).toEqual(['player_tf0'])
+  })
+
+  it('is no-op when entity.transformers is already string[]', () => {
+    const world = {
+      version: '1.0',
+      world: {},
+      transformers: { tf1: { type: 'input', priority: 0 } },
+      entities: [{ id: 'car', transformers: ['tf1'] }],
+    }
+    migrateEntityTransformersToRegistry(world)
+    expect(world.entities[0].transformers).toEqual(['tf1'])
+    expect(Object.keys((world as Record<string, unknown>).transformers as object)).toHaveLength(1)
+  })
+
+  it('is no-op when entities have no transformers', () => {
+    const world = {
+      version: '1.0',
+      world: {},
+      entities: [{ id: 'box' }],
+    }
+    migrateEntityTransformersToRegistry(world)
+    expect((world as Record<string, unknown>).transformers).toEqual({})
+    expect((world.entities[0] as Record<string, unknown>).transformers).toBeUndefined()
+  })
+
+  it('creates world.transformers registry when absent', () => {
+    const world = {
+      entities: [{ id: 'e', transformers: [{ type: 'input' }] }],
+    }
+    migrateEntityTransformersToRegistry(world)
+    expect((world as Record<string, unknown>).transformers).toEqual({ e_tf0: { type: 'input' } })
+    expect(world.entities[0].transformers).toEqual(['e_tf0'])
+  })
+
+  it('preserves existing registry entries when migrating more entities', () => {
+    const world = {
+      transformers: { existing_tf0: { type: 'car2' } },
+      entities: [{ id: 'new', transformers: [{ type: 'input' }] }],
+    }
+    migrateEntityTransformersToRegistry(world)
+    const registry = (world as Record<string, unknown>).transformers as Record<string, unknown>
+    expect(registry['existing_tf0']).toEqual({ type: 'car2' })
+    expect(registry['new_tf0']).toEqual({ type: 'input' })
+  })
+
+  it('handles multiple entities with independent ID namespacing', () => {
+    const world = {
+      entities: [
+        { id: 'a', transformers: [{ type: 'input' }] },
+        { id: 'b', transformers: [{ type: 'car2' }] },
+      ],
+    }
+    migrateEntityTransformersToRegistry(world)
+    const registry = (world as Record<string, unknown>).transformers as Record<string, unknown>
+    expect(registry['a_tf0']).toEqual({ type: 'input' })
+    expect(registry['b_tf0']).toEqual({ type: 'car2' })
+    expect(world.entities[0].transformers).toEqual(['a_tf0'])
+    expect(world.entities[1].transformers).toEqual(['b_tf0'])
   })
 })

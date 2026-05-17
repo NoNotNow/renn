@@ -7,6 +7,7 @@
  */
 
 import type { RennWorld, Entity } from '@/types/world'
+import type { TransformerDef } from '@/types/transformer'
 
 // ---------------------------------------------------------------------------
 // Heap measurement
@@ -120,6 +121,7 @@ export function createBenchmarkWorld(
   staticCount: number = 0,
 ): RennWorld {
   const entities: Entity[] = []
+  const transformers: Record<string, TransformerDef> = {}
 
   entities.push({
     id: 'ground',
@@ -148,22 +150,23 @@ export function createBenchmarkWorld(
     }
 
     if (i % 5 === 0) {
-      entity.transformers = [
-        {
-          type: 'input',
-          priority: 0,
-          enabled: true,
-          inputMapping: {
-            keyboard: { w: 'throttle', s: 'brake', a: 'steer_left', d: 'steer_right' },
-          },
-        } as any,
-        {
-          type: 'car2',
-          priority: 10,
-          enabled: true,
-          params: { power: 200, steeringIntensity: 0.1, steeringSpeed: 0.01, lateralGrip: 80, jumpImpulse: 150 },
-        } as any,
-      ]
+      const inputId = `dyn_${i}_tf0`
+      const car2Id = `dyn_${i}_tf1`
+      transformers[inputId] = {
+        type: 'input',
+        priority: 0,
+        enabled: true,
+        inputMapping: {
+          keyboard: { w: 'throttle', s: 'brake', a: 'steer_left', d: 'steer_right' },
+        },
+      }
+      transformers[car2Id] = {
+        type: 'car2',
+        priority: 10,
+        enabled: true,
+        params: { power: 200, steeringIntensity: 0.1, steeringSpeed: 0.01, lateralGrip: 80, jumpImpulse: 150 },
+      }
+      entity.transformers = [inputId, car2Id]
     }
 
     entities.push(entity)
@@ -187,6 +190,7 @@ export function createBenchmarkWorld(
     /** Explicitly off so frame benchmarks measure physics/transformers, not distance culling. */
     world: { gravity: [0, -9.81, 0], distanceCulling: false },
     entities,
+    transformers,
     assets: {},
     scripts: {},
   }

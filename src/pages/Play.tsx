@@ -4,13 +4,14 @@ import SceneView from '@/components/SceneView'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { sampleWorld } from '@/data/sampleWorld'
 import { validateWorldDocument } from '@/schema/validate'
-import { migrateWorldScripts, migrateWorldSimplificationFields, migrateCustomTransformerNames, migrateWorldRingShapesToCylinder } from '@/scripts/migrateWorld'
+import { migrateWorldScripts, migrateWorldSimplificationFields, migrateCustomTransformerNames, migrateWorldRingShapesToCylinder, migrateEntityTransformersToRegistry } from '@/scripts/migrateWorld'
 import type { RennWorld } from '@/types/world'
 import { defaultPersistence } from '@/persistence/indexedDb'
 
 function normalizeLoadedWorld(data: unknown): RennWorld {
   migrateWorldScripts(data)
   migrateCustomTransformerNames(data)
+  migrateEntityTransformersToRegistry(data)
   migrateWorldSimplificationFields(data)
   migrateWorldRingShapesToCylinder(data)
   validateWorldDocument(data, { tolerateAdditionalProperties: true, logAdditionalProperties: true })

@@ -1,4 +1,5 @@
 import type { RennWorld, ModelPreset } from '@/types/world'
+import type { GlobalBehaviorLibrary } from '@/types/globalBehaviorLibrary'
 
 export interface ProjectMeta {
   id: string
@@ -31,4 +32,7 @@ export interface PersistenceAPI {
   listModelPresets(): Promise<ModelPreset[]>
   saveModelPreset(preset: ModelPreset): Promise<void>
   deleteModelPreset(id: string): Promise<void>
+  /** Global Workspace library (IndexedDB, not exported with world zip). */
+  loadGlobalBehaviorLibrary(): Promise<GlobalBehaviorLibrary>
+  saveGlobalBehaviorLibrary(library: GlobalBehaviorLibrary): Promise<void>
 }

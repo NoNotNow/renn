@@ -7,11 +7,26 @@ import { addAssetsToZipFolder } from '@/utils/assetExport'
 import { collectReferencedAssetIds } from '@/utils/collectReferencedAssetIds'
 import { rehydrateImportedAssetBlob, synthesizeAssetRefForExport } from '@/utils/rehydrateImportedAssetBlob'
 import { validateWorldDocument } from '@/schema/validate'
+import type { GlobalBehaviorLibrary } from '@/types/globalBehaviorLibrary'
+import { EMPTY_GLOBAL_BEHAVIOR_LIBRARY } from '@/types/globalBehaviorLibrary'
 
 const STORE_PROJECTS = DB_CONFIG.stores.projects
 const STORE_ASSETS = DB_CONFIG.stores.assets
 const STORE_MODEL_PRESETS = DB_CONFIG.stores.modelPresets
 const STORE_PLAY_SESSION = DB_CONFIG.stores.playSession
+const STORE_GLOBAL_BEHAVIOR = DB_CONFIG.stores.globalBehaviorLibrary
+
+const GLOBAL_BEHAVIOR_ROW_ID = 'global-behavior-library' as const
+
+type GlobalBehaviorLibraryRow = GlobalBehaviorLibrary & {
+  id: typeof GLOBAL_BEHAVIOR_ROW_ID
+  updatedAt: number
+}
+
+function isIndexedDbMissingObjectStoreError(err: unknown): boolean {
+  if (typeof err !== 'object' || err === null || !('name' in err)) return false
+  return (err as { name?: string }).name === 'NotFoundError'
+}
 
 /** Single row in `playSession` store (Builder → Play handoff). */
 const PLAY_SESSION_RECORD_ID = 'play-session' as const
@@ -91,6 +106,12 @@ function getDB(): Promise<IDBPDatabase> {
 
       if (!db.objectStoreNames.contains(STORE_PLAY_SESSION)) {
         db.createObjectStore(STORE_PLAY_SESSION, { keyPath: 'id' })
+      }
+
+      // v8: bump forces upgrade for browsers that reached v7 before `globalBehaviorLibrary` existed —
+      // without a version bump IndexedDB never re-ran this block for them.
+      if (!db.objectStoreNames.contains(STORE_GLOBAL_BEHAVIOR)) {
+        db.createObjectStore(STORE_GLOBAL_BEHAVIOR, { keyPath: 'id' })
       }
     },
     blocked() {
@@ -246,7 +267,7 @@ export function createIndexedDbPersistence(): PersistenceAPI {
 
     async importProject(file: File): Promise<{ id: string }> {
       const JSZip = (await import('jszip')).default
-      const { migrateWorldScripts, migrateWorldSimplificationFields, migrateCustomTransformerNames, migrateWorldRingShapesToCylinder } = await import(
+      const { migrateWorldScripts, migrateWorldSimplificationFields, migrateCustomTransformerNames, migrateWorldRingShapesToCylinder, migrateEntityTransformersToRegistry } = await import(
         '@/scripts/migrateWorld'
       )
       const zip = await JSZip.loadAsync(file)
@@ -255,6 +276,7 @@ export function createIndexedDbPersistence(): PersistenceAPI {
       const worldJson: unknown = JSON.parse(await worldFile.async('string'))
       migrateWorldScripts(worldJson)
       migrateCustomTransformerNames(worldJson)
+      migrateEntityTransformersToRegistry(worldJson)
       migrateWorldSimplificationFields(worldJson)
       migrateWorldRingShapesToCylinder(worldJson)
       validateWorldDocument(worldJson, { tolerateAdditionalProperties: true, logAdditionalProperties: true })
@@ -432,6 +454,60 @@ export function createIndexedDbPersistence(): PersistenceAPI {
       const db = await getDB()
       await db.delete(STORE_MODEL_PRESETS, id)
       await db.close()
+    },
+
+    async loadGlobalBehaviorLibrary(): Promise<GlobalBehaviorLibrary> {
+      try {
+        const db = await getDB()
+        try {
+          const row = (await db.get(
+            STORE_GLOBAL_BEHAVIOR,
+            GLOBAL_BEHAVIOR_ROW_ID,
+          )) as GlobalBehaviorLibraryRow | undefined
+          if (!row) {
+            return { ...EMPTY_GLOBAL_BEHAVIOR_LIBRARY }
+          }
+          return {
+            transformers: row.transformers ?? {},
+            scripts: row.scripts ?? {},
+          }
+        } finally {
+          db.close()
+        }
+      } catch (e) {
+        if (isIndexedDbMissingObjectStoreError(e)) {
+          console.warn(
+            `[Persistence] ${STORE_GLOBAL_BEHAVIOR} object store missing; returning empty library. Reload once after IndexedDB migrated to schema v${DB_CONFIG.version}.`,
+          )
+          return { ...EMPTY_GLOBAL_BEHAVIOR_LIBRARY }
+        }
+        throw e
+      }
+    },
+
+    async saveGlobalBehaviorLibrary(library: GlobalBehaviorLibrary): Promise<void> {
+      try {
+        const db = await getDB()
+        try {
+          const row: GlobalBehaviorLibraryRow = {
+            id: GLOBAL_BEHAVIOR_ROW_ID,
+            transformers: library.transformers ?? {},
+            scripts: library.scripts ?? {},
+            updatedAt: Date.now(),
+          }
+          await db.put(STORE_GLOBAL_BEHAVIOR, row)
+        } finally {
+          db.close()
+        }
+      } catch (e) {
+        if (isIndexedDbMissingObjectStoreError(e)) {
+          console.warn(
+            `[Persistence] Cannot save global behavior library until IndexedDB upgrades (schema v${DB_CONFIG.version}).`,
+          )
+          return
+        }
+        throw e
+      }
     },
   }
 }

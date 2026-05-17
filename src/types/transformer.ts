@@ -265,6 +265,7 @@ export type TransformerType = PresetTransformerType | string
  * Serialisable transformer configuration stored in world JSON.
  */
 export interface TransformerConfig {
+  // NOTE: TransformerDef below extends this for the world-level registry.
   /** Preset name. */
   type: TransformerType
 
@@ -289,6 +290,14 @@ export interface TransformerConfig {
    */
   code?: string
 }
+
+/**
+ * World-level transformer registry entry. Mirrors TransformerConfig with the same fields;
+ * stored in `world.transformers: Record<string, TransformerDef>` (keyed by ID).
+ * entity.transformers now holds string[] IDs referencing this registry.
+ */
+// eslint-disable-next-line @typescript-eslint/no-empty-interface
+export interface TransformerDef extends TransformerConfig {}
 
 // ---------------------------------------------------------------------------
 // Null / empty helpers

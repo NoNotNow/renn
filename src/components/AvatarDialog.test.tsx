@@ -22,7 +22,7 @@ function makeWorld(): RennWorld {
         position: [0, 0, 0],
         shape: { type: 'box', width: 1, height: 1, depth: 1 },
         avatar: { enabled: true, preferredCamera: { mode: 'follow', distance: 7 } },
-        transformers: [{ type: 'input', priority: 0, enabled: true }],
+        transformers: ['e1_tf0'],
       },
     ],
   }

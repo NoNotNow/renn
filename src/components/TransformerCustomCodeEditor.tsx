@@ -4,6 +4,8 @@ import type { OnMount } from '@monaco-editor/react'
 import type { editor } from 'monaco-editor'
 import { addMonacoTypescriptExtraLib } from '@/utils/monacoExtraLib'
 import { transformerCtxDecl, TRANSFORMER_CODE_EXTRA_LIB_URI } from '@/transformers/transformerCodeDecl'
+import { ctxDeclFor, CTX_EXTRA_LIB_URI } from '@/scripts/scriptCtxDecl'
+import type { ScriptEvent } from '@/types/world'
 import { clamp } from '@/utils/numberUtils'
 import { theme } from '@/config/theme'
 
@@ -46,6 +48,13 @@ export interface TransformerCustomCodeEditorProps {
   delayedLayoutMs?: number
   /** Fires once after Monaco mounts with the editor instance. */
   onEditorReady?: (ed: editor.IStandaloneCodeEditor) => void
+  /**
+   * Transformer custom code uses the transformer `ctx` typings; Workspace scripts use
+   * game `ctx` typings keyed by the active script event.
+   */
+  codeIntelliSense?: 'transformer' | 'script'
+  /** Required shape of `ctx` extraLib when `codeIntelliSense` is `script`. */
+  scriptCtxEvent?: ScriptEvent
 }
 
 export default function TransformerCustomCodeEditor({
@@ -60,6 +69,8 @@ export default function TransformerCustomCodeEditor({
   transparent = false,
   delayedLayoutMs,
   onEditorReady,
+  codeIntelliSense = 'transformer',
+  scriptCtxEvent = 'onUpdate',
 }: TransformerCustomCodeEditorProps) {
   const monacoRef = useRef<typeof import('monaco-editor') | null>(null)
   const extraLibRef = useRef<{ dispose(): void } | null>(null)
@@ -99,16 +110,20 @@ export default function TransformerCustomCodeEditor({
     const monaco = monacoRef.current
     if (!monaco) return
     extraLibRef.current?.dispose()
-    extraLibRef.current = addMonacoTypescriptExtraLib(
-      monaco,
-      transformerCtxDecl(),
-      TRANSFORMER_CODE_EXTRA_LIB_URI,
-    )
+    if (codeIntelliSense === 'script') {
+      extraLibRef.current = addMonacoTypescriptExtraLib(monaco, ctxDeclFor(scriptCtxEvent), CTX_EXTRA_LIB_URI)
+    } else {
+      extraLibRef.current = addMonacoTypescriptExtraLib(
+        monaco,
+        transformerCtxDecl(),
+        TRANSFORMER_CODE_EXTRA_LIB_URI,
+      )
+    }
     return () => {
       extraLibRef.current?.dispose()
       extraLibRef.current = null
     }
-  }, [])
+  }, [codeIntelliSense, scriptCtxEvent])
 
   useEffect(() => {
     return () => {
@@ -121,12 +136,6 @@ export default function TransformerCustomCodeEditor({
 
   const handleMount: OnMount = (ed, monaco) => {
     monacoRef.current = monaco
-    extraLibRef.current?.dispose()
-    extraLibRef.current = addMonacoTypescriptExtraLib(
-      monaco,
-      transformerCtxDecl(),
-      TRANSFORMER_CODE_EXTRA_LIB_URI,
-    )
     if (transparent) {
       monaco.editor.defineTheme(GLASS_THEME, {
         base: 'vs-dark',

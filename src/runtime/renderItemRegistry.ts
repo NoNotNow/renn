@@ -24,6 +24,7 @@ import type {
   TransformInput,
   TransformOutput,
   TransformerConfig,
+  TransformerDef,
   RawInput,
 } from '@/types/transformer'
 import { clearActionRecord, hasTrackedKeyboardActivity } from '@/types/transformer'
@@ -69,6 +70,8 @@ export class RenderItemRegistry {
   private rawInputGetter: (() => RawInput | null) | null = null
   /** When set and `current` is non-null, only that entity receives keyboard input via InputTransformer. */
   private controlledEntityIdRef: { current: string | null } | null = null
+  /** World-level transformer registry: maps IDs to configs, used to resolve entity.transformers string[]. */
+  private worldTransformers: Record<string, TransformerDef> = {}
   /** Entity ids that are distance-culled with `sleepCulled` — skip their game scripts. */
   private readonly _culledSleepingForScripts = new Set<string>()
   /** Previous frame's `sleepCulled` flag (for toggling off world sleep). */
@@ -155,11 +158,13 @@ export class RenderItemRegistry {
     physicsWorld: PhysicsWorld | null,
     rawInputGetter?: () => RawInput | null,
     controlledEntityIdRef?: { current: string | null } | null,
+    worldTransformers?: Record<string, TransformerDef>,
   ): RenderItemRegistry {
     const registry = new RenderItemRegistry()
     registry.physicsWorld = physicsWorld
     registry.rawInputGetter = rawInputGetter ?? null
     registry.controlledEntityIdRef = controlledEntityIdRef ?? null
+    registry.worldTransformers = worldTransformers ?? {}
     for (const { entity, mesh } of loadedEntities) {
       const body = physicsWorld?.getBody(entity.id) ?? null
       const item = new RenderItem(entity, mesh, body)
@@ -168,9 +173,10 @@ export class RenderItemRegistry {
       // Create transformer chain if entity has transformers.
       // Creation may be async (custom transformers); initialize asynchronously
       // so callers receive a registry immediately (tests expect sync create()).
-      if (entity.transformers && entity.transformers.length > 0) {
+      const configs = registry.resolveTransformerConfigs(entity)
+      if (configs && configs.length > 0) {
         createTransformerChain(
-          entity.transformers,
+          configs,
           rawInputGetter ?? undefined,
           entity,
           (eid) => registry.getEntityWorldPoseForTransformers(eid),
@@ -190,6 +196,32 @@ export class RenderItemRegistry {
       registry.items.set(entity.id, item)
     }
     return registry
+  }
+
+  /**
+   * Resolve entity.transformers string[] → TransformerConfig[] via world.transformers registry.
+   * Falls back gracefully: IDs missing from the registry are skipped with a warning.
+   */
+  private resolveTransformerConfigs(entity: Entity): TransformerConfig[] | null {
+    if (!entity.transformers || entity.transformers.length === 0) return null
+    const configs: TransformerConfig[] = []
+    for (const id of entity.transformers) {
+      const def = this.worldTransformers[id]
+      if (def) {
+        configs.push(def)
+      } else {
+        console.warn(`[RenderItemRegistry] Transformer ID "${id}" not found in world.transformers for entity "${entity.id}"`)
+      }
+    }
+    return configs.length > 0 ? configs : null
+  }
+
+  /**
+   * Replace the world-level transformer registry. Call when world.transformers is updated
+   * (e.g. after Workspace edits). Does not rebuild chains; call syncEntityTransformers for that.
+   */
+  setWorldTransformers(worldTransformers: Record<string, TransformerDef>): void {
+    this.worldTransformers = worldTransformers
   }
 
   /**
@@ -213,12 +245,25 @@ export class RenderItemRegistry {
   /**
    * Update serialised transformers on the render item and sync `enabled` on the live chain
    * when chain length matches config order. Otherwise rebuilds the chain asynchronously.
+   *
+   * Phase 1 shim: still accepts TransformerConfig[] from UI components; maps them to IDs
+   * in worldTransformers using `${id}_tf${i}` keys. Workspace (Phase 3+) will replace this.
    */
   syncEntityTransformers(id: string, configs: TransformerConfig[] | undefined): void {
     const item = this.items.get(id)
     if (!item) return
 
-    const nextEntity: Entity = { ...item.entity, transformers: configs }
+    // Map configs into worldTransformers and build the ID array
+    let transformerIds: string[] | undefined
+    if (configs && configs.length > 0) {
+      transformerIds = configs.map((cfg, i) => {
+        const tfId = `${id}_tf${i}`
+        this.worldTransformers[tfId] = cfg
+        return tfId
+      })
+    }
+
+    const nextEntity: Entity = { ...item.entity, transformers: transformerIds }
     item.entity = nextEntity
     if (item.mesh.userData.entity !== undefined) {
       item.mesh.userData.entity = nextEntity

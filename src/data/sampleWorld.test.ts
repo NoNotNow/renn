@@ -30,7 +30,8 @@ describe('sampleWorld', () => {
   it('player car entity has both input and car2 transformers', () => {
     const car = sampleWorld.entities.find((e) => e.id === 'car')
     expect(car).toBeDefined()
-    const types = (car!.transformers ?? []).map((t) => t.type)
+    const registry = sampleWorld.transformers ?? {}
+    const types = (car!.transformers ?? []).map((id) => registry[id]?.type)
     expect(types).toContain('input')
     expect(types).toContain('car2')
   })
