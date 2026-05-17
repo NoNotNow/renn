@@ -15,6 +15,7 @@ import { GizmoMoveIcon, GizmoBrushIcon, GizmoRotateIcon, GizmoScaleIcon, GizmoVi
 import { BrushToolPopover } from '@/components/BrushToolPopover'
 import { entityPanelIconButtonStyle } from '@/components/sharedStyles'
 import { formatMenuShortcut } from '@/utils/menuShortcut'
+import { EntityPanelIcons } from './EntityPanelIcons'
 
 export interface BuilderHeaderProps {
   projects: ProjectMeta[]
@@ -66,6 +67,8 @@ export interface BuilderHeaderProps {
   onOpenTransformerDocs?: () => void
   /** Single textured entity: open layered texture editor. */
   onOpenTextureStudio?: () => void
+  onOpenWorkspace?: () => void
+  selectedEntityCount?: number
 }
 
 export default function BuilderHeader({
@@ -109,6 +112,8 @@ export default function BuilderHeader({
   onOpenPerformanceBooster,
   onOpenTransformerDocs,
   onOpenTextureStudio,
+  onOpenWorkspace,
+  selectedEntityCount = 0,
 }: BuilderHeaderProps) {
   const [showProjectSelector, setShowProjectSelector] = useState(false)
   const [brushPopoverOpen, setBrushPopoverOpen] = useState(false)
@@ -494,6 +499,45 @@ export default function BuilderHeader({
               {GizmoScaleIcon}
             </button>
           </div>
+          {onOpenWorkspace && (
+            <div
+              role="group"
+              aria-label="Workspace"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                paddingLeft: 10,
+                marginLeft: 2,
+                borderLeft: '1px solid #2f3545',
+              }}
+            >
+              <button
+                type="button"
+                data-testid="header-open-workspace"
+                onClick={onOpenWorkspace}
+                disabled={selectedEntityCount === 0}
+                title={
+                  selectedEntityCount === 0
+                    ? 'Select an entity to open the workspace'
+                    : 'Open behavior workspace (full screen)'
+                }
+                style={{
+                  ...entityPanelIconButtonStyle,
+                  display: 'flex',
+                  opacity: selectedEntityCount === 0 ? 0.4 : 0.85,
+                  cursor: selectedEntityCount === 0 ? 'not-allowed' : 'pointer',
+                }}
+                onMouseEnter={(e) => {
+                  if (selectedEntityCount > 0) e.currentTarget.style.opacity = '1'
+                }}
+                onMouseLeave={(e) => {
+                  if (selectedEntityCount > 0) e.currentTarget.style.opacity = '0.85'
+                }}
+              >
+                {EntityPanelIcons.code}
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

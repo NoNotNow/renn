@@ -48,6 +48,7 @@ export interface PropertySidebarProps {
   onAfterModelPresetApply?: (previews: { id: string; merged: Entity }[], preset: ModelPreset) => void | Promise<void>
   /** Invoke when opening transformer code pop-out (e.g. collapse side drawers like fullscreen enter). */
   onTransformerCodePopoutOpen?: () => void
+  onOpenWorkspaceAnchored?: (anchor: Pick<WorkspaceTarget, 'tab' | 'itemId'>) => void
   onSelectEntity?: (id: string) => void
 }
 
@@ -75,6 +76,7 @@ export default function PropertySidebar({
   onOpenTextureStudio,
   onAfterModelPresetApply,
   onTransformerCodePopoutOpen,
+  onOpenWorkspaceAnchored,
   onSelectEntity,
 }: PropertySidebarProps) {
   const [rightTabStored, setRightTabStored] = useLocalStorageState<RightTab>(
@@ -256,6 +258,7 @@ export default function PropertySidebar({
               onWorldChange={onWorldChange}
               onEntityTransformersChange={onEntityTransformersChange}
               onTransformerCodePopoutOpen={onTransformerCodePopoutOpen}
+              onOpenWorkspaceAnchored={onOpenWorkspaceAnchored}
               onResetPoseToSavedWorld={onResetPoseToSavedWorld}
               onSelectEntity={onSelectEntity}
             />

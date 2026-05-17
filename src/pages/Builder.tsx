@@ -1,10 +1,11 @@
-import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
+import { useState, useCallback, useRef, useEffect, useMemo, useSyncExternalStore } from 'react'
 import SceneView, { type SceneViewHandle } from '@/components/SceneView'
 import BuilderHeader from '@/components/BuilderHeader'
 import PerformanceBoosterDialog from '@/components/PerformanceBoosterDialog'
 import SaveDialog from '@/components/SaveDialog'
 import EntitySidebar from '@/components/EntitySidebar'
 import PropertySidebar from '@/components/PropertySidebar'
+import Workspace from '@/components/Workspace'
 import { LivePosesPoll, type LivePosesMap } from '@/components/LivePosesPoll'
 import { CopyProvider } from '@/contexts/CopyContext'
 import { EditorUndoProvider } from '@/contexts/EditorUndoContext'
@@ -14,6 +15,12 @@ import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { cloneEntityFrom, createDefaultEntity, createBulkEntities, type AddableShapeType, type BulkEntityParams } from '@/data/entityDefaults'
 import { presetTouchesSceneRebuild } from '@/data/modelPresets'
 import { useProjectContext } from '@/hooks/useProjectContext'
+import {
+  clearTransformerLiveTraceSnapshot,
+  getTransformerLiveTraceSnapshot,
+  setTransformerTraceTargetEntityId,
+  subscribeTransformerLiveTrace,
+} from '@/runtime/transformerTraceBridge'
 import { useLocalStorageState } from '@/hooks/useLocalStorageState'
 import { useBuilderFullscreenChrome } from '@/hooks/useBuilderFullscreenChrome'
 import {
@@ -39,11 +46,16 @@ import {
   renameGroup,
   setGroupCollapsed,
 } from '@/utils/entityGroups'
+import {
+  intersectScriptIdsAcrossEntities,
+  intersectTransformerIdsAcrossEntities,
+} from '@/utils/entityInspectorMerge'
 import { uiLogger } from '@/utils/uiLogger'
 import { colorToHex, hexToColor } from '@/utils/colorUtils'
 import { theme } from '@/config/theme'
 import { getSceneDependencyKey } from '@/utils/sceneDependencyKey'
 import type { TransformerConfig } from '@/types/transformer'
+import type { WorkspaceTarget } from '@/types/workspace'
 import {
   DEFAULT_TEXTURE_BRUSH_RGB,
   TEXTURE_BRUSH_RADIUS_MAX,
@@ -170,6 +182,8 @@ export default function Builder() {
     [],
   )
   const [gizmoMode, setGizmoMode] = useState<BuilderGizmoMode>('translate')
+  const [workspaceOpen, setWorkspaceOpen] = useState(false)
+  const [workspaceEntry, setWorkspaceEntry] = useState<WorkspaceTarget | null>(null)
   const [textureBrushRgb, setTextureBrushRgb] = useState<Vec3>(() => [...DEFAULT_TEXTURE_BRUSH_RGB])
   const [textureBrushAlpha, setTextureBrushAlpha] = useState(1)
   const [textureBrushRadiusPx, setTextureBrushRadiusPx] = useState(TEXTURE_PAINT_RADIUS_PX)
@@ -412,6 +426,53 @@ export default function Builder() {
     setGizmoMode(mode)
     uiLogger.change('Builder', 'Gizmo mode', { mode })
   }, [])
+
+  const handleOpenWorkspace = useCallback(() => {
+    const entityId = selectedEntityIds[0]
+    if (!entityId) return
+    collapseSideDrawers()
+
+    const entities = selectedEntityIds
+      .map((id) => world.entities.find((e) => e.id === id))
+      .filter((e): e is Entity => e != null)
+
+    const worldTf = world.transformers ?? {}
+    const tfIdsIntersect = intersectTransformerIdsAcrossEntities(entities)
+    const scIdsIntersect = intersectScriptIdsAcrossEntities(entities)
+
+    // Default to transformers, but if there are scripts and no transformers, go to scripts.
+    // Also try to find a custom transformer to select by default.
+    let tab: WorkspaceTarget['tab'] = 'transformers'
+    let itemId: string | undefined
+
+    if (tfIdsIntersect.length === 0 && scIdsIntersect.length > 0) {
+      tab = 'scripts'
+      itemId = scIdsIntersect[0]
+    } else {
+      tab = 'transformers'
+      itemId = tfIdsIntersect.find((id) => worldTf[id]?.type === 'custom') ?? tfIdsIntersect[0]
+    }
+
+    setWorkspaceEntry({ entityId, tab, itemId })
+    setWorkspaceOpen(true)
+    uiLogger.click('Builder', 'Open workspace', { entityId, tab, itemId })
+  }, [collapseSideDrawers, selectedEntityIds, world.entities, world.transformers])
+
+  const handleCloseWorkspace = useCallback(() => {
+    setWorkspaceOpen(false)
+    setWorkspaceEntry(null)
+  }, [])
+
+  const handleOpenWorkspaceAnchored = useCallback(
+    (anchor: Pick<WorkspaceTarget, 'tab' | 'itemId'>) => {
+      const entityId = selectedEntityIds[0]
+      if (!entityId) return
+      collapseSideDrawers()
+      setWorkspaceEntry({ entityId, tab: anchor.tab, itemId: anchor.itemId })
+      setWorkspaceOpen(true)
+    },
+    [collapseSideDrawers, selectedEntityIds],
+  )
 
   const handleEntityPoseCommit = useCallback(
     (commits: BuilderPoseCommitEntry[]) => {
@@ -997,6 +1058,48 @@ export default function Builder() {
   const canUndoHistory = canUndoTextureMaker || editorCanUndo
   const canRedoHistory = canRedoTextureMaker || editorCanRedo
 
+  const traceActive = selectedEntityIds.length === 1 && workspaceOpen
+  useEffect(() => {
+    if (traceActive) {
+      setTransformerTraceTargetEntityId(selectedEntityIds[0]!)
+    } else {
+      setTransformerTraceTargetEntityId(null)
+      clearTransformerLiveTraceSnapshot()
+    }
+    return () => {
+      setTransformerTraceTargetEntityId(null)
+      clearTransformerLiveTraceSnapshot()
+    }
+  }, [selectedEntityIds, workspaceOpen, traceActive])
+
+  const liveTraceSnapshot = useSyncExternalStore(
+    subscribeTransformerLiveTrace,
+    getTransformerLiveTraceSnapshot,
+    () => null,
+  )
+
+  const liveTraceSteps =
+    traceActive && liveTraceSnapshot?.entityId === selectedEntityIds[0]
+      ? liveTraceSnapshot.steps
+      : null
+
+  const selectedResolvedEntities = useMemo(
+    () =>
+      selectedEntityIds
+        .map((id) => world.entities.find((e) => e.id === id))
+        .filter((e): e is Entity => e != null),
+    [selectedEntityIds, world.entities],
+  )
+
+  const canResetPoseToSaved =
+    selectedResolvedEntities.length > 0 && selectedResolvedEntities.some((e) => !e.locked)
+
+  const resetPoseTitle = canResetPoseToSaved
+    ? 'Restore saved position and rotation (from world)'
+    : selectedResolvedEntities.length > 0 && selectedResolvedEntities.every((e) => e.locked)
+      ? 'Cannot reset locked entities'
+      : 'Select an entity to restore saved position and rotation'
+
   const onOpenTextureStudioFromToolbar =
     selectedEntityIds.length === 1
       ? () => {
@@ -1076,6 +1179,8 @@ export default function Builder() {
           uiLogger.click('Builder', 'Open Transformer docs', {})
         }}
         onOpenTextureStudio={onOpenTextureStudioFromToolbar}
+        onOpenWorkspace={handleOpenWorkspace}
+        selectedEntityCount={selectedEntityIds.length}
       />
         </div>
 
@@ -1292,6 +1397,7 @@ export default function Builder() {
                     onOpenTextureStudio={activateTextureStudioForEntity}
                     onAfterModelPresetApply={handleAfterModelPresetApply}
                     onTransformerCodePopoutOpen={collapseSideDrawers}
+                    onOpenWorkspaceAnchored={handleOpenWorkspaceAnchored}
                     onSelectEntity={handleSelectEntity}
                   />
                 )}
@@ -1366,6 +1472,7 @@ export default function Builder() {
                   onOpenTextureStudio={activateTextureStudioForEntity}
                   onAfterModelPresetApply={handleAfterModelPresetApply}
                   onTransformerCodePopoutOpen={collapseSideDrawers}
+                  onOpenWorkspaceAnchored={handleOpenWorkspaceAnchored}
                   onSelectEntity={handleSelectEntity}
                 />
               )}
@@ -1373,6 +1480,22 @@ export default function Builder() {
           </div>
         )}
       </div>
+
+      <Workspace
+        open={workspaceOpen}
+        onClose={handleCloseWorkspace}
+        entry={workspaceEntry}
+        onEntryChange={setWorkspaceEntry}
+        world={world}
+        selectedEntityIds={selectedEntityIds}
+        onWorldChange={handleWorldChange}
+        onEntityTransformersChange={handleEntityTransformersChange}
+        liveTransformerTraceSteps={liveTraceSteps}
+        onResetPoseToSavedWorld={handleResetPoseToSavedWorld}
+        canResetPoseToSaved={canResetPoseToSaved}
+        resetPoseTitle={resetPoseTitle}
+        onSelectEntity={handleSelectEntity}
+      />
     </div>
     </CopyProvider>
     </EditorUndoProvider>

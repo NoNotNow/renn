@@ -247,6 +247,19 @@ export default function WorkspaceOrganizeTab({
     })
   }
 
+  const handleEntityLinkClick = useCallback(
+    (entityId: string, itemId: string, kind: WorkspaceOrganizeKind, source: 'project' | 'global') => {
+      onSelectEntity?.(entityId)
+      onNavigateToEditor({
+        entityId,
+        tab: kind === 'scripts' ? 'scripts' : 'transformers',
+        itemId,
+        ...(source === 'global' ? { itemSource: 'global' as const } : {}),
+      })
+    },
+    [onNavigateToEditor, onSelectEntity],
+  )
+
   const handleDeleteScript = (id: string) => {
     if (!window.confirm(`Delete script "${id}" from the world? Entities will detach.`)) return
     pushUndo()
@@ -678,8 +691,8 @@ export default function WorkspaceOrganizeTab({
             return (
               <WorkspaceOrganizeCard
                 key={id}
-                title={id}
-                subtitle={subtitle}
+                title={subtitle}
+                subtitle={id}
                 usageLine={usageLine}
                 assignments={assignments}
                 showAssign={showGlobalActions}
@@ -693,7 +706,7 @@ export default function WorkspaceOrganizeTab({
                 onCopy={() => handleCopyGlobalScriptToProject(id)}
                 onRename={() => handleRenameGlobalScript(id)}
                 onDelete={() => handleDeleteGlobalScript(id)}
-                onSelectEntity={onSelectEntity}
+                onSelectEntity={(eid) => handleEntityLinkClick(eid, id, 'scripts', 'global')}
                 testId={`workspace-organize-card-global-script-${id}`}
               />
             )
@@ -702,7 +715,8 @@ export default function WorkspaceOrganizeTab({
           scope === 'global' &&
           transformerIdsForCards.map((id) => {
             const def = globalTransformers[id]!
-            const subtitle = `${def.type}${def.enabled === false ? ' · disabled' : ''}`
+            const title = def.name || def.type
+            const subtitle = `${id}${def.enabled === false ? ' · disabled' : ''}`
             const inProject = transformers[id] != null
             const users = inProject ? getEntitiesUsingTransformer(world, id) : []
             const usageLine = inProject
@@ -712,7 +726,7 @@ export default function WorkspaceOrganizeTab({
             return (
               <WorkspaceOrganizeCard
                 key={id}
-                title={id}
+                title={title}
                 subtitle={subtitle}
                 usageLine={usageLine}
                 assignments={assignments}
@@ -727,7 +741,7 @@ export default function WorkspaceOrganizeTab({
                 onCopy={() => handleCopyGlobalTransformerToProject(id)}
                 onRename={() => handleRenameGlobalTransformer(id)}
                 onDelete={() => handleDeleteGlobalTransformer(id)}
-                onSelectEntity={onSelectEntity}
+                onSelectEntity={(eid) => handleEntityLinkClick(eid, id, 'transformers', 'global')}
                 testId={`workspace-organize-card-global-tf-${id}`}
               />
             )
@@ -737,13 +751,14 @@ export default function WorkspaceOrganizeTab({
           scriptIdsForCards.map((id) => {
             const def = getScriptDef(scripts, id)
             const users = getEntitiesUsingScript(world, id)
-            const subtitle = getScriptEventLabel(def)
+            const title = getScriptEventLabel(def)
+            const subtitle = id
             const usageLine = `Used by ${users.length} entity(ies)`
             const assignments = users.map((u) => ({ id: u.id, name: u.name ?? u.id }))
             return (
               <WorkspaceOrganizeCard
                 key={id}
-                title={id}
+                title={title}
                 subtitle={subtitle}
                 usageLine={usageLine}
                 assignments={assignments}
@@ -760,7 +775,7 @@ export default function WorkspaceOrganizeTab({
                 onRename={() => handleRenameScript(id)}
                 onDelete={() => handleDeleteScript(id)}
                 onPromote={() => handlePromoteScriptToGlobal(id)}
-                onSelectEntity={onSelectEntity}
+                onSelectEntity={(eid) => handleEntityLinkClick(eid, id, 'scripts', 'project')}
                 testId={`workspace-organize-card-script-${id}`}
               />
             )
@@ -769,14 +784,15 @@ export default function WorkspaceOrganizeTab({
           scope !== 'global' &&
           transformerIdsForCards.map((id) => {
             const def = transformers[id]!
-            const subtitle = `${def.type}${def.enabled === false ? ' · disabled' : ''}`
+            const title = def.name || def.type
+            const subtitle = `${id}${def.enabled === false ? ' · disabled' : ''}`
             const users = getEntitiesUsingTransformer(world, id)
             const usageLine = `Used by ${users.length} entity(ies)`
             const assignments = users.map((u) => ({ id: u.id, name: u.name ?? u.id }))
             return (
               <WorkspaceOrganizeCard
                 key={id}
-                title={id}
+                title={title}
                 subtitle={subtitle}
                 usageLine={usageLine}
                 assignments={assignments}
@@ -793,7 +809,7 @@ export default function WorkspaceOrganizeTab({
                 onRename={() => handleRenameTransformer(id)}
                 onDelete={() => handleDeleteTransformer(id)}
                 onPromote={() => handlePromoteTransformerToGlobal(id)}
-                onSelectEntity={onSelectEntity}
+                onSelectEntity={(eid) => handleEntityLinkClick(eid, id, 'transformers', 'project')}
                 testId={`workspace-organize-card-tf-${id}`}
               />
             )

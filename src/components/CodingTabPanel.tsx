@@ -30,6 +30,7 @@ export interface CodingTabPanelProps {
   onWorldChange: (world: RennWorld) => void
   onEntityTransformersChange?: (entityIds: string[], transformers: TransformerConfig[]) => void
   onTransformerCodePopoutOpen?: () => void
+  onOpenWorkspaceAnchored?: (anchor: Pick<WorkspaceTarget, 'tab' | 'itemId'>) => void
   /** Snap live pose to each entity’s saved world position and rotation (same as properties tab strip). */
   onResetPoseToSavedWorld?: (entityIds: string[]) => void
   onSelectEntity?: (id: string) => void
@@ -128,6 +129,7 @@ export default function CodingTabPanel({
   onWorldChange,
   onEntityTransformersChange,
   onTransformerCodePopoutOpen,
+  onOpenWorkspaceAnchored,
   onResetPoseToSavedWorld,
   onSelectEntity,
 }: CodingTabPanelProps) {
@@ -143,9 +145,6 @@ export default function CodingTabPanel({
 
   const subgroup = normalizeCodingSubgroupStored(rawSubgroup)
 
-  const [workspaceOpen, setWorkspaceOpen] = useState(false)
-  const [workspaceEntry, setWorkspaceEntry] = useState<WorkspaceTarget | null>(null)
-
   const entities = useMemo(() => {
     const list: Entity[] = []
     for (const id of selectedEntityIds) {
@@ -157,45 +156,13 @@ export default function CodingTabPanel({
 
   const openWorkspaceAnchored = useCallback(
     (anchor: Pick<WorkspaceTarget, 'tab' | 'itemId'>) => {
-      const entityId = selectedEntityIds[0]
-      if (!entityId) return
-      onTransformerCodePopoutOpen?.()
-      setWorkspaceEntry({ entityId, tab: anchor.tab, itemId: anchor.itemId })
-      setWorkspaceOpen(true)
+      onOpenWorkspaceAnchored?.(anchor)
     },
-    [onTransformerCodePopoutOpen, selectedEntityIds],
+    [onOpenWorkspaceAnchored],
   )
 
-  const handleOpenWorkspace = useCallback(() => {
-    const entityId = selectedEntityIds[0]
-    if (!entityId) return
-    onTransformerCodePopoutOpen?.()
-
-    const worldTf = world.transformers ?? {}
-    let tab: WorkspaceTarget['tab'] = 'transformers'
-    let itemId: string | undefined
-    const tfIdsIntersect = intersectTransformerIdsAcrossEntities(entities)
-    const scIdsIntersect = intersectScriptIdsAcrossEntities(entities)
-
-    if (subgroup === 'scripts') {
-      tab = 'scripts'
-      itemId = scIdsIntersect[0]
-    } else {
-      tab = 'transformers'
-      itemId =
-        tfIdsIntersect.find((id) => worldTf[id]?.type === 'custom') ?? tfIdsIntersect[0]
-    }
-    setWorkspaceEntry({ entityId, tab, itemId })
-    setWorkspaceOpen(true)
-  }, [entities, onTransformerCodePopoutOpen, selectedEntityIds, subgroup, world.transformers])
-
-  const handleCloseWorkspace = useCallback(() => {
-    setWorkspaceOpen(false)
-    setWorkspaceEntry(null)
-  }, [])
-
   useEffect(() => {
-    const traceActive = selectedEntityIds.length === 1 && (workspaceOpen || subgroup === 'transformers')
+    const traceActive = selectedEntityIds.length === 1 && subgroup === 'transformers'
     if (traceActive) {
       setTransformerTraceTargetEntityId(selectedEntityIds[0]!)
     } else {
@@ -206,7 +173,7 @@ export default function CodingTabPanel({
       setTransformerTraceTargetEntityId(null)
       clearTransformerLiveTraceSnapshot()
     }
-  }, [subgroup, selectedEntityIds, workspaceOpen])
+  }, [subgroup, selectedEntityIds])
 
   const liveTraceSnapshot = useSyncExternalStore(
     subscribeTransformerLiveTrace,
@@ -215,7 +182,7 @@ export default function CodingTabPanel({
   )
 
   const liveTraceSteps =
-    selectedEntityIds.length === 1 && (workspaceOpen || subgroup === 'transformers') &&
+    selectedEntityIds.length === 1 && subgroup === 'transformers' &&
     liveTraceSnapshot?.entityId === selectedEntityIds[0]
       ? liveTraceSnapshot.steps
       : null
@@ -280,30 +247,6 @@ export default function CodingTabPanel({
             Scripts
           </button>
         </div>
-        <button
-          type="button"
-          data-testid="coding-open-workspace"
-          onClick={handleOpenWorkspace}
-          disabled={selectedEntityIds.length === 0}
-          title={
-            selectedEntityIds.length === 0 ? 'Select an entity to open the workspace' : 'Open behavior workspace (full screen)'
-          }
-          style={{
-            flexShrink: 0,
-            alignSelf: 'center',
-            marginBottom: 4,
-            padding: '6px 10px',
-            fontSize: 12,
-            borderRadius: 6,
-            border: `1px solid ${theme.border.default}`,
-            background: theme.bg.surface,
-            color: theme.text.primary,
-            cursor: selectedEntityIds.length === 0 ? 'not-allowed' : 'pointer',
-            opacity: selectedEntityIds.length === 0 ? 0.5 : 1,
-          }}
-        >
-          Open Workspace
-        </button>
       </div>
 
       <div
@@ -406,22 +349,6 @@ export default function CodingTabPanel({
           </>
         )}
       </div>
-
-      <Workspace
-        open={workspaceOpen}
-        onClose={handleCloseWorkspace}
-        entry={workspaceEntry}
-        onEntryChange={setWorkspaceEntry}
-        world={world}
-        selectedEntityIds={selectedEntityIds}
-        onWorldChange={onWorldChange}
-        onEntityTransformersChange={onEntityTransformersChange}
-        liveTransformerTraceSteps={liveTraceSteps}
-        onResetPoseToSavedWorld={onResetPoseToSavedWorld}
-        canResetPoseToSaved={canResetPoseToSaved}
-        resetPoseTitle={resetPoseTitle}
-        onSelectEntity={onSelectEntity}
-      />
     </div>
   )
 }

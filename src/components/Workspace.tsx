@@ -291,6 +291,19 @@ export default function Workspace({
     })
   }, [onEntryChange, resolveEntityId])
 
+  const handleSelectEntityFromWorkspace = useCallback(
+    (id: string) => {
+      onSelectEntity?.(id)
+      if (onEntryChange) {
+        onEntryChange({
+          ...entry,
+          entityId: id,
+        } as WorkspaceTarget)
+      }
+    },
+    [entry, onEntryChange, onSelectEntity],
+  )
+
   const close = useCallback(() => {
     onClose()
   }, [onClose])
@@ -510,7 +523,7 @@ export default function Workspace({
                       onOpenOrganizeScripts={openOrganizeScriptsForEntity}
                       globalLibrary={globalLibrary}
                       onGlobalLibraryChange={persistGlobalLibrary}
-                      onSelectEntity={onSelectEntity}
+                      onSelectEntity={handleSelectEntityFromWorkspace}
                     />
                   ) : (
                     <WorkspaceOrganizeTab
@@ -522,7 +535,7 @@ export default function Workspace({
                       onOrganizeContextChange={handleOrganizeContextChange}
                       globalLibrary={globalLibrary}
                       onGlobalLibraryChange={persistGlobalLibrary}
-                      onSelectEntity={onSelectEntity}
+                      onSelectEntity={handleSelectEntityFromWorkspace}
                     />
                   )}
                 </div>
