@@ -157,6 +157,7 @@ export default function TransformerEditor({
   const [templateDialogTargetIndex, setTemplateDialogTargetIndex] = useState<number | null>(null)
   const [fieldRefPanelOpen, setFieldRefPanelOpen] = useState<boolean[]>([])
   const [customCodeDrafts, setCustomCodeDrafts] = useState<Record<number, string>>({})
+  const lastCommittedCodesRef = useRef<Record<number, string>>({})
   const list = useMemo(() => {
     const l = [...(transformers ?? [])]
     l.sort((a, b) => (a.priority ?? 10) - (b.priority ?? 10))
@@ -193,11 +194,21 @@ export default function TransformerEditor({
   useEffect(() => {
     if (customCodeSyncKey === lastCustomSyncKeyRef.current) return
     lastCustomSyncKeyRef.current = customCodeSyncKey
-    const next: Record<number, string> = {}
-    list.forEach((t, i) => {
-      if (t.type === 'custom') next[i] = effectiveCustomTransformerCode(t)
+    
+    setCustomCodeDrafts((prev) => {
+      const next = { ...prev }
+      list.forEach((t, i) => {
+        if (t.type !== 'custom') return
+        const worldCode = effectiveCustomTransformerCode(t)
+        // If the world code changed to something other than what we last committed for this index,
+        // then it's an external change and we should update our draft.
+        if (worldCode !== lastCommittedCodesRef.current[i]) {
+          next[i] = worldCode
+          lastCommittedCodesRef.current[i] = worldCode
+        }
+      })
+      return next
     })
-    setCustomCodeDrafts(next)
   }, [list, customCodeSyncKey])
 
   useEffect(() => {
@@ -603,6 +614,7 @@ export default function TransformerEditor({
                         pushUndo()
                         const nextCode =
                           customCodeDrafts[index] !== undefined ? customCodeDrafts[index]! : effectiveCustomTransformerCode(transformer)
+                        lastCommittedCodesRef.current[index] = nextCode
                         onChange?.(
                           syncPriorities(list.map((t, i) => (i === index ? { ...t, code: nextCode } : t))),
                         )

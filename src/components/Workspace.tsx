@@ -341,8 +341,9 @@ export default function Workspace({
 
   const monacoCtxValue = useMemo(() => monacoEditorRef, [])
 
-  const monacoEditor =
-    activeTab === 'transformers' || activeTab === 'scripts' ? (
+  const monacoEditor = useMemo(() => {
+    if (activeTab !== 'transformers' && activeTab !== 'scripts') return null
+    return (
       <TransformerCustomCodeEditor
         layout="fill"
         key={`ws-monaco-${activeTab}-${monacoPayload.refreshKey}`}
@@ -357,7 +358,17 @@ export default function Workspace({
           monacoEditorRef.current = ed
         }}
       />
-    ) : null
+    )
+  }, [
+    activeTab,
+    monacoPayload.refreshKey,
+    monacoPayload.value,
+    monacoPayload.onChange,
+    monacoPayload.disabled,
+    monacoPayload.kind,
+    monacoPayload.scriptEvent,
+    opaque,
+  ])
 
   const portal =
     open ?

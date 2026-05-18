@@ -238,6 +238,7 @@ function WorkspaceTransformersTabEntity({
   selectedSortedIndexRef.current = selectedSortedIndex
   const codeDraftRef = useRef(codeDraft)
   codeDraftRef.current = codeDraft
+  const lastCommittedCodeRef = useRef('')
   const onCommitStacksRef = useRef(handleCommitStacks)
   onCommitStacksRef.current = handleCommitStacks
   const codeUndoPrimedRef = useRef(false)
@@ -253,6 +254,7 @@ function WorkspaceTransformersTabEntity({
     const text = codeDraftRef.current
     const prevEffective = effectiveCustomTransformerCode(cur[idx]!)
     if (text === prevEffective) return
+    lastCommittedCodeRef.current = text
     onCommitStacksRef.current(syncPriorities(cur.map((t, i) => (i === idx ? { ...t, code: text } : t))))
   }, [])
 
@@ -293,7 +295,11 @@ function WorkspaceTransformersTabEntity({
       setCodeDraft('')
       return
     }
-    setCodeDraft(effectiveCustomTransformerCode(selectedConfig))
+    const worldCode = effectiveCustomTransformerCode(selectedConfig)
+    if (worldCode !== lastCommittedCodeRef.current) {
+      setCodeDraft(worldCode)
+      lastCommittedCodeRef.current = worldCode
+    }
     codeUndoPrimedRef.current = false
   }, [syncCodeKey, selectedConfig, selectedSortedIndex])
 
@@ -311,6 +317,7 @@ function WorkspaceTransformersTabEntity({
       const idx = selectedSortedIndexRef.current
       const cur = listRef.current
       if (cur[idx]?.type !== 'custom') return
+      lastCommittedCodeRef.current = text
       onCommitStacksRef.current(syncPriorities(cur.map((t, i) => (i === idx ? { ...t, code: text } : t))))
     }, CODE_DEBOUNCE_MS)
   }, [])
@@ -342,23 +349,23 @@ function WorkspaceTransformersTabEntity({
   }, [flushPendingCode])
 
   const monacoIsCustom = Boolean(selectedConfig?.type === 'custom')
-  useLayoutEffect(() => {
+  const monacoPayload = useMemo(() => {
     if (monacoIsCustom) {
-      setMonacoPayload({
-        kind: 'transformer-ts',
+      return {
+        kind: 'transformer-ts' as const,
         value: codeDraft,
         onChange: handleCodeChange,
         disabled: anyLocked || transformersMixed || selectedEntityIds.length === 0,
         refreshKey: monacoRemountKey,
-      })
+      }
     } else {
-      setMonacoPayload({
-        kind: 'placeholder',
+      return {
+        kind: 'placeholder' as const,
         value: '// Select a custom transformer stage in the pipeline to edit TypeScript.',
         onChange: () => {},
         disabled: true,
         refreshKey: monacoRemountKey,
-      })
+      }
     }
   }, [
     codeDraft,
@@ -367,9 +374,12 @@ function WorkspaceTransformersTabEntity({
     anyLocked,
     transformersMixed,
     selectedEntityIds.length,
-    setMonacoPayload,
     monacoRemountKey,
   ])
+
+  useLayoutEffect(() => {
+    setMonacoPayload(monacoPayload)
+  }, [monacoPayload, setMonacoPayload])
 
   useEffect(() => {
     if (!docsOpen || typeof window === 'undefined') return
@@ -766,41 +776,27 @@ function WorkspaceTransformersTabEntity({
             overflow: 'hidden',
           }}
         >
-          {monacoIsCustom && selectedConfig ?
-            <>
-              <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                {monacoSlot}
+          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            {selectedPreset && fieldRefOpen && isPresetTransformerType(selectedPreset.type) ? (
+              <div style={{ flexShrink: 0, marginBottom: 8 }}>
+                <TransformerFieldReference transformerType={selectedPreset.type} />
               </div>
+            ) : null}
+            <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+              {monacoSlot}
+            </div>
+          </div>
+
+          {monacoIsCustom && selectedConfig ? (
+            <>
               {compileErrorPanel}
               {runtimeErrorPanel}
             </>
-          : selectedPreset ?
-            <div
-              style={{
-                flex: 1,
-                minHeight: 0,
-                display: 'flex',
-                flexDirection: 'column',
-                overflow: 'hidden',
-              }}
-            >
-              {fieldRefOpen && isPresetTransformerType(selectedPreset.type) ?
-                <div style={{ flexShrink: 0, marginBottom: 8 }}>
-                  <TransformerFieldReference transformerType={selectedPreset.type} />
-                </div>
-              : null}
-              <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                {monacoSlot}
-              </div>
+          ) : !selectedPreset ? (
+            <div style={{ padding: 12, color: theme.text.muted, flexShrink: 0 }}>
+              Pick a transformer in the pipeline to edit configuration.
             </div>
-          :
-            <div style={{ flex: 1, minHeight: 0, padding: 0, display: 'flex', flexDirection: 'column' }}>
-              <div style={{ flex: 1, minHeight: 0 }}>{monacoSlot}</div>
-              <div style={{ padding: 12, color: theme.text.muted, flexShrink: 0 }}>
-                Pick a transformer in the pipeline to edit configuration.
-              </div>
-            </div>
-          }
+          ) : null}
         </div>
 
         {docsOpen ?
