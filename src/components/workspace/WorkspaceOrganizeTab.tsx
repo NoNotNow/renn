@@ -277,8 +277,28 @@ export default function WorkspaceOrganizeTab({
   const anchorEntityId = entry?.entityId ?? selectedEntityIds[0] ?? ''
 
   const handleEdit = (registry: WorkspaceOrganizeKind, itemId: string, itemSource: 'project' | 'global' = 'project') => {
+    let targetEntityId = anchorEntityId
+
+    // If no entity is selected, or the current selection doesn't use this item, try to find one that does.
+    if (itemSource === 'project') {
+      const isUsedByCurrent =
+        targetEntityId &&
+        (registry === 'scripts'
+          ? world.entities.find((e) => e.id === targetEntityId)?.scripts?.includes(itemId)
+          : world.entities.find((e) => e.id === targetEntityId)?.transformers?.includes(itemId))
+
+      if (!isUsedByCurrent) {
+        const users =
+          registry === 'scripts' ? getEntitiesUsingScript(world, itemId) : getEntitiesUsingTransformer(world, itemId)
+        if (users.length > 0) {
+          targetEntityId = users[0]!.id
+          onSelectEntity?.(targetEntityId)
+        }
+      }
+    }
+
     onNavigateToEditor({
-      entityId: anchorEntityId,
+      entityId: targetEntityId,
       tab: registry === 'scripts' ? 'scripts' : 'transformers',
       itemId,
       ...(itemSource === 'global' ? { itemSource: 'global' as const } : {}),

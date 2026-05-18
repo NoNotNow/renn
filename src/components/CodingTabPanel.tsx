@@ -4,6 +4,8 @@ import type { TransformerConfig } from '@/types/transformer'
 import type { RennWorld } from '@/types/world'
 import Workspace from '@/components/Workspace'
 import { theme } from '@/config/theme'
+import { EntityPanelIcons } from '@/components/EntityPanelIcons'
+import { entityPanelIconButtonStyle } from '@/components/sharedStyles'
 import {
   mergeTransformers,
   intersectScriptIdsAcrossEntities,
@@ -247,6 +249,21 @@ export default function CodingTabPanel({
             Scripts
           </button>
         </div>
+        <button
+          type="button"
+          data-testid="coding-open-workspace"
+          onClick={() => openWorkspaceAnchored({ tab: subgroup })}
+          title="Open behavior workspace (full screen)"
+          style={{
+            ...entityPanelIconButtonStyle,
+            marginLeft: 'auto',
+            opacity: 0.85,
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+          onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.85')}
+        >
+          {EntityPanelIcons.code}
+        </button>
       </div>
 
       <div
@@ -264,7 +281,18 @@ export default function CodingTabPanel({
         }}
       >
         {selectedEntityIds.length === 0 ? (
-          <p style={{ ...inspectorHintStyle, margin: 0 }}>Select an entity to view transformers and scripts.</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <p style={{ ...inspectorHintStyle, margin: 0 }}>Select an entity to view transformers and scripts.</p>
+            <button
+              type="button"
+              data-testid="coding-open-workspace-empty"
+              onClick={() => openWorkspaceAnchored({ tab: 'organize' })}
+              style={nameRowButtonStyle()}
+            >
+              <strong>Open Behaviour Workspace</strong>
+              <div style={{ color: theme.text.muted, fontSize: 11, marginTop: 2 }}>Manage project-wide behaviors</div>
+            </button>
+          </div>
         ) : subgroup === 'transformers' ? (
           <>
             <p style={{ ...inspectorHintStyle, margin: '0 0 10px' }}>

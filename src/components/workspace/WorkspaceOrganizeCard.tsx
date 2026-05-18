@@ -276,7 +276,7 @@ export default function WorkspaceOrganizeCard({
             title="Promote to Global"
             data-testid={testId ? `${testId}-promote` : undefined}
           >
-            {EntityPanelIcons.loadTemplate}
+            {EntityPanelIcons.arrowUp}
           </button>
         )}
         {showAssign && (

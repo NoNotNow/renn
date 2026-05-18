@@ -17,7 +17,7 @@ export type WorkspaceOrganizeScope = 'global' | 'project' | 'entity'
 export type WorkspaceItemSource = 'project' | 'global'
 
 export type WorkspaceTarget = {
-  entityId: string
+  entityId?: string
   tab: 'transformers' | 'scripts' | 'organize'
   itemId?: string
   /** When set to `global`, `itemId` is resolved from the cross-project IndexedDB library. */

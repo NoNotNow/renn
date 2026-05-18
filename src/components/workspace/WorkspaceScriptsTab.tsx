@@ -265,7 +265,7 @@ function WorkspaceScriptsTabEntity({
   const hasScriptSelection = Boolean(selectedId && scripts[selectedId] != null)
 
   useEffect(() => {
-    if (noEntity) {
+    if (noEntity && !hasScriptSelection) {
       setMonacoPayload({
         kind: 'placeholder',
         value: '// Select an entity in the builder to edit scripts.\n',

@@ -515,23 +515,18 @@ export default function BuilderHeader({
                 type="button"
                 data-testid="header-open-workspace"
                 onClick={onOpenWorkspace}
-                disabled={selectedEntityCount === 0}
-                title={
-                  selectedEntityCount === 0
-                    ? 'Select an entity to open the workspace'
-                    : 'Open behavior workspace (full screen)'
-                }
+                title="Open behavior workspace (full screen)"
                 style={{
                   ...entityPanelIconButtonStyle,
                   display: 'flex',
-                  opacity: selectedEntityCount === 0 ? 0.4 : 0.85,
-                  cursor: selectedEntityCount === 0 ? 'not-allowed' : 'pointer',
+                  opacity: 0.85,
+                  cursor: 'pointer',
                 }}
                 onMouseEnter={(e) => {
-                  if (selectedEntityCount > 0) e.currentTarget.style.opacity = '1'
+                  e.currentTarget.style.opacity = '1'
                 }}
                 onMouseLeave={(e) => {
-                  if (selectedEntityCount > 0) e.currentTarget.style.opacity = '0.85'
+                  e.currentTarget.style.opacity = '0.85'
                 }}
               >
                 {EntityPanelIcons.code}

@@ -428,9 +428,15 @@ export default function Builder() {
   }, [])
 
   const handleOpenWorkspace = useCallback(() => {
-    const entityId = selectedEntityIds[0]
-    if (!entityId) return
     collapseSideDrawers()
+    const entityId = selectedEntityIds[0]
+
+    if (!entityId) {
+      setWorkspaceEntry({ tab: 'organize' })
+      setWorkspaceOpen(true)
+      uiLogger.click('Builder', 'Open workspace', { tab: 'organize' })
+      return
+    }
 
     const entities = selectedEntityIds
       .map((id) => world.entities.find((e) => e.id === id))
@@ -465,9 +471,8 @@ export default function Builder() {
 
   const handleOpenWorkspaceAnchored = useCallback(
     (anchor: Pick<WorkspaceTarget, 'tab' | 'itemId'>) => {
-      const entityId = selectedEntityIds[0]
-      if (!entityId) return
       collapseSideDrawers()
+      const entityId = selectedEntityIds[0]
       setWorkspaceEntry({ entityId, tab: anchor.tab, itemId: anchor.itemId })
       setWorkspaceOpen(true)
     },

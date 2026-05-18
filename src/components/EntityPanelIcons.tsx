@@ -7,6 +7,12 @@ const size = 14
 const style = { width: size, height: size, flexShrink: 0 }
 
 export const EntityPanelIcons = {
+  arrowUp: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}>
+      <line x1="12" y1="19" x2="12" y2="5" />
+      <polyline points="5 12 12 5 19 12" />
+    </svg>
+  ),
   trash: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}>
       <polyline points="3 6 5 6 21 6" />

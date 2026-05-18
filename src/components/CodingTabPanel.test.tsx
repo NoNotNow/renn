@@ -84,6 +84,7 @@ describe('CodingTabPanel', () => {
 
   it('clicking a transformer row opens the Workspace anchored to that ID', async () => {
     const onTransformerCodePopoutOpen = vi.fn()
+    const onOpenWorkspaceAnchored = vi.fn()
     render(
       <CopyProvider>
         <EditorUndoProvider value={undoApi}>
@@ -92,33 +93,37 @@ describe('CodingTabPanel', () => {
             selectedEntityIds={['e1']}
             onWorldChange={vi.fn()}
             onTransformerCodePopoutOpen={onTransformerCodePopoutOpen}
+            onOpenWorkspaceAnchored={onOpenWorkspaceAnchored}
           />
         </EditorUndoProvider>
       </CopyProvider>,
     )
     fireEvent.click(screen.getByTestId('coding-inspector-transformer-e1_tf0'))
-    await waitFor(() => expect(screen.getByTestId('workspace-panel')).toBeInTheDocument())
-    expect(onTransformerCodePopoutOpen).toHaveBeenCalled()
-    expect(screen.getByTestId('workspace-tab-transformers')).toHaveAttribute('aria-selected', 'true')
-    expect(within(screen.getByTestId('workspace-panel')).getByText(/Entity e1 · e1_tf0/)).toBeInTheDocument()
+    expect(onOpenWorkspaceAnchored).toHaveBeenCalledWith({ tab: 'transformers', itemId: 'e1_tf0' })
   })
 
   it('clicking an attached script row opens the Scripts workspace tab', async () => {
+    const onOpenWorkspaceAnchored = vi.fn()
     render(
       <CopyProvider>
         <EditorUndoProvider value={undoApi}>
-          <CodingTabPanel world={worldWithScriptsForWorkspace} selectedEntityIds={['e1']} onWorldChange={vi.fn()} />
+          <CodingTabPanel
+            world={worldWithScriptsForWorkspace}
+            selectedEntityIds={['e1']}
+            onWorldChange={vi.fn()}
+            onOpenWorkspaceAnchored={onOpenWorkspaceAnchored}
+          />
         </EditorUndoProvider>
       </CopyProvider>,
     )
     fireEvent.click(screen.getByTestId('coding-submenu-scripts'))
     fireEvent.click(screen.getByTestId('coding-inspector-script-scr_workspace'))
-    await waitFor(() => expect(screen.getByTestId('workspace-panel')).toBeInTheDocument())
-    expect(screen.getByTestId('workspace-tab-scripts')).toHaveAttribute('aria-selected', 'true')
+    expect(onOpenWorkspaceAnchored).toHaveBeenCalledWith({ tab: 'scripts', itemId: 'scr_workspace' })
   })
 
   it('Open Workspace opens shell and notifies transformer pop-out listener', async () => {
     const onTransformerCodePopoutOpen = vi.fn()
+    const onOpenWorkspaceAnchored = vi.fn()
     render(
       <CopyProvider>
         <EditorUndoProvider value={undoApi}>
@@ -127,34 +132,35 @@ describe('CodingTabPanel', () => {
             selectedEntityIds={['e1']}
             onWorldChange={vi.fn()}
             onTransformerCodePopoutOpen={onTransformerCodePopoutOpen}
+            onOpenWorkspaceAnchored={onOpenWorkspaceAnchored}
           />
         </EditorUndoProvider>
       </CopyProvider>,
     )
     fireEvent.click(screen.getByTestId('coding-open-workspace'))
-    await waitFor(() => expect(screen.getByTestId('workspace-panel')).toBeInTheDocument())
-    expect(onTransformerCodePopoutOpen).toHaveBeenCalled()
-    expect(within(screen.getByTestId('workspace-panel')).getByText(/Entity e1 · e1_tf0/)).toBeInTheDocument()
+    expect(onOpenWorkspaceAnchored).toHaveBeenCalledWith({ tab: 'transformers' })
   })
 
   it('Open Workspace from Scripts tab supports Manage → Organize (Entity scope, scripts)', async () => {
+    const onOpenWorkspaceAnchored = vi.fn()
     render(
       <CopyProvider>
         <EditorUndoProvider value={undoApi}>
-          <CodingTabPanel world={worldWithScriptsForWorkspace} selectedEntityIds={['e1']} onWorldChange={vi.fn()} />
+          <CodingTabPanel
+            world={worldWithScriptsForWorkspace}
+            selectedEntityIds={['e1']}
+            onWorldChange={vi.fn()}
+            onOpenWorkspaceAnchored={onOpenWorkspaceAnchored}
+          />
         </EditorUndoProvider>
       </CopyProvider>,
     )
     fireEvent.click(screen.getByTestId('coding-submenu-scripts'))
     fireEvent.click(screen.getByTestId('coding-open-workspace'))
-    await waitFor(() => expect(screen.getByTestId('workspace-tab-scripts')).toHaveAttribute('aria-selected', 'true'))
-    fireEvent.click(screen.getByRole('button', { name: 'Manage' }))
-    await waitFor(() => expect(screen.getByTestId('workspace-tab-organize')).toHaveAttribute('aria-selected', 'true'))
-    expect(screen.getByTestId('workspace-organize-scope-entity')).toHaveAttribute('aria-selected', 'true')
-    expect(screen.getByTestId('workspace-organize-kind-scripts')).toHaveAttribute('aria-selected', 'true')
+    expect(onOpenWorkspaceAnchored).toHaveBeenCalledWith({ tab: 'scripts' })
   })
 
-  it('Open Workspace is disabled without entity selection', () => {
+  it('Open Workspace is always enabled even without entity selection', () => {
     render(
       <CopyProvider>
         <EditorUndoProvider value={undoApi}>
@@ -162,7 +168,7 @@ describe('CodingTabPanel', () => {
         </EditorUndoProvider>
       </CopyProvider>,
     )
-    expect(screen.getByTestId('coding-open-workspace')).toBeDisabled()
+    expect(screen.getByTestId('coding-open-workspace')).not.toBeDisabled()
   })
 
   it('inspector opens on Transformers when persisted tab ID is legacy "code"', () => {
