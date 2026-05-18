@@ -89,4 +89,31 @@ describe('TargetPoseInputTransformer', () => {
     t.transform(latched, 0.016)
     expect(latched.target?.pose.position[0]).toBe(1)
   })
+
+  test('cycles labels A-Z for many waypoints', () => {
+    const poses = Array.from({ length: 27 }, (_, i) => ({
+      position: [i, 0, 0] as [number, number, number],
+      rotation: [0, 0, 0] as [number, number, number],
+    }))
+    const t = new TargetPoseInputTransformer(5, { poses, mode: 'cycle', speed: 1 })
+    // Start far away so it doesn't advance immediately
+    const input = createMockTransformInput({ position: [999, 999, 999] })
+    
+    // First is A
+    t.transform(input, 0.016)
+    expect(input.target?.label).toBe('A')
+    
+    // Move through 25 more to reach Z (index 25)
+    for (let i = 0; i < 25; i++) {
+      // Move to current target to trigger next pick
+      input.position = [...input.target!.pose.position] as [number, number, number]
+      t.transform(input, 0.016)
+    }
+    expect(input.target?.label).toBe('Z')
+    
+    // Next one (index 26) should be A again
+    input.position = [...input.target!.pose.position] as [number, number, number]
+    t.transform(input, 0.016)
+    expect(input.target?.label).toBe('A')
+  })
 })

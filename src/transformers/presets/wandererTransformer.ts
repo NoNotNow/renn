@@ -122,6 +122,7 @@ export class WandererTransformer extends BaseTransformer {
   > & { perimeter: WandererPerimeter }
 
   private currentTarget: { position: Vec3; rotation: Rotation } | null = null
+  private nextLetterCode = 65 // 'A'
 
   constructor(priority: number = 5, params: Partial<WandererParams> = {}) {
     super(priority, true)
@@ -160,7 +161,16 @@ export class WandererTransformer extends BaseTransformer {
       ? sampleRandomRotation()
       : ([input.rotation[0], input.rotation[1], input.rotation[2]] as Rotation)
     this.currentTarget = { position: pos, rotation: rot }
+    
+    // Cycle letter A-Z
+    this.currentLabel = String.fromCharCode(this.nextLetterCode)
+    this.nextLetterCode++
+    if (this.nextLetterCode > 90) { // 'Z'
+      this.nextLetterCode = 65 // 'A'
+    }
   }
+
+  private currentLabel = ''
 
   private targetReached(input: TransformInput): boolean {
     if (!this.currentTarget) return true
@@ -191,9 +201,9 @@ export class WandererTransformer extends BaseTransformer {
         rotation: [targetRot[0], targetRot[1], targetRot[2]],
       },
       speed,
-      label: 'wander',
+      label: this.currentLabel,
     }
-    return { targetLabel: 'wander' }
+    return { targetLabel: this.currentLabel }
   }
 }
 

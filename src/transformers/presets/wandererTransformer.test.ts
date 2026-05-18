@@ -29,7 +29,7 @@ describe('WandererTransformer', () => {
     t.transform(input, 0.016)
     expect(input.target).toBeDefined()
     expect(input.target?.speed).toBe(2)
-    expect(input.target?.label).toBe('wander')
+    expect(input.target?.label).toBe('A')
     const [x, y, z] = input.target!.pose.position
     expect(x).toBeGreaterThanOrEqual(-5)
     expect(x).toBeLessThanOrEqual(5)
@@ -115,7 +115,30 @@ describe('WandererTransformer', () => {
     t.transform(input, 0.016)
     const secondTarget = [...input.target!.pose.position]
     expect(secondTarget).not.toEqual(firstTarget)
+    expect(input.target?.label).toBe('B')
     vi.restoreAllMocks()
+  })
+
+  test('cycles labels A-Z', () => {
+    const t = new WandererTransformer(5, { perimeter, angular: false })
+    const input = createMockTransformInput({ position: [0, 0, 0] })
+    
+    // First target is A
+    t.transform(input, 0.016)
+    expect(input.target?.label).toBe('A')
+    
+    // Force 25 more target picks to reach Z
+    for (let i = 0; i < 25; i++) {
+      // Move to target to trigger next pick
+      input.position = [...input.target!.pose.position] as Vec3
+      t.transform(input, 0.016)
+    }
+    expect(input.target?.label).toBe('Z')
+    
+    // Next one should be A again
+    input.position = [...input.target!.pose.position] as Vec3
+    t.transform(input, 0.016)
+    expect(input.target?.label).toBe('A')
   })
 
   test('clampToPerimeter keeps points within bounds', () => {

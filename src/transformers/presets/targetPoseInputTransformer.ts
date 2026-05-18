@@ -146,7 +146,11 @@ export class TargetPoseInputTransformer extends BaseTransformer {
     const key = `${wp.position[0].toFixed(3)},${wp.position[1].toFixed(3)},${wp.position[2].toFixed(3)}|${wp.rotation[0].toFixed(3)},${wp.rotation[1].toFixed(3)},${wp.rotation[2].toFixed(3)}`
     let letter = this.targetLetters.get(key)
     if (!letter) {
-      letter = String.fromCharCode(this.nextLetterCode++)
+      letter = String.fromCharCode(this.nextLetterCode)
+      this.nextLetterCode++
+      if (this.nextLetterCode > 90) {
+        this.nextLetterCode = 65
+      }
       this.targetLetters.set(key, letter)
     }
     return letter
