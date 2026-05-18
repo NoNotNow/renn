@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useRef, type MouseEvent as ReactMouseEvent } from 'react'
+import { useCallback, useEffect, useId, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import Editor from '@monaco-editor/react'
 import type { OnMount } from '@monaco-editor/react'
 import type { editor } from 'monaco-editor'
@@ -72,7 +72,7 @@ export default function TransformerCustomCodeEditor({
   codeIntelliSense = 'transformer',
   scriptCtxEvent = 'onUpdate',
 }: TransformerCustomCodeEditorProps) {
-  const monacoRef = useRef<typeof import('monaco-editor') | null>(null)
+  const [monacoInstance, setMonacoInstance] = useState<typeof import('monaco-editor') | null>(null)
   const extraLibRef = useRef<{ dispose(): void } | null>(null)
   const resizeDragRef = useRef<{ startY: number; startHeight: number } | null>(null)
   const delayedLayoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -107,14 +107,13 @@ export default function TransformerCustomCodeEditor({
   }, [transparent])
 
   useEffect(() => {
-    const monaco = monacoRef.current
-    if (!monaco) return
+    if (!monacoInstance) return
     extraLibRef.current?.dispose()
     if (codeIntelliSense === 'script') {
-      extraLibRef.current = addMonacoTypescriptExtraLib(monaco, ctxDeclFor(scriptCtxEvent), CTX_EXTRA_LIB_URI)
+      extraLibRef.current = addMonacoTypescriptExtraLib(monacoInstance, ctxDeclFor(scriptCtxEvent), CTX_EXTRA_LIB_URI)
     } else {
       extraLibRef.current = addMonacoTypescriptExtraLib(
-        monaco,
+        monacoInstance,
         transformerCtxDecl(),
         TRANSFORMER_CODE_EXTRA_LIB_URI,
       )
@@ -123,7 +122,7 @@ export default function TransformerCustomCodeEditor({
       extraLibRef.current?.dispose()
       extraLibRef.current = null
     }
-  }, [codeIntelliSense, scriptCtxEvent])
+  }, [monacoInstance, codeIntelliSense, scriptCtxEvent])
 
   useEffect(() => {
     return () => {
@@ -135,7 +134,7 @@ export default function TransformerCustomCodeEditor({
   }, [])
 
   const handleMount: OnMount = (ed, monaco) => {
-    monacoRef.current = monaco
+    setMonacoInstance(monaco)
     if (transparent) {
       monaco.editor.defineTheme(GLASS_THEME, {
         base: 'vs-dark',

@@ -264,7 +264,7 @@ function WorkspaceScriptsTabEntity({
 
   const hasScriptSelection = Boolean(selectedId && scripts[selectedId] != null)
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (noEntity && !hasScriptSelection) {
       setMonacoPayload({
         kind: 'placeholder',

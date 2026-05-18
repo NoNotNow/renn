@@ -123,7 +123,7 @@ export default function WorkspaceGlobalScriptPanel({
 
   const hasScriptSelection = Boolean(selectedId && globalScripts[selectedId] != null)
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!hasScriptSelection || !def) {
       setMonacoPayload({
         kind: 'placeholder',
