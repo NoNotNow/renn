@@ -372,6 +372,19 @@ export default function WorkspaceOrganizeTab({
     })
   }
 
+  const handleToggleEnabledTransformer = (id: string) => {
+    const def = transformers[id]
+    if (!def) return
+    pushUndo()
+    onWorldChange({
+      ...world,
+      transformers: {
+        ...transformers,
+        [id]: { ...def, enabled: def.enabled === false },
+      },
+    })
+  }
+
   const finishCopyScript = (targetId: string, def: ScriptDef, openAssignAfter?: boolean) => {
     if (scripts[targetId]) {
       setIdConflict({
@@ -558,6 +571,18 @@ export default function WorkspaceOrganizeTab({
     }
     const { [oldId]: _removed, ...rest } = globalTransformers
     onGlobalLibraryChange({ ...globalLibrary, transformers: { ...rest, [newId]: def } })
+  }
+
+  const handleToggleEnabledGlobalTransformer = (id: string) => {
+    const def = globalTransformers[id]
+    if (!def) return
+    onGlobalLibraryChange({
+      ...globalLibrary,
+      transformers: {
+        ...globalTransformers,
+        [id]: { ...def, enabled: def.enabled === false },
+      },
+    })
   }
 
   const handleCopyGlobalScriptToProject = (id: string) => {
@@ -829,6 +854,8 @@ export default function WorkspaceOrganizeTab({
                   showDelete={showGlobalActions}
                   showCopy={showGlobalActions}
                   showRename={showGlobalActions}
+                  enabled={def.enabled !== false}
+                  onToggleEnabled={() => handleToggleEnabledGlobalTransformer(id)}
                   onEdit={() => handleEdit('transformers', id, 'global')}
                   onAssign={() => handleAssignFromGlobal('transformers', id)}
                   onDetach={() => {}}
@@ -954,6 +981,8 @@ export default function WorkspaceOrganizeTab({
                   showCopy={showProjectActions}
                   showRename={showProjectActions}
                   showPromote={showProjectActions}
+                  enabled={def.enabled !== false}
+                  onToggleEnabled={() => handleToggleEnabledTransformer(id)}
                   onEdit={() => handleEdit('transformers', id)}
                   onAssign={() => openAssign({ registry: 'transformers', id })}
                   onDetach={() => handleDetachTransformer(id)}

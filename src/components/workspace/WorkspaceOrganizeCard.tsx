@@ -1,5 +1,7 @@
 import type { CSSProperties } from 'react'
 import { theme } from '@/config/theme'
+import { EntityPanelIcons } from '@/components/EntityPanelIcons'
+import { entityPanelIconButtonStyle } from '@/components/sharedStyles'
 
 const cardStyle: CSSProperties = {
   display: 'flex',
@@ -15,18 +17,8 @@ const cardStyle: CSSProperties = {
 const actionRowStyle: CSSProperties = {
   display: 'flex',
   flexWrap: 'wrap',
-  gap: 6,
+  gap: 4,
 }
-
-const smallBtn = (primary?: boolean): CSSProperties => ({
-  padding: '4px 10px',
-  borderRadius: 5,
-  border: `1px solid ${primary ? theme.feedback.successBorder : theme.border.default}`,
-  background: primary ? theme.feedback.successBg : theme.bg.surface,
-  color: primary ? theme.feedback.successText : theme.text.primary,
-  cursor: 'pointer',
-  fontSize: 11,
-})
 
 export interface WorkspaceOrganizeCardProps {
   title: string
@@ -39,6 +31,8 @@ export interface WorkspaceOrganizeCardProps {
   showCopy: boolean
   showRename: boolean
   showPromote?: boolean
+  enabled?: boolean
+  onToggleEnabled?: () => void
   onEdit: () => void
   onAssign: () => void
   onDetach: () => void
@@ -64,6 +58,8 @@ export default function WorkspaceOrganizeCard({
   showCopy,
   showRename,
   showPromote = false,
+  enabled,
+  onToggleEnabled,
   onEdit,
   onAssign,
   onDetach,
@@ -85,6 +81,7 @@ export default function WorkspaceOrganizeCard({
         ...cardStyle,
         cursor: isStack ? 'pointer' : 'default',
         position: 'relative',
+        opacity: enabled === false ? 0.6 : 1,
         ...(isStack
           ? {
               boxShadow: `4px 4px 0 ${theme.bg.panel}, 8px 8px 0 ${theme.border.default}`,
@@ -204,37 +201,114 @@ export default function WorkspaceOrganizeCard({
         </div>
       )}
       <div style={actionRowStyle}>
-        <button type="button" onClick={onEdit} style={smallBtn(true)} data-testid={testId ? `${testId}-edit` : undefined}>
-          Edit
+        <button
+          type="button"
+          onClick={onEdit}
+          style={{
+            ...entityPanelIconButtonStyle,
+            background: theme.button.infoActive,
+            border: `1px solid ${theme.button.infoActiveBorder}`,
+            color: theme.text.accentBlue,
+          }}
+          title="Edit"
+          data-testid={testId ? `${testId}-edit` : undefined}
+        >
+          {EntityPanelIcons.code}
         </button>
+        {onToggleEnabled && (
+          <button
+            type="button"
+            onClick={onToggleEnabled}
+            style={{
+              ...entityPanelIconButtonStyle,
+              background: theme.bg.surface,
+              border: `1px solid ${theme.border.default}`,
+              color: enabled === false ? theme.text.muted : theme.feedback.successText,
+            }}
+            title={enabled === false ? 'Enable' : 'Disable'}
+            data-testid={testId ? `${testId}-toggle-enabled` : undefined}
+          >
+            {enabled === false ? EntityPanelIcons.eyeOff : EntityPanelIcons.eye}
+          </button>
+        )}
         {showCopy && (
-          <button type="button" onClick={onCopy} style={smallBtn()} data-testid={testId ? `${testId}-copy` : undefined}>
-            Copy
+          <button
+            type="button"
+            onClick={onCopy}
+            style={{
+              ...entityPanelIconButtonStyle,
+              background: theme.bg.surface,
+              border: `1px solid ${theme.border.default}`,
+              color: theme.text.primary,
+            }}
+            title="Copy"
+            data-testid={testId ? `${testId}-copy` : undefined}
+          >
+            {EntityPanelIcons.clone}
           </button>
         )}
         {showRename && (
-          <button type="button" onClick={onRename} style={smallBtn()} data-testid={testId ? `${testId}-rename` : undefined}>
-            Rename
+          <button
+            type="button"
+            onClick={onRename}
+            style={{
+              ...entityPanelIconButtonStyle,
+              background: theme.bg.surface,
+              border: `1px solid ${theme.border.default}`,
+              color: theme.text.primary,
+            }}
+            title="Rename"
+            data-testid={testId ? `${testId}-rename` : undefined}
+          >
+            {EntityPanelIcons.pencil}
           </button>
         )}
         {showPromote && onPromote && (
           <button
             type="button"
             onClick={onPromote}
-            style={smallBtn()}
+            style={{
+              ...entityPanelIconButtonStyle,
+              background: theme.bg.surface,
+              border: `1px solid ${theme.border.default}`,
+              color: theme.text.primary,
+            }}
+            title="Promote to Global"
             data-testid={testId ? `${testId}-promote` : undefined}
           >
-            Promote
+            {EntityPanelIcons.loadTemplate}
           </button>
         )}
         {showAssign && (
-          <button type="button" onClick={onAssign} style={smallBtn()} data-testid={testId ? `${testId}-assign` : undefined}>
-            Assign
+          <button
+            type="button"
+            onClick={onAssign}
+            style={{
+              ...entityPanelIconButtonStyle,
+              background: theme.bg.surface,
+              border: `1px solid ${theme.border.default}`,
+              color: theme.text.primary,
+            }}
+            title="Assign to Entities"
+            data-testid={testId ? `${testId}-assign` : undefined}
+          >
+            {EntityPanelIcons.add}
           </button>
         )}
         {showDetach && (
-          <button type="button" onClick={onDetach} style={smallBtn()} data-testid={testId ? `${testId}-detach` : undefined}>
-            Detach
+          <button
+            type="button"
+            onClick={onDetach}
+            style={{
+              ...entityPanelIconButtonStyle,
+              background: theme.bg.surface,
+              border: `1px solid ${theme.border.default}`,
+              color: theme.text.primary,
+            }}
+            title="Detach from Selection"
+            data-testid={testId ? `${testId}-detach` : undefined}
+          >
+            {EntityPanelIcons.minus}
           </button>
         )}
         {showDelete && (
@@ -242,13 +316,15 @@ export default function WorkspaceOrganizeCard({
             type="button"
             onClick={onDelete}
             style={{
-              ...smallBtn(),
-              borderColor: theme.border.destructive,
+              ...entityPanelIconButtonStyle,
+              background: theme.bg.surface,
+              border: `1px solid ${theme.border.destructive}`,
               color: theme.text.destructive,
             }}
+            title="Delete"
             data-testid={testId ? `${testId}-delete` : undefined}
           >
-            Delete
+            {EntityPanelIcons.trash}
           </button>
         )}
       </div>
