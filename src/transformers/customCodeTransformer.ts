@@ -201,6 +201,10 @@ function sanitizeTransformOutput(raw: unknown): TransformOutput {
     next.earlyExit = o.earlyExit
   }
 
+  if (typeof o.targetLabel === 'string') {
+    next.targetLabel = o.targetLabel
+  }
+
   if (
     !next.force &&
     !next.impulse &&
@@ -208,7 +212,8 @@ function sanitizeTransformOutput(raw: unknown): TransformOutput {
     next.color === undefined &&
     next.addRotation === undefined &&
     !next.setPose &&
-    !next.earlyExit
+    !next.earlyExit &&
+    !next.targetLabel
   ) {
     return {}
   }

@@ -24,6 +24,7 @@ describe('FollowTransformer', () => {
         rotation: [0, 1.57, 0],
       },
       speed: 3,
+      label: 'follow',
     })
   })
 

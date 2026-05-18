@@ -121,6 +121,8 @@ export interface TransformTarget {
   curve?: string
   /** Optional world-space linear velocity hint for future force-based movers. */
   velocity?: Vec3
+  /** Optional display label (e.g. "A", "B") for waypoints. */
+  label?: string
 }
 
 /**
@@ -181,6 +183,9 @@ export interface TransformOutput {
    * Last-wins in the chain. Runtime zeros linear/angular velocity when applied.
    */
   setPose?: { position: Vec3; rotation: Rotation }
+
+  /** Optional display label for the current target (e.g. "A"). Shown in trace summaries. */
+  targetLabel?: string
 
   /** If true, stop the chain after this transformer. */
   earlyExit?: boolean

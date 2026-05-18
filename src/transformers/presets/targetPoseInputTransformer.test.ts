@@ -28,10 +28,12 @@ describe('TargetPoseInputTransformer', () => {
       position: [0, 0, 0],
       rotation: [0, 0, 0],
     })
-    t.transform(input, 0.016)
+    const out = t.transform(input, 0.016)
     expect(input.target?.speed).toBe(3)
     expect(input.target?.pose.position).toEqual([1, 2, 3])
     expect(input.target?.pose.rotation).toEqual([0, 0, 0])
+    expect(input.target?.label).toBe('A')
+    expect(out.targetLabel).toBe('A')
   })
 
   test('poseReached helper matches waypoint', () => {
@@ -55,8 +57,10 @@ describe('TargetPoseInputTransformer', () => {
       position: [0, 0, 0],
       rotation: [0, 0, 0],
     })
-    t.transform(input, 0.016)
+    const out = t.transform(input, 0.016)
     expect(input.target?.pose.position[0]).toBe(5)
+    expect(input.target?.label).toBe('B')
+    expect(out.targetLabel).toBe('B')
   })
 
   test('stopAtEnd latches on last waypoint', () => {

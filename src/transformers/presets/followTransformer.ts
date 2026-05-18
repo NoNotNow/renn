@@ -83,7 +83,8 @@ export class FollowTransformer extends BaseTransformer {
         rotation: [targetRot[0], targetRot[1], targetRot[2]],
       },
       speed,
+      label: 'follow',
     }
-    return EMPTY_TRANSFORM_OUTPUT
+    return { targetLabel: 'follow' }
   }
 }

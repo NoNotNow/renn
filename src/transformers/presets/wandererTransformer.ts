@@ -191,8 +191,9 @@ export class WandererTransformer extends BaseTransformer {
         rotation: [targetRot[0], targetRot[1], targetRot[2]],
       },
       speed,
+      label: 'wander',
     }
-    return EMPTY_TRANSFORM_OUTPUT
+    return { targetLabel: 'wander' }
   }
 }
 

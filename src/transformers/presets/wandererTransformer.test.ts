@@ -29,6 +29,7 @@ describe('WandererTransformer', () => {
     t.transform(input, 0.016)
     expect(input.target).toBeDefined()
     expect(input.target?.speed).toBe(2)
+    expect(input.target?.label).toBe('wander')
     const [x, y, z] = input.target!.pose.position
     expect(x).toBeGreaterThanOrEqual(-5)
     expect(x).toBeLessThanOrEqual(5)

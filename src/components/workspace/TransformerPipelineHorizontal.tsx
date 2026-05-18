@@ -19,7 +19,9 @@ import { theme } from '@/config/theme'
 import {
   hasNonZeroSemanticActions,
   serializeTransformerTraceOutputJson,
+  serializeTransformInputForDisplay,
   summarizeActions,
+  summarizeTransformInputBrief,
   summarizeTransformerTraceOutputBrief,
   type TransformerTraceStep,
 } from '@/transformers/transformerTrace'
@@ -383,7 +385,7 @@ function TransformerTraceItem({
   const traceInputBrief = step?.skipped
     ? '(disabled)'
     : step?.inputBefore
-      ? summarizeActions(step.inputBefore.actions)
+      ? summarizeTransformInputBrief(step.inputBefore)
       : '(idle)'
   const traceOutputBrief = step
     ? summarizeTransformerTraceOutputBrief(transformer.type, step)
@@ -621,7 +623,7 @@ function TransformerTraceItem({
               portalTarget={headerRef.current}
             >
               <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                {JSON.stringify(step.inputBefore, null, 2)}
+                {JSON.stringify(serializeTransformInputForDisplay(step.inputBefore), null, 2)}
               </pre>
             </MovableTraceDrawer>
           ) : null}

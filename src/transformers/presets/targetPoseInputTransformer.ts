@@ -50,6 +50,10 @@ export class TargetPoseInputTransformer extends BaseTransformer {
   /** After reaching final waypoint in stopAtEnd, do not advance further. */
   private stopLatched = false
 
+  /** Map of stringified pose -> letter label (A, B, C...). */
+  private targetLetters = new Map<string, string>()
+  private nextLetterCode = 65 // 'A'
+
   constructor(priority: number = 5, params: Partial<TargetPoseInputParams> = {}) {
     super(priority, true)
     const poses = params.poses ?? []
@@ -60,6 +64,7 @@ export class TargetPoseInputTransformer extends BaseTransformer {
       positionEpsilon: params.positionEpsilon ?? DEFAULTS.positionEpsilon,
       rotationEpsilon: params.rotationEpsilon ?? DEFAULTS.rotationEpsilon,
     }
+    this.assignTargetLetters(poses)
   }
 
   setParams(params: Partial<TargetPoseInputParams>): void {
@@ -68,11 +73,18 @@ export class TargetPoseInputTransformer extends BaseTransformer {
       this.index = 0
       this.pingPongDir = 1
       this.stopLatched = false
+      this.assignTargetLetters(params.poses)
     }
     if (params.speed !== undefined) this.params.speed = params.speed
     if (params.mode !== undefined) this.params.mode = params.mode
     if (params.positionEpsilon !== undefined) this.params.positionEpsilon = params.positionEpsilon
     if (params.rotationEpsilon !== undefined) this.params.rotationEpsilon = params.rotationEpsilon
+  }
+
+  private assignTargetLetters(poses: TargetPoseWaypoint[]): void {
+    for (const wp of poses) {
+      this.getTargetLetter(wp)
+    }
   }
 
   /** Call only when current waypoint is reached. */
@@ -113,8 +125,10 @@ export class TargetPoseInputTransformer extends BaseTransformer {
 
     const n = poses.length
     if (mode === 'stopAtEnd' && this.stopLatched) {
-      input.target = this.toTarget(poses[n - 1], speed)
-      return EMPTY_TRANSFORM_OUTPUT
+      const wp = poses[n - 1]
+      const letter = this.getTargetLetter(wp)
+      input.target = this.toTarget(wp, speed, letter)
+      return { targetLabel: letter }
     }
 
     const wp = poses[this.index]
@@ -123,17 +137,29 @@ export class TargetPoseInputTransformer extends BaseTransformer {
     }
 
     const active = poses[this.index]
-    input.target = this.toTarget(active, speed)
-    return EMPTY_TRANSFORM_OUTPUT
+    const letter = this.getTargetLetter(active)
+    input.target = this.toTarget(active, speed, letter)
+    return { targetLabel: letter }
   }
 
-  private toTarget(wp: TargetPoseWaypoint, speed: number): TransformTarget {
+  private getTargetLetter(wp: TargetPoseWaypoint): string {
+    const key = `${wp.position[0].toFixed(3)},${wp.position[1].toFixed(3)},${wp.position[2].toFixed(3)}|${wp.rotation[0].toFixed(3)},${wp.rotation[1].toFixed(3)},${wp.rotation[2].toFixed(3)}`
+    let letter = this.targetLetters.get(key)
+    if (!letter) {
+      letter = String.fromCharCode(this.nextLetterCode++)
+      this.targetLetters.set(key, letter)
+    }
+    return letter
+  }
+
+  private toTarget(wp: TargetPoseWaypoint, speed: number, label?: string): TransformTarget {
     return {
       pose: {
         position: [wp.position[0], wp.position[1], wp.position[2]],
         rotation: [wp.rotation[0], wp.rotation[1], wp.rotation[2]],
       },
       speed,
+      label,
     }
   }
 }

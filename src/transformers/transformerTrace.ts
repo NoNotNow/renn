@@ -46,6 +46,7 @@ export function serializeTransformInputForTrace(input: TransformInput): Transfor
           speed: target.speed,
           curve: target.curve,
           velocity: target.velocity ? cloneTuple3(target.velocity) : undefined,
+          label: target.label,
         }
       : undefined,
   }
@@ -55,6 +56,7 @@ export function serializeTransformInputForTrace(input: TransformInput): Transfor
 export function cloneTransformOutputForTrace(o: TransformOutput): TransformOutput {
   const next: TransformOutput = {
     earlyExit: o.earlyExit ?? false,
+    targetLabel: o.targetLabel,
   }
   if (o.force) next.force = cloneTuple3(o.force)
   if (o.impulse) next.impulse = cloneTuple3(o.impulse)
@@ -89,6 +91,7 @@ export function isStructuralTransformOutputActive(o: TransformOutput): boolean {
   if (o.color) return true
   if (o.addRotation != null) return true
   if (o.setPose) return true
+  if (o.targetLabel) return true
   return false
 }
 
@@ -165,7 +168,20 @@ export function summarizeTransformOutputBrief(o: TransformOutput): string {
   if (o.color) tags.push('color')
   if (o.addRotation != null) tags.push('addRotation')
   if (o.setPose) tags.push('setPose')
+  if (o.targetLabel) tags.push(`target: ${o.targetLabel}`)
   return tags.join(', ')
+}
+
+/** Brief summary of TransformInput for Builder trace cards (IN: ...). */
+export function summarizeTransformInputBrief(input: TransformInputTraceSnapshot): string {
+  const actionsSummary = summarizeActions(input.actions)
+  const target = input.target as any
+  const targetLabel = target?.label ? `target: ${target.label}` : null
+
+  if (actionsSummary !== '(idle)' && targetLabel) return `${actionsSummary}; ${targetLabel}`
+  if (actionsSummary !== '(idle)') return actionsSummary
+  if (targetLabel) return targetLabel
+  return '(idle)'
 }
 
 /** Combines physics/pose return value with actions-wire delta for `input` transformers. */
@@ -194,11 +210,25 @@ export function summarizeTransformerTraceOutputBrief(
 }
 
 export function serializeTransformerTraceOutputJson(step: TransformerTraceStep): unknown {
-  const ret = step.transformOutput ?? {}
+  const o = step.transformOutput ?? {}
+  const ret: any = { ...o }
+  delete ret.targetLabel
+
   const before = step.inputBefore?.actions as Record<string, number> | undefined
   const after = step.actionsAfter
   if (before && after && actionsMapsDiffer(before, after)) {
     return { transformReturn: ret, actionsAfter: after }
+  }
+  return ret
+}
+
+/** Clean snapshot of TransformInput for popup display (removes internal labels). */
+export function serializeTransformInputForDisplay(input: TransformInputTraceSnapshot | undefined): unknown {
+  if (!input) return null
+  const ret: any = { ...input }
+  if (ret.target) {
+    ret.target = { ...ret.target }
+    delete ret.target.label
   }
   return ret
 }
