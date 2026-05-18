@@ -18,7 +18,7 @@ export const theme = {
     input: '#232836',
     overlay: 'rgba(0, 0, 0, 0.55)',
     overlayLight: 'rgba(0, 0, 0, 0.5)',
-    /** Lighter dim behind glass modals so the canvas stays visible (custom transformer code popout). */
+    /** Lighter dim behind glass modals so the canvas stays visible (Workspace). */
     modalBackdropSoft: 'rgba(0, 0, 0, 0.38)',
     /** Semi-transparent shell for large glass modals; pair with `effects.modalGlassBlur`. */
     modalGlass: 'rgba(26, 26, 26, 0.52)',

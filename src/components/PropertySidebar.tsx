@@ -46,8 +46,6 @@ export interface PropertySidebarProps {
   onOpenTextureStudio?: (entityId: string) => void | Promise<void>
   /** After preset apply when scene is not rebuilt — sync materials / double-sided to the live registry. */
   onAfterModelPresetApply?: (previews: { id: string; merged: Entity }[], preset: ModelPreset) => void | Promise<void>
-  /** Invoke when opening transformer code pop-out (e.g. collapse side drawers like fullscreen enter). */
-  onTransformerCodePopoutOpen?: () => void
   onOpenWorkspaceAnchored?: (anchor: Pick<WorkspaceTarget, 'tab' | 'itemId'>) => void
   onSelectEntity?: (id: string) => void
 }
@@ -75,7 +73,6 @@ export default function PropertySidebar({
   onDockLayoutChange,
   onOpenTextureStudio,
   onAfterModelPresetApply,
-  onTransformerCodePopoutOpen,
   onOpenWorkspaceAnchored,
   onSelectEntity,
 }: PropertySidebarProps) {
@@ -257,7 +254,6 @@ export default function PropertySidebar({
               selectedEntityIds={selectedEntityIds}
               onWorldChange={onWorldChange}
               onEntityTransformersChange={onEntityTransformersChange}
-              onTransformerCodePopoutOpen={onTransformerCodePopoutOpen}
               onOpenWorkspaceAnchored={onOpenWorkspaceAnchored}
               onResetPoseToSavedWorld={onResetPoseToSavedWorld}
               onSelectEntity={onSelectEntity}

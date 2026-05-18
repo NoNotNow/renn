@@ -333,152 +333,6 @@ export default function Builder() {
     onNew: () => void
   }>({ onSave: () => {}, onSaveAs: () => {}, onNew: () => {} })
 
-  useBuilderKeyboardShortcuts({
-    onUndo: handleUndo,
-    onRedo: handleRedo,
-    onClearSelection: useCallback(() => {
-      selectionAnchorEntityIdRef.current = null
-      setSelectedEntityIds([])
-      setSelectedGroupIds([])
-    }, []),
-    onToggleEditNavigationMode: useCallback(() => {
-      setEditNavigationMode((prev) => {
-        const next = !prev
-        uiLogger.change('Builder', 'Toggle edit navigation mode', { enabled: next })
-        return next
-      })
-    }, []),
-    onCycleActiveAvatar: useCallback(() => sceneViewRef.current?.cycleActiveAvatar() ?? false, []),
-    onChangeCameraMode: setCameraMode,
-    onGroupSelection: useCallback(() => groupShortcutHandlersRef.current.onGroup(), []),
-    onUngroupSelection: useCallback(() => groupShortcutHandlersRef.current.onUngroup(), []),
-    onCopy: useCallback(() => clipboardShortcutHandlersRef.current.onCopy(), []),
-    onPaste: useCallback(() => clipboardShortcutHandlersRef.current.onPaste(), []),
-    onSave: useCallback(() => fileShortcutHandlersRef.current.onSave(), []),
-    onSaveAs: useCallback(() => fileShortcutHandlersRef.current.onSaveAs(), []),
-    onNew: useCallback(() => fileShortcutHandlersRef.current.onNew(), []),
-    onPlay: handlePlay,
-  })
-
-  const handleAddEntity = useCallback(
-    (shapeType: AddableShapeType) => {
-      pushHistory()
-      const newEntity = createDefaultEntity(shapeType)
-      uiLogger.select('Builder', 'Add entity', { shapeType, entityId: newEntity.id })
-      captureScenePosesForNextRebuild()
-      updateWorld((prev) => ({
-        ...prev,
-        entities: [...prev.entities, newEntity],
-      }))
-      setSelectedEntityIds([newEntity.id])
-    },
-    [updateWorld, captureScenePosesForNextRebuild, pushHistory]
-  )
-
-  const handleBulkAddEntities = useCallback(
-    (params: BulkEntityParams) => {
-      pushHistory()
-      const newEntities = createBulkEntities(params)
-      uiLogger.select('Builder', 'Bulk add entities', { 
-        count: params.count, 
-        shape: params.shape,
-        bodyType: params.bodyType,
-      })
-      captureScenePosesForNextRebuild()
-      updateWorld((prev) => ({
-        ...prev,
-        entities: [...prev.entities, ...newEntities],
-      }))
-      // Select the first created entity
-      if (newEntities.length > 0) {
-        setSelectedEntityIds([newEntities[0]!.id])
-      }
-    },
-    [updateWorld, captureScenePosesForNextRebuild, pushHistory]
-  )
-
-  const handleDeleteEntities = useCallback(
-    (entityIds: string[]) => {
-      if (entityIds.length === 0) return
-      const idSet = new Set(entityIds)
-      const locked = entityIds.filter((id) => world.entities.find((e) => e.id === id)?.locked)
-      if (locked.length > 0) {
-        alert('Cannot delete: one or more selected entities are locked. Unlock them first.')
-        return
-      }
-      pushHistory()
-      captureScenePosesForNextRebuild()
-      const newEntities = world.entities.filter((e) => !idSet.has(e.id))
-      updateWorld((prev) => {
-        const nextWorld = { ...prev, entities: newEntities }
-        return pruneGroupMembers(nextWorld, idSet)
-      })
-      setSelectedEntityIds((sel) => sel.filter((id) => !idSet.has(id)))
-      if (cameraTarget && idSet.has(cameraTarget)) {
-        setCameraTarget(newEntities[0]?.id ?? '')
-      }
-      uiLogger.delete('Builder', 'Delete entities', { entityIds, count: entityIds.length })
-    },
-    [world.entities, cameraTarget, updateWorld, setCameraTarget, captureScenePosesForNextRebuild, pushHistory]
-  )
-
-  const handleGizmoModeChange = useCallback((mode: BuilderGizmoMode) => {
-    setGizmoMode(mode)
-    uiLogger.change('Builder', 'Gizmo mode', { mode })
-  }, [])
-
-  const handleOpenWorkspace = useCallback(() => {
-    collapseSideDrawers()
-    const entityId = selectedEntityIds[0]
-
-    if (!entityId) {
-      setWorkspaceEntry({ tab: 'organize' })
-      setWorkspaceOpen(true)
-      uiLogger.click('Builder', 'Open workspace', { tab: 'organize' })
-      return
-    }
-
-    const entities = selectedEntityIds
-      .map((id) => world.entities.find((e) => e.id === id))
-      .filter((e): e is Entity => e != null)
-
-    const worldTf = world.transformers ?? {}
-    const tfIdsIntersect = intersectTransformerIdsAcrossEntities(entities)
-    const scIdsIntersect = intersectScriptIdsAcrossEntities(entities)
-
-    // Default to transformers, but if there are scripts and no transformers, go to scripts.
-    // Also try to find a custom transformer to select by default.
-    let tab: WorkspaceTarget['tab'] = 'transformers'
-    let itemId: string | undefined
-
-    if (tfIdsIntersect.length === 0 && scIdsIntersect.length > 0) {
-      tab = 'scripts'
-      itemId = scIdsIntersect[0]
-    } else {
-      tab = 'transformers'
-      itemId = tfIdsIntersect.find((id) => worldTf[id]?.type === 'custom') ?? tfIdsIntersect[0]
-    }
-
-    setWorkspaceEntry({ entityId, tab, itemId })
-    setWorkspaceOpen(true)
-    uiLogger.click('Builder', 'Open workspace', { entityId, tab, itemId })
-  }, [collapseSideDrawers, selectedEntityIds, world.entities, world.transformers])
-
-  const handleCloseWorkspace = useCallback(() => {
-    setWorkspaceOpen(false)
-    setWorkspaceEntry(null)
-  }, [])
-
-  const handleOpenWorkspaceAnchored = useCallback(
-    (anchor: Pick<WorkspaceTarget, 'tab' | 'itemId'>) => {
-      collapseSideDrawers()
-      const entityId = selectedEntityIds[0]
-      setWorkspaceEntry({ entityId, tab: anchor.tab, itemId: anchor.itemId })
-      setWorkspaceOpen(true)
-    },
-    [collapseSideDrawers, selectedEntityIds],
-  )
-
   const handleEntityPoseCommit = useCallback(
     (commits: BuilderPoseCommitEntry[]) => {
       if (commits.length === 0) return
@@ -529,6 +383,153 @@ export default function Builder() {
     if (currentProject.isDirty && !confirm('Discard unsaved changes and reload from storage?')) return
     loadProject(currentProject.id)
   }, [currentProject.id, currentProject.isDirty, loadProject])
+
+  const handleOpenWorkspace = useCallback(() => {
+    collapseSideDrawers()
+    const entityId = selectedEntityIds[0]
+
+    if (!entityId) {
+      setWorkspaceEntry({ tab: 'organize' })
+      setWorkspaceOpen(true)
+      uiLogger.click('Builder', 'Open workspace', { tab: 'organize' })
+      return
+    }
+
+    const entities = selectedEntityIds
+      .map((id) => world.entities.find((e) => e.id === id))
+      .filter((e): e is Entity => e != null)
+
+    const worldTf = world.transformers ?? {}
+    const tfIdsIntersect = intersectTransformerIdsAcrossEntities(entities)
+    const scIdsIntersect = intersectScriptIdsAcrossEntities(entities)
+
+    // Default to transformers, but if there are scripts and no transformers, go to scripts.
+    // Also try to find a custom transformer to select by default.
+    let tab: WorkspaceTarget['tab'] = 'transformers'
+    let itemId: string | undefined
+
+    if (tfIdsIntersect.length === 0 && scIdsIntersect.length > 0) {
+      tab = 'scripts'
+      itemId = scIdsIntersect[0]
+    } else {
+      tab = 'transformers'
+      itemId = tfIdsIntersect.find((id) => worldTf[id]?.type === 'custom') ?? tfIdsIntersect[0]
+    }
+
+    setWorkspaceEntry({ entityId, tab, itemId })
+    setWorkspaceOpen(true)
+    uiLogger.click('Builder', 'Open workspace', { entityId, tab, itemId })
+  }, [collapseSideDrawers, selectedEntityIds, world.entities, world.transformers])
+
+  const handleOpenWorkspaceAnchored = useCallback(
+    (anchor: Pick<WorkspaceTarget, 'tab' | 'itemId'>) => {
+      collapseSideDrawers()
+      const entityId = selectedEntityIds[0]
+      setWorkspaceEntry({ entityId, tab: anchor.tab, itemId: anchor.itemId })
+      setWorkspaceOpen(true)
+    },
+    [collapseSideDrawers, selectedEntityIds],
+  )
+
+  const handleCloseWorkspace = useCallback(() => {
+    setWorkspaceOpen(false)
+    uiLogger.click('Builder', 'Close workspace', {})
+  }, [])
+
+  const handleGizmoModeChange = useCallback((mode: BuilderGizmoMode) => {
+    setGizmoMode(mode)
+    uiLogger.click('Builder', 'Change gizmo mode', { mode })
+  }, [])
+
+  const handleAddEntity = useCallback(
+    (type: AddableShapeType) => {
+      pushHistory()
+      const cam = sceneViewRef.current?.getCameraPose()
+      const entity = createDefaultEntity(type)
+      if (cam) {
+        const extent = getEntityApproximateSize(entity)
+        const positions = placeEntitiesInFrontOfCamera({
+          camera: cam,
+          entities: [entity],
+          extentByEntityId: new Map([[entity.id, extent]]),
+        })
+        const pos = positions.get(entity.id)
+        if (pos) entity.position = pos
+      }
+      uiLogger.click('Builder', 'Add entity', { type, entityId: entity.id })
+      captureScenePosesForNextRebuild()
+      updateWorld((prev) => ({
+        ...prev,
+        entities: [...prev.entities, entity],
+      }))
+      setSelectedEntityIds([entity.id])
+    },
+    [updateWorld, captureScenePosesForNextRebuild, pushHistory]
+  )
+
+  const handleBulkAddEntities = useCallback(
+    (params: BulkEntityParams) => {
+      pushHistory()
+      const newEntities = createBulkEntities(params)
+      uiLogger.click('Builder', 'Bulk add entities', {
+        count: newEntities.length,
+        type: params.type,
+      })
+      captureScenePosesForNextRebuild()
+      updateWorld((prev) => ({
+        ...prev,
+        entities: [...prev.entities, ...newEntities],
+      }))
+      setSelectedEntityIds(newEntities.map((e) => e.id))
+    },
+    [updateWorld, captureScenePosesForNextRebuild, pushHistory]
+  )
+
+  const handleDeleteEntities = useCallback(
+    (ids: string[]) => {
+      if (ids.length === 0) return
+      pushHistory()
+      uiLogger.click('Builder', 'Delete entities', { count: ids.length, entityIds: ids })
+      captureScenePosesForNextRebuild()
+      const idSet = new Set(ids)
+      updateWorld((prev) => ({
+        ...prev,
+        entities: prev.entities.filter((e) => !idSet.has(e.id)),
+        groups: pruneGroupMembers(prev.groups ?? [], idSet),
+      }))
+      setSelectedEntityIds((prev) => prev.filter((id) => !idSet.has(id)))
+      setSelectedGroupIds((prev) => prev.filter((id) => !idSet.has(id)))
+    },
+    [updateWorld, captureScenePosesForNextRebuild, pushHistory]
+  )
+
+  useBuilderKeyboardShortcuts({
+    onUndo: handleUndo,
+    onRedo: handleRedo,
+    onClearSelection: useCallback(() => {
+      selectionAnchorEntityIdRef.current = null
+      setSelectedEntityIds([])
+      setSelectedGroupIds([])
+    }, []),
+    onToggleEditNavigationMode: useCallback(() => {
+      setEditNavigationMode((prev) => {
+        const next = !prev
+        uiLogger.change('Builder', 'Toggle edit navigation mode', { enabled: next })
+        return next
+      })
+    }, []),
+    onCycleActiveAvatar: useCallback(() => sceneViewRef.current?.cycleActiveAvatar() ?? false, []),
+    onChangeCameraMode: setCameraMode,
+    onGroupSelection: useCallback(() => groupShortcutHandlersRef.current.onGroup(), []),
+    onUngroupSelection: useCallback(() => groupShortcutHandlersRef.current.onUngroup(), []),
+    onCopy: useCallback(() => clipboardShortcutHandlersRef.current.onCopy(), []),
+    onPaste: useCallback(() => clipboardShortcutHandlersRef.current.onPaste(), []),
+    onSave: useCallback(() => fileShortcutHandlersRef.current.onSave(), []),
+    onSaveAs: useCallback(() => fileShortcutHandlersRef.current.onSaveAs(), []),
+    onNew: useCallback(() => fileShortcutHandlersRef.current.onNew(), []),
+    onPlay: handlePlay,
+    onOpenWorkspace: handleOpenWorkspace,
+  })
 
   const getCurrentPose = useCallback(
     (id: string): { position: Vec3; rotation: Rotation; scale: Vec3 } => {
@@ -1401,7 +1402,6 @@ export default function Builder() {
                     onDockLayoutChange={setRightPanelDocked}
                     onOpenTextureStudio={activateTextureStudioForEntity}
                     onAfterModelPresetApply={handleAfterModelPresetApply}
-                    onTransformerCodePopoutOpen={collapseSideDrawers}
                     onOpenWorkspaceAnchored={handleOpenWorkspaceAnchored}
                     onSelectEntity={handleSelectEntity}
                   />
@@ -1453,33 +1453,32 @@ export default function Builder() {
           >
             <LivePosesPoll getPosesRef={getScenePosesRef} intervalMs={100}>
               {(livePoses) => (
-                <PropertySidebar
-                  world={world}
-                  assets={assets}
-                  selectedEntityIds={selectedEntityIds}
-                  onWorldChange={handleWorldChange}
-                  onAssetsChange={handleAssetsChange}
-                  onDeleteEntities={handleDeleteEntities}
-                  onCloneEntity={handleCloneEntity}
-                  onEntityPoseChange={handleEntityPoseChange}
-                  onEntityPhysicsChange={handleEntityPhysicsChange}
-                  onEntityMaterialChange={handleEntityMaterialChange}
-                  onEntityShapeChange={handleEntityShapeChange}
-                  onEntityModelTransformChange={handleEntityModelTransformChange}
-                  onEntityTransformersChange={handleEntityTransformersChange}
-                  onRefreshFromPhysics={handleRefreshFromPhysics}
-                  onResetPoseToSavedWorld={handleResetPoseToSavedWorld}
-                  livePoses={livePoses}
-                  isOpen={rightDrawerOpen}
-                  onToggle={() => setRightDrawerOpen(!rightDrawerOpen)}
-                  dockLayout
-                  onDockLayoutChange={setRightPanelDocked}
-                  onOpenTextureStudio={activateTextureStudioForEntity}
-                  onAfterModelPresetApply={handleAfterModelPresetApply}
-                  onTransformerCodePopoutOpen={collapseSideDrawers}
-                  onOpenWorkspaceAnchored={handleOpenWorkspaceAnchored}
-                  onSelectEntity={handleSelectEntity}
-                />
+                  <PropertySidebar
+                    world={world}
+                    assets={assets}
+                    selectedEntityIds={selectedEntityIds}
+                    onWorldChange={handleWorldChange}
+                    onAssetsChange={handleAssetsChange}
+                    onDeleteEntities={handleDeleteEntities}
+                    onCloneEntity={handleCloneEntity}
+                    onEntityPoseChange={handleEntityPoseChange}
+                    onEntityPhysicsChange={handleEntityPhysicsChange}
+                    onEntityMaterialChange={handleEntityMaterialChange}
+                    onEntityShapeChange={handleEntityShapeChange}
+                    onEntityModelTransformChange={handleEntityModelTransformChange}
+                    onEntityTransformersChange={handleEntityTransformersChange}
+                    onRefreshFromPhysics={handleRefreshFromPhysics}
+                    onResetPoseToSavedWorld={handleResetPoseToSavedWorld}
+                    livePoses={livePoses}
+                    isOpen={rightDrawerOpen}
+                    onToggle={() => setRightDrawerOpen(!rightDrawerOpen)}
+                    dockLayout
+                    onDockLayoutChange={setRightPanelDocked}
+                    onOpenTextureStudio={activateTextureStudioForEntity}
+                    onAfterModelPresetApply={handleAfterModelPresetApply}
+                    onOpenWorkspaceAnchored={handleOpenWorkspaceAnchored}
+                    onSelectEntity={handleSelectEntity}
+                  />
               )}
             </LivePosesPoll>
           </div>

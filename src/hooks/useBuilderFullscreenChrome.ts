@@ -29,7 +29,7 @@ export interface BuilderFullscreenChrome {
   fsChromeControlVisible: boolean
   /** Pass to SceneView as `onFullscreenChange`. Saves drawer state on enter, restores on exit. */
   handleSceneFullscreenChange: (active: boolean) => void
-  /** Close both drawers (e.g. transformer code pop-out) without fullscreen snapshot logic. */
+  /** Close both drawers (e.g. Workspace) without fullscreen snapshot logic. */
   collapseSideDrawers: () => void
 }
 

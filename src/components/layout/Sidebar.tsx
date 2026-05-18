@@ -157,7 +157,7 @@ export default function Sidebar({
           color: '#e6e9f2',
         }}
       >
-        {/* Keep mounted when closed so portaled UI (e.g. transformer code pop-out) survives drawer collapse. */}
+        {/* Keep mounted when closed so portaled UI (e.g. Workspace) survives drawer collapse. */}
         <div style={{ display: isOpen ? 'contents' : 'none' }}>
           <SidebarTabs
             tabConfig={tabConfig}

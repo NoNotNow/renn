@@ -15,7 +15,7 @@ management.
 | Concern | Current location |
 |---|---|
 | Transformer stack edit | `CodingTabPanel` → `TransformerEditor` |
-| Custom transformer code | `CustomTransformerCodeTab` (popout Monaco) |
+| Custom transformer code | Workspace (popout Monaco) |
 | Script code edit | `EntityScriptEditor` / `ScriptPanelMultiSelect` |
 | Script attach/detach/rename | `ScriptDialog` (modal) |
 | Transformer templates | `TransformerTemplateDialog` (modal) |
@@ -28,11 +28,12 @@ Scripts use `world.scripts: Record<string, ScriptDef>` with `entity.scripts: str
 ## Requirements
 
 ### R1 — Workspace surface
-- Single full-screen (popout) panel replacing the existing `CustomTransformerCodeTab` popout.
+- Single full-screen (popout) panel replacing the legacy `CustomTransformerCodeTab` popout.
 - Three top-level tabs: **Transformers**, **Scripts**, **Organize**.
 - **Shell header** (one row): tab buttons; **anchor meta** text (`Entity … · item`, `Global library …`, or prompt to select an entity); then opacity + close.
 - One Monaco instance shared between Transformers and Scripts tabs — switching tabs only
   changes the top strip, not the editor.
+- **Shift+Escape** opens the Workspace. **Escape** (without Shift) closes it.
 
 ### R2 — Transformers tab
 - Retains authoring via the horizontal pipeline (**reorder**, **enable**, **drag**, **Configure** drawer JSON incl. **`name` / priority / `params`** for custom stages), live trace on pipeline cards,
@@ -170,7 +171,6 @@ globalStore.scripts: Record<string, ScriptDef>
 | `src/components/workspace/WorkspaceOrganizeCard.tsx` | **New** — card with actions |
 | `src/components/workspace/WorkspaceConflictDialog.tsx` | **New** — overwrite / rename modal |
 | `src/components/CodingTabPanel.tsx` | Phase 2: **Open Workspace** trigger + routing; Phase 7: thin name-list |
-| `src/components/CustomTransformerCodeTab.tsx` | Absorbed into Workspace; **remove** |
 | `src/components/TransformerEditor.tsx` | Reused inside `WorkspaceTransformersTab` |
 | `src/components/EntityScriptEditor.tsx` | Absorbed into Workspace; **remove** |
 | `src/components/ScriptPanel.tsx` | Replaced by thin inspector list; **remove** |
@@ -227,10 +227,11 @@ globalStore.scripts: Record<string, ScriptDef>
 - [x] Rework `CodingTabPanel` to names-only list (transformer IDs + script IDs / labels)
 - [x] Click handler opens Workspace anchored to item (`onTransformerCodePopoutOpen` on row open)
 
-### Phase 8 — Cleanup & polish
+### Phase 8 — Cleanup & polish ✅ COMPLETE
 - [x] Delete all removed components (`CustomTransformerCodeTab`, `EntityScriptEditor`, `ScriptPanel`, `ScriptPanelMultiSelect`, `ScriptDialog`, `ScriptPanel.test`)
 - [x] Migrate `AvatarDialog` transformer + scripts sections to thin lists + embedded `Workspace` overlay (removed broken `TransformerConfig[]` usage; `entity.transformers` is now `string[]`)
 - [x] Update `start-here.md` task → file map
 - [x] Update `architecture.md` persistence section (global behavior library) + file map (Workspace + workspace/ directory)
 - [x] UI tests (Vitest RTL): Workspace shell close/Escape + Transformers horizontal pipeline; Scripts **Manage** → Organize (**Entity**, scripts); shared-script banner; promote transformer → Global; duplicate promote opens **WorkspaceConflictDialog**; `CodingTabPanel` Scripts subgroup → Open Workspace → Manage (`Workspace.test.tsx`, `CodingTabPanel.test.tsx`; global library load/save spied/mocked where needed).
+- [x] **Shift+Escape** shortcut to open Workspace; removed stale `onTransformerCodePopoutOpen` props and comments.
 - [ ] E2E smoke test: open Workspace, edit script, apply, verify in Play (and broader integration: Organize assign/detach flows).

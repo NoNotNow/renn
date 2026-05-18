@@ -24,6 +24,7 @@ function makeApi() {
     onSaveAs: vi.fn(),
     onNew: vi.fn(),
     onPlay: vi.fn(),
+    onOpenWorkspace: vi.fn(),
   }
 }
 
@@ -127,7 +128,7 @@ describe('useBuilderKeyboardShortcuts', () => {
     expect(api.onRedo).toHaveBeenCalledTimes(2)
   })
 
-  it('Escape clears selection; Shift+Escape does not; Cmd+E toggles edit-nav', () => {
+  it('Escape clears selection; Shift+Escape opens workspace; Cmd+E toggles edit-nav', () => {
     const api = makeApi()
     renderHook(() => useBuilderKeyboardShortcuts(api))
 
@@ -135,10 +136,12 @@ describe('useBuilderKeyboardShortcuts', () => {
       dispatch({ key: 'Escape' })
     })
     expect(api.onClearSelection).toHaveBeenCalledTimes(1)
+    expect(api.onOpenWorkspace).not.toHaveBeenCalled()
 
     act(() => {
       dispatch({ key: 'Escape', shiftKey: true })
     })
+    expect(api.onOpenWorkspace).toHaveBeenCalledTimes(1)
     expect(api.onClearSelection).toHaveBeenCalledTimes(1)
 
     act(() => {

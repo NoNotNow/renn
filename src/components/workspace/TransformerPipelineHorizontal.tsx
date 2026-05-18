@@ -1,6 +1,7 @@
 import {
   Fragment,
   useCallback,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -388,15 +389,34 @@ function TransformerTraceItem({
     ? summarizeTransformerTraceOutputBrief(transformer.type, step)
     : '(none)'
 
+  // Cache the maximum size string to ensure a consistent card size and prevent flickering.
+  const [maxInBrief, setMaxInBrief] = useState(traceInputBrief)
+  const [maxOutBrief, setMaxOutBrief] = useState(traceOutputBrief)
+
+  useEffect(() => {
+    if (traceInputBrief.length > maxInBrief.length) {
+      setMaxInBrief(traceInputBrief)
+    }
+  }, [traceInputBrief, maxInBrief])
+
+  useEffect(() => {
+    if (traceOutputBrief.length > maxOutBrief.length) {
+      setMaxOutBrief(traceOutputBrief)
+    }
+  }, [traceOutputBrief, maxOutBrief])
+
+  // Reset max strings if the transformer type changes (e.g. from preset to custom)
+  useEffect(() => {
+    setMaxInBrief(traceInputBrief)
+    setMaxOutBrief(traceOutputBrief)
+  }, [transformer.type])
+
   const summaryBaseStyle: CSSProperties = {
     cursor: 'pointer',
     fontSize: 10,
     padding: '2px 6px',
     borderRadius: 3,
     whiteSpace: 'nowrap',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    maxWidth: 160,
     listStyle: 'none',
   }
 
@@ -434,7 +454,6 @@ function TransformerTraceItem({
         borderRadius: 6,
         background: isDragOver ? theme.bg.panelAlt : theme.bg.thumbnailFrame,
         minWidth: 100,
-        maxWidth: 200,
         flex: '0 0 auto',
         opacity: isDragging ? 0.4 : 1,
         transition:
@@ -654,6 +673,22 @@ function TransformerTraceItem({
             </div>
           </MovableTraceDrawer>
         ) : null}
+        {/* Invisible element to maintain consistent width based on maximum seen trace text */}
+        <div
+          aria-hidden="true"
+          style={{
+            height: 0,
+            overflow: 'hidden',
+            visibility: 'hidden',
+            whiteSpace: 'nowrap',
+            fontSize: 10,
+            padding: '0 6px',
+            pointerEvents: 'none',
+          }}
+        >
+          <div>IN: {maxInBrief}</div>
+          <div>OUT: {maxOutBrief}</div>
+        </div>
       </div>
       <PipelineStagePort fill={isDragOver ? theme.bg.panelAlt : theme.bg.thumbnailFrame} />
     </div>

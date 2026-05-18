@@ -124,7 +124,7 @@ export interface WorkspaceProps {
   onResetPoseToSavedWorld?: (entityIds: string[]) => void
   canResetPoseToSaved?: boolean
   resetPoseTitle?: string
-  /** Same hook as transformer code pop-out — collapse side drawers when opening. */
+  /** Same hook as Workspace — collapse side drawers when opening. */
   onWorkspaceOpenSideEffects?: () => void
   /** Keeps anchor entry in sync when switching shell tabs or navigating from Organize → editor. */
   onEntryChange?: (next: WorkspaceTarget) => void

@@ -39,7 +39,7 @@ import { clamp } from '@/utils/numberUtils'
 import type { GlobalBehaviorLibrary } from '@/types/globalBehaviorLibrary'
 import WorkspaceGlobalTransformerPanel from '@/components/workspace/WorkspaceGlobalTransformerPanel'
 
-/** Pop-out / workspace horizontal split (code ↔ docs). */
+/** Workspace horizontal split (code ↔ docs). */
 const POPOUT_DOCS_SPLIT_MIN_PX = 300
 const POPOUT_DOCS_SPLIT_CODE_MIN_PX = 260
 const POPOUT_DOCS_SPLIT_HANDLE_PX = 6
@@ -809,6 +809,7 @@ function WorkspaceTransformersTabEntity({
               role="separator"
               aria-orientation="vertical"
               title="Drag to resize documentation column"
+              data-testid="custom-transformer-code-popout-docs-split"
               onMouseDown={handleDocsSplitMouseDown}
               style={{
                 flexShrink: 0,

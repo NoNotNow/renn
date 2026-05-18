@@ -31,7 +31,6 @@ export interface CodingTabPanelProps {
   selectedEntityIds: string[]
   onWorldChange: (world: RennWorld) => void
   onEntityTransformersChange?: (entityIds: string[], transformers: TransformerConfig[]) => void
-  onTransformerCodePopoutOpen?: () => void
   onOpenWorkspaceAnchored?: (anchor: Pick<WorkspaceTarget, 'tab' | 'itemId'>) => void
   /** Snap live pose to each entity’s saved world position and rotation (same as properties tab strip). */
   onResetPoseToSavedWorld?: (entityIds: string[]) => void
@@ -130,7 +129,6 @@ export default function CodingTabPanel({
   selectedEntityIds,
   onWorldChange,
   onEntityTransformersChange,
-  onTransformerCodePopoutOpen,
   onOpenWorkspaceAnchored,
   onResetPoseToSavedWorld,
   onSelectEntity,
