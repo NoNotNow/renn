@@ -91,6 +91,9 @@ function useBuilderHeaderBottomInsetPx(active: boolean): number {
 
 const WORKSPACE_TAB_IDS = ['transformers', 'scripts', 'organize'] as const satisfies readonly WorkspaceShellTabId[]
 
+/** Remount shared Monaco shortly after open so layout settles (same effect as Refresh editor). */
+const WORKSPACE_EDITOR_OPEN_REFRESH_MS = 100
+
 function initialWorkspaceShellTab(
   panelOpen: boolean,
   workspaceEntry: WorkspaceTarget | null | undefined,
@@ -181,15 +184,19 @@ export default function Workspace({
   )
   const [opaque, setOpaque] = useState(false)
   const [monacoPayload, setMonacoPayload] = useState<WorkspaceMonacoPayload>(IDLE_MONACO)
+  const [editorOpenRefreshNonce, setEditorOpenRefreshNonce] = useState(0)
 
   const prevOpenRef = useRef(false)
 
   useEffect(() => {
     const wasOpen = prevOpenRef.current
     prevOpenRef.current = open
-    if (open && !wasOpen) {
-      onWorkspaceOpenSideEffects?.()
-    }
+    if (!open || wasOpen) return
+    onWorkspaceOpenSideEffects?.()
+    const timer = window.setTimeout(() => {
+      setEditorOpenRefreshNonce((n) => n + 1)
+    }, WORKSPACE_EDITOR_OPEN_REFRESH_MS)
+    return () => window.clearTimeout(timer)
   }, [open, onWorkspaceOpenSideEffects])
 
   useEffect(() => {
@@ -350,7 +357,7 @@ export default function Workspace({
     return (
       <TransformerCustomCodeEditor
         layout="fill"
-        key={`ws-monaco-${activeTab}-${monacoPayload.refreshKey}`}
+        key={`ws-monaco-${activeTab}-${monacoPayload.refreshKey}-${editorOpenRefreshNonce}`}
         transparent={!opaque}
         delayedLayoutMs={200}
         value={monacoPayload.value}
@@ -366,6 +373,7 @@ export default function Workspace({
   }, [
     activeTab,
     monacoPayload.refreshKey,
+    editorOpenRefreshNonce,
     monacoPayload.value,
     monacoPayload.onChange,
     monacoPayload.disabled,

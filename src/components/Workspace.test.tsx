@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import 'fake-indexeddb/auto'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { act, render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { useState, type ReactElement } from 'react'
 import Workspace from './Workspace'
 import type { WorkspaceTarget } from '@/types/workspace'
@@ -12,8 +12,11 @@ import { defaultPersistence } from '@/persistence/indexedDb'
 import type { GlobalBehaviorLibrary } from '@/types/globalBehaviorLibrary'
 import { clearCustomTransformerRuntimeError } from '@/runtime/customTransformerErrorBridge'
 
+const monacoMount = vi.hoisted(() => ({ count: 0 }))
+
 vi.mock('@monaco-editor/react', () => ({
   default: function MockMonacoEditor() {
+    monacoMount.count += 1
     return <div data-testid="mock-monaco-editor" />
   },
 }))
@@ -101,6 +104,7 @@ function renderWorkspace(ui: ReactElement) {
 
 describe('Workspace', () => {
   beforeEach(() => {
+    monacoMount.count = 0
     let persisted: GlobalBehaviorLibrary = { transformers: {}, scripts: {} }
     vi.spyOn(defaultPersistence, 'loadGlobalBehaviorLibrary').mockImplementation(async () => persisted)
     vi.spyOn(defaultPersistence, 'saveGlobalBehaviorLibrary').mockImplementation(async (next: GlobalBehaviorLibrary) => {
@@ -112,6 +116,7 @@ describe('Workspace', () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     vi.restoreAllMocks()
     clearCustomTransformerRuntimeError()
   })
@@ -128,6 +133,47 @@ describe('Workspace', () => {
       />,
     )
     expect(screen.queryByTestId('workspace-panel')).not.toBeInTheDocument()
+  })
+
+  it('remounts Monaco 100ms after workspace opens', () => {
+    vi.useFakeTimers()
+    monacoMount.count = 0
+    const { rerender } = renderWorkspace(
+      <Workspace
+        open={false}
+        onClose={vi.fn()}
+        entry={{ entityId: 'e1', tab: 'scripts', itemId: 'my_script' }}
+        world={worldWithScript}
+        selectedEntityIds={['e1']}
+        onWorldChange={vi.fn()}
+      />,
+    )
+    expect(screen.queryByTestId('mock-monaco-editor')).not.toBeInTheDocument()
+
+    act(() => {
+      rerender(
+        <CopyProvider>
+          <EditorUndoProvider value={undoApi}>
+            <Workspace
+              open
+              onClose={vi.fn()}
+              entry={{ entityId: 'e1', tab: 'scripts', itemId: 'my_script' }}
+              world={worldWithScript}
+              selectedEntityIds={['e1']}
+              onWorldChange={vi.fn()}
+            />
+          </EditorUndoProvider>
+        </CopyProvider>,
+      )
+    })
+
+    expect(screen.getByTestId('mock-monaco-editor')).toBeInTheDocument()
+    const mountsAfterOpen = monacoMount.count
+
+    act(() => {
+      vi.advanceTimersByTime(100)
+    })
+    expect(monacoMount.count).toBeGreaterThan(mountsAfterOpen)
   })
 
   it('opens full-screen shell with tabs and shared editor placeholder', () => {

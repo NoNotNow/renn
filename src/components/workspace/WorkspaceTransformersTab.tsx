@@ -194,13 +194,20 @@ function WorkspaceTransformersTabEntity({
   const transformerIds = useMemo(() => sortedPairs?.map((p) => p.id) ?? [], [sortedPairs])
 
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  /** Entry anchor applied once per itemId — must not re-run when sortedPairs changes (e.g. reorder). */
+  const appliedEntryAnchorRef = useRef<string | null>(null)
 
-  /** Apply entry anchor whenever workspace opens / entry changes while open. */
+  /** Apply entry anchor when workspace opens or entry.itemId changes (not on stack reorder). */
   useEffect(() => {
-    if (!workspaceOpen || !sortedPairs?.length || !entry?.itemId) return
-    if (entry.tab !== 'transformers') return
-    const exists = sortedPairs.some((p) => p.id === entry.itemId)
-    if (exists) setSelectedId(entry.itemId)
+    if (!workspaceOpen) {
+      appliedEntryAnchorRef.current = null
+      return
+    }
+    if (entry?.tab !== 'transformers' || !entry?.itemId || !sortedPairs?.length) return
+    if (!sortedPairs.some((p) => p.id === entry.itemId)) return
+    if (appliedEntryAnchorRef.current === entry.itemId) return
+    appliedEntryAnchorRef.current = entry.itemId
+    setSelectedId(entry.itemId)
   }, [workspaceOpen, entry?.itemId, entry?.tab, sortedPairs])
 
   const commitStacksRaw = useCallback(
@@ -736,6 +743,7 @@ function WorkspaceTransformersTabEntity({
             <TransformerHorizontalPipeline
               transformers={list}
               transformerIds={transformerIds}
+              registryEntityId={entityIdsForEdit.length === 1 ? entityIdsForEdit[0] : undefined}
               liveTraceSteps={liveTraceSteps ?? null}
               headerRef={headerRef}
               onCommit={handleCommitStacks}

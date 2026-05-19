@@ -90,6 +90,43 @@ describe('WorkspaceTransformersTab', () => {
     })
   })
 
+  it('keeps user-selected custom after reorder when entry anchor points at another stage', async () => {
+    const setMonacoPayload = vi.fn()
+    const onWorldChange = vi.fn()
+    renderTab({
+      setMonacoPayload,
+      onWorldChange,
+      entry: { entityId: 'car', tab: 'transformers', itemId: 'car_tf0' },
+    })
+
+    await waitFor(() => {
+      expect(lastMonacoPayload(setMonacoPayload)?.kind).toBe('placeholder')
+    })
+
+    fireEvent.click(screen.getByTitle('Show code'))
+
+    await waitFor(() => {
+      expect(lastMonacoPayload(setMonacoPayload)?.kind).toBe('transformer-ts')
+    })
+
+    const customCard = screen.getByTestId('transformer-horizontal-item-2')
+    const firstSlot = screen.getByTestId('transformer-horizontal-item-0')
+
+    fireEvent.dragStart(customCard)
+    fireEvent.dragOver(firstSlot)
+    fireEvent.drop(firstSlot)
+    fireEvent.dragEnd(customCard)
+
+    await waitFor(() => {
+      const payload = lastMonacoPayload(setMonacoPayload)
+      expect(payload?.kind).toBe('transformer-ts')
+      expect(payload?.value).toContain('return { force')
+    })
+
+    const lastWorld = onWorldChange.mock.calls.at(-1)?.[0] as RennWorld
+    expect(lastWorld.entities[0]?.transformers?.[0]).toBe('car_tf2')
+  })
+
   it('keeps custom Monaco active after reordering custom stage to the front', async () => {
     const setMonacoPayload = vi.fn()
     const onWorldChange = vi.fn()

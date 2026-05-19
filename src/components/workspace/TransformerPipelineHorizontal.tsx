@@ -32,6 +32,7 @@ import {
   mergeConfigureDrawerApply,
   transformerConfigForConfigureDrawer,
 } from '@/transformers/transformerConfigureDrawer'
+import { allocateTransformerRegistryId } from '@/utils/commitTransformerConfigsToWorld'
 
 /** Pipeline geometry — shared so ports, shafts, and chevrons stay on one horizontal axis. */
 const PIPELINE_AXIS_Y = 7
@@ -709,6 +710,7 @@ function TransformerTraceItem({
 export function TransformerHorizontalPipeline({
   transformers,
   transformerIds,
+  registryEntityId,
   liveTraceSteps,
   headerRef,
   onCommit,
@@ -718,6 +720,8 @@ export function TransformerHorizontalPipeline({
   transformers: TransformerConfig[]
   /** Stable IDs from the registry, matching transformers array 1:1. */
   transformerIds?: string[]
+  /** When set, new stages get `${entityId}_tfN` ids instead of ephemeral drag ids. */
+  registryEntityId?: string
   liveTraceSteps: TransformerTraceStep[] | null
   headerRef: RefObject<HTMLDivElement>
   onCommit: (next: TransformerConfig[], orderedRegistryIds?: string[]) => void
@@ -763,7 +767,13 @@ export function TransformerHorizontalPipeline({
     const config = getDefaultTransformerConfig(type)
     const withName =
       type === 'custom' ? { ...config, name: nextUniqueCustomTransformerName(transformers) } : config
-    commitWithRegistryIds(syncPriorities([...transformers, withName]))
+    const ids = registryIdsForList()
+    const used = new Set(ids)
+    const newId =
+      registryEntityId ?
+        allocateTransformerRegistryId(registryEntityId, {}, used)
+      : getStableId(withName, transformers.length)
+    commitWithRegistryIds(syncPriorities([...transformers, withName]), [...ids, newId])
     setAddSelectValue('')
   }
 

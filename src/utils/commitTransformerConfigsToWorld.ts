@@ -11,7 +11,7 @@ export function mapTransformerRegistryIdsToEntity(ids: string[], targetEntityId:
   })
 }
 
-function allocateTransformerRegistryId(
+export function allocateTransformerRegistryId(
   entityId: string,
   registry: Record<string, TransformerConfig>,
   used: Set<string>,
