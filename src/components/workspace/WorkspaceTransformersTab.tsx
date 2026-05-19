@@ -28,6 +28,7 @@ import { useEditorUndo } from '@/contexts/EditorUndoContext'
 import { useCopyMenu } from '@/contexts/CopyContext'
 import {
   commitTransformerConfigsToWorld,
+  mapTransformerRegistryIdsToEntity,
 } from '@/utils/commitTransformerConfigsToWorld'
 import {
   subscribeCustomTransformerRuntimeError,
@@ -103,7 +104,11 @@ export interface WorkspaceTransformersTabProps {
   workspaceOpen: boolean
   liveTraceSteps: TransformerTraceStep[] | null | undefined
   onWorldChange: (world: RennWorld) => void
-  onEntityTransformersChange?: (entityIds: string[], transformers: TransformerConfig[]) => void
+  onEntityTransformersChange?: (
+    entityIds: string[],
+    transformers: TransformerConfig[],
+    orderedRegistryIds?: string[],
+  ) => void
   setMonacoPayload: (payload: WorkspaceMonacoPayload) => void
   /** Host injects shared `TransformerCustomCodeEditor`; tab positions it inside the split layout. */
   monacoSlot: ReactNode
@@ -171,10 +176,10 @@ function WorkspaceTransformersTabEntity({
 
   const entityIdsForEdit = entities.map((e) => e.id)
   const entityIdsFingerprint = entityIdsForEdit.join(',')
-  const mergedIds = mergeTransformers(entities)
+  const mergedIds = useMemo(() => mergeTransformers(entities), [entities])
   const anyLocked = entities.some((e) => e.locked)
   const transformersMixed = mergedIds === null
-  const worldTf = world.transformers ?? {}
+  const worldTf = useMemo(() => world.transformers ?? {}, [world.transformers])
 
   const sortedPairs = useMemo(() => {
     if (mergedIds == null) return null
@@ -185,33 +190,53 @@ function WorkspaceTransformersTabEntity({
     return raw
   }, [mergedIds, worldTf])
 
-  const list = sortedPairs?.map((p) => p.config) ?? []
+  const list = useMemo(() => sortedPairs?.map((p) => p.config) ?? [], [sortedPairs])
+  const transformerIds = useMemo(() => sortedPairs?.map((p) => p.id) ?? [], [sortedPairs])
 
-  const [selectedSortedIndex, setSelectedSortedIndex] = useState(0)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
 
   /** Apply entry anchor whenever workspace opens / entry changes while open. */
   useEffect(() => {
     if (!workspaceOpen || !sortedPairs?.length || !entry?.itemId) return
     if (entry.tab !== 'transformers') return
-    const idx = sortedPairs.findIndex((p) => p.id === entry.itemId)
-    if (idx >= 0) setSelectedSortedIndex(idx)
+    const exists = sortedPairs.some((p) => p.id === entry.itemId)
+    if (exists) setSelectedId(entry.itemId)
   }, [workspaceOpen, entry?.itemId, entry?.tab, sortedPairs])
 
-  const handleCommitStacks = useCallback(
-    (nextConfigs: TransformerConfig[]) => {
+  const commitStacksRaw = useCallback(
+    (nextConfigs: TransformerConfig[], orderedRegistryIds?: string[]) => {
       if (transformersMixed) return
+      const baseIds = orderedRegistryIds ?? transformerIds
       if (onEntityTransformersChange) {
-        onEntityTransformersChange(entityIdsForEdit, nextConfigs)
+        onEntityTransformersChange(entityIdsForEdit, nextConfigs, baseIds)
       } else {
         let nextWorld = world
         for (const entityId of entityIdsForEdit) {
-          nextWorld = commitTransformerConfigsToWorld(nextWorld, entityId, nextConfigs)
+          const idsForEntity =
+            entityIdsForEdit.length === 1 ? baseIds : mapTransformerRegistryIdsToEntity(baseIds, entityId)
+          nextWorld = commitTransformerConfigsToWorld(nextWorld, entityId, nextConfigs, idsForEntity)
         }
         onWorldChange(nextWorld)
       }
     },
-    [entityIdsFingerprint, onEntityTransformersChange, onWorldChange, transformersMixed, world],
+    [
+      entityIdsFingerprint,
+      onEntityTransformersChange,
+      onWorldChange,
+      transformersMixed,
+      transformerIds,
+      world,
+    ],
   )
+
+  const commitStacksRawRef = useRef(commitStacksRaw)
+  commitStacksRawRef.current = commitStacksRaw
+
+  const selectedSortedIndex = useMemo(() => {
+    if (!selectedId || !sortedPairs) return 0
+    const idx = sortedPairs.findIndex((p) => p.id === selectedId)
+    return idx >= 0 ? idx : 0
+  }, [selectedId, sortedPairs])
 
   const selectedConfig = list[selectedSortedIndex] ?? null
   const selectedPreset = selectedConfig && isPresetTransformerType(selectedConfig.type) ? selectedConfig : null
@@ -234,13 +259,13 @@ function WorkspaceTransformersTabEntity({
   const debounceTimerRef = useRef<number | null>(null)
   const listRef = useRef(list)
   listRef.current = list
-  const selectedSortedIndexRef = useRef(selectedSortedIndex)
-  selectedSortedIndexRef.current = selectedSortedIndex
+  const transformerIdsRef = useRef(transformerIds)
+  transformerIdsRef.current = transformerIds
+  const selectedIdRef = useRef(selectedId)
+  selectedIdRef.current = selectedId
   const codeDraftRef = useRef(codeDraft)
   codeDraftRef.current = codeDraft
   const lastCommittedCodeRef = useRef('')
-  const onCommitStacksRef = useRef(handleCommitStacks)
-  onCommitStacksRef.current = handleCommitStacks
   const codeUndoPrimedRef = useRef(false)
 
   const flushPendingCode = useCallback(() => {
@@ -248,15 +273,28 @@ function WorkspaceTransformersTabEntity({
       window.clearTimeout(debounceTimerRef.current)
       debounceTimerRef.current = null
     }
-    const idx = selectedSortedIndexRef.current
+    const sid = selectedIdRef.current
     const cur = listRef.current
+    const curIds = transformerIdsRef.current
+    const idx = curIds.indexOf(sid ?? '')
     if (idx < 0 || cur[idx]?.type !== 'custom') return
     const text = codeDraftRef.current
     const prevEffective = effectiveCustomTransformerCode(cur[idx]!)
     if (text === prevEffective) return
     lastCommittedCodeRef.current = text
-    onCommitStacksRef.current(syncPriorities(cur.map((t, i) => (i === idx ? { ...t, code: text } : t))))
+    commitStacksRawRef.current(
+      syncPriorities(cur.map((t, i) => (i === idx ? { ...t, code: text } : t))),
+      curIds,
+    )
   }, [])
+
+  const handleCommitStacks = useCallback(
+    (nextConfigs: TransformerConfig[], orderedRegistryIds?: string[]) => {
+      flushPendingCode()
+      commitStacksRaw(nextConfigs, orderedRegistryIds)
+    },
+    [commitStacksRaw, flushPendingCode],
+  )
 
   const runtimeSnapshot = useSyncExternalStore(
     subscribeCustomTransformerRuntimeError,
@@ -287,38 +325,52 @@ function WorkspaceTransformersTabEntity({
 
   const syncCodeKey =
     selectedConfig?.type === 'custom'
-      ? `${selectedSortedIndex}:${selectedConfig.code ?? ''}`
+      ? `${selectedId}:${selectedConfig.code ?? ''}`
       : ''
 
   useEffect(() => {
+    if (debounceTimerRef.current != null) {
+      window.clearTimeout(debounceTimerRef.current)
+      debounceTimerRef.current = null
+    }
     if (selectedConfig?.type !== 'custom') {
       setCodeDraft('')
       return
     }
     const worldCode = effectiveCustomTransformerCode(selectedConfig)
-    if (worldCode !== lastCommittedCodeRef.current) {
-      setCodeDraft(worldCode)
-      lastCommittedCodeRef.current = worldCode
-    }
+    setCodeDraft(worldCode)
+    lastCommittedCodeRef.current = worldCode
     codeUndoPrimedRef.current = false
-  }, [syncCodeKey, selectedConfig, selectedSortedIndex])
+  }, [syncCodeKey, selectedConfig, selectedId])
 
-  /** Strip selection → custom Monaco */
+  /** Default first stage when nothing selected (entry anchor effect sets itemId when present). */
   useEffect(() => {
-    if (sortedPairs != null && selectedSortedIndex >= sortedPairs.length) {
-      setSelectedSortedIndex(Math.max(0, sortedPairs.length - 1))
+    if (!workspaceOpen || !sortedPairs?.length || selectedId != null) return
+    if (entry?.tab === 'transformers' && entry.itemId) return
+    setSelectedId(sortedPairs[0]?.id ?? null)
+  }, [workspaceOpen, sortedPairs, selectedId, entry?.tab, entry?.itemId])
+
+  /** When the selected registry id disappears (removed), fall back to first stage. */
+  useEffect(() => {
+    if (sortedPairs != null && selectedId != null && !sortedPairs.some((p) => p.id === selectedId)) {
+      setSelectedId(sortedPairs[0]?.id ?? null)
     }
-  }, [sortedPairs, selectedSortedIndex])
+  }, [sortedPairs, selectedId])
 
   const scheduleCodeCommit = useCallback((text: string) => {
     if (debounceTimerRef.current != null) window.clearTimeout(debounceTimerRef.current)
     debounceTimerRef.current = window.setTimeout(() => {
       debounceTimerRef.current = null
-      const idx = selectedSortedIndexRef.current
+      const sid = selectedIdRef.current
       const cur = listRef.current
-      if (cur[idx]?.type !== 'custom') return
+      const curIds = transformerIdsRef.current
+      const idx = curIds.indexOf(sid ?? '')
+      if (idx < 0 || cur[idx]?.type !== 'custom') return
       lastCommittedCodeRef.current = text
-      onCommitStacksRef.current(syncPriorities(cur.map((t, i) => (i === idx ? { ...t, code: text } : t))))
+      commitStacksRawRef.current(
+        syncPriorities(cur.map((t, i) => (i === idx ? { ...t, code: text } : t))),
+        curIds,
+      )
     }, CODE_DEBOUNCE_MS)
   }, [])
 
@@ -334,10 +386,10 @@ function WorkspaceTransformersTabEntity({
     [scheduleCodeCommit, undo],
   )
 
-  const changeSelectedIndexWithFlush = useCallback(
-    (nextIdx: number) => {
+  const changeSelectedIdWithFlush = useCallback(
+    (nextId: string) => {
       flushPendingCode()
-      setSelectedSortedIndex(nextIdx)
+      setSelectedId(nextId)
     },
     [flushPendingCode],
   )
@@ -683,11 +735,12 @@ function WorkspaceTransformersTabEntity({
           >
             <TransformerHorizontalPipeline
               transformers={list}
+              transformerIds={transformerIds}
               liveTraceSteps={liveTraceSteps ?? null}
               headerRef={headerRef}
               onCommit={handleCommitStacks}
-              onSelectCode={changeSelectedIndexWithFlush}
-              selectedListIndex={selectedSortedIndex}
+              onSelectCode={changeSelectedIdWithFlush}
+              selectedId={selectedId}
             />
           </div>
         </div>

@@ -118,7 +118,11 @@ export interface WorkspaceProps {
   selectedEntityIds: string[]
   onWorldChange: (world: RennWorld) => void
   /** When multi-entity merges use the parent-provided transformer commit path (builder wiring). */
-  onEntityTransformersChange?: (entityIds: string[], transformers: TransformerConfig[]) => void
+  onEntityTransformersChange?: (
+    entityIds: string[],
+    transformers: TransformerConfig[],
+    orderedRegistryIds?: string[],
+  ) => void
   /** Builder live transformer trace (`null` disables live IN/OUT in the pipeline strip). */
   liveTransformerTraceSteps?: TransformerTraceStep[] | null
   onResetPoseToSavedWorld?: (entityIds: string[]) => void

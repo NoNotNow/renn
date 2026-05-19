@@ -52,4 +52,46 @@ describe('commitTransformerConfigsToWorld', () => {
     expect(next.transformers?.e_b_tf0).toMatchObject(configs[0])
     expect(next.transformers?.e_b_tf1).toMatchObject({ type: 'custom', name: 'C1' })
   })
+
+  it('reorder preserves code on each registry id when orderedRegistryIds is passed', () => {
+    const world: RennWorld = {
+      version: '1.0',
+      world: { gravity: [0, -9.81, 0] },
+      assets: {},
+      entities: [
+        {
+          id: 'e1',
+          bodyType: 'dynamic',
+          shape: { type: 'box', width: 1, height: 1, depth: 1 },
+          position: [0, 0, 0],
+          transformers: ['e1_tf0', 'e1_tf1'],
+        },
+      ],
+      transformers: {
+        e1_tf0: {
+          type: 'custom',
+          priority: 0,
+          code: 'return { a: 1 };',
+          name: 'A',
+        },
+        e1_tf1: {
+          type: 'custom',
+          priority: 1,
+          code: 'return { b: 2 };',
+          name: 'B',
+        },
+      },
+    }
+
+    const reorderedConfigs: TransformerConfig[] = [
+      { ...world.transformers!.e1_tf1!, priority: 0 },
+      { ...world.transformers!.e1_tf0!, priority: 1 },
+    ]
+
+    const next = commitTransformerConfigsToWorld(world, 'e1', reorderedConfigs, ['e1_tf1', 'e1_tf0'])
+
+    expect(next.entities[0]?.transformers).toEqual(['e1_tf1', 'e1_tf0'])
+    expect(next.transformers?.e1_tf0?.code).toBe('return { a: 1 };')
+    expect(next.transformers?.e1_tf1?.code).toBe('return { b: 2 };')
+  })
 })

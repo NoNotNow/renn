@@ -26,8 +26,12 @@ import {
   type TransformerTraceStep,
 } from '@/transformers/transformerTrace'
 import { TRANSFORMER_PRESET_OPTIONS, getDefaultTransformerConfig } from '@/transformers/transformerPresets'
-import { syncPriorities, sortAndSyncPriorities } from '@/transformers/transformerUtils'
+import { syncPriorities } from '@/transformers/transformerUtils'
 import { labelCustomTransformer, nextUniqueCustomTransformerName } from '@/transformers/customTransformerNaming'
+import {
+  mergeConfigureDrawerApply,
+  transformerConfigForConfigureDrawer,
+} from '@/transformers/transformerConfigureDrawer'
 
 /** Pipeline geometry — shared so ports, shafts, and chevrons stay on one horizontal axis. */
 const PIPELINE_AXIS_Y = 7
@@ -662,10 +666,15 @@ function TransformerTraceItem({
             portalTarget={headerRef.current}
           >
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {transformer.type === 'custom' ? (
+                <p style={{ margin: 0, fontSize: 11, color: theme.text.muted, lineHeight: 1.4 }}>
+                  Edit TypeScript in the code editor. This JSON is name, priority, params, and enabled only.
+                </p>
+              ) : null}
               <ValidatedJsonTextarea
-                value={JSON.stringify(transformer, null, 2)}
+                value={JSON.stringify(transformerConfigForConfigureDrawer(transformer), null, 2)}
                 onApply={(updated) => {
-                  onUpdate(updated as TransformerConfig)
+                  onUpdate(mergeConfigureDrawerApply(transformer, updated as TransformerConfig))
                   setConfigOpen(false)
                 }}
                 applyVariant="icon"
@@ -699,21 +708,25 @@ function TransformerTraceItem({
 
 export function TransformerHorizontalPipeline({
   transformers,
+  transformerIds,
   liveTraceSteps,
   headerRef,
   onCommit,
   onSelectCode,
-  selectedListIndex,
+  selectedId,
 }: {
   transformers: TransformerConfig[]
+  /** Stable IDs from the registry, matching transformers array 1:1. */
+  transformerIds?: string[]
   liveTraceSteps: TransformerTraceStep[] | null
   headerRef: RefObject<HTMLDivElement>
-  onCommit: (next: TransformerConfig[]) => void
-  onSelectCode?: (index: number) => void
-  selectedListIndex?: number
+  onCommit: (next: TransformerConfig[], orderedRegistryIds?: string[]) => void
+  onSelectCode?: (id: string) => void
+  selectedId?: string | null
 }) {
   const [scrollLeft, setScrollLeft] = useState(0)
   const [addSelectValue, setAddSelectValue] = useState('')
+  const dragEndCommittedRef = useRef(false)
   const [dragState, setDragState] = useState<{
     items: { config: TransformerConfig; id: string; originalIndex: number }[]
     draggedId: string | null
@@ -723,46 +736,61 @@ export function TransformerHorizontalPipeline({
   const traceBarRef = useRef<HTMLDivElement>(null)
   const configIdMap = useRef<WeakMap<TransformerConfig, string>>(new WeakMap())
 
-  const getStableId = useCallback((t: TransformerConfig) => {
+  const getStableId = useCallback((t: TransformerConfig, index: number) => {
+    if (transformerIds?.[index]) return transformerIds[index]
     let id = configIdMap.current.get(t)
     if (!id) {
       id = `t-${Math.random().toString(36).slice(2, 9)}`
       configIdMap.current.set(t, id)
     }
     return id
-  }, [])
+  }, [transformerIds])
+
+  const registryIdsForList = useCallback(
+    () => transformers.map((t, i) => getStableId(t, i)),
+    [transformers, getStableId],
+  )
+
+  const commitWithRegistryIds = useCallback(
+    (next: TransformerConfig[], ids?: string[]) => {
+      onCommit(next, ids ?? registryIdsForList())
+    },
+    [onCommit, registryIdsForList],
+  )
 
   const handleAddTransformer = (type: string) => {
     if (!type) return
     const config = getDefaultTransformerConfig(type)
     const withName =
       type === 'custom' ? { ...config, name: nextUniqueCustomTransformerName(transformers) } : config
-    onCommit(syncPriorities([...transformers, withName]))
+    commitWithRegistryIds(syncPriorities([...transformers, withName]))
     setAddSelectValue('')
   }
 
   const handleRemoveTransformer = (index: number) => {
     const next = transformers.filter((_, i) => i !== index)
-    onCommit(syncPriorities(next))
+    const nextIds = registryIdsForList().filter((_, i) => i !== index)
+    commitWithRegistryIds(syncPriorities(next), nextIds)
   }
 
   const handleToggleEnabled = (index: number) => {
     const next = transformers.map((t, i) =>
       i === index ? { ...t, enabled: !(t.enabled ?? true) } : t
     )
-    onCommit(syncPriorities(next))
+    commitWithRegistryIds(syncPriorities(next))
   }
 
   const handleUpdateTransformer = (index: number, config: TransformerConfig) => {
     const next = [...transformers]
     next[index] = config
-    onCommit(sortAndSyncPriorities(next))
+    commitWithRegistryIds(syncPriorities(next), registryIdsForList())
   }
 
   const handleDragStart = (index: number) => {
+    dragEndCommittedRef.current = false
     const items = transformers.map((t, i) => ({
       config: t,
-      id: getStableId(t),
+      id: getStableId(t, i),
       originalIndex: i,
     }))
     setDragState({
@@ -800,12 +828,13 @@ export function TransformerHorizontalPipeline({
   }
 
   const handleDragEnd = () => {
-    if (dragState) {
+    if (dragState && !dragEndCommittedRef.current) {
+      const orderedIds = dragState.items.map((item) => item.id)
       const next = syncPriorities(dragState.items.map((item) => item.config))
-      // Only commit if the order actually changed
-      const changed = next.some((t, i) => t !== transformers[i] || t.priority !== transformers[i].priority)
+      const changed = orderedIds.some((id, i) => id !== registryIdsForList()[i])
       if (changed) {
-        onCommit(next)
+        dragEndCommittedRef.current = true
+        onCommit(next, orderedIds)
       }
     }
     setDragState(null)
@@ -824,7 +853,7 @@ export function TransformerHorizontalPipeline({
     if (dragState) return dragState.items
     return transformers.map((t, i) => ({
       config: t,
-      id: getStableId(t),
+      id: getStableId(t, i),
       originalIndex: i,
     }))
   }, [transformers, dragState, getStableId])
@@ -881,8 +910,8 @@ export function TransformerHorizontalPipeline({
               onDragOver={(e) => handleDragOver(e, i)}
               onDrop={handleDragEnd}
               onDragEnd={handleDragEnd}
-              onSelectCode={() => onSelectCode?.(item.originalIndex)}
-              isSelected={item.originalIndex === selectedListIndex}
+              onSelectCode={() => onSelectCode?.(item.id)}
+              isSelected={item.id === selectedId}
               isDragging={dragState?.draggedId === item.id}
               isDragOver={dragState?.dragOverId === item.id && dragState?.draggedId !== item.id}
             />
