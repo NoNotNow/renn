@@ -118,6 +118,8 @@ export interface WorkspaceTransformersTabProps {
   /** IndexedDB global library (Organize → Global → Edit). */
   globalLibrary?: GlobalBehaviorLibrary
   onGlobalLibraryChange?: (next: GlobalBehaviorLibrary) => void
+  /** Keeps `entry.itemId` in sync when the user picks a pipeline stage (survives close/reopen). */
+  onEntryChange?: (next: WorkspaceTarget) => void
 }
 
 /** Transformers Workspace body: pipeline strip, shared Monaco bindings, preset/custom detail panels. */
@@ -160,6 +162,7 @@ function WorkspaceTransformersTabEntity({
   onResetPoseToSavedWorld,
   canResetPoseToSaved = false,
   resetPoseTitle = 'Restore saved position and rotation (from world)',
+  onEntryChange,
 }: WorkspaceTransformersTabProps) {
   const undo = useEditorUndo()
   const { openMenu } = useCopyMenu()
@@ -397,8 +400,14 @@ function WorkspaceTransformersTabEntity({
     (nextId: string) => {
       flushPendingCode()
       setSelectedId(nextId)
+      onEntryChange?.({
+        entityId: entry?.entityId ?? entityIdsForEdit[0],
+        tab: 'transformers',
+        itemId: nextId,
+        itemSource: entry?.itemSource,
+      })
     },
-    [flushPendingCode],
+    [entry?.entityId, entry?.itemSource, entityIdsForEdit, flushPendingCode, onEntryChange],
   )
 
   useEffect(() => {

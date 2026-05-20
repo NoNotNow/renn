@@ -533,6 +533,7 @@ export default function Workspace({
                       resetPoseTitle={resetPoseTitle}
                       globalLibrary={globalLibrary}
                       onGlobalLibraryChange={persistGlobalLibrary}
+                      onEntryChange={onEntryChange}
                     />
                   ) : activeTab === 'scripts' ? (
                     <WorkspaceScriptsTab

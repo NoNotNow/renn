@@ -127,6 +127,62 @@ describe('WorkspaceTransformersTab', () => {
     expect(lastWorld.entities[0]?.transformers?.[0]).toBe('car_tf2')
   })
 
+  it('syncs entry.itemId when selecting custom code so close/reopen can restore selection', async () => {
+    const onEntryChange = vi.fn()
+    const { rerender } = renderTab({
+      entry: { entityId: 'car', tab: 'transformers', itemId: 'car_tf0' },
+      onEntryChange,
+    })
+
+    fireEvent.click(screen.getByTitle('Show code'))
+
+    await waitFor(() => {
+      expect(onEntryChange).toHaveBeenCalledWith(
+        expect.objectContaining({ entityId: 'car', tab: 'transformers', itemId: 'car_tf2' }),
+      )
+    })
+
+    rerender(
+      <CopyProvider>
+        <EditorUndoProvider value={undoApi}>
+          <WorkspaceTransformersTab
+            world={carStackWorld}
+            selectedEntityIds={['car']}
+            entry={{ entityId: 'car', tab: 'transformers', itemId: 'car_tf2' }}
+            workspaceOpen={false}
+            liveTraceSteps={null}
+            onWorldChange={vi.fn()}
+            setMonacoPayload={vi.fn()}
+            monacoSlot={null}
+          />
+        </EditorUndoProvider>
+      </CopyProvider>,
+    )
+
+    const setMonacoPayload = vi.fn()
+    rerender(
+      <CopyProvider>
+        <EditorUndoProvider value={undoApi}>
+          <WorkspaceTransformersTab
+            world={carStackWorld}
+            selectedEntityIds={['car']}
+            entry={{ entityId: 'car', tab: 'transformers', itemId: 'car_tf2' }}
+            workspaceOpen
+            liveTraceSteps={null}
+            onWorldChange={vi.fn()}
+            setMonacoPayload={setMonacoPayload}
+            monacoSlot={null}
+          />
+        </EditorUndoProvider>
+      </CopyProvider>,
+    )
+
+    await waitFor(() => {
+      expect(lastMonacoPayload(setMonacoPayload)?.kind).toBe('transformer-ts')
+      expect(lastMonacoPayload(setMonacoPayload)?.value).toContain('return { force')
+    })
+  })
+
   it('keeps custom Monaco active after reordering custom stage to the front', async () => {
     const setMonacoPayload = vi.fn()
     const onWorldChange = vi.fn()

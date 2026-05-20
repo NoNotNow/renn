@@ -406,6 +406,22 @@ export default function Builder() {
     const tfIdsIntersect = intersectTransformerIdsAcrossEntities(entities)
     const scIdsIntersect = intersectScriptIdsAcrossEntities(entities)
 
+    const prev = workspaceEntry
+    if (prev?.entityId === entityId && prev.itemId) {
+      if (prev.tab === 'scripts' && scIdsIntersect.includes(prev.itemId)) {
+        setWorkspaceEntry({ entityId, tab: 'scripts', itemId: prev.itemId })
+        setWorkspaceOpen(true)
+        uiLogger.click('Builder', 'Open workspace', { entityId, tab: 'scripts', itemId: prev.itemId })
+        return
+      }
+      if (prev.tab === 'transformers' && tfIdsIntersect.includes(prev.itemId)) {
+        setWorkspaceEntry({ entityId, tab: 'transformers', itemId: prev.itemId })
+        setWorkspaceOpen(true)
+        uiLogger.click('Builder', 'Open workspace', { entityId, tab: 'transformers', itemId: prev.itemId })
+        return
+      }
+    }
+
     // Default to transformers, but if there are scripts and no transformers, go to scripts.
     // Also try to find a custom transformer to select by default.
     let tab: WorkspaceTarget['tab'] = 'transformers'
@@ -422,7 +438,7 @@ export default function Builder() {
     setWorkspaceEntry({ entityId, tab, itemId })
     setWorkspaceOpen(true)
     uiLogger.click('Builder', 'Open workspace', { entityId, tab, itemId })
-  }, [collapseSideDrawers, selectedEntityIds, world.entities, world.transformers])
+  }, [collapseSideDrawers, selectedEntityIds, world.entities, world.transformers, workspaceEntry])
 
   const handleOpenWorkspaceAnchored = useCallback(
     (anchor: Pick<WorkspaceTarget, 'tab' | 'itemId'>) => {
