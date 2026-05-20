@@ -199,7 +199,11 @@ function SpeedTachSvg({ speedMs }: { speedMs: number }) {
         )
       })}
       <g
-        transform={`rotate(${needleRotateDeg}, ${TACH_CX}, ${TACH_CY})`}
+        className="rennTachNeedle"
+        style={{
+          transform: `rotate(${needleRotateDeg}deg)`,
+          transformOrigin: `${TACH_CX}px ${TACH_CY}px`,
+        }}
         filter={`url(#${uid}-needleGlow)`}
       >
         <polygon
@@ -307,6 +311,10 @@ export const GameHud = memo(function GameHud({ score, damage, speedMs, wheelAngl
             box-shadow:
               inset 0 0 0 1px rgba(255, 255, 255, 0.06),
               inset 0 10px 24px rgba(255, 255, 255, 0.04);
+          }
+          .rennTachNeedle {
+            transition: transform 300ms;
+            transform-box: view-box;
           }
         `}
       </style>
