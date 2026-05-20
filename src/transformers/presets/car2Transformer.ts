@@ -87,8 +87,7 @@ export class CarTransformer2 extends BaseTransformer {
     if (jumpRisingEdge && ji > 0) {
       impulse = this.addVec3(impulse, [0, ji, 0])
     }
-    const rotationDelta = this.getRotationDelta(input, deltaTime, this.wheelAngle, relativeVelocity)
-    const addRotation = rotationDelta
+    const addRotation = this.getRotationDelta(input, deltaTime, this.wheelAngle, relativeVelocity);
     return {
       impulse,
       addRotation,
@@ -174,6 +173,12 @@ export class CarTransformer2 extends BaseTransformer {
   }
 
   private calculateWheelAngle(input: TransformInput): void {
+    const steering_angle=this.getAction(input, 'steering_angle')
+    if(steering_angle){
+      this.wheelAngle = clamp(steering_angle, -1,1);
+      return;
+    }
+
     const currentVehicleSpeed = this.getForwardSpeed(input.velocity, input);
     const wheelSlowdown = 1 + (currentVehicleSpeed / 50);
     let factor = this.params.steeringSpeed;
