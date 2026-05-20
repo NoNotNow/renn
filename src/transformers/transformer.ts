@@ -6,7 +6,7 @@
  */
 
 import type {
-  Transformer,
+  Transformer, TransformerConfig,
   TransformInput,
   TransformOutput,
   Vec3,
