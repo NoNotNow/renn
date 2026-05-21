@@ -230,10 +230,10 @@ export const TRANSFORMER_DOCS_GLOSSARY = {
     en: 'Builder-only numeric overlay probe (indexed channel) while Visualize mode is active.',
     de: 'visualize => nur Bau-Modus: malt eine Zahl sichtbar.',
   },
-  visualizeCoordinate: {
-    label: 'api.visualizeCoordinate',
-    en: 'Builder-only ruler/line visualization toward a Vec3.',
-    de: 'visualizeCoordinate => nur Bau-Modus: Linie zu einem Punkt.',
+  visualizeLine: {
+    label: 'api.visualizeLine',
+    en: 'Builder-only line visualization between two Vec3 points.',
+    de: 'visualizeLine => nur Bau-Modus: Linie zwischen zwei Punkten.',
   },
   clamp: {
     label: 'api.clamp',

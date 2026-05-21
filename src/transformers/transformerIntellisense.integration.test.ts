@@ -90,6 +90,8 @@ describe('transformer IntelliSense (TS language service)', () => {
     expect(apiDot.has('getEntity')).toBe(true)
     expect(apiDot.has('getWorldPosition')).toBe(true)
     expect(apiDot.has('getStartPosition')).toBe(true)
+    expect(apiDot.has('visualizeLine')).toBe(true)
+    expect(apiDot.has('visualizeCoordinate')).toBe(false)
   })
 
   test('legacy global `input` body: input. resolves from declare const', () => {

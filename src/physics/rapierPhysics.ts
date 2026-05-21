@@ -583,6 +583,18 @@ export class PhysicsWorld {
   }
 
   /**
+   * Manually update the cached transform for an entity from its current rigid body state.
+   * Call this after manual teleports (e.g. gizmo) so subsequent `getPosition` calls
+   * in the same frame see the new pose.
+   */
+  syncBodyToCache(entityId: string): void {
+    const body = this.bodyMap.get(entityId)
+    if (body) {
+      this.syncCachedTransformFromBody(entityId, body, true)
+    }
+  }
+
+  /**
    * Returns true if the entity's collider has at least one contact with another collider.
    * Uses narrow-phase contact (manifold.numContacts() > 0), not broad-phase pairs.
    * Ignores pairs where the other collider belongs to the same entity. Uses contact state from the last physics step.

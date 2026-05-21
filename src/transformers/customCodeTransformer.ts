@@ -31,7 +31,7 @@ import {
   publishCustomTransformerRuntimeError,
 } from '@/runtime/customTransformerErrorBridge'
 import { publishVariableValue, VARIABLE_OVERLAY_MAX_INDEX } from '@/runtime/variableOverlayBridge'
-import { publishCoordinateValue } from '@/runtime/coordinateOverlayBridge'
+import { publishLineValue } from '@/runtime/coordinateOverlayBridge'
 
 let _customCodeVisualizeEntityId: string | null = null
 
@@ -267,10 +267,10 @@ export interface TransformerRuntimeApi {
    */
   visualize(value: number, color: string, name: string, index: number): void
   /**
-   * Builder visualize mode only: draws a line from the entity to the given world-space coordinate.
+   * Builder visualize mode only: draws a line between two world-space coordinates.
    * No-op in Play mode, tests, or when visualize gizmo mode is inactive.
    */
-  visualizeCoordinate(coordinate: Vec3, color: string): void
+  visualizeLine(from: Vec3, to: Vec3, color: string): void
   /**
    * Current world position from physics cache or mesh (same as {@link RenderItemRegistry.getPosition} during transformer execution).
    * Null when id is unknown, pose unavailable, or live-position hook is unwired. Prefer over {@link getEntity} in hot paths (no entity snapshot object).
@@ -475,12 +475,13 @@ export const TRANSFORMER_RUNTIME_API: TransformerRuntimeApi = Object.freeze({
     if (id == null) return
     publishVariableValue(id, value, color, name, index)
   },
-  visualizeCoordinate: (coordinate: Vec3, color: string): void => {
-    const coord = requireVec3('TransformerRuntimeApi.visualizeCoordinate', 'coordinate', coordinate)
-    requireStringParam('TransformerRuntimeApi.visualizeCoordinate', 'color', color)
+  visualizeLine: (from: Vec3, to: Vec3, color: string): void => {
+    const fromV = requireVec3('TransformerRuntimeApi.visualizeLine', 'from', from)
+    const toV = requireVec3('TransformerRuntimeApi.visualizeLine', 'to', to)
+    requireStringParam('TransformerRuntimeApi.visualizeLine', 'color', color)
     const id = _customCodeVisualizeEntityId
     if (id == null) return
-    publishCoordinateValue(id, coord, color)
+    publishLineValue(id, fromV, toV, color)
   },
   getWorldPosition: (id: string): Vec3 | null => {
     requireEntityId('TransformerRuntimeApi.getWorldPosition', id)

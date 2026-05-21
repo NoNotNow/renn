@@ -87,7 +87,7 @@ const VIZ_FN = `function transform(input, dt, params, state, api) {
   api.visualize(speed, '#00ff00', 'Speed', 1);
   
   const target = [0, 5, 0];
-  api.visualizeCoordinate(target, 'red');
+  api.visualizeLine(input.position, target, 'red');
   
   return {};
 }`
@@ -474,7 +474,7 @@ export function buildTransformerDocsChapters(locale: TransformerDocsLocale): Tra
         title: ct['api-runtime'],
         keywords: ['api', 'vec', 'math', 'log', 'visualize', 'world', 'position', 'clamp'],
         plainText:
-          'TransformerRuntimeApi api.vec add scale length dot getForwardVector getUpVector getForwardSpeed getAction clamp log visualize visualizeCoordinate getWorldPosition getEntity snackbar overlay',
+          'TransformerRuntimeApi api.vec add scale length dot getForwardVector getUpVector getForwardSpeed getAction clamp log visualize visualizeLine getWorldPosition getEntity snackbar overlay',
         content: (
           <div lang="en">
             <p>
@@ -548,10 +548,10 @@ export function buildTransformerDocsChapters(locale: TransformerDocsLocale): Tra
                 — Builder variable overlay probes.
               </li>
               <li>
-                <DocTerm term="visualizeCoordinate">
-                  <code>api.visualizeCoordinate(pos, color)</code>
+                <DocTerm term="visualizeLine">
+                  <code>api.visualizeLine(from, to, color)</code>
                 </DocTerm>{' '}
-                — ruler toward <DocTerm term="Vec3"><code>Vec3</code></DocTerm>.
+                — ruler between <DocTerm term="Vec3"><code>Vec3</code></DocTerm> points.
               </li>
               <li>
                 <DocTerm term="getWorldPosition">
@@ -956,8 +956,8 @@ export function buildTransformerDocsChapters(locale: TransformerDocsLocale): Tra
               machen.
             </li>
             <li style={{ marginBottom: 8 }}>
-              <DocTerm term="visualizeCoordinate"><code lang="en">api.visualizeCoordinate(pos, color)</code></DocTerm> – nur
-              zum Bauen: Linie zu einem Punkt.
+              <DocTerm term="visualizeLine"><code lang="en">api.visualizeLine(from, to, color)</code></DocTerm> – nur
+              zum Bauen: Linie zwischen zwei Punkten.
             </li>
             <li style={{ marginBottom: 8 }}>
               <DocTerm term="getWorldPosition"><code lang="en">api.getWorldPosition(id)</code></DocTerm> – wo ist eine andere{' '}

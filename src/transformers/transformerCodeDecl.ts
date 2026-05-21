@@ -249,12 +249,13 @@ interface TransformerRuntimeApi {
    */
   visualize(value: number, color: string, name: string, index: number): void;
   /**
-   * Builder visualize mode: draw a line from the entity to the given world-space coordinate.
+   * Builder visualize mode: draw a line between two world-space coordinates.
    * Useful for visualizing targets, waypoints, or direction vectors. No-op in Play/tests or when overlay is unwired.
-   * @param coordinate World-space [x, y, z] target point.
+   * @param from World-space [x, y, z] start point.
+   * @param to World-space [x, y, z] end point.
    * @param color CSS color string (e.g. 'blue', '#ff0000').
    */
-  visualizeCoordinate(coordinate: Vec3, color: string): void;
+  visualizeLine(from: Vec3, to: Vec3, color: string): void;
   /**
    * Live world position from physics cache or mesh during transformer execution (same source as registry \`getPosition\`).
    * Null when unwired or unavailable. No entity snapshot allocation.

@@ -27,10 +27,10 @@ type LineSlot = {
 }
 
 /**
- * Renders world-space lines (thin cylinders) from the selected entity position
- * to each coordinate published via `api.visualizeCoordinate()`.
+ * Renders world-space lines (thin cylinders) for each line
+ * published via `api.visualizeLine()`.
  * Cylinder geometry is 1 unit tall along local Y; `sync` repositions/rotates each
- * mesh so it spans from `entityPos` to `entry.coord` in world space.
+ * mesh so it spans from `entry.from` to `entry.to` in world space.
  */
 export class CoordinateOverlayController {
   private readonly scene: THREE.Scene
@@ -53,16 +53,16 @@ export class CoordinateOverlayController {
     }
   }
 
-  sync(entityPos: Vec3 | null, entries: CoordinateOverlayEntry[]): void {
-    const n = entityPos ? entries.length : 0
+  sync(entries: CoordinateOverlayEntry[]): void {
+    const n = entries.length
     this.ensureSlotCount(n)
 
     for (let i = 0; i < n; i += 1) {
       const slot = this._slots[i]!
       const entry = entries[i]!
 
-      const from = new THREE.Vector3(entityPos![0], entityPos![1], entityPos![2])
-      const to = new THREE.Vector3(entry.coord[0], entry.coord[1], entry.coord[2])
+      const from = new THREE.Vector3(entry.from[0], entry.from[1], entry.from[2])
+      const to = new THREE.Vector3(entry.to[0], entry.to[1], entry.to[2])
 
       const dir = new THREE.Vector3().subVectors(to, from)
       const length = dir.length()

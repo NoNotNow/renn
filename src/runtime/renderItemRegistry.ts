@@ -416,12 +416,13 @@ export class RenderItemRegistry {
   }
 
   setPosition(id: string, v: Vec3): void {
-    this.items.get(id)?.setPosition(v)
+    this.setPositionXYZ(id, v[0], v[1], v[2])
   }
 
   /** Hot path: no `Vec3` allocation (e.g. scripts / game API). */
   setPositionXYZ(id: string, x: number, y: number, z: number): void {
     this.items.get(id)?.setPositionXYZ(x, y, z)
+    this.physicsWorld?.syncBodyToCache(id)
   }
 
   getRotation(id: string): Rotation | null {
@@ -463,12 +464,13 @@ export class RenderItemRegistry {
   }
 
   setRotation(id: string, v: Rotation): void {
-    this.items.get(id)?.setRotation(v)
+    this.setRotationEuler(id, v[0], v[1], v[2])
   }
 
   /** Hot path: no `Rotation` array allocation. */
   setRotationEuler(id: string, rx: number, ry: number, rz: number): void {
     this.items.get(id)?.setRotationEuler(rx, ry, rz)
+    this.physicsWorld?.syncBodyToCache(id)
   }
 
   /** Set entity rotation to identity [0, 0, 0] (Euler radians). */
@@ -748,6 +750,7 @@ export class RenderItemRegistry {
     if (patch.bodyType !== undefined) {
       const entity = item.entity
       pw.setBodyType(id, patch.bodyType, entity.linearDamping, entity.angularDamping)
+      pw.syncBodyToCache(id)
     }
   }
 

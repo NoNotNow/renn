@@ -113,9 +113,12 @@ describe('TransformerRuntimeApi argument validation', () => {
     )
   })
 
-  test('visualizeCoordinate rejects invalid coordinate', () => {
-    expect(() => TRANSFORMER_RUNTIME_API.visualizeCoordinate([0, 1] as unknown as [number, number, number], 'red')).toThrow(
-      /\[TransformerRuntimeApi\.visualizeCoordinate\]/,
+  test('visualizeLine rejects invalid coordinate', () => {
+    expect(() => TRANSFORMER_RUNTIME_API.visualizeLine([0, 1] as unknown as [number, number, number], [0, 0, 0], 'red')).toThrow(
+      /\[TransformerRuntimeApi\.visualizeLine\]/,
+    )
+    expect(() => TRANSFORMER_RUNTIME_API.visualizeLine([0, 0, 0], [0, 1] as unknown as [number, number, number], 'red')).toThrow(
+      /\[TransformerRuntimeApi\.visualizeLine\]/,
     )
   })
 
@@ -234,28 +237,28 @@ describe('CustomCodeTransformer runtime bridge', () => {
     expect(getVariableOverlaySlots()).toEqual([])
   })
 
-  test('api.visualizeCoordinate publishes when bridge is wired and entity matches', () => {
+  test('api.visualizeLine publishes when bridge is wired and entity matches', () => {
     setCoordinateOverlayFn(() => {})
     setCoordinateOverlayDisplayEntityId('ent-a')
     const t = new CustomCodeTransformer({
       type: 'custom',
       code: `function transform(input, dt, params, state, api) {
-        api.visualizeCoordinate([10, 0, 5], 'blue');
+        api.visualizeLine([0, 0, 0], [10, 0, 5], 'blue');
         return {};
       }`,
     })
     t.runtimeEntityId = 'ent-a'
     t.transform(createMockTransformInput({ entityId: 'ent-a' }), 0.1)
-    expect(getCoordinateOverlayEntries()).toEqual([{ coord: [10, 0, 5], color: 'blue' }])
+    expect(getCoordinateOverlayEntries()).toEqual([{ from: [0, 0, 0], to: [10, 0, 5], color: 'blue' }])
   })
 
-  test('api.visualizeCoordinate is a no-op for mismatched selection', () => {
+  test('api.visualizeLine is a no-op for mismatched selection', () => {
     setCoordinateOverlayFn(() => {})
     setCoordinateOverlayDisplayEntityId('other')
     const t = new CustomCodeTransformer({
       type: 'custom',
       code: `function transform(input, dt, params, state, api) {
-        api.visualizeCoordinate([1, 2, 3], 'red');
+        api.visualizeLine([0, 0, 0], [1, 2, 3], 'red');
         return {};
       }`,
     })
@@ -264,12 +267,12 @@ describe('CustomCodeTransformer runtime bridge', () => {
     expect(getCoordinateOverlayEntries()).toEqual([])
   })
 
-  test('api.visualizeCoordinate is a no-op when bridge is not wired', () => {
+  test('api.visualizeLine is a no-op when bridge is not wired', () => {
     setCoordinateOverlayDisplayEntityId('ent-a')
     const t = new CustomCodeTransformer({
       type: 'custom',
       code: `function transform(input, dt, params, state, api) {
-        api.visualizeCoordinate([0, 0, 0], 'green');
+        api.visualizeLine([1, 1, 1], [0, 0, 0], 'green');
         return {};
       }`,
     })

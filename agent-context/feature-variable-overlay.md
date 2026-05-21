@@ -1,6 +1,6 @@
 # Variable Overlay & Coordinate Overlay — design & implementation plan
 
-Builder feature: visualize numeric values from custom transformer `api.visualize()` calls as bidirectional bar charts anchored to the selected entity in the 3D scene, and world-space lines from the entity to arbitrary coordinates via `api.visualizeCoordinate()`.
+Builder feature: visualize numeric values from custom transformer `api.visualize()` calls as bidirectional bar charts anchored to the selected entity in the 3D scene, and world-space lines between arbitrary coordinates via `api.visualizeLine()`.
 
 Pair with [feature-coding-custom-transformers.md](feature-coding-custom-transformers.md) and [feature-transformers.md](feature-transformers.md).
 
@@ -10,7 +10,7 @@ Pair with [feature-coding-custom-transformers.md](feature-coding-custom-transfor
 
 Steps 1–3 are **done** in the codebase: `visualize` gizmo mode, `CSS2DRenderer`, `variableOverlayBridge`, `variableOverlayController`, `api.visualize` on `TransformerRuntimeApi`, SceneView wiring, Monaco decls, and docs in `feature-coding-custom-transformers.md`.
 
-`api.visualizeCoordinate` is also **done**: `coordinateOverlayBridge`, `coordinateOverlayController`, API surface on `TransformerRuntimeApi`, SceneView wiring, Monaco decls.
+`api.visualizeLine` is also **done**: `coordinateOverlayBridge`, `coordinateOverlayController`, API surface on `TransformerRuntimeApi`, SceneView wiring, Monaco decls.
 
 **Rendering note:** Bars and zero-line use **scaled `BoxGeometry` meshes** (not `LineSegments`), because WebGL line width is not reliable. Thickness scales with `BUILDER_VARIABLE_OVERLAY_GROUP_WIDTH` via `STROKE_WIDTH_FACTOR` in `variableOverlayController.ts`. Bar **fill color** uses the API color string on each slot’s `MeshBasicMaterial` (`THREE.Color.setStyle`). Materials use **`depthTest` / `depthWrite` off and `renderOrder = Infinity`**, matching Three.js `TransformControls`, so bars stay visible when a large selection mesh would otherwise occlude them in depth. Name labels use **larger type with `writing-mode: vertical-rl`** so adjacent columns overlap less in screen space; label text is **always white** for contrast (bar fill still uses the API color).
 
@@ -123,7 +123,7 @@ Bridge: `setVariableOverlayFn`, `publishVariableValue`, `getVariableOverlaySlots
 | `variableOverlayBridge` | [`variableOverlayBridge.test.ts`](../src/runtime/variableOverlayBridge.test.ts) — min/max, last-write, entity filter, cap >16, clear on unwire. |
 | Layout math | [`variableOverlayController.test.ts`](../src/runtime/variableOverlayController.test.ts) — column X, signed bar length. |
 | `coordinateOverlayBridge` | [`coordinateOverlayBridge.test.ts`](../src/runtime/coordinateOverlayBridge.test.ts) — entity filter, cap, clear, mutation-safety, copy safety. |
-| `api.visualize` / `api.visualizeCoordinate` | [`customCodeTransformer.test.ts`](../src/transformers/customCodeTransformer.test.ts) — wired vs mismatched selection for both APIs. |
+| `api.visualize` / `api.visualizeLine` | [`customCodeTransformer.test.ts`](../src/transformers/customCodeTransformer.test.ts) — wired vs mismatched selection for both APIs. |
 | Integration | Optional: Playwright Builder session (future). |
 
 ---
@@ -134,18 +134,19 @@ Bridge: `setVariableOverlayFn`, `publishVariableValue`, `getVariableOverlaySlots
 - **Cap on simultaneous coordinate lines:** **16** — see `COORDINATE_OVERLAY_MAX_COUNT`.
 - **Multi-select:** **No overlay** — display entity id is set only when exactly one entity is selected.
 - **Bar thickness:** **World-space mesh boxes** with `STROKE_WIDTH_FACTOR` (not `Line2` / `LineSegments` width).
-- **Line rendering:** **`CylinderGeometry`** meshes oriented from entity to target coordinate; `depthTest: false`, `renderOrder: Infinity`.
-- **Per-frame clear:** Coordinate entries are cleared once per **physics step** at the start of `RenderItemRegistry.executeTransformers` (and when the visualize target entity changes), so **render-only** rAF ticks reuse the last step’s lines and do not flicker. Stale targets disappear on the next simulated frame if the transformer stops calling `visualizeCoordinate`.
+- **Line rendering:** **`CylinderGeometry`** meshes oriented between coordinates; `depthTest: false`, `renderOrder: Infinity`.
+- **Per-frame clear:** Coordinate entries are cleared once per **physics step** at the start of `RenderItemRegistry.executeTransformers` (and when the visualize target entity changes), so **render-only** rAF ticks reuse the last step’s lines and do not flicker. Stale lines disappear on the next simulated frame if the transformer stops calling `visualizeLine`.
 
 ---
 
-## `api.visualizeCoordinate`
+## `api.visualizeLine`
 
 ```ts
-api.visualizeCoordinate(coordinate: Vec3, color: string): void
+api.visualizeLine(from: Vec3, to: Vec3, color: string): void
 ```
 
-- **`coordinate`** — world-space `[x, y, z]` target point (non-finite components are ignored).
+- **`from`** — world-space `[x, y, z]` start point (non-finite components are ignored).
+- **`to`** — world-space `[x, y, z]` end point (non-finite components are ignored).
 - **`color`** — CSS color string (e.g. `'blue'`, `'#ff4444'`).
 - Active in Builder Visualize mode with exactly one entity selected; no-op otherwise.
 - Up to 16 lines per frame (`COORDINATE_OVERLAY_MAX_COUNT`); excess calls are dropped.
@@ -154,5 +155,5 @@ Example usage:
 
 ```js
 // Draw a line to a target waypoint each frame
-api.visualizeCoordinate([0, 0, 0], 'blue');
+api.visualizeLine(input.position, [0, 0, 0], 'blue');
 ```

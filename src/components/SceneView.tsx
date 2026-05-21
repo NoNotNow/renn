@@ -949,18 +949,18 @@ function SceneViewInner({
               const ids = selectedEntityIdsRef.current
               if (!overlay || mode !== 'visualize' || ids.length !== 1) {
                 overlay?.sync(null, null, [])
-                coordOverlay?.sync(null, [])
+                coordOverlay?.sync([])
                 return
               }
               const id = ids[0]!
               const pos = registryRef.current?.getPosition(id)
               if (!pos) {
                 overlay.sync(null, null, [])
-                coordOverlay?.sync(null, [])
+                coordOverlay?.sync([])
                 return
               }
               overlay.sync(id, pos, getVariableOverlaySlots(), cam)
-              coordOverlay?.sync(pos, getCoordinateOverlayEntries())
+              coordOverlay?.sync(getCoordinateOverlayEntries())
             },
             css2dRenderer: css2dRendererRef.current,
           })
