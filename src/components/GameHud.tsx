@@ -276,6 +276,7 @@ function SteeringWheelHud({ wheelAngle }: { wheelAngle: number }) {
           objectFit: 'contain',
           transform: `rotate(${rotDeg}deg)`,
           transformOrigin: '50% 50%',
+          transition: 'transform 200ms ease-in-out',
         }}
       />
     </div>
