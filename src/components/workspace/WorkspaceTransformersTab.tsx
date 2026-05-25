@@ -108,6 +108,7 @@ export interface WorkspaceTransformersTabProps {
     entityIds: string[],
     transformers: TransformerConfig[],
     orderedRegistryIds?: string[],
+    isShared?: boolean,
   ) => void
   setMonacoPayload: (payload: WorkspaceMonacoPayload) => void
   /** Host injects shared `TransformerCustomCodeEditor`; tab positions it inside the split layout. */
@@ -184,6 +185,16 @@ function WorkspaceTransformersTabEntity({
   const transformersMixed = mergedIds === null
   const worldTf = useMemo(() => world.transformers ?? {}, [world.transformers])
 
+  const usageCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const e of world.entities) {
+      e.transformers?.forEach((id) => {
+        counts[id] = (counts[id] || 0) + 1
+      })
+    }
+    return counts
+  }, [world.entities])
+
   const sortedPairs = useMemo(() => {
     if (mergedIds == null) return null
     const raw = mergedIds
@@ -197,6 +208,7 @@ function WorkspaceTransformersTabEntity({
   const transformerIds = useMemo(() => sortedPairs?.map((p) => p.id) ?? [], [sortedPairs])
 
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [isSharedMode, setIsSharedMode] = useState(false)
   /** Entry anchor applied once per itemId — must not re-run when sortedPairs changes (e.g. reorder). */
   const appliedEntryAnchorRef = useRef<string | null>(null)
 
@@ -218,12 +230,14 @@ function WorkspaceTransformersTabEntity({
       if (transformersMixed) return
       const baseIds = orderedRegistryIds ?? transformerIds
       if (onEntityTransformersChange) {
-        onEntityTransformersChange(entityIdsForEdit, nextConfigs, baseIds)
+        onEntityTransformersChange(entityIdsForEdit, nextConfigs, baseIds, isSharedMode)
       } else {
         let nextWorld = world
         for (const entityId of entityIdsForEdit) {
           const idsForEntity =
-            entityIdsForEdit.length === 1 ? baseIds : mapTransformerRegistryIdsToEntity(baseIds, entityId)
+            isSharedMode || entityIdsForEdit.length === 1 ?
+              baseIds
+            : mapTransformerRegistryIdsToEntity(baseIds, entityId)
           nextWorld = commitTransformerConfigsToWorld(nextWorld, entityId, nextConfigs, idsForEntity)
         }
         onWorldChange(nextWorld)
@@ -231,6 +245,7 @@ function WorkspaceTransformersTabEntity({
     },
     [
       entityIdsFingerprint,
+      isSharedMode,
       onEntityTransformersChange,
       onWorldChange,
       transformersMixed,
@@ -241,6 +256,42 @@ function WorkspaceTransformersTabEntity({
 
   const commitStacksRawRef = useRef(commitStacksRaw)
   commitStacksRawRef.current = commitStacksRaw
+
+  const handleMakeUniqueTransformer = useCallback(
+    (id: string) => {
+      const idx = transformerIds.indexOf(id)
+      if (idx < 0) return
+
+      const targetEntityId = entityIdsForEdit[0]
+      if (!targetEntityId) return
+
+      const nextWorldTransformers = { ...(world.transformers ?? {}) }
+      const usedIds = new Set(Object.keys(nextWorldTransformers))
+      const newId = allocateTransformerRegistryId(targetEntityId, nextWorldTransformers, usedIds)
+
+      nextWorldTransformers[newId] = JSON.parse(JSON.stringify(nextWorldTransformers[id]))
+
+      const nextWorld = {
+        ...world,
+        transformers: nextWorldTransformers,
+        entities: world.entities.map((e) => {
+          if (e.id === targetEntityId) {
+            return {
+              ...e,
+              transformers: e.transformers?.map((tid) => (tid === id ? newId : tid)) ?? [],
+            }
+          }
+          return e
+        }),
+      }
+      onWorldChange(nextWorld)
+      setSelectedId(newId)
+      if (onEntryChange && entry) {
+        onEntryChange({ ...entry, itemId: newId })
+      }
+    },
+    [transformerIds, entityIdsForEdit, world, onWorldChange, onEntryChange, entry],
+  )
 
   const selectedSortedIndex = useMemo(() => {
     if (!selectedId || !sortedPairs) return 0
@@ -415,6 +466,28 @@ function WorkspaceTransformersTabEntity({
       flushPendingCode()
     }
   }, [flushPendingCode])
+
+  const handleCopyPipe = useCallback(() => {
+    uiLogger.click('WorkspaceTransformersTab', 'Copy transformer pipe (JSON)')
+    flushPendingCode()
+    if (!sortedPairs) return
+
+    const payload = transformerIds.map((id, i) => {
+      const config = list[i]
+      if (id === selectedId && config.type === 'custom') {
+        return { id, ...config, code: codeDraft }
+      }
+      return { id, ...config }
+    })
+
+    const text = JSON.stringify(payload, null, 2)
+    navigator.clipboard
+      .writeText(text)
+      .catch((err) => {
+        console.error('Failed to copy transformer pipe:', err)
+        alert('Failed to copy to clipboard')
+      })
+  }, [sortedPairs, transformerIds, list, selectedId, codeDraft, flushPendingCode])
 
   const monacoIsCustom = Boolean(selectedConfig?.type === 'custom')
   const monacoPayload = useMemo(() => {
@@ -757,6 +830,9 @@ function WorkspaceTransformersTabEntity({
               headerRef={headerRef}
               onCommit={handleCommitStacks}
               onSelectCode={changeSelectedIdWithFlush}
+              onMakeUnique={handleMakeUniqueTransformer}
+              usageCounts={usageCounts}
+              existingRegistry={world.transformers}
               selectedId={selectedId}
             />
           </div>
@@ -770,6 +846,35 @@ function WorkspaceTransformersTabEntity({
             marginLeft: 'auto',
           }}
         >
+          {entityIdsForEdit.length > 1 && (
+            <button
+              type="button"
+              title={
+                isSharedMode ?
+                  'Changes will be applied to the same registry IDs for all selected entities'
+                : 'Changes will create unique registry IDs for each entity'
+              }
+              onClick={() => setIsSharedMode(!isSharedMode)}
+              style={{
+                ...entityPanelIconButtonStyle,
+                fontSize: 10,
+                padding: '0 8px',
+                width: 'auto',
+                height: 24,
+                borderRadius: 4,
+                border: `1px solid ${isSharedMode ? theme.accent : theme.border.default}`,
+                background: isSharedMode ? 'rgba(0, 153, 255, 0.15)' : 'transparent',
+                color: isSharedMode ? theme.accent : theme.text.muted,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                fontWeight: 600,
+                letterSpacing: '0.02em',
+              }}
+            >
+              {isSharedMode ? '🔗 SHARED' : '✂️ ISOLATE'}
+            </button>
+          )}
           <button
             type="button"
             title={docsOpen ? 'Hide documentation' : 'Show documentation'}
@@ -797,6 +902,17 @@ function WorkspaceTransformersTabEntity({
               {EntityPanelIcons.reset}
             </button>
           : null}
+          <button
+            type="button"
+            title="Copy transformer pipe (JSON)"
+            onClick={handleCopyPipe}
+            style={{
+              ...entityPanelIconButtonStyle,
+              opacity: 0.85,
+            }}
+          >
+            {EntityPanelIcons.clone}
+          </button>
           <button
             type="button"
             data-testid="workspace-transformers-refresh-editor"

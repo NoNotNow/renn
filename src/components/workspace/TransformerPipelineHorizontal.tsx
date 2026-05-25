@@ -337,6 +337,8 @@ function TransformerTraceItem({
   onDrop,
   onDragEnd,
   onSelectCode,
+  usageCount,
+  onMakeUnique,
   isSelected,
   isDragOver,
   isDragging,
@@ -357,6 +359,8 @@ function TransformerTraceItem({
   onDrop: () => void
   onDragEnd: () => void
   onSelectCode?: () => void
+  usageCount?: number
+  onMakeUnique?: () => void
   isSelected?: boolean
   isDragOver: boolean
   isDragging: boolean
@@ -476,6 +480,55 @@ function TransformerTraceItem({
         boxShadow: showSelectedChrome ? '0 0 6px rgba(138, 180, 255, 0.18)' : undefined,
       }}
     >
+      {usageCount !== undefined && usageCount > 1 && (
+        <div
+          title={`${usageCount} entities use this transformer. Changes will affect all of them unless you make it unique.`}
+          style={{
+            position: 'absolute',
+            top: -8,
+            right: -4,
+            background: theme.bg.surfaceAlt,
+            border: `1px solid ${theme.border.default}`,
+            borderRadius: 10,
+            padding: '1px 5px',
+            fontSize: 9,
+            color: theme.text.accentBlue,
+            fontWeight: 700,
+            zIndex: 10,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 2,
+            boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+          }}
+        >
+          👤 x{usageCount}
+          {onMakeUnique && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                onMakeUnique()
+              }}
+              title="Make unique (unlink from others)"
+              style={{
+                background: 'transparent',
+                border: 'none',
+                padding: 0,
+                margin: 0,
+                color: theme.text.accentBlue,
+                cursor: 'pointer',
+                fontSize: 10,
+                display: 'flex',
+                marginLeft: 2,
+                borderLeft: `1px solid ${theme.border.default}`,
+                paddingLeft: 3,
+              }}
+            >
+              ✂️
+            </button>
+          )}
+        </div>
+      )}
       <div
         style={{
           display: 'flex',
@@ -715,6 +768,9 @@ export function TransformerHorizontalPipeline({
   headerRef,
   onCommit,
   onSelectCode,
+  onMakeUnique,
+  usageCounts,
+  existingRegistry,
   selectedId,
 }: {
   transformers: TransformerConfig[]
@@ -726,6 +782,9 @@ export function TransformerHorizontalPipeline({
   headerRef: RefObject<HTMLDivElement>
   onCommit: (next: TransformerConfig[], orderedRegistryIds?: string[]) => void
   onSelectCode?: (id: string) => void
+  onMakeUnique?: (id: string) => void
+  usageCounts?: Record<string, number>
+  existingRegistry?: Record<string, TransformerConfig>
   selectedId?: string | null
 }) {
   const [scrollLeft, setScrollLeft] = useState(0)
@@ -764,16 +823,30 @@ export function TransformerHorizontalPipeline({
 
   const handleAddTransformer = (type: string) => {
     if (!type) return
-    const config = getDefaultTransformerConfig(type)
-    const withName =
-      type === 'custom' ? { ...config, name: nextUniqueCustomTransformerName(transformers) } : config
+
+    let config: TransformerConfig
+    let newId: string
     const ids = registryIdsForList()
     const used = new Set(ids)
-    const newId =
-      registryEntityId ?
-        allocateTransformerRegistryId(registryEntityId, {}, used)
-      : getStableId(withName, transformers.length)
-    commitWithRegistryIds(syncPriorities([...transformers, withName]), [...ids, newId])
+
+    if (type.startsWith('link:')) {
+      const linkedId = type.slice(5)
+      const existing = existingRegistry?.[linkedId]
+      if (!existing) return
+      config = existing
+      newId = linkedId
+    } else {
+      config = getDefaultTransformerConfig(type)
+      if (type === 'custom') {
+        config = { ...config, name: nextUniqueCustomTransformerName(transformers) }
+      }
+      newId =
+        registryEntityId ?
+          allocateTransformerRegistryId(registryEntityId, {}, used)
+        : getStableId(config, transformers.length)
+    }
+
+    commitWithRegistryIds(syncPriorities([...transformers, config]), [...ids, newId])
     setAddSelectValue('')
   }
 
@@ -921,6 +994,8 @@ export function TransformerHorizontalPipeline({
               onDrop={handleDragEnd}
               onDragEnd={handleDragEnd}
               onSelectCode={() => onSelectCode?.(item.id)}
+              usageCount={usageCounts?.[item.id]}
+              onMakeUnique={onMakeUnique ? () => onMakeUnique(item.id) : undefined}
               isSelected={item.id === selectedId}
               isDragging={dragState?.draggedId === item.id}
               isDragOver={dragState?.dragOverId === item.id && dragState?.draggedId !== item.id}
@@ -965,11 +1040,24 @@ export function TransformerHorizontalPipeline({
           }}
         >
           <option value="">+ Add ▾</option>
-          {TRANSFORMER_PRESET_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
+          <optgroup label="Presets">
+            {TRANSFORMER_PRESET_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </optgroup>
+          {existingRegistry && Object.keys(existingRegistry).length > 0 && (
+            <optgroup label="Link Existing">
+              {Object.keys(existingRegistry)
+                .filter((id) => !registryIdsForList().includes(id))
+                .map((id) => (
+                  <option key={id} value={`link:${id}`}>
+                    🔗 {id}
+                  </option>
+                ))}
+            </optgroup>
+          )}
         </select>
         {displayItems.length > 0 ? <PipelineTrailOutArrow /> : null}
       </div>

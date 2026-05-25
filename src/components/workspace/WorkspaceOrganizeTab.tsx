@@ -551,6 +551,40 @@ export default function WorkspaceOrganizeTab({
     })
   }
 
+  const handleCleanupUnused = useCallback(() => {
+    const usedIds = new Set<string>()
+    for (const e of world.entities) {
+      if (kind === 'scripts') {
+        e.scripts?.forEach((id) => usedIds.add(id))
+      } else {
+        e.transformers?.forEach((id) => usedIds.add(id))
+      }
+    }
+    const allIds = Object.keys(kind === 'scripts' ? world.scripts ?? {} : world.transformers ?? {})
+    const unusedIds = allIds.filter((id) => !usedIds.has(id))
+
+    if (unusedIds.length === 0) {
+      window.alert(`No unused ${kind} found.`)
+      return
+    }
+
+    if (!window.confirm(`Remove ${unusedIds.length} unused ${kind} from the project registry?`)) {
+      return
+    }
+
+    pushUndo()
+    if (kind === 'scripts') {
+      const nextScripts = { ...(world.scripts ?? {}) }
+      unusedIds.forEach((id) => delete nextScripts[id])
+      onWorldChange({ ...world, scripts: nextScripts })
+    } else {
+      const nextTransformers = { ...(world.transformers ?? {}) }
+      unusedIds.forEach((id) => delete nextTransformers[id])
+      onWorldChange({ ...world, transformers: nextTransformers })
+    }
+    uiLogger.info(`Cleaned up ${unusedIds.length} unused ${kind}`)
+  }, [world, kind, pushUndo, onWorldChange])
+
   const handleDeleteGlobalScript = (id: string) => {
     if (!window.confirm(`Remove script "${id}" from the global library?`)) return
     const { [id]: _removed, ...rest } = globalScripts
@@ -727,7 +761,7 @@ export default function WorkspaceOrganizeTab({
         ))}
       </div>
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }} role="tablist" aria-label="Organize registry">
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }} role="tablist" aria-label="Organize registry">
         {(['transformers', 'scripts'] as const).map((k) => (
           <button
             key={k}
@@ -741,6 +775,24 @@ export default function WorkspaceOrganizeTab({
             {k === 'transformers' ? 'Transformers' : 'Scripts'}
           </button>
         ))}
+        {scope === 'project' && (
+          <button
+            type="button"
+            onClick={handleCleanupUnused}
+            title={`Remove all ${kind} that are not assigned to any entity`}
+            style={{
+              ...SUBTAB_BTN,
+              marginLeft: 'auto',
+              background: 'transparent',
+              color: theme.text.muted,
+              borderColor: theme.border.default,
+              fontSize: 11,
+              padding: '4px 8px',
+            }}
+          >
+            🧹 Cleanup Unused
+          </button>
+        )}
       </div>
 
       <div

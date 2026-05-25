@@ -125,6 +125,7 @@ export interface WorkspaceProps {
     entityIds: string[],
     transformers: TransformerConfig[],
     orderedRegistryIds?: string[],
+    isShared?: boolean,
   ) => void
   /** Builder live transformer trace (`null` disables live IN/OUT in the pipeline strip). */
   liveTransformerTraceSteps?: TransformerTraceStep[] | null
@@ -211,7 +212,9 @@ export default function Workspace({
     const itemId = entry?.itemId
     if (itemSource === 'global' && itemId != null) return `Global library · ${itemId}`
     if (anchoredEntityId != null) {
-      return `Entity ${anchoredEntityId}${itemId != null ? ` · ${itemId}` : ''}`
+      const count = selectedEntityIds.length
+      const multiInfo = count > 1 ? `[Editing ${count} entities] ` : ''
+      return `${multiInfo}Entity ${anchoredEntityId}${itemId != null ? ` · ${itemId}` : ''}`
     }
     return 'Select an entity in the inspector'
   }, [anchoredEntityId, entry?.itemId, entry?.itemSource])

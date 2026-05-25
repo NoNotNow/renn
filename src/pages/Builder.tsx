@@ -888,14 +888,19 @@ export default function Builder() {
   }
 
   const handleEntityTransformersChange = useCallback(
-    (entityIds: string[], transformers: TransformerConfig[], orderedRegistryIds?: string[]) => {
+    (
+      entityIds: string[],
+      transformers: TransformerConfig[],
+      orderedRegistryIds?: string[],
+      isShared?: boolean,
+    ) => {
       pushHistory()
       /** Must write configs into `world.transformers` + `entity.transformers` ID arrays (Phase 7 registry); never embed configs on entities. */
       let nextWorld = world
       for (const id of entityIds) {
         const idsForEntity =
           orderedRegistryIds ?
-            entityIds.length === 1 ?
+            (isShared || entityIds.length === 1) ?
               orderedRegistryIds
             : mapTransformerRegistryIdsToEntity(orderedRegistryIds, id)
           : undefined
