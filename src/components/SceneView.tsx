@@ -703,7 +703,8 @@ function SceneViewInner({
           scriptSnackbarTimerId = undefined
         }
         setScriptSnackbarMessage(message)
-        const ms = durationSeconds * 1000
+        // Ensure messages from transformer runtime stay visible at least 10s
+        const ms = Math.max(durationSeconds * 1000, 10_000)
         scriptSnackbarTimerId = window.setTimeout(() => {
           scriptSnackbarTimerId = undefined
           setScriptSnackbarMessage(null)

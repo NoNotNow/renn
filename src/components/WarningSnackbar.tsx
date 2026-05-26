@@ -1,6 +1,7 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 
-const AUTO_DISMISS_MS = 12_000
+const AUTO_DISMISS_MS = 10_000
+const ACTIVE_WINDOW_MS = 1500
 
 export interface WarningSnackbarProps {
   messages: string[]
@@ -9,15 +10,36 @@ export interface WarningSnackbarProps {
 
 /**
  * Bottom snack bar for non-fatal issues (e.g. world JSON fields removed to match schema).
+ * Adds per-message copy buttons and visually de-emphasizes messages after an active window.
  */
 export function WarningSnackbar({ messages, onDismiss }: WarningSnackbarProps) {
+  const [active, setActive] = useState(true)
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
+
   useEffect(() => {
     if (messages.length === 0) return
     const t = window.setTimeout(onDismiss, AUTO_DISMISS_MS)
     return () => window.clearTimeout(t)
   }, [messages, onDismiss])
 
+  useEffect(() => {
+    if (messages.length === 0) return
+    setActive(true)
+    const t = window.setTimeout(() => setActive(false), ACTIVE_WINDOW_MS)
+    return () => window.clearTimeout(t)
+  }, [messages])
+
   if (messages.length === 0) return null
+
+  const onCopy = async (msg: string, idx: number) => {
+    try {
+      await navigator.clipboard.writeText(msg)
+      setCopiedIndex(idx)
+      window.setTimeout(() => setCopiedIndex((c) => (c === idx ? null : c)), 1200)
+    } catch (e) {
+      // ignore
+    }
+  }
 
   return (
     <div
@@ -59,19 +81,40 @@ export function WarningSnackbar({ messages, onDismiss }: WarningSnackbarProps) {
         </button>
       </div>
       {messages.map((msg, i) => (
-        <pre
-          key={i}
-          style={{
-            margin: '10px 0 0',
-            whiteSpace: 'pre-wrap',
-            wordBreak: 'break-word',
-            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-            fontSize: 11,
-            opacity: 0.95,
-          }}
-        >
-          {msg}
-        </pre>
+        <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginTop: 10 }}>
+          <pre
+            style={{
+              margin: 0,
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+              fontSize: 11,
+              opacity: active ? 0.95 : 0.8,
+              flex: 1,
+            }}
+          >
+            {msg}
+          </pre>
+          <div style={{ flexShrink: 0 }}>
+            <button
+              type="button"
+              onClick={() => onCopy(msg, i)}
+              aria-label={`Copy warning ${i + 1}`}
+              style={{
+                margin: 0,
+                padding: '6px 8px',
+                fontSize: 12,
+                cursor: 'pointer',
+                borderRadius: 6,
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px solid rgba(255,255,255,0.04)',
+                color: '#f3e6c8',
+              }}
+            >
+              {copiedIndex === i ? 'Copied' : 'Copy'}
+            </button>
+          </div>
+        </div>
       ))}
     </div>
   )
