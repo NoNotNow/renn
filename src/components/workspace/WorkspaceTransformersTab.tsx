@@ -770,6 +770,28 @@ function WorkspaceTransformersTabEntity({
               : 0,
           }}
         >
+          {entityIdsForEdit.length > 1 && (
+            <div
+              style={{
+                position: 'absolute',
+                top: -18,
+                left: 0,
+                fontSize: 10,
+                fontWeight: 600,
+                color: theme.text.accentBlue,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                pointerEvents: 'none',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              Editing {entityIdsForEdit.length} Entities
+              <span style={{ fontWeight: 400, opacity: 0.8, fontStyle: 'italic' }}>
+                — Edits here will be applied to all {entityIdsForEdit.length} selected entities.
+              </span>
+            </div>
+          )}
           {selectedPreset ?
             <div
               aria-label="Preset transformer tools"
@@ -820,6 +842,7 @@ function WorkspaceTransformersTabEntity({
               display: 'flex',
               alignItems: 'center',
               zIndex: 1,
+              marginTop: entityIdsForEdit.length > 1 ? 4 : 0,
             }}
           >
             <TransformerHorizontalPipeline

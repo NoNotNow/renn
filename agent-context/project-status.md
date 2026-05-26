@@ -1,6 +1,6 @@
 # Renn – Project Status
 
-Last updated: 2026-04-12
+Last updated: 2026-05-26
 
 ## Completed
 
@@ -27,7 +27,7 @@ Last updated: 2026-04-12
 - EntitySidebar: entity list (search + collapsible filters by 3D model, shape, transformers, approximate size), add entity dropdown, camera control/target/mode; **0** / **Numpad 0** in Builder cycles camera mode (when focus is not in an editable field)
 - **Explorer Groups (Phase A)**: Blender-style folder tree in EntitySidebar — Group / Ungroup / Add to group / Remove from group toolbar buttons, **Cmd/Ctrl+G** and **Cmd/Ctrl+Shift+G** shortcuts, single-parent invariant, sub-group nesting, collapse/rename, persisted via `RennWorld.groups`. Purely organizational — no runtime/Play-mode effect. See `feature-groups.md`. Phase B (rigging via Rapier joints) is documented in `feature-rigging-roadmap.md`.
 - PropertyPanel: TransformEditor, ShapeEditor, PhysicsEditor, MaterialEditor, entity name, delete
-- ScriptPanel: Monaco editor, add/remove scripts
+- **Workspace behavior authoring overlay (Phase 8 complete, 2026-05-09)**: Full-screen overlay (portal) with three tabs — **Transformers** (horizontal pipeline strip + custom Monaco editor), **Scripts** (chips + event controls + shared Monaco), **Organize** (Global / Project / Entity scope cards with assign/detach/copy/rename). Shared Monaco instance across all tabs. Global behavior library backed by `globalBehaviorLibrary` IndexedDB store. Replaces removed `CustomTransformerCodeTab`, `EntityScriptEditor`, `ScriptPanel`, `ScriptPanelMultiSelect`, `ScriptDialog`. **CodingTabPanel** is now a thin name-list; clicking any item opens Workspace anchored to that item. **AvatarDialog** shows thin transformer + script lists with "Open Workspace" buttons. **Shift+Escape** opens Workspace from anywhere in the Builder.
 - AssetPanel: upload textures / **videos** / models, list/remove; per-asset download; bulk download all as `assets.zip`
 - Sound tab: select/upload background audio (`world.sound.assetId`), set `volume`, `loop`, `autoplay`; manual play/stop in Builder; playback runs in Builder and Play
 - Play view: `/play` full-viewport scene only (`SceneView` with **`playMode`** — no menus/gizmo/wireframe HUD); world from IndexedDB session, legacy `?world=`, or sample; global assets loaded
@@ -59,6 +59,7 @@ Last updated: 2026-04-12
 - Centralized config constants, UI logger, shared styles
 - Test helpers: entity, physics, React, Three.js, world utilities
 - E2E tests: Playwright (`e2e/add-entity.spec.ts`, `e2e/performance-booster.spec.ts`, `e2e/script-panel-layout.spec.ts`, `e2e/multi-select.spec.ts`)
+- **Codebase cleanup Phase 15**: Texture Maker extracted into dedicated sub-components; `TextureMakerPanel` split per section; see `codebase-cleanup-audit.md`
 
 ---
 

@@ -368,6 +368,7 @@ function TransformerTraceItem({
   const [inOpen, setInOpen] = useState(false)
   const [outOpen, setOutOpen] = useState(false)
   const [configOpen, setConfigOpen] = useState(false)
+  const [isToolsExpanded, setIsToolsExpanded] = useState(true)
   const itemRef = useRef<HTMLDivElement>(null)
 
   const rowLabel =
@@ -480,79 +481,58 @@ function TransformerTraceItem({
         boxShadow: showSelectedChrome ? '0 0 6px rgba(138, 180, 255, 0.18)' : undefined,
       }}
     >
-      {usageCount !== undefined && usageCount > 1 && (
-        <div
-          title={`${usageCount} entities use this transformer. Changes will affect all of them unless you make it unique.`}
-          style={{
-            position: 'absolute',
-            top: -8,
-            right: -4,
-            background: theme.bg.surfaceAlt,
-            border: `1px solid ${theme.border.default}`,
-            borderRadius: 10,
-            padding: '1px 5px',
-            fontSize: 9,
-            color: theme.text.accentBlue,
-            fontWeight: 700,
-            zIndex: 10,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 2,
-            boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-          }}
-        >
-          👤 x{usageCount}
-          {onMakeUnique && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation()
-                onMakeUnique()
-              }}
-              title="Make unique (unlink from others)"
-              style={{
-                background: 'transparent',
-                border: 'none',
-                padding: 0,
-                margin: 0,
-                color: theme.text.accentBlue,
-                cursor: 'pointer',
-                fontSize: 10,
-                display: 'flex',
-                marginLeft: 2,
-                borderLeft: `1px solid ${theme.border.default}`,
-                paddingLeft: 3,
-              }}
-            >
-              ✂️
-            </button>
-          )}
-        </div>
-      )}
+      {/* Top Toolbar - Unifies tools and adds collapse/expand functionality */}
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          gap: 4,
-          marginBottom: 1,
+          background: theme.bg.thumbnailHeader,
+          borderBottom: `1px solid ${theme.border.default}`,
+          margin: '-8px -10px 6px -10px',
+          padding: '2px 6px',
+          borderTopLeftRadius: 6,
+          borderTopRightRadius: 6,
+          minHeight: 22,
         }}
+        onClick={(e) => e.stopPropagation()}
       >
-        <div
-          style={{
-            fontSize: 20,
-            fontFamily: 'cursive',
-            fontWeight: 700,
-            color: theme.text.primary,
-            userSelect: 'none',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {rowLabel}
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <button
+            type="button"
+            onClick={() => setIsToolsExpanded(!isToolsExpanded)}
+            title={isToolsExpanded ? 'Collapse tools' : 'Expand tools'}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              color: theme.text.muted,
+              display: 'flex',
+              alignItems: 'center',
+              padding: 0,
+              transition: 'transform 0.2s ease',
+              transform: isToolsExpanded ? 'rotate(0deg)' : 'rotate(-90deg)',
+            }}
+          >
+            {EntityPanelIcons.chevronDown}
+          </button>
+
+          {usageCount !== undefined && usageCount > 1 && (
+            <div
+              title={`${usageCount} entities use this transformer. Changes will affect all of them unless you make it unique.`}
+              style={{
+                fontSize: 9,
+                color: theme.text.accentBlue,
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 2,
+              }}
+            >
+              👤 x{usageCount}
+            </div>
+          )}
+
           <button
             type="button"
             onClick={(e) => {
@@ -580,81 +560,138 @@ function TransformerTraceItem({
               }}
             />
           </button>
-          {transformer.type === 'custom' && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation()
-                onSelectCode?.()
-              }}
-              title="Show code"
-              style={{
-                background: 'transparent',
-                border: 'none',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: '0 2px',
-                opacity: isSelected ? 1 : 0.6,
-                color: isSelected ? theme.accent : theme.text.muted,
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
-              onMouseLeave={(e) => {
-                if (!isSelected) e.currentTarget.style.opacity = '0.6'
-              }}
-            >
-              {EntityPanelIcons.code}
-            </button>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          {isToolsExpanded && (
+            <>
+              {usageCount !== undefined && usageCount > 1 && onMakeUnique && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onMakeUnique()
+                  }}
+                  title="Make unique (unlink from others)"
+                  style={{
+                    background: 'rgba(0, 153, 255, 0.15)',
+                    border: `1px solid ${theme.accent}`,
+                    padding: '0 4px',
+                    borderRadius: 3,
+                    color: theme.accent,
+                    cursor: 'pointer',
+                    fontSize: 8,
+                    fontWeight: 700,
+                    height: 16,
+                    display: 'flex',
+                    alignItems: 'center',
+                    marginRight: 2,
+                  }}
+                >
+                  UNIQUE
+                </button>
+              )}
+              {transformer.type === 'custom' && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onSelectCode?.()
+                  }}
+                  title="Show code"
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '0 2px',
+                    opacity: isSelected ? 1 : 0.6,
+                    color: isSelected ? theme.accent : theme.text.muted,
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+                  onMouseLeave={(e) => {
+                    if (!isSelected) e.currentTarget.style.opacity = '0.6'
+                  }}
+                >
+                  {EntityPanelIcons.code}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setConfigOpen(!configOpen)
+                }}
+                title="Edit configuration"
+                data-testid={`transformer-horizontal-config-toggle-${index}`}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: theme.text.muted,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '0 2px',
+                  opacity: configOpen ? 1 : 0.6,
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+                onMouseLeave={(e) => {
+                  if (!configOpen) e.currentTarget.style.opacity = '0.6'
+                }}
+              >
+                {EntityPanelIcons.settings}
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onRemove()
+                }}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: theme.text.muted,
+                  cursor: 'pointer',
+                  fontSize: 12,
+                  lineHeight: 1,
+                  padding: '0 2px',
+                  opacity: 0.6,
+                }}
+                title="Remove transformer"
+                onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+                onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.6')}
+              >
+                ×
+              </button>
+            </>
           )}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              setConfigOpen(!configOpen)
-            }}
-            title="Edit configuration"
-            data-testid={`transformer-horizontal-config-toggle-${index}`}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: theme.text.muted,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '0 2px',
-              opacity: configOpen ? 1 : 0.6,
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
-            onMouseLeave={(e) => {
-              if (!configOpen) e.currentTarget.style.opacity = '0.6'
-            }}
-          >
-            {EntityPanelIcons.settings}
-          </button>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              onRemove()
-            }}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: theme.text.muted,
-              cursor: 'pointer',
-              fontSize: 12,
-              lineHeight: 1,
-              padding: '0 2px',
-              opacity: 0.6,
-            }}
-            title="Remove transformer"
-            onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
-            onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.6')}
-          >
-            ×
-          </button>
+        </div>
+      </div>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 4,
+          marginBottom: 1,
+        }}
+      >
+        <div
+          style={{
+            fontSize: 20,
+            fontFamily: 'cursive',
+            fontWeight: 700,
+            color: theme.text.primary,
+            userSelect: 'none',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {rowLabel}
         </div>
       </div>
       <div
@@ -1047,17 +1084,15 @@ export function TransformerHorizontalPipeline({
               </option>
             ))}
           </optgroup>
-          {existingRegistry && Object.keys(existingRegistry).length > 0 && (
-            <optgroup label="Link Existing">
-              {Object.keys(existingRegistry)
-                .filter((id) => !registryIdsForList().includes(id))
-                .map((id) => (
-                  <option key={id} value={`link:${id}`}>
-                    🔗 {id}
-                  </option>
-                ))}
-            </optgroup>
-          )}
+          <optgroup label="Link Existing">
+            {Object.keys(existingRegistry)
+              .filter((id) => !registryIdsForList().includes(id))
+              .map((id) => (
+                <option key={id} value={`link:${id}`}>
+                  🔗 Link Existing: {id}
+                </option>
+              ))}
+          </optgroup>
         </select>
         {displayItems.length > 0 ? <PipelineTrailOutArrow /> : null}
       </div>
