@@ -131,7 +131,7 @@ The `car2` preset (**impulse** + **addRotation**) accepts optional `params` in J
 
 **Sleep / wake:** `car2` sets **`Transformer.wantsWakeOnAnyInput`**. If the rigid body has gone to sleep (Rapier or custom `world.sleeping`) and there is keyboard activity on tracked keys (`hasTrackedKeyboardActivity` in [`src/types/transformer.ts`](../src/types/transformer.ts)), `RenderItemRegistry.executeTransformers` wakes the dynamic body before running the chain so idle sleep does not suppress drive input. **`PhysicsWorld.applyImpulse` / `applyForce` / `applyTorque`** call **`wakeUp()`** when applying to a sleeping dynamic body so impulses and merged chain output still simulate.
 
-**Chain note:** Transformers may set `TransformOutput.impulse`; `TransformerChain.execute` **adds** impulse components into the accumulated **`force`** vector (see `src/transformers/transformer.ts`). For a typical `car2`-only or `input`+`car2` chain, the play runtime therefore often applies the result via **`output.force`**, not a separate **`output.impulse`**. See [transformer-paradigm-input-and-car2.md](transformer-paradigm-input-and-car2.md) for the full input/car2 split and transferable patterns.
+**Chain note:** Transformers may set `TransformOutput.impulse`; `TransformerChain.execute` **adds** impulse components into the accumulated **`force`** vector (see `src/transformers/transformer.ts`). For a typical `car2`-only or `input`+`car2` chain, the play runtime therefore often applies the result via **`output.force`**, not a separate **`output.impulse`**. See the **Input Transformer + Car2** section below for the full input/car2 split and transferable patterns.
 
 | Param | Default | Meaning |
 |-------|---------|---------|
@@ -171,3 +171,154 @@ game.setTransformerParam(entityId, type, paramName, value)
 Run `npx vitest run src/transformers/ src/input/`.
 
 Remaining optional: TransformerPanel UI component in the Builder.
+
+---
+
+## Input Transformer + Car2: Paradigms and Transferability
+
+How the **`input`** and **`car2`** preset transformers work together: concrete file references, then abstract patterns you can reuse for other movement models.
+
+### End-to-end data flow
+
+```mermaid
+flowchart LR
+  subgraph capture [Capture]
+    RawInput[RawInput]
+  end
+  subgraph chain [TransformerChain by priority]
+    InputT[InputTransformer]
+    Car2[CarTransformer2]
+  end
+  subgraph merge [Chain merge]
+    Acc[Accumulated force torque]
+  end
+  subgraph physics [Runtime]
+    Rapier[Rapier apply]
+  end
+  RawInput --> InputT
+  InputT -->|"mutates actions"| Car2
+  Car2 -->|"impulse addRotation"| Acc
+  Acc --> Rapier
+```
+
+1. **`RawInput`** (keys, wheel) is sampled by the input layer and exposed to **`InputTransformer`** via a per-item `rawInputGetter` (wired in `RenderItemRegistry`).
+2. **`InputTransformer`** runs early (low **`priority`**, typically `0`). It calls **`applyInputMapping`** and **replaces/merges** into **`TransformInput.actions`**. Its **`TransformOutput`** is empty — it does not apply forces.
+3. **`CarTransformer2`** runs later (e.g. **`priority` `10`**). It reads **`input.actions`** by name, reads **`input.position` / `rotation` / `velocity`**, and **`input.environment`**, and returns **`impulse`** and **`addRotation`** when allowed.
+4. **`TransformerChain.execute`** sorts by **`priority`**, **sums** **`force`**, **`impulse`**, and **`torque`** into accumulated **`force`** / **`torque`** vectors (so per-transformer **`impulse`** is merged into the chain's **`force`** slot). **`addRotation`**, **`color`**, **`setPose`** are **last-wins**.
+5. **`RenderItemRegistry.executeTransformers`** applies the final output to Rapier (forces/impulses/torques, rotation delta, etc.).
+
+### Layer 1: `InputTransformer` (device → semantic actions)
+
+| Aspect | Detail |
+|--------|--------|
+| **Role** | Map hardware state to **named scalar actions** (`Record<string, number>`). |
+| **Implementation** | [src/transformers/presets/inputTransformer.ts](../src/transformers/presets/inputTransformer.ts) |
+| **Mapping engine** | [src/input/inputMapping.ts](../src/input/inputMapping.ts) — keyboard keys and optional wheel axes → action names; typical values in `0..1` or signed ranges for axes. |
+| **Output** | Always **`EMPTY_TRANSFORM_OUTPUT`**; side effect is **`input.actions = { ...input.actions, ...actions }`** (or `{}` if no raw input). |
+| **Configuration** | Per-entity **`inputMapping`** in world JSON (`keyboard`, `wheel`, `sensitivity`). |
+
+**Why separate from Car2:** Any controller (keyboard, future gamepad, network) can fill the same **action names**; the drive model does not hard-code keys.
+
+### Layer 2: `CarTransformer2` (actions + body state → physics intent)
+
+| Aspect | Detail |
+|--------|--------|
+| **Role** | Interpret **throttle / brake / steer / jump** as **impulses** and **steering rotation delta**. |
+| **Implementation** | [src/transformers/presets/car2Transformer.ts](../src/transformers/presets/car2Transformer.ts) |
+| **Actions consumed** | `throttle`, `brake`, `steer_left`, `steer_right`, `jump` (via **`BaseTransformer.getAction`**). |
+| **Internal state** | **`wheelAngle`** (−1…1, smoothed toward zero), **`jumpHeldPrev`** (rising-edge detection for jump). |
+| **Touch gating** | If **`input.environment.isTouchingObject !== true`**, returns **`{ earlyExit: false }`** with **no** **`impulse`** or **`addRotation`**. |
+| **Runtime fills env** | [src/runtime/renderItemRegistry.ts](../src/runtime/renderItemRegistry.ts) sets **`isTouchingObject`** from **`physicsWorld.isEntityTouchingAny`** before **`transformerChain.execute`**. |
+
+**Behaviour summary (when touching)**
+
+- **Throttle / brake:** Impulse along body **forward** (from Euler), scaled by **`power`** and **`throttle − brake`**.
+- **Lateral grip:** Opposes sideways velocity component; optional **`lateralToForwardTransfer`** redirects part of that into forward impulse.
+- **Steering:** Input adjusts **`wheelAngle`** at **`steeringSpeed`**; yaw delta uses **`steeringIntensity`**, **forward speed × dt**, and local up — implemented as **`addRotation`**, not torque.
+- **Jump:** On **rising edge** of **`jump`**, adds world **`+Y`** **`jumpImpulse`** to the impulse vector.
+
+### Action contract: car keyboard → `input` → `car2`
+
+Typical bindings (also **`CAR_PRESET`** in [src/input/inputPresets.ts](../src/input/inputPresets.ts) and [src/data/transformerPresets/input/keyboard-car.json](../src/data/transformerPresets/input/keyboard-car.json)):
+
+| Key / binding | Semantic action |
+|---------------|-----------------|
+| W | `throttle` |
+| S | `brake` |
+| A | `steer_left` |
+| D | `steer_right` |
+| Space | `jump` |
+
+### Two kinds of "presets"
+
+| Layer | Where | Purpose |
+|-------|--------|---------|
+| **TypeScript defaults** | `getDefaultTransformerConfig`, `CAR_PRESET`, `DEFAULT_CAR2_PARAMS` | Sensible defaults when creating configs in the app or in code. |
+| **JSON templates** | [src/data/transformerPresets/car2/](../src/data/transformerPresets/car2/) (`default.json`, `fast.json`), [input/keyboard-car.json](../src/data/transformerPresets/input/keyboard-car.json) | Load/save in the Builder **Templates…** dialog; same schema as entity transformer config. |
+
+**Note:** Builder dropdown default for **`car2`** uses **`power: 1000`**; **`car2/default.json`** uses **`power: 300`** — both are valid.
+
+### Impulse vs chain `force`
+
+Individual transformers may set **`TransformOutput.impulse`**. The chain **adds** those components into the accumulated **`force`** vector. For a typical **`input` + `car2`** chain, the merged result is usually consumed as **`force`**.
+
+### Abstract paradigms (transferable)
+
+| Paradigm | Idea |
+|----------|------|
+| **Separation: sensing vs execution** | One stage turns devices into **neutral action names**; the next turns actions + pose/velocity into **forces/impulses/rotation**. |
+| **Named intent bus** | **`TransformInput.actions`** is a string-keyed bus. Executors use **`getAction(name)`** only — no direct keyboard checks in **`car2`**. |
+| **Priority as pipeline order** | Lower **`priority`** runs first. Early stages **mutate shared input**; later stages **emit output** that the chain merges. |
+| **State where it belongs** | **Input** mapping is stateless per frame. **Car2** keeps **short-lived behavior state** (wheel angle, edge detection). |
+| **Environment gating** | The runtime publishes facts (**contacts**, wind, future ground flags). Movement code **decides** whether to apply physics without re-querying Rapier inside **`transform()`**. |
+| **Dual preset layers** | Code defaults for UX + JSON libraries for sharing — same config shape. |
+
+### Checklist: another vehicle or character model
+
+1. **Define** a small **vocabulary of action names** (e.g. `throttle`, `aim_pitch`).
+2. **Provide** an **`input`** transformer config (or preset) that maps **keys/wheel** to those names.
+3. **Implement** a transformer that reads **`getAction`**, optional **internal state**, and **`TransformInput`** pose/velocity/environment.
+4. **Emit** **`TransformOutput`** fields consistent with the chain rules (**additive** force/torque/impulse sum; know that **impulse** is merged into the chain's **force** accumulation).
+5. **Optionally** gate on **`environment`** or drive from **`target`**.
+
+### Key tests
+
+- [src/transformers/presets/car2Transformer.test.ts](../src/transformers/presets/car2Transformer.test.ts) — touch gating, jump edge, lateral transfer, tire grip slip threshold.
+- [src/test/scenarios/car2-tire-grip.test.ts](../src/test/scenarios/car2-tire-grip.test.ts) — integration: slip threshold vs high threshold.
+- [src/transformers/presets/inputTransformer.test.ts](../src/transformers/presets/inputTransformer.test.ts) — mapping to actions.
+- [src/transformers/integration.test.ts](../src/transformers/integration.test.ts) — chain merges impulse into force.
+
+---
+
+## Registry Architecture (Transformers and Scripts)
+
+### Transformer Assignment and Storage
+
+- **Registry-based Architecture**: All transformers are stored in a world-level registry: `RennWorld.transformers`, which is a `Record<string, TransformerDef>`.
+- **Entity Reference**: Entities do not store transformer configurations inline. The `entity.transformers` field contains an array of IDs (strings) that reference the registry.
+- **Runtime Resolution**: At runtime, `RenderItemRegistry` resolves these IDs against the world registry to instantiate a `TransformerChain` for each entity.
+
+### Creation and Reuse Workflows
+
+- **Builder Defaults**: Adding or editing transformers generates unique IDs per entity (e.g., `car_tf0`, `pedestrian_tf0`). This ensures edits to one entity's behavior are isolated.
+- **Architectural Reuse**: The system supports referencing the same transformer ID across multiple entities by adding the same string ID to different entities' `transformers` arrays.
+- **Shared Definitions**: When an ID is shared, all referencing entities share the same configuration, including parameters and (for custom transformers) the source code.
+
+### Shared vs. Isolated Behavior (Custom Transformers)
+
+- **Shared Source Code**: All entities run the exact same compiled JavaScript body.
+- **Shared Parameters**: All entities receive the same `params` object from the registry definition.
+- **Isolated Runtime Instance**: Each entity receives its own unique **instance** of the `CustomCodeTransformer` class.
+- **Isolated State**: The `state` object is a private property of the transformer instance. **Each entity maintains its own private runtime state** — one entity's state cannot be read or modified by another.
+
+### Disabling Behavior
+
+- The `enabled` flag is stored within the transformer definition in the world registry.
+- **Global Effect (if shared)**: Disabling a shared transformer ID disables it for **all** entities using that ID.
+- **Local Effect (if unique)**: When using unique IDs (the Builder default), disabling only affects the specific entity.
+- A disabled transformer is completely skipped during `TransformerChain.execute()`.
+
+### Comparison with Event Scripts
+
+- Scripts (`onSpawn`, `onUpdate`, etc.) are stored in `world.scripts` and referenced by ID in `entity.scripts` — same registry model.
+- Multiple entities can point to the same script. The runtime builds a separate `ctx` for each (entity, event) pair, ensuring isolated execution.

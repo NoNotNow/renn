@@ -16,9 +16,9 @@ management.
 |---|---|
 | Transformer stack edit | `CodingTabPanel` → `TransformerEditor` |
 | Custom transformer code | Workspace (popout Monaco) |
-| Script code edit | `EntityScriptEditor` / `ScriptPanelMultiSelect` |
-| Script attach/detach/rename | `ScriptDialog` (modal) |
-| Transformer templates | `TransformerTemplateDialog` (modal) |
+| Script code edit | `Workspace.tsx` → `WorkspaceScriptsTab.tsx` (Monaco) |
+| Script attach/detach/rename | `WorkspaceOrganizeTab.tsx` (Organize > Entity scope) |
+| Transformer templates | Workspace Transformers tab (gear drawer + Load template button) |
 | Inspector entry point | Right sidebar **`CodingTabPanel`**: transformers + scripts **name lists** (click opens **Workspace**) |
 
 Scripts use `world.scripts: Record<string, ScriptDef>` with `entity.scripts: string[]`. Transformers use **`world.transformers: Record<string, TransformerDef>`** with **`entity.transformers: string[]`** (IDs into the project registry).
@@ -197,19 +197,19 @@ globalStore.scripts: Record<string, ScriptDef>
 - [x] Wire open/close trigger from `CodingTabPanel` (**Open Workspace**; full thin inspector lands Phase 7)
 - [x] Implement entry-point routing: `WorkspaceTarget` `{ entityId, tab: 'transformers' \| 'scripts', itemId? }` + anchored strip copy
 
-### Phase 3 — Transformers tab (in progress)
+### Phase 3 — Transformers tab ✅ COMPLETE
 - [x] `WorkspaceTransformersTab` + extracted `TransformerPipelineHorizontal` pipeline strip wired into `Workspace.tsx` shared Monaco
 - [x] Retain: **custom** Monaco editor only; **`name`/priority/enabled`/which custom** editable via pipeline (**no** redundant toolbar row below the chain above Monaco); reorder, enable toggle, **`params`** for custom stages only via pipeline **gear** JSON drawer (duplicate **Params (JSON)** under Monaco removed); preset tooling uses `ValidatedJsonTextarea` / field reference as before; live trace strip; transformer template dialog; docs split + reset pose toolbar; removed redundant preset full-config JSON column (single-column layout + Monaco placeholder); **preset** transformer **Load template** + **Field reference** sit in the pipeline header’s reserved left gutter (glass chips beside the scrolling strip instead of above the Monaco column); redundant **preset panel** duplicate of IN/OUT (below Monaco) removed — summaries stay on pipeline cards + expandable drawers there
 - [x] Removed `CustomTransformerCodeTab` (legacy pop-out deleted; Workspace is the sole editor)
 
-### Phase 4 — Scripts tab (in progress)
+### Phase 4 — Scripts tab ✅ COMPLETE
 - [x] Create `WorkspaceScriptsTab` using shared Monaco from Workspace (`TransformerCustomCodeEditor` script `ctx` IntelliSense via `codeIntelliSense` / `scriptCtxEvent`)
 - [x] Port top-strip from `EntityScriptEditor` / `ScriptPanelMultiSelect`: assigned chips, Active select, event, interval, Apply, Manage (opens **Organize** > Entity scope, scripts)
 - [x] Shared-script banner
 - [x] Multi-select intersection logic (from `ScriptPanelMultiSelect`)
 - [x] Removed `EntityScriptEditor.tsx`, `ScriptPanel.tsx`, `ScriptPanelMultiSelect.tsx`; `AvatarDialog` migrated to thin list + Workspace overlay
 
-### Phase 5 — Organize tab (Project + Entity scopes)
+### Phase 5 — Organize tab (Project + Entity scopes) ✅ COMPLETE
 - [x] Create `WorkspaceOrganizeTab` with Global / Project / Entity scope subtabs and Transformers / Scripts sub-tabs
 - [x] `WorkspaceOrganizeCard` component: title, meta, usage count, assignment list, actions
 - [x] Project scope: list `world.transformers` + `world.scripts`; assign/detach to entities; delete; rename (with rename-propagation to all entity arrays)

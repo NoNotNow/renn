@@ -8,12 +8,12 @@ Scripting lets users run JavaScript in the play runtime. Scripts are **event-bou
 
 ### Script editor (Builder)
 
-- **Code sidebar** (`CodingTabPanel`): Right sidebar **Transformers**, **Transformer code**, and **Scripts** segments (left to right). **Transformers** is the full stack editor. **Transformer code** is the named custom-transformer Monaco workspace (debounced live apply, params JSON, enabled LED). **Scripts** is entity event scripts (**Hide toolbar** / **Show toolbar** for more Monaco space).
-- **ScriptPanel** (`src/components/ScriptPanel.tsx`): Used inside the Code tab. When an entity is selected, shows **"Scripts for [Entity name]"** and a dropdown of scripts attached to that entity (with "Other scripts" for the rest). **Manage scripts** opens **ScriptDialog** to attach/detach scripts for the entity. **Detach from entity** removes the selected script only from the current entity’s `scripts` array; it does **not** delete the script from the world. When the script being edited is used by more than one entity, a **shared-script banner** appears: "This script is shared. Used by: … Changes affect all of them."
-- **ScriptDialog** (`src/components/ScriptDialog.tsx`): Modal to manage which scripts are attached to the selected entity. Lists all world scripts (with search), "Attached to this entity", Attach selected / Detach / Create new script / Rename. Rename changes a script’s ID in `world.scripts` and updates all entity `scripts` arrays that reference it. Similar UX to TextureDialog for texture selection.
+- **CodingTabPanel** (`src/components/CodingTabPanel.tsx`): Right sidebar Code drawer — **name-list only**. Shows script IDs assigned to the selected entity. Clicking a name opens the **Workspace** anchored to that script. No editing in the sidebar.
+- **Workspace** (`src/components/Workspace.tsx`): Full-screen overlay for all behavior authoring. The **Scripts** tab shows assigned scripts as chip selectors, event type/interval controls, Apply, and Monaco editor. **Manage** opens Organize > Entity scope pre-filtered to scripts. **Shift+Escape** opens the Workspace; **Escape** closes it.
+- **Shared-script banner**: Appears in the Workspace Scripts tab when the selected script is used by more than one entity: "This script is shared. Used by: … Changes affect all of them."
 - **Monaco** (`@monaco-editor/react`): JavaScript editor with **event-specific intellisense**: `addExtraLib` injects a `.d.ts` so `ctx` has the correct type for the selected script’s event (`OnSpawnCtx`, `OnUpdateCtx`, `OnCollisionCtx`, `OnTimerCtx`). See `src/scripts/scriptCtxDecl.ts` for `ctxDeclFor(event)`. For `onCollision` scripts, `ctx.other` (the other entity) and `ctx.impact` (CollisionImpact: `totalForce`, `totalForceMagnitude`, `maxForceMagnitude`, `maxForceDirection`) are discoverable in autocomplete.
-- **World-level script registry**: `RennWorld.scripts` is `Record<string, ScriptDef>` (script ID → `{ event, source }` or `{ event: 'onTimer', interval, source }`). Scripts exist independently; entities reference them by ID.
-- **Entity–script wiring**: `entity.scripts` is `string[]` (script IDs). The runtime routes by each script’s `event`; no per-entity event map. Assign or remove scripts via ScriptPanel ("Manage scripts") or ScriptDialog.
+- **World-level script registry**: `RennWorld.scripts` is `Record<string, ScriptDef>` (script ID → `{ event, source }` or `{ event: ‘onTimer’, interval, source }`). Scripts exist independently; entities reference them by ID.
+- **Entity–script wiring**: `entity.scripts` is `string[]` (script IDs). The runtime routes by each script’s `event`; no per-entity event map. Assign or remove scripts via the **Organize** tab in Workspace (Entity scope) or the **Manage** button in the Scripts tab.
 
 ### Data model
 
@@ -87,8 +87,9 @@ Example: `if (ctx.detect.isUpsideDown()) { ctx.log('Flipped!') }`. See `directio
 
 | Concern              | File |
 |----------------------|------|
-| Script editor UI     | `src/components/ScriptPanel.tsx`, `CodingTabPanel.tsx` |
-| Script selector (entity) | `src/components/ScriptDialog.tsx` |
+| Script editor UI     | `src/components/Workspace.tsx`, `src/components/workspace/WorkspaceScriptsTab.tsx` |
+| Script names (inspector) | `src/components/CodingTabPanel.tsx` |
+| Script assign/detach | `src/components/workspace/WorkspaceOrganizeTab.tsx` |
 | Ctx intellisense     | `src/scripts/scriptCtxDecl.ts` |
 | Script types         | `src/types/world.ts` (`ScriptEvent`, `ScriptDef`, `Entity.scripts`) |
 | Ctx types & alloc    | `src/scripts/scriptCtx.ts` |
@@ -118,8 +119,8 @@ Entities may include optional **`avatar`** (`enabled`, `preferredCamera`) in the
 
 ## Roadmap
 
-1. **PropertyPanel UI for entity scripts**  
-   ScriptPanel and ScriptDialog already let users assign/detach script IDs per entity. Optional: show a compact script list or link in PropertyPanel that opens the Scripts tab or ScriptDialog.
+1. **PropertyPanel shortcut for entity scripts**
+   Workspace Organize > Entity scope already manages script assignment. Optional: show a compact script list or direct link in PropertyPanel that opens the Workspace Scripts tab (shortcut past CodingTabPanel).
 
 2. **World-level hooks**  
    Optional `RennWorld.onStart?: string` (script ID) and/or world-level “every frame” script.
@@ -160,5 +161,5 @@ const otherColor = ctx.getColor(ctx.other.id);
 
 ## Summary
 
-- **Current**: Event-bound scripts with `ScriptDef` (event + source, plus `interval` for onTimer). Entity has `scripts: string[]`. Runtime passes a single **`ctx`** (event-specific shape); pre-allocated ctx, zero alloc on hot path. Monaco intellisense for `ctx` via `ctxDeclFor(event)`. Migration from legacy format in loadWorld.
+- **Current**: Event-bound scripts with `ScriptDef` (event + source, plus `interval` for onTimer). Entity has `scripts: string[]`. Runtime passes a single **`ctx`** (event-specific shape); pre-allocated ctx, zero alloc on hot path. Monaco intellisense for `ctx` via `ctxDeclFor(event)`. Migration from legacy format in loadWorld. Script authoring via **Workspace** (Scripts tab + Organize tab); CodingTabPanel shows names only.
 - **Roadmap**: PropertyPanel UI to attach scripts to entities; world-level onStart; later sandbox and more events.

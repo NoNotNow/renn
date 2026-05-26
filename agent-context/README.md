@@ -6,9 +6,8 @@ Docs for LLM/code agents. Read `start-here.md` first, then only what the task re
 |------|--------------|
 | **start-here** | Always — orientation, tech stack, task→file map |
 | **architecture** | Overall structure, data flow, component layout |
-| **feature-coding-custom-transformers** | **Status doc**: Transformer code tab, named customs, `api`, migration — docs/tests gaps, open questions |
-| **custom-transformer-intellisense-ai-context** | Work log: Monaco JS/TS extra libs, JSDoc/param shadowing, completion tests |
-| **feature-transformers** | Entity movement, input, physics behavior, force accumulation |
+| **feature-coding-custom-transformers** | Custom transformer authoring: Workspace Transformers tab, named customs, `api`, Monaco intellisense, migration |
+| **feature-transformers** | Entity movement, input, physics behavior, force accumulation, input/car2 paradigms, registry architecture |
 | **feature-scripting** | Script editor, game API, event hooks, examples, roadmap |
 | **feature-world-update-reload** | World update path, rebuild key, incremental vs rebuild, minimal-rebuild strategy |
 | **feature-inspector** | Property panel, multiselect, gizmo, undo, live poses, picking |
@@ -17,7 +16,6 @@ Docs for LLM/code agents. Read `start-here.md` first, then only what the task re
 | **feature-texture-compositor** | Texture Maker, paint, layers, undo |
 | **feature-video-texture** | Video map assets: ffmpeg.wasm transcode, inspector picker, Three.js VideoTexture |
 | **feature-lod** | Multi-resolution LOD planning (separate project from distance culling) |
-| **transformer-paradigm-input-and-car2** | Input + car2 layering, action bus, tests |
 | **direction-rotation-coordinates** | Rotation format (Euler [x,y,z] radians), caveats, detecting orientation |
 | **project-status** | What is built vs. what remains |
 | **example-worlds** | Example JSON configs and world structure |

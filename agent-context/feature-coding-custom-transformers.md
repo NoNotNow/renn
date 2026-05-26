@@ -6,7 +6,7 @@ Working document to align on **what shipped**, **what is thin**, and **what to i
 
 ## Scope
 
-Right sidebar **Code** drawer (Builder): **Transformers** | **Transformer code** | **Scripts** (middle segment: custom Monaco). This file focuses on the **Transformer code** segment and **`type: "custom"`** transformers: naming, Monaco authoring, live edit path, and the runtime **`api`** surface.
+**Workspace** Transformers tab (Builder): the horizontal pipeline strip for editing the transformer chain, with Monaco for custom (`type: "custom"`) stages. The right sidebar **CodingTabPanel** shows transformer name-lists only; clicking a name opens the Workspace. This file focuses on **`type: "custom"`** transformers: naming, Monaco authoring, live edit path, and the runtime **`api`** surface.
 
 ---
 
@@ -14,18 +14,12 @@ Right sidebar **Code** drawer (Builder): **Transformers** | **Transformer code**
 
 ### UX & layout
 
-- **Three segments** in [`CodingTabPanel.tsx`](../src/components/CodingTabPanel.tsx): Transformers, Transformer code, Scripts. Tab strip uses `role="tablist"` / `tab` / `tabpanel`, accent underline for active tab, content-sized tab labels (`flex: 0 0 auto`, `whiteSpace: nowrap`), strip background aligned with [`SidebarTabs`](../src/components/SidebarTabs.tsx). The active segment is persisted (`localStorage` key `builderCodingPanelSubTab`) so switching away from the Code drawer restores it; with no saved value it defaults to **Transformers**.
-- **Transformer code** segment via [`CustomTransformerCodeTab.tsx`](../src/components/CustomTransformerCodeTab.tsx):
-  - Dropdown of `custom` rows by **stack index** (label from **`name`**).
-  - **Name** field (blur commit); uniqueness among customs on the entity via [`customTransformerNaming.ts`](../src/transformers/customTransformerNaming.ts).
-  - **Add custom**; **priority**; **Params (JSON)**; **LED-style enabled** toggle.
-  - **Monaco** code: **debounced live commit** (~350 ms) to world; undo primed on first edit per selection; flush pending code when switching selected custom row.
-  - **Resizable code height**: drag handle under the Monaco surface (horizontal separator, `ns-resize`).
-  - **Workspace**: **Open Workspace** beside the Code label opens Monaco plus compile/runtime error panels in **`createPortal`**. The portal **container** is **`document.fullscreenElement` when native fullscreen is active** (otherwise the overlay would not paint) and **`document.body` otherwise** so Monaco stays aligned with auxiliary DOM such as **`monaco-area-container`** (overflow widgets appended under `document.body`; nesting the portal only inside the Builder column desynchronizes sizing and can collapse to ~1×1). Reactive on fullscreenchange. **Open Workspace** also **collapses left and right drawers** (same closed state as entering fullscreen); toggles keep working afterward. Softer full-bleed dim ([`theme.bg.modalBackdropSoft`](../src/config/theme.ts)) on the viewport region **below the Builder header** (`#builder-app-header`; height tracked with **`ResizeObserver`**). The Workspace shell is **edge-to-edge** in that region using [**`theme.bg.modalGlass`**](../src/config/theme.ts) (body) and **`theme.bg.modalGlassHeader`** (header strip: **restore saved position and rotation** icon matching the right sidebar tab strip, **window opaque toggle** (toggles between frosted glass and solid background), **Refresh editor** (auto after **100ms** on first Workspace open in this mount when not locked — same close/reopen remount as the button), **×**), **without** backdrop blur, **Escape** (without Shift) / backdrop click / header **×** / **Dock editor** flushes pending code (same as tab switch) and closes **without** clearing entity selection (global Builder **Escape** is suppressed for that keydown); **Shift+Escape** (when focus is not in an editable control) opens the Workspace. Inline editor is replaced by a short placeholder until docked. The **transformer stack trace** sits in the **left side of that header row** (scrolls horizontally when needed): bordered stage cards (**`custom`** top label uses **`TransformerConfig.name`** via **`labelCustomTransformer`**, matching the Code tab dropdown; the **`custom`** row for the editor **`selectedIndex`** gets **`theme.accent`** border and a subtle single-layer **`0 0 6px`** **box-shadow** (low alpha, no stacked large blurs); **popover column** uses **`overflow: visible`** so the header glow isn’t clipped by the shell, trace strip **`custom-transformer-trace-scroll`** uses **`overflow-clip-margin`** so extra padding isn’t needed for the glow edge) and **single SVG links** (outlet **circle + shaft + chevron**, shaft starts at the **outer edge of the ring**) between stages and after **+ Add**, with negative horizontal margin so links overlap box borders.
-  - **Workspace documentation width**: With in-app transformer **documentation** toggled open in the Workspace, drag the **`ew-resize`** separator (`data-testid="custom-transformer-code-popout-docs-split"`) between Monaco and **`TransformerDocsContent`** so that **moving the mouse left widens docs and narrows code** (and vice versa); the docs column width persists in **`localStorage`** as **`rennWorkspaceTransformerDocsWidthPx`** (clamped so code and docs keep workable minima).
-  - **Compile errors**: forbidden patterns and `new Function` parse/compile failures from [`validateCustomTransformerSource`](../src/transformers/customCodeTransformer.ts) are shown in a panel **below** the code block.
-  - **Runtime errors**: uncaught exceptions inside `transform()` publish to [`customTransformerErrorBridge`](../src/runtime/customTransformerErrorBridge.ts) when the instance has `runtimeEntityId` / `configStackIndex` (set by [`createTransformerChain`](../src/transformers/transformerRegistry.ts)); the **Transformer code** tab shows a **Runtime error** panel (amber) for the matching selection and stack row with **expandable Stack trace** and **Transformer code** (authoring source from the failing runtime instance). Right-click copies plain text: message, stack, then a `---` / `Transformer code` section with the full source for bug reports. A successful frame clears the stored error for that target. Duplicate snapshots (same entity, stack index, message, stack trim, and code) are not re-notified every frame.
-- **Transformers** segment unchanged as full stack editor (reorder, all presets, **Apply code** for custom rows there).
+- **CodingTabPanel** (`src/components/CodingTabPanel.tsx`): Right sidebar Code drawer — **name-lists only** (transformer IDs, script IDs). Active sub-tab persisted as `builderCodingPanelSubTab` in `localStorage`; defaults to Transformers. Clicking any name opens the Workspace anchored to that item.
+- **Workspace** (`src/components/Workspace.tsx`): Full-screen overlay. **Shift+Escape** opens it; **Escape** closes it. Opening collapses left and right drawers. Portal container is `document.fullscreenElement` when native fullscreen is active, `document.body` otherwise (see the [pop-out post-mortem](#transformer-code-pop-out--post-mortem--contributor-warning) for the rationale). Glass shell header: restore-position/rotation icon, opaque toggle, Refresh editor, ×.
+- **Workspace Transformers tab** (`src/components/workspace/WorkspaceTransformersTab.tsx`): Horizontal pipeline strip (reorder, enable, drag, Configure drawer JSON including `name` / priority / `params` for custom stages), live trace on pipeline cards, preset **Load template** + **Field reference**, Monaco when a **custom** stage is selected. **Params (JSON)** for custom stages only, via the pipeline gear drawer. The transformer stack trace scrolls horizontally in the Workspace header.
+  - **Documentation split**: drag the `ew-resize` separator (`data-testid="custom-transformer-code-popout-docs-split"`) to resize Monaco vs. `TransformerDocsContent`; width persisted as `rennWorkspaceTransformerDocsWidthPx`.
+  - **Compile errors**: forbidden patterns and `new Function` failures shown in a panel below Monaco.
+  - **Runtime errors**: uncaught exceptions publish via [`customTransformerErrorBridge`](../src/runtime/customTransformerErrorBridge.ts); Workspace shows an amber **Runtime error** panel with expandable stack trace. Right-click copies plain text for bug reports. A successful frame clears the stored error for that target.
 
 ### Data & migration
 
@@ -161,9 +155,9 @@ Linked in-app docs: **`TransformerDocs`** (toggle **EN** / **DE**, saved as `ren
 
 | Area | Idea |
 |------|------|
-| **CustomTransformerCodeTab** | Debounced commit updates `transformers`; switching row flushes draft; rename uniqueness; LED toggles `enabled`. |
+| **Workspace Transformers tab** | Pipeline reorder + enable toggle; switching custom stage flushes draft; rename uniqueness. |
 | **Integration** | Builder `handleEntityTransformersChange` / `syncEntityTransformers` path after Code-tab code edit (scene key unchanged). |
-| **E2E (Playwright)** | Open Code drawer, **Transformer code** subtab (middle), edit custom, optional play-mode smoke. |
+| **E2E (Playwright)** | Open Workspace, select custom stage, edit code, apply, optional play-mode smoke. |
 | **Migration** | Round-trip export/import with mixed named / legacy custom stacks. |
 | **`api` coverage** | One test per `TransformerRuntimeApi` / `api.vec` method against known vectors / angles (golden or tolerance). |
 | **Regression** | Worlds with legacy body-only snippets (bare `return` statements) still compile and run via auto-detection. |
@@ -209,6 +203,54 @@ Concise roadmap for **Transformers | Transformer code | Scripts** → **Transfor
 
 ---
 
+---
+
+## Monaco IntelliSense: Setup Notes
+
+Key findings from implementing transformer code completion.
+
+### Findings
+
+1. **Monaco `javascriptDefaults` vs `typescriptDefaults`**: Editors use `language="javascript"`. Extra libs registered only on `typescriptDefaults` are **not** part of the JavaScript language service project. Registration must call **`javascriptDefaults.addExtraLib`** as well (same URI + content). Implemented in [`src/utils/monacoExtraLib.ts`](../src/utils/monacoExtraLib.ts).
+
+2. **Why scripts felt "fine" but `transform(input, …)` did not**: Script buffers use `ctx.*` against `declare const ctx` in [`scriptCtxDecl.ts`](../src/scripts/scriptCtxDecl.ts). Custom transformer **`function transform(input, …)`** parameters **shadow** `declare const input` / `api`, so completions need **`/** @type {TransformInput} */` before `input`** (and **`TransformerRuntimeApi` on `api`**) or an equivalent **`@param` block**. The default skeleton ships **inline `@type` tags**.
+
+3. **`api.log` "missing"**: Same root cause — untyped `api` parameter + invisible extra lib → weak `api.*` completions. Not a gap in [`transformerCodeDecl.ts`](../src/transformers/transformerCodeDecl.ts) for `log`; it was resolution/context.
+
+4. **Testing without headless Monaco**: Use **`ts.createLanguageService`** with a virtual file for `TRANSFORMER_CODE_EXTRA_LIB_URI` + a `.js` user file (`allowJs`, `checkJs`), then **`getCompletionsAtPosition`**. See [`src/transformers/transformerIntellisense.integration.test.ts`](../src/transformers/transformerIntellisense.integration.test.ts).
+
+5. **Implicit `any` parameters**: If authors delete the JSDoc block, `input.` completions **lose** typed members (regression test documents this).
+
+### Quick reference
+
+| Need | Location |
+|------|-----------|
+| Dual extra-lib registration | [`src/utils/monacoExtraLib.ts`](../src/utils/monacoExtraLib.ts) |
+| Declarations / `TRANSFORMER_CODE_EXTRA_LIB_URI` | [`src/transformers/transformerCodeDecl.ts`](../src/transformers/transformerCodeDecl.ts) |
+| Default skeleton + inline param @type | [`defaultCustomTransformerCode`](../src/transformers/customCodeTransformer.ts) |
+| Monaco editor host | [`src/components/TransformerCustomCodeEditor.tsx`](../src/components/TransformerCustomCodeEditor.tsx) |
+| Completion golden tests | [`src/transformers/transformerIntellisense.integration.test.ts`](../src/transformers/transformerIntellisense.integration.test.ts) |
+| Mock unit test for registration | [`src/utils/monacoExtraLib.test.ts`](../src/utils/monacoExtraLib.test.ts) |
+
+```bash
+npm run test:run -- src/utils/monacoExtraLib.test.ts src/transformers/transformerIntellisense.integration.test.ts
+```
+
+### Implemented
+
+- [x] Register transformer (and script) extra libs on **both** `typescriptDefaults` and `javascriptDefaults`; composite `dispose()`.
+- [x] Integration tests: `input.` / `api.` on default skeleton; legacy global body; untyped-params negative case; inline `@type` positive case.
+- [x] Unit test: mock Monaco verifies dual `addExtraLib` + both disposes.
+- [x] Default skeleton uses **inline `@type`** (avoids fragile block comments with `*/`).
+
+### Follow-ups
+
+- [ ] Optional: scoped `checkJs` / diagnostics tuning only if real-app completion gaps remain after manual QA in Builder.
+- [ ] E2E: avoid asserting Monaco completion menus (flaky); smoke "Workspace Transformers tab mounts" only if needed.
+- [ ] Enrich `.d.ts` / snippets further (e.g. `TransformOutput` field tooltips) as API grows.
+
+---
+
 ## Key file index
 
 | Concern | File |
@@ -216,8 +258,9 @@ Concise roadmap for **Transformers | Transformer code | Scripts** → **Transfor
 | Live trace bridge (Builder) | [`transformerTraceBridge.ts`](../src/runtime/transformerTraceBridge.ts) |
 | Custom runtime errors (Builder Transformer code tab) | [`customTransformerErrorBridge.ts`](../src/runtime/customTransformerErrorBridge.ts) |
 | Trace serialization + activity rules | [`transformerTrace.ts`](../src/transformers/transformerTrace.ts) |
-| Tab shell | [`CodingTabPanel.tsx`](../src/components/CodingTabPanel.tsx) |
-| Code segment UI | [`CustomTransformerCodeTab.tsx`](../src/components/CustomTransformerCodeTab.tsx) |
+| Inspector name list | [`CodingTabPanel.tsx`](../src/components/CodingTabPanel.tsx) |
+| Workspace shell | [`Workspace.tsx`](../src/components/Workspace.tsx) |
+| Workspace Transformers tab | [`WorkspaceTransformersTab.tsx`](../src/components/workspace/WorkspaceTransformersTab.tsx) |
 | Monaco editor widget | [`TransformerCustomCodeEditor.tsx`](../src/components/TransformerCustomCodeEditor.tsx) (`layout: fixed` + resize handle; `fill` for pop-out flex height) |
 | Full stack editor | [`TransformerEditor.tsx`](../src/components/TransformerEditor.tsx) |
 | Compile + `api` | [`customCodeTransformer.ts`](../src/transformers/customCodeTransformer.ts) |
