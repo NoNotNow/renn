@@ -374,6 +374,62 @@ function WorkspaceTransformersTabEntity({
     }
   }, [runtimeSnapshot, selectedEntityIds, selectedSortedIndex])
 
+  // Display state: keep the last runtime error visible for a short grace period even after
+  // the runtime source clears. Show an "active" window briefly, then dim (80% opacity)
+  // while keeping the message for KEEP_MS.
+  const RUNTIME_KEEP_MS = 10_000
+  const RUNTIME_ACTIVE_MS = 1500
+  const [displayedRuntime, setDisplayedRuntime] = useState<null | { message: string; stack?: string; code: string }>(
+    runtimeErrorForSelection,
+  )
+  const [runtimeActive, setRuntimeActive] = useState<boolean>(true)
+  const runtimeKeepTimerRef = useRef<number | null>(null)
+  const runtimeActiveTimerRef = useRef<number | null>(null)
+  const [copiedRuntime, setCopiedRuntime] = useState(false)
+
+  useEffect(() => {
+    // If a new runtime error appears for the selection, show it immediately and start the
+    // active window timer.
+    if (runtimeErrorForSelection) {
+      if (runtimeKeepTimerRef.current) {
+        window.clearTimeout(runtimeKeepTimerRef.current)
+        runtimeKeepTimerRef.current = null
+      }
+      setDisplayedRuntime(runtimeErrorForSelection)
+      setRuntimeActive(true)
+      if (runtimeActiveTimerRef.current) {
+        window.clearTimeout(runtimeActiveTimerRef.current)
+        runtimeActiveTimerRef.current = null
+      }
+      runtimeActiveTimerRef.current = window.setTimeout(() => {
+        runtimeActiveTimerRef.current = null
+        setRuntimeActive(false)
+      }, RUNTIME_ACTIVE_MS)
+      return
+    }
+
+    // If the source cleared but we still have a displayed message, dim it and schedule its removal.
+    if (displayedRuntime) {
+      setRuntimeActive(false)
+      if (runtimeKeepTimerRef.current) window.clearTimeout(runtimeKeepTimerRef.current)
+      runtimeKeepTimerRef.current = window.setTimeout(() => {
+        runtimeKeepTimerRef.current = null
+        setDisplayedRuntime(null)
+      }, RUNTIME_KEEP_MS)
+    }
+
+    return () => {
+      if (runtimeKeepTimerRef.current) {
+        window.clearTimeout(runtimeKeepTimerRef.current)
+        runtimeKeepTimerRef.current = null
+      }
+      if (runtimeActiveTimerRef.current) {
+        window.clearTimeout(runtimeActiveTimerRef.current)
+        runtimeActiveTimerRef.current = null
+      }
+    }
+  }, [runtimeErrorForSelection, displayedRuntime])
+
   const selectedCustomCompileKey =
     selectedConfig?.type === 'custom'
       ? `custom:p${selectedConfig.priority ?? 10}`
@@ -681,7 +737,7 @@ function WorkspaceTransformersTabEntity({
   )
 
   const runtimeErrorPanel =
-    runtimeErrorForSelection ?
+    displayedRuntime ? (
       <div
         data-testid="workspace-transformer-runtime-error"
         onContextMenu={handleRuntimeErrorContextMenu}
@@ -697,17 +753,49 @@ function WorkspaceTransformersTabEntity({
           borderRadius: 6,
           background: theme.bg.sectionMuted,
           flexShrink: 0,
+          opacity: runtimeActive ? 1 : 0.8,
+          transition: 'opacity 140ms linear',
+          display: 'flex',
+          flexDirection: 'column',
         }}
       >
-        <div style={{ fontWeight: 600, marginBottom: 4, fontSize: 11 }}>Runtime error</div>
-        <div style={{ marginBottom: 4 }}>{runtimeErrorForSelection.message}</div>
-        {runtimeErrorForSelection.stack ? (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ fontWeight: 600, marginBottom: 4, fontSize: 11 }}>Runtime error</div>
+          <div style={{ marginLeft: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(formatCustomRuntimeErrorClipboard(displayedRuntime))
+                  setCopiedRuntime(true)
+                  window.setTimeout(() => setCopiedRuntime(false), 1200)
+                } catch (e) {
+                  /* ignore */
+                }
+              }}
+              aria-label="Copy runtime error"
+              style={{
+                padding: '4px 8px',
+                fontSize: 12,
+                cursor: 'pointer',
+                borderRadius: 6,
+                background: 'rgba(255,255,255,0.03)',
+                border: '1px solid rgba(255,255,255,0.04)',
+                color: theme.text.warning,
+              }}
+            >
+              {copiedRuntime ? 'Copied' : 'Copy'}
+            </button>
+          </div>
+        </div>
+        <div style={{ marginBottom: 4 }}>{displayedRuntime.message}</div>
+        {displayedRuntime.stack ? (
           <pre style={{ margin: '6px 0 0', fontSize: 11, fontFamily: 'ui-monospace, monospace', whiteSpace: 'pre-wrap' }}>
-            {runtimeErrorForSelection.stack}
+            {displayedRuntime.stack}
           </pre>
         ) : null}
       </div>
-    : null
+    ) : null
 
   if (selectedEntityIds.length === 0) {
     return (
