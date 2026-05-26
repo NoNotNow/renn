@@ -711,7 +711,7 @@ function TransformerTraceItem({
           </summary>
           {inOpen && step && !step.skipped && step.inputBefore && headerRef.current ? (
             <MovableTraceDrawer
-              title="Input"
+              title={`${rowLabel} · Input`}
               onClose={() => setInOpen(false)}
               initialLeft={baseLeft}
               initialTop={40}
@@ -736,7 +736,7 @@ function TransformerTraceItem({
           </summary>
           {outOpen && step && !step.skipped && (step.transformOutput !== undefined || step.actionsAfter !== undefined) && headerRef.current ? (
             <MovableTraceDrawer
-              title="Output"
+              title={`${rowLabel} · Output`}
               onClose={() => setOutOpen(false)}
               initialLeft={baseLeft}
               initialTop={80}
