@@ -143,6 +143,7 @@ export class TargetPoseInputTransformer extends BaseTransformer {
   }
 
   private getTargetLetter(wp: TargetPoseWaypoint): string {
+    if (!wp || !wp.position || !wp.rotation) return '?'
     const key = `${wp.position[0].toFixed(3)},${wp.position[1].toFixed(3)},${wp.position[2].toFixed(3)}|${wp.rotation[0].toFixed(3)},${wp.rotation[1].toFixed(3)},${wp.rotation[2].toFixed(3)}`
     let letter = this.targetLetters.get(key)
     if (!letter) {
@@ -157,10 +158,12 @@ export class TargetPoseInputTransformer extends BaseTransformer {
   }
 
   private toTarget(wp: TargetPoseWaypoint, speed: number, label?: string): TransformTarget {
+    const pos = wp?.position ?? [0, 0, 0]
+    const rot = wp?.rotation ?? [0, 0, 0]
     return {
       pose: {
-        position: [wp.position[0], wp.position[1], wp.position[2]],
-        rotation: [wp.rotation[0], wp.rotation[1], wp.rotation[2]],
+        position: [pos[0], pos[1], pos[2]],
+        rotation: [rot[0], rot[1], rot[2]],
       },
       speed,
       label,

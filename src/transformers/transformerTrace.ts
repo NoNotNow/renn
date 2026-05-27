@@ -20,8 +20,9 @@ export interface TransformerTraceStep {
   outputLedActive: boolean
 }
 
-function cloneTuple3(t: readonly [number, number, number]): [number, number, number] {
-  return [t[0], t[1], t[2]]
+function cloneTuple3(t: readonly [number, number, number] | undefined): [number, number, number] {
+  if (!t) return [0, 0, 0]
+  return [t[0] ?? 0, t[1] ?? 0, t[2] ?? 0]
 }
 
 export function serializeTransformInputForTrace(input: TransformInput): TransformInputTraceSnapshot {
@@ -40,8 +41,8 @@ export function serializeTransformInputForTrace(input: TransformInput): Transfor
     target: target
       ? {
           pose: {
-            position: cloneTuple3(target.pose.position),
-            rotation: cloneTuple3(target.pose.rotation),
+            position: cloneTuple3(target.pose?.position),
+            rotation: cloneTuple3(target.pose?.rotation),
           },
           speed: target.speed,
           curve: target.curve,

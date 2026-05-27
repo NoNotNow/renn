@@ -2,6 +2,7 @@ import {
   Fragment,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -405,17 +406,14 @@ function TransformerTraceItem({
   const [maxInBrief, setMaxInBrief] = useState(traceInputBrief)
   const [maxOutBrief, setMaxOutBrief] = useState(traceOutputBrief)
 
+  // Optimize: only update max strings if they actually grow, avoiding state updates on every frame.
   useEffect(() => {
-    if (traceInputBrief.length > maxInBrief.length) {
-      setMaxInBrief(traceInputBrief)
-    }
-  }, [traceInputBrief, maxInBrief])
+    setMaxInBrief((prev) => (traceInputBrief.length > prev.length ? traceInputBrief : prev))
+  }, [traceInputBrief])
 
   useEffect(() => {
-    if (traceOutputBrief.length > maxOutBrief.length) {
-      setMaxOutBrief(traceOutputBrief)
-    }
-  }, [traceOutputBrief, maxOutBrief])
+    setMaxOutBrief((prev) => (traceOutputBrief.length > prev.length ? traceOutputBrief : prev))
+  }, [traceOutputBrief])
 
   // Reset max strings if the transformer type changes (e.g. from preset to custom)
   useEffect(() => {
@@ -432,16 +430,28 @@ function TransformerTraceItem({
     listStyle: 'none',
   }
 
-  // Calculate left position relative to the header.
-  // We use the traceBar's offset within the header + the item's offset within the traceBar - scroll.
-  const headerWidth = headerRef.current?.clientWidth ?? 0
-  const drawerWidth = 360
-  let baseLeft =
-    (traceBarRef.current?.offsetLeft ?? 0) + (itemRef.current?.offsetLeft ?? 0) - scrollLeft
+  const [baseLeft, setBaseLeft] = useState(0)
 
-  if (headerWidth > 0 && baseLeft + drawerWidth > headerWidth) {
-    baseLeft = Math.max(10, headerWidth - drawerWidth - 10)
-  }
+  const updateBaseLeft = useCallback(() => {
+    if (!headerRef.current || !traceBarRef.current || !itemRef.current) return
+    const headerWidth = headerRef.current.clientWidth
+    const drawerWidth = 360
+    let nextBaseLeft =
+      traceBarRef.current.offsetLeft + itemRef.current.offsetLeft - scrollLeft
+
+    if (headerWidth > 0 && nextBaseLeft + drawerWidth > headerWidth) {
+      nextBaseLeft = Math.max(10, headerWidth - drawerWidth - 10)
+    }
+    setBaseLeft(nextBaseLeft)
+  }, [headerRef, traceBarRef, scrollLeft])
+
+  // Only calculate position when a drawer is open or scroll changes while open.
+  // This avoids expensive layout reads (clientWidth/offsetLeft) on every render during live trace.
+  useLayoutEffect(() => {
+    if (inOpen || outOpen || configOpen) {
+      updateBaseLeft()
+    }
+  }, [inOpen, outOpen, configOpen, updateBaseLeft])
 
   return (
     <div
@@ -1085,7 +1095,7 @@ export function TransformerHorizontalPipeline({
             ))}
           </optgroup>
           <optgroup label="Link Existing">
-            {Object.keys(existingRegistry)
+            {Object.keys(existingRegistry ?? {})
               .filter((id) => !registryIdsForList().includes(id))
               .map((id) => (
                 <option key={id} value={`link:${id}`}>

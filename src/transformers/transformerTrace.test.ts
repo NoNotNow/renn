@@ -78,4 +78,22 @@ describe('transformerTrace helpers', () => {
     )
     expect(summarizePublishedActionsDelta({ x: 1 }, { x: 1 })).toBe('(idle)')
   })
+
+  it('serializeTransformInputForTrace handles malformed target defensively', () => {
+    const input = createMockTransformInput({})
+    // Missing rotation in pose
+    input.target = {
+      pose: { position: [10, 10, 10] } as any,
+      speed: 5
+    }
+    expect(() => serializeTransformInputForTrace(input)).not.toThrow()
+    const snap: any = serializeTransformInputForTrace(input)
+    expect(snap.target.pose.rotation).toEqual([0, 0, 0])
+
+    // Missing pose entirely
+    input.target = { speed: 5 } as any
+    expect(() => serializeTransformInputForTrace(input)).not.toThrow()
+    const snap2: any = serializeTransformInputForTrace(input)
+    expect(snap2.target.pose.position).toEqual([0, 0, 0])
+  })
 })

@@ -363,15 +363,37 @@ function WorkspaceTransformersTabEntity({
     () => null,
   )
 
+  const lastErrorRef = useRef<{ message: string; stack?: string; code: string } | null>(null)
   const runtimeErrorForSelection = useMemo(() => {
-    if (runtimeSnapshot == null) return null
-    if (!selectedEntityIds.includes(runtimeSnapshot.entityId)) return null
-    if (runtimeSnapshot.configStackIndex !== selectedSortedIndex) return null
-    return {
+    if (runtimeSnapshot == null) {
+      lastErrorRef.current = null
+      return null
+    }
+    const isForSelection =
+      selectedEntityIds.includes(runtimeSnapshot.entityId) &&
+      runtimeSnapshot.configStackIndex === selectedSortedIndex
+    if (!isForSelection) {
+      lastErrorRef.current = null
+      return null
+    }
+
+    const next = {
       message: runtimeSnapshot.message,
       stack: runtimeSnapshot.stack,
       code: runtimeSnapshot.code,
     }
+
+    if (
+      lastErrorRef.current &&
+      lastErrorRef.current.message === next.message &&
+      lastErrorRef.current.stack === next.stack &&
+      lastErrorRef.current.code === next.code
+    ) {
+      return lastErrorRef.current
+    }
+
+    lastErrorRef.current = next
+    return next
   }, [runtimeSnapshot, selectedEntityIds, selectedSortedIndex])
 
   // Display state: keep the last runtime error visible for a short grace period even after
@@ -395,40 +417,67 @@ function WorkspaceTransformersTabEntity({
         window.clearTimeout(runtimeKeepTimerRef.current)
         runtimeKeepTimerRef.current = null
       }
-      setDisplayedRuntime(runtimeErrorForSelection)
+
+      // Only update state if it actually changed to avoid redundant re-renders.
+      setDisplayedRuntime((prev) => {
+        if (
+          prev &&
+          prev.message === runtimeErrorForSelection.message &&
+          prev.stack === runtimeErrorForSelection.stack &&
+          prev.code === runtimeErrorForSelection.code
+        ) {
+          return prev
+        }
+        return runtimeErrorForSelection
+      })
       setRuntimeActive(true)
-      if (runtimeActiveTimerRef.current) {
-        window.clearTimeout(runtimeActiveTimerRef.current)
-        runtimeActiveTimerRef.current = null
+
+      // Only restart the active timer if the error is different or if it's not already running.
+      // This prevents resetting it every frame during live trace updates.
+      const isSameError =
+        displayedRuntime &&
+        displayedRuntime.message === runtimeErrorForSelection.message &&
+        displayedRuntime.stack === runtimeErrorForSelection.stack &&
+        displayedRuntime.code === runtimeErrorForSelection.code
+
+      if (!isSameError || !runtimeActiveTimerRef.current) {
+        if (runtimeActiveTimerRef.current) {
+          window.clearTimeout(runtimeActiveTimerRef.current)
+        }
+        runtimeActiveTimerRef.current = window.setTimeout(() => {
+          runtimeActiveTimerRef.current = null
+          setRuntimeActive(false)
+        }, RUNTIME_ACTIVE_MS)
       }
-      runtimeActiveTimerRef.current = window.setTimeout(() => {
-        runtimeActiveTimerRef.current = null
-        setRuntimeActive(false)
-      }, RUNTIME_ACTIVE_MS)
       return
     }
 
     // If the source cleared but we still have a displayed message, dim it and schedule its removal.
     if (displayedRuntime) {
       setRuntimeActive(false)
-      if (runtimeKeepTimerRef.current) window.clearTimeout(runtimeKeepTimerRef.current)
-      runtimeKeepTimerRef.current = window.setTimeout(() => {
-        runtimeKeepTimerRef.current = null
-        setDisplayedRuntime(null)
-      }, RUNTIME_KEEP_MS)
+      // Only start the keep timer if it's not already running. This prevents resetting
+      // the timer every frame during live trace updates.
+      if (!runtimeKeepTimerRef.current) {
+        runtimeKeepTimerRef.current = window.setTimeout(() => {
+          runtimeKeepTimerRef.current = null
+          setDisplayedRuntime(null)
+        }, RUNTIME_KEEP_MS)
+      }
     }
 
     return () => {
-      if (runtimeKeepTimerRef.current) {
-        window.clearTimeout(runtimeKeepTimerRef.current)
-        runtimeKeepTimerRef.current = null
-      }
-      if (runtimeActiveTimerRef.current) {
-        window.clearTimeout(runtimeActiveTimerRef.current)
-        runtimeActiveTimerRef.current = null
-      }
+      // NOTE: We do NOT clear timers on cleanup here because this effect re-runs frequently
+      // during live traces. Timers are managed by the guards above to be stable across renders.
     }
-  }, [runtimeErrorForSelection, displayedRuntime])
+  }, [runtimeErrorForSelection, displayedRuntime, runtimeActive])
+
+  // Separate unmount cleanup to ensure no leaked timers.
+  useEffect(() => {
+    return () => {
+      if (runtimeKeepTimerRef.current) window.clearTimeout(runtimeKeepTimerRef.current)
+      if (runtimeActiveTimerRef.current) window.clearTimeout(runtimeActiveTimerRef.current)
+    }
+  }, [])
 
   const selectedCustomCompileKey =
     selectedConfig?.type === 'custom'
