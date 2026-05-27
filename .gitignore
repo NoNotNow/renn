@@ -25,3 +25,4 @@ coverage/
 *.log
 .cache/
 /.idea/copilotDiffState.xml
+/.aiassistant/rules/starting_point.md
