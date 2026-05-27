@@ -137,6 +137,12 @@ export interface WorkspaceProps {
   /** Keeps anchor entry in sync when switching shell tabs or navigating from Organize → editor. */
   onEntryChange?: (next: WorkspaceTarget) => void
   onSelectEntity?: (id: string) => void
+  /** Whether the game is currently frozen (physics + scripts paused). */
+  gameFrozen?: boolean
+  /** Toggle game freeze on/off. */
+  onToggleGameFrozen?: () => void
+  /** Reset all (unlocked) entities to their saved world positions. */
+  onResetAllEntities?: () => void
 }
 
 function workspaceTabStyle(active: boolean): CSSProperties {
@@ -174,6 +180,9 @@ export default function Workspace({
   onWorkspaceOpenSideEffects,
   onEntryChange,
   onSelectEntity,
+  gameFrozen = false,
+  onToggleGameFrozen,
+  onResetAllEntities,
 }: WorkspaceProps) {
   const portalTarget = useWorkspacePortalRoot()
   const builderHeaderBottomInsetPx = useBuilderHeaderBottomInsetPx(open)
@@ -473,6 +482,37 @@ export default function Workspace({
                   {shellMetaLine}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                  {onResetAllEntities && (
+                    <button
+                      type="button"
+                      data-testid="workspace-reset-all-entities"
+                      title="Reset all entities to original positions"
+                      aria-label="Reset all entities to original positions"
+                      onClick={onResetAllEntities}
+                      style={{
+                        ...entityPanelIconButtonStyle,
+                        color: theme.text.muted,
+                      }}
+                    >
+                      ↺
+                    </button>
+                  )}
+                  {onToggleGameFrozen && (
+                    <button
+                      type="button"
+                      data-testid="workspace-stop-game"
+                      title={gameFrozen ? 'Resume game' : 'Stop game (freeze physics & scripts)'}
+                      aria-label={gameFrozen ? 'Resume game' : 'Stop game'}
+                      onClick={onToggleGameFrozen}
+                      style={{
+                        ...entityPanelIconButtonStyle,
+                        color: gameFrozen ? theme.accent : theme.text.muted,
+                        opacity: gameFrozen ? 1 : 0.65,
+                      }}
+                    >
+                      {gameFrozen ? '▶' : '⏹'}
+                    </button>
+                  )}
                   <button
                     type="button"
                     data-testid="workspace-opacity-toggle"

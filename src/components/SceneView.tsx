@@ -366,6 +366,10 @@ function SceneViewInner({
   prepareWorldPaintStrokeRef.current = prepareWorldPaintStroke
   const editNavigationModeRef = useRef(editNavigationMode)
   editNavigationModeRef.current = editNavigationMode
+  const runPhysicsRef = useRef(runPhysics)
+  runPhysicsRef.current = runPhysics
+  const runScriptsRef = useRef(runScripts)
+  runScriptsRef.current = runScripts
   const showGameHudRef = useRef(showGameHud)
   showGameHudRef.current = showGameHud
   const css2dRendererRef = useRef<CSS2DRenderer | null>(null)
@@ -910,13 +914,13 @@ function SceneViewInner({
             editNavigationModeRef,
             cameraCtrlRef,
             physicsRef,
-            runPhysics,
+            runPhysics: runPhysicsRef.current,
             activeDebugForcesRef,
             registryRef,
             rawKeyboardRef,
             worldRef,
             scriptRunnerRef,
-            runScripts,
+            runScripts: runScriptsRef.current,
             freeFlyKeysRef,
             rawMouseDragRef,
             gizmoDraggingRef,
@@ -1176,8 +1180,6 @@ function SceneViewInner({
   }, [
     sceneKey,
     version,
-    runPhysics,
-    runScripts,
     shadowsEnabled,
     freeFlyKeysRef,
     editorFreePoseRef,
@@ -1199,19 +1201,19 @@ function SceneViewInner({
       session.syncWorld(world)
     }
     ctrl.setConfig(cameraConfig)
-    if (session && runScripts && runPhysics && cameraConfig.control === 'follow' && cameraConfig.target) {
+    if (session && runScriptsRef.current && runPhysicsRef.current && cameraConfig.control === 'follow' && cameraConfig.target) {
       session.setCurrentAvatar(cameraConfig.target)
     }
-  }, [cameraConfig, world, runScripts, runPhysics])
+  }, [cameraConfig, world])
 
   // Update gravity when it changes
   useEffect(() => {
-    if (!runPhysics) return
+    if (!runPhysicsRef.current) return
     const pw = physicsRef.current
     if (!pw) return
     const gravity = world.world.gravity ?? DEFAULT_GRAVITY
     pw.setGravity(gravity)
-  }, [world.world.gravity, runPhysics])
+  }, [world.world.gravity])
 
   // Update shadows when setting changes
   useEffect(() => {

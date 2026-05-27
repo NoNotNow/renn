@@ -192,6 +192,7 @@ export default function Builder() {
   const [textureBrushRadiusPx, setTextureBrushRadiusPx] = useState(TEXTURE_PAINT_RADIUS_PX)
   const [editNavigationMode, setEditNavigationMode] = useState(false)
   const [showSaveDialog, setShowSaveDialog] = useState(false)
+  const [gameFrozen, setGameFrozen] = useState(false)
   const [performanceBoosterOpen, setPerformanceBoosterOpen] = useState(false)
   const [transformerDocsOpen, setTransformerDocsOpen] = useState(false)
   const [perfPickMode, setPerfPickMode] = useState<'mesh' | 'texture' | null>(null)
@@ -1316,8 +1317,8 @@ export default function Builder() {
                 cameraConfig={sceneCameraConfig}
                 assets={assets}
                 version={version}
-                runPhysics
-                runScripts
+                runPhysics={!gameFrozen}
+                runScripts={!gameFrozen}
                 selectedEntityIds={selectedEntityIds}
                 onSelectEntity={handleSelectEntity}
                 onEntityPoseCommit={handleEntityPoseCommit}
@@ -1529,6 +1530,18 @@ export default function Builder() {
         canResetPoseToSaved={canResetPoseToSaved}
         resetPoseTitle={resetPoseTitle}
         onSelectEntity={handleSelectEntity}
+        gameFrozen={gameFrozen}
+        onToggleGameFrozen={() => setGameFrozen((f) => !f)}
+        onResetAllEntities={() => {
+          for (const e of world.entities) {
+            if (!e.locked) {
+              sceneViewRef.current?.updateEntityPose(e.id, {
+                position: [...(e.position ?? [0, 0, 0])] as Vec3,
+                rotation: [...(e.rotation ?? [0, 0, 0])] as Rotation,
+              })
+            }
+          }
+        }}
       />
     </div>
     </CopyProvider>
