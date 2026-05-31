@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import type { RennWorld } from '@/types/world'
 import type { TransformerConfig } from '@/types/transformer'
-import { commitTransformerConfigsToWorld } from './commitTransformerConfigsToWorld'
+import { commitTransformerConfigsToWorld, cloneEntityTransformersIntoWorld } from './commitTransformerConfigsToWorld'
 
 function applyStacksToEntities(world: RennWorld, entityIds: string[], configs: TransformerConfig[]): RennWorld {
   let next = world
@@ -93,5 +93,50 @@ describe('commitTransformerConfigsToWorld', () => {
     expect(next.entities[0]?.transformers).toEqual(['e1_tf1', 'e1_tf0'])
     expect(next.transformers?.e1_tf0?.code).toBe('return { a: 1 };')
     expect(next.transformers?.e1_tf1?.code).toBe('return { b: 2 };')
+  })
+})
+
+describe('cloneEntityTransformersIntoWorld', () => {
+  it('gives the cloned entity independent registry entries so removing one does not affect the other', () => {
+    const world: RennWorld = {
+      version: '1.0',
+      world: { gravity: [0, -9.81, 0] },
+      assets: {},
+      entities: [
+        {
+          id: 'e1',
+          bodyType: 'dynamic',
+          shape: { type: 'box', width: 1, height: 1, depth: 1 },
+          position: [0, 0, 0],
+          transformers: ['e1_tf0'],
+        },
+      ],
+      transformers: {
+        e1_tf0: { type: 'custom', priority: 0, enabled: true, code: 'return {};', name: 'MyTransformer' },
+      },
+    }
+
+    const cloned = { id: 'e1_copy', transformers: ['e1_tf0'] }
+    const { world: nextWorld, newTransformerIds } = cloneEntityTransformersIntoWorld(world, cloned)
+
+    // Clone gets a new unique ID
+    expect(newTransformerIds).toHaveLength(1)
+    expect(newTransformerIds[0]).not.toBe('e1_tf0')
+
+    // Both registry entries exist and are independent copies
+    expect(nextWorld.transformers?.['e1_tf0']).toBeDefined()
+    expect(nextWorld.transformers?.[newTransformerIds[0]!]).toBeDefined()
+    expect(nextWorld.transformers?.[newTransformerIds[0]!]).not.toBe(nextWorld.transformers?.['e1_tf0'])
+    expect(nextWorld.transformers?.[newTransformerIds[0]!]).toMatchObject({ type: 'custom', name: 'MyTransformer' })
+
+    // Simulating removal from clone: deleting clone's registry entry does not affect original
+    const afterRemove = commitTransformerConfigsToWorld(
+      { ...nextWorld, entities: [...nextWorld.entities, { ...cloned, transformers: newTransformerIds }] },
+      'e1_copy',
+      [],
+      [],
+    )
+    expect(afterRemove.transformers?.['e1_tf0']).toBeDefined()
+    expect(afterRemove.transformers?.[newTransformerIds[0]!]).toBeUndefined()
   })
 })

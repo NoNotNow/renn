@@ -24,6 +24,37 @@ export function allocateTransformerRegistryId(
 }
 
 /**
+ * Duplicate transformer registry entries for a cloned entity.
+ *
+ * The cloned entity's `transformers` ID array points to the same registry keys as the source.
+ * This function creates fresh registry entries (new IDs) for the clone so that edits to one
+ * entity's transformers do not affect the other.
+ *
+ * Returns the updated world and the new transformer IDs for the cloned entity.
+ */
+export function cloneEntityTransformersIntoWorld(
+  world: RennWorld,
+  clonedEntity: { id: string; transformers?: string[] },
+): { world: RennWorld; newTransformerIds: string[] } {
+  const sourceIds = clonedEntity.transformers ?? []
+  if (sourceIds.length === 0) return { world, newTransformerIds: [] }
+
+  const nextWorldTransformers = { ...(world.transformers ?? {}) }
+  const used = new Set(Object.keys(nextWorldTransformers))
+  const newIds: string[] = []
+
+  for (const sourceId of sourceIds) {
+    const config = nextWorldTransformers[sourceId]
+    const newId = allocateTransformerRegistryId(clonedEntity.id, nextWorldTransformers, used)
+    used.add(newId)
+    nextWorldTransformers[newId] = config ? JSON.parse(JSON.stringify(config)) : ({} as TransformerConfig)
+    newIds.push(newId)
+  }
+
+  return { world: { ...world, transformers: nextWorldTransformers }, newTransformerIds: newIds }
+}
+
+/**
  * Persist an ordered transformer stack for one entity into `world.transformers`.
  *
  * When `orderedRegistryIds` is provided (pipeline reorder, code commit from Workspace),

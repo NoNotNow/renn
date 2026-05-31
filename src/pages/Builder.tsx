@@ -80,6 +80,7 @@ import { placeEntitiesInFrontOfCamera } from '@/utils/cameraFrontPlacement'
 import {
   commitTransformerConfigsToWorld,
   mapTransformerRegistryIdsToEntity,
+  cloneEntityTransformersIntoWorld,
 } from '@/utils/commitTransformerConfigsToWorld'
 
 const EDITOR_HISTORY_MAX_DEPTH = 80
@@ -575,10 +576,11 @@ export default function Builder() {
       const cloned = cloneEntityFrom(source, pose)
       uiLogger.click('Builder', 'Clone entity', { sourceId: entityId, newId: cloned.id })
       captureScenePosesForNextRebuild()
-      updateWorld((prev) => ({
-        ...prev,
-        entities: [...prev.entities, cloned],
-      }))
+      updateWorld((prev) => {
+        const { world: nextWorld, newTransformerIds } = cloneEntityTransformersIntoWorld(prev, cloned)
+        const entityWithNewIds = { ...cloned, transformers: newTransformerIds.length > 0 ? newTransformerIds : cloned.transformers }
+        return { ...nextWorld, entities: [...nextWorld.entities, entityWithNewIds] }
+      })
       setSelectedEntityIds([cloned.id])
     },
     [world.entities, getCurrentPose, updateWorld, captureScenePosesForNextRebuild, pushHistory]
@@ -644,10 +646,15 @@ export default function Builder() {
       newIds.push(next.id)
     }
 
-    updateWorld((prev) => ({
-      ...prev,
-      entities: [...prev.entities, ...newEntities],
-    }))
+    updateWorld((prev) => {
+      let nextWorld = prev
+      const finalEntities = newEntities.map((cloned) => {
+        const { world: w, newTransformerIds } = cloneEntityTransformersIntoWorld(nextWorld, cloned)
+        nextWorld = w
+        return newTransformerIds.length > 0 ? { ...cloned, transformers: newTransformerIds } : cloned
+      })
+      return { ...nextWorld, entities: [...nextWorld.entities, ...finalEntities] }
+    })
     setSelectedEntityIds(newIds)
     selectionAnchorEntityIdRef.current = newIds[0] ?? null
     uiLogger.click('Builder', 'Paste entities', { count: newEntities.length, entityIds: newIds })
