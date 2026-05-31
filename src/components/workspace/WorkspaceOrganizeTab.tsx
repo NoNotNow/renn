@@ -1040,7 +1040,7 @@ export default function WorkspaceOrganizeTab({
               const usageLine = inProject
                 ? `Also in this world · used by ${users.length} entity(ies)`
                 : 'Not in this world yet'
-              const assignments = users.map((u) => ({ id: u.id, name: u.name ?? u.id }))
+              const assignments = [] // Disable selection from global tab
               return (
                 <WorkspaceOrganizeCard
                   key={id}
@@ -1059,7 +1059,6 @@ export default function WorkspaceOrganizeTab({
                   onCopy={() => handleCopyGlobalScriptToProject(id)}
                   onRename={() => handleRenameGlobalScript(id)}
                   onDelete={() => handleDeleteGlobalScript(id)}
-                  onSelectEntity={(eid) => handleEntityLinkClick(eid, id, 'scripts', 'global')}
                   testId={`workspace-organize-card-global-script-${id}`}
                   onRegroup={isExpanded ? () => toggleTypeExpanded(title) : undefined}
                 />
@@ -1103,7 +1102,7 @@ export default function WorkspaceOrganizeTab({
                   title={id}
                   subtitle={`${def.stages.length} stages`}
                   usageLine={`Used by ${users.length} entities`}
-                  assignments={users}
+                  assignments={scope === 'global' ? [] : users}
                   showAssign={scope !== 'entity'}
                   showDetach={scope === 'entity' || users.length > 0}
                   showDelete={true}
@@ -1129,7 +1128,7 @@ export default function WorkspaceOrganizeTab({
                   onRename={() => handleRenamePipe(id)}
                   onDelete={() => handleDeletePipe(id)}
                   onPromote={() => handlePromotePipeToGlobal(id)}
-                  onSelectEntity={onSelectEntity}
+                  onSelectEntity={scope === 'global' ? undefined : onSelectEntity}
                   onRegroup={ids.length > 1 ? () => toggleTypeExpanded(title) : undefined}
                 />
               )
@@ -1173,7 +1172,7 @@ export default function WorkspaceOrganizeTab({
               const usageLine = inProject
                 ? `Also in this world · used by ${users.length} entity(ies)`
                 : 'Not in this world yet'
-              const assignments = users.map((u) => ({ id: u.id, name: u.name ?? u.id }))
+              const assignments = [] // Disable selection from global tab
               return (
                 <WorkspaceOrganizeCard
                   key={id}
@@ -1194,7 +1193,6 @@ export default function WorkspaceOrganizeTab({
                   onCopy={() => handleCopyGlobalTransformerToProject(id)}
                   onRename={() => handleRenameGlobalTransformer(id)}
                   onDelete={() => handleDeleteGlobalTransformer(id)}
-                  onSelectEntity={(eid) => handleEntityLinkClick(eid, id, 'transformers', 'global')}
                   testId={`workspace-organize-card-global-tf-${id}`}
                   onRegroup={isExpanded ? () => toggleTypeExpanded(title) : undefined}
                 />

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { PresetTransformerType, TransformerDef } from '@/types/transformer'
 import ValidatedJsonTextarea from '@/components/ValidatedJsonTextarea'
 import TransformerTemplateDialog from '@/components/TransformerTemplateDialog'
@@ -46,6 +46,9 @@ export default function WorkspaceGlobalTransformerPanel({
   const codeDraftRef = useRef(codeDraft)
   codeDraftRef.current = codeDraft
 
+  const onDefChangeRef = useRef(onDefChange)
+  onDefChangeRef.current = onDefChange
+
   const flushPendingCode = useCallback(() => {
     if (debounceTimerRef.current != null) {
       window.clearTimeout(debounceTimerRef.current)
@@ -55,8 +58,8 @@ export default function WorkspaceGlobalTransformerPanel({
     if (!d || d.type !== 'custom') return
     const text = codeDraftRef.current
     if (text === effectiveCustomTransformerCode(d)) return
-    onDefChange({ ...d, code: text })
-  }, [onDefChange])
+    onDefChangeRef.current({ ...d, code: text })
+  }, [])
 
   useEffect(() => () => flushPendingCode(), [flushPendingCode])
 
@@ -71,19 +74,16 @@ export default function WorkspaceGlobalTransformerPanel({
     setCodeDraft(effectiveCustomTransformerCode(def))
   }, [syncCodeKey, def])
 
-  const scheduleCodeCommit = useCallback(
-    (text: string) => {
-      if (debounceTimerRef.current != null) window.clearTimeout(debounceTimerRef.current)
-      debounceTimerRef.current = window.setTimeout(() => {
-        debounceTimerRef.current = null
-        const d = defRef.current
-        if (d?.type !== 'custom') return
-        if (text === effectiveCustomTransformerCode(d)) return
-        onDefChange({ ...d, code: text })
-      }, CODE_DEBOUNCE_MS)
-    },
-    [onDefChange],
-  )
+  const scheduleCodeCommit = useCallback((text: string) => {
+    if (debounceTimerRef.current != null) window.clearTimeout(debounceTimerRef.current)
+    debounceTimerRef.current = window.setTimeout(() => {
+      debounceTimerRef.current = null
+      const d = defRef.current
+      if (d?.type !== 'custom') return
+      if (text === effectiveCustomTransformerCode(d)) return
+      onDefChangeRef.current({ ...d, code: text })
+    }, CODE_DEBOUNCE_MS)
+  }, [])
 
   const handleCodeChange = useCallback(
     (text: string) => {
@@ -94,25 +94,30 @@ export default function WorkspaceGlobalTransformerPanel({
   )
 
   const monacoIsCustom = Boolean(def?.type === 'custom')
-  useLayoutEffect(() => {
+  const monacoPayload = useMemo(() => {
     if (monacoIsCustom) {
-      setMonacoPayload({
-        kind: 'transformer-ts',
+      return {
+        kind: 'transformer-ts' as const,
         value: codeDraft,
         onChange: handleCodeChange,
         disabled: false,
         refreshKey: monacoRemountKey,
-      })
+      }
     } else {
-      setMonacoPayload({
-        kind: 'placeholder',
-        value: '// Global library: select a custom transformer or switch type to custom to edit TypeScript.\n',
+      return {
+        kind: 'placeholder' as const,
+        value:
+          '// Global library: select a custom transformer or switch type to custom to edit TypeScript.\n',
         onChange: () => {},
         disabled: true,
         refreshKey: monacoRemountKey,
-      })
+      }
     }
-  }, [codeDraft, handleCodeChange, monacoIsCustom, setMonacoPayload, monacoRemountKey])
+  }, [codeDraft, handleCodeChange, monacoIsCustom, monacoRemountKey])
+
+  useLayoutEffect(() => {
+    setMonacoPayload(monacoPayload)
+  }, [monacoPayload, setMonacoPayload])
 
   const compileError =
     def?.type === 'custom' ? validateCustomTransformerSource(codeDraft, `global:${itemId}`) : null

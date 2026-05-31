@@ -128,23 +128,29 @@ export interface WorkspaceTransformersTabProps {
 
 /** Transformers Workspace body: pipeline strip, shared Monaco bindings, preset/custom detail panels. */
 export default function WorkspaceTransformersTab(props: WorkspaceTransformersTabProps) {
+  const gid = props.entry?.itemId
+  const onGlobalDefChange = useCallback(
+    (next: TransformerDef) => {
+      if (!gid) return
+      props.onGlobalLibraryChange!({
+        ...props.globalLibrary!,
+        transformers: { ...props.globalLibrary!.transformers, [gid]: next },
+      })
+    },
+    [gid, props.globalLibrary, props.onGlobalLibraryChange],
+  )
+
   if (
     props.entry?.itemSource === 'global' &&
-    props.entry.itemId &&
+    gid &&
     props.globalLibrary &&
     props.onGlobalLibraryChange
   ) {
-    const gid = props.entry.itemId
     return (
       <WorkspaceGlobalTransformerPanel
         itemId={gid}
         def={props.globalLibrary.transformers[gid]}
-        onDefChange={(next) => {
-          props.onGlobalLibraryChange!({
-            ...props.globalLibrary!,
-            transformers: { ...props.globalLibrary!.transformers, [gid]: next },
-          })
-        }}
+        onDefChange={onGlobalDefChange}
         setMonacoPayload={props.setMonacoPayload}
         monacoSlot={props.monacoSlot}
       />

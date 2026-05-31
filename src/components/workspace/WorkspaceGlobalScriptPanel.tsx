@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { RennWorld, ScriptDef, ScriptEvent } from '@/types/world'
 import type { WorkspaceMonacoPayload } from '@/types/workspace'
 import { getScriptDef } from '@/scripts/scriptDef'
@@ -86,14 +86,20 @@ export default function WorkspaceGlobalScriptPanel({
       world.entities.filter((e) => e.scripts?.includes(selectedId)).length
     : 0
 
+  const onGlobalScriptsChangeRef = useRef(onGlobalScriptsChange)
+  onGlobalScriptsChangeRef.current = onGlobalScriptsChange
+
   const handleApply = () => {
     if (!selectedId || !def) return
     const current = getScriptDef(globalScripts, selectedId)
     const nextDef: ScriptDef =
       current?.event === 'onTimer'
         ? { event: 'onTimer', interval: current.interval, source: draftSource }
-        : { event: (current?.event ?? 'onUpdate') as 'onSpawn' | 'onUpdate' | 'onCollision', source: draftSource }
-    onGlobalScriptsChange({ ...globalScripts, [selectedId]: nextDef })
+        : {
+            event: (current?.event ?? 'onUpdate') as 'onSpawn' | 'onUpdate' | 'onCollision',
+            source: draftSource,
+          }
+    onGlobalScriptsChangeRef.current({ ...globalScripts, [selectedId]: nextDef })
   }
 
   const handleEventChange = (newEvent: ScriptEvent) => {
@@ -101,16 +107,20 @@ export default function WorkspaceGlobalScriptPanel({
     const current = getScriptDef(globalScripts, selectedId)
     const nextDef: ScriptDef =
       newEvent === 'onTimer'
-        ? { event: 'onTimer', interval: current?.event === 'onTimer' ? current.interval : 1, source: current?.source ?? '' }
+        ? {
+            event: 'onTimer',
+            interval: current?.event === 'onTimer' ? current.interval : 1,
+            source: current?.source ?? '',
+          }
         : { event: newEvent, source: current?.source ?? '' }
-    onGlobalScriptsChange({ ...globalScripts, [selectedId]: nextDef })
+    onGlobalScriptsChangeRef.current({ ...globalScripts, [selectedId]: nextDef })
   }
 
   const handleIntervalChange = (seconds: number) => {
     if (!selectedId || event !== 'onTimer') return
     const current = getScriptDef(globalScripts, selectedId)
     if (current?.event !== 'onTimer') return
-    onGlobalScriptsChange({
+    onGlobalScriptsChangeRef.current({
       ...globalScripts,
       [selectedId]: { event: 'onTimer', interval: Math.max(0.001, seconds), source: current.source },
     })
@@ -123,26 +133,29 @@ export default function WorkspaceGlobalScriptPanel({
 
   const hasScriptSelection = Boolean(selectedId && globalScripts[selectedId] != null)
 
-  useLayoutEffect(() => {
+  const monacoPayload = useMemo(() => {
     if (!hasScriptSelection || !def) {
-      setMonacoPayload({
-        kind: 'placeholder',
+      return {
+        kind: 'placeholder' as const,
         value: '// Global library: add a script under Organize → Global, or select a chip above.\n',
         onChange: () => {},
         disabled: true,
         refreshKey: 0,
-      })
-      return
+      }
     }
-    setMonacoPayload({
-      kind: 'script-js',
+    return {
+      kind: 'script-js' as const,
       value: draftSource,
       onChange: handleDraftChange,
       disabled: false,
       refreshKey: strHash(selectedId),
       scriptEvent: event,
-    })
-  }, [hasScriptSelection, def, draftSource, handleDraftChange, event, setMonacoPayload, selectedId])
+    }
+  }, [hasScriptSelection, def, draftSource, handleDraftChange, event, selectedId])
+
+  useLayoutEffect(() => {
+    setMonacoPayload(monacoPayload)
+  }, [monacoPayload, setMonacoPayload])
 
   if (scriptIds.length === 0) {
     return (

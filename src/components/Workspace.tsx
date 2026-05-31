@@ -229,6 +229,7 @@ export default function Workspace({
     const itemSource = entry?.itemSource
     const itemId = entry?.itemId
     if (itemSource === 'global' && itemId != null) return `Global library · ${itemId}`
+    if (entry?.tab === 'organize' && entry?.organize?.scope === 'global') return 'Global library'
     if (anchoredEntityId != null) {
       const count = selectedEntityIds.length
       const multiInfo = count > 1 ? `[Editing ${count} entities] ` : ''
@@ -236,7 +237,7 @@ export default function Workspace({
       return `${multiInfo}${entityLabel}${itemId != null ? ` · ${itemId}` : ''}`
     }
     return 'Select an entity in the inspector'
-  }, [anchoredEntityId, entry?.itemId, entry?.itemSource, entityNameMap, selectedEntityIds.length])
+  }, [anchoredEntityId, entry?.itemId, entry?.itemSource, entry?.tab, entry?.organize?.scope, entityNameMap, selectedEntityIds.length])
 
   const [entityDropdownOpen, setEntityDropdownOpen] = useState(false)
   const [entitySearch, setEntitySearch] = useState('')
@@ -532,7 +533,9 @@ export default function Workspace({
                     position: 'relative',
                   }}
                 >
-                  {anchoredEntityId != null && entry?.itemSource !== 'global' ? (
+                  {anchoredEntityId != null &&
+                  entry?.itemSource !== 'global' &&
+                  !(entry?.tab === 'organize' && entry?.organize?.scope === 'global') ? (
                     <button
                       type="button"
                       onClick={() => setEntityDropdownOpen((v) => !v)}

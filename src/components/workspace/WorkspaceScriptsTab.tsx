@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useState, type CSSProperties, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import type { RennWorld, ScriptDef, ScriptEvent } from '@/types/world'
 import type { WorkspaceMonacoPayload, WorkspaceTarget } from '@/types/workspace'
 import type { GlobalBehaviorLibrary } from '@/types/globalBehaviorLibrary'
@@ -85,6 +85,12 @@ export interface WorkspaceScriptsTabProps {
 
 /** Scripts Workspace body: assigned script chips, event controls, shared Monaco. */
 export default function WorkspaceScriptsTab(props: WorkspaceScriptsTabProps) {
+  const onGlobalScriptsChange = useCallback(
+    (scripts: Record<string, ScriptDef>) =>
+      props.onGlobalLibraryChange!({ ...props.globalLibrary!, scripts }),
+    [props.globalLibrary, props.onGlobalLibraryChange],
+  )
+
   if (
     props.entry?.itemSource === 'global' &&
     props.entry.itemId &&
@@ -95,7 +101,7 @@ export default function WorkspaceScriptsTab(props: WorkspaceScriptsTabProps) {
       <WorkspaceGlobalScriptPanel
         anchorItemId={props.entry.itemId}
         globalScripts={props.globalLibrary.scripts}
-        onGlobalScriptsChange={(scripts) => props.onGlobalLibraryChange!({ ...props.globalLibrary!, scripts })}
+        onGlobalScriptsChange={onGlobalScriptsChange}
         world={props.world}
         setMonacoPayload={props.setMonacoPayload}
         monacoSlot={props.monacoSlot}
@@ -264,36 +270,38 @@ function WorkspaceScriptsTabEntity({
 
   const hasScriptSelection = Boolean(selectedId && scripts[selectedId] != null)
 
-  useLayoutEffect(() => {
+  const monacoPayload = useMemo(() => {
     if (noEntity && !hasScriptSelection) {
-      setMonacoPayload({
-        kind: 'placeholder',
+      return {
+        kind: 'placeholder' as const,
         value: '// Select an entity in the builder to edit scripts.\n',
         onChange: () => {},
         disabled: true,
         refreshKey: 0,
-      })
-      return
+      }
     }
     if (!hasScriptSelection) {
-      setMonacoPayload({
-        kind: 'placeholder',
+      return {
+        kind: 'placeholder' as const,
         value: '// Add or attach a script, then select it above.\n',
         onChange: () => {},
         disabled: true,
         refreshKey: 0,
-      })
-      return
+      }
     }
-    setMonacoPayload({
-      kind: 'script-js',
+    return {
+      kind: 'script-js' as const,
       value: draftSource,
       onChange: handleDraftChange,
       disabled: false,
       refreshKey: strHash(selectedId ?? ''),
       scriptEvent: event,
-    })
-  }, [noEntity, hasScriptSelection, draftSource, handleDraftChange, event, setMonacoPayload, selectedId])
+    }
+  }, [noEntity, hasScriptSelection, draftSource, handleDraftChange, event, selectedId])
+
+  useLayoutEffect(() => {
+    setMonacoPayload(monacoPayload)
+  }, [monacoPayload, setMonacoPayload])
 
   const chipBase: CSSProperties = {
     padding: '5px 10px',
