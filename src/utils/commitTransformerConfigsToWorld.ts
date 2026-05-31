@@ -1,4 +1,4 @@
-import type { TransformerConfig } from '@/types/transformer'
+import type { TransformerConfig, TransformerPipe } from '@/types/transformer'
 import type { RennWorld } from '@/types/world'
 import { syncPriorities } from '@/transformers/transformerUtils'
 
@@ -97,4 +97,137 @@ export function commitTransformerConfigsToWorld(
 
   const nextEntities = world.entities.map((e) => (e.id === entityId ? { ...e, transformers: ids } : e))
   return { ...world, transformers: nextWorldTransformers, entities: nextEntities }
+}
+
+/** Assign a pipe to an entity. Linked mode shares registry IDs; Copy mode clones configs. */
+export function assignPipeToEntity(
+  world: RennWorld,
+  entityId: string,
+  pipe: TransformerPipe,
+  mode: 'linked' | 'copy',
+): RennWorld {
+  if (mode === 'linked') {
+    return {
+      ...world,
+      entities: world.entities.map((e) =>
+        e.id === entityId
+          ? {
+              ...e,
+              transformers: [...pipe.stageIds],
+              transformerPipe: pipe.id,
+            }
+          : e,
+      ),
+    }
+  }
+
+  // Copy mode: create fresh registry entries from pipe.stages
+  const nextWorldTransformers = { ...(world.transformers ?? {}) }
+  const used = new Set(Object.keys(nextWorldTransformers))
+  const newIds: string[] = []
+
+  for (const config of pipe.stages) {
+    const newId = allocateTransformerRegistryId(entityId, nextWorldTransformers, used)
+    used.add(newId)
+    nextWorldTransformers[newId] = JSON.parse(JSON.stringify(config))
+    newIds.push(newId)
+  }
+
+  return {
+    ...world,
+    transformers: nextWorldTransformers,
+    entities: world.entities.map((e) =>
+      e.id === entityId
+        ? {
+            ...e,
+            transformers: newIds,
+            transformerPipe: undefined,
+          }
+        : e,
+    ),
+  }
+}
+
+/** Clones shared registry entries to make them unique to this entity, then clears the pipe link. */
+export function decoupleEntityFromPipe(world: RennWorld, entityId: string): RennWorld {
+  const entity = world.entities.find((e) => e.id === entityId)
+  if (!entity) return world
+
+  const { world: nextWorld, newTransformerIds } = cloneEntityTransformersIntoWorld(world, entity)
+  return {
+    ...nextWorld,
+    entities: nextWorld.entities.map((e) =>
+      e.id === entityId
+        ? {
+            ...e,
+            transformers: newTransformerIds,
+            transformerPipe: undefined,
+          }
+        : e,
+    ),
+  }
+}
+
+/** Removes a pipe from the world and clears all entity links to it. */
+export function deletePipeFromWorld(world: RennWorld, pipeId: string): RennWorld {
+  const nextPipes = { ...(world.transformerPipes ?? {}) }
+  delete nextPipes[pipeId]
+
+  const nextEntities = world.entities.map((e) =>
+    e.transformerPipe === pipeId
+      ? {
+          ...e,
+          transformerPipe: undefined,
+        }
+      : e,
+  )
+
+  return { ...world, transformerPipes: nextPipes, entities: nextEntities }
+}
+
+/** Creates a new pipe from an entity's current pipeline. */
+export function savePipeFromEntity(
+  world: RennWorld,
+  entityId: string,
+  pipeName: string,
+  mode: 'linked' | 'copy',
+): RennWorld {
+  const entity = world.entities.find((e) => e.id === entityId)
+  if (!entity) return world
+
+  const stageIds = entity.transformers ?? []
+  const stages = stageIds.map((id) => world.transformers?.[id]).filter(Boolean) as TransformerConfig[]
+
+  const pipeId = `pipe_${Date.now()}`
+  const newPipe: TransformerPipe = {
+    id: pipeId,
+    name: pipeName,
+    stageIds: [...stageIds],
+    stages: JSON.parse(JSON.stringify(stages)),
+    createdAt: Date.now(),
+  }
+
+  const nextWorld = {
+    ...world,
+    transformerPipes: {
+      ...(world.transformerPipes ?? {}),
+      [pipeId]: newPipe,
+    },
+  }
+
+  if (mode === 'linked') {
+    return {
+      ...nextWorld,
+      entities: nextWorld.entities.map((e) =>
+        e.id === entityId
+          ? {
+              ...e,
+              transformerPipe: pipeId,
+            }
+          : e,
+      ),
+    }
+  }
+
+  return nextWorld
 }

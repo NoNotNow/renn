@@ -4,7 +4,7 @@ import type { ScriptEvent } from '@/types/world'
 export type WorkspaceShellTabId = 'transformers' | 'scripts' | 'organize'
 
 /** Organize tab: which registry to browse (Phase 5+). */
-export type WorkspaceOrganizeKind = 'transformers' | 'scripts'
+export type WorkspaceOrganizeKind = 'transformers' | 'scripts' | 'pipes'
 
 /** Organize tab: data scope (Global = Phase 6). */
 export type WorkspaceOrganizeScope = 'global' | 'project' | 'entity'

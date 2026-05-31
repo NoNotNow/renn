@@ -372,6 +372,8 @@ export interface Entity {
   locked?: boolean
   /** Transformer IDs referencing world.transformers registry. See migrateEntityTransformersToRegistry. */
   transformers?: string[]
+  /** Linked transformer pipe ID from world.transformerPipes. */
+  transformerPipe?: string
   /** When set, entity may be the play avatar (input + camera); see EntityAvatarConfig. */
   avatar?: EntityAvatarConfig
 }
@@ -427,6 +429,8 @@ export interface RennWorld {
   scripts?: Record<string, ScriptDef>
   /** World-level transformer registry. entity.transformers holds IDs into this map. */
   transformers?: Record<string, import('./transformer').TransformerDef>
+  /** Named reusable transformer pipelines. */
+  transformerPipes?: Record<string, import('./transformer').TransformerPipe>
   /** Optional explorer organization. Members may be entity IDs or sub-group IDs. */
   groups?: EntityGroup[]
 }

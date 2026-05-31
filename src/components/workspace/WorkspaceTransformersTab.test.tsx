@@ -211,4 +211,33 @@ describe('WorkspaceTransformersTab', () => {
     expect(lastWorld.entities[0]?.transformers?.[0]).toBe('car_tf2')
     expect(lastWorld.transformers?.car_tf2?.code).toContain('return { force')
   })
+
+  it('shows Save as Pipe and Add Pipe buttons', async () => {
+    renderTab()
+    expect(screen.getByText('Save as Pipe')).toBeDefined()
+    expect(screen.getByText('+ Add Pipe')).toBeDefined()
+  })
+
+  it('shows shared pipe banner when entity is linked to a pipe', async () => {
+    const pipeWorld: RennWorld = {
+      ...carStackWorld,
+      transformerPipes: {
+        p1: {
+          id: 'p1',
+          name: 'My Pipe',
+          stageIds: ['car_tf0'],
+          stages: [],
+        },
+      },
+      entities: [
+        {
+          ...carStackWorld.entities[0]!,
+          transformerPipe: 'p1',
+        },
+      ],
+    }
+    renderTab({ world: pipeWorld })
+    expect(screen.getByText(/Shared pipe:/)).toBeDefined()
+    expect(screen.getByText('My Pipe')).toBeDefined()
+  })
 })

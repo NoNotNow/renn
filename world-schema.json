@@ -26,6 +26,11 @@
       "additionalProperties": { "$ref": "#/$defs/TransformerDef" },
       "description": "World-level transformer registry. entity.transformers holds IDs into this map."
     },
+    "transformerPipes": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/TransformerPipe" },
+      "description": "Named reusable transformer pipelines."
+    },
     "groups": {
       "type": "array",
       "items": { "$ref": "#/$defs/EntityGroup" },
@@ -509,6 +514,10 @@
           "items": { "type": "string" },
           "description": "Transformer IDs referencing world.transformers registry"
         },
+        "transformerPipe": {
+          "type": "string",
+          "description": "Linked transformer pipe ID from world.transformerPipes"
+        },
         "avatar": { "$ref": "#/$defs/EntityAvatarConfig" }
       },
       "additionalProperties": false
@@ -531,6 +540,26 @@
           "description": "Phase B placeholder: rig/joint configuration. Phase A round-trips opaquely.",
           "additionalProperties": true
         }
+      },
+      "additionalProperties": false
+    },
+    "TransformerPipe": {
+      "type": "object",
+      "required": ["id", "name", "stageIds", "stages"],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "stageIds": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Ordered transformer registry IDs (used for live link)"
+        },
+        "stages": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/TransformerConfig" },
+          "description": "Inline config snapshots (used for independent copies)"
+        },
+        "createdAt": { "type": "number" }
       },
       "additionalProperties": false
     }

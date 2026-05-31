@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
 import type { RennWorld, ScriptDef } from '@/types/world'
-import type { TransformerDef } from '@/types/transformer'
+import type { TransformerDef, TransformerPipe } from '@/types/transformer'
 import type { WorkspaceOrganizeKind, WorkspaceOrganizeScope, WorkspaceTarget } from '@/types/workspace'
 import type { GlobalBehaviorLibrary } from '@/types/globalBehaviorLibrary'
 import WorkspaceOrganizeCard from '@/components/workspace/WorkspaceOrganizeCard'
@@ -10,6 +10,7 @@ import { useEditorUndo } from '@/contexts/EditorUndoContext'
 import { getScriptDef } from '@/scripts/scriptDef'
 import { uiLogger } from '@/utils/uiLogger'
 import { theme } from '@/config/theme'
+import { assignPipeToEntity, deletePipeFromWorld } from '@/utils/commitTransformerConfigsToWorld'
 
 const SUBTAB_BTN: CSSProperties = {
   padding: '6px 12px',
@@ -48,6 +49,10 @@ function getEntitiesUsingTransformer(world: RennWorld, transformerId: string): {
   return world.entities.filter((e) => e.transformers?.includes(transformerId)).map((e) => ({ id: e.id, name: e.name }))
 }
 
+function getEntitiesUsingPipe(world: RennWorld, pipeId: string): { id: string; name?: string }[] {
+  return world.entities.filter((e) => e.transformerPipe === pipeId).map((e) => ({ id: e.id, name: e.name }))
+}
+
 function scriptIdsIntersectionForEntities(entities: { scripts?: string[] }[]): string[] {
   if (entities.length === 0) return []
   let common = new Set(entities[0]!.scripts ?? [])
@@ -68,6 +73,16 @@ function transformerIdsIntersectionForEntities(entities: { transformers?: string
   return [...common]
 }
 
+function pipeIdsIntersectionForEntities(entities: { transformerPipe?: string }[]): string[] {
+  if (entities.length === 0) return []
+  const firstPipe = entities[0]!.transformerPipe
+  if (!firstPipe) return []
+  for (let i = 1; i < entities.length; i++) {
+    if (entities[i]!.transformerPipe !== firstPipe) return []
+  }
+  return [firstPipe]
+}
+
 function suggestCopyId(base: string, taken: Set<string>): string {
   let i = 0
   let c = `${base}_copy`
@@ -78,22 +93,25 @@ function suggestCopyId(base: string, taken: Set<string>): string {
   return c
 }
 
-type AssignTarget = { registry: 'scripts'; id: string } | { registry: 'transformers'; id: string }
+type AssignTarget =
+  | { registry: 'scripts'; id: string }
+  | { registry: 'transformers'; id: string }
+  | { registry: 'pipes'; id: string }
 
 type IdConflict =
   | {
       target: 'world'
-      registry: 'scripts' | 'transformers'
+      registry: 'scripts' | 'transformers' | 'pipes'
       attemptedId: string
-      def: ScriptDef | TransformerDef
+      def: ScriptDef | TransformerDef | TransformerPipe
       /** Set when copying from the global library for immediate assign after the definition lands in the project. */
       openAssignAfter?: boolean
     }
   | {
       target: 'global'
-      registry: 'scripts' | 'transformers'
+      registry: 'scripts' | 'transformers' | 'pipes'
       attemptedId: string
-      def: ScriptDef | TransformerDef
+      def: ScriptDef | TransformerDef | TransformerPipe
     }
 
 export interface WorkspaceOrganizeTabProps {
@@ -158,8 +176,10 @@ export default function WorkspaceOrganizeTab({
 
   const scripts = world.scripts ?? {}
   const transformers = world.transformers ?? {}
+  const pipes = world.transformerPipes ?? {}
   const globalScripts = globalLibrary.scripts ?? {}
   const globalTransformers = globalLibrary.transformers ?? {}
+  const globalPipes = globalLibrary.transformerPipes ?? {}
 
   const entityIntersectionScriptIds = scriptIdsIntersectionForEntities(selectedEntities)
   const entityIntersectionTransformerIds = transformerIdsIntersectionForEntities(selectedEntities)
@@ -179,6 +199,14 @@ export default function WorkspaceOrganizeTab({
     }
     return Object.keys(transformers).sort()
   }, [scope, entityIntersectionTransformerIds, transformers, globalTransformers])
+
+  const pipeIdsForCards = useMemo(() => {
+    const registry = scope === 'global' ? globalLibrary.transformerPipes ?? {} : world.transformerPipes ?? {}
+    if (scope === 'entity') {
+      return pipeIdsIntersectionForEntities(selectedEntities).filter((id) => registry[id] != null)
+    }
+    return Object.keys(registry).sort()
+  }, [scope, selectedEntities, world.transformerPipes, globalLibrary.transformerPipes])
 
   const toggleTypeExpanded = (type: string) => {
     setExpandedTypes((prev) => {
@@ -213,8 +241,21 @@ export default function WorkspaceOrganizeTab({
     return groups
   }, [transformerIdsForCards, scope, globalTransformers, transformers])
 
+  const groupedPipes = useMemo(() => {
+    const registry = scope === 'global' ? globalLibrary.transformerPipes ?? {} : world.transformerPipes ?? {}
+    const groups: Record<string, string[]> = {}
+    for (const id of pipeIdsForCards) {
+      const def = registry[id]!
+      const title = def.name || 'Untitled Pipe'
+      if (!groups[title]) groups[title] = []
+      groups[title].push(id)
+    }
+    return groups
+  }, [pipeIdsForCards, scope, globalLibrary.transformerPipes, world.transformerPipes])
+
   const [assignTarget, setAssignTarget] = useState<AssignTarget | null>(null)
   const [assignSelection, setAssignSelection] = useState<Set<string>>(new Set())
+  const [pipeAssignMode, setPipeAssignMode] = useState<'linked' | 'copy'>('linked')
   const [idConflict, setIdConflict] = useState<IdConflict | null>(null)
 
   useEffect(() => {
@@ -222,6 +263,8 @@ export default function WorkspaceOrganizeTab({
     const users =
       assignTarget.registry === 'scripts'
         ? getEntitiesUsingScript(world, assignTarget.id)
+        : assignTarget.registry === 'pipes'
+        ? getEntitiesUsingPipe(world, assignTarget.id)
         : getEntitiesUsingTransformer(world, assignTarget.id)
     setAssignSelection(new Set(users.map((u) => u.id)))
   }, [assignTarget, world])
@@ -240,7 +283,27 @@ export default function WorkspaceOrganizeTab({
       id,
       entityCount: want.size,
     })
-    if (assignTarget.registry === 'scripts') {
+    if (assignTarget.registry === 'pipes') {
+      const pipe = (world.transformerPipes ?? {})[id] || (globalLibrary.transformerPipes ?? {})[id]
+      if (pipe) {
+        let nextWorld = world
+        for (const e of world.entities) {
+          const had = e.transformerPipe === id
+          const should = want.has(e.id)
+          if (should) {
+            nextWorld = assignPipeToEntity(nextWorld, e.id, pipe, pipeAssignMode)
+          } else if (had) {
+            nextWorld = {
+              ...nextWorld,
+              entities: nextWorld.entities.map((ent) =>
+                ent.id === e.id ? { ...ent, transformerPipe: undefined } : ent,
+              ),
+            }
+          }
+        }
+        onWorldChange(nextWorld)
+      }
+    } else if (assignTarget.registry === 'scripts') {
       onWorldChange({
         ...world,
         entities: world.entities.map((e) => {
@@ -285,11 +348,17 @@ export default function WorkspaceOrganizeTab({
         targetEntityId &&
         (registry === 'scripts'
           ? world.entities.find((e) => e.id === targetEntityId)?.scripts?.includes(itemId)
+          : registry === 'pipes'
+          ? world.entities.find((e) => e.id === targetEntityId)?.transformerPipe === itemId
           : world.entities.find((e) => e.id === targetEntityId)?.transformers?.includes(itemId))
 
       if (!isUsedByCurrent) {
         const users =
-          registry === 'scripts' ? getEntitiesUsingScript(world, itemId) : getEntitiesUsingTransformer(world, itemId)
+          registry === 'scripts'
+            ? getEntitiesUsingScript(world, itemId)
+            : registry === 'pipes'
+            ? getEntitiesUsingPipe(world, itemId)
+            : getEntitiesUsingTransformer(world, itemId)
         if (users.length > 0) {
           targetEntityId = users[0]!.id
           onSelectEntity?.(targetEntityId)
@@ -300,7 +369,7 @@ export default function WorkspaceOrganizeTab({
     onNavigateToEditor({
       entityId: targetEntityId,
       tab: registry === 'scripts' ? 'scripts' : 'transformers',
-      itemId,
+      itemId: registry === 'pipes' ? undefined : itemId,
       ...(itemSource === 'global' ? { itemSource: 'global' as const } : {}),
     })
   }
@@ -317,6 +386,112 @@ export default function WorkspaceOrganizeTab({
     },
     [onNavigateToEditor, onSelectEntity],
   )
+
+  const handleDeletePipe = (id: string) => {
+    if (scope === 'global') {
+      if (!window.confirm(`Remove pipe "${id}" from the global library?`)) return
+      const next = { ...(globalLibrary.transformerPipes ?? {}) }
+      delete next[id]
+      onGlobalLibraryChange({ ...globalLibrary, transformerPipes: next })
+      return
+    }
+
+    const entitiesUsing = getEntitiesUsingPipe(world, id)
+    if (entitiesUsing.length > 0) {
+      if (
+        !window.confirm(
+          `This pipe is used by ${entitiesUsing.length} entities. Deleting it will decouple them. Continue?`,
+        )
+      )
+        return
+    } else if (!window.confirm(`Delete pipe "${id}"?`)) {
+      return
+    }
+
+    pushUndo()
+    onWorldChange(deletePipeFromWorld(world, id))
+  }
+
+  const handleRenamePipe = (oldId: string) => {
+    const registry = scope === 'global' ? globalLibrary.transformerPipes ?? {} : world.transformerPipes ?? {}
+    const def = registry[oldId]
+    if (!def) return
+    const raw = window.prompt('New pipe ID:', oldId)
+    if (raw == null) return
+    const newId = raw.trim()
+    if (!newId || newId === oldId) return
+    if (registry[newId]) {
+      window.alert('A pipe with this ID already exists.')
+      return
+    }
+
+    if (scope === 'global') {
+      const next = { ...(globalLibrary.transformerPipes ?? {}) }
+      delete next[oldId]
+      onGlobalLibraryChange({ ...globalLibrary, transformerPipes: { ...next, [newId]: { ...def, id: newId } } })
+    } else {
+      pushUndo()
+      const nextPipes = { ...(world.transformerPipes ?? {}) }
+      delete nextPipes[oldId]
+      nextPipes[newId] = { ...def, id: newId }
+      const nextEntities = world.entities.map((e) =>
+        e.transformerPipe === oldId ? { ...e, transformerPipe: newId } : e,
+      )
+      onWorldChange({ ...world, transformerPipes: nextPipes, entities: nextEntities })
+    }
+  }
+
+  const handlePromotePipeToGlobal = (id: string) => {
+    const def = world.transformerPipes?.[id]
+    if (!def) return
+    if (globalLibrary.transformerPipes?.[id]) {
+      setIdConflict({ target: 'global', registry: 'pipes', attemptedId: id, def: deepClone(def) })
+      return
+    }
+    onGlobalLibraryChange({
+      ...globalLibrary,
+      transformerPipes: { ...(globalLibrary.transformerPipes ?? {}), [id]: deepClone(def) },
+    })
+  }
+
+  const handleCopyGlobalPipeToProject = (id: string) => {
+    const def = globalLibrary.transformerPipes?.[id]
+    if (!def) return
+    const taken = new Set(Object.keys(world.transformerPipes ?? {}))
+    const suggestion = suggestCopyId(id, taken)
+    const raw = window.prompt('Project pipe ID:', suggestion)
+    if (raw == null) return
+    const newId = raw.trim()
+    if (!newId) return
+
+    pushUndo()
+    onWorldChange({
+      ...world,
+      transformerPipes: { ...(world.transformerPipes ?? {}), [newId]: { ...deepClone(def), id: newId } },
+    })
+  }
+
+  const handleAssignPipeFromGlobal = (id: string) => {
+    const def = globalLibrary.transformerPipes?.[id]
+    if (!def) return
+    const taken = world.transformerPipes ?? {}
+    if (taken[id]) {
+      setIdConflict({
+        target: 'world',
+        registry: 'pipes',
+        attemptedId: id,
+        def: deepClone(def),
+        openAssignAfter: true,
+      })
+      return
+    }
+    pushUndo()
+    onWorldChange({
+      ...world,
+      transformerPipes: { ...(world.transformerPipes ?? {}), [id]: deepClone(def) },
+    })
+    setAssignTarget({ registry: 'pipes', id })
+  }
 
   const handleDeleteScript = (id: string) => {
     if (!window.confirm(`Delete script "${id}" from the world? Entities will detach.`)) return
@@ -475,13 +650,19 @@ export default function WorkspaceOrganizeTab({
       if (!rid) return
       finalId = rid
       if (idConflict.target === 'world') {
-        const taken = idConflict.registry === 'scripts' ? scripts : transformers
+        const taken =
+          idConflict.registry === 'scripts' ? scripts
+          : idConflict.registry === 'pipes' ? pipes
+          : transformers
         if (taken[finalId]) {
           window.alert('That ID is also taken. Choose another name.')
           return
         }
       } else {
-        const taken = idConflict.registry === 'scripts' ? globalScripts : globalTransformers
+        const taken =
+          idConflict.registry === 'scripts' ? globalScripts
+          : idConflict.registry === 'pipes' ? globalPipes
+          : globalTransformers
         if (taken[finalId]) {
           window.alert('That ID is also taken. Choose another name.')
           return
@@ -497,6 +678,11 @@ export default function WorkspaceOrganizeTab({
           ...world,
           scripts: { ...scripts, [finalId]: deepClone(def as ScriptDef) },
         })
+      } else if (registry === 'pipes') {
+        onWorldChange({
+          ...world,
+          transformerPipes: { ...pipes, [finalId]: { ...deepClone(def as TransformerPipe), id: finalId } },
+        })
       } else {
         onWorldChange({
           ...world,
@@ -510,6 +696,11 @@ export default function WorkspaceOrganizeTab({
         onGlobalLibraryChange({
           ...globalLibrary,
           scripts: { ...globalScripts, [finalId]: deepClone(def as ScriptDef) },
+        })
+      } else if (registry === 'pipes') {
+        onGlobalLibraryChange({
+          ...globalLibrary,
+          transformerPipes: { ...globalPipes, [finalId]: { ...deepClone(def as TransformerPipe), id: finalId } },
         })
       } else {
         onGlobalLibraryChange({
@@ -762,7 +953,7 @@ export default function WorkspaceOrganizeTab({
       </div>
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }} role="tablist" aria-label="Organize registry">
-        {(['transformers', 'scripts'] as const).map((k) => (
+        {(['transformers', 'scripts', 'pipes'] as const).map((k) => (
           <button
             key={k}
             type="button"
@@ -772,7 +963,7 @@ export default function WorkspaceOrganizeTab({
             style={tabStyle(kind === k)}
             onClick={() => syncOrganize(scope, k)}
           >
-            {k === 'transformers' ? 'Transformers' : 'Scripts'}
+            {k === 'transformers' ? 'Transformers' : k === 'scripts' ? 'Scripts' : 'Pipes'}
           </button>
         ))}
         {scope === 'project' && (
@@ -871,6 +1062,75 @@ export default function WorkspaceOrganizeTab({
                   onSelectEntity={(eid) => handleEntityLinkClick(eid, id, 'scripts', 'global')}
                   testId={`workspace-organize-card-global-script-${id}`}
                   onRegroup={isExpanded ? () => toggleTypeExpanded(title) : undefined}
+                />
+              )
+            })
+          })}
+        {kind === 'pipes' &&
+          Object.entries(groupedPipes).map(([title, ids]) => {
+            const isExpanded = expandedTypes.has(title)
+            if (ids.length > 1 && !isExpanded) {
+              return (
+                <WorkspaceOrganizeCard
+                  key={`stack-pipe-${title}`}
+                  title={title}
+                  subtitle={`${ids.length} pipes`}
+                  usageLine="Click to expand"
+                  assignments={[]}
+                  showAssign={false}
+                  showDetach={false}
+                  showDelete={false}
+                  showCopy={false}
+                  showRename={false}
+                  stackCount={ids.length}
+                  onExpand={() => toggleTypeExpanded(title)}
+                  onEdit={() => {}}
+                  onAssign={() => {}}
+                  onDetach={() => {}}
+                  onCopy={() => {}}
+                  onRename={() => {}}
+                  onDelete={() => {}}
+                />
+              )
+            }
+            return ids.map((id) => {
+              const def = (scope === 'global' ? globalLibrary.transformerPipes ?? {} : world.transformerPipes ?? {})[id]
+              if (!def) return null
+              const users = getEntitiesUsingPipe(world, id)
+              return (
+                <WorkspaceOrganizeCard
+                  key={id}
+                  title={id}
+                  subtitle={`${def.stages.length} stages`}
+                  usageLine={`Used by ${users.length} entities`}
+                  assignments={users}
+                  showAssign={scope !== 'entity'}
+                  showDetach={scope === 'entity' || users.length > 0}
+                  showDelete={true}
+                  showCopy={scope === 'global'}
+                  showRename={true}
+                  showPromote={scope === 'project'}
+                  onEdit={() => handleEdit('pipes', id, scope === 'global' ? 'global' : 'project')}
+                  onAssign={() => {
+                    if (scope === 'global') handleAssignPipeFromGlobal(id)
+                    else setAssignTarget({ registry: 'pipes', id })
+                  }}
+                  onDetach={() => {
+                    pushUndo()
+                    const nextWorld = {
+                      ...world,
+                      entities: world.entities.map((e) =>
+                        e.transformerPipe === id ? { ...e, transformerPipe: undefined } : e,
+                      ),
+                    }
+                    onWorldChange(nextWorld)
+                  }}
+                  onCopy={() => handleCopyGlobalPipeToProject(id)}
+                  onRename={() => handleRenamePipe(id)}
+                  onDelete={() => handleDeletePipe(id)}
+                  onPromote={() => handlePromotePipeToGlobal(id)}
+                  onSelectEntity={onSelectEntity}
+                  onRegroup={ids.length > 1 ? () => toggleTypeExpanded(title) : undefined}
                 />
               )
             })
@@ -1096,6 +1356,15 @@ export default function WorkspaceOrganizeTab({
               No shared transformers on the selection.
             </div>
           )}
+        {kind === 'pipes' && pipeIdsForCards.length === 0 && (
+          <div style={{ gridColumn: '1 / -1', color: theme.text.muted, fontSize: 13 }}>
+            {scope === 'global'
+              ? 'No pipes in the global library. Promote from the Project scope to add one.'
+              : scope === 'project'
+              ? 'No pipes in this world.'
+              : 'No shared pipes on the selection.'}
+          </div>
+        )}
       </div>
 
       {assignTarget && (
@@ -1105,6 +1374,8 @@ export default function WorkspaceOrganizeTab({
           title={
             assignTarget.registry === 'scripts'
               ? `Assign script "${assignTarget.id}"`
+              : assignTarget.registry === 'pipes'
+              ? `Assign pipe "${assignTarget.id}"`
               : `Assign transformer "${assignTarget.id}"`
           }
           width={480}
@@ -1112,8 +1383,29 @@ export default function WorkspaceOrganizeTab({
         >
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, height: '100%' }}>
             <p style={{ margin: 0, fontSize: 12, color: theme.text.muted }}>
-              Toggle entities that should reference this {assignTarget.registry === 'scripts' ? 'script' : 'transformer'}.
+              Toggle entities that should reference this{' '}
+              {assignTarget.registry === 'scripts' ? 'script' : assignTarget.registry === 'pipes' ? 'pipe' : 'transformer'}.
             </p>
+            {assignTarget.registry === 'pipes' && (
+              <div style={{ display: 'flex', gap: 12, marginBottom: 4 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, cursor: 'pointer' }}>
+                  <input
+                    type="radio"
+                    checked={pipeAssignMode === 'linked'}
+                    onChange={() => setPipeAssignMode('linked')}
+                  />
+                  Linked (Live edits)
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, cursor: 'pointer' }}>
+                  <input
+                    type="radio"
+                    checked={pipeAssignMode === 'copy'}
+                    onChange={() => setPipeAssignMode('copy')}
+                  />
+                  Copy (Independent)
+                </label>
+              </div>
+            )}
             <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
               {world.entities.map((e) => {
                 const checked = assignSelection.has(e.id)

@@ -305,6 +305,24 @@ export interface TransformerConfig {
 export interface TransformerDef extends TransformerConfig {}
 
 // ---------------------------------------------------------------------------
+// Transformer Pipes
+// ---------------------------------------------------------------------------
+
+/**
+ * A named, reusable sequence of transformer stages.
+ * Can be linked to an entity (shared registry IDs) or used as a template (copy).
+ */
+export interface TransformerPipe {
+  id: string
+  name: string
+  /** Ordered transformer registry IDs — used when assigning in 'linked' mode. */
+  stageIds: string[]
+  /** Inline config snapshots — used when assigning in 'copy' mode (template). */
+  stages: TransformerConfig[]
+  createdAt?: number
+}
+
+// ---------------------------------------------------------------------------
 // Null / empty helpers
 // ---------------------------------------------------------------------------
 

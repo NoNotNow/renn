@@ -470,6 +470,7 @@ export function createIndexedDbPersistence(): PersistenceAPI {
           return {
             transformers: row.transformers ?? {},
             scripts: row.scripts ?? {},
+            transformerPipes: row.transformerPipes ?? {},
           }
         } finally {
           db.close()
@@ -493,6 +494,7 @@ export function createIndexedDbPersistence(): PersistenceAPI {
             id: GLOBAL_BEHAVIOR_ROW_ID,
             transformers: library.transformers ?? {},
             scripts: library.scripts ?? {},
+            transformerPipes: library.transformerPipes ?? {},
             updatedAt: Date.now(),
           }
           await db.put(STORE_GLOBAL_BEHAVIOR, row)

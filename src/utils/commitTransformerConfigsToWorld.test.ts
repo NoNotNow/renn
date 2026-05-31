@@ -1,7 +1,14 @@
 import { describe, it, expect } from 'vitest'
 import type { RennWorld } from '@/types/world'
-import type { TransformerConfig } from '@/types/transformer'
-import { commitTransformerConfigsToWorld, cloneEntityTransformersIntoWorld } from './commitTransformerConfigsToWorld'
+import type { TransformerConfig, TransformerPipe } from '@/types/transformer'
+import {
+  commitTransformerConfigsToWorld,
+  cloneEntityTransformersIntoWorld,
+  assignPipeToEntity,
+  decoupleEntityFromPipe,
+  deletePipeFromWorld,
+  savePipeFromEntity,
+} from './commitTransformerConfigsToWorld'
 
 function applyStacksToEntities(world: RennWorld, entityIds: string[], configs: TransformerConfig[]): RennWorld {
   let next = world
@@ -138,5 +145,87 @@ describe('cloneEntityTransformersIntoWorld', () => {
     )
     expect(afterRemove.transformers?.['e1_tf0']).toBeDefined()
     expect(afterRemove.transformers?.[newTransformerIds[0]!]).toBeUndefined()
+  })
+})
+
+describe('Transformer Pipes utilities', () => {
+  const baseWorld: RennWorld = {
+    version: '1.0',
+    world: { gravity: [0, -9.81, 0] },
+    entities: [
+      {
+        id: 'e1',
+        transformers: ['t1'],
+      },
+      {
+        id: 'e2',
+        transformers: ['t2'],
+      },
+    ],
+    transformers: {
+      t1: { type: 'input', priority: 0 },
+      t2: { type: 'input', priority: 0 },
+    },
+  }
+
+  const samplePipe: TransformerPipe = {
+    id: 'p1',
+    name: 'Test Pipe',
+    stageIds: ['p1_t1'],
+    stages: [{ type: 'custom', name: 'Snapshot', priority: 0 }],
+    createdAt: 1000,
+  }
+
+  describe('assignPipeToEntity', () => {
+    it('assigns in linked mode', () => {
+      const next = assignPipeToEntity(baseWorld, 'e1', samplePipe, 'linked')
+      const e1 = next.entities.find((e) => e.id === 'e1')
+      expect(e1?.transformers).toEqual(['p1_t1'])
+      expect(e1?.transformerPipe).toBe('p1')
+    })
+
+    it('assigns in copy mode', () => {
+      const next = assignPipeToEntity(baseWorld, 'e1', samplePipe, 'copy')
+      const e1 = next.entities.find((e) => e.id === 'e1')
+      expect(e1?.transformers[0]).toMatch(/e1_tf/)
+      expect(e1?.transformerPipe).toBeUndefined()
+      expect(next.transformers?.[e1!.transformers[0]!]).toMatchObject(samplePipe.stages[0])
+    })
+  })
+
+  describe('decoupleEntityFromPipe', () => {
+    it('clones registry and clears link', () => {
+      const linked = assignPipeToEntity(baseWorld, 'e1', samplePipe, 'linked')
+      const next = decoupleEntityFromPipe(linked, 'e1')
+      const e1 = next.entities.find((e) => e.id === 'e1')
+      expect(e1?.transformers[0]).not.toBe('p1_t1')
+      expect(e1?.transformerPipe).toBeUndefined()
+      expect(next.transformers?.[e1!.transformers[0]!]).toBeDefined()
+    })
+  })
+
+  describe('deletePipeFromWorld', () => {
+    it('removes pipe and clears all entity links', () => {
+      const worldWithPipe = {
+        ...baseWorld,
+        transformerPipes: { p1: samplePipe },
+        entities: baseWorld.entities.map((e) => ({ ...e, transformerPipe: 'p1' })),
+      }
+      const next = deletePipeFromWorld(worldWithPipe, 'p1')
+      expect(next.transformerPipes?.p1).toBeUndefined()
+      expect(next.entities.every((e) => e.transformerPipe === undefined)).toBe(true)
+    })
+  })
+
+  describe('savePipeFromEntity', () => {
+    it('creates a new pipe and links it in linked mode', () => {
+      const next = savePipeFromEntity(baseWorld, 'e1', 'New Pipe', 'linked')
+      const pipeId = Object.keys(next.transformerPipes || {})[0]!
+      const pipe = next.transformerPipes![pipeId]!
+      expect(pipe.name).toBe('New Pipe')
+      expect(pipe.stageIds).toEqual(['t1'])
+      expect(pipe.stages[0]).toMatchObject(baseWorld.transformers!.t1!)
+      expect(next.entities.find((e) => e.id === 'e1')?.transformerPipe).toBe(pipeId)
+    })
   })
 })

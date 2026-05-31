@@ -15,7 +15,7 @@ import { EntityPanelIcons } from '@/components/EntityPanelIcons'
 import TransformerTemplateDialog from '@/components/TransformerTemplateDialog'
 import TransformerFieldReference from '@/components/TransformerFieldReference'
 import { TransformerDocsContent } from '@/components/TransformerDocs'
-import type { TransformerConfig, PresetTransformerType } from '@/types/transformer'
+import type { TransformerConfig, PresetTransformerType, TransformerPipe } from '@/types/transformer'
 import type { RennWorld } from '@/types/world'
 import type { WorkspaceMonacoPayload, WorkspaceTarget } from '@/types/workspace'
 import { entityPanelIconButtonStyle } from '@/components/sharedStyles'
@@ -29,6 +29,9 @@ import { useCopyMenu } from '@/contexts/CopyContext'
 import {
   commitTransformerConfigsToWorld,
   mapTransformerRegistryIdsToEntity,
+  assignPipeToEntity,
+  decoupleEntityFromPipe,
+  savePipeFromEntity,
 } from '@/utils/commitTransformerConfigsToWorld'
 import {
   subscribeCustomTransformerRuntimeError,
@@ -185,6 +188,9 @@ function WorkspaceTransformersTabEntity({
   const transformersMixed = mergedIds === null
   const worldTf = useMemo(() => world.transformers ?? {}, [world.transformers])
 
+  const linkedPipeId = entities.length === 1 ? entities[0].transformerPipe : undefined
+  const linkedPipe = linkedPipeId ? (world.transformerPipes ?? {})[linkedPipeId] : undefined
+
   const usageCounts = useMemo(() => {
     const counts: Record<string, number> = {}
     for (const e of world.entities) {
@@ -209,6 +215,14 @@ function WorkspaceTransformersTabEntity({
 
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [isSharedMode, setIsSharedMode] = useState(false)
+
+  const [savePipeDialogOpen, setSavePipeDialogOpen] = useState(false)
+  const [savePipeName, setSavePipeName] = useState('')
+  const [savePipeMode, setSavePipeMode] = useState<'linked' | 'copy'>('linked')
+
+  const [addPipeModeDialogOpen, setAddPipeModeDialogOpen] = useState(false)
+  const [addPipeDropdownOpen, setAddPipeDropdownOpen] = useState(false)
+  const [selectedPipeForAdd, setSelectedPipeForAdd] = useState<TransformerPipe | null>(null)
   /** Entry anchor applied once per itemId — must not re-run when sortedPairs changes (e.g. reorder). */
   const appliedEntryAnchorRef = useRef<string | null>(null)
 
@@ -356,6 +370,36 @@ function WorkspaceTransformersTabEntity({
     },
     [commitStacksRaw, flushPendingCode],
   )
+
+  const handleSaveAsPipe = useCallback(() => {
+    if (entityIdsForEdit.length === 0) return
+    // If multiple entities, save from the first one
+    const entityId = entityIdsForEdit[0]!
+    const nextWorld = savePipeFromEntity(world, entityId, savePipeName, savePipeMode)
+    onWorldChange(nextWorld)
+    setSavePipeDialogOpen(false)
+  }, [world, entityIdsForEdit, savePipeName, savePipeMode, onWorldChange])
+
+  const handleAddPipe = useCallback(
+    (pipe: TransformerPipe, mode: 'linked' | 'copy') => {
+      let nextWorld = world
+      for (const entityId of entityIdsForEdit) {
+        nextWorld = assignPipeToEntity(nextWorld, entityId, pipe, mode)
+      }
+      onWorldChange(nextWorld)
+      setAddPipeModeDialogOpen(false)
+      setAddPipeDropdownOpen(false)
+    },
+    [world, entityIdsForEdit, onWorldChange],
+  )
+
+  const handleDecouple = useCallback(() => {
+    let nextWorld = world
+    for (const entityId of entityIdsForEdit) {
+      nextWorld = decoupleEntityFromPipe(nextWorld, entityId)
+    }
+    onWorldChange(nextWorld)
+  }, [world, entityIdsForEdit, onWorldChange])
 
   const runtimeSnapshot = useSyncExternalStore(
     subscribeCustomTransformerRuntimeError,
@@ -982,6 +1026,49 @@ function WorkspaceTransformersTabEntity({
               marginTop: entityIdsForEdit.length > 1 ? 4 : 0,
             }}
           >
+            {linkedPipeId && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: entityIdsForEdit.length > 1 ? -32 : -18,
+                  left: 0,
+                  fontSize: 10,
+                  fontWeight: 600,
+                  color: linkedPipe ? theme.text.infoSubtle : theme.text.warning,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  zIndex: 2,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {linkedPipe ? (
+                  <>
+                    Shared pipe: <span style={{ color: theme.text.primary }}>{linkedPipe.name}</span> — editing stages
+                    here affects all linked entities.
+                  </>
+                ) : (
+                  <>Linked pipe not found (stale reference)</>
+                )}
+                <button
+                  type="button"
+                  onClick={handleDecouple}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    padding: 0,
+                    margin: 0,
+                    fontSize: 10,
+                    fontWeight: 700,
+                    color: theme.accent,
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                  }}
+                >
+                  Decouple
+                </button>
+              </div>
+            )}
             <TransformerHorizontalPipeline
               transformers={list}
               transformerIds={transformerIds}
@@ -1062,6 +1149,91 @@ function WorkspaceTransformersTabEntity({
               {EntityPanelIcons.reset}
             </button>
           : null}
+          <div style={{ position: 'relative' }}>
+            <button
+              type="button"
+              title="Add pipe from library"
+              onClick={() => setAddPipeDropdownOpen(!addPipeDropdownOpen)}
+              style={{
+                ...entityPanelIconButtonStyle,
+                width: 'auto',
+                padding: '0 8px',
+                fontSize: 11,
+                fontWeight: 600,
+                color: theme.accent,
+                gap: 4,
+              }}
+            >
+              + Add Pipe
+            </button>
+            {addPipeDropdownOpen && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '100%',
+                  right: 0,
+                  marginTop: 4,
+                  background: theme.bg.panel,
+                  border: `1px solid ${theme.border.default}`,
+                  borderRadius: 6,
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                  zIndex: 100,
+                  minWidth: 160,
+                  padding: '4px 0',
+                }}
+              >
+                {Object.values(world.transformerPipes || {}).length === 0 && (
+                  <div style={{ padding: '8px 12px', fontSize: 11, color: theme.text.muted }}>No pipes in world</div>
+                )}
+                {Object.values(world.transformerPipes || {}).map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedPipeForAdd(p)
+                      setAddPipeModeDialogOpen(true)
+                    }}
+                    style={{
+                      display: 'block',
+                      width: '100%',
+                      padding: '6px 12px',
+                      textAlign: 'left',
+                      background: 'none',
+                      border: 'none',
+                      color: theme.text.primary,
+                      fontSize: 12,
+                      cursor: 'pointer',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+                  >
+                    {p.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <button
+            type="button"
+            title="Save current pipeline as a reusable pipe"
+            disabled={list.length === 0}
+            onClick={() => {
+              setSavePipeName(entities[0]?.name || 'New Pipe')
+              setSavePipeDialogOpen(true)
+            }}
+            style={{
+              ...entityPanelIconButtonStyle,
+              width: 'auto',
+              padding: '0 8px',
+              fontSize: 11,
+              fontWeight: 600,
+              opacity: list.length === 0 ? 0.5 : 1,
+            }}
+          >
+            Save as Pipe
+          </button>
+
           <button
             type="button"
             title="Copy transformer pipe (JSON)"
@@ -1198,6 +1370,178 @@ function WorkspaceTransformersTabEntity({
           }}
         />
       : null}
+
+      {savePipeDialogOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.5)',
+            zIndex: 1000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <div
+            style={{
+              background: theme.bg.panel,
+              padding: 20,
+              borderRadius: 8,
+              border: `1px solid ${theme.border.default}`,
+              width: 300,
+            }}
+          >
+            <h3 style={{ margin: '0 0 16px', fontSize: 16 }}>Save as Pipe</h3>
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: 'block', fontSize: 12, marginBottom: 4 }}>Pipe Name</label>
+              <input
+                autoFocus
+                value={savePipeName}
+                onChange={(e) => setSavePipeName(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '6px 8px',
+                  borderRadius: 4,
+                  background: theme.bg.surface,
+                  border: `1px solid ${theme.border.default}`,
+                  color: theme.text.primary,
+                }}
+              />
+            </div>
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: 'block', fontSize: 12, marginBottom: 4 }}>Mode</label>
+              <div style={{ display: 'flex', gap: 12 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, cursor: 'pointer' }}>
+                  <input
+                    type="radio"
+                    checked={savePipeMode === 'linked'}
+                    onChange={() => setSavePipeMode('linked')}
+                  />
+                  Linked
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, cursor: 'pointer' }}>
+                  <input type="radio" checked={savePipeMode === 'copy'} onChange={() => setSavePipeMode('copy')} />
+                  Copy
+                </label>
+              </div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button
+                onClick={() => setSavePipeDialogOpen(false)}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: 4,
+                  background: 'none',
+                  border: 'none',
+                  color: theme.text.muted,
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveAsPipe}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: 4,
+                  background: theme.accent,
+                  border: 'none',
+                  color: '#fff',
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                }}
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {addPipeModeDialogOpen && selectedPipeForAdd && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.5)',
+            zIndex: 1000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <div
+            style={{
+              background: theme.bg.panel,
+              padding: 20,
+              borderRadius: 8,
+              border: `1px solid ${theme.border.default}`,
+              width: 300,
+            }}
+          >
+            <h3 style={{ margin: '0 0 12px', fontSize: 16 }}>Add Pipe: {selectedPipeForAdd.name}</h3>
+            <p style={{ fontSize: 12, color: theme.text.muted, marginBottom: 16 }}>
+              Choose how to assign this pipe.
+            </p>
+            <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
+              <button
+                onClick={() => handleAddPipe(selectedPipeForAdd, 'linked')}
+                style={{
+                  flex: 1,
+                  padding: '10px',
+                  borderRadius: 6,
+                  border: `1px solid ${theme.accent}`,
+                  background: 'rgba(0,153,255,0.1)',
+                  color: theme.accent,
+                  cursor: 'pointer',
+                  textAlign: 'center',
+                }}
+              >
+                <div style={{ fontWeight: 600 }}>Link</div>
+                <div style={{ fontSize: 10, opacity: 0.8 }}>Shared edits</div>
+              </button>
+              <button
+                onClick={() => handleAddPipe(selectedPipeForAdd, 'copy')}
+                style={{
+                  flex: 1,
+                  padding: '10px',
+                  borderRadius: 6,
+                  border: `1px solid ${theme.border.default}`,
+                  background: theme.bg.surface,
+                  color: theme.text.primary,
+                  cursor: 'pointer',
+                  textAlign: 'center',
+                }}
+              >
+                <div style={{ fontWeight: 600 }}>Copy</div>
+                <div style={{ fontSize: 10, opacity: 0.8 }}>Independent</div>
+              </button>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setAddPipeModeDialogOpen(false)}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: 4,
+                  background: 'none',
+                  border: 'none',
+                  color: theme.text.muted,
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </CopyableArea>
   )
 }
