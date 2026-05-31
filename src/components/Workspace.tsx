@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type KeyboardEvent as ReactKeyboardEvent,
   type MutableRefObject,
 } from 'react'
 import { createPortal } from 'react-dom'
@@ -216,6 +217,14 @@ export default function Workspace({
 
   const anchoredEntityId = entry?.entityId ?? null
 
+  const entityNameMap = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const e of world.entities) {
+      map.set(e.id, e.name ?? e.id)
+    }
+    return map
+  }, [world.entities])
+
   const shellMetaLine = useMemo(() => {
     const itemSource = entry?.itemSource
     const itemId = entry?.itemId
@@ -223,10 +232,49 @@ export default function Workspace({
     if (anchoredEntityId != null) {
       const count = selectedEntityIds.length
       const multiInfo = count > 1 ? `[Editing ${count} entities] ` : ''
-      return `${multiInfo}Entity ${anchoredEntityId}${itemId != null ? ` · ${itemId}` : ''}`
+      const entityLabel = entityNameMap.get(anchoredEntityId) ?? anchoredEntityId
+      return `${multiInfo}${entityLabel}${itemId != null ? ` · ${itemId}` : ''}`
     }
     return 'Select an entity in the inspector'
-  }, [anchoredEntityId, entry?.itemId, entry?.itemSource])
+  }, [anchoredEntityId, entry?.itemId, entry?.itemSource, entityNameMap, selectedEntityIds.length])
+
+  const [entityDropdownOpen, setEntityDropdownOpen] = useState(false)
+  const [entitySearch, setEntitySearch] = useState('')
+  const entityDropdownRef = useRef<HTMLDivElement>(null)
+  const entitySearchRef = useRef<HTMLInputElement>(null)
+
+  const filteredEntities = useMemo(() => {
+    const q = entitySearch.toLowerCase()
+    return world.entities.filter((e) => {
+      const label = (e.name ?? e.id).toLowerCase()
+      return label.includes(q) || e.id.toLowerCase().includes(q)
+    })
+  }, [world.entities, entitySearch])
+
+  useEffect(() => {
+    if (!entityDropdownOpen) return
+    const timer = window.setTimeout(() => entitySearchRef.current?.focus(), 30)
+    return () => window.clearTimeout(timer)
+  }, [entityDropdownOpen])
+
+  useEffect(() => {
+    if (!entityDropdownOpen) return
+    const onPointerDown = (e: PointerEvent) => {
+      if (entityDropdownRef.current && !entityDropdownRef.current.contains(e.target as Node)) {
+        setEntityDropdownOpen(false)
+        setEntitySearch('')
+      }
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    return () => document.removeEventListener('pointerdown', onPointerDown)
+  }, [entityDropdownOpen])
+
+  const handleEntityDropdownKeyDown = useCallback((e: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Escape') {
+      setEntityDropdownOpen(false)
+      setEntitySearch('')
+    }
+  }, [])
 
   const [globalLibrary, setGlobalLibrary] = useState<GlobalBehaviorLibrary>(EMPTY_GLOBAL_BEHAVIOR_LIBRARY)
 
@@ -325,6 +373,15 @@ export default function Workspace({
       }
     },
     [entry, onEntryChange, onSelectEntity],
+  )
+
+  const handleSelectEntityFromDropdown = useCallback(
+    (id: string) => {
+      setEntityDropdownOpen(false)
+      setEntitySearch('')
+      handleSelectEntityFromWorkspace(id)
+    },
+    [handleSelectEntityFromWorkspace],
   )
 
   const close = useCallback(() => {
@@ -468,18 +525,126 @@ export default function Workspace({
                 </div>
                 <div
                   data-testid="workspace-shell-meta-line"
+                  ref={entityDropdownRef}
                   style={{
                     flex: '1 1 auto',
                     minWidth: 0,
-                    fontSize: 11,
-                    color: theme.text.muted,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
+                    position: 'relative',
                   }}
-                  title={shellMetaLine}
                 >
-                  {shellMetaLine}
+                  {anchoredEntityId != null && entry?.itemSource !== 'global' ? (
+                    <button
+                      type="button"
+                      onClick={() => setEntityDropdownOpen((v) => !v)}
+                      title={shellMetaLine}
+                      style={{
+                        background: 'none',
+                        border: `1px solid ${entityDropdownOpen ? theme.accent : 'transparent'}`,
+                        borderRadius: 4,
+                        padding: '2px 6px',
+                        cursor: 'pointer',
+                        fontSize: 11,
+                        color: theme.text.muted,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 4,
+                        maxWidth: '100%',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {shellMetaLine}
+                      </span>
+                      <span style={{ flexShrink: 0, opacity: 0.6 }}>▾</span>
+                    </button>
+                  ) : (
+                    <span
+                      style={{
+                        fontSize: 11,
+                        color: theme.text.muted,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        display: 'block',
+                      }}
+                      title={shellMetaLine}
+                    >
+                      {shellMetaLine}
+                    </span>
+                  )}
+                  {entityDropdownOpen && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: '100%',
+                        left: 0,
+                        marginTop: 4,
+                        minWidth: 220,
+                        maxWidth: 340,
+                        backgroundColor: theme.bg.panel,
+                        border: `1px solid ${theme.border.default}`,
+                        borderRadius: 6,
+                        boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
+                        zIndex: 10,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      <div style={{ padding: '6px 8px', borderBottom: `1px solid ${theme.border.default}` }}>
+                        <input
+                          ref={entitySearchRef}
+                          type="text"
+                          placeholder="Search entities…"
+                          value={entitySearch}
+                          onChange={(e) => setEntitySearch(e.target.value)}
+                          onKeyDown={handleEntityDropdownKeyDown}
+                          style={{
+                            width: '100%',
+                            boxSizing: 'border-box',
+                            background: theme.bg.input ?? theme.bg.panelAlt,
+                            border: `1px solid ${theme.border.default}`,
+                            borderRadius: 4,
+                            color: theme.text.primary,
+                            fontSize: 11,
+                            padding: '4px 6px',
+                            outline: 'none',
+                          }}
+                        />
+                      </div>
+                      <div style={{ maxHeight: 220, overflowY: 'auto' }}>
+                        {filteredEntities.length === 0 ? (
+                          <div style={{ padding: '8px 12px', fontSize: 11, color: theme.text.muted }}>No entities found</div>
+                        ) : (
+                          filteredEntities.map((e) => (
+                            <button
+                              key={e.id}
+                              type="button"
+                              onClick={() => handleSelectEntityFromDropdown(e.id)}
+                              style={{
+                                display: 'block',
+                                width: '100%',
+                                textAlign: 'left',
+                                background: e.id === anchoredEntityId ? theme.bg.panelAlt : 'none',
+                                border: 'none',
+                                borderRadius: 0,
+                                padding: '6px 12px',
+                                fontSize: 11,
+                                color: e.id === anchoredEntityId ? theme.text.primary : theme.text.secondary,
+                                cursor: 'pointer',
+                                fontWeight: e.id === anchoredEntityId ? 600 : 400,
+                              }}
+                            >
+                              {e.name ?? e.id}
+                              {e.name && e.name !== e.id && (
+                                <span style={{ marginLeft: 6, opacity: 0.45, fontSize: 10 }}>{e.id}</span>
+                              )}
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                   {onResetAllEntities && (
