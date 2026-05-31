@@ -46,7 +46,7 @@ describe('ErrorBoundary', () => {
     expect(screen.getByRole('button', { name: 'Copy Error' })).toBeTruthy()
   })
 
-  it('copies error message to clipboard when "Copy Error" is clicked', async () => {
+  it('copies full error to clipboard when "Copy Error" is clicked', async () => {
     render(
       <ErrorBoundary>
         <ThrowError />
@@ -56,7 +56,11 @@ describe('ErrorBoundary', () => {
     const copyButton = screen.getByRole('button', { name: 'Copy Error' })
     fireEvent.click(copyButton)
 
-    expect(mockWriteText).toHaveBeenCalledWith('Test Error')
+    const callArg = mockWriteText.mock.calls[0][0]
+    expect(callArg).toContain('Test Error')
+    expect(callArg).toContain('ErrorBoundary.test.tsx')
+    expect(callArg).toContain('Component Stack:')
+
     expect(screen.getByText('Copied!')).toBeTruthy()
 
     act(() => {

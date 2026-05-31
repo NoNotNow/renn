@@ -1,14 +1,15 @@
-import { Component, type ReactNode } from 'react'
+import { Component, type ReactNode, type ErrorInfo } from 'react'
 
 interface Props {
   children: ReactNode
   fallback?: ReactNode
-  onError?: (error: Error, errorInfo: React.ErrorInfo) => void
+  onError?: (error: Error, errorInfo: ErrorInfo) => void
 }
 
 interface State {
   hasError: boolean
   error: Error | null
+  errorInfo: ErrorInfo | null
   copied: boolean
 }
 
@@ -17,25 +18,37 @@ export class ErrorBoundary extends Component<Props, State> {
 
   constructor(props: Props) {
     super(props)
-    this.state = { hasError: false, error: null, copied: false }
+    this.state = { hasError: false, error: null, errorInfo: null, copied: false }
   }
 
   static getDerivedStateFromError(error: Error): State {
-    return { hasError: true, error, copied: false }
+    return { hasError: true, error, errorInfo: null, copied: false }
   }
 
   componentWillUnmount() {
     if (this.copyTimeout) clearTimeout(this.copyTimeout)
   }
 
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('ErrorBoundary caught an error:', error, errorInfo)
+    this.setState({ errorInfo })
     this.props.onError?.(error, errorInfo)
   }
 
   handleCopy = () => {
-    const msg = this.state.error?.message || 'An unexpected error occurred'
-    void navigator.clipboard.writeText(msg)
+    const { error, errorInfo } = this.state
+    const message = error?.message || 'An unexpected error occurred'
+    const stack = error?.stack || ''
+    const componentStack = errorInfo?.componentStack || ''
+
+    const fullError = [
+      stack || message,
+      componentStack ? `\nComponent Stack:${componentStack}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n')
+
+    void navigator.clipboard.writeText(fullError.trim())
     this.setState({ copied: true })
     if (this.copyTimeout) clearTimeout(this.copyTimeout)
     this.copyTimeout = setTimeout(() => this.setState({ copied: false }), 2000)
