@@ -10,6 +10,8 @@ export type CustomTransformerRuntimeErrorSnapshot = {
   stack?: string
   /** Authoring source bound on the failing transformer instance. */
   code: string
+  /** Line number in user code where the error occurred (1-indexed), if available. */
+  lineNumber?: number
 }
 
 let snapshot: CustomTransformerRuntimeErrorSnapshot | null = null
@@ -26,7 +28,8 @@ export function publishCustomTransformerRuntimeError(payload: CustomTransformerR
     snapshot.configStackIndex === payload.configStackIndex &&
     snapshot.message === payload.message &&
     normStack(snapshot.stack) === normStack(payload.stack) &&
-    snapshot.code === payload.code
+    snapshot.code === payload.code &&
+    snapshot.lineNumber === payload.lineNumber
   ) {
     return
   }

@@ -32,6 +32,7 @@ import {
 } from '@/runtime/customTransformerErrorBridge'
 import { publishVariableValue, VARIABLE_OVERLAY_MAX_INDEX } from '@/runtime/variableOverlayBridge'
 import { publishLineValue } from '@/runtime/coordinateOverlayBridge'
+import { extractLineNumberFromError, extractLineFromStack } from '@/utils/errorLineMapper'
 
 let _customCodeVisualizeEntityId: string | null = null
 
@@ -527,7 +528,17 @@ function isFullFunctionSource(source: string): boolean {
   return /\bfunction\s+transform\s*\(/.test(source)
 }
 
-function compileCustomTransform(configKey: string, source: string): CustomTransformFn {
+/**
+ * Information about how user code was wrapped for line number mapping.
+ */
+interface WrapInfo {
+  /** Number of lines in the prefix before user code starts */
+  prefixLines: number
+  /** Total lines in the wrapped source (prefix + user code + suffix) */
+  totalLines: number
+}
+
+function compileCustomTransform(configKey: string, source: string): { fn: CustomTransformFn; wrapInfo: WrapInfo } {
   const dangerousPatterns = [
     /eval\s*\(/,
     /Function\s*\(/,
@@ -542,13 +553,27 @@ function compileCustomTransform(configKey: string, source: string): CustomTransf
     }
   }
 
-  const wrappedSource = isFullFunctionSource(source)
-    ? `"use strict"; ${source} return transform;`
-    : `"use strict"; return function(input, dt, params, state, api) { ${source} };`
+  let wrappedSource: string
+  let prefixLines: number
+
+  if (isFullFunctionSource(source)) {
+    // For full function: "use strict";\n{source}\nreturn transform;
+    wrappedSource = `"use strict";\n${source}\nreturn transform;`
+    prefixLines = 1 // The "use strict"; line
+  } else {
+    // For inline: "use strict";\nreturn function(...) {\n{source}\n};
+    wrappedSource = `"use strict";\nreturn function(input, dt, params, state, api) {\n${source}\n};`
+    prefixLines = 2 // The "use strict"; line and the function declaration line
+  }
+
+  const wrapInfo: WrapInfo = {
+    prefixLines,
+    totalLines: wrappedSource.split('\n').length,
+  }
 
   try {
     const factory = new Function(wrappedSource)
-    return factory() as CustomTransformFn
+    return { fn: factory() as CustomTransformFn, wrapInfo }
   } catch (e) {
     throw new Error(`Failed to compile custom transformer "${configKey}": ${e}`)
   }
@@ -574,6 +599,7 @@ export class CustomCodeTransformer implements Transformer {
   private readonly liveParams: Record<string, unknown>
   private readonly state: Record<string, unknown> = {}
   private readonly transformFn: CustomTransformFn
+  private readonly wrapInfo: WrapInfo
 
   constructor(config: TransformerConfig) {
     const priority = config.priority ?? 10
@@ -583,7 +609,9 @@ export class CustomCodeTransformer implements Transformer {
     this.liveParams = { ...(config.params ?? {}) }
     const code = typeof config.code === 'string' ? config.code : ''
     this.authoringCode = code
-    this.transformFn = compileCustomTransform(`custom:p${priority}`, code)
+    const compiled = compileCustomTransform(`custom:p${priority}`, code)
+    this.transformFn = compiled.fn
+    this.wrapInfo = compiled.wrapInfo
   }
 
   setParams(patch: Record<string, unknown>): void {
@@ -631,12 +659,32 @@ export class CustomCodeTransformer implements Transformer {
       e instanceof Error && typeof e.stack === 'string' && e.stack.trim() !== ''
         ? e.stack
         : undefined
+    
+    // Try to extract line number from error message or stack trace and map to user code
+    let lineNumber: number | undefined
+    if (e instanceof Error && stack) {
+      // First try to extract from error message (SyntaxError usually has it)
+      lineNumber = extractLineNumberFromError(e)
+      
+      // If not found in message, try to extract from stack trace
+      if (lineNumber === null) {
+        lineNumber = extractLineFromStack(stack)
+      }
+      
+      // Map wrapped line number back to user code line number
+      if (lineNumber !== null) {
+        // Subtract the prefix lines to get user code line
+        lineNumber = Math.max(1, lineNumber - this.wrapInfo.prefixLines)
+      }
+    }
+    
     publishCustomTransformerRuntimeError({
       entityId,
       configStackIndex: idx,
       message,
       stack,
       code: this.authoringCode,
+      lineNumber,
     })
   }
 }

@@ -87,8 +87,12 @@ function formatCustomRuntimeErrorClipboard(snapshot: {
   message: string
   stack?: string
   code: string
+  lineNumber?: number
 }): string {
   let out = snapshot.message
+  if (snapshot.lineNumber !== undefined) {
+    out = `Line ${snapshot.lineNumber}: ${out}`
+  }
   if (snapshot.stack?.trim()) {
     out += `\n\n${snapshot.stack.trim()}`
   }
@@ -413,7 +417,7 @@ function WorkspaceTransformersTabEntity({
     () => null,
   )
 
-  const lastErrorRef = useRef<{ message: string; stack?: string; code: string } | null>(null)
+  const lastErrorRef = useRef<{ message: string; stack?: string; code: string; lineNumber?: number } | null>(null)
   const runtimeErrorForSelection = useMemo(() => {
     if (runtimeSnapshot == null) {
       lastErrorRef.current = null
@@ -431,13 +435,15 @@ function WorkspaceTransformersTabEntity({
       message: runtimeSnapshot.message,
       stack: runtimeSnapshot.stack,
       code: runtimeSnapshot.code,
+      lineNumber: runtimeSnapshot.lineNumber,
     }
 
     if (
       lastErrorRef.current &&
       lastErrorRef.current.message === next.message &&
       lastErrorRef.current.stack === next.stack &&
-      lastErrorRef.current.code === next.code
+      lastErrorRef.current.code === next.code &&
+      lastErrorRef.current.lineNumber === next.lineNumber
     ) {
       return lastErrorRef.current
     }
@@ -451,7 +457,7 @@ function WorkspaceTransformersTabEntity({
   // while keeping the message for KEEP_MS.
   const RUNTIME_KEEP_MS = 10_000
   const RUNTIME_ACTIVE_MS = 1500
-  const [displayedRuntime, setDisplayedRuntime] = useState<null | { message: string; stack?: string; code: string }>(
+  const [displayedRuntime, setDisplayedRuntime] = useState<null | { message: string; stack?: string; code: string; lineNumber?: number }>(
     runtimeErrorForSelection,
   )
   const [runtimeActive, setRuntimeActive] = useState<boolean>(true)
@@ -474,7 +480,8 @@ function WorkspaceTransformersTabEntity({
           prev &&
           prev.message === runtimeErrorForSelection.message &&
           prev.stack === runtimeErrorForSelection.stack &&
-          prev.code === runtimeErrorForSelection.code
+          prev.code === runtimeErrorForSelection.code &&
+          prev.lineNumber === runtimeErrorForSelection.lineNumber
         ) {
           return prev
         }
@@ -488,7 +495,8 @@ function WorkspaceTransformersTabEntity({
         displayedRuntime &&
         displayedRuntime.message === runtimeErrorForSelection.message &&
         displayedRuntime.stack === runtimeErrorForSelection.stack &&
-        displayedRuntime.code === runtimeErrorForSelection.code
+        displayedRuntime.code === runtimeErrorForSelection.code &&
+        displayedRuntime.lineNumber === runtimeErrorForSelection.lineNumber
 
       if (!isSameError || !runtimeActiveTimerRef.current) {
         if (runtimeActiveTimerRef.current) {
@@ -859,7 +867,12 @@ function WorkspaceTransformersTabEntity({
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ fontWeight: 600, marginBottom: 4, fontSize: 11 }}>Runtime error</div>
+          <div style={{ fontWeight: 600, marginBottom: 4, fontSize: 11 }}>
+            Runtime error
+            {displayedRuntime.lineNumber !== undefined ? (
+              <span style={{ marginLeft: 8, opacity: 0.8 }}>— line {displayedRuntime.lineNumber}</span>
+            ) : null}
+          </div>
           <div style={{ marginLeft: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
             <button
               type="button"
