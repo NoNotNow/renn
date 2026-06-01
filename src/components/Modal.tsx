@@ -10,6 +10,8 @@ export interface ModalProps {
   width?: number
   height?: number
   headerExtra?: React.ReactNode
+  subheader?: React.ReactNode
+  footer?: React.ReactNode
 }
 
 export default function Modal({
@@ -20,6 +22,8 @@ export default function Modal({
   width = 600,
   height,
   headerExtra,
+  subheader,
+  footer,
 }: ModalProps) {
   const modalRef = useRef<HTMLDivElement>(null)
 
@@ -166,16 +170,43 @@ export default function Modal({
           </button>
         </div>
 
+        {/* Subheader */}
+        {subheader && (
+          <div
+            style={{
+              padding: '12px 20px',
+              borderBottom: `1px solid ${theme.border.default}`,
+              flexShrink: 0,
+            }}
+          >
+            {subheader}
+          </div>
+        )}
+
         {/* Content */}
         <div
           style={{
             flex: 1,
+            minHeight: 0,
             overflow: 'auto',
             padding: '20px',
           }}
         >
           {children}
         </div>
+
+        {/* Footer */}
+        {footer && (
+          <div
+            style={{
+              padding: '12px 20px',
+              borderTop: `1px solid ${theme.border.default}`,
+              flexShrink: 0,
+            }}
+          >
+            {footer}
+          </div>
+        )}
       </div>
     </div>,
     document.body
