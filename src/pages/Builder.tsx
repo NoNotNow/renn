@@ -111,6 +111,7 @@ export default function Builder() {
     onFileChange,
     handlePlay,
     fileInputRef,
+    loadExampleWorld,
     cameraControl,
     cameraTarget,
     cameraMode,
@@ -374,6 +375,14 @@ export default function Builder() {
     if (currentProject.isDirty && !confirm('Discard unsaved changes?')) return
     newProject()
   }, [currentProject.isDirty, newProject])
+
+  const handleOpenExampleWorld = useCallback(
+    (worldJson: any, name: string) => {
+      if (currentProject.isDirty && !confirm('Discard unsaved changes?')) return
+      loadExampleWorld(worldJson, name)
+    },
+    [currentProject.isDirty, loadExampleWorld]
+  )
 
   const handleOpen = useCallback(
     (id: string) => {
@@ -1225,6 +1234,7 @@ export default function Builder() {
         onOpenTextureStudio={onOpenTextureStudioFromToolbar}
         onOpenWorkspace={handleOpenWorkspace}
         selectedEntityCount={selectedEntityIds.length}
+        onOpenExampleWorld={handleOpenExampleWorld}
       />
         </div>
 

@@ -1,5 +1,18 @@
 # Example Worlds and Test Fixtures
 
+## Folder Structure (`public/exampleWorlds/`)
+
+Example worlds are stored in [`public/exampleWorlds/`](../public/exampleWorlds/) and can be opened via **File → Example Worlds** menu in the Builder.
+
+### Available Worlds
+
+| World | Folder | Description |
+|-------|--------|-------------|
+| `hunt` | [`public/exampleWorlds/hunt/`](../public/exampleWorlds/hunt/) | Hunt-themed world with assets |
+| `world1` | [`public/exampleWorlds/world1/`](../public/exampleWorlds/world1/) | General example world |
+
+### Legacy Example
+
 The example file lives at [`examples/airplane-world.json`](../examples/airplane-world.json). Load it in the Builder to test. (The filename is historical; the scene uses **registry-supported** transformers only.)
 
 ## airplane-world.json

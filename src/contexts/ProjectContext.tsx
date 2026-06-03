@@ -78,6 +78,9 @@ interface ProjectContextActions {
   onFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void
   fileInputRef: React.RefObject<HTMLInputElement>
   
+  // Example Worlds
+  loadExampleWorld: (world: RennWorld, name: string) => void
+  
   // Play mode
   handlePlay: () => void
   
@@ -455,6 +458,22 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     e.target.value = ''
   }, [refreshProjects, loadProject, resetCameraFromWorld])
   
+  const loadExampleWorld = useCallback((world: RennWorld, name: string) => {
+    uiLogger.select('Builder', 'Open example world', { worldName: name })
+    worldRef.current = world
+    setWorld(world)
+    resetCameraFromWorld(world)
+    editorFreePoseRef.current = world.world.camera?.editorFreePose ?? null
+    setAssets(new Map())
+    setCurrentProject({
+      id: null,
+      name,
+      isDirty: false,
+    })
+    setVersion((v) => v + 1)
+    setDocumentEpoch((e) => e + 1)
+  }, [resetCameraFromWorld])
+  
   const handlePlay = useCallback(() => {
     uiLogger.click('Builder', 'Play - navigate to play mode')
     const worldToPlay = getWorldToSave()
@@ -505,6 +524,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     importProject,
     onFileChange,
     fileInputRef,
+    loadExampleWorld,
     handlePlay,
     setCameraControl,
     setCameraTarget,
@@ -546,6 +566,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     importProject,
     onFileChange,
     fileInputRef,
+    loadExampleWorld,
     handlePlay,
     setCameraControl,
     setCameraTarget,
