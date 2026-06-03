@@ -95,6 +95,30 @@ describe('TransformerRuntimeApi argument validation', () => {
     expect(rotated[2]).toBeCloseTo(-1, 10)
   })
 
+  test('vec.offsetAlong, angleBetween, signedAngleAroundAxis, rightFromForward', () => {
+    expect(TRANSFORMER_RUNTIME_API.vec.offsetAlong([0, 0, 0], [0, 0, -1], 5)).toEqual([0, 0, -5])
+    expect(TRANSFORMER_RUNTIME_API.vec.angleBetween([1, 0, 0], [0, 1, 0])).toBeCloseTo(Math.PI / 2, 10)
+    const signed = TRANSFORMER_RUNTIME_API.vec.signedAngleAroundAxis([0, 0, -1], [-1, 0, 0], [0, 1, 0])
+    expect(signed).toBeGreaterThan(0)
+    expect(TRANSFORMER_RUNTIME_API.vec.rightFromForward([0, 0, -1])[0]).toBeCloseTo(1, 10)
+  })
+
+  test('raycastSpread rejects invalid rayCount', () => {
+    expect(() =>
+      TRANSFORMER_RUNTIME_API.raycastSpread([0, 0, 0], [0, 0, -1], 10, 2, 0),
+    ).toThrow(/\[TransformerRuntimeApi\.raycastSpread\] expected rayCount:/)
+  })
+
+  test('raycastSpread picks closest hit', () => {
+    setTransformerRuntimeRaycast((origin) => {
+      if (origin[0] < 0) return { hit: true, distance: 1, entityId: 'near' }
+      return { hit: true, distance: 9, entityId: 'far' }
+    })
+    const result = TRANSFORMER_RUNTIME_API.raycastSpread([0, 0, 0], [0, 0, -1], 20, 2, 3)
+    expect(result.distance).toBe(1)
+    setTransformerRuntimeRaycast(null)
+  })
+
   test('eulerDeltaAroundAxis rejects invalid args', () => {
     expect(() =>
       TRANSFORMER_RUNTIME_API.eulerDeltaAroundAxis(undefined as unknown as [number, number, number], [0, 1, 0], 0.1),

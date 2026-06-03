@@ -18,16 +18,21 @@ import {
   eulerDeltaAroundAxis as eulerDeltaAroundAxisImpl,
 } from '@/utils/rotationUtils'
 import {
+  angleBetweenVec3,
   crossVec3,
   dotVec3,
   getForwardSpeed as getForwardSpeedUtil,
   normalizeVec3 as normalizeVec3Util,
+  offsetAlongVec3,
   projectVec3OntoPlane,
+  rightFromForwardVec3,
   rotateVec3AroundAxis,
   scaleVec3 as scaleVec3Util,
+  signedAngleAroundAxisVec3,
   subtractVec3 as subtractVec3Util,
   vec3Length,
 } from '@/utils/vec3'
+import { raycastSpreadImpl } from '@/transformers/raycastSpread'
 import {
   clearCustomTransformerRuntimeErrorForTarget,
   publishCustomTransformerRuntimeError,
@@ -246,6 +251,14 @@ export interface TransformerVecApi {
   projectOntoPlane(vec: Vec3, planeNormal: Vec3): Vec3
   /** Rotate `vec` by `angle` radians around `axis` (e.g. entity up for path-finding turns on slopes). */
   rotateAroundAxis(vec: Vec3, axis: Vec3, angle: number): Vec3
+  /** `origin + direction * distance` (direction need not be normalized). */
+  offsetAlong(origin: Vec3, direction: Vec3, distance: number): Vec3
+  /** Unsigned angle between directions in radians (0 … π). */
+  angleBetween(from: Vec3, to: Vec3): number
+  /** Signed angle from `from` to `to` around `axis`; 0 when nearly parallel. */
+  signedAngleAroundAxis(from: Vec3, to: Vec3, axis: Vec3): number
+  /** Unit right vector ⊥ `forward` in the plane of `forward` and `upHint` (default world +Y). */
+  rightFromForward(forward: Vec3, upHint?: Vec3): Vec3
 }
 
 /** Frozen singleton passed as the fifth argument to compiled custom transformer functions. */
@@ -320,6 +333,17 @@ export interface TransformerRuntimeApi {
    * @param options Visualization options; visualize defaults to false.
    */
   raycast(origin: Vec3, fwd: Vec3, maxDistance?: number, options?: { visualize?: boolean; hitColor?: string; missColor?: string }): RaycastResult
+  /**
+   * Parallel rays spread sideways; closest hit wins, else center-ray result (same as hunt `multiRaycast`).
+   */
+  raycastSpread(
+    origin: Vec3,
+    direction: Vec3,
+    maxDistance: number,
+    spreadWidth: number,
+    rayCount: number,
+    options?: { visualize?: boolean; hitColor?: string; missColor?: string },
+  ): RaycastResult
 }
 
 type SnackbarFn = (message: string, durationSeconds: number) => void
@@ -402,6 +426,28 @@ const VEC_API: TransformerVecApi = Object.freeze({
     const ang = requireFiniteNumber('TransformerRuntimeApi.vec.rotateAroundAxis', 'angle', angle)
     return rotateVec3AroundAxis(v, ax, ang)
   },
+  offsetAlong: (origin: Vec3, direction: Vec3, distance: number): Vec3 => {
+    const o = requireVec3('TransformerRuntimeApi.vec.offsetAlong', 'origin', origin)
+    const d = requireVec3('TransformerRuntimeApi.vec.offsetAlong', 'direction', direction)
+    const dist = requireFiniteNumber('TransformerRuntimeApi.vec.offsetAlong', 'distance', distance)
+    return offsetAlongVec3(o, d, dist)
+  },
+  angleBetween: (from: Vec3, to: Vec3): number => {
+    const a = requireVec3('TransformerRuntimeApi.vec.angleBetween', 'from', from)
+    const b = requireVec3('TransformerRuntimeApi.vec.angleBetween', 'to', to)
+    return angleBetweenVec3(a, b)
+  },
+  signedAngleAroundAxis: (from: Vec3, to: Vec3, axis: Vec3): number => {
+    const a = requireVec3('TransformerRuntimeApi.vec.signedAngleAroundAxis', 'from', from)
+    const b = requireVec3('TransformerRuntimeApi.vec.signedAngleAroundAxis', 'to', to)
+    const ax = requireVec3('TransformerRuntimeApi.vec.signedAngleAroundAxis', 'axis', axis)
+    return signedAngleAroundAxisVec3(a, b, ax)
+  },
+  rightFromForward: (forward: Vec3, upHint?: Vec3): Vec3 => {
+    const f = requireVec3('TransformerRuntimeApi.vec.rightFromForward', 'forward', forward)
+    const up = upHint === undefined ? undefined : requireVec3('TransformerRuntimeApi.vec.rightFromForward', 'upHint', upHint)
+    return rightFromForwardVec3(f, up)
+  },
 })
 
 function eulerDeltaAroundAxisApi(currentRotation: Rotation, axis: Vec3, angleRad: number): Rotation {
@@ -448,6 +494,41 @@ function getActionApi(input: TransformInput, name: string): number {
       ? (rawActions as Record<string, number>)
       : {}
   return actions[name] ?? 0
+}
+
+function raycastApi(
+  origin: Vec3,
+  fwd: Vec3,
+  maxDistance?: number,
+  options?: { visualize?: boolean; hitColor?: string; missColor?: string },
+): RaycastResult {
+  const NO_HIT: RaycastResult = { hit: false, distance: 0, entityId: '' }
+  const o = requireVec3('TransformerRuntimeApi.raycast', 'origin', origin)
+  const d = requireVec3('TransformerRuntimeApi.raycast', 'fwd', fwd)
+  if (maxDistance !== undefined) {
+    requireFiniteNumber('TransformerRuntimeApi.raycast', 'maxDistance', maxDistance)
+  }
+  const result = _transformerRuntimeRaycast?.(o, d, maxDistance) ?? NO_HIT
+
+  if (options?.visualize) {
+    const id = _customCodeVisualizeEntityId
+    if (id != null) {
+      const len = Math.hypot(d[0], d[1], d[2])
+      if (len > 0) {
+        const nx = d[0] / len
+        const ny = d[1] / len
+        const nz = d[2] / len
+        const distance = result.hit ? result.distance : (maxDistance ?? 100)
+        const endX = o[0] + nx * distance
+        const endY = o[1] + ny * distance
+        const endZ = o[2] + nz * distance
+        const color = result.hit ? (options.hitColor ?? 'red') : (options.missColor ?? 'green')
+        publishLineValue(id, [o[0], o[1], o[2]], [endX, endY, endZ], color)
+      }
+    }
+  }
+
+  return result
 }
 
 export const TRANSFORMER_RUNTIME_API: TransformerRuntimeApi = Object.freeze({
@@ -538,35 +619,26 @@ export const TRANSFORMER_RUNTIME_API: TransformerRuntimeApi = Object.freeze({
     const entity = _transformerRuntimeGetEntity?.(id)
     return entity ? wrapEntityForTransformerRuntime(entity) : undefined
   },
-  raycast: (origin: Vec3, fwd: Vec3, maxDistance?: number, options?: { visualize?: boolean; hitColor?: string; missColor?: string }): RaycastResult => {
-    const NO_HIT: RaycastResult = { hit: false, distance: 0, entityId: '' }
-    const o = requireVec3('TransformerRuntimeApi.raycast', 'origin', origin)
-    const d = requireVec3('TransformerRuntimeApi.raycast', 'fwd', fwd)
-    if (maxDistance !== undefined) {
-      requireFiniteNumber('TransformerRuntimeApi.raycast', 'maxDistance', maxDistance)
+  raycast: raycastApi,
+  raycastSpread: (
+    origin: Vec3,
+    direction: Vec3,
+    maxDistance: number,
+    spreadWidth: number,
+    rayCount: number,
+    options?: { visualize?: boolean; hitColor?: string; missColor?: string },
+  ): RaycastResult => {
+    const o = requireVec3('TransformerRuntimeApi.raycastSpread', 'origin', origin)
+    const d = requireVec3('TransformerRuntimeApi.raycastSpread', 'direction', direction)
+    requireFiniteNumber('TransformerRuntimeApi.raycastSpread', 'maxDistance', maxDistance)
+    requireFiniteNumber('TransformerRuntimeApi.raycastSpread', 'spreadWidth', spreadWidth)
+    if (typeof rayCount !== 'number' || !Number.isInteger(rayCount) || rayCount < 1) {
+      throwApiError(
+        'TransformerRuntimeApi.raycastSpread',
+        `expected rayCount: integer >= 1, got: ${describeGot(rayCount)}`,
+      )
     }
-    const result = _transformerRuntimeRaycast?.(o, d, maxDistance) ?? NO_HIT
-
-    // Handle optional visualization
-    if (options?.visualize) {
-      const id = _customCodeVisualizeEntityId
-      if (id != null) {
-        const len = Math.hypot(d[0], d[1], d[2])
-        if (len > 0) {
-          const nx = d[0] / len
-          const ny = d[1] / len
-          const nz = d[2] / len
-          const distance = result.hit ? result.distance : (maxDistance ?? 100)
-          const endX = o[0] + nx * distance
-          const endY = o[1] + ny * distance
-          const endZ = o[2] + nz * distance
-          const color = result.hit ? (options.hitColor ?? 'red') : (options.missColor ?? 'green')
-          publishLineValue(id, [o[0], o[1], o[2]], [endX, endY, endZ], color)
-        }
-      }
-    }
-
-    return result
+    return raycastSpreadImpl(raycastApi, o, d, maxDistance, spreadWidth, rayCount, options)
   },
 } satisfies TransformerRuntimeApi)
 

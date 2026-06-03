@@ -94,6 +94,14 @@ interface TransformerVecApi {
    * Rotate \`vec\` by \`angle\` radians around \`axis\` (e.g. entity up for obstacle-avoidance turns on slopes).
    */
   rotateAroundAxis(vec: Vec3, axis: Vec3, angle: number): Vec3;
+  /** \`origin + direction * distance\` (direction need not be normalized). */
+  offsetAlong(origin: Vec3, direction: Vec3, distance: number): Vec3;
+  /** Unsigned angle between directions in radians (0 … π). */
+  angleBetween(from: Vec3, to: Vec3): number;
+  /** Signed angle from \`from\` to \`to\` around \`axis\`; 0 when nearly parallel. */
+  signedAngleAroundAxis(from: Vec3, to: Vec3, axis: Vec3): number;
+  /** Unit right vector ⊥ \`forward\` in the plane of \`forward\` and \`upHint\` (default world +Y). */
+  rightFromForward(forward: Vec3, upHint?: Vec3): Vec3;
 }
 
 interface TransformOutput {
@@ -307,6 +315,20 @@ interface TransformerRuntimeApi {
    * @param options Visualization and filtering options; visualize defaults to false.
    */
   raycast(origin: Vec3, fwd: Vec3, maxDistance?: number, options?: { visualize?: boolean; hitColor?: string; missColor?: string }): RaycastResult;
+
+  /**
+   * Cast parallel rays spread sideways; closest hit wins, else center-ray result.
+   * @param spreadWidth Total sideways span (rays from -width/2 to +width/2 along right axis).
+   * @param rayCount Number of parallel rays (including center); must be integer >= 1.
+   */
+  raycastSpread(
+    origin: Vec3,
+    direction: Vec3,
+    maxDistance: number,
+    spreadWidth: number,
+    rayCount: number,
+    options?: { visualize?: boolean; hitColor?: string; missColor?: string },
+  ): RaycastResult;
 }
 
 /** Type alias for the canonical transform(...) callback (use with optional JSDoc @type referencing TransformFn). */

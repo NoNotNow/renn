@@ -42,6 +42,8 @@ describe('transformerCtxDecl', () => {
     const decl = transformerCtxDecl()
     expect(decl).toMatch(/interface\s+TransformerVecApi\b[\s\S]*\bprojectOntoPlane\b/)
     expect(decl).toMatch(/interface\s+TransformerVecApi\b[\s\S]*\brotateAroundAxis\b/)
+    expect(decl).toMatch(/interface\s+TransformerVecApi\b[\s\S]*\boffsetAlong\b/)
+    expect(decl).toMatch(/interface\s+TransformerRuntimeApi\b[\s\S]*\braycastSpread\b/)
   })
 
   test('environment field docs match authoring concerns (touching vs grounded vs support)', () => {

@@ -95,3 +95,39 @@ export function rotateVec3AroundAxis(vec: Vec3, axis: Vec3, angleRad: number): V
   v.applyAxisAngle(ax, angleRad)
   return [v.x, v.y, v.z]
 }
+
+/** `origin + direction * distance` (direction need not be normalized). */
+export function offsetAlongVec3(origin: Vec3, direction: Vec3, distance: number): Vec3 {
+  return [origin[0] + direction[0] * distance, origin[1] + direction[1] * distance, origin[2] + direction[2] * distance]
+}
+
+const WORLD_UP: Vec3 = [0, 1, 0]
+
+/** Unit vector perpendicular to `forward` in the plane spanned by `forward` and `upHint`. */
+export function rightFromForwardVec3(forward: Vec3, upHint: Vec3 = WORLD_UP): Vec3 {
+  return normalizeVec3(crossVec3(forward, upHint))
+}
+
+/** Unsigned angle in radians from `from` to `to` (0 … π); clamps dot before acos. */
+export function angleBetweenVec3(from: Vec3, to: Vec3): number {
+  const a = normalizeVec3(from)
+  const b = normalizeVec3(to)
+  if (vec3Length(a) < VEC3_NORMALIZE_EPS || vec3Length(b) < VEC3_NORMALIZE_EPS) return 0
+  const dot = dotVec3(a, b)
+  return Math.acos(Math.max(-1, Math.min(1, dot)))
+}
+
+const SIGNED_ANGLE_EPS = 0.001
+
+/** Signed angle in radians from `from` to `to` around `axis`; 0 when nearly parallel. */
+export function signedAngleAroundAxisVec3(from: Vec3, to: Vec3, axis: Vec3): number {
+  const a = normalizeVec3(from)
+  const b = normalizeVec3(to)
+  const n = normalizeVec3(axis)
+  if (vec3Length(a) < VEC3_NORMALIZE_EPS || vec3Length(b) < VEC3_NORMALIZE_EPS || vec3Length(n) < VEC3_NORMALIZE_EPS) {
+    return 0
+  }
+  const dotAB = dotVec3(a, b)
+  if (angleBetweenVec3(a, b) < SIGNED_ANGLE_EPS) return 0
+  return Math.atan2(dotVec3(n, crossVec3(a, b)), dotAB)
+}

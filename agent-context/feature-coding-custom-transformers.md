@@ -92,6 +92,12 @@ Working document to align on **what shipped**, **what is thin**, and **what to i
 | `vec.getForwardSpeed` | `(velocity, forward) → number` | Signed speed along `forward` (dot product); prefer unit `forward` from `getForwardVector`. |
 | `vec.projectOntoPlane` | `(vec, planeNormal) → Vec3` | Project onto plane ⊥ normal (entity up for slope-relative horizontal math; `[0,1,0]` for world XZ). |
 | `vec.rotateAroundAxis` | `(vec, axis, angle) → Vec3` | Rotate vector by `angle` radians around `axis` (entity up for path-finding on slopes). |
+| `vec.offsetAlong` | `(origin, direction, distance) → Vec3` | `origin + direction * distance` (probe point ahead of entity). |
+| `vec.angleBetween` | `(from, to) → number` | Unsigned angle in radians (0 … π); clamps dot before `acos`. |
+| `vec.signedAngleAroundAxis` | `(from, to, axis) → number` | Signed turn angle around `axis`; 0 when nearly parallel. |
+| `vec.rightFromForward` | `(forward, upHint?) → Vec3` | Unit right vector ⊥ `forward` (default `upHint` = world +Y). |
+| `raycast` | `(origin, fwd, maxDistance?, options?) → RaycastResult` | Physics ray; optional `{ visualize, hitColor, missColor }` in Builder Visualize mode. |
+| `raycastSpread` | `(origin, direction, maxDistance, spreadWidth, rayCount, options?) → RaycastResult` | Parallel rays spread sideways; closest hit, else center ray. |
 | `clamp` | `(value, min, max) → number` | Inclusive clamp. |
 | `eulerDeltaAroundAxis` | `(currentRotation, axis, angleRad) → Rotation` | Euler delta for yaw-like turns around a world axis. |
 | `log` | `(message, durationSeconds?) → void` | Show message in play-mode snackbar. Default duration: 4 s. Wired via `setTransformerSnackbarFn` from `SceneView`; no-op otherwise. |
