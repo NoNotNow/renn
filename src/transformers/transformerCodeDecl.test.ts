@@ -33,7 +33,15 @@ describe('transformerCtxDecl', () => {
     expect(decl).toContain('getWorldPosition')
     expect(decl).toContain('getStartPosition')
     expect(decl).toContain('visualizeLine')
+    expect(decl).toContain('visualize?: boolean')
+    expect(decl).toContain('hitColor?: string')
     expect(decl).not.toContain('visualizeCoordinate')
+  })
+
+  test('TransformerVecApi documents projectOntoPlane and rotateAroundAxis', () => {
+    const decl = transformerCtxDecl()
+    expect(decl).toMatch(/interface\s+TransformerVecApi\b[\s\S]*\bprojectOntoPlane\b/)
+    expect(decl).toMatch(/interface\s+TransformerVecApi\b[\s\S]*\brotateAroundAxis\b/)
   })
 
   test('environment field docs match authoring concerns (touching vs grounded vs support)', () => {

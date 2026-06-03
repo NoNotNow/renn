@@ -1,3 +1,4 @@
+import * as THREE from 'three'
 import type { Vec3 } from '@/types/world'
 
 /** Scale a vector by a scalar. Returns a new Vec3. */
@@ -67,4 +68,30 @@ export function createTorqueAroundAxis(axis: Vec3, torqueMagnitude: number): Vec
   const axisLen = vec3Length(axis)
   if (axisLen < VEC3_NORMALIZE_EPS) return [0, 0, 0]
   return scaleVec3(axis, torqueMagnitude / axisLen)
+}
+
+/**
+ * Project `vec` onto the plane perpendicular to `planeNormal` (normal is normalized internally).
+ * When `planeNormal` is negligible, returns a copy of `vec`.
+ */
+export function projectVec3OntoPlane(vec: Vec3, planeNormal: Vec3): Vec3 {
+  const n = normalizeVec3(planeNormal)
+  if (n[0] === 0 && n[1] === 0 && n[2] === 0) {
+    return [vec[0], vec[1], vec[2]]
+  }
+  const alongNormal = dotVec3(vec, n)
+  return subtractVec3(vec, scaleVec3(n, alongNormal))
+}
+
+/**
+ * Rotate `vec` by `angleRad` radians around `axis` (axis direction normalized internally).
+ * Returns `[0, 0, 0]` when axis length is negligible.
+ */
+export function rotateVec3AroundAxis(vec: Vec3, axis: Vec3, angleRad: number): Vec3 {
+  const axisLen = vec3Length(axis)
+  if (axisLen < VEC3_NORMALIZE_EPS) return [0, 0, 0]
+  const v = new THREE.Vector3(vec[0], vec[1], vec[2])
+  const ax = new THREE.Vector3(axis[0], axis[1], axis[2]).normalize()
+  v.applyAxisAngle(ax, angleRad)
+  return [v.x, v.y, v.z]
 }

@@ -7,6 +7,7 @@ import {
   TRANSFORMER_RUNTIME_API,
   setTransformerRuntimeEntityLookup,
   setTransformerRuntimeLivePositionLookup,
+  setTransformerRuntimeRaycast,
   setTransformerSnackbarFn,
   validateCustomTransformerSource,
 } from './customCodeTransformer'
@@ -71,6 +72,27 @@ describe('TransformerRuntimeApi argument validation', () => {
     expect(() => TRANSFORMER_RUNTIME_API.vec.getForwardSpeed([0, 0, 1], [0, 1] as unknown as Vec3)).toThrow(
       /\[TransformerRuntimeApi\.vec\.getForwardSpeed\]/,
     )
+  })
+
+  test('vec.projectOntoPlane and vec.rotateAroundAxis reject invalid arguments', () => {
+    expect(() => TRANSFORMER_RUNTIME_API.vec.projectOntoPlane([0, 1] as unknown as Vec3, [0, 1, 0])).toThrow(
+      /\[TransformerRuntimeApi\.vec\.projectOntoPlane\]/,
+    )
+    expect(() => TRANSFORMER_RUNTIME_API.vec.rotateAroundAxis([1, 0, 0], [0, 1, 0], NaN)).toThrow(
+      /\[TransformerRuntimeApi\.vec\.rotateAroundAxis\]/,
+    )
+  })
+
+  test('vec.projectOntoPlane zeros Y component for world-up plane', () => {
+    expect(TRANSFORMER_RUNTIME_API.vec.projectOntoPlane([1, 2, 3], [0, 1, 0])).toEqual([1, 0, 3])
+  })
+
+  test('vec.rotateAroundAxis uses right-handed rotation around axis', () => {
+    const vec: Vec3 = [1, 0, 0]
+    const rotated = TRANSFORMER_RUNTIME_API.vec.rotateAroundAxis(vec, [0, 1, 0], Math.PI / 2)
+    expect(rotated[0]).toBeCloseTo(0, 10)
+    expect(rotated[1]).toBeCloseTo(0, 10)
+    expect(rotated[2]).toBeCloseTo(-1, 10)
   })
 
   test('eulerDeltaAroundAxis rejects invalid args', () => {
@@ -184,6 +206,7 @@ describe('CustomCodeTransformer runtime bridge', () => {
     clearCoordinateEntries()
     setTransformerRuntimeEntityLookup(null)
     setTransformerRuntimeLivePositionLookup(null)
+    setTransformerRuntimeRaycast(null)
   })
 
   test('publishRuntimeError reports when entity id and stack index are set', () => {
@@ -273,6 +296,54 @@ describe('CustomCodeTransformer runtime bridge', () => {
       type: 'custom',
       code: `function transform(input, dt, params, state, api) {
         api.visualizeLine([1, 1, 1], [0, 0, 0], 'green');
+        return {};
+      }`,
+    })
+    t.runtimeEntityId = 'ent-a'
+    t.transform(createMockTransformInput({ entityId: 'ent-a' }), 0.1)
+    expect(getCoordinateOverlayEntries()).toEqual([])
+  })
+
+  test('api.raycast with visualize draws hit line to impact distance', () => {
+    setTransformerRuntimeRaycast(() => ({ hit: true, distance: 4, entityId: 'wall' }))
+    setCoordinateOverlayFn(() => {})
+    setCoordinateOverlayDisplayEntityId('ent-a')
+    const t = new CustomCodeTransformer({
+      type: 'custom',
+      code: `function transform(input, dt, params, state, api) {
+        api.raycast([0, 0, 0], [0, 0, -1], 10, { visualize: true });
+        return {};
+      }`,
+    })
+    t.runtimeEntityId = 'ent-a'
+    t.transform(createMockTransformInput({ entityId: 'ent-a' }), 0.1)
+    expect(getCoordinateOverlayEntries()).toEqual([{ from: [0, 0, 0], to: [0, 0, -4], color: 'red' }])
+  })
+
+  test('api.raycast with visualize draws miss line to maxDistance', () => {
+    setTransformerRuntimeRaycast(() => ({ hit: false, distance: 0, entityId: '' }))
+    setCoordinateOverlayFn(() => {})
+    setCoordinateOverlayDisplayEntityId('ent-a')
+    const t = new CustomCodeTransformer({
+      type: 'custom',
+      code: `function transform(input, dt, params, state, api) {
+        api.raycast([1, 2, 3], [0, 1, 0], 7, { visualize: true, missColor: 'lime' });
+        return {};
+      }`,
+    })
+    t.runtimeEntityId = 'ent-a'
+    t.transform(createMockTransformInput({ entityId: 'ent-a' }), 0.1)
+    expect(getCoordinateOverlayEntries()).toEqual([{ from: [1, 2, 3], to: [1, 9, 3], color: 'lime' }])
+  })
+
+  test('api.raycast without visualize does not publish lines', () => {
+    setTransformerRuntimeRaycast(() => ({ hit: true, distance: 2, entityId: 'x' }))
+    setCoordinateOverlayFn(() => {})
+    setCoordinateOverlayDisplayEntityId('ent-a')
+    const t = new CustomCodeTransformer({
+      type: 'custom',
+      code: `function transform(input, dt, params, state, api) {
+        api.raycast([0, 0, 0], [1, 0, 0], 5);
         return {};
       }`,
     })

@@ -90,6 +90,8 @@ Working document to align on **what shipped**, **what is thin**, and **what to i
 | `vec.subtract` | `(a, b) → Vec3` | Component-wise difference (a − b). |
 | `vec.scale` | `(v, s) → Vec3` | Scale all components by s. |
 | `vec.getForwardSpeed` | `(velocity, forward) → number` | Signed speed along `forward` (dot product); prefer unit `forward` from `getForwardVector`. |
+| `vec.projectOntoPlane` | `(vec, planeNormal) → Vec3` | Project onto plane ⊥ normal (entity up for slope-relative horizontal math; `[0,1,0]` for world XZ). |
+| `vec.rotateAroundAxis` | `(vec, axis, angle) → Vec3` | Rotate vector by `angle` radians around `axis` (entity up for path-finding on slopes). |
 | `clamp` | `(value, min, max) → number` | Inclusive clamp. |
 | `eulerDeltaAroundAxis` | `(currentRotation, axis, angleRad) → Rotation` | Euler delta for yaw-like turns around a world axis. |
 | `log` | `(message, durationSeconds?) → void` | Show message in play-mode snackbar. Default duration: 4 s. Wired via `setTransformerSnackbarFn` from `SceneView`; no-op otherwise. |

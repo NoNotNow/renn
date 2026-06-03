@@ -85,6 +85,15 @@ interface TransformerVecApi {
   scale(v: Vec3, s: number): Vec3;
   /** Signed scalar speed along \`forward\` (dot product); prefer unit forward from getForwardVector. */
   getForwardSpeed(velocity: Vec3, forward: Vec3): number;
+  /**
+   * Project \`vec\` onto the plane perpendicular to \`planeNormal\`.
+   * Use entity up (\`api.getUpVector(input.rotation)\`) for slope-relative horizontal steering; \`[0, 1, 0]\` for world XZ.
+   */
+  projectOntoPlane(vec: Vec3, planeNormal: Vec3): Vec3;
+  /**
+   * Rotate \`vec\` by \`angle\` radians around \`axis\` (e.g. entity up for obstacle-avoidance turns on slopes).
+   */
+  rotateAroundAxis(vec: Vec3, axis: Vec3, angle: number): Vec3;
 }
 
 interface TransformOutput {
@@ -277,6 +286,27 @@ interface TransformerRuntimeApi {
    * Returns \`{ hit: false, distance: 0, entityId: '' }\` when physics is unavailable or direction is zero-length.
    */
   raycast(origin: Vec3, fwd: Vec3, maxDistance?: number): RaycastResult;
+
+  /**
+   * Cast a ray from \`origin\` in direction \`fwd\` with optional debug visualization.
+   * When visualize is true, draws a line from origin to the hit point (or to maxDistance if no hit).
+   * Hit lines use hitColor (default 'red'), miss lines use missColor (default 'green').
+   * No-op in Play mode or when visualize gizmo mode is inactive.
+   * @param origin World-space ray origin [x, y, z].
+   * @param fwd World-space direction vector (will be normalized).
+   * @param maxDistance Maximum ray distance in metres.
+   * @param options Visualization and filtering options.
+   */
+  raycast(origin: Vec3, fwd: Vec3, maxDistance: number, options: { visualize: true; hitColor?: string; missColor?: string }): RaycastResult;
+
+  /**
+   * Cast a ray from \`origin\` in direction \`fwd\` with optional debug visualization.
+   * @param origin World-space ray origin [x, y, z].
+   * @param fwd World-space direction vector (will be normalized).
+   * @param maxDistance Maximum ray distance in metres.
+   * @param options Visualization and filtering options; visualize defaults to false.
+   */
+  raycast(origin: Vec3, fwd: Vec3, maxDistance?: number, options?: { visualize?: boolean; hitColor?: string; missColor?: string }): RaycastResult;
 }
 
 /** Type alias for the canonical transform(...) callback (use with optional JSDoc @type referencing TransformFn). */

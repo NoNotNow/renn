@@ -22,6 +22,8 @@ import {
   dotVec3,
   getForwardSpeed as getForwardSpeedUtil,
   normalizeVec3 as normalizeVec3Util,
+  projectVec3OntoPlane,
+  rotateVec3AroundAxis,
   scaleVec3 as scaleVec3Util,
   subtractVec3 as subtractVec3Util,
   vec3Length,
@@ -240,6 +242,10 @@ export interface TransformerVecApi {
   scale(v: Vec3, s: number): Vec3
   /** Scalar speed along `forward` (unnormalized forward scales the projection). Prefer a unit forward from getForwardVector. */
   getForwardSpeed(velocity: Vec3, forward: Vec3): number
+  /** Project `vec` onto the plane perpendicular to `planeNormal` (e.g. entity up for slope-relative XZ steering). */
+  projectOntoPlane(vec: Vec3, planeNormal: Vec3): Vec3
+  /** Rotate `vec` by `angle` radians around `axis` (e.g. entity up for path-finding turns on slopes). */
+  rotateAroundAxis(vec: Vec3, axis: Vec3, angle: number): Vec3
 }
 
 /** Frozen singleton passed as the fifth argument to compiled custom transformer functions. */
@@ -293,6 +299,27 @@ export interface TransformerRuntimeApi {
    * Returns `{ hit: false, distance: 0, entityId: '' }` when physics is unavailable or direction is zero-length.
    */
   raycast(origin: Vec3, fwd: Vec3, maxDistance?: number): RaycastResult
+
+  /**
+   * Cast a ray from `origin` in direction `fwd` with optional debug visualization.
+   * When visualize is true, draws a line from origin to the hit point (or to maxDistance if no hit).
+   * Hit lines use hitColor (default 'red'), miss lines use missColor (default 'green').
+   * No-op in Play mode or when visualize gizmo mode is inactive.
+   * @param origin World-space ray origin [x, y, z].
+   * @param fwd World-space direction vector (will be normalized).
+   * @param maxDistance Maximum ray distance in metres.
+   * @param options Visualization options.
+   */
+  raycast(origin: Vec3, fwd: Vec3, maxDistance: number, options: { visualize: true; hitColor?: string; missColor?: string }): RaycastResult
+
+  /**
+   * Cast a ray from `origin` in direction `fwd` with optional debug visualization.
+   * @param origin World-space ray origin [x, y, z].
+   * @param fwd World-space direction vector (will be normalized).
+   * @param maxDistance Maximum ray distance in metres.
+   * @param options Visualization options; visualize defaults to false.
+   */
+  raycast(origin: Vec3, fwd: Vec3, maxDistance?: number, options?: { visualize?: boolean; hitColor?: string; missColor?: string }): RaycastResult
 }
 
 type SnackbarFn = (message: string, durationSeconds: number) => void
@@ -363,6 +390,17 @@ const VEC_API: TransformerVecApi = Object.freeze({
     const vel = requireVec3('TransformerRuntimeApi.vec.getForwardSpeed', 'velocity', velocity)
     const fwd = requireVec3('TransformerRuntimeApi.vec.getForwardSpeed', 'forward', forward)
     return getForwardSpeedUtil(vel, fwd)
+  },
+  projectOntoPlane: (vec: Vec3, planeNormal: Vec3): Vec3 => {
+    const v = requireVec3('TransformerRuntimeApi.vec.projectOntoPlane', 'vec', vec)
+    const n = requireVec3('TransformerRuntimeApi.vec.projectOntoPlane', 'planeNormal', planeNormal)
+    return projectVec3OntoPlane(v, n)
+  },
+  rotateAroundAxis: (vec: Vec3, axis: Vec3, angle: number): Vec3 => {
+    const v = requireVec3('TransformerRuntimeApi.vec.rotateAroundAxis', 'vec', vec)
+    const ax = requireVec3('TransformerRuntimeApi.vec.rotateAroundAxis', 'axis', axis)
+    const ang = requireFiniteNumber('TransformerRuntimeApi.vec.rotateAroundAxis', 'angle', angle)
+    return rotateVec3AroundAxis(v, ax, ang)
   },
 })
 
@@ -500,14 +538,35 @@ export const TRANSFORMER_RUNTIME_API: TransformerRuntimeApi = Object.freeze({
     const entity = _transformerRuntimeGetEntity?.(id)
     return entity ? wrapEntityForTransformerRuntime(entity) : undefined
   },
-  raycast: (origin: Vec3, fwd: Vec3, maxDistance?: number): RaycastResult => {
+  raycast: (origin: Vec3, fwd: Vec3, maxDistance?: number, options?: { visualize?: boolean; hitColor?: string; missColor?: string }): RaycastResult => {
     const NO_HIT: RaycastResult = { hit: false, distance: 0, entityId: '' }
     const o = requireVec3('TransformerRuntimeApi.raycast', 'origin', origin)
     const d = requireVec3('TransformerRuntimeApi.raycast', 'fwd', fwd)
     if (maxDistance !== undefined) {
       requireFiniteNumber('TransformerRuntimeApi.raycast', 'maxDistance', maxDistance)
     }
-    return _transformerRuntimeRaycast?.(o, d, maxDistance) ?? NO_HIT
+    const result = _transformerRuntimeRaycast?.(o, d, maxDistance) ?? NO_HIT
+
+    // Handle optional visualization
+    if (options?.visualize) {
+      const id = _customCodeVisualizeEntityId
+      if (id != null) {
+        const len = Math.hypot(d[0], d[1], d[2])
+        if (len > 0) {
+          const nx = d[0] / len
+          const ny = d[1] / len
+          const nz = d[2] / len
+          const distance = result.hit ? result.distance : (maxDistance ?? 100)
+          const endX = o[0] + nx * distance
+          const endY = o[1] + ny * distance
+          const endZ = o[2] + nz * distance
+          const color = result.hit ? (options.hitColor ?? 'red') : (options.missColor ?? 'green')
+          publishLineValue(id, [o[0], o[1], o[2]], [endX, endY, endZ], color)
+        }
+      }
+    }
+
+    return result
   },
 } satisfies TransformerRuntimeApi)
 
