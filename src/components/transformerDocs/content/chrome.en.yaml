@@ -1,0 +1,15 @@
+modalTitle: Custom transformer documentation
+searchPlaceholder: Search documentation…
+noResultsTemplate: 'No results for "{q}".'
+languageLabel: Language
+glossaryNote: >-
+  The first column lists English identifiers exactly as in code. Hover underlined terms in the text for
+  tooltips; this table repeats the full glossary.
+glossaryColTerm: Term (code / API)
+glossaryColExplanation: Explanation
+chapterTitles:
+  intro: Overview
+  glossary: Glossary
+  api-reference: API reference
+  recipes: Examples
+  troubleshooting: Troubleshooting

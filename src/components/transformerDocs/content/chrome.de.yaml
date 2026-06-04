@@ -1,0 +1,15 @@
+modalTitle: Transformer-Code — Dokumentation
+searchPlaceholder: Dokumentation durchsuchen…
+noResultsTemplate: 'Keine Treffer für „{q}".'
+languageLabel: Sprache
+glossaryNote: >-
+  Links stehen die englischen Begriffe aus dem Code. Rechts die Erklärung auf Deutsch. Unterstrichene Wörter im
+  Text zeigen beim Darüberfahren einen kurzen Hinweis.
+glossaryColTerm: Begriff im Code
+glossaryColExplanation: Erklärung
+chapterTitles:
+  intro: Überblick
+  glossary: Glossar
+  api-reference: API-Referenz
+  recipes: Beispiele
+  troubleshooting: Fehler beheben

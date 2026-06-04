@@ -13,6 +13,7 @@
     "test:perf": "RUN_PERF_BENCHMARKS=1 vitest run src/test/scenarios/performance-benchmarks.integration.test.ts",
     "test:build-fixtures": "tsx e2e/helpers/buildGiraffeFixture.ts",
     "test:e2e": "playwright test",
+    "generate:glossary-keys": "node scripts/generateGlossaryKeys.mjs",
     "deploy": "vite build && cp dist/index.html dist/404.html && npx gh-pages -d dist"
   },
   "dependencies": {
@@ -28,9 +29,13 @@
     "react": "^18.3.1",
     "react-colorful": "^5.6.1",
     "react-dom": "^18.3.1",
+    "react-markdown": "^10.1.0",
     "react-router-dom": "^7.0.1",
+    "rehype-raw": "^7.0.0",
+    "remark-gfm": "^4.0.1",
     "three": "^0.170.0",
-    "three-stdlib": "^2.36.1"
+    "three-stdlib": "^2.36.1",
+    "yaml": "^2.9.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
@@ -38,6 +43,7 @@
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
+    "@types/mdast": "^4.0.4",
     "@types/node": "^22.19.17",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",

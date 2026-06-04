@@ -1,6 +1,6 @@
 # Transformer API — low-level additions (hunt world)
 
-> **Status:** All items below are **implemented** in runtime, Monaco decls, and hunt-world `direction` / `AutoBrake`. Author-facing reference: in-app **TransformerDocs** → **API reference** (`src/components/transformerDocs/transformerApiReference.ts`).
+> **Status:** All items below are **implemented** in runtime, Monaco decls, and hunt-world `direction` / `AutoBrake`. Author-facing reference: in-app **TransformerDocs** → **API reference** (`transformerApiReference.ts`); prose chapters in `transformerDocs/content/{en,de}/*.md`.
 
 Analysis of the two driving custom transformers in `public/exampleWorlds/hunt/world.json`:
 

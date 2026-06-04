@@ -114,8 +114,9 @@ Working document to align on **what shipped**, **what is thin**, and **what to i
 
 ### In-app (`TransformerDocs`, EN/DE)
 
-- **Bundled API reference** chapter: `transform(...)` signature, `TransformInput` / `EnvironmentState` / `TransformTarget`, `TransformOutput`, `api.vec`, and top-level `api` with signatures + bilingual descriptions. Source: [`transformerApiReference.ts`](../src/components/transformerDocs/transformerApiReference.ts) + [`transformerDocsChapters.tsx`](../src/components/transformerDocs/transformerDocsChapters.tsx).
-- **Glossary** tooltips: [`glossary.ts`](../src/components/transformerDocs/glossary.ts) — English identifiers, DE/EN explanations aligned with the API tables.
+- **Bundled API reference** chapter: `transform(...)` signature, `TransformInput` / `EnvironmentState` / `TransformTarget`, `TransformOutput`, `api.vec`, and top-level `api` with signatures + bilingual descriptions. Source: [`transformerApiReference.ts`](../src/components/transformerDocs/transformerApiReference.ts).
+- **Prose chapters** (Overview, Examples, Troubleshooting): Markdown under [`transformerDocs/content/en`](../src/components/transformerDocs/content/en) and [`content/de`](../src/components/transformerDocs/content/de). Inline glossary links use `{{termKey|display}}`; rendered via `TransformerDocMarkdown.tsx`.
+- **Glossary** tooltips: [`content/glossary.yaml`](../src/components/transformerDocs/content/glossary.yaml) (loaded in [`glossary.ts`](../src/components/transformerDocs/glossary.ts)). After editing YAML keys, run `npm run generate:glossary-keys`.
 - Chapters: Overview → API reference → Glossary → Examples → Troubleshooting.
 
 ### Contributor follow-ups
@@ -160,7 +161,7 @@ function transform(
 }
 ```
 
-Linked in-app docs: **`TransformerDocs`** (toggle **EN** / **DE**, saved as `rennTransformerDocsLocale`) → **API reference** / **Examples** / **Glossary** — code identifiers stay English; DE/EN structure matches (`transformerDocs/glossary.ts`, `transformerApiReference.ts`).
+Linked in-app docs: **`TransformerDocs`** (toggle **EN** / **DE**, saved as `rennTransformerDocsLocale`) → **API reference** / **Examples** / **Glossary** — code identifiers stay English; DE/EN structure matches (`content/glossary.yaml`, `content/{en,de}/*.md`, `transformerApiReference.ts`).
 
 ---
 
