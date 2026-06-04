@@ -110,14 +110,19 @@ Working document to align on **what shipped**, **what is thin**, and **what to i
 
 ---
 
-## Documentation gaps (to shape together)
+## Documentation (in-app + agent-context)
 
-### API / contributor docs
+### In-app (`TransformerDocs`, EN/DE)
 
-- **Single consolidated reference** for custom transformer authoring: full `TransformInput` / `TransformOutput` field semantics, environment flags, **`api`** JSDoc parity with runtime (parameter meanings, units, when `supportVelocity` is set).
-- **Changelog-style note** for breaking changes: old bodies (bare `return` statements) wrapped automatically; new canonical format is a named `function transform(input, dt, params, state, api)` definition; legacy code still runs via auto-detection.
-- **Security / sandbox**: documented forbidden patterns in `compileCustomTransform` and why (`Function`, `eval`, etc.).
-- **Cross-link** from [feature-transformers.md](feature-transformers.md) “Custom code” section to this doc once API section is stable (avoid duplication drift).
+- **Bundled API reference** chapter: `transform(...)` signature, `TransformInput` / `EnvironmentState` / `TransformTarget`, `TransformOutput`, `api.vec`, and top-level `api` with signatures + bilingual descriptions. Source: [`transformerApiReference.ts`](../src/components/transformerDocs/transformerApiReference.ts) + [`transformerDocsChapters.tsx`](../src/components/transformerDocs/transformerDocsChapters.tsx).
+- **Glossary** tooltips: [`glossary.ts`](../src/components/transformerDocs/glossary.ts) — English identifiers, DE/EN explanations aligned with the API tables.
+- Chapters: Overview → API reference → Glossary → Examples → Troubleshooting.
+
+### Contributor follow-ups
+
+- **Changelog-style note** for breaking changes: old bodies (bare `return` statements) wrapped automatically; canonical format is `function transform(input, dt, params, state, api)`; legacy code still runs via auto-detection.
+- **Security / sandbox**: document forbidden patterns in `compileCustomTransform` and why (`Function`, `eval`, etc.) in troubleshooting if not already in UI.
+- Keep this file’s runtime table in sync when adding `api` methods; update `transformerApiReference.ts` in the same PR.
 
 ### User-facing docs
 
@@ -155,7 +160,7 @@ function transform(
 }
 ```
 
-Linked in-app docs: **`TransformerDocs`** (toggle **EN** / **DE**, saved as `rennTransformerDocsLocale`) → e.g. **Mini-Beispiele** / **Wörterbuch** — Codewörter bleiben Englisch; DE ist lockeres „Du“, einfache Sätze, kurze Tooltips (`transformerDocs/glossary.ts`).
+Linked in-app docs: **`TransformerDocs`** (toggle **EN** / **DE**, saved as `rennTransformerDocsLocale`) → **API reference** / **Examples** / **Glossary** — code identifiers stay English; DE/EN structure matches (`transformerDocs/glossary.ts`, `transformerApiReference.ts`).
 
 ---
 

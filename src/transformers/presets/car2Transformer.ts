@@ -175,7 +175,14 @@ export class CarTransformer2 extends BaseTransformer {
   private calculateWheelAngle(input: TransformInput): void {
     const steering_angle=this.getAction(input, 'steering_angle')
     if(steering_angle){
-      this.wheelAngle = clamp(steering_angle, -1,1);
+      //approach wheel angle
+      let targetAngle=clamp(steering_angle, -1, 1);
+      const angleDiff=targetAngle-this.wheelAngle;
+      const maxChange=this.params.steeringSpeed;
+        if(Math.abs(angleDiff)>maxChange){
+            targetAngle=this.wheelAngle+Math.sign(angleDiff)*maxChange;
+        }
+      this.wheelAngle = clamp(targetAngle, -1,1);
       return;
     }
 
