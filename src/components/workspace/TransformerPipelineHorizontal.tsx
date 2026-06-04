@@ -1,7 +1,6 @@
 import {
   Fragment,
   useCallback,
-  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -34,6 +33,9 @@ import {
   transformerConfigForConfigureDrawer,
 } from '@/transformers/transformerConfigureDrawer'
 import { allocateTransformerRegistryId } from '@/utils/commitTransformerConfigsToWorld'
+import {
+  isTransformerTraceBriefLineWider,
+} from './transformerTraceBriefMeasure'
 
 /** Pipeline geometry — shared so ports, shafts, and chevrons stay on one horizontal axis. */
 const PIPELINE_AXIS_Y = 7
@@ -371,6 +373,12 @@ function TransformerTraceItem({
   const [configOpen, setConfigOpen] = useState(false)
   const [isToolsExpanded, setIsToolsExpanded] = useState(true)
   const itemRef = useRef<HTMLDivElement>(null)
+  const traceFontRef = useRef('10px sans-serif')
+
+  const syncTraceFont = useCallback(() => {
+    if (!itemRef.current) return
+    traceFontRef.current = getComputedStyle(itemRef.current).font
+  }, [])
 
   const rowLabel =
     transformer.type === 'custom' ? labelCustomTransformer(transformer, stackIndex) : String(transformer.type)
@@ -402,21 +410,37 @@ function TransformerTraceItem({
     ? summarizeTransformerTraceOutputBrief(transformer.type, step)
     : '(none)'
 
-  // Cache the maximum size string to ensure a consistent card size and prevent flickering.
+  // Cache the widest seen trace strings (by rendered px, not char count) to keep card width stable.
+  const maxInBriefRef = useRef(traceInputBrief)
+  const maxOutBriefRef = useRef(traceOutputBrief)
   const [maxInBrief, setMaxInBrief] = useState(traceInputBrief)
   const [maxOutBrief, setMaxOutBrief] = useState(traceOutputBrief)
 
-  // Optimize: only update max strings if they actually grow, avoiding state updates on every frame.
-  useEffect(() => {
-    setMaxInBrief((prev) => (traceInputBrief.length > prev.length ? traceInputBrief : prev))
-  }, [traceInputBrief])
+  // Measure before paint so live trace updates do not flash a narrower-then-wider card.
+  useLayoutEffect(() => {
+    syncTraceFont()
+    const font = traceFontRef.current
+    const prev = maxInBriefRef.current
+    if (isTransformerTraceBriefLineWider('IN', traceInputBrief, prev, font)) {
+      maxInBriefRef.current = traceInputBrief
+      setMaxInBrief(traceInputBrief)
+    }
+  }, [syncTraceFont, traceInputBrief])
 
-  useEffect(() => {
-    setMaxOutBrief((prev) => (traceOutputBrief.length > prev.length ? traceOutputBrief : prev))
-  }, [traceOutputBrief])
+  useLayoutEffect(() => {
+    syncTraceFont()
+    const font = traceFontRef.current
+    const prev = maxOutBriefRef.current
+    if (isTransformerTraceBriefLineWider('OUT', traceOutputBrief, prev, font)) {
+      maxOutBriefRef.current = traceOutputBrief
+      setMaxOutBrief(traceOutputBrief)
+    }
+  }, [syncTraceFont, traceOutputBrief])
 
   // Reset max strings if the transformer type changes (e.g. from preset to custom)
-  useEffect(() => {
+  useLayoutEffect(() => {
+    maxInBriefRef.current = traceInputBrief
+    maxOutBriefRef.current = traceOutputBrief
     setMaxInBrief(traceInputBrief)
     setMaxOutBrief(traceOutputBrief)
   }, [transformer.type])
