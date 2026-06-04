@@ -56,7 +56,7 @@
   "transformers": {
     "car_tf0": {
       "type": "input",
-      "priority": 2,
+      "priority": 3,
       "enabled": true,
       "inputMapping": {
         "keyboard": {
@@ -73,19 +73,19 @@
     },
     "car_tf1": {
       "type": "car2",
-      "priority": 7,
+      "priority": 9,
       "enabled": true,
       "params": {
         "power": 400,
         "steeringIntensity": 0.1,
-        "steeringSpeed": 0.05,
-        "lateralGrip": 100,
-        "jumpImpulse": 2000
+        "steeringSpeed": 0.2,
+        "lateralGrip": 25,
+        "jumpImpulse": 4000
       }
     },
     "car_tf2": {
       "type": "custom",
-      "priority": 1,
+      "priority": 2,
       "enabled": true,
       "params": {},
       "name": "TargetVisualizer",
@@ -93,19 +93,19 @@
     },
     "car_tf4": {
       "type": "custom",
-      "priority": 4,
+      "priority": 5,
       "enabled": true,
       "params": {},
       "name": "direction",
-      "code": "var driveAway = {\n  isOn: function () { return this.lastTriggerDate + 300 > Date.now(); },\n  trigger: function () { this.lastTriggerDate = Date.now(); },\n  lastTriggerDate: new Date(0)\n}\n\nvar backOff = {\n  isOn: function () { return this.lastTriggerDate + 700 > Date.now(); },\n  trigger: function (direction) { this.lastTriggerDate = Date.now(); this.direction = direction },\n  lastTriggerDate: new Date(0),\n  direction: 0\n}\n\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  if (api.getAction(input, 'steer_left') || api.getAction(input, 'steer_right' || api.getAction(input, 'throttle') || api.getAction(input, 'brake'))) return;\n\n  let forward = api.getForwardVector(input.rotation);\n  let targetPos = input.target.pose.position;\n  let inputToTarget = api.vec.subtract(targetPos, input.position);\n  const distance = api.vec.length(inputToTarget);\n\n  const up = api.getUpVector(input.rotation);\n  forward = api.vec.normalize(api.vec.projectOntoPlane(forward, up));\n  inputToTarget = api.vec.normalize(api.vec.projectOntoPlane(inputToTarget, up));\n\n  const angle = api.vec.angleBetween(forward, inputToTarget);\n  const signedSteer = api.vec.signedAngleAroundAxis(forward, inputToTarget, up);\n  if (Math.abs(signedSteer) >= 0.001) {\n    input.actions.steering_angle = signedSteer;\n  }\n\n  const maxSpeed = 120;\n  const approachspeed = 3;\n  const approachDist = 10;\n  const turnSpeed = 20;\n  let targetSpeed = 80;\n\n  if (distance < approachDist) targetSpeed = approachspeed;\n  if (Math.abs(angle) > 1) targetSpeed = turnSpeed;\n  if (targetSpeed > maxSpeed) targetSpeed = maxSpeed;\n\n  let currentSpeed = api.vec.length(input.velocity);\n\n  if (backOff.isOn()) {\n    input.actions.brake = 0.5;\n    input.actions.throttle = 0;\n    input.actions.steering_angle = -backOff.direction*5;\n    return;\n  } else {\n    const front = api.vec.offsetAlong(input.position, forward, 5);\n    if (api.raycastSpread(front, forward, 1, 2, 10).hit === true) {\n      let direction = -input.actions.steering_angle;\n      backOff.trigger(direction*5);\n      api.log(\"BACKOFF \" + direction);\n    }\n  }\n  if (targetSpeed > currentSpeed) input.actions.throttle = 1;\n}"
+      "code": "var driveAway = {\n  isOn: function () { return this.lastTriggerDate + 300 > Date.now(); },\n  trigger: function () { this.lastTriggerDate = Date.now(); },\n  lastTriggerDate: new Date(0)\n}\n\nvar backOff = {\n  isOn: function () { return this.lastTriggerDate + 700 > Date.now(); },\n  trigger: function (direction) { this.lastTriggerDate = Date.now(); this.direction = direction },\n  lastTriggerDate: new Date(0),\n  direction: 0\n}\n\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  if (api.getAction(input, 'steer_left') || api.getAction(input, 'steer_right' || api.getAction(input, 'throttle') || api.getAction(input, 'brake'))) return;\n\n  let forward = api.getForwardVector(input.rotation);\n  let targetPos = input.target.pose.position;\n  let inputToTarget = api.vec.subtract(targetPos, input.position);\n  const distance = api.vec.length(inputToTarget);\n\n  const up = api.getUpVector(input.rotation);\n  forward = api.vec.normalize(api.vec.projectOntoPlane(forward, up));\n  inputToTarget = api.vec.normalize(api.vec.projectOntoPlane(inputToTarget, up));\n\n  const angle = api.vec.angleBetween(forward, inputToTarget);\n  const signedSteer = api.vec.signedAngleAroundAxis(forward, inputToTarget, up);\n  if (Math.abs(signedSteer) >= 0.001) {\n    input.actions.steering_angle = signedSteer;\n  }\n\n  const maxSpeed = 90;\n  const approachspeed = 10;\n  const approachDist = 30;\n  const turnSpeed = 20;\n  let targetSpeed = 60;\n\n  if (distance < approachDist) targetSpeed = approachspeed;\n  if (Math.abs(angle) > 1) targetSpeed = turnSpeed;\n  if (targetSpeed > maxSpeed) targetSpeed = maxSpeed;\n\n  let currentSpeed = api.vec.length(input.velocity);\n\n  if (backOff.isOn()) {\n    input.actions.brake = 0.5;\n    input.actions.throttle = 0;\n    input.actions.steering_angle = backOff.direction*5;\n    return;\n  } else {\n    const front = api.vec.offsetAlong(input.position, forward, 5);\n    if (api.raycastSpread(front, forward, 1, 2, 10).hit === true) {\n      let direction = -input.actions.steering_angle;\n      backOff.trigger(direction*5);\n      //api.log(\"BACKOFF \" + direction);\n    }\n  }\n  if (targetSpeed > currentSpeed) input.actions.throttle = 1;\n}"
     },
     "car_tf1_copy": {
       "type": "custom",
-      "priority": 6,
+      "priority": 7,
       "enabled": true,
       "params": {},
-      "code": "/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  let forward = api.getForwardVector(input.rotation);\n  let backward = api.vec.scale(forward, -1);\n  let speed = api.vec.getForwardSpeed(input.velocity, forward);\n  let frontPosition = api.vec.offsetAlong(input.position, forward, 5);\n  let backdPosition = api.vec.offsetAlong(input.position, backward, 5);\n  if (speed > 0) {\n    let castResult = api.raycastSpread(frontPosition, forward, speed * speed / 300, 2, 8, { visualize: true });\n    if (castResult.hit === true) {\n      if (speed > 0.1) {\n        let breakSpeed = 1 / (castResult.distance + 1) * ((speed * speed) / 200);\n        if (breakSpeed > 1) breakSpeed = 1;\n        input.actions.brake = breakSpeed;\n        input.actions.throttle = 0;\n      }\n    }\n  } else {\n    let castResult = api.raycastSpread(backdPosition, backward, speed * speed / 300, 2, 8, { visualize: true });\n    if (castResult.hit === true) {\n      if (speed < -0.1) {\n        let breakSpeed = 1 / (castResult.distance + 1) * ((speed * speed) / 200);\n        if (breakSpeed > 1) breakSpeed = 1;\n        input.actions.brake = 0;\n        input.actions.throttle = breakSpeed;\n      }\n    }\n  }\n  return {};\n}",
-      "name": "AutoBrake"
+      "name": "AutoBrake",
+      "code": "/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  let forward = api.getForwardVector(input.rotation);\n  let backward = api.vec.scale(forward, -1);\n  let speed = api.vec.getForwardSpeed(input.velocity, forward);\n  let frontPosition = api.vec.offsetAlong(input.position, forward, 5);\n  let backdPosition = api.vec.offsetAlong(input.position, backward, 5);\n  if (speed > 0) {\n    let castResult = api.raycastSpread(frontPosition, forward, speed * speed / 300, 2, 8, { visualize: false });\n    if (castResult.hit === true) {\n      if (speed > 0.1) {\n        let breakSpeed = 1 / (castResult.distance + 1) * ((speed * speed) / 200);\n        if (breakSpeed > 1) breakSpeed = 1;\n        input.actions.brake = breakSpeed;\n        input.actions.throttle = 0;\n      }\n    }\n  } else {\n    let castResult = api.raycastSpread(backdPosition, backward, speed * speed / 300, 2, 8, { visualize: false });\n    if (castResult.hit === true) {\n      if (speed < -0.1) {\n        let breakSpeed = 1 / (castResult.distance + 1) * ((speed * speed) / 200);\n        if (breakSpeed > 1) breakSpeed = 1;\n        input.actions.brake = 0;\n        input.actions.throttle = breakSpeed;\n      }\n    }\n  }\n  return {};\n}"
     },
     "entity_1779436130802_84f1o69_tf0": {
       "type": "custom",
@@ -117,29 +117,29 @@
     },
     "car_tf5": {
       "type": "custom",
-      "priority": 3,
+      "priority": 4,
       "enabled": true,
       "params": {},
       "name": "Umlenker",
-      "code": "\nvar manouver = {\n  isOn: function () { return this.expires > Date.now(); },\n  trigger: function (vector) { this.expires = Date.now() + 900; this.vector = vector; },\n  expires: 0,\n  vector: undefined\n\n}\n\n/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  let distanceFromTarget = api.vec.length( api.vec.subtract(input.position, input.target.pose.position));\n  let forward = api.getForwardVector(input.rotation);\n  let frontPosition = api.vec.offsetAlong(input.position, forward, 5);\n\n  if (manouver.isOn()) {\n    input.target.pose.position = manouver.vector;\n    return;\n  }\n  if (api.raycastSpread(frontPosition, forward, distanceFromTarget/5, 2, 10).hit) {\n    let corr = findCorrectionVector(api, frontPosition, forward, 30, input.rotation);\n    if (corr) {\n      input.target.pose.position = corr;\n      manouver.trigger(corr);\n    }\n  }\n\n\n\n  return {};\n}\n\n\n\n\n/** @returns {Vec3 | undefined} */\nfunction findCorrectionVector(  /** @type {TransformerRuntimeApi} */ api,\n  /** @type {Vec3} */  origin,\n  /** @type {Vec3} */ rotation,\n  /** @type {number} */ distance,\n  /** @type {Rotation} */ entityRotation) {\n  const up = api.getUpVector(entityRotation);\n  let rightRotation = api.vec.rotateAroundAxis(rotation, up, 0.3);\n  let leftRotation = api.vec.rotateAroundAxis(rotation, up, -0.3);\n\n  let rightResult = api.raycast(origin, rightRotation, distance, { visualize: true });\n  let leftResult = api.raycast(origin, leftRotation, distance, { visualize: true });\n  let resultRotation = undefined;\n  if (rightResult.hit && leftResult.hit) resultRotation = leftResult.distance > rightResult.distance ? leftRotation : rightRotation;\n  else if (!rightResult.hit) resultRotation = rightRotation;\n  else resultRotation = leftRotation;\n\n  return api.vec.add(origin, api.vec.scale(api.vec.normalize(resultRotation), distance));\n\n\n}\n\n\n\n\n"
+      "code": "/**\n * @typedef {Object} Vec3\n * @property {number} x - X-Koordinate.\n * @property {number} y - Y-Koordinate.\n * @property {number} z - Z-Koordinate.\n */\n\n/**\n * @typedef {Object} Rotation\n * @property {number} x - Rotation um die X-Achse.\n * @property {number} y - Rotation um die Y-Achse.\n * @property {number} z - Rotation um die Z-Achse.\n */\n\n/**\n * @typedef {Object} RaycastResult\n * @property {boolean} hit - Ob der Raycast etwas getroffen hat.\n * @property {number} distance - Distanz zum getroffenen Objekt.\n */\n\n/**\n * @typedef {Object} Maneuver\n * @property {() => boolean} isOn - Prüft, ob das Manöver aktiv ist.\n * @property {(vector: Vec3) => void} trigger - Aktiviert das Manöver für 400ms.\n * @property {number} expires - Zeitstempel, bis wann das Manöver aktiv ist.\n * @property {Vec3|undefined} vector - Zielposition des Manövers.\n */\n\nvar maneuver = {\n  isOn: function () { return this.expires > Date.now(); },\n  trigger: function (vector) { this.expires = Date.now() + 400; this.vector = vector; },\n  expires: 0,\n  vector: undefined\n};\n\n/** @returns {number} 0 = calm, 1 = full evasion */\nfunction obstacleUrgency(closest) {\n  var CRITICAL = 5;\n  var CALM = 20;\n  if (closest >= CALM) return 0;\n  if (closest <= CRITICAL) return 1;\n  return 1 - (closest - CRITICAL) / (CALM - CRITICAL);\n}\n\n/**\n * @typedef {Object} TransformInput\n * @property {Vec3} position - Aktuelle Position der Entität.\n * @property {Object} target\n * @property {Object} target.pose\n * @property {Vec3} target.pose.position - Zielposition.\n * @property {Rotation} rotation - Aktuelle Rotation der Entität.\n */\n\n/**\n * @typedef {Object} TransformOutput\n * @property {Vec3} [position] - (Optional) Neue Zielposition.\n */\n\n/**\n * @typedef {Object} TransformerRuntimeApi\n * @property {Object} vec - Vektor-Utilities.\n * @property {(rotation: Rotation) => Vec3} getForwardVector\n * @property {(rotation: Rotation) => Vec3} getUpVector\n * @property {(origin: Vec3, direction: Vec3, distance: number, options?: Object) => RaycastResult} raycast\n * @property {(origin: Vec3, direction: Vec3, distance: number, spread: number, count: number, options?: Object) => RaycastResult} raycastSpread\n */\n\n/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  var targetVector = api.vec.subtract(input.target.pose.position, input.position);\n  var distanceFromTarget = api.vec.length(targetVector);\n  var forward = api.getForwardVector(input.rotation);\n  var frontPosition = api.vec.offsetAlong(input.position, forward, 5);\n\n  if (maneuver.isOn()) {\n    input.target.pose.position = maneuver.vector;\n    return;\n  }\n\n  var lookahead = distanceFromTarget;\n  if (lookahead < 10) lookahead = 10;\n\n  var frontHit = api.raycastSpread(\n    frontPosition, forward, lookahead, 2, 10,\n    { visualize: false, hitColor: 'pink', missColor: 'gray' }\n  );\n\n  if (!frontHit.hit) return {};\n\n  var closestObstacle = frontHit.distance;\n  var corr = findCorrectionVector(\n    api, frontPosition, forward, lookahead, input.rotation, targetVector, closestObstacle\n  );\n\n  if (corr) {\n    input.target.pose.position = corr;\n    maneuver.trigger(corr);\n  }\n\n  return {};\n}\n\n/**\n * @param {TransformerRuntimeApi} api\n * @param {Vec3} origin\n * @param {Vec3} forward\n * @param {number} distance\n * @param {Rotation} entityRotation\n * @param {Vec3} targetVector\n * @param {number} closestObstacle\n * @returns {Vec3 | undefined}\n */\nfunction findCorrectionVector(\n  /** @type {TransformerRuntimeApi} */ api,\n  /** @type {Vec3} */ origin,\n  /** @type {Vec3} */ forward,\n  /** @type {number} */ distance,\n  /** @type {Rotation} */ entityRotation,\n  /** @type {Vec3} */ targetVector,\n  /** @type {number} */ closestObstacle,\n) {\n  var up = api.getUpVector(entityRotation);\n  var targetDist = api.vec.length(targetVector);\n  var farBlend = Math.min(1, Math.max(0, (targetDist - 8) / 32));\n  var urgency = obstacleUrgency(closestObstacle);\n\n  var flatToTarget = api.vec.normalize(\n    api.vec.projectOntoPlane(targetVector, up)\n  );\n\n  var spread = 1 + urgency * 1.5;\n  var steps = 40;\n  var results = [];\n\n  for (var i = 0; i <= steps; i++) {\n    var angle = -spread + (2 * spread * i) / steps;\n    var result = evaluateVector(api, origin, forward, up, distance, angle);\n\n    var flatDir = api.vec.normalize(\n      api.vec.projectOntoPlane(result.rotation, up)\n    );\n    var deviation = api.vec.angleBetween(flatDir, flatToTarget);\n\n    var clearance = result.raycast.hit\n      ? result.raycast.distance / distance\n      : 1;\n\n    var alignment = 1 - deviation / Math.PI;\n    var turnSharpness = Math.abs(angle) / spread;\n\n    var wClear = 1 - farBlend * (1 - urgency);\n    var wAlign = farBlend * (1 - urgency);\n\n    var score;\n\n    if (urgency >= 1) {\n      score = clearance;\n      if (!result.raycast.hit) score += 1;\n      score += turnSharpness * 0.5;\n      if (Math.abs(angle) < spread * 0.35) score -= 1;\n    } else {\n      score = wClear * clearance + wAlign * alignment;\n      if (!result.raycast.hit) score += 0.5;\n      score += urgency * turnSharpness * 0.4;\n      if (urgency > 0.85 && Math.abs(angle) < spread * 0.35) score -= 1;\n    }\n\n    result.angle = angle;\n    result.score = score;\n    results.push(result);\n  }\n\n  results.sort(function (a, b) { return b.score - a.score; });\n  var best = results[0];\n\n  var pushDist = distance * (1 - urgency * 0.5) + urgency * 8;\n\n  return api.vec.add(\n    origin,\n    api.vec.scale(api.vec.normalize(best.rotation), pushDist)\n  );\n}\n\n/**\n * @typedef {Object} EvaluateVectorResult\n * @property {Vec3} rotation\n * @property {RaycastResult} raycast\n * @property {number} [score]\n * @property {number} [angle]\n */\n\n/**\n * @param {TransformerRuntimeApi} api\n * @param {Vec3} origin\n * @param {Vec3} forward\n * @param {Vec3} up\n * @param {number} distance\n * @param {number} angle\n * @returns {EvaluateVectorResult}\n */\nfunction evaluateVector(\n  /** @type {TransformerRuntimeApi} */ api,\n  /** @type {Vec3} */ origin,\n  /** @type {Vec3} */ forward,\n  /** @type {Vec3} */ up,\n  /** @type {number} */ distance,\n  /** @type {number} */ angle,\n) {\n  var direction = api.vec.rotateAroundAxis(forward, up, angle);\n\n  return {\n    rotation: direction,\n    raycast: api.raycastSpread(\n      origin, direction, distance, 2, 10,\n      { visualize: false, hitColor: 'orange', missColor: 'yellow' }\n    )\n  };\n}"
     },
     "Umlenker2": {
       "type": "custom",
-      "priority": 5,
+      "priority": 6,
       "enabled": true,
       "params": {},
       "name": "vis2",
-      "code": "\n\n/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  api.visualizeLine(input.position, input.target.pose.position, \"teal\");\n\n\n\n  return {};\n}\n\n\n"
+      "code": "\n\n/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  api.visualizeLine(input.position, input.target.pose.position, \"teal\");\n\n\n  return {};\n}\n\n\n"
     },
     "entity_1779823253285_brtkx1p_tf0": {
       "type": "wanderer",
-      "priority": 0,
+      "priority": 1,
       "enabled": true,
       "params": {
         "speed": 2,
-        "jumpDistance": 300,
+        "jumpDistance": 900,
         "linear": true,
-        "angular": true,
+        "angular": false,
         "perimeter": {
           "center": [
             0,
@@ -147,12 +147,12 @@
             0
           ],
           "halfExtents": [
-            200,
+            370,
             0,
-            200
+            370
           ]
         },
-        "positionEpsilon": 50,
+        "positionEpsilon": 30,
         "rotationEpsilon": 20
       }
     },
@@ -164,7 +164,52 @@
         "id": "entity_1779823253285_brtkx1p"
       },
       "name": "Target",
-      "code": "/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  //your code goes here\n  let position = api.getWorldPosition(params.id);\n  input.target = {pose:{position:position}}\n  return {  };\n}"
+      "code": "/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  let position = api.getWorldPosition(params.id);\n  input.target = { pose: { position } };\n  return {};\n}"
+    },
+    "entity_1779823253285_brtkx1p_tf1": {
+      "type": "targetPoseInput",
+      "priority": 0,
+      "enabled": true,
+      "params": {
+        "speed": 2,
+        "mode": "cycle",
+        "positionEpsilon": 0.05,
+        "rotationEpsilon": 0.08,
+        "poses": [
+          {
+            "position": [
+              0,
+              0,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ]
+          },
+          {
+            "position": [
+              3,
+              0,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ]
+          }
+        ]
+      }
+    },
+    "entity_1779823253285_brtkx1p_tf2": {
+      "type": "custom",
+      "priority": 7,
+      "enabled": true,
+      "params": {},
+      "name": "damp",
+      "code": "var current =0;\nvar speed = 0;\n\n\nfunction transform(input, dt, params, state, api) {\n  var SMOOTH_TIME = 0.08; // seconds; lower = snappier\n  var targetAngle = api.clamp(api.getAction(input, 'steering_angle'), -1, 1);\n  var current = typeof state.steering === 'number' ? state.steering : 0;\n\n  var alpha = 1 - Math.exp(-dt / SMOOTH_TIME);\n  var outputAngle = api.clamp(current + alpha * (targetAngle - current), -1, 1);\n\n  state.steering = outputAngle;\n  input.actions.steering_angle = outputAngle;\n  return {};\n}"
     }
   },
   "assets": {
@@ -248,6 +293,7 @@
         "car_tf4",
         "Umlenker2",
         "car_tf1_copy",
+        "entity_1779823253285_brtkx1p_tf2",
         "car_tf1"
       ],
       "angularDamping": 0.3,
@@ -2125,13 +2171,11 @@
       "restitution": 0.1,
       "friction": 0.01,
       "transformers": [
+        "entity_1779823253285_brtkx1p_tf1",
         "entity_1779823253285_brtkx1p_tf0",
-        "car_tf2",
         "car_tf0",
-        "car_tf5",
         "car_tf4",
-        "Umlenker2",
-        "car_tf1_copy",
+        "entity_1779823253285_brtkx1p_tf2",
         "car_tf1"
       ],
       "angularDamping": 0.3,
@@ -9359,15 +9403,26 @@
         "car_tf2",
         "car_tf0",
         "car_tf5",
-        "Umlenker2",
         "car_tf4",
+        "Umlenker2",
         "car_tf1_copy",
+        "entity_1779823253285_brtkx1p_tf2",
         "car_tf1"
       ],
       "stages": [
         {
           "type": "custom",
-          "priority": 1,
+          "priority": 0,
+          "enabled": true,
+          "params": {
+            "id": "entity_1779823253285_brtkx1p"
+          },
+          "name": "Target",
+          "code": "/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  let position = api.getWorldPosition(params.id);\n  input.target = { pose: { position } };\n  return {};\n}"
+        },
+        {
+          "type": "custom",
+          "priority": 2,
           "enabled": true,
           "params": {},
           "name": "TargetVisualizer",
@@ -9375,7 +9430,7 @@
         },
         {
           "type": "input",
-          "priority": 2,
+          "priority": 3,
           "enabled": true,
           "inputMapping": {
             "keyboard": {
@@ -9392,46 +9447,54 @@
         },
         {
           "type": "custom",
-          "priority": 3,
+          "priority": 4,
           "enabled": true,
           "params": {},
           "name": "Umlenker",
-          "code": "\nvar manouver = {\n  isOn: function () { return this.expires > Date.now(); },\n  trigger: function (vector) { this.expires = Date.now() + 2000; this.vector = vector; },\n  expires: 0,\n  vector: undefined\n\n}\n\n/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  //your code goes here\n  let forward = api.getForwardVector(input.rotation);\n  let frontPosition = api.vec.offsetAlong(input.position, forward, 5);\n\n  if (manouver.isOn()) {\n    input.target.pose.position = manouver.vector;\n    return;\n  }\n  if (api.raycastSpread(frontPosition, forward, 30, 2, 10).hit) {\n    let corr = findCorrectionVector(api, frontPosition, forward, 30, input.rotation);\n    if (corr) {\n      input.target.pose.position = corr;\n      manouver.trigger(corr);\n    }\n  }\n\n\n\n  return {};\n}\n\n\n\n\n/** @returns {Vec3 | undefined} */\nfunction findCorrectionVector(  /** @type {TransformerRuntimeApi} */ api,\n  /** @type {Vec3} */  origin,\n  /** @type {Vec3} */ rotation,\n  /** @type {number} */ distance,\n  /** @type {Rotation} */ entityRotation) {\n  const up = api.getUpVector(entityRotation);\n  let rightRotation = api.vec.rotateAroundAxis(rotation, up, 0.3);\n  let leftRotation = api.vec.rotateAroundAxis(rotation, up, -0.3);\n\n  let rightResult = api.raycast(origin, rightRotation, distance, { visualize: true });\n  let leftResult = api.raycast(origin, leftRotation, distance, { visualize: true });\n  let resultRotation = undefined;\n  if (rightResult.hit && leftResult.hit) resultRotation = leftResult.distance > rightResult.distance ? leftRotation : rightRotation;\n  else if (!rightResult.hit) resultRotation = rightRotation;\n  else resultRotation = leftRotation;\n\n  return api.vec.add(origin, api.vec.scale(api.vec.normalize(resultRotation), distance));\n\n\n}\n\n\n\n\n"
-        },
-        {
-          "type": "custom",
-          "priority": 4,
-          "enabled": false,
-          "params": {},
-          "name": "vis2",
-          "code": "\n\n/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  api.visualizeLine(input.position, input.target.pose.position, \"teal\");\n\n\n\n  return {};\n}\n\n\n"
-        },
-        {
-          "type": "custom",
-          "priority": 4,
-          "enabled": true,
-          "params": {},
-          "name": "direction",
-          "code": "var driveAway = {\n  isOn: function () { return this.lastTriggerDate + 300 > Date.now(); },\n  trigger: function () { this.lastTriggerDate = Date.now(); },\n  lastTriggerDate: new Date(0)\n}\n\nvar backOff = {\n  isOn: function () { return this.lastTriggerDate + 700 > Date.now(); },\n  trigger: function (direction) { this.lastTriggerDate = Date.now(); this.direction = direction },\n  lastTriggerDate: new Date(0),\n  direction: 0\n}\n\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  if (api.getAction(input, 'steer_left') || api.getAction(input, 'steer_right' || api.getAction(input, 'throttle') || api.getAction(input, 'brake'))) return;\n\n  let forward = api.getForwardVector(input.rotation);\n  let targetPos = input.target.pose.position;\n  let inputToTarget = api.vec.subtract(targetPos, input.position);\n  const distance = api.vec.length(inputToTarget);\n\n  const up = api.getUpVector(input.rotation);\n  forward = api.vec.normalize(api.vec.projectOntoPlane(forward, up));\n  inputToTarget = api.vec.normalize(api.vec.projectOntoPlane(inputToTarget, up));\n\n  const angle = api.vec.angleBetween(forward, inputToTarget);\n  const signedSteer = api.vec.signedAngleAroundAxis(forward, inputToTarget, up);\n  if (Math.abs(signedSteer) >= 0.001) {\n    input.actions.steering_angle = signedSteer;\n  }\n\n  const maxSpeed = 120;\n  const approachspeed = 3;\n  const approachDist = 10;\n  const turnSpeed = 20;\n  let targetSpeed = 80;\n\n  if (distance < approachDist) targetSpeed = approachspeed;\n  if (Math.abs(angle) > 1) targetSpeed = turnSpeed;\n  if (targetSpeed > maxSpeed) targetSpeed = maxSpeed;\n\n  let currentSpeed = api.vec.length(input.velocity);\n\n  if (backOff.isOn()) {\n    input.actions.brake = 0.5;\n    input.actions.throttle = 0;\n    input.actions.steering_angle = -backOff.direction*5;\n    return;\n  } else {\n    const front = api.vec.offsetAlong(input.position, forward, 5);\n    if (api.raycastSpread(front, forward, 1, 2, 10).hit === true) {\n      let direction = -input.actions.steering_angle;\n      backOff.trigger(direction*5);\n      api.log(\"BACKOFF \" + direction);\n    }\n  }\n  if (targetSpeed > currentSpeed) input.actions.throttle = 1;\n}"
+          "code": "/**\n * @typedef {Object} Vec3\n * @property {number} x - X-Koordinate.\n * @property {number} y - Y-Koordinate.\n * @property {number} z - Z-Koordinate.\n */\n\n/**\n * @typedef {Object} Rotation\n * @property {number} x - Rotation um die X-Achse.\n * @property {number} y - Rotation um die Y-Achse.\n * @property {number} z - Rotation um die Z-Achse.\n */\n\n/**\n * @typedef {Object} RaycastResult\n * @property {boolean} hit - Ob der Raycast etwas getroffen hat.\n * @property {number} distance - Distanz zum getroffenen Objekt.\n */\n\n/**\n * @typedef {Object} Maneuver\n * @property {() => boolean} isOn - Prüft, ob das Manöver aktiv ist.\n * @property {(vector: Vec3) => void} trigger - Aktiviert das Manöver für 400ms.\n * @property {number} expires - Zeitstempel, bis wann das Manöver aktiv ist.\n * @property {Vec3|undefined} vector - Zielposition des Manövers.\n */\n\nvar maneuver = {\n  isOn: function () { return this.expires > Date.now(); },\n  trigger: function (vector) { this.expires = Date.now() + 400; this.vector = vector; },\n  expires: 0,\n  vector: undefined\n};\n\n/** @returns {number} 0 = calm, 1 = full evasion */\nfunction obstacleUrgency(closest) {\n  var CRITICAL = 5;\n  var CALM = 20;\n  if (closest >= CALM) return 0;\n  if (closest <= CRITICAL) return 1;\n  return 1 - (closest - CRITICAL) / (CALM - CRITICAL);\n}\n\n/**\n * @typedef {Object} TransformInput\n * @property {Vec3} position - Aktuelle Position der Entität.\n * @property {Object} target\n * @property {Object} target.pose\n * @property {Vec3} target.pose.position - Zielposition.\n * @property {Rotation} rotation - Aktuelle Rotation der Entität.\n */\n\n/**\n * @typedef {Object} TransformOutput\n * @property {Vec3} [position] - (Optional) Neue Zielposition.\n */\n\n/**\n * @typedef {Object} TransformerRuntimeApi\n * @property {Object} vec - Vektor-Utilities.\n * @property {(rotation: Rotation) => Vec3} getForwardVector\n * @property {(rotation: Rotation) => Vec3} getUpVector\n * @property {(origin: Vec3, direction: Vec3, distance: number, options?: Object) => RaycastResult} raycast\n * @property {(origin: Vec3, direction: Vec3, distance: number, spread: number, count: number, options?: Object) => RaycastResult} raycastSpread\n */\n\n/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  var targetVector = api.vec.subtract(input.target.pose.position, input.position);\n  var distanceFromTarget = api.vec.length(targetVector);\n  var forward = api.getForwardVector(input.rotation);\n  var frontPosition = api.vec.offsetAlong(input.position, forward, 5);\n\n  if (maneuver.isOn()) {\n    input.target.pose.position = maneuver.vector;\n    return;\n  }\n\n  var lookahead = distanceFromTarget;\n  if (lookahead < 10) lookahead = 10;\n\n  var frontHit = api.raycastSpread(\n    frontPosition, forward, lookahead, 2, 10,\n    { visualize: false, hitColor: 'pink', missColor: 'gray' }\n  );\n\n  if (!frontHit.hit) return {};\n\n  var closestObstacle = frontHit.distance;\n  var corr = findCorrectionVector(\n    api, frontPosition, forward, lookahead, input.rotation, targetVector, closestObstacle\n  );\n\n  if (corr) {\n    input.target.pose.position = corr;\n    maneuver.trigger(corr);\n  }\n\n  return {};\n}\n\n/**\n * @param {TransformerRuntimeApi} api\n * @param {Vec3} origin\n * @param {Vec3} forward\n * @param {number} distance\n * @param {Rotation} entityRotation\n * @param {Vec3} targetVector\n * @param {number} closestObstacle\n * @returns {Vec3 | undefined}\n */\nfunction findCorrectionVector(\n  /** @type {TransformerRuntimeApi} */ api,\n  /** @type {Vec3} */ origin,\n  /** @type {Vec3} */ forward,\n  /** @type {number} */ distance,\n  /** @type {Rotation} */ entityRotation,\n  /** @type {Vec3} */ targetVector,\n  /** @type {number} */ closestObstacle,\n) {\n  var up = api.getUpVector(entityRotation);\n  var targetDist = api.vec.length(targetVector);\n  var farBlend = Math.min(1, Math.max(0, (targetDist - 8) / 32));\n  var urgency = obstacleUrgency(closestObstacle);\n\n  var flatToTarget = api.vec.normalize(\n    api.vec.projectOntoPlane(targetVector, up)\n  );\n\n  var spread = 1 + urgency * 1.5;\n  var steps = 40;\n  var results = [];\n\n  for (var i = 0; i <= steps; i++) {\n    var angle = -spread + (2 * spread * i) / steps;\n    var result = evaluateVector(api, origin, forward, up, distance, angle);\n\n    var flatDir = api.vec.normalize(\n      api.vec.projectOntoPlane(result.rotation, up)\n    );\n    var deviation = api.vec.angleBetween(flatDir, flatToTarget);\n\n    var clearance = result.raycast.hit\n      ? result.raycast.distance / distance\n      : 1;\n\n    var alignment = 1 - deviation / Math.PI;\n    var turnSharpness = Math.abs(angle) / spread;\n\n    var wClear = 1 - farBlend * (1 - urgency);\n    var wAlign = farBlend * (1 - urgency);\n\n    var score;\n\n    if (urgency >= 1) {\n      score = clearance;\n      if (!result.raycast.hit) score += 1;\n      score += turnSharpness * 0.5;\n      if (Math.abs(angle) < spread * 0.35) score -= 1;\n    } else {\n      score = wClear * clearance + wAlign * alignment;\n      if (!result.raycast.hit) score += 0.5;\n      score += urgency * turnSharpness * 0.4;\n      if (urgency > 0.85 && Math.abs(angle) < spread * 0.35) score -= 1;\n    }\n\n    result.angle = angle;\n    result.score = score;\n    results.push(result);\n  }\n\n  results.sort(function (a, b) { return b.score - a.score; });\n  var best = results[0];\n\n  var pushDist = distance * (1 - urgency * 0.5) + urgency * 8;\n\n  return api.vec.add(\n    origin,\n    api.vec.scale(api.vec.normalize(best.rotation), pushDist)\n  );\n}\n\n/**\n * @typedef {Object} EvaluateVectorResult\n * @property {Vec3} rotation\n * @property {RaycastResult} raycast\n * @property {number} [score]\n * @property {number} [angle]\n */\n\n/**\n * @param {TransformerRuntimeApi} api\n * @param {Vec3} origin\n * @param {Vec3} forward\n * @param {Vec3} up\n * @param {number} distance\n * @param {number} angle\n * @returns {EvaluateVectorResult}\n */\nfunction evaluateVector(\n  /** @type {TransformerRuntimeApi} */ api,\n  /** @type {Vec3} */ origin,\n  /** @type {Vec3} */ forward,\n  /** @type {Vec3} */ up,\n  /** @type {number} */ distance,\n  /** @type {number} */ angle,\n) {\n  var direction = api.vec.rotateAroundAxis(forward, up, angle);\n\n  return {\n    rotation: direction,\n    raycast: api.raycastSpread(\n      origin, direction, distance, 2, 10,\n      { visualize: false, hitColor: 'orange', missColor: 'yellow' }\n    )\n  };\n}"
         },
         {
           "type": "custom",
           "priority": 5,
           "enabled": true,
           "params": {},
-          "code": "/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  let forward = api.getForwardVector(input.rotation);\n  let backward = api.vec.scale(forward, -1);\n  let speed = api.vec.getForwardSpeed(input.velocity, forward);\n  let frontPosition = api.vec.offsetAlong(input.position, forward, 5);\n  let backdPosition = api.vec.offsetAlong(input.position, backward, 5);\n  if (speed > 0) {\n    let castResult = api.raycastSpread(frontPosition, forward, speed * speed / 300, 2, 8, { visualize: true });\n    if (castResult.hit === true) {\n      if (speed > 0.1) {\n        let breakSpeed = 1 / (castResult.distance + 1) * ((speed * speed) / 200);\n        if (breakSpeed > 1) breakSpeed = 1;\n        input.actions.brake = breakSpeed;\n        input.actions.throttle = 0;\n      }\n    }\n  } else {\n    let castResult = api.raycastSpread(backdPosition, backward, speed * speed / 300, 2, 8, { visualize: true });\n    if (castResult.hit === true) {\n      if (speed < -0.1) {\n        let breakSpeed = 1 / (castResult.distance + 1) * ((speed * speed) / 200);\n        if (breakSpeed > 1) breakSpeed = 1;\n        input.actions.brake = 0;\n        input.actions.throttle = breakSpeed;\n      }\n    }\n  }\n  return {};\n}",
-          "name": "AutoBrake"
+          "name": "direction",
+          "code": "var driveAway = {\n  isOn: function () { return this.lastTriggerDate + 300 > Date.now(); },\n  trigger: function () { this.lastTriggerDate = Date.now(); },\n  lastTriggerDate: new Date(0)\n}\n\nvar backOff = {\n  isOn: function () { return this.lastTriggerDate + 700 > Date.now(); },\n  trigger: function (direction) { this.lastTriggerDate = Date.now(); this.direction = direction },\n  lastTriggerDate: new Date(0),\n  direction: 0\n}\n\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  if (api.getAction(input, 'steer_left') || api.getAction(input, 'steer_right' || api.getAction(input, 'throttle') || api.getAction(input, 'brake'))) return;\n\n  let forward = api.getForwardVector(input.rotation);\n  let targetPos = input.target.pose.position;\n  let inputToTarget = api.vec.subtract(targetPos, input.position);\n  const distance = api.vec.length(inputToTarget);\n\n  const up = api.getUpVector(input.rotation);\n  forward = api.vec.normalize(api.vec.projectOntoPlane(forward, up));\n  inputToTarget = api.vec.normalize(api.vec.projectOntoPlane(inputToTarget, up));\n\n  const angle = api.vec.angleBetween(forward, inputToTarget);\n  const signedSteer = api.vec.signedAngleAroundAxis(forward, inputToTarget, up);\n  if (Math.abs(signedSteer) >= 0.001) {\n    input.actions.steering_angle = signedSteer;\n  }\n\n  const maxSpeed = 90;\n  const approachspeed = 10;\n  const approachDist = 30;\n  const turnSpeed = 20;\n  let targetSpeed = 60;\n\n  if (distance < approachDist) targetSpeed = approachspeed;\n  if (Math.abs(angle) > 1) targetSpeed = turnSpeed;\n  if (targetSpeed > maxSpeed) targetSpeed = maxSpeed;\n\n  let currentSpeed = api.vec.length(input.velocity);\n\n  if (backOff.isOn()) {\n    input.actions.brake = 0.5;\n    input.actions.throttle = 0;\n    input.actions.steering_angle = backOff.direction*5;\n    return;\n  } else {\n    const front = api.vec.offsetAlong(input.position, forward, 5);\n    if (api.raycastSpread(front, forward, 1, 2, 10).hit === true) {\n      let direction = -input.actions.steering_angle;\n      backOff.trigger(direction*5);\n      //api.log(\"BACKOFF \" + direction);\n    }\n  }\n  if (targetSpeed > currentSpeed) input.actions.throttle = 1;\n}"
+        },
+        {
+          "type": "custom",
+          "priority": 6,
+          "enabled": true,
+          "params": {},
+          "name": "vis2",
+          "code": "\n\n/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  api.visualizeLine(input.position, input.target.pose.position, \"teal\");\n\n\n  return {};\n}\n\n\n"
+        },
+        {
+          "type": "custom",
+          "priority": 7,
+          "enabled": true,
+          "params": {},
+          "name": "AutoBrake",
+          "code": "/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  let forward = api.getForwardVector(input.rotation);\n  let backward = api.vec.scale(forward, -1);\n  let speed = api.vec.getForwardSpeed(input.velocity, forward);\n  let frontPosition = api.vec.offsetAlong(input.position, forward, 5);\n  let backdPosition = api.vec.offsetAlong(input.position, backward, 5);\n  if (speed > 0) {\n    let castResult = api.raycastSpread(frontPosition, forward, speed * speed / 300, 2, 8, { visualize: false });\n    if (castResult.hit === true) {\n      if (speed > 0.1) {\n        let breakSpeed = 1 / (castResult.distance + 1) * ((speed * speed) / 200);\n        if (breakSpeed > 1) breakSpeed = 1;\n        input.actions.brake = breakSpeed;\n        input.actions.throttle = 0;\n      }\n    }\n  } else {\n    let castResult = api.raycastSpread(backdPosition, backward, speed * speed / 300, 2, 8, { visualize: false });\n    if (castResult.hit === true) {\n      if (speed < -0.1) {\n        let breakSpeed = 1 / (castResult.distance + 1) * ((speed * speed) / 200);\n        if (breakSpeed > 1) breakSpeed = 1;\n        input.actions.brake = 0;\n        input.actions.throttle = breakSpeed;\n      }\n    }\n  }\n  return {};\n}"
+        },
+        {
+          "type": "custom",
+          "priority": 7,
+          "enabled": true,
+          "params": {},
+          "name": "damp",
+          "code": "var current =0;\nvar speed = 0;\n\n\nfunction transform(input, dt, params, state, api) {\n  var SMOOTH_TIME = 0.08; // seconds; lower = snappier\n  var targetAngle = api.clamp(api.getAction(input, 'steering_angle'), -1, 1);\n  var current = typeof state.steering === 'number' ? state.steering : 0;\n\n  var alpha = 1 - Math.exp(-dt / SMOOTH_TIME);\n  var outputAngle = api.clamp(current + alpha * (targetAngle - current), -1, 1);\n\n  state.steering = outputAngle;\n  input.actions.steering_angle = outputAngle;\n  return {};\n}"
         },
         {
           "type": "car2",
-          "priority": 6,
+          "priority": 9,
           "enabled": true,
           "params": {
             "power": 400,
             "steeringIntensity": 0.1,
-            "steeringSpeed": 0.05,
-            "lateralGrip": 100,
-            "jumpImpulse": 2000
+            "steeringSpeed": 0.2,
+            "lateralGrip": 25,
+            "jumpImpulse": 4000
           }
         }
       ],
