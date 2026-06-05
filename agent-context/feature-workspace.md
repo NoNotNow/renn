@@ -33,6 +33,9 @@ Scripts use `world.scripts: Record<string, ScriptDef>` with `entity.scripts: str
 - **Shell header** (one row): tab buttons; **anchor meta** text (`Entity … · item`, `Global library …`, or prompt to select an entity); then opacity + close.
 - One Monaco instance shared between Transformers and Scripts tabs — switching tabs only
   changes the top strip, not the editor.
+- On each open, the shared Monaco remounts automatically **100 ms** after it first becomes
+  visible (Transformers or Scripts tab), matching the manual **Refresh editor** layout escape hatch.
+  This runs **once per page load** only (not again when closing and reopening Workspace).
 - **Shift+Escape** opens the Workspace. **Escape** (without Shift) closes it.
 
 ### R2 — Transformers tab

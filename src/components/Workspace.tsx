@@ -92,8 +92,16 @@ function useBuilderHeaderBottomInsetPx(active: boolean): number {
 
 const WORKSPACE_TAB_IDS = ['transformers', 'scripts', 'organize'] as const satisfies readonly WorkspaceShellTabId[]
 
-/** Remount shared Monaco shortly after open so layout settles (same effect as Refresh editor). */
+/** Remount shared Monaco shortly after first show so layout settles (same effect as Refresh editor). */
 const WORKSPACE_EDITOR_OPEN_REFRESH_MS = 100
+
+/** Once per page load — avoids repeat remounts when closing and reopening Workspace. */
+let workspaceEditorInitialRefreshDone = false
+
+/** @internal Resets session refresh flag (tests only). */
+export function resetWorkspaceEditorInitialRefreshForTests(): void {
+  workspaceEditorInitialRefreshDone = false
+}
 
 function initialWorkspaceShellTab(
   panelOpen: boolean,
@@ -199,16 +207,24 @@ export default function Workspace({
 
   const prevOpenRef = useRef(false)
 
+  const monacoHostVisible = open && (activeTab === 'transformers' || activeTab === 'scripts')
+
   useEffect(() => {
     const wasOpen = prevOpenRef.current
     prevOpenRef.current = open
     if (!open || wasOpen) return
     onWorkspaceOpenSideEffects?.()
+  }, [open, onWorkspaceOpenSideEffects])
+
+  /** Remount shared Monaco once per session, 100ms after it first becomes visible (same as Refresh editor). */
+  useEffect(() => {
+    if (!monacoHostVisible || workspaceEditorInitialRefreshDone) return
+    workspaceEditorInitialRefreshDone = true
     const timer = window.setTimeout(() => {
       setEditorOpenRefreshNonce((n) => n + 1)
     }, WORKSPACE_EDITOR_OPEN_REFRESH_MS)
     return () => window.clearTimeout(timer)
-  }, [open, onWorkspaceOpenSideEffects])
+  }, [monacoHostVisible])
 
   useEffect(() => {
     if (!open) return
