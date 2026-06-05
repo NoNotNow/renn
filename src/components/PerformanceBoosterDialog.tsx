@@ -11,6 +11,8 @@ import { getImageBitmapDimensions } from '@/utils/textureDownscale'
 import { uiLogger } from '@/utils/uiLogger'
 import { clampTrimeshSimplificationConfig } from '@/scripts/migrateWorld'
 import Modal from '@/components/Modal'
+import EntitySearchField from '@/components/entitySearch/EntitySearchField'
+import { useEntitySearchPicker } from '@/components/entitySearch/useEntitySearchPicker'
 import { theme } from '@/config/theme'
 
 const labelStyle: CSSProperties = { fontSize: 12, color: theme.text.muted, marginBottom: 4 }
@@ -64,6 +66,7 @@ export interface PerformanceBoosterDialogProps {
   onRequestPickTexture: () => void
   onApplyMesh: (entityId: string, config: TrimeshSimplificationConfig) => void | Promise<void>
   onApplyTexture: (entityId: string, maxEdgePx: number) => Promise<void>
+  entityWorkHistory?: readonly string[]
 }
 
 export default function PerformanceBoosterDialog({
@@ -81,6 +84,7 @@ export default function PerformanceBoosterDialog({
   onRequestPickTexture,
   onApplyMesh,
   onApplyTexture,
+  entityWorkHistory = [],
 }: PerformanceBoosterDialogProps) {
   const [meshThreshold, setMeshThreshold] = useState(5000)
   const [meshRatio, setMeshRatio] = useState(0.5)
@@ -92,7 +96,6 @@ export default function PerformanceBoosterDialog({
   const [textureThreshold, setTextureThreshold] = useState(2048)
   const [busy, setBusy] = useState(false)
   const [textureMsg, setTextureMsg] = useState<string | null>(null)
-  const [meshSearch, setMeshSearch] = useState('')
   const [textureSearch, setTextureSearch] = useState('')
 
   /** Trimesh or entity.model visuals with triangle count above meshThreshold (rescanned when dialog opens or scene reloads). */
@@ -162,14 +165,22 @@ export default function PerformanceBoosterDialog({
     }
   }, [isOpen, world.entities, assets, textureThreshold, sceneVersion])
 
+  const meshCandidateEntities = useMemo(() => meshHeavyList.map(({ entity }) => entity), [meshHeavyList])
+  const meshPickerState = useEntitySearchPicker(meshCandidateEntities, entityWorkHistory)
+  const { setSearchQuery: setMeshSearchQuery, clearEntityFilters: clearMeshFilters, setFilterPopoverOpen: setMeshFilterOpen } =
+    meshPickerState
+
+  useEffect(() => {
+    if (isOpen) return
+    setMeshSearchQuery('')
+    clearMeshFilters()
+    setMeshFilterOpen(false)
+  }, [isOpen, setMeshSearchQuery, clearMeshFilters, setMeshFilterOpen])
+
   const meshFiltered = useMemo(() => {
-    const q = meshSearch.trim().toLowerCase()
-    if (!q) return meshHeavyList
-    return meshHeavyList.filter(
-      ({ entity }) =>
-        entity.id.toLowerCase().includes(q) || (entity.name ?? '').toLowerCase().includes(q)
-    )
-  }, [meshHeavyList, meshSearch])
+    const allowed = new Set(meshPickerState.filteredEntities.map((e) => e.id))
+    return meshHeavyList.filter(({ entity }) => allowed.has(entity.id))
+  }, [meshHeavyList, meshPickerState.filteredEntities])
 
   const textureFiltered = useMemo(() => {
     const q = textureSearch.trim().toLowerCase()
@@ -342,20 +353,13 @@ export default function PerformanceBoosterDialog({
               color: theme.text.primary,
             }}
           />
-          <input
-            type="search"
-            placeholder="Search candidates…"
-            value={meshSearch}
-            onChange={(e) => setMeshSearch(e.target.value)}
-            style={{
-              width: '100%',
-              padding: 8,
-              marginBottom: 8,
-              background: theme.bg.input,
-              border: `1px solid ${theme.border.default}`,
-              color: theme.text.primary,
-            }}
-          />
+          <div style={{ marginBottom: 8 }}>
+            <EntitySearchField
+              pickerState={meshPickerState}
+              placeholder="Search mesh candidates…"
+              testId="performance-booster-mesh-search"
+            />
+          </div>
           <div style={labelStyle}>Heavy mesh models (click to select)</div>
           <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 6 }}>
             Lists trimesh bodies and entities with a <strong>3D model</strong> on a primitive shape (physics shape unchanged).

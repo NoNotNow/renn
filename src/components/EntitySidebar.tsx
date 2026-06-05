@@ -145,6 +145,7 @@ export default function EntitySidebar({
         {leftTab === 'camera' && (
           <EntityCameraPanel
             entities={entities}
+            entityWorkHistory={entityWorkHistory}
             world={world}
             cameraControl={cameraControl}
             cameraTarget={cameraTarget}

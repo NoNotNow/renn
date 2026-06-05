@@ -76,4 +76,18 @@ describe('EntitySearchPicker', () => {
     fireEvent.click(screen.getByTestId('entity-search-picker-filter-toggle'))
     expect(screen.getByTestId('entity-search-filter-popover')).toBeInTheDocument()
   })
+
+  it('closes filter popover from the header close button', () => {
+    render(
+      <EntitySearchPicker
+        entities={[makeEntity('a')]}
+        entityWorkHistory={[]}
+        onSelectEntity={vi.fn()}
+      />,
+    )
+    fireEvent.click(screen.getByTestId('entity-search-picker-filter-toggle'))
+    expect(screen.getByTestId('entity-search-filter-popover')).toBeInTheDocument()
+    fireEvent.click(screen.getByTestId('entity-search-filter-close'))
+    expect(screen.queryByTestId('entity-search-filter-popover')).not.toBeInTheDocument()
+  })
 })

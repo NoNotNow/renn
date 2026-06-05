@@ -8,6 +8,7 @@ import {
 import { theme } from '@/config/theme'
 import type { EntityListFilters, TriState } from '@/components/entitySidebar/useEntityListFilters'
 import { SHAPE_FILTER_OPTIONS, TRI_STATE_FILTER_OPTIONS } from './entitySearchFilterOptions'
+import { ENTITY_SEARCH_FILTER_PANEL_WIDTH_PX } from './entitySearchPickerStyles'
 
 export interface EntitySearchFilterPopoverProps {
   filters: EntityListFilters
@@ -40,44 +41,101 @@ export default function EntitySearchFilterPopover({ filters, onClose, style }: E
       data-testid="entity-search-filter-popover"
       style={{
         padding: 10,
-        minWidth: 220,
-        maxWidth: 300,
+        width: ENTITY_SEARCH_FILTER_PANEL_WIDTH_PX,
+        minWidth: ENTITY_SEARCH_FILTER_PANEL_WIDTH_PX,
+        maxWidth: ENTITY_SEARCH_FILTER_PANEL_WIDTH_PX,
+        boxSizing: 'border-box',
         ...style,
       }}
       onClick={(e) => e.stopPropagation()}
     >
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 8 }}>
         <span style={{ fontSize: 11, fontWeight: 600, color: theme.text.secondary }}>Filters</span>
-        {hasActivePickerFilters ?
-          <button
-            type="button"
-            onClick={clearEntityFilters}
-            style={{ ...secondaryButtonStyle, fontSize: 10, padding: '2px 8px' }}
-          >
-            Clear
-          </button>
-        : null}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+          {hasActivePickerFilters ?
+            <button
+              type="button"
+              onClick={clearEntityFilters}
+              style={{ ...secondaryButtonStyle, fontSize: 10, padding: '2px 8px' }}
+            >
+              Clear
+            </button>
+          : null}
+          {onClose ?
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close filters"
+              title="Close filters"
+              data-testid="entity-search-filter-close"
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: theme.text.muted,
+                fontSize: 18,
+                lineHeight: 1,
+                cursor: 'pointer',
+                padding: 0,
+                width: 22,
+                height: 22,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: 4,
+              }}
+            >
+              ×
+            </button>
+          : null}
+        </div>
       </div>
 
-      <label style={{ ...sidebarRowStyle, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-        <input
-          type="checkbox"
-          checked={sortByHistory}
-          onChange={(e) => setSortByHistory(e.target.checked)}
-          data-testid="entity-search-filter-sort-history"
-        />
-        <span style={{ ...sidebarLabelStyle, margin: 0 }}>Sort by history</span>
-      </label>
-
-      <label style={{ ...sidebarRowStyle, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-        <input
-          type="checkbox"
-          checked={filterPlayableAvatar}
-          onChange={(e) => setFilterPlayableAvatar(e.target.checked)}
-          data-testid="entity-search-filter-playable-avatar"
-        />
-        <span style={{ ...sidebarLabelStyle, margin: 0 }}>Playable avatar</span>
-      </label>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          marginBottom: 6,
+          flexWrap: 'nowrap',
+        }}
+      >
+        <label
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            cursor: 'pointer',
+            flex: '1 1 0',
+            minWidth: 0,
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={sortByHistory}
+            onChange={(e) => setSortByHistory(e.target.checked)}
+            data-testid="entity-search-filter-sort-history"
+          />
+          <span style={{ ...sidebarLabelStyle, margin: 0, whiteSpace: 'nowrap' }}>Sort by history</span>
+        </label>
+        <label
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            cursor: 'pointer',
+            flex: '1 1 0',
+            minWidth: 0,
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={filterPlayableAvatar}
+            onChange={(e) => setFilterPlayableAvatar(e.target.checked)}
+            data-testid="entity-search-filter-playable-avatar"
+          />
+          <span style={{ ...sidebarLabelStyle, margin: 0, whiteSpace: 'nowrap' }}>Playable avatar</span>
+        </label>
+      </div>
 
       <div style={sidebarRowStyle}>
         <label htmlFor="entity-search-filter-model" style={sidebarLabelStyle}>
@@ -163,15 +221,6 @@ export default function EntitySearchFilterPopover({ filters, onClose, style }: E
         />
       </div>
 
-      {onClose ?
-        <button
-          type="button"
-          onClick={onClose}
-          style={{ ...secondaryButtonStyle, width: '100%', marginTop: 8, fontSize: 11 }}
-        >
-          Done
-        </button>
-      : null}
     </div>
   )
 }

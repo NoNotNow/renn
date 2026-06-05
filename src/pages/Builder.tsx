@@ -1272,6 +1272,7 @@ export default function Builder() {
         onRequestPickTexture={() => setPerfPickMode('texture')}
         onApplyMesh={handleApplyMeshSimplification}
         onApplyTexture={handleApplyTextureDownscale}
+        entityWorkHistory={entityWorkHistory}
       />
 
       <TransformerDocs

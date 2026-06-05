@@ -690,6 +690,7 @@ export default function Workspace({
                         onOrganizeContextChange={handleOrganizeContextChange}
                         globalLibrary={globalLibrary}
                         onGlobalLibraryChange={persistGlobalLibrary}
+                        entityWorkHistory={entityWorkHistory}
                         onSelectEntity={handleSelectEntityFromWorkspace}
                       />
                     )}

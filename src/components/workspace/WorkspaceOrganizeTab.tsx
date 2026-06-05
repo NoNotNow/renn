@@ -125,6 +125,7 @@ export interface WorkspaceOrganizeTabProps {
   onOrganizeContextChange?: (scope: WorkspaceOrganizeScope, kind: WorkspaceOrganizeKind) => void
   globalLibrary: GlobalBehaviorLibrary
   onGlobalLibraryChange: (next: GlobalBehaviorLibrary) => void
+  entityWorkHistory?: readonly string[]
   onSelectEntity?: (id: string) => void
 }
 
@@ -137,6 +138,7 @@ export default function WorkspaceOrganizeTab({
   onOrganizeContextChange,
   globalLibrary,
   onGlobalLibraryChange,
+  entityWorkHistory = [],
   onSelectEntity,
 }: WorkspaceOrganizeTabProps) {
   const undo = useEditorUndo()
@@ -1376,7 +1378,8 @@ export default function WorkspaceOrganizeTab({
             ? `Assign transformer "${assignTarget.id}"`
             : ''
         }
-        entities={world.entities.map((e) => ({ id: e.id, name: e.name }))}
+        entities={world.entities}
+        entityWorkHistory={entityWorkHistory}
         initialSelection={assignInitialSelection}
         onApply={applyAssign}
         subheaderExtra={

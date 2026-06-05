@@ -15,6 +15,7 @@ import {
   entitySearchInputFocusedStyle,
   entitySearchInputCompactStyle,
   entitySearchInputStyle,
+  entitySearchFilterPanelStyle,
   entitySearchResultsPanelStyle,
 } from './entitySearchPickerStyles'
 import { useEntitySearchPicker, type EntitySearchPickerState } from './useEntitySearchPicker'
@@ -300,13 +301,7 @@ export default function EntitySearchPicker({
         )}
 
         {filterPopoverOpen ?
-          <div
-            style={{
-              ...entitySearchResultsPanelStyle,
-              maxHeight: 'none',
-              overflow: 'visible',
-            }}
-          >
+          <div style={entitySearchFilterPanelStyle}>
             <EntitySearchFilterPopover filters={picker} onClose={() => setFilterPopoverOpen(false)} />
           </div>
         : null}

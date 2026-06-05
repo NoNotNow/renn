@@ -1,5 +1,8 @@
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import Modal from '@/components/Modal'
+import EntitySearchField from '@/components/entitySearch/EntitySearchField'
+import { useEntitySearchPicker } from '@/components/entitySearch/useEntitySearchPicker'
+import type { Entity } from '@/types/world'
 import { theme } from '@/config/theme'
 
 export interface AssignEntity {
@@ -11,7 +14,8 @@ export interface AssignEntitiesDialogProps {
   isOpen: boolean
   onClose: () => void
   title: string
-  entities: AssignEntity[]
+  entities: Entity[]
+  entityWorkHistory?: readonly string[]
   initialSelection: Set<string>
   onApply: (selection: Set<string>) => void
   subheaderExtra?: ReactNode
@@ -45,33 +49,32 @@ export default function AssignEntitiesDialog({
   onClose,
   title,
   entities,
+  entityWorkHistory = [],
   initialSelection,
   onApply,
   subheaderExtra,
-  searchPlaceholder = 'Search entities by name or ID...',
-  emptyMessageNoMatch = 'No entities match your search.',
+  searchPlaceholder = 'Search entities…',
+  emptyMessageNoMatch,
   emptyMessageNoEntities = 'No entities in this world.',
 }: AssignEntitiesDialogProps) {
-  const [searchQuery, setSearchQuery] = useState('')
   const [selection, setSelection] = useState<Set<string>>(new Set())
+  const pickerState = useEntitySearchPicker(entities, entityWorkHistory)
+  const { filteredEntities, entityListEmptyMessage, setSearchQuery, clearEntityFilters, setFilterPopoverOpen } =
+    pickerState
 
   useEffect(() => {
     if (!isOpen) {
       setSearchQuery('')
+      clearEntityFilters()
+      setFilterPopoverOpen(false)
       return
     }
     setSelection(new Set(initialSelection))
-  }, [isOpen, initialSelection])
+  }, [isOpen, initialSelection, setSearchQuery, clearEntityFilters, setFilterPopoverOpen])
 
-  const filteredEntities = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase()
-    if (!q) return entities
-    return entities.filter((e) => {
-      const name = (e.name ?? '').toLowerCase()
-      const id = e.id.toLowerCase()
-      return name.includes(q) || id.includes(q)
-    })
-  }, [entities, searchQuery])
+  const emptyMessage =
+    entityListEmptyMessage ||
+    (entities.length === 0 ? emptyMessageNoEntities : emptyMessageNoMatch ?? 'No entities match your search.')
 
   const handleApply = () => {
     onApply(selection)
@@ -87,80 +90,12 @@ export default function AssignEntitiesDialog({
       height={640}
       subheader={
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={{ position: 'relative' }}>
-            <input
-              type="text"
-              placeholder={searchPlaceholder}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              aria-label="Search entities"
-              data-testid="assign-entities-search"
-              autoFocus
-              style={{
-                width: '100%',
-                padding: searchQuery ? '9px 34px 9px 34px' : '9px 12px 9px 34px',
-                borderRadius: 8,
-                background: theme.bg.input,
-                border: `1px solid ${theme.border.default}`,
-                color: theme.text.primary,
-                fontSize: 13,
-                boxSizing: 'border-box',
-                outline: 'none',
-              }}
-            />
-            <span
-              style={{
-                position: 'absolute',
-                left: 12,
-                top: '50%',
-                transform: 'translateY(-50%)',
-                color: theme.text.muted,
-                pointerEvents: 'none',
-                display: 'flex',
-              }}
-              aria-hidden
-            >
-              <svg
-                width={14}
-                height={14}
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <circle cx="11" cy="11" r="8" />
-                <path d="m21 21-4.35-4.35" />
-              </svg>
-            </span>
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                aria-label="Clear search"
-                title="Clear search"
-                style={{
-                  position: 'absolute',
-                  right: 8,
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  background: 'transparent',
-                  border: 'none',
-                  color: theme.text.muted,
-                  cursor: 'pointer',
-                  padding: 2,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  lineHeight: 1,
-                  fontSize: 16,
-                }}
-              >
-                ×
-              </button>
-            )}
-          </div>
+          <EntitySearchField
+            pickerState={pickerState}
+            placeholder={searchPlaceholder}
+            autoFocus
+            testId="assign-entities-search"
+          />
           {subheaderExtra}
         </div>
       }
@@ -198,7 +133,7 @@ export default function AssignEntitiesDialog({
               textAlign: 'center',
             }}
           >
-            {searchQuery ? emptyMessageNoMatch : emptyMessageNoEntities}
+            {emptyMessage}
           </div>
         ) : (
           filteredEntities.map((e) => {

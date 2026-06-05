@@ -95,7 +95,8 @@ describe('EntityCameraPanel', () => {
 
   it('shows target/mode and vertical angle when control === "follow"', () => {
     renderPanel({ cameraControl: 'follow' })
-    expect(screen.getByLabelText('Target')).toBeInTheDocument()
+    expect(screen.getByText('Target')).toBeInTheDocument()
+    expect(screen.getByTestId('camera-target-search-input')).toBeInTheDocument()
     expect(screen.getByLabelText('Mode')).toBeInTheDocument()
     expect(screen.getByLabelText('Vertical angle')).toBeInTheDocument()
   })

@@ -58,6 +58,8 @@ export const entitySearchFilterButtonStyle: CSSProperties = {
   lineHeight: 0,
 }
 
+export const ENTITY_SEARCH_FILTER_PANEL_WIDTH_PX = 280
+
 export const entitySearchResultsPanelStyle: CSSProperties = {
   position: 'absolute',
   top: '100%',
@@ -66,6 +68,23 @@ export const entitySearchResultsPanelStyle: CSSProperties = {
   marginTop: 4,
   maxHeight: 280,
   overflowY: 'auto',
+  backgroundColor: theme.bg.panel,
+  border: `1px solid ${theme.border.default}`,
+  borderRadius: 6,
+  boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
+  zIndex: 20,
+}
+
+/** Fixed-width filter toolbox; does not stretch with the search input. */
+export const entitySearchFilterPanelStyle: CSSProperties = {
+  position: 'absolute',
+  top: '100%',
+  left: 0,
+  marginTop: 4,
+  width: ENTITY_SEARCH_FILTER_PANEL_WIDTH_PX,
+  minWidth: ENTITY_SEARCH_FILTER_PANEL_WIDTH_PX,
+  maxWidth: ENTITY_SEARCH_FILTER_PANEL_WIDTH_PX,
+  overflow: 'visible',
   backgroundColor: theme.bg.panel,
   border: `1px solid ${theme.border.default}`,
   borderRadius: 6,

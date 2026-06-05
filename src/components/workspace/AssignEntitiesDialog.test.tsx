@@ -2,11 +2,12 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import AssignEntitiesDialog from '@/components/workspace/AssignEntitiesDialog'
+import type { Entity } from '@/types/world'
 
-const entities = [
-  { id: 'player', name: 'Player' },
-  { id: 'enemy_a', name: 'Enemy' },
-  { id: 'crate_01' },
+const entities: Entity[] = [
+  { id: 'player', name: 'Player', shape: { type: 'box' }, position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
+  { id: 'enemy_a', name: 'Enemy', shape: { type: 'sphere' }, position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
+  { id: 'crate_01', shape: { type: 'box' }, position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
 ]
 
 describe('AssignEntitiesDialog', () => {
@@ -27,7 +28,7 @@ describe('AssignEntitiesDialog', () => {
     expect(screen.getByTestId('assign-entity-player')).toBeInTheDocument()
     expect(screen.getByTestId('assign-entity-enemy_a')).toBeInTheDocument()
 
-    await user.type(screen.getByTestId('assign-entities-search'), 'enemy')
+    await user.type(screen.getByTestId('assign-entities-search-input'), 'enemy')
     expect(screen.getByTestId('assign-entity-enemy_a')).toBeInTheDocument()
     expect(screen.queryByTestId('assign-entity-player')).not.toBeInTheDocument()
   })

@@ -13,6 +13,7 @@ import { sidebarLabelStyle, sidebarRowStyle } from '../sharedStyles'
 import { avatarEntityIconLetter, getAvatarRosterEntityIds } from '@/utils/avatarUtils'
 import CopyableArea from '../CopyableArea'
 import AvatarDialog from '../AvatarDialog'
+import EntitySearchPicker from '@/components/entitySearch/EntitySearchPicker'
 
 export type CameraControl = 'free' | 'follow' | 'top' | 'front' | 'right'
 
@@ -21,6 +22,7 @@ const CAMERA_TARGET_VERTICAL_ANGLE_MAX = 45
 
 export interface EntityCameraPanelProps {
   entities: Entity[]
+  entityWorkHistory?: readonly string[]
   world: RennWorld
   cameraControl: CameraControl
   cameraTarget: string
@@ -42,6 +44,7 @@ export interface EntityCameraPanelProps {
  */
 export default function EntityCameraPanel({
   entities,
+  entityWorkHistory = [],
   world,
   cameraControl,
   cameraTarget,
@@ -167,26 +170,44 @@ export default function EntityCameraPanel({
               ) : null}
               <div style={sidebarRowStyle}>
                 <label
-                  htmlFor="camera-target"
                   style={{ ...sidebarLabelStyle, cursor: 'help' }}
                   title="Entity the follow camera looks at (usually a playable avatar)."
                 >
                   Target
                 </label>
-                <select
-                  id="camera-target"
-                  value={cameraTarget}
-                  onChange={(e) => {
-                    uiLogger.change('Builder', 'Change camera target', { target: e.target.value })
-                    onCameraTargetChange(e.target.value)
+                <EntitySearchPicker
+                  entities={entities}
+                  entityWorkHistory={entityWorkHistory}
+                  selectedEntityId={cameraTarget || null}
+                  onSelectEntity={(id) => {
+                    uiLogger.change('Builder', 'Change camera target', { target: id })
+                    onCameraTargetChange(id)
                   }}
-                  style={{ display: 'block', width: '100%' }}
-                >
-                  <option value="">— None —</option>
-                  {entities.map((e) => (
-                    <option key={e.id} value={e.id}>{e.name ?? e.id}</option>
-                  ))}
-                </select>
+                  variant="panel"
+                  placeholder="Search follow target…"
+                  testId="camera-target-search"
+                />
+                {cameraTarget ?
+                  <button
+                    type="button"
+                    onClick={() => {
+                      uiLogger.change('Builder', 'Change camera target', { target: '' })
+                      onCameraTargetChange('')
+                    }}
+                    style={{
+                      marginTop: 6,
+                      padding: 0,
+                      border: 'none',
+                      background: 'transparent',
+                      color: theme.text.muted,
+                      fontSize: 11,
+                      cursor: 'pointer',
+                      textDecoration: 'underline',
+                    }}
+                  >
+                    Clear target
+                  </button>
+                : null}
               </div>
               <div style={sidebarRowStyle}>
                 <label
