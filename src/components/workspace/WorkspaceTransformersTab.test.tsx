@@ -11,6 +11,11 @@ import {
   clearCustomTransformerRuntimeError,
   publishCustomTransformerRuntimeError,
 } from '@/runtime/customTransformerErrorBridge'
+import {
+  publishTransformerWatchEntry,
+  resetTransformerWatchBridgeForTests,
+  setTransformerWatchEnabled,
+} from '@/runtime/transformerWatchBridge'
 
 vi.mock('@monaco-editor/react', () => ({
   default: () => null,
@@ -446,6 +451,54 @@ describe('WorkspaceTransformersTab', () => {
     await waitFor(() => {
       expect(screen.getByTestId('workspace-transformer-runtime-error')).toBeInTheDocument()
       expect(screen.getByText('Boom')).toBeInTheDocument()
+    })
+  })
+
+  it('opens watch panel and shows label: value rows', async () => {
+    resetTransformerWatchBridgeForTests()
+    setTransformerWatchEnabled(true)
+    renderTab()
+
+    fireEvent.click(screen.getByTestId('workspace-transformer-watch-toggle'))
+
+    act(() => {
+      publishTransformerWatchEntry({
+        entityId: 'car',
+        configStackIndex: 2,
+        label: 'x after add',
+        value: '234',
+      })
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-transformer-watch-panel')).toBeInTheDocument()
+      expect(screen.getByTestId('workspace-transformer-watch-value-x after add')).toHaveTextContent('234')
+    })
+  })
+
+  it('clears watch entries from the panel', async () => {
+    resetTransformerWatchBridgeForTests()
+    setTransformerWatchEnabled(true)
+    renderTab()
+    fireEvent.click(screen.getByTestId('workspace-transformer-watch-toggle'))
+
+    act(() => {
+      publishTransformerWatchEntry({
+        entityId: 'car',
+        configStackIndex: 2,
+        label: 'speed',
+        value: '9',
+      })
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-transformer-watch-list')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByTestId('workspace-transformer-watch-clear'))
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('workspace-transformer-watch-list')).toBeNull()
     })
   })
 

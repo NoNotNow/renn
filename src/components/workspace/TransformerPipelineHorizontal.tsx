@@ -7,12 +7,10 @@ import {
   useState,
   type CSSProperties,
   type DragEvent as ReactDragEvent,
-  type MouseEvent as ReactMouseEvent,
-  type ReactNode,
   type RefObject,
 } from 'react'
-import { createPortal } from 'react-dom'
 import type { TransformerConfig } from '@/types/transformer'
+import WorkspaceFloatingDrawer from '@/components/workspace/WorkspaceFloatingDrawer'
 import ValidatedJsonTextarea from '@/components/ValidatedJsonTextarea'
 import { EntityPanelIcons } from '@/components/EntityPanelIcons'
 import { theme } from '@/config/theme'
@@ -223,132 +221,6 @@ function PipelineTrailOutArrow() {
     >
       <PipelineArrowGlyph width={w} shaftStartX={0} shaftEndX={5} tipX={11} />
     </div>
-  )
-}
-
-const TRACE_JSON_DRAWER_STYLE: CSSProperties = {
-  position: 'absolute',
-  left: 0,
-  zIndex: 100,
-  margin: 0,
-  padding: 8,
-  width: 360,
-  overflow: 'auto',
-  background: theme.bg.modalGlassHeader,
-  backdropFilter: 'blur(12px)',
-  border: `1px solid ${theme.border.default}`,
-  borderRadius: 6,
-  boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
-  whiteSpace: 'pre-wrap',
-  wordBreak: 'break-word',
-  color: theme.text.muted,
-  fontSize: 11,
-  textAlign: 'left',
-}
-
-function MovableTraceDrawer({
-  title,
-  children,
-  onClose,
-  initialLeft,
-  initialTop,
-  portalTarget,
-}: {
-  title: string
-  children: ReactNode
-  onClose: () => void
-  initialLeft: number
-  initialTop: number
-  portalTarget: Element
-}) {
-  const [pos, setPos] = useState({ x: initialLeft, y: initialTop })
-  const dragRef = useRef<{ startX: number; startY: number; startPosX: number; startPosY: number } | null>(null)
-
-  const handleMouseDown = (e: ReactMouseEvent) => {
-    if ((e.target as HTMLElement).closest('button')) return
-
-    e.preventDefault()
-    dragRef.current = {
-      startX: e.clientX,
-      startY: e.clientY,
-      startPosX: pos.x,
-      startPosY: pos.y,
-    }
-    const onMove = (move: MouseEvent) => {
-      if (!dragRef.current) return
-      const dx = move.clientX - dragRef.current.startX
-      const dy = move.clientY - dragRef.current.startY
-      setPos({
-        x: dragRef.current.startPosX + dx,
-        y: dragRef.current.startPosY + dy,
-      })
-    }
-    const onUp = () => {
-      dragRef.current = null
-      document.removeEventListener('mousemove', onMove)
-      document.removeEventListener('mouseup', onUp)
-    }
-    document.addEventListener('mousemove', onMove)
-    document.addEventListener('mouseup', onUp)
-  }
-
-  return createPortal(
-    <div
-      style={{
-        ...TRACE_JSON_DRAWER_STYLE,
-        position: 'absolute',
-        top: pos.y,
-        left: pos.x,
-        display: 'flex',
-        flexDirection: 'column',
-        padding: 0,
-        overflow: 'hidden',
-      }}
-    >
-      <div
-        onMouseDown={handleMouseDown}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '4px 8px',
-          background: theme.bg.modalGlassHeader,
-          borderBottom: `1px solid ${theme.border.default}`,
-          cursor: 'move',
-          userSelect: 'none',
-          flexShrink: 0,
-        }}
-      >
-        <span style={{ fontSize: 10, fontWeight: 700, color: theme.text.secondary, textTransform: 'uppercase' }}>
-          {title}
-        </span>
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            onClose()
-          }}
-          style={{
-            background: 'transparent',
-            border: 'none',
-            color: theme.text.muted,
-            cursor: 'pointer',
-            fontSize: 16,
-            lineHeight: 1,
-            padding: '0 4px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-          title="Close"
-        >
-          ×
-        </button>
-      </div>
-      <div style={{ padding: 8, overflow: 'auto', flex: 1 }}>
-        {children}
-      </div>
-    </div>,
-    portalTarget
   )
 }
 
@@ -774,7 +646,7 @@ function TransformerTraceItem({
             IN: {traceInputBrief}
           </summary>
           {inOpen && step && !step.skipped && step.inputBefore && headerRef.current ? (
-            <MovableTraceDrawer
+            <WorkspaceFloatingDrawer
               title={`${rowLabel} · Input`}
               onClose={() => setInOpen(false)}
               initialLeft={baseLeft}
@@ -784,7 +656,7 @@ function TransformerTraceItem({
               <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                 {JSON.stringify(serializeTransformInputForDisplay(step.inputBefore), null, 2)}
               </pre>
-            </MovableTraceDrawer>
+            </WorkspaceFloatingDrawer>
           ) : null}
         </details>
         <details
@@ -799,7 +671,7 @@ function TransformerTraceItem({
             OUT: {traceOutputBrief}
           </summary>
           {outOpen && step && !step.skipped && (step.transformOutput !== undefined || step.actionsAfter !== undefined) && headerRef.current ? (
-            <MovableTraceDrawer
+            <WorkspaceFloatingDrawer
               title={`${rowLabel} · Output`}
               onClose={() => setOutOpen(false)}
               initialLeft={baseLeft}
@@ -809,11 +681,11 @@ function TransformerTraceItem({
               <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                 {JSON.stringify(serializeTransformerTraceOutputJson(step), null, 2)}
               </pre>
-            </MovableTraceDrawer>
+            </WorkspaceFloatingDrawer>
           ) : null}
         </details>
         {configOpen && headerRef.current ? (
-          <MovableTraceDrawer
+          <WorkspaceFloatingDrawer
             title={`Config: ${rowLabel}`}
             onClose={() => setConfigOpen(false)}
             initialLeft={baseLeft}
@@ -837,7 +709,7 @@ function TransformerTraceItem({
                 applyTestId={`transformer-horizontal-config-apply-${index}`}
               />
             </div>
-          </MovableTraceDrawer>
+          </WorkspaceFloatingDrawer>
         ) : null}
         {/* Invisible element to maintain consistent width based on maximum seen trace text */}
         <div

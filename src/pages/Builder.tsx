@@ -21,6 +21,10 @@ import {
   setTransformerTraceTargetEntityId,
   subscribeTransformerLiveTrace,
 } from '@/runtime/transformerTraceBridge'
+import {
+  incrementTransformerWatchRunId,
+  setTransformerWatchEnabled,
+} from '@/runtime/transformerWatchBridge'
 import { useLocalStorageState } from '@/hooks/useLocalStorageState'
 import { useBuilderFullscreenChrome } from '@/hooks/useBuilderFullscreenChrome'
 import {
@@ -1112,6 +1116,7 @@ export default function Builder() {
   const canRedoHistory = canRedoTextureMaker || editorCanRedo
 
   const traceActive = selectedEntityIds.length === 1 && workspaceOpen
+  const watchActive = selectedEntityIds.length === 1 && workspaceOpen
   useEffect(() => {
     if (traceActive) {
       setTransformerTraceTargetEntityId(selectedEntityIds[0]!)
@@ -1124,6 +1129,20 @@ export default function Builder() {
       clearTransformerLiveTraceSnapshot()
     }
   }, [selectedEntityIds, workspaceOpen, traceActive])
+
+  useEffect(() => {
+    setTransformerWatchEnabled(watchActive)
+    return () => setTransformerWatchEnabled(false)
+  }, [watchActive])
+
+  const prevGameFrozenRef = useRef(gameFrozen)
+  useEffect(() => {
+    const wasFrozen = prevGameFrozenRef.current
+    prevGameFrozenRef.current = gameFrozen
+    if (wasFrozen && !gameFrozen) {
+      incrementTransformerWatchRunId()
+    }
+  }, [gameFrozen])
 
   const liveTraceSnapshot = useSyncExternalStore(
     subscribeTransformerLiveTrace,

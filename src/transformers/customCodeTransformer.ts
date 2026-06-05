@@ -40,12 +40,19 @@ import {
 import { publishVariableValue, VARIABLE_OVERLAY_MAX_INDEX } from '@/runtime/variableOverlayBridge'
 import { publishLineValue } from '@/runtime/coordinateOverlayBridge'
 import {
+  getTransformerWatchRunId,
+  publishTransformerWatchEntry,
+} from '@/runtime/transformerWatchBridge'
+import { formatWatchValue } from '@/transformers/formatWatchValue'
+import {
   extractWrappedLineFromEvalError,
   formatEvalErrorWithUserLine,
   mapEvalLineToUserLine,
 } from '@/utils/errorLineMapper'
 
 let _customCodeVisualizeEntityId: string | null = null
+let _customCodeWatchEntityId: string | null = null
+let _customCodeWatchStackIndex: number | null = null
 
 let _transformerRuntimeGetEntity: ((id: string) => Entity | undefined) | null = null
 
@@ -285,6 +292,11 @@ export interface TransformerRuntimeApi {
   eulerDeltaAroundAxis(currentRotation: Rotation, axis: Vec3, angleRad: number): Rotation
   /** Show a message in the play-mode snackbar. durationSeconds defaults to 4. No-op in tests unless wired via setTransformerSnackbarFn. */
   log(message: string, durationSeconds?: number): void
+  /**
+   * Builder Workspace only: publish a labeled value to the Watch panel when the bridge is enabled.
+   * Updates only when called; stale labels from prior runs remain until Clear.
+   */
+  watch(value: unknown, label: string): void
   /**
    * Builder visualize mode only: records a numeric sample for the variable overlay when the bridge is wired.
    * No-op in Play mode, tests, or when visualize gizmo mode is inactive.
@@ -580,6 +592,22 @@ export const TRANSFORMER_RUNTIME_API: TransformerRuntimeApi = Object.freeze({
     }
     _snackbarFn?.(message, durationSeconds)
   },
+  watch: (value: unknown, label: string): void => {
+    const trimmed = requireStringParam('TransformerRuntimeApi.watch', 'label', label).trim()
+    if (trimmed.length === 0) {
+      throwApiError('TransformerRuntimeApi.watch', 'expected label: non-empty string')
+    }
+    const entityId = _customCodeWatchEntityId
+    const stackIndex = _customCodeWatchStackIndex
+    if (entityId == null || stackIndex == null) return
+    publishTransformerWatchEntry({
+      entityId,
+      configStackIndex: stackIndex,
+      label: trimmed,
+      value: formatWatchValue(value),
+      runId: getTransformerWatchRunId(),
+    })
+  },
   visualize: (value: number, color: string, name: string, index: number): void => {
     requireFiniteNumber('TransformerRuntimeApi.visualize', 'value', value)
     requireStringParam('TransformerRuntimeApi.visualize', 'color', color)
@@ -766,7 +794,12 @@ export class CustomCodeTransformer implements Transformer {
 
   transform(input: TransformInput, dt: number): TransformOutput {
     const prevVisualizeEntity = _customCodeVisualizeEntityId
+    const prevWatchEntity = _customCodeWatchEntityId
+    const prevWatchStackIndex = _customCodeWatchStackIndex
     _customCodeVisualizeEntityId = this.runtimeEntityId ?? null
+    _customCodeWatchEntityId = this.runtimeEntityId ?? null
+    _customCodeWatchStackIndex =
+      typeof this.configStackIndex === 'number' && this.configStackIndex >= 0 ? this.configStackIndex : null
     try {
       const raw = this.transformFn(input, dt, this.liveParams, this.state, TRANSFORMER_RUNTIME_API)
       const out = sanitizeTransformOutput(raw)
@@ -778,6 +811,8 @@ export class CustomCodeTransformer implements Transformer {
       return {}
     } finally {
       _customCodeVisualizeEntityId = prevVisualizeEntity
+      _customCodeWatchEntityId = prevWatchEntity
+      _customCodeWatchStackIndex = prevWatchStackIndex
     }
   }
 

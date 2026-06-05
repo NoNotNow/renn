@@ -48,6 +48,7 @@ import { clamp } from '@/utils/numberUtils'
 import type { GlobalBehaviorLibrary } from '@/types/globalBehaviorLibrary'
 import WorkspaceGlobalTransformerPanel from '@/components/workspace/WorkspaceGlobalTransformerPanel'
 import TransformerCodeErrorOverlay from '@/components/workspace/TransformerCodeErrorOverlay'
+import TransformerWatchPanel from '@/components/workspace/TransformerWatchPanel'
 import { useDebouncedCompileErrorDisplay } from '@/hooks/useDebouncedCompileErrorDisplay'
 
 /** Workspace horizontal split (code ↔ docs). */
@@ -339,6 +340,7 @@ function WorkspaceTransformersTabEntity({
   const selectedPreset = selectedConfig && isPresetTransformerType(selectedConfig.type) ? selectedConfig : null
 
   const [docsOpen, setDocsOpen] = useState(false)
+  const [watchOpen, setWatchOpen] = useState(false)
   const [docsWidthPx, setDocsWidthPx] = useState(0)
   const [docsAreaWidth, setDocsAreaWidth] = useState(0)
   const splitRowRef = useRef<HTMLDivElement>(null)
@@ -484,6 +486,10 @@ function WorkspaceTransformersTabEntity({
   const runtimeKeepTimerRef = useRef<number | null>(null)
   const runtimeActiveTimerRef = useRef<number | null>(null)
   const codeColumnRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!workspaceOpen) setWatchOpen(false)
+  }, [workspaceOpen])
 
   useEffect(() => {
     // If a new runtime error appears for the selection, show it immediately and start the
@@ -1108,6 +1114,26 @@ function WorkspaceTransformersTabEntity({
           )}
           <button
             type="button"
+            title={watchOpen ? 'Hide watch panel' : 'Show watch panel'}
+            aria-pressed={watchOpen}
+            data-testid="workspace-transformer-watch-toggle"
+            disabled={!monacoIsCustom || selectedEntityIds.length !== 1}
+            onClick={() => setWatchOpen((open) => !open)}
+            style={{
+              ...entityPanelIconButtonStyle,
+              width: 'auto',
+              padding: '0 8px',
+              fontSize: 11,
+              fontWeight: 600,
+              opacity: watchOpen ? 1 : 0.65,
+              color: watchOpen ? theme.accent : theme.text.muted,
+              cursor: !monacoIsCustom || selectedEntityIds.length !== 1 ? 'not-allowed' : 'pointer',
+            }}
+          >
+            Watch
+          </button>
+          <button
+            type="button"
             title={docsOpen ? 'Hide documentation' : 'Show documentation'}
             onClick={() => setDocsOpen(!docsOpen)}
             style={{
@@ -1304,6 +1330,19 @@ function WorkspaceTransformersTabEntity({
               runtimeActive={runtimeActive}
               formatRuntimeClipboard={formatCustomRuntimeErrorClipboard}
               onRuntimeContextMenu={handleRuntimeErrorContextMenu}
+            />
+          : null}
+
+          {watchOpen &&
+          monacoIsCustom &&
+          selectedConfig &&
+          selectedEntityIds.length === 1 &&
+          codeColumnRef.current ?
+            <TransformerWatchPanel
+              entityId={selectedEntityIds[0]!}
+              configStackIndex={selectedSortedIndex}
+              portalTarget={codeColumnRef.current}
+              onClose={() => setWatchOpen(false)}
             />
           : null}
         </div>

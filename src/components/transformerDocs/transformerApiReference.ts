@@ -611,6 +611,16 @@ export const API_RUNTIME_SECTION: ApiDocSection = {
       de: 'Kurze Meldung beim Spielen (Standard: 4 s). Ohne Anbindung passiert nichts.',
     },
     {
+      name: 'watch',
+      signature: 'api.watch(value, label)',
+      callName: 'api.watch',
+      type: 'void',
+      params: [API_PARAMS.watchValue, API_PARAMS.watchLabel],
+      en: 'Builder Workspace only: show `label: value` in the Watch panel. Updates only when called; stale labels remain until Clear.',
+      de: 'Nur im Builder-Workspace: `label: value` im Watch-Panel. Aktualisiert nur bei Aufruf; alte Labels bleiben bis Clear.',
+      example: "api.watch(speed, 'speed')",
+    },
+    {
       name: 'visualize',
       signature: 'api.visualize(value, color, name, index)',
       callName: 'api.visualize',

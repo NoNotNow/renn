@@ -30,6 +30,11 @@ import {
   setCoordinateOverlayDisplayEntityId,
   setCoordinateOverlayFn,
 } from '@/runtime/coordinateOverlayBridge'
+import {
+  getTransformerWatchEntriesForTarget,
+  resetTransformerWatchBridgeForTests,
+  setTransformerWatchEnabled,
+} from '@/runtime/transformerWatchBridge'
 
 describe('TransformerRuntimeApi argument validation', () => {
   test('getForwardVector rejects missing or invalid rotation', () => {
@@ -716,5 +721,50 @@ describe('CustomCodeTransformer', () => {
   test('api.log is a no-op when snackbar is not wired', () => {
     setTransformerSnackbarFn(null)
     expect(() => TRANSFORMER_RUNTIME_API.log('test')).not.toThrow()
+  })
+
+  test('api.watch validates label and publishes when bridge is enabled', () => {
+    resetTransformerWatchBridgeForTests()
+    setTransformerWatchEnabled(true)
+    const t = new CustomCodeTransformer({
+      type: 'custom',
+      code: `function transform(input, dt, params, state, api) {
+        api.watch(234, 'x after add');
+        return {};
+      }`,
+    })
+    t.configStackIndex = 2
+    t.runtimeEntityId = 'ent-a'
+    t.transform(createMockTransformInput({ entityId: 'ent-a' }), 0.1)
+    const entries = getTransformerWatchEntriesForTarget('ent-a', 2)
+    expect(entries).toEqual([
+      expect.objectContaining({
+        label: 'x after add',
+        value: '234',
+      }),
+    ])
+  })
+
+  test('api.watch rejects invalid label', () => {
+    expect(() => TRANSFORMER_RUNTIME_API.watch(1, '')).toThrow(/\[TransformerRuntimeApi\.watch\]/)
+    expect(() => TRANSFORMER_RUNTIME_API.watch(1, '   ')).toThrow(/\[TransformerRuntimeApi\.watch\]/)
+    expect(() => TRANSFORMER_RUNTIME_API.watch(1, 42 as unknown as string)).toThrow(
+      /\[TransformerRuntimeApi\.watch\]/,
+    )
+  })
+
+  test('api.watch is a no-op when bridge is disabled', () => {
+    resetTransformerWatchBridgeForTests()
+    const t = new CustomCodeTransformer({
+      type: 'custom',
+      code: `function transform(input, dt, params, state, api) {
+        api.watch(1, 'speed');
+        return {};
+      }`,
+    })
+    t.configStackIndex = 0
+    t.runtimeEntityId = 'ent-a'
+    t.transform(createMockTransformInput({ entityId: 'ent-a' }), 0.1)
+    expect(getTransformerWatchEntriesForTarget('ent-a', 0)).toEqual([])
   })
 })

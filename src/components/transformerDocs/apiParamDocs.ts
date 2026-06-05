@@ -313,6 +313,22 @@ export const API_PARAMS = {
     en: 'How long the message stays visible (default 4 s).',
     de: 'Wie lange die Meldung sichtbar bleibt (Standard 4 s).',
   },
+  watchValue: {
+    name: 'value',
+    type: 'unknown',
+    labelEn: 'Value',
+    labelDe: 'Wert',
+    en: 'Any value to display (numbers, strings, tuples, objects).',
+    de: 'Beliebiger Wert zur Anzeige (Zahlen, Strings, Tupel, Objekte).',
+  },
+  watchLabel: {
+    name: 'label',
+    type: 'string',
+    labelEn: 'Label',
+    labelDe: 'Beschriftung',
+    en: 'Non-empty key shown beside the formatted value in the Watch panel.',
+    de: 'Nicht-leerer Schlüssel neben dem formatierten Wert im Watch-Panel.',
+  },
   color: {
     name: 'color',
     type: 'string',
