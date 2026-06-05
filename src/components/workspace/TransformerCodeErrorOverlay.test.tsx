@@ -24,6 +24,18 @@ describe('TransformerCodeErrorOverlay', () => {
     expect(screen.getByText('Boom')).toBeInTheDocument()
   })
 
+  it('shows a green border when the runtime error is no longer active', () => {
+    render(
+      <TransformerCodeErrorOverlay
+        runtimeError={{ message: 'Boom', code: 'throw new Error("Boom")', lineNumber: 3 }}
+        runtimeActive={false}
+      />,
+    )
+
+    const overlay = screen.getByTestId('workspace-transformer-runtime-error')
+    expect(overlay).toHaveStyle({ borderColor: 'rgb(74, 106, 74)' })
+  })
+
   it('copies runtime error text', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined)
     Object.assign(navigator, { clipboard: { writeText } })
