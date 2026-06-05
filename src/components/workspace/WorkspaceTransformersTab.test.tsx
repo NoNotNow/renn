@@ -218,6 +218,70 @@ describe('WorkspaceTransformersTab', () => {
     expect(screen.getByText('+ Add Pipe')).toBeDefined()
   })
 
+  it('make unique clones registry entry when shared usage badge is confirmed', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const sharedWorld: RennWorld = {
+      ...carStackWorld,
+      entities: [
+        { ...carStackWorld.entities[0]! },
+        {
+          id: 'car2',
+          bodyType: 'dynamic',
+          shape: { type: 'box', width: 1, height: 1, depth: 1 },
+          position: [2, 0, 0],
+          transformers: ['car_tf0', 'car_tf1', 'car_tf2'],
+        },
+      ],
+    }
+    const onWorldChange = vi.fn()
+    renderTab({ world: sharedWorld, onWorldChange, entry: { entityId: 'car', tab: 'transformers', itemId: 'car_tf0' } })
+
+    expect(screen.getAllByText(/👤 x2/).length).toBeGreaterThan(0)
+    fireEvent.click(screen.getByTestId('transformer-shared-usage-0'))
+
+    await waitFor(() => expect(onWorldChange).toHaveBeenCalled())
+    expect(confirmSpy).toHaveBeenCalled()
+    confirmSpy.mockRestore()
+
+    const next = onWorldChange.mock.calls.at(-1)?.[0] as RennWorld
+    const car = next.entities.find((e) => e.id === 'car')!
+    expect(car.transformers?.[0]).not.toBe('car_tf0')
+    expect(next.transformers?.[car.transformers![0]!]?.type).toBe('input')
+    expect(next.entities.find((e) => e.id === 'car2')?.transformers?.[0]).toBe('car_tf0')
+    expect(Object.values(
+      next.entities.reduce<Record<string, number>>((counts, e) => {
+        e.transformers?.forEach((id) => {
+          counts[id] = (counts[id] || 0) + 1
+        })
+        return counts
+      }, {}),
+    ).filter((n) => n > 1)).toHaveLength(2)
+  })
+
+  it('does not make unique when shared usage confirmation is cancelled', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const sharedWorld: RennWorld = {
+      ...carStackWorld,
+      entities: [
+        { ...carStackWorld.entities[0]! },
+        {
+          id: 'car2',
+          bodyType: 'dynamic',
+          shape: { type: 'box', width: 1, height: 1, depth: 1 },
+          position: [2, 0, 0],
+          transformers: ['car_tf0', 'car_tf1', 'car_tf2'],
+        },
+      ],
+    }
+    const onWorldChange = vi.fn()
+    renderTab({ world: sharedWorld, onWorldChange })
+
+    fireEvent.click(screen.getByTestId('transformer-shared-usage-0'))
+    expect(confirmSpy).toHaveBeenCalled()
+    expect(onWorldChange).not.toHaveBeenCalled()
+    confirmSpy.mockRestore()
+  })
+
   it('shows shared pipe banner when entity is linked to a pipe', async () => {
     const pipeWorld: RennWorld = {
       ...carStackWorld,

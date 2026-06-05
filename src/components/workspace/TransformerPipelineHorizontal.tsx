@@ -342,6 +342,7 @@ function TransformerTraceItem({
   onSelectCode,
   usageCount,
   onMakeUnique,
+  makeUniqueDisabledReason,
   isSelected,
   isDragOver,
   isDragging,
@@ -364,6 +365,7 @@ function TransformerTraceItem({
   onSelectCode?: () => void
   usageCount?: number
   onMakeUnique?: () => void
+  makeUniqueDisabledReason?: string
   isSelected?: boolean
   isDragOver: boolean
   isDragging: boolean
@@ -552,8 +554,24 @@ function TransformerTraceItem({
           </button>
 
           {usageCount !== undefined && usageCount > 1 && (
-            <div
-              title={`${usageCount} entities use this transformer. Changes will affect all of them unless you make it unique.`}
+            <button
+              type="button"
+              disabled={!onMakeUnique}
+              data-testid={`transformer-shared-usage-${index}`}
+              onClick={(e) => {
+                e.stopPropagation()
+                if (!onMakeUnique) return
+                const ok = window.confirm(
+                  `${usageCount} entities share this transformer stage. Separate it for the selected entity only? Other entities will keep the shared version.`,
+                )
+                if (ok) onMakeUnique()
+              }}
+              title={
+                onMakeUnique ?
+                  `${usageCount} entities share this stage — click to separate for the selected entity`
+                : (makeUniqueDisabledReason ??
+                  `${usageCount} entities use this transformer. Changes affect all of them.`)
+              }
               style={{
                 fontSize: 9,
                 color: theme.text.accentBlue,
@@ -561,10 +579,17 @@ function TransformerTraceItem({
                 display: 'flex',
                 alignItems: 'center',
                 gap: 2,
+                padding: '1px 4px',
+                margin: 0,
+                border: `1px solid ${onMakeUnique ? 'rgba(74, 158, 255, 0.35)' : theme.border.default}`,
+                borderRadius: 3,
+                background: onMakeUnique ? 'rgba(74, 158, 255, 0.1)' : 'transparent',
+                cursor: onMakeUnique ? 'pointer' : 'not-allowed',
+                opacity: onMakeUnique ? 1 : 0.5,
               }}
             >
               👤 x{usageCount}
-            </div>
+            </button>
           )}
 
           <button
@@ -599,32 +624,6 @@ function TransformerTraceItem({
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           {isToolsExpanded && (
             <>
-              {usageCount !== undefined && usageCount > 1 && onMakeUnique && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onMakeUnique()
-                  }}
-                  title="Make unique (unlink from others)"
-                  style={{
-                    background: 'rgba(0, 153, 255, 0.15)',
-                    border: `1px solid ${theme.accent}`,
-                    padding: '0 4px',
-                    borderRadius: 3,
-                    color: theme.accent,
-                    cursor: 'pointer',
-                    fontSize: 8,
-                    fontWeight: 700,
-                    height: 16,
-                    display: 'flex',
-                    alignItems: 'center',
-                    marginRight: 2,
-                  }}
-                >
-                  UNIQUE
-                </button>
-              )}
               {transformer.type === 'custom' && (
                 <button
                   type="button"
@@ -840,6 +839,7 @@ export function TransformerHorizontalPipeline({
   onCommit,
   onSelectCode,
   onMakeUnique,
+  makeUniqueDisabledReason,
   usageCounts,
   existingRegistry,
   selectedId,
@@ -854,6 +854,7 @@ export function TransformerHorizontalPipeline({
   onCommit: (next: TransformerConfig[], orderedRegistryIds?: string[]) => void
   onSelectCode?: (id: string) => void
   onMakeUnique?: (id: string) => void
+  makeUniqueDisabledReason?: string
   usageCounts?: Record<string, number>
   existingRegistry?: Record<string, TransformerConfig>
   selectedId?: string | null
@@ -1067,6 +1068,7 @@ export function TransformerHorizontalPipeline({
               onSelectCode={() => onSelectCode?.(item.id)}
               usageCount={usageCounts?.[item.id]}
               onMakeUnique={onMakeUnique ? () => onMakeUnique(item.id) : undefined}
+              makeUniqueDisabledReason={makeUniqueDisabledReason}
               isSelected={item.id === selectedId}
               isDragging={dragState?.draggedId === item.id}
               isDragOver={dragState?.dragOverId === item.id && dragState?.draggedId !== item.id}

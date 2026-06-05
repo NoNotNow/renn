@@ -27,6 +27,7 @@ import { effectiveCustomTransformerCode, validateCustomTransformerSource } from 
 import { useEditorUndo } from '@/contexts/EditorUndoContext'
 import { useCopyMenu } from '@/contexts/CopyContext'
 import {
+  allocateTransformerRegistryId,
   commitTransformerConfigsToWorld,
   mapTransformerRegistryIdsToEntity,
   assignPipeToEntity,
@@ -281,8 +282,12 @@ function WorkspaceTransformersTabEntity({
   const commitStacksRawRef = useRef(commitStacksRaw)
   commitStacksRawRef.current = commitStacksRaw
 
+  const canMakeUniqueStage = entityIdsForEdit.length === 1
+
   const handleMakeUniqueTransformer = useCallback(
     (id: string) => {
+      if (!canMakeUniqueStage) return
+
       const idx = transformerIds.indexOf(id)
       if (idx < 0) return
 
@@ -303,6 +308,7 @@ function WorkspaceTransformersTabEntity({
             return {
               ...e,
               transformers: e.transformers?.map((tid) => (tid === id ? newId : tid)) ?? [],
+              transformerPipe: undefined,
             }
           }
           return e
@@ -314,7 +320,7 @@ function WorkspaceTransformersTabEntity({
         onEntryChange({ ...entry, itemId: newId })
       }
     },
-    [transformerIds, entityIdsForEdit, world, onWorldChange, onEntryChange, entry],
+    [transformerIds, entityIdsForEdit, canMakeUniqueStage, world, onWorldChange, onEntryChange, entry],
   )
 
   const selectedSortedIndex = useMemo(() => {
@@ -1096,7 +1102,10 @@ function WorkspaceTransformersTabEntity({
               headerRef={headerRef}
               onCommit={handleCommitStacks}
               onSelectCode={changeSelectedIdWithFlush}
-              onMakeUnique={handleMakeUniqueTransformer}
+              onMakeUnique={canMakeUniqueStage ? handleMakeUniqueTransformer : undefined}
+              makeUniqueDisabledReason={
+                canMakeUniqueStage ? undefined : 'Select a single entity to make a shared stage unique'
+              }
               usageCounts={usageCounts}
               existingRegistry={world.transformers}
               selectedId={selectedId}
