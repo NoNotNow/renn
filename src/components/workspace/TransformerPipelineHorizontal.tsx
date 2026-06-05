@@ -1,6 +1,7 @@
 import {
   Fragment,
   useCallback,
+  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -861,6 +862,8 @@ export function TransformerHorizontalPipeline({
 
   const traceBarRef = useRef<HTMLDivElement>(null)
   const configIdMap = useRef<WeakMap<TransformerConfig, string>>(new WeakMap())
+  /** Select after parent commit propagates new registry ids into props. */
+  const pendingSelectIdRef = useRef<string | null>(null)
 
   const getStableId = useCallback((t: TransformerConfig, index: number) => {
     if (transformerIds?.[index]) return transformerIds[index]
@@ -884,6 +887,16 @@ export function TransformerHorizontalPipeline({
     [onCommit, registryIdsForList],
   )
 
+  useEffect(() => {
+    const pending = pendingSelectIdRef.current
+    if (!pending || !onSelectCode) return
+    const ids = registryIdsForList()
+    if (ids.includes(pending)) {
+      pendingSelectIdRef.current = null
+      onSelectCode(pending)
+    }
+  }, [transformers, transformerIds, registryIdsForList, onSelectCode])
+
   const handleAddPreset = (type: string) => {
     const ids = registryIdsForList()
     const used = new Set(ids)
@@ -897,6 +910,7 @@ export function TransformerHorizontalPipeline({
         allocateTransformerRegistryId(registryEntityId, {}, used)
       : getStableId(config, transformers.length)
 
+    pendingSelectIdRef.current = newId
     commitWithRegistryIds(syncPriorities([...transformers, config]), [...ids, newId])
   }
 
@@ -920,6 +934,7 @@ export function TransformerHorizontalPipeline({
         : suggestCopyRegistryId(registryId, existingRegistry ?? {}, used)
     }
 
+    pendingSelectIdRef.current = newId
     commitWithRegistryIds(syncPriorities([...transformers, config]), [...ids, newId])
   }
 

@@ -44,7 +44,7 @@ Scripts use `world.scripts: Record<string, ScriptDef>` with `entity.scripts: str
   preset **Load template** + **Field reference** where applicable (`ValidatedJsonTextarea`),
   Monaco when a **custom** stage is selected. **Removed:** redundant second toolbar row under the chain (Custom picker, Name, enable pill, Priority) — those fields live on the card / in **Configure**.
 - Visual pipeline strip (ordered, since execution order matters).
-- **Add** **+** button on the pipeline opens a resizable dialog with **Preset** and **Existing** tabs; existing list stacks one row per organize title (like Organize); **Add** / **Link** / **Copy** as before.
+- **Add** **+** button on the pipeline opens a resizable dialog with **Preset** and **Existing** tabs; existing list stacks one row per organize title (like Organize); **Add** / **Link** / **Copy** as before. The new stage is auto-selected after confirm (custom stages open Monaco immediately).
 - Clicking a custom stage’s **code** control or selecting the stage selects it for Monaco editing.
 - Custom transformer **compile** and **runtime** errors render as floating overlays (`TransformerCodeErrorOverlay`) over the code column so Monaco height stays fixed. Compile errors are debounced (500 ms) while typing and flush on editor blur; pipeline cards still show error borders immediately on every failing stage (multiple runtime errors in one chain are tracked independently).
 

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import type { ComponentProps } from 'react'
+import { useState, type ComponentProps } from 'react'
 import { act, render, screen, fireEvent, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import WorkspaceTransformersTab from './WorkspaceTransformersTab'
 import { COMPILE_ERROR_DISPLAY_DEBOUNCE_MS } from '@/hooks/useDebouncedCompileErrorDisplay'
 import type { RennWorld } from '@/types/world'
@@ -499,6 +500,73 @@ describe('WorkspaceTransformersTab', () => {
 
     await waitFor(() => {
       expect(screen.queryByTestId('workspace-transformer-watch-list')).toBeNull()
+    })
+  })
+
+  it('selects a newly added custom transformer so Monaco shows its code', async () => {
+    const user = userEvent.setup()
+    const inputOnlyWorld: RennWorld = {
+      version: '1.0',
+      world: { gravity: [0, -9.81, 0] },
+      assets: {},
+      entities: [
+        {
+          id: 'car',
+          bodyType: 'dynamic',
+          shape: { type: 'box', width: 1, height: 1, depth: 1 },
+          position: [0, 0, 0],
+          transformers: ['car_tf0'],
+        },
+      ],
+      transformers: {
+        car_tf0: { type: 'input', priority: 0, enabled: true, params: {} },
+      },
+    }
+
+    const setMonacoPayload = vi.fn()
+    const onEntryChange = vi.fn()
+
+    function Harness() {
+      const [world, setWorld] = useState(inputOnlyWorld)
+      return (
+        <CopyProvider>
+          <EditorUndoProvider value={undoApi}>
+            <WorkspaceTransformersTab
+              world={world}
+              selectedEntityIds={['car']}
+              entry={{ entityId: 'car', tab: 'transformers', itemId: 'car_tf0' }}
+              workspaceOpen
+              liveTraceSteps={null}
+              onWorldChange={setWorld}
+              setMonacoPayload={setMonacoPayload}
+              monacoSlot={null}
+              onEntryChange={onEntryChange}
+            />
+          </EditorUndoProvider>
+        </CopyProvider>
+      )
+    }
+
+    render(<Harness />)
+
+    await waitFor(() => {
+      expect(lastMonacoPayload(setMonacoPayload)?.kind).toBe('placeholder')
+    })
+
+    await user.click(screen.getByTestId('add-transformer-button'))
+    await user.click(screen.getByTestId('add-transformer-preset-custom'))
+    await user.click(screen.getByTestId('add-transformer-add-preset'))
+
+    await waitFor(() => {
+      const payload = lastMonacoPayload(setMonacoPayload)
+      expect(payload?.kind).toBe('transformer-ts')
+      expect(payload?.value).toContain('function transform')
+    })
+
+    await waitFor(() => {
+      expect(onEntryChange).toHaveBeenCalledWith(
+        expect.objectContaining({ entityId: 'car', tab: 'transformers', itemId: 'car_tf1' }),
+      )
     })
   })
 
