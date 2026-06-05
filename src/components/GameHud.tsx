@@ -104,9 +104,9 @@ function SpeedTachSvg({ speedMs }: { speedMs: number }) {
   const uid = useId().replace(/:/g, '_')
   const speedKmh = Math.min(MAX_KMH, Math.abs(speedMs) * 3.6)
   const t = MAX_KMH > 0 ? Math.min(1, speedKmh / MAX_KMH) : 0
-  const θ = tachAngleRadForU(t)
-  /** Default needle along −Y; rotate so it aligns with (cos θ, sin θ) from center. */
-  const needleRotateDeg = (θ * 180) / Math.PI + 90
+  const tachAngleRad = tachAngleRadForU(t)
+  /** Default needle along -Y; rotate so it aligns with (cos/sin of tachAngleRad) from center. */
+  const needleRotateDeg = (tachAngleRad * 180) / Math.PI + 90
 
   const majorTicks: number[] = []
   for (let v = 0; v <= MAX_KMH; v += 20) majorTicks.push(v)
@@ -276,7 +276,6 @@ function SteeringWheelHud({ wheelAngle }: { wheelAngle: number }) {
           objectFit: 'contain',
           transform: `rotate(${rotDeg}deg)`,
           transformOrigin: '50% 50%',
-          transition: 'transform 200ms ease-in-out',
         }}
       />
     </div>
