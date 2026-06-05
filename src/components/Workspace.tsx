@@ -117,9 +117,6 @@ export interface WorkspaceProps {
   ) => void
   /** Builder live transformer trace (`null` disables live IN/OUT in the pipeline strip). */
   liveTransformerTraceSteps?: TransformerTraceStep[] | null
-  onResetPoseToSavedWorld?: (entityIds: string[]) => void
-  canResetPoseToSaved?: boolean
-  resetPoseTitle?: string
   /** Same hook as Workspace — collapse side drawers when opening. */
   onWorkspaceOpenSideEffects?: () => void
   /** Keeps anchor entry in sync when switching shell tabs or navigating from Organize → editor. */
@@ -162,9 +159,6 @@ export default function Workspace({
   onWorldChange,
   onEntityTransformersChange,
   liveTransformerTraceSteps = null,
-  onResetPoseToSavedWorld,
-  canResetPoseToSaved,
-  resetPoseTitle,
   onWorkspaceOpenSideEffects,
   onEntryChange,
   onSelectEntity,
@@ -736,9 +730,6 @@ export default function Workspace({
                       onEntityTransformersChange={onEntityTransformersChange}
                       setMonacoPayload={setMonacoPayload}
                       monacoSlot={monacoEditor}
-                      onResetPoseToSavedWorld={onResetPoseToSavedWorld}
-                      canResetPoseToSaved={canResetPoseToSaved}
-                      resetPoseTitle={resetPoseTitle}
                       globalLibrary={globalLibrary}
                       onGlobalLibraryChange={persistGlobalLibrary}
                       onEntryChange={onEntryChange}

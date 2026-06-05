@@ -127,9 +127,6 @@ export interface WorkspaceTransformersTabProps {
   setMonacoPayload: (payload: WorkspaceMonacoPayload) => void
   /** Host injects shared `TransformerCustomCodeEditor`; tab positions it inside the split layout. */
   monacoSlot: ReactNode
-  onResetPoseToSavedWorld?: (entityIds: string[]) => void
-  canResetPoseToSaved?: boolean
-  resetPoseTitle?: string
   /** IndexedDB global library (Organize → Global → Edit). */
   globalLibrary?: GlobalBehaviorLibrary
   onGlobalLibraryChange?: (next: GlobalBehaviorLibrary) => void
@@ -180,9 +177,6 @@ function WorkspaceTransformersTabEntity({
   onEntityTransformersChange,
   setMonacoPayload,
   monacoSlot,
-  onResetPoseToSavedWorld,
-  canResetPoseToSaved = false,
-  resetPoseTitle = 'Restore saved position and rotation (from world)',
   onEntryChange,
 }: WorkspaceTransformersTabProps) {
   const undo = useEditorUndo()
@@ -1124,21 +1118,6 @@ function WorkspaceTransformersTabEntity({
           >
             {EntityPanelIcons.document}
           </button>
-          {onResetPoseToSavedWorld ?
-            <button
-              type="button"
-              title={resetPoseTitle}
-              disabled={!canResetPoseToSaved}
-              onClick={() => onResetPoseToSavedWorld(selectedEntityIds)}
-              style={{
-                ...entityPanelIconButtonStyle,
-                cursor: canResetPoseToSaved ? 'pointer' : 'not-allowed',
-                opacity: canResetPoseToSaved ? 0.85 : 0.45,
-              }}
-            >
-              {EntityPanelIcons.reset}
-            </button>
-          : null}
           <div style={{ position: 'relative' }}>
             <button
               type="button"

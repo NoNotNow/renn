@@ -1153,23 +1153,6 @@ export default function Builder() {
       ? liveTraceSnapshot.steps
       : null
 
-  const selectedResolvedEntities = useMemo(
-    () =>
-      selectedEntityIds
-        .map((id) => world.entities.find((e) => e.id === id))
-        .filter((e): e is Entity => e != null),
-    [selectedEntityIds, world.entities],
-  )
-
-  const canResetPoseToSaved =
-    selectedResolvedEntities.length > 0 && selectedResolvedEntities.some((e) => !e.locked)
-
-  const resetPoseTitle = canResetPoseToSaved
-    ? 'Restore saved position and rotation (from world)'
-    : selectedResolvedEntities.length > 0 && selectedResolvedEntities.every((e) => e.locked)
-      ? 'Cannot reset locked entities'
-      : 'Select an entity to restore saved position and rotation'
-
   const onOpenTextureStudioFromToolbar =
     selectedEntityIds.length === 1
       ? () => {
@@ -1560,9 +1543,6 @@ export default function Builder() {
         onWorldChange={handleWorldChange}
         onEntityTransformersChange={handleEntityTransformersChange}
         liveTransformerTraceSteps={liveTraceSteps}
-        onResetPoseToSavedWorld={handleResetPoseToSavedWorld}
-        canResetPoseToSaved={canResetPoseToSaved}
-        resetPoseTitle={resetPoseTitle}
         onSelectEntity={handleSelectEntity}
         gameFrozen={gameFrozen}
         onToggleGameFrozen={() => setGameFrozen((f) => !f)}
