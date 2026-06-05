@@ -177,7 +177,7 @@ export function formatEvalErrorWithUserLine(
  */
 export function formatErrorMessage(
   error: unknown,
-  source: string,
+  _source: string,
   label: string
 ): { message: string; lineNumber?: number } {
   const message = error instanceof Error ? error.message : String(error)
@@ -205,6 +205,6 @@ export function formatErrorMessage(
   
   return {
     message: enhancedMessage,
-    lineNumber,
+    lineNumber: lineNumber ?? undefined,
   }
 }

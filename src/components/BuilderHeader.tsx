@@ -114,7 +114,7 @@ export default function BuilderHeader({
   onOpenTransformerDocs,
   onOpenTextureStudio,
   onOpenWorkspace,
-  selectedEntityCount = 0,
+  selectedEntityCount: _selectedEntityCount = 0,
   onOpenExampleWorld,
 }: BuilderHeaderProps) {
   const [showProjectSelector, setShowProjectSelector] = useState(false)

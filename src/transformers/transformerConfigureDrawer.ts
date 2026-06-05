@@ -2,7 +2,7 @@ import type { TransformerConfig } from '@/types/transformer'
 
 /** Configure drawer: custom stages edit metadata only (`code` is edited in Monaco). */
 export function transformerConfigForConfigureDrawer(t: TransformerConfig): Record<string, unknown> {
-  if (t.type !== 'custom') return t as Record<string, unknown>
+  if (t.type !== 'custom') return t as unknown as Record<string, unknown>
   const { code: _code, ...meta } = t
   return meta
 }

@@ -770,7 +770,7 @@ export default function WorkspaceOrganizeTab({
       unusedIds.forEach((id) => delete nextTransformers[id])
       onWorldChange({ ...world, transformers: nextTransformers })
     }
-    uiLogger.info(`Cleaned up ${unusedIds.length} unused ${kind}`)
+    uiLogger.click('WorkspaceOrganizeTab', `Cleaned up unused ${kind}`, { count: unusedIds.length, kind })
   }, [world, kind, pushUndo, onWorldChange])
 
   const handleDeleteGlobalScript = (id: string) => {
@@ -1037,7 +1037,7 @@ export default function WorkspaceOrganizeTab({
               const usageLine = inProject
                 ? `Also in this world · used by ${users.length} entity(ies)`
                 : 'Not in this world yet'
-              const assignments = [] // Disable selection from global tab
+              const assignments: { id: string; name: string }[] = [] // Disable selection from global tab
               return (
                 <WorkspaceOrganizeCard
                   key={id}
@@ -1099,7 +1099,11 @@ export default function WorkspaceOrganizeTab({
                   title={id}
                   subtitle={`${def.stages.length} stages`}
                   usageLine={`Used by ${users.length} entities`}
-                  assignments={scope === 'global' ? [] : users}
+                  assignments={
+                    scope === 'global'
+                      ? []
+                      : users.map((u) => ({ id: u.id, name: u.name ?? u.id }))
+                  }
                   showAssign={scope !== 'entity'}
                   showDetach={scope === 'entity' || users.length > 0}
                   showDelete={true}
@@ -1169,7 +1173,7 @@ export default function WorkspaceOrganizeTab({
               const usageLine = inProject
                 ? `Also in this world · used by ${users.length} entity(ies)`
                 : 'Not in this world yet'
-              const assignments = [] // Disable selection from global tab
+              const assignments: { id: string; name: string }[] = [] // Disable selection from global tab
               return (
                 <WorkspaceOrganizeCard
                   key={id}

@@ -39,8 +39,8 @@ describe('useDebouncedCompileErrorDisplay', () => {
   it('clears immediately when compile error is resolved', () => {
     const containerRef = createRef<HTMLDivElement>()
     const { result, rerender } = renderHook(
-      ({ error }) => useDebouncedCompileErrorDisplay(error, containerRef),
-      { initialProps: { error: 'Failed to compile' } },
+      ({ error }: { error: string | null }) => useDebouncedCompileErrorDisplay(error, containerRef),
+      { initialProps: { error: 'Failed to compile' as string | null } },
     )
 
     act(() => {

@@ -39,53 +39,53 @@ import {
 describe('TransformerRuntimeApi argument validation', () => {
   test('getForwardVector rejects missing or invalid rotation', () => {
     expect(() => TRANSFORMER_RUNTIME_API.getForwardVector(undefined as unknown as [number, number, number])).toThrow(
-      /\[TransformerRuntimeApi\.getForwardVector\] expected rotation:/,
+      /\[TransformerRuntimeApi\.getForwardVector] expected rotation:/,
     )
     expect(() => TRANSFORMER_RUNTIME_API.getForwardVector([0, 0] as unknown as [number, number, number])).toThrow(
-      /\[TransformerRuntimeApi\.getForwardVector\]/,
+      /\[TransformerRuntimeApi\.getForwardVector]/,
     )
     expect(() => TRANSFORMER_RUNTIME_API.getForwardVector([NaN, 0, 0])).toThrow(
-      /\[TransformerRuntimeApi\.getForwardVector\]/,
+      /\[TransformerRuntimeApi\.getForwardVector]/,
     )
   })
 
   test('vec.getForwardVector uses same validation as top-level', () => {
     expect(() => TRANSFORMER_RUNTIME_API.vec.getForwardVector(undefined as unknown as [number, number, number])).toThrow(
-      /\[TransformerRuntimeApi\.vec\.getForwardVector\]/,
+      /\[TransformerRuntimeApi\.vec\.getForwardVector]/,
     )
   })
 
   test('vec.add, vec.subtract, scaleVec3, normalizeVec3 reject invalid arguments', () => {
     expect(() => TRANSFORMER_RUNTIME_API.vec.add([1, 0, 0], [0, 1] as unknown as Vec3)).toThrow(
-      /\[TransformerRuntimeApi\.vec\.add\]/,
+      /\[TransformerRuntimeApi\.vec\.add]/,
     )
     expect(() => TRANSFORMER_RUNTIME_API.vec.subtract([1, 0, 0], [0, 1] as unknown as Vec3)).toThrow(
-      /\[TransformerRuntimeApi\.vec\.subtract\]/,
+      /\[TransformerRuntimeApi\.vec\.subtract]/,
     )
     expect(() => TRANSFORMER_RUNTIME_API.subtractVec3([1, 0, 0], [0, 1] as unknown as Vec3)).toThrow(
-      /\[TransformerRuntimeApi\.subtractVec3\]/,
+      /\[TransformerRuntimeApi\.subtractVec3]/,
     )
-    expect(() => TRANSFORMER_RUNTIME_API.scaleVec3([1, 0, 0], NaN)).toThrow(/\[TransformerRuntimeApi\.scaleVec3\]/)
+    expect(() => TRANSFORMER_RUNTIME_API.scaleVec3([1, 0, 0], NaN)).toThrow(/\[TransformerRuntimeApi\.scaleVec3]/)
     expect(() => TRANSFORMER_RUNTIME_API.vec.normalize([0, 1] as unknown as Vec3)).toThrow(
-      /\[TransformerRuntimeApi\.vec\.normalize\]/,
+      /\[TransformerRuntimeApi\.vec\.normalize]/,
     )
     expect(() => TRANSFORMER_RUNTIME_API.normalizeVec3([0, 1] as unknown as Vec3)).toThrow(
-      /\[TransformerRuntimeApi\.normalizeVec3\]/,
+      /\[TransformerRuntimeApi\.normalizeVec3]/,
     )
   })
 
   test('vec.getForwardSpeed rejects non-Vec3', () => {
     expect(() => TRANSFORMER_RUNTIME_API.vec.getForwardSpeed([0, 0, 1], [0, 1] as unknown as Vec3)).toThrow(
-      /\[TransformerRuntimeApi\.vec\.getForwardSpeed\]/,
+      /\[TransformerRuntimeApi\.vec\.getForwardSpeed]/,
     )
   })
 
   test('vec.projectOntoPlane and vec.rotateAroundAxis reject invalid arguments', () => {
     expect(() => TRANSFORMER_RUNTIME_API.vec.projectOntoPlane([0, 1] as unknown as Vec3, [0, 1, 0])).toThrow(
-      /\[TransformerRuntimeApi\.vec\.projectOntoPlane\]/,
+      /\[TransformerRuntimeApi\.vec\.projectOntoPlane]/,
     )
     expect(() => TRANSFORMER_RUNTIME_API.vec.rotateAroundAxis([1, 0, 0], [0, 1, 0], NaN)).toThrow(
-      /\[TransformerRuntimeApi\.vec\.rotateAroundAxis\]/,
+      /\[TransformerRuntimeApi\.vec\.rotateAroundAxis]/,
     )
   })
 
@@ -112,7 +112,7 @@ describe('TransformerRuntimeApi argument validation', () => {
   test('raycastSpread rejects invalid rayCount', () => {
     expect(() =>
       TRANSFORMER_RUNTIME_API.raycastSpread([0, 0, 0], [0, 0, -1], 10, 2, 0),
-    ).toThrow(/\[TransformerRuntimeApi\.raycastSpread\] expected rayCount:/)
+    ).toThrow(/\[TransformerRuntimeApi\.raycastSpread] expected rayCount:/)
   })
 
   test('raycastSpread picks closest hit', () => {
@@ -128,70 +128,70 @@ describe('TransformerRuntimeApi argument validation', () => {
   test('eulerDeltaAroundAxis rejects invalid args', () => {
     expect(() =>
       TRANSFORMER_RUNTIME_API.eulerDeltaAroundAxis(undefined as unknown as [number, number, number], [0, 1, 0], 0.1),
-    ).toThrow(/\[TransformerRuntimeApi\.eulerDeltaAroundAxis\]/)
+    ).toThrow(/\[TransformerRuntimeApi\.eulerDeltaAroundAxis]/)
     expect(() => TRANSFORMER_RUNTIME_API.eulerDeltaAroundAxis([0, 0, 0], [0, 0] as unknown as Vec3, 0.1)).toThrow(
-      /\[TransformerRuntimeApi\.eulerDeltaAroundAxis\]/,
+      /\[TransformerRuntimeApi\.eulerDeltaAroundAxis]/,
     )
     expect(() => TRANSFORMER_RUNTIME_API.eulerDeltaAroundAxis([0, 0, 0], [0, 1, 0], NaN)).toThrow(
-      /\[TransformerRuntimeApi\.eulerDeltaAroundAxis\]/,
+      /\[TransformerRuntimeApi\.eulerDeltaAroundAxis]/,
     )
   })
 
   test('clamp rejects non-finite numbers', () => {
-    expect(() => TRANSFORMER_RUNTIME_API.clamp(1, NaN, 3)).toThrow(/\[TransformerRuntimeApi\.clamp\]/)
+    expect(() => TRANSFORMER_RUNTIME_API.clamp(1, NaN, 3)).toThrow(/\[TransformerRuntimeApi\.clamp]/)
   })
 
   test('getAction rejects invalid input or name', () => {
     expect(() => TRANSFORMER_RUNTIME_API.getAction(undefined as unknown as TransformInput, 'a')).toThrow(
-      /\[TransformerRuntimeApi\.getAction\] expected input:/,
+      /\[TransformerRuntimeApi\.getAction] expected input:/,
     )
     expect(() => TRANSFORMER_RUNTIME_API.getAction({ actions: [] } as unknown as TransformInput, 'a')).toThrow(
-      /\[TransformerRuntimeApi\.getAction\] expected input\.actions:/,
+      /\[TransformerRuntimeApi\.getAction] expected input\.actions:/,
     )
     expect(() =>
       TRANSFORMER_RUNTIME_API.getAction(createMockTransformInput(), 1 as unknown as string),
-    ).toThrow(/\[TransformerRuntimeApi\.getAction\] expected name:/)
+    ).toThrow(/\[TransformerRuntimeApi\.getAction] expected name:/)
   })
 
   test('visualize rejects invalid arguments before publishing', () => {
     expect(() => TRANSFORMER_RUNTIME_API.visualize(1, '#000', 'x', 0)).toThrow(
-      /\[TransformerRuntimeApi\.visualize\] expected index:/,
+      /\[TransformerRuntimeApi\.visualize] expected index:/,
     )
     expect(() => TRANSFORMER_RUNTIME_API.visualize(1, '#000', 'x', 1.5)).toThrow(
-      /\[TransformerRuntimeApi\.visualize\] expected index:/,
+      /\[TransformerRuntimeApi\.visualize] expected index:/,
     )
     expect(() => TRANSFORMER_RUNTIME_API.visualize(NaN, '#000', 'x', 1)).toThrow(
-      /\[TransformerRuntimeApi\.visualize\] expected value:/,
+      /\[TransformerRuntimeApi\.visualize] expected value:/,
     )
   })
 
   test('visualizeLine rejects invalid coordinate', () => {
     expect(() => TRANSFORMER_RUNTIME_API.visualizeLine([0, 1] as unknown as [number, number, number], [0, 0, 0], 'red')).toThrow(
-      /\[TransformerRuntimeApi\.visualizeLine\]/,
+      /\[TransformerRuntimeApi\.visualizeLine]/,
     )
     expect(() => TRANSFORMER_RUNTIME_API.visualizeLine([0, 0, 0], [0, 1] as unknown as [number, number, number], 'red')).toThrow(
-      /\[TransformerRuntimeApi\.visualizeLine\]/,
+      /\[TransformerRuntimeApi\.visualizeLine]/,
     )
   })
 
   test('getWorldPosition rejects non-string id', () => {
     expect(() => TRANSFORMER_RUNTIME_API.getWorldPosition(123 as unknown as string)).toThrow(
-      /\[TransformerRuntimeApi\.getWorldPosition\] expected id:/,
+      /\[TransformerRuntimeApi\.getWorldPosition] expected id:/,
     )
   })
 
   test('getStartPosition and getEntity reject non-string id', () => {
     expect(() => TRANSFORMER_RUNTIME_API.getStartPosition(null as unknown as string)).toThrow(
-      /\[TransformerRuntimeApi\.getStartPosition\] expected id:/,
+      /\[TransformerRuntimeApi\.getStartPosition] expected id:/,
     )
     expect(() => TRANSFORMER_RUNTIME_API.getEntity(1 as unknown as string)).toThrow(
-      /\[TransformerRuntimeApi\.getEntity\] expected id:/,
+      /\[TransformerRuntimeApi\.getEntity] expected id:/,
     )
   })
 
   test('log rejects non-string message or invalid duration', () => {
-    expect(() => TRANSFORMER_RUNTIME_API.log(1 as unknown as string)).toThrow(/\[TransformerRuntimeApi\.log\]/)
-    expect(() => TRANSFORMER_RUNTIME_API.log('hi', NaN)).toThrow(/\[TransformerRuntimeApi\.log\]/)
+    expect(() => TRANSFORMER_RUNTIME_API.log(1 as unknown as string)).toThrow(/\[TransformerRuntimeApi\.log]/)
+    expect(() => TRANSFORMER_RUNTIME_API.log('hi', NaN)).toThrow(/\[TransformerRuntimeApi\.log]/)
   })
 })
 
@@ -230,7 +230,7 @@ describe('validateCustomTransformerSource', () => {
     const source = lines.join('\n')
 
     const originalFunction = globalThis.Function
-    globalThis.Function = function wrappedFunction(this: unknown, body: string) {
+    globalThis.Function = function wrappedFunction(this: unknown, _body: string) {
       const err = new SyntaxError("Unexpected token ')' at line 25 column 1")
       err.stack =
         "SyntaxError: Unexpected token ')'\n    at wrappedFunction (<anonymous>:25:1)"
@@ -250,9 +250,8 @@ describe('validateCustomTransformerSource', () => {
   test('includes mapped user line for inline legacy syntax errors', () => {
     const source = 'a\nb\nreturn {'
     const originalFunction = globalThis.Function
-    globalThis.Function = function wrappedFunction(this: unknown, body: string) {
-      const err = new SyntaxError("Unexpected token ')' at line 6 column 1")
-      throw err
+    globalThis.Function = function wrappedFunction(this: unknown, _body: string) {
+      throw new SyntaxError("Unexpected token ')' at line 6 column 1")
     } as unknown as FunctionConstructor
 
     try {
@@ -746,10 +745,10 @@ describe('CustomCodeTransformer', () => {
   })
 
   test('api.watch rejects invalid label', () => {
-    expect(() => TRANSFORMER_RUNTIME_API.watch(1, '')).toThrow(/\[TransformerRuntimeApi\.watch\]/)
-    expect(() => TRANSFORMER_RUNTIME_API.watch(1, '   ')).toThrow(/\[TransformerRuntimeApi\.watch\]/)
+    expect(() => TRANSFORMER_RUNTIME_API.watch(1, '')).toThrow(/\[TransformerRuntimeApi\.watch]/)
+    expect(() => TRANSFORMER_RUNTIME_API.watch(1, '   ')).toThrow(/\[TransformerRuntimeApi\.watch]/)
     expect(() => TRANSFORMER_RUNTIME_API.watch(1, 42 as unknown as string)).toThrow(
-      /\[TransformerRuntimeApi\.watch\]/,
+      /\[TransformerRuntimeApi\.watch]/,
     )
   })
 

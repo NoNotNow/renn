@@ -1086,7 +1086,7 @@ export class RenderItemRegistry {
       setTransformerRuntimeEntityLookup((id) => this.items.get(id)?.entity)
       setTransformerRuntimeLivePositionLookup((id) => this.getPosition(id))
       setTransformerRuntimeRaycast((origin, dir, maxDist) =>
-        this.physicsWorld.raycast(origin[0], origin[1], origin[2], dir[0], dir[1], dir[2], maxDist),
+        this.physicsWorld!.raycast(origin[0], origin[1], origin[2], dir[0], dir[1], dir[2], maxDist),
       )
       try {
         output = item.transformerChain.execute(input, dt, traceSteps)

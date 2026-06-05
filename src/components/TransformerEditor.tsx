@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import type { PresetTransformerType, TransformerConfig, TransformOutput } from '@/types/transformer'
+import type { PresetTransformerType, TransformerConfig } from '@/types/transformer'
 import CopyableArea from './CopyableArea'
 import TransformerFieldReference from './TransformerFieldReference'
 import TransformerTemplateDialog from './TransformerTemplateDialog'
@@ -19,12 +19,9 @@ import { effectiveCustomTransformerCode } from '@/transformers/customCodeTransfo
 import { useEditorUndo } from '@/contexts/EditorUndoContext'
 import type { TransformerTraceStep } from '@/transformers/transformerTrace'
 import {
-  actionsMapsDiffer,
   hasNonZeroSemanticActions,
-  isStructuralTransformOutputActive,
   serializeTransformerTraceOutputJson,
   summarizeActions,
-  summarizePublishedActionsDelta,
   summarizeTransformerTraceOutputBrief,
 } from '@/transformers/transformerTrace'
 

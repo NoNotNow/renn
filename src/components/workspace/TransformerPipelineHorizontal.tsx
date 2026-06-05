@@ -18,7 +18,6 @@ import {
   hasNonZeroSemanticActions,
   serializeTransformerTraceOutputJson,
   serializeTransformInputForDisplay,
-  summarizeActions,
   summarizeTransformInputBrief,
   summarizeTransformerTraceOutputBrief,
   type TransformerTraceStep,
@@ -347,7 +346,7 @@ function TransformerTraceItem({
     maxOutBriefRef.current = traceOutputBrief
     setMaxInBrief(traceInputBrief)
     setMaxOutBrief(traceOutputBrief)
-  }, [transformer.type])
+  }, [transformer.type, traceInputBrief, traceOutputBrief])
 
   const summaryBaseStyle: CSSProperties = {
     cursor: 'pointer',

@@ -57,7 +57,6 @@ import {
 import { uiLogger } from '@/utils/uiLogger'
 import { colorToHex, hexToColor } from '@/utils/colorUtils'
 import { theme } from '@/config/theme'
-import { getSceneDependencyKey } from '@/utils/sceneDependencyKey'
 import type { TransformerConfig } from '@/types/transformer'
 import type { WorkspaceTarget } from '@/types/workspace'
 import {
@@ -507,7 +506,7 @@ export default function Builder() {
       const newEntities = createBulkEntities(params)
       uiLogger.click('Builder', 'Bulk add entities', {
         count: newEntities.length,
-        type: params.type,
+        shape: params.shape,
       })
       captureScenePosesForNextRebuild()
       updateWorld((prev) => ({
@@ -526,11 +525,13 @@ export default function Builder() {
       uiLogger.click('Builder', 'Delete entities', { count: ids.length, entityIds: ids })
       captureScenePosesForNextRebuild()
       const idSet = new Set(ids)
-      updateWorld((prev) => ({
-        ...prev,
-        entities: prev.entities.filter((e) => !idSet.has(e.id)),
-        groups: pruneGroupMembers(prev.groups ?? [], idSet),
-      }))
+      updateWorld((prev) => {
+        const withPrunedGroups = pruneGroupMembers(prev, idSet)
+        return {
+          ...withPrunedGroups,
+          entities: prev.entities.filter((e) => !idSet.has(e.id)),
+        }
+      })
       setSelectedEntityIds((prev) => prev.filter((id) => !idSet.has(id)))
       setSelectedGroupIds((prev) => prev.filter((id) => !idSet.has(id)))
     },

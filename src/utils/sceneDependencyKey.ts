@@ -47,13 +47,6 @@ function sceneRelevantEntity(entity: Entity): Record<string, unknown> {
   }
 }
 
-/** Strips `enabled`, `code`, and `params` so editing them does not force a full scene rebuild. */
-function transformersForSceneKey(
-  _configs: Entity['transformers'],
-): unknown {
-  return undefined
-}
-
 function sortKeys<T extends Record<string, unknown>>(obj: T): Record<string, unknown> {
   const keys = Object.keys(obj).sort()
   const out: Record<string, unknown> = {}

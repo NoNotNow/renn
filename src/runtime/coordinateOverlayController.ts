@@ -1,5 +1,4 @@
 import * as THREE from 'three'
-import type { Vec3 } from '@/types/world'
 import type { CoordinateOverlayEntry } from './coordinateOverlayBridge'
 
 /** World-space radius of the cylinder drawn from entity to target coordinate. */

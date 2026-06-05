@@ -2,7 +2,7 @@ import { useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEven
 import { createPortal } from 'react-dom'
 import { theme } from '@/config/theme'
 
-export const WORKSPACE_FLOATING_DRAWER_STYLE: CSSProperties = {
+const WORKSPACE_FLOATING_DRAWER_STYLE: CSSProperties = {
   position: 'absolute',
   left: 0,
   zIndex: 100,

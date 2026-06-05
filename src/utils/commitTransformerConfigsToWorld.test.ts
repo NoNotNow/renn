@@ -187,9 +187,9 @@ describe('Transformer Pipes utilities', () => {
     it('assigns in copy mode', () => {
       const next = assignPipeToEntity(baseWorld, 'e1', samplePipe, 'copy')
       const e1 = next.entities.find((e) => e.id === 'e1')
-      expect(e1?.transformers[0]).toMatch(/e1_tf/)
+      expect(e1?.transformers?.[0]).toMatch(/e1_tf/)
       expect(e1?.transformerPipe).toBeUndefined()
-      expect(next.transformers?.[e1!.transformers[0]!]).toMatchObject(samplePipe.stages[0])
+      expect(next.transformers?.[e1!.transformers![0]!]).toMatchObject(samplePipe.stages[0])
     })
   })
 
@@ -198,9 +198,9 @@ describe('Transformer Pipes utilities', () => {
       const linked = assignPipeToEntity(baseWorld, 'e1', samplePipe, 'linked')
       const next = decoupleEntityFromPipe(linked, 'e1')
       const e1 = next.entities.find((e) => e.id === 'e1')
-      expect(e1?.transformers[0]).not.toBe('p1_t1')
+      expect(e1?.transformers?.[0]).not.toBe('p1_t1')
       expect(e1?.transformerPipe).toBeUndefined()
-      expect(next.transformers?.[e1!.transformers[0]!]).toBeDefined()
+      expect(next.transformers?.[e1!.transformers![0]!]).toBeDefined()
     })
   })
 

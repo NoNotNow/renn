@@ -91,6 +91,26 @@ describe('Transformer Integration', () => {
       version: '1.0',
       world: { gravity: [0, 0, 0] },
       assets: {},
+      transformers: {
+        car_tf0: {
+          type: 'input',
+          priority: 0,
+          inputMapping: {
+            keyboard: {
+              w: 'throttle',
+              s: 'brake',
+              a: 'steer_left',
+              d: 'steer_right',
+              space: 'jump',
+            },
+          },
+        },
+        car_tf1: {
+          type: 'car2',
+          priority: 1,
+          params: { power: 400, steeringIntensity: 0.1, lateralGrip: 100 },
+        },
+      },
       entities: [
         {
           id: 'ground',
@@ -108,26 +128,7 @@ describe('Transformer Integration', () => {
           rotation: [0, 0, 0],
           mass: 1,
           angularDamping: 0.5,
-          transformers: [
-            {
-              type: 'input',
-              priority: 0,
-              inputMapping: {
-                keyboard: {
-                  w: 'throttle',
-                  s: 'brake',
-                  a: 'steer_left',
-                  d: 'steer_right',
-                  space: 'jump',
-                },
-              },
-            },
-            {
-              type: 'car2',
-              priority: 1,
-              params: { power: 400, steeringIntensity: 0.1, lateralGrip: 100 },
-            },
-          ],
+          transformers: ['car_tf0', 'car_tf1'],
         },
       ],
       scripts: {},
@@ -158,7 +159,8 @@ describe('Transformer Integration', () => {
     const pw = await createPhysicsWorld(world, entities)
     const registry = RenderItemRegistry.create(entities, pw, rawInputGetter)
 
-    const carConfig = world.entities.find((e) => e.id === 'car')!.transformers!
+    const carTransformerIds = world.entities.find((e) => e.id === 'car')!.transformers!
+    const carConfig = carTransformerIds.map((id) => world.transformers![id]!)
     const chain = await createTransformerChain(carConfig, rawInputGetter)
     const item = registry.get('car')!
     item.transformerChain = chain!
@@ -209,6 +211,21 @@ describe('Transformer Integration', () => {
       version: '1.0',
       world: { gravity: [0, 0, 0] },
       assets: {},
+      transformers: {
+        car2_tf0: {
+          type: 'input',
+          priority: 0,
+          inputMapping: {
+            keyboard: {
+              w: 'throttle',
+              s: 'brake',
+              a: 'steer_left',
+              d: 'steer_right',
+            },
+          },
+        },
+        car2_tf1: { type: 'car2', priority: 1, params: { power: 400, lateralGrip: 100 } },
+      },
       entities: [
         {
           id: 'ground',
@@ -224,21 +241,7 @@ describe('Transformer Integration', () => {
           position: [0, 1, 0],
           mass: 12,
           angularDamping: 0.5,
-          transformers: [
-            {
-              type: 'input',
-              priority: 0,
-              inputMapping: {
-                keyboard: {
-                  w: 'throttle',
-                  s: 'brake',
-                  a: 'steer_left',
-                  d: 'steer_right',
-                },
-              },
-            },
-            { type: 'car2', priority: 1, params: { power: 400, lateralGrip: 100 } },
-          ],
+          transformers: ['car2_tf0', 'car2_tf1'],
         },
       ],
       scripts: {},
@@ -261,7 +264,8 @@ describe('Transformer Integration', () => {
     const registry = RenderItemRegistry.create(entities, pw, rawInputGetter)
 
     const carEntity = world.entities.find((e) => e.id === 'car')!
-    const chain = await createTransformerChain(carEntity.transformers!, rawInputGetter)
+    const carConfigs = carEntity.transformers!.map((id) => world.transformers![id]!)
+    const chain = await createTransformerChain(carConfigs, rawInputGetter)
     registry.get('car')!.transformerChain = chain!
     registry.setRawInputGetter(rawInputGetter)
 

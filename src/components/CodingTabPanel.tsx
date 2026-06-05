@@ -1,8 +1,7 @@
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore, type CSSProperties } from 'react'
+import { useCallback, useEffect, useMemo, type CSSProperties } from 'react'
 import type { Entity } from '@/types/world'
 import type { TransformerConfig } from '@/types/transformer'
 import type { RennWorld } from '@/types/world'
-import Workspace from '@/components/Workspace'
 import { theme } from '@/config/theme'
 import { EntityPanelIcons } from '@/components/EntityPanelIcons'
 import { entityPanelIconButtonStyle } from '@/components/sharedStyles'
@@ -13,9 +12,7 @@ import {
 } from '@/utils/entityInspectorMerge'
 import {
   clearTransformerLiveTraceSnapshot,
-  getTransformerLiveTraceSnapshot,
   setTransformerTraceTargetEntityId,
-  subscribeTransformerLiveTrace,
 } from '@/runtime/transformerTraceBridge'
 import { useLocalStorageState } from '@/hooks/useLocalStorageState'
 import type { WorkspaceTarget } from '@/types/workspace'
@@ -127,11 +124,11 @@ function normalizeCodingSubgroupStored(raw: unknown): CodingSubgroup {
 export default function CodingTabPanel({
   world,
   selectedEntityIds,
-  onWorldChange,
-  onEntityTransformersChange,
+  onWorldChange: _onWorldChange,
+  onEntityTransformersChange: _onEntityTransformersChange,
   onOpenWorkspaceAnchored,
-  onResetPoseToSavedWorld,
-  onSelectEntity,
+  onResetPoseToSavedWorld: _onResetPoseToSavedWorld,
+  onSelectEntity: _onSelectEntity,
 }: CodingTabPanelProps) {
   const [rawSubgroup, setRawSubgroup] = useLocalStorageState<string>(
     BUILDER_CODING_SUBTAB_KEY,
@@ -175,25 +172,7 @@ export default function CodingTabPanel({
     }
   }, [subgroup, selectedEntityIds])
 
-  const liveTraceSnapshot = useSyncExternalStore(
-    subscribeTransformerLiveTrace,
-    getTransformerLiveTraceSnapshot,
-    () => null,
-  )
-
-  const liveTraceSteps =
-    selectedEntityIds.length === 1 && subgroup === 'transformers' &&
-    liveTraceSnapshot?.entityId === selectedEntityIds[0]
-      ? liveTraceSnapshot.steps
-      : null
-
   const anyLocked = entities.some((e) => e.locked)
-  const canResetPoseToSaved = entities.length > 0 && entities.some((e) => !e.locked)
-  const resetPoseTitle = canResetPoseToSaved
-    ? 'Restore saved position and rotation (from world)'
-    : entities.length > 0 && entities.every((e) => e.locked)
-      ? 'Cannot reset locked entities'
-      : 'Select an entity to restore saved position and rotation'
 
   const worldTransformers = world.transformers ?? {}
   const scriptsReg = world.scripts ?? {}

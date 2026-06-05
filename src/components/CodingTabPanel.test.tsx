@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import 'fake-indexeddb/auto'
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import CodingTabPanel from './CodingTabPanel'
 import { EditorUndoProvider } from '@/contexts/EditorUndoContext'
 import { CopyProvider } from '@/contexts/CopyContext'
@@ -83,7 +83,6 @@ describe('CodingTabPanel', () => {
   })
 
   it('clicking a transformer row opens the Workspace anchored to that ID', async () => {
-    const onTransformerCodePopoutOpen = vi.fn()
     const onOpenWorkspaceAnchored = vi.fn()
     render(
       <CopyProvider>
@@ -92,7 +91,6 @@ describe('CodingTabPanel', () => {
             world={minimalWorld}
             selectedEntityIds={['e1']}
             onWorldChange={vi.fn()}
-            onTransformerCodePopoutOpen={onTransformerCodePopoutOpen}
             onOpenWorkspaceAnchored={onOpenWorkspaceAnchored}
           />
         </EditorUndoProvider>
@@ -121,8 +119,7 @@ describe('CodingTabPanel', () => {
     expect(onOpenWorkspaceAnchored).toHaveBeenCalledWith({ tab: 'scripts', itemId: 'scr_workspace' })
   })
 
-  it('Open Workspace opens shell and notifies transformer pop-out listener', async () => {
-    const onTransformerCodePopoutOpen = vi.fn()
+  it('Open Workspace opens shell with transformers tab', async () => {
     const onOpenWorkspaceAnchored = vi.fn()
     render(
       <CopyProvider>
@@ -131,7 +128,6 @@ describe('CodingTabPanel', () => {
             world={minimalWorld}
             selectedEntityIds={['e1']}
             onWorldChange={vi.fn()}
-            onTransformerCodePopoutOpen={onTransformerCodePopoutOpen}
             onOpenWorkspaceAnchored={onOpenWorkspaceAnchored}
           />
         </EditorUndoProvider>

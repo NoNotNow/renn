@@ -14,6 +14,7 @@ import { initRapier } from '@/physics/rapierPhysics'
 import { WorldSimulator } from '@/test/helpers/worldSimulator'
 import carWorldJson from '../worlds/car-test-world.json'
 import type { RennWorld } from '@/types/world'
+import { migrateEntityTransformersToRegistry } from '@/scripts/migrateWorld'
 
 const carWorld = carWorldJson as unknown as RennWorld
 
@@ -26,12 +27,17 @@ function cloneWorldWithCar2Params(
   params: Record<string, unknown>,
 ): RennWorld {
   const world = structuredClone(base) as RennWorld
+  migrateEntityTransformersToRegistry(world)
   const car = world.entities.find((e) => e.id === 'car')
-  const cfg = car?.transformers?.find((t) => t.type === 'car2')
-  if (!cfg) {
+  const car2Id = car?.transformers?.find((id) => world.transformers?.[id]?.type === 'car2')
+  const cfg = car2Id ? world.transformers?.[car2Id] : undefined
+  if (!car2Id || !cfg) {
     throw new Error('car2 transformer missing on car entity')
   }
-  cfg.params = { ...(cfg.params ?? {}), ...params }
+  world.transformers![car2Id] = {
+    ...cfg,
+    params: { ...(cfg.params ?? {}), ...params },
+  }
   return world
 }
 

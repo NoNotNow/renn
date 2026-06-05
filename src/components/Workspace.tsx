@@ -464,7 +464,7 @@ export default function Workspace({
     monacoPayload.onChange,
     monacoPayload.disabled,
     monacoPayload.kind,
-    monacoPayload.scriptEvent,
+    monacoPayload.kind === 'script-js' ? monacoPayload.scriptEvent : undefined,
     opaque,
   ])
 
