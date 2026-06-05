@@ -70,7 +70,8 @@ export default function TransformerWatchPanel({
     >
       {entries.length === 0 ?
         <p style={{ margin: 0, color: theme.text.muted, fontSize: 11, lineHeight: 1.45 }}>
-          Call <code style={{ color: theme.text.secondary }}>api.watch(value, &apos;label&apos;)</code> in your transformer
+          Call <code style={{ color: theme.text.secondary }}>api.watch(&apos;label&apos;, value)</code> or{' '}
+          <code style={{ color: theme.text.secondary }}>api.watch(value)</code> in your transformer
           code. Values update only when <code style={{ color: theme.text.secondary }}>watch</code> runs.
         </p>
       : (

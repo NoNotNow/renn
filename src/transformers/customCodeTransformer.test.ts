@@ -728,7 +728,7 @@ describe('CustomCodeTransformer', () => {
     const t = new CustomCodeTransformer({
       type: 'custom',
       code: `function transform(input, dt, params, state, api) {
-        api.watch(234, 'x after add');
+        api.watch('x after add', 234);
         return {};
       }`,
     })
@@ -744,10 +744,32 @@ describe('CustomCodeTransformer', () => {
     ])
   })
 
+  test('api.watch with one argument uses label value', () => {
+    resetTransformerWatchBridgeForTests()
+    setTransformerWatchEnabled(true)
+    const t = new CustomCodeTransformer({
+      type: 'custom',
+      code: `function transform(input, dt, params, state, api) {
+        api.watch(234);
+        return {};
+      }`,
+    })
+    t.configStackIndex = 0
+    t.runtimeEntityId = 'ent-a'
+    t.transform(createMockTransformInput({ entityId: 'ent-a' }), 0.1)
+    const entries = getTransformerWatchEntriesForTarget('ent-a', 0)
+    expect(entries).toEqual([
+      expect.objectContaining({
+        label: 'value',
+        value: '234',
+      }),
+    ])
+  })
+
   test('api.watch rejects invalid label', () => {
-    expect(() => TRANSFORMER_RUNTIME_API.watch(1, '')).toThrow(/\[TransformerRuntimeApi\.watch]/)
-    expect(() => TRANSFORMER_RUNTIME_API.watch(1, '   ')).toThrow(/\[TransformerRuntimeApi\.watch]/)
-    expect(() => TRANSFORMER_RUNTIME_API.watch(1, 42 as unknown as string)).toThrow(
+    expect(() => TRANSFORMER_RUNTIME_API.watch('', 1)).toThrow(/\[TransformerRuntimeApi\.watch]/)
+    expect(() => TRANSFORMER_RUNTIME_API.watch('   ', 1)).toThrow(/\[TransformerRuntimeApi\.watch]/)
+    expect(() => TRANSFORMER_RUNTIME_API.watch(42 as unknown as string, 1)).toThrow(
       /\[TransformerRuntimeApi\.watch]/,
     )
   })
@@ -757,7 +779,7 @@ describe('CustomCodeTransformer', () => {
     const t = new CustomCodeTransformer({
       type: 'custom',
       code: `function transform(input, dt, params, state, api) {
-        api.watch(1, 'speed');
+        api.watch('speed', 1);
         return {};
       }`,
     })

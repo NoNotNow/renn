@@ -262,9 +262,11 @@ interface TransformerRuntimeApi {
   log(message: string, durationSeconds?: number): void;
   /**
    * Builder Workspace only: publish a labeled value to the Watch panel when the bridge is enabled.
+   * One argument uses label `value`; two arguments are `(label, value)`.
    * Updates only when called; stale labels from prior runs remain until Clear.
    */
-  watch(value: unknown, label: string): void;
+  watch(value: unknown): void;
+  watch(label: string, value: unknown): void;
   /**
    * Builder visualize mode: push one numeric sample to the variable overlay (selected entity, overlay wired).
    * Bar fill uses the color parameter; the name label is always white. Requires finite value, string color/name, integer index 1–16; otherwise throws [TransformerRuntimeApi.visualize]. No-op in Play/tests or when overlay is unwired after validation.

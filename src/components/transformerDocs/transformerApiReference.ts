@@ -612,13 +612,13 @@ export const API_RUNTIME_SECTION: ApiDocSection = {
     },
     {
       name: 'watch',
-      signature: 'api.watch(value, label)',
+      signature: 'api.watch(label, value)',
       callName: 'api.watch',
       type: 'void',
-      params: [API_PARAMS.watchValue, API_PARAMS.watchLabel],
-      en: 'Builder Workspace only: show `label: value` in the Watch panel. Updates only when called; stale labels remain until Clear.',
-      de: 'Nur im Builder-Workspace: `label: value` im Watch-Panel. Aktualisiert nur bei Aufruf; alte Labels bleiben bis Clear.',
-      example: "api.watch(speed, 'speed')",
+      params: [API_PARAMS.watchLabel, API_PARAMS.watchValue],
+      en: 'Builder Workspace only: show `label: value` in the Watch panel. Pass one argument to use label `value`. Updates only when called; stale labels remain until Clear.',
+      de: 'Nur im Builder-Workspace: `label: value` im Watch-Panel. Ein Argument nutzt das Label `value`. Aktualisiert nur bei Aufruf; alte Labels bleiben bis Clear.',
+      example: "api.watch('speed', speed)",
     },
     {
       name: 'visualize',

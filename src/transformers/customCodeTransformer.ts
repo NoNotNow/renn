@@ -294,9 +294,11 @@ export interface TransformerRuntimeApi {
   log(message: string, durationSeconds?: number): void
   /**
    * Builder Workspace only: publish a labeled value to the Watch panel when the bridge is enabled.
+   * One argument uses label `value`; two arguments are `(label, value)`.
    * Updates only when called; stale labels from prior runs remain until Clear.
    */
-  watch(value: unknown, label: string): void
+  watch(value: unknown): void
+  watch(label: string, value: unknown): void
   /**
    * Builder visualize mode only: records a numeric sample for the variable overlay when the bridge is wired.
    * No-op in Play mode, tests, or when visualize gizmo mode is inactive.
@@ -592,10 +594,19 @@ export const TRANSFORMER_RUNTIME_API: TransformerRuntimeApi = Object.freeze({
     }
     _snackbarFn?.(message, durationSeconds)
   },
-  watch: (value: unknown, label: string): void => {
-    const trimmed = requireStringParam('TransformerRuntimeApi.watch', 'label', label).trim()
-    if (trimmed.length === 0) {
-      throwApiError('TransformerRuntimeApi.watch', 'expected label: non-empty string')
+  watch: (labelOrValue: unknown, value?: unknown): void => {
+    let label: string
+    let watchValue: unknown
+    if (value === undefined) {
+      label = 'value'
+      watchValue = labelOrValue
+    } else {
+      const trimmed = requireStringParam('TransformerRuntimeApi.watch', 'label', labelOrValue).trim()
+      if (trimmed.length === 0) {
+        throwApiError('TransformerRuntimeApi.watch', 'expected label: non-empty string')
+      }
+      label = trimmed
+      watchValue = value
     }
     const entityId = _customCodeWatchEntityId
     const stackIndex = _customCodeWatchStackIndex
@@ -603,8 +614,8 @@ export const TRANSFORMER_RUNTIME_API: TransformerRuntimeApi = Object.freeze({
     publishTransformerWatchEntry({
       entityId,
       configStackIndex: stackIndex,
-      label: trimmed,
-      value: formatWatchValue(value),
+      label,
+      value: formatWatchValue(watchValue),
       runId: getTransformerWatchRunId(),
     })
   },
