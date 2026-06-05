@@ -2,7 +2,8 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import type { RennWorld } from '@/types/world'
 import { ModelManager } from '@/utils/modelManager'
 import { generateModelPreview } from '@/utils/modelPreview'
-import Modal from './Modal'
+import { theme } from '@/config/theme'
+import AssetPickerDialogLayout from './assetDialog/AssetPickerDialogLayout'
 import ModelThumbnail from './ModelThumbnail'
 import { assetDropZoneChrome, assetDropZoneHoverHandlers } from './sharedStyles'
 
@@ -34,7 +35,7 @@ export default function ModelDialog({
 
   const modelAssets = ModelManager.getModelAssets(assets)
   const filteredModels = modelAssets.filter(({ id }) =>
-    id.toLowerCase().includes(searchQuery.toLowerCase())
+    id.toLowerCase().includes(searchQuery.toLowerCase()),
   )
 
   const handleDragEnter = useCallback((e: React.DragEvent) => {
@@ -60,11 +61,8 @@ export default function ModelDialog({
     setDragActive(false)
 
     const files = Array.from(e.dataTransfer.files)
-    const modelFile = files.find((f) => {
-      const validation = ModelManager.validateModelFile(f)
-      return validation.valid
-    })
-    
+    const modelFile = files.find((f) => ModelManager.validateModelFile(f).valid)
+
     if (modelFile) {
       const validation = ModelManager.validateModelFile(modelFile)
       if (validation.valid) {
@@ -80,11 +78,8 @@ export default function ModelDialog({
     const files = e.target.files
     if (!files?.length) return
 
-    const modelFile = Array.from(files).find((f) => {
-      const validation = ModelManager.validateModelFile(f)
-      return validation.valid
-    })
-    
+    const modelFile = Array.from(files).find((f) => ModelManager.validateModelFile(f).valid)
+
     if (modelFile) {
       const validation = ModelManager.validateModelFile(modelFile)
       if (validation.valid) {
@@ -122,21 +117,23 @@ export default function ModelDialog({
     }
 
     setIsGeneratingPreview(true)
-    generateModelPreview(uploadPreview.file).then((previewBlob) => {
-      if (cancelled) return
-      if (!previewBlob) {
+    generateModelPreview(uploadPreview.file)
+      .then((previewBlob) => {
+        if (cancelled) return
+        if (!previewBlob) {
+          setUploadPreviewUrl(null)
+          setIsGeneratingPreview(false)
+          return
+        }
+        url = URL.createObjectURL(previewBlob)
+        setUploadPreviewUrl(url)
+        setIsGeneratingPreview(false)
+      })
+      .catch((error) => {
+        console.error('Failed to generate preview:', error)
         setUploadPreviewUrl(null)
         setIsGeneratingPreview(false)
-        return
-      }
-      url = URL.createObjectURL(previewBlob)
-      setUploadPreviewUrl(url)
-      setIsGeneratingPreview(false)
-    }).catch((error) => {
-      console.error('Failed to generate preview:', error)
-      setUploadPreviewUrl(null)
-      setIsGeneratingPreview(false)
-    })
+      })
 
     return () => {
       cancelled = true
@@ -144,76 +141,75 @@ export default function ModelDialog({
     }
   }, [uploadPreview])
 
-  const handleSelectExisting = useCallback((assetId: string) => {
-    onSelectModel(assetId)
-    onClose()
-  }, [onSelectModel, onClose])
+  const handleSelectExisting = useCallback(
+    (assetId: string) => {
+      onSelectModel(assetId)
+      onClose()
+    },
+    [onSelectModel, onClose],
+  )
 
   const handleRemoveModel = useCallback(() => {
     onSelectModel(undefined)
     onClose()
   }, [onSelectModel, onClose])
 
+  const handlePrimaryAction = useCallback(() => {
+    if (uploadPreview) {
+      void handleConfirmUpload()
+      return
+    }
+    if (selectedModelId) {
+      handleSelectExisting(selectedModelId)
+    } else {
+      onClose()
+    }
+  }, [uploadPreview, selectedModelId, handleConfirmUpload, handleSelectExisting, onClose])
+
+  const hasSelection = !!selectedModelId
+  const primaryEnabled = hasSelection || !!uploadPreview
+
   return (
-    <Modal
+    <AssetPickerDialogLayout
       isOpen={isOpen}
       onClose={onClose}
       title="Select 3D Model"
-      width={800}
-      height={600}
-    >
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 16 }}>
-        {/* Search bar */}
-        <div>
-          <input
-            type="text"
-            placeholder="Search models..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            style={{
-              width: '100%',
-              padding: '8px 12px',
-              borderRadius: 6,
-              background: '#1a1a1a',
-              border: '1px solid #2f3545',
-              color: '#e6e9f2',
-              fontSize: 14,
-            }}
-          />
-        </div>
-
-        {/* Main content area */}
-        <div style={{ display: 'flex', gap: 16, flex: 1, minHeight: 0 }}>
-          {/* Left: Model grid */}
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-            <h3 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600, color: '#e6e9f2' }}>
-              Existing Models ({filteredModels.length})
-            </h3>
-            {filteredModels.length === 0 ? (
-              <div
-                style={{
-                  flex: 1,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#9aa4b2',
-                  fontSize: 14,
-                }}
-              >
-                {searchQuery ? 'No models match your search' : 'No models available'}
-              </div>
-            ) : (
-              <div
-                style={{
-                  flex: 1,
-                  overflow: 'auto',
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))',
-                  gap: 12,
-                  padding: '8px 0',
-                }}
-              >
-                {filteredModels.map(({ id, blob }) => (
+      searchPlaceholder="Search models..."
+      searchQuery={searchQuery}
+      onSearchChange={setSearchQuery}
+      assetList={
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
+          <h3 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600, color: theme.text.primary }}>
+            Existing Models ({filteredModels.length})
+          </h3>
+          {filteredModels.length === 0 ? (
+            <div
+              style={{
+                flex: 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: theme.text.muted,
+                fontSize: 14,
+              }}
+            >
+              {searchQuery ? 'No models match your search' : 'No models available'}
+            </div>
+          ) : (
+            <div
+              style={{
+                flex: 1,
+                minHeight: 0,
+                overflow: 'auto',
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))',
+                gap: 12,
+                padding: '8px 0',
+              }}
+            >
+              {filteredModels.map(({ id, blob }) => {
+                const isSelected = selectedModelId === id
+                return (
                   <div
                     key={id}
                     onClick={() => handleSelectExisting(id)}
@@ -224,21 +220,23 @@ export default function ModelDialog({
                       gap: 6,
                       padding: 8,
                       borderRadius: 6,
-                      border: selectedModelId === id ? '2px solid #4a9eff' : '1px solid #2f3545',
-                      background: selectedModelId === id ? '#1e2a3a' : 'transparent',
+                      border: isSelected
+                        ? `2px solid ${theme.border.dropZoneActive}`
+                        : `1px solid ${theme.border.default}`,
+                      background: isSelected ? theme.bg.dropZoneActive : 'transparent',
                       cursor: 'pointer',
                       transition: 'all 0.15s ease',
                     }}
                     onMouseEnter={(e) => {
-                      if (selectedModelId !== id) {
-                        e.currentTarget.style.background = '#2a2a2a'
-                        e.currentTarget.style.borderColor = '#3f4f5f'
+                      if (!isSelected) {
+                        e.currentTarget.style.background = theme.bg.surface
+                        e.currentTarget.style.borderColor = theme.border.dropZoneHover
                       }
                     }}
                     onMouseLeave={(e) => {
-                      if (selectedModelId !== id) {
+                      if (!isSelected) {
                         e.currentTarget.style.background = 'transparent'
-                        e.currentTarget.style.borderColor = '#2f3545'
+                        e.currentTarget.style.borderColor = theme.border.default
                       }
                     }}
                   >
@@ -246,7 +244,7 @@ export default function ModelDialog({
                     <span
                       style={{
                         fontSize: 11,
-                        color: '#9aa4b2',
+                        color: theme.text.muted,
                         textAlign: 'center',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
@@ -257,174 +255,173 @@ export default function ModelDialog({
                     >
                       {id}
                     </span>
-                    <span
-                      style={{
-                        fontSize: 10,
-                        color: '#666',
-                      }}
-                    >
+                    <span style={{ fontSize: 10, color: theme.text.disabled }}>
                       {ModelManager.formatFileSize(blob.size)}
                     </span>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Right: Upload area */}
-          <div
-            style={{
-              width: 200,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 12,
-            }}
-          >
-            <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#e6e9f2' }}>
-              Upload Model
-            </h3>
-            
-            {uploadPreview ? (
-              <div
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 8,
-                  padding: 12,
-                  borderRadius: 6,
-                  border: '1px solid #2f3545',
-                  background: '#1a1a1a',
-                }}
-              >
-                {uploadPreviewUrl ? (
-                  <img
-                    src={uploadPreviewUrl}
-                    alt={uploadPreview.assetId}
-                    style={{
-                      width: 120,
-                      height: 120,
-                      objectFit: 'cover',
-                      borderRadius: 4,
-                      border: '1px solid #2f3545',
-                    }}
-                  />
-                ) : (
-                  <ModelThumbnail
-                    assetId={uploadPreview.assetId}
-                    blob={uploadPreview.file}
-                    size={120}
-                  />
-                )}
-                {isGeneratingPreview && (
-                  <div style={{ fontSize: 10, color: '#666' }}>
-                    Generating preview...
-                  </div>
-                )}
-                <div style={{ fontSize: 11, color: '#9aa4b2', wordBreak: 'break-word' }}>
-                  {uploadPreview.assetId}
-                </div>
-                <div style={{ fontSize: 10, color: '#666' }}>
-                  {ModelManager.formatFileSize(uploadPreview.file.size)}
-                </div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button
-                    type="button"
-                    onClick={handleConfirmUpload}
-                    style={{
-                      flex: 1,
-                      padding: '6px 12px',
-                      background: '#2d4a2d',
-                      border: '1px solid #4a6a4a',
-                      color: '#a4d4a4',
-                      borderRadius: 4,
-                      cursor: 'pointer',
-                      fontSize: 12,
-                    }}
-                  >
-                    Confirm
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setUploadPreview(null)}
-                    style={{
-                      flex: 1,
-                      padding: '6px 12px',
-                      background: 'transparent',
-                      border: '1px solid #2f3545',
-                      color: '#9aa4b2',
-                      borderRadius: 4,
-                      cursor: 'pointer',
-                      fontSize: 12,
-                    }}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div
-                onDragEnter={handleDragEnter}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                onClick={() => fileInputRef.current?.click()}
-                style={{
-                  flex: 1,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 12,
-                  padding: 24,
-                  borderRadius: 6,
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease',
-                  minHeight: 200,
-                  ...assetDropZoneChrome(dragActive),
-                }}
-                {...assetDropZoneHoverHandlers(dragActive)}
-              >
-                <div style={{ fontSize: 32 }}>📤</div>
-                <div style={{ fontSize: 12, color: '#9aa4b2', textAlign: 'center' }}>
-                  {dragActive ? 'Drop model here' : 'Click or drag model to upload'}
-                </div>
-                <div style={{ fontSize: 10, color: '#666', textAlign: 'center' }}>
-                  GLB only (self-contained format)
-                </div>
-              </div>
-            )}
-
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".glb"
-              style={{ display: 'none' }}
-              onChange={handleFileInput}
-            />
-          </div>
+                )
+              })}
+            </div>
+          )}
         </div>
+      }
+      uploadPanel={
+        <div
+          style={{
+            width: 200,
+            flexShrink: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 12,
+            minHeight: 0,
+            height: '100%',
+            overflow: 'hidden',
+          }}
+        >
+          <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: theme.text.primary }}>
+            Upload Model
+          </h3>
 
-        {/* Footer */}
+          {uploadPreview ? (
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
+                padding: 12,
+                borderRadius: 6,
+                border: `1px solid ${theme.border.default}`,
+                background: theme.bg.panelAlt,
+              }}
+            >
+              {uploadPreviewUrl ? (
+                <img
+                  src={uploadPreviewUrl}
+                  alt={uploadPreview.assetId}
+                  style={{
+                    width: 120,
+                    height: 120,
+                    objectFit: 'cover',
+                    borderRadius: 4,
+                    border: `1px solid ${theme.border.default}`,
+                  }}
+                />
+              ) : (
+                <ModelThumbnail
+                  assetId={uploadPreview.assetId}
+                  blob={uploadPreview.file}
+                  size={120}
+                />
+              )}
+              {isGeneratingPreview && (
+                <div style={{ fontSize: 10, color: theme.text.disabled }}>Generating preview...</div>
+              )}
+              <div style={{ fontSize: 11, color: theme.text.muted, wordBreak: 'break-word' }}>
+                {uploadPreview.assetId}
+              </div>
+              <div style={{ fontSize: 10, color: theme.text.disabled }}>
+                {ModelManager.formatFileSize(uploadPreview.file.size)}
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={handleConfirmUpload}
+                  style={{
+                    flex: 1,
+                    padding: '6px 12px',
+                    background: theme.feedback.successBg,
+                    border: `1px solid ${theme.feedback.successBorder}`,
+                    color: theme.feedback.successText,
+                    borderRadius: 4,
+                    cursor: 'pointer',
+                    fontSize: 12,
+                  }}
+                >
+                  Confirm
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setUploadPreview(null)}
+                  style={{
+                    flex: 1,
+                    padding: '6px 12px',
+                    background: 'transparent',
+                    border: `1px solid ${theme.border.default}`,
+                    color: theme.text.muted,
+                    borderRadius: 4,
+                    cursor: 'pointer',
+                    fontSize: 12,
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div
+              onDragEnter={handleDragEnter}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
+              style={{
+                flex: 1,
+                minHeight: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 12,
+                padding: 24,
+                borderRadius: 6,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+                ...assetDropZoneChrome(dragActive),
+              }}
+              {...assetDropZoneHoverHandlers(dragActive)}
+            >
+              <div style={{ fontSize: 32 }} aria-hidden>
+                ↑
+              </div>
+              <div style={{ fontSize: 12, color: theme.text.muted, textAlign: 'center' }}>
+                {dragActive ? 'Drop model here' : 'Click or drag model to upload'}
+              </div>
+              <div style={{ fontSize: 10, color: theme.text.disabled, textAlign: 'center' }}>
+                GLB only (self-contained format)
+              </div>
+            </div>
+          )}
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".glb"
+            style={{ display: 'none' }}
+            onChange={handleFileInput}
+          />
+        </div>
+      }
+      footer={
         <div
           style={{
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            paddingTop: 16,
-            borderTop: '1px solid #2f3545',
           }}
         >
           <button
             type="button"
             onClick={handleRemoveModel}
-            disabled={!selectedModelId}
+            disabled={!hasSelection}
             style={{
               padding: '8px 16px',
-              background: selectedModelId ? '#3a1b1b' : '#2a2a2a',
-              border: selectedModelId ? '1px solid #6b2a2a' : '1px solid #2f3545',
-              color: selectedModelId ? '#f4d6d6' : '#666',
+              background: hasSelection ? theme.bg.destructive : theme.bg.surface,
+              border: hasSelection
+                ? `1px solid ${theme.border.destructive}`
+                : `1px solid ${theme.border.default}`,
+              color: hasSelection ? theme.text.destructive : theme.text.disabled,
               borderRadius: 6,
-              cursor: selectedModelId ? 'pointer' : 'not-allowed',
+              cursor: hasSelection ? 'pointer' : 'not-allowed',
               fontSize: 12,
             }}
           >
@@ -437,8 +434,8 @@ export default function ModelDialog({
               style={{
                 padding: '8px 16px',
                 background: 'transparent',
-                border: '1px solid #2f3545',
-                color: '#9aa4b2',
+                border: `1px solid ${theme.border.default}`,
+                color: theme.text.muted,
                 borderRadius: 6,
                 cursor: 'pointer',
                 fontSize: 12,
@@ -448,21 +445,17 @@ export default function ModelDialog({
             </button>
             <button
               type="button"
-              onClick={() => {
-                if (selectedModelId) {
-                  handleSelectExisting(selectedModelId)
-                } else {
-                  onClose()
-                }
-              }}
-              disabled={!selectedModelId && !uploadPreview}
+              onClick={handlePrimaryAction}
+              disabled={!primaryEnabled}
               style={{
                 padding: '8px 16px',
-                background: selectedModelId || uploadPreview ? '#2d4a2d' : '#2a2a2a',
-                border: selectedModelId || uploadPreview ? '1px solid #4a6a4a' : '1px solid #2f3545',
-                color: selectedModelId || uploadPreview ? '#a4d4a4' : '#666',
+                background: primaryEnabled ? theme.feedback.successBg : theme.bg.surface,
+                border: primaryEnabled
+                  ? `1px solid ${theme.feedback.successBorder}`
+                  : `1px solid ${theme.border.default}`,
+                color: primaryEnabled ? theme.feedback.successText : theme.text.disabled,
                 borderRadius: 6,
-                cursor: selectedModelId || uploadPreview ? 'pointer' : 'not-allowed',
+                cursor: primaryEnabled ? 'pointer' : 'not-allowed',
                 fontSize: 12,
               }}
             >
@@ -470,7 +463,7 @@ export default function ModelDialog({
             </button>
           </div>
         </div>
-      </div>
-    </Modal>
+      }
+    />
   )
 }

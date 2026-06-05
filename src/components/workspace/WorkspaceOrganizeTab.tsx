@@ -5,7 +5,7 @@ import type { WorkspaceOrganizeKind, WorkspaceOrganizeScope, WorkspaceTarget } f
 import type { GlobalBehaviorLibrary } from '@/types/globalBehaviorLibrary'
 import WorkspaceOrganizeCard from '@/components/workspace/WorkspaceOrganizeCard'
 import WorkspaceConflictDialog from '@/components/workspace/WorkspaceConflictDialog'
-import Modal from '@/components/Modal'
+import AssignEntitiesDialog from '@/components/workspace/AssignEntitiesDialog'
 import { useEditorUndo } from '@/contexts/EditorUndoContext'
 import { getScriptDef } from '@/scripts/scriptDef'
 import { uiLogger } from '@/utils/uiLogger'
@@ -254,44 +254,28 @@ export default function WorkspaceOrganizeTab({
   }, [pipeIdsForCards, scope, globalLibrary.transformerPipes, world.transformerPipes])
 
   const [assignTarget, setAssignTarget] = useState<AssignTarget | null>(null)
-  const [assignSelection, setAssignSelection] = useState<Set<string>>(new Set())
   const [pipeAssignMode, setPipeAssignMode] = useState<'linked' | 'copy'>('linked')
-  const [assignSearchQuery, setAssignSearchQuery] = useState('')
   const [idConflict, setIdConflict] = useState<IdConflict | null>(null)
 
-  useEffect(() => {
-    if (!assignTarget) {
-      setAssignSearchQuery('')
-      return
-    }
+  const assignInitialSelection = useMemo(() => {
+    if (!assignTarget) return new Set<string>()
     const users =
       assignTarget.registry === 'scripts'
         ? getEntitiesUsingScript(world, assignTarget.id)
         : assignTarget.registry === 'pipes'
         ? getEntitiesUsingPipe(world, assignTarget.id)
         : getEntitiesUsingTransformer(world, assignTarget.id)
-    setAssignSelection(new Set(users.map((u) => u.id)))
+    return new Set(users.map((u) => u.id))
   }, [assignTarget, world])
-
-  const filteredAssignEntities = useMemo(() => {
-    const q = assignSearchQuery.trim().toLowerCase()
-    if (!q) return world.entities
-    return world.entities.filter((e) => {
-      const name = (e.name ?? '').toLowerCase()
-      const id = e.id.toLowerCase()
-      return name.includes(q) || id.includes(q)
-    })
-  }, [world.entities, assignSearchQuery])
 
   const openAssign = (t: AssignTarget) => {
     setAssignTarget(t)
   }
 
-  const applyAssign = () => {
+  const applyAssign = (want: Set<string>) => {
     if (!assignTarget) return
     pushUndo()
     const id = assignTarget.id
-    const want = assignSelection
     uiLogger.click('WorkspaceOrganizeTab', 'Apply assign', {
       registry: assignTarget.registry,
       id,
@@ -348,7 +332,6 @@ export default function WorkspaceOrganizeTab({
         }),
       })
     }
-    setAssignTarget(null)
   }
 
   const anchorEntityId = entry?.entityId ?? selectedEntityIds[0] ?? ''
@@ -1379,189 +1362,62 @@ export default function WorkspaceOrganizeTab({
         )}
       </div>
 
-      {assignTarget && (
-        <Modal
-          isOpen
-          onClose={() => setAssignTarget(null)}
-          title={
-            assignTarget.registry === 'scripts'
-              ? `Assign script "${assignTarget.id}"`
-              : assignTarget.registry === 'pipes'
-              ? `Assign pipe "${assignTarget.id}"`
-              : `Assign transformer "${assignTarget.id}"`
-          }
-          width={520}
-          height={640}
-          subheader={
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ position: 'relative' }}>
-                <input
-                  type="text"
-                  placeholder="Search entities by name or ID..."
-                  value={assignSearchQuery}
-                  onChange={(e) => setAssignSearchQuery(e.target.value)}
-                  aria-label="Search entities"
-                  autoFocus
-                  style={{
-                    width: '100%',
-                    padding: assignSearchQuery ? '9px 34px 9px 34px' : '9px 12px 9px 34px',
-                    borderRadius: 8,
-                    background: theme.bg.input,
-                    border: `1px solid ${theme.border.default}`,
-                    color: theme.text.primary,
-                    fontSize: 13,
-                    boxSizing: 'border-box',
-                    outline: 'none',
-                  }}
-                />
-                <span
-                  style={{
-                    position: 'absolute',
-                    left: 12,
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    color: theme.text.muted,
-                    pointerEvents: 'none',
-                    display: 'flex',
-                  }}
-                  aria-hidden
-                >
-                  <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="11" cy="11" r="8" />
-                    <path d="m21 21-4.35-4.35" />
-                  </svg>
-                </span>
-                {assignSearchQuery && (
-                  <button
-                    type="button"
-                    onClick={() => setAssignSearchQuery('')}
-                    aria-label="Clear search"
-                    title="Clear search"
-                    style={{
-                      position: 'absolute',
-                      right: 8,
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      background: 'transparent',
-                      border: 'none',
-                      color: theme.text.muted,
-                      cursor: 'pointer',
-                      padding: 2,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      lineHeight: 1,
-                      fontSize: 16,
-                    }}
-                  >
-                    ×
-                  </button>
-                )}
-              </div>
-              {assignTarget.registry === 'pipes' && (
-                <div style={{ display: 'flex', gap: 16 }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: theme.text.secondary, cursor: 'pointer' }}>
-                    <input
-                      type="radio"
-                      checked={pipeAssignMode === 'linked'}
-                      onChange={() => setPipeAssignMode('linked')}
-                    />
-                    Linked (Live edits)
-                  </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: theme.text.secondary, cursor: 'pointer' }}>
-                    <input
-                      type="radio"
-                      checked={pipeAssignMode === 'copy'}
-                      onChange={() => setPipeAssignMode('copy')}
-                    />
-                    Copy (Independent)
-                  </label>
-                </div>
-              )}
-            </div>
-          }
-          footer={
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-              <span style={{ fontSize: 12, color: theme.text.muted }}>
-                {assignSelection.size} selected
-              </span>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button type="button" onClick={() => setAssignTarget(null)} style={SUBTAB_BTN}>
-                  Cancel
-                </button>
-                <button type="button" onClick={applyAssign} style={{ ...SUBTAB_BTN, ...tabStyle(true) }}>
-                  Apply
-                </button>
-              </div>
-            </div>
-          }
-        >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, height: '100%', minHeight: 0 }}>
-            {filteredAssignEntities.length === 0 ? (
-              <div
+      <AssignEntitiesDialog
+        isOpen={assignTarget != null}
+        onClose={() => setAssignTarget(null)}
+        title={
+          assignTarget?.registry === 'scripts'
+            ? `Assign script "${assignTarget.id}"`
+            : assignTarget?.registry === 'pipes'
+            ? `Assign pipe "${assignTarget.id}"`
+            : assignTarget
+            ? `Assign transformer "${assignTarget.id}"`
+            : ''
+        }
+        entities={world.entities.map((e) => ({ id: e.id, name: e.name }))}
+        initialSelection={assignInitialSelection}
+        onApply={applyAssign}
+        subheaderExtra={
+          assignTarget?.registry === 'pipes' ? (
+            <div style={{ display: 'flex', gap: 16 }}>
+              <label
                 style={{
-                  fontSize: 13,
-                  color: theme.text.muted,
-                  padding: '24px 4px',
-                  textAlign: 'center',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  fontSize: 12,
+                  color: theme.text.secondary,
+                  cursor: 'pointer',
                 }}
               >
-                {assignSearchQuery
-                  ? 'No entities match your search.'
-                  : 'No entities in this world.'}
-              </div>
-            ) : (
-              filteredAssignEntities.map((e) => {
-                const checked = assignSelection.has(e.id)
-                return (
-                  <label
-                    key={e.id}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 10,
-                      padding: '8px 10px',
-                      borderRadius: 8,
-                      border: `1px solid ${checked ? theme.button.primaryBorder : theme.border.default}`,
-                      background: checked ? theme.bg.primarySubtle : theme.bg.section,
-                      cursor: 'pointer',
-                      flexShrink: 0,
-                      transition: 'background-color 0.12s ease, border-color 0.12s ease',
-                    }}
-                    onMouseEnter={(ev) => {
-                      if (!checked) ev.currentTarget.style.background = theme.bg.listHover
-                    }}
-                    onMouseLeave={(ev) => {
-                      if (!checked) ev.currentTarget.style.background = theme.bg.section
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => {
-                        setAssignSelection((prev) => {
-                          const next = new Set(prev)
-                          if (next.has(e.id)) next.delete(e.id)
-                          else next.add(e.id)
-                          return next
-                        })
-                      }}
-                    />
-                    <span style={{ fontSize: 13, color: theme.text.primary, fontWeight: 500 }}>
-                      {e.name ?? e.id}
-                    </span>
-                    {e.name && (
-                      <span style={{ fontSize: 11, color: theme.text.muted, marginLeft: 'auto' }}>
-                        {e.id}
-                      </span>
-                    )}
-                  </label>
-                )
-              })
-            )}
-          </div>
-        </Modal>
-      )}
+                <input
+                  type="radio"
+                  checked={pipeAssignMode === 'linked'}
+                  onChange={() => setPipeAssignMode('linked')}
+                />
+                Linked (Live edits)
+              </label>
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  fontSize: 12,
+                  color: theme.text.secondary,
+                  cursor: 'pointer',
+                }}
+              >
+                <input
+                  type="radio"
+                  checked={pipeAssignMode === 'copy'}
+                  onChange={() => setPipeAssignMode('copy')}
+                />
+                Copy (Independent)
+              </label>
+            </div>
+          ) : undefined
+        }
+      />
 
       <WorkspaceConflictDialog
         isOpen={idConflict != null}

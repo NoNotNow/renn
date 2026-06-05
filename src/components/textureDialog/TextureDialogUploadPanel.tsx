@@ -38,9 +38,13 @@ export default function TextureDialogUploadPanel({
     <div
       style={{
         width: 200,
+        flexShrink: 0,
         display: 'flex',
         flexDirection: 'column',
         gap: 12,
+        minHeight: 0,
+        height: '100%',
+        overflow: 'hidden',
       }}
     >
       <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: theme.text.primary }}>Upload</h3>
@@ -113,6 +117,7 @@ export default function TextureDialogUploadPanel({
           onClick={onOpenFilePicker}
           style={{
             flex: 1,
+            minHeight: 0,
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
@@ -122,7 +127,6 @@ export default function TextureDialogUploadPanel({
             borderRadius: 6,
             cursor: 'pointer',
             transition: 'all 0.15s ease',
-            minHeight: 200,
             ...assetDropZoneChrome(dragActive),
           }}
           {...assetDropZoneHoverHandlers(dragActive)}

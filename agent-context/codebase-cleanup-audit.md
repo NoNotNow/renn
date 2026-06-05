@@ -388,6 +388,27 @@ The confirm flow needs the parent's `onUploadTexture` / `onCommitConvertedVideo`
 
 ---
 
+## Phase 16 — Dialog infrastructure unification (completed, 2026-06-05)
+
+**Performance:** Layout-only refactor. No new effects, no per-frame work. Asset picker dialogs now use `Modal` `contentOverflow="hidden"` so only the left tile/list column scrolls; search, upload drop zone, and footer stay pinned.
+
+### Shared layout — `assetDialog/AssetPickerDialogLayout.tsx`
+- Pins search in `Modal` `subheader`, actions in `footer`, and a bounded two-column body (`assetList` scrolls; `uploadPanel` fixed width).
+- Consumers: `TextureDialog.tsx`, `ModelDialog.tsx`.
+
+### Extracted assign dialog — `workspace/AssignEntitiesDialog.tsx`
+- Multi-select entity assignment (script / transformer / pipe) pulled out of `WorkspaceOrganizeTab.tsx`.
+- Same `Modal` subheader/footer pattern as `AddTransformerDialog.tsx`.
+
+### `Modal.tsx` enhancement
+- `contentOverflow?: 'auto' | 'hidden'` — asset pickers pass `'hidden'` so inner regions own scrolling.
+
+### Tests
+- `AssignEntitiesDialog.test.tsx` — search filter, selection count, `onApply` callback.
+- `AssetPickerDialogLayout.test.tsx` — search/body/footer region markers.
+
+---
+
 ## Phase 13 — `PropertyPanel.tsx` split into `propertyPanel/` sub-components (completed, 2026-04-19)
 
 **Performance:** Pure structural refactor. Same React subtree shape: each `CollapsibleSection` still mounts identically and the new section components are plain function components without `memo` (parent re-renders propagate the same way as before, identical to the inline JSX). No new effects, no per-frame work, no extra allocations. The `materialAllNull` / `materialAllSet` boolean derivations moved into `MaterialSection` (same arithmetic, same cost — just colocated with the only consumer).

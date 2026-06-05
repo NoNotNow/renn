@@ -27,8 +27,6 @@ export default function TextureDialogFooter({
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingTop: 16,
-        borderTop: `1px solid ${theme.border.default}`,
       }}
     >
       <button

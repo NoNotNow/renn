@@ -1,9 +1,8 @@
 import { useCallback } from 'react'
 import type { RennWorld } from '@/types/world'
 import { VideoManager } from '@/utils/videoManager'
-import Modal from './Modal'
 import VideoConversionDialog from './VideoConversionDialog'
-import { theme } from '@/config/theme'
+import AssetPickerDialogLayout from './assetDialog/AssetPickerDialogLayout'
 import { useTextureDialogAssets } from './textureDialog/useTextureDialogAssets'
 import { useTextureDialogUpload } from './textureDialog/useTextureDialogUpload'
 import TextureDialogAssetList from './textureDialog/TextureDialogAssetList'
@@ -94,62 +93,45 @@ export default function TextureDialog({
 
   return (
     <>
-      <Modal
+      <AssetPickerDialogLayout
         isOpen={isOpen}
         onClose={onClose}
         title={allowVideo ? 'Select texture or video' : 'Select Texture'}
-        width={800}
-        height={600}
-      >
-        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 16 }}>
-          <div>
-            <input
-              type="text"
-              placeholder={allowVideo ? 'Search images and videos…' : 'Search textures…'}
-              value={browse.searchQuery}
-              onChange={(e) => browse.setSearchQuery(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '8px 12px',
-                borderRadius: 6,
-                background: theme.bg.panelAlt,
-                border: `1px solid ${theme.border.default}`,
-                color: theme.text.primary,
-                fontSize: 14,
-              }}
-            />
-          </div>
-
-          <div style={{ display: 'flex', gap: 16, flex: 1, minHeight: 0 }}>
-            <TextureDialogAssetList
-              searchQuery={browse.searchQuery}
-              filteredTextures={browse.filteredTextures}
-              filteredVideos={browse.filteredVideos}
-              dialogGroups={browse.dialogGroups}
-              blobById={browse.blobById}
-              expandedFamilies={browse.expandedFamilies}
-              toggleFamilyExpanded={browse.toggleFamilyExpanded}
-              selectedTextureId={selectedTextureId}
-              onSelectTexture={handleSelectExisting}
-              allowVideo={allowVideo}
-              leftColumnEmpty={browse.leftColumnEmpty}
-            />
-            <TextureDialogUploadPanel
-              allowVideo={allowVideo}
-              dragActive={upload.dragActive}
-              uploadPreview={upload.uploadPreview}
-              fileInputRef={upload.fileInputRef}
-              onConfirmUpload={() => void handleConfirmUpload()}
-              onCancelUpload={() => upload.setUploadPreview(null)}
-              onDragEnter={upload.handleDragEnter}
-              onDragOver={upload.handleDragOver}
-              onDragLeave={upload.handleDragLeave}
-              onDrop={upload.handleDrop}
-              onOpenFilePicker={upload.openFilePicker}
-              onFileInputChange={upload.handleFileInput}
-            />
-          </div>
-
+        searchPlaceholder={allowVideo ? 'Search images and videos…' : 'Search textures…'}
+        searchQuery={browse.searchQuery}
+        onSearchChange={browse.setSearchQuery}
+        assetList={
+          <TextureDialogAssetList
+            searchQuery={browse.searchQuery}
+            filteredTextures={browse.filteredTextures}
+            filteredVideos={browse.filteredVideos}
+            dialogGroups={browse.dialogGroups}
+            blobById={browse.blobById}
+            expandedFamilies={browse.expandedFamilies}
+            toggleFamilyExpanded={browse.toggleFamilyExpanded}
+            selectedTextureId={selectedTextureId}
+            onSelectTexture={handleSelectExisting}
+            allowVideo={allowVideo}
+            leftColumnEmpty={browse.leftColumnEmpty}
+          />
+        }
+        uploadPanel={
+          <TextureDialogUploadPanel
+            allowVideo={allowVideo}
+            dragActive={upload.dragActive}
+            uploadPreview={upload.uploadPreview}
+            fileInputRef={upload.fileInputRef}
+            onConfirmUpload={() => void handleConfirmUpload()}
+            onCancelUpload={() => upload.setUploadPreview(null)}
+            onDragEnter={upload.handleDragEnter}
+            onDragOver={upload.handleDragOver}
+            onDragLeave={upload.handleDragLeave}
+            onDrop={upload.handleDrop}
+            onOpenFilePicker={upload.openFilePicker}
+            onFileInputChange={upload.handleFileInput}
+          />
+        }
+        footer={
           <TextureDialogFooter
             selectedTextureId={selectedTextureId}
             hasUploadPreview={!!upload.uploadPreview}
@@ -157,8 +139,8 @@ export default function TextureDialog({
             onCancel={onClose}
             onPrimary={handlePrimaryAction}
           />
-        </div>
-      </Modal>
+        }
+      />
 
       <VideoConversionDialog
         isOpen={!!upload.pendingVideoConversion}

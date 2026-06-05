@@ -15,6 +15,8 @@ export interface ModalProps {
   headerExtra?: React.ReactNode
   subheader?: React.ReactNode
   footer?: React.ReactNode
+  /** When 'hidden', children must manage their own scroll regions (e.g. asset picker dialogs). */
+  contentOverflow?: 'auto' | 'hidden'
 }
 
 export default function Modal({
@@ -30,6 +32,7 @@ export default function Modal({
   headerExtra,
   subheader,
   footer,
+  contentOverflow = 'auto',
 }: ModalProps) {
   const modalRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState<{ width: number; height: number | undefined }>({
@@ -237,8 +240,10 @@ export default function Modal({
           style={{
             flex: 1,
             minHeight: 0,
-            overflow: 'auto',
+            overflow: contentOverflow,
             padding: '20px',
+            display: contentOverflow === 'hidden' ? 'flex' : undefined,
+            flexDirection: contentOverflow === 'hidden' ? 'column' : undefined,
           }}
         >
           {children}
