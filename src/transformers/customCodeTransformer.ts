@@ -39,7 +39,11 @@ import {
 } from '@/runtime/customTransformerErrorBridge'
 import { publishVariableValue, VARIABLE_OVERLAY_MAX_INDEX } from '@/runtime/variableOverlayBridge'
 import { publishLineValue } from '@/runtime/coordinateOverlayBridge'
-import { extractLineNumberFromError, extractLineFromStack } from '@/utils/errorLineMapper'
+import {
+  extractWrappedLineFromEvalError,
+  formatEvalErrorWithUserLine,
+  mapEvalLineToUserLine,
+} from '@/utils/errorLineMapper'
 
 let _customCodeVisualizeEntityId: string | null = null
 
@@ -694,58 +698,23 @@ function compileCustomTransform(configKey: string, source: string): { fn: Custom
     wrappedSource = `"use strict";\nreturn function(input, dt, params, state, api) {\n${source}\n};`
   }
 
-  // Calculate prefixLines: count how many lines are before the user code in wrapped source
-  const wrappedLines = wrappedSource.split('\n')
-  const sourceLines = source.split('\n')
-  
-  // For full function: "use strict\n" + source + "\nreturn transform;"
-  //   wrappedLines[0] = "use strict"
-  //   wrappedLines[1..N] = source lines
-  //   wrappedLines[N+1] = "return transform;"
-  //   So prefix is 1 line
-  // For inline: "use strict\nreturn function(...) {\n" + source + "\n};"
-  //   wrappedLines[0] = "use strict"
-  //   wrappedLines[1] = "return function(...) {"
-  //   wrappedLines[2..N+1] = source lines
-  //   wrappedLines[N+2] = "};"
-  //   So prefix is 2 lines
-  
-  // But we also added "\n" after source, which creates an extra empty line if source doesn't end with \n
-  // The most reliable approach: calculate based on the wrapping structure
   const isFull = isFullFunctionSource(source)
-  let prefixLines = isFull ? 1 : 2
-  
-  // Account for the extra newline we added after source
-  // If source doesn't end with newline, we added one, creating an extra empty line
-  // But this is a suffix, not a prefix, so it shouldn't affect line numbers of user code
-  
-  // Actually, let's calculate it properly by finding where source starts in wrapped
-  let sourceStartIndex = isFull ? 1 : 2
-  
-  // Verify: wrappedLines[sourceStartIndex] should equal sourceLines[0]
-  // If source starts with empty lines, they're at wrappedLines[sourceStartIndex], [sourceStartIndex+1], etc.
-  // These are user's lines, not prefix
-  
-  // So prefixLines is just the number of lines we added before source
-  // For full: 1 ("use strict")
-  // For inline: 2 ("use strict" and "return function...")
-  //
-  // However, user reports that line numbers are off by 2 (shows 25 when it's 22)
-  // This suggests we need to add 2 to the prefix count
-  // The discrepancy likely comes from how the wrapped source line numbers align
-  // with the user's source. After investigation, setting prefix to 3 for full functions
-  // accounts for the typical structure where user code starts after a JSDoc line.
-  
   const wrapInfo: WrapInfo = {
-    prefixLines: isFull ? 3 : 2,
-    totalLines: wrappedLines.length,
+    prefixLines: isFull ? 1 : 2,
+    totalLines: wrappedSource.split('\n').length,
   }
 
   try {
     const factory = new Function(wrappedSource)
     return { fn: factory() as CustomTransformFn, wrapInfo }
   } catch (e) {
-    throw new Error(`Failed to compile custom transformer "${configKey}": ${e}`)
+    const { message } = formatEvalErrorWithUserLine(e, {
+      prefixLines: wrapInfo.prefixLines,
+      source,
+      wrappedSource,
+      label: `Failed to compile custom transformer "${configKey}"`,
+    })
+    throw new Error(message)
   }
 }
 
@@ -830,22 +799,14 @@ export class CustomCodeTransformer implements Transformer {
         ? e.stack
         : undefined
     
-    // Try to extract line number from error message or stack trace and map to user code
     let lineNumber: number | undefined
-    if (e instanceof Error && stack) {
-      // First try to extract from error message (SyntaxError usually has it)
-      lineNumber = extractLineNumberFromError(e)
-      
-      // If not found in message, try to extract from stack trace
-      if (lineNumber === null) {
-        lineNumber = extractLineFromStack(stack)
-      }
-      
-      // Map wrapped line number back to user code line number
-      if (lineNumber !== null) {
-        // Subtract the prefix lines to get user code line
-        lineNumber = Math.max(1, lineNumber - this.wrapInfo.prefixLines)
-      }
+    const wrappedLine = extractWrappedLineFromEvalError(e)
+    if (wrappedLine !== null) {
+      lineNumber = mapEvalLineToUserLine(
+        wrappedLine,
+        this.wrapInfo.prefixLines,
+        this.authoringCode.split('\n').length,
+      )
     }
     
     publishCustomTransformerRuntimeError({

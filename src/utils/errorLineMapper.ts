@@ -1,6 +1,7 @@
 /**
  * Utilities to extract and display line numbers in error messages.
  */
+import * as acorn from 'acorn'
 
 /**
  * Attempts to extract a line number from a SyntaxError message.
@@ -90,6 +91,85 @@ export function extractLineFromStack(stack: string | undefined): number | null {
   }
   
   return null
+}
+
+/**
+ * Maps a line number from eval'd wrapper code back to the user's source line.
+ * When the parser reports an error on wrapper suffix lines (e.g. `return transform;`),
+ * clamp to the last user source line.
+ */
+export function mapEvalLineToUserLine(
+  wrappedLine: number,
+  prefixLines: number,
+  sourceLineCount: number,
+): number {
+  const userLine = wrappedLine - prefixLines
+  if (userLine > sourceLineCount) return Math.max(1, sourceLineCount)
+  return Math.max(1, userLine)
+}
+
+/** Locates a syntax error line in eval wrapper source (used when engines omit line info). */
+export function findWrappedLineWithAcorn(wrappedSource: string): number | null {
+  try {
+    acorn.parse(wrappedSource, {
+      ecmaVersion: 'latest',
+      sourceType: 'script',
+      allowReturnOutsideFunction: true,
+    })
+    return null
+  } catch (e) {
+    if (e && typeof e === 'object' && 'loc' in e) {
+      const loc = (e as { loc?: { line?: number } }).loc
+      if (typeof loc?.line === 'number') return loc.line
+    }
+    return null
+  }
+}
+
+/** Extracts a line number from an eval'd code error (message, stack, then acorn fallback). */
+export function extractWrappedLineFromEvalError(
+  error: unknown,
+  wrappedSource?: string,
+): number | null {
+  let line = extractLineNumberFromError(error)
+  if (line === null && error instanceof Error) {
+    line = extractLineFromStack(error.stack)
+  }
+  if (line === null && wrappedSource) {
+    line = findWrappedLineWithAcorn(wrappedSource)
+  }
+  return line
+}
+
+function stripWrappedLineInfoFromDetail(detail: string): string {
+  return detail
+    .replace(/\s+at line \d+ column \d+/gi, '')
+    .replace(/\s*\(line \d+, column \d+\)/gi, '')
+    .replace(/\s*\(line \d+\)/gi, '')
+    .trim()
+}
+
+/**
+ * Formats an eval compile/runtime error with a user-source line number.
+ */
+export function formatEvalErrorWithUserLine(
+  error: unknown,
+  options: { prefixLines: number; source: string; label: string; wrappedSource?: string },
+): { message: string; lineNumber?: number } {
+  const detail = error instanceof Error ? String(error) : String(error)
+  const sourceLineCount = options.source.split('\n').length
+  const wrappedLine = extractWrappedLineFromEvalError(error, options.wrappedSource)
+
+  if (wrappedLine === null) {
+    return { message: `${options.label}: ${detail}` }
+  }
+
+  const userLine = mapEvalLineToUserLine(wrappedLine, options.prefixLines, sourceLineCount)
+  const cleanedDetail = stripWrappedLineInfoFromDetail(detail)
+  return {
+    message: `${options.label}: ${cleanedDetail} (line ${userLine})`,
+    lineNumber: userLine,
+  }
 }
 
 /**

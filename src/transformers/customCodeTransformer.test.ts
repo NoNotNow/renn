@@ -206,6 +206,55 @@ describe('validateCustomTransformerSource', () => {
     const msg = validateCustomTransformerSource('return {')
     expect(msg).not.toBeNull()
     expect(msg).toContain('Failed to compile')
+    expect(msg).toMatch(/\(line \d+\)/)
+  })
+
+  test('reports line 10 for syntax error in default skeleton', () => {
+    const lines = defaultCustomTransformerCode().split('\n')
+    lines[9] = '  @@@ invalid'
+    const msg = validateCustomTransformerSource(lines.join('\n'), 'custom:p2')
+    expect(msg).toContain('custom:p2')
+    expect(msg).toContain('(line 10)')
+  })
+
+  test('includes mapped user line for full-function syntax errors', () => {
+    const lines = ['function transform(input, dt, params, state, api) {']
+    for (let i = 1; i <= 20; i++) lines.push(`  // filler ${i}`)
+    lines.push('  return {')
+    const source = lines.join('\n')
+
+    const originalFunction = globalThis.Function
+    globalThis.Function = function wrappedFunction(this: unknown, body: string) {
+      const err = new SyntaxError("Unexpected token ')' at line 25 column 1")
+      err.stack =
+        "SyntaxError: Unexpected token ')'\n    at wrappedFunction (<anonymous>:25:1)"
+      throw err
+    } as unknown as FunctionConstructor
+
+    try {
+      const msg = validateCustomTransformerSource(source)
+      expect(msg).toContain('Failed to compile')
+      expect(msg).toContain('(line 22)')
+      expect(msg).not.toContain('line 25')
+    } finally {
+      globalThis.Function = originalFunction
+    }
+  })
+
+  test('includes mapped user line for inline legacy syntax errors', () => {
+    const source = 'a\nb\nreturn {'
+    const originalFunction = globalThis.Function
+    globalThis.Function = function wrappedFunction(this: unknown, body: string) {
+      const err = new SyntaxError("Unexpected token ')' at line 6 column 1")
+      throw err
+    } as unknown as FunctionConstructor
+
+    try {
+      const msg = validateCustomTransformerSource(source)
+      expect(msg).toContain('(line 3)')
+    } finally {
+      globalThis.Function = originalFunction
+    }
   })
 
   test('returns message for dangerous pattern', () => {

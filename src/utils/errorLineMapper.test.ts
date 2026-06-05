@@ -3,6 +3,9 @@ import {
   extractLineNumberFromError,
   extractLineFromStack,
   formatErrorMessage,
+  formatEvalErrorWithUserLine,
+  findWrappedLineWithAcorn,
+  mapEvalLineToUserLine,
 } from './errorLineMapper'
 
 describe('errorLineMapper', () => {
@@ -64,6 +67,101 @@ describe('errorLineMapper', () => {
     it('ignores source file line numbers (the 394 issue)', () => {
       const stack = 'ReferenceError: leftRotationp is not defined\n    at findCorrectionVector (eval at compileCustomTransform (http://localhost:5173/file.ts:394:21), <anonymous>:57:8)'
       expect(extractLineFromStack(stack)).toBe(57)
+    })
+  })
+
+  describe('mapEvalLineToUserLine', () => {
+    it('subtracts wrapper prefix lines', () => {
+      expect(mapEvalLineToUserLine(25, 1, 22)).toBe(22)
+      expect(mapEvalLineToUserLine(5, 2, 3)).toBe(3)
+    })
+
+    it('clamps to last user line when parser reports on wrapper suffix', () => {
+      expect(mapEvalLineToUserLine(25, 1, 22)).toBe(22)
+      expect(mapEvalLineToUserLine(6, 2, 3)).toBe(3)
+    })
+
+    it('never returns less than 1', () => {
+      expect(mapEvalLineToUserLine(1, 5, 10)).toBe(1)
+    })
+  })
+
+  describe('findWrappedLineWithAcorn', () => {
+    it('finds syntax error line in full-function wrapper', () => {
+      const source = [
+        'function transform(input, dt, params, state, api) {',
+        ...Array.from({ length: 8 }, (_, i) => `  // filler ${i + 1}`),
+        '  @@@',
+        '}',
+      ].join('\n')
+      const wrapped = `"use strict";\n${source}\nreturn transform;`
+      expect(findWrappedLineWithAcorn(wrapped)).toBe(11)
+    })
+
+    it('finds syntax error line in inline legacy wrapper', () => {
+      const wrapped = `"use strict";\nreturn function(input, dt, params, state, api) {\na\nb\nreturn {\n};`
+      expect(findWrappedLineWithAcorn(wrapped)).toBe(6)
+    })
+  })
+
+  describe('formatEvalErrorWithUserLine', () => {
+    function makeSource(lineCount: number, lastLine = '  return {'): string {
+      const lines = ['function transform(input, dt, params, state, api) {']
+      for (let i = 1; i < lineCount - 1; i++) lines.push(`  // filler ${i}`)
+      lines.push(lastLine)
+      return lines.join('\n')
+    }
+
+    it('maps wrapped syntax error line to user source line for full functions', () => {
+      const source = makeSource(22)
+      const error = new SyntaxError("Unexpected token ')' at line 25 column 1")
+      error.stack =
+        "SyntaxError: Unexpected token ')'\n    at new Function (<anonymous>)\n    at compileCustomTransform (<anonymous>:25:1)"
+
+      const result = formatEvalErrorWithUserLine(error, {
+        prefixLines: 1,
+        source,
+        label: 'Failed to compile custom transformer "custom"',
+      })
+
+      expect(result.lineNumber).toBe(22)
+      expect(result.message).toContain('(line 22)')
+      expect(result.message).not.toContain('line 25')
+    })
+
+    it('maps wrapped syntax error line for inline legacy bodies', () => {
+      const source = 'a\nb\nreturn {'
+      const error = new SyntaxError("Unexpected token ')' at line 6 column 1")
+
+      const result = formatEvalErrorWithUserLine(error, {
+        prefixLines: 2,
+        source,
+        label: 'Failed to compile custom transformer "custom"',
+      })
+
+      expect(result.lineNumber).toBe(3)
+      expect(result.message).toContain('(line 3)')
+    })
+
+    it('uses acorn fallback when engine omits line numbers', () => {
+      const source = [
+        'function transform(input, dt, params, state, api) {',
+        ...Array.from({ length: 8 }, (_, i) => `  // filler ${i + 1}`),
+        '  @@@',
+        '}',
+      ].join('\n')
+      const wrapped = `"use strict";\n${source}\nreturn transform;`
+      const error = new SyntaxError('Invalid or unexpected token')
+
+      const result = formatEvalErrorWithUserLine(error, {
+        prefixLines: 1,
+        source,
+        wrappedSource: wrapped,
+        label: 'Failed to compile custom transformer "custom:p2"',
+      })
+
+      expect(result.lineNumber).toBe(10)
+      expect(result.message).toContain('(line 10)')
     })
   })
 
