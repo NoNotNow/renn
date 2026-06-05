@@ -40,7 +40,7 @@ Scripts use `world.scripts: Record<string, ScriptDef>` with `entity.scripts: str
 - **Shift+Escape** opens the Workspace. **Escape** (without Shift) closes it.
 
 ### R2 — Transformers tab
-- Retains authoring via the horizontal pipeline (**reorder**, **enable**, **drag**, **Configure** drawer JSON incl. **`name` / priority / `params`** for custom stages), live trace on pipeline cards,
+- Retains authoring via the horizontal pipeline (**reorder**, **enable**, **drag**, inline **`name`** on custom cards, **Configure** drawer JSON incl. priority / `params` for custom stages), live trace on pipeline cards,
   preset **Load template** + **Field reference** where applicable (`ValidatedJsonTextarea`),
   Monaco when a **custom** stage is selected. **Removed:** redundant second toolbar row under the chain (Custom picker, Name, enable pill, Priority) — those fields live on the card / in **Configure**.
 - Visual pipeline strip (ordered, since execution order matters).

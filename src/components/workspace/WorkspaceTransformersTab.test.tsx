@@ -503,6 +503,24 @@ describe('WorkspaceTransformersTab', () => {
     })
   })
 
+  it('renames a custom transformer inline on the pipeline card', async () => {
+    const user = userEvent.setup()
+    const onWorldChange = vi.fn()
+    renderTab({
+      onWorldChange,
+      entry: { entityId: 'car', tab: 'transformers', itemId: 'car_tf2' },
+    })
+
+    const nameInput = screen.getByTestId('transformer-card-name-input-2')
+    await user.clear(nameInput)
+    await user.type(nameInput, 'AutoBrake')
+    fireEvent.blur(nameInput)
+
+    await waitFor(() => expect(onWorldChange).toHaveBeenCalled())
+    const next = onWorldChange.mock.calls.at(-1)?.[0] as RennWorld
+    expect(next.transformers?.car_tf2?.name).toBe('AutoBrake')
+  })
+
   it('selects a newly added custom transformer so Monaco shows its code', async () => {
     const user = userEvent.setup()
     const inputOnlyWorld: RennWorld = {

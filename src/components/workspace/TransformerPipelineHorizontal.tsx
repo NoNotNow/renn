@@ -27,7 +27,12 @@ import {
 } from '@/transformers/transformerTrace'
 import { getDefaultTransformerConfig, isPresetTransformerType } from '@/transformers/transformerPresets'
 import { syncPriorities } from '@/transformers/transformerUtils'
-import { labelCustomTransformer, nextUniqueCustomTransformerName } from '@/transformers/customTransformerNaming'
+import {
+  ensureUniqueCustomTransformerName,
+  labelCustomTransformer,
+  nextUniqueCustomTransformerName,
+} from '@/transformers/customTransformerNaming'
+import { SUPPRESS_ESCAPE_SCENE_FOCUS_ATTR } from '@/config/constants'
 import AddTransformerDialog, { type AddExistingTransformerMode } from '@/components/workspace/AddTransformerDialog'
 import {
   mergeConfigureDrawerApply,
@@ -204,6 +209,108 @@ function PipelineLeadInArrow() {
   )
 }
 
+const CUSTOM_NAME_FONT_STYLE: CSSProperties = {
+  fontSize: 20,
+  fontFamily: 'cursive',
+  fontWeight: 700,
+}
+
+function CustomTransformerInlineName({
+  index,
+  name,
+  stackIndex,
+  onCommit,
+}: {
+  index: number
+  name: string | undefined
+  stackIndex: number
+  onCommit: (desired: string) => void
+}) {
+  const committedName = typeof name === 'string' ? name.trim() : ''
+  const placeholder = `Custom (${stackIndex})`
+  const [draft, setDraft] = useState(committedName)
+  const [focused, setFocused] = useState(false)
+  const [inputWidthPx, setInputWidthPx] = useState<number | null>(null)
+  const mirrorRef = useRef<HTMLSpanElement>(null)
+
+  const measureText =
+    focused ? draft || placeholder : draft.trim() || committedName || placeholder
+
+  useEffect(() => {
+    setDraft(committedName)
+  }, [committedName])
+
+  useLayoutEffect(() => {
+    const mirror = mirrorRef.current
+    if (!mirror) return
+    setInputWidthPx(mirror.offsetWidth + 4)
+  }, [measureText])
+
+  const commit = () => {
+    const trimmed = draft.trim()
+    if (trimmed === committedName) return
+    onCommit(trimmed || 'Custom')
+  }
+
+  return (
+    <div style={{ display: 'inline-block', maxWidth: '100%', flexShrink: 0 }}>
+      <span
+        ref={mirrorRef}
+        aria-hidden
+        style={{
+          ...CUSTOM_NAME_FONT_STYLE,
+          position: 'absolute',
+          visibility: 'hidden',
+          pointerEvents: 'none',
+          whiteSpace: 'pre',
+        }}
+      >
+        {measureText}
+      </span>
+      <input
+        type="text"
+        value={draft}
+        placeholder={placeholder}
+        aria-label="Custom transformer name"
+        data-testid={`transformer-card-name-input-${index}`}
+        {...{ [SUPPRESS_ESCAPE_SCENE_FOCUS_ATTR]: '' }}
+        onChange={(e) => setDraft(e.target.value)}
+        onFocus={() => setFocused(true)}
+        onBlur={() => {
+          setFocused(false)
+          commit()
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.currentTarget.blur()
+          } else if (e.key === 'Escape') {
+            setDraft(committedName)
+            e.currentTarget.blur()
+          }
+          e.stopPropagation()
+        }}
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          ...CUSTOM_NAME_FONT_STYLE,
+          color: theme.text.primary,
+          background: focused ? theme.bg.panelAlt : 'transparent',
+          border: `1px solid ${focused ? theme.border.default : 'transparent'}`,
+          borderRadius: 4,
+          padding: '0 2px',
+          margin: 0,
+          width: inputWidthPx ?? undefined,
+          minWidth: '2em',
+          maxWidth: '100%',
+          boxSizing: 'border-box',
+          outline: 'none',
+          display: 'block',
+        }}
+      />
+    </div>
+  )
+}
+
 /** Outgoing flow after the “+ Add” stage (no port ring on dashed tile). */
 function PipelineTrailOutArrow() {
   const w = 14
@@ -242,6 +349,7 @@ function TransformerTraceItem({
   onDrop,
   onDragEnd,
   onSelectCode,
+  onRenameCustom,
   usageCount,
   onMakeUnique,
   makeUniqueDisabledReason,
@@ -266,6 +374,7 @@ function TransformerTraceItem({
   onDrop: () => void
   onDragEnd: () => void
   onSelectCode?: () => void
+  onRenameCustom?: (desiredName: string) => void
   usageCount?: number
   onMakeUnique?: () => void
   makeUniqueDisabledReason?: string
@@ -389,7 +498,13 @@ function TransformerTraceItem({
     <div
       ref={itemRef}
       draggable
-      onDragStart={onDragStart}
+      onDragStart={(e) => {
+        if ((e.target as HTMLElement).closest('[data-testid^="transformer-card-name-input-"]')) {
+          e.preventDefault()
+          return
+        }
+        onDragStart()
+      }}
       onDragOver={onDragOver}
       onDrop={(e) => {
         e.preventDefault()
@@ -619,20 +734,28 @@ function TransformerTraceItem({
           marginBottom: 1,
         }}
       >
-        <div
-          style={{
-            fontSize: 20,
-            fontFamily: 'cursive',
-            fontWeight: 700,
-            color: theme.text.primary,
-            userSelect: 'none',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {rowLabel}
-        </div>
+        {transformer.type === 'custom' ?
+          <CustomTransformerInlineName
+            index={index}
+            name={transformer.name}
+            stackIndex={stackIndex}
+            onCommit={(desired) => onRenameCustom?.(desired)}
+          />
+        : <div
+            style={{
+              fontSize: 20,
+              fontFamily: 'cursive',
+              fontWeight: 700,
+              color: theme.text.primary,
+              userSelect: 'none',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {rowLabel}
+          </div>
+        }
       </div>
       <div
         className="transformer-trace-content"
@@ -957,6 +1080,15 @@ export function TransformerHorizontalPipeline({
     commitWithRegistryIds(syncPriorities(next), registryIdsForList())
   }
 
+  const handleRenameCustom = (stackIndex: number, desiredName: string) => {
+    const target = transformers[stackIndex]
+    if (!target || target.type !== 'custom') return
+    const name = ensureUniqueCustomTransformerName(desiredName, transformers, stackIndex)
+    if ((target.name ?? '').trim() === name) return
+    const next = transformers.map((t, i) => (i === stackIndex ? { ...t, name } : t))
+    commitWithRegistryIds(syncPriorities(next), registryIdsForList())
+  }
+
   const handleDragStart = (index: number) => {
     dragEndCommittedRef.current = false
     const items = transformers.map((t, i) => ({
@@ -1082,6 +1214,7 @@ export function TransformerHorizontalPipeline({
               onDrop={handleDragEnd}
               onDragEnd={handleDragEnd}
               onSelectCode={() => onSelectCode?.(item.id)}
+              onRenameCustom={(desired) => handleRenameCustom(item.originalIndex, desired)}
               usageCount={usageCounts?.[item.id]}
               onMakeUnique={onMakeUnique ? () => onMakeUnique(item.id) : undefined}
               makeUniqueDisabledReason={makeUniqueDisabledReason}
