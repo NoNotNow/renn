@@ -14,6 +14,8 @@ import {
 import { sortAndSyncPriorities } from '@/transformers/transformerUtils'
 import { effectiveCustomTransformerCode, validateCustomTransformerSource } from '@/transformers/customCodeTransformer'
 import type { WorkspaceMonacoPayload } from '@/types/workspace'
+import TransformerCodeErrorOverlay from '@/components/workspace/TransformerCodeErrorOverlay'
+import { useDebouncedCompileErrorDisplay } from '@/hooks/useDebouncedCompileErrorDisplay'
 
 const CODE_DEBOUNCE_MS = 350
 
@@ -40,6 +42,7 @@ export default function WorkspaceGlobalTransformerPanel({
   const [fieldRefOpen, setFieldRefOpen] = useState(false)
   const [codeDraft, setCodeDraft] = useState('')
   const [monacoRemountKey, setMonacoRemountKey] = useState(0)
+  const codeColumnRef = useRef<HTMLDivElement>(null)
   const debounceTimerRef = useRef<number | null>(null)
   const defRef = useRef(def)
   defRef.current = def
@@ -121,6 +124,8 @@ export default function WorkspaceGlobalTransformerPanel({
 
   const compileError =
     def?.type === 'custom' ? validateCustomTransformerSource(codeDraft, `global:${itemId}`) : null
+
+  const displayedCompileError = useDebouncedCompileErrorDisplay(compileError, codeColumnRef)
 
   if (!def) {
     return (
@@ -308,27 +313,15 @@ export default function WorkspaceGlobalTransformerPanel({
         </div>
       )}
 
-      {compileError ?
-        <div
-          style={{
-            flexShrink: 0,
-            marginBottom: 8,
-            padding: '8px 10px',
-            fontSize: 12,
-            lineHeight: 1.45,
-            whiteSpace: 'pre-wrap',
-            color: theme.text.error,
-            border: `1px solid ${theme.border.error}`,
-            borderRadius: 6,
-            background: theme.bg.errorFallback,
-          }}
-          data-testid="workspace-global-tf-compile-error"
-        >
-          {compileError}
-        </div>
-      : null}
-
-      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>{monacoSlot}</div>
+      <div
+        ref={codeColumnRef}
+        style={{ position: 'relative', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}
+      >
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>{monacoSlot}</div>
+        {def.type === 'custom' ?
+          <TransformerCodeErrorOverlay compileError={displayedCompileError} compileErrorTestId="workspace-global-tf-compile-error" />
+        : null}
+      </div>
 
       {templateDialogOpen && (def.type === 'custom' || supportsTemplatePickers(def.type)) ?
         <TransformerTemplateDialog

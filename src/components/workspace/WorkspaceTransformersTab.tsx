@@ -46,6 +46,8 @@ import {
 import { clamp } from '@/utils/numberUtils'
 import type { GlobalBehaviorLibrary } from '@/types/globalBehaviorLibrary'
 import WorkspaceGlobalTransformerPanel from '@/components/workspace/WorkspaceGlobalTransformerPanel'
+import TransformerCodeErrorOverlay from '@/components/workspace/TransformerCodeErrorOverlay'
+import { useDebouncedCompileErrorDisplay } from '@/hooks/useDebouncedCompileErrorDisplay'
 
 /** Workspace horizontal split (code ↔ docs). */
 const POPOUT_DOCS_SPLIT_MIN_PX = 300
@@ -472,7 +474,7 @@ function WorkspaceTransformersTabEntity({
   const [runtimeActive, setRuntimeActive] = useState<boolean>(true)
   const runtimeKeepTimerRef = useRef<number | null>(null)
   const runtimeActiveTimerRef = useRef<number | null>(null)
-  const [copiedRuntime, setCopiedRuntime] = useState(false)
+  const codeColumnRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     // If a new runtime error appears for the selection, show it immediately and start the
@@ -555,6 +557,8 @@ function WorkspaceTransformersTabEntity({
     if (selectedConfig?.type !== 'custom') return null
     return validateCustomTransformerSource(codeDraft, selectedCustomCompileKey)
   }, [selectedConfig?.type, codeDraft, selectedCustomCompileKey])
+
+  const displayedCompileError = useDebouncedCompileErrorDisplay(compileError, codeColumnRef)
 
   const cardErrorsByStackIndex = useMemo(() => {
     const errors: Record<number, TransformerCardErrorKind> = {}
@@ -845,27 +849,6 @@ function WorkspaceTransformersTabEntity({
     [list, transformersMixed, selectedEntityIds],
   )
 
-  const compileErrorPanel = compileError ? (
-    <div
-      data-testid="workspace-transformer-compile-error"
-      style={{
-        marginTop: 8,
-        padding: '8px 10px',
-        fontSize: 12,
-        lineHeight: 1.45,
-        whiteSpace: 'pre-wrap',
-        wordBreak: 'break-word',
-        color: theme.text.error,
-        border: `1px solid ${theme.border.error}`,
-        borderRadius: 6,
-        background: theme.bg.errorFallback,
-        flexShrink: 0,
-      }}
-    >
-      {compileError}
-    </div>
-  ) : null
-
   const handleRuntimeErrorContextMenu = useCallback(
     (e: ReactMouseEvent) => {
       if (runtimeErrorForSelection == null) return
@@ -875,72 +858,6 @@ function WorkspaceTransformersTabEntity({
     },
     [openMenu, runtimeErrorForSelection],
   )
-
-  const runtimeErrorPanel =
-    displayedRuntime ? (
-      <div
-        data-testid="workspace-transformer-runtime-error"
-        onContextMenu={handleRuntimeErrorContextMenu}
-        style={{
-          marginTop: 8,
-          padding: '8px 10px',
-          fontSize: 12,
-          lineHeight: 1.45,
-          whiteSpace: 'pre-wrap',
-          wordBreak: 'break-word',
-          color: theme.text.warning,
-          border: `1px solid ${theme.text.warning}`,
-          borderRadius: 6,
-          background: theme.bg.sectionMuted,
-          flexShrink: 0,
-          opacity: runtimeActive ? 1 : 0.8,
-          transition: 'opacity 140ms linear',
-          display: 'flex',
-          flexDirection: 'column',
-        }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ fontWeight: 600, marginBottom: 4, fontSize: 11 }}>
-            Runtime error
-            {displayedRuntime.lineNumber !== undefined ? (
-              <span style={{ marginLeft: 8, opacity: 0.8 }}>— line {displayedRuntime.lineNumber}</span>
-            ) : null}
-          </div>
-          <div style={{ marginLeft: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
-            <button
-              type="button"
-              onClick={async () => {
-                try {
-                  await navigator.clipboard.writeText(formatCustomRuntimeErrorClipboard(displayedRuntime))
-                  setCopiedRuntime(true)
-                  window.setTimeout(() => setCopiedRuntime(false), 1200)
-                } catch (e) {
-                  /* ignore */
-                }
-              }}
-              aria-label="Copy runtime error"
-              style={{
-                padding: '4px 8px',
-                fontSize: 12,
-                cursor: 'pointer',
-                borderRadius: 6,
-                background: 'rgba(255,255,255,0.03)',
-                border: '1px solid rgba(255,255,255,0.04)',
-                color: theme.text.warning,
-              }}
-            >
-              {copiedRuntime ? 'Copied' : 'Copy'}
-            </button>
-          </div>
-        </div>
-        <div style={{ marginBottom: 4 }}>{displayedRuntime.message}</div>
-        {displayedRuntime.stack ? (
-          <pre style={{ margin: '6px 0 0', fontSize: 11, fontFamily: 'ui-monospace, monospace', whiteSpace: 'pre-wrap' }}>
-            {displayedRuntime.stack}
-          </pre>
-        ) : null}
-      </div>
-    ) : null
 
   if (selectedEntityIds.length === 0) {
     return (
@@ -1337,7 +1254,9 @@ function WorkspaceTransformersTabEntity({
         }}
       >
         <div
+          ref={codeColumnRef}
           style={{
+            position: 'relative',
             flex:
               docsOpen ?
                 docsWidthPx > 0 ?
@@ -1361,16 +1280,21 @@ function WorkspaceTransformersTabEntity({
             </div>
           </div>
 
-          {monacoIsCustom && selectedConfig ? (
-            <>
-              {compileErrorPanel}
-              {runtimeErrorPanel}
-            </>
-          ) : !selectedPreset ? (
+          {!monacoIsCustom && !selectedPreset ?
             <div style={{ padding: 12, color: theme.text.muted, flexShrink: 0 }}>
               Pick a transformer in the pipeline to edit configuration.
             </div>
-          ) : null}
+          : null}
+
+          {monacoIsCustom && selectedConfig ?
+            <TransformerCodeErrorOverlay
+              compileError={displayedCompileError}
+              runtimeError={displayedRuntime}
+              runtimeActive={runtimeActive}
+              formatRuntimeClipboard={formatCustomRuntimeErrorClipboard}
+              onRuntimeContextMenu={handleRuntimeErrorContextMenu}
+            />
+          : null}
         </div>
 
         {docsOpen ?

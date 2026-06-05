@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { ComponentProps } from 'react'
 import { act, render, screen, fireEvent, waitFor } from '@testing-library/react'
 import WorkspaceTransformersTab from './WorkspaceTransformersTab'
+import { COMPILE_ERROR_DISPLAY_DEBOUNCE_MS } from '@/hooks/useDebouncedCompileErrorDisplay'
 import type { RennWorld } from '@/types/world'
 import type { WorkspaceMonacoPayload } from '@/types/workspace'
 import { CopyProvider } from '@/contexts/CopyContext'
@@ -356,6 +357,49 @@ describe('WorkspaceTransformersTab', () => {
       const customCard = screen.getByTestId('transformer-horizontal-item-2')
       expect(customCard).toHaveAttribute('data-card-error', 'compile')
       expect(customCard.getAttribute('style')).toContain('border: 1px solid rgb(220, 38, 38)')
+    })
+  })
+
+  it('debounces compile error overlay while editing custom transformer code', async () => {
+    vi.useFakeTimers()
+    const invalidWorld: RennWorld = {
+      ...carStackWorld,
+      transformers: {
+        ...carStackWorld.transformers,
+        car_tf2: {
+          ...carStackWorld.transformers!.car_tf2!,
+          code: 'return {',
+        },
+      },
+    }
+    renderTab({ world: invalidWorld })
+
+    expect(screen.queryByTestId('workspace-transformer-compile-error')).toBeNull()
+
+    act(() => {
+      vi.advanceTimersByTime(COMPILE_ERROR_DISPLAY_DEBOUNCE_MS)
+    })
+
+    expect(screen.getByTestId('workspace-transformer-compile-error')).toBeInTheDocument()
+    vi.useRealTimers()
+  })
+
+  it('shows runtime error overlay without shrinking the code column', async () => {
+    renderTab()
+
+    act(() => {
+      publishCustomTransformerRuntimeError({
+        entityId: 'car',
+        configStackIndex: 2,
+        message: 'Boom',
+        code: 'throw new Error("Boom")',
+        lineNumber: 3,
+      })
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-transformer-runtime-error')).toBeInTheDocument()
+      expect(screen.getByText('Boom')).toBeInTheDocument()
     })
   })
 
