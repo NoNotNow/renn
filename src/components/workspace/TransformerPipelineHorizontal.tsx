@@ -340,13 +340,14 @@ function TransformerTraceItem({
     }
   }, [syncTraceFont, traceOutputBrief])
 
-  // Reset max strings if the transformer type changes (e.g. from preset to custom)
+  // Reset max strings only when the stage kind changes (preset ↔ custom).
+  // Do not include traceInputBrief/traceOutputBrief — that would shrink the sizer every frame and flicker.
   useLayoutEffect(() => {
     maxInBriefRef.current = traceInputBrief
     maxOutBriefRef.current = traceOutputBrief
     setMaxInBrief(traceInputBrief)
     setMaxOutBrief(traceOutputBrief)
-  }, [transformer.type, traceInputBrief, traceOutputBrief])
+  }, [transformer.type])
 
   const summaryBaseStyle: CSSProperties = {
     cursor: 'pointer',
