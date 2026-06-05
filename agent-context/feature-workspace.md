@@ -40,6 +40,7 @@ Scripts use `world.scripts: Record<string, ScriptDef>` with `entity.scripts: str
   preset **Load template** + **Field reference** where applicable (`ValidatedJsonTextarea`),
   Monaco when a **custom** stage is selected. **Removed:** redundant second toolbar row under the chain (Custom picker, Name, enable pill, Priority) — those fields live on the card / in **Configure**.
 - Visual pipeline strip (ordered, since execution order matters).
+- **Add** **+** button on the pipeline opens a resizable dialog with **Preset** and **Existing** tabs; existing list stacks one row per organize title (like Organize); **Add** / **Link** / **Copy** as before.
 - Clicking a custom stage’s **code** control or selecting the stage selects it for Monaco editing.
 
 ### R3 — Scripts tab

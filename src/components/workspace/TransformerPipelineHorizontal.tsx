@@ -25,9 +25,10 @@ import {
   summarizeTransformerTraceOutputBrief,
   type TransformerTraceStep,
 } from '@/transformers/transformerTrace'
-import { TRANSFORMER_PRESET_OPTIONS, getDefaultTransformerConfig } from '@/transformers/transformerPresets'
+import { getDefaultTransformerConfig } from '@/transformers/transformerPresets'
 import { syncPriorities } from '@/transformers/transformerUtils'
 import { labelCustomTransformer, nextUniqueCustomTransformerName } from '@/transformers/customTransformerNaming'
+import AddTransformerDialog, { type AddExistingTransformerMode } from '@/components/workspace/AddTransformerDialog'
 import {
   mergeConfigureDrawerApply,
   transformerConfigForConfigureDrawer,
@@ -56,6 +57,21 @@ const PIPELINE_Z_LINK = 2
 /** Stack above connectors so selection glow paints over pipeline links. */
 const PIPELINE_Z_CARD_SELECTED = 4
 const PIPELINE_Z_CARD_DRAGGING = 10
+
+function suggestCopyRegistryId(
+  baseId: string,
+  registry: Record<string, TransformerConfig>,
+  used: Set<string>,
+): string {
+  const taken = new Set([...Object.keys(registry), ...used])
+  let i = 0
+  let candidate = `${baseId}_copy`
+  while (taken.has(candidate)) {
+    i += 1
+    candidate = `${baseId}_copy${i}`
+  }
+  return candidate
+}
 
 export type TransformerCardErrorKind = 'compile' | 'runtime'
 
@@ -878,7 +894,7 @@ export function TransformerHorizontalPipeline({
   cardErrorsByStackIndex?: Record<number, TransformerCardErrorKind>
 }) {
   const [scrollLeft, setScrollLeft] = useState(0)
-  const [addSelectValue, setAddSelectValue] = useState('')
+  const [addDialogOpen, setAddDialogOpen] = useState(false)
   const dragEndCommittedRef = useRef(false)
   const [dragState, setDragState] = useState<{
     items: { config: TransformerConfig; id: string; originalIndex: number }[]
@@ -911,33 +927,43 @@ export function TransformerHorizontalPipeline({
     [onCommit, registryIdsForList],
   )
 
-  const handleAddTransformer = (type: string) => {
-    if (!type) return
-
-    let config: TransformerConfig
-    let newId: string
+  const handleAddPreset = (type: string) => {
     const ids = registryIdsForList()
     const used = new Set(ids)
 
-    if (type.startsWith('link:')) {
-      const linkedId = type.slice(5)
-      const existing = existingRegistry?.[linkedId]
-      if (!existing) return
+    let config = getDefaultTransformerConfig(type)
+    if (type === 'custom') {
+      config = { ...config, name: nextUniqueCustomTransformerName(transformers) }
+    }
+    const newId =
+      registryEntityId ?
+        allocateTransformerRegistryId(registryEntityId, {}, used)
+      : getStableId(config, transformers.length)
+
+    commitWithRegistryIds(syncPriorities([...transformers, config]), [...ids, newId])
+  }
+
+  const handleAddExistingTransformer = (registryId: string, mode: AddExistingTransformerMode) => {
+    const existing = existingRegistry?.[registryId]
+    if (!existing) return
+
+    const ids = registryIdsForList()
+    const used = new Set(ids)
+    let config: TransformerConfig
+    let newId: string
+
+    if (mode === 'link') {
       config = existing
-      newId = linkedId
+      newId = registryId
     } else {
-      config = getDefaultTransformerConfig(type)
-      if (type === 'custom') {
-        config = { ...config, name: nextUniqueCustomTransformerName(transformers) }
-      }
+      config = JSON.parse(JSON.stringify(existing)) as TransformerConfig
       newId =
         registryEntityId ?
-          allocateTransformerRegistryId(registryEntityId, {}, used)
-        : getStableId(config, transformers.length)
+          allocateTransformerRegistryId(registryEntityId, existingRegistry ?? {}, used)
+        : suggestCopyRegistryId(registryId, existingRegistry ?? {}, used)
     }
 
     commitWithRegistryIds(syncPriorities([...transformers, config]), [...ids, newId])
-    setAddSelectValue('')
   }
 
   const handleRemoveTransformer = (index: number) => {
@@ -1100,55 +1126,53 @@ export function TransformerHorizontalPipeline({
         style={{
           position: 'relative',
           margin: 0,
-          padding: '6px 10px',
+          padding: 4,
           boxSizing: 'border-box',
           border: `1px dashed ${theme.border.default}`,
           borderRadius: 6,
           background: theme.bg.thumbnailFrame,
           display: 'flex',
           alignItems: 'center',
+          justifyContent: 'center',
           flexShrink: 0,
           alignSelf: 'center',
           zIndex: PIPELINE_Z_CARD,
           overflow: 'visible',
         }}
       >
-        <select
-          value={addSelectValue}
-          onChange={(e) => handleAddTransformer(e.target.value)}
-          aria-label="Add transformer stage"
+        <button
+          type="button"
+          onClick={() => setAddDialogOpen(true)}
+          aria-label="Add transformer"
+          title="Add transformer"
+          data-testid="add-transformer-button"
           style={{
-            padding: '6px 8px',
-            fontSize: 12,
+            width: 28,
+            height: 28,
+            padding: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 18,
             fontWeight: 600,
-            lineHeight: 1.35,
+            lineHeight: 1,
             background: theme.bg.codeOverlay,
             border: `1px solid ${theme.border.default}`,
             borderRadius: 4,
-            color: theme.text.primary,
+            color: theme.text.muted,
             cursor: 'pointer',
-            minWidth: 100,
-            maxWidth: 160,
           }}
         >
-          <option value="">+ Add ▾</option>
-          <optgroup label="Presets">
-            {TRANSFORMER_PRESET_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </optgroup>
-          <optgroup label="Link Existing">
-            {Object.keys(existingRegistry ?? {})
-              .filter((id) => !registryIdsForList().includes(id))
-              .map((id) => (
-                <option key={id} value={`link:${id}`}>
-                  🔗 Link Existing: {id}
-                </option>
-              ))}
-          </optgroup>
-        </select>
+          +
+        </button>
+        <AddTransformerDialog
+          isOpen={addDialogOpen}
+          onClose={() => setAddDialogOpen(false)}
+          existingRegistry={existingRegistry ?? {}}
+          excludedIds={registryIdsForList()}
+          onAddPreset={handleAddPreset}
+          onAddExisting={handleAddExistingTransformer}
+        />
         {displayItems.length > 0 ? <PipelineTrailOutArrow /> : null}
       </div>
     </div>
