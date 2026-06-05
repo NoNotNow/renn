@@ -247,7 +247,9 @@ export default function EntitySearchPicker({
               onFocus={() => {
                 setInputFocused(true)
                 setResultsOpen(true)
+                setFilterPopoverOpen(false)
               }}
+              onClick={() => setFilterPopoverOpen(false)}
               onBlur={() => {
                 setInputFocused(false)
                 window.setTimeout(collapseSearchIfIdle, 0)

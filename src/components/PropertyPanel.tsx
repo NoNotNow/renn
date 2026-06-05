@@ -54,6 +54,8 @@ export interface PropertyPanelProps {
   onRefreshFromPhysics?: (entityIds: string[]) => void
   livePoses?: Map<string, { position: Vec3; rotation: Rotation; scale?: Vec3 }> | null
   onOpenTextureStudio?: (entityId: string) => void | Promise<void>
+  entityWorkHistory?: readonly string[]
+  onSelectEntity?: (id: string) => void
 }
 
 export default function PropertyPanel({
@@ -72,6 +74,8 @@ export default function PropertyPanel({
   onRefreshFromPhysics,
   livePoses,
   onOpenTextureStudio,
+  entityWorkHistory = [],
+  onSelectEntity,
 }: PropertyPanelProps) {
   const undo = useEditorUndo()
   const vec3Undo: Vec3UndoProps | undefined =
@@ -110,13 +114,16 @@ export default function PropertyPanel({
     return specs.length > 0 ? specs : undefined
   }, [entities])
 
-  if (entities.length === 0 || !primaryEntity) {
-    return (
-      <div style={{ padding: 10 }}>
-        <p style={{ color: theme.text.muted }}>Select an entity</p>
-      </div>
-    )
-  }
+  const hasSelection = entities.length > 0 && Boolean(primaryEntity)
+
+  const propertyHeaderLabel = useMemo(() => {
+    if (!hasSelection || !primaryEntity) return null
+    if (isMulti) {
+      const merged = mergeName(entities)
+      return merged !== null ? `${merged} (${entities.length})` : `Multiple entities (${entities.length})`
+    }
+    return primaryEntity.name ?? primaryEntity.id
+  }, [hasSelection, primaryEntity, isMulti, entities])
 
   const updateAll = (patch: Partial<Entity>) => {
     const applyMerge = (e: Entity): Entity => {
@@ -222,17 +229,26 @@ export default function PropertyPanel({
   return (
     <div style={{ padding: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
       <PropertyPanelHeader
+        allEntities={world.entities}
+        entityWorkHistory={entityWorkHistory}
+        selectedEntityId={selectedEntityIds[0] ?? null}
+        onSelectEntity={onSelectEntity}
+        selectedLabel={propertyHeaderLabel}
+        hasSelection={hasSelection}
         entities={entities}
         ids={ids}
         primaryEntity={primaryEntity}
         isMulti={isMulti}
         anyLocked={anyLocked}
-        mergedName={mergedName}
         onRefreshFromPhysics={onRefreshFromPhysics}
         onCloneEntity={onCloneEntity}
         onDeleteEntities={onDeleteEntities}
       />
 
+      {!hasSelection || !primaryEntity ?
+        <p style={{ color: theme.text.muted, margin: '8px 0 0', fontSize: 13 }}>Select an entity</p>
+      : (
+        <>
       <CollapsibleSection
         title="Entity"
         titleTooltip="Human-readable name, stable id, and lock. Locked entities cannot be deleted and skip property edits."
@@ -490,6 +506,8 @@ export default function PropertyPanel({
             />
           </CollapsibleSection>
 
+        </>
+      )}
         </>
       )}
     </div>

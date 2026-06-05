@@ -23,6 +23,8 @@ describe('useEntityListFilters', () => {
     expect(result.current.filteredEntities).toEqual(entities)
     expect(result.current.entityListEmptyMessage).toBe('')
     expect(result.current.hasActiveEntityFilters).toBe(false)
+    expect(result.current.sortByHistory).toBe(true)
+    expect(result.current.hasActivePickerFilters).toBe(false)
   })
 
   it('reports "No entities" when input is empty', () => {
@@ -108,6 +110,8 @@ describe('useEntityListFilters', () => {
     expect(result.current.filterHasTransformers).toBe('any')
     expect(result.current.filterSizeMin).toBe('')
     expect(result.current.filterSizeMax).toBe('')
+    expect(result.current.sortByHistory).toBe(true)
+    expect(result.current.hasActivePickerFilters).toBe(false)
   })
 
   it('emptyMessage variants reflect search vs filters vs both', () => {
@@ -149,12 +153,13 @@ describe('useEntityListFilters', () => {
     expect(result.current.filteredEntities.map((e) => e.id)).toEqual(['a'])
   })
 
-  it('sortByHistory orders filtered entities by work history', () => {
+  it('sortByHistory is on by default and orders filtered entities by work history', () => {
     const entities = [makeEntity('a'), makeEntity('b'), makeEntity('c')]
     const { result } = renderHook(() =>
       useEntityListFilters(entities, { entityWorkHistory: ['c', 'a'] }),
     )
-    act(() => result.current.setSortByHistory(true))
+    expect(result.current.sortByHistory).toBe(true)
+    expect(result.current.hasActivePickerFilters).toBe(false)
     expect(result.current.filteredEntities.map((e) => e.id)).toEqual(['c', 'a', 'b'])
   })
 

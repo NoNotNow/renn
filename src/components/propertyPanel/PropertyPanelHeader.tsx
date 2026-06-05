@@ -1,5 +1,6 @@
 import type { Entity } from '@/types/world'
 import { uiLogger } from '@/utils/uiLogger'
+import EntitySearchPicker from '@/components/entitySearch/EntitySearchPicker'
 import { EntityPanelIcons } from '../EntityPanelIcons'
 import {
   entityPanelIconButtonStyle,
@@ -8,29 +9,41 @@ import {
 } from '../sharedStyles'
 
 export interface PropertyPanelHeaderProps {
+  allEntities: Entity[]
+  entityWorkHistory: readonly string[]
+  selectedEntityId: string | null
+  onSelectEntity?: (id: string) => void
+  /** Label shown until hover/click when an entity is selected (workspace shell parity). */
+  selectedLabel: string | null
+  hasSelection: boolean
   entities: Entity[]
   ids: string[]
-  primaryEntity: Entity
+  primaryEntity?: Entity
   isMulti: boolean
   anyLocked: boolean
-  mergedName: string | null
   onRefreshFromPhysics?: (entityIds: string[]) => void
   onCloneEntity?: (entityId: string) => void
   onDeleteEntities?: (entityIds: string[]) => void
 }
 
 export default function PropertyPanelHeader({
+  allEntities,
+  entityWorkHistory,
+  selectedEntityId,
+  onSelectEntity,
+  selectedLabel,
+  hasSelection,
   entities,
   ids,
   primaryEntity,
   isMulti,
   anyLocked,
-  mergedName,
   onRefreshFromPhysics,
   onCloneEntity,
   onDeleteEntities,
 }: PropertyPanelHeaderProps) {
-  const showActions = !!(onRefreshFromPhysics || onCloneEntity || onDeleteEntities)
+  const showActions = hasSelection && !!(onRefreshFromPhysics || onCloneEntity || onDeleteEntities)
+
   return (
     <div
       style={{
@@ -42,27 +55,34 @@ export default function PropertyPanelHeader({
         minWidth: 0,
       }}
     >
-      <h3
+      <div
         style={{
-          margin: 0,
-          fontSize: 14,
-          fontWeight: 600,
+          flex: '1 1 auto',
+          minWidth: 0,
           display: 'flex',
           alignItems: 'center',
           gap: 6,
-          minWidth: 0,
         }}
       >
-        {anyLocked && <span style={{ fontSize: 12 }}>🔒</span>}
-        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {isMulti
-            ? mergedName !== null
-              ? `${mergedName} (${entities.length})`
-              : `Multiple entities (${entities.length})`
-            : (primaryEntity.name ?? primaryEntity.id)}
-        </span>
-      </h3>
-      {showActions && (
+        {hasSelection && anyLocked ?
+          <span style={{ fontSize: 12, flexShrink: 0 }} aria-hidden>
+            🔒
+          </span>
+        : null}
+        <EntitySearchPicker
+          entities={allEntities}
+          entityWorkHistory={entityWorkHistory}
+          selectedEntityId={selectedEntityId}
+          onSelectEntity={(id) => onSelectEntity?.(id)}
+          variant="panel"
+          selectedLabel={hasSelection ? selectedLabel : null}
+          hoverReveal={hasSelection}
+          placeholder="Search entities…"
+          autoFocus={!hasSelection}
+          testId="property-panel-entity-search"
+        />
+      </div>
+      {showActions && primaryEntity ?
         <div
           role="group"
           aria-label="Actions"
@@ -144,7 +164,7 @@ export default function PropertyPanelHeader({
             </button>
           )}
         </div>
-      )}
+      : null}
     </div>
   )
 }

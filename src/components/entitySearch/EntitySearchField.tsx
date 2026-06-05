@@ -109,7 +109,11 @@ export default function EntitySearchField({
           placeholder={placeholder}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          onFocus={() => setInputFocused(true)}
+          onFocus={() => {
+            setInputFocused(true)
+            setFilterPopoverOpen(false)
+          }}
+          onClick={() => setFilterPopoverOpen(false)}
           onBlur={() => setInputFocused(false)}
           onKeyDown={handleKeyDown}
           aria-label="Search entities"

@@ -49,6 +49,7 @@ export interface PropertySidebarProps {
   onAfterModelPresetApply?: (previews: { id: string; merged: Entity }[], preset: ModelPreset) => void | Promise<void>
   onOpenWorkspaceAnchored?: (anchor: Pick<WorkspaceTarget, 'tab' | 'itemId'>) => void
   onSelectEntity?: (id: string) => void
+  entityWorkHistory?: readonly string[]
 }
 
 export default function PropertySidebar({
@@ -76,6 +77,7 @@ export default function PropertySidebar({
   onAfterModelPresetApply,
   onOpenWorkspaceAnchored,
   onSelectEntity,
+  entityWorkHistory = [],
 }: PropertySidebarProps) {
   const [rightTabStored, setRightTabStored] = useLocalStorageState<RightTab>(
     'builderRightSidebarTab',
@@ -247,6 +249,8 @@ export default function PropertySidebar({
               onRefreshFromPhysics={onRefreshFromPhysics}
               livePoses={livePoses}
               onOpenTextureStudio={onOpenTextureStudio}
+              entityWorkHistory={entityWorkHistory}
+              onSelectEntity={onSelectEntity}
             />
           )}
           {rightTab === 'code' && (

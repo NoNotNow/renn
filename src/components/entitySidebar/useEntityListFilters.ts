@@ -30,7 +30,7 @@ export interface EntityListFilters {
   setSortByHistory: (v: boolean) => void
   /** True iff any non-search filter is active (excludes sort-by-history). */
   hasActiveEntityFilters: boolean
-  /** True when filters, playable avatar, or sort-by-history are active. */
+  /** True when narrowing filters or playable avatar are active (sort-by-history excluded). */
   hasActivePickerFilters: boolean
   clearEntityFilters: () => void
   /** Entities passing search + filters. */
@@ -71,7 +71,7 @@ export function useEntityListFilters(
   const [filterSizeMin, setFilterSizeMin] = useState('')
   const [filterSizeMax, setFilterSizeMax] = useState('')
   const [filterPlayableAvatar, setFilterPlayableAvatar] = useState(false)
-  const [sortByHistory, setSortByHistory] = useState(false)
+  const [sortByHistory, setSortByHistory] = useState(true)
 
   const hasActiveEntityFilters = useMemo(
     () =>
@@ -84,7 +84,7 @@ export function useEntityListFilters(
     [filterHasModel, filterShape, filterHasTransformers, filterSizeMin, filterSizeMax, filterPlayableAvatar],
   )
 
-  const hasActivePickerFilters = hasActiveEntityFilters || sortByHistory
+  const hasActivePickerFilters = hasActiveEntityFilters
 
   const clearEntityFilters = useCallback(() => {
     setFilterHasModel('any')
@@ -93,7 +93,7 @@ export function useEntityListFilters(
     setFilterSizeMin('')
     setFilterSizeMax('')
     setFilterPlayableAvatar(false)
-    setSortByHistory(false)
+    setSortByHistory(true)
   }, [])
 
   const entityById = useMemo(() => {

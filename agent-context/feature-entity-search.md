@@ -18,7 +18,7 @@ Shared entity search + filter UI used in the Workspace shell, Transformers/Scrip
 | Transformers | `filterHasTransformers` tri-state |
 | Size min/max | `filterSizeMin` / `filterSizeMax` |
 | Playable avatar | `filterPlayableAvatar` (uses `entityIsPlayableAvatar`) |
-| Sort by history | `sortByHistory` — orders results by project MRU list |
+| Sort by history | `sortByHistory` — on by default; orders results by project MRU list; not counted as an “active” filter |
 
 ## Work history
 
@@ -44,3 +44,4 @@ Shared entity search + filter UI used in the Workspace shell, Transformers/Scrip
 - [`AssignEntitiesDialog.tsx`](../src/components/workspace/AssignEntitiesDialog.tsx) — Organize assign-to-entity modal (`EntitySearchField` + checkbox list).
 - [`EntityCameraPanel.tsx`](../src/components/entitySidebar/EntityCameraPanel.tsx) — follow-camera target picker (replaces entity `<select>`).
 - [`PerformanceBoosterDialog.tsx`](../src/components/PerformanceBoosterDialog.tsx) — mesh candidate filter bar.
+- [`PropertyPanelHeader.tsx`](../src/components/propertyPanel/PropertyPanelHeader.tsx) — properties panel header; `hoverReveal` label when an entity is selected, full search when none.

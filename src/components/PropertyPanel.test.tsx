@@ -120,9 +120,28 @@ function worldBoxAndSphere(): RennWorld {
 }
 
 describe('PropertyPanel', () => {
-  it('shows "Select an entity" when no entity selected', () => {
+  it('shows entity search and empty state when no entity selected', () => {
     renderPropertyPanel(sampleWorld, [])
+    expect(screen.getByTestId('property-panel-entity-search-input')).toBeInTheDocument()
     expect(screen.getByText('Select an entity')).toBeInTheDocument()
+  })
+
+  it('calls onSelectEntity when a search result is picked', async () => {
+    const user = userEvent.setup()
+    const onSelectEntity = vi.fn()
+    const world = worldWithSphere()
+    render(
+      <PropertyPanel
+        world={world}
+        assets={new Map()}
+        selectedEntityIds={[]}
+        onWorldChange={vi.fn()}
+        onSelectEntity={onSelectEntity}
+      />,
+    )
+    await user.type(screen.getByTestId('property-panel-entity-search-input'), 'ball')
+    await user.click(screen.getByTestId('property-panel-entity-search-result-ball'))
+    expect(onSelectEntity).toHaveBeenCalledWith('ball')
   })
 
   it('does not show refresh-from-physics button when onRefreshFromPhysics is undefined', () => {
@@ -165,7 +184,7 @@ describe('PropertyPanel', () => {
     const entity = world.entities[0]
     const displayName = entity.name ?? entity.id
     renderPropertyPanel(world, [entity.id])
-    expect(screen.getByRole('heading', { name: displayName })).toBeInTheDocument()
+    expect(screen.getByTestId('property-panel-entity-search-label')).toHaveTextContent(displayName)
     expect(screen.getByLabelText(/width/i)).toBeInTheDocument()
     expect(screen.getByLabelText(/height/i)).toBeInTheDocument()
     expect(screen.getByLabelText(/depth/i)).toBeInTheDocument()
@@ -174,7 +193,7 @@ describe('PropertyPanel', () => {
   it('shows shape-specific inputs for sphere when ball selected', () => {
     const world = worldWithSphere()
     renderPropertyPanel(world, ['ball'])
-    expect(screen.getByRole('heading', { name: 'ball' })).toBeInTheDocument()
+    expect(screen.getByTestId('property-panel-entity-search-label')).toHaveTextContent('ball')
     expect(screen.getByLabelText(/radius/i)).toBeInTheDocument()
   })
 
@@ -467,7 +486,7 @@ describe('PropertyPanel', () => {
       const world = worldWithBox()
       world.entities[0].locked = true
       renderPropertyPanel(world, [world.entities[0]!.id])
-      expect(screen.getByRole('heading', { name: /🔒/ })).toBeInTheDocument()
+      expect(screen.getByText('🔒')).toBeInTheDocument()
     })
 
     it('shows locked button when entity is locked', () => {
@@ -569,7 +588,7 @@ describe('PropertyPanel', () => {
     it('shows Multiple entities title when names differ', () => {
       const world = worldBoxAndSphere()
       renderPropertyPanel(world, [...ids])
-      expect(screen.getByRole('heading', { name: /Multiple entities \(2\)/i })).toBeInTheDocument()
+      expect(screen.getByTestId('property-panel-entity-search-label')).toHaveTextContent(/Multiple entities \(2\)/i)
     })
 
     it('disables clone when multiple selected', () => {

@@ -1458,6 +1458,7 @@ export default function Builder() {
                     onAfterModelPresetApply={handleAfterModelPresetApply}
                     onOpenWorkspaceAnchored={handleOpenWorkspaceAnchored}
                     onSelectEntity={handleSelectEntity}
+                    entityWorkHistory={entityWorkHistory}
                   />
                 )}
               </LivePosesPoll>
@@ -1532,6 +1533,7 @@ export default function Builder() {
                     onAfterModelPresetApply={handleAfterModelPresetApply}
                     onOpenWorkspaceAnchored={handleOpenWorkspaceAnchored}
                     onSelectEntity={handleSelectEntity}
+                    entityWorkHistory={entityWorkHistory}
                   />
               )}
             </LivePosesPoll>
