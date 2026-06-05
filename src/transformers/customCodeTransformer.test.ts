@@ -15,6 +15,7 @@ import { createMockTransformInput } from '@/test/helpers/transformer'
 import {
   clearCustomTransformerRuntimeError,
   getCustomTransformerRuntimeError,
+  getCustomTransformerRuntimeErrorForTarget,
   publishCustomTransformerRuntimeError,
 } from '@/runtime/customTransformerErrorBridge'
 import {
@@ -585,6 +586,32 @@ function transform(
     t.runtimeEntityId = 'ent-b'
     t.transform(createMockTransformInput(), 0.1)
     expect(getCustomTransformerRuntimeError()).toBeNull()
+  })
+
+  test('keeps independent runtime errors per stack index in the same chain', () => {
+    const makeThrower = (message: string, stackIndex: number) => {
+      const t = new CustomCodeTransformer({
+        type: 'custom',
+        code: `function transform() { throw new Error('${message}'); }`,
+      })
+      t.configStackIndex = stackIndex
+      t.runtimeEntityId = 'ent-a'
+      return t
+    }
+
+    makeThrower('first', 0).transform(createMockTransformInput({ entityId: 'ent-a' }), 0.1)
+    makeThrower('second', 1).transform(createMockTransformInput({ entityId: 'ent-a' }), 0.1)
+
+    expect(getCustomTransformerRuntimeErrorForTarget('ent-a', 0)?.message).toBe('first')
+    expect(getCustomTransformerRuntimeErrorForTarget('ent-a', 1)?.message).toBe('second')
+
+    const ok = new CustomCodeTransformer({ type: 'custom', code: 'return {};' })
+    ok.configStackIndex = 0
+    ok.runtimeEntityId = 'ent-a'
+    ok.transform(createMockTransformInput({ entityId: 'ent-a' }), 0.1)
+
+    expect(getCustomTransformerRuntimeErrorForTarget('ent-a', 0)).toBeNull()
+    expect(getCustomTransformerRuntimeErrorForTarget('ent-a', 1)?.message).toBe('second')
   })
 })
 

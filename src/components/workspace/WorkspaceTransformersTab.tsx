@@ -36,7 +36,8 @@ import {
 } from '@/utils/commitTransformerConfigsToWorld'
 import {
   subscribeCustomTransformerRuntimeError,
-  getCustomTransformerRuntimeError,
+  getCustomTransformerRuntimeErrors,
+  runtimeErrorTargetKey,
 } from '@/runtime/customTransformerErrorBridge'
 import { mergeTransformers } from '@/utils/entityInspectorMerge'
 import {
@@ -422,11 +423,19 @@ function WorkspaceTransformersTabEntity({
     onWorldChange(nextWorld)
   }, [world, entityIdsForEdit, onWorldChange])
 
-  const runtimeSnapshot = useSyncExternalStore(
+  const runtimeErrorsByTarget = useSyncExternalStore(
     subscribeCustomTransformerRuntimeError,
-    getCustomTransformerRuntimeError,
-    () => null,
+    getCustomTransformerRuntimeErrors,
+    () => new Map(),
   )
+
+  const runtimeSnapshot = useMemo(() => {
+    for (const entityId of selectedEntityIds) {
+      const err = runtimeErrorsByTarget.get(runtimeErrorTargetKey(entityId, selectedSortedIndex))
+      if (err) return err
+    }
+    return null
+  }, [runtimeErrorsByTarget, selectedEntityIds, selectedSortedIndex])
 
   const lastErrorRef = useRef<{ message: string; stack?: string; code: string; lineNumber?: number } | null>(null)
   const runtimeErrorForSelection = useMemo(() => {
@@ -574,15 +583,17 @@ function WorkspaceTransformersTabEntity({
         errors[i] = 'compile'
       }
     }
-    if (
-      runtimeSnapshot != null &&
-      selectedEntityIds.includes(runtimeSnapshot.entityId) &&
-      errors[runtimeSnapshot.configStackIndex] !== 'compile'
-    ) {
-      errors[runtimeSnapshot.configStackIndex] = 'runtime'
+    for (let i = 0; i < list.length; i++) {
+      if (errors[i] === 'compile') continue
+      for (const entityId of selectedEntityIds) {
+        if (runtimeErrorsByTarget.has(runtimeErrorTargetKey(entityId, i))) {
+          errors[i] = 'runtime'
+          break
+        }
+      }
     }
     return errors
-  }, [list, selectedSortedIndex, codeDraft, runtimeSnapshot, selectedEntityIds])
+  }, [list, selectedSortedIndex, codeDraft, runtimeErrorsByTarget, selectedEntityIds])
 
   const syncCodeKey =
     selectedConfig?.type === 'custom'

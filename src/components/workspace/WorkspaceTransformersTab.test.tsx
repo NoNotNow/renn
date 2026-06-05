@@ -311,6 +311,52 @@ describe('WorkspaceTransformersTab', () => {
     })
   })
 
+  it('shows runtime error borders on every failing transformer card in the chain', async () => {
+    const dualCustomWorld: RennWorld = {
+      ...carStackWorld,
+      entities: [
+        {
+          ...carStackWorld.entities[0]!,
+          transformers: ['car_tf0', 'car_tf1', 'car_tf2'],
+        },
+      ],
+      transformers: {
+        ...carStackWorld.transformers,
+        car_tf1: {
+          type: 'custom',
+          priority: 1,
+          enabled: true,
+          params: {},
+          code: 'throw new Error("Boom1")',
+          name: 'Custom 1',
+        },
+      },
+    }
+    renderTab({ world: dualCustomWorld })
+
+    act(() => {
+      publishCustomTransformerRuntimeError({
+        entityId: 'car',
+        configStackIndex: 1,
+        message: 'Boom1',
+        code: 'throw new Error("Boom1")',
+      })
+      publishCustomTransformerRuntimeError({
+        entityId: 'car',
+        configStackIndex: 2,
+        message: 'Boom2',
+        code: 'throw new Error("Boom2")',
+      })
+    })
+
+    await waitFor(() => {
+      const firstCustomCard = screen.getByTestId('transformer-horizontal-item-1')
+      const secondCustomCard = screen.getByTestId('transformer-horizontal-item-2')
+      expect(firstCustomCard).toHaveAttribute('data-card-error', 'runtime')
+      expect(secondCustomCard).toHaveAttribute('data-card-error', 'runtime')
+    })
+  })
+
   it('shows runtime error border on the failing transformer card', async () => {
     renderTab()
 

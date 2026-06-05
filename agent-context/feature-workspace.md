@@ -45,7 +45,7 @@ Scripts use `world.scripts: Record<string, ScriptDef>` with `entity.scripts: str
 - Visual pipeline strip (ordered, since execution order matters).
 - **Add** **+** button on the pipeline opens a resizable dialog with **Preset** and **Existing** tabs; existing list stacks one row per organize title (like Organize); **Add** / **Link** / **Copy** as before.
 - Clicking a custom stage’s **code** control or selecting the stage selects it for Monaco editing.
-- Custom transformer **compile** and **runtime** errors render as floating overlays (`TransformerCodeErrorOverlay`) over the code column so Monaco height stays fixed. Compile errors are debounced (500 ms) while typing and flush on editor blur; pipeline cards still show error borders immediately.
+- Custom transformer **compile** and **runtime** errors render as floating overlays (`TransformerCodeErrorOverlay`) over the code column so Monaco height stays fixed. Compile errors are debounced (500 ms) while typing and flush on editor blur; pipeline cards still show error borders immediately on every failing stage (multiple runtime errors in one chain are tracked independently).
 
 ### R3 — Scripts tab
 - Same Monaco editor as Transformers tab.
