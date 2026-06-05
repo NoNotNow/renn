@@ -9,10 +9,11 @@ import {
   type DragEvent as ReactDragEvent,
   type RefObject,
 } from 'react'
-import type { TransformerConfig } from '@/types/transformer'
+import type { PresetTransformerType, TransformerConfig } from '@/types/transformer'
 import WorkspaceFloatingDrawer from '@/components/workspace/WorkspaceFloatingDrawer'
 import ValidatedJsonTextarea from '@/components/ValidatedJsonTextarea'
 import { EntityPanelIcons } from '@/components/EntityPanelIcons'
+import { entityPanelIconButtonStyle } from '@/components/sharedStyles'
 import { theme } from '@/config/theme'
 import {
   hasNonZeroSemanticActions,
@@ -22,7 +23,7 @@ import {
   summarizeTransformerTraceOutputBrief,
   type TransformerTraceStep,
 } from '@/transformers/transformerTrace'
-import { getDefaultTransformerConfig } from '@/transformers/transformerPresets'
+import { getDefaultTransformerConfig, isPresetTransformerType } from '@/transformers/transformerPresets'
 import { syncPriorities } from '@/transformers/transformerUtils'
 import { labelCustomTransformer, nextUniqueCustomTransformerName } from '@/transformers/customTransformerNaming'
 import AddTransformerDialog, { type AddExistingTransformerMode } from '@/components/workspace/AddTransformerDialog'
@@ -246,6 +247,9 @@ function TransformerTraceItem({
   isDragOver,
   isDragging,
   cardError,
+  fieldRefOpen,
+  fieldRefType,
+  onConfigFieldRefToggle,
 }: {
   index: number
   /** Index of this transformer in the full entity stack (for custom display names). */
@@ -270,6 +274,9 @@ function TransformerTraceItem({
   isDragOver: boolean
   isDragging: boolean
   cardError?: TransformerCardErrorKind
+  fieldRefOpen?: boolean
+  fieldRefType?: PresetTransformerType | null
+  onConfigFieldRefToggle?: (type: PresetTransformerType) => void
 }) {
   const [inOpen, setInOpen] = useState(false)
   const [outOpen, setOutOpen] = useState(false)
@@ -691,10 +698,61 @@ function TransformerTraceItem({
             initialLeft={baseLeft}
             initialTop={120}
             portalTarget={headerRef.current}
+            resizable
+            bodyOverflow="hidden"
+            headerExtra={
+              isPresetTransformerType(transformer.type) && onConfigFieldRefToggle ?
+                <button
+                  type="button"
+                  data-testid={`transformer-horizontal-field-reference-${index}`}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onConfigFieldRefToggle(transformer.type as PresetTransformerType)
+                  }}
+                  aria-pressed={fieldRefOpen === true && fieldRefType === transformer.type}
+                  title={
+                    fieldRefOpen && fieldRefType === transformer.type ?
+                      'Hide field reference'
+                    : 'Show field reference'
+                  }
+                  aria-label={
+                    fieldRefOpen && fieldRefType === transformer.type ?
+                      'Hide field reference'
+                    : 'Show field reference'
+                  }
+                  style={{
+                    ...entityPanelIconButtonStyle,
+                    width: 22,
+                    height: 22,
+                    padding: 0,
+                    color: theme.text.accentBlue,
+                    border: `1px solid ${
+                      fieldRefOpen && fieldRefType === transformer.type ?
+                        theme.button.infoActiveBorder
+                      : theme.button.infoBorder
+                    }`,
+                    background:
+                      fieldRefOpen && fieldRefType === transformer.type ?
+                        theme.button.infoActive
+                      : theme.button.info,
+                  }}
+                >
+                  {EntityPanelIcons.document}
+                </button>
+              : null
+            }
           >
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
+                flex: 1,
+                minHeight: 0,
+              }}
+            >
               {transformer.type === 'custom' ? (
-                <p style={{ margin: 0, fontSize: 11, color: theme.text.muted, lineHeight: 1.4 }}>
+                <p style={{ margin: 0, fontSize: 11, color: theme.text.muted, lineHeight: 1.4, flexShrink: 0 }}>
                   Edit TypeScript in the code editor. This JSON is name, priority, params, and enabled only.
                 </p>
               ) : null}
@@ -705,6 +763,7 @@ function TransformerTraceItem({
                   setConfigOpen(false)
                 }}
                 applyVariant="icon"
+                pinApplyRow
                 textareaTestId={`transformer-horizontal-config-textarea-${index}`}
                 applyTestId={`transformer-horizontal-config-apply-${index}`}
               />
@@ -747,6 +806,9 @@ export function TransformerHorizontalPipeline({
   existingRegistry,
   selectedId,
   cardErrorsByStackIndex,
+  fieldRefOpen,
+  fieldRefType,
+  onConfigFieldRefToggle,
 }: {
   transformers: TransformerConfig[]
   /** Stable IDs from the registry, matching transformers array 1:1. */
@@ -764,6 +826,9 @@ export function TransformerHorizontalPipeline({
   selectedId?: string | null
   /** Per-stage error chrome keyed by stack index (compile overrides runtime on the same card). */
   cardErrorsByStackIndex?: Record<number, TransformerCardErrorKind>
+  fieldRefOpen?: boolean
+  fieldRefType?: PresetTransformerType | null
+  onConfigFieldRefToggle?: (type: PresetTransformerType) => void
 }) {
   const [scrollLeft, setScrollLeft] = useState(0)
   const [addDialogOpen, setAddDialogOpen] = useState(false)
@@ -989,6 +1054,9 @@ export function TransformerHorizontalPipeline({
               isDragging={dragState?.draggedId === item.id}
               isDragOver={dragState?.dragOverId === item.id && dragState?.draggedId !== item.id}
               cardError={cardErrorsByStackIndex?.[item.originalIndex]}
+              fieldRefOpen={fieldRefOpen}
+              fieldRefType={fieldRefType}
+              onConfigFieldRefToggle={onConfigFieldRefToggle}
             />
           </div>
           <PipelineConnector />

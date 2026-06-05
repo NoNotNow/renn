@@ -59,8 +59,7 @@ const POPOUT_DOCS_SPLIT_HANDLE_PX = 6
 const POPOUT_DOCS_WIDTH_STORAGE_KEY = 'rennWorkspaceTransformerDocsWidthPx'
 
 /** Preset toolbar sits in reserved left gutter; pipeline draws to the right (stage cards visually layer above). */
-const PIPELINE_PRESET_TOOLS_GUTTER_PAIR_PX = 76
-const PIPELINE_PRESET_TOOLS_GUTTER_SINGLE_PX = 52
+const PIPELINE_PRESET_TOOLS_GUTTER_PX = 52
 
 function presetBehindPipelineChipStyle(active: boolean, locked: boolean): CSSProperties {
   return {
@@ -353,7 +352,15 @@ function WorkspaceTransformersTabEntity({
   const [codeDraft, setCodeDraft] = useState('')
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false)
   const [fieldRefOpen, setFieldRefOpen] = useState(false)
+  const [fieldRefType, setFieldRefType] = useState<PresetTransformerType | null>(null)
   const [monacoRemountKey, setMonacoRemountKey] = useState(0)
+
+  const handleConfigFieldRefToggle = useCallback((type: PresetTransformerType) => {
+    setFieldRefType((prevType) => {
+      setFieldRefOpen((open) => (prevType === type ? !open : true))
+      return type
+    })
+  }, [])
 
   const debounceTimerRef = useRef<number | null>(null)
   const listRef = useRef(list)
@@ -930,11 +937,7 @@ function WorkspaceTransformersTabEntity({
             alignItems: 'center',
             position: 'relative',
             paddingLeft:
-              selectedPreset ?
-                supportsTemplatePickers(selectedPreset.type) ?
-                  PIPELINE_PRESET_TOOLS_GUTTER_PAIR_PX
-                : PIPELINE_PRESET_TOOLS_GUTTER_SINGLE_PX
-              : 0,
+              selectedPreset && supportsTemplatePickers(selectedPreset.type) ? PIPELINE_PRESET_TOOLS_GUTTER_PX : 0,
           }}
         >
           {entityIdsForEdit.length > 1 && (
@@ -959,7 +962,7 @@ function WorkspaceTransformersTabEntity({
               </span>
             </div>
           )}
-          {selectedPreset ?
+          {selectedPreset && supportsTemplatePickers(selectedPreset.type) ?
             <div
               aria-label="Preset transformer tools"
               style={{
@@ -975,28 +978,15 @@ function WorkspaceTransformersTabEntity({
                 pointerEvents: 'auto',
               }}
             >
-              {supportsTemplatePickers(selectedPreset.type) ?
-                <button
-                  type="button"
-                  data-testid="workspace-preset-load-template"
-                  onClick={() => setTemplateDialogOpen(true)}
-                  disabled={anyLocked}
-                  title="Load transformer template"
-                  style={presetBehindPipelineChipStyle(false, anyLocked)}
-                >
-                  {EntityPanelIcons.loadTemplate}
-                </button>
-              : null}
               <button
                 type="button"
-                data-testid="workspace-preset-field-reference"
-                onClick={() => setFieldRefOpen((o) => !o)}
+                data-testid="workspace-preset-load-template"
+                onClick={() => setTemplateDialogOpen(true)}
                 disabled={anyLocked}
-                title="Field reference"
-                aria-pressed={fieldRefOpen}
-                style={presetBehindPipelineChipStyle(fieldRefOpen, anyLocked)}
+                title="Load transformer template"
+                style={presetBehindPipelineChipStyle(false, anyLocked)}
               >
-                {EntityPanelIcons.document}
+                {EntityPanelIcons.loadTemplate}
               </button>
             </div>
           : null}
@@ -1071,6 +1061,9 @@ function WorkspaceTransformersTabEntity({
               existingRegistry={world.transformers}
               selectedId={selectedId}
               cardErrorsByStackIndex={cardErrorsByStackIndex}
+              fieldRefOpen={fieldRefOpen}
+              fieldRefType={fieldRefType}
+              onConfigFieldRefToggle={handleConfigFieldRefToggle}
             />
           </div>
         </div>
@@ -1307,11 +1300,11 @@ function WorkspaceTransformersTabEntity({
           }}
         >
           <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            {selectedPreset && fieldRefOpen && isPresetTransformerType(selectedPreset.type) ? (
-              <div style={{ flexShrink: 0, marginBottom: 8 }}>
-                <TransformerFieldReference transformerType={selectedPreset.type} />
+            {fieldRefOpen && fieldRefType ?
+              <div style={{ flexShrink: 0, marginBottom: 8, overflow: 'auto', maxHeight: '35%' }}>
+                <TransformerFieldReference transformerType={fieldRefType} />
               </div>
-            ) : null}
+            : null}
             <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
               {monacoSlot}
             </div>

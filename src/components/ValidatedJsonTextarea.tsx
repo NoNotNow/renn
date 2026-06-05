@@ -34,6 +34,11 @@ export interface ValidatedJsonTextareaProps {
   applyLabel?: string
   textareaTestId?: string
   applyTestId?: string
+  /**
+   * Keep Apply (and validation errors) visible while the textarea grows: the editor scrolls inside
+   * a flex region instead of pushing controls below the drawer fold.
+   */
+  pinApplyRow?: boolean
 }
 
 const baseTextareaStyle: CSSProperties = {
@@ -60,6 +65,7 @@ export default function ValidatedJsonTextarea({
   applyLabel = 'Apply',
   textareaTestId,
   applyTestId,
+  pinApplyRow = false,
 }: ValidatedJsonTextareaProps) {
   const [draft, setDraft] = useState<string>(value)
   const [parsed, setParsed] = useState<unknown>(() => safeInitialParse(value))
@@ -103,22 +109,21 @@ export default function ValidatedJsonTextarea({
     ...baseTextareaStyle,
     color: isParseValid ? theme.text.secondary : theme.text.error,
     border: `1px solid ${isParseValid ? theme.border.default : theme.border.error}`,
+    ...(pinApplyRow ?
+      {
+        flex: '1 1 auto',
+        minHeight: 72,
+        height: '100%',
+        resize: 'none',
+        overflow: 'auto',
+      }
+    : {}),
   }
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <textarea
-        value={draft}
-        onChange={onChange}
-        disabled={disabled}
-        rows={jsonTextareaRows(draft)}
-        style={textareaStyle}
-        spellCheck={false}
-        data-testid={textareaTestId}
-      />
-
+  const errorBlock = (
+    <>
       {!isParseValid && parseError ? (
-        <div style={{ fontSize: 10, color: theme.text.error }}>
+        <div style={{ fontSize: 10, color: theme.text.error, flexShrink: 0 }}>
           <div>Invalid JSON: {parseError}</div>
           {pos != null ? (
             <pre style={{ margin: '6px 0 0', color: theme.text.error, fontFamily: 'monospace' }}>
@@ -129,15 +134,18 @@ export default function ValidatedJsonTextarea({
       ) : null}
 
       {isParseValid && contentResult && contentResult.ok === false ? (
-        <div style={{ fontSize: 10, color: theme.text.error }}>
+        <div style={{ fontSize: 10, color: theme.text.error, flexShrink: 0 }}>
           <div>Validation error:</div>
           <pre style={{ margin: '6px 0 0', fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>
             {contentResult.error}
           </pre>
         </div>
       ) : null}
+    </>
+  )
 
-      {applyVariant === 'icon' ? (
+  const applyRow =
+    applyVariant === 'icon' ? (
         <div
           style={{
             display: 'flex',
@@ -178,8 +186,9 @@ export default function ValidatedJsonTextarea({
             {EntityPanelIcons.check}
           </button>
         </div>
-      ) : (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 4 }}>
+      )
+    : (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 4, flexShrink: 0 }}>
           <button
             type="button"
             onClick={onApplyClick}
@@ -199,7 +208,58 @@ export default function ValidatedJsonTextarea({
             {applyLabel}
           </button>
         </div>
-      )}
+      )
+
+  if (pinApplyRow) {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 4,
+          flex: 1,
+          minHeight: 0,
+        }}
+      >
+        <div
+          style={{
+            flex: '1 1 auto',
+            minHeight: 80,
+            display: 'flex',
+            flexDirection: 'column',
+            resize: 'vertical',
+            overflow: 'hidden',
+          }}
+        >
+          <textarea
+            value={draft}
+            onChange={onChange}
+            disabled={disabled}
+            rows={jsonTextareaRows(draft)}
+            style={textareaStyle}
+            spellCheck={false}
+            data-testid={textareaTestId}
+          />
+        </div>
+        {errorBlock}
+        {applyRow}
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <textarea
+        value={draft}
+        onChange={onChange}
+        disabled={disabled}
+        rows={jsonTextareaRows(draft)}
+        style={textareaStyle}
+        spellCheck={false}
+        data-testid={textareaTestId}
+      />
+      {errorBlock}
+      {applyRow}
     </div>
   )
 }
