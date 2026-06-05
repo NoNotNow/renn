@@ -140,7 +140,7 @@ export default function WorkspaceOrganizeTab({
   onSelectEntity,
 }: WorkspaceOrganizeTabProps) {
   const undo = useEditorUndo()
-  const pushUndo = () => undo?.pushBeforeEdit()
+  const pushUndo = useCallback(() => undo?.pushBeforeEdit(), [undo])
 
   const selectedEntities = useMemo(
     () =>
@@ -159,7 +159,7 @@ export default function WorkspaceOrganizeTab({
       setScope(entry.organize.scope)
       setKind(entry.organize.kind)
     }
-  }, [entry?.tab, entry?.organize?.scope, entry?.organize?.kind])
+  }, [entry?.tab, entry?.organize])
 
   useEffect(() => {
     setExpandedTypes(new Set())
@@ -174,11 +174,11 @@ export default function WorkspaceOrganizeTab({
     [onOrganizeContextChange],
   )
 
-  const scripts = world.scripts ?? {}
-  const transformers = world.transformers ?? {}
+  const scripts = useMemo(() => world.scripts ?? {}, [world.scripts])
+  const transformers = useMemo(() => world.transformers ?? {}, [world.transformers])
   const pipes = world.transformerPipes ?? {}
-  const globalScripts = globalLibrary.scripts ?? {}
-  const globalTransformers = globalLibrary.transformers ?? {}
+  const globalScripts = useMemo(() => globalLibrary.scripts ?? {}, [globalLibrary.scripts])
+  const globalTransformers = useMemo(() => globalLibrary.transformers ?? {}, [globalLibrary.transformers])
   const globalPipes = globalLibrary.transformerPipes ?? {}
 
   const entityIntersectionScriptIds = scriptIdsIntersectionForEntities(selectedEntities)

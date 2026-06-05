@@ -1,7 +1,5 @@
 import {
-  createContext,
   useCallback,
-  useContext,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -9,7 +7,6 @@ import {
   useState,
   type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
-  type MutableRefObject,
 } from 'react'
 import { createPortal } from 'react-dom'
 import type { editor } from 'monaco-editor'
@@ -34,21 +31,14 @@ import { addFullscreenChangeListener, getFullscreenElement } from '@/utils/fulls
 import { defaultPersistence } from '@/persistence/indexedDb'
 import type { GlobalBehaviorLibrary } from '@/types/globalBehaviorLibrary'
 import { EMPTY_GLOBAL_BEHAVIOR_LIBRARY } from '@/types/globalBehaviorLibrary'
+import { WorkspaceMonacoContext } from '@/contexts/WorkspaceMonacoContext'
+import {
+  WORKSPACE_EDITOR_OPEN_REFRESH_MS,
+  isWorkspaceEditorInitialRefreshDone,
+  markWorkspaceEditorInitialRefreshDone,
+} from '@/components/workspaceMonacoSession'
 
 export type { WorkspaceMonacoPayload, WorkspaceTarget } from '@/types/workspace'
-
-/** Shared Monaco editor handle for Transformers / Scripts tabs (Phase 3+ consume this). */
-export const WorkspaceMonacoContext = createContext<MutableRefObject<editor.IStandaloneCodeEditor | null> | null>(
-  null,
-)
-
-export function useWorkspaceMonacoEditorRef(): MutableRefObject<editor.IStandaloneCodeEditor | null> {
-  const ref = useContext(WorkspaceMonacoContext)
-  if (!ref) {
-    throw new Error('useWorkspaceMonacoEditorRef must be used inside Workspace')
-  }
-  return ref
-}
 
 function useWorkspacePortalRoot(): Element {
   const [target, setTarget] = useState<Element>(() => getFullscreenElement() ?? document.body)
@@ -91,17 +81,6 @@ function useBuilderHeaderBottomInsetPx(active: boolean): number {
 }
 
 const WORKSPACE_TAB_IDS = ['transformers', 'scripts', 'organize'] as const satisfies readonly WorkspaceShellTabId[]
-
-/** Remount shared Monaco shortly after first show so layout settles (same effect as Refresh editor). */
-const WORKSPACE_EDITOR_OPEN_REFRESH_MS = 100
-
-/** Once per page load — avoids repeat remounts when closing and reopening Workspace. */
-let workspaceEditorInitialRefreshDone = false
-
-/** @internal Resets session refresh flag (tests only). */
-export function resetWorkspaceEditorInitialRefreshForTests(): void {
-  workspaceEditorInitialRefreshDone = false
-}
 
 function initialWorkspaceShellTab(
   panelOpen: boolean,
@@ -218,8 +197,8 @@ export default function Workspace({
 
   /** Remount shared Monaco once per session, 100ms after it first becomes visible (same as Refresh editor). */
   useEffect(() => {
-    if (!monacoHostVisible || workspaceEditorInitialRefreshDone) return
-    workspaceEditorInitialRefreshDone = true
+    if (!monacoHostVisible || isWorkspaceEditorInitialRefreshDone()) return
+    markWorkspaceEditorInitialRefreshDone()
     const timer = window.setTimeout(() => {
       setEditorOpenRefreshNonce((n) => n + 1)
     }, WORKSPACE_EDITOR_OPEN_REFRESH_MS)

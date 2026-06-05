@@ -149,7 +149,11 @@ export default function BuilderHeader({
     if (!onOpenExampleWorld) return
     try {
       const response = await fetch(importPath)
-      if (!response.ok) throw new Error('Failed to load')
+      if (!response.ok) {
+        console.error('Failed to load example world:', response.status, response.statusText)
+        alert('Failed to load example world')
+        return
+      }
       const worldJson = await response.json()
       onOpenExampleWorld(worldJson, worldName)
       uiLogger.select('BuilderHeader', 'Open example world from menu', { worldName })
