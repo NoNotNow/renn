@@ -1,8 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { useState, type ComponentProps } from 'react'
+import { useCallback, useRef, useState, type ComponentProps } from 'react'
 import { act, render, screen, fireEvent, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import WorkspaceTransformersTab from './WorkspaceTransformersTab'
+import WorkspaceMonacoSlot from './WorkspaceMonacoSlot'
+import type { WorkspaceMonacoEditorChrome } from '@/types/workspaceMonacoChrome'
 import { COMPILE_ERROR_DISPLAY_DEBOUNCE_MS } from '@/hooks/useDebouncedCompileErrorDisplay'
 import type { RennWorld } from '@/types/world'
 import type { WorkspaceMonacoPayload } from '@/types/workspace'
@@ -55,26 +57,56 @@ const carStackWorld: RennWorld = {
   },
 }
 
+function TabWithMonacoHarness(
+  props: Partial<ComponentProps<typeof WorkspaceTransformersTab>> & {
+    setMonacoPayload?: (p: WorkspaceMonacoPayload) => void
+  },
+) {
+  const setMonacoPayload = props.setMonacoPayload ?? vi.fn()
+  const [monacoChrome, setMonacoChrome] = useState<WorkspaceMonacoEditorChrome | null>(null)
+  const editorAreaRef = useRef<HTMLDivElement | null>(null)
+  const [editorAreaEpoch, setEditorAreaEpoch] = useState(0)
+
+  const handleEditorAreaReady = useCallback(() => setEditorAreaEpoch((n) => n + 1), [])
+
+  const monacoSlot = (
+    <WorkspaceMonacoSlot
+      monacoSlot={null}
+      onRefresh={vi.fn()}
+      editorAreaRef={editorAreaRef}
+      onEditorAreaReady={handleEditorAreaReady}
+      toolbarExtra={monacoChrome?.toolbarExtra}
+      overlay={monacoChrome?.overlay}
+    />
+  )
+
+  return (
+    <WorkspaceTransformersTab
+      world={carStackWorld}
+      selectedEntityIds={['car']}
+      entry={{ entityId: 'car', tab: 'transformers', itemId: 'car_tf2' }}
+      workspaceOpen
+      liveTraceSteps={null}
+      onWorldChange={vi.fn()}
+      setMonacoPayload={setMonacoPayload}
+      setMonacoEditorChrome={setMonacoChrome}
+      monacoEditorAreaRef={editorAreaRef}
+      monacoEditorAreaEpoch={editorAreaEpoch}
+      monacoSlot={monacoSlot}
+      {...props}
+    />
+  )
+}
+
 function renderTab(
   props: Partial<ComponentProps<typeof WorkspaceTransformersTab>> & {
     setMonacoPayload?: (p: WorkspaceMonacoPayload) => void
   } = {},
 ) {
-  const setMonacoPayload = props.setMonacoPayload ?? vi.fn()
   return render(
     <CopyProvider>
       <EditorUndoProvider value={undoApi}>
-        <WorkspaceTransformersTab
-          world={carStackWorld}
-          selectedEntityIds={['car']}
-          entry={{ entityId: 'car', tab: 'transformers', itemId: 'car_tf2' }}
-          workspaceOpen
-          liveTraceSteps={null}
-          onWorldChange={vi.fn()}
-          setMonacoPayload={setMonacoPayload}
-          monacoSlot={null}
-          {...props}
-        />
+        <TabWithMonacoHarness {...props} />
       </EditorUndoProvider>
     </CopyProvider>,
   )
@@ -160,15 +192,9 @@ describe('WorkspaceTransformersTab', () => {
     rerender(
       <CopyProvider>
         <EditorUndoProvider value={undoApi}>
-          <WorkspaceTransformersTab
-            world={carStackWorld}
-            selectedEntityIds={['car']}
+          <TabWithMonacoHarness
             entry={{ entityId: 'car', tab: 'transformers', itemId: 'car_tf2' }}
             workspaceOpen={false}
-            liveTraceSteps={null}
-            onWorldChange={vi.fn()}
-            setMonacoPayload={vi.fn()}
-            monacoSlot={null}
           />
         </EditorUndoProvider>
       </CopyProvider>,
@@ -178,15 +204,9 @@ describe('WorkspaceTransformersTab', () => {
     rerender(
       <CopyProvider>
         <EditorUndoProvider value={undoApi}>
-          <WorkspaceTransformersTab
-            world={carStackWorld}
-            selectedEntityIds={['car']}
+          <TabWithMonacoHarness
             entry={{ entityId: 'car', tab: 'transformers', itemId: 'car_tf2' }}
-            workspaceOpen
-            liveTraceSteps={null}
-            onWorldChange={vi.fn()}
             setMonacoPayload={setMonacoPayload}
-            monacoSlot={null}
           />
         </EditorUndoProvider>
       </CopyProvider>,
@@ -477,6 +497,38 @@ describe('WorkspaceTransformersTab', () => {
     })
   })
 
+  it('restores watch panel position after close and reopen', async () => {
+    resetTransformerWatchBridgeForTests()
+    setTransformerWatchEnabled(true)
+    const storage = new Map<string, string>()
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        storage.set(key, value)
+      },
+    })
+    storage.set('rennWorkspaceWatchPanelPos', JSON.stringify({ x: 42, y: 17 }))
+    renderTab()
+
+    fireEvent.click(screen.getByTestId('workspace-transformer-watch-toggle'))
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-transformer-watch-panel')).toBeInTheDocument()
+    })
+
+    const panel = screen.getByTestId('workspace-transformer-watch-panel')
+    expect(panel).toHaveStyle({ left: '42px', top: '17px' })
+
+    fireEvent.click(screen.getByTestId('workspace-transformer-watch-toggle'))
+    await waitFor(() => {
+      expect(screen.queryByTestId('workspace-transformer-watch-panel')).toBeNull()
+    })
+
+    fireEvent.click(screen.getByTestId('workspace-transformer-watch-toggle'))
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-transformer-watch-panel')).toHaveStyle({ left: '42px', top: '17px' })
+    })
+  })
+
   it('clears watch entries from the panel', async () => {
     resetTransformerWatchBridgeForTests()
     setTransformerWatchEnabled(true)
@@ -549,15 +601,11 @@ describe('WorkspaceTransformersTab', () => {
       return (
         <CopyProvider>
           <EditorUndoProvider value={undoApi}>
-            <WorkspaceTransformersTab
+            <TabWithMonacoHarness
               world={world}
-              selectedEntityIds={['car']}
               entry={{ entityId: 'car', tab: 'transformers', itemId: 'car_tf0' }}
-              workspaceOpen
-              liveTraceSteps={null}
               onWorldChange={setWorld}
               setMonacoPayload={setMonacoPayload}
-              monacoSlot={null}
               onEntryChange={onEntryChange}
             />
           </EditorUndoProvider>

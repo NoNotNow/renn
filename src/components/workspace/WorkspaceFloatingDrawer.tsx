@@ -1,5 +1,7 @@
 import {
+  useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type CSSProperties,
@@ -30,7 +32,7 @@ const WORKSPACE_FLOATING_DRAWER_STYLE: CSSProperties = {
   textAlign: 'left',
 }
 
-export type WorkspaceFloatingDrawerAnchor = 'left' | 'top-right'
+export type WorkspaceFloatingDrawerAnchor = 'left' | 'top-right' | 'left-of-editor-toolbar'
 
 export interface WorkspaceFloatingDrawerProps {
   title: string
@@ -42,6 +44,10 @@ export interface WorkspaceFloatingDrawerProps {
   initialTop?: number
   /** `top-right` pins to the host's top-right on first paint; still draggable afterward. */
   anchor?: WorkspaceFloatingDrawerAnchor
+  /** Used when anchor is `left-of-editor-toolbar`. */
+  toolbarInsetPx?: number
+  /** When set, last drag position is restored on reopen. */
+  positionStorageKey?: string
   width?: number
   /** CSS max-height when `resizable` is false. */
   maxHeight?: number | string
@@ -59,17 +65,49 @@ export interface WorkspaceFloatingDrawerProps {
   testId?: string
 }
 
+type StoredDrawerPosition = { x: number; y: number }
+
+function readStoredDrawerPosition(key: string): StoredDrawerPosition | null {
+  try {
+    const raw = window.localStorage.getItem(key)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as Partial<StoredDrawerPosition>
+    if (typeof parsed.x === 'number' && Number.isFinite(parsed.x) && typeof parsed.y === 'number' && Number.isFinite(parsed.y)) {
+      return { x: parsed.x, y: parsed.y }
+    }
+  } catch {
+    /* quota / parse */
+  }
+  return null
+}
+
+function writeStoredDrawerPosition(key: string, pos: StoredDrawerPosition): void {
+  try {
+    window.localStorage.setItem(key, JSON.stringify(pos))
+  } catch {
+    /* quota */
+  }
+}
+
 function resolveInitialPosition(
   anchor: WorkspaceFloatingDrawerAnchor,
   portalTarget: Element,
   initialLeft: number,
   initialTop: number,
   width: number,
+  toolbarInsetPx: number,
 ): { x: number; y: number } {
   if (anchor === 'top-right') {
     const hostWidth = portalTarget.clientWidth
     return {
       x: Math.max(10, hostWidth - width - 12),
+      y: initialTop,
+    }
+  }
+  if (anchor === 'left-of-editor-toolbar') {
+    const hostWidth = portalTarget.clientWidth
+    return {
+      x: Math.max(10, hostWidth - toolbarInsetPx - width - 8),
       y: initialTop,
     }
   }
@@ -88,6 +126,8 @@ export default function WorkspaceFloatingDrawer({
   initialLeft = 0,
   initialTop = 12,
   anchor = 'left',
+  toolbarInsetPx = 36,
+  positionStorageKey,
   width = 360,
   maxHeight: maxHeightProp = 'min(50vh, 320px)',
   headerExtra,
@@ -101,8 +141,17 @@ export default function WorkspaceFloatingDrawer({
   bodyOverflow = 'auto',
   testId,
 }: WorkspaceFloatingDrawerProps) {
-  const initialPos = resolveInitialPosition(anchor, portalTarget, initialLeft, initialTop, width)
+  const initialPos = useMemo(() => {
+    const stored =
+      positionStorageKey != null && typeof window !== 'undefined'
+        ? readStoredDrawerPosition(positionStorageKey)
+        : null
+    if (stored) return stored
+    return resolveInitialPosition(anchor, portalTarget, initialLeft, initialTop, width, toolbarInsetPx)
+  }, [anchor, initialLeft, initialTop, portalTarget, positionStorageKey, toolbarInsetPx, width])
   const [pos, setPos] = useState(initialPos)
+  const posRef = useRef(initialPos)
+  posRef.current = pos
   const [size, setSize] = useState({ width, height: initialHeight })
   const dragRef = useRef<{ startX: number; startY: number; startPosX: number; startPosY: number } | null>(null)
   const resizeRef = useRef<{
@@ -115,6 +164,19 @@ export default function WorkspaceFloatingDrawer({
 
   const effectiveWidth = resizable ? size.width : width
   const effectiveMaxHeight = resizable ? undefined : maxHeightProp
+
+  const persistPosition = useCallback(
+    (next: StoredDrawerPosition) => {
+      if (positionStorageKey == null) return
+      writeStoredDrawerPosition(positionStorageKey, next)
+    },
+    [positionStorageKey],
+  )
+
+  const handleClose = useCallback(() => {
+    persistPosition(pos)
+    onClose()
+  }, [onClose, persistPosition, pos])
 
   useEffect(() => {
     if (!resizable) return
@@ -135,15 +197,18 @@ export default function WorkspaceFloatingDrawer({
       if (!dragRef.current) return
       const dx = move.clientX - dragRef.current.startX
       const dy = move.clientY - dragRef.current.startY
-      setPos({
+      const next = {
         x: dragRef.current.startPosX + dx,
         y: dragRef.current.startPosY + dy,
-      })
+      }
+      posRef.current = next
+      setPos(next)
     }
     const onUp = () => {
       dragRef.current = null
       document.removeEventListener('mousemove', onMove)
       document.removeEventListener('mouseup', onUp)
+      persistPosition(posRef.current)
     }
     document.addEventListener('mousemove', onMove)
     document.addEventListener('mouseup', onUp)
@@ -231,7 +296,7 @@ export default function WorkspaceFloatingDrawer({
             type="button"
             onClick={(e) => {
               e.stopPropagation()
-              onClose()
+              handleClose()
             }}
             style={{
               background: 'transparent',

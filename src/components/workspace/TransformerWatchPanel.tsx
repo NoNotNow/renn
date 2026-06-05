@@ -1,6 +1,8 @@
 import { useMemo, useSyncExternalStore } from 'react'
 import { theme } from '@/config/theme'
 import WorkspaceFloatingDrawer from '@/components/workspace/WorkspaceFloatingDrawer'
+
+const WATCH_PANEL_POSITION_STORAGE_KEY = 'rennWorkspaceWatchPanelPos'
 import {
   clearTransformerWatchEntries,
   getTransformerWatchEntriesForTarget,
@@ -34,6 +36,7 @@ export default function TransformerWatchPanel({
       onClose={onClose}
       portalTarget={portalTarget}
       anchor="top-right"
+      positionStorageKey={WATCH_PANEL_POSITION_STORAGE_KEY}
       initialTop={12}
       width={300}
       maxHeight="min(42vh, 280px)"

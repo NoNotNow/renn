@@ -9,6 +9,7 @@ import {
   type CSSProperties,
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
+  type RefObject,
 } from 'react'
 import CopyableArea from '@/components/CopyableArea'
 import { EntityPanelIcons } from '@/components/EntityPanelIcons'
@@ -47,6 +48,9 @@ import type { GlobalBehaviorLibrary } from '@/types/globalBehaviorLibrary'
 import WorkspaceGlobalTransformerPanel from '@/components/workspace/WorkspaceGlobalTransformerPanel'
 import TransformerCodeErrorOverlay from '@/components/workspace/TransformerCodeErrorOverlay'
 import TransformerWatchPanel from '@/components/workspace/TransformerWatchPanel'
+import { workspaceMonacoToolbarButtonStyle } from '@/components/workspace/WorkspaceMonacoSlot'
+import EntitySearchPicker from '@/components/entitySearch/EntitySearchPicker'
+import type { WorkspaceMonacoEditorChrome } from '@/types/workspaceMonacoChrome'
 import { useDebouncedCompileErrorDisplay } from '@/hooks/useDebouncedCompileErrorDisplay'
 
 /** Preset toolbar sits in reserved left gutter; pipeline draws to the right (stage cards visually layer above). */
@@ -117,6 +121,12 @@ export interface WorkspaceTransformersTabProps {
     isShared?: boolean,
   ) => void
   setMonacoPayload: (payload: WorkspaceMonacoPayload) => void
+  /** Registers watch and other editor-toolbar controls on the shared Monaco slot. */
+  setMonacoEditorChrome?: (chrome: WorkspaceMonacoEditorChrome | null) => void
+  /** Editor pane ref (left of vertical toolbar) for floating watch panel portal. */
+  monacoEditorAreaRef?: RefObject<HTMLDivElement | null>
+  /** Bumps when the editor pane ref attaches so watch overlay can portal in. */
+  monacoEditorAreaEpoch?: number
   /** Host injects shared `TransformerCustomCodeEditor`; tab positions it inside the split layout. */
   monacoSlot: ReactNode
   /** IndexedDB global library (Organize → Global → Edit). */
@@ -124,6 +134,8 @@ export interface WorkspaceTransformersTabProps {
   onGlobalLibraryChange?: (next: GlobalBehaviorLibrary) => void
   /** Keeps `entry.itemId` in sync when the user picks a pipeline stage (survives close/reopen). */
   onEntryChange?: (next: WorkspaceTarget) => void
+  entityWorkHistory?: string[]
+  onSelectEntity?: (id: string) => void
 }
 
 /** Transformers Workspace body: pipeline strip, shared Monaco bindings, preset/custom detail panels. */
@@ -168,8 +180,13 @@ function WorkspaceTransformersTabEntity({
   onWorldChange,
   onEntityTransformersChange,
   setMonacoPayload,
+  setMonacoEditorChrome,
+  monacoEditorAreaRef,
+  monacoEditorAreaEpoch = 0,
   monacoSlot,
   onEntryChange,
+  entityWorkHistory = [],
+  onSelectEntity,
 }: WorkspaceTransformersTabProps) {
   const undo = useEditorUndo()
   const { openMenu } = useCopyMenu()
@@ -714,6 +731,83 @@ function WorkspaceTransformersTabEntity({
     setMonacoPayload(monacoPayload)
   }, [monacoPayload, setMonacoPayload])
 
+  const watchAvailable = monacoIsCustom && selectedEntityIds.length === 1 && selectedConfig != null
+  const watchPortalTarget = monacoEditorAreaRef?.current ?? null
+
+  useEffect(() => {
+    if (!watchAvailable) setWatchOpen(false)
+  }, [watchAvailable])
+
+  useLayoutEffect(() => {
+    if (!setMonacoEditorChrome) return
+
+    const watchTitle =
+      !watchAvailable
+        ? 'Watch panel — select a custom transformer on a single entity'
+        : watchOpen
+          ? 'Hide watch panel'
+          : 'Show watch panel'
+
+    const watchToggle = (
+      <button
+        type="button"
+        title={watchTitle}
+        aria-pressed={watchOpen}
+        aria-disabled={!watchAvailable}
+        data-testid="workspace-transformer-watch-toggle"
+        disabled={!watchAvailable}
+        onClick={() => {
+          if (!watchAvailable) return
+          setWatchOpen((open) => !open)
+        }}
+        style={{
+          ...workspaceMonacoToolbarButtonStyle,
+          opacity: !watchAvailable ? 0.45 : watchOpen ? 1 : 0.8,
+          color: watchOpen && watchAvailable ? theme.accent : theme.text.muted,
+          cursor: !watchAvailable ? 'not-allowed' : 'pointer',
+        }}
+        onMouseEnter={(e) => {
+          if (!watchAvailable) return
+          e.currentTarget.style.opacity = '1'
+        }}
+        onMouseLeave={(e) => {
+          if (!watchAvailable) return
+          e.currentTarget.style.opacity = watchOpen ? '1' : '0.8'
+        }}
+      >
+        {EntityPanelIcons.eye}
+      </button>
+    )
+
+    const watchOverlay =
+      watchOpen && watchAvailable && watchPortalTarget ?
+        <TransformerWatchPanel
+          entityId={selectedEntityIds[0]!}
+          configStackIndex={selectedSortedIndex}
+          portalTarget={watchPortalTarget}
+          onClose={() => setWatchOpen(false)}
+        />
+      : null
+
+    setMonacoEditorChrome({
+      toolbarExtra: watchToggle,
+      overlay: watchOverlay,
+    })
+  }, [
+    setMonacoEditorChrome,
+    watchAvailable,
+    watchOpen,
+    watchPortalTarget,
+    selectedEntityIds[0],
+    selectedSortedIndex,
+    selectedId,
+    monacoEditorAreaEpoch,
+  ])
+
+  useEffect(() => {
+    return () => setMonacoEditorChrome?.(null)
+  }, [setMonacoEditorChrome])
+
   const copyPayload = useMemo(
     () => ({
       transformers: transformersMixed ? null : list,
@@ -733,15 +827,7 @@ function WorkspaceTransformersTabEntity({
     [openMenu, runtimeErrorForSelection],
   )
 
-  if (selectedEntityIds.length === 0) {
-    return (
-      <div style={{ padding: 16, color: theme.text.muted }}>
-        Select an entity in the inspector to edit transformers here.
-      </div>
-    )
-  }
-
-  if (transformersMixed) {
+  if (transformersMixed && selectedEntityIds.length > 0) {
     return (
       <div style={{ padding: 16, color: theme.text.muted, fontSize: 13 }}>
         Transformer stacks differ across the selection. Align stacks by selecting entities with the same stack, or sync
@@ -761,6 +847,25 @@ function WorkspaceTransformersTabEntity({
         overflow: 'hidden',
       }}
     >
+      {selectedEntityIds.length === 0 ?
+        <div style={{ flexShrink: 0, padding: '0 0 12px', borderBottom: `1px solid ${theme.border.default}` }}>
+          <EntitySearchPicker
+            entities={world.entities}
+            entityWorkHistory={entityWorkHistory}
+            onSelectEntity={(id) => onSelectEntity?.(id)}
+            variant="panel"
+            autoFocus
+            testId="workspace-transformers-entity-search"
+          />
+        </div>
+      : null}
+      {selectedEntityIds.length === 0 ?
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          {monacoSlot}
+        </div>
+      : null}
+      {selectedEntityIds.length === 0 ? null : (
+      <>
       <div
         ref={headerRef}
         style={{
@@ -952,26 +1057,6 @@ function WorkspaceTransformersTabEntity({
               {isSharedMode ? '🔗 SHARED' : '✂️ ISOLATE'}
             </button>
           )}
-          <button
-            type="button"
-            title={watchOpen ? 'Hide watch panel' : 'Show watch panel'}
-            aria-pressed={watchOpen}
-            data-testid="workspace-transformer-watch-toggle"
-            disabled={!monacoIsCustom || selectedEntityIds.length !== 1}
-            onClick={() => setWatchOpen((open) => !open)}
-            style={{
-              ...entityPanelIconButtonStyle,
-              width: 'auto',
-              padding: '0 8px',
-              fontSize: 11,
-              fontWeight: 600,
-              opacity: watchOpen ? 1 : 0.65,
-              color: watchOpen ? theme.accent : theme.text.muted,
-              cursor: !monacoIsCustom || selectedEntityIds.length !== 1 ? 'not-allowed' : 'pointer',
-            }}
-          >
-            Watch
-          </button>
           <div style={{ position: 'relative' }}>
             <button
               type="button"
@@ -1103,18 +1188,6 @@ function WorkspaceTransformersTabEntity({
           />
         : null}
 
-        {watchOpen &&
-        monacoIsCustom &&
-        selectedConfig &&
-        selectedEntityIds.length === 1 &&
-        codeColumnRef.current ?
-          <TransformerWatchPanel
-            entityId={selectedEntityIds[0]!}
-            configStackIndex={selectedSortedIndex}
-            portalTarget={codeColumnRef.current}
-            onClose={() => setWatchOpen(false)}
-          />
-        : null}
       </div>
 
       {templateDialogOpen && selectedPreset && supportsTemplatePickers(selectedPreset.type) ?
@@ -1301,6 +1374,8 @@ function WorkspaceTransformersTabEntity({
             </div>
           </div>
         </div>
+      )}
+      </>
       )}
     </CopyableArea>
   )

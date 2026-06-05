@@ -30,13 +30,15 @@ Scripts use `world.scripts: Record<string, ScriptDef>` with `entity.scripts: str
 ### R1 — Workspace surface
 - Single full-screen (popout) panel replacing the legacy `CustomTransformerCodeTab` popout.
 - Three top-level tabs: **Transformers**, **Scripts**, **Organize**.
-- **Shell header** (one row): tab buttons; **anchor meta** text (`Entity … · item`, `Global library …`, or prompt to select an entity); then reset/stop, **documentation** toggle (icon, matches other shell icon buttons), opacity + close.
+- **Shell header** (one row): tab buttons; **EntitySearchPicker** (`compact`, ~10em) in the meta area — shows entity/item label by default, magnifying-glass hint on hover, search on click when something is selected; then reset/stop, **documentation** toggle, opacity + close.
+- **No-entity states** on Transformers / Scripts tabs show the same **EntitySearchPicker** (`panel`) instead of dead-end “select an entity” copy.
 - **Transformer reference** (`TransformerDocsContent`): optional right column via shell-header toggle; resizable divider splits **all** tab content (left) from docs (right). Panel has an **×** close control; width persists in `localStorage`.
 - One Monaco instance shared between Transformers and Scripts tabs — switching tabs only
   changes the top strip, not the editor.
 - On each open, the shared Monaco remounts automatically **200 ms** after it first becomes
   visible (Transformers or Scripts tab), matching the manual **Refresh editor** layout escape hatch
-  (floating refresh icon, top-right of the shared Monaco pane in `Workspace.tsx`).
+  (refresh icon at the top of the shared Monaco **vertical toolbar** on the editor’s right edge in `WorkspaceMonacoSlot`).
+- **Watch**: eye icon always visible below refresh in the vertical toolbar (disabled until a custom transformer on a single entity is selected); panel portals into the editor pane, default top-right (just left of the toolbar), position persisted in `localStorage` across close/reopen.
   This runs **once per page load** only (not again when closing and reopening Workspace).
 - **Shift+Escape** opens the Workspace. **Escape** (without Shift) closes it.
 
