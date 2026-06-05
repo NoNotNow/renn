@@ -13,7 +13,6 @@ import {
 import CopyableArea from '@/components/CopyableArea'
 import { EntityPanelIcons } from '@/components/EntityPanelIcons'
 import TransformerTemplateDialog from '@/components/TransformerTemplateDialog'
-import TransformerFieldReference from '@/components/TransformerFieldReference'
 import { TransformerDocsContent } from '@/components/TransformerDocs'
 import type { TransformerConfig, PresetTransformerType, TransformerDef, TransformerPipe } from '@/types/transformer'
 import type { RennWorld } from '@/types/world'
@@ -351,16 +350,7 @@ function WorkspaceTransformersTabEntity({
   /** Custom code Monaco state */
   const [codeDraft, setCodeDraft] = useState('')
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false)
-  const [fieldRefOpen, setFieldRefOpen] = useState(false)
-  const [fieldRefType, setFieldRefType] = useState<PresetTransformerType | null>(null)
   const [monacoRemountKey, setMonacoRemountKey] = useState(0)
-
-  const handleConfigFieldRefToggle = useCallback((type: PresetTransformerType) => {
-    setFieldRefType((prevType) => {
-      setFieldRefOpen((open) => (prevType === type ? !open : true))
-      return type
-    })
-  }, [])
 
   const debounceTimerRef = useRef<number | null>(null)
   const listRef = useRef(list)
@@ -1061,9 +1051,6 @@ function WorkspaceTransformersTabEntity({
               existingRegistry={world.transformers}
               selectedId={selectedId}
               cardErrorsByStackIndex={cardErrorsByStackIndex}
-              fieldRefOpen={fieldRefOpen}
-              fieldRefType={fieldRefType}
-              onConfigFieldRefToggle={handleConfigFieldRefToggle}
             />
           </div>
         </div>
@@ -1300,14 +1287,7 @@ function WorkspaceTransformersTabEntity({
           }}
         >
           <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            {fieldRefOpen && fieldRefType ?
-              <div style={{ flexShrink: 0, marginBottom: 8, overflow: 'auto', maxHeight: '35%' }}>
-                <TransformerFieldReference transformerType={fieldRefType} />
-              </div>
-            : null}
-            <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-              {monacoSlot}
-            </div>
+            {monacoSlot}
           </div>
 
           {!monacoIsCustom && !selectedPreset ?

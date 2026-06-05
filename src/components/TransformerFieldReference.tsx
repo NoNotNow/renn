@@ -13,7 +13,24 @@ const helpSpanStyle: CSSProperties = {
   textDecorationColor: 'rgba(148, 163, 184, 0.55)',
 }
 
-function DocRow({ name, text }: { name: string; text: string }) {
+function DocRow({
+  name,
+  text,
+  variant,
+}: {
+  name: string
+  text: string
+  variant: 'tooltip' | 'inline'
+}) {
+  if (variant === 'inline') {
+    return (
+      <div style={{ fontSize: 11, marginBottom: 10, lineHeight: 1.4 }}>
+        <code style={{ color: '#93c5fd', fontSize: 11, display: 'block', marginBottom: 3 }}>{name}</code>
+        <div style={{ color: '#9aa4b2', fontSize: 10, lineHeight: 1.4 }}>{text}</div>
+      </div>
+    )
+  }
+
   return (
     <div style={{ fontSize: 11, marginBottom: 5, lineHeight: 1.4 }}>
       <code style={{ color: '#93c5fd', fontSize: 11 }}>
@@ -40,26 +57,31 @@ function commonKeysFor(transformerType: PresetTransformerType): string[] {
 
 export interface TransformerFieldReferenceProps {
   transformerType: PresetTransformerType
+  /** `tooltip` — hover names in TransformerEditor; `inline` — descriptions under each name. */
+  variant?: 'tooltip' | 'inline'
 }
 
 /**
- * Read-only field names with native tooltips; pairs with the JSON textarea in TransformerEditor.
+ * Read-only field reference; pairs with the JSON textarea in TransformerEditor / config drawer.
  */
 export default function TransformerFieldReference({
   transformerType,
+  variant = 'tooltip',
 }: TransformerFieldReferenceProps) {
   const paramEntries = Object.entries(TRANSFORMER_PARAMS_DOCS[transformerType]).sort(([a], [b]) =>
     a.localeCompare(b),
   )
 
   return (
-    <div style={{ marginBottom: 8 }}>
+    <div style={{ marginBottom: variant === 'inline' ? 0 : 8 }}>
       <div style={{ fontWeight: 600, color: '#9aa4b2', fontSize: 11, marginBottom: 6 }}>
         Field reference
       </div>
-      <div style={{ color: '#9aa4b2', fontSize: 10, marginBottom: 8, lineHeight: 1.35 }}>
-        Hover a field name for a short description. Edit values in the JSON below.
-      </div>
+      {variant === 'tooltip' ?
+        <div style={{ color: '#9aa4b2', fontSize: 10, marginBottom: 8, lineHeight: 1.35 }}>
+          Hover a field name for a short description. Edit values in the JSON below.
+        </div>
+      : null}
 
       <div style={fieldLabelStyle}>Common JSON keys</div>
       {commonKeysFor(transformerType).map((key) => (
@@ -67,15 +89,20 @@ export default function TransformerFieldReference({
           key={key}
           name={key}
           text={TRANSFORMER_CONFIG_COMMON_DOCS[key as keyof typeof TRANSFORMER_CONFIG_COMMON_DOCS]}
+          variant={variant}
         />
       ))}
 
       {transformerType === 'input' && (
         <>
           <div style={{ ...fieldLabelStyle, marginTop: 10 }}>inputMapping</div>
-          <DocRow name="inputMapping" text={TRANSFORMER_CONFIG_COMMON_DOCS.inputMapping} />
+          <DocRow
+            name="inputMapping"
+            text={TRANSFORMER_CONFIG_COMMON_DOCS.inputMapping}
+            variant={variant}
+          />
           {Object.entries(INPUT_MAPPING_FIELD_DOCS).map(([k, text]) => (
-            <DocRow key={k} name={`inputMapping.${k}`} text={text} />
+            <DocRow key={k} name={`inputMapping.${k}`} text={text} variant={variant} />
           ))}
         </>
       )}
@@ -88,7 +115,9 @@ export default function TransformerFieldReference({
           top level).
         </p>
       ) : (
-        paramEntries.map(([k, text]) => <DocRow key={k} name={k} text={text} />)
+        paramEntries.map(([k, text]) => (
+          <DocRow key={k} name={k} text={text} variant={variant} />
+        ))
       )}
     </div>
   )

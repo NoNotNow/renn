@@ -1,4 +1,5 @@
 import {
+  useEffect,
   useRef,
   useState,
   type CSSProperties,
@@ -114,6 +115,11 @@ export default function WorkspaceFloatingDrawer({
 
   const effectiveWidth = resizable ? size.width : width
   const effectiveMaxHeight = resizable ? undefined : maxHeightProp
+
+  useEffect(() => {
+    if (!resizable) return
+    setSize((s) => (s.width >= width ? s : { ...s, width }))
+  }, [resizable, width])
 
   const handleMouseDown = (e: ReactMouseEvent) => {
     if ((e.target as HTMLElement).closest('button')) return
