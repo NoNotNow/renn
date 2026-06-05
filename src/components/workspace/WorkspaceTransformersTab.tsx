@@ -344,7 +344,6 @@ function WorkspaceTransformersTabEntity({
   /** Custom code Monaco state */
   const [codeDraft, setCodeDraft] = useState('')
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false)
-  const [monacoRemountKey, setMonacoRemountKey] = useState(0)
 
   const debounceTimerRef = useRef<number | null>(null)
   const listRef = useRef(list)
@@ -705,16 +704,17 @@ function WorkspaceTransformersTabEntity({
         value: codeDraft,
         onChange: handleCodeChange,
         disabled: anyLocked || transformersMixed || selectedEntityIds.length === 0,
-        refreshKey: monacoRemountKey,
+        refreshKey: 0,
+        beforeRefresh: flushPendingCode,
       }
-    } else {
-      return {
-        kind: 'placeholder' as const,
-        value: '// Select a custom transformer stage in the pipeline to edit TypeScript.',
-        onChange: () => {},
-        disabled: true,
-        refreshKey: monacoRemountKey,
-      }
+    }
+    return {
+      kind: 'placeholder' as const,
+      value: '// Select a custom transformer stage in the pipeline to edit TypeScript.',
+      onChange: () => {},
+      disabled: true,
+      refreshKey: 0,
+      beforeRefresh: flushPendingCode,
     }
   }, [
     codeDraft,
@@ -723,7 +723,7 @@ function WorkspaceTransformersTabEntity({
     anyLocked,
     transformersMixed,
     selectedEntityIds.length,
-    monacoRemountKey,
+    flushPendingCode,
   ])
 
   useLayoutEffect(() => {
@@ -1213,27 +1213,6 @@ function WorkspaceTransformersTabEntity({
             }}
           >
             {EntityPanelIcons.clone}
-          </button>
-          <button
-            type="button"
-            data-testid="workspace-transformers-refresh-editor"
-            onClick={() => {
-              flushPendingCode()
-              setMonacoRemountKey((k) => k + 1)
-            }}
-            disabled={anyLocked || !monacoIsCustom}
-            title="Reload Monaco editor (layout escape hatch)"
-            style={{
-              padding: '6px 10px',
-              fontSize: 12,
-              borderRadius: 6,
-              border: `1px solid ${theme.border.default}`,
-              background: theme.bg.surface,
-              color: theme.text.primary,
-              cursor: anyLocked ? 'not-allowed' : 'pointer',
-            }}
-          >
-            Refresh editor
           </button>
         </div>
       </div>

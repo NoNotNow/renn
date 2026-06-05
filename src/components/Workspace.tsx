@@ -24,6 +24,7 @@ import WorkspaceTransformersTab from '@/components/workspace/WorkspaceTransforme
 import WorkspaceScriptsTab from '@/components/workspace/WorkspaceScriptsTab'
 import WorkspaceOrganizeTab from '@/components/workspace/WorkspaceOrganizeTab'
 import TransformerCustomCodeEditor from '@/components/TransformerCustomCodeEditor'
+import WorkspaceMonacoSlot from '@/components/workspace/WorkspaceMonacoSlot'
 import { EntityPanelIcons } from '@/components/EntityPanelIcons'
 import { entityPanelIconButtonStyle } from '@/components/sharedStyles'
 import { theme } from '@/config/theme'
@@ -177,6 +178,7 @@ export default function Workspace({
   const [opaque, setOpaque] = useState(false)
   const [monacoPayload, setMonacoPayload] = useState<WorkspaceMonacoPayload>(IDLE_MONACO)
   const [editorOpenRefreshNonce, setEditorOpenRefreshNonce] = useState(0)
+  const [manualMonacoRefreshNonce, setManualMonacoRefreshNonce] = useState(0)
 
   const prevOpenRef = useRef(false)
 
@@ -189,7 +191,7 @@ export default function Workspace({
     onWorkspaceOpenSideEffects?.()
   }, [open, onWorkspaceOpenSideEffects])
 
-  /** Remount shared Monaco once per session, 100ms after it first becomes visible (same as Refresh editor). */
+  /** Remount shared Monaco once per session, 200ms after it first becomes visible (same as Refresh editor). */
   useEffect(() => {
     if (!monacoHostVisible || isWorkspaceEditorInitialRefreshDone()) return
     markWorkspaceEditorInitialRefreshDone()
@@ -411,6 +413,11 @@ export default function Workspace({
 
   const monacoCtxValue = useMemo(() => monacoEditorRef, [])
 
+  const handleMonacoRefresh = useCallback(() => {
+    monacoPayload.beforeRefresh?.()
+    setManualMonacoRefreshNonce((n) => n + 1)
+  }, [monacoPayload])
+
   const monacoScriptEvent =
     monacoPayload.kind === 'script-js' ? monacoPayload.scriptEvent : undefined
 
@@ -419,7 +426,7 @@ export default function Workspace({
     return (
       <TransformerCustomCodeEditor
         layout="fill"
-        key={`ws-monaco-${activeTab}-${monacoPayload.refreshKey}-${editorOpenRefreshNonce}`}
+        key={`ws-monaco-${activeTab}-${monacoPayload.refreshKey}-${editorOpenRefreshNonce}-${manualMonacoRefreshNonce}`}
         transparent={!opaque}
         delayedLayoutMs={200}
         value={monacoPayload.value}
@@ -436,6 +443,7 @@ export default function Workspace({
     activeTab,
     monacoPayload.refreshKey,
     editorOpenRefreshNonce,
+    manualMonacoRefreshNonce,
     monacoPayload.value,
     monacoPayload.onChange,
     monacoPayload.disabled,
@@ -443,6 +451,17 @@ export default function Workspace({
     monacoScriptEvent,
     opaque,
   ])
+
+  const monacoSlot = useMemo(() => {
+    if (!monacoEditor) return null
+    return (
+      <WorkspaceMonacoSlot
+        monacoSlot={monacoEditor}
+        testId="workspace-monaco-refresh-editor"
+        onRefresh={handleMonacoRefresh}
+      />
+    )
+  }, [monacoEditor, handleMonacoRefresh])
 
   return open ?
       createPortal(
@@ -729,7 +748,7 @@ export default function Workspace({
                       onWorldChange={onWorldChange}
                       onEntityTransformersChange={onEntityTransformersChange}
                       setMonacoPayload={setMonacoPayload}
-                      monacoSlot={monacoEditor}
+                      monacoSlot={monacoSlot}
                       globalLibrary={globalLibrary}
                       onGlobalLibraryChange={persistGlobalLibrary}
                       onEntryChange={onEntryChange}
@@ -742,7 +761,7 @@ export default function Workspace({
                       workspaceOpen={open}
                       onWorldChange={onWorldChange}
                       setMonacoPayload={setMonacoPayload}
-                      monacoSlot={monacoEditor}
+                      monacoSlot={monacoSlot}
                       onOpenOrganizeScripts={openOrganizeScriptsForEntity}
                       globalLibrary={globalLibrary}
                       onGlobalLibraryChange={persistGlobalLibrary}

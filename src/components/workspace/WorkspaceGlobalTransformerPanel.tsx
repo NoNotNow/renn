@@ -41,7 +41,6 @@ export default function WorkspaceGlobalTransformerPanel({
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false)
   const [fieldRefOpen, setFieldRefOpen] = useState(false)
   const [codeDraft, setCodeDraft] = useState('')
-  const [monacoRemountKey, setMonacoRemountKey] = useState(0)
   const codeColumnRef = useRef<HTMLDivElement>(null)
   const debounceTimerRef = useRef<number | null>(null)
   const defRef = useRef(def)
@@ -104,19 +103,20 @@ export default function WorkspaceGlobalTransformerPanel({
         value: codeDraft,
         onChange: handleCodeChange,
         disabled: false,
-        refreshKey: monacoRemountKey,
-      }
-    } else {
-      return {
-        kind: 'placeholder' as const,
-        value:
-          '// Global library: select a custom transformer or switch type to custom to edit TypeScript.\n',
-        onChange: () => {},
-        disabled: true,
-        refreshKey: monacoRemountKey,
+        refreshKey: 0,
+        beforeRefresh: flushPendingCode,
       }
     }
-  }, [codeDraft, handleCodeChange, monacoIsCustom, monacoRemountKey])
+    return {
+      kind: 'placeholder' as const,
+      value:
+        '// Global library: select a custom transformer or switch type to custom to edit TypeScript.\n',
+      onChange: () => {},
+      disabled: true,
+      refreshKey: 0,
+      beforeRefresh: flushPendingCode,
+    }
+  }, [codeDraft, handleCodeChange, monacoIsCustom, flushPendingCode])
 
   useLayoutEffect(() => {
     setMonacoPayload(monacoPayload)
@@ -243,25 +243,6 @@ export default function WorkspaceGlobalTransformerPanel({
               title="Field reference"
             >
               {EntityPanelIcons.document}
-            </button>
-            <button
-              type="button"
-              data-testid="workspace-global-tf-refresh-monaco"
-              onClick={() => {
-                flushPendingCode()
-                setMonacoRemountKey((k) => k + 1)
-              }}
-              style={{
-                padding: '6px 10px',
-                fontSize: 12,
-                borderRadius: 6,
-                border: `1px solid ${theme.border.default}`,
-                background: theme.bg.surface,
-                color: theme.text.primary,
-                cursor: 'pointer',
-              }}
-            >
-              Refresh editor
             </button>
           </div>
           {fieldRefOpen && isPresetTransformerType(def.type) ?

@@ -3,7 +3,7 @@ import 'fake-indexeddb/auto'
 import { act, render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { useState, type ReactElement } from 'react'
 import Workspace from './Workspace'
-import { resetWorkspaceEditorInitialRefreshForTests } from './workspaceMonacoSession'
+import { resetWorkspaceEditorInitialRefreshForTests, WORKSPACE_EDITOR_OPEN_REFRESH_MS } from './workspaceMonacoSession'
 import type { WorkspaceTarget } from '@/types/workspace'
 import type { RennWorld } from '@/types/world'
 import type { TransformerDef } from '@/types/transformer'
@@ -137,7 +137,7 @@ describe('Workspace', () => {
     expect(screen.queryByTestId('workspace-panel')).not.toBeInTheDocument()
   })
 
-  it('remounts Monaco 100ms after workspace opens on a Monaco tab (first time only)', () => {
+  it('remounts Monaco after workspace opens on a Monaco tab (first time only)', () => {
     vi.useFakeTimers()
     monacoMount.count = 0
     const { rerender } = renderWorkspace(
@@ -173,12 +173,12 @@ describe('Workspace', () => {
     const mountsAfterOpen = monacoMount.count
 
     act(() => {
-      vi.advanceTimersByTime(100)
+      vi.advanceTimersByTime(WORKSPACE_EDITOR_OPEN_REFRESH_MS)
     })
     expect(monacoMount.count).toBeGreaterThan(mountsAfterOpen)
   })
 
-  it('remounts Monaco 100ms after switching from Organize to a Monaco tab on first open', () => {
+  it('remounts Monaco after switching from Organize to a Monaco tab on first open', () => {
     vi.useFakeTimers()
     monacoMount.count = 0
     renderWorkspace(
@@ -200,7 +200,7 @@ describe('Workspace', () => {
     const mountsAfterTabSwitch = monacoMount.count
 
     act(() => {
-      vi.advanceTimersByTime(100)
+      vi.advanceTimersByTime(WORKSPACE_EDITOR_OPEN_REFRESH_MS)
     })
     expect(monacoMount.count).toBeGreaterThan(mountsAfterTabSwitch)
   })
@@ -221,7 +221,7 @@ describe('Workspace', () => {
     expect(screen.getByTestId('mock-monaco-editor')).toBeInTheDocument()
 
     act(() => {
-      vi.advanceTimersByTime(100)
+      vi.advanceTimersByTime(WORKSPACE_EDITOR_OPEN_REFRESH_MS)
     })
     const mountsAfterFirstRefresh = monacoMount.count
 
@@ -263,7 +263,7 @@ describe('Workspace', () => {
     const mountsAfterReopen = monacoMount.count
 
     act(() => {
-      vi.advanceTimersByTime(100)
+      vi.advanceTimersByTime(WORKSPACE_EDITOR_OPEN_REFRESH_MS)
     })
     expect(monacoMount.count).toBe(mountsAfterReopen)
     expect(monacoMount.count).toBeGreaterThan(mountsAfterFirstRefresh)

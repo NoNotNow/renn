@@ -30,26 +30,18 @@ export type WorkspaceTarget = {
 }
 
 /** Drives the single shared `TransformerCustomCodeEditor` mounted in `Workspace.tsx`. */
+type WorkspaceMonacoPayloadBase = {
+  value: string
+  onChange: (next: string) => void
+  disabled: boolean
+  /** Remount when the edited item changes (e.g. script id). Manual refresh uses Workspace state. */
+  refreshKey: number
+  /** Called before the shared Monaco remounts (flush debounced edits). */
+  beforeRefresh?: () => void
+}
+
+/** Drives the single shared `TransformerCustomCodeEditor` mounted in `Workspace.tsx`. */
 export type WorkspaceMonacoPayload =
-  | {
-      kind: 'transformer-ts'
-      value: string
-      onChange: (next: string) => void
-      disabled: boolean
-      refreshKey: number
-    }
-  | {
-      kind: 'script-js'
-      value: string
-      onChange: (next: string) => void
-      disabled: boolean
-      refreshKey: number
-      scriptEvent: ScriptEvent
-    }
-  | {
-      kind: 'placeholder'
-      value: string
-      onChange: (next: string) => void
-      disabled: boolean
-      refreshKey: number
-    }
+  | (WorkspaceMonacoPayloadBase & { kind: 'transformer-ts' })
+  | (WorkspaceMonacoPayloadBase & { kind: 'script-js'; scriptEvent: ScriptEvent })
+  | (WorkspaceMonacoPayloadBase & { kind: 'placeholder' })
