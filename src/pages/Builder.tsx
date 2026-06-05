@@ -35,6 +35,7 @@ import {
   type Rotation,
   type Entity,
   type ModelPreset,
+  type RennWorld,
   type TrimeshSimplificationConfig,
 } from '@/types/world'
 import { useBuilderKeyboardShortcuts } from '@/hooks/useBuilderKeyboardShortcuts'
@@ -380,7 +381,7 @@ export default function Builder() {
   }, [currentProject.isDirty, newProject])
 
   const handleOpenExampleWorld = useCallback(
-    (worldJson: any, name: string) => {
+    (worldJson: RennWorld, name: string) => {
       if (currentProject.isDirty && !confirm('Discard unsaved changes?')) return
       loadExampleWorld(worldJson, name)
     },
@@ -438,16 +439,12 @@ export default function Builder() {
 
     // Default to transformers, but if there are scripts and no transformers, go to scripts.
     // Also try to find a custom transformer to select by default.
-    let tab: WorkspaceTarget['tab'] = 'transformers'
-    let itemId: string | undefined
-
-    if (tfIdsIntersect.length === 0 && scIdsIntersect.length > 0) {
-      tab = 'scripts'
-      itemId = scIdsIntersect[0]
-    } else {
-      tab = 'transformers'
-      itemId = tfIdsIntersect.find((id) => worldTf[id]?.type === 'custom') ?? tfIdsIntersect[0]
-    }
+    const tab: WorkspaceTarget['tab'] =
+      tfIdsIntersect.length === 0 && scIdsIntersect.length > 0 ? 'scripts' : 'transformers'
+    const itemId =
+      tab === 'scripts'
+        ? scIdsIntersect[0]
+        : tfIdsIntersect.find((id) => worldTf[id]?.type === 'custom') ?? tfIdsIntersect[0]
 
     setWorkspaceEntry({ entityId, tab, itemId })
     setWorkspaceOpen(true)

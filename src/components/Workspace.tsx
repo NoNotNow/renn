@@ -229,7 +229,7 @@ export default function Workspace({
   useEffect(() => {
     if (!open) return
     setActiveTab(initialWorkspaceShellTab(open, entry))
-  }, [open, entry?.tab])
+  }, [open, entry])
 
   const anchoredEntityId = entry?.entityId ?? null
 
@@ -343,7 +343,7 @@ export default function Workspace({
         })
       }
     },
-    [entry?.itemId, entry?.organize, onEntryChange, resolveEntityId],
+    [entry?.itemId, entry?.itemSource, entry?.organize, onEntryChange, resolveEntityId],
   )
 
   const navigateToEditorFromOrganize = useCallback(
@@ -438,6 +438,9 @@ export default function Workspace({
 
   const monacoCtxValue = useMemo(() => monacoEditorRef, [])
 
+  const monacoScriptEvent =
+    monacoPayload.kind === 'script-js' ? monacoPayload.scriptEvent : undefined
+
   const monacoEditor = useMemo(() => {
     if (activeTab !== 'transformers' && activeTab !== 'scripts') return null
     return (
@@ -450,7 +453,7 @@ export default function Workspace({
         onChange={monacoPayload.onChange}
         disabled={monacoPayload.disabled}
         codeIntelliSense={monacoPayload.kind === 'script-js' ? 'script' : 'transformer'}
-        scriptCtxEvent={monacoPayload.kind === 'script-js' ? monacoPayload.scriptEvent : undefined}
+        scriptCtxEvent={monacoScriptEvent}
         onEditorReady={(ed) => {
           monacoEditorRef.current = ed
         }}
@@ -464,12 +467,11 @@ export default function Workspace({
     monacoPayload.onChange,
     monacoPayload.disabled,
     monacoPayload.kind,
-    monacoPayload.kind === 'script-js' ? monacoPayload.scriptEvent : undefined,
+    monacoScriptEvent,
     opaque,
   ])
 
-  const portal =
-    open ?
+  return open ?
       createPortal(
         <WorkspaceMonacoContext.Provider value={monacoCtxValue}>
           <div
@@ -797,6 +799,4 @@ export default function Workspace({
         portalTarget,
       )
     : null
-
-  return portal
 }

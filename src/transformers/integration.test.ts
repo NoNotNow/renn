@@ -75,7 +75,7 @@ describe('Transformer Integration', () => {
   test('handles invalid transformer type gracefully', async () => {
     const configs: TransformerConfig[] = [
       {
-        type: 'invalid_type' as any,
+        type: 'invalid_type',
         priority: 0,
       },
     ]

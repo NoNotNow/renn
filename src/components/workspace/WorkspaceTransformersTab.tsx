@@ -198,10 +198,9 @@ function WorkspaceTransformersTabEntity({
       if (e) list.push(e)
     }
     return list
-  }, [selectedEntityIds, world.entities])
+  }, [selectedEntityIds, world])
 
   const entityIdsForEdit = entities.map((e) => e.id)
-  const entityIdsFingerprint = entityIdsForEdit.join(',')
   const mergedIds = useMemo(() => mergeTransformers(entities), [entities])
   const anyLocked = entities.some((e) => e.locked)
   const transformersMixed = mergedIds === null
@@ -277,7 +276,7 @@ function WorkspaceTransformersTabEntity({
       }
     },
     [
-      entityIdsFingerprint,
+      entityIdsForEdit,
       isSharedMode,
       onEntityTransformersChange,
       onWorldChange,

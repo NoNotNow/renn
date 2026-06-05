@@ -1037,14 +1037,13 @@ export default function WorkspaceOrganizeTab({
               const usageLine = inProject
                 ? `Also in this world · used by ${users.length} entity(ies)`
                 : 'Not in this world yet'
-              const assignments: { id: string; name: string }[] = [] // Disable selection from global tab
               return (
                 <WorkspaceOrganizeCard
                   key={id}
                   title={subtitle}
                   subtitle={id}
                   usageLine={usageLine}
-                  assignments={assignments}
+                  assignments={[]}
                   showAssign={showGlobalActions}
                   showDetach={false}
                   showDelete={showGlobalActions}
@@ -1173,14 +1172,13 @@ export default function WorkspaceOrganizeTab({
               const usageLine = inProject
                 ? `Also in this world · used by ${users.length} entity(ies)`
                 : 'Not in this world yet'
-              const assignments: { id: string; name: string }[] = [] // Disable selection from global tab
               return (
                 <WorkspaceOrganizeCard
                   key={id}
                   title={title}
                   subtitle={subtitle}
                   usageLine={usageLine}
-                  assignments={assignments}
+                  assignments={[]}
                   showAssign={showGlobalActions}
                   showDetach={false}
                   showDelete={showGlobalActions}

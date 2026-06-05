@@ -2,7 +2,7 @@ import { useRef, useState, useLayoutEffect, useCallback } from 'react'
 import MenuBar from './MenuBar'
 import DropdownMenu, { type MenuItemConfig } from './DropdownMenu'
 import type { ProjectMeta } from '@/persistence/types'
-import type { Vec3 } from '@/types/world'
+import type { RennWorld, Vec3 } from '@/types/world'
 import { uiLogger } from '@/utils/uiLogger'
 import {
   TEXTURE_BRUSH_RADIUS_MAX,
@@ -69,7 +69,7 @@ export interface BuilderHeaderProps {
   onOpenTextureStudio?: () => void
   onOpenWorkspace?: () => void
   selectedEntityCount?: number
-  onOpenExampleWorld?: (worldJson: any, name: string) => void
+  onOpenExampleWorld?: (worldJson: RennWorld, name: string) => void
 }
 
 export default function BuilderHeader({
