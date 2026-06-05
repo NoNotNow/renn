@@ -23,6 +23,7 @@ import type { TransformerTraceStep } from '@/transformers/transformerTrace'
 import WorkspaceTransformersTab from '@/components/workspace/WorkspaceTransformersTab'
 import WorkspaceScriptsTab from '@/components/workspace/WorkspaceScriptsTab'
 import WorkspaceOrganizeTab from '@/components/workspace/WorkspaceOrganizeTab'
+import WorkspaceDocsSplit from '@/components/workspace/WorkspaceDocsSplit'
 import TransformerCustomCodeEditor from '@/components/TransformerCustomCodeEditor'
 import WorkspaceMonacoSlot from '@/components/workspace/WorkspaceMonacoSlot'
 import { EntityPanelIcons } from '@/components/EntityPanelIcons'
@@ -176,6 +177,7 @@ export default function Workspace({
     initialWorkspaceShellTab(open, entry),
   )
   const [opaque, setOpaque] = useState(false)
+  const [docsOpen, setDocsOpen] = useState(false)
   const [monacoPayload, setMonacoPayload] = useState<WorkspaceMonacoPayload>(IDLE_MONACO)
   const [editorOpenRefreshNonce, setEditorOpenRefreshNonce] = useState(0)
   const [manualMonacoRefreshNonce, setManualMonacoRefreshNonce] = useState(0)
@@ -693,6 +695,21 @@ export default function Workspace({
                   )}
                   <button
                     type="button"
+                    data-testid="workspace-docs-toggle"
+                    title={docsOpen ? 'Hide documentation' : 'Show documentation'}
+                    aria-label={docsOpen ? 'Hide documentation' : 'Show documentation'}
+                    aria-pressed={docsOpen}
+                    onClick={() => setDocsOpen((open) => !open)}
+                    style={{
+                      ...entityPanelIconButtonStyle,
+                      opacity: docsOpen ? 1 : 0.65,
+                      color: docsOpen ? theme.accent : theme.text.muted,
+                    }}
+                  >
+                    {EntityPanelIcons.document}
+                  </button>
+                  <button
+                    type="button"
                     data-testid="workspace-opacity-toggle"
                     title={opaque ? 'Make window transparent' : 'Make window fully opaque'}
                     aria-label="Toggle window opacity"
@@ -737,50 +754,52 @@ export default function Workspace({
                   boxSizing: 'border-box',
                 }}
               >
-                <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                  {activeTab === 'transformers' ? (
-                    <WorkspaceTransformersTab
-                      world={world}
-                      selectedEntityIds={selectedEntityIds}
-                      entry={entry}
-                      workspaceOpen={open}
-                      liveTraceSteps={liveTransformerTraceSteps}
-                      onWorldChange={onWorldChange}
-                      onEntityTransformersChange={onEntityTransformersChange}
-                      setMonacoPayload={setMonacoPayload}
-                      monacoSlot={monacoSlot}
-                      globalLibrary={globalLibrary}
-                      onGlobalLibraryChange={persistGlobalLibrary}
-                      onEntryChange={onEntryChange}
-                    />
-                  ) : activeTab === 'scripts' ? (
-                    <WorkspaceScriptsTab
-                      world={world}
-                      selectedEntityIds={selectedEntityIds}
-                      entry={entry}
-                      workspaceOpen={open}
-                      onWorldChange={onWorldChange}
-                      setMonacoPayload={setMonacoPayload}
-                      monacoSlot={monacoSlot}
-                      onOpenOrganizeScripts={openOrganizeScriptsForEntity}
-                      globalLibrary={globalLibrary}
-                      onGlobalLibraryChange={persistGlobalLibrary}
-                      onSelectEntity={handleSelectEntityFromWorkspace}
-                    />
-                  ) : (
-                    <WorkspaceOrganizeTab
-                      world={world}
-                      selectedEntityIds={selectedEntityIds}
-                      entry={entry}
-                      onWorldChange={onWorldChange}
-                      onNavigateToEditor={navigateToEditorFromOrganize}
-                      onOrganizeContextChange={handleOrganizeContextChange}
-                      globalLibrary={globalLibrary}
-                      onGlobalLibraryChange={persistGlobalLibrary}
-                      onSelectEntity={handleSelectEntityFromWorkspace}
-                    />
-                  )}
-                </div>
+                <WorkspaceDocsSplit open={docsOpen} onClose={() => setDocsOpen(false)}>
+                  <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                    {activeTab === 'transformers' ? (
+                      <WorkspaceTransformersTab
+                        world={world}
+                        selectedEntityIds={selectedEntityIds}
+                        entry={entry}
+                        workspaceOpen={open}
+                        liveTraceSteps={liveTransformerTraceSteps}
+                        onWorldChange={onWorldChange}
+                        onEntityTransformersChange={onEntityTransformersChange}
+                        setMonacoPayload={setMonacoPayload}
+                        monacoSlot={monacoSlot}
+                        globalLibrary={globalLibrary}
+                        onGlobalLibraryChange={persistGlobalLibrary}
+                        onEntryChange={onEntryChange}
+                      />
+                    ) : activeTab === 'scripts' ? (
+                      <WorkspaceScriptsTab
+                        world={world}
+                        selectedEntityIds={selectedEntityIds}
+                        entry={entry}
+                        workspaceOpen={open}
+                        onWorldChange={onWorldChange}
+                        setMonacoPayload={setMonacoPayload}
+                        monacoSlot={monacoSlot}
+                        onOpenOrganizeScripts={openOrganizeScriptsForEntity}
+                        globalLibrary={globalLibrary}
+                        onGlobalLibraryChange={persistGlobalLibrary}
+                        onSelectEntity={handleSelectEntityFromWorkspace}
+                      />
+                    ) : (
+                      <WorkspaceOrganizeTab
+                        world={world}
+                        selectedEntityIds={selectedEntityIds}
+                        entry={entry}
+                        onWorldChange={onWorldChange}
+                        onNavigateToEditor={navigateToEditorFromOrganize}
+                        onOrganizeContextChange={handleOrganizeContextChange}
+                        globalLibrary={globalLibrary}
+                        onGlobalLibraryChange={persistGlobalLibrary}
+                        onSelectEntity={handleSelectEntityFromWorkspace}
+                      />
+                    )}
+                  </div>
+                </WorkspaceDocsSplit>
               </div>
             </div>
           </div>

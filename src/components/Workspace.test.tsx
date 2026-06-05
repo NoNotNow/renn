@@ -499,6 +499,33 @@ describe('Workspace', () => {
     })
   })
 
+  it('toggles transformer documentation panel from shell header', async () => {
+    renderWorkspace(
+      <Workspace
+        open
+        onClose={vi.fn()}
+        entry={{ entityId: 'e1', tab: 'transformers', itemId: 'e1_tf0' }}
+        world={worldWithTransformer}
+        selectedEntityIds={['e1']}
+        onWorldChange={vi.fn()}
+      />,
+    )
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-docs-toggle')).toBeInTheDocument()
+    })
+    expect(screen.queryByTestId('workspace-docs-panel')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId('workspace-docs-toggle'))
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-docs-panel')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByTestId('workspace-docs-close'))
+    await waitFor(() => {
+      expect(screen.queryByTestId('workspace-docs-panel')).not.toBeInTheDocument()
+    })
+  })
+
   it('shows conflict dialog when promoting the same transformer to Global twice', async () => {
     renderWorkspace(
       <Workspace

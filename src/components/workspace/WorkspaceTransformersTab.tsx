@@ -13,7 +13,6 @@ import {
 import CopyableArea from '@/components/CopyableArea'
 import { EntityPanelIcons } from '@/components/EntityPanelIcons'
 import TransformerTemplateDialog from '@/components/TransformerTemplateDialog'
-import { TransformerDocsContent } from '@/components/TransformerDocs'
 import type { TransformerConfig, PresetTransformerType, TransformerDef, TransformerPipe } from '@/types/transformer'
 import type { RennWorld } from '@/types/world'
 import type { WorkspaceMonacoPayload, WorkspaceTarget } from '@/types/workspace'
@@ -43,19 +42,12 @@ import {
   TransformerHorizontalPipeline,
   type TransformerCardErrorKind,
 } from '@/components/workspace/TransformerPipelineHorizontal'
-import { clamp } from '@/utils/numberUtils'
 import { uiLogger } from '@/utils/uiLogger'
 import type { GlobalBehaviorLibrary } from '@/types/globalBehaviorLibrary'
 import WorkspaceGlobalTransformerPanel from '@/components/workspace/WorkspaceGlobalTransformerPanel'
 import TransformerCodeErrorOverlay from '@/components/workspace/TransformerCodeErrorOverlay'
 import TransformerWatchPanel from '@/components/workspace/TransformerWatchPanel'
 import { useDebouncedCompileErrorDisplay } from '@/hooks/useDebouncedCompileErrorDisplay'
-
-/** Workspace horizontal split (code ↔ docs). */
-const POPOUT_DOCS_SPLIT_MIN_PX = 300
-const POPOUT_DOCS_SPLIT_CODE_MIN_PX = 260
-const POPOUT_DOCS_SPLIT_HANDLE_PX = 6
-const POPOUT_DOCS_WIDTH_STORAGE_KEY = 'rennWorkspaceTransformerDocsWidthPx'
 
 /** Preset toolbar sits in reserved left gutter; pipeline draws to the right (stage cards visually layer above). */
 const PIPELINE_PRESET_TOOLS_GUTTER_PX = 52
@@ -331,15 +323,7 @@ function WorkspaceTransformersTabEntity({
   const selectedConfig = list[selectedSortedIndex] ?? null
   const selectedPreset = selectedConfig && isPresetTransformerType(selectedConfig.type) ? selectedConfig : null
 
-  const [docsOpen, setDocsOpen] = useState(false)
   const [watchOpen, setWatchOpen] = useState(false)
-  const [docsWidthPx, setDocsWidthPx] = useState(0)
-  const [docsAreaWidth, setDocsAreaWidth] = useState(0)
-  const splitRowRef = useRef<HTMLDivElement>(null)
-  const docsContainerRef = useRef<HTMLDivElement>(null)
-  const docsWidthRef = useRef(0)
-  docsWidthRef.current = docsWidthPx
-  const docsSplitDragRef = useRef<{ startX: number; startWidth: number } | null>(null)
 
   /** Custom code Monaco state */
   const [codeDraft, setCodeDraft] = useState('')
@@ -730,124 +714,6 @@ function WorkspaceTransformersTabEntity({
     setMonacoPayload(monacoPayload)
   }, [monacoPayload, setMonacoPayload])
 
-  useEffect(() => {
-    if (!docsOpen || typeof window === 'undefined') return
-    const el = docsContainerRef.current
-    if (!el) return
-
-    const update = () => {
-      setDocsAreaWidth(el.clientWidth)
-    }
-    update()
-    const ro = new ResizeObserver(update)
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [docsOpen])
-
-  useLayoutEffect(() => {
-    if (!docsOpen || typeof window === 'undefined') return
-    const row = splitRowRef.current
-    if (!row) return
-
-    const readBounds = () => {
-      const inner = Math.max(0, row.clientWidth - POPOUT_DOCS_SPLIT_HANDLE_PX)
-      const maxDocs = Math.max(POPOUT_DOCS_SPLIT_MIN_PX, inner - POPOUT_DOCS_SPLIT_CODE_MIN_PX)
-      return { inner, maxDocs, minDocs: POPOUT_DOCS_SPLIT_MIN_PX }
-    }
-
-    const applySizing = (): void => {
-      if (docsSplitDragRef.current !== null) return
-      const bounds = readBounds()
-      setDocsWidthPx((prev) => {
-        let next =
-          prev > 0 && Number.isFinite(prev)
-            ? prev
-            : (() => {
-                try {
-                  const raw = window.localStorage.getItem(POPOUT_DOCS_WIDTH_STORAGE_KEY)
-                  const stored = Number(raw)
-                  return Number.isFinite(stored) ? stored : NaN
-                } catch {
-                  return NaN
-                }
-              })()
-        if (!(next > 0 && Number.isFinite(next))) {
-          next = Math.round(bounds.inner * 0.4)
-        }
-        return clamp(next, bounds.minDocs, bounds.maxDocs)
-      })
-    }
-
-    applySizing()
-    const ro = new ResizeObserver(applySizing)
-    ro.observe(row)
-    return () => ro.disconnect()
-  }, [docsOpen])
-
-  const handleDocsSplitMouseDown = useCallback(
-    (e: ReactMouseEvent<HTMLDivElement>): void => {
-      e.preventDefault()
-      if (!docsOpen) return
-      const row = splitRowRef.current
-      if (!row || row.clientWidth <= 0) return
-
-      const inner = Math.max(0, row.clientWidth - POPOUT_DOCS_SPLIT_HANDLE_PX)
-      const maxDocs = Math.max(POPOUT_DOCS_SPLIT_MIN_PX, inner - POPOUT_DOCS_SPLIT_CODE_MIN_PX)
-
-      const docsMeas = docsContainerRef.current?.getBoundingClientRect()
-      const roundedMeas =
-        docsMeas != null && docsMeas.width > 0 ?
-          Math.round(docsMeas.width)
-        : 0
-      const startBase =
-        roundedMeas >= POPOUT_DOCS_SPLIT_MIN_PX ?
-          roundedMeas
-        : Math.round(Math.max(docsWidthRef.current || 0, POPOUT_DOCS_SPLIT_MIN_PX))
-
-      const startWidth = clamp(startBase, POPOUT_DOCS_SPLIT_MIN_PX, maxDocs)
-
-      docsSplitDragRef.current = { startX: e.clientX, startWidth }
-
-      let lastCommitted = startWidth
-
-      const onMove = (move: MouseEvent): void => {
-        const data = docsSplitDragRef.current
-        if (data == null) return
-
-        const r = splitRowRef.current
-        if (!r || r.clientWidth <= 0) return
-        const inW = Math.max(0, r.clientWidth - POPOUT_DOCS_SPLIT_HANDLE_PX)
-        const max = Math.max(POPOUT_DOCS_SPLIT_MIN_PX, inW - POPOUT_DOCS_SPLIT_CODE_MIN_PX)
-
-        const dx = move.clientX - data.startX
-        const next = clamp(data.startWidth - dx, POPOUT_DOCS_SPLIT_MIN_PX, max)
-        docsWidthRef.current = next
-        lastCommitted = next
-        setDocsWidthPx(next)
-      }
-
-      const onUp = (): void => {
-        docsSplitDragRef.current = null
-        document.body.style.removeProperty('cursor')
-        document.body.style.removeProperty('user-select')
-        document.removeEventListener('mousemove', onMove)
-        document.removeEventListener('mouseup', onUp)
-        try {
-          window.localStorage.setItem(POPOUT_DOCS_WIDTH_STORAGE_KEY, String(lastCommitted))
-        } catch {
-          /* quota */
-        }
-      }
-
-      document.body.style.cursor = 'ew-resize'
-      document.body.style.userSelect = 'none'
-
-      document.addEventListener('mousemove', onMove)
-      document.addEventListener('mouseup', onUp)
-    },
-    [docsOpen],
-  )
-
   const copyPayload = useMemo(
     () => ({
       transformers: transformersMixed ? null : list,
@@ -1106,18 +972,6 @@ function WorkspaceTransformersTabEntity({
           >
             Watch
           </button>
-          <button
-            type="button"
-            title={docsOpen ? 'Hide documentation' : 'Show documentation'}
-            onClick={() => setDocsOpen(!docsOpen)}
-            style={{
-              ...entityPanelIconButtonStyle,
-              opacity: docsOpen ? 1 : 0.65,
-              color: docsOpen ? theme.accent : theme.text.muted,
-            }}
-          >
-            {EntityPanelIcons.document}
-          </button>
           <div style={{ position: 'relative' }}>
             <button
               type="button"
@@ -1218,103 +1072,48 @@ function WorkspaceTransformersTabEntity({
       </div>
 
       <div
-        ref={splitRowRef}
+        ref={codeColumnRef}
         style={{
+          position: 'relative',
           flex: 1,
           minHeight: 0,
           minWidth: 0,
           display: 'flex',
-          flexDirection: 'row',
+          flexDirection: 'column',
           overflow: 'hidden',
         }}
       >
-        <div
-          ref={codeColumnRef}
-          style={{
-            position: 'relative',
-            flex:
-              docsOpen ?
-                docsWidthPx > 0 ?
-                  '1 1 0%'
-                : '1 1 60%'
-              : '1 1 100%',
-            minWidth: docsOpen && docsWidthPx > 0 ? POPOUT_DOCS_SPLIT_CODE_MIN_PX : 0,
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden',
-          }}
-        >
-          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            {monacoSlot}
-          </div>
-
-          {!monacoIsCustom && !selectedPreset ?
-            <div style={{ padding: 12, color: theme.text.muted, flexShrink: 0 }}>
-              Pick a transformer in the pipeline to edit configuration.
-            </div>
-          : null}
-
-          {monacoIsCustom && selectedConfig ?
-            <TransformerCodeErrorOverlay
-              compileError={displayedCompileError}
-              runtimeError={displayedRuntime}
-              runtimeActive={runtimeActive}
-              formatRuntimeClipboard={formatCustomRuntimeErrorClipboard}
-              onRuntimeContextMenu={handleRuntimeErrorContextMenu}
-            />
-          : null}
-
-          {watchOpen &&
-          monacoIsCustom &&
-          selectedConfig &&
-          selectedEntityIds.length === 1 &&
-          codeColumnRef.current ?
-            <TransformerWatchPanel
-              entityId={selectedEntityIds[0]!}
-              configStackIndex={selectedSortedIndex}
-              portalTarget={codeColumnRef.current}
-              onClose={() => setWatchOpen(false)}
-            />
-          : null}
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          {monacoSlot}
         </div>
 
-        {docsOpen ?
-          <>
-            <div
-              role="separator"
-              aria-orientation="vertical"
-              title="Drag to resize documentation column"
-              data-testid="custom-transformer-code-popout-docs-split"
-              onMouseDown={handleDocsSplitMouseDown}
-              style={{
-                flexShrink: 0,
-                width: POPOUT_DOCS_SPLIT_HANDLE_PX,
-                alignSelf: 'stretch',
-                cursor: 'ew-resize',
-                background: theme.border.default,
-                borderRadius: 2,
-                margin: '4px 0',
-              }}
-            />
-            <div
-              ref={docsContainerRef}
-              style={{
-                flex: docsWidthPx > 0 ? 'none' : '1 1 40%',
-                width: docsWidthPx > 0 ? docsWidthPx : undefined,
-                minWidth: POPOUT_DOCS_SPLIT_MIN_PX,
-                minHeight: 0,
-                display: 'flex',
-                flexDirection: 'column',
-                overflow: 'hidden',
-                background: theme.bg.panel,
-                border: `1px solid ${theme.border.default}`,
-                borderRadius: 8,
-                padding: 16,
-              }}
-            >
-              <TransformerDocsContent forceCollapsedChapters={docsAreaWidth < 500} />
-            </div>
-          </>
+        {!monacoIsCustom && !selectedPreset ?
+          <div style={{ padding: 12, color: theme.text.muted, flexShrink: 0 }}>
+            Pick a transformer in the pipeline to edit configuration.
+          </div>
+        : null}
+
+        {monacoIsCustom && selectedConfig ?
+          <TransformerCodeErrorOverlay
+            compileError={displayedCompileError}
+            runtimeError={displayedRuntime}
+            runtimeActive={runtimeActive}
+            formatRuntimeClipboard={formatCustomRuntimeErrorClipboard}
+            onRuntimeContextMenu={handleRuntimeErrorContextMenu}
+          />
+        : null}
+
+        {watchOpen &&
+        monacoIsCustom &&
+        selectedConfig &&
+        selectedEntityIds.length === 1 &&
+        codeColumnRef.current ?
+          <TransformerWatchPanel
+            entityId={selectedEntityIds[0]!}
+            configStackIndex={selectedSortedIndex}
+            portalTarget={codeColumnRef.current}
+            onClose={() => setWatchOpen(false)}
+          />
         : null}
       </div>
 
