@@ -262,7 +262,7 @@ interface TransformerRuntimeApi {
   log(message: string, durationSeconds?: number): void;
   /**
    * Builder Workspace only: publish a labeled value to the Watch panel when the bridge is enabled.
-   * One argument uses label `value`; two arguments are `(label, value)`.
+   * One argument uses label \`value\`; two arguments are \`(label, value)\`.
    * Updates only when called; stale labels from prior runs remain until Clear.
    */
   watch(value: unknown): void;
