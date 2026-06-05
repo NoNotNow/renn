@@ -39,7 +39,10 @@ import {
   getCustomTransformerRuntimeError,
 } from '@/runtime/customTransformerErrorBridge'
 import { mergeTransformers } from '@/utils/entityInspectorMerge'
-import { TransformerHorizontalPipeline } from '@/components/workspace/TransformerPipelineHorizontal'
+import {
+  TransformerHorizontalPipeline,
+  type TransformerCardErrorKind,
+} from '@/components/workspace/TransformerPipelineHorizontal'
 import { clamp } from '@/utils/numberUtils'
 import type { GlobalBehaviorLibrary } from '@/types/globalBehaviorLibrary'
 import WorkspaceGlobalTransformerPanel from '@/components/workspace/WorkspaceGlobalTransformerPanel'
@@ -552,6 +555,30 @@ function WorkspaceTransformersTabEntity({
     if (selectedConfig?.type !== 'custom') return null
     return validateCustomTransformerSource(codeDraft, selectedCustomCompileKey)
   }, [selectedConfig?.type, codeDraft, selectedCustomCompileKey])
+
+  const cardErrorsByStackIndex = useMemo(() => {
+    const errors: Record<number, TransformerCardErrorKind> = {}
+    for (let i = 0; i < list.length; i++) {
+      const config = list[i]
+      if (config?.type !== 'custom') continue
+      const source =
+        i === selectedSortedIndex ?
+          codeDraft || effectiveCustomTransformerCode(config)
+        : effectiveCustomTransformerCode(config)
+      const key = `custom:p${config.priority ?? 10}`
+      if (validateCustomTransformerSource(source, key)) {
+        errors[i] = 'compile'
+      }
+    }
+    if (
+      runtimeSnapshot != null &&
+      selectedEntityIds.includes(runtimeSnapshot.entityId) &&
+      errors[runtimeSnapshot.configStackIndex] !== 'compile'
+    ) {
+      errors[runtimeSnapshot.configStackIndex] = 'runtime'
+    }
+    return errors
+  }, [list, selectedSortedIndex, codeDraft, runtimeSnapshot, selectedEntityIds])
 
   const syncCodeKey =
     selectedConfig?.type === 'custom'
@@ -1109,6 +1136,7 @@ function WorkspaceTransformersTabEntity({
               usageCounts={usageCounts}
               existingRegistry={world.transformers}
               selectedId={selectedId}
+              cardErrorsByStackIndex={cardErrorsByStackIndex}
             />
           </div>
         </div>

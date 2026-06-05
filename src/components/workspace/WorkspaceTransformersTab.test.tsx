@@ -1,11 +1,15 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { ComponentProps } from 'react'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { act, render, screen, fireEvent, waitFor } from '@testing-library/react'
 import WorkspaceTransformersTab from './WorkspaceTransformersTab'
 import type { RennWorld } from '@/types/world'
 import type { WorkspaceMonacoPayload } from '@/types/workspace'
 import { CopyProvider } from '@/contexts/CopyContext'
 import { EditorUndoProvider } from '@/contexts/EditorUndoContext'
+import {
+  clearCustomTransformerRuntimeError,
+  publishCustomTransformerRuntimeError,
+} from '@/runtime/customTransformerErrorBridge'
 
 vi.mock('@monaco-editor/react', () => ({
   default: () => null,
@@ -77,6 +81,10 @@ function lastMonacoPayload(setMonacoPayload: ReturnType<typeof vi.fn>): Workspac
 describe('WorkspaceTransformersTab', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  afterEach(() => {
+    clearCustomTransformerRuntimeError()
   })
 
   it('binds Monaco to custom code when custom stage is selected', async () => {
@@ -280,6 +288,75 @@ describe('WorkspaceTransformersTab', () => {
     expect(confirmSpy).toHaveBeenCalled()
     expect(onWorldChange).not.toHaveBeenCalled()
     confirmSpy.mockRestore()
+  })
+
+  it('shows compile error border on the custom transformer card', async () => {
+    const invalidWorld: RennWorld = {
+      ...carStackWorld,
+      transformers: {
+        ...carStackWorld.transformers,
+        car_tf2: {
+          ...carStackWorld.transformers!.car_tf2!,
+          code: 'return {',
+        },
+      },
+    }
+    renderTab({ world: invalidWorld })
+
+    await waitFor(() => {
+      const customCard = screen.getByTestId('transformer-horizontal-item-2')
+      expect(customCard).toHaveAttribute('data-card-error', 'compile')
+      expect(customCard.getAttribute('style')).toContain('border: 1px solid rgb(220, 38, 38)')
+    })
+  })
+
+  it('shows runtime error border on the failing transformer card', async () => {
+    renderTab()
+
+    act(() => {
+      publishCustomTransformerRuntimeError({
+        entityId: 'car',
+        configStackIndex: 2,
+        message: 'Boom',
+        code: 'throw new Error("Boom")',
+        lineNumber: 3,
+      })
+    })
+
+    await waitFor(() => {
+      const customCard = screen.getByTestId('transformer-horizontal-item-2')
+      expect(customCard).toHaveAttribute('data-card-error', 'runtime')
+      expect(customCard.getAttribute('style')).toContain('border: 1px solid rgb(201, 162, 39)')
+    })
+  })
+
+  it('prefers compile error border over runtime on the same card', async () => {
+    const invalidWorld: RennWorld = {
+      ...carStackWorld,
+      transformers: {
+        ...carStackWorld.transformers,
+        car_tf2: {
+          ...carStackWorld.transformers!.car_tf2!,
+          code: 'return {',
+        },
+      },
+    }
+    renderTab({ world: invalidWorld })
+
+    act(() => {
+      publishCustomTransformerRuntimeError({
+        entityId: 'car',
+        configStackIndex: 2,
+        message: 'Boom',
+        code: 'return {',
+      })
+    })
+
+    await waitFor(() => {
+      const customCard = screen.getByTestId('transformer-horizontal-item-2')
+      expect(customCard).toHaveAttribute('data-card-error', 'compile')
+      expect(customCard.getAttribute('style')).toContain('border: 1px solid rgb(220, 38, 38)')
+    })
   })
 
   it('shows shared pipe banner when entity is linked to a pipe', async () => {

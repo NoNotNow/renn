@@ -57,6 +57,18 @@ const PIPELINE_Z_LINK = 2
 const PIPELINE_Z_CARD_SELECTED = 4
 const PIPELINE_Z_CARD_DRAGGING = 10
 
+export type TransformerCardErrorKind = 'compile' | 'runtime'
+
+function transformerCardBorder(
+  cardError: TransformerCardErrorKind | undefined,
+  showSelectedChrome: boolean,
+): string {
+  if (cardError === 'compile') return `1px solid ${theme.border.error}`
+  if (cardError === 'runtime') return `1px solid ${theme.text.warning}`
+  if (showSelectedChrome) return `1px solid ${theme.accent}`
+  return `1px solid ${theme.border.default}`
+}
+
 type PipelineArrowGlyphProps = {
   width: number
   shaftStartX: number
@@ -346,6 +358,7 @@ function TransformerTraceItem({
   isSelected,
   isDragOver,
   isDragging,
+  cardError,
 }: {
   index: number
   /** Index of this transformer in the full entity stack (for custom display names). */
@@ -369,6 +382,7 @@ function TransformerTraceItem({
   isSelected?: boolean
   isDragOver: boolean
   isDragging: boolean
+  cardError?: TransformerCardErrorKind
 }) {
   const [inOpen, setInOpen] = useState(false)
   const [outOpen, setOutOpen] = useState(false)
@@ -491,6 +505,7 @@ function TransformerTraceItem({
       }}
       onDragEnd={onDragEnd}
       data-testid={`transformer-horizontal-item-${index}`}
+      data-card-error={cardError ?? undefined}
       style={{
         position: 'relative',
         display: 'flex',
@@ -498,7 +513,7 @@ function TransformerTraceItem({
         gap: 2,
         padding: '8px 10px',
         boxSizing: 'border-box',
-        border: showSelectedChrome ? `1px solid ${theme.accent}` : `1px solid ${theme.border.default}`,
+        border: transformerCardBorder(cardError, showSelectedChrome),
         borderRadius: 6,
         background: isDragOver ? theme.bg.panelAlt : theme.bg.thumbnailFrame,
         minWidth: 100,
@@ -843,6 +858,7 @@ export function TransformerHorizontalPipeline({
   usageCounts,
   existingRegistry,
   selectedId,
+  cardErrorsByStackIndex,
 }: {
   transformers: TransformerConfig[]
   /** Stable IDs from the registry, matching transformers array 1:1. */
@@ -858,6 +874,8 @@ export function TransformerHorizontalPipeline({
   usageCounts?: Record<string, number>
   existingRegistry?: Record<string, TransformerConfig>
   selectedId?: string | null
+  /** Per-stage error chrome keyed by stack index (compile overrides runtime on the same card). */
+  cardErrorsByStackIndex?: Record<number, TransformerCardErrorKind>
 }) {
   const [scrollLeft, setScrollLeft] = useState(0)
   const [addSelectValue, setAddSelectValue] = useState('')
@@ -1072,6 +1090,7 @@ export function TransformerHorizontalPipeline({
               isSelected={item.id === selectedId}
               isDragging={dragState?.draggedId === item.id}
               isDragOver={dragState?.dragOverId === item.id && dragState?.draggedId !== item.id}
+              cardError={cardErrorsByStackIndex?.[item.originalIndex]}
             />
           </div>
           <PipelineConnector />
