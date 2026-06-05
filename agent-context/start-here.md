@@ -30,6 +30,7 @@
 | Physics force accumulation quirk | `feature-transformers.md` (resetAllForces) |
 | Video textures on materials (transcode, picker, VideoTexture) | `feature-video-texture.md` |
 | **Workspace** — unified behavior authoring (scripts + transformers + organize, migration plan) | `feature-workspace.md` |
+| Entity search picker (filters, history, sidebar + workspace) | `feature-entity-search.md` |
 
 ## Tech stack (quick ref)
 

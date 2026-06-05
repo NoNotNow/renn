@@ -19,6 +19,7 @@ import type { EntityExplorerSelectEntityOptions } from './EntityExplorerTree'
 
 export interface EntitySidebarProps {
   entities: Entity[]
+  entityWorkHistory: string[]
   selectedEntityIds: string[]
   /** Group IDs explicitly selected (in addition to entity selection). */
   selectedGroupIds: string[]
@@ -54,6 +55,7 @@ type LeftTab = 'entities' | 'camera' | 'actions' | 'world' | 'sound'
 
 export default function EntitySidebar({
   entities,
+  entityWorkHistory,
   selectedEntityIds,
   selectedGroupIds,
   cameraControl,
@@ -107,11 +109,26 @@ export default function EntitySidebar({
       onWidthChange={setLeftSidebarWidth}
       toggleLogContext="Toggle left drawer"
     >
-      <div style={{ padding: 10 }}>
+      <div
+        style={{
+          padding: 10,
+          boxSizing: 'border-box',
+          ...(leftTab === 'entities'
+            ? {
+                flex: 1,
+                minHeight: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                overflow: 'hidden',
+              }
+            : {}),
+        }}
+      >
         {leftTab === 'entities' && (
           <EntityListPanel
             entities={entities}
             world={world}
+            entityWorkHistory={entityWorkHistory}
             selectedEntityIds={selectedEntityIds}
             selectedGroupIds={selectedGroupIds}
             onSelectEntity={onSelectEntity}

@@ -46,6 +46,24 @@ function renderTree(args: RenderArgs) {
 }
 
 describe('EntityExplorerTree', () => {
+  it('scrolls the selected entity row into view', () => {
+    const scrollIntoView = vi.fn()
+    const original = HTMLElement.prototype.scrollIntoView
+    HTMLElement.prototype.scrollIntoView = scrollIntoView
+    try {
+      renderTree({
+        world: makeWorld([
+          { id: 'a', name: 'Alpha' },
+          { id: 'b', name: 'Bravo' },
+        ]),
+        selectedEntityIds: ['b'],
+      })
+      expect(scrollIntoView).toHaveBeenCalled()
+    } finally {
+      HTMLElement.prototype.scrollIntoView = original
+    }
+  })
+
   it('renders a flat list when there are no groups', () => {
     renderTree({
       world: makeWorld([

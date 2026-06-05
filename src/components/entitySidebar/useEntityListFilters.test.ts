@@ -137,4 +137,32 @@ describe('useEntityListFilters', () => {
     })
     expect(result.current.filteredEntities).toHaveLength(2)
   })
+
+  it('filterPlayableAvatar keeps only roster members', () => {
+    const entities = [
+      makeEntity('a', { avatar: { enabled: true } }),
+      makeEntity('b'),
+      makeEntity('c', { avatar: { enabled: false } }),
+    ]
+    const { result } = renderHook(() => useEntityListFilters(entities))
+    act(() => result.current.setFilterPlayableAvatar(true))
+    expect(result.current.filteredEntities.map((e) => e.id)).toEqual(['a'])
+  })
+
+  it('sortByHistory orders filtered entities by work history', () => {
+    const entities = [makeEntity('a'), makeEntity('b'), makeEntity('c')]
+    const { result } = renderHook(() =>
+      useEntityListFilters(entities, { entityWorkHistory: ['c', 'a'] }),
+    )
+    act(() => result.current.setSortByHistory(true))
+    expect(result.current.filteredEntities.map((e) => e.id)).toEqual(['c', 'a', 'b'])
+  })
+
+  it('recentEntityIds lists history entries that still exist', () => {
+    const entities = [makeEntity('a'), makeEntity('c')]
+    const { result } = renderHook(() =>
+      useEntityListFilters(entities, { entityWorkHistory: ['c', 'missing', 'a'] }),
+    )
+    expect(result.current.recentEntityIds).toEqual(['c', 'a'])
+  })
 })

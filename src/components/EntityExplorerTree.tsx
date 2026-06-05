@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback, type ReactNode } from 'react'
+import { useMemo, useState, useCallback, useEffect, useRef, type ReactNode } from 'react'
 import type { Entity, EntityGroup, RennWorld } from '@/types/world'
 import {
   collectEntityIdsInGroup,
@@ -242,6 +242,7 @@ function EntityRow({ entity, depth, isSelected, orderedVisibleEntityIds, onSelec
       <CopyableArea copyPayload={entity} style={{ display: 'block' }}>
         <button
           type="button"
+          data-entity-row-id={entity.id}
           style={{
             width: '100%',
             textAlign: 'left',
@@ -316,6 +317,18 @@ export default function EntityExplorerTree({
     [world],
   )
 
+  const treeRootRef = useRef<HTMLDivElement>(null)
+  const scrollTargetId =
+    selectedEntityIds.length > 0 ? selectedEntityIds[selectedEntityIds.length - 1]! : null
+
+  useEffect(() => {
+    if (!scrollTargetId || !visibleEntityIds.has(scrollTargetId)) return
+    const row = treeRootRef.current?.querySelector(`[data-entity-row-id="${scrollTargetId}"]`)
+    if (row instanceof HTMLElement && typeof row.scrollIntoView === 'function') {
+      row.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+    }
+  }, [scrollTargetId, visibleEntityIds])
+
   /**
    * Apply the same Search/Filters cull as the flat list previously did, but in tree shape:
    * - hide entity rows whose id is not in `visibleEntityIds`
@@ -371,7 +384,14 @@ export default function EntityExplorerTree({
   const isEmpty = renderedNodes.length === 0
 
   return (
-    <div>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        flex: 1,
+        minHeight: 0,
+      }}
+    >
       <div
         style={{
           display: 'flex',
@@ -379,6 +399,7 @@ export default function EntityExplorerTree({
           gap: 4,
           marginBottom: 6,
           minHeight: 26,
+          flexShrink: 0,
         }}
         aria-label="Group actions"
       >
@@ -463,7 +484,17 @@ export default function EntityExplorerTree({
           Remove from group
         </button>
       </div>
-      <div role="tree" aria-label="Entity explorer">
+      <div
+        ref={treeRootRef}
+        role="tree"
+        aria-label="Entity explorer"
+        data-testid="entity-explorer-tree-scroll"
+        style={{
+          flex: 1,
+          minHeight: 0,
+          overflowY: 'auto',
+        }}
+      >
         {isEmpty ? (
           <div style={{ color: theme.text.muted, fontSize: 13, padding: '8px 0' }}>{emptyMessage}</div>
         ) : (

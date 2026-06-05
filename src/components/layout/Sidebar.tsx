@@ -150,7 +150,7 @@ export default function Sidebar({
           display: 'flex',
           flexDirection: 'column',
           minHeight: 0,
-          overflow: isOpen ? (overflowVisible ? 'visible' : 'auto') : 'hidden',
+          overflow: isOpen ? (overflowVisible ? 'visible' : 'hidden') : 'hidden',
           transition: isResizing ? 'none' : 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1), padding 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
           backgroundColor: 'rgba(27, 31, 42, 0.7)',
           boxShadow: isOpen ? `${isLeft ? '2' : '-2'}px 0 12px rgba(0,0,0,0.45)` : 'none',
@@ -165,7 +165,17 @@ export default function Sidebar({
             onTabChange={onTabChange}
             trailing={tabsTrailing}
           />
-          {children}
+          <div
+            style={{
+              flex: 1,
+              minHeight: 0,
+              overflow: overflowVisible ? 'visible' : 'auto',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            {children}
+          </div>
         </div>
       </aside>
 

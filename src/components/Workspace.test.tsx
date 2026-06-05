@@ -300,7 +300,7 @@ describe('Workspace', () => {
     await waitFor(() => {
       expect(screen.getByTestId('workspace-tab-scripts')).toHaveAttribute('aria-selected', 'true')
     })
-    expect(screen.getByText(/Entity e1 · my_script/)).toBeInTheDocument()
+    expect(screen.getByTestId('workspace-shell-entity-search-label')).toHaveTextContent(/e1 · my_script/)
     expect(screen.getByTestId('workspace-script-chip-my_script')).toBeInTheDocument()
   })
 

@@ -10,6 +10,7 @@ import type { EditorSnapshot } from '@/editor/editorHistory'
 import { useCameraState } from '@/hooks/useCameraState'
 import { useModelPresets } from '@/hooks/useModelPresets'
 import { buildWorldToSave } from './getWorldToSave'
+import { pushEntityWorkHistory, pruneEntityWorkHistory } from '@/utils/entityWorkHistory'
 
 const persistence = createIndexedDbPersistence()
 const BASE_URL = import.meta.env.BASE_URL || '/'
@@ -34,6 +35,7 @@ interface ProjectContextState {
   currentProject: CurrentProject
   world: RennWorld
   assets: Map<string, Blob>
+  entityWorkHistory: string[]
   projects: ProjectMeta[]
   version: number
   /** Increments when the entire document is replaced (new/load/import); use to reset undo. */
@@ -94,6 +96,10 @@ interface ProjectContextActions {
   saveModelPreset: (preset: ModelPreset) => Promise<void>
   deleteModelPreset: (id: string) => Promise<void>
   applyModelPresetToEntities: (entityIds: string[], preset: ModelPreset) => void
+
+  /** MRU entity ids for EntitySearchPicker (persisted per project). */
+  entityWorkHistory: string[]
+  recordEntityWorkHistory: (entityId: string) => void
 }
 
 type ProjectContextValue = ProjectContextState & ProjectContextActions
@@ -111,6 +117,8 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   // worldRef mirrors world state synchronously so save functions never read a stale closure value
   const worldRef = useRef<RennWorld>(sampleWorld)
   const [assets, setAssets] = useState<Map<string, Blob>>(new Map())
+  const [entityWorkHistory, setEntityWorkHistory] = useState<string[]>([])
+  const entityWorkHistoryRef = useRef<string[]>([])
   const [projects, setProjects] = useState<ProjectMeta[]>([])
   const [version, setVersion] = useState(0)
   const [documentEpoch, setDocumentEpoch] = useState(0)
@@ -129,6 +137,21 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  const syncEntityWorkHistory = useCallback((next: string[]) => {
+    entityWorkHistoryRef.current = next
+    setEntityWorkHistory(next)
+  }, [])
+
+  const recordEntityWorkHistory = useCallback(
+    (entityId: string) => {
+      const next = pushEntityWorkHistory(entityWorkHistoryRef.current, entityId)
+      if (next.join('\0') === entityWorkHistoryRef.current.join('\0')) return
+      syncEntityWorkHistory(next)
+      setCurrentProject((prev) => ({ ...prev, isDirty: true }))
+    },
+    [syncEntityWorkHistory],
+  )
+
   const refreshProjects = useCallback(() => {
     uiLogger.click('Builder', 'Refresh project list')
     persistence.listProjects().then(setProjects).catch(console.error)
@@ -145,15 +168,17 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       isDirty: false,
     })
     editorFreePoseRef.current = null
+    syncEntityWorkHistory([])
     resetCameraFromWorld(sampleWorld)
     setVersion((v) => v + 1)
     setDocumentEpoch((e) => e + 1)
-  }, [resetCameraFromWorld])
+  }, [resetCameraFromWorld, syncEntityWorkHistory])
   
   const loadProject = useCallback(async (id: string) => {
     try {
       uiLogger.select('Builder', 'Open project', { projectId: id })
-      const { world: w, assets: loadedAssets } = await persistence.loadProject(id)
+      const { world: w, assets: loadedAssets, entityWorkHistory: loadedHistory } =
+        await persistence.loadProject(id)
       // Get project meta inline instead of depending on projects array
       const allProjects = await persistence.listProjects()
       const projectMeta = allProjects.find((p) => p.id === id)
@@ -169,6 +194,8 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         }
         return next
       })
+      const validIds = new Set(w.entities.map((e) => e.id))
+      syncEntityWorkHistory(pruneEntityWorkHistory(loadedHistory ?? [], validIds))
       setCurrentProject({
         id,
         name: projectMeta?.name ?? `Project ${id}`,
@@ -183,7 +210,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       console.error('Failed to open project:', err)
       alert('Failed to open project')
     }
-  }, [resetCameraFromWorld])
+  }, [resetCameraFromWorld, syncEntityWorkHistory])
 
   // Load world on initialization: always create a new world
   useEffect(() => {
@@ -221,7 +248,11 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       if (import.meta.env.DEV) console.log('[Save] Starting save', { projectId: id, projectName: name, assetsCount: assetsSize, totalBlobBytes })
 
       uiLogger.click('Builder', 'Save project', { projectId: id, projectName: name })
-      await persistence.saveProject(id, name, { world: getWorldToSave(), assets })
+      await persistence.saveProject(id, name, {
+        world: getWorldToSave(),
+        assets,
+        entityWorkHistory: entityWorkHistoryRef.current,
+      })
 
       setCurrentProject({
         id,
@@ -251,7 +282,11 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       const meta = allProjects.find((p) => p.id === id)
       const name = meta?.name ?? `Project ${id}`
       uiLogger.click('Builder', 'Save to existing project', { projectId: id, projectName: name })
-      await persistence.saveProject(id, name, { world: getWorldToSave(), assets })
+      await persistence.saveProject(id, name, {
+        world: getWorldToSave(),
+        assets,
+        entityWorkHistory: entityWorkHistoryRef.current,
+      })
       setCurrentProject({ id, name, isDirty: false })
       setLastProjectId(id)
       refreshProjects()
@@ -265,7 +300,11 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     try {
       const id = `proj_${Date.now()}`
       uiLogger.click('Builder', 'Save as new project', { projectId: id, projectName: name })
-      await persistence.saveProject(id, name, { world: getWorldToSave(), assets })
+      await persistence.saveProject(id, name, {
+        world: getWorldToSave(),
+        assets,
+        entityWorkHistory: entityWorkHistoryRef.current,
+      })
       
       setCurrentProject({
         id,
@@ -314,8 +353,13 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     const next = updater(worldRef.current)
     worldRef.current = next
     setWorld(next)
+    const validIds = new Set(next.entities.map((e) => e.id))
+    const pruned = pruneEntityWorkHistory(entityWorkHistoryRef.current, validIds)
+    if (pruned.length !== entityWorkHistoryRef.current.length) {
+      syncEntityWorkHistory(pruned)
+    }
     setCurrentProject((prev) => ({ ...prev, isDirty: true }))
-  }, [])
+  }, [syncEntityWorkHistory])
 
   const {
     modelPresets,
@@ -442,6 +486,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
           resetCameraFromWorld(w)
           editorFreePoseRef.current = w.world.camera?.editorFreePose ?? null
           setAssets(new Map())
+          syncEntityWorkHistory([])
           setCurrentProject({
             id: null,
             name: 'Untitled',
@@ -456,7 +501,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       reader.readAsText(file)
     }
     e.target.value = ''
-  }, [refreshProjects, loadProject, resetCameraFromWorld])
+  }, [refreshProjects, loadProject, resetCameraFromWorld, syncEntityWorkHistory])
   
   const loadExampleWorld = useCallback((world: RennWorld, name: string) => {
     uiLogger.select('Builder', 'Open example world', { worldName: name })
@@ -465,6 +510,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     resetCameraFromWorld(world)
     editorFreePoseRef.current = world.world.camera?.editorFreePose ?? null
     setAssets(new Map())
+    syncEntityWorkHistory([])
     setCurrentProject({
       id: null,
       name,
@@ -472,7 +518,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     })
     setVersion((v) => v + 1)
     setDocumentEpoch((e) => e + 1)
-  }, [resetCameraFromWorld])
+  }, [resetCameraFromWorld, syncEntityWorkHistory])
   
   const handlePlay = useCallback(() => {
     uiLogger.click('Builder', 'Play - navigate to play mode')
@@ -495,6 +541,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     currentProject,
     world,
     assets,
+    entityWorkHistory,
     projects,
     version,
     documentEpoch,
@@ -534,11 +581,13 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     saveModelPreset,
     deleteModelPreset,
     applyModelPresetToEntities,
+    recordEntityWorkHistory,
   }), [
     initialLoadPending,
     currentProject,
     world,
     assets,
+    entityWorkHistory,
     projects,
     version,
     documentEpoch,
@@ -576,6 +625,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     saveModelPreset,
     deleteModelPreset,
     applyModelPresetToEntities,
+    recordEntityWorkHistory,
   ])
   
   return (

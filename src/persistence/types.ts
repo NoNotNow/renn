@@ -10,12 +10,18 @@ export interface ProjectMeta {
 export interface LoadedProject {
   world: RennWorld
   assets: Map<string, Blob>
+  /** MRU entity ids for EntitySearchPicker (not in world JSON). */
+  entityWorkHistory?: string[]
 }
 
 export interface PersistenceAPI {
   listProjects(): Promise<ProjectMeta[]>
   loadProject(id: string): Promise<LoadedProject>
-  saveProject(id: string, name: string, data: { world: RennWorld; assets: Map<string, Blob> }): Promise<void>
+  saveProject(
+    id: string,
+    name: string,
+    data: { world: RennWorld; assets: Map<string, Blob>; entityWorkHistory?: string[] },
+  ): Promise<void>
   deleteProject(id: string): Promise<void>
   exportProject(id: string): Promise<Blob>
   importProject(file: File): Promise<{ id: string }>

@@ -125,6 +125,8 @@ export default function Builder() {
     setCameraMode,
     setCameraTargetVerticalAngle,
     editorFreePoseRef,
+    entityWorkHistory,
+    recordEntityWorkHistory,
   } = useProjectContext()
 
   const [selectedEntityIds, setSelectedEntityIds] = useState<string[]>([])
@@ -157,6 +159,8 @@ export default function Builder() {
         return
       }
 
+      recordEntityWorkHistory(id)
+
       if (range && order && order.length > 0) {
         setSelectedGroupIds([])
         setSelectedEntityIds((prev) => {
@@ -188,7 +192,7 @@ export default function Builder() {
       })
       uiLogger.click('Builder', 'Select entity', { entityId: id, additive: true })
     },
-    [],
+    [recordEntityWorkHistory],
   )
   const [gizmoMode, setGizmoMode] = useState<BuilderGizmoMode>('translate')
   const [workspaceOpen, setWorkspaceOpen] = useState(false)
@@ -1394,6 +1398,7 @@ export default function Builder() {
           >
             <EntitySidebar
               entities={world.entities}
+              entityWorkHistory={entityWorkHistory}
               selectedEntityIds={selectedEntityIds}
               selectedGroupIds={selectedGroupIds}
               cameraControl={cameraControl}
@@ -1544,6 +1549,7 @@ export default function Builder() {
         onEntityTransformersChange={handleEntityTransformersChange}
         liveTransformerTraceSteps={liveTraceSteps}
         onSelectEntity={handleSelectEntity}
+        entityWorkHistory={entityWorkHistory}
         gameFrozen={gameFrozen}
         onToggleGameFrozen={() => setGameFrozen((f) => !f)}
         onResetAllEntities={() => {

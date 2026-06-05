@@ -71,6 +71,21 @@ describe('IndexedDB Persistence', () => {
     expect(loaded.world.entities[1].id).toBe('ball')
   })
 
+  it('persists entityWorkHistory on save and load', async () => {
+    const world = createTestWorld()
+    const assets = new Map<string, Blob>()
+    const history = ['ball', 'ground']
+
+    await persistence.saveProject('history-test', 'History Test', {
+      world,
+      assets,
+      entityWorkHistory: history,
+    })
+
+    const loaded = await persistence.loadProject('history-test')
+    expect(loaded.entityWorkHistory).toEqual(history)
+  })
+
   it('preserves entity positions through save and load', async () => {
     const world = createTestWorld()
     // ball has position [0, 5, 0] in createTestWorld

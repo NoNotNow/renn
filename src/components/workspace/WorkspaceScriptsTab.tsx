@@ -7,6 +7,7 @@ import { useEditorUndo } from '@/contexts/EditorUndoContext'
 import { getScriptDef } from '@/scripts/scriptDef'
 import { uiLogger } from '@/utils/uiLogger'
 import { theme } from '@/config/theme'
+import EntitySearchPicker from '@/components/entitySearch/EntitySearchPicker'
 
 function strHash(s: string): number {
   let h = 0
@@ -81,6 +82,7 @@ export interface WorkspaceScriptsTabProps {
   globalLibrary?: GlobalBehaviorLibrary
   onGlobalLibraryChange?: (next: GlobalBehaviorLibrary) => void
   onSelectEntity?: (id: string) => void
+  entityWorkHistory?: string[]
 }
 
 /** Scripts Workspace body: assigned script chips, event controls, shared Monaco. */
@@ -121,6 +123,7 @@ function WorkspaceScriptsTabEntity({
   monacoSlot,
   onOpenOrganizeScripts,
   onSelectEntity,
+  entityWorkHistory = [],
 }: WorkspaceScriptsTabProps) {
   const undo = useEditorUndo()
   const pushUndo = () => undo?.pushBeforeEdit()
@@ -344,8 +347,16 @@ function WorkspaceScriptsTabEntity({
               Manage
             </button>
           </div>
-        : <p style={{ margin: 0, fontSize: 13, color: theme.text.muted }}>Select an entity to attach and edit scripts.</p>
-        }
+        : (
+          <EntitySearchPicker
+            entities={world.entities}
+            entityWorkHistory={entityWorkHistory}
+            onSelectEntity={(id) => onSelectEntity?.(id)}
+            variant="panel"
+            autoFocus
+            testId="workspace-scripts-entity-search"
+          />
+        )}
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
           <span style={{ fontSize: 11, color: theme.text.muted, marginRight: 4 }}>Attached</span>

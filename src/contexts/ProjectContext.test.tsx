@@ -133,7 +133,7 @@ describe('ProjectContext – save includes synced poses', () => {
     }
 
     mockListProjects.mockResolvedValue([{ id: projectId, name: 'Existing', updatedAt: Date.now() }])
-    mockLoadProject.mockResolvedValue({ world: savedWorldData, assets: new Map() })
+    mockLoadProject.mockResolvedValue({ world: savedWorldData, assets: new Map(), entityWorkHistory: [] })
 
     const captured = renderContext()
     await flushEffects()
@@ -224,7 +224,11 @@ describe('ProjectContext – model persistence', () => {
 
     const modelBlob = new Blob(['model-bytes'], { type: 'model/gltf-binary' })
     mockListProjects.mockResolvedValue([{ id: projectId, name: 'Model Project', updatedAt: Date.now() }])
-    mockLoadProject.mockResolvedValue({ world: savedWorldData, assets: new Map([[modelId, modelBlob]]) })
+    mockLoadProject.mockResolvedValue({
+      world: savedWorldData,
+      assets: new Map([[modelId, modelBlob]]),
+      entityWorkHistory: [],
+    })
 
     const captured = renderContext()
     await flushEffects()
@@ -260,7 +264,11 @@ describe('ProjectContext – model persistence', () => {
 
     const modelBlob = new Blob(['model-bytes'], { type: 'model/gltf-binary' })
     mockListProjects.mockResolvedValue([{ id: projectId, name: 'Model Project', updatedAt: Date.now() }])
-    mockLoadProject.mockResolvedValue({ world: savedWorldData, assets: new Map([[modelId, modelBlob]]) })
+    mockLoadProject.mockResolvedValue({
+      world: savedWorldData,
+      assets: new Map([[modelId, modelBlob]]),
+      entityWorkHistory: [],
+    })
 
     const captured = renderContext()
     await flushEffects()

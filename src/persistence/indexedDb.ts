@@ -145,13 +145,16 @@ export function createIndexedDbPersistence(): PersistenceAPI {
         if (blob) assets.set(asset.assetId, blob)
       }
       await db.close()
-      return { world, assets }
+      const entityWorkHistory = Array.isArray(row.entityWorkHistory)
+        ? (row.entityWorkHistory as string[])
+        : []
+      return { world, assets, entityWorkHistory }
     },
 
     async saveProject(
       id: string,
       name: string,
-      data: { world: RennWorld; assets: Map<string, Blob> }
+      data: { world: RennWorld; assets: Map<string, Blob>; entityWorkHistory?: string[] },
     ): Promise<void> {
       let db: IDBPDatabase | null = null
       const worldSize = JSON.stringify(data.world).length
@@ -167,7 +170,13 @@ export function createIndexedDbPersistence(): PersistenceAPI {
 
         const updatedAt = Date.now()
         // Save project without assets (assets are stored globally)
-        await db.put(STORE_PROJECTS, { id, name, world: data.world, updatedAt })
+        await db.put(STORE_PROJECTS, {
+          id,
+          name,
+          world: data.world,
+          updatedAt,
+          ...(data.entityWorkHistory != null ? { entityWorkHistory: data.entityWorkHistory } : {}),
+        })
         if (import.meta.env.DEV) console.log('[Persistence] Project row written')
 
         // Save any new assets to global store (preserve existing previews)
