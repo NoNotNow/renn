@@ -497,6 +497,24 @@ describe('WorkspaceTransformersTab', () => {
     })
   })
 
+  it('shows resize handles on the watch panel', async () => {
+    resetTransformerWatchBridgeForTests()
+    setTransformerWatchEnabled(true)
+    renderTab()
+
+    fireEvent.click(screen.getByTestId('workspace-transformer-watch-toggle'))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-transformer-watch-panel')).toBeInTheDocument()
+    })
+
+    expect(screen.getByTitle('Resize width from left')).toBeInTheDocument()
+    expect(screen.getByTitle('Resize width from right')).toBeInTheDocument()
+    expect(screen.getByTitle('Resize height')).toBeInTheDocument()
+    expect(screen.getByTitle('Resize width and height from left')).toBeInTheDocument()
+    expect(screen.getByTitle('Resize width and height from right')).toBeInTheDocument()
+  })
+
   it('restores watch panel position after close and reopen', async () => {
     resetTransformerWatchBridgeForTests()
     setTransformerWatchEnabled(true)

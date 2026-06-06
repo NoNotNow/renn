@@ -39,7 +39,11 @@ export default function TransformerWatchPanel({
       positionStorageKey={WATCH_PANEL_POSITION_STORAGE_KEY}
       initialTop={12}
       width={300}
-      maxHeight="min(42vh, 280px)"
+      initialHeight={280}
+      resizable
+      minWidth={220}
+      minHeight={120}
+      maxResizeHeight={640}
       testId="workspace-transformer-watch-panel"
       headerExtra={
         <button

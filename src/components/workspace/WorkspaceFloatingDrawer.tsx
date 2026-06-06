@@ -53,7 +53,7 @@ export interface WorkspaceFloatingDrawerProps {
   maxHeight?: number | string
   headerExtra?: ReactNode
   bodyPadding?: number | string
-  /** When true, drag the right/bottom edges or corner to resize the drawer. */
+  /** When true, drag any edge or corner to resize the drawer. */
   resizable?: boolean
   initialHeight?: number
   minWidth?: number
@@ -116,7 +116,7 @@ function resolveInitialPosition(
 
 const DRAWER_HEADER_HEIGHT_PX = 29
 
-type ResizeEdge = 'right' | 'bottom' | 'corner'
+type ResizeEdge = 'left' | 'right' | 'bottom' | 'corner' | 'left-corner'
 
 export default function WorkspaceFloatingDrawer({
   title,
@@ -160,6 +160,7 @@ export default function WorkspaceFloatingDrawer({
     startY: number
     startWidth: number
     startHeight: number
+    startPosX: number
   } | null>(null)
 
   const effectiveWidth = resizable ? size.width : width
@@ -223,27 +224,43 @@ export default function WorkspaceFloatingDrawer({
       startY: e.clientY,
       startWidth: size.width,
       startHeight: size.height,
+      startPosX: posRef.current.x,
     }
     const onMove = (move: MouseEvent) => {
       if (!resizeRef.current) return
-      const dx = move.clientX - resizeRef.current.startX
-      const dy = move.clientY - resizeRef.current.startY
+      const { edge: resizeEdge, startX, startY, startWidth, startHeight, startPosX } = resizeRef.current
+      const dx = move.clientX - startX
+      const dy = move.clientY - startY
       const hostWidth = portalTarget.clientWidth
       const hostMaxWidth = maxWidth ?? Math.max(minWidth, hostWidth - 20)
-      const nextWidth =
-        resizeRef.current.edge === 'bottom' ?
-          resizeRef.current.startWidth
-        : clamp(resizeRef.current.startWidth + dx, minWidth, hostMaxWidth)
-      const nextHeight =
-        resizeRef.current.edge === 'right' ?
-          resizeRef.current.startHeight
-        : clamp(resizeRef.current.startHeight + dy, minHeight, maxResizeHeight)
+
+      let nextWidth = startWidth
+      let nextHeight = startHeight
+      let nextPosX = startPosX
+
+      if (resizeEdge === 'right' || resizeEdge === 'corner') {
+        nextWidth = clamp(startWidth + dx, minWidth, hostMaxWidth)
+      } else if (resizeEdge === 'left' || resizeEdge === 'left-corner') {
+        nextWidth = clamp(startWidth - dx, minWidth, hostMaxWidth)
+        nextPosX = startPosX + (startWidth - nextWidth)
+      }
+
+      if (resizeEdge === 'bottom' || resizeEdge === 'corner' || resizeEdge === 'left-corner') {
+        nextHeight = clamp(startHeight + dy, minHeight, maxResizeHeight)
+      }
+
       setSize({ width: nextWidth, height: nextHeight })
+      if (resizeEdge === 'left' || resizeEdge === 'left-corner') {
+        const nextPos = { x: nextPosX, y: posRef.current.y }
+        posRef.current = nextPos
+        setPos(nextPos)
+      }
     }
     const onUp = () => {
       resizeRef.current = null
       document.removeEventListener('mousemove', onMove)
       document.removeEventListener('mouseup', onUp)
+      persistPosition(posRef.current)
     }
     document.addEventListener('mousemove', onMove)
     document.addEventListener('mouseup', onUp)
@@ -324,7 +341,21 @@ export default function WorkspaceFloatingDrawer({
           <div
             role="separator"
             aria-orientation="vertical"
-            title="Resize width"
+            title="Resize width from left"
+            onMouseDown={handleResizeMouseDown('left')}
+            style={{
+              ...resizeHandleBase,
+              top: DRAWER_HEADER_HEIGHT_PX,
+              left: 0,
+              width: 6,
+              bottom: 6,
+              cursor: 'ew-resize',
+            }}
+          />
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            title="Resize width from right"
             onMouseDown={handleResizeMouseDown('right')}
             style={{
               ...resizeHandleBase,
@@ -342,7 +373,7 @@ export default function WorkspaceFloatingDrawer({
             onMouseDown={handleResizeMouseDown('bottom')}
             style={{
               ...resizeHandleBase,
-              left: 0,
+              left: 6,
               right: 6,
               bottom: 0,
               height: 6,
@@ -350,7 +381,19 @@ export default function WorkspaceFloatingDrawer({
             }}
           />
           <div
-            title="Resize width and height"
+            title="Resize width and height from left"
+            onMouseDown={handleResizeMouseDown('left-corner')}
+            style={{
+              ...resizeHandleBase,
+              left: 0,
+              bottom: 0,
+              width: 12,
+              height: 12,
+              cursor: 'nesw-resize',
+            }}
+          />
+          <div
+            title="Resize width and height from right"
             onMouseDown={handleResizeMouseDown('corner')}
             style={{
               ...resizeHandleBase,

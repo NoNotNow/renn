@@ -38,7 +38,7 @@ Scripts use `world.scripts: Record<string, ScriptDef>` with `entity.scripts: str
 - On each open, the shared Monaco remounts automatically **200 ms** after it first becomes
   visible (Transformers or Scripts tab), matching the manual **Refresh editor** layout escape hatch
   (refresh icon at the top of the shared Monaco **vertical toolbar** on the editor’s right edge in `WorkspaceMonacoSlot`).
-- **Watch**: eye icon always visible below refresh in the vertical toolbar (disabled until a custom transformer on a single entity is selected); panel portals into the editor pane, default top-right (just left of the toolbar), position persisted in `localStorage` across close/reopen.
+- **Watch**: eye icon always visible below refresh in the vertical toolbar (disabled until a custom transformer on a single entity is selected); panel portals into the editor pane, default top-right (just left of the toolbar), draggable and resizable via [`WorkspaceFloatingDrawer`](../src/components/workspace/WorkspaceFloatingDrawer.tsx) (left/right/bottom edges and corners), position persisted in `localStorage` across close/reopen. See [`feature-ui-infrastructure.md`](feature-ui-infrastructure.md) for shared dialog/panel rules.
   This runs **once per page load** only (not again when closing and reopening Workspace).
 - **Shift+Escape** opens the Workspace. **Escape** (without Shift) closes it.
 
