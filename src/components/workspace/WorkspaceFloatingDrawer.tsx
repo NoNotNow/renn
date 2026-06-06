@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -11,6 +12,7 @@ import {
 import { createPortal } from 'react-dom'
 import FloatingDrawerResizeHandles from '@/components/workspace/FloatingDrawerResizeHandles'
 import {
+  clampDrawerPosition,
   computeDrawerResizeNext,
   readStoredDrawerLayout,
   type DrawerResizeEdge,
@@ -129,9 +131,29 @@ export default function WorkspaceFloatingDrawer({
   )
 
   const initialPos = useMemo(() => {
-    if (storedLayout) return { x: storedLayout.x, y: storedLayout.y }
-    return resolveInitialPosition(anchor, portalTarget, initialLeft, initialTop, width, toolbarInsetPx)
-  }, [anchor, initialLeft, initialTop, portalTarget, storedLayout, toolbarInsetPx, width])
+    const raw = storedLayout
+      ? { x: storedLayout.x, y: storedLayout.y }
+      : resolveInitialPosition(anchor, portalTarget, initialLeft, initialTop, width, toolbarInsetPx)
+    const drawerWidth =
+      resizable && storedLayout?.width != null ? storedLayout.width : width
+    const drawerHeight =
+      resizable && storedLayout?.height != null ? storedLayout.height : initialHeight
+    return clampDrawerPosition(
+      raw,
+      { width: drawerWidth, height: drawerHeight },
+      { width: portalTarget.clientWidth, height: portalTarget.clientHeight },
+    )
+  }, [
+    anchor,
+    initialHeight,
+    initialLeft,
+    initialTop,
+    portalTarget,
+    resizable,
+    storedLayout,
+    toolbarInsetPx,
+    width,
+  ])
 
   const initialSize = useMemo(() => {
     if (resizable && storedLayout?.width != null && storedLayout?.height != null) {
@@ -146,6 +168,7 @@ export default function WorkspaceFloatingDrawer({
   const [size, setSize] = useState(initialSize)
   const sizeRef = useRef(initialSize)
   sizeRef.current = size
+  const drawerRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<{ startX: number; startY: number; startPosX: number; startPosY: number } | null>(null)
   const resizeRef = useRef<{
     edge: DrawerResizeEdge
@@ -158,6 +181,24 @@ export default function WorkspaceFloatingDrawer({
 
   const effectiveWidth = resizable ? size.width : width
   const effectiveMaxHeight = resizable ? undefined : maxHeightProp
+
+  const getHostBounds = useCallback(
+    () => ({ width: portalTarget.clientWidth, height: portalTarget.clientHeight }),
+    [portalTarget],
+  )
+
+  const getDrawerBounds = useCallback(() => {
+    const measuredHeight = drawerRef.current?.offsetHeight
+    return {
+      width: effectiveWidth,
+      height: resizable ? size.height : measuredHeight ?? initialHeight,
+    }
+  }, [effectiveWidth, initialHeight, resizable, size.height])
+
+  const clampPos = useCallback(
+    (next: { x: number; y: number }) => clampDrawerPosition(next, getDrawerBounds(), getHostBounds()),
+    [getDrawerBounds, getHostBounds],
+  )
 
   const persistLayout = useCallback(
     (nextPos: { x: number; y: number }, nextSize?: { width: number; height: number }) => {
@@ -182,6 +223,13 @@ export default function WorkspaceFloatingDrawer({
     setSize((s) => (s.width >= width ? s : { ...s, width }))
   }, [resizable, width])
 
+  useLayoutEffect(() => {
+    const clamped = clampPos(posRef.current)
+    if (clamped.x === posRef.current.x && clamped.y === posRef.current.y) return
+    posRef.current = clamped
+    setPos(clamped)
+  }, [clampPos])
+
   const handleMouseDown = (e: ReactMouseEvent) => {
     if ((e.target as HTMLElement).closest('button')) return
 
@@ -196,10 +244,10 @@ export default function WorkspaceFloatingDrawer({
       if (!dragRef.current) return
       const dx = move.clientX - dragRef.current.startX
       const dy = move.clientY - dragRef.current.startY
-      const next = {
+      const next = clampPos({
         x: dragRef.current.startPosX + dx,
         y: dragRef.current.startPosY + dy,
-      }
+      })
       posRef.current = next
       setPos(next)
     }
@@ -245,8 +293,11 @@ export default function WorkspaceFloatingDrawer({
       const nextSize = { width: next.width, height: next.height }
       sizeRef.current = nextSize
       setSize(nextSize)
-      if (next.posX != null) {
-        const nextPos = { x: next.posX, y: posRef.current.y }
+      const nextPos = clampPos({
+        x: next.posX ?? posRef.current.x,
+        y: posRef.current.y,
+      })
+      if (next.posX != null || nextPos.x !== posRef.current.x || nextPos.y !== posRef.current.y) {
         posRef.current = nextPos
         setPos(nextPos)
       }
@@ -263,6 +314,7 @@ export default function WorkspaceFloatingDrawer({
 
   return createPortal(
     <div
+      ref={drawerRef}
       data-testid={testId}
       style={{
         ...WORKSPACE_FLOATING_DRAWER_STYLE,

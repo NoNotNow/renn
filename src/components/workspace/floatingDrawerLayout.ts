@@ -64,6 +64,19 @@ export interface DrawerResizeResult {
   posX?: number
 }
 
+export function clampDrawerPosition(
+  pos: { x: number; y: number },
+  drawer: { width: number; height: number },
+  host: { width: number; height: number },
+): { x: number; y: number } {
+  const maxX = Math.max(0, host.width - drawer.width)
+  const maxY = Math.max(0, host.height - drawer.height)
+  return {
+    x: clamp(pos.x, 0, maxX),
+    y: clamp(pos.y, 0, maxY),
+  }
+}
+
 export function computeDrawerResizeNext(input: DrawerResizeInput): DrawerResizeResult {
   const { edge, dx, dy, startWidth, startHeight, startPosX, minWidth, minHeight, maxWidth, maxHeight } = input
 

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { clampDrawerPosition } from '@/components/workspace/floatingDrawerLayout'
 import { useCornerBrResize } from '@/hooks/useCornerBrResize'
 import { isKeyboardEventInEditableContext } from '@/input/rawInput'
 import type { BlendMode, TextureDocument, TextureLayer, TextureLayerDest } from '@/utils/textureCompositor'
@@ -166,11 +167,14 @@ export default function TextureMaker({
 
   const onHeaderPointerMove = useCallback((e: React.PointerEvent) => {
     if (!dragRef.current) return
-    setPos({
-      x: Math.max(0, e.clientX - dragRef.current.dx),
-      y: Math.max(0, e.clientY - dragRef.current.dy),
-    })
-  }, [])
+    setPos(
+      clampDrawerPosition(
+        { x: e.clientX - dragRef.current.dx, y: e.clientY - dragRef.current.dy },
+        { width: size.w, height: size.h },
+        { width: window.innerWidth, height: window.innerHeight },
+      ),
+    )
+  }, [size.h, size.w])
 
   const onHeaderPointerUp = useCallback(() => {
     dragRef.current = null

@@ -1,7 +1,21 @@
 import { describe, expect, it, vi } from 'vitest'
-import { computeDrawerResizeNext, readStoredDrawerLayout } from './floatingDrawerLayout'
+import { computeDrawerResizeNext, clampDrawerPosition, readStoredDrawerLayout } from './floatingDrawerLayout'
 
 describe('floatingDrawerLayout', () => {
+  it('clampDrawerPosition keeps the drawer inside the host on all edges', () => {
+    expect(
+      clampDrawerPosition({ x: -20, y: -10 }, { width: 200, height: 100 }, { width: 800, height: 600 }),
+    ).toEqual({ x: 0, y: 0 })
+
+    expect(
+      clampDrawerPosition({ x: 700, y: 550 }, { width: 200, height: 100 }, { width: 800, height: 600 }),
+    ).toEqual({ x: 600, y: 500 })
+
+    expect(
+      clampDrawerPosition({ x: 100, y: 80 }, { width: 900, height: 700 }, { width: 800, height: 600 }),
+    ).toEqual({ x: 0, y: 0 })
+  })
+
   it('computeDrawerResizeNext grows from right and bottom', () => {
     expect(
       computeDrawerResizeNext({
