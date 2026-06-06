@@ -190,7 +190,8 @@ function WorkspaceTransformersTabEntity({
 }: WorkspaceTransformersTabProps) {
   const undo = useEditorUndo()
   const { openMenu } = useCopyMenu()
-  const headerRef = useRef<HTMLDivElement>(null)
+  const floatingDrawerPortalRef = useRef<HTMLDivElement>(null)
+  const [floatingDrawerPortalEpoch, setFloatingDrawerPortalEpoch] = useState(0)
 
   const entities = useMemo(() => {
     const list: typeof world.entities = []
@@ -732,7 +733,13 @@ function WorkspaceTransformersTabEntity({
   }, [monacoPayload, setMonacoPayload])
 
   const watchAvailable = monacoIsCustom && selectedEntityIds.length === 1 && selectedConfig != null
-  const watchPortalTarget = monacoEditorAreaRef?.current ?? null
+  const watchPortalTarget = floatingDrawerPortalRef.current
+
+  useLayoutEffect(() => {
+    if (floatingDrawerPortalRef.current) {
+      setFloatingDrawerPortalEpoch((n) => n + 1)
+    }
+  }, [selectedEntityIds.length])
 
   useEffect(() => {
     if (!watchAvailable) setWatchOpen(false)
@@ -802,6 +809,7 @@ function WorkspaceTransformersTabEntity({
     selectedSortedIndex,
     selectedId,
     monacoEditorAreaEpoch,
+    floatingDrawerPortalEpoch,
   ])
 
   useEffect(() => {
@@ -865,9 +873,18 @@ function WorkspaceTransformersTabEntity({
         </div>
       : null}
       {selectedEntityIds.length === 0 ? null : (
-      <>
       <div
-        ref={headerRef}
+        ref={floatingDrawerPortalRef}
+        style={{
+          flex: 1,
+          minHeight: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          position: 'relative',
+        }}
+      >
+      <div
         style={{
           margin: 0,
           padding: '3px 0 4px',
@@ -1005,7 +1022,7 @@ function WorkspaceTransformersTabEntity({
               transformerIds={transformerIds}
               registryEntityId={entityIdsForEdit.length === 1 ? entityIdsForEdit[0] : undefined}
               liveTraceSteps={liveTraceSteps ?? null}
-              headerRef={headerRef}
+              drawerPortalTarget={floatingDrawerPortalRef}
               onCommit={handleCommitStacks}
               onSelectCode={changeSelectedIdWithFlush}
               onMakeUnique={canMakeUniqueStage ? handleMakeUniqueTransformer : undefined}
@@ -1375,7 +1392,7 @@ function WorkspaceTransformersTabEntity({
           </div>
         </div>
       )}
-      </>
+      </div>
       )}
     </CopyableArea>
   )

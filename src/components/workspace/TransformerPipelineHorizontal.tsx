@@ -12,6 +12,7 @@ import {
 } from 'react'
 import type { PresetTransformerType, TransformerConfig } from '@/types/transformer'
 import WorkspaceFloatingDrawer from '@/components/workspace/WorkspaceFloatingDrawer'
+import { clampDrawerPosition, drawerPositionRelativeToHost } from '@/components/workspace/floatingDrawerLayout'
 import ValidatedJsonTextarea from '@/components/ValidatedJsonTextarea'
 import TransformerFieldReference from '@/components/TransformerFieldReference'
 import { EntityPanelIcons } from '@/components/EntityPanelIcons'
@@ -363,8 +364,7 @@ function TransformerTraceItem({
   stackIndex,
   transformer,
   step,
-  headerRef,
-  traceBarRef,
+  drawerPortalTarget,
   scrollLeft,
   onRemove,
   onToggleEnabled,
@@ -388,8 +388,7 @@ function TransformerTraceItem({
   stackIndex: number
   transformer: TransformerConfig
   step: TransformerTraceStep | undefined
-  headerRef: RefObject<HTMLDivElement>
-  traceBarRef: RefObject<HTMLDivElement>
+  drawerPortalTarget: RefObject<HTMLDivElement | null>
   scrollLeft: number
   onRemove: () => void
   onToggleEnabled: () => void
@@ -496,28 +495,28 @@ function TransformerTraceItem({
     listStyle: 'none',
   }
 
-  const [baseLeft, setBaseLeft] = useState(0)
+  const [drawerAnchor, setDrawerAnchor] = useState({ x: 0, y: 0 })
 
-  const updateBaseLeft = useCallback(() => {
-    if (!headerRef.current || !traceBarRef.current || !itemRef.current) return
-    const headerWidth = headerRef.current.clientWidth
+  const updateDrawerAnchor = useCallback(() => {
+    const host = drawerPortalTarget.current
+    if (!host || !itemRef.current) return
+    const { x, y } = drawerPositionRelativeToHost(itemRef.current, host)
     const drawerWidth = 360
-    let nextBaseLeft =
-      traceBarRef.current.offsetLeft + itemRef.current.offsetLeft - scrollLeft
-
-    if (headerWidth > 0 && nextBaseLeft + drawerWidth > headerWidth) {
-      nextBaseLeft = Math.max(10, headerWidth - drawerWidth - 10)
-    }
-    setBaseLeft(nextBaseLeft)
-  }, [headerRef, traceBarRef, scrollLeft])
+    const clamped = clampDrawerPosition(
+      { x, y },
+      { width: drawerWidth, height: 240 },
+      { width: host.clientWidth, height: host.clientHeight },
+    )
+    setDrawerAnchor(clamped)
+  }, [drawerPortalTarget])
 
   // Only calculate position when a drawer is open or scroll changes while open.
   // This avoids expensive layout reads (clientWidth/offsetLeft) on every render during live trace.
   useLayoutEffect(() => {
     if (inOpen || outOpen || configOpen) {
-      updateBaseLeft()
+      updateDrawerAnchor()
     }
-  }, [inOpen, outOpen, configOpen, updateBaseLeft])
+  }, [inOpen, outOpen, configOpen, scrollLeft, updateDrawerAnchor])
 
   return (
     <div
@@ -799,13 +798,13 @@ function TransformerTraceItem({
           >
             IN: {traceInputBrief}
           </summary>
-          {inOpen && step && !step.skipped && step.inputBefore && headerRef.current ? (
+          {inOpen && step && !step.skipped && step.inputBefore && drawerPortalTarget.current ? (
             <WorkspaceFloatingDrawer
               title={`${rowLabel} · Input`}
               onClose={() => setInOpen(false)}
-              initialLeft={baseLeft}
-              initialTop={40}
-              portalTarget={headerRef.current}
+              initialLeft={drawerAnchor.x}
+              initialTop={drawerAnchor.y + 40}
+              portalTarget={drawerPortalTarget.current}
               initialHeight={240}
               resizable
               minWidth={280}
@@ -828,13 +827,13 @@ function TransformerTraceItem({
           >
             OUT: {traceOutputBrief}
           </summary>
-          {outOpen && step && !step.skipped && (step.transformOutput !== undefined || step.actionsAfter !== undefined) && headerRef.current ? (
+          {outOpen && step && !step.skipped && (step.transformOutput !== undefined || step.actionsAfter !== undefined) && drawerPortalTarget.current ? (
             <WorkspaceFloatingDrawer
               title={`${rowLabel} · Output`}
               onClose={() => setOutOpen(false)}
-              initialLeft={baseLeft}
-              initialTop={80}
-              portalTarget={headerRef.current}
+              initialLeft={drawerAnchor.x}
+              initialTop={drawerAnchor.y + 80}
+              portalTarget={drawerPortalTarget.current}
               initialHeight={240}
               resizable
               minWidth={280}
@@ -846,16 +845,16 @@ function TransformerTraceItem({
             </WorkspaceFloatingDrawer>
           ) : null}
         </details>
-        {configOpen && headerRef.current ? (
+        {configOpen && drawerPortalTarget.current ? (
           <WorkspaceFloatingDrawer
             title={`Config: ${rowLabel}`}
             onClose={() => {
               setConfigOpen(false)
               setFieldRefOpen(false)
             }}
-            initialLeft={baseLeft}
-            initialTop={120}
-            portalTarget={headerRef.current}
+            initialLeft={drawerAnchor.x}
+            initialTop={drawerAnchor.y + 120}
+            portalTarget={drawerPortalTarget.current}
             width={fieldRefOpen && isPresetTransformerType(transformer.type) ? 520 : 360}
             initialHeight={300}
             resizable
@@ -982,7 +981,7 @@ export function TransformerHorizontalPipeline({
   transformerIds,
   registryEntityId,
   liveTraceSteps,
-  headerRef,
+  drawerPortalTarget,
   onCommit,
   onSelectCode,
   onMakeUnique,
@@ -998,7 +997,7 @@ export function TransformerHorizontalPipeline({
   /** When set, new stages get `${entityId}_tfN` ids instead of ephemeral drag ids. */
   registryEntityId?: string
   liveTraceSteps: TransformerTraceStep[] | null
-  headerRef: RefObject<HTMLDivElement>
+  drawerPortalTarget: RefObject<HTMLDivElement | null>
   onCommit: (next: TransformerConfig[], orderedRegistryIds?: string[]) => void
   onSelectCode?: (id: string) => void
   onMakeUnique?: (id: string) => void
@@ -1238,8 +1237,7 @@ export function TransformerHorizontalPipeline({
               stackIndex={item.originalIndex}
               transformer={item.config}
               step={traceByStackIndex?.get(item.originalIndex)}
-              headerRef={headerRef}
-              traceBarRef={traceBarRef}
+              drawerPortalTarget={drawerPortalTarget}
               scrollLeft={scrollLeft}
               onRemove={() => handleRemoveTransformer(item.originalIndex)}
               onToggleEnabled={() => handleToggleEnabled(item.originalIndex)}

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { computeDrawerResizeNext, clampDrawerPosition, readStoredDrawerLayout } from './floatingDrawerLayout'
+import { computeDrawerResizeNext, clampDrawerPosition, drawerPositionRelativeToHost, readStoredDrawerLayout } from './floatingDrawerLayout'
 
 describe('floatingDrawerLayout', () => {
   it('clampDrawerPosition keeps the drawer inside the host on all edges', () => {
@@ -14,6 +14,24 @@ describe('floatingDrawerLayout', () => {
     expect(
       clampDrawerPosition({ x: 100, y: 80 }, { width: 900, height: 700 }, { width: 800, height: 600 }),
     ).toEqual({ x: 0, y: 0 })
+  })
+
+  it('clampDrawerPosition leaves position unchanged when host size is not yet measurable', () => {
+    expect(clampDrawerPosition({ x: 42, y: 17 }, { width: 300, height: 280 }, { width: 0, height: 0 })).toEqual({
+      x: 42,
+      y: 17,
+    })
+  })
+
+  it('drawerPositionRelativeToHost maps viewport rects into host-local coordinates', () => {
+    const host = {
+      getBoundingClientRect: () => ({ left: 100, top: 50, width: 800, height: 600, right: 900, bottom: 650 }),
+    } as Element
+    const element = {
+      getBoundingClientRect: () => ({ left: 180, top: 120, width: 120, height: 80, right: 300, bottom: 200 }),
+    } as Element
+
+    expect(drawerPositionRelativeToHost(element, host)).toEqual({ x: 80, y: 70 })
   })
 
   it('computeDrawerResizeNext grows from right and bottom', () => {
