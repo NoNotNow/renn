@@ -1,8 +1,7 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
 import { HexColorInput, HexColorPicker } from 'react-colorful'
 import { BUILDER_SCENE_CANVAS_HOST_ATTR } from '@/config/constants'
-import { isKeyboardEventInEditableContext } from '@/input/rawInput'
+import { theme } from '@/config/theme'
+import AnchoredPopover from '@/components/AnchoredPopover'
 import { normalizeHexForPicker } from '@/utils/colorUtils'
 import './BrushToolPopover.css'
 
@@ -39,84 +38,19 @@ export function BrushToolPopover({
   onBrushAlphaChange,
   onOpenTextureStudio,
 }: BrushToolPopoverProps) {
-  const panelRef = useRef<HTMLDivElement>(null)
-  const [pos, setPos] = useState({ top: 0, left: 0 })
-
-  const updatePosition = useCallback(() => {
-    if (!open || !anchorRef.current) return
-    const r = anchorRef.current.getBoundingClientRect()
-    const margin = 10
-    const panelWidth = 252
-    let left = r.left
-    const top = r.bottom + margin
-    const vw = window.innerWidth
-    if (left + panelWidth > vw - margin) left = vw - panelWidth - margin
-    if (left < margin) left = margin
-    setPos({ top, left })
-  }, [open, anchorRef])
-
-  useLayoutEffect(() => {
-    updatePosition()
-  }, [open, updatePosition])
-
-  useEffect(() => {
-    if (!open) return
-    window.addEventListener('resize', updatePosition)
-    window.addEventListener('scroll', updatePosition, true)
-    return () => {
-      window.removeEventListener('resize', updatePosition)
-      window.removeEventListener('scroll', updatePosition, true)
-    }
-  }, [open, updatePosition])
-
-  useEffect(() => {
-    if (!open) return
-    const onPointerDown = (e: PointerEvent): void => {
-      const t = e.target as Node
-      if (anchorRef.current?.contains(t)) return
-      if (panelRef.current?.contains(t)) return
-      if (t instanceof Element && t.closest(sceneCanvasHostSelector)) return
-      onClose()
-    }
-    document.addEventListener('pointerdown', onPointerDown, true)
-    return () => document.removeEventListener('pointerdown', onPointerDown, true)
-  }, [open, onClose, anchorRef])
-
-  useEffect(() => {
-    if (!open) return
-    const onKey = (e: KeyboardEvent): void => {
-      if (isKeyboardEventInEditableContext(e)) return
-      if (e.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [open, onClose])
-
   const pickerHex = normalizeHexForPicker(colorHex)
 
-  if (!open || typeof document === 'undefined') return null
-
-  return createPortal(
-    <div
-      ref={panelRef}
+  return (
+    <AnchoredPopover
+      open={open}
+      anchorRef={anchorRef}
+      onClose={onClose}
+      ariaLabel="Brush options"
       id="builder-brush-toolbar-panel"
       className="brush-tool-popover"
-      role="dialog"
-      aria-label="Brush options"
-      data-testid="brush-tool-popover"
-      style={{
-        position: 'fixed',
-        top: pos.top,
-        left: pos.left,
-        zIndex: 4500,
-        width: 252,
-        padding: 14,
-        boxSizing: 'border-box',
-        background: '#1b1f2a',
-        border: '1px solid #2f3545',
-        borderRadius: 10,
-        boxShadow: '0 14px 48px rgba(0, 0, 0, 0.55)',
-      }}
+      testId="brush-tool-popover"
+      zIndex={theme.zIndex.popover}
+      ignoreCloseWithinSelector={sceneCanvasHostSelector}
     >
       <HexColorPicker color={pickerHex} onChange={(h) => onColorHexChange(normalizeHexForPicker(h))} />
       <HexColorInput
@@ -128,7 +62,7 @@ export function BrushToolPopover({
         color={pickerHex}
         onChange={(h) => onColorHexChange(normalizeHexForPicker(h))}
       />
-      {onBrushAlphaChange ? (
+      {onBrushAlphaChange ?
         <label className="brush-tool-popover__size-label" htmlFor="builder-texture-brush-opacity">
           <span>Opacity</span>
           <input
@@ -146,8 +80,8 @@ export function BrushToolPopover({
           />
           <span className="brush-tool-popover__size-value">{Math.round(brushAlpha * 100)}%</span>
         </label>
-      ) : null}
-      {onRadiusPxChange ? (
+      : null}
+      {onRadiusPxChange ?
         <label className="brush-tool-popover__size-label" htmlFor="builder-texture-brush-size">
           <span>Size</span>
           <input
@@ -165,8 +99,8 @@ export function BrushToolPopover({
           />
           <span className="brush-tool-popover__size-value">{radiusPx}px</span>
         </label>
-      ) : null}
-      {onOpenTextureStudio ? (
+      : null}
+      {onOpenTextureStudio ?
         <button
           type="button"
           className="brush-tool-popover__texture-maker"
@@ -181,17 +115,16 @@ export function BrushToolPopover({
             padding: '8px 10px',
             fontSize: 12,
             fontWeight: 600,
-            background: '#2b3550',
-            border: '1px solid #3d4a66',
+            background: theme.button.primary,
+            border: `1px solid ${theme.button.primaryBorder}`,
             borderRadius: 8,
-            color: '#e6e9f2',
+            color: theme.text.primary,
             cursor: 'pointer',
           }}
         >
           Open texture maker
         </button>
-      ) : null}
-    </div>,
-    document.body,
+      : null}
+    </AnchoredPopover>
   )
 }

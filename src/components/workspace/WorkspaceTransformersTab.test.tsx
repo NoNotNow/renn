@@ -515,6 +515,32 @@ describe('WorkspaceTransformersTab', () => {
     expect(screen.getByTitle('Resize width and height from right')).toBeInTheDocument()
   })
 
+  it('restores watch panel size after close and reopen', async () => {
+    resetTransformerWatchBridgeForTests()
+    setTransformerWatchEnabled(true)
+    const storage = new Map<string, string>()
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        storage.set(key, value)
+      },
+    })
+    storage.set(
+      'rennWorkspaceWatchPanelPos',
+      JSON.stringify({ x: 10, y: 12, width: 360, height: 320 }),
+    )
+    renderTab()
+
+    fireEvent.click(screen.getByTestId('workspace-transformer-watch-toggle'))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-transformer-watch-panel')).toHaveStyle({
+        width: '360px',
+        height: '320px',
+      })
+    })
+  })
+
   it('restores watch panel position after close and reopen', async () => {
     resetTransformerWatchBridgeForTests()
     setTransformerWatchEnabled(true)

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCornerBrResize } from '@/hooks/useCornerBrResize'
 import { isKeyboardEventInEditableContext } from '@/input/rawInput'
 import type { BlendMode, TextureDocument, TextureLayer, TextureLayerDest } from '@/utils/textureCompositor'
 import {
@@ -144,7 +145,6 @@ export default function TextureMaker({
   }))
   const [size, setSize] = useState({ w: defaultW, h: defaultH })
   const dragRef = useRef<{ dx: number; dy: number } | null>(null)
-  const resizeRef = useRef<{ sx: number; sy: number; w: number; h: number } | null>(null)
 
   const handPanRef = useRef<{
     pointerId: number
@@ -176,29 +176,13 @@ export default function TextureMaker({
     dragRef.current = null
   }, [])
 
-  const onResizePointerDown = useCallback(
-    (e: React.PointerEvent) => {
-      e.preventDefault()
-      e.stopPropagation()
-      resizeRef.current = { sx: e.clientX, sy: e.clientY, w: size.w, h: size.h }
-      ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
-    },
-    [size],
-  )
-
-  const onResizePointerMove = useCallback((e: React.PointerEvent) => {
-    if (!resizeRef.current) return
-    const dw = e.clientX - resizeRef.current.sx
-    const dh = e.clientY - resizeRef.current.sy
-    setSize({
-      w: Math.max(480, resizeRef.current.w + dw),
-      h: Math.max(360, resizeRef.current.h + dh),
-    })
-  }, [])
-
-  const onResizePointerUp = useCallback(() => {
-    resizeRef.current = null
-  }, [])
+  const textureMakerResizeHandleProps = useCornerBrResize({
+    enabled: true,
+    minWidth: 480,
+    minHeight: 360,
+    size: { width: size.w, height: size.h },
+    onSizeChange: ({ width, height }) => setSize({ w: width, h: height }),
+  })
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
@@ -1008,13 +992,7 @@ export default function TextureMaker({
           </div>
         </div>
 
-        <div
-          className="texture-maker-resize"
-          onPointerDown={onResizePointerDown}
-          onPointerMove={onResizePointerMove}
-          onPointerUp={onResizePointerUp}
-          onPointerCancel={onResizePointerUp}
-        />
+        <div className="texture-maker-resize" {...textureMakerResizeHandleProps} />
 
         <button
           type="button"

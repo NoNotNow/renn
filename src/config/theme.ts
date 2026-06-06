@@ -137,6 +137,10 @@ export const theme = {
   zIndex: {
     header: 10500,
     modal: 10000,
+    /** Anchored tool popovers (brush picker, etc.). */
+    popover: 4500,
+    /** Brush popover inside Texture Maker (above builder brush popover). */
+    popoverElevated: 4600,
     overlay: 2100,
     save: 2000,
     editModeDot: 200,

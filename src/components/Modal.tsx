@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { theme } from '@/config/theme'
+import { useCornerBrResize } from '@/hooks/useCornerBrResize'
 
 export interface ModalProps {
   isOpen: boolean
@@ -39,8 +40,6 @@ export default function Modal({
     width,
     height,
   })
-  const resizeDragRef = useRef<{ startX: number; startY: number; startW: number; startH: number } | null>(null)
-
   useEffect(() => {
     if (isOpen) {
       setSize({ width, height })
@@ -73,42 +72,31 @@ export default function Modal({
     }
   }, [isOpen])
 
+  const panelHeight = size.height ?? height
+
+  const resolveStartSize = useCallback(() => {
+    const rect = modalRef.current?.getBoundingClientRect()
+    return {
+      width: rect?.width ?? size.width,
+      height: rect?.height ?? panelHeight ?? minHeight,
+    }
+  }, [minHeight, panelHeight, size.width])
+
+  const resizeHandleProps = useCornerBrResize({
+    enabled: resizable,
+    minWidth,
+    minHeight,
+    size: { width: size.width, height: panelHeight ?? minHeight },
+    onSizeChange: ({ width: nextW, height: nextH }) => setSize({ width: nextW, height: nextH }),
+    resolveStartSize,
+  })
+
   if (!isOpen) return null
 
   const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target === e.currentTarget) {
       onClose()
     }
-  }
-
-  const panelHeight = size.height ?? height
-
-  const onResizePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!resizable) return
-    e.preventDefault()
-    e.stopPropagation()
-    const rect = modalRef.current?.getBoundingClientRect()
-    resizeDragRef.current = {
-      startX: e.clientX,
-      startY: e.clientY,
-      startW: rect?.width ?? size.width,
-      startH: rect?.height ?? panelHeight ?? minHeight,
-    }
-    e.currentTarget.setPointerCapture(e.pointerId)
-  }
-
-  const onResizePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    const drag = resizeDragRef.current
-    if (!drag) return
-    const nextW = Math.max(minWidth, drag.startW + (e.clientX - drag.startX))
-    const nextH = Math.max(minHeight, drag.startH + (e.clientY - drag.startY))
-    setSize({ width: nextW, height: nextH })
-  }
-
-  const onResizePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!resizeDragRef.current) return
-    resizeDragRef.current = null
-    e.currentTarget.releasePointerCapture(e.pointerId)
   }
 
   return createPortal(
@@ -265,10 +253,7 @@ export default function Modal({
         {resizable ?
           <div
             aria-hidden={true}
-            onPointerDown={onResizePointerDown}
-            onPointerMove={onResizePointerMove}
-            onPointerUp={onResizePointerUp}
-            onPointerCancel={onResizePointerUp}
+            {...resizeHandleProps}
             data-testid="modal-resize-handle"
             style={{
               position: 'absolute',

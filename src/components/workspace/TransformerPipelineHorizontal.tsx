@@ -779,6 +779,10 @@ function TransformerTraceItem({
               initialLeft={baseLeft}
               initialTop={40}
               portalTarget={headerRef.current}
+              initialHeight={240}
+              resizable
+              minWidth={280}
+              minHeight={120}
             >
               <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                 {JSON.stringify(serializeTransformInputForDisplay(step.inputBefore), null, 2)}
@@ -804,6 +808,10 @@ function TransformerTraceItem({
               initialLeft={baseLeft}
               initialTop={80}
               portalTarget={headerRef.current}
+              initialHeight={240}
+              resizable
+              minWidth={280}
+              minHeight={120}
             >
               <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                 {JSON.stringify(serializeTransformerTraceOutputJson(step), null, 2)}

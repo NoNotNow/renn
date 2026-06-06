@@ -8,6 +8,7 @@ import {
   transformerOrganizeTitle,
   type GroupedRegistryTransformer,
 } from '@/transformers/transformerUtils'
+import { selectableListItemHandlers } from '@/utils/selectableListItemHandlers'
 
 export type AddExistingTransformerMode = 'link' | 'copy'
 
@@ -141,16 +142,24 @@ export default function AddTransformerDialog({
     setSelection(null)
   }
 
+  const confirmAddPreset = (type: string) => {
+    onAddPreset(type)
+    onClose()
+  }
+
+  const confirmAddExisting = (registryId: string, mode: AddExistingTransformerMode) => {
+    onAddExisting(registryId, mode)
+    onClose()
+  }
+
   const handleAddPreset = () => {
     if (selection?.kind !== 'preset') return
-    onAddPreset(selection.type)
-    onClose()
+    confirmAddPreset(selection.type)
   }
 
   const handleAddExisting = (mode: AddExistingTransformerMode) => {
     if (selection?.kind !== 'existing') return
-    onAddExisting(selection.registryId, mode)
-    onClose()
+    confirmAddExisting(selection.registryId, mode)
   }
 
   const searchPlaceholder =
@@ -295,7 +304,10 @@ export default function AddTransformerDialog({
                     role="option"
                     aria-selected={selected}
                     data-testid={`add-transformer-preset-${opt.value}`}
-                    onClick={() => setSelection({ kind: 'preset', type: opt.value })}
+                    {...selectableListItemHandlers(
+                      () => setSelection({ kind: 'preset', type: opt.value }),
+                      () => confirmAddPreset(opt.value),
+                    )}
                     style={listItemStyle(selected)}
                   >
                     <div style={{ fontSize: 13, fontWeight: 600 }}>{opt.label}</div>
@@ -335,9 +347,11 @@ export default function AddTransformerDialog({
                     role="option"
                     aria-selected={selected}
                     data-testid={`add-transformer-existing-${group.representativeId}`}
-                    onClick={() =>
-                      setSelection({ kind: 'existing', registryId: group.representativeId })
-                    }
+                    {...selectableListItemHandlers(
+                      () =>
+                        setSelection({ kind: 'existing', registryId: group.representativeId }),
+                      () => confirmAddExisting(group.representativeId, 'link'),
+                    )}
                     style={listItemStyle(selected)}
                   >
                     <div style={{ fontSize: 13, fontWeight: 600 }}>{group.title}</div>

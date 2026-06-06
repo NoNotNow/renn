@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
 import { HexColorInput, HexColorPicker } from 'react-colorful'
+import { theme } from '@/config/theme'
+import AnchoredPopover from '@/components/AnchoredPopover'
 import { normalizeHexForPicker } from '@/utils/colorUtils'
 import '@/components/BrushToolPopover.css'
 
@@ -33,73 +33,19 @@ export function TextureMakerBrushPopover({
   brushAlpha,
   onBrushAlphaChange,
 }: TextureMakerBrushPopoverProps) {
-  const panelRef = useRef<HTMLDivElement>(null)
-  const [pos, setPos] = useState({ top: 0, left: 0 })
-
-  const updatePosition = useCallback(() => {
-    if (!open || !anchorRef.current) return
-    const r = anchorRef.current.getBoundingClientRect()
-    const margin = 10
-    const panelWidth = 252
-    let left = r.left
-    const top = r.bottom + margin
-    const vw = window.innerWidth
-    if (left + panelWidth > vw - margin) left = vw - panelWidth - margin
-    if (left < margin) left = margin
-    setPos({ top, left })
-  }, [open, anchorRef])
-
-  useLayoutEffect(() => {
-    updatePosition()
-  }, [open, updatePosition])
-
-  useEffect(() => {
-    if (!open) return
-    window.addEventListener('resize', updatePosition)
-    window.addEventListener('scroll', updatePosition, true)
-    return () => {
-      window.removeEventListener('resize', updatePosition)
-      window.removeEventListener('scroll', updatePosition, true)
-    }
-  }, [open, updatePosition])
-
-  useEffect(() => {
-    if (!open) return
-    const onPointerDown = (e: PointerEvent): void => {
-      const t = e.target as Node
-      if (anchorRef.current?.contains(t)) return
-      if (panelRef.current?.contains(t)) return
-      if (t instanceof Element && t.closest(textureMakerRootSelector)) return
-      onClose()
-    }
-    document.addEventListener('pointerdown', onPointerDown, true)
-    return () => document.removeEventListener('pointerdown', onPointerDown, true)
-  }, [open, onClose, anchorRef])
-
   const pickerHex = normalizeHexForPicker(colorHex)
 
-  if (!open || typeof document === 'undefined') return null
-
-  return createPortal(
-    <div
-      ref={panelRef}
+  return (
+    <AnchoredPopover
+      open={open}
+      anchorRef={anchorRef}
+      onClose={onClose}
+      ariaLabel="Texture maker brush"
       className="brush-tool-popover"
-      role="dialog"
-      aria-label="Texture maker brush"
-      data-testid="texture-maker-brush-popover"
-      style={{
-        position: 'fixed',
-        top: pos.top,
-        left: pos.left,
-        zIndex: 4600,
-        width: 252,
-        padding: 14,
-        boxSizing: 'border-box',
-        background: '#1b1f2a',
-        border: '1px solid #2f3545',
-        borderRadius: 10,
-        boxShadow: '0 14px 48px rgba(0, 0, 0, 0.55)',
-      }}
+      testId="texture-maker-brush-popover"
+      zIndex={theme.zIndex.popoverElevated}
+      ignoreCloseWithinSelector={textureMakerRootSelector}
+      closeOnEscape={false}
     >
       <HexColorPicker color={pickerHex} onChange={(h) => onColorHexChange(normalizeHexForPicker(h))} />
       <HexColorInput
@@ -145,7 +91,6 @@ export function TextureMakerBrushPopover({
         />
         <span className="brush-tool-popover__size-value">{radiusPx}px</span>
       </label>
-    </div>,
-    document.body,
+    </AnchoredPopover>
   )
 }

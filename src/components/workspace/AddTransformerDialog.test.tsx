@@ -83,4 +83,32 @@ describe('AddTransformerDialog', () => {
     await user.click(screen.getByTestId('add-transformer-copy'))
     expect(onAddExisting).toHaveBeenCalledWith('car_b_tf2', 'copy')
   })
+
+  it('double-clicking a preset or existing row confirms the primary action', async () => {
+    const user = userEvent.setup()
+    const onAddPreset = vi.fn()
+    const onAddExisting = vi.fn()
+    const onClose = vi.fn()
+    render(
+      <AddTransformerDialog
+        isOpen
+        onClose={onClose}
+        existingRegistry={registry}
+        excludedIds={[]}
+        onAddPreset={onAddPreset}
+        onAddExisting={onAddExisting}
+      />,
+    )
+
+    await user.dblClick(screen.getByTestId('add-transformer-preset-wanderer'))
+    expect(onAddPreset).toHaveBeenCalledWith('wanderer')
+    expect(onClose).toHaveBeenCalledTimes(1)
+
+    onClose.mockClear()
+    onAddExisting.mockClear()
+    await user.click(screen.getByTestId('add-transformer-tab-existing'))
+    await user.dblClick(screen.getByTestId('add-transformer-existing-car_b_tf1'))
+    expect(onAddExisting).toHaveBeenCalledWith('car_b_tf1', 'link')
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
 })

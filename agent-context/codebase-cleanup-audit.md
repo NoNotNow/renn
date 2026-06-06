@@ -40,7 +40,8 @@ Post-milestone stabilization audit. Multiple agents contributed features; docume
 - **`patchFirstPlaneEntity`** in `src/utils/worldGroundPatch.ts` — used by `WorldPanel.tsx` for color / material / friction / scale updates (same allocations as inlined `map`).
 
 ### Shared UI — dialog / panel infrastructure
-- **`agent-context/feature-ui-infrastructure.md`** — canonical `Modal` vs. `WorkspaceFloatingDrawer`, resize rules, and a living audit backlog of UI duplication. **Consult before any dialog, popover, or floating-panel work.**
+- **`agent-context/feature-ui-infrastructure.md`** — canonical `Modal` vs. `WorkspaceFloatingDrawer` vs. `AnchoredPopover`, resize rules, and a living audit backlog of UI duplication. **Consult before any dialog, popover, or floating-panel work.**
+- **2026-06-06 backlog pass:** `useCornerBrResize` (`Modal`, `TextureMaker`), `AnchoredPopover` + `useAnchoredPopover` (brush popovers), `floatingDrawerLayout` + `FloatingDrawerResizeHandles` (drawer edge resize + `{x,y,width,height}` persistence), trace I/O drawers `resizable`.
 
 ### Shared UI — theme + `sharedStyles`
 - **`theme`**: `bg.panelAltHover`, `bg.dropZoneActive`, `border.dropZoneActive`, `border.dropZoneHover` (same hex values as previous literals).
