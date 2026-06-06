@@ -209,10 +209,26 @@ function PipelineLeadInArrow() {
   )
 }
 
+/** Cursive stage titles need extra line-height so ascenders are not clipped by inputs or ellipsis. */
 const CUSTOM_NAME_FONT_STYLE: CSSProperties = {
   fontSize: 20,
   fontFamily: 'cursive',
   fontWeight: 700,
+  lineHeight: 1.4,
+}
+
+/** Mirror span → input width: include horizontal padding, border, and cursive glyph overshoot. */
+const CUSTOM_NAME_INPUT_PAD_X = 2
+const CUSTOM_NAME_INPUT_BORDER = 1
+const CUSTOM_NAME_WIDTH_BUFFER = 4
+
+function customNameInputWidthPx(textWidthPx: number): number {
+  return (
+    textWidthPx
+    + CUSTOM_NAME_INPUT_PAD_X * 2
+    + CUSTOM_NAME_INPUT_BORDER * 2
+    + CUSTOM_NAME_WIDTH_BUFFER
+  )
 }
 
 function CustomTransformerInlineName({
@@ -243,7 +259,7 @@ function CustomTransformerInlineName({
   useLayoutEffect(() => {
     const mirror = mirrorRef.current
     if (!mirror) return
-    setInputWidthPx(mirror.offsetWidth + 4)
+    setInputWidthPx(customNameInputWidthPx(mirror.offsetWidth))
   }, [measureText])
 
   const commit = () => {
@@ -253,7 +269,15 @@ function CustomTransformerInlineName({
   }
 
   return (
-    <div style={{ display: 'inline-block', maxWidth: '100%', flexShrink: 0 }}>
+    <div
+      style={{
+        display: 'inline-block',
+        maxWidth: '100%',
+        flexShrink: 0,
+        minWidth: 0,
+        overflow: 'visible',
+      }}
+    >
       <span
         ref={mirrorRef}
         aria-hidden
@@ -297,7 +321,7 @@ function CustomTransformerInlineName({
           background: focused ? theme.bg.panelAlt : 'transparent',
           border: `1px solid ${focused ? theme.border.default : 'transparent'}`,
           borderRadius: 4,
-          padding: '0 2px',
+          padding: '1px 2px',
           margin: 0,
           width: inputWidthPx ?? undefined,
           minWidth: '2em',
@@ -305,6 +329,7 @@ function CustomTransformerInlineName({
           boxSizing: 'border-box',
           outline: 'none',
           display: 'block',
+          overflow: 'visible',
         }}
       />
     </div>
@@ -728,10 +753,11 @@ function TransformerTraceItem({
       <div
         style={{
           display: 'flex',
-          alignItems: 'center',
+          alignItems: 'flex-start',
           justifyContent: 'space-between',
           gap: 4,
           marginBottom: 1,
+          minWidth: 0,
         }}
       >
         {transformer.type === 'custom' ?
@@ -743,11 +769,12 @@ function TransformerTraceItem({
           />
         : <div
             style={{
-              fontSize: 20,
-              fontFamily: 'cursive',
-              fontWeight: 700,
+              ...CUSTOM_NAME_FONT_STYLE,
               color: theme.text.primary,
               userSelect: 'none',
+              minWidth: 0,
+              maxWidth: '100%',
+              paddingRight: CUSTOM_NAME_WIDTH_BUFFER,
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
