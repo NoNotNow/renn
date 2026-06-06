@@ -990,6 +990,8 @@ export function TransformerHorizontalPipeline({
   existingRegistry,
   selectedId,
   cardErrorsByStackIndex,
+  renderAddButton,
+  externalAddDialog,
 }: {
   transformers: TransformerConfig[]
   /** Stable IDs from the registry, matching transformers array 1:1. */
@@ -1007,6 +1009,10 @@ export function TransformerHorizontalPipeline({
   selectedId?: string | null
   /** Per-stage error chrome keyed by stack index (compile overrides runtime on the same card). */
   cardErrorsByStackIndex?: Record<number, TransformerCardErrorKind>
+  /** Replace default "+" tile (pipe navigation add menu). */
+  renderAddButton?: (api: { onOpenAdd: () => void }) => React.ReactNode
+  /** Parent owns AddTransformerDialog / PipeAddDialog. */
+  externalAddDialog?: boolean
 }) {
   const [scrollLeft, setScrollLeft] = useState(0)
   const [addDialogOpen, setAddDialogOpen] = useState(false)
@@ -1278,39 +1284,44 @@ export function TransformerHorizontalPipeline({
           overflow: 'visible',
         }}
       >
-        <button
-          type="button"
-          onClick={() => setAddDialogOpen(true)}
-          aria-label="Add transformer"
-          title="Add transformer"
-          data-testid="add-transformer-button"
-          style={{
-            width: 28,
-            height: 28,
-            padding: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 18,
-            fontWeight: 600,
-            lineHeight: 1,
-            background: theme.bg.codeOverlay,
-            border: `1px solid ${theme.border.default}`,
-            borderRadius: 4,
-            color: theme.text.muted,
-            cursor: 'pointer',
-          }}
-        >
-          +
-        </button>
-        <AddTransformerDialog
-          isOpen={addDialogOpen}
-          onClose={() => setAddDialogOpen(false)}
-          existingRegistry={existingRegistry ?? {}}
-          excludedIds={registryIdsForList()}
-          onAddPreset={handleAddPreset}
-          onAddExisting={handleAddExistingTransformer}
-        />
+        {renderAddButton ?
+          renderAddButton({ onOpenAdd: () => setAddDialogOpen(true) })
+        : <button
+            type="button"
+            onClick={() => setAddDialogOpen(true)}
+            aria-label="Add transformer"
+            title="Add transformer"
+            data-testid="add-transformer-button"
+            style={{
+              width: 28,
+              height: 28,
+              padding: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 18,
+              fontWeight: 600,
+              lineHeight: 1,
+              background: theme.bg.codeOverlay,
+              border: `1px solid ${theme.border.default}`,
+              borderRadius: 4,
+              color: theme.text.muted,
+              cursor: 'pointer',
+            }}
+          >
+            +
+          </button>
+        }
+        {externalAddDialog ? null : (
+          <AddTransformerDialog
+            isOpen={addDialogOpen}
+            onClose={() => setAddDialogOpen(false)}
+            existingRegistry={existingRegistry ?? {}}
+            excludedIds={registryIdsForList()}
+            onAddPreset={handleAddPreset}
+            onAddExisting={handleAddExistingTransformer}
+          />
+        )}
         {displayItems.length > 0 ? <PipelineTrailOutArrow /> : null}
       </div>
     </div>

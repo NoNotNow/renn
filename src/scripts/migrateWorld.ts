@@ -223,6 +223,29 @@ export function migrateCustomTransformerNames(worldData: unknown): void {
  * ID format: `${entityId}_tf${index}` (0-based index in the original stack).
  * Call after migrateCustomTransformerNames so custom transformers have names before extraction.
  */
+/**
+ * Migrates legacy `entity.transformerPipe` (single string) to `transformerPipeStack`.
+ * Safe to call on already-migrated data (no-op).
+ */
+export function migrateTransformerPipeToStack(worldData: unknown): void {
+  if (!worldData || typeof worldData !== 'object') return
+  const entities = (worldData as Record<string, unknown>).entities as Array<Record<string, unknown>> | undefined
+  if (!Array.isArray(entities)) return
+
+  for (const entity of entities) {
+    if (!entity || typeof entity !== 'object') continue
+    const legacy = entity.transformerPipe
+    const stack = entity.transformerPipeStack
+    if (typeof legacy !== 'string' || legacy.trim() === '') continue
+    if (Array.isArray(stack) && stack.length > 0) {
+      delete entity.transformerPipe
+      continue
+    }
+    entity.transformerPipeStack = [{ pipeId: legacy }]
+    delete entity.transformerPipe
+  }
+}
+
 export function migrateEntityTransformersToRegistry(worldData: unknown): void {
   if (!worldData || typeof worldData !== 'object') return
   const world = worldData as Record<string, unknown>

@@ -11,6 +11,12 @@ import { getScriptDef } from '@/scripts/scriptDef'
 import { uiLogger } from '@/utils/uiLogger'
 import { theme } from '@/config/theme'
 import { assignPipeToEntity, deletePipeFromWorld } from '@/utils/commitTransformerConfigsToWorld'
+import {
+  entityUsesPipe,
+  getEntityPipeStack,
+  removePipeFromEntityStack,
+  replacePipeIdInEntityStack,
+} from '@/utils/transformerPipeResolve'
 
 const SUBTAB_BTN: CSSProperties = {
   padding: '6px 12px',
@@ -50,7 +56,9 @@ function getEntitiesUsingTransformer(world: RennWorld, transformerId: string): {
 }
 
 function getEntitiesUsingPipe(world: RennWorld, pipeId: string): { id: string; name?: string }[] {
-  return world.entities.filter((e) => e.transformerPipe === pipeId).map((e) => ({ id: e.id, name: e.name }))
+  return world.entities
+    .filter((e) => entityUsesPipe(e, pipeId))
+    .map((e) => ({ id: e.id, name: e.name }))
 }
 
 function scriptIdsIntersectionForEntities(entities: { scripts?: string[] }[]): string[] {
@@ -73,14 +81,16 @@ function transformerIdsIntersectionForEntities(entities: { transformers?: string
   return [...common]
 }
 
-function pipeIdsIntersectionForEntities(entities: { transformerPipe?: string }[]): string[] {
+function pipeIdsIntersectionForEntities(
+  entities: Pick<import('@/types/world').Entity, 'transformerPipeStack' | 'transformerPipe'>[],
+): string[] {
   if (entities.length === 0) return []
-  const firstPipe = entities[0]!.transformerPipe
-  if (!firstPipe) return []
+  let common = new Set(getEntityPipeStack(entities[0]!).map((b) => b.pipeId))
   for (let i = 1; i < entities.length; i++) {
-    if (entities[i]!.transformerPipe !== firstPipe) return []
+    const next = new Set(getEntityPipeStack(entities[i]!).map((b) => b.pipeId))
+    common = new Set([...common].filter((id) => next.has(id)))
   }
-  return [firstPipe]
+  return [...common]
 }
 
 function suggestCopyId(base: string, taken: Set<string>): string {
@@ -288,15 +298,15 @@ export default function WorkspaceOrganizeTab({
       if (pipe) {
         let nextWorld = world
         for (const e of world.entities) {
-          const had = e.transformerPipe === id
+          const had = entityUsesPipe(e, id)
           const should = want.has(e.id)
           if (should) {
-            nextWorld = assignPipeToEntity(nextWorld, e.id, pipe, pipeAssignMode)
+            nextWorld = assignPipeToEntity(nextWorld, e.id, pipe, pipeAssignMode, { append: true })
           } else if (had) {
             nextWorld = {
               ...nextWorld,
               entities: nextWorld.entities.map((ent) =>
-                ent.id === e.id ? { ...ent, transformerPipe: undefined } : ent,
+                ent.id === e.id ? { ...ent, ...removePipeFromEntityStack(ent, id) } : ent,
               ),
             }
           }
@@ -343,13 +353,16 @@ export default function WorkspaceOrganizeTab({
 
     // If no entity is selected, or the current selection doesn't use this item, try to find one that does.
     if (itemSource === 'project') {
+      const anchorEntity = targetEntityId
+        ? world.entities.find((e) => e.id === targetEntityId)
+        : undefined
       const isUsedByCurrent =
-        targetEntityId &&
+        anchorEntity &&
         (registry === 'scripts'
-          ? world.entities.find((e) => e.id === targetEntityId)?.scripts?.includes(itemId)
+          ? anchorEntity.scripts?.includes(itemId)
           : registry === 'pipes'
-          ? world.entities.find((e) => e.id === targetEntityId)?.transformerPipe === itemId
-          : world.entities.find((e) => e.id === targetEntityId)?.transformers?.includes(itemId))
+          ? entityUsesPipe(anchorEntity, itemId)
+          : anchorEntity.transformers?.includes(itemId))
 
       if (!isUsedByCurrent) {
         const users =
@@ -434,7 +447,7 @@ export default function WorkspaceOrganizeTab({
       delete nextPipes[oldId]
       nextPipes[newId] = { ...def, id: newId }
       const nextEntities = world.entities.map((e) =>
-        e.transformerPipe === oldId ? { ...e, transformerPipe: newId } : e,
+        entityUsesPipe(e, oldId) ? { ...e, ...replacePipeIdInEntityStack(e, oldId, newId) } : e,
       )
       onWorldChange({ ...world, transformerPipes: nextPipes, entities: nextEntities })
     }
@@ -1121,7 +1134,7 @@ export default function WorkspaceOrganizeTab({
                     const nextWorld = {
                       ...world,
                       entities: world.entities.map((e) =>
-                        e.transformerPipe === id ? { ...e, transformerPipe: undefined } : e,
+                        entityUsesPipe(e, id) ? { ...e, ...removePipeFromEntityStack(e, id) } : e,
                       ),
                     }
                     onWorldChange(nextWorld)

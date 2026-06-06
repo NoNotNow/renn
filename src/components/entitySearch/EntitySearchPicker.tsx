@@ -93,6 +93,7 @@ export default function EntitySearchPicker({
   const [searchRevealed, setSearchRevealed] = useState(false)
   const [labelHovered, setLabelHovered] = useState(false)
   const [inputFocused, setInputFocused] = useState(false)
+  const [highlightedIndex, setHighlightedIndex] = useState(0)
 
   const showHoverLabel = hoverReveal && Boolean(selectedLabel?.trim())
   const showSearchField = !showHoverLabel || searchRevealed || searchQuery.trim() !== '' || filterPopoverOpen || resultsOpen
@@ -165,13 +166,30 @@ export default function EntitySearchPicker({
     return () => document.removeEventListener('pointerdown', onPointerDown)
   }, [closePanels])
 
+  useEffect(() => {
+    setHighlightedIndex(0)
+  }, [searchQuery, displayRows.entities.length])
+
   const handleInputKeyDown = (e: ReactKeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Escape') {
       closePanels()
       return
     }
-    if (e.key === 'Enter' && displayRows.entities.length > 0) {
-      pickEntity(displayRows.entities[0]!.id)
+    const rows = displayRows.entities
+    if (rows.length === 0) return
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setHighlightedIndex((i) => (i + 1) % rows.length)
+      return
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setHighlightedIndex((i) => (i - 1 + rows.length) % rows.length)
+      return
+    }
+    if (e.key === 'Enter') {
+      const pick = rows[highlightedIndex] ?? rows[0]
+      if (pick) pickEntity(pick.id)
     }
   }
 
@@ -324,8 +342,9 @@ export default function EntitySearchPicker({
                 {entityListEmptyMessage || 'No entities'}
               </div>
             : (
-              displayRows.entities.map((entity) => {
+              displayRows.entities.map((entity, rowIndex) => {
                 const active = entity.id === selectedEntityId
+                const highlighted = inputFocused && rowIndex === highlightedIndex
                 return (
                   <button
                     key={entity.id}
@@ -334,12 +353,14 @@ export default function EntitySearchPicker({
                     aria-selected={active}
                     data-testid={`${testId}-result-${entity.id}`}
                     onClick={() => pickEntity(entity.id)}
+                    onMouseEnter={() => setHighlightedIndex(rowIndex)}
                     style={{
                       display: 'block',
                       width: '100%',
                       textAlign: 'left',
-                      background: active ? theme.bg.panelAlt : 'none',
+                      background: highlighted ? theme.pipeNav.treeSelected : active ? theme.bg.panelAlt : 'none',
                       border: 'none',
+                      borderLeft: highlighted ? `2px solid ${theme.pipeNav.accent}` : '2px solid transparent',
                       borderRadius: 0,
                       padding: '8px 12px',
                       cursor: 'pointer',

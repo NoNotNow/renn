@@ -50,28 +50,51 @@ Add **Transformer Pipes** — named, reusable, ordered sequences of transformer 
 
 ---
 
+### Vocabulary
+
+| Term | Meaning |
+|---|---|
+| **Pipe** | Reusable behavior recipe: ordered stages + optional tunable params |
+| **Manifold** | A pipe whose members include other pipes (nested, n-level). `TransformerPipe.members` mixes `{ kind: 'stage' }` and `{ kind: 'pipe' }` |
+| **Pipe stack** | Ordered pipe instances on one entity: `entity.transformerPipeStack` |
+| **Binding** | One stack entry (`pipeId`, per-entity `params`, optional `mode: 'linked' \| 'copy'`) |
+
 ### Data Models
 
 ```ts
+type TransformerPipeMember =
+  | { kind: 'stage'; stageId: string }
+  | { kind: 'pipe'; pipeId: string }
+
+interface TransformerPipeBinding {
+  pipeId: string
+  params?: Record<string, unknown>
+  mode?: 'linked' | 'copy'
+}
+
 export interface TransformerPipe {
   id: string
   name: string
-  /** Ordered transformer registry IDs — used when assigning in 'linked' mode. */
-  stageIds: string[]
-  /** Inline config snapshots — used when assigning in 'copy' mode (template). */
-  stages: TransformerConfig[]
+  stageIds: string[]          // legacy flat leaf list
+  stages: TransformerConfig[] // copy template snapshots
+  members?: TransformerPipeMember[] // manifold source of truth when set
+  paramDefs?: PipeParamDef[]
+  defaultParams?: Record<string, unknown>
+  paramBindings?: Record<string, string>
   createdAt?: number
 }
 
-// RennWorld extension
-transformerPipes?: Record<string, TransformerPipe>
+// Entity — pipe stack + flattened runtime cache
+transformerPipeStack?: TransformerPipeBinding[]
+transformers?: string[]  // flattened stage ids; NOT traversed per frame
 
-// Entity extension
-transformerPipe?: string
-
-// GlobalBehaviorLibrary extension
+// RennWorld
 transformerPipes?: Record<string, TransformerPipe>
 ```
+
+**Performance:** manifold/stack resolution runs only on assign, save, or decouple (`flattenPipeStageIds` in `src/utils/transformerPipeResolve.ts`). The runtime chain reads `entity.transformers` directly — zero per-frame tree walks.
+
+Legacy `entity.transformerPipe` migrates to a single-entry stack on load (`migrateTransformerPipeToStack`).
 
 ---
 
@@ -80,11 +103,13 @@ transformerPipes?: Record<string, TransformerPipe>
 | Decision | Choice | Rationale |
 |---|---|---|
 | Pipe storage | `world.transformerPipes: Record<string, TransformerPipe>` | Mirrors `world.transformers` pattern; stays in world JSON |
-| Link marker on entity | `entity.transformerPipe?: string` | Minimal schema change; runtime (`entity.transformers`) unchanged |
-| Pipe definition | `stageIds` (linked) + `stages` (copy template) | Supports both modes; stageIds used for live-link, stages used when assigning as copy |
-| Assign modes | Linked vs Copy | User-chosen at assign time; matches mental model |
-| Pipeline replacement | Assigning a pipe replaces the full pipeline | Simpler UX; partial merge deferred |
-| Editing propagation | Editing a linked entity's stages updates shared registry IDs automatically | No extra sync needed; same mechanism as shared scripts |
+| Entity link | `entity.transformerPipeStack: TransformerPipeBinding[]` | Multiple pipes per entity; params per binding |
+| Nested pipes | **Manifold** via `members` | n-level grouping without duplicating stage lists |
+| Runtime cache | `entity.transformers` flattened once | Hot path stays O(stages), not O(pipes × depth) |
+| Pipe definition | `members` (manifold) or `stageIds` (legacy flat) | Backward compatible; `stageIds` normalized at read |
+| Assign modes | Linked vs Copy per binding | User-chosen at assign time |
+| Add pipe | **Append** to stack by default | Several pipes on one entity without replacing |
+| Editing propagation | Linked stages update shared registry IDs | Same mechanism as shared scripts |
 
 ---
 
@@ -99,8 +124,8 @@ transformerPipes?: Record<string, TransformerPipe>
 #### Add Pipe
 1. User selects pipe from \"+ Add Pipe\" dropdown.
 2. Dialog asks for Mode (Link/Copy).
-3. If Link: `entity.transformers = pipe.stageIds`, `entity.transformerPipe = pipe.id`.
-4. If Copy: `entity.transformers` replaced with new clones of `pipe.stages`.
+3. Appends a binding to `entity.transformerPipeStack` and concatenates flattened stage ids onto `entity.transformers`.
+4. Manifold pipes flatten recursively (child pipes first in `members` order).
 
 #### Organize Tab
 - Third sub-tab \"Transformer Pipes\".
@@ -116,7 +141,11 @@ transformerPipes?: Record<string, TransformerPipe>
 | `src/types/world.ts` | Add `transformerPipes` to `RennWorld`, `transformerPipe` to `Entity` |
 | `src/types/globalBehaviorLibrary.ts` | Add `transformerPipes` to `GlobalBehaviorLibrary` |
 | `world-schema.json` | Update JSON schema with new fields |
-| `src/utils/commitTransformerConfigsToWorld.ts` | Core pipe/entity transformation utilities |
+| `src/utils/commitTransformerConfigsToWorld.ts` | Assign, save, decouple, delete |
+| `src/utils/transformerPipeResolve.ts` | Manifold flatten, stack helpers, param merge |
+| `src/hooks/usePipeNavigator.ts` | Focus path state (up/left/right, drill-in) |
+| `src/hooks/usePipeNavController.ts` | World mutations + dialogs wiring |
+| `src/components/workspace/pipeNav/` | Sidebar, tree, `PipeCard` (share / enable / config chrome), focused strip, `PipeAddDialog` |
 | `src/components/workspace/WorkspaceTransformersTab.tsx` | Save/Add Pipe UI, Link banner |
 | `src/components/workspace/WorkspaceOrganizeTab.tsx` | Organize Pipes sub-tab |
 | `src/persistence/indexedDb.ts` | Global library persistence |

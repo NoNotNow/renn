@@ -181,14 +181,31 @@ describe('Transformer Pipes utilities', () => {
       const next = assignPipeToEntity(baseWorld, 'e1', samplePipe, 'linked')
       const e1 = next.entities.find((e) => e.id === 'e1')
       expect(e1?.transformers).toEqual(['p1_t1'])
-      expect(e1?.transformerPipe).toBe('p1')
+      expect(e1?.transformerPipeStack).toEqual([{ pipeId: 'p1', enabled: true }])
+      expect(e1?.transformerPipe).toBeUndefined()
+    })
+
+    it('appends to pipe stack in linked mode', () => {
+      const first = assignPipeToEntity(baseWorld, 'e1', samplePipe, 'linked')
+      const secondPipe: typeof samplePipe = {
+        ...samplePipe,
+        id: 'p2',
+        stageIds: ['p2_t1'],
+      }
+      const next = assignPipeToEntity(first, 'e1', secondPipe, 'linked', { append: true })
+      const e1 = next.entities.find((e) => e.id === 'e1')
+      expect(e1?.transformerPipeStack).toEqual([
+        { pipeId: 'p1', enabled: true },
+        { pipeId: 'p2', enabled: true },
+      ])
+      expect(e1?.transformers).toEqual(['p1_t1', 'p2_t1'])
     })
 
     it('assigns in copy mode', () => {
       const next = assignPipeToEntity(baseWorld, 'e1', samplePipe, 'copy')
       const e1 = next.entities.find((e) => e.id === 'e1')
       expect(e1?.transformers?.[0]).toMatch(/e1_tf/)
-      expect(e1?.transformerPipe).toBeUndefined()
+      expect(e1?.transformerPipeStack?.[0]?.mode).toBe('copy')
       expect(next.transformers?.[e1!.transformers![0]!]).toMatchObject(samplePipe.stages[0])
     })
   })
@@ -199,7 +216,7 @@ describe('Transformer Pipes utilities', () => {
       const next = decoupleEntityFromPipe(linked, 'e1')
       const e1 = next.entities.find((e) => e.id === 'e1')
       expect(e1?.transformers?.[0]).not.toBe('p1_t1')
-      expect(e1?.transformerPipe).toBeUndefined()
+      expect(e1?.transformerPipeStack).toBeUndefined()
       expect(next.transformers?.[e1!.transformers![0]!]).toBeDefined()
     })
   })
@@ -209,11 +226,14 @@ describe('Transformer Pipes utilities', () => {
       const worldWithPipe = {
         ...baseWorld,
         transformerPipes: { p1: samplePipe },
-        entities: baseWorld.entities.map((e) => ({ ...e, transformerPipe: 'p1' })),
+        entities: baseWorld.entities.map((e) => ({
+          ...e,
+          transformerPipeStack: [{ pipeId: 'p1' }],
+        })),
       }
       const next = deletePipeFromWorld(worldWithPipe, 'p1')
       expect(next.transformerPipes?.p1).toBeUndefined()
-      expect(next.entities.every((e) => e.transformerPipe === undefined)).toBe(true)
+      expect(next.entities.every((e) => e.transformerPipeStack === undefined)).toBe(true)
     })
   })
 
@@ -225,7 +245,10 @@ describe('Transformer Pipes utilities', () => {
       expect(pipe.name).toBe('New Pipe')
       expect(pipe.stageIds).toEqual(['t1'])
       expect(pipe.stages[0]).toMatchObject(baseWorld.transformers!.t1!)
-      expect(next.entities.find((e) => e.id === 'e1')?.transformerPipe).toBe(pipeId)
+      expect(pipeId).toBe('new_pipe')
+      expect(next.entities.find((e) => e.id === 'e1')?.transformerPipeStack).toEqual([
+        { pipeId, enabled: true },
+      ])
     })
   })
 })

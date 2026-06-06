@@ -33,6 +33,14 @@ import {
   decoupleEntityFromPipe,
   savePipeFromEntity,
 } from '@/utils/commitTransformerConfigsToWorld'
+import { usePipeNavController } from '@/hooks/usePipeNavController'
+import TransformerPipeNavSidebar, {
+  readPipeNavOpen,
+  writePipeNavOpen,
+} from '@/components/workspace/pipeNav/TransformerPipeNavSidebar'
+import PipeFocusedStrip from '@/components/workspace/pipeNav/PipeFocusedStrip'
+import PipeNavDialogs from '@/components/workspace/pipeNav/PipeNavDialogs'
+import PipeNavOpenToggle from '@/components/workspace/pipeNav/PipeNavOpenToggle'
 import {
   subscribeCustomTransformerRuntimeError,
   getCustomTransformerRuntimeErrors,
@@ -208,8 +216,13 @@ function WorkspaceTransformersTabEntity({
   const transformersMixed = mergedIds === null
   const worldTf = useMemo(() => world.transformers ?? {}, [world.transformers])
 
-  const linkedPipeId = entities.length === 1 ? entities[0].transformerPipe : undefined
-  const linkedPipe = linkedPipeId ? (world.transformerPipes ?? {})[linkedPipeId] : undefined
+  const singleEntity = entities.length === 1 ? entities[0] : undefined
+  const usePipeNav = Boolean(singleEntity)
+  const [pipeNavOpen, setPipeNavOpen] = useState(readPipeNavOpen)
+  const setPipeNavSidebarOpen = useCallback((open: boolean) => {
+    setPipeNavOpen(open)
+    writePipeNavOpen(open)
+  }, [])
 
   const usageCounts = useMemo(() => {
     const counts: Record<string, number> = {}
@@ -317,6 +330,7 @@ function WorkspaceTransformersTabEntity({
             return {
               ...e,
               transformers: e.transformers?.map((tid) => (tid === id ? newId : tid)) ?? [],
+              transformerPipeStack: undefined,
               transformerPipe: undefined,
             }
           }
@@ -331,15 +345,6 @@ function WorkspaceTransformersTabEntity({
     },
     [transformerIds, entityIdsForEdit, canMakeUniqueStage, world, onWorldChange, onEntryChange, entry],
   )
-
-  const selectedSortedIndex = useMemo(() => {
-    if (!selectedId || !sortedPairs) return 0
-    const idx = sortedPairs.findIndex((p) => p.id === selectedId)
-    return idx >= 0 ? idx : 0
-  }, [selectedId, sortedPairs])
-
-  const selectedConfig = list[selectedSortedIndex] ?? null
-  const selectedPreset = selectedConfig && isPresetTransformerType(selectedConfig.type) ? selectedConfig : null
 
   const [watchOpen, setWatchOpen] = useState(false)
 
@@ -387,20 +392,47 @@ function WorkspaceTransformersTabEntity({
     [commitStacksRaw, flushPendingCode],
   )
 
+  const pipeNav = usePipeNavController(
+    world,
+    singleEntity ?? ({ id: '', transformers: [] } as (typeof entities)[0]),
+    entry,
+    onWorldChange,
+    onEntryChange,
+    handleCommitStacks,
+  )
+
+  const editorStageIds =
+    usePipeNav && pipeNav.view?.mode !== 'pipe_siblings' ? pipeNav.stageData.ids : transformerIds
+  const editorStageConfigs =
+    usePipeNav && pipeNav.view?.mode !== 'pipe_siblings' ? pipeNav.stageData.configs : list
+
+  const selectedSortedIndex = useMemo(() => {
+    if (!selectedId) return 0
+    const idx = editorStageIds.indexOf(selectedId)
+    return idx >= 0 ? idx : 0
+  }, [selectedId, editorStageIds])
+
+  const selectedConfig = editorStageConfigs[selectedSortedIndex] ?? null
+  const selectedPreset = selectedConfig && isPresetTransformerType(selectedConfig.type) ? selectedConfig : null
+
   const handleSaveAsPipe = useCallback(() => {
     if (entityIdsForEdit.length === 0) return
-    // If multiple entities, save from the first one
+    if (usePipeNav) {
+      pipeNav.handleSaveAsPipe()
+      setSavePipeDialogOpen(false)
+      return
+    }
     const entityId = entityIdsForEdit[0]!
     const nextWorld = savePipeFromEntity(world, entityId, savePipeName, savePipeMode)
     onWorldChange(nextWorld)
     setSavePipeDialogOpen(false)
-  }, [world, entityIdsForEdit, savePipeName, savePipeMode, onWorldChange])
+  }, [world, entityIdsForEdit, savePipeName, savePipeMode, onWorldChange, usePipeNav, pipeNav])
 
   const handleAddPipe = useCallback(
     (pipe: TransformerPipe, mode: 'linked' | 'copy') => {
       let nextWorld = world
       for (const entityId of entityIdsForEdit) {
-        nextWorld = assignPipeToEntity(nextWorld, entityId, pipe, mode)
+        nextWorld = assignPipeToEntity(nextWorld, entityId, pipe, mode, { append: true })
       }
       onWorldChange(nextWorld)
       setAddPipeModeDialogOpen(false)
@@ -879,9 +911,47 @@ function WorkspaceTransformersTabEntity({
           flex: 1,
           minHeight: 0,
           display: 'flex',
-          flexDirection: 'column',
+          flexDirection: 'row',
           overflow: 'hidden',
           position: 'relative',
+        }}
+      >
+      {usePipeNav && singleEntity && pipeNav.view && pipeNavOpen ?
+        <TransformerPipeNavSidebar
+          world={world}
+          entity={singleEntity}
+          focusPath={pipeNav.focus.path}
+          selectedIndex={pipeNav.focus.selectedSiblingIndex}
+          focusedPipeName={pipeNav.focusedTitle}
+          canGoUp={pipeNav.view.canGoUp}
+          siblingCount={pipeNav.view.siblingCount}
+          open={pipeNavOpen}
+          onOpenChange={setPipeNavSidebarOpen}
+          onPathChange={(path, index, stageId) => {
+            pipeNav.setPath(path, index)
+            if (stageId) changeSelectedIdWithFlush(stageId)
+          }}
+          onGoUp={pipeNav.goUp}
+          onGoLeft={pipeNav.goLeft}
+          onGoRight={pipeNav.goRight}
+          onRenamePipe={pipeNav.focusedPipeId ? pipeNav.handleRename : undefined}
+          onReorderStack={pipeNav.reorderStack}
+          onReorderMember={pipeNav.reorderMember}
+          drawerPortalTarget={floatingDrawerPortalRef}
+          stackIndexForPipeId={pipeNav.stackIndexForPipeId}
+          onPipeControlToggle={pipeNav.togglePipeEnabled}
+          onPipeParamChange={pipeNav.updatePipeParam}
+          onDecouplePipeBinding={pipeNav.decouplePipeBinding}
+        />
+      : null}
+      <div
+        style={{
+          flex: 1,
+          minHeight: 0,
+          minWidth: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
         }}
       >
       <div
@@ -974,66 +1044,55 @@ function WorkspaceTransformersTabEntity({
               marginTop: entityIdsForEdit.length > 1 ? 4 : 0,
             }}
           >
-            {linkedPipeId && (
-              <div
-                style={{
-                  position: 'absolute',
-                  top: entityIdsForEdit.length > 1 ? -32 : -18,
-                  left: 0,
-                  fontSize: 10,
-                  fontWeight: 600,
-                  color: linkedPipe ? theme.text.infoSubtle : theme.text.warning,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  zIndex: 2,
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {linkedPipe ? (
-                  <>
-                    Shared pipe: <span style={{ color: theme.text.primary }}>{linkedPipe.name}</span> — editing stages
-                    here affects all linked entities.
-                  </>
-                ) : (
-                  <>Linked pipe not found (stale reference)</>
-                )}
-                <button
-                  type="button"
-                  onClick={handleDecouple}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    padding: 0,
-                    margin: 0,
-                    fontSize: 10,
-                    fontWeight: 700,
-                    color: theme.accent,
-                    cursor: 'pointer',
-                    textDecoration: 'underline',
-                  }}
-                >
-                  Decouple
-                </button>
-              </div>
-            )}
-            <TransformerHorizontalPipeline
-              transformers={list}
-              transformerIds={transformerIds}
-              registryEntityId={entityIdsForEdit.length === 1 ? entityIdsForEdit[0] : undefined}
-              liveTraceSteps={liveTraceSteps ?? null}
-              drawerPortalTarget={floatingDrawerPortalRef}
-              onCommit={handleCommitStacks}
-              onSelectCode={changeSelectedIdWithFlush}
-              onMakeUnique={canMakeUniqueStage ? handleMakeUniqueTransformer : undefined}
-              makeUniqueDisabledReason={
-                canMakeUniqueStage ? undefined : 'Select a single entity to make a shared stage unique'
-              }
-              usageCounts={usageCounts}
-              existingRegistry={world.transformers}
-              selectedId={selectedId}
-              cardErrorsByStackIndex={cardErrorsByStackIndex}
-            />
+            {usePipeNav && !pipeNavOpen ?
+              <PipeNavOpenToggle onClick={() => setPipeNavSidebarOpen(true)} />
+            : null}
+            {usePipeNav && singleEntity && pipeNav.view ?
+              <PipeFocusedStrip
+                world={world}
+                entity={singleEntity}
+                view={pipeNav.view}
+                depth={pipeNav.focus.path.length}
+                selectedIndex={pipeNav.focus.selectedSiblingIndex}
+                stageConfigs={pipeNav.stageData.configs}
+                stageIds={pipeNav.stageData.ids}
+                registryEntityId={singleEntity.id}
+                liveTraceSteps={liveTraceSteps ?? null}
+                drawerPortalTarget={floatingDrawerPortalRef}
+                onCommitStages={pipeNav.handleCommitStagesWrapped}
+                onSelectStageId={changeSelectedIdWithFlush}
+                onSelectPipeIndex={pipeNav.selectSibling}
+                onDrillIntoPipe={pipeNav.drillInto}
+                onCreatePipe={pipeNav.handleCreatePipe}
+                onAddChildPipe={pipeNav.handleAddChildPipe}
+                onAddExistingPipe={pipeNav.handleAddExistingPipe}
+                stackIndexForPipeId={pipeNav.stackIndexForPipeId}
+                onPipeControlToggle={pipeNav.togglePipeEnabled}
+                onPipeParamChange={pipeNav.updatePipeParam}
+                onDecouplePipeBinding={pipeNav.decouplePipeBinding}
+                onMakeUnique={handleMakeUniqueTransformer}
+                usageCounts={usageCounts}
+                selectedStageId={selectedId}
+                cardErrorsByStackIndex={cardErrorsByStackIndex}
+              />
+            : <TransformerHorizontalPipeline
+                transformers={list}
+                transformerIds={transformerIds}
+                registryEntityId={entityIdsForEdit.length === 1 ? entityIdsForEdit[0] : undefined}
+                liveTraceSteps={liveTraceSteps ?? null}
+                drawerPortalTarget={floatingDrawerPortalRef}
+                onCommit={handleCommitStacks}
+                onSelectCode={changeSelectedIdWithFlush}
+                onMakeUnique={canMakeUniqueStage ? handleMakeUniqueTransformer : undefined}
+                makeUniqueDisabledReason={
+                  canMakeUniqueStage ? undefined : 'Select a single entity to make a shared stage unique'
+                }
+                usageCounts={usageCounts}
+                existingRegistry={world.transformers}
+                selectedId={selectedId}
+                cardErrorsByStackIndex={cardErrorsByStackIndex}
+              />
+            }
           </div>
         </div>
         <div
@@ -1392,6 +1451,15 @@ function WorkspaceTransformersTabEntity({
           </div>
         </div>
       )}
+      {usePipeNav ?
+        <PipeNavDialogs
+          nameDialog={pipeNav.nameDialog}
+          onNameChange={(n) => pipeNav.setNameDialog((d) => (d ? { ...d, name: n } : null))}
+          onNameConfirm={pipeNav.confirmNameDialog}
+          onNameCancel={() => pipeNav.setNameDialog(null)}
+        />
+      : null}
+      </div>
       </div>
       )}
     </CopyableArea>

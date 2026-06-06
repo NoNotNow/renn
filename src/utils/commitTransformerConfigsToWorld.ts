@@ -1,6 +1,13 @@
-import type { TransformerConfig, TransformerPipe } from '@/types/transformer'
+import type { TransformerConfig, TransformerPipe, TransformerPipeBinding } from '@/types/transformer'
 import type { RennWorld } from '@/types/world'
 import { syncPriorities } from '@/transformers/transformerUtils'
+import { allocatePipeId } from '@/utils/allocatePipeId'
+import {
+  collectPipeStageConfigsForCopy,
+  entityLinksPipe,
+  flattenPipeMembers,
+  getEntityPipeStack,
+} from '@/utils/transformerPipeResolve'
 
 /** Map registry ids from one entity to another (same `_tfN` suffix). */
 export function mapTransformerRegistryIdsToEntity(ids: string[], targetEntityId: string): string[] {
@@ -99,48 +106,72 @@ export function commitTransformerConfigsToWorld(
   return { ...world, transformers: nextWorldTransformers, entities: nextEntities }
 }
 
+export interface AssignPipeOptions {
+  /** When true, append to the entity pipe stack instead of replacing it. */
+  append?: boolean
+  /** Per-entity params for this stack entry. */
+  params?: Record<string, unknown>
+}
+
 /** Assign a pipe to an entity. Linked mode shares registry IDs; Copy mode clones configs. */
 export function assignPipeToEntity(
   world: RennWorld,
   entityId: string,
   pipe: TransformerPipe,
   mode: 'linked' | 'copy',
+  options?: AssignPipeOptions,
 ): RennWorld {
+  const entity = world.entities.find((e) => e.id === entityId)
+  if (!entity) return world
+
+  const append = options?.append ?? false
+  const binding: TransformerPipeBinding = {
+    pipeId: pipe.id,
+    ...(options?.params ? { params: options.params } : {}),
+    ...(mode === 'copy' ? { mode: 'copy' as const } : {}),
+    enabled: true,
+  }
+
+  let newStageIds: string[]
+  let nextWorldTransformers = world.transformers ?? {}
+
   if (mode === 'linked') {
-    return {
-      ...world,
-      entities: world.entities.map((e) =>
-        e.id === entityId
-          ? {
-              ...e,
-              transformers: [...pipe.stageIds],
-              transformerPipe: pipe.id,
-            }
-          : e,
-      ),
+    newStageIds = flattenPipeMembers(pipe, world.transformerPipes ?? {})
+  } else {
+    nextWorldTransformers = { ...(world.transformers ?? {}) }
+    const used = new Set(Object.keys(nextWorldTransformers))
+    const configs = collectPipeStageConfigsForCopy(
+      world.transformerPipes ?? {},
+      nextWorldTransformers,
+      pipe,
+    )
+    newStageIds = []
+    for (const config of configs) {
+      const newId = allocateTransformerRegistryId(entityId, nextWorldTransformers, used)
+      used.add(newId)
+      nextWorldTransformers[newId] = JSON.parse(JSON.stringify(config))
+      newStageIds.push(newId)
     }
   }
 
-  // Copy mode: create fresh registry entries from pipe.stages
-  const nextWorldTransformers = { ...(world.transformers ?? {}) }
-  const used = new Set(Object.keys(nextWorldTransformers))
-  const newIds: string[] = []
-
-  for (const config of pipe.stages) {
-    const newId = allocateTransformerRegistryId(entityId, nextWorldTransformers, used)
-    used.add(newId)
-    nextWorldTransformers[newId] = JSON.parse(JSON.stringify(config))
-    newIds.push(newId)
+  if (mode === 'copy') {
+    binding.localStageIds = newStageIds
   }
+
+  const prevStack = getEntityPipeStack(entity)
+  const nextStack = append ? [...prevStack, binding] : [binding]
+  const prevTransformers = append ? (entity.transformers ?? []) : []
+  const nextTransformers = [...prevTransformers, ...newStageIds]
 
   return {
     ...world,
-    transformers: nextWorldTransformers,
+    transformers: mode === 'copy' ? nextWorldTransformers : world.transformers,
     entities: world.entities.map((e) =>
       e.id === entityId
         ? {
             ...e,
-            transformers: newIds,
+            transformers: nextTransformers,
+            transformerPipeStack: nextStack,
             transformerPipe: undefined,
           }
         : e,
@@ -148,7 +179,7 @@ export function assignPipeToEntity(
   }
 }
 
-/** Clones shared registry entries to make them unique to this entity, then clears the pipe link. */
+/** Clones shared registry entries to make them unique to this entity, then clears the pipe stack. */
 export function decoupleEntityFromPipe(world: RennWorld, entityId: string): RennWorld {
   const entity = world.entities.find((e) => e.id === entityId)
   if (!entity) return world
@@ -161,6 +192,7 @@ export function decoupleEntityFromPipe(world: RennWorld, entityId: string): Renn
         ? {
             ...e,
             transformers: newTransformerIds,
+            transformerPipeStack: undefined,
             transformerPipe: undefined,
           }
         : e,
@@ -168,19 +200,21 @@ export function decoupleEntityFromPipe(world: RennWorld, entityId: string): Renn
   }
 }
 
-/** Removes a pipe from the world and clears all entity links to it. */
+/** Removes a pipe from the world and clears all entity stack entries referencing it. */
 export function deletePipeFromWorld(world: RennWorld, pipeId: string): RennWorld {
   const nextPipes = { ...(world.transformerPipes ?? {}) }
   delete nextPipes[pipeId]
 
-  const nextEntities = world.entities.map((e) =>
-    e.transformerPipe === pipeId
-      ? {
-          ...e,
-          transformerPipe: undefined,
-        }
-      : e,
-  )
+  const nextEntities = world.entities.map((e) => {
+    const stack = getEntityPipeStack(e).filter((b) => b.pipeId !== pipeId)
+    const hadLegacy = e.transformerPipe === pipeId
+    if (stack.length === getEntityPipeStack(e).length && !hadLegacy) return e
+    return {
+      ...e,
+      transformerPipeStack: stack.length > 0 ? stack : undefined,
+      transformerPipe: undefined,
+    }
+  })
 
   return { ...world, transformerPipes: nextPipes, entities: nextEntities }
 }
@@ -198,12 +232,13 @@ export function savePipeFromEntity(
   const stageIds = entity.transformers ?? []
   const stages = stageIds.map((id) => world.transformers?.[id]).filter(Boolean) as TransformerConfig[]
 
-  const pipeId = `pipe_${Date.now()}`
+  const pipeId = allocatePipeId(pipeName, world.transformerPipes ?? {})
   const newPipe: TransformerPipe = {
     id: pipeId,
     name: pipeName,
     stageIds: [...stageIds],
     stages: JSON.parse(JSON.stringify(stages)),
+    members: stageIds.map((id) => ({ kind: 'stage' as const, stageId: id })),
     createdAt: Date.now(),
   }
 
@@ -222,7 +257,8 @@ export function savePipeFromEntity(
         e.id === entityId
           ? {
               ...e,
-              transformerPipe: pipeId,
+              transformerPipeStack: [{ pipeId, enabled: true }],
+              transformerPipe: undefined,
             }
           : e,
       ),
@@ -230,4 +266,9 @@ export function savePipeFromEntity(
   }
 
   return nextWorld
+}
+
+/** Count entities with a linked (non-copy) binding to a pipe. */
+export function countEntitiesLinkingPipe(world: RennWorld, pipeId: string): number {
+  return world.entities.filter((e) => entityLinksPipe(e, pipeId)).length
 }

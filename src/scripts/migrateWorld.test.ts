@@ -6,6 +6,7 @@ import {
   clampTrimeshSimplificationConfig,
   migrateWorldRingShapesToCylinder,
   migrateEntityTransformersToRegistry,
+  migrateTransformerPipeToStack,
 } from './migrateWorld'
 
 describe('migrateWorldScripts', () => {
@@ -286,5 +287,32 @@ describe('migrateEntityTransformersToRegistry', () => {
     expect(registry['b_tf0']).toEqual({ type: 'car2' })
     expect(world.entities[0].transformers).toEqual(['a_tf0'])
     expect(world.entities[1].transformers).toEqual(['b_tf0'])
+  })
+})
+
+describe('migrateTransformerPipeToStack', () => {
+  it('migrates legacy transformerPipe to stack', () => {
+    const world = {
+      entities: [{ id: 'e1', transformerPipe: 'pipe_a' }],
+    }
+    migrateTransformerPipeToStack(world)
+    expect((world.entities[0] as { transformerPipeStack?: unknown }).transformerPipeStack).toEqual([
+      { pipeId: 'pipe_a' },
+    ])
+    expect((world.entities[0] as Record<string, unknown>).transformerPipe).toBeUndefined()
+  })
+
+  it('is no-op when stack already exists', () => {
+    const world = {
+      entities: [
+        {
+          id: 'e1',
+          transformerPipe: 'legacy',
+          transformerPipeStack: [{ pipeId: 'pipe_b' }],
+        },
+      ],
+    }
+    migrateTransformerPipeToStack(world)
+    expect(world.entities[0].transformerPipeStack).toEqual([{ pipeId: 'pipe_b' }])
   })
 })

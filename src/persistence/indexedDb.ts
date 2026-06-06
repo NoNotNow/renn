@@ -276,9 +276,14 @@ export function createIndexedDbPersistence(): PersistenceAPI {
 
     async importProject(file: File): Promise<{ id: string }> {
       const JSZip = (await import('jszip')).default
-      const { migrateWorldScripts, migrateWorldSimplificationFields, migrateCustomTransformerNames, migrateWorldRingShapesToCylinder, migrateEntityTransformersToRegistry } = await import(
-        '@/scripts/migrateWorld'
-      )
+      const {
+        migrateWorldScripts,
+        migrateWorldSimplificationFields,
+        migrateCustomTransformerNames,
+        migrateWorldRingShapesToCylinder,
+        migrateEntityTransformersToRegistry,
+        migrateTransformerPipeToStack,
+      } = await import('@/scripts/migrateWorld')
       const zip = await JSZip.loadAsync(file)
       const worldFile = zip.file('world.json')
       if (!worldFile) throw new Error('Invalid project: missing world.json')
@@ -286,6 +291,7 @@ export function createIndexedDbPersistence(): PersistenceAPI {
       migrateWorldScripts(worldJson)
       migrateCustomTransformerNames(worldJson)
       migrateEntityTransformersToRegistry(worldJson)
+      migrateTransformerPipeToStack(worldJson)
       migrateWorldSimplificationFields(worldJson)
       migrateWorldRingShapesToCylinder(worldJson)
       validateWorldDocument(worldJson, { tolerateAdditionalProperties: true, logAdditionalProperties: true })

@@ -15,6 +15,8 @@ Goal: one canonical component per interaction pattern. Avoid bespoke `createPort
 | **Full-screen workspace shell** | [`Workspace.tsx`](../src/components/Workspace.tsx) | Behavior authoring overlay (not a reusable dialog primitive) |
 | **Anchor-positioned tool popover** | [`AnchoredPopover.tsx`](../src/components/AnchoredPopover.tsx) + [`useAnchoredPopover.ts`](../src/hooks/useAnchoredPopover.ts) | Small anchored panels tied to a toolbar button (brush color/size, etc.) |
 | **Layout split handle** (not a floating shell) | [`WorkspaceDocsSplit.tsx`](../src/components/workspace/WorkspaceDocsSplit.tsx) | Fixed column divider inside Workspace (Monaco vs. transformer docs) |
+| **Inline docked sidebar split** | [`TransformerPipeNavSidebar.tsx`](../src/components/workspace/pipeNav/TransformerPipeNavSidebar.tsx), [`PipeNavOpenToggle.tsx`](../src/components/workspace/pipeNav/PipeNavOpenToggle.tsx) | Pipe navigation tree in Transformers tab (resizable, collapsible; slim `»` opener aligned to pipeline strip center) |
+| **Pipeline add modal** | [`PipeAddDialog.tsx`](../src/components/workspace/pipeNav/PipeAddDialog.tsx), [`AddTransformerDialogPanel.tsx`](../src/components/workspace/AddTransformerDialogPanel.tsx) | Unified `+` dialog: transformer preset/existing + create/link/copy pipes (replaces clipped popover) |
 | **Editor height handle** (not a floating shell) | [`TransformerCustomCodeEditor.tsx`](../src/components/TransformerCustomCodeEditor.tsx) | Vertical resize for standalone Monaco blocks (`layout: fixed`) |
 
 ### Shared resize primitives

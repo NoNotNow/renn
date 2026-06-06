@@ -154,6 +154,12 @@ export interface TransformInput {
   entityId: string
 
   /**
+   * Merged pipe params keyed by pipe id (`entity.transformerPipeStack` bindings).
+   * Set once before the first stage; each binding's params merged over pipe.defaultParams.
+   */
+  pipeParamsByPipeId?: Record<string, Record<string, unknown>>
+
+  /**
    * Optional movement intent from target sources (waypoints, AI, etc.).
    * Last writer wins if multiple transformers mutate it in one frame.
    */
@@ -308,17 +314,63 @@ export interface TransformerDef extends TransformerConfig {}
 // Transformer Pipes
 // ---------------------------------------------------------------------------
 
+/** Typed pipe input — extend as needed. */
+export type PipeParamType = 'number' | 'string' | 'boolean' | 'entityId' | 'vec3'
+
+export interface PipeParamDef {
+  key: string
+  label?: string
+  type: PipeParamType
+  default?: unknown
+  description?: string
+}
+
 /**
- * A named, reusable sequence of transformer stages.
- * Can be linked to an entity (shared registry IDs) or used as a template (copy).
+ * One member inside a **manifold** (nested pipe): either a leaf stage or a child pipe.
+ * @see TransformerPipe.members
+ */
+export type TransformerPipeMember =
+  | { kind: 'stage'; stageId: string; enabled?: boolean }
+  | { kind: 'pipe'; pipeId: string; enabled?: boolean }
+
+/**
+ * One pipe instance on an entity's **pipe stack** (ordered pipe bindings).
+ * Params are per-entity even when the pipe definition is linked.
+ */
+export interface TransformerPipeBinding {
+  pipeId: string
+  /** Per-entity pipe input overrides (merged over pipe.defaultParams at runtime). */
+  params?: Record<string, unknown>
+  /** When `copy`, stages are entity-local clones; `pipeId` is provenance only. */
+  mode?: 'linked' | 'copy'
+  /** When false, pipe is omitted from runtime flatten. Default true. */
+  enabled?: boolean
+  /** Entity-local stage ids when `mode` is `copy`. */
+  localStageIds?: string[]
+}
+
+/**
+ * A named, reusable behavior recipe: ordered stages and/or nested pipes (**manifold**).
+ * Can be linked to entities (shared registry IDs) or used as a template (copy).
  */
 export interface TransformerPipe {
   id: string
   name: string
-  /** Ordered transformer registry IDs — used when assigning in 'linked' mode. */
+  /** Leaf stage registry IDs — legacy flat list; used when `members` is omitted. */
   stageIds: string[]
-  /** Inline config snapshots — used when assigning in 'copy' mode (template). */
+  /** Leaf stage snapshots — used when assigning in copy mode (template). */
   stages: TransformerConfig[]
+  /**
+   * Manifold member order: leaf stages and/or nested pipe ids.
+   * When set, this is the authoring source of truth for structure resolution.
+   */
+  members?: TransformerPipeMember[]
+  /** What this pipe exposes as tunable inputs (author-defined). */
+  paramDefs?: PipeParamDef[]
+  /** Default values when assigning to a new entity. */
+  defaultParams?: Record<string, unknown>
+  /** Map pipe param key → preset stage param path, e.g. `targetEntity` → `follow:targetEntityId`. */
+  paramBindings?: Record<string, string>
   createdAt?: number
 }
 

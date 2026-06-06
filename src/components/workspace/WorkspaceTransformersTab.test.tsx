@@ -663,7 +663,7 @@ describe('WorkspaceTransformersTab', () => {
       expect(lastMonacoPayload(setMonacoPayload)?.kind).toBe('placeholder')
     })
 
-    await user.click(screen.getByTestId('add-transformer-button'))
+    await user.click(screen.getByTestId('pipe-focused-add-button'))
     await user.click(screen.getByTestId('add-transformer-preset-custom'))
     await user.click(screen.getByTestId('add-transformer-add-preset'))
 
@@ -680,7 +680,7 @@ describe('WorkspaceTransformersTab', () => {
     })
   })
 
-  it('shows shared pipe banner when entity is linked to a pipe', async () => {
+  it('shows pipe navigation sidebar when entity has a linked pipe', async () => {
     const pipeWorld: RennWorld = {
       ...carStackWorld,
       transformerPipes: {
@@ -694,12 +694,12 @@ describe('WorkspaceTransformersTab', () => {
       entities: [
         {
           ...carStackWorld.entities[0]!,
-          transformerPipe: 'p1',
+          transformerPipeStack: [{ pipeId: 'p1' }],
         },
       ],
     }
     renderTab({ world: pipeWorld })
-    expect(screen.getByText(/Shared pipe:/)).toBeDefined()
-    expect(screen.getByText('My Pipe')).toBeDefined()
+    expect(screen.getByTestId('pipe-nav-sidebar')).toBeDefined()
+    expect(screen.getAllByText('My Pipe').length).toBeGreaterThan(0)
   })
 })

@@ -22,6 +22,9 @@ export type WorkspaceTarget = {
   itemId?: string
   /** When set to `global`, `itemId` is resolved from the cross-project IndexedDB library. */
   itemSource?: WorkspaceItemSource
+  /** Restores pipe navigation depth in the Transformers tab. */
+  pipeNavPath?: import('./pipeNav').PipeNavPathSegment[]
+  pipeNavSelectedIndex?: number
   /** When `tab === 'organize'`, restores scope/kind subtabs (e.g. Scripts > Manage). */
   organize?: {
     scope: WorkspaceOrganizeScope

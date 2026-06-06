@@ -372,7 +372,15 @@ export interface Entity {
   locked?: boolean
   /** Transformer IDs referencing world.transformers registry. See migrateEntityTransformersToRegistry. */
   transformers?: string[]
-  /** Linked transformer pipe ID from world.transformerPipes. */
+  /**
+   * Ordered pipe instances (**pipe stack**). `transformers` is the flattened stage-id
+   * cache for runtime — updated on pipe assign/edit, not traversed per frame.
+   */
+  transformerPipeStack?: import('./transformer').TransformerPipeBinding[]
+  /**
+   * @deprecated Migrated to `transformerPipeStack` on load. Single-entry equivalent.
+   * @see migrateTransformerPipeToStack
+   */
   transformerPipe?: string
   /** When set, entity may be the play avatar (input + camera); see EntityAvatarConfig. */
   avatar?: EntityAvatarConfig

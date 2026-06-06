@@ -514,9 +514,14 @@
           "items": { "type": "string" },
           "description": "Transformer IDs referencing world.transformers registry"
         },
+        "transformerPipeStack": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/TransformerPipeBinding" },
+          "description": "Ordered pipe instances (pipe stack). entity.transformers is the flattened runtime cache."
+        },
         "transformerPipe": {
           "type": "string",
-          "description": "Linked transformer pipe ID from world.transformerPipes"
+          "description": "Deprecated: migrated to transformerPipeStack on load"
         },
         "avatar": { "$ref": "#/$defs/EntityAvatarConfig" }
       },
@@ -543,6 +548,66 @@
       },
       "additionalProperties": false
     },
+    "TransformerPipeBinding": {
+      "type": "object",
+      "required": ["pipeId"],
+      "properties": {
+        "pipeId": { "type": "string" },
+        "params": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Per-entity pipe input overrides"
+        },
+        "mode": {
+          "type": "string",
+          "enum": ["linked", "copy"],
+          "description": "Copy bindings use entity-local stage clones"
+        },
+        "enabled": { "type": "boolean" },
+        "localStageIds": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "TransformerPipeMember": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["kind", "stageId"],
+          "properties": {
+            "kind": { "const": "stage" },
+            "stageId": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["kind", "pipeId"],
+          "properties": {
+            "kind": { "const": "pipe" },
+            "pipeId": { "type": "string" }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "PipeParamDef": {
+      "type": "object",
+      "required": ["key", "type"],
+      "properties": {
+        "key": { "type": "string" },
+        "label": { "type": "string" },
+        "type": {
+          "type": "string",
+          "enum": ["number", "string", "boolean", "entityId", "vec3"]
+        },
+        "default": {},
+        "description": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
     "TransformerPipe": {
       "type": "object",
       "required": ["id", "name", "stageIds", "stages"],
@@ -552,12 +617,29 @@
         "stageIds": {
           "type": "array",
           "items": { "type": "string" },
-          "description": "Ordered transformer registry IDs (used for live link)"
+          "description": "Leaf stage registry IDs (legacy flat list)"
         },
         "stages": {
           "type": "array",
           "items": { "$ref": "#/$defs/TransformerConfig" },
-          "description": "Inline config snapshots (used for independent copies)"
+          "description": "Leaf stage snapshots (copy template)"
+        },
+        "members": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/TransformerPipeMember" },
+          "description": "Manifold member order: stages and/or nested pipes"
+        },
+        "paramDefs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/PipeParamDef" }
+        },
+        "defaultParams": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "paramBindings": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
         },
         "createdAt": { "type": "number" }
       },

@@ -130,6 +130,16 @@ export const theme = {
     mixedValues: '#888',
   },
   accent: '#8ab4ff',
+  /** Pipe navigation sidebar + level-colored cards (gold accent on dark panels). */
+  pipeNav: {
+    levelBg: ['#1a1a1a', '#1c1a14', '#1a1c18', '#1a141c'] as const,
+    accent: '#f0d040',
+    accentMuted: 'rgba(240, 208, 64, 0.35)',
+    accentBorder: 'rgba(240, 208, 64, 0.55)',
+    sidebarBg: '#141414',
+    treeHover: 'rgba(240, 208, 64, 0.08)',
+    treeSelected: 'rgba(240, 208, 64, 0.14)',
+  },
   effects: {
     /** Backdrop blur for `bg.modalGlass` surfaces (frosted panel over the scene). */
     modalGlassBlur: 'blur(18px) saturate(140%)',
