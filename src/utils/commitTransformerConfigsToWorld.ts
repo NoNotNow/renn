@@ -239,6 +239,7 @@ export function savePipeFromEntity(
     stageIds: [...stageIds],
     stages: JSON.parse(JSON.stringify(stages)),
     members: stageIds.map((id) => ({ kind: 'stage' as const, stageId: id })),
+    defaultParams: {},
     createdAt: Date.now(),
   }
 

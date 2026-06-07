@@ -58,6 +58,12 @@ export interface TransformerPipeNavSidebarProps {
     value: unknown
     useSharedDefaults?: boolean
   }) => void
+  onPipeParamsReplace?: (opts: {
+    pipeId: string
+    stackIndex?: number
+    params: Record<string, unknown>
+    useSharedDefaults?: boolean
+  }) => void
   onDecouplePipeBinding?: (stackIndex: number) => void
 }
 
@@ -108,6 +114,7 @@ export default function TransformerPipeNavSidebar({
   stackIndexForPipeId,
   onPipeControlToggle,
   onPipeParamChange,
+  onPipeParamsReplace,
   onDecouplePipeBinding,
 }: TransformerPipeNavSidebarProps) {
   const [widthPx, setWidthPx] = useState(readPipeNavWidth)
@@ -245,6 +252,7 @@ export default function TransformerPipeNavSidebar({
         stackIndexForPipeId={stackIndexForPipeId}
         onPipeControlToggle={onPipeControlToggle}
         onPipeParamChange={onPipeParamChange}
+        onPipeParamsReplace={onPipeParamsReplace}
         onDecouplePipeBinding={onDecouplePipeBinding}
       />
       <div

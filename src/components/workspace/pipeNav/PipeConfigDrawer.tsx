@@ -2,6 +2,7 @@ import { useCallback, useLayoutEffect, useState } from 'react'
 import type { TransformerPipe, TransformerPipeBinding } from '@/types/transformer'
 import WorkspaceFloatingDrawer from '@/components/workspace/WorkspaceFloatingDrawer'
 import { clampDrawerPosition, drawerPositionRelativeToHost } from '@/components/workspace/floatingDrawerLayout'
+import PipeParamsJsonEditor from './PipeParamsJsonEditor'
 import PipeParamsStrip from './PipeParamsStrip'
 import { theme } from '@/config/theme'
 
@@ -12,6 +13,7 @@ export interface PipeConfigDrawerProps {
   anchorRef: React.RefObject<HTMLElement | null>
   onClose: () => void
   onParamChange?: (key: string, value: unknown) => void
+  onParamsReplace?: (params: Record<string, unknown>) => void
   /** When true, edits apply to pipe.defaultParams (shared template). */
   sharedDefaults?: boolean
 }
@@ -23,6 +25,7 @@ export default function PipeConfigDrawer({
   anchorRef,
   onClose,
   onParamChange,
+  onParamsReplace,
   sharedDefaults = false,
 }: PipeConfigDrawerProps) {
   const [anchor, setAnchor] = useState({ x: 0, y: 0 })
@@ -66,9 +69,12 @@ export default function PipeConfigDrawer({
       : null}
       {hasParamDefs ?
         <PipeParamsStrip pipe={pipe} binding={binding} onParamChange={onParamChange} />
-      : <p style={{ margin: 0, fontSize: 11, color: theme.text.muted }}>
-          This pipe has no tunable parameters defined yet. Add `paramDefs` on the pipe to expose config here.
-        </p>
+      : <PipeParamsJsonEditor
+          pipe={pipe}
+          binding={binding}
+          sharedDefaults={sharedDefaults}
+          onParamsReplace={onParamsReplace}
+        />
       }
     </WorkspaceFloatingDrawer>
   )

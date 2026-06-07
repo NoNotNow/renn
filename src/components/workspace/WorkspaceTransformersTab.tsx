@@ -925,6 +925,7 @@ function WorkspaceTransformersTabEntity({
           stackIndexForPipeId={pipeNav.stackIndexForPipeId}
           onPipeControlToggle={pipeNav.togglePipeEnabled}
           onPipeParamChange={pipeNav.updatePipeParam}
+          onPipeParamsReplace={pipeNav.replacePipeParams}
           onDecouplePipeBinding={pipeNav.decouplePipeBinding}
         />
       : null}
@@ -1053,6 +1054,7 @@ function WorkspaceTransformersTabEntity({
                 stackIndexForPipeId={pipeNav.stackIndexForPipeId}
                 onPipeControlToggle={pipeNav.togglePipeEnabled}
                 onPipeParamChange={pipeNav.updatePipeParam}
+                onPipeParamsReplace={pipeNav.replacePipeParams}
                 onDecouplePipeBinding={pipeNav.decouplePipeBinding}
                 onMakeUnique={handleMakeUniqueTransformer}
                 usageCounts={usageCounts}

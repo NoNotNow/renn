@@ -47,6 +47,7 @@ export function createPipeFromStages(world: RennWorld, opts: CreatePipeOptions):
     stageIds: [...opts.stageIds],
     stages: JSON.parse(JSON.stringify(stages)),
     members: opts.stageIds.map((stageId) => ({ kind: 'stage' as const, stageId })),
+    defaultParams: {},
     createdAt: Date.now(),
   }
 
@@ -170,6 +171,7 @@ export function wrapUngroupedStagesIntoStackPipe(
     stageIds: [...orphanIds],
     stages: JSON.parse(JSON.stringify(stages)),
     members: orphanIds.map((stageId) => ({ kind: 'stage' as const, stageId })),
+    defaultParams: {},
     createdAt: Date.now(),
   }
 
@@ -204,6 +206,7 @@ export function wrapEntityStagesIntoPipe(
     stageIds: [...stageIds],
     stages: JSON.parse(JSON.stringify(stages)),
     members: stageIds.map((id) => ({ kind: 'stage' as const, stageId: id })),
+    defaultParams: {},
     createdAt: Date.now(),
   }
 
@@ -297,6 +300,36 @@ export function updatePipeDefaultParams(
     transformerPipes: {
       ...(world.transformerPipes ?? {}),
       [pipeId]: { ...pipe, defaultParams: { ...(pipe.defaultParams ?? {}), ...params } },
+    },
+  }
+}
+
+export function setBindingParams(
+  world: RennWorld,
+  entityId: string,
+  stackIndex: number,
+  params: Record<string, unknown>,
+): RennWorld {
+  const entity = world.entities.find((e) => e.id === entityId)
+  if (!entity) return world
+  const stack = getEntityPipeStack(entity).map((b, i) =>
+    i === stackIndex ? { ...b, params } : b,
+  )
+  return updateEntityStack(world, entityId, stack)
+}
+
+export function setPipeDefaultParams(
+  world: RennWorld,
+  pipeId: string,
+  params: Record<string, unknown>,
+): RennWorld {
+  const pipe = world.transformerPipes?.[pipeId]
+  if (!pipe) return world
+  return {
+    ...world,
+    transformerPipes: {
+      ...(world.transformerPipes ?? {}),
+      [pipeId]: { ...pipe, defaultParams: params },
     },
   }
 }

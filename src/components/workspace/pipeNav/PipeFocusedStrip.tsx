@@ -47,6 +47,12 @@ export interface PipeFocusedStripProps {
     value: unknown
     useSharedDefaults?: boolean
   }) => void
+  onPipeParamsReplace?: (opts: {
+    pipeId: string
+    stackIndex?: number
+    params: Record<string, unknown>
+    useSharedDefaults?: boolean
+  }) => void
   onDecouplePipeBinding?: (stackIndex: number) => void
   onMakeUnique?: (id: string) => void
   makeUniqueDisabledReason?: string
@@ -76,6 +82,7 @@ export default function PipeFocusedStrip({
   stackIndexForPipeId,
   onPipeControlToggle,
   onPipeParamChange,
+  onPipeParamsReplace,
   onDecouplePipeBinding,
   onMakeUnique,
   makeUniqueDisabledReason,
@@ -235,6 +242,14 @@ export default function PipeFocusedStrip({
                       useSharedDefaults: stackIdx === undefined || stackIdx < 0,
                     })
                   }
+                  onParamsReplace={(params) =>
+                    onPipeParamsReplace?.({
+                      pipeId: item.pipeId,
+                      stackIndex: stackIdx,
+                      params,
+                      useSharedDefaults: stackIdx === undefined || stackIdx < 0,
+                    })
+                  }
                   onDecoupleBinding={
                     stackIdx !== undefined && stackIdx >= 0 ?
                       () => onDecouplePipeBinding?.(stackIdx)
@@ -336,6 +351,14 @@ export default function PipeFocusedStrip({
               stackIndex: stackIdx,
               key,
               value,
+              useSharedDefaults: stackIdx === undefined || stackIdx < 0,
+            })
+          }
+          onParamsReplace={(params) =>
+            onPipeParamsReplace?.({
+              pipeId: item.pipeId,
+              stackIndex: stackIdx,
+              params,
               useSharedDefaults: stackIdx === undefined || stackIdx < 0,
             })
           }

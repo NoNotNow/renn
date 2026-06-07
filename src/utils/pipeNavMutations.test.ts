@@ -10,6 +10,8 @@ import {
   moveMemberStage,
   nestStackPipeAsMember,
   promoteMemberPipeToStack,
+  setBindingParams,
+  setPipeDefaultParams,
   stageIdsForStackBinding,
   wrapUngroupedStagesIntoStackPipe,
 } from './pipeNavMutations'
@@ -57,6 +59,16 @@ describe('pipeNavMutations pipe controls', () => {
     expect(stageIdsForStackBinding(world, entity, 0)).toEqual(['s1'])
   })
 
+  it('replaces binding params in one shot', () => {
+    const next = setBindingParams(world, 'e1', 0, { speed: 9, boost: true })
+    expect(next.entities[0]?.transformerPipeStack?.[0]?.params).toEqual({ speed: 9, boost: true })
+  })
+
+  it('replaces pipe default params in one shot', () => {
+    const next = setPipeDefaultParams(world, 'p1', { speed: 4 })
+    expect(next.transformerPipes?.p1?.defaultParams).toEqual({ speed: 4 })
+  })
+
   it('creates Pipe1 for a fresh entity without transformers', () => {
     const fresh: RennWorld = {
       version: '1',
@@ -68,6 +80,7 @@ describe('pipeNavMutations pipe controls', () => {
     expect(created).toBe(true)
     expect(pipeId).toBe('pipe1')
     expect(next.transformerPipes?.[pipeId]?.name).toBe('Pipe1')
+    expect(next.transformerPipes?.[pipeId]?.defaultParams).toEqual({})
     expect(next.entities[0]?.transformerPipeStack).toEqual([{ pipeId, enabled: true }])
   })
 

@@ -39,6 +39,12 @@ export interface PipeNavTreeProps {
     value: unknown
     useSharedDefaults?: boolean
   }) => void
+  onPipeParamsReplace?: (opts: {
+    pipeId: string
+    stackIndex?: number
+    params: Record<string, unknown>
+    useSharedDefaults?: boolean
+  }) => void
   onDecouplePipeBinding?: (stackIndex: number) => void
 }
 
@@ -55,6 +61,7 @@ export default function PipeNavTree({
   stackIndexForPipeId,
   onPipeControlToggle,
   onPipeParamChange,
+  onPipeParamsReplace,
   onDecouplePipeBinding,
 }: PipeNavTreeProps) {
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(['entity']))
@@ -200,6 +207,14 @@ export default function PipeNavTree({
                         useSharedDefaults: stackIdx === undefined || stackIdx < 0,
                       })
                     }
+                    onParamsReplace={(params) =>
+                      onPipeParamsReplace?.({
+                        pipeId: member.pipeId,
+                        stackIndex: stackIdx,
+                        params,
+                        useSharedDefaults: stackIdx === undefined || stackIdx < 0,
+                      })
+                    }
                     onDecoupleBinding={
                       stackIdx !== undefined && stackIdx >= 0 ?
                         () => onDecouplePipeBinding?.(stackIdx)
@@ -230,6 +245,7 @@ export default function PipeNavTree({
       stackIndexForPipeId,
       onPipeControlToggle,
       onPipeParamChange,
+      onPipeParamsReplace,
       onDecouplePipeBinding,
       drawerPortalTarget,
       openConfigKey,
@@ -335,6 +351,13 @@ export default function PipeNavTree({
                           stackIndex,
                           key: paramKey,
                           value,
+                        })
+                      }
+                      onParamsReplace={(params) =>
+                        onPipeParamsReplace?.({
+                          pipeId: binding.pipeId,
+                          stackIndex,
+                          params,
                         })
                       }
                       onDecoupleBinding={() => onDecouplePipeBinding?.(stackIndex)}

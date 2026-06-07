@@ -18,6 +18,7 @@ export interface PipeTreePipeControlsProps {
   drawerPortalTarget?: RefObject<HTMLDivElement | null>
   onToggleEnabled?: () => void
   onParamChange?: (key: string, value: unknown) => void
+  onParamsReplace?: (params: Record<string, unknown>) => void
   onDecoupleBinding?: () => void
   useSharedDefaults?: boolean
 }
@@ -35,6 +36,7 @@ export default function PipeTreePipeControls({
   drawerPortalTarget,
   onToggleEnabled,
   onParamChange,
+  onParamsReplace,
   onDecoupleBinding,
   useSharedDefaults = false,
 }: PipeTreePipeControlsProps) {
@@ -65,6 +67,7 @@ export default function PipeTreePipeControls({
           anchorRef={anchorRef}
           onClose={() => onConfigOpenChange(false)}
           onParamChange={onParamChange}
+          onParamsReplace={onParamsReplace}
           sharedDefaults={useSharedDefaults}
         />
       : null}

@@ -21,6 +21,7 @@ export interface PipeCardProps {
   onDrillIn: () => void
   onToggleEnabled?: () => void
   onParamChange?: (key: string, value: unknown) => void
+  onParamsReplace?: (params: Record<string, unknown>) => void
   onDecoupleBinding?: () => void
   decoupleDisabledReason?: string
   /** When no stack binding, params edit pipe.defaultParams. */
@@ -40,6 +41,7 @@ export default function PipeCard({
   onDrillIn,
   onToggleEnabled,
   onParamChange,
+  onParamsReplace,
   onDecoupleBinding,
   decoupleDisabledReason,
   useSharedDefaults = false,
@@ -155,6 +157,7 @@ export default function PipeCard({
           anchorRef={cardRef}
           onClose={closeConfig}
           onParamChange={onParamChange}
+          onParamsReplace={onParamsReplace}
           sharedDefaults={useSharedDefaults}
         />
       : null}

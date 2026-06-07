@@ -946,5 +946,43 @@ describe('WorkspaceTransformersTab', () => {
       const next = onWorldChange.mock.calls.at(-1)?.[0] as RennWorld
       expect(next.entities[0]?.transformerPipeStack?.[0]?.params?.speed).toBe(7)
     })
+
+    it('shows JSON config editor when pipe has no paramDefs', async () => {
+      renderTab({
+        world: carStackWorld,
+        entry: { entityId: 'car', tab: 'transformers', pipeNavPath: [], pipeNavSelectedIndex: 0 },
+      })
+
+      fireEvent.click(screen.getByTestId('pipe-controls-config'))
+
+      await waitFor(() => {
+        expect(screen.getByTestId('pipe-config-drawer')).toBeInTheDocument()
+        expect(screen.getByTestId('pipe-params-json')).toBeInTheDocument()
+        expect(screen.getByTestId('pipe-params-json')).toHaveValue('{}')
+      })
+    })
+
+    it('writes per-entity pipe params from the JSON config editor', async () => {
+      const onWorldChange = vi.fn()
+      renderTab({
+        world: carStackWorld,
+        entry: { entityId: 'car', tab: 'transformers', pipeNavPath: [], pipeNavSelectedIndex: 0 },
+        onWorldChange,
+      })
+
+      fireEvent.click(screen.getByTestId('pipe-controls-config'))
+
+      await waitFor(() => {
+        expect(screen.getByTestId('pipe-params-json')).toBeInTheDocument()
+      })
+
+      const textarea = screen.getByTestId('pipe-params-json')
+      fireEvent.change(textarea, { target: { value: '{\n  "maxSpeed": 12\n}' } })
+      fireEvent.click(screen.getByTestId('pipe-params-json-apply'))
+
+      await waitFor(() => expect(onWorldChange).toHaveBeenCalled())
+      const next = onWorldChange.mock.calls.at(-1)?.[0] as RennWorld
+      expect(next.entities[0]?.transformerPipeStack?.[0]?.params).toEqual({ maxSpeed: 12 })
+    })
   })
 })

@@ -13,6 +13,8 @@ import {
   toggleMemberEnabled,
   updateBindingParams,
   updatePipeDefaultParams,
+  setBindingParams,
+  setPipeDefaultParams,
   decoupleStackBindingToCopy,
   ensureEntityPipeStack,
   reorderStackBindings,
@@ -237,6 +239,22 @@ export function usePipeNavController(
         return
       }
       pushWorld(updateBindingParams(world, entity.id, opts.stackIndex, { [opts.key]: opts.value }))
+    },
+    [world, entity.id, pushWorld],
+  )
+
+  const replacePipeParams = useCallback(
+    (opts: {
+      pipeId: string
+      stackIndex?: number
+      params: Record<string, unknown>
+      useSharedDefaults?: boolean
+    }) => {
+      if (opts.useSharedDefaults || opts.stackIndex === undefined || opts.stackIndex < 0) {
+        pushWorld(setPipeDefaultParams(world, opts.pipeId, opts.params))
+        return
+      }
+      pushWorld(setBindingParams(world, entity.id, opts.stackIndex, opts.params))
     },
     [world, entity.id, pushWorld],
   )
@@ -487,6 +505,7 @@ export function usePipeNavController(
     stackIndexForPipeId,
     togglePipeEnabled,
     updatePipeParam,
+    replacePipeParams,
     decouplePipeBinding,
     toggleStackAt: (idx: number) => pushWorld(toggleStackBindingEnabled(world, entity.id, idx)),
     updateParamsAt: (stackIndex: number, key: string, value: unknown) =>
