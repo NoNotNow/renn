@@ -7,12 +7,11 @@ Add **Transformer Pipes** — named, reusable, ordered sequences of transformer 
 
 ### Requirements
 
-#### FR1 — Save as Pipe
-- In the Workspace Transformers tab header, a **\"Save as Pipe\"** button (or chip) is available when the entity has at least one transformer stage.
-- Clicking opens a small inline dialog: pipe name input + mode selector (**Linked** / **Copy**).
-- **Linked mode**: the current `entity.transformers` IDs become the pipe's `stageIds`. `entity.transformerPipe` is set to the new pipe ID. No new registry entries are created.
-- **Copy mode**: a new pipe is created with a snapshot of the current configs (stored inline in `TransformerPipe.stages`). `entity.transformerPipe` is NOT set (entity remains independent). The pipe acts as a reusable template.
-- The new pipe is written to `world.transformerPipes`.
+#### FR1 — Automatic pipe wrap on entity select
+- When an entity is opened in the Workspace Transformers tab and has **no pipe stack yet**, it is automatically wrapped in a new pipe named **Pipe1**, **Pipe2**, … (next free number in `world.transformerPipes`).
+- **Fresh entity** (no transformers): an empty `Pipe1` is created on `entity.transformerPipeStack` under the hood.
+- **Entity with flat stages** (legacy `entity.transformers` only): existing stage ids move into the new pipe's `members`; the stack binding is linked.
+- No manual **Save as Pipe** step — wrapping happens on selection via `ensureEntityPipeStack` in `src/utils/pipeNavMutations.ts`.
 
 #### FR2 — Add Pipe (from Transformers tab)
 - A **\"+ Add Pipe\"** dropdown/button in the pipeline header lists all pipes in `world.transformerPipes`.
@@ -115,11 +114,11 @@ Legacy `entity.transformerPipe` migrates to a single-entry stack on load (`migra
 
 ### UI Flows
 
-#### Save as Pipe
-1. User clicks \"Save as Pipe\" in Transformers tab header.
-2. Dialog asks for Name and Mode (Linked/Copy).
-3. If Linked: pipe created with `stageIds = entity.transformers`, `entity.transformerPipe = pipeId`.
-4. If Copy: pipe created with `stages = snapshot(entity.transformers)`, `entity.transformerPipe` remains unset.
+#### Auto-wrap on select
+1. User selects an entity in the Transformers tab (or opens a fresh entity there).
+2. If `getEntityPipeStack(entity)` is empty, `ensureEntityPipeStack` creates **PipeN** and appends it to the stack.
+3. Flat stages become members of that pipe; empty entities get an empty pipe ready for stages.
+4. Focus auto-drills into the new pipe so the stage strip (or empty + menu) is immediately editable.
 
 #### Add Pipe
 1. User selects pipe from \"+ Add Pipe\" dropdown.
@@ -146,7 +145,7 @@ Legacy `entity.transformerPipe` migrates to a single-entry stack on load (`migra
 | `src/hooks/usePipeNavigator.ts` | Focus path state (up/left/right, drill-in) |
 | `src/hooks/usePipeNavController.ts` | World mutations + dialogs wiring |
 | `src/components/workspace/pipeNav/` | Sidebar, tree, `PipeCard` (share / enable / config chrome), focused strip, `PipeAddDialog` |
-| `src/components/workspace/WorkspaceTransformersTab.tsx` | Save/Add Pipe UI, Link banner |
+| `src/components/workspace/WorkspaceTransformersTab.tsx` | Auto-wrap on select, Add Pipe UI, Link banner |
 | `src/components/workspace/WorkspaceOrganizeTab.tsx` | Organize Pipes sub-tab |
 | `src/persistence/indexedDb.ts` | Global library persistence |
 

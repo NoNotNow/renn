@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import type { RennWorld } from '@/types/world'
-import { decoupleStackBindingToCopy, stageIdsForStackBinding } from './pipeNavMutations'
+import {
+  decoupleStackBindingToCopy,
+  ensureEntityPipeStack,
+  stageIdsForStackBinding,
+} from './pipeNavMutations'
 
 describe('pipeNavMutations pipe controls', () => {
   const world: RennWorld = {
@@ -38,6 +42,42 @@ describe('pipeNavMutations pipe controls', () => {
   it('collects stage ids for a stack binding', () => {
     const entity = world.entities[0]!
     expect(stageIdsForStackBinding(world, entity, 0)).toEqual(['s1'])
+  })
+
+  it('creates Pipe1 for a fresh entity without transformers', () => {
+    const fresh: RennWorld = {
+      version: '1',
+      world: {},
+      entities: [{ id: 'e1', name: 'Hero', transformers: [] }],
+      transformers: {},
+    }
+    const { world: next, pipeId, created } = ensureEntityPipeStack(fresh, 'e1')
+    expect(created).toBe(true)
+    expect(pipeId).toBe('pipe1')
+    expect(next.transformerPipes?.[pipeId]?.name).toBe('Pipe1')
+    expect(next.entities[0]?.transformerPipeStack).toEqual([{ pipeId, enabled: true }])
+  })
+
+  it('wraps flat stages into Pipe1 when entity has no pipe stack', () => {
+    const flat: RennWorld = {
+      version: '1',
+      world: {},
+      entities: [{ id: 'e1', transformers: ['s1', 's2'] }],
+      transformers: {
+        s1: { type: 'input' },
+        s2: { type: 'car2' },
+      },
+    }
+    const { world: next, pipeId, created } = ensureEntityPipeStack(flat, 'e1')
+    expect(created).toBe(true)
+    expect(next.transformerPipes?.[pipeId]?.stageIds).toEqual(['s1', 's2'])
+    expect(next.entities[0]?.transformerPipeStack).toEqual([{ pipeId, enabled: true }])
+  })
+
+  it('skips entities that already have a pipe stack', () => {
+    const { world: next, created } = ensureEntityPipeStack(world, 'e1')
+    expect(created).toBe(false)
+    expect(next).toBe(world)
   })
 
   it('decouples a linked stack binding into a copy for one entity', () => {

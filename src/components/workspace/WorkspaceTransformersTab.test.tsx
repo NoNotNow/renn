@@ -30,6 +30,17 @@ const undoApi = {
   notifyScrubEnd: vi.fn(),
 }
 
+const CAR_PIPE_ID = 'pipe1'
+
+function carTransformersEntry(itemId: string) {
+  return {
+    entityId: 'car',
+    tab: 'transformers' as const,
+    itemId,
+    pipeNavPath: [{ kind: 'stack' as const, index: 0 }],
+  }
+}
+
 const carStackWorld: RennWorld = {
   version: '1.0',
   world: { gravity: [0, -9.81, 0] },
@@ -41,6 +52,7 @@ const carStackWorld: RennWorld = {
       shape: { type: 'box', width: 1, height: 1, depth: 1 },
       position: [0, 0, 0],
       transformers: ['car_tf0', 'car_tf1', 'car_tf2'],
+      transformerPipeStack: [{ pipeId: CAR_PIPE_ID, enabled: true }],
     },
   ],
   transformers: {
@@ -53,6 +65,30 @@ const carStackWorld: RennWorld = {
       params: {},
       code: 'return { force: [0, 0, 0] };',
       name: 'Custom',
+    },
+  },
+  transformerPipes: {
+    [CAR_PIPE_ID]: {
+      id: CAR_PIPE_ID,
+      name: 'Pipe1',
+      stageIds: ['car_tf0', 'car_tf1', 'car_tf2'],
+      stages: [
+        { type: 'input', priority: 0, enabled: true, params: {} },
+        { type: 'car2', priority: 1, enabled: true, params: {} },
+        {
+          type: 'custom',
+          priority: 2,
+          enabled: true,
+          params: {},
+          code: 'return { force: [0, 0, 0] };',
+          name: 'Custom',
+        },
+      ],
+      members: [
+        { kind: 'stage', stageId: 'car_tf0' },
+        { kind: 'stage', stageId: 'car_tf1' },
+        { kind: 'stage', stageId: 'car_tf2' },
+      ],
     },
   },
 }
@@ -84,7 +120,7 @@ function TabWithMonacoHarness(
     <WorkspaceTransformersTab
       world={carStackWorld}
       selectedEntityIds={['car']}
-      entry={{ entityId: 'car', tab: 'transformers', itemId: 'car_tf2' }}
+      entry={carTransformersEntry('car_tf2')}
       workspaceOpen
       liveTraceSteps={null}
       onWorldChange={vi.fn()}
@@ -143,7 +179,7 @@ describe('WorkspaceTransformersTab', () => {
     renderTab({
       setMonacoPayload,
       onWorldChange,
-      entry: { entityId: 'car', tab: 'transformers', itemId: 'car_tf0' },
+      entry: carTransformersEntry('car_tf0'),
     })
 
     await waitFor(() => {
@@ -177,7 +213,7 @@ describe('WorkspaceTransformersTab', () => {
   it('syncs entry.itemId when selecting custom code so close/reopen can restore selection', async () => {
     const onEntryChange = vi.fn()
     const { rerender } = renderTab({
-      entry: { entityId: 'car', tab: 'transformers', itemId: 'car_tf0' },
+      entry: carTransformersEntry('car_tf0'),
       onEntryChange,
     })
 
@@ -193,7 +229,7 @@ describe('WorkspaceTransformersTab', () => {
       <CopyProvider>
         <EditorUndoProvider value={undoApi}>
           <TabWithMonacoHarness
-            entry={{ entityId: 'car', tab: 'transformers', itemId: 'car_tf2' }}
+            entry={carTransformersEntry('car_tf2')}
             workspaceOpen={false}
           />
         </EditorUndoProvider>
@@ -205,7 +241,7 @@ describe('WorkspaceTransformersTab', () => {
       <CopyProvider>
         <EditorUndoProvider value={undoApi}>
           <TabWithMonacoHarness
-            entry={{ entityId: 'car', tab: 'transformers', itemId: 'car_tf2' }}
+            entry={carTransformersEntry('car_tf2')}
             setMonacoPayload={setMonacoPayload}
           />
         </EditorUndoProvider>
@@ -247,10 +283,41 @@ describe('WorkspaceTransformersTab', () => {
     expect(lastWorld.transformers?.car_tf2?.code).toContain('return { force')
   })
 
-  it('shows Save as Pipe and Add Pipe buttons', async () => {
+  it('shows Add Pipe button without Save as Pipe', async () => {
     renderTab()
-    expect(screen.getByText('Save as Pipe')).toBeDefined()
     expect(screen.getByText('+ Add Pipe')).toBeDefined()
+    expect(screen.queryByText('Save as Pipe')).toBeNull()
+  })
+
+  it('auto-wraps a fresh entity in Pipe1 when opened in transformers tab', async () => {
+    const freshWorld: RennWorld = {
+      version: '1',
+      world: {},
+      entities: [
+        {
+          id: 'fresh',
+          bodyType: 'dynamic',
+          shape: { type: 'box', width: 1, height: 1, depth: 1 },
+          position: [0, 0, 0],
+          transformers: [],
+        },
+      ],
+      transformers: {},
+    }
+    const onWorldChange = vi.fn()
+    renderTab({
+      world: freshWorld,
+      onWorldChange,
+      selectedEntityIds: ['fresh'],
+      entry: { entityId: 'fresh', tab: 'transformers' },
+    })
+
+    await waitFor(() => expect(onWorldChange).toHaveBeenCalled())
+    const next = onWorldChange.mock.calls.at(-1)?.[0] as RennWorld
+    const entity = next.entities.find((e) => e.id === 'fresh')!
+    const pipeId = entity.transformerPipeStack?.[0]?.pipeId
+    expect(pipeId).toBeDefined()
+    expect(next.transformerPipes?.[pipeId!]?.name).toBe('Pipe1')
   })
 
   it('make unique clones registry entry when shared usage badge is confirmed', async () => {
@@ -269,7 +336,7 @@ describe('WorkspaceTransformersTab', () => {
       ],
     }
     const onWorldChange = vi.fn()
-    renderTab({ world: sharedWorld, onWorldChange, entry: { entityId: 'car', tab: 'transformers', itemId: 'car_tf0' } })
+    renderTab({ world: sharedWorld, onWorldChange, entry: carTransformersEntry('car_tf0') })
 
     expect(screen.getAllByText(/👤 x2/).length).toBeGreaterThan(0)
     fireEvent.click(screen.getByTestId('transformer-shared-usage-0'))
@@ -604,7 +671,7 @@ describe('WorkspaceTransformersTab', () => {
     const onWorldChange = vi.fn()
     renderTab({
       onWorldChange,
-      entry: { entityId: 'car', tab: 'transformers', itemId: 'car_tf2' },
+      entry: carTransformersEntry('car_tf2'),
     })
 
     const nameInput = screen.getByTestId('transformer-card-name-input-2')

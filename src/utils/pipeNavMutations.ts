@@ -1,7 +1,7 @@
 import type { TransformerConfig, TransformerPipe, TransformerPipeBinding, TransformerPipeMember } from '@/types/transformer'
 import type { PipeNavPathSegment } from '@/types/pipeNav'
 import type { Entity, RennWorld } from '@/types/world'
-import { allocatePipeId } from '@/utils/allocatePipeId'
+import { allocatePipeId, nextFreeDefaultPipeName } from '@/utils/allocatePipeId'
 import {
   allocateTransformerRegistryId,
   assignPipeToEntity,
@@ -92,7 +92,32 @@ export function createPipeFromStages(world: RennWorld, opts: CreatePipeOptions):
   return { world: nextWorld, pipeId, focusPath }
 }
 
-/** Wrap all entity-root stages into a new pipe (save-as-pipe flow). */
+/**
+ * Ensure an entity has at least one pipe on its stack.
+ * Fresh entities get an empty PipeN; flat stages are moved into PipeN automatically.
+ */
+export function ensureEntityPipeStack(
+  world: RennWorld,
+  entityId: string,
+): { world: RennWorld; pipeId: string; created: boolean } {
+  const entity = world.entities.find((e) => e.id === entityId)
+  if (!entity || getEntityPipeStack(entity).length > 0) {
+    return { world, pipeId: '', created: false }
+  }
+
+  const name = nextFreeDefaultPipeName(world.transformerPipes)
+  const stageIds = entity.transformers ?? []
+
+  if (stageIds.length > 0) {
+    const { world: nextWorld, pipeId } = wrapEntityStagesIntoPipe(world, entityId, name, 'linked')
+    return { world: nextWorld, pipeId, created: Boolean(pipeId) }
+  }
+
+  const { world: nextWorld, pipeId } = createEmptyPipe(world, entityId, name, [], 'stack_sibling')
+  return { world: nextWorld, pipeId, created: Boolean(pipeId) }
+}
+
+/** Wrap all entity-root stages into a new pipe (legacy manual save-as-pipe flow). */
 export function wrapEntityStagesIntoPipe(
   world: RennWorld,
   entityId: string,

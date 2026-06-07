@@ -31,7 +31,6 @@ import {
   mapTransformerRegistryIdsToEntity,
   assignPipeToEntity,
   decoupleEntityFromPipe,
-  savePipeFromEntity,
 } from '@/utils/commitTransformerConfigsToWorld'
 import { usePipeNavController } from '@/hooks/usePipeNavController'
 import TransformerPipeNavSidebar, {
@@ -249,10 +248,6 @@ function WorkspaceTransformersTabEntity({
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [isSharedMode, setIsSharedMode] = useState(false)
 
-  const [savePipeDialogOpen, setSavePipeDialogOpen] = useState(false)
-  const [savePipeName, setSavePipeName] = useState('')
-  const [savePipeMode, setSavePipeMode] = useState<'linked' | 'copy'>('linked')
-
   const [addPipeModeDialogOpen, setAddPipeModeDialogOpen] = useState(false)
   const [addPipeDropdownOpen, setAddPipeDropdownOpen] = useState(false)
   const [selectedPipeForAdd, setSelectedPipeForAdd] = useState<TransformerPipe | null>(null)
@@ -414,19 +409,6 @@ function WorkspaceTransformersTabEntity({
 
   const selectedConfig = editorStageConfigs[selectedSortedIndex] ?? null
   const selectedPreset = selectedConfig && isPresetTransformerType(selectedConfig.type) ? selectedConfig : null
-
-  const handleSaveAsPipe = useCallback(() => {
-    if (entityIdsForEdit.length === 0) return
-    if (usePipeNav) {
-      pipeNav.handleSaveAsPipe()
-      setSavePipeDialogOpen(false)
-      return
-    }
-    const entityId = entityIdsForEdit[0]!
-    const nextWorld = savePipeFromEntity(world, entityId, savePipeName, savePipeMode)
-    onWorldChange(nextWorld)
-    setSavePipeDialogOpen(false)
-  }, [world, entityIdsForEdit, savePipeName, savePipeMode, onWorldChange, usePipeNav, pipeNav])
 
   const handleAddPipe = useCallback(
     (pipe: TransformerPipe, mode: 'linked' | 'copy') => {
@@ -1200,26 +1182,6 @@ function WorkspaceTransformersTabEntity({
 
           <button
             type="button"
-            title="Save current pipeline as a reusable pipe"
-            disabled={list.length === 0}
-            onClick={() => {
-              setSavePipeName(entities[0]?.name || 'New Pipe')
-              setSavePipeDialogOpen(true)
-            }}
-            style={{
-              ...entityPanelIconButtonStyle,
-              width: 'auto',
-              padding: '0 8px',
-              fontSize: 11,
-              fontWeight: 600,
-              opacity: list.length === 0 ? 0.5 : 1,
-            }}
-          >
-            Save as Pipe
-          </button>
-
-          <button
-            type="button"
             title="Copy transformer pipe (JSON)"
             onClick={handleCopyPipe}
             style={{
@@ -1279,97 +1241,6 @@ function WorkspaceTransformersTabEntity({
           }}
         />
       : null}
-
-      {savePipeDialogOpen && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'rgba(0,0,0,0.5)',
-            zIndex: 1000,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <div
-            style={{
-              background: theme.bg.panel,
-              padding: 20,
-              borderRadius: 8,
-              border: `1px solid ${theme.border.default}`,
-              width: 300,
-            }}
-          >
-            <h3 style={{ margin: '0 0 16px', fontSize: 16 }}>Save as Pipe</h3>
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ display: 'block', fontSize: 12, marginBottom: 4 }}>Pipe Name</label>
-              <input
-                autoFocus
-                value={savePipeName}
-                onChange={(e) => setSavePipeName(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '6px 8px',
-                  borderRadius: 4,
-                  background: theme.bg.surface,
-                  border: `1px solid ${theme.border.default}`,
-                  color: theme.text.primary,
-                }}
-              />
-            </div>
-            <div style={{ marginBottom: 20 }}>
-              <label style={{ display: 'block', fontSize: 12, marginBottom: 4 }}>Mode</label>
-              <div style={{ display: 'flex', gap: 12 }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, cursor: 'pointer' }}>
-                  <input
-                    type="radio"
-                    checked={savePipeMode === 'linked'}
-                    onChange={() => setSavePipeMode('linked')}
-                  />
-                  Linked
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, cursor: 'pointer' }}>
-                  <input type="radio" checked={savePipeMode === 'copy'} onChange={() => setSavePipeMode('copy')} />
-                  Copy
-                </label>
-              </div>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-              <button
-                onClick={() => setSavePipeDialogOpen(false)}
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: 4,
-                  background: 'none',
-                  border: 'none',
-                  color: theme.text.muted,
-                  cursor: 'pointer',
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSaveAsPipe}
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: 4,
-                  background: theme.accent,
-                  border: 'none',
-                  color: '#fff',
-                  cursor: 'pointer',
-                  fontWeight: 600,
-                }}
-              >
-                Save
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {addPipeModeDialogOpen && selectedPipeForAdd && (
         <div

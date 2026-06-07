@@ -13,12 +13,12 @@ import {
   updateBindingParams,
   updatePipeDefaultParams,
   decoupleStackBindingToCopy,
-  wrapEntityStagesIntoPipe,
+  ensureEntityPipeStack,
   reorderStackBindings,
   reorderPipeMembers,
   updateFocusedStageOrder,
 } from '@/utils/pipeNavMutations'
-import { resolveFocusedStageConfigs } from '@/utils/pipeNavResolve'
+import { drillIntoPipePath, resolveFocusedStageConfigs } from '@/utils/pipeNavResolve'
 import { getEntityPipeStack } from '@/utils/transformerPipeResolve'
 
 export function usePipeNavController(
@@ -59,6 +59,22 @@ export function usePipeNavController(
       pipeNavSelectedIndex: focus.selectedSiblingIndex,
     })
   }, [focus.path, focus.selectedSiblingIndex, onEntryChange, entry])
+
+  useEffect(() => {
+    if (!entity.id) return
+    const fresh = world.entities.find((e) => e.id === entity.id)
+    if (!fresh || getEntityPipeStack(fresh).length > 0) return
+
+    const { world: nextWorld, created, pipeId } = ensureEntityPipeStack(world, entity.id)
+    if (!created || !pipeId) return
+
+    const freshEntity = nextWorld.entities.find((e) => e.id === entity.id)
+    if (!freshEntity) return
+
+    onWorldChange(nextWorld)
+    const drillPath = drillIntoPipePath(nextWorld, freshEntity, [], 0, 'pipe', pipeId)
+    setPath(drillPath, 0)
+  }, [entity.id, world, onWorldChange, setPath])
 
   const pushWorld = useCallback(
     (next: RennWorld) => {
@@ -116,15 +132,6 @@ export function usePipeNavController(
     },
     [world, entity.id, focus.path, pushWorld, setPath],
   )
-
-  const handleSaveAsPipe = useCallback(() => {
-    promptName('Save as pipe', entity.name ?? 'Pipe', (name) => {
-      const { world: nextWorld } = wrapEntityStagesIntoPipe(world, entity.id, name, 'linked')
-      pushWorld(nextWorld)
-      setPath([], 0)
-      selectSibling(0)
-    })
-  }, [promptName, entity, world, pushWorld, setPath, selectSibling])
 
   const handleRename = useCallback(
     (name: string) => {
@@ -225,7 +232,6 @@ export function usePipeNavController(
     handleCreatePipe,
     handleAddChildPipe,
     handleAddExistingPipe,
-    handleSaveAsPipe,
     handleRename,
     handleCommitStagesWrapped,
     nameDialog,

@@ -9,6 +9,20 @@ export function slugifyPipeName(name: string): string {
   return slug.length > 0 ? slug : 'pipe'
 }
 
+const DEFAULT_PIPE_NAME_RE = /^pipe\s*(\d+)$/i
+
+/** Next display name in the auto-wrap sequence: Pipe1, Pipe2, … */
+export function nextFreeDefaultPipeName(
+  pipes: Record<string, { name?: string }> | undefined,
+): string {
+  let max = 0
+  for (const pipe of Object.values(pipes ?? {})) {
+    const match = DEFAULT_PIPE_NAME_RE.exec(pipe.name?.trim() ?? '')
+    if (match) max = Math.max(max, Number.parseInt(match[1]!, 10))
+  }
+  return `Pipe${max + 1}`
+}
+
 /** Allocate a unique pipe id from a display name. */
 export function allocatePipeId(name: string, taken: Set<string> | Record<string, unknown>): string {
   const used = taken instanceof Set ? taken : new Set(Object.keys(taken))
