@@ -3,6 +3,7 @@ import type { PipeNavPathSegment } from '@/types/pipeNav'
 import type { Entity, RennWorld } from '@/types/world'
 import { theme } from '@/config/theme'
 import { getEntityPipeStack, normalizePipeMembers } from '@/utils/transformerPipeResolve'
+import type { PipeTreeContextTarget } from '@/utils/pipeNavTreeHelpers'
 import PipeTreePipeControls from './PipeTreePipeControls'
 
 export type PipeTreeNode =
@@ -20,10 +21,9 @@ export interface PipeNavTreeProps {
   onDeleteNode?: (node: PipeTreeNode) => void
   onContextAction?: (
     action: 'add_before' | 'add_after' | 'add_child' | 'delete',
-    node: PipeTreeNode,
+    target: PipeTreeContextTarget,
   ) => void
-  onReorderStack?: (from: number, to: number) => void
-  onReorderMember?: (pipeId: string, from: number, to: number) => void
+  onTreeDrop?: (drag: PipeTreeNode, drop: PipeTreeNode) => void
   drawerPortalTarget?: RefObject<HTMLDivElement | null>
   stackIndexForPipeId?: (pipeId: string) => number
   onPipeControlToggle?: (opts: {
@@ -50,8 +50,7 @@ export default function PipeNavTree({
   onSelectPath,
   onDeleteNode,
   onContextAction,
-  onReorderStack,
-  onReorderMember,
+  onTreeDrop,
   drawerPortalTarget,
   stackIndexForPipeId,
   onPipeControlToggle,
@@ -60,8 +59,9 @@ export default function PipeNavTree({
 }: PipeNavTreeProps) {
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(['entity']))
   const [hoveredId, setHoveredId] = useState<string | null>(null)
-  const [menuNode, setMenuNode] = useState<PipeTreeNode | null>(null)
-  const [dragNode, setDragNode] = useState<{ node: PipeTreeNode; key: string } | null>(null)
+  const [openMenuKey, setOpenMenuKey] = useState<string | null>(null)
+  const [dragNode, setDragNode] = useState<PipeTreeNode | null>(null)
+  const [openConfigKey, setOpenConfigKey] = useState<string | null>(null)
 
   const stack = getEntityPipeStack(entity)
   const pipes = world.transformerPipes ?? {}
@@ -75,6 +75,14 @@ export default function PipeNavTree({
     })
   }
 
+  const handleDrop = useCallback(
+    (drop: PipeTreeNode) => {
+      if (dragNode && onTreeDrop) onTreeDrop(dragNode, drop)
+      setDragNode(null)
+    },
+    [dragNode, onTreeDrop],
+  )
+
   const renderMemberNodes = useCallback(
     (parentPipeId: string, pathPrefix: PipeNavPathSegment[], depth: number): ReactNode[] => {
       const pipe = pipes[parentPipeId]
@@ -83,6 +91,10 @@ export default function PipeNavTree({
       return members.map((member, memberIndex) => {
         const nodePath = [...pathPrefix, { kind: 'member' as const, pipeId: parentPipeId, memberIndex }]
         const key = `${parentPipeId}:${memberIndex}`
+        const contextTarget = (node: PipeTreeNode): PipeTreeContextTarget => ({
+          node,
+          containerPath: pathPrefix,
+        })
         if (member.kind === 'stage') {
           const cfg = world.transformers?.[member.stageId]
           const label = cfg?.type === 'custom' ? (cfg.name ?? 'Custom') : String(cfg?.type ?? member.stageId)
@@ -107,18 +119,13 @@ export default function PipeNavTree({
               onHover={(h) => setHoveredId(h ? key : null)}
               onClick={() => onSelectPath(nodePath, memberIndex, member.stageId)}
               onDelete={onDeleteNode ? () => onDeleteNode(node) : undefined}
-              onMenu={() => setMenuNode(node)}
-              menuOpen={menuNode === node}
-              onContextAction={(a) => onContextAction?.(a, node)}
-              onCloseMenu={() => setMenuNode(null)}
+              onMenu={() => setOpenMenuKey(key)}
+              menuOpen={openMenuKey === key}
+              onContextAction={(a) => onContextAction?.(a, contextTarget(node))}
+              onCloseMenu={() => setOpenMenuKey(null)}
               draggable
-              onDragStart={() => setDragNode({ node, key })}
-              onDrop={() => {
-                if (dragNode?.node.kind === 'member_stage' && dragNode.node.parentPipeId === parentPipeId) {
-                  onReorderMember?.(parentPipeId, dragNode.node.memberIndex, memberIndex)
-                }
-                setDragNode(null)
-              }}
+              onDragStart={() => setDragNode(node)}
+              onDrop={() => handleDrop(node)}
             />
           )
         }
@@ -151,26 +158,26 @@ export default function PipeNavTree({
                 onSelectPath(nodePath, memberIndex)
               }}
               onDelete={onDeleteNode ? () => onDeleteNode(node) : undefined}
-              onMenu={() => setMenuNode(node)}
-              menuOpen={menuNode === node}
-              onContextAction={(a) => onContextAction?.(a, node)}
-              onCloseMenu={() => setMenuNode(null)}
+              onMenu={() => setOpenMenuKey(key)}
+              menuOpen={openMenuKey === key}
+              onContextAction={(a) => onContextAction?.(a, contextTarget(node))}
+              onCloseMenu={() => setOpenMenuKey(null)}
               canAddChild
               draggable
-              onDragStart={() => setDragNode({ node, key })}
-              onDrop={() => {
-                if (dragNode?.node.kind === 'member_pipe' && dragNode.node.parentPipeId === parentPipeId) {
-                  onReorderMember?.(parentPipeId, dragNode.node.memberIndex, memberIndex)
-                }
-                setDragNode(null)
-              }}
+              dropTarget
+              onDragStart={() => setDragNode(node)}
+              onDrop={() => handleDrop(node)}
+              canEditConfig
+              onEditConfig={() => setOpenConfigKey(key)}
               trailing={
-                child && (hoveredId === key || menuNode === node) ?
+                child && (hoveredId === key || openMenuKey === key || openConfigKey === key) ?
                   <PipeTreePipeControls
                     pipe={child}
                     world={world}
                     binding={stackBinding}
                     enabled={pipeEnabled}
+                    configOpen={openConfigKey === key}
+                    onConfigOpenChange={(open) => setOpenConfigKey(open ? key : null)}
                     stackIndex={stackIdx !== undefined && stackIdx >= 0 ? stackIdx : undefined}
                     memberParentPipeId={parentPipeId}
                     memberIndex={memberIndex}
@@ -184,11 +191,11 @@ export default function PipeNavTree({
                         memberIndex,
                       })
                     }
-                    onParamChange={(key, value) =>
+                    onParamChange={(paramKey, value) =>
                       onPipeParamChange?.({
                         pipeId: member.pipeId,
                         stackIndex: stackIdx,
-                        key,
+                        key: paramKey,
                         value,
                         useSharedDefaults: stackIdx === undefined || stackIdx < 0,
                       })
@@ -213,24 +220,29 @@ export default function PipeNavTree({
       focusPath,
       selectedIndex,
       hoveredId,
-      menuNode,
-      dragNode,
+      openMenuKey,
       expanded,
       onSelectPath,
       onDeleteNode,
       onContextAction,
-      onReorderMember,
+      handleDrop,
       stack,
       stackIndexForPipeId,
       onPipeControlToggle,
       onPipeParamChange,
       onDecouplePipeBinding,
       drawerPortalTarget,
+      openConfigKey,
     ],
   )
 
   const entityKey = 'entity'
   const entityExpanded = expanded.has(entityKey)
+  const entityNode: PipeTreeNode = {
+    kind: 'entity',
+    entityId: entity.id,
+    label: entity.name ?? entity.id,
+  }
 
   return (
     <div
@@ -255,11 +267,13 @@ export default function PipeNavTree({
           onSelectPath([], 0)
         }}
         onContextAction={(a) =>
-          onContextAction?.(a, { kind: 'entity', entityId: entity.id, label: entity.name ?? entity.id })
+          onContextAction?.(a, { node: entityNode, containerPath: [] })
         }
-        menuOpen={menuNode?.kind === 'entity'}
-        onMenu={() => setMenuNode({ kind: 'entity', entityId: entity.id, label: entity.name ?? entity.id })}
-        onCloseMenu={() => setMenuNode(null)}
+        menuOpen={openMenuKey === entityKey}
+        onMenu={() => setOpenMenuKey(entityKey)}
+        onCloseMenu={() => setOpenMenuKey(null)}
+        dropTarget
+        onDrop={() => handleDrop(entityNode)}
       />
       {entityExpanded ?
         stack.map((binding, stackIndex) => {
@@ -288,36 +302,38 @@ export default function PipeNavTree({
                   onSelectPath(path, stackIndex)
                 }}
                 onDelete={onDeleteNode ? () => onDeleteNode(node) : undefined}
-                onMenu={() => setMenuNode(node)}
-                menuOpen={menuNode === node}
-                onContextAction={(a) => onContextAction?.(a, node)}
-                onCloseMenu={() => setMenuNode(null)}
+                onMenu={() => setOpenMenuKey(key)}
+                menuOpen={openMenuKey === key}
+                onContextAction={(a) =>
+                  onContextAction?.(a, { node, containerPath: path })
+                }
+                onCloseMenu={() => setOpenMenuKey(null)}
                 canAddChild
                 draggable
-                onDragStart={() => setDragNode({ node, key })}
-                onDrop={() => {
-                  if (dragNode?.node.kind === 'stack_pipe') {
-                    onReorderStack?.(dragNode.node.stackIndex, stackIndex)
-                  }
-                  setDragNode(null)
-                }}
+                dropTarget
+                onDragStart={() => setDragNode(node)}
+                onDrop={() => handleDrop(node)}
+                canEditConfig
+                onEditConfig={() => setOpenConfigKey(key)}
                 trailing={
-                  pipe && (hoveredId === key || menuNode === node) ?
+                  pipe && (hoveredId === key || openMenuKey === key || openConfigKey === key) ?
                     <PipeTreePipeControls
                       pipe={pipe}
                       world={world}
                       binding={binding}
                       enabled={binding.enabled !== false}
+                      configOpen={openConfigKey === key}
+                      onConfigOpenChange={(open) => setOpenConfigKey(open ? key : null)}
                       stackIndex={stackIndex}
                       drawerPortalTarget={drawerPortalTarget}
                       onToggleEnabled={() =>
                         onPipeControlToggle?.({ pipeId: binding.pipeId, stackIndex })
                       }
-                      onParamChange={(key, value) =>
+                      onParamChange={(paramKey, value) =>
                         onPipeParamChange?.({
                           pipeId: binding.pipeId,
                           stackIndex,
-                          key,
+                          key: paramKey,
                           value,
                         })
                       }
@@ -358,9 +374,12 @@ function TreeRow({
   onContextAction,
   onCloseMenu,
   canAddChild,
+  canEditConfig,
+  onEditConfig,
   draggable,
   onDragStart,
   onDrop,
+  dropTarget,
   trailing,
 }: {
   depth: number
@@ -376,13 +395,16 @@ function TreeRow({
   onContextAction?: (action: 'add_before' | 'add_after' | 'add_child' | 'delete') => void
   onCloseMenu?: () => void
   canAddChild?: boolean
+  canEditConfig?: boolean
+  onEditConfig?: () => void
   draggable?: boolean
   onDragStart?: () => void
   onDrop?: () => void
+  dropTarget?: boolean
   trailing?: ReactNode
 }) {
   const onDragOver = (e: DragEvent) => {
-    if (draggable) e.preventDefault()
+    if (draggable || dropTarget || onDrop) e.preventDefault()
   }
   const handleDrop = (e: DragEvent) => {
     e.preventDefault()
@@ -414,20 +436,25 @@ function TreeRow({
       <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
       {trailing}
       {hovered || menuOpen ?
-        onMenu ?
-          <span style={{ display: 'flex', gap: 2, flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+        <span style={{ display: 'flex', gap: 2, flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+          {onDelete ?
+            <IconBtn title="Delete" onClick={onDelete}>
+              ×
+            </IconBtn>
+          : null}
+          {onMenu ?
             <IconBtn title="More" onClick={onMenu}>
               …
             </IconBtn>
-          </span>
-        : null
+          : null}
+        </span>
       : null}
       {menuOpen && onContextAction ?
         <div
           style={{
             position: 'absolute',
             right: 8,
-            marginTop: 60,
+            top: '100%',
             background: theme.bg.panel,
             border: `1px solid ${theme.pipeNav.accentBorder}`,
             borderRadius: 4,
@@ -441,13 +468,22 @@ function TreeRow({
           {canAddChild ?
             <MenuItem label="Add child" onClick={() => { onContextAction('add_child'); onCloseMenu?.() }} />
           : null}
+          {canEditConfig && onEditConfig ?
+            <MenuItem
+              label="Edit config"
+              onClick={() => {
+                onEditConfig()
+                onCloseMenu?.()
+              }}
+            />
+          : null}
           {onDelete ?
             <MenuItem
               label="Delete"
               destructive
               onClick={() => {
                 onDelete()
-                onContextAction?.('delete')
+                onContextAction('delete')
                 onCloseMenu?.()
               }}
             />

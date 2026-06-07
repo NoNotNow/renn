@@ -79,6 +79,7 @@ import { generateEntityId } from '@/utils/idGenerator'
 import TextureMaker from '@/components/TextureMaker/TextureMaker'
 import TransformerDocs from '@/components/TransformerDocs'
 import { getEntityApproximateSize } from '@/utils/entityApproximateSize'
+import { worldChangesRequireSceneRebuild } from '@/utils/sceneDependencyKey'
 import { computeMeshWorldMaxExtent } from '@/utils/meshWorldExtent'
 import { placeEntitiesInFrontOfCamera } from '@/utils/cameraFrontPlacement'
 import {
@@ -217,6 +218,11 @@ export default function Builder() {
   const getScenePosesRef = useRef<() => LivePosesMap | null>(() => null)
   getScenePosesRef.current = () => sceneViewRef.current?.getAllPoses() ?? null
   const initialPosesRef = useRef<Map<string, { position: Vec3; rotation: Rotation; scale?: Vec3 }> | null>(null)
+  const prevDocumentEpochRef = useRef(documentEpoch)
+  if (prevDocumentEpochRef.current !== documentEpoch) {
+    initialPosesRef.current = null
+    prevDocumentEpochRef.current = documentEpoch
+  }
   const worldAssetsRef = useRef({ world, assets })
   worldAssetsRef.current = { world, assets }
   const {
@@ -799,10 +805,15 @@ export default function Builder() {
     [getCurrentPose, syncPosesFromScene]
   )
 
-  const handleWorldChange = useCallback((newWorld: typeof world) => {
-    captureScenePosesForNextRebuild()
-    updateWorld(() => newWorld)
-  }, [updateWorld, captureScenePosesForNextRebuild])
+  const handleWorldChange = useCallback(
+    (newWorld: typeof world) => {
+      if (worldChangesRequireSceneRebuild(world, newWorld)) {
+        captureScenePosesForNextRebuild()
+      }
+      updateWorld(() => newWorld)
+    },
+    [world, updateWorld, captureScenePosesForNextRebuild],
+  )
 
   // ----- Explorer groups (Phase A: organizational only; no scene rebuild) -----
 

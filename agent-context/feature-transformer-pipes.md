@@ -149,12 +149,23 @@ Legacy `entity.transformerPipe` migrates to a single-entry stack on load (`migra
 | `src/components/workspace/WorkspaceOrganizeTab.tsx` | Organize Pipes sub-tab |
 | `src/persistence/indexedDb.ts` | Global library persistence |
 
+#### Tree navigation (Transformers tab sidebar)
+
+- **Docked sidebar** [`TransformerPipeNavSidebar.tsx`](../src/components/workspace/pipeNav/TransformerPipeNavSidebar.tsx): resizable, **collapsed by default** (slim `»` toggle); Up / Left / Right; editable pipe title; tree mirrors stack → nested `members`.
+- **Tree actions**: hover delete (×), context menu (add before / after / child, **Edit config**, delete). Mutations in [`pipeNavMutations.ts`](../src/utils/pipeNavMutations.ts); wired via [`usePipeNavController.ts`](../src/hooks/usePipeNavController.ts).
+- **Pipe config**: each stack binding stores per-entity overrides in `TransformerPipeBinding.params` (merged over `pipe.defaultParams` at runtime). **Pipe cards** and **tree row controls** expose a settings button; pipe rows also offer **Edit config** in the context menu. Both open [`PipeConfigDrawer`](../src/components/workspace/pipeNav/PipeConfigDrawer.tsx) with [`PipeParamsStrip`](../src/components/workspace/pipeNav/PipeParamsStrip.tsx) when `paramDefs` are defined.
+- **Tree drag-and-drop**: reorder stack / members; **move transformer stages between pipes** (drop on another stage, stack pipe row, or nested pipe row); nest stack pipe into nested pipe; promote nested pipe to entity stack; re-parent nested pipes (cycle guard via [`wouldNestCreateCycle`](../src/utils/pipeNavResolve.ts)). Stages dropped on the entity root are rejected.
+- **Strip**: one level at a time — pipe cards at entity root; stages + nested pipe cards inside a manifold (mixed order preserved when pipes and stages interleave).
+- **Add flows**: strip `+` menu ([`PipeAddDialog.tsx`](../src/components/workspace/pipeNav/PipeAddDialog.tsx)); header **+ Add Pipe** removed (duplicate). **Leaf level** (gray `+`): `entity_stages`, or `pipe_members` with no nested pipe cards in the focused view — opens **Add to pipeline** (transformer preset/existing + optional pipe sections). **New pipe** / **Existing pipe** at leaf level append a **stack sibling** (after the current stack pipe), not a nested member; use the **Child pipe** tab to nest. **Pipe level** (yellow `+`): entity root with multiple stack pipes, or a manifold showing nested pipe cards — pipe-centric add sections.
+- **Auto-wrap**: fresh entity → `Pipe1` via `ensureEntityPipeStack`; legacy ungrouped stages → non-blocking **Wrap into pipe** banner.
+- **Runtime params**: `resolveEntityPipeParamsByPipeId` injected on `TransformInput` in [`renderItemRegistry.ts`](../src/runtime/renderItemRegistry.ts).
+
 ---
 
 ### Implementation Plan
 
-- [ ] Phase 1: Types & Schema
-- [ ] Phase 2: Utilities (Core logic + Unit tests)
-- [ ] Phase 3: Transformers Tab (Save/Add Pipe + Banner)
+- [x] Phase 1: Types & Schema
+- [x] Phase 2: Utilities (Core logic + Unit tests)
+- [x] Phase 3: Transformers Tab (pipe nav sidebar, focused strip, + menu)
 - [ ] Phase 4: Organize Tab (Management + Global Scope)
-- [ ] Phase 5: Verification & Polish
+- [x] Phase 5: Verification & Polish (pipe nav tree + strip tests)

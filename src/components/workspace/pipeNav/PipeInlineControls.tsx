@@ -13,7 +13,6 @@ export interface PipeInlineControlsProps {
   decoupleDisabledReason?: string
   configOpen: boolean
   onConfigToggle?: () => void
-  hasConfig?: boolean
 }
 
 /** Toolbar controls shared by pipe cards and tree rows (mirrors transformer card chrome, minus code). */
@@ -28,7 +27,6 @@ export default function PipeInlineControls({
   decoupleDisabledReason,
   configOpen,
   onConfigToggle,
-  hasConfig = true,
 }: PipeInlineControlsProps) {
   const showShare = linkCount > 1
 
@@ -98,21 +96,19 @@ export default function PipeInlineControls({
             />
           </button>
 
-          {hasConfig ?
-            <button
-              type="button"
-              onClick={() => onConfigToggle?.()}
-              disabled={!onConfigToggle}
-              title="Edit pipe configuration"
-              data-testid="pipe-controls-config"
-              style={{
-                ...iconBtnStyle,
-                opacity: configOpen ? 1 : 0.6,
-              }}
-            >
-              <span style={{ color: theme.text.muted, display: 'flex' }}>{EntityPanelIcons.settings}</span>
-            </button>
-          : null}
+          <button
+            type="button"
+            onClick={() => onConfigToggle?.()}
+            disabled={!onConfigToggle}
+            title="Edit pipe configuration"
+            data-testid="pipe-controls-config"
+            style={{
+              ...iconBtnStyle,
+              opacity: configOpen ? 1 : 0.6,
+            }}
+          >
+            <span style={{ color: theme.text.muted, display: 'flex' }}>{EntityPanelIcons.settings}</span>
+          </button>
         </>
       : null}
     </div>

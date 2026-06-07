@@ -16,6 +16,11 @@ import type { RennWorld, Entity } from '@/types/world'
  * Scale is applied incrementally via SceneView.updateEntityPose → RenderItemRegistry.setScale.
  * modelRotation and modelScale are applied incrementally via updateEntityModelTransform.
  */
+/** True when `next` requires a full SceneView reload relative to `prev`. */
+export function worldChangesRequireSceneRebuild(prev: RennWorld, next: RennWorld): boolean {
+  return getSceneDependencyKey(prev) !== getSceneDependencyKey(next)
+}
+
 export function getSceneDependencyKey(world: RennWorld): string {
   const payload: Record<string, unknown> = {
     version: world.version,

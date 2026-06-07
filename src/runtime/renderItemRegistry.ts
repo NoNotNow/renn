@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import type { LoadedEntity } from '@/loader/loadWorld'
 import type { CachedTransform, PhysicsWorld } from '@/physics/rapierPhysics'
+import { resolveEntityPipeParamsByPipeId } from '@/utils/transformerPipeResolve'
 import type { Vec3, Rotation, Entity, DistanceCullingSettings } from '@/types/world'
 import {
   applyModelVisualSides,
@@ -25,6 +26,7 @@ import type {
   TransformOutput,
   TransformerConfig,
   TransformerDef,
+  TransformerPipe,
   RawInput,
 } from '@/types/transformer'
 import { clearActionRecord, hasTrackedKeyboardActivity } from '@/types/transformer'
@@ -72,6 +74,7 @@ export class RenderItemRegistry {
   private controlledEntityIdRef: { current: string | null } | null = null
   /** World-level transformer registry: maps IDs to configs, used to resolve entity.transformers string[]. */
   private worldTransformers: Record<string, TransformerDef> = {}
+  private worldTransformerPipes: Record<string, TransformerPipe> = {}
   /** Entity ids that are distance-culled with `sleepCulled` — skip their game scripts. */
   private readonly _culledSleepingForScripts = new Set<string>()
   /** Previous frame's `sleepCulled` flag (for toggling off world sleep). */
@@ -159,12 +162,14 @@ export class RenderItemRegistry {
     rawInputGetter?: () => RawInput | null,
     controlledEntityIdRef?: { current: string | null } | null,
     worldTransformers?: Record<string, TransformerDef>,
+    worldTransformerPipes?: Record<string, TransformerPipe>,
   ): RenderItemRegistry {
     const registry = new RenderItemRegistry()
     registry.physicsWorld = physicsWorld
     registry.rawInputGetter = rawInputGetter ?? null
     registry.controlledEntityIdRef = controlledEntityIdRef ?? null
     registry.worldTransformers = worldTransformers ?? {}
+    registry.worldTransformerPipes = worldTransformerPipes ?? {}
     for (const { entity, mesh } of loadedEntities) {
       const body = physicsWorld?.getBody(entity.id) ?? null
       const item = new RenderItem(entity, mesh, body)
@@ -222,6 +227,10 @@ export class RenderItemRegistry {
    */
   setWorldTransformers(worldTransformers: Record<string, TransformerDef>): void {
     this.worldTransformers = worldTransformers
+  }
+
+  setWorldTransformerPipes(worldTransformerPipes: Record<string, TransformerPipe>): void {
+    this.worldTransformerPipes = worldTransformerPipes
   }
 
   /**
@@ -1035,6 +1044,10 @@ export class RenderItemRegistry {
 
       clearActionRecord(this._tfActions)
       input.target = undefined
+      input.pipeParamsByPipeId = resolveEntityPipeParamsByPipeId(
+        { transformerPipes: this.worldTransformerPipes } as import('@/types/world').RennWorld,
+        item.entity,
+      )
       input.entityId = item.entity.id
       input.deltaTime = dt
       this._tfAccumulatedForce[0] = 0
@@ -1091,6 +1104,7 @@ export class RenderItemRegistry {
       try {
         output = item.transformerChain.execute(input, dt, traceSteps)
       } finally {
+        input.pipeParamsByPipeId = undefined
         setTransformerRuntimeEntityLookup(null)
         setTransformerRuntimeLivePositionLookup(null)
         setTransformerRuntimeRaycast(null)

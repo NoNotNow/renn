@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { getSceneDependencyKey } from './sceneDependencyKey'
+import { getSceneDependencyKey, worldChangesRequireSceneRebuild } from './sceneDependencyKey'
+import { ensureEntityPipeStack } from './pipeNavMutations'
+import { sampleWorld } from '@/data/sampleWorld'
 import type { RennWorld } from '@/types/world'
 
 function minimalWorld(overrides?: Partial<RennWorld>): RennWorld {
@@ -170,5 +172,10 @@ describe('getSceneDependencyKey', () => {
       ],
     })
     expect(getSceneDependencyKey(a)).toBe(getSceneDependencyKey(b))
+  })
+
+  it('pipe stack bootstrap does not require a scene rebuild', () => {
+    const { world: next } = ensureEntityPipeStack(sampleWorld, 'car')
+    expect(worldChangesRequireSceneRebuild(sampleWorld, next)).toBe(false)
   })
 })

@@ -6,7 +6,7 @@ import {
   allocateTransformerRegistryId,
   assignPipeToEntity,
 } from '@/utils/commitTransformerConfigsToWorld'
-import { applyEntityTransformerSync } from '@/utils/pipeNavResolve'
+import { applyEntityTransformerSync, findUngroupedStageIds, wouldNestCreateCycle } from '@/utils/pipeNavResolve'
 import {
   collectPipeStageConfigsForCopy,
   flattenPipeMembers,
@@ -84,7 +84,7 @@ export function createPipeFromStages(world: RennWorld, opts: CreatePipeOptions):
   nextWorld = updatePipeMembers(nextWorld, parentPipeId, members)
 
   let focusPath = opts.parentPath
-  if (opts.placement === 'member_child') {
+  if (opts.placement === 'member_child' || opts.placement === 'member_sibling') {
     focusPath = [...opts.parentPath, { kind: 'member', pipeId: parentPipeId, memberIndex: idx }]
   }
 
@@ -115,6 +115,71 @@ export function ensureEntityPipeStack(
 
   const { world: nextWorld, pipeId } = createEmptyPipe(world, entityId, name, [], 'stack_sibling')
   return { world: nextWorld, pipeId, created: Boolean(pipeId) }
+}
+
+/** Wrap orphan flat stages (not in stack flatten) into the entity pipe stack. */
+export function wrapUngroupedStagesIntoStackPipe(
+  world: RennWorld,
+  entityId: string,
+  name: string,
+): RennWorld {
+  const entity = world.entities.find((e) => e.id === entityId)
+  if (!entity) return world
+  const orphanIds = findUngroupedStageIds(world, entity)
+  if (orphanIds.length === 0) return world
+
+  const stack = getEntityPipeStack(entity)
+
+  /** Legacy / single-pipe entities: merge orphans into the existing pipe instead of adding Pipe2. */
+  if (stack.length === 1) {
+    const existingPipeId = stack[0]!.pipeId
+    const pipe = world.transformerPipes?.[existingPipeId]
+    if (pipe) {
+      const members = [...normalizePipeMembers(pipe)]
+      for (const stageId of orphanIds) {
+        if (members.some((m) => m.kind === 'stage' && m.stageId === stageId)) continue
+        members.push({ kind: 'stage', stageId })
+      }
+      let nextWorld = updatePipeMembers(world, existingPipeId, members)
+      nextWorld = {
+        ...nextWorld,
+        entities: nextWorld.entities.map((e) =>
+          e.id === entityId
+            ? {
+                ...e,
+                transformerPipeStack: stack.map((b) => ({
+                  ...b,
+                  enabled: b.enabled !== false,
+                })),
+                transformerPipe: undefined,
+              }
+            : e,
+        ),
+      }
+      return applyEntityTransformerSync(nextWorld, entityId)
+    }
+  }
+
+  const taken = new Set(Object.keys(world.transformerPipes ?? {}))
+  const pipeId = allocatePipeId(name, taken)
+  const stages = orphanIds.map((id) => world.transformers?.[id]).filter(Boolean) as TransformerConfig[]
+
+  const newPipe: TransformerPipe = {
+    id: pipeId,
+    name: name.trim() || pipeId,
+    stageIds: [...orphanIds],
+    stages: JSON.parse(JSON.stringify(stages)),
+    members: orphanIds.map((stageId) => ({ kind: 'stage' as const, stageId })),
+    createdAt: Date.now(),
+  }
+
+  const nextStack = [...stack, { pipeId, enabled: true }]
+  let nextWorld: RennWorld = {
+    ...world,
+    transformerPipes: { ...(world.transformerPipes ?? {}), [pipeId]: newPipe },
+  }
+  nextWorld = updateEntityStack(nextWorld, entityId, nextStack)
+  return applyEntityTransformerSync(nextWorld, entityId)
 }
 
 /** Wrap all entity-root stages into a new pipe (legacy manual save-as-pipe flow). */
@@ -401,11 +466,18 @@ export function addExistingPipeAtFocus(
   insertIndex?: number,
 ): { world: RennWorld; focusPath: PipeNavPathSegment[] } {
   if (parentPath.length === 0) {
-    const nextWorld = assignPipeToEntity(world, entityId, pipe, mode, { append: insertIndex == null })
+    let nextWorld = assignPipeToEntity(world, entityId, pipe, mode, { append: true })
     const entity = nextWorld.entities.find((e) => e.id === entityId)
     const stack = entity ? getEntityPipeStack(entity) : []
-    const idx = insertIndex ?? stack.length - 1
-    return { world: applyEntityTransformerSync(nextWorld, entityId), focusPath: [{ kind: 'stack', index: idx }] }
+    const endIdx = Math.max(0, stack.length - 1)
+    const targetIdx = insertIndex ?? endIdx
+    if (targetIdx !== endIdx) {
+      nextWorld = reorderStackBindings(nextWorld, entityId, endIdx, targetIdx)
+    }
+    return {
+      world: applyEntityTransformerSync(nextWorld, entityId),
+      focusPath: [{ kind: 'stack', index: targetIdx }],
+    }
   }
 
   const entity = world.entities.find((e) => e.id === entityId)
@@ -496,6 +568,7 @@ export function createEmptyPipe(
   name: string,
   parentPath: PipeNavPathSegment[],
   placement: 'stack_sibling' | 'member_sibling' | 'member_child',
+  insertIndex?: number,
 ): { world: RennWorld; pipeId: string; focusPath: PipeNavPathSegment[] } {
   return createPipeFromStages(world, {
     entityId,
@@ -504,5 +577,182 @@ export function createEmptyPipe(
     stageIds: [],
     placement,
     parentPath,
+    insertIndex,
   })
+}
+
+export type InsertPipePlacement = {
+  parentPath: PipeNavPathSegment[]
+  placement: 'stack_sibling' | 'member_sibling' | 'member_child'
+  insertIndex?: number
+}
+
+/** Create an empty pipe at a tree context position. */
+export function insertEmptyPipeAtNode(
+  world: RennWorld,
+  entityId: string,
+  name: string,
+  placement: InsertPipePlacement,
+): { world: RennWorld; pipeId: string; focusPath: PipeNavPathSegment[] } {
+  return createEmptyPipe(
+    world,
+    entityId,
+    name,
+    placement.parentPath,
+    placement.placement,
+    placement.insertIndex,
+  )
+}
+
+export function deleteStackBinding(
+  world: RennWorld,
+  entityId: string,
+  stackIndex: number,
+): RennWorld {
+  const entity = world.entities.find((e) => e.id === entityId)
+  if (!entity) return world
+  const stack = [...getEntityPipeStack(entity)]
+  if (stackIndex < 0 || stackIndex >= stack.length) return world
+  stack.splice(stackIndex, 1)
+  let nextWorld = updateEntityStack(world, entityId, stack)
+  nextWorld = applyEntityTransformerSync(nextWorld, entityId)
+  return nextWorld
+}
+
+export function deletePipeMember(
+  world: RennWorld,
+  entityId: string,
+  parentPipeId: string,
+  memberIndex: number,
+): RennWorld {
+  const pipe = world.transformerPipes?.[parentPipeId]
+  if (!pipe) return world
+  const members = [...normalizePipeMembers(pipe)]
+  if (memberIndex < 0 || memberIndex >= members.length) return world
+  members.splice(memberIndex, 1)
+  let nextWorld = updatePipeMembers(world, parentPipeId, members)
+  nextWorld = applyEntityTransformerSync(nextWorld, entityId)
+  return nextWorld
+}
+
+export function nestStackPipeAsMember(
+  world: RennWorld,
+  entityId: string,
+  stackIndex: number,
+  targetParentPipeId: string,
+  targetMemberIndex?: number,
+): RennWorld {
+  const registry = world.transformerPipes ?? {}
+  const entity = world.entities.find((e) => e.id === entityId)
+  if (!entity) return world
+  const stack = [...getEntityPipeStack(entity)]
+  const binding = stack[stackIndex]
+  if (!binding) return world
+  if (wouldNestCreateCycle(registry, targetParentPipeId, binding.pipeId)) return world
+
+  stack.splice(stackIndex, 1)
+  let nextWorld = updateEntityStack(world, entityId, stack)
+
+  const parent = nextWorld.transformerPipes?.[targetParentPipeId]
+  if (!parent) return nextWorld
+  const members = [...normalizePipeMembers(parent)]
+  const idx = targetMemberIndex ?? members.length
+  members.splice(idx, 0, {
+    kind: 'pipe',
+    pipeId: binding.pipeId,
+    enabled: binding.enabled !== false,
+  })
+  nextWorld = updatePipeMembers(nextWorld, targetParentPipeId, members)
+  nextWorld = applyEntityTransformerSync(nextWorld, entityId)
+  return nextWorld
+}
+
+export function promoteMemberPipeToStack(
+  world: RennWorld,
+  entityId: string,
+  parentPipeId: string,
+  memberIndex: number,
+  stackIndex?: number,
+): RennWorld {
+  const pipe = world.transformerPipes?.[parentPipeId]
+  if (!pipe) return world
+  const members = [...normalizePipeMembers(pipe)]
+  const member = members[memberIndex]
+  if (!member || member.kind !== 'pipe') return world
+
+  members.splice(memberIndex, 1)
+  let nextWorld = updatePipeMembers(world, parentPipeId, members)
+
+  const entity = nextWorld.entities.find((e) => e.id === entityId)
+  if (!entity) return nextWorld
+  const stack = [...getEntityPipeStack(entity)]
+  const idx = stackIndex ?? stack.length
+  stack.splice(idx, 0, { pipeId: member.pipeId, enabled: member.enabled !== false })
+  nextWorld = updateEntityStack(nextWorld, entityId, stack)
+  nextWorld = applyEntityTransformerSync(nextWorld, entityId)
+  return nextWorld
+}
+
+export function moveMemberStage(
+  world: RennWorld,
+  entityId: string,
+  fromParentPipeId: string,
+  fromIndex: number,
+  toParentPipeId: string,
+  toIndex: number,
+): RennWorld {
+  if (fromParentPipeId === toParentPipeId && fromIndex === toIndex) return world
+
+  const fromPipe = world.transformerPipes?.[fromParentPipeId]
+  if (!fromPipe) return world
+  const fromMembers = [...normalizePipeMembers(fromPipe)]
+  const member = fromMembers[fromIndex]
+  if (!member || member.kind !== 'stage') return world
+
+  fromMembers.splice(fromIndex, 1)
+  let nextWorld = updatePipeMembers(world, fromParentPipeId, fromMembers)
+
+  const toPipe = nextWorld.transformerPipes?.[toParentPipeId]
+  if (!toPipe) return nextWorld
+  const toMembers = [...normalizePipeMembers(toPipe)]
+  let insertIdx = toIndex
+  if (fromParentPipeId === toParentPipeId && fromIndex < toIndex) insertIdx -= 1
+  insertIdx = Math.max(0, Math.min(insertIdx, toMembers.length))
+  toMembers.splice(insertIdx, 0, member)
+  nextWorld = updatePipeMembers(nextWorld, toParentPipeId, toMembers)
+  nextWorld = applyEntityTransformerSync(nextWorld, entityId)
+  return nextWorld
+}
+
+export function moveMemberPipe(
+  world: RennWorld,
+  entityId: string,
+  fromParentPipeId: string,
+  fromIndex: number,
+  toParentPipeId: string,
+  toIndex: number,
+): RennWorld {
+  if (fromParentPipeId === toParentPipeId && fromIndex === toIndex) return world
+
+  const registry = world.transformerPipes ?? {}
+  const fromPipe = registry[fromParentPipeId]
+  if (!fromPipe) return world
+  const fromMembers = [...normalizePipeMembers(fromPipe)]
+  const member = fromMembers[fromIndex]
+  if (!member || member.kind !== 'pipe') return world
+  if (wouldNestCreateCycle(registry, toParentPipeId, member.pipeId)) return world
+
+  fromMembers.splice(fromIndex, 1)
+  let nextWorld = updatePipeMembers(world, fromParentPipeId, fromMembers)
+
+  const toPipe = nextWorld.transformerPipes?.[toParentPipeId]
+  if (!toPipe) return nextWorld
+  const toMembers = [...normalizePipeMembers(toPipe)]
+  let insertIdx = toIndex
+  if (fromParentPipeId === toParentPipeId && fromIndex < toIndex) insertIdx -= 1
+  insertIdx = Math.max(0, Math.min(insertIdx, toMembers.length))
+  toMembers.splice(insertIdx, 0, member)
+  nextWorld = updatePipeMembers(nextWorld, toParentPipeId, toMembers)
+  nextWorld = applyEntityTransformerSync(nextWorld, entityId)
+  return nextWorld
 }

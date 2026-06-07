@@ -46,7 +46,7 @@ flowchart LR
 
 2. **Builder** ([src/pages/Builder.tsx](src/pages/Builder.tsx))  
    - `captureScenePosesForNextRebuild()`: copies `sceneViewRef.current?.getAllPoses()` into `initialPosesRef` so the next full scene rebuild reapplies live poses for existing entity ids (avoids snapping everything back to document transforms after physics/simulation).  
-   - `handleWorldChange(newWorld)`: calls `captureScenePosesForNextRebuild()`, then `updateWorld(() => newWorld)`.  
+   - `handleWorldChange(newWorld)`: calls `captureScenePosesForNextRebuild()` only when `worldChangesRequireSceneRebuild(prev, newWorld)` (incremental workspace edits such as pipe-stack bootstrap must not snapshot live poses), then `updateWorld(() => newWorld)`. `initialPosesRef` is cleared synchronously when `documentEpoch` changes (project load / new project) so stale poses are never restored across projects.  
    - `handleAddEntity`, `handleBulkAddEntities`, `handleDeleteEntity`, `handleCloneEntity`: each calls `captureScenePosesForNextRebuild()` before `updateWorld`, because these paths change the entity list (rebuild key) without going through `handleWorldChange`.  
    - `handleEntityTransformersChange`: calls `syncEntityTransformers` directly; all transformer changes are now incremental and do not trigger a full scene rebuild.
    - `handleEntityShapeChange` (trimesh / fallback rebuild branch): calls `captureScenePosesForNextRebuild()` before `updateWorld`.  

@@ -47,6 +47,7 @@ export default function PipeConfigDrawer({
 
   return (
     <WorkspaceFloatingDrawer
+      testId="pipe-config-drawer"
       title={`Pipe config: ${pipe.name}`}
       onClose={onClose}
       initialLeft={anchor.x}

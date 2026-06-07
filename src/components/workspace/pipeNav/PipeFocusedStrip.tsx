@@ -12,6 +12,7 @@ import {
 import PipeCard from './PipeCard'
 import PipeAddDialog from './PipeAddDialog'
 import type { ResolvedPipeNavView, StripItem } from '@/types/pipeNav'
+import { isPipeNavLeafLevel } from '@/utils/pipeNavResolve'
 import { getEntityPipeStack, normalizePipeMembers } from '@/utils/transformerPipeResolve'
 
 export interface PipeFocusedStripProps {
@@ -86,9 +87,7 @@ export default function PipeFocusedStrip({
   const pipes = world.transformerPipes ?? {}
   const stack = getEntityPipeStack(entity)
 
-  const isLeafLevel =
-    view.mode === 'entity_stages' ||
-    (view.mode === 'pipe_members' && view.items.some((item) => item.kind === 'stage'))
+  const isLeafLevel = isPipeNavLeafLevel(view)
 
   const openAddDialog = useCallback(() => setAddDialogOpen(true), [])
 
@@ -132,6 +131,7 @@ export default function PipeFocusedStrip({
       onClick={openAddDialog}
       aria-label="Add"
       data-testid="pipe-focused-add-button"
+      data-leaf-level={isLeafLevel ? 'true' : 'false'}
       style={plusButtonStyle}
     >
       +
@@ -172,6 +172,7 @@ export default function PipeFocusedStrip({
           existingRegistry={world.transformers}
           selectedId={selectedStageId}
           cardErrorsByStackIndex={cardErrorsByStackIndex}
+          cardDepth={depth}
           externalAddDialog
           renderAddButton={() => renderPlusButton()}
         />
@@ -268,89 +269,171 @@ export default function PipeFocusedStrip({
     )
   }
 
-  const nestedPipeItems = view.mode === 'pipe_members' ? view.items.filter((i) => i.kind === 'pipe') : []
+  if (view.mode === 'pipe_members') {
+    const hasMixedMembers =
+      view.items.some((item) => item.kind === 'pipe') && view.items.some((item) => item.kind === 'stage')
 
-  return (
-    <>
-      <div style={{ display: 'flex', flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center' }}>
-        {nestedPipeItems.map((item, idx) => {
-          if (item.kind !== 'pipe') return null
-          const pipe = pipes[item.pipeId]
-          if (!pipe) return null
-          const parentPipeId = view.containerPipeId
-          const member = parentPipeId ?
-            normalizePipeMembers(pipes[parentPipeId] ?? { id: '', name: '', stageIds: [], stages: [] })[
-              item.index
-            ]
-          : undefined
-          const enabled = member?.kind === 'pipe' ? member.enabled !== false : true
-          const stackIdx = stackIndexForPipeId?.(item.pipeId)
-          const stackBinding =
-            stackIdx !== undefined && stackIdx >= 0 ? stack[stackIdx] : undefined
-          return (
-            <Fragment key={item.pipeId}>
-              {idx > 0 ?
-                <div style={{ width: 16, height: 2, background: theme.pipeNav.accentMuted }} />
-              : null}
-              <PipeCard
-                pipe={pipe}
-                binding={stackBinding}
-                world={world}
-                depth={depth}
-                isSelected={selectedIndex === item.index}
-                enabled={enabled}
-                stackIndex={stackIdx !== undefined && stackIdx >= 0 ? stackIdx : undefined}
-                drawerPortalTarget={drawerPortalTarget}
-                onSelect={() => onSelectPipeIndex(item.index)}
-                onDrillIn={() => onDrillIntoPipe(item.index, item.pipeId)}
-                onToggleEnabled={() =>
-                  onPipeControlToggle?.({
-                    pipeId: item.pipeId,
-                    stackIndex: stackIdx !== undefined && stackIdx >= 0 ? stackIdx : undefined,
-                    memberParentPipeId: parentPipeId,
-                    memberIndex: item.index,
-                  })
-                }
-                onParamChange={(key, value) =>
-                  onPipeParamChange?.({
-                    pipeId: item.pipeId,
-                    stackIndex: stackIdx,
-                    key,
-                    value,
-                    useSharedDefaults: stackIdx === undefined || stackIdx < 0,
-                  })
-                }
-                onDecoupleBinding={
-                  stackIdx !== undefined && stackIdx >= 0 ?
-                    () => onDecouplePipeBinding?.(stackIdx)
-                  : undefined
-                }
-                useSharedDefaults={stackIdx === undefined || stackIdx < 0}
-              />
-            </Fragment>
-          )
-        })}
+    if (!hasMixedMembers && view.items.every((item) => item.kind === 'stage')) {
+      return (
+        <>
+          <TransformerHorizontalPipeline
+            transformers={stageConfigs}
+            transformerIds={stageIds}
+            registryEntityId={registryEntityId}
+            liveTraceSteps={liveTraceSteps}
+            drawerPortalTarget={drawerPortalTarget}
+            onCommit={onCommitStages}
+            onSelectCode={onSelectStageId}
+            onMakeUnique={onMakeUnique}
+            makeUniqueDisabledReason={makeUniqueDisabledReason}
+            usageCounts={usageCounts}
+            existingRegistry={world.transformers}
+            selectedId={selectedStageId}
+            cardErrorsByStackIndex={cardErrorsByStackIndex}
+            cardDepth={depth}
+            externalAddDialog
+            renderAddButton={() => renderPlusButton()}
+          />
+          {addDialog}
+        </>
+      )
+    }
+
+    const parentPipeId = view.containerPipeId
+    const renderPipeCard = (item: Extract<StripItem, { kind: 'pipe' }>) => {
+      const pipe = pipes[item.pipeId]
+      if (!pipe) return null
+      const member = parentPipeId ?
+        normalizePipeMembers(pipes[parentPipeId] ?? { id: '', name: '', stageIds: [], stages: [] })[item.index]
+      : undefined
+      const enabled = member?.kind === 'pipe' ? member.enabled !== false : true
+      const stackIdx = stackIndexForPipeId?.(item.pipeId)
+      const stackBinding =
+        stackIdx !== undefined && stackIdx >= 0 ? stack[stackIdx] : undefined
+      return (
+        <PipeCard
+          pipe={pipe}
+          binding={stackBinding}
+          world={world}
+          depth={depth}
+          isSelected={selectedIndex === item.index}
+          enabled={enabled}
+          stackIndex={stackIdx !== undefined && stackIdx >= 0 ? stackIdx : undefined}
+          drawerPortalTarget={drawerPortalTarget}
+          onSelect={() => onSelectPipeIndex(item.index)}
+          onDrillIn={() => onDrillIntoPipe(item.index, item.pipeId)}
+          onToggleEnabled={() =>
+            onPipeControlToggle?.({
+              pipeId: item.pipeId,
+              stackIndex: stackIdx !== undefined && stackIdx >= 0 ? stackIdx : undefined,
+              memberParentPipeId: parentPipeId,
+              memberIndex: item.index,
+            })
+          }
+          onParamChange={(key, value) =>
+            onPipeParamChange?.({
+              pipeId: item.pipeId,
+              stackIndex: stackIdx,
+              key,
+              value,
+              useSharedDefaults: stackIdx === undefined || stackIdx < 0,
+            })
+          }
+          onDecoupleBinding={
+            stackIdx !== undefined && stackIdx >= 0 ?
+              () => onDecouplePipeBinding?.(stackIdx)
+            : undefined
+          }
+          useSharedDefaults={stackIdx === undefined || stackIdx < 0}
+        />
+      )
+    }
+
+    const renderStageCard = (item: Extract<StripItem, { kind: 'stage' }>) => {
+      const stageIdx = stageIds.indexOf(item.stageId)
+      if (stageIdx < 0) return null
+      const cfg = stageConfigs[stageIdx]
+      if (!cfg) return null
+      return (
         <TransformerHorizontalPipeline
-          transformers={stageConfigs}
-          transformerIds={stageIds}
+          transformers={[cfg]}
+          transformerIds={[item.stageId]}
           registryEntityId={registryEntityId}
           liveTraceSteps={liveTraceSteps}
           drawerPortalTarget={drawerPortalTarget}
-          onCommit={onCommitStages}
+          onCommit={(nextConfigs) => {
+            const nextAll = [...stageConfigs]
+            nextAll[stageIdx] = nextConfigs[0]!
+            onCommitStages(nextAll)
+          }}
           onSelectCode={onSelectStageId}
           onMakeUnique={onMakeUnique}
           makeUniqueDisabledReason={makeUniqueDisabledReason}
           usageCounts={usageCounts}
           existingRegistry={world.transformers}
           selectedId={selectedStageId}
-          cardErrorsByStackIndex={cardErrorsByStackIndex}
+          cardErrorsByStackIndex={
+            cardErrorsByStackIndex?.[stageIdx] != null ?
+              { 0: cardErrorsByStackIndex[stageIdx]! }
+            : undefined
+          }
+          cardDepth={depth}
+          inline
+          embedStackIndex={stageIdx}
           externalAddDialog
-          renderAddButton={() => renderPlusButton()}
+          renderAddButton={() => null}
         />
-      </div>
-      {addDialog}
-    </>
-  )
+      )
+    }
+
+    return (
+      <>
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 0,
+            overflowX: 'auto',
+            overflowY: 'visible',
+            padding: '8px 4px',
+            minHeight: 0,
+            flex: '1 1 auto',
+          }}
+        >
+          {view.items.map((item, displayIdx) => (
+            <Fragment key={item.kind === 'stage' ? item.stageId : `${item.pipeId}-${item.index}`}>
+              {displayIdx > 0 ?
+                <div style={{ width: 16, height: 2, background: theme.pipeNav.accentMuted, flexShrink: 0 }} />
+              : null}
+              {item.kind === 'pipe' ? renderPipeCard(item) : renderStageCard(item)}
+            </Fragment>
+          ))}
+          <div
+            style={{
+              position: 'relative',
+              marginLeft: 8,
+              flexShrink: 0,
+              padding: 4,
+              boxSizing: 'border-box',
+              border: `1px dashed ${theme.pipeNav.accentMuted}`,
+              borderRadius: 6,
+              background: theme.pipeNav.levelBg[depth % theme.pipeNav.levelBg.length],
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              alignSelf: 'center',
+            }}
+          >
+            {renderPlusButton()}
+          </div>
+        </div>
+        {addDialog}
+      </>
+    )
+  }
+
+  return null
 }
 
 const transformerPlusBtnStyle: CSSProperties = {

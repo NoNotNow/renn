@@ -990,7 +990,8 @@ export function useTextureMakerSession({
   const textureBrushDisabled = useMemo(() => {
     if (selectedEntityIds.length !== 1) return true
     const eid = selectedEntityIds[0]!
-    const e = world.entities.find((x) => x.id === eid)
+    const entities = world.entities ?? []
+    const e = entities.find((x) => x.id === eid)
     if (!e) return true
     const mapId = e.material?.map
     if (!mapId) return false

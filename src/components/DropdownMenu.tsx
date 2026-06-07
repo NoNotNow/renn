@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 
 export interface MenuItemConfig {
   type: 'item' | 'separator' | 'submenu'
@@ -26,17 +26,23 @@ export default function DropdownMenu({ label, items, onOpenChange }: DropdownMen
   const submenuRefs = useRef<Map<number, HTMLDivElement>>(new Map())
   const submenuCloseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const menuItems = items.filter(item => item.type === 'item' || item.type === 'submenu')
+  const menuItems = useMemo(
+    () => items.filter((item) => item.type === 'item' || item.type === 'submenu'),
+    [items],
+  )
 
   useEffect(() => {
-    if (!isOpen) {
-      setFocusedIndex(-1)
-      if (submenuCloseTimeoutRef.current) {
-        clearTimeout(submenuCloseTimeoutRef.current)
-        submenuCloseTimeoutRef.current = null
-      }
-      return
+    if (isOpen) return
+    setFocusedIndex((prev) => (prev === -1 ? prev : -1))
+    setOpenSubmenuIndex((prev) => (prev === null ? prev : null))
+    if (submenuCloseTimeoutRef.current) {
+      clearTimeout(submenuCloseTimeoutRef.current)
+      submenuCloseTimeoutRef.current = null
     }
+  }, [isOpen])
+
+  useEffect(() => {
+    if (!isOpen) return
 
     const handleClickOutside = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {

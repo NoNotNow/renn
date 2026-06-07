@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { useCallback, useRef, useState, type ComponentProps } from 'react'
-import { act, render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { act, render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import WorkspaceTransformersTab from './WorkspaceTransformersTab'
 import WorkspaceMonacoSlot from './WorkspaceMonacoSlot'
@@ -283,13 +283,15 @@ describe('WorkspaceTransformersTab', () => {
     expect(lastWorld.transformers?.car_tf2?.code).toContain('return { force')
   })
 
-  it('shows Add Pipe button without Save as Pipe', async () => {
-    renderTab()
-    expect(screen.getByText('+ Add Pipe')).toBeDefined()
+  it('uses pipe nav add menu instead of header Save as Pipe', async () => {
+    renderTab({ world: carStackWorld })
+    expect(screen.queryByText('+ Add Pipe')).toBeNull()
     expect(screen.queryByText('Save as Pipe')).toBeNull()
+    expect(screen.getByTestId('pipe-focused-add-button')).toBeDefined()
   })
 
   it('auto-wraps a fresh entity in Pipe1 when opened in transformers tab', async () => {
+    const user = userEvent.setup()
     const freshWorld: RennWorld = {
       version: '1',
       world: {},
@@ -305,9 +307,11 @@ describe('WorkspaceTransformersTab', () => {
       transformers: {},
     }
     const onWorldChange = vi.fn()
+    const setMonacoPayload = vi.fn()
     renderTab({
       world: freshWorld,
       onWorldChange,
+      setMonacoPayload,
       selectedEntityIds: ['fresh'],
       entry: { entityId: 'fresh', tab: 'transformers' },
     })
@@ -318,6 +322,83 @@ describe('WorkspaceTransformersTab', () => {
     const pipeId = entity.transformerPipeStack?.[0]?.pipeId
     expect(pipeId).toBeDefined()
     expect(next.transformerPipes?.[pipeId!]?.name).toBe('Pipe1')
+
+    const addButton = await screen.findByTestId('pipe-focused-add-button')
+    expect(addButton.getAttribute('data-leaf-level')).toBe('true')
+
+    await user.click(addButton)
+    expect(screen.getByText('Add to pipeline')).toBeInTheDocument()
+    expect(screen.getByTestId('add-transformer-search')).toBeInTheDocument()
+
+    await waitFor(() => {
+      const payload = lastMonacoPayload(setMonacoPayload)
+      expect(payload?.kind).toBe('placeholder')
+      expect(payload?.value).toContain('Add a custom transformer to Pipe using the + button.')
+    })
+  })
+
+  it('wraps legacy ungrouped stages into the existing pipe without corrupting world', async () => {
+    const user = userEvent.setup()
+    const legacyWorld: RennWorld = {
+      version: '1',
+      world: {},
+      entities: [
+        {
+          id: 'car',
+          bodyType: 'dynamic',
+          shape: { type: 'box', width: 1, height: 1, depth: 1 },
+          position: [0, 0, 0],
+          transformers: ['car_tf0', 'car_tf1'],
+          transformerPipe: 'p1',
+        },
+      ],
+      transformers: {
+        car_tf0: { type: 'input', priority: 0, enabled: true, params: {} },
+        car_tf1: {
+          type: 'custom',
+          priority: 1,
+          enabled: true,
+          params: {},
+          code: 'return {};',
+          name: 'Follower',
+        },
+      },
+      transformerPipes: {
+        p1: {
+          id: 'p1',
+          name: 'Follower car',
+          stageIds: ['car_tf0'],
+          stages: [{ type: 'input', priority: 0, enabled: true, params: {} }],
+        },
+      },
+    }
+
+    function Harness() {
+      const [world, setWorld] = useState(legacyWorld)
+      return (
+        <TabWithMonacoHarness
+          world={world}
+          onWorldChange={setWorld}
+          selectedEntityIds={['car']}
+          entry={{ entityId: 'car', tab: 'transformers' }}
+        />
+      )
+    }
+
+    render(
+      <CopyProvider>
+        <EditorUndoProvider value={undoApi}>
+          <Harness />
+        </EditorUndoProvider>
+      </CopyProvider>,
+    )
+
+    expect(screen.getByTestId('pipe-ungrouped-banner')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Wrap into pipe' }))
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('pipe-ungrouped-banner')).not.toBeInTheDocument()
+    })
   })
 
   it('make unique clones registry entry when shared usage badge is confirmed', async () => {
@@ -766,7 +847,104 @@ describe('WorkspaceTransformersTab', () => {
       ],
     }
     renderTab({ world: pipeWorld })
+    if (!screen.queryByTestId('pipe-nav-sidebar')) {
+      fireEvent.click(screen.getByTestId('pipe-nav-open'))
+    }
     expect(screen.getByTestId('pipe-nav-sidebar')).toBeDefined()
     expect(screen.getAllByText('My Pipe').length).toBeGreaterThan(0)
+  })
+
+  describe('pipe config editing', () => {
+    const CONFIG_PIPE_ID = 'pipe-speed'
+
+    function configPipeWorld(): RennWorld {
+      return {
+        ...carStackWorld,
+        transformerPipes: {
+          [CONFIG_PIPE_ID]: {
+            id: CONFIG_PIPE_ID,
+            name: 'SpeedPipe',
+            stageIds: ['car_tf0', 'car_tf1', 'car_tf2'],
+            stages: carStackWorld.transformerPipes![CAR_PIPE_ID]!.stages,
+            members: carStackWorld.transformerPipes![CAR_PIPE_ID]!.members,
+            paramDefs: [{ key: 'speed', type: 'number' }],
+            defaultParams: { speed: 5 },
+          },
+        },
+        entities: [
+          {
+            ...carStackWorld.entities[0]!,
+            transformerPipeStack: [{ pipeId: CONFIG_PIPE_ID, params: { speed: 3 } }],
+          },
+        ],
+      }
+    }
+
+    beforeEach(() => {
+      const storage = new Map<string, string>([['rennTransformerPipeNavOpen', 'true']])
+      vi.stubGlobal('localStorage', {
+        getItem: (key: string) => storage.get(key) ?? null,
+        setItem: (key: string, value: string) => {
+          storage.set(key, value)
+        },
+      })
+    })
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+
+    it('opens pipe config from the focused strip pipe card', async () => {
+      renderTab({
+        world: configPipeWorld(),
+        entry: { entityId: 'car', tab: 'transformers', pipeNavPath: [], pipeNavSelectedIndex: 0 },
+      })
+
+      fireEvent.click(screen.getByTestId('pipe-controls-config'))
+
+      await waitFor(() => {
+        expect(screen.getByTestId('pipe-config-drawer')).toBeInTheDocument()
+        expect(screen.getByText('Pipe config: SpeedPipe')).toBeInTheDocument()
+      })
+    })
+
+    it('opens pipe config from the tree context menu', async () => {
+      renderTab({
+        world: configPipeWorld(),
+        entry: { entityId: 'car', tab: 'transformers', pipeNavPath: [], pipeNavSelectedIndex: 0 },
+      })
+
+      const tree = screen.getByTestId('pipe-nav-tree')
+      const treeRow = within(tree).getByText('SpeedPipe').closest('div')!
+      fireEvent.mouseEnter(treeRow)
+      fireEvent.click(within(treeRow).getByTitle('More'))
+      fireEvent.click(within(treeRow).getByText('Edit config'))
+
+      await waitFor(() => {
+        expect(screen.getByTestId('pipe-config-drawer')).toBeInTheDocument()
+      })
+    })
+
+    it('writes per-entity pipe params from the config drawer', async () => {
+      const onWorldChange = vi.fn()
+      renderTab({
+        world: configPipeWorld(),
+        entry: { entityId: 'car', tab: 'transformers', pipeNavPath: [], pipeNavSelectedIndex: 0 },
+        onWorldChange,
+      })
+
+      fireEvent.click(screen.getByTestId('pipe-controls-config'))
+
+      await waitFor(() => {
+        expect(screen.getByTestId('pipe-config-drawer')).toBeInTheDocument()
+      })
+
+      const speedInput = screen.getByDisplayValue('3')
+      fireEvent.change(speedInput, { target: { value: '7' } })
+
+      await waitFor(() => expect(onWorldChange).toHaveBeenCalled())
+      const next = onWorldChange.mock.calls.at(-1)?.[0] as RennWorld
+      expect(next.entities[0]?.transformerPipeStack?.[0]?.params?.speed).toBe(7)
+    })
   })
 })

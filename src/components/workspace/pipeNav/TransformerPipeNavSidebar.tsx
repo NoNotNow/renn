@@ -13,6 +13,7 @@ import { theme } from '@/config/theme'
 import { clamp } from '@/utils/numberUtils'
 import { pipeNavButtonStyle } from './pipeNavStyles'
 import PipeNavTree, { type PipeTreeNode } from './PipeNavTree'
+import type { PipeTreeContextTarget } from '@/utils/pipeNavTreeHelpers'
 
 const SIDEBAR_MIN_PX = 200
 const SIDEBAR_MAX_PX = 420
@@ -39,10 +40,9 @@ export interface TransformerPipeNavSidebarProps {
   onTreeDelete?: (node: PipeTreeNode) => void
   onTreeContext?: (
     action: 'add_before' | 'add_after' | 'add_child' | 'delete',
-    node: PipeTreeNode,
+    target: PipeTreeContextTarget,
   ) => void
-  onReorderStack?: (from: number, to: number) => void
-  onReorderMember?: (pipeId: string, from: number, to: number) => void
+  onTreeDrop?: (drag: PipeTreeNode, drop: PipeTreeNode) => void
   drawerPortalTarget?: RefObject<HTMLDivElement | null>
   stackIndexForPipeId?: (pipeId: string) => number
   onPipeControlToggle?: (opts: {
@@ -63,9 +63,9 @@ export interface TransformerPipeNavSidebarProps {
 
 export function readPipeNavOpen(): boolean {
   try {
-    return localStorage.getItem(OPEN_KEY) !== 'false'
+    return localStorage.getItem(OPEN_KEY) === 'true'
   } catch {
-    return true
+    return false
   }
 }
 
@@ -103,8 +103,7 @@ export default function TransformerPipeNavSidebar({
   onRenamePipe,
   onTreeDelete,
   onTreeContext,
-  onReorderStack,
-  onReorderMember,
+  onTreeDrop,
   drawerPortalTarget,
   stackIndexForPipeId,
   onPipeControlToggle,
@@ -241,8 +240,7 @@ export default function TransformerPipeNavSidebar({
         onSelectPath={onPathChange}
         onDeleteNode={onTreeDelete}
         onContextAction={onTreeContext}
-        onReorderStack={onReorderStack}
-        onReorderMember={onReorderMember}
+        onTreeDrop={onTreeDrop}
         drawerPortalTarget={drawerPortalTarget}
         stackIndexForPipeId={stackIndexForPipeId}
         onPipeControlToggle={onPipeControlToggle}

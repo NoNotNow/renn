@@ -91,17 +91,20 @@ describe('EntitySearchPicker', () => {
     expect(screen.queryByTestId('entity-search-filter-popover')).not.toBeInTheDocument()
   })
 
-  it('closes filter popover from the header close button', () => {
+  it('selects entities with arrow keys and enter', () => {
+    const onSelect = vi.fn()
     render(
       <EntitySearchPicker
-        entities={[makeEntity('a')]}
+        entities={[makeEntity('car', 'Car'), makeEntity('cargo', 'Cargo')]}
         entityWorkHistory={[]}
-        onSelectEntity={vi.fn()}
+        onSelectEntity={onSelect}
       />,
     )
-    fireEvent.click(screen.getByTestId('entity-search-picker-filter-toggle'))
-    expect(screen.getByTestId('entity-search-filter-popover')).toBeInTheDocument()
-    fireEvent.click(screen.getByTestId('entity-search-filter-close'))
-    expect(screen.queryByTestId('entity-search-filter-popover')).not.toBeInTheDocument()
+    const input = screen.getByTestId('entity-search-picker-input')
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: 'ca' } })
+    fireEvent.keyDown(input, { key: 'ArrowDown' })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(onSelect).toHaveBeenCalledWith('cargo')
   })
 })

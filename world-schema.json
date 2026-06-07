@@ -578,7 +578,8 @@
           "required": ["kind", "stageId"],
           "properties": {
             "kind": { "const": "stage" },
-            "stageId": { "type": "string" }
+            "stageId": { "type": "string" },
+            "enabled": { "type": "boolean" }
           },
           "additionalProperties": false
         },
@@ -587,7 +588,8 @@
           "required": ["kind", "pipeId"],
           "properties": {
             "kind": { "const": "pipe" },
-            "pipeId": { "type": "string" }
+            "pipeId": { "type": "string" },
+            "enabled": { "type": "boolean" }
           },
           "additionalProperties": false
         }

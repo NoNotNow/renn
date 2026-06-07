@@ -10,6 +10,8 @@ export interface PipeTreePipeControlsProps {
   world: RennWorld
   binding?: TransformerPipeBinding
   enabled: boolean
+  configOpen: boolean
+  onConfigOpenChange: (open: boolean) => void
   stackIndex?: number
   memberParentPipeId?: string
   memberIndex?: number
@@ -25,6 +27,8 @@ export default function PipeTreePipeControls({
   world,
   binding,
   enabled,
+  configOpen,
+  onConfigOpenChange,
   stackIndex,
   memberParentPipeId,
   memberIndex,
@@ -36,11 +40,9 @@ export default function PipeTreePipeControls({
 }: PipeTreePipeControlsProps) {
   const anchorRef = useRef<HTMLSpanElement>(null)
   const [toolsExpanded, setToolsExpanded] = useState(true)
-  const [configOpen, setConfigOpen] = useState(false)
   const linkCount = countEntitiesLinkingPipe(world, pipe.id)
   const canDecouple =
     stackIndex !== undefined && binding?.mode !== 'copy' && linkCount > 1 && Boolean(onDecoupleBinding)
-  const hasParamDefs = (pipe.paramDefs?.length ?? 0) > 0
 
   return (
     <span ref={anchorRef} style={{ display: 'inline-flex', flexShrink: 0 }}>
@@ -53,8 +55,7 @@ export default function PipeTreePipeControls({
         linkCount={linkCount}
         onDecouple={canDecouple ? onDecoupleBinding : undefined}
         configOpen={configOpen}
-        onConfigToggle={hasParamDefs ? () => setConfigOpen((o) => !o) : undefined}
-        hasConfig={hasParamDefs}
+        onConfigToggle={() => onConfigOpenChange(!configOpen)}
       />
       {configOpen && drawerPortalTarget?.current ?
         <PipeConfigDrawer
@@ -62,7 +63,7 @@ export default function PipeTreePipeControls({
           binding={binding}
           portalTarget={drawerPortalTarget.current}
           anchorRef={anchorRef}
-          onClose={() => setConfigOpen(false)}
+          onClose={() => onConfigOpenChange(false)}
           onParamChange={onParamChange}
           sharedDefaults={useSharedDefaults}
         />

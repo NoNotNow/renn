@@ -18,6 +18,7 @@ import TransformerFieldReference from '@/components/TransformerFieldReference'
 import { EntityPanelIcons } from '@/components/EntityPanelIcons'
 import { entityPanelIconButtonStyle } from '@/components/sharedStyles'
 import { theme } from '@/config/theme'
+import { pipeNavLevelBg } from '@/components/workspace/pipeNav/pipeNavStyles'
 import {
   hasNonZeroSemanticActions,
   serializeTransformerTraceOutputJson,
@@ -382,6 +383,7 @@ function TransformerTraceItem({
   isDragOver,
   isDragging,
   cardError,
+  cardDepth,
 }: {
   index: number
   /** Index of this transformer in the full entity stack (for custom display names). */
@@ -406,6 +408,7 @@ function TransformerTraceItem({
   isDragOver: boolean
   isDragging: boolean
   cardError?: TransformerCardErrorKind
+  cardDepth?: number
 }) {
   const [inOpen, setInOpen] = useState(false)
   const [outOpen, setOutOpen] = useState(false)
@@ -546,7 +549,7 @@ function TransformerTraceItem({
         boxSizing: 'border-box',
         border: transformerCardBorder(cardError, showSelectedChrome),
         borderRadius: 6,
-        background: isDragOver ? theme.bg.panelAlt : theme.bg.thumbnailFrame,
+        background: isDragOver ? theme.bg.panelAlt : cardDepth != null ? pipeNavLevelBg(cardDepth) : theme.bg.thumbnailFrame,
         minWidth: 100,
         flex: '0 0 auto',
         opacity: isDragging ? 0.4 : 1,
@@ -992,6 +995,9 @@ export function TransformerHorizontalPipeline({
   cardErrorsByStackIndex,
   renderAddButton,
   externalAddDialog,
+  cardDepth,
+  inline,
+  embedStackIndex,
 }: {
   transformers: TransformerConfig[]
   /** Stable IDs from the registry, matching transformers array 1:1. */
@@ -1013,6 +1019,12 @@ export function TransformerHorizontalPipeline({
   renderAddButton?: (api: { onOpenAdd: () => void }) => React.ReactNode
   /** Parent owns AddTransformerDialog / PipeAddDialog. */
   externalAddDialog?: boolean
+  /** Pipe navigation depth tint for stage cards. */
+  cardDepth?: number
+  /** Single-card embed inside an ordered pipe member strip (no lead-in, no trailing add slot). */
+  inline?: boolean
+  /** Original stack index when `inline` renders one embedded card. */
+  embedStackIndex?: number
 }) {
   const [scrollLeft, setScrollLeft] = useState(0)
   const [addDialogOpen, setAddDialogOpen] = useState(false)
@@ -1213,8 +1225,8 @@ export function TransformerHorizontalPipeline({
         gap: 0,
         margin: 0,
         padding: '1px 0',
-        flex: 1,
-        minWidth: 0,
+        flex: inline ? '0 0 auto' : 1,
+        minWidth: inline ? undefined : 0,
         position: 'relative',
       }}
     >
@@ -1227,7 +1239,7 @@ export function TransformerHorizontalPipeline({
         .transformer-trace-io-row > summary::-webkit-details-marker { display: none; }
         .transformer-trace-io-row > summary::marker { content: ''; }
       `}</style>
-      {displayItems.length > 0 ? <PipelineLeadInArrow /> : null}
+      {displayItems.length > 0 && !inline ? <PipelineLeadInArrow /> : null}
       {displayItems.map((item, i) => (
         <Fragment key={item.id}>
           <div
@@ -1239,8 +1251,8 @@ export function TransformerHorizontalPipeline({
             }}
           >
             <TransformerTraceItem
-              index={i}
-              stackIndex={item.originalIndex}
+              index={inline && embedStackIndex != null ? embedStackIndex : i}
+              stackIndex={inline && embedStackIndex != null ? embedStackIndex : item.originalIndex}
               transformer={item.config}
               step={traceByStackIndex?.get(item.originalIndex)}
               drawerPortalTarget={drawerPortalTarget}
@@ -1261,11 +1273,13 @@ export function TransformerHorizontalPipeline({
               isDragging={dragState?.draggedId === item.id}
               isDragOver={dragState?.dragOverId === item.id && dragState?.draggedId !== item.id}
               cardError={cardErrorsByStackIndex?.[item.originalIndex]}
+              cardDepth={cardDepth}
             />
           </div>
-          <PipelineConnector />
+          {!inline && i < displayItems.length - 1 ? <PipelineConnector /> : null}
         </Fragment>
       ))}
+      {!inline ?
       <div
         style={{
           position: 'relative',
@@ -1324,6 +1338,7 @@ export function TransformerHorizontalPipeline({
         )}
         {displayItems.length > 0 ? <PipelineTrailOutArrow /> : null}
       </div>
+      : null}
     </div>
   )
 }

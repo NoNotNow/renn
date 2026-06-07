@@ -20,6 +20,23 @@ export function isBindingEnabled(binding: TransformerPipeBinding): boolean {
   return binding.enabled !== false
 }
 
+/** Stage-editing strip level (gray +): flat entity stages or inside a pipe without nested pipe cards. */
+export function isPipeNavLeafLevel(view: ResolvedPipeNavView | null | undefined): boolean {
+  if (!view) return false
+  return (
+    view.mode === 'entity_stages' ||
+    (view.mode === 'pipe_members' && !view.items.some((item) => item.kind === 'pipe'))
+  )
+}
+
+/** Stack index to insert a sibling pipe after the stack pipe in the current nav path. */
+export function stackSiblingInsertIndexFromPath(path: PipeNavPathSegment[]): number | undefined {
+  for (const seg of path) {
+    if (seg.kind === 'stack') return seg.index + 1
+  }
+  return undefined
+}
+
 /** Resolve pipe id at end of navigation path. */
 export function resolveFocusedPipeId(
   world: RennWorld,
@@ -263,4 +280,72 @@ export function resolveFocusedStageConfigs(
   const registry = world.transformers ?? {}
   const configs = ids.map((id) => registry[id]).filter(Boolean) as TransformerConfig[]
   return { ids, configs }
+}
+
+/** Whether `childPipeId` already contains `parentPipeId` in its member tree (nesting would cycle). */
+export function wouldNestCreateCycle(
+  registry: Record<string, TransformerPipe>,
+  parentPipeId: string,
+  childPipeId: string,
+): boolean {
+  if (parentPipeId === childPipeId) return true
+  return pipeContainsDescendantPipe(registry, childPipeId, parentPipeId)
+}
+
+function pipeContainsDescendantPipe(
+  registry: Record<string, TransformerPipe>,
+  ancestorPipeId: string,
+  descendantPipeId: string,
+  visited: Set<string> = new Set(),
+): boolean {
+  if (ancestorPipeId === descendantPipeId) return true
+  if (visited.has(ancestorPipeId)) return false
+  visited.add(ancestorPipeId)
+  const pipe = registry[ancestorPipeId]
+  if (!pipe) return false
+  for (const member of normalizePipeMembers(pipe)) {
+    if (member.kind !== 'pipe') continue
+    if (pipeContainsDescendantPipe(registry, member.pipeId, descendantPipeId, visited)) return true
+  }
+  return false
+}
+
+/** Stage ids on entity.transformers not accounted for by the pipe stack flatten. */
+export function findUngroupedStageIds(world: RennWorld, entity: Entity): string[] {
+  const stack = getEntityPipeStack(entity)
+  if (stack.length === 0) return []
+  const syncedSet = new Set(syncEntityTransformerIds(world, entity))
+  return (entity.transformers ?? []).filter((id) => !syncedSet.has(id))
+}
+
+/** Clamp navigation path and selection after structural edits. */
+export function reconcilePipeNavPath(
+  world: RennWorld,
+  entity: Entity,
+  path: PipeNavPathSegment[],
+  selectedIndex: number,
+): PipeNavFocus {
+  const stack = getEntityPipeStack(entity)
+  const validPath: PipeNavPathSegment[] = []
+
+  for (const seg of path) {
+    if (seg.kind === 'stack') {
+      if (seg.index < 0 || seg.index >= stack.length) break
+      validPath.push({ kind: 'stack', index: seg.index })
+      continue
+    }
+    const parentPipeId = resolveFocusedPipeId(world, entity, validPath)
+    if (!parentPipeId) break
+    const pipe = world.transformerPipes?.[parentPipeId]
+    const members = pipe ? normalizePipeMembers(pipe) : []
+    if (seg.memberIndex < 0 || seg.memberIndex >= members.length) break
+    validPath.push({ kind: 'member', pipeId: parentPipeId, memberIndex: seg.memberIndex })
+  }
+
+  const view = resolvePipeNavView(world, entity, { path: validPath, selectedSiblingIndex: 0 })
+  const maxIndex = Math.max(0, view.siblingCount - 1)
+  return {
+    path: validPath,
+    selectedSiblingIndex: Math.max(0, Math.min(selectedIndex, maxIndex)),
+  }
 }

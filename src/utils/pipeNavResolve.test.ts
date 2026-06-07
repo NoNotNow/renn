@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest'
 import type { RennWorld } from '@/types/world'
-import { resolveFocusedPipeId, resolvePipeNavView, drillIntoPipePath } from './pipeNavResolve'
+import {
+  resolveFocusedPipeId,
+  resolvePipeNavView,
+  drillIntoPipePath,
+  isPipeNavLeafLevel,
+  stackSiblingInsertIndexFromPath,
+} from './pipeNavResolve'
 
 describe('pipeNavResolve', () => {
   const world: RennWorld = {
@@ -73,5 +79,18 @@ describe('pipeNavResolve', () => {
     expect(view.items).toHaveLength(2)
     expect(view.items[1]?.kind).toBe('stage')
     expect(view.items[1]?.kind === 'stage' ? view.items[1].stageId : '').toBe('s2')
+  })
+
+  it('detects leaf level inside a stage-only pipe', () => {
+    const view = resolvePipeNavView(world, world.entities[0]!, {
+      path: [{ kind: 'stack', index: 0 }],
+      selectedSiblingIndex: 0,
+    })
+    expect(isPipeNavLeafLevel(view)).toBe(true)
+  })
+
+  it('computes stack sibling insert index from nav path', () => {
+    expect(stackSiblingInsertIndexFromPath([{ kind: 'stack', index: 0 }])).toBe(1)
+    expect(stackSiblingInsertIndexFromPath([])).toBeUndefined()
   })
 })

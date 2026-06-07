@@ -844,6 +844,7 @@ function SceneViewInner({
               rawInputGetter,
               controlledEntityIdRef,
               loadedWorld.transformers,
+              loadedWorld.transformerPipes,
             )
             if (!cancelled && effectIdRef.current === currentEffectId) {
               registryRef.current = registry
@@ -855,7 +856,7 @@ function SceneViewInner({
         })
       } else {
         const rawInputGetter = () => getRawInputSnapshot(rawKeyboardRef, rawWheelRef)
-        const registry = RenderItemRegistry.create(entities, null, rawInputGetter, controlledEntityIdRef, loadedWorld.transformers)
+        const registry = RenderItemRegistry.create(entities, null, rawInputGetter, controlledEntityIdRef, loadedWorld.transformers, loadedWorld.transformerPipes)
         if (!cancelled && effectIdRef.current === currentEffectId) {
           registryRef.current = registry
           restoreInitialPosesIntoRegistry(registry, initialPosesRef, onPosesRestored)

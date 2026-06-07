@@ -54,8 +54,6 @@ export default function PipeCard({
   const linkCount = countEntitiesLinkingPipe(world, pipe.id)
   const canDecouple =
     stackIndex !== undefined && binding?.mode !== 'copy' && linkCount > 1 && Boolean(onDecoupleBinding)
-  const hasParamDefs = (pipe.paramDefs?.length ?? 0) > 0
-
   const closeConfig = useCallback(() => setConfigOpen(false), [])
 
   return (
@@ -105,8 +103,7 @@ export default function PipeCard({
           onDecouple={canDecouple ? onDecoupleBinding : undefined}
           decoupleDisabledReason={decoupleDisabledReason}
           configOpen={configOpen}
-          onConfigToggle={hasParamDefs ? () => setConfigOpen((o) => !o) : undefined}
-          hasConfig={hasParamDefs}
+          onConfigToggle={() => setConfigOpen((o) => !o)}
         />
       </div>
 
