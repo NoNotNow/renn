@@ -11,6 +11,7 @@ import {
   nestStackPipeAsMember,
   promoteMemberPipeToStack,
   setBindingParams,
+  setBindingScopeParams,
   setPipeDefaultParams,
   stageIdsForStackBinding,
   wrapUngroupedStagesIntoStackPipe,
@@ -67,6 +68,50 @@ describe('pipeNavMutations pipe controls', () => {
   it('replaces pipe default params in one shot', () => {
     const next = setPipeDefaultParams(world, 'p1', { speed: 4 })
     expect(next.transformerPipes?.p1?.defaultParams).toEqual({ speed: 4 })
+  })
+
+  it('stores nested scope overrides on the stack binding', () => {
+    const nestedWorld: RennWorld = {
+      ...world,
+      entities: [
+        {
+          id: 'e1',
+          transformers: ['s1', 's2'],
+          transformerPipeStack: [{ pipeId: 'root' }],
+        },
+      ],
+      transformers: {
+        s1: { type: 'input' },
+        s2: { type: 'car2' },
+      },
+      transformerPipes: {
+        root: {
+          id: 'root',
+          name: 'Root',
+          stageIds: ['s1', 's2'],
+          stages: [],
+          members: [
+            { kind: 'stage', stageId: 's1' },
+            { kind: 'pipe', pipeId: 'child' },
+          ],
+        },
+        child: {
+          id: 'child',
+          name: 'Child',
+          stageIds: ['s2'],
+          stages: [],
+          members: [{ kind: 'stage', stageId: 's2' }],
+        },
+      },
+    }
+    const scopePath = [
+      { kind: 'stack' as const, index: 0 },
+      { kind: 'member' as const, pipeId: 'root', memberIndex: 1 },
+    ]
+    const next = setBindingScopeParams(nestedWorld, 'e1', 0, scopePath, { speed: 7 })
+    expect(next.entities[0]?.transformerPipeStack?.[0]?.scopeParams).toEqual({
+      'stack:0/member:root:1': { speed: 7 },
+    })
   })
 
   it('creates Pipe1 for a fresh entity without transformers', () => {

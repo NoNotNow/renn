@@ -1,5 +1,6 @@
 import type { TransformerConfig, TransformerPipe, TransformerPipeBinding, TransformerPipeMember } from '@/types/transformer'
 import type { PipeNavPathSegment } from '@/types/pipeNav'
+import { pipeScopeKeyFromPath } from '@/utils/pipeStageResolve'
 import type { Entity, RennWorld } from '@/types/world'
 import { allocatePipeId, nextFreeDefaultPipeName } from '@/utils/allocatePipeId'
 import {
@@ -320,8 +321,30 @@ export function updateBindingParams(
   const entity = world.entities.find((e) => e.id === entityId)
   if (!entity) return world
   const stack = getEntityPipeStack(entity).map((b, i) =>
-    i === stackIndex ? { ...b, params: { ...b.params, ...params } } : b,
+    i === stackIndex ? { ...b, params: { ...(b.params ?? {}), ...params } } : b,
   )
+  return updateEntityStack(world, entityId, stack)
+}
+
+export function updateBindingScopeParams(
+  world: RennWorld,
+  entityId: string,
+  stackIndex: number,
+  scopePath: PipeNavPathSegment[],
+  params: Record<string, unknown>,
+): RennWorld {
+  const scopeKey = pipeScopeKeyFromPath(scopePath)
+  const entity = world.entities.find((e) => e.id === entityId)
+  if (!entity) return world
+  const stack = getEntityPipeStack(entity).map((b, i) => {
+    if (i !== stackIndex) return b
+    const prevScope = b.scopeParams ?? {}
+    const prev = prevScope[scopeKey] ?? {}
+    return {
+      ...b,
+      scopeParams: { ...prevScope, [scopeKey]: { ...prev, ...params } },
+    }
+  })
   return updateEntityStack(world, entityId, stack)
 }
 
@@ -352,6 +375,26 @@ export function setBindingParams(
   const stack = getEntityPipeStack(entity).map((b, i) =>
     i === stackIndex ? { ...b, params } : b,
   )
+  return updateEntityStack(world, entityId, stack)
+}
+
+export function setBindingScopeParams(
+  world: RennWorld,
+  entityId: string,
+  stackIndex: number,
+  scopePath: PipeNavPathSegment[],
+  params: Record<string, unknown>,
+): RennWorld {
+  const scopeKey = pipeScopeKeyFromPath(scopePath)
+  const entity = world.entities.find((e) => e.id === entityId)
+  if (!entity) return world
+  const stack = getEntityPipeStack(entity).map((b, i) => {
+    if (i !== stackIndex) return b
+    return {
+      ...b,
+      scopeParams: { ...(b.scopeParams ?? {}), [scopeKey]: params },
+    }
+  })
   return updateEntityStack(world, entityId, stack)
 }
 

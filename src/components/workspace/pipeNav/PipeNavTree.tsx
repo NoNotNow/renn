@@ -3,7 +3,7 @@ import type { PipeNavPathSegment } from '@/types/pipeNav'
 import type { Entity, RennWorld } from '@/types/world'
 import { theme } from '@/config/theme'
 import { getEntityPipeStack, normalizePipeMembers } from '@/utils/transformerPipeResolve'
-import { isPipeScopeEffectivelyEnabled } from '@/utils/pipeStageResolve'
+import { isPipeScopeEffectivelyEnabled, stackIndexFromScopePath } from '@/utils/pipeStageResolve'
 import type { PipeTreeContextTarget } from '@/utils/pipeNavTreeHelpers'
 import PipeTreePipeControls from './PipeTreePipeControls'
 
@@ -36,6 +36,7 @@ export interface PipeNavTreeProps {
   onPipeParamChange?: (opts: {
     pipeId: string
     stackIndex?: number
+    scopePath?: PipeNavPathSegment[]
     key: string
     value: unknown
     useSharedDefaults?: boolean
@@ -43,6 +44,7 @@ export interface PipeNavTreeProps {
   onPipeParamsReplace?: (opts: {
     pipeId: string
     stackIndex?: number
+    scopePath?: PipeNavPathSegment[]
     params: Record<string, unknown>
     useSharedDefaults?: boolean
   }) => void
@@ -148,7 +150,7 @@ export default function PipeNavTree({
         const expandKey = `pipe:${member.pipeId}`
         const isExpanded = expanded.has(expandKey)
         const isSelected = pathsEqual(focusPath, nodePath) && selectedIndex === memberIndex
-        const stackIdx = stackIndexForPipeId?.(member.pipeId)
+        const stackIdx = stackIndexFromScopePath(nodePath)
         const stackBinding =
           stackIdx !== undefined && stackIdx >= 0 ? stack[stackIdx] : undefined
         const pipeEnabled = isPipeScopeEffectivelyEnabled(world, entity, nodePath)
@@ -203,6 +205,7 @@ export default function PipeNavTree({
                       onPipeParamChange?.({
                         pipeId: member.pipeId,
                         stackIndex: stackIdx,
+                        scopePath: nodePath,
                         key: paramKey,
                         value,
                         useSharedDefaults: stackIdx === undefined || stackIdx < 0,
@@ -212,6 +215,7 @@ export default function PipeNavTree({
                       onPipeParamsReplace?.({
                         pipeId: member.pipeId,
                         stackIndex: stackIdx,
+                        scopePath: nodePath,
                         params,
                         useSharedDefaults: stackIdx === undefined || stackIdx < 0,
                       })
@@ -350,6 +354,7 @@ export default function PipeNavTree({
                         onPipeParamChange?.({
                           pipeId: binding.pipeId,
                           stackIndex,
+                          scopePath: path,
                           key: paramKey,
                           value,
                         })
@@ -358,6 +363,7 @@ export default function PipeNavTree({
                         onPipeParamsReplace?.({
                           pipeId: binding.pipeId,
                           stackIndex,
+                          scopePath: path,
                           params,
                         })
                       }

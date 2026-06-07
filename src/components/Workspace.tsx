@@ -118,6 +118,8 @@ export interface WorkspaceProps {
     orderedRegistryIds?: string[],
     isShared?: boolean,
   ) => void
+  /** Live runtime sync after pipe param edits (merged upstream + stage params). */
+  onMergedPipeParamSync?: (world: RennWorld, entityIds: string[]) => void
   /** Builder live transformer trace (`null` disables live IN/OUT in the pipeline strip). */
   liveTransformerTraceSteps?: TransformerTraceStep[] | null
   /** Same hook as Workspace — collapse side drawers when opening. */
@@ -163,6 +165,7 @@ export default function Workspace({
   selectedEntityIds,
   onWorldChange,
   onEntityTransformersChange,
+  onMergedPipeParamSync,
   liveTransformerTraceSteps = null,
   onWorkspaceOpenSideEffects,
   onEntryChange,
@@ -654,6 +657,7 @@ export default function Workspace({
                         liveTraceSteps={liveTransformerTraceSteps}
                         onWorldChange={onWorldChange}
                         onEntityTransformersChange={onEntityTransformersChange}
+                        onMergedPipeParamSync={onMergedPipeParamSync}
                         setMonacoPayload={setMonacoPayload}
                         setMonacoEditorChrome={setMonacoChrome}
                         monacoEditorAreaRef={monacoEditorAreaRef}

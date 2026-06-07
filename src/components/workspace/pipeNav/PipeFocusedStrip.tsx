@@ -15,7 +15,11 @@ import PipeAddDialog from './PipeAddDialog'
 import type { ResolvedPipeNavView, StripItem } from '@/types/pipeNav'
 import { isPipeNavLeafLevel } from '@/utils/pipeNavResolve'
 import { getEntityPipeStack, normalizePipeMembers } from '@/utils/transformerPipeResolve'
-import { buildEntityStageRuntimeContext, pipeScopeKeyFromPath } from '@/utils/pipeStageResolve'
+import {
+  buildEntityStageRuntimeContext,
+  pipeScopeKeyFromPath,
+  stackIndexFromScopePath,
+} from '@/utils/pipeStageResolve'
 
 export interface PipeFocusedStripProps {
   world: RennWorld
@@ -46,6 +50,7 @@ export interface PipeFocusedStripProps {
   onPipeParamChange?: (opts: {
     pipeId: string
     stackIndex?: number
+    scopePath?: PipeNavPathSegment[]
     key: string
     value: unknown
     useSharedDefaults?: boolean
@@ -53,6 +58,7 @@ export interface PipeFocusedStripProps {
   onPipeParamsReplace?: (opts: {
     pipeId: string
     stackIndex?: number
+    scopePath?: PipeNavPathSegment[]
     params: Record<string, unknown>
     useSharedDefaults?: boolean
   }) => void
@@ -220,6 +226,7 @@ export default function PipeFocusedStrip({
                 [{ kind: 'stack', index: idx }]
               : focusPath
             const enabled = stageRuntime.scopeEffectiveEnabled.get(pipeScopeKeyFromPath(scopePath)) ?? true
+            const stackIdxForScope = stackIndexFromScopePath(scopePath)
             return (
               <Fragment key={`${item.pipeId}-${idx}`}>
                 {idx > 0 ?
@@ -228,35 +235,38 @@ export default function PipeFocusedStrip({
                 <PipeCard
                   pipe={pipe}
                   binding={binding}
+                  scopePath={scopePath}
                   world={world}
                   depth={depth}
                   isSelected={selectedIndex === idx}
                   enabled={enabled}
-                  stackIndex={stackIdx !== undefined && stackIdx >= 0 ? stackIdx : undefined}
+                  stackIndex={stackIdxForScope !== undefined && stackIdxForScope >= 0 ? stackIdxForScope : undefined}
                   drawerPortalTarget={drawerPortalTarget}
                   onSelect={() => onSelectPipeIndex(idx)}
                   onDrillIn={() => onDrillIntoPipe(idx, item.pipeId)}
                   onToggleEnabled={() =>
                     onPipeControlToggle?.({
                       pipeId: item.pipeId,
-                      stackIndex: stackIdx !== undefined && stackIdx >= 0 ? stackIdx : undefined,
+                      stackIndex: stackIdxForScope !== undefined && stackIdxForScope >= 0 ? stackIdxForScope : undefined,
                     })
                   }
                   onParamChange={(key, value) =>
                     onPipeParamChange?.({
                       pipeId: item.pipeId,
-                      stackIndex: stackIdx,
+                      stackIndex: stackIdxForScope,
+                      scopePath,
                       key,
                       value,
-                      useSharedDefaults: stackIdx === undefined || stackIdx < 0,
+                      useSharedDefaults: stackIdxForScope === undefined || stackIdxForScope < 0,
                     })
                   }
                   onParamsReplace={(params) =>
                     onPipeParamsReplace?.({
                       pipeId: item.pipeId,
-                      stackIndex: stackIdx,
+                      stackIndex: stackIdxForScope,
+                      scopePath,
                       params,
-                      useSharedDefaults: stackIdx === undefined || stackIdx < 0,
+                      useSharedDefaults: stackIdxForScope === undefined || stackIdxForScope < 0,
                     })
                   }
                   onDecoupleBinding={
@@ -341,13 +351,14 @@ export default function PipeFocusedStrip({
         item.kind === 'pipe' ?
           (stageRuntime.scopeEffectiveEnabled.get(pipeScopeKeyFromPath(memberScopePath)) ?? true)
         : true
-      const stackIdx = stackIndexForPipeId?.(item.pipeId)
+      const stackIdx = stackIndexFromScopePath(memberScopePath)
       const stackBinding =
         stackIdx !== undefined && stackIdx >= 0 ? stack[stackIdx] : undefined
       return (
         <PipeCard
           pipe={pipe}
           binding={stackBinding}
+          scopePath={memberScopePath}
           world={world}
           depth={depth}
           isSelected={selectedIndex === item.index}
@@ -368,6 +379,7 @@ export default function PipeFocusedStrip({
             onPipeParamChange?.({
               pipeId: item.pipeId,
               stackIndex: stackIdx,
+              scopePath: memberScopePath,
               key,
               value,
               useSharedDefaults: stackIdx === undefined || stackIdx < 0,
@@ -377,6 +389,7 @@ export default function PipeFocusedStrip({
             onPipeParamsReplace?.({
               pipeId: item.pipeId,
               stackIndex: stackIdx,
+              scopePath: memberScopePath,
               params,
               useSharedDefaults: stackIdx === undefined || stackIdx < 0,
             })

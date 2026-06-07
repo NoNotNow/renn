@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { TransformerConfig, TransformerPipe } from '@/types/transformer'
+import type { PipeNavPathSegment } from '@/types/pipeNav'
 import type { Entity, RennWorld } from '@/types/world'
 import type { WorkspaceTarget } from '@/types/workspace'
 import { usePipeNavigator } from '@/hooks/usePipeNavigator'
@@ -12,8 +13,10 @@ import {
   toggleStackBindingEnabled,
   toggleMemberEnabled,
   updateBindingParams,
+  updateBindingScopeParams,
   updatePipeDefaultParams,
   setBindingParams,
+  setBindingScopeParams,
   setPipeDefaultParams,
   decoupleStackBindingToCopy,
   ensureEntityPipeStack,
@@ -43,6 +46,48 @@ import {
 } from '@/utils/pipeNavTreeHelpers'
 import { countEntitiesLinkingPipe } from '@/utils/commitTransformerConfigsToWorld'
 import { getEntityPipeStack, normalizePipeMembers } from '@/utils/transformerPipeResolve'
+import {
+  entityIdsAffectedByPipeParamChange,
+  isStackRootScopePath,
+  stackIndexFromScopePath,
+} from '@/utils/pipeStageResolve'
+
+type PipeParamEditOpts = {
+  pipeId: string
+  stackIndex?: number
+  scopePath?: PipeNavPathSegment[]
+  key?: string
+  value?: unknown
+  params?: Record<string, unknown>
+  useSharedDefaults?: boolean
+}
+
+function applyPipeParamWorldUpdate(
+  world: RennWorld,
+  entityId: string,
+  opts: PipeParamEditOpts,
+  mode: 'merge' | 'replace',
+): RennWorld {
+  const params =
+    opts.params ??
+    (opts.key !== undefined ? { [opts.key]: opts.value } : {})
+  if (opts.useSharedDefaults || opts.stackIndex === undefined || opts.stackIndex < 0) {
+    return mode === 'replace'
+      ? setPipeDefaultParams(world, opts.pipeId, params)
+      : updatePipeDefaultParams(world, opts.pipeId, params)
+  }
+
+  const scopePath = opts.scopePath ?? [{ kind: 'stack' as const, index: opts.stackIndex }]
+  if (isStackRootScopePath(scopePath)) {
+    return mode === 'replace'
+      ? setBindingParams(world, entityId, opts.stackIndex, params)
+      : updateBindingParams(world, entityId, opts.stackIndex, params)
+  }
+
+  return mode === 'replace'
+    ? setBindingScopeParams(world, entityId, opts.stackIndex, scopePath, params)
+    : updateBindingScopeParams(world, entityId, opts.stackIndex, scopePath, params)
+}
 
 export function usePipeNavController(
   world: RennWorld,
@@ -51,6 +96,7 @@ export function usePipeNavController(
   onWorldChange: (world: RennWorld) => void,
   onEntryChange?: (next: WorkspaceTarget) => void,
   onCommitStagesFlat?: (configs: TransformerConfig[], orderedIds?: string[]) => void,
+  onMergedParamSync?: (nextWorld: RennWorld, entityIds: string[]) => void,
 ) {
   const undo = useEditorUndo()
   const navigator = usePipeNavigator(world, entity, entry?.pipeNavPath, entry?.pipeNavSelectedIndex)
@@ -113,6 +159,32 @@ export function usePipeNavController(
       onWorldChange(next)
     },
     [undo, onWorldChange],
+  )
+
+  const syncMergedParamsAfterPipeEdit = useCallback(
+    (nextWorld: RennWorld, opts: PipeParamEditOpts) => {
+      if (!onMergedParamSync) return
+      const entityIds = entityIdsAffectedByPipeParamChange(nextWorld, {
+        pipeId: opts.pipeId,
+        entityId: opts.useSharedDefaults ? undefined : entity.id,
+        sharedDefaults: opts.useSharedDefaults,
+      })
+      if (entityIds.length > 0) onMergedParamSync(nextWorld, entityIds)
+    },
+    [entity.id, onMergedParamSync],
+  )
+
+  const commitPipeParamEdit = useCallback(
+    (opts: PipeParamEditOpts, mode: 'merge' | 'replace') => {
+      const stackIndex =
+        opts.stackIndex ??
+        (opts.scopePath ? stackIndexFromScopePath(opts.scopePath) : undefined)
+      const resolved: PipeParamEditOpts = { ...opts, stackIndex }
+      const nextWorld = applyPipeParamWorldUpdate(world, entity.id, resolved, mode)
+      pushWorld(nextWorld)
+      syncMergedParamsAfterPipeEdit(nextWorld, resolved)
+    },
+    [world, entity.id, pushWorld, syncMergedParamsAfterPipeEdit],
   )
 
   const promptName = useCallback((title: string, defaultName: string, onConfirm: (name: string) => void) => {
@@ -204,8 +276,9 @@ export function usePipeNavController(
         nextWorld = updateFocusedStageOrder(nextWorld, entity.id, focus.path, orderedIds)
       }
       pushWorld(nextWorld)
+      onMergedParamSync?.(nextWorld, [entity.id])
     },
-    [view?.mode, entity, world, focus.path, stageData.ids, onCommitStagesFlat, pushWorld],
+    [view?.mode, entity, world, focus.path, stageData.ids, onCommitStagesFlat, pushWorld, onMergedParamSync],
   )
 
   const confirmNameDialog = useCallback(() => {
@@ -230,33 +303,27 @@ export function usePipeNavController(
     (opts: {
       pipeId: string
       stackIndex?: number
+      scopePath?: PipeNavPathSegment[]
       key: string
       value: unknown
       useSharedDefaults?: boolean
     }) => {
-      if (opts.useSharedDefaults || opts.stackIndex === undefined || opts.stackIndex < 0) {
-        pushWorld(updatePipeDefaultParams(world, opts.pipeId, { [opts.key]: opts.value }))
-        return
-      }
-      pushWorld(updateBindingParams(world, entity.id, opts.stackIndex, { [opts.key]: opts.value }))
+      commitPipeParamEdit(opts, 'merge')
     },
-    [world, entity.id, pushWorld],
+    [commitPipeParamEdit],
   )
 
   const replacePipeParams = useCallback(
     (opts: {
       pipeId: string
       stackIndex?: number
+      scopePath?: PipeNavPathSegment[]
       params: Record<string, unknown>
       useSharedDefaults?: boolean
     }) => {
-      if (opts.useSharedDefaults || opts.stackIndex === undefined || opts.stackIndex < 0) {
-        pushWorld(setPipeDefaultParams(world, opts.pipeId, opts.params))
-        return
-      }
-      pushWorld(setBindingParams(world, entity.id, opts.stackIndex, opts.params))
+      commitPipeParamEdit(opts, 'replace')
     },
-    [world, entity.id, pushWorld],
+    [commitPipeParamEdit],
   )
 
   const decouplePipeBinding = useCallback(
@@ -509,7 +576,16 @@ export function usePipeNavController(
     decouplePipeBinding,
     toggleStackAt: (idx: number) => pushWorld(toggleStackBindingEnabled(world, entity.id, idx)),
     updateParamsAt: (stackIndex: number, key: string, value: unknown) =>
-      pushWorld(updateBindingParams(world, entity.id, stackIndex, { [key]: value })),
+      commitPipeParamEdit(
+        {
+          pipeId: getEntityPipeStack(entity)[stackIndex]?.pipeId ?? '',
+          stackIndex,
+          scopePath: [{ kind: 'stack', index: stackIndex }],
+          key,
+          value,
+        },
+        'merge',
+      ),
     reorderStack: (from: number, to: number) => pushWorld(reorderStackBindings(world, entity.id, from, to)),
     reorderMember: (pipeId: string, from: number, to: number) =>
       pushWorld(reorderPipeMembers(world, pipeId, from, to)),

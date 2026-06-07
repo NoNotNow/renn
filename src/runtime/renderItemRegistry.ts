@@ -241,6 +241,15 @@ export class RenderItemRegistry {
     this.worldTransformerPipes = worldTransformerPipes
   }
 
+  /** Refresh world transformer registries before incremental sync (merged pipe params). */
+  setWorldPipeRegistry(
+    worldTransformers: Record<string, TransformerDef>,
+    worldTransformerPipes: Record<string, TransformerPipe>,
+  ): void {
+    this.worldTransformers = worldTransformers
+    this.worldTransformerPipes = worldTransformerPipes
+  }
+
   /**
    * Set raw input getter (for InputTransformer).
    */

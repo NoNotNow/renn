@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState, type RefObject } from 'react'
 import type { TransformerPipe, TransformerPipeBinding } from '@/types/transformer'
+import type { PipeNavPathSegment } from '@/types/pipeNav'
 import { theme } from '@/config/theme'
 import { countEntitiesLinkingPipe } from '@/utils/commitTransformerConfigsToWorld'
 import type { RennWorld } from '@/types/world'
@@ -11,6 +12,7 @@ import { pipeNavCardStyle } from './pipeNavStyles'
 export interface PipeCardProps {
   pipe: TransformerPipe
   binding?: TransformerPipeBinding
+  scopePath?: PipeNavPathSegment[]
   world: RennWorld
   depth: number
   isSelected: boolean
@@ -31,6 +33,7 @@ export interface PipeCardProps {
 export default function PipeCard({
   pipe,
   binding,
+  scopePath,
   world,
   depth,
   isSelected,
@@ -153,6 +156,7 @@ export default function PipeCard({
         <PipeConfigDrawer
           pipe={pipe}
           binding={binding}
+          scopePath={scopePath}
           portalTarget={drawerPortalTarget.current}
           anchorRef={cardRef}
           onClose={closeConfig}

@@ -1,12 +1,14 @@
 import { useMemo } from 'react'
 import type { TransformerPipe, TransformerPipeBinding } from '@/types/transformer'
+import type { PipeNavPathSegment } from '@/types/pipeNav'
 import ValidatedJsonTextarea from '@/components/ValidatedJsonTextarea'
 import { theme } from '@/config/theme'
-import { resolvePipeBindingParams } from '@/utils/transformerPipeResolve'
+import { resolveEditableScopeParams } from '@/utils/pipeStageResolve'
 
 export interface PipeParamsJsonEditorProps {
   pipe: TransformerPipe
   binding?: TransformerPipeBinding
+  scopePath?: PipeNavPathSegment[]
   sharedDefaults?: boolean
   onParamsReplace?: (params: Record<string, unknown>) => void
 }
@@ -14,12 +16,10 @@ export interface PipeParamsJsonEditorProps {
 function paramsJsonValue(
   pipe: TransformerPipe,
   binding: TransformerPipeBinding | undefined,
+  scopePath: PipeNavPathSegment[] | undefined,
   sharedDefaults: boolean,
 ): string {
-  const params =
-    sharedDefaults || !binding ?
-      (pipe.defaultParams ?? {})
-    : resolvePipeBindingParams(binding, pipe)
+  const params = resolveEditableScopeParams(binding, pipe, scopePath, sharedDefaults)
   return JSON.stringify(params, null, 2)
 }
 
@@ -33,12 +33,13 @@ function validateParamsObject(parsed: unknown): { ok: true } | { ok: false; erro
 export default function PipeParamsJsonEditor({
   pipe,
   binding,
+  scopePath,
   sharedDefaults = false,
   onParamsReplace,
 }: PipeParamsJsonEditorProps) {
   const jsonValue = useMemo(
-    () => paramsJsonValue(pipe, binding, sharedDefaults),
-    [pipe, binding, sharedDefaults],
+    () => paramsJsonValue(pipe, binding, scopePath, sharedDefaults),
+    [pipe, binding, scopePath, sharedDefaults],
   )
 
   return (

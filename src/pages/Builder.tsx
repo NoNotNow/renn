@@ -87,6 +87,7 @@ import {
   mapTransformerRegistryIdsToEntity,
   cloneEntityTransformersIntoWorld,
 } from '@/utils/commitTransformerConfigsToWorld'
+import { resolveMergedTransformerConfigsForEntitySync } from '@/utils/pipeStageResolve'
 
 const EDITOR_HISTORY_MAX_DEPTH = 80
 
@@ -921,6 +922,20 @@ export default function Builder() {
     },
   }
 
+  const syncMergedEntityTransformers = useCallback(
+    (entityIds: string[], nextWorld: RennWorld) => {
+      sceneViewRef.current?.setWorldPipeRegistry(
+        nextWorld.transformers ?? {},
+        nextWorld.transformerPipes ?? {},
+      )
+      for (const id of entityIds) {
+        const merged = resolveMergedTransformerConfigsForEntitySync(nextWorld, id)
+        sceneViewRef.current?.syncEntityTransformers(id, merged)
+      }
+    },
+    [],
+  )
+
   const handleEntityTransformersChange = useCallback(
     (
       entityIds: string[],
@@ -941,11 +956,16 @@ export default function Builder() {
         nextWorld = commitTransformerConfigsToWorld(nextWorld, id, transformers, idsForEntity)
       }
       updateWorld(() => nextWorld)
-      for (const id of entityIds) {
-        sceneViewRef.current?.syncEntityTransformers(id, transformers)
-      }
+      syncMergedEntityTransformers(entityIds, nextWorld)
     },
-    [world, updateWorld, pushHistory]
+    [world, updateWorld, pushHistory, syncMergedEntityTransformers],
+  )
+
+  const handleMergedPipeParamSync = useCallback(
+    (nextWorld: RennWorld, entityIds: string[]) => {
+      syncMergedEntityTransformers(entityIds, nextWorld)
+    },
+    [syncMergedEntityTransformers],
   )
 
   const handleAssetsChange = useCallback((newAssets: typeof assets) => {
@@ -1561,6 +1581,7 @@ export default function Builder() {
         selectedEntityIds={selectedEntityIds}
         onWorldChange={handleWorldChange}
         onEntityTransformersChange={handleEntityTransformersChange}
+        onMergedPipeParamSync={handleMergedPipeParamSync}
         liveTransformerTraceSteps={liveTraceSteps}
         onSelectEntity={handleSelectEntity}
         entityWorkHistory={entityWorkHistory}

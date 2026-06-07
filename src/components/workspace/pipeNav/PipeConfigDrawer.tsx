@@ -1,5 +1,6 @@
 import { useCallback, useLayoutEffect, useState } from 'react'
 import type { TransformerPipe, TransformerPipeBinding } from '@/types/transformer'
+import type { PipeNavPathSegment } from '@/types/pipeNav'
 import WorkspaceFloatingDrawer from '@/components/workspace/WorkspaceFloatingDrawer'
 import { clampDrawerPosition, drawerPositionRelativeToHost } from '@/components/workspace/floatingDrawerLayout'
 import PipeParamsJsonEditor from './PipeParamsJsonEditor'
@@ -9,6 +10,7 @@ import { theme } from '@/config/theme'
 export interface PipeConfigDrawerProps {
   pipe: TransformerPipe
   binding?: TransformerPipeBinding
+  scopePath?: PipeNavPathSegment[]
   portalTarget: HTMLElement
   anchorRef: React.RefObject<HTMLElement | null>
   onClose: () => void
@@ -21,6 +23,7 @@ export interface PipeConfigDrawerProps {
 export default function PipeConfigDrawer({
   pipe,
   binding,
+  scopePath,
   portalTarget,
   anchorRef,
   onClose,
@@ -72,6 +75,7 @@ export default function PipeConfigDrawer({
       : <PipeParamsJsonEditor
           pipe={pipe}
           binding={binding}
+          scopePath={scopePath}
           sharedDefaults={sharedDefaults}
           onParamsReplace={onParamsReplace}
         />

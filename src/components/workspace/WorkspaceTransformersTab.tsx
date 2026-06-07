@@ -128,6 +128,7 @@ export interface WorkspaceTransformersTabProps {
     orderedRegistryIds?: string[],
     isShared?: boolean,
   ) => void
+  onMergedPipeParamSync?: (world: RennWorld, entityIds: string[]) => void
   setMonacoPayload: (payload: WorkspaceMonacoPayload) => void
   /** Registers watch and other editor-toolbar controls on the shared Monaco slot. */
   setMonacoEditorChrome?: (chrome: WorkspaceMonacoEditorChrome | null) => void
@@ -187,6 +188,7 @@ function WorkspaceTransformersTabEntity({
   liveTraceSteps = null,
   onWorldChange,
   onEntityTransformersChange,
+  onMergedPipeParamSync,
   setMonacoPayload,
   setMonacoEditorChrome,
   monacoEditorAreaRef,
@@ -391,6 +393,7 @@ function WorkspaceTransformersTabEntity({
     onWorldChange,
     onEntryChange,
     handleCommitStacks,
+    onMergedPipeParamSync,
   )
 
   const editorStageIds =

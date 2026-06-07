@@ -53,7 +53,7 @@ import {
   isKeyboardEventInEditableContext,
 } from '@/input/rawInput'
 import { useRawMouseDrag } from '@/input/rawMouseDrag'
-import type { TransformerConfig } from '@/types/transformer'
+import type { TransformerConfig, TransformerDef, TransformerPipe } from '@/types/transformer'
 import {
   BUILDER_SCENE_CANVAS_HOST_ATTR,
   SUPPRESS_ESCAPE_SCENE_FOCUS_ATTR,
@@ -196,6 +196,11 @@ export interface SceneViewHandle {
   refreshEntityAppearance: (id: string, entity: Entity) => void
   /** Sync entity.transformers to runtime chain (e.g. enabled flags) without scene reload. */
   syncEntityTransformers: (id: string, configs: TransformerConfig[] | undefined) => void
+  /** Update world transformer + pipe registries used for merged runtime param resolution. */
+  setWorldPipeRegistry: (
+    transformers: Record<string, TransformerDef>,
+    transformerPipes: Record<string, TransformerPipe>,
+  ) => void
   getAllPoses: () => Map<string, { position: Vec3; rotation: Rotation; scale: Vec3 }> | null
   resetCamera: () => void
   applyDebugForce: (entityId: string, force: Vec3, duration: number) => void
@@ -498,6 +503,9 @@ function SceneViewInner({
     },
     syncEntityTransformers: (id: string, configs: TransformerConfig[] | undefined) => {
       registryRef.current?.syncEntityTransformers(id, configs)
+    },
+    setWorldPipeRegistry: (transformers, transformerPipes) => {
+      registryRef.current?.setWorldPipeRegistry(transformers, transformerPipes)
     },
     getAllPoses: () => registryRef.current?.getAllPoses() ?? null,
     resetCamera: () => {

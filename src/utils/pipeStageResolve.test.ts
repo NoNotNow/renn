@@ -2,8 +2,10 @@ import { describe, it, expect } from 'vitest'
 import type { RennWorld } from '@/types/world'
 import {
   buildEntityStageRuntimeContext,
+  entityIdsAffectedByPipeParamChange,
   mergePipeParamLayers,
   resolveEntityTransformerConfigsForRuntime,
+  resolveMergedTransformerConfigsForEntitySync,
   syncEntityTransformerIdsFromPipeTree,
 } from './pipeStageResolve'
 
@@ -90,6 +92,98 @@ describe('pipeStageResolve', () => {
     const entity = world.entities[0]!
     const configs = resolveEntityTransformerConfigsForRuntime(world, entity)
     expect(configs?.[0]?.params).toEqual({ speed: 2, height: 10, power: 99 })
+  })
+
+  it('finds all entities referencing a pipe for shared default param sync', () => {
+    const world: RennWorld = {
+      version: '1',
+      world: {},
+      entities: [
+        { id: 'e1', transformers: ['s1'], transformerPipeStack: [{ pipeId: 'root' }] },
+        { id: 'e2', transformers: ['s1'], transformerPipeStack: [{ pipeId: 'other' }] },
+        {
+          id: 'e3',
+          transformers: ['s2'],
+          transformerPipeStack: [{ pipeId: 'stack' }],
+        },
+      ],
+      transformers: {
+        s1: { type: 'input' },
+        s2: { type: 'car2' },
+      },
+      transformerPipes: {
+        root: {
+          id: 'root',
+          name: 'Root',
+          stageIds: ['s1'],
+          stages: [],
+          members: [
+            { kind: 'stage', stageId: 's1' },
+            { kind: 'pipe', pipeId: 'child' },
+          ],
+        },
+        child: {
+          id: 'child',
+          name: 'Child',
+          stageIds: [],
+          stages: [],
+          members: [],
+        },
+        other: {
+          id: 'other',
+          name: 'Other',
+          stageIds: ['s1'],
+          stages: [],
+          members: [{ kind: 'stage', stageId: 's1' }],
+        },
+        stack: {
+          id: 'stack',
+          name: 'Stack',
+          stageIds: ['s2'],
+          stages: [],
+          members: [{ kind: 'pipe', pipeId: 'child' }],
+        },
+      },
+    }
+
+    expect(entityIdsAffectedByPipeParamChange(world, { pipeId: 'child', sharedDefaults: true })).toEqual([
+      'e1',
+      'e3',
+    ])
+    expect(entityIdsAffectedByPipeParamChange(world, { pipeId: 'root', entityId: 'e1' })).toEqual(['e1'])
+  })
+
+  it('resolveMergedTransformerConfigsForEntitySync matches runtime projection', () => {
+    const world: RennWorld = {
+      version: '1',
+      world: {},
+      entities: [
+        {
+          id: 'e1',
+          transformers: ['s1'],
+          transformerPipeStack: [{ pipeId: 'root', params: { speed: 2 } }],
+        },
+      ],
+      transformers: {
+        s1: { type: 'car2', params: { power: 99 } },
+      },
+      transformerPipes: {
+        root: {
+          id: 'root',
+          name: 'Root',
+          stageIds: ['s1'],
+          stages: [],
+          defaultParams: { speed: 1, height: 10 },
+          members: [{ kind: 'stage', stageId: 's1' }],
+        },
+      },
+    }
+
+    expect(resolveMergedTransformerConfigsForEntitySync(world, 'e1')?.[0]?.params).toEqual({
+      speed: 2,
+      height: 10,
+      power: 99,
+    })
   })
 
   it('disables nested subtree when nested pipe member is off', () => {

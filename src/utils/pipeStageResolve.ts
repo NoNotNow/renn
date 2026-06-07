@@ -14,6 +14,17 @@ import {
 } from '@/utils/transformerPipeResolve'
 import { isBindingEnabled, isMemberEnabled } from '@/utils/pipeNavResolve'
 
+/** Stack index from a pipe-nav path (first `stack` segment). */
+export function stackIndexFromScopePath(path: PipeNavPathSegment[]): number | undefined {
+  const stackSeg = path.find((seg) => seg.kind === 'stack')
+  return stackSeg?.kind === 'stack' ? stackSeg.index : undefined
+}
+
+/** True when overrides belong on `binding.params` (stack root), not `scopeParams`. */
+export function isStackRootScopePath(path: PipeNavPathSegment[]): boolean {
+  return path.length === 1 && path[0]?.kind === 'stack'
+}
+
 export type StageRuntimeContext = {
   /** Merged pipe params + stage params (narrower scope wins). */
   mergedParams: Record<string, unknown>
@@ -40,6 +51,27 @@ export function pipeScopeKeyFromPath(path: PipeNavPathSegment[]): string {
       seg.kind === 'stack' ? `stack:${seg.index}` : `member:${seg.pipeId}:${seg.memberIndex}`,
     )
     .join('/')
+}
+
+/** Params shown/edited in the pipe config UI for one nav scope. */
+export function resolveEditableScopeParams(
+  binding: TransformerPipeBinding | undefined,
+  pipe: TransformerPipe | undefined,
+  scopePath?: PipeNavPathSegment[],
+  sharedDefaults?: boolean,
+): Record<string, unknown> {
+  if (sharedDefaults || !binding) return pipe?.defaultParams ?? {}
+  const path = scopePath ?? []
+  if (path.length === 0) return resolvePipeBindingParams(binding, pipe)
+  const scopeKey = pipeScopeKeyFromPath(path)
+  if (isStackRootScopePath(path)) {
+    return {
+      ...(pipe?.defaultParams ?? {}),
+      ...(binding.params ?? {}),
+      ...(binding.scopeParams?.[scopeKey] ?? {}),
+    }
+  }
+  return binding.scopeParams?.[scopeKey] ?? {}
 }
 
 function scopeOverrideParams(
@@ -265,6 +297,60 @@ export function isStageEffectivelyEnabled(
   stageId: string,
 ): boolean {
   return buildEntityStageRuntimeContext(world, entity).stageContext.get(stageId)?.effectivelyEnabled ?? true
+}
+
+function entityUsesPipeInStackOrSubtree(
+  world: RennWorld,
+  entity: Entity,
+  pipeId: string,
+): boolean {
+  for (const binding of getEntityPipeStack(entity)) {
+    if (binding.pipeId === pipeId) return true
+    const root = world.transformerPipes?.[binding.pipeId]
+    if (root && pipeTreeContainsPipe(root, world.transformerPipes ?? {}, pipeId)) return true
+  }
+  return false
+}
+
+function pipeTreeContainsPipe(
+  pipe: TransformerPipe,
+  registry: Record<string, TransformerPipe>,
+  targetPipeId: string,
+  visited: Set<string> = new Set(),
+): boolean {
+  if (visited.has(pipe.id)) return false
+  visited.add(pipe.id)
+  for (const member of normalizePipeMembers(pipe)) {
+    if (member.kind === 'pipe') {
+      if (member.pipeId === targetPipeId) return true
+      const child = registry[member.pipeId]
+      if (child && pipeTreeContainsPipe(child, registry, targetPipeId, visited)) return true
+    }
+  }
+  return false
+}
+
+/** Entity ids that need a merged-param runtime sync after a pipe param edit. */
+export function entityIdsAffectedByPipeParamChange(
+  world: RennWorld,
+  opts: { pipeId: string; entityId?: string; sharedDefaults?: boolean },
+): string[] {
+  if (opts.sharedDefaults) {
+    return world.entities
+      .filter((e) => entityUsesPipeInStackOrSubtree(world, e, opts.pipeId))
+      .map((e) => e.id)
+  }
+  return opts.entityId ? [opts.entityId] : []
+}
+
+/** Merged runtime configs for live `syncEntityTransformers` (enabled stages only). */
+export function resolveMergedTransformerConfigsForEntitySync(
+  world: RennWorld,
+  entityId: string,
+): TransformerConfig[] | undefined {
+  const entity = world.entities.find((e) => e.id === entityId)
+  if (!entity?.transformers?.length) return undefined
+  return resolveEntityTransformerConfigsForRuntime(world, entity) ?? undefined
 }
 
 /** Resolve runtime configs with merged pipe params (build-time projection). */
