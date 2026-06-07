@@ -3,6 +3,7 @@ import type { PipeNavPathSegment } from '@/types/pipeNav'
 import type { Entity, RennWorld } from '@/types/world'
 import { theme } from '@/config/theme'
 import { getEntityPipeStack, normalizePipeMembers } from '@/utils/transformerPipeResolve'
+import { isPipeScopeEffectivelyEnabled } from '@/utils/pipeStageResolve'
 import type { PipeTreeContextTarget } from '@/utils/pipeNavTreeHelpers'
 import PipeTreePipeControls from './PipeTreePipeControls'
 
@@ -150,7 +151,7 @@ export default function PipeNavTree({
         const stackIdx = stackIndexForPipeId?.(member.pipeId)
         const stackBinding =
           stackIdx !== undefined && stackIdx >= 0 ? stack[stackIdx] : undefined
-        const pipeEnabled = member.enabled !== false
+        const pipeEnabled = isPipeScopeEffectivelyEnabled(world, entity, nodePath)
         return (
           <div key={key}>
             <TreeRow
@@ -337,7 +338,7 @@ export default function PipeNavTree({
                       pipe={pipe}
                       world={world}
                       binding={binding}
-                      enabled={binding.enabled !== false}
+                      enabled={isPipeScopeEffectivelyEnabled(world, entity, path)}
                       configOpen={openConfigKey === key}
                       onConfigOpenChange={(open) => setOpenConfigKey(open ? key : null)}
                       stackIndex={stackIndex}

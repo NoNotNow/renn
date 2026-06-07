@@ -341,6 +341,8 @@ export interface TransformerPipeBinding {
   pipeId: string
   /** Per-entity pipe input overrides (merged over pipe.defaultParams at runtime). */
   params?: Record<string, unknown>
+  /** Per-entity overrides for nested pipe scopes (keyed by pipe nav scope path). */
+  scopeParams?: Record<string, Record<string, unknown>>
   /** When `copy`, stages are entity-local clones; `pipeId` is provenance only. */
   mode?: 'linked' | 'copy'
   /** When false, pipe is omitted from runtime flatten. Default true. */

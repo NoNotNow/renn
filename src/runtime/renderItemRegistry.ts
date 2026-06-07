@@ -14,6 +14,7 @@ import { disposeMaterialOrArray } from '@/utils/videoTextureLifecycle'
 import { RenderItem } from './renderItem'
 import { rapierQuaternionToEulerInto } from '@/utils/rotationUtils'
 import { createTransformerChain } from '@/transformers/transformerRegistry'
+import { resolveEntityTransformerConfigsForRuntime } from '@/utils/pipeStageResolve'
 import {
   setTransformerRuntimeEntityLookup,
   setTransformerRuntimeLivePositionLookup,
@@ -208,6 +209,13 @@ export class RenderItemRegistry {
    * Falls back gracefully: IDs missing from the registry are skipped with a warning.
    */
   private resolveTransformerConfigs(entity: Entity): TransformerConfig[] | null {
+    const runtimeWorld = {
+      transformers: this.worldTransformers,
+      transformerPipes: this.worldTransformerPipes,
+    } as import('@/types/world').RennWorld
+    const merged = resolveEntityTransformerConfigsForRuntime(runtimeWorld, entity)
+    if (merged) return merged
+
     if (!entity.transformers || entity.transformers.length === 0) return null
     const configs: TransformerConfig[] = []
     for (const id of entity.transformers) {

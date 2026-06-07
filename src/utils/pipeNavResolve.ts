@@ -6,11 +6,8 @@ import type {
 } from '@/types/transformer'
 import type { PipeNavFocus, PipeNavPathSegment, ResolvedPipeNavView, StripItem } from '@/types/pipeNav'
 import type { Entity, RennWorld } from '@/types/world'
-import {
-  getEntityPipeStack,
-  normalizePipeMembers,
-  TransformerPipeCycleError,
-} from '@/utils/transformerPipeResolve'
+import { getEntityPipeStack, normalizePipeMembers } from '@/utils/transformerPipeResolve'
+import { syncEntityTransformerIdsFromPipeTree } from '@/utils/pipeStageResolve'
 
 export function isMemberEnabled(member: TransformerPipeMember): boolean {
   return member.enabled !== false
@@ -157,85 +154,9 @@ export function resolveFocusedStageIds(
   return []
 }
 
-/** Flatten entity structure → runtime transformer id list (enabled only). */
+/** Flatten entity structure → runtime transformer id list (enabled only; ancestor-disabled pipes cascade). */
 export function syncEntityTransformerIds(world: RennWorld, entity: Entity): string[] {
-  const registry = world.transformerPipes ?? {}
-  const stack = getEntityPipeStack(entity)
-  if (stack.length === 0) return [...(entity.transformers ?? [])]
-
-  const ids: string[] = []
-  for (const binding of stack) {
-    if (!isBindingEnabled(binding)) continue
-    const pipe = registry[binding.pipeId]
-    if (!pipe) continue
-    if (binding.mode === 'copy' && binding.localStageIds?.length) {
-      ids.push(...binding.localStageIds)
-    } else if (binding.mode === 'copy') {
-      ids.push(...collectCopyBindingStageIds(world, entity.id, binding))
-    } else {
-      ids.push(...flattenPipeMembersEnabled(pipe, registry))
-    }
-  }
-  return ids
-}
-
-function isMemberEnabledForFlatten(member: TransformerPipeMember): boolean {
-  return member.enabled !== false
-}
-
-function flattenPipeMembersEnabled(
-  pipe: TransformerPipe,
-  registry: Record<string, TransformerPipe>,
-  visited: Set<string> = new Set(),
-): string[] {
-  if (visited.has(pipe.id)) throw new TransformerPipeCycleError(pipe.id)
-  visited.add(pipe.id)
-  const ids: string[] = []
-  for (const member of normalizePipeMembers(pipe)) {
-    if (!isMemberEnabledForFlatten(member)) continue
-    if (member.kind === 'stage') {
-      ids.push(member.stageId)
-    } else {
-      const child = registry[member.pipeId]
-      if (child) ids.push(...flattenPipeMembersEnabled(child, registry, visited))
-    }
-  }
-  return ids
-}
-
-/** Copy bindings store entity-local ids in entity.transformers — collect slice owned by this binding. */
-function collectCopyBindingStageIds(
-  world: RennWorld,
-  entityId: string,
-  binding: TransformerPipeBinding,
-): string[] {
-  const pipe = world.transformerPipes?.[binding.pipeId]
-  if (!pipe) return []
-  if (binding.localStageIds?.length) return binding.localStageIds
-  const entity = world.entities.find((e) => e.id === entityId)
-  const count = collectPipeStageConfigsForCopyCount(pipe, world.transformerPipes ?? {})
-  const allIds = entity?.transformers ?? []
-  const prefix = `${entityId}_tf`
-  return allIds.filter((id: string) => id.startsWith(prefix)).slice(-count)
-}
-
-function collectPipeStageConfigsForCopyCount(
-  pipe: TransformerPipe,
-  registry: Record<string, TransformerPipe>,
-  visited: Set<string> = new Set(),
-): number {
-  if (visited.has(pipe.id)) return 0
-  visited.add(pipe.id)
-  let count = 0
-  for (const member of normalizePipeMembers(pipe)) {
-    if (!isMemberEnabledForFlatten(member)) continue
-    if (member.kind === 'stage') count += 1
-    else {
-      const child = registry[member.pipeId]
-      if (child) count += collectPipeStageConfigsForCopyCount(child, registry, visited)
-    }
-  }
-  return count
+  return syncEntityTransformerIdsFromPipeTree(world, entity)
 }
 
 /** Apply synced transformer ids to entity in world. */

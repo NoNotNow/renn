@@ -1037,6 +1037,7 @@ function WorkspaceTransformersTabEntity({
                 world={world}
                 entity={singleEntity}
                 view={pipeNav.view}
+                focusPath={pipeNav.focus.path}
                 depth={pipeNav.focus.path.length}
                 selectedIndex={pipeNav.focus.selectedSiblingIndex}
                 stageConfigs={pipeNav.stageData.configs}

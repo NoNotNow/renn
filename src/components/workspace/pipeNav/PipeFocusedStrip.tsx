@@ -1,4 +1,5 @@
-import { Fragment, useCallback, useState, type CSSProperties, type RefObject } from 'react'
+import { Fragment, useCallback, useMemo, useState, type CSSProperties, type RefObject } from 'react'
+import type { PipeNavPathSegment } from '@/types/pipeNav'
 import type { TransformerConfig, TransformerPipe } from '@/types/transformer'
 import type { Entity, RennWorld } from '@/types/world'
 import type { TransformerTraceStep } from '@/transformers/transformerTrace'
@@ -14,11 +15,13 @@ import PipeAddDialog from './PipeAddDialog'
 import type { ResolvedPipeNavView, StripItem } from '@/types/pipeNav'
 import { isPipeNavLeafLevel } from '@/utils/pipeNavResolve'
 import { getEntityPipeStack, normalizePipeMembers } from '@/utils/transformerPipeResolve'
+import { buildEntityStageRuntimeContext, pipeScopeKeyFromPath } from '@/utils/pipeStageResolve'
 
 export interface PipeFocusedStripProps {
   world: RennWorld
   entity: Entity
   view: ResolvedPipeNavView
+  focusPath: PipeNavPathSegment[]
   depth: number
   selectedIndex: number
   stageConfigs: TransformerConfig[]
@@ -65,6 +68,7 @@ export default function PipeFocusedStrip({
   world,
   entity,
   view,
+  focusPath,
   depth,
   selectedIndex,
   stageConfigs,
@@ -93,6 +97,7 @@ export default function PipeFocusedStrip({
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const pipes = world.transformerPipes ?? {}
   const stack = getEntityPipeStack(entity)
+  const stageRuntime = useMemo(() => buildEntityStageRuntimeContext(world, entity), [world, entity])
 
   const isLeafLevel = isPipeNavLeafLevel(view)
 
@@ -209,8 +214,12 @@ export default function PipeFocusedStrip({
             const pipe = pipes[item.pipeId] as TransformerPipe | undefined
             if (!pipe) return null
             const binding = item.kind === 'pipe' ? item.binding : undefined
-            const enabled = binding?.enabled !== false
             const stackIdx = view.mode === 'pipe_siblings' ? idx : stackIndexForPipeId?.(item.pipeId)
+            const scopePath: PipeNavPathSegment[] =
+              view.mode === 'pipe_siblings' ?
+                [{ kind: 'stack', index: idx }]
+              : focusPath
+            const enabled = stageRuntime.scopeEffectiveEnabled.get(pipeScopeKeyFromPath(scopePath)) ?? true
             return (
               <Fragment key={`${item.pipeId}-${idx}`}>
                 {idx > 0 ?
@@ -306,6 +315,9 @@ export default function PipeFocusedStrip({
             selectedId={selectedStageId}
             cardErrorsByStackIndex={cardErrorsByStackIndex}
             cardDepth={depth}
+            stageEffectiveEnabledById={Object.fromEntries(
+              stageIds.map((id) => [id, stageRuntime.stageContext.get(id)?.effectivelyEnabled !== false]),
+            )}
             externalAddDialog
             renderAddButton={() => renderPlusButton()}
           />
@@ -321,7 +333,14 @@ export default function PipeFocusedStrip({
       const member = parentPipeId ?
         normalizePipeMembers(pipes[parentPipeId] ?? { id: '', name: '', stageIds: [], stages: [] })[item.index]
       : undefined
-      const enabled = member?.kind === 'pipe' ? member.enabled !== false : true
+      const memberScopePath: PipeNavPathSegment[] =
+        parentPipeId ?
+          [...focusPath, { kind: 'member', pipeId: parentPipeId, memberIndex: item.index }]
+        : focusPath
+      const enabled =
+        item.kind === 'pipe' ?
+          (stageRuntime.scopeEffectiveEnabled.get(pipeScopeKeyFromPath(memberScopePath)) ?? true)
+        : true
       const stackIdx = stackIndexForPipeId?.(item.pipeId)
       const stackBinding =
         stackIdx !== undefined && stackIdx >= 0 ? stack[stackIdx] : undefined

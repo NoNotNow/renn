@@ -556,7 +556,15 @@
         "params": {
           "type": "object",
           "additionalProperties": true,
-          "description": "Per-entity pipe input overrides"
+          "description": "Per-entity pipe input overrides for stack-root pipe scopes"
+        },
+        "scopeParams": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "description": "Per-entity overrides keyed by pipe-nav scope path (nested pipe instances)"
         },
         "mode": {
           "type": "string",

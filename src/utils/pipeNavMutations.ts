@@ -271,7 +271,44 @@ export function toggleMemberEnabled(
   const members = normalizePipeMembers(pipe).map((m, i) =>
     i === memberIndex ? { ...m, enabled: m.enabled === false } : m,
   )
-  return updatePipeMembers(world, pipeId, members)
+  let nextWorld = updatePipeMembers(world, pipeId, members)
+  for (const entity of nextWorld.entities) {
+    if (entityUsesPipeInStackOrSubtree(nextWorld, entity, pipeId)) {
+      nextWorld = applyEntityTransformerSync(nextWorld, entity.id)
+    }
+  }
+  return nextWorld
+}
+
+function entityUsesPipeInStackOrSubtree(
+  world: RennWorld,
+  entity: Entity,
+  pipeId: string,
+): boolean {
+  for (const binding of getEntityPipeStack(entity)) {
+    if (binding.pipeId === pipeId) return true
+    const root = world.transformerPipes?.[binding.pipeId]
+    if (root && pipeTreeContainsPipe(root, world.transformerPipes ?? {}, pipeId)) return true
+  }
+  return false
+}
+
+function pipeTreeContainsPipe(
+  pipe: TransformerPipe,
+  registry: Record<string, TransformerPipe>,
+  targetPipeId: string,
+  visited: Set<string> = new Set(),
+): boolean {
+  if (visited.has(pipe.id)) return false
+  visited.add(pipe.id)
+  for (const member of normalizePipeMembers(pipe)) {
+    if (member.kind === 'pipe') {
+      if (member.pipeId === targetPipeId) return true
+      const child = registry[member.pipeId]
+      if (child && pipeTreeContainsPipe(child, registry, targetPipeId, visited)) return true
+    }
+  }
+  return false
 }
 
 export function updateBindingParams(

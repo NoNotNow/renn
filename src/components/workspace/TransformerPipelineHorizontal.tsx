@@ -384,6 +384,7 @@ function TransformerTraceItem({
   isDragging,
   cardError,
   cardDepth,
+  ancestorDisabled,
 }: {
   index: number
   /** Index of this transformer in the full entity stack (for custom display names). */
@@ -409,6 +410,8 @@ function TransformerTraceItem({
   isDragging: boolean
   cardError?: TransformerCardErrorKind
   cardDepth?: number
+  /** False when a parent pipe scope is disabled (cascade). */
+  ancestorDisabled?: boolean
 }) {
   const [inOpen, setInOpen] = useState(false)
   const [outOpen, setOutOpen] = useState(false)
@@ -426,7 +429,8 @@ function TransformerTraceItem({
   const rowLabel =
     transformer.type === 'custom' ? labelCustomTransformer(transformer, stackIndex) : String(transformer.type)
 
-  const enabled = transformer.enabled ?? true
+  const enabled = (transformer.enabled ?? true) && ancestorDisabled !== false
+  const toggleEnabledDisabled = ancestorDisabled === false
   const showSelectedChrome = Boolean(isSelected && !isDragging && transformer.type === 'custom')
   const inputLit = Boolean(step && !step.skipped && hasNonZeroSemanticActions(step.inputBefore))
   const outputLit = Boolean(step && !step.skipped && step.outputLedActive)
@@ -645,18 +649,26 @@ function TransformerTraceItem({
             type="button"
             onClick={(e) => {
               e.stopPropagation()
-              onToggleEnabled()
+              if (!toggleEnabledDisabled) onToggleEnabled()
             }}
-            title={enabled ? 'Enabled — click to disable' : 'Disabled — click to enable'}
+            disabled={toggleEnabledDisabled}
+            title={
+              toggleEnabledDisabled ?
+                'Disabled by parent pipe'
+              : enabled ?
+                'Enabled — click to disable'
+              : 'Disabled — click to enable'
+            }
             data-testid={`transformer-horizontal-enabled-toggle-${index}`}
             style={{
               background: 'transparent',
               border: 'none',
-              cursor: 'pointer',
+              cursor: toggleEnabledDisabled ? 'not-allowed' : 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               padding: '0 2px',
+              opacity: toggleEnabledDisabled ? 0.45 : 1,
             }}
           >
             <span
@@ -996,6 +1008,7 @@ export function TransformerHorizontalPipeline({
   renderAddButton,
   externalAddDialog,
   cardDepth,
+  stageEffectiveEnabledById,
   inline,
   embedStackIndex,
 }: {
@@ -1021,6 +1034,8 @@ export function TransformerHorizontalPipeline({
   externalAddDialog?: boolean
   /** Pipe navigation depth tint for stage cards. */
   cardDepth?: number
+  /** When false, stage is inactive because an ancestor pipe is disabled. */
+  stageEffectiveEnabledById?: Record<string, boolean>
   /** Single-card embed inside an ordered pipe member strip (no lead-in, no trailing add slot). */
   inline?: boolean
   /** Original stack index when `inline` renders one embedded card. */
@@ -1274,6 +1289,7 @@ export function TransformerHorizontalPipeline({
               isDragOver={dragState?.dragOverId === item.id && dragState?.draggedId !== item.id}
               cardError={cardErrorsByStackIndex?.[item.originalIndex]}
               cardDepth={cardDepth}
+              ancestorDisabled={stageEffectiveEnabledById?.[item.id] !== false}
             />
           </div>
           {!inline && i < displayItems.length - 1 ? <PipelineConnector /> : null}
