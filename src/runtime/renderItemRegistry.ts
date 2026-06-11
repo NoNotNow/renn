@@ -1,7 +1,6 @@
 import * as THREE from 'three'
 import type { LoadedEntity } from '@/loader/loadWorld'
 import type { CachedTransform, PhysicsWorld } from '@/physics/rapierPhysics'
-import { resolveEntityPipeParamsByPipeId } from '@/utils/transformerPipeResolve'
 import type { Vec3, Rotation, Entity, DistanceCullingSettings } from '@/types/world'
 import {
   applyModelVisualSides,
@@ -1061,10 +1060,6 @@ export class RenderItemRegistry {
 
       clearActionRecord(this._tfActions)
       input.target = undefined
-      input.pipeParamsByPipeId = resolveEntityPipeParamsByPipeId(
-        { transformerPipes: this.worldTransformerPipes } as import('@/types/world').RennWorld,
-        item.entity,
-      )
       input.entityId = item.entity.id
       input.deltaTime = dt
       this._tfAccumulatedForce[0] = 0
@@ -1121,7 +1116,6 @@ export class RenderItemRegistry {
       try {
         output = item.transformerChain.execute(input, dt, traceSteps)
       } finally {
-        input.pipeParamsByPipeId = undefined
         setTransformerRuntimeEntityLookup(null)
         setTransformerRuntimeLivePositionLookup(null)
         setTransformerRuntimeRaycast(null)

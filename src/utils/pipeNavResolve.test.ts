@@ -3,6 +3,7 @@ import type { RennWorld } from '@/types/world'
 import {
   resolveFocusedPipeId,
   resolvePipeNavView,
+  resolveSelectedFlatStackIndex,
   drillIntoPipePath,
   isPipeNavLeafLevel,
   stackSiblingInsertIndexFromPath,
@@ -92,5 +93,39 @@ describe('pipeNavResolve', () => {
   it('computes stack sibling insert index from nav path', () => {
     expect(stackSiblingInsertIndexFromPath([{ kind: 'stack', index: 0 }])).toBe(1)
     expect(stackSiblingInsertIndexFromPath([])).toBeUndefined()
+  })
+
+  it('resolves distinct flat stack indices for duplicate linked pipes with the same stage id', () => {
+    const dupWorld: RennWorld = {
+      version: '1',
+      world: {},
+      entities: [
+        {
+          id: 'e1',
+          transformers: ['s1', 's1'],
+          transformerPipeStack: [{ pipeId: 'root' }, { pipeId: 'root' }],
+        },
+      ],
+      transformers: {
+        s1: { type: 'custom', code: 'api.watch(params)' },
+      },
+      transformerPipes: {
+        root: {
+          id: 'root',
+          name: 'Pipe1',
+          stageIds: ['s1'],
+          stages: [],
+          members: [{ kind: 'stage', stageId: 's1' }],
+        },
+      },
+    }
+    const entity = dupWorld.entities[0]!
+    const focus0 = { path: [{ kind: 'stack' as const, index: 0 }], selectedSiblingIndex: 0 }
+    const focus1 = { path: [{ kind: 'stack' as const, index: 1 }], selectedSiblingIndex: 0 }
+    const view0 = resolvePipeNavView(dupWorld, entity, focus0)
+    const view1 = resolvePipeNavView(dupWorld, entity, focus1)
+
+    expect(resolveSelectedFlatStackIndex(dupWorld, entity, focus0, view0, 's1')).toBe(0)
+    expect(resolveSelectedFlatStackIndex(dupWorld, entity, focus1, view1, 's1')).toBe(1)
   })
 })

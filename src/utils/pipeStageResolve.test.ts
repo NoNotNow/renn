@@ -10,7 +10,7 @@ import {
 } from './pipeStageResolve'
 
 describe('pipeStageResolve', () => {
-  it('merges param layers with narrower scope winning', () => {
+  it('merges param layers with later layers winning', () => {
     expect(
       mergePipeParamLayers([
         { speed: 1, height: 10 },
@@ -49,16 +49,16 @@ describe('pipeStageResolve', () => {
       },
     }
 
-    const { stageContext, flatEnabledStageIds, scopeEffectiveEnabled } =
+    const { stageContextByStageId, flatEnabledStageIds, scopeEffectiveEnabled } =
       buildEntityStageRuntimeContext(world, world.entities[0]!)
     expect(flatEnabledStageIds).toEqual([])
-    expect(stageContext.get('s1')?.effectivelyEnabled).toBe(false)
-    expect(stageContext.get('s2')?.effectivelyEnabled).toBe(false)
+    expect(stageContextByStageId.get('s1')?.effectivelyEnabled).toBe(false)
+    expect(stageContextByStageId.get('s2')?.effectivelyEnabled).toBe(false)
     expect(scopeEffectiveEnabled.get('stack:0')).toBe(false)
     expect(syncEntityTransformerIdsFromPipeTree(world, world.entities[0]!)).toEqual([])
   })
 
-  it('merges ancestor pipe params into stage runtime configs', () => {
+  it('binding params override shared stage registry params on key collision', () => {
     const world: RennWorld = {
       version: '1',
       world: {},
@@ -66,12 +66,7 @@ describe('pipeStageResolve', () => {
         {
           id: 'e1',
           transformers: ['s1'],
-          transformerPipeStack: [
-            {
-              pipeId: 'root',
-              params: { speed: 2 },
-            },
-          ],
+          transformerPipeStack: [{ pipeId: 'root', params: { power: 50, speed: 2 } }],
         },
       ],
       transformers: {
@@ -83,74 +78,95 @@ describe('pipeStageResolve', () => {
           name: 'Root',
           stageIds: ['s1'],
           stages: [],
-          defaultParams: { speed: 1, height: 10 },
           members: [{ kind: 'stage', stageId: 's1' }],
         },
       },
     }
 
-    const entity = world.entities[0]!
-    const configs = resolveEntityTransformerConfigsForRuntime(world, entity)
-    expect(configs?.[0]?.params).toEqual({ speed: 2, height: 10, power: 99 })
+    const configs = resolveEntityTransformerConfigsForRuntime(world, world.entities[0]!)
+    expect(configs?.[0]?.params).toEqual({ power: 50, speed: 2 })
   })
 
-  it('finds all entities referencing a pipe for shared default param sync', () => {
+  it('produces different merged runtime params for two entities on the same linked pipe', () => {
     const world: RennWorld = {
       version: '1',
       world: {},
       entities: [
-        { id: 'e1', transformers: ['s1'], transformerPipeStack: [{ pipeId: 'root' }] },
-        { id: 'e2', transformers: ['s1'], transformerPipeStack: [{ pipeId: 'other' }] },
         {
-          id: 'e3',
-          transformers: ['s2'],
-          transformerPipeStack: [{ pipeId: 'stack' }],
+          id: 'carA',
+          transformers: ['s1'],
+          transformerPipeStack: [{ pipeId: 'drive', params: { speed: 50 } }],
+        },
+        {
+          id: 'carB',
+          transformers: ['s1'],
+          transformerPipeStack: [{ pipeId: 'drive', params: { speed: 100 } }],
         },
       ],
       transformers: {
-        s1: { type: 'input' },
-        s2: { type: 'car2' },
+        s1: { type: 'car2', params: { power: 10 } },
       },
       transformerPipes: {
-        root: {
-          id: 'root',
-          name: 'Root',
-          stageIds: ['s1'],
-          stages: [],
-          members: [
-            { kind: 'stage', stageId: 's1' },
-            { kind: 'pipe', pipeId: 'child' },
-          ],
-        },
-        child: {
-          id: 'child',
-          name: 'Child',
-          stageIds: [],
-          stages: [],
-          members: [],
-        },
-        other: {
-          id: 'other',
-          name: 'Other',
+        drive: {
+          id: 'drive',
+          name: 'Drive',
           stageIds: ['s1'],
           stages: [],
           members: [{ kind: 'stage', stageId: 's1' }],
         },
-        stack: {
-          id: 'stack',
-          name: 'Stack',
+      },
+    }
+
+    const carA = resolveEntityTransformerConfigsForRuntime(world, world.entities[0]!)
+    const carB = resolveEntityTransformerConfigsForRuntime(world, world.entities[1]!)
+    expect(carA?.[0]?.params).toEqual({ power: 10, speed: 50 })
+    expect(carB?.[0]?.params).toEqual({ power: 10, speed: 100 })
+  })
+
+  it('merges independent params for two stack pipes on one entity', () => {
+    const world: RennWorld = {
+      version: '1',
+      world: {},
+      entities: [
+        {
+          id: 'e1',
+          transformers: ['s1', 's2'],
+          transformerPipeStack: [
+            { pipeId: 'drive', params: { speed: 50 } },
+            { pipeId: 'steer', params: { softness: 3 } },
+          ],
+        },
+      ],
+      transformers: {
+        s1: { type: 'car2' },
+        s2: { type: 'input' },
+      },
+      transformerPipes: {
+        drive: {
+          id: 'drive',
+          name: 'Drive',
+          stageIds: ['s1'],
+          stages: [],
+          members: [{ kind: 'stage', stageId: 's1' }],
+        },
+        steer: {
+          id: 'steer',
+          name: 'Steer',
           stageIds: ['s2'],
           stages: [],
-          members: [{ kind: 'pipe', pipeId: 'child' }],
+          members: [{ kind: 'stage', stageId: 's2' }],
         },
       },
     }
 
-    expect(entityIdsAffectedByPipeParamChange(world, { pipeId: 'child', sharedDefaults: true })).toEqual([
-      'e1',
-      'e3',
-    ])
-    expect(entityIdsAffectedByPipeParamChange(world, { pipeId: 'root', entityId: 'e1' })).toEqual(['e1'])
+    const configs = resolveEntityTransformerConfigsForRuntime(world, world.entities[0]!)
+    expect(configs?.[0]?.params).toEqual({ speed: 50 })
+    expect(configs?.[1]?.params).toEqual({ softness: 3 })
+  })
+
+  it('syncs only the edited entity after a pipe param change', () => {
+    expect(entityIdsAffectedByPipeParamChange({} as RennWorld, { entityId: 'e1' })).toEqual(['e1'])
+    expect(entityIdsAffectedByPipeParamChange({} as RennWorld, {})).toEqual([])
   })
 
   it('resolveMergedTransformerConfigsForEntitySync matches runtime projection', () => {
@@ -173,16 +189,14 @@ describe('pipeStageResolve', () => {
           name: 'Root',
           stageIds: ['s1'],
           stages: [],
-          defaultParams: { speed: 1, height: 10 },
           members: [{ kind: 'stage', stageId: 's1' }],
         },
       },
     }
 
     expect(resolveMergedTransformerConfigsForEntitySync(world, 'e1')?.[0]?.params).toEqual({
-      speed: 2,
-      height: 10,
       power: 99,
+      speed: 2,
     })
   })
 
@@ -223,8 +237,41 @@ describe('pipeStageResolve', () => {
     }
 
     const entity = world.entities[0]!
-    const { flatEnabledStageIds, stageContext } = buildEntityStageRuntimeContext(world, entity)
+    const { flatEnabledStageIds, stageContextByStageId } = buildEntityStageRuntimeContext(world, entity)
     expect(flatEnabledStageIds).toEqual(['s1'])
-    expect(stageContext.get('s2')?.effectivelyEnabled).toBe(false)
+    expect(stageContextByStageId.get('s2')?.effectivelyEnabled).toBe(false)
+  })
+
+  it('isolates merged params per flat index when the same linked pipe appears twice on the stack', () => {
+    const world: RennWorld = {
+      version: '1',
+      world: {},
+      entities: [
+        {
+          id: 'e1',
+          transformers: ['s1', 's1'],
+          transformerPipeStack: [
+            { pipeId: 'root', params: { p1: 'p1' } },
+            { pipeId: 'root', params: { px: 'px' } },
+          ],
+        },
+      ],
+      transformers: {
+        s1: { type: 'custom', code: 'api.watch(params);' },
+      },
+      transformerPipes: {
+        root: {
+          id: 'root',
+          name: 'Pipe1',
+          stageIds: ['s1'],
+          stages: [],
+          members: [{ kind: 'stage', stageId: 's1' }],
+        },
+      },
+    }
+
+    const configs = resolveEntityTransformerConfigsForRuntime(world, world.entities[0]!)
+    expect(configs?.[0]?.params).toEqual({ p1: 'p1' })
+    expect(configs?.[1]?.params).toEqual({ px: 'px' })
   })
 })

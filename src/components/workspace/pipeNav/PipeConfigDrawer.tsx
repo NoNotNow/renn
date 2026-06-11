@@ -16,8 +16,6 @@ export interface PipeConfigDrawerProps {
   onClose: () => void
   onParamChange?: (key: string, value: unknown) => void
   onParamsReplace?: (params: Record<string, unknown>) => void
-  /** When true, edits apply to pipe.defaultParams (shared template). */
-  sharedDefaults?: boolean
 }
 
 export default function PipeConfigDrawer({
@@ -29,7 +27,6 @@ export default function PipeConfigDrawer({
   onClose,
   onParamChange,
   onParamsReplace,
-  sharedDefaults = false,
 }: PipeConfigDrawerProps) {
   const [anchor, setAnchor] = useState({ x: 0, y: 0 })
   const hasParamDefs = (pipe.paramDefs?.length ?? 0) > 0
@@ -54,7 +51,7 @@ export default function PipeConfigDrawer({
   return (
     <WorkspaceFloatingDrawer
       testId="pipe-config-drawer"
-      title={`Pipe config: ${pipe.name}`}
+      title={`Pipe params: ${pipe.name}`}
       onClose={onClose}
       initialLeft={anchor.x}
       initialTop={anchor.y}
@@ -65,18 +62,15 @@ export default function PipeConfigDrawer({
       minHeight={160}
       bodyOverflow="auto"
     >
-      {sharedDefaults ?
-        <p style={{ margin: '0 0 8px', fontSize: 11, color: theme.text.muted, lineHeight: 1.4 }}>
-          Shared pipe defaults — affects all entities using this pipe definition.
-        </p>
-      : null}
+      <p style={{ margin: '0 0 8px', fontSize: 11, color: theme.text.muted, lineHeight: 1.4 }}>
+        This entity&apos;s pipe params — changes apply only to this entity.
+      </p>
       {hasParamDefs ?
         <PipeParamsStrip pipe={pipe} binding={binding} onParamChange={onParamChange} />
       : <PipeParamsJsonEditor
           pipe={pipe}
           binding={binding}
           scopePath={scopePath}
-          sharedDefaults={sharedDefaults}
           onParamsReplace={onParamsReplace}
         />
       }

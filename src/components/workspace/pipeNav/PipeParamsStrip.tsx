@@ -18,7 +18,7 @@ export default function PipeParamsStrip({
   const defs = pipe.paramDefs ?? []
   if (defs.length === 0) return null
 
-  const resolved = resolvePipeBindingParams(binding ?? { pipeId: pipe.id }, pipe)
+  const resolved = resolvePipeBindingParams(binding ?? { pipeId: pipe.id })
 
   return (
     <div
@@ -36,7 +36,7 @@ export default function PipeParamsStrip({
           key={def.key}
           def={def}
           value={resolved[def.key]}
-          defaultValue={pipe.defaultParams?.[def.key]}
+          schemaDefault={def.default}
           onChange={readOnly ? undefined : (v) => onParamChange?.(def.key, v)}
         />
       ))}
@@ -47,23 +47,24 @@ export default function PipeParamsStrip({
 function PipeParamField({
   def,
   value,
-  defaultValue,
+  schemaDefault,
   onChange,
 }: {
   def: PipeParamDef
   value: unknown
-  defaultValue: unknown
+  schemaDefault: unknown
   onChange?: (v: unknown) => void
 }) {
   const label = def.label ?? def.key
-  const overridden = value !== undefined && value !== defaultValue
+  const displayValue = value ?? schemaDefault
+  const overridden = value !== undefined && value !== schemaDefault
 
   if (def.type === 'boolean') {
     return (
       <label style={{ display: 'flex', alignItems: 'center', gap: 4, color: theme.text.secondary }}>
         <input
           type="checkbox"
-          checked={Boolean(value ?? defaultValue)}
+          checked={Boolean(displayValue)}
           disabled={!onChange}
           onChange={(e) => onChange?.(e.target.checked)}
         />
@@ -78,7 +79,7 @@ function PipeParamField({
       <span>{label}</span>
       <input
         type={def.type === 'number' ? 'number' : 'text'}
-        value={String(value ?? defaultValue ?? '')}
+        value={String(displayValue ?? '')}
         disabled={!onChange}
         onChange={(e) => {
           const raw = e.target.value

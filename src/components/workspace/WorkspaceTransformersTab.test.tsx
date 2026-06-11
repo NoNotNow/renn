@@ -854,6 +854,205 @@ describe('WorkspaceTransformersTab', () => {
     expect(screen.getAllByText('My Pipe').length).toBeGreaterThan(0)
   })
 
+  describe('duplicate linked pipes', () => {
+    const DUP_STAGE_ID = 'dup_custom'
+    const FIRST_CODE = 'api.watch({ p1: "p1" }); return {};'
+    const SECOND_CODE_MARKER = 'SECOND_PIPE_INSTANCE'
+
+    function duplicatePipeWorld(): RennWorld {
+      return {
+        version: '1.0',
+        world: { gravity: [0, -9.81, 0] },
+        assets: {},
+        entities: [
+          {
+            id: 'box',
+            bodyType: 'dynamic',
+            shape: { type: 'box', width: 1, height: 1, depth: 1 },
+            position: [0, 0, 0],
+            transformers: [DUP_STAGE_ID, DUP_STAGE_ID],
+            transformerPipeStack: [
+              { pipeId: CAR_PIPE_ID, params: { p1: 'p1' } },
+              { pipeId: CAR_PIPE_ID, params: { px: 'px' } },
+            ],
+          },
+        ],
+        transformers: {
+          [DUP_STAGE_ID]: {
+            type: 'custom',
+            priority: 10,
+            enabled: true,
+            params: {},
+            code: FIRST_CODE,
+            name: 'Custom',
+          },
+        },
+        transformerPipes: {
+          [CAR_PIPE_ID]: {
+            id: CAR_PIPE_ID,
+            name: 'Pipe1',
+            stageIds: [DUP_STAGE_ID],
+            stages: [
+              {
+                type: 'custom',
+                priority: 10,
+                enabled: true,
+                params: {},
+                code: FIRST_CODE,
+                name: 'Custom',
+              },
+            ],
+            members: [{ kind: 'stage', stageId: DUP_STAGE_ID }],
+          },
+        },
+      }
+    }
+
+    beforeEach(() => {
+      const storage = new Map<string, string>([['rennTransformerPipeNavOpen', 'true']])
+      vi.stubGlobal('localStorage', {
+        getItem: (key: string) => storage.get(key) ?? null,
+        setItem: (key: string, value: string) => {
+          storage.set(key, value)
+        },
+      })
+    })
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+      resetTransformerWatchBridgeForTests()
+    })
+
+    it('shows custom code when the first linked pipe instance is selected', async () => {
+      const setMonacoPayload = vi.fn()
+      renderTab({
+        world: duplicatePipeWorld(),
+        selectedEntityIds: ['box'],
+        entry: {
+          entityId: 'box',
+          tab: 'transformers',
+          itemId: DUP_STAGE_ID,
+          pipeNavPath: [{ kind: 'stack', index: 0 }],
+          pipeNavSelectedIndex: 0,
+        },
+        setMonacoPayload,
+      })
+
+      await waitFor(() => {
+        const payload = lastMonacoPayload(setMonacoPayload)
+        expect(payload?.kind).toBe('transformer-ts')
+        expect(payload?.value).toContain('api.watch')
+        expect(payload?.value).not.toContain('Add a custom transformer')
+      })
+    })
+
+    it('shows custom code when the second linked pipe instance is selected in the tree', async () => {
+      const setMonacoPayload = vi.fn()
+      renderTab({
+        world: duplicatePipeWorld(),
+        selectedEntityIds: ['box'],
+        entry: {
+          entityId: 'box',
+          tab: 'transformers',
+          itemId: DUP_STAGE_ID,
+          pipeNavPath: [{ kind: 'stack', index: 1 }],
+          pipeNavSelectedIndex: 0,
+        },
+        setMonacoPayload,
+      })
+
+      await waitFor(() => {
+        const payload = lastMonacoPayload(setMonacoPayload)
+        expect(payload?.kind).toBe('transformer-ts')
+        expect(payload?.value).toContain('api.watch')
+        expect(payload?.value).not.toContain('Add a custom transformer')
+      })
+    })
+
+    it('routes watch entries to the selected duplicate pipe instance', async () => {
+      setTransformerWatchEnabled(true)
+      const setMonacoPayload = vi.fn()
+      renderTab({
+        world: duplicatePipeWorld(),
+        selectedEntityIds: ['box'],
+        entry: {
+          entityId: 'box',
+          tab: 'transformers',
+          itemId: DUP_STAGE_ID,
+          pipeNavPath: [{ kind: 'stack', index: 1 }],
+          pipeNavSelectedIndex: 0,
+        },
+        setMonacoPayload,
+      })
+
+      await waitFor(() => {
+        expect(lastMonacoPayload(setMonacoPayload)?.kind).toBe('transformer-ts')
+      })
+
+      act(() => {
+        publishTransformerWatchEntry({
+          entityId: 'box',
+          configStackIndex: 0,
+          label: 'value',
+          value: '{"p1":"p1"}',
+        })
+        publishTransformerWatchEntry({
+          entityId: 'box',
+          configStackIndex: 1,
+          label: 'value',
+          value: '{"px":"px"}',
+        })
+      })
+
+      await waitFor(() => {
+        expect(screen.getByTestId('workspace-transformer-watch-toggle')).toBeInTheDocument()
+      })
+
+      fireEvent.click(screen.getByTestId('workspace-transformer-watch-toggle'))
+
+      await waitFor(() => {
+        expect(screen.getByTestId('workspace-transformer-watch-value-value')).toHaveTextContent('{"px":"px"}')
+      })
+    })
+
+    it('updates Monaco when switching between duplicate pipe instances in the tree', async () => {
+      const setMonacoPayload = vi.fn()
+      const world = duplicatePipeWorld()
+      world.transformers![DUP_STAGE_ID] = {
+        ...world.transformers![DUP_STAGE_ID]!,
+        code: `${FIRST_CODE}\n// ${SECOND_CODE_MARKER}`,
+      }
+
+      renderTab({
+        world,
+        selectedEntityIds: ['box'],
+        entry: {
+          entityId: 'box',
+          tab: 'transformers',
+          itemId: DUP_STAGE_ID,
+          pipeNavPath: [{ kind: 'stack', index: 0 }],
+          pipeNavSelectedIndex: 0,
+        },
+        setMonacoPayload,
+      })
+
+      await waitFor(() => {
+        expect(lastMonacoPayload(setMonacoPayload)?.kind).toBe('transformer-ts')
+      })
+
+      const tree = screen.getByTestId('pipe-nav-tree')
+      const pipeRows = within(tree).getAllByText('Pipe1')
+      fireEvent.click(pipeRows[1]!)
+
+      await waitFor(() => {
+        const payload = lastMonacoPayload(setMonacoPayload)
+        expect(payload?.kind).toBe('transformer-ts')
+        expect(payload?.value).toContain(SECOND_CODE_MARKER)
+        expect(payload?.value).not.toContain('Add a custom transformer')
+      })
+    })
+  })
+
   describe('pipe config editing', () => {
     const CONFIG_PIPE_ID = 'pipe-speed'
 
@@ -867,8 +1066,7 @@ describe('WorkspaceTransformersTab', () => {
             stageIds: ['car_tf0', 'car_tf1', 'car_tf2'],
             stages: carStackWorld.transformerPipes![CAR_PIPE_ID]!.stages,
             members: carStackWorld.transformerPipes![CAR_PIPE_ID]!.members,
-            paramDefs: [{ key: 'speed', type: 'number' }],
-            defaultParams: { speed: 5 },
+            paramDefs: [{ key: 'speed', type: 'number', default: 5 }],
           },
         },
         entities: [
@@ -904,7 +1102,7 @@ describe('WorkspaceTransformersTab', () => {
 
       await waitFor(() => {
         expect(screen.getByTestId('pipe-config-drawer')).toBeInTheDocument()
-        expect(screen.getByText('Pipe config: SpeedPipe')).toBeInTheDocument()
+        expect(screen.getByText('Pipe params: SpeedPipe')).toBeInTheDocument()
       })
     })
 
@@ -918,7 +1116,7 @@ describe('WorkspaceTransformersTab', () => {
       const treeRow = within(tree).getByText('SpeedPipe').closest('div')!
       fireEvent.mouseEnter(treeRow)
       fireEvent.click(within(treeRow).getByTitle('More'))
-      fireEvent.click(within(treeRow).getByText('Edit config'))
+      fireEvent.click(within(treeRow).getByText('Edit params'))
 
       await waitFor(() => {
         expect(screen.getByTestId('pipe-config-drawer')).toBeInTheDocument()

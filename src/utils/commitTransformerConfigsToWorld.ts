@@ -1,13 +1,26 @@
-import type { TransformerConfig, TransformerPipe, TransformerPipeBinding } from '@/types/transformer'
+import type {
+  TransformerConfig,
+  TransformerPipe,
+  TransformerPipeBinding,
+  TransformerPipeMember,
+} from '@/types/transformer'
 import type { RennWorld } from '@/types/world'
 import { syncPriorities } from '@/transformers/transformerUtils'
-import { allocatePipeId } from '@/utils/allocatePipeId'
+import { allocatePipeId, nextCopyPipeName } from '@/utils/allocatePipeId'
 import {
-  collectPipeStageConfigsForCopy,
+  buildInitialBindingParams,
   entityLinksPipe,
   flattenPipeMembers,
   getEntityPipeStack,
+  normalizePipeMembers,
+  TransformerPipeCycleError,
 } from '@/utils/transformerPipeResolve'
+
+export interface ClonePipeTreeResult {
+  world: RennWorld
+  rootPipeId: string
+  flatStageIds: string[]
+}
 
 /** Map registry ids from one entity to another (same `_tfN` suffix). */
 export function mapTransformerRegistryIdsToEntity(ids: string[], targetEntityId: string): string[] {
@@ -28,6 +41,85 @@ export function allocateTransformerRegistryId(
     if (!used.has(id) && registry[id] === undefined) return id
   }
   return `${entityId}_tf${Date.now()}`
+}
+
+/**
+ * Deep-clone a pipe manifold (and nested pipes) plus all referenced stage registry entries.
+ * Used for copy-mode assign/decouple so structure edits stay private to one entity.
+ */
+export function clonePipeTreeForEntityCopy(
+  world: RennWorld,
+  entityId: string,
+  sourcePipe: TransformerPipe,
+): ClonePipeTreeResult {
+  const pipeRegistry = { ...(world.transformerPipes ?? {}) }
+  const worldTransformers = { ...(world.transformers ?? {}) }
+  const usedPipeIds = new Set(Object.keys(pipeRegistry))
+  const usedStageIds = new Set(Object.keys(worldTransformers))
+
+  function clonePipeRecursive(source: TransformerPipe, pathVisited: Set<string>): string {
+    if (pathVisited.has(source.id)) throw new TransformerPipeCycleError(source.id)
+    pathVisited.add(source.id)
+
+    const copyName = nextCopyPipeName(source.name, pipeRegistry)
+    const newPipeId = allocatePipeId(copyName, usedPipeIds)
+    usedPipeIds.add(newPipeId)
+
+    const newMembers: TransformerPipeMember[] = []
+    const newStageIds: string[] = []
+    const newStages: TransformerConfig[] = []
+
+    for (const member of normalizePipeMembers(source)) {
+      if (member.kind === 'stage') {
+        const fromRegistry = worldTransformers[member.stageId]
+        const snapshotIdx = source.stageIds.indexOf(member.stageId)
+        const snapshot = snapshotIdx >= 0 ? source.stages[snapshotIdx] : undefined
+        const config = fromRegistry ?? snapshot
+        const newId = allocateTransformerRegistryId(entityId, worldTransformers, usedStageIds)
+        usedStageIds.add(newId)
+        worldTransformers[newId] = config
+          ? (JSON.parse(JSON.stringify(config)) as TransformerConfig)
+          : ({} as TransformerConfig)
+        newMembers.push({
+          kind: 'stage',
+          stageId: newId,
+          ...(member.enabled === false ? { enabled: false } : {}),
+        })
+        newStageIds.push(newId)
+        newStages.push(worldTransformers[newId]!)
+      } else {
+        const child = pipeRegistry[member.pipeId]
+        if (!child) continue
+        const newChildId = clonePipeRecursive(child, new Set(pathVisited))
+        newMembers.push({
+          kind: 'pipe',
+          pipeId: newChildId,
+          ...(member.enabled === false ? { enabled: false } : {}),
+        })
+      }
+    }
+
+    pipeRegistry[newPipeId] = {
+      ...source,
+      id: newPipeId,
+      name: copyName,
+      stageIds: newStageIds,
+      stages: JSON.parse(JSON.stringify(newStages)),
+      members: newMembers,
+      createdAt: Date.now(),
+    }
+    return newPipeId
+  }
+
+  const rootPipeId = clonePipeRecursive(sourcePipe, new Set())
+  const rootPipe = pipeRegistry[rootPipeId]!
+  const flatStageIds = flattenPipeMembers(rootPipe, pipeRegistry)
+
+  return {
+    world: { ...world, transformerPipes: pipeRegistry, transformers: worldTransformers },
+    rootPipeId,
+    flatStageIds,
+  }
 }
 
 /**
@@ -125,37 +217,25 @@ export function assignPipeToEntity(
   if (!entity) return world
 
   const append = options?.append ?? false
-  const binding: TransformerPipeBinding = {
-    pipeId: pipe.id,
-    ...(options?.params ? { params: options.params } : {}),
-    ...(mode === 'copy' ? { mode: 'copy' as const } : {}),
-    enabled: true,
-  }
-
+  let nextWorld = world
+  let assignedPipe = pipe
   let newStageIds: string[]
-  let nextWorldTransformers = world.transformers ?? {}
 
   if (mode === 'linked') {
     newStageIds = flattenPipeMembers(pipe, world.transformerPipes ?? {})
   } else {
-    nextWorldTransformers = { ...(world.transformers ?? {}) }
-    const used = new Set(Object.keys(nextWorldTransformers))
-    const configs = collectPipeStageConfigsForCopy(
-      world.transformerPipes ?? {},
-      nextWorldTransformers,
-      pipe,
-    )
-    newStageIds = []
-    for (const config of configs) {
-      const newId = allocateTransformerRegistryId(entityId, nextWorldTransformers, used)
-      used.add(newId)
-      nextWorldTransformers[newId] = JSON.parse(JSON.stringify(config))
-      newStageIds.push(newId)
-    }
+    const cloned = clonePipeTreeForEntityCopy(world, entityId, pipe)
+    nextWorld = cloned.world
+    assignedPipe = nextWorld.transformerPipes?.[cloned.rootPipeId] ?? pipe
+    newStageIds = cloned.flatStageIds
   }
 
-  if (mode === 'copy') {
-    binding.localStageIds = newStageIds
+  const initialParams = buildInitialBindingParams(assignedPipe, options?.params)
+  const binding: TransformerPipeBinding = {
+    pipeId: assignedPipe.id,
+    ...(initialParams ? { params: initialParams } : {}),
+    ...(mode === 'copy' ? { mode: 'copy' as const } : {}),
+    enabled: true,
   }
 
   const prevStack = getEntityPipeStack(entity)
@@ -164,9 +244,8 @@ export function assignPipeToEntity(
   const nextTransformers = [...prevTransformers, ...newStageIds]
 
   return {
-    ...world,
-    transformers: mode === 'copy' ? nextWorldTransformers : world.transformers,
-    entities: world.entities.map((e) =>
+    ...nextWorld,
+    entities: nextWorld.entities.map((e) =>
       e.id === entityId
         ? {
             ...e,
@@ -239,7 +318,6 @@ export function savePipeFromEntity(
     stageIds: [...stageIds],
     stages: JSON.parse(JSON.stringify(stages)),
     members: stageIds.map((id) => ({ kind: 'stage' as const, stageId: id })),
-    defaultParams: {},
     createdAt: Date.now(),
   }
 

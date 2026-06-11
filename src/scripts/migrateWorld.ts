@@ -246,6 +246,44 @@ export function migrateTransformerPipeToStack(worldData: unknown): void {
   }
 }
 
+/**
+ * Moves legacy `transformerPipes[*].defaultParams` into per-entity `binding.params`
+ * when the binding has no params yet, then removes `defaultParams` from pipe definitions.
+ */
+export function migrateTransformerPipeDefaultParams(worldData: unknown): void {
+  if (!worldData || typeof worldData !== 'object') return
+  const world = worldData as Record<string, unknown>
+  const pipes = world.transformerPipes as Record<string, Record<string, unknown>> | undefined
+  const entities = world.entities as Array<Record<string, unknown>> | undefined
+  if (!pipes || !Array.isArray(entities)) return
+
+  for (const entity of entities) {
+    if (!entity || typeof entity !== 'object') continue
+    const stack = entity.transformerPipeStack
+    if (!Array.isArray(stack)) continue
+    for (const rawBinding of stack) {
+      if (!rawBinding || typeof rawBinding !== 'object') continue
+      const binding = rawBinding as Record<string, unknown>
+      const pipeId = binding.pipeId
+      if (typeof pipeId !== 'string') continue
+      const pipe = pipes[pipeId]
+      if (!pipe) continue
+      const legacyDefaults = pipe.defaultParams
+      if (!legacyDefaults || typeof legacyDefaults !== 'object' || Array.isArray(legacyDefaults)) continue
+      const existing = binding.params
+      const hasParams =
+        existing && typeof existing === 'object' && !Array.isArray(existing) && Object.keys(existing).length > 0
+      if (!hasParams) {
+        binding.params = { ...(legacyDefaults as Record<string, unknown>) }
+      }
+    }
+  }
+
+  for (const pipe of Object.values(pipes)) {
+    if (pipe && typeof pipe === 'object') delete pipe.defaultParams
+  }
+}
+
 export function migrateEntityTransformersToRegistry(worldData: unknown): void {
   if (!worldData || typeof worldData !== 'object') return
   const world = worldData as Record<string, unknown>

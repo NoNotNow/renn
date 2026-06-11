@@ -8,6 +8,7 @@ import {
   migrateWorldRingShapesToCylinder,
   migrateEntityTransformersToRegistry,
   migrateTransformerPipeToStack,
+  migrateTransformerPipeDefaultParams,
 } from '@/scripts/migrateWorld'
 import type { RennWorld, Entity, Vec3, Rotation } from '@/types/world'
 import {
@@ -16,6 +17,7 @@ import {
   DEFAULT_POSITION,
   DEFAULT_ROTATION,
   DEFAULT_SCALE,
+  resolveFogSettings,
 } from '@/types/world'
 import { buildEntityMesh } from './createPrimitive'
 import { syncShapeWireframeOverlay } from './shapeWireframeOverlay'
@@ -33,6 +35,7 @@ import {
   updateMeshCastShadowFromWorldAabb,
 } from '@/utils/shadowBounds'
 import { ensureMeshoptSimplifierReady } from '@/utils/meshSimplifier'
+import { applySceneFog } from '@/utils/sceneFog'
 
 export interface LoadedEntity {
   entity: Entity
@@ -65,6 +68,7 @@ export async function loadWorld(
   migrateCustomTransformerNames(worldData)
   migrateEntityTransformersToRegistry(worldData)
   migrateTransformerPipeToStack(worldData)
+  migrateTransformerPipeDefaultParams(worldData)
   migrateWorldSimplificationFields(worldData, warnings)
   migrateWorldRingShapesToCylinder(worldData, warnings)
   validateWorldDocument(worldData, {
@@ -124,6 +128,8 @@ export async function loadWorld(
     const [r, g, b] = skyColor
     scene.background = new THREE.Color(r, g, b)
   }
+
+  applySceneFog(scene, resolveFogSettings(world.world.fog, skyColor))
 
   userData.camera = world.world.camera ?? { control: 'free', mode: 'follow', target: '', distance: 10, height: 2 }
   userData.world = world

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import type { RennWorld } from '@/types/world'
 import {
+  addExistingPipeAtFocus,
   createEmptyPipe,
   decoupleStackBindingToCopy,
   deleteStackBinding,
@@ -12,7 +13,6 @@ import {
   promoteMemberPipeToStack,
   setBindingParams,
   setBindingScopeParams,
-  setPipeDefaultParams,
   stageIdsForStackBinding,
   wrapUngroupedStagesIntoStackPipe,
 } from './pipeNavMutations'
@@ -49,8 +49,7 @@ describe('pipeNavMutations pipe controls', () => {
         name: 'Shared',
         stageIds: ['s1'],
         stages: [{ type: 'input' }],
-        paramDefs: [{ key: 'speed', type: 'number' }],
-        defaultParams: { speed: 1 },
+        paramDefs: [{ key: 'speed', type: 'number', default: 1 }],
       },
     },
   }
@@ -65,9 +64,10 @@ describe('pipeNavMutations pipe controls', () => {
     expect(next.entities[0]?.transformerPipeStack?.[0]?.params).toEqual({ speed: 9, boost: true })
   })
 
-  it('replaces pipe default params in one shot', () => {
-    const next = setPipeDefaultParams(world, 'p1', { speed: 4 })
-    expect(next.transformerPipes?.p1?.defaultParams).toEqual({ speed: 4 })
+  it('editing binding params on one entity does not affect another', () => {
+    const next = setBindingParams(world, 'e1', 0, { speed: 9 })
+    expect(next.entities[0]?.transformerPipeStack?.[0]?.params).toEqual({ speed: 9 })
+    expect(next.entities[1]?.transformerPipeStack?.[0]?.params).toBeUndefined()
   })
 
   it('stores nested scope overrides on the stack binding', () => {
@@ -125,7 +125,6 @@ describe('pipeNavMutations pipe controls', () => {
     expect(created).toBe(true)
     expect(pipeId).toBe('pipe1')
     expect(next.transformerPipes?.[pipeId]?.name).toBe('Pipe1')
-    expect(next.transformerPipes?.[pipeId]?.defaultParams).toEqual({})
     expect(next.entities[0]?.transformerPipeStack).toEqual([{ pipeId, enabled: true }])
   })
 
@@ -191,12 +190,84 @@ describe('pipeNavMutations pipe controls', () => {
     const e1 = next.entities.find((e) => e.id === 'e1')
     const binding = e1?.transformerPipeStack?.[0]
     expect(binding?.mode).toBe('copy')
-    expect(binding?.localStageIds?.length).toBe(1)
-    expect(binding?.localStageIds?.[0]).not.toBe('s1')
-    expect(e1?.transformers?.[0]).toBe(binding?.localStageIds?.[0])
+    expect(binding?.pipeId).not.toBe('p1')
+    expect(binding?.localStageIds).toBeUndefined()
+    expect(next.transformerPipes?.[binding!.pipeId]?.name).toBe('Shared (copy)')
+    expect(e1?.transformers?.[0]).toMatch(/e1_tf/)
+    expect(e1?.transformers?.[0]).not.toBe('s1')
     const e2 = next.entities.find((e) => e.id === 'e2')
     expect(e2?.transformerPipeStack?.[0]?.mode).toBeUndefined()
     expect(e2?.transformers).toEqual(['s1'])
+  })
+
+  it('addExistingPipeAtFocus links nested pipes by reference', () => {
+    const base: RennWorld = {
+      version: '1',
+      world: {},
+      entities: [{ id: 'e1', transformerPipeStack: [{ pipeId: 'outer' }], transformers: ['s1'] }],
+      transformers: { s1: { type: 'input' } },
+      transformerPipes: {
+        outer: {
+          id: 'outer',
+          name: 'Outer',
+          stageIds: ['s1'],
+          stages: [{ type: 'input' }],
+          members: [{ kind: 'stage', stageId: 's1' }],
+        },
+        donor: {
+          id: 'donor',
+          name: 'Donor',
+          stageIds: ['s2'],
+          stages: [{ type: 'car2' }],
+          members: [{ kind: 'stage', stageId: 's2' }],
+        },
+      },
+    }
+    const { world: next } = addExistingPipeAtFocus(
+      base,
+      'e1',
+      base.transformerPipes!.donor!,
+      'linked',
+      [{ kind: 'stack', index: 0 }],
+    )
+    expect(next.transformerPipes?.outer?.members?.some((m) => m.kind === 'pipe' && m.pipeId === 'donor')).toBe(true)
+    expect(next.transformerPipes?.donor?.id).toBe('donor')
+  })
+
+  it('addExistingPipeAtFocus copies nested pipes into a private manifold', () => {
+    const base: RennWorld = {
+      version: '1',
+      world: {},
+      entities: [{ id: 'e1', transformerPipeStack: [{ pipeId: 'outer' }], transformers: ['s1'] }],
+      transformers: { s1: { type: 'input' }, s2: { type: 'car2' } },
+      transformerPipes: {
+        outer: {
+          id: 'outer',
+          name: 'Outer',
+          stageIds: ['s1'],
+          stages: [{ type: 'input' }],
+          members: [{ kind: 'stage', stageId: 's1' }],
+        },
+        donor: {
+          id: 'donor',
+          name: 'Donor',
+          stageIds: ['s2'],
+          stages: [{ type: 'car2' }],
+          members: [{ kind: 'stage', stageId: 's2' }],
+        },
+      },
+    }
+    const { world: next } = addExistingPipeAtFocus(
+      base,
+      'e1',
+      base.transformerPipes!.donor!,
+      'copy',
+      [{ kind: 'stack', index: 0 }],
+    )
+    const nestedMember = next.transformerPipes?.outer?.members?.find((m) => m.kind === 'pipe')
+    expect(nestedMember?.pipeId).not.toBe('donor')
+    expect(next.transformerPipes?.[nestedMember!.pipeId]?.name).toBe('Donor (copy)')
+    expect(next.transformerPipes?.donor?.stageIds).toEqual(['s2'])
   })
 
   it('deletes a stack binding and syncs flatten cache', () => {

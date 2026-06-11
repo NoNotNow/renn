@@ -4,12 +4,12 @@ import { pipeScopeKeyFromPath } from '@/utils/pipeStageResolve'
 import type { Entity, RennWorld } from '@/types/world'
 import { allocatePipeId, nextFreeDefaultPipeName } from '@/utils/allocatePipeId'
 import {
-  allocateTransformerRegistryId,
   assignPipeToEntity,
+  clonePipeTreeForEntityCopy,
 } from '@/utils/commitTransformerConfigsToWorld'
 import { applyEntityTransformerSync, findUngroupedStageIds, wouldNestCreateCycle } from '@/utils/pipeNavResolve'
 import {
-  collectPipeStageConfigsForCopy,
+  buildInitialBindingParams,
   flattenPipeMembers,
   getEntityPipeStack,
   normalizePipeMembers,
@@ -48,7 +48,6 @@ export function createPipeFromStages(world: RennWorld, opts: CreatePipeOptions):
     stageIds: [...opts.stageIds],
     stages: JSON.parse(JSON.stringify(stages)),
     members: opts.stageIds.map((stageId) => ({ kind: 'stage' as const, stageId })),
-    defaultParams: {},
     createdAt: Date.now(),
   }
 
@@ -57,7 +56,12 @@ export function createPipeFromStages(world: RennWorld, opts: CreatePipeOptions):
     transformerPipes: { ...(world.transformerPipes ?? {}), [pipeId]: newPipe },
   }
 
-  const binding: TransformerPipeBinding = { pipeId, enabled: true }
+  const initialParams = buildInitialBindingParams(newPipe)
+  const binding: TransformerPipeBinding = {
+    pipeId,
+    enabled: true,
+    ...(initialParams ? { params: initialParams } : {}),
+  }
 
   if (opts.placement === 'stack_sibling') {
     const stack = [...getEntityPipeStack(entity)]
@@ -172,11 +176,14 @@ export function wrapUngroupedStagesIntoStackPipe(
     stageIds: [...orphanIds],
     stages: JSON.parse(JSON.stringify(stages)),
     members: orphanIds.map((stageId) => ({ kind: 'stage' as const, stageId })),
-    defaultParams: {},
     createdAt: Date.now(),
   }
 
-  const nextStack = [...stack, { pipeId, enabled: true }]
+  const initialParams = buildInitialBindingParams(newPipe)
+  const nextStack = [
+    ...stack,
+    { pipeId, enabled: true, ...(initialParams ? { params: initialParams } : {}) },
+  ]
   let nextWorld: RennWorld = {
     ...world,
     transformerPipes: { ...(world.transformerPipes ?? {}), [pipeId]: newPipe },
@@ -207,7 +214,6 @@ export function wrapEntityStagesIntoPipe(
     stageIds: [...stageIds],
     stages: JSON.parse(JSON.stringify(stages)),
     members: stageIds.map((id) => ({ kind: 'stage' as const, stageId: id })),
-    defaultParams: {},
     createdAt: Date.now(),
   }
 
@@ -216,6 +222,7 @@ export function wrapEntityStagesIntoPipe(
     transformerPipes: { ...(world.transformerPipes ?? {}), [pipeId]: newPipe },
   }
 
+  const initialParams = buildInitialBindingParams(newPipe)
   if (mode === 'linked') {
     nextWorld = {
       ...nextWorld,
@@ -223,7 +230,9 @@ export function wrapEntityStagesIntoPipe(
         e.id === entityId
           ? {
               ...e,
-              transformerPipeStack: [{ pipeId, enabled: true }],
+              transformerPipeStack: [
+                { pipeId, enabled: true, ...(initialParams ? { params: initialParams } : {}) },
+              ],
               transformerPipe: undefined,
             }
           : e,
@@ -348,22 +357,6 @@ export function updateBindingScopeParams(
   return updateEntityStack(world, entityId, stack)
 }
 
-export function updatePipeDefaultParams(
-  world: RennWorld,
-  pipeId: string,
-  params: Record<string, unknown>,
-): RennWorld {
-  const pipe = world.transformerPipes?.[pipeId]
-  if (!pipe) return world
-  return {
-    ...world,
-    transformerPipes: {
-      ...(world.transformerPipes ?? {}),
-      [pipeId]: { ...pipe, defaultParams: { ...(pipe.defaultParams ?? {}), ...params } },
-    },
-  }
-}
-
 export function setBindingParams(
   world: RennWorld,
   entityId: string,
@@ -396,22 +389,6 @@ export function setBindingScopeParams(
     }
   })
   return updateEntityStack(world, entityId, stack)
-}
-
-export function setPipeDefaultParams(
-  world: RennWorld,
-  pipeId: string,
-  params: Record<string, unknown>,
-): RennWorld {
-  const pipe = world.transformerPipes?.[pipeId]
-  if (!pipe) return world
-  return {
-    ...world,
-    transformerPipes: {
-      ...(world.transformerPipes ?? {}),
-      [pipeId]: { ...pipe, defaultParams: params },
-    },
-  }
 }
 
 /** Stage registry ids contributed by one stack binding (matches runtime flatten order). */
@@ -459,35 +436,21 @@ export function decoupleStackBindingToCopy(
   const sliceIds = stageIdsForStackBinding(world, entity, stackIndex)
   if (sliceIds.length === 0) return world
 
-  const nextTransformers = { ...(world.transformers ?? {}) }
-  const used = new Set(Object.keys(nextTransformers))
+  const cloned = clonePipeTreeForEntityCopy(world, entityId, pipe)
   const idMap = new Map<string, string>()
-  const localStageIds: string[] = []
-
-  const configs = collectPipeStageConfigsForCopy(
-    world.transformerPipes ?? {},
-    nextTransformers,
-    pipe,
-  )
-
+  const clonedFlatIds = cloned.flatStageIds
   for (let i = 0; i < sliceIds.length; i++) {
-    const oldId = sliceIds[i]!
-    const config =
-      nextTransformers[oldId] ?? configs[i] ?? ({ type: 'custom' } as TransformerConfig)
-    const newId = allocateTransformerRegistryId(entityId, nextTransformers, used)
-    used.add(newId)
-    nextTransformers[newId] = JSON.parse(JSON.stringify(config))
-    idMap.set(oldId, newId)
-    localStageIds.push(newId)
+    const newId = clonedFlatIds[i]
+    if (newId) idMap.set(sliceIds[i]!, newId)
   }
 
   const nextEntityTransformers = (entity.transformers ?? []).map((id) => idMap.get(id) ?? id)
-  stack[stackIndex] = { ...binding, mode: 'copy', localStageIds }
+  const { localStageIds: _legacy, ...bindingRest } = binding
+  stack[stackIndex] = { ...bindingRest, pipeId: cloned.rootPipeId, mode: 'copy' }
 
   let nextWorld: RennWorld = {
-    ...world,
-    transformers: nextTransformers,
-    entities: world.entities.map((e) =>
+    ...cloned.world,
+    entities: cloned.world.entities.map((e) =>
       e.id === entityId ? { ...e, transformers: nextEntityTransformers } : e,
     ),
   }
@@ -600,9 +563,16 @@ export function addExistingPipeAtFocus(
 
   const members = [...normalizePipeMembers(world.transformerPipes![parentPipeId]!)]
   const idx = insertIndex ?? members.length
-  members.splice(idx, 0, { kind: 'pipe', pipeId: pipe.id, enabled: true })
+  let nextWorld = world
+  let nestedPipeId = pipe.id
+  if (mode === 'copy') {
+    const cloned = clonePipeTreeForEntityCopy(world, entityId, pipe)
+    nextWorld = cloned.world
+    nestedPipeId = cloned.rootPipeId
+  }
+  members.splice(idx, 0, { kind: 'pipe', pipeId: nestedPipeId, enabled: true })
 
-  let nextWorld = updatePipeMembers(world, parentPipeId, members)
+  nextWorld = updatePipeMembers(nextWorld, parentPipeId, members)
   nextWorld = applyEntityTransformerSync(nextWorld, entityId)
   return {
     world: nextWorld,

@@ -139,6 +139,42 @@ export function resolveDistanceCullingSettings(
   return { ...DEFAULT_DISTANCE_CULLING, ...raw }
 }
 
+/** Linear distance fog (`THREE.Fog`); color defaults to sky color when omitted. */
+export interface FogSettings {
+  color?: Color
+  /** World units where fog begins. Default 10. */
+  near?: number
+  /** World units where fog is fully opaque. Default 200. */
+  far?: number
+}
+
+export const DEFAULT_FOG: Required<FogSettings> = {
+  color: [0.4, 0.6, 0.9],
+  near: 10,
+  far: 200,
+}
+
+/**
+ * `undefined` or `false` → off. Object is merged over defaults; color falls back to `skyColor`.
+ */
+export function resolveFogSettings(
+  raw: false | FogSettings | undefined,
+  skyColor?: Color,
+): FogSettings | null {
+  if (raw === false || raw == null) return null
+  const color =
+    (raw.color?.slice(0, 3) as Vec3 | undefined) ??
+    (skyColor?.slice(0, 3) as Vec3 | undefined) ??
+    DEFAULT_FOG.color
+  let near = raw.near ?? DEFAULT_FOG.near
+  let far = raw.far ?? DEFAULT_FOG.far
+  if (!Number.isFinite(near)) near = DEFAULT_FOG.near
+  if (!Number.isFinite(far)) far = DEFAULT_FOG.far
+  near = Math.max(0, near)
+  far = Math.max(near + 0.01, far)
+  return { color, near, far }
+}
+
 /** Fixed-step bounds: 15 Hz … 240 Hz (seconds per step). */
 export const SIMULATION_FIXED_DT_MIN = 1 / 240
 export const SIMULATION_FIXED_DT_MAX = 1 / 15
@@ -194,6 +230,8 @@ export interface WorldSettings {
   directionalLight?: DirectionalLightConfig
   skyColor?: Color
   skybox?: string
+  /** Linear distance fog. Omitted or `false` = disabled. */
+  fog?: false | FogSettings
   camera?: CameraConfig
   /** Semi-fixed timestep (accumulator); omit for {@link DEFAULT_SIMULATION}. */
   simulation?: SimulationSettings

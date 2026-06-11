@@ -1008,7 +1008,7 @@ export function TransformerHorizontalPipeline({
   renderAddButton,
   externalAddDialog,
   cardDepth,
-  stageEffectiveEnabledById,
+  stageEffectiveEnabledByIndex,
   inline,
   embedStackIndex,
 }: {
@@ -1034,8 +1034,8 @@ export function TransformerHorizontalPipeline({
   externalAddDialog?: boolean
   /** Pipe navigation depth tint for stage cards. */
   cardDepth?: number
-  /** When false, stage is inactive because an ancestor pipe is disabled. */
-  stageEffectiveEnabledById?: Record<string, boolean>
+  /** When false, stage is inactive because an ancestor pipe is disabled (keyed by flat stack index). */
+  stageEffectiveEnabledByIndex?: Record<number, boolean>
   /** Single-card embed inside an ordered pipe member strip (no lead-in, no trailing add slot). */
   inline?: boolean
   /** Original stack index when `inline` renders one embedded card. */
@@ -1289,7 +1289,7 @@ export function TransformerHorizontalPipeline({
               isDragOver={dragState?.dragOverId === item.id && dragState?.draggedId !== item.id}
               cardError={cardErrorsByStackIndex?.[item.originalIndex]}
               cardDepth={cardDepth}
-              ancestorDisabled={stageEffectiveEnabledById?.[item.id] !== false}
+              ancestorDisabled={stageEffectiveEnabledByIndex?.[item.originalIndex] !== false}
             />
           </div>
           {!inline && i < displayItems.length - 1 ? <PipelineConnector /> : null}

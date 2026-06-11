@@ -1,5 +1,6 @@
 import { useRef, useState, type RefObject } from 'react'
 import type { TransformerPipe, TransformerPipeBinding } from '@/types/transformer'
+import type { PipeNavPathSegment } from '@/types/pipeNav'
 import type { RennWorld } from '@/types/world'
 import { countEntitiesLinkingPipe } from '@/utils/commitTransformerConfigsToWorld'
 import PipeConfigDrawer from './PipeConfigDrawer'
@@ -9,6 +10,7 @@ export interface PipeTreePipeControlsProps {
   pipe: TransformerPipe
   world: RennWorld
   binding?: TransformerPipeBinding
+  scopePath?: PipeNavPathSegment[]
   enabled: boolean
   configOpen: boolean
   onConfigOpenChange: (open: boolean) => void
@@ -20,25 +22,22 @@ export interface PipeTreePipeControlsProps {
   onParamChange?: (key: string, value: unknown) => void
   onParamsReplace?: (params: Record<string, unknown>) => void
   onDecoupleBinding?: () => void
-  useSharedDefaults?: boolean
 }
 
 export default function PipeTreePipeControls({
   pipe,
   world,
   binding,
+  scopePath,
   enabled,
   configOpen,
   onConfigOpenChange,
   stackIndex,
-  memberParentPipeId,
-  memberIndex,
   drawerPortalTarget,
   onToggleEnabled,
   onParamChange,
   onParamsReplace,
   onDecoupleBinding,
-  useSharedDefaults = false,
 }: PipeTreePipeControlsProps) {
   const anchorRef = useRef<HTMLSpanElement>(null)
   const [toolsExpanded, setToolsExpanded] = useState(true)
@@ -63,12 +62,12 @@ export default function PipeTreePipeControls({
         <PipeConfigDrawer
           pipe={pipe}
           binding={binding}
+          scopePath={scopePath}
           portalTarget={drawerPortalTarget.current}
           anchorRef={anchorRef}
           onClose={() => onConfigOpenChange(false)}
           onParamChange={onParamChange}
           onParamsReplace={onParamsReplace}
-          sharedDefaults={useSharedDefaults}
         />
       : null}
     </span>

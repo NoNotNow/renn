@@ -7,7 +7,11 @@ import type {
 import type { PipeNavFocus, PipeNavPathSegment, ResolvedPipeNavView, StripItem } from '@/types/pipeNav'
 import type { Entity, RennWorld } from '@/types/world'
 import { getEntityPipeStack, normalizePipeMembers } from '@/utils/transformerPipeResolve'
-import { syncEntityTransformerIdsFromPipeTree } from '@/utils/pipeStageResolve'
+import {
+  flatIndexOffsetForStackBinding,
+  stackIndexFromScopePath,
+  syncEntityTransformerIdsFromPipeTree,
+} from '@/utils/pipeStageResolve'
 
 export function isMemberEnabled(member: TransformerPipeMember): boolean {
   return member.enabled !== false
@@ -229,6 +233,49 @@ function pipeContainsDescendantPipe(
     if (pipeContainsDescendantPipe(registry, member.pipeId, descendantPipeId, visited)) return true
   }
   return false
+}
+
+/**
+ * Flat index in `entity.transformers` / runtime `configStackIndex` for the current pipe-nav
+ * selection. Duplicate linked pipes share registry stage ids — path + local stage index disambiguate.
+ */
+export function resolveSelectedFlatStackIndex(
+  world: RennWorld,
+  entity: Entity,
+  focus: PipeNavFocus,
+  view: ResolvedPipeNavView | null,
+  selectedStageId: string | null,
+): number {
+  if (!view) {
+    if (!selectedStageId) return 0
+    const idx = (entity.transformers ?? []).indexOf(selectedStageId)
+    return idx >= 0 ? idx : 0
+  }
+
+  if (view.mode === 'entity_stages') {
+    if (!selectedStageId) return 0
+    const idx = (entity.transformers ?? []).indexOf(selectedStageId)
+    return idx >= 0 ? idx : 0
+  }
+
+  if (view.mode === 'pipe_siblings') {
+    const stackIdx = Math.max(0, Math.min(focus.selectedSiblingIndex, view.siblingCount - 1))
+    return flatIndexOffsetForStackBinding(world, entity, stackIdx)
+  }
+
+  const stackIdx = stackIndexFromScopePath(focus.path)
+  if (stackIdx === undefined) return 0
+
+  const stageItems = view.items.filter((item) => item.kind === 'stage')
+  let localIdx = 0
+  if (selectedStageId) {
+    const match = stageItems.findIndex((item) => item.stageId === selectedStageId)
+    if (match >= 0) localIdx = match
+  } else if (stageItems.length > 0) {
+    localIdx = Math.max(0, Math.min(focus.selectedSiblingIndex, stageItems.length - 1))
+  }
+
+  return flatIndexOffsetForStackBinding(world, entity, stackIdx) + localIdx
 }
 
 /** Stage ids on entity.transformers not accounted for by the pipe stack flatten. */

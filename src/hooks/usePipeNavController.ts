@@ -14,10 +14,8 @@ import {
   toggleMemberEnabled,
   updateBindingParams,
   updateBindingScopeParams,
-  updatePipeDefaultParams,
   setBindingParams,
   setBindingScopeParams,
-  setPipeDefaultParams,
   decoupleStackBindingToCopy,
   ensureEntityPipeStack,
   reorderStackBindings,
@@ -59,7 +57,6 @@ type PipeParamEditOpts = {
   key?: string
   value?: unknown
   params?: Record<string, unknown>
-  useSharedDefaults?: boolean
 }
 
 function applyPipeParamWorldUpdate(
@@ -68,16 +65,14 @@ function applyPipeParamWorldUpdate(
   opts: PipeParamEditOpts,
   mode: 'merge' | 'replace',
 ): RennWorld {
+  const stackIndex = opts.stackIndex
+  if (stackIndex === undefined || stackIndex < 0) return world
+
   const params =
     opts.params ??
     (opts.key !== undefined ? { [opts.key]: opts.value } : {})
-  if (opts.useSharedDefaults || opts.stackIndex === undefined || opts.stackIndex < 0) {
-    return mode === 'replace'
-      ? setPipeDefaultParams(world, opts.pipeId, params)
-      : updatePipeDefaultParams(world, opts.pipeId, params)
-  }
 
-  const scopePath = opts.scopePath ?? [{ kind: 'stack' as const, index: opts.stackIndex }]
+  const scopePath = opts.scopePath ?? [{ kind: 'stack' as const, index: stackIndex }]
   if (isStackRootScopePath(scopePath)) {
     return mode === 'replace'
       ? setBindingParams(world, entityId, opts.stackIndex, params)
@@ -165,9 +160,7 @@ export function usePipeNavController(
     (nextWorld: RennWorld, opts: PipeParamEditOpts) => {
       if (!onMergedParamSync) return
       const entityIds = entityIdsAffectedByPipeParamChange(nextWorld, {
-        pipeId: opts.pipeId,
-        entityId: opts.useSharedDefaults ? undefined : entity.id,
-        sharedDefaults: opts.useSharedDefaults,
+        entityId: entity.id,
       })
       if (entityIds.length > 0) onMergedParamSync(nextWorld, entityIds)
     },
@@ -306,7 +299,6 @@ export function usePipeNavController(
       scopePath?: PipeNavPathSegment[]
       key: string
       value: unknown
-      useSharedDefaults?: boolean
     }) => {
       commitPipeParamEdit(opts, 'merge')
     },
@@ -319,7 +311,6 @@ export function usePipeNavController(
       stackIndex?: number
       scopePath?: PipeNavPathSegment[]
       params: Record<string, unknown>
-      useSharedDefaults?: boolean
     }) => {
       commitPipeParamEdit(opts, 'replace')
     },

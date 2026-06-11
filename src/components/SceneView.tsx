@@ -15,11 +15,13 @@ import type { DisposableAssetResolver } from '@/loader/assetResolverImpl'
 import {
   DEFAULT_GRAVITY,
   DEFAULT_ROTATION,
+  resolveFogSettings,
   resolveSimulationSettings,
   resolvedLogarithmicDepthBuffer,
   resolvedPixelRatio,
   resolvedShadowsEnabled,
 } from '@/types/world'
+import { applySceneFog } from '@/utils/sceneFog'
 import { eulerToQuaternion } from '@/utils/rotationUtils'
 import type { LoadedEntity } from '@/loader/loadWorld'
 import { CameraController } from '@/camera/cameraController'
@@ -1264,6 +1266,12 @@ function SceneViewInner({
       scene.background = new THREE.Color(r, g, b)
     }
   }, [world.world.skyColor, scene])
+
+  // Update fog when it changes (without full reload)
+  useEffect(() => {
+    if (!scene) return
+    applySceneFog(scene, resolveFogSettings(world.world.fog, world.world.skyColor))
+  }, [world.world.fog, world.world.skyColor, scene])
 
   const allowInternalFsChromePointer = fullscreen.supported && !fullscreen.useExternalChrome
   return (

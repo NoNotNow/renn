@@ -23,6 +23,26 @@ export function nextFreeDefaultPipeName(
   return `Pipe${max + 1}`
 }
 
+/** Next display name when copying an existing pipe (e.g. "Car (copy)", "Car 2"). */
+export function nextCopyPipeName(
+  sourceName: string,
+  pipes: Record<string, { name?: string }> | undefined,
+): string {
+  const trimmed = sourceName.trim() || 'Pipe'
+  const copyLabel = `${trimmed} (copy)`
+  const takenNames = new Set(
+    Object.values(pipes ?? {})
+      .map((p) => p.name?.trim() ?? '')
+      .filter(Boolean),
+  )
+  if (!takenNames.has(copyLabel)) return copyLabel
+  for (let i = 2; i < 10_000; i++) {
+    const candidate = `${trimmed} ${i}`
+    if (!takenNames.has(candidate)) return candidate
+  }
+  return `${trimmed} (copy) ${Date.now()}`
+}
+
 /** Allocate a unique pipe id from a display name. */
 export function allocatePipeId(name: string, taken: Set<string> | Record<string, unknown>): string {
   const used = taken instanceof Set ? taken : new Set(Object.keys(taken))

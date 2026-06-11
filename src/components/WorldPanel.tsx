@@ -7,6 +7,7 @@ import WorldGravitySection from './world/WorldGravitySection'
 import WorldSleepSection from './world/WorldSleepSection'
 import WorldDistanceCullingSection from './world/WorldDistanceCullingSection'
 import WorldSkySection from './world/WorldSkySection'
+import WorldFogSection from './world/WorldFogSection'
 import WorldLightSection from './world/WorldLightSection'
 import WorldGroundSection from './world/WorldGroundSection'
 
@@ -32,6 +33,7 @@ export default function WorldPanel({ world, onWorldChange }: WorldPanelProps) {
         <WorldSleepSection world={world} edits={edits} />
         <WorldDistanceCullingSection world={world} edits={edits} />
         <WorldSkySection world={world} onWorldChange={onWorldChange} edits={edits} />
+        <WorldFogSection world={world} edits={edits} />
         <WorldLightSection world={world} edits={edits} />
         <WorldGroundSection world={world} onWorldChange={onWorldChange} edits={edits} />
       </CopyableArea>

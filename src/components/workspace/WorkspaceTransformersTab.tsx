@@ -31,7 +31,11 @@ import {
   mapTransformerRegistryIdsToEntity,
 } from '@/utils/commitTransformerConfigsToWorld'
 import { usePipeNavController } from '@/hooks/usePipeNavController'
-import { findUngroupedStageIds } from '@/utils/pipeNavResolve'
+import { findUngroupedStageIds, resolveSelectedFlatStackIndex } from '@/utils/pipeNavResolve'
+import {
+  flatIndexOffsetForStackBinding,
+  stackIndexFromScopePath,
+} from '@/utils/pipeStageResolve'
 import { wrapUngroupedStagesIntoStackPipe } from '@/utils/pipeNavMutations'
 import { nextFreeDefaultPipeName } from '@/utils/allocatePipeId'
 import TransformerPipeNavSidebar, {
@@ -401,13 +405,37 @@ function WorkspaceTransformersTabEntity({
   const editorStageConfigs =
     usePipeNav && pipeNav.view?.mode !== 'pipe_siblings' ? pipeNav.stageData.configs : list
 
-  const selectedSortedIndex = useMemo(() => {
+  /** Index within the focused editor stage list (`editorStageConfigs`). */
+  const selectedEditorIndex = useMemo(() => {
     if (!selectedId) return 0
     const idx = editorStageIds.indexOf(selectedId)
-    return idx >= 0 ? idx : 0
-  }, [selectedId, editorStageIds])
+    if (idx >= 0) return idx
+    if (usePipeNav && pipeNav.view?.mode === 'pipe_members') {
+      const stageCount = pipeNav.view.items.filter((item) => item.kind === 'stage').length
+      return stageCount > 0
+        ? Math.max(0, Math.min(pipeNav.focus.selectedSiblingIndex, stageCount - 1))
+        : 0
+    }
+    return 0
+  }, [selectedId, editorStageIds, usePipeNav, pipeNav.view, pipeNav.focus.selectedSiblingIndex])
 
-  const selectedConfig = editorStageConfigs[selectedSortedIndex] ?? null
+  /** Flat index in `entity.transformers` / runtime `configStackIndex` (disambiguates duplicate linked pipes). */
+  const selectedFlatStackIndex = useMemo(() => {
+    if (usePipeNav && singleEntity && pipeNav.view) {
+      return resolveSelectedFlatStackIndex(world, singleEntity, pipeNav.focus, pipeNav.view, selectedId)
+    }
+    return selectedEditorIndex
+  }, [
+    usePipeNav,
+    singleEntity,
+    world,
+    pipeNav.focus,
+    pipeNav.view,
+    selectedId,
+    selectedEditorIndex,
+  ])
+
+  const selectedConfig = editorStageConfigs[selectedEditorIndex] ?? null
   const selectedPreset = selectedConfig && isPresetTransformerType(selectedConfig.type) ? selectedConfig : null
 
   const ungroupedStageIds = useMemo(() => {
@@ -431,11 +459,11 @@ function WorkspaceTransformersTabEntity({
 
   const runtimeSnapshot = useMemo(() => {
     for (const entityId of selectedEntityIds) {
-      const err = runtimeErrorsByTarget.get(runtimeErrorTargetKey(entityId, selectedSortedIndex))
+      const err = runtimeErrorsByTarget.get(runtimeErrorTargetKey(entityId, selectedFlatStackIndex))
       if (err) return err
     }
     return null
-  }, [runtimeErrorsByTarget, selectedEntityIds, selectedSortedIndex])
+  }, [runtimeErrorsByTarget, selectedEntityIds, selectedFlatStackIndex])
 
   const lastErrorRef = useRef<{ message: string; stack?: string; code: string; lineNumber?: number } | null>(null)
   const runtimeErrorForSelection = useMemo(() => {
@@ -445,7 +473,7 @@ function WorkspaceTransformersTabEntity({
     }
     const isForSelection =
       selectedEntityIds.includes(runtimeSnapshot.entityId) &&
-      runtimeSnapshot.configStackIndex === selectedSortedIndex
+      runtimeSnapshot.configStackIndex === selectedFlatStackIndex
     if (!isForSelection) {
       lastErrorRef.current = null
       return null
@@ -470,7 +498,7 @@ function WorkspaceTransformersTabEntity({
 
     lastErrorRef.current = next
     return next
-  }, [runtimeSnapshot, selectedEntityIds, selectedSortedIndex])
+  }, [runtimeSnapshot, selectedEntityIds, selectedFlatStackIndex])
 
   // Display state: keep the last runtime error visible for a short grace period even after
   // the runtime source clears. Show an "active" window briefly, then dim (80% opacity)
@@ -574,12 +602,20 @@ function WorkspaceTransformersTabEntity({
   const displayedCompileError = useDebouncedCompileErrorDisplay(compileError, codeColumnRef)
 
   const cardErrorsByStackIndex = useMemo(() => {
+    const configsForCards =
+      usePipeNav && pipeNav.view?.mode !== 'pipe_siblings' ? editorStageConfigs : list
+    const stackIdx =
+      usePipeNav && singleEntity ? stackIndexFromScopePath(pipeNav.focus.path) : undefined
+    const flatBase =
+      singleEntity && stackIdx !== undefined
+        ? flatIndexOffsetForStackBinding(world, singleEntity, stackIdx)
+        : 0
     const errors: Record<number, TransformerCardErrorKind> = {}
-    for (let i = 0; i < list.length; i++) {
-      const config = list[i]
+    for (let i = 0; i < configsForCards.length; i++) {
+      const config = configsForCards[i]
       if (config?.type !== 'custom') continue
       const source =
-        i === selectedSortedIndex ?
+        i === selectedEditorIndex ?
           codeDraft || effectiveCustomTransformerCode(config)
         : effectiveCustomTransformerCode(config)
       const key = `custom:p${config.priority ?? 10}`
@@ -587,17 +623,31 @@ function WorkspaceTransformersTabEntity({
         errors[i] = 'compile'
       }
     }
-    for (let i = 0; i < list.length; i++) {
+    for (let i = 0; i < configsForCards.length; i++) {
       if (errors[i] === 'compile') continue
+      const flatIdx =
+        usePipeNav && singleEntity && pipeNav.view?.mode !== 'pipe_siblings' ? flatBase + i : i
       for (const entityId of selectedEntityIds) {
-        if (runtimeErrorsByTarget.has(runtimeErrorTargetKey(entityId, i))) {
+        if (runtimeErrorsByTarget.has(runtimeErrorTargetKey(entityId, flatIdx))) {
           errors[i] = 'runtime'
           break
         }
       }
     }
     return errors
-  }, [list, selectedSortedIndex, codeDraft, runtimeErrorsByTarget, selectedEntityIds])
+  }, [
+    usePipeNav,
+    singleEntity,
+    world,
+    pipeNav.focus.path,
+    pipeNav.view?.mode,
+    editorStageConfigs,
+    list,
+    selectedEditorIndex,
+    codeDraft,
+    runtimeErrorsByTarget,
+    selectedEntityIds,
+  ])
 
   const syncCodeKey =
     selectedConfig?.type === 'custom'
@@ -808,7 +858,7 @@ function WorkspaceTransformersTabEntity({
       watchOpen && watchAvailable && watchPortalTarget ?
         <TransformerWatchPanel
           entityId={selectedEntityIds[0]!}
-          configStackIndex={selectedSortedIndex}
+          configStackIndex={selectedFlatStackIndex}
           portalTarget={watchPortalTarget}
           onClose={() => setWatchOpen(false)}
         />
@@ -824,7 +874,7 @@ function WorkspaceTransformersTabEntity({
     watchOpen,
     watchPortalTarget,
     selectedEntityIds[0],
-    selectedSortedIndex,
+    selectedFlatStackIndex,
     selectedId,
     monacoEditorAreaEpoch,
     floatingDrawerPortalEpoch,
@@ -1219,7 +1269,7 @@ function WorkspaceTransformersTabEntity({
           transformerType={selectedPreset.type as PresetTransformerType}
           currentConfig={selectedPreset}
           onLoadTemplate={(config) => {
-            const next = list.map((t, i) => (i === selectedSortedIndex ? config : t))
+            const next = list.map((t, i) => (i === selectedEditorIndex ? config : t))
             handleCommitStacks(sortAndSyncPriorities(next))
             setTemplateDialogOpen(false)
           }}

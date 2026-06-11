@@ -12,7 +12,7 @@ import type { RennWorld, Entity } from '@/types/world'
  * omit `enabled` — that flag is synced live via RenderItemRegistry.syncEntityTransformers.
  * Excludes: entity name, locked, position, rotation, scale, modelRotation, modelScale,
  * doubleSided GLTF shading, bodyType, mass, restitution, friction, linearDamping, angularDamping, primitive
- * shape dimensions, material; world.world gravity, skyColor, skybox, camera.
+ * shape dimensions, material; world.world gravity, skyColor, skybox, fog, camera.
  * Scale is applied incrementally via SceneView.updateEntityPose → RenderItemRegistry.setScale.
  * modelRotation and modelScale are applied incrementally via updateEntityModelTransform.
  */

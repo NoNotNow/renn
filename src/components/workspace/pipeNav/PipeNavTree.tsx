@@ -39,14 +39,12 @@ export interface PipeNavTreeProps {
     scopePath?: PipeNavPathSegment[]
     key: string
     value: unknown
-    useSharedDefaults?: boolean
   }) => void
   onPipeParamsReplace?: (opts: {
     pipeId: string
     stackIndex?: number
     scopePath?: PipeNavPathSegment[]
     params: Record<string, unknown>
-    useSharedDefaults?: boolean
   }) => void
   onDecouplePipeBinding?: (stackIndex: number) => void
 }
@@ -192,7 +190,7 @@ export default function PipeNavTree({
                     memberParentPipeId={parentPipeId}
                     memberIndex={memberIndex}
                     drawerPortalTarget={drawerPortalTarget}
-                    useSharedDefaults={stackIdx === undefined || stackIdx < 0}
+                    scopePath={nodePath}
                     onToggleEnabled={() =>
                       onPipeControlToggle?.({
                         pipeId: member.pipeId,
@@ -208,7 +206,6 @@ export default function PipeNavTree({
                         scopePath: nodePath,
                         key: paramKey,
                         value,
-                        useSharedDefaults: stackIdx === undefined || stackIdx < 0,
                       })
                     }
                     onParamsReplace={(params) =>
@@ -217,7 +214,6 @@ export default function PipeNavTree({
                         stackIndex: stackIdx,
                         scopePath: nodePath,
                         params,
-                        useSharedDefaults: stackIdx === undefined || stackIdx < 0,
                       })
                     }
                     onDecoupleBinding={
@@ -320,7 +316,7 @@ export default function PipeNavTree({
                 onHover={(h) => setHoveredId(h ? key : null)}
                 onClick={() => {
                   toggleExpand(expandKey)
-                  onSelectPath(path, stackIndex)
+                  onSelectPath(path, 0)
                 }}
                 onDelete={onDeleteNode ? () => onDeleteNode(node) : undefined}
                 onMenu={() => setOpenMenuKey(key)}
@@ -500,7 +496,7 @@ function TreeRow({
           : null}
           {canEditConfig && onEditConfig ?
             <MenuItem
-              label="Edit config"
+              label="Edit params"
               onClick={() => {
                 onEditConfig()
                 onCloseMenu?.()

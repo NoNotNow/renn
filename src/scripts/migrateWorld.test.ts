@@ -7,6 +7,7 @@ import {
   migrateWorldRingShapesToCylinder,
   migrateEntityTransformersToRegistry,
   migrateTransformerPipeToStack,
+  migrateTransformerPipeDefaultParams,
 } from './migrateWorld'
 
 describe('migrateWorldScripts', () => {
@@ -287,6 +288,24 @@ describe('migrateEntityTransformersToRegistry', () => {
     expect(registry['b_tf0']).toEqual({ type: 'car2' })
     expect(world.entities[0].transformers).toEqual(['a_tf0'])
     expect(world.entities[1].transformers).toEqual(['b_tf0'])
+  })
+})
+
+describe('migrateTransformerPipeDefaultParams', () => {
+  it('moves defaultParams into binding.params and strips pipe defaults', () => {
+    const world = {
+      entities: [
+        { id: 'e1', transformerPipeStack: [{ pipeId: 'p1' }] },
+        { id: 'e2', transformerPipeStack: [{ pipeId: 'p1', params: { speed: 9 } }] },
+      ],
+      transformerPipes: {
+        p1: { id: 'p1', defaultParams: { speed: 1, height: 2 } },
+      },
+    }
+    migrateTransformerPipeDefaultParams(world)
+    expect(world.entities[0].transformerPipeStack[0].params).toEqual({ speed: 1, height: 2 })
+    expect(world.entities[1].transformerPipeStack[0].params).toEqual({ speed: 9 })
+    expect(world.transformerPipes.p1.defaultParams).toBeUndefined()
   })
 })
 

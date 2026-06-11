@@ -9,18 +9,7 @@ export interface PipeParamsJsonEditorProps {
   pipe: TransformerPipe
   binding?: TransformerPipeBinding
   scopePath?: PipeNavPathSegment[]
-  sharedDefaults?: boolean
   onParamsReplace?: (params: Record<string, unknown>) => void
-}
-
-function paramsJsonValue(
-  pipe: TransformerPipe,
-  binding: TransformerPipeBinding | undefined,
-  scopePath: PipeNavPathSegment[] | undefined,
-  sharedDefaults: boolean,
-): string {
-  const params = resolveEditableScopeParams(binding, pipe, scopePath, sharedDefaults)
-  return JSON.stringify(params, null, 2)
 }
 
 function validateParamsObject(parsed: unknown): { ok: true } | { ok: false; error: string } {
@@ -34,20 +23,17 @@ export default function PipeParamsJsonEditor({
   pipe,
   binding,
   scopePath,
-  sharedDefaults = false,
   onParamsReplace,
 }: PipeParamsJsonEditorProps) {
   const jsonValue = useMemo(
-    () => paramsJsonValue(pipe, binding, scopePath, sharedDefaults),
-    [pipe, binding, scopePath, sharedDefaults],
+    () => JSON.stringify(resolveEditableScopeParams(binding, pipe, scopePath), null, 2),
+    [pipe, binding, scopePath],
   )
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       <p style={{ margin: 0, fontSize: 11, color: theme.text.muted, lineHeight: 1.4 }}>
-        {sharedDefaults ?
-          'Shared pipe defaults (JSON). Add keys here; define paramDefs later for typed fields.'
-        : 'Pipe configuration (JSON). Merged with shared defaults at runtime.'}
+        Pipe params (JSON) for this entity. Define paramDefs on the pipe for typed fields.
       </p>
       <ValidatedJsonTextarea
         value={jsonValue}

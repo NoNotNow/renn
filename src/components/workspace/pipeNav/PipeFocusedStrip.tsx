@@ -17,6 +17,7 @@ import { isPipeNavLeafLevel } from '@/utils/pipeNavResolve'
 import { getEntityPipeStack, normalizePipeMembers } from '@/utils/transformerPipeResolve'
 import {
   buildEntityStageRuntimeContext,
+  flatIndexOffsetForStackBinding,
   pipeScopeKeyFromPath,
   stackIndexFromScopePath,
 } from '@/utils/pipeStageResolve'
@@ -53,14 +54,12 @@ export interface PipeFocusedStripProps {
     scopePath?: PipeNavPathSegment[]
     key: string
     value: unknown
-    useSharedDefaults?: boolean
   }) => void
   onPipeParamsReplace?: (opts: {
     pipeId: string
     stackIndex?: number
     scopePath?: PipeNavPathSegment[]
     params: Record<string, unknown>
-    useSharedDefaults?: boolean
   }) => void
   onDecouplePipeBinding?: (stackIndex: number) => void
   onMakeUnique?: (id: string) => void
@@ -257,7 +256,6 @@ export default function PipeFocusedStrip({
                       scopePath,
                       key,
                       value,
-                      useSharedDefaults: stackIdxForScope === undefined || stackIdxForScope < 0,
                     })
                   }
                   onParamsReplace={(params) =>
@@ -266,7 +264,6 @@ export default function PipeFocusedStrip({
                       stackIndex: stackIdxForScope,
                       scopePath,
                       params,
-                      useSharedDefaults: stackIdxForScope === undefined || stackIdxForScope < 0,
                     })
                   }
                   onDecoupleBinding={
@@ -274,7 +271,6 @@ export default function PipeFocusedStrip({
                       () => onDecouplePipeBinding?.(stackIdx)
                     : undefined
                   }
-                  useSharedDefaults={stackIdx === undefined || stackIdx < 0}
                 />
               </Fragment>
             )
@@ -325,8 +321,12 @@ export default function PipeFocusedStrip({
             selectedId={selectedStageId}
             cardErrorsByStackIndex={cardErrorsByStackIndex}
             cardDepth={depth}
-            stageEffectiveEnabledById={Object.fromEntries(
-              stageIds.map((id) => [id, stageRuntime.stageContext.get(id)?.effectivelyEnabled !== false]),
+            stageEffectiveEnabledByIndex={Object.fromEntries(
+              stageIds.map((id, i) => {
+                const stackIdx = stackIndexFromScopePath(focusPath) ?? 0
+                const flatIndex = flatIndexOffsetForStackBinding(world, entity, stackIdx) + i
+                return [flatIndex, stageRuntime.stageContext.get(flatIndex)?.effectivelyEnabled !== false]
+              }),
             )}
             externalAddDialog
             renderAddButton={() => renderPlusButton()}
@@ -382,7 +382,6 @@ export default function PipeFocusedStrip({
               scopePath: memberScopePath,
               key,
               value,
-              useSharedDefaults: stackIdx === undefined || stackIdx < 0,
             })
           }
           onParamsReplace={(params) =>
@@ -391,7 +390,6 @@ export default function PipeFocusedStrip({
               stackIndex: stackIdx,
               scopePath: memberScopePath,
               params,
-              useSharedDefaults: stackIdx === undefined || stackIdx < 0,
             })
           }
           onDecoupleBinding={
@@ -399,14 +397,13 @@ export default function PipeFocusedStrip({
               () => onDecouplePipeBinding?.(stackIdx)
             : undefined
           }
-          useSharedDefaults={stackIdx === undefined || stackIdx < 0}
         />
       )
     }
 
     const renderStageCard = (item: Extract<StripItem, { kind: 'stage' }>) => {
-      const stageIdx = stageIds.indexOf(item.stageId)
-      if (stageIdx < 0) return null
+      const stageIdx = item.index
+      if (stageIdx < 0 || stageIdx >= stageIds.length) return null
       const cfg = stageConfigs[stageIdx]
       if (!cfg) return null
       return (

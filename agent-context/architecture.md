@@ -116,6 +116,7 @@ renn/
 │   │   │   ├── WorldSleepSection.tsx        # Sleep thresholds + Set recommended
 │   │   │   ├── WorldDistanceCullingSection.tsx # Enable/disable + max distance + min size ratio + sleep-culled
 │   │   │   ├── WorldSkySection.tsx          # Sky color + dome texture (`world.skybox`)
+│   │   │   ├── WorldFogSection.tsx          # Linear distance fog (`world.fog`)
 │   │   │   ├── WorldLightSection.tsx        # Directional (azimuth/elevation/color/intensity) + ambient color
 │   │   │   └── WorldGroundSection.tsx       # First-plane entity color, material, friction, scale (via patchFirstPlaneEntity)
 │   │   ├── SoundPanel.tsx    # Sound tab: background audio asset (`world.sound.assetId`), volume, loop, autoplay, manual play/stop

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { allocatePipeId, nextFreeDefaultPipeName, slugifyPipeName } from './allocatePipeId'
+import { allocatePipeId, nextCopyPipeName, nextFreeDefaultPipeName, slugifyPipeName } from './allocatePipeId'
 
 describe('allocatePipeId', () => {
   it('slugifies display names', () => {
@@ -9,6 +9,16 @@ describe('allocatePipeId', () => {
   it('dedupes taken ids', () => {
     const taken = new Set(['follower_car'])
     expect(allocatePipeId('Follower Car', taken)).toBe('follower_car_2')
+  })
+})
+
+describe('nextCopyPipeName', () => {
+  it('appends (copy) when unused', () => {
+    expect(nextCopyPipeName('Car', {})).toBe('Car (copy)')
+  })
+
+  it('increments when copy label is taken', () => {
+    expect(nextCopyPipeName('Car', { a: { name: 'Car (copy)' } })).toBe('Car 2')
   })
 })
 

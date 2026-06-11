@@ -54,15 +54,15 @@ export interface TransformerPipeNavSidebarProps {
   onPipeParamChange?: (opts: {
     pipeId: string
     stackIndex?: number
+    scopePath?: PipeNavPathSegment[]
     key: string
     value: unknown
-    useSharedDefaults?: boolean
   }) => void
   onPipeParamsReplace?: (opts: {
     pipeId: string
     stackIndex?: number
+    scopePath?: PipeNavPathSegment[]
     params: Record<string, unknown>
-    useSharedDefaults?: boolean
   }) => void
   onDecouplePipeBinding?: (stackIndex: number) => void
 }

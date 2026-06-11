@@ -12,6 +12,7 @@ import {
   migrateWorldRingShapesToCylinder,
   migrateEntityTransformersToRegistry,
   migrateTransformerPipeToStack,
+  migrateTransformerPipeDefaultParams,
 } from '@/scripts/migrateWorld'
 
 const ASSET_EXTS = [
@@ -103,6 +104,7 @@ export async function loadWorldFromStatic(
     migrateCustomTransformerNames(raw)
     migrateEntityTransformersToRegistry(raw)
     migrateTransformerPipeToStack(raw)
+    migrateTransformerPipeDefaultParams(raw)
     const simplificationWarnings: string[] = []
     migrateWorldSimplificationFields(raw, simplificationWarnings)
     migrateWorldRingShapesToCylinder(raw, simplificationWarnings)

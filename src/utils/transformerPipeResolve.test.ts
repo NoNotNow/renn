@@ -2,12 +2,13 @@ import { describe, it, expect } from 'vitest'
 import type { TransformerPipe } from '@/types/transformer'
 import type { Entity } from '@/types/world'
 import {
+  buildInitialBindingParams,
   flattenPipeStageIds,
   getEntityPipeStack,
   normalizePipeMembers,
   collectPipeStageConfigsForCopy,
+  resolvePipeBindingParams,
   TransformerPipeCycleError,
-  resolveEntityPipeParamsByPipeId,
 } from './transformerPipeResolve'
 
 describe('transformerPipeResolve', () => {
@@ -94,25 +95,21 @@ describe('transformerPipeResolve', () => {
     expect(configs[1]?.type).toBe('input')
   })
 
-  it('merges pipe params by pipe id', () => {
-    const pipeWithDefaults: TransformerPipe = {
+  it('returns binding params only (no shared defaults)', () => {
+    expect(resolvePipeBindingParams({ pipeId: 'p-flat', params: { speed: 3 } })).toEqual({ speed: 3 })
+    expect(resolvePipeBindingParams({ pipeId: 'p-flat' })).toEqual({})
+  })
+
+  it('builds initial binding params from paramDefs defaults', () => {
+    const pipe: TransformerPipe = {
       ...flatPipe,
-      defaultParams: { speed: 1 },
-      paramDefs: [{ key: 'speed', type: 'number' }],
-    }
-    const world = {
-      version: '1',
-      world: {},
-      entities: [
-        {
-          id: 'e1',
-          transformerPipeStack: [{ pipeId: 'p-flat', params: { speed: 3 } }],
-        },
+      paramDefs: [
+        { key: 'speed', type: 'number', default: 5 },
+        { key: 'boost', type: 'boolean', default: true },
       ],
-      transformerPipes: { 'p-flat': pipeWithDefaults },
     }
-    expect(resolveEntityPipeParamsByPipeId(world, world.entities[0]!)).toEqual({
-      'p-flat': { speed: 3 },
-    })
+    expect(buildInitialBindingParams(pipe)).toEqual({ speed: 5, boost: true })
+    expect(buildInitialBindingParams(pipe, { speed: 9 })).toEqual({ speed: 9, boost: true })
+    expect(buildInitialBindingParams({ ...flatPipe, paramDefs: [] })).toBeUndefined()
   })
 })

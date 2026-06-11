@@ -135,4 +135,32 @@ describe('loadWorld', () => {
     expect(shadowCam.top).toBeCloseTo(expectedExtent)
     expect(shadowCam.bottom).toBeCloseTo(-expectedExtent)
   })
+
+  it('applies linear fog when world.world.fog is set', async () => {
+    const world: RennWorld = {
+      version: '1.0',
+      world: {
+        gravity: [0, -9.81, 0],
+        skyColor: [0.5, 0.5, 0.5],
+        fog: { color: [0.1, 0.2, 0.3], near: 15, far: 120 },
+      },
+      entities: [createDefaultEntity('box')],
+    }
+    const { scene } = await loadWorld(world)
+    expect(scene.fog).toBeInstanceOf(THREE.Fog)
+    const fog = scene.fog as THREE.Fog
+    expect(fog.near).toBe(15)
+    expect(fog.far).toBe(120)
+    expect(fog.color.r).toBeCloseTo(0.1)
+  })
+
+  it('leaves fog disabled when world.world.fog is omitted', async () => {
+    const world: RennWorld = {
+      version: '1.0',
+      world: { gravity: [0, -9.81, 0] },
+      entities: [createDefaultEntity('box')],
+    }
+    const { scene } = await loadWorld(world)
+    expect(scene.fog).toBeNull()
+  })
 })

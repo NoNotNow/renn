@@ -103,7 +103,7 @@ Defined in [src/utils/sceneDependencyKey.ts](src/utils/sceneDependencyKey.ts). T
 **Excluded (change does not trigger rebuild):**
 
 - **Per entity**: `name`, `locked`, `position`, `rotation`, `scale`, `modelRotation`, `modelScale`, `doubleSided`, `bodyType`, `mass`, `restitution`, `friction`, `linearDamping`, `angularDamping`, primitive shape dimensions, `material`, `transformers` (structure, order, code, params, enabled).
-- **World**: `world.gravity`, `world.skyColor`, `world.skybox`, `world.camera` (these are applied by dedicated effects in SceneView).
+- **World**: `world.gravity`, `world.skyColor`, `world.skybox`, `world.fog`, `world.camera` (these are applied by dedicated effects in SceneView).
 
 Entity add/remove changes the entity list, so the key changes and a rebuild runs.
 
@@ -134,6 +134,7 @@ Use this to answer "does changing this property rebuild the scene?"
 | **entity.transformers** | Incremental | `onEntityTransformersChange` → `syncEntityTransformers`; all structural/config changes handled live; not in rebuild key. |
 | **world.gravity** | Incremental | Dedicated effect: `pw.setGravity(gravity)`. |
 | **world.skyColor** | Incremental | Dedicated effect: `scene.background`. |
+| **world.fog** | Incremental | Dedicated effect: `THREE.Fog` via `applySceneFog`. |
 | **world.skybox** | Incremental | Dedicated effect: sky dome mesh + texture from project assets (`world.world.skybox` = texture asset id). |
 | **world.camera** (config) | Incremental | Dedicated effect: `cameraCtrl.setConfig`. |
 | **Shadows enabled** | Incremental | Effect toggles renderer and directional light. |

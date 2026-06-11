@@ -7,6 +7,7 @@ import type {
 import type { PipeNavPathSegment } from '@/types/pipeNav'
 import type { Entity, RennWorld } from '@/types/world'
 import {
+  flattenPipeMembers,
   getEntityPipeStack,
   normalizePipeMembers,
   resolvePipeBindingParams,
@@ -26,13 +27,13 @@ export function isStackRootScopePath(path: PipeNavPathSegment[]): boolean {
 }
 
 export type StageRuntimeContext = {
-  /** Merged pipe params + stage params (narrower scope wins). */
+  /** Merged pipe params + stage params (parent binding wins on key collision). */
   mergedParams: Record<string, unknown>
   /** False when any ancestor pipe scope or the stage member is disabled. */
   effectivelyEnabled: boolean
 }
 
-/** Merge param layers outside-in; later layers override earlier keys, earlier fill gaps. */
+/** Merge param layers; later layers override earlier keys, earlier fill gaps. */
 export function mergePipeParamLayers(layers: Record<string, unknown>[]): Record<string, unknown> {
   const out: Record<string, unknown> = {}
   for (const layer of layers) {
@@ -53,20 +54,18 @@ export function pipeScopeKeyFromPath(path: PipeNavPathSegment[]): string {
     .join('/')
 }
 
-/** Params shown/edited in the pipe config UI for one nav scope. */
+/** Params shown/edited in the pipe params UI for one nav scope (binding storage only). */
 export function resolveEditableScopeParams(
   binding: TransformerPipeBinding | undefined,
-  pipe: TransformerPipe | undefined,
+  _pipe: TransformerPipe | undefined,
   scopePath?: PipeNavPathSegment[],
-  sharedDefaults?: boolean,
 ): Record<string, unknown> {
-  if (sharedDefaults || !binding) return pipe?.defaultParams ?? {}
+  if (!binding) return {}
   const path = scopePath ?? []
-  if (path.length === 0) return resolvePipeBindingParams(binding, pipe)
+  if (path.length === 0) return resolvePipeBindingParams(binding)
   const scopeKey = pipeScopeKeyFromPath(path)
   if (isStackRootScopePath(path)) {
     return {
-      ...(pipe?.defaultParams ?? {}),
       ...(binding.params ?? {}),
       ...(binding.scopeParams?.[scopeKey] ?? {}),
     }
@@ -87,15 +86,8 @@ function scopeOverrideParams(
   return binding.scopeParams?.[scopeKey] ?? {}
 }
 
-function pipeLayerParams(
-  pipe: TransformerPipe,
-  binding: TransformerPipeBinding,
-  scopeKey: string,
-): Record<string, unknown> {
-  return {
-    ...(pipe.defaultParams ?? {}),
-    ...scopeOverrideParams(binding, scopeKey),
-  }
+function pipeLayerParams(binding: TransformerPipeBinding, scopeKey: string): Record<string, unknown> {
+  return scopeOverrideParams(binding, scopeKey)
 }
 
 type WalkState = {
@@ -103,8 +95,12 @@ type WalkState = {
   worldTransformers: Record<string, TransformerConfig>
   paramLayers: Record<string, unknown>[]
   scopeEffectiveEnabled: Map<string, boolean>
-  stageContext: Map<string, StageRuntimeContext>
+  /** Aligns with indices in `entity.transformers` after pipe sync. */
+  stageContext: Map<number, StageRuntimeContext>
+  /** Disabled stages omitted from `entity.transformers` (UI grey-out). */
+  stageContextByStageId: Map<string, StageRuntimeContext>
   flatEnabledStageIds: string[]
+  flatIndexCounter: { current: number }
 }
 
 function visitMembers(
@@ -124,7 +120,7 @@ function visitMembers(
     state.scopeEffectiveEnabled.set(scopeKey, scopeEnabled)
   }
 
-  const layersWithPipe = [...state.paramLayers, pipeLayerParams(pipe, binding, scopeKey)]
+  const layersWithPipe = [...state.paramLayers, pipeLayerParams(binding, scopeKey)]
 
   const members = normalizePipeMembers(pipe)
   for (let memberIndex = 0; memberIndex < members.length; memberIndex++) {
@@ -135,11 +131,18 @@ function visitMembers(
       const stageConfig = state.worldTransformers[member.stageId]
       const stageParams = (stageConfig?.params ?? {}) as Record<string, unknown>
       const stageMemberEnabled = memberEnabled && (stageConfig?.enabled !== false)
-      state.stageContext.set(member.stageId, {
-        mergedParams: mergePipeParamLayers([...layersWithPipe, stageParams]),
+      const ctx: StageRuntimeContext = {
+        mergedParams: mergePipeParamLayers([stageParams, ...layersWithPipe]),
         effectivelyEnabled: stageMemberEnabled,
-      })
-      if (stageMemberEnabled) state.flatEnabledStageIds.push(member.stageId)
+      }
+      if (stageMemberEnabled) {
+        const flatIndex = state.flatIndexCounter.current
+        state.stageContext.set(flatIndex, ctx)
+        state.flatEnabledStageIds.push(member.stageId)
+        state.flatIndexCounter.current += 1
+      } else {
+        state.stageContextByStageId.set(member.stageId, ctx)
+      }
       continue
     }
 
@@ -159,7 +162,7 @@ function visitMembers(
       {
         ...state,
         paramLayers: memberEnabled ?
-            [...layersWithPipe, pipeLayerParams(child, binding, childScopeKey)]
+            [...layersWithPipe, pipeLayerParams(binding, childScopeKey)]
           : layersWithPipe,
       },
       memberEnabled,
@@ -170,25 +173,30 @@ function visitMembers(
 
 function walkCopyBindingStages(
   binding: TransformerPipeBinding,
-  pipe: TransformerPipe,
   stackPath: PipeNavPathSegment[],
   worldTransformers: Record<string, TransformerConfig>,
-  stageContext: Map<string, StageRuntimeContext>,
-  flatEnabledStageIds: string[],
+  state: Pick<WalkState, 'stageContext' | 'stageContextByStageId' | 'flatEnabledStageIds' | 'flatIndexCounter'>,
   scopeEffectiveEnabled: Map<string, boolean>,
 ): void {
   const scopeKey = pipeScopeKeyFromPath(stackPath)
   scopeEffectiveEnabled.set(scopeKey, true)
-  const layers = [pipeLayerParams(pipe, binding, scopeKey)]
+  const layers = [pipeLayerParams(binding, scopeKey)]
   for (const stageId of binding.localStageIds ?? []) {
     const config = worldTransformers[stageId]
     const stageParams = (config?.params ?? {}) as Record<string, unknown>
     const effectivelyEnabled = config?.enabled !== false
-    stageContext.set(stageId, {
-      mergedParams: mergePipeParamLayers([...layers, stageParams]),
+    const ctx: StageRuntimeContext = {
+      mergedParams: mergePipeParamLayers([stageParams, ...layers]),
       effectivelyEnabled,
-    })
-    if (effectivelyEnabled) flatEnabledStageIds.push(stageId)
+    }
+    if (effectivelyEnabled) {
+      const flatIndex = state.flatIndexCounter.current
+      state.stageContext.set(flatIndex, ctx)
+      state.flatEnabledStageIds.push(stageId)
+      state.flatIndexCounter.current += 1
+    } else {
+      state.stageContextByStageId.set(stageId, ctx)
+    }
   }
 }
 
@@ -200,29 +208,32 @@ export function buildEntityStageRuntimeContext(
   world: RennWorld,
   entity: Entity,
 ): {
-  stageContext: Map<string, StageRuntimeContext>
+  stageContext: Map<number, StageRuntimeContext>
+  stageContextByStageId: Map<string, StageRuntimeContext>
   scopeEffectiveEnabled: Map<string, boolean>
   flatEnabledStageIds: string[]
 } {
   const registry = world.transformerPipes ?? {}
   const worldTransformers = world.transformers ?? {}
   const stack = getEntityPipeStack(entity)
-  const stageContext = new Map<string, StageRuntimeContext>()
+  const stageContext = new Map<number, StageRuntimeContext>()
+  const stageContextByStageId = new Map<string, StageRuntimeContext>()
   const scopeEffectiveEnabled = new Map<string, boolean>()
   const flatEnabledStageIds: string[] = []
 
   if (stack.length === 0) {
-    for (const stageId of entity.transformers ?? []) {
+    for (let flatIndex = 0; flatIndex < (entity.transformers ?? []).length; flatIndex++) {
+      const stageId = entity.transformers![flatIndex]!
       const config = worldTransformers[stageId]
-      stageContext.set(stageId, {
+      stageContext.set(flatIndex, {
         mergedParams: { ...(config?.params ?? {}) },
         effectivelyEnabled: config?.enabled !== false,
       })
     }
     const enabledIds = [...(entity.transformers ?? [])].filter(
-      (id) => stageContext.get(id)?.effectivelyEnabled,
+      (_, flatIndex) => stageContext.get(flatIndex)?.effectivelyEnabled,
     )
-    return { stageContext, scopeEffectiveEnabled, flatEnabledStageIds: enabledIds }
+    return { stageContext, stageContextByStageId, scopeEffectiveEnabled, flatEnabledStageIds: enabledIds }
   }
 
   for (let stackIndex = 0; stackIndex < stack.length; stackIndex++) {
@@ -234,44 +245,59 @@ export function buildEntityStageRuntimeContext(
     const pipe = registry[binding.pipeId]
     if (!pipe) continue
 
+    const walkBase: WalkState = {
+      registry,
+      worldTransformers,
+      paramLayers: [],
+      scopeEffectiveEnabled,
+      stageContext,
+      stageContextByStageId,
+      flatEnabledStageIds,
+      flatIndexCounter: { current: flatEnabledStageIds.length },
+    }
+
     if (!stackEnabled) {
-      const state: WalkState = {
-        registry,
-        worldTransformers,
-        paramLayers: [],
-        scopeEffectiveEnabled,
-        stageContext,
-        flatEnabledStageIds,
-      }
-      visitMembers(pipe, binding, stackPath, state, false, new Set())
+      visitMembers(pipe, binding, stackPath, walkBase, false, new Set())
       continue
     }
 
     if (binding.mode === 'copy' && binding.localStageIds?.length) {
       walkCopyBindingStages(
         binding,
-        pipe,
         stackPath,
         worldTransformers,
-        stageContext,
-        flatEnabledStageIds,
+        walkBase,
         scopeEffectiveEnabled,
       )
       continue
     }
 
-    const state: WalkState = {
-      registry,
-      worldTransformers,
-      paramLayers: [],
-      scopeEffectiveEnabled,
-      stageContext,
-      flatEnabledStageIds,
-    }
-    visitMembers(pipe, binding, stackPath, state, true, new Set())
+    visitMembers(pipe, binding, stackPath, walkBase, true, new Set())
   }
 
-  return { stageContext, scopeEffectiveEnabled, flatEnabledStageIds }
+  return { stageContext, stageContextByStageId, scopeEffectiveEnabled, flatEnabledStageIds }
+}
+
+/** Start index in `entity.transformers` for stages contributed by one stack binding. */
+export function flatIndexOffsetForStackBinding(
+  world: RennWorld,
+  entity: Entity,
+  stackIndex: number,
+): number {
+  const stack = getEntityPipeStack(entity)
+  const registry = world.transformerPipes ?? {}
+  let offset = 0
+  for (let i = 0; i < stackIndex; i++) {
+    const binding = stack[i]
+    if (!binding || binding.enabled === false) continue
+    if (binding.mode === 'copy' && binding.localStageIds?.length) {
+      offset += binding.localStageIds.length
+      continue
+    }
+    const pipe = registry[binding.pipeId]
+    if (pipe) offset += flattenPipeMembers(pipe, registry).length
+  }
+  return offset
 }
 
 /** Flatten order of enabled stages; respects disabled ancestor pipe cascade. */
@@ -295,51 +321,20 @@ export function isStageEffectivelyEnabled(
   world: RennWorld,
   entity: Entity,
   stageId: string,
+  flatIndex?: number,
 ): boolean {
-  return buildEntityStageRuntimeContext(world, entity).stageContext.get(stageId)?.effectivelyEnabled ?? true
-}
-
-function entityUsesPipeInStackOrSubtree(
-  world: RennWorld,
-  entity: Entity,
-  pipeId: string,
-): boolean {
-  for (const binding of getEntityPipeStack(entity)) {
-    if (binding.pipeId === pipeId) return true
-    const root = world.transformerPipes?.[binding.pipeId]
-    if (root && pipeTreeContainsPipe(root, world.transformerPipes ?? {}, pipeId)) return true
+  const snapshot = buildEntityStageRuntimeContext(world, entity)
+  if (flatIndex !== undefined) {
+    return snapshot.stageContext.get(flatIndex)?.effectivelyEnabled ?? true
   }
-  return false
-}
-
-function pipeTreeContainsPipe(
-  pipe: TransformerPipe,
-  registry: Record<string, TransformerPipe>,
-  targetPipeId: string,
-  visited: Set<string> = new Set(),
-): boolean {
-  if (visited.has(pipe.id)) return false
-  visited.add(pipe.id)
-  for (const member of normalizePipeMembers(pipe)) {
-    if (member.kind === 'pipe') {
-      if (member.pipeId === targetPipeId) return true
-      const child = registry[member.pipeId]
-      if (child && pipeTreeContainsPipe(child, registry, targetPipeId, visited)) return true
-    }
-  }
-  return false
+  return snapshot.stageContextByStageId.get(stageId)?.effectivelyEnabled ?? true
 }
 
 /** Entity ids that need a merged-param runtime sync after a pipe param edit. */
 export function entityIdsAffectedByPipeParamChange(
-  world: RennWorld,
-  opts: { pipeId: string; entityId?: string; sharedDefaults?: boolean },
+  _world: RennWorld,
+  opts: { entityId?: string },
 ): string[] {
-  if (opts.sharedDefaults) {
-    return world.entities
-      .filter((e) => entityUsesPipeInStackOrSubtree(world, e, opts.pipeId))
-      .map((e) => e.id)
-  }
   return opts.entityId ? [opts.entityId] : []
 }
 
@@ -361,10 +356,11 @@ export function resolveEntityTransformerConfigsForRuntime(
   if (!entity.transformers?.length) return null
   const { stageContext } = buildEntityStageRuntimeContext(world, entity)
   const configs: TransformerConfig[] = []
-  for (const stageId of entity.transformers) {
+  for (let flatIndex = 0; flatIndex < entity.transformers.length; flatIndex++) {
+    const stageId = entity.transformers[flatIndex]!
     const base = world.transformers?.[stageId]
     if (!base) continue
-    const ctx = stageContext.get(stageId)
+    const ctx = stageContext.get(flatIndex)
     if (!ctx?.effectivelyEnabled) continue
     configs.push({
       ...base,

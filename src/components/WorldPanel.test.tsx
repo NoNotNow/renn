@@ -68,6 +68,7 @@ describe('WorldPanel composition', () => {
     expect(screen.getByText('Sleep')).toBeInTheDocument()
     expect(screen.getByText('Distance Culling')).toBeInTheDocument()
     expect(screen.getByText('Sky')).toBeInTheDocument()
+    expect(screen.getByText('Fog')).toBeInTheDocument()
     expect(screen.getByText('Light')).toBeInTheDocument()
     expect(screen.getByText('Ground')).toBeInTheDocument()
   })
@@ -104,12 +105,24 @@ describe('WorldPanel composition', () => {
     const onWorldChange = vi.fn()
     const undo = makeUndo()
     renderPanel(makeWorld(), onWorldChange, undo)
-    const checkbox = screen.getByLabelText('Enabled') as HTMLInputElement
+    const checkbox = document.getElementById('culling-enabled') as HTMLInputElement
     expect(checkbox.checked).toBe(true)
     fireEvent.click(checkbox)
     expect(undo.pushBeforeEdit).toHaveBeenCalledTimes(1)
     const next = onWorldChange.mock.calls[0][0] as RennWorld
     expect(next.world.distanceCulling).toBe(false)
+  })
+
+  it('toggling fog on writes default fog settings', () => {
+    const onWorldChange = vi.fn()
+    const undo = makeUndo()
+    renderPanel(makeWorld(), onWorldChange, undo)
+    const fogCheckbox = document.getElementById('fog-enabled') as HTMLInputElement
+    expect(fogCheckbox.checked).toBe(false)
+    fireEvent.click(fogCheckbox)
+    expect(undo.pushBeforeEdit).toHaveBeenCalledTimes(1)
+    const next = onWorldChange.mock.calls[0][0] as RennWorld
+    expect(next.world.fog).toEqual(expect.objectContaining({ near: 10, far: 200 }))
   })
 
   it('changing the sky color writes a Vec3 into world.world.skyColor', () => {

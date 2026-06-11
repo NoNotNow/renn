@@ -16,8 +16,8 @@ Add **Transformer Pipes** — named, reusable, ordered sequences of transformer 
 #### FR2 — Add Pipe (from Transformers tab)
 - A **\"+ Add Pipe\"** dropdown/button in the pipeline header lists all pipes in `world.transformerPipes`.
 - Selecting a pipe shows a mode selector: **Link** or **Copy**.
-- **Link**: entity's `transformers` array is replaced with the pipe's `stageIds`. `entity.transformerPipe` is set.
-- **Copy**: `cloneEntityTransformersIntoWorld` is called with the pipe's stage configs, creating fresh registry entries. `entity.transformerPipe` is NOT set.
+- **Link**: appends a stack binding to the shared `pipeId`; flattened `entity.transformers` uses the pipe's shared registry stage ids. Member add/remove on the pipe definition propagates to every linked entity.
+- **Copy**: deep-clones the pipe manifold (new pipe id + `"(copy)"` name) and clones all stage configs into `world.transformers` for this entity. Binding uses `mode: 'copy'`; structure edits affect only the clone.
 - The existing pipeline is replaced (with an undo-able history push).
 
 #### FR3 — Shared Pipe Banner
@@ -79,9 +79,7 @@ export interface TransformerPipe {
   stageIds: string[]          // legacy flat leaf list
   stages: TransformerConfig[] // copy template snapshots
   members?: TransformerPipeMember[] // manifold source of truth when set
-  paramDefs?: PipeParamDef[]
-  defaultParams?: Record<string, unknown>
-  paramBindings?: Record<string, string>
+  paramDefs?: PipeParamDef[]  // `default` seeds binding.params on assign only
   createdAt?: number
 }
 
@@ -154,19 +152,20 @@ Legacy `entity.transformerPipe` migrates to a single-entry stack on load (`migra
 #### Tree navigation (Transformers tab sidebar)
 
 - **Docked sidebar** [`TransformerPipeNavSidebar.tsx`](../src/components/workspace/pipeNav/TransformerPipeNavSidebar.tsx): resizable, **collapsed by default** (slim `»` toggle); Up / Left / Right; editable pipe title; tree mirrors stack → nested `members`.
-- **Tree actions**: hover delete (×), context menu (add before / after / child, **Edit config**, delete). Mutations in [`pipeNavMutations.ts`](../src/utils/pipeNavMutations.ts); wired via [`usePipeNavController.ts`](../src/hooks/usePipeNavController.ts).
-- **Pipe config**: each stack binding stores per-entity overrides in `TransformerPipeBinding.params` (merged over `pipe.defaultParams` at runtime). New pipes initialize `defaultParams: {}`. **Pipe cards** and **tree row controls** expose a settings button; pipe rows also offer **Edit config** in the context menu. Both open [`PipeConfigDrawer`](../src/components/workspace/pipeNav/PipeConfigDrawer.tsx) with [`PipeParamsStrip`](../src/components/workspace/pipeNav/PipeParamsStrip.tsx) when `paramDefs` are defined, or [`PipeParamsJsonEditor`](../src/components/workspace/pipeNav/PipeParamsJsonEditor.tsx) for raw JSON config otherwise.
+- **Tree actions**: hover delete (×), context menu (add before / after / child, **Edit params**, delete). Mutations in [`pipeNavMutations.ts`](../src/utils/pipeNavMutations.ts); wired via [`usePipeNavController.ts`](../src/hooks/usePipeNavController.ts).
+- **Pipe params**: each stack binding stores instance values in `TransformerPipeBinding.params` (per entity only — never shared). On assign, `paramDefs[].default` is copied into `binding.params` once. **Pipe cards** and **tree row controls** expose a settings button; pipe rows also offer **Edit params** in the context menu. Both open [`PipeConfigDrawer`](../src/components/workspace/pipeNav/PipeConfigDrawer.tsx) with [`PipeParamsStrip`](../src/components/workspace/pipeNav/PipeParamsStrip.tsx) when `paramDefs` are defined, or [`PipeParamsJsonEditor`](../src/components/workspace/pipeNav/PipeParamsJsonEditor.tsx) for raw JSON otherwise.
 - **Tree drag-and-drop**: reorder stack / members; **move transformer stages between pipes** (drop on another stage, stack pipe row, or nested pipe row); nest stack pipe into nested pipe; promote nested pipe to entity stack; re-parent nested pipes (cycle guard via [`wouldNestCreateCycle`](../src/utils/pipeNavResolve.ts)). Stages dropped on the entity root are rejected.
 - **Strip**: one level at a time — pipe cards at entity root; stages + nested pipe cards inside a manifold (mixed order preserved when pipes and stages interleave).
 - **Add flows**: strip `+` menu ([`PipeAddDialog.tsx`](../src/components/workspace/pipeNav/PipeAddDialog.tsx)); header **+ Add Pipe** removed (duplicate). **Leaf level** (gray `+`): `entity_stages`, or `pipe_members` with no nested pipe cards in the focused view — opens **Add to pipeline** (transformer preset/existing + optional pipe sections). **New pipe** / **Existing pipe** at leaf level append a **stack sibling** (after the current stack pipe), not a nested member; use the **Child pipe** tab to nest. **Pipe level** (yellow `+`): entity root with multiple stack pipes, or a manifold showing nested pipe cards — pipe-centric add sections.
 - **Auto-wrap**: fresh entity → `Pipe1` via `ensureEntityPipeStack`; legacy ungrouped stages → non-blocking **Wrap into pipe** banner.
-- **Runtime params**: merged at chain build via [`pipeStageResolve.ts`](../src/utils/pipeStageResolve.ts) — ancestor pipe params shallow-merged outside-in (narrower scope wins), then stage `params` override. No extra `transform` arguments. **Live sync**: any upstream pipe param edit or downstream stage param commit calls `resolveMergedTransformerConfigsForEntitySync` → `SceneView.syncEntityTransformers` so runtime `params` rebuild immediately (shared `defaultParams` sync all entities referencing that pipe).
+- **Runtime params**: ephemeral projection via [`pipeStageResolve.ts`](../src/utils/pipeStageResolve.ts) — shared stage registry `params` (lowest priority), then binding/scope params (parent wins). Never written back to world JSON. Projection is keyed by flat index in `entity.transformers` so duplicate linked pipes keep independent runtime params. **Watch / runtime errors**: `resolveSelectedFlatStackIndex` in [`pipeNavResolve.ts`](../src/utils/pipeNavResolve.ts) maps pipe-nav focus (stack path + stage) → `configStackIndex`; registry `stageId` alone is ambiguous when the same pipe is linked twice. **Monaco / code editor**: uses `selectedEditorIndex` (index within the focused pipe’s stage list); do not use the flat stack index to index `editorStageConfigs`. **Live sync**: pipe param or stage param edits call `resolveMergedTransformerConfigsForEntitySync` → `SceneView.syncEntityTransformers` for the edited entity only.
 
 #### Pipe params + enable cascade
 
-1. **Merge at build time** — each stage receives one `params` object: `defaultParams` and per-scope overrides from ancestor pipes (outer → inner), then stage JSON wins on key collision.
+1. **Merge at build time** — each stage receives one projected `params` object: stage registry defaults first, then `binding.params` / `scopeParams` override on key collision. Projection is keyed by **flat index** in `entity.transformers` so duplicate linked pipe instances (same registry stage id) keep independent params.
 2. **Disable cascade** — when a pipe scope is disabled, all nested pipes and stages under it are effectively disabled (omitted from flatten, greyed in UI, skipped at runtime).
 3. **Scope storage** — stack root uses `binding.params`; nested scopes use `binding.scopeParams[scopeKey]` keyed by pipe-nav path.
+4. **Legacy migration** — `migrateTransformerPipeDefaultParams` moves old `pipe.defaultParams` into bindings on load, then strips the field.
 
 ---
 

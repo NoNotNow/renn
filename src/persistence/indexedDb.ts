@@ -283,6 +283,7 @@ export function createIndexedDbPersistence(): PersistenceAPI {
         migrateWorldRingShapesToCylinder,
         migrateEntityTransformersToRegistry,
         migrateTransformerPipeToStack,
+        migrateTransformerPipeDefaultParams,
       } = await import('@/scripts/migrateWorld')
       const zip = await JSZip.loadAsync(file)
       const worldFile = zip.file('world.json')
@@ -292,6 +293,7 @@ export function createIndexedDbPersistence(): PersistenceAPI {
       migrateCustomTransformerNames(worldJson)
       migrateEntityTransformersToRegistry(worldJson)
       migrateTransformerPipeToStack(worldJson)
+      migrateTransformerPipeDefaultParams(worldJson)
       migrateWorldSimplificationFields(worldJson)
       migrateWorldRingShapesToCylinder(worldJson)
       validateWorldDocument(worldJson, { tolerateAdditionalProperties: true, logAdditionalProperties: true })

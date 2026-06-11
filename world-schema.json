@@ -99,6 +99,24 @@
       },
       "additionalProperties": false
     },
+    "FogSettings": {
+      "type": "object",
+      "description": "Linear distance fog (Three.js Fog). Omitted color uses skyColor at runtime.",
+      "properties": {
+        "color": { "$ref": "#/$defs/Color" },
+        "near": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Distance where fog begins (world units)"
+        },
+        "far": {
+          "type": "number",
+          "minimum": 0.01,
+          "description": "Distance where fog is fully opaque (world units)"
+        }
+      },
+      "additionalProperties": false
+    },
     "SimulationSettings": {
       "type": "object",
       "description": "Semi-fixed timestep: fixedDt physics step, max catch-up steps per render frame, and time scale",
@@ -134,6 +152,13 @@
         "directionalLight": { "$ref": "#/$defs/DirectionalLightConfig" },
         "skyColor": { "$ref": "#/$defs/Color" },
         "skybox": { "type": "string" },
+        "fog": {
+          "description": "Omitted or false = disabled. Object = linear distance fog.",
+          "oneOf": [
+            { "type": "boolean", "enum": [false] },
+            { "$ref": "#/$defs/FogSettings" }
+          ]
+        },
         "camera": { "$ref": "#/$defs/CameraConfig" },
         "simulation": { "$ref": "#/$defs/SimulationSettings" },
         "showFrameStats": {
@@ -642,10 +667,6 @@
         "paramDefs": {
           "type": "array",
           "items": { "$ref": "#/$defs/PipeParamDef" }
-        },
-        "defaultParams": {
-          "type": "object",
-          "additionalProperties": true
         },
         "paramBindings": {
           "type": "object",

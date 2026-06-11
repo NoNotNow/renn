@@ -26,8 +26,6 @@ export interface PipeCardProps {
   onParamsReplace?: (params: Record<string, unknown>) => void
   onDecoupleBinding?: () => void
   decoupleDisabledReason?: string
-  /** When no stack binding, params edit pipe.defaultParams. */
-  useSharedDefaults?: boolean
 }
 
 export default function PipeCard({
@@ -47,7 +45,6 @@ export default function PipeCard({
   onParamsReplace,
   onDecoupleBinding,
   decoupleDisabledReason,
-  useSharedDefaults = false,
 }: PipeCardProps) {
   const cardRef = useRef<HTMLDivElement>(null)
   const [toolsExpanded, setToolsExpanded] = useState(true)
@@ -162,7 +159,6 @@ export default function PipeCard({
           onClose={closeConfig}
           onParamChange={onParamChange}
           onParamsReplace={onParamsReplace}
-          sharedDefaults={useSharedDefaults}
         />
       : null}
     </div>

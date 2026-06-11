@@ -120,27 +120,22 @@ export function collectPipeStageConfigsForCopy(
   return configs
 }
 
-/** Merge defaultParams + binding params for one stack entry. */
-export function resolvePipeBindingParams(
-  binding: TransformerPipeBinding,
-  pipe: TransformerPipe | undefined,
-): Record<string, unknown> {
-  const defaults = pipe?.defaultParams ?? {}
-  const overrides = binding.params ?? {}
-  return { ...defaults, ...overrides }
+/** Per-entity binding params for one stack entry (no shared defaults). */
+export function resolvePipeBindingParams(binding: TransformerPipeBinding): Record<string, unknown> {
+  return { ...(binding.params ?? {}) }
 }
 
-/** Build per-pipe params map for runtime injection (stack order; later bindings do not override keys). */
-export function resolveEntityPipeParamsByPipeId(
-  world: RennWorld,
-  entity: Entity,
-): Record<string, Record<string, unknown>> {
-  const registry = world.transformerPipes ?? {}
-  const result: Record<string, Record<string, unknown>> = {}
-  for (const binding of getEntityPipeStack(entity)) {
-    result[binding.pipeId] = resolvePipeBindingParams(binding, registry[binding.pipeId])
+/** Build initial binding.params from paramDefs schema defaults + optional overrides. */
+export function buildInitialBindingParams(
+  pipe: TransformerPipe,
+  overrides?: Record<string, unknown>,
+): Record<string, unknown> | undefined {
+  const fromDefs: Record<string, unknown> = {}
+  for (const def of pipe.paramDefs ?? []) {
+    if (def.default !== undefined) fromDefs[def.key] = def.default
   }
-  return result
+  const merged = { ...fromDefs, ...(overrides ?? {}) }
+  return Object.keys(merged).length > 0 ? merged : undefined
 }
 
 /** Whether entity pipe stack references a pipe (linked bindings only). */

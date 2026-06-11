@@ -154,12 +154,6 @@ export interface TransformInput {
   entityId: string
 
   /**
-   * Merged pipe params keyed by pipe id (`entity.transformerPipeStack` bindings).
-   * Set once before the first stage; each binding's params merged over pipe.defaultParams.
-   */
-  pipeParamsByPipeId?: Record<string, Record<string, unknown>>
-
-  /**
    * Optional movement intent from target sources (waypoints, AI, etc.).
    * Last writer wins if multiple transformers mutate it in one frame.
    */
@@ -339,7 +333,7 @@ export type TransformerPipeMember =
  */
 export interface TransformerPipeBinding {
   pipeId: string
-  /** Per-entity pipe input overrides (merged over pipe.defaultParams at runtime). */
+  /** Per-entity pipe instance params. */
   params?: Record<string, unknown>
   /** Per-entity overrides for nested pipe scopes (keyed by pipe nav scope path). */
   scopeParams?: Record<string, Record<string, unknown>>
@@ -367,11 +361,11 @@ export interface TransformerPipe {
    * When set, this is the authoring source of truth for structure resolution.
    */
   members?: TransformerPipeMember[]
-  /** What this pipe exposes as tunable inputs (author-defined). */
+  /** What this pipe exposes as tunable inputs (author-defined). `default` seeds binding.params on assign. */
   paramDefs?: PipeParamDef[]
-  /** Default values when assigning to a new entity. */
+  /** @deprecated Removed — use paramDefs[].default; migrated to binding.params on load. */
   defaultParams?: Record<string, unknown>
-  /** Map pipe param key → preset stage param path, e.g. `targetEntity` → `follow:targetEntityId`. */
+  /** @deprecated Unused — same-key merge only. */
   paramBindings?: Record<string, string>
   createdAt?: number
 }
