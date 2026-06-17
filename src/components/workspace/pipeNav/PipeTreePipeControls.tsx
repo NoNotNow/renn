@@ -18,6 +18,8 @@ export interface PipeTreePipeControlsProps {
   memberParentPipeId?: string
   memberIndex?: number
   drawerPortalTarget?: RefObject<HTMLDivElement | null>
+  /** Horizontal scroll offset of the parent container for proper drawer positioning. */
+  scrollLeft?: number
   onToggleEnabled?: () => void
   onParamChange?: (key: string, value: unknown) => void
   onParamsReplace?: (params: Record<string, unknown>) => void
@@ -34,6 +36,7 @@ export default function PipeTreePipeControls({
   onConfigOpenChange,
   stackIndex,
   drawerPortalTarget,
+  scrollLeft = 0,
   onToggleEnabled,
   onParamChange,
   onParamsReplace,
@@ -65,6 +68,7 @@ export default function PipeTreePipeControls({
           scopePath={scopePath}
           portalTarget={drawerPortalTarget.current}
           anchorRef={anchorRef}
+          scrollLeft={scrollLeft}
           onClose={() => onConfigOpenChange(false)}
           onParamChange={onParamChange}
           onParamsReplace={onParamsReplace}

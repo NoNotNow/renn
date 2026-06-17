@@ -180,8 +180,8 @@ export function drillIntoPipePath(
   entity: Entity,
   currentPath: PipeNavPathSegment[],
   itemIndex: number,
-  itemKind: 'pipe',
-  pipeId: string,
+  _itemKind: 'pipe',
+  _pipeId: string,
 ): PipeNavPathSegment[] {
   const view = resolvePipeNavView(world, entity, { path: currentPath, selectedSiblingIndex: itemIndex })
   if (view.mode === 'pipe_siblings') {

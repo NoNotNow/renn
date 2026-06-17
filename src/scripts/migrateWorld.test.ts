@@ -303,8 +303,10 @@ describe('migrateTransformerPipeDefaultParams', () => {
       },
     }
     migrateTransformerPipeDefaultParams(world)
-    expect(world.entities[0].transformerPipeStack[0].params).toEqual({ speed: 1, height: 2 })
-    expect(world.entities[1].transformerPipeStack[0].params).toEqual({ speed: 9 })
+    const e0Binding = world.entities[0].transformerPipeStack![0]!
+    const e1Binding = world.entities[1].transformerPipeStack![0]!
+    expect('params' in e0Binding ? e0Binding.params : undefined).toEqual({ speed: 1, height: 2 })
+    expect('params' in e1Binding ? e1Binding.params : undefined).toEqual({ speed: 9 })
     expect(world.transformerPipes.p1.defaultParams).toBeUndefined()
   })
 })

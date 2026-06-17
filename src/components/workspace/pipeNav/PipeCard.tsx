@@ -19,6 +19,8 @@ export interface PipeCardProps {
   enabled?: boolean
   stackIndex?: number
   drawerPortalTarget?: RefObject<HTMLDivElement | null>
+  /** Horizontal scroll offset of the parent container for proper drawer positioning. */
+  scrollLeft?: number
   onSelect: () => void
   onDrillIn: () => void
   onToggleEnabled?: () => void
@@ -38,6 +40,7 @@ export default function PipeCard({
   enabled = true,
   stackIndex,
   drawerPortalTarget,
+  scrollLeft = 0,
   onSelect,
   onDrillIn,
   onToggleEnabled,
@@ -156,6 +159,7 @@ export default function PipeCard({
           scopePath={scopePath}
           portalTarget={drawerPortalTarget.current}
           anchorRef={cardRef}
+          scrollLeft={scrollLeft}
           onClose={closeConfig}
           onParamChange={onParamChange}
           onParamsReplace={onParamsReplace}

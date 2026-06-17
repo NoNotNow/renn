@@ -2,7 +2,6 @@ import type {
   TransformerConfig,
   TransformerPipe,
   TransformerPipeBinding,
-  TransformerPipeMember,
 } from '@/types/transformer'
 import type { PipeNavPathSegment } from '@/types/pipeNav'
 import type { Entity, RennWorld } from '@/types/world'
@@ -27,7 +26,7 @@ export function isStackRootScopePath(path: PipeNavPathSegment[]): boolean {
 }
 
 export type StageRuntimeContext = {
-  /** Merged pipe params + stage params (parent binding wins on key collision). */
+  /** Pipe binding params for this stage (nested scope layers within the same binding only). */
   mergedParams: Record<string, unknown>
   /** False when any ancestor pipe scope or the stage member is disabled. */
   effectivelyEnabled: boolean
@@ -129,10 +128,9 @@ function visitMembers(
 
     if (member.kind === 'stage') {
       const stageConfig = state.worldTransformers[member.stageId]
-      const stageParams = (stageConfig?.params ?? {}) as Record<string, unknown>
       const stageMemberEnabled = memberEnabled && (stageConfig?.enabled !== false)
       const ctx: StageRuntimeContext = {
-        mergedParams: mergePipeParamLayers([stageParams, ...layersWithPipe]),
+        mergedParams: mergePipeParamLayers(layersWithPipe),
         effectivelyEnabled: stageMemberEnabled,
       }
       if (stageMemberEnabled) {
@@ -183,10 +181,9 @@ function walkCopyBindingStages(
   const layers = [pipeLayerParams(binding, scopeKey)]
   for (const stageId of binding.localStageIds ?? []) {
     const config = worldTransformers[stageId]
-    const stageParams = (config?.params ?? {}) as Record<string, unknown>
     const effectivelyEnabled = config?.enabled !== false
     const ctx: StageRuntimeContext = {
-      mergedParams: mergePipeParamLayers([stageParams, ...layers]),
+      mergedParams: mergePipeParamLayers(layers),
       effectivelyEnabled,
     }
     if (effectivelyEnabled) {

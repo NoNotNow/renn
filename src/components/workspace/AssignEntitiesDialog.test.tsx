@@ -5,9 +5,9 @@ import AssignEntitiesDialog from '@/components/workspace/AssignEntitiesDialog'
 import type { Entity } from '@/types/world'
 
 const entities: Entity[] = [
-  { id: 'player', name: 'Player', shape: { type: 'box' }, position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
-  { id: 'enemy_a', name: 'Enemy', shape: { type: 'sphere' }, position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
-  { id: 'crate_01', shape: { type: 'box' }, position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
+  { id: 'player', name: 'Player', shape: { type: 'box', width: 1, height: 1, depth: 1 }, position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
+  { id: 'enemy_a', name: 'Enemy', shape: { type: 'sphere', radius: 0.5 }, position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
+  { id: 'crate_01', shape: { type: 'box', width: 1, height: 1, depth: 1 }, position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
 ]
 
 describe('AssignEntitiesDialog', () => {

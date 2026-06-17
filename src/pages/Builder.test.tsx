@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor, act } from '@testing-library/react'
+import { render, screen, waitFor, act, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { forwardRef, useImperativeHandle } from 'react'
@@ -21,7 +21,8 @@ const sceneViewRefMocks = vi.hoisted(() => ({
   refreshEntityAppearance: vi.fn(),
   syncEntityTransformers: vi.fn(),
   setWorldPipeRegistry: vi.fn(),
-  getAllPoses: vi.fn(() => null),
+  getAllPoses: vi.fn(() => new Map()),
+  getCameraPose: vi.fn(() => ({ position: [0, 0, 0], forward: [0, 0, -1], fovRadians: Math.PI / 3, aspect: 16 / 9 })),
   resetCamera: vi.fn(),
   applyDebugForce: vi.fn(),
   getMeshForEntity: vi.fn(() => null),
@@ -65,10 +66,10 @@ function renderBuilder() {
 
 async function openEntitiesTab(user: ReturnType<typeof userEvent.setup>) {
   await waitFor(
-    () => expect(screen.getByRole('button', { name: /entities/i })).toBeInTheDocument(),
+    () => expect(screen.getByRole('button', { name: 'Entities' })).toBeInTheDocument(),
     { timeout: 3000 }
   )
-  const entitiesButton = screen.getByRole('button', { name: /entities/i })
+  const entitiesButton = screen.getByRole('button', { name: 'Entities' })
   await user.click(entitiesButton)
 }
 
@@ -156,7 +157,7 @@ describe('Builder', () => {
     await waitFor(() => {
       expect(entityList.children).toHaveLength(initialCount + 1)
     })
-    const newEntityButton = screen.getByRole('button', { name: /^box [a-z]+ \d+$/ })
+    const newEntityButton = within(entityList).getByRole('button', { name: /^box [a-z]+ \d+$/ })
     expect(newEntityButton).toBeInTheDocument()
     expect(newEntityButton).toHaveStyle({ background: '#2b3550' })
   })
@@ -247,14 +248,21 @@ describe('Builder', () => {
     const initial = modeSelect.value as CameraMode
 
     await act(async () => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Digit0', bubbles: true }))
+      window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Digit0', bubbles: true, cancelable: true }))
     })
-    expect(modeSelect.value).toBe(cycleCameraMode(initial))
+    // cycleCameraMode cycles through: follow -> thirdPerson -> tracking -> firstPerson -> follow...
+    // With initial being 'thirdPerson' (from sampleWorld), one cycle should give 'tracking'
+    await waitFor(() => {
+      expect(modeSelect.value).toBe(cycleCameraMode(initial))
+    })
 
     await act(async () => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Numpad0', bubbles: true }))
+      window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Numpad0', bubbles: true, cancelable: true }))
     })
-    expect(modeSelect.value).toBe(cycleCameraMode(cycleCameraMode(initial)))
+    // Two cycles from 'thirdPerson': thirdPerson -> tracking -> firstPerson
+    await waitFor(() => {
+      expect(modeSelect.value).toBe(cycleCameraMode(cycleCameraMode(initial)))
+    })
   })
 
   it('calls SceneView cycleActiveAvatar when Digit1 or Numpad1 is pressed', async () => {

@@ -37,6 +37,7 @@ import {
   stackIndexFromScopePath,
 } from '@/utils/pipeStageResolve'
 import { wrapUngroupedStagesIntoStackPipe } from '@/utils/pipeNavMutations'
+import { getEntityPipeStack } from '@/utils/transformerPipeResolve'
 import { nextFreeDefaultPipeName } from '@/utils/allocatePipeId'
 import TransformerPipeNavSidebar, {
   readPipeNavOpen,
@@ -195,7 +196,7 @@ function WorkspaceTransformersTabEntity({
   onMergedPipeParamSync,
   setMonacoPayload,
   setMonacoEditorChrome,
-  monacoEditorAreaRef,
+  monacoEditorAreaRef: _monacoEditorAreaRef,
   monacoEditorAreaEpoch = 0,
   monacoSlot,
   onEntryChange,
@@ -361,6 +362,13 @@ function WorkspaceTransformersTabEntity({
   codeDraftRef.current = codeDraft
   const lastCommittedCodeRef = useRef('')
   const codeUndoPrimedRef = useRef(false)
+  const editorStageIdsRef = useRef<string[]>([])
+  const editorStageConfigsRef = useRef<TransformerConfig[]>([])
+  const pipeNavCommitStagesRef = useRef<(configs: TransformerConfig[], orderedIds?: string[]) => void>(
+    () => {},
+  )
+  const usePipeScopedCodeCommitRef = useRef(false)
+  const commitCustomCodeEditRef = useRef<(text: string) => void>(() => {})
 
   const flushPendingCode = useCallback(() => {
     if (debounceTimerRef.current != null) {
@@ -368,18 +376,17 @@ function WorkspaceTransformersTabEntity({
       debounceTimerRef.current = null
     }
     const sid = selectedIdRef.current
-    const cur = listRef.current
-    const curIds = transformerIdsRef.current
-    const idx = curIds.indexOf(sid ?? '')
-    if (idx < 0 || cur[idx]?.type !== 'custom') return
+    const scopeConfigs = usePipeScopedCodeCommitRef.current
+      ? editorStageConfigsRef.current
+      : listRef.current
+    const idx = (
+      usePipeScopedCodeCommitRef.current ? editorStageIdsRef.current : transformerIdsRef.current
+    ).indexOf(sid ?? '')
+    if (idx < 0 || scopeConfigs[idx]?.type !== 'custom') return
     const text = codeDraftRef.current
-    const prevEffective = effectiveCustomTransformerCode(cur[idx]!)
+    const prevEffective = effectiveCustomTransformerCode(scopeConfigs[idx]!)
     if (text === prevEffective) return
-    lastCommittedCodeRef.current = text
-    commitStacksRawRef.current(
-      syncPriorities(cur.map((t, i) => (i === idx ? { ...t, code: text } : t))),
-      curIds,
-    )
+    commitCustomCodeEditRef.current(text)
   }, [])
 
   const handleCommitStacks = useCallback(
@@ -404,6 +411,38 @@ function WorkspaceTransformersTabEntity({
     usePipeNav && pipeNav.view?.mode !== 'pipe_siblings' ? pipeNav.stageData.ids : transformerIds
   const editorStageConfigs =
     usePipeNav && pipeNav.view?.mode !== 'pipe_siblings' ? pipeNav.stageData.configs : list
+
+  editorStageIdsRef.current = editorStageIds
+  editorStageConfigsRef.current = editorStageConfigs
+  pipeNavCommitStagesRef.current = pipeNav.handleCommitStagesWrapped
+  usePipeScopedCodeCommitRef.current = Boolean(
+    singleEntity &&
+      getEntityPipeStack(singleEntity).length > 0 &&
+      pipeNav.view?.mode !== 'pipe_siblings',
+  )
+  commitCustomCodeEditRef.current = (text: string) => {
+    const sid = selectedIdRef.current
+    if (usePipeScopedCodeCommitRef.current) {
+      const ids = editorStageIdsRef.current
+      const configs = editorStageConfigsRef.current
+      const idx = ids.indexOf(sid ?? '')
+      if (idx < 0 || configs[idx]?.type !== 'custom') return
+      lastCommittedCodeRef.current = text
+      pipeNavCommitStagesRef.current(
+        syncPriorities(configs.map((t, i) => (i === idx ? { ...t, code: text } : t))),
+      )
+      return
+    }
+    const cur = listRef.current
+    const curIds = transformerIdsRef.current
+    const idx = curIds.indexOf(sid ?? '')
+    if (idx < 0 || cur[idx]?.type !== 'custom') return
+    lastCommittedCodeRef.current = text
+    commitStacksRawRef.current(
+      syncPriorities(cur.map((t, i) => (i === idx ? { ...t, code: text } : t))),
+      curIds,
+    )
+  }
 
   /** Index within the focused editor stage list (`editorStageConfigs`). */
   const selectedEditorIndex = useMemo(() => {
@@ -687,16 +726,7 @@ function WorkspaceTransformersTabEntity({
     if (debounceTimerRef.current != null) window.clearTimeout(debounceTimerRef.current)
     debounceTimerRef.current = window.setTimeout(() => {
       debounceTimerRef.current = null
-      const sid = selectedIdRef.current
-      const cur = listRef.current
-      const curIds = transformerIdsRef.current
-      const idx = curIds.indexOf(sid ?? '')
-      if (idx < 0 || cur[idx]?.type !== 'custom') return
-      lastCommittedCodeRef.current = text
-      commitStacksRawRef.current(
-        syncPriorities(cur.map((t, i) => (i === idx ? { ...t, code: text } : t))),
-        curIds,
-      )
+      commitCustomCodeEditRef.current(text)
     }, CODE_DEBOUNCE_MS)
   }, [])
 

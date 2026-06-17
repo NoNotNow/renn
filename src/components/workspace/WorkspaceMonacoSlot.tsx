@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, type CSSProperties, type ReactNode, type RefObject } from 'react'
+import { useLayoutEffect, useRef, type CSSProperties, type LegacyRef, type ReactNode, type RefObject } from 'react'
 import { EntityPanelIcons } from '@/components/EntityPanelIcons'
 import { entityPanelIconButtonStyle } from '@/components/sharedStyles'
 import { theme } from '@/config/theme'
@@ -56,7 +56,7 @@ export default function WorkspaceMonacoSlot({
       }}
     >
       <div
-        ref={editorAreaRef}
+        ref={editorAreaRef as LegacyRef<HTMLDivElement>}
         style={{
           position: 'relative',
           flex: 1,

@@ -33,7 +33,7 @@ export default function PropertyPanelHeader({
   onSelectEntity,
   selectedLabel,
   hasSelection,
-  entities,
+  entities: _entities,
   ids,
   primaryEntity,
   isMulti,

@@ -4,7 +4,7 @@ import type {
   TransformerPipeBinding,
   TransformerPipeMember,
 } from '@/types/transformer'
-import type { Entity, RennWorld } from '@/types/world'
+import type { Entity } from '@/types/world'
 
 export class TransformerPipeCycleError extends Error {
   constructor(pipeId: string) {

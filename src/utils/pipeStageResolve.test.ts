@@ -58,7 +58,7 @@ describe('pipeStageResolve', () => {
     expect(syncEntityTransformerIdsFromPipeTree(world, world.entities[0]!)).toEqual([])
   })
 
-  it('binding params override shared stage registry params on key collision', () => {
+  it('binding params are the sole runtime source when entity has a pipe stack', () => {
     const world: RennWorld = {
       version: '1',
       world: {},
@@ -119,8 +119,8 @@ describe('pipeStageResolve', () => {
 
     const carA = resolveEntityTransformerConfigsForRuntime(world, world.entities[0]!)
     const carB = resolveEntityTransformerConfigsForRuntime(world, world.entities[1]!)
-    expect(carA?.[0]?.params).toEqual({ power: 10, speed: 50 })
-    expect(carB?.[0]?.params).toEqual({ power: 10, speed: 100 })
+    expect(carA?.[0]?.params).toEqual({ speed: 50 })
+    expect(carB?.[0]?.params).toEqual({ speed: 100 })
   })
 
   it('merges independent params for two stack pipes on one entity', () => {
@@ -195,7 +195,6 @@ describe('pipeStageResolve', () => {
     }
 
     expect(resolveMergedTransformerConfigsForEntitySync(world, 'e1')?.[0]?.params).toEqual({
-      power: 99,
       speed: 2,
     })
   })

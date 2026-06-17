@@ -75,13 +75,13 @@ function applyPipeParamWorldUpdate(
   const scopePath = opts.scopePath ?? [{ kind: 'stack' as const, index: stackIndex }]
   if (isStackRootScopePath(scopePath)) {
     return mode === 'replace'
-      ? setBindingParams(world, entityId, opts.stackIndex, params)
-      : updateBindingParams(world, entityId, opts.stackIndex, params)
+      ? setBindingParams(world, entityId, stackIndex, params)
+      : updateBindingParams(world, entityId, stackIndex, params)
   }
 
   return mode === 'replace'
-    ? setBindingScopeParams(world, entityId, opts.stackIndex, scopePath, params)
-    : updateBindingScopeParams(world, entityId, opts.stackIndex, scopePath, params)
+    ? setBindingScopeParams(world, entityId, stackIndex, scopePath, params)
+    : updateBindingScopeParams(world, entityId, stackIndex, scopePath, params)
 }
 
 export function usePipeNavController(
@@ -157,7 +157,7 @@ export function usePipeNavController(
   )
 
   const syncMergedParamsAfterPipeEdit = useCallback(
-    (nextWorld: RennWorld, opts: PipeParamEditOpts) => {
+    (nextWorld: RennWorld, _opts: PipeParamEditOpts) => {
       if (!onMergedParamSync) return
       const entityIds = entityIdsAffectedByPipeParamChange(nextWorld, {
         entityId: entity.id,

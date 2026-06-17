@@ -70,6 +70,7 @@ export default function PipeNavTree({
   const [openMenuKey, setOpenMenuKey] = useState<string | null>(null)
   const [dragNode, setDragNode] = useState<PipeTreeNode | null>(null)
   const [openConfigKey, setOpenConfigKey] = useState<string | null>(null)
+  const [scrollLeft, setScrollLeft] = useState(0)
 
   const stack = getEntityPipeStack(entity)
   const pipes = world.transformerPipes ?? {}
@@ -190,6 +191,7 @@ export default function PipeNavTree({
                     memberParentPipeId={parentPipeId}
                     memberIndex={memberIndex}
                     drawerPortalTarget={drawerPortalTarget}
+                    scrollLeft={scrollLeft}
                     scopePath={nodePath}
                     onToggleEnabled={() =>
                       onPipeControlToggle?.({
@@ -264,6 +266,9 @@ export default function PipeNavTree({
   return (
     <div
       data-testid="pipe-nav-tree"
+      onScroll={(e) => {
+        setScrollLeft(e.currentTarget.scrollLeft)
+      }}
       style={{
         flex: 1,
         minHeight: 0,
@@ -343,6 +348,7 @@ export default function PipeNavTree({
                       onConfigOpenChange={(open) => setOpenConfigKey(open ? key : null)}
                       stackIndex={stackIndex}
                       drawerPortalTarget={drawerPortalTarget}
+                      scrollLeft={scrollLeft}
                       onToggleEnabled={() =>
                         onPipeControlToggle?.({ pipeId: binding.pipeId, stackIndex })
                       }

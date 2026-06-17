@@ -19,6 +19,8 @@ import {
   resetTransformerWatchBridgeForTests,
   setTransformerWatchEnabled,
 } from '@/runtime/transformerWatchBridge'
+import { assignPipeToEntity } from '@/utils/commitTransformerConfigsToWorld'
+import { findUngroupedStageIds } from '@/utils/pipeNavResolve'
 
 vi.mock('@monaco-editor/react', () => ({
   default: () => null,
@@ -399,6 +401,65 @@ describe('WorkspaceTransformersTab', () => {
     await waitFor(() => {
       expect(screen.queryByTestId('pipe-ungrouped-banner')).not.toBeInTheDocument()
     })
+  })
+
+  it('editing custom code in a linked pipe keeps stack flatten valid when a copy pipe is also stacked', async () => {
+    const pipe = carStackWorld.transformerPipes![CAR_PIPE_ID]!
+    const linkedCopyWorld = assignPipeToEntity(carStackWorld, 'car', pipe, 'copy', { append: true })
+    const beforeIds = linkedCopyWorld.entities.find((e) => e.id === 'car')?.transformers ?? []
+    expect(beforeIds).toHaveLength(6)
+    expect(findUngroupedStageIds(linkedCopyWorld, linkedCopyWorld.entities[0]!)).toEqual([])
+
+    const setMonacoPayload = vi.fn()
+    let currentWorld = linkedCopyWorld
+
+    function Harness() {
+      const [world, setWorld] = useState(linkedCopyWorld)
+      return (
+        <TabWithMonacoHarness
+          world={world}
+          onWorldChange={(next) => {
+            currentWorld = next
+            setWorld(next)
+          }}
+          setMonacoPayload={setMonacoPayload}
+          selectedEntityIds={['car']}
+          entry={{
+            entityId: 'car',
+            tab: 'transformers',
+            itemId: 'car_tf2',
+            pipeNavPath: [{ kind: 'stack', index: 0 }],
+          }}
+        />
+      )
+    }
+
+    render(
+      <CopyProvider>
+        <EditorUndoProvider value={undoApi}>
+          <Harness />
+        </EditorUndoProvider>
+      </CopyProvider>,
+    )
+
+    await waitFor(() => {
+      expect(lastMonacoPayload(setMonacoPayload)?.kind).toBe('transformer-ts')
+    })
+
+    const onChange = lastMonacoPayload(setMonacoPayload)?.onChange
+    expect(onChange).toBeTypeOf('function')
+
+    vi.useFakeTimers()
+    act(() => {
+      onChange?.('return { force: [9, 0, 0] };')
+      vi.advanceTimersByTime(400)
+    })
+    vi.useRealTimers()
+
+    expect(currentWorld.transformers?.car_tf2?.code).toContain('force: [9, 0, 0]')
+    expect(currentWorld.entities[0]?.transformers).toEqual(beforeIds)
+    expect(findUngroupedStageIds(currentWorld, currentWorld.entities[0]!)).toEqual([])
+    expect(screen.queryByTestId('pipe-ungrouped-banner')).not.toBeInTheDocument()
   })
 
   it('make unique clones registry entry when shared usage badge is confirmed', async () => {

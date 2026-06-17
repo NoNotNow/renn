@@ -2,8 +2,8 @@ import { describe, it, expect, beforeAll } from 'vitest'
 import { loadWorld } from '@/loader/loadWorld'
 import { initRapier, createPhysicsWorld } from '@/physics/rapierPhysics'
 import { RenderItemRegistry } from '@/runtime/renderItemRegistry'
-import { restoreInitialPosesIntoRegistry } from '@/runtime/restoreInitialPoses'
-import type { RennWorld } from '@/types/world'
+import { restoreInitialPosesIntoRegistry, type InitialPoseMap } from '@/runtime/restoreInitialPoses'
+import type { RennWorld, Rotation, Vec3 } from '@/types/world'
 
 beforeAll(async () => {
   await initRapier()
@@ -34,7 +34,7 @@ describe('restoreInitialPosesIntoRegistry', () => {
 
     expect(registry.getScale('ground')).toEqual([10, 10, 10])
 
-    const initialPosesRef = { current: null as ReturnType<typeof registry.getAllPoses> }
+    const initialPosesRef = { current: null as InitialPoseMap | null }
     restoreInitialPosesIntoRegistry(registry, initialPosesRef)
 
     expect(registry.getScale('ground')).toEqual([10, 10, 10])
@@ -48,8 +48,8 @@ describe('restoreInitialPosesIntoRegistry', () => {
     const physics = await createPhysicsWorld(world, entities)
     const registry = RenderItemRegistry.create(entities, physics)
 
-    const stalePoses = new Map([
-      ['ground', { position: [0, 0, 0] as const, rotation: [0, 0, 0] as const, scale: [1, 1, 1] as const }],
+    const stalePoses: InitialPoseMap = new Map([
+      ['ground', { position: [0, 0, 0] as Vec3, rotation: [0, 0, 0] as Rotation, scale: [1, 1, 1] as Vec3 }],
     ])
     const initialPosesRef = { current: stalePoses }
     restoreInitialPosesIntoRegistry(registry, initialPosesRef)

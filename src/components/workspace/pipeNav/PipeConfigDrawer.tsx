@@ -16,6 +16,8 @@ export interface PipeConfigDrawerProps {
   onClose: () => void
   onParamChange?: (key: string, value: unknown) => void
   onParamsReplace?: (params: Record<string, unknown>) => void
+  /** Horizontal scroll offset of the container, used to adjust drawer positioning. */
+  scrollLeft?: number
 }
 
 export default function PipeConfigDrawer({
@@ -27,34 +29,37 @@ export default function PipeConfigDrawer({
   onClose,
   onParamChange,
   onParamsReplace,
+  scrollLeft = 0,
 }: PipeConfigDrawerProps) {
-  const [anchor, setAnchor] = useState({ x: 0, y: 0 })
+  const [drawerAnchor, setDrawerAnchor] = useState({ x: 0, y: 0 })
   const hasParamDefs = (pipe.paramDefs?.length ?? 0) > 0
 
-  const updateAnchor = useCallback(() => {
+  const updateDrawerAnchor = useCallback(() => {
     const host = portalTarget
     const el = anchorRef.current
     if (!host || !el) return
     const { x, y } = drawerPositionRelativeToHost(el, host)
-    const next = clampDrawerPosition(
-      { x, y: y + 28 },
-      host.getBoundingClientRect(),
-      { width: 360, height: 280 },
+    const drawerWidth = 360
+    const clamped = clampDrawerPosition(
+      { x, y },
+      { width: drawerWidth, height: hasParamDefs ? 300 : 220 },
+      { width: host.clientWidth, height: host.clientHeight },
     )
-    setAnchor(next)
-  }, [portalTarget, anchorRef])
+    setDrawerAnchor(clamped)
+  }, [portalTarget, anchorRef, hasParamDefs])
 
+  // Re-calculate position when drawer opens or scroll changes
   useLayoutEffect(() => {
-    updateAnchor()
-  }, [updateAnchor])
+    updateDrawerAnchor()
+  }, [updateDrawerAnchor, scrollLeft])
 
   return (
     <WorkspaceFloatingDrawer
       testId="pipe-config-drawer"
       title={`Pipe params: ${pipe.name}`}
       onClose={onClose}
-      initialLeft={anchor.x}
-      initialTop={anchor.y}
+      initialLeft={drawerAnchor.x}
+      initialTop={drawerAnchor.y + 28}
       portalTarget={portalTarget}
       initialHeight={hasParamDefs ? 300 : 220}
       resizable

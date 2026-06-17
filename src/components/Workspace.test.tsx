@@ -46,9 +46,20 @@ const registryTransformers: Record<string, TransformerDef> = {
   },
 }
 
+const PIPE_ID = 'pipe1'
+
 const worldWithTransformer: RennWorld = {
   ...minimalWorld,
   transformers: registryTransformers,
+  transformerPipes: {
+    [PIPE_ID]: {
+      id: PIPE_ID,
+      name: 'Pipe1',
+      stageIds: ['e1_tf0'],
+      stages: [registryTransformers.e1_tf0],
+      members: [{ kind: 'stage', stageId: 'e1_tf0' }],
+    },
+  },
   entities: [
     {
       id: 'e1',
@@ -56,6 +67,7 @@ const worldWithTransformer: RennWorld = {
       shape: { type: 'box', width: 1, height: 1, depth: 1 },
       position: [0, 0, 0],
       transformers: ['e1_tf0'],
+      transformerPipeStack: [{ pipeId: PIPE_ID, enabled: true }],
     },
   ],
 }
@@ -385,7 +397,7 @@ describe('Workspace', () => {
       <Workspace
         open
         onClose={vi.fn()}
-        entry={{ entityId: 'e1', tab: 'transformers', itemId: 'e1_tf0' }}
+        entry={{ entityId: 'e1', tab: 'transformers', itemId: 'e1_tf0', pipeNavPath: [{ kind: 'stack', index: 0 }] }}
         world={worldWithTransformer}
         selectedEntityIds={['e1']}
         onWorldChange={vi.fn()}
@@ -394,7 +406,10 @@ describe('Workspace', () => {
     await waitFor(() => {
       expect(screen.getByTestId('workspace-tab-transformers')).toHaveAttribute('aria-selected', 'true')
     })
-    expect(screen.getByTestId('transformer-horizontal-item-0')).toBeInTheDocument()
+    // Wait for the transformer pipeline to be rendered
+    await waitFor(() => {
+      expect(screen.getByTestId('transformer-horizontal-item-0')).toBeInTheDocument()
+    })
   })
 
   it('Scripts Manage opens Organize scoped to Entity · Scripts', async () => {

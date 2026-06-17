@@ -14,7 +14,7 @@ import PipeCard from './PipeCard'
 import PipeAddDialog from './PipeAddDialog'
 import type { ResolvedPipeNavView, StripItem } from '@/types/pipeNav'
 import { isPipeNavLeafLevel } from '@/utils/pipeNavResolve'
-import { getEntityPipeStack, normalizePipeMembers } from '@/utils/transformerPipeResolve'
+import { getEntityPipeStack } from '@/utils/transformerPipeResolve'
 import {
   buildEntityStageRuntimeContext,
   flatIndexOffsetForStackBinding,
@@ -100,6 +100,7 @@ export default function PipeFocusedStrip({
   cardErrorsByStackIndex,
 }: PipeFocusedStripProps) {
   const [addDialogOpen, setAddDialogOpen] = useState(false)
+  const [scrollLeft, setScrollLeft] = useState(0)
   const pipes = world.transformerPipes ?? {}
   const stack = getEntityPipeStack(entity)
   const stageRuntime = useMemo(() => buildEntityStageRuntimeContext(world, entity), [world, entity])
@@ -203,6 +204,7 @@ export default function PipeFocusedStrip({
     return (
       <>
         <div
+          onScroll={(e) => setScrollLeft(e.currentTarget.scrollLeft)}
           style={{
             display: 'flex',
             flexDirection: 'row',
@@ -241,6 +243,7 @@ export default function PipeFocusedStrip({
                   enabled={enabled}
                   stackIndex={stackIdxForScope !== undefined && stackIdxForScope >= 0 ? stackIdxForScope : undefined}
                   drawerPortalTarget={drawerPortalTarget}
+                  scrollLeft={scrollLeft}
                   onSelect={() => onSelectPipeIndex(idx)}
                   onDrillIn={() => onDrillIntoPipe(idx, item.pipeId)}
                   onToggleEnabled={() =>
@@ -322,7 +325,7 @@ export default function PipeFocusedStrip({
             cardErrorsByStackIndex={cardErrorsByStackIndex}
             cardDepth={depth}
             stageEffectiveEnabledByIndex={Object.fromEntries(
-              stageIds.map((id, i) => {
+              stageIds.map((_id, i) => {
                 const stackIdx = stackIndexFromScopePath(focusPath) ?? 0
                 const flatIndex = flatIndexOffsetForStackBinding(world, entity, stackIdx) + i
                 return [flatIndex, stageRuntime.stageContext.get(flatIndex)?.effectivelyEnabled !== false]
@@ -340,17 +343,11 @@ export default function PipeFocusedStrip({
     const renderPipeCard = (item: Extract<StripItem, { kind: 'pipe' }>) => {
       const pipe = pipes[item.pipeId]
       if (!pipe) return null
-      const member = parentPipeId ?
-        normalizePipeMembers(pipes[parentPipeId] ?? { id: '', name: '', stageIds: [], stages: [] })[item.index]
-      : undefined
       const memberScopePath: PipeNavPathSegment[] =
         parentPipeId ?
           [...focusPath, { kind: 'member', pipeId: parentPipeId, memberIndex: item.index }]
         : focusPath
-      const enabled =
-        item.kind === 'pipe' ?
-          (stageRuntime.scopeEffectiveEnabled.get(pipeScopeKeyFromPath(memberScopePath)) ?? true)
-        : true
+      const enabled = stageRuntime.scopeEffectiveEnabled.get(pipeScopeKeyFromPath(memberScopePath)) ?? true
       const stackIdx = stackIndexFromScopePath(memberScopePath)
       const stackBinding =
         stackIdx !== undefined && stackIdx >= 0 ? stack[stackIdx] : undefined
@@ -365,6 +362,7 @@ export default function PipeFocusedStrip({
           enabled={enabled}
           stackIndex={stackIdx !== undefined && stackIdx >= 0 ? stackIdx : undefined}
           drawerPortalTarget={drawerPortalTarget}
+          scrollLeft={scrollLeft}
           onSelect={() => onSelectPipeIndex(item.index)}
           onDrillIn={() => onDrillIntoPipe(item.index, item.pipeId)}
           onToggleEnabled={() =>
@@ -441,6 +439,7 @@ export default function PipeFocusedStrip({
     return (
       <>
         <div
+          onScroll={(e) => setScrollLeft(e.currentTarget.scrollLeft)}
           style={{
             display: 'flex',
             flexDirection: 'row',

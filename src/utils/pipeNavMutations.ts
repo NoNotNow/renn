@@ -282,9 +282,19 @@ export function toggleMemberEnabled(
     i === memberIndex ? { ...m, enabled: m.enabled === false } : m,
   )
   let nextWorld = updatePipeMembers(world, pipeId, members)
+  return syncAllEntitiesUsingPipes(nextWorld, [pipeId])
+}
+
+function syncAllEntitiesUsingPipes(world: RennWorld, pipeIds: string[]): RennWorld {
+  if (pipeIds.length === 0) return world
+  const pipeIdSet = new Set(pipeIds)
+  let nextWorld = world
   for (const entity of nextWorld.entities) {
-    if (entityUsesPipeInStackOrSubtree(nextWorld, entity, pipeId)) {
-      nextWorld = applyEntityTransformerSync(nextWorld, entity.id)
+    for (const pipeId of pipeIdSet) {
+      if (entityUsesPipeInStackOrSubtree(nextWorld, entity, pipeId)) {
+        nextWorld = applyEntityTransformerSync(nextWorld, entity.id)
+        break
+      }
     }
   }
   return nextWorld
@@ -488,9 +498,7 @@ export function reorderPipeMembers(
   if (!item) return world
   members.splice(toIndex, 0, item)
   let nextWorld = updatePipeMembers(world, pipeId, members)
-  const entityId = findFirstEntityUsingPipe(nextWorld, pipeId)
-  if (entityId) nextWorld = applyEntityTransformerSync(nextWorld, entityId)
-  return nextWorld
+  return syncAllEntitiesUsingPipes(nextWorld, [pipeId])
 }
 
 export function updateFocusedStageOrder(
@@ -529,8 +537,7 @@ export function updateFocusedStageOrder(
   const nextMembers = [...reorderedStages, ...pipeMembers, ...nonStageMembers.filter((m) => m.kind === 'pipe')]
 
   let nextWorld = updatePipeMembers(world, pipeId, nextMembers)
-  nextWorld = applyEntityTransformerSync(nextWorld, entityId)
-  return nextWorld
+  return syncAllEntitiesUsingPipes(nextWorld, [pipeId])
 }
 
 export function addExistingPipeAtFocus(
@@ -637,13 +644,6 @@ function resolveFocusedPipeIdFromPath(
   return pipeId
 }
 
-function findFirstEntityUsingPipe(world: RennWorld, pipeId: string): string | undefined {
-  for (const e of world.entities) {
-    if (getEntityPipeStack(e).some((b) => b.pipeId === pipeId)) return e.id
-  }
-  return undefined
-}
-
 /** Create empty pipe and navigate into it. */
 export function createEmptyPipe(
   world: RennWorld,
@@ -704,7 +704,7 @@ export function deleteStackBinding(
 
 export function deletePipeMember(
   world: RennWorld,
-  entityId: string,
+  _entityId: string,
   parentPipeId: string,
   memberIndex: number,
 ): RennWorld {
@@ -714,8 +714,7 @@ export function deletePipeMember(
   if (memberIndex < 0 || memberIndex >= members.length) return world
   members.splice(memberIndex, 1)
   let nextWorld = updatePipeMembers(world, parentPipeId, members)
-  nextWorld = applyEntityTransformerSync(nextWorld, entityId)
-  return nextWorld
+  return syncAllEntitiesUsingPipes(nextWorld, [parentPipeId])
 }
 
 export function nestStackPipeAsMember(
@@ -778,7 +777,7 @@ export function promoteMemberPipeToStack(
 
 export function moveMemberStage(
   world: RennWorld,
-  entityId: string,
+  _entityId: string,
   fromParentPipeId: string,
   fromIndex: number,
   toParentPipeId: string,
@@ -803,13 +802,12 @@ export function moveMemberStage(
   insertIdx = Math.max(0, Math.min(insertIdx, toMembers.length))
   toMembers.splice(insertIdx, 0, member)
   nextWorld = updatePipeMembers(nextWorld, toParentPipeId, toMembers)
-  nextWorld = applyEntityTransformerSync(nextWorld, entityId)
-  return nextWorld
+  return syncAllEntitiesUsingPipes(nextWorld, [fromParentPipeId, toParentPipeId])
 }
 
 export function moveMemberPipe(
   world: RennWorld,
-  entityId: string,
+  _entityId: string,
   fromParentPipeId: string,
   fromIndex: number,
   toParentPipeId: string,
@@ -836,6 +834,5 @@ export function moveMemberPipe(
   insertIdx = Math.max(0, Math.min(insertIdx, toMembers.length))
   toMembers.splice(insertIdx, 0, member)
   nextWorld = updatePipeMembers(nextWorld, toParentPipeId, toMembers)
-  nextWorld = applyEntityTransformerSync(nextWorld, entityId)
-  return nextWorld
+  return syncAllEntitiesUsingPipes(nextWorld, [fromParentPipeId, toParentPipeId])
 }
