@@ -1,4 +1,4 @@
-import { useCallback, useState, type DragEvent, type ReactNode, type RefObject } from 'react'
+import { useCallback, useMemo, useState, type DragEvent, type ReactNode, type RefObject } from 'react'
 import type { PipeNavPathSegment } from '@/types/pipeNav'
 import type { Entity, RennWorld } from '@/types/world'
 import { theme } from '@/config/theme'
@@ -59,7 +59,7 @@ export default function PipeNavTree({
   onContextAction,
   onTreeDrop,
   drawerPortalTarget,
-  stackIndexForPipeId,
+  stackIndexForPipeId: _stackIndexForPipeId,
   onPipeControlToggle,
   onPipeParamChange,
   onPipeParamsReplace,
@@ -73,7 +73,7 @@ export default function PipeNavTree({
   const [scrollLeft, setScrollLeft] = useState(0)
 
   const stack = getEntityPipeStack(entity)
-  const pipes = world.transformerPipes ?? {}
+  const pipes = useMemo(() => world.transformerPipes ?? {}, [world.transformerPipes])
 
   const toggleExpand = (key: string) => {
     setExpanded((prev) => {
@@ -234,7 +234,9 @@ export default function PipeNavTree({
     },
     [
       pipes,
-      world.transformers,
+      world,
+      entity,
+      scrollLeft,
       focusPath,
       selectedIndex,
       hoveredId,
@@ -245,7 +247,6 @@ export default function PipeNavTree({
       onContextAction,
       handleDrop,
       stack,
-      stackIndexForPipeId,
       onPipeControlToggle,
       onPipeParamChange,
       onPipeParamsReplace,

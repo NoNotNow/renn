@@ -281,7 +281,7 @@ export function toggleMemberEnabled(
   const members = normalizePipeMembers(pipe).map((m, i) =>
     i === memberIndex ? { ...m, enabled: m.enabled === false } : m,
   )
-  let nextWorld = updatePipeMembers(world, pipeId, members)
+  const nextWorld = updatePipeMembers(world, pipeId, members)
   return syncAllEntitiesUsingPipes(nextWorld, [pipeId])
 }
 
@@ -497,7 +497,7 @@ export function reorderPipeMembers(
   const [item] = members.splice(fromIndex, 1)
   if (!item) return world
   members.splice(toIndex, 0, item)
-  let nextWorld = updatePipeMembers(world, pipeId, members)
+  const nextWorld = updatePipeMembers(world, pipeId, members)
   return syncAllEntitiesUsingPipes(nextWorld, [pipeId])
 }
 
@@ -536,7 +536,7 @@ export function updateFocusedStageOrder(
   const pipeMembers = members.filter((m) => m.kind === 'pipe')
   const nextMembers = [...reorderedStages, ...pipeMembers, ...nonStageMembers.filter((m) => m.kind === 'pipe')]
 
-  let nextWorld = updatePipeMembers(world, pipeId, nextMembers)
+  const nextWorld = updatePipeMembers(world, pipeId, nextMembers)
   return syncAllEntitiesUsingPipes(nextWorld, [pipeId])
 }
 
@@ -713,7 +713,7 @@ export function deletePipeMember(
   const members = [...normalizePipeMembers(pipe)]
   if (memberIndex < 0 || memberIndex >= members.length) return world
   members.splice(memberIndex, 1)
-  let nextWorld = updatePipeMembers(world, parentPipeId, members)
+  const nextWorld = updatePipeMembers(world, parentPipeId, members)
   return syncAllEntitiesUsingPipes(nextWorld, [parentPipeId])
 }
 

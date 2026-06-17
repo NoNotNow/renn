@@ -1,8 +1,8 @@
 import { useLayoutEffect, useRef, type CSSProperties, type LegacyRef, type ReactNode, type RefObject } from 'react'
 import { EntityPanelIcons } from '@/components/EntityPanelIcons'
-import { entityPanelIconButtonStyle } from '@/components/sharedStyles'
 import { theme } from '@/config/theme'
 import { WORKSPACE_MONACO_TOOLBAR_WIDTH_PX } from '@/contexts/WorkspaceMonacoEditorAreaContext'
+import { workspaceMonacoToolbarButtonStyle } from '@/components/workspace/workspaceMonacoToolbarStyles'
 
 export interface WorkspaceMonacoSlotProps {
   monacoSlot: ReactNode
@@ -15,15 +15,6 @@ export interface WorkspaceMonacoSlotProps {
   editorAreaRef?: RefObject<HTMLDivElement | null>
   /** Fired when the editor pane ref attaches (for overlay portals). */
   onEditorAreaReady?: () => void
-}
-
-export const workspaceMonacoToolbarButtonStyle: CSSProperties = {
-  ...entityPanelIconButtonStyle,
-  opacity: 0.8,
-  cursor: 'pointer',
-  background: theme.bg.surface,
-  border: `1px solid ${theme.border.default}`,
-  boxShadow: '0 1px 4px rgba(0,0,0,0.35)',
 }
 
 /** Shared Monaco mount with a vertical editor toolbar on the right edge. */

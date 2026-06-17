@@ -84,11 +84,15 @@ export interface TransformerPipe {
 }
 
 // Entity — pipe stack + flattened runtime cache
-transformerPipeStack?: TransformerPipeBinding[]
-transformers?: string[]  // flattened stage ids; NOT traversed per frame
+interface Entity {
+  transformerPipeStack?: TransformerPipeBinding[]
+  transformers?: string[]  // flattened stage ids; NOT traversed per frame
+}
 
 // RennWorld
-transformerPipes?: Record<string, TransformerPipe>
+interface RennWorld {
+  transformerPipes?: Record<string, TransformerPipe>
+}
 ```
 
 **Performance:** manifold/stack resolution runs only on assign, save, or decouple (`flattenPipeStageIds` in `src/utils/transformerPipeResolve.ts`). The runtime chain reads `entity.transformers` directly — zero per-frame tree walks.

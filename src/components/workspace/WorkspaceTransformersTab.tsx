@@ -61,7 +61,7 @@ import type { GlobalBehaviorLibrary } from '@/types/globalBehaviorLibrary'
 import WorkspaceGlobalTransformerPanel from '@/components/workspace/WorkspaceGlobalTransformerPanel'
 import TransformerCodeErrorOverlay from '@/components/workspace/TransformerCodeErrorOverlay'
 import TransformerWatchPanel from '@/components/workspace/TransformerWatchPanel'
-import { workspaceMonacoToolbarButtonStyle } from '@/components/workspace/WorkspaceMonacoSlot'
+import { workspaceMonacoToolbarButtonStyle } from '@/components/workspace/workspaceMonacoToolbarStyles'
 import EntitySearchPicker from '@/components/entitySearch/EntitySearchPicker'
 import type { WorkspaceMonacoEditorChrome } from '@/types/workspaceMonacoChrome'
 import { useDebouncedCompileErrorDisplay } from '@/hooks/useDebouncedCompileErrorDisplay'
@@ -832,6 +832,7 @@ function WorkspaceTransformersTabEntity({
 
   const watchAvailable = monacoIsCustom && selectedEntityIds.length === 1 && selectedConfig != null
   const watchPortalTarget = floatingDrawerPortalRef.current
+  const selectedEntityId = selectedEntityIds[0]
 
   useLayoutEffect(() => {
     if (floatingDrawerPortalRef.current) {
@@ -885,9 +886,9 @@ function WorkspaceTransformersTabEntity({
     )
 
     const watchOverlay =
-      watchOpen && watchAvailable && watchPortalTarget ?
+      watchOpen && watchAvailable && watchPortalTarget && selectedEntityId ?
         <TransformerWatchPanel
-          entityId={selectedEntityIds[0]!}
+          entityId={selectedEntityId}
           configStackIndex={selectedFlatStackIndex}
           portalTarget={watchPortalTarget}
           onClose={() => setWatchOpen(false)}
@@ -903,7 +904,7 @@ function WorkspaceTransformersTabEntity({
     watchAvailable,
     watchOpen,
     watchPortalTarget,
-    selectedEntityIds[0],
+    selectedEntityId,
     selectedFlatStackIndex,
     selectedId,
     monacoEditorAreaEpoch,
