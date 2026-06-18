@@ -620,6 +620,11 @@ function transform(
 })
 
 describe('CustomCodeTransformer', () => {
+  test('opts into wake-on-keyboard so sleeping bodies still run the chain', () => {
+    const t = new CustomCodeTransformer({ type: 'custom', code: 'return {};' })
+    expect(t.wantsWakeOnAnyInput).toBe(true)
+  })
+
   test('legacy body (bare return) still runs for backward compat', () => {
     const t = new CustomCodeTransformer({
       type: 'custom',

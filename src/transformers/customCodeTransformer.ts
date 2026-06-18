@@ -769,6 +769,8 @@ export function validateCustomTransformerSource(source: string, configKey = 'cus
 
 export class CustomCodeTransformer implements Transformer {
   readonly type = 'custom' as const
+  /** Wake sleeping dynamics when keyboard is held so input-driven custom stages still run (same as car2). */
+  readonly wantsWakeOnAnyInput = true
   readonly priority: number
   enabled: boolean
   configStackIndex?: number
