@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import type { RennWorld } from '@/types/world'
 import {
+  resolveFocusedStageConfigs,
   resolveFocusedPipeId,
   resolvePipeNavView,
   resolveSelectedFlatStackIndex,
@@ -127,5 +128,36 @@ describe('pipeNavResolve', () => {
 
     expect(resolveSelectedFlatStackIndex(dupWorld, entity, focus0, view0, 's1')).toBe(0)
     expect(resolveSelectedFlatStackIndex(dupWorld, entity, focus1, view1, 's1')).toBe(1)
+  })
+
+  it('resolveFocusedStageConfigs overlays binding params when entity has a pipe stack', () => {
+    const piped: RennWorld = {
+      version: '1',
+      world: {},
+      entities: [
+        {
+          id: 'e1',
+          transformers: ['s1'],
+          transformerPipeStack: [{ pipeId: 'p1', params: { power: 55 } }],
+        },
+      ],
+      transformers: {
+        s1: { type: 'car2', params: { power: 400 } },
+      },
+      transformerPipes: {
+        p1: {
+          id: 'p1',
+          name: 'Pipe1',
+          stageIds: ['s1'],
+          stages: [],
+          members: [{ kind: 'stage', stageId: 's1' }],
+        },
+      },
+    }
+    const { configs } = resolveFocusedStageConfigs(piped, piped.entities[0]!, {
+      path: [{ kind: 'stack', index: 0 }],
+      selectedSiblingIndex: 0,
+    })
+    expect(configs[0]?.params).toEqual({ power: 55 })
   })
 })

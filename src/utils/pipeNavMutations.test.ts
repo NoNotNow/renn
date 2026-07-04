@@ -3,6 +3,7 @@ import type { RennWorld } from '@/types/world'
 import {
   addExistingPipeAtFocus,
   createEmptyPipe,
+  commitFocusedStageConfigs,
   decoupleStackBindingToCopy,
   deleteStackBinding,
   ensureEntityPipeStack,
@@ -17,6 +18,7 @@ import {
 import {
   findUngroupedStageIds,
   reconcilePipeNavPath,
+  resolveFocusedStageConfigs,
   wouldNestCreateCycle,
 } from './pipeNavResolve'
 
@@ -451,6 +453,47 @@ describe('pipeNavMutations pipe controls', () => {
     const reconciled = reconcilePipeNavPath(legacy, legacy.entities[0]!, [{ kind: 'stack', index: 99 }], 3)
     expect(reconciled.path).toEqual([])
     expect(reconciled.selectedSiblingIndex).toBe(0)
+  })
+
+  it('commitFocusedStageConfigs routes params to binding and strips registry params', () => {
+    const piped: RennWorld = {
+      version: '1',
+      world: {},
+      entities: [
+        {
+          id: 'e1',
+          transformers: ['s1'],
+          transformerPipeStack: [{ pipeId: 'p1' }],
+        },
+      ],
+      transformers: {
+        s1: { type: 'car2', priority: 10, enabled: true, params: { power: 400 } },
+      },
+      transformerPipes: {
+        p1: {
+          id: 'p1',
+          name: 'Pipe1',
+          stageIds: ['s1'],
+          stages: [],
+          members: [{ kind: 'stage', stageId: 's1' }],
+        },
+      },
+    }
+    const focusPath = [{ kind: 'stack' as const, index: 0 }]
+    const applied = commitFocusedStageConfigs(
+      piped,
+      'e1',
+      focusPath,
+      [{ type: 'car2', priority: 10, enabled: true, params: { power: 777 } }],
+      ['s1'],
+    )
+    expect(applied.transformers?.s1?.params).toBeUndefined()
+    expect(applied.entities[0]?.transformerPipeStack?.[0]?.params).toEqual({ power: 777 })
+    const display = resolveFocusedStageConfigs(applied, applied.entities[0]!, {
+      path: focusPath,
+      selectedSiblingIndex: 0,
+    })
+    expect(display.configs[0]?.params).toEqual({ power: 777 })
   })
 })
 

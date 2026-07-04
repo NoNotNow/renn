@@ -1,6 +1,6 @@
 import type { TransformerConfig, TransformerPipe, TransformerPipeBinding, TransformerPipeMember } from '@/types/transformer'
 import type { PipeNavPathSegment } from '@/types/pipeNav'
-import { pipeScopeKeyFromPath } from '@/utils/pipeStageResolve'
+import { isStackRootScopePath, pipeScopeKeyFromPath, stackIndexFromScopePath } from '@/utils/pipeStageResolve'
 import type { Entity, RennWorld } from '@/types/world'
 import { allocatePipeId, nextFreeDefaultPipeName } from '@/utils/allocatePipeId'
 import {
@@ -329,6 +329,76 @@ function pipeTreeContainsPipe(
     }
   }
   return false
+}
+
+/**
+ * Persist focused stage configs: metadata in `world.transformers`, tunable params on the pipe
+ * binding when the entity has a pipe stack (registry stage `params` are not used at runtime).
+ */
+export function commitFocusedStageConfigs(
+  world: RennWorld,
+  entityId: string,
+  focusPath: PipeNavPathSegment[],
+  configs: TransformerConfig[],
+  ids: string[],
+  orderedIds?: string[],
+): RennWorld {
+  const entity = world.entities.find((e) => e.id === entityId)
+  if (!entity) return world
+
+  const hasPipeStack = getEntityPipeStack(entity).length > 0
+  let nextWorld = world
+
+  if (!hasPipeStack) {
+    for (let i = 0; i < configs.length; i++) {
+      const id = ids[i]
+      if (id && configs[i]) {
+        nextWorld = {
+          ...nextWorld,
+          transformers: { ...(nextWorld.transformers ?? {}), [id]: configs[i]! },
+        }
+      }
+    }
+    if (orderedIds) {
+      nextWorld = updateFocusedStageOrder(nextWorld, entityId, focusPath, orderedIds)
+    }
+    return nextWorld
+  }
+
+  let bindingParams: Record<string, unknown> | undefined
+  for (const config of configs) {
+    if (config.params !== undefined) {
+      bindingParams = { ...(bindingParams ?? {}), ...config.params }
+    }
+  }
+
+  for (let i = 0; i < configs.length; i++) {
+    const id = ids[i]
+    const config = configs[i]
+    if (!id || !config) continue
+    const { params: _params, ...meta } = config
+    nextWorld = {
+      ...nextWorld,
+      transformers: { ...(nextWorld.transformers ?? {}), [id]: meta as TransformerConfig },
+    }
+  }
+
+  if (bindingParams !== undefined) {
+    const stackIdx = stackIndexFromScopePath(focusPath) ?? 0
+    const scopePath =
+      focusPath.length > 0 ? focusPath : [{ kind: 'stack' as const, index: stackIdx }]
+    if (isStackRootScopePath(scopePath)) {
+      nextWorld = setBindingParams(nextWorld, entityId, stackIdx, bindingParams)
+    } else {
+      nextWorld = setBindingScopeParams(nextWorld, entityId, stackIdx, scopePath, bindingParams)
+    }
+  }
+
+  if (orderedIds) {
+    nextWorld = updateFocusedStageOrder(nextWorld, entityId, focusPath, orderedIds)
+  }
+
+  return nextWorld
 }
 
 export function updateBindingParams(

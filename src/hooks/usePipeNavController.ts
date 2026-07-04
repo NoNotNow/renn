@@ -20,7 +20,7 @@ import {
   ensureEntityPipeStack,
   reorderStackBindings,
   reorderPipeMembers,
-  updateFocusedStageOrder,
+  commitFocusedStageConfigs,
   deleteStackBinding,
   deletePipeMember,
   insertEmptyPipeAtNode,
@@ -249,25 +249,20 @@ export function usePipeNavController(
   )
 
   const handleCommitStagesWrapped = useCallback(
-    (configs: TransformerConfig[], orderedIds?: string[]) => {
+    (configs: TransformerConfig[], orderedRegistryIds?: string[]) => {
       if (view?.mode === 'entity_stages' && getEntityPipeStack(entity).length === 0) {
-        onCommitStagesFlat?.(configs, orderedIds)
+        onCommitStagesFlat?.(configs, orderedRegistryIds)
         return
       }
-      let nextWorld = world
-      const ids = orderedIds ?? stageData.ids
-      for (let i = 0; i < configs.length; i++) {
-        const id = ids[i]
-        if (id && configs[i]) {
-          nextWorld = {
-            ...nextWorld,
-            transformers: { ...(nextWorld.transformers ?? {}), [id]: configs[i]! },
-          }
-        }
-      }
-      if (orderedIds) {
-        nextWorld = updateFocusedStageOrder(nextWorld, entity.id, focus.path, orderedIds)
-      }
+      const ids = orderedRegistryIds ?? stageData.ids
+      const nextWorld = commitFocusedStageConfigs(
+        world,
+        entity.id,
+        focus.path,
+        configs,
+        ids,
+        orderedRegistryIds,
+      )
       pushWorld(nextWorld)
       onMergedParamSync?.(nextWorld, [entity.id])
     },

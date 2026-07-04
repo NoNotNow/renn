@@ -8,6 +8,7 @@ import type { PipeNavFocus, PipeNavPathSegment, ResolvedPipeNavView, StripItem }
 import type { Entity, RennWorld } from '@/types/world'
 import { getEntityPipeStack, normalizePipeMembers } from '@/utils/transformerPipeResolve'
 import {
+  buildEntityStageRuntimeContext,
   flatIndexOffsetForStackBinding,
   stackIndexFromScopePath,
   syncEntityTransformerIdsFromPipeTree,
@@ -195,7 +196,7 @@ export function drillIntoPipePath(
   return currentPath
 }
 
-/** Stage configs for focused stage list. */
+/** Stage configs for focused stage list (runtime pipe params overlaid when entity has a pipe stack). */
 export function resolveFocusedStageConfigs(
   world: RennWorld,
   entity: Entity,
@@ -203,7 +204,22 @@ export function resolveFocusedStageConfigs(
 ): { ids: string[]; configs: TransformerConfig[] } {
   const ids = resolveFocusedStageIds(world, entity, focus)
   const registry = world.transformers ?? {}
-  const configs = ids.map((id) => registry[id]).filter(Boolean) as TransformerConfig[]
+  if (getEntityPipeStack(entity).length === 0) {
+    const configs = ids.map((id) => registry[id]).filter(Boolean) as TransformerConfig[]
+    return { ids, configs }
+  }
+
+  const { stageContext } = buildEntityStageRuntimeContext(world, entity)
+  const configs = ids
+    .map((id) => {
+      const base = registry[id]
+      if (!base) return undefined
+      const flatIndex = entity.transformers?.indexOf(id) ?? -1
+      const mergedParams =
+        flatIndex >= 0 ? (stageContext.get(flatIndex)?.mergedParams ?? {}) : {}
+      return { ...base, params: mergedParams }
+    })
+    .filter(Boolean) as TransformerConfig[]
   return { ids, configs }
 }
 
