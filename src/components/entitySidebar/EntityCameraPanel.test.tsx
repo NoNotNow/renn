@@ -54,10 +54,22 @@ function renderPanel(props: Partial<React.ComponentProps<typeof EntityCameraPane
         cameraTarget={props.cameraTarget ?? ''}
         cameraMode={props.cameraMode ?? 'firstPerson'}
         cameraTargetVerticalAngle={props.cameraTargetVerticalAngle ?? 0}
+        fluidOrbitSpeed={props.fluidOrbitSpeed ?? 12}
+        fluidOrbitDirection={props.fluidOrbitDirection ?? 1}
+        fluidOrbitHeight={props.fluidOrbitHeight ?? 2}
+        fluidOrbitDistance={props.fluidOrbitDistance ?? 10}
+        cameraTargetLag={props.cameraTargetLag ?? 0}
+        cameraPositionLag={props.cameraPositionLag ?? 0}
         onCameraControlChange={onCameraControlChange}
         onCameraTargetChange={onCameraTargetChange}
         onCameraModeChange={onCameraModeChange}
         onCameraTargetVerticalAngleChange={onCameraTargetVerticalAngleChange}
+        onFluidOrbitSpeedChange={vi.fn()}
+        onFluidOrbitDirectionChange={vi.fn()}
+        onFluidOrbitHeightChange={vi.fn()}
+        onFluidOrbitDistanceChange={vi.fn()}
+        onCameraTargetLagChange={vi.fn()}
+        onCameraPositionLagChange={vi.fn()}
         onWorldChange={onWorldChange}
       />
     </CopyProvider>,
@@ -127,5 +139,19 @@ describe('EntityCameraPanel', () => {
     const slider = screen.getByLabelText('Vertical angle') as HTMLInputElement
     fireEvent.change(slider, { target: { value: '-15' } })
     expect(onCameraTargetVerticalAngleChange).toHaveBeenCalledWith(-15)
+  })
+
+  it('shows lag controls for all follow modes including first person', () => {
+    renderPanel({ cameraControl: 'follow', cameraMode: 'firstPerson' })
+    expect(screen.getByLabelText('Target lag')).toBeInTheDocument()
+    expect(screen.getByLabelText('Position lag')).toBeInTheDocument()
+  })
+
+  it('shows lag controls for orbit follow modes', () => {
+    renderPanel({ cameraControl: 'follow', cameraMode: 'fluid' })
+    expect(screen.getByLabelText('Orbit speed')).toBeInTheDocument()
+    expect(screen.getByLabelText('Orbit distance')).toBeInTheDocument()
+    expect(screen.getByLabelText('Orbit height')).toBeInTheDocument()
+    expect(screen.getByLabelText('Orbit direction')).toBeInTheDocument()
   })
 })

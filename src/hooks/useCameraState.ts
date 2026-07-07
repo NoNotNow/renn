@@ -1,5 +1,20 @@
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react'
-import type { CameraControl, CameraMode, RennWorld } from '@/types/world'
+import type { CameraControl, CameraMode, FluidOrbitDirection, RennWorld } from '@/types/world'
+import {
+  CAMERA_LAG_MAX,
+  CAMERA_LAG_MIN,
+  DEFAULT_CAMERA_POSITION_LAG,
+  DEFAULT_CAMERA_TARGET_LAG,
+  DEFAULT_FLUID_ORBIT_HEIGHT,
+  DEFAULT_FLUID_ORBIT_DISTANCE,
+  DEFAULT_FLUID_ORBIT_SPEED_DEG,
+  FLUID_ORBIT_HEIGHT_MAX,
+  FLUID_ORBIT_HEIGHT_MIN,
+  FLUID_ORBIT_DISTANCE_MAX,
+  FLUID_ORBIT_DISTANCE_MIN,
+  FLUID_ORBIT_SPEED_MAX_DEG,
+  FLUID_ORBIT_SPEED_MIN_DEG,
+} from '@/types/world'
 
 export interface CameraState {
   control: CameraControl
@@ -7,6 +22,38 @@ export interface CameraState {
   mode: CameraMode
   /** Degrees; vertical framing vs target pivot (persisted as CameraConfig.targetVerticalAngle). */
   targetVerticalAngle: number
+  /** Fluid mode: horizontal orbit speed in degrees per second. */
+  fluidOrbitSpeed: number
+  /** Fluid mode: +1 default, −1 reverses orbit direction. */
+  fluidOrbitDirection: FluidOrbitDirection
+  /** Fluid mode: camera height above target pivot (world units). */
+  fluidOrbitHeight: number
+  /** Fluid mode: orbit radius from target pivot (world units). */
+  fluidOrbitDistance: number
+  /** Follow modes: target pivot lag (0 = instant). */
+  cameraTargetLag: number
+  /** Follow modes: camera position lag (0 = instant). */
+  cameraPositionLag: number
+}
+
+function clampFluidOrbitSpeed(deg: number): number {
+  return Math.min(FLUID_ORBIT_SPEED_MAX_DEG, Math.max(FLUID_ORBIT_SPEED_MIN_DEG, deg))
+}
+
+function clampFluidOrbitHeight(height: number): number {
+  return Math.min(FLUID_ORBIT_HEIGHT_MAX, Math.max(FLUID_ORBIT_HEIGHT_MIN, height))
+}
+
+function clampFluidOrbitDistance(distance: number): number {
+  return Math.min(FLUID_ORBIT_DISTANCE_MAX, Math.max(FLUID_ORBIT_DISTANCE_MIN, distance))
+}
+
+function clampCameraLag(lag: number): number {
+  return Math.min(CAMERA_LAG_MAX, Math.max(CAMERA_LAG_MIN, lag))
+}
+
+function fluidOrbitDirectionFromWorld(value: number | undefined): FluidOrbitDirection {
+  return value === -1 ? -1 : 1
 }
 
 /** Camera UI state from world document; `targetFallback` when `camera.target` is absent (sample world uses `'ball'`). */
@@ -17,6 +64,16 @@ export function cameraStateFromWorld(world: RennWorld, targetFallback = ''): Cam
     target: cam?.target ?? targetFallback,
     mode: cam?.mode ?? 'follow',
     targetVerticalAngle: Math.min(45, Math.max(-45, cam?.targetVerticalAngle ?? 0)),
+    fluidOrbitSpeed: clampFluidOrbitSpeed(cam?.fluidOrbitSpeed ?? DEFAULT_FLUID_ORBIT_SPEED_DEG),
+    fluidOrbitDirection: fluidOrbitDirectionFromWorld(cam?.fluidOrbitDirection),
+    fluidOrbitHeight: clampFluidOrbitHeight(
+      cam?.fluidOrbitHeight ?? cam?.height ?? DEFAULT_FLUID_ORBIT_HEIGHT,
+    ),
+    fluidOrbitDistance: clampFluidOrbitDistance(
+      cam?.fluidOrbitDistance ?? cam?.distance ?? DEFAULT_FLUID_ORBIT_DISTANCE,
+    ),
+    cameraTargetLag: clampCameraLag(cam?.cameraTargetLag ?? DEFAULT_CAMERA_TARGET_LAG),
+    cameraPositionLag: clampCameraLag(cam?.cameraPositionLag ?? DEFAULT_CAMERA_POSITION_LAG),
   }
 }
 
@@ -28,6 +85,12 @@ export interface UseCameraStateResult {
   setCameraTarget: (target: string) => void
   setCameraMode: (mode: CameraMode | ((prev: CameraMode) => CameraMode)) => void
   setCameraTargetVerticalAngle: (degrees: number) => void
+  setFluidOrbitSpeed: (degreesPerSecond: number) => void
+  setFluidOrbitDirection: (direction: FluidOrbitDirection) => void
+  setFluidOrbitHeight: (height: number) => void
+  setFluidOrbitDistance: (distance: number) => void
+  setCameraTargetLag: (lag: number) => void
+  setCameraPositionLag: (lag: number) => void
   /** Replace the entire camera state from a freshly loaded / imported world. */
   resetFromWorld: (world: RennWorld, targetFallback?: string) => void
 }
@@ -70,6 +133,48 @@ export function useCameraState(initialWorld: RennWorld, initialTargetFallback = 
     setCameraState((prev) => ({ ...prev, targetVerticalAngle: clamped }))
   }, [])
 
+  const setFluidOrbitSpeed = useCallback((degreesPerSecond: number) => {
+    setCameraState((prev) => ({
+      ...prev,
+      fluidOrbitSpeed: clampFluidOrbitSpeed(degreesPerSecond),
+    }))
+  }, [])
+
+  const setFluidOrbitDirection = useCallback((direction: FluidOrbitDirection) => {
+    setCameraState((prev) => ({
+      ...prev,
+      fluidOrbitDirection: direction === -1 ? -1 : 1,
+    }))
+  }, [])
+
+  const setFluidOrbitHeight = useCallback((height: number) => {
+    setCameraState((prev) => ({
+      ...prev,
+      fluidOrbitHeight: clampFluidOrbitHeight(height),
+    }))
+  }, [])
+
+  const setFluidOrbitDistance = useCallback((distance: number) => {
+    setCameraState((prev) => ({
+      ...prev,
+      fluidOrbitDistance: clampFluidOrbitDistance(distance),
+    }))
+  }, [])
+
+  const setCameraTargetLag = useCallback((lag: number) => {
+    setCameraState((prev) => ({
+      ...prev,
+      cameraTargetLag: clampCameraLag(lag),
+    }))
+  }, [])
+
+  const setCameraPositionLag = useCallback((lag: number) => {
+    setCameraState((prev) => ({
+      ...prev,
+      cameraPositionLag: clampCameraLag(lag),
+    }))
+  }, [])
+
   const resetFromWorld = useCallback((world: RennWorld, targetFallback?: string) => {
     setCameraState(cameraStateFromWorld(world, targetFallback))
   }, [])
@@ -81,6 +186,12 @@ export function useCameraState(initialWorld: RennWorld, initialTargetFallback = 
     setCameraTarget,
     setCameraMode,
     setCameraTargetVerticalAngle,
+    setFluidOrbitSpeed,
+    setFluidOrbitDirection,
+    setFluidOrbitHeight,
+    setFluidOrbitDistance,
+    setCameraTargetLag,
+    setCameraPositionLag,
     resetFromWorld,
   }
 }

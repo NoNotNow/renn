@@ -5,7 +5,8 @@ describe('cycleCameraMode', () => {
   it('advances to the next mode in CAMERA_MODE_CYCLE_ORDER', () => {
     expect(cycleCameraMode('follow')).toBe('thirdPerson')
     expect(cycleCameraMode('thirdPerson')).toBe('tracking')
-    expect(cycleCameraMode('tracking')).toBe('firstPerson')
+    expect(cycleCameraMode('tracking')).toBe('fluid')
+    expect(cycleCameraMode('fluid')).toBe('firstPerson')
   })
 
   it('wraps from last mode to the first', () => {

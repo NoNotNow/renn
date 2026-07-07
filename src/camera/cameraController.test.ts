@@ -598,6 +598,234 @@ describe('CameraController', () => {
     expect(Math.abs(camera.position.x)).toBeLessThan(5)
   })
 
+  it('auto-orbits in world space in fluid mode (ignores target rotation)', () => {
+    const { camera, scene, getEntityPosition } = createTestSetup()
+
+    scene.userData.camera = {
+      control: 'follow',
+      mode: 'fluid',
+      target: 'player',
+      distance: 10,
+      height: 0,
+      fluidOrbitSpeed: 0,
+      fluidOrbitDirection: 1,
+    }
+
+    const yaw90 = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 2)
+    const getEntityQuaternion = vi.fn((_id: string) => yaw90)
+
+    const controller = new CameraController({
+      camera,
+      scene,
+      getEntityPosition,
+      getEntityQuaternion,
+    })
+
+    for (let i = 0; i < 200; i++) {
+      controller.update(0.016)
+    }
+
+    expect(camera.position.z).toBeGreaterThan(5)
+    expect(Math.abs(camera.position.x)).toBeLessThan(5)
+  })
+
+  it('fluid mode advances orbit yaw over time', () => {
+    const { camera, scene, getEntityPosition } = createTestSetup()
+
+    scene.userData.camera = {
+      control: 'follow',
+      mode: 'fluid',
+      target: 'player',
+      distance: 10,
+      height: 0,
+      fluidOrbitSpeed: 180,
+      fluidOrbitDirection: 1,
+    }
+
+    const controller = new CameraController({
+      camera,
+      scene,
+      getEntityPosition,
+    })
+
+    for (let i = 0; i < 200; i++) controller.update(0.016)
+    const xAfter = camera.position.x
+
+    for (let i = 0; i < 200; i++) controller.update(0.016)
+    expect(Math.abs(camera.position.x - xAfter)).toBeGreaterThan(0.5)
+  })
+
+  it('fluid mode ignores manual setOrbitDelta', () => {
+    const { camera, scene, getEntityPosition } = createTestSetup()
+
+    scene.userData.camera = {
+      control: 'follow',
+      mode: 'fluid',
+      target: 'player',
+      distance: 10,
+      height: 0,
+      fluidOrbitSpeed: 0,
+      fluidOrbitDirection: 1,
+    }
+
+    const controller = new CameraController({
+      camera,
+      scene,
+      getEntityPosition,
+    })
+
+    for (let i = 0; i < 200; i++) controller.update(0.016)
+    const baseX = camera.position.x
+
+    controller.setOrbitDelta(500, 0)
+    for (let i = 0; i < 5; i++) controller.update(0.016)
+
+    expect(camera.position.x).toBeCloseTo(baseX, 3)
+  })
+
+  it('fluid mode uses fluidOrbitHeight for camera elevation', () => {
+    const { camera, scene, getEntityPosition } = createTestSetup()
+
+    scene.userData.camera = {
+      control: 'follow',
+      mode: 'fluid',
+      target: 'player',
+      distance: 10,
+      height: 0,
+      fluidOrbitSpeed: 0,
+      fluidOrbitHeight: 8,
+    }
+
+    const controller = new CameraController({
+      camera,
+      scene,
+      getEntityPosition,
+    })
+
+    for (let i = 0; i < 200; i++) controller.update(0.016)
+
+    expect(camera.position.y).toBeGreaterThan(6)
+  })
+
+  it('fluid mode uses fluidOrbitDistance for orbit radius', () => {
+    const { camera, scene, getEntityPosition } = createTestSetup()
+
+    scene.userData.camera = {
+      control: 'follow',
+      mode: 'fluid',
+      target: 'player',
+      distance: 5,
+      fluidOrbitSpeed: 0,
+      fluidOrbitHeight: 0,
+      fluidOrbitDistance: 20,
+    }
+
+    const controller = new CameraController({
+      camera,
+      scene,
+      getEntityPosition,
+    })
+
+    for (let i = 0; i < 200; i++) controller.update(0.016)
+
+    const dist = Math.hypot(camera.position.x, camera.position.z)
+    expect(dist).toBeGreaterThan(15)
+  })
+
+  it('cameraTargetLag delays pivot catch-up to moving target', () => {
+    const { camera, scene, getEntityPosition, entityPositions } = createTestSetup()
+
+    scene.userData.camera = {
+      control: 'follow',
+      mode: 'thirdPerson',
+      target: 'player',
+      distance: 10,
+      height: 0,
+      cameraTargetLag: 100,
+      cameraPositionLag: 0,
+    }
+
+    entityPositions.player.set(0, 0, 0)
+
+    const controller = new CameraController({
+      camera,
+      scene,
+      getEntityPosition,
+    })
+
+    controller.update(0.016)
+    const pivotAfterStart = camera.position.z
+
+    entityPositions.player.set(20, 0, 0)
+    controller.update(0.016)
+
+    expect(Math.abs(camera.position.z - pivotAfterStart)).toBeLessThan(18)
+  })
+
+  it('cameraPositionLag delays camera catch-up to orbit point', () => {
+    const { camera, scene, getEntityPosition, entityPositions } = createTestSetup()
+
+    scene.userData.camera = {
+      control: 'follow',
+      mode: 'thirdPerson',
+      target: 'player',
+      distance: 10,
+      height: 0,
+      cameraTargetLag: 0,
+      cameraPositionLag: 100,
+    }
+
+    entityPositions.player.set(0, 0, 0)
+
+    const controller = new CameraController({
+      camera,
+      scene,
+      getEntityPosition,
+    })
+
+    for (let i = 0; i < 5; i++) controller.update(0.016)
+    const startDist = Math.hypot(camera.position.x, camera.position.z)
+
+    controller.setOrbitDistanceDelta(-8)
+    controller.update(0.016)
+
+    const afterDist = Math.hypot(camera.position.x, camera.position.z)
+    expect(afterDist).toBeGreaterThan(startDist - 6)
+  })
+
+  it('first person applies target and position lag', () => {
+    const { camera, scene, getEntityPosition, entityPositions } = createTestSetup()
+
+    scene.userData.camera = {
+      control: 'follow',
+      mode: 'firstPerson',
+      target: 'player',
+      distance: 10,
+      height: 2,
+      cameraTargetLag: 100,
+      cameraPositionLag: 100,
+    }
+
+    entityPositions.player.set(0, 0, 0)
+
+    const identityQ = new THREE.Quaternion()
+    const controller = new CameraController({
+      camera,
+      scene,
+      getEntityPosition,
+      getEntityQuaternion: vi.fn(() => identityQ),
+    })
+
+    controller.update(0.016)
+    const yAfterStart = camera.position.y
+
+    entityPositions.player.set(30, 0, 0)
+    controller.update(0.016)
+
+    expect(camera.position.x).toBeLessThan(25)
+    expect(camera.position.y).toBeCloseTo(yAfterStart, 0)
+  })
+
   it('returns null for missing entity', () => {
     const { camera, scene, getEntityPosition } = createTestSetup()
     

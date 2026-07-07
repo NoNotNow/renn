@@ -10,13 +10,34 @@ export type Quat = Rotation
 /** Color: [r, g, b] or [r, g, b, a] 0–1. */
 export type Color = [number, number, number] | [number, number, number, number]
 
-export type CameraMode = 'firstPerson' | 'thirdPerson' | 'follow' | 'tracking'
+export type CameraMode = 'firstPerson' | 'thirdPerson' | 'follow' | 'tracking' | 'fluid'
+
+/** Fluid mode: +1 default orbit direction, −1 reverses. */
+export type FluidOrbitDirection = 1 | -1
+
+export const DEFAULT_FLUID_ORBIT_SPEED_DEG = 12
+export const FLUID_ORBIT_SPEED_MIN_DEG = 1
+export const FLUID_ORBIT_SPEED_MAX_DEG = 90
+export const DEFAULT_FLUID_ORBIT_DIRECTION: FluidOrbitDirection = 1
+export const DEFAULT_FLUID_ORBIT_HEIGHT = 2
+export const FLUID_ORBIT_HEIGHT_MIN = 0
+export const FLUID_ORBIT_HEIGHT_MAX = 50
+export const DEFAULT_FLUID_ORBIT_DISTANCE = 10
+export const FLUID_ORBIT_DISTANCE_MIN = 1
+export const FLUID_ORBIT_DISTANCE_MAX = 150
+
+/** Follow-camera lag sliders: 0 = instant, higher = slower catch-up. */
+export const CAMERA_LAG_MIN = 0
+export const CAMERA_LAG_MAX = 5000
+export const DEFAULT_CAMERA_TARGET_LAG = 0
+export const DEFAULT_CAMERA_POSITION_LAG = 0
 
 /** UI order for camera mode dropdown and Digit0 / Numpad0 cycle in Builder; Digit1 / Numpad1 cycle active play avatar (see AvatarSession). */
 export const CAMERA_MODE_CYCLE_ORDER: readonly CameraMode[] = [
   'follow',
   'thirdPerson',
   'tracking',
+  'fluid',
   'firstPerson',
 ] as const
 
@@ -24,6 +45,7 @@ export const CAMERA_MODE_LABELS: Record<CameraMode, string> = {
   follow: 'Follow',
   thirdPerson: 'Third person',
   tracking: 'Tracking',
+  fluid: 'Fluid',
   firstPerson: 'First person',
 }
 
@@ -51,6 +73,18 @@ export interface CameraConfig {
   height?: number
   /** Degrees; shifts look-at above/below target pivot so subject moves down/up in frame (positive → looks higher → subject lower). */
   targetVerticalAngle?: number
+  /** Fluid mode: horizontal orbit speed in degrees per second. Default {@link DEFAULT_FLUID_ORBIT_SPEED_DEG}. */
+  fluidOrbitSpeed?: number
+  /** Fluid mode: orbit direction (+1 default, −1 reverses). */
+  fluidOrbitDirection?: FluidOrbitDirection
+  /** Fluid mode: camera height above target pivot (world units). Default {@link DEFAULT_FLUID_ORBIT_HEIGHT}. */
+  fluidOrbitHeight?: number
+  /** Fluid mode: orbit radius from target pivot (world units). Default {@link DEFAULT_FLUID_ORBIT_DISTANCE}. */
+  fluidOrbitDistance?: number
+  /** Follow modes: target pivot lag (0 = instant, higher = slower). Default {@link DEFAULT_CAMERA_TARGET_LAG}. */
+  cameraTargetLag?: number
+  /** Follow modes: camera position lag (0 = instant, higher = slower). Default {@link DEFAULT_CAMERA_POSITION_LAG}. */
+  cameraPositionLag?: number
   fov?: number
   defaultPosition?: Vec3
   defaultRotation?: Rotation

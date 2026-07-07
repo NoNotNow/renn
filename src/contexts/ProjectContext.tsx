@@ -44,6 +44,12 @@ interface ProjectContextState {
   cameraTarget: string
   cameraMode: CameraMode
   cameraTargetVerticalAngle: number
+  fluidOrbitSpeed: number
+  fluidOrbitDirection: 1 | -1
+  fluidOrbitHeight: number
+  fluidOrbitDistance: number
+  cameraTargetLag: number
+  cameraPositionLag: number
   /** Live Builder free-fly pose for merge on save; synced from SceneView while navigating. */
   editorFreePoseRef: React.MutableRefObject<EditorFreePose | null>
   /** Global model presets (IndexedDB, shared across projects). */
@@ -91,6 +97,12 @@ interface ProjectContextActions {
   setCameraTarget: (target: string) => void
   setCameraMode: (mode: CameraMode | ((prev: CameraMode) => CameraMode)) => void
   setCameraTargetVerticalAngle: (degrees: number) => void
+  setFluidOrbitSpeed: (degreesPerSecond: number) => void
+  setFluidOrbitDirection: (direction: 1 | -1) => void
+  setFluidOrbitHeight: (height: number) => void
+  setFluidOrbitDistance: (distance: number) => void
+  setCameraTargetLag: (lag: number) => void
+  setCameraPositionLag: (lag: number) => void
 
   refreshModelPresets: () => Promise<void>
   saveModelPreset: (preset: ModelPreset) => Promise<void>
@@ -132,6 +144,12 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     setCameraTarget,
     setCameraMode,
     setCameraTargetVerticalAngle,
+    setFluidOrbitSpeed,
+    setFluidOrbitDirection,
+    setFluidOrbitHeight,
+    setFluidOrbitDistance,
+    setCameraTargetLag,
+    setCameraPositionLag,
     resetFromWorld: resetCameraFromWorld,
   } = useCameraState(sampleWorld, 'ball')
 
@@ -549,6 +567,12 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     cameraTarget: cameraState.target,
     cameraMode: cameraState.mode,
     cameraTargetVerticalAngle: cameraState.targetVerticalAngle,
+    fluidOrbitSpeed: cameraState.fluidOrbitSpeed,
+    fluidOrbitDirection: cameraState.fluidOrbitDirection,
+    fluidOrbitHeight: cameraState.fluidOrbitHeight,
+    fluidOrbitDistance: cameraState.fluidOrbitDistance,
+    cameraTargetLag: cameraState.cameraTargetLag,
+    cameraPositionLag: cameraState.cameraPositionLag,
     editorFreePoseRef,
     modelPresets,
     
@@ -577,6 +601,12 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     setCameraTarget,
     setCameraMode,
     setCameraTargetVerticalAngle,
+    setFluidOrbitSpeed,
+    setFluidOrbitDirection,
+    setFluidOrbitHeight,
+    setFluidOrbitDistance,
+    setCameraTargetLag,
+    setCameraPositionLag,
     refreshModelPresets,
     saveModelPreset,
     deleteModelPreset,
@@ -595,6 +625,12 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     cameraState.target,
     cameraState.mode,
     cameraState.targetVerticalAngle,
+    cameraState.fluidOrbitSpeed,
+    cameraState.fluidOrbitDirection,
+    cameraState.fluidOrbitHeight,
+    cameraState.fluidOrbitDistance,
+    cameraState.cameraTargetLag,
+    cameraState.cameraPositionLag,
     editorFreePoseRef,
     modelPresets,
     newProject,
@@ -621,6 +657,12 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     setCameraTarget,
     setCameraMode,
     setCameraTargetVerticalAngle,
+    setFluidOrbitSpeed,
+    setFluidOrbitDirection,
+    setFluidOrbitHeight,
+    setFluidOrbitDistance,
+    setCameraTargetLag,
+    setCameraPositionLag,
     refreshModelPresets,
     saveModelPreset,
     deleteModelPreset,

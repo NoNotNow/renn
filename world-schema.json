@@ -231,13 +231,38 @@
       "type": "object",
       "properties": {
         "control": { "enum": ["free", "follow", "top", "front", "right"] },
-        "mode": { "enum": ["firstPerson", "thirdPerson", "follow", "tracking"] },
+        "mode": { "enum": ["firstPerson", "thirdPerson", "follow", "tracking", "fluid"] },
         "target": { "type": "string" },
         "distance": { "type": "number" },
         "height": { "type": "number" },
         "targetVerticalAngle": {
           "type": "number",
           "description": "Degrees; vertical look-at offset relative to camera–target distance (positive tilts view up so subject sits lower in frame)"
+        },
+        "fluidOrbitSpeed": {
+          "type": "number",
+          "description": "Fluid mode: horizontal orbit speed in degrees per second"
+        },
+        "fluidOrbitDirection": {
+          "type": "number",
+          "enum": [1, -1],
+          "description": "Fluid mode: orbit direction (+1 default, −1 reverses)"
+        },
+        "fluidOrbitHeight": {
+          "type": "number",
+          "description": "Fluid mode: camera height above target pivot (world units)"
+        },
+        "fluidOrbitDistance": {
+          "type": "number",
+          "description": "Fluid mode: orbit radius from target pivot (world units)"
+        },
+        "cameraTargetLag": {
+          "type": "number",
+          "description": "Follow modes: target pivot lag (0 = instant, higher = slower)"
+        },
+        "cameraPositionLag": {
+          "type": "number",
+          "description": "Follow modes: camera position lag (0 = instant, higher = slower)"
         },
         "fov": { "type": "number" },
         "defaultPosition": { "$ref": "#/$defs/Vec3" },
@@ -255,11 +280,17 @@
           "type": "object",
           "properties": {
             "control": { "enum": ["free", "follow", "top", "front", "right"] },
-            "mode": { "enum": ["firstPerson", "thirdPerson", "follow", "tracking"] },
+            "mode": { "enum": ["firstPerson", "thirdPerson", "follow", "tracking", "fluid"] },
             "target": { "type": "string" },
             "distance": { "type": "number" },
             "height": { "type": "number" },
             "targetVerticalAngle": { "type": "number" },
+            "fluidOrbitSpeed": { "type": "number" },
+            "fluidOrbitDirection": { "type": "number", "enum": [1, -1] },
+            "fluidOrbitHeight": { "type": "number" },
+            "fluidOrbitDistance": { "type": "number" },
+            "cameraTargetLag": { "type": "number" },
+            "cameraPositionLag": { "type": "number" },
             "fov": { "type": "number" },
             "defaultPosition": { "$ref": "#/$defs/Vec3" },
             "defaultRotation": { "$ref": "#/$defs/Rotation" },

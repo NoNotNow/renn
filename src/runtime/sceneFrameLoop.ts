@@ -164,6 +164,7 @@ export function runSceneFrame(input: SceneFrameLoopInputs): void {
     orbitCfg?.mode === 'follow' ||
     orbitCfg?.mode === 'thirdPerson' ||
     orbitCfg?.mode === 'tracking' ||
+    orbitCfg?.mode === 'fluid' ||
     orbitCfg?.mode === 'firstPerson'
   const editNav = editNavigationModeRef.current
   const followCameraWheelOrbit = !editNav && orbitCfg?.control === 'follow' && orbitFollowModes

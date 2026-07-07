@@ -1,5 +1,11 @@
 import * as THREE from 'three'
 import type { AvatarFocusSnapshot, CameraConfig, CameraControl, CameraMode } from '@/types/world'
+import {
+  DEFAULT_FLUID_ORBIT_DIRECTION,
+  DEFAULT_FLUID_ORBIT_HEIGHT,
+  DEFAULT_FLUID_ORBIT_DISTANCE,
+  DEFAULT_FLUID_ORBIT_SPEED_DEG,
+} from '@/types/world'
 import { DEFAULT_FREE_FLY_KEYS, type FreeFlyKeys } from '@/types/camera'
 
 const FREE_FLY_MOVE_SPEED = 8
@@ -37,6 +43,9 @@ const FIRST_PERSON_FOV_MAX = 75
 /** Maps wheel/pinch distance delta to FOV change (degrees per unit delta). */
 const FIRST_PERSON_FOV_PER_DISTANCE_DELTA = 0.8
 
+/** Maps lag slider 1–5000 to catch-up rate (higher lag → slower / heavier). */
+const CAMERA_LAG_RESPONSE_SCALE = 800
+
 const FIRST_PERSON_EYE_HEIGHT = 1.6
 /** Pitch above entity forward (local −Z), radians (5°). */
 const FIRST_PERSON_PITCH_UP_RAD = THREE.MathUtils.degToRad(5)
@@ -57,7 +66,7 @@ export class CameraController {
   private config: CameraConfig
   private currentTarget = new THREE.Vector3()
   private currentOffset = new THREE.Vector3()
-  private smooth = 0.1
+  private readonly desiredCameraPosition = new THREE.Vector3()
   private freeFlyKeys: FreeFlyKeys = { ...DEFAULT_FREE_FLY_KEYS }
   private readonly forward = new THREE.Vector3()
   private readonly right = new THREE.Vector3()
@@ -108,7 +117,14 @@ export class CameraController {
     }
     this.config = cam
     this.orbitDistance = cam.distance ?? 10
+    this.syncFluidOrbitDistanceFromConfig(cam)
     this.applyPresetIfControl()
+  }
+
+  private syncFluidOrbitDistanceFromConfig(config: CameraConfig): void {
+    if (config.mode !== 'fluid') return
+    this.orbitDistance =
+      config.fluidOrbitDistance ?? config.distance ?? DEFAULT_FLUID_ORBIT_DISTANCE
   }
 
   private applyPresetIfControl(): void {
@@ -134,6 +150,9 @@ export class CameraController {
       this.orbitPitch = 0
       this.orbitDistance = config.distance ?? 10
     }
+    if (config.mode === 'fluid') {
+      this.syncFluidOrbitDistanceFromConfig(config)
+    }
     this.applyPresetIfControl()
   }
 
@@ -142,6 +161,9 @@ export class CameraController {
    * Call each frame with the delta since last frame; pass 0,0 when no drag.
    */
   setOrbitDelta(dx: number, dy: number): void {
+    if (!this.forceFreeFlyNavigation && this.config.mode === 'fluid') {
+      return
+    }
     if (this.forceFreeFlyNavigation) {
       this.editNavOrbitPixelDx += dx
       this.editNavOrbitPixelDy += dy
@@ -258,17 +280,14 @@ export class CameraController {
     const pos = this.getEntityPosition(targetId)
     if (!pos) return
 
-    if (this.config.mode === 'firstPerson') {
-      this.currentTarget.copy(pos)
-    } else {
-      this.currentTarget.lerp(pos, this.smooth)
-    }
+    this.updateSmoothedFollowTarget(pos, dt)
     const height = this.config.height ?? 2
 
     switch (this.config.mode as CameraMode) {
       case 'firstPerson': {
-        this.camera.position.copy(this.currentTarget)
-        this.camera.position.y += FIRST_PERSON_EYE_HEIGHT
+        this.desiredCameraPosition.copy(this.currentTarget)
+        this.desiredCameraPosition.y += FIRST_PERSON_EYE_HEIGHT
+        this.applySmoothedCameraPosition(this.desiredCameraPosition, dt)
         const entityQ = this.getEntityQuaternion(targetId) ?? IDENTITY_QUATERNION
         // Vehicle-local yaw (orbitYaw) then pitch (orbitPitch), then entity orientation — same idea as third/follow.
         this.forward.set(0, 0, -1)
@@ -287,28 +306,64 @@ export class CameraController {
         const followQ = this.getEntityQuaternion(targetId)
         this.currentOffset.copy(this.sphericalOffset(this.orbitDistance * 2, height))
         if (followQ) this.currentOffset.applyQuaternion(followQ)
-        this.camera.position.copy(this.currentTarget).add(this.currentOffset)
-        this.lookAtFollowTarget(this.currentTarget)
+        this.placeOrbitFollowCamera(this.currentOffset, dt)
         break
       }
       case 'thirdPerson': {
         const thirdPersonQ = this.getEntityQuaternion(targetId)
         this.currentOffset.copy(this.sphericalOffset(this.orbitDistance, height))
         if (thirdPersonQ) this.currentOffset.applyQuaternion(thirdPersonQ)
-        this.camera.position.copy(this.currentTarget).add(this.currentOffset)
-        this.lookAtFollowTarget(this.currentTarget)
+        this.placeOrbitFollowCamera(this.currentOffset, dt)
         break
       }
       case 'tracking': {
         this.currentOffset.copy(this.sphericalOffset(this.orbitDistance * 2 * 3, height))
-        this.camera.position.copy(this.currentTarget).add(this.currentOffset)
-        this.lookAtFollowTarget(this.currentTarget)
+        this.placeOrbitFollowCamera(this.currentOffset, dt)
+        break
+      }
+      case 'fluid': {
+        const speedDeg = this.config.fluidOrbitSpeed ?? DEFAULT_FLUID_ORBIT_SPEED_DEG
+        const direction = this.config.fluidOrbitDirection ?? DEFAULT_FLUID_ORBIT_DIRECTION
+        const fluidHeight =
+          this.config.fluidOrbitHeight ?? this.config.height ?? DEFAULT_FLUID_ORBIT_HEIGHT
+        this.orbitYaw += THREE.MathUtils.degToRad(speedDeg) * direction * dt
+        this.currentOffset.copy(this.sphericalOffset(this.orbitDistance, fluidHeight))
+        this.placeOrbitFollowCamera(this.currentOffset, dt)
         break
       }
       default:
-        this.camera.position.copy(this.currentTarget).add(new THREE.Vector3(0, height, this.orbitDistance))
-        this.lookAtFollowTarget(this.currentTarget)
+        this.currentOffset.set(0, height, this.orbitDistance)
+        this.placeOrbitFollowCamera(this.currentOffset, dt)
     }
+  }
+
+  private updateSmoothedFollowTarget(entityPos: THREE.Vector3, dt: number): void {
+    this.applyLagToVector(this.currentTarget, entityPos, this.config.cameraTargetLag ?? 0, dt)
+  }
+
+  private applySmoothedCameraPosition(desiredWorldPos: THREE.Vector3, dt: number): void {
+    this.applyLagToVector(this.camera.position, desiredWorldPos, this.config.cameraPositionLag ?? 0, dt)
+  }
+
+  private placeOrbitFollowCamera(worldOffset: THREE.Vector3, dt: number): void {
+    this.desiredCameraPosition.copy(this.currentTarget).add(worldOffset)
+    this.applySmoothedCameraPosition(this.desiredCameraPosition, dt)
+    this.lookAtFollowTarget(this.currentTarget)
+  }
+
+  /** Exponential lag smoothing; `lag` 0 snaps instantly. */
+  private applyLagToVector(
+    current: THREE.Vector3,
+    target: THREE.Vector3,
+    lag: number,
+    dt: number,
+  ): void {
+    if (lag <= 0) {
+      current.copy(target)
+      return
+    }
+    const alpha = 1 - Math.exp(-(dt * CAMERA_LAG_RESPONSE_SCALE) / Math.max(lag, 1))
+    current.lerp(target, alpha)
   }
 
   /** Shift look-at vertically using {@link CameraConfig.targetVerticalAngle} (degrees). */

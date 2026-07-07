@@ -2,6 +2,7 @@ import { useState } from 'react'
 import {
   type Entity,
   type CameraMode,
+  type FluidOrbitDirection,
   type RennWorld,
   type AvatarFocusSnapshot,
 } from '@/types/world'
@@ -28,6 +29,12 @@ export interface EntitySidebarProps {
   cameraMode: CameraMode
   /** Degrees; vertical framing vs target pivot (−45…45). */
   cameraTargetVerticalAngle: number
+  fluidOrbitSpeed: number
+  fluidOrbitDirection: FluidOrbitDirection
+  fluidOrbitHeight: number
+  fluidOrbitDistance: number
+  cameraTargetLag: number
+  cameraPositionLag: number
   world: RennWorld
   onSelectEntity: (id: string | null, options?: EntityExplorerSelectEntityOptions) => void
   onSelectGroup: (groupId: string, options?: { additive?: boolean }) => void
@@ -43,6 +50,12 @@ export interface EntitySidebarProps {
   onCameraTargetChange: (target: string) => void
   onCameraModeChange: (mode: CameraMode) => void
   onCameraTargetVerticalAngleChange: (degrees: number) => void
+  onFluidOrbitSpeedChange: (degreesPerSecond: number) => void
+  onFluidOrbitDirectionChange: (direction: FluidOrbitDirection) => void
+  onFluidOrbitHeightChange: (height: number) => void
+  onFluidOrbitDistanceChange: (distance: number) => void
+  onCameraTargetLagChange: (lag: number) => void
+  onCameraPositionLagChange: (lag: number) => void
   onWorldChange: (world: RennWorld) => void
   onSoundPlaybackCommand?: (action: 'play' | 'stop') => void
   /** Builder: read live follow/orbit state for "save as default" in Avatar dialog. */
@@ -62,6 +75,12 @@ export default function EntitySidebar({
   cameraTarget,
   cameraMode,
   cameraTargetVerticalAngle,
+  fluidOrbitSpeed,
+  fluidOrbitDirection,
+  fluidOrbitHeight,
+  fluidOrbitDistance,
+  cameraTargetLag,
+  cameraPositionLag,
   world,
   onSelectEntity,
   onSelectGroup,
@@ -77,6 +96,12 @@ export default function EntitySidebar({
   onCameraTargetChange,
   onCameraModeChange,
   onCameraTargetVerticalAngleChange,
+  onFluidOrbitSpeedChange,
+  onFluidOrbitDirectionChange,
+  onFluidOrbitHeightChange,
+  onFluidOrbitDistanceChange,
+  onCameraTargetLagChange,
+  onCameraPositionLagChange,
   onWorldChange,
   onSoundPlaybackCommand,
   getAvatarFocusSnapshot,
@@ -151,10 +176,22 @@ export default function EntitySidebar({
             cameraTarget={cameraTarget}
             cameraMode={cameraMode}
             cameraTargetVerticalAngle={cameraTargetVerticalAngle}
+            fluidOrbitSpeed={fluidOrbitSpeed}
+            fluidOrbitDirection={fluidOrbitDirection}
+            fluidOrbitHeight={fluidOrbitHeight}
+            fluidOrbitDistance={fluidOrbitDistance}
+            cameraTargetLag={cameraTargetLag}
+            cameraPositionLag={cameraPositionLag}
             onCameraControlChange={onCameraControlChange}
             onCameraTargetChange={onCameraTargetChange}
             onCameraModeChange={onCameraModeChange}
             onCameraTargetVerticalAngleChange={onCameraTargetVerticalAngleChange}
+            onFluidOrbitSpeedChange={onFluidOrbitSpeedChange}
+            onFluidOrbitDirectionChange={onFluidOrbitDirectionChange}
+            onFluidOrbitHeightChange={onFluidOrbitHeightChange}
+            onFluidOrbitDistanceChange={onFluidOrbitDistanceChange}
+            onCameraTargetLagChange={onCameraTargetLagChange}
+            onCameraPositionLagChange={onCameraPositionLagChange}
             onWorldChange={onWorldChange}
             getAvatarFocusSnapshot={getAvatarFocusSnapshot}
             onSelectEntity={onSelectEntity}

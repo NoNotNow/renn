@@ -122,10 +122,22 @@ export default function Builder() {
     cameraTarget,
     cameraMode,
     cameraTargetVerticalAngle,
+    fluidOrbitSpeed,
+    fluidOrbitDirection,
+    fluidOrbitHeight,
+    fluidOrbitDistance,
+    cameraTargetLag,
+    cameraPositionLag,
     setCameraControl,
     setCameraTarget,
     setCameraMode,
     setCameraTargetVerticalAngle,
+    setFluidOrbitSpeed,
+    setFluidOrbitDirection,
+    setFluidOrbitHeight,
+    setFluidOrbitDistance,
+    setCameraTargetLag,
+    setCameraPositionLag,
     editorFreePoseRef,
     entityWorkHistory,
     recordEntityWorkHistory,
@@ -333,8 +345,14 @@ export default function Builder() {
       target: cameraTarget,
       mode: cameraMode,
       targetVerticalAngle: cameraTargetVerticalAngle,
+      fluidOrbitSpeed,
+      fluidOrbitDirection,
+      fluidOrbitHeight,
+      fluidOrbitDistance,
+      cameraTargetLag,
+      cameraPositionLag,
     }),
-    [world.world.camera, cameraControl, cameraTarget, cameraMode, cameraTargetVerticalAngle]
+    [world.world.camera, cameraControl, cameraTarget, cameraMode, cameraTargetVerticalAngle, fluidOrbitSpeed, fluidOrbitDirection, fluidOrbitHeight, fluidOrbitDistance, cameraTargetLag, cameraPositionLag]
   )
 
   // Forwarding refs so group shortcuts can fire handlers that are declared later in this file.
@@ -1437,6 +1455,12 @@ export default function Builder() {
               cameraTarget={cameraTarget}
               cameraMode={cameraMode}
               cameraTargetVerticalAngle={cameraTargetVerticalAngle}
+              fluidOrbitSpeed={fluidOrbitSpeed}
+              fluidOrbitDirection={fluidOrbitDirection}
+              fluidOrbitHeight={fluidOrbitHeight}
+              fluidOrbitDistance={fluidOrbitDistance}
+              cameraTargetLag={cameraTargetLag}
+              cameraPositionLag={cameraPositionLag}
               world={world}
               onSelectEntity={handleSelectEntity}
               onSelectGroup={handleSelectGroup}
@@ -1452,6 +1476,12 @@ export default function Builder() {
               onCameraTargetChange={setCameraTarget}
               onCameraModeChange={setCameraMode}
               onCameraTargetVerticalAngleChange={setCameraTargetVerticalAngle}
+              onFluidOrbitSpeedChange={setFluidOrbitSpeed}
+              onFluidOrbitDirectionChange={setFluidOrbitDirection}
+              onFluidOrbitHeightChange={setFluidOrbitHeight}
+              onFluidOrbitDistanceChange={setFluidOrbitDistance}
+              onCameraTargetLagChange={setCameraTargetLag}
+              onCameraPositionLagChange={setCameraPositionLag}
               onWorldChange={handleWorldChange}
               onSoundPlaybackCommand={(action) =>
                 setSoundPlaybackCommand({ action, nonce: Date.now() + Math.random() })

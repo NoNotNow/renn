@@ -26,6 +26,12 @@ const CAMERA: CameraState = {
   target: 'box',
   mode: 'thirdPerson',
   targetVerticalAngle: 0,
+  fluidOrbitSpeed: 12,
+  fluidOrbitDirection: 1,
+  fluidOrbitHeight: 2,
+  fluidOrbitDistance: 10,
+  cameraTargetLag: 0,
+  cameraPositionLag: 0,
 }
 
 describe('buildWorldToSave', () => {

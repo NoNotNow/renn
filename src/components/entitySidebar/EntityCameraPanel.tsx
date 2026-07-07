@@ -2,10 +2,19 @@ import { useMemo, useState } from 'react'
 import {
   type CameraMode,
   type Entity,
+  type FluidOrbitDirection,
   type RennWorld,
   type AvatarFocusSnapshot,
+  CAMERA_LAG_MAX,
+  CAMERA_LAG_MIN,
   CAMERA_MODE_CYCLE_ORDER,
   CAMERA_MODE_LABELS,
+  FLUID_ORBIT_DISTANCE_MAX,
+  FLUID_ORBIT_DISTANCE_MIN,
+  FLUID_ORBIT_HEIGHT_MAX,
+  FLUID_ORBIT_HEIGHT_MIN,
+  FLUID_ORBIT_SPEED_MAX_DEG,
+  FLUID_ORBIT_SPEED_MIN_DEG,
 } from '@/types/world'
 import { uiLogger } from '@/utils/uiLogger'
 import { theme } from '@/config/theme'
@@ -20,6 +29,44 @@ export type CameraControl = 'free' | 'follow' | 'top' | 'front' | 'right'
 const CAMERA_TARGET_VERTICAL_ANGLE_MIN = -45
 const CAMERA_TARGET_VERTICAL_ANGLE_MAX = 45
 
+interface CameraLagSliderProps {
+  id: string
+  label: string
+  title: string
+  value: number
+  logEvent: string
+  onChange: (lag: number) => void
+}
+
+function CameraLagSlider({ id, label, title, value, logEvent, onChange }: CameraLagSliderProps) {
+  return (
+    <div style={sidebarRowStyle}>
+      <label htmlFor={id} style={{ ...sidebarLabelStyle, cursor: 'help' }} title={title}>
+        {label}
+      </label>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%' }}>
+        <input
+          id={id}
+          type="range"
+          min={CAMERA_LAG_MIN}
+          max={CAMERA_LAG_MAX}
+          step={1}
+          value={value}
+          onChange={(e) => {
+            const next = Number(e.target.value)
+            uiLogger.change('Builder', logEvent, { lag: next })
+            onChange(next)
+          }}
+          style={{ flex: 1, minWidth: 0 }}
+        />
+        <span style={{ fontSize: 12, color: theme.text.muted, width: 36, textAlign: 'right' }}>
+          {value}
+        </span>
+      </div>
+    </div>
+  )
+}
+
 export interface EntityCameraPanelProps {
   entities: Entity[]
   entityWorkHistory?: readonly string[]
@@ -28,10 +75,22 @@ export interface EntityCameraPanelProps {
   cameraTarget: string
   cameraMode: CameraMode
   cameraTargetVerticalAngle: number
+  fluidOrbitSpeed: number
+  fluidOrbitDirection: FluidOrbitDirection
+  fluidOrbitHeight: number
+  fluidOrbitDistance: number
+  cameraTargetLag: number
+  cameraPositionLag: number
   onCameraControlChange: (control: CameraControl) => void
   onCameraTargetChange: (target: string) => void
   onCameraModeChange: (mode: CameraMode) => void
   onCameraTargetVerticalAngleChange: (degrees: number) => void
+  onFluidOrbitSpeedChange: (degreesPerSecond: number) => void
+  onFluidOrbitDirectionChange: (direction: FluidOrbitDirection) => void
+  onFluidOrbitHeightChange: (height: number) => void
+  onFluidOrbitDistanceChange: (distance: number) => void
+  onCameraTargetLagChange: (lag: number) => void
+  onCameraPositionLagChange: (lag: number) => void
   onWorldChange: (world: RennWorld) => void
   /** Builder: read live follow/orbit state for "save as default" in Avatar dialog. */
   getAvatarFocusSnapshot?: () => AvatarFocusSnapshot | null
@@ -50,10 +109,22 @@ export default function EntityCameraPanel({
   cameraTarget,
   cameraMode,
   cameraTargetVerticalAngle,
+  fluidOrbitSpeed,
+  fluidOrbitDirection,
+  fluidOrbitHeight,
+  fluidOrbitDistance,
+  cameraTargetLag,
+  cameraPositionLag,
   onCameraControlChange,
   onCameraTargetChange,
   onCameraModeChange,
   onCameraTargetVerticalAngleChange,
+  onFluidOrbitSpeedChange,
+  onFluidOrbitDirectionChange,
+  onFluidOrbitHeightChange,
+  onFluidOrbitDistanceChange,
+  onCameraTargetLagChange,
+  onCameraPositionLagChange,
   onWorldChange,
   getAvatarFocusSnapshot,
   onSelectEntity,
@@ -80,6 +151,12 @@ export default function EntityCameraPanel({
           target: cameraTarget,
           mode: cameraMode,
           targetVerticalAngle: cameraTargetVerticalAngle,
+          fluidOrbitSpeed,
+          fluidOrbitDirection,
+          fluidOrbitHeight,
+          fluidOrbitDistance,
+          cameraTargetLag,
+          cameraPositionLag,
         }}
       >
         <>
@@ -261,6 +338,132 @@ export default function EntityCameraPanel({
                   </span>
                 </div>
               </div>
+              <CameraLagSlider
+                id="camera-target-lag"
+                label="Target lag"
+                title="How slowly the follow pivot catches up to the target entity (0 = instant, higher = heavier/laggier). Applies to all follow modes including first person."
+                value={cameraTargetLag}
+                logEvent="Change camera target lag"
+                onChange={onCameraTargetLagChange}
+              />
+              <CameraLagSlider
+                id="camera-position-lag"
+                label="Position lag"
+                title="How slowly the camera position catches up (orbit point or first-person eye height; 0 = instant, higher = heavier/laggier)."
+                value={cameraPositionLag}
+                logEvent="Change camera position lag"
+                onChange={onCameraPositionLagChange}
+              />
+              {cameraMode === 'fluid' ? (
+                <>
+                  <div style={sidebarRowStyle}>
+                    <label
+                      htmlFor="fluid-orbit-speed"
+                      style={{ ...sidebarLabelStyle, cursor: 'help' }}
+                      title="Fluid mode: automatic horizontal orbit speed around the target (degrees per second). Mouse drag does not steer; scroll/pinch still zooms."
+                    >
+                      Orbit speed
+                    </label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%' }}>
+                      <input
+                        id="fluid-orbit-speed"
+                        type="range"
+                        min={FLUID_ORBIT_SPEED_MIN_DEG}
+                        max={FLUID_ORBIT_SPEED_MAX_DEG}
+                        step={1}
+                        value={fluidOrbitSpeed}
+                        onChange={(e) => {
+                          const next = Number(e.target.value)
+                          uiLogger.change('Builder', 'Change fluid orbit speed', { degreesPerSecond: next })
+                          onFluidOrbitSpeedChange(next)
+                        }}
+                        style={{ flex: 1, minWidth: 0 }}
+                      />
+                      <span style={{ fontSize: 12, color: theme.text.muted, width: 44, textAlign: 'right' }}>
+                        {fluidOrbitSpeed}°/s
+                      </span>
+                    </div>
+                  </div>
+                  <div style={sidebarRowStyle}>
+                    <label
+                      htmlFor="fluid-orbit-distance"
+                      style={{ ...sidebarLabelStyle, cursor: 'help' }}
+                      title="Fluid mode: orbit radius from the target pivot (world units). Scroll/pinch can still zoom live."
+                    >
+                      Orbit distance
+                    </label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%' }}>
+                      <input
+                        id="fluid-orbit-distance"
+                        type="range"
+                        min={FLUID_ORBIT_DISTANCE_MIN}
+                        max={FLUID_ORBIT_DISTANCE_MAX}
+                        step={1}
+                        value={fluidOrbitDistance}
+                        onChange={(e) => {
+                          const next = Number(e.target.value)
+                          uiLogger.change('Builder', 'Change fluid orbit distance', { distance: next })
+                          onFluidOrbitDistanceChange(next)
+                        }}
+                        style={{ flex: 1, minWidth: 0 }}
+                      />
+                      <span style={{ fontSize: 12, color: theme.text.muted, width: 36, textAlign: 'right' }}>
+                        {fluidOrbitDistance}
+                      </span>
+                    </div>
+                  </div>
+                  <div style={sidebarRowStyle}>
+                    <label
+                      htmlFor="fluid-orbit-height"
+                      style={{ ...sidebarLabelStyle, cursor: 'help' }}
+                      title="Fluid mode: camera height above the target pivot (world units). Higher values orbit further above the subject."
+                    >
+                      Orbit height
+                    </label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%' }}>
+                      <input
+                        id="fluid-orbit-height"
+                        type="range"
+                        min={FLUID_ORBIT_HEIGHT_MIN}
+                        max={FLUID_ORBIT_HEIGHT_MAX}
+                        step={0.5}
+                        value={fluidOrbitHeight}
+                        onChange={(e) => {
+                          const next = Number(e.target.value)
+                          uiLogger.change('Builder', 'Change fluid orbit height', { height: next })
+                          onFluidOrbitHeightChange(next)
+                        }}
+                        style={{ flex: 1, minWidth: 0 }}
+                      />
+                      <span style={{ fontSize: 12, color: theme.text.muted, width: 36, textAlign: 'right' }}>
+                        {fluidOrbitHeight}
+                      </span>
+                    </div>
+                  </div>
+                  <div style={sidebarRowStyle}>
+                    <label
+                      htmlFor="fluid-orbit-direction"
+                      style={{ ...sidebarLabelStyle, cursor: 'help' }}
+                      title="Reverse the automatic orbit direction."
+                    >
+                      Orbit direction
+                    </label>
+                    <select
+                      id="fluid-orbit-direction"
+                      value={fluidOrbitDirection}
+                      onChange={(e) => {
+                        const next = Number(e.target.value) as FluidOrbitDirection
+                        uiLogger.change('Builder', 'Change fluid orbit direction', { direction: next })
+                        onFluidOrbitDirectionChange(next)
+                      }}
+                      style={{ display: 'block', width: '100%' }}
+                    >
+                      <option value={1}>Default</option>
+                      <option value={-1}>Reverse</option>
+                    </select>
+                  </div>
+                </>
+              ) : null}
             </>
           )}
         </>
