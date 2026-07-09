@@ -123,8 +123,8 @@ describe('useRawWheelInput', () => {
     const { result } = renderHook(() => useRawWheelInput())
 
     act(() => {
-      const event = new WheelEvent('wheel', { deltaX: 10, deltaY: -5 })
-      window.dispatchEvent(event)
+      const event = new WheelEvent('wheel', { deltaX: 10, deltaY: -5, bubbles: true })
+      document.dispatchEvent(event)
     })
 
     expect(result.current.current!.deltaX).toBe(10)
@@ -135,8 +135,8 @@ describe('useRawWheelInput', () => {
     const { result } = renderHook(() => useRawWheelInput())
 
     act(() => {
-      window.dispatchEvent(new WheelEvent('wheel', { deltaX: 5, deltaY: 3 }))
-      window.dispatchEvent(new WheelEvent('wheel', { deltaX: 2, deltaY: -1 }))
+      document.dispatchEvent(new WheelEvent('wheel', { deltaX: 5, deltaY: 3, bubbles: true }))
+      document.dispatchEvent(new WheelEvent('wheel', { deltaX: 2, deltaY: -1, bubbles: true }))
     })
 
     expect(result.current.current!.deltaX).toBe(7)
@@ -147,8 +147,8 @@ describe('useRawWheelInput', () => {
     const { result } = renderHook(() => useRawWheelInput())
 
     act(() => {
-      window.dispatchEvent(new WheelEvent('wheel', { deltaY: 10, ctrlKey: true }))
-      window.dispatchEvent(new WheelEvent('wheel', { deltaY: -4, ctrlKey: true }))
+      document.dispatchEvent(new WheelEvent('wheel', { deltaY: 10, ctrlKey: true, bubbles: true }))
+      document.dispatchEvent(new WheelEvent('wheel', { deltaY: -4, ctrlKey: true, bubbles: true }))
     })
 
     expect(result.current.current!.pinchDelta).toBe(6)
@@ -161,7 +161,7 @@ describe('useRawWheelInput', () => {
 
     act(() => {
       // deltaMode 1 = DOM_DELTA_LINE, typical for physical mouse wheel
-      window.dispatchEvent(new WheelEvent('wheel', { deltaX: 0, deltaY: 40, deltaMode: 1 }))
+      document.dispatchEvent(new WheelEvent('wheel', { deltaX: 0, deltaY: 40, deltaMode: 1, bubbles: true }))
     })
 
     expect(result.current.current!.mouseWheelDelta).toBe(40)
@@ -173,12 +173,32 @@ describe('useRawWheelInput', () => {
     const { result } = renderHook(() => useRawWheelInput())
 
     act(() => {
-      window.dispatchEvent(new WheelEvent('wheel', { deltaX: 2, deltaY: 2, deltaMode: 0 }))
+      document.dispatchEvent(new WheelEvent('wheel', { deltaX: 2, deltaY: 2, deltaMode: 0, bubbles: true }))
     })
 
     expect(result.current.current!.deltaX).toBe(2)
     expect(result.current.current!.deltaY).toBe(2)
     expect(result.current.current!.mouseWheelDelta).toBe(0)
+  })
+
+  test('ignores wheel events outside the container when containerRef is set', () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const containerRef = { current: container }
+    const { result } = renderHook(() => useRawWheelInput(containerRef))
+
+    act(() => {
+      document.dispatchEvent(new WheelEvent('wheel', { deltaX: 9, deltaY: 1, bubbles: true }))
+    })
+    expect(result.current.current!.deltaX).toBe(0)
+
+    act(() => {
+      container.dispatchEvent(new WheelEvent('wheel', { deltaX: 4, deltaY: 2, bubbles: true }))
+    })
+    expect(result.current.current!.deltaX).toBe(4)
+    expect(result.current.current!.deltaY).toBe(2)
+
+    document.body.removeChild(container)
   })
 })
 

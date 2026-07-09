@@ -41,6 +41,8 @@ html, body, #root {
   font-family: system-ui, -apple-system, sans-serif;
   background-color: var(--c-bg-app);
   color: var(--c-text-primary);
+  /* Suppress macOS trackpad horizontal swipe → browser back/forward. */
+  overscroll-behavior-x: none;
 }
 
 body {

@@ -114,14 +114,17 @@ function applyTransform(
   mesh.scale.set(scale[0], scale[1], scale[2])
 }
 
+const DEFAULT_MODEL_POSITION: Vec3 = [0, 0, 0]
 const DEFAULT_MODEL_ROTATION: Rotation = [0, 0, 0]
 const DEFAULT_MODEL_SCALE: Vec3 = [1, 1, 1]
 
 function applyModelTransform(
   modelScene: THREE.Object3D,
+  modelPosition: Vec3,
   modelRotation: Rotation,
   modelScale: Vec3
 ): void {
+  modelScene.position.set(modelPosition[0], modelPosition[1], modelPosition[2])
   modelScene.rotation.set(modelRotation[0], modelRotation[1], modelRotation[2])
   modelScene.scale.set(modelScale[0], modelScale[1], modelScale[2])
 }
@@ -324,10 +327,12 @@ export async function createPrimitiveMesh(
   shape: Shape,
   materialRef: MaterialRef | undefined,
   assetResolver?: DisposableAssetResolver,
+  modelPosition?: Vec3,
   modelRotation?: Rotation,
   modelScale?: Vec3,
   options?: CreatePrimitiveMeshOptions
 ): Promise<THREE.Mesh> {
+  const pos = modelPosition ?? DEFAULT_MODEL_POSITION
   const rot = modelRotation ?? DEFAULT_MODEL_ROTATION
   const scl = modelScale ?? DEFAULT_MODEL_SCALE
   const mat = await materialFromRef(materialRef, assetResolver)
@@ -391,7 +396,7 @@ export async function createPrimitiveMesh(
             )
             wrapperMesh.layers.set(1)
             wrapperMesh.add(modelScene)
-            applyModelTransform(modelScene, rot, scl)
+            applyModelTransform(modelScene, pos, rot, scl)
             wrapperMesh.userData.isTrimeshSource = true
             wrapperMesh.userData.trimeshModel = shape.model
             wrapperMesh.userData.trimeshScene = modelScene
@@ -447,7 +452,7 @@ export function createShapeGeometry(shape: Shape): THREE.BufferGeometry | null {
  * Builds a mesh for an entity: primitive from shape (or placeholder for trimesh/model).
  * Applies position, rotation, scale from entity.
  * If modelId is provided, loads and uses the 3D model for visuals (shape still used for physics).
- * modelRotation and modelScale apply only to the 3D model/trimesh child (relative to item).
+ * modelPosition, modelRotation and modelScale apply only to the 3D model/trimesh child (relative to item).
  * modelSimplification decimates the visual GLTF only (physics stays the primitive).
  */
 export async function buildEntityMesh(
@@ -458,12 +463,14 @@ export async function buildEntityMesh(
   scale: Vec3,
   assetResolver?: DisposableAssetResolver,
   modelId?: string,
+  modelPosition?: Vec3,
   modelRotation?: Rotation,
   modelScale?: Vec3,
   modelSimplification?: TrimeshSimplificationConfig,
   doubleSided?: boolean
 ): Promise<THREE.Mesh> {
   const s = shape ?? { type: 'box' as const, width: 1, height: 1, depth: 1 }
+  const pos = modelPosition ?? DEFAULT_MODEL_POSITION
   const rot = modelRotation ?? DEFAULT_MODEL_ROTATION
   const scl = modelScale ?? DEFAULT_MODEL_SCALE
 
@@ -501,7 +508,7 @@ export async function buildEntityMesh(
           new THREE.MeshBasicMaterial({ visible: false })
         )
         resultMesh.add(modelScene)
-        applyModelTransform(modelScene, rot, scl)
+        applyModelTransform(modelScene, pos, rot, scl)
         applyTransform(resultMesh, position, rotation, scale)
         initVisualBaseFromShape(resultMesh, s.type)
         resultMesh.userData.usesModel = true
@@ -515,7 +522,7 @@ export async function buildEntityMesh(
   }
 
   // Default: create mesh from shape
-  const mesh = await createPrimitiveMesh(s, materialRef, assetResolver, rot, scl, { doubleSided })
+  const mesh = await createPrimitiveMesh(s, materialRef, assetResolver, pos, rot, scl, { doubleSided })
   applyTransform(mesh, position, rotation, scale)
   initVisualBaseFromShape(mesh, s.type)
   return mesh

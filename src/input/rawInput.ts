@@ -176,10 +176,16 @@ export function useRawWheelInput(
 
   useEffect(() => {
     const wheel = wheelRef.current
-    const target = containerRef?.current || window
 
     const onWheel = (e: Event): void => {
       const ev = e as WheelEvent
+      const container = containerRef?.current
+      if (container) {
+        const target = ev.target
+        if (!(target instanceof Node) || !container.contains(target)) return
+      }
+
+      // Capture phase + preventDefault stops macOS swipe-back while orbiting the camera.
       ev.preventDefault()
 
       if (ev.ctrlKey) {
@@ -198,11 +204,10 @@ export function useRawWheelInput(
       wheel.deltaY += ev.deltaY
     }
 
-    // Use passive: false to allow preventDefault()
-    target.addEventListener('wheel', onWheel, { passive: false })
+    document.addEventListener('wheel', onWheel, { passive: false, capture: true })
 
     return () => {
-      target.removeEventListener('wheel', onWheel)
+      document.removeEventListener('wheel', onWheel, { capture: true })
     }
   }, [containerRef])
 

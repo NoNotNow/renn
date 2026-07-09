@@ -98,6 +98,7 @@ export default function TransformEditor({
         min={0.01}
         step={0.1}
         sensitivity={0.01}
+        defaultLinked
         idPrefix={`${entityId}-scale`}
         disabled={disabled}
         onScrubStart={vec3Undo?.onScrubStart}

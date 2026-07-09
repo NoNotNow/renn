@@ -3,6 +3,7 @@ import { generateModelPresetId } from '@/utils/idGenerator'
 
 const PRESET_ENTITY_KEYS = [
   'model',
+  'modelPosition',
   'modelRotation',
   'modelScale',
   'modelSimplification',
@@ -41,6 +42,7 @@ export function extractPresetFromEntity(entity: Entity, name: string, now = Date
     createdAt: now,
   }
   if (entity.model !== undefined) preset.model = entity.model
+  if (entity.modelPosition !== undefined) preset.modelPosition = [...entity.modelPosition] as Entity['modelPosition']
   if (entity.modelRotation !== undefined) preset.modelRotation = [...entity.modelRotation] as Entity['modelRotation']
   if (entity.modelScale !== undefined) preset.modelScale = [...entity.modelScale] as Entity['modelScale']
   if (entity.modelSimplification !== undefined) {
@@ -73,6 +75,9 @@ export function applyPresetToEntity(entity: Entity, preset: ModelPreset): Entity
     switch (key) {
       case 'model':
         next.model = value as string
+        break
+      case 'modelPosition':
+        next.modelPosition = [...(value as Vec3)] as Vec3
         break
       case 'modelRotation':
         next.modelRotation = [...(value as Rotation)] as Rotation

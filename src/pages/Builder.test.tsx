@@ -29,6 +29,7 @@ const sceneViewRefMocks = vi.hoisted(() => ({
   getEntityTriangleCount: vi.fn(() => null),
   getAvatarFocusSnapshot: vi.fn(() => null),
   cycleActiveAvatar: vi.fn(),
+  syncWorldEntities: vi.fn(() => Promise.resolve()),
 }))
 
 const sceneViewProps: Record<string, unknown> = {}
@@ -128,6 +129,7 @@ describe('Builder', () => {
     Object.keys(sceneViewProps).forEach((k) => delete sceneViewProps[k])
     if (typeof localStorage?.removeItem === 'function') {
       localStorage.removeItem('builderShowGameHud')
+      localStorage.removeItem('builderEditNavigationMode')
     }
   })
 
@@ -184,6 +186,34 @@ describe('Builder', () => {
     expect(sceneViewProps.gizmoMode).toBe('rotate')
     await user.click(screen.getByRole('button', { name: 'Scale gizmo' }))
     expect(sceneViewProps.gizmoMode).toBe('scale')
+  })
+
+  it('restores edit navigation mode from localStorage on mount', async () => {
+    if (typeof localStorage?.setItem !== 'function') return
+    localStorage.setItem('builderEditNavigationMode', 'true')
+    renderBuilder()
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(sceneViewProps.editNavigationMode).toBe(true)
+    expect(screen.getByRole('status', { name: 'Edit-Modus aktiv' })).toBeInTheDocument()
+  })
+
+  it('persists edit navigation mode when toggled via View → Edit-Modus', async () => {
+    const user = userEvent.setup()
+    renderBuilder()
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(sceneViewProps.editNavigationMode).toBe(false)
+    await user.click(screen.getByRole('button', { name: 'View' }))
+    await user.click(screen.getByRole('menuitem', { name: /edit-modus/i }))
+    await waitFor(() => {
+      expect(sceneViewProps.editNavigationMode).toBe(true)
+    })
+    if (typeof localStorage?.getItem === 'function') {
+      expect(localStorage.getItem('builderEditNavigationMode')).toBe('true')
+    }
   })
 
   it('passes showGameHud true to SceneView after View → Game HUD', async () => {

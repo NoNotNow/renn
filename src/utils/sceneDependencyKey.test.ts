@@ -73,12 +73,12 @@ describe('getSceneDependencyKey', () => {
     expect(getSceneDependencyKey(a)).toBe(getSceneDependencyKey(b))
   })
 
-  it('returns a different key when shape changes to trimesh (requires asset load)', () => {
+  it('requires rebuild when shape changes to trimesh (requires asset load)', () => {
     const a = minimalWorld()
     const b = minimalWorld({
       entities: [{ ...a.entities[0], shape: { type: 'trimesh', model: 'my-model' } }],
     })
-    expect(getSceneDependencyKey(a)).not.toBe(getSceneDependencyKey(b))
+    expect(worldChangesRequireSceneRebuild(a, b)).toBe(true)
   })
 
   it('returns the same key when entity physics or material changes (incremental path)', () => {
@@ -90,12 +90,12 @@ describe('getSceneDependencyKey', () => {
     expect(getSceneDependencyKey(a)).toBe(getSceneDependencyKey(b))
   })
 
-  it('returns a different key when scripts change', () => {
+  it('requires rebuild when entity scripts change', () => {
     const a = minimalWorld()
     const b = minimalWorld({
       entities: [{ ...a.entities[0], scripts: ['script-1'] }],
     })
-    expect(getSceneDependencyKey(a)).not.toBe(getSceneDependencyKey(b))
+    expect(worldChangesRequireSceneRebuild(a, b)).toBe(true)
   })
 
   it('returns the same key when only transformer enabled flags change (incremental sync)', () => {
@@ -118,7 +118,7 @@ describe('getSceneDependencyKey', () => {
     expect(getSceneDependencyKey(a)).toBe(getSceneDependencyKey(b))
   })
 
-  it('returns a different key when modelSimplification changes (visual rebuild for entity.model)', () => {
+  it('requires rebuild when modelSimplification changes (visual rebuild for entity.model)', () => {
     const a = minimalWorld({
       entities: [
         {
@@ -136,12 +136,15 @@ describe('getSceneDependencyKey', () => {
         },
       ],
     })
-    expect(getSceneDependencyKey(a)).not.toBe(getSceneDependencyKey(b))
+    expect(worldChangesRequireSceneRebuild(a, b)).toBe(true)
   })
 
-  it('returns the same key when only modelRotation or modelScale changes (incremental path)', () => {
+  it('returns the same key when only modelPosition, modelRotation or modelScale changes (incremental path)', () => {
     const base = minimalWorld({
       entities: [{ ...minimalWorld().entities[0], shape: { type: 'trimesh', model: 'm1' } }],
+    })
+    const withModelPosition = minimalWorld({
+      entities: [{ ...base.entities[0], modelPosition: [0.1, 0, 0] }],
     })
     const withModelRotation = minimalWorld({
       entities: [{ ...base.entities[0], modelRotation: [0.1, 0, 0] }],
@@ -149,7 +152,8 @@ describe('getSceneDependencyKey', () => {
     const withModelScale = minimalWorld({
       entities: [{ ...base.entities[0], modelScale: [2, 1, 1] }],
     })
-    // modelRotation/modelScale are applied incrementally via updateEntityModelTransform.
+    // modelPosition/modelRotation/modelScale are applied incrementally via updateEntityModelTransform.
+    expect(getSceneDependencyKey(base)).toBe(getSceneDependencyKey(withModelPosition))
     expect(getSceneDependencyKey(base)).toBe(getSceneDependencyKey(withModelRotation))
     expect(getSceneDependencyKey(base)).toBe(getSceneDependencyKey(withModelScale))
   })
@@ -177,5 +181,41 @@ describe('getSceneDependencyKey', () => {
   it('pipe stack bootstrap does not require a scene rebuild', () => {
     const { world: next } = ensureEntityPipeStack(sampleWorld, 'car')
     expect(worldChangesRequireSceneRebuild(sampleWorld, next)).toBe(false)
+  })
+
+  it('returns the same key when an entity is added or removed (incremental path)', () => {
+    const a = minimalWorld()
+    const b = minimalWorld({
+      entities: [
+        ...a.entities,
+        {
+          id: 'e2',
+          name: 'Entity 2',
+          bodyType: 'dynamic',
+          shape: { type: 'sphere', radius: 1 },
+          position: [2, 0, 0],
+          rotation: [0, 0, 0],
+        },
+      ],
+    })
+    expect(getSceneDependencyKey(a)).toBe(getSceneDependencyKey(b))
+  })
+
+  it('worldChangesRequireSceneRebuild is false for entity add/remove only', () => {
+    const a = minimalWorld()
+    const b = minimalWorld({
+      entities: [
+        ...a.entities,
+        {
+          id: 'e2',
+          name: 'Entity 2',
+          bodyType: 'dynamic',
+          shape: { type: 'sphere', radius: 1 },
+          position: [2, 0, 0],
+          rotation: [0, 0, 0],
+        },
+      ],
+    })
+    expect(worldChangesRequireSceneRebuild(a, b)).toBe(false)
   })
 })

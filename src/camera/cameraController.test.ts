@@ -1168,6 +1168,29 @@ describe('CameraController', () => {
       expect(Math.abs(camera.position.x - 0)).toBeGreaterThan(0.5)
     })
 
+    it('setOrbitDistanceDelta has no max distance clamp in edit navigation', () => {
+      const { camera, scene, getEntityPosition, entityPositions } = createTestSetup()
+      entityPositions.player.set(0, 0, 0)
+      camera.position.set(0, 0, 200)
+      camera.lookAt(0, 0, 0)
+
+      scene.userData.camera = {
+        control: 'follow',
+        mode: 'thirdPerson',
+        target: 'player',
+        distance: 10,
+        height: 2,
+      }
+
+      const controller = new CameraController({ camera, scene, getEntityPosition })
+      controller.setForceFreeFlyNavigation(true)
+
+      controller.setOrbitDistanceDelta(500)
+      controller.update(0.016)
+
+      expect(camera.position.distanceTo(entityPositions.player)).toBeGreaterThan(150)
+    })
+
     it('setOrbitDistanceDelta still adjusts FOV in first person when force free fly is on', () => {
       const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 1000)
       camera.position.set(0, 5, 10)

@@ -535,6 +535,7 @@
         "rotation": { "$ref": "#/$defs/Rotation" },
         "scale": { "$ref": "#/$defs/Vec3" },
         "model": { "type": "string" },
+        "modelPosition": { "$ref": "#/$defs/Vec3", "description": "Position offset applied to model/trimesh only" },
         "modelRotation": { "$ref": "#/$defs/Rotation", "description": "Euler radians applied to model/trimesh only" },
         "modelScale": { "$ref": "#/$defs/Vec3", "description": "Scale applied to model/trimesh only" },
         "showShapeWireframe": {

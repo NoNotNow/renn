@@ -1,27 +1,38 @@
 import type { RennWorld, Entity } from '@/types/world'
 
 /**
- * Builds a stable string key from the parts of the world that require a full scene
- * rebuild (loadWorld + physics + registry). Used as the dependency for SceneView's
- * main effect so that edits that don't affect the scene (e.g. entity name, locked)
- * do not trigger a reload.
- *
- * Includes: entity list (id, model, modelSimplification for entity.model visuals, scripts,
- * transformers structure, and shape only when trimesh), world.scripts, world.assets refs,
- * world.world lights. Transformer configs in the key
- * omit `enabled` — that flag is synced live via RenderItemRegistry.syncEntityTransformers.
- * Excludes: entity name, locked, position, rotation, scale, modelRotation, modelScale,
- * doubleSided GLTF shading, bodyType, mass, restitution, friction, linearDamping, angularDamping, primitive
- * shape dimensions, material; world.world gravity, skyColor, skybox, fog, camera.
- * Scale is applied incrementally via SceneView.updateEntityPose → RenderItemRegistry.setScale.
- * modelRotation and modelScale are applied incrementally via updateEntityModelTransform.
+ * Builds a stable string key from world-level parts that require a full scene rebuild.
+ * Entity add/remove and most per-entity edits are handled incrementally; existing-entity
+ * structural changes (scripts, trimesh, model) require an explicit scene version bump
+ * via `worldChangesRequireSceneRebuild`.
  */
+export function getEntityStructuralSceneKey(entity: Entity): string {
+  return JSON.stringify(sceneRelevantEntity(entity))
+}
+
 /** True when `next` requires a full SceneView reload relative to `prev`. */
 export function worldChangesRequireSceneRebuild(prev: RennWorld, next: RennWorld): boolean {
-  return getSceneDependencyKey(prev) !== getSceneDependencyKey(next)
+  if (getWorldLevelSceneKey(prev) !== getWorldLevelSceneKey(next)) return true
+
+  const prevById = new Map(prev.entities.map((e) => [e.id, e]))
+  const nextById = new Map(next.entities.map((e) => [e.id, e]))
+
+  for (const [id, prevEntity] of prevById) {
+    const nextEntity = nextById.get(id)
+    if (!nextEntity) continue
+    if (getEntityStructuralSceneKey(prevEntity) !== getEntityStructuralSceneKey(nextEntity)) {
+      return true
+    }
+  }
+
+  return false
 }
 
 export function getSceneDependencyKey(world: RennWorld): string {
+  return getWorldLevelSceneKey(world)
+}
+
+function getWorldLevelSceneKey(world: RennWorld): string {
   const payload: Record<string, unknown> = {
     version: world.version,
     assets: sortKeys(world.assets ?? {}),
@@ -30,20 +41,12 @@ export function getSceneDependencyKey(world: RennWorld): string {
       ambientLight: world.world.ambientLight,
       directionalLight: world.world.directionalLight,
     },
-    entities: world.entities
-      .map((e) => sceneRelevantEntity(e))
-      .sort((a, b) => String(a.id).localeCompare(String(b.id))),
   }
   return JSON.stringify(payload)
 }
 
 function sceneRelevantEntity(entity: Entity): Record<string, unknown> {
   return {
-    id: entity.id,
-    // Only trimesh shapes require a full rebuild (loading a model asset).
-    // Primitive shape changes are handled incrementally via updateEntityShape.
-    // modelRotation/modelScale are applied incrementally via updateEntityModelTransform.
-    // Transformer changes (structure, order, code, params) are handled incrementally via syncEntityTransformers.
     trimeshShape: entity.shape?.type === 'trimesh' ? entity.shape : undefined,
     model: entity.model,
     modelSimplification:

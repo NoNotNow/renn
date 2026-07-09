@@ -98,6 +98,25 @@ describe('PhysicsWorld', () => {
     pw.dispose()
   })
 
+  it('removeEntity clears body and collider maps', () => {
+    const pw = new PhysicsWorld()
+    const entity: Entity = {
+      id: 'ball',
+      bodyType: 'dynamic',
+      shape: { type: 'sphere', radius: 0.5 },
+      position: [0, 5, 0],
+    }
+    const mesh = new THREE.Mesh(
+      new THREE.SphereGeometry(0.5),
+      new THREE.MeshBasicMaterial()
+    )
+    pw.addEntity(entity, mesh)
+    expect(pw.getBody('ball')).toBeDefined()
+    pw.removeEntity('ball')
+    expect(pw.getBody('ball')).toBeUndefined()
+    pw.dispose()
+  })
+
   it('applies custom sleep after continuous low velocities when world.sleeping is configured', () => {
     const sleeping = {
       linearThreshold: 0.4,

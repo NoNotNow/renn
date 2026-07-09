@@ -211,6 +211,7 @@ interface WorldEntity {
   rotation?: Rotation;
   scale?: Vec3;
   model?: string;
+  modelPosition?: Vec3;
   modelRotation?: Rotation;
   modelScale?: Vec3;
   showShapeWireframe?: boolean;

@@ -204,6 +204,58 @@ export class RenderItemRegistry {
   }
 
   /**
+   * Add a single entity at runtime (mesh already built). Creates physics body and transformer chain.
+   */
+  addLoadedEntity(
+    entity: Entity,
+    mesh: THREE.Mesh,
+    scriptDefs?: Record<string, import('@/types/world').ScriptDef>,
+  ): void {
+    if (this.physicsWorld) {
+      this.physicsWorld.addEntity(entity, mesh, scriptDefs)
+    }
+    const body = this.physicsWorld?.getBody(entity.id) ?? null
+    const item = new RenderItem(entity, mesh, body ?? null)
+    this.refreshCullingWorldSize(item)
+
+    const configs = this.resolveTransformerConfigs(entity)
+    if (configs && configs.length > 0) {
+      createTransformerChain(
+        configs,
+        this.rawInputGetter ?? undefined,
+        entity,
+        (eid) => this.getEntityWorldPoseForTransformers(eid),
+        this.controlledEntityIdRef ?? undefined,
+      )
+        .then((chain) => {
+          if (chain) {
+            item.transformerChain = chain
+            this._tfEntityIdsDirty = true
+          }
+        })
+        .catch((error) => {
+          console.error(`[RenderItemRegistry] Failed to create transformer chain for ${entity.id}:`, error)
+        })
+    }
+
+    this.items.set(entity.id, item)
+    this._tfEntityIdsDirty = true
+  }
+
+  /** Remove entity from registry and physics; optionally detach mesh from scene and dispose GPU resources. */
+  removeEntity(id: string, scene?: THREE.Scene): void {
+    const item = this.items.get(id)
+    if (!item) return
+    if (scene) scene.remove(item.mesh)
+    this.physicsWorld?.removeEntity(id)
+    disposeMeshHierarchy(item.mesh)
+    this.items.delete(id)
+    this._visualPoseStates.delete(id)
+    this._culledSleepingForScripts.delete(id)
+    this._tfEntityIdsDirty = true
+  }
+
+  /**
    * Resolve entity.transformers string[] → TransformerConfig[] via world.transformers registry.
    * Falls back gracefully: IDs missing from the registry are skipped with a warning.
    */
@@ -564,12 +616,12 @@ export class RenderItemRegistry {
   }
 
   /**
-   * Apply model transform (rotation/scale/double-sided) to the mesh's model scene and, for trimesh, rebuild collider when rotation or scale changed.
+   * Apply model transform (position/rotation/scale/double-sided) to the mesh's model scene and, for trimesh, rebuild collider when position, rotation or scale changed.
    * Used for incremental updates so changing these fields does not trigger a full world reload.
    */
   setModelTransform(
     id: string,
-    patch: { modelRotation?: Rotation; modelScale?: Vec3; doubleSided?: boolean }
+    patch: { modelPosition?: Vec3; modelRotation?: Rotation; modelScale?: Vec3; doubleSided?: boolean }
   ): void {
     const item = this.items.get(id)
     if (!item) return
@@ -585,10 +637,15 @@ export class RenderItemRegistry {
     }
     const nextEntity = merged
 
-    const rotationOrScaleChanges = patch.modelRotation !== undefined || patch.modelScale !== undefined
-    if (modelScene && rotationOrScaleChanges) {
+    const modelVisualTransformChanges =
+      patch.modelPosition !== undefined ||
+      patch.modelRotation !== undefined ||
+      patch.modelScale !== undefined
+    if (modelScene && modelVisualTransformChanges) {
+      const modelPosition: Vec3 = nextEntity.modelPosition ?? [0, 0, 0]
       const modelRotation: Rotation = nextEntity.modelRotation ?? [0, 0, 0]
       const modelScale: Vec3 = nextEntity.modelScale ?? [1, 1, 1]
+      modelScene.position.set(modelPosition[0], modelPosition[1], modelPosition[2])
       modelScene.rotation.set(modelRotation[0], modelRotation[1], modelRotation[2])
       modelScene.scale.set(modelScale[0], modelScale[1], modelScale[2])
     }
@@ -599,7 +656,7 @@ export class RenderItemRegistry {
     }
 
     if (
-      rotationOrScaleChanges &&
+      modelVisualTransformChanges &&
       item.entity.shape?.type === 'trimesh' &&
       this.physicsWorld
     ) {

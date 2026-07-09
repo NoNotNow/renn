@@ -11,7 +11,7 @@ import {
   type BuilderGizmoMode,
 } from '@/editor/transformGizmoController'
 import { theme } from '@/config/theme'
-import { GizmoMoveIcon, GizmoBrushIcon, GizmoRotateIcon, GizmoScaleIcon, GizmoVisualizeIcon } from '@/components/GizmoModeIcons'
+import { GizmoMoveIcon, GizmoBrushIcon, GizmoRotateIcon, GizmoScaleIcon, GizmoTransformIcon, GizmoVisualizeIcon } from '@/components/GizmoModeIcons'
 import { BrushToolPopover } from '@/components/BrushToolPopover'
 import { entityPanelIconButtonStyle } from '@/components/sharedStyles'
 import { formatMenuShortcut } from '@/utils/menuShortcut'
@@ -473,6 +473,27 @@ export default function BuilderHeader({
             aria-label="Gizmo mode"
             style={{ display: 'flex', alignItems: 'center', gap: 4 }}
           >
+            <button
+              type="button"
+              title="Transform — move, rotate, and scale (T)"
+              aria-label="Combined transform gizmo"
+              aria-pressed={gizmoMode === 'transform'}
+              onClick={() => onGizmoModeChange('transform')}
+              style={{
+                ...entityPanelIconButtonStyle,
+                display: 'flex',
+                background: gizmoMode === 'transform' ? '#2a3142' : 'transparent',
+                opacity: gizmoMode === 'transform' ? 1 : 0.85,
+              }}
+              onMouseEnter={(e) => {
+                if (gizmoMode !== 'transform') e.currentTarget.style.opacity = '1'
+              }}
+              onMouseLeave={(e) => {
+                if (gizmoMode !== 'transform') e.currentTarget.style.opacity = '0.85'
+              }}
+            >
+              {GizmoTransformIcon}
+            </button>
             <button
               type="button"
               title="Move (G)"

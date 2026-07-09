@@ -51,6 +51,65 @@ export class ScriptRunner {
     this.registerScripts(world)
   }
 
+  private registerEntityScripts(entity: Entity, world: RennWorld): void {
+    const scripts = world.scripts ?? {}
+    const scriptIds = entity.scripts
+    if (!scriptIds || !Array.isArray(scriptIds)) return
+    for (const scriptId of scriptIds) {
+      const def = scripts[scriptId]
+      if (!def || typeof def === 'string') continue
+      const fn = this.hooks.get(scriptId)
+      if (!fn) continue
+      switch (def.event) {
+        case 'onSpawn': {
+          const list = this.onSpawnHooks.get(entity.id) ?? []
+          list.push({ fn, ctx: allocOnSpawnCtx(this.game, entity) })
+          this.onSpawnHooks.set(entity.id, list)
+          break
+        }
+        case 'onUpdate': {
+          this.onUpdateEntries.push({
+            entityId: entity.id,
+            fn,
+            ctx: allocOnUpdateCtx(this.game, entity),
+          })
+          break
+        }
+        case 'onCollision': {
+          const list = this.onCollisionHooks.get(entity.id) ?? []
+          list.push({ fn, ctx: allocOnCollisionCtx(this.game, entity) })
+          this.onCollisionHooks.set(entity.id, list)
+          break
+        }
+        case 'onTimer': {
+          this.onTimerEntries.push({
+            entityId: entity.id,
+            fn,
+            ctx: allocOnTimerCtx(this.game, entity, def.interval),
+            interval: def.interval,
+            elapsed: 0,
+          })
+          break
+        }
+      }
+    }
+  }
+
+  addEntity(entity: Entity, world: RennWorld): void {
+    this.entityMap.set(entity.id, entity)
+    this.entities.push({ entity, mesh: null! })
+    this.registerEntityScripts(entity, world)
+  }
+
+  removeEntity(entityId: string): void {
+    this.entityMap.delete(entityId)
+    this.entities = this.entities.filter(({ entity }) => entity.id !== entityId)
+    this.onSpawnHooks.delete(entityId)
+    this.onCollisionHooks.delete(entityId)
+    this.onUpdateEntries = this.onUpdateEntries.filter((e) => e.entityId !== entityId)
+    this.onTimerEntries = this.onTimerEntries.filter((e) => e.entityId !== entityId)
+  }
+
   private registerScripts(world: RennWorld): void {
     const scripts = world.scripts ?? {}
     for (const [id, def] of Object.entries(scripts)) {
@@ -63,46 +122,7 @@ export class ScriptRunner {
       }
     }
     for (const { entity } of this.entities) {
-      const scriptIds = entity.scripts
-      if (!scriptIds || !Array.isArray(scriptIds)) continue
-      for (const scriptId of scriptIds) {
-        const def = scripts[scriptId]
-        if (!def || typeof def === 'string') continue
-        const fn = this.hooks.get(scriptId)
-        if (!fn) continue
-        switch (def.event) {
-          case 'onSpawn': {
-            const list = this.onSpawnHooks.get(entity.id) ?? []
-            list.push({ fn, ctx: allocOnSpawnCtx(this.game, entity) })
-            this.onSpawnHooks.set(entity.id, list)
-            break
-          }
-          case 'onUpdate': {
-            this.onUpdateEntries.push({
-              entityId: entity.id,
-              fn,
-              ctx: allocOnUpdateCtx(this.game, entity),
-            })
-            break
-          }
-          case 'onCollision': {
-            const list = this.onCollisionHooks.get(entity.id) ?? []
-            list.push({ fn, ctx: allocOnCollisionCtx(this.game, entity) })
-            this.onCollisionHooks.set(entity.id, list)
-            break
-          }
-          case 'onTimer': {
-            this.onTimerEntries.push({
-              entityId: entity.id,
-              fn,
-              ctx: allocOnTimerCtx(this.game, entity, def.interval),
-              interval: def.interval,
-              elapsed: 0,
-            })
-            break
-          }
-        }
-      }
+      this.registerEntityScripts(entity, world)
     }
   }
 

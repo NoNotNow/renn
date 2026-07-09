@@ -17,6 +17,7 @@ describe('extractPresetFromEntity', () => {
     const entity: Entity = {
       ...baseEntity(),
       model: 'cube.glb',
+      modelPosition: [0.05, 0.1, 0.15],
       modelRotation: [0.1, 0.2, 0.3],
       modelScale: [2, 2, 2],
       material: { color: [0.5, 0.5, 0.5] },
@@ -30,6 +31,7 @@ describe('extractPresetFromEntity', () => {
     expect(preset.name).toBe('My Cube')
     expect(preset.createdAt).toBe(12345)
     expect(preset.model).toBe('cube.glb')
+    expect(preset.modelPosition).toEqual([0.05, 0.1, 0.15])
     expect(preset.modelRotation).toEqual([0.1, 0.2, 0.3])
     expect(preset.modelScale).toEqual([2, 2, 2])
     expect(preset.material).toEqual({ color: [0.5, 0.5, 0.5] })
@@ -42,6 +44,7 @@ describe('extractPresetFromEntity', () => {
     const preset = extractPresetFromEntity(entity, 'Plain')
 
     expect(preset.model).toBeUndefined()
+    expect(preset.modelPosition).toBeUndefined()
     expect(preset.modelRotation).toBeUndefined()
     expect(preset.modelScale).toBeUndefined()
     expect(preset.material).toBeUndefined()

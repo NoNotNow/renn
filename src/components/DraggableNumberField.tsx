@@ -76,6 +76,7 @@ export default function DraggableNumberField({
   const [isFocused, setIsFocused] = useState(false)
   const [isScrubbing, setIsScrubbing] = useState(false)
   const [localValue, setLocalValue] = useState(() => stringifyValue(value))
+  const localAtFocusRef = useRef('')
 
   useEffect(() => {
     if (!isFocused && !isScrubbing) {
@@ -87,7 +88,9 @@ export default function DraggableNumberField({
 
   const handleFocus = useCallback(() => {
     setIsFocused(true)
-    setLocalValue(stringifyValue(value))
+    const next = stringifyValue(value)
+    localAtFocusRef.current = next
+    setLocalValue(next)
   }, [value])
 
   const handleBlur = useCallback(() => {
@@ -95,9 +98,25 @@ export default function DraggableNumberField({
     const parsed = parseNumberInput(localValue, defaultValue)
     const clamped = clampWithOptional(parsed, min, max)
 
-    if (value === null || clamped !== value) {
+    if (value === null) {
       onBeforeCommit?.(clamped)
+      onChange(clamped)
+      setLocalValue(stringifyValue(clamped))
+      return
     }
+
+    // Pass-through focus without edit: parent may have updated this axis (e.g. linked vec3).
+    if (localValue === localAtFocusRef.current && clamped !== value) {
+      setLocalValue(stringifyValue(value))
+      return
+    }
+
+    if (clamped === value) {
+      setLocalValue(stringifyValue(value))
+      return
+    }
+
+    onBeforeCommit?.(clamped)
     onChange(clamped)
     setLocalValue(stringifyValue(clamped))
   }, [localValue, value, min, max, defaultValue, onChange, onBeforeCommit])

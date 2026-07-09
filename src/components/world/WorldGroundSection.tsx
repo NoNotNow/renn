@@ -240,6 +240,7 @@ export default function WorldGroundSection({
               value={groundScale}
               onChange={updateGroundScale}
               step={0.1}
+              defaultLinked
               axisLabels={['X', 'Y', 'Z']}
               idPrefix="ground-scale"
               {...vec3Undo}

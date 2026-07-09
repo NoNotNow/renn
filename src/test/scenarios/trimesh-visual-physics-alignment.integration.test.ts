@@ -30,7 +30,13 @@ import type { Rotation, Vec3 } from '@/types/world'
 
 const ELEPHANT_GLB = resolve(process.cwd(), 'public/world/assets/elefant(1).glb')
 
-function applyModelTransform(modelScene: THREE.Object3D, modelRotation: Rotation, modelScale: Vec3): void {
+function applyModelTransform(
+  modelScene: THREE.Object3D,
+  modelPosition: Vec3,
+  modelRotation: Rotation,
+  modelScale: Vec3
+): void {
+  modelScene.position.set(modelPosition[0], modelPosition[1], modelPosition[2])
   modelScene.rotation.set(modelRotation[0], modelRotation[1], modelRotation[2])
   modelScene.scale.set(modelScale[0], modelScale[1], modelScale[2])
 }
@@ -76,7 +82,7 @@ describe('trimesh visual vs physics alignment (body space)', () => {
     if (!scene) {
       return
     }
-    applyModelTransform(scene, [0, 0, 0], [1, 1, 1])
+    applyModelTransform(scene, [0, 0, 0], [0, 0, 0], [1, 1, 1])
     const physics = computePhysicsTrimeshVerticesInBodySpace(scene, {
       preSimplified: false,
       entityScale: [1, 1, 1],
@@ -96,7 +102,7 @@ describe('trimesh visual vs physics alignment (body space)', () => {
     const modelRotation: Rotation = [0.15, -0.2, 0.1]
     const modelScale: Vec3 = [1.1, 0.95, 1.05]
     const entityScale: Vec3 = [1.8, 0.6, 1.2]
-    applyModelTransform(scene, modelRotation, modelScale)
+    applyModelTransform(scene, [0, 0, 0], modelRotation, modelScale)
 
     const physics = computePhysicsTrimeshVerticesInBodySpace(scene, {
       preSimplified: false,
@@ -137,7 +143,7 @@ describe('trimesh visual vs physics alignment (body space)', () => {
     const modelRotation: Rotation = [0.12, 0.25, -0.08]
     const modelScale: Vec3 = [1.08, 1.08, 1.08]
     const entityScale: Vec3 = [2, 0.75, 1.25]
-    applyModelTransform(scene, modelRotation, modelScale)
+    applyModelTransform(scene, [0, 0, 0], modelRotation, modelScale)
 
     const physics = computePhysicsTrimeshVerticesInBodySpace(scene, {
       simplification: {

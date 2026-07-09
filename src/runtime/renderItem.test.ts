@@ -219,7 +219,7 @@ describe('RenderItemRegistry', () => {
     expect(registry.getPosition('e')).toBeNull()
   })
 
-  it('setModelTransform updates model scene rotation and scale (usesModel)', () => {
+  it('setModelTransform updates model scene position, rotation and scale (usesModel)', () => {
     const modelScene = new THREE.Mesh(
       new THREE.BoxGeometry(1, 1, 1),
       new THREE.MeshBasicMaterial()
@@ -232,7 +232,14 @@ describe('RenderItemRegistry', () => {
     rootMesh.userData.usesModel = true
     const entity: Entity = { id: 'e', position: [0, 0, 0], model: 'some-model' }
     const registry = RenderItemRegistry.create([{ entity, mesh: rootMesh }], null)
-    registry.setModelTransform('e', { modelRotation: [0.1, 0.2, 0.3], modelScale: [2, 3, 4] })
+    registry.setModelTransform('e', {
+      modelPosition: [0.5, 0.25, -0.1],
+      modelRotation: [0.1, 0.2, 0.3],
+      modelScale: [2, 3, 4],
+    })
+    expect(modelScene.position.x).toBe(0.5)
+    expect(modelScene.position.y).toBe(0.25)
+    expect(modelScene.position.z).toBe(-0.1)
     expect(modelScene.rotation.x).toBe(0.1)
     expect(modelScene.rotation.y).toBe(0.2)
     expect(modelScene.rotation.z).toBe(0.3)
@@ -240,8 +247,33 @@ describe('RenderItemRegistry', () => {
     expect(modelScene.scale.y).toBe(3)
     expect(modelScene.scale.z).toBe(4)
     const item = registry.get('e')
+    expect(item?.entity.modelPosition).toEqual([0.5, 0.25, -0.1])
     expect(item?.entity.modelRotation).toEqual([0.1, 0.2, 0.3])
     expect(item?.entity.modelScale).toEqual([2, 3, 4])
+  })
+
+  it('setModelTransform rebuilds trimesh collider when modelPosition changes', () => {
+    const modelScene = new THREE.Mesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      new THREE.MeshBasicMaterial()
+    )
+    const rootMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      new THREE.MeshBasicMaterial()
+    )
+    rootMesh.userData.isTrimeshSource = true
+    rootMesh.userData.trimeshScene = modelScene
+    const entity: Entity = {
+      id: 'e',
+      position: [0, 0, 0],
+      shape: { type: 'trimesh', model: 'm1' },
+    }
+    const updateShape = vi.fn()
+    const mockPhysics = { getBody: () => null, updateShape } as unknown as PhysicsWorld
+    const registry = RenderItemRegistry.create([{ entity, mesh: rootMesh }], mockPhysics)
+    registry.setModelTransform('e', { modelPosition: [0, 0.5, 0] })
+    expect(modelScene.position.y).toBe(0.5)
+    expect(updateShape).toHaveBeenCalledWith('e', expect.objectContaining({ modelPosition: [0, 0.5, 0] }), rootMesh)
   })
 
   it('setModelTransform updates model scene when mesh has trimeshScene', () => {

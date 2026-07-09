@@ -49,7 +49,7 @@ export interface BuilderKeyboardShortcutsApi {
  *   Cmd/Ctrl+Shift+G  ungroup currently selected group
  *   Cmd/Ctrl+C      copy selected entities (no-op if UI text is selected)
  *   Cmd/Ctrl+V      paste in front of camera
- *   Cmd/Ctrl+S      save
+ *   Cmd/Ctrl+S      save (works even while typing in Monaco / inputs)
  *   Cmd/Ctrl+Shift+S  save as
  *   Cmd/Ctrl+N      new project
  *   Cmd/Ctrl+P      play
@@ -77,9 +77,17 @@ export function useBuilderKeyboardShortcuts(api: BuilderKeyboardShortcutsApi): v
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent): void => {
+      const mod = e.metaKey || e.ctrlKey
+      // Save works even while typing in Monaco / inputs (standard editor UX).
+      if (mod && e.code === 'KeyS') {
+        e.preventDefault()
+        if (e.shiftKey) onSaveAs()
+        else onSave()
+        return
+      }
+
       if (isKeyboardEventInEditableContext(e)) return
 
-      const mod = e.metaKey || e.ctrlKey
       if (mod && !e.shiftKey && e.key === 'c') {
         if (typeof window !== 'undefined' && (window.getSelection()?.toString().length ?? 0) > 0) return
         e.preventDefault()
@@ -89,16 +97,6 @@ export function useBuilderKeyboardShortcuts(api: BuilderKeyboardShortcutsApi): v
       if (mod && !e.shiftKey && e.key === 'v') {
         e.preventDefault()
         onPaste()
-        return
-      }
-      if (mod && e.shiftKey && e.code === 'KeyS') {
-        e.preventDefault()
-        onSaveAs()
-        return
-      }
-      if (mod && !e.shiftKey && e.key === 's') {
-        e.preventDefault()
-        onSave()
         return
       }
       if (mod && !e.shiftKey && e.code === 'KeyN') {

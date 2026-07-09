@@ -164,6 +164,25 @@ export class PhysicsWorld {
     }
   }
 
+  /** Remove rigid body, collider, and cached state for an entity. */
+  removeEntity(entityId: string): void {
+    const collider = this.colliderMap.get(entityId)
+    if (collider) {
+      this.colliderHandleToEntityId.delete(collider.handle)
+      this.colliderMap.delete(entityId)
+    }
+    const body = this.bodyMap.get(entityId)
+    if (body) {
+      this.world.removeRigidBody(body)
+      this.bodyMap.delete(entityId)
+    }
+    this.cachedTransforms.delete(entityId)
+    this.customSleepTimers.delete(entityId)
+    this.culledForDistance.delete(entityId)
+    this.touchingCache.delete(entityId)
+    this.touchingCacheEntityIds.delete(entityId)
+  }
+
   /** Compute the volume of a collider shape so density = mass / volume. */
   private computeColliderVolume(shape: Shape | undefined, scale?: [number, number, number]): number {
     const [sx, sy, sz] = scale ?? [1, 1, 1]

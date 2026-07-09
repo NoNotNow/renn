@@ -417,6 +417,8 @@ export interface Entity {
   rotation?: Rotation
   scale?: Vec3
   model?: string
+  /** Position [x,y,z] offset applied to the 3D model/trimesh only (relative to item). */
+  modelPosition?: Vec3
   /** Euler [x,y,z] radians applied to the 3D model/trimesh only (relative to item). */
   modelRotation?: Rotation
   /** Scale [x,y,z] applied to the 3D model/trimesh only (relative to item). */
@@ -467,6 +469,7 @@ export interface ModelPreset {
   name: string
   createdAt: number
   model?: string
+  modelPosition?: Vec3
   modelRotation?: Rotation
   modelScale?: Vec3
   modelSimplification?: TrimeshSimplificationConfig

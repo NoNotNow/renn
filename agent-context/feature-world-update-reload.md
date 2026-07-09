@@ -47,7 +47,8 @@ flowchart LR
 2. **Builder** ([src/pages/Builder.tsx](src/pages/Builder.tsx))  
    - `captureScenePosesForNextRebuild()`: copies `sceneViewRef.current?.getAllPoses()` into `initialPosesRef` so the next full scene rebuild reapplies live poses for existing entity ids (avoids snapping everything back to document transforms after physics/simulation).  
    - `handleWorldChange(newWorld)`: calls `captureScenePosesForNextRebuild()` only when `worldChangesRequireSceneRebuild(prev, newWorld)` (incremental workspace edits such as pipe-stack bootstrap must not snapshot live poses), then `updateWorld(() => newWorld)`. `initialPosesRef` is cleared synchronously when `documentEpoch` changes (project load / new project) so stale poses are never restored across projects.  
-   - `handleAddEntity`, `handleBulkAddEntities`, `handleDeleteEntity`, `handleCloneEntity`: each calls `captureScenePosesForNextRebuild()` before `updateWorld`, because these paths change the entity list (rebuild key) without going through `handleWorldChange`.  
+   - `handleAddEntity`, `handleBulkAddEntities`, `handleDeleteEntity`, `handleCloneEntity`, `handlePasteEntities`: update document then call `sceneViewRef.syncWorldEntities(prev, next)` — no pose capture or full reload.  
+   - `applyHistorySnapshot` (undo/redo): when `canApplyWorldSnapshotIncrementally(prev, snap)` is true, applies snapshot without bumping scene `version` and calls `syncWorldEntities`; otherwise full reload via `applyEditorSnapshot(..., { reloadScene: true })`.  
    - `handleEntityTransformersChange`: calls `syncEntityTransformers` directly; all transformer changes are now incremental and do not trigger a full scene rebuild.
    - `handleEntityShapeChange` (trimesh / fallback rebuild branch): calls `captureScenePosesForNextRebuild()` before `updateWorld`.  
    - `handleEntityPoseChange(id, pose)`: calls `sceneViewRef.current?.updateEntityPose(id, pose)` only (no world state update until an explicit sync, e.g. Refresh from physics or save).  
@@ -65,8 +66,9 @@ flowchart LR
    - Imperative API: `updateEntityPose(id, pose)` updates the registry (mesh + physics body) directly; no world change and no rebuild.  
    - Imperative API: `updateEntityPhysics(id, patch)` forwards to `RenderItemRegistry.updatePhysics` → `PhysicsWorld` setters, mutating the body/collider directly; no rebuild.  
    - Imperative API: `updateEntityModelTransform(id, patch)` forwards to `RenderItemRegistry.setModelTransform` → updates the mesh's model-scene child rotation/scale when those fields are in `patch`, merges `doubleSided` (persisted as truthy only), applies `applyModelVisualSides` from `createPrimitive.ts`, and for trimesh calls `PhysicsWorld.updateShape` only when rotation or scale changed; no full reload.
+   - Imperative API: `syncWorldEntities(prev, next)` diffs entity lists and applies incremental add/remove/update (mesh, physics, scripts, transformers) without a full reload.
 
-So: **world changes** go through `onWorldChange` → `updateWorld` → new `world` prop to SceneView. **Whether the scene rebuilds** is decided by the **rebuild key**, not by the fact that `world` changed.
+So: **world changes** go through `onWorldChange` → `updateWorld` → new `world` prop to SceneView. **Whether the scene rebuilds** is decided by `worldChangesRequireSceneRebuild` (explicit `bumpVersion`), not merely because `world` changed.
 
 ## Why position is live, physics props are live, but shape/size triggers rebuild
 
@@ -85,7 +87,7 @@ So: **world changes** go through `onWorldChange` → `updateWorld` → new `worl
 - **Texture brush (Builder paint mode)**  
   The **Brush tool** sits **left of** Move / Rotate / Scale on the header row. Clicking it selects paint mode (when the selection has a texture) and opens a **floating popover** (`createPortal` to `document.body`, `data-testid="brush-tool-popover"`, `#builder-brush-toolbar-panel`) anchored under the brush button—no extra header row; it does not shrink the canvas. Color uses **[react-colorful](https://github.com/omgovich/react-colorful)** `HexColorPicker` + `HexColorInput` (`data-testid="texture-brush-color"`); size uses `input type="range"` 1–800 px (`data-testid="texture-brush-size"`). The popover can include **Open texture maker** (`data-testid="brush-open-texture-maker"`) when a single entity is selected (including **no** `material.map` yet). The **Brush** control is enabled in that case. **First 3D brush stroke with no map:** `prepareWorldPaintStroke` in Builder (`SceneView` → `installBuilderPickAndGizmo`) creates the same 500×500 `custom_texture` composite as Texture maker, applies it to `material.map`, then the stroke paints the layer (`handleTexturePaintStrokeEnd` recomposites). From the **Material** panel, **Texture maker…** (`data-testid="material-open-texture-maker"`) is available with **no** map: it creates the document, assigns the composite, and opens the studio. Styling: [`BrushToolPopover.css`](../src/components/BrushToolPopover.css) overrides `.react-colorful` / hex field. Outside click and Escape close the popover; **clicks on the 3D canvas do not** (`BUILDER_SCENE_CANVAS_HOST_ATTR` on the SceneView WebGL host). Leaving paint mode (another gizmo) closes it. State: `textureBrushRgb`, `textureBrushRadiusPx` → SceneView `getBrushRgba` / `getBrushRadiusPx`. [`installBuilderPickAndGizmo`](../src/editor/transformGizmoController.ts) detaches `TransformControls`, keeps selection on empty clicks (unlike normal pick mode), and on drag on the **selected** entity stamps albedo using [`paintTextureBlob`](../src/utils/texturePaint.ts). The painted blob id is `getPaintTargetAssetId(entityId)` when that returns a layer id, otherwise `entity.material.map`. **Copy-on-first-paint:** [`resolvePaintStrokeWriteTarget`](../src/utils/paintAssetRouting.ts) forks imported-style ids to `tex_paint_*` and updates `material.map` once; layer ids (`texlayer_*`) update in place and trigger compositor reflatten when a [`TextureDocument`](../src/utils/textureCompositor.ts) is active. On pointer-up, [`handleTexturePaintStrokeEnd`](../src/pages/Builder.tsx) calls `updateAssets` (and recomposites when painting layers), then `sceneViewRef.updateEntityMaterial` on the next animation frame. [`updateAssets`](../src/contexts/ProjectContext.tsx) persists to IndexedDB when an asset id’s `Blob` reference changes. **Layered textures:** [`TextureMaker`](../src/components/TextureMaker/TextureMaker.tsx) and **Texture maker…** in [`MaterialEditor`](../src/components/MaterialEditor.tsx) (`data-testid="material-open-texture-maker"`). See [feature-texture-compositor.md](./feature-texture-compositor.md). Undo: `EditorUndoContext.pushBeforeEdit` at stroke start (via `pushUndoBeforePaintStroke`).
 
-- **Model rotation/scale / double-sided GLTF (`modelRotation`, `modelScale`, `doubleSided`)**  
+- **Model rotation/scale / double-sided GLTF (`modelPosition`, `modelRotation`, `modelScale`, `doubleSided`)**  
   The UI uses `onEntityModelTransformChange(id, patch)` when provided. Builder calls `sceneViewRef.updateEntityModelTransform(id, patch)` → `RenderItemRegistry.setModelTransform` → applies rotation/scale to the mesh's model-scene child when patched, merges `doubleSided`, reconciles sides with `applyModelVisualSides`, and for trimesh calls `PhysicsWorld.updateShape` only when rotation or scale changed. The rebuild key **excludes** these fields (they are applied incrementally), so no full reload.
 
 - **Trimesh shape changes and other structural properties (model)**  
@@ -93,16 +95,23 @@ So: **world changes** go through `onWorldChange` → `updateWorld` → new `worl
 
 ## Rebuild key: what is included and excluded
 
-Defined in [src/utils/sceneDependencyKey.ts](src/utils/sceneDependencyKey.ts). The key is a string derived from a subset of the world; when it changes, SceneView's main effect runs (full reload).
+Defined in [src/utils/sceneDependencyKey.ts](src/utils/sceneDependencyKey.ts). `getSceneDependencyKey` covers **world-level** fields only (used as SceneView main-effect dependency). `worldChangesRequireSceneRebuild(prev, next)` additionally compares per-entity structural fields on **existing** ids and triggers an explicit scene `version` bump when true.
 
-**Included (change triggers rebuild):**
+**World-level (change triggers rebuild via version bump):**
 
 - **World**: `version`, `assets`, `scripts`, `world.ambientLight`, `world.directionalLight`.
-- **Per entity**: `id`, `trimeshShape` (shape only when `shape.type === 'trimesh'`), `model`, `scripts`. (`scale`, `modelRotation`, `modelScale`, `doubleSided` GLTF shading, and all transformer changes are excluded; scale via `updateEntityPose`, model transform and sides via `updateEntityModelTransform`, transformers via `syncEntityTransformers`.)
+
+**Per existing entity (structural change triggers rebuild via version bump):**
+
+- `trimeshShape`, `model`, `modelSimplification` (for entity.model visuals), `scripts`.
+
+**Entity add/remove (incremental — no rebuild):**
+
+- Handled by `SceneView.syncWorldEntities` → `buildLoadedEntity` + `RenderItemRegistry.addLoadedEntity` / `removeEntity` + `PhysicsWorld.addEntity` / `removeEntity`.
 
 **Excluded (change does not trigger rebuild):**
 
-- **Per entity**: `name`, `locked`, `position`, `rotation`, `scale`, `modelRotation`, `modelScale`, `doubleSided`, `bodyType`, `mass`, `restitution`, `friction`, `linearDamping`, `angularDamping`, primitive shape dimensions, `material`, `transformers` (structure, order, code, params, enabled).
+- **Per entity**: `name`, `locked`, `position`, `rotation`, `scale`, `modelPosition`, `modelRotation`, `modelScale`, `doubleSided`, `bodyType`, `mass`, `restitution`, `friction`, `linearDamping`, `angularDamping`, primitive shape dimensions, `material`, `transformers` (structure, order, code, params, enabled).
 - **World**: `world.gravity`, `world.skyColor`, `world.skybox`, `world.fog`, `world.camera` (these are applied by dedicated effects in SceneView).
 
 Entity add/remove changes the entity list, so the key changes and a rebuild runs.
@@ -122,8 +131,9 @@ Use this to answer "does changing this property rebuild the scene?"
 | **entity.scale** | Incremental | `onEntityPoseChange` / `updateEntityPose` → `RenderItemRegistry.setScale`; not in rebuild key. |
 | **entity.material** | Incremental | `onEntityMaterialChange` → `RenderItemRegistry.updateMaterial` → `materialFromRef` (async, texture-aware); not in rebuild key. |
 | **entity.model** | Rebuild | In key (trimesh). |
-| **entity.modelRotation** | Incremental | `onEntityModelTransformChange` → `RenderItemRegistry.setModelTransform` → model-scene + trimesh collider rebuild; not in rebuild key. |
-| **entity.modelScale** | Incremental | Same as modelRotation. |
+| **entity.modelPosition** | Incremental | `onEntityModelTransformChange` → `RenderItemRegistry.setModelTransform` → model-scene + trimesh collider rebuild; not in rebuild key. |
+| **entity.modelRotation** | Incremental | Same as modelPosition. |
+| **entity.modelScale** | Incremental | Same as modelPosition. |
 | **entity.bodyType** | Incremental | `onEntityPhysicsChange` → `PhysicsWorld.setBodyType`; not in rebuild key. |
 | **entity.mass** | Incremental | `onEntityPhysicsChange` → `PhysicsWorld.setMass` (density); not in rebuild key. |
 | **entity.restitution** | Incremental | `onEntityPhysicsChange` → `PhysicsWorld.setRestitution`; not in rebuild key. |
@@ -140,7 +150,7 @@ Use this to answer "does changing this property rebuild the scene?"
 | **Shadows enabled** | Incremental | Effect toggles renderer and directional light. |
 | **world.ambientLight, world.directionalLight** | Rebuild | In key. |
 | **world.scripts, world.assets** | Rebuild | In key. |
-| **Entity add/remove** | Rebuild | Entity list and ids in key. |
+| **Entity add/remove / clone / paste / undo** | Incremental | `syncWorldEntities` → registry + physics; not a rebuild. |
 
 ## Known gaps
 

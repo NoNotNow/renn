@@ -143,4 +143,33 @@ export const EntityPanelIcons = {
       <line x1="1" y1="1" x2="23" y2="23" />
     </svg>
   ),
+  /** Linked axes — edits propagate across the vector group. */
+  link: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}>
+      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+    </svg>
+  ),
+  /** Unlinked axes — per-axis edits only. */
+  linkOff: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}>
+      <path d="M10 13a5 5 0 0 0 7.54.54l1.37-1.37" />
+      <path d="M14 11a5 5 0 0 0-7.54-.54l-1.37 1.37" />
+      <line x1="4" y1="4" x2="20" y2="20" />
+    </svg>
+  ),
+  /** Absolute values — numbers are world/document coordinates. */
+  absolute: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
+    </svg>
+  ),
+  /** Relative offsets — numbers are deltas added to the value at mode switch. */
+  relative: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}>
+      <path d="M5 12h14" />
+      <path d="M12 5v14" />
+    </svg>
+  ),
 } as const

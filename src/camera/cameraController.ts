@@ -587,7 +587,7 @@ export class CameraController {
     dist = offset.length()
     if (dist < 1e-6) return
 
-    const newDist = THREE.MathUtils.clamp(dist + zoomDelta, ORBIT_DISTANCE_MIN, ORBIT_DISTANCE_MAX)
+    const newDist = Math.max(ORBIT_DISTANCE_MIN, dist + zoomDelta)
     offset.normalize().multiplyScalar(newDist)
     this.camera.position.copy(pivot).add(offset)
     this.camera.lookAt(pivot)

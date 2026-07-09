@@ -86,7 +86,7 @@ export interface GameAPIOptions {
   getForwardVector: (id: string) => [number, number, number] | null
   getPhysicsWorld: () => PhysicsWorld | null
   getRenderItemRegistry: () => import('@/runtime/renderItemRegistry').RenderItemRegistry | null
-  entities: Entity[]
+  entities: Entity[] | (() => Entity[])
   timeRef: { current: number }
 }
 
@@ -99,7 +99,7 @@ export function createGameAPI(
   getForwardVector: (id: string) => [number, number, number] | null = () => null,
   getPhysicsWorld: () => PhysicsWorld | null = () => null,
   getRenderItemRegistry: () => import('@/runtime/renderItemRegistry').RenderItemRegistry | null = () => null,
-  entities: Entity[] = [],
+  entities: Entity[] | (() => Entity[]) = [],
   timeRef: { current: number } = { current: 0 },
   onSnackbar?: (message: string, durationSeconds: number) => void,
   onHudPatch?: (patch: HudPatch) => void,
@@ -107,15 +107,16 @@ export function createGameAPI(
 ): GameAPI {
   let hudScore = 0
   let hudDamage = 0
+  const getEntities = (): Entity[] => (typeof entities === 'function' ? entities() : entities)
   return {
     get time() {
       return timeRef.current
     },
     get entities() {
-      return entities
+      return getEntities()
     },
     getEntity(id: string) {
-      return entities.find((e) => e.id === id)
+      return getEntities().find((e) => e.id === id)
     },
     getPosition(id: string): [number, number, number] | null {
       return getPosition(id)

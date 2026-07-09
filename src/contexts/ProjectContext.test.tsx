@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, act } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { type MutableRefObject } from 'react'
@@ -80,6 +80,20 @@ async function flushEffects() {
   })
 }
 
+function createLocalStorageMock(initial?: Record<string, string>) {
+  const storage = new Map<string, string>(Object.entries(initial ?? {}))
+  vi.stubGlobal('localStorage', {
+    getItem: (key: string) => storage.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      storage.set(key, value)
+    },
+    removeItem: (key: string) => {
+      storage.delete(key)
+    },
+  })
+  return storage
+}
+
 // sampleWorld uses 'car' as the primary dynamic entity (id: 'car', position: [0, 2, 0])
 const CAR_ID = 'car'
 const UPDATED_POSITION: Vec3 = [10, 20, 30]
@@ -95,6 +109,9 @@ describe('ProjectContext – save includes synced poses', () => {
     vi.clearAllMocks()
     mockListProjects.mockResolvedValue([])
     mockLoadAllAssets.mockResolvedValue(new Map())
+    if (typeof localStorage?.removeItem === 'function') {
+      localStorage.removeItem('renn-last-project-id')
+    }
   })
 
   it('saveProjectAs persists synced poses, not the stale pre-sync world', async () => {
@@ -201,6 +218,9 @@ describe('ProjectContext – model persistence', () => {
     vi.clearAllMocks()
     mockListProjects.mockResolvedValue([])
     mockLoadAllAssets.mockResolvedValue(new Map())
+    if (typeof localStorage?.removeItem === 'function') {
+      localStorage.removeItem('renn-last-project-id')
+    }
   })
 
   it('loadProject populates world.entities model and assets map', async () => {
@@ -291,5 +311,70 @@ describe('ProjectContext – model persistence', () => {
     const savedEntity = savedWorld.entities.find((e) => e.id === CAR_ID)
     expect(savedEntity?.model).toBe(modelId)
     expect(savedWorld.assets && savedWorld.assets[modelId]).toBeDefined()
+  })
+})
+
+describe('ProjectContext – restore last project on reload', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockLoadAllAssets.mockResolvedValue(new Map())
+    createLocalStorageMock()
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('reopens the last saved project from localStorage on mount', async () => {
+    const projectId = 'last-open-proj'
+    const savedWorldData = {
+      version: '1.0',
+      world: { gravity: [0, -9.81, 0] as Vec3 },
+      entities: [
+        { id: CAR_ID, bodyType: 'dynamic' as const, shape: { type: 'box' as const, width: 2, height: 1, depth: 4 }, position: [5, 2, 0] as Vec3 },
+      ],
+    }
+
+    mockListProjects.mockResolvedValue([{ id: projectId, name: 'Last Open', updatedAt: Date.now() }])
+    mockLoadProject.mockResolvedValue({ world: savedWorldData, assets: new Map(), entityWorkHistory: [] })
+    createLocalStorageMock({ 'renn-last-project-id': projectId })
+
+    const captured = renderContext()
+    await flushEffects()
+
+    const ctx = captured.current!
+    expect(mockLoadProject).toHaveBeenCalledWith(projectId)
+    expect(ctx.currentProject.id).toBe(projectId)
+    expect(ctx.currentProject.name).toBe('Last Open')
+    expect(ctx.world.entities.find((e) => e.id === CAR_ID)?.position).toEqual([5, 2, 0])
+  })
+
+  it('falls back to a fresh project when the stored project cannot be loaded', async () => {
+    mockListProjects.mockResolvedValue([])
+    mockLoadProject.mockRejectedValue(new Error('Project not found'))
+    const storage = createLocalStorageMock({ 'renn-last-project-id': 'missing-proj' })
+
+    const captured = renderContext()
+    await flushEffects()
+
+    const ctx = captured.current!
+    expect(mockLoadProject).toHaveBeenCalledWith('missing-proj')
+    expect(ctx.currentProject.id).toBeNull()
+    expect(ctx.currentProject.name).toBe('Untitled')
+    expect(storage.has('renn-last-project-id')).toBe(false)
+  })
+
+  it('newProject clears the stored last project id', async () => {
+    mockListProjects.mockResolvedValue([])
+    const storage = createLocalStorageMock({ 'renn-last-project-id': 'stale-proj' })
+
+    const captured = renderContext()
+    await flushEffects()
+
+    act(() => {
+      captured.current!.newProject()
+    })
+
+    expect(storage.has('renn-last-project-id')).toBe(false)
   })
 })

@@ -31,7 +31,7 @@ export interface PropertySidebarProps {
   onEntityMaterialChange?: (ids: string[], patch: Partial<Entity>) => void
   onEntityModelTransformChange?: (
     ids: string[],
-    patch: { modelRotation?: Vec3; modelScale?: Vec3; doubleSided?: boolean },
+    patch: { modelPosition?: Vec3; modelRotation?: Vec3; modelScale?: Vec3; doubleSided?: boolean },
   ) => void
   onEntityTransformersChange?: (entityIds: string[], transformers: TransformerConfig[]) => void
   onRefreshFromPhysics?: (entityIds: string[]) => void

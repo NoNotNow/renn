@@ -1,5 +1,6 @@
 import type { Vec3 } from '@/types/world'
 import VectorField from './form/VectorField'
+import type { VectorEditMode } from '@/utils/vectorFieldEdit'
 
 export interface Vec3FieldProps {
   label: string
@@ -15,11 +16,15 @@ export interface Vec3FieldProps {
   disabled?: boolean
   onScrubStart?: () => void
   onScrubEnd?: (hadScrub: boolean) => void
-  onBeforeCommit?: () => void
+  onBeforeCommit?: (committedValue: number) => void
   /** Native tooltip on the group label row. */
   labelTitle?: string
   /** Optional per-axis tooltips; same order as axisLabels. */
   axisTitles?: [string, string, string]
+  linkable?: boolean
+  defaultLinked?: boolean
+  allowRelative?: boolean
+  defaultMode?: VectorEditMode
 }
 
 const DEFAULT_AXIS_LABELS: [string, string, string] = ['X', 'Y', 'Z']
@@ -40,6 +45,10 @@ export default function Vec3Field({
   onBeforeCommit,
   labelTitle,
   axisTitles,
+  linkable,
+  defaultLinked,
+  allowRelative,
+  defaultMode,
 }: Vec3FieldProps) {
   return (
     <VectorField
@@ -58,6 +67,10 @@ export default function Vec3Field({
       onBeforeCommit={onBeforeCommit}
       labelTitle={labelTitle}
       axisTitles={axisTitles}
+      linkable={linkable}
+      defaultLinked={defaultLinked}
+      allowRelative={allowRelative}
+      defaultMode={defaultMode}
     />
   )
 }

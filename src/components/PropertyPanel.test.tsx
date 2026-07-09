@@ -291,6 +291,7 @@ describe('PropertyPanel', () => {
       const world = worldWithBox()
       const entityId = world.entities[0].id
       renderPropertyPanel(world, [entityId], onWorldChange)
+      await user.click(screen.getByLabelText('Scale unlink axes'))
       const scaleXInput = screen.getByLabelText(/scale x/i)
       await user.click(scaleXInput)
       await user.tripleClick(scaleXInput)
@@ -300,6 +301,22 @@ describe('PropertyPanel', () => {
       const lastCall = onWorldChange.mock.calls[onWorldChange.mock.calls.length - 1]
       const updatedEntity = lastCall[0].entities.find((e: { id: string }) => e.id === entityId)
       expect(updatedEntity?.scale).toEqual([2, 1, 1])
+    })
+
+    it('linked scale edits uniform when axes are equal', async () => {
+      const user = userEvent.setup()
+      const onWorldChange = vi.fn()
+      const world = worldWithBox()
+      const entityId = world.entities[0].id
+      renderPropertyPanel(world, [entityId], onWorldChange)
+      const scaleXInput = screen.getByLabelText(/scale x/i)
+      await user.click(scaleXInput)
+      await user.tripleClick(scaleXInput)
+      await user.keyboard('2')
+      await user.tab()
+      const lastCall = onWorldChange.mock.calls[onWorldChange.mock.calls.length - 1]
+      const updatedEntity = lastCall[0].entities.find((e: { id: string }) => e.id === entityId)
+      expect(updatedEntity?.scale).toEqual([2, 2, 2])
     })
 
     it('changing Rotation X updates entity rotation on blur', async () => {
@@ -695,6 +712,7 @@ describe('PropertyPanel', () => {
       const onWorldChange = vi.fn()
       const world = worldBoxAndSphere()
       renderPropertyPanel(world, [...ids], onWorldChange)
+      await user.click(screen.getByLabelText('Scale unlink axes'))
       const scaleX = screen.getByLabelText(/scale x/i)
       await user.click(scaleX)
       await user.tripleClick(scaleX)
@@ -714,5 +732,45 @@ describe('PropertyPanel', () => {
       const updatedWorld = onWorldChange.mock.calls[onWorldChange.mock.calls.length - 1]![0] as RennWorld
       expect(updatedWorld.entities.every((e: Entity) => e.locked === true)).toBe(true)
     })
+  })
+
+  it('shows model position in Model-Transform when entity has a 3D model', () => {
+    const entity = createDefaultEntity('box')
+    const world: RennWorld = {
+      version: '1.0',
+      world: { camera: { control: 'free', mode: 'follow', target: entity.id } },
+      entities: [{ ...entity, model: 'car.glb', modelPosition: [0, 0.2, 0] }],
+    }
+    renderPropertyPanel(world, [entity.id])
+    expect(screen.getByLabelText(/model position y/i)).toHaveValue(0.2)
+  })
+
+  it('calls onEntityModelTransformChange for model position edits', async () => {
+    const user = userEvent.setup()
+    const onEntityModelTransformChange = vi.fn()
+    const entity = createDefaultEntity('box')
+    const world: RennWorld = {
+      version: '1.0',
+      world: { camera: { control: 'free', mode: 'follow', target: entity.id } },
+      entities: [{ ...entity, model: 'car.glb' }],
+    }
+    render(
+      <PropertyPanel
+        world={world}
+        assets={new Map()}
+        selectedEntityIds={[entity.id]}
+        onWorldChange={vi.fn()}
+        onEntityModelTransformChange={onEntityModelTransformChange}
+      />,
+    )
+    const yInput = screen.getByLabelText(/model position y/i)
+    await user.clear(yInput)
+    await user.type(yInput, '0.3')
+    await user.tab()
+    expect(onEntityModelTransformChange).toHaveBeenCalled()
+    expect(onEntityModelTransformChange.mock.calls.at(-1)).toEqual([
+      [entity.id],
+      expect.objectContaining({ modelPosition: expect.any(Array) }),
+    ])
   })
 })

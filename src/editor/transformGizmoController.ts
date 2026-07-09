@@ -1,10 +1,17 @@
 import * as THREE from 'three'
-import { TransformControls } from 'three/addons/controls/TransformControls.js'
 import { findEntityRootForPicking } from '@/utils/entityPicking'
+import { applyGizmoScaleSensitivity } from '@/editor/gizmoScaleSensitivity'
+import {
+  activeBuilderTransformSubMode,
+  createBuilderTransformControls,
+  restoreCombinedTransformGizmoIfNeeded,
+  setBuilderTransformMode,
+} from '@/editor/rennTransformControls'
 import type { RenderItemRegistry } from '@/runtime/renderItemRegistry'
 import type { Entity, Rotation, Shape, Vec3 } from '@/types/world'
 import { quaternionToEuler } from '@/utils/rotationUtils'
 import { stripVisualBase } from '@/utils/visualBaseQuaternion'
+import { attachPreventCanvasCtrlClickContextMenu } from '@/input/preventCanvasCtrlClickContextMenu'
 import { paintTextureBlob } from '@/utils/texturePaint'
 
 const _gizmoScratchQuat = new THREE.Quaternion()
@@ -54,7 +61,7 @@ function logicalRotationFromMeshWorldQuaternion(mesh: THREE.Mesh, worldQuat: THR
   return quaternionToEuler(stripVisualBase(worldQuat, mesh, _gizmoScratchQuat))
 }
 
-export type BuilderGizmoMode = 'translate' | 'rotate' | 'scale' | 'paint' | 'visualize'
+export type BuilderGizmoMode = 'translate' | 'rotate' | 'scale' | 'transform' | 'paint' | 'visualize'
 
 /**
  * World-space width for the variable overlay bar group (scale of columns + bar height mapping).
@@ -142,7 +149,7 @@ type MultiDragState = {
 export function installBuilderPickAndGizmo(
   p: InstallBuilderPickAndGizmoParams
 ): { dispose: () => void; syncAttach: () => void } {
-  const controls = new TransformControls(p.camera, p.domElement)
+  const controls = createBuilderTransformControls(p.camera, p.domElement)
   controls.setMode('translate')
   /** Align gizmo axes with the attached object (single selection only). */
   controls.setSpace('local')
@@ -172,6 +179,21 @@ export function installBuilderPickAndGizmo(
   const decompScale = new THREE.Vector3()
 
   let multiDragState: MultiDragState | null = null
+  let scaleDragStart: Vec3 | null = null
+  let scaleDragAxis: string | null = null
+
+  const activeTransformSubMode = (): 'translate' | 'rotate' | 'scale' | null =>
+    activeBuilderTransformSubMode(p.getGizmoMode(), controls.mode)
+
+  const applyScaleSensitivityIfNeeded = (obj: THREE.Object3D): void => {
+    if (activeTransformSubMode() !== 'scale' || !scaleDragStart) return
+    const [sx, sy, sz] = applyGizmoScaleSensitivity(
+      scaleDragAxis ?? controls.axis,
+      scaleDragStart,
+      [obj.scale.x, obj.scale.y, obj.scale.z],
+    )
+    obj.scale.set(sx, sy, sz)
+  }
 
   type PaintStrokeState = {
     pointerId: number
@@ -199,7 +221,7 @@ export function installBuilderPickAndGizmo(
     if (!item) return
     const mode = p.getGizmoMode()
     if (mode === 'paint' || mode === 'visualize') return
-    if (mode === 'scale') {
+    if (activeTransformSubMode() === 'scale') {
       const [sx, sy, sz] = clampGizmoScaleAxes(obj.scale.x, obj.scale.y, obj.scale.z)
       if (sx !== obj.scale.x || sy !== obj.scale.y || sz !== obj.scale.z) {
         obj.scale.set(sx, sy, sz)
@@ -252,8 +274,13 @@ export function installBuilderPickAndGizmo(
       const obj = p.scene.getObjectByName(id)
       if (obj instanceof THREE.Mesh) {
         const gizmoMode = p.getGizmoMode()
-        if (gizmoMode === 'translate' || gizmoMode === 'rotate' || gizmoMode === 'scale') {
-          controls.setMode(gizmoMode)
+        if (
+          gizmoMode === 'translate' ||
+          gizmoMode === 'rotate' ||
+          gizmoMode === 'scale' ||
+          gizmoMode === 'transform'
+        ) {
+          setBuilderTransformMode(controls, gizmoMode)
         }
         controls.setSpace('local')
         if (controls.object !== obj) {
@@ -282,8 +309,13 @@ export function installBuilderPickAndGizmo(
     pivot.updateMatrixWorld(true)
 
     const gizmoMode = p.getGizmoMode()
-    if (gizmoMode === 'translate' || gizmoMode === 'rotate' || gizmoMode === 'scale') {
-      controls.setMode(gizmoMode)
+    if (
+      gizmoMode === 'translate' ||
+      gizmoMode === 'rotate' ||
+      gizmoMode === 'scale' ||
+      gizmoMode === 'transform'
+    ) {
+      setBuilderTransformMode(controls, gizmoMode)
     }
     controls.setSpace('world')
     if (controls.object !== pivot) {
@@ -292,6 +324,8 @@ export function installBuilderPickAndGizmo(
   }
 
   const onObjectChange = (): void => {
+    const obj = controls.object
+    if (obj) applyScaleSensitivityIfNeeded(obj)
     if (controls.object === pivot) {
       applyMultiTransformToRegistry()
       return
@@ -301,6 +335,13 @@ export function installBuilderPickAndGizmo(
 
   const onMouseDown = (): void => {
     p.setGizmoDragging(true)
+    scaleDragStart = null
+    scaleDragAxis = null
+    const dragObj = controls.object
+    if (activeTransformSubMode() === 'scale' && dragObj) {
+      scaleDragStart = [dragObj.scale.x, dragObj.scale.y, dragObj.scale.z]
+      scaleDragAxis = controls.axis
+    }
     if (controls.object === pivot) {
       const reg = p.getRegistry()
       if (!reg) return
@@ -321,15 +362,17 @@ export function installBuilderPickAndGizmo(
 
   const onMouseUp = (): void => {
     p.setGizmoDragging(false)
+    scaleDragStart = null
+    scaleDragAxis = null
     const reg = p.getRegistry()
     if (!reg) return
+    const transformSubMode = activeTransformSubMode()
 
     if (controls.object === pivot) {
-      const mode = p.getGizmoMode()
       const ids = multiDragState?.ids ?? getGizmoTargetIds()
       const commits: BuilderPoseCommitEntry[] = []
       for (const id of ids) {
-        if (mode === 'scale') {
+        if (transformSubMode === 'scale') {
           const baked = reg.applyGizmoScaleBake(id)
           if (!baked) {
             reg.commitScalePhysics(id)
@@ -356,6 +399,7 @@ export function installBuilderPickAndGizmo(
         p.onPoseCommit(commits)
       }
       multiDragState = null
+      restoreCombinedTransformGizmoIfNeeded(controls, p.getGizmoMode())
       return
     }
 
@@ -365,7 +409,7 @@ export function installBuilderPickAndGizmo(
     if (!id || !reg) return
     const mode = p.getGizmoMode()
     if (mode === 'paint' || mode === 'visualize') return
-    if (mode === 'scale') {
+    if (transformSubMode === 'scale') {
       const baked = reg.applyGizmoScaleBake(id)
       if (!baked) {
         reg.commitScalePhysics(id)
@@ -389,6 +433,7 @@ export function installBuilderPickAndGizmo(
         },
       ])
     }
+    restoreCombinedTransformGizmoIfNeeded(controls, p.getGizmoMode())
   }
 
   const getStrokeColor = (): readonly [number, number, number, number] =>
@@ -563,6 +608,8 @@ export function installBuilderPickAndGizmo(
     p.onSelectEntity(entityRoot.userData.entityId as string, { additive })
   }
 
+  const disposePreventCtrlContextMenu = attachPreventCanvasCtrlClickContextMenu(p.domElement)
+
   p.domElement.addEventListener('pointerdown', onSelectPointerDown)
   p.domElement.addEventListener('pointermove', onPaintPointerMove)
   p.domElement.addEventListener('pointerup', onPaintPointerEnd)
@@ -571,6 +618,7 @@ export function installBuilderPickAndGizmo(
   syncAttach()
 
   const dispose = (): void => {
+    disposePreventCtrlContextMenu()
     if (paintFlushRaf !== 0) {
       window.cancelAnimationFrame(paintFlushRaf)
       paintFlushRaf = 0

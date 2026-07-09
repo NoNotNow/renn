@@ -16,9 +16,25 @@ const persistence = createIndexedDbPersistence()
 const BASE_URL = import.meta.env.BASE_URL || '/'
 const LAST_PROJECT_KEY = 'renn-last-project-id'
 
+function getLastProjectId(): string | null {
+  try {
+    return localStorage.getItem(LAST_PROJECT_KEY)
+  } catch {
+    return null
+  }
+}
+
 function setLastProjectId(id: string): void {
   try {
     localStorage.setItem(LAST_PROJECT_KEY, id)
+  } catch {
+    // ignore quota or disabled localStorage
+  }
+}
+
+function clearLastProjectId(): void {
+  try {
+    localStorage.removeItem(LAST_PROJECT_KEY)
   } catch {
     // ignore quota or disabled localStorage
   }
@@ -59,10 +75,10 @@ interface ProjectContextState {
 interface ProjectContextActions {
   // Project operations
   newProject: () => void
-  loadProject: (id: string) => Promise<void>
-  saveProject: () => Promise<void>
-  saveProjectAs: (name: string) => Promise<void>
-  saveToProject: (id: string) => Promise<void>
+  loadProject: (id: string, options?: { silent?: boolean }) => Promise<boolean>
+  saveProject: () => Promise<boolean>
+  saveProjectAs: (name: string) => Promise<boolean>
+  saveToProject: (id: string) => Promise<boolean>
   deleteProject: (id: string) => Promise<void>
   refreshProjects: () => void
   
@@ -71,8 +87,8 @@ interface ProjectContextActions {
   updateAssets: (updater: (prev: Map<string, Blob>) => Map<string, Blob>) => void
   /** Full scene reload (e.g. after undo/redo restores document). */
   bumpVersion: () => void
-  /** Replace world + assets from snapshot, mark dirty, bump scene version. */
-  applyEditorSnapshot: (snapshot: EditorSnapshot) => void
+  /** Replace world + assets from snapshot, mark dirty; optionally bump scene version. */
+  applyEditorSnapshot: (snapshot: EditorSnapshot, options?: { reloadScene?: boolean }) => void
   
   // State sync
   syncPosesFromScene: (poses: Map<string, { position: Vec3; rotation: Rotation; scale?: Vec3 }>) => void
@@ -190,9 +206,10 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     resetCameraFromWorld(sampleWorld)
     setVersion((v) => v + 1)
     setDocumentEpoch((e) => e + 1)
+    clearLastProjectId()
   }, [resetCameraFromWorld, syncEntityWorkHistory])
   
-  const loadProject = useCallback(async (id: string) => {
+  const loadProject = useCallback(async (id: string, options?: { silent?: boolean }): Promise<boolean> => {
     try {
       uiLogger.select('Builder', 'Open project', { projectId: id })
       const { world: w, assets: loadedAssets, entityWorkHistory: loadedHistory } =
@@ -224,24 +241,41 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       setVersion((v) => v + 1)
       setDocumentEpoch((e) => e + 1)
       setLastProjectId(id)
+      return true
     } catch (err) {
       console.error('Failed to open project:', err)
-      alert('Failed to open project')
+      if (!options?.silent) {
+        alert('Failed to open project')
+      }
+      return false
     }
   }, [resetCameraFromWorld, syncEntityWorkHistory])
 
-  // Load world on initialization: always create a new world
+  // Load world on initialization: reopen last saved project when possible.
   useEffect(() => {
     let cancelled = false
-    refreshProjects()  // Optional: Projektliste laden, falls du sie trotzdem brauchst
 
-    if (!cancelled) {
-      newProject()  // Erstellt eine neue Welt
-      setInitialLoadPending(false)
-    }
+    void (async () => {
+      refreshProjects()
+
+      const lastId = getLastProjectId()
+      if (lastId) {
+        const restored = await loadProject(lastId, { silent: true })
+        if (restored) {
+          if (!cancelled) setInitialLoadPending(false)
+          return
+        }
+        clearLastProjectId()
+      }
+
+      if (!cancelled) {
+        newProject()
+        setInitialLoadPending(false)
+      }
+    })()
 
     return () => { cancelled = true }
-  }, [refreshProjects, newProject])
+  }, [refreshProjects, newProject, loadProject])
 
   /** World to persist: current worldRef with camera state (control, target, mode) merged in. */
   const getWorldToSave = useCallback(
@@ -250,7 +284,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     [cameraStateRef],
   )
 
-  const saveProject = useCallback(async () => {
+  const saveProject = useCallback(async (): Promise<boolean> => {
     try {
       const id = currentProject.id ?? `proj_${Date.now()}`
       // Generate name dynamically to avoid dependency on projects.length
@@ -279,6 +313,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       })
       setLastProjectId(id)
       refreshProjects()
+      return true
     } catch (err) {
       const e = err as Error & { code?: number }
       console.error('Failed to save project:', err)
@@ -291,10 +326,11 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
       })
       alert('Failed to save project')
+      return false
     }
   }, [currentProject, world, assets, refreshProjects, getWorldToSave])
 
-  const saveToProject = useCallback(async (id: string) => {
+  const saveToProject = useCallback(async (id: string): Promise<boolean> => {
     try {
       const allProjects = await persistence.listProjects()
       const meta = allProjects.find((p) => p.id === id)
@@ -308,13 +344,15 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       setCurrentProject({ id, name, isDirty: false })
       setLastProjectId(id)
       refreshProjects()
+      return true
     } catch (err) {
       console.error('Failed to save to project:', err)
       alert('Failed to save to project')
+      return false
     }
   }, [world, assets, refreshProjects, getWorldToSave])
 
-  const saveProjectAs = useCallback(async (name: string) => {
+  const saveProjectAs = useCallback(async (name: string): Promise<boolean> => {
     try {
       const id = `proj_${Date.now()}`
       uiLogger.click('Builder', 'Save as new project', { projectId: id, projectName: name })
@@ -331,9 +369,11 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       })
       setLastProjectId(id)
       refreshProjects()
+      return true
     } catch (err) {
       console.error('Failed to save project:', err)
       alert('Failed to save project')
+      return false
     }
   }, [world, assets, refreshProjects, getWorldToSave])
 
@@ -358,13 +398,15 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     setVersion((v) => v + 1)
   }, [])
 
-  const applyEditorSnapshot = useCallback((snapshot: EditorSnapshot) => {
+  const applyEditorSnapshot = useCallback((snapshot: EditorSnapshot, options?: { reloadScene?: boolean }) => {
     worldRef.current = snapshot.world
     setWorld(snapshot.world)
     setAssets(new Map(snapshot.assets))
     editorFreePoseRef.current = snapshot.world.world.camera?.editorFreePose ?? null
     setCurrentProject((prev) => ({ ...prev, isDirty: true }))
-    setVersion((v) => v + 1)
+    if (options?.reloadScene !== false) {
+      setVersion((v) => v + 1)
+    }
   }, [])
 
   const updateWorld = useCallback((updater: (prev: RennWorld) => RennWorld) => {
@@ -510,6 +552,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
             name: 'Untitled',
             isDirty: false,
           })
+          clearLastProjectId()
           setVersion((v) => v + 1)
           setDocumentEpoch((e) => e + 1)
         } catch {
@@ -534,6 +577,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       name,
       isDirty: false,
     })
+    clearLastProjectId()
     setVersion((v) => v + 1)
     setDocumentEpoch((e) => e + 1)
   }, [resetCameraFromWorld, syncEntityWorkHistory])

@@ -165,6 +165,24 @@ describe('useBuilderKeyboardShortcuts', () => {
     expect(api.onChangeCameraMode).toHaveBeenCalledTimes(1)
   })
 
+  it('Cmd+S and Ctrl+S invoke onSave even while focus is inside .monaco-editor', () => {
+    const api = makeApi()
+    renderHook(() => useBuilderKeyboardShortcuts(api))
+
+    const root = document.createElement('div')
+    root.className = 'monaco-editor'
+    const ta = document.createElement('textarea')
+    root.appendChild(ta)
+    document.body.appendChild(root)
+    ta.focus()
+
+    act(() => {
+      dispatch({ key: 's', code: 'KeyS', metaKey: true })
+      dispatch({ key: 's', code: 'KeyS', ctrlKey: true })
+    })
+    expect(api.onSave).toHaveBeenCalledTimes(2)
+  })
+
   it('shortcuts are suppressed while focus is inside .monaco-editor', () => {
     const api = makeApi()
     renderHook(() => useBuilderKeyboardShortcuts(api))

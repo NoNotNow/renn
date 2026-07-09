@@ -1,7 +1,7 @@
 import { useRef, useEffect, forwardRef, useImperativeHandle, useState, useMemo, useCallback } from 'react'
 import * as THREE from 'three'
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js'
-import { loadWorld } from '@/loader/loadWorld'
+import { loadWorld, buildLoadedEntity } from '@/loader/loadWorld'
 import type {
   RennWorld,
   Vec3,
@@ -61,6 +61,8 @@ import {
   SUPPRESS_ESCAPE_SCENE_FOCUS_ATTR,
 } from '@/config/constants'
 import { getSceneDependencyKey } from '@/utils/sceneDependencyKey'
+import { diffEntityWorld, worldPipeRegistryChanged } from '@/utils/incrementalSceneSync'
+import { syncEntityDocumentToScene } from '@/utils/syncEntityDocumentToScene'
 import {
   collectMaterialMapAssetIds,
   scheduleMaterialTextureDecodePrefetch,
@@ -189,10 +191,10 @@ export interface SceneViewHandle {
   updateEntityShape: (id: string, entity: Entity) => boolean
   /** Replaces the mesh material asynchronously (fire-and-forget; texture loading may defer). */
   updateEntityMaterial: (id: string, entity: Entity) => Promise<void>
-  /** Applies model rotation/scale / double-sided GLTF shading; rebuilds trimesh collider only when rotation or scale change. */
+  /** Applies model position/rotation/scale / double-sided GLTF shading; rebuilds trimesh collider only when position, rotation or scale change. */
   updateEntityModelTransform: (
     id: string,
-    patch: { modelRotation?: Rotation; modelScale?: Vec3; doubleSided?: boolean }
+    patch: { modelPosition?: Vec3; modelRotation?: Rotation; modelScale?: Vec3; doubleSided?: boolean }
   ) => void
   /** Sync world entity snapshot to registry and GLTF sides only (no texture load). */
   refreshEntityAppearance: (id: string, entity: Entity) => void
@@ -215,6 +217,8 @@ export interface SceneViewHandle {
   cycleActiveAvatar: () => boolean
   /** Builder: world-space camera position, forward, vertical FOV (rad), aspect — null if camera not ready. */
   getCameraPose: () => SceneCameraPose | null
+  /** Incrementally sync scene/registry/physics after document edits (add/remove/update entities). */
+  syncWorldEntities: (prev: RennWorld, next: RennWorld) => Promise<void>
 }
 
 function SceneViewInner({
@@ -476,6 +480,68 @@ function SceneViewInner({
     return () => dom.removeEventListener('pointerdown', onDown, { capture: true })
   }, [playMode, scene, camera, renderer, perfPickMode, perfPickCb])
 
+  const syncWorldEntities = useCallback(async (prev: RennWorld, next: RennWorld) => {
+    const sceneObj = scene
+    const registry = registryRef.current
+    if (!sceneObj || !registry) return
+
+    if (worldPipeRegistryChanged(prev, next)) {
+      registry.setWorldPipeRegistry(next.transformers ?? {}, next.transformerPipes ?? {})
+    }
+
+    const { removedIds, added, updated } = diffEntityWorld(prev, next)
+
+    for (const id of removedIds) {
+      registry.removeEntity(id, sceneObj)
+      scriptRunnerRef.current?.removeEntity(id)
+      entitiesRef.current = entitiesRef.current.filter((entry) => entry.entity.id !== id)
+    }
+
+    for (const entity of added) {
+      const loaded = await buildLoadedEntity(entity, assetResolverRef.current)
+      sceneObj.add(loaded.mesh)
+      registry.addLoadedEntity(entity, loaded.mesh, next.scripts)
+      scriptRunnerRef.current?.addEntity(entity, next)
+      scriptRunnerRef.current?.runOnSpawn(entity.id)
+      entitiesRef.current.push(loaded)
+    }
+
+    const entitySceneOps = {
+      updateEntityPose: (id: string, pose: { position?: Vec3; rotation?: Rotation; scale?: Vec3 }) => {
+        if (pose.position) registry.setPosition(id, pose.position)
+        if (pose.rotation) registry.setRotation(id, pose.rotation)
+        if (pose.scale) registry.setScale(id, pose.scale)
+      },
+      updateEntityPhysics: (id: string, patch: EntityPhysicsPatch) => registry.updatePhysics(id, patch),
+      updateEntityShape: (id: string, ent: Entity) => registry.updateShape(id, ent),
+      updateEntityMaterial: async (id: string, ent: Entity) => {
+        await registry.updateMaterial(id, ent, assetResolverRef.current ?? undefined)
+      },
+      updateEntityModelTransform: (
+        id: string,
+        patch: { modelPosition?: Vec3; modelRotation?: Rotation; modelScale?: Vec3; doubleSided?: boolean },
+      ) => registry.setModelTransform(id, patch),
+      refreshEntityAppearance: (id: string, ent: Entity) => registry.patchEntityAppearance(id, ent),
+      syncEntityTransformers: (id: string, configs: TransformerConfig[] | undefined) =>
+        registry.syncEntityTransformers(id, configs),
+    }
+
+    for (const { prev: prevEntity, next: nextEntity } of updated) {
+      syncEntityDocumentToScene(entitySceneOps, next, prevEntity, nextEntity)
+      const idx = entitiesRef.current.findIndex((e) => e.entity.id === nextEntity.id)
+      if (idx >= 0) {
+        entitiesRef.current[idx] = { entity: nextEntity, mesh: entitiesRef.current[idx]!.mesh }
+      }
+    }
+
+    avatarSessionRef.current?.syncWorld(next)
+    registry.syncAllShapeWireframeOverlays(next.entities)
+    setRegistryEpoch((n) => n + 1)
+  }, [scene])
+
+  const syncWorldEntitiesRef = useRef(syncWorldEntities)
+  syncWorldEntitiesRef.current = syncWorldEntities
+
   useImperativeHandle(ref, () => ({
     setViewPreset: (preset: 'top' | 'front' | 'right') => {
       cameraCtrlRef.current?.setViewPreset(preset)
@@ -496,7 +562,7 @@ function SceneViewInner({
     },
     updateEntityModelTransform: (
       id: string,
-      patch: { modelRotation?: Rotation; modelScale?: Vec3; doubleSided?: boolean }
+      patch: { modelPosition?: Vec3; modelRotation?: Rotation; modelScale?: Vec3; doubleSided?: boolean }
     ) => {
       registryRef.current?.setModelTransform(id, patch)
     },
@@ -573,6 +639,7 @@ function SceneViewInner({
         aspect: cam.aspect,
       }
     },
+    syncWorldEntities: (prev, next) => syncWorldEntitiesRef.current(prev, next),
   }), [camera, world.world.camera, editorFreePoseRef])
 
   // Main scene setup effect
@@ -740,7 +807,7 @@ function SceneViewInner({
         getForwardVectorForGame,
         getPhysicsWorld,
         getRenderItemRegistry,
-        loadedWorld.entities,
+        () => entitiesRef.current.map(({ entity }) => entity),
         timeRef,
         onScriptSnackbar,
         onHudPatch,
@@ -1286,7 +1353,14 @@ function SceneViewInner({
         ref={containerRef}
         tabIndex={-1}
         {...{ [BUILDER_SCENE_CANVAS_HOST_ATTR]: true }}
-        style={{ width: '100%', height: '100%', position: 'relative', outline: 'none' }}
+        style={{
+          width: '100%',
+          height: '100%',
+          position: 'relative',
+          outline: 'none',
+          overscrollBehavior: 'none',
+          touchAction: 'none',
+        }}
       />
       {sceneBootstrapPending ? (
         <div

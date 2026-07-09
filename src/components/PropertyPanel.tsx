@@ -49,7 +49,7 @@ export interface PropertyPanelProps {
   onEntityPhysicsChange?: (ids: string[], patch: Partial<Entity>) => void
   onEntityShapeChange?: (ids: string[], patch: Partial<Entity>) => void
   onEntityMaterialChange?: (ids: string[], patch: Partial<Entity>) => void
-  onEntityModelTransformChange?: (ids: string[], patch: { modelRotation?: Rotation; modelScale?: Vec3; doubleSided?: boolean }) => void
+  onEntityModelTransformChange?: (ids: string[], patch: { modelPosition?: Vec3; modelRotation?: Rotation; modelScale?: Vec3; doubleSided?: boolean }) => void
   onEntityTransformersChange?: (entityIds: string[], transformers: TransformerConfig[]) => void
   onRefreshFromPhysics?: (entityIds: string[]) => void
   livePoses?: Map<string, { position: Vec3; rotation: Rotation; scale?: Vec3 }> | null
@@ -168,6 +168,7 @@ export default function PropertyPanel({
     mergeVec3(entities, (e) => poseSource(e).scale ?? e.scale ?? DEFAULT_SCALE) ??
     DEFAULT_SCALE
   const mergedShape = mergeShape(entities)
+  const mergedModelPosition = mergeVec3(entities, (e) => e.modelPosition ?? DEFAULT_POSITION)
   const mergedModelRotation = mergeRotation(entities, (e) => e.modelRotation ?? DEFAULT_ROTATION)
   const mergedModelScale = mergeVec3(entities, (e) => e.modelScale ?? DEFAULT_SCALE)
   const mergedMaterial = mergeMaterial(entities)
@@ -478,8 +479,9 @@ export default function PropertyPanel({
           {entities.every((e) => e.shape?.type === 'trimesh' || e.model) && (
             <CollapsibleSection
               title="Model-Transform"
-              titleTooltip="Extra rotation/scale applied to the visual model mesh (and optional physics wireframe preview)."
+              titleTooltip="Extra position/rotation/scale applied to the visual model mesh (and optional physics wireframe preview)."
               copyPayload={{
+                modelPosition: mergedModelPosition ?? DEFAULT_POSITION,
                 modelRotation: mergedModelRotation ?? DEFAULT_ROTATION,
                 modelScale: mergedModelScale ?? DEFAULT_SCALE,
                 showShapeWireframe: primaryEntity.showShapeWireframe,
@@ -490,6 +492,7 @@ export default function PropertyPanel({
                 entities={entities}
                 ids={ids}
                 editorIdPrefix={editorIdPrefix}
+                mergedModelPosition={mergedModelPosition}
                 mergedModelRotation={mergedModelRotation}
                 mergedModelScale={mergedModelScale}
                 anyLocked={anyLocked}

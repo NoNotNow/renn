@@ -11,6 +11,7 @@ export interface ModelTransformSectionProps {
   entities: Entity[]
   ids: string[]
   editorIdPrefix: string
+  mergedModelPosition: Vec3 | null
   mergedModelRotation: Rotation | null
   mergedModelScale: Vec3 | null
   anyLocked: boolean
@@ -18,7 +19,7 @@ export interface ModelTransformSectionProps {
   onUndoBeforeEdit?: () => void
   onEntityModelTransformChange?: (
     ids: string[],
-    patch: { modelRotation?: Rotation; modelScale?: Vec3; doubleSided?: boolean },
+    patch: { modelPosition?: Vec3; modelRotation?: Rotation; modelScale?: Vec3; doubleSided?: boolean },
   ) => void
   updateAll: (patch: Partial<Entity>) => void
 }
@@ -27,6 +28,7 @@ export default function ModelTransformSection({
   entities,
   ids,
   editorIdPrefix,
+  mergedModelPosition,
   mergedModelRotation,
   mergedModelScale,
   anyLocked,
@@ -76,6 +78,26 @@ export default function ModelTransformSection({
           </div>
         </div>
       )}
+      <Vec3Field
+        label="Model position"
+        labelTitle="Translation offset applied to the visual model only (relative to the entity origin)."
+        value={mergedModelPosition}
+        onChange={(v) => {
+          uiLogger.change('PropertyPanel', 'Change model position', { entityIds: ids, newValue: v })
+          if (onEntityModelTransformChange) {
+            onEntityModelTransformChange(ids, { modelPosition: v })
+          } else {
+            updateAll({ modelPosition: v })
+          }
+        }}
+        step={0.1}
+        sensitivity={0.01}
+        idPrefix={`${editorIdPrefix}-model-position`}
+        disabled={anyLocked}
+        onScrubStart={vec3Undo?.onScrubStart}
+        onScrubEnd={vec3Undo?.onScrubEnd}
+        onBeforeCommit={vec3Undo?.onBeforeCommit}
+      />
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
         <Vec3Field
           label="Model rotation"
@@ -134,6 +156,7 @@ export default function ModelTransformSection({
         min={0.01}
         step={0.1}
         sensitivity={0.01}
+        defaultLinked
         idPrefix={`${editorIdPrefix}-model-scale`}
         disabled={anyLocked}
         onScrubStart={vec3Undo?.onScrubStart}

@@ -39,6 +39,8 @@ import {
   type TrimeshSimplificationConfig,
 } from '@/types/world'
 import { useBuilderKeyboardShortcuts } from '@/hooks/useBuilderKeyboardShortcuts'
+import { useTransientSnackbar } from '@/hooks/useTransientSnackbar'
+import { ScriptSnackbar } from '@/components/ScriptSnackbar'
 import {
   addToGroup,
   createGroupFromSelection,
@@ -80,6 +82,7 @@ import TextureMaker from '@/components/TextureMaker/TextureMaker'
 import TransformerDocs from '@/components/TransformerDocs'
 import { getEntityApproximateSize } from '@/utils/entityApproximateSize'
 import { worldChangesRequireSceneRebuild } from '@/utils/sceneDependencyKey'
+import { canApplyWorldSnapshotIncrementally } from '@/utils/incrementalSceneSync'
 import { computeMeshWorldMaxExtent } from '@/utils/meshWorldExtent'
 import { placeEntitiesInFrontOfCamera } from '@/utils/cameraFrontPlacement'
 import {
@@ -108,6 +111,7 @@ export default function Builder() {
     updateWorld,
     updateAssets,
     applyEditorSnapshot,
+    bumpVersion,
     documentEpoch,
     syncPosesFromScene,
     syncPosesToRefOnly,
@@ -214,8 +218,9 @@ export default function Builder() {
   const [textureBrushRgb, setTextureBrushRgb] = useState<Vec3>(() => [...DEFAULT_TEXTURE_BRUSH_RGB])
   const [textureBrushAlpha, setTextureBrushAlpha] = useState(1)
   const [textureBrushRadiusPx, setTextureBrushRadiusPx] = useState(TEXTURE_PAINT_RADIUS_PX)
-  const [editNavigationMode, setEditNavigationMode] = useState(false)
+  const [editNavigationMode, setEditNavigationMode] = useLocalStorageState('builderEditNavigationMode', false)
   const [showSaveDialog, setShowSaveDialog] = useState(false)
+  const { message: saveSnackbarMessage, showSnackbar: showSaveSnackbar } = useTransientSnackbar()
   const [gameFrozen, setGameFrozen] = useState(false)
   const [performanceBoosterOpen, setPerformanceBoosterOpen] = useState(false)
   const [transformerDocsOpen, setTransformerDocsOpen] = useState(false)
@@ -256,8 +261,15 @@ export default function Builder() {
 
   const applyHistorySnapshot = useCallback(
     (snap: EditorSnapshot) => {
-      initialPosesRef.current = null
-      applyEditorSnapshot(snap)
+      const prev = worldAssetsRef.current
+      const needsReload = !canApplyWorldSnapshotIncrementally(prev.world, snap.world)
+      if (needsReload) {
+        initialPosesRef.current = null
+      }
+      applyEditorSnapshot(snap, { reloadScene: needsReload })
+      if (!needsReload) {
+        sceneViewRef.current?.syncWorldEntities?.(prev.world, snap.world)
+      }
       setSelectedEntityIds((ids) => ids.filter((id) => snap.world.entities.some((e) => e.id === id)))
       setSelectedGroupIds((gids) => gids.filter((gid) => (snap.world.groups ?? []).some((g) => g.id === gid)))
       const nextCameraTarget =
@@ -269,6 +281,10 @@ export default function Builder() {
     },
     [applyEditorSnapshot, bumpHistoryUi, cameraTarget, setCameraTarget]
   )
+
+  const syncSceneAfterDocumentChange = useCallback((prevWorld: typeof world, nextWorld: typeof world) => {
+    sceneViewRef.current?.syncWorldEntities?.(prevWorld, nextWorld)
+  }, [])
 
   const {
     textureMakerEntityId,
@@ -503,6 +519,7 @@ export default function Builder() {
   const handleAddEntity = useCallback(
     (type: AddableShapeType) => {
       pushHistory()
+      const prevWorld = worldAssetsRef.current.world
       const cam = sceneViewRef.current?.getCameraPose()
       const entity = createDefaultEntity(type)
       if (cam) {
@@ -516,52 +533,49 @@ export default function Builder() {
         if (pos) entity.position = pos
       }
       uiLogger.click('Builder', 'Add entity', { type, entityId: entity.id })
-      captureScenePosesForNextRebuild()
-      updateWorld((prev) => ({
-        ...prev,
-        entities: [...prev.entities, entity],
-      }))
+      const nextWorld = { ...prevWorld, entities: [...prevWorld.entities, entity] }
+      updateWorld(() => nextWorld)
+      syncSceneAfterDocumentChange(prevWorld, nextWorld)
       setSelectedEntityIds([entity.id])
     },
-    [updateWorld, captureScenePosesForNextRebuild, pushHistory]
+    [updateWorld, pushHistory, syncSceneAfterDocumentChange]
   )
 
   const handleBulkAddEntities = useCallback(
     (params: BulkEntityParams) => {
       pushHistory()
+      const prevWorld = worldAssetsRef.current.world
       const newEntities = createBulkEntities(params)
       uiLogger.click('Builder', 'Bulk add entities', {
         count: newEntities.length,
         shape: params.shape,
       })
-      captureScenePosesForNextRebuild()
-      updateWorld((prev) => ({
-        ...prev,
-        entities: [...prev.entities, ...newEntities],
-      }))
+      const nextWorld = { ...prevWorld, entities: [...prevWorld.entities, ...newEntities] }
+      updateWorld(() => nextWorld)
+      syncSceneAfterDocumentChange(prevWorld, nextWorld)
       setSelectedEntityIds(newEntities.map((e) => e.id))
     },
-    [updateWorld, captureScenePosesForNextRebuild, pushHistory]
+    [updateWorld, pushHistory, syncSceneAfterDocumentChange]
   )
 
   const handleDeleteEntities = useCallback(
     (ids: string[]) => {
       if (ids.length === 0) return
       pushHistory()
+      const prevWorld = worldAssetsRef.current.world
       uiLogger.click('Builder', 'Delete entities', { count: ids.length, entityIds: ids })
-      captureScenePosesForNextRebuild()
       const idSet = new Set(ids)
-      updateWorld((prev) => {
-        const withPrunedGroups = pruneGroupMembers(prev, idSet)
-        return {
-          ...withPrunedGroups,
-          entities: prev.entities.filter((e) => !idSet.has(e.id)),
-        }
-      })
+      const withPrunedGroups = pruneGroupMembers(prevWorld, idSet)
+      const nextWorld = {
+        ...withPrunedGroups,
+        entities: prevWorld.entities.filter((e) => !idSet.has(e.id)),
+      }
+      updateWorld(() => nextWorld)
+      syncSceneAfterDocumentChange(prevWorld, nextWorld)
       setSelectedEntityIds((prev) => prev.filter((id) => !idSet.has(id)))
       setSelectedGroupIds((prev) => prev.filter((id) => !idSet.has(id)))
     },
-    [updateWorld, captureScenePosesForNextRebuild, pushHistory]
+    [updateWorld, pushHistory, syncSceneAfterDocumentChange]
   )
 
   useBuilderKeyboardShortcuts({
@@ -610,20 +624,23 @@ export default function Builder() {
   const handleCloneEntity = useCallback(
     (entityId: string) => {
       pushHistory()
-      const source = world.entities.find((e) => e.id === entityId)
+      const prevWorld = worldAssetsRef.current.world
+      const source = prevWorld.entities.find((e) => e.id === entityId)
       if (!source) return
       const pose = getCurrentPose(entityId)
       const cloned = cloneEntityFrom(source, pose)
       uiLogger.click('Builder', 'Clone entity', { sourceId: entityId, newId: cloned.id })
-      captureScenePosesForNextRebuild()
-      updateWorld((prev) => {
-        const { world: nextWorld, newTransformerIds } = cloneEntityTransformersIntoWorld(prev, cloned)
-        const entityWithNewIds = { ...cloned, transformers: newTransformerIds.length > 0 ? newTransformerIds : cloned.transformers }
-        return { ...nextWorld, entities: [...nextWorld.entities, entityWithNewIds] }
-      })
+      const { world: nextWorldBase, newTransformerIds } = cloneEntityTransformersIntoWorld(prevWorld, cloned)
+      const entityWithNewIds = {
+        ...cloned,
+        transformers: newTransformerIds.length > 0 ? newTransformerIds : cloned.transformers,
+      }
+      const nextWorld = { ...nextWorldBase, entities: [...nextWorldBase.entities, entityWithNewIds] }
+      updateWorld(() => nextWorld)
+      syncSceneAfterDocumentChange(prevWorld, nextWorld)
       setSelectedEntityIds([cloned.id])
     },
-    [world.entities, getCurrentPose, updateWorld, captureScenePosesForNextRebuild, pushHistory]
+    [getCurrentPose, updateWorld, pushHistory, syncSceneAfterDocumentChange]
   )
 
   const handleCopyEntities = useCallback(() => {
@@ -670,7 +687,7 @@ export default function Builder() {
     })
 
     pushHistory()
-    captureScenePosesForNextRebuild()
+    const prevWorld = worldAssetsRef.current.world
 
     const newEntities: Entity[] = []
     const newIds: string[] = []
@@ -686,19 +703,19 @@ export default function Builder() {
       newIds.push(next.id)
     }
 
-    updateWorld((prev) => {
-      let nextWorld = prev
-      const finalEntities = newEntities.map((cloned) => {
-        const { world: w, newTransformerIds } = cloneEntityTransformersIntoWorld(nextWorld, cloned)
-        nextWorld = w
-        return newTransformerIds.length > 0 ? { ...cloned, transformers: newTransformerIds } : cloned
-      })
-      return { ...nextWorld, entities: [...nextWorld.entities, ...finalEntities] }
+    let nextWorld = prevWorld
+    const finalEntities = newEntities.map((cloned) => {
+      const { world: w, newTransformerIds } = cloneEntityTransformersIntoWorld(nextWorld, cloned)
+      nextWorld = w
+      return newTransformerIds.length > 0 ? { ...cloned, transformers: newTransformerIds } : cloned
     })
+    const mergedWorld = { ...nextWorld, entities: [...nextWorld.entities, ...finalEntities] }
+    updateWorld(() => mergedWorld)
+    syncSceneAfterDocumentChange(prevWorld, mergedWorld)
     setSelectedEntityIds(newIds)
     selectionAnchorEntityIdRef.current = newIds[0] ?? null
     uiLogger.click('Builder', 'Paste entities', { count: newEntities.length, entityIds: newIds })
-  }, [captureScenePosesForNextRebuild, pushHistory, updateWorld])
+  }, [pushHistory, updateWorld, syncSceneAfterDocumentChange])
 
   clipboardShortcutHandlersRef.current = {
     onCopy: handleCopyEntities,
@@ -766,17 +783,20 @@ export default function Builder() {
         if (!applied) needRebuild = true
       }
       const idSet = new Set(ids)
-      if (needRebuild) captureScenePosesForNextRebuild()
+      if (needRebuild) {
+        captureScenePosesForNextRebuild()
+        bumpVersion()
+      }
       updateWorld((prev) => ({
         ...prev,
         entities: prev.entities.map((e) => (idSet.has(e.id) ? { ...e, ...patch } : e)),
       }))
     },
-    [world.entities, updateWorld, captureScenePosesForNextRebuild]
+    [world.entities, updateWorld, captureScenePosesForNextRebuild, bumpVersion]
   )
 
   const handleEntityModelTransformChange = useCallback(
-    (ids: string[], patch: { modelRotation?: Rotation; modelScale?: Vec3; doubleSided?: boolean }) => {
+    (ids: string[], patch: { modelPosition?: Vec3; modelRotation?: Rotation; modelScale?: Vec3; doubleSided?: boolean }) => {
       for (const id of ids) {
         sceneViewRef.current?.updateEntityModelTransform(id, patch)
       }
@@ -826,12 +846,16 @@ export default function Builder() {
 
   const handleWorldChange = useCallback(
     (newWorld: typeof world) => {
-      if (worldChangesRequireSceneRebuild(world, newWorld)) {
+      const prevWorld = world
+      if (worldChangesRequireSceneRebuild(prevWorld, newWorld)) {
         captureScenePosesForNextRebuild()
+        bumpVersion()
+      } else {
+        syncSceneAfterDocumentChange(prevWorld, newWorld)
       }
       updateWorld(() => newWorld)
     },
-    [world, updateWorld, captureScenePosesForNextRebuild],
+    [world, updateWorld, captureScenePosesForNextRebuild, bumpVersion, syncSceneAfterDocumentChange],
   )
 
   // ----- Explorer groups (Phase A: organizational only; no scene rebuild) -----
@@ -1021,8 +1045,12 @@ export default function Builder() {
       setShowSaveDialog(true)
       return
     }
-    await syncPosesThen(saveProject)
-  }, [currentProject.id, syncPosesThen, saveProject])
+    let saved = false
+    await syncPosesThen(async () => {
+      saved = await saveProject()
+    })
+    if (saved) showSaveSnackbar('Project saved')
+  }, [currentProject.id, syncPosesThen, saveProject, showSaveSnackbar])
 
   const handleSaveAs = useCallback(() => {
     setShowSaveDialog(true)
@@ -1036,18 +1064,29 @@ export default function Builder() {
 
   const handleSaveDialogSaveNew = useCallback(
     async (name: string) => {
-      await syncPosesThen(() => saveProjectAs(name))
+      let saved = false
+      await syncPosesThen(async () => {
+        saved = await saveProjectAs(name)
+      })
+      if (!saved) return
       setShowSaveDialog(false)
+      showSaveSnackbar(`Saved “${name}”`)
     },
-    [syncPosesThen, saveProjectAs]
+    [syncPosesThen, saveProjectAs, showSaveSnackbar]
   )
 
   const handleSaveDialogOverwrite = useCallback(
     async (id: string) => {
-      await syncPosesThen(() => saveToProject(id))
+      const projectName = projects.find((p) => p.id === id)?.name ?? 'project'
+      let saved = false
+      await syncPosesThen(async () => {
+        saved = await saveToProject(id)
+      })
+      if (!saved) return
       setShowSaveDialog(false)
+      showSaveSnackbar(`Saved “${projectName}”`)
     },
-    [syncPosesThen, saveToProject]
+    [syncPosesThen, saveToProject, projects, showSaveSnackbar]
   )
 
   const saveDialogDefaultName =
@@ -1104,6 +1143,7 @@ export default function Builder() {
       const safe = clampTrimeshSimplificationConfig({ ...config, enabled: true })
       pushHistory()
       captureScenePosesForNextRebuild()
+      bumpVersion()
       const nextWorld = applyMeshSimplificationToEntityInWorld(world, entityId, safe)
       updateWorld(() => nextWorld)
       try {
@@ -1123,7 +1163,7 @@ export default function Builder() {
         alert('Failed to bake simplified mesh to assets. Simplification settings remain.')
       }
     },
-    [world, assets, updateWorld, updateAssets, captureScenePosesForNextRebuild, pushHistory]
+    [world, assets, updateWorld, updateAssets, captureScenePosesForNextRebuild, bumpVersion, pushHistory]
   )
 
   const handleApplyTextureDownscale = useCallback(
@@ -1371,7 +1411,7 @@ export default function Builder() {
               }}
             />
           )}
-          <main style={{ flex: 1, minHeight: 0, width: '100%' }}>
+          <main style={{ flex: 1, minHeight: 0, width: '100%', position: 'relative' }}>
             <ErrorBoundary
               fallback={
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', background: theme.bg.errorFallback, color: theme.text.primary }}>
@@ -1434,6 +1474,7 @@ export default function Builder() {
                 fullscreenChromeControl={{ visible: fsChromeControlVisible, bumpActivity: bumpFsChrome }}
               />
             </ErrorBoundary>
+            {saveSnackbarMessage !== null ? <ScriptSnackbar message={saveSnackbarMessage} /> : null}
           </main>
 
           {/* Left overlay + floating right panel (pointer-events: none wrapper; drawers use auto). */}

@@ -155,65 +155,76 @@ export async function loadWorld(
   const shadowAabbSize = new THREE.Vector3()
 
   for (const entity of world.entities) {
-    const position: Vec3 = entity.position ?? DEFAULT_POSITION
-    const rotation: Rotation = entity.rotation ?? DEFAULT_ROTATION
-    const scale: Vec3 = entity.scale ?? DEFAULT_SCALE
-
-    const shape = entity.shape
-    let mesh: THREE.Mesh
-    try {
-      mesh = shape
-        ? await buildEntityMesh(
-            shape,
-            entity.material,
-            position,
-            rotation,
-            scale,
-            assetResolver ?? undefined,
-            entity.model,
-            entity.modelRotation,
-            entity.modelScale,
-            entity.shape?.type !== 'trimesh' ? entity.modelSimplification : undefined,
-            entity.doubleSided
-          )
-        : new THREE.Mesh(
-            new THREE.BoxGeometry(1, 1, 1),
-            new THREE.MeshStandardMaterial({ color: 0x888888 })
-          )
-    } catch (err) {
-      console.warn(`[loadWorld] Failed to build mesh for entity "${entity.id}", using placeholder:`, err)
-      mesh = new THREE.Mesh(
-        new THREE.BoxGeometry(1, 1, 1),
-        new THREE.MeshStandardMaterial({ color: 0xff4444, wireframe: true })
-      )
-      mesh.position.set(position[0], position[1], position[2])
-      mesh.quaternion.copy(eulerToQuaternion(rotation))
-      mesh.scale.set(scale[0], scale[1], scale[2])
-    }
-
-    mesh.name = entity.id
-    mesh.userData.entityId = entity.id
-    mesh.userData.entity = entity
-    mesh.userData.bodyType = entity.bodyType ?? 'static'
-    const isPlane = shape?.type === 'plane'
-    mesh.updateMatrixWorld(true)
-    // GLTF/model hierarchies: propagate userData; shadow cast uses world AABB (skip tiny props — §11 GPU tier)
-    mesh.traverse((child) => {
-      child.userData.entityId = entity.id
-      child.userData.entity = entity
-      if (child instanceof THREE.Mesh) {
-        updateMeshCastShadowFromWorldAabb(child, isPlane, shadowAabbBox, shadowAabbSize)
-        child.receiveShadow = true
-      }
-    })
-
-    if (mesh instanceof THREE.Mesh) {
-      syncShapeWireframeOverlay(mesh, entity)
-    }
-
-    scene.add(mesh)
-    entities.push({ entity, mesh })
+    const loaded = await buildLoadedEntity(entity, assetResolver ?? undefined, shadowAabbBox, shadowAabbSize)
+    scene.add(loaded.mesh)
+    entities.push(loaded)
   }
 
   return { scene, entities, world, assetResolver, warnings }
+}
+
+/** Build a single entity mesh (and metadata) without adding it to a scene. */
+export async function buildLoadedEntity(
+  entity: Entity,
+  assetResolver?: DisposableAssetResolver | null,
+  shadowAabbBox: THREE.Box3 = new THREE.Box3(),
+  shadowAabbSize: THREE.Vector3 = new THREE.Vector3(),
+): Promise<LoadedEntity> {
+  const position: Vec3 = entity.position ?? DEFAULT_POSITION
+  const rotation: Rotation = entity.rotation ?? DEFAULT_ROTATION
+  const scale: Vec3 = entity.scale ?? DEFAULT_SCALE
+
+  const shape = entity.shape
+  let mesh: THREE.Mesh
+  try {
+    mesh = shape
+      ? await buildEntityMesh(
+          shape,
+          entity.material,
+          position,
+          rotation,
+          scale,
+          assetResolver ?? undefined,
+          entity.model,
+          entity.modelPosition,
+          entity.modelRotation,
+          entity.modelScale,
+          entity.shape?.type !== 'trimesh' ? entity.modelSimplification : undefined,
+          entity.doubleSided,
+        )
+      : new THREE.Mesh(
+          new THREE.BoxGeometry(1, 1, 1),
+          new THREE.MeshStandardMaterial({ color: 0x888888 }),
+        )
+  } catch (err) {
+    console.warn(`[loadWorld] Failed to build mesh for entity "${entity.id}", using placeholder:`, err)
+    mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      new THREE.MeshStandardMaterial({ color: 0xff4444, wireframe: true }),
+    )
+    mesh.position.set(position[0], position[1], position[2])
+    mesh.quaternion.copy(eulerToQuaternion(rotation))
+    mesh.scale.set(scale[0], scale[1], scale[2])
+  }
+
+  mesh.name = entity.id
+  mesh.userData.entityId = entity.id
+  mesh.userData.entity = entity
+  mesh.userData.bodyType = entity.bodyType ?? 'static'
+  const isPlane = shape?.type === 'plane'
+  mesh.updateMatrixWorld(true)
+  mesh.traverse((child) => {
+    child.userData.entityId = entity.id
+    child.userData.entity = entity
+    if (child instanceof THREE.Mesh) {
+      updateMeshCastShadowFromWorldAabb(child, isPlane, shadowAabbBox, shadowAabbSize)
+      child.receiveShadow = true
+    }
+  })
+
+  if (mesh instanceof THREE.Mesh) {
+    syncShapeWireframeOverlay(mesh, entity)
+  }
+
+  return { entity, mesh }
 }
