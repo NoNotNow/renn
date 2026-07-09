@@ -78,11 +78,18 @@ export default function PropertyPanel({
   onSelectEntity,
 }: PropertyPanelProps) {
   const undo = useEditorUndo()
+  const [transformScrubActive, setTransformScrubActive] = useState(false)
   const vec3Undo: Vec3UndoProps | undefined =
     undo != null
       ? {
-          onScrubStart: () => undo.notifyScrubStart(),
-          onScrubEnd: (hadScrub: boolean) => undo.notifyScrubEnd(hadScrub),
+          onScrubStart: () => {
+            undo.notifyScrubStart()
+            setTransformScrubActive(true)
+          },
+          onScrubEnd: (hadScrub: boolean) => {
+            undo.notifyScrubEnd(hadScrub)
+            setTransformScrubActive(false)
+          },
           onBeforeCommit: () => undo.pushBeforeEdit(),
         }
       : undefined
@@ -145,22 +152,27 @@ export default function PropertyPanel({
   const lockMerged = mergeLocked(entities)
 
   const mergedName = mergeName(entities)
+  const poseSource = (entity: Entity) =>
+    transformScrubActive
+      ? entity
+      : livePoses?.get(entity.id) ?? entity
+
   const displayPosition =
-    mergeVec3(entities, (e) => livePoses?.get(e.id)?.position ?? e.position ?? DEFAULT_POSITION) ??
+    mergeVec3(entities, (e) => poseSource(e).position ?? DEFAULT_POSITION) ??
     DEFAULT_POSITION
   const displayRotation =
-    mergeRotation(entities, (e) => livePoses?.get(e.id)?.rotation ?? e.rotation ?? DEFAULT_ROTATION) ??
+    mergeRotation(entities, (e) => poseSource(e).rotation ?? DEFAULT_ROTATION) ??
     DEFAULT_ROTATION
   const displayScale =
     mergeScale(entities) ??
-    mergeVec3(entities, (e) => livePoses?.get(e.id)?.scale ?? e.scale ?? DEFAULT_SCALE) ??
+    mergeVec3(entities, (e) => poseSource(e).scale ?? e.scale ?? DEFAULT_SCALE) ??
     DEFAULT_SCALE
   const mergedShape = mergeShape(entities)
   const mergedModelRotation = mergeRotation(entities, (e) => e.modelRotation ?? DEFAULT_ROTATION)
   const mergedModelScale = mergeVec3(entities, (e) => e.modelScale ?? DEFAULT_SCALE)
   const mergedMaterial = mergeMaterial(entities)
-  const posMerged = mergeVec3(entities, (e) => livePoses?.get(e.id)?.position ?? e.position ?? DEFAULT_POSITION)
-  const rotMerged = mergeRotation(entities, (e) => livePoses?.get(e.id)?.rotation ?? e.rotation ?? DEFAULT_ROTATION)
+  const posMerged = mergeVec3(entities, (e) => poseSource(e).position ?? DEFAULT_POSITION)
+  const rotMerged = mergeRotation(entities, (e) => poseSource(e).rotation ?? DEFAULT_ROTATION)
   const scaleMerged = mergeScale(entities)
   const mergedAvatar = mergeAvatar(entities)
   const mergedBodyType = mergeBodyType(entities)

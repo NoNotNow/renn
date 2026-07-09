@@ -1,9 +1,15 @@
-import { useRef, useCallback, useState, useEffect } from 'react'
-import { clamp } from '@/utils/numberUtils'
+import { useRef, useCallback, useState, useEffect, type CSSProperties } from 'react'
+import { parseNumberInput, clamp } from '@/utils/numberUtils'
+import {
+  advanceScrubVelocity,
+  createScrubVelocityState,
+  scrubScaleFromVelocity,
+  scrubValueDelta,
+} from '@/utils/scrubNumberScaling'
 
 const DEAD_ZONE_PX = 2
 const DEFAULT_SENSITIVITY = 0.01
-const DEFAULT_SCRUB_INPUT_TITLE = 'Drag horizontally to adjust; or type a value.'
+const DEFAULT_SCRUB_INPUT_TITLE = 'Drag horizontally to adjust; slow = fine, fast = larger steps. Or type a value.'
 
 export interface DraggableNumberFieldProps {
   /** Use `null` for “mixed” multi-selection; shows empty until the user enters a value. */
@@ -16,14 +22,16 @@ export interface DraggableNumberFieldProps {
   label?: string
   id?: string
   disabled?: boolean
+  defaultValue?: number
   /** Fired on primary pointer down (potential scrub). */
   onScrubStart?: () => void
   /** Fired on pointer up/cancel; `true` if the scrub left the dead zone and applied deltas. */
   onScrubEnd?: (hadScrub: boolean) => void
   /** Blur/Enter commit that changes the stored number (not used during scrub; scrub uses onScrubEnd). */
-  onBeforeCommit?: () => void
+  onBeforeCommit?: (committedValue: number) => void
   /** Native tooltip on the input; when omitted but `label` is set, a default scrub hint is shown. */
   inputTitle?: string
+  style?: CSSProperties
 }
 
 function clampWithOptional(value: number, min: number | undefined, max: number | undefined): number {
@@ -33,6 +41,11 @@ function clampWithOptional(value: number, min: number | undefined, max: number |
   if (min !== undefined && value < min) return min
   if (max !== undefined && value > max) return max
   return value
+}
+
+function stringifyValue(n: number | null): string {
+  if (n === null) return ''
+  return String(n)
 }
 
 export default function DraggableNumberField({
@@ -45,29 +58,32 @@ export default function DraggableNumberField({
   label,
   id,
   disabled = false,
+  defaultValue = 0,
   onScrubStart,
   onScrubEnd,
   onBeforeCommit,
   inputTitle,
+  style,
 }: DraggableNumberFieldProps) {
   const resolvedInputTitle = inputTitle ?? (label ? DEFAULT_SCRUB_INPUT_TITLE : undefined)
-  const scrubRef = useRef<{ startValue: number; startX: number; deadZoneUsed: boolean } | null>(null)
+  const scrubRef = useRef<{
+    startX: number
+    lastValue: number
+    velocity: ReturnType<typeof createScrubVelocityState>
+    smoothedScale: number
+    deadZoneUsed: boolean
+  } | null>(null)
   const [isFocused, setIsFocused] = useState(false)
+  const [isScrubbing, setIsScrubbing] = useState(false)
   const [localValue, setLocalValue] = useState(() => stringifyValue(value))
 
-  // When not focused, keep displayed value in sync with props
   useEffect(() => {
-    if (!isFocused) {
+    if (!isFocused && !isScrubbing) {
       setLocalValue(stringifyValue(value))
     }
-  }, [value, isFocused])
+  }, [value, isFocused, isScrubbing])
 
-  function stringifyValue(n: number | null): string {
-    if (n === null) return ''
-    return String(n)
-  }
-
-  const displayValue = isFocused ? localValue : stringifyValue(value)
+  const displayValue = isFocused || isScrubbing ? localValue : stringifyValue(value)
 
   const handleFocus = useCallback(() => {
     setIsFocused(true)
@@ -76,84 +92,105 @@ export default function DraggableNumberField({
 
   const handleBlur = useCallback(() => {
     setIsFocused(false)
-    const parsed = parseFloat(localValue)
-    if (!Number.isNaN(parsed) && Number.isFinite(parsed)) {
-      const clamped = clampWithOptional(parsed, min, max)
-      if (value === null || clamped !== value) {
-        onBeforeCommit?.()
-      }
-      onChange(clamped)
-      setLocalValue(stringifyValue(clamped))
-    } else {
-      setLocalValue(stringifyValue(value))
-      if (value !== null) onChange(value)
+    const parsed = parseNumberInput(localValue, defaultValue)
+    const clamped = clampWithOptional(parsed, min, max)
+
+    if (value === null || clamped !== value) {
+      onBeforeCommit?.(clamped)
     }
-  }, [localValue, value, min, max, onChange, onBeforeCommit])
+    onChange(clamped)
+    setLocalValue(stringifyValue(clamped))
+  }, [localValue, value, min, max, defaultValue, onChange, onBeforeCommit])
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<HTMLInputElement>) => {
-      if (e.button !== 0) return
+      if (e.button !== 0 || disabled) return
       onScrubStart?.()
-      const target = e.target as HTMLInputElement
-      const effectiveValue = value ?? 0
+      const effectiveValue = value ?? defaultValue
       const startValue = isFocused
-        ? (() => {
-            const p = parseFloat(localValue)
-            return Number.isNaN(p) || !Number.isFinite(p) ? effectiveValue : clampWithOptional(p, min, max)
-          })()
+        ? clampWithOptional(parseNumberInput(localValue, defaultValue), min, max)
         : effectiveValue
+      const now = performance.now()
       scrubRef.current = {
-        startValue,
         startX: e.clientX,
+        lastValue: startValue,
+        velocity: createScrubVelocityState(e.clientX, now),
+        smoothedScale: 1,
         deadZoneUsed: false,
       }
+      setIsScrubbing(true)
+      if (!isFocused) {
+        setLocalValue(stringifyValue(startValue))
+      }
+      const target = e.target as HTMLInputElement
       if (typeof target.setPointerCapture === 'function') {
         target.setPointerCapture(e.pointerId)
       }
     },
-    [value, isFocused, localValue, min, max, onScrubStart]
+    [value, defaultValue, isFocused, localValue, min, max, onScrubStart, disabled],
   )
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent<HTMLInputElement>) => {
       const scrub = scrubRef.current
       if (!scrub) return
-      const deltaX = e.clientX - scrub.startX
-      if (!scrub.deadZoneUsed && Math.abs(deltaX) < DEAD_ZONE_PX) return
+
+      if (!scrub.deadZoneUsed && Math.abs(e.clientX - scrub.startX) < DEAD_ZONE_PX) return
       scrub.deadZoneUsed = true
-      const deltaValue = deltaX * sensitivity
-      const newValue = clampWithOptional(scrub.startValue + deltaValue, min, max)
+
+      const now = performance.now()
+      const prevX = scrub.velocity.lastX
+      const deltaX = e.clientX - prevX
+
+      scrub.velocity = advanceScrubVelocity(scrub.velocity, e.clientX, now)
+      scrub.smoothedScale = scrubScaleFromVelocity(scrub.velocity.smoothedVelocityPxPerSec, scrub.smoothedScale, {
+        baseSensitivity: sensitivity,
+      })
+
+      const deltaValue = scrubValueDelta(
+        deltaX,
+        scrub.velocity.smoothedVelocityPxPerSec,
+        scrub.smoothedScale,
+        sensitivity,
+      )
+      const newValue = clampWithOptional(scrub.lastValue + deltaValue, min, max)
+      scrub.lastValue = newValue
+      setLocalValue(stringifyValue(newValue))
       onChange(newValue)
     },
-    [onChange, sensitivity, min, max]
+    [onChange, sensitivity, min, max],
+  )
+
+  const endScrub = useCallback(
+    (e: React.PointerEvent<HTMLInputElement>) => {
+      const scrub = scrubRef.current
+      const hadScrub = scrub?.deadZoneUsed ?? false
+      scrubRef.current = null
+      setIsScrubbing(false)
+      onScrubEnd?.(hadScrub)
+      const target = e.target as HTMLInputElement
+      if (typeof target.releasePointerCapture === 'function') {
+        target.releasePointerCapture(e.pointerId)
+      }
+      if (!hadScrub && e.currentTarget !== document.activeElement) {
+        setLocalValue(stringifyValue(value))
+      }
+    },
+    [onScrubEnd, value],
   )
 
   const handlePointerUp = useCallback(
     (e: React.PointerEvent<HTMLInputElement>) => {
-      const scrub = scrubRef.current
-      const hadScrub = scrub?.deadZoneUsed ?? false
-      scrubRef.current = null
-      onScrubEnd?.(hadScrub)
-      const target = e.target as HTMLInputElement
-      if (typeof target.releasePointerCapture === 'function') {
-        target.releasePointerCapture(e.pointerId)
-      }
+      endScrub(e)
     },
-    [onScrubEnd]
+    [endScrub],
   )
 
   const handlePointerCancel = useCallback(
     (e: React.PointerEvent<HTMLInputElement>) => {
-      const scrub = scrubRef.current
-      const hadScrub = scrub?.deadZoneUsed ?? false
-      scrubRef.current = null
-      onScrubEnd?.(hadScrub)
-      const target = e.target as HTMLInputElement
-      if (typeof target.releasePointerCapture === 'function') {
-        target.releasePointerCapture(e.pointerId)
-      }
+      endScrub(e)
     },
-    [onScrubEnd]
+    [endScrub],
   )
 
   const handleChange = useCallback(
@@ -161,13 +198,15 @@ export default function DraggableNumberField({
       if (isFocused) {
         setLocalValue(e.target.value)
       } else {
-        const parsed = parseFloat(e.target.value)
-        if (!Number.isNaN(parsed)) {
-          onChange(clampWithOptional(parsed, min, max))
+        const parsed = parseNumberInput(e.target.value, defaultValue)
+        const clamped = clampWithOptional(parsed, min, max)
+        if (value === null || clamped !== value) {
+          onBeforeCommit?.(clamped)
         }
+        onChange(clamped)
       }
     },
-    [onChange, min, max, isFocused]
+    [onChange, min, max, isFocused, defaultValue, onBeforeCommit, value],
   )
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -200,6 +239,7 @@ export default function DraggableNumberField({
         minWidth: 0,
         cursor: disabled ? 'not-allowed' : 'ew-resize',
         boxSizing: 'border-box',
+        ...style,
       }}
     />
   )

@@ -123,7 +123,7 @@ Polling (or any programmatic display update) must **not** call `onWorldChange` o
 - **Menu**: Edit → Undo / Redo (shortcuts **Ctrl+Z**, **Ctrl+Shift+Z** or **Ctrl+Y**; **Cmd** on macOS). Disabled while focus is in an input/textarea/select so browser editing keeps normal behavior.
 - **Scope**: Snapshots of `RennWorld` plus a shallow copy of the assets `Map` (blobs are not removed from IndexedDB on undo). History clears when the document is replaced (`documentEpoch`: new project, load project, static init, JSON import).
 - **Gizmo**: One undo step per completed drag (pointer/mouse up → pose commit in Builder).
-- **Draggable numbers** (`DraggableNumberField` / `Vec3Field`): One undo step per horizontal scrub (after dead zone), or per blur commit when the value changed. `NumberInput` / `SelectInput` record a step when the committed value changes.
+- **Draggable numbers** (`DraggableNumberField` / `Vec3Field` / `NumberInput`): Horizontal scrub with **velocity-scaled quadratic sensitivity** — slow drags stay fine, fast drags take larger steps with a smoothed transition (`scrubNumberScaling.ts`). One undo step per scrub (after dead zone), or per blur commit when the value changed. During transform scrubs, `livePoses` is bypassed so polled physics poses do not fight the scrubbed values.
 - **Scene sync**: Applying undo/redo uses `applyEditorSnapshot` in ProjectContext (bumps `version` so SceneView reloads and matches the restored document).
 - **Texture Maker**: While the Texture Maker panel is open, undo/redo **first** uses a separate draft stack ([`textureMakerHistory.ts`](../src/utils/textureMakerHistory.ts)) so only the studio draft and preview canvases update; when that stack is empty, behavior matches global undo above. Details: [feature-texture-compositor.md](./feature-texture-compositor.md).
 
@@ -131,7 +131,7 @@ Implementation: [`editorHistory.ts`](../src/editor/editorHistory.ts), [`textureM
 
 ## Commit-on-blur
 
-Inspector text and number inputs (entity name, transform, shape, physics, material, etc.) use a **commit-on-blur** pattern: while a field is focused, its value is held in local state and is **not** overwritten by prop updates (e.g. from `livePoses` polling). When the user blurs the field, the value is parsed/validated and applied to the world via `onWorldChange` / `onEntityPoseChange`. This prevents live updates (such as position/rotation from the running scene) from overwriting what the user is typing. Implemented in `DraggableNumberField`, `NumberInput`, and the entity name input in PropertyPanel.
+Inspector text and number inputs (entity name, transform, shape, physics, material, etc.) use a **commit-on-blur** pattern: while a field is focused or actively scrubbed, its value is held in local state and is **not** overwritten by prop updates (e.g. from `livePoses` polling). When the user blurs the field, the value is parsed/validated and applied to the world via `onWorldChange` / `onEntityPoseChange`. Transform fields also set `transformScrubActive` in PropertyPanel during scrub so `livePoses` does not override scrubbed pose values. Implemented in `DraggableNumberField`, `NumberInput`, and the entity name input in PropertyPanel.
 
 ## Key files
 

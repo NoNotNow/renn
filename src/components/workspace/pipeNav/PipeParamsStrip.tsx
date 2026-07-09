@@ -1,6 +1,7 @@
 import type { PipeParamDef, TransformerPipe, TransformerPipeBinding } from '@/types/transformer'
 import { theme } from '@/config/theme'
 import { resolvePipeBindingParams } from '@/utils/transformerPipeResolve'
+import DraggableNumberField from '@/components/DraggableNumberField'
 
 export interface PipeParamsStripProps {
   pipe: TransformerPipe
@@ -74,19 +75,50 @@ function PipeParamField({
     )
   }
 
+  if (def.type === 'number') {
+    const numeric =
+      typeof displayValue === 'number' && Number.isFinite(displayValue)
+        ? displayValue
+        : typeof schemaDefault === 'number' && Number.isFinite(schemaDefault)
+          ? schemaDefault
+          : 0
+    const step = Math.abs(numeric) >= 10 ? 1 : 0.1
+    const sensitivity = Math.abs(numeric) >= 10 ? 0.5 : 0.05
+    return (
+      <label style={{ display: 'flex', alignItems: 'center', gap: 4, color: theme.text.secondary }}>
+        <span>{label}</span>
+        <DraggableNumberField
+          label={label}
+          value={numeric}
+          onChange={(v) => onChange?.(v)}
+          step={step}
+          sensitivity={sensitivity}
+          disabled={!onChange}
+          style={{
+            width: 64,
+            padding: '2px 6px',
+            borderRadius: 4,
+            border: `1px solid ${theme.pipeNav.accentMuted}`,
+            background: theme.bg.input,
+            color: theme.text.primary,
+            fontSize: 11,
+          }}
+        />
+        {overridden ? <span style={{ color: theme.pipeNav.accent }}>•</span> : null}
+      </label>
+    )
+  }
+
   return (
     <label style={{ display: 'flex', alignItems: 'center', gap: 4, color: theme.text.secondary }}>
       <span>{label}</span>
       <input
-        type={def.type === 'number' ? 'number' : 'text'}
+        type="text"
         value={String(displayValue ?? '')}
         disabled={!onChange}
-        onChange={(e) => {
-          const raw = e.target.value
-          onChange?.(def.type === 'number' ? Number(raw) : raw)
-        }}
+        onChange={(e) => onChange?.(e.target.value)}
         style={{
-          width: def.type === 'number' ? 56 : 100,
+          width: 100,
           padding: '2px 6px',
           borderRadius: 4,
           border: `1px solid ${theme.pipeNav.accentMuted}`,
