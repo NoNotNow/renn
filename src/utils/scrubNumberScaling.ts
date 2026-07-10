@@ -89,7 +89,7 @@ export function scrubScaleFromVelocity(
  */
 export function scrubValueDelta(
   deltaXPx: number,
-  velocityPxPerSec: number,
+  _velocityPxPerSec: number,
   smoothedScale: number,
   baseSensitivity: number,
 ): number {

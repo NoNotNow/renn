@@ -88,14 +88,14 @@ describe('Object reuse (allocation-free hot path)', () => {
     await initRapier()
     const world = createBenchmarkWorld(5)
     const sim = await WorldSimulator.create(world)
-    const pw = sim.getPhysicsWorld()
+    const pw = sim.getPhysicsWorld() as unknown as { contactForceByPair: Map<string, unknown> }
 
     sim.runFrames(5)
-    const mapRef = (pw as any).contactForceByPair as Map<string, unknown>
+    const mapRef = pw.contactForceByPair
     expect(mapRef).toBeInstanceOf(Map)
 
     sim.runFrames(30)
-    const mapAfter = (pw as any).contactForceByPair as Map<string, unknown>
+    const mapAfter = pw.contactForceByPair
     expect(mapAfter).toBe(mapRef)
 
     recordBenchmarkResult('contactForceByPair identity', {

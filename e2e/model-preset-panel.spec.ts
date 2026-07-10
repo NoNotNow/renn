@@ -13,10 +13,10 @@ test.describe('Model preset panel (UI)', () => {
 
     await expect(page.getByRole('button', { name: 'Entities' })).toBeVisible({ timeout: 30_000 })
 
-    await page.getByRole('button', { name: 'Entities' }).click()
+    await page.getByRole('button', { name: 'Entities', exact: true }).click()
     await page.getByRole('button', { name: 'Player Car' }).click()
 
-    await page.getByRole('button', { name: 'Presets' }).click()
+    await page.getByRole('button', { name: 'Presets', exact: true }).click()
 
     await expect(page.getByText('No presets yet.')).toBeVisible()
 

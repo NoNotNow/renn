@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import path from 'node:path'
+import { entityExplorerRows, openEntitiesTab } from './helpers/entityExplorer'
 
 const textureFixture = path.join(process.cwd(), 'e2e/fixtures/brush-1x1.png')
 
@@ -26,16 +27,16 @@ test.describe('Texture Maker painting (E2E)', () => {
     await page.goto('/')
 
     // Add a new box entity.
-    await page.getByRole('button', { name: /entities/i }).click()
+    await openEntitiesTab(page)
     await expect(page.getByTitle('Add entity')).toBeVisible({ timeout: 30_000 })
-    const entityList = page.getByRole('list')
-    const initialCount = await entityList.locator('li').count()
+    const entityRows = entityExplorerRows(page)
+    const initialCount = await entityRows.count()
     await page.getByTitle('Add entity').selectOption('box')
-    const addedEntityButton = entityList.locator('li').nth(initialCount).getByRole('button')
+    const addedEntityButton = entityRows.nth(initialCount)
     await addedEntityButton.click()
 
     // Upload a tiny texture so the entity has a composited map we can edit.
-    await page.getByRole('button', { name: 'Properties' }).click()
+    await page.getByRole('button', { name: 'Properties', exact: true }).click()
     await page.getByRole('button', { name: 'Add texture' }).click()
     const dialog = page.getByRole('dialog')
     await expect(dialog).toBeVisible()

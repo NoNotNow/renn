@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import path from 'node:path'
+import { entityExplorerRows, openEntitiesTab } from './helpers/entityExplorer'
 
 const textureFixture = path.join(process.cwd(), 'e2e/fixtures/brush-1x1.png')
 
@@ -12,18 +13,18 @@ test.describe('Texture brush color (Builder)', () => {
 
     await page.goto('/')
 
-    await page.getByRole('button', { name: /entities/i }).click()
+    await openEntitiesTab(page)
     await expect(page.getByTitle('Add entity')).toBeVisible({ timeout: 30_000 })
 
-    const entityList = page.getByRole('list')
-    const initialCount = await entityList.locator('li').count()
+    const entityRows = entityExplorerRows(page)
+    const initialCount = await entityRows.count()
     await page.getByTitle('Add entity').selectOption('box')
-    await expect(entityList.locator('li')).toHaveCount(initialCount + 1)
+    await expect(entityRows).toHaveCount(initialCount + 1)
 
-    const newBoxButton = entityList.locator('li').nth(initialCount).getByRole('button')
+    const newBoxButton = entityRows.nth(initialCount)
     await newBoxButton.click()
 
-    await page.getByRole('button', { name: 'Properties' }).click()
+    await page.getByRole('button', { name: 'Properties', exact: true }).click()
     await page.getByRole('button', { name: 'Add texture' }).click()
 
     const dialog = page.getByRole('dialog')

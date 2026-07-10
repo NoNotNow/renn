@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { entityExplorerRows, openEntitiesTab } from './helpers/entityExplorer'
 
 test.describe('Builder add entity', () => {
   test('adds entity when selecting Add box and entity list gains one item without page errors', async ({ page }) => {
@@ -6,18 +7,16 @@ test.describe('Builder add entity', () => {
     page.on('pageerror', (err) => pageErrors.push(err))
 
     await page.goto('/')
-    await page.getByRole('button', { name: 'entities' }).click()
+    await openEntitiesTab(page)
     await expect(page.getByTitle('Add entity')).toBeVisible()
 
-    const entityList = page.getByRole('list')
-    const initialCount = await entityList.locator('li').count()
+    const entityRows = entityExplorerRows(page)
+    const initialCount = await entityRows.count()
 
     await page.getByTitle('Add entity').selectOption('box')
 
-    await expect(entityList.locator('li')).toHaveCount(initialCount + 1)
-    // The default world may already contain many "box <color> <n>" entities.
-    // Instead of a strict-mode ambiguous role query, assert on the newly-added list item.
-    const addedEntityButton = entityList.locator('li').nth(initialCount).getByRole('button')
+    await expect(entityRows).toHaveCount(initialCount + 1)
+    const addedEntityButton = entityRows.nth(initialCount)
     await expect(addedEntityButton).toBeVisible()
     await expect(addedEntityButton).toHaveText(/^box [a-z]+ \d+$/i)
 

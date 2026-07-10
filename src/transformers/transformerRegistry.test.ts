@@ -8,7 +8,7 @@ import { KinematicMovementTransformer } from './presets/kinematicMovementTransfo
 import { WandererTransformer } from './presets/wandererTransformer'
 import { FollowTransformer } from './presets/followTransformer'
 import { createMockTransformInput } from '@/test/helpers/transformer'
-import type { TransformerConfig } from '@/types/transformer'
+import type { RawInput, TransformerConfig } from '@/types/transformer'
 import type { Vec3, Rotation } from '@/types/world'
 import { CHARACTER_PRESET } from '@/input/inputPresets'
 
@@ -26,7 +26,7 @@ describe('Transformer Registry', () => {
       inputMapping: CHARACTER_PRESET,
     }
 
-    const transformer = await createTransformer(config, () => rawInput as any)
+    const transformer = await createTransformer(config, (): RawInput => rawInput)
 
     expect(transformer).toBeInstanceOf(InputTransformer)
     expect(transformer.type).toBe('input')
@@ -140,7 +140,7 @@ describe('Transformer Registry', () => {
   })
 
   test('throws for unknown transformer type', async () => {
-    const config = { type: 'nope' } as any
+    const config = { type: 'nope' } as unknown as TransformerConfig
     await expect(createTransformer(config)).rejects.toThrow(/Unknown transformer type/)
   })
 

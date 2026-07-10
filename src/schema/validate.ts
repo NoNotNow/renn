@@ -44,7 +44,7 @@ function getValueAtJsonPointer(data: unknown, instancePath: string): unknown {
   if (!instancePath || instancePath === '/') return data
   if (!instancePath.startsWith('/')) return undefined
   const segments = instancePath.split('/').slice(1).map(unescapeJsonPointerSegment)
-  let cur: any = data
+  let cur: unknown = data
   for (const seg of segments) {
     if (cur == null) return undefined
     if (Array.isArray(cur) && /^\d+$/.test(seg)) {

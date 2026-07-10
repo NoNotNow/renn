@@ -4,6 +4,11 @@ import { sampleWorld } from '@/data/sampleWorld'
 import { createDefaultEntity, type AddableShapeType } from '@/data/entityDefaults'
 import type { RennWorld } from '@/types/world'
 
+type MutableValidationWorld = Record<string, unknown> & {
+  entities: Array<Record<string, unknown> & { material?: Record<string, unknown> }>
+  transformers?: Record<string, Record<string, unknown>>
+}
+
 function worldWithOneEntityPerShape(): RennWorld {
   const types: AddableShapeType[] = ['box', 'sphere', 'cylinder', 'capsule', 'cone', 'pyramid', 'plane']
   const entities = types.map((t) => createDefaultEntity(t))
@@ -52,7 +57,7 @@ describe('validateWorldDocument', () => {
   })
 
   it('embeds failing instancePath and offending value for additionalProperties', () => {
-    const invalid = structuredClone(sampleWorld) as unknown as any
+    const invalid = structuredClone(sampleWorld) as unknown as MutableValidationWorld
     invalid.entities[0].material = { ...(invalid.entities[0].material ?? {}), bogus: 123 }
 
     expect(() => validateWorldDocument(invalid)).toThrow(/Invalid world/)
@@ -62,7 +67,7 @@ describe('validateWorldDocument', () => {
   })
 
   it('can tolerate additionalProperties by stripping unknown keys', () => {
-    const invalid = structuredClone(sampleWorld) as unknown as any
+    const invalid = structuredClone(sampleWorld) as unknown as MutableValidationWorld
     invalid.entities[0].material = { ...(invalid.entities[0].material ?? {}), bogus: 123 }
 
     expect(() =>
@@ -76,7 +81,7 @@ describe('validateWorldDocument', () => {
   })
 
   it('tolerates extra inputMapping.keyboard keys (e.g. arrow keys)', () => {
-    const w = structuredClone(sampleWorld) as unknown as any
+    const w = structuredClone(sampleWorld) as unknown as MutableValidationWorld
     if (!w.transformers) w.transformers = {}
     w.transformers['test_tf_input'] = {
       type: 'input',
@@ -97,11 +102,13 @@ describe('validateWorldDocument', () => {
     expect(() =>
       validateWorldDocument(w, { tolerateAdditionalProperties: true, logAdditionalProperties: false })
     ).not.toThrow()
-    expect(w.transformers['test_tf_input'].inputMapping.keyboard).not.toHaveProperty('arrowUp')
+    expect(
+      (w.transformers!['test_tf_input'].inputMapping as { keyboard: Record<string, unknown> }).keyboard,
+    ).not.toHaveProperty('arrowUp')
   })
 
   it('appends warningsOut when stripping unknown fields', () => {
-    const invalid = structuredClone(sampleWorld) as unknown as any
+    const invalid = structuredClone(sampleWorld) as unknown as MutableValidationWorld
     invalid.entities[0].material = { ...(invalid.entities[0].material ?? {}), bogus: 123 }
     const warnings: string[] = []
     validateWorldDocument(invalid, {
@@ -140,7 +147,7 @@ describe('validateWorldDocument', () => {
   })
 
   it('tolerates extra keyboard keys even when parent objects are frozen (deep clone strip)', () => {
-    const w = structuredClone(sampleWorld) as unknown as any
+    const w = structuredClone(sampleWorld) as unknown as MutableValidationWorld
     const keyboard = { w: 'pitch_forward', arrowUp: 'pitch_forward' }
     Object.freeze(keyboard)
     if (!w.transformers) w.transformers = {}

@@ -36,7 +36,7 @@ export function WarningSnackbar({ messages, onDismiss }: WarningSnackbarProps) {
       await navigator.clipboard.writeText(msg)
       setCopiedIndex(idx)
       window.setTimeout(() => setCopiedIndex((c) => (c === idx ? null : c)), 1200)
-    } catch (e) {
+    } catch {
       // ignore
     }
   }

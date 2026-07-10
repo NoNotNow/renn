@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import type { GLTFLoader } from 'three-stdlib'
 import type { GLTF } from './assetResolver'
 
 export interface AssetResolverOptions {
@@ -17,7 +18,7 @@ export interface DisposableAssetResolver {
   loadTexture: (assetId: string, loader: THREE.TextureLoader) => Promise<THREE.Texture | null>
   loadVideoTexture: (assetId: string) => Promise<THREE.VideoTexture | null>
   isVideoAsset: (assetId: string) => boolean
-  loadModel: (assetId: string, loader: any) => Promise<GLTF | null>
+  loadModel: (assetId: string, loader: GLTFLoader) => Promise<GLTF | null>
   /**
    * Pre-populate the texture cache for `assetId` with `texture` decoded from `blob`.
    * `loadTexture` will return the cached texture when called for the same blob identity,
@@ -192,7 +193,7 @@ export function createAssetResolverFromGetter(
     }
   }
 
-  const loadModel = async (assetId: string, loader: any): Promise<GLTF | null> => {
+  const loadModel = async (assetId: string, loader: GLTFLoader): Promise<GLTF | null> => {
     const url = resolve(assetId)
     if (!url) return null
 
@@ -202,7 +203,7 @@ export function createAssetResolverFromGetter(
           url,
           (gltf: GLTF) => resolveGltf(gltf),
           undefined,
-          (error: any) => reject(error)
+          (error: unknown) => reject(error)
         )
       })
       return gltf

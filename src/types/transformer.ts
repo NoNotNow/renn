@@ -301,8 +301,8 @@ export interface TransformerConfig {
  * stored in `world.transformers: Record<string, TransformerDef>` (keyed by ID).
  * entity.transformers now holds string[] IDs referencing this registry.
  */
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
-export interface TransformerDef extends TransformerConfig {}
+ 
+export type TransformerDef = TransformerConfig
 
 // ---------------------------------------------------------------------------
 // Transformer Pipes

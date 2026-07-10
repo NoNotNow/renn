@@ -54,7 +54,7 @@ function makeRenderer(): THREE.WebGLRenderer {
   } as unknown as THREE.WebGLRenderer
 }
 
-interface BaseOverrides extends Partial<SceneFrameLoopInputs> {}
+type BaseOverrides = Partial<SceneFrameLoopInputs>
 
 function makeBaseInput(over: BaseOverrides = {}): SceneFrameLoopInputs {
   return {

@@ -417,10 +417,6 @@ describe('PropertyPanel vector groups integration', () => {
     return { onWorldChange, entityId: latestWorld.entities[0]!.id }
   }
 
-  function scaleGroup() {
-    return screen.getByRole('group', { name: /scale edit mode/i })
-  }
-
   function positionGroup() {
     return screen.getByRole('group', { name: /position edit mode/i })
   }

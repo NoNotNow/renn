@@ -7,13 +7,16 @@ import { forwardRef, useImperativeHandle, useEffect, useState } from 'react'
 import Builder from '@/pages/Builder'
 import { ProjectProvider } from '@/contexts/ProjectContext'
 import type { RennWorld } from '@/types/world'
-import { getEntityPipeStack } from '@/utils/transformerPipeResolve'
 import {
   clearWorkspaceEditorViewStateStoreForTests,
   loadWorkspaceEditorViewState,
-  saveWorkspaceEditorViewState,
   workspaceEditorItemKey,
+  type WorkspaceEditorViewState,
 } from '@/utils/workspaceEditorViewState'
+
+function viewStateScrollTop(state: WorkspaceEditorViewState | undefined): number | undefined {
+  return (state as { scrollTop?: number } | undefined)?.scrollTop
+}
 
 const sceneViewRefMocks = vi.hoisted(() => ({
   setViewPreset: vi.fn(),
@@ -410,21 +413,21 @@ describe('Builder workspace persistence integration', () => {
         itemId: firstCustomId,
         pipeNavPath: stackPath,
       })!
-      expect(loadWorkspaceEditorViewState(editorKey)?.scrollTop).toBe(240)
+      expect(viewStateScrollTop(loadWorkspaceEditorViewState(editorKey))).toBe(240)
 
       fireEvent.click(screen.getByTestId('transformer-horizontal-item-2'))
       await waitFor(() => {
         expect(monacoEl().getAttribute('data-monaco-scroll')).toBe('240')
         expect(monacoEl().getAttribute('data-monaco-line')).toBe('12')
       })
-      expect(loadWorkspaceEditorViewState(
+      expect(viewStateScrollTop(loadWorkspaceEditorViewState(
         workspaceEditorItemKey({
           entityId: carId,
           tab: 'transformers',
           itemId: secondCustomId,
           pipeNavPath: stackPath,
         })!,
-      )?.scrollTop).toBe(0)
+      ))).toBe(0)
     },
     60_000,
   )

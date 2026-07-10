@@ -108,6 +108,23 @@ const IDLE_MONACO: WorkspaceMonacoPayload = {
   refreshKey: 0,
 }
 
+/** Workspace shell background opacity steps (cycles on header toggle). */
+const WORKSPACE_BACKGROUND_OPACITY_STEPS = [0.2, 0.4, 0.6, 1] as const
+
+function workspaceShellBackground(opacity: number): { body: string; header: string } {
+  if (opacity >= 1) {
+    return { body: theme.bg.panelAlt, header: theme.bg.panel }
+  }
+  return {
+    body: `rgba(26, 26, 26, ${opacity})`,
+    header: `rgba(22, 24, 30, ${opacity})`,
+  }
+}
+
+function workspaceBackgroundOpacityLabel(opacity: number): string {
+  return `${Math.round(opacity * 100)}%`
+}
+
 export interface WorkspaceProps {
   open: boolean
   onClose: () => void
@@ -189,7 +206,10 @@ export default function Workspace({
   const [activeTab, setActiveTab] = useState<WorkspaceShellTabId>(() =>
     initialWorkspaceShellTab(open, entry),
   )
-  const [opaque, setOpaque] = useState(false)
+  const [backgroundOpacityStep, setBackgroundOpacityStep] = useState(0)
+  const backgroundOpacity = WORKSPACE_BACKGROUND_OPACITY_STEPS[backgroundOpacityStep]
+  const shellBackground = workspaceShellBackground(backgroundOpacity)
+  const shellGlass = backgroundOpacity < 1
   const [docsOpen, setDocsOpen] = useState(false)
   const [monacoChrome, setMonacoChrome] = useState<WorkspaceMonacoEditorChrome | null>(null)
   const [monacoEditorAreaEpoch, setMonacoEditorAreaEpoch] = useState(0)
@@ -228,7 +248,8 @@ export default function Workspace({
     const ed = monacoEditorRef.current
     const prevKey = prevEditorItemKeyRef.current
     if (!ed || !prevKey) return
-    saveWorkspaceEditorViewState(prevKey, ed.saveViewState())
+    const state = ed.saveViewState()
+    if (state) saveWorkspaceEditorViewState(prevKey, state)
   }, [])
 
   useEffect(() => {
@@ -458,11 +479,15 @@ export default function Workspace({
     }
     const disposeCursor = ed.onDidChangeCursorPosition(() => {
       const key = editorItemKeyRef.current
-      if (key) saveWorkspaceEditorViewState(key, ed.saveViewState())
+      if (!key) return
+      const state = ed.saveViewState()
+      if (state) saveWorkspaceEditorViewState(key, state)
     })
     const disposeScroll = ed.onDidScrollChange(() => {
       const key = editorItemKeyRef.current
-      if (key) saveWorkspaceEditorViewState(key, ed.saveViewState())
+      if (!key) return
+      const state = ed.saveViewState()
+      if (state) saveWorkspaceEditorViewState(key, state)
     })
     ed.onDidDispose(() => {
       disposeCursor.dispose()
@@ -476,7 +501,7 @@ export default function Workspace({
       <TransformerCustomCodeEditor
         layout="fill"
         key={`ws-monaco-${activeTab}-${monacoPayload.refreshKey}-${editorOpenRefreshNonce}-${manualMonacoRefreshNonce}`}
-        transparent={!opaque}
+        transparent={shellGlass}
         delayedLayoutMs={200}
         value={monacoPayload.value}
         onChange={monacoPayload.onChange}
@@ -496,7 +521,7 @@ export default function Workspace({
     monacoPayload.disabled,
     monacoPayload.kind,
     monacoScriptEvent,
-    opaque,
+    shellGlass,
     handleMonacoEditorReady,
   ])
 
@@ -544,7 +569,7 @@ export default function Workspace({
                   flex: '1 1 auto',
                   width: '100%',
                   minHeight: 0,
-                  backgroundColor: opaque ? theme.bg.panelAlt : theme.bg.modalGlass,
+                  backgroundColor: shellBackground.body,
                   border: `1px solid ${theme.border.default}`,
                   borderRadius: 0,
                   display: 'flex',
@@ -559,7 +584,7 @@ export default function Workspace({
                   style={{
                     padding: '10px 16px',
                     borderBottom: `1px solid ${theme.border.default}`,
-                    backgroundColor: opaque ? theme.bg.panel : theme.bg.modalGlassHeader,
+                    backgroundColor: shellBackground.header,
                     display: 'flex',
                     flexDirection: 'row',
                     alignItems: 'center',
@@ -672,13 +697,17 @@ export default function Workspace({
                   <button
                     type="button"
                     data-testid="workspace-opacity-toggle"
-                    title={opaque ? 'Make window transparent' : 'Make window fully opaque'}
-                    aria-label="Toggle window opacity"
-                    onClick={() => setOpaque(!opaque)}
+                    title={`Background opacity: ${workspaceBackgroundOpacityLabel(backgroundOpacity)} (click for ${workspaceBackgroundOpacityLabel(WORKSPACE_BACKGROUND_OPACITY_STEPS[(backgroundOpacityStep + 1) % WORKSPACE_BACKGROUND_OPACITY_STEPS.length])})`}
+                    aria-label={`Background opacity ${workspaceBackgroundOpacityLabel(backgroundOpacity)}`}
+                    onClick={() =>
+                      setBackgroundOpacityStep(
+                        (step) => (step + 1) % WORKSPACE_BACKGROUND_OPACITY_STEPS.length,
+                      )
+                    }
                     style={{
                       ...entityPanelIconButtonStyle,
-                      opacity: opaque ? 1 : 0.65,
-                      color: opaque ? theme.accent : theme.text.muted,
+                      opacity: shellGlass ? 0.65 : 1,
+                      color: shellGlass ? theme.text.muted : theme.accent,
                     }}
                   >
                     {EntityPanelIcons.opacity}

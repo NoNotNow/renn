@@ -4,6 +4,7 @@ import {
   loadWorkspaceEditorViewState,
   saveWorkspaceEditorViewState,
   workspaceEditorItemKey,
+  type WorkspaceEditorViewState,
 } from './workspaceEditorViewState'
 
 describe('workspaceEditorViewState', () => {
@@ -39,7 +40,7 @@ describe('workspaceEditorViewState', () => {
       scrollLeft: 0,
       firstPosition: { lineNumber: 8, column: 3 },
       lastPosition: { lineNumber: 8, column: 3 },
-    } as const
+    } as unknown as WorkspaceEditorViewState
     saveWorkspaceEditorViewState(key, state)
     expect(loadWorkspaceEditorViewState(key)).toEqual(state)
     expect(loadWorkspaceEditorViewState('missing')).toBeUndefined()

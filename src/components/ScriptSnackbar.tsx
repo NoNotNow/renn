@@ -27,7 +27,7 @@ export function ScriptSnackbar({ message }: ScriptSnackbarProps) {
       await navigator.clipboard.writeText(message)
       setCopied(true)
       window.setTimeout(() => setCopied(false), 1200)
-    } catch (e) {
+    } catch {
       // ignore
     }
   }

@@ -108,7 +108,7 @@ export class WorldSimulator {
     const entities = buildLoadedEntities(world)
     const physicsWorld = await createPhysicsWorld(world, entities)
 
-    let currentKeys: Partial<RawKeyboardState> = {}
+    const currentKeys: Partial<RawKeyboardState> = {}
     const rawInputGetter = (): RawInput => buildRawInput(currentKeys)
 
     const registry = RenderItemRegistry.create(entities, physicsWorld, rawInputGetter, undefined, world.transformers)
@@ -146,8 +146,9 @@ export class WorldSimulator {
       const item = registry.get(entity.id)
       if (item?.transformerChain) {
         item.transformerChain.getAll().forEach((t) => {
-          if (typeof (t as any).setRawInputGetter === 'function') {
-            ;(t as any).setRawInputGetter(simInputGetter)
+          const withRawInput = t as { setRawInputGetter?: (getter: () => RawInput) => void }
+          if (typeof withRawInput.setRawInputGetter === 'function') {
+            withRawInput.setRawInputGetter(simInputGetter)
           }
         })
       }

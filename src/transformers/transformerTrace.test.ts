@@ -10,6 +10,7 @@ import {
   summarizePublishedActionsDelta,
 } from '@/transformers/transformerTrace'
 import { createMockTransformInput } from '@/test/helpers/transformer'
+import type { TransformInput } from '@/types/transformer'
 
 describe('transformerTrace helpers', () => {
   it('serializeTransformInputForTrace copies actions and tuples', () => {
@@ -83,17 +84,21 @@ describe('transformerTrace helpers', () => {
     const input = createMockTransformInput({})
     // Missing rotation in pose
     input.target = {
-      pose: { position: [10, 10, 10] } as any,
-      speed: 5
-    }
+      pose: { position: [10, 10, 10] },
+      speed: 5,
+    } as TransformInput['target']
     expect(() => serializeTransformInputForTrace(input)).not.toThrow()
-    const snap: any = serializeTransformInputForTrace(input)
+    const snap = serializeTransformInputForTrace(input) as {
+      target: { pose: { rotation: number[] } }
+    }
     expect(snap.target.pose.rotation).toEqual([0, 0, 0])
 
     // Missing pose entirely
-    input.target = { speed: 5 } as any
+    input.target = { speed: 5 } as TransformInput['target']
     expect(() => serializeTransformInputForTrace(input)).not.toThrow()
-    const snap2: any = serializeTransformInputForTrace(input)
+    const snap2 = serializeTransformInputForTrace(input) as {
+      target: { pose: { position: number[] } }
+    }
     expect(snap2.target.pose.position).toEqual([0, 0, 0])
   })
 })

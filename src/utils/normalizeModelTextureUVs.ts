@@ -20,7 +20,7 @@ export function normalizeModelTextureUVs(scene: THREE.Object3D): void {
     const pos = geom.getAttribute('position')
     if (!pos) return
 
-    let uv = geom.getAttribute('uv') as THREE.BufferAttribute | undefined
+    const uv = geom.getAttribute('uv') as THREE.BufferAttribute | undefined
     const count = pos.count
 
     if (!uv || uv.itemSize < 2 || uv.count !== count) {

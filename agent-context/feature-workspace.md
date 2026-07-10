@@ -30,7 +30,7 @@ Scripts use `world.scripts: Record<string, ScriptDef>` with `entity.scripts: str
 ### R1 — Workspace surface
 - Single full-screen (popout) panel replacing the legacy `CustomTransformerCodeTab` popout.
 - Three top-level tabs: **Transformers**, **Scripts**, **Organize**.
-- **Shell header** (one row): tab buttons; **EntitySearchPicker** (`compact`, ~10em) in the meta area — shows entity/item label by default, magnifying-glass hint on hover, search on click when something is selected; then reset/stop, **documentation** toggle, opacity + close.
+- **Shell header** (one row): tab buttons; **EntitySearchPicker** (`compact`, ~10em) in the meta area — shows entity/item label by default, magnifying-glass hint on hover, search on click when something is selected; then reset/stop, **documentation** toggle, **background opacity** toggle (cycles 20% → 40% → 60% → 100% semi-transparent tint, no backdrop blur), + close.
 - **No-entity states** on Transformers / Scripts tabs show the same **EntitySearchPicker** (`panel`) instead of dead-end “select an entity” copy.
 - **Transformer reference** (`TransformerDocsContent`): optional right column via shell-header toggle; resizable divider splits **all** tab content (left) from docs (right). Panel has an **×** close control; width persists in `localStorage`.
 - One Monaco instance shared between Transformers and Scripts tabs — switching tabs only

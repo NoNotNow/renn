@@ -176,7 +176,7 @@ export function summarizeTransformOutputBrief(o: TransformOutput): string {
 /** Brief summary of TransformInput for Builder trace cards (IN: ...). */
 export function summarizeTransformInputBrief(input: TransformInputTraceSnapshot): string {
   const actionsSummary = summarizeActions(input.actions)
-  const target = input.target as any
+  const target = input.target as { label?: string } | undefined
   const targetLabel = target?.label ? `target: ${target.label}` : null
 
   if (actionsSummary !== '(idle)' && targetLabel) return `${actionsSummary}; ${targetLabel}`
@@ -212,7 +212,7 @@ export function summarizeTransformerTraceOutputBrief(
 
 export function serializeTransformerTraceOutputJson(step: TransformerTraceStep): unknown {
   const o = step.transformOutput ?? {}
-  const ret: any = { ...o }
+  const ret: Record<string, unknown> = { ...o }
   delete ret.targetLabel
 
   const before = step.inputBefore?.actions as Record<string, number> | undefined
@@ -226,10 +226,11 @@ export function serializeTransformerTraceOutputJson(step: TransformerTraceStep):
 /** Clean snapshot of TransformInput for popup display (removes internal labels). */
 export function serializeTransformInputForDisplay(input: TransformInputTraceSnapshot | undefined): unknown {
   if (!input) return null
-  const ret: any = { ...input }
-  if (ret.target) {
-    ret.target = { ...ret.target }
-    delete ret.target.label
+  const ret: Record<string, unknown> = { ...input }
+  if (ret.target && typeof ret.target === 'object') {
+    const target = { ...(ret.target as Record<string, unknown>) }
+    delete target.label
+    ret.target = target
   }
   return ret
 }

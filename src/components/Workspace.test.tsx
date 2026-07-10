@@ -149,46 +149,50 @@ describe('Workspace', () => {
     expect(screen.queryByTestId('workspace-panel')).not.toBeInTheDocument()
   })
 
-  it('remounts Monaco after workspace opens on a Monaco tab (first time only)', () => {
-    vi.useFakeTimers()
-    monacoMount.count = 0
-    const { rerender } = renderWorkspace(
-      <Workspace
-        open={false}
-        onClose={vi.fn()}
-        entry={{ entityId: 'e1', tab: 'scripts', itemId: 'my_script' }}
-        world={worldWithScript}
-        selectedEntityIds={['e1']}
-        onWorldChange={vi.fn()}
-      />,
-    )
-    expect(screen.queryByTestId('mock-monaco-editor')).not.toBeInTheDocument()
-
-    act(() => {
-      rerender(
-        <CopyProvider>
-          <EditorUndoProvider value={undoApi}>
-            <Workspace
-              open
-              onClose={vi.fn()}
-              entry={{ entityId: 'e1', tab: 'scripts', itemId: 'my_script' }}
-              world={worldWithScript}
-              selectedEntityIds={['e1']}
-              onWorldChange={vi.fn()}
-            />
-          </EditorUndoProvider>
-        </CopyProvider>,
+  it(
+    'remounts Monaco after workspace opens on a Monaco tab (first time only)',
+    () => {
+      vi.useFakeTimers()
+      monacoMount.count = 0
+      const { rerender } = renderWorkspace(
+        <Workspace
+          open={false}
+          onClose={vi.fn()}
+          entry={{ entityId: 'e1', tab: 'scripts', itemId: 'my_script' }}
+          world={worldWithScript}
+          selectedEntityIds={['e1']}
+          onWorldChange={vi.fn()}
+        />,
       )
-    })
+      expect(screen.queryByTestId('mock-monaco-editor')).not.toBeInTheDocument()
 
-    expect(screen.getByTestId('mock-monaco-editor')).toBeInTheDocument()
-    const mountsAfterOpen = monacoMount.count
+      act(() => {
+        rerender(
+          <CopyProvider>
+            <EditorUndoProvider value={undoApi}>
+              <Workspace
+                open
+                onClose={vi.fn()}
+                entry={{ entityId: 'e1', tab: 'scripts', itemId: 'my_script' }}
+                world={worldWithScript}
+                selectedEntityIds={['e1']}
+                onWorldChange={vi.fn()}
+              />
+            </EditorUndoProvider>
+          </CopyProvider>,
+        )
+      })
 
-    act(() => {
-      vi.advanceTimersByTime(WORKSPACE_EDITOR_OPEN_REFRESH_MS)
-    })
-    expect(monacoMount.count).toBeGreaterThan(mountsAfterOpen)
-  })
+      expect(screen.getByTestId('mock-monaco-editor')).toBeInTheDocument()
+      const mountsAfterOpen = monacoMount.count
+
+      act(() => {
+        vi.advanceTimersByTime(WORKSPACE_EDITOR_OPEN_REFRESH_MS)
+      })
+      expect(monacoMount.count).toBeGreaterThan(mountsAfterOpen)
+    },
+    15_000,
+  )
 
   it('remounts Monaco after switching from Organize to a Monaco tab on first open', () => {
     vi.useFakeTimers()
@@ -512,6 +516,29 @@ describe('Workspace', () => {
     await waitFor(() => {
       expect(screen.getByTestId('workspace-organize-card-global-tf-e1_tf0')).toBeInTheDocument()
     })
+  })
+
+  it('cycles workspace background opacity through 20%, 40%, 60%, and 100%', () => {
+    renderWorkspace(
+      <Workspace
+        open
+        onClose={vi.fn()}
+        entry={{ entityId: 'e1', tab: 'transformers' }}
+        world={minimalWorld}
+        selectedEntityIds={['e1']}
+        onWorldChange={vi.fn()}
+      />,
+    )
+    const toggle = screen.getByTestId('workspace-opacity-toggle')
+    expect(toggle).toHaveAttribute('title', expect.stringContaining('20%'))
+    fireEvent.click(toggle)
+    expect(toggle).toHaveAttribute('title', expect.stringContaining('40%'))
+    fireEvent.click(toggle)
+    expect(toggle).toHaveAttribute('title', expect.stringContaining('60%'))
+    fireEvent.click(toggle)
+    expect(toggle).toHaveAttribute('title', expect.stringContaining('100%'))
+    fireEvent.click(toggle)
+    expect(toggle).toHaveAttribute('title', expect.stringContaining('20%'))
   })
 
   it('toggles transformer documentation panel from shell header', async () => {

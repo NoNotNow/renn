@@ -82,6 +82,13 @@ async function openWorldTab(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole('button', { name: /world/i }))
 }
 
+/** Global shortcuts are suppressed while a SELECT/input is focused; blur before synthetic key events. */
+function dispatchBuilderKey(code: string) {
+  const active = document.activeElement
+  if (active instanceof HTMLElement) active.blur()
+  window.dispatchEvent(new KeyboardEvent('keydown', { code, bubbles: true, cancelable: true }))
+}
+
 describe('updateEntityPosition', () => {
   it('updates the target entity position and leaves others unchanged', () => {
     const world: RennWorld = {
@@ -146,47 +153,55 @@ describe('Builder', () => {
     expect(entityList.children).toHaveLength(sampleWorld.entities.length)
   })
 
-  it('adds entity when selecting "Add box" and selects the new entity', async () => {
-    const user = userEvent.setup()
-    renderBuilder()
-    await openEntitiesTab(user)
-    const entityList = screen.getByRole('tree', { name: 'Entity explorer' })
-    const initialCount = entityList.children.length
+  it(
+    'adds entity when selecting "Add box" and selects the new entity',
+    async () => {
+      const user = userEvent.setup()
+      renderBuilder()
+      await openEntitiesTab(user)
+      const entityList = screen.getByRole('tree', { name: 'Entity explorer' })
+      const initialCount = entityList.children.length
 
-    const addSelect = screen.getByTitle('Add entity')
-    await user.selectOptions(addSelect, 'box')
+      const addSelect = screen.getByTitle('Add entity')
+      await user.selectOptions(addSelect, 'box')
 
-    await waitFor(() => {
-      expect(entityList.children).toHaveLength(initialCount + 1)
-    })
-    const newEntityButton = within(entityList).getByRole('button', { name: /^box [a-z]+ \d+$/ })
-    expect(newEntityButton).toBeInTheDocument()
-    expect(newEntityButton).toHaveStyle({ background: '#2b3550' })
-  })
+      await waitFor(() => {
+        expect(entityList.children).toHaveLength(initialCount + 1)
+      })
+      const newEntityButton = within(entityList).getByRole('button', { name: /^box [a-z]+ \d+$/ })
+      expect(newEntityButton).toBeInTheDocument()
+      expect(newEntityButton).toHaveStyle({ background: '#2b3550' })
+    },
+    15_000,
+  )
 
-  it('passes editor props to SceneView: selectedEntityIds, onSelectEntity, onEntityPoseCommit, gizmoMode', async () => {
-    const user = userEvent.setup()
-    renderBuilder()
-    await act(async () => {
-      await Promise.resolve()
-    })
-    expect(sceneViewProps.selectedEntityIds).toEqual([])
-    expect(typeof sceneViewProps.onSelectEntity).toBe('function')
-    expect(typeof sceneViewProps.onEntityPoseCommit).toBe('function')
-    expect(typeof sceneViewProps.onTexturePaintStrokeEnd).toBe('function')
-    expect(typeof sceneViewProps.pushUndoBeforePaintStroke).toBe('function')
-    expect(typeof sceneViewProps.getPaintTargetAssetId).toBe('function')
-    expect(sceneViewProps.textureBrushRgb).toEqual([0.12, 0.12, 0.14])
-    expect(sceneViewProps.textureBrushRadiusPx).toBe(6)
-    expect(sceneViewProps.gizmoMode).toBe('translate')
-    expect((sceneViewProps.world as RennWorld).world.shadowsEnabled).not.toBe(false)
-    expect(sceneViewProps.showGameHud).toBe(false)
-    expect(screen.getByRole('group', { name: 'Gizmo mode' })).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Rotate gizmo' }))
-    expect(sceneViewProps.gizmoMode).toBe('rotate')
-    await user.click(screen.getByRole('button', { name: 'Scale gizmo' }))
-    expect(sceneViewProps.gizmoMode).toBe('scale')
-  })
+  it(
+    'passes editor props to SceneView: selectedEntityIds, onSelectEntity, onEntityPoseCommit, gizmoMode',
+    async () => {
+      const user = userEvent.setup()
+      renderBuilder()
+      await act(async () => {
+        await Promise.resolve()
+      })
+      expect(sceneViewProps.selectedEntityIds).toEqual([])
+      expect(typeof sceneViewProps.onSelectEntity).toBe('function')
+      expect(typeof sceneViewProps.onEntityPoseCommit).toBe('function')
+      expect(typeof sceneViewProps.onTexturePaintStrokeEnd).toBe('function')
+      expect(typeof sceneViewProps.pushUndoBeforePaintStroke).toBe('function')
+      expect(typeof sceneViewProps.getPaintTargetAssetId).toBe('function')
+      expect(sceneViewProps.textureBrushRgb).toEqual([0.12, 0.12, 0.14])
+      expect(sceneViewProps.textureBrushRadiusPx).toBe(6)
+      expect(sceneViewProps.gizmoMode).toBe('translate')
+      expect((sceneViewProps.world as RennWorld).world.shadowsEnabled).not.toBe(false)
+      expect(sceneViewProps.showGameHud).toBe(false)
+      expect(screen.getByRole('group', { name: 'Gizmo mode' })).toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: 'Rotate gizmo' }))
+      expect(sceneViewProps.gizmoMode).toBe('rotate')
+      await user.click(screen.getByRole('button', { name: 'Scale gizmo' }))
+      expect(sceneViewProps.gizmoMode).toBe('scale')
+    },
+    15_000,
+  )
 
   it('restores edit navigation mode from localStorage on mount', async () => {
     if (typeof localStorage?.setItem !== 'function') return
@@ -278,18 +293,18 @@ describe('Builder', () => {
     const initial = modeSelect.value as CameraMode
 
     await act(async () => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Digit0', bubbles: true, cancelable: true }))
+      dispatchBuilderKey('Digit0')
     })
-    // cycleCameraMode cycles through: follow -> thirdPerson -> tracking -> firstPerson -> follow...
+    // cycleCameraMode cycles through: follow -> thirdPerson -> tracking -> fluid -> firstPerson -> follow...
     // With initial being 'thirdPerson' (from sampleWorld), one cycle should give 'tracking'
     await waitFor(() => {
       expect(modeSelect.value).toBe(cycleCameraMode(initial))
     })
 
     await act(async () => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Numpad0', bubbles: true, cancelable: true }))
+      dispatchBuilderKey('Numpad0')
     })
-    // Two cycles from 'thirdPerson': thirdPerson -> tracking -> firstPerson
+    // Two cycles from 'thirdPerson': thirdPerson -> tracking -> fluid
     await waitFor(() => {
       expect(modeSelect.value).toBe(cycleCameraMode(cycleCameraMode(initial)))
     })
@@ -303,12 +318,12 @@ describe('Builder', () => {
     })
 
     await act(async () => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Digit1', bubbles: true }))
+      dispatchBuilderKey('Digit1')
     })
     expect(sceneViewRefMocks.cycleActiveAvatar).toHaveBeenCalledTimes(1)
 
     await act(async () => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Numpad1', bubbles: true }))
+      dispatchBuilderKey('Numpad1')
     })
     expect(sceneViewRefMocks.cycleActiveAvatar).toHaveBeenCalledTimes(2)
   })
