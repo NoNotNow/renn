@@ -34,13 +34,15 @@ export interface BuilderKeyboardShortcutsApi {
   onPlay: () => void
   /** Shift + Escape — open workspace */
   onOpenWorkspace: () => void
+  /** When true, plain Escape is handled elsewhere (Workspace close). */
+  isWorkspaceOpen?: () => boolean
 }
 
 /**
  * Wires Builder-level keyboard shortcuts:
  *   Cmd/Ctrl+Z      undo
  *   Cmd/Ctrl+Shift+Z, Cmd/Ctrl+Y  redo
- *   Escape          clear selection
+ *   Escape          clear selection (skipped while Workspace is open)
  *   Shift+Escape    open workspace
  *   Cmd/Ctrl+E      toggle edit-navigation mode
  *   1 (Digit1)      cycle active avatar
@@ -73,6 +75,7 @@ export function useBuilderKeyboardShortcuts(api: BuilderKeyboardShortcutsApi): v
     onNew,
     onPlay,
     onOpenWorkspace,
+    isWorkspaceOpen,
   } = api
 
   useEffect(() => {
@@ -121,10 +124,11 @@ export function useBuilderKeyboardShortcuts(api: BuilderKeyboardShortcutsApi): v
         return
       }
       if (e.key === 'Escape') {
-        e.preventDefault()
         if (e.shiftKey) {
+          e.preventDefault()
           onOpenWorkspace()
-        } else {
+        } else if (!isWorkspaceOpen?.()) {
+          e.preventDefault()
           onClearSelection()
         }
         return
@@ -174,5 +178,6 @@ export function useBuilderKeyboardShortcuts(api: BuilderKeyboardShortcutsApi): v
     onNew,
     onPlay,
     onOpenWorkspace,
+    isWorkspaceOpen,
   ])
 }

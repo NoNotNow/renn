@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo, useSyncExternalStore } from 'react'
+import { createPortal } from 'react-dom'
 import SceneView, { type SceneViewHandle } from '@/components/SceneView'
 import BuilderHeader from '@/components/BuilderHeader'
 import PerformanceBoosterDialog from '@/components/PerformanceBoosterDialog'
@@ -41,6 +42,7 @@ import {
 import { useBuilderKeyboardShortcuts } from '@/hooks/useBuilderKeyboardShortcuts'
 import { useTransientSnackbar } from '@/hooks/useTransientSnackbar'
 import { ScriptSnackbar } from '@/components/ScriptSnackbar'
+import { SceneFullscreenButton } from '@/components/SceneFullscreenButton'
 import {
   addToGroup,
   createGroupFromSelection,
@@ -63,6 +65,10 @@ import { theme } from '@/config/theme'
 import type { TransformerConfig } from '@/types/transformer'
 import type { WorkspaceTarget } from '@/types/workspace'
 import {
+  mergeWorkspaceEntryForEntity,
+  WorkspaceSessionMemory,
+} from '@/utils/workspaceSessionMemory'
+import {
   DEFAULT_TEXTURE_BRUSH_RGB,
   TEXTURE_BRUSH_RADIUS_MAX,
   TEXTURE_BRUSH_RADIUS_MIN,
@@ -78,6 +84,7 @@ import {
   persistSimplifiedMeshAssetFromWorld,
 } from '@/utils/bakeSimplifiedModelAsset'
 import { generateEntityId } from '@/utils/idGenerator'
+import { getFullscreenElement, isFullscreenEnabled } from '@/utils/fullscreenApi'
 import TextureMaker from '@/components/TextureMaker/TextureMaker'
 import TransformerDocs from '@/components/TransformerDocs'
 import { getEntityApproximateSize } from '@/utils/entityApproximateSize'
@@ -215,6 +222,7 @@ export default function Builder() {
   const [gizmoMode, setGizmoMode] = useState<BuilderGizmoMode>('translate')
   const [workspaceOpen, setWorkspaceOpen] = useState(false)
   const [workspaceEntry, setWorkspaceEntry] = useState<WorkspaceTarget | null>(null)
+  const workspaceSessionMemoryRef = useRef(new WorkspaceSessionMemory())
   const [textureBrushRgb, setTextureBrushRgb] = useState<Vec3>(() => [...DEFAULT_TEXTURE_BRUSH_RGB])
   const [textureBrushAlpha, setTextureBrushAlpha] = useState(1)
   const [textureBrushRadiusPx, setTextureBrushRadiusPx] = useState(TEXTURE_PAINT_RADIUS_PX)
@@ -345,6 +353,7 @@ export default function Builder() {
     setLeftDrawerOpen,
     rightDrawerOpen,
     setRightDrawerOpen,
+    builderFullscreenActive,
     bumpFsChrome,
     handleSceneFullscreenChange,
     builderChromeIdleHidden,
@@ -467,17 +476,50 @@ export default function Builder() {
     const scIdsIntersect = intersectScriptIdsAcrossEntities(entities)
 
     const prev = workspaceEntry
-    if (prev?.entityId === entityId && prev.itemId) {
-      if (prev.tab === 'scripts' && scIdsIntersect.includes(prev.itemId)) {
-        setWorkspaceEntry({ entityId, tab: 'scripts', itemId: prev.itemId })
+    if (prev?.entityId === entityId) {
+      if (prev.tab === 'scripts' && (!prev.itemId || scIdsIntersect.includes(prev.itemId))) {
+        setWorkspaceEntry({ ...prev, entityId })
         setWorkspaceOpen(true)
         uiLogger.click('Builder', 'Open workspace', { entityId, tab: 'scripts', itemId: prev.itemId })
         return
       }
-      if (prev.tab === 'transformers' && tfIdsIntersect.includes(prev.itemId)) {
-        setWorkspaceEntry({ entityId, tab: 'transformers', itemId: prev.itemId })
+      if (prev.tab === 'transformers') {
+        const itemStillValid = !prev.itemId || tfIdsIntersect.includes(prev.itemId)
+        if (itemStillValid) {
+          setWorkspaceEntry({ ...prev, entityId })
+          setWorkspaceOpen(true)
+          uiLogger.click('Builder', 'Open workspace', {
+            entityId,
+            tab: 'transformers',
+            itemId: prev.itemId,
+            pipeNavPath: prev.pipeNavPath,
+          })
+          return
+        }
+      }
+      if (prev.tab === 'organize') {
+        setWorkspaceEntry({ ...prev, entityId })
         setWorkspaceOpen(true)
-        uiLogger.click('Builder', 'Open workspace', { entityId, tab: 'transformers', itemId: prev.itemId })
+        uiLogger.click('Builder', 'Open workspace', { entityId, tab: 'organize' })
+        return
+      }
+    }
+
+    const memory = workspaceSessionMemoryRef.current.load(entityId)
+    if (memory) {
+      const restored = mergeWorkspaceEntryForEntity(entityId, memory, {
+        entityId,
+        tab: memory.tab ?? 'transformers',
+        itemId: memory.itemId,
+      })
+      const itemValid =
+        restored.tab === 'scripts'
+          ? !restored.itemId || scIdsIntersect.includes(restored.itemId)
+          : !restored.itemId || tfIdsIntersect.includes(restored.itemId)
+      if (itemValid) {
+        setWorkspaceEntry(restored)
+        setWorkspaceOpen(true)
+        uiLogger.click('Builder', 'Open workspace', { entityId, restored: true })
         return
       }
     }
@@ -495,6 +537,42 @@ export default function Builder() {
     setWorkspaceOpen(true)
     uiLogger.click('Builder', 'Open workspace', { entityId, tab, itemId })
   }, [collapseSideDrawers, selectedEntityIds, world.entities, world.transformers, workspaceEntry])
+
+  const handleWorkspaceEntryChange = useCallback((next: WorkspaceTarget) => {
+    if (next.entityId) {
+      workspaceSessionMemoryRef.current.save(next.entityId, next)
+    }
+    setWorkspaceEntry(next)
+  }, [])
+
+  const handleSelectEntityFromWorkspace = useCallback(
+    (id: string) => {
+      if (workspaceEntry?.entityId) {
+        workspaceSessionMemoryRef.current.save(workspaceEntry.entityId, workspaceEntry)
+      }
+      handleSelectEntity(id)
+      const memory = workspaceSessionMemoryRef.current.load(id)
+      const entities = [world.entities.find((e) => e.id === id)].filter((e): e is Entity => e != null)
+      const worldTf = world.transformers ?? {}
+      const tfIds = intersectTransformerIdsAcrossEntities(entities)
+      const scIds = intersectScriptIdsAcrossEntities(entities)
+      const fallback: WorkspaceTarget = {
+        entityId: id,
+        tab: tfIds.length === 0 && scIds.length > 0 ? 'scripts' : 'transformers',
+        itemId:
+          tfIds.length === 0 && scIds.length > 0
+            ? scIds[0]
+            : tfIds.find((tid) => worldTf[tid]?.type === 'custom') ?? tfIds[0],
+      }
+      const restored = mergeWorkspaceEntryForEntity(id, memory, fallback)
+      const itemValid =
+        restored.tab === 'scripts'
+          ? !restored.itemId || scIds.includes(restored.itemId)
+          : !restored.itemId || tfIds.includes(restored.itemId)
+      handleWorkspaceEntryChange(itemValid ? restored : { ...fallback, entityId: id })
+    },
+    [handleSelectEntity, handleWorkspaceEntryChange, workspaceEntry, world.entities, world.transformers],
+  )
 
   const handleOpenWorkspaceAnchored = useCallback(
     (anchor: Pick<WorkspaceTarget, 'tab' | 'itemId'>) => {
@@ -604,6 +682,7 @@ export default function Builder() {
     onNew: useCallback(() => fileShortcutHandlersRef.current.onNew(), []),
     onPlay: handlePlay,
     onOpenWorkspace: handleOpenWorkspace,
+    isWorkspaceOpen: useCallback(() => workspaceOpen, [workspaceOpen]),
   })
 
   const getCurrentPose = useCallback(
@@ -1472,6 +1551,7 @@ export default function Builder() {
                 onFullscreenChange={handleSceneFullscreenChange}
                 fullscreenTargetRef={builderColumnRef}
                 fullscreenChromeControl={{ visible: fsChromeControlVisible, bumpActivity: bumpFsChrome }}
+                shouldExitFullscreenOnEscape={useCallback(() => !workspaceOpen, [workspaceOpen])}
               />
             </ErrorBoundary>
             {saveSnackbarMessage !== null ? <ScriptSnackbar message={saveSnackbarMessage} /> : null}
@@ -1647,14 +1727,14 @@ export default function Builder() {
         open={workspaceOpen}
         onClose={handleCloseWorkspace}
         entry={workspaceEntry}
-        onEntryChange={setWorkspaceEntry}
+        onEntryChange={handleWorkspaceEntryChange}
         world={world}
         selectedEntityIds={selectedEntityIds}
         onWorldChange={handleWorldChange}
         onEntityTransformersChange={handleEntityTransformersChange}
         onMergedPipeParamSync={handleMergedPipeParamSync}
         liveTransformerTraceSteps={liveTraceSteps}
-        onSelectEntity={handleSelectEntity}
+        onSelectEntity={handleSelectEntityFromWorkspace}
         entityWorkHistory={entityWorkHistory}
         gameFrozen={gameFrozen}
         onToggleGameFrozen={() => setGameFrozen((f) => !f)}
@@ -1669,6 +1749,20 @@ export default function Builder() {
           }
         }}
       />
+      {workspaceOpen && builderFullscreenActive && isFullscreenEnabled() ?
+        createPortal(
+          <SceneFullscreenButton
+            overlay
+            active
+            visible
+            onToggle={() => {
+              sceneViewRef.current?.toggleFullscreen()
+              bumpFsChrome()
+            }}
+          />,
+          getFullscreenElement() ?? document.body,
+        )
+      : null}
     </div>
     </CopyProvider>
     </EditorUndoProvider>

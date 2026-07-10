@@ -21,9 +21,15 @@ function fireFullscreenChange() {
   document.dispatchEvent(new Event('fullscreenchange'))
 }
 
+async function flushMicrotasks(): Promise<void> {
+  await Promise.resolve()
+}
+
 describe('useSceneFullscreen', () => {
   let requestSpy: ReturnType<typeof vi.fn>
   let exitSpy: ReturnType<typeof vi.fn>
+  let lockSpy: ReturnType<typeof vi.fn>
+  let unlockSpy: ReturnType<typeof vi.fn>
   let sceneRoot: HTMLDivElement
 
   beforeEach(() => {
@@ -31,6 +37,8 @@ describe('useSceneFullscreen', () => {
     document.body.appendChild(sceneRoot)
     requestSpy = vi.fn(async () => {})
     exitSpy = vi.fn(async () => {})
+    lockSpy = vi.fn(async () => {})
+    unlockSpy = vi.fn()
     Object.defineProperty(HTMLElement.prototype, 'requestFullscreen', {
       configurable: true,
       writable: true,
@@ -41,12 +49,20 @@ describe('useSceneFullscreen', () => {
       writable: true,
       value: exitSpy,
     })
+    Object.defineProperty(navigator, 'keyboard', {
+      configurable: true,
+      value: {
+        lock: lockSpy,
+        unlock: unlockSpy,
+      },
+    })
     setFullscreenEnabled(true)
     setFullscreenElement(null)
   })
 
   afterEach(() => {
     document.body.removeChild(sceneRoot)
+    Reflect.deleteProperty(navigator, 'keyboard')
   })
 
   it('detects fullscreen support after mount', () => {
@@ -120,6 +136,23 @@ describe('useSceneFullscreen', () => {
     expect(onChange).toHaveBeenLastCalledWith(false)
   })
 
+  it('locks Escape on fullscreen enter and unlocks on exit', () => {
+    const ref = { current: sceneRoot } as React.RefObject<HTMLElement | null>
+    renderHook(() => useSceneFullscreen({ sceneRootRef: ref }))
+
+    setFullscreenElement(sceneRoot)
+    act(() => {
+      fireFullscreenChange()
+    })
+    expect(lockSpy).toHaveBeenCalledWith(['Escape'])
+
+    setFullscreenElement(null)
+    act(() => {
+      fireFullscreenChange()
+    })
+    expect(unlockSpy).toHaveBeenCalledTimes(1)
+  })
+
   it('externalChromeControl overrides the internal pointer reveal timer', () => {
     const ref = { current: sceneRoot } as React.RefObject<HTMLElement | null>
     const bump = vi.fn()
@@ -141,6 +174,84 @@ describe('useSceneFullscreen', () => {
       result.current.toggle()
     })
     expect(requestSpy).not.toHaveBeenCalled()
+    expect(exitSpy).not.toHaveBeenCalled()
+  })
+
+  it('re-enters fullscreen on Shift+Escape when Keyboard Lock is unavailable', async () => {
+    Reflect.deleteProperty(navigator, 'keyboard')
+    const ref = { current: sceneRoot } as React.RefObject<HTMLElement | null>
+    const { result } = renderHook(() => useSceneFullscreen({ sceneRootRef: ref }))
+    setFullscreenElement(sceneRoot)
+    act(() => {
+      fireFullscreenChange()
+    })
+    expect(result.current.active).toBe(true)
+
+    act(() => {
+      document.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Escape', shiftKey: true, bubbles: true }),
+      )
+      setFullscreenElement(null)
+      fireFullscreenChange()
+    })
+    await act(async () => {
+      await flushMicrotasks()
+    })
+    expect(requestSpy).toHaveBeenCalledTimes(1)
+
+    setFullscreenElement(sceneRoot)
+    act(() => {
+      fireFullscreenChange()
+    })
+    expect(result.current.active).toBe(true)
+  })
+
+  it('plain Escape requests document exit while target is fullscreen', () => {
+    const onChange = vi.fn()
+    const ref = { current: sceneRoot } as React.RefObject<HTMLElement | null>
+    const { result } = renderHook(() =>
+      useSceneFullscreen({ sceneRootRef: ref, onFullscreenChange: onChange }),
+    )
+    setFullscreenElement(sceneRoot)
+    act(() => {
+      fireFullscreenChange()
+    })
+    expect(result.current.active).toBe(true)
+
+    act(() => {
+      document.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Escape', shiftKey: false, bubbles: true }),
+      )
+    })
+    expect(exitSpy).toHaveBeenCalledTimes(1)
+
+    setFullscreenElement(null)
+    act(() => {
+      fireFullscreenChange()
+    })
+    expect(result.current.active).toBe(false)
+    expect(requestSpy).not.toHaveBeenCalled()
+    expect(onChange).toHaveBeenLastCalledWith(false)
+  })
+
+  it('plain Escape does not exit fullscreen when shouldExitFullscreenOnEscape is false', () => {
+    const ref = { current: sceneRoot } as React.RefObject<HTMLElement | null>
+    renderHook(() =>
+      useSceneFullscreen({
+        sceneRootRef: ref,
+        shouldExitFullscreenOnEscape: () => false,
+      }),
+    )
+    setFullscreenElement(sceneRoot)
+    act(() => {
+      fireFullscreenChange()
+    })
+
+    act(() => {
+      document.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Escape', shiftKey: false, bubbles: true }),
+      )
+    })
     expect(exitSpy).not.toHaveBeenCalled()
   })
 })

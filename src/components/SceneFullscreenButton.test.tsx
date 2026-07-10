@@ -53,4 +53,10 @@ describe('SceneFullscreenButton', () => {
     expect(onToggle).toHaveBeenCalledTimes(1)
     expect(onReturnFocusToScene).toHaveBeenCalledTimes(1)
   })
+
+  it('uses fixed positioning for the overlay variant', () => {
+    render(<SceneFullscreenButton active={true} visible={true} overlay onToggle={() => {}} />)
+    const wrapper = screen.getByRole('button', { name: 'Exit fullscreen' }).parentElement
+    expect(wrapper?.style.position).toBe('fixed')
+  })
 })

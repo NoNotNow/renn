@@ -31,7 +31,8 @@ import {
   mapTransformerRegistryIdsToEntity,
 } from '@/utils/commitTransformerConfigsToWorld'
 import { usePipeNavController } from '@/hooks/usePipeNavController'
-import { findUngroupedStageIds, resolveSelectedFlatStackIndex } from '@/utils/pipeNavResolve'
+import { findUngroupedStageIds, resolveSelectedFlatStackIndex, resolvePreferredStageId, drillIntoPipePath, pipeNavParentPath } from '@/utils/pipeNavResolve'
+import type { PipeNavPathSegment } from '@/types/pipeNav'
 import {
   flatIndexOffsetForStackBinding,
   stackIndexFromScopePath,
@@ -747,14 +748,67 @@ function WorkspaceTransformersTabEntity({
       flushPendingCode()
       setSelectedId(nextId)
       onEntryChange?.({
+        ...(entry ?? { tab: 'transformers' as const }),
         entityId: entry?.entityId ?? entityIdsForEdit[0],
         tab: 'transformers',
         itemId: nextId,
         itemSource: entry?.itemSource,
+        pipeNavPath: entry?.pipeNavPath ?? pipeNav.focus.path,
+        pipeNavSelectedIndex: entry?.pipeNavSelectedIndex ?? pipeNav.focus.selectedSiblingIndex,
       })
     },
-    [entry?.entityId, entry?.itemSource, entityIdsForEdit, flushPendingCode, onEntryChange],
+    [entry, entityIdsForEdit, flushPendingCode, onEntryChange, pipeNav.focus.path, pipeNav.focus.selectedSiblingIndex],
   )
+
+  const applyPipeNavSelection = useCallback(
+    (path: PipeNavPathSegment[], selectedSiblingIndex: number, explicitStageId?: string) => {
+      flushPendingCode()
+      pipeNav.setPath(path, selectedSiblingIndex)
+      const stageId =
+        explicitStageId ??
+        (singleEntity
+          ? resolvePreferredStageId(world, singleEntity, { path, selectedSiblingIndex })
+          : undefined)
+      if (stageId) {
+        changeSelectedIdWithFlush(stageId)
+      }
+    },
+    [changeSelectedIdWithFlush, flushPendingCode, pipeNav, singleEntity, world],
+  )
+
+  const handleDrillIntoPipe = useCallback(
+    (itemIndex: number, pipeId: string) => {
+      if (!singleEntity) return
+      const nextPath = drillIntoPipePath(world, singleEntity, pipeNav.focus.path, itemIndex, 'pipe', pipeId)
+      applyPipeNavSelection(nextPath, 0)
+    },
+    [applyPipeNavSelection, pipeNav.focus.path, singleEntity, world],
+  )
+
+  const handleSelectPipeIndex = useCallback(
+    (index: number) => {
+      applyPipeNavSelection(pipeNav.focus.path, index)
+    },
+    [applyPipeNavSelection, pipeNav.focus.path],
+  )
+
+  const handlePipeNavGoLeft = useCallback(() => {
+    const count = pipeNav.view?.siblingCount ?? 0
+    if (count <= 1) return
+    const nextIndex = (pipeNav.focus.selectedSiblingIndex - 1 + count) % count
+    applyPipeNavSelection(pipeNav.focus.path, nextIndex)
+  }, [applyPipeNavSelection, pipeNav.focus.path, pipeNav.focus.selectedSiblingIndex, pipeNav.view?.siblingCount])
+
+  const handlePipeNavGoRight = useCallback(() => {
+    const count = pipeNav.view?.siblingCount ?? 0
+    if (count <= 1) return
+    const nextIndex = (pipeNav.focus.selectedSiblingIndex + 1) % count
+    applyPipeNavSelection(pipeNav.focus.path, nextIndex)
+  }, [applyPipeNavSelection, pipeNav.focus.path, pipeNav.focus.selectedSiblingIndex, pipeNav.view?.siblingCount])
+
+  const handlePipeNavGoUp = useCallback(() => {
+    applyPipeNavSelection(pipeNavParentPath(pipeNav.focus.path), 0)
+  }, [applyPipeNavSelection, pipeNav.focus.path])
 
   useEffect(() => {
     return () => {
@@ -995,12 +1049,11 @@ function WorkspaceTransformersTabEntity({
           open={pipeNavOpen}
           onOpenChange={setPipeNavSidebarOpen}
           onPathChange={(path, index, stageId) => {
-            pipeNav.setPath(path, index)
-            if (stageId) changeSelectedIdWithFlush(stageId)
+            applyPipeNavSelection(path, index, stageId)
           }}
-          onGoUp={pipeNav.goUp}
-          onGoLeft={pipeNav.goLeft}
-          onGoRight={pipeNav.goRight}
+          onGoUp={handlePipeNavGoUp}
+          onGoLeft={handlePipeNavGoLeft}
+          onGoRight={handlePipeNavGoRight}
           onRenamePipe={pipeNav.focusedPipeId ? pipeNav.handleRename : undefined}
           onTreeDelete={pipeNav.handleTreeDelete}
           onTreeContext={pipeNav.handleTreeContext}
@@ -1131,8 +1184,8 @@ function WorkspaceTransformersTabEntity({
                 drawerPortalTarget={floatingDrawerPortalRef}
                 onCommitStages={pipeNav.handleCommitStagesWrapped}
                 onSelectStageId={changeSelectedIdWithFlush}
-                onSelectPipeIndex={pipeNav.selectSibling}
-                onDrillIntoPipe={pipeNav.drillInto}
+                onSelectPipeIndex={handleSelectPipeIndex}
+                onDrillIntoPipe={handleDrillIntoPipe}
                 onCreatePipe={pipeNav.handleCreatePipe}
                 onAddChildPipe={pipeNav.handleAddChildPipe}
                 onAddExistingPipe={pipeNav.handleAddExistingPipe}

@@ -150,6 +150,21 @@ describe('useBuilderKeyboardShortcuts', () => {
     expect(api.onToggleEditNavigationMode).toHaveBeenCalledTimes(1)
   })
 
+  it('Escape does not clear selection while Workspace is open', () => {
+    const api = makeApi()
+    renderHook(() =>
+      useBuilderKeyboardShortcuts({
+        ...api,
+        isWorkspaceOpen: () => true,
+      }),
+    )
+
+    act(() => {
+      dispatch({ key: 'Escape' })
+    })
+    expect(api.onClearSelection).not.toHaveBeenCalled()
+  })
+
   it('Digit1 cycles avatar; Digit0 cycles camera mode', () => {
     const api = makeApi()
     renderHook(() => useBuilderKeyboardShortcuts(api))

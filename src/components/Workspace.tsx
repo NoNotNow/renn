@@ -40,6 +40,11 @@ import {
   isWorkspaceEditorInitialRefreshDone,
   markWorkspaceEditorInitialRefreshDone,
 } from '@/components/workspaceMonacoSession'
+import {
+  loadWorkspaceEditorViewState,
+  saveWorkspaceEditorViewState,
+  workspaceEditorItemKey,
+} from '@/utils/workspaceEditorViewState'
 
 export type { WorkspaceMonacoPayload, WorkspaceTarget } from '@/types/workspace'
 
@@ -196,6 +201,56 @@ export default function Workspace({
 
   const monacoHostVisible = open && (activeTab === 'transformers' || activeTab === 'scripts')
 
+  const editorItemKey = useMemo(() => {
+    if (!open || !monacoHostVisible || monacoPayload.kind === 'placeholder') return null
+    return workspaceEditorItemKey({
+      entityId: entry?.entityId ?? selectedEntityIds[0],
+      tab: activeTab,
+      itemId: entry?.itemId,
+      pipeNavPath: entry?.pipeNavPath,
+    })
+  }, [
+    open,
+    monacoHostVisible,
+    monacoPayload.kind,
+    entry?.entityId,
+    entry?.itemId,
+    entry?.pipeNavPath,
+    selectedEntityIds,
+    activeTab,
+  ])
+
+  const prevEditorItemKeyRef = useRef<string | null>(null)
+  const editorItemKeyRef = useRef<string | null>(null)
+  editorItemKeyRef.current = editorItemKey
+
+  const persistEditorViewState = useCallback(() => {
+    const ed = monacoEditorRef.current
+    const prevKey = prevEditorItemKeyRef.current
+    if (!ed || !prevKey) return
+    saveWorkspaceEditorViewState(prevKey, ed.saveViewState())
+  }, [])
+
+  useEffect(() => {
+    const prevKey = prevEditorItemKeyRef.current
+    if (prevKey && prevKey !== editorItemKey) {
+      persistEditorViewState()
+    }
+    prevEditorItemKeyRef.current = editorItemKey
+  }, [editorItemKey, persistEditorViewState])
+
+  useEffect(() => {
+    if (open) return
+    persistEditorViewState()
+  }, [open, persistEditorViewState])
+
+  useEffect(() => {
+    const ed = monacoEditorRef.current
+    if (!ed || !editorItemKey) return
+    const saved = loadWorkspaceEditorViewState(editorItemKey)
+    if (saved) ed.restoreViewState(saved)
+  }, [editorItemKey])
+
   useEffect(() => {
     const wasOpen = prevOpenRef.current
     prevOpenRef.current = open
@@ -337,14 +392,8 @@ export default function Workspace({
   const handleSelectEntityFromWorkspace = useCallback(
     (id: string) => {
       onSelectEntity?.(id)
-      if (onEntryChange) {
-        onEntryChange({
-          ...entry,
-          entityId: id,
-        } as WorkspaceTarget)
-      }
     },
-    [entry, onEntryChange, onSelectEntity],
+    [onSelectEntity],
   )
 
   const close = useCallback(() => {
@@ -400,6 +449,27 @@ export default function Workspace({
   const monacoScriptEvent =
     monacoPayload.kind === 'script-js' ? monacoPayload.scriptEvent : undefined
 
+  const handleMonacoEditorReady = useCallback((ed: editor.IStandaloneCodeEditor) => {
+    monacoEditorRef.current = ed
+    const restoreKey = editorItemKeyRef.current
+    if (restoreKey) {
+      const saved = loadWorkspaceEditorViewState(restoreKey)
+      if (saved) ed.restoreViewState(saved)
+    }
+    const disposeCursor = ed.onDidChangeCursorPosition(() => {
+      const key = editorItemKeyRef.current
+      if (key) saveWorkspaceEditorViewState(key, ed.saveViewState())
+    })
+    const disposeScroll = ed.onDidScrollChange(() => {
+      const key = editorItemKeyRef.current
+      if (key) saveWorkspaceEditorViewState(key, ed.saveViewState())
+    })
+    ed.onDidDispose(() => {
+      disposeCursor.dispose()
+      disposeScroll.dispose()
+    })
+  }, [])
+
   const monacoEditor = useMemo(() => {
     if (activeTab !== 'transformers' && activeTab !== 'scripts') return null
     return (
@@ -413,9 +483,7 @@ export default function Workspace({
         disabled={monacoPayload.disabled}
         codeIntelliSense={monacoPayload.kind === 'script-js' ? 'script' : 'transformer'}
         scriptCtxEvent={monacoScriptEvent}
-        onEditorReady={(ed) => {
-          monacoEditorRef.current = ed
-        }}
+        onEditorReady={handleMonacoEditorReady}
       />
     )
   }, [
@@ -429,6 +497,7 @@ export default function Workspace({
     monacoPayload.kind,
     monacoScriptEvent,
     opaque,
+    handleMonacoEditorReady,
   ])
 
   const monacoSlot =
@@ -650,6 +719,7 @@ export default function Workspace({
                   <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                     {activeTab === 'transformers' ? (
                       <WorkspaceTransformersTab
+                        key={`${entry?.entityId ?? 'none'}:${JSON.stringify(entry?.pipeNavPath ?? [])}:${entry?.pipeNavSelectedIndex ?? 0}`}
                         world={world}
                         selectedEntityIds={selectedEntityIds}
                         entry={entry}

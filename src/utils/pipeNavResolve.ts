@@ -159,6 +159,38 @@ export function resolveFocusedStageIds(
   return []
 }
 
+function preferredStageIdFromMembers(
+  world: RennWorld,
+  members: TransformerPipeMember[],
+): string | undefined {
+  const stageIds = members.filter((m) => m.kind === 'stage').map((m) => m.stageId)
+  const custom = stageIds.find((id) => world.transformers?.[id]?.type === 'custom')
+  return custom ?? stageIds[0]
+}
+
+/** First custom stage at the current focus, else first stage (for selection follow). */
+export function resolvePreferredStageId(
+  world: RennWorld,
+  entity: Entity,
+  focus: PipeNavFocus,
+): string | undefined {
+  const view = resolvePipeNavView(world, entity, focus)
+  if (view.mode === 'entity_stages' || view.mode === 'pipe_members') {
+    const stageIds = view.items.filter((i) => i.kind === 'stage').map((i) => i.stageId)
+    const custom = stageIds.find((id) => world.transformers?.[id]?.type === 'custom')
+    return custom ?? stageIds[0]
+  }
+  if (view.mode === 'pipe_siblings') {
+    const stack = getEntityPipeStack(entity)
+    const binding = stack[focus.selectedSiblingIndex]
+    if (!binding) return undefined
+    const pipe = world.transformerPipes?.[binding.pipeId]
+    if (!pipe) return undefined
+    return preferredStageIdFromMembers(world, normalizePipeMembers(pipe))
+  }
+  return undefined
+}
+
 /** Flatten entity structure → runtime transformer id list (enabled only; ancestor-disabled pipes cascade). */
 export function syncEntityTransformerIds(world: RennWorld, entity: Entity): string[] {
   return syncEntityTransformerIdsFromPipeTree(world, entity)

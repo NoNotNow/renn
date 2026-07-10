@@ -3,8 +3,12 @@ import {
   addFullscreenChangeListener,
   exitFullscreenDocument,
   getFullscreenElement,
+  isEscapeKeyboardLockSupported,
   isFullscreenEnabled,
+  lockEscapeKeyIfSupported,
   requestFullscreenElement,
+  scheduleFullscreenRestoreOnShiftEscape,
+  unlockKeyboardIfSupported,
 } from '@/utils/fullscreenApi'
 import { usePointerRevealTimeout } from '@/hooks/usePointerRevealTimeout'
 
@@ -25,6 +29,11 @@ export interface UseSceneFullscreenArgs {
    * reveal timer is bypassed.
    */
   externalChromeControl?: SceneFullscreenChromeControl | null
+  /**
+   * When this returns false, plain Escape does not exit fullscreen (e.g. Workspace
+   * is open and uses Esc to close). Defaults to always true.
+   */
+  shouldExitFullscreenOnEscape?: () => boolean
 }
 
 export interface SceneFullscreenState {
@@ -49,12 +58,16 @@ export function useSceneFullscreen({
   fullscreenTargetRef,
   onFullscreenChange,
   externalChromeControl,
+  shouldExitFullscreenOnEscape,
 }: UseSceneFullscreenArgs): SceneFullscreenState {
   const [supported, setSupported] = useState(false)
   const [active, setActive] = useState(false)
   const prevActiveRef = useRef(false)
   const onChangeRef = useRef(onFullscreenChange)
   onChangeRef.current = onFullscreenChange
+  const shouldExitOnEscapeRef = useRef(shouldExitFullscreenOnEscape)
+  shouldExitOnEscapeRef.current = shouldExitFullscreenOnEscape
+  const escapeLockSupportedRef = useRef(false)
 
   const internalReveal = usePointerRevealTimeout()
   const useExternalChrome = externalChromeControl != null
@@ -67,12 +80,42 @@ export function useSceneFullscreen({
 
   useEffect(() => {
     setSupported(isFullscreenEnabled())
+    escapeLockSupportedRef.current = isEscapeKeyboardLockSupported()
   }, [])
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      const el = getTargetEl()
+      if (el == null || getFullscreenElement() !== el) return
+
+      if (e.shiftKey) {
+        if (!escapeLockSupportedRef.current) {
+          scheduleFullscreenRestoreOnShiftEscape(el)
+        }
+        return
+      }
+
+      if (shouldExitOnEscapeRef.current?.() === false) return
+
+      e.preventDefault()
+      void exitFullscreenDocument().catch(() => {})
+    }
+    document.addEventListener('keydown', onKeyDown, true)
+    return () => document.removeEventListener('keydown', onKeyDown, true)
+  }, [getTargetEl])
 
   useEffect(() => {
     const sync = () => {
       const el = getTargetEl()
       const isActive = el != null && getFullscreenElement() === el
+
+      if (isActive && !prevActiveRef.current) {
+        void lockEscapeKeyIfSupported()
+      } else if (!isActive && prevActiveRef.current) {
+        unlockKeyboardIfSupported()
+      }
+
       setActive(isActive)
       if (prevActiveRef.current !== isActive) {
         prevActiveRef.current = isActive
@@ -81,7 +124,10 @@ export function useSceneFullscreen({
     }
     const remove = addFullscreenChangeListener(sync)
     sync()
-    return remove
+    return () => {
+      remove()
+      unlockKeyboardIfSupported()
+    }
   }, [getTargetEl])
 
   const toggle = useCallback(() => {

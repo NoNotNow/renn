@@ -167,6 +167,10 @@ export interface SceneViewProps {
    */
   fullscreenChromeControl?: { visible: boolean; bumpActivity: () => void }
   /**
+   * When this returns false, plain Escape does not exit fullscreen (e.g. Workspace is open).
+   */
+  shouldExitFullscreenOnEscape?: () => boolean
+  /**
    * Play route: disable picking/gizmo, shape wireframe overlays, variable/coordinate overlays,
    * and frame-stats HUD regardless of world flags.
    */
@@ -219,6 +223,8 @@ export interface SceneViewHandle {
   getCameraPose: () => SceneCameraPose | null
   /** Incrementally sync scene/registry/physics after document edits (add/remove/update entities). */
   syncWorldEntities: (prev: RennWorld, next: RennWorld) => Promise<void>
+  /** Toggle native fullscreen for this scene host (Builder column or scene root). */
+  toggleFullscreen: () => void
 }
 
 function SceneViewInner({
@@ -252,6 +258,7 @@ function SceneViewInner({
   onFullscreenChange,
   fullscreenTargetRef,
   fullscreenChromeControl,
+  shouldExitFullscreenOnEscape,
   playMode = false,
 }: SceneViewProps, ref: React.Ref<SceneViewHandle>) {
   const sceneKey = useMemo(() => getSceneDependencyKey(world), [world])
@@ -394,6 +401,7 @@ function SceneViewInner({
     fullscreenTargetRef,
     onFullscreenChange,
     externalChromeControl: fullscreenChromeControl,
+    shouldExitFullscreenOnEscape,
   })
 
   const { skyDomeRef } = useSkyDome({
@@ -640,7 +648,8 @@ function SceneViewInner({
       }
     },
     syncWorldEntities: (prev, next) => syncWorldEntitiesRef.current(prev, next),
-  }), [camera, world.world.camera, editorFreePoseRef])
+    toggleFullscreen: () => fullscreen.toggle(),
+  }), [camera, world.world.camera, editorFreePoseRef, fullscreen.toggle])
 
   // Main scene setup effect
   useEffect(() => {

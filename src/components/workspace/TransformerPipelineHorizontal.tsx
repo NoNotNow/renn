@@ -542,6 +542,12 @@ function TransformerTraceItem({
         onDrop()
       }}
       onDragEnd={onDragEnd}
+      onClick={(e) => {
+        if (transformer.type !== 'custom' || !onSelectCode) return
+        const target = e.target as HTMLElement
+        if (target.closest('button, input, textarea, [contenteditable="true"]')) return
+        onSelectCode()
+      }}
       data-testid={`transformer-horizontal-item-${index}`}
       data-card-error={cardError ?? undefined}
       style={{

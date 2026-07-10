@@ -1,9 +1,14 @@
 import type { CSSProperties } from 'react'
+import { theme } from '@/config/theme'
 
 export interface SceneFullscreenButtonProps {
   active: boolean
   visible: boolean
   onToggle: () => void
+  /**
+   * Fixed positioning above modal overlays (e.g. Workspace while native fullscreen is active).
+   */
+  overlay?: boolean
   /**
    * Called after toggle so focus leaves the button (Space/Enter won’t re-trigger exit fullscreen).
    * SceneView wires this to focus the WebGL host (`tabIndex={-1}`).
@@ -11,11 +16,13 @@ export interface SceneFullscreenButtonProps {
   onReturnFocusToScene?: () => void
 }
 
-const containerStyle: CSSProperties = {
-  position: 'absolute',
-  left: 10,
-  bottom: 10,
-  zIndex: 115,
+function containerStyle(overlay: boolean): CSSProperties {
+  return {
+    position: overlay ? 'fixed' : 'absolute',
+    left: 10,
+    bottom: 10,
+    zIndex: overlay ? theme.zIndex.header : 115,
+  }
 }
 
 const buttonStyle: CSSProperties = {
@@ -39,10 +46,11 @@ export function SceneFullscreenButton({
   active,
   visible,
   onToggle,
+  overlay = false,
   onReturnFocusToScene,
 }: SceneFullscreenButtonProps) {
   return (
-    <div style={{ ...containerStyle, display: visible ? 'block' : 'none' }}>
+    <div style={{ ...containerStyle(overlay), display: visible ? 'block' : 'none' }}>
       <button
         type="button"
         onClick={(e) => {

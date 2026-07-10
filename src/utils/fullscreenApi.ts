@@ -1,3 +1,45 @@
+type KeyboardLockNavigator = Navigator & {
+  keyboard?: {
+    lock: (keys: string[]) => Promise<void>
+    unlock: () => void
+  }
+}
+
+/** True when the Keyboard Lock API can capture Escape (Chrome/Edge). */
+export function isEscapeKeyboardLockSupported(): boolean {
+  return typeof (navigator as KeyboardLockNavigator).keyboard?.lock === 'function'
+}
+
+/**
+ * Lock Escape while fullscreen so Chromium requires press-and-hold to exit instead of a
+ * single keypress (Shift+Escape can then open Workspace without leaving fullscreen).
+ */
+export async function lockEscapeKeyIfSupported(): Promise<void> {
+  const keyboard = (navigator as KeyboardLockNavigator).keyboard
+  if (!keyboard?.lock) return
+  try {
+    await keyboard.lock(['Escape'])
+  } catch {
+    // Fullscreen not active yet, permission denied, or unsupported platform.
+  }
+}
+
+export function unlockKeyboardIfSupported(): void {
+  const keyboard = (navigator as KeyboardLockNavigator).keyboard
+  keyboard?.unlock?.()
+}
+
+/**
+ * Fallback when Keyboard Lock is unavailable: re-request fullscreen on the next microtask
+ * while the Shift+Escape keydown user activation may still be valid.
+ */
+export function scheduleFullscreenRestoreOnShiftEscape(el: HTMLElement): void {
+  queueMicrotask(() => {
+    if (getFullscreenElement() === el) return
+    void requestFullscreenElement(el).catch(() => {})
+  })
+}
+
 /** Cross-browser fullscreen element (standard + legacy). */
 export function getFullscreenElement(): Element | null {
   const d = document as Document & {

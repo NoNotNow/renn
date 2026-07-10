@@ -38,9 +38,11 @@ Scripts use `world.scripts: Record<string, ScriptDef>` with `entity.scripts: str
 - On each open, the shared Monaco remounts automatically **200 ms** after it first becomes
   visible (Transformers or Scripts tab), matching the manual **Refresh editor** layout escape hatch
   (refresh icon at the top of the shared Monaco **vertical toolbar** on the editor’s right edge in `WorkspaceMonacoSlot`).
+- **Session persistence** (Builder session, survives workspace close/reopen): active tab, entity, `itemId`, `pipeNavPath`, `pipeNavSelectedIndex` via `WorkspaceTarget` + per-entity `WorkspaceSessionMemory` in `Builder.tsx`. Per-entity memory restores pipe depth and transformer selection when switching entities in the workspace entity picker.
+- **Monaco view state** (scroll + cursor per edited item): `workspaceEditorItemKey` + in-memory store in `workspaceEditorViewState.ts`; saved on item switch and restored when returning to the same transformer/script (key includes entity, tab, item id, pipe path).
 - **Watch**: eye icon always visible below refresh in the vertical toolbar (disabled until a custom transformer on a single entity is selected); panel portals into the editor pane, default top-right (just left of the toolbar), draggable and resizable via [`WorkspaceFloatingDrawer`](../src/components/workspace/WorkspaceFloatingDrawer.tsx) (left/right/bottom edges and corners), position persisted in `localStorage` across close/reopen. See [`feature-ui-infrastructure.md`](feature-ui-infrastructure.md) for shared dialog/panel rules.
   This runs **once per page load** only (not again when closing and reopening Workspace).
-- **Shift+Escape** opens the Workspace. **Escape** (without Shift) closes it.
+- **Shift+Escape** opens the Workspace. **Escape** (without Shift) closes it when open, or clears selection when closed. In native fullscreen, plain Escape exits fullscreen only when the Workspace is closed (`shouldExitFullscreenOnEscape`); Chromium locks Escape on enter so Shift+Escape can open the Workspace without exiting.
 
 ### R2 — Transformers tab
 - Retains authoring via the horizontal pipeline (**reorder**, **enable**, **drag**, inline **`name`** on custom cards, **Configure** drawer JSON incl. priority / `params` for custom stages), live trace on pipeline cards,
@@ -48,7 +50,7 @@ Scripts use `world.scripts: Record<string, ScriptDef>` with `entity.scripts: str
   Monaco when a **custom** stage is selected. **Removed:** redundant second toolbar row under the chain (Custom picker, Name, enable pill, Priority) — those fields live on the card / in **Configure**.
 - Visual pipeline strip (ordered, since execution order matters).
 - **Add** **+** button on the pipeline opens a resizable dialog with **Preset** and **Existing** tabs; existing list stacks one row per organize title (like Organize); **Add** / **Link** / **Copy** as before. The new stage is auto-selected after confirm (custom stages open Monaco immediately).
-- Clicking a custom stage’s **code** control or selecting the stage selects it for Monaco editing.
+- Clicking a custom stage’s **code** control or **selecting the stage** (card body click, tree row, pipe card, sibling arrows) selects it for Monaco editing. `resolvePreferredStageId` picks the first custom stage at the focused pipe level when the click target is a pipe/container.
 - Custom transformer **compile** and **runtime** errors render as floating overlays (`TransformerCodeErrorOverlay`) over the code column so Monaco height stays fixed. Compile errors are debounced (500 ms) while typing and flush on editor blur; pipeline cards still show error borders immediately on every failing stage (multiple runtime errors in one chain are tracked independently).
 
 ### R3 — Scripts tab
@@ -242,5 +244,6 @@ globalStore.scripts: Record<string, ScriptDef>
 - [x] Update `start-here.md` task → file map
 - [x] Update `architecture.md` persistence section (global behavior library) + file map (Workspace + workspace/ directory)
 - [x] UI tests (Vitest RTL): Workspace shell close/Escape + Transformers horizontal pipeline; Scripts **Manage** → Organize (**Entity**, scripts); shared-script banner; promote transformer → Global; duplicate promote opens **WorkspaceConflictDialog**; `CodingTabPanel` Scripts subgroup → Open Workspace → Manage (`Workspace.test.tsx`, `CodingTabPanel.test.tsx`; global library load/save spied/mocked where needed).
+- [x] **Builder workspace persistence integration** (`Builder.workspacePersistence.integration.test.tsx`): close/reopen restores pipe depth + selected transformer; card/tree clicks follow selection into Monaco; per-item Monaco scroll/cursor restore across custom transformer switches; entity picker restores per-entity pipe/selection memory.
 - [x] **Shift+Escape** shortcut to open Workspace; removed stale `onTransformerCodePopoutOpen` props and comments.
 - [ ] E2E smoke test: open Workspace, edit script, apply, verify in Play (and broader integration: Organize assign/detach flows).
