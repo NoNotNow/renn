@@ -748,7 +748,7 @@ export default function Workspace({
                   <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                     {activeTab === 'transformers' ? (
                       <WorkspaceTransformersTab
-                        key={`${entry?.entityId ?? 'none'}:${JSON.stringify(entry?.pipeNavPath ?? [])}:${entry?.pipeNavSelectedIndex ?? 0}`}
+                        key={entry?.entityId ?? 'none'}
                         world={world}
                         selectedEntityIds={selectedEntityIds}
                         entry={entry}

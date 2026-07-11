@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { PipeNavFocus, PipeNavPathSegment } from '@/types/pipeNav'
 import type { Entity, RennWorld } from '@/types/world'
 import {
@@ -18,6 +18,21 @@ export function usePipeNavigator(
     path: initialPath ?? [],
     selectedSiblingIndex: initialSelectedIndex ?? 0,
   }))
+
+  const entryPathKey = JSON.stringify(initialPath ?? [])
+  const entrySelectedIndex = initialSelectedIndex ?? 0
+
+  useEffect(() => {
+    setFocus((prev) => {
+      if (
+        prev.selectedSiblingIndex === entrySelectedIndex &&
+        JSON.stringify(prev.path) === entryPathKey
+      ) {
+        return prev
+      }
+      return { path: initialPath ?? [], selectedSiblingIndex: entrySelectedIndex }
+    })
+  }, [entryPathKey, entrySelectedIndex, initialPath])
 
   const view = useMemo(() => {
     if (!entity) return null

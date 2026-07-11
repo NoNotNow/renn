@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import 'fake-indexeddb/auto'
-import { act, render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { act, render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { useState, type ReactElement } from 'react'
 import Workspace from './Workspace'
 import { resetWorkspaceEditorInitialRefreshForTests, WORKSPACE_EDITOR_OPEN_REFRESH_MS } from './workspaceMonacoSession'
@@ -414,6 +414,54 @@ describe('Workspace', () => {
     await waitFor(() => {
       expect(screen.getByTestId('transformer-horizontal-item-0')).toBeInTheDocument()
     })
+  })
+
+  it('keeps the pipe nav sidebar open when selecting a transformer from the tree', async () => {
+    const storage = new Map<string, string>()
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        storage.set(key, value)
+      },
+    })
+
+    function Harness() {
+      const [entry, setEntry] = useState<WorkspaceTarget>({
+        entityId: 'e1',
+        tab: 'transformers',
+        itemId: 'e1_tf0',
+        pipeNavPath: [],
+        pipeNavSelectedIndex: 0,
+      })
+      return (
+        <Workspace
+          open
+          onClose={vi.fn()}
+          entry={entry}
+          onEntryChange={setEntry}
+          world={worldWithTransformer}
+          selectedEntityIds={['e1']}
+          onWorldChange={vi.fn()}
+        />
+      )
+    }
+
+    renderWorkspace(<Harness />)
+
+    fireEvent.click(screen.getByTestId('pipe-nav-open'))
+    expect(screen.getByTestId('pipe-nav-sidebar')).toBeInTheDocument()
+
+    const tree = screen.getByTestId('pipe-nav-tree')
+    fireEvent.click(within(tree).getByText('Pipe1'))
+    expect(screen.getByTestId('pipe-nav-sidebar')).toBeInTheDocument()
+
+    fireEvent.click(within(tree).getByText('TestTf'))
+    await waitFor(() => {
+      expect(screen.getByTestId('pipe-nav-sidebar')).toBeInTheDocument()
+      expect(screen.queryByTestId('pipe-nav-open')).not.toBeInTheDocument()
+    })
+
+    vi.unstubAllGlobals()
   })
 
   it('Scripts Manage opens Organize scoped to Entity · Scripts', async () => {
