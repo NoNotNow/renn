@@ -58,7 +58,7 @@ describe('pipeStageResolve', () => {
     expect(syncEntityTransformerIdsFromPipeTree(world, world.entities[0]!)).toEqual([])
   })
 
-  it('binding params are the sole runtime source when entity has a pipe stack', () => {
+  it('merges stage params with binding params — binding wins on conflict', () => {
     const world: RennWorld = {
       version: '1',
       world: {},
@@ -70,7 +70,7 @@ describe('pipeStageResolve', () => {
         },
       ],
       transformers: {
-        s1: { type: 'car2', params: { power: 99 } },
+        s1: { type: 'car2', params: { power: 99, height: 10 } },
       },
       transformerPipes: {
         root: {
@@ -84,7 +84,7 @@ describe('pipeStageResolve', () => {
     }
 
     const configs = resolveEntityTransformerConfigsForRuntime(world, world.entities[0]!)
-    expect(configs?.[0]?.params).toEqual({ power: 50, speed: 2 })
+    expect(configs?.[0]?.params).toEqual({ power: 50, speed: 2, height: 10 })
   })
 
   it('produces different merged runtime params for two entities on the same linked pipe', () => {
@@ -119,8 +119,8 @@ describe('pipeStageResolve', () => {
 
     const carA = resolveEntityTransformerConfigsForRuntime(world, world.entities[0]!)
     const carB = resolveEntityTransformerConfigsForRuntime(world, world.entities[1]!)
-    expect(carA?.[0]?.params).toEqual({ speed: 50 })
-    expect(carB?.[0]?.params).toEqual({ speed: 100 })
+    expect(carA?.[0]?.params).toEqual({ speed: 50, power: 10 })
+    expect(carB?.[0]?.params).toEqual({ speed: 100, power: 10 })
   })
 
   it('merges independent params for two stack pipes on one entity', () => {
@@ -196,6 +196,7 @@ describe('pipeStageResolve', () => {
 
     expect(resolveMergedTransformerConfigsForEntitySync(world, 'e1')?.[0]?.params).toEqual({
       speed: 2,
+      power: 99,
     })
   })
 
@@ -241,6 +242,83 @@ describe('pipeStageResolve', () => {
     expect(stageContextByStageId.get('s2')?.effectivelyEnabled).toBe(false)
   })
 
+  it('merges stage, binding, and scope params — narrowest scope wins', () => {
+    const world: RennWorld = {
+      version: '1',
+      world: {},
+      entities: [
+        {
+          id: 'e1',
+          transformers: ['s1', 's1'],
+          transformerPipeStack: [
+            {
+              pipeId: 'root',
+              params: { A: 1, B: 1 },
+              scopeParams: { 'stack:0/member:root:1': { A: 2, B: 2, C: 3 } },
+            },
+          ],
+        },
+      ],
+      transformers: {
+        s1: { type: 'car2', params: { A: 0, D: 4 } },
+      },
+      transformerPipes: {
+        root: {
+          id: 'root',
+          name: 'Root',
+          stageIds: ['s1'],
+          stages: [],
+          members: [
+            { kind: 'stage', stageId: 's1' },
+            { kind: 'pipe', pipeId: 'child' },
+          ],
+        },
+        child: {
+          id: 'child',
+          name: 'Child',
+          stageIds: ['s1'],
+          stages: [],
+          members: [{ kind: 'stage', stageId: 's1' }],
+        },
+      },
+    }
+
+    const configs = resolveEntityTransformerConfigsForRuntime(world, world.entities[0]!)
+    // flat index 0: stage under root (no nested scope) — stage + binding only
+    expect(configs?.[0]?.params).toEqual({ A: 1, B: 1, D: 4 })
+    // flat index 1: stage under child — stage + binding + scope params
+    expect(configs?.[1]?.params).toEqual({ A: 2, B: 2, C: 3, D: 4 })
+  })
+
+  it('stage params alone are used when binding has no overrides', () => {
+    const world: RennWorld = {
+      version: '1',
+      world: {},
+      entities: [
+        {
+          id: 'e1',
+          transformers: ['s1'],
+          transformerPipeStack: [{ pipeId: 'root' }],
+        },
+      ],
+      transformers: {
+        s1: { type: 'car2', params: { power: 400, lateralGrip: 100 } },
+      },
+      transformerPipes: {
+        root: {
+          id: 'root',
+          name: 'Root',
+          stageIds: ['s1'],
+          stages: [],
+          members: [{ kind: 'stage', stageId: 's1' }],
+        },
+      },
+    }
+
+    const configs = resolveEntityTransformerConfigsForRuntime(world, world.entities[0]!)
+    expect(configs?.[0]?.params).toEqual({ power: 400, lateralGrip: 100 })
+  })
+
   it('isolates merged params per flat index when the same linked pipe appears twice on the stack', () => {
     const world: RennWorld = {
       version: '1',
@@ -256,7 +334,7 @@ describe('pipeStageResolve', () => {
         },
       ],
       transformers: {
-        s1: { type: 'custom', code: 'api.watch(params);' },
+        s1: { type: 'custom', code: 'api.watch(params);', params: { base: 1 } },
       },
       transformerPipes: {
         root: {
@@ -270,7 +348,7 @@ describe('pipeStageResolve', () => {
     }
 
     const configs = resolveEntityTransformerConfigsForRuntime(world, world.entities[0]!)
-    expect(configs?.[0]?.params).toEqual({ p1: 'p1' })
-    expect(configs?.[1]?.params).toEqual({ px: 'px' })
+    expect(configs?.[0]?.params).toEqual({ p1: 'p1', base: 1 })
+    expect(configs?.[1]?.params).toEqual({ px: 'px', base: 1 })
   })
 })

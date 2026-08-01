@@ -37,7 +37,7 @@ import {
   flatIndexOffsetForStackBinding,
   stackIndexFromScopePath,
 } from '@/utils/pipeStageResolve'
-import { wrapUngroupedStagesIntoStackPipe } from '@/utils/pipeNavMutations'
+import { wrapUngroupedStagesIntoStackPipe, patchStageConfigInWorld } from '@/utils/pipeNavMutations'
 import { getEntityPipeStack } from '@/utils/transformerPipeResolve'
 import { nextFreeDefaultPipeName } from '@/utils/allocatePipeId'
 import TransformerPipeNavSidebar, {
@@ -396,6 +396,18 @@ function WorkspaceTransformersTabEntity({
       commitStacksRaw(nextConfigs, orderedRegistryIds)
     },
     [commitStacksRaw, flushPendingCode],
+  )
+
+  const handlePatchStage = useCallback(
+    (stageId: string, config: TransformerConfig) => {
+      flushPendingCode()
+      const nextWorld = patchStageConfigInWorld(world, stageId, config)
+      onWorldChange(nextWorld)
+      if (entityIdsForEdit.length > 0) {
+        onMergedPipeParamSync?.(nextWorld, entityIdsForEdit)
+      }
+    },
+    [flushPendingCode, world, onWorldChange, onMergedPipeParamSync, entityIdsForEdit],
   )
 
   const pipeNav = usePipeNavController(
@@ -1183,6 +1195,7 @@ function WorkspaceTransformersTabEntity({
                 liveTraceSteps={liveTraceSteps ?? null}
                 drawerPortalTarget={floatingDrawerPortalRef}
                 onCommitStages={pipeNav.handleCommitStagesWrapped}
+                onPatchStage={pipeNav.handlePatchStageWrapped}
                 onSelectStageId={changeSelectedIdWithFlush}
                 onSelectPipeIndex={handleSelectPipeIndex}
                 onDrillIntoPipe={handleDrillIntoPipe}
@@ -1206,6 +1219,7 @@ function WorkspaceTransformersTabEntity({
                 liveTraceSteps={liveTraceSteps ?? null}
                 drawerPortalTarget={floatingDrawerPortalRef}
                 onCommit={handleCommitStacks}
+                onPatchStage={handlePatchStage}
                 onSelectCode={changeSelectedIdWithFlush}
                 onMakeUnique={canMakeUniqueStage ? handleMakeUniqueTransformer : undefined}
                 makeUniqueDisabledReason={

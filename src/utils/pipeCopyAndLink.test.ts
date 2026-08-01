@@ -16,6 +16,7 @@ import {
   stageIdsForStackBinding,
   updateBindingParams,
   updateFocusedStageOrder,
+  patchStageConfigInWorld,
 } from './pipeNavMutations'
 import { applyEntityTransformerSync } from './pipeNavResolve'
 import {
@@ -480,7 +481,7 @@ describe('pipe copy and link — clonePipeTreeForEntityCopy', () => {
 })
 
 describe('pipe copy and link — runtime param projection', () => {
-  it('linked entity receives only binding params at runtime, not stage registry params', () => {
+  it('linked entity merges stage registry params with binding params at runtime', () => {
     const world: RennWorld = {
       ...baseWorld(),
       entities: [
@@ -494,10 +495,10 @@ describe('pipe copy and link — runtime param projection', () => {
       transformerPipes: { drive: drivePipe() },
     }
     const configs = resolveEntityTransformerConfigsForRuntime(world, world.entities[0]!)
-    expect(configs?.[0]?.params).toEqual({ speed: 50, power: 99 })
+    expect(configs?.[0]?.params).toEqual({ speed: 50, power: 99, grip: 1 })
   })
 
-  it('copy-mode entity receives only binding params at runtime', () => {
+  it('copy-mode entity merges stage registry params with binding params at runtime', () => {
     const assigned = assignPipeToEntity(
       baseWorld({
         transformers: { s1: { type: 'car2', params: { power: 10 } } },
@@ -510,7 +511,7 @@ describe('pipe copy and link — runtime param projection', () => {
     )
     const e1 = assigned.entities[0]!
     const configs = resolveEntityTransformerConfigsForRuntime(assigned, e1)
-    expect(configs?.[0]?.params).toEqual({ speed: 33, boost: false })
+    expect(configs?.[0]?.params).toEqual({ power: 10, speed: 33, boost: false })
     expect(resolveEditableScopeParams(e1.transformerPipeStack?.[0], drivePipe())).toEqual({ speed: 33, boost: false })
   })
 
@@ -530,8 +531,8 @@ describe('pipe copy and link — runtime param projection', () => {
     )
     const carA = resolveMergedTransformerConfigsForEntitySync(decoupled, 'e1')
     const carB = resolveMergedTransformerConfigsForEntitySync(decoupled, 'e2')
-    expect(carA?.[0]?.params).toEqual({ speed: 50 })
-    expect(carB?.[0]?.params).toEqual({ speed: 100 })
+    expect(carA?.[0]?.params).toEqual({ power: 10, speed: 50 })
+    expect(carB?.[0]?.params).toEqual({ power: 10, speed: 100 })
   })
 
   it('duplicate linked pipes on one stack keep independent runtime params per flat index', () => {
@@ -551,8 +552,8 @@ describe('pipe copy and link — runtime param projection', () => {
       transformerPipes: { drive: drivePipe() },
     }
     const configs = resolveEntityTransformerConfigsForRuntime(world, world.entities[0]!)
-    expect(configs?.[0]?.params).toEqual({ speed: 10 })
-    expect(configs?.[1]?.params).toEqual({ speed: 20 })
+    expect(configs?.[0]?.params).toEqual({ power: 5, speed: 10 })
+    expect(configs?.[1]?.params).toEqual({ power: 5, speed: 20 })
   })
 })
 
@@ -644,8 +645,8 @@ describe('pipe copy and link — per-entity param isolation on link', () => {
     const e2Configs = resolveEntityTransformerConfigsForRuntime(world, world.entities[1]!)
     expect(e1Configs?.[0]?.params?.speed).toBe(10)
     expect(e2Configs?.[0]?.params?.speed).toBe(20)
-    expect(e1Configs?.[0]?.params?.power).toBeUndefined()
-    expect(e2Configs?.[0]?.params?.power).toBeUndefined()
+    expect(e1Configs?.[0]?.params?.power).toBe(5)
+    expect(e2Configs?.[0]?.params?.power).toBe(5)
   })
 })
 
@@ -724,6 +725,65 @@ describe('pipe copy and link — reorder stages within a pipe', () => {
     expect(next.entities.find((e) => e.id === 'e1')?.transformers).toEqual(['s2', 's1'])
     expect(next.transformerPipes?.drive?.members?.[0]).toEqual({ kind: 'stage', stageId: 's2' })
     expect(next.transformerPipes?.drive?.members?.[1]).toEqual({ kind: 'stage', stageId: 's1' })
+  })
+
+  it('updateFocusedStageOrder keeps nested pipe members once (no duplicate pipes)', () => {
+    const world: RennWorld = {
+      ...baseWorld(),
+      entities: [
+        {
+          id: 'e1',
+          transformers: ['s1', 's2'],
+          transformerPipeStack: [{ pipeId: 'root' }],
+        },
+      ],
+      transformers: {
+        s1: { type: 'input', priority: 0 },
+        s2: { type: 'car2', priority: 1 },
+      },
+      transformerPipes: {
+        root: {
+          id: 'root',
+          name: 'Root',
+          stageIds: ['s1', 's2'],
+          stages: [],
+          members: [
+            { kind: 'stage', stageId: 's1' },
+            { kind: 'pipe', pipeId: 'nested' },
+            { kind: 'stage', stageId: 's2' },
+          ],
+        },
+        nested: {
+          id: 'nested',
+          name: 'Nested',
+          stageIds: ['s2'],
+          stages: [],
+          members: [{ kind: 'stage', stageId: 's2' }],
+        },
+      },
+    }
+    const next = updateFocusedStageOrder(world, 'e1', [{ kind: 'stack', index: 0 }], ['s2', 's1'])
+    const pipeMembers = next.transformerPipes?.root?.members ?? []
+    const nestedCount = pipeMembers.filter((m) => m.kind === 'pipe' && m.pipeId === 'nested').length
+    expect(nestedCount).toBe(1)
+    expect(pipeMembers.filter((m) => m.kind === 'stage').map((m) => (m.kind === 'stage' ? m.stageId : null))).toEqual([
+      's2',
+      's1',
+    ])
+  })
+
+  it('patchStageConfigInWorld does not rewrite pipe member list on linked multi-entity pipe', () => {
+    const world = linkedTwoEntityWorld()
+    const membersBefore = world.transformerPipes?.drive?.members
+    const patched = patchStageConfigInWorld(world, 's2', {
+      type: 'car2',
+      priority: 7,
+      params: { power: 500 },
+    })
+    expect(patched.transformerPipes?.drive?.members).toEqual(membersBefore)
+    expect(patched.entities.find((e) => e.id === 'e1')?.transformers).toEqual(['s1', 's2'])
+    expect(patched.entities.find((e) => e.id === 'e2')?.transformers).toEqual(['s1', 's2'])
+    expect(patched.transformers?.s2?.priority).toBe(7)
   })
 })
 
@@ -862,8 +922,8 @@ describe('pipe copy and link — binding param writes (spec: per-entity only)', 
     const next = updateBindingParams(world, 'e1', 0, { speed: 99, extra: 'x' })
     expect(bindingParams(next, 'e1')).toEqual({ speed: 99, extra: 'x' })
     expect(bindingParams(next, 'e2')).toEqual({ speed: 20 })
-    expect(runtimeParams(next, 'e1')[0]).toEqual({ speed: 99, extra: 'x' })
-    expect(runtimeParams(next, 'e2')[0]).toEqual({ speed: 20 })
+    expect(runtimeParams(next, 'e1')[0]).toEqual({ power: 5, speed: 99, extra: 'x' })
+    expect(runtimeParams(next, 'e2')[0]).toEqual({ power: 5, speed: 20 })
   })
 
   it('linked: partial param merge keeps unspecified keys on the same binding', () => {
@@ -883,7 +943,7 @@ describe('pipe copy and link — binding param writes (spec: per-entity only)', 
     expect(bindingParams(next, 'e1')).toEqual({ speed: 42, boost: true })
   })
 
-  it('linked: shared stage registry edits do not change piped runtime projection', () => {
+  it('linked: shared stage registry edits propagate to piped runtime projection', () => {
     const world: RennWorld = {
       ...baseWorld(),
       entities: [
@@ -900,8 +960,8 @@ describe('pipe copy and link — binding param writes (spec: per-entity only)', 
         s1: { type: 'car2', params: { power: 77, grip: 1 } },
       },
     }
-    expect(runtimeParams(next, 'e1')[0]).toEqual({ speed: 10 })
-    expect(runtimeParams(next, 'e2')[0]).toEqual({ speed: 20 })
+    expect(runtimeParams(next, 'e1')[0]).toEqual({ power: 77, grip: 1, speed: 10 })
+    expect(runtimeParams(next, 'e2')[0]).toEqual({ power: 77, grip: 1, speed: 20 })
   })
 
   it('linked: binding param edits never write back to world.transformers or pipe definition', () => {
@@ -936,8 +996,8 @@ describe('pipe copy and link — copy vs linked param isolation', () => {
     const next = updateBindingParams(world, 'e2', e2StackIndex, { speed: 88, boost: true })
     expect(bindingParams(next, 'e1')).toEqual({ speed: 50, boost: false })
     expect(bindingParams(next, 'e2')).toEqual({ speed: 88, boost: true })
-    expect(runtimeParams(next, 'e1')[0]).toEqual({ speed: 50, boost: false })
-    expect(runtimeParams(next, 'e2')[0]).toEqual({ speed: 88, boost: true })
+    expect(runtimeParams(next, 'e1')[0]).toEqual({ power: 10, speed: 50, boost: false })
+    expect(runtimeParams(next, 'e2')[0]).toEqual({ power: 10, speed: 88, boost: true })
     expect(countEntitiesLinkingPipe(next, 'drive')).toBe(1)
   })
 
@@ -953,8 +1013,8 @@ describe('pipe copy and link — copy vs linked param isolation', () => {
       },
     }
     expect(next.transformers?.s1?.params).toEqual({ power: 10 })
-    expect(runtimeParams(next, 'e1')[0]).toEqual({ speed: 50, boost: false })
-    expect(runtimeParams(next, 'e2')[0]).toEqual({ speed: 5, boost: false })
+    expect(runtimeParams(next, 'e1')[0]).toEqual({ power: 10, speed: 50, boost: false })
+    expect(runtimeParams(next, 'e2')[0]).toEqual({ power: 999, speed: 5, boost: false })
   })
 
   it('decoupled copy keeps param isolation from linked sibling after decouple', () => {
@@ -970,8 +1030,8 @@ describe('pipe copy and link — copy vs linked param isolation', () => {
     const decoupled = decoupleStackBindingToCopy(shared, 'e1', 0)
     const next = updateBindingParams(decoupled, 'e1', 0, { speed: 1 })
     expect(bindingParams(next, 'e2')).toEqual({ speed: 100 })
-    expect(runtimeParams(next, 'e1')[0]).toEqual({ speed: 1 })
-    expect(runtimeParams(next, 'e2')[0]).toEqual({ speed: 100 })
+    expect(runtimeParams(next, 'e1')[0]).toEqual({ power: 10, speed: 1 })
+    expect(runtimeParams(next, 'e2')[0]).toEqual({ power: 10, speed: 100 })
   })
 
   it('copy assign on entity already linked to donor seeds fresh paramDefs defaults', () => {
@@ -1013,8 +1073,8 @@ describe('pipe copy and link — nested scope params (spec: scopeParams per enti
     const world = nestedManifoldWorld()
     const withNestedOverride = setBindingScopeParams(world, 'e1', 0, nestedScopePath, { grip: 9 })
     const params = runtimeParams(withNestedOverride, 'e1')
-    expect(params[0]).toEqual({ grip: 1 })
-    expect(params[1]).toEqual({ grip: 9 })
+    expect(params[0]).toEqual({ power: 5, grip: 1 })
+    expect(params[1]).toEqual({ power: 8, grip: 9 })
   })
 
   it('linked: resolveEditableScopeParams reads stack root vs nested scope storage separately', () => {
@@ -1047,8 +1107,8 @@ describe('pipe copy and link — nested scope params (spec: scopeParams per enti
     })
     expect(next.entities.find((e) => e.id === 'e1')?.transformerPipeStack?.[0]?.scopeParams).toBeUndefined()
     expect(copyNestedMember?.pipeId).not.toBe('nested')
-    expect(runtimeParams(next, 'e2')[1]).toEqual({ grip: 99 })
-    expect(runtimeParams(next, 'e1')[1]).toEqual({ grip: 1 })
+    expect(runtimeParams(next, 'e2')[1]).toEqual({ power: 8, grip: 99 })
+    expect(runtimeParams(next, 'e1')[1]).toEqual({ power: 8, grip: 1 })
   })
 })
 
@@ -1070,7 +1130,7 @@ describe('pipe copy and link — mixed stack param combinations', () => {
     expect(stack[0]?.params).toEqual({ speed: 50, boost: false })
     expect(stack[1]?.params).toEqual({ softness: 7 })
     const params = runtimeParams(next, 'e1')
-    expect(params[0]).toEqual({ speed: 50, boost: false })
+    expect(params[0]).toEqual({ power: 10, speed: 50, boost: false })
     expect(params[1]).toEqual({ softness: 7 })
   })
 
@@ -1093,7 +1153,7 @@ describe('pipe copy and link — mixed stack param combinations', () => {
     expect(stack[0]?.params).toEqual({ speed: 11, boost: false })
     expect(stack[1]?.params).toEqual({ softness: 22 })
     const params = runtimeParams(next, 'e1')
-    expect(params[0]).toEqual({ speed: 11, boost: false })
+    expect(params[0]).toEqual({ power: 10, speed: 11, boost: false })
     expect(params[1]).toEqual({ softness: 22 })
   })
 
@@ -1110,8 +1170,8 @@ describe('pipe copy and link — mixed stack param combinations', () => {
     expect(stack[1]?.mode).toBe('copy')
     expect(stack[1]?.pipeId).not.toBe('drive')
     const params = runtimeParams(next, 'e1')
-    expect(params[0]).toEqual({ speed: 10, boost: false })
-    expect(params[1]).toEqual({ speed: 99, boost: false })
+    expect(params[0]).toEqual({ power: 5, speed: 10, boost: false })
+    expect(params[1]).toEqual({ power: 5, speed: 99, boost: false })
     expect(next.entities.find((e) => e.id === 'e1')?.transformers?.[0]).toBe('s1')
     expect(next.entities.find((e) => e.id === 'e1')?.transformers?.[1]).toMatch(/^e1_tf/)
   })
@@ -1132,11 +1192,11 @@ describe('pipe copy and link — mixed stack param combinations', () => {
     next = assignPipeToEntity(next, 'e2', drivePipe(), 'linked', { params: { speed: 20 } })
     next = assignPipeToEntity(next, 'e2', steerPipe(), 'linked', { append: true, params: { softness: 2 } })
     expect(runtimeParams(next, 'e1')).toEqual([
-      { speed: 10, boost: false },
+      { power: 10, speed: 10, boost: false },
       { softness: 1 },
     ])
     expect(runtimeParams(next, 'e2')).toEqual([
-      { speed: 20, boost: false },
+      { power: 10, speed: 20, boost: false },
       { softness: 2 },
     ])
   })
@@ -1162,7 +1222,7 @@ describe('pipe copy and link — paramDefs assign combinations', () => {
     const next = assignPipeToEntity(world, 'e1', pipeWithoutParamDefs(), 'linked')
     const binding = next.entities.find((e) => e.id === 'e1')?.transformerPipeStack?.[0]
     expect(binding?.params).toBeUndefined()
-    expect(runtimeParams(next, 'e1')[0]).toEqual({})
+    expect(runtimeParams(next, 'e1')[0]).toEqual({ power: 3 })
   })
 
   it('copy assign without paramDefs leaves binding.params undefined', () => {
@@ -1174,7 +1234,7 @@ describe('pipe copy and link — paramDefs assign combinations', () => {
     const binding = next.entities.find((e) => e.id === 'e1')?.transformerPipeStack?.[0]
     expect(binding?.params).toBeUndefined()
     const localStageId = firstTransformerId(next, 'e1')
-    expect(runtimeParams(next, 'e1')[0]).toEqual({})
+    expect(runtimeParams(next, 'e1')[0]).toEqual({ power: 3 })
     expect(next.transformers?.[localStageId]?.params).toEqual({ power: 3 })
   })
 
@@ -1211,7 +1271,7 @@ describe('pipe copy and link — paramDefs assign combinations', () => {
       speed: 77,
       boost: true,
     })
-    expect(runtimeParams(next, 'e2')[0]).toEqual({ speed: 5, boost: false })
+    expect(runtimeParams(next, 'e2')[0]).toEqual({ power: 10, speed: 5, boost: false })
   })
 
   it('addExistingPipe copy accepts explicit param overrides independent of stack siblings', () => {
@@ -1281,7 +1341,12 @@ describe('pipe copy and link — pipe instance param isolation (spec)', () => {
       },
       transformerPipes: { drive: twoStagePipe() },
     }
-    expect(runtimeParams(world, 'e1')).toEqual([{ test1: '' }, { test1: '' }, { test2: '' }, { test2: '' }])
+    expect(runtimeParams(world, 'e1')).toEqual([
+      { power: 5, test1: '' },
+      { power: 8, test1: '' },
+      { power: 5, test2: '' },
+      { power: 8, test2: '' },
+    ])
   })
 
   it('linked + copy on one stack: bindings do not merge params across instances', () => {
@@ -1296,10 +1361,15 @@ describe('pipe copy and link — pipe instance param isolation (spec)', () => {
     world = assignPipeToEntity(world, 'e1', twoStagePipe(), 'copy', { append: true, params: { test2: '' } })
     const ids = world.entities.find((e) => e.id === 'e1')?.transformers ?? []
     expect(ids).toHaveLength(4)
-    expect(runtimeParams(world, 'e1')).toEqual([{ test1: '' }, { test1: '' }, { test2: '' }, { test2: '' }])
+    expect(runtimeParams(world, 'e1')).toEqual([
+      { power: 1, test1: '' },
+      { power: 2, test1: '' },
+      { power: 1, test2: '' },
+      { power: 2, test2: '' },
+    ])
   })
 
-  it('registry stage params are not projected when entity uses a pipe stack', () => {
+  it('registry stage params are projected as defaults when binding has no override', () => {
     const world: RennWorld = {
       ...baseWorld(),
       entities: [
@@ -1312,8 +1382,7 @@ describe('pipe copy and link — pipe instance param isolation (spec)', () => {
       transformers: { s1: { type: 'car2', params: { power: 10, grip: 3 } } },
       transformerPipes: { drive: drivePipe() },
     }
-    expect(runtimeParams(world, 'e1')[0]).toEqual({ test1: '' })
-    expect(runtimeParams(world, 'e1')[0]).not.toHaveProperty('power')
+    expect(runtimeParams(world, 'e1')[0]).toEqual({ power: 10, grip: 3, test1: '' })
   })
 })
 
@@ -1330,9 +1399,11 @@ describe('pipe copy and link — live sync scope for param edits (spec)', () => 
     }
     const next = updateBindingParams(world, 'e1', 0, { speed: 99 })
     expect(resolveMergedTransformerConfigsForEntitySync(next, 'e1')?.[0]?.params).toEqual({
+      power: 5,
       speed: 99,
     })
     expect(resolveMergedTransformerConfigsForEntitySync(next, 'e2')?.[0]?.params).toEqual({
+      power: 5,
       speed: 20,
     })
   })

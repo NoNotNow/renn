@@ -130,7 +130,7 @@ describe('pipeNavResolve', () => {
     expect(resolveSelectedFlatStackIndex(dupWorld, entity, focus1, view1, 's1')).toBe(1)
   })
 
-  it('resolveFocusedStageConfigs overlays binding params when entity has a pipe stack', () => {
+  it('resolveFocusedStageConfigs shows only local stage registry params for piped entities', () => {
     const piped: RennWorld = {
       version: '1',
       world: {},
@@ -158,6 +158,6 @@ describe('pipeNavResolve', () => {
       path: [{ kind: 'stack', index: 0 }],
       selectedSiblingIndex: 0,
     })
-    expect(configs[0]?.params).toEqual({ power: 55 })
+    expect(configs[0]?.params).toEqual({ power: 400 })
   })
 })

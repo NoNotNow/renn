@@ -21,3 +21,4 @@ Docs for LLM/code agents. Read `start-here.md` first, then only what the task re
 | **example-worlds** | Example JSON configs and world structure |
 | **performance-work** | Performance backlog (ordered work items, profiling notes) |
 | **codebase-cleanup-audit** | Cleanup history and optional follow-ups |
+| **nomenclature** | Canonical names for all transformer/pipe concepts (stages, bindings, param scopes, merge rules) |

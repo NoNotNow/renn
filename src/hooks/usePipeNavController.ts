@@ -21,6 +21,7 @@ import {
   reorderStackBindings,
   reorderPipeMembers,
   commitFocusedStageConfigs,
+  patchStageConfigInWorld,
   deleteStackBinding,
   deletePipeMember,
   insertEmptyPipeAtNode,
@@ -267,6 +268,15 @@ export function usePipeNavController(
       onMergedParamSync?.(nextWorld, [entity.id])
     },
     [view?.mode, entity, world, focus.path, stageData.ids, onCommitStagesFlat, pushWorld, onMergedParamSync],
+  )
+
+  const handlePatchStageWrapped = useCallback(
+    (stageId: string, config: TransformerConfig) => {
+      const nextWorld = patchStageConfigInWorld(world, stageId, config)
+      pushWorld(nextWorld)
+      onMergedParamSync?.(nextWorld, [entity.id])
+    },
+    [world, entity.id, pushWorld, onMergedParamSync],
   )
 
   const confirmNameDialog = useCallback(() => {
@@ -551,6 +561,7 @@ export function usePipeNavController(
     handleAddExistingPipe,
     handleRename,
     handleCommitStagesWrapped,
+    handlePatchStageWrapped,
     nameDialog,
     setNameDialog,
     confirmNameDialog,

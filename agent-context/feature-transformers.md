@@ -307,7 +307,8 @@ Individual transformers may set **`TransformOutput.impulse`**. The chain **adds*
 ### Shared vs. Isolated Behavior (Custom Transformers)
 
 - **Shared Source Code**: All entities run the exact same compiled JavaScript body.
-- **Shared Parameters**: All entities receive the same `params` object from the registry definition.
+- **Params — flat entities**: All entities without a pipe stack receive the same `params` from the registry definition.
+- **Params — piped entities**: Each entity with a pipe stack receives a **merged params** object (stage registry params as defaults, overridden by binding params and scope params). See [feature-transformer-pipes.md](feature-transformer-pipes.md) — _Pipe params + enable cascade_. Merged params are per-entity and pre-built at chain-build time.
 - **Isolated Runtime Instance**: Each entity receives its own unique **instance** of the `CustomCodeTransformer` class.
 - **Isolated State**: The `state` object is a private property of the transformer instance. **Each entity maintains its own private runtime state** — one entity's state cannot be read or modified by another.
 

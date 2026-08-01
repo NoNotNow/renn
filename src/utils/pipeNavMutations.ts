@@ -1,6 +1,6 @@
 import type { TransformerConfig, TransformerPipe, TransformerPipeBinding, TransformerPipeMember } from '@/types/transformer'
 import type { PipeNavPathSegment } from '@/types/pipeNav'
-import { isStackRootScopePath, pipeScopeKeyFromPath, stackIndexFromScopePath } from '@/utils/pipeStageResolve'
+import { pipeScopeKeyFromPath } from '@/utils/pipeStageResolve'
 import type { Entity, RennWorld } from '@/types/world'
 import { allocatePipeId, nextFreeDefaultPipeName } from '@/utils/allocatePipeId'
 import {
@@ -331,9 +331,22 @@ function pipeTreeContainsPipe(
   return false
 }
 
+/** Update one registry stage definition without touching pipe wiring or entity flatten cache. */
+export function patchStageConfigInWorld(
+  world: RennWorld,
+  stageId: string,
+  config: TransformerConfig,
+): RennWorld {
+  return {
+    ...world,
+    transformers: { ...(world.transformers ?? {}), [stageId]: config },
+  }
+}
+
 /**
- * Persist focused stage configs: metadata in `world.transformers`, tunable params on the pipe
- * binding when the entity has a pipe stack (registry stage `params` are not used at runtime).
+ * Persist focused stage configs to `world.transformers` (including local stage params).
+ * Pipe binding / scope params are edited separately via the pipe params UI.
+ * Pass `orderedIds` only for explicit reorder/add/remove — not for metadata patches.
  */
 export function commitFocusedStageConfigs(
   world: RennWorld,
@@ -346,51 +359,14 @@ export function commitFocusedStageConfigs(
   const entity = world.entities.find((e) => e.id === entityId)
   if (!entity) return world
 
-  const hasPipeStack = getEntityPipeStack(entity).length > 0
   let nextWorld = world
-
-  if (!hasPipeStack) {
-    for (let i = 0; i < configs.length; i++) {
-      const id = ids[i]
-      if (id && configs[i]) {
-        nextWorld = {
-          ...nextWorld,
-          transformers: { ...(nextWorld.transformers ?? {}), [id]: configs[i]! },
-        }
-      }
-    }
-    if (orderedIds) {
-      nextWorld = updateFocusedStageOrder(nextWorld, entityId, focusPath, orderedIds)
-    }
-    return nextWorld
-  }
-
-  let bindingParams: Record<string, unknown> | undefined
-  for (const config of configs) {
-    if (config.params !== undefined) {
-      bindingParams = { ...(bindingParams ?? {}), ...config.params }
-    }
-  }
-
   for (let i = 0; i < configs.length; i++) {
     const id = ids[i]
-    const config = configs[i]
-    if (!id || !config) continue
-    const { params: _params, ...meta } = config
-    nextWorld = {
-      ...nextWorld,
-      transformers: { ...(nextWorld.transformers ?? {}), [id]: meta as TransformerConfig },
-    }
-  }
-
-  if (bindingParams !== undefined) {
-    const stackIdx = stackIndexFromScopePath(focusPath) ?? 0
-    const scopePath =
-      focusPath.length > 0 ? focusPath : [{ kind: 'stack' as const, index: stackIdx }]
-    if (isStackRootScopePath(scopePath)) {
-      nextWorld = setBindingParams(nextWorld, entityId, stackIdx, bindingParams)
-    } else {
-      nextWorld = setBindingScopeParams(nextWorld, entityId, stackIdx, scopePath, bindingParams)
+    if (id && configs[i]) {
+      nextWorld = {
+        ...nextWorld,
+        transformers: { ...(nextWorld.transformers ?? {}), [id]: configs[i]! },
+      }
     }
   }
 
@@ -596,15 +572,13 @@ export function updateFocusedStageOrder(
   if (!pipe) return world
 
   const members = normalizePipeMembers(pipe)
-  const stageSet = new Set(orderedStageIds)
-  const nonStageMembers = members.filter((m) => m.kind !== 'stage' || !stageSet.has(m.stageId))
   const reorderedStages: TransformerPipeMember[] = orderedStageIds.map((stageId) => ({
     kind: 'stage' as const,
     stageId,
     enabled: members.find((m) => m.kind === 'stage' && m.stageId === stageId)?.enabled,
   }))
   const pipeMembers = members.filter((m) => m.kind === 'pipe')
-  const nextMembers = [...reorderedStages, ...pipeMembers, ...nonStageMembers.filter((m) => m.kind === 'pipe')]
+  const nextMembers = [...reorderedStages, ...pipeMembers]
 
   const nextWorld = updatePipeMembers(world, pipeId, nextMembers)
   return syncAllEntitiesUsingPipes(nextWorld, [pipeId])

@@ -32,6 +32,7 @@
 | **Workspace** — unified behavior authoring (scripts + transformers + organize, migration plan) | `feature-workspace.md` |
 | Entity search picker (filters, history, sidebar + workspace) | `feature-entity-search.md` |
 | Dialogs, floating panels, resize handles, UI duplication audit | `feature-ui-infrastructure.md` |
+| Canonical names — stages, bindings, param scopes, merge rules | `nomenclature.md` |
 
 ## Tech stack (quick ref)
 

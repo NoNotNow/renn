@@ -1004,6 +1004,7 @@ export function TransformerHorizontalPipeline({
   liveTraceSteps,
   drawerPortalTarget,
   onCommit,
+  onPatchStage,
   onSelectCode,
   onMakeUnique,
   makeUniqueDisabledReason,
@@ -1026,6 +1027,8 @@ export function TransformerHorizontalPipeline({
   liveTraceSteps: TransformerTraceStep[] | null
   drawerPortalTarget: RefObject<HTMLDivElement | null>
   onCommit: (next: TransformerConfig[], orderedRegistryIds?: string[]) => void
+  /** Patch one stage registry entry without reordering the pipe or re-indexing priorities. */
+  onPatchStage?: (stageId: string, config: TransformerConfig) => void
   onSelectCode?: (id: string) => void
   onMakeUnique?: (id: string) => void
   makeUniqueDisabledReason?: string
@@ -1141,16 +1144,27 @@ export function TransformerHorizontalPipeline({
   }
 
   const handleToggleEnabled = (index: number) => {
-    const next = transformers.map((t, i) =>
-      i === index ? { ...t, enabled: !(t.enabled ?? true) } : t
-    )
+    const current = transformers[index]
+    if (!current) return
+    const patched = { ...current, enabled: !(current.enabled ?? true) }
+    const stageId = transformerIds?.[index]
+    if (onPatchStage && stageId) {
+      onPatchStage(stageId, patched)
+      return
+    }
+    const next = transformers.map((t, i) => (i === index ? patched : t))
     commitWithRegistryIds(syncPriorities(next))
   }
 
   const handleUpdateTransformer = (index: number, config: TransformerConfig) => {
+    const stageId = transformerIds?.[index]
+    if (onPatchStage && stageId) {
+      onPatchStage(stageId, config)
+      return
+    }
     const next = [...transformers]
     next[index] = config
-    commitWithRegistryIds(syncPriorities(next), registryIdsForList())
+    commitWithRegistryIds(syncPriorities(next), transformerIds)
   }
 
   const handleRenameCustom = (stackIndex: number, desiredName: string) => {
@@ -1158,8 +1172,14 @@ export function TransformerHorizontalPipeline({
     if (!target || target.type !== 'custom') return
     const name = ensureUniqueCustomTransformerName(desiredName, transformers, stackIndex)
     if ((target.name ?? '').trim() === name) return
-    const next = transformers.map((t, i) => (i === stackIndex ? { ...t, name } : t))
-    commitWithRegistryIds(syncPriorities(next), registryIdsForList())
+    const patched = { ...target, name }
+    const stageId = transformerIds?.[stackIndex]
+    if (onPatchStage && stageId) {
+      onPatchStage(stageId, patched)
+      return
+    }
+    const next = transformers.map((t, i) => (i === stackIndex ? patched : t))
+    commitWithRegistryIds(syncPriorities(next), transformerIds)
   }
 
   const handleDragStart = (index: number) => {

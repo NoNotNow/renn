@@ -162,15 +162,35 @@ Legacy `entity.transformerPipe` migrates to a single-entry stack on load (`migra
 - **Strip**: one level at a time — pipe cards at entity root; stages + nested pipe cards inside a manifold (mixed order preserved when pipes and stages interleave).
 - **Add flows**: strip `+` menu ([`PipeAddDialog.tsx`](../src/components/workspace/pipeNav/PipeAddDialog.tsx)); header **+ Add Pipe** removed (duplicate). **Leaf level** (gray `+`): `entity_stages`, or `pipe_members` with no nested pipe cards in the focused view — opens **Add to pipeline** (transformer preset/existing + optional pipe sections). **New pipe** / **Existing pipe** at leaf level append a **stack sibling** (after the current stack pipe), not a nested member; use the **Child pipe** tab to nest. **Pipe level** (yellow `+`): entity root with multiple stack pipes, or a manifold showing nested pipe cards — pipe-centric add sections.
 - **Auto-wrap**: fresh entity → `Pipe1` via `ensureEntityPipeStack`; legacy ungrouped stages → non-blocking **Wrap into pipe** banner.
-- **Runtime params**: ephemeral projection via [`pipeStageResolve.ts`](../src/utils/pipeStageResolve.ts). **Pipe instance isolation** — each stack binding owns its runtime params; stages under that binding receive **only** that binding’s effective pipe params (`binding.params` at stack root, plus `scopeParams` for nested scopes within the same binding). **No merge** of stage registry `params`, and **no cross-binding merge** between stack siblings (duplicate linked pipes, linked + copy, etc.). Projection is keyed by **flat index** in `entity.transformers`. Entities **without** a pipe stack still use stage registry `params` directly. Never written back to world JSON except via explicit pipe-param or stage-config apply paths. **Stage config drawer (piped entities)**: [`resolveFocusedStageConfigs`](../src/utils/pipeNavResolve.ts) overlays binding runtime params for display; [`commitFocusedStageConfigs`](../src/utils/pipeNavMutations.ts) writes `params` to the stack binding and strips them from registry stage entries on apply.
+- **Runtime params**: computed once at chain-build time via [`pipeStageResolve.ts`](../src/utils/pipeStageResolve.ts) using a three-scope merge (see **Pipe params + enable cascade** below). Result is keyed by **flat index** in `entity.transformers`. Entities **without** a pipe stack use stage registry `params` directly. Never written back to world JSON except via explicit pipe-param or stage-config apply paths. **Stage config drawer (piped entities)**: shows and edits only the stage’s local registry `params` (not the merged result); saving writes to the registry entry only.
 
 #### Pipe params + enable cascade
 
-1. **Pipe-instance projection** — for entities with a pipe stack, each stage’s runtime `params` come **only** from the **stack binding** that owns that stage (and nested `scopeParams` within that binding). Example: two `Pipe1` instances on one entity with `{ test1: '' }` and `{ test2: '' }` → all stages under the first binding get `{ test1: '' }`, all stages under the second get `{ test2: '' }` only. Stage registry `params` are **not** merged into piped runtime projection.
-2. **Flat (no pipe stack)** — `entity.transformers` stages use registry `params` as today.
-3. **Disable cascade** — when a pipe scope is disabled, all nested pipes and stages under it are effectively disabled (omitted from flatten, greyed in UI, skipped at runtime).
-4. **Scope storage** — stack root uses `binding.params`; nested scopes use `binding.scopeParams[scopeKey]` keyed by pipe-nav path.
-5. **Legacy migration** — `migrateTransformerPipeDefaultParams` moves old `pipe.defaultParams` into bindings on load, then strips the field.
+1. **Three-scope merge** — stage runtime `params` are the result of merging all three param scopes in priority order (narrower wins, wider fills gaps):
+   - **Stage params** (`world.transformers[id].params`) — lowest priority, act as defaults
+   - **Binding params** (`binding.params`) — mid, per-entity stack-root overrides
+   - **Scope params** (`binding.scopeParams[scopeKey]`) — highest, per-entity nested-pipe overrides
+
+   Example: stage `{ A:1 }`, binding `{ B:1 }` → merged `{ A:1, B:1 }`. Stage `{ A:1 }`, binding `{ A:2, B:2 }` → merged `{ A:2, B:2 }`.
+2. **Flat (no pipe stack)** — `entity.transformers` stages use registry `params` directly (no merge needed).
+3. **Build-time, zero runtime allocation** — merge runs once when the transformer chain is built; the result is stored on the transformer instance. The per-frame hot path reads the pre-built object — no allocations. Immutability is a convention (not enforced with `Object.freeze()`).
+4. **No cross-binding merge** — stack siblings are fully isolated; each binding’s merged params are independent.
+5. **Disable cascade** — when a pipe scope is disabled, all nested pipes and stages under it are effectively disabled (omitted from flatten, greyed in UI, skipped at runtime).
+6. **Scope storage** — stack root uses `binding.params`; nested scopes use `binding.scopeParams[scopeKey]` keyed by pipe-nav path.
+7. **Legacy migration** — `migrateTransformerPipeDefaultParams` moves old `pipe.defaultParams` into bindings on load, then strips the field.
+
+#### UI editing rule for params
+
+Config drawers and param UIs always show and write **only the local params of the scope being edited** — never the merged result. See [nomenclature.md](nomenclature.md) for the full table.
+
+#### Config patch vs pipe reorder
+
+| User action | Commit path | Touches |
+|---|---|---|
+| Gear JSON apply, enable toggle, custom rename | `patchStageConfigInWorld(stageId, config)` | `world.transformers[id]` only |
+| Drag-reorder, add/remove stage | `commitFocusedStageConfigs(..., orderedIds)` | pipe `members` + entity flatten via `updateFocusedStageOrder` |
+
+Config patches must **not** call `syncPriorities`, `updateFocusedStageOrder`, or `syncAllEntitiesUsingPipes`.
 
 ---
 

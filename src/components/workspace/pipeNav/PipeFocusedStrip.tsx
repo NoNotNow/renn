@@ -35,6 +35,7 @@ export interface PipeFocusedStripProps {
   liveTraceSteps: TransformerTraceStep[] | null
   drawerPortalTarget: RefObject<HTMLDivElement | null>
   onCommitStages: (configs: TransformerConfig[], orderedIds?: string[]) => void
+  onPatchStage?: (stageId: string, config: TransformerConfig) => void
   onSelectStageId: (id: string) => void
   onSelectPipeIndex: (index: number) => void
   onDrillIntoPipe: (index: number, pipeId: string) => void
@@ -82,6 +83,7 @@ export default function PipeFocusedStrip({
   liveTraceSteps,
   drawerPortalTarget,
   onCommitStages,
+  onPatchStage,
   onSelectStageId,
   onSelectPipeIndex,
   onDrillIntoPipe,
@@ -183,6 +185,7 @@ export default function PipeFocusedStrip({
           liveTraceSteps={liveTraceSteps}
           drawerPortalTarget={drawerPortalTarget}
           onCommit={onCommitStages}
+          onPatchStage={onPatchStage}
           onSelectCode={onSelectStageId}
           onMakeUnique={onMakeUnique}
           makeUniqueDisabledReason={makeUniqueDisabledReason}
@@ -316,6 +319,7 @@ export default function PipeFocusedStrip({
             liveTraceSteps={liveTraceSteps}
             drawerPortalTarget={drawerPortalTarget}
             onCommit={onCommitStages}
+            onPatchStage={onPatchStage}
             onSelectCode={onSelectStageId}
             onMakeUnique={onMakeUnique}
             makeUniqueDisabledReason={makeUniqueDisabledReason}
@@ -412,10 +416,15 @@ export default function PipeFocusedStrip({
           liveTraceSteps={liveTraceSteps}
           drawerPortalTarget={drawerPortalTarget}
           onCommit={(nextConfigs) => {
+            if (onPatchStage) {
+              onPatchStage(item.stageId, nextConfigs[0]!)
+              return
+            }
             const nextAll = [...stageConfigs]
             nextAll[stageIdx] = nextConfigs[0]!
             onCommitStages(nextAll)
           }}
+          onPatchStage={onPatchStage}
           onSelectCode={onSelectStageId}
           onMakeUnique={onMakeUnique}
           makeUniqueDisabledReason={makeUniqueDisabledReason}

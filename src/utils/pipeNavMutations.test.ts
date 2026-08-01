@@ -9,6 +9,7 @@ import {
   ensureEntityPipeStack,
   moveMemberStage,
   nestStackPipeAsMember,
+  patchStageConfigInWorld,
   promoteMemberPipeToStack,
   setBindingParams,
   setBindingScopeParams,
@@ -455,7 +456,7 @@ describe('pipeNavMutations pipe controls', () => {
     expect(reconciled.selectedSiblingIndex).toBe(0)
   })
 
-  it('commitFocusedStageConfigs routes params to binding and strips registry params', () => {
+  it('commitFocusedStageConfigs writes stage params to registry for piped entities', () => {
     const piped: RennWorld = {
       version: '1',
       world: {},
@@ -487,13 +488,102 @@ describe('pipeNavMutations pipe controls', () => {
       [{ type: 'car2', priority: 10, enabled: true, params: { power: 777 } }],
       ['s1'],
     )
-    expect(applied.transformers?.s1?.params).toBeUndefined()
-    expect(applied.entities[0]?.transformerPipeStack?.[0]?.params).toEqual({ power: 777 })
+    expect(applied.transformers?.s1?.params).toEqual({ power: 777 })
+    expect(applied.entities[0]?.transformerPipeStack?.[0]?.params).toBeUndefined()
     const display = resolveFocusedStageConfigs(applied, applied.entities[0]!, {
       path: focusPath,
       selectedSiblingIndex: 0,
     })
     expect(display.configs[0]?.params).toEqual({ power: 777 })
+  })
+
+  it('patchStageConfigInWorld updates registry only — pipe members and flatten unchanged', () => {
+    const world: RennWorld = {
+      version: '1',
+      world: {},
+      entities: [
+        {
+          id: 'e1',
+          transformers: ['s1', 's2'],
+          transformerPipeStack: [{ pipeId: 'p1' }],
+        },
+        {
+          id: 'e2',
+          transformers: ['s1', 's2'],
+          transformerPipeStack: [{ pipeId: 'p1' }],
+        },
+      ],
+      transformers: {
+        s1: { type: 'input', priority: 0 },
+        s2: { type: 'car2', priority: 7, params: { power: 400 } },
+      },
+      transformerPipes: {
+        p1: {
+          id: 'p1',
+          name: 'Pipe1',
+          stageIds: ['s1', 's2'],
+          stages: [],
+          members: [
+            { kind: 'stage', stageId: 's1' },
+            { kind: 'stage', stageId: 's2' },
+          ],
+        },
+      },
+    }
+    const patched = patchStageConfigInWorld(world, 's2', {
+      type: 'car2',
+      priority: 7,
+      enabled: true,
+      params: { power: 999, lateralGrip: 50 },
+    })
+    expect(patched.transformers?.s2?.params).toEqual({ power: 999, lateralGrip: 50 })
+    expect(patched.transformers?.s2?.priority).toBe(7)
+    expect(patched.transformers?.s1?.priority).toBe(0)
+    expect(patched.transformerPipes?.p1?.members).toEqual(world.transformerPipes?.p1?.members)
+    expect(patched.entities[0]?.transformers).toEqual(['s1', 's2'])
+    expect(patched.entities[1]?.transformers).toEqual(['s1', 's2'])
+  })
+
+  it('commitFocusedStageConfigs with orderedIds rewrites pipe members', () => {
+    const world: RennWorld = {
+      version: '1',
+      world: {},
+      entities: [
+        {
+          id: 'e1',
+          transformers: ['s1', 's2'],
+          transformerPipeStack: [{ pipeId: 'p1' }],
+        },
+      ],
+      transformers: {
+        s1: { type: 'input', priority: 0 },
+        s2: { type: 'car2', priority: 1 },
+      },
+      transformerPipes: {
+        p1: {
+          id: 'p1',
+          name: 'Pipe1',
+          stageIds: ['s1', 's2'],
+          stages: [],
+          members: [
+            { kind: 'stage', stageId: 's1' },
+            { kind: 'stage', stageId: 's2' },
+          ],
+        },
+      },
+    }
+    const reordered = commitFocusedStageConfigs(
+      world,
+      'e1',
+      [{ kind: 'stack', index: 0 }],
+      [world.transformers!.s2!, world.transformers!.s1!],
+      ['s2', 's1'],
+      ['s2', 's1'],
+    )
+    expect(reordered.transformerPipes?.p1?.members?.map((m) => (m.kind === 'stage' ? m.stageId : null))).toEqual([
+      's2',
+      's1',
+    ])
   })
 })
 

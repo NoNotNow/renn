@@ -129,8 +129,9 @@ function visitMembers(
     if (member.kind === 'stage') {
       const stageConfig = state.worldTransformers[member.stageId]
       const stageMemberEnabled = memberEnabled && (stageConfig?.enabled !== false)
+      const stageParamLayer = stageConfig?.params ? [stageConfig.params] : []
       const ctx: StageRuntimeContext = {
-        mergedParams: mergePipeParamLayers(layersWithPipe),
+        mergedParams: mergePipeParamLayers([...stageParamLayer, ...layersWithPipe]),
         effectivelyEnabled: stageMemberEnabled,
       }
       if (stageMemberEnabled) {
@@ -182,8 +183,9 @@ function walkCopyBindingStages(
   for (const stageId of binding.localStageIds ?? []) {
     const config = worldTransformers[stageId]
     const effectivelyEnabled = config?.enabled !== false
+    const stageParamLayer = config?.params ? [config.params] : []
     const ctx: StageRuntimeContext = {
-      mergedParams: mergePipeParamLayers(layers),
+      mergedParams: mergePipeParamLayers([...stageParamLayer, ...layers]),
       effectivelyEnabled,
     }
     if (effectivelyEnabled) {
