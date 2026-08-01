@@ -292,6 +292,39 @@ describe('WorkspaceTransformersTab', () => {
     expect(screen.getByTestId('pipe-focused-add-button')).toBeDefined()
   })
 
+  it('stays drilled into a pipe after clicking Open (no path reset flicker)', async () => {
+    const onEntryChange = vi.fn()
+    renderTab({
+      world: carStackWorld,
+      entry: {
+        entityId: 'car',
+        tab: 'transformers',
+        itemId: 'car_tf2',
+        pipeNavPath: [],
+        pipeNavSelectedIndex: 0,
+      },
+      onEntryChange,
+    })
+
+    expect(screen.getByTestId(`pipe-card-${CAR_PIPE_ID}`)).toBeDefined()
+    expect(screen.queryByTestId('transformer-horizontal-item-0')).toBeNull()
+
+    fireEvent.click(screen.getByTitle('Open pipe'))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('transformer-horizontal-item-0')).toBeDefined()
+      expect(screen.queryByTestId(`pipe-card-${CAR_PIPE_ID}`)).toBeNull()
+    })
+
+    expect(onEntryChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pipeNavPath: [{ kind: 'stack', index: 0 }],
+        pipeNavSelectedIndex: 0,
+        itemId: 'car_tf2',
+      }),
+    )
+  })
+
   it('auto-wraps a fresh entity in Pipe1 when opened in transformers tab', async () => {
     const user = userEvent.setup()
     const freshWorld: RennWorld = {

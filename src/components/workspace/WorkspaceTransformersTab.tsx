@@ -756,7 +756,10 @@ function WorkspaceTransformersTabEntity({
   )
 
   const changeSelectedIdWithFlush = useCallback(
-    (nextId: string) => {
+    (
+      nextId: string,
+      navOverride?: { path: PipeNavPathSegment[]; selectedSiblingIndex: number },
+    ) => {
       flushPendingCode()
       setSelectedId(nextId)
       onEntryChange?.({
@@ -765,8 +768,8 @@ function WorkspaceTransformersTabEntity({
         tab: 'transformers',
         itemId: nextId,
         itemSource: entry?.itemSource,
-        pipeNavPath: entry?.pipeNavPath ?? pipeNav.focus.path,
-        pipeNavSelectedIndex: entry?.pipeNavSelectedIndex ?? pipeNav.focus.selectedSiblingIndex,
+        pipeNavPath: navOverride?.path ?? pipeNav.focus.path,
+        pipeNavSelectedIndex: navOverride?.selectedSiblingIndex ?? pipeNav.focus.selectedSiblingIndex,
       })
     },
     [entry, entityIdsForEdit, flushPendingCode, onEntryChange, pipeNav.focus.path, pipeNav.focus.selectedSiblingIndex],
@@ -782,7 +785,7 @@ function WorkspaceTransformersTabEntity({
           ? resolvePreferredStageId(world, singleEntity, { path, selectedSiblingIndex })
           : undefined)
       if (stageId) {
-        changeSelectedIdWithFlush(stageId)
+        changeSelectedIdWithFlush(stageId, { path, selectedSiblingIndex })
       }
     },
     [changeSelectedIdWithFlush, flushPendingCode, pipeNav, singleEntity, world],
