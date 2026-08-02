@@ -1,4 +1,5 @@
 import { Component, type ReactNode, type ErrorInfo } from 'react'
+import { theme } from '@/config/theme'
 
 interface Props {
   children: ReactNode
@@ -69,8 +70,8 @@ export class ErrorBoundary extends Component<Props, State> {
             justifyContent: 'center',
             height: '100%',
             padding: '24px',
-            background: '#171a22',
-            color: '#e6e9f2',
+            background: theme.bg.errorFallback,
+            color: theme.text.primary,
           }}
         >
           <h1 style={{ fontSize: '24px', marginBottom: '16px' }}>Something went wrong</h1>
@@ -82,7 +83,7 @@ export class ErrorBoundary extends Component<Props, State> {
               onClick={() => window.location.reload()}
               style={{
                 padding: '8px 16px',
-                background: '#8ab4ff',
+                background: theme.accent,
                 color: 'white',
                 border: 'none',
                 borderRadius: '4px',
@@ -95,7 +96,7 @@ export class ErrorBoundary extends Component<Props, State> {
               onClick={this.handleCopy}
               style={{
                 padding: '8px 16px',
-                background: '#2f3545',
+                background: theme.border.default,
                 color: 'white',
                 border: 'none',
                 borderRadius: '4px',

@@ -74,6 +74,12 @@ export const theme = {
     gridBg: '#151820',
   },
   hint: '#6b7280',
+  switch: {
+    /** Filled track when the switch is on. */
+    on: '#2f9d6a',
+    /** Filled track when the switch is off. */
+    off: '#2a303d',
+  },
   status: {
     /** Enabled / success indicator dot. */
     enabled: '#4ade80',

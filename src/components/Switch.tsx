@@ -1,3 +1,5 @@
+import { theme } from '@/config/theme'
+
 export interface SwitchProps {
   checked: boolean
   onChange: (checked: boolean) => void
@@ -41,8 +43,8 @@ export default function Switch({
           width: buttonWidth,
           height: buttonHeight,
           borderRadius: buttonHeight / 2,
-          border: '1px solid #2f3545',
-          background: checked ? '#2f9d6a' : '#2a303d',
+          border: `1px solid ${theme.border.default}`,
+          background: checked ? theme.switch.on : theme.switch.off,
           cursor: disabled ? 'not-allowed' : 'pointer',
           position: 'relative',
         }}
@@ -55,7 +57,7 @@ export default function Switch({
             width: knobSize,
             height: knobSize,
             borderRadius: '50%',
-            background: '#e6e9f2',
+            background: theme.text.primary,
             boxShadow: '0 1px 3px rgba(0,0,0,0.5)',
             transition: 'left 0.15s ease',
           }}

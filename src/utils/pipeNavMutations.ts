@@ -18,7 +18,6 @@ import {
 export type CreatePipeOptions = {
   entityId: string
   name: string
-  mode: 'linked' | 'copy'
   /** Stage ids to wrap into the new pipe (from current focus). */
   stageIds: string[]
   /** Where to insert: entity stack sibling or member inside parent pipe. */
@@ -700,7 +699,6 @@ export function createEmptyPipe(
   return createPipeFromStages(world, {
     entityId,
     name,
-    mode: 'linked',
     stageIds: [],
     placement,
     parentPath,

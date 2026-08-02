@@ -432,6 +432,26 @@ The confirm flow needs the parent's `onUploadTexture` / `onCommitConvertedVideo`
 
 ---
 
+## Phase 18 — Dead exports, hex tokens, pipe type cleanup (completed, 2026-08-02)
+
+**Performance:** None — style-token swaps and type-field removal only.
+
+### Changes
+- **`monacoEscape.ts`:** Removed test-only `MONACO_ESCAPE_WIDGET_VISIBLE_WHEN` export (zero production consumers); tightened unit test to assert all negated popup clauses on `MONACO_ESCAPE_CLOSE_WORKSPACE_WHEN`.
+- **`pipeNavMutations.ts`:** Removed unused `mode` field from `CreatePipeOptions` / `createEmptyPipe` call (never read by `createPipeFromStages`).
+- **`theme.ts`:** Added `switch.on` / `switch.off` tokens; migrated **`Switch.tsx`** (border, track, knob) and **`ErrorBoundary.tsx`** (fallback bg, text, buttons) off inline hex.
+- **`Builder.workspacePersistence.integration.test.tsx`:** Dropped unused `loadWorkspaceEditorDraft` import (fixed `tsc --noEmit` TS6133).
+
+### Deferred
+- Remaining inline hex in `BuilderHeader`, `SceneView`, `TextureMaker/*`, etc. — migrate opportunistically when touching those files.
+- Transformer custom-code draft persistence across workspace close (scripts tab has it via draft map; transformers auto-commit on debounce — intentional asymmetry).
+
+### Tests
+- `npm run test:run` → 195 files / 1769 tests + 3 skipped.
+- `npx tsc --noEmit` → clean.
+
+---
+
 ## Phase 13 — `PropertyPanel.tsx` split into `propertyPanel/` sub-components (completed, 2026-04-19)
 
 **Performance:** Pure structural refactor. Same React subtree shape: each `CollapsibleSection` still mounts identically and the new section components are plain function components without `memo` (parent re-renders propagate the same way as before, identical to the inline JSX). No new effects, no per-frame work, no extra allocations. The `materialAllNull` / `materialAllSet` boolean derivations moved into `MaterialSection` (same arithmetic, same cost — just colocated with the only consumer).
@@ -515,7 +535,8 @@ The `SHAPE_FILTER_OPTIONS` constant moved into `EntityListPanel` (its only consu
 **Done in Phase 3 for:** `TextureDialog`, `WorldPanel`, `EntityScriptEditor`, `ScriptDialog`, `EntitySidebar`, `TransformerTemplateDialog`, `ScriptPanelMultiSelect`, `AvatarDialog`, `TransformerEditor`.
 **Done in Phase 4 for:** CSS files (`index.css`, `BrushToolPopover.css`, `TextureMaker.css`) — all shared values now reference `:root` CSS custom properties defined in `index.css`.
 **Done in Phase 6 for:** `Builder.tsx`, `MaterialEditor.tsx`, `ModelEditor.tsx`, `PropertyPanel.tsx`.
-**Still to migrate:** inline hex in remaining `.tsx` files (`SceneView`, `ShapeEditor`, `Switch`, `SoundPanel`, `BuilderHeader`, `BrushToolPopover`, `TextureMaker/*`, `PerformanceBoosterDialog`, `ScriptPanel`, `Play`, `DropdownMenu`, `ErrorBoundary`, snackbars, sidebars, thumbnails, `MenuBar`, `CopyContext`, etc.) — many one-off accents; migrate opportunistically.
+**Done in Phase 18 for:** `Switch.tsx`, `ErrorBoundary.tsx` (`theme.switch.*`, existing `bg.errorFallback` / `text.primary` / `accent` / `border.default`).
+**Still to migrate:** inline hex in remaining `.tsx` files (`SceneView`, `ShapeEditor`, `SoundPanel`, `BuilderHeader`, `BrushToolPopover`, `TextureMaker/*`, `PerformanceBoosterDialog`, `ScriptPanel`, `Play`, `DropdownMenu`, snackbars, sidebars, thumbnails, `MenuBar`, `CopyContext`, etc.) — many one-off accents; migrate opportunistically.
 
 ### Test coverage gaps
 
@@ -553,4 +574,4 @@ Critical modules without dedicated unit tests:
 - [x] Inspector pose polling isolated (`LivePosesPoll` → `PropertySidebar`, not full `Builder`)
 - [x] `npm run build` (`tsc -b && vite build`) clean — 5 pre-existing TS errors fixed in Phase 13b (useEditorHistory typing, builderColumnRef typing, WorldPanel.test plane shape, scriptCtx.test mock tuple, integration test private access).
 
-Run `npm run test:run` after further edits (currently **134** test files, **1125** tests + 3 skipped — Phase 14 added two hook test files and 19 tests). `npm run build` should also stay clean: it passes `tsc -b` and is the recommended pre-PR check. In `performance-benchmarks.integration.test.ts`, the **Heap growth** and **Scaling linearity** describes are skipped unless `RUN_PERF_BENCHMARKS=1` (use `npm run test:perf`) so agents avoid flaky wall-clock/heap thresholds; run that before Rapier/frame-loop/allocation hot-path changes.
+Run `npm run test:run` after further edits (currently **195** test files, **1769** tests + 3 skipped). `npm run build` should also stay clean: it passes `tsc -b` and is the recommended pre-PR check. In `performance-benchmarks.integration.test.ts`, the **Heap growth** and **Scaling linearity** describes are skipped unless `RUN_PERF_BENCHMARKS=1` (use `npm run test:perf`) so agents avoid flaky wall-clock/heap thresholds; run that before Rapier/frame-loop/allocation hot-path changes.

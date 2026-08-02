@@ -10,7 +10,6 @@ import type { RennWorld } from '@/types/world'
 import {
   clearWorkspaceEditorViewStateStoreForTests,
   loadWorkspaceEditorViewState,
-  loadWorkspaceEditorDraft,
   workspaceEditorItemKey,
   type WorkspaceEditorViewState,
 } from '@/utils/workspaceEditorViewState'
