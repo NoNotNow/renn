@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import 'fake-indexeddb/auto'
 import { act, render, screen, fireEvent, waitFor, within } from '@testing-library/react'
-import { useState, type ReactElement } from 'react'
+import { useEffect, useRef, useState, type ReactElement } from 'react'
 import Workspace from './Workspace'
 import { resetWorkspaceEditorInitialRefreshForTests, WORKSPACE_EDITOR_OPEN_REFRESH_MS } from './workspaceMonacoSession'
 import { clearWorkspaceEditorViewStateStoreForTests, loadWorkspaceEditorDraft } from '@/utils/workspaceEditorViewState'
@@ -15,11 +15,70 @@ import type { GlobalBehaviorLibrary } from '@/types/globalBehaviorLibrary'
 import { clearCustomTransformerRuntimeError } from '@/runtime/customTransformerErrorBridge'
 
 const monacoMount = vi.hoisted(() => ({ count: 0 }))
+const monacoEditorFocused = vi.hoisted(() => ({ current: false }))
 
 vi.mock('@monaco-editor/react', () => ({
-  default: function MockMonacoEditor() {
+  default: function MockMonacoEditor({
+    onMount,
+    defaultValue,
+  }: {
+    onMount?: (
+      ed: {
+        getValue: () => string
+        getModel: () => { getValue: () => string; getFullModelRange: () => object }
+        hasTextFocus: () => boolean
+        addCommand: (...args: unknown[]) => void
+        saveViewState: () => null
+        executeEdits: (...args: unknown[]) => void
+        restoreViewState: (...args: unknown[]) => void
+        layout: () => void
+        onDidChangeCursorPosition: () => { dispose: () => void }
+        onDidScrollChange: () => { dispose: () => void }
+        onDidDispose: (cb: () => void) => void
+      },
+      monaco: {
+        KeyCode: { Escape: number }
+        editor: { defineTheme: (...args: unknown[]) => void }
+        languages: {
+          typescript: {
+            typescriptDefaults: { addExtraLib: (...args: unknown[]) => { dispose: () => void } }
+            javascriptDefaults: { addExtraLib: (...args: unknown[]) => { dispose: () => void } }
+          }
+        }
+      },
+    ) => void
+    defaultValue?: string
+  }) {
     monacoMount.count += 1
-    return <div data-testid="mock-monaco-editor" />
+    const mountedRef = useRef(false)
+    useEffect(() => {
+      if (mountedRef.current || !onMount) return
+      mountedRef.current = true
+      const ed = {
+        getValue: () => defaultValue ?? '',
+        getModel: () => ({ getValue: () => defaultValue ?? '', getFullModelRange: () => ({}) }),
+        hasTextFocus: () => monacoEditorFocused.current,
+        addCommand: vi.fn(),
+        saveViewState: () => null,
+        executeEdits: vi.fn(),
+        restoreViewState: vi.fn(),
+        layout: vi.fn(),
+        onDidChangeCursorPosition: () => ({ dispose: vi.fn() }),
+        onDidScrollChange: () => ({ dispose: vi.fn() }),
+        onDidDispose: () => {},
+      }
+      onMount(ed, {
+        KeyCode: { Escape: 9 },
+        editor: { defineTheme: vi.fn() },
+        languages: {
+          typescript: {
+            typescriptDefaults: { addExtraLib: vi.fn(() => ({ dispose: vi.fn() })) },
+            javascriptDefaults: { addExtraLib: vi.fn(() => ({ dispose: vi.fn() })) },
+          },
+        },
+      })
+    }, [onMount, defaultValue])
+    return <div data-testid="mock-monaco-editor" className="monaco-editor" />
   },
 }))
 
@@ -366,7 +425,7 @@ describe('Workspace', () => {
     expect(screen.getByTestId('workspace-organize-card-script-my_script')).toBeInTheDocument()
   })
 
-  it('closes on Escape', () => {
+  it('closes on Escape when Monaco is not focused', () => {
     const onClose = vi.fn()
     renderWorkspace(
       <Workspace
@@ -380,6 +439,27 @@ describe('Workspace', () => {
     )
     fireEvent.keyDown(document, { key: 'Escape', shiftKey: false })
     expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not close on document Escape while Monaco editor has focus', async () => {
+    const onClose = vi.fn()
+    monacoEditorFocused.current = true
+    renderWorkspace(
+      <Workspace
+        open
+        onClose={onClose}
+        entry={{ entityId: 'e1', tab: 'scripts', itemId: 'my_script' }}
+        world={worldWithScript}
+        selectedEntityIds={['e1']}
+        onWorldChange={vi.fn()}
+      />,
+    )
+    await waitFor(() => {
+      expect(screen.getByTestId('mock-monaco-editor')).toBeInTheDocument()
+    })
+    fireEvent.keyDown(document, { key: 'Escape', shiftKey: false })
+    expect(onClose).not.toHaveBeenCalled()
+    monacoEditorFocused.current = false
   })
 
   it('closes when clicking the × control', () => {

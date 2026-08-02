@@ -716,6 +716,10 @@ function WorkspaceTransformersTabEntity({
       return
     }
     const worldCode = effectiveCustomTransformerCode(selectedConfig)
+    if (codeDraftRef.current === worldCode) {
+      lastCommittedCodeRef.current = worldCode
+      return
+    }
     setCodeDraft(worldCode)
     lastCommittedCodeRef.current = worldCode
     codeUndoPrimedRef.current = false

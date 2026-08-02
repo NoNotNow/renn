@@ -8,6 +8,7 @@ import { ctxDeclFor, CTX_EXTRA_LIB_URI } from '@/scripts/scriptCtxDecl'
 import type { ScriptEvent } from '@/types/world'
 import { clamp } from '@/utils/numberUtils'
 import { theme } from '@/config/theme'
+import { MONACO_ESCAPE_CLOSE_WORKSPACE_WHEN } from '@/utils/monacoEscape'
 
 export const CUSTOM_CODE_EDITOR_HEIGHT_MIN_PX = 160
 export const CUSTOM_CODE_EDITOR_HEIGHT_MAX_PX = 720
@@ -50,6 +51,8 @@ export interface TransformerCustomCodeEditorProps {
   modelPath?: string
   /** Fires after the delayed layout pass (scroll restore should run here). */
   onAfterDelayedLayout?: () => void
+  /** Escape with no Monaco popup open (suggest, parameter hints, etc.). */
+  onEscape?: () => void
   /** Fires once after Monaco mounts with the editor instance. */
   onEditorReady?: (ed: editor.IStandaloneCodeEditor) => void
   /**
@@ -74,11 +77,17 @@ export default function TransformerCustomCodeEditor({
   delayedLayoutMs,
   modelPath,
   onAfterDelayedLayout,
+  onEscape,
   onEditorReady,
   codeIntelliSense = 'transformer',
   scriptCtxEvent = 'onUpdate',
 }: TransformerCustomCodeEditorProps) {
   const [monacoInstance, setMonacoInstance] = useState<typeof import('monaco-editor') | null>(null)
+  const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null)
+  const onEscapeRef = useRef(onEscape)
+  onEscapeRef.current = onEscape
+  /** Last value emitted via onChange — skips echoing controlled updates back into Monaco while typing. */
+  const lastEmittedValueRef = useRef(value)
   const extraLibRef = useRef<{ dispose(): void } | null>(null)
   const resizeDragRef = useRef<{ startY: number; startHeight: number } | null>(null)
   const delayedLayoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -113,6 +122,40 @@ export default function TransformerCustomCodeEditor({
   }, [transparent])
 
   useEffect(() => {
+    lastEmittedValueRef.current = value
+  }, [modelPath])
+
+  /** Push parent value changes that did not originate from this editor (item switch, template, undo). */
+  useEffect(() => {
+    const ed = editorRef.current
+    if (!ed) return
+    if (value === lastEmittedValueRef.current) return
+    const model = ed.getModel()
+    if (!model || model.getValue() === value) {
+      lastEmittedValueRef.current = value
+      return
+    }
+    const viewState = ed.saveViewState()
+    ed.executeEdits('external-sync', [
+      {
+        range: model.getFullModelRange(),
+        text: value,
+        forceMoveMarkers: true,
+      },
+    ])
+    if (viewState) ed.restoreViewState(viewState)
+    lastEmittedValueRef.current = value
+  }, [value])
+
+  const handleEditorChange = useCallback(
+    (next: string) => {
+      lastEmittedValueRef.current = next
+      onChange(next)
+    },
+    [onChange],
+  )
+
+  useEffect(() => {
     if (!monacoInstance) return
     extraLibRef.current?.dispose()
     if (codeIntelliSense === 'script') {
@@ -140,6 +183,8 @@ export default function TransformerCustomCodeEditor({
   }, [])
 
   const handleMount: OnMount = (ed, monaco) => {
+    editorRef.current = ed
+    lastEmittedValueRef.current = ed.getValue()
     setMonacoInstance(monaco)
     if (transparent) {
       monaco.editor.defineTheme(GLASS_THEME, {
@@ -167,6 +212,11 @@ export default function TransformerCustomCodeEditor({
         ed.layout()
         onAfterDelayedLayout?.()
       }, delayedLayoutMs)
+    }
+    if (onEscapeRef.current) {
+      ed.addCommand(monaco.KeyCode.Escape, () => {
+        onEscapeRef.current?.()
+      }, MONACO_ESCAPE_CLOSE_WORKSPACE_WHEN)
     }
     onEditorReady?.(ed)
   }
@@ -217,8 +267,8 @@ export default function TransformerCustomCodeEditor({
             language="javascript"
             theme={monacoTheme}
             path={modelPath}
-            value={value}
-            onChange={(v) => onChange(v ?? '')}
+            defaultValue={value}
+            onChange={(v) => handleEditorChange(v ?? '')}
             onMount={handleMount}
             options={{
               minimap: { enabled: false },
@@ -240,8 +290,8 @@ export default function TransformerCustomCodeEditor({
           language="javascript"
           theme={monacoTheme}
           path={modelPath}
-          value={value}
-          onChange={(v) => onChange(v ?? '')}
+          defaultValue={value}
+          onChange={(v) => handleEditorChange(v ?? '')}
           onMount={handleMount}
           options={{
             minimap: { enabled: false },
