@@ -10,6 +10,7 @@ import type { RennWorld } from '@/types/world'
 import {
   clearWorkspaceEditorViewStateStoreForTests,
   loadWorkspaceEditorViewState,
+  loadWorkspaceEditorDraft,
   workspaceEditorItemKey,
   type WorkspaceEditorViewState,
 } from '@/utils/workspaceEditorViewState'
@@ -428,6 +429,51 @@ describe('Builder workspace persistence integration', () => {
           pipeNavPath: stackPath,
         })!,
       ))).toBe(0)
+    },
+    60_000,
+  )
+
+  it(
+    'close and reopen workspace restores Monaco scroll and cursor for the same transformer',
+    async () => {
+      const user = userEvent.setup()
+      renderBuilder()
+      await settleBuilder()
+
+      await openEntitiesTab(user)
+      await selectEntityByName(user, 'Player Car')
+      await openWorkspace(user)
+      await ensurePipeNavOpen()
+      await waitForPlayerCarPipeWrap()
+      await addCustomTransformer(user)
+      await drillIntoPipeInTree('Player Car', 'Pipe1')
+
+      fireEvent.click(screen.getByTestId('transformer-horizontal-item-2'))
+      await waitFor(() => {
+        expect(monacoEl().getAttribute('data-monaco-value')).toContain('return {')
+      })
+
+      monacoHarness.scrollTop = 320
+      monacoHarness.lineNumber = 15
+      monacoHarness.column = 4
+
+      await closeWorkspace(user)
+      await openWorkspace(user)
+
+      await waitFor(() => {
+        expect(monacoEl().getAttribute('data-monaco-scroll')).toBe('320')
+        expect(monacoEl().getAttribute('data-monaco-line')).toBe('15')
+      })
+
+      const carId = entityByName(currentWorld(), 'Player Car')!.id
+      const customId = customTransformerId(currentWorld(), carId)
+      const editorKey = workspaceEditorItemKey({
+        entityId: carId,
+        tab: 'transformers',
+        itemId: customId,
+        pipeNavPath: [{ kind: 'stack', index: 0 }],
+      })!
+      expect(viewStateScrollTop(loadWorkspaceEditorViewState(editorKey))).toBe(320)
     },
     60_000,
   )

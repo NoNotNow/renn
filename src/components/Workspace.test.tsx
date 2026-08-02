@@ -4,6 +4,7 @@ import { act, render, screen, fireEvent, waitFor, within } from '@testing-librar
 import { useState, type ReactElement } from 'react'
 import Workspace from './Workspace'
 import { resetWorkspaceEditorInitialRefreshForTests, WORKSPACE_EDITOR_OPEN_REFRESH_MS } from './workspaceMonacoSession'
+import { clearWorkspaceEditorViewStateStoreForTests, loadWorkspaceEditorDraft } from '@/utils/workspaceEditorViewState'
 import type { WorkspaceTarget } from '@/types/workspace'
 import type { RennWorld } from '@/types/world'
 import type { TransformerDef } from '@/types/transformer'
@@ -119,6 +120,7 @@ describe('Workspace', () => {
   beforeEach(() => {
     monacoMount.count = 0
     resetWorkspaceEditorInitialRefreshForTests()
+    clearWorkspaceEditorViewStateStoreForTests()
     let persisted: GlobalBehaviorLibrary = { transformers: {}, scripts: {} }
     vi.spyOn(defaultPersistence, 'loadGlobalBehaviorLibrary').mockImplementation(async () => persisted)
     vi.spyOn(defaultPersistence, 'saveGlobalBehaviorLibrary').mockImplementation(async (next: GlobalBehaviorLibrary) => {
@@ -542,6 +544,84 @@ describe('Workspace', () => {
     fireEvent.click(screen.getByTestId('workspace-tab-transformers'))
     expect(onEntryChange).toHaveBeenCalledWith(
       expect.objectContaining({ entityId: 'e1', tab: 'transformers', itemId: 'my_script' }),
+    )
+  })
+
+  it('preserves unapplied script draft across workspace close and reopen', async () => {
+    const onClose = vi.fn()
+    const { rerender } = renderWorkspace(
+      <Workspace
+        open
+        onClose={onClose}
+        entry={{ entityId: 'e1', tab: 'scripts', itemId: 'my_script' }}
+        world={worldWithScript}
+        selectedEntityIds={['e1']}
+        onWorldChange={vi.fn()}
+      />,
+    )
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-tab-scripts')).toHaveAttribute('aria-selected', 'true')
+    })
+
+    const draftKey = 'e1:scripts:my_script:_root'
+    const { saveWorkspaceEditorDraft } = await import('@/utils/workspaceEditorViewState')
+    saveWorkspaceEditorDraft(draftKey, '// edited while workspace was open')
+
+    fireEvent.click(screen.getByTestId('workspace-close'))
+    expect(onClose).toHaveBeenCalledTimes(1)
+
+    rerender(
+      <CopyProvider>
+        <EditorUndoProvider value={undoApi}>
+          <Workspace
+            open
+            onClose={onClose}
+            entry={{ entityId: 'e1', tab: 'scripts', itemId: 'my_script' }}
+            world={worldWithScript}
+            selectedEntityIds={['e1']}
+            onWorldChange={vi.fn()}
+          />
+        </EditorUndoProvider>
+      </CopyProvider>,
+    )
+
+    await waitFor(() => {
+      expect(loadWorkspaceEditorDraft(draftKey)).toBe('// edited while workspace was open')
+    })
+  })
+
+  it('preserves pipeNavPath when switching shell tabs', async () => {
+    const onEntryChange = vi.fn()
+    const stackPath = [{ kind: 'stack' as const, index: 0 }]
+    renderWorkspace(
+      <Workspace
+        open
+        onClose={vi.fn()}
+        entry={{
+          entityId: 'e1',
+          tab: 'scripts',
+          itemId: 'my_script',
+          pipeNavPath: stackPath,
+          pipeNavSelectedIndex: 1,
+        }}
+        world={worldWithScript}
+        selectedEntityIds={['e1']}
+        onWorldChange={vi.fn()}
+        onEntryChange={onEntryChange}
+      />,
+    )
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-tab-scripts')).toHaveAttribute('aria-selected', 'true')
+    })
+    fireEvent.click(screen.getByTestId('workspace-tab-transformers'))
+    expect(onEntryChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityId: 'e1',
+        tab: 'transformers',
+        itemId: 'my_script',
+        pipeNavPath: stackPath,
+        pipeNavSelectedIndex: 1,
+      }),
     )
   })
 

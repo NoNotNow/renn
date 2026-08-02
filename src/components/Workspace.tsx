@@ -214,6 +214,8 @@ export default function Workspace({
   const [monacoChrome, setMonacoChrome] = useState<WorkspaceMonacoEditorChrome | null>(null)
   const [monacoEditorAreaEpoch, setMonacoEditorAreaEpoch] = useState(0)
   const [monacoPayload, setMonacoPayload] = useState<WorkspaceMonacoPayload>(IDLE_MONACO)
+  const monacoPayloadRef = useRef(monacoPayload)
+  monacoPayloadRef.current = monacoPayload
   const [editorOpenRefreshNonce, setEditorOpenRefreshNonce] = useState(0)
   const [manualMonacoRefreshNonce, setManualMonacoRefreshNonce] = useState(0)
 
@@ -243,34 +245,78 @@ export default function Workspace({
   const prevEditorItemKeyRef = useRef<string | null>(null)
   const editorItemKeyRef = useRef<string | null>(null)
   editorItemKeyRef.current = editorItemKey
+  /** Ignore scroll/cursor saves briefly after programmatic restore (Monaco emits scroll=0). */
+  const suppressViewStateSaveUntilRef = useRef(0)
 
-  const persistEditorViewState = useCallback(() => {
+  const persistEditorViewStateForKey = useCallback((key: string | null, opts?: { force?: boolean }) => {
+    if (!opts?.force && performance.now() < suppressViewStateSaveUntilRef.current) return
     const ed = monacoEditorRef.current
-    const prevKey = prevEditorItemKeyRef.current
-    if (!ed || !prevKey) return
+    if (!ed || !key) return
     const state = ed.saveViewState()
-    if (state) saveWorkspaceEditorViewState(prevKey, state)
+    if (state) saveWorkspaceEditorViewState(key, state)
   }, [])
 
-  useEffect(() => {
+  const persistEditorViewState = useCallback(() => {
+    persistEditorViewStateForKey(prevEditorItemKeyRef.current, { force: true })
+  }, [persistEditorViewStateForKey])
+
+  const restoreEditorViewState = useCallback((ed: editor.IStandaloneCodeEditor, key: string) => {
+    const saved = loadWorkspaceEditorViewState(key)
+    if (!saved) return
+    suppressViewStateSaveUntilRef.current = performance.now() + 400
+    ed.restoreViewState(saved)
+    const scrollTop = (saved as { scrollTop?: number }).scrollTop
+    if (scrollTop != null && scrollTop > 0) {
+      ed.setScrollTop(scrollTop)
+    }
+  }, [])
+
+  const restoreTimersRef = useRef<number[]>([])
+
+  const clearRestoreTimers = useCallback(() => {
+    for (const id of restoreTimersRef.current) {
+      window.clearTimeout(id)
+    }
+    restoreTimersRef.current = []
+  }, [])
+
+  /** Restore after @monaco-editor/react applies controlled `value` (its sync runs in useEffect). */
+  const scheduleRestoreEditorViewState = useCallback(() => {
+    clearRestoreTimers()
+    const key = editorItemKeyRef.current
+    const ed = monacoEditorRef.current
+    if (!ed || !key) return
+
+    const restore = (): void => {
+      if (editorItemKeyRef.current !== key) return
+      restoreEditorViewState(ed, key)
+    }
+
+    restore()
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(restore)
+    })
+    for (const delayMs of [0, 50, 220, 300]) {
+      restoreTimersRef.current.push(window.setTimeout(restore, delayMs))
+    }
+  }, [clearRestoreTimers, restoreEditorViewState])
+
+  /** Save outgoing item view state before the next item's model/value loads. */
+  useLayoutEffect(() => {
     const prevKey = prevEditorItemKeyRef.current
     if (prevKey && prevKey !== editorItemKey) {
-      persistEditorViewState()
+      persistEditorViewStateForKey(prevKey, { force: true })
     }
     prevEditorItemKeyRef.current = editorItemKey
-  }, [editorItemKey, persistEditorViewState])
+  }, [editorItemKey, persistEditorViewStateForKey])
 
   useEffect(() => {
-    if (open) return
-    persistEditorViewState()
-  }, [open, persistEditorViewState])
+    if (!open || !editorItemKey) return
+    scheduleRestoreEditorViewState()
+    return clearRestoreTimers
+  }, [open, editorItemKey, monacoPayload.value, scheduleRestoreEditorViewState, clearRestoreTimers])
 
-  useEffect(() => {
-    const ed = monacoEditorRef.current
-    if (!ed || !editorItemKey) return
-    const saved = loadWorkspaceEditorViewState(editorItemKey)
-    if (saved) ed.restoreViewState(saved)
-  }, [editorItemKey])
+  useEffect(() => () => clearRestoreTimers(), [clearRestoreTimers])
 
   useEffect(() => {
     const wasOpen = prevOpenRef.current
@@ -352,29 +398,42 @@ export default function Workspace({
       setActiveTab(id)
       if (!onEntryChange) return
       const entityId = resolveEntityId()
+      const editorAnchor = {
+        itemId: entry?.itemId,
+        itemSource: entry?.itemSource,
+        pipeNavPath: entry?.pipeNavPath,
+        pipeNavSelectedIndex: entry?.pipeNavSelectedIndex,
+      }
       if (id === 'organize') {
         onEntryChange({
           entityId,
           tab: 'organize',
           organize: entry?.organize ?? { scope: 'project', kind: 'transformers' },
+          ...editorAnchor,
         })
       } else if (id === 'transformers') {
         onEntryChange({
           entityId,
           tab: 'transformers',
-          itemId: entry?.itemId,
-          itemSource: entry?.itemSource,
+          ...editorAnchor,
         })
       } else {
         onEntryChange({
           entityId,
           tab: 'scripts',
-          itemId: entry?.itemId,
-          itemSource: entry?.itemSource,
+          ...editorAnchor,
         })
       }
     },
-    [entry?.itemId, entry?.itemSource, entry?.organize, onEntryChange, resolveEntityId],
+    [
+      entry?.itemId,
+      entry?.itemSource,
+      entry?.organize,
+      entry?.pipeNavPath,
+      entry?.pipeNavSelectedIndex,
+      onEntryChange,
+      resolveEntityId,
+    ],
   )
 
   const navigateToEditorFromOrganize = useCallback(
@@ -418,8 +477,10 @@ export default function Workspace({
   )
 
   const close = useCallback(() => {
+    persistEditorViewState()
+    monacoPayloadRef.current.beforeRefresh?.()
     onClose()
-  }, [onClose])
+  }, [onClose, persistEditorViewState])
 
   useEffect(() => {
     if (!open) return
@@ -470,20 +531,22 @@ export default function Workspace({
   const monacoScriptEvent =
     monacoPayload.kind === 'script-js' ? monacoPayload.scriptEvent : undefined
 
+  const handleAfterDelayedLayout = useCallback(() => {
+    scheduleRestoreEditorViewState()
+  }, [scheduleRestoreEditorViewState])
+
   const handleMonacoEditorReady = useCallback((ed: editor.IStandaloneCodeEditor) => {
     monacoEditorRef.current = ed
-    const restoreKey = editorItemKeyRef.current
-    if (restoreKey) {
-      const saved = loadWorkspaceEditorViewState(restoreKey)
-      if (saved) ed.restoreViewState(saved)
-    }
+    scheduleRestoreEditorViewState()
     const disposeCursor = ed.onDidChangeCursorPosition(() => {
+      if (performance.now() < suppressViewStateSaveUntilRef.current) return
       const key = editorItemKeyRef.current
       if (!key) return
       const state = ed.saveViewState()
       if (state) saveWorkspaceEditorViewState(key, state)
     })
     const disposeScroll = ed.onDidScrollChange(() => {
+      if (performance.now() < suppressViewStateSaveUntilRef.current) return
       const key = editorItemKeyRef.current
       if (!key) return
       const state = ed.saveViewState()
@@ -493,7 +556,7 @@ export default function Workspace({
       disposeCursor.dispose()
       disposeScroll.dispose()
     })
-  }, [])
+  }, [scheduleRestoreEditorViewState])
 
   const monacoEditor = useMemo(() => {
     if (activeTab !== 'transformers' && activeTab !== 'scripts') return null
@@ -503,6 +566,8 @@ export default function Workspace({
         key={`ws-monaco-${activeTab}-${monacoPayload.refreshKey}-${editorOpenRefreshNonce}-${manualMonacoRefreshNonce}`}
         transparent={shellGlass}
         delayedLayoutMs={200}
+        modelPath={editorItemKey ?? undefined}
+        onAfterDelayedLayout={handleAfterDelayedLayout}
         value={monacoPayload.value}
         onChange={monacoPayload.onChange}
         disabled={monacoPayload.disabled}
@@ -523,6 +588,8 @@ export default function Workspace({
     monacoScriptEvent,
     shellGlass,
     handleMonacoEditorReady,
+    handleAfterDelayedLayout,
+    editorItemKey,
   ])
 
   const monacoSlot =

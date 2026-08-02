@@ -585,9 +585,12 @@ export default function Builder() {
   )
 
   const handleCloseWorkspace = useCallback(() => {
+    if (workspaceEntry?.entityId) {
+      workspaceSessionMemoryRef.current.save(workspaceEntry.entityId, workspaceEntry)
+    }
     setWorkspaceOpen(false)
     uiLogger.click('Builder', 'Close workspace', {})
-  }, [])
+  }, [workspaceEntry])
 
   const handleGizmoModeChange = useCallback((mode: BuilderGizmoMode) => {
     setGizmoMode(mode)

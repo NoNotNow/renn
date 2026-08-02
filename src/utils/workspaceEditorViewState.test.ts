@@ -3,6 +3,9 @@ import {
   clearWorkspaceEditorViewStateStoreForTests,
   loadWorkspaceEditorViewState,
   saveWorkspaceEditorViewState,
+  saveWorkspaceEditorDraft,
+  loadWorkspaceEditorDraft,
+  deleteWorkspaceEditorDraft,
   workspaceEditorItemKey,
   type WorkspaceEditorViewState,
 } from './workspaceEditorViewState'
@@ -44,5 +47,13 @@ describe('workspaceEditorViewState', () => {
     saveWorkspaceEditorViewState(key, state)
     expect(loadWorkspaceEditorViewState(key)).toEqual(state)
     expect(loadWorkspaceEditorViewState('missing')).toBeUndefined()
+  })
+
+  it('round-trips saved editor draft by key', () => {
+    const key = 'car:scripts:scr1:_root'
+    saveWorkspaceEditorDraft(key, '// unapplied edit')
+    expect(loadWorkspaceEditorDraft(key)).toBe('// unapplied edit')
+    deleteWorkspaceEditorDraft(key)
+    expect(loadWorkspaceEditorDraft(key)).toBeUndefined()
   })
 })

@@ -8,6 +8,12 @@ import { getScriptDef } from '@/scripts/scriptDef'
 import { uiLogger } from '@/utils/uiLogger'
 import { theme } from '@/config/theme'
 import EntitySearchPicker from '@/components/entitySearch/EntitySearchPicker'
+import {
+  deleteWorkspaceEditorDraft,
+  loadWorkspaceEditorDraft,
+  saveWorkspaceEditorDraft,
+  workspaceEditorItemKey,
+} from '@/utils/workspaceEditorViewState'
 
 function strHash(s: string): number {
   let h = 0
@@ -166,10 +172,25 @@ function WorkspaceScriptsTabEntity({
   const event = def?.event ?? 'onUpdate'
   const interval = def?.event === 'onTimer' ? def.interval : 1
 
+  const editorDraftKey = useMemo(
+    () =>
+      workspaceEditorItemKey({
+        entityId: entry?.entityId ?? selectedEntityIds[0],
+        tab: 'scripts',
+        itemId: selectedId ?? undefined,
+      }),
+    [entry?.entityId, selectedEntityIds, selectedId],
+  )
+
   const [draftSource, setDraftSource] = useState(source)
   useLayoutEffect(() => {
-    setDraftSource(source)
-  }, [selectedId, source])
+    if (!selectedId) {
+      setDraftSource('')
+      return
+    }
+    const stored = editorDraftKey ? loadWorkspaceEditorDraft(editorDraftKey) : undefined
+    setDraftSource(stored ?? source)
+  }, [selectedId, source, editorDraftKey])
 
   const handleApply = () => {
     if (!selectedId) return
@@ -184,6 +205,7 @@ function WorkspaceScriptsTabEntity({
       ...world,
       scripts: { ...scripts, [selectedId]: nextDef },
     })
+    if (editorDraftKey) deleteWorkspaceEditorDraft(editorDraftKey)
   }
 
   const isDirty = draftSource !== source
@@ -258,9 +280,24 @@ function WorkspaceScriptsTabEntity({
   const entitiesUsingSelectedScript = selectedId ? getEntitiesUsingScript(world, selectedId) : []
   const isSharedScript = entitiesUsingSelectedScript.length > 1
 
-  const handleDraftChange = useCallback((text: string) => {
-    setDraftSource(text)
-  }, [])
+  const handleDraftChange = useCallback(
+    (text: string) => {
+      setDraftSource(text)
+      if (editorDraftKey) saveWorkspaceEditorDraft(editorDraftKey, text)
+    },
+    [editorDraftKey],
+  )
+
+  const persistScriptDraft = useCallback(() => {
+    if (!editorDraftKey || draftSource === source) return
+    saveWorkspaceEditorDraft(editorDraftKey, draftSource)
+  }, [editorDraftKey, draftSource, source])
+
+  useEffect(() => {
+    return () => {
+      persistScriptDraft()
+    }
+  }, [persistScriptDraft])
 
   const entityDisplayName =
     selectedEntities.length === 0
@@ -299,8 +336,9 @@ function WorkspaceScriptsTabEntity({
       disabled: false,
       refreshKey: strHash(selectedId ?? ''),
       scriptEvent: event,
+      beforeRefresh: persistScriptDraft,
     }
-  }, [noEntity, hasScriptSelection, draftSource, handleDraftChange, event, selectedId])
+  }, [noEntity, hasScriptSelection, draftSource, handleDraftChange, event, selectedId, persistScriptDraft])
 
   useLayoutEffect(() => {
     setMonacoPayload(monacoPayload)

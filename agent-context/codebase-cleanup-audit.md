@@ -413,6 +413,25 @@ The confirm flow needs the parent's `onUploadTexture` / `onCommitConvertedVideo`
 
 ---
 
+## Phase 17 — Pipe nav entry sync loose ends (completed, 2026-08-02)
+
+**Performance:** None — event-driven `onEntryChange` only; no hot paths touched.
+
+### Changes
+- **`Workspace.tsx` — `handleShellTabClick`:** Preserve `pipeNavPath`, `pipeNavSelectedIndex`, `itemId`, and `itemSource` when switching Transformers ↔ Scripts ↔ Organize. Previously tab switches dropped pipe depth (same class of bug as the Open-button flicker fixed in `WorkspaceTransformersTab.tsx`).
+- **`Workspace.test.tsx`:** Regression test `preserves pipeNavPath when switching shell tabs`.
+- **`agent-context/feature-workspace.md`:** Documented shell tab anchor preservation.
+
+### Deferred
+- **`usePipeNavController` focus→entry sync effect** still lists full `entry` in deps; harmless after atomic path writes but could be narrowed in a future pass if redundant `onEntryChange` calls show up in profiling.
+- **Structural pipe ops** (`createPipe`, `addExisting`) rely on `setPath` + controller sync effect rather than explicit entry writes; one-frame settle is acceptable.
+
+### Tests
+- `Workspace.test.tsx` — new tab-switch preservation test.
+- Full suite via `npm run test:run`.
+
+---
+
 ## Phase 13 — `PropertyPanel.tsx` split into `propertyPanel/` sub-components (completed, 2026-04-19)
 
 **Performance:** Pure structural refactor. Same React subtree shape: each `CollapsibleSection` still mounts identically and the new section components are plain function components without `memo` (parent re-renders propagate the same way as before, identical to the inline JSX). No new effects, no per-frame work, no extra allocations. The `materialAllNull` / `materialAllSet` boolean derivations moved into `MaterialSection` (same arithmetic, same cost — just colocated with the only consumer).

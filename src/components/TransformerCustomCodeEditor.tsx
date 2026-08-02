@@ -46,6 +46,10 @@ export interface TransformerCustomCodeEditorProps {
   transparent?: boolean
   /** If set (ms ≥ 0), call `editor.layout()` once after this delay (helps flex/portal hosts). */
   delayedLayoutMs?: number
+  /** Stable Monaco model path — isolates view state per edited item (@monaco-editor/react `path`). */
+  modelPath?: string
+  /** Fires after the delayed layout pass (scroll restore should run here). */
+  onAfterDelayedLayout?: () => void
   /** Fires once after Monaco mounts with the editor instance. */
   onEditorReady?: (ed: editor.IStandaloneCodeEditor) => void
   /**
@@ -68,6 +72,8 @@ export default function TransformerCustomCodeEditor({
   maxHeightPx = CUSTOM_CODE_EDITOR_HEIGHT_MAX_PX,
   transparent = false,
   delayedLayoutMs,
+  modelPath,
+  onAfterDelayedLayout,
   onEditorReady,
   codeIntelliSense = 'transformer',
   scriptCtxEvent = 'onUpdate',
@@ -159,6 +165,7 @@ export default function TransformerCustomCodeEditor({
       delayedLayoutTimerRef.current = setTimeout(() => {
         delayedLayoutTimerRef.current = null
         ed.layout()
+        onAfterDelayedLayout?.()
       }, delayedLayoutMs)
     }
     onEditorReady?.(ed)
@@ -209,6 +216,7 @@ export default function TransformerCustomCodeEditor({
             height="100%"
             language="javascript"
             theme={monacoTheme}
+            path={modelPath}
             value={value}
             onChange={(v) => onChange(v ?? '')}
             onMount={handleMount}
@@ -231,6 +239,7 @@ export default function TransformerCustomCodeEditor({
           height={`${effectiveHeight}px`}
           language="javascript"
           theme={monacoTheme}
+          path={modelPath}
           value={value}
           onChange={(v) => onChange(v ?? '')}
           onMount={handleMount}
