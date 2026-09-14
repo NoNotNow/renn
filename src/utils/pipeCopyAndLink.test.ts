@@ -30,7 +30,7 @@ import {
 import { resolveLocalScopeParams } from '@/utils/paramScopes'
 import {
   pipeScopeKeyFromPath,
-  resolveEntityTransformerConfigsForRuntime,
+  resolveEntityStageRuntime,
   resolveMergedTransformerConfigsForEntitySync,
 } from './pipeStageResolve'
 
@@ -195,7 +195,7 @@ function nestedManifoldWorld(): RennWorld {
 
 function runtimeParams(world: RennWorld, entityId: string): Record<string, unknown>[] {
   const entity = world.entities.find((e) => e.id === entityId)!
-  return (resolveEntityTransformerConfigsForRuntime(world, entity) ?? []).map((c) => c.params ?? {})
+  return (resolveEntityStageRuntime(world, entity).runtimeConfigs() ?? []).map((c) => c.params ?? {})
 }
 
 function bindingParams(world: RennWorld, entityId: string, stackIndex = 0): Record<string, unknown> | undefined {
@@ -494,7 +494,7 @@ describe('pipe copy and link — runtime param projection', () => {
       transformers: { s1: { type: 'car2', params: { power: 10, grip: 1 } } },
       transformerPipes: { drive: drivePipe() },
     }
-    const configs = resolveEntityTransformerConfigsForRuntime(world, world.entities[0]!)
+    const configs = resolveEntityStageRuntime(world, world.entities[0]!).runtimeConfigs()
     expect(configs?.[0]?.params).toEqual({ speed: 50, power: 99, grip: 1 })
   })
 
@@ -510,7 +510,7 @@ describe('pipe copy and link — runtime param projection', () => {
       { params: { speed: 33 } },
     )
     const e1 = assigned.entities[0]!
-    const configs = resolveEntityTransformerConfigsForRuntime(assigned, e1)
+    const configs = resolveEntityStageRuntime(assigned, e1).runtimeConfigs()
     expect(configs?.[0]?.params).toEqual({ power: 10, speed: 33, boost: false })
     expect(resolveLocalScopeParams(e1.transformerPipeStack?.[0])).toEqual({ speed: 33, boost: false })
   })
@@ -551,7 +551,7 @@ describe('pipe copy and link — runtime param projection', () => {
       transformers: { s1: { type: 'car2', params: { power: 5 } } },
       transformerPipes: { drive: drivePipe() },
     }
-    const configs = resolveEntityTransformerConfigsForRuntime(world, world.entities[0]!)
+    const configs = resolveEntityStageRuntime(world, world.entities[0]!).runtimeConfigs()
     expect(configs?.[0]?.params).toEqual({ power: 5, speed: 10 })
     expect(configs?.[1]?.params).toEqual({ power: 5, speed: 20 })
   })
@@ -641,8 +641,8 @@ describe('pipe copy and link — per-entity param isolation on link', () => {
       transformers: { s1: { type: 'car2', params: { power: 5 } } },
       transformerPipes: { drive: drivePipe() },
     }
-    const e1Configs = resolveEntityTransformerConfigsForRuntime(world, world.entities[0]!)
-    const e2Configs = resolveEntityTransformerConfigsForRuntime(world, world.entities[1]!)
+    const e1Configs = resolveEntityStageRuntime(world, world.entities[0]!).runtimeConfigs()
+    const e2Configs = resolveEntityStageRuntime(world, world.entities[1]!).runtimeConfigs()
     expect(e1Configs?.[0]?.params?.speed).toBe(10)
     expect(e2Configs?.[0]?.params?.speed).toBe(20)
     expect(e1Configs?.[0]?.params?.power).toBe(5)
@@ -684,7 +684,7 @@ describe('pipe copy and link — transformer order within a pipe', () => {
   it('runtime config order matches entity.transformers order for linked pipes', () => {
     const world = linkedTwoEntityWorld()
     const e1 = world.entities.find((e) => e.id === 'e1')!
-    const configs = resolveEntityTransformerConfigsForRuntime(world, e1)
+    const configs = resolveEntityStageRuntime(world, e1).runtimeConfigs()
     expect(configs?.map((c) => c.type)).toEqual(['input', 'car2'])
     expect(configs?.map((c) => c.name)).toEqual(['Input', 'Drive'])
   })

@@ -17,9 +17,8 @@ import type { ResolvedPipeNavView, StripItem } from '@/types/pipeNav'
 import { isPipeNavLeafLevel } from '@/utils/pipeNavResolve'
 import { getEntityPipeStack } from '@/utils/transformerPipeResolve'
 import {
-  buildEntityStageRuntimeContext,
   flatIndexOffsetForStackBinding,
-  pipeScopeKeyFromPath,
+  resolveEntityStageRuntime,
   stackIndexFromScopePath,
 } from '@/utils/pipeStageResolve'
 import { createPipeCardStageCallbacks } from './pipeStageCallbacks'
@@ -107,7 +106,7 @@ export default function PipeFocusedStrip({
   const [scrollLeft, setScrollLeft] = useState(0)
   const pipes = world.transformerPipes ?? {}
   const stack = getEntityPipeStack(entity)
-  const stageRuntime = useMemo(() => buildEntityStageRuntimeContext(world, entity), [world, entity])
+  const stageRuntime = useMemo(() => resolveEntityStageRuntime(world, entity), [world, entity])
 
   const isLeafLevel = isPipeNavLeafLevel(view)
 
@@ -231,7 +230,7 @@ export default function PipeFocusedStrip({
               view.mode === 'pipe_siblings' ?
                 [{ kind: 'stack', index: idx }]
               : focusPath
-            const enabled = stageRuntime.scopeEffectiveEnabled.get(pipeScopeKeyFromPath(scopePath)) ?? true
+            const enabled = stageRuntime.isScopeEnabled(scopePath)
             const stackIdxForScope = stackIndexFromScopePath(scopePath)
             const pipeCardCallbacks = createPipeCardStageCallbacks(
               { pipeId: item.pipeId, stackIndex: stackIdxForScope, scopePath },
@@ -318,7 +317,7 @@ export default function PipeFocusedStrip({
               stageIds.map((_id, i) => {
                 const stackIdx = stackIndexFromScopePath(focusPath) ?? 0
                 const flatIndex = flatIndexOffsetForStackBinding(world, entity, stackIdx) + i
-                return [flatIndex, stageRuntime.stageContext.get(flatIndex)?.effectivelyEnabled !== false]
+                return [flatIndex, stageRuntime.isStageEnabledAt(flatIndex)]
               }),
             )}
             externalAddDialog
@@ -337,7 +336,7 @@ export default function PipeFocusedStrip({
         parentPipeId ?
           [...focusPath, { kind: 'member', pipeId: parentPipeId, memberIndex: item.index }]
         : focusPath
-      const enabled = stageRuntime.scopeEffectiveEnabled.get(pipeScopeKeyFromPath(memberScopePath)) ?? true
+      const enabled = stageRuntime.isScopeEnabled(memberScopePath)
       const stackIdx = stackIndexFromScopePath(memberScopePath)
       const stackBinding =
         stackIdx !== undefined && stackIdx >= 0 ? stack[stackIdx] : undefined

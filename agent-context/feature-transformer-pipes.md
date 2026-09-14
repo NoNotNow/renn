@@ -147,7 +147,7 @@ Legacy `entity.transformerPipe` migrates to a single-entry stack on load (`migra
 | `src/utils/commitTransformerConfigsToWorld.ts` | Assign, save, decouple, delete |
 | `src/utils/transformerPipeResolve.ts` | Manifold flatten, stack helpers |
 | `src/utils/paramScopes.ts` | Three-scope merge rule + local/merged projections (single owner) |
-| `src/utils/pipeStageResolve.ts` | Chain-build walk; consumes `paramScopes` for runtime merged params |
+| `src/utils/pipeStageResolve.ts` | Chain-build walk behind `resolveEntityStageRuntime` → `EntityStageRuntime`; consumes `paramScopes` for runtime merged params |
 | `src/hooks/usePipeNavigator.ts` | Focus path state (`goUp`/`goLeft`/`goRight`, `drillInto`, `setPath`) |
 | `src/editor/pipeNavEdit.ts` | Pipe-nav edit seam: `PipeNavEditIntent` → `{ world, nav, syncEntityIds }`; owns mutation choice + nav-path reconciliation |
 | `src/hooks/usePipeNavController.ts` | React wiring only (13-key return): focus/dialog state, applies `resolvePipeNavEdit` results; navigation stays in tab via `usePipeNavigator` |
@@ -166,7 +166,7 @@ Legacy `entity.transformerPipe` migrates to a single-entry stack on load (`migra
 - **Strip**: one level at a time — pipe cards at entity root; stages + nested pipe cards inside a manifold (mixed order preserved when pipes and stages interleave).
 - **Add flows**: strip `+` menu ([`PipeAddDialog.tsx`](../src/components/workspace/pipeNav/PipeAddDialog.tsx)); header **+ Add Pipe** removed (duplicate). **Leaf level** (gray `+`): `entity_stages`, or `pipe_members` with no nested pipe cards in the focused view — opens **Add to pipeline** (transformer preset/existing + optional pipe sections). **New pipe** / **Existing pipe** at leaf level append a **stack sibling** (after the current stack pipe), not a nested member; use the **Child pipe** tab to nest. **Pipe level** (yellow `+`): entity root with multiple stack pipes, or a manifold showing nested pipe cards — pipe-centric add sections.
 - **Auto-wrap**: fresh entity → `Pipe1` via `ensureEntityPipeStack`; legacy ungrouped stages → non-blocking **Wrap into pipe** banner.
-- **Runtime params**: computed once at chain-build time via [`pipeStageResolve.ts`](../src/utils/pipeStageResolve.ts) using a three-scope merge (see **Pipe params + enable cascade** below). Result is keyed by **flat index** in `entity.transformers`. Entities **without** a pipe stack use stage registry `params` directly. Never written back to world JSON except via explicit pipe-param or stage-config apply paths. **Stage config drawer (piped entities)**: shows and edits only the stage’s local registry `params` (not the merged result); saving writes to the registry entry only.
+- **Runtime params**: computed once at chain-build time via [`resolveEntityStageRuntime`](../src/utils/pipeStageResolve.ts) using a three-scope merge (see **Pipe params + enable cascade** below and [nomenclature.md § Entity stage runtime](./nomenclature.md#entity-stage-runtime)). Result is keyed by **flat index** in `entity.transformers`. Entities **without** a pipe stack use stage registry `params` directly. Never written back to world JSON except via explicit pipe-param or stage-config apply paths. **Stage config drawer (piped entities)**: shows and edits only the stage’s local registry `params` (not the merged result); saving writes to the registry entry only.
 
 #### Pipe params + enable cascade
 

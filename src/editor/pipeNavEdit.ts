@@ -34,7 +34,7 @@ import {
   stackSiblingInsertIndexFromPath,
   wouldNestCreateCycle,
 } from '@/utils/pipeNavResolve'
-import { entityIdsAffectedByPipeParamChange, isStackRootScopePath, stackIndexFromScopePath } from '@/utils/pipeStageResolve'
+import { isStackRootScopePath, stackIndexFromScopePath } from '@/utils/pipeStageResolve'
 import { getEntityPipeStack, normalizePipeMembers } from '@/utils/transformerPipeResolve'
 
 /**
@@ -222,7 +222,7 @@ function resolveIntent(
     case 'editPipeParams': {
       const next = applyPipeParamEdit(world, entityId, intent, intent.mode)
       if (!next) return null
-      return { world: next, syncEntityIds: entityIdsAffectedByPipeParamChange(next, { entityId }) }
+      return { world: next, syncEntityIds: [entityId] }
     }
 
     case 'decouplePipeBinding': {

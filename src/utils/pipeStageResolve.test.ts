@@ -2,11 +2,8 @@ import { describe, it, expect } from 'vitest'
 import type { RennWorld } from '@/types/world'
 import { mergeParamScopeLayers } from '@/utils/paramScopes'
 import {
-  buildEntityStageRuntimeContext,
-  entityIdsAffectedByPipeParamChange,
-  resolveEntityTransformerConfigsForRuntime,
+  resolveEntityStageRuntime,
   resolveMergedTransformerConfigsForEntitySync,
-  syncEntityTransformerIdsFromPipeTree,
 } from './pipeStageResolve'
 
 describe('pipeStageResolve', () => {
@@ -49,13 +46,11 @@ describe('pipeStageResolve', () => {
       },
     }
 
-    const { stageContextByStageId, flatEnabledStageIds, scopeEffectiveEnabled } =
-      buildEntityStageRuntimeContext(world, world.entities[0]!)
-    expect(flatEnabledStageIds).toEqual([])
-    expect(stageContextByStageId.get('s1')?.effectivelyEnabled).toBe(false)
-    expect(stageContextByStageId.get('s2')?.effectivelyEnabled).toBe(false)
-    expect(scopeEffectiveEnabled.get('stack:0')).toBe(false)
-    expect(syncEntityTransformerIdsFromPipeTree(world, world.entities[0]!)).toEqual([])
+    const runtime = resolveEntityStageRuntime(world, world.entities[0]!)
+    expect(runtime.syncedStageIds()).toEqual([])
+    expect(runtime.isStageEnabledById('s1')).toBe(false)
+    expect(runtime.isStageEnabledById('s2')).toBe(false)
+    expect(runtime.isScopeEnabled([{ kind: 'stack', index: 0 }])).toBe(false)
   })
 
   it('merges stage params with binding params — binding wins on conflict', () => {
@@ -83,7 +78,7 @@ describe('pipeStageResolve', () => {
       },
     }
 
-    const configs = resolveEntityTransformerConfigsForRuntime(world, world.entities[0]!)
+    const configs = resolveEntityStageRuntime(world, world.entities[0]!).runtimeConfigs()
     expect(configs?.[0]?.params).toEqual({ power: 50, speed: 2, height: 10 })
   })
 
@@ -117,8 +112,8 @@ describe('pipeStageResolve', () => {
       },
     }
 
-    const carA = resolveEntityTransformerConfigsForRuntime(world, world.entities[0]!)
-    const carB = resolveEntityTransformerConfigsForRuntime(world, world.entities[1]!)
+    const carA = resolveEntityStageRuntime(world, world.entities[0]!).runtimeConfigs()
+    const carB = resolveEntityStageRuntime(world, world.entities[1]!).runtimeConfigs()
     expect(carA?.[0]?.params).toEqual({ speed: 50, power: 10 })
     expect(carB?.[0]?.params).toEqual({ speed: 100, power: 10 })
   })
@@ -159,14 +154,26 @@ describe('pipeStageResolve', () => {
       },
     }
 
-    const configs = resolveEntityTransformerConfigsForRuntime(world, world.entities[0]!)
+    const configs = resolveEntityStageRuntime(world, world.entities[0]!).runtimeConfigs()
     expect(configs?.[0]?.params).toEqual({ speed: 50 })
     expect(configs?.[1]?.params).toEqual({ softness: 3 })
   })
 
-  it('syncs only the edited entity after a pipe param change', () => {
-    expect(entityIdsAffectedByPipeParamChange({} as RennWorld, { entityId: 'e1' })).toEqual(['e1'])
-    expect(entityIdsAffectedByPipeParamChange({} as RennWorld, {})).toEqual([])
+  it('keeps disabled stages in the synced list for an entity with no pipe stack', () => {
+    const world: RennWorld = {
+      version: '1',
+      world: {},
+      entities: [{ id: 'e1', transformers: ['s1', 's2'] }],
+      transformers: {
+        s1: { type: 'input' },
+        s2: { type: 'car2', enabled: false },
+      },
+    }
+
+    const runtime = resolveEntityStageRuntime(world, world.entities[0]!)
+    expect(runtime.syncedStageIds()).toEqual(['s1', 's2'])
+    expect(runtime.isStageEnabledAt(0)).toBe(true)
+    expect(runtime.isStageEnabledAt(1)).toBe(false)
   })
 
   it('resolveMergedTransformerConfigsForEntitySync matches runtime projection', () => {
@@ -237,9 +244,15 @@ describe('pipeStageResolve', () => {
     }
 
     const entity = world.entities[0]!
-    const { flatEnabledStageIds, stageContextByStageId } = buildEntityStageRuntimeContext(world, entity)
-    expect(flatEnabledStageIds).toEqual(['s1'])
-    expect(stageContextByStageId.get('s2')?.effectivelyEnabled).toBe(false)
+    const runtime = resolveEntityStageRuntime(world, entity)
+    expect(runtime.syncedStageIds()).toEqual(['s1'])
+    expect(runtime.isStageEnabledById('s2')).toBe(false)
+    expect(
+      runtime.isScopeEnabled([
+        { kind: 'stack', index: 0 },
+        { kind: 'member', pipeId: 'root', memberIndex: 1 },
+      ]),
+    ).toBe(false)
   })
 
   it('stack-root scopeParams override wins over binding.params at nested stages', () => {
@@ -280,8 +293,8 @@ describe('pipeStageResolve', () => {
       },
     }
 
-    const { stageContext } = buildEntityStageRuntimeContext(world, world.entities[0]!)
-    expect(stageContext.get(0)?.mergedParams.speed).toBe(10)
+    const runtime = resolveEntityStageRuntime(world, world.entities[0]!)
+    expect(runtime.mergedParamsAt(0)?.speed).toBe(10)
   })
 
   it('merges stage, binding, and scope params — narrowest scope wins', () => {
@@ -325,7 +338,7 @@ describe('pipeStageResolve', () => {
       },
     }
 
-    const configs = resolveEntityTransformerConfigsForRuntime(world, world.entities[0]!)
+    const configs = resolveEntityStageRuntime(world, world.entities[0]!).runtimeConfigs()
     // flat index 0: stage under root (no nested scope) — stage + binding only
     expect(configs?.[0]?.params).toEqual({ A: 1, B: 1, D: 4 })
     // flat index 1: stage under child — stage + binding + scope params
@@ -357,7 +370,7 @@ describe('pipeStageResolve', () => {
       },
     }
 
-    const configs = resolveEntityTransformerConfigsForRuntime(world, world.entities[0]!)
+    const configs = resolveEntityStageRuntime(world, world.entities[0]!).runtimeConfigs()
     expect(configs?.[0]?.params).toEqual({ power: 400, lateralGrip: 100 })
   })
 
@@ -389,7 +402,7 @@ describe('pipeStageResolve', () => {
       },
     }
 
-    const configs = resolveEntityTransformerConfigsForRuntime(world, world.entities[0]!)
+    const configs = resolveEntityStageRuntime(world, world.entities[0]!).runtimeConfigs()
     expect(configs?.[0]?.params).toEqual({ p1: 'p1', base: 1 })
     expect(configs?.[1]?.params).toEqual({ px: 'px', base: 1 })
   })

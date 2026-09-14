@@ -1,5 +1,5 @@
 import type { Entity, RennWorld } from '@/types/world'
-import { resolveEntityTransformerConfigsForRuntime } from '@/utils/pipeStageResolve'
+import { resolveEntityStageRuntime } from '@/utils/pipeStageResolve'
 import type { TransformerConfig } from '@/types/transformer'
 import type { Vec3, Rotation } from '@/types/world'
 
@@ -103,7 +103,7 @@ export function syncEntityDocumentToScene(
     })
   }
   if (transformersChanged(prev, next)) {
-    const configs = resolveEntityTransformerConfigsForRuntime(world, next)
+    const configs = resolveEntityStageRuntime(world, next).runtimeConfigs()
     scene.syncEntityTransformers(next.id, configs ?? undefined)
   }
   if (appearanceFieldsChanged(prev, next)) {

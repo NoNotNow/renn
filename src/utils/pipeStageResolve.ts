@@ -26,11 +26,31 @@ export function stackIndexFromScopePath(path: PipeNavPathSegment[]): number | un
   return stackSeg?.kind === 'stack' ? stackSeg.index : undefined
 }
 
-export type StageRuntimeContext = {
+type StageRuntimeContext = {
   /** Pipe binding params for this stage (nested scope layers within the same binding only). */
   mergedParams: Record<string, unknown>
   /** False when any ancestor pipe scope or the stage member is disabled. */
   effectivelyEnabled: boolean
+}
+
+/**
+ * One entity's resolved pipe-tree walk: merged params and the enable cascade, queried by
+ * flat index, stage id, or nav scope path. Build once per (world, entity) and reuse —
+ * every query is a map lookup, never another walk.
+ */
+export interface EntityStageRuntime {
+  /** False when any ancestor pipe scope in `path` is disabled. */
+  isScopeEnabled(path: PipeNavPathSegment[]): boolean
+  /** Enable cascade for a stage at its index in `entity.transformers`. */
+  isStageEnabledAt(flatIndex: number): boolean
+  /** Enable cascade for a stage omitted from the flatten (UI grey-out). */
+  isStageEnabledById(stageId: string): boolean
+  /** Three-scope merged runtime params for a stage index, or `undefined` when unknown. */
+  mergedParamsAt(flatIndex: number): Record<string, unknown> | undefined
+  /** Ids to write back to `entity.transformers`: all stages when flat, enabled flatten when piped. */
+  syncedStageIds(): string[]
+  /** Merged runtime configs for the transformer chain (enabled stages only). */
+  runtimeConfigs(): TransformerConfig[] | null
 }
 
 type WalkState = {
@@ -143,19 +163,18 @@ function walkCopyBindingStages(
   }
 }
 
-/**
- * Walk the entity pipe tree and collect per-stage merged params + effective enabled flags.
- * Disabled ancestor pipes cascade: descendants are effectively disabled and omitted from flatten.
- */
-export function buildEntityStageRuntimeContext(
-  world: RennWorld,
-  entity: Entity,
-): {
+type StageRuntimeWalk = {
   stageContext: Map<number, StageRuntimeContext>
   stageContextByStageId: Map<string, StageRuntimeContext>
   scopeEffectiveEnabled: Map<string, boolean>
   flatEnabledStageIds: string[]
-} {
+}
+
+/**
+ * Walk the entity pipe tree and collect per-stage merged params + effective enabled flags.
+ * Disabled ancestor pipes cascade: descendants are effectively disabled and omitted from flatten.
+ */
+function walkEntityStageRuntime(world: RennWorld, entity: Entity): StageRuntimeWalk {
   const registry = world.transformerPipes ?? {}
   const worldTransformers = world.transformers ?? {}
   const stack = getEntityPipeStack(entity)
@@ -243,42 +262,37 @@ export function flatIndexOffsetForStackBinding(
   return offset
 }
 
-/** Flatten order of enabled stages; respects disabled ancestor pipe cascade. */
-export function syncEntityTransformerIdsFromPipeTree(world: RennWorld, entity: Entity): string[] {
-  const { flatEnabledStageIds } = buildEntityStageRuntimeContext(world, entity)
-  const stack = getEntityPipeStack(entity)
-  if (stack.length === 0) return [...(entity.transformers ?? [])]
-  return flatEnabledStageIds
-}
+/**
+ * Resolve one entity's stage runtime: merged params plus the enable cascade, as a queryable
+ * snapshot. Callers that need more than one answer (UI rows, chain build) must hold the
+ * snapshot rather than call this per question — the walk is O(pipes × depth).
+ */
+export function resolveEntityStageRuntime(world: RennWorld, entity: Entity): EntityStageRuntime {
+  const walk = walkEntityStageRuntime(world, entity)
+  const isPiped = getEntityPipeStack(entity).length > 0
 
-export function isPipeScopeEffectivelyEnabled(
-  world: RennWorld,
-  entity: Entity,
-  path: PipeNavPathSegment[],
-): boolean {
-  const { scopeEffectiveEnabled } = buildEntityStageRuntimeContext(world, entity)
-  return scopeEffectiveEnabled.get(pipeScopeKeyFromPath(path)) ?? true
-}
-
-export function isStageEffectivelyEnabled(
-  world: RennWorld,
-  entity: Entity,
-  stageId: string,
-  flatIndex?: number,
-): boolean {
-  const snapshot = buildEntityStageRuntimeContext(world, entity)
-  if (flatIndex !== undefined) {
-    return snapshot.stageContext.get(flatIndex)?.effectivelyEnabled ?? true
+  return {
+    isScopeEnabled: (path) => walk.scopeEffectiveEnabled.get(pipeScopeKeyFromPath(path)) ?? true,
+    isStageEnabledAt: (flatIndex) => walk.stageContext.get(flatIndex)?.effectivelyEnabled ?? true,
+    isStageEnabledById: (stageId) =>
+      walk.stageContextByStageId.get(stageId)?.effectivelyEnabled ?? true,
+    mergedParamsAt: (flatIndex) => walk.stageContext.get(flatIndex)?.mergedParams,
+    syncedStageIds: () =>
+      isPiped ? walk.flatEnabledStageIds : [...(entity.transformers ?? [])],
+    runtimeConfigs: () => {
+      const stageIds = entity.transformers
+      if (!stageIds?.length) return null
+      const configs: TransformerConfig[] = []
+      for (let flatIndex = 0; flatIndex < stageIds.length; flatIndex++) {
+        const base = world.transformers?.[stageIds[flatIndex]!]
+        if (!base) continue
+        const ctx = walk.stageContext.get(flatIndex)
+        if (!ctx?.effectivelyEnabled) continue
+        configs.push({ ...base, params: ctx.mergedParams, enabled: base.enabled !== false })
+      }
+      return configs.length > 0 ? configs : null
+    },
   }
-  return snapshot.stageContextByStageId.get(stageId)?.effectivelyEnabled ?? true
-}
-
-/** Entity ids that need a merged-param runtime sync after a pipe param edit. */
-export function entityIdsAffectedByPipeParamChange(
-  _world: RennWorld,
-  opts: { entityId?: string },
-): string[] {
-  return opts.entityId ? [opts.entityId] : []
 }
 
 /** Merged runtime configs for live `syncEntityTransformers` (enabled stages only). */
@@ -288,28 +302,5 @@ export function resolveMergedTransformerConfigsForEntitySync(
 ): TransformerConfig[] | undefined {
   const entity = world.entities.find((e) => e.id === entityId)
   if (!entity?.transformers?.length) return undefined
-  return resolveEntityTransformerConfigsForRuntime(world, entity) ?? undefined
-}
-
-/** Resolve runtime configs with merged pipe params (build-time projection). */
-export function resolveEntityTransformerConfigsForRuntime(
-  world: RennWorld,
-  entity: Entity,
-): TransformerConfig[] | null {
-  if (!entity.transformers?.length) return null
-  const { stageContext } = buildEntityStageRuntimeContext(world, entity)
-  const configs: TransformerConfig[] = []
-  for (let flatIndex = 0; flatIndex < entity.transformers.length; flatIndex++) {
-    const stageId = entity.transformers[flatIndex]!
-    const base = world.transformers?.[stageId]
-    if (!base) continue
-    const ctx = stageContext.get(flatIndex)
-    if (!ctx?.effectivelyEnabled) continue
-    configs.push({
-      ...base,
-      params: ctx.mergedParams,
-      enabled: base.enabled !== false,
-    })
-  }
-  return configs.length > 0 ? configs : null
+  return resolveEntityStageRuntime(world, entity).runtimeConfigs() ?? undefined
 }

@@ -633,6 +633,19 @@ Test count after Phase 20: **199** files, **1821** tests + 3 skipped. `npx tsc -
 
 Test count after Phase 21: **200** files, **1840** tests + 3 skipped. `npx tsc --noEmit -p tsconfig.app.json` clean.
 
+### Phase 23 (2026-09-15) — `EntityStageRuntime` snapshot
+
+- **Deepened** `pipeStageResolve.ts` behind one export: `resolveEntityStageRuntime(world, entity) → EntityStageRuntime` with six query methods (`isScopeEnabled`, `isStageEnabledAt`, `isStageEnabledById`, `mergedParamsAt`, `syncedStageIds`, `runtimeConfigs`). The pipe-tree walk and its four Maps are now private. Interface table in `nomenclature.md § Entity stage runtime`.
+- **Deleted 4 shallow wrappers** that each rebuilt the full walk to read one field: `isPipeScopeEffectivelyEnabled`, `isStageEffectivelyEnabled` (already zero call sites), `syncEntityTransformerIdsFromPipeTree`, `resolveEntityTransformerConfigsForRuntime`, plus `buildEntityStageRuntimeContext` itself.
+- **Deleted `entityIdsAffectedByPipeParamChange`** — a pass-through that ignored its `world` argument; its one caller (`pipeNavEdit.ts` `editPipeParams`) now returns `[entityId]` directly.
+- **Fixed the per-row walk:** `PipeNavTree.tsx` called `isPipeScopeEffectivelyEnabled` inside the recursive row renderer — one full pipe-tree walk **per row per render**. It now memoises a single snapshot on `[world, entity]`, matching what `PipeFocusedStrip.tsx` already did. Guarded by `PipeNavTree.stageRuntime.test.tsx` (one resolve per render regardless of row count).
+- **Behaviour preserved verbatim:** `syncedStageIds()` keeps the wrapper's non-obvious branch — an entity with **no** pipe stack returns *all* `entity.transformers` (including disabled stages), while a piped entity returns the enabled-only flatten. New unit test pins it.
+- **Deviation from plan:** the snapshot is memoised *inside* `PipeNavTree` rather than passed as a prop, which would have widened `TransformerPipeNavSidebar`'s interface too for the same result.
+- Docs: `nomenclature.md`, `feature-transformer-pipes.md`.
+- **LEFTOVER:** `isStageEnabledById` has no production caller (only tests) — it is the enable-cascade answer for stages omitted from the flatten, wanted by the strip grey-out path. Drop it if candidate "Stage strip interface" does not pick it up. `pipeNavResolve.syncEntityTransformerIds` is exported but used only inside its own module.
+
+Test count after Phase 23: **202** files, **1886** tests + 3 skipped. `npx tsc --noEmit -p tsconfig.app.json` clean. `npm run test:perf` before/after: mean frame 0.132 ms → 0.096 ms, verdict sub-quadratic both runs (no regression).
+
 ### Optional — idle material prefetch
 
 `prefetchMaterialTextures` was removed (no call sites). If mid-rAF decode becomes an issue again, reintroduce a **wired** prefetch from `SceneView` after load (idle `createImageBitmap`), document the entry point, and add a smoke test.

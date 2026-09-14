@@ -28,6 +28,24 @@ Canonical terms used throughout the transformer/pipe system. Use these names con
 | Entity-specific params for a nested pipe scope within a binding | **scope params** | `TransformerPipeBinding.scopeParams[scopeKey]` — narrowest scope; overrides binding params |
 | Stable string key identifying a nested scope | **scope key** | Result of `pipeScopeKeyFromPath(path)` — e.g. `"stack:0/member:pipeId:1"` |
 | Three-layer param hierarchy (all scopes together) | **param scopes** | stage params → binding params → scope params (narrower wins) |
+| One entity's resolved pipe-tree walk, queryable | **entity stage runtime** | `EntityStageRuntime` from `resolveEntityStageRuntime(world, entity)` in `pipeStageResolve.ts` |
+
+---
+
+## Entity stage runtime
+
+`resolveEntityStageRuntime(world, entity)` walks the entity's pipe tree **once** and returns an `EntityStageRuntime` — merged params plus the enable cascade, queried by flat index, stage id, or nav scope path. Every query is a map lookup; the walk is O(pipes × depth).
+
+| Query | Answers |
+|---|---|
+| `isScopeEnabled(path)` | Is this nav scope effectively enabled (ancestor cascade applied)? |
+| `isStageEnabledAt(flatIndex)` | Enable cascade for a stage at its index in `entity.transformers` |
+| `isStageEnabledById(stageId)` | Enable cascade for a stage omitted from the flatten (UI grey-out) |
+| `mergedParamsAt(flatIndex)` | Three-scope merged runtime params for that stage |
+| `syncedStageIds()` | Ids to write back to `entity.transformers` — **all** stages when the entity has no pipe stack, enabled flatten when piped |
+| `runtimeConfigs()` | Merged `TransformerConfig[]` for the transformer chain (enabled stages only), or `null` |
+
+**Hold the snapshot; never call per question.** Callers that need more than one answer must resolve once and query — that is the whole point of the interface. `PipeNavTree` and `PipeFocusedStrip` both `useMemo(() => resolveEntityStageRuntime(world, entity), [world, entity])`, so a tree with N rows costs one walk per render, not N. The predecessor shape — free functions `isPipeScopeEffectivelyEnabled` / `isStageEffectivelyEnabled` / `syncEntityTransformerIdsFromPipeTree` / `resolveEntityTransformerConfigsForRuntime`, each rebuilding the full walk to read one field — made the per-row cost invisible at the call site. Guarded by `PipeNavTree.stageRuntime.test.tsx`.
 
 ---
 

@@ -3,7 +3,7 @@ import type { PipeNavPathSegment, PipeTreeNode } from '@/types/pipeNav'
 import type { Entity, RennWorld } from '@/types/world'
 import { theme } from '@/config/theme'
 import { getEntityPipeStack, normalizePipeMembers } from '@/utils/transformerPipeResolve'
-import { isPipeScopeEffectivelyEnabled, stackIndexFromScopePath } from '@/utils/pipeStageResolve'
+import { resolveEntityStageRuntime, stackIndexFromScopePath } from '@/utils/pipeStageResolve'
 import type { PipeTreeContextTarget } from '@/utils/pipeNavTreeHelpers'
 import PipeTreePipeControls from './PipeTreePipeControls'
 
@@ -66,6 +66,7 @@ export default function PipeNavTree({
 
   const stack = getEntityPipeStack(entity)
   const pipes = useMemo(() => world.transformerPipes ?? {}, [world.transformerPipes])
+  const stageRuntime = useMemo(() => resolveEntityStageRuntime(world, entity), [world, entity])
 
   const toggleExpand = (key: string) => {
     setExpanded((prev) => {
@@ -144,7 +145,7 @@ export default function PipeNavTree({
         const stackIdx = stackIndexFromScopePath(nodePath)
         const stackBinding =
           stackIdx !== undefined && stackIdx >= 0 ? stack[stackIdx] : undefined
-        const pipeEnabled = isPipeScopeEffectivelyEnabled(world, entity, nodePath)
+        const pipeEnabled = stageRuntime.isScopeEnabled(nodePath)
         return (
           <div key={key}>
             <TreeRow
@@ -225,7 +226,7 @@ export default function PipeNavTree({
     [
       pipes,
       world,
-      entity,
+      stageRuntime,
       scrollLeft,
       focusPath,
       selectedIndex,
@@ -334,7 +335,7 @@ export default function PipeNavTree({
                       pipe={pipe}
                       world={world}
                       binding={binding}
-                      enabled={isPipeScopeEffectivelyEnabled(world, entity, path)}
+                      enabled={stageRuntime.isScopeEnabled(path)}
                       configOpen={openConfigKey === key}
                       onConfigOpenChange={(open) => setOpenConfigKey(open ? key : null)}
                       stackIndex={stackIndex}

@@ -9,8 +9,8 @@ import type { Entity, RennWorld } from '@/types/world'
 import { getEntityPipeStack, normalizePipeMembers } from '@/utils/transformerPipeResolve'
 import {
   flatIndexOffsetForStackBinding,
+  resolveEntityStageRuntime,
   stackIndexFromScopePath,
-  syncEntityTransformerIdsFromPipeTree,
 } from '@/utils/pipeStageResolve'
 
 export function isMemberEnabled(member: TransformerPipeMember): boolean {
@@ -192,7 +192,7 @@ export function resolvePreferredStageId(
 
 /** Flatten entity structure → runtime transformer id list (enabled only; ancestor-disabled pipes cascade). */
 export function syncEntityTransformerIds(world: RennWorld, entity: Entity): string[] {
-  return syncEntityTransformerIdsFromPipeTree(world, entity)
+  return resolveEntityStageRuntime(world, entity).syncedStageIds()
 }
 
 /** Apply synced transformer ids to entity in world. */
