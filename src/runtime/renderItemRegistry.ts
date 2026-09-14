@@ -48,6 +48,7 @@ import {
 import type { TransformerTraceStep } from '@/transformers/transformerTrace'
 import type { TransformerChain } from '@/transformers/transformer'
 import { clearCoordinateEntries } from '@/runtime/coordinateOverlayBridge'
+import type { EntityHandlePort, SceneEditPort, SimulationFramePort } from '@/runtime/renderItemRegistryPorts'
 
 const shapeUpdateShadowBox = new THREE.Box3()
 const shapeUpdateShadowSize = new THREE.Vector3()
@@ -65,8 +66,11 @@ type VisualPoseState = {
 /**
  * Registry of render items: one per entity. Owns body→mesh sync each frame.
  * All pose read/write goes through this layer.
+ *
+ * Implements audience ports ({@link SimulationFramePort}, {@link SceneEditPort},
+ * {@link EntityHandlePort}) so consumers depend on narrow interfaces, not this class.
  */
-export class RenderItemRegistry {
+export class RenderItemRegistry implements SimulationFramePort, SceneEditPort, EntityHandlePort {
   private items = new Map<string, RenderItem>()
   private physicsWorld: PhysicsWorld | null = null
   private rawInputGetter: (() => RawInput | null) | null = null

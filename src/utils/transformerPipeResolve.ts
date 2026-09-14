@@ -5,7 +5,6 @@ import type {
   TransformerPipeMember,
 } from '@/types/transformer'
 import type { Entity } from '@/types/world'
-
 export class TransformerPipeCycleError extends Error {
   constructor(pipeId: string) {
     super(`Circular transformer pipe reference: ${pipeId}`)
@@ -118,11 +117,6 @@ export function collectPipeStageConfigsForCopy(
     }
   }
   return configs
-}
-
-/** Per-entity binding params for one stack entry (no shared defaults). */
-export function resolvePipeBindingParams(binding: TransformerPipeBinding): Record<string, unknown> {
-  return { ...(binding.params ?? {}) }
 }
 
 /** Build initial binding.params from paramDefs schema defaults + optional overrides. */

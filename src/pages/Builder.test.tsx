@@ -32,6 +32,10 @@ const sceneViewRefMocks = vi.hoisted(() => ({
   syncWorldEntities: vi.fn(() => Promise.resolve()),
 }))
 
+const builderWorldChangeCapture = vi.hoisted(() => ({
+  onWorldChange: null as ((world: RennWorld) => void) | null,
+}))
+
 const sceneViewProps: Record<string, unknown> = {}
 vi.mock('@/components/SceneView', () => ({
   default: forwardRef(function MockSceneView(props: Record<string, unknown>, ref) {
@@ -39,6 +43,13 @@ vi.mock('@/components/SceneView', () => ({
     Object.assign(sceneViewProps, props)
     return <div data-testid="scene-view" />
   }),
+}))
+
+vi.mock('@/components/PropertySidebar', () => ({
+  default: function MockPropertySidebar(props: { onWorldChange?: (world: RennWorld) => void }) {
+    builderWorldChangeCapture.onWorldChange = props.onWorldChange ?? null
+    return null
+  },
 }))
 
 vi.mock('@/persistence/indexedDb', () => ({
@@ -133,6 +144,7 @@ describe('updateEntityPosition', () => {
 describe('Builder', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    builderWorldChangeCapture.onWorldChange = null
     Object.keys(sceneViewProps).forEach((k) => delete sceneViewProps[k])
     if (typeof localStorage?.removeItem === 'function') {
       localStorage.removeItem('builderShowGameHud')
@@ -308,6 +320,41 @@ describe('Builder', () => {
     await waitFor(() => {
       expect(modeSelect.value).toBe(cycleCameraMode(cycleCameraMode(initial)))
     })
+  })
+
+  it('classifies second same-tick world edit against first edit result', async () => {
+    renderBuilder()
+    await act(async () => {
+      await Promise.resolve()
+    })
+    await waitFor(() => {
+      expect(builderWorldChangeCapture.onWorldChange).toBeTypeOf('function')
+    })
+    const onWorldChange = builderWorldChangeCapture.onWorldChange!
+    const base = sceneViewProps.world as RennWorld
+    const car = base.entities.find((e) => e.id === 'car')
+    expect(car?.scripts?.length).toBeGreaterThan(0)
+
+    act(() => {
+      const withoutScripts: RennWorld = {
+        ...base,
+        entities: base.entities.map((e) =>
+          e.id === 'car' ? { ...e, scripts: undefined } : e,
+        ),
+      }
+      onWorldChange(withoutScripts)
+
+      const renamed: RennWorld = {
+        ...withoutScripts,
+        entities: withoutScripts.entities.map((e) =>
+          e.id === 'car' ? { ...e, name: 'Renamed Car' } : e,
+        ),
+      }
+      onWorldChange(renamed)
+    })
+
+    expect(sceneViewRefMocks.getAllPoses).toHaveBeenCalledTimes(1)
+    expect(sceneViewRefMocks.syncWorldEntities).toHaveBeenCalledTimes(1)
   })
 
   it('calls SceneView cycleActiveAvatar when Digit1 or Numpad1 is pressed', async () => {

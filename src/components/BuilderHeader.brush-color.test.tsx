@@ -2,11 +2,25 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createRef } from 'react'
-import type { ProjectMeta } from '@/persistence/types'
 import BuilderHeader from './BuilderHeader'
 import { TEXTURE_PAINT_RADIUS_PX } from '@/editor/transformGizmoController'
 
 const noop = (): void => {}
+
+vi.mock('@/hooks/useProjectContext', () => ({
+  useProjectContext: () => ({
+    projects: [],
+    currentProject: { id: null, name: 'Test', isDirty: false },
+    exportProject: noop,
+    copyWorldToClipboard: noop,
+    importProject: noop,
+    refreshProjects: noop,
+    deleteProject: noop,
+    handlePlay: noop,
+    fileInputRef: createRef<HTMLInputElement>(),
+    onFileChange: noop,
+  }),
+}))
 
 async function openBrushPopover(user: ReturnType<typeof userEvent.setup>): Promise<void> {
   await user.click(screen.getByRole('button', { name: 'Brush tool' }))
@@ -14,22 +28,12 @@ async function openBrushPopover(user: ReturnType<typeof userEvent.setup>): Promi
 
 describe('BuilderHeader texture brush color', () => {
   const baseProps = {
-    projects: [] as ProjectMeta[],
-    currentProject: { id: null as string | null, name: 'Test', isDirty: false },
     onNew: noop,
     onSave: noop,
     onSaveAs: noop,
-    onExport: noop,
-    onCopyWorld: noop,
-    onImport: noop,
     onOpen: noop,
-    onRefresh: noop,
     onReload: noop,
-    onDeleteProject: noop,
-    onPlay: noop,
-    onFileChange: noop as (e: React.ChangeEvent<HTMLInputElement>) => void,
     onResetCamera: noop,
-    fileInputRef: createRef<HTMLInputElement>(),
   }
 
   it('shows brush color controls in a floating popover after clicking the brush tool in paint mode', async () => {

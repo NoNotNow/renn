@@ -15,8 +15,6 @@ export interface PipeTreePipeControlsProps {
   configOpen: boolean
   onConfigOpenChange: (open: boolean) => void
   stackIndex?: number
-  memberParentPipeId?: string
-  memberIndex?: number
   drawerPortalTarget?: RefObject<HTMLDivElement | null>
   /** Horizontal scroll offset of the parent container for proper drawer positioning. */
   scrollLeft?: number

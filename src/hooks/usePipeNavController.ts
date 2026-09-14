@@ -95,8 +95,12 @@ export function usePipeNavController(
   onMergedParamSync?: (nextWorld: RennWorld, entityIds: string[]) => void,
 ) {
   const undo = useEditorUndo()
-  const navigator = usePipeNavigator(world, entity, entry?.pipeNavPath, entry?.pipeNavSelectedIndex)
-  const { focus, view, setPath, goUp, goLeft, goRight, drillInto, selectSibling, focusedPipeId } = navigator
+  const { focus, view, setPath, focusedPipeId } = usePipeNavigator(
+    world,
+    entity,
+    entry?.pipeNavPath,
+    entry?.pipeNavSelectedIndex,
+  )
 
   const [nameDialog, setNameDialog] = useState<{
     title: string
@@ -544,18 +548,12 @@ export function usePipeNavController(
   )
 
   return {
-    navigator,
     view,
     focus,
     stageData,
     focusedTitle,
     focusedPipeId,
     setPath,
-    goUp,
-    goLeft,
-    goRight,
-    drillInto,
-    selectSibling,
     handleCreatePipe,
     handleAddChildPipe,
     handleAddExistingPipe,
@@ -565,30 +563,13 @@ export function usePipeNavController(
     nameDialog,
     setNameDialog,
     confirmNameDialog,
-    pushWorld,
     stackIndexForPipeId,
     togglePipeEnabled,
     updatePipeParam,
     replacePipeParams,
     decouplePipeBinding,
-    toggleStackAt: (idx: number) => pushWorld(toggleStackBindingEnabled(world, entity.id, idx)),
-    updateParamsAt: (stackIndex: number, key: string, value: unknown) =>
-      commitPipeParamEdit(
-        {
-          pipeId: getEntityPipeStack(entity)[stackIndex]?.pipeId ?? '',
-          stackIndex,
-          scopePath: [{ kind: 'stack', index: stackIndex }],
-          key,
-          value,
-        },
-        'merge',
-      ),
-    reorderStack: (from: number, to: number) => pushWorld(reorderStackBindings(world, entity.id, from, to)),
-    reorderMember: (pipeId: string, from: number, to: number) =>
-      pushWorld(reorderPipeMembers(world, pipeId, from, to)),
     handleTreeDelete,
     handleTreeContext,
     handleTreeDrop,
-    promptName,
   }
 }

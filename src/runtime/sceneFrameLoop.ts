@@ -10,7 +10,7 @@ import { resolveDistanceCullingSettings } from '@/types/world'
 import type { RawInput, RawKeyboardState, RawWheelState } from '@/types/transformer'
 import type { FreeFlyKeys } from '@/types/camera'
 import type { PhysicsWorld } from '@/physics/rapierPhysics'
-import type { RenderItemRegistry } from '@/runtime/renderItemRegistry'
+import type { SimulationFramePort } from '@/runtime/renderItemRegistryPorts'
 import type { ScriptRunner } from '@/scripts/scriptRunner'
 import type { CameraController } from '@/camera/cameraController'
 import { getRawInputSnapshot } from '@/input/rawInput'
@@ -54,7 +54,7 @@ export interface SceneFrameLoopInputs {
   physicsRef: MutableRefObject<PhysicsWorld | null>
   runPhysics: boolean
   activeDebugForcesRef: MutableRefObject<Array<{ entityId: string; force: Vec3; endTime: number }>>
-  registryRef: MutableRefObject<RenderItemRegistry | null>
+  registryRef: MutableRefObject<SimulationFramePort | null>
   rawKeyboardRef: RefObject<RawKeyboardState>
   worldRef: MutableRefObject<RennWorld>
   scriptRunnerRef: MutableRefObject<ScriptRunner | null>

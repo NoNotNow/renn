@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import type { RennWorld } from '@/types/world'
+import { mergeParamScopeLayers } from '@/utils/paramScopes'
 import {
   buildEntityStageRuntimeContext,
   entityIdsAffectedByPipeParamChange,
-  mergePipeParamLayers,
   resolveEntityTransformerConfigsForRuntime,
   resolveMergedTransformerConfigsForEntitySync,
   syncEntityTransformerIdsFromPipeTree,
@@ -12,7 +12,7 @@ import {
 describe('pipeStageResolve', () => {
   it('merges param layers with later layers winning', () => {
     expect(
-      mergePipeParamLayers([
+      mergeParamScopeLayers([
         { speed: 1, height: 10 },
         { speed: 2 },
         { jump: 5 },

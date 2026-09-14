@@ -3,7 +3,7 @@ import type { TransformerPipe, TransformerPipeBinding } from '@/types/transforme
 import type { PipeNavPathSegment } from '@/types/pipeNav'
 import ValidatedJsonTextarea from '@/components/ValidatedJsonTextarea'
 import { theme } from '@/config/theme'
-import { resolveEditableScopeParams } from '@/utils/pipeStageResolve'
+import { resolveLocalScopeParams } from '@/utils/paramScopes'
 
 export interface PipeParamsJsonEditorProps {
   pipe: TransformerPipe
@@ -20,14 +20,14 @@ function validateParamsObject(parsed: unknown): { ok: true } | { ok: false; erro
 }
 
 export default function PipeParamsJsonEditor({
-  pipe,
+  pipe: _pipe,
   binding,
   scopePath,
   onParamsReplace,
 }: PipeParamsJsonEditorProps) {
   const jsonValue = useMemo(
-    () => JSON.stringify(resolveEditableScopeParams(binding, pipe, scopePath), null, 2),
-    [pipe, binding, scopePath],
+    () => JSON.stringify(resolveLocalScopeParams(binding, scopePath), null, 2),
+    [binding, scopePath],
   )
 
   return (

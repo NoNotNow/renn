@@ -9,10 +9,16 @@ import {
   flattenPipeMembers,
   getEntityPipeStack,
   normalizePipeMembers,
-  resolvePipeBindingParams,
   TransformerPipeCycleError,
 } from '@/utils/transformerPipeResolve'
 import { isBindingEnabled, isMemberEnabled } from '@/utils/pipeNavResolve'
+import {
+  mergeParamScopeLayers,
+  pipeScopeKeyFromPath,
+  resolveBindingScopeLayerParams,
+} from '@/utils/paramScopes'
+
+export { isStackRootScopePath, pipeScopeKeyFromPath } from '@/utils/paramScopes'
 
 /** Stack index from a pipe-nav path (first `stack` segment). */
 export function stackIndexFromScopePath(path: PipeNavPathSegment[]): number | undefined {
@@ -20,73 +26,11 @@ export function stackIndexFromScopePath(path: PipeNavPathSegment[]): number | un
   return stackSeg?.kind === 'stack' ? stackSeg.index : undefined
 }
 
-/** True when overrides belong on `binding.params` (stack root), not `scopeParams`. */
-export function isStackRootScopePath(path: PipeNavPathSegment[]): boolean {
-  return path.length === 1 && path[0]?.kind === 'stack'
-}
-
 export type StageRuntimeContext = {
   /** Pipe binding params for this stage (nested scope layers within the same binding only). */
   mergedParams: Record<string, unknown>
   /** False when any ancestor pipe scope or the stage member is disabled. */
   effectivelyEnabled: boolean
-}
-
-/** Merge param layers; later layers override earlier keys, earlier fill gaps. */
-export function mergePipeParamLayers(layers: Record<string, unknown>[]): Record<string, unknown> {
-  const out: Record<string, unknown> = {}
-  for (const layer of layers) {
-    for (const [key, value] of Object.entries(layer)) {
-      if (value !== undefined) out[key] = value
-    }
-  }
-  return out
-}
-
-/** Stable scope key for per-entity nested pipe overrides on a binding. */
-export function pipeScopeKeyFromPath(path: PipeNavPathSegment[]): string {
-  if (path.length === 0) return ''
-  return path
-    .map((seg) =>
-      seg.kind === 'stack' ? `stack:${seg.index}` : `member:${seg.pipeId}:${seg.memberIndex}`,
-    )
-    .join('/')
-}
-
-/** Params shown/edited in the pipe params UI for one nav scope (binding storage only). */
-export function resolveEditableScopeParams(
-  binding: TransformerPipeBinding | undefined,
-  _pipe: TransformerPipe | undefined,
-  scopePath?: PipeNavPathSegment[],
-): Record<string, unknown> {
-  if (!binding) return {}
-  const path = scopePath ?? []
-  if (path.length === 0) return resolvePipeBindingParams(binding)
-  const scopeKey = pipeScopeKeyFromPath(path)
-  if (isStackRootScopePath(path)) {
-    return {
-      ...(binding.params ?? {}),
-      ...(binding.scopeParams?.[scopeKey] ?? {}),
-    }
-  }
-  return binding.scopeParams?.[scopeKey] ?? {}
-}
-
-function scopeOverrideParams(
-  binding: TransformerPipeBinding,
-  scopeKey: string,
-): Record<string, unknown> {
-  if (scopeKey.startsWith('stack:')) {
-    return {
-      ...(binding.params ?? {}),
-      ...(binding.scopeParams?.[scopeKey] ?? {}),
-    }
-  }
-  return binding.scopeParams?.[scopeKey] ?? {}
-}
-
-function pipeLayerParams(binding: TransformerPipeBinding, scopeKey: string): Record<string, unknown> {
-  return scopeOverrideParams(binding, scopeKey)
 }
 
 type WalkState = {
@@ -119,7 +63,7 @@ function visitMembers(
     state.scopeEffectiveEnabled.set(scopeKey, scopeEnabled)
   }
 
-  const layersWithPipe = [...state.paramLayers, pipeLayerParams(binding, scopeKey)]
+  const layersWithPipe = [...state.paramLayers, resolveBindingScopeLayerParams(binding, scopeKey)]
 
   const members = normalizePipeMembers(pipe)
   for (let memberIndex = 0; memberIndex < members.length; memberIndex++) {
@@ -131,7 +75,7 @@ function visitMembers(
       const stageMemberEnabled = memberEnabled && (stageConfig?.enabled !== false)
       const stageParamLayer = stageConfig?.params ? [stageConfig.params] : []
       const ctx: StageRuntimeContext = {
-        mergedParams: mergePipeParamLayers([...stageParamLayer, ...layersWithPipe]),
+        mergedParams: mergeParamScopeLayers([...stageParamLayer, ...layersWithPipe]),
         effectivelyEnabled: stageMemberEnabled,
       }
       if (stageMemberEnabled) {
@@ -161,7 +105,7 @@ function visitMembers(
       {
         ...state,
         paramLayers: memberEnabled ?
-            [...layersWithPipe, pipeLayerParams(binding, childScopeKey)]
+            [...layersWithPipe, resolveBindingScopeLayerParams(binding, childScopeKey)]
           : layersWithPipe,
       },
       memberEnabled,
@@ -179,13 +123,13 @@ function walkCopyBindingStages(
 ): void {
   const scopeKey = pipeScopeKeyFromPath(stackPath)
   scopeEffectiveEnabled.set(scopeKey, true)
-  const layers = [pipeLayerParams(binding, scopeKey)]
+  const layers = [resolveBindingScopeLayerParams(binding, scopeKey)]
   for (const stageId of binding.localStageIds ?? []) {
     const config = worldTransformers[stageId]
     const effectivelyEnabled = config?.enabled !== false
     const stageParamLayer = config?.params ? [config.params] : []
     const ctx: StageRuntimeContext = {
-      mergedParams: mergePipeParamLayers([...stageParamLayer, ...layers]),
+      mergedParams: mergeParamScopeLayers([...stageParamLayer, ...layers]),
       effectivelyEnabled,
     }
     if (effectivelyEnabled) {

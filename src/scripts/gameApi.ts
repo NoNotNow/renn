@@ -7,6 +7,7 @@ import type { Entity } from '@/types/world'
 import type { PhysicsWorld, RaycastResult } from '@/physics/rapierPhysics'
 export type { RaycastResult }
 import type { AvatarSession } from '@/runtime/avatarSession'
+import type { EntityHandlePort } from '@/runtime/renderItemRegistryPorts'
 
 export interface GameAPI {
   time: number
@@ -85,7 +86,7 @@ export interface GameAPIOptions {
   getUpVector: (id: string) => [number, number, number] | null
   getForwardVector: (id: string) => [number, number, number] | null
   getPhysicsWorld: () => PhysicsWorld | null
-  getRenderItemRegistry: () => import('@/runtime/renderItemRegistry').RenderItemRegistry | null
+  getRenderItemRegistry: () => EntityHandlePort | null
   entities: Entity[] | (() => Entity[])
   timeRef: { current: number }
 }
@@ -98,7 +99,7 @@ export function createGameAPI(
   getUpVector: (id: string) => [number, number, number] | null = () => null,
   getForwardVector: (id: string) => [number, number, number] | null = () => null,
   getPhysicsWorld: () => PhysicsWorld | null = () => null,
-  getRenderItemRegistry: () => import('@/runtime/renderItemRegistry').RenderItemRegistry | null = () => null,
+  getRenderItemRegistry: () => EntityHandlePort | null = () => null,
   entities: Entity[] | (() => Entity[]) = [],
   timeRef: { current: number } = { current: 0 },
   onSnackbar?: (message: string, durationSeconds: number) => void,

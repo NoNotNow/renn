@@ -1,13 +1,13 @@
 import { describe, it, expect } from 'vitest'
 import type { TransformerPipe } from '@/types/transformer'
 import type { Entity } from '@/types/world'
+import { resolveLocalScopeParams } from '@/utils/paramScopes'
 import {
   buildInitialBindingParams,
   flattenPipeStageIds,
   getEntityPipeStack,
   normalizePipeMembers,
   collectPipeStageConfigsForCopy,
-  resolvePipeBindingParams,
   TransformerPipeCycleError,
 } from './transformerPipeResolve'
 
@@ -96,8 +96,8 @@ describe('transformerPipeResolve', () => {
   })
 
   it('returns binding params only (no shared defaults)', () => {
-    expect(resolvePipeBindingParams({ pipeId: 'p-flat', params: { speed: 3 } })).toEqual({ speed: 3 })
-    expect(resolvePipeBindingParams({ pipeId: 'p-flat' })).toEqual({})
+    expect(resolveLocalScopeParams({ pipeId: 'p-flat', params: { speed: 3 } })).toEqual({ speed: 3 })
+    expect(resolveLocalScopeParams({ pipeId: 'p-flat' })).toEqual({})
   })
 
   it('builds initial binding params from paramDefs defaults', () => {

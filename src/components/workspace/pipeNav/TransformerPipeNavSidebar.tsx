@@ -44,7 +44,6 @@ export interface TransformerPipeNavSidebarProps {
   ) => void
   onTreeDrop?: (drag: PipeTreeNode, drop: PipeTreeNode) => void
   drawerPortalTarget?: RefObject<HTMLDivElement | null>
-  stackIndexForPipeId?: (pipeId: string) => number
   onPipeControlToggle?: (opts: {
     pipeId: string
     stackIndex?: number
@@ -111,7 +110,6 @@ export default function TransformerPipeNavSidebar({
   onTreeContext,
   onTreeDrop,
   drawerPortalTarget,
-  stackIndexForPipeId,
   onPipeControlToggle,
   onPipeParamChange,
   onPipeParamsReplace,
@@ -249,7 +247,6 @@ export default function TransformerPipeNavSidebar({
         onContextAction={onTreeContext}
         onTreeDrop={onTreeDrop}
         drawerPortalTarget={drawerPortalTarget}
-        stackIndexForPipeId={stackIndexForPipeId}
         onPipeControlToggle={onPipeControlToggle}
         onPipeParamChange={onPipeParamChange}
         onPipeParamsReplace={onPipeParamsReplace}

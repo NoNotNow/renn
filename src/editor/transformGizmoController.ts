@@ -8,6 +8,7 @@ import {
   setBuilderTransformMode,
 } from '@/editor/rennTransformControls'
 import type { RenderItemRegistry } from '@/runtime/renderItemRegistry'
+import type { SelectionPivotPort } from '@/runtime/renderItemRegistryPorts'
 import type { Entity, Rotation, Shape, Vec3 } from '@/types/world'
 import { quaternionToEuler } from '@/utils/rotationUtils'
 import { stripVisualBase } from '@/utils/visualBaseQuaternion'
@@ -26,7 +27,7 @@ export const BUILDER_SELECTION_PIVOT_NAME = '__builder_selection_pivot__'
  * Matches the multi-select gizmo pivot (one entity → its position).
  */
 export function averageUnlockedSelectionWorldPosition(
-  reg: RenderItemRegistry | null,
+  reg: SelectionPivotPort | null,
   selectedIds: readonly string[],
   getEntity: (id: string) => Entity | undefined,
 ): Vec3 | null {

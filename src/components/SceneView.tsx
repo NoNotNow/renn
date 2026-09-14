@@ -390,6 +390,12 @@ function SceneViewInner({
   runScriptsRef.current = runScripts
   const showGameHudRef = useRef(showGameHud)
   showGameHudRef.current = showGameHud
+  /** Stable bridge into latest HUD setters — avoids scene reload when toggling HUD visibility. */
+  const hudPatchBridgeRef = useRef<(patch: HudPatch) => void>(() => {})
+  hudPatchBridgeRef.current = (patch: HudPatch) => {
+    if (patch.score !== undefined) setHudScore(patch.score)
+    if (patch.damage !== undefined) setHudDamage(patch.damage)
+  }
   const css2dRendererRef = useRef<CSS2DRenderer | null>(null)
   const variableOverlayControllerRef = useRef<VariableOverlayController | null>(null)
   const coordinateOverlayControllerRef = useRef<CoordinateOverlayController | null>(null)
@@ -801,12 +807,7 @@ function SceneViewInner({
         }, ms)
       }
       setTransformerSnackbarFn(onScriptSnackbar)
-      const onHudPatch = showGameHud
-        ? (patch: HudPatch) => {
-            if (patch.score !== undefined) setHudScore(patch.score)
-            if (patch.damage !== undefined) setHudDamage(patch.damage)
-          }
-        : undefined
+      const onHudPatch = (patch: HudPatch) => hudPatchBridgeRef.current(patch)
       const gameApi = createGameAPI(
         getPositionForGame,
         setPositionForGame,
@@ -1015,7 +1016,7 @@ function SceneViewInner({
             editorFreePoseRef,
             cam,
             lastEditorPoseWriteTimeRef,
-            showGameHud,
+            showGameHud: showGameHudRef.current,
             lastHudDriveRef,
             setHudDrive,
             skyDomeRef,
@@ -1270,7 +1271,6 @@ function SceneViewInner({
     shadowsEnabled,
     freeFlyKeysRef,
     editorFreePoseRef,
-    showGameHud,
     world.world.logarithmicDepthBuffer,
     world.world.shadowsEnabled,
     world.world.videoTextureMaxAnisotropy,

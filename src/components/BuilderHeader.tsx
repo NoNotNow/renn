@@ -1,8 +1,8 @@
 import { useRef, useState, useLayoutEffect, useCallback } from 'react'
 import MenuBar from './MenuBar'
 import DropdownMenu, { type MenuItemConfig } from './DropdownMenu'
-import type { ProjectMeta } from '@/persistence/types'
 import type { RennWorld, Vec3 } from '@/types/world'
+import { useProjectContext } from '@/hooks/useProjectContext'
 import { uiLogger } from '@/utils/uiLogger'
 import {
   TEXTURE_BRUSH_RADIUS_MAX,
@@ -18,24 +18,12 @@ import { formatMenuShortcut } from '@/utils/menuShortcut'
 import { EntityPanelIcons } from './EntityPanelIcons'
 
 export interface BuilderHeaderProps {
-  projects: ProjectMeta[]
   onLeftSidebarToggle?: () => void
-  currentProject: {
-    id: string | null
-    name: string
-    isDirty: boolean
-  }
   onNew: () => void
   onSave: () => void
   onSaveAs: () => void
-  onExport: () => void
-  onCopyWorld: () => void
-  onImport: () => void
   onOpen: (id: string) => void
-  onRefresh: () => void
   onReload: () => void
-  onDeleteProject: (id: string) => void
-  onPlay: () => void
   gizmoMode: BuilderGizmoMode
   onGizmoModeChange: (mode: BuilderGizmoMode) => void
   /** When true, brush tool is inactive (no texture on selection). */
@@ -47,8 +35,6 @@ export interface BuilderHeaderProps {
   onTextureBrushRadiusPxChange?: (px: number) => void
   textureBrushAlpha?: number
   onTextureBrushAlphaChange?: (alpha: number) => void
-  fileInputRef: React.RefObject<HTMLInputElement>
-  onFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void
   onResetCamera: () => void
   onApplyDebugForce?: (force: Vec3) => void
   canUndo?: boolean
@@ -73,20 +59,12 @@ export interface BuilderHeaderProps {
 }
 
 export default function BuilderHeader({
-  projects,
   onLeftSidebarToggle,
-  currentProject,
   onNew,
   onSave,
   onSaveAs,
-  onExport,
-  onCopyWorld,
-  onImport,
   onOpen,
-  onRefresh,
   onReload,
-  onDeleteProject,
-  onPlay,
   gizmoMode,
   onGizmoModeChange,
   textureBrushDisabled = false,
@@ -96,8 +74,6 @@ export default function BuilderHeader({
   onTextureBrushRadiusPxChange,
   textureBrushAlpha = 1,
   onTextureBrushAlphaChange,
-  fileInputRef,
-  onFileChange,
   onResetCamera,
   onApplyDebugForce,
   canUndo = false,
@@ -117,6 +93,18 @@ export default function BuilderHeader({
   selectedEntityCount: _selectedEntityCount = 0,
   onOpenExampleWorld,
 }: BuilderHeaderProps) {
+  const {
+    projects,
+    currentProject,
+    exportProject,
+    copyWorldToClipboard,
+    importProject,
+    refreshProjects,
+    deleteProject,
+    handlePlay,
+    fileInputRef,
+    onFileChange,
+  } = useProjectContext()
   const [showProjectSelector, setShowProjectSelector] = useState(false)
   const [brushPopoverOpen, setBrushPopoverOpen] = useState(false)
   const brushToolButtonRef = useRef<HTMLButtonElement>(null)
@@ -217,17 +205,17 @@ export default function BuilderHeader({
     {
       type: 'item',
       label: 'Export',
-      onClick: onExport,
+      onClick: exportProject,
     },
     {
       type: 'item',
       label: 'Copy to Clipboard',
-      onClick: onCopyWorld,
+      onClick: copyWorldToClipboard,
     },
     {
       type: 'item',
       label: 'Import',
-      onClick: onImport,
+      onClick: importProject,
     },
   ]
 
@@ -282,7 +270,7 @@ export default function BuilderHeader({
     {
       type: 'item',
       label: 'Play',
-      onClick: onPlay,
+      onClick: handlePlay,
       shortcut: formatMenuShortcut('Ctrl+P'),
     },
     {
@@ -296,12 +284,12 @@ export default function BuilderHeader({
     {
       type: 'item',
       label: 'Refresh List',
-      onClick: onRefresh,
+      onClick: refreshProjects,
     },
     {
       type: 'item',
       label: 'Delete Project',
-      onClick: () => currentProject.id && onDeleteProject(currentProject.id),
+      onClick: () => currentProject.id && deleteProject(currentProject.id),
       disabled: !currentProject.id,
     },
   ]
@@ -689,7 +677,7 @@ export default function BuilderHeader({
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation()
-                        onDeleteProject(project.id)
+                        deleteProject(project.id)
                       }}
                       title="Delete project"
                       style={{

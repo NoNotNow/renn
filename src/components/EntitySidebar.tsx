@@ -1,13 +1,11 @@
 import { useState } from 'react'
 import {
-  type Entity,
-  type CameraMode,
-  type FluidOrbitDirection,
   type RennWorld,
   type AvatarFocusSnapshot,
 } from '@/types/world'
 import type { AddableShapeType, BulkEntityParams } from '@/data/entityDefaults'
 import { useLocalStorageState } from '@/hooks/useLocalStorageState'
+import { useProjectContext } from '@/hooks/useProjectContext'
 import { uiLogger } from '@/utils/uiLogger'
 import Sidebar from './layout/Sidebar'
 import { TabIcons } from './TabIcons'
@@ -19,23 +17,9 @@ import EntityCameraPanel from './entitySidebar/EntityCameraPanel'
 import type { EntityExplorerSelectEntityOptions } from './EntityExplorerTree'
 
 export interface EntitySidebarProps {
-  entities: Entity[]
-  entityWorkHistory: string[]
   selectedEntityIds: string[]
   /** Group IDs explicitly selected (in addition to entity selection). */
   selectedGroupIds: string[]
-  cameraControl: 'free' | 'follow' | 'top' | 'front' | 'right'
-  cameraTarget: string
-  cameraMode: CameraMode
-  /** Degrees; vertical framing vs target pivot (−45…45). */
-  cameraTargetVerticalAngle: number
-  fluidOrbitSpeed: number
-  fluidOrbitDirection: FluidOrbitDirection
-  fluidOrbitHeight: number
-  fluidOrbitDistance: number
-  cameraTargetLag: number
-  cameraPositionLag: number
-  world: RennWorld
   onSelectEntity: (id: string | null, options?: EntityExplorerSelectEntityOptions) => void
   onSelectGroup: (groupId: string, options?: { additive?: boolean }) => void
   onCreateGroupFromSelection: () => void
@@ -46,16 +30,6 @@ export interface EntitySidebarProps {
   onRenameGroup: (groupId: string, name: string) => void
   onAddEntity: (shapeType: AddableShapeType) => void
   onBulkAddEntities: (params: BulkEntityParams) => void
-  onCameraControlChange: (control: 'free' | 'follow' | 'top' | 'front' | 'right') => void
-  onCameraTargetChange: (target: string) => void
-  onCameraModeChange: (mode: CameraMode) => void
-  onCameraTargetVerticalAngleChange: (degrees: number) => void
-  onFluidOrbitSpeedChange: (degreesPerSecond: number) => void
-  onFluidOrbitDirectionChange: (direction: FluidOrbitDirection) => void
-  onFluidOrbitHeightChange: (height: number) => void
-  onFluidOrbitDistanceChange: (distance: number) => void
-  onCameraTargetLagChange: (lag: number) => void
-  onCameraPositionLagChange: (lag: number) => void
   onWorldChange: (world: RennWorld) => void
   onSoundPlaybackCommand?: (action: 'play' | 'stop') => void
   /** Builder: read live follow/orbit state for "save as default" in Avatar dialog. */
@@ -67,21 +41,8 @@ export interface EntitySidebarProps {
 type LeftTab = 'entities' | 'camera' | 'actions' | 'world' | 'sound'
 
 export default function EntitySidebar({
-  entities,
-  entityWorkHistory,
   selectedEntityIds,
   selectedGroupIds,
-  cameraControl,
-  cameraTarget,
-  cameraMode,
-  cameraTargetVerticalAngle,
-  fluidOrbitSpeed,
-  fluidOrbitDirection,
-  fluidOrbitHeight,
-  fluidOrbitDistance,
-  cameraTargetLag,
-  cameraPositionLag,
-  world,
   onSelectEntity,
   onSelectGroup,
   onCreateGroupFromSelection,
@@ -92,22 +53,37 @@ export default function EntitySidebar({
   onRenameGroup,
   onAddEntity,
   onBulkAddEntities,
-  onCameraControlChange,
-  onCameraTargetChange,
-  onCameraModeChange,
-  onCameraTargetVerticalAngleChange,
-  onFluidOrbitSpeedChange,
-  onFluidOrbitDirectionChange,
-  onFluidOrbitHeightChange,
-  onFluidOrbitDistanceChange,
-  onCameraTargetLagChange,
-  onCameraPositionLagChange,
   onWorldChange,
   onSoundPlaybackCommand,
   getAvatarFocusSnapshot,
   isOpen,
   onToggle,
 }: EntitySidebarProps) {
+  const {
+    world,
+    entityWorkHistory,
+    cameraControl,
+    cameraTarget,
+    cameraMode,
+    cameraTargetVerticalAngle,
+    fluidOrbitSpeed,
+    fluidOrbitDirection,
+    fluidOrbitHeight,
+    fluidOrbitDistance,
+    cameraTargetLag,
+    cameraPositionLag,
+    setCameraControl,
+    setCameraTarget,
+    setCameraMode,
+    setCameraTargetVerticalAngle,
+    setFluidOrbitSpeed,
+    setFluidOrbitDirection,
+    setFluidOrbitHeight,
+    setFluidOrbitDistance,
+    setCameraTargetLag,
+    setCameraPositionLag,
+  } = useProjectContext()
+  const entities = world.entities
   const [leftTab, setLeftTab] = useState<LeftTab>('camera')
   const [leftSidebarWidth, setLeftSidebarWidth] = useLocalStorageState('leftSidebarWidth', 240)
 
@@ -182,16 +158,16 @@ export default function EntitySidebar({
             fluidOrbitDistance={fluidOrbitDistance}
             cameraTargetLag={cameraTargetLag}
             cameraPositionLag={cameraPositionLag}
-            onCameraControlChange={onCameraControlChange}
-            onCameraTargetChange={onCameraTargetChange}
-            onCameraModeChange={onCameraModeChange}
-            onCameraTargetVerticalAngleChange={onCameraTargetVerticalAngleChange}
-            onFluidOrbitSpeedChange={onFluidOrbitSpeedChange}
-            onFluidOrbitDirectionChange={onFluidOrbitDirectionChange}
-            onFluidOrbitHeightChange={onFluidOrbitHeightChange}
-            onFluidOrbitDistanceChange={onFluidOrbitDistanceChange}
-            onCameraTargetLagChange={onCameraTargetLagChange}
-            onCameraPositionLagChange={onCameraPositionLagChange}
+            onCameraControlChange={setCameraControl}
+            onCameraTargetChange={setCameraTarget}
+            onCameraModeChange={setCameraMode}
+            onCameraTargetVerticalAngleChange={setCameraTargetVerticalAngle}
+            onFluidOrbitSpeedChange={setFluidOrbitSpeed}
+            onFluidOrbitDirectionChange={setFluidOrbitDirection}
+            onFluidOrbitHeightChange={setFluidOrbitHeight}
+            onFluidOrbitDistanceChange={setFluidOrbitDistance}
+            onCameraTargetLagChange={setCameraTargetLag}
+            onCameraPositionLagChange={setCameraPositionLag}
             onWorldChange={onWorldChange}
             getAvatarFocusSnapshot={getAvatarFocusSnapshot}
             onSelectEntity={onSelectEntity}

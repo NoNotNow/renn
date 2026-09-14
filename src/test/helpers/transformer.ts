@@ -2,6 +2,7 @@
  * Test utilities for transformer system.
  */
 
+import { expect } from 'vitest'
 import type {
   TransformInput,
   TransformOutput,

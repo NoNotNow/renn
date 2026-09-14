@@ -27,9 +27,9 @@ import {
   getEntityPipeStack,
   normalizePipeMembers,
 } from './transformerPipeResolve'
+import { resolveLocalScopeParams } from '@/utils/paramScopes'
 import {
   pipeScopeKeyFromPath,
-  resolveEditableScopeParams,
   resolveEntityTransformerConfigsForRuntime,
   resolveMergedTransformerConfigsForEntitySync,
 } from './pipeStageResolve'
@@ -512,7 +512,7 @@ describe('pipe copy and link — runtime param projection', () => {
     const e1 = assigned.entities[0]!
     const configs = resolveEntityTransformerConfigsForRuntime(assigned, e1)
     expect(configs?.[0]?.params).toEqual({ power: 10, speed: 33, boost: false })
-    expect(resolveEditableScopeParams(e1.transformerPipeStack?.[0], drivePipe())).toEqual({ speed: 33, boost: false })
+    expect(resolveLocalScopeParams(e1.transformerPipeStack?.[0])).toEqual({ speed: 33, boost: false })
   })
 
   it('decoupled copy keeps independent runtime params from linked sibling', () => {
@@ -1077,17 +1077,15 @@ describe('pipe copy and link — nested scope params (spec: scopeParams per enti
     expect(params[1]).toEqual({ power: 8, grip: 9 })
   })
 
-  it('linked: resolveEditableScopeParams reads stack root vs nested scope storage separately', () => {
+  it('linked: resolveLocalScopeParams reads stack root vs nested scope storage separately', () => {
     const world = nestedManifoldWorld()
     const binding = world.entities.find((e) => e.id === 'e1')?.transformerPipeStack?.[0]
     const withScope = setBindingScopeParams(world, 'e1', 0, nestedScopePath, { grip: 9 })
     const scopedBinding = withScope.entities.find((e) => e.id === 'e1')?.transformerPipeStack?.[0]
-    expect(resolveEditableScopeParams(binding, world.transformerPipes?.root, [{ kind: 'stack', index: 0 }])).toEqual({
+    expect(resolveLocalScopeParams(binding, [{ kind: 'stack', index: 0 }])).toEqual({
       grip: 1,
     })
-    expect(
-      resolveEditableScopeParams(scopedBinding, withScope.transformerPipes?.root, nestedScopePath),
-    ).toEqual({ grip: 9 })
+    expect(resolveLocalScopeParams(scopedBinding, nestedScopePath)).toEqual({ grip: 9 })
   })
 
   it('copy: nested scopeParams stay on the copy binding and do not affect linked entities', () => {
@@ -1245,7 +1243,7 @@ describe('pipe copy and link — paramDefs assign combinations', () => {
     })
     const next = assignPipeToEntity(world, 'e1', drivePipe(), 'copy', { params: { speed: 42 } })
     expect(bindingParams(next, 'e1')).toEqual({ speed: 42, boost: false })
-    expect(resolveEditableScopeParams(next.entities[0]?.transformerPipeStack?.[0], drivePipe())).toEqual({
+    expect(resolveLocalScopeParams(next.entities[0]?.transformerPipeStack?.[0])).toEqual({
       speed: 42,
       boost: false,
     })

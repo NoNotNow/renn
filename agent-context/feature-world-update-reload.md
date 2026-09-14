@@ -45,15 +45,20 @@ flowchart LR
    Most edits call `updateEntity(patch)` which builds a new `world` and invokes `onWorldChange(newWorld)`. Transform position/rotation can instead call `onEntityPoseChange(id, pose)`. Physics properties (mass, restitution, friction, damping, bodyType) call `onEntityPhysicsChange(id, patch)` when provided. Model rotation/scale (for trimesh or entity.model) call `onEntityModelTransformChange(id, patch)` when provided.
 
 2. **Builder** ([src/pages/Builder.tsx](src/pages/Builder.tsx))  
-   - `captureScenePosesForNextRebuild()`: copies `sceneViewRef.current?.getAllPoses()` into `initialPosesRef` so the next full scene rebuild reapplies live poses for existing entity ids (avoids snapping everything back to document transforms after physics/simulation).  
-   - `handleWorldChange(newWorld)`: calls `captureScenePosesForNextRebuild()` only when `worldChangesRequireSceneRebuild(prev, newWorld)` (incremental workspace edits such as pipe-stack bootstrap must not snapshot live poses), then `updateWorld(() => newWorld)`. `initialPosesRef` is cleared synchronously when `documentEpoch` changes (project load / new project) so stale poses are never restored across projects.  
-   - `handleAddEntity`, `handleBulkAddEntities`, `handleDeleteEntity`, `handleCloneEntity`, `handlePasteEntities`: update document then call `sceneViewRef.syncWorldEntities(prev, next)` — no pose capture or full reload.  
+   - `captureScenePosesForNextRebuild()`: copies `sceneViewRef.current?.getAllPoses()` into `initialPosesRef` so the next full scene rebuild reapplies live poses for existing entity ids (avoids snapping everything back to document transforms after physics/simulation). `initialPosesRef` is cleared synchronously when `documentEpoch` changes (project load / new project) so stale poses are never restored across projects.  
+   - **World-edit seam** — [`applyWorldEdit`](../src/editor/applyWorldEdit.ts): single entry point for most document writes. Dependency-injected function (not a hook): deps `{ updateWorld, bumpVersion, pushBeforeEdit, captureScenePosesForNextRebuild, syncWorldEntities }`; descriptor `{ undo: 'push' | 'skip'; scene: 'auto' | 'rebuild' | 'sync' | 'none' }`. `scene: auto` → `worldChangesRequireSceneRebuild`; `rebuild` → capture then bump; `sync` → `syncWorldEntities` only; `none` → caller already ran imperative scene op. Builder builds deps once in `worldEditDeps` (`useMemo`); **17 handlers** call through it.  
+   - **Ordering invariants** (`applyWorldEdit.test.ts`; do not reorder): (1) `pushBeforeEdit` before `updateWorld`; (2) `captureScenePosesForNextRebuild()` before `bumpVersion()`.  
+   - **Write-then-scene inside `applyWorldEdit`** — uniform and not observable: `syncWorldEntities(prev, next)` reads only its two args and SceneView refs (never Builder `world`/`worldRef`), is async and un-awaited, so work lands after React commit regardless of call order; `captureScenePosesForNextRebuild` reads live poses via `getAllPoses()` independent of the document; `bumpVersion` and `updateWorld` batch as React setters. Pre-refactor Builder was inconsistent (add/delete/clone/paste: write→scene; shape change, mesh simplification, `handleWorldChange`: scene→write).  
+   - `handleWorldChange(newWorld)`: `applyWorldEdit(..., { undo: 'skip', scene: 'auto' }, () => newWorld)`. Classifies against authoritative `prev` from the `updateWorld` updater (not lagging React `world`); two same-tick edits classify the second against the first result (`Builder.test.tsx`). Gateway — callers push undo themselves or skip for live previews.  
+   - Routed handlers (examples): add/bulk-add/delete/clone/paste → `{ undo: 'push', scene: 'sync' }`; gizmo pose commit, group create/ungroup/add/remove/rename → `{ undo: 'push', scene: 'none' }`; physics/material/model-transform → scene op first, then `{ undo: 'skip', scene: 'none' }`.  
+   - **Not routed** (do not "finish the job" blindly): `handleEntityShapeChange` — branches on `updateEntityShape` return value, not static classifier (scene→write); `handleEntityTransformersChange` — bespoke `syncMergedEntityTransformers`; `handleApplyTextureDownscale` — assets only; `handleApplyMeshSimplification` — async, two document writes, unconditional rebuild; `handleEntityPoseChange`, `handleResetPoseToSavedWorld`, `handleRefreshFromPhysics` — scene-only, no document write.  
+   - **Intentional undo omissions**: `handleResetCamera` (strips transient `editorFreePose`); `handleToggleGroupCollapsed` (UI flag); `handleWorldChange` (gateway); `handlePatchStage` in `WorkspaceTransformersTab` (live scrub — coalesces via `notifyScrubStart`/`notifyScrubEnd`; naive `pushBeforeEdit` would create one undo entry per tick).  
    - `applyHistorySnapshot` (undo/redo): when `canApplyWorldSnapshotIncrementally(prev, snap)` is true, applies snapshot without bumping scene `version` and calls `syncWorldEntities`; otherwise full reload via `applyEditorSnapshot(..., { reloadScene: true })`.  
    - `handleEntityTransformersChange`: calls `syncEntityTransformers` directly; all transformer changes are now incremental and do not trigger a full scene rebuild.
-   - `handleEntityShapeChange` (trimesh / fallback rebuild branch): calls `captureScenePosesForNextRebuild()` before `updateWorld`.  
+   - `handleEntityShapeChange`: imperative `updateEntityShape` first; on failure captures poses and bumps version, then `updateWorld` (not via `applyWorldEdit`).  
    - `handleEntityPoseChange(id, pose)`: calls `sceneViewRef.current?.updateEntityPose(id, pose)` only (no world state update until an explicit sync, e.g. Refresh from physics or save).  
-   - `handleEntityPhysicsChange(id, patch)`: calls `sceneViewRef.current?.updateEntityPhysics(id, patch)` to update the body/collider directly, then calls `updateWorld(...)` directly (bypassing `handleWorldChange`, so no `initialPosesRef` capture) to keep the document in sync.  
-   - `handleEntityModelTransformChange(id, patch)`: calls `sceneViewRef.current?.updateEntityModelTransform(id, patch)` to update the mesh's model scene rotation/scale, optional `doubleSided` GLTF shading (via `applyModelVisualSides`), and rebuild trimesh collider only when rotation or scale changed, then calls `updateWorld(...)` to keep the document in sync; no full reload.
+   - `handleEntityPhysicsChange(id, patch)`: scene op first, then `applyWorldEdit(..., { undo: 'skip', scene: 'none' }, ...)`.  
+   - `handleEntityModelTransformChange(id, patch)`: scene op first (`updateEntityModelTransform` — model-scene rotation/scale, `doubleSided`/`applyModelVisualSides`, trimesh collider when rotation/scale changed), then `applyWorldEdit(..., { undo: 'skip', scene: 'none' }, ...)`.
 
 3. **ProjectContext** ([src/contexts/ProjectContext.tsx](src/contexts/ProjectContext.tsx))  
    - `updateWorld(updater)`: applies updater to previous world, updates `worldRef.current`, calls `setWorld(next)`, marks project dirty.  
@@ -63,12 +68,13 @@ flowchart LR
    - Main setup effect depends on `sceneKey = getSceneDependencyKey(world)` (and version, runPhysics, etc.). When `sceneKey` changes, the effect runs: teardown, `loadWorld(world, assets)`, create physics and registry, then apply `initialPosesRef` and call `onPosesRestored` so Builder can sync poses back.  
    - **Builder camera restore**: teardown saves the viewport to `savedCameraStateRef` when **camera control is free** *or* **edit-navigation is on** (reads `editNavigationModeRef` in cleanup). On load, the camera is restored from that ref if the user is in free placement (free control or edit nav); otherwise from `world.camera.editorFreePose` if present; otherwise `defaultPosition`/`defaultRotation`; else defaults. Throttled updates write the live pose to `ProjectContext.editorFreePoseRef` for merge on save (`getWorldToSave`).  
    - Separate effects update gravity, sky color, camera config, and shadows **without** running the main effect.  
+   - **Game HUD** (`showGameHud`): overlay visibility only — toggling it does **not** run the main setup effect or reset entity poses; the frame loop reads `showGameHudRef` each tick.
    - Imperative API: `updateEntityPose(id, pose)` updates the registry (mesh + physics body) directly; no world change and no rebuild.  
    - Imperative API: `updateEntityPhysics(id, patch)` forwards to `RenderItemRegistry.updatePhysics` → `PhysicsWorld` setters, mutating the body/collider directly; no rebuild.  
    - Imperative API: `updateEntityModelTransform(id, patch)` forwards to `RenderItemRegistry.setModelTransform` → updates the mesh's model-scene child rotation/scale when those fields are in `patch`, merges `doubleSided` (persisted as truthy only), applies `applyModelVisualSides` from `createPrimitive.ts`, and for trimesh calls `PhysicsWorld.updateShape` only when rotation or scale changed; no full reload.
    - Imperative API: `syncWorldEntities(prev, next)` diffs entity lists and applies incremental add/remove/update (mesh, physics, scripts, transformers) without a full reload.
 
-So: **world changes** go through `onWorldChange` → `updateWorld` → new `world` prop to SceneView. **Whether the scene rebuilds** is decided by `worldChangesRequireSceneRebuild` (explicit `bumpVersion`), not merely because `world` changed.
+So: **world changes** go through `onWorldChange` → `applyWorldEdit` → `updateWorld` → new `world` prop to SceneView. **Rebuild vs sync** is not one function — see rebuild-key section.
 
 ## Why position is live, physics props are live, but shape/size triggers rebuild
 
@@ -95,7 +101,14 @@ So: **world changes** go through `onWorldChange` → `updateWorld` → new `worl
 
 ## Rebuild key: what is included and excluded
 
-Defined in [src/utils/sceneDependencyKey.ts](src/utils/sceneDependencyKey.ts). `getSceneDependencyKey` covers **world-level** fields only (used as SceneView main-effect dependency). `worldChangesRequireSceneRebuild(prev, next)` additionally compares per-entity structural fields on **existing** ids and triggers an explicit scene `version` bump when true.
+Defined in [src/utils/sceneDependencyKey.ts](src/utils/sceneDependencyKey.ts). `getSceneDependencyKey` covers **world-level** fields only (used as SceneView main-effect dependency). **Rebuild-vs-sync has several implementations** — do not assume one classifier covers all paths:
+
+| Implementation | Where | Role |
+|----------------|-------|------|
+| `worldChangesRequireSceneRebuild` | `sceneDependencyKey.ts` | Static classifier; `applyWorldEdit` `scene: 'auto'` and rebuild-key docs |
+| `canApplyWorldSnapshotIncrementally` | `incrementalSceneSync.ts` | Negated wrapper; undo/redo snapshot apply |
+| `updateEntityShape` return value | `handleEntityShapeChange` | Runtime feedback when hot-swap fails |
+| Unconditional capture+bump | `handleApplyMeshSimplification` | Always rebuilds before async asset bake |
 
 **World-level (change triggers rebuild via version bump):**
 
@@ -107,14 +120,12 @@ Defined in [src/utils/sceneDependencyKey.ts](src/utils/sceneDependencyKey.ts). `
 
 **Entity add/remove (incremental — no rebuild):**
 
-- Handled by `SceneView.syncWorldEntities` → `buildLoadedEntity` + `RenderItemRegistry.addLoadedEntity` / `removeEntity` + `PhysicsWorld.addEntity` / `removeEntity`.
+- Builder routes via `applyWorldEdit` `scene: 'sync'` → `SceneView.syncWorldEntities` → `buildLoadedEntity` + `RenderItemRegistry.addLoadedEntity` / `removeEntity` + `PhysicsWorld.addEntity` / `removeEntity`. Entity-list changes do not bump scene version.
 
 **Excluded (change does not trigger rebuild):**
 
 - **Per entity**: `name`, `locked`, `position`, `rotation`, `scale`, `modelPosition`, `modelRotation`, `modelScale`, `doubleSided`, `bodyType`, `mass`, `restitution`, `friction`, `linearDamping`, `angularDamping`, primitive shape dimensions, `material`, `transformers` (structure, order, code, params, enabled).
 - **World**: `world.gravity`, `world.skyColor`, `world.skybox`, `world.fog`, `world.camera` (these are applied by dedicated effects in SceneView).
-
-Entity add/remove changes the entity list, so the key changes and a rebuild runs.
 
 ## Property behavior matrix
 
@@ -175,7 +186,8 @@ To make world rebuilds minimal when editing a single entity's remaining structur
 ```
 src/
 ├── components/PropertyPanel.tsx   # updateEntity → onWorldChange; pose → onEntityPoseChange; physics → onEntityPhysicsChange
-├── pages/Builder.tsx             # handleWorldChange, handleEntityPoseChange, handleEntityPhysicsChange, initialPosesRef
+├── editor/applyWorldEdit.ts      # world-edit seam: undo + scene-follow policies
+├── pages/Builder.tsx             # worldEditDeps, handleWorldChange, pose/physics handlers, initialPosesRef
 ├── contexts/ProjectContext.tsx   # updateWorld, syncPosesFromScene, syncPosesToRefOnly
 ├── components/SceneView.tsx      # sceneKey in effect deps; updateEntityPose/Physics/Shape/Material; gravity/sky/camera effects
 ├── utils/sceneDependencyKey.ts   # getSceneDependencyKey: included vs excluded fields

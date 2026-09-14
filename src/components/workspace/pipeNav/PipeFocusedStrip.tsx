@@ -21,6 +21,7 @@ import {
   pipeScopeKeyFromPath,
   stackIndexFromScopePath,
 } from '@/utils/pipeStageResolve'
+import { createPipeCardStageCallbacks } from './pipeStageCallbacks'
 
 export interface PipeFocusedStripProps {
   world: RennWorld
@@ -231,6 +232,10 @@ export default function PipeFocusedStrip({
               : focusPath
             const enabled = stageRuntime.scopeEffectiveEnabled.get(pipeScopeKeyFromPath(scopePath)) ?? true
             const stackIdxForScope = stackIndexFromScopePath(scopePath)
+            const pipeCardCallbacks = createPipeCardStageCallbacks(
+              { pipeId: item.pipeId, stackIndex: stackIdxForScope, scopePath },
+              { onPipeControlToggle, onPipeParamChange, onPipeParamsReplace },
+            )
             return (
               <Fragment key={`${item.pipeId}-${idx}`}>
                 {idx > 0 ?
@@ -249,29 +254,9 @@ export default function PipeFocusedStrip({
                   scrollLeft={scrollLeft}
                   onSelect={() => onSelectPipeIndex(idx)}
                   onDrillIn={() => onDrillIntoPipe(idx, item.pipeId)}
-                  onToggleEnabled={() =>
-                    onPipeControlToggle?.({
-                      pipeId: item.pipeId,
-                      stackIndex: stackIdxForScope !== undefined && stackIdxForScope >= 0 ? stackIdxForScope : undefined,
-                    })
-                  }
-                  onParamChange={(key, value) =>
-                    onPipeParamChange?.({
-                      pipeId: item.pipeId,
-                      stackIndex: stackIdxForScope,
-                      scopePath,
-                      key,
-                      value,
-                    })
-                  }
-                  onParamsReplace={(params) =>
-                    onPipeParamsReplace?.({
-                      pipeId: item.pipeId,
-                      stackIndex: stackIdxForScope,
-                      scopePath,
-                      params,
-                    })
-                  }
+                  onToggleEnabled={pipeCardCallbacks.onToggleEnabled}
+                  onParamChange={pipeCardCallbacks.onParamChange}
+                  onParamsReplace={pipeCardCallbacks.onParamsReplace}
                   onDecoupleBinding={
                     stackIdx !== undefined && stackIdx >= 0 ?
                       () => onDecouplePipeBinding?.(stackIdx)
@@ -355,6 +340,11 @@ export default function PipeFocusedStrip({
       const stackIdx = stackIndexFromScopePath(memberScopePath)
       const stackBinding =
         stackIdx !== undefined && stackIdx >= 0 ? stack[stackIdx] : undefined
+      const pipeCardCallbacks = createPipeCardStageCallbacks(
+        { pipeId: item.pipeId, stackIndex: stackIdx, scopePath: memberScopePath },
+        { onPipeControlToggle, onPipeParamChange, onPipeParamsReplace },
+        { memberParentPipeId: parentPipeId, memberIndex: item.index },
+      )
       return (
         <PipeCard
           pipe={pipe}
@@ -369,31 +359,9 @@ export default function PipeFocusedStrip({
           scrollLeft={scrollLeft}
           onSelect={() => onSelectPipeIndex(item.index)}
           onDrillIn={() => onDrillIntoPipe(item.index, item.pipeId)}
-          onToggleEnabled={() =>
-            onPipeControlToggle?.({
-              pipeId: item.pipeId,
-              stackIndex: stackIdx !== undefined && stackIdx >= 0 ? stackIdx : undefined,
-              memberParentPipeId: parentPipeId,
-              memberIndex: item.index,
-            })
-          }
-          onParamChange={(key, value) =>
-            onPipeParamChange?.({
-              pipeId: item.pipeId,
-              stackIndex: stackIdx,
-              scopePath: memberScopePath,
-              key,
-              value,
-            })
-          }
-          onParamsReplace={(params) =>
-            onPipeParamsReplace?.({
-              pipeId: item.pipeId,
-              stackIndex: stackIdx,
-              scopePath: memberScopePath,
-              params,
-            })
-          }
+          onToggleEnabled={pipeCardCallbacks.onToggleEnabled}
+          onParamChange={pipeCardCallbacks.onParamChange}
+          onParamsReplace={pipeCardCallbacks.onParamsReplace}
           onDecoupleBinding={
             stackIdx !== undefined && stackIdx >= 0 ?
               () => onDecouplePipeBinding?.(stackIdx)

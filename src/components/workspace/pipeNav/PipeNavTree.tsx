@@ -26,7 +26,6 @@ export interface PipeNavTreeProps {
   ) => void
   onTreeDrop?: (drag: PipeTreeNode, drop: PipeTreeNode) => void
   drawerPortalTarget?: RefObject<HTMLDivElement | null>
-  stackIndexForPipeId?: (pipeId: string) => number
   onPipeControlToggle?: (opts: {
     pipeId: string
     stackIndex?: number
@@ -59,7 +58,6 @@ export default function PipeNavTree({
   onContextAction,
   onTreeDrop,
   drawerPortalTarget,
-  stackIndexForPipeId: _stackIndexForPipeId,
   onPipeControlToggle,
   onPipeParamChange,
   onPipeParamsReplace,
@@ -188,8 +186,6 @@ export default function PipeNavTree({
                     configOpen={openConfigKey === key}
                     onConfigOpenChange={(open) => setOpenConfigKey(open ? key : null)}
                     stackIndex={stackIdx !== undefined && stackIdx >= 0 ? stackIdx : undefined}
-                    memberParentPipeId={parentPipeId}
-                    memberIndex={memberIndex}
                     drawerPortalTarget={drawerPortalTarget}
                     scrollLeft={scrollLeft}
                     scopePath={nodePath}

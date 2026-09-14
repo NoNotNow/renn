@@ -142,6 +142,7 @@ These files are only imported by tests, not by any production code. They are val
 - Heavy coupling to `RenderItem`, `PhysicsWorld`, Three.js mesh state, transformer chain, and per-frame allocations. Mocking enough surface for meaningful direct coverage would be brittle and high-noise.
 - Existing coverage: 9+ scenario / integration tests already exercise `RenderItemRegistry` end-to-end (`controlled-entity-transformers-culling`, `box-model-material`, `box-model-simplification-texture`, `trimesh-simplification-model-colors`, `transformers/integration`, `editor/transformGizmoController`, `loader/floorSaveLoad`, `physics/rapierPhysics`, plus `runtime/renderItem.test.ts` for the per-item layer).
 - **If a deterministic regression appears,** prefer extending an existing scenario test (or `runtime/renderItem.test.ts`) over building a mock of the registry.
+- **2026-09-14 update:** `renderItemRegistry.test.ts` adds port-satisfaction + frame-ordering contract tests (4 tests). Full registry behaviour still integration-tested.
 
 ---
 
@@ -432,6 +433,35 @@ The confirm flow needs the parent's `onUploadTexture` / `onCommitConvertedVideo`
 
 ---
 
+## Phase 19 — Param scopes, registry ports, pipe-nav slimming (completed, 2026-09-14)
+
+**Performance:** No new per-frame work. `worldPipeRegistryChanged` already ran two `JSON.stringify` comparisons per incremental sync check — now documented as an existing characteristic, not introduced here.
+
+### Param scope merge — `paramScopes.ts`
+- **`src/utils/paramScopes.ts`** — single owner of the three-scope merge rule. Runtime merged output: `mergeParamScopeLayers` + `resolveBindingScopeLayerParams` (consumed by `pipeStageResolve.ts`). Editing UI: `resolveLocalScopeParams(binding, scopePath)`.
+- Removed alias exports (`resolveEditableScopeParams`, `resolvePipeBindingParams`, `mergePipeParamLayers`, and others); call sites use the names above.
+- **`PipeParamsStrip`** now passes `scopePath` into `resolveLocalScopeParams` (was showing binding params at nested scopes while JSON editor showed scope params).
+- **`paramScopes.test.ts`** — merge/local/layer tests + characterization test for runtime vs editing stack-root predicate divergence (`scopeKey.startsWith('stack:')` vs `isStackRootScopePath`).
+
+### Registry audience ports — `renderItemRegistryPorts.ts`
+- **`src/runtime/renderItemRegistryPorts.ts`** — `SimulationFramePort`, `SceneEditPort`, `EntityHandlePort`, `SelectionPivotPort`. One class implements all three; implementation not split.
+- **`sceneFrameLoop.ts`** typed against `SimulationFramePort`; **`gameApi.ts`** against `EntityHandlePort`. Frame-ordering invariant documented on the simulation port.
+- Builder/SceneView editing path not yet wired to `SceneEditPort`.
+
+### Pipe nav controller surface
+- **`usePipeNavController`** return shrank 34 → 23 keys (dropped unused `navigator`, `goUp`/`goLeft`/`goRight`, `drillInto`, `pushWorld`, `reorderStack`, `reorderMember`). Navigation stays in `usePipeNavigator` / `WorkspaceTransformersTab`.
+- **`pipeStageCallbacks.ts`** — shared `createPipeCardStageCallbacks` for `PipeFocusedStrip` PipeCard wiring.
+
+### Test coverage added
+- **`renderItemRegistry.test.ts`** — first direct tests (port satisfaction, frame-order contract, visual-base rotation, pose round-trip).
+- **`incrementalSceneSync.test.ts`** — 20 tests (`diffEntityWorld`, `worldPipeRegistryChanged`, `canApplyWorldSnapshotIncrementally`).
+
+### Incremental sync characteristics (documented, not fixed)
+- **`diffEntityWorld`**: entity updates detected by **reference equality** (`prevEntity === nextEntity`), not deep equality. Rebuilt/cloned entity arrays mark every entity `updated`.
+- **`worldPipeRegistryChanged`**: two full `JSON.stringify` over `world.transformers` and `world.transformerPipes` on every incremental sync check.
+
+---
+
 ## Phase 18 — Dead exports, hex tokens, pipe type cleanup (completed, 2026-08-02)
 
 **Performance:** None — style-token swaps and type-field removal only.
@@ -521,7 +551,7 @@ The `SHAPE_FILTER_OPTIONS` constant moved into `EntityListPanel` (its only consu
 | `components/SceneView.tsx` | ~1058 | Phase 10 extracted skybox / audio / fullscreen / error overlay / fullscreen button. Remaining: main scene-build `useEffect` (~330 lines, see Phase 10 "Why no SceneView main-effect extraction"); per-frame `pushFrame`/`animate` rAF wrapper; debug forces ref + `applyDebugForce` |
 | `physics/rapierPhysics.ts` | ~1085 | Collider creation, body management, step logic → separate files |
 | `TextureMaker/TextureMaker.tsx` | ~1028 | Tool logic, layer management → sub-components |
-| `runtime/renderItemRegistry.ts` | ~953 | Transformer execution, culling, mesh sync → separate concerns |
+| `runtime/renderItemRegistry.ts` | **~1337** | Audience ports extracted to `renderItemRegistryPorts.ts` (interfaces only; impl still monolithic). Transformer execution, culling, mesh sync → separate concerns |
 | `components/WorldPanel.tsx` | **68** | ✅ Phase 11 split into `world/` sub-sections + `useWorldPanelEdits` hook. |
 | `components/EntitySidebar.tsx` | **150** | ✅ Phase 12 split into `entitySidebar/EntityListPanel` + `EntityCameraPanel` + `useEntityListFilters` hook. |
 | `components/PropertyPanel.tsx` | **511** | ✅ Phase 13 split into `propertyPanel/PropertyPanelHeader` + `MaterialSection` + `ModelTransformSection` + `AvatarSection`. Remaining: derived-merge block could move into a `usePropertyPanelDerived` hook (deferred — would force extra prop drilling). |
@@ -541,9 +571,13 @@ The `SHAPE_FILTER_OPTIONS` constant moved into `EntityListPanel` (its only consu
 ### Test coverage gaps
 
 Critical modules without dedicated unit tests:
-- `runtime/renderItemRegistry.ts` — covered by integration/scenario tests; direct unit tests deferred (see Phase 5 rationale).
+- `runtime/renderItemRegistry.ts` — port/contract smoke tests added (Phase 19); full behaviour still integration/scenario-tested (see Phase 5 rationale).
 - `runtime/sceneFrameLoop.ts` — accumulator tests + 28 unit tests for the per-frame body branches (Phase 7). The rAF wrapper loop in `SceneView` is still only exercised via integration tests (`shadow-follow-camera`, scenarios).
 - `utils/modelPreview.ts` — pure framing/disposal helpers extracted to `modelPreviewFraming.ts` and tested (Phase 5). The remaining `generateModelPreview` entry point is WebGL-bound and still has no direct test.
+
+**Incremental sync gotchas** (`incrementalSceneSync.ts`, tested in Phase 19):
+- `diffEntityWorld` — reference equality only; deep-cloned/rebuilt entity arrays force per-entity sync work.
+- `worldPipeRegistryChanged` — two `JSON.stringify` comparisons per check; avoid calling on hot paths beyond existing SceneView incremental gate.
 
 ### Optional — idle material prefetch
 
@@ -568,7 +602,8 @@ Critical modules without dedicated unit tests:
 - [x] Test coverage: `data/modelPresets`, `data/sampleWorld`, `scripts/scriptCtx`
 - [~] God file splitting — Phase 8–14 split ProjectContext/Builder/SceneView/WorldPanel/EntitySidebar/PropertyPanel/TextureDialog. **Phase 15 (2026-04-22):** `useTextureMakerSession` extracted from `Builder.tsx` (2009 → 1177, -41%); `src/hooks/useTextureMakerSession.ts` owns all Texture Maker state, draft history, provisioning, and handlers. `rapierPhysics`/`TextureMaker`/`renderItemRegistry` still pending; `SceneView` main-effect deferred.
 - [x] Pure helpers extracted from `modelPreview.ts` and tested (`modelPreviewFraming`)
-- [ ] Test coverage for `renderItemRegistry.ts` — *deferred; integration-tested. See Phase 5.*
+- [x] Test coverage for `renderItemRegistry.ts` — port/contract smoke tests (Phase 19); full behaviour integration-tested. See Phase 5.
+- [x] Test coverage for `incrementalSceneSync.ts` — 20 tests (Phase 19).
 - [x] Test coverage for `sceneFrameLoop.ts` rAF body (28 branch tests added in Phase 7; rAF loop wrapper still integration-tested)
 - [x] Fix `scriptCtx.time` capture-vs-live bug (Phase 5)
 - [x] Inspector pose polling isolated (`LivePosesPoll` → `PropertySidebar`, not full `Builder`)

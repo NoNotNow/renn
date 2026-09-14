@@ -1078,7 +1078,6 @@ function WorkspaceTransformersTabEntity({
           onTreeContext={pipeNav.handleTreeContext}
           onTreeDrop={pipeNav.handleTreeDrop}
           drawerPortalTarget={floatingDrawerPortalRef}
-          stackIndexForPipeId={pipeNav.stackIndexForPipeId}
           onPipeControlToggle={pipeNav.togglePipeEnabled}
           onPipeParamChange={pipeNav.updatePipeParam}
           onPipeParamsReplace={pipeNav.replacePipeParams}

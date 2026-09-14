@@ -6,6 +6,29 @@ import {
   SUPPRESS_ESCAPE_SCENE_FOCUS_ATTR,
 } from '@/config/constants'
 import type { RennWorld } from '@/types/world'
+import * as THREE from 'three'
+
+const loadWorldMock = vi.fn(async (world: unknown, _assets?: unknown) => {
+  const w = world as RennWorld
+  return {
+    scene: new THREE.Scene(),
+    entities: w.entities.map((entity) => ({
+      entity,
+      mesh: new THREE.Mesh(),
+    })),
+    world: w,
+    assetResolver: { dispose: vi.fn() },
+    warnings: [] as string[],
+  }
+})
+
+vi.mock('@/loader/loadWorld', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/loader/loadWorld')>()
+  return {
+    ...actual,
+    loadWorld: (...args: Parameters<typeof actual.loadWorld>) => loadWorldMock(...args),
+  }
+})
 
 vi.mock('three', async (importOriginal) => {
   const actual = await importOriginal<typeof import('three')>()
@@ -46,6 +69,7 @@ describe('SceneView', () => {
   let originalAudio: typeof Audio
 
   beforeEach(() => {
+    loadWorldMock.mockClear()
     vi.stubGlobal('requestAnimationFrame', (cb: () => void) => {
       requestAnimationFrameId = setTimeout(cb, 0) as unknown as number
       return requestAnimationFrameId
@@ -183,6 +207,32 @@ describe('SceneView', () => {
     expect(() => ref.current?.setViewPreset('top')).not.toThrow()
     expect(() => ref.current?.setViewPreset('front')).not.toThrow()
     expect(() => ref.current?.setViewPreset('right')).not.toThrow()
+  })
+
+  it('does not reload the scene when showGameHud toggles', async () => {
+    const { rerender } = render(
+      <SceneView world={minimalWorld} runPhysics={false} runScripts={false} showGameHud={false} />,
+    )
+    await waitFor(() => {
+      expect(document.querySelector('[data-testid="scene-bootstrap-loading"]')).not.toBeInTheDocument()
+    })
+    expect(loadWorldMock).toHaveBeenCalledTimes(1)
+
+    rerender(
+      <SceneView world={minimalWorld} runPhysics={false} runScripts={false} showGameHud={true} />,
+    )
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(loadWorldMock).toHaveBeenCalledTimes(1)
+
+    rerender(
+      <SceneView world={minimalWorld} runPhysics={false} runScripts={false} showGameHud={false} />,
+    )
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(loadWorldMock).toHaveBeenCalledTimes(1)
   })
 
   it('applies world sound settings and responds to manual playback command', () => {

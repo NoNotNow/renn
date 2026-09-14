@@ -88,7 +88,7 @@ import { getFullscreenElement, isFullscreenEnabled } from '@/utils/fullscreenApi
 import TextureMaker from '@/components/TextureMaker/TextureMaker'
 import TransformerDocs from '@/components/TransformerDocs'
 import { getEntityApproximateSize } from '@/utils/entityApproximateSize'
-import { worldChangesRequireSceneRebuild } from '@/utils/sceneDependencyKey'
+import { applyWorldEdit } from '@/editor/applyWorldEdit'
 import { canApplyWorldSnapshotIncrementally } from '@/utils/incrementalSceneSync'
 import { computeMeshWorldMaxExtent } from '@/utils/meshWorldExtent'
 import { placeEntitiesInFrontOfCamera } from '@/utils/cameraFrontPlacement'
@@ -113,8 +113,6 @@ export default function Builder() {
     saveProject,
     saveProjectAs,
     saveToProject,
-    deleteProject,
-    refreshProjects,
     updateWorld,
     updateAssets,
     applyEditorSnapshot,
@@ -122,12 +120,7 @@ export default function Builder() {
     documentEpoch,
     syncPosesFromScene,
     syncPosesToRefOnly,
-    exportProject,
-    copyWorldToClipboard,
-    importProject,
-    onFileChange,
     handlePlay,
-    fileInputRef,
     loadExampleWorld,
     cameraControl,
     cameraTarget,
@@ -139,16 +132,8 @@ export default function Builder() {
     fluidOrbitDistance,
     cameraTargetLag,
     cameraPositionLag,
-    setCameraControl,
     setCameraTarget,
     setCameraMode,
-    setCameraTargetVerticalAngle,
-    setFluidOrbitSpeed,
-    setFluidOrbitDirection,
-    setFluidOrbitHeight,
-    setFluidOrbitDistance,
-    setCameraTargetLag,
-    setCameraPositionLag,
     editorFreePoseRef,
     entityWorkHistory,
     recordEntityWorkHistory,
@@ -346,6 +331,17 @@ export default function Builder() {
     initialPosesRef.current = sceneViewRef.current?.getAllPoses() ?? null
   }, [])
 
+  const worldEditDeps = useMemo(
+    () => ({
+      updateWorld,
+      bumpVersion,
+      pushBeforeEdit: pushHistory,
+      captureScenePosesForNextRebuild,
+      syncWorldEntities: syncSceneAfterDocumentChange,
+    }),
+    [updateWorld, bumpVersion, pushHistory, captureScenePosesForNextRebuild, syncSceneAfterDocumentChange],
+  )
+
   const {
     builderColumnRef,
     fsSidebarsHitTestRef,
@@ -400,7 +396,6 @@ export default function Builder() {
   const handleEntityPoseCommit = useCallback(
     (commits: BuilderPoseCommitEntry[]) => {
       if (commits.length === 0) return
-      pushHistory()
       for (const { entityId, pose } of commits) {
         sceneViewRef.current?.updateEntityPose(entityId, {
           position: pose.position,
@@ -409,7 +404,7 @@ export default function Builder() {
         })
       }
       const byId = new Map(commits.map((c) => [c.entityId, c.pose] as const))
-      updateWorld((prev) => ({
+      applyWorldEdit(worldEditDeps, { undo: 'push', scene: 'none' }, (prev) => ({
         ...prev,
         entities: prev.entities.map((e) => {
           const pose = byId.get(e.id)
@@ -426,7 +421,7 @@ export default function Builder() {
       }))
       uiLogger.change('Builder', 'Gizmo pose commit', { count: commits.length, entityIds: commits.map((c) => c.entityId) })
     },
-    [updateWorld, pushHistory]
+    [worldEditDeps]
   )
 
   const handleNew = useCallback(() => {
@@ -599,8 +594,6 @@ export default function Builder() {
 
   const handleAddEntity = useCallback(
     (type: AddableShapeType) => {
-      pushHistory()
-      const prevWorld = worldAssetsRef.current.world
       const cam = sceneViewRef.current?.getCameraPose()
       const entity = createDefaultEntity(type)
       if (cam) {
@@ -614,49 +607,47 @@ export default function Builder() {
         if (pos) entity.position = pos
       }
       uiLogger.click('Builder', 'Add entity', { type, entityId: entity.id })
-      const nextWorld = { ...prevWorld, entities: [...prevWorld.entities, entity] }
-      updateWorld(() => nextWorld)
-      syncSceneAfterDocumentChange(prevWorld, nextWorld)
+      applyWorldEdit(worldEditDeps, { undo: 'push', scene: 'sync' }, (prevWorld) => ({
+        ...prevWorld,
+        entities: [...prevWorld.entities, entity],
+      }))
       setSelectedEntityIds([entity.id])
     },
-    [updateWorld, pushHistory, syncSceneAfterDocumentChange]
+    [worldEditDeps]
   )
 
   const handleBulkAddEntities = useCallback(
     (params: BulkEntityParams) => {
-      pushHistory()
-      const prevWorld = worldAssetsRef.current.world
       const newEntities = createBulkEntities(params)
       uiLogger.click('Builder', 'Bulk add entities', {
         count: newEntities.length,
         shape: params.shape,
       })
-      const nextWorld = { ...prevWorld, entities: [...prevWorld.entities, ...newEntities] }
-      updateWorld(() => nextWorld)
-      syncSceneAfterDocumentChange(prevWorld, nextWorld)
+      applyWorldEdit(worldEditDeps, { undo: 'push', scene: 'sync' }, (prevWorld) => ({
+        ...prevWorld,
+        entities: [...prevWorld.entities, ...newEntities],
+      }))
       setSelectedEntityIds(newEntities.map((e) => e.id))
     },
-    [updateWorld, pushHistory, syncSceneAfterDocumentChange]
+    [worldEditDeps]
   )
 
   const handleDeleteEntities = useCallback(
     (ids: string[]) => {
       if (ids.length === 0) return
-      pushHistory()
-      const prevWorld = worldAssetsRef.current.world
       uiLogger.click('Builder', 'Delete entities', { count: ids.length, entityIds: ids })
       const idSet = new Set(ids)
-      const withPrunedGroups = pruneGroupMembers(prevWorld, idSet)
-      const nextWorld = {
-        ...withPrunedGroups,
-        entities: prevWorld.entities.filter((e) => !idSet.has(e.id)),
-      }
-      updateWorld(() => nextWorld)
-      syncSceneAfterDocumentChange(prevWorld, nextWorld)
+      applyWorldEdit(worldEditDeps, { undo: 'push', scene: 'sync' }, (prevWorld) => {
+        const withPrunedGroups = pruneGroupMembers(prevWorld, idSet)
+        return {
+          ...withPrunedGroups,
+          entities: prevWorld.entities.filter((e) => !idSet.has(e.id)),
+        }
+      })
       setSelectedEntityIds((prev) => prev.filter((id) => !idSet.has(id)))
       setSelectedGroupIds((prev) => prev.filter((id) => !idSet.has(id)))
     },
-    [updateWorld, pushHistory, syncSceneAfterDocumentChange]
+    [worldEditDeps]
   )
 
   useBuilderKeyboardShortcuts({
@@ -705,24 +696,23 @@ export default function Builder() {
 
   const handleCloneEntity = useCallback(
     (entityId: string) => {
-      pushHistory()
       const prevWorld = worldAssetsRef.current.world
       const source = prevWorld.entities.find((e) => e.id === entityId)
       if (!source) return
       const pose = getCurrentPose(entityId)
       const cloned = cloneEntityFrom(source, pose)
       uiLogger.click('Builder', 'Clone entity', { sourceId: entityId, newId: cloned.id })
-      const { world: nextWorldBase, newTransformerIds } = cloneEntityTransformersIntoWorld(prevWorld, cloned)
-      const entityWithNewIds = {
-        ...cloned,
-        transformers: newTransformerIds.length > 0 ? newTransformerIds : cloned.transformers,
-      }
-      const nextWorld = { ...nextWorldBase, entities: [...nextWorldBase.entities, entityWithNewIds] }
-      updateWorld(() => nextWorld)
-      syncSceneAfterDocumentChange(prevWorld, nextWorld)
+      applyWorldEdit(worldEditDeps, { undo: 'push', scene: 'sync' }, (world) => {
+        const { world: nextWorldBase, newTransformerIds } = cloneEntityTransformersIntoWorld(world, cloned)
+        const entityWithNewIds = {
+          ...cloned,
+          transformers: newTransformerIds.length > 0 ? newTransformerIds : cloned.transformers,
+        }
+        return { ...nextWorldBase, entities: [...nextWorldBase.entities, entityWithNewIds] }
+      })
       setSelectedEntityIds([cloned.id])
     },
-    [getCurrentPose, updateWorld, pushHistory, syncSceneAfterDocumentChange]
+    [getCurrentPose, worldEditDeps]
   )
 
   const handleCopyEntities = useCallback(() => {
@@ -768,9 +758,6 @@ export default function Builder() {
       extentByEntityId,
     })
 
-    pushHistory()
-    const prevWorld = worldAssetsRef.current.world
-
     const newEntities: Entity[] = []
     const newIds: string[] = []
     for (const src of clip.entities) {
@@ -785,19 +772,19 @@ export default function Builder() {
       newIds.push(next.id)
     }
 
-    let nextWorld = prevWorld
-    const finalEntities = newEntities.map((cloned) => {
-      const { world: w, newTransformerIds } = cloneEntityTransformersIntoWorld(nextWorld, cloned)
-      nextWorld = w
-      return newTransformerIds.length > 0 ? { ...cloned, transformers: newTransformerIds } : cloned
+    applyWorldEdit(worldEditDeps, { undo: 'push', scene: 'sync' }, (prevWorld) => {
+      let nextWorld = prevWorld
+      const finalEntities = newEntities.map((cloned) => {
+        const { world: w, newTransformerIds } = cloneEntityTransformersIntoWorld(nextWorld, cloned)
+        nextWorld = w
+        return newTransformerIds.length > 0 ? { ...cloned, transformers: newTransformerIds } : cloned
+      })
+      return { ...nextWorld, entities: [...nextWorld.entities, ...finalEntities] }
     })
-    const mergedWorld = { ...nextWorld, entities: [...nextWorld.entities, ...finalEntities] }
-    updateWorld(() => mergedWorld)
-    syncSceneAfterDocumentChange(prevWorld, mergedWorld)
     setSelectedEntityIds(newIds)
     selectionAnchorEntityIdRef.current = newIds[0] ?? null
     uiLogger.click('Builder', 'Paste entities', { count: newEntities.length, entityIds: newIds })
-  }, [pushHistory, updateWorld, syncSceneAfterDocumentChange])
+  }, [worldEditDeps])
 
   clipboardShortcutHandlersRef.current = {
     onCopy: handleCopyEntities,
@@ -838,11 +825,11 @@ export default function Builder() {
       sceneViewRef.current?.updateEntityPhysics(id, patch)
     }
     const idSet = new Set(ids)
-    updateWorld((prev) => ({
+    applyWorldEdit(worldEditDeps, { undo: 'skip', scene: 'none' }, (prev) => ({
       ...prev,
       entities: prev.entities.map((e) => (idSet.has(e.id) ? { ...e, ...patch } : e)),
     }))
-  }, [updateWorld])
+  }, [worldEditDeps])
 
   const handleEntityMaterialChange = useCallback((ids: string[], patch: Partial<Entity>) => {
     for (const id of ids) {
@@ -850,11 +837,11 @@ export default function Builder() {
       if (base) void sceneViewRef.current?.updateEntityMaterial(id, { ...base, ...patch })
     }
     const idSet = new Set(ids)
-    updateWorld((prev) => ({
+    applyWorldEdit(worldEditDeps, { undo: 'skip', scene: 'none' }, (prev) => ({
       ...prev,
       entities: prev.entities.map((e) => (idSet.has(e.id) ? { ...e, ...patch } : e)),
     }))
-  }, [world.entities, updateWorld])
+  }, [world.entities, worldEditDeps])
 
   const handleEntityShapeChange = useCallback(
     (ids: string[], patch: Partial<Entity>) => {
@@ -883,7 +870,7 @@ export default function Builder() {
         sceneViewRef.current?.updateEntityModelTransform(id, patch)
       }
       const idSet = new Set(ids)
-      updateWorld((prev) => ({
+      applyWorldEdit(worldEditDeps, { undo: 'skip', scene: 'none' }, (prev) => ({
         ...prev,
         entities: prev.entities.map((e) => {
           if (!idSet.has(e.id)) return e
@@ -896,7 +883,7 @@ export default function Builder() {
         }),
       }))
     },
-    [updateWorld]
+    [worldEditDeps]
   )
 
   const handleAfterModelPresetApply = useCallback(
@@ -928,16 +915,9 @@ export default function Builder() {
 
   const handleWorldChange = useCallback(
     (newWorld: typeof world) => {
-      const prevWorld = world
-      if (worldChangesRequireSceneRebuild(prevWorld, newWorld)) {
-        captureScenePosesForNextRebuild()
-        bumpVersion()
-      } else {
-        syncSceneAfterDocumentChange(prevWorld, newWorld)
-      }
-      updateWorld(() => newWorld)
+      applyWorldEdit(worldEditDeps, { undo: 'skip', scene: 'auto' }, () => newWorld)
     },
-    [world, updateWorld, captureScenePosesForNextRebuild, bumpVersion, syncSceneAfterDocumentChange],
+    [worldEditDeps],
   )
 
   // ----- Explorer groups (Phase A: organizational only; no scene rebuild) -----
@@ -966,9 +946,8 @@ export default function Builder() {
   const handleCreateGroupFromSelection = useCallback(() => {
     const ids = [...selectedEntityIds, ...selectedGroupIds]
     if (ids.length < 2) return
-    pushHistory()
     let createdGroupId: string | null = null
-    updateWorld((prev) => {
+    applyWorldEdit(worldEditDeps, { undo: 'push', scene: 'none' }, (prev) => {
       const { world: nextWorld, group } = createGroupFromSelection(prev, ids)
       if (!group) return prev
       createdGroupId = group.id
@@ -978,32 +957,31 @@ export default function Builder() {
       uiLogger.click('Builder', 'Create group', { groupId: createdGroupId, members: ids })
       setSelectedGroupIds([createdGroupId])
     }
-  }, [selectedEntityIds, selectedGroupIds, updateWorld, pushHistory])
+  }, [selectedEntityIds, selectedGroupIds, worldEditDeps])
 
   const handleUngroup = useCallback(
     (groupId: string) => {
-      pushHistory()
-      updateWorld((prev) => dissolveGroup(prev, groupId))
+      applyWorldEdit(worldEditDeps, { undo: 'push', scene: 'none' }, (prev) => dissolveGroup(prev, groupId))
       setSelectedGroupIds((prev) => prev.filter((id) => id !== groupId))
       uiLogger.click('Builder', 'Ungroup', { groupId })
     },
-    [updateWorld, pushHistory],
+    [worldEditDeps],
   )
 
   const handleAddSelectedToGroup = useCallback(
     (groupId: string) => {
       if (selectedEntityIds.length === 0) return
-      pushHistory()
-      updateWorld((prev) => addToGroup(prev, groupId, selectedEntityIds))
+      applyWorldEdit(worldEditDeps, { undo: 'push', scene: 'none' }, (prev) =>
+        addToGroup(prev, groupId, selectedEntityIds),
+      )
       uiLogger.click('Builder', 'Add to group', { groupId, entityIds: selectedEntityIds })
     },
-    [selectedEntityIds, updateWorld, pushHistory],
+    [selectedEntityIds, worldEditDeps],
   )
 
   const handleRemoveSelectedFromGroup = useCallback(() => {
     if (selectedEntityIds.length === 0) return
-    pushHistory()
-    updateWorld((prev) => {
+    applyWorldEdit(worldEditDeps, { undo: 'push', scene: 'none' }, (prev) => {
       let nextWorld = prev
       for (const groupId of getGroups(prev).map((g) => g.id)) {
         const inThisGroup = selectedEntityIds.filter((eid) => {
@@ -1017,22 +995,23 @@ export default function Builder() {
       return nextWorld
     })
     uiLogger.click('Builder', 'Remove from group', { entityIds: selectedEntityIds })
-  }, [selectedEntityIds, updateWorld, pushHistory])
+  }, [selectedEntityIds, worldEditDeps])
 
   const handleToggleGroupCollapsed = useCallback(
     (groupId: string, collapsed: boolean) => {
-      updateWorld((prev) => setGroupCollapsed(prev, groupId, collapsed))
+      applyWorldEdit(worldEditDeps, { undo: 'skip', scene: 'none' }, (prev) =>
+        setGroupCollapsed(prev, groupId, collapsed),
+      )
     },
-    [updateWorld],
+    [worldEditDeps],
   )
 
   const handleRenameGroup = useCallback(
     (groupId: string, name: string) => {
-      pushHistory()
-      updateWorld((prev) => renameGroup(prev, groupId, name))
+      applyWorldEdit(worldEditDeps, { undo: 'push', scene: 'none' }, (prev) => renameGroup(prev, groupId, name))
       uiLogger.change('Builder', 'Rename group', { groupId, name })
     },
-    [updateWorld, pushHistory],
+    [worldEditDeps],
   )
 
   // Cmd/Ctrl+G and Cmd/Ctrl+Shift+G: group / ungroup. Cmd+Shift+G ungroups when a single
@@ -1176,7 +1155,7 @@ export default function Builder() {
 
   const handleResetCamera = useCallback(() => {
     sceneViewRef.current?.resetCamera()
-    updateWorld((prev) => {
+    applyWorldEdit(worldEditDeps, { undo: 'skip', scene: 'none' }, (prev) => {
       const prevCam = prev.world.camera
       if (!prevCam) return prev
       const { editorFreePose: _removed, ...rest } = prevCam
@@ -1186,7 +1165,7 @@ export default function Builder() {
       }
     })
     uiLogger.click('Builder', 'Reset camera to default position')
-  }, [updateWorld])
+  }, [worldEditDeps])
 
   const handleApplyDebugForce = useCallback(
     (force: Vec3) => {
@@ -1342,9 +1321,7 @@ export default function Builder() {
       <div ref={builderColumnRef} style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
         <div style={{ display: builderChromeIdleHidden ? 'none' : undefined }}>
         <BuilderHeader
-        projects={projects}
         onLeftSidebarToggle={() => setLeftDrawerOpen((prev) => !prev)}
-        currentProject={currentProject}
         gizmoMode={gizmoMode}
         onGizmoModeChange={handleGizmoModeChange}
         textureBrushDisabled={textureBrushDisabled}
@@ -1357,16 +1334,8 @@ export default function Builder() {
         onNew={handleNew}
         onSave={handleSave}
         onSaveAs={handleSaveAs}
-        onExport={exportProject}
-        onCopyWorld={copyWorldToClipboard}
-        onImport={importProject}
         onOpen={handleOpen}
-        onRefresh={refreshProjects}
         onReload={handleReload}
-        onDeleteProject={deleteProject}
-        onPlay={handlePlay}
-        fileInputRef={fileInputRef}
-        onFileChange={onFileChange}
         onResetCamera={handleResetCamera}
         onApplyDebugForce={handleApplyDebugForce}
         canUndo={canUndoHistory}
@@ -1571,21 +1540,8 @@ export default function Builder() {
             }}
           >
             <EntitySidebar
-              entities={world.entities}
-              entityWorkHistory={entityWorkHistory}
               selectedEntityIds={selectedEntityIds}
               selectedGroupIds={selectedGroupIds}
-              cameraControl={cameraControl}
-              cameraTarget={cameraTarget}
-              cameraMode={cameraMode}
-              cameraTargetVerticalAngle={cameraTargetVerticalAngle}
-              fluidOrbitSpeed={fluidOrbitSpeed}
-              fluidOrbitDirection={fluidOrbitDirection}
-              fluidOrbitHeight={fluidOrbitHeight}
-              fluidOrbitDistance={fluidOrbitDistance}
-              cameraTargetLag={cameraTargetLag}
-              cameraPositionLag={cameraPositionLag}
-              world={world}
               onSelectEntity={handleSelectEntity}
               onSelectGroup={handleSelectGroup}
               onCreateGroupFromSelection={handleCreateGroupFromSelection}
@@ -1596,16 +1552,6 @@ export default function Builder() {
               onRenameGroup={handleRenameGroup}
               onAddEntity={handleAddEntity}
               onBulkAddEntities={handleBulkAddEntities}
-              onCameraControlChange={setCameraControl}
-              onCameraTargetChange={setCameraTarget}
-              onCameraModeChange={setCameraMode}
-              onCameraTargetVerticalAngleChange={setCameraTargetVerticalAngle}
-              onFluidOrbitSpeedChange={setFluidOrbitSpeed}
-              onFluidOrbitDirectionChange={setFluidOrbitDirection}
-              onFluidOrbitHeightChange={setFluidOrbitHeight}
-              onFluidOrbitDistanceChange={setFluidOrbitDistance}
-              onCameraTargetLagChange={setCameraTargetLag}
-              onCameraPositionLagChange={setCameraPositionLag}
               onWorldChange={handleWorldChange}
               onSoundPlaybackCommand={(action) =>
                 setSoundPlaybackCommand({ action, nonce: Date.now() + Math.random() })

@@ -1,11 +1,13 @@
 import type { PipeParamDef, TransformerPipe, TransformerPipeBinding } from '@/types/transformer'
+import type { PipeNavPathSegment } from '@/types/pipeNav'
 import { theme } from '@/config/theme'
-import { resolvePipeBindingParams } from '@/utils/transformerPipeResolve'
+import { resolveLocalScopeParams } from '@/utils/paramScopes'
 import DraggableNumberField from '@/components/DraggableNumberField'
 
 export interface PipeParamsStripProps {
   pipe: TransformerPipe
   binding?: TransformerPipeBinding
+  scopePath?: PipeNavPathSegment[]
   onParamChange?: (key: string, value: unknown) => void
   readOnly?: boolean
 }
@@ -13,13 +15,14 @@ export interface PipeParamsStripProps {
 export default function PipeParamsStrip({
   pipe,
   binding,
+  scopePath,
   onParamChange,
   readOnly = false,
 }: PipeParamsStripProps) {
   const defs = pipe.paramDefs ?? []
   if (defs.length === 0) return null
 
-  const resolved = resolvePipeBindingParams(binding ?? { pipeId: pipe.id })
+  const resolved = resolveLocalScopeParams(binding ?? { pipeId: pipe.id }, scopePath)
 
   return (
     <div

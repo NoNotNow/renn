@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from 'vitest'
+import { describe, it, expect, beforeAll, vi } from 'vitest'
 import * as THREE from 'three'
 import { RenderItem } from './renderItem'
 import { RenderItemRegistry } from './renderItemRegistry'

@@ -71,7 +71,7 @@ export default function PipeConfigDrawer({
         This entity&apos;s pipe params — changes apply only to this entity.
       </p>
       {hasParamDefs ?
-        <PipeParamsStrip pipe={pipe} binding={binding} onParamChange={onParamChange} />
+        <PipeParamsStrip pipe={pipe} binding={binding} scopePath={scopePath} onParamChange={onParamChange} />
       : <PipeParamsJsonEditor
           pipe={pipe}
           binding={binding}
