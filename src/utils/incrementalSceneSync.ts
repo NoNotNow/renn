@@ -24,11 +24,23 @@ export function diffEntityWorld(prev: RennWorld, next: RennWorld): EntityWorldDi
   return { removedIds, added, updated }
 }
 
+/**
+ * Runs on every incremental sync, so each registry is reference-checked before the
+ * deep compare: edits that leave a registry untouched (pose, material, add/remove)
+ * keep its object identity and skip a stringify that scales with total registry size.
+ * Relies on the same immutable-update contract as `diffEntityWorld` — a registry
+ * mutated in place is invisible to both.
+ */
 export function worldPipeRegistryChanged(prev: RennWorld, next: RennWorld): boolean {
   return (
-    JSON.stringify(prev.transformers ?? {}) !== JSON.stringify(next.transformers ?? {}) ||
-    JSON.stringify(prev.transformerPipes ?? {}) !== JSON.stringify(next.transformerPipes ?? {})
+    registryChanged(prev.transformers, next.transformers) ||
+    registryChanged(prev.transformerPipes, next.transformerPipes)
   )
+}
+
+function registryChanged(prev: object | undefined, next: object | undefined): boolean {
+  if (prev === next) return false
+  return JSON.stringify(prev ?? {}) !== JSON.stringify(next ?? {})
 }
 
 /** True when undo/redo can apply without a full SceneView reload. */

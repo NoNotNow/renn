@@ -149,7 +149,8 @@ Legacy `entity.transformerPipe` migrates to a single-entry stack on load (`migra
 | `src/utils/paramScopes.ts` | Three-scope merge rule + local/merged projections (single owner) |
 | `src/utils/pipeStageResolve.ts` | Chain-build walk; consumes `paramScopes` for runtime merged params |
 | `src/hooks/usePipeNavigator.ts` | Focus path state (`goUp`/`goLeft`/`goRight`, `drillInto`, `setPath`) |
-| `src/hooks/usePipeNavController.ts` | World mutations + dialogs wiring (23-key return; navigation stays in tab via `usePipeNavigator` or local handlers) |
+| `src/editor/pipeNavEdit.ts` | Pipe-nav edit seam: `PipeNavEditIntent` → `{ world, nav, syncEntityIds }`; owns mutation choice + nav-path reconciliation |
+| `src/hooks/usePipeNavController.ts` | React wiring only (13-key return): focus/dialog state, applies `resolvePipeNavEdit` results; navigation stays in tab via `usePipeNavigator` |
 | `src/components/workspace/pipeNav/` | Sidebar, tree, `PipeCard`, focused strip, `PipeAddDialog`, `pipeStageCallbacks.ts` |
 | `src/components/workspace/WorkspaceTransformersTab.tsx` | Auto-wrap on select, Add Pipe UI, Link banner |
 | `src/components/workspace/WorkspaceOrganizeTab.tsx` | Organize Pipes sub-tab |
@@ -158,9 +159,9 @@ Legacy `entity.transformerPipe` migrates to a single-entry stack on load (`migra
 #### Tree navigation (Transformers tab sidebar)
 
 - **Docked sidebar** [`TransformerPipeNavSidebar.tsx`](../src/components/workspace/pipeNav/TransformerPipeNavSidebar.tsx): resizable, **collapsed by default** (slim `»` toggle); Up / Left / Right; editable pipe title; tree mirrors stack → nested `members`.
-- **Tree actions**: hover delete (×), context menu (add before / after / child, **Edit params**, delete). Mutations in [`pipeNavMutations.ts`](../src/utils/pipeNavMutations.ts); wired via [`usePipeNavController.ts`](../src/hooks/usePipeNavController.ts).
+- **Tree actions**: hover delete (×), context menu (add before / after / child, **Edit params**, delete). Mutations in [`pipeNavMutations.ts`](../src/utils/pipeNavMutations.ts); chosen by [`pipeNavEdit.ts`](../src/editor/pipeNavEdit.ts) and applied by [`usePipeNavController.ts`](../src/hooks/usePipeNavController.ts).
 - **Pipe params**: each stack binding stores instance values in `TransformerPipeBinding.params` (per entity only — never shared). On assign, `paramDefs[].default` is copied into `binding.params` once. **Pipe cards** and **tree row controls** expose a settings button; pipe rows also offer **Edit params** in the context menu. Both open [`PipeConfigDrawer`](../src/components/workspace/pipeNav/PipeConfigDrawer.tsx) with [`PipeParamsStrip`](../src/components/workspace/pipeNav/PipeParamsStrip.tsx) when `paramDefs` are defined, or [`PipeParamsJsonEditor`](../src/components/workspace/pipeNav/PipeParamsJsonEditor.tsx) for raw JSON otherwise. Both editors call `resolveLocalScopeParams(binding, scopePath)` — typed strip and JSON agree at every scope.
-- **`usePipeNavController` return** (23 keys): `view`, `focus`, `stageData`, `focusedTitle`, `focusedPipeId`, `setPath`, create/add/rename handlers, stage commit/patch wrappers, name dialog, `stackIndexForPipeId`, enable/param/decouple handlers, tree delete/context/drop. Dropped from return (unused or owned elsewhere): `navigator`, `goUp`/`goLeft`/`goRight`, `drillInto`, `pushWorld`, `reorderStack`, `reorderMember`. [`pipeStageCallbacks.ts`](../src/components/workspace/pipeNav/pipeStageCallbacks.ts) wraps flat pipe-param/toggle callbacks for `PipeCard` props.
+- **`usePipeNavController` return** (13 keys): nav state `view`, `focus`, `setPath`, `focusedPipeId`, `focusedTitle`, `stageData`, **`stageScope`**, `stackIndexForPipeId`, **`writeFocusedStages`**, plus four **prop bundles** meant to be spread at the call site: `pipeControls` (toggle / param change / param replace / decouple), `addPipe` (create / add child / add existing), `treeActions` (rename / delete / context / drop), `nameDialogProps` (`PipeNavDialogs` props). Bundles keep the child prop signatures unchanged — `<PipeFocusedStrip {...pipeNav.pipeControls} />`. Dropped over time (unused or owned elsewhere): `navigator`, `goUp`/`goLeft`/`goRight`, `drillInto`, `pushWorld`, `applyStructuralChange`, `reorderStack`, `reorderMember`, **`handleCommitStagesWrapped`**, **`handlePatchStageWrapped`**. Stage-strip flush/undo/param-sync policy lives in [`commitStageEdit`](../src/editor/commitStageEdit.ts) — `writeFocusedStages` is a bare `StageStackWriter` (calls `commitFocusedStageConfigs`, returns the next world). [`pipeStageCallbacks.ts`](../src/components/workspace/pipeNav/pipeStageCallbacks.ts) wraps flat pipe-param/toggle callbacks for `PipeCard` props.
 - **Tree drag-and-drop**: reorder stack / members; **move transformer stages between pipes** (drop on another stage, stack pipe row, or nested pipe row); nest stack pipe into nested pipe; promote nested pipe to entity stack; re-parent nested pipes (cycle guard via [`wouldNestCreateCycle`](../src/utils/pipeNavResolve.ts)). Stages dropped on the entity root are rejected.
 - **Strip**: one level at a time — pipe cards at entity root; stages + nested pipe cards inside a manifold (mixed order preserved when pipes and stages interleave).
 - **Add flows**: strip `+` menu ([`PipeAddDialog.tsx`](../src/components/workspace/pipeNav/PipeAddDialog.tsx)); header **+ Add Pipe** removed (duplicate). **Leaf level** (gray `+`): `entity_stages`, or `pipe_members` with no nested pipe cards in the focused view — opens **Add to pipeline** (transformer preset/existing + optional pipe sections). **New pipe** / **Existing pipe** at leaf level append a **stack sibling** (after the current stack pipe), not a nested member; use the **Child pipe** tab to nest. **Pipe level** (yellow `+`): entity root with multiple stack pipes, or a manifold showing nested pipe cards — pipe-centric add sections.
@@ -190,12 +191,41 @@ Legacy `entity.transformerPipe` migrates to a single-entry stack on load (`migra
 
 Config drawers and param UIs always show and write **only the local params of the scope being edited** — never the merged result. See [nomenclature.md](nomenclature.md) for the full table.
 
+#### Stage commits → world (`commitStageEdit`)
+
+Whole-stack and patch stage edits from the Transformers tab route through [`commitStageEdit`](../src/editor/commitStageEdit.ts). Flush / undo policy by `StageEditIntent['kind']` — see [feature-world-update-reload.md § Stage edits in WorkspaceTransformersTab](./feature-world-update-reload.md#stage-edits-in-workspacetransformerstab).
+
+**Scope split:**
+
+- **`stageScope`** (`'flat' | 'pipe'`) — on `usePipeNavController`: `'flat'` when the entity has no pipe stack and the strip shows bare `entity.transformers`; `'pipe'` otherwise.
+- **`writeFocusedStages`** — `StageStackWriter` for the focused pipe's stage list. Calls `commitFocusedStageConfigs`, then `onWorldChange`; returns the next world so `commitStageEdit` can run merged pipe-param sync. Does **not** push undo or flush code itself.
+- **`WorkspaceTransformersTab`** picks the writer: flat pipeline handlers use `writeFlatStack`; strip handlers use `writeStripStack` (`writeFocusedStages` when `stageScope === 'pipe'`, else `writeFlatStack`).
+
+#### Pipe-nav edits → world (`pipeNavEdit`)
+
+Everything that is *not* a stage-strip commit — create/add/rename pipe, enable toggle, pipe params, decouple, tree delete/insert/drop, and the first-pipe bootstrap — routes through [`resolvePipeNavEdit`](../src/editor/pipeNavEdit.ts). It is the sibling seam to `commitStageEdit`, and the two do not overlap.
+
+```ts
+resolvePipeNavEdit(intent, { world, entityId, focus, prompts }): { world, nav?, syncEntityIds? } | null
+```
+
+- **Pure.** No writes, no undo push, no React state. The controller applies the result in a fixed order: undo checkpoint (per `PIPE_NAV_EDIT_POLICY`) → `onWorldChange` → `setPath` → merged-param sync.
+- **`null` means no-op**, and is what stops a spurious undo entry: entity gone, confirmation declined, illegal drop, or the mutation left the world untouched with the focus unmoved.
+- **`nav` is the reconciled focus.** Structural edits clamp the path against the **post-edit** entity via `reconcilePipeNavPath`, so a delete can never leave the focus on a dangling stack index. This is the logic that justifies the module.
+- **`prompts`** (`confirm` / `warn`) is injected — `windowPipeNavPrompts` in the app, a recording stub in tests. No `window.confirm` reaches the resolver.
+- **`PIPE_NAV_EDIT_POLICY`** is the only place pipe-nav undo policy is decided. `ensurePipeStack` is the sole `pushUndo: false` row (an automatic migration, not a user action).
+
+Add an intent rather than branching at a call site. Tests live at the interface in [`pipeNavEdit.test.ts`](../src/editor/pipeNavEdit.test.ts) (policy-table coverage, no-op table, reconciliation, purity).
+
+> **Bootstrap effect gotcha:** the `ensurePipeStack` effect in `usePipeNavController` deliberately does **not** depend on `commit` (and so not on `focus`). That intent moves the focus, so a host that does not feed the new world back would re-trigger the effect forever.
+
 #### Config patch vs pipe reorder
 
 | User action | Commit path | Touches |
 |---|---|---|
-| Gear JSON apply, enable toggle, custom rename | `patchStageConfigInWorld(stageId, config)` | `world.transformers[id]` only |
-| Drag-reorder, add/remove stage | `commitFocusedStageConfigs(..., orderedIds)` | pipe `members` + entity flatten via `updateFocusedStageOrder` |
+| Gear JSON apply, enable toggle, custom rename | `commitStageEdit({ kind: 'patch', ... })` → `patchStageConfigInWorld` | `world.transformers[id]` only |
+| Drag-reorder, add/remove stage (pipe scope) | `commitStageEdit({ kind: 'commitStages' \| 'reorder', ... })` → `writeFocusedStages` → `commitFocusedStageConfigs` | pipe `members` + entity flatten via `updateFocusedStageOrder` |
+| Drag-reorder, add/remove stage (flat / no pipe stack) | `commitStageEdit` → `writeFlatStack` → `commitStacksRaw` | `entity.transformers` + registry |
 
 Config patches must **not** call `syncPriorities`, `updateFocusedStageOrder`, or `syncAllEntitiesUsingPipes`.
 

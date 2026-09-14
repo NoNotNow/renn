@@ -52,7 +52,7 @@ flowchart LR
    - `handleWorldChange(newWorld)`: `applyWorldEdit(..., { undo: 'skip', scene: 'auto' }, () => newWorld)`. Classifies against authoritative `prev` from the `updateWorld` updater (not lagging React `world`); two same-tick edits classify the second against the first result (`Builder.test.tsx`). Gateway — callers push undo themselves or skip for live previews.  
    - Routed handlers (examples): add/bulk-add/delete/clone/paste → `{ undo: 'push', scene: 'sync' }`; gizmo pose commit, group create/ungroup/add/remove/rename → `{ undo: 'push', scene: 'none' }`; physics/material/model-transform → scene op first, then `{ undo: 'skip', scene: 'none' }`.  
    - **Not routed** (do not "finish the job" blindly): `handleEntityShapeChange` — branches on `updateEntityShape` return value, not static classifier (scene→write); `handleEntityTransformersChange` — bespoke `syncMergedEntityTransformers`; `handleApplyTextureDownscale` — assets only; `handleApplyMeshSimplification` — async, two document writes, unconditional rebuild; `handleEntityPoseChange`, `handleResetPoseToSavedWorld`, `handleRefreshFromPhysics` — scene-only, no document write.  
-   - **Intentional undo omissions**: `handleResetCamera` (strips transient `editorFreePose`); `handleToggleGroupCollapsed` (UI flag); `handleWorldChange` (gateway); `handlePatchStage` in `WorkspaceTransformersTab` (live scrub — coalesces via `notifyScrubStart`/`notifyScrubEnd`; naive `pushBeforeEdit` would create one undo entry per tick).  
+   - **Intentional undo omissions**: `handleResetCamera` (strips transient `editorFreePose`); `handleToggleGroupCollapsed` (UI flag); `handleWorldChange` (gateway). Live number-scrub coalescing is owned by `EditorUndoApi.notifyScrubStart` / `notifyScrubEnd` at the number-field seam — not by stage-strip patch commits (see § Stage edits in `WorkspaceTransformersTab` below).  
    - `applyHistorySnapshot` (undo/redo): when `canApplyWorldSnapshotIncrementally(prev, snap)` is true, applies snapshot without bumping scene `version` and calls `syncWorldEntities`; otherwise full reload via `applyEditorSnapshot(..., { reloadScene: true })`.  
    - `handleEntityTransformersChange`: calls `syncEntityTransformers` directly; all transformer changes are now incremental and do not trigger a full scene rebuild.
    - `handleEntityShapeChange`: imperative `updateEntityShape` first; on failure captures poses and bumps version, then `updateWorld` (not via `applyWorldEdit`).  
@@ -163,6 +163,62 @@ Use this to answer "does changing this property rebuild the scene?"
 | **world.scripts, world.assets** | Rebuild | In key. |
 | **Entity add/remove / clone / paste / undo** | Incremental | `syncWorldEntities` → registry + physics; not a rebuild. |
 
+## Stage edits in `WorkspaceTransformersTab`
+
+This tab writes the world outside `applyWorldEdit` (it only gets `onWorldChange`). Stage-strip commits go through [`commitStageEdit`](../src/editor/commitStageEdit.ts) — the single policy site for flush / undo / merged pipe-param sync.
+
+**Call shape:** `WorkspaceTransformersTab` builds a `StageEditContext` in `runStageEdit` with two scope-specific `StageStackWriter`s:
+
+- `writeFlatStack` — entity's flat `entity.transformers` stack (wraps `commitStacksRaw`; returns `null` for merged-param sync — see warts below).
+- `writeStripStack` — `pipeNav.writeFocusedStages` when `stageScope === 'pipe'`, else `writeFlatStack`.
+
+Tab handlers (`handleCommitStacks`, `handlePatchStage`, `handleCommitStripStages`, `handlePatchStripStage`, `handleMakeUniqueTransformer`, `commitCustomCodeEditRef`) only pick the intent and writer; they do not decide flush or undo policy themselves. `handleWrapUngroupedStages` and `handleCodeChange` still push undo outside this module (discrete wrap button; code burst priming on first keystroke via `codeUndoPrimedRef`).
+
+**Fixed order** (owned by the module; do not reorder):
+
+1. flush pending custom-code draft (when policy says so)
+2. resolve the write — a no-op aborts here, *before* any undo entry is pushed
+3. undo checkpoint
+4. world mutation (`ctx.writeStack` for whole-stack intents; `patchStageConfigInWorld` / make-unique helper for others)
+5. merged pipe-param sync (`onMergedPipeParamSync`) when the write returns a world
+
+**Intent policy** (`STAGE_EDIT_POLICY` — one row per user action):
+
+| `intent.kind` | Flush pending code | Push undo | Why |
+|---|---|---|---|
+| `patch` | yes | yes | Discrete registry edit: enable toggle, rename (blur/enter), configure-drawer Apply. **Deliberate behaviour change (2026-09-14):** `patch` now pushes undo. All three `onPatchStage` call sites in `TransformerPipelineHorizontal` are discrete actions, not live scrubs; the flat path previously had an undo gap for toggle / rename / drawer-apply. Live number-scrub coalescing is owned by `EditorUndoApi.notifyScrubStart` / `notifyScrubEnd` in [`EditorUndoContext.tsx`](../src/contexts/EditorUndoContext.tsx). |
+| `commitStages` | yes | yes | Whole-stack write: stage added, removed, or replaced |
+| `reorder` | yes | yes | Drag reorder (`StageCommitKind` from strip `onCommit`); policy matches `commitStages` — names the user action |
+| `loadTemplate` | yes | yes | Preset template loaded over selected stage |
+| `makeUnique` | yes | yes | Split shared registry stage into entity-local copy; guards run before undo push |
+| `codeEdit` | no | no | Debounced custom-code commit. `handleCodeChange` primes `pushBeforeEdit` on first keystroke; this intent *is* the flush — flushing again would recurse, and a second push produced two undo entries per pipe-scoped code edit |
+
+**Known warts (pre-existing, not fixed here):**
+
+- Flat whole-stack commits via `writeFlatStack` → `commitStacksRaw` may delegate to `onEntityTransformersChange`, which owns its own world update; the writer returns `null`, so flat whole-stack commits do no merged pipe-param sync while pipe-scoped ones do.
+- `ctx.world` is captured at render time; a `flushPendingCode()` that commits a pending code edit does not refresh the world the subsequent mutation is computed against.
+
+Pipe scope, `writeFocusedStages`, and how patch vs reorder reach the registry — see [feature-transformer-pipes.md § Stage commits → world](./feature-transformer-pipes.md#stage-commits--world-commitstageedit).
+
+## Incremental sync cost
+
+`SceneView.syncWorldEntities` calls `worldPipeRegistryChanged` then `diffEntityWorld` (`src/utils/incrementalSceneSync.ts`) on **every** incremental sync. That is per **edit**, not per frame, so it sits outside the frame budget — but `applyWorldEdit` now routes most document writes through this path, so it runs far more often than it used to. Measured on synthetic worlds (Node, immutable `.map`-style edits):
+
+| Check | 40 stages | 200 stages | 800 stages |
+|---|---|---|---|
+| `worldPipeRegistryChanged`, non-registry edit, stringify only | 0.28 ms | 5.9 ms | 14.8 ms |
+| `worldPipeRegistryChanged`, non-registry edit, reference pre-check | ~0 ms | ~0 ms | ~0 ms |
+| `worldPipeRegistryChanged`, actual transformer edit | 0.07 ms | 1.2 ms | 4.9 ms |
+
+**Implemented:** `worldPipeRegistryChanged` reference-checks `transformers` and `transformerPipes` separately before falling back to `JSON.stringify`. Pose, material, physics and entity add/remove edits leave both registry references intact, so they now skip the stringify entirely — 14.8 ms → ~0 ms on an 800-stage world, past a full frame of savings per edit. Real transformer edits rebuild the registry object and still pay the deep compare (unchanged cost). No semantic change: identical references imply identical JSON under the immutable-update contract the diff already relies on.
+
+**Deliberately NOT changed — `diffEntityWorld` stays reference-based.** Swapping in deep equality is not the win it looks like, measured at 50/300/1000 entities:
+
+- On the normal path (one entity changed, references otherwise preserved) it is **0.7–1.1× — no better**, because the reference check already short-circuits.
+- On the pathological path it is meant to fix (a producer handing over a deep-cloned world) it is **4–5× slower**: 9.3 ms vs 2.0 ms at 1000 entities. It does cut `updated` from 1000 to 0, so it would only pay off if the downstream per-entity scene work exceeded ~7 ms per 1000 entities.
+
+So a cloning producer is a **producer bug**: fix the caller to preserve references for untouched entities instead of making the diff pay deep-equality cost on every sync for every user. Do not "optimise" this without re-measuring both paths first.
+
 ## Known gaps
 
 - **entity.locked**: Excluded from rebuild key, but editor drag logic may read lock state from mesh `userData`. Toggling lock without a rebuild can leave drag behavior out of sync until the next reload.
@@ -187,6 +243,8 @@ To make world rebuilds minimal when editing a single entity's remaining structur
 src/
 ├── components/PropertyPanel.tsx   # updateEntity → onWorldChange; pose → onEntityPoseChange; physics → onEntityPhysicsChange
 ├── editor/applyWorldEdit.ts      # world-edit seam: undo + scene-follow policies
+├── editor/commitStageEdit.ts     # transformer stage-edit seam: flush / undo / param-sync by intent
+├── editor/pipeNavEdit.ts         # pipe-nav edit seam: pure resolve to world + reconciled nav path; undo by intent
 ├── pages/Builder.tsx             # worldEditDeps, handleWorldChange, pose/physics handlers, initialPosesRef
 ├── contexts/ProjectContext.tsx   # updateWorld, syncPosesFromScene, syncPosesToRefOnly
 ├── components/SceneView.tsx      # sceneKey in effect deps; updateEntityPose/Physics/Shape/Material; gravity/sky/camera effects

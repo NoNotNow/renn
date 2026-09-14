@@ -150,6 +150,26 @@ describe('worldPipeRegistryChanged', () => {
     })
     expect(worldPipeRegistryChanged(prev, next)).toBe(true)
   })
+
+  it('returns false when a non-registry edit preserves both registry references', () => {
+    const prev = pipeRegistryWorld()
+    const next: RennWorld = {
+      ...prev,
+      entities: [createTestEntity({ id: 'added' })],
+    }
+    expect(next.transformers).toBe(prev.transformers)
+    expect(worldPipeRegistryChanged(prev, next)).toBe(false)
+  })
+
+  it('still detects a registry edit when the other registry reference is shared', () => {
+    const prev = pipeRegistryWorld()
+    const next: RennWorld = {
+      ...prev,
+      transformers: { ...prev.transformers, s1: { type: 'car2' } },
+    }
+    expect(next.transformerPipes).toBe(prev.transformerPipes)
+    expect(worldPipeRegistryChanged(prev, next)).toBe(true)
+  })
 })
 
 describe('canApplyWorldSnapshotIncrementally', () => {

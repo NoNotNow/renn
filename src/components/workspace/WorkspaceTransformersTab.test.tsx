@@ -1147,6 +1147,168 @@ describe('WorkspaceTransformersTab', () => {
     })
   })
 
+  describe('undo coverage', () => {
+    it('make-unique pushes an undo snapshot before the world write', async () => {
+      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
+      const sharedWorld: RennWorld = {
+        ...carStackWorld,
+        entities: [
+          { ...carStackWorld.entities[0]! },
+          {
+            id: 'car2',
+            bodyType: 'dynamic',
+            shape: { type: 'box', width: 1, height: 1, depth: 1 },
+            position: [2, 0, 0],
+            transformers: ['car_tf0', 'car_tf1', 'car_tf2'],
+          },
+        ],
+      }
+      const onWorldChange = vi.fn()
+      renderTab({ world: sharedWorld, onWorldChange, entry: carTransformersEntry('car_tf0') })
+
+      fireEvent.click(screen.getByTestId('transformer-shared-usage-0'))
+
+      await waitFor(() => expect(onWorldChange).toHaveBeenCalled())
+      expect(undoApi.pushBeforeEdit).toHaveBeenCalledTimes(1)
+      expect(undoApi.pushBeforeEdit.mock.invocationCallOrder[0]).toBeLessThan(
+        onWorldChange.mock.invocationCallOrder[0]!,
+      )
+      confirmSpy.mockRestore()
+    })
+
+    it('make-unique does not push an undo snapshot when the confirmation is cancelled', async () => {
+      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
+      const sharedWorld: RennWorld = {
+        ...carStackWorld,
+        entities: [
+          { ...carStackWorld.entities[0]! },
+          {
+            id: 'car2',
+            bodyType: 'dynamic',
+            shape: { type: 'box', width: 1, height: 1, depth: 1 },
+            position: [2, 0, 0],
+            transformers: ['car_tf0', 'car_tf1', 'car_tf2'],
+          },
+        ],
+      }
+      const onWorldChange = vi.fn()
+      renderTab({ world: sharedWorld, onWorldChange })
+
+      fireEvent.click(screen.getByTestId('transformer-shared-usage-0'))
+      expect(confirmSpy).toHaveBeenCalled()
+      expect(undoApi.pushBeforeEdit).not.toHaveBeenCalled()
+      expect(onWorldChange).not.toHaveBeenCalled()
+      confirmSpy.mockRestore()
+    })
+
+    it('a discrete stack commit pushes an undo snapshot before the world write', async () => {
+      const onWorldChange = vi.fn()
+      const multiEntityWorld: RennWorld = {
+        ...carStackWorld,
+        entities: [
+          { ...carStackWorld.entities[0]! },
+          {
+            id: 'car2',
+            bodyType: 'dynamic',
+            shape: { type: 'box', width: 1, height: 1, depth: 1 },
+            position: [2, 0, 0],
+            transformers: ['car_tf0', 'car_tf1', 'car_tf2'],
+          },
+        ],
+      }
+      renderTab({
+        world: multiEntityWorld,
+        selectedEntityIds: ['car', 'car2'],
+        onWorldChange,
+        entry: carTransformersEntry('car_tf2'),
+      })
+
+      const customCard = screen.getByTestId('transformer-horizontal-item-2')
+      const firstSlot = screen.getByTestId('transformer-horizontal-item-0')
+
+      fireEvent.dragStart(customCard)
+      fireEvent.dragOver(firstSlot)
+      fireEvent.drop(firstSlot)
+      fireEvent.dragEnd(customCard)
+
+      await waitFor(() => expect(onWorldChange).toHaveBeenCalled())
+      expect(undoApi.pushBeforeEdit).toHaveBeenCalled()
+      expect(undoApi.pushBeforeEdit.mock.invocationCallOrder[0]).toBeLessThan(
+        onWorldChange.mock.invocationCallOrder[0]!,
+      )
+    })
+
+    it('a stage rename pushes exactly one undo entry for the whole edit', async () => {
+      const user = userEvent.setup()
+      const onWorldChange = vi.fn()
+      const multiEntityWorld: RennWorld = {
+        ...carStackWorld,
+        entities: [
+          { ...carStackWorld.entities[0]! },
+          {
+            id: 'car2',
+            bodyType: 'dynamic',
+            shape: { type: 'box', width: 1, height: 1, depth: 1 },
+            position: [2, 0, 0],
+            transformers: ['car_tf0', 'car_tf1', 'car_tf2'],
+          },
+        ],
+      }
+      renderTab({
+        world: multiEntityWorld,
+        selectedEntityIds: ['car', 'car2'],
+        onWorldChange,
+        entry: carTransformersEntry('car_tf2'),
+      })
+
+      const nameInput = screen.getByTestId('transformer-card-name-input-2')
+      await user.clear(nameInput)
+      await user.type(nameInput, 'AutoBrake')
+      fireEvent.blur(nameInput)
+
+      await waitFor(() => expect(onWorldChange).toHaveBeenCalled())
+      // A rename commits once on blur, so the patch intent earns exactly one undo entry for the
+      // whole typed name — one per keystroke would mean the patch channel is carrying a live scrub.
+      expect(undoApi.pushBeforeEdit).toHaveBeenCalledTimes(1)
+      expect(undoApi.pushBeforeEdit.mock.invocationCallOrder[0]).toBeLessThan(
+        onWorldChange.mock.invocationCallOrder[0]!,
+      )
+    })
+
+    it('a pipe-scoped code edit pushes exactly one undo entry for the burst', async () => {
+      const onWorldChange = vi.fn()
+      const setMonacoPayload = vi.fn()
+
+      // `carStackWorld` gives the single entity a pipe stack, so the debounced code commit takes
+      // the pipe-scoped route rather than the flat one.
+      renderTab({
+        world: carStackWorld,
+        selectedEntityIds: ['car'],
+        onWorldChange,
+        setMonacoPayload,
+        entry: carTransformersEntry('car_tf2'),
+      })
+
+      await waitFor(() => {
+        expect(lastMonacoPayload(setMonacoPayload)?.kind).toBe('transformer-ts')
+      })
+      const onChange = lastMonacoPayload(setMonacoPayload)?.onChange
+      expect(onChange).toBeTypeOf('function')
+
+      vi.useFakeTimers()
+      act(() => {
+        onChange?.('return { force: [9, 0, 0] };')
+        vi.advanceTimersByTime(400)
+      })
+      vi.useRealTimers()
+
+      expect(onWorldChange).toHaveBeenCalled()
+      // `handleCodeChange` primes the undo entry on the first keystroke; the debounced commit is
+      // the flush of that same burst, so it must not push a second one.
+      expect(undoApi.pushBeforeEdit).toHaveBeenCalledTimes(1)
+    })
+  })
+
   describe('pipe config editing', () => {
     const CONFIG_PIPE_ID = 'pipe-speed'
 

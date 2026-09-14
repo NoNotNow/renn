@@ -433,6 +433,40 @@ The confirm flow needs the parent's `onUploadTexture` / `onCommitConvertedVideo`
 
 ---
 
+## Phase 22 — `usePipeNavController` split into a `pipeNavEdit` seam (completed, 2026-09-14)
+
+**Performance:** Neutral. Same mutations, same number of world writes per user action; the resolver adds one object allocation per edit and runs only on discrete user actions (never per frame).
+
+### The split
+Architecture review called the 23-key controller a **split verdict**: the per-action wrappers were shallow forwarding, but `pushWorld` + `applyStructuralChange` (nav-path reconciliation) genuinely concentrated. Deepened around those two, flattened the rest.
+
+- **`src/editor/pipeNavEdit.ts`** (new) — `resolvePipeNavEdit(intent, ctx)`, **one** entry point behind 11 intents. Pure: returns `{ world, nav?, syncEntityIds? } | null`, performs no write and pushes no undo entry. `PIPE_NAV_EDIT_POLICY` is the single undo-policy site (sibling of `STAGE_EDIT_POLICY`); `ensurePipeStack` is the only `pushUndo: false` row.
+- **Nav reconciliation moved behind the seam.** `applyStructuralChange` is gone; structural intents return an already-reconciled `nav`, clamped against the **post-edit** entity.
+- **`PipeNavEditPrompts`** (`confirm` / `warn`) injected — two real adapters (`windowPipeNavPrompts`, test stub), so no `window.confirm` reaches the resolver and every confirmation path is testable.
+- **`usePipeNavController`** return shrank 23 → 13 keys. The 13 wrapper callbacks collapsed into four spreadable prop bundles (`pipeControls`, `addPipe`, `treeActions`, `nameDialogProps`); child prop signatures unchanged.
+- **`PipeTreeNode`** moved `PipeNavTree.tsx` → `src/types/pipeNav.ts`, fixing a pre-existing `utils`/`editor` → component type dependency.
+
+### Bugs fixed on the way
+- **Tree-context insert landed on the wrong focus.** `handleTreeContext` reconciled the new pipe's path against the **stale** entity, so an insert that appended a stack pipe had its path truncated (new index rejected as out of range). Now reconciled against the post-edit entity; locked by a test asserting the path is not truncated to `[]`.
+- **Undo entry for unaddressable param edits.** `commitPipeParamEdit` pushed undo and fired merged-param sync even when `applyPipeParamWorldUpdate` returned the world unchanged (no resolvable `stackIndex`). The resolver returns `null` instead. General invariant now: **no undo entry for a write that changed neither world nor focus.**
+- **Name-dialog staleness.** The dialog's deferred `onConfirm` captured the world from when the menu was opened; it now commits through a ref and writes against a fresh world.
+- **Silent cycle refusals surfaced.** `nestStackPipeAsMember` / `moveMemberPipe` refuse cycles by returning the world unchanged; that refusal now always warns instead of sometimes dropping silently.
+
+### Regression introduced and fixed during the phase
+Routing the `ensurePipeStack` bootstrap through `commit` put `focus` in the effect's dependency set. Since that intent calls `setPath`, any host that does not feed the new world back looped forever (the full suite hung). The effect now calls through `commitRef` with deps `[entity.id, world]`, matching the original set; the reason is documented at the effect and in `feature-transformer-pipes.md`.
+
+### Tests
+- **`src/editor/pipeNavEdit.test.ts`** — 45 tests, all at the interface: policy-table coverage (every intent kind has a row; `ensurePipeStack` is the only opt-out), a table-driven no-op contract (9 cases), nav reconciliation both ways (dangling index clamps to root, valid index kept), warn paths (stage-on-entity, nest-into-own-descendant), merge-vs-replace param semantics, and a purity check that `ctx.world` is untouched.
+- **Success paths** covered for every branch whose behaviour was carried over verbatim: `ensurePipeStack` wrap, member-address toggle, nested-`scopePath` param write (lands in `scopeParams`, not `params`), `decouplePipeBinding` (this entity copies, the sharer does not), and five `treeDrop` outcomes — stack reorder, in-pipe stage reorder, stage move to parent pipe, member-pipe promote, non-cyclic nest. All passed first run, which is the evidence that the extraction preserved behaviour.
+- Suite: 200 → 201 files, 1840 → 1885 passing, 3 skipped. `tsc --noEmit -p tsconfig.app.json` clean.
+
+### Deferred
+- `pipeNavEdit` is not wired to `applyWorldEdit`; the Transformers tab still only gets `onWorldChange` (same standing limitation as `commitStageEdit`).
+- `decouplePipeBinding` counts sharing entities with an inline `mode !== 'copy'` filter while `treeDelete` uses `countEntitiesLinkingPipe`. Behaviour preserved verbatim; the two predicates should probably be one helper.
+- `usePipeNavController` focus→entry sync effect still lists full `entry` in deps (carried over from Phase 17).
+
+---
+
 ## Phase 19 — Param scopes, registry ports, pipe-nav slimming (completed, 2026-09-14)
 
 **Performance:** No new per-frame work. `worldPipeRegistryChanged` already ran two `JSON.stringify` comparisons per incremental sync check — now documented as an existing characteristic, not introduced here.
@@ -449,7 +483,7 @@ The confirm flow needs the parent's `onUploadTexture` / `onCommitConvertedVideo`
 - Builder/SceneView editing path not yet wired to `SceneEditPort`.
 
 ### Pipe nav controller surface
-- **`usePipeNavController`** return shrank 34 → 23 keys (dropped unused `navigator`, `goUp`/`goLeft`/`goRight`, `drillInto`, `pushWorld`, `reorderStack`, `reorderMember`). Navigation stays in `usePipeNavigator` / `WorkspaceTransformersTab`.
+- **`usePipeNavController`** return shrank 34 → 23 keys (dropped unused `navigator`, `goUp`/`goLeft`/`goRight`, `drillInto`, `pushWorld`, `reorderStack`, `reorderMember`). Navigation stays in `usePipeNavigator` / `WorkspaceTransformersTab`. *(Phase 22 took this to 13 and moved the mutation logic into `src/editor/pipeNavEdit.ts`.)*
 - **`pipeStageCallbacks.ts`** — shared `createPipeCardStageCallbacks` for `PipeFocusedStrip` PipeCard wiring.
 
 ### Test coverage added
@@ -575,9 +609,29 @@ Critical modules without dedicated unit tests:
 - `runtime/sceneFrameLoop.ts` — accumulator tests + 28 unit tests for the per-frame body branches (Phase 7). The rAF wrapper loop in `SceneView` is still only exercised via integration tests (`shadow-follow-camera`, scenarios).
 - `utils/modelPreview.ts` — pure framing/disposal helpers extracted to `modelPreviewFraming.ts` and tested (Phase 5). The remaining `generateModelPreview` entry point is WebGL-bound and still has no direct test.
 
-**Incremental sync gotchas** (`incrementalSceneSync.ts`, tested in Phase 19):
-- `diffEntityWorld` — reference equality only; deep-cloned/rebuilt entity arrays force per-entity sync work.
-- `worldPipeRegistryChanged` — two `JSON.stringify` comparisons per check; avoid calling on hot paths beyond existing SceneView incremental gate.
+**Incremental sync gotchas** (`incrementalSceneSync.ts`, tested in Phase 19, revisited Phase 20):
+- `diffEntityWorld` — reference equality only; deep-cloned/rebuilt entity arrays force per-entity sync work. **Measured, deliberately left as-is**: deep equality is no faster on the normal path and 4–5× slower on the cloned-world path it would supposedly fix. Fix cloning producers instead.
+- `worldPipeRegistryChanged` — now reference-checks each registry before the `JSON.stringify` deep compare, so non-registry edits skip it entirely (14.8 ms → ~0 ms on an 800-stage world). Real transformer edits still pay the deep compare. Numbers in `feature-world-update-reload.md § Incremental sync cost`.
+
+### Phase 20 (2026-09-14) — defects left open by the Phase 19 architecture run
+
+- **Undo gaps closed** in `WorkspaceTransformersTab.tsx` (Phase 20; **`patch` undo revised in Phase 21**): `handleMakeUniqueTransformer` and `handleCommitStacks` now push an undo snapshot before the document write. At Phase 20 time `handlePatchStage` deliberately did not push undo (assumed live scrub); Phase 21 centralised policy in `commitStageEdit` and `patch` now pushes undo for discrete call sites — see `feature-world-update-reload.md § Stage edits in WorkspaceTransformersTab`.
+- **Param-scope predicate divergence fixed** by deleting the duplicate projection: `resolveBindingScopeLayerParams` is gone and both the runtime tree walk and the editing UI now call `resolveLocalScopeParams`. The old runtime predicate (`scopeKey.startsWith('stack:')`) re-injected `binding.params` at nested scopes, clobbering stack-root overrides. Regression test at the real runtime seam in `pipeStageResolve.test.ts`. Rationale in `nomenclature.md`.
+- **`worldPipeRegistryChanged` fast path** added after measurement (above).
+
+Test count after Phase 20: **199** files, **1821** tests + 3 skipped. `npx tsc --noEmit -p tsconfig.app.json` clean.
+
+### Phase 21 (2026-09-14) — `commitStageEdit` deep module
+
+- **Single policy site** — [`src/editor/commitStageEdit.ts`](../src/editor/commitStageEdit.ts): `commitStageEdit(intent, ctx)` unifies five previously divergent stage-commit paths (flat/pipe, patch vs whole-stack, debounced code). Fixed order: flush pending code → resolve write (no-op aborts before undo) → undo checkpoint → world mutation → merged pipe-param sync. Policy table keyed by `StageEditIntent['kind']` in `STAGE_EDIT_POLICY`.
+- **LEFTOVER closed:** double undo push on pipe-scoped code edits (`codeEdit` intent: no flush, no push — `handleCodeChange` already primed undo); `handlePatchStage` vs `handlePatchStageWrapped` asymmetry (both now dispatch `{ kind: 'patch' }` through the same module).
+- **Deliberate behaviour change:** `patch` now pushes undo (all `onPatchStage` call sites are discrete actions; live scrub coalescing stays in `EditorUndoContext`). Supersedes Phase 20's "patch deliberately does not push undo" note — documented in `feature-world-update-reload.md`; human may want to review.
+- **Other closures:** `makeUnique` world-building moved into module (guards before undo push); `reorder` intent threaded from drag-end via optional `StageCommitKind` on strip commit callbacks.
+- **LEFTOVER open:** flat `writeFlatStack` → `commitStacksRaw` may return `null` (no merged pipe-param sync on flat whole-stack commits); `ctx.world` stale after `flushPendingCode()` — both pre-existing.
+- **`usePipeNavController`:** dropped `handleCommitStagesWrapped` / `handlePatchStageWrapped`; added `stageScope` + `writeFocusedStages` (bare `StageStackWriter`). Return stayed 23 keys at the end of this phase (Phase 22 took it to 13).
+- Docs: `feature-world-update-reload.md`, `feature-transformer-pipes.md`, `architecture.md`.
+
+Test count after Phase 21: **200** files, **1840** tests + 3 skipped. `npx tsc --noEmit -p tsconfig.app.json` clean.
 
 ### Optional — idle material prefetch
 

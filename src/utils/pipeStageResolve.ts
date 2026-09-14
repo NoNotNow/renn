@@ -15,7 +15,7 @@ import { isBindingEnabled, isMemberEnabled } from '@/utils/pipeNavResolve'
 import {
   mergeParamScopeLayers,
   pipeScopeKeyFromPath,
-  resolveBindingScopeLayerParams,
+  resolveLocalScopeParams,
 } from '@/utils/paramScopes'
 
 export { isStackRootScopePath, pipeScopeKeyFromPath } from '@/utils/paramScopes'
@@ -63,7 +63,7 @@ function visitMembers(
     state.scopeEffectiveEnabled.set(scopeKey, scopeEnabled)
   }
 
-  const layersWithPipe = [...state.paramLayers, resolveBindingScopeLayerParams(binding, scopeKey)]
+  const layersWithPipe = [...state.paramLayers, resolveLocalScopeParams(binding, stackPath)]
 
   const members = normalizePipeMembers(pipe)
   for (let memberIndex = 0; memberIndex < members.length; memberIndex++) {
@@ -105,7 +105,7 @@ function visitMembers(
       {
         ...state,
         paramLayers: memberEnabled ?
-            [...layersWithPipe, resolveBindingScopeLayerParams(binding, childScopeKey)]
+            [...layersWithPipe, resolveLocalScopeParams(binding, childPath)]
           : layersWithPipe,
       },
       memberEnabled,
@@ -123,7 +123,7 @@ function walkCopyBindingStages(
 ): void {
   const scopeKey = pipeScopeKeyFromPath(stackPath)
   scopeEffectiveEnabled.set(scopeKey, true)
-  const layers = [resolveBindingScopeLayerParams(binding, scopeKey)]
+  const layers = [resolveLocalScopeParams(binding, stackPath)]
   for (const stageId of binding.localStageIds ?? []) {
     const config = worldTransformers[stageId]
     const effectivelyEnabled = config?.enabled !== false

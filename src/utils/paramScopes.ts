@@ -27,7 +27,7 @@ export function mergeParamScopeLayers(layers: Record<string, unknown>[]): Record
   return out
 }
 
-/** Local projection: params stored at one nav scope for editing UI (not merged with stage params). */
+/** Shared projection for editing UI and runtime layer resolution at one nav scope. */
 export function resolveLocalScopeParams(
   binding: TransformerPipeBinding | undefined,
   scopePath?: PipeNavPathSegment[],
@@ -37,23 +37,6 @@ export function resolveLocalScopeParams(
   if (path.length === 0) return { ...(binding.params ?? {}) }
   const scopeKey = pipeScopeKeyFromPath(path)
   if (isStackRootScopePath(path)) {
-    return {
-      ...(binding.params ?? {}),
-      ...(binding.scopeParams?.[scopeKey] ?? {}),
-    }
-  }
-  return binding.scopeParams?.[scopeKey] ?? {}
-}
-
-/** One binding scope layer for runtime merge (contributed at this scope in the tree walk). */
-export function resolveBindingScopeLayerParams(
-  binding: TransformerPipeBinding,
-  scopeKey: string,
-): Record<string, unknown> {
-  // Runtime predicate is broader than editing (`isStackRootScopePath`): any key starting
-  // with `stack:` re-inserts binding.params, including nested keys like `stack:0/member:…`.
-  // Harmless only while stack-root edits live on binding.params, not scopeParams['stack:N'].
-  if (scopeKey.startsWith('stack:')) {
     return {
       ...(binding.params ?? {}),
       ...(binding.scopeParams?.[scopeKey] ?? {}),

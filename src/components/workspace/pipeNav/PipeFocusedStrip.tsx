@@ -1,6 +1,7 @@
 import { Fragment, useCallback, useMemo, useState, type CSSProperties, type RefObject } from 'react'
 import type { PipeNavPathSegment } from '@/types/pipeNav'
 import type { TransformerConfig, TransformerPipe } from '@/types/transformer'
+import type { StageCommitKind } from '@/editor/commitStageEdit'
 import type { Entity, RennWorld } from '@/types/world'
 import type { TransformerTraceStep } from '@/transformers/transformerTrace'
 import { theme } from '@/config/theme'
@@ -35,7 +36,7 @@ export interface PipeFocusedStripProps {
   registryEntityId?: string
   liveTraceSteps: TransformerTraceStep[] | null
   drawerPortalTarget: RefObject<HTMLDivElement | null>
-  onCommitStages: (configs: TransformerConfig[], orderedIds?: string[]) => void
+  onCommitStages: (configs: TransformerConfig[], orderedIds?: string[], kind?: StageCommitKind) => void
   onPatchStage?: (stageId: string, config: TransformerConfig) => void
   onSelectStageId: (id: string) => void
   onSelectPipeIndex: (index: number) => void

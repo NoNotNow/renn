@@ -8,11 +8,11 @@ import {
   type RefObject,
 } from 'react'
 import type { Entity, RennWorld } from '@/types/world'
-import type { PipeNavPathSegment } from '@/types/pipeNav'
+import type { PipeNavPathSegment, PipeTreeNode } from '@/types/pipeNav'
 import { theme } from '@/config/theme'
 import { clamp } from '@/utils/numberUtils'
 import { pipeNavButtonStyle } from './pipeNavStyles'
-import PipeNavTree, { type PipeTreeNode } from './PipeNavTree'
+import PipeNavTree from './PipeNavTree'
 import type { PipeTreeContextTarget } from '@/utils/pipeNavTreeHelpers'
 
 const SIDEBAR_MIN_PX = 200

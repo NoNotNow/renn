@@ -1,5 +1,4 @@
-import type { PipeNavPathSegment } from '@/types/pipeNav'
-import type { PipeTreeNode } from '@/components/workspace/pipeNav/PipeNavTree'
+import type { PipeNavPathSegment, PipeTreeNode } from '@/types/pipeNav'
 import type { InsertPipePlacement } from '@/utils/pipeNavMutations'
 import { nextFreeDefaultPipeName } from '@/utils/allocatePipeId'
 import type { RennWorld } from '@/types/world'

@@ -242,6 +242,48 @@ describe('pipeStageResolve', () => {
     expect(stageContextByStageId.get('s2')?.effectivelyEnabled).toBe(false)
   })
 
+  it('stack-root scopeParams override wins over binding.params at nested stages', () => {
+    const world: RennWorld = {
+      version: '1',
+      world: {},
+      entities: [
+        {
+          id: 'e1',
+          transformers: ['s1'],
+          transformerPipeStack: [
+            {
+              pipeId: 'root',
+              params: { speed: 5 },
+              scopeParams: { 'stack:0': { speed: 10 } },
+            },
+          ],
+        },
+      ],
+      transformers: {
+        s1: { type: 'car2' },
+      },
+      transformerPipes: {
+        root: {
+          id: 'root',
+          name: 'Root',
+          stageIds: ['s1'],
+          stages: [],
+          members: [{ kind: 'pipe', pipeId: 'child' }],
+        },
+        child: {
+          id: 'child',
+          name: 'Child',
+          stageIds: ['s1'],
+          stages: [],
+          members: [{ kind: 'stage', stageId: 's1' }],
+        },
+      },
+    }
+
+    const { stageContext } = buildEntityStageRuntimeContext(world, world.entities[0]!)
+    expect(stageContext.get(0)?.mergedParams.speed).toBe(10)
+  })
+
   it('merges stage, binding, and scope params — narrowest scope wins', () => {
     const world: RennWorld = {
       version: '1',

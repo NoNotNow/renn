@@ -5,7 +5,6 @@ import {
   isStackRootScopePath,
   mergeParamScopeLayers,
   pipeScopeKeyFromPath,
-  resolveBindingScopeLayerParams,
   resolveLocalScopeParams,
 } from './paramScopes'
 
@@ -83,11 +82,11 @@ describe('paramScopes', () => {
     })
   })
 
-  describe('resolveBindingScopeLayerParams', () => {
-    it('matches stack-root local merge for stack keys', () => {
+  describe('runtime layer resolution uses the editing projection', () => {
+    it('merges binding.params with stack scopeParams at stack root', () => {
       const scopeKey = pipeScopeKeyFromPath(stackRootPath)
       const b = binding({ params: { grip: 1 }, scopeParams: { [scopeKey]: { boost: true } } })
-      expect(resolveBindingScopeLayerParams(b, scopeKey)).toEqual(resolveLocalScopeParams(b, stackRootPath))
+      expect(resolveLocalScopeParams(b, stackRootPath)).toEqual({ grip: 1, boost: true })
     })
 
     it('returns only scopeParams for nested scope keys', () => {
@@ -96,10 +95,10 @@ describe('paramScopes', () => {
         params: { grip: 1 },
         scopeParams: { [scopeKey]: { grip: 9 } },
       })
-      expect(resolveBindingScopeLayerParams(b, scopeKey)).toEqual({ grip: 9 })
+      expect(resolveLocalScopeParams(b, nestedScopePath)).toEqual({ grip: 9 })
     })
 
-    it('CURRENT BEHAVIOUR: nested stack-prefixed key re-injects binding.params when scopeParams[stack:N] is populated', () => {
+    it('nested scope no longer re-injects binding.params (predicate divergence fixed)', () => {
       const stackKey = pipeScopeKeyFromPath(stackRootPath)
       const nestedKey = pipeScopeKeyFromPath(nestedScopePath)
       const b = binding({
@@ -109,8 +108,8 @@ describe('paramScopes', () => {
           [nestedKey]: { grip: 9 },
         },
       })
+      // Old runtime used scopeKey.startsWith('stack:') and leaked binding.params (speed: 5) here.
       expect(resolveLocalScopeParams(b, nestedScopePath)).toEqual({ grip: 9 })
-      expect(resolveBindingScopeLayerParams(b, nestedKey)).toEqual({ grip: 9, speed: 5 })
     })
   })
 })

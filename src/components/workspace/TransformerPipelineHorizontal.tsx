@@ -41,6 +41,7 @@ import {
   transformerConfigForConfigureDrawer,
 } from '@/transformers/transformerConfigureDrawer'
 import { allocateTransformerRegistryId } from '@/utils/commitTransformerConfigsToWorld'
+import type { StageCommitKind } from '@/editor/commitStageEdit'
 import {
   isTransformerTraceBriefLineWider,
 } from './transformerTraceBriefMeasure'
@@ -1026,7 +1027,7 @@ export function TransformerHorizontalPipeline({
   registryEntityId?: string
   liveTraceSteps: TransformerTraceStep[] | null
   drawerPortalTarget: RefObject<HTMLDivElement | null>
-  onCommit: (next: TransformerConfig[], orderedRegistryIds?: string[]) => void
+  onCommit: (next: TransformerConfig[], orderedRegistryIds?: string[], kind?: StageCommitKind) => void
   /** Patch one stage registry entry without reordering the pipe or re-indexing priorities. */
   onPatchStage?: (stageId: string, config: TransformerConfig) => void
   onSelectCode?: (id: string) => void
@@ -1230,7 +1231,7 @@ export function TransformerHorizontalPipeline({
       const changed = orderedIds.some((id, i) => id !== registryIdsForList()[i])
       if (changed) {
         dragEndCommittedRef.current = true
-        onCommit(next, orderedIds)
+        onCommit(next, orderedIds, 'reorder')
       }
     }
     setDragState(null)

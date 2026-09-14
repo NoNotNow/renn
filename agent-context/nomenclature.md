@@ -69,10 +69,13 @@ Single owner: `src/utils/paramScopes.ts`.
 | Export | Role |
 |---|---|
 | `mergeParamScopeLayers` | Layer merge primitive (later keys win; `undefined` skipped) |
-| `resolveBindingScopeLayerParams` | Runtime: one binding scope layer per tree-walk step |
-| `resolveLocalScopeParams` | Editing UI: local params at a `scopePath` (not merged with stage params) |
+| `resolveLocalScopeParams` | **The** scope projection — local params at a `scopePath`, used by both runtime and editing UI |
 | `pipeScopeKeyFromPath`, `isStackRootScopePath` | Scope key + stack-root predicate for writes |
 
-Runtime merged output is built in `pipeStageResolve.ts`: stage params + accumulated `resolveBindingScopeLayerParams` layers via `mergeParamScopeLayers`. Editing UIs (`PipeParamsStrip`, `PipeParamsJsonEditor`) call `resolveLocalScopeParams(binding, scopePath)` so typed strip and JSON editor agree.
+Runtime merged output is built in `pipeStageResolve.ts`: stage params + accumulated `resolveLocalScopeParams(binding, path)` layers via `mergeParamScopeLayers`. Editing UIs (`PipeParamsStrip`, `PipeParamsJsonEditor`) call the same function, so the typed strip, the JSON editor and the runtime cannot disagree.
 
-**Known divergence:** runtime stack-root predicate is `scopeKey.startsWith('stack:')`; editing uses `isStackRootScopePath` (path length 1). At nested scopes the runtime re-injects `binding.params` as a higher-priority layer. Latent only while stack-root edits live on `binding.params` rather than `scopeParams['stack:N']`. Characterization test in `paramScopes.test.ts`.
+**One projection, on purpose.** There used to be a second, runtime-only function (`resolveBindingScopeLayerParams`) that decided "is this the stack root?" from the scope *key* (`scopeKey.startsWith('stack:')`) while editing decided it from the *path* (`isStackRootScopePath` — length 1). Those are not equivalent: `pipeScopeKeyFromPath` emits nested keys like `stack:0/member:abc:1`, which also start with `stack:`. So at every nested scope the runtime appended `binding.params` again as a *higher*-priority layer, clobbering any stack-root override back to its binding default — the editing UI showed `speed: 10` while the runtime resolved `speed: 5`.
+
+It was latent, not live: `scopeParams['stack:N']` is never populated today, because `applyPipeParamWorldUpdate` routes stack-root writes to `binding.params`, and nav paths always have exactly one leading `stack` segment, so the bare key `stack:N` can only ever come from a root path. Nothing enforced that, though, and a legacy or hand-edited project file could carry it.
+
+**Resolution:** the duplicate was deleted rather than patched, so the divergence cannot reappear. Safe because the runtime tree walk always pushes the root `stack:N` layer before descending (`visitMembers`; `walkCopyBindingStages` only uses the root key), so `binding.params` is already present in an ancestor layer — dropping the re-injection removes a spurious override and loses nothing. Regression test at the real runtime seam: `pipeStageResolve.test.ts` → `'stack-root scopeParams override wins over binding.params at nested stages'`.

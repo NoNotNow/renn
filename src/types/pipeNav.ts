@@ -19,6 +19,13 @@ export type StripItem =
     }
   | { kind: 'stage'; stageId: string; index: number }
 
+/** A row in the pipe-nav tree. Also the addressing used by tree delete / drop edits. */
+export type PipeTreeNode =
+  | { kind: 'entity'; entityId: string; label: string }
+  | { kind: 'stack_pipe'; pipeId: string; stackIndex: number; label: string }
+  | { kind: 'member_stage'; pipeId: string; parentPipeId: string; memberIndex: number; stageId: string; label: string }
+  | { kind: 'member_pipe'; pipeId: string; parentPipeId: string; memberIndex: number; label: string }
+
 export type ResolvedPipeNavView = {
   mode: PipeNavViewMode
   depth: number

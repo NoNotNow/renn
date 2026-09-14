@@ -26,10 +26,15 @@ import { effectiveCustomTransformerCode, validateCustomTransformerSource } from 
 import { useEditorUndo } from '@/contexts/EditorUndoContext'
 import { useCopyMenu } from '@/contexts/CopyContext'
 import {
-  allocateTransformerRegistryId,
   commitTransformerConfigsToWorld,
   mapTransformerRegistryIdsToEntity,
 } from '@/utils/commitTransformerConfigsToWorld'
+import {
+  commitStageEdit,
+  type StageCommitKind,
+  type StageEditIntent,
+  type StageStackWriter,
+} from '@/editor/commitStageEdit'
 import { usePipeNavController } from '@/hooks/usePipeNavController'
 import { findUngroupedStageIds, resolveSelectedFlatStackIndex, resolvePreferredStageId, drillIntoPipePath, pipeNavParentPath } from '@/utils/pipeNavResolve'
 import type { PipeNavPathSegment } from '@/types/pipeNav'
@@ -37,7 +42,7 @@ import {
   flatIndexOffsetForStackBinding,
   stackIndexFromScopePath,
 } from '@/utils/pipeStageResolve'
-import { wrapUngroupedStagesIntoStackPipe, patchStageConfigInWorld } from '@/utils/pipeNavMutations'
+import { wrapUngroupedStagesIntoStackPipe } from '@/utils/pipeNavMutations'
 import { getEntityPipeStack } from '@/utils/transformerPipeResolve'
 import { nextFreeDefaultPipeName } from '@/utils/allocatePipeId'
 import TransformerPipeNavSidebar, {
@@ -218,7 +223,7 @@ function WorkspaceTransformersTabEntity({
     return list
   }, [selectedEntityIds, world])
 
-  const entityIdsForEdit = entities.map((e) => e.id)
+  const entityIdsForEdit = useMemo(() => entities.map((e) => e.id), [entities])
   const mergedIds = useMemo(() => mergeTransformers(entities), [entities])
   const anyLocked = entities.some((e) => e.locked)
   const transformersMixed = mergedIds === null
@@ -301,50 +306,7 @@ function WorkspaceTransformersTabEntity({
     ],
   )
 
-  const commitStacksRawRef = useRef(commitStacksRaw)
-  commitStacksRawRef.current = commitStacksRaw
-
   const canMakeUniqueStage = entityIdsForEdit.length === 1
-
-  const handleMakeUniqueTransformer = useCallback(
-    (id: string) => {
-      if (!canMakeUniqueStage) return
-
-      const idx = transformerIds.indexOf(id)
-      if (idx < 0) return
-
-      const targetEntityId = entityIdsForEdit[0]
-      if (!targetEntityId) return
-
-      const nextWorldTransformers = { ...(world.transformers ?? {}) }
-      const usedIds = new Set(Object.keys(nextWorldTransformers))
-      const newId = allocateTransformerRegistryId(targetEntityId, nextWorldTransformers, usedIds)
-
-      nextWorldTransformers[newId] = JSON.parse(JSON.stringify(nextWorldTransformers[id]))
-
-      const nextWorld = {
-        ...world,
-        transformers: nextWorldTransformers,
-        entities: world.entities.map((e) => {
-          if (e.id === targetEntityId) {
-            return {
-              ...e,
-              transformers: e.transformers?.map((tid) => (tid === id ? newId : tid)) ?? [],
-              transformerPipeStack: undefined,
-              transformerPipe: undefined,
-            }
-          }
-          return e
-        }),
-      }
-      onWorldChange(nextWorld)
-      setSelectedId(newId)
-      if (onEntryChange && entry) {
-        onEntryChange({ ...entry, itemId: newId })
-      }
-    },
-    [transformerIds, entityIdsForEdit, canMakeUniqueStage, world, onWorldChange, onEntryChange, entry],
-  )
 
   const [watchOpen, setWatchOpen] = useState(false)
 
@@ -365,9 +327,6 @@ function WorkspaceTransformersTabEntity({
   const codeUndoPrimedRef = useRef(false)
   const editorStageIdsRef = useRef<string[]>([])
   const editorStageConfigsRef = useRef<TransformerConfig[]>([])
-  const pipeNavCommitStagesRef = useRef<(configs: TransformerConfig[], orderedIds?: string[]) => void>(
-    () => {},
-  )
   const usePipeScopedCodeCommitRef = useRef(false)
   const commitCustomCodeEditRef = useRef<(text: string) => void>(() => {})
 
@@ -390,34 +349,92 @@ function WorkspaceTransformersTabEntity({
     commitCustomCodeEditRef.current(text)
   }, [])
 
-  const handleCommitStacks = useCallback(
-    (nextConfigs: TransformerConfig[], orderedRegistryIds?: string[]) => {
-      flushPendingCode()
-      commitStacksRaw(nextConfigs, orderedRegistryIds)
-    },
-    [commitStacksRaw, flushPendingCode],
-  )
-
-  const handlePatchStage = useCallback(
-    (stageId: string, config: TransformerConfig) => {
-      flushPendingCode()
-      const nextWorld = patchStageConfigInWorld(world, stageId, config)
-      onWorldChange(nextWorld)
-      if (entityIdsForEdit.length > 0) {
-        onMergedPipeParamSync?.(nextWorld, entityIdsForEdit)
-      }
-    },
-    [flushPendingCode, world, onWorldChange, onMergedPipeParamSync, entityIdsForEdit],
-  )
-
   const pipeNav = usePipeNavController(
     world,
     singleEntity ?? ({ id: '', transformers: [] } as (typeof entities)[0]),
     entry,
     onWorldChange,
     onEntryChange,
-    handleCommitStacks,
     onMergedPipeParamSync,
+  )
+
+  /** `StageStackWriter` for the entity's flat transformer stack. */
+  const writeFlatStack = useCallback<StageStackWriter>(
+    (configs, orderedRegistryIds) => {
+      commitStacksRaw(configs, orderedRegistryIds)
+      // `commitStacksRaw` may hand the write to `onEntityTransformersChange`, which owns its own
+      // world update, so there is no world here to re-derive merged pipe params from.
+      return null
+    },
+    [commitStacksRaw],
+  )
+
+  /**
+   * Stack the focused strip writes to: the focused pipe, or the flat stack when there is no pipe
+   * stack. Multi-entity selections have no focused pipe at all — `pipeNav` is running on a
+   * placeholder entity there, so its writer must never be reached.
+   */
+  const writeStripStack =
+    singleEntity && pipeNav.stageScope === 'pipe' ? pipeNav.writeFocusedStages : writeFlatStack
+
+  const runStageEdit = useCallback(
+    (intent: StageEditIntent, writeStack: StageStackWriter) =>
+      commitStageEdit(intent, {
+        world,
+        entityIds: entityIdsForEdit,
+        flushPendingCode,
+        undo,
+        onWorldChange,
+        writeStack,
+        onMergedParamSync: onMergedPipeParamSync,
+      }),
+    [world, entityIdsForEdit, flushPendingCode, undo, onWorldChange, onMergedPipeParamSync],
+  )
+
+  const handleCommitStacks = useCallback(
+    (nextConfigs: TransformerConfig[], orderedRegistryIds?: string[], kind: StageCommitKind = 'commitStages') => {
+      runStageEdit({ kind, configs: nextConfigs, orderedRegistryIds }, writeFlatStack)
+    },
+    [runStageEdit, writeFlatStack],
+  )
+
+  const handlePatchStage = useCallback(
+    (stageId: string, config: TransformerConfig) => {
+      runStageEdit({ kind: 'patch', stageId, config }, writeFlatStack)
+    },
+    [runStageEdit, writeFlatStack],
+  )
+
+  const handleCommitStripStages = useCallback(
+    (nextConfigs: TransformerConfig[], orderedRegistryIds?: string[], kind: StageCommitKind = 'commitStages') => {
+      runStageEdit({ kind, configs: nextConfigs, orderedRegistryIds }, writeStripStack)
+    },
+    [runStageEdit, writeStripStack],
+  )
+
+  const handlePatchStripStage = useCallback(
+    (stageId: string, config: TransformerConfig) => {
+      runStageEdit({ kind: 'patch', stageId, config }, writeStripStack)
+    },
+    [runStageEdit, writeStripStack],
+  )
+
+  const handleMakeUniqueTransformer = useCallback(
+    (id: string) => {
+      if (!canMakeUniqueStage) return
+      const targetEntityId = entityIdsForEdit[0]
+      if (!targetEntityId) return
+
+      const { selectStageId } = runStageEdit(
+        { kind: 'makeUnique', entityId: targetEntityId, stageId: id },
+        writeFlatStack,
+      )
+      if (!selectStageId) return
+
+      setSelectedId(selectStageId)
+      if (onEntryChange && entry) onEntryChange({ ...entry, itemId: selectStageId })
+    },
+    [canMakeUniqueStage, entityIdsForEdit, runStageEdit, writeFlatStack, onEntryChange, entry],
   )
 
   const editorStageIds =
@@ -427,33 +444,27 @@ function WorkspaceTransformersTabEntity({
 
   editorStageIdsRef.current = editorStageIds
   editorStageConfigsRef.current = editorStageConfigs
-  pipeNavCommitStagesRef.current = pipeNav.handleCommitStagesWrapped
   usePipeScopedCodeCommitRef.current = Boolean(
     singleEntity &&
       getEntityPipeStack(singleEntity).length > 0 &&
       pipeNav.view?.mode !== 'pipe_siblings',
   )
   commitCustomCodeEditRef.current = (text: string) => {
-    const sid = selectedIdRef.current
-    if (usePipeScopedCodeCommitRef.current) {
-      const ids = editorStageIdsRef.current
-      const configs = editorStageConfigsRef.current
-      const idx = ids.indexOf(sid ?? '')
-      if (idx < 0 || configs[idx]?.type !== 'custom') return
-      lastCommittedCodeRef.current = text
-      pipeNavCommitStagesRef.current(
-        syncPriorities(configs.map((t, i) => (i === idx ? { ...t, code: text } : t))),
-      )
-      return
-    }
-    const cur = listRef.current
-    const curIds = transformerIdsRef.current
-    const idx = curIds.indexOf(sid ?? '')
-    if (idx < 0 || cur[idx]?.type !== 'custom') return
+    const pipeScoped = usePipeScopedCodeCommitRef.current
+    const ids = pipeScoped ? editorStageIdsRef.current : transformerIdsRef.current
+    const configs = pipeScoped ? editorStageConfigsRef.current : listRef.current
+    const idx = ids.indexOf(selectedIdRef.current ?? '')
+    if (idx < 0 || configs[idx]?.type !== 'custom') return
+
     lastCommittedCodeRef.current = text
-    commitStacksRawRef.current(
-      syncPriorities(cur.map((t, i) => (i === idx ? { ...t, code: text } : t))),
-      curIds,
+    runStageEdit(
+      {
+        kind: 'codeEdit',
+        configs: syncPriorities(configs.map((t, i) => (i === idx ? { ...t, code: text } : t))),
+        // Pipe scope resolves its own ordered ids from the focused stage list.
+        orderedRegistryIds: pipeScoped ? undefined : ids,
+      },
+      pipeScoped ? writeStripStack : writeFlatStack,
     )
   }
 
@@ -1073,15 +1084,9 @@ function WorkspaceTransformersTabEntity({
           onGoUp={handlePipeNavGoUp}
           onGoLeft={handlePipeNavGoLeft}
           onGoRight={handlePipeNavGoRight}
-          onRenamePipe={pipeNav.focusedPipeId ? pipeNav.handleRename : undefined}
-          onTreeDelete={pipeNav.handleTreeDelete}
-          onTreeContext={pipeNav.handleTreeContext}
-          onTreeDrop={pipeNav.handleTreeDrop}
+          {...pipeNav.treeActions}
           drawerPortalTarget={floatingDrawerPortalRef}
-          onPipeControlToggle={pipeNav.togglePipeEnabled}
-          onPipeParamChange={pipeNav.updatePipeParam}
-          onPipeParamsReplace={pipeNav.replacePipeParams}
-          onDecouplePipeBinding={pipeNav.decouplePipeBinding}
+          {...pipeNav.pipeControls}
         />
       : null}
       <div
@@ -1200,19 +1205,14 @@ function WorkspaceTransformersTabEntity({
                 registryEntityId={singleEntity.id}
                 liveTraceSteps={liveTraceSteps ?? null}
                 drawerPortalTarget={floatingDrawerPortalRef}
-                onCommitStages={pipeNav.handleCommitStagesWrapped}
-                onPatchStage={pipeNav.handlePatchStageWrapped}
+                onCommitStages={handleCommitStripStages}
+                onPatchStage={handlePatchStripStage}
                 onSelectStageId={changeSelectedIdWithFlush}
                 onSelectPipeIndex={handleSelectPipeIndex}
                 onDrillIntoPipe={handleDrillIntoPipe}
-                onCreatePipe={pipeNav.handleCreatePipe}
-                onAddChildPipe={pipeNav.handleAddChildPipe}
-                onAddExistingPipe={pipeNav.handleAddExistingPipe}
+                {...pipeNav.addPipe}
                 stackIndexForPipeId={pipeNav.stackIndexForPipeId}
-                onPipeControlToggle={pipeNav.togglePipeEnabled}
-                onPipeParamChange={pipeNav.updatePipeParam}
-                onPipeParamsReplace={pipeNav.replacePipeParams}
-                onDecouplePipeBinding={pipeNav.decouplePipeBinding}
+                {...pipeNav.pipeControls}
                 onMakeUnique={handleMakeUniqueTransformer}
                 usageCounts={usageCounts}
                 selectedStageId={selectedId}
@@ -1374,20 +1374,13 @@ function WorkspaceTransformersTabEntity({
           currentConfig={selectedPreset}
           onLoadTemplate={(config) => {
             const next = list.map((t, i) => (i === selectedEditorIndex ? config : t))
-            handleCommitStacks(sortAndSyncPriorities(next))
+            runStageEdit({ kind: 'loadTemplate', configs: sortAndSyncPriorities(next) }, writeFlatStack)
             setTemplateDialogOpen(false)
           }}
         />
       : null}
 
-      {usePipeNav ?
-        <PipeNavDialogs
-          nameDialog={pipeNav.nameDialog}
-          onNameChange={(n) => pipeNav.setNameDialog((d) => (d ? { ...d, name: n } : null))}
-          onNameConfirm={pipeNav.confirmNameDialog}
-          onNameCancel={() => pipeNav.setNameDialog(null)}
-        />
-      : null}
+      {usePipeNav ? <PipeNavDialogs {...pipeNav.nameDialogProps} /> : null}
       </div>
       </div>
       )}

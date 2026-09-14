@@ -1,17 +1,11 @@
 import { useCallback, useMemo, useState, type DragEvent, type ReactNode, type RefObject } from 'react'
-import type { PipeNavPathSegment } from '@/types/pipeNav'
+import type { PipeNavPathSegment, PipeTreeNode } from '@/types/pipeNav'
 import type { Entity, RennWorld } from '@/types/world'
 import { theme } from '@/config/theme'
 import { getEntityPipeStack, normalizePipeMembers } from '@/utils/transformerPipeResolve'
 import { isPipeScopeEffectivelyEnabled, stackIndexFromScopePath } from '@/utils/pipeStageResolve'
 import type { PipeTreeContextTarget } from '@/utils/pipeNavTreeHelpers'
 import PipeTreePipeControls from './PipeTreePipeControls'
-
-export type PipeTreeNode =
-  | { kind: 'entity'; entityId: string; label: string }
-  | { kind: 'stack_pipe'; pipeId: string; stackIndex: number; label: string }
-  | { kind: 'member_stage'; pipeId: string; parentPipeId: string; memberIndex: number; stageId: string; label: string }
-  | { kind: 'member_pipe'; pipeId: string; parentPipeId: string; memberIndex: number; label: string }
 
 export interface PipeNavTreeProps {
   world: RennWorld
