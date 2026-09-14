@@ -39,7 +39,25 @@ Scripts use `world.scripts: Record<string, ScriptDef>` with `entity.scripts: str
   visible (Transformers or Scripts tab), matching the manual **Refresh editor** layout escape hatch
   (refresh icon at the top of the shared Monaco **vertical toolbar** on the editor’s right edge in `WorkspaceMonacoSlot`).
 - **Session persistence** (Builder session, survives workspace close/reopen): active tab, entity, `itemId`, `pipeNavPath`, `pipeNavSelectedIndex` via `WorkspaceTarget` + per-entity `WorkspaceSessionMemory` in `Builder.tsx`. Per-entity memory restores pipe depth and transformer selection when switching entities in the workspace entity picker. Shell tab switches (Transformers ↔ Scripts ↔ Organize) preserve the same anchor fields so pipe depth is not reset when leaving and returning to Transformers.
-- **Monaco view state** (scroll + cursor per edited item): `workspaceEditorItemKey` + in-memory store in `workspaceEditorViewState.ts`; saved on item switch, cursor/scroll change, and workspace close; restored on reopen (including after Monaco layout). Unapplied script text is stored in the same module's draft map and survives close/reopen until Apply.
+- **Monaco view state** (scroll + cursor per edited item): keyed by `workspaceEditorItemKey`, stored in `workspaceEditorViewState.ts`, and **all save/restore policy owned by [`workspaceEditorSession.ts`](../src/editor/workspaceEditorSession.ts)** — see § Editor session below. Unapplied script text is stored in the same module's draft map and survives close/reopen until Apply; drafts are owned by `WorkspaceScriptsTab`, not the session.
+
+#### Editor session (`src/editor/workspaceEditorSession.ts`)
+
+`createWorkspaceEditorSession()` owns the three-way fight between the user's live edits, Monaco's own scroll resets during layout, and programmatic restores on item switch. `Workspace.tsx` holds one session and calls it at named moments — it keeps **no** view-state refs of its own:
+
+| Method | Called from | Does |
+|---|---|---|
+| `attachEditor(adapter)` | `onEditorReady` | Subscribe cursor/scroll → save; try a pending restore |
+| `beginNavigation(key)` | `useLayoutEffect` on `editorItemKey` | Force-save the outgoing item, arm a restore, adopt the new key |
+| `requestRestore()` | `useEffect` on `[open, editorItemKey]` | Restore now, retry after 250 ms; returns the cleanup |
+| `noteUserEdit()` | `onChange` | Latch "user is typing", cancelling programmatic restores |
+| `persistNow()` | workspace close | Force-save, ignoring the suppress window |
+| `repairAfterLayout()` | `onAfterDelayedLayout` | Undo a Monaco scroll jump to top; retry a pending restore |
+| `dispose()` | unmount | Clear pending timers |
+
+**Timing constants were tuned against real Monaco — do not round them.** `WORKSPACE_EDITOR_SUPPRESS_SAVE_MS` 400 (ignore saves right after a programmatic restore, because Monaco emits `scroll=0`), `WORKSPACE_EDITOR_TYPING_QUIET_MS` 600 (how long a keystroke blocks restores), `WORKSPACE_EDITOR_RESTORE_RETRY_MS` 250 (second attempt when the editor was not ready).
+
+**Two adapters justify the seam:** `monacoWorkspaceEditorAdapter(ed)` in the app, a fake in [`workspaceEditorSession.test.ts`](../src/editor/workspaceEditorSession.test.ts), which drives the policy through a manual clock (`now` / `setTimer` / `clearTimer` are injectable, defaulted to the browser) instead of faking globals. End-to-end coverage stays in `Builder.workspacePersistence.integration.test.tsx`.
 - **Watch**: eye icon always visible below refresh in the vertical toolbar (disabled until a custom transformer on a single entity is selected); panel portals into the editor pane, default top-right (just left of the toolbar), draggable and resizable via [`WorkspaceFloatingDrawer`](../src/components/workspace/WorkspaceFloatingDrawer.tsx) (left/right/bottom edges and corners), position persisted in `localStorage` across close/reopen. See [`feature-ui-infrastructure.md`](feature-ui-infrastructure.md) for shared dialog/panel rules.
   This runs **once per page load** only (not again when closing and reopening Workspace).
 - **Shift+Escape** opens the Workspace. **Escape** (without Shift) closes it when open, or clears selection when closed. While the Monaco editor is focused, Escape first dismisses IntelliSense / parameter hints; the Workspace closes only on a subsequent Escape with no editor popup open. In native fullscreen, plain Escape exits fullscreen only when the Workspace is closed (`shouldExitFullscreenOnEscape`); Chromium locks Escape on enter so Shift+Escape can open the Workspace without exiting.

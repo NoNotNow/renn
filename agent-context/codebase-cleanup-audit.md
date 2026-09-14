@@ -646,6 +646,17 @@ Test count after Phase 21: **200** files, **1840** tests + 3 skipped. `npx tsc -
 
 Test count after Phase 23: **202** files, **1886** tests + 3 skipped. `npx tsc --noEmit -p tsconfig.app.json` clean. `npm run test:perf` before/after: mean frame 0.132 ms → 0.096 ms, verdict sub-quadratic both runs (no regression).
 
+### Phase 24 (2026-09-15) — `workspaceEditorSession` deep module
+
+- **Extracted** all Monaco scroll/cursor save-restore policy out of `Workspace.tsx` into [`src/editor/workspaceEditorSession.ts`](../src/editor/workspaceEditorSession.ts). The component previously held 6 refs and 5 effects of policy — suppress-save window, typing-quiet latch, restore-pending latch, scroll-jumped-to-top repair, save-before-item-switch ordering — reachable only through `Builder.workspacePersistence.integration.test.tsx`. It now holds **zero** view-state refs: 908 → 809 lines. Method table in `feature-workspace.md § Editor session`.
+- **Timing constants ported verbatim** and named: `WORKSPACE_EDITOR_SUPPRESS_SAVE_MS` 400, `WORKSPACE_EDITOR_TYPING_QUIET_MS` 600, `WORKSPACE_EDITOR_RESTORE_RETRY_MS` 250. They were tuned against real Monaco.
+- **Editor adapter** (`WorkspaceEditorAdapter`) — 8 methods, the only Monaco surface the policy touches. `monacoWorkspaceEditorAdapter(ed)` in the app, a fake in the new unit test. `now`/`setTimer`/`clearTimer`/`store` are injectable (browser defaults), so 13 policy tests run on a manual clock rather than faked globals.
+- **Deviation from plan — the draft map did *not* move in.** The plan assumed it shared an owner with view state ("same key owner, same moments"); it does not. The draft map's only production consumer is `WorkspaceScriptsTab.tsx`, a sibling of the shell, and `Workspace.tsx` never touches drafts. What the two genuinely share is `workspaceEditorItemKey`. Drafts stay in `workspaceEditorViewState.ts`.
+- **Deviation from plan — interface is 7 methods, not the sketched 4.** `onNavigate` had to split into `beginNavigation` (layout phase, before Monaco loads the next value) and `requestRestore` (effect phase, with the retry timer); collapsing them would reorder the restore against Monaco's own model update. `repairAfterLayout` and `dispose` are the other real moments.
+- **LEFTOVER:** `workspaceEditorViewState.ts` is now two unrelated stores behind one filename (view states for the shell, drafts for the scripts tab) plus the key builder both share. Splitting it is the natural follow-up; not done here to keep the diff to one seam.
+
+Test count after Phase 24: **203** files, **1899** tests + 3 skipped. `npx tsc --noEmit -p tsconfig.app.json` clean.
+
 ### Optional — idle material prefetch
 
 `prefetchMaterialTextures` was removed (no call sites). If mid-rAF decode becomes an issue again, reintroduce a **wired** prefetch from `SceneView` after load (idle `createImageBitmap`), document the entry point, and add a smoke test.
