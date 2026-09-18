@@ -377,46 +377,39 @@ function WorkspaceTransformersTabEntity({
   const writeStripStack =
     singleEntity && pipeNav.stageScope === 'pipe' ? pipeNav.writeFocusedStages : writeFlatStack
 
+  type StageEditScope = 'flat' | 'strip'
+
   const runStageEdit = useCallback(
-    (intent: StageEditIntent, writeStack: StageStackWriter) =>
+    (intent: StageEditIntent, scope: StageEditScope = 'flat') =>
       commitStageEdit(intent, {
         world,
         entityIds: entityIdsForEdit,
         flushPendingCode,
         undo,
         onWorldChange,
-        writeStack,
+        writeStack: scope === 'strip' ? writeStripStack : writeFlatStack,
         onMergedParamSync: onMergedPipeParamSync,
       }),
-    [world, entityIdsForEdit, flushPendingCode, undo, onWorldChange, onMergedPipeParamSync],
+    [world, entityIdsForEdit, flushPendingCode, undo, onWorldChange, onMergedPipeParamSync, writeFlatStack, writeStripStack],
   )
 
-  const handleCommitStacks = useCallback(
-    (nextConfigs: TransformerConfig[], orderedRegistryIds?: string[], kind: StageCommitKind = 'commitStages') => {
-      runStageEdit({ kind, configs: nextConfigs, orderedRegistryIds }, writeFlatStack)
+  const handleCommitStages = useCallback(
+    (
+      nextConfigs: TransformerConfig[],
+      orderedRegistryIds?: string[],
+      kind: StageCommitKind = 'commitStages',
+      scope: StageEditScope = 'flat',
+    ) => {
+      runStageEdit({ kind, configs: nextConfigs, orderedRegistryIds }, scope)
     },
-    [runStageEdit, writeFlatStack],
+    [runStageEdit],
   )
 
   const handlePatchStage = useCallback(
-    (stageId: string, config: TransformerConfig) => {
-      runStageEdit({ kind: 'patch', stageId, config }, writeFlatStack)
+    (stageId: string, config: TransformerConfig, scope: StageEditScope = 'flat') => {
+      runStageEdit({ kind: 'patch', stageId, config }, scope)
     },
-    [runStageEdit, writeFlatStack],
-  )
-
-  const handleCommitStripStages = useCallback(
-    (nextConfigs: TransformerConfig[], orderedRegistryIds?: string[], kind: StageCommitKind = 'commitStages') => {
-      runStageEdit({ kind, configs: nextConfigs, orderedRegistryIds }, writeStripStack)
-    },
-    [runStageEdit, writeStripStack],
-  )
-
-  const handlePatchStripStage = useCallback(
-    (stageId: string, config: TransformerConfig) => {
-      runStageEdit({ kind: 'patch', stageId, config }, writeStripStack)
-    },
-    [runStageEdit, writeStripStack],
+    [runStageEdit],
   )
 
   const handleMakeUniqueTransformer = useCallback(
@@ -427,14 +420,14 @@ function WorkspaceTransformersTabEntity({
 
       const { selectStageId } = runStageEdit(
         { kind: 'makeUnique', entityId: targetEntityId, stageId: id },
-        writeFlatStack,
+        'flat',
       )
       if (!selectStageId) return
 
       setSelectedId(selectStageId)
       if (onEntryChange && entry) onEntryChange({ ...entry, itemId: selectStageId })
     },
-    [canMakeUniqueStage, entityIdsForEdit, runStageEdit, writeFlatStack, onEntryChange, entry],
+    [canMakeUniqueStage, entityIdsForEdit, runStageEdit, onEntryChange, entry],
   )
 
   const editorStageIds =
@@ -464,7 +457,7 @@ function WorkspaceTransformersTabEntity({
         // Pipe scope resolves its own ordered ids from the focused stage list.
         orderedRegistryIds: pipeScoped ? undefined : ids,
       },
-      pipeScoped ? writeStripStack : writeFlatStack,
+      pipeScoped ? 'strip' : 'flat',
     )
   }
 
@@ -1205,8 +1198,8 @@ function WorkspaceTransformersTabEntity({
                 registryEntityId={singleEntity.id}
                 liveTraceSteps={liveTraceSteps ?? null}
                 drawerPortalTarget={floatingDrawerPortalRef}
-                onCommitStages={handleCommitStripStages}
-                onPatchStage={handlePatchStripStage}
+                onCommitStages={(configs, ids, kind) => handleCommitStages(configs, ids, kind, 'strip')}
+                onPatchStage={(stageId, config) => handlePatchStage(stageId, config, 'strip')}
                 onSelectStageId={changeSelectedIdWithFlush}
                 onSelectPipeIndex={handleSelectPipeIndex}
                 onDrillIntoPipe={handleDrillIntoPipe}
@@ -1224,7 +1217,7 @@ function WorkspaceTransformersTabEntity({
                 registryEntityId={entityIdsForEdit.length === 1 ? entityIdsForEdit[0] : undefined}
                 liveTraceSteps={liveTraceSteps ?? null}
                 drawerPortalTarget={floatingDrawerPortalRef}
-                onCommit={handleCommitStacks}
+                onCommit={handleCommitStages}
                 onPatchStage={handlePatchStage}
                 onSelectCode={changeSelectedIdWithFlush}
                 onMakeUnique={canMakeUniqueStage ? handleMakeUniqueTransformer : undefined}
@@ -1374,7 +1367,7 @@ function WorkspaceTransformersTabEntity({
           currentConfig={selectedPreset}
           onLoadTemplate={(config) => {
             const next = list.map((t, i) => (i === selectedEditorIndex ? config : t))
-            runStageEdit({ kind: 'loadTemplate', configs: sortAndSyncPriorities(next) }, writeFlatStack)
+            runStageEdit({ kind: 'loadTemplate', configs: sortAndSyncPriorities(next) }, 'flat')
             setTemplateDialogOpen(false)
           }}
         />

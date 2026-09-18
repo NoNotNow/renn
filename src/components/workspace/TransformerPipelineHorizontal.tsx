@@ -42,6 +42,7 @@ import {
 } from '@/transformers/transformerConfigureDrawer'
 import { allocateTransformerRegistryId } from '@/utils/commitTransformerConfigsToWorld'
 import type { StageCommitKind } from '@/editor/commitStageEdit'
+import { resolveStageStripChrome, type StageStripScope } from '@/components/workspace/stageStripScope'
 import {
   isTransformerTraceBriefLineWider,
 } from './transformerTraceBriefMeasure'
@@ -385,7 +386,7 @@ function TransformerTraceItem({
   isDragging,
   cardError,
   cardDepth,
-  ancestorDisabled,
+  ancestorEnabled,
 }: {
   index: number
   /** Index of this transformer in the full entity stack (for custom display names). */
@@ -411,8 +412,8 @@ function TransformerTraceItem({
   isDragging: boolean
   cardError?: TransformerCardErrorKind
   cardDepth?: number
-  /** False when a parent pipe scope is disabled (cascade). */
-  ancestorDisabled?: boolean
+  /** False when a parent pipe scope is disabled (cascade), which also locks the toggle. */
+  ancestorEnabled: boolean
 }) {
   const [inOpen, setInOpen] = useState(false)
   const [outOpen, setOutOpen] = useState(false)
@@ -430,8 +431,8 @@ function TransformerTraceItem({
   const rowLabel =
     transformer.type === 'custom' ? labelCustomTransformer(transformer, stackIndex) : String(transformer.type)
 
-  const enabled = (transformer.enabled ?? true) && ancestorDisabled !== false
-  const toggleEnabledDisabled = ancestorDisabled === false
+  const enabled = (transformer.enabled ?? true) && ancestorEnabled
+  const toggleEnabledDisabled = !ancestorEnabled
   const showSelectedChrome = Boolean(isSelected && !isDragging && transformer.type === 'custom')
   const inputLit = Boolean(step && !step.skipped && hasNonZeroSemanticActions(step.inputBefore))
   const outputLit = Boolean(step && !step.skipped && step.outputLedActive)
@@ -1013,12 +1014,7 @@ export function TransformerHorizontalPipeline({
   existingRegistry,
   selectedId,
   cardErrorsByStackIndex,
-  renderAddButton,
-  externalAddDialog,
-  cardDepth,
-  stageEffectiveEnabledByIndex,
-  inline,
-  embedStackIndex,
+  scope = { kind: 'entityStack' },
 }: {
   transformers: TransformerConfig[]
   /** Stable IDs from the registry, matching transformers array 1:1. */
@@ -1038,19 +1034,10 @@ export function TransformerHorizontalPipeline({
   selectedId?: string | null
   /** Per-stage error chrome keyed by stack index (compile overrides runtime on the same card). */
   cardErrorsByStackIndex?: Record<number, TransformerCardErrorKind>
-  /** Replace default "+" tile (pipe navigation add menu). */
-  renderAddButton?: (api: { onOpenAdd: () => void }) => React.ReactNode
-  /** Parent owns AddTransformerDialog / PipeAddDialog. */
-  externalAddDialog?: boolean
-  /** Pipe navigation depth tint for stage cards. */
-  cardDepth?: number
-  /** When false, stage is inactive because an ancestor pipe is disabled (keyed by flat stack index). */
-  stageEffectiveEnabledByIndex?: Record<number, boolean>
-  /** Single-card embed inside an ordered pipe member strip (no lead-in, no trailing add slot). */
-  inline?: boolean
-  /** Original stack index when `inline` renders one embedded card. */
-  embedStackIndex?: number
+  /** Host context — layout, add affordance and enable cascade all follow from it. */
+  scope?: StageStripScope
 }) {
+  const chrome = resolveStageStripChrome(scope)
   const [scrollLeft, setScrollLeft] = useState(0)
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const dragEndCommittedRef = useRef(false)
@@ -1267,8 +1254,8 @@ export function TransformerHorizontalPipeline({
         gap: 0,
         margin: 0,
         padding: '1px 0',
-        flex: inline ? '0 0 auto' : 1,
-        minWidth: inline ? undefined : 0,
+        flex: chrome.inline ? '0 0 auto' : 1,
+        minWidth: chrome.inline ? undefined : 0,
         position: 'relative',
       }}
     >
@@ -1281,7 +1268,7 @@ export function TransformerHorizontalPipeline({
         .transformer-trace-io-row > summary::-webkit-details-marker { display: none; }
         .transformer-trace-io-row > summary::marker { content: ''; }
       `}</style>
-      {displayItems.length > 0 && !inline ? <PipelineLeadInArrow /> : null}
+      {displayItems.length > 0 && !chrome.inline ? <PipelineLeadInArrow /> : null}
       {displayItems.map((item, i) => (
         <Fragment key={item.id}>
           <div
@@ -1293,8 +1280,8 @@ export function TransformerHorizontalPipeline({
             }}
           >
             <TransformerTraceItem
-              index={inline && embedStackIndex != null ? embedStackIndex : i}
-              stackIndex={inline && embedStackIndex != null ? embedStackIndex : item.originalIndex}
+              index={chrome.embedStackIndex ?? i}
+              stackIndex={chrome.embedStackIndex ?? item.originalIndex}
               transformer={item.config}
               step={traceByStackIndex?.get(item.originalIndex)}
               drawerPortalTarget={drawerPortalTarget}
@@ -1315,14 +1302,14 @@ export function TransformerHorizontalPipeline({
               isDragging={dragState?.draggedId === item.id}
               isDragOver={dragState?.dragOverId === item.id && dragState?.draggedId !== item.id}
               cardError={cardErrorsByStackIndex?.[item.originalIndex]}
-              cardDepth={cardDepth}
-              ancestorDisabled={stageEffectiveEnabledByIndex?.[item.originalIndex] !== false}
+              cardDepth={chrome.cardDepth}
+              ancestorEnabled={chrome.isStageEnabled(item.originalIndex)}
             />
           </div>
-          {!inline && i < displayItems.length - 1 ? <PipelineConnector /> : null}
+          {!chrome.inline && i < displayItems.length - 1 ? <PipelineConnector /> : null}
         </Fragment>
       ))}
-      {!inline ?
+      {!chrome.inline ?
       <div
         style={{
           position: 'relative',
@@ -1341,8 +1328,8 @@ export function TransformerHorizontalPipeline({
           overflow: 'visible',
         }}
       >
-        {renderAddButton ?
-          renderAddButton({ onOpenAdd: () => setAddDialogOpen(true) })
+        {chrome.renderAddButton ?
+          chrome.renderAddButton()
         : <button
             type="button"
             onClick={() => setAddDialogOpen(true)}
@@ -1369,7 +1356,7 @@ export function TransformerHorizontalPipeline({
             +
           </button>
         }
-        {externalAddDialog ? null : (
+        {chrome.ownsAddDialog ? (
           <AddTransformerDialog
             isOpen={addDialogOpen}
             onClose={() => setAddDialogOpen(false)}
@@ -1378,7 +1365,7 @@ export function TransformerHorizontalPipeline({
             onAddPreset={handleAddPreset}
             onAddExisting={handleAddExistingTransformer}
           />
-        )}
+        ) : null}
         {displayItems.length > 0 ? <PipelineTrailOutArrow /> : null}
       </div>
       : null}

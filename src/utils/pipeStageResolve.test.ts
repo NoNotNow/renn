@@ -48,8 +48,6 @@ describe('pipeStageResolve', () => {
 
     const runtime = resolveEntityStageRuntime(world, world.entities[0]!)
     expect(runtime.syncedStageIds()).toEqual([])
-    expect(runtime.isStageEnabledById('s1')).toBe(false)
-    expect(runtime.isStageEnabledById('s2')).toBe(false)
     expect(runtime.isScopeEnabled([{ kind: 'stack', index: 0 }])).toBe(false)
   })
 
@@ -246,7 +244,6 @@ describe('pipeStageResolve', () => {
     const entity = world.entities[0]!
     const runtime = resolveEntityStageRuntime(world, entity)
     expect(runtime.syncedStageIds()).toEqual(['s1'])
-    expect(runtime.isStageEnabledById('s2')).toBe(false)
     expect(
       runtime.isScopeEnabled([
         { kind: 'stack', index: 0 },

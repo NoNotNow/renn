@@ -194,9 +194,7 @@ export default function PipeFocusedStrip({
           existingRegistry={world.transformers}
           selectedId={selectedStageId}
           cardErrorsByStackIndex={cardErrorsByStackIndex}
-          cardDepth={depth}
-          externalAddDialog
-          renderAddButton={() => renderPlusButton()}
+          scope={{ kind: 'pipeStrip', depth, renderAddButton: renderPlusButton }}
         />
         {addDialog}
       </>
@@ -295,6 +293,12 @@ export default function PipeFocusedStrip({
       view.items.some((item) => item.kind === 'pipe') && view.items.some((item) => item.kind === 'stage')
 
     if (!hasMixedMembers && view.items.every((item) => item.kind === 'stage')) {
+      /** Strip indices are local to the focused pipe; the cascade is keyed by flat stack index. */
+      const flatIndexOffset = flatIndexOffsetForStackBinding(
+        world,
+        entity,
+        stackIndexFromScopePath(focusPath) ?? 0,
+      )
       return (
         <>
           <TransformerHorizontalPipeline
@@ -312,16 +316,12 @@ export default function PipeFocusedStrip({
             existingRegistry={world.transformers}
             selectedId={selectedStageId}
             cardErrorsByStackIndex={cardErrorsByStackIndex}
-            cardDepth={depth}
-            stageEffectiveEnabledByIndex={Object.fromEntries(
-              stageIds.map((_id, i) => {
-                const stackIdx = stackIndexFromScopePath(focusPath) ?? 0
-                const flatIndex = flatIndexOffsetForStackBinding(world, entity, stackIdx) + i
-                return [flatIndex, stageRuntime.isStageEnabledAt(flatIndex)]
-              }),
-            )}
-            externalAddDialog
-            renderAddButton={() => renderPlusButton()}
+            scope={{
+              kind: 'pipeStrip',
+              depth,
+              renderAddButton: renderPlusButton,
+              isStageEnabled: (index) => stageRuntime.isStageEnabledAt(flatIndexOffset + index),
+            }}
           />
           {addDialog}
         </>
@@ -404,11 +404,7 @@ export default function PipeFocusedStrip({
               { 0: cardErrorsByStackIndex[stageIdx]! }
             : undefined
           }
-          cardDepth={depth}
-          inline
-          embedStackIndex={stageIdx}
-          externalAddDialog
-          renderAddButton={() => null}
+          scope={{ kind: 'pipeMember', depth, stackIndex: stageIdx }}
         />
       )
     }

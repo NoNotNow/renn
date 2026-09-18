@@ -29,6 +29,23 @@ Canonical terms used throughout the transformer/pipe system. Use these names con
 | Stable string key identifying a nested scope | **scope key** | Result of `pipeScopeKeyFromPath(path)` — e.g. `"stack:0/member:pipeId:1"` |
 | Three-layer param hierarchy (all scopes together) | **param scopes** | stage params → binding params → scope params (narrower wins) |
 | One entity's resolved pipe-tree walk, queryable | **entity stage runtime** | `EntityStageRuntime` from `resolveEntityStageRuntime(world, entity)` in `pipeStageResolve.ts` |
+| Which host a stage strip is mounted in | **stage strip scope** | `StageStripScope` in `stageStripScope.ts` — `entityStack` \| `pipeStrip` \| `pipeMember` |
+
+---
+
+## Stage strip scope
+
+`TransformerHorizontalPipeline` renders in three different hosts, and everything that differs between them is named by one `scope` prop rather than a spread of booleans. `resolveStageStripChrome(scope)` turns it into the layout/chrome values the strip uses internally.
+
+| Scope | Host | What it implies |
+|---|---|---|
+| `{ kind: 'entityStack' }` | `WorkspaceTransformersTab`, entity with no pipe stack | Strip renders its own `+` tile **and** its own `AddTransformerDialog`; no depth tint |
+| `{ kind: 'pipeStrip', depth, renderAddButton, isStageEnabled? }` | `PipeFocusedStrip`, a full level of stages | Host owns the `+` button and `PipeAddDialog`; cards tinted by pipe-nav depth |
+| `{ kind: 'pipeMember', depth, stackIndex }` | `PipeFocusedStrip`, one stage between sibling pipe cards | Single embedded card: no lead-in arrow, no connectors, no add slot; `stackIndex` keeps the card's label and trace lookup pointing at the real stage |
+
+`isStageEnabled(indexInStrip)` is indexed **locally to the strip**. `PipeFocusedStrip` adds `flatIndexOffsetForStackBinding` before asking the entity stage runtime — the offset conversion belongs to the host that knows the focus path, not to the strip. See the caveat under *Entity stage runtime*: this query currently always answers `true` for piped entities.
+
+Seam tested in `stageStripScope.test.ts`.
 
 ---
 
@@ -40,12 +57,13 @@ Canonical terms used throughout the transformer/pipe system. Use these names con
 |---|---|
 | `isScopeEnabled(path)` | Is this nav scope effectively enabled (ancestor cascade applied)? |
 | `isStageEnabledAt(flatIndex)` | Enable cascade for a stage at its index in `entity.transformers` |
-| `isStageEnabledById(stageId)` | Enable cascade for a stage omitted from the flatten (UI grey-out) |
 | `mergedParamsAt(flatIndex)` | Three-scope merged runtime params for that stage |
 | `syncedStageIds()` | Ids to write back to `entity.transformers` — **all** stages when the entity has no pipe stack, enabled flatten when piped |
 | `runtimeConfigs()` | Merged `TransformerConfig[]` for the transformer chain (enabled stages only), or `null` |
 
 **Hold the snapshot; never call per question.** Callers that need more than one answer must resolve once and query — that is the whole point of the interface. `PipeNavTree` and `PipeFocusedStrip` both `useMemo(() => resolveEntityStageRuntime(world, entity), [world, entity])`, so a tree with N rows costs one walk per render, not N. The predecessor shape — free functions `isPipeScopeEffectivelyEnabled` / `isStageEffectivelyEnabled` / `syncEntityTransformerIdsFromPipeTree` / `resolveEntityTransformerConfigsForRuntime`, each rebuilding the full walk to read one field — made the per-row cost invisible at the call site. Guarded by `PipeNavTree.stageRuntime.test.tsx`.
+
+**`isStageEnabledAt` cannot see a cascade disable on a piped entity.** For a piped entity, `stageContext` only holds stages that survived the flatten, so every in-range index answers `true` and out-of-range answers `true` by default. The honest cascade question for a whole strip is `isScopeEnabled(focusPath)` — all stages inside one focused pipe share the same ancestor chain, so it is one answer, not one per stage. A per-stage query cannot work here at all: a stage's own `enabled: false` also removes it from the flatten, and no index- or id-keyed answer can tell the two causes apart. `isStageEnabledById` used to offer one and was dropped for exactly that reason (it reported `false` for a self-disabled stage, which would have locked the user out of re-enabling it).
 
 ---
 

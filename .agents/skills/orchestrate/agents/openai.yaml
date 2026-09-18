@@ -1,0 +1,5 @@
+interface:
+  display_name: "Orchestrate"
+  short_description: "Three-level subagent hierarchy for large tasks"
+policy:
+  allow_implicit_invocation: false
