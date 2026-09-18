@@ -14,6 +14,7 @@ import { quaternionToEuler } from '@/utils/rotationUtils'
 import { stripVisualBase } from '@/utils/visualBaseQuaternion'
 import { attachPreventCanvasCtrlClickContextMenu } from '@/input/preventCanvasCtrlClickContextMenu'
 import { paintTextureBlob } from '@/utils/texturePaint'
+import { setNdcFromPointerEvent } from '@/utils/pointerNdc'
 
 const _gizmoScratchQuat = new THREE.Quaternion()
 
@@ -207,9 +208,7 @@ export function installBuilderPickAndGizmo(
   let paintFlushRaf = 0
 
   const setNdcFromEvent = (e: PointerEvent): void => {
-    const rect = p.domElement.getBoundingClientRect()
-    ndc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1
-    ndc.y = -((e.clientY - rect.top) / rect.height) * 2 + 1
+    setNdcFromPointerEvent(ndc, e, p.domElement)
   }
 
   const mirrorAttachedPoseToRegistry = (): void => {

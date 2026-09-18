@@ -30,7 +30,17 @@ import { ScriptRunner } from '@/scripts/scriptRunner'
 import type { PhysicsWorld } from '@/physics/rapierPhysics'
 import { RenderItemRegistry } from '@/runtime/renderItemRegistry'
 import { restoreInitialPosesIntoRegistry } from '@/runtime/restoreInitialPoses'
-import { runSceneFrame, advanceSemiFixedAccumulator } from '@/runtime/sceneFrameLoop'
+import {
+  runSceneFrame,
+  advanceSemiFixedAccumulator,
+  planSemiFixedPushFrames,
+} from '@/runtime/sceneFrameLoop'
+import { tryEnqueueDebugForce, type ActiveDebugForce } from '@/runtime/debugForces'
+import { setNdcFromPointerEvent } from '@/utils/pointerNdc'
+import {
+  perspectiveCameraToSceneCameraPose,
+  type SceneCameraPose,
+} from '@/utils/sceneCameraPose'
 import type { SceneFrameTiming } from '@/runtime/frameTiming'
 import { useKeyboardInput } from '@/hooks/useKeyboardInput'
 import { useSkyDome } from '@/hooks/useSkyDome'
@@ -179,13 +189,7 @@ export interface SceneViewProps {
 
 export type EntityPhysicsPatch = Partial<Pick<Entity, 'mass' | 'restitution' | 'friction' | 'linearDamping' | 'angularDamping' | 'bodyType'>>
 
-/** Live perspective camera pose for placing pasted entities in front of the view. */
-export interface SceneCameraPose {
-  position: Vec3
-  forward: Vec3
-  fovRadians: number
-  aspect: number
-}
+export type { SceneCameraPose } from '@/utils/sceneCameraPose'
 
 export interface SceneViewHandle {
   setViewPreset: (preset: 'top' | 'front' | 'right') => void
@@ -292,8 +296,7 @@ function SceneViewInner({
   const orbitWheelRef = useRef({ deltaX: 0, deltaY: 0, distanceDelta: 0 })
   const lastEditorPoseWriteTimeRef = useRef(0)
 
-  // Active debug forces: { entityId, force, endTime }[]
-  const activeDebugForcesRef = useRef<Array<{ entityId: string; force: Vec3; endTime: number }>>([])
+  const activeDebugForcesRef = useRef<ActiveDebugForce[]>([])
 
   const [playFrameStatsDismissed, setPlayFrameStatsDismissed] = useState(false)
   const shadowsEnabled = resolvedShadowsEnabled(world.world)
@@ -479,9 +482,7 @@ function SceneViewInner({
     const onDown = (e: PointerEvent) => {
       e.preventDefault()
       e.stopPropagation()
-      const rect = dom.getBoundingClientRect()
-      ndc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1
-      ndc.y = -((e.clientY - rect.top) / rect.height) * 2 + 1
+      setNdcFromPointerEvent(ndc, e, dom)
       raycaster.setFromCamera(ndc, camera)
       const roots = scene.children.filter((o) => o.userData?.entityId != null)
       const hits = raycaster.intersectObjects(roots, true)
@@ -610,20 +611,13 @@ function SceneViewInner({
       cameraCtrlRef.current?.resetFreeFlySmoothing()
     },
     applyDebugForce: (entityId: string, force: Vec3, duration: number) => {
-      if (!physicsRef.current) {
-        console.warn('[SceneView] Cannot apply debug force: physics world not initialized')
-        return
-      }
-      
-      // Check if entity exists and is dynamic
-      const body = physicsRef.current.getBody(entityId)
-      if (!body || !body.isDynamic()) {
-        console.warn(`[SceneView] Cannot apply debug force: entity "${entityId}" is not dynamic`)
-        return
-      }
-      
-      const endTime = timeRef.current + duration
-      activeDebugForcesRef.current.push({ entityId, force, endTime })
+      tryEnqueueDebugForce({
+        physics: physicsRef.current,
+        queue: activeDebugForcesRef.current,
+        entityId,
+        force,
+        endTime: timeRef.current + duration,
+      })
     },
     getMeshForEntity: (entityId: string) => registryRef.current?.get(entityId)?.mesh ?? null,
     getEntityTriangleCount: (entityId: string) => {
@@ -641,17 +635,7 @@ function SceneViewInner({
     getCameraPose: (): SceneCameraPose | null => {
       const cam = camera
       if (!cam) return null
-      const pos = new THREE.Vector3()
-      const fwd = new THREE.Vector3()
-      cam.getWorldPosition(pos)
-      cam.getWorldDirection(fwd)
-      const fovRad = THREE.MathUtils.degToRad(cam.fov)
-      return {
-        position: [pos.x, pos.y, pos.z],
-        forward: [fwd.x, fwd.y, fwd.z],
-        fovRadians: fovRad,
-        aspect: cam.aspect,
-      }
+      return perspectiveCameraToSceneCameraPose(cam)
     },
     syncWorldEntities: (prev, next) => syncWorldEntitiesRef.current(prev, next),
     toggleFullscreen: () => fullscreen.toggle(),
@@ -1059,24 +1043,13 @@ function SceneViewInner({
           })
         }
 
-        if (stepsToRun === 0) {
-          pushFrame({
-            fixedDt: 0,
-            skipSimulation: true,
-            variableFrameDt: clampedElapsed,
-            skipRender: false,
-            renderInterpolationAlpha: fixedDt > 0 ? simAccumulator / fixedDt : 1,
-          })
-        } else {
-          for (let i = 0; i < stepsToRun; i++) {
-            pushFrame({
-              fixedDt,
-              skipSimulation: false,
-              variableFrameDt: 0,
-              skipRender: i < stepsToRun - 1,
-              renderInterpolationAlpha: i < stepsToRun - 1 ? 1 : simAccumulator / fixedDt,
-            })
-          }
+        for (const plan of planSemiFixedPushFrames({
+          stepsToRun,
+          fixedDt,
+          simAccumulator,
+          clampedElapsed,
+        })) {
+          pushFrame(plan)
         }
 
         if (recordStats) {

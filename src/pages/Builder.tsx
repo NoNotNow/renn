@@ -13,8 +13,6 @@ import { EditorUndoProvider } from '@/contexts/EditorUndoContext'
 import { useEditorHistory } from '@/hooks/useEditorHistory'
 import { useTextureMakerSession } from '@/hooks/useTextureMakerSession'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
-import { cloneEntityFrom, createDefaultEntity, createBulkEntities, type AddableShapeType, type BulkEntityParams } from '@/data/entityDefaults'
-import { presetTouchesSceneRebuild } from '@/data/modelPresets'
 import { useProjectContext } from '@/hooks/useProjectContext'
 import {
   clearTransformerLiveTraceSnapshot,
@@ -29,45 +27,20 @@ import {
 import { useLocalStorageState } from '@/hooks/useLocalStorageState'
 import { useBuilderFullscreenChrome } from '@/hooks/useBuilderFullscreenChrome'
 import {
-  DEFAULT_POSITION,
-  DEFAULT_ROTATION,
-  DEFAULT_SCALE,
   type Vec3,
   type Rotation,
-  type Entity,
-  type ModelPreset,
-  type RennWorld,
   type TrimeshSimplificationConfig,
 } from '@/types/world'
 import { useBuilderKeyboardShortcuts } from '@/hooks/useBuilderKeyboardShortcuts'
-import { useTransientSnackbar } from '@/hooks/useTransientSnackbar'
+import { useBuilderPoseSyncSave } from '@/hooks/useBuilderPoseSyncSave'
 import { ScriptSnackbar } from '@/components/ScriptSnackbar'
 import { SceneFullscreenButton } from '@/components/SceneFullscreenButton'
-import {
-  addToGroup,
-  createGroupFromSelection,
-  dissolveGroup,
-  expandGroupSelection,
-  findGroupContaining,
-  getGroups,
-  pruneGroupMembers,
-  removeFromGroup,
-  renameGroup,
-  setGroupCollapsed,
-} from '@/utils/entityGroups'
-import {
-  intersectScriptIdsAcrossEntities,
-  intersectTransformerIdsAcrossEntities,
-} from '@/utils/entityInspectorMerge'
+import { useBuilderExplorerSelection } from '@/hooks/useBuilderExplorerSelection'
+import { useBuilderWorkspace } from '@/hooks/useBuilderWorkspace'
+import { useBuilderEntityWorldActions } from '@/hooks/useBuilderEntityWorldActions'
 import { uiLogger } from '@/utils/uiLogger'
 import { colorToHex, hexToColor } from '@/utils/colorUtils'
 import { theme } from '@/config/theme'
-import type { TransformerConfig } from '@/types/transformer'
-import type { WorkspaceTarget } from '@/types/workspace'
-import {
-  mergeWorkspaceEntryForEntity,
-  WorkspaceSessionMemory,
-} from '@/utils/workspaceSessionMemory'
 import {
   DEFAULT_TEXTURE_BRUSH_RGB,
   TEXTURE_BRUSH_RADIUS_MAX,
@@ -83,21 +56,11 @@ import {
   applyMeshSimplificationToEntityInWorld,
   persistSimplifiedMeshAssetFromWorld,
 } from '@/utils/bakeSimplifiedModelAsset'
-import { generateEntityId } from '@/utils/idGenerator'
 import { getFullscreenElement, isFullscreenEnabled } from '@/utils/fullscreenApi'
 import TextureMaker from '@/components/TextureMaker/TextureMaker'
 import TransformerDocs from '@/components/TransformerDocs'
-import { getEntityApproximateSize } from '@/utils/entityApproximateSize'
-import { applyWorldEdit, type ApplyWorldWrite } from '@/editor/applyWorldEdit'
+import { applyWorldEdit } from '@/editor/applyWorldEdit'
 import { canApplyWorldSnapshotIncrementally } from '@/utils/incrementalSceneSync'
-import { computeMeshWorldMaxExtent } from '@/utils/meshWorldExtent'
-import { placeEntitiesInFrontOfCamera } from '@/utils/cameraFrontPlacement'
-import {
-  commitTransformerConfigsToWorld,
-  mapTransformerRegistryIdsToEntity,
-  cloneEntityTransformersIntoWorld,
-} from '@/utils/commitTransformerConfigsToWorld'
-import { resolveMergedTransformerConfigsForEntitySync } from '@/utils/pipeStageResolve'
 
 const EDITOR_HISTORY_MAX_DEPTH = 80
 
@@ -139,81 +102,11 @@ export default function Builder() {
     recordEntityWorkHistory,
   } = useProjectContext()
 
-  const [selectedEntityIds, setSelectedEntityIds] = useState<string[]>([])
-  const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([])
-  /** Anchor for Shift-range selection in the entity explorer (Explorer-style lists). */
-  const selectionAnchorEntityIdRef = useRef<string | null>(null)
-
-  useEffect(() => {
-    if (selectedEntityIds.length === 0) {
-      selectionAnchorEntityIdRef.current = null
-    } else if (selectedEntityIds.length === 1) {
-      selectionAnchorEntityIdRef.current = selectedEntityIds[0]!
-    }
-  }, [selectedEntityIds])
-
-  const handleSelectEntity = useCallback(
-    (
-      id: string | null,
-      options?: { additive?: boolean; range?: boolean; orderedVisibleEntityIds?: readonly string[] },
-    ) => {
-      const additive = Boolean(options?.additive)
-      const range = Boolean(options?.range)
-      const order = options?.orderedVisibleEntityIds
-
-      if (id === null) {
-        selectionAnchorEntityIdRef.current = null
-        setSelectedGroupIds([])
-        setSelectedEntityIds([])
-        uiLogger.click('Builder', 'Clear entity selection', {})
-        return
-      }
-
-      recordEntityWorkHistory(id)
-
-      if (range && order && order.length > 0) {
-        setSelectedGroupIds([])
-        setSelectedEntityIds((prev) => {
-          const anchorId = selectionAnchorEntityIdRef.current ?? prev[0] ?? id
-          let ai = order.indexOf(anchorId)
-          const bi = order.indexOf(id)
-          if (bi < 0) return [id]
-          if (ai < 0) ai = bi
-          const lo = Math.min(ai, bi)
-          const hi = Math.max(ai, bi)
-          return order.slice(lo, hi + 1) as string[]
-        })
-        uiLogger.click('Builder', 'Select entity', { entityId: id, range: true })
-        return
-      }
-
-      if (!additive) {
-        selectionAnchorEntityIdRef.current = id
-        setSelectedGroupIds([])
-        setSelectedEntityIds([id])
-        uiLogger.click('Builder', 'Select entity', { entityId: id, additive: false })
-        return
-      }
-
-      setSelectedEntityIds((prev) => {
-        const idx = prev.indexOf(id)
-        if (idx >= 0) return prev.filter((x) => x !== id)
-        return [...prev, id]
-      })
-      uiLogger.click('Builder', 'Select entity', { entityId: id, additive: true })
-    },
-    [recordEntityWorkHistory],
-  )
   const [gizmoMode, setGizmoMode] = useState<BuilderGizmoMode>('translate')
-  const [workspaceOpen, setWorkspaceOpen] = useState(false)
-  const [workspaceEntry, setWorkspaceEntry] = useState<WorkspaceTarget | null>(null)
-  const workspaceSessionMemoryRef = useRef(new WorkspaceSessionMemory())
   const [textureBrushRgb, setTextureBrushRgb] = useState<Vec3>(() => [...DEFAULT_TEXTURE_BRUSH_RGB])
   const [textureBrushAlpha, setTextureBrushAlpha] = useState(1)
   const [textureBrushRadiusPx, setTextureBrushRadiusPx] = useState(TEXTURE_PAINT_RADIUS_PX)
   const [editNavigationMode, setEditNavigationMode] = useLocalStorageState('builderEditNavigationMode', false)
-  const [showSaveDialog, setShowSaveDialog] = useState(false)
-  const { message: saveSnackbarMessage, showSnackbar: showSaveSnackbar } = useTransientSnackbar()
   const [gameFrozen, setGameFrozen] = useState(false)
   const [performanceBoosterOpen, setPerformanceBoosterOpen] = useState(false)
   const [transformerDocsOpen, setTransformerDocsOpen] = useState(false)
@@ -224,8 +117,6 @@ export default function Builder() {
     { action: 'play' | 'stop'; nonce: number } | null
   >(null)
   const sceneViewRef = useRef<SceneViewHandle>(null)
-  /** In-memory entity clipboard (Cmd/Ctrl+C); paste with Cmd/Ctrl+V in front of camera. */
-  const clipboardRef = useRef<{ entities: Entity[] } | null>(null)
   const getScenePosesRef = useRef<() => LivePosesMap | null>(() => null)
   getScenePosesRef.current = () => sceneViewRef.current?.getAllPoses() ?? null
   const initialPosesRef = useRef<Map<string, { position: Vec3; rotation: Rotation; scale?: Vec3 }> | null>(null)
@@ -252,6 +143,82 @@ export default function Builder() {
     bumpHistoryUi()
   }, [documentEpoch, clearEditorHistory, bumpHistoryUi])
 
+  const syncSceneAfterDocumentChange = useCallback((prevWorld: typeof world, nextWorld: typeof world) => {
+    sceneViewRef.current?.syncWorldEntities?.(prevWorld, nextWorld)
+  }, [])
+
+  /** Snapshot live registry poses so the next scene rebuild (entity add/remove/clone, etc.) does not reset physics-driven positions. */
+  const captureScenePosesForNextRebuild = useCallback(() => {
+    initialPosesRef.current = sceneViewRef.current?.getAllPoses() ?? null
+  }, [])
+
+  const worldEditDeps = useMemo(
+    () => ({
+      updateWorld,
+      bumpVersion,
+      pushBeforeEdit: pushHistory,
+      captureScenePosesForNextRebuild,
+      syncWorldEntities: syncSceneAfterDocumentChange,
+    }),
+    [updateWorld, bumpVersion, pushHistory, captureScenePosesForNextRebuild, syncSceneAfterDocumentChange],
+  )
+
+  const {
+    selectedEntityIds,
+    selectedGroupIds,
+    setSelectedEntityIds,
+    setSelectedGroupIds,
+    selectionAnchorEntityIdRef,
+    handleSelectEntity,
+    handleSelectGroup,
+    handleCreateGroupFromSelection,
+    handleUngroup,
+    handleAddSelectedToGroup,
+    handleRemoveSelectedFromGroup,
+    handleToggleGroupCollapsed,
+    handleRenameGroup,
+    clearSelection,
+    reconcileAfterSnapshot,
+    groupShortcutHandlersRef,
+  } = useBuilderExplorerSelection({
+    world,
+    worldEditDeps,
+    recordEntityWorkHistory,
+  })
+
+  const {
+    clipboardShortcutHandlersRef,
+    handleAddEntity,
+    handleBulkAddEntities,
+    handleDeleteEntities,
+    handleCloneEntity,
+    handleEntityPoseChange,
+    handleResetPoseToSavedWorld,
+    handleEntityPhysicsChange,
+    handleEntityMaterialChange,
+    handleEntityShapeChange,
+    handleEntityModelTransformChange,
+    handleAfterModelPresetApply,
+    handleRefreshFromPhysics,
+    handleWorldChange,
+    applyWorldWrite,
+    handleEntityTransformersChange,
+    handleMergedPipeParamSync,
+  } = useBuilderEntityWorldActions({
+    sceneViewRef,
+    worldEditDeps,
+    world,
+    worldAssetsRef,
+    selectedEntityIds,
+    setSelectedEntityIds,
+    setSelectedGroupIds,
+    selectionAnchorEntityIdRef,
+    updateWorld,
+    bumpVersion,
+    pushHistory,
+    syncPosesFromScene,
+  })
+
   const applyHistorySnapshot = useCallback(
     (snap: EditorSnapshot) => {
       const prev = worldAssetsRef.current
@@ -263,8 +230,7 @@ export default function Builder() {
       if (!needsReload) {
         sceneViewRef.current?.syncWorldEntities?.(prev.world, snap.world)
       }
-      setSelectedEntityIds((ids) => ids.filter((id) => snap.world.entities.some((e) => e.id === id)))
-      setSelectedGroupIds((gids) => gids.filter((gid) => (snap.world.groups ?? []).some((g) => g.id === gid)))
+      reconcileAfterSnapshot(snap.world)
       const nextCameraTarget =
         cameraTarget && snap.world.entities.some((e) => e.id === cameraTarget)
           ? cameraTarget
@@ -272,12 +238,8 @@ export default function Builder() {
       setCameraTarget(nextCameraTarget)
       bumpHistoryUi()
     },
-    [applyEditorSnapshot, bumpHistoryUi, cameraTarget, setCameraTarget]
+    [applyEditorSnapshot, bumpHistoryUi, cameraTarget, reconcileAfterSnapshot, setCameraTarget],
   )
-
-  const syncSceneAfterDocumentChange = useCallback((prevWorld: typeof world, nextWorld: typeof world) => {
-    sceneViewRef.current?.syncWorldEntities?.(prevWorld, nextWorld)
-  }, [])
 
   const {
     textureMakerEntityId,
@@ -326,22 +288,6 @@ export default function Builder() {
     maxDepth: EDITOR_HISTORY_MAX_DEPTH,
   })
 
-  /** Snapshot live registry poses so the next scene rebuild (entity add/remove/clone, etc.) does not reset physics-driven positions. */
-  const captureScenePosesForNextRebuild = useCallback(() => {
-    initialPosesRef.current = sceneViewRef.current?.getAllPoses() ?? null
-  }, [])
-
-  const worldEditDeps = useMemo(
-    () => ({
-      updateWorld,
-      bumpVersion,
-      pushBeforeEdit: pushHistory,
-      captureScenePosesForNextRebuild,
-      syncWorldEntities: syncSceneAfterDocumentChange,
-    }),
-    [updateWorld, bumpVersion, pushHistory, captureScenePosesForNextRebuild, syncSceneAfterDocumentChange],
-  )
-
   const {
     builderColumnRef,
     fsSidebarsHitTestRef,
@@ -356,6 +302,22 @@ export default function Builder() {
     fsChromeControlVisible,
     collapseSideDrawers,
   } = useBuilderFullscreenChrome()
+
+  const {
+    workspaceOpen,
+    workspaceEntry,
+    handleOpenWorkspace,
+    handleCloseWorkspace,
+    handleWorkspaceEntryChange,
+    handleSelectEntityFromWorkspace,
+    handleOpenWorkspaceAnchored,
+  } = useBuilderWorkspace({
+    world,
+    selectedEntityIds,
+    handleSelectEntity,
+    collapseSideDrawers,
+  })
+
   const [showGameHud, setShowGameHud] = useLocalStorageState('builderShowGameHud', false)
   const [rightPanelDocked, setRightPanelDocked] = useLocalStorageState('rightSidebarDocked', false)
 
@@ -376,22 +338,39 @@ export default function Builder() {
     [world.world.camera, cameraControl, cameraTarget, cameraMode, cameraTargetVerticalAngle, fluidOrbitSpeed, fluidOrbitDirection, fluidOrbitHeight, fluidOrbitDistance, cameraTargetLag, cameraPositionLag]
   )
 
-  // Forwarding refs so group shortcuts can fire handlers that are declared later in this file.
-  const groupShortcutHandlersRef = useRef<{
-    onGroup: () => void
-    onUngroup: () => void
-  }>({ onGroup: () => {}, onUngroup: () => {} })
-
-  const clipboardShortcutHandlersRef = useRef<{
-    onCopy: () => void
-    onPaste: () => void
-  }>({ onCopy: () => {}, onPaste: () => {} })
-
   const fileShortcutHandlersRef = useRef<{
     onSave: () => void
     onSaveAs: () => void
     onNew: () => void
   }>({ onSave: () => {}, onSaveAs: () => {}, onNew: () => {} })
+
+  const {
+    showSaveDialog,
+    setShowSaveDialog,
+    saveSnackbarMessage,
+    saveDialogDefaultName,
+    handleNew,
+    handleOpenExampleWorld,
+    handleOpen,
+    handleReload,
+    handleSave,
+    handleSaveAs,
+    handleSaveDialogSaveNew,
+    handleSaveDialogOverwrite,
+  } = useBuilderPoseSyncSave({
+    sceneViewRef,
+    fileShortcutHandlersRef,
+    currentProject,
+    projects,
+    saveProject,
+    saveProjectAs,
+    saveToProject,
+    syncPosesFromScene,
+    syncPosesToRefOnly,
+    newProject,
+    loadProject,
+    loadExampleWorld,
+  })
 
   const handleEntityPoseCommit = useCallback(
     (commits: BuilderPoseCommitEntry[]) => {
@@ -424,240 +403,15 @@ export default function Builder() {
     [worldEditDeps]
   )
 
-  const handleNew = useCallback(() => {
-    if (currentProject.isDirty && !confirm('Discard unsaved changes?')) return
-    newProject()
-  }, [currentProject.isDirty, newProject])
-
-  const handleOpenExampleWorld = useCallback(
-    (worldJson: RennWorld, name: string) => {
-      if (currentProject.isDirty && !confirm('Discard unsaved changes?')) return
-      loadExampleWorld(worldJson, name)
-    },
-    [currentProject.isDirty, loadExampleWorld]
-  )
-
-  const handleOpen = useCallback(
-    (id: string) => {
-      if (currentProject.isDirty && !confirm('Discard unsaved changes?')) return
-      loadProject(id)
-    },
-    [currentProject.isDirty, loadProject]
-  )
-
-  const handleReload = useCallback(() => {
-    if (!currentProject.id) return
-    if (currentProject.isDirty && !confirm('Discard unsaved changes and reload from storage?')) return
-    loadProject(currentProject.id)
-  }, [currentProject.id, currentProject.isDirty, loadProject])
-
-  const handleOpenWorkspace = useCallback(() => {
-    collapseSideDrawers()
-    const entityId = selectedEntityIds[0]
-
-    if (!entityId) {
-      setWorkspaceEntry({ tab: 'organize' })
-      setWorkspaceOpen(true)
-      uiLogger.click('Builder', 'Open workspace', { tab: 'organize' })
-      return
-    }
-
-    const entities = selectedEntityIds
-      .map((id) => world.entities.find((e) => e.id === id))
-      .filter((e): e is Entity => e != null)
-
-    const worldTf = world.transformers ?? {}
-    const tfIdsIntersect = intersectTransformerIdsAcrossEntities(entities)
-    const scIdsIntersect = intersectScriptIdsAcrossEntities(entities)
-
-    const prev = workspaceEntry
-    if (prev?.entityId === entityId) {
-      if (prev.tab === 'scripts' && (!prev.itemId || scIdsIntersect.includes(prev.itemId))) {
-        setWorkspaceEntry({ ...prev, entityId })
-        setWorkspaceOpen(true)
-        uiLogger.click('Builder', 'Open workspace', { entityId, tab: 'scripts', itemId: prev.itemId })
-        return
-      }
-      if (prev.tab === 'transformers') {
-        const itemStillValid = !prev.itemId || tfIdsIntersect.includes(prev.itemId)
-        if (itemStillValid) {
-          setWorkspaceEntry({ ...prev, entityId })
-          setWorkspaceOpen(true)
-          uiLogger.click('Builder', 'Open workspace', {
-            entityId,
-            tab: 'transformers',
-            itemId: prev.itemId,
-            pipeNavPath: prev.pipeNavPath,
-          })
-          return
-        }
-      }
-      if (prev.tab === 'organize') {
-        setWorkspaceEntry({ ...prev, entityId })
-        setWorkspaceOpen(true)
-        uiLogger.click('Builder', 'Open workspace', { entityId, tab: 'organize' })
-        return
-      }
-    }
-
-    const memory = workspaceSessionMemoryRef.current.load(entityId)
-    if (memory) {
-      const restored = mergeWorkspaceEntryForEntity(entityId, memory, {
-        entityId,
-        tab: memory.tab ?? 'transformers',
-        itemId: memory.itemId,
-      })
-      const itemValid =
-        restored.tab === 'scripts'
-          ? !restored.itemId || scIdsIntersect.includes(restored.itemId)
-          : !restored.itemId || tfIdsIntersect.includes(restored.itemId)
-      if (itemValid) {
-        setWorkspaceEntry(restored)
-        setWorkspaceOpen(true)
-        uiLogger.click('Builder', 'Open workspace', { entityId, restored: true })
-        return
-      }
-    }
-
-    // Default to transformers, but if there are scripts and no transformers, go to scripts.
-    // Also try to find a custom transformer to select by default.
-    const tab: WorkspaceTarget['tab'] =
-      tfIdsIntersect.length === 0 && scIdsIntersect.length > 0 ? 'scripts' : 'transformers'
-    const itemId =
-      tab === 'scripts'
-        ? scIdsIntersect[0]
-        : tfIdsIntersect.find((id) => worldTf[id]?.type === 'custom') ?? tfIdsIntersect[0]
-
-    setWorkspaceEntry({ entityId, tab, itemId })
-    setWorkspaceOpen(true)
-    uiLogger.click('Builder', 'Open workspace', { entityId, tab, itemId })
-  }, [collapseSideDrawers, selectedEntityIds, world.entities, world.transformers, workspaceEntry])
-
-  const handleWorkspaceEntryChange = useCallback((next: WorkspaceTarget) => {
-    if (next.entityId) {
-      workspaceSessionMemoryRef.current.save(next.entityId, next)
-    }
-    setWorkspaceEntry(next)
-  }, [])
-
-  const handleSelectEntityFromWorkspace = useCallback(
-    (id: string) => {
-      if (workspaceEntry?.entityId) {
-        workspaceSessionMemoryRef.current.save(workspaceEntry.entityId, workspaceEntry)
-      }
-      handleSelectEntity(id)
-      const memory = workspaceSessionMemoryRef.current.load(id)
-      const entities = [world.entities.find((e) => e.id === id)].filter((e): e is Entity => e != null)
-      const worldTf = world.transformers ?? {}
-      const tfIds = intersectTransformerIdsAcrossEntities(entities)
-      const scIds = intersectScriptIdsAcrossEntities(entities)
-      const fallback: WorkspaceTarget = {
-        entityId: id,
-        tab: tfIds.length === 0 && scIds.length > 0 ? 'scripts' : 'transformers',
-        itemId:
-          tfIds.length === 0 && scIds.length > 0
-            ? scIds[0]
-            : tfIds.find((tid) => worldTf[tid]?.type === 'custom') ?? tfIds[0],
-      }
-      const restored = mergeWorkspaceEntryForEntity(id, memory, fallback)
-      const itemValid =
-        restored.tab === 'scripts'
-          ? !restored.itemId || scIds.includes(restored.itemId)
-          : !restored.itemId || tfIds.includes(restored.itemId)
-      handleWorkspaceEntryChange(itemValid ? restored : { ...fallback, entityId: id })
-    },
-    [handleSelectEntity, handleWorkspaceEntryChange, workspaceEntry, world.entities, world.transformers],
-  )
-
-  const handleOpenWorkspaceAnchored = useCallback(
-    (anchor: Pick<WorkspaceTarget, 'tab' | 'itemId'>) => {
-      collapseSideDrawers()
-      const entityId = selectedEntityIds[0]
-      setWorkspaceEntry({ entityId, tab: anchor.tab, itemId: anchor.itemId })
-      setWorkspaceOpen(true)
-    },
-    [collapseSideDrawers, selectedEntityIds],
-  )
-
-  const handleCloseWorkspace = useCallback(() => {
-    if (workspaceEntry?.entityId) {
-      workspaceSessionMemoryRef.current.save(workspaceEntry.entityId, workspaceEntry)
-    }
-    setWorkspaceOpen(false)
-    uiLogger.click('Builder', 'Close workspace', {})
-  }, [workspaceEntry])
-
   const handleGizmoModeChange = useCallback((mode: BuilderGizmoMode) => {
     setGizmoMode(mode)
     uiLogger.click('Builder', 'Change gizmo mode', { mode })
   }, [])
 
-  const handleAddEntity = useCallback(
-    (type: AddableShapeType) => {
-      const cam = sceneViewRef.current?.getCameraPose()
-      const entity = createDefaultEntity(type)
-      if (cam) {
-        const extent = getEntityApproximateSize(entity)
-        const positions = placeEntitiesInFrontOfCamera({
-          camera: cam,
-          entities: [entity],
-          extentByEntityId: new Map([[entity.id, extent]]),
-        })
-        const pos = positions.get(entity.id)
-        if (pos) entity.position = pos
-      }
-      uiLogger.click('Builder', 'Add entity', { type, entityId: entity.id })
-      applyWorldEdit(worldEditDeps, { undo: 'push', scene: 'sync' }, (prevWorld) => ({
-        ...prevWorld,
-        entities: [...prevWorld.entities, entity],
-      }))
-      setSelectedEntityIds([entity.id])
-    },
-    [worldEditDeps]
-  )
-
-  const handleBulkAddEntities = useCallback(
-    (params: BulkEntityParams) => {
-      const newEntities = createBulkEntities(params)
-      uiLogger.click('Builder', 'Bulk add entities', {
-        count: newEntities.length,
-        shape: params.shape,
-      })
-      applyWorldEdit(worldEditDeps, { undo: 'push', scene: 'sync' }, (prevWorld) => ({
-        ...prevWorld,
-        entities: [...prevWorld.entities, ...newEntities],
-      }))
-      setSelectedEntityIds(newEntities.map((e) => e.id))
-    },
-    [worldEditDeps]
-  )
-
-  const handleDeleteEntities = useCallback(
-    (ids: string[]) => {
-      if (ids.length === 0) return
-      uiLogger.click('Builder', 'Delete entities', { count: ids.length, entityIds: ids })
-      const idSet = new Set(ids)
-      applyWorldEdit(worldEditDeps, { undo: 'push', scene: 'sync' }, (prevWorld) => {
-        const withPrunedGroups = pruneGroupMembers(prevWorld, idSet)
-        return {
-          ...withPrunedGroups,
-          entities: prevWorld.entities.filter((e) => !idSet.has(e.id)),
-        }
-      })
-      setSelectedEntityIds((prev) => prev.filter((id) => !idSet.has(id)))
-      setSelectedGroupIds((prev) => prev.filter((id) => !idSet.has(id)))
-    },
-    [worldEditDeps]
-  )
-
   useBuilderKeyboardShortcuts({
     onUndo: handleUndo,
     onRedo: handleRedo,
-    onClearSelection: useCallback(() => {
-      selectionAnchorEntityIdRef.current = null
-      setSelectedEntityIds([])
-      setSelectedGroupIds([])
-    }, []),
+    onClearSelection: clearSelection,
     onToggleEditNavigationMode: useCallback(() => {
       setEditNavigationMode((prev) => {
         const next = !prev
@@ -679,484 +433,9 @@ export default function Builder() {
     isWorkspaceOpen: useCallback(() => workspaceOpen, [workspaceOpen]),
   })
 
-  const getCurrentPose = useCallback(
-    (id: string): { position: Vec3; rotation: Rotation; scale: Vec3 } => {
-      const reg = sceneViewRef.current?.getAllPoses()
-      const savedPose = reg?.get(id)
-      if (savedPose) return savedPose
-      const entity = world.entities.find((e) => e.id === id)
-      return {
-        position: entity?.position ?? [0, 0, 0],
-        rotation: entity?.rotation ?? [0, 0, 0],
-        scale: entity?.scale ?? DEFAULT_SCALE,
-      }
-    },
-    [world.entities]
-  )
-
-  const handleCloneEntity = useCallback(
-    (entityId: string) => {
-      const prevWorld = worldAssetsRef.current.world
-      const source = prevWorld.entities.find((e) => e.id === entityId)
-      if (!source) return
-      const pose = getCurrentPose(entityId)
-      const cloned = cloneEntityFrom(source, pose)
-      uiLogger.click('Builder', 'Clone entity', { sourceId: entityId, newId: cloned.id })
-      applyWorldEdit(worldEditDeps, { undo: 'push', scene: 'sync' }, (world) => {
-        const { world: nextWorldBase, newTransformerIds } = cloneEntityTransformersIntoWorld(world, cloned)
-        const entityWithNewIds = {
-          ...cloned,
-          transformers: newTransformerIds.length > 0 ? newTransformerIds : cloned.transformers,
-        }
-        return { ...nextWorldBase, entities: [...nextWorldBase.entities, entityWithNewIds] }
-      })
-      setSelectedEntityIds([cloned.id])
-    },
-    [getCurrentPose, worldEditDeps]
-  )
-
-  const handleCopyEntities = useCallback(() => {
-    if (selectedEntityIds.length === 0) return
-    const snapshots: Entity[] = []
-    for (const id of selectedEntityIds) {
-      const src = world.entities.find((e) => e.id === id)
-      if (!src) continue
-      const pose = getCurrentPose(id)
-      const snap = structuredClone(src) as Entity
-      snap.position = [...pose.position] as Vec3
-      snap.rotation = [...pose.rotation] as Rotation
-      snap.scale = [...pose.scale] as Vec3
-      snapshots.push(snap)
-    }
-    if (snapshots.length === 0) return
-    clipboardRef.current = { entities: snapshots }
-    uiLogger.click('Builder', 'Copy entities', {
-      count: snapshots.length,
-      entityIds: snapshots.map((e) => e.id),
-    })
-  }, [selectedEntityIds, world.entities, getCurrentPose])
-
-  const handlePasteEntities = useCallback(() => {
-    const clip = clipboardRef.current
-    if (!clip?.entities.length) return
-    const cam = sceneViewRef.current?.getCameraPose()
-    if (!cam) return
-
-    const extentByEntityId = new Map<string, number>()
-    for (const ent of clip.entities) {
-      const mesh = sceneViewRef.current?.getMeshForEntity(ent.id)
-      if (mesh) {
-        extentByEntityId.set(ent.id, computeMeshWorldMaxExtent(mesh, ent))
-      } else {
-        extentByEntityId.set(ent.id, getEntityApproximateSize(ent))
-      }
-    }
-
-    const positionByOldId = placeEntitiesInFrontOfCamera({
-      camera: cam,
-      entities: clip.entities,
-      extentByEntityId,
-    })
-
-    const newEntities: Entity[] = []
-    const newIds: string[] = []
-    for (const src of clip.entities) {
-      const next = structuredClone(src) as Entity
-      next.id = generateEntityId()
-      next.locked = false
-      const base = (src.name ?? src.id).replace(/\s+copy(\s+\d+)?$/i, '').trim() || src.id
-      next.name = `${base} copy`
-      const pos = positionByOldId.get(src.id)
-      if (pos) next.position = pos
-      newEntities.push(next)
-      newIds.push(next.id)
-    }
-
-    applyWorldEdit(worldEditDeps, { undo: 'push', scene: 'sync' }, (prevWorld) => {
-      let nextWorld = prevWorld
-      const finalEntities = newEntities.map((cloned) => {
-        const { world: w, newTransformerIds } = cloneEntityTransformersIntoWorld(nextWorld, cloned)
-        nextWorld = w
-        return newTransformerIds.length > 0 ? { ...cloned, transformers: newTransformerIds } : cloned
-      })
-      return { ...nextWorld, entities: [...nextWorld.entities, ...finalEntities] }
-    })
-    setSelectedEntityIds(newIds)
-    selectionAnchorEntityIdRef.current = newIds[0] ?? null
-    uiLogger.click('Builder', 'Paste entities', { count: newEntities.length, entityIds: newIds })
-  }, [worldEditDeps])
-
-  clipboardShortcutHandlersRef.current = {
-    onCopy: handleCopyEntities,
-    onPaste: handlePasteEntities,
-  }
-
-  const handleEntityPoseChange = useCallback(
-    (ids: string[], pose: { position?: Vec3; rotation?: Rotation; scale?: Vec3 }) => {
-      for (const id of ids) {
-        sceneViewRef.current?.updateEntityPose(id, pose)
-      }
-    },
-    []
-  )
-
-  const handleResetPoseToSavedWorld = useCallback(
-    (entityIds: string[]) => {
-      if (entityIds.length === 0) return
-      const unlockedIds = entityIds.filter((id) => {
-        const e = world.entities.find((x) => x.id === id)
-        return e != null && !e.locked
-      })
-      if (unlockedIds.length === 0) return
-      for (const id of unlockedIds) {
-        const e = world.entities.find((x) => x.id === id)!
-        sceneViewRef.current?.updateEntityPose(id, {
-          position: [...(e.position ?? DEFAULT_POSITION)] as Vec3,
-          rotation: [...(e.rotation ?? DEFAULT_ROTATION)] as Rotation,
-        })
-      }
-      uiLogger.click('Builder', 'Reset pose to saved world', { entityIds: unlockedIds })
-    },
-    [world.entities],
-  )
-
-  const handleEntityPhysicsChange = useCallback((ids: string[], patch: Partial<Entity>) => {
-    for (const id of ids) {
-      sceneViewRef.current?.updateEntityPhysics(id, patch)
-    }
-    const idSet = new Set(ids)
-    applyWorldEdit(worldEditDeps, { undo: 'skip', scene: 'none' }, (prev) => ({
-      ...prev,
-      entities: prev.entities.map((e) => (idSet.has(e.id) ? { ...e, ...patch } : e)),
-    }))
-  }, [worldEditDeps])
-
-  const handleEntityMaterialChange = useCallback((ids: string[], patch: Partial<Entity>) => {
-    for (const id of ids) {
-      const base = world.entities.find((e) => e.id === id)
-      if (base) void sceneViewRef.current?.updateEntityMaterial(id, { ...base, ...patch })
-    }
-    const idSet = new Set(ids)
-    applyWorldEdit(worldEditDeps, { undo: 'skip', scene: 'none' }, (prev) => ({
-      ...prev,
-      entities: prev.entities.map((e) => (idSet.has(e.id) ? { ...e, ...patch } : e)),
-    }))
-  }, [world.entities, worldEditDeps])
-
-  const handleEntityShapeChange = useCallback(
-    (ids: string[], patch: Partial<Entity>) => {
-      let needRebuild = false
-      for (const id of ids) {
-        const updatedEntity = { ...world.entities.find((e) => e.id === id)!, ...patch }
-        const applied = sceneViewRef.current?.updateEntityShape(id, updatedEntity) ?? false
-        if (!applied) needRebuild = true
-      }
-      const idSet = new Set(ids)
-      if (needRebuild) {
-        captureScenePosesForNextRebuild()
-        bumpVersion()
-      }
-      updateWorld((prev) => ({
-        ...prev,
-        entities: prev.entities.map((e) => (idSet.has(e.id) ? { ...e, ...patch } : e)),
-      }))
-    },
-    [world.entities, updateWorld, captureScenePosesForNextRebuild, bumpVersion]
-  )
-
-  const handleEntityModelTransformChange = useCallback(
-    (ids: string[], patch: { modelPosition?: Vec3; modelRotation?: Rotation; modelScale?: Vec3; doubleSided?: boolean }) => {
-      for (const id of ids) {
-        sceneViewRef.current?.updateEntityModelTransform(id, patch)
-      }
-      const idSet = new Set(ids)
-      applyWorldEdit(worldEditDeps, { undo: 'skip', scene: 'none' }, (prev) => ({
-        ...prev,
-        entities: prev.entities.map((e) => {
-          if (!idSet.has(e.id)) return e
-          const merged = { ...e, ...patch } as Entity
-          if (Object.prototype.hasOwnProperty.call(patch, 'doubleSided')) {
-            if (patch.doubleSided !== true) delete merged.doubleSided
-            else merged.doubleSided = true
-          }
-          return merged
-        }),
-      }))
-    },
-    [worldEditDeps]
-  )
-
-  const handleAfterModelPresetApply = useCallback(
-    async (previews: { id: string; merged: Entity }[], preset: ModelPreset) => {
-      if (presetTouchesSceneRebuild(preset)) return
-      for (const { id, merged } of previews) {
-        const hasMat = Object.prototype.hasOwnProperty.call(preset, 'material')
-        const hasDbl = Object.prototype.hasOwnProperty.call(preset, 'doubleSided')
-        if (hasMat) {
-          await sceneViewRef.current?.updateEntityMaterial(id, merged)
-        } else if (hasDbl) {
-          sceneViewRef.current?.refreshEntityAppearance(id, merged)
-        }
-      }
-    },
-    []
-  )
-
-  const handleRefreshFromPhysics = useCallback(
-    (entityIds: string[]) => {
-      const m = new Map<string, { position: Vec3; rotation: Rotation; scale: Vec3 }>()
-      for (const id of entityIds) {
-        m.set(id, getCurrentPose(id))
-      }
-      syncPosesFromScene(m)
-    },
-    [getCurrentPose, syncPosesFromScene]
-  )
-
-  const handleWorldChange = useCallback(
-    (newWorld: typeof world) => {
-      applyWorldEdit(worldEditDeps, { undo: 'skip', scene: 'auto' }, () => newWorld)
-    },
-    [worldEditDeps],
-  )
-
-  const applyWorldWrite = useCallback<ApplyWorldWrite>(
-    (descriptor, produceNext) => applyWorldEdit(worldEditDeps, descriptor, produceNext),
-    [worldEditDeps],
-  )
-
-  // ----- Explorer groups (Phase A: organizational only; no scene rebuild) -----
-
-  const handleSelectGroup = useCallback(
-    (groupId: string, options?: { additive?: boolean }) => {
-      const additive = Boolean(options?.additive)
-      const expanded = expandGroupSelection(world, [groupId])
-      uiLogger.click('Builder', 'Select group', { groupId, entityCount: expanded.length, additive })
-      if (additive) {
-        setSelectedGroupIds((prev) => (prev.includes(groupId) ? prev.filter((id) => id !== groupId) : [...prev, groupId]))
-        setSelectedEntityIds((prev) => {
-          const set = new Set(prev)
-          for (const id of expanded) set.add(id)
-          return Array.from(set)
-        })
-      } else {
-        selectionAnchorEntityIdRef.current = expanded[0] ?? null
-        setSelectedGroupIds([groupId])
-        setSelectedEntityIds(expanded)
-      }
-    },
-    [world],
-  )
-
-  const handleCreateGroupFromSelection = useCallback(() => {
-    const ids = [...selectedEntityIds, ...selectedGroupIds]
-    if (ids.length < 2) return
-    let createdGroupId: string | null = null
-    applyWorldEdit(worldEditDeps, { undo: 'push', scene: 'none' }, (prev) => {
-      const { world: nextWorld, group } = createGroupFromSelection(prev, ids)
-      if (!group) return prev
-      createdGroupId = group.id
-      return nextWorld
-    })
-    if (createdGroupId) {
-      uiLogger.click('Builder', 'Create group', { groupId: createdGroupId, members: ids })
-      setSelectedGroupIds([createdGroupId])
-    }
-  }, [selectedEntityIds, selectedGroupIds, worldEditDeps])
-
-  const handleUngroup = useCallback(
-    (groupId: string) => {
-      applyWorldEdit(worldEditDeps, { undo: 'push', scene: 'none' }, (prev) => dissolveGroup(prev, groupId))
-      setSelectedGroupIds((prev) => prev.filter((id) => id !== groupId))
-      uiLogger.click('Builder', 'Ungroup', { groupId })
-    },
-    [worldEditDeps],
-  )
-
-  const handleAddSelectedToGroup = useCallback(
-    (groupId: string) => {
-      if (selectedEntityIds.length === 0) return
-      applyWorldEdit(worldEditDeps, { undo: 'push', scene: 'none' }, (prev) =>
-        addToGroup(prev, groupId, selectedEntityIds),
-      )
-      uiLogger.click('Builder', 'Add to group', { groupId, entityIds: selectedEntityIds })
-    },
-    [selectedEntityIds, worldEditDeps],
-  )
-
-  const handleRemoveSelectedFromGroup = useCallback(() => {
-    if (selectedEntityIds.length === 0) return
-    applyWorldEdit(worldEditDeps, { undo: 'push', scene: 'none' }, (prev) => {
-      let nextWorld = prev
-      for (const groupId of getGroups(prev).map((g) => g.id)) {
-        const inThisGroup = selectedEntityIds.filter((eid) => {
-          const parent = findGroupContaining(nextWorld, eid)
-          return parent?.id === groupId
-        })
-        if (inThisGroup.length > 0) {
-          nextWorld = removeFromGroup(nextWorld, groupId, inThisGroup)
-        }
-      }
-      return nextWorld
-    })
-    uiLogger.click('Builder', 'Remove from group', { entityIds: selectedEntityIds })
-  }, [selectedEntityIds, worldEditDeps])
-
-  const handleToggleGroupCollapsed = useCallback(
-    (groupId: string, collapsed: boolean) => {
-      applyWorldEdit(worldEditDeps, { undo: 'skip', scene: 'none' }, (prev) =>
-        setGroupCollapsed(prev, groupId, collapsed),
-      )
-    },
-    [worldEditDeps],
-  )
-
-  const handleRenameGroup = useCallback(
-    (groupId: string, name: string) => {
-      applyWorldEdit(worldEditDeps, { undo: 'push', scene: 'none' }, (prev) => renameGroup(prev, groupId, name))
-      uiLogger.change('Builder', 'Rename group', { groupId, name })
-    },
-    [worldEditDeps],
-  )
-
-  // Cmd/Ctrl+G and Cmd/Ctrl+Shift+G: group / ungroup. Cmd+Shift+G ungroups when a single
-  // group is selected; Cmd+G groups the current selection if it has at least 2 members.
-  groupShortcutHandlersRef.current = {
-    onGroup: handleCreateGroupFromSelection,
-    onUngroup: () => {
-      if (selectedEntityIds.length === 0 && selectedGroupIds.length === 1) {
-        handleUngroup(selectedGroupIds[0]!)
-      }
-    },
-  }
-
-  const syncMergedEntityTransformers = useCallback(
-    (entityIds: string[], nextWorld: RennWorld) => {
-      sceneViewRef.current?.setWorldPipeRegistry(
-        nextWorld.transformers ?? {},
-        nextWorld.transformerPipes ?? {},
-      )
-      for (const id of entityIds) {
-        const merged = resolveMergedTransformerConfigsForEntitySync(nextWorld, id)
-        sceneViewRef.current?.syncEntityTransformers(id, merged)
-      }
-    },
-    [],
-  )
-
-  const handleEntityTransformersChange = useCallback(
-    (
-      entityIds: string[],
-      transformers: TransformerConfig[],
-      orderedRegistryIds?: string[],
-      isShared?: boolean,
-    ) => {
-      pushHistory()
-      /** Must write configs into `world.transformers` + `entity.transformers` ID arrays (Phase 7 registry); never embed configs on entities. */
-      let nextWorld = world
-      for (const id of entityIds) {
-        const idsForEntity =
-          orderedRegistryIds ?
-            (isShared || entityIds.length === 1) ?
-              orderedRegistryIds
-            : mapTransformerRegistryIdsToEntity(orderedRegistryIds, id)
-          : undefined
-        nextWorld = commitTransformerConfigsToWorld(nextWorld, id, transformers, idsForEntity)
-      }
-      updateWorld(() => nextWorld)
-      syncMergedEntityTransformers(entityIds, nextWorld)
-    },
-    [world, updateWorld, pushHistory, syncMergedEntityTransformers],
-  )
-
-  const handleMergedPipeParamSync = useCallback(
-    (nextWorld: RennWorld, entityIds: string[]) => {
-      syncMergedEntityTransformers(entityIds, nextWorld)
-    },
-    [syncMergedEntityTransformers],
-  )
-
   const handleAssetsChange = useCallback((newAssets: typeof assets) => {
     updateAssets(() => newAssets)
   }, [updateAssets])
-
-  // Warn before leaving if there are unsaved changes
-  useEffect(() => {
-    const handler = (e: BeforeUnloadEvent) => {
-      if (currentProject.isDirty) {
-        e.preventDefault()
-        e.returnValue = ''
-      }
-    }
-    window.addEventListener('beforeunload', handler)
-    return () => window.removeEventListener('beforeunload', handler)
-  }, [currentProject.isDirty])
-
-  const syncPosesThen = useCallback(
-    async (fn: () => Promise<void>) => {
-      const allPoses = sceneViewRef.current?.getAllPoses()
-      if (allPoses) {
-        syncPosesToRefOnly(allPoses)
-        await fn()
-        syncPosesFromScene(allPoses)
-      } else {
-        await fn()
-      }
-    },
-    [syncPosesFromScene, syncPosesToRefOnly]
-  )
-
-  const handleSave = useCallback(async () => {
-    if (!currentProject.id) {
-      setShowSaveDialog(true)
-      return
-    }
-    let saved = false
-    await syncPosesThen(async () => {
-      saved = await saveProject()
-    })
-    if (saved) showSaveSnackbar('Project saved')
-  }, [currentProject.id, syncPosesThen, saveProject, showSaveSnackbar])
-
-  const handleSaveAs = useCallback(() => {
-    setShowSaveDialog(true)
-  }, [])
-
-  useEffect(() => {
-    fileShortcutHandlersRef.current.onSave = handleSave
-    fileShortcutHandlersRef.current.onSaveAs = handleSaveAs
-    fileShortcutHandlersRef.current.onNew = handleNew
-  }, [handleSave, handleSaveAs, handleNew])
-
-  const handleSaveDialogSaveNew = useCallback(
-    async (name: string) => {
-      let saved = false
-      await syncPosesThen(async () => {
-        saved = await saveProjectAs(name)
-      })
-      if (!saved) return
-      setShowSaveDialog(false)
-      showSaveSnackbar(`Saved “${name}”`)
-    },
-    [syncPosesThen, saveProjectAs, showSaveSnackbar]
-  )
-
-  const handleSaveDialogOverwrite = useCallback(
-    async (id: string) => {
-      const projectName = projects.find((p) => p.id === id)?.name ?? 'project'
-      let saved = false
-      await syncPosesThen(async () => {
-        saved = await saveToProject(id)
-      })
-      if (!saved) return
-      setShowSaveDialog(false)
-      showSaveSnackbar(`Saved “${projectName}”`)
-    },
-    [syncPosesThen, saveToProject, projects, showSaveSnackbar]
-  )
-
-  const saveDialogDefaultName =
-    currentProject.name !== 'Untitled' ? currentProject.name : `World ${projects.length + 1}`
 
   const handleResetCamera = useCallback(() => {
     sceneViewRef.current?.resetCamera()

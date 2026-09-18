@@ -8,37 +8,18 @@ import { uiLogger } from '@/utils/uiLogger'
 import { sanitizeZipExportBasename } from '@/utils/assetExport'
 import type { EditorSnapshot } from '@/editor/editorHistory'
 import { useCameraState } from '@/hooks/useCameraState'
+import { useEntityWorkHistory } from '@/hooks/useEntityWorkHistory'
 import { useModelPresets } from '@/hooks/useModelPresets'
 import { buildWorldToSave } from './getWorldToSave'
-import { pushEntityWorkHistory, pruneEntityWorkHistory } from '@/utils/entityWorkHistory'
+import {
+  getLastProjectId,
+  setLastProjectId,
+  clearLastProjectId,
+} from '@/persistence/lastProjectId'
+import { usePersistedAssets } from '@/hooks/usePersistedAssets'
 
 const persistence = createIndexedDbPersistence()
 const BASE_URL = import.meta.env.BASE_URL || '/'
-const LAST_PROJECT_KEY = 'renn-last-project-id'
-
-function getLastProjectId(): string | null {
-  try {
-    return localStorage.getItem(LAST_PROJECT_KEY)
-  } catch {
-    return null
-  }
-}
-
-function setLastProjectId(id: string): void {
-  try {
-    localStorage.setItem(LAST_PROJECT_KEY, id)
-  } catch {
-    // ignore quota or disabled localStorage
-  }
-}
-
-function clearLastProjectId(): void {
-  try {
-    localStorage.removeItem(LAST_PROJECT_KEY)
-  } catch {
-    // ignore quota or disabled localStorage
-  }
-}
 
 interface CurrentProject {
   id: string | null
@@ -144,9 +125,18 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const [world, setWorld] = useState<RennWorld>(sampleWorld)
   // worldRef mirrors world state synchronously so save functions never read a stale closure value
   const worldRef = useRef<RennWorld>(sampleWorld)
-  const [assets, setAssets] = useState<Map<string, Blob>>(new Map())
-  const [entityWorkHistory, setEntityWorkHistory] = useState<string[]>([])
-  const entityWorkHistoryRef = useRef<string[]>([])
+  const markProjectDirty = useCallback(() => {
+    setCurrentProject((prev) => ({ ...prev, isDirty: true }))
+  }, [])
+  const { assets, setAssets, updateAssets } = usePersistedAssets(persistence, markProjectDirty)
+  const {
+    entityWorkHistory,
+    entityWorkHistoryRef,
+    recordEntityWorkHistory,
+    replaceFromLoaded: replaceEntityWorkHistoryFromLoaded,
+    reset: resetEntityWorkHistory,
+    pruneToValidEntities: pruneEntityWorkHistoryToValidEntities,
+  } = useEntityWorkHistory({ onDirty: markProjectDirty })
   const [projects, setProjects] = useState<ProjectMeta[]>([])
   const [version, setVersion] = useState(0)
   const [documentEpoch, setDocumentEpoch] = useState(0)
@@ -171,21 +161,6 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const syncEntityWorkHistory = useCallback((next: string[]) => {
-    entityWorkHistoryRef.current = next
-    setEntityWorkHistory(next)
-  }, [])
-
-  const recordEntityWorkHistory = useCallback(
-    (entityId: string) => {
-      const next = pushEntityWorkHistory(entityWorkHistoryRef.current, entityId)
-      if (next.join('\0') === entityWorkHistoryRef.current.join('\0')) return
-      syncEntityWorkHistory(next)
-      setCurrentProject((prev) => ({ ...prev, isDirty: true }))
-    },
-    [syncEntityWorkHistory],
-  )
-
   const refreshProjects = useCallback(() => {
     uiLogger.click('Builder', 'Refresh project list')
     persistence.listProjects().then(setProjects).catch(console.error)
@@ -202,12 +177,12 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       isDirty: false,
     })
     editorFreePoseRef.current = null
-    syncEntityWorkHistory([])
+    resetEntityWorkHistory()
     resetCameraFromWorld(sampleWorld)
     setVersion((v) => v + 1)
     setDocumentEpoch((e) => e + 1)
     clearLastProjectId()
-  }, [resetCameraFromWorld, syncEntityWorkHistory])
+  }, [resetCameraFromWorld, resetEntityWorkHistory])
   
   const loadProject = useCallback(async (id: string, options?: { silent?: boolean }): Promise<boolean> => {
     try {
@@ -230,7 +205,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         return next
       })
       const validIds = new Set(w.entities.map((e) => e.id))
-      syncEntityWorkHistory(pruneEntityWorkHistory(loadedHistory ?? [], validIds))
+      replaceEntityWorkHistoryFromLoaded(loadedHistory, validIds)
       setCurrentProject({
         id,
         name: projectMeta?.name ?? `Project ${id}`,
@@ -249,7 +224,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       }
       return false
     }
-  }, [resetCameraFromWorld, syncEntityWorkHistory])
+  }, [resetCameraFromWorld, replaceEntityWorkHistoryFromLoaded])
 
   // Load world on initialization: reopen last saved project when possible.
   useEffect(() => {
@@ -414,12 +389,9 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     worldRef.current = next
     setWorld(next)
     const validIds = new Set(next.entities.map((e) => e.id))
-    const pruned = pruneEntityWorkHistory(entityWorkHistoryRef.current, validIds)
-    if (pruned.length !== entityWorkHistoryRef.current.length) {
-      syncEntityWorkHistory(pruned)
-    }
+    pruneEntityWorkHistoryToValidEntities(validIds)
     setCurrentProject((prev) => ({ ...prev, isDirty: true }))
-  }, [syncEntityWorkHistory])
+  }, [pruneEntityWorkHistoryToValidEntities])
 
   const {
     modelPresets,
@@ -435,22 +407,6 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     refreshModelPresets().catch(console.error)
   }, [initialLoadPending, refreshModelPresets])
 
-  
-  const updateAssets = useCallback(async (updater: (prev: Map<string, Blob>) => Map<string, Blob>) => {
-    setAssets((prev) => {
-      const next = updater(prev)
-      for (const [assetId, blob] of next) {
-        const prevBlob = prev.get(assetId)
-        if (prevBlob === undefined || prevBlob !== blob) {
-          persistence.saveAsset(assetId, blob).catch((err) => {
-            console.error(`Failed to save asset ${assetId}:`, err)
-          })
-        }
-      }
-      return next
-    })
-    setCurrentProject((prev) => ({ ...prev, isDirty: true }))
-  }, [])
   
   const mergePosesIntoWorld = useCallback((poses: Map<string, { position: Vec3; rotation: Rotation; scale?: Vec3 }>): RennWorld => ({
     ...worldRef.current,
@@ -546,7 +502,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
           resetCameraFromWorld(w)
           editorFreePoseRef.current = w.world.camera?.editorFreePose ?? null
           setAssets(new Map())
-          syncEntityWorkHistory([])
+          resetEntityWorkHistory()
           setCurrentProject({
             id: null,
             name: 'Untitled',
@@ -562,7 +518,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       reader.readAsText(file)
     }
     e.target.value = ''
-  }, [refreshProjects, loadProject, resetCameraFromWorld, syncEntityWorkHistory])
+  }, [refreshProjects, loadProject, resetCameraFromWorld, resetEntityWorkHistory])
   
   const loadExampleWorld = useCallback((world: RennWorld, name: string) => {
     uiLogger.select('Builder', 'Open example world', { worldName: name })
@@ -571,7 +527,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     resetCameraFromWorld(world)
     editorFreePoseRef.current = world.world.camera?.editorFreePose ?? null
     setAssets(new Map())
-    syncEntityWorkHistory([])
+    resetEntityWorkHistory()
     setCurrentProject({
       id: null,
       name,
@@ -580,7 +536,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     clearLastProjectId()
     setVersion((v) => v + 1)
     setDocumentEpoch((e) => e + 1)
-  }, [resetCameraFromWorld, syncEntityWorkHistory])
+  }, [resetCameraFromWorld, resetEntityWorkHistory])
   
   const handlePlay = useCallback(() => {
     uiLogger.click('Builder', 'Play - navigate to play mode')

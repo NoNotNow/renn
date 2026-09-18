@@ -19,6 +19,9 @@ import { averageUnlockedSelectionWorldPosition } from '@/editor/transformGizmoCo
 import { getForwardSpeed } from '@/utils/vec3'
 import { syncDirectionalLightShadowFocusToCamera } from '@/utils/shadowBounds'
 import { emptySceneFrameTiming, type SceneFrameTiming } from '@/runtime/frameTiming'
+import { processActiveDebugForcesInPlace, type ActiveDebugForce } from '@/runtime/debugForces'
+
+export type { ActiveDebugForce }
 
 export const SCENE_FIXED_DT = 1 / 60
 
@@ -40,6 +43,46 @@ export function advanceSemiFixedAccumulator(input: {
   return { accumulator: acc, stepsToRun }
 }
 
+export type SemiFixedFramePlan = {
+  fixedDt: number
+  skipSimulation: boolean
+  variableFrameDt: number
+  skipRender: boolean
+  renderInterpolationAlpha: number
+}
+
+/** Pure plan for semi-fixed rAF ticks (one entry per `pushFrame` call). */
+export function planSemiFixedPushFrames(input: {
+  stepsToRun: number
+  fixedDt: number
+  simAccumulator: number
+  clampedElapsed: number
+}): SemiFixedFramePlan[] {
+  const { stepsToRun, fixedDt, simAccumulator, clampedElapsed } = input
+  if (stepsToRun === 0) {
+    return [
+      {
+        fixedDt: 0,
+        skipSimulation: true,
+        variableFrameDt: clampedElapsed,
+        skipRender: false,
+        renderInterpolationAlpha: fixedDt > 0 ? simAccumulator / fixedDt : 1,
+      },
+    ]
+  }
+  const plans: SemiFixedFramePlan[] = []
+  for (let i = 0; i < stepsToRun; i++) {
+    plans.push({
+      fixedDt,
+      skipSimulation: false,
+      variableFrameDt: 0,
+      skipRender: i < stepsToRun - 1,
+      renderInterpolationAlpha: i < stepsToRun - 1 ? 1 : simAccumulator / fixedDt,
+    })
+  }
+  return plans
+}
+
 const hudVelScratch: Vec3 = [0, 0, 0]
 const hudFwdScratch: Vec3 = [0, 0, 0]
 
@@ -53,7 +96,7 @@ export interface SceneFrameLoopInputs {
   cameraCtrlRef: MutableRefObject<CameraController | null>
   physicsRef: MutableRefObject<PhysicsWorld | null>
   runPhysics: boolean
-  activeDebugForcesRef: MutableRefObject<Array<{ entityId: string; force: Vec3; endTime: number }>>
+  activeDebugForcesRef: MutableRefObject<ActiveDebugForce[]>
   registryRef: MutableRefObject<SimulationFramePort | null>
   rawKeyboardRef: RefObject<RawKeyboardState>
   worldRef: MutableRefObject<RennWorld>
@@ -187,20 +230,12 @@ export function runSceneFrame(input: SceneFrameLoopInputs): void {
   const pw = physicsRef.current
   if (simAdvance && pw && runPhysics && !isCancelled()) {
     try {
-      const currentTime = timeRef.current
-      const dbg = activeDebugForcesRef.current
-      let w = 0
-      for (let r = 0; r < dbg.length; r++) {
-        const debugForce = dbg[r]!
-        if (currentTime >= debugForce.endTime) {
-          continue
-        }
-        if (!editNav) {
-          pw.applyForce(debugForce.entityId, debugForce.force[0], debugForce.force[1], debugForce.force[2])
-        }
-        dbg[w++] = debugForce
-      }
-      dbg.length = w
+      processActiveDebugForcesInPlace({
+        forces: activeDebugForcesRef.current,
+        currentTime: timeRef.current,
+        editNavigationMode: editNav,
+        applyForce: (entityId, fx, fy, fz) => pw.applyForce(entityId, fx, fy, fz),
+      })
 
       if (!editNav) {
         if (registryRef.current) {

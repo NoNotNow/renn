@@ -4,7 +4,7 @@ import { DEFAULT_SCALE } from '@/types/world'
 
 /**
  * Bakes mesh scale into primitive shape dimensions and resets entity.scale to [1,1,1].
- * Axis conventions match createColliderDesc in rapierPhysics (height on Y, horizontal radius from max(sx,sz)).
+ * Axis conventions match `colliderDescBuilder.createColliderDesc` (height on Y, horizontal radius from max(sx,sz)).
  *
  * Returns null for plane (no dimension fields to bake) or trimesh (use modelScale path).
  */

@@ -1,15 +1,8 @@
 import * as THREE from 'three'
 import type { LoadedEntity } from '@/loader/loadWorld'
-import type { CachedTransform, PhysicsWorld } from '@/physics/rapierPhysics'
+import type { PhysicsWorld } from '@/physics/rapierPhysics'
 import type { Vec3, Rotation, Entity, DistanceCullingSettings } from '@/types/world'
-import {
-  applyModelVisualSides,
-  createShapeGeometry,
-  materialFromRef,
-  resolveGltfVisualContext,
-} from '@/loader/createPrimitive'
 import type { DisposableAssetResolver } from '@/loader/assetResolverImpl'
-import { disposeMaterialOrArray } from '@/utils/videoTextureLifecycle'
 import { RenderItem } from './renderItem'
 import { rapierQuaternionToEulerInto } from '@/utils/rotationUtils'
 import { createTransformerChain } from '@/transformers/transformerRegistry'
@@ -36,11 +29,13 @@ import {
   bakeScaleIntoPrimitiveShape,
   isModelBackedMesh,
 } from '@/editor/bakeScaleIntoShape'
-import { syncShapeWireframeOverlay } from '@/loader/shapeWireframeOverlay'
-import { updateMeshCastShadowFromWorldAabb } from '@/utils/shadowBounds'
 import { computeMeshWorldMaxExtent } from '@/utils/meshWorldExtent'
-import { distanceCullingShouldCull } from '@/utils/distanceCullingMath'
-import { applyVisualBase, setVisualBaseFromShape, stripVisualBase } from '@/utils/visualBaseQuaternion'
+import {
+  applyDistanceCullingPass,
+  clearDistanceCullingPass,
+  type DistanceCullingSleepToggleState,
+} from '@/runtime/renderItemRegistryDistanceCulling'
+import { applyVisualBase, stripVisualBase } from '@/utils/visualBaseQuaternion'
 import {
   getTransformerTraceTargetEntityId,
   publishTransformerLiveTrace,
@@ -49,19 +44,17 @@ import type { TransformerTraceStep } from '@/transformers/transformerTrace'
 import type { TransformerChain } from '@/transformers/transformer'
 import { clearCoordinateEntries } from '@/runtime/coordinateOverlayBridge'
 import type { EntityHandlePort, SceneEditPort, SimulationFramePort } from '@/runtime/renderItemRegistryPorts'
-
-const shapeUpdateShadowBox = new THREE.Box3()
-const shapeUpdateShadowSize = new THREE.Vector3()
-
-type VisualPoseState = {
-  previousPosition: THREE.Vector3
-  currentPosition: THREE.Vector3
-  visualPosition: THREE.Vector3
-  previousRotation: THREE.Quaternion
-  currentRotation: THREE.Quaternion
-  visualRotation: THREE.Quaternion
-  initialized: boolean
-}
+import { VisualPoseStateRegistry } from '@/runtime/renderItemRegistryVisualPose'
+import {
+  applyModelTransformSync,
+  disposeMeshHierarchy,
+  getMeshColor,
+  patchEntityAppearanceSync,
+  setMeshColor,
+  syncAllShapeWireframeOverlaysForItems,
+  updateEntityMaterialSync,
+  updateEntityShapeSync,
+} from '@/runtime/renderItemRegistryMeshSync'
 
 /**
  * Registry of render items: one per entity. Owns body→mesh sync each frame.
@@ -82,7 +75,9 @@ export class RenderItemRegistry implements SimulationFramePort, SceneEditPort, E
   /** Entity ids that are distance-culled with `sleepCulled` — skip their game scripts. */
   private readonly _culledSleepingForScripts = new Set<string>()
   /** Previous frame's `sleepCulled` flag (for toggling off world sleep). */
-  private _lastCullingSleepCulled: boolean | undefined
+  private readonly _distanceCullingSleepToggle: DistanceCullingSleepToggleState = {
+    lastSleepCulled: undefined,
+  }
   /** Reused buffer for addVectorToPosition to avoid allocation on hot path. */
   private _addVecBuf: Vec3 = [0, 0, 0]
 
@@ -101,7 +96,7 @@ export class RenderItemRegistry implements SimulationFramePort, SceneEditPort, E
   private readonly _tfActions: Record<string, number> = {}
   private readonly _tfEnvironment: EnvironmentState = {}
   private readonly _tfInput: TransformInput
-  private readonly _visualPoseStates = new Map<string, VisualPoseState>()
+  private readonly _visualPoseStates = new VisualPoseStateRegistry()
   /** Valid until the next `getEntityWorldPoseForTransformers` call (follow copies values immediately). */
   private readonly _leadPosePosition: Vec3 = [0, 0, 0]
   private readonly _leadPoseRotation: Rotation = [0, 0, 0]
@@ -405,52 +400,12 @@ export class RenderItemRegistry implements SimulationFramePort, SceneEditPort, E
     return this.items.get(id)
   }
 
-  private getOrCreateVisualPoseState(id: string): VisualPoseState {
-    let state = this._visualPoseStates.get(id)
-    if (!state) {
-      state = {
-        previousPosition: new THREE.Vector3(),
-        currentPosition: new THREE.Vector3(),
-        visualPosition: new THREE.Vector3(),
-        previousRotation: new THREE.Quaternion(),
-        currentRotation: new THREE.Quaternion(),
-        visualRotation: new THREE.Quaternion(),
-        initialized: false,
-      }
-      this._visualPoseStates.set(id, state)
-    }
-    return state
-  }
-
-  private syncVisualPoseStateFromCached(id: string, cached: CachedTransform): VisualPoseState {
-    const state = this.getOrCreateVisualPoseState(id)
-    if (state.initialized) {
-      state.previousPosition.copy(state.currentPosition)
-      state.previousRotation.copy(state.currentRotation)
-    } else {
-      state.previousPosition.set(cached.position.x, cached.position.y, cached.position.z)
-      state.previousRotation.set(cached.rotation.x, cached.rotation.y, cached.rotation.z, cached.rotation.w)
-      state.initialized = true
-    }
-    state.currentPosition.set(cached.position.x, cached.position.y, cached.position.z)
-    state.currentRotation.set(cached.rotation.x, cached.rotation.y, cached.rotation.z, cached.rotation.w)
-    state.visualPosition.copy(state.currentPosition)
-    state.visualRotation.copy(state.currentRotation)
-    return state
-  }
-
   /**
    * Sync primitive shape wireframe overlays from world entities (entity.model + flag).
    * Does not trigger full scene reload; safe to call after inspector edits.
    */
   syncAllShapeWireframeOverlays(entities: Entity[]): void {
-    for (const entity of entities) {
-      const item = this.items.get(entity.id)
-      if (!item) continue
-      const mesh = item.mesh
-      if (!(mesh instanceof THREE.Mesh) || mesh.userData.usesModel !== true) continue
-      syncShapeWireframeOverlay(mesh, entity)
-    }
+    syncAllShapeWireframeOverlaysForItems(entities, (id) => this.items.get(id))
   }
 
   getPosition(id: string): Vec3 | null {
@@ -629,53 +584,7 @@ export class RenderItemRegistry implements SimulationFramePort, SceneEditPort, E
   ): void {
     const item = this.items.get(id)
     if (!item) return
-    const mesh = item.mesh
-    const modelScene =
-      (mesh.userData.trimeshScene as THREE.Object3D | undefined) ??
-      (mesh.userData.usesModel === true && mesh.children.length > 0 ? mesh.children[0] : null)
-    const merged: Entity = { ...item.entity, ...patch }
-    if ('doubleSided' in patch && !patch.doubleSided) {
-      delete merged.doubleSided
-    } else if ('doubleSided' in patch && patch.doubleSided) {
-      merged.doubleSided = true
-    }
-    const nextEntity = merged
-
-    const modelVisualTransformChanges =
-      patch.modelPosition !== undefined ||
-      patch.modelRotation !== undefined ||
-      patch.modelScale !== undefined
-    if (modelScene && modelVisualTransformChanges) {
-      const modelPosition: Vec3 = nextEntity.modelPosition ?? [0, 0, 0]
-      const modelRotation: Rotation = nextEntity.modelRotation ?? [0, 0, 0]
-      const modelScale: Vec3 = nextEntity.modelScale ?? [1, 1, 1]
-      modelScene.position.set(modelPosition[0], modelPosition[1], modelPosition[2])
-      modelScene.rotation.set(modelRotation[0], modelRotation[1], modelRotation[2])
-      modelScene.scale.set(modelScale[0], modelScale[1], modelScale[2])
-    }
-
-    item.entity = nextEntity
-    if (mesh.userData.entity !== undefined) {
-      mesh.userData.entity = nextEntity
-    }
-
-    if (
-      modelVisualTransformChanges &&
-      item.entity.shape?.type === 'trimesh' &&
-      this.physicsWorld
-    ) {
-      this.physicsWorld.updateShape(id, item.entity, mesh)
-    }
-
-    const ctx = resolveGltfVisualContext(mesh)
-    if (ctx) {
-      applyModelVisualSides(
-        ctx.modelScene,
-        ctx.originalMaterialEntries,
-        nextEntity.doubleSided === true,
-        nextEntity.material !== undefined
-      )
-    }
+    applyModelTransformSync(id, item, patch, this.physicsWorld)
     this.refreshCullingWorldSize(item)
   }
 
@@ -683,17 +592,7 @@ export class RenderItemRegistry implements SimulationFramePort, SceneEditPort, E
   patchEntityAppearance(id: string, entity: Entity): void {
     const item = this.items.get(id)
     if (!item) return
-    const mesh = item.mesh
-    item.entity = entity
-    mesh.userData.entity = entity
-    const ctx = resolveGltfVisualContext(mesh)
-    if (!ctx) return
-    applyModelVisualSides(
-      ctx.modelScene,
-      ctx.originalMaterialEntries,
-      entity.doubleSided === true,
-      entity.material !== undefined
-    )
+    patchEntityAppearanceSync(item, entity)
     this.refreshCullingWorldSize(item)
   }
 
@@ -714,60 +613,14 @@ export class RenderItemRegistry implements SimulationFramePort, SceneEditPort, E
   setColor(id: string, r: number, g: number, b: number): void {
     const item = this.items.get(id)
     if (!item) return
-    const mesh = item.mesh
-    const setColorOn = (mat: THREE.Material) => {
-      if ('color' in mat && mat.color instanceof THREE.Color) {
-        mat.color.setRGB(r, g, b)
-      }
-    }
-    if (mesh.userData.usesModel === true || mesh.userData.isTrimeshSource === true) {
-      mesh.traverse((child) => {
-        if (child instanceof THREE.Mesh && child.material) {
-          const mats = Array.isArray(child.material) ? child.material : [child.material]
-          mats.forEach(setColorOn)
-        }
-      })
-    } else {
-      if (mesh.material) {
-        const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
-        mats.forEach(setColorOn)
-      }
-    }
+    setMeshColor(item.mesh, r, g, b)
   }
 
   /** Get mesh color (RGB 0–1). Returns first material color found, or null if none. */
   getColor(id: string): [number, number, number] | null {
     const item = this.items.get(id)
     if (!item) return null
-    const mesh = item.mesh
-    const readColorFrom = (mat: THREE.Material): [number, number, number] | null => {
-      if ('color' in mat && mat.color instanceof THREE.Color) {
-        return [mat.color.r, mat.color.g, mat.color.b]
-      }
-      return null
-    }
-    if (mesh.userData.usesModel === true || mesh.userData.isTrimeshSource === true) {
-      let result: [number, number, number] | null = null
-      mesh.traverse((child) => {
-        if (result !== null) return
-        if (child instanceof THREE.Mesh && child.material) {
-          const mats = Array.isArray(child.material) ? child.material : [child.material]
-          for (const mat of mats) {
-            result = readColorFrom(mat)
-            if (result !== null) return
-          }
-        }
-      })
-      return result
-    }
-    if (mesh.material) {
-      const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
-      for (const mat of mats) {
-        const c = readColorFrom(mat)
-        if (c !== null) return c
-      }
-    }
-    return null
+    return getMeshColor(item.mesh)
   }
 
   /**
@@ -846,50 +699,13 @@ export class RenderItemRegistry implements SimulationFramePort, SceneEditPort, E
    * to a full scene rebuild for trimesh shapes).
    */
   updateShape(id: string, newEntity: Entity): boolean {
-    if (newEntity.shape?.type === 'trimesh') return false
     const item = this.items.get(id)
     if (!item) return false
-
-    const newGeometry = createShapeGeometry(newEntity.shape ?? { type: 'box', width: 1, height: 1, depth: 1 })
-    if (!newGeometry) return false
-
-    const mesh = item.mesh
-    const wasFlatShape = item.entity.shape?.type === 'plane'
-    const isNowFlatShape = newEntity.shape?.type === 'plane'
-
-    if (wasFlatShape !== isNowFlatShape) {
-      const currentRotation = item.getRotation()
-      setVisualBaseFromShape(mesh, newEntity.shape?.type)
-      item.setRotation(currentRotation)
+    const applied = updateEntityShapeSync(id, item, newEntity, this.physicsWorld)
+    if (applied) {
+      this.refreshCullingWorldSize(item)
     }
-
-    // Swap geometry
-    const oldGeometry = mesh.geometry
-    mesh.geometry = newGeometry
-    oldGeometry.dispose()
-
-    mesh.updateMatrixWorld(true)
-    updateMeshCastShadowFromWorldAabb(
-      mesh,
-      newEntity.shape?.type === 'plane',
-      shapeUpdateShadowBox,
-      shapeUpdateShadowSize,
-    )
-
-    // Update entity reference so future operations (e.g. mass change) use the new shape
-    item.entity = newEntity
-    mesh.userData.entity = newEntity
-
-    // Rebuild physics collider with new shape
-    if (this.physicsWorld) {
-      this.physicsWorld.updateShape(id, newEntity, mesh)
-    }
-
-    syncShapeWireframeOverlay(mesh, newEntity)
-
-    this.refreshCullingWorldSize(item)
-
-    return true
+    return applied
   }
 
   /**
@@ -901,54 +717,7 @@ export class RenderItemRegistry implements SimulationFramePort, SceneEditPort, E
   async updateMaterial(id: string, newEntity: Entity, assetResolver?: DisposableAssetResolver): Promise<void> {
     const item = this.items.get(id)
     if (!item) return
-    const mesh = item.mesh
-    const isModelMesh = mesh.userData.usesModel === true || mesh.userData.isTrimeshSource === true
-    if (isModelMesh && newEntity.material === undefined) {
-      const entries = mesh.userData.originalMaterialEntries as
-        | Array<{ mesh: THREE.Mesh; material: THREE.Material | THREE.Material[] }>
-        | undefined
-      if (entries && entries.length > 0) {
-        for (const { mesh: childMesh, material: storedMat } of entries) {
-          const current = childMesh.material
-          childMesh.material = storedMat
-          if (current && current !== storedMat) {
-            disposeMaterialOrArray(current)
-          }
-        }
-      }
-    } else {
-      const newMat = await materialFromRef(newEntity.material, assetResolver, {
-        forceDoubleSided: newEntity.doubleSided === true,
-      })
-      if (isModelMesh) {
-        // Skip root: invisible shape/proxy hull must not receive the visible PBR override.
-        mesh.traverse((child) => {
-          if (child === mesh) return
-          if (child instanceof THREE.Mesh) {
-            const old = child.material
-            child.material = newMat
-            if (old) disposeMaterialOrArray(old)
-          }
-        })
-      } else {
-        const old = mesh.material
-        mesh.material = newMat
-        if (old) disposeMaterialOrArray(old)
-      }
-    }
-    item.entity = newEntity
-    mesh.userData.entity = newEntity
-    if (isModelMesh) {
-      const ctx = resolveGltfVisualContext(mesh)
-      if (ctx) {
-        applyModelVisualSides(
-          ctx.modelScene,
-          ctx.originalMaterialEntries,
-          newEntity.doubleSided === true,
-          newEntity.material !== undefined
-        )
-      }
-    }
+    await updateEntityMaterialSync(item, newEntity, assetResolver)
   }
 
   private refreshCullingWorldSize(item: RenderItem): void {
@@ -965,78 +734,24 @@ export class RenderItemRegistry implements SimulationFramePort, SceneEditPort, E
    * Optional `sleepCulled` freezes physics and registers ids for script skipping.
    */
   applyDistanceCulling(camPos: THREE.Vector3, settings: DistanceCullingSettings): void {
-    const sleepCulled = settings.sleepCulled === true
-    const pw = this.physicsWorld
-
-    if (this._lastCullingSleepCulled === true && !sleepCulled) {
-      for (const item of this.items.values()) {
-        if (item.distanceCullingPhysicsFrozen && pw) {
-          pw.enableBodyFromCulling(item.entity.id)
-        }
-        item.distanceCullingPhysicsFrozen = false
-        this._culledSleepingForScripts.delete(item.entity.id)
-      }
-    }
-    this._lastCullingSleepCulled = sleepCulled
-
-    for (const item of this.items.values()) {
-      const m = item.mesh.position
-      const dx = m.x - camPos.x
-      const dy = m.y - camPos.y
-      const dz = m.z - camPos.z
-      const distSq = dx * dx + dy * dy + dz * dz
-
-      const ws = item.worldSize
-      const shouldCull = distanceCullingShouldCull(
-        distSq,
-        ws,
-        settings.maxDistance,
-        settings.minSizeDistanceRatio,
-      )
-
-      const wantScriptSleep = shouldCull && sleepCulled
-      const shouldFreezeBody = wantScriptSleep && item.hasPhysicsBody()
-
-      if (shouldFreezeBody) {
-        if (pw && !item.distanceCullingPhysicsFrozen) {
-          pw.disableBodyForCulling(item.entity.id)
-          item.distanceCullingPhysicsFrozen = true
-        }
-      } else {
-        if (item.distanceCullingPhysicsFrozen && pw) {
-          pw.enableBodyFromCulling(item.entity.id)
-        }
-        item.distanceCullingPhysicsFrozen = false
-      }
-
-      if (wantScriptSleep) {
-        this._culledSleepingForScripts.add(item.entity.id)
-      } else {
-        this._culledSleepingForScripts.delete(item.entity.id)
-      }
-
-      if (shouldCull !== item.distanceCulled) {
-        item.distanceCulled = shouldCull
-        item.mesh.visible = !shouldCull
-      }
-    }
+    applyDistanceCullingPass(
+      this.items.values(),
+      camPos,
+      settings,
+      this.physicsWorld,
+      this._culledSleepingForScripts,
+      this._distanceCullingSleepToggle,
+    )
   }
 
   /** Restore visibility and physics; call when culling is disabled. */
   clearDistanceCulling(): void {
-    const pw = this.physicsWorld
-    for (const item of this.items.values()) {
-      if (item.distanceCullingPhysicsFrozen && pw) {
-        pw.enableBodyFromCulling(item.entity.id)
-      }
-      item.distanceCullingPhysicsFrozen = false
-      if (item.distanceCulled) {
-        item.distanceCulled = false
-        item.mesh.visible = true
-      }
-    }
-    this._culledSleepingForScripts.clear()
-    this._lastCullingSleepCulled = undefined
+    clearDistanceCullingPass(
+      this.items.values(),
+      this.physicsWorld,
+      this._culledSleepingForScripts,
+      this._distanceCullingSleepToggle,
+    )
   }
 
   /**
@@ -1236,7 +951,7 @@ export class RenderItemRegistry implements SimulationFramePort, SceneEditPort, E
       const cached = this.physicsWorld.getCachedTransform(item.entity.id)
       if (!cached) continue
 
-      const state = this.syncVisualPoseStateFromCached(item.entity.id, cached)
+      const state = this._visualPoseStates.syncFromCached(item.entity.id, cached)
       item.mesh.position.copy(state.currentPosition)
       item.mesh.quaternion.copy(state.currentRotation)
       applyVisualBase(item.mesh.quaternion, item.mesh)
@@ -1299,39 +1014,5 @@ export class RenderItemRegistry implements SimulationFramePort, SceneEditPort, E
     this.items.clear()
     this._visualPoseStates.clear()
     this.physicsWorld = null
-  }
-}
-
-/** Dispose geometry, material (and map) for a mesh and all descendants. Disposes stored originalMaterialEntries. */
-function disposeMeshHierarchy(mesh: THREE.Mesh): void {
-  const disposedMaterials = new Set<THREE.Material>()
-  const disposeMaterial = (mat: THREE.Material): void => {
-    if (disposedMaterials.has(mat)) return
-    disposedMaterials.add(mat)
-    if (mat instanceof THREE.MeshStandardMaterial && mat.map) {
-      mat.map.dispose()
-    }
-    mat.dispose()
-  }
-  mesh.traverse((obj) => {
-    if (obj instanceof THREE.Mesh) {
-      if (obj.geometry) {
-        obj.geometry.dispose()
-      }
-      if (obj.material) {
-        if (Array.isArray(obj.material)) {
-          obj.material.forEach(disposeMaterial)
-        } else {
-          disposeMaterial(obj.material)
-        }
-      }
-    }
-  })
-  const entries = mesh.userData.originalMaterialEntries as Array<{ mesh: THREE.Mesh; material: THREE.Material }> | undefined
-  if (entries) {
-    for (const { material: storedMat } of entries) {
-      disposeMaterial(storedMat)
-    }
-    delete mesh.userData.originalMaterialEntries
   }
 }

@@ -2,7 +2,7 @@
 
 Living backlog for stabilization passes. **Do not redo completed work** — scan this file first.
 
-**Baseline (2026-09-18):** 212 test files, 1934 tests + 3 skipped · `npx tsc --noEmit -p tsconfig.app.json` clean · `npm run build` recommended pre-PR · `npm run test:perf` before Rapier/frame-loop changes.
+**Baseline (2026-09-18):** 223 test files, 1991 tests + 3 skipped · `npx tsc --noEmit -p tsconfig.app.json` clean · `npm run build` recommended pre-PR · `npm run test:perf` before Rapier/frame-loop changes.
 
 **Verbose phase write-ups (1–27):** [`codebase-cleanup-history.md`](./codebase-cleanup-history.md) — archive only; append new phases here in **short** form.
 
@@ -50,6 +50,95 @@ Living backlog for stabilization passes. **Do not redo completed work** — scan
 | 27 | Pipe-strip ancestor grey-out; flat stack `applyStageWorldWrite` (partial candidate 6) |
 | 28 | AI doc consolidation (audit slim, history archive) |
 | 29 | Hex `BuilderHeader`/`SoundPanel`; pipe-nav dead exports; workspace tab/strip loose ends |
+| 30 | God-file slices: TextureMaker shell, collider builder, registry culling, SceneView helpers, ProjectContext MRU, Builder pose-sync + explorer selection/groups |
+| 31 | Builder workspace hook; ProjectContext persisted assets + last-project MRU pure module |
+
+---
+
+## Phase 31 — Builder workspace + ProjectContext assets (completed, 2026-09-18)
+
+**Performance:** none (event-driven IO / workspace open).
+
+### Changes
+- **Builder** (1478 → **1347**): `useBuilderWorkspace`, pure `workspaceOpenTarget.ts` (`resolveWorkspaceOpenTarget`, `resolveWorkspaceTargetForEntity`, defaults + memory restore).
+- **ProjectContext** (724 → **680**, Phase 30 MRU unchanged): `usePersistedAssets` (`saveAsset` on blob map updates), `persistence/lastProjectId.ts` (localStorage MRU key).
+- **Builder selection** (from same pass, if not in Phase 30 commit): `useBuilderExplorerSelection`, `builderEntityRangeSelection.ts`.
+
+### Tests
+- `workspaceOpenTarget.test.ts` (11; L2 fixed pipe-nav path expectation before abort), `lastProjectId.test.ts` (6), `builderEntityRangeSelection.test.ts` (6); `Builder.test.tsx`, `Builder.workspacePersistence.integration.test.tsx`, `ProjectContext.test.tsx`.
+
+### Deferred
+- `useProjectPersistence` / `useProjectImportExport` (Phase 8 IO split).
+
+---
+
+## Phase 32 — Builder entity world actions (completed, 2026-09-18)
+
+**Performance:** none (event-driven entity / inspector writes).
+
+### Changes
+- **Builder** (1347 → **1006**): `useBuilderEntityWorldActions` — entity CRUD, clipboard, inspector/scene patches, transformer commit wiring, `applyWorldWrite`.
+
+### Tests
+- Existing `Builder.test.tsx`, workspace/selection integration tests (no new file; behaviour unchanged).
+
+### Deferred
+- Remaining Builder handlers (gizmo pose commit, camera reset, perf booster, texture session wiring).
+- `renderItemRegistry` transformer exec (perf-gated).
+
+---
+
+## Phase 33 — Registry visual pose + TextureMaker types (completed, 2026-09-18)
+
+**Performance:** hot-path behaviour unchanged (same sync/interpolation calls).
+
+### Changes
+- **renderItemRegistry**: `renderItemRegistryVisualPose.ts` (`VisualPoseStateRegistry`).
+- **TextureMaker**: `textureMakerTypes.ts`; preview hooks import types without pulling shell.
+
+### Tests
+- `renderItemRegistryVisualPose.test.ts` (3).
+
+---
+
+## Phase 34 — Registry mesh/shape/material sync (completed, 2026-09-18)
+
+**Performance:** none (cold-path / inspector incremental sync only; `executeTransformers` untouched).
+
+### Changes
+- **renderItemRegistry** (1289 → **1018**): `renderItemRegistryMeshSync.ts` (304) — shape geometry swap, material hot-swap, model transform, mesh color, wireframe overlay pass, `disposeMeshHierarchy`.
+
+### Tests
+- Existing `renderItem*.test.ts` + material scenario tests (behaviour unchanged).
+
+### Deferred
+- `renderItemRegistry` transformer exec internal module (perf-gated).
+
+---
+
+## Phase 30 — God-file orchestration pass (completed, 2026-09-18)
+
+**Performance:** distance culling + collider build unchanged on hot path (cold-path / delegate only); SceneView main effect untouched.
+
+### Changes
+- **TextureMaker** (~1012 → **288**): `preview/*`, `layers/*`, integrator shell — [integrate shell](9c30b3f0-571a-4e2c-8777-32b85edc6010).
+- **rapierPhysics** (~1156 → **930**): `colliderDescBuilder.ts` — [colliderDescBuilder extract](33b405a1-fb06-49f6-97ea-f20b07979eb5).
+- **renderItemRegistry** (~1337 → **1289**): `renderItemRegistryDistanceCulling.ts` — [registry distance culling](607f8ba4-af9d-46d0-91be-deaff205a795).
+- **SceneView** (1421 → **1394**): `debugForces`, `pointerNdc`, `sceneCameraPose`, `planSemiFixedPushFrames` — [SceneView safe helpers](d9a97649-5c3c-462c-8e17-8199a6e260c4).
+- **ProjectContext** (724 → **680**): `useEntityWorkHistory` — [useEntityWorkHistory extract](2464be34-3e61-4053-b1ea-513701864dad).
+- **Builder** (1725 → **1478** at Phase 30): pose-sync + explorer selection — see Phase 31 for workspace slice to **1347**.
+
+### Orchestration note
+[L2 god-file cleanup](07398815-183b-4a51-a12d-eb9007a982d7) errored mid-audit; L3 spawns landed (Phase 31). **L1 closure:** vitest + tsc verified below.
+
+### Tests
+- Full `npx vitest run`: **223 files / 1991 passed / 3 skipped** (L1 post-L2 abort).
+
+### Deferred
+- SceneView **618-line** scene-build effect / SceneRuntimeSession (architecture HTML **Strong** — explicit defer).
+- `renderItemRegistry` transformer exec internal module (Phase 34 landed mesh sync).
+- `useProjectIO` (Phase 8); Builder clipboard / optional `BuilderLayout` JSX split.
+- `TextureMakerStudioTool` → small types module (preview import hygiene).
 
 ---
 
@@ -101,12 +190,14 @@ Living backlog for stabilization passes. **Do not redo completed work** — scan
 
 | File | Lines (approx) | Suggested extraction |
 |------|------------------|----------------------|
-| `pages/Builder.tsx` | 1177 | Selection/import handlers, `syncPosesThen` (texture maker done) |
-| `components/SceneView.tsx` | ~1058 | Main scene-build `useEffect`; rAF wrapper |
-| `physics/rapierPhysics.ts` | ~1085 | Collider/body/step modules |
-| `TextureMaker/TextureMaker.tsx` | ~1028 | Tools/layers sub-components |
-| `runtime/renderItemRegistry.ts` | ~1337 | Transformer exec, culling, mesh sync |
-| `contexts/ProjectContext.tsx` | ~587 | IO still coupled to refs (see Phase 8 note in history) |
+| `pages/Builder.tsx` | **1006** | Gizmo/perf/texture wiring remain; entity world actions in `useBuilderEntityWorldActions` |
+| `components/SceneView.tsx` | **1394** | Main scene-build `useEffect` (**618 lines**, deferred); safe helpers done (Phase 30) |
+| `physics/rapierPhysics.ts` | **930** | Step/touching contact dedup (hot — perf gate); collider factory done |
+| `TextureMaker/TextureMaker.tsx` | **288** | Done (Phase 30); optional types module for studio tool |
+| `runtime/renderItemRegistry.ts` | **1018** | Transformer exec (culling Phase 30; mesh sync Phase 34) |
+| `contexts/ProjectContext.tsx` | **680** | `useProjectPersistence`, `useProjectImportExport`; assets + last-project id done (Phase 31) |
+
+**Architecture review (2026-09-18):** `/var/folders/cg/87j3kd8s3dqctsflnp71st2w0000gn/T/architecture-review-20260918-2128.html` — next: TransformerFrameRunner, then SceneRuntimeSession when approved.
 
 Smaller splits done: WorldPanel, EntitySidebar, PropertyPanel, TextureDialog — see phase index.
 
@@ -146,6 +237,7 @@ Priority panels done (phases 2–3, 6, 18, 29). Still scattered accents: `SceneV
 - [x] `scriptCtx.time` live; LivePosesPoll scoped
 - [x] Pipe/stage seams: `pipeNavEdit`, `commitStageEdit`, `EntityStageRuntime`, stage strip `scope`
 - [x] AI doc consolidation (Phase 28)
-- [ ] Remaining god files and hex opportunistic migration
+- [~] Remaining god files — Phase 30 slices; SceneView mega-effect + registry transformer exec still open
+- [ ] Hex opportunistic migration
 
 After edits: `npm run test:run` and keep baseline green or better.
