@@ -11,6 +11,7 @@ import EntitySearchPicker from '@/components/entitySearch/EntitySearchPicker'
 import type { WorkspaceMonacoEditorChrome } from '@/types/workspaceMonacoChrome'
 import { createPortal } from 'react-dom'
 import type { editor } from 'monaco-editor'
+import type { ApplyWorldWrite } from '@/editor/applyWorldEdit'
 import type { RennWorld } from '@/types/world'
 import type { TransformerConfig } from '@/types/transformer'
 import type {
@@ -40,7 +41,7 @@ import {
   isWorkspaceEditorInitialRefreshDone,
   markWorkspaceEditorInitialRefreshDone,
 } from '@/components/workspaceMonacoSession'
-import { workspaceEditorItemKey } from '@/utils/workspaceEditorViewState'
+import { workspaceEditorItemKey } from '@/utils/workspaceEditorItemKey'
 import {
   createWorkspaceEditorSession,
   monacoWorkspaceEditorAdapter,
@@ -133,6 +134,8 @@ export interface WorkspaceProps {
   world: RennWorld
   selectedEntityIds: string[]
   onWorldChange: (world: RennWorld) => void
+  /** Builder-bound `applyWorldEdit` for pipe-nav commits (Candidate 6 slice). */
+  applyWorldWrite?: ApplyWorldWrite
   /** When multi-entity merges use the parent-provided transformer commit path (builder wiring). */
   onEntityTransformersChange?: (
     entityIds: string[],
@@ -186,6 +189,7 @@ export default function Workspace({
   world,
   selectedEntityIds,
   onWorldChange,
+  applyWorldWrite,
   onEntityTransformersChange,
   onMergedPipeParamSync,
   liveTransformerTraceSteps = null,
@@ -755,6 +759,7 @@ export default function Workspace({
                         workspaceOpen={open}
                         liveTraceSteps={liveTransformerTraceSteps}
                         onWorldChange={onWorldChange}
+                        applyWorldWrite={applyWorldWrite}
                         onEntityTransformersChange={onEntityTransformersChange}
                         onMergedPipeParamSync={onMergedPipeParamSync}
                         setMonacoPayload={setMonacoPayload}

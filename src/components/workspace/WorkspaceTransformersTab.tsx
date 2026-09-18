@@ -5,7 +5,6 @@ import {
   useMemo,
   useRef,
   useState,
-  useSyncExternalStore,
   type CSSProperties,
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
@@ -29,6 +28,7 @@ import {
   commitTransformerConfigsToWorld,
   mapTransformerRegistryIdsToEntity,
 } from '@/utils/commitTransformerConfigsToWorld'
+import type { ApplyWorldWrite } from '@/editor/applyWorldEdit'
 import {
   commitStageEdit,
   type StageCommitKind,
@@ -52,11 +52,6 @@ import TransformerPipeNavSidebar, {
 import PipeFocusedStrip from '@/components/workspace/pipeNav/PipeFocusedStrip'
 import PipeNavDialogs from '@/components/workspace/pipeNav/PipeNavDialogs'
 import PipeNavOpenToggle from '@/components/workspace/pipeNav/PipeNavOpenToggle'
-import {
-  subscribeCustomTransformerRuntimeError,
-  getCustomTransformerRuntimeErrors,
-  runtimeErrorTargetKey,
-} from '@/runtime/customTransformerErrorBridge'
 import { mergeTransformers } from '@/utils/entityInspectorMerge'
 import {
   TransformerHorizontalPipeline,
@@ -71,6 +66,8 @@ import { workspaceMonacoToolbarButtonStyle } from '@/components/workspace/worksp
 import EntitySearchPicker from '@/components/entitySearch/EntitySearchPicker'
 import type { WorkspaceMonacoEditorChrome } from '@/types/workspaceMonacoChrome'
 import { useDebouncedCompileErrorDisplay } from '@/hooks/useDebouncedCompileErrorDisplay'
+import { useStageRuntimeErrorDisplay } from '@/hooks/useStageRuntimeErrorDisplay'
+import { useTransformerCodeDraft } from '@/hooks/useTransformerCodeDraft'
 
 /** Preset toolbar sits in reserved left gutter; pipeline draws to the right (stage cards visually layer above). */
 const PIPELINE_PRESET_TOOLS_GUTTER_PX = 52
@@ -98,8 +95,6 @@ function presetBehindPipelineChipStyle(active: boolean, locked: boolean): CSSPro
     transition: 'opacity 0.12s ease, border-color 0.12s ease, background 0.12s ease',
   }
 }
-
-const CODE_DEBOUNCE_MS = 350
 
 function supportsTemplatePickers(type: string): boolean {
   return isPresetTransformerType(type) && type !== 'custom'
@@ -133,6 +128,7 @@ export interface WorkspaceTransformersTabProps {
   workspaceOpen: boolean
   liveTraceSteps: TransformerTraceStep[] | null | undefined
   onWorldChange: (world: RennWorld) => void
+  applyWorldWrite?: ApplyWorldWrite
   onEntityTransformersChange?: (
     entityIds: string[],
     transformers: TransformerConfig[],
@@ -198,6 +194,7 @@ function WorkspaceTransformersTabEntity({
   workspaceOpen,
   liveTraceSteps = null,
   onWorldChange,
+  applyWorldWrite,
   onEntityTransformersChange,
   onMergedPipeParamSync,
   setMonacoPayload,
@@ -310,44 +307,8 @@ function WorkspaceTransformersTabEntity({
 
   const [watchOpen, setWatchOpen] = useState(false)
 
-  /** Custom code Monaco state */
-  const [codeDraft, setCodeDraft] = useState('')
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false)
-
-  const debounceTimerRef = useRef<number | null>(null)
-  const listRef = useRef(list)
-  listRef.current = list
-  const transformerIdsRef = useRef(transformerIds)
-  transformerIdsRef.current = transformerIds
-  const selectedIdRef = useRef(selectedId)
-  selectedIdRef.current = selectedId
-  const codeDraftRef = useRef(codeDraft)
-  codeDraftRef.current = codeDraft
-  const lastCommittedCodeRef = useRef('')
-  const codeUndoPrimedRef = useRef(false)
-  const editorStageIdsRef = useRef<string[]>([])
-  const editorStageConfigsRef = useRef<TransformerConfig[]>([])
-  const usePipeScopedCodeCommitRef = useRef(false)
-  const commitCustomCodeEditRef = useRef<(text: string) => void>(() => {})
-
-  const flushPendingCode = useCallback(() => {
-    if (debounceTimerRef.current != null) {
-      window.clearTimeout(debounceTimerRef.current)
-      debounceTimerRef.current = null
-    }
-    const sid = selectedIdRef.current
-    const scopeConfigs = usePipeScopedCodeCommitRef.current
-      ? editorStageConfigsRef.current
-      : listRef.current
-    const idx = (
-      usePipeScopedCodeCommitRef.current ? editorStageIdsRef.current : transformerIdsRef.current
-    ).indexOf(sid ?? '')
-    if (idx < 0 || scopeConfigs[idx]?.type !== 'custom') return
-    const text = codeDraftRef.current
-    const prevEffective = effectiveCustomTransformerCode(scopeConfigs[idx]!)
-    if (text === prevEffective) return
-    commitCustomCodeEditRef.current(text)
-  }, [])
+  const flushPendingCodeRef = useRef<() => void>(() => {})
 
   const pipeNav = usePipeNavController(
     world,
@@ -356,11 +317,12 @@ function WorkspaceTransformersTabEntity({
     onWorldChange,
     onEntryChange,
     onMergedPipeParamSync,
+    applyWorldWrite,
   )
 
   /** `StageStackWriter` for the entity's flat transformer stack. */
   const writeFlatStack = useCallback<StageStackWriter>(
-    (configs, orderedRegistryIds) => {
+    (configs, orderedRegistryIds, _intentKind) => {
       commitStacksRaw(configs, orderedRegistryIds)
       // `commitStacksRaw` may hand the write to `onEntityTransformersChange`, which owns its own
       // world update, so there is no world here to re-derive merged pipe params from.
@@ -384,13 +346,23 @@ function WorkspaceTransformersTabEntity({
       commitStageEdit(intent, {
         world,
         entityIds: entityIdsForEdit,
-        flushPendingCode,
+        flushPendingCode: () => flushPendingCodeRef.current(),
         undo,
         onWorldChange,
+        applyWorldWrite,
         writeStack: scope === 'strip' ? writeStripStack : writeFlatStack,
         onMergedParamSync: onMergedPipeParamSync,
       }),
-    [world, entityIdsForEdit, flushPendingCode, undo, onWorldChange, onMergedPipeParamSync, writeFlatStack, writeStripStack],
+    [
+      world,
+      entityIdsForEdit,
+      undo,
+      onWorldChange,
+      applyWorldWrite,
+      onMergedPipeParamSync,
+      writeFlatStack,
+      writeStripStack,
+    ],
   )
 
   const handleCommitStages = useCallback(
@@ -435,32 +407,6 @@ function WorkspaceTransformersTabEntity({
   const editorStageConfigs =
     usePipeNav && pipeNav.view?.mode !== 'pipe_siblings' ? pipeNav.stageData.configs : list
 
-  editorStageIdsRef.current = editorStageIds
-  editorStageConfigsRef.current = editorStageConfigs
-  usePipeScopedCodeCommitRef.current = Boolean(
-    singleEntity &&
-      getEntityPipeStack(singleEntity).length > 0 &&
-      pipeNav.view?.mode !== 'pipe_siblings',
-  )
-  commitCustomCodeEditRef.current = (text: string) => {
-    const pipeScoped = usePipeScopedCodeCommitRef.current
-    const ids = pipeScoped ? editorStageIdsRef.current : transformerIdsRef.current
-    const configs = pipeScoped ? editorStageConfigsRef.current : listRef.current
-    const idx = ids.indexOf(selectedIdRef.current ?? '')
-    if (idx < 0 || configs[idx]?.type !== 'custom') return
-
-    lastCommittedCodeRef.current = text
-    runStageEdit(
-      {
-        kind: 'codeEdit',
-        configs: syncPriorities(configs.map((t, i) => (i === idx ? { ...t, code: text } : t))),
-        // Pipe scope resolves its own ordered ids from the focused stage list.
-        orderedRegistryIds: pipeScoped ? undefined : ids,
-      },
-      pipeScoped ? 'strip' : 'flat',
-    )
-  }
-
   /** Index within the focused editor stage list (`editorStageConfigs`). */
   const selectedEditorIndex = useMemo(() => {
     if (!selectedId) return 0
@@ -494,6 +440,64 @@ function WorkspaceTransformersTabEntity({
   const selectedConfig = editorStageConfigs[selectedEditorIndex] ?? null
   const selectedPreset = selectedConfig && isPresetTransformerType(selectedConfig.type) ? selectedConfig : null
 
+  const syncCodeKey =
+    selectedConfig?.type === 'custom'
+      ? `${selectedId}:${selectedConfig.code ?? ''}`
+      : ''
+
+  const pipeScopedForCodeCommit = Boolean(
+    singleEntity &&
+      getEntityPipeStack(singleEntity).length > 0 &&
+      pipeNav.view?.mode !== 'pipe_siblings',
+  )
+
+  const getCodeDraftFlushContext = useCallback(
+    () => ({
+      selectedId,
+      pipeScoped: pipeScopedForCodeCommit,
+      registryIds: pipeScopedForCodeCommit ? editorStageIds : transformerIds,
+      configs: pipeScopedForCodeCommit ? editorStageConfigs : list,
+    }),
+    [
+      selectedId,
+      pipeScopedForCodeCommit,
+      editorStageIds,
+      transformerIds,
+      editorStageConfigs,
+      list,
+    ],
+  )
+
+  const onCommitCustomCodeRef = useRef<(text: string) => void>(() => {})
+
+  const { codeDraft, handleCodeChange, flushPendingCode } = useTransformerCodeDraft({
+    syncCodeKey,
+    selectedConfig,
+    selectedId,
+    getFlushContext: getCodeDraftFlushContext,
+    onCommit: (text) => onCommitCustomCodeRef.current(text),
+    undo,
+  })
+
+  flushPendingCodeRef.current = flushPendingCode
+
+  onCommitCustomCodeRef.current = (text: string) => {
+    const pipeScoped = pipeScopedForCodeCommit
+    const ids = pipeScoped ? editorStageIds : transformerIds
+    const configs = pipeScoped ? editorStageConfigs : list
+    const idx = ids.indexOf(selectedId ?? '')
+    if (idx < 0 || configs[idx]?.type !== 'custom') return
+
+    runStageEdit(
+      {
+        kind: 'codeEdit',
+        configs: syncPriorities(configs.map((t, i) => (i === idx ? { ...t, code: text } : t))),
+        orderedRegistryIds: pipeScoped ? undefined : ids,
+      },
+      pipeScoped ? 'strip' : 'flat',
+    )
+  }
+
   const ungroupedStageIds = useMemo(() => {
     if (!singleEntity) return []
     return findUngroupedStageIds(world, singleEntity)
@@ -507,143 +511,12 @@ function WorkspaceTransformersTabEntity({
     onWorldChange(nextWorld)
   }, [singleEntity, ungroupedStageIds.length, world, undo, onWorldChange])
 
-  const runtimeErrorsByTarget = useSyncExternalStore(
-    subscribeCustomTransformerRuntimeError,
-    getCustomTransformerRuntimeErrors,
-    () => new Map(),
-  )
-
-  const runtimeSnapshot = useMemo(() => {
-    for (const entityId of selectedEntityIds) {
-      const err = runtimeErrorsByTarget.get(runtimeErrorTargetKey(entityId, selectedFlatStackIndex))
-      if (err) return err
-    }
-    return null
-  }, [runtimeErrorsByTarget, selectedEntityIds, selectedFlatStackIndex])
-
-  const lastErrorRef = useRef<{ message: string; stack?: string; code: string; lineNumber?: number } | null>(null)
-  const runtimeErrorForSelection = useMemo(() => {
-    if (runtimeSnapshot == null) {
-      lastErrorRef.current = null
-      return null
-    }
-    const isForSelection =
-      selectedEntityIds.includes(runtimeSnapshot.entityId) &&
-      runtimeSnapshot.configStackIndex === selectedFlatStackIndex
-    if (!isForSelection) {
-      lastErrorRef.current = null
-      return null
-    }
-
-    const next = {
-      message: runtimeSnapshot.message,
-      stack: runtimeSnapshot.stack,
-      code: runtimeSnapshot.code,
-      lineNumber: runtimeSnapshot.lineNumber,
-    }
-
-    if (
-      lastErrorRef.current &&
-      lastErrorRef.current.message === next.message &&
-      lastErrorRef.current.stack === next.stack &&
-      lastErrorRef.current.code === next.code &&
-      lastErrorRef.current.lineNumber === next.lineNumber
-    ) {
-      return lastErrorRef.current
-    }
-
-    lastErrorRef.current = next
-    return next
-  }, [runtimeSnapshot, selectedEntityIds, selectedFlatStackIndex])
-
-  // Display state: keep the last runtime error visible for a short grace period even after
-  // the runtime source clears. Show an "active" window briefly, then dim (80% opacity)
-  // while keeping the message for KEEP_MS.
-  const RUNTIME_KEEP_MS = 10_000
-  const RUNTIME_ACTIVE_MS = 1500
-  const [displayedRuntime, setDisplayedRuntime] = useState<null | { message: string; stack?: string; code: string; lineNumber?: number }>(
-    runtimeErrorForSelection,
-  )
-  const [runtimeActive, setRuntimeActive] = useState<boolean>(true)
-  const runtimeKeepTimerRef = useRef<number | null>(null)
-  const runtimeActiveTimerRef = useRef<number | null>(null)
+  const runtimeErrors = useStageRuntimeErrorDisplay(selectedEntityIds, selectedFlatStackIndex)
   const codeColumnRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!workspaceOpen) setWatchOpen(false)
   }, [workspaceOpen])
-
-  useEffect(() => {
-    // If a new runtime error appears for the selection, show it immediately and start the
-    // active window timer.
-    if (runtimeErrorForSelection) {
-      if (runtimeKeepTimerRef.current) {
-        window.clearTimeout(runtimeKeepTimerRef.current)
-        runtimeKeepTimerRef.current = null
-      }
-
-      // Only update state if it actually changed to avoid redundant re-renders.
-      setDisplayedRuntime((prev) => {
-        if (
-          prev &&
-          prev.message === runtimeErrorForSelection.message &&
-          prev.stack === runtimeErrorForSelection.stack &&
-          prev.code === runtimeErrorForSelection.code &&
-          prev.lineNumber === runtimeErrorForSelection.lineNumber
-        ) {
-          return prev
-        }
-        return runtimeErrorForSelection
-      })
-      setRuntimeActive(true)
-
-      // Only restart the active timer if the error is different or if it's not already running.
-      // This prevents resetting it every frame during live trace updates.
-      const isSameError =
-        displayedRuntime &&
-        displayedRuntime.message === runtimeErrorForSelection.message &&
-        displayedRuntime.stack === runtimeErrorForSelection.stack &&
-        displayedRuntime.code === runtimeErrorForSelection.code &&
-        displayedRuntime.lineNumber === runtimeErrorForSelection.lineNumber
-
-      if (!isSameError || !runtimeActiveTimerRef.current) {
-        if (runtimeActiveTimerRef.current) {
-          window.clearTimeout(runtimeActiveTimerRef.current)
-        }
-        runtimeActiveTimerRef.current = window.setTimeout(() => {
-          runtimeActiveTimerRef.current = null
-          setRuntimeActive(false)
-        }, RUNTIME_ACTIVE_MS)
-      }
-      return
-    }
-
-    // If the source cleared but we still have a displayed message, dim it and schedule its removal.
-    if (displayedRuntime) {
-      setRuntimeActive(false)
-      // Only start the keep timer if it's not already running. This prevents resetting
-      // the timer every frame during live trace updates.
-      if (!runtimeKeepTimerRef.current) {
-        runtimeKeepTimerRef.current = window.setTimeout(() => {
-          runtimeKeepTimerRef.current = null
-          setDisplayedRuntime(null)
-        }, RUNTIME_KEEP_MS)
-      }
-    }
-
-    return () => {
-      // NOTE: We do NOT clear timers on cleanup here because this effect re-runs frequently
-      // during live traces. Timers are managed by the guards above to be stable across renders.
-    }
-  }, [runtimeErrorForSelection, displayedRuntime, runtimeActive])
-
-  // Separate unmount cleanup to ensure no leaked timers.
-  useEffect(() => {
-    return () => {
-      if (runtimeKeepTimerRef.current) window.clearTimeout(runtimeKeepTimerRef.current)
-      if (runtimeActiveTimerRef.current) window.clearTimeout(runtimeActiveTimerRef.current)
-    }
-  }, [])
 
   const selectedCustomCompileKey =
     selectedConfig?.type === 'custom'
@@ -683,11 +556,8 @@ function WorkspaceTransformersTabEntity({
       if (errors[i] === 'compile') continue
       const flatIdx =
         usePipeNav && singleEntity && pipeNav.view?.mode !== 'pipe_siblings' ? flatBase + i : i
-      for (const entityId of selectedEntityIds) {
-        if (runtimeErrorsByTarget.has(runtimeErrorTargetKey(entityId, flatIdx))) {
-          errors[i] = 'runtime'
-          break
-        }
+      if (runtimeErrors.hasErrorAt(flatIdx)) {
+        errors[i] = 'runtime'
       }
     }
     return errors
@@ -701,33 +571,8 @@ function WorkspaceTransformersTabEntity({
     list,
     selectedEditorIndex,
     codeDraft,
-    runtimeErrorsByTarget,
-    selectedEntityIds,
+    runtimeErrors.hasErrorAt,
   ])
-
-  const syncCodeKey =
-    selectedConfig?.type === 'custom'
-      ? `${selectedId}:${selectedConfig.code ?? ''}`
-      : ''
-
-  useEffect(() => {
-    if (debounceTimerRef.current != null) {
-      window.clearTimeout(debounceTimerRef.current)
-      debounceTimerRef.current = null
-    }
-    if (selectedConfig?.type !== 'custom') {
-      setCodeDraft('')
-      return
-    }
-    const worldCode = effectiveCustomTransformerCode(selectedConfig)
-    if (codeDraftRef.current === worldCode) {
-      lastCommittedCodeRef.current = worldCode
-      return
-    }
-    setCodeDraft(worldCode)
-    lastCommittedCodeRef.current = worldCode
-    codeUndoPrimedRef.current = false
-  }, [syncCodeKey, selectedConfig, selectedId])
 
   /** Default first stage when nothing selected (entry anchor effect sets itemId when present). */
   useEffect(() => {
@@ -742,26 +587,6 @@ function WorkspaceTransformersTabEntity({
       setSelectedId(sortedPairs[0]?.id ?? null)
     }
   }, [sortedPairs, selectedId])
-
-  const scheduleCodeCommit = useCallback((text: string) => {
-    if (debounceTimerRef.current != null) window.clearTimeout(debounceTimerRef.current)
-    debounceTimerRef.current = window.setTimeout(() => {
-      debounceTimerRef.current = null
-      commitCustomCodeEditRef.current(text)
-    }, CODE_DEBOUNCE_MS)
-  }, [])
-
-  const handleCodeChange = useCallback(
-    (text: string) => {
-      if (!codeUndoPrimedRef.current) {
-        undo?.pushBeforeEdit()
-        codeUndoPrimedRef.current = true
-      }
-      setCodeDraft(text)
-      scheduleCodeCommit(text)
-    },
-    [scheduleCodeCommit, undo],
-  )
 
   const changeSelectedIdWithFlush = useCallback(
     (
@@ -1003,12 +828,12 @@ function WorkspaceTransformersTabEntity({
 
   const handleRuntimeErrorContextMenu = useCallback(
     (e: ReactMouseEvent) => {
-      if (runtimeErrorForSelection == null) return
+      if (runtimeErrors.error == null) return
       e.preventDefault()
       e.stopPropagation()
-      openMenu(e, () => formatCustomRuntimeErrorClipboard(runtimeErrorForSelection))
+      openMenu(e, () => formatCustomRuntimeErrorClipboard(runtimeErrors.error!))
     },
-    [openMenu, runtimeErrorForSelection],
+    [openMenu, runtimeErrors.error],
   )
 
   if (transformersMixed && selectedEntityIds.length > 0) {
@@ -1350,8 +1175,8 @@ function WorkspaceTransformersTabEntity({
         {monacoIsCustom && selectedConfig ?
           <TransformerCodeErrorOverlay
             compileError={displayedCompileError}
-            runtimeError={displayedRuntime}
-            runtimeActive={runtimeActive}
+            runtimeError={runtimeErrors.displayed}
+            runtimeActive={runtimeErrors.active}
             formatRuntimeClipboard={formatCustomRuntimeErrorClipboard}
             onRuntimeContextMenu={handleRuntimeErrorContextMenu}
           />

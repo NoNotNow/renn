@@ -10,9 +10,10 @@ import type { RennWorld } from '@/types/world'
 import {
   clearWorkspaceEditorViewStateStoreForTests,
   loadWorkspaceEditorViewState,
-  workspaceEditorItemKey,
   type WorkspaceEditorViewState,
 } from '@/utils/workspaceEditorViewState'
+import { clearWorkspaceEditorDraftStoreForTests } from '@/utils/workspaceEditorDraft'
+import { workspaceEditorItemKey } from '@/utils/workspaceEditorItemKey'
 
 function viewStateScrollTop(state: WorkspaceEditorViewState | undefined): number | undefined {
   return (state as { scrollTop?: number } | undefined)?.scrollTop
@@ -261,6 +262,7 @@ describe('Builder workspace persistence integration', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     clearWorkspaceEditorViewStateStoreForTests()
+    clearWorkspaceEditorDraftStoreForTests()
     monacoHarness.activeItemKey = null
     monacoHarness.scrollTop = 0
     monacoHarness.lineNumber = 1

@@ -210,7 +210,7 @@ Everything that is *not* a stage-strip commit — create/add/rename pipe, enable
 resolvePipeNavEdit(intent, { world, entityId, focus, prompts }): { world, nav?, syncEntityIds? } | null
 ```
 
-- **Pure.** No writes, no undo push, no React state. The controller applies the result in a fixed order: undo checkpoint (per `PIPE_NAV_EDIT_POLICY`) → `onWorldChange` → `setPath` → merged-param sync.
+- **Pure.** No writes, no undo push, no React state. The controller applies the result in a fixed order: world write (via `applyPipeNavWorldWrite` when Builder injects `applyWorldWrite`, else undo checkpoint + `onWorldChange`) → `setPath` → merged-param sync.
 - **`null` means no-op**, and is what stops a spurious undo entry: entity gone, confirmation declined, illegal drop, or the mutation left the world untouched with the focus unmoved.
 - **`nav` is the reconciled focus.** Structural edits clamp the path against the **post-edit** entity via `reconcilePipeNavPath`, so a delete can never leave the focus on a dangling stack index. This is the logic that justifies the module.
 - **`prompts`** (`confirm` / `warn`) is injected — `windowPipeNavPrompts` in the app, a recording stub in tests. No `window.confirm` reaches the resolver.

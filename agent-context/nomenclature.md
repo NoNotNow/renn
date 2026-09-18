@@ -33,6 +33,23 @@ Canonical terms used throughout the transformer/pipe system. Use these names con
 
 ---
 
+## Behavior registry bindings
+
+A **behavior registry** is one of the three id-keyed maps a world carries — `scripts`, `transformers`, `transformerPipes` — named by `WorkspaceOrganizeKind` (`'scripts' | 'transformers' | 'pipes'`). A **binding** is an entity referencing one of their ids: `entity.scripts`, `entity.transformers`, or a `transformerPipeStack` entry (`transformerPipe` for legacy worlds).
+
+`behaviorRegistryBindings(kind)` answers the only two questions the UI asks about bindings, in either direction:
+
+| Query | Answers |
+|---|---|
+| `entitiesUsing(world, itemId)` | Which entities reference this item, in world order, each listed once — the "used by" lists on Organize cards and the initial selection of the assign dialog |
+| `idsSharedBy(entities)` | Which ids **every** one of these entities references — Entity-scope card lists for a multi-selection; `[]` for an empty selection |
+
+One generic implementation reads a per-kind id selector, so the three kinds cannot drift apart. The instances are module-level and stable, so calling `behaviorRegistryBindings(kind)` inside a `useMemo` adds no dependency. Not to be confused with the **global behavior library**, which is the IndexedDB store of project-independent definitions.
+
+Seam tested in `behaviorRegistryBindings.test.ts`.
+
+---
+
 ## Stage strip scope
 
 `TransformerHorizontalPipeline` renders in three different hosts, and everything that differs between them is named by one `scope` prop rather than a spread of booleans. `resolveStageStripChrome(scope)` turns it into the layout/chrome values the strip uses internally.

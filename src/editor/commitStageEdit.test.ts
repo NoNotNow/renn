@@ -5,6 +5,8 @@ import {
   type StageEditContext,
   type StageEditIntent,
 } from './commitStageEdit'
+import { stageWorldEditDescriptor } from './applyStageWorldWrite'
+import type { ApplyWorldWrite } from './applyWorldEdit'
 import type { TransformerConfig } from '@/types/transformer'
 import type { RennWorld } from '@/types/world'
 
@@ -258,7 +260,7 @@ describe('commitStageEdit', () => {
       commitStageEdit({ kind: 'commitStages', configs, orderedRegistryIds }, ctx)
 
       expect(ctx.writeStack).toHaveBeenCalledOnce()
-      expect(ctx.writeStack).toHaveBeenCalledWith(configs, orderedRegistryIds)
+      expect(ctx.writeStack).toHaveBeenCalledWith(configs, orderedRegistryIds, 'commitStages')
       expect(ctx.onWorldChange).not.toHaveBeenCalled()
     })
 
@@ -278,6 +280,47 @@ describe('commitStageEdit', () => {
       commitStageEdit(intentForKind('commitStages'), ctx)
 
       expect(ctx.onMergedParamSync).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('applyWorldWrite seam', () => {
+    it('patch routes through ApplyWorldWrite and does not double-push undo', () => {
+      const applyWorldWrite = vi.fn<ApplyWorldWrite>()
+      const ctx = makeCtx({ applyWorldWrite })
+
+      commitStageEdit(intentForKind('patch'), ctx)
+
+      expect(applyWorldWrite).toHaveBeenCalledOnce()
+      const [descriptor, produceNext] = applyWorldWrite.mock.calls[0]!
+      expect(descriptor).toEqual(stageWorldEditDescriptor(STAGE_EDIT_POLICY.patch.pushUndo))
+      expect(ctx.undo!.pushBeforeEdit).not.toHaveBeenCalled()
+      expect(ctx.onWorldChange).not.toHaveBeenCalled()
+      expect(produceNext(minimalWorld())).toMatchObject({
+        transformers: expect.objectContaining({
+          s1: { type: 'input', enabled: false },
+        }),
+      })
+    })
+
+    it('makeUnique routes through ApplyWorldWrite', () => {
+      const applyWorldWrite = vi.fn<ApplyWorldWrite>()
+      const ctx = makeCtx({ applyWorldWrite })
+
+      commitStageEdit(intentForKind('makeUnique'), ctx)
+
+      expect(applyWorldWrite).toHaveBeenCalledOnce()
+      expect(ctx.onWorldChange).not.toHaveBeenCalled()
+      expect(ctx.undo!.pushBeforeEdit).not.toHaveBeenCalled()
+    })
+
+    it('stack intents pass intent kind to writeStack for pipe-scoped seam writes', () => {
+      const ctx = makeCtx()
+      commitStageEdit(intentForKind('reorder'), ctx)
+      expect(ctx.writeStack).toHaveBeenCalledWith(
+        expect.any(Array),
+        expect.any(Array),
+        'reorder',
+      )
     })
   })
 

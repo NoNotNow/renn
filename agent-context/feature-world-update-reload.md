@@ -165,7 +165,7 @@ Use this to answer "does changing this property rebuild the scene?"
 
 ## Stage edits in `WorkspaceTransformersTab`
 
-This tab writes the world outside `applyWorldEdit` (it only gets `onWorldChange`). Stage-strip commits go through [`commitStageEdit`](../src/editor/commitStageEdit.ts) — the single policy site for flush / undo / merged pipe-param sync.
+Pipe-nav commits from `usePipeNavController` call [`applyPipeNavWorldWrite`](../src/editor/applyPipeNavWorldWrite.ts) when Builder injects `applyWorldWrite` (`scene: sync`, undo from `PIPE_NAV_EDIT_POLICY`). Stage-strip commits go through [`commitStageEdit`](../src/editor/commitStageEdit.ts) (flush / undo / merged pipe-param sync by `STAGE_EDIT_POLICY`); when `applyWorldWrite` is set, patch/make-unique and pipe-scoped [`writeFocusedStages`](../src/hooks/usePipeNavController.ts) call [`applyStageWorldWrite`](../src/editor/applyStageWorldWrite.ts) (`scene: sync`, undo from the same policy table — no double push). Flat-stack `writeFlatStack` / `commitStacksRaw` and other tab writes still use `onWorldChange` → gateway `handleWorldChange` (`scene: auto`, undo skipped — callers push undo themselves).
 
 **Call shape:** `WorkspaceTransformersTab` builds a `StageEditContext` in `runStageEdit` with two scope-specific `StageStackWriter`s:
 

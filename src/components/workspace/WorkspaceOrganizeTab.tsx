@@ -11,9 +11,9 @@ import { getScriptDef } from '@/scripts/scriptDef'
 import { uiLogger } from '@/utils/uiLogger'
 import { theme } from '@/config/theme'
 import { assignPipeToEntity, deletePipeFromWorld } from '@/utils/commitTransformerConfigsToWorld'
+import { behaviorRegistryBindings } from '@/utils/behaviorRegistryBindings'
 import {
   entityUsesPipe,
-  getEntityPipeStack,
   removePipeFromEntityStack,
   replacePipeIdInEntityStack,
 } from '@/utils/transformerPipeResolve'
@@ -45,52 +45,6 @@ function deepClone<T>(x: T): T {
 function getScriptEventLabel(def: ReturnType<typeof getScriptDef>): string {
   if (!def) return '?'
   return def.event === 'onTimer' ? `onTimer (${def.interval}s)` : def.event
-}
-
-function getEntitiesUsingScript(world: RennWorld, scriptId: string): { id: string; name?: string }[] {
-  return world.entities.filter((e) => e.scripts?.includes(scriptId)).map((e) => ({ id: e.id, name: e.name }))
-}
-
-function getEntitiesUsingTransformer(world: RennWorld, transformerId: string): { id: string; name?: string }[] {
-  return world.entities.filter((e) => e.transformers?.includes(transformerId)).map((e) => ({ id: e.id, name: e.name }))
-}
-
-function getEntitiesUsingPipe(world: RennWorld, pipeId: string): { id: string; name?: string }[] {
-  return world.entities
-    .filter((e) => entityUsesPipe(e, pipeId))
-    .map((e) => ({ id: e.id, name: e.name }))
-}
-
-function scriptIdsIntersectionForEntities(entities: { scripts?: string[] }[]): string[] {
-  if (entities.length === 0) return []
-  let common = new Set(entities[0]!.scripts ?? [])
-  for (let i = 1; i < entities.length; i++) {
-    const next = new Set(entities[i]!.scripts ?? [])
-    common = new Set([...common].filter((id) => next.has(id)))
-  }
-  return [...common]
-}
-
-function transformerIdsIntersectionForEntities(entities: { transformers?: string[] }[]): string[] {
-  if (entities.length === 0) return []
-  let common = new Set(entities[0]!.transformers ?? [])
-  for (let i = 1; i < entities.length; i++) {
-    const next = new Set(entities[i]!.transformers ?? [])
-    common = new Set([...common].filter((id) => next.has(id)))
-  }
-  return [...common]
-}
-
-function pipeIdsIntersectionForEntities(
-  entities: Pick<import('@/types/world').Entity, 'transformerPipeStack' | 'transformerPipe'>[],
-): string[] {
-  if (entities.length === 0) return []
-  let common = new Set(getEntityPipeStack(entities[0]!).map((b) => b.pipeId))
-  for (let i = 1; i < entities.length; i++) {
-    const next = new Set(getEntityPipeStack(entities[i]!).map((b) => b.pipeId))
-    common = new Set([...common].filter((id) => next.has(id)))
-  }
-  return [...common]
 }
 
 function suggestCopyId(base: string, taken: Set<string>): string {
@@ -193,8 +147,8 @@ export default function WorkspaceOrganizeTab({
   const globalTransformers = useMemo(() => globalLibrary.transformers ?? {}, [globalLibrary.transformers])
   const globalPipes = globalLibrary.transformerPipes ?? {}
 
-  const entityIntersectionScriptIds = scriptIdsIntersectionForEntities(selectedEntities)
-  const entityIntersectionTransformerIds = transformerIdsIntersectionForEntities(selectedEntities)
+  const entityIntersectionScriptIds = behaviorRegistryBindings('scripts').idsSharedBy(selectedEntities)
+  const entityIntersectionTransformerIds = behaviorRegistryBindings('transformers').idsSharedBy(selectedEntities)
 
   const scriptIdsForCards = useMemo(() => {
     if (scope === 'global') return Object.keys(globalScripts).sort()
@@ -215,7 +169,7 @@ export default function WorkspaceOrganizeTab({
   const pipeIdsForCards = useMemo(() => {
     const registry = scope === 'global' ? globalLibrary.transformerPipes ?? {} : world.transformerPipes ?? {}
     if (scope === 'entity') {
-      return pipeIdsIntersectionForEntities(selectedEntities).filter((id) => registry[id] != null)
+      return behaviorRegistryBindings('pipes').idsSharedBy(selectedEntities).filter((id) => registry[id] != null)
     }
     return Object.keys(registry).sort()
   }, [scope, selectedEntities, world.transformerPipes, globalLibrary.transformerPipes])
@@ -271,12 +225,7 @@ export default function WorkspaceOrganizeTab({
 
   const assignInitialSelection = useMemo(() => {
     if (!assignTarget) return new Set<string>()
-    const users =
-      assignTarget.registry === 'scripts'
-        ? getEntitiesUsingScript(world, assignTarget.id)
-        : assignTarget.registry === 'pipes'
-        ? getEntitiesUsingPipe(world, assignTarget.id)
-        : getEntitiesUsingTransformer(world, assignTarget.id)
+    const users = behaviorRegistryBindings(assignTarget.registry).entitiesUsing(world, assignTarget.id)
     return new Set(users.map((u) => u.id))
   }, [assignTarget, world])
 
@@ -365,12 +314,7 @@ export default function WorkspaceOrganizeTab({
           : anchorEntity.transformers?.includes(itemId))
 
       if (!isUsedByCurrent) {
-        const users =
-          registry === 'scripts'
-            ? getEntitiesUsingScript(world, itemId)
-            : registry === 'pipes'
-            ? getEntitiesUsingPipe(world, itemId)
-            : getEntitiesUsingTransformer(world, itemId)
+        const users = behaviorRegistryBindings(registry).entitiesUsing(world, itemId)
         if (users.length > 0) {
           targetEntityId = users[0]!.id
           onSelectEntity?.(targetEntityId)
@@ -408,7 +352,7 @@ export default function WorkspaceOrganizeTab({
       return
     }
 
-    const entitiesUsing = getEntitiesUsingPipe(world, id)
+    const entitiesUsing = behaviorRegistryBindings('pipes').entitiesUsing(world, id)
     if (entitiesUsing.length > 0) {
       if (
         !window.confirm(
@@ -1048,7 +992,7 @@ export default function WorkspaceOrganizeTab({
               const def = getScriptDef(globalScripts, id)
               const subtitle = getScriptEventLabel(def)
               const inProject = scripts[id] != null
-              const users = inProject ? getEntitiesUsingScript(world, id) : []
+              const users = inProject ? behaviorRegistryBindings('scripts').entitiesUsing(world, id) : []
               const usageLine = inProject
                 ? `Also in this world · used by ${users.length} entity(ies)`
                 : 'Not in this world yet'
@@ -1106,7 +1050,7 @@ export default function WorkspaceOrganizeTab({
             return ids.map((id) => {
               const def = (scope === 'global' ? globalLibrary.transformerPipes ?? {} : world.transformerPipes ?? {})[id]
               if (!def) return null
-              const users = getEntitiesUsingPipe(world, id)
+              const users = behaviorRegistryBindings('pipes').entitiesUsing(world, id)
               return (
                 <WorkspaceOrganizeCard
                   key={id}
@@ -1183,7 +1127,7 @@ export default function WorkspaceOrganizeTab({
               const title = def.name || def.type
               const subtitle = `${id}${def.enabled === false ? ' · disabled' : ''}`
               const inProject = transformers[id] != null
-              const users = inProject ? getEntitiesUsingTransformer(world, id) : []
+              const users = inProject ? behaviorRegistryBindings('transformers').entitiesUsing(world, id) : []
               const usageLine = inProject
                 ? `Also in this world · used by ${users.length} entity(ies)`
                 : 'Not in this world yet'
@@ -1244,7 +1188,7 @@ export default function WorkspaceOrganizeTab({
             }
             return ids.map((id) => {
               const def = getScriptDef(scripts, id)
-              const users = getEntitiesUsingScript(world, id)
+              const users = behaviorRegistryBindings('scripts').entitiesUsing(world, id)
               const title = getScriptEventLabel(def)
               const subtitle = id
               const usageLine = `Used by ${users.length} entity(ies)`
@@ -1309,7 +1253,7 @@ export default function WorkspaceOrganizeTab({
               const def = transformers[id]!
               const title = def.name || def.type
               const subtitle = `${id}${def.enabled === false ? ' · disabled' : ''}`
-              const users = getEntitiesUsingTransformer(world, id)
+              const users = behaviorRegistryBindings('transformers').entitiesUsing(world, id)
               const usageLine = `Used by ${users.length} entity(ies)`
               const assignments = users.map((u) => ({ id: u.id, name: u.name ?? u.id }))
               return (

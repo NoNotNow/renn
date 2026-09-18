@@ -39,7 +39,8 @@ Scripts use `world.scripts: Record<string, ScriptDef>` with `entity.scripts: str
   visible (Transformers or Scripts tab), matching the manual **Refresh editor** layout escape hatch
   (refresh icon at the top of the shared Monaco **vertical toolbar** on the editor’s right edge in `WorkspaceMonacoSlot`).
 - **Session persistence** (Builder session, survives workspace close/reopen): active tab, entity, `itemId`, `pipeNavPath`, `pipeNavSelectedIndex` via `WorkspaceTarget` + per-entity `WorkspaceSessionMemory` in `Builder.tsx`. Per-entity memory restores pipe depth and transformer selection when switching entities in the workspace entity picker. Shell tab switches (Transformers ↔ Scripts ↔ Organize) preserve the same anchor fields so pipe depth is not reset when leaving and returning to Transformers.
-- **Monaco view state** (scroll + cursor per edited item): keyed by `workspaceEditorItemKey`, stored in `workspaceEditorViewState.ts`, and **all save/restore policy owned by [`workspaceEditorSession.ts`](../src/editor/workspaceEditorSession.ts)** — see § Editor session below. Unapplied script text is stored in the same module's draft map and survives close/reopen until Apply; drafts are owned by `WorkspaceScriptsTab`, not the session.
+- **Monaco view state** (scroll + cursor per edited item): keyed by [`workspaceEditorItemKey`](../src/utils/workspaceEditorItemKey.ts), stored in [`workspaceEditorViewState.ts`](../src/utils/workspaceEditorViewState.ts), and **all save/restore policy owned by [`workspaceEditorSession.ts`](../src/editor/workspaceEditorSession.ts)** — see § Editor session below.
+- **Script drafts** (unapplied Monaco text, survives close/reopen until Apply): separate store in [`workspaceEditorDraft.ts`](../src/utils/workspaceEditorDraft.ts), owned by `WorkspaceScriptsTab`, not the session. It shares only the key builder with view state. Each store has its own `clear…StoreForTests()`; a test that needs both must call both.
 
 #### Editor session (`src/editor/workspaceEditorSession.ts`)
 
@@ -70,6 +71,15 @@ Scripts use `world.scripts: Record<string, ScriptDef>` with `entity.scripts: str
 - **Add** **+** button on the pipeline opens a resizable dialog with **Preset** and **Existing** tabs; existing list stacks one row per organize title (like Organize); **Add** / **Link** / **Copy** as before. The new stage is auto-selected after confirm (custom stages open Monaco immediately).
 - Clicking a custom stage’s **code** control or **selecting the stage** (card body click, tree row, pipe card, sibling arrows) selects it for Monaco editing. `resolvePreferredStageId` picks the first custom stage at the focused pipe level when the click target is a pipe/container.
 - Custom transformer **compile** and **runtime** errors render as floating overlays (`TransformerCodeErrorOverlay`) over the code column so Monaco height stays fixed. Compile errors are debounced (500 ms) while typing and flush on editor blur; pipeline cards still show error borders immediately on every failing stage (multiple runtime errors in one chain are tracked independently).
+
+#### Tab hooks (both extracted from `WorkspaceTransformersTab.tsx`, phase 26)
+
+| Hook | Owns |
+|---|---|
+| [`useTransformerCodeDraft`](../src/hooks/useTransformerCodeDraft.ts) | The custom-stage Monaco draft: sync from world on selection change, debounced commit (`TRANSFORMER_CODE_DEBOUNCE_MS` **350**, browser-tuned), undo priming on the first keystroke, and `flushPendingCode()` for navigation / copy / editor refresh. A draft resets only when `syncCodeKey` (`selectedId` + committed code) changes, so an unrelated world edit cannot revert in-flight typing. |
+| [`useStageRuntimeErrorDisplay`](../src/hooks/useStageRuntimeErrorDisplay.ts) | Runtime errors from `customTransformerErrorBridge`, projected onto the selection: `error` (live, identity-stable so the card-error memo does not churn), `displayed` (live error, or the last one for `STAGE_RUNTIME_ERROR_KEEP_MS` **10 s** after the runtime stops reporting it), `active` (false only during that keep window — the overlay dims and switches border colour), and `hasErrorAt(flatStackIndex)` for stage-card badges. |
+
+The tab passes `flushPendingCode` to `commitStageEdit` through a ref, because the draft hook's commit callback goes back through `runStageEdit`.
 
 ### R3 — Scripts tab
 - Same Monaco editor as Transformers tab.
@@ -106,6 +116,8 @@ Each scope has **Transformers** and **Scripts** sub-tabs. Items appear as **card
 - Filtered view of project-scope cards showing only items assigned to the selected entity/ies.
 - Same cards, same actions — edits here are the same operation as in Project scope
   (no separate data layer).
+
+**Registry bindings.** Both questions the tab asks of every registry — "which entities use this item?" and "which ids do all selected entities share?" — go through [`behaviorRegistryBindings(kind)`](../src/utils/behaviorRegistryBindings.ts), `kind` being `WorkspaceOrganizeKind` (`scripts` / `transformers` / `pipes`). One generic implementation reads a per-kind id selector, so pipe bindings pick up the legacy single `transformerPipe` field via `getEntityPipeStack` for free. Instances are module-level and stable, so they are safe to call inside a `useMemo` without adding a dependency. `WorkspaceScriptsTab.tsx` still carries its own script-only copies of both queries — migrate it to this seam when next editing that file.
 - When multiple entities are selected, shows the **intersection** of assigned items
   (matching current multi-select script behaviour).
 

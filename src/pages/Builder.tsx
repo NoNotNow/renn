@@ -88,7 +88,7 @@ import { getFullscreenElement, isFullscreenEnabled } from '@/utils/fullscreenApi
 import TextureMaker from '@/components/TextureMaker/TextureMaker'
 import TransformerDocs from '@/components/TransformerDocs'
 import { getEntityApproximateSize } from '@/utils/entityApproximateSize'
-import { applyWorldEdit } from '@/editor/applyWorldEdit'
+import { applyWorldEdit, type ApplyWorldWrite } from '@/editor/applyWorldEdit'
 import { canApplyWorldSnapshotIncrementally } from '@/utils/incrementalSceneSync'
 import { computeMeshWorldMaxExtent } from '@/utils/meshWorldExtent'
 import { placeEntitiesInFrontOfCamera } from '@/utils/cameraFrontPlacement'
@@ -920,6 +920,11 @@ export default function Builder() {
     [worldEditDeps],
   )
 
+  const applyWorldWrite = useCallback<ApplyWorldWrite>(
+    (descriptor, produceNext) => applyWorldEdit(worldEditDeps, descriptor, produceNext),
+    [worldEditDeps],
+  )
+
   // ----- Explorer groups (Phase A: organizational only; no scene rebuild) -----
 
   const handleSelectGroup = useCallback(
@@ -1680,6 +1685,7 @@ export default function Builder() {
         world={world}
         selectedEntityIds={selectedEntityIds}
         onWorldChange={handleWorldChange}
+        applyWorldWrite={applyWorldWrite}
         onEntityTransformersChange={handleEntityTransformersChange}
         onMergedPipeParamSync={handleMergedPipeParamSync}
         liveTransformerTraceSteps={liveTraceSteps}

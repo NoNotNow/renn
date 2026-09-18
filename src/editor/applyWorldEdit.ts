@@ -26,6 +26,12 @@ export interface ApplyWorldEditDeps {
   syncWorldEntities: (prev: RennWorld, next: RennWorld) => void
 }
 
+/** Dependency-injected world write (Builder binds `ApplyWorldEditDeps` once). */
+export type ApplyWorldWrite = (
+  descriptor: WorldEditDescriptor,
+  produceNext: (prev: RennWorld) => RennWorld,
+) => void
+
 function applySceneFollowUp(
   deps: ApplyWorldEditDeps,
   scene: WorldEditScene,

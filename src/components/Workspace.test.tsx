@@ -4,7 +4,11 @@ import { act, render, screen, fireEvent, waitFor, within } from '@testing-librar
 import { useEffect, useRef, useState, type ReactElement } from 'react'
 import Workspace from './Workspace'
 import { resetWorkspaceEditorInitialRefreshForTests, WORKSPACE_EDITOR_OPEN_REFRESH_MS } from './workspaceMonacoSession'
-import { clearWorkspaceEditorViewStateStoreForTests, loadWorkspaceEditorDraft } from '@/utils/workspaceEditorViewState'
+import { clearWorkspaceEditorViewStateStoreForTests } from '@/utils/workspaceEditorViewState'
+import {
+  clearWorkspaceEditorDraftStoreForTests,
+  loadWorkspaceEditorDraft,
+} from '@/utils/workspaceEditorDraft'
 import type { WorkspaceTarget } from '@/types/workspace'
 import type { RennWorld } from '@/types/world'
 import type { TransformerDef } from '@/types/transformer'
@@ -180,6 +184,7 @@ describe('Workspace', () => {
     monacoMount.count = 0
     resetWorkspaceEditorInitialRefreshForTests()
     clearWorkspaceEditorViewStateStoreForTests()
+    clearWorkspaceEditorDraftStoreForTests()
     let persisted: GlobalBehaviorLibrary = { transformers: {}, scripts: {} }
     vi.spyOn(defaultPersistence, 'loadGlobalBehaviorLibrary').mockImplementation(async () => persisted)
     vi.spyOn(defaultPersistence, 'saveGlobalBehaviorLibrary').mockImplementation(async (next: GlobalBehaviorLibrary) => {
@@ -644,7 +649,7 @@ describe('Workspace', () => {
     })
 
     const draftKey = 'e1:scripts:my_script:_root'
-    const { saveWorkspaceEditorDraft } = await import('@/utils/workspaceEditorViewState')
+    const { saveWorkspaceEditorDraft } = await import('@/utils/workspaceEditorDraft')
     saveWorkspaceEditorDraft(draftKey, '// edited while workspace was open')
 
     fireEvent.click(screen.getByTestId('workspace-close'))

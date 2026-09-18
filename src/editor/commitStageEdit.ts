@@ -1,6 +1,8 @@
 import type { EditorUndoApi } from '@/contexts/EditorUndoContext'
 import type { TransformerConfig } from '@/types/transformer'
 import type { RennWorld } from '@/types/world'
+import { applyStageWorldWrite, stageWorldEditDescriptor } from '@/editor/applyStageWorldWrite'
+import type { ApplyWorldWrite } from '@/editor/applyWorldEdit'
 import { allocateTransformerRegistryId } from '@/utils/commitTransformerConfigsToWorld'
 import { patchStageConfigInWorld } from '@/utils/pipeNavMutations'
 
@@ -61,9 +63,16 @@ export const STAGE_EDIT_POLICY: Record<StageEditIntent['kind'], StageEditPolicy>
  * Returns the world that merged pipe params must be re-derived from, or `null` when the scope
  * needs no sync or refused the write.
  */
+/** Whole-stack intents that delegate to `writeStack`. */
+export type StageStackIntentKind = Extract<
+  StageEditIntent['kind'],
+  'commitStages' | 'reorder' | 'loadTemplate' | 'codeEdit'
+>
+
 export type StageStackWriter = (
   configs: TransformerConfig[],
   orderedRegistryIds: string[] | undefined,
+  intentKind: StageStackIntentKind,
 ) => RennWorld | null
 
 export interface StageEditContext {
@@ -76,6 +85,8 @@ export interface StageEditContext {
   /** Undo host, or null when none is mounted. */
   undo: Pick<EditorUndoApi, 'pushBeforeEdit'> | null | undefined
   onWorldChange: (next: RennWorld) => void
+  /** When set (Builder), document writes route through `applyWorldEdit` instead of the gateway. */
+  applyWorldWrite?: ApplyWorldWrite
   /** Scope-specific stack write; see `StageStackWriter`. */
   writeStack: StageStackWriter
   onMergedParamSync?: (next: RennWorld, entityIds: string[]) => void
@@ -116,7 +127,7 @@ export function commitStageEdit(intent: StageEditIntent, ctx: StageEditContext):
   const write = resolveStageWrite(intent, ctx)
   if (!write) return NO_WRITE
 
-  if (policy.pushUndo) ctx.undo?.pushBeforeEdit()
+  if (policy.pushUndo && !ctx.applyWorldWrite) ctx.undo?.pushBeforeEdit()
 
   const syncWorld = write.apply()
   if (syncWorld && ctx.entityIds.length > 0) {
@@ -125,12 +136,28 @@ export function commitStageEdit(intent: StageEditIntent, ctx: StageEditContext):
   return { written: true, selectStageId: write.selectStageId }
 }
 
+function publishStageWorld(
+  ctx: StageEditContext,
+  intentKind: StageEditIntent['kind'],
+  next: RennWorld,
+): void {
+  if (ctx.applyWorldWrite) {
+    applyStageWorldWrite(
+      ctx.applyWorldWrite,
+      stageWorldEditDescriptor(STAGE_EDIT_POLICY[intentKind].pushUndo),
+      next,
+    )
+  } else {
+    ctx.onWorldChange(next)
+  }
+}
+
 function resolveStageWrite(intent: StageEditIntent, ctx: StageEditContext): ResolvedStageWrite | null {
   if (intent.kind === 'patch') {
     return {
       apply: () => {
         const next = patchStageConfigInWorld(ctx.world, intent.stageId, intent.config)
-        ctx.onWorldChange(next)
+        publishStageWorld(ctx, intent.kind, next)
         return next
       },
     }
@@ -141,7 +168,7 @@ function resolveStageWrite(intent: StageEditIntent, ctx: StageEditContext): Reso
     if (!unique) return null
     return {
       apply: () => {
-        ctx.onWorldChange(unique.world)
+        publishStageWorld(ctx, intent.kind, unique.world)
         // Make-unique clears the entity's pipe stack, so there are no merged pipe params left to sync.
         return null
       },
@@ -149,8 +176,8 @@ function resolveStageWrite(intent: StageEditIntent, ctx: StageEditContext): Reso
     }
   }
 
-  const { configs, orderedRegistryIds } = intent
-  return { apply: () => ctx.writeStack(configs, orderedRegistryIds) }
+  const { configs, orderedRegistryIds, kind: intentKind } = intent
+  return { apply: () => ctx.writeStack(configs, orderedRegistryIds, intentKind) }
 }
 
 /**

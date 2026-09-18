@@ -12,8 +12,8 @@ import {
   deleteWorkspaceEditorDraft,
   loadWorkspaceEditorDraft,
   saveWorkspaceEditorDraft,
-  workspaceEditorItemKey,
-} from '@/utils/workspaceEditorViewState'
+} from '@/utils/workspaceEditorDraft'
+import { workspaceEditorItemKey } from '@/utils/workspaceEditorItemKey'
 
 function strHash(s: string): number {
   let h = 0

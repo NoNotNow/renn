@@ -136,7 +136,7 @@ renn/
 │   │   ├── PhysicsEditor.tsx # bodyType, mass, restitution, friction, linearDamping, angularDamping
 │   │   ├── MaterialEditor.tsx # color, roughness, metalness, opacity (0–1, default 1)
 │   │   ├── CodingTabPanel.tsx # Right sidebar code section: thin name-lists (transformer IDs + script IDs); click opens Workspace anchored to item
-│   │   ├── Workspace.tsx     # Full-screen behavior authoring overlay (portal); tabs: Transformers / Scripts / Organize; shared Monaco; loads/saves global library; persists per-item Monaco scroll/cursor (`workspaceEditorViewState.ts`)
+│   │   ├── Workspace.tsx     # Full-screen behavior authoring overlay (portal); tabs: Transformers / Scripts / Organize; shared Monaco; loads/saves global library; persists per-item Monaco scroll/cursor (`workspaceEditorViewState.ts`, keyed by `workspaceEditorItemKey.ts`; unapplied script text in `workspaceEditorDraft.ts`)
 │   │   ├── workspace/        # Workspace tab implementations
 │   │   │   ├── WorkspaceTransformersTab.tsx   # Pipeline strip + custom code editor
 │   │   │   ├── WorkspaceScriptsTab.tsx        # Script chips + event controls + shared Monaco

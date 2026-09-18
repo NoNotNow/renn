@@ -191,7 +191,7 @@ export function resolvePreferredStageId(
 }
 
 /** Flatten entity structure → runtime transformer id list (enabled only; ancestor-disabled pipes cascade). */
-export function syncEntityTransformerIds(world: RennWorld, entity: Entity): string[] {
+function syncEntityTransformerIds(world: RennWorld, entity: Entity): string[] {
   return resolveEntityStageRuntime(world, entity).syncedStageIds()
 }
 

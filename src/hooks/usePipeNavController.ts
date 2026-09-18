@@ -5,6 +5,10 @@ import type { Entity, RennWorld } from '@/types/world'
 import type { WorkspaceTarget } from '@/types/workspace'
 import { usePipeNavigator } from '@/hooks/usePipeNavigator'
 import { useEditorUndo } from '@/contexts/EditorUndoContext'
+import { applyPipeNavWorldWrite } from '@/editor/applyPipeNavWorldWrite'
+import { applyStageWorldWrite, stageWorldEditDescriptor } from '@/editor/applyStageWorldWrite'
+import { STAGE_EDIT_POLICY, type StageStackIntentKind } from '@/editor/commitStageEdit'
+import type { ApplyWorldWrite } from '@/editor/applyWorldEdit'
 import {
   PIPE_NAV_EDIT_POLICY,
   resolvePipeNavEdit,
@@ -62,6 +66,8 @@ export function usePipeNavController(
   onWorldChange: (world: RennWorld) => void,
   onEntryChange?: (next: WorkspaceTarget) => void,
   onMergedParamSync?: (nextWorld: RennWorld, entityIds: string[]) => void,
+  /** When set (Builder), pipe-nav commits route through `applyWorldEdit` instead of the gateway. */
+  applyWorldWrite?: ApplyWorldWrite,
 ) {
   const undo = useEditorUndo()
   const { focus, view, setPath, focusedPipeId } = usePipeNavigator(
@@ -115,12 +121,16 @@ export function usePipeNavController(
         prompts: windowPipeNavPrompts,
       })
       if (!result) return
-      if (PIPE_NAV_EDIT_POLICY[intent.kind].pushUndo) undo?.pushBeforeEdit()
-      onWorldChange(result.world)
+      if (applyWorldWrite) {
+        applyPipeNavWorldWrite(applyWorldWrite, intent.kind, result.world)
+      } else {
+        if (PIPE_NAV_EDIT_POLICY[intent.kind].pushUndo) undo?.pushBeforeEdit()
+        onWorldChange(result.world)
+      }
       if (result.nav) setPath(result.nav.path, result.nav.selectedSiblingIndex)
       if (result.syncEntityIds?.length) onMergedParamSync?.(result.world, result.syncEntityIds)
     },
-    [world, entity.id, focus, undo, onWorldChange, setPath, onMergedParamSync],
+    [world, entity.id, focus, undo, onWorldChange, setPath, onMergedParamSync, applyWorldWrite],
   )
 
   /**
@@ -160,7 +170,11 @@ export function usePipeNavController(
    * caller's concern — `commitStageEdit` owns that policy for every scope.
    */
   const writeFocusedStages = useCallback(
-    (configs: TransformerConfig[], orderedRegistryIds: string[] | undefined): RennWorld => {
+    (
+      configs: TransformerConfig[],
+      orderedRegistryIds: string[] | undefined,
+      intentKind: StageStackIntentKind,
+    ): RennWorld => {
       const nextWorld = commitFocusedStageConfigs(
         world,
         entity.id,
@@ -169,10 +183,18 @@ export function usePipeNavController(
         orderedRegistryIds ?? stageData.ids,
         orderedRegistryIds,
       )
-      onWorldChange(nextWorld)
+      if (applyWorldWrite) {
+        applyStageWorldWrite(
+          applyWorldWrite,
+          stageWorldEditDescriptor(STAGE_EDIT_POLICY[intentKind].pushUndo),
+          nextWorld,
+        )
+      } else {
+        onWorldChange(nextWorld)
+      }
       return nextWorld
     },
-    [world, entity.id, focus.path, stageData.ids, onWorldChange],
+    [world, entity.id, focus.path, stageData.ids, onWorldChange, applyWorldWrite],
   )
 
   const pipeControls = useMemo<PipeControlHandlers>(

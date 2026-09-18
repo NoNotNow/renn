@@ -461,7 +461,7 @@ Routing the `ensurePipeStack` bootstrap through `commit` put `focus` in the effe
 - Suite: 200 → 201 files, 1840 → 1885 passing, 3 skipped. `tsc --noEmit -p tsconfig.app.json` clean.
 
 ### Deferred
-- `pipeNavEdit` is not wired to `applyWorldEdit`; the Transformers tab still only gets `onWorldChange` (same standing limitation as `commitStageEdit`).
+- **Candidate 6 (partial, 2026-09-18):** pipe-nav via `applyPipeNavWorldWrite`; stage patch/make-unique + pipe-scoped `writeFocusedStages` via `applyStageWorldWrite` when Builder passes `applyWorldWrite`. Still on gateway: flat `commitStacksRaw`, wrap-ungrouped, direct tab `onWorldChange`, Scripts/Organize tabs.
 - `decouplePipeBinding` counts sharing entities with an inline `mode !== 'copy'` filter while `treeDelete` uses `countEntitiesLinkingPipe`. Behaviour preserved verbatim; the two predicates should probably be one helper.
 - `usePipeNavController` focus→entry sync effect still lists full `entry` in deps (carried over from Phase 17).
 
@@ -670,6 +670,21 @@ Test count after Phase 24: **203** files, **1899** tests + 3 skipped. `npx tsc -
 
 Test count after Phase 25: **204** files, **1903** tests + 3 skipped. `npx tsc --noEmit -p tsconfig.app.json` clean.
 
+### Phase 26 (2026-09-18) — Transformers tab hooks (candidate 3a + 3b), store split, registry bindings
+
+Closes candidate 3 (the repo's highest-churn file), the Phase 24 store-split LEFTOVER, and candidate 5.
+`WorkspaceTransformersTab.tsx` **1389 → 1193** lines; `WorkspaceOrganizeTab.tsx` **1459 → 1403**.
+
+- **Candidate 3b — extracted** [`useStageRuntimeErrorDisplay`](../src/hooks/useStageRuntimeErrorDisplay.ts): the error-bridge subscription, the selection projection and the keep-window display machine, behind `{ error, displayed, active, hasErrorAt }` (9 unit tests). The tab held 4 refs, 2 pieces of state and 3 effects of this; it now has one call and no longer imports the error bridge at all — `hasErrorAt(flatStackIndex)` hides `runtimeErrorTargetKey` from the card-error pass.
+- **`RUNTIME_ACTIVE_MS` (1500 ms) deleted, not ported.** It never fired: the old effect listed `runtimeActive` in its own dependency array (`WorkspaceTransformersTab.tsx:638`), so the timer's `setRuntimeActive(false)` re-ran the effect, which set it straight back to `true` and re-armed. Observable behaviour was "full opacity while the runtime keeps reporting, dimmed only during the keep window", now expressed directly as `active: error != null` — one timer instead of two. Three tests pin it, one by advancing 2× the keep window with a live error. Porting the timer *verbatim but with correct deps* would have been a visible regression: `TransformerCodeErrorOverlay` draws an inactive error with `theme.feedback.successBorder`, so a still-failing transformer would have turned green after 1.5 s.
+- **Candidate 3a — extracted** [`useTransformerCodeDraft`](../src/hooks/useTransformerCodeDraft.ts): draft sync from world, debounced commit, undo priming, flush-before-navigation (3 unit tests). `TRANSFORMER_CODE_DEBOUNCE_MS` 350 ported verbatim. Replaces 9 of the tab's refs; the tab keeps `flushPendingCodeRef` only to break the cycle between `commitStageEdit`'s `flushPendingCode` callback and the hook's `onCommit` → `runStageEdit`. Its dead `lastCommittedCodeRef` (written twice, never read) was dropped.
+- **Behaviour fix inside 3a (intentional).** The sync effect now keys off `syncCodeKey` alone instead of `[syncCodeKey, selectedConfig, selectedId]`. `selectedConfig` is a fresh object after every world change, so any unrelated edit used to re-run the effect, cancel the pending debounce and overwrite in-flight typing with world code. `syncCodeKey` already encodes `selectedId` + committed code, which is the only thing that should reset a draft.
+- **Queue item 3 — split `workspaceEditorViewState.ts`** into [`workspaceEditorItemKey.ts`](../src/utils/workspaceEditorItemKey.ts) (the key builder both stores share), [`workspaceEditorViewState.ts`](../src/utils/workspaceEditorViewState.ts) (scroll/cursor for the shell, driven by `workspaceEditorSession`) and [`workspaceEditorDraft.ts`](../src/utils/workspaceEditorDraft.ts) (unapplied Scripts-tab text). Each store owns its own clear-for-tests helper; callers that relied on the old combined clear now call both. Closes the Phase 24 LEFTOVER — its "drafts stay in `workspaceEditorViewState.ts`" note is historical.
+- **Candidate 5 — six near-identical registry helpers** in `WorkspaceOrganizeTab.tsx` (`getEntitiesUsing{Script,Transformer,Pipe}` + `{script,transformer,pipe}IdsIntersectionForEntities`) replaced by [`behaviorRegistryBindings.ts`](../src/utils/behaviorRegistryBindings.ts): one `BehaviorRegistryBindings` interface (`entitiesUsing` / `idsSharedBy`), one generic implementation, three one-line `boundIds` selectors keyed by the existing `WorkspaceOrganizeKind` (8 unit tests). Instances are module-level and stable, so they are safe in memo dependency arrays, and the three-way `registry` ternaries at the assign sites collapse to one call. `entityUsesPipe` and `getEntityPipeStack` were verified equivalent first (the former is defined in terms of the latter), so one `pipes` selector covers both old helpers including the legacy single `transformerPipe` field.
+- **Housekeeping:** `pipeNavResolve.syncEntityTransformerIds` un-exported — only its own module ever used it.
+
+Test count after Phase 26: **209** files, **1923** tests + 3 skipped. `npx tsc --noEmit -p tsconfig.app.json` clean.
+
 ### Optional — idle material prefetch
 
 `prefetchMaterialTextures` was removed (no call sites). If mid-rAF decode becomes an issue again, reintroduce a **wired** prefetch from `SceneView` after load (idle `createImageBitmap`), document the entry point, and add a smoke test.
@@ -700,4 +715,4 @@ Test count after Phase 25: **204** files, **1903** tests + 3 skipped. `npx tsc -
 - [x] Inspector pose polling isolated (`LivePosesPoll` → `PropertySidebar`, not full `Builder`)
 - [x] `npm run build` (`tsc -b && vite build`) clean — 5 pre-existing TS errors fixed in Phase 13b (useEditorHistory typing, builderColumnRef typing, WorldPanel.test plane shape, scriptCtx.test mock tuple, integration test private access).
 
-Run `npm run test:run` after further edits (currently **195** test files, **1769** tests + 3 skipped). `npm run build` should also stay clean: it passes `tsc -b` and is the recommended pre-PR check. In `performance-benchmarks.integration.test.ts`, the **Heap growth** and **Scaling linearity** describes are skipped unless `RUN_PERF_BENCHMARKS=1` (use `npm run test:perf`) so agents avoid flaky wall-clock/heap thresholds; run that before Rapier/frame-loop/allocation hot-path changes.
+Run `npm run test:run` after further edits (currently **210** test files, **1926** tests + 3 skipped; see phases 23–26 plus the in-flight `applyWorldEdit` pipe-nav route). `npm run build` should also stay clean: it passes `tsc -b` and is the recommended pre-PR check. In `performance-benchmarks.integration.test.ts`, the **Heap growth** and **Scaling linearity** describes are skipped unless `RUN_PERF_BENCHMARKS=1` (use `npm run test:perf`) so agents avoid flaky wall-clock/heap thresholds; run that before Rapier/frame-loop/allocation hot-path changes.
