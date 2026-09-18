@@ -22,6 +22,9 @@ You are an **L3 worker** in a three-level orchestration. L2 orchestrates; you im
 ## Task
 {{SINGLE_FOCUSED_OUTCOME}}
 
+## Scope stability
+Finish this **TASK** on **OWNED FILES** only. Mid-run user messages to the parent are **not** a reason to stop early — L2/L1 append new work to the queue. If L2 **resumes** you with a new prompt, that replaces this task explicitly.
+
 ## Context
 {{MINIMAL_CONTEXT — doc paths, function names, line refs; not whole files}}
 

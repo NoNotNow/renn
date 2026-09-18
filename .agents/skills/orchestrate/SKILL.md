@@ -26,6 +26,36 @@ L1 never implements directly unless the change is trivial (one file, <20 lines).
 
 Skip orchestration for single-file fixes, questions, or work that fits one context window.
 
+## AFK runs and mid-run user messages (default)
+
+Orchestrated work is often **long-running**. Treat it as one session until **STATUS: done** (or **handoff-written**), unless the user explicitly says **stop** or **cancel**.
+
+### L1 (coordinator) — do not abort the run on follow-ups
+
+When the user sends another message **while L2/L3 Task subagents are still running**:
+
+1. **Do not cancel** in-flight subagents to “pivot” unless they asked to stop.
+2. **Append** new instructions to the **priority queue** (or a `## Appended tasks` list in the next L2 spawn / handoff).
+3. **Do not** replace the original goal with only the follow-up — merge: *original goal + appended items*.
+4. If subagents already finished, chain a **fresh L2** for appended work; do not redo completed queue items.
+
+If the user might send notes mid-run (AFK), spawn workers with **`run_in_background: true`** so the coordinator can absorb follow-ups without blocking the turn. Prefer **background L2 + parallel background L3** for multi-worker AFK passes unless the user asked for foreground-only.
+
+Tell the user once per session (only if relevant): follow-ups **append**; to **replace** scope they should say **stop** first, then send the new goal.
+
+### User habit (optional, not required)
+
+Follow-ups are safest **after** `STATUS: done`. Mid-run notes still work via append rules above.
+
+### Pass to every L2 spawn (include verbatim unless user overrides)
+
+```markdown
+## Continuity — mid-run messages
+- **Do not stop** this orchestration because the parent received a follow-up user message.
+- **Append** new user notes to the task queue; implement after current in-flight L3 work unless the user said **stop** / **cancel**.
+- Do **not** discard completed work or re-run finished queue items to “reinterpret” a short follow-up.
+```
+
 ## L1 workflow (coordinator — you)
 
 ### 1. Establish baseline
@@ -50,12 +80,13 @@ Collect and pass forward:
 - **Guardrails** — files not to touch, behaviour not to change
 - **Priority queue** — ordered task list (highest value first)
 - **Docs** — paths to project docs that already capture decisions
+- **Continuity** — include the **Continuity — mid-run messages** block (see above) in every L2 prompt
 
 ### 3. Spawn L2
 
-Use the Task tool with `model: claude-opus-5-thinking-high`. Fill in [ORCHESTRATOR-PROMPT.md](ORCHESTRATOR-PROMPT.md). One L2 per coherent chunk (e.g. "fix handoff defects", "implement candidate 1"). Do not pack unrelated chunks into one L2.
+Use the Task tool with `model: claude-opus-5-thinking-high` (or the model the user specified). Fill in [ORCHESTRATOR-PROMPT.md](ORCHESTRATOR-PROMPT.md). One L2 per coherent chunk (e.g. "fix handoff defects", "implement candidate 1"). Do not pack unrelated chunks into one L2.
 
-Set `run_in_background: false` unless the user explicitly asked for background.
+**`run_in_background`:** default **`true`** for AFK / multi-worker / “do as much as one run” requests; **`false`** when the user wants a single foreground result before continuing.
 
 ### 4. Verify L2 output — never trust reports blindly
 
@@ -157,6 +188,7 @@ L2 also returns:
 
 ## Anti-patterns
 
+- **Aborting orchestration on a follow-up message** — append tasks; only stop when the user says stop/cancel
 - **One agent owns the whole refactor** — def beats the purpose of this skill
 - **Parallel agents on overlapping files** — caused every collision in uncontrolled runs
 - **Accepting subagent test counts without re-running** — "1814 passed" claims were wrong twice
@@ -183,6 +215,12 @@ L2 explores → report → L1 spawns fresh L2 per candidate → L1 verifies afte
 /orchestrate fix the three issues in the handoff, highest value first
 ```
 One L2 for diagnosis + fixes; L3 workers on disjoint file sets; fresh L2 if handoff written.
+
+**AFK with possible mid-run notes:**
+```
+/orchestrate /codebase-cleanup — do as much as one run
+```
+L1 spawns background L2 + parallel L3; user adds “also consolidate agent docs” mid-run → L1 **appends** to queue, does **not** cancel workers; L2 picks up appended item after L3 batch or via fresh L2.
 
 ## Additional resources
 

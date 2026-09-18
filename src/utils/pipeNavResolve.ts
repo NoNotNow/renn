@@ -1,7 +1,6 @@
 import type {
   TransformerConfig,
   TransformerPipe,
-  TransformerPipeBinding,
   TransformerPipeMember,
 } from '@/types/transformer'
 import type { PipeNavFocus, PipeNavPathSegment, ResolvedPipeNavView, StripItem } from '@/types/pipeNav'
@@ -12,14 +11,6 @@ import {
   resolveEntityStageRuntime,
   stackIndexFromScopePath,
 } from '@/utils/pipeStageResolve'
-
-export function isMemberEnabled(member: TransformerPipeMember): boolean {
-  return member.enabled !== false
-}
-
-export function isBindingEnabled(binding: TransformerPipeBinding): boolean {
-  return binding.enabled !== false
-}
 
 /** Stage-editing strip level (gray +): flat entity stages or inside a pipe without nested pipe cards. */
 export function isPipeNavLeafLevel(view: ResolvedPipeNavView | null | undefined): boolean {
@@ -71,19 +62,6 @@ export function resolveFocusedPipeId(
 /** Parent path (up one level). */
 export function pipeNavParentPath(path: PipeNavPathSegment[]): PipeNavPathSegment[] {
   return path.slice(0, -1)
-}
-
-export function pipeNavDepth(path: PipeNavPathSegment[]): number {
-  return path.length
-}
-
-/** Container pipe id for the current focus level (parent of visible items). */
-export function resolveContainerPipeId(
-  world: RennWorld,
-  entity: Entity,
-  path: PipeNavPathSegment[],
-): string | undefined {
-  return resolveFocusedPipeId(world, entity, pipeNavParentPath(path))
 }
 
 export function resolvePipeNavView(
@@ -143,7 +121,7 @@ export function resolvePipeNavView(
 }
 
 /** Stage ids visible at the current focus (for transformer strip). */
-export function resolveFocusedStageIds(
+function resolveFocusedStageIds(
   world: RennWorld,
   entity: Entity,
   focus: PipeNavFocus,

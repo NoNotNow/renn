@@ -68,7 +68,7 @@ export default function BuilderHeader({
   gizmoMode,
   onGizmoModeChange,
   textureBrushDisabled = false,
-  textureBrushColorHex = '#1f1f24',
+  textureBrushColorHex = theme.paint.defaultBrushHex,
   onTextureBrushColorHexChange,
   textureBrushRadiusPx = TEXTURE_PAINT_RADIUS_PX,
   onTextureBrushRadiusPxChange,
@@ -356,9 +356,9 @@ export default function BuilderHeader({
     <header
       id="builder-app-header"
       style={{
-        background: '#171a22',
-        borderBottom: '1px solid #2f3545',
-        color: '#e6e9f2',
+        background: theme.bg.errorFallback,
+        borderBottom: `1px solid ${theme.border.default}`,
+        color: theme.text.primary,
         position: 'relative',
         zIndex: theme.zIndex.header,
       }}
@@ -374,7 +374,7 @@ export default function BuilderHeader({
               padding: '6px 12px',
               fontWeight: 'bold',
               fontSize: '14px',
-              color: '#e6e9f2',
+              color: theme.text.primary,
               cursor: onLeftSidebarToggle ? 'pointer' : 'default',
             }}
           >
@@ -402,7 +402,7 @@ export default function BuilderHeader({
               gap: 6,
               paddingRight: 10,
               marginRight: 2,
-              borderRight: '1px solid #2f3545',
+              borderRight: `1px solid ${theme.border.default}`,
             }}
           >
             <button
@@ -414,7 +414,7 @@ export default function BuilderHeader({
               style={{
                 ...entityPanelIconButtonStyle,
                 display: 'flex',
-                background: gizmoMode === 'visualize' ? '#2a3142' : 'transparent',
+                background: gizmoMode === 'visualize' ? theme.button.pick : 'transparent',
                 opacity: gizmoMode === 'visualize' ? 1 : 0.85,
               }}
               onMouseEnter={(e) => {
@@ -440,7 +440,7 @@ export default function BuilderHeader({
               style={{
                 ...entityPanelIconButtonStyle,
                 display: 'flex',
-                background: gizmoMode === 'paint' ? '#2a3142' : 'transparent',
+                background: gizmoMode === 'paint' ? theme.button.pick : 'transparent',
                 opacity: textureBrushDisabled ? 0.4 : gizmoMode === 'paint' ? 1 : 0.85,
                 cursor: textureBrushDisabled ? 'not-allowed' : 'pointer',
               }}
@@ -470,7 +470,7 @@ export default function BuilderHeader({
               style={{
                 ...entityPanelIconButtonStyle,
                 display: 'flex',
-                background: gizmoMode === 'transform' ? '#2a3142' : 'transparent',
+                background: gizmoMode === 'transform' ? theme.button.pick : 'transparent',
                 opacity: gizmoMode === 'transform' ? 1 : 0.85,
               }}
               onMouseEnter={(e) => {
@@ -491,7 +491,7 @@ export default function BuilderHeader({
               style={{
                 ...entityPanelIconButtonStyle,
                 display: 'flex',
-                background: gizmoMode === 'translate' ? '#2a3142' : 'transparent',
+                background: gizmoMode === 'translate' ? theme.button.pick : 'transparent',
                 opacity: gizmoMode === 'translate' ? 1 : 0.85,
               }}
               onMouseEnter={(e) => {
@@ -512,7 +512,7 @@ export default function BuilderHeader({
               style={{
                 ...entityPanelIconButtonStyle,
                 display: 'flex',
-                background: gizmoMode === 'rotate' ? '#2a3142' : 'transparent',
+                background: gizmoMode === 'rotate' ? theme.button.pick : 'transparent',
                 opacity: gizmoMode === 'rotate' ? 1 : 0.85,
               }}
               onMouseEnter={(e) => {
@@ -533,7 +533,7 @@ export default function BuilderHeader({
               style={{
                 ...entityPanelIconButtonStyle,
                 display: 'flex',
-                background: gizmoMode === 'scale' ? '#2a3142' : 'transparent',
+                background: gizmoMode === 'scale' ? theme.button.pick : 'transparent',
                 opacity: gizmoMode === 'scale' ? 1 : 0.85,
               }}
               onMouseEnter={(e) => {
@@ -555,7 +555,7 @@ export default function BuilderHeader({
                 alignItems: 'center',
                 paddingLeft: 10,
                 marginLeft: 2,
-                borderLeft: '1px solid #2f3545',
+                borderLeft: `1px solid ${theme.border.default}`,
               }}
             >
               <button
@@ -618,31 +618,31 @@ export default function BuilderHeader({
             left: 0,
             right: 0,
             bottom: 0,
-            background: 'rgba(0,0,0,0.5)',
+            background: theme.bg.overlayLight,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            zIndex: 2000,
+            zIndex: theme.zIndex.save,
           }}
           onClick={() => setShowProjectSelector(false)}
         >
           <div
             style={{
-              background: '#1b1f2a',
+              background: theme.bg.panel,
               padding: '24px',
               borderRadius: '8px',
               minWidth: '400px',
               maxWidth: '600px',
               maxHeight: '80vh',
               overflow: 'auto',
-              border: '1px solid #2f3545',
+              border: `1px solid ${theme.border.default}`,
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 style={{ margin: '0 0 16px 0', fontSize: '18px', color: '#e6e9f2' }}>Open Project</h2>
+            <h2 style={{ margin: '0 0 16px 0', fontSize: '18px', color: theme.text.primary }}>Open Project</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {projects.length === 0 ? (
-                <p style={{ color: '#9aa4b2', margin: 0 }}>No saved projects</p>
+                <p style={{ color: theme.text.muted, margin: 0 }}>No saved projects</p>
               ) : (
                 projects.map((project) => (
                   <div
@@ -663,9 +663,9 @@ export default function BuilderHeader({
                         flex: 1,
                         padding: '12px',
                         textAlign: 'left',
-                        border: '1px solid #2f3545',
-                        background: currentProject.id === project.id ? '#2b3550' : '#1b1f2a',
-                        color: '#e6e9f2',
+                        border: `1px solid ${theme.border.default}`,
+                        background: currentProject.id === project.id ? theme.button.primary : theme.bg.panel,
+                        color: theme.text.primary,
                         cursor: 'pointer',
                         borderRadius: '4px',
                         fontSize: '14px',
@@ -682,9 +682,9 @@ export default function BuilderHeader({
                       title="Delete project"
                       style={{
                         padding: '8px 12px',
-                        background: '#3d2a2a',
-                        border: '1px solid #4a3535',
-                        color: '#e6e9f2',
+                        background: theme.feedback.destructiveChipBg,
+                        border: `1px solid ${theme.feedback.destructiveChipBorder}`,
+                        color: theme.text.primary,
                         cursor: 'pointer',
                         borderRadius: '4px',
                         fontSize: '16px',
@@ -704,9 +704,9 @@ export default function BuilderHeader({
                 marginTop: '16px',
                 padding: '8px 16px',
                 width: '100%',
-                background: '#232836',
-                color: '#e6e9f2',
-                border: '1px solid #2f3545',
+                background: theme.bg.input,
+                color: theme.text.primary,
+                border: `1px solid ${theme.border.default}`,
               }}
             >
               Cancel

@@ -24,7 +24,6 @@ describe('useTransformerCodeDraft', () => {
     const onCommit = vi.fn()
     const ctx = (): TransformerCodeDraftFlushContext => ({
       selectedId: 'a',
-      pipeScoped: false,
       registryIds: ['a'],
       configs: [customConfig('world')],
     })
@@ -59,7 +58,6 @@ describe('useTransformerCodeDraft', () => {
     const onCommit = vi.fn()
     const ctx = (): TransformerCodeDraftFlushContext => ({
       selectedId: 'a',
-      pipeScoped: false,
       registryIds: ['a'],
       configs: [customConfig('')],
     })
@@ -92,7 +90,6 @@ describe('useTransformerCodeDraft', () => {
     const onCommit = vi.fn()
     const ctx = (): TransformerCodeDraftFlushContext => ({
       selectedId: 'a',
-      pipeScoped: false,
       registryIds: ['a'],
       configs: [customConfig('start')],
     })

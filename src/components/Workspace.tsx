@@ -764,7 +764,6 @@ export default function Workspace({
                         onMergedPipeParamSync={onMergedPipeParamSync}
                         setMonacoPayload={setMonacoPayload}
                         setMonacoEditorChrome={setMonacoChrome}
-                        monacoEditorAreaRef={monacoEditorAreaRef}
                         monacoEditorAreaEpoch={monacoEditorAreaEpoch}
                         monacoSlot={monacoSlot}
                         entityWorkHistory={entityWorkHistory}

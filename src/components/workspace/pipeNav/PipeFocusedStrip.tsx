@@ -202,20 +202,7 @@ export default function PipeFocusedStrip({
     const pipeItems = view.items.filter((i) => i.kind === 'pipe')
     return (
       <>
-        <div
-          onScroll={(e) => setScrollLeft(e.currentTarget.scrollLeft)}
-          style={{
-            display: 'flex',
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 0,
-            overflowX: 'auto',
-            overflowY: 'visible',
-            padding: '8px 4px',
-            minHeight: 0,
-            flex: '1 1 auto',
-          }}
-        >
+        <div onScroll={(e) => setScrollLeft(e.currentTarget.scrollLeft)} style={pipeStripScrollStyle}>
           {pipeItems.map((item, idx) => {
             const pipe = pipes[item.pipeId] as TransformerPipe | undefined
             if (!pipe) return null
@@ -405,20 +392,7 @@ export default function PipeFocusedStrip({
 
     return (
       <>
-        <div
-          onScroll={(e) => setScrollLeft(e.currentTarget.scrollLeft)}
-          style={{
-            display: 'flex',
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 0,
-            overflowX: 'auto',
-            overflowY: 'visible',
-            padding: '8px 4px',
-            minHeight: 0,
-            flex: '1 1 auto',
-          }}
-        >
+        <div onScroll={(e) => setScrollLeft(e.currentTarget.scrollLeft)} style={pipeStripScrollStyle}>
           {view.items.map((item, displayIdx) => (
             <Fragment key={item.kind === 'stage' ? item.stageId : `${item.pipeId}-${item.index}`}>
               {displayIdx > 0 ?
@@ -452,6 +426,18 @@ export default function PipeFocusedStrip({
   }
 
   return null
+}
+
+const pipeStripScrollStyle: CSSProperties = {
+  display: 'flex',
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 0,
+  overflowX: 'auto',
+  overflowY: 'visible',
+  padding: '8px 4px',
+  minHeight: 0,
+  flex: '1 1 auto',
 }
 
 const transformerPlusBtnStyle: CSSProperties = {

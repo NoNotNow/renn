@@ -45,6 +45,10 @@ export const theme = {
     modalBackdrop: 'rgba(0, 0, 0, 0.7)',
     destructive: '#3a1b1b',
     destructiveMuted: '#2a2a2a',
+    /** Muted destructive fill (e.g. Sound panel "Clear" when an asset is selected). */
+    destructiveSoft: '#2a1818',
+    /** Idle secondary button on dark sidebar panels (Sound panel "Clear" disabled). */
+    sidebarButtonIdle: '#1a1f2e',
   },
   button: {
     primary: '#2b3550',
@@ -100,6 +104,9 @@ export const theme = {
     successTextSubtle: '#6a9e6a',
     destructiveSelectedBg: '#3a2a2a',
     destructiveSelectedText: '#e6c0c0',
+    /** Compact destructive control in project selector (delete row chip). */
+    destructiveChipBg: '#3d2a2a',
+    destructiveChipBorder: '#4a3535',
   },
   border: {
     default: '#2f3545',
@@ -108,6 +115,8 @@ export const theme = {
     /** Hover border on idle drop zone (between default and accent). */
     dropZoneHover: '#3f4f5f',
     destructive: '#6b2a2a',
+    /** Softer destructive border (Sound panel "Clear" when an asset is selected). */
+    destructiveSoft: '#5c2a2a',
     destructiveMuted: '#2f3545',
     /** Border for invalid input (JSON parse error). */
     error: '#dc2626',
@@ -136,6 +145,10 @@ export const theme = {
     mixedValues: '#888',
   },
   accent: '#8ab4ff',
+  /** Default 3D texture brush paint color (matches `DEFAULT_TEXTURE_BRUSH_RGB`). */
+  paint: {
+    defaultBrushHex: '#1f1f24',
+  },
   /** Pipe navigation sidebar + level-colored cards (gold accent on dark panels). */
   pipeNav: {
     levelBg: ['#1a1a1a', '#1c1a14', '#1a1c18', '#1a141c'] as const,

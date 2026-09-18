@@ -1,279 +1,96 @@
 # Feature: Workspace — Unified Behavior Authoring
 
-Replaces the scattered `CodingTabPanel`, `TransformerEditor`, `CustomTransformerCodeTab`,
-`EntityScriptEditor`, `ScriptPanel`, `ScriptPanelMultiSelect`, `ScriptDialog`, and the
-in-panel `TransformerTemplateDialog` with a single **Workspace** surface. The inspector /
-sidebar shows names only; clicking opens the Workspace for editing, assignment, and
-management.
+Full-screen overlay for transformer/script authoring and Organize. Inspector **`CodingTabPanel`** is names-only; clicks open Workspace anchored to entity + item.
 
-**Status:** Phase 1 complete; Phase 2 (Workspace shell) complete; Phase 3–5 complete; Phase 6 (Global IndexedDB library) complete; Phase 7 (thin inspector) complete; Phase 8 (cleanup) complete except E2E smoke test.
+**Status:** Phases 1–8 complete. **Open:** E2E smoke (edit script → Apply → Play).
+
+**Vocabulary & pipes:** [nomenclature.md](./nomenclature.md) (stage, registry, bindings). **Pipe stack / FRs:** [feature-transformer-pipes.md](./feature-transformer-pipes.md). **Floating panels:** [feature-ui-infrastructure.md](./feature-ui-infrastructure.md).
 
 ---
 
-## Context — current state
+## Requirements (summary)
 
-| Concern | Current location |
-|---|---|
-| Transformer stack edit | `CodingTabPanel` → `TransformerEditor` |
-| Custom transformer code | Workspace (popout Monaco) |
-| Script code edit | `Workspace.tsx` → `WorkspaceScriptsTab.tsx` (Monaco) |
-| Script attach/detach/rename | `WorkspaceOrganizeTab.tsx` (Organize > Entity scope) |
-| Transformer templates | Workspace Transformers tab (gear drawer + Load template button) |
-| Inspector entry point | Right sidebar **`CodingTabPanel`**: transformers + scripts **name lists** (click opens **Workspace**) |
+### R1 — Shell
+- Tabs: **Transformers**, **Scripts**, **Organize**. Header: tab buttons, **EntitySearchPicker** (`compact`), reset/stop, docs toggle, background opacity cycle (20→40→60→100%), close.
+- No-entity Transformers/Scripts: **EntitySearchPicker** (`panel`), not dead-end copy.
+- **TransformerDocsContent:** optional resizable right column; width in `localStorage`.
+- **One Monaco** shared by Transformers + Scripts; tab switch changes strip only.
+- Monaco remount **200 ms** after first visible open (same as toolbar **Refresh editor**).
+- **Session** (`WorkspaceTarget` + per-entity `WorkspaceSessionMemory` in `Builder.tsx`): tab, entity, `itemId`, `pipeNavPath`, `pipeNavSelectedIndex` — survives close/reopen; tab switches do not reset pipe depth.
+- **View state:** keyed by [`workspaceEditorItemKey`](../src/utils/workspaceEditorItemKey.ts), stored in [`workspaceEditorViewState.ts`](../src/utils/workspaceEditorViewState.ts); policy in [`workspaceEditorSession.ts`](../src/editor/workspaceEditorSession.ts) (see below). **Script drafts:** [`workspaceEditorDraft.ts`](../src/utils/workspaceEditorDraft.ts) (Scripts tab only).
+- **Watch** drawer: custom transformer on single entity; [`WorkspaceFloatingDrawer`](../src/components/workspace/WorkspaceFloatingDrawer.tsx); position persisted. **Once per page load** for delayed Monaco remount.
+- **Shift+Escape** opens Workspace; **Escape** closes (or clears selection when closed). Monaco focused: Escape dismisses IntelliSense first. Fullscreen: plain Esc exits only when Workspace closed (`shouldExitFullscreenOnEscape`).
 
-Scripts use `world.scripts: Record<string, ScriptDef>` with `entity.scripts: string[]`. Transformers use **`world.transformers: Record<string, TransformerDef>`** with **`entity.transformers: string[]`** (IDs into the project registry).
+#### Editor session (`workspaceEditorSession.ts`)
 
----
+`createWorkspaceEditorSession()` resolves live edits vs programmatic restore vs layout scroll jumps. `Workspace.tsx` calls it at named moments only (no view-state refs in the shell).
 
-## Requirements
-
-### R1 — Workspace surface
-- Single full-screen (popout) panel replacing the legacy `CustomTransformerCodeTab` popout.
-- Three top-level tabs: **Transformers**, **Scripts**, **Organize**.
-- **Shell header** (one row): tab buttons; **EntitySearchPicker** (`compact`, ~10em) in the meta area — shows entity/item label by default, magnifying-glass hint on hover, search on click when something is selected; then reset/stop, **documentation** toggle, **background opacity** toggle (cycles 20% → 40% → 60% → 100% semi-transparent tint, no backdrop blur), + close.
-- **No-entity states** on Transformers / Scripts tabs show the same **EntitySearchPicker** (`panel`) instead of dead-end “select an entity” copy.
-- **Transformer reference** (`TransformerDocsContent`): optional right column via shell-header toggle; resizable divider splits **all** tab content (left) from docs (right). Panel has an **×** close control; width persists in `localStorage`.
-- One Monaco instance shared between Transformers and Scripts tabs — switching tabs only
-  changes the top strip, not the editor.
-- On each open, the shared Monaco remounts automatically **200 ms** after it first becomes
-  visible (Transformers or Scripts tab), matching the manual **Refresh editor** layout escape hatch
-  (refresh icon at the top of the shared Monaco **vertical toolbar** on the editor’s right edge in `WorkspaceMonacoSlot`).
-- **Session persistence** (Builder session, survives workspace close/reopen): active tab, entity, `itemId`, `pipeNavPath`, `pipeNavSelectedIndex` via `WorkspaceTarget` + per-entity `WorkspaceSessionMemory` in `Builder.tsx`. Per-entity memory restores pipe depth and transformer selection when switching entities in the workspace entity picker. Shell tab switches (Transformers ↔ Scripts ↔ Organize) preserve the same anchor fields so pipe depth is not reset when leaving and returning to Transformers.
-- **Monaco view state** (scroll + cursor per edited item): keyed by [`workspaceEditorItemKey`](../src/utils/workspaceEditorItemKey.ts), stored in [`workspaceEditorViewState.ts`](../src/utils/workspaceEditorViewState.ts), and **all save/restore policy owned by [`workspaceEditorSession.ts`](../src/editor/workspaceEditorSession.ts)** — see § Editor session below.
-- **Script drafts** (unapplied Monaco text, survives close/reopen until Apply): separate store in [`workspaceEditorDraft.ts`](../src/utils/workspaceEditorDraft.ts), owned by `WorkspaceScriptsTab`, not the session. It shares only the key builder with view state. Each store has its own `clear…StoreForTests()`; a test that needs both must call both.
-
-#### Editor session (`src/editor/workspaceEditorSession.ts`)
-
-`createWorkspaceEditorSession()` owns the three-way fight between the user's live edits, Monaco's own scroll resets during layout, and programmatic restores on item switch. `Workspace.tsx` holds one session and calls it at named moments — it keeps **no** view-state refs of its own:
-
-| Method | Called from | Does |
+| Method | When | Role |
 |---|---|---|
-| `attachEditor(adapter)` | `onEditorReady` | Subscribe cursor/scroll → save; try a pending restore |
-| `beginNavigation(key)` | `useLayoutEffect` on `editorItemKey` | Force-save the outgoing item, arm a restore, adopt the new key |
-| `requestRestore()` | `useEffect` on `[open, editorItemKey]` | Restore now, retry after 250 ms; returns the cleanup |
-| `noteUserEdit()` | `onChange` | Latch "user is typing", cancelling programmatic restores |
-| `persistNow()` | workspace close | Force-save, ignoring the suppress window |
-| `repairAfterLayout()` | `onAfterDelayedLayout` | Undo a Monaco scroll jump to top; retry a pending restore |
-| `dispose()` | unmount | Clear pending timers |
+| `attachEditor` | `onEditorReady` | Subscribe save; pending restore |
+| `beginNavigation` | layout on `editorItemKey` | Save outgoing; arm restore |
+| `requestRestore` | `[open, editorItemKey]` | Restore + 250 ms retry |
+| `noteUserEdit` | `onChange` | Block restores while typing |
+| `persistNow` | close | Force-save |
+| `repairAfterLayout` | delayed layout | Fix scroll-to-top; retry restore |
+| `dispose` | unmount | Clear timers |
 
-**Timing constants were tuned against real Monaco — do not round them.** `WORKSPACE_EDITOR_SUPPRESS_SAVE_MS` 400 (ignore saves right after a programmatic restore, because Monaco emits `scroll=0`), `WORKSPACE_EDITOR_TYPING_QUIET_MS` 600 (how long a keystroke blocks restores), `WORKSPACE_EDITOR_RESTORE_RETRY_MS` 250 (second attempt when the editor was not ready).
-
-**Two adapters justify the seam:** `monacoWorkspaceEditorAdapter(ed)` in the app, a fake in [`workspaceEditorSession.test.ts`](../src/editor/workspaceEditorSession.test.ts), which drives the policy through a manual clock (`now` / `setTimer` / `clearTimer` are injectable, defaulted to the browser) instead of faking globals. End-to-end coverage stays in `Builder.workspacePersistence.integration.test.tsx`.
-- **Watch**: eye icon always visible below refresh in the vertical toolbar (disabled until a custom transformer on a single entity is selected); panel portals into the editor pane, default top-right (just left of the toolbar), draggable and resizable via [`WorkspaceFloatingDrawer`](../src/components/workspace/WorkspaceFloatingDrawer.tsx) (left/right/bottom edges and corners), position persisted in `localStorage` across close/reopen. See [`feature-ui-infrastructure.md`](feature-ui-infrastructure.md) for shared dialog/panel rules.
-  This runs **once per page load** only (not again when closing and reopening Workspace).
-- **Shift+Escape** opens the Workspace. **Escape** (without Shift) closes it when open, or clears selection when closed. While the Monaco editor is focused, Escape first dismisses IntelliSense / parameter hints; the Workspace closes only on a subsequent Escape with no editor popup open. In native fullscreen, plain Escape exits fullscreen only when the Workspace is closed (`shouldExitFullscreenOnEscape`); Chromium locks Escape on enter so Shift+Escape can open the Workspace without exiting.
+**Do not round timing constants:** `WORKSPACE_EDITOR_SUPPRESS_SAVE_MS` 400, `WORKSPACE_EDITOR_TYPING_QUIET_MS` 600, `WORKSPACE_EDITOR_RESTORE_RETRY_MS` 250. Tests: [`workspaceEditorSession.test.ts`](../src/editor/workspaceEditorSession.test.ts) (injectable clock); integration: `Builder.workspacePersistence.integration.test.tsx`.
 
 ### R2 — Transformers tab
-- Retains authoring via the horizontal pipeline (**reorder**, **enable**, **drag**, inline **`name`** on custom cards, **Configure** drawer JSON incl. priority / `params` for custom stages), live trace on pipeline cards,
-  preset **Load template** + **Field reference** where applicable (`ValidatedJsonTextarea`),
-  Monaco when a **custom** stage is selected. **Removed:** redundant second toolbar row under the chain (Custom picker, Name, enable pill, Priority) — those fields live on the card / in **Configure**.
-- Visual pipeline strip (ordered, since execution order matters).
-- **Add** **+** button on the pipeline opens a resizable dialog with **Preset** and **Existing** tabs; existing list stacks one row per organize title (like Organize); **Add** / **Link** / **Copy** as before. The new stage is auto-selected after confirm (custom stages open Monaco immediately).
-- Clicking a custom stage’s **code** control or **selecting the stage** (card body click, tree row, pipe card, sibling arrows) selects it for Monaco editing. `resolvePreferredStageId` picks the first custom stage at the focused pipe level when the click target is a pipe/container.
-- Custom transformer **compile** and **runtime** errors render as floating overlays (`TransformerCodeErrorOverlay`) over the code column so Monaco height stays fixed. Compile errors are debounced (500 ms) while typing and flush on editor blur; pipeline cards still show error borders immediately on every failing stage (multiple runtime errors in one chain are tracked independently).
+- Horizontal pipeline: reorder, enable, drag, inline **name** on custom cards, **Configure** JSON (priority / `params`), live trace, preset **Load template** / **Field reference**, Monaco for **custom** stages. No redundant second toolbar under the chain.
+- **+** → dialog (**Preset** / **Existing**); auto-select after add (custom → Monaco).
+- Selection / code control → Monaco; `resolvePreferredStageId` prefers first custom at focused pipe level.
+- Compile/runtime errors: `TransformerCodeErrorOverlay` (debounced compile 500 ms; cards show borders immediately).
 
-#### Tab hooks (both extracted from `WorkspaceTransformersTab.tsx`, phase 26)
-
-| Hook | Owns |
+| Hook | Role |
 |---|---|
-| [`useTransformerCodeDraft`](../src/hooks/useTransformerCodeDraft.ts) | The custom-stage Monaco draft: sync from world on selection change, debounced commit (`TRANSFORMER_CODE_DEBOUNCE_MS` **350**, browser-tuned), undo priming on the first keystroke, and `flushPendingCode()` for navigation / copy / editor refresh. A draft resets only when `syncCodeKey` (`selectedId` + committed code) changes, so an unrelated world edit cannot revert in-flight typing. |
-| [`useStageRuntimeErrorDisplay`](../src/hooks/useStageRuntimeErrorDisplay.ts) | Runtime errors from `customTransformerErrorBridge`, projected onto the selection: `error` (live, identity-stable so the card-error memo does not churn), `displayed` (live error, or the last one for `STAGE_RUNTIME_ERROR_KEEP_MS` **10 s** after the runtime stops reporting it), `active` (false only during that keep window — the overlay dims and switches border colour), and `hasErrorAt(flatStackIndex)` for stage-card badges. |
+| [`useTransformerCodeDraft`](../src/hooks/useTransformerCodeDraft.ts) | Draft sync, debounce **350 ms**, undo prime, `flushPendingCode` for nav/copy/refresh |
+| [`useStageRuntimeErrorDisplay`](../src/hooks/useStageRuntimeErrorDisplay.ts) | Runtime bridge → overlay; keep **10 s** after clear (`STAGE_RUNTIME_ERROR_KEEP_MS`) |
 
-The tab passes `flushPendingCode` to `commitStageEdit` through a ref, because the draft hook's commit callback goes back through `runStageEdit`.
+`flushPendingCode` reaches `commitStageEdit` via ref from the draft hook.
 
 ### R3 — Scripts tab
-- Same Monaco editor as Transformers tab.
-- Top strip shows **assigned scripts** as a visual list/chip row (not pipeline — no order
-  arrows).
-- Strip controls: select active script, event type selector, `onTimer` interval, Apply,
-  Manage (opens Organize > Entity scope pre-filtered to Scripts).
-- Shared-script banner when selected script is used by >1 entity.
-- No pipeline ordering implied.
+- Chip row (no pipeline order); event, `onTimer` interval, Apply, Manage → Organize Entity/scripts. Shared-script banner when script used by >1 entity.
 
-### R4 — Organize tab
-Three scope subtabs: **Global**, **Project**, **Entity**.
+### R4 — Organize
+- Scopes: **Global**, **Project**, **Entity**; sub-tabs Transformers / Scripts (pipes: [feature-transformer-pipes.md](./feature-transformer-pipes.md)).
+- Cards stacked by type; **Edit**, **Delete**, **Copy**, **Move**, **Assign**. Global: copy to project before entity assign; promote from project.
+- **Registry queries:** [nomenclature.md § Behavior registry bindings](./nomenclature.md#behavior-registry-bindings) — `behaviorRegistryBindings(kind)`; migrate duplicate script queries in `WorkspaceScriptsTab` when touching that file.
+- Multi-select Entity scope: **intersection** of assigned ids (same as legacy script multi-select).
 
-Each scope has **Transformers** and **Scripts** sub-tabs. Items appear as **cards**:
-- Cards of the same type (e.g. same event for scripts, or same name/type for transformers) are **stacked** by default to save space.
-- Clicking a stack expands it to show all individual cards side-by-side.
-- Card content: title (ID/name), type / event, usage count (how many entities reference it).
-- Card actions: **Edit** (opens Transformers or Scripts tab with item selected), **Delete**,
-  **Copy**, **Move** (scope reassignment — see R5), **Assign** (to entities, where applicable).
-- Assignments visible on each card (list of referencing entity names).
+### R5–R7 — Move, conflicts, registry
+- **Move:** scope/assignment only (not pipeline reorder) — assign, promote, copy global→project, detach entity.
+- **Conflict:** `WorkspaceConflictDialog` — Overwrite or Rename.
+- **`world.transformers` + `entity.transformers: string[]`:** migration `migrateEntityTransformersToRegistry` on all load paths; schema in `world-schema.json`. Scripts unchanged.
 
-**Global scope**
-- Persistent storage outside any one project (IndexedDB global store).
-- Read/copy to project. Items cannot be directly assigned to entities — assigning copies
-  them into the project registry first.
-- Entities can **promote** project items here (copy up).
-
-**Project scope**
-- `world.transformers` and `world.scripts` for the current world.
-- Items can be assigned to entities directly.
-- Assignment edits are live (reflected immediately in Entity scope view and in-scene).
-
-**Entity scope**
-- Filtered view of project-scope cards showing only items assigned to the selected entity/ies.
-- Same cards, same actions — edits here are the same operation as in Project scope
-  (no separate data layer).
-
-**Registry bindings.** Both questions the tab asks of every registry — "which entities use this item?" and "which ids do all selected entities share?" — go through [`behaviorRegistryBindings(kind)`](../src/utils/behaviorRegistryBindings.ts), `kind` being `WorkspaceOrganizeKind` (`scripts` / `transformers` / `pipes`). One generic implementation reads a per-kind id selector, so pipe bindings pick up the legacy single `transformerPipe` field via `getEntityPipeStack` for free. Instances are module-level and stable, so they are safe to call inside a `useMemo` without adding a dependency. `WorkspaceScriptsTab.tsx` still carries its own script-only copies of both queries — migrate it to this seam when next editing that file.
-- When multiple entities are selected, shows the **intersection** of assigned items
-  (matching current multi-select script behaviour).
-
-### R5 — Move semantics in Organize
-"Move" means **scope/assignment reassignment**, not pipeline reorder:
-- Card in Project → assign to entity: adds reference to `entity.transformers` /
-  `entity.scripts`.
-- Card in Project → promote to Global: copies definition to global store (project item
-  stays; entity references unchanged).
-- Card in Global → copy to Project: clones definition into `world.transformers` /
-  `world.scripts` with a new or confirmed ID.
-- Card in Entity → detach: removes reference from entity (definition stays in project).
-
-### R6 — Conflict resolution dialog
-When copying/promoting between scopes and the target ID already exists, show a small modal:
-- **Overwrite** — replace target definition.
-- **Rename** — user edits the suggested ID before confirming.
-
-### R7 — Transformer registry (data model change)
-New field: `world.transformers: Record<string, TransformerDef>`.
-- `TransformerDef` mirrors `TransformerConfig` plus an optional `name` label.
-- `entity.transformers` changes from `TransformerConfig[]` to `string[]` (IDs), mirroring
-  `entity.scripts`.
-- Migration required: `migrateEntityTransformersToRegistry(worldData)` — extract embedded
-  configs into `world.transformers`, replace arrays with ID arrays, generate IDs.
-- `world-schema.json` updated for both `world.transformers` and the new `entity.transformers`
-  shape.
-
-### R8 — Inspector / sidebar (thin)
-- Sidebar code section shows **names only** (transformer slot labels, script IDs).
-- Clicking any name opens the Workspace anchored to that item + current entity.
-- No editing, dropdowns, or Monaco in the sidebar.
-
-### R9 — No functionality regression
-All operations available today must remain reachable in the Workspace:
-create, rename, delete, attach, detach, reorder (pipeline), copy, template load, event
-change, interval change, params edit, enable toggle, live trace, shared-script warning,
-multi-entity edit.
+### R8–R9 — Inspector & parity
+- Sidebar: names only → Workspace. All prior operations reachable in Workspace (no regression list duplicated here — see removed legacy components in cleanup history).
 
 ---
 
-## Data model changes
+## Data & persistence
 
-```
-// New — world-level transformer registry (mirrors world.scripts)
-world.transformers: Record<string, TransformerDef>
-
-interface TransformerDef extends TransformerConfig {
-  // inherits: type, name?, priority?, enabled?, inputMapping?, params?, code?
-}
-
-// Changed — entity now references by ID (was TransformerConfig[])
-entity.transformers: string[]   // transformer IDs into world.transformers
-
-// New — global cross-project store (IndexedDB, separate from world JSON)
-globalStore.transformers: Record<string, TransformerDef>
-globalStore.scripts: Record<string, ScriptDef>
-```
-
-`world.scripts` and `entity.scripts` are **unchanged**.
+- Project: `world.transformers`, `world.scripts`, entity id arrays (see [nomenclature.md](./nomenclature.md)).
+- Global: IndexedDB **`globalBehaviorLibrary`** ([`globalBehaviorLibrary.ts`](../src/types/globalBehaviorLibrary.ts)) — not in world JSON/ZIP; v7+ store ([`architecture.md` § Persistence](./architecture.md#persistence)).
 
 ---
 
-## Migration path
+## Key files
 
-`migrateEntityTransformersToRegistry(worldData: unknown): void`
-- For each entity with `transformers: TransformerConfig[]`, generate IDs, write into
-  `world.transformers`, replace array with ID array.
-- Called in `loadWorld`, `loadWorldFromStatic`, IndexedDB load, and `Play.tsx` (same
-  pattern as existing migrations).
-- JSON schema updated so validation passes the new shape.
-
----
-
-## Key files affected
-
-| File | Change |
+| Area | Paths |
 |---|---|
-| `src/types/transformer.ts` | Add `TransformerDef`; update entity `transformers` type |
-| `src/types/world.ts` | `Entity.transformers: string[]`; `RennWorld.transformers` |
-| `world-schema.json` | New `$defs/TransformerDef`, update `Entity.transformers`, add `world.transformers` |
-| `src/scripts/migrateWorld.ts` | Add `migrateEntityTransformersToRegistry` |
-| `src/persistence/indexedDb.ts` | Migrations on load; **`globalBehaviorLibrary` store** (v7 added, **v8** bump if missing on existing DBs) + `loadGlobalBehaviorLibrary` / `saveGlobalBehaviorLibrary` |
-| `src/types/globalBehaviorLibrary.ts` | **New** — `GlobalBehaviorLibrary` shape (IndexedDB, cross-project) |
-| `src/types/workspace.ts` | `WorkspaceTarget`, `WorkspaceShellTabId`, optional `itemSource: 'global'` for IndexedDB items |
-| `src/components/Workspace.tsx` | **New** — top-level Workspace panel (tabs + Monaco host); loads/saves global library when open |
-| `src/components/workspace/WorkspaceTransformersTab.tsx` | **New** — pipeline strip + editor; **global** branch → `WorkspaceGlobalTransformerPanel` |
-| `src/components/workspace/WorkspaceScriptsTab.tsx` | **New** — script chips + event controls + shared Monaco; **global** branch → `WorkspaceGlobalScriptPanel` |
-| `src/components/workspace/WorkspaceGlobalTransformerPanel.tsx` | **New** — edit global transformer defs (Monaco, custom params JSON, templates; no preset full-def JSON duplicate) |
-| `src/components/workspace/WorkspaceGlobalScriptPanel.tsx` | **New** — edit global scripts (Monaco + events) |
-| `src/components/workspace/WorkspaceOrganizeTab.tsx` | **New** — Organize scopes + registry cards (Project / Entity / **Global** + promote / copy / assign) |
-| `src/components/workspace/WorkspaceOrganizeCard.tsx` | **New** — card with actions |
-| `src/components/workspace/WorkspaceConflictDialog.tsx` | **New** — overwrite / rename modal |
-| `src/components/CodingTabPanel.tsx` | Phase 2: **Open Workspace** trigger + routing; Phase 7: thin name-list |
-| `src/components/TransformerEditor.tsx` | Reused inside `WorkspaceTransformersTab` |
-| `src/components/EntityScriptEditor.tsx` | Absorbed into Workspace; **remove** |
-| `src/components/ScriptPanel.tsx` | Replaced by thin inspector list; **remove** |
-| `src/components/ScriptPanelMultiSelect.tsx` | Logic moves to Workspace multi-select; **remove** |
-| `src/components/ScriptDialog.tsx` | Replaced by Organize tab; **remove** |
-| `src/runtime/renderItemRegistry.ts` | Update transformer chain build to resolve IDs from registry |
-| `src/scripts/scriptRunner.ts` | No change (already uses `world.scripts` registry) |
+| Shell | `Workspace.tsx`, `workspace/*Tab.tsx`, `WorkspaceConflictDialog.tsx` |
+| Global panels | `WorkspaceGlobalTransformerPanel.tsx`, `WorkspaceGlobalScriptPanel.tsx` |
+| Inspector entry | `CodingTabPanel.tsx` (thin lists) |
+| Types / DB | `types/workspace.ts`, `types/transformer.ts`, `persistence/indexedDb.ts` |
+| Runtime resolve | `renderItemRegistry.ts` (registry ids → chain) |
+| Pipe edits | `commitStageEdit.ts`, `pipeNavEdit.ts` — [feature-transformer-pipes.md](./feature-transformer-pipes.md) |
+
+Removed legacy: `CustomTransformerCodeTab`, `EntityScriptEditor`, `ScriptPanel*`, `ScriptDialog` (Phase 8).
 
 ---
 
-## Todo / migration plan
+## Tests (Vitest)
 
-### Phase 1 — Data model & migration ✅ COMPLETE
-- [x] Add `TransformerDef` type and update `Entity.transformers: string[]` in `types/transformer.ts` and `types/world.ts`
-- [x] Add `world.transformers: Record<string, TransformerDef>` to `RennWorld`
-- [x] Update `world-schema.json` (`$defs/TransformerDef`, updated entity shape, world-level field)
-- [x] Write `migrateEntityTransformersToRegistry` in `migrateWorld.ts` with tests
-- [x] Wire migration into all load paths (`loadWorld`, `loadWorldFromStatic`, IndexedDB, `Play.tsx`)
-- [x] Update `renderItemRegistry` / `TransformerChain` builder to resolve configs from `world.transformers` by ID
-- [x] Run existing tests; fix regressions before proceeding
-
-### Phase 2 — Workspace shell ✅ COMPLETE
-- [x] Create `Workspace.tsx` (popout panel, tab strip: Transformers / Scripts / Organize, shared Monaco instance)
-- [x] Wire open/close trigger from `CodingTabPanel` (**Open Workspace**; full thin inspector lands Phase 7)
-- [x] Implement entry-point routing: `WorkspaceTarget` `{ entityId, tab: 'transformers' \| 'scripts', itemId? }` + anchored strip copy
-
-### Phase 3 — Transformers tab ✅ COMPLETE
-- [x] `WorkspaceTransformersTab` + extracted `TransformerPipelineHorizontal` pipeline strip wired into `Workspace.tsx` shared Monaco
-- [x] Retain: **custom** Monaco editor only; **`name`/priority/enabled`/which custom** editable via pipeline (**no** redundant toolbar row below the chain above Monaco); reorder, enable toggle, **`params`** for custom stages only via pipeline **gear** JSON drawer (duplicate **Params (JSON)** under Monaco removed); preset tooling uses `ValidatedJsonTextarea` / field reference as before; live trace strip; transformer template dialog; docs split + reset pose toolbar; removed redundant preset full-config JSON column (single-column layout + Monaco placeholder); **preset** transformer **Load template** + **Field reference** sit in the pipeline header’s reserved left gutter (glass chips beside the scrolling strip instead of above the Monaco column); redundant **preset panel** duplicate of IN/OUT (below Monaco) removed — summaries stay on pipeline cards + expandable drawers there
-- [x] Removed `CustomTransformerCodeTab` (legacy pop-out deleted; Workspace is the sole editor)
-
-### Phase 4 — Scripts tab ✅ COMPLETE
-- [x] Create `WorkspaceScriptsTab` using shared Monaco from Workspace (`TransformerCustomCodeEditor` script `ctx` IntelliSense via `codeIntelliSense` / `scriptCtxEvent`)
-- [x] Port top-strip from `EntityScriptEditor` / `ScriptPanelMultiSelect`: assigned chips, Active select, event, interval, Apply, Manage (opens **Organize** > Entity scope, scripts)
-- [x] Shared-script banner
-- [x] Multi-select intersection logic (from `ScriptPanelMultiSelect`)
-- [x] Removed `EntityScriptEditor.tsx`, `ScriptPanel.tsx`, `ScriptPanelMultiSelect.tsx`; `AvatarDialog` migrated to thin list + Workspace overlay
-
-### Phase 5 — Organize tab (Project + Entity scopes) ✅ COMPLETE
-- [x] Create `WorkspaceOrganizeTab` with Global / Project / Entity scope subtabs and Transformers / Scripts sub-tabs
-- [x] `WorkspaceOrganizeCard` component: title, meta, usage count, assignment list, actions
-- [x] Project scope: list `world.transformers` + `world.scripts`; assign/detach to entities; delete; rename (with rename-propagation to all entity arrays)
-- [x] Entity scope: filtered view (intersection for multi-select); same cards
-- [x] Copy/move between Project ↔ Entity (assign/detach)
-- [x] `WorkspaceConflictDialog` (overwrite / rename)
-- [x] Removed `ScriptDialog.tsx` (all callers deleted)
-
-### Phase 6 — Global scope (IndexedDB global store) ✅ COMPLETE
-- [x] Design global store schema in `indexedDb.ts` (separate object store, keyed outside world)
-- [x] Global scope cards in Organize: list, copy to project (with conflict dialog), promote from project
-- [x] Assign from Global auto-copies to project registry first
-
-### Phase 7 — Thin inspector ✅ COMPLETE
-- [x] Rework `CodingTabPanel` to names-only list (transformer IDs + script IDs / labels)
-- [x] Click handler opens Workspace anchored to item (`onTransformerCodePopoutOpen` on row open)
-
-### Phase 8 — Cleanup & polish ✅ COMPLETE
-- [x] Delete all removed components (`CustomTransformerCodeTab`, `EntityScriptEditor`, `ScriptPanel`, `ScriptPanelMultiSelect`, `ScriptDialog`, `ScriptPanel.test`)
-- [x] Migrate `AvatarDialog` transformer + scripts sections to thin lists + embedded `Workspace` overlay (removed broken `TransformerConfig[]` usage; `entity.transformers` is now `string[]`)
-- [x] Update `start-here.md` task → file map
-- [x] Update `architecture.md` persistence section (global behavior library) + file map (Workspace + workspace/ directory)
-- [x] UI tests (Vitest RTL): Workspace shell close/Escape + Transformers horizontal pipeline; Scripts **Manage** → Organize (**Entity**, scripts); shared-script banner; promote transformer → Global; duplicate promote opens **WorkspaceConflictDialog**; `CodingTabPanel` Scripts subgroup → Open Workspace → Manage (`Workspace.test.tsx`, `CodingTabPanel.test.tsx`; global library load/save spied/mocked where needed).
-- [x] **Builder workspace persistence integration** (`Builder.workspacePersistence.integration.test.tsx`): close/reopen restores pipe depth + selected transformer; card/tree clicks follow selection into Monaco; per-item Monaco scroll/cursor restore across custom transformer switches; entity picker restores per-entity pipe/selection memory.
-- [x] **Shift+Escape** shortcut to open Workspace; removed stale `onTransformerCodePopoutOpen` props and comments.
-- [ ] E2E smoke test: open Workspace, edit script, apply, verify in Play (and broader integration: Organize assign/detach flows).
+`Workspace.test.tsx`, `CodingTabPanel.test.tsx`, `Builder.workspacePersistence.integration.test.tsx` — shell, Organize, Monaco view state, pipe depth memory, Shift+Escape.

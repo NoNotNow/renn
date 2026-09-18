@@ -26,19 +26,19 @@ import {
 import { getEntityPipeStack } from '@/utils/transformerPipeResolve'
 
 /** Enable/param/decouple callbacks, in the prop shape `PipeCard` hosts expect. */
-export type PipeControlHandlers = Required<PipeCardStageHandlers> & {
+type PipeControlHandlers = Required<PipeCardStageHandlers> & {
   onDecouplePipeBinding: (stackIndex: number) => void
 }
 
 /** "Add pipe" callbacks, in the prop shape `PipeFocusedStrip` expects. */
-export interface AddPipeHandlers {
+interface AddPipeHandlers {
   onCreatePipe: (name: string) => void
   onAddChildPipe: (name: string) => void
   onAddExistingPipe: (pipe: TransformerPipe, mode: 'linked' | 'copy') => void
 }
 
 /** Tree callbacks, in the prop shape `TransformerPipeNavSidebar` expects. */
-export interface PipeTreeHandlers {
+interface PipeTreeHandlers {
   /** Undefined when the focus is not on a pipe, which hides the sidebar's rename affordance. */
   onRenamePipe: ((name: string) => void) | undefined
   onTreeDelete: (node: PipeTreeNode) => void

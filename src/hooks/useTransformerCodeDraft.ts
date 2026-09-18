@@ -7,7 +7,6 @@ export const TRANSFORMER_CODE_DEBOUNCE_MS = 350
 
 export interface TransformerCodeDraftFlushContext {
   selectedId: string | null
-  pipeScoped: boolean
   registryIds: string[]
   configs: TransformerConfig[]
 }

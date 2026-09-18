@@ -51,12 +51,7 @@ Add **Transformer Pipes** — named, reusable, ordered sequences of transformer 
 
 ### Vocabulary
 
-| Term | Meaning |
-|---|---|
-| **Pipe** | Reusable behavior recipe: ordered stages + optional tunable params |
-| **Manifold** | A pipe whose members include other pipes (nested, n-level). `TransformerPipe.members` mixes `{ kind: 'stage' }` and `{ kind: 'pipe' }` |
-| **Pipe stack** | Ordered pipe instances on one entity: `entity.transformerPipeStack` |
-| **Binding** | One stack entry (`pipeId`, per-entity `params`, optional `mode: 'linked' \| 'copy'`) |
+Canonical terms: [nomenclature.md](./nomenclature.md) (pipe, manifold, stack, binding, param scopes, stage runtime, strip scope).
 
 ### Data Models
 
@@ -158,39 +153,14 @@ Legacy `entity.transformerPipe` migrates to a single-entry stack on load (`migra
 
 #### Tree navigation (Transformers tab sidebar)
 
-- **Docked sidebar** [`TransformerPipeNavSidebar.tsx`](../src/components/workspace/pipeNav/TransformerPipeNavSidebar.tsx): resizable, **collapsed by default** (slim `»` toggle); Up / Left / Right; editable pipe title; tree mirrors stack → nested `members`.
-- **Tree actions**: hover delete (×), context menu (add before / after / child, **Edit params**, delete). Mutations in [`pipeNavMutations.ts`](../src/utils/pipeNavMutations.ts); chosen by [`pipeNavEdit.ts`](../src/editor/pipeNavEdit.ts) and applied by [`usePipeNavController.ts`](../src/hooks/usePipeNavController.ts).
-- **Pipe params**: each stack binding stores instance values in `TransformerPipeBinding.params` (per entity only — never shared). On assign, `paramDefs[].default` is copied into `binding.params` once. **Pipe cards** and **tree row controls** expose a settings button; pipe rows also offer **Edit params** in the context menu. Both open [`PipeConfigDrawer`](../src/components/workspace/pipeNav/PipeConfigDrawer.tsx) with [`PipeParamsStrip`](../src/components/workspace/pipeNav/PipeParamsStrip.tsx) when `paramDefs` are defined, or [`PipeParamsJsonEditor`](../src/components/workspace/pipeNav/PipeParamsJsonEditor.tsx) for raw JSON otherwise. Both editors call `resolveLocalScopeParams(binding, scopePath)` — typed strip and JSON agree at every scope.
-- **`usePipeNavController` return** (13 keys): nav state `view`, `focus`, `setPath`, `focusedPipeId`, `focusedTitle`, `stageData`, **`stageScope`**, `stackIndexForPipeId`, **`writeFocusedStages`**, plus four **prop bundles** meant to be spread at the call site: `pipeControls` (toggle / param change / param replace / decouple), `addPipe` (create / add child / add existing), `treeActions` (rename / delete / context / drop), `nameDialogProps` (`PipeNavDialogs` props). Bundles keep the child prop signatures unchanged — `<PipeFocusedStrip {...pipeNav.pipeControls} />`. Dropped over time (unused or owned elsewhere): `navigator`, `goUp`/`goLeft`/`goRight`, `drillInto`, `pushWorld`, `applyStructuralChange`, `reorderStack`, `reorderMember`, **`handleCommitStagesWrapped`**, **`handlePatchStageWrapped`**. Stage-strip flush/undo/param-sync policy lives in [`commitStageEdit`](../src/editor/commitStageEdit.ts) — `writeFocusedStages` is a bare `StageStackWriter` (calls `commitFocusedStageConfigs`, returns the next world). [`pipeStageCallbacks.ts`](../src/components/workspace/pipeNav/pipeStageCallbacks.ts) wraps flat pipe-param/toggle callbacks for `PipeCard` props.
-- **Tree drag-and-drop**: reorder stack / members; **move transformer stages between pipes** (drop on another stage, stack pipe row, or nested pipe row); nest stack pipe into nested pipe; promote nested pipe to entity stack; re-parent nested pipes (cycle guard via [`wouldNestCreateCycle`](../src/utils/pipeNavResolve.ts)). Stages dropped on the entity root are rejected.
-- **Strip**: one level at a time — pipe cards at entity root; stages + nested pipe cards inside a manifold (mixed order preserved when pipes and stages interleave).
-- **Stage strip hosting**: [`PipeFocusedStrip`](../src/components/workspace/pipeNav/PipeFocusedStrip.tsx) mounts `TransformerHorizontalPipeline` in two shapes and `WorkspaceTransformersTab` in a third. Which one is a single `scope` prop — `pipeStrip` (a full level of stages; the strip host owns the `+` and `PipeAddDialog`), `pipeMember` (one stage card wedged between sibling pipe cards: no lead-in, no connectors, no add slot), or `entityStack` (flat entity, strip owns its own `+` and `AddTransformerDialog`). See [nomenclature.md § Stage strip scope](./nomenclature.md#stage-strip-scope).
-- **Add flows**: strip `+` menu ([`PipeAddDialog.tsx`](../src/components/workspace/pipeNav/PipeAddDialog.tsx)); header **+ Add Pipe** removed (duplicate). **Leaf level** (gray `+`): `entity_stages`, or `pipe_members` with no nested pipe cards in the focused view — opens **Add to pipeline** (transformer preset/existing + optional pipe sections). **New pipe** / **Existing pipe** at leaf level append a **stack sibling** (after the current stack pipe), not a nested member; use the **Child pipe** tab to nest. **Pipe level** (yellow `+`): entity root with multiple stack pipes, or a manifold showing nested pipe cards — pipe-centric add sections.
-- **Auto-wrap**: fresh entity → `Pipe1` via `ensureEntityPipeStack`; legacy ungrouped stages → non-blocking **Wrap into pipe** banner.
-- **Runtime params**: computed once at chain-build time via [`resolveEntityStageRuntime`](../src/utils/pipeStageResolve.ts) using a three-scope merge (see **Pipe params + enable cascade** below and [nomenclature.md § Entity stage runtime](./nomenclature.md#entity-stage-runtime)). Result is keyed by **flat index** in `entity.transformers`. Entities **without** a pipe stack use stage registry `params` directly. Never written back to world JSON except via explicit pipe-param or stage-config apply paths. **Stage config drawer (piped entities)**: shows and edits only the stage’s local registry `params` (not the merged result); saving writes to the registry entry only.
-
-#### Pipe params + enable cascade
-
-1. **Three-scope merge** — owned by [`paramScopes.ts`](../src/utils/paramScopes.ts); applied at chain-build in [`pipeStageResolve.ts`](../src/utils/pipeStageResolve.ts). Stage runtime `params` merge all three scopes (narrower wins, wider fills gaps):
-   - **Stage params** (`world.transformers[id].params`) — lowest priority, act as defaults
-   - **Binding params** (`binding.params`) — mid, per-entity stack-root overrides
-   - **Scope params** (`binding.scopeParams[scopeKey]`) — highest, per-entity nested-pipe overrides
-
-   Runtime: `mergeParamScopeLayers([stageParams, …resolveBindingScopeLayerParams layers])`. Editing: `resolveLocalScopeParams(binding, scopePath)` only.
-
-   Example: stage `{ A:1 }`, binding `{ B:1 }` → merged `{ A:1, B:1 }`. Stage `{ A:1 }`, binding `{ A:2, B:2 }` → merged `{ A:2, B:2 }`.
-
-   **Runtime vs editing predicate:** runtime treats any `scopeKey.startsWith('stack:')` as stack-root (re-injects `binding.params`); editing uses `isStackRootScopePath` (path length 1). Divergence is latent while stack-root edits stay on `binding.params`; see `paramScopes.test.ts`.
-2. **Flat (no pipe stack)** — `entity.transformers` stages use registry `params` directly (no merge needed).
-3. **Build-time, zero runtime allocation** — merge runs once when the transformer chain is built; the result is stored on the transformer instance. The per-frame hot path reads the pre-built object — no allocations. Immutability is a convention (not enforced with `Object.freeze()`).
-4. **No cross-binding merge** — stack siblings are fully isolated; each binding’s merged params are independent.
-5. **Disable cascade** — when a pipe scope is disabled, all nested pipes and stages under it are effectively disabled: omitted from flatten and skipped at runtime. **Pipe cards, tree rows, and stage strips** all ask `isScopeEnabled(path)` for ancestor grey-out (`PipeFocusedStrip` passes `focusPath`). Per-stage flat-index queries cannot answer cascade vs self-disable; see `nomenclature.md § Entity stage runtime`.
-6. **Scope storage** — stack root uses `binding.params`; nested scopes use `binding.scopeParams[scopeKey]` keyed by pipe-nav path.
-7. **Legacy migration** — `migrateTransformerPipeDefaultParams` moves old `pipe.defaultParams` into bindings on load, then strips the field.
-
-#### UI editing rule for params
-
-Config drawers and param UIs always show and write **only the local params of the scope being edited** — never the merged result. See [nomenclature.md](nomenclature.md) for the full table.
+- **Sidebar:** [`TransformerPipeNavSidebar.tsx`](../src/components/workspace/pipeNav/TransformerPipeNavSidebar.tsx) — collapsed by default, resizable, Up/Left/Right, title edit, tree = stack + nested `members`.
+- **Edits:** structural/tree → [`pipeNavEdit.ts`](../src/editor/pipeNavEdit.ts) via [`usePipeNavController.ts`](../src/hooks/usePipeNavController.ts); low-level mutations in [`pipeNavMutations.ts`](../src/utils/pipeNavMutations.ts).
+- **Params UI:** [`PipeConfigDrawer`](../src/components/workspace/pipeNav/PipeConfigDrawer.tsx) + strip or JSON editor; both use `resolveLocalScopeParams` (see [nomenclature.md § Param scope merge rules](./nomenclature.md#param-scope-merge-rules)).
+- **Controller surface (13 keys):** nav + `stageScope` + `writeFocusedStages` + spread bundles `pipeControls`, `addPipe`, `treeActions`, `nameDialogProps`. Stage flush/undo/sync → [`commitStageEdit`](../src/editor/commitStageEdit.ts); `writeFocusedStages` is a bare writer only.
+- **D&D:** stack/member reorder, stage moves between pipes, nest/promote/re-parent (cycle guard: [`wouldNestCreateCycle`](../src/utils/pipeNavResolve.ts)).
+- **Strip / scope:** one level per view; stage strip host modes → [nomenclature.md § Stage strip scope](./nomenclature.md#stage-strip-scope). Add flows: [`PipeAddDialog.tsx`](../src/components/workspace/pipeNav/PipeAddDialog.tsx) (leaf vs pipe-level `+` semantics unchanged).
+- **Auto-wrap:** `ensureEntityPipeStack` on select; legacy flat stages → optional wrap banner.
+- **Runtime params & enable cascade:** [`resolveEntityStageRuntime`](../src/utils/pipeStageResolve.ts) + [`paramScopes.ts`](../src/utils/paramScopes.ts) — merge rules, editing vs merged, disable cascade, strip grey-out → [nomenclature.md](./nomenclature.md) (Entity stage runtime + Param scope merge rules).
 
 #### Stage commits → world (`commitStageEdit`)
 

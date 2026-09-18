@@ -8,7 +8,6 @@ import {
   type CSSProperties,
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
-  type RefObject,
 } from 'react'
 import CopyableArea from '@/components/CopyableArea'
 import { EntityPanelIcons } from '@/components/EntityPanelIcons'
@@ -142,8 +141,6 @@ export interface WorkspaceTransformersTabProps {
   setMonacoPayload: (payload: WorkspaceMonacoPayload) => void
   /** Registers watch and other editor-toolbar controls on the shared Monaco slot. */
   setMonacoEditorChrome?: (chrome: WorkspaceMonacoEditorChrome | null) => void
-  /** Editor pane ref (left of vertical toolbar) for floating watch panel portal. */
-  monacoEditorAreaRef?: RefObject<HTMLDivElement | null>
   /** Bumps when the editor pane ref attaches so watch overlay can portal in. */
   monacoEditorAreaEpoch?: number
   /** Host injects shared `TransformerCustomCodeEditor`; tab positions it inside the split layout. */
@@ -202,7 +199,6 @@ function WorkspaceTransformersTabEntity({
   onMergedPipeParamSync,
   setMonacoPayload,
   setMonacoEditorChrome,
-  monacoEditorAreaRef: _monacoEditorAreaRef,
   monacoEditorAreaEpoch = 0,
   monacoSlot,
   onEntryChange,
@@ -479,7 +475,6 @@ function WorkspaceTransformersTabEntity({
   const getCodeDraftFlushContext = useCallback(
     () => ({
       selectedId,
-      pipeScoped: pipeScopedForCodeCommit,
       registryIds: pipeScopedForCodeCommit ? editorStageIds : transformerIds,
       configs: pipeScopedForCodeCommit ? editorStageConfigs : list,
     }),
@@ -541,6 +536,7 @@ function WorkspaceTransformersTabEntity({
   }, [singleEntity, ungroupedStageIds.length, world, undo, onWorldChange, applyWorldWrite])
 
   const runtimeErrors = useStageRuntimeErrorDisplay(selectedEntityIds, selectedFlatStackIndex)
+  const { hasErrorAt: runtimeErrorAtFlatIndex } = runtimeErrors
   const codeColumnRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -585,7 +581,7 @@ function WorkspaceTransformersTabEntity({
       if (errors[i] === 'compile') continue
       const flatIdx =
         usePipeNav && singleEntity && pipeNav.view?.mode !== 'pipe_siblings' ? flatBase + i : i
-      if (runtimeErrors.hasErrorAt(flatIdx)) {
+      if (runtimeErrorAtFlatIndex(flatIdx)) {
         errors[i] = 'runtime'
       }
     }
@@ -600,7 +596,7 @@ function WorkspaceTransformersTabEntity({
     list,
     selectedEditorIndex,
     codeDraft,
-    runtimeErrors.hasErrorAt,
+    runtimeErrorAtFlatIndex,
   ])
 
   /** Default first stage when nothing selected (entry anchor effect sets itemId when present). */

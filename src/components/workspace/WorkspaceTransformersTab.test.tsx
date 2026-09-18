@@ -128,7 +128,6 @@ function TabWithMonacoHarness(
       onWorldChange={vi.fn()}
       setMonacoPayload={setMonacoPayload}
       setMonacoEditorChrome={setMonacoChrome}
-      monacoEditorAreaRef={editorAreaRef}
       monacoEditorAreaEpoch={editorAreaEpoch}
       monacoSlot={monacoSlot}
       {...props}

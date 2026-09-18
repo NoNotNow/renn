@@ -8,6 +8,7 @@ import Switch from './Switch'
 import CopyableArea from './CopyableArea'
 import { sectionStyle, sectionTitleStyle, secondaryButtonStyle, sidebarRowStyle, sidebarLabelStyle } from './sharedStyles'
 import { useEditorUndo } from '@/contexts/EditorUndoContext'
+import { theme } from '@/config/theme'
 
 export interface SoundPanelProps {
   world: RennWorld
@@ -115,9 +116,11 @@ export default function SoundPanel({ world, onWorldChange, onPlaybackCommand }: 
               }}
               style={{
                 ...secondaryButtonStyle,
-                border: selectedAssetId ? '1px solid #5c2a2a' : secondaryButtonStyle.border,
-                color: selectedAssetId ? '#f4d6d6' : '#9aa4b2',
-                background: selectedAssetId ? '#2a1818' : '#1a1f2e',
+                border: selectedAssetId
+                  ? `1px solid ${theme.border.destructiveSoft}`
+                  : secondaryButtonStyle.border,
+                color: selectedAssetId ? theme.text.destructive : theme.text.muted,
+                background: selectedAssetId ? theme.bg.destructiveSoft : theme.bg.sidebarButtonIdle,
                 cursor: selectedAssetId ? 'pointer' : 'not-allowed',
                 opacity: selectedAssetId ? 1 : 0.7,
               }}

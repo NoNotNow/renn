@@ -34,6 +34,15 @@ For each recent commit, ask:
 
 Fix obvious loose ends in the same area; note non-obvious ones in the audit doc.
 
+### 1b. AI documentation consolidation (`agent-context/`)
+
+Each pass should shrink or dedupe agent docs, not only code.
+
+- **Canonical home:** terms → `nomenclature.md`; structure → `architecture.md`; feature behaviour → one `feature-*.md`. Link instead of copying tables or long explanations.
+- **Audit file:** append **short** phases to `codebase-cleanup-audit.md` (bullets, paths). Do not grow verbose essays; full history lives in `codebase-cleanup-history.md` (archive).
+- **When editing feature docs:** remove paragraphs that repeat nomenclature; fix stale API names; one-line “superseded by …” beats keeping two versions.
+- **README.md § Doc rules** is the style reference.
+
 ### 2. Dead code
 
 Search systematically:
@@ -93,7 +102,7 @@ If the bug touches hot paths (per-frame loop, Rapier step, `sceneFrameLoop`, `re
 - Raw hex → `theme.ts` tokens when touching a file (opportunistic migration)
 - Small DRY extractions with tests
 - Obvious bugs with clear repro or failing test
-- Doc drift in `agent-context/` for code you changed
+- Doc drift in `agent-context/` for code you changed; consolidate redundant agent docs (see §1b)
 
 ### Defer but document
 

@@ -15,7 +15,7 @@ import {
   normalizePipeMembers,
 } from '@/utils/transformerPipeResolve'
 
-export type CreatePipeOptions = {
+type CreatePipeOptions = {
   entityId: string
   name: string
   /** Stage ids to wrap into the new pipe (from current focus). */
@@ -27,7 +27,7 @@ export type CreatePipeOptions = {
 }
 
 /** Create a new pipe from stages at the current focus level. */
-export function createPipeFromStages(world: RennWorld, opts: CreatePipeOptions): {
+function createPipeFromStages(world: RennWorld, opts: CreatePipeOptions): {
   world: RennWorld
   pipeId: string
   focusPath: PipeNavPathSegment[]

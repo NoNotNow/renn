@@ -28,6 +28,14 @@ You are an **L2 orchestrator** in a three-level subagent hierarchy:
 ## Task queue (priority order)
 {{NUMBERED_TASK_LIST}}
 
+## Appended tasks (from mid-run user messages, if any)
+{{APPENDED_TASKS_OR_NONE}}
+
+## Continuity — mid-run messages (default)
+- **Do not stop** this run because the parent coordinator received a follow-up user message.
+- **Append** new user notes to the queue above; pick them up after in-flight L3 workers finish unless the user said **stop** / **cancel**.
+- Do **not** discard completed work or re-run finished items to reinterpret a short follow-up.
+
 ## Key docs (read these, do not re-derive)
 {{DOC_PATHS}}
 
@@ -69,7 +77,7 @@ Start with the highest-priority queue item. Do as much as possible before writin
 ```yaml
 subagent_type: generalPurpose
 model: claude-opus-5-thinking-high
-run_in_background: false  # unless user asked for background
+run_in_background: true   # default for AFK / multi-worker; false if user wants foreground-only
 ```
 
 ## Chunking guidance for L1

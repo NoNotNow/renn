@@ -78,9 +78,9 @@ Seam tested in `stageStripScope.test.ts`.
 | `syncedStageIds()` | Ids to write back to `entity.transformers` — **all** stages when the entity has no pipe stack, enabled flatten when piped |
 | `runtimeConfigs()` | Merged `TransformerConfig[]` for the transformer chain (enabled stages only), or `null` |
 
-**Hold the snapshot; never call per question.** Callers that need more than one answer must resolve once and query — that is the whole point of the interface. `PipeNavTree` and `PipeFocusedStrip` both `useMemo(() => resolveEntityStageRuntime(world, entity), [world, entity])`, so a tree with N rows costs one walk per render, not N. The predecessor shape — free functions `isPipeScopeEffectivelyEnabled` / `isStageEffectivelyEnabled` / `syncEntityTransformerIdsFromPipeTree` / `resolveEntityTransformerConfigsForRuntime`, each rebuilding the full walk to read one field — made the per-row cost invisible at the call site. Guarded by `PipeNavTree.stageRuntime.test.tsx`.
+**One snapshot per render** — memoise `resolveEntityStageRuntime(world, entity)` when you need more than one query (`PipeNavTree.stageRuntime.test.tsx` guards N rows → one walk).
 
-**Strip grey-out uses `isScopeEnabled`, not `isStageEnabledAt`.** For a piped entity, `stageContext` only holds stages that survived the flatten, so `isStageEnabledAt` answers `true` for every in-range index and cannot detect an ancestor pipe disable. `PipeFocusedStrip` greys stage cards with `isScopeEnabled(focusPath)`. A per-stage flat-index query still cannot distinguish “self-disabled stage” from “ancestor-disabled stage” (both omit the stage from the flatten); wiring that to the strip would lock the enable toggle on stages the user turned off themselves — why `isStageEnabledById` was dropped in Phase 25.
+**Strip grey-out:** use `isScopeEnabled(focusPath)`, not `isStageEnabledAt` (flatten omits disabled stages; flat index cannot see ancestor disables). Do not use a per-id enable API on the strip — it conflates self-disable with ancestor-disable and locks toggles.
 
 ---
 
@@ -127,8 +127,4 @@ Single owner: `src/utils/paramScopes.ts`.
 
 Runtime merged output is built in `pipeStageResolve.ts`: stage params + accumulated `resolveLocalScopeParams(binding, path)` layers via `mergeParamScopeLayers`. Editing UIs (`PipeParamsStrip`, `PipeParamsJsonEditor`) call the same function, so the typed strip, the JSON editor and the runtime cannot disagree.
 
-**One projection, on purpose.** There used to be a second, runtime-only function (`resolveBindingScopeLayerParams`) that decided "is this the stack root?" from the scope *key* (`scopeKey.startsWith('stack:')`) while editing decided it from the *path* (`isStackRootScopePath` — length 1). Those are not equivalent: `pipeScopeKeyFromPath` emits nested keys like `stack:0/member:abc:1`, which also start with `stack:`. So at every nested scope the runtime appended `binding.params` again as a *higher*-priority layer, clobbering any stack-root override back to its binding default — the editing UI showed `speed: 10` while the runtime resolved `speed: 5`.
-
-It was latent, not live: `scopeParams['stack:N']` is never populated today, because `applyPipeParamWorldUpdate` routes stack-root writes to `binding.params`, and nav paths always have exactly one leading `stack` segment, so the bare key `stack:N` can only ever come from a root path. Nothing enforced that, though, and a legacy or hand-edited project file could carry it.
-
-**Resolution:** the duplicate was deleted rather than patched, so the divergence cannot reappear. Safe because the runtime tree walk always pushes the root `stack:N` layer before descending (`visitMembers`; `walkCopyBindingStages` only uses the root key), so `binding.params` is already present in an ancestor layer — dropping the re-injection removes a spurious override and loses nothing. Regression test at the real runtime seam: `pipeStageResolve.test.ts` → `'stack-root scopeParams override wins over binding.params at nested stages'`.
+**Single projection:** runtime and editing both use `resolveLocalScopeParams` (duplicate runtime helper removed Phase 20). Regression: `pipeStageResolve.test.ts` — stack-root `scopeParams` override at nested stages.

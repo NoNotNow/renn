@@ -24,7 +24,8 @@
 | Global model/material/shape presets (IndexedDB, Presets tab) | `architecture.md` (Persistence, ModelPresetPanel) |
 | World update path, rebuild triggers, minimal reload strategy | `feature-world-update-reload.md` |
 | What is done / what is left to build | `project-status.md` |
-| Refactor / cleanup backlog (completed items + follow-ups) | `codebase-cleanup-audit.md` |
+| Refactor / cleanup backlog (completed items + follow-ups) | `codebase-cleanup-audit.md` (archive: `codebase-cleanup-history.md`) |
+| Doc ownership / anti-duplication rules | `README.md` § Doc rules |
 | Example worlds and JSON configs | `example-worlds.md` |
 | Rotation/direction coordinates (Euler, radians, caveats) | `direction-rotation-coordinates.md` |
 | Physics force accumulation quirk | `feature-transformers.md` (resetAllForces) |

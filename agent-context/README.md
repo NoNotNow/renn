@@ -2,6 +2,16 @@
 
 Docs for LLM/code agents. Read `start-here.md` first, then only what the task requires.
 
+## Doc rules (keep tokens low)
+
+| Rule | Where detail lives |
+|---|---|
+| **One canonical home** per concept | [`nomenclature.md`](./nomenclature.md) for pipe/stage/param terms; feature `*.md` for behaviour and file map |
+| **Link, don’t repeat** | Feature docs point to nomenclature/architecture; avoid copying tables or long rationale |
+| **Audit = backlog** | [`codebase-cleanup-audit.md`](./codebase-cleanup-audit.md) — short phases; old essays in [`codebase-cleanup-history.md`](./codebase-cleanup-history.md) |
+| **Terse phases** | New cleanup phases: bullets + file paths; skip test-count per phase (update baseline once at top) |
+| **Stale history** | Delete or one-line “superseded by X” instead of keeping two explanations |
+
 | File | When to read |
 |------|--------------|
 | **start-here** | Always — orientation, tech stack, task→file map |
@@ -20,5 +30,6 @@ Docs for LLM/code agents. Read `start-here.md` first, then only what the task re
 | **project-status** | What is built vs. what remains |
 | **example-worlds** | Example JSON configs and world structure |
 | **performance-work** | Performance backlog (ordered work items, profiling notes) |
-| **codebase-cleanup-audit** | Cleanup history and optional follow-ups |
+| **codebase-cleanup-audit** | Cleanup backlog + short phase log |
+| **codebase-cleanup-history** | Archive of verbose cleanup phases (read only if you need old detail) |
 | **nomenclature** | Canonical names for all transformer/pipe concepts (stages, bindings, param scopes, merge rules) |

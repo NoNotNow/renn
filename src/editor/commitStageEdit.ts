@@ -57,13 +57,11 @@ export const STAGE_EDIT_POLICY: Record<StageEditIntent['kind'], StageEditPolicy>
 }
 
 /**
- * Writes a whole stage stack in the scope the edit belongs to (the entity's flat stack, or the
- * stage list of the focused pipe).
+ * Whole-stack intents that delegate to `writeStack`.
  *
- * Returns the world that merged pipe params must be re-derived from, or `null` when the scope
- * needs no sync or refused the write.
+ * `writeStack` writes the stage list in the edit's scope (flat entity stack or focused pipe) and
+ * returns the world merged pipe params must be re-derived from, or `null` when sync is unnecessary.
  */
-/** Whole-stack intents that delegate to `writeStack`. */
 export type StageStackIntentKind = Extract<
   StageEditIntent['kind'],
   'commitStages' | 'reorder' | 'loadTemplate' | 'codeEdit'

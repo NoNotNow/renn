@@ -2,6 +2,7 @@ import type {
   TransformerConfig,
   TransformerPipe,
   TransformerPipeBinding,
+  TransformerPipeMember,
 } from '@/types/transformer'
 import type { PipeNavPathSegment } from '@/types/pipeNav'
 import type { Entity, RennWorld } from '@/types/world'
@@ -11,7 +12,6 @@ import {
   normalizePipeMembers,
   TransformerPipeCycleError,
 } from '@/utils/transformerPipeResolve'
-import { isBindingEnabled, isMemberEnabled } from '@/utils/pipeNavResolve'
 import {
   mergeParamScopeLayers,
   pipeScopeKeyFromPath,
@@ -19,6 +19,14 @@ import {
 } from '@/utils/paramScopes'
 
 export { isStackRootScopePath, pipeScopeKeyFromPath } from '@/utils/paramScopes'
+
+function isMemberEnabled(member: TransformerPipeMember): boolean {
+  return member.enabled !== false
+}
+
+function isBindingEnabled(binding: TransformerPipeBinding): boolean {
+  return binding.enabled !== false
+}
 
 /** Stack index from a pipe-nav path (first `stack` segment). */
 export function stackIndexFromScopePath(path: PipeNavPathSegment[]): number | undefined {
