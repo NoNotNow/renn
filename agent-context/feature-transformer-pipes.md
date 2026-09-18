@@ -184,7 +184,7 @@ Legacy `entity.transformerPipe` migrates to a single-entry stack on load (`migra
 2. **Flat (no pipe stack)** — `entity.transformers` stages use registry `params` directly (no merge needed).
 3. **Build-time, zero runtime allocation** — merge runs once when the transformer chain is built; the result is stored on the transformer instance. The per-frame hot path reads the pre-built object — no allocations. Immutability is a convention (not enforced with `Object.freeze()`).
 4. **No cross-binding merge** — stack siblings are fully isolated; each binding’s merged params are independent.
-5. **Disable cascade** — when a pipe scope is disabled, all nested pipes and stages under it are effectively disabled: omitted from flatten and skipped at runtime. **Greying is only correct for pipe cards and tree rows**, which ask `isScopeEnabled(path)`. **Stage cards in the strip are never greyed by the cascade** — known bug, see `nomenclature.md § Entity stage runtime` for why a per-stage query cannot answer it and `codebase-cleanup-audit.md` Phase 25 for the one-line fix and why it was not taken.
+5. **Disable cascade** — when a pipe scope is disabled, all nested pipes and stages under it are effectively disabled: omitted from flatten and skipped at runtime. **Pipe cards, tree rows, and stage strips** all ask `isScopeEnabled(path)` for ancestor grey-out (`PipeFocusedStrip` passes `focusPath`). Per-stage flat-index queries cannot answer cascade vs self-disable; see `nomenclature.md § Entity stage runtime`.
 6. **Scope storage** — stack root uses `binding.params`; nested scopes use `binding.scopeParams[scopeKey]` keyed by pipe-nav path.
 7. **Legacy migration** — `migrateTransformerPipeDefaultParams` moves old `pipe.defaultParams` into bindings on load, then strips the field.
 
@@ -226,7 +226,7 @@ Add an intent rather than branching at a call site. Tests live at the interface 
 |---|---|---|
 | Gear JSON apply, enable toggle, custom rename | `commitStageEdit({ kind: 'patch', ... })` → `patchStageConfigInWorld` | `world.transformers[id]` only |
 | Drag-reorder, add/remove stage (pipe scope) | `commitStageEdit({ kind: 'commitStages' \| 'reorder', ... })` → `writeFocusedStages` → `commitFocusedStageConfigs` | pipe `members` + entity flatten via `updateFocusedStageOrder` |
-| Drag-reorder, add/remove stage (flat / no pipe stack) | `commitStageEdit` → `writeFlatStack` → `commitStacksRaw` | `entity.transformers` + registry |
+| Drag-reorder, add/remove stage (flat / no pipe stack) | `commitStageEdit` → `writeFlatStack` → `applyStageWorldWrite` when Builder injects `applyWorldWrite`, else `commitStacksRaw` | `entity.transformers` + registry |
 
 Config patches must **not** call `syncPriorities`, `updateFocusedStageOrder`, or `syncAllEntitiesUsingPipes`.
 

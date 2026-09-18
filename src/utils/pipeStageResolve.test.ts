@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import type { RennWorld } from '@/types/world'
 import { mergeParamScopeLayers } from '@/utils/paramScopes'
 import {
+  flatIndexOffsetForStackBinding,
   resolveEntityStageRuntime,
   resolveMergedTransformerConfigsForEntitySync,
 } from './pipeStageResolve'
@@ -250,6 +251,55 @@ describe('pipeStageResolve', () => {
         { kind: 'member', pipeId: 'root', memberIndex: 1 },
       ]),
     ).toBe(false)
+  })
+
+  it('pipe strip ancestor grey-out must use isScopeEnabled, not isStageEnabledAt', () => {
+    const world: RennWorld = {
+      version: '1',
+      world: {},
+      entities: [
+        {
+          id: 'e1',
+          transformers: ['s1', 's2'],
+          transformerPipeStack: [{ pipeId: 'root' }],
+        },
+      ],
+      transformers: {
+        s1: { type: 'input' },
+        s2: { type: 'car2' },
+      },
+      transformerPipes: {
+        root: {
+          id: 'root',
+          name: 'Root',
+          stageIds: ['s1', 's2'],
+          stages: [],
+          members: [
+            { kind: 'stage', stageId: 's1' },
+            { kind: 'pipe', pipeId: 'child', enabled: false },
+          ],
+        },
+        child: {
+          id: 'child',
+          name: 'Child',
+          stageIds: ['s2'],
+          stages: [],
+          members: [{ kind: 'stage', stageId: 's2' }],
+        },
+      },
+    }
+
+    const entity = world.entities[0]!
+    const runtime = resolveEntityStageRuntime(world, entity)
+    const childFocusPath = [
+      { kind: 'stack' as const, index: 0 },
+      { kind: 'member' as const, pipeId: 'root', memberIndex: 1 },
+    ]
+
+    expect(runtime.isScopeEnabled(childFocusPath)).toBe(false)
+
+    const flatOffset = flatIndexOffsetForStackBinding(world, entity, 0)
+    expect(runtime.isStageEnabledAt(flatOffset)).toBe(true)
   })
 
   it('stack-root scopeParams override wins over binding.params at nested stages', () => {

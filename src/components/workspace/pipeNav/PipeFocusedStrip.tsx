@@ -16,12 +16,9 @@ import PipeAddDialog from './PipeAddDialog'
 import type { ResolvedPipeNavView, StripItem } from '@/types/pipeNav'
 import { isPipeNavLeafLevel } from '@/utils/pipeNavResolve'
 import { getEntityPipeStack } from '@/utils/transformerPipeResolve'
-import {
-  flatIndexOffsetForStackBinding,
-  resolveEntityStageRuntime,
-  stackIndexFromScopePath,
-} from '@/utils/pipeStageResolve'
+import { resolveEntityStageRuntime, stackIndexFromScopePath } from '@/utils/pipeStageResolve'
 import { createPipeCardStageCallbacks } from './pipeStageCallbacks'
+import { pipeStripStageEnabledFromFocus } from './pipeStripStageEnable'
 
 export interface PipeFocusedStripProps {
   world: RennWorld
@@ -293,12 +290,6 @@ export default function PipeFocusedStrip({
       view.items.some((item) => item.kind === 'pipe') && view.items.some((item) => item.kind === 'stage')
 
     if (!hasMixedMembers && view.items.every((item) => item.kind === 'stage')) {
-      /** Strip indices are local to the focused pipe; the cascade is keyed by flat stack index. */
-      const flatIndexOffset = flatIndexOffsetForStackBinding(
-        world,
-        entity,
-        stackIndexFromScopePath(focusPath) ?? 0,
-      )
       return (
         <>
           <TransformerHorizontalPipeline
@@ -320,7 +311,10 @@ export default function PipeFocusedStrip({
               kind: 'pipeStrip',
               depth,
               renderAddButton: renderPlusButton,
-              isStageEnabled: (index) => stageRuntime.isStageEnabledAt(flatIndexOffset + index),
+              isStageEnabled: pipeStripStageEnabledFromFocus(
+                (path) => stageRuntime.isScopeEnabled(path),
+                focusPath,
+              ),
             }}
           />
           {addDialog}

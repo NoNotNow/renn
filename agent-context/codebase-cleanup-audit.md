@@ -461,7 +461,7 @@ Routing the `ensurePipeStack` bootstrap through `commit` put `focus` in the effe
 - Suite: 200 → 201 files, 1840 → 1885 passing, 3 skipped. `tsc --noEmit -p tsconfig.app.json` clean.
 
 ### Deferred
-- **Candidate 6 (partial, 2026-09-18):** pipe-nav via `applyPipeNavWorldWrite`; stage patch/make-unique + pipe-scoped `writeFocusedStages` via `applyStageWorldWrite` when Builder passes `applyWorldWrite`. Still on gateway: flat `commitStacksRaw`, wrap-ungrouped, direct tab `onWorldChange`, Scripts/Organize tabs.
+- **Candidate 6 (partial, 2026-09-18):** pipe-nav via `applyPipeNavWorldWrite`; stage patch/make-unique, pipe-scoped `writeFocusedStages`, flat `commitStacksRaw` / `writeFlatStack`, and wrap-ungrouped via `applyStageWorldWrite` when Builder passes `applyWorldWrite`. Still on gateway: property-sidebar `commitStacksRaw` when `applyWorldWrite` is absent, Scripts/Organize tabs.
 - `decouplePipeBinding` counts sharing entities with an inline `mode !== 'copy'` filter while `treeDelete` uses `countEntitiesLinkingPipe`. Behaviour preserved verbatim; the two predicates should probably be one helper.
 - `usePipeNavController` focus→entry sync effect still lists full `entry` in deps (carried over from Phase 17).
 
@@ -665,7 +665,7 @@ Test count after Phase 24: **203** files, **1899** tests + 3 skipped. `npx tsc -
 - **Renamed `ancestorDisabled` → `ancestorEnabled`** on the internal `TransformerTraceItem`. The old name was inverted: callers passed `true` to mean *not* disabled, and both readers compared it against `false`.
 - **Fixed an index-space mismatch.** `stageEffectiveEnabledByIndex` was built keyed by **flat** stack index but read by the strip using the stage's index **within the focused pipe**. The two agree only when the focus sits on the first stack binding. `isStageEnabled(indexInStrip)` now takes the strip-local index and `PipeFocusedStrip` applies `flatIndexOffsetForStackBinding` itself — the offset conversion belongs to the host that knows the focus path. Also hoists that call out of a per-stage `.map`, so it runs once per render instead of once per stage.
 - **LEFTOVER closed:** `EntityStageRuntime.isStageEnabledById` deleted (Phase 23 leftover, conditional on this candidate). Candidate 4 deliberately did **not** adopt it: it folds a stage's own `enabled: false` into the same answer as an ancestor pipe disable, so wiring it to the strip would have reported "Disabled by parent pipe" and **locked the toggle** on stages the user disabled themselves. Its backing `stageContextByStageId` map went with it, which collapsed the `if/else` in `visitMembers` and `walkCopyBindingStages` to a single enabled-path branch.
-- **Pre-existing bug found, NOT fixed (needs a human UX call):** the pipe-strip ancestor grey-out has never fired. `isStageEnabledAt` answers `true` for every in-range index on a piped entity, because disabled stages are omitted from the flatten and so are absent from `stageContext`. Verified against a manifold with a disabled child pipe: `isScopeEnabled(childPath)` is `false` while `isStageEnabledAt(offset + 0)` is `true`. Behaviour preserved verbatim here. The fix is one line at one site now that `scope` exists — `isStageEnabled: () => stageRuntime.isScopeEnabled(focusPath)` — but it newly greys out cards and locks their enable toggles, so it is a visible change, not a refactor. See the caveat in `nomenclature.md § Entity stage runtime`.
+- **Pre-existing bug (Phase 25, fixed Phase 27 after user UX approval):** the pipe-strip ancestor grey-out had never fired. `isStageEnabledAt` answers `true` for every in-range index on a piped entity, because disabled stages are omitted from the flatten and so are absent from `stageContext`. Verified against a manifold with a disabled child pipe: `isScopeEnabled(childPath)` is `false` while `isStageEnabledAt(offset + 0)` is `true`. Behaviour preserved verbatim here. The fix is one line at one site now that `scope` exists — `isStageEnabled: () => stageRuntime.isScopeEnabled(focusPath)` — but it newly greys out cards and locks their enable toggles, so it is a visible change, not a refactor. See the caveat in `nomenclature.md § Entity stage runtime`.
 - Docs: `nomenclature.md`, `feature-transformer-pipes.md`.
 
 Test count after Phase 25: **204** files, **1903** tests + 3 skipped. `npx tsc --noEmit -p tsconfig.app.json` clean.
@@ -684,6 +684,15 @@ Closes candidate 3 (the repo's highest-churn file), the Phase 24 store-split LEF
 - **Housekeeping:** `pipeNavResolve.syncEntityTransformerIds` un-exported — only its own module ever used it.
 
 Test count after Phase 26: **209** files, **1923** tests + 3 skipped. `npx tsc --noEmit -p tsconfig.app.json` clean.
+
+### Phase 27 (2026-09-18) — pipe-strip grey-out + flat stack `applyWorldWrite`
+
+- **User-approved UX:** `PipeFocusedStrip` pipe-strip `isStageEnabled` now maps to `stageRuntime.isScopeEnabled(focusPath)` instead of `isStageEnabledAt(flatIndexOffset + index)`. Stage cards under a disabled ancestor pipe grey out and lock the enable toggle, matching pipe cards and tree rows.
+- **Tests:** `pipeStageResolve.test.ts` pins that `isScopeEnabled(childFocusPath)` is `false` while `isStageEnabledAt(flatOffset)` stays `true` on the same manifold — documents why the strip cannot use flat index. `pipeStripStageEnable.test.ts` exercises the shared `pipeStripStageEnabledFromFocus` helper wired from `PipeFocusedStrip` (red-check: breaking the helper fails this test).
+- **Candidate 6 (partial):** `commitStacksRaw` (including `writeFlatStack`) and `handleWrapUngroupedStages` route through `applyStageWorldWrite` when Builder injects `applyWorldWrite`, avoiding double undo via `onEntityTransformersChange` / manual `pushBeforeEdit`. Property-sidebar path unchanged when `applyWorldWrite` is absent.
+- Docs: `nomenclature.md`, `feature-transformer-pipes.md`, `feature-world-update-reload.md`. Closes Phase 25 LEFTOVER on pipe-strip ancestor grey-out.
+
+Test count after Phase 27: **212** files, **1934** tests + 3 skipped. `npx tsc --noEmit -p tsconfig.app.json` clean. L2 red-check on `pipeStripStageEnabledFromFocus` confirmed (break helper → test red → restore).
 
 ### Optional — idle material prefetch
 
@@ -715,4 +724,4 @@ Test count after Phase 26: **209** files, **1923** tests + 3 skipped. `npx tsc -
 - [x] Inspector pose polling isolated (`LivePosesPoll` → `PropertySidebar`, not full `Builder`)
 - [x] `npm run build` (`tsc -b && vite build`) clean — 5 pre-existing TS errors fixed in Phase 13b (useEditorHistory typing, builderColumnRef typing, WorldPanel.test plane shape, scriptCtx.test mock tuple, integration test private access).
 
-Run `npm run test:run` after further edits (currently **210** test files, **1926** tests + 3 skipped; see phases 23–26 plus the in-flight `applyWorldEdit` pipe-nav route). `npm run build` should also stay clean: it passes `tsc -b` and is the recommended pre-PR check. In `performance-benchmarks.integration.test.ts`, the **Heap growth** and **Scaling linearity** describes are skipped unless `RUN_PERF_BENCHMARKS=1` (use `npm run test:perf`) so agents avoid flaky wall-clock/heap thresholds; run that before Rapier/frame-loop/allocation hot-path changes.
+Run `npm run test:run` after further edits (currently **212** test files, **1934** tests + 3 skipped; see phases 23–27 for `EntityStageRuntime`, editor session, stage strip scope, `applyWorldEdit` routing, and pipe-strip grey-out). `npm run build` should also stay clean: it passes `tsc -b` and is the recommended pre-PR check. In `performance-benchmarks.integration.test.ts`, the **Heap growth** and **Scaling linearity** describes are skipped unless `RUN_PERF_BENCHMARKS=1` (use `npm run test:perf`) so agents avoid flaky wall-clock/heap thresholds; run that before Rapier/frame-loop/allocation hot-path changes.

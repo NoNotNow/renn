@@ -31,10 +31,13 @@ import {
 import type { ApplyWorldWrite } from '@/editor/applyWorldEdit'
 import {
   commitStageEdit,
+  STAGE_EDIT_POLICY,
   type StageCommitKind,
   type StageEditIntent,
+  type StageStackIntentKind,
   type StageStackWriter,
 } from '@/editor/commitStageEdit'
+import { applyStageWorldWrite, stageWorldEditDescriptor } from '@/editor/applyStageWorldWrite'
 import { usePipeNavController } from '@/hooks/usePipeNavController'
 import { findUngroupedStageIds, resolveSelectedFlatStackIndex, resolvePreferredStageId, drillIntoPipePath, pipeNavParentPath } from '@/utils/pipeNavResolve'
 import type { PipeNavPathSegment } from '@/types/pipeNav'
@@ -274,32 +277,53 @@ function WorkspaceTransformersTabEntity({
     setSelectedId(entry.itemId)
   }, [workspaceOpen, entry?.itemId, entry?.tab, sortedPairs])
 
-  const commitStacksRaw = useCallback(
+  const buildFlatStackNextWorld = useCallback(
     (nextConfigs: TransformerConfig[], orderedRegistryIds?: string[]) => {
+      const baseIds = orderedRegistryIds ?? transformerIds
+      let nextWorld = world
+      for (const entityId of entityIdsForEdit) {
+        const idsForEntity =
+          isSharedMode || entityIdsForEdit.length === 1 ?
+            baseIds
+          : mapTransformerRegistryIdsToEntity(baseIds, entityId)
+        nextWorld = commitTransformerConfigsToWorld(nextWorld, entityId, nextConfigs, idsForEntity)
+      }
+      return nextWorld
+    },
+    [entityIdsForEdit, isSharedMode, transformerIds, world],
+  )
+
+  const commitStacksRaw = useCallback(
+    (
+      nextConfigs: TransformerConfig[],
+      orderedRegistryIds?: string[],
+      intentKind: StageStackIntentKind = 'commitStages',
+    ) => {
       if (transformersMixed) return
       const baseIds = orderedRegistryIds ?? transformerIds
+      if (applyWorldWrite) {
+        applyStageWorldWrite(
+          applyWorldWrite,
+          stageWorldEditDescriptor(STAGE_EDIT_POLICY[intentKind].pushUndo),
+          buildFlatStackNextWorld(nextConfigs, orderedRegistryIds),
+        )
+        return
+      }
       if (onEntityTransformersChange) {
         onEntityTransformersChange(entityIdsForEdit, nextConfigs, baseIds, isSharedMode)
       } else {
-        let nextWorld = world
-        for (const entityId of entityIdsForEdit) {
-          const idsForEntity =
-            isSharedMode || entityIdsForEdit.length === 1 ?
-              baseIds
-            : mapTransformerRegistryIdsToEntity(baseIds, entityId)
-          nextWorld = commitTransformerConfigsToWorld(nextWorld, entityId, nextConfigs, idsForEntity)
-        }
-        onWorldChange(nextWorld)
+        onWorldChange(buildFlatStackNextWorld(nextConfigs, orderedRegistryIds))
       }
     },
     [
+      applyWorldWrite,
+      buildFlatStackNextWorld,
       entityIdsForEdit,
       isSharedMode,
       onEntityTransformersChange,
       onWorldChange,
       transformersMixed,
       transformerIds,
-      world,
     ],
   )
 
@@ -322,13 +346,14 @@ function WorkspaceTransformersTabEntity({
 
   /** `StageStackWriter` for the entity's flat transformer stack. */
   const writeFlatStack = useCallback<StageStackWriter>(
-    (configs, orderedRegistryIds, _intentKind) => {
-      commitStacksRaw(configs, orderedRegistryIds)
+    (configs, orderedRegistryIds, intentKind) => {
+      if (transformersMixed) return null
+      commitStacksRaw(configs, orderedRegistryIds, intentKind)
       // `commitStacksRaw` may hand the write to `onEntityTransformersChange`, which owns its own
       // world update, so there is no world here to re-derive merged pipe params from.
       return null
     },
-    [commitStacksRaw],
+    [commitStacksRaw, transformersMixed],
   )
 
   /**
@@ -505,11 +530,15 @@ function WorkspaceTransformersTabEntity({
 
   const handleWrapUngroupedStages = useCallback(() => {
     if (!singleEntity || ungroupedStageIds.length === 0) return
-    undo?.pushBeforeEdit()
     const name = nextFreeDefaultPipeName(world.transformerPipes)
     const nextWorld = wrapUngroupedStagesIntoStackPipe(world, singleEntity.id, name)
-    onWorldChange(nextWorld)
-  }, [singleEntity, ungroupedStageIds.length, world, undo, onWorldChange])
+    if (applyWorldWrite) {
+      applyStageWorldWrite(applyWorldWrite, stageWorldEditDescriptor(true), nextWorld)
+    } else {
+      undo?.pushBeforeEdit()
+      onWorldChange(nextWorld)
+    }
+  }, [singleEntity, ungroupedStageIds.length, world, undo, onWorldChange, applyWorldWrite])
 
   const runtimeErrors = useStageRuntimeErrorDisplay(selectedEntityIds, selectedFlatStackIndex)
   const codeColumnRef = useRef<HTMLDivElement>(null)

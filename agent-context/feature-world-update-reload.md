@@ -165,14 +165,14 @@ Use this to answer "does changing this property rebuild the scene?"
 
 ## Stage edits in `WorkspaceTransformersTab`
 
-Pipe-nav commits from `usePipeNavController` call [`applyPipeNavWorldWrite`](../src/editor/applyPipeNavWorldWrite.ts) when Builder injects `applyWorldWrite` (`scene: sync`, undo from `PIPE_NAV_EDIT_POLICY`). Stage-strip commits go through [`commitStageEdit`](../src/editor/commitStageEdit.ts) (flush / undo / merged pipe-param sync by `STAGE_EDIT_POLICY`); when `applyWorldWrite` is set, patch/make-unique and pipe-scoped [`writeFocusedStages`](../src/hooks/usePipeNavController.ts) call [`applyStageWorldWrite`](../src/editor/applyStageWorldWrite.ts) (`scene: sync`, undo from the same policy table — no double push). Flat-stack `writeFlatStack` / `commitStacksRaw` and other tab writes still use `onWorldChange` → gateway `handleWorldChange` (`scene: auto`, undo skipped — callers push undo themselves).
+Pipe-nav commits from `usePipeNavController` call [`applyPipeNavWorldWrite`](../src/editor/applyPipeNavWorldWrite.ts) when Builder injects `applyWorldWrite` (`scene: sync`, undo from `PIPE_NAV_EDIT_POLICY`). Stage-strip commits go through [`commitStageEdit`](../src/editor/commitStageEdit.ts) (flush / undo / merged pipe-param sync by `STAGE_EDIT_POLICY`); when `applyWorldWrite` is set, patch/make-unique, pipe-scoped [`writeFocusedStages`](../src/hooks/usePipeNavController.ts), flat [`commitStacksRaw`](../src/components/workspace/WorkspaceTransformersTab.tsx) / [`writeFlatStack`](../src/components/workspace/WorkspaceTransformersTab.tsx), and [`handleWrapUngroupedStages`](../src/components/workspace/WorkspaceTransformersTab.tsx) call [`applyStageWorldWrite`](../src/editor/applyStageWorldWrite.ts) (`scene: sync`, undo from `STAGE_EDIT_POLICY` or `pushUndo: true` for wrap — no double push). Without `applyWorldWrite`, `commitStacksRaw` uses `onEntityTransformersChange` or gateway `onWorldChange` (`scene: auto`, undo skipped — callers push undo themselves).
 
 **Call shape:** `WorkspaceTransformersTab` builds a `StageEditContext` in `runStageEdit` with two scope-specific `StageStackWriter`s:
 
 - `writeFlatStack` — entity's flat `entity.transformers` stack (wraps `commitStacksRaw`; returns `null` for merged-param sync — see warts below).
 - `writeStripStack` — `pipeNav.writeFocusedStages` when `stageScope === 'pipe'`, else `writeFlatStack`.
 
-Tab handlers (`handleCommitStacks`, `handlePatchStage`, `handleCommitStripStages`, `handlePatchStripStage`, `handleMakeUniqueTransformer`, `commitCustomCodeEditRef`) only pick the intent and writer; they do not decide flush or undo policy themselves. `handleWrapUngroupedStages` and `handleCodeChange` still push undo outside this module (discrete wrap button; code burst priming on first keystroke via `codeUndoPrimedRef`).
+Tab handlers (`handleCommitStacks`, `handlePatchStage`, `handleCommitStripStages`, `handlePatchStripStage`, `handleMakeUniqueTransformer`, `commitCustomCodeEditRef`) only pick the intent and writer; they do not decide flush or undo policy themselves. `handleCodeChange` still primes undo outside this module (code burst on first keystroke via `codeUndoPrimedRef`). `handleWrapUngroupedStages` pushes undo only on the gateway fallback when `applyWorldWrite` is absent.
 
 **Fixed order** (owned by the module; do not reorder):
 

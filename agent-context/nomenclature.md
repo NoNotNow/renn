@@ -60,7 +60,7 @@ Seam tested in `behaviorRegistryBindings.test.ts`.
 | `{ kind: 'pipeStrip', depth, renderAddButton, isStageEnabled? }` | `PipeFocusedStrip`, a full level of stages | Host owns the `+` button and `PipeAddDialog`; cards tinted by pipe-nav depth |
 | `{ kind: 'pipeMember', depth, stackIndex }` | `PipeFocusedStrip`, one stage between sibling pipe cards | Single embedded card: no lead-in arrow, no connectors, no add slot; `stackIndex` keeps the card's label and trace lookup pointing at the real stage |
 
-`isStageEnabled(indexInStrip)` is indexed **locally to the strip**. `PipeFocusedStrip` adds `flatIndexOffsetForStackBinding` before asking the entity stage runtime — the offset conversion belongs to the host that knows the focus path, not to the strip. See the caveat under *Entity stage runtime*: this query currently always answers `true` for piped entities.
+`isStageEnabled(indexInStrip)` is optional on `pipeStrip` scope. **`PipeFocusedStrip` ignores the strip index** and answers from `isScopeEnabled(focusPath)` — every stage card in one focused pipe shares the same ancestor chain, so ancestor grey-out is one boolean for the whole strip. The strip component still calls `isStageEnabled(item.originalIndex)`; the host callback may ignore the index.
 
 Seam tested in `stageStripScope.test.ts`.
 
@@ -80,7 +80,7 @@ Seam tested in `stageStripScope.test.ts`.
 
 **Hold the snapshot; never call per question.** Callers that need more than one answer must resolve once and query — that is the whole point of the interface. `PipeNavTree` and `PipeFocusedStrip` both `useMemo(() => resolveEntityStageRuntime(world, entity), [world, entity])`, so a tree with N rows costs one walk per render, not N. The predecessor shape — free functions `isPipeScopeEffectivelyEnabled` / `isStageEffectivelyEnabled` / `syncEntityTransformerIdsFromPipeTree` / `resolveEntityTransformerConfigsForRuntime`, each rebuilding the full walk to read one field — made the per-row cost invisible at the call site. Guarded by `PipeNavTree.stageRuntime.test.tsx`.
 
-**`isStageEnabledAt` cannot see a cascade disable on a piped entity.** For a piped entity, `stageContext` only holds stages that survived the flatten, so every in-range index answers `true` and out-of-range answers `true` by default. The honest cascade question for a whole strip is `isScopeEnabled(focusPath)` — all stages inside one focused pipe share the same ancestor chain, so it is one answer, not one per stage. A per-stage query cannot work here at all: a stage's own `enabled: false` also removes it from the flatten, and no index- or id-keyed answer can tell the two causes apart. `isStageEnabledById` used to offer one and was dropped for exactly that reason (it reported `false` for a self-disabled stage, which would have locked the user out of re-enabling it).
+**Strip grey-out uses `isScopeEnabled`, not `isStageEnabledAt`.** For a piped entity, `stageContext` only holds stages that survived the flatten, so `isStageEnabledAt` answers `true` for every in-range index and cannot detect an ancestor pipe disable. `PipeFocusedStrip` greys stage cards with `isScopeEnabled(focusPath)`. A per-stage flat-index query still cannot distinguish “self-disabled stage” from “ancestor-disabled stage” (both omit the stage from the flatten); wiring that to the strip would lock the enable toggle on stages the user turned off themselves — why `isStageEnabledById` was dropped in Phase 25.
 
 ---
 
