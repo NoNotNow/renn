@@ -135,7 +135,7 @@ Living backlog for stabilization passes. **Do not redo completed work** — scan
 - Full `npx vitest run`: **223 files / 1991 passed / 3 skipped** (L1 post-L2 abort).
 
 ### Deferred
-- SceneView **618-line** scene-build effect / SceneRuntimeSession (architecture HTML **Strong** — explicit defer).
+- ~~SceneView main scene-build effect~~ → **done** (Phases 0–6): [scene-runtime-session-extract.md](./scene-runtime-session-extract.md); SceneView **906** lines (~35-line session adapter).
 - `renderItemRegistry` transformer exec internal module (Phase 34 landed mesh sync).
 - `useProjectIO` (Phase 8); Builder clipboard / optional `BuilderLayout` JSX split.
 - `TextureMakerStudioTool` → small types module (preview import hygiene).
@@ -191,13 +191,13 @@ Living backlog for stabilization passes. **Do not redo completed work** — scan
 | File | Lines (approx) | Suggested extraction |
 |------|------------------|----------------------|
 | `pages/Builder.tsx` | **1006** | Gizmo/perf/texture wiring remain; entity world actions in `useBuilderEntityWorldActions` |
-| `components/SceneView.tsx` | **1394** | Main scene-build `useEffect` (**618 lines**, deferred); safe helpers done (Phase 30) |
+| `components/SceneView.tsx` | **906** | Main scene-build **done** — [`SceneRuntimeSession`](./scene-runtime-session-extract.md) (~**35**-line adapter); orchestration in `sceneRuntimeSession*.ts` (~**1226** LOC); safe helpers (Phase 30) |
 | `physics/rapierPhysics.ts` | **930** | Step/touching contact dedup (hot — perf gate); collider factory done |
 | `TextureMaker/TextureMaker.tsx` | **288** | Done (Phase 30); optional types module for studio tool |
 | `runtime/renderItemRegistry.ts` | **1018** | Transformer exec (culling Phase 30; mesh sync Phase 34) |
 | `contexts/ProjectContext.tsx` | **680** | `useProjectPersistence`, `useProjectImportExport`; assets + last-project id done (Phase 31) |
 
-**Architecture review (2026-09-18):** `/var/folders/cg/87j3kd8s3dqctsflnp71st2w0000gn/T/architecture-review-20260918-2128.html` — next: TransformerFrameRunner, then SceneRuntimeSession when approved.
+**Architecture review (2026-09-18):** `/var/folders/cg/87j3kd8s3dqctsflnp71st2w0000gn/T/architecture-review-20260918-2128.html` — SceneRuntimeSession **approved** ([plan](./scene-runtime-session-extract.md)); Phases **0–6 done** (2026-09-18).
 
 Smaller splits done: WorldPanel, EntitySidebar, PropertyPanel, TextureDialog — see phase index.
 
@@ -237,7 +237,7 @@ Priority panels done (phases 2–3, 6, 18, 29). Still scattered accents: `SceneV
 - [x] `scriptCtx.time` live; LivePosesPoll scoped
 - [x] Pipe/stage seams: `pipeNavEdit`, `commitStageEdit`, `EntityStageRuntime`, stage strip `scope`
 - [x] AI doc consolidation (Phase 28)
-- [~] Remaining god files — Phase 30 slices; SceneView mega-effect + registry transformer exec still open
+- [~] Remaining god files — Phase 30 slices; SceneView mega-effect **extracted** (Phases 0–6); registry transformer exec still open
 - [ ] Hex opportunistic migration
 
 After edits: `npm run test:run` and keep baseline green or better.

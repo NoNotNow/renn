@@ -70,6 +70,19 @@ describe('SceneView', () => {
 
   beforeEach(() => {
     loadWorldMock.mockClear()
+    loadWorldMock.mockImplementation(async (world: unknown, _assets?: unknown) => {
+      const w = world as RennWorld
+      return {
+        scene: new THREE.Scene(),
+        entities: w.entities.map((entity) => ({
+          entity,
+          mesh: new THREE.Mesh(),
+        })),
+        world: w,
+        assetResolver: { dispose: vi.fn() },
+        warnings: [] as string[],
+      }
+    })
     vi.stubGlobal('requestAnimationFrame', (cb: () => void) => {
       requestAnimationFrameId = setTimeout(cb, 0) as unknown as number
       return requestAnimationFrameId
@@ -207,6 +220,105 @@ describe('SceneView', () => {
     expect(() => ref.current?.setViewPreset('top')).not.toThrow()
     expect(() => ref.current?.setViewPreset('front')).not.toThrow()
     expect(() => ref.current?.setViewPreset('right')).not.toThrow()
+  })
+
+  it('does not reload when only excluded entity fields change (position)', async () => {
+    const { rerender } = render(
+      <SceneView world={minimalWorld} runPhysics={false} runScripts={false} />,
+    )
+    await waitFor(() => {
+      expect(document.querySelector('[data-testid="scene-bootstrap-loading"]')).not.toBeInTheDocument()
+    })
+    expect(loadWorldMock).toHaveBeenCalledTimes(1)
+
+    rerender(
+      <SceneView
+        world={{
+          ...minimalWorld,
+          entities: [{ ...minimalWorld.entities[0]!, position: [1, 0, 0] }],
+        }}
+        runPhysics={false}
+        runScripts={false}
+      />,
+    )
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(loadWorldMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('reloads when sceneKey changes (world assets)', async () => {
+    const { rerender } = render(
+      <SceneView world={minimalWorld} runPhysics={false} runScripts={false} />,
+    )
+    await waitFor(() => {
+      expect(document.querySelector('[data-testid="scene-bootstrap-loading"]')).not.toBeInTheDocument()
+    })
+    const firstResult = await loadWorldMock.mock.results[0]?.value
+    const firstResolver = firstResult?.assetResolver
+    expect(firstResolver).toBeDefined()
+
+    rerender(
+      <SceneView
+        world={{
+          ...minimalWorld,
+          assets: { tex: { type: 'texture', path: 'a.png' } },
+        }}
+        runPhysics={false}
+        runScripts={false}
+      />,
+    )
+    await waitFor(() => {
+      expect(loadWorldMock).toHaveBeenCalledTimes(2)
+    })
+    expect(firstResolver!.dispose).toHaveBeenCalled()
+  })
+
+  it('reloads when scene version prop bumps without sceneKey change', async () => {
+    const { rerender } = render(
+      <SceneView world={minimalWorld} version={0} runPhysics={false} runScripts={false} />,
+    )
+    await waitFor(() => {
+      expect(document.querySelector('[data-testid="scene-bootstrap-loading"]')).not.toBeInTheDocument()
+    })
+
+    rerender(
+      <SceneView world={minimalWorld} version={1} runPhysics={false} runScripts={false} />,
+    )
+    await waitFor(() => {
+      expect(loadWorldMock).toHaveBeenCalledTimes(2)
+    })
+  })
+
+  it('disposes asset resolver when unmounted before loadWorld resolves', async () => {
+    type LoadWorldResolved = Awaited<ReturnType<typeof loadWorldMock>>
+    let resolveLoad!: (value: LoadWorldResolved) => void
+    loadWorldMock.mockImplementationOnce(
+      () =>
+        new Promise<LoadWorldResolved>((resolve) => {
+          resolveLoad = resolve
+        }),
+    )
+
+    const { unmount } = render(<SceneView world={minimalWorld} runPhysics={false} runScripts={false} />)
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(loadWorldMock).toHaveBeenCalledTimes(1)
+
+    const pendingResolver = { dispose: vi.fn() }
+    unmount()
+    resolveLoad({
+      scene: new THREE.Scene(),
+      entities: [],
+      world: minimalWorld,
+      assetResolver: pendingResolver,
+      warnings: [],
+    })
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(pendingResolver.dispose).toHaveBeenCalled()
   })
 
   it('does not reload the scene when showGameHud toggles', async () => {

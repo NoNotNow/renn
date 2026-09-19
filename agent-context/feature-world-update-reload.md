@@ -21,8 +21,8 @@ flowchart LR
   end
   subgraph scene [SceneView]
     sceneKey[getSceneDependencyKey]
-    mainEffect[Main setup effect]
-    loadWorld[loadWorld]
+    mainEffect[SceneRuntimeSession adapter]
+    loadWorld[loadWorld via session]
     incrementalEffects[Gravity / sky / camera / physics effects]
   end
   PropertyPanel -->|onWorldChange| handleWorldChange
@@ -65,7 +65,7 @@ flowchart LR
    - `syncPosesFromScene(poses)`: merges poses into entities and calls `setWorld(merged)` so the document matches the scene.
 
 4. **SceneView** ([src/components/SceneView.tsx](src/components/SceneView.tsx))  
-   - Main setup effect depends on `sceneKey = getSceneDependencyKey(world)` (and version, runPhysics, etc.). When `sceneKey` changes, the effect runs: teardown, `loadWorld(world, assets)`, create physics and registry, then apply `initialPosesRef` and call `onPosesRestored` so Builder can sync poses back.  
+   - **Full restart** is owned by [`SceneRuntimeSession`](../src/runtime/sceneRuntimeSession.ts): a thin main `useEffect` builds `restartKey` via `buildSceneRuntimeRestartKey` (same inputs as before: `sceneKey = getSceneDependencyKey(world)`, Builder `version`, render-quality flags, `playMode`, etc.), then `createSceneRuntimeSession(...).start()` / cleanup `dispose()`. The session runs teardown, `loadWorld(world, assets)`, physics/registry async, frame loop, resize, builder pick/gizmo, and applies `initialPosesRef` + `onPosesRestored` on success — see [scene-runtime-session-extract.md](./scene-runtime-session-extract.md).  
    - **Builder camera restore**: teardown saves the viewport to `savedCameraStateRef` when **camera control is free** *or* **edit-navigation is on** (reads `editNavigationModeRef` in cleanup). On load, the camera is restored from that ref if the user is in free placement (free control or edit nav); otherwise from `world.camera.editorFreePose` if present; otherwise `defaultPosition`/`defaultRotation`; else defaults. Throttled updates write the live pose to `ProjectContext.editorFreePoseRef` for merge on save (`getWorldToSave`).  
    - Separate effects update gravity, sky color, camera config, and shadows **without** running the main effect.  
    - **Game HUD** (`showGameHud`): overlay visibility only — toggling it does **not** run the main setup effect or reset entity poses; the frame loop reads `showGameHudRef` each tick.
@@ -247,7 +247,8 @@ src/
 ├── editor/pipeNavEdit.ts         # pipe-nav edit seam: pure resolve to world + reconciled nav path; undo by intent
 ├── pages/Builder.tsx             # worldEditDeps, handleWorldChange, pose/physics handlers, initialPosesRef
 ├── contexts/ProjectContext.tsx   # updateWorld, syncPosesFromScene, syncPosesToRefOnly
-├── components/SceneView.tsx      # sceneKey in effect deps; updateEntityPose/Physics/Shape/Material; gravity/sky/camera effects
+├── components/SceneView.tsx      # SceneRuntimeSession adapter + incremental effects; imperative entity API
+├── runtime/sceneRuntimeSession.ts # full-restart lifecycle (load, physics/registry, rAF, teardown)
 ├── utils/sceneDependencyKey.ts   # getSceneDependencyKey: included vs excluded fields
 ├── physics/rapierPhysics.ts      # PhysicsWorld: setLinearDamping/AngularDamping/Restitution/Friction/Mass/BodyType + updateShape
 ├── runtime/renderItemRegistry.ts # setPosition, setRotation, setModelTransform, updatePhysics, updateShape, updateMaterial

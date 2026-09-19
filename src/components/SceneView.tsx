@@ -1,7 +1,7 @@
 import { useRef, useEffect, forwardRef, useImperativeHandle, useState, useMemo, useCallback } from 'react'
 import * as THREE from 'three'
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js'
-import { loadWorld, buildLoadedEntity } from '@/loader/loadWorld'
+import { buildLoadedEntity } from '@/loader/loadWorld'
 import type {
   RennWorld,
   Vec3,
@@ -16,8 +16,6 @@ import {
   DEFAULT_GRAVITY,
   DEFAULT_ROTATION,
   resolveFogSettings,
-  resolveSimulationSettings,
-  resolvedLogarithmicDepthBuffer,
   resolvedPixelRatio,
   resolvedShadowsEnabled,
 } from '@/types/world'
@@ -25,16 +23,10 @@ import { applySceneFog } from '@/utils/sceneFog'
 import { eulerToQuaternion } from '@/utils/rotationUtils'
 import type { LoadedEntity } from '@/loader/loadWorld'
 import { CameraController } from '@/camera/cameraController'
-import { createGameAPI, type HudPatch } from '@/scripts/gameApi'
+import type { HudPatch } from '@/scripts/gameApi'
 import { ScriptRunner } from '@/scripts/scriptRunner'
 import type { PhysicsWorld } from '@/physics/rapierPhysics'
 import { RenderItemRegistry } from '@/runtime/renderItemRegistry'
-import { restoreInitialPosesIntoRegistry } from '@/runtime/restoreInitialPoses'
-import {
-  runSceneFrame,
-  advanceSemiFixedAccumulator,
-  planSemiFixedPushFrames,
-} from '@/runtime/sceneFrameLoop'
 import { tryEnqueueDebugForce, type ActiveDebugForce } from '@/runtime/debugForces'
 import { setNdcFromPointerEvent } from '@/utils/pointerNdc'
 import {
@@ -51,8 +43,6 @@ import { WorldLoadErrorOverlay } from '@/components/WorldLoadErrorOverlay'
 import {
   DEFAULT_TEXTURE_BRUSH_RGB,
   TEXTURE_PAINT_RADIUS_PX,
-  BUILDER_VARIABLE_OVERLAY_GROUP_WIDTH,
-  installBuilderPickAndGizmo,
   type BuilderGizmoMode,
   type BuilderPoseCommitEntry,
   type TexturePaintStrokePayload,
@@ -61,7 +51,6 @@ import { getSceneUserData } from '@/types/sceneUserData'
 import {
   useRawKeyboardInput,
   useRawWheelInput,
-  getRawInputSnapshot,
   isKeyboardEventInEditableContext,
 } from '@/input/rawInput'
 import { useRawMouseDrag } from '@/input/rawMouseDrag'
@@ -73,35 +62,26 @@ import {
 import { getSceneDependencyKey } from '@/utils/sceneDependencyKey'
 import { diffEntityWorld, worldPipeRegistryChanged } from '@/utils/incrementalSceneSync'
 import { syncEntityDocumentToScene } from '@/utils/syncEntityDocumentToScene'
-import {
-  collectMaterialMapAssetIds,
-  scheduleMaterialTextureDecodePrefetch,
-  warmUpRendererTextures,
-  type PrefetchDisposer,
-} from '@/loader/prefetchMaterialTextures'
 import { computeDirectionalShadowCameraExtent } from '@/utils/shadowBounds'
 import { countVisualModelTriangles } from '@/utils/geometryExtractor'
 import { findEntityRootForPicking } from '@/utils/entityPicking'
 import { ScriptSnackbar } from '@/components/ScriptSnackbar'
-import { setTransformerSnackbarFn } from '@/transformers/customCodeTransformer'
-import {
-  setVariableOverlayFn,
-  setVariableOverlayDisplayEntityId,
-  getVariableOverlaySlots,
-} from '@/runtime/variableOverlayBridge'
+import { setVariableOverlayFn } from '@/runtime/variableOverlayBridge'
 import { VariableOverlayController } from '@/runtime/variableOverlayController'
-import {
-  setCoordinateOverlayFn,
-  setCoordinateOverlayDisplayEntityId,
-  clearCoordinateEntries,
-  getCoordinateOverlayEntries,
-} from '@/runtime/coordinateOverlayBridge'
+import { setCoordinateOverlayFn } from '@/runtime/coordinateOverlayBridge'
 import { CoordinateOverlayController } from '@/runtime/coordinateOverlayController'
 import { GameHud } from '@/components/GameHud'
 import { FrameStatsOverlay } from '@/components/FrameStatsOverlay'
 import { WarningSnackbar } from '@/components/WarningSnackbar'
 import IndeterminateLoadingBar from '@/components/IndeterminateLoadingBar'
 import { AvatarSession } from '@/runtime/avatarSession'
+import {
+  buildSceneRuntimeRestartKey,
+  createDefaultSceneRuntimeRuntimeDeps,
+  createSceneRuntimeSession,
+  type SceneRuntimeHandleBag,
+  type SceneRuntimeHostCallbacks,
+} from '@/runtime/sceneRuntimeSession'
 export interface SceneViewProps {
   world: RennWorld
   cameraConfig?: CameraConfig
@@ -641,603 +621,134 @@ function SceneViewInner({
     toggleFullscreen: () => fullscreen.toggle(),
   }), [camera, world.world.camera, editorFreePoseRef, fullscreen.toggle])
 
+  const sceneRuntimeRestartKey = useMemo(
+    () =>
+      buildSceneRuntimeRestartKey({
+        sceneKey,
+        sceneVersion: version,
+        shadowsEnabled,
+        logarithmicDepthBuffer: world.world.logarithmicDepthBuffer,
+        worldShadowsEnabled: world.world.shadowsEnabled,
+        videoTextureMaxAnisotropy: world.world.videoTextureMaxAnisotropy,
+        playMode,
+      }),
+    [
+      sceneKey,
+      version,
+      shadowsEnabled,
+      world.world.logarithmicDepthBuffer,
+      world.world.shadowsEnabled,
+      world.world.videoTextureMaxAnisotropy,
+      playMode,
+    ],
+  )
+
+  const sceneRuntimeHandles = useMemo(
+    (): SceneRuntimeHandleBag => ({
+      effectIdRef,
+      assetResolverRef,
+      entitiesRef,
+      registryRef,
+      cameraCtrlRef,
+      avatarSessionRef,
+      physicsRef,
+      scriptRunnerRef,
+      css2dRendererRef,
+      variableOverlayControllerRef,
+      coordinateOverlayControllerRef,
+      frameRef,
+      frameTimingRef,
+      resizeHandlerRef,
+      savedCameraStateRef,
+      disposePickGizmoRef,
+      syncGizmoAttachRef,
+      gizmoDraggingRef,
+      worldRef,
+      assetsRef,
+      playModeRef,
+      editNavigationModeRef,
+      runPhysicsRef,
+      runScriptsRef,
+      rawKeyboardRef,
+      rawWheelRef,
+      timeRef,
+      recordFrameStatsOverlayRef,
+      activeDebugForcesRef,
+      freeFlyKeysRef,
+      rawMouseDragRef,
+      orbitWheelRef,
+      editorFreePoseRef,
+      lastEditorPoseWriteTimeRef,
+      selectedEntityIdsRef,
+      gizmoModeRef,
+      onSelectEntityRef,
+      onEntityPoseCommitRef,
+      onCurrentAvatarChangeRef,
+      onTexturePaintStrokeEndRef,
+      pushUndoBeforePaintStrokeRef,
+      textureBrushRgbRef,
+      textureBrushAlphaRef,
+      textureBrushRadiusPxRef,
+      getPaintTargetAssetIdRef,
+      prepareWorldPaintStrokeRef,
+      showGameHudRef,
+      hudPatchBridgeRef,
+      lastHudDriveRef,
+      skyDomeRef,
+      coordinateOverlayDisplayVidRef,
+    }),
+    [editorFreePoseRef, freeFlyKeysRef],
+  )
+
+  const sceneRuntimeDeps = useMemo(() => createDefaultSceneRuntimeRuntimeDeps(), [])
+
+  const sceneRuntimeHost = useMemo((): SceneRuntimeHostCallbacks => {
+    const resetHud = (): void => {
+      setHudScore(0)
+      setHudDamage(0)
+      lastHudDriveRef.current = null
+      setHudDrive({ speedMs: 0, wheelAngle: 0 })
+    }
+    return {
+      setSceneBootstrapPending,
+      setScene,
+      setCamera,
+      setRenderer,
+      setWorldLoadError,
+      setSchemaLoadWarnings,
+      setRegistryEpoch,
+      setScriptSnackbarMessage,
+      setHudScore,
+      setHudDamage,
+      setHudDrive,
+      resetHud,
+    }
+  }, [])
+
   // Main scene setup effect
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
 
-    setSceneBootstrapPending(true)
-
-    // Increment effect ID to detect stale async operations
-    effectIdRef.current += 1
-    const currentEffectId = effectIdRef.current
-
-    // Dispose previous asset resolver if it exists
-    if (assetResolverRef.current) {
-      assetResolverRef.current.dispose()
-      assetResolverRef.current = null
-    }
-
-    let cancelled = false
-    let scriptSnackbarTimerId: number | undefined
-    let cam: THREE.PerspectiveCamera | null = null
-    let rend: THREE.WebGLRenderer | null = null
-    let cameraCtrl: CameraController | null = null
-    let ro: ResizeObserver | null = null
-    let removeAvatarKeydown: (() => void) | undefined
-    let prefetchDisposer: PrefetchDisposer | null = null
-
-    setSchemaLoadWarnings([])
-    setWorldLoadError(null)
-    setHudScore(0)
-    setHudDamage(0)
-
-    // Load world asynchronously with assets (getter keeps blob URLs valid for VideoTextures after load)
-    loadWorld(world, () => assetsRef.current).then(({ scene: loadedScene, entities, world: loadedWorld, assetResolver, warnings }) => {
-      // Check if this effect is still active
-      if (cancelled || effectIdRef.current !== currentEffectId) {
-        // Dispose resolver if effect was cancelled
-        if (assetResolver) {
-          assetResolver.dispose()
-        }
-        return
-      }
-
-      setWorldLoadError(null)
-
-      if (warnings.length > 0) {
-        setSchemaLoadWarnings(warnings)
-      }
-
-      entitiesRef.current = entities
-      setScene(loadedScene)
-      assetResolverRef.current = assetResolver
-
-      // Camera setup
-      cam = new THREE.PerspectiveCamera(50, 1, 0.1, 1000)
-      
-      const currentCameraConfig = cameraConfig ?? world.world.camera
-      const controlMode = currentCameraConfig?.control ?? 'free'
-      const useFreePlacement =
-        controlMode === 'free' || editNavigationModeRef.current
-      const sessionSaved = savedCameraStateRef.current
-      const shouldRestoreSession = Boolean(sessionSaved && useFreePlacement)
-      const editorPose = currentCameraConfig?.editorFreePose
-
-      if (shouldRestoreSession && sessionSaved) {
-        cam.position.copy(sessionSaved.position)
-        cam.quaternion.copy(sessionSaved.quaternion)
-        cam.up.copy(sessionSaved.up)
-      } else if (useFreePlacement && editorPose) {
-        const [px, py, pz] = editorPose.position
-        cam.position.set(px, py, pz)
-        const [qx, qy, qz, qw] = editorPose.quaternion
-        cam.quaternion.set(qx, qy, qz, qw)
-        cam.up.set(0, 1, 0)
-      } else if (currentCameraConfig?.defaultPosition) {
-        const [px, py, pz] = currentCameraConfig.defaultPosition
-        cam.position.set(px, py, pz)
-        const quat = eulerToQuaternion(currentCameraConfig.defaultRotation ?? DEFAULT_ROTATION)
-        cam.quaternion.copy(quat)
-        cam.up.set(0, 1, 0)
-      } else {
-        cam.position.set(0, 5, 10)
-        cam.lookAt(0, 0, 0)
-      }
-      setCamera(cam)
-
-      const getEntityPosition = (entityId: string): THREE.Vector3 | null => {
-        const reg = registryRef.current
-        if (reg) return reg.getVisualPositionAsVector3(entityId) ?? null
-        const obj = loadedScene.getObjectByName(entityId)
-        return obj instanceof THREE.Mesh ? obj.position.clone() : null
-      }
-
-      const getEntityQuaternion = (entityId: string): THREE.Quaternion | null => {
-        const reg = registryRef.current
-        if (reg) return reg.getVisualRotationAsQuaternion(entityId) ?? null
-        return null
-      }
-
-      cameraCtrl = new CameraController({
-        camera: cam,
-        scene: loadedScene,
-        getEntityPosition,
-        getEntityQuaternion,
-      })
-      cameraCtrl.resetFreeFlySmoothing()
-      cameraCtrlRef.current = cameraCtrl
-
-      let controlledEntityIdRef: { current: string | null } | undefined
-      let avatarSession: AvatarSession | null = null
-      if (runScripts && runPhysics) {
-        const ref: { current: string | null } = { current: null }
-        controlledEntityIdRef = ref
-        avatarSession = new AvatarSession({
-          entities: loadedWorld.entities,
-          worldCamera: (cameraConfig ?? loadedWorld.world.camera) as CameraConfig | undefined,
-          getCameraController: () => cameraCtrl,
-          controlledEntityIdRef: ref,
-          onCurrentAvatarChange: (id) => onCurrentAvatarChangeRef.current?.(id),
-        })
-        avatarSessionRef.current = avatarSession
-      }
-
-      const getPhysicsWorld = () => physicsRef.current
-      const getRenderItemRegistry = () => registryRef.current
-      const getPositionForGame = (id: string): Vec3 | null =>
-        registryRef.current?.getPosition(id) ?? null
-      const setPositionForGame = (id: string, x: number, y: number, z: number): void =>
-        registryRef.current?.setPosition(id, [x, y, z])
-      const getRotationForGame = (id: string): Vec3 | null =>
-        registryRef.current?.getRotation(id) ?? null
-      const setRotationForGame = (id: string, x: number, y: number, z: number): void =>
-        registryRef.current?.setRotation(id, [x, y, z])
-      const getUpVectorForGame = (id: string): Vec3 | null =>
-        registryRef.current?.getUpVector(id) ?? null
-      const getForwardVectorForGame = (id: string): Vec3 | null =>
-        registryRef.current?.getForwardVector(id) ?? null
-      const onScriptSnackbar = (message: string, durationSeconds: number) => {
-        if (scriptSnackbarTimerId !== undefined) {
-          window.clearTimeout(scriptSnackbarTimerId)
-          scriptSnackbarTimerId = undefined
-        }
-        setScriptSnackbarMessage(message)
-        // Ensure messages from transformer runtime stay visible at least 10s
-        const ms = Math.max(durationSeconds * 1000, 10_000)
-        scriptSnackbarTimerId = window.setTimeout(() => {
-          scriptSnackbarTimerId = undefined
-          setScriptSnackbarMessage(null)
-        }, ms)
-      }
-      setTransformerSnackbarFn(onScriptSnackbar)
-      const onHudPatch = (patch: HudPatch) => hudPatchBridgeRef.current(patch)
-      const gameApi = createGameAPI(
-        getPositionForGame,
-        setPositionForGame,
-        getRotationForGame,
-        setRotationForGame,
-        getUpVectorForGame,
-        getForwardVectorForGame,
-        getPhysicsWorld,
-        getRenderItemRegistry,
-        () => entitiesRef.current.map(({ entity }) => entity),
-        timeRef,
-        onScriptSnackbar,
-        onHudPatch,
-        avatarSession,
-      )
-      const scriptRunner = new ScriptRunner(loadedWorld, gameApi, (id) => {
-        const obj = loadedScene.getObjectByName(id)
-        return obj instanceof THREE.Mesh ? obj : null
-      }, entities)
-      scriptRunnerRef.current = scriptRunner
-      for (const { entity } of entities) {
-        scriptRunner.runOnSpawn(entity.id)
-      }
-
-      rend = new THREE.WebGLRenderer({
-        antialias: true,
-        logarithmicDepthBuffer: resolvedLogarithmicDepthBuffer(world.world),
-      })
-      const w = Math.max(container.clientWidth || 800, 1)
-      const h = Math.max(container.clientHeight || 600, 1)
-      rend.setSize(w, h)
-      rend.setPixelRatio(resolvedPixelRatio(world.world))
-      rend.shadowMap.enabled = shadowsEnabled
-      rend.shadowMap.type = THREE.PCFSoftShadowMap
-      container.appendChild(rend.domElement)
-      setRenderer(rend)
-
-      const css2d = new CSS2DRenderer()
-      css2d.setSize(w, h)
-      css2d.domElement.style.position = 'absolute'
-      css2d.domElement.style.left = '0'
-      css2d.domElement.style.top = '0'
-      css2d.domElement.style.pointerEvents = 'none'
-      css2d.domElement.style.zIndex = '1'
-      container.appendChild(css2d.domElement)
-      css2dRendererRef.current = css2d
-
-      variableOverlayControllerRef.current?.dispose()
-      variableOverlayControllerRef.current = playModeRef.current
-        ? null
-        : new VariableOverlayController(loadedScene, BUILDER_VARIABLE_OVERLAY_GROUP_WIDTH)
-
-      coordinateOverlayControllerRef.current?.dispose()
-      coordinateOverlayControllerRef.current = playModeRef.current
-        ? null
-        : new CoordinateOverlayController(loadedScene)
-
-      const sceneUserData = getSceneUserData(loadedScene)
-      if (sceneUserData.directionalLight) sceneUserData.directionalLight.castShadow = shadowsEnabled
-      cam.aspect = w / h
-      cam.updateProjectionMatrix()
-
-      const installPickGizmoIfBuilder = (): void => {
-        if (cancelled || effectIdRef.current !== currentEffectId) return
-        if (playModeRef.current) return
-        if (!onSelectEntityRef.current || !onEntityPoseCommitRef.current) return
-        if (!cam || !rend) return
-        if (!registryRef.current) return
-        disposePickGizmoRef.current?.()
-        const { dispose, syncAttach } = installBuilderPickAndGizmo({
-          scene: loadedScene,
-          camera: cam,
-          domElement: rend.domElement,
-          getRegistry: () => registryRef.current,
-          getEntity: (id) => worldRef.current.entities.find((e) => e.id === id),
-          getSelectedIds: () => selectedEntityIdsRef.current,
-          getGizmoMode: () => gizmoModeRef.current,
-          onSelectEntity: (id, opts) => onSelectEntityRef.current?.(id, opts),
-          onPoseCommit: (commits) => onEntityPoseCommitRef.current?.(commits),
-          setGizmoDragging: (d) => {
-            gizmoDraggingRef.current = d
-          },
-          texturePaint: {
-            getAssets: () => assetsRef.current,
-            getBrushRgba: () => {
-              const c = textureBrushRgbRef.current
-              const a = textureBrushAlphaRef.current
-              const ac = a < 0 ? 0 : a > 1 ? 1 : a
-              return [c[0], c[1], c[2], ac] as const
-            },
-            getBrushRadiusPx: () => textureBrushRadiusPxRef.current,
-            getPaintTargetAssetId: (entityId: string) =>
-              getPaintTargetAssetIdRef.current?.(entityId) ?? null,
-            prepareWorldPaintStroke: (entityId: string) =>
-              prepareWorldPaintStrokeRef.current?.(entityId) ?? Promise.resolve(null),
-            pushUndoBeforePaintStroke: () => pushUndoBeforePaintStrokeRef.current?.(),
-            onStrokeEnd: (payload) => onTexturePaintStrokeEndRef.current?.(payload),
-          },
-        })
-        disposePickGizmoRef.current = dispose
-        syncGizmoAttachRef.current = syncAttach
-        syncAttach()
-      }
-
-      // Initialize physics
-      if (runPhysics) {
-        const gravity = loadedWorld.world.gravity ?? DEFAULT_GRAVITY
-        import('@/physics/rapierPhysics').then((mod) => {
-          mod.createPhysicsWorld(loadedWorld, entities).then((pw) => {
-            // Check if this effect is still active
-            if (cancelled || effectIdRef.current !== currentEffectId) {
-              pw.dispose()
-              return
-            }
-            pw.setGravity(gravity)
-            physicsRef.current = pw
-            const rawInputGetter = () => getRawInputSnapshot(rawKeyboardRef, rawWheelRef)
-            const registry = RenderItemRegistry.create(
-              entities,
-              pw,
-              rawInputGetter,
-              controlledEntityIdRef,
-              loadedWorld.transformers,
-              loadedWorld.transformerPipes,
-            )
-            if (!cancelled && effectIdRef.current === currentEffectId) {
-              registryRef.current = registry
-              restoreInitialPosesIntoRegistry(registry, initialPosesRef, onPosesRestored)
-              installPickGizmoIfBuilder()
-              setRegistryEpoch((n) => n + 1)
-            }
-          })
-        })
-      } else {
-        const rawInputGetter = () => getRawInputSnapshot(rawKeyboardRef, rawWheelRef)
-        const registry = RenderItemRegistry.create(entities, null, rawInputGetter, controlledEntityIdRef, loadedWorld.transformers, loadedWorld.transformerPipes)
-        if (!cancelled && effectIdRef.current === currentEffectId) {
-          registryRef.current = registry
-          restoreInitialPosesIntoRegistry(registry, initialPosesRef, onPosesRestored)
-          installPickGizmoIfBuilder()
-          setRegistryEpoch((n) => n + 1)
-        }
-      }
-
-      // Semi-fixed timestep: accumulator in rAF; see `resolveSimulationSettings` / World panel.
-      let lastRafTime: number | null = null
-      let simAccumulator = 0
-
-      const animate = (rafTime: number): void => {
-        if (cancelled) return
-        frameRef.current = requestAnimationFrame(animate)
-
-        const sim = resolveSimulationSettings(worldRef.current.world.simulation)
-        const { fixedDt, maxStepsPerFrame, timeScale } = sim
-        const recordStats = recordFrameStatsOverlayRef.current
-
-        const rawElapsed = lastRafTime == null ? 0 : Math.max(0, (rafTime - lastRafTime) / 1000)
-        lastRafTime = rafTime
-        const elapsedSec = rawElapsed * timeScale
-
-        const { accumulator: nextAcc, stepsToRun } = advanceSemiFixedAccumulator({
-          accumulator: simAccumulator,
-          elapsedSec,
-          fixedDt,
-          maxStepsPerFrame,
-        })
-        simAccumulator = nextAcc
-        const clampedElapsed = Math.min(
-          Math.max(0, elapsedSec),
-          maxStepsPerFrame * fixedDt,
-        )
-
-        const tickStart = recordStats ? performance.now() : 0
-
-        const pushFrame = (opts: {
-          fixedDt: number
-          skipSimulation: boolean
-          variableFrameDt: number
-          skipRender: boolean
-          renderInterpolationAlpha: number
-        }): void => {
-          runSceneFrame({
-            isCancelled: () => cancelled,
-            fixedDt: opts.fixedDt,
-            skipSimulation: opts.skipSimulation,
-            variableFrameDt: opts.variableFrameDt,
-            skipRender: opts.skipRender,
-            renderInterpolationAlpha: opts.renderInterpolationAlpha,
-            timeRef,
-            rawWheelRef,
-            orbitWheelRef,
-            editNavigationModeRef,
-            cameraCtrlRef,
-            physicsRef,
-            runPhysics: runPhysicsRef.current,
-            activeDebugForcesRef,
-            registryRef,
-            rawKeyboardRef,
-            worldRef,
-            scriptRunnerRef,
-            runScripts: runScriptsRef.current,
-            freeFlyKeysRef,
-            rawMouseDragRef,
-            gizmoDraggingRef,
-            selectedEntityIdsRef,
-            editorFreePoseRef,
-            cam,
-            lastEditorPoseWriteTimeRef,
-            showGameHud: showGameHudRef.current,
-            lastHudDriveRef,
-            setHudDrive,
-            skyDomeRef,
-            rend,
-            loadedScene,
-            recordFrameTiming: recordStats,
-            frameTimingRef,
-            onFrameStart: () => {
-              const mode = gizmoModeRef.current
-              const ids = selectedEntityIdsRef.current
-              const vid = mode === 'visualize' && ids.length === 1 ? ids[0]! : null
-              setVariableOverlayDisplayEntityId(vid)
-              setCoordinateOverlayDisplayEntityId(vid)
-              if (vid !== coordinateOverlayDisplayVidRef.current) {
-                clearCoordinateEntries()
-                coordinateOverlayDisplayVidRef.current = vid
-              }
-            },
-            beforeWebGlRender: () => {
-              const overlay = variableOverlayControllerRef.current
-              const coordOverlay = coordinateOverlayControllerRef.current
-              const mode = gizmoModeRef.current
-              const ids = selectedEntityIdsRef.current
-              if (!overlay || mode !== 'visualize' || ids.length !== 1) {
-                overlay?.sync(null, null, [])
-                coordOverlay?.sync([])
-                return
-              }
-              const id = ids[0]!
-              const pos = registryRef.current?.getPosition(id)
-              if (!pos) {
-                overlay.sync(null, null, [])
-                coordOverlay?.sync([])
-                return
-              }
-              overlay.sync(id, pos, getVariableOverlaySlots(), cam)
-              coordOverlay?.sync(getCoordinateOverlayEntries())
-            },
-            css2dRenderer: css2dRendererRef.current,
-          })
-        }
-
-        for (const plan of planSemiFixedPushFrames({
-          stepsToRun,
-          fixedDt,
-          simAccumulator,
-          clampedElapsed,
-        })) {
-          pushFrame(plan)
-        }
-
-        if (recordStats) {
-          const snap = frameTimingRef.current
-          if (snap) {
-            snap.frameMs = performance.now() - tickStart
-          }
-        }
-      }
-      // Pre-upload all scene textures to the GPU before the first rAF tick to prevent
-      // `Image Paint blob:` stalls mid-frame on initial render.
-      warmUpRendererTextures(rend, loadedScene)
-      setSceneBootstrapPending(false)
-
-      // Schedule idle-time texture pre-decode for the next world rebuild.
-      if (assetResolver) {
-        prefetchDisposer = scheduleMaterialTextureDecodePrefetch(
-          assetResolver,
-          collectMaterialMapAssetIds(loadedWorld),
-          (id) => assetsRef.current.get(id),
-        )
-      }
-
-      frameRef.current = requestAnimationFrame(animate)
-
-      if (avatarSession) {
-        const onAvatarKeyDown = (e: KeyboardEvent): void => {
-          if (!showGameHudRef.current) return
-          if (avatarSession!.getRosterEntityIds().length < 2) return
-          if (isKeyboardEventInEditableContext(e)) return
-          if (e.code === 'Equal' || e.code === 'NumpadAdd') {
-            e.preventDefault()
-            avatarSession!.cycleAvatar(1)
-          } else if (e.code === 'Minus' || e.code === 'NumpadSubtract') {
-            e.preventDefault()
-            avatarSession!.cycleAvatar(-1)
-          }
-        }
-        window.addEventListener('keydown', onAvatarKeyDown)
-        removeAvatarKeydown = () => window.removeEventListener('keydown', onAvatarKeyDown)
-      }
-
-      // Resize handling
-      const onResize = (): void => {
-        if (!container || !cam || !rend) return
-        const w = Math.max(container.clientWidth || 1, 1)
-        const h = Math.max(container.clientHeight || 1, 1)
-        cam.aspect = w / h
-        cam.updateProjectionMatrix()
-        rend.setSize(w, h)
-        css2dRendererRef.current?.setSize(w, h)
-      }
-      resizeHandlerRef.current = onResize
-      window.addEventListener('resize', onResize)
-      ro = new ResizeObserver(onResize)
-      ro.observe(container)
-    }).catch((err) => {
-      if (!cancelled) {
-        console.error('Failed to load world:', err)
-        const msg =
-          err instanceof Error
-            ? err.message
-            : typeof err === 'string'
-              ? err
-              : 'Unknown error while loading the world.'
-        setWorldLoadError(msg)
-        setSceneBootstrapPending(false)
-      }
-    })
-
-    return () => {
-      setSceneBootstrapPending(false)
-      // Set cancelled first to stop animation loop
-      cancelled = true
-      prefetchDisposer?.cancel()
-      prefetchDisposer = null
-
-      setTransformerSnackbarFn(null)
-      if (scriptSnackbarTimerId !== undefined) {
-        window.clearTimeout(scriptSnackbarTimerId)
-        scriptSnackbarTimerId = undefined
-      }
-      setScriptSnackbarMessage(null)
-      setHudScore(0)
-      setHudDamage(0)
-      lastHudDriveRef.current = null
-      setHudDrive({ speedMs: 0, wheelAngle: 0 })
-
-      disposePickGizmoRef.current?.()
-      disposePickGizmoRef.current = null
-      syncGizmoAttachRef.current = null
-      gizmoDraggingRef.current = false
-
-      // `useSkyDome` and `useWorldAudio` own their own dispose; they re-run when
-      // `scene` flips to null (below) and on hook unmount.
-
-      // Dispose asset resolver
-      if (assetResolverRef.current) {
-        assetResolverRef.current.dispose()
-        assetResolverRef.current = null
-      }
-      
-      // Save camera pose after free-fly or edit-navigation (same-session rebuild / restore).
-      if (cam && cameraCtrl) {
-        const config = cameraCtrl.getConfig()
-        const saveFreePose =
-          editNavigationModeRef.current || (config.control ?? 'free') === 'free'
-        if (saveFreePose) {
-          savedCameraStateRef.current = {
-            position: cam.position.clone(),
-            quaternion: cam.quaternion.clone(),
-            up: cam.up.clone(),
-          }
-        }
-      }
-      
-      // Clear physics ref IMMEDIATELY to stop animation loop from using it
-      const pw = physicsRef.current
-      physicsRef.current = null
-      
-      // Cancel animation frame and remove event listeners
-      cancelAnimationFrame(frameRef.current)
-      removeAvatarKeydown?.()
-      if (ro) {
-        ro.disconnect()
-      }
-      const resizeHandler = resizeHandlerRef.current
-      if (resizeHandler) {
-        window.removeEventListener('resize', resizeHandler)
-        resizeHandlerRef.current = null
-      }
-      
-      // Clear refs immediately to prevent any further use
-      avatarSessionRef.current = null
-      cameraCtrlRef.current = null
-      scriptRunnerRef.current = null
-      
-      // Clear registry
-      registryRef.current?.clear()
-      registryRef.current = null
-      
-      // Clear debug forces
-      activeDebugForcesRef.current = []
-      
-      // Dispose physics world (after animation loop is stopped)
-      if (pw) {
-        try {
-          pw.dispose()
-        } catch (e) {
-          console.warn('Error disposing physics world:', e)
-        }
-      }
-      
-      // Clean up renderer
-      variableOverlayControllerRef.current?.dispose()
-      variableOverlayControllerRef.current = null
-      coordinateOverlayControllerRef.current?.dispose()
-      coordinateOverlayControllerRef.current = null
-      const css2d = css2dRendererRef.current
-      if (css2d) {
-        try {
-          if (container && css2d.domElement.parentNode === container) {
-            container.removeChild(css2d.domElement)
-          }
-        } catch (e) {
-          console.warn('Error removing CSS2D layer:', e)
-        }
-        css2dRendererRef.current = null
-      }
-      setVariableOverlayFn(null)
-      setCoordinateOverlayFn(null)
-
-      if (rend) {
-        try {
-          rend.dispose()
-          if (container && rend.domElement.parentNode === container) {
-            container.removeChild(rend.domElement)
-          }
-        } catch (e) {
-          console.warn('Error disposing renderer:', e)
-        }
-      }
-      
-      // Clear state
-      setScene(null)
-      setCamera(null)
-      setRenderer(null)
-    }
+    const session = createSceneRuntimeSession(
+      {
+        world,
+        restartKey: sceneRuntimeRestartKey,
+        container,
+        handles: sceneRuntimeHandles,
+        host: sceneRuntimeHost,
+        cameraConfig,
+        runPhysics,
+        runScripts,
+        shadowsEnabled,
+        initialPosesRef,
+        onPosesRestored,
+      },
+      sceneRuntimeDeps,
+    )
+    session.start()
+    return () => session.dispose()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- restart key mirrors legacy effect deps; world/cameraConfig read from closure like before
   }, [
     sceneKey,
     version,
@@ -1249,6 +760,7 @@ function SceneViewInner({
     world.world.videoTextureMaxAnisotropy,
     playMode,
   ])
+
 
   // Update camera config when it changes (without reloading the world).
   // After setConfig, sync AvatarSession with `world` and re-apply follow focus so each avatar’s
