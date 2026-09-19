@@ -37,8 +37,7 @@ export function createLogicVerificationBrowserAttachHandler(): {
   const adoptScene = (config: LogicVerificationLiveSceneConfig): void => {
     state.host?.dispose()
     state.host = LogicVerificationHost.adoptLiveScene(config)
-    state.runActive = false
-    state.inputScript = undefined
+    // Keep inputScript / runActive — MCP may call run_for_sim_time on the next RPC.
   }
 
   const disposeHost = (): void => {

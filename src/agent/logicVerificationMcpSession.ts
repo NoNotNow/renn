@@ -62,6 +62,23 @@ export type AttachBrowserInput = {
   waitForBrowserMs?: number
 }
 
+async function waitForBrowserSceneViaClient(
+  client: LogicVerificationBrowserMcpClient,
+  timeoutMs: number,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    try {
+      const status = (await client.invoke('get_status')) as { ready?: boolean }
+      if (status.ready) return
+    } catch {
+      // Bridge up but Builder scene not adopted yet
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50))
+  }
+  throw new Error('Timed out waiting for Builder browser attach')
+}
+
 export class LogicVerificationMcpSession {
   private host: LogicVerificationHost | null = null
   private browserClient: LogicVerificationBrowserMcpClient | null = null
@@ -85,21 +102,38 @@ export class LogicVerificationMcpSession {
     await this.disposeHeadlessHost()
     this.browserClient?.dispose()
     const port = input.port ?? DEFAULT_LOGIC_VERIFICATION_BROWSER_PORT
-    const bridge =
-      getSharedLogicVerificationBrowserBridge() ??
-      (await ensureSharedLogicVerificationBrowserBridge({
-        port,
-        host: input.host ?? '127.0.0.1',
-        devToken: input.devToken,
-      }))
-    await bridge.waitForBrowser(input.waitForBrowserMs ?? 8_000)
+    const host = input.host ?? '127.0.0.1'
+    const waitMs = input.waitForBrowserMs ?? 8_000
+
     const client = new LogicVerificationBrowserMcpClient({
       port,
-      host: input.host,
+      host,
       devToken: input.devToken,
     })
-    await client.connect()
+
+    let localBridge = getSharedLogicVerificationBrowserBridge()
+    try {
+      await client.connect()
+    } catch {
+      // No bridge yet (MCP-only). Start in-process server, then connect.
+      if (!localBridge?.isListening) {
+        localBridge = await ensureSharedLogicVerificationBrowserBridge({
+          port,
+          host,
+          devToken: input.devToken,
+        })
+      }
+      await client.connect()
+    }
+
     this.browserClient = client
+
+    if (localBridge?.isListening) {
+      await localBridge.waitForBrowser(waitMs)
+    } else {
+      await waitForBrowserSceneViaClient(client, waitMs)
+    }
+
     this.runActive = false
     this.inputScript = undefined
     return { attached: true }

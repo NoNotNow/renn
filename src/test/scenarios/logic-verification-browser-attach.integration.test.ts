@@ -116,4 +116,27 @@ describe('Logic verification browser attach (integration)', () => {
     expect(obs.timeline.length).toBeGreaterThan(0)
     await session.dispose()
   })
+
+  it('re-adopt between start and run keeps scripted input (browser bridge RPC pattern)', async () => {
+    const port = 19234 + Math.floor(Math.random() * 1000)
+    bridge = new LogicVerificationBrowserBridgeServer({ port, devToken: DEV_TOKEN })
+    await bridge.start()
+    setSharedLogicVerificationBrowserBridge(bridge)
+    stopBrowser = await startSimulatedBuilderTab(port)
+
+    const handler = createLogicVerificationBrowserAttachHandler()
+    const host = await createLogicVerificationHost({
+      world: loadAgentVerificationCarWorld(),
+      warmupSteps: AGENT_VERIFICATION_CAR_WARMUP_STEPS,
+    })
+    handler.adoptScene(host.getLiveSceneConfig())
+
+    await handler.dispatchRpc('start_verification_run', { inputKeys: { w: true, d: true } })
+    handler.adoptScene(host.getLiveSceneConfig())
+    const stepped = (await handler.dispatchRpc('run_for_sim_time', { seconds: 2 })) as {
+      poses: { car?: { position: [number, number, number] } }
+    }
+    expect(stepped.poses.car?.position[2]).not.toBe(0)
+    host.dispose()
+  })
 })

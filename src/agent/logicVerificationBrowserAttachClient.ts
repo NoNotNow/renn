@@ -79,7 +79,6 @@ export function startLogicVerificationBrowserAttach(
         const msg = parseLogicVerificationBridgeMessage(String(ev.data))
         if (msg.type !== 'rpc') return
         const rpc = msg as LogicVerificationBridgeRpc
-        syncLiveHost()
         try {
           const result = await handler.dispatchRpc(rpc.method, rpc.params)
           socket?.send(

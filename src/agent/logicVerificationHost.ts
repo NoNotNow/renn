@@ -271,6 +271,11 @@ export class LogicVerificationHost {
   }
 
   runSteps(count: number, inputScript?: LogicVerificationInputScript): LogicVerificationStepResult {
+    const bindScriptedInput = (): void => {
+      this.registry.setRawInputGetter(() => this.inputState.raw)
+    }
+    bindScriptedInput()
+
     for (let i = 0; i < count; i++) {
       const ctx: LogicVerificationStepContext = {
         stepIndex: this.stepCount,
@@ -280,6 +285,7 @@ export class LogicVerificationHost {
       this.inputState.raw = inputScript
         ? inputScript(ctx)
         : buildScriptedRawInput({})
+      bindScriptedInput()
       this.registry.executeTransformers(this.dt, this.wind)
       this.physicsWorld.step(this.dt)
       this.registry.syncFromPhysics()

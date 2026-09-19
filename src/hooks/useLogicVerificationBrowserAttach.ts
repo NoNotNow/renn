@@ -5,6 +5,7 @@
 import { useEffect, useRef } from 'react'
 import type { LoadedEntity } from '@/loader/loadWorld'
 import type { PhysicsWorld } from '@/physics/rapierPhysics'
+import type { AvatarSession } from '@/runtime/avatarSession'
 import type { RenderItemRegistry } from '@/runtime/renderItemRegistry'
 import type { RennWorld } from '@/types/world'
 import { DEFAULT_LOGIC_VERIFICATION_DT } from '@/agent/logicVerificationHost'
@@ -15,6 +16,7 @@ export type UseLogicVerificationBrowserAttachArgs = {
   physicsRef: React.RefObject<PhysicsWorld | null>
   worldRef: React.RefObject<RennWorld>
   entitiesRef: React.RefObject<LoadedEntity[]>
+  avatarSessionRef?: React.RefObject<AvatarSession | null>
   registryEpoch: number
 }
 
@@ -24,6 +26,7 @@ export function useLogicVerificationBrowserAttach({
   physicsRef,
   worldRef,
   entitiesRef,
+  avatarSessionRef,
   registryEpoch,
 }: UseLogicVerificationBrowserAttachArgs): void {
   const sessionRef = useRef<{ dispose: () => void } | null>(null)
@@ -54,6 +57,7 @@ export function useLogicVerificationBrowserAttach({
             physicsWorld,
             entities,
             dt: DEFAULT_LOGIC_VERIFICATION_DT,
+            controlledEntityIdRef: avatarSessionRef?.current?.controlledEntityIdRef,
           }
         },
       })
@@ -71,5 +75,6 @@ export function useLogicVerificationBrowserAttach({
     physicsRef,
     worldRef,
     entitiesRef,
+    avatarSessionRef,
   ])
 }

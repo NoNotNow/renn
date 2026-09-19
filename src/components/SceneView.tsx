@@ -722,6 +722,7 @@ function SceneViewInner({
     physicsRef,
     worldRef,
     entitiesRef,
+    avatarSessionRef,
     registryEpoch,
   })
 
