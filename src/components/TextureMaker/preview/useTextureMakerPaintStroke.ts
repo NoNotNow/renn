@@ -78,7 +78,7 @@ export function useTextureMakerPaintStroke(options: {
     })
     // Live preview: redraw with the updated active layer raster.
     void drawPreviewToCanvas()
-  }, [drawPreviewToCanvas])
+  }, [drawPreviewToCanvas, paintStrokeRef])
 
   const endPaintStroke = useCallback(async () => {
     if (paintFlushRafRef.current) {
@@ -100,7 +100,7 @@ export function useTextureMakerPaintStroke(options: {
       mapAssetId: st.mapAssetId,
       newBlob: nextBlob,
     })
-  }, [entityId, flushPaintRaf, onStudioPaintStrokeEnd, suppressNextPreviewDrawRef])
+  }, [entityId, flushPaintRaf, onStudioPaintStrokeEnd, paintStrokeRef, suppressNextPreviewDrawRef])
 
   const handleWindowPointerMove = useCallback(
     (e: PointerEvent): void => {
@@ -122,7 +122,7 @@ export function useTextureMakerPaintStroke(options: {
         })
       }
     },
-    [doc.width, doc.height, placementDraft, flushPaintRaf, previewCanvasRef, previewStackRef],
+    [doc.width, doc.height, placementDraft, flushPaintRaf, paintStrokeRef, previewCanvasRef, previewStackRef],
   )
 
   const handleWindowPointerUp = useCallback(
@@ -132,7 +132,7 @@ export function useTextureMakerPaintStroke(options: {
         void endPaintStroke()
       }
     },
-    [endPaintStroke],
+    [endPaintStroke, paintStrokeRef],
   )
 
   const onStackPointerDown = useCallback(
@@ -200,6 +200,7 @@ export function useTextureMakerPaintStroke(options: {
       flushPaintRaf,
       previewCanvasRef,
       previewStackRef,
+      paintStrokeRef,
     ],
   )
 

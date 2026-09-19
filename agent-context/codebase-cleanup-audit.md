@@ -2,7 +2,7 @@
 
 Living backlog for stabilization passes. **Do not redo completed work** — scan this file first.
 
-**Baseline (2026-09-18):** 223 test files, 1991 tests + 3 skipped · `npx tsc --noEmit -p tsconfig.app.json` clean · `npm run build` recommended pre-PR · `npm run test:perf` before Rapier/frame-loop changes.
+**Baseline (2026-09-19):** 240 test files, 2050 tests + 3 skipped · `npm run typecheck` clean · `npm run build` recommended pre-PR · `npm run test:perf` before Rapier/frame-loop changes.
 
 **Verbose phase write-ups (1–27):** [`codebase-cleanup-history.md`](./codebase-cleanup-history.md) — archive only; append new phases here in **short** form.
 
@@ -190,7 +190,7 @@ Living backlog for stabilization passes. **Do not redo completed work** — scan
 
 | File | Lines (approx) | Suggested extraction |
 |------|------------------|----------------------|
-| `pages/Builder.tsx` | **1006** | Gizmo/perf/texture wiring remain; entity world actions in `useBuilderEntityWorldActions` |
+| `pages/Builder.tsx` | **1004** | Gizmo/perf/texture wiring remain; entity world actions in `useBuilderEntityWorldActions` |
 | `components/SceneView.tsx` | **906** | Main scene-build **done** — [`SceneRuntimeSession`](./scene-runtime-session-extract.md) (~**35**-line adapter); orchestration in `sceneRuntimeSession*.ts` (~**1226** LOC); safe helpers (Phase 30) |
 | `physics/rapierPhysics.ts` | **930** | Step/touching contact dedup (hot — perf gate); collider factory done |
 | `TextureMaker/TextureMaker.tsx` | **288** | Done (Phase 30); optional types module for studio tool |

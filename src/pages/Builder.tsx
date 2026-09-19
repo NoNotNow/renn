@@ -408,23 +408,42 @@ export default function Builder() {
     uiLogger.click('Builder', 'Change gizmo mode', { mode })
   }, [])
 
+  const handleToggleEditNavigationMode = useCallback(() => {
+    setEditNavigationMode((prev) => {
+      const next = !prev
+      uiLogger.change('Builder', 'Toggle edit navigation mode', { enabled: next })
+      return next
+    })
+  }, [setEditNavigationMode])
+
+  const handleGroupSelectionShortcut = useCallback(
+    () => groupShortcutHandlersRef.current.onGroup(),
+    [groupShortcutHandlersRef],
+  )
+  const handleUngroupSelectionShortcut = useCallback(
+    () => groupShortcutHandlersRef.current.onUngroup(),
+    [groupShortcutHandlersRef],
+  )
+  const handleCopyShortcut = useCallback(
+    () => clipboardShortcutHandlersRef.current.onCopy(),
+    [clipboardShortcutHandlersRef],
+  )
+  const handlePasteShortcut = useCallback(
+    () => clipboardShortcutHandlersRef.current.onPaste(),
+    [clipboardShortcutHandlersRef],
+  )
+
   useBuilderKeyboardShortcuts({
     onUndo: handleUndo,
     onRedo: handleRedo,
     onClearSelection: clearSelection,
-    onToggleEditNavigationMode: useCallback(() => {
-      setEditNavigationMode((prev) => {
-        const next = !prev
-        uiLogger.change('Builder', 'Toggle edit navigation mode', { enabled: next })
-        return next
-      })
-    }, []),
+    onToggleEditNavigationMode: handleToggleEditNavigationMode,
     onCycleActiveAvatar: useCallback(() => sceneViewRef.current?.cycleActiveAvatar() ?? false, []),
     onChangeCameraMode: setCameraMode,
-    onGroupSelection: useCallback(() => groupShortcutHandlersRef.current.onGroup(), []),
-    onUngroupSelection: useCallback(() => groupShortcutHandlersRef.current.onUngroup(), []),
-    onCopy: useCallback(() => clipboardShortcutHandlersRef.current.onCopy(), []),
-    onPaste: useCallback(() => clipboardShortcutHandlersRef.current.onPaste(), []),
+    onGroupSelection: handleGroupSelectionShortcut,
+    onUngroupSelection: handleUngroupSelectionShortcut,
+    onCopy: handleCopyShortcut,
+    onPaste: handlePasteShortcut,
     onSave: useCallback(() => fileShortcutHandlersRef.current.onSave(), []),
     onSaveAs: useCallback(() => fileShortcutHandlersRef.current.onSaveAs(), []),
     onNew: useCallback(() => fileShortcutHandlersRef.current.onNew(), []),

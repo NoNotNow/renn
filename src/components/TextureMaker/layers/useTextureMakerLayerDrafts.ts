@@ -40,7 +40,7 @@ export function useTextureMakerLayerDrafts({
     }
     setNameDraft(selectedLayer.name)
     setOpacityDraft(selectedLayer.opacity)
-  }, [selectedLayerId, selectedLayer?.id, selectedLayer?.name, selectedLayer?.opacity])
+  }, [selectedLayer])
 
   const layerPlacementSig = selectedLayer
     ? [
@@ -64,7 +64,7 @@ export function useTextureMakerLayerDrafts({
       return
     }
     setPlacementDraft(layerDestOrDefault(layer, doc))
-  }, [selectedLayerId, doc.width, doc.height, layerPlacementSig, layersOrderSig])
+  }, [selectedLayerId, doc, doc.width, doc.height, layerPlacementSig, layersOrderSig])
 
   const commitLayerDest = useCallback(
     (d: TextureLayerDest) => {

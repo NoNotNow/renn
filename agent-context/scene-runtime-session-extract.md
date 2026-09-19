@@ -333,6 +333,7 @@ export function createSceneRuntimeSession(
 | Item | Notes |
 |------|--------|
 | **LEFTOVER** | `restartKey` on session config unused at runtime (config carries it for parity/tests only) |
+| **Done (2026-09-19)** | World `shadowsEnabled` excluded from `buildSceneRuntimeRestartKey` — SceneView incremental shadow effect only (no pose reset on toggle) |
 | **RISK** | Phase 3 async Rapier race regressions — keep generation checks byte-for-byte equivalent |
 | **RISK** | Double-dispose on asset resolver if both host and session dispose — match current ordering |
 | **RISK** | Imperative handle reads null refs during bootstrap — unchanged window |

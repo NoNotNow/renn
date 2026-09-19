@@ -108,14 +108,19 @@ export function TextureMakerPreviewPane({
     compositePreviewUrl,
   })
 
+  const paintMove = paint.handleWindowPointerMove
+  const paintUp = paint.handleWindowPointerUp
+  const viewMove = viewNav.handleWindowPointerMove
+  const viewUp = viewNav.handleWindowPointerUp
+
   useEffect(() => {
     const onMove = (e: PointerEvent): void => {
-      viewNav.handleWindowPointerMove(e)
-      paint.handleWindowPointerMove(e)
+      viewMove(e)
+      paintMove(e)
     }
     const onUp = (e: PointerEvent): void => {
-      viewNav.handleWindowPointerUp(e)
-      paint.handleWindowPointerUp(e)
+      viewUp(e)
+      paintUp(e)
     }
     window.addEventListener('pointermove', onMove)
     window.addEventListener('pointerup', onUp)
@@ -125,12 +130,7 @@ export function TextureMakerPreviewPane({
       window.removeEventListener('pointerup', onUp)
       window.removeEventListener('pointercancel', onUp)
     }
-  }, [
-    viewNav.handleWindowPointerMove,
-    viewNav.handleWindowPointerUp,
-    paint.handleWindowPointerMove,
-    paint.handleWindowPointerUp,
-  ])
+  }, [viewMove, viewUp, paintMove, paintUp])
 
   return (
     <div className="texture-maker-preview-wrap">

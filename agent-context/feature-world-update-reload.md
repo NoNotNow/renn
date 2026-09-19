@@ -245,12 +245,15 @@ src/
 ├── editor/applyWorldEdit.ts      # world-edit seam: undo + scene-follow policies
 ├── editor/commitStageEdit.ts     # transformer stage-edit seam: flush / undo / param-sync by intent
 ├── editor/pipeNavEdit.ts         # pipe-nav edit seam: pure resolve to world + reconciled nav path; undo by intent
-├── pages/Builder.tsx             # worldEditDeps, handleWorldChange, pose/physics handlers, initialPosesRef
+├── pages/Builder.tsx             # worldEditDeps, handleWorldChange; entity CRUD in useBuilderEntityWorldActions
+├── hooks/useBuilderEntityWorldActions.ts # entity/scene/clipboard world edits (Builder)
 ├── contexts/ProjectContext.tsx   # updateWorld, syncPosesFromScene, syncPosesToRefOnly
 ├── components/SceneView.tsx      # SceneRuntimeSession adapter + incremental effects; imperative entity API
 ├── runtime/sceneRuntimeSession.ts # full-restart lifecycle (load, physics/registry, rAF, teardown)
+├── runtime/sceneFrameLoop.ts     # per-frame sim/render loop (ports; semi-fixed accumulator)
 ├── utils/sceneDependencyKey.ts   # getSceneDependencyKey: included vs excluded fields
-├── physics/rapierPhysics.ts      # PhysicsWorld: setLinearDamping/AngularDamping/Restitution/Friction/Mass/BodyType + updateShape
+├── physics/rapierPhysics.ts      # PhysicsWorld step, bodies, contacts; colliders via colliderDescBuilder
+├── physics/colliderDescBuilder.ts # createColliderDesc + volume (extracted from rapierPhysics)
 ├── runtime/renderItemRegistry.ts # setPosition, setRotation, setModelTransform, updatePhysics, updateShape, updateMaterial
 └── loader/createPrimitive.ts     # createShapeGeometry + materialFromRef: hot-swap helpers
 ```

@@ -224,7 +224,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       }
       return false
     }
-  }, [resetCameraFromWorld, replaceEntityWorkHistoryFromLoaded])
+  }, [resetCameraFromWorld, replaceEntityWorkHistoryFromLoaded, setAssets])
 
   // Load world on initialization: reopen last saved project when possible.
   useEffect(() => {
@@ -303,7 +303,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       alert('Failed to save project')
       return false
     }
-  }, [currentProject, world, assets, refreshProjects, getWorldToSave])
+  }, [currentProject, assets, refreshProjects, getWorldToSave, entityWorkHistoryRef])
 
   const saveToProject = useCallback(async (id: string): Promise<boolean> => {
     try {
@@ -325,7 +325,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       alert('Failed to save to project')
       return false
     }
-  }, [world, assets, refreshProjects, getWorldToSave])
+  }, [assets, refreshProjects, getWorldToSave, entityWorkHistoryRef])
 
   const saveProjectAs = useCallback(async (name: string): Promise<boolean> => {
     try {
@@ -350,7 +350,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       alert('Failed to save project')
       return false
     }
-  }, [world, assets, refreshProjects, getWorldToSave])
+  }, [assets, refreshProjects, getWorldToSave, entityWorkHistoryRef])
 
   const deleteProject = useCallback(async (id: string) => {
     if (!confirm('Delete this project?')) return
@@ -382,7 +382,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     if (options?.reloadScene !== false) {
       setVersion((v) => v + 1)
     }
-  }, [])
+  }, [setAssets])
 
   const updateWorld = useCallback((updater: (prev: RennWorld) => RennWorld) => {
     const next = updater(worldRef.current)
@@ -518,7 +518,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       reader.readAsText(file)
     }
     e.target.value = ''
-  }, [refreshProjects, loadProject, resetCameraFromWorld, resetEntityWorkHistory])
+  }, [refreshProjects, loadProject, resetCameraFromWorld, resetEntityWorkHistory, setAssets])
   
   const loadExampleWorld = useCallback((world: RennWorld, name: string) => {
     uiLogger.select('Builder', 'Open example world', { worldName: name })
@@ -536,7 +536,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     clearLastProjectId()
     setVersion((v) => v + 1)
     setDocumentEpoch((e) => e + 1)
-  }, [resetCameraFromWorld, resetEntityWorkHistory])
+  }, [resetCameraFromWorld, resetEntityWorkHistory, setAssets])
   
   const handlePlay = useCallback(() => {
     uiLogger.click('Builder', 'Play - navigate to play mode')

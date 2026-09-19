@@ -161,7 +161,7 @@ export function useBuilderEntityWorldActions({
       })
       setSelectedEntityIds([cloned.id])
     },
-    [getCurrentPose, worldEditDeps, worldAssetsRef, setSelectedEntityIds],
+    [getCurrentPose, world, worldEditDeps, worldAssetsRef, setSelectedEntityIds],
   )
 
   const handleCopyEntities = useCallback(() => {
