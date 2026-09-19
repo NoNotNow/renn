@@ -51,7 +51,7 @@ Starter template: `src/agent/projects/agent-starter/` — minimal world with one
 ### B — In-game reasoning (human sees canvas)
 
 1. Human opens Builder (`npm run dev`), imports the same project zip or edits live.
-2. Agent: `attach_browser` → same tool chain as headless on the **live** host.
+2. Agent: `attach_browser` → **patch, probe, run, observe** on the **live** host (human must load the project in Builder first; `load_project_bundle` / `load_fixture` / `load_world_json` are headless-only).
 3. Exclusive stepping pauses rAF while MCP advances sim time.
 
 ### C — Create entities (planned)

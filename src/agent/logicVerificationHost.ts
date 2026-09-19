@@ -9,9 +9,10 @@ import * as THREE from 'three'
 import { initRapier, createPhysicsWorld, type PhysicsWorld } from '@/physics/rapierPhysics'
 import { RenderItemRegistry } from '@/runtime/renderItemRegistry'
 import { createTransformerChain } from '@/transformers/transformerRegistry'
-import { migrateEntityTransformersToRegistry, migrateCustomTransformerNames } from '@/scripts/migrateWorld'
 import type { RennWorld, Entity, Rotation, Vec3 } from '@/types/world'
-import type { LoadedEntity } from '@/loader/loadWorld'
+import { loadWorld, type LoadedEntity } from '@/loader/loadWorld'
+import type { DisposableAssetResolver } from '@/loader/assetResolverImpl'
+import { prepareWorldForLogicVerification } from '@/agent/prepareWorldForLogicVerification'
 import type { RawInput, RawKeyboardState } from '@/types/transformer'
 import {
   AgentObservationSession,
@@ -54,6 +55,8 @@ export type LogicVerificationInputScript = (ctx: LogicVerificationStepContext) =
 
 export interface LogicVerificationHostConfig {
   world: RennWorld
+  /** Optional bundle / import assets — when set, entity meshes resolve like Builder import. */
+  assets?: Map<string, Blob>
   dt?: number
   /** When set, keyboard input is routed only to this entity (play avatar semantics). */
   controlledEntityId?: string | null
@@ -161,6 +164,7 @@ export class LogicVerificationHost {
   private readonly controlledEntityIdRef: { current: string | null } | undefined
   private readonly observationSession: AgentObservationSession
   private readonly ownsPhysics: boolean
+  private readonly assetResolver: DisposableAssetResolver | null
   private stepCount = 0
   private simTime = 0
 
@@ -175,6 +179,7 @@ export class LogicVerificationHost {
     controlledEntityIdRef: { current: string | null } | undefined,
     wind?: Vec3,
     ownsPhysics = true,
+    assetResolver: DisposableAssetResolver | null = null,
   ) {
     this.physicsWorld = physicsWorld
     this.registry = registry
@@ -186,6 +191,7 @@ export class LogicVerificationHost {
     this.observationSession = observationSession
     this.wind = wind
     this.ownsPhysics = ownsPhysics
+    this.assetResolver = assetResolver
   }
 
   static adoptLiveScene(config: LogicVerificationLiveSceneConfig): LogicVerificationHost {
@@ -216,12 +222,19 @@ export class LogicVerificationHost {
   static async create(config: LogicVerificationHostConfig): Promise<LogicVerificationHost> {
     await initRapier()
 
-    const world = structuredClone(config.world) as RennWorld
-    migrateCustomTransformerNames(world)
-    migrateEntityTransformersToRegistry(world)
-
+    const world = prepareWorldForLogicVerification(config.world)
     const dt = config.dt ?? DEFAULT_LOGIC_VERIFICATION_DT
-    const entities = buildLoadedEntities(world)
+
+    let entities: LoadedEntity[]
+    let assetResolver: DisposableAssetResolver | null = null
+    if (config.assets && config.assets.size > 0) {
+      const loaded = await loadWorld(world, config.assets)
+      entities = loaded.entities
+      assetResolver = loaded.assetResolver
+    } else {
+      entities = buildLoadedEntities(world)
+    }
+
     const physicsWorld = await createPhysicsWorld(world, entities)
 
     const inputState = { raw: buildScriptedRawInput({}) }
@@ -260,6 +273,8 @@ export class LogicVerificationHost {
       observationSession,
       controlledRef,
       wind,
+      true,
+      assetResolver,
     )
 
     const warmup = config.warmupSteps ?? 0
@@ -423,6 +438,7 @@ export class LogicVerificationHost {
 
   dispose(): void {
     this.observationSession.dispose()
+    this.assetResolver?.dispose()
     if (this.ownsPhysics) {
       this.physicsWorld.dispose()
     }

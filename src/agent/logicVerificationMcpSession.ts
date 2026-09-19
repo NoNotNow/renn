@@ -4,14 +4,11 @@
 
 import type { RennWorld } from '@/types/world'
 import {
-  buildScriptedRawInput,
   createLogicVerificationHost,
   DEFAULT_LOGIC_VERIFICATION_DT,
   type LogicVerificationHost,
-  type LogicVerificationInputScript,
 } from '@/agent/logicVerificationHost'
-import type { AgentObservationProbe, AgentObservationSession } from '@/agent/agentObservationSession'
-import { validateCustomTransformerSource } from '@/transformers/customCodeTransformer'
+import type { AgentObservationProbe } from '@/agent/agentObservationSession'
 import type {
   ApplyLogicVerificationWorldPatchResult,
   LogicVerificationWorldPatch,
@@ -23,10 +20,17 @@ import {
 } from '@/agent/logicVerificationBrowserBridgeServer'
 import { DEFAULT_LOGIC_VERIFICATION_BROWSER_PORT } from '@/agent/logicVerificationBrowserProtocol'
 import {
-  defaultWarmupStepsForFixture,
-  loadLogicVerificationFixture,
-} from '@/agent/logicVerificationFixtures'
-import { loadAgentProjectBundle } from '@/agent/loadAgentProjectBundle'
+  createBrowserRpcLogicVerificationRunBackend,
+  createInProcessLogicVerificationRunBackend,
+  LogicVerificationRunController,
+  type StartVerificationRunInput,
+} from '@/agent/logicVerificationRunController'
+import { validateCustomTransformerSource } from '@/transformers/customCodeTransformer'
+import {
+  resolveBundleVerificationProject,
+  resolveFixtureVerificationProject,
+  resolveInlineVerificationProject,
+} from '@/agent/logicVerificationProjectSource'
 
 export type LoadWorldJsonInput = {
   world: RennWorld
@@ -47,19 +51,6 @@ export type LoadProjectBundleInput = {
   dt?: number
   warmupSteps?: number
   controlledEntityId?: string | null
-}
-
-export type StartVerificationRunInput = {
-  carryOverTimeline?: boolean
-  /** Keyboard keys held for each step (scripted RawInput). */
-  inputKeys?: Partial<{
-    w: boolean
-    a: boolean
-    s: boolean
-    d: boolean
-    space: boolean
-    shift: boolean
-  }>
 }
 
 export type AttachBrowserInput = {
@@ -90,8 +81,7 @@ async function waitForBrowserSceneViaClient(
 export class LogicVerificationMcpSession {
   private host: LogicVerificationHost | null = null
   private browserClient: LogicVerificationBrowserMcpClient | null = null
-  private inputScript: LogicVerificationInputScript | undefined
-  private runActive = false
+  private runController: LogicVerificationRunController | null = null
   private dt = DEFAULT_LOGIC_VERIFICATION_DT
 
   get hasHost(): boolean {
@@ -103,12 +93,39 @@ export class LogicVerificationMcpSession {
   }
 
   get isRunActive(): boolean {
-    return this.runActive
+    return this.runController?.isRunActive ?? false
+  }
+
+  private ensureRunController(): LogicVerificationRunController {
+    if (this.runController) return this.runController
+    if (this.browserClient) {
+      this.runController = new LogicVerificationRunController(
+        createBrowserRpcLogicVerificationRunBackend(this.browserClient, () => this.dt),
+      )
+      return this.runController
+    }
+    if (this.host) {
+      this.runController = new LogicVerificationRunController(
+        createInProcessLogicVerificationRunBackend(
+          () => this.requireHeadlessHost(),
+          () => this.dt,
+        ),
+      )
+      return this.runController
+    }
+    throw new Error(
+      'No world loaded — call load_world_json, load_fixture, load_project_bundle, or attach_browser',
+    )
+  }
+
+  private resetRunController(): void {
+    this.runController = null
   }
 
   async attachBrowser(input: AttachBrowserInput): Promise<{ attached: true }> {
     await this.disposeHeadlessHost()
     this.browserClient?.dispose()
+    this.resetRunController()
     const port = input.port ?? DEFAULT_LOGIC_VERIFICATION_BROWSER_PORT
     const host = input.host ?? '127.0.0.1'
     const waitMs = input.waitForBrowserMs ?? 8_000
@@ -123,7 +140,6 @@ export class LogicVerificationMcpSession {
     try {
       await client.connect()
     } catch {
-      // No bridge yet (MCP-only). Start in-process server, then connect.
       if (!localBridge?.isListening) {
         localBridge = await ensureSharedLogicVerificationBrowserBridge({
           port,
@@ -142,31 +158,46 @@ export class LogicVerificationMcpSession {
       await waitForBrowserSceneViaClient(client, waitMs)
     }
 
-    this.runActive = false
-    this.inputScript = undefined
+    this.ensureRunController().resetRunState()
     return { attached: true }
   }
 
-  async loadWorldJson(input: LoadWorldJsonInput): Promise<{ loaded: true }> {
-    this.assertHeadlessMode('load_world_json')
+  private async loadResolvedProject(input: {
+    world: RennWorld
+    assets?: Map<string, Blob>
+    dt?: number
+    warmupSteps?: number
+    controlledEntityId?: string | null
+  }): Promise<void> {
+    this.assertHeadlessMode('load')
     await this.disposeHeadlessHost()
     this.dt = input.dt ?? DEFAULT_LOGIC_VERIFICATION_DT
     this.host = await createLogicVerificationHost({
       world: input.world,
+      assets: input.assets,
       dt: this.dt,
       warmupSteps: input.warmupSteps,
       controlledEntityId: input.controlledEntityId,
     })
-    this.runActive = false
-    this.inputScript = undefined
+    this.resetRunController()
+  }
+
+  async loadWorldJson(input: LoadWorldJsonInput): Promise<{ loaded: true }> {
+    const resolved = resolveInlineVerificationProject(input.world)
+    await this.loadResolvedProject({
+      world: resolved.world,
+      dt: input.dt,
+      warmupSteps: input.warmupSteps,
+      controlledEntityId: input.controlledEntityId,
+    })
     return { loaded: true }
   }
 
   async loadFixture(input: LoadFixtureInput): Promise<{ loaded: true; fixtureId: string }> {
-    const warmup =
-      input.warmupSteps ?? defaultWarmupStepsForFixture(input.fixtureId) ?? undefined
-    await this.loadWorldJson({
-      world: loadLogicVerificationFixture(input.fixtureId),
+    const resolved = resolveFixtureVerificationProject(input.fixtureId)
+    const warmup = input.warmupSteps ?? resolved.defaultWarmupSteps ?? undefined
+    await this.loadResolvedProject({
+      world: resolved.world,
       dt: input.dt,
       warmupSteps: warmup,
       controlledEntityId: input.controlledEntityId,
@@ -177,14 +208,19 @@ export class LogicVerificationMcpSession {
   async loadProjectBundle(
     input: LoadProjectBundleInput,
   ): Promise<{ loaded: true; bundleId: string; assetCount: number }> {
-    const bundle = await loadAgentProjectBundle(input.bundleId)
-    await this.loadWorldJson({
-      world: bundle.world,
+    const resolved = await resolveBundleVerificationProject(input.bundleId)
+    await this.loadResolvedProject({
+      world: resolved.world,
+      assets: resolved.assets,
       dt: input.dt,
       warmupSteps: input.warmupSteps,
       controlledEntityId: input.controlledEntityId,
     })
-    return { loaded: true, bundleId: bundle.bundleId, assetCount: bundle.assets.size }
+    return {
+      loaded: true,
+      bundleId: resolved.bundleId ?? input.bundleId,
+      assetCount: resolved.assets?.size ?? 0,
+    }
   }
 
   validateStageCode(code: string, configKey = 'stage'): { ok: true } | { ok: false; message: string } {
@@ -196,102 +232,67 @@ export class LogicVerificationMcpSession {
   applyWorldPatch(
     patch: LogicVerificationWorldPatch,
   ): Promise<ApplyLogicVerificationWorldPatchResult> {
-    if (this.browserClient) {
-      return this.browserClient.invoke('apply_world_patch', patch) as Promise<
-        ApplyLogicVerificationWorldPatchResult
-      >
-    }
-    return this.requireHeadlessHost().applyWorldPatch(patch)
+    return this.ensureRunController().applyWorldPatch(patch)
   }
 
   registerProbes(probes: AgentObservationProbe[]): void {
-    if (this.browserClient) {
-      void this.browserClient.invoke('register_probes', { probes })
-      return
-    }
-    this.requireHeadlessHost().registerObservationProbes(probes)
+    void this.ensureRunController().registerProbes(probes)
   }
 
   async registerProbesAsync(probes: AgentObservationProbe[]): Promise<{ registered: number }> {
-    if (this.browserClient) {
-      return (await this.browserClient.invoke('register_probes', { probes })) as {
-        registered: number
-      }
-    }
-    this.requireHeadlessHost().registerObservationProbes(probes)
-    return { registered: probes.length }
+    return this.ensureRunController().registerProbes(probes)
   }
 
   async startVerificationRunAsync(
     input: StartVerificationRunInput = {},
   ): Promise<{ started: true }> {
-    if (this.browserClient) {
-      await this.browserClient.invoke('start_verification_run', input)
-      this.runActive = true
-      return { started: true }
-    }
-    return this.startVerificationRun(input)
+    return this.ensureRunController().startVerificationRun(input)
   }
 
   startVerificationRun(input: StartVerificationRunInput = {}): { started: true } {
     if (this.browserClient) {
-      throw new Error('startVerificationRun async required in browser attach — use startVerificationRunAsync')
+      throw new Error(
+        'startVerificationRun async required in browser attach — use startVerificationRunAsync',
+      )
     }
-    const host = this.requireHeadlessHost()
-    if (input.inputKeys) {
-      const keys = input.inputKeys
-      this.inputScript = () => buildScriptedRawInput(keys)
-    } else {
-      this.inputScript = undefined
-    }
-    host.startObservationRun({ carryOverTimeline: input.carryOverTimeline })
-    this.runActive = true
-    return { started: true }
+    return this.ensureRunController().startVerificationRunOnHost(this.requireHeadlessHost(), input)
   }
 
   runSteps(count: number): ReturnType<LogicVerificationHost['runSteps']> {
     if (this.browserClient) {
       throw new Error('runSteps async required in browser attach mode — use runStepsAsync')
     }
-    return this.requireHeadlessHost().runSteps(count, this.inputScript)
+    return this.ensureRunController().runStepsOnHost(this.requireHeadlessHost(), count)
   }
 
   async runStepsAsync(count: number): Promise<ReturnType<LogicVerificationHost['runSteps']>> {
-    if (this.browserClient) {
-      return (await this.browserClient.invoke('run_steps', { count })) as ReturnType<
-        LogicVerificationHost['runSteps']
-      >
-    }
-    return this.requireHeadlessHost().runSteps(count, this.inputScript)
+    return this.ensureRunController().runSteps(count)
   }
 
   runForSimTime(seconds: number): ReturnType<LogicVerificationHost['runSteps']> {
     if (this.browserClient) {
       throw new Error('runForSimTime async required in browser attach mode — use runForSimTimeAsync')
     }
-    const host = this.requireHeadlessHost()
     const steps = Math.max(0, Math.ceil(seconds / this.dt))
-    return host.runSteps(steps, this.inputScript)
+    return this.ensureRunController().runStepsOnHost(this.requireHeadlessHost(), steps)
   }
 
   async runForSimTimeAsync(
     seconds: number,
   ): Promise<ReturnType<LogicVerificationHost['runSteps']>> {
-    if (this.browserClient) {
-      return (await this.browserClient.invoke('run_for_sim_time', { seconds })) as ReturnType<
-        LogicVerificationHost['runSteps']
-      >
-    }
-    const host = this.requireHeadlessHost()
-    const steps = Math.max(0, Math.ceil(seconds / this.dt))
-    return host.runSteps(steps, this.inputScript)
+    return this.ensureRunController().runForSimTime(seconds)
   }
 
   getObservation(): {
     timeline: ReturnType<LogicVerificationHost['getObservationTimeline']>
     snapshot: ReturnType<LogicVerificationHost['snapshot']>
-    compileErrors: ReturnType<AgentObservationSession['getCompileErrors']>
-    runtimeErrors: ReturnType<AgentObservationSession['getRuntimeErrors']>
+    compileErrors: ReturnType<LogicVerificationHost['getObservationSession']>['getCompileErrors'] extends () => infer R
+      ? R
+      : never
+    runtimeErrors: ReturnType<LogicVerificationHost['getObservationSession']>['getRuntimeErrors'] extends () => infer R
+      ? R
+      : never
+    runtimeErrorList: unknown[]
   } {
     if (this.browserClient) {
       throw new Error('getObservation async required in browser attach mode — use getObservationAsync')
@@ -303,50 +304,22 @@ export class LogicVerificationMcpSession {
       snapshot: host.snapshot(),
       compileErrors: session.getCompileErrors(),
       runtimeErrors: session.getRuntimeErrors(),
+      runtimeErrorList: [...session.getRuntimeErrors().values()],
     }
   }
 
-  async getObservationAsync(): Promise<{
-    timeline: ReturnType<LogicVerificationHost['getObservationTimeline']>
-    snapshot: ReturnType<LogicVerificationHost['snapshot']>
-    compileErrors: ReturnType<AgentObservationSession['getCompileErrors']>
-    runtimeErrors: ReturnType<AgentObservationSession['getRuntimeErrors']>
-    runtimeErrorList: unknown[]
-  }> {
-    if (this.browserClient) {
-      const obs = (await this.browserClient.invoke('get_observation')) as {
-        timeline: ReturnType<LogicVerificationHost['getObservationTimeline']>
-        snapshot: ReturnType<LogicVerificationHost['snapshot']>
-        compileErrors: ReturnType<AgentObservationSession['getCompileErrors']>
-        runtimeErrors: unknown[]
-      }
-      return {
-        timeline: obs.timeline,
-        snapshot: obs.snapshot,
-        compileErrors: obs.compileErrors,
-        runtimeErrors: new Map() as ReturnType<AgentObservationSession['getRuntimeErrors']>,
-        runtimeErrorList: obs.runtimeErrors,
-      }
-    }
-    const obs = this.getObservation()
-    return {
-      ...obs,
-      runtimeErrorList: [...obs.runtimeErrors.values()],
-    }
+  async getObservationAsync() {
+    return this.ensureRunController().getObservation()
   }
 
   stopRun(): { stopped: true } {
     if (this.browserClient) {
-      void this.browserClient.invoke('stop_observation_run')
-      this.runActive = false
-      this.inputScript = undefined
+      void this.ensureRunController().stopRun()
       return { stopped: true }
     }
     if (this.host) {
-      this.host.stopObservationRun()
+      this.ensureRunController().stopRunOnHost(this.host)
     }
-    this.runActive = false
-    this.inputScript = undefined
     return { stopped: true }
   }
 
@@ -354,6 +327,7 @@ export class LogicVerificationMcpSession {
     await this.disposeHeadlessHost()
     this.browserClient?.dispose()
     this.browserClient = null
+    this.resetRunController()
   }
 
   private assertHeadlessMode(tool: string): void {
@@ -376,7 +350,6 @@ export class LogicVerificationMcpSession {
       this.host.dispose()
       this.host = null
     }
-    this.runActive = false
-    this.inputScript = undefined
+    this.resetRunController()
   }
 }

@@ -5,17 +5,8 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { validateWorldDocument } from '@/schema/validate'
-import {
-  migrateCustomTransformerNames,
-  migrateEntityTransformersToRegistry,
-  migrateTransformerPipeDefaultParams,
-  migrateTransformerPipeToStack,
-  migrateWorldRingShapesToCylinder,
-  migrateWorldScripts,
-  migrateWorldSimplificationFields,
-} from '@/scripts/migrateWorld'
 import type { RennWorld } from '@/types/world'
+import { prepareWorldForLogicVerification } from '@/agent/prepareWorldForLogicVerification'
 import { rehydrateImportedAssetBlob } from '@/utils/rehydrateImportedAssetBlob'
 
 const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url))
@@ -51,19 +42,9 @@ export function resolveAgentProjectBundleDirectory(bundleId: string): string {
   return dir
 }
 
+/** @deprecated Prefer `prepareWorldForLogicVerification` — kept for bundle import call sites. */
 export function prepareImportedWorldDocument(worldJson: unknown): RennWorld {
-  migrateWorldScripts(worldJson)
-  migrateCustomTransformerNames(worldJson)
-  migrateEntityTransformersToRegistry(worldJson)
-  migrateTransformerPipeToStack(worldJson)
-  migrateTransformerPipeDefaultParams(worldJson)
-  migrateWorldSimplificationFields(worldJson)
-  migrateWorldRingShapesToCylinder(worldJson)
-  validateWorldDocument(worldJson, {
-    tolerateAdditionalProperties: true,
-    logAdditionalProperties: true,
-  })
-  return worldJson as RennWorld
+  return prepareWorldForLogicVerification(worldJson, { inPlace: true })
 }
 
 function assertSafeRelativeAssetPath(relPath: string): void {

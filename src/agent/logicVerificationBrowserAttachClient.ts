@@ -4,11 +4,10 @@
  */
 
 import {
-  parseLogicVerificationBridgeMessage,
   serializeLogicVerificationBridgeMessage,
   DEFAULT_LOGIC_VERIFICATION_BROWSER_PORT,
-  type LogicVerificationBridgeRpc,
 } from '@/agent/logicVerificationBrowserProtocol'
+import { handleLogicVerificationBrowserRpcMessage } from '@/agent/logicVerificationBrowserRpcLoop'
 import { DEFAULT_MCP_DEV_TOKEN } from '@/agent/logicVerificationMcpAuth'
 import { createLogicVerificationBrowserAttachHandler } from '@/agent/logicVerificationBrowserAttachHandler'
 import type { LogicVerificationLiveSceneConfig } from '@/agent/logicVerificationHost'
@@ -74,34 +73,12 @@ export function startLogicVerificationBrowserAttach(
         }),
       )
     })
-    socket.addEventListener('message', async (ev) => {
-      try {
-        const msg = parseLogicVerificationBridgeMessage(String(ev.data))
-        if (msg.type !== 'rpc') return
-        const rpc = msg as LogicVerificationBridgeRpc
-        try {
-          const result = await handler.dispatchRpc(rpc.method, rpc.params)
-          socket?.send(
-            serializeLogicVerificationBridgeMessage({
-              type: 'rpc_result',
-              id: rpc.id,
-              ok: true,
-              result,
-            }),
-          )
-        } catch (err) {
-          socket?.send(
-            serializeLogicVerificationBridgeMessage({
-              type: 'rpc_error',
-              id: rpc.id,
-              ok: false,
-              error: err instanceof Error ? err.message : String(err),
-            }),
-          )
-        }
-      } catch {
+    socket.addEventListener('message', (ev) => {
+      void handleLogicVerificationBrowserRpcMessage(String(ev.data), handler.dispatchRpc, (payload) => {
+        socket?.send(payload)
+      }).catch(() => {
         // ignore malformed
-      }
+      })
     })
     socket.addEventListener('close', () => {
       socket = null

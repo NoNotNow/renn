@@ -51,3 +51,11 @@ _Avoid_: E2E test, agent script
 **In-game verification**:
 A logic verification run driven through browser attach so the same stepping and observation API apply while a human sees the canvas.
 _Avoid_: Playwright test, visual test
+
+**Verification project source**:
+One of three ways to supply a world to the logic verification host before a run: a pinned fixture id, an on-disk agent project bundle id, or inline world JSON.
+_Avoid_: MCP tool name, load path (implementation)
+
+**World document preparation for verification**:
+Applying migrations and validation so a world JSON document matches what the logic verification host expects, independent of whether it came from a bundle, fixture, or inline load.
+_Avoid_: migrateWorld (implementation), import pipeline

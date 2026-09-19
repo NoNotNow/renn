@@ -36,7 +36,7 @@ export function createLogicVerificationMcpServer(
     { name: 'renn-logic-verification', version: '0.1.0' },
     {
       instructions:
-        'Headless Renn logic verification. load_project_bundle (on-disk agent projects), load_fixture, or load_world_json → apply_world_patch (pose-safe) → start_verification_run → run_for_sim_time or step → get_observation → stop_run.',
+        'Headless Renn logic verification. load_world_json → apply_world_patch (pose-safe) → start_verification_run → run_for_sim_time or step → get_observation → stop_run. Project sources: load_project_bundle (on-disk bundles), load_fixture (pinned ids), or load_world_json (inline). attach_browser uses the live Builder scene — load tools are headless-only; human loads the project in Builder first.',
     },
   )
 

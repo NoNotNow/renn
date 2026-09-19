@@ -10,11 +10,8 @@ import {
 } from '@/agent/logicVerificationBrowserBridgeServer'
 import { LogicVerificationMcpSession } from '@/agent/logicVerificationMcpSession'
 import { createLogicVerificationBrowserAttachHandler } from '@/agent/logicVerificationBrowserAttachHandler'
-import {
-  parseLogicVerificationBridgeMessage,
-  serializeLogicVerificationBridgeMessage,
-  type LogicVerificationBridgeRpc,
-} from '@/agent/logicVerificationBrowserProtocol'
+import { serializeLogicVerificationBridgeMessage } from '@/agent/logicVerificationBrowserProtocol'
+import { handleLogicVerificationBrowserRpcMessage } from '@/agent/logicVerificationBrowserRpcLoop'
 import { createLogicVerificationHost } from '@/agent/logicVerificationHost'
 import {
   AGENT_VERIFICATION_CAR_WARMUP_STEPS,
@@ -47,30 +44,12 @@ async function startSimulatedBuilderTab(port: number): Promise<() => void> {
     }),
   )
 
-  socket.on('message', async (data) => {
-    const msg = parseLogicVerificationBridgeMessage(data.toString())
-    if (msg.type !== 'rpc') return
-    const rpc = msg as LogicVerificationBridgeRpc
-    try {
-      const result = await handler.dispatchRpc(rpc.method, rpc.params)
-      socket.send(
-        serializeLogicVerificationBridgeMessage({
-          type: 'rpc_result',
-          id: rpc.id,
-          ok: true,
-          result,
-        }),
-      )
-    } catch (err) {
-      socket.send(
-        serializeLogicVerificationBridgeMessage({
-          type: 'rpc_error',
-          id: rpc.id,
-          ok: false,
-          error: err instanceof Error ? err.message : String(err),
-        }),
-      )
-    }
+  socket.on('message', (data) => {
+    void handleLogicVerificationBrowserRpcMessage(
+      data.toString(),
+      handler.dispatchRpc,
+      (payload) => socket.send(payload),
+    )
   })
 
   return () => {
