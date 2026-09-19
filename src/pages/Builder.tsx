@@ -61,6 +61,7 @@ import TextureMaker from '@/components/TextureMaker/TextureMaker'
 import TransformerDocs from '@/components/TransformerDocs'
 import { applyWorldEdit } from '@/editor/applyWorldEdit'
 import { canApplyWorldSnapshotIncrementally } from '@/utils/incrementalSceneSync'
+import { useAgentDevProjectBundleBootstrap } from '@/hooks/useAgentDevProjectBundleBootstrap'
 
 const EDITOR_HISTORY_MAX_DEPTH = 80
 
@@ -101,6 +102,11 @@ export default function Builder() {
     entityWorkHistory,
     recordEntityWorkHistory,
   } = useProjectContext()
+
+  useAgentDevProjectBundleBootstrap({
+    enabled: import.meta.env.DEV,
+    loadDevWorld: loadExampleWorld,
+  })
 
   const [gizmoMode, setGizmoMode] = useState<BuilderGizmoMode>('translate')
   const [textureBrushRgb, setTextureBrushRgb] = useState<Vec3>(() => [...DEFAULT_TEXTURE_BRUSH_RGB])

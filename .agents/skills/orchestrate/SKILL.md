@@ -2,7 +2,7 @@
 name: orchestrate
 description: Run large multi-file work through a three-level subagent hierarchy — top coordinator, Opus orchestrator, Composer workers — with handoff chaining when context fills. Use when the user asks to orchestrate subagents, run parallel agents on a large task, continue from a handoff, or finish architecture-review candidates at scale.
 argument-hint: "Goal, handoff path, or work queue"
-disable-model-invocation: true
+disable-model-invocation: false
 ---
 
 # Orchestrate

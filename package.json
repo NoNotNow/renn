@@ -19,7 +19,8 @@
     "agent:setup-check": "tsx tools/renn-mcp/agent-setup-check.ts",
     "agent:cli": "tsx tools/renn-mcp/agent-cli.ts",
     "agent:recipe-headless": "tsx tools/renn-mcp/agent-cli.ts recipe headless",
-    "agent:mcp-attach-smoke": "tsx tools/renn-mcp/attach-browser-smoke.ts"
+    "agent:mcp-attach-smoke": "tsx tools/renn-mcp/attach-browser-smoke.ts",
+    "agent:dev-attach": "tsx tools/renn-mcp/agent-dev-attach.ts"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.19.3",

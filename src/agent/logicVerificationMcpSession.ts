@@ -349,6 +349,17 @@ export class LogicVerificationMcpSession {
     return { stopped: true }
   }
 
+  async stopRunAsync(): Promise<{ stopped: true }> {
+    if (this.browserClient) {
+      await this.ensureRunController().stopRun()
+      return { stopped: true }
+    }
+    if (this.host) {
+      this.ensureRunController().stopRunOnHost(this.host)
+    }
+    return { stopped: true }
+  }
+
   async dispose(): Promise<void> {
     await this.disposeHeadlessHost()
     this.browserClient?.dispose()

@@ -54,6 +54,13 @@ Starter template: `src/agent/projects/agent-starter/` — minimal world with one
 2. Agent: `attach_browser` → **patch, probe, run, observe** on the **live** host (human must load the project in Builder first; `load_project_bundle` / `load_fixture` / `load_world_json` are headless-only).
 3. Exclusive stepping pauses rAF while MCP advances sim time.
 
+### B′ — Automated in-game attach (dev-only, no human import)
+
+1. `npm run agent:dev-attach` — starts or reuses Vite, opens Builder with `?rennAgentBundle=agent-starter` (or `--bundle` / `--fixture`), waits for the logic-verification WebSocket bridge + scene adopt, runs the same minimal verify loop as headless, prints `{ ok: true }`, tears down Playwright and Vite if this command started the dev server.
+2. **Env:** `RENN_MCP_DEV_TOKEN` (same as MCP / optional `VITE_RENN_MCP_DEV_TOKEN`); Playwright **Chrome** channel (see `playwright.config.ts`). Optional `RENN_AGENT_DEV_URL` (default `http://127.0.0.1:5173/renn/`).
+3. Allowlisted bundle ids match `loadAgentProjectBundle`; fixtures match MCP `load_fixture`. Dev middleware serves `GET /__renn-agent/dev/project-bundle/:id` and `/__renn-agent/dev/fixture/:id` (Vite `serve` only — not in production builds).
+4. **CI cost:** full attach launches Chrome + dev server; keep default `vitest run` fast — use `npm run agent:dev-attach` locally or an env-gated job, not every unit test run.
+
 ### C — Create entities (headless)
 
 `apply_world_patch` accepts `entities.add` / `entities.update` / `entities.remove`. Entity add/remove and physics-affecting updates require `allowSceneRebuild: true` (existing poses preserved where entities survive). Save with `export_project_bundle` after `load_project_bundle`.
@@ -69,6 +76,7 @@ Starter template: `src/agent/projects/agent-starter/` — minimal world with one
 | `npm run agent:cli -- call load_project_bundle '{"bundleId":"agent-starter","warmupSteps":2}'` | Single MCP-equivalent call; JSON to stdout |
 | `npm run agent:recipe-headless` | Full headless loop on `agent-starter` (load → probe → run → observe → stop) |
 | `npm run agent:mcp-attach-smoke` | `attach_browser` against running dev server (manual prerequisite) |
+| `npm run agent:dev-attach` | Full dev attach loop (auto Vite + bundle bootstrap + verify); `--bundle` / `--fixture` |
 
 ### AFK agents (`/orchestrate`)
 
@@ -85,3 +93,4 @@ L3 workers should use **`agent:cli` / `agent:recipe-headless`** in shell after e
 | MCP `load_project_bundle` | Done |
 | Entity/scene patches via MCP | Done — `entities` on `apply_world_patch` |
 | MCP `export_project_bundle` / save | Done — allowlisted bundle `world.json` |
+| `npm run agent:dev-attach` (auto Vite + bundle bootstrap + attach verify) | Done — dev-only; restart `npm run dev` after pull if reusing an old server |

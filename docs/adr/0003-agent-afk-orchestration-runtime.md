@@ -18,4 +18,6 @@ Orchestrated agents (L2/L3 via `/orchestrate`) must **program and verify** witho
 | L2 | Same baseline as L1; never trust worker claims without re-run |
 | L1 | Baseline vitest/tsc; spot-check `agent:recipe-headless`; optional MCP for interactive attach |
 
-**Out of scope for this ADR (next orchestrate queue):** entity/scene patches, `export_project_bundle`, auto-start Vite for attach, bundle assets in headless host.
+**Update (2026-09):** `npm run agent:dev-attach` auto-starts or reuses Vite, loads an allowlisted bundle into Builder via dev-only URL + middleware (no file picker), then runs `attach_browser` verification in-process. Still **dev-only** (`RENN_MCP_DEV_TOKEN`, no production MCP). Headless remains the default for L3 AFK loops; attach is for in-game / canvas slices.
+
+**Earlier queue (done):** entity/scene patches, `export_project_bundle`, bundle assets in headless host.

@@ -17,6 +17,7 @@ import {
   clearLastProjectId,
 } from '@/persistence/lastProjectId'
 import { usePersistedAssets } from '@/hooks/usePersistedAssets'
+import { parseAgentDevBootstrapTarget } from '@/agent/agentDevBootstrapParams'
 
 const persistence = createIndexedDbPersistence()
 const BASE_URL = import.meta.env.BASE_URL || '/'
@@ -231,6 +232,17 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     let cancelled = false
 
     void (async () => {
+      if (import.meta.env.DEV && typeof window !== 'undefined') {
+        try {
+          if (parseAgentDevBootstrapTarget(new URLSearchParams(window.location.search))) {
+            if (!cancelled) setInitialLoadPending(false)
+            return
+          }
+        } catch {
+          // invalid query — fall through to normal init
+        }
+      }
+
       refreshProjects()
 
       const lastId = getLastProjectId()
