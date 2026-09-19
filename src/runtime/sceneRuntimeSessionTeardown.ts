@@ -54,10 +54,7 @@ export function disposeSceneRuntimeSession(args: DisposeSceneRuntimeSessionArgs)
     args.scriptSnackbarTimer.id = undefined
   }
   host.setScriptSnackbarMessage(null)
-  host.setHudScore(0)
-  host.setHudDamage(0)
-  handles.lastHudDriveRef.current = null
-  host.setHudDrive({ speedMs: 0, wheelAngle: 0 })
+  host.resetHud()
 
   handles.disposePickGizmoRef.current?.()
   handles.disposePickGizmoRef.current = null

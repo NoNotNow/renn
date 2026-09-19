@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import * as THREE from 'three'
 import {
   buildSceneRuntimeRestartKey,
+  createDefaultSceneRuntimeRuntimeDeps,
   createSceneRuntimeSession,
   createSceneRuntimeSessionStub,
   type SceneRuntimeHostCallbacks,
@@ -115,13 +116,18 @@ function createMinimalHandleBag(): import('./sceneRuntimeSession').SceneRuntimeH
   }
 }
 
+describe('createDefaultSceneRuntimeRuntimeDeps', () => {
+  it('cancelAnimationFrame does not throw when unbound from window (Illegal invocation)', () => {
+    const deps = createDefaultSceneRuntimeRuntimeDeps()
+    expect(() => deps.cancelAnimationFrame(0)).not.toThrow()
+  })
+})
+
 describe('buildSceneRuntimeRestartKey', () => {
   const base = {
     sceneKey: 'k1',
     sceneVersion: 0,
-    shadowsEnabled: true,
     logarithmicDepthBuffer: undefined,
-    worldShadowsEnabled: undefined,
     videoTextureMaxAnisotropy: undefined,
     playMode: false,
   }
@@ -148,6 +154,10 @@ describe('buildSceneRuntimeRestartKey', () => {
     const c = buildSceneRuntimeRestartKey({ ...base, logarithmicDepthBuffer: true })
     expect(a).not.toBe(b)
     expect(a).not.toBe(c)
+  })
+
+  it('does not encode shadow settings (shadows are incremental in SceneView)', () => {
+    expect(buildSceneRuntimeRestartKey(base)).not.toMatch(/shadow/i)
   })
 })
 

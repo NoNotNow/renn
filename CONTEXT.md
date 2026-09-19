@@ -1,0 +1,41 @@
+# Renn — agent logic verification
+
+Language for letting an external agent author transformer logic, run the simulation, and read structured feedback without driving the Builder UI.
+
+## Language
+
+**Logic verification run**:
+A bounded, deterministic simulation session (fixed timestep, scripted input) used to validate game logic and produce an observation timeline.
+_Avoid_: Test run, headless run (when you mean the bounded session, not the host)
+
+**Logic verification host**:
+The runtime that loads a world, applies pose-safe patches, steps physics and transformers, and serves observation data—whether embedded in the browser Builder or driven from CLI/tests.
+_Avoid_: MCP server, Playwright session
+
+**Agent observation session**:
+The period during which probes and watch/trace bridges are active for an agent (or human) consumer; not tied to Workspace UI being open.
+_Avoid_: Watch mode, debug session
+
+**Platform probe**:
+Observation registered outside transformer source (entity pose, body fields, actions, pipeline trace) sampled on an interval into the run buffer.
+_Avoid_: Watch, telemetry hook
+
+**Author telemetry**:
+Values published from transformer code via the runtime API (e.g. labeled watch calls) during execution.
+_Avoid_: Logging, println
+
+**Observation timeline**:
+Time-ordered rows (simulation time + probe and author values) stored in a capped ring buffer for one logic verification run.
+_Avoid_: Log file, metrics stream
+
+**Pose-safe patch**:
+A world or entity edit that updates document and runtime via incremental sync without a full scene runtime restart, preserving live registry/physics poses.
+_Avoid_: Hot reload, live edit
+
+**Scene runtime restart**:
+Full teardown and reload of the 3D/physics session (e.g. structural world changes); may restore poses only when explicitly captured.
+_Avoid_: World reload (ambiguous—prefer this term or pose-safe patch)
+
+**Explicit reset**:
+An agent-requested operation that clears poses, velocities, observation buffers, or the world document to a baseline—never implied by a pose-safe patch.
+_Avoid_: Reload, refresh

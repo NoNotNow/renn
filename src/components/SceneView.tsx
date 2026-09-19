@@ -626,21 +626,11 @@ function SceneViewInner({
       buildSceneRuntimeRestartKey({
         sceneKey,
         sceneVersion: version,
-        shadowsEnabled,
         logarithmicDepthBuffer: world.world.logarithmicDepthBuffer,
-        worldShadowsEnabled: world.world.shadowsEnabled,
         videoTextureMaxAnisotropy: world.world.videoTextureMaxAnisotropy,
         playMode,
       }),
-    [
-      sceneKey,
-      version,
-      shadowsEnabled,
-      world.world.logarithmicDepthBuffer,
-      world.world.shadowsEnabled,
-      world.world.videoTextureMaxAnisotropy,
-      playMode,
-    ],
+    [sceneKey, version, world.world.logarithmicDepthBuffer, world.world.videoTextureMaxAnisotropy, playMode],
   )
 
   const sceneRuntimeHandles = useMemo(
@@ -752,11 +742,9 @@ function SceneViewInner({
   }, [
     sceneKey,
     version,
-    shadowsEnabled,
     freeFlyKeysRef,
     editorFreePoseRef,
     world.world.logarithmicDepthBuffer,
-    world.world.shadowsEnabled,
     world.world.videoTextureMaxAnisotropy,
     playMode,
   ])

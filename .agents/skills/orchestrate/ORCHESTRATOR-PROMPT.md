@@ -1,6 +1,6 @@
 # L2 Orchestrator spawn template
 
-Copy into the Task tool `prompt` field. Replace `{{...}}` placeholders. Use with `model: claude-opus-5-thinking-high`, `subagent_type: generalPurpose`.
+Copy into the Task tool `prompt` field. Replace `{{...}}` placeholders. Use with `model: composer-2.5-fast`, `subagent_type: generalPurpose`.
 
 ```markdown
 You are an **L2 orchestrator** in a three-level subagent hierarchy:
@@ -76,7 +76,7 @@ Start with the highest-priority queue item. Do as much as possible before writin
 
 ```yaml
 subagent_type: generalPurpose
-model: claude-opus-5-thinking-high
+model: composer-2.5-fast
 run_in_background: true   # default for AFK / multi-worker; false if user wants foreground-only
 ```
 

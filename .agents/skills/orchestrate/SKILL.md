@@ -12,7 +12,7 @@ Run large work through a **three-level hierarchy** so each layer keeps a small c
 | Level | Who | Model | Job |
 |---|---|---|---|
 | **L1 Coordinator** | The agent that invoked this skill | Inherit (parent) | Confirm baseline, read handoff, spawn L2, verify claims, chain fresh L2 on handoff |
-| **L2 Orchestrator** | One subagent per work chunk | `claude-opus-5-thinking-high` | Plan, diagnose, spawn L3 workers, integrate, write handoff when full |
+| **L2 Orchestrator** | One subagent per work chunk | `composer-2.5-fast` | Plan, diagnose, spawn L3 workers, integrate, write handoff when full |
 | **L3 Workers** | One or more subagents per task | `composer-2.5-fast` | Implement on an explicit owned-files list |
 
 L1 never implements directly unless the change is trivial (one file, <20 lines). L2 never edits files L3 owns while L3 is running.
@@ -84,7 +84,7 @@ Collect and pass forward:
 
 ### 3. Spawn L2
 
-Use the Task tool with `model: claude-opus-5-thinking-high` (or the model the user specified). Fill in [ORCHESTRATOR-PROMPT.md](ORCHESTRATOR-PROMPT.md). One L2 per coherent chunk (e.g. "fix handoff defects", "implement candidate 1"). Do not pack unrelated chunks into one L2.
+Use the Task tool with `model: composer-2.5-fast` (or the model the user specified). Fill in [ORCHESTRATOR-PROMPT.md](ORCHESTRATOR-PROMPT.md). One L2 per coherent chunk (e.g. "fix handoff defects", "implement candidate 1"). Do not pack unrelated chunks into one L2.
 
 **`run_in_background`:** default **`true`** for AFK / multi-worker / “do as much as one run” requests; **`false`** when the user wants a single foreground result before continuing.
 

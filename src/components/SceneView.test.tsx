@@ -210,6 +210,31 @@ describe('SceneView', () => {
     expect(container).toBeInTheDocument()
   })
 
+  it('does not reload when only world shadowsEnabled toggles', async () => {
+    const { rerender } = render(
+      <SceneView world={minimalWorld} runPhysics={false} runScripts={false} />,
+    )
+    await waitFor(() => {
+      expect(document.querySelector('[data-testid="scene-bootstrap-loading"]')).not.toBeInTheDocument()
+    })
+    expect(loadWorldMock).toHaveBeenCalledTimes(1)
+
+    rerender(
+      <SceneView
+        world={{
+          ...minimalWorld,
+          world: { ...minimalWorld.world, shadowsEnabled: false },
+        }}
+        runPhysics={false}
+        runScripts={false}
+      />,
+    )
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(loadWorldMock).toHaveBeenCalledTimes(1)
+  })
+
   it('exposes setViewPreset via ref', () => {
     const ref = { current: null as SceneViewHandle | null }
     render(

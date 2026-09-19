@@ -7,6 +7,7 @@ import { validateWorldDocument } from '@/schema/validate'
 import { migrateWorldScripts, migrateWorldSimplificationFields, migrateCustomTransformerNames, migrateWorldRingShapesToCylinder, migrateEntityTransformersToRegistry } from '@/scripts/migrateWorld'
 import type { RennWorld } from '@/types/world'
 import { defaultPersistence } from '@/persistence/indexedDb'
+import { usePlayModeKeyboardShortcuts } from '@/hooks/usePlayModeKeyboardShortcuts'
 
 function normalizeLoadedWorld(data: unknown): RennWorld {
   migrateWorldScripts(data)
@@ -33,6 +34,8 @@ function parseWorldFromSearchParams(searchParams: URLSearchParams): RennWorld {
 }
 
 export default function Play() {
+  usePlayModeKeyboardShortcuts()
+
   const [searchParams] = useSearchParams()
   const sessionFlag = searchParams.has('session')
 

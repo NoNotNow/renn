@@ -54,12 +54,11 @@ import type { AvatarSession } from '@/runtime/avatarSession'
  * Refs (`freeFlyKeysRef`, `editorFreePoseRef`) are intentionally omitted — they are
  * stable for a SceneView instance and do not participate in the restart key today.
  */
+/** Inputs for full runtime restart. World `shadowsEnabled` is excluded — incremental shadow effect in SceneView. */
 export interface SceneRuntimeRestartInputs {
   sceneKey: string
   sceneVersion: number
-  shadowsEnabled: boolean
   logarithmicDepthBuffer: boolean | undefined
-  worldShadowsEnabled: boolean | undefined
   videoTextureMaxAnisotropy: number | undefined
   playMode: boolean
 }
@@ -69,9 +68,7 @@ export function buildSceneRuntimeRestartKey(inputs: SceneRuntimeRestartInputs): 
   return JSON.stringify({
     sceneKey: inputs.sceneKey,
     sceneVersion: inputs.sceneVersion,
-    shadowsEnabled: inputs.shadowsEnabled,
     logarithmicDepthBuffer: inputs.logarithmicDepthBuffer ?? null,
-    worldShadowsEnabled: inputs.worldShadowsEnabled ?? null,
     videoTextureMaxAnisotropy: inputs.videoTextureMaxAnisotropy ?? null,
     playMode: inputs.playMode,
   })
@@ -197,8 +194,9 @@ export function createDefaultSceneRuntimeRuntimeDeps(): SceneRuntimeRuntimeDeps 
     warmUpRendererTextures,
     scheduleMaterialTextureDecodePrefetch,
     collectMaterialMapAssetIds,
-    requestAnimationFrame,
-    cancelAnimationFrame,
+    // Must not pass bare rAF refs — unbound calls throw "Illegal invocation" in browsers.
+    requestAnimationFrame: (callback) => requestAnimationFrame(callback),
+    cancelAnimationFrame: (handle) => cancelAnimationFrame(handle),
     importRapierPhysics: () => import('@/physics/rapierPhysics'),
   }
 }
