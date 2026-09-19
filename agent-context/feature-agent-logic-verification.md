@@ -105,15 +105,19 @@ Avoid running two sims for one edit (headless + browser in parallel) unless repl
 
 Transport: MCP process on host; browser bridge on `127.0.0.1` + token (dev only).
 
+### Cursor MCP (dev)
+
+Copy `.cursor/mcp.json.example` to `.cursor/mcp.json`, set `cwd` to your repo root, keep `RENN_MCP_DEV_TOKEN`. Start the server via Cursor MCP panel; tools require `devToken` matching that env var. Do not enable in production builds.
+
 ---
 
 ## Implementation order (suggested)
 
-1. Extract **logic verification host** from existing integration test setup (`RenderItemRegistry`, `createPhysicsWorld`, scripted input).
-2. **Agent observation session** module: lift Workspace gates on watch/trace; add probe scheduler + ring buffer.
-3. **Pose-safe apply** wrapper calling same paths as `useBuilderEntityWorldActions` / `SceneView.syncEntityTransformers`.
-4. Vitest **car fixture** scenario asserting timeline + error paths.
-5. MCP server wrapping (3)–(4).
+1. **Done (slice 1):** `src/agent/logicVerificationHost.ts` — headless load, scripted `RawInput`, step loop, poses + sim time. Test: `src/test/scenarios/logic-verification-host.integration.test.ts`. Test harness `WorldSimulator` still wraps the same stack; migrate to host when convenient.
+2. **Done (slice 2):** `src/agent/agentObservationSession.ts` — `setAgentObservationWatchActive` / trace entity ids lift Builder gates when session active; platform probes (`entityPose`, `entityBody`, `trace`); capped timeline; compile errors on session, runtime via error bridge. Wired in `logicVerificationHost.ts` (`registerObservationProbes`, `startObservationRun`, `getObservationTimeline`). Tests: `agentObservationSession.test.ts`, `agent-observation-session.integration.test.ts`.
+3. **Done (slice 3):** `src/agent/applyLogicVerificationWorldPatch.ts` + `LogicVerificationHost.applyWorldPatch` — transformer registry patches, compile validation, `setWorldPipeRegistry` + `syncEntityTransformers` + awaited chain resync. Test: `logic-verification-pose-safe-apply.integration.test.ts`. MCP `apply_world_patch` wired.
+4. **Done (slice 4):** Pinned car world `src/agent/fixtures/agentVerificationCarWorld.json` + loader `src/agent/fixtures/agentVerificationCarWorld.ts` (scripted throttle/steer). Test: `src/test/scenarios/agent-car-verification.integration.test.ts` (timeline + motion/speed after N sim seconds, compile error path). Host/MCP integration tests reuse the fixture.
+5. **Done (slice 5 — thin MCP):** `tools/renn-mcp/stdio.ts` + `src/agent/logicVerificationMcpServer.ts` — stdio MCP tools → headless host; dev token via `RENN_MCP_DEV_TOKEN`. Cursor example: `.cursor/mcp.json.example`. Test: `logic-verification-mcp.integration.test.ts`.
 6. Builder WebSocket attach for dual-audience runs.
 
 ---
@@ -123,3 +127,11 @@ Transport: MCP process on host; browser bridge on `127.0.0.1` + token (dev only)
 - Pixel/visual assertions (use human browser or future replay).
 - Arbitrary eval in agent API.
 - Production-enabled MCP in shipped builds.
+
+---
+
+## Slice 4 notes (L2)
+
+- Fixture lives under `src/agent/fixtures/` (shared by Vitest + MCP), not `src/test/fixtures/`: JSON includes `car_telemetry_tf` custom stage with `api.watch('speedZ', …)` for author-telemetry rows on the observation timeline.
+- Loader exports `loadAgentVerificationCarWorld`, `buildAgentCarDriveInputScript`, warmup/drive constants; host + MCP integration tests import the same module.
+- Primary scenario: `agent-car-verification.integration.test.ts` — 2 s scripted drive, `entityPose` / `entityBody` probes, compile-error path, idle-without-throttle guard.

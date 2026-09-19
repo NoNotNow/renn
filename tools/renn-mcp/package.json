@@ -1,0 +1,8 @@
+{
+  "name": "renn-mcp",
+  "private": true,
+  "description": "Thin MCP stdio wrapper for Renn logic verification host",
+  "scripts": {
+    "start": "tsx stdio.ts"
+  }
+}

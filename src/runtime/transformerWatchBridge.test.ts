@@ -8,6 +8,7 @@ import {
   incrementTransformerWatchRunId,
   publishTransformerWatchEntry,
   resetTransformerWatchBridgeForTests,
+  setAgentObservationWatchActive,
   setTransformerWatchEnabled,
   setTransformerWatchRunId,
   watchEntryKey,
@@ -16,6 +17,17 @@ import {
 describe('transformerWatchBridge', () => {
   beforeEach(() => {
     resetTransformerWatchBridgeForTests()
+  })
+
+  it('publishes when agent observation session is active without Builder watchEnabled', () => {
+    setAgentObservationWatchActive(true)
+    publishTransformerWatchEntry({
+      entityId: 'e1',
+      configStackIndex: 0,
+      label: 'metric',
+      value: '1',
+    })
+    expect(getTransformerWatchEntries().size).toBe(1)
   })
 
   it('does not publish when bridge is disabled', () => {

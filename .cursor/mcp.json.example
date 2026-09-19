@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "renn-logic-verification": {
+      "command": "npx",
+      "args": ["tsx", "tools/renn-mcp/stdio.ts"],
+      "cwd": "/absolute/path/to/renn",
+      "env": {
+        "RENN_MCP_DEV_TOKEN": "renn-dev-mcp-local"
+      }
+    }
+  }
+}

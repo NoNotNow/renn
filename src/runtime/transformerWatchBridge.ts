@@ -18,6 +18,8 @@ const EMPTY_TARGET_LIST: readonly TransformerWatchEntry[] = []
 let entriesByKey: ReadonlyMap<string, TransformerWatchEntry> = EMPTY_ENTRIES
 let entriesByTargetCache: ReadonlyMap<string, readonly TransformerWatchEntry[]> = new Map()
 let watchEnabled = false
+/** When true, `api.watch` publishes even if Builder has not enabled the watch panel. */
+let agentObservationWatchActive = false
 let currentRunId = 0
 const listeners = new Set<() => void>()
 
@@ -55,6 +57,18 @@ export function isTransformerWatchEnabled(): boolean {
   return watchEnabled
 }
 
+export function setAgentObservationWatchActive(active: boolean): void {
+  agentObservationWatchActive = active
+}
+
+export function isAgentObservationWatchActive(): boolean {
+  return agentObservationWatchActive
+}
+
+function isWatchPublishingAllowed(): boolean {
+  return watchEnabled || agentObservationWatchActive
+}
+
 export function getTransformerWatchRunId(): number {
   return currentRunId
 }
@@ -76,7 +90,7 @@ export function publishTransformerWatchEntry(payload: {
   value: string
   runId?: number
 }): void {
-  if (!watchEnabled) return
+  if (!isWatchPublishingAllowed()) return
   const key = watchEntryKey(payload.entityId, payload.configStackIndex, payload.label)
   const nextEntry: TransformerWatchEntry = {
     entityId: payload.entityId,
@@ -125,6 +139,7 @@ export function resetTransformerWatchBridgeForTests(): void {
   entriesByKey = EMPTY_ENTRIES
   entriesByTargetCache = new Map()
   watchEnabled = false
+  agentObservationWatchActive = false
   currentRunId = 0
   notifyListeners()
 }

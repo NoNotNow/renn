@@ -20,6 +20,9 @@ coverage/
 .env.local
 .env.*.local
 
+# Cursor MCP (local cwd/token; use .cursor/mcp.json.example)
+.cursor/mcp.json
+
 # OS and editor
 .DS_Store
 *.log

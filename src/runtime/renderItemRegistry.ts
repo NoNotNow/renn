@@ -38,6 +38,7 @@ import {
 import { applyVisualBase, stripVisualBase } from '@/utils/visualBaseQuaternion'
 import {
   getTransformerTraceTargetEntityId,
+  isAgentObservationTraceEntity,
   publishTransformerLiveTrace,
 } from '@/runtime/transformerTraceBridge'
 import type { TransformerTraceStep } from '@/transformers/transformerTrace'
@@ -816,7 +817,9 @@ export class RenderItemRegistry implements SimulationFramePort, SceneEditPort, E
       let cached = this.physicsWorld.getCachedTransform(item.entity.id)
       if (!cached) continue
       const isControlled = controlledId !== null && item.entity.id === controlledId
-      const isTraceTarget = traceTargetId !== null && item.entity.id === traceTargetId
+      const isTraceTarget =
+        (traceTargetId !== null && item.entity.id === traceTargetId) ||
+        isAgentObservationTraceEntity(item.entity.id)
       // Sleeping dynamics are skipped to save work — unless controlled (always woken above) or the
       // Builder transformer trace target (UI needs publishTransformerLiveTrace), or a wake-on-input
       // transformer (e.g. car2) with held keys so forces can apply.
