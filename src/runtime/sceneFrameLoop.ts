@@ -18,6 +18,7 @@ import type { RawMouseDragState } from '@/input/rawMouseDrag'
 import { averageUnlockedSelectionWorldPosition } from '@/editor/transformGizmoController'
 import { getForwardSpeed } from '@/utils/vec3'
 import { syncDirectionalLightShadowFocusToCamera } from '@/utils/shadowBounds'
+import { isLogicVerificationExclusiveStepping } from '@/agent/logicVerificationExclusiveStepping'
 import { emptySceneFrameTiming, type SceneFrameTiming } from '@/runtime/frameTiming'
 import { processActiveDebugForcesInPlace, type ActiveDebugForce } from '@/runtime/debugForces'
 
@@ -182,7 +183,7 @@ export function runSceneFrame(input: SceneFrameLoopInputs): void {
 
   input.onFrameStart?.()
 
-  const simAdvance = !skipSimulation
+  const simAdvance = !skipSimulation && !isLogicVerificationExclusiveStepping()
   const logicDt = simAdvance ? dt : variableFrameDt
 
   const record = recordFrameTiming

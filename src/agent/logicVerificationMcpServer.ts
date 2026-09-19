@@ -64,6 +64,44 @@ export function createLogicVerificationMcpServer(
   )
 
   server.registerTool(
+    'load_fixture',
+    {
+      description:
+        'Load a pinned repo fixture by id (e.g. agentVerificationCarWorld) into headless host',
+      inputSchema: {
+        devToken: devTokenSchema,
+        fixtureId: z.string(),
+        dt: z.number().positive().optional(),
+        warmupSteps: z.number().int().min(0).optional(),
+        controlledEntityId: z.string().optional(),
+      },
+    },
+    withAuth(async (input) => jsonText(await session.loadFixture(input))),
+  )
+
+  server.registerTool(
+    'attach_browser',
+    {
+      description:
+        'Dev only: attach to an open Builder tab via localhost WebSocket (same observation API)',
+      inputSchema: {
+        devToken: devTokenSchema,
+        port: z.number().int().positive().optional(),
+        waitForBrowserMs: z.number().int().positive().optional(),
+      },
+    },
+    withAuth(async (input) =>
+      jsonText(
+        await session.attachBrowser({
+          devToken: expectedToken,
+          port: input.port,
+          waitForBrowserMs: input.waitForBrowserMs,
+        }),
+      ),
+    ),
+  )
+
+  server.registerTool(
     'load_world_json',
     {
       description: 'Load a Renn world JSON and create a headless verification host',
@@ -124,10 +162,7 @@ export function createLogicVerificationMcpServer(
         ),
       },
     },
-    withAuth(async ({ probes }) => {
-      session.registerProbes(probes)
-      return jsonText({ registered: probes.length })
-    }),
+    withAuth(async ({ probes }) => jsonText(await session.registerProbesAsync(probes))),
   )
 
   server.registerTool(
@@ -149,7 +184,7 @@ export function createLogicVerificationMcpServer(
           .optional(),
       },
     },
-    withAuth(async (input) => jsonText(session.startVerificationRun(input))),
+    withAuth(async (input) => jsonText(await session.startVerificationRunAsync(input))),
   )
 
   server.registerTool(
@@ -161,7 +196,7 @@ export function createLogicVerificationMcpServer(
         count: z.number().int().positive(),
       },
     },
-    withAuth(async ({ count }) => jsonText(session.runSteps(count))),
+    withAuth(async ({ count }) => jsonText(await session.runStepsAsync(count))),
   )
 
   server.registerTool(
@@ -173,7 +208,7 @@ export function createLogicVerificationMcpServer(
         seconds: z.number().positive(),
       },
     },
-    withAuth(async ({ seconds }) => jsonText(session.runForSimTime(seconds))),
+    withAuth(async ({ seconds }) => jsonText(await session.runForSimTimeAsync(seconds))),
   )
 
   server.registerTool(
@@ -185,12 +220,12 @@ export function createLogicVerificationMcpServer(
       },
     },
     withAuth(async () => {
-      const obs = session.getObservation()
+      const obs = await session.getObservationAsync()
       return jsonText({
         timeline: obs.timeline,
         snapshot: obs.snapshot,
         compileErrors: obs.compileErrors,
-        runtimeErrors: [...obs.runtimeErrors.values()],
+        runtimeErrors: obs.runtimeErrorList,
       })
     }),
   )

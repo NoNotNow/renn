@@ -93,7 +93,8 @@ Avoid running two sims for one edit (headless + browser in parallel) unless repl
 
 | Tool | Purpose |
 |------|---------|
-| `load_fixture` / `load_world_json` | Start from car fixture or inline world |
+| `load_world_json` | Inline world JSON (headless) |
+| `load_fixture` | Pinned repo fixture by id (headless) |
 | `validate_stage_code` | Compile check only |
 | `apply_world_patch` | JSON patch; flags `allowSceneRebuild`, `resetPoses` |
 | `register_probes` | Probe list + intervals |
@@ -101,9 +102,9 @@ Avoid running two sims for one edit (headless + browser in parallel) unless repl
 | `run_for_sim_time` | Deterministic advance |
 | `get_observation` | Timeline slice, latest errors, watch snapshot |
 | `stop_run` | End session, optional export JSON |
-| `attach_browser` | Dev: connect to open Builder tab (optional v1.1) |
+| `attach_browser` | Dev: connect to open Builder tab (WebSocket bridge) |
 
-Transport: MCP process on host; browser bridge on `127.0.0.1` + token (dev only).
+Transport: MCP process on host; browser bridge on `127.0.0.1` + token (dev only). With `npm run dev`, Vite starts the bridge; Builder reconnects automatically. Set matching `VITE_RENN_MCP_DEV_TOKEN` (and optional `VITE_RENN_MCP_BROWSER_PORT`) in `.env.local` for the browser tab.
 
 ### Cursor MCP (dev)
 
@@ -118,7 +119,7 @@ Copy `.cursor/mcp.json.example` to `.cursor/mcp.json`, set `cwd` to your repo ro
 3. **Done (slice 3):** `src/agent/applyLogicVerificationWorldPatch.ts` + `LogicVerificationHost.applyWorldPatch` — transformer registry patches, compile validation, `setWorldPipeRegistry` + `syncEntityTransformers` + awaited chain resync. Test: `logic-verification-pose-safe-apply.integration.test.ts`. MCP `apply_world_patch` wired.
 4. **Done (slice 4):** Pinned car world `src/agent/fixtures/agentVerificationCarWorld.json` + loader `src/agent/fixtures/agentVerificationCarWorld.ts` (scripted throttle/steer). Test: `src/test/scenarios/agent-car-verification.integration.test.ts` (timeline + motion/speed after N sim seconds, compile error path). Host/MCP integration tests reuse the fixture.
 5. **Done (slice 5 — thin MCP):** `tools/renn-mcp/stdio.ts` + `src/agent/logicVerificationMcpServer.ts` — stdio MCP tools → headless host; dev token via `RENN_MCP_DEV_TOKEN`. Cursor example: `.cursor/mcp.json.example`. Test: `logic-verification-mcp.integration.test.ts`.
-6. Builder WebSocket attach for dual-audience runs.
+6. **Done (slice 6 — browser attach v1.1):** Dev-only localhost WebSocket bridge (`logicVerificationBrowserBridgeServer.ts`, Vite plugin `logicVerificationBrowserBridgeVitePlugin.ts`, default port `9234` / `RENN_MCP_BROWSER_PORT`). Open Builder (`SceneView` → `useLogicVerificationBrowserAttach`) adopts live registry + physics via `LogicVerificationHost.adoptLiveScene` and serves the same RPC surface as headless. MCP `attach_browser` proxies through `LogicVerificationBrowserMcpClient`. Exclusive stepping (`logicVerificationExclusiveStepping.ts`) pauses rAF sim during MCP `run_steps` / `run_for_sim_time`. Test: `logic-verification-browser-attach.integration.test.ts`. **`load_fixture`** MCP tool via `logicVerificationFixtures.ts` (`agentVerificationCarWorld`).
 
 ---
 

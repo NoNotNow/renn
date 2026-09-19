@@ -82,6 +82,7 @@ import {
   type SceneRuntimeHandleBag,
   type SceneRuntimeHostCallbacks,
 } from '@/runtime/sceneRuntimeSession'
+import { useLogicVerificationBrowserAttach } from '@/hooks/useLogicVerificationBrowserAttach'
 export interface SceneViewProps {
   world: RennWorld
   cameraConfig?: CameraConfig
@@ -714,6 +715,15 @@ function SceneViewInner({
       resetHud,
     }
   }, [])
+
+  useLogicVerificationBrowserAttach({
+    enabled: import.meta.env.DEV,
+    registryRef,
+    physicsRef,
+    worldRef,
+    entitiesRef,
+    registryEpoch,
+  })
 
   // Main scene setup effect
   useEffect(() => {

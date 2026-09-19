@@ -1,10 +1,11 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
+import { logicVerificationBrowserBridgeVitePlugin } from './src/agent/logicVerificationBrowserBridgeVitePlugin'
 
 export default defineConfig({
   base: '/renn/',
-  plugins: [react()],
+  plugins: [react(), logicVerificationBrowserBridgeVitePlugin()],
   resolve: {
     alias: { '@': path.resolve(__dirname, 'src') },
   },

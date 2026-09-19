@@ -61,6 +61,16 @@ export interface LogicVerificationHostConfig {
   warmupSteps?: number
 }
 
+/** Live Builder scene: reuse registry + physics instead of headless load. */
+export interface LogicVerificationLiveSceneConfig {
+  world: RennWorld
+  registry: RenderItemRegistry
+  physicsWorld: PhysicsWorld
+  entities: LoadedEntity[]
+  dt?: number
+  controlledEntityIdRef?: { current: string | null }
+}
+
 export interface EntityVerificationPose {
   position: Vec3
   rotation: Rotation
@@ -150,6 +160,7 @@ export class LogicVerificationHost {
   private readonly inputState: { raw: RawInput }
   private readonly controlledEntityIdRef: { current: string | null } | undefined
   private readonly observationSession: AgentObservationSession
+  private readonly ownsPhysics: boolean
   private stepCount = 0
   private simTime = 0
 
@@ -163,6 +174,7 @@ export class LogicVerificationHost {
     observationSession: AgentObservationSession,
     controlledEntityIdRef: { current: string | null } | undefined,
     wind?: Vec3,
+    ownsPhysics = true,
   ) {
     this.physicsWorld = physicsWorld
     this.registry = registry
@@ -173,6 +185,32 @@ export class LogicVerificationHost {
     this.controlledEntityIdRef = controlledEntityIdRef
     this.observationSession = observationSession
     this.wind = wind
+    this.ownsPhysics = ownsPhysics
+  }
+
+  static adoptLiveScene(config: LogicVerificationLiveSceneConfig): LogicVerificationHost {
+    const dt = config.dt ?? DEFAULT_LOGIC_VERIFICATION_DT
+    const inputState = { raw: buildScriptedRawInput({}) }
+    const rawInputGetter = (): RawInput => inputState.raw
+    config.registry.setRawInputGetter(rawInputGetter)
+    const wind = config.world.world.wind as Vec3 | undefined
+    const observationSession = new AgentObservationSession({
+      registry: config.registry,
+      physicsWorld: config.physicsWorld,
+    })
+    observationSession.setCompileErrors(collectCustomTransformerCompileErrors(config.world))
+    return new LogicVerificationHost(
+      config.physicsWorld,
+      config.registry,
+      config.entities,
+      config.world,
+      dt,
+      inputState,
+      observationSession,
+      config.controlledEntityIdRef,
+      wind,
+      false,
+    )
   }
 
   static async create(config: LogicVerificationHostConfig): Promise<LogicVerificationHost> {
@@ -279,6 +317,22 @@ export class LogicVerificationHost {
     return this.stepCount
   }
 
+  getDt(): number {
+    return this.dt
+  }
+
+  /** Snapshot deps for browser attach / integration tests (same registry + physics). */
+  getLiveSceneConfig(): LogicVerificationLiveSceneConfig {
+    return {
+      world: this.world,
+      registry: this.registry,
+      physicsWorld: this.physicsWorld,
+      entities: this.entities,
+      dt: this.dt,
+      controlledEntityIdRef: this.controlledEntityIdRef,
+    }
+  }
+
   getObservationSession(): AgentObservationSession {
     return this.observationSession
   }
@@ -363,7 +417,9 @@ export class LogicVerificationHost {
 
   dispose(): void {
     this.observationSession.dispose()
-    this.physicsWorld.dispose()
+    if (this.ownsPhysics) {
+      this.physicsWorld.dispose()
+    }
   }
 }
 
