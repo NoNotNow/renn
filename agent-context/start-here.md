@@ -35,6 +35,7 @@
 | Dialogs, floating panels, resize handles, UI duplication audit | `feature-ui-infrastructure.md` |
 | Canonical names — stages, bindings, param scopes, merge rules | `nomenclature.md` |
 | Agent program–run–fix (transformers, probes, MCP) | `feature-agent-logic-verification.md` |
+| Agent project setup (bundles, MCP dev, in-game attach) | `feature-agent-authoring-setup.md` |
 
 ## Tech stack (quick ref)
 

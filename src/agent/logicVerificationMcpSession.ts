@@ -26,6 +26,7 @@ import {
   defaultWarmupStepsForFixture,
   loadLogicVerificationFixture,
 } from '@/agent/logicVerificationFixtures'
+import { loadAgentProjectBundle } from '@/agent/loadAgentProjectBundle'
 
 export type LoadWorldJsonInput = {
   world: RennWorld
@@ -36,6 +37,13 @@ export type LoadWorldJsonInput = {
 
 export type LoadFixtureInput = {
   fixtureId: string
+  dt?: number
+  warmupSteps?: number
+  controlledEntityId?: string | null
+}
+
+export type LoadProjectBundleInput = {
+  bundleId: string
   dt?: number
   warmupSteps?: number
   controlledEntityId?: string | null
@@ -164,6 +172,19 @@ export class LogicVerificationMcpSession {
       controlledEntityId: input.controlledEntityId,
     })
     return { loaded: true, fixtureId: input.fixtureId }
+  }
+
+  async loadProjectBundle(
+    input: LoadProjectBundleInput,
+  ): Promise<{ loaded: true; bundleId: string; assetCount: number }> {
+    const bundle = await loadAgentProjectBundle(input.bundleId)
+    await this.loadWorldJson({
+      world: bundle.world,
+      dt: input.dt,
+      warmupSteps: input.warmupSteps,
+      controlledEntityId: input.controlledEntityId,
+    })
+    return { loaded: true, bundleId: bundle.bundleId, assetCount: bundle.assets.size }
   }
 
   validateStageCode(code: string, configKey = 'stage'): { ok: true } | { ok: false; message: string } {
@@ -343,7 +364,9 @@ export class LogicVerificationMcpSession {
 
   private requireHeadlessHost(): LogicVerificationHost {
     if (!this.host) {
-      throw new Error('No world loaded — call load_world_json, load_fixture, or attach_browser')
+      throw new Error(
+        'No world loaded — call load_world_json, load_fixture, load_project_bundle, or attach_browser',
+      )
     }
     return this.host
   }

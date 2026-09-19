@@ -36,7 +36,7 @@ export function createLogicVerificationMcpServer(
     { name: 'renn-logic-verification', version: '0.1.0' },
     {
       instructions:
-        'Headless Renn logic verification. load_world_json → apply_world_patch (pose-safe) → start_verification_run → run_for_sim_time or step → get_observation → stop_run.',
+        'Headless Renn logic verification. load_project_bundle (on-disk agent projects), load_fixture, or load_world_json → apply_world_patch (pose-safe) → start_verification_run → run_for_sim_time or step → get_observation → stop_run.',
     },
   )
 
@@ -77,6 +77,22 @@ export function createLogicVerificationMcpServer(
       },
     },
     withAuth(async (input) => jsonText(await session.loadFixture(input))),
+  )
+
+  server.registerTool(
+    'load_project_bundle',
+    {
+      description:
+        'Load a pinned on-disk agent project bundle by id (e.g. agent-starter) into headless host',
+      inputSchema: {
+        devToken: devTokenSchema,
+        bundleId: z.string(),
+        dt: z.number().positive().optional(),
+        warmupSteps: z.number().int().min(0).optional(),
+        controlledEntityId: z.string().optional(),
+      },
+    },
+    withAuth(async (input) => jsonText(await session.loadProjectBundle(input))),
   )
 
   server.registerTool(

@@ -1,0 +1,44 @@
+{
+  "version": "1.0",
+  "world": { "gravity": [0, -9.81, 0] },
+  "assets": {},
+  "transformers": {
+    "author_stage": {
+      "type": "custom",
+      "priority": 0,
+      "code": "function transform(input, dt, params, state, api) {\n  return {};\n}\n"
+    }
+  },
+  "transformerPipes": {
+    "agent_pipe": {
+      "id": "agent_pipe",
+      "name": "Agent pipeline",
+      "stageIds": ["author_stage"],
+      "stages": [
+        {
+          "type": "custom",
+          "priority": 0,
+          "code": "function transform(input, dt, params, state, api) {\n  return {};\n}\n"
+        }
+      ]
+    }
+  },
+  "entities": [
+    {
+      "id": "ground",
+      "bodyType": "static",
+      "shape": { "type": "box", "width": 40, "height": 1, "depth": 40 },
+      "position": [0, -0.5, 0]
+    },
+    {
+      "id": "agent-box",
+      "bodyType": "dynamic",
+      "shape": { "type": "box", "width": 1, "height": 1, "depth": 1 },
+      "position": [0, 0.5, 0],
+      "mass": 1,
+      "transformers": ["author_stage"],
+      "transformerPipeStack": [{ "pipeId": "agent_pipe", "enabled": true }]
+    }
+  ],
+  "scripts": {}
+}

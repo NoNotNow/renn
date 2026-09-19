@@ -39,3 +39,15 @@ _Avoid_: World reload (ambiguous—prefer this term or pose-safe patch)
 **Explicit reset**:
 An agent-requested operation that clears poses, velocities, observation buffers, or the world document to a baseline—never implied by a pose-safe patch.
 _Avoid_: Reload, refresh
+
+**Agent project bundle**:
+A portable project snapshot on disk—`world.json` and optional `assets/`—matching user export layout; the agent’s source of truth for load/save outside the browser.
+_Avoid_: IndexedDB project, fixture (when you mean a full editable project)
+
+**Agent authoring loop**:
+The repeated cycle of load project → patch pipeline or world → run logic verification → read observation timeline → adjust until probes and author telemetry satisfy the goal.
+_Avoid_: E2E test, agent script
+
+**In-game verification**:
+A logic verification run driven through browser attach so the same stepping and observation API apply while a human sees the canvas.
+_Avoid_: Playwright test, visual test

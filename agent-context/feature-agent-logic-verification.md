@@ -95,6 +95,7 @@ Avoid running two sims for one edit (headless + browser in parallel) unless repl
 |------|---------|
 | `load_world_json` | Inline world JSON (headless) |
 | `load_fixture` | Pinned repo fixture by id (headless) |
+| `load_project_bundle` | On-disk agent project bundle by id (headless, Node) |
 | `validate_stage_code` | Compile check only |
 | `apply_world_patch` | JSON patch; flags `allowSceneRebuild`, `resetPoses` |
 | `register_probes` | Probe list + intervals |
@@ -120,6 +121,7 @@ Copy `.cursor/mcp.json.example` to `.cursor/mcp.json`, set `cwd` to your repo ro
 4. **Done (slice 4):** Pinned car world `src/agent/fixtures/agentVerificationCarWorld.json` + loader `src/agent/fixtures/agentVerificationCarWorld.ts` (scripted throttle/steer). Test: `src/test/scenarios/agent-car-verification.integration.test.ts` (timeline + motion/speed after N sim seconds, compile error path). Host/MCP integration tests reuse the fixture.
 5. **Done (slice 5 — thin MCP):** `tools/renn-mcp/stdio.ts` + `src/agent/logicVerificationMcpServer.ts` — stdio MCP tools → headless host; dev token via `RENN_MCP_DEV_TOKEN`. Cursor example: `.cursor/mcp.json.example`. Test: `logic-verification-mcp.integration.test.ts`.
 6. **Done (slice 6 — browser attach v1.1):** Dev-only localhost WebSocket bridge (`logicVerificationBrowserBridgeServer.ts`, Vite plugin `logicVerificationBrowserBridgeVitePlugin.ts`, default port `9234` / `RENN_MCP_BROWSER_PORT`). Open Builder (`SceneView` → `useLogicVerificationBrowserAttach`) adopts live registry + physics via `LogicVerificationHost.adoptLiveScene` and serves the same RPC surface as headless. MCP `attach_browser` proxies through `LogicVerificationBrowserMcpClient`. Exclusive stepping (`logicVerificationExclusiveStepping.ts`) pauses rAF sim during MCP `run_steps` / `run_for_sim_time`. Test: `logic-verification-browser-attach.integration.test.ts`. **`load_fixture`** MCP tool via `logicVerificationFixtures.ts` (`agentVerificationCarWorld`).
+7. **Done (slice 7 — authoring setup):** On-disk **agent project bundles** under `src/agent/projects/` (`agent-starter`), `loadAgentProjectBundle`, MCP `load_project_bundle`, `npm run agent:setup-check`. Tests: `loadAgentProjectBundle.test.ts`, `agent-project-bundle.integration.test.ts`. Workflow doc: [feature-agent-authoring-setup.md](./feature-agent-authoring-setup.md). ADR: [0002-agent-project-bundle-on-disk.md](../docs/adr/0002-agent-project-bundle-on-disk.md).
 
 ---
 

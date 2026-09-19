@@ -17,6 +17,7 @@ Docs for LLM/code agents. Read `start-here.md` first, then only what the task re
 | **start-here** | Always — orientation, tech stack, task→file map |
 | **architecture** | Overall structure, data flow, component layout |
 | **feature-agent-logic-verification** | Agent MCP/host design: deterministic runs, pose-safe patches, platform probes + watch, headless + browser |
+| **feature-agent-authoring-setup** | Dev setup: on-disk project bundles, MCP/Cursor config, headless vs browser attach workflows |
 | **feature-coding-custom-transformers** | Custom transformer authoring: Workspace Transformers tab, named customs, `api`, Monaco intellisense, migration |
 | **feature-transformers** | Entity movement, input, physics behavior, force accumulation, input/car2 paradigms, registry architecture |
 | **feature-scripting** | Script editor, game API, event hooks, examples, roadmap |
