@@ -10,7 +10,7 @@ import {
 } from '@/agent/logicVerificationHost'
 import type { AgentObservationProbe, AgentObservationSession } from '@/agent/agentObservationSession'
 import type {
-  ApplyLogicVerificationWorldPatchResult,
+  ApplyLogicVerificationWorldPatchHostResult,
   LogicVerificationWorldPatch,
 } from '@/agent/applyLogicVerificationWorldPatch'
 import { validateCustomTransformerSource } from '@/transformers/customCodeTransformer'
@@ -31,7 +31,7 @@ export type StartVerificationRunInput = {
 export interface LogicVerificationRunBackend {
   getDt(): number
   registerProbes(probes: AgentObservationProbe[]): Promise<{ registered: number }>
-  applyWorldPatch(patch: LogicVerificationWorldPatch): Promise<ApplyLogicVerificationWorldPatchResult>
+  applyWorldPatch(patch: LogicVerificationWorldPatch): Promise<ApplyLogicVerificationWorldPatchHostResult>
   startObservationRun(input: StartVerificationRunInput, inputScript: LogicVerificationInputScript | undefined): Promise<{ started: true }>
   stopObservationRun(): Promise<{ stopped: true }>
   runSteps(count: number, inputScript: LogicVerificationInputScript | undefined): Promise<ReturnType<LogicVerificationHost['runSteps']>>
@@ -80,7 +80,7 @@ export class LogicVerificationRunController {
 
   async applyWorldPatch(
     patch: LogicVerificationWorldPatch,
-  ): Promise<ApplyLogicVerificationWorldPatchResult> {
+  ): Promise<ApplyLogicVerificationWorldPatchHostResult> {
     return this.backend.applyWorldPatch(patch)
   }
 
@@ -199,7 +199,7 @@ export function createBrowserRpcLogicVerificationRunBackend(
       return (await client.invoke('register_probes', { probes })) as { registered: number }
     },
     async applyWorldPatch(patch) {
-      return (await client.invoke('apply_world_patch', patch)) as ApplyLogicVerificationWorldPatchResult
+      return (await client.invoke('apply_world_patch', patch)) as ApplyLogicVerificationWorldPatchHostResult
     },
     async startObservationRun(input, _inputScript) {
       await client.invoke('start_verification_run', input)

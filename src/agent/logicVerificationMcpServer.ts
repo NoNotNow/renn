@@ -36,7 +36,7 @@ export function createLogicVerificationMcpServer(
     { name: 'renn-logic-verification', version: '0.1.0' },
     {
       instructions:
-        'Headless Renn logic verification. load_world_json → apply_world_patch (pose-safe) → start_verification_run → run_for_sim_time or step → get_observation → stop_run. Project sources: load_project_bundle (on-disk bundles), load_fixture (pinned ids), or load_world_json (inline). attach_browser uses the live Builder scene — load tools are headless-only; human loads the project in Builder first.',
+        'Headless Renn logic verification. load_project_bundle → apply_world_patch (transformers + entities) → export_project_bundle → start_verification_run → run_for_sim_time or step → get_observation → stop_run. Also: load_fixture, load_world_json. attach_browser uses the live Builder scene — load/export tools are headless-only; human loads the project in Builder first.',
     },
   )
 
@@ -96,6 +96,19 @@ export function createLogicVerificationMcpServer(
   )
 
   server.registerTool(
+    'export_project_bundle',
+    {
+      description:
+        'Write the headless host world JSON back to an allowlisted on-disk bundle (requires load_project_bundle)',
+      inputSchema: {
+        devToken: devTokenSchema,
+        bundleId: z.string().optional(),
+      },
+    },
+    withAuth(async (input) => jsonText(await session.exportProjectBundle(input))),
+  )
+
+  server.registerTool(
     'attach_browser',
     {
       description:
@@ -141,21 +154,33 @@ export function createLogicVerificationMcpServer(
     ),
   )
 
+  const entityJsonSchema = z.record(z.string(), z.json())
+
   server.registerTool(
     'apply_world_patch',
     {
-      description: 'Pose-safe transformer registry patch (requires loaded host)',
+      description:
+        'Pose-safe world patch: transformer registry and/or entity add-update-remove (requires loaded host)',
       inputSchema: {
         devToken: devTokenSchema,
         transformers: z
           .record(z.string(), z.record(z.string(), z.json()))
+          .optional()
           .describe('Partial transformer defs keyed by registry id'),
+        entities: z
+          .object({
+            add: z.array(entityJsonSchema).optional(),
+            update: z.record(z.string(), entityJsonSchema).optional(),
+            remove: z.array(z.string()).optional(),
+          })
+          .optional(),
         allowSceneRebuild: z.boolean().optional(),
       },
     },
     withAuth(async (input) => {
       const patch: LogicVerificationWorldPatch = {
         transformers: input.transformers as LogicVerificationWorldPatch['transformers'],
+        entities: input.entities as LogicVerificationWorldPatch['entities'],
         allowSceneRebuild: input.allowSceneRebuild,
       }
       return jsonText(await session.applyWorldPatch(patch))

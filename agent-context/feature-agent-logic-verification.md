@@ -97,7 +97,8 @@ Avoid running two sims for one edit (headless + browser in parallel) unless repl
 | `load_fixture` | Pinned repo fixture by id (headless) |
 | `load_project_bundle` | On-disk agent project bundle by id (headless, Node) |
 | `validate_stage_code` | Compile check only |
-| `apply_world_patch` | JSON patch; flags `allowSceneRebuild`, `resetPoses` |
+| `apply_world_patch` | Transformer registry + `entities` add/update/remove; `allowSceneRebuild` for structural edits |
+| `export_project_bundle` | Write headless world JSON to allowlisted bundle path (after `load_project_bundle`) |
 | `register_probes` | Probe list + intervals |
 | `start_verification_run` | Input script, duration or max steps, seed |
 | `run_for_sim_time` | Deterministic advance |

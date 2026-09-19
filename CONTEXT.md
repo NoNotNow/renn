@@ -59,3 +59,7 @@ _Avoid_: MCP tool name, load path (implementation)
 **World document preparation for verification**:
 Applying migrations and validation so a world JSON document matches what the logic verification host expects, independent of whether it came from a bundle, fixture, or inline load.
 _Avoid_: migrateWorld (implementation), import pipeline
+
+**Agent verification CLI**:
+A Node entrypoint that invokes the same logic verification tool surface as MCP stdio, in-process, so shell-based agents and CI can load, patch, run, and observe without the Cursor MCP panel.
+_Avoid_: MCP server (when you mean the transport), Playwright (when you mean headless host)

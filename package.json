@@ -16,6 +16,8 @@
     "generate:glossary-keys": "node scripts/generateGlossaryKeys.mjs",
     "deploy": "vite build && cp dist/index.html dist/404.html && npx gh-pages -d dist",
     "agent:setup-check": "tsx tools/renn-mcp/agent-setup-check.ts",
+    "agent:cli": "tsx tools/renn-mcp/agent-cli.ts",
+    "agent:recipe-headless": "tsx tools/renn-mcp/agent-cli.ts recipe headless",
     "agent:mcp-attach-smoke": "tsx tools/renn-mcp/attach-browser-smoke.ts"
   },
   "dependencies": {

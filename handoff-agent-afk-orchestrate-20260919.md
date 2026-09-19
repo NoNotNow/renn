@@ -1,0 +1,60 @@
+# Handoff — AFK agent runtime + orchestrate queue
+
+**Written:** 2026-09-19
+
+## Baseline (L1 verified)
+
+- `npx vitest run` → **236** files, **2044** passed, **3** skipped
+- `npx tsc --noEmit -p tsconfig.app.json` → **clean**
+- `npm run agent:setup-check` → ok
+- `npm run agent:recipe-headless` → ok
+- Post-L2: **240** files, **2050** passed, **3** skipped; tsc clean
+
+## Goal
+
+Agents program and test **without the user** running sims or MCP. `/grill-with-docs` + ADR **0003** lock the runtime split: **headless CLI for L3**, optional **Cursor MCP for L1**, **browser attach only when canvas/human workflow required**.
+
+## Can the coordinator run the app via MCP?
+
+| Mode | Without user? | Notes |
+|------|----------------|-------|
+| Headless (`load_*`, patch, run, observe) | **Yes** | Cursor MCP **or** `npm run agent:cli` / `agent:recipe-headless` |
+| Full Builder UI | **Partial** | Needs `npm run dev` + human import **or** future automation |
+| `attach_browser` | **Partial** | Dev server + Builder tab with project loaded |
+
+MCP session is **one at a time**: after `attach_browser`, headless loads fail until `stop_run`; calling `stop_run` disposes the host (`Not connected` until MCP server restarts in Cursor).
+
+## Delivered this session
+
+- `tools/renn-mcp/agent-cli.ts` + npm scripts `agent:cli`, `agent:recipe-headless`
+- ADR `docs/adr/0003-agent-afk-orchestration-runtime.md`
+- Glossary + setup doc updates
+
+## `/orchestrate` priority queue
+
+| # | Item | Status |
+|---|------|--------|
+| 1 | Entity/scene patches on `apply_world_patch` | **Done** (L2 [496e77d8-719f-4eb1-9693-c2c71816dbc8](496e77d8-719f-4eb1-9693-c2c71816dbc8)) |
+| 2 | `export_project_bundle` | **Done** |
+| 3 | Bundle assets in headless host | **Already wired** (slice 8) |
+| 4 | In-process recipe vitest gate | **Done** — `agent-recipe-headless.integration.test.ts` |
+| 5 | `agent:dev-attach` auto Vite | **Deferred** |
+
+Detail: `/var/folders/cg/87j3kd8s3dqctsflnp71st2w0000gn/T/handoff-agent-afk-implement-20260919-1832.md`
+
+## Guardrails
+
+- No MCP in production builds; dev token only
+- Pose-safe apply semantics; allowlisted bundle ids
+- Do not commit unless user asks
+
+## LEFTOVER
+
+- Queue items 1–5 above
+- Playwright e2e remains separate from logic verification host
+- Coordinator should re-run baseline after each L2 chunk
+
+## RISK
+
+- Singleton Cursor MCP session can confuse parallel coordinator experiments
+- Browser attach will never be fully human-free until project import is automatable

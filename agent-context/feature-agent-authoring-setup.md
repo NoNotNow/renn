@@ -54,9 +54,9 @@ Starter template: `src/agent/projects/agent-starter/` — minimal world with one
 2. Agent: `attach_browser` → **patch, probe, run, observe** on the **live** host (human must load the project in Builder first; `load_project_bundle` / `load_fixture` / `load_world_json` are headless-only).
 3. Exclusive stepping pauses rAF while MCP advances sim time.
 
-### C — Create entities (planned)
+### C — Create entities (headless)
 
-Extend `apply_world_patch` with `entities` add/update and `allowSceneRebuild` when structural. Until then: edit bundle `world.json` in repo or use Builder UI, re-export, reload bundle.
+`apply_world_patch` accepts `entities.add` / `entities.update` / `entities.remove`. Entity add/remove and physics-affecting updates require `allowSceneRebuild: true` (existing poses preserved where entities survive). Save with `export_project_bundle` after `load_project_bundle`.
 
 ---
 
@@ -65,7 +65,14 @@ Extend `apply_world_patch` with `entities` add/update and `allowSceneRebuild` wh
 | Command | Purpose |
 |---------|---------|
 | `npm run agent:setup-check` | Verify token env + bundle loader + one headless host step |
+| `npm run agent:cli -- list` | Tool names (in-process; no Cursor MCP panel) |
+| `npm run agent:cli -- call load_project_bundle '{"bundleId":"agent-starter","warmupSteps":2}'` | Single MCP-equivalent call; JSON to stdout |
+| `npm run agent:recipe-headless` | Full headless loop on `agent-starter` (load → probe → run → observe → stop) |
 | `npm run agent:mcp-attach-smoke` | `attach_browser` against running dev server (manual prerequisite) |
+
+### AFK agents (`/orchestrate`)
+
+L3 workers should use **`agent:cli` / `agent:recipe-headless`** in shell after edits—not assume Cursor MCP is available in Task subagents. L1 may still use the **renn-logic-verification** MCP namespace when enabled; that session is **singleton** (detach with `stop_run` before headless loads). ADR: [docs/adr/0003-agent-afk-orchestration-runtime.md](../docs/adr/0003-agent-afk-orchestration-runtime.md).
 
 ---
 
@@ -76,5 +83,5 @@ Extend `apply_world_patch` with `entities` add/update and `allowSceneRebuild` wh
 | Logic verification host + MCP (slices 1–6) | Done — see feature-agent-logic-verification |
 | On-disk project bundles + loader | Done |
 | MCP `load_project_bundle` | Done |
-| Entity/scene patches via MCP | Planned |
-| MCP `export_project_bundle` / save | Planned |
+| Entity/scene patches via MCP | Done — `entities` on `apply_world_patch` |
+| MCP `export_project_bundle` / save | Done — allowlisted bundle `world.json` |

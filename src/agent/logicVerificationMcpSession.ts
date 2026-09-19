@@ -10,7 +10,7 @@ import {
 } from '@/agent/logicVerificationHost'
 import type { AgentObservationProbe } from '@/agent/agentObservationSession'
 import type {
-  ApplyLogicVerificationWorldPatchResult,
+  ApplyLogicVerificationWorldPatchHostResult,
   LogicVerificationWorldPatch,
 } from '@/agent/applyLogicVerificationWorldPatch'
 import { LogicVerificationBrowserMcpClient } from '@/agent/logicVerificationBrowserMcpClient'
@@ -31,6 +31,7 @@ import {
   resolveFixtureVerificationProject,
   resolveInlineVerificationProject,
 } from '@/agent/logicVerificationProjectSource'
+import { exportAgentProjectBundleWorld } from '@/agent/exportAgentProjectBundle'
 
 export type LoadWorldJsonInput = {
   world: RennWorld
@@ -83,6 +84,8 @@ export class LogicVerificationMcpSession {
   private browserClient: LogicVerificationBrowserMcpClient | null = null
   private runController: LogicVerificationRunController | null = null
   private dt = DEFAULT_LOGIC_VERIFICATION_DT
+  /** Set when the headless host was loaded via `load_project_bundle`. */
+  private activeBundleId: string | null = null
 
   get hasHost(): boolean {
     return this.host != null || this.browserClient != null
@@ -168,6 +171,7 @@ export class LogicVerificationMcpSession {
     dt?: number
     warmupSteps?: number
     controlledEntityId?: string | null
+    bundleId?: string | null
   }): Promise<void> {
     this.assertHeadlessMode('load')
     await this.disposeHeadlessHost()
@@ -179,6 +183,7 @@ export class LogicVerificationMcpSession {
       warmupSteps: input.warmupSteps,
       controlledEntityId: input.controlledEntityId,
     })
+    this.activeBundleId = input.bundleId ?? null
     this.resetRunController()
   }
 
@@ -189,6 +194,7 @@ export class LogicVerificationMcpSession {
       dt: input.dt,
       warmupSteps: input.warmupSteps,
       controlledEntityId: input.controlledEntityId,
+      bundleId: null,
     })
     return { loaded: true }
   }
@@ -201,6 +207,7 @@ export class LogicVerificationMcpSession {
       dt: input.dt,
       warmupSteps: warmup,
       controlledEntityId: input.controlledEntityId,
+      bundleId: null,
     })
     return { loaded: true, fixtureId: input.fixtureId }
   }
@@ -215,12 +222,31 @@ export class LogicVerificationMcpSession {
       dt: input.dt,
       warmupSteps: input.warmupSteps,
       controlledEntityId: input.controlledEntityId,
+      bundleId: resolved.bundleId ?? input.bundleId,
     })
     return {
       loaded: true,
       bundleId: resolved.bundleId ?? input.bundleId,
       assetCount: resolved.assets?.size ?? 0,
     }
+  }
+
+  async exportProjectBundle(input?: {
+    bundleId?: string
+  }): Promise<{ exported: true; bundleId: string; worldPath: string }> {
+    this.assertHeadlessMode('export_project_bundle')
+    const host = this.requireHeadlessHost()
+    const bundleId = input?.bundleId ?? this.activeBundleId
+    if (!bundleId) {
+      throw new Error(
+        'No bundle loaded — call load_project_bundle first or pass bundleId for an allowlisted bundle',
+      )
+    }
+    if (this.activeBundleId && input?.bundleId && input.bundleId !== this.activeBundleId) {
+      throw new Error('bundleId does not match the loaded project bundle')
+    }
+    const written = await exportAgentProjectBundleWorld(bundleId, host.getWorld())
+    return { exported: true, ...written }
   }
 
   validateStageCode(code: string, configKey = 'stage'): { ok: true } | { ok: false; message: string } {
@@ -231,7 +257,7 @@ export class LogicVerificationMcpSession {
 
   applyWorldPatch(
     patch: LogicVerificationWorldPatch,
-  ): Promise<ApplyLogicVerificationWorldPatchResult> {
+  ): Promise<ApplyLogicVerificationWorldPatchHostResult> {
     return this.ensureRunController().applyWorldPatch(patch)
   }
 
@@ -350,6 +376,7 @@ export class LogicVerificationMcpSession {
       this.host.dispose()
       this.host = null
     }
+    this.activeBundleId = null
     this.resetRunController()
   }
 }

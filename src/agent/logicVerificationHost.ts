@@ -22,7 +22,7 @@ import {
 import { validateCustomTransformerSource } from '@/transformers/customCodeTransformer'
 import {
   applyLogicVerificationWorldPatch,
-  type ApplyLogicVerificationWorldPatchResult,
+  type ApplyLogicVerificationWorldPatchHostResult,
   type LogicVerificationWorldPatch,
 } from '@/agent/applyLogicVerificationWorldPatch'
 import { resolveMergedTransformerConfigsForEntitySync } from '@/utils/pipeStageResolve'
@@ -154,9 +154,9 @@ async function attachTransformerChains(
 }
 
 export class LogicVerificationHost {
-  private readonly physicsWorld: PhysicsWorld
-  private readonly registry: RenderItemRegistry
-  private readonly entities: LoadedEntity[]
+  private physicsWorld: PhysicsWorld
+  private registry: RenderItemRegistry
+  private entities: LoadedEntity[]
   private world: RennWorld
   private readonly dt: number
   private readonly wind: Vec3 | undefined
@@ -164,7 +164,7 @@ export class LogicVerificationHost {
   private readonly controlledEntityIdRef: { current: string | null } | undefined
   private readonly observationSession: AgentObservationSession
   private readonly ownsPhysics: boolean
-  private readonly assetResolver: DisposableAssetResolver | null
+  private assetResolver: DisposableAssetResolver | null
   private stepCount = 0
   private simTime = 0
 
@@ -276,7 +276,6 @@ export class LogicVerificationHost {
       true,
       assetResolver,
     )
-
     const warmup = config.warmupSteps ?? 0
     if (warmup > 0) {
       host.runSteps(warmup)
@@ -374,37 +373,88 @@ export class LogicVerificationHost {
     return this.observationSession.getTimeline()
   }
 
+  getWorld(): RennWorld {
+    return this.world
+  }
+
   async applyWorldPatch(
     patch: LogicVerificationWorldPatch,
-  ): Promise<ApplyLogicVerificationWorldPatchResult> {
+  ): Promise<ApplyLogicVerificationWorldPatchHostResult> {
     const result = applyLogicVerificationWorldPatch(this.world, patch)
-    if (!result.ok || !result.nextWorld) {
+    if (!result.ok) {
       return result
     }
 
+    const preservedPoses = this.snapshot().poses
     this.world = result.nextWorld
     this.registry.setWorldPipeRegistry(
       this.world.transformers ?? {},
       this.world.transformerPipes ?? {},
     )
 
-    for (const entityId of result.affectedEntityIds) {
-      const merged = resolveMergedTransformerConfigsForEntitySync(this.world, entityId)
-      this.registry.syncEntityTransformers(entityId, merged)
-      const entityRecord = this.entities.find((e) => e.entity.id === entityId)
-      const nextEntity = this.world.entities.find((e) => e.id === entityId)
-      if (entityRecord && nextEntity) {
-        entityRecord.entity = nextEntity
-        if (entityRecord.mesh.userData.entity !== undefined) {
-          entityRecord.mesh.userData.entity = nextEntity
+    if (result.mode === 'entity-scene') {
+      for (const entityId of result.removedEntityIds ?? []) {
+        this.uninstallEntity(entityId)
+      }
+      for (const entityId of result.physicsRebuiltEntityIds ?? []) {
+        if (result.removedEntityIds?.includes(entityId)) continue
+        this.uninstallEntity(entityId)
+        await this.installEntity(this.world.entities.find((e) => e.id === entityId)!)
+      }
+      for (const entity of result.addedEntities ?? []) {
+        await this.installEntity(entity)
+      }
+      this.restorePoses(preservedPoses)
+    } else {
+      for (const entityId of result.affectedEntityIds) {
+        const entityRecord = this.entities.find((e) => e.entity.id === entityId)
+        const nextEntity = this.world.entities.find((e) => e.id === entityId)
+        if (entityRecord && nextEntity) {
+          entityRecord.entity = nextEntity
+          if (entityRecord.mesh.userData.entity !== undefined) {
+            entityRecord.mesh.userData.entity = nextEntity
+          }
         }
       }
     }
 
+    const resyncIds = result.affectedEntityIds.filter(
+      (id) => !(result.removedEntityIds ?? []).includes(id),
+    )
+    for (const entityId of resyncIds) {
+      const merged = resolveMergedTransformerConfigsForEntitySync(this.world, entityId)
+      this.registry.syncEntityTransformers(entityId, merged)
+    }
+
     this.observationSession.setCompileErrors(collectCustomTransformerCompileErrors(this.world))
 
-    await this.resyncTransformerChainsForEntities(result.affectedEntityIds)
+    await this.resyncTransformerChainsForEntities(resyncIds)
     return { ok: true, affectedEntityIds: result.affectedEntityIds }
+  }
+
+  private restorePoses(poses: Record<string, EntityVerificationPose>): void {
+    for (const [entityId, pose] of Object.entries(poses)) {
+      if (!this.registry.get(entityId)) continue
+      this.registry.setPosition(entityId, pose.position)
+      this.registry.setRotation(entityId, pose.rotation)
+      this.physicsWorld.setPosition(entityId, pose.position[0], pose.position[1], pose.position[2])
+      this.physicsWorld.setRotation(entityId, pose.rotation)
+    }
+  }
+
+  private uninstallEntity(entityId: string): void {
+    this.registry.removeEntity(entityId)
+    const idx = this.entities.findIndex((e) => e.entity.id === entityId)
+    if (idx >= 0) {
+      this.entities.splice(idx, 1)
+    }
+  }
+
+  private async installEntity(entity: Entity): Promise<void> {
+    const mesh = createHeadlessMeshForEntity(entity)
+    this.entities.push({ entity, mesh })
+    this.registry.addLoadedEntity(entity, mesh, this.world.scripts)
+    await this.resyncTransformerChainsForEntities([entity.id])
   }
 
   private async resyncTransformerChainsForEntities(entityIds: string[]): Promise<void> {
