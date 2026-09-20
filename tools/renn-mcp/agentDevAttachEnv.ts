@@ -1,6 +1,7 @@
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
+  agentDevExampleWorldApiPath,
   agentDevFixtureApiPath,
   agentDevProjectBundleApiPath,
   appendAgentDevBootstrapToUrl,
@@ -10,12 +11,52 @@ import {
 const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url))
 export const REPO_ROOT = path.resolve(MODULE_DIR, '../..')
 
-export const DEFAULT_BUILDER_DEV_URL = 'http://127.0.0.1:5173/renn/'
+export const DEFAULT_BUILDER_DEV_URL = 'http://localhost:5173/renn/'
 
 export function resolveBuilderDevUrl(): string {
   const raw = process.env.RENN_AGENT_DEV_URL?.trim()
   if (!raw) return DEFAULT_BUILDER_DEV_URL
   return raw.endsWith('/') ? raw : `${raw}/`
+}
+
+/** When Vite picks another port (5173 busy), probe local /renn/ URLs. */
+export function builderDevUrlCandidates(): string[] {
+  const seen = new Set<string>()
+  const add = (url: string) => {
+    const normalized = url.endsWith('/') ? url : `${url}/`
+    if (!seen.has(normalized)) seen.add(normalized)
+  }
+  add(resolveBuilderDevUrl())
+  for (let port = 5173; port <= 5180; port++) {
+    add(`http://localhost:${port}/renn/`)
+    add(`http://127.0.0.1:${port}/renn/`)
+  }
+  return [...seen]
+}
+
+export async function resolveReachableBuilderDevUrl(timeoutMs: number): Promise<string> {
+  if (process.env.RENN_AGENT_DEV_URL?.trim()) {
+    const url = resolveBuilderDevUrl()
+    await waitForHttpOk(url, timeoutMs)
+    return url
+  }
+  const deadline = Date.now() + timeoutMs
+  let lastError: unknown
+  while (Date.now() < deadline) {
+    for (const url of builderDevUrlCandidates()) {
+      try {
+        await waitForHttpOk(url, Math.min(2_000, deadline - Date.now()))
+        process.env.RENN_AGENT_DEV_URL = url
+        return url
+      } catch (err) {
+        lastError = err
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 300))
+  }
+  throw new Error(
+    `Timed out waiting for Builder dev server: ${lastError instanceof Error ? lastError.message : String(lastError)}`,
+  )
 }
 
 export function builderUrlForAttachTarget(target: AgentDevBootstrapTarget): string {
@@ -28,7 +69,9 @@ export async function assertDevBundleMiddlewareReady(
   const path =
     target.kind === 'bundle'
       ? agentDevProjectBundleApiPath(target.bundleId)
-      : agentDevFixtureApiPath(target.fixtureId)
+      : target.kind === 'fixture'
+        ? agentDevFixtureApiPath(target.fixtureId)
+        : agentDevExampleWorldApiPath(target.exampleWorldId)
   const origin = new URL(resolveBuilderDevUrl()).origin
   const res = await fetch(`${origin}${path}`)
   if (!res.ok) {

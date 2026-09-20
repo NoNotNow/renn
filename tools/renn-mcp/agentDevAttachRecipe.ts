@@ -4,6 +4,7 @@ import { resolveMcpDevToken } from '../../src/agent/logicVerificationMcpAuth.ts'
 export type AgentDevAttachRecipeOptions = {
   bundle?: string
   fixture?: string
+  exampleWorld?: string
   steps: number
   simSeconds?: number
   probeEntity?: string
@@ -13,6 +14,7 @@ export type AgentDevAttachRecipeOptions = {
 export function parseAgentDevAttachArgv(argv: string[]): AgentDevAttachRecipeOptions {
   let bundle: string | undefined
   let fixture: string | undefined
+  let exampleWorld: string | undefined
   let steps = 5
   let simSeconds: number | undefined
   let probeEntity: string | undefined
@@ -24,6 +26,8 @@ export function parseAgentDevAttachArgv(argv: string[]): AgentDevAttachRecipeOpt
       bundle = argv[++i]
     } else if (a === '--fixture' && argv[i + 1]) {
       fixture = argv[++i]
+    } else if (a === '--example-world' && argv[i + 1]) {
+      exampleWorld = argv[++i]
     } else if (a === '--steps' && argv[i + 1]) {
       steps = Number(argv[++i])
     } else if (a === '--sim-seconds' && argv[i + 1]) {
@@ -35,11 +39,12 @@ export function parseAgentDevAttachArgv(argv: string[]): AgentDevAttachRecipeOpt
     }
   }
 
-  if (!bundle && !fixture) {
+  const targetCount = [bundle, fixture, exampleWorld].filter(Boolean).length
+  if (targetCount === 0) {
     bundle = 'agent-starter'
   }
-  if (bundle && fixture) {
-    throw new Error('Use only one of --bundle or --fixture')
+  if (targetCount > 1) {
+    throw new Error('Use only one of --bundle, --fixture, or --example-world')
   }
   if (simSeconds != null && !Number.isFinite(simSeconds)) {
     throw new Error('--sim-seconds must be a positive number')
@@ -48,7 +53,7 @@ export function parseAgentDevAttachArgv(argv: string[]): AgentDevAttachRecipeOpt
     throw new Error('--steps must be a positive integer')
   }
 
-  return { bundle, fixture, steps, simSeconds, probeEntity, waitForBrowserMs }
+  return { bundle, fixture, exampleWorld, steps, simSeconds, probeEntity, waitForBrowserMs }
 }
 
 export async function runAgentDevAttachRecipe(
@@ -91,7 +96,7 @@ export async function runAgentDevAttachRecipe(
     return {
       ok: true,
       recipe: 'dev-attach',
-      attach: { bundle: opts.bundle, fixture: opts.fixture },
+      attach: { bundle: opts.bundle, fixture: opts.fixture, exampleWorld: opts.exampleWorld },
       step: stepSummary,
       observation: {
         timelineLength: observation.timeline.length,

@@ -13,6 +13,8 @@ import {
   createInProcessLogicVerificationRunBackend,
   LogicVerificationRunController,
 } from '@/agent/logicVerificationRunController'
+import { requireAgentBuilderAuthoring } from '@/agent/agentBuilderAuthoringRegistry'
+import type { Rgba01 } from '@/agent/agentMaterialColorParse'
 
 export type LogicVerificationBrowserAttachHandlerState = {
   host: LogicVerificationHost | null
@@ -116,6 +118,25 @@ export function createLogicVerificationBrowserAttachHandler(): {
       case 'apply_world_patch': {
         const patch = params as LogicVerificationWorldPatch
         return run.applyWorldPatch(patch)
+      }
+      case 'load_example_world': {
+        const { exampleWorldId } = params as { exampleWorldId: string }
+        return requireAgentBuilderAuthoring().loadExampleWorldById(exampleWorldId)
+      }
+      case 'save_project_as': {
+        const { projectName } = params as { projectName: string }
+        return requireAgentBuilderAuthoring().saveProjectAs(projectName)
+      }
+      case 'save_project': {
+        return requireAgentBuilderAuthoring().saveProject()
+      }
+      case 'patch_entity_material_color': {
+        const { entityId, color } = params as { entityId: string; color: Rgba01 }
+        return requireAgentBuilderAuthoring().patchEntityMaterialColor(entityId, color)
+      }
+      case 'get_saved_entity_material_color': {
+        const { projectName, entityId } = params as { projectName: string; entityId: string }
+        return requireAgentBuilderAuthoring().getSavedEntityMaterialColor(projectName, entityId)
       }
       default:
         throw new Error(`Unknown browser RPC method: ${method}`)

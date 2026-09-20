@@ -5,6 +5,7 @@
 import { useEffect, useRef } from 'react'
 import type { RennWorld } from '@/types/world'
 import {
+  agentDevExampleWorldApiPath,
   agentDevFixtureApiPath,
   agentDevProjectBundleApiPath,
   parseAgentDevBootstrapTarget,
@@ -21,14 +22,20 @@ export async function fetchAgentDevProjectPayload(
   const path =
     target.kind === 'bundle'
       ? agentDevProjectBundleApiPath(target.bundleId)
-      : agentDevFixtureApiPath(target.fixtureId)
+      : target.kind === 'fixture'
+        ? agentDevFixtureApiPath(target.fixtureId)
+        : agentDevExampleWorldApiPath(target.exampleWorldId)
   const res = await fetch(path)
   const body = (await res.json()) as { world?: RennWorld; error?: string; id?: string }
   if (!res.ok || !body.world) {
     throw new Error(body.error ?? `Failed to load dev project (${res.status})`)
   }
   const label =
-    target.kind === 'bundle' ? `agent:${body.id ?? target.bundleId}` : `fixture:${body.id ?? target.fixtureId}`
+    target.kind === 'bundle'
+      ? `agent:${body.id ?? target.bundleId}`
+      : target.kind === 'fixture'
+        ? `fixture:${body.id ?? target.fixtureId}`
+        : `example:${body.id ?? target.exampleWorldId}`
   return { world: body.world, label }
 }
 
@@ -52,7 +59,12 @@ export function useAgentDevProjectBundleBootstrap({
     }
     if (!target) return
 
-    const key = target.kind === 'bundle' ? `bundle:${target.bundleId}` : `fixture:${target.fixtureId}`
+    const key =
+      target.kind === 'bundle'
+        ? `bundle:${target.bundleId}`
+        : target.kind === 'fixture'
+          ? `fixture:${target.fixtureId}`
+          : `example:${target.exampleWorldId}`
     if (loadedKeyRef.current === key) return
 
     let cancelled = false

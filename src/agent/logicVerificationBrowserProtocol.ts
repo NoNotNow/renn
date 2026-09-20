@@ -69,6 +69,11 @@ export const LOGIC_VERIFICATION_BROWSER_RPC_METHODS = [
   'get_observation',
   'apply_world_patch',
   'validate_stage_code',
+  'load_example_world',
+  'save_project_as',
+  'save_project',
+  'patch_entity_material_color',
+  'get_saved_entity_material_color',
 ] as const
 
 export type LogicVerificationBrowserRpcMethod =

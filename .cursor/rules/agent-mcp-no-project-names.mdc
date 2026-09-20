@@ -1,0 +1,16 @@
+---
+description: Agent MCP and dev tooling must stay generic (no product/example project names in code)
+globs:
+  - src/agent/**/*
+  - tools/renn-mcp/**/*
+  - src/**/*agent*
+  - src/hooks/useAgent*
+---
+
+# Agent MCP — no project names in code
+
+- Do **not** hardcode user project names or example-specific workflow labels (e.g. saved copy names) in `src/`, `tools/renn-mcp/`, tests, or npm scripts.
+- Example world **ids** are discovered from `public/exampleWorlds/` (see `listAgentDevExampleWorldIds`) — never maintain a static `['hunt', …]` list in agent code.
+- Product illustration names belong in **documentation only** (`agent-context/*.md`), as parameterized MCP args in prose.
+- Prefer **renn-logic-verification MCP tools** (+ `attach_browser`) for agent E2E flows; avoid Playwright smokes that encode a single customer scenario in script source.
+- New Builder capabilities: extend MCP with **generic tool args** (`exampleWorldId`, `projectName`, `entityId`, `color`). Reuse `apply_world_patch` when a pose-safe entity patch suffices; use `patch_entity_material_color` when updating the live Builder document for IndexedDB save.

@@ -18,6 +18,10 @@ import {
 } from '@/persistence/lastProjectId'
 import { usePersistedAssets } from '@/hooks/usePersistedAssets'
 import { parseAgentDevBootstrapTarget } from '@/agent/agentDevBootstrapParams'
+import {
+  installAgentBuilderAuthoring,
+  uninstallAgentBuilderAuthoring,
+} from '@/agent/installAgentBuilderAuthoring'
 
 const persistence = createIndexedDbPersistence()
 const BASE_URL = import.meta.env.BASE_URL || '/'
@@ -681,6 +685,19 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     applyModelPresetToEntities,
     recordEntityWorkHistory,
   ])
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return
+    installAgentBuilderAuthoring({
+      persistence,
+      loadExampleWorld,
+      saveProject,
+      saveProjectAs,
+      updateWorld,
+      getCurrentProjectName: () => currentProject.name,
+    })
+    return () => uninstallAgentBuilderAuthoring()
+  }, [loadExampleWorld, saveProject, saveProjectAs, updateWorld, currentProject.name])
   
   return (
     <ProjectContext.Provider value={value}>

@@ -15,6 +15,7 @@ export type LogicVerificationBrowserMcpClientOptions = {
   host?: string
   devToken: string
   connectTimeoutMs?: number
+  rpcTimeoutMs?: number
 }
 
 type Pending = {
@@ -29,7 +30,7 @@ export class LogicVerificationBrowserMcpClient {
   private readonly url: string
   private readonly devToken: string
   private readonly connectTimeoutMs: number
-  private readonly rpcTimeoutMs = 30_000
+  private readonly rpcTimeoutMs: number
 
   constructor(options: LogicVerificationBrowserMcpClientOptions) {
     const host = options.host ?? '127.0.0.1'
@@ -37,6 +38,14 @@ export class LogicVerificationBrowserMcpClient {
     this.url = `ws://${host}:${port}`
     this.devToken = options.devToken
     this.connectTimeoutMs = options.connectTimeoutMs ?? 5_000
+    const fromEnv = process.env.RENN_MCP_BROWSER_RPC_TIMEOUT_MS
+    const envTimeout =
+      fromEnv && String(fromEnv).length > 0 ? Number(fromEnv) : undefined
+    this.rpcTimeoutMs =
+      options.rpcTimeoutMs ??
+      (envTimeout != null && Number.isFinite(envTimeout) && envTimeout > 0
+        ? envTimeout
+        : 30_000)
   }
 
   get isConnected(): boolean {

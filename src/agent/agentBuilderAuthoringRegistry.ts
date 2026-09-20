@@ -1,0 +1,41 @@
+/**
+ * Dev-only: Builder project actions for MCP browser attach (registered from ProjectContext).
+ */
+
+import type { RennWorld } from '@/types/world'
+import type { Rgba01 } from '@/agent/agentMaterialColorParse'
+
+export type AgentBuilderAuthoringActions = {
+  loadExampleWorldById: (exampleWorldId: string) => Promise<{ loaded: true; exampleWorldId: string }>
+  saveProjectAs: (projectName: string) => Promise<{ saved: true; projectId: string; projectName: string }>
+  saveProject: () => Promise<{ saved: true; projectId: string | null; projectName: string }>
+  patchEntityMaterialColor: (
+    entityId: string,
+    color: Rgba01,
+  ) => Promise<{ patched: true; entityId: string; color: Rgba01 }>
+  getSavedEntityMaterialColor: (
+    projectName: string,
+    entityId: string,
+  ) => Promise<{ color: Rgba01 | null }>
+}
+
+let activeActions: AgentBuilderAuthoringActions | null = null
+
+export function registerAgentBuilderAuthoring(actions: AgentBuilderAuthoringActions | null): void {
+  activeActions = actions
+}
+
+export function requireAgentBuilderAuthoring(): AgentBuilderAuthoringActions {
+  if (!activeActions) {
+    throw new Error('Builder authoring bridge not ready — open Builder (dev) and wait for project load')
+  }
+  return activeActions
+}
+
+export function entityMaterialColorFromWorld(world: RennWorld, entityId: string): Rgba01 | null {
+  const entity = world.entities.find((e) => e.id === entityId)
+  const color = entity?.material?.color
+  if (!color || color.length < 3) return null
+  const a = color.length >= 4 ? (color[3] ?? 1) : 1
+  return [color[0] ?? 0, color[1] ?? 0, color[2] ?? 0, a]
+}

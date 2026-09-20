@@ -20,4 +20,6 @@ Orchestrated agents (L2/L3 via `/orchestrate`) must **program and verify** witho
 
 **Update (2026-09):** `npm run agent:dev-attach` auto-starts or reuses Vite, loads an allowlisted bundle into Builder via dev-only URL + middleware (no file picker), then runs `attach_browser` verification in-process. Still **dev-only** (`RENN_MCP_DEV_TOKEN`, no production MCP). Headless remains the default for L3 AFK loops; attach is for in-game / canvas slices.
 
+**Update (2026-09 — storage):** Playwright smokes (`agent:authoring-smoke`, headed variant) use an **ephemeral Chrome profile** and often a **non-5173 dev port** (5199). IndexedDB saves from those runs are **not** visible in the developer’s everyday Chrome or on `npm run dev` (5173) unless exported or re-saved via attach on 5173. Detail: [feature-agent-authoring-setup.md](../../agent-context/feature-agent-authoring-setup.md) § *Browser and IndexedDB isolation*.
+
 **Earlier queue (done):** entity/scene patches, `export_project_bundle`, bundle assets in headless host.

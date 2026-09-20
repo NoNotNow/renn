@@ -63,3 +63,7 @@ _Avoid_: migrateWorld (implementation), import pipeline
 **Agent verification CLI**:
 A Node entrypoint that invokes the same logic verification tool surface as MCP stdio, in-process, so shell-based agents and CI can load, patch, run, and observe without the Cursor MCP panel.
 _Avoid_: MCP server (when you mean the transport), Playwright (when you mean headless host)
+
+**Agent smoke browser**:
+Chrome launched by Playwright for dev smokes (`agent:authoring-smoke`, `agent:dev-attach`): real Chrome binary, **ephemeral automation profile**, often a **dedicated dev port** (e.g. 5199). IndexedDB saves there do not merge with the developer’s everyday browser or with a different localhost port.
+_Avoid_: MCP browser (ambiguous — Cursor attach uses the human’s tab; smoke uses Playwright)

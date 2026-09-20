@@ -8,6 +8,8 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import { createLogicVerificationMcpServer } from '@/agent/logicVerificationMcpServer'
 import { LogicVerificationMcpSession } from '@/agent/logicVerificationMcpSession'
 import { loadAgentProjectBundle } from '@/agent/loadAgentProjectBundle'
+import { listAgentDevExampleWorldIds } from '@/agent/agentDevExampleWorlds'
+import { loadAgentDevExampleWorldPayload } from '@/agent/agentDevProjectBundleServer'
 import { resetTransformerWatchBridgeForTests } from '@/runtime/transformerWatchBridge'
 import { resetTransformerTraceBridgeForTests } from '@/runtime/transformerTraceBridge'
 
@@ -78,6 +80,44 @@ describe('Agent project bundle (integration)', () => {
     })
     const obs = JSON.parse(toolText(obsResult)) as { timeline: unknown[] }
     expect(obs.timeline.length).toBeGreaterThan(0)
+
+    await client.callTool({ name: 'stop_run', arguments: { devToken: DEV_TOKEN } })
+    await client.close()
+  })
+
+  it('loads example world via MCP load_example_world', async () => {
+    const ids = await listAgentDevExampleWorldIds()
+    expect(ids.length).toBeGreaterThan(0)
+    const exampleWorldId = ids[0]!
+    const examplePayload = await loadAgentDevExampleWorldPayload(exampleWorldId)
+    const patchEntityId =
+      examplePayload.world.entities.find((e) => e.material)?.id ??
+      examplePayload.world.entities[0]?.id
+    expect(patchEntityId).toBeTruthy()
+
+    const session = new LogicVerificationMcpSession()
+    const mcp = createLogicVerificationMcpServer({ devToken: DEV_TOKEN, session })
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
+    await mcp.connect(serverTransport)
+
+    const client = new Client({ name: 'vitest', version: '1.0.0' })
+    await client.connect(clientTransport)
+
+    const loadResult = await client.callTool({
+      name: 'load_example_world',
+      arguments: { devToken: DEV_TOKEN, exampleWorldId, warmupSteps: 0 },
+    })
+    const loaded = JSON.parse(toolText(loadResult)) as { exampleWorldId: string }
+    expect(loaded.exampleWorldId).toBe(exampleWorldId)
+
+    await client.callTool({
+      name: 'patch_entity_material_color',
+      arguments: {
+        devToken: DEV_TOKEN,
+        entityId: patchEntityId,
+        color: '#00ff00',
+      },
+    })
 
     await client.callTool({ name: 'stop_run', arguments: { devToken: DEV_TOKEN } })
     await client.close()

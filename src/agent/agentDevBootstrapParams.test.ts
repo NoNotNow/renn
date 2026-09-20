@@ -16,11 +16,19 @@ describe('agentDevBootstrapParams', () => {
     })
   })
 
-  it('rejects both bundle and fixture params', () => {
+  it('rejects multiple bootstrap params', () => {
     const params = new URLSearchParams(
       `${RENN_AGENT_BUNDLE_QUERY}=agent-starter&${RENN_AGENT_FIXTURE_QUERY}=agentVerificationCarWorld`,
     )
     expect(() => parseAgentDevBootstrapTarget(params)).toThrow(/only one/)
+  })
+
+  it('parses example world query param', () => {
+    const params = new URLSearchParams('rennAgentExampleWorld=world1')
+    expect(parseAgentDevBootstrapTarget(params)).toEqual({
+      kind: 'exampleWorld',
+      exampleWorldId: 'world1',
+    })
   })
 
   it('appends bundle to builder URL', () => {

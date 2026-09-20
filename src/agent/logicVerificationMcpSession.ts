@@ -32,6 +32,8 @@ import {
   resolveInlineVerificationProject,
 } from '@/agent/logicVerificationProjectSource'
 import { exportAgentProjectBundleWorld } from '@/agent/exportAgentProjectBundle'
+import { loadAgentDevExampleWorldPayload } from '@/agent/agentDevProjectBundleServer'
+import { parseAgentMaterialColorInput } from '@/agent/agentMaterialColorParse'
 
 export type LoadWorldJsonInput = {
   world: RennWorld
@@ -54,12 +56,21 @@ export type LoadProjectBundleInput = {
   controlledEntityId?: string | null
 }
 
+export type LoadExampleWorldInput = {
+  exampleWorldId: string
+  dt?: number
+  warmupSteps?: number
+  controlledEntityId?: string | null
+}
+
 export type AttachBrowserInput = {
   devToken: string
   port?: number
   host?: string
   /** Wait for an open Builder tab to register (default 8000 ms). */
   waitForBrowserMs?: number
+  /** Per-RPC timeout when forwarding to Builder (default 30s, or RENN_MCP_BROWSER_RPC_TIMEOUT_MS). */
+  rpcTimeoutMs?: number
 }
 
 async function waitForBrowserSceneViaClient(
@@ -137,20 +148,40 @@ export class LogicVerificationMcpSession {
       port,
       host,
       devToken: input.devToken,
+      rpcTimeoutMs: input.rpcTimeoutMs,
     })
 
     let localBridge = getSharedLogicVerificationBrowserBridge()
     try {
       await client.connect()
-    } catch {
+    } catch (connectErr) {
       if (!localBridge?.isListening) {
-        localBridge = await ensureSharedLogicVerificationBrowserBridge({
-          port,
-          host,
-          devToken: input.devToken,
-        })
+        try {
+          localBridge = await ensureSharedLogicVerificationBrowserBridge({
+            port,
+            host,
+            devToken: input.devToken,
+          })
+        } catch (bridgeErr) {
+          const code =
+            typeof bridgeErr === 'object' &&
+            bridgeErr != null &&
+            'code' in bridgeErr &&
+            (bridgeErr as { code?: string }).code
+          if (code === 'EADDRINUSE') {
+            await client.connect()
+          } else {
+            throw bridgeErr
+          }
+        }
       }
-      await client.connect()
+      if (!client.isConnected) {
+        try {
+          await client.connect()
+        } catch {
+          throw connectErr
+        }
+      }
     }
 
     this.browserClient = client
@@ -210,6 +241,89 @@ export class LogicVerificationMcpSession {
       bundleId: null,
     })
     return { loaded: true, fixtureId: input.fixtureId }
+  }
+
+  async loadExampleWorld(
+    input: LoadExampleWorldInput,
+  ): Promise<{ loaded: true; exampleWorldId: string; assetCount?: number }> {
+    if (this.browserClient) {
+      return (await this.browserClient.invoke('load_example_world', {
+        exampleWorldId: input.exampleWorldId,
+      })) as { loaded: true; exampleWorldId: string }
+    }
+    const resolved = await loadAgentDevExampleWorldPayload(input.exampleWorldId)
+    await this.loadResolvedProject({
+      world: resolved.world,
+      dt: input.dt,
+      warmupSteps: input.warmupSteps,
+      controlledEntityId: input.controlledEntityId,
+      bundleId: null,
+    })
+    return { loaded: true, exampleWorldId: resolved.id, assetCount: 0 }
+  }
+
+  async saveProjectAs(input: {
+    projectName: string
+  }): Promise<{ saved: true; projectId: string; projectName: string }> {
+    this.assertBrowserAttachMode('save_project_as')
+    return (await this.browserClient!.invoke('save_project_as', {
+      projectName: input.projectName,
+    })) as { saved: true; projectId: string; projectName: string }
+  }
+
+  async saveProject(): Promise<{ saved: true; projectId: string | null; projectName: string }> {
+    this.assertBrowserAttachMode('save_project')
+    return (await this.browserClient!.invoke('save_project', {})) as {
+      saved: true
+      projectId: string | null
+      projectName: string
+    }
+  }
+
+  async patchEntityMaterialColor(input: {
+    entityId: string
+    color: string | [number, number, number] | [number, number, number, number]
+  }): Promise<{ patched: true; entityId: string }> {
+    const rgba = parseAgentMaterialColorInput(input.color)
+    if (this.browserClient) {
+      await this.browserClient.invoke('patch_entity_material_color', {
+        entityId: input.entityId,
+        color: rgba,
+      })
+      await this.applyWorldPatch({
+        entities: {
+          update: {
+            [input.entityId]: {
+              material: { color: rgba },
+            },
+          },
+        },
+      })
+      return { patched: true, entityId: input.entityId }
+    }
+    const patchResult = await this.applyWorldPatch({
+      entities: {
+        update: {
+          [input.entityId]: {
+            material: { color: rgba },
+          },
+        },
+      },
+    })
+    if (!patchResult.ok) {
+      throw new Error(patchResult.message)
+    }
+    return { patched: true, entityId: input.entityId }
+  }
+
+  async getSavedEntityMaterialColor(input: {
+    projectName: string
+    entityId: string
+  }): Promise<{ color: [number, number, number, number] | null }> {
+    this.assertBrowserAttachMode('get_saved_entity_material_color')
+    return (await this.browserClient!.invoke('get_saved_entity_material_color', input)) as {
+      color: [number, number, number, number] | null
+    }
   }
 
   async loadProjectBundle(
@@ -370,6 +484,12 @@ export class LogicVerificationMcpSession {
   private assertHeadlessMode(tool: string): void {
     if (this.browserClient) {
       throw new Error(`${tool} is unavailable while attached to Builder — detach first`)
+    }
+  }
+
+  private assertBrowserAttachMode(tool: string): void {
+    if (!this.browserClient) {
+      throw new Error(`${tool} requires attach_browser — open Builder and attach first`)
     }
   }
 

@@ -3,12 +3,19 @@
  */
 
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import fs from 'node:fs/promises'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { loadAgentProjectBundle } from './loadAgentProjectBundle'
 import { loadLogicVerificationFixture } from './logicVerificationFixtures'
+import { assertAgentDevExampleWorldId } from './agentDevExampleWorlds'
 import type { RennWorld } from '@/types/world'
 
+const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url))
+const REPO_ROOT = path.resolve(MODULE_DIR, '../..')
+
 export type AgentDevProjectPayload = {
-  kind: 'bundle' | 'fixture'
+  kind: 'bundle' | 'fixture' | 'exampleWorld'
   id: string
   world: RennWorld
 }
@@ -31,8 +38,19 @@ export async function loadAgentDevFixturePayload(fixtureId: string): Promise<Age
   return { kind: 'fixture', id: fixtureId, world }
 }
 
+export async function loadAgentDevExampleWorldPayload(
+  exampleWorldId: string,
+): Promise<AgentDevProjectPayload> {
+  await assertAgentDevExampleWorldId(exampleWorldId)
+  const worldPath = path.join(REPO_ROOT, 'public', 'exampleWorlds', exampleWorldId, 'world.json')
+  const raw = await fs.readFile(worldPath, 'utf8')
+  const world = JSON.parse(raw) as RennWorld
+  return { kind: 'exampleWorld', id: exampleWorldId, world }
+}
+
 const BUNDLE_PATH_RE = /^\/__renn-agent\/dev\/project-bundle\/([^/]+)\/?$/
 const FIXTURE_PATH_RE = /^\/__renn-agent\/dev\/fixture\/([^/]+)\/?$/
+const EXAMPLE_WORLD_PATH_RE = /^\/__renn-agent\/dev\/example-world\/([^/]+)\/?$/
 
 /** Vite dev middleware handler; no-op outside dev (caller should gate). */
 export async function handleAgentDevProjectMiddleware(
@@ -65,6 +83,20 @@ export async function handleAgentDevProjectMiddleware(
     const fixtureId = decodeURIComponent(fixtureMatch[1])
     try {
       const payload = await loadAgentDevFixturePayload(fixtureId)
+      sendJson(res, 200, payload)
+    } catch (err) {
+      sendJson(res, 400, {
+        error: err instanceof Error ? err.message : String(err),
+      })
+    }
+    return
+  }
+
+  const exampleMatch = path.match(EXAMPLE_WORLD_PATH_RE)
+  if (exampleMatch) {
+    const exampleWorldId = decodeURIComponent(exampleMatch[1])
+    try {
+      const payload = await loadAgentDevExampleWorldPayload(exampleWorldId)
       sendJson(res, 200, payload)
     } catch (err) {
       sendJson(res, 400, {

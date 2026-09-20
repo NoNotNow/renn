@@ -36,7 +36,7 @@ export function createLogicVerificationMcpServer(
     { name: 'renn-logic-verification', version: '0.1.0' },
     {
       instructions:
-        'Headless Renn logic verification. load_project_bundle → apply_world_patch (transformers + entities) → export_project_bundle → start_verification_run → run_for_sim_time or step → get_observation → stop_run. Also: load_fixture, load_world_json. attach_browser uses the live Builder scene — load/export tools are headless-only; human loads the project in Builder first.',
+        'Headless: load_project_bundle | load_fixture | load_example_world | load_world_json → apply_world_patch / patch_entity_material_color → export_project_bundle → start_verification_run → run_for_sim_time | step → get_observation → stop_run. Builder attach: attach_browser → load_example_world, save_project_as, save_project, patch_entity_material_color, get_saved_entity_material_color (IndexedDB). Headless load/export unavailable while attached.',
     },
   )
 
@@ -77,6 +77,78 @@ export function createLogicVerificationMcpServer(
       },
     },
     withAuth(async (input) => jsonText(await session.loadFixture(input))),
+  )
+
+  server.registerTool(
+    'load_example_world',
+    {
+      description:
+        'Load a pinned public example world by id (File → Example Worlds). Headless or Builder attach.',
+      inputSchema: {
+        devToken: devTokenSchema,
+        exampleWorldId: z.string(),
+        dt: z.number().positive().optional(),
+        warmupSteps: z.number().int().min(0).optional(),
+        controlledEntityId: z.string().optional(),
+      },
+    },
+    withAuth(async (input) => jsonText(await session.loadExampleWorld(input))),
+  )
+
+  server.registerTool(
+    'save_project_as',
+    {
+      description: 'Builder attach only: Save current world as a new IndexedDB project name',
+      inputSchema: {
+        devToken: devTokenSchema,
+        projectName: z.string(),
+      },
+    },
+    withAuth(async (input) => jsonText(await session.saveProjectAs(input))),
+  )
+
+  server.registerTool(
+    'save_project',
+    {
+      description: 'Builder attach only: Save current world to IndexedDB (existing or untitled flow)',
+      inputSchema: {
+        devToken: devTokenSchema,
+      },
+    },
+    withAuth(async () => jsonText(await session.saveProject())),
+  )
+
+  const materialColorSchema = z.union([
+    z.string().describe('Hex color e.g. #00ff00'),
+    z.tuple([z.number(), z.number(), z.number()]),
+    z.tuple([z.number(), z.number(), z.number(), z.number()]),
+  ])
+
+  server.registerTool(
+    'patch_entity_material_color',
+    {
+      description:
+        'Set entity material RGB(A) (0–1 components or hex). Updates live Builder doc when attached; headless uses apply_world_patch.',
+      inputSchema: {
+        devToken: devTokenSchema,
+        entityId: z.string(),
+        color: materialColorSchema,
+      },
+    },
+    withAuth(async (input) => jsonText(await session.patchEntityMaterialColor(input))),
+  )
+
+  server.registerTool(
+    'get_saved_entity_material_color',
+    {
+      description: 'Builder attach only: Read material color from a saved IndexedDB project by name',
+      inputSchema: {
+        devToken: devTokenSchema,
+        projectName: z.string(),
+        entityId: z.string(),
+      },
+    },
+    withAuth(async (input) => jsonText(await session.getSavedEntityMaterialColor(input))),
   )
 
   server.registerTool(

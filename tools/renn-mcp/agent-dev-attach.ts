@@ -5,59 +5,25 @@
  * Env: RENN_MCP_DEV_TOKEN (must match Vite / browser bridge), optional RENN_AGENT_DEV_URL.
  * Playwright uses locally installed Chrome (`channel: 'chrome'`), same as e2e.
  */
-import { spawn, type ChildProcess } from 'node:child_process'
 import { chromium, type Browser } from 'playwright'
 import {
   agentDevFixtureApiPath,
   agentDevProjectBundleApiPath,
+  agentDevExampleWorldApiPath,
   type AgentDevBootstrapTarget,
 } from '../../src/agent/agentDevBootstrapParams.ts'
 import {
   assertDevBundleMiddlewareReady,
   builderUrlForAttachTarget,
-  REPO_ROOT,
   resolveBuilderDevUrl,
-  waitForHttpOk,
 } from './agentDevAttachEnv.ts'
+import { ensureDevServer, stopDevServer } from './agentDevServer.ts'
 import { parseAgentDevAttachArgv, runAgentDevAttachRecipe } from './agentDevAttachRecipe.ts'
 
 function attachTargetFromOpts(opts: ReturnType<typeof parseAgentDevAttachArgv>): AgentDevBootstrapTarget {
   if (opts.fixture) return { kind: 'fixture', fixtureId: opts.fixture }
+  if (opts.exampleWorld) return { kind: 'exampleWorld', exampleWorldId: opts.exampleWorld }
   return { kind: 'bundle', bundleId: opts.bundle! }
-}
-
-async function ensureDevServer(): Promise<{ started: boolean; child: ChildProcess | null }> {
-  const url = resolveBuilderDevUrl()
-  try {
-    await waitForHttpOk(url, 2_000)
-    return { started: false, child: null }
-  } catch {
-    // start vite
-  }
-
-  const child = spawn('npm', ['run', 'dev'], {
-    cwd: REPO_ROOT,
-    stdio: 'ignore',
-    detached: process.platform !== 'win32',
-    env: { ...process.env },
-  })
-  child.unref?.()
-  await waitForHttpOk(url, 60_000)
-  return { started: true, child }
-}
-
-async function stopDevServer(child: ChildProcess | null): Promise<void> {
-  if (!child?.pid) return
-  try {
-    process.kill(-child.pid, 'SIGTERM')
-  } catch {
-    try {
-      child.kill('SIGTERM')
-    } catch {
-      // ignore
-    }
-  }
-  await new Promise((resolve) => setTimeout(resolve, 500))
 }
 
 async function main(): Promise<void> {
@@ -79,7 +45,9 @@ async function main(): Promise<void> {
     const devApiPath =
       target.kind === 'bundle'
         ? agentDevProjectBundleApiPath(target.bundleId)
-        : agentDevFixtureApiPath(target.fixtureId)
+        : target.kind === 'fixture'
+          ? agentDevFixtureApiPath(target.fixtureId)
+          : agentDevExampleWorldApiPath(target.exampleWorldId)
     const devPayloadReady = page.waitForResponse((res) => res.url().includes(devApiPath), {
       timeout: 60_000,
     })
