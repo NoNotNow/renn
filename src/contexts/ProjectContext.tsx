@@ -691,13 +691,14 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     installAgentBuilderAuthoring({
       persistence,
       loadExampleWorld,
+      loadProject,
       saveProject,
       saveProjectAs,
       updateWorld,
       getCurrentProjectName: () => currentProject.name,
     })
     return () => uninstallAgentBuilderAuthoring()
-  }, [loadExampleWorld, saveProject, saveProjectAs, updateWorld, currentProject.name])
+  }, [loadExampleWorld, loadProject, saveProject, saveProjectAs, updateWorld, currentProject.name])
   
   return (
     <ProjectContext.Provider value={value}>

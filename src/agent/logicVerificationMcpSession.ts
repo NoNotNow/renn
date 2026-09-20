@@ -262,6 +262,15 @@ export class LogicVerificationMcpSession {
     return { loaded: true, exampleWorldId: resolved.id, assetCount: 0 }
   }
 
+  async loadSavedProject(input: {
+    projectName: string
+  }): Promise<{ loaded: true; projectId: string; projectName: string }> {
+    this.assertBrowserAttachMode('load_saved_project')
+    return (await this.browserClient!.invoke('load_saved_project', {
+      projectName: input.projectName,
+    })) as { loaded: true; projectId: string; projectName: string }
+  }
+
   async saveProjectAs(input: {
     projectName: string
   }): Promise<{ saved: true; projectId: string; projectName: string }> {

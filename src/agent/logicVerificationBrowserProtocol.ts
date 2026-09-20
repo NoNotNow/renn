@@ -70,6 +70,7 @@ export const LOGIC_VERIFICATION_BROWSER_RPC_METHODS = [
   'apply_world_patch',
   'validate_stage_code',
   'load_example_world',
+  'load_saved_project',
   'save_project_as',
   'save_project',
   'patch_entity_material_color',

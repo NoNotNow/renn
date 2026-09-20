@@ -23,6 +23,9 @@ coverage/
 # Cursor MCP (local cwd/token; use .cursor/mcp.json.example)
 .cursor/mcp.json
 
+# Agent Playwright Chrome profile (IndexedDB for work-on-project)
+.renn-agent-browser-profile/
+
 # OS and editor
 .DS_Store
 *.log

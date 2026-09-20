@@ -22,7 +22,8 @@
     "agent:mcp-attach-smoke": "tsx tools/renn-mcp/attach-browser-smoke.ts",
     "agent:dev-attach": "tsx tools/renn-mcp/agent-dev-attach.ts",
     "agent:authoring-smoke": "tsx tools/renn-mcp/agent-authoring-smoke.ts",
-    "agent:authoring-smoke-headed": "RENN_AGENT_SMOKE_HEADED=1 tsx tools/renn-mcp/agent-authoring-smoke.ts"
+    "agent:authoring-smoke-headed": "RENN_AGENT_SMOKE_HEADED=1 tsx tools/renn-mcp/agent-authoring-smoke.ts",
+    "agent:work-on-project": "tsx tools/renn-mcp/agent-work-on-project.ts"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.19.3",

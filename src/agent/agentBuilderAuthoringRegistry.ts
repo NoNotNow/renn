@@ -7,6 +7,9 @@ import type { Rgba01 } from '@/agent/agentMaterialColorParse'
 
 export type AgentBuilderAuthoringActions = {
   loadExampleWorldById: (exampleWorldId: string) => Promise<{ loaded: true; exampleWorldId: string }>
+  loadSavedProjectByName: (
+    projectName: string,
+  ) => Promise<{ loaded: true; projectId: string; projectName: string }>
   saveProjectAs: (projectName: string) => Promise<{ saved: true; projectId: string; projectName: string }>
   saveProject: () => Promise<{ saved: true; projectId: string | null; projectName: string }>
   patchEntityMaterialColor: (

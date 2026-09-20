@@ -123,6 +123,10 @@ export function createLogicVerificationBrowserAttachHandler(): {
         const { exampleWorldId } = params as { exampleWorldId: string }
         return requireAgentBuilderAuthoring().loadExampleWorldById(exampleWorldId)
       }
+      case 'load_saved_project': {
+        const { projectName } = params as { projectName: string }
+        return requireAgentBuilderAuthoring().loadSavedProjectByName(projectName)
+      }
       case 'save_project_as': {
         const { projectName } = params as { projectName: string }
         return requireAgentBuilderAuthoring().saveProjectAs(projectName)

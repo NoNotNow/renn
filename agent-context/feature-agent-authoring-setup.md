@@ -49,6 +49,14 @@ Starter template: `src/agent/projects/agent-starter/` — minimal world with one
 2. `validate_stage_code` → `apply_world_patch` (transformer `code` / `params`) or `patch_entity_material_color`
 3. `register_probes` → `start_verification_run` → `run_for_sim_time` → `get_observation` → `stop_run`
 
+### B″ — Work on a saved project with the user (visible Builder + MCP)
+
+1. Agent or user: `npm run agent:work-on-project -- "<projectName>"` (see `.cursor/skills/work-on-project/SKILL.md`).
+2. MCP: `attach_browser` → `load_saved_project` if reload needed → authoring tools → `save_project`.
+3. Step-by-step: agent proposes MCP steps; user confirms and watches the same Chrome window.
+
+Uses **5173** + **persistent agent profile** (not authoring-smoke 5199).
+
 ### B — In-game reasoning (human sees canvas)
 
 1. Human opens Builder (`npm run dev`), imports the same project zip or edits live.
@@ -91,6 +99,7 @@ Rule: do not add npm scripts or tests named after this illustration — keep flo
 | Tool | Mode | Purpose |
 |------|------|---------|
 | `load_example_world` | Headless + attach | Load `public/exampleWorlds/<exampleWorldId>/world.json` |
+| `load_saved_project` | Attach only | Open IndexedDB project by **display name** (File → Open list) |
 | `save_project_as` | Attach only | IndexedDB duplicate / Save As |
 | `save_project` | Attach only | IndexedDB save current doc |
 | `patch_entity_material_color` | Both | `{ entityId, color }` hex or 0–1 RGB(A); attach updates live doc + host |
@@ -112,6 +121,7 @@ Headless **`export_project_bundle`** remains the on-disk save path for allowlist
 | `npm run agent:dev-attach` | Full dev attach loop (auto Vite + bundle bootstrap + verify); `--bundle` / `--fixture` / `--example-world` |
 | `npm run agent:authoring-smoke` | Env-gated MCP attach smoke: `load_example_world` → `save_project_as` → `patch_entity_material_color` → `save_project` → `get_saved_entity_material_color` (isolated dev port **5199** / bridge **9235**; Chrome). Default: headless, tears down browser + Vite when done. |
 | `npm run agent:authoring-smoke-headed` | Same flow with `RENN_AGENT_SMOKE_HEADED=1` — **visible** Chrome, leaves browser open and keeps Vite on **5199** until **Ctrl+C** in the smoke terminal. |
+| `npm run agent:work-on-project -- "<name>"` | **Collaborative workflow:** visible Chrome on **5173**, persistent profile `.renn-agent-browser-profile/`, opens project by name; then use MCP `attach_browser`. Skill: `.cursor/skills/work-on-project/SKILL.md`. |
 
 **Illustration (five-step hunt copy — env only, not hardcoded in repo):**
 

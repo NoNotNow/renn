@@ -36,7 +36,7 @@ export function createLogicVerificationMcpServer(
     { name: 'renn-logic-verification', version: '0.1.0' },
     {
       instructions:
-        'Headless: load_project_bundle | load_fixture | load_example_world | load_world_json → apply_world_patch / patch_entity_material_color → export_project_bundle → start_verification_run → run_for_sim_time | step → get_observation → stop_run. Builder attach: attach_browser → load_example_world, save_project_as, save_project, patch_entity_material_color, get_saved_entity_material_color (IndexedDB). Headless load/export unavailable while attached.',
+        'Headless: load_project_bundle | load_fixture | load_example_world | load_world_json → apply_world_patch / patch_entity_material_color → export_project_bundle → start_verification_run → run_for_sim_time | step → get_observation → stop_run. Builder attach: attach_browser → load_saved_project, load_example_world, save_project_as, save_project, patch_entity_material_color, get_saved_entity_material_color (IndexedDB). Headless load/export unavailable while attached.',
     },
   )
 
@@ -93,6 +93,19 @@ export function createLogicVerificationMcpServer(
       },
     },
     withAuth(async (input) => jsonText(await session.loadExampleWorld(input))),
+  )
+
+  server.registerTool(
+    'load_saved_project',
+    {
+      description:
+        'Builder attach only: Open an IndexedDB project by display name (File → Open list)',
+      inputSchema: {
+        devToken: devTokenSchema,
+        projectName: z.string(),
+      },
+    },
+    withAuth(async (input) => jsonText(await session.loadSavedProject(input))),
   )
 
   server.registerTool(

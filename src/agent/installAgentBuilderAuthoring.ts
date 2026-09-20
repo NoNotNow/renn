@@ -16,6 +16,7 @@ const BASE_URL = import.meta.env.BASE_URL || '/'
 export type InstallAgentBuilderAuthoringDeps = {
   persistence: PersistenceAPI
   loadExampleWorld: (world: RennWorld, name: string) => void
+  loadProject: (id: string) => Promise<boolean>
   saveProject: () => Promise<boolean>
   saveProjectAs: (name: string) => Promise<boolean>
   updateWorld: (updater: (prev: RennWorld) => RennWorld) => void
@@ -36,6 +37,16 @@ export function installAgentBuilderAuthoring(deps: InstallAgentBuilderAuthoringD
       const world = (await res.json()) as RennWorld
       deps.loadExampleWorld(world, trimmed)
       return { loaded: true, exampleWorldId: trimmed }
+    },
+    async loadSavedProjectByName(projectName: string) {
+      const trimmed = projectName.trim()
+      if (!trimmed) throw new Error('projectName is required')
+      const projects = await deps.persistence.listProjects()
+      const meta = projects.find((p) => p.name === trimmed)
+      if (!meta) throw new Error(`Project not found: ${trimmed}`)
+      const ok = await deps.loadProject(meta.id)
+      if (!ok) throw new Error(`Failed to load project: ${trimmed}`)
+      return { loaded: true, projectId: meta.id, projectName: trimmed }
     },
     async saveProjectAs(projectName: string) {
       const trimmed = projectName.trim()
