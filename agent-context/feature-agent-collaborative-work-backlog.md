@@ -20,6 +20,8 @@ Related: [feature-agent-authoring-setup.md](./feature-agent-authoring-setup.md),
 | 8 | `resolveReachableBuilderDevUrl` probes `127.0.0.1` and `localhost` | On some macOS setups Vite listens on **localhost (IPv6)** only; probes against `127.0.0.1` report failure even when Builder is up (misleading for agents). |
 | 9 | User: “project already open and visible — just work with this one” | Attach adopts **live scene** for sim/patch, but **inspect pipeline** still needs a read API or export; “visible” ≠ “machine-readable” to the agent. |
 | 10 | `/orchestrate` + `/work-on-project` | L1 spawned shell launcher without verifying Playwright fix; long-running browser + Cursor Stop interacts badly with “keep terminal running” skill text. |
+| 11 | File → Export in agent Chrome does nothing useful | Playwright profile sandbox blocks downloads; user cannot unpack zip manually. |
+| 12 | Open dialog strict mode: two `hunt_repair2` controls | Launcher clicked wrong `role="button"`; MCP `load_saved_project` still worked. |
 
 ---
 
@@ -39,7 +41,8 @@ Related: [feature-agent-authoring-setup.md](./feature-agent-authoring-setup.md),
 
 | Item | Action | Owner slice |
 |------|--------|-------------|
-| P0.1 | **Done:** `launchPersistentContext` + don’t abort when Open list misses project (warn, keep browser). | `tools/renn-mcp/agent-work-on-project.ts` |
+| P0.1 | **Done:** `launchPersistentContext` + don’t abort when Open list misses project (warn, keep browser); Open Project modal scoping for duplicate names. | `tools/renn-mcp/agent-work-on-project.ts` |
+| P0.1b | **Done:** IndexedDB → `public/exampleWorlds/<id>/` without browser download (`export_saved_project_to_example_world`, `tools/renn-mcp/agent-export-saved-to-example-world.ts`). | MCP + Vite POST import middleware |
 | P0.2 | Document **Cursor Stop vs Ctrl+C** in work-on-project skill + authoring setup (Stop kills child Chrome; use Activity Monitor / `pkill -f renn-agent-browser-profile` only for agent profile). | skill + `feature-agent-authoring-setup.md` |
 | P0.3 | **Single dev attach policy:** document “run one `npm run dev` for MCP attach; if port ≠ 5173, set `RENN_AGENT_DEV_URL=http://localhost:<port>/renn/` **before** launcher and attach”. | skill + authoring setup |
 | P0.4 | Verify Cursor MCP exposes **`load_saved_project`**, **`save_project`**, **`get_saved_*`** or document **`npm run agent:cli call load_saved_project '{"projectName":"…"}'`** after `attach_browser` in same machine session. | `.cursor/mcp.json` / MCP registration audit |

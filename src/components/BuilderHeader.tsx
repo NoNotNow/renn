@@ -1,4 +1,4 @@
-import { useRef, useState, useLayoutEffect, useCallback } from 'react'
+import { useRef, useState, useLayoutEffect, useCallback, useEffect } from 'react'
 import MenuBar from './MenuBar'
 import DropdownMenu, { type MenuItemConfig } from './DropdownMenu'
 import type { RennWorld, Vec3 } from '@/types/world'
@@ -16,6 +16,11 @@ import { BrushToolPopover } from '@/components/BrushToolPopover'
 import { entityPanelIconButtonStyle } from '@/components/sharedStyles'
 import { formatMenuShortcut } from '@/utils/menuShortcut'
 import { EntityPanelIcons } from './EntityPanelIcons'
+import { agentDevExampleWorldsListApiPath } from '@/agent/agentDevBootstrapParams'
+import { discoverExampleWorldIdsFromBuild } from '@/utils/discoverExampleWorldIds'
+import { loadExampleWorldFromPublicBase } from '@/utils/loadExampleWorldFromPublicBase'
+
+const BUILDER_BASE_URL = import.meta.env.BASE_URL || '/'
 
 export interface BuilderHeaderProps {
   onLeftSidebarToggle?: () => void
@@ -55,7 +60,7 @@ export interface BuilderHeaderProps {
   onOpenTextureStudio?: () => void
   onOpenWorkspace?: () => void
   selectedEntityCount?: number
-  onOpenExampleWorld?: (worldJson: RennWorld, name: string) => void
+  onOpenExampleWorld?: (worldJson: RennWorld, name: string, assets?: Map<string, Blob>) => void
 }
 
 export default function BuilderHeader({
@@ -126,35 +131,49 @@ export default function BuilderHeader({
   }
 
   const recentProjects = projects.slice(0, 5)
-  // Example worlds data - folder structure from @folder:exampleWorlds
-  // Files are served from public/exampleWorlds, base URL is /renn/
-  const exampleWorlds = [
-    { name: 'hunt', importPath: '/renn/exampleWorlds/hunt/world.json' },
-    { name: 'world1', importPath: '/renn/exampleWorlds/world1/world.json' },
-  ]
+  const [exampleWorldIds, setExampleWorldIds] = useState<string[]>(() =>
+    import.meta.env.DEV ? [] : discoverExampleWorldIdsFromBuild(),
+  )
 
-  const handleOpenExampleWorldClick = useCallback(async (worldName: string, importPath: string) => {
-    if (!onOpenExampleWorld) return
-    try {
-      const response = await fetch(importPath)
-      if (!response.ok) {
-        console.error('Failed to load example world:', response.status, response.statusText)
-        alert('Failed to load example world')
-        return
-      }
-      const worldJson = await response.json()
-      onOpenExampleWorld(worldJson, worldName)
-      uiLogger.select('BuilderHeader', 'Open example world from menu', { worldName })
-    } catch (err) {
-      console.error('Failed to load example world:', err)
-      alert('Failed to load example world')
+  useEffect(() => {
+    if (!import.meta.env.DEV) return
+    let cancelled = false
+    void fetch(agentDevExampleWorldsListApiPath())
+      .then(async (res) => {
+        if (!res.ok) throw new Error(String(res.status))
+        const body = (await res.json()) as { ids?: string[] }
+        return body.ids ?? []
+      })
+      .then((ids) => {
+        if (!cancelled) setExampleWorldIds(ids)
+      })
+      .catch(() => {
+        if (!cancelled) setExampleWorldIds(discoverExampleWorldIdsFromBuild())
+      })
+    return () => {
+      cancelled = true
     }
-  }, [onOpenExampleWorld])
+  }, [])
 
-  const exampleWorldsMenuItems: MenuItemConfig[] = exampleWorlds.map((w) => ({
+  const handleOpenExampleWorldClick = useCallback(
+    async (worldId: string) => {
+      if (!onOpenExampleWorld) return
+      try {
+        const { world, assets } = await loadExampleWorldFromPublicBase(BUILDER_BASE_URL, worldId)
+        onOpenExampleWorld(world, worldId, assets)
+        uiLogger.select('BuilderHeader', 'Open example world from menu', { worldName: worldId })
+      } catch (err) {
+        console.error('Failed to load example world:', err)
+        alert('Failed to load example world')
+      }
+    },
+    [onOpenExampleWorld],
+  )
+
+  const exampleWorldsMenuItems: MenuItemConfig[] = exampleWorldIds.map((id) => ({
     type: 'item' as const,
-    label: w.name,
-    onClick: () => void handleOpenExampleWorldClick(w.name, w.importPath),
+    label: id,
+    onClick: () => void handleOpenExampleWorldClick(id),
   }))
 
   const fileMenuItems: MenuItemConfig[] = [
@@ -177,6 +196,7 @@ export default function BuilderHeader({
     {
       type: 'submenu',
       label: 'Example Worlds',
+      disabled: exampleWorldIds.length === 0,
       items: exampleWorldsMenuItems,
     },
     {

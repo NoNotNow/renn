@@ -30,6 +30,16 @@ export type AgentBuilderAuthoringActions = {
     entityId: string,
   ) => Promise<{ color: Rgba01 | null }>
   getSavedProjectWorld: (projectName: string) => Promise<RennWorld>
+  exportSavedProjectToExampleWorld: (input: {
+    projectName: string
+    exampleWorldId: string
+  }) => Promise<{
+    exported: true
+    projectName: string
+    exampleWorldId: string
+    assetFileCount: number
+    folderPath: string
+  }>
   getCurrentWorld: () => RennWorld
   applyLogicVerificationWorldPatchToDocument: (
     patch: LogicVerificationWorldPatch,

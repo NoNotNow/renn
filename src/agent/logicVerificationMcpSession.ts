@@ -32,7 +32,7 @@ import {
   resolveInlineVerificationProject,
 } from '@/agent/logicVerificationProjectSource'
 import { exportAgentProjectBundleWorld } from '@/agent/exportAgentProjectBundle'
-import { loadAgentDevExampleWorldPayload } from '@/agent/agentDevProjectBundleServer'
+import { loadAgentExampleWorldFromDisk } from '@/agent/loadAgentExampleWorldFromDisk'
 import { parseAgentMaterialColorInput } from '@/agent/agentMaterialColorParse'
 import {
   buildEntityAuthoringSummary,
@@ -257,15 +257,20 @@ export class LogicVerificationMcpSession {
         exampleWorldId: input.exampleWorldId,
       })) as { loaded: true; exampleWorldId: string }
     }
-    const resolved = await loadAgentDevExampleWorldPayload(input.exampleWorldId)
+    const resolved = await loadAgentExampleWorldFromDisk(input.exampleWorldId)
     await this.loadResolvedProject({
       world: resolved.world,
+      assets: resolved.assets,
       dt: input.dt,
       warmupSteps: input.warmupSteps,
       controlledEntityId: input.controlledEntityId,
       bundleId: null,
     })
-    return { loaded: true, exampleWorldId: resolved.id, assetCount: 0 }
+    return {
+      loaded: true,
+      exampleWorldId: resolved.exampleWorldId,
+      assetCount: resolved.assets.size,
+    }
   }
 
   async loadSavedProject(input: {
@@ -292,6 +297,29 @@ export class LogicVerificationMcpSession {
       saved: true
       projectId: string | null
       projectName: string
+    }
+  }
+
+  async exportSavedProjectToExampleWorld(input: {
+    projectName: string
+    exampleWorldId: string
+  }): Promise<{
+    exported: true
+    projectName: string
+    exampleWorldId: string
+    assetFileCount: number
+    folderPath: string
+  }> {
+    this.assertBrowserAttachMode('export_saved_project_to_example_world')
+    return (await this.browserClient!.invoke('export_saved_project_to_example_world', {
+      projectName: input.projectName,
+      exampleWorldId: input.exampleWorldId,
+    })) as {
+      exported: true
+      projectName: string
+      exampleWorldId: string
+      assetFileCount: number
+      folderPath: string
     }
   }
 

@@ -2,14 +2,27 @@
 
 ## Folder Structure (`public/exampleWorlds/`)
 
-Example worlds are stored in [`public/exampleWorlds/`](../public/exampleWorlds/) and can be opened via **File → Example Worlds** menu in the Builder.
+Example worlds are stored in [`public/exampleWorlds/`](../public/exampleWorlds/) and can be opened via **File → Example Worlds** menu in the Builder. Each id is a folder name that contains at least `world.json`; GLB-heavy exports also need an `assets/` tree (same layout as a Builder **Export** zip).
 
-### Available Worlds
+**Discovery:** In dev, the Builder menu loads ids from `GET /__renn-agent/dev/example-worlds` (folders under `public/exampleWorlds/` with `world.json`). Production builds use the same folder set at compile time. Agent/MCP code uses `listAgentDevExampleWorldIds()` — never a hardcoded id list in `src/` or `tools/`.
 
-| World | Folder | Description |
-|-------|--------|-------------|
-| `hunt` | [`public/exampleWorlds/hunt/`](../public/exampleWorlds/hunt/) | Hunt-themed world with assets |
-| `world1` | [`public/exampleWorlds/world1/`](../public/exampleWorlds/world1/) | General example world |
+### Adding a world from Export
+
+1. In Builder: **Export** (zip with `world.json` + `assets/`).
+2. Unpack into `public/exampleWorlds/<id>/` (choose a stable folder name = `exampleWorldId`).
+3. Do **not** commit large GLB binaries unless the team wants them in git.
+4. **Agent Chrome cannot download exports:** use MCP `export_saved_project_to_example_world` or `npx tsx tools/renn-mcp/agent-export-saved-to-example-world.ts` (see below).
+5. Reload dev (or wait for the Example Worlds menu fetch in dev) — **File → Example Worlds**, MCP `load_example_world`, or `npm run agent:work-on-project -- --example-world <id>`.
+
+Browser and MCP loaders fetch `world.json` and hydrate blobs from `exampleWorlds/<id>/assets/` via `loadExampleWorldFromPublicBase` (attach) and `loadAgentExampleWorldFromDisk` (headless Node).
+
+### Shipped examples (may change)
+
+| World | Folder | Notes |
+|-------|--------|--------|
+| `hunt` | [`public/exampleWorlds/hunt/`](../public/exampleWorlds/hunt/) | Includes GLB assets |
+| `world1` | [`public/exampleWorlds/world1/`](../public/exampleWorlds/world1/) | General example |
+| `hunt_repair2` | [`public/exampleWorlds/hunt_repair2/`](../public/exampleWorlds/hunt_repair2/) | Large repair/hunt scene (660+ entities); exported via agent disk import |
 
 ### Legacy Example
 
@@ -66,6 +79,12 @@ Global **`world.wind`** `[2, 0, 0]` is passed into the transformer pipeline in P
   ]
 }
 ```
+
+### Export from agent Chrome (downloads blocked)
+
+The agent Playwright profile often cannot save downloads. With Builder attached via MCP:
+
+1. `export_saved_project_to_example_world` with `{ "projectName": "<display name>", "exampleWorldId": "<folder id>" }` — writes `public/exampleWorlds/<id>/` from IndexedDB (dev-only, matches `RENN_MCP_DEV_TOKEN`).
 
 ### How to test
 

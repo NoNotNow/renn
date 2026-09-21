@@ -51,7 +51,7 @@ Starter template: `src/agent/projects/agent-starter/` — minimal world with one
 
 ### B″ — Work on a saved project with the user (visible Builder + MCP)
 
-1. Agent or user: `npm run agent:work-on-project -- "<projectName>"` (see `.cursor/skills/work-on-project/SKILL.md`).
+1. Agent or user: `npm run agent:work-on-project -- "<projectName>"` **or** `npm run agent:work-on-project -- --example-world "<exampleWorldId>"` when the scene lives only under `public/exampleWorlds/` (see `.cursor/skills/work-on-project/SKILL.md`).
 2. MCP: `attach_browser` → `load_saved_project` if reload needed → authoring tools → `save_project`.
 3. Step-by-step: agent proposes MCP steps; user confirms and watches the same Chrome window.
 
@@ -67,7 +67,7 @@ Uses **5173** + **persistent agent profile** (not authoring-smoke 5199).
 
 1. `npm run agent:dev-attach` — starts or reuses Vite, opens Builder with `?rennAgentBundle=agent-starter` (or `--bundle` / `--fixture` / `--example-world <id>`), waits for the logic-verification WebSocket bridge + scene adopt, runs the same minimal verify loop as headless, prints `{ ok: true }`, tears down Playwright and Vite if this command started the dev server.
 2. **Env:** `RENN_MCP_DEV_TOKEN` (same as MCP / optional `VITE_RENN_MCP_DEV_TOKEN`); Playwright **Chrome** channel (see `playwright.config.ts`). Optional `RENN_AGENT_DEV_URL` (default `http://127.0.0.1:5173/renn/`).
-3. Allowlisted bundle ids match `loadAgentProjectBundle`; fixtures match MCP `load_fixture`; example worlds match **File → Example Worlds** (ids under `public/exampleWorlds/`). Dev middleware serves `GET /__renn-agent/dev/project-bundle/:id`, `/__renn-agent/dev/fixture/:id`, and `/__renn-agent/dev/example-world/:id` (optional bootstrap via `?rennAgentExampleWorld=<id>`). Vite `serve` only — not in production builds.
+3. Allowlisted bundle ids match `loadAgentProjectBundle`; fixtures match MCP `load_fixture`; example worlds match **File → Example Worlds** (ids under `public/exampleWorlds/` with `world.json`, plus `assets/` when exported). Dev middleware serves `GET /__renn-agent/dev/project-bundle/:id`, `/__renn-agent/dev/fixture/:id`, `/__renn-agent/dev/example-world/:id`, and `/__renn-agent/dev/example-worlds` (id list). Bootstrap via `?rennAgentExampleWorld=<id>` loads world + assets from `public/`. Vite `serve` only — not in production builds.
 4. **CI cost:** full attach launches Chrome + dev server; keep default `vitest run` fast — use `npm run agent:dev-attach` locally or an env-gated job, not every unit test run.
 
 ### C — Create entities (headless)
@@ -98,8 +98,9 @@ Rule: do not add npm scripts or tests named after this illustration — keep flo
 
 | Tool | Mode | Purpose |
 |------|------|---------|
-| `load_example_world` | Headless + attach | Load `public/exampleWorlds/<exampleWorldId>/world.json` |
+| `load_example_world` | Headless + attach | Load `public/exampleWorlds/<exampleWorldId>/` (`world.json` + `assets/` when present) |
 | `load_saved_project` | Attach only | Open IndexedDB project by **display name** (File → Open list) |
+| `export_saved_project_to_example_world` | Attach only | IndexedDB export → `public/exampleWorlds/<exampleWorldId>/` (agent profile blocks downloads) |
 | `save_project_as` | Attach only | IndexedDB duplicate / Save As |
 | `save_project` | Attach only | IndexedDB save current doc |
 | `get_entity_authoring_summary` | Attach + headless | Entity pipe stack + stage metadata (`includeCode`, optional `projectName` for IndexedDB) |
@@ -123,7 +124,8 @@ Headless **`export_project_bundle`** remains the on-disk save path for allowlist
 | `npm run agent:dev-attach` | Full dev attach loop (auto Vite + bundle bootstrap + verify); `--bundle` / `--fixture` / `--example-world` |
 | `npm run agent:authoring-smoke` | Env-gated MCP attach smoke: `load_example_world` → `save_project_as` → `patch_entity_material_color` → `save_project` → `get_saved_entity_material_color` (isolated dev port **5199** / bridge **9235**; Chrome). Default: headless, tears down browser + Vite when done. |
 | `npm run agent:authoring-smoke-headed` | Same flow with `RENN_AGENT_SMOKE_HEADED=1` — **visible** Chrome, leaves browser open and keeps Vite on **5199** until **Ctrl+C** in the smoke terminal. |
-| `npm run agent:work-on-project -- "<name>"` | **Collaborative workflow:** visible Chrome on **5173**, persistent profile `.renn-agent-browser-profile/`, opens project by name; then use MCP `attach_browser`. Skill: `.cursor/skills/work-on-project/SKILL.md`. Known friction + plan: [feature-agent-collaborative-work-backlog.md](./feature-agent-collaborative-work-backlog.md). |
+| `npm run agent:work-on-project -- "<name>"` | **Collaborative workflow:** visible Chrome on **5173**, persistent profile `.renn-agent-browser-profile/`, opens IndexedDB project by name; then use MCP `attach_browser`. |
+| `npm run agent:work-on-project -- --example-world "<id>"` | Same, but opens Builder with `?rennAgentExampleWorld=<id>` (repo example under `public/exampleWorlds/`). Env: `RENN_AGENT_EXAMPLE_WORLD`. Skill: `.cursor/skills/work-on-project/SKILL.md`. Known friction: [feature-agent-collaborative-work-backlog.md](./feature-agent-collaborative-work-backlog.md). |
 
 **Illustration (five-step hunt copy — env only, not hardcoded in repo):**
 

@@ -51,3 +51,8 @@ export async function assertAgentDevExampleWorldId(exampleWorldId: string): Prom
 export function resetAgentDevExampleWorldIdCacheForTests(): void {
   cachedExampleWorldIds = null
 }
+
+/** After writing a new example world folder on disk (dev import). */
+export function invalidateAgentDevExampleWorldIdCache(): void {
+  cachedExampleWorldIds = null
+}

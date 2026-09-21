@@ -89,7 +89,7 @@ interface ProjectContextActions {
   fileInputRef: React.RefObject<HTMLInputElement>
   
   // Example Worlds
-  loadExampleWorld: (world: RennWorld, name: string) => void
+  loadExampleWorld: (world: RennWorld, name: string, assets?: Map<string, Blob>) => void
   
   // Play mode
   handlePlay: () => void
@@ -536,13 +536,13 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     e.target.value = ''
   }, [refreshProjects, loadProject, resetCameraFromWorld, resetEntityWorkHistory, setAssets])
   
-  const loadExampleWorld = useCallback((world: RennWorld, name: string) => {
+  const loadExampleWorld = useCallback((world: RennWorld, name: string, assets?: Map<string, Blob>) => {
     uiLogger.select('Builder', 'Open example world', { worldName: name })
     worldRef.current = world
     setWorld(world)
     resetCameraFromWorld(world)
     editorFreePoseRef.current = world.world.camera?.editorFreePose ?? null
-    setAssets(new Map())
+    setAssets(assets ? new Map(assets) : new Map())
     resetEntityWorkHistory()
     setCurrentProject({
       id: null,

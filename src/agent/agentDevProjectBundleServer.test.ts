@@ -27,10 +27,14 @@ describe('agentDevProjectBundleServer', () => {
   it('loads allowlisted example world payload', async () => {
     const ids = await listAgentDevExampleWorldIds()
     expect(ids.length).toBeGreaterThan(0)
-    const exampleWorldId = ids[0]!
+    const exampleWorldId = ids.includes('world1') ? 'world1' : ids[0]!
     const payload = await loadAgentDevExampleWorldPayload(exampleWorldId)
     expect(payload.kind).toBe('exampleWorld')
     expect(payload.id).toBe(exampleWorldId)
     expect(payload.world.entities.length).toBeGreaterThan(0)
+    if (ids.includes('hunt')) {
+      const huntPayload = await loadAgentDevExampleWorldPayload('hunt')
+      expect(huntPayload.assetCount).toBeGreaterThan(0)
+    }
   })
 })

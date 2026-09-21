@@ -34,7 +34,7 @@ function resolveBrowserAttachPort(explicit?: number): number {
   return DEFAULT_LOGIC_VERIFICATION_BROWSER_PORT
 }
 
-function resolveBrowserDevToken(explicit?: string): string {
+export function resolveBrowserDevToken(explicit?: string): string {
   if (explicit) return explicit
   const fromEnv = import.meta.env.VITE_RENN_MCP_DEV_TOKEN
   if (fromEnv && String(fromEnv).length > 0) return String(fromEnv)

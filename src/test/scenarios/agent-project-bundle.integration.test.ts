@@ -88,7 +88,7 @@ describe('Agent project bundle (integration)', () => {
   it('loads example world via MCP load_example_world', async () => {
     const ids = await listAgentDevExampleWorldIds()
     expect(ids.length).toBeGreaterThan(0)
-    const exampleWorldId = ids[0]!
+    const exampleWorldId = ids.includes('world1') ? 'world1' : ids[0]!
     const examplePayload = await loadAgentDevExampleWorldPayload(exampleWorldId)
     const patchEntityId =
       examplePayload.world.entities.find((e) => e.material)?.id ??

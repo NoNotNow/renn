@@ -3,16 +3,13 @@
  */
 
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import fs from 'node:fs/promises'
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { loadAgentProjectBundle } from './loadAgentProjectBundle'
 import { loadLogicVerificationFixture } from './logicVerificationFixtures'
-import { assertAgentDevExampleWorldId } from './agentDevExampleWorlds'
+import { listAgentDevExampleWorldIds } from './agentDevExampleWorlds'
+import { loadAgentExampleWorldFromDisk } from './loadAgentExampleWorldFromDisk'
+import { writeAgentExampleWorldFromExportZip } from './writeAgentExampleWorldFromExportZip'
+import { resolveMcpDevToken, verifyMcpDevToken } from './logicVerificationMcpAuth'
 import type { RennWorld } from '@/types/world'
-
-const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url))
-const REPO_ROOT = path.resolve(MODULE_DIR, '../..')
 
 export type AgentDevProjectPayload = {
   kind: 'bundle' | 'fixture' | 'exampleWorld'
@@ -40,17 +37,41 @@ export async function loadAgentDevFixturePayload(fixtureId: string): Promise<Age
 
 export async function loadAgentDevExampleWorldPayload(
   exampleWorldId: string,
-): Promise<AgentDevProjectPayload> {
-  await assertAgentDevExampleWorldId(exampleWorldId)
-  const worldPath = path.join(REPO_ROOT, 'public', 'exampleWorlds', exampleWorldId, 'world.json')
-  const raw = await fs.readFile(worldPath, 'utf8')
-  const world = JSON.parse(raw) as RennWorld
-  return { kind: 'exampleWorld', id: exampleWorldId, world }
+): Promise<AgentDevProjectPayload & { assetCount: number }> {
+  const loaded = await loadAgentExampleWorldFromDisk(exampleWorldId)
+  return {
+    kind: 'exampleWorld',
+    id: loaded.exampleWorldId,
+    world: loaded.world,
+    assetCount: loaded.assets.size,
+  }
 }
 
 const BUNDLE_PATH_RE = /^\/__renn-agent\/dev\/project-bundle\/([^/]+)\/?$/
 const FIXTURE_PATH_RE = /^\/__renn-agent\/dev\/fixture\/([^/]+)\/?$/
 const EXAMPLE_WORLD_PATH_RE = /^\/__renn-agent\/dev\/example-world\/([^/]+)\/?$/
+const EXAMPLE_WORLDS_LIST_PATH_RE = /^\/__renn-agent\/dev\/example-worlds\/?$/
+const EXAMPLE_WORLD_IMPORT_PATH_RE =
+  /^\/__renn-agent\/dev\/example-world\/([^/]+)\/import\/?$/
+
+const MAX_EXAMPLE_WORLD_IMPORT_BYTES = 512 * 1024 * 1024
+
+async function readRequestBodyBuffer(
+  req: IncomingMessage,
+  maxBytes: number,
+): Promise<Buffer> {
+  const chunks: Buffer[] = []
+  let total = 0
+  for await (const chunk of req) {
+    const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
+    total += buf.length
+    if (total > maxBytes) {
+      throw new Error(`Request body exceeds ${maxBytes} bytes`)
+    }
+    chunks.push(buf)
+  }
+  return Buffer.concat(chunks)
+}
 
 /** Vite dev middleware handler; no-op outside dev (caller should gate). */
 export async function handleAgentDevProjectMiddleware(
@@ -58,12 +79,52 @@ export async function handleAgentDevProjectMiddleware(
   res: ServerResponse,
   next: () => void,
 ): Promise<void> {
-  if (req.method !== 'GET' || !req.url) {
+  if (!req.url) {
     next()
     return
   }
 
   const path = req.url.split('?')[0] ?? ''
+
+  if (req.method === 'POST') {
+    const importMatch = path.match(EXAMPLE_WORLD_IMPORT_PATH_RE)
+    if (importMatch) {
+      const exampleWorldId = decodeURIComponent(importMatch[1])
+      const tokenHeader = req.headers['x-renn-mcp-dev-token']
+      const providedToken = Array.isArray(tokenHeader) ? tokenHeader[0] : tokenHeader
+      try {
+        verifyMcpDevToken(providedToken, resolveMcpDevToken())
+        const body = await readRequestBodyBuffer(req, MAX_EXAMPLE_WORLD_IMPORT_BYTES)
+        const result = await writeAgentExampleWorldFromExportZip(exampleWorldId, body)
+        sendJson(res, 200, result)
+      } catch (err) {
+        sendJson(res, 400, {
+          error: err instanceof Error ? err.message : String(err),
+        })
+      }
+      return
+    }
+    next()
+    return
+  }
+
+  if (req.method !== 'GET') {
+    next()
+    return
+  }
+
+  if (path.match(EXAMPLE_WORLDS_LIST_PATH_RE)) {
+    try {
+      const ids = await listAgentDevExampleWorldIds()
+      sendJson(res, 200, { ids })
+    } catch (err) {
+      sendJson(res, 500, {
+        error: err instanceof Error ? err.message : String(err),
+      })
+    }
+    return
+  }
+
   const bundleMatch = path.match(BUNDLE_PATH_RE)
   if (bundleMatch) {
     const bundleId = decodeURIComponent(bundleMatch[1])

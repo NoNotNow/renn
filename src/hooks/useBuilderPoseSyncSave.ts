@@ -30,7 +30,7 @@ export interface UseBuilderPoseSyncSaveParams {
   syncPosesToRefOnly: (poses: ScenePoses) => void
   newProject: () => void
   loadProject: (id: string) => void
-  loadExampleWorld: (world: RennWorld, name: string) => void
+  loadExampleWorld: (world: RennWorld, name: string, assets?: Map<string, Blob>) => void
 }
 
 export interface UseBuilderPoseSyncSaveResult {
@@ -100,9 +100,9 @@ export function useBuilderPoseSyncSave({
   }, [currentProject.isDirty, newProject])
 
   const handleOpenExampleWorld = useCallback(
-    (worldJson: RennWorld, name: string) => {
+    (worldJson: RennWorld, name: string, assets?: Map<string, Blob>) => {
       if (currentProject.isDirty && !confirm('Discard unsaved changes?')) return
-      loadExampleWorld(worldJson, name)
+      loadExampleWorld(worldJson, name, assets)
     },
     [currentProject.isDirty, loadExampleWorld],
   )

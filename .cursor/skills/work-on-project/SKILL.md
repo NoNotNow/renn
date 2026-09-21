@@ -9,7 +9,12 @@ disable-model-invocation: true
 
 # Work on project (visible Builder + MCP)
 
-**Parameter:** `projectName` — the IndexedDB project display name (from File → Open). Pass it from the user message; do not hardcode product names in code.
+**Parameters (one of):**
+
+- `projectName` — IndexedDB project display name (File → Open).
+- `exampleWorldId` — folder id under `public/exampleWorlds/<id>/` (repo export unpacked there; no IndexedDB copy required).
+
+Pass values from the user message; do not hardcode product names in code.
 
 ## 1. Open Builder for the user
 
@@ -19,7 +24,14 @@ Run (repo root):
 npm run agent:work-on-project -- "<projectName>"
 ```
 
-Or: `RENN_AGENT_PROJECT_NAME="<projectName>" npm run agent:work-on-project`
+Example world only in repo (no saved project):
+
+```bash
+npm run agent:work-on-project -- --example-world "<exampleWorldId>"
+```
+
+Or: `RENN_AGENT_PROJECT_NAME="<projectName>" npm run agent:work-on-project`  
+Or: `RENN_AGENT_EXAMPLE_WORLD="<exampleWorldId>" npm run agent:work-on-project`
 
 - Uses **default dev** (`http://localhost:5173/renn/`), not authoring-smoke port 5199.
 - Uses **persistent** Chrome profile `.renn-agent-browser-profile/` (IndexedDB survives across runs; not the user’s everyday Chrome — see `agent-context/feature-agent-authoring-setup.md` § *Browser and IndexedDB isolation*).
@@ -50,6 +62,7 @@ If attach fails: confirm the **same** Chrome window from step 1 is still open an
 | Inspect entity pipeline | `get_entity_authoring_summary` `{ "entityId", "includeCode"?: true }` (live doc after attach) |
 | Reload project | `load_saved_project` `{ "projectName": "<from user>" }` (or `npm run agent:cli call …` if Cursor MCP omits attach-only tools — restart MCP after pull) |
 | Load example | `load_example_world` `{ "exampleWorldId": "<id>" }` |
+| IndexedDB → repo example (no browser download) | `export_saved_project_to_example_world` `{ "projectName", "exampleWorldId" }` or `npx tsx tools/renn-mcp/agent-export-saved-to-example-world.ts` |
 | Duplicate / rename save | `save_project_as` `{ "projectName": "<name>" }` |
 | Persist | `save_project` |
 | Tint / material | `patch_entity_material_color` `{ "entityId", "color" }` |

@@ -64,3 +64,11 @@ export function agentDevFixtureApiPath(fixtureId: string): string {
 export function agentDevExampleWorldApiPath(exampleWorldId: string): string {
   return `/__renn-agent/dev/example-world/${encodeURIComponent(exampleWorldId)}`
 }
+
+export function agentDevExampleWorldImportApiPath(exampleWorldId: string): string {
+  return `/__renn-agent/dev/example-world/${encodeURIComponent(exampleWorldId)}/import`
+}
+
+export function agentDevExampleWorldsListApiPath(): string {
+  return '/__renn-agent/dev/example-worlds'
+}

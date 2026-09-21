@@ -14,12 +14,15 @@ import {
   applyLogicVerificationWorldPatch,
   type LogicVerificationWorldPatch,
 } from '@/agent/applyLogicVerificationWorldPatch'
+import { loadExampleWorldFromPublicBase } from '@/utils/loadExampleWorldFromPublicBase'
+import { agentDevExampleWorldImportApiPath } from '@/agent/agentDevBootstrapParams'
+import { resolveBrowserDevToken } from '@/agent/logicVerificationBrowserAttachClient'
 
 const BASE_URL = import.meta.env.BASE_URL || '/'
 
 export type InstallAgentBuilderAuthoringDeps = {
   persistence: PersistenceAPI
-  loadExampleWorld: (world: RennWorld, name: string) => void
+  loadExampleWorld: (world: RennWorld, name: string, assets?: Map<string, Blob>) => void
   loadProject: (id: string) => Promise<boolean>
   saveProject: () => Promise<boolean>
   saveProjectAs: (name: string) => Promise<boolean>
@@ -35,12 +38,8 @@ export function installAgentBuilderAuthoring(deps: InstallAgentBuilderAuthoringD
     async loadExampleWorldById(exampleWorldId: string) {
       const trimmed = exampleWorldId.trim()
       if (!trimmed) throw new Error('exampleWorldId is required')
-      const res = await fetch(`${BASE_URL}exampleWorlds/${encodeURIComponent(trimmed)}/world.json`)
-      if (!res.ok) {
-        throw new Error(`Example world not found: ${trimmed}`)
-      }
-      const world = (await res.json()) as RennWorld
-      deps.loadExampleWorld(world, trimmed)
+      const { world, assets } = await loadExampleWorldFromPublicBase(BASE_URL, trimmed)
+      deps.loadExampleWorld(world, trimmed, assets)
       return { loaded: true, exampleWorldId: trimmed }
     },
     async loadSavedProjectByName(projectName: string) {
@@ -115,6 +114,44 @@ export function installAgentBuilderAuthoring(deps: InstallAgentBuilderAuthoringD
       if (!meta) throw new Error(`Project not found: ${trimmed}`)
       const loaded = await deps.persistence.loadProject(meta.id)
       return loaded.world
+    },
+    async exportSavedProjectToExampleWorld(input) {
+      const projectName = input.projectName.trim()
+      const exampleWorldId = input.exampleWorldId.trim()
+      if (!projectName || !exampleWorldId) {
+        throw new Error('projectName and exampleWorldId are required')
+      }
+      const projects = await deps.persistence.listProjects()
+      const meta = projects.find((p) => p.name === projectName)
+      if (!meta) throw new Error(`Project not found: ${projectName}`)
+      const zipBlob = await deps.persistence.exportProject(meta.id)
+      const zipBytes = new Uint8Array(await zipBlob.arrayBuffer())
+      const devToken = resolveBrowserDevToken(undefined)
+      const importPath = agentDevExampleWorldImportApiPath(exampleWorldId)
+      const res = await fetch(importPath, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/zip',
+          'X-Renn-Mcp-Dev-Token': devToken,
+        },
+        body: zipBytes,
+      })
+      const body = (await res.json()) as {
+        error?: string
+        exampleWorldId?: string
+        folderPath?: string
+        assetFileCount?: number
+      }
+      if (!res.ok) {
+        throw new Error(body.error ?? `Example world import failed (${res.status})`)
+      }
+      return {
+        exported: true as const,
+        projectName,
+        exampleWorldId: body.exampleWorldId ?? exampleWorldId,
+        assetFileCount: body.assetFileCount ?? 0,
+        folderPath: body.folderPath ?? '',
+      }
     },
     getCurrentWorld: () => deps.getCurrentWorld(),
     applyLogicVerificationWorldPatchToDocument(patch: LogicVerificationWorldPatch) {

@@ -167,6 +167,16 @@ export function createLogicVerificationBrowserAttachHandler(): {
       case 'save_project': {
         return requireAgentBuilderAuthoring().saveProject()
       }
+      case 'export_saved_project_to_example_world': {
+        const { projectName, exampleWorldId } = params as {
+          projectName: string
+          exampleWorldId: string
+        }
+        return requireAgentBuilderAuthoring().exportSavedProjectToExampleWorld({
+          projectName,
+          exampleWorldId,
+        })
+      }
       case 'patch_entity_material_color': {
         const { entityId, color } = params as { entityId: string; color: Rgba01 }
         return requireAgentBuilderAuthoring().patchEntityMaterialColor(entityId, color)
