@@ -17,7 +17,6 @@ export type UseLogicVerificationBrowserAttachArgs = {
   worldRef: React.RefObject<RennWorld>
   entitiesRef: React.RefObject<LoadedEntity[]>
   avatarSessionRef?: React.RefObject<AvatarSession | null>
-  registryEpoch: number
 }
 
 export function useLogicVerificationBrowserAttach({
@@ -27,7 +26,6 @@ export function useLogicVerificationBrowserAttach({
   worldRef,
   entitiesRef,
   avatarSessionRef,
-  registryEpoch,
 }: UseLogicVerificationBrowserAttachArgs): void {
   const sessionRef = useRef<{ dispose: () => void } | null>(null)
 
@@ -48,14 +46,14 @@ export function useLogicVerificationBrowserAttach({
           const physicsWorld = physicsRef.current
           const world = worldRef.current
           const entities = entitiesRef.current
-          if (!registry || !physicsWorld || !world || !entities?.length) {
+          if (!registry || !physicsWorld || !world) {
             return null
           }
           return {
             world,
             registry,
             physicsWorld,
-            entities,
+            entities: entities ?? [],
             dt: DEFAULT_LOGIC_VERIFICATION_DT,
             controlledEntityIdRef: avatarSessionRef?.current?.controlledEntityIdRef,
           }
@@ -68,13 +66,5 @@ export function useLogicVerificationBrowserAttach({
       sessionRef.current?.dispose()
       sessionRef.current = null
     }
-  }, [
-    enabled,
-    registryEpoch,
-    registryRef,
-    physicsRef,
-    worldRef,
-    entitiesRef,
-    avatarSessionRef,
-  ])
+  }, [enabled, registryRef, physicsRef, worldRef, entitiesRef, avatarSessionRef])
 }

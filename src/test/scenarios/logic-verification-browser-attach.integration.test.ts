@@ -15,6 +15,7 @@ import { handleLogicVerificationBrowserRpcMessage } from '@/agent/logicVerificat
 import { createLogicVerificationHost } from '@/agent/logicVerificationHost'
 import {
   AGENT_VERIFICATION_CAR_WARMUP_STEPS,
+  AGENT_VERIFICATION_CAR_ENTITY_ID,
   loadAgentVerificationCarWorld,
 } from '@/agent/fixtures/agentVerificationCarWorld'
 import { resetLogicVerificationExclusiveSteppingForTests } from '@/agent/logicVerificationExclusiveStepping'
@@ -93,6 +94,23 @@ describe('Logic verification browser attach (integration)', () => {
 
     const obs = await session.getObservationAsync()
     expect(obs.timeline.length).toBeGreaterThan(0)
+    await session.dispose()
+  })
+
+  it('get_entity_authoring_summary returns pipe metadata over browser RPC', async () => {
+    const port = 19234 + Math.floor(Math.random() * 1000)
+    bridge = new LogicVerificationBrowserBridgeServer({ port, devToken: DEV_TOKEN })
+    await bridge.start()
+    setSharedLogicVerificationBrowserBridge(bridge)
+    stopBrowser = await startSimulatedBuilderTab(port)
+
+    const session = new LogicVerificationMcpSession()
+    await session.attachBrowser({ devToken: DEV_TOKEN, port, waitForBrowserMs: 10_000 })
+    const summary = (await session.getEntityAuthoringSummary({
+      entityId: AGENT_VERIFICATION_CAR_ENTITY_ID,
+    })) as { entityId: string; stages: unknown[] }
+    expect(summary.entityId).toBe(AGENT_VERIFICATION_CAR_ENTITY_ID)
+    expect(summary.stages.length).toBeGreaterThan(0)
     await session.dispose()
   })
 

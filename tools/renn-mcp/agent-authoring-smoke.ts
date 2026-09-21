@@ -32,7 +32,7 @@ function requireEnv(name: string): string {
   return value
 }
 
-export function isHeadedAuthoringSmoke(): boolean {
+function isHeadedAuthoringSmoke(): boolean {
   if (process.argv.includes('--headed')) return true
   const v = process.env.RENN_AGENT_SMOKE_HEADED?.trim().toLowerCase()
   return v === '1' || v === 'true' || v === 'yes'

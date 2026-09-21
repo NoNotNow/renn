@@ -102,6 +102,8 @@ Rule: do not add npm scripts or tests named after this illustration — keep flo
 | `load_saved_project` | Attach only | Open IndexedDB project by **display name** (File → Open list) |
 | `save_project_as` | Attach only | IndexedDB duplicate / Save As |
 | `save_project` | Attach only | IndexedDB save current doc |
+| `get_entity_authoring_summary` | Attach + headless | Entity pipe stack + stage metadata (`includeCode`, optional `projectName` for IndexedDB) |
+| `get_world_authoring_snapshot` | Attach + headless | Bounded multi-entity authoring snapshot |
 | `patch_entity_material_color` | Both | `{ entityId, color }` hex or 0–1 RGB(A); attach updates live doc + host |
 | `get_saved_entity_material_color` | Attach only | Read back from IndexedDB by `projectName` |
 
@@ -121,7 +123,7 @@ Headless **`export_project_bundle`** remains the on-disk save path for allowlist
 | `npm run agent:dev-attach` | Full dev attach loop (auto Vite + bundle bootstrap + verify); `--bundle` / `--fixture` / `--example-world` |
 | `npm run agent:authoring-smoke` | Env-gated MCP attach smoke: `load_example_world` → `save_project_as` → `patch_entity_material_color` → `save_project` → `get_saved_entity_material_color` (isolated dev port **5199** / bridge **9235**; Chrome). Default: headless, tears down browser + Vite when done. |
 | `npm run agent:authoring-smoke-headed` | Same flow with `RENN_AGENT_SMOKE_HEADED=1` — **visible** Chrome, leaves browser open and keeps Vite on **5199** until **Ctrl+C** in the smoke terminal. |
-| `npm run agent:work-on-project -- "<name>"` | **Collaborative workflow:** visible Chrome on **5173**, persistent profile `.renn-agent-browser-profile/`, opens project by name; then use MCP `attach_browser`. Skill: `.cursor/skills/work-on-project/SKILL.md`. |
+| `npm run agent:work-on-project -- "<name>"` | **Collaborative workflow:** visible Chrome on **5173**, persistent profile `.renn-agent-browser-profile/`, opens project by name; then use MCP `attach_browser`. Skill: `.cursor/skills/work-on-project/SKILL.md`. Known friction + plan: [feature-agent-collaborative-work-backlog.md](./feature-agent-collaborative-work-backlog.md). |
 
 **Illustration (five-step hunt copy — env only, not hardcoded in repo):**
 
@@ -168,6 +170,19 @@ Do **not** expect `open -a "Google Chrome" 'http://localhost:5199/renn/'` to sho
 ### AFK agents (`/orchestrate`)
 
 L3 workers should use **`agent:cli` / `agent:recipe-headless`** in shell after edits—not assume Cursor MCP is available in Task subagents. L1 may still use the **renn-logic-verification** MCP namespace when enabled; that session is **singleton** (detach with `stop_run` before headless loads). ADR: [docs/adr/0003-agent-afk-orchestration-runtime.md](../docs/adr/0003-agent-afk-orchestration-runtime.md).
+
+**MCP `apply_world_patch` on an open Builder tab (dev):** patches the **ProjectContext** world (same as the UI), runs incremental **`syncWorldEntities`** (no full scene restart), then re-adopts the attach host. Play mode should keep running; **`save_project`** persists to IndexedDB. After pulling attach-sync changes, **restart `npm run dev`** once so the browser tab loads the new bridge code.
+
+**Patch surface (Builder attach or headless host):**
+
+| Field | Purpose |
+|---|---|
+| `transformers` | Registry stage defs (`code`, `params`, …) |
+| `transformerPipes` | Pipe defs — `stagePatches[]` with `match: { name \| stageId \| stageIndex }` + `patch` on inline `pipe.stages` |
+| `entityPipeStack` | Per-entity `mergeBindingParams` on a pipe-stack binding (sets follow `id` for all stages in that pipe instance) |
+| `entities` | Add / update / remove entities |
+
+Read: **`get_entity_authoring_summary`** / **`get_world_authoring_snapshot`** (merged params, pipe stack). Fix recipe: `npx tsx tools/renn-mcp/agent-fix-follower-pipeline.ts` (attach + registry + pipe inline + binding params + save).
 
 ---
 

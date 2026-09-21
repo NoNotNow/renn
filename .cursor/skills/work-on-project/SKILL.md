@@ -25,8 +25,12 @@ Or: `RENN_AGENT_PROJECT_NAME="<projectName>" npm run agent:work-on-project`
 - Uses **persistent** Chrome profile `.renn-agent-browser-profile/` (IndexedDB survives across runs; not the user’s everyday Chrome — see `agent-context/feature-agent-authoring-setup.md` § *Browser and IndexedDB isolation*).
 - Leaves **visible Chrome** open until the user **Ctrl+C** in that terminal.
 - If `npm run dev` is not running, the script starts it.
+- If Vite uses another port, set `RENN_AGENT_DEV_URL=http://localhost:<port>/renn/` before the command (IndexedDB is per origin). Only one dev instance should own the logic-verification bridge (default **9234**).
+- **Do not use Cursor Stop** on the launcher terminal if you want to keep Chrome open — Stop kills the process without a clean shutdown; prefer **Ctrl+C** in that terminal. Stuck agent Chrome: `pkill -f renn-agent-browser-profile` (not your daily Chrome profile).
 
 Tell the user: *“Builder is open with your project; keep that terminal running while we work.”*
+
+Friction backlog: `agent-context/feature-agent-collaborative-work-backlog.md`.
 
 ## 2. Connect MCP
 
@@ -43,7 +47,8 @@ If attach fails: confirm the **same** Chrome window from step 1 is still open an
 
 | Intent | MCP tools (generic args only) |
 |--------|-------------------------------|
-| Reload project | `load_saved_project` `{ "projectName": "<from user>" }` |
+| Inspect entity pipeline | `get_entity_authoring_summary` `{ "entityId", "includeCode"?: true }` (live doc after attach) |
+| Reload project | `load_saved_project` `{ "projectName": "<from user>" }` (or `npm run agent:cli call …` if Cursor MCP omits attach-only tools — restart MCP after pull) |
 | Load example | `load_example_world` `{ "exampleWorldId": "<id>" }` |
 | Duplicate / rename save | `save_project_as` `{ "projectName": "<name>" }` |
 | Persist | `save_project` |

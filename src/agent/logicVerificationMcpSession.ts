@@ -34,6 +34,10 @@ import {
 import { exportAgentProjectBundleWorld } from '@/agent/exportAgentProjectBundle'
 import { loadAgentDevExampleWorldPayload } from '@/agent/agentDevProjectBundleServer'
 import { parseAgentMaterialColorInput } from '@/agent/agentMaterialColorParse'
+import {
+  buildEntityAuthoringSummary,
+  buildWorldAuthoringSnapshot,
+} from '@/agent/agentEntityAuthoringSummary'
 
 export type LoadWorldJsonInput = {
   world: RennWorld
@@ -87,7 +91,9 @@ async function waitForBrowserSceneViaClient(
     }
     await new Promise((resolve) => setTimeout(resolve, 50))
   }
-  throw new Error('Timed out waiting for Builder browser attach')
+  throw new Error(
+    'Timed out waiting for Builder browser attach — open the project in Builder on the dev server that owns the MCP bridge (default port 9234, usually the first `npm run dev` on http://localhost:5173/renn/). Keep that tab open while the agent runs.',
+  )
 }
 
 export class LogicVerificationMcpSession {
@@ -333,6 +339,36 @@ export class LogicVerificationMcpSession {
     return (await this.browserClient!.invoke('get_saved_entity_material_color', input)) as {
       color: [number, number, number, number] | null
     }
+  }
+
+  async getEntityAuthoringSummary(input: {
+    entityId: string
+    includeCode?: boolean
+    codeMaxChars?: number
+    projectName?: string
+  }) {
+    if (this.browserClient) {
+      return await this.browserClient.invoke('get_entity_authoring_summary', input)
+    }
+    const world = this.requireHeadlessHost().getWorld()
+    return buildEntityAuthoringSummary(world, input.entityId, {
+      includeCode: input.includeCode,
+      codeMaxChars: input.codeMaxChars,
+    })
+  }
+
+  async getWorldAuthoringSnapshot(input: {
+    entityIds?: string[]
+    includeCode?: boolean
+    codeMaxChars?: number
+    maxEntities?: number
+    projectName?: string
+  }) {
+    if (this.browserClient) {
+      return await this.browserClient.invoke('get_world_authoring_snapshot', input)
+    }
+    const world = this.requireHeadlessHost().getWorld()
+    return buildWorldAuthoringSnapshot(world, input)
   }
 
   async loadProjectBundle(

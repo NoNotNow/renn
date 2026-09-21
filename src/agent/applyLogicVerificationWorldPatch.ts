@@ -1,10 +1,43 @@
-import type { TransformerConfig } from '@/types/transformer'
+import type { TransformerConfig, TransformerPipe } from '@/types/transformer'
 import type { Entity, RennWorld } from '@/types/world'
 import { validateCustomTransformerSource } from '@/transformers/customCodeTransformer'
 import {
   getEntityStructuralSceneKey,
   worldChangesRequireSceneRebuild,
 } from '@/utils/sceneDependencyKey'
+import {
+  entitiesReferencingTransformerIds,
+  entitiesUsingPipeIds,
+} from '@/agent/logicVerificationWorldPatchAffected'
+import { getEntityPipeStack } from '@/utils/transformerPipeResolve'
+
+export type LogicVerificationPipeStageMatch = {
+  /** Registry id on pipe member or pipe.stageIds[index] */
+  stageId?: string
+  /** Match `TransformerConfig.name` on inline pipe.stages snapshot */
+  name?: string
+  /** Index in pipe.stages / pipe.stageIds */
+  stageIndex?: number
+}
+
+export type LogicVerificationTransformerPipePatch = {
+  name?: string
+  /** Patch inline snapshots on the pipe definition (authoring copies). */
+  stagePatches?: Array<{
+    match: LogicVerificationPipeStageMatch
+    patch: Partial<TransformerConfig>
+  }>
+}
+
+export type LogicVerificationEntityPipeStackPatch = {
+  entityId: string
+  /** Stack entry index (default 0). */
+  stackIndex?: number
+  /** Alternative locator when stackIndex omitted. */
+  pipeId?: string
+  mergeBindingParams?: Record<string, unknown>
+  enabled?: boolean
+}
 
 export type LogicVerificationEntityPatch = {
   add?: Entity[]
@@ -15,6 +48,10 @@ export type LogicVerificationEntityPatch = {
 export type LogicVerificationWorldPatch = {
   /** Partial updates keyed by transformer registry id (e.g. `car_tf1`). */
   transformers?: Record<string, Partial<TransformerConfig>>
+  /** Patch pipe definitions (inline stage snapshots + metadata). */
+  transformerPipes?: Record<string, LogicVerificationTransformerPipePatch>
+  /** Merge params on an entity's pipe-stack binding (binding scope). */
+  entityPipeStack?: LogicVerificationEntityPipeStackPatch[]
   entities?: LogicVerificationEntityPatch
   /** Required when the patch would trigger a full scene rebuild (entity add/remove, structural edits). */
   allowSceneRebuild?: boolean
@@ -76,6 +113,103 @@ function entityStructuralKeyChanged(prev: Entity, next: Entity): boolean {
   return getEntityStructuralSceneKey(prev) !== getEntityStructuralSceneKey(next)
 }
 
+function findPipeStageIndex(
+  pipe: TransformerPipe,
+  match: LogicVerificationPipeStageMatch,
+): number | undefined {
+  if (match.stageIndex != null) {
+    if (match.stageIndex < 0 || match.stageIndex >= pipe.stages.length) return undefined
+    return match.stageIndex
+  }
+  if (match.stageId) {
+    const byIds = pipe.stageIds.indexOf(match.stageId)
+    if (byIds >= 0) return byIds
+    const byStage = pipe.stages.findIndex((s) => s.name === match.stageId)
+    if (byStage >= 0) return byStage
+  }
+  if (match.name) {
+    const idx = pipe.stages.findIndex((s) => s.name === match.name)
+    if (idx >= 0) return idx
+  }
+  return undefined
+}
+
+function applyPipeStagePatches(
+  pipe: TransformerPipe,
+  stagePatches: LogicVerificationTransformerPipePatch['stagePatches'],
+): TransformerPipe | { ok: false; message: string } {
+  if (!stagePatches?.length) return pipe
+  const next = structuredClone(pipe) as TransformerPipe
+  next.stages = [...(next.stages ?? [])]
+  next.stageIds = [...(next.stageIds ?? [])]
+
+  for (const entry of stagePatches) {
+    const idx = findPipeStageIndex(next, entry.match)
+    if (idx == null) {
+      const hint = JSON.stringify(entry.match)
+      return { ok: false, message: `Pipe stage not found for match ${hint} on pipe ${pipe.id}` }
+    }
+    const prevStage = next.stages[idx]
+    if (!prevStage) {
+      return { ok: false, message: `Pipe ${pipe.id} has no inline stage at index ${idx}` }
+    }
+    if (typeof entry.patch.code === 'string') {
+      const message = validateCustomTransformerSource(
+        entry.patch.code,
+        entry.match.stageId ?? prevStage.name ?? `${pipe.id}_stage_${idx}`,
+      )
+      if (message) return { ok: false, message }
+    }
+    const merged = mergeTransformerDef(prevStage, entry.patch)
+    if (!merged) {
+      return { ok: false, message: `Failed to merge pipe stage at index ${idx}` }
+    }
+    next.stages[idx] = merged
+  }
+  return next
+}
+
+function applyEntityPipeStackPatch(
+  entity: Entity,
+  patch: LogicVerificationEntityPipeStackPatch,
+): Entity | { ok: false; message: string } {
+  const stack = [...getEntityPipeStack(entity)]
+  if (stack.length === 0) {
+    return { ok: false, message: `Entity ${patch.entityId} has no pipe stack` }
+  }
+
+  let stackIndex = patch.stackIndex ?? 0
+  if (patch.pipeId) {
+    const found = stack.findIndex((b) => b.pipeId === patch.pipeId)
+    if (found < 0) {
+      return { ok: false, message: `Entity ${patch.entityId} is not bound to pipe ${patch.pipeId}` }
+    }
+    stackIndex = found
+  }
+
+  if (stackIndex < 0 || stackIndex >= stack.length) {
+    return { ok: false, message: `Invalid stackIndex ${stackIndex} for entity ${patch.entityId}` }
+  }
+
+  const binding = { ...stack[stackIndex]! }
+  if (patch.mergeBindingParams) {
+    binding.params = {
+      ...(binding.params ?? {}),
+      ...patch.mergeBindingParams,
+    }
+  }
+  if (patch.enabled !== undefined) {
+    binding.enabled = patch.enabled
+  }
+  stack[stackIndex] = binding
+
+  return {
+    ...entity,
+    transformerPipeStack: stack,
+    transformerPipe: undefined,
+  }
+}
+
 export function applyLogicVerificationWorldPatch(
   prev: RennWorld,
   patch: LogicVerificationWorldPatch,
@@ -83,6 +217,10 @@ export function applyLogicVerificationWorldPatch(
   const hasTransformers = Boolean(
     patch.transformers && Object.keys(patch.transformers).length > 0,
   )
+  const hasTransformerPipes = Boolean(
+    patch.transformerPipes && Object.keys(patch.transformerPipes).length > 0,
+  )
+  const hasEntityPipeStack = (patch.entityPipeStack?.length ?? 0) > 0
   const entityPatch = patch.entities
   const hasEntityAdd = (entityPatch?.add?.length ?? 0) > 0
   const hasEntityRemove = (entityPatch?.remove?.length ?? 0) > 0
@@ -91,15 +229,17 @@ export function applyLogicVerificationWorldPatch(
   )
   const hasEntities = hasEntityAdd || hasEntityRemove || hasEntityUpdate
 
-  if (!hasTransformers && !hasEntities) {
+  if (!hasTransformers && !hasEntities && !hasTransformerPipes && !hasEntityPipeStack) {
     return {
       ok: false,
-      message: 'Patch must include transformer and/or entity changes',
+      message:
+        'Patch must include transformers, transformerPipes, entityPipeStack, and/or entity changes',
     }
   }
 
   const nextWorld = structuredClone(prev) as RennWorld
   nextWorld.transformers = nextWorld.transformers ?? {}
+  nextWorld.transformerPipes = nextWorld.transformerPipes ?? {}
   nextWorld.entities = [...nextWorld.entities]
 
   const removedEntityIds: string[] = []
@@ -173,6 +313,47 @@ export function applyLogicVerificationWorldPatch(
     }
   }
 
+  const pipeStackPatchedEntityIds: string[] = []
+
+  if (hasEntityPipeStack && patch.entityPipeStack) {
+    for (const stackPatch of patch.entityPipeStack) {
+      const idx = nextWorld.entities.findIndex((e) => e.id === stackPatch.entityId)
+      if (idx < 0) {
+        return { ok: false, message: `Unknown entity id: ${stackPatch.entityId}` }
+      }
+      const prevEntity = nextWorld.entities[idx]!
+      const merged = applyEntityPipeStackPatch(prevEntity, stackPatch)
+      if ('ok' in merged && merged.ok === false) {
+        return merged
+      }
+      nextWorld.entities[idx] = merged as Entity
+      pipeStackPatchedEntityIds.push(stackPatch.entityId)
+      if (!metadataUpdatedIds.includes(stackPatch.entityId)) {
+        metadataUpdatedIds.push(stackPatch.entityId)
+      }
+    }
+  }
+
+  const patchedPipeIds: string[] = []
+  if (hasTransformerPipes && patch.transformerPipes) {
+    for (const [pipeId, pipePatch] of Object.entries(patch.transformerPipes)) {
+      const prevPipe = nextWorld.transformerPipes![pipeId]
+      if (!prevPipe) {
+        return { ok: false, message: `Unknown transformer pipe id: ${pipeId}` }
+      }
+      const withStages = applyPipeStagePatches(prevPipe, pipePatch.stagePatches)
+      if ('ok' in withStages && withStages.ok === false) {
+        return withStages
+      }
+      const mergedPipe = {
+        ...(withStages as TransformerPipe),
+        ...(pipePatch.name !== undefined ? { name: pipePatch.name } : {}),
+      }
+      nextWorld.transformerPipes![pipeId] = mergedPipe
+      patchedPipeIds.push(pipeId)
+    }
+  }
+
   const patchedTransformerIds: string[] = []
   if (hasTransformers && patch.transformers) {
     for (const [tfId, tfPatch] of Object.entries(patch.transformers)) {
@@ -207,17 +388,17 @@ export function applyLogicVerificationWorldPatch(
     }
   }
 
-  const affectedFromTransformers = nextWorld.entities
-    .filter((entity) => entity.transformers?.some((id) => patchedTransformerIds.includes(id)))
-    .map((entity) => entity.id)
-
-  if (hasTransformers && affectedFromTransformers.length === 0 && !hasEntities) {
-    return { ok: false, message: 'No entities reference the patched transformers' }
-  }
+  const affectedFromTransformers = entitiesReferencingTransformerIds(
+    nextWorld,
+    patchedTransformerIds,
+  )
+  const affectedFromPipes = entitiesUsingPipeIds(nextWorld, patchedPipeIds)
 
   const affectedEntityIds = [
     ...new Set([
       ...affectedFromTransformers,
+      ...affectedFromPipes,
+      ...pipeStackPatchedEntityIds,
       ...metadataUpdatedIds,
       ...physicsRebuiltEntityIds,
       ...addedEntities.map((e) => e.id),
@@ -228,7 +409,10 @@ export function applyLogicVerificationWorldPatch(
   let mode: 'transformers' | 'entity-metadata' | 'entity-scene' = 'transformers'
   if (entitySceneMutation) {
     mode = 'entity-scene'
-  } else if (hasEntities && !hasTransformers) {
+  } else if (
+    (hasEntities || hasEntityPipeStack || hasTransformerPipes) &&
+    !hasTransformers
+  ) {
     mode = 'entity-metadata'
   } else if (hasEntities && hasTransformers) {
     mode = entitySceneMutation ? 'entity-scene' : 'transformers'

@@ -10,6 +10,10 @@ import {
   type AgentBuilderAuthoringActions,
 } from '@/agent/agentBuilderAuthoringRegistry'
 import type { Rgba01 } from '@/agent/agentMaterialColorParse'
+import {
+  applyLogicVerificationWorldPatch,
+  type LogicVerificationWorldPatch,
+} from '@/agent/applyLogicVerificationWorldPatch'
 
 const BASE_URL = import.meta.env.BASE_URL || '/'
 
@@ -21,6 +25,7 @@ export type InstallAgentBuilderAuthoringDeps = {
   saveProjectAs: (name: string) => Promise<boolean>
   updateWorld: (updater: (prev: RennWorld) => RennWorld) => void
   getCurrentProjectName: () => string
+  getCurrentWorld: () => RennWorld
 }
 
 export function installAgentBuilderAuthoring(deps: InstallAgentBuilderAuthoringDeps): void {
@@ -101,6 +106,28 @@ export function installAgentBuilderAuthoring(deps: InstallAgentBuilderAuthoringD
       if (!meta) return { color: null }
       const loaded = await deps.persistence.loadProject(meta.id)
       return { color: entityMaterialColorFromWorld(loaded.world, eid) }
+    },
+    async getSavedProjectWorld(projectName: string) {
+      const trimmed = projectName.trim()
+      if (!trimmed) throw new Error('projectName is required')
+      const projects = await deps.persistence.listProjects()
+      const meta = projects.find((p) => p.name === trimmed)
+      if (!meta) throw new Error(`Project not found: ${trimmed}`)
+      const loaded = await deps.persistence.loadProject(meta.id)
+      return loaded.world
+    },
+    getCurrentWorld: () => deps.getCurrentWorld(),
+    applyLogicVerificationWorldPatchToDocument(patch: LogicVerificationWorldPatch) {
+      const prev = deps.getCurrentWorld()
+      const result = applyLogicVerificationWorldPatch(prev, patch)
+      if (!result.ok) return result
+      deps.updateWorld(() => result.nextWorld)
+      return {
+        ok: true as const,
+        affectedEntityIds: result.affectedEntityIds,
+        prevWorld: prev,
+        nextWorld: result.nextWorld,
+      }
     },
   }
 

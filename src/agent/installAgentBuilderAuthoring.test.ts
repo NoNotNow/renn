@@ -5,6 +5,7 @@ import {
 } from '@/agent/installAgentBuilderAuthoring'
 import { requireAgentBuilderAuthoring } from '@/agent/agentBuilderAuthoringRegistry'
 import type { PersistenceAPI } from '@/persistence/types'
+import type { RennWorld } from '@/types/world'
 
 describe('installAgentBuilderAuthoring', () => {
   beforeEach(() => {
@@ -26,6 +27,7 @@ describe('installAgentBuilderAuthoring', () => {
       saveProjectAs: vi.fn(async () => true),
       updateWorld: vi.fn(),
       getCurrentProjectName: () => 'Untitled',
+      getCurrentWorld: () => ({ version: '1.0', world: {}, entities: [] }) as RennWorld,
     })
 
     const result = await requireAgentBuilderAuthoring().loadSavedProjectByName('My Game')

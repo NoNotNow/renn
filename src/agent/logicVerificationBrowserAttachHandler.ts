@@ -15,10 +15,30 @@ import {
 } from '@/agent/logicVerificationRunController'
 import { requireAgentBuilderAuthoring } from '@/agent/agentBuilderAuthoringRegistry'
 import type { Rgba01 } from '@/agent/agentMaterialColorParse'
+import {
+  getEntityAuthoringSummaryFromWorldSource,
+  getWorldAuthoringSnapshotFromWorldSource,
+} from '@/agent/agentAuthoringWorldSource'
+import { runAgentBuilderLiveSceneSync } from '@/agent/agentBuilderLiveSceneSync'
 
 export type LogicVerificationBrowserAttachHandlerState = {
   host: LogicVerificationHost | null
   runActive: boolean
+}
+
+let attachLiveSceneConfigGetter: (() => LogicVerificationLiveSceneConfig | null) | null = null
+let readoptAttachHostFromLiveScene: (() => void) | null = null
+
+/** Dev-only: Builder tab registers live scene snapshot for MCP patch re-adopt. */
+export function setLogicVerificationAttachLiveSceneConfigGetter(
+  fn: (() => LogicVerificationLiveSceneConfig | null) | null,
+): void {
+  attachLiveSceneConfigGetter = fn
+}
+
+/** Re-adopt attach host from live scene without disposing the WebSocket session (play-safe). */
+export function readoptLogicVerificationAttachHost(): void {
+  readoptAttachHostFromLiveScene?.()
 }
 
 export function createLogicVerificationBrowserAttachHandler(): {
@@ -59,7 +79,13 @@ export function createLogicVerificationBrowserAttachHandler(): {
     state.host = LogicVerificationHost.adoptLiveScene(config)
   }
 
+  readoptAttachHostFromLiveScene = () => {
+    const cfg = attachLiveSceneConfigGetter?.()
+    if (cfg) adoptScene(cfg)
+  }
+
   const disposeHost = (): void => {
+    readoptAttachHostFromLiveScene = null
     state.host?.dispose()
     state.host = null
     controller?.resetRunState()
@@ -117,7 +143,14 @@ export function createLogicVerificationBrowserAttachHandler(): {
       }
       case 'apply_world_patch': {
         const patch = params as LogicVerificationWorldPatch
-        return run.applyWorldPatch(patch)
+        const doc = requireAgentBuilderAuthoring().applyLogicVerificationWorldPatchToDocument(patch)
+        if (!doc.ok) return doc
+        if (doc.prevWorld && doc.nextWorld) {
+          await runAgentBuilderLiveSceneSync(doc.prevWorld, doc.nextWorld, doc.affectedEntityIds)
+        }
+        const cfg = attachLiveSceneConfigGetter?.()
+        if (cfg) adoptScene(cfg)
+        return { ok: true as const, affectedEntityIds: doc.affectedEntityIds }
       }
       case 'load_example_world': {
         const { exampleWorldId } = params as { exampleWorldId: string }
@@ -141,6 +174,23 @@ export function createLogicVerificationBrowserAttachHandler(): {
       case 'get_saved_entity_material_color': {
         const { projectName, entityId } = params as { projectName: string; entityId: string }
         return requireAgentBuilderAuthoring().getSavedEntityMaterialColor(projectName, entityId)
+      }
+      case 'get_entity_authoring_summary': {
+        return getEntityAuthoringSummaryFromWorldSource(state, params as {
+          entityId: string
+          includeCode?: boolean
+          codeMaxChars?: number
+          projectName?: string
+        })
+      }
+      case 'get_world_authoring_snapshot': {
+        return getWorldAuthoringSnapshotFromWorldSource(state, params as {
+          entityIds?: string[]
+          includeCode?: boolean
+          codeMaxChars?: number
+          maxEntities?: number
+          projectName?: string
+        })
       }
       default:
         throw new Error(`Unknown browser RPC method: ${method}`)

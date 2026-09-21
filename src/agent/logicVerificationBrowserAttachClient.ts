@@ -11,6 +11,7 @@ import { handleLogicVerificationBrowserRpcMessage } from '@/agent/logicVerificat
 import { DEFAULT_MCP_DEV_TOKEN } from '@/agent/logicVerificationMcpAuth'
 import { createLogicVerificationBrowserAttachHandler } from '@/agent/logicVerificationBrowserAttachHandler'
 import type { LogicVerificationLiveSceneConfig } from '@/agent/logicVerificationHost'
+import { setLogicVerificationAttachLiveSceneConfigGetter } from '@/agent/logicVerificationBrowserAttachHandler'
 
 export type LogicVerificationBrowserAttachDeps = {
   getLiveSceneConfig: () => LogicVerificationLiveSceneConfig | null
@@ -60,6 +61,8 @@ export function startLogicVerificationBrowserAttach(
     handler.adoptScene(config)
   }
 
+  setLogicVerificationAttachLiveSceneConfigGetter(deps.getLiveSceneConfig)
+
   const connect = (): void => {
     if (disposed) return
     syncLiveHost()
@@ -94,6 +97,7 @@ export function startLogicVerificationBrowserAttach(
     handler,
     dispose: () => {
       disposed = true
+      setLogicVerificationAttachLiveSceneConfigGetter(null)
       if (reconnectTimer) clearTimeout(reconnectTimer)
       socket?.close()
       socket = null

@@ -19,19 +19,23 @@ export function resolveBuilderDevUrl(): string {
   return raw.endsWith('/') ? raw : `${raw}/`
 }
 
-/** When Vite picks another port (5173 busy), probe local /renn/ URLs. */
+/** When Vite picks another port (5173 busy), probe local /renn/ URLs. Prefer localhost (IPv6) before 127.0.0.1. */
 export function builderDevUrlCandidates(): string[] {
   const seen = new Set<string>()
+  const ordered: string[] = []
   const add = (url: string) => {
     const normalized = url.endsWith('/') ? url : `${url}/`
-    if (!seen.has(normalized)) seen.add(normalized)
+    if (!seen.has(normalized)) {
+      seen.add(normalized)
+      ordered.push(normalized)
+    }
   }
   add(resolveBuilderDevUrl())
   for (let port = 5173; port <= 5180; port++) {
     add(`http://localhost:${port}/renn/`)
     add(`http://127.0.0.1:${port}/renn/`)
   }
-  return [...seen]
+  return ordered
 }
 
 export async function resolveReachableBuilderDevUrl(timeoutMs: number): Promise<string> {

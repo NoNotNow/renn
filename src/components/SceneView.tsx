@@ -83,6 +83,8 @@ import {
   type SceneRuntimeHostCallbacks,
 } from '@/runtime/sceneRuntimeSession'
 import { useLogicVerificationBrowserAttach } from '@/hooks/useLogicVerificationBrowserAttach'
+import { registerAgentBuilderLiveSceneSync } from '@/agent/agentBuilderLiveSceneSync'
+import { readoptLogicVerificationAttachHost } from '@/agent/logicVerificationBrowserAttachHandler'
 export interface SceneViewProps {
   world: RennWorld
   cameraConfig?: CameraConfig
@@ -531,8 +533,17 @@ function SceneViewInner({
     }
 
     avatarSessionRef.current?.syncWorld(next)
+
     registry.syncAllShapeWireframeOverlays(next.entities)
-    setRegistryEpoch((n) => n + 1)
+
+    const structural =
+      worldPipeRegistryChanged(prev, next) || removedIds.length > 0 || added.length > 0
+    if (structural) {
+      setRegistryEpoch((n) => n + 1)
+    }
+    if (structural || updated.length > 0) {
+      readoptLogicVerificationAttachHost()
+    }
   }, [scene])
 
   const syncWorldEntitiesRef = useRef(syncWorldEntities)
@@ -723,8 +734,15 @@ function SceneViewInner({
     worldRef,
     entitiesRef,
     avatarSessionRef,
-    registryEpoch,
   })
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return
+    registerAgentBuilderLiveSceneSync(async (prev, next, _affected) => {
+      await syncWorldEntitiesRef.current(prev, next)
+    })
+    return () => registerAgentBuilderLiveSceneSync(null)
+  }, [])
 
   // Main scene setup effect
   useEffect(() => {

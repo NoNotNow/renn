@@ -36,7 +36,7 @@ export function createLogicVerificationMcpServer(
     { name: 'renn-logic-verification', version: '0.1.0' },
     {
       instructions:
-        'Headless: load_project_bundle | load_fixture | load_example_world | load_world_json → apply_world_patch / patch_entity_material_color → export_project_bundle → start_verification_run → run_for_sim_time | step → get_observation → stop_run. Builder attach: attach_browser → load_saved_project, load_example_world, save_project_as, save_project, patch_entity_material_color, get_saved_entity_material_color (IndexedDB). Headless load/export unavailable while attached.',
+        'Headless: load_project_bundle | load_fixture | load_example_world | load_world_json → apply_world_patch / patch_entity_material_color → export_project_bundle → start_verification_run → run_for_sim_time | step → get_observation → stop_run. Builder attach: attach_browser → load_saved_project, load_example_world, save_project*, patch_entity_material_color, get_saved_entity_material_color, get_entity_authoring_summary, get_world_authoring_snapshot. Headless load/export unavailable while attached.',
     },
   )
 
@@ -165,6 +165,39 @@ export function createLogicVerificationMcpServer(
   )
 
   server.registerTool(
+    'get_entity_authoring_summary',
+    {
+      description:
+        'Read entity pipe stack and transformer stages from the live Builder doc (attach) or headless host. Optional projectName reads IndexedDB save without switching the open doc.',
+      inputSchema: {
+        devToken: devTokenSchema,
+        entityId: z.string(),
+        includeCode: z.boolean().optional(),
+        codeMaxChars: z.number().int().positive().optional(),
+        projectName: z.string().optional(),
+      },
+    },
+    withAuth(async (input) => jsonText(await session.getEntityAuthoringSummary(input))),
+  )
+
+  server.registerTool(
+    'get_world_authoring_snapshot',
+    {
+      description:
+        'Bounded authoring snapshot (entity summaries). Attach or headless. Optional entityIds filter and projectName for IndexedDB.',
+      inputSchema: {
+        devToken: devTokenSchema,
+        entityIds: z.array(z.string()).optional(),
+        includeCode: z.boolean().optional(),
+        codeMaxChars: z.number().int().positive().optional(),
+        maxEntities: z.number().int().positive().optional(),
+        projectName: z.string().optional(),
+      },
+    },
+    withAuth(async (input) => jsonText(await session.getWorldAuthoringSnapshot(input))),
+  )
+
+  server.registerTool(
     'load_project_bundle',
     {
       description:
@@ -245,13 +278,46 @@ export function createLogicVerificationMcpServer(
     'apply_world_patch',
     {
       description:
-        'Pose-safe world patch: transformer registry and/or entity add-update-remove (requires loaded host)',
+        'Pose-safe world patch: transformer registry, pipe definitions, entity pipe-stack params, and/or entity add-update-remove (requires loaded host)',
       inputSchema: {
         devToken: devTokenSchema,
         transformers: z
           .record(z.string(), z.record(z.string(), z.json()))
           .optional()
           .describe('Partial transformer defs keyed by registry id'),
+        transformerPipes: z
+          .record(
+            z.string(),
+            z.object({
+              name: z.string().optional(),
+              stagePatches: z
+                .array(
+                  z.object({
+                    match: z.object({
+                      stageId: z.string().optional(),
+                      name: z.string().optional(),
+                      stageIndex: z.number().int().min(0).optional(),
+                    }),
+                    patch: z.record(z.string(), z.json()),
+                  }),
+                )
+                .optional(),
+            }),
+          )
+          .optional()
+          .describe('Patch pipe defs (inline stage snapshots by name/id/index)'),
+        entityPipeStack: z
+          .array(
+            z.object({
+              entityId: z.string(),
+              stackIndex: z.number().int().min(0).optional(),
+              pipeId: z.string().optional(),
+              mergeBindingParams: z.record(z.string(), z.json()).optional(),
+              enabled: z.boolean().optional(),
+            }),
+          )
+          .optional()
+          .describe('Merge binding-level params on an entity pipe stack entry'),
         entities: z
           .object({
             add: z.array(entityJsonSchema).optional(),
@@ -265,6 +331,9 @@ export function createLogicVerificationMcpServer(
     withAuth(async (input) => {
       const patch: LogicVerificationWorldPatch = {
         transformers: input.transformers as LogicVerificationWorldPatch['transformers'],
+        transformerPipes:
+          input.transformerPipes as LogicVerificationWorldPatch['transformerPipes'],
+        entityPipeStack: input.entityPipeStack as LogicVerificationWorldPatch['entityPipeStack'],
         entities: input.entities as LogicVerificationWorldPatch['entities'],
         allowSceneRebuild: input.allowSceneRebuild,
       }

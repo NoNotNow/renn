@@ -175,6 +175,44 @@ async function runHeadlessRecipe(argv: string[]): Promise<void> {
   }
 }
 
+async function runAttachInspectRecipe(argv: string[]): Promise<void> {
+  let entityId = ''
+  let includeCode = false
+  let projectName: string | undefined
+  let waitForBrowserMs = 60_000
+
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i]
+    if (a === '--entity' && argv[i + 1]) {
+      entityId = argv[++i]!
+    } else if (a === '--include-code') {
+      includeCode = true
+    } else if (a === '--project' && argv[i + 1]) {
+      projectName = argv[++i]
+    } else if (a === '--wait-ms' && argv[i + 1]) {
+      waitForBrowserMs = Number(argv[++i])
+    }
+  }
+
+  if (!entityId.trim()) {
+    throw new Error('Usage: agent-cli.ts recipe attach-inspect --entity <id> [--include-code] [--project name]')
+  }
+
+  const session = new LogicVerificationMcpSession()
+  const devToken = resolveMcpDevToken()
+  try {
+    await session.attachBrowser({ devToken, waitForBrowserMs })
+    const summary = await session.getEntityAuthoringSummary({
+      entityId: entityId.trim(),
+      includeCode,
+      projectName,
+    })
+    console.log(JSON.stringify(summary, null, 2))
+  } finally {
+    await session.dispose()
+  }
+}
+
 async function main(): Promise<void> {
   const [command, ...rest] = process.argv.slice(2)
 
@@ -183,6 +221,7 @@ async function main(): Promise<void> {
   agent-cli.ts list
   agent-cli.ts call <toolName> '<json>'
   agent-cli.ts recipe headless [--bundle id | --fixture id] [--steps N] [--sim-seconds S] [--probe-entity id]
+  agent-cli.ts recipe attach-inspect --entity <id> [--include-code] [--project name] [--wait-ms N]
 
 RENN_MCP_DEV_TOKEN defaults to renn-dev-mcp-local in non-production.`)
     return
@@ -201,6 +240,11 @@ RENN_MCP_DEV_TOKEN defaults to renn-dev-mcp-local in non-production.`)
 
   if (command === 'recipe' && rest[0] === 'headless') {
     await runHeadlessRecipe(rest.slice(1))
+    return
+  }
+
+  if (command === 'recipe' && rest[0] === 'attach-inspect') {
+    await runAttachInspectRecipe(rest.slice(1))
     return
   }
 

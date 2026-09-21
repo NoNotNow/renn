@@ -696,6 +696,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       saveProjectAs,
       updateWorld,
       getCurrentProjectName: () => currentProject.name,
+      getCurrentWorld: () => worldRef.current,
     })
     return () => uninstallAgentBuilderAuthoring()
   }, [loadExampleWorld, loadProject, saveProject, saveProjectAs, updateWorld, currentProject.name])

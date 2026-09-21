@@ -4,6 +4,15 @@
 
 import type { RennWorld } from '@/types/world'
 import type { Rgba01 } from '@/agent/agentMaterialColorParse'
+import type { ApplyLogicVerificationWorldPatchHostResult } from '@/agent/applyLogicVerificationWorldPatch'
+import type { LogicVerificationWorldPatch } from '@/agent/applyLogicVerificationWorldPatch'
+
+export type ApplyLogicVerificationWorldPatchToDocumentResult =
+  | (ApplyLogicVerificationWorldPatchHostResult & {
+      prevWorld?: RennWorld
+      nextWorld?: RennWorld
+    })
+  | { ok: false; message: string; requiresSceneRebuild?: boolean }
 
 export type AgentBuilderAuthoringActions = {
   loadExampleWorldById: (exampleWorldId: string) => Promise<{ loaded: true; exampleWorldId: string }>
@@ -20,6 +29,11 @@ export type AgentBuilderAuthoringActions = {
     projectName: string,
     entityId: string,
   ) => Promise<{ color: Rgba01 | null }>
+  getSavedProjectWorld: (projectName: string) => Promise<RennWorld>
+  getCurrentWorld: () => RennWorld
+  applyLogicVerificationWorldPatchToDocument: (
+    patch: LogicVerificationWorldPatch,
+  ) => ApplyLogicVerificationWorldPatchToDocumentResult
 }
 
 let activeActions: AgentBuilderAuthoringActions | null = null

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { createTestEntity } from '@/test/helpers/entity'
 import { createWorldWithEntities } from '@/test/helpers/world'
 import { applyLogicVerificationWorldPatch } from '@/agent/applyLogicVerificationWorldPatch'
+import type { TransformerConfig, TransformerPipe } from '@/types/transformer'
 
 describe('applyLogicVerificationWorldPatch', () => {
   it('rejects entity add without allowSceneRebuild', () => {
@@ -41,6 +42,67 @@ describe('applyLogicVerificationWorldPatch', () => {
     if (result.ok) {
       expect(result.mode).toBe('entity-metadata')
       expect(result.nextWorld.entities[0]?.name).toBe('After')
+    }
+  })
+
+  it('patches entity pipe stack binding params', () => {
+    const pipe: TransformerPipe = {
+      id: 'pipe_a',
+      name: 'Test pipe',
+      stageIds: ['tf1'],
+      stages: [{ type: 'custom', priority: 0, enabled: true, params: {}, name: 'S' }],
+    }
+    const prev = createWorldWithEntities([
+      createTestEntity({
+        id: 'car',
+        transformerPipeStack: [{ pipeId: 'pipe_a', params: {} }],
+        transformers: ['tf1'],
+      }),
+    ])
+    prev.transformerPipes = { pipe_a: pipe }
+    prev.transformers = {
+      tf1: { type: 'custom', priority: 0, enabled: true, params: {}, name: 'S' } as TransformerConfig,
+    }
+
+    const result = applyLogicVerificationWorldPatch(prev, {
+      entityPipeStack: [{ entityId: 'car', mergeBindingParams: { id: 'target_1' } }],
+    })
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.nextWorld.entities[0]?.transformerPipeStack?.[0]?.params?.id).toBe('target_1')
+      expect(result.affectedEntityIds).toContain('car')
+    }
+  })
+
+  it('patches inline pipe stage by name', () => {
+    const prev = createWorldWithEntities([createTestEntity({ id: 'car' })])
+    prev.transformerPipes = {
+      pipe_a: {
+        id: 'pipe_a',
+        name: 'P',
+        stageIds: ['tf1'],
+        stages: [
+          {
+            type: 'custom',
+            priority: 0,
+            enabled: true,
+            params: { id: 'old' },
+            name: 'Target',
+          },
+        ],
+      },
+    }
+    const result = applyLogicVerificationWorldPatch(prev, {
+      transformerPipes: {
+        pipe_a: {
+          stagePatches: [{ match: { name: 'Target' }, patch: { params: { id: 'new' } } }],
+        },
+      },
+    })
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(prev.transformerPipes!.pipe_a!.stages[0]!.params?.id).toBe('old')
+      expect(result.nextWorld.transformerPipes!.pipe_a!.stages[0]!.params?.id).toBe('new')
     }
   })
 })
