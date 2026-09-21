@@ -44,6 +44,7 @@ describe('Logic verification MCP (integration)', () => {
     const names = listed.tools.map((t) => t.name).sort()
     expect(names).toContain('load_world_json')
     expect(names).toContain('run_for_sim_time')
+    expect(names).toContain('run_timed_macro')
     expect(names).toContain('get_observation')
 
     await client.callTool({
@@ -55,39 +56,28 @@ describe('Logic verification MCP (integration)', () => {
       },
     })
 
-    await client.callTool({
-      name: 'register_probes',
+    const macroResult = await client.callTool({
+      name: 'run_timed_macro',
       arguments: {
         devToken: DEV_TOKEN,
-        probes: [{ id: 'carPose', kind: 'entityPose', entityId: 'car', intervalMs: 50 }],
+        macro: {
+          durationSimSec: 2,
+          steps: [
+            { atSimTime: 0, inputKeys: { w: true, d: true } },
+            { atSimTime: 1, inputKeys: { w: true } },
+          ],
+          samples: [{ id: 'carPose', kind: 'entityPose', entityId: 'car', intervalMs: 50 }],
+        },
       },
     })
-
-    await client.callTool({
-      name: 'start_verification_run',
-      arguments: {
-        devToken: DEV_TOKEN,
-        inputKeys: { w: true, d: true },
-      },
-    })
-
-    const stepResult = await client.callTool({
-      name: 'run_for_sim_time',
-      arguments: { devToken: DEV_TOKEN, seconds: 2 },
-    })
-    const stepped = JSON.parse(toolText(stepResult)) as {
-      poses: { car: { position: [number, number, number] } }
-    }
-    expect(stepped.poses.car.position[2]).not.toBe(0)
-
-    const obsResult = await client.callTool({
-      name: 'get_observation',
-      arguments: { devToken: DEV_TOKEN },
-    })
-    const obs = JSON.parse(toolText(obsResult)) as {
+    const macro = JSON.parse(toolText(macroResult)) as {
+      snapshot: { poses: { car: { position: [number, number, number] } } }
       timeline: unknown[]
+      events: Array<{ kind: string }>
     }
-    expect(obs.timeline.length).toBeGreaterThan(0)
+    expect(macro.snapshot.poses.car.position[2]).not.toBe(0)
+    expect(macro.timeline.length).toBeGreaterThan(0)
+    expect(macro.events.some((e) => e.kind === 'inputChange')).toBe(true)
 
     await client.callTool({
       name: 'stop_run',

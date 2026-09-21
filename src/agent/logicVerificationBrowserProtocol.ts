@@ -66,6 +66,7 @@ export const LOGIC_VERIFICATION_BROWSER_RPC_METHODS = [
   'stop_observation_run',
   'run_steps',
   'run_for_sim_time',
+  'run_timed_macro',
   'get_observation',
   'apply_world_patch',
   'validate_stage_code',

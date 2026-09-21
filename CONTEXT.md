@@ -67,3 +67,23 @@ _Avoid_: MCP server (when you mean the transport), Playwright (when you mean hea
 **Agent smoke browser**:
 Chrome launched by Playwright for dev smokes (`agent:authoring-smoke`, `agent:dev-attach`): real Chrome binary, **ephemeral automation profile**, often a **dedicated dev port** (e.g. 5199). IndexedDB saves there do not merge with the developer’s everyday browser or with a different localhost port.
 _Avoid_: MCP browser (ambiguous — Cursor attach uses the human’s tab; smoke uses Playwright)
+
+**Timed verification macro**:
+A declarative, sim-time schedule of keyboard input changes and optional platform probe samples executed in one logic verification run, producing a macro log (events + observation timeline).
+_Avoid_: Script, replay file, E2E scenario
+
+**Macro log**:
+Structured output from a timed verification macro: macro-relative events (start, input changes, optional wall pauses), the observation timeline rows, and a final pose snapshot.
+_Avoid_: get_observation only, debug dump
+
+**Probe schedule**:
+When and how often platform probes sample into the observation timeline (per-probe `intervalMs`, interpreted against sim time in the host step loop).
+_Avoid_: polling interval (wall clock)
+
+**Verification attach mode**:
+Logic verification driven through browser attach (in-game verification): MCP forwards RPC to the live Builder scene; stepping uses exclusive rAF pause during agent advances.
+_Avoid_: headless, Playwright
+
+**Verification headless mode**:
+Logic verification host runs in-process (Vitest, MCP without attach): no canvas, no wall pauses, fastest program–run–fix.
+_Avoid_: attached, smoke browser

@@ -38,6 +38,12 @@ import {
   buildEntityAuthoringSummary,
   buildWorldAuthoringSnapshot,
 } from '@/agent/agentEntityAuthoringSummary'
+import {
+  createHostTimedMacroRunner,
+  executeTimedVerificationMacro,
+  type TimedVerificationMacroConfig,
+  type TimedVerificationMacroResult,
+} from '@/agent/timedVerificationMacro'
 
 export type LoadWorldJsonInput = {
   world: RennWorld
@@ -494,6 +500,17 @@ export class LogicVerificationMcpSession {
     seconds: number,
   ): Promise<ReturnType<LogicVerificationHost['runSteps']>> {
     return this.ensureRunController().runForSimTime(seconds)
+  }
+
+  async runTimedMacroAsync(
+    config: TimedVerificationMacroConfig,
+  ): Promise<TimedVerificationMacroResult> {
+    if (this.browserClient) {
+      return (await this.browserClient.invoke('run_timed_macro', config)) as TimedVerificationMacroResult
+    }
+    const host = this.requireHeadlessHost()
+    const runner = createHostTimedMacroRunner(host)
+    return executeTimedVerificationMacro(runner, config)
   }
 
   getObservation(): {

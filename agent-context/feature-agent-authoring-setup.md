@@ -47,7 +47,7 @@ Starter template: `src/agent/projects/agent-starter/` — minimal world with one
 
 1. `load_project_bundle` { `bundleId`: `agent-starter` } or `load_fixture` / `load_world_json` / `load_example_world`
 2. `validate_stage_code` → `apply_world_patch` (transformer `code` / `params`) or `patch_entity_material_color`
-3. `register_probes` → `start_verification_run` → `run_for_sim_time` → `get_observation` → `stop_run`
+3. `run_timed_macro` (timed input + samples in one call) **or** `register_probes` → `start_verification_run` → `run_for_sim_time` → `get_observation` → `stop_run`
 
 ### B″ — Work on a saved project with the user (visible Builder + MCP)
 
@@ -119,6 +119,7 @@ Headless **`export_project_bundle`** remains the on-disk save path for allowlist
 | `npm run agent:setup-check` | Verify token env + bundle loader + one headless host step |
 | `npm run agent:cli -- list` | Tool names (in-process; no Cursor MCP panel) |
 | `npm run agent:cli -- call load_project_bundle '{"bundleId":"agent-starter","warmupSteps":2}'` | Single MCP-equivalent call; JSON to stdout |
+| `npx tsx tools/renn-mcp/agent-apply-patch-file.ts patch.json` | Dev helper: `apply_world_patch` via browser bridge (large `transformers.*.code` bodies) |
 | `npm run agent:recipe-headless` | Full headless loop on `agent-starter` (load → probe → run → observe → stop) |
 | `npm run agent:mcp-attach-smoke` | `attach_browser` against running dev server (manual prerequisite) |
 | `npm run agent:dev-attach` | Full dev attach loop (auto Vite + bundle bootstrap + verify); `--bundle` / `--fixture` / `--example-world` |

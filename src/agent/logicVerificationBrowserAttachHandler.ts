@@ -20,6 +20,11 @@ import {
   getWorldAuthoringSnapshotFromWorldSource,
 } from '@/agent/agentAuthoringWorldSource'
 import { runAgentBuilderLiveSceneSync } from '@/agent/agentBuilderLiveSceneSync'
+import {
+  createHostTimedMacroRunner,
+  executeTimedVerificationMacro,
+  type TimedVerificationMacroConfig,
+} from '@/agent/timedVerificationMacro'
 
 export type LogicVerificationBrowserAttachHandlerState = {
   host: LogicVerificationHost | null
@@ -131,6 +136,27 @@ export function createLogicVerificationBrowserAttachHandler(): {
       case 'run_for_sim_time': {
         const { seconds } = params as { seconds: number }
         return run.runForSimTime(seconds)
+      }
+      case 'run_timed_macro': {
+        const config = params as TimedVerificationMacroConfig
+        if (!state.host) {
+          throw new Error('Builder scene not ready for logic verification attach')
+        }
+        const runner = createHostTimedMacroRunner(state.host)
+        const wrappedRunner = {
+          ...runner,
+          runSteps: async (count: number, inputScript: Parameters<typeof state.host.runSteps>[1]) => {
+            enterLogicVerificationExclusiveStepping()
+            try {
+              return state.host!.runSteps(count, inputScript)
+            } finally {
+              exitLogicVerificationExclusiveStepping()
+            }
+          },
+        }
+        const result = await executeTimedVerificationMacro(wrappedRunner, config)
+        state.runActive = true
+        return result
       }
       case 'get_observation': {
         const obs = await run.getObservation()

@@ -52,7 +52,7 @@ v1 fixture: pinned **self-driving car** world in repo (JSON + scripted throttle/
 | Add/remove entity, trimesh/model structural | May require scene runtime restart | Require `allowSceneRebuild: true`; optional `capturePoses` / `restorePoses` |
 | World gravity, etc. | Often incremental effect | Document per [feature-world-update-reload.md](./feature-world-update-reload.md) |
 
-**Tool flow:** `validate_stage_code` → `apply_world_patch` → `start_verification_run` → `step` / `run_for_sim_time` → `get_observation` / `stop_run`.
+**Tool flow:** `validate_stage_code` → `apply_world_patch` → `start_verification_run` → `step` / `run_for_sim_time` → `get_observation` / `stop_run`. For timed input sequences (car maneuvers, staged throttle/steer), prefer **`run_timed_macro`** (one call → macro log). ADR: [0004-timed-verification-macro.md](../docs/adr/0004-timed-verification-macro.md).
 
 Compile: `validateCustomTransformerSource` before apply. Runtime: existing `customTransformerErrorBridge`. Schema/load: surface Ajv/migrate warnings in run metadata.
 
@@ -102,6 +102,7 @@ Avoid running two sims for one edit (headless + browser in parallel) unless repl
 | `register_probes` | Probe list + intervals |
 | `start_verification_run` | Input script, duration or max steps, seed |
 | `run_for_sim_time` | Deterministic advance |
+| `run_timed_macro` | Sim-time input schedule + optional probe samples; returns macro log |
 | `get_observation` | Timeline slice, latest errors, watch snapshot |
 | `stop_run` | End session, optional export JSON |
 | `attach_browser` | Dev: connect to open Builder tab (WebSocket bridge) |
@@ -124,6 +125,20 @@ Copy `.cursor/mcp.json.example` to `.cursor/mcp.json`, set `cwd` to your repo ro
 6. **Done (slice 6 — browser attach v1.1):** Dev-only localhost WebSocket bridge (`logicVerificationBrowserBridgeServer.ts`, Vite plugin `logicVerificationBrowserBridgeVitePlugin.ts`, default port `9234` / `RENN_MCP_BROWSER_PORT`). Open Builder (`SceneView` → `useLogicVerificationBrowserAttach`) adopts live registry + physics via `LogicVerificationHost.adoptLiveScene` and serves the same RPC surface as headless. MCP `attach_browser` proxies through `LogicVerificationBrowserMcpClient`. Exclusive stepping (`logicVerificationExclusiveStepping.ts`) pauses rAF sim during MCP `run_steps` / `run_for_sim_time`. Test: `logic-verification-browser-attach.integration.test.ts`. **`load_fixture`** MCP tool via `logicVerificationFixtures.ts` (`agentVerificationCarWorld`).
 7. **Done (slice 7 — authoring setup):** On-disk **agent project bundles** under `src/agent/projects/` (`agent-starter`), `loadAgentProjectBundle`, MCP `load_project_bundle`, `npm run agent:setup-check`. Tests: `loadAgentProjectBundle.test.ts`, `agent-project-bundle.integration.test.ts`. Workflow doc: [feature-agent-authoring-setup.md](./feature-agent-authoring-setup.md). ADR: [0002-agent-project-bundle-on-disk.md](../docs/adr/0002-agent-project-bundle-on-disk.md).
 8. **Done (slice 8 — MCP architecture seams):** Shared `prepareWorldForLogicVerification`, `logicVerificationProjectSource` (fixture / bundle / inline), optional bundle `assets` on host create, `logicVerificationRunController` (+ in-process / browser RPC backends), shared browser RPC loop, bridge transport-only relay (dead `invokeBrowserRpc` removed). MCP load tools remain thin aliases.
+9. **Done (slice 9 — timed macro):** `run_timed_macro` MCP + browser RPC; `src/agent/timedVerificationMacro.ts` (config validation, sim-time input script, optional `segmentWallPauseMs` on attach). Tests: `timedVerificationMacro.test.ts`, MCP integration.
+
+### `run_timed_macro` config (v1)
+
+| Field | Meaning |
+|--------|---------|
+| `startDelaySimSec` | Advance sim with `holdInputDuringDelay` (default empty) before schedule |
+| `durationSimSec` | Sim seconds after delay (cap 120s total with delay) |
+| `steps[]` | `{ atSimTime, inputKeys? }` — macro-relative; latest step at or before macro time wins |
+| `samples[]` | Inline platform probes (`entityPose`, `entityBody`, `trace`) with optional `intervalMs` |
+| `segmentWallPauseMs` | Attached Builder only: pause after each input-step boundary for human-visible pacing |
+| `carryOverTimeline` | Same as `start_verification_run` |
+
+**Macro log:** `{ macroStartSimTime, endedSimTime, events[], timeline[], snapshot, compileErrors, runtimeErrorList }`.
 
 ---
 

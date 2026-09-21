@@ -14,6 +14,41 @@ import type { LogicVerificationWorldPatch } from '@/agent/applyLogicVerification
 
 const devTokenSchema = z.string().describe('Must match RENN_MCP_DEV_TOKEN')
 
+const timedMacroInputKeysSchema = z.object({
+  w: z.boolean().optional(),
+  a: z.boolean().optional(),
+  s: z.boolean().optional(),
+  d: z.boolean().optional(),
+  space: z.boolean().optional(),
+  shift: z.boolean().optional(),
+})
+
+const timedVerificationMacroConfigSchema = z.object({
+  startDelaySimSec: z.number().min(0).optional(),
+  holdInputDuringDelay: timedMacroInputKeysSchema.optional(),
+  durationSimSec: z.number().positive(),
+  steps: z
+    .array(
+      z.object({
+        atSimTime: z.number().min(0),
+        inputKeys: timedMacroInputKeysSchema.optional(),
+      }),
+    )
+    .optional(),
+  samples: z
+    .array(
+      z.object({
+        id: z.string(),
+        kind: z.enum(['entityPose', 'entityBody', 'trace']),
+        entityId: z.string(),
+        intervalMs: z.number().positive().optional(),
+      }),
+    )
+    .optional(),
+  segmentWallPauseMs: z.number().min(0).optional(),
+  carryOverTimeline: z.boolean().optional(),
+})
+
 function jsonText(payload: unknown) {
   return {
     content: [{ type: 'text' as const, text: JSON.stringify(payload, null, 2) }],
@@ -36,7 +71,7 @@ export function createLogicVerificationMcpServer(
     { name: 'renn-logic-verification', version: '0.1.0' },
     {
       instructions:
-        'Headless: load_project_bundle | load_fixture | load_example_world | load_world_json → apply_world_patch / patch_entity_material_color → export_project_bundle → start_verification_run → run_for_sim_time | step → get_observation → stop_run. Builder attach: attach_browser → load_saved_project, load_example_world, export_saved_project_to_example_world, save_project*, patch_entity_material_color, get_saved_entity_material_color, get_entity_authoring_summary, get_world_authoring_snapshot. Headless load/export unavailable while attached.',
+        'Headless: load_project_bundle | load_fixture | load_example_world | load_world_json → apply_world_patch / patch_entity_material_color → export_project_bundle → start_verification_run → run_for_sim_time | run_timed_macro | step → get_observation → stop_run. Builder attach: attach_browser → load_saved_project, load_example_world, export_saved_project_to_example_world, save_project*, patch_entity_material_color, get_saved_entity_material_color, get_entity_authoring_summary, get_world_authoring_snapshot, run_timed_macro (segmentWallPauseMs for visible pacing). Headless load/export unavailable while attached.',
     },
   )
 
@@ -418,6 +453,19 @@ export function createLogicVerificationMcpServer(
       },
     },
     withAuth(async ({ seconds }) => jsonText(await session.runForSimTimeAsync(seconds))),
+  )
+
+  server.registerTool(
+    'run_timed_macro',
+    {
+      description:
+        'Run a sim-time input schedule with optional probe samples in one call; returns macro log (timeline + events). Works headless or on attached Builder (segmentWallPauseMs for visible pacing).',
+      inputSchema: {
+        devToken: devTokenSchema,
+        macro: timedVerificationMacroConfigSchema,
+      },
+    },
+    withAuth(async ({ macro }) => jsonText(await session.runTimedMacroAsync(macro))),
   )
 
   server.registerTool(
