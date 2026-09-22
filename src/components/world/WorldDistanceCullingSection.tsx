@@ -32,8 +32,7 @@ export default function WorldDistanceCullingSection({
   }
 
   const updateCulling = (patch: Partial<DistanceCullingSettings>) => {
-    const base = cullingValues
-    updateWorldSettings({ distanceCulling: { ...base, ...patch } })
+    updateWorldSettings({ distanceCulling: { ...cullingValues, ...patch } })
   }
 
   return (

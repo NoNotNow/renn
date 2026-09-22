@@ -1,4 +1,4 @@
-import { type CSSProperties, type ReactNode } from 'react'
+import { type CSSProperties, type MouseEvent, type ReactNode } from 'react'
 import { theme } from '@/config/theme'
 import { TextureManager } from '@/utils/textureManager'
 import TextureThumbnail from '../TextureThumbnail'
@@ -39,13 +39,13 @@ function selectableCardStyle(isSelected: boolean): CSSProperties {
 
 function attachHoverHandlers(isSelected: boolean) {
   return {
-    onMouseEnter: (e: React.MouseEvent<HTMLDivElement>) => {
+    onMouseEnter: (e: MouseEvent<HTMLDivElement>) => {
       if (!isSelected) {
         e.currentTarget.style.background = theme.bg.surface
         e.currentTarget.style.borderColor = theme.border.dropZoneHover
       }
     },
-    onMouseLeave: (e: React.MouseEvent<HTMLDivElement>) => {
+    onMouseLeave: (e: MouseEvent<HTMLDivElement>) => {
       if (!isSelected) {
         e.currentTarget.style.background = 'transparent'
         e.currentTarget.style.borderColor = theme.border.default

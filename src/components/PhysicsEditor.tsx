@@ -1,7 +1,7 @@
 import type { Entity } from '@/types/world'
 import SelectInput from './form/SelectInput'
 import NumberInput from './form/NumberInput'
-import { useEditorUndo } from '@/contexts/EditorUndoContext'
+import { useEditorUndo } from '@/contexts/useEditorUndo'
 
 export interface PhysicsEditorProps {
   entityId: string

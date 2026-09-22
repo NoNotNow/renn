@@ -1,3 +1,4 @@
+import type { RefObject } from 'react'
 import { HexColorInput, HexColorPicker } from 'react-colorful'
 import { theme } from '@/config/theme'
 import AnchoredPopover from '@/components/AnchoredPopover'
@@ -8,7 +9,7 @@ const textureMakerRootSelector = '[data-texture-maker-root]'
 
 export interface TextureMakerBrushPopoverProps {
   open: boolean
-  anchorRef: React.RefObject<HTMLElement | null>
+  anchorRef: RefObject<HTMLElement | null>
   onClose: () => void
   colorHex: string
   onColorHexChange: (hex: string) => void

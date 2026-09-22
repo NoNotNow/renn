@@ -71,11 +71,11 @@ export interface SimSnapshot {
 }
 
 export class WorldSimulator {
-  private physicsWorld: PhysicsWorld
-  private registry: RenderItemRegistry
+  private readonly physicsWorld: PhysicsWorld
+  private readonly registry: RenderItemRegistry
   private currentKeys: Partial<RawKeyboardState> = {}
-  private entities: LoadedEntity[]
-  private wind: [number, number, number] | undefined
+  private readonly entities: LoadedEntity[]
+  private readonly wind: [number, number, number] | undefined
 
   private constructor(
     physicsWorld: PhysicsWorld,

@@ -54,8 +54,7 @@ describe('advanceSemiFixedAccumulator', () => {
 
   it('timeScale 2x doubles the effective elapsed passed to the accumulator', () => {
     const timeScale = 2
-    const rawElapsed = fixedDt // wall 1 tick
-    const scaledElapsed = rawElapsed * timeScale // sim 2 ticks
+    const scaledElapsed = fixedDt * timeScale // sim 2 ticks
     const { stepsToRun, accumulator } = advanceSemiFixedAccumulator({
       accumulator: 0,
       elapsedSec: scaledElapsed,
@@ -68,8 +67,7 @@ describe('advanceSemiFixedAccumulator', () => {
 
   it('timeScale 0.5x halves the effective elapsed passed to the accumulator', () => {
     const timeScale = 0.5
-    const rawElapsed = fixedDt
-    const scaledElapsed = rawElapsed * timeScale
+    const scaledElapsed = fixedDt * timeScale
     const { stepsToRun, accumulator } = advanceSemiFixedAccumulator({
       accumulator: 0,
       elapsedSec: scaledElapsed,

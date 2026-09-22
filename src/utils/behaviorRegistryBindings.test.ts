@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import type { Entity } from '@/types/world'
 import type { RennWorld } from '@/types/world'
 import { behaviorRegistryBindings } from './behaviorRegistryBindings'
+import { entityWithLegacyTransformerPipe } from './transformerPipeResolve'
 
 function worldWithEntities(entities: Entity[]): RennWorld {
   return {
@@ -40,7 +41,7 @@ describe('behaviorRegistryBindings', () => {
 
     it('pipes: legacy transformerPipe, stack bindings, and dedupes duplicate stack entries', () => {
       const world = worldWithEntities([
-        { id: 'e-legacy', name: 'Legacy', transformerPipe: 'p-a' },
+        entityWithLegacyTransformerPipe({ id: 'e-legacy', name: 'Legacy' }, 'p-a'),
         {
           id: 'e-stack',
           name: 'Stack',
@@ -99,7 +100,7 @@ describe('behaviorRegistryBindings', () => {
         bindings.idsSharedBy([
           { transformerPipeStack: [{ pipeId: 'p1' }, { pipeId: 'p2' }] },
           { transformerPipeStack: [{ pipeId: 'p2' }, { pipeId: 'p3' }] },
-          { transformerPipe: 'p2' },
+          entityWithLegacyTransformerPipe({ id: 'e-legacy-p2' }, 'p2'),
         ]),
       ).toEqual(['p2'])
     })

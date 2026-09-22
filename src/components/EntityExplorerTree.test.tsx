@@ -1,7 +1,8 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import EntityExplorerTree, { computeGroupActionState } from './EntityExplorerTree'
+import EntityExplorerTree from './EntityExplorerTree'
+import { computeGroupActionState } from '@/utils/entityExplorerGroupActions'
 import { CopyProvider } from '@/contexts/CopyContext'
 import type { Entity, RennWorld } from '@/types/world'
 

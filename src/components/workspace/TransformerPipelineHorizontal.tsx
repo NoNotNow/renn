@@ -487,7 +487,7 @@ function TransformerTraceItem({
   }, [syncTraceFont, traceOutputBrief])
 
   // Reset max strings only when the stage kind changes (preset ↔ custom).
-  // Do not include traceInputBrief/traceOutputBrief — that would shrink the sizer every frame and flicker.
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- trace brief strings intentionally omitted to avoid flicker
   useLayoutEffect(() => {
     maxInBriefRef.current = traceInputBrief
     maxOutBriefRef.current = traceOutputBrief

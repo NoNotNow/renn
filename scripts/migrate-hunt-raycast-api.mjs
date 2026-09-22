@@ -169,8 +169,8 @@ visitTransformers(world, (t) => {
 if (world.transformers?.car_tf4) world.transformers.car_tf4.code = world.transformers.car_tf4.name === 'direction'
   ? DIRECTION_CODE.replace('BACKOFF_MS', backoffMsFromCode(world.transformers.car_tf4.code))
   : world.transformers.car_tf4.code
-if (world.transformers?.car_tf1_copy?.name === 'AutoBrake') {
-  world.transformers.car_tf1_copy.code = AUTO_BRAKE_CODE
+if (world.transformers?.['car_tf1_copy']?.name === 'AutoBrake') {
+  world.transformers['car_tf1_copy'].code = AUTO_BRAKE_CODE
 }
 
 fs.writeFileSync(worldPath, JSON.stringify(world, null, 2) + '\n')

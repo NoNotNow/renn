@@ -7,7 +7,7 @@ import NumberInput from './form/NumberInput'
 import Switch from './Switch'
 import CopyableArea from './CopyableArea'
 import { sectionStyle, sectionTitleStyle, secondaryButtonStyle, sidebarRowStyle, sidebarLabelStyle } from './sharedStyles'
-import { useEditorUndo } from '@/contexts/EditorUndoContext'
+import { useEditorUndo } from '@/contexts/useEditorUndo'
 import { theme } from '@/config/theme'
 
 export interface SoundPanelProps {

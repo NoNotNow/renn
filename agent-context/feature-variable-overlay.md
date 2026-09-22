@@ -32,18 +32,18 @@ When **Visualize mode** is active in the Builder, the selected entity shows a se
 
 ## Design decisions (locked)
 
-| # | Topic | Decision |
-|---|-------|----------|
-| 1 | Mode type | Exclusive — `'visualize'` added to `BuilderGizmoMode`. `TransformControls` detaches. |
-| 2 | Bar orientation | **Screen-vertical:** overlay group uses the camera world quaternion each frame so local +Y/+X match screen up/right (bars stay upright when tilting orbit). Tracks entity **world** position; ignores entity rotation. |
-| 3 | Min/max window | Per-activation. Resets on mode entry, expands monotonically, discarded on exit. |
-| 4 | Column layout | Evenly distributed and centered on entity. 1-based `index`. Last write wins per frame. |
-| 5 | Total group width | Fixed world-space — `BUILDER_VARIABLE_OVERLAY_GROUP_WIDTH` in `transformGizmoController.ts`. |
-| 6 | Label rendering | `CSS2DRenderer` (`three/addons/renderers/CSS2DRenderer`) — HTML `<div>`, pointer-events disabled; vertical column text below the zero-line. |
-| 7 | Which entities | Selected entity only. No bars if nothing is selected. |
-| 8 | Runtime scope | Builder-only. `api.visualize()` is a no-op in Play mode and tests (nullable `_visualizeFn` pattern from `api.log`). |
-| 9 | History on exit | Discarded immediately when switching away from `'visualize'` mode. |
-| 10 | Negative values | Bidirectional bars. Zero-line spans full group width through the entity’s world-space anchor, horizontal on screen. |
+| #   | Topic             | Decision                                                                                                                                                                                                               |
+| --- | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Mode type         | Exclusive — `'visualize'` added to `BuilderGizmoMode`. `TransformControls` detaches.                                                                                                                                   |
+| 2   | Bar orientation   | **Screen-vertical:** overlay group uses the camera world quaternion each frame so local +Y/+X match screen up/right (bars stay upright when tilting orbit). Tracks entity **world** position; ignores entity rotation. |
+| 3   | Min/max window    | Per-activation. Resets on mode entry, expands monotonically, discarded on exit.                                                                                                                                        |
+| 4   | Column layout     | Evenly distributed and centered on entity. 1-based `index`. Last write wins per frame.                                                                                                                                 |
+| 5   | Total group width | Fixed world-space — `BUILDER_VARIABLE_OVERLAY_GROUP_WIDTH` in `transformGizmoController.ts`.                                                                                                                           |
+| 6   | Label rendering   | `CSS2DRenderer` (`three/addons/renderers/CSS2DRenderer`) — HTML `<div>`, pointer-events disabled; vertical column text below the zero-line.                                                                            |
+| 7   | Which entities    | Selected entity only. No bars if nothing is selected.                                                                                                                                                                  |
+| 8   | Runtime scope     | Builder-only. `api.visualize()` is a no-op in Play mode and tests (nullable `_visualizeFn` pattern from `api.log`).                                                                                                    |
+| 9   | History on exit   | Discarded immediately when switching away from `'visualize'` mode.                                                                                                                                                     |
+| 10  | Negative values   | Bidirectional bars. Zero-line spans full group width through the entity’s world-space anchor, horizontal on screen.                                                                                                    |
 
 ---
 
@@ -101,30 +101,30 @@ Bridge: `setVariableOverlayFn`, `publishVariableValue`, `getVariableOverlaySlots
 
 ## Key files
 
-| Concern | File |
-|---------|------|
-| Gizmo mode type | [`src/editor/transformGizmoController.ts`](../src/editor/transformGizmoController.ts) |
-| Header button | [`src/components/BuilderHeader.tsx`](../src/components/BuilderHeader.tsx) |
-| Header icons | [`src/components/GizmoModeIcons.tsx`](../src/components/GizmoModeIcons.tsx) |
-| Scene renderer / CSS2DRenderer wiring | [`src/components/SceneView.tsx`](../src/components/SceneView.tsx) |
-| Bar overlay geometry + labels | [`src/runtime/variableOverlayController.ts`](../src/runtime/variableOverlayController.ts) |
-| Bar overlay bridge | [`src/runtime/variableOverlayBridge.ts`](../src/runtime/variableOverlayBridge.ts) |
-| Coordinate line geometry | [`src/runtime/coordinateOverlayController.ts`](../src/runtime/coordinateOverlayController.ts) |
-| Coordinate line bridge | [`src/runtime/coordinateOverlayBridge.ts`](../src/runtime/coordinateOverlayBridge.ts) |
-| Custom transformer runtime API | [`src/transformers/customCodeTransformer.ts`](../src/transformers/customCodeTransformer.ts) |
-| Monaco type declarations | [`src/transformers/transformerCodeDecl.ts`](../src/transformers/transformerCodeDecl.ts) |
+| Concern                               | File                                                                                          |
+| ------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Gizmo mode type                       | [`src/editor/transformGizmoController.ts`](../src/editor/transformGizmoController.ts)         |
+| Header button                         | [`src/components/BuilderHeader.tsx`](../src/components/BuilderHeader.tsx)                     |
+| Header icons                          | [`src/components/GizmoModeIcons.tsx`](../src/components/GizmoModeIcons.tsx)                   |
+| Scene renderer / CSS2DRenderer wiring | [`src/components/SceneView.tsx`](../src/components/SceneView.tsx)                             |
+| Bar overlay geometry + labels         | [`src/runtime/variableOverlayController.ts`](../src/runtime/variableOverlayController.ts)     |
+| Bar overlay bridge                    | [`src/runtime/variableOverlayBridge.ts`](../src/runtime/variableOverlayBridge.ts)             |
+| Coordinate line geometry              | [`src/runtime/coordinateOverlayController.ts`](../src/runtime/coordinateOverlayController.ts) |
+| Coordinate line bridge                | [`src/runtime/coordinateOverlayBridge.ts`](../src/runtime/coordinateOverlayBridge.ts)         |
+| Custom transformer runtime API        | [`src/transformers/customCodeTransformer.ts`](../src/transformers/customCodeTransformer.ts)   |
+| Monaco type declarations              | [`src/transformers/transformerCodeDecl.ts`](../src/transformers/transformerCodeDecl.ts)       |
 
 ---
 
 ## Tests
 
-| Area | Coverage |
-|------|----------|
-| `variableOverlayBridge` | [`variableOverlayBridge.test.ts`](../src/runtime/variableOverlayBridge.test.ts) — min/max, last-write, entity filter, cap >16, clear on unwire. |
-| Layout math | [`variableOverlayController.test.ts`](../src/runtime/variableOverlayController.test.ts) — column X, signed bar length. |
-| `coordinateOverlayBridge` | [`coordinateOverlayBridge.test.ts`](../src/runtime/coordinateOverlayBridge.test.ts) — entity filter, cap, clear, mutation-safety, copy safety. |
-| `api.visualize` / `api.visualizeLine` | [`customCodeTransformer.test.ts`](../src/transformers/customCodeTransformer.test.ts) — wired vs mismatched selection for both APIs. |
-| Integration | Optional: Playwright Builder session (future). |
+| Area                                  | Coverage                                                                                                                                        |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `variableOverlayBridge`               | [`variableOverlayBridge.test.ts`](../src/runtime/variableOverlayBridge.test.ts) — min/max, last-write, entity filter, cap >16, clear on unwire. |
+| Layout math                           | [`variableOverlayController.test.ts`](../src/runtime/variableOverlayController.test.ts) — column X, signed bar length.                          |
+| `coordinateOverlayBridge`             | [`coordinateOverlayBridge.test.ts`](../src/runtime/coordinateOverlayBridge.test.ts) — entity filter, cap, clear, mutation-safety, copy safety.  |
+| `api.visualize` / `api.visualizeLine` | [`customCodeTransformer.test.ts`](../src/transformers/customCodeTransformer.test.ts) — wired vs mismatched selection for both APIs.             |
+| Integration                           | Optional: Playwright Builder session (future).                                                                                                  |
 
 ---
 

@@ -1,3 +1,4 @@
+import type { ChangeEvent, DragEvent } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
 import { useTextureDialogUpload } from './useTextureDialogUpload'
@@ -14,14 +15,14 @@ function unknownFile(name = 'doc.pdf'): File {
   return new File(['x'], name, { type: 'application/pdf' })
 }
 
-function makeDragEvent(files: File[]): React.DragEvent {
+function makeDragEvent(files: File[]): DragEvent {
   const preventDefault = vi.fn()
   const stopPropagation = vi.fn()
   return {
     preventDefault,
     stopPropagation,
     dataTransfer: { files },
-  } as unknown as React.DragEvent
+  } as unknown as DragEvent
 }
 
 let alertSpy: ReturnType<typeof vi.spyOn>
@@ -83,7 +84,7 @@ describe('useTextureDialogUpload', () => {
     const { result } = renderHook(() => useTextureDialogUpload(true))
     const input = document.createElement('input')
     Object.defineProperty(input, 'files', { value: [unknownFile()] })
-    const event = { target: input } as unknown as React.ChangeEvent<HTMLInputElement>
+    const event = { target: input } as unknown as ChangeEvent<HTMLInputElement>
     act(() => result.current.handleFileInput(event))
     expect(alertSpy).toHaveBeenCalledWith('Please drop an image or video file.')
     expect(result.current.uploadPreview).toBeNull()
@@ -95,7 +96,7 @@ describe('useTextureDialogUpload', () => {
     input.type = 'file'
     Object.defineProperty(input, 'files', { value: [imageFile('a.png')] })
     input.value = ''
-    const event = { target: input } as unknown as React.ChangeEvent<HTMLInputElement>
+    const event = { target: input } as unknown as ChangeEvent<HTMLInputElement>
     act(() => result.current.handleFileInput(event))
     expect(result.current.uploadPreview?.file.name).toBe('a.png')
   })
@@ -104,7 +105,7 @@ describe('useTextureDialogUpload', () => {
     const { result } = renderHook(() => useTextureDialogUpload(true))
     const input = document.createElement('input')
     Object.defineProperty(input, 'files', { value: [] })
-    const event = { target: input } as unknown as React.ChangeEvent<HTMLInputElement>
+    const event = { target: input } as unknown as ChangeEvent<HTMLInputElement>
     act(() => result.current.handleFileInput(event))
     expect(result.current.uploadPreview).toBeNull()
   })

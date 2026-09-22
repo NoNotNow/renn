@@ -41,7 +41,7 @@ const DEFAULTS: Required<
 
 export class TargetPoseInputTransformer extends BaseTransformer {
   readonly type = 'targetPoseInput'
-  private params: Required<
+  private readonly params: Required<
     Pick<TargetPoseInputParams, 'speed' | 'mode' | 'positionEpsilon' | 'rotationEpsilon'>
   > & { poses: TargetPoseWaypoint[] }
 

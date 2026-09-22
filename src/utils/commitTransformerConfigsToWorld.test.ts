@@ -12,6 +12,7 @@ import {
   savePipeFromEntity,
 } from './commitTransformerConfigsToWorld'
 import { applyEntityTransformerSync } from './pipeNavResolve'
+import { legacyEntityPipeId } from './transformerPipeResolve'
 
 function applyStacksToEntities(world: RennWorld, entityIds: string[], configs: TransformerConfig[]): RennWorld {
   let next = world
@@ -195,7 +196,7 @@ describe('Transformer Pipes utilities', () => {
       const e1 = next.entities.find((e) => e.id === 'e1')
       expect(e1?.transformers).toEqual(['p1_t1'])
       expect(e1?.transformerPipeStack).toEqual([{ pipeId: 'p1', enabled: true }])
-      expect(e1?.transformerPipe).toBeUndefined()
+      expect(legacyEntityPipeId(e1!)).toBeUndefined()
     })
 
     it('appends to pipe stack in linked mode', () => {

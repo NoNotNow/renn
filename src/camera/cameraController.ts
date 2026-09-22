@@ -176,12 +176,11 @@ export class CameraController {
   /** Adjust the orbit distance (zoom). delta > 0 = zoom out, delta < 0 = zoom in. */
   setOrbitDistanceDelta(delta: number): void {
     if (this.config.mode === 'firstPerson') {
-      const next = THREE.MathUtils.clamp(
+      this.camera.fov = THREE.MathUtils.clamp(
         this.camera.fov + delta * FIRST_PERSON_FOV_PER_DISTANCE_DELTA,
         FIRST_PERSON_FOV_MIN,
         FIRST_PERSON_FOV_MAX,
       )
-      this.camera.fov = next
       this.camera.updateProjectionMatrix()
       return
     }
@@ -545,7 +544,6 @@ export class CameraController {
       if (this.forward.lengthSq() < 1e-12) this.forward.set(0, 0, -1)
       this.forward.normalize()
       offset.copy(this.forward).multiplyScalar(-ORBIT_DISTANCE_MIN)
-      dist = ORBIT_DISTANCE_MIN
     }
 
     if (dx !== 0 || dy !== 0) {

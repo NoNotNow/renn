@@ -21,8 +21,8 @@ import type { TransformerTraceStep } from '@/transformers/transformerTrace'
 import { isPresetTransformerType } from '@/transformers/transformerPresets'
 import { syncPriorities, sortAndSyncPriorities } from '@/transformers/transformerUtils'
 import { effectiveCustomTransformerCode, validateCustomTransformerSource } from '@/transformers/customCodeTransformer'
-import { useEditorUndo } from '@/contexts/EditorUndoContext'
-import { useCopyMenu } from '@/contexts/CopyContext'
+import { useEditorUndo } from '@/contexts/useEditorUndo'
+import { useCopyMenu } from '@/contexts/useCopyMenu'
 import {
   commitTransformerConfigsToWorld,
   mapTransformerRegistryIdsToEntity,
@@ -47,10 +47,11 @@ import {
 import { wrapUngroupedStagesIntoStackPipe } from '@/utils/pipeNavMutations'
 import { getEntityPipeStack } from '@/utils/transformerPipeResolve'
 import { nextFreeDefaultPipeName } from '@/utils/allocatePipeId'
-import TransformerPipeNavSidebar, {
+import TransformerPipeNavSidebar from '@/components/workspace/pipeNav/TransformerPipeNavSidebar'
+import {
   readPipeNavOpen,
   writePipeNavOpen,
-} from '@/components/workspace/pipeNav/TransformerPipeNavSidebar'
+} from '@/components/workspace/pipeNav/transformerPipeNavStorage'
 import PipeFocusedStrip from '@/components/workspace/pipeNav/PipeFocusedStrip'
 import PipeNavDialogs from '@/components/workspace/pipeNav/PipeNavDialogs'
 import PipeNavOpenToggle from '@/components/workspace/pipeNav/PipeNavOpenToggle'

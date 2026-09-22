@@ -1,4 +1,15 @@
-import { createContext, useState, useCallback, useEffect, useRef, useMemo, type ReactNode } from 'react'
+import {
+  createContext,
+  useState,
+  useCallback,
+  useEffect,
+  useRef,
+  useMemo,
+  type ChangeEvent,
+  type MutableRefObject,
+  type ReactNode,
+  type RefObject,
+} from 'react'
 import { createIndexedDbPersistence } from '@/persistence/indexedDb'
 import type { RennWorld, Vec3, Rotation, CameraMode, EditorFreePose, ModelPreset } from '@/types/world'
 import type { ProjectMeta } from '@/persistence/types'
@@ -53,7 +64,7 @@ interface ProjectContextState {
   cameraTargetLag: number
   cameraPositionLag: number
   /** Live Builder free-fly pose for merge on save; synced from SceneView while navigating. */
-  editorFreePoseRef: React.MutableRefObject<EditorFreePose | null>
+  editorFreePoseRef: MutableRefObject<EditorFreePose | null>
   /** Global model presets (IndexedDB, shared across projects). */
   modelPresets: ModelPreset[]
 }
@@ -85,8 +96,8 @@ interface ProjectContextActions {
   exportProject: () => void
   copyWorldToClipboard: () => void
   importProject: () => void
-  onFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void
-  fileInputRef: React.RefObject<HTMLInputElement>
+  onFileChange: (e: ChangeEvent<HTMLInputElement>) => void
+  fileInputRef: RefObject<HTMLInputElement>
   
   // Example Worlds
   loadExampleWorld: (world: RennWorld, name: string, assets?: Map<string, Blob>) => void
@@ -489,7 +500,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     fileInputRef.current?.click()
   }, [])
   
-  const onFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  const onFileChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
     
@@ -503,7 +514,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     if (isZip) {
       persistence.importProject(file).then(({ id }) => {
         refreshProjects()
-        loadProject(id)
+        void loadProject(id)
       }).catch((err) => {
         console.error('Failed to import project:', err)
         alert('Failed to import project')

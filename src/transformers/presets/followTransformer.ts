@@ -32,10 +32,10 @@ const DEFAULTS = {
 
 export class FollowTransformer extends BaseTransformer {
   readonly type = 'follow'
-  private params: Required<
+  private readonly params: Required<
     Pick<FollowParams, 'targetEntityId' | 'speed' | 'linear' | 'angular'>
   >
-  private getEntityWorldPose: EntityWorldPoseGetter | undefined
+  private readonly getEntityWorldPose: EntityWorldPoseGetter | undefined
 
   constructor(
     priority: number = 5,

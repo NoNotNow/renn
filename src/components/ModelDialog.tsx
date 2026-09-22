@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
+import type { ChangeEvent, DragEvent } from 'react'
 import type { RennWorld } from '@/types/world'
 import { ModelManager } from '@/utils/modelManager'
 import { generateModelPreview } from '@/utils/modelPreview'
@@ -38,24 +39,24 @@ export default function ModelDialog({
     id.toLowerCase().includes(searchQuery.toLowerCase()),
   )
 
-  const handleDragEnter = useCallback((e: React.DragEvent) => {
+  const handleDragEnter = useCallback((e: DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
     setDragActive(true)
   }, [])
 
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
+  const handleDragLeave = useCallback((e: DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
     setDragActive(false)
   }, [])
 
-  const handleDragOver = useCallback((e: React.DragEvent) => {
+  const handleDragOver = useCallback((e: DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
   }, [])
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
+  const handleDrop = useCallback((e: DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
     setDragActive(false)
@@ -74,7 +75,7 @@ export default function ModelDialog({
     }
   }, [])
 
-  const handleFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileInput = useCallback((e: ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (!files?.length) return
 

@@ -15,7 +15,6 @@ import {
 import {
   assertDevBundleMiddlewareReady,
   builderUrlForAttachTarget,
-  resolveBuilderDevUrl,
 } from './agentDevAttachEnv.ts'
 import { ensureDevServer, stopDevServer } from './agentDevServer.ts'
 import { parseAgentDevAttachArgv, runAgentDevAttachRecipe } from './agentDevAttachRecipe.ts'

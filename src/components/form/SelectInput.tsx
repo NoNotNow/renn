@@ -1,3 +1,4 @@
+import type { ChangeEvent } from 'react'
 import { uiLogger } from '@/utils/uiLogger'
 import { sidebarRowStyle, sidebarLabelStyle, sidebarInputStyle } from '../sharedStyles'
 
@@ -32,7 +33,7 @@ export default function SelectInput({
   onBeforeCommit,
   labelTitle,
 }: SelectInputProps) {
-  const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+  const handleChange = (e: ChangeEvent<HTMLSelectElement>) => {
     const newValue = e.target.value
     if (newValue === '' && emptyLabel !== undefined) return
     if (newValue === value) return

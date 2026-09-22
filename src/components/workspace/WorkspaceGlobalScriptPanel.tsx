@@ -63,13 +63,14 @@ export default function WorkspaceGlobalScriptPanel({
   monacoSlot,
 }: WorkspaceGlobalScriptPanelProps) {
   const scriptIds = Object.keys(globalScripts).sort()
+  const scriptIdsKey = useMemo(() => scriptIds.join(','), [scriptIds])
   const [selectedId, setSelectedId] = useState(anchorItemId)
 
   useEffect(() => {
     if (scriptIds.includes(anchorItemId)) setSelectedId(anchorItemId)
     else if (scriptIds.length > 0) setSelectedId(scriptIds[0]!)
     else setSelectedId('')
-  }, [anchorItemId, scriptIds.join(',')])
+  }, [anchorItemId, scriptIdsKey, scriptIds])
 
   const def = selectedId ? getScriptDef(globalScripts, selectedId) : null
   const source = def?.source ?? ''

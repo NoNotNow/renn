@@ -60,7 +60,7 @@ export default function WorldLightSection({ world, edits }: WorldLightSectionPro
           onChange={(e) => {
             const enabled = e.target.checked
             uiLogger.change('WorldPanel', 'Toggle shadows', { enabled })
-            updateWorldSettings({ shadowsEnabled: enabled ? true : false })
+            updateWorldSettings({ shadowsEnabled: enabled })
           }}
           style={{ cursor: 'pointer' }}
         />

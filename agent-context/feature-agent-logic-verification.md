@@ -32,12 +32,12 @@ flowchart TB
   Obs --> Err[Compile + runtime error bridges]
 ```
 
-| Piece | Responsibility |
-|--------|----------------|
-| **Logic verification host** | Load world (+ assets fixture), `validate` / `apply` patches, run N steps or T sim seconds, manage observation session |
-| **Agent observation session** | Enable watch/trace publishing without Workspace gate; run platform probes on intervals; append to timeline |
-| **MCP server** | Thin tools → host; no physics inside MCP |
-| **Browser attach** | Same host API; Builder delegates stepping or mirrors registry state (implementation detail in a later PR) |
+| Piece                         | Responsibility                                                                                                        |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| **Logic verification host**   | Load world (+ assets fixture), `validate` / `apply` patches, run N steps or T sim seconds, manage observation session |
+| **Agent observation session** | Enable watch/trace publishing without Workspace gate; run platform probes on intervals; append to timeline            |
+| **MCP server**                | Thin tools → host; no physics inside MCP                                                                              |
+| **Browser attach**            | Same host API; Builder delegates stepping or mirrors registry state (implementation detail in a later PR)             |
 
 v1 fixture: pinned **self-driving car** world in repo (JSON + scripted throttle/steer).
 
@@ -45,12 +45,12 @@ v1 fixture: pinned **self-driving car** world in repo (JSON + scripted throttle/
 
 ## Apply path (pose-safe by default)
 
-| Patch kind | Expected behavior | Notes |
-|------------|-------------------|--------|
-| Custom stage `code`, `params`, enable, order | Pose-safe | Reuse `syncEntityTransformers` / `handleEntityTransformersChange` seam |
-| Entity `scripts` | Pose-safe if incremental sync allows | Classify per rebuild key |
-| Add/remove entity, trimesh/model structural | May require scene runtime restart | Require `allowSceneRebuild: true`; optional `capturePoses` / `restorePoses` |
-| World gravity, etc. | Often incremental effect | Document per [feature-world-update-reload.md](./feature-world-update-reload.md) |
+| Patch kind                                   | Expected behavior                    | Notes                                                                           |
+| -------------------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------- |
+| Custom stage `code`, `params`, enable, order | Pose-safe                            | Reuse `syncEntityTransformers` / `handleEntityTransformersChange` seam          |
+| Entity `scripts`                             | Pose-safe if incremental sync allows | Classify per rebuild key                                                        |
+| Add/remove entity, trimesh/model structural  | May require scene runtime restart    | Require `allowSceneRebuild: true`; optional `capturePoses` / `restorePoses`     |
+| World gravity, etc.                          | Often incremental effect             | Document per [feature-world-update-reload.md](./feature-world-update-reload.md) |
 
 **Tool flow:** `validate_stage_code` → `apply_world_patch` → `start_verification_run` → `step` / `run_for_sim_time` → `get_observation` / `stop_run`. For timed input sequences (car maneuvers, staged throttle/steer), prefer **`run_timed_macro`** (one call → macro log). ADR: [0004-timed-verification-macro.md](../docs/adr/0004-timed-verification-macro.md).
 
@@ -62,12 +62,12 @@ Compile: `validateCustomTransformerSource` before apply. Runtime: existing `cust
 
 **Platform probes** (agent registers per run):
 
-| Probe kind | Source (conceptual) |
-|------------|---------------------|
-| `entityPose` | Registry / physics position & rotation |
-| `entityBody` | Rapier linvel, angvel, sleeping, … |
-| `action` | Resolved action values for traced entity |
-| `trace` | `transformerTraceBridge` steps for entity |
+| Probe kind    | Source (conceptual)                                              |
+| ------------- | ---------------------------------------------------------------- |
+| `entityPose`  | Registry / physics position & rotation                           |
+| `entityBody`  | Rapier linvel, angvel, sleeping, …                               |
+| `action`      | Resolved action values for traced entity                         |
+| `trace`       | `transformerTraceBridge` steps for entity                        |
 | `watchLabels` | Subscribe to `transformerWatchBridge` entries (author telemetry) |
 
 **Author telemetry:** existing `api.watch(label, value)` — string formatted via `formatWatchValue`; requires observation session enabled (not Workspace UI).
@@ -80,9 +80,9 @@ Errors/warnings attached to run handle: compile (pre-apply), runtime (per target
 
 ## Run modes
 
-| Mode | When | Human sees canvas |
-|------|------|-------------------|
-| **Headless** | CI, agent tight loop | No |
+| Mode                 | When                  | Human sees canvas                  |
+| -------------------- | --------------------- | ---------------------------------- |
+| **Headless**         | CI, agent tight loop  | No                                 |
 | **Browser-attached** | Interactive debugging | Yes — same run, MCP reads timeline |
 
 Avoid running two sims for one edit (headless + browser in parallel) unless replay files exist later.
@@ -91,21 +91,21 @@ Avoid running two sims for one edit (headless + browser in parallel) unless repl
 
 ## MCP tools (v1 sketch)
 
-| Tool | Purpose |
-|------|---------|
-| `load_world_json` | Inline world JSON (headless) |
-| `load_fixture` | Pinned repo fixture by id (headless) |
-| `load_project_bundle` | On-disk agent project bundle by id (headless, Node) |
-| `validate_stage_code` | Compile check only |
-| `apply_world_patch` | Transformer registry + `entities` add/update/remove; `allowSceneRebuild` for structural edits |
-| `export_project_bundle` | Write headless world JSON to allowlisted bundle path (after `load_project_bundle`) |
-| `register_probes` | Probe list + intervals |
-| `start_verification_run` | Input script, duration or max steps, seed |
-| `run_for_sim_time` | Deterministic advance |
-| `run_timed_macro` | Sim-time input schedule + optional probe samples; returns macro log |
-| `get_observation` | Timeline slice, latest errors, watch snapshot |
-| `stop_run` | End session, optional export JSON |
-| `attach_browser` | Dev: connect to open Builder tab (WebSocket bridge) |
+| Tool                     | Purpose                                                                                       |
+| ------------------------ | --------------------------------------------------------------------------------------------- |
+| `load_world_json`        | Inline world JSON (headless)                                                                  |
+| `load_fixture`           | Pinned repo fixture by id (headless)                                                          |
+| `load_project_bundle`    | On-disk agent project bundle by id (headless, Node)                                           |
+| `validate_stage_code`    | Compile check only                                                                            |
+| `apply_world_patch`      | Transformer registry + `entities` add/update/remove; `allowSceneRebuild` for structural edits |
+| `export_project_bundle`  | Write headless world JSON to allowlisted bundle path (after `load_project_bundle`)            |
+| `register_probes`        | Probe list + intervals                                                                        |
+| `start_verification_run` | Input script, duration or max steps, seed                                                     |
+| `run_for_sim_time`       | Deterministic advance                                                                         |
+| `run_timed_macro`        | Sim-time input schedule + optional probe samples; returns macro log                           |
+| `get_observation`        | Timeline slice, latest errors, watch snapshot                                                 |
+| `stop_run`               | End session, optional export JSON                                                             |
+| `attach_browser`         | Dev: connect to open Builder tab (WebSocket bridge)                                           |
 
 Transport: MCP process on host; browser bridge on `127.0.0.1` + token (dev only). With `npm run dev`, Vite starts the bridge; Builder reconnects automatically. Set matching `VITE_RENN_MCP_DEV_TOKEN` (and optional `VITE_RENN_MCP_BROWSER_PORT`) in `.env.local` for the browser tab.
 
@@ -129,14 +129,14 @@ Copy `.cursor/mcp.json.example` to `.cursor/mcp.json`, set `cwd` to your repo ro
 
 ### `run_timed_macro` config (v1)
 
-| Field | Meaning |
-|--------|---------|
-| `startDelaySimSec` | Advance sim with `holdInputDuringDelay` (default empty) before schedule |
-| `durationSimSec` | Sim seconds after delay (cap 120s total with delay) |
-| `steps[]` | `{ atSimTime, inputKeys? }` — macro-relative; latest step at or before macro time wins |
-| `samples[]` | Inline platform probes (`entityPose`, `entityBody`, `trace`) with optional `intervalMs` |
-| `segmentWallPauseMs` | Attached Builder only: pause after each input-step boundary for human-visible pacing |
-| `carryOverTimeline` | Same as `start_verification_run` |
+| Field                | Meaning                                                                                 |
+| -------------------- | --------------------------------------------------------------------------------------- |
+| `startDelaySimSec`   | Advance sim with `holdInputDuringDelay` (default empty) before schedule                 |
+| `durationSimSec`     | Sim seconds after delay (cap 120s total with delay)                                     |
+| `steps[]`            | `{ atSimTime, inputKeys? }` — macro-relative; latest step at or before macro time wins  |
+| `samples[]`          | Inline platform probes (`entityPose`, `entityBody`, `trace`) with optional `intervalMs` |
+| `segmentWallPauseMs` | Attached Builder only: pause after each input-step boundary for human-visible pacing    |
+| `carryOverTimeline`  | Same as `start_verification_run`                                                        |
 
 **Macro log:** `{ macroStartSimTime, endedSimTime, events[], timeline[], snapshot, compileErrors, runtimeErrorList }`.
 

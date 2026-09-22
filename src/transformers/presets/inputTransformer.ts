@@ -30,7 +30,7 @@ export class InputTransformer extends BaseTransformer {
   private mapping: InputMapping
   private rawInputGetter: () => RawInput | null
   /** When set and `current` is non-null, only that entity id receives mapped actions. */
-  private controlledEntityIdRef: { current: string | null } | null
+  private readonly controlledEntityIdRef: { current: string | null } | null
 
   /**
    * @param priority Execution priority (default 0 - runs first)

@@ -9,7 +9,7 @@ import ModelEditor from './ModelEditor'
 import CollapsibleSection from './CollapsibleSection'
 import { fieldLabelStyle, sidebarTextInputStyle, entityPanelIconButtonStyle } from './sharedStyles'
 import { EntityPanelIcons } from './EntityPanelIcons'
-import { useEditorUndo } from '@/contexts/EditorUndoContext'
+import { useEditorUndo } from '@/contexts/useEditorUndo'
 import { theme } from '@/config/theme'
 import type { Vec3UndoProps } from './TransformEditor'
 import {
@@ -109,10 +109,12 @@ export default function PropertyPanel({
   const primaryEntity = entities[0]
   const editorIdPrefix = isMulti ? `multi-${ids.join('-').slice(0, 48)}` : (primaryEntity?.id ?? 'none')
 
+  const selectedEntityIdsKey = useMemo(() => selectedEntityIds.join('\0'), [selectedEntityIds])
+
   const [editingName, setEditingName] = useState<string | null>(null)
   useEffect(() => {
     setEditingName(null)
-  }, [selectedEntityIds.join('\0')])
+  }, [selectedEntityIdsKey])
 
   const mixedDimensionFields = useMemo(() => {
     if (entities.length < 2) return undefined

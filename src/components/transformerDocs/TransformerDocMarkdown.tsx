@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeRaw from 'rehype-raw'
@@ -72,22 +72,22 @@ export function TransformerDocMarkdown({ locale, source, lang }: TransformerDocM
 
   const components = {
     'doc-term': DocTermElement,
-    p: ({ className, children }: { className?: string; children?: React.ReactNode }) => {
+    p: ({ className, children }: { className?: string; children?: ReactNode }) => {
       if (className === 'doc-muted') {
         return <p style={mutedStyle}>{children}</p>
       }
       return <p style={{ margin: '0 0 12px' }}>{children}</p>
     },
-    h3: ({ children }: { children?: React.ReactNode }) => <h3 style={h3Style}>{children}</h3>,
-    h4: ({ children }: { children?: React.ReactNode }) => <h4 style={h4Style}>{children}</h4>,
-    ul: ({ children }: { children?: React.ReactNode }) => <ul style={listStyle}>{children}</ul>,
-    li: ({ children }: { children?: React.ReactNode }) => <li style={{ marginBottom: 8 }}>{children}</li>,
-    strong: ({ children }: { children?: React.ReactNode }) => <strong>{children}</strong>,
-    code: ({ className, children }: { className?: string; children?: React.ReactNode }) => {
+    h3: ({ children }: { children?: ReactNode }) => <h3 style={h3Style}>{children}</h3>,
+    h4: ({ children }: { children?: ReactNode }) => <h4 style={h4Style}>{children}</h4>,
+    ul: ({ children }: { children?: ReactNode }) => <ul style={listStyle}>{children}</ul>,
+    li: ({ children }: { children?: ReactNode }) => <li style={{ marginBottom: 8 }}>{children}</li>,
+    strong: ({ children }: { children?: ReactNode }) => <strong>{children}</strong>,
+    code: ({ className, children }: { className?: string; children?: ReactNode }) => {
       if (className) return <code className={className}>{children}</code>
       return <code>{children}</code>
     },
-    pre: ({ children }: { children?: React.ReactNode }) => {
+    pre: ({ children }: { children?: ReactNode }) => {
       const child = Array.isArray(children) ? children[0] : children
       if (
         child &&

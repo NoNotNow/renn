@@ -1,6 +1,8 @@
+import type { MouseEvent, ReactNode } from 'react'
+
 export interface TabConfig<TTab extends string> {
   id: TTab
-  icon: React.ReactNode
+  icon: ReactNode
   label: string
 }
 
@@ -9,7 +11,7 @@ export interface SidebarTabsProps<TTab extends string> {
   activeTab: TTab
   onTabChange: (tab: TTab) => void
   /** Extra controls rendered at the end of the tab row (e.g. right sidebar actions). */
-  trailing?: React.ReactNode
+  trailing?: ReactNode
 }
 
 export default function SidebarTabs<TTab extends string>({
@@ -31,14 +33,14 @@ export default function SidebarTabs<TTab extends string>({
     justifyContent: 'center',
   })
 
-  const handleTabMouseEnter = (e: React.MouseEvent<HTMLButtonElement>, isActive: boolean) => {
+  const handleTabMouseEnter = (e: MouseEvent<HTMLButtonElement>, isActive: boolean) => {
     if (!isActive) {
       e.currentTarget.style.background = '#20263a'
       e.currentTarget.style.border = '1px solid #2f3545'
     }
   }
 
-  const handleTabMouseLeave = (e: React.MouseEvent<HTMLButtonElement>, isActive: boolean) => {
+  const handleTabMouseLeave = (e: MouseEvent<HTMLButtonElement>, isActive: boolean) => {
     if (!isActive) {
       e.currentTarget.style.background = 'transparent'
       e.currentTarget.style.border = '1px solid transparent'

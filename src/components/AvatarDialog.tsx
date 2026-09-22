@@ -9,7 +9,7 @@ import ValidatedJsonTextarea, { type JsonContentValidation } from './ValidatedJs
 import { CAMERA_MODE_CYCLE_ORDER, CAMERA_MODE_LABELS } from '@/types/world'
 import { fieldLabelStyle, secondaryButtonStyleDisabled, sidebarTextInputStyle } from './sharedStyles'
 import { theme } from '@/config/theme'
-import { useEditorUndo } from '@/contexts/EditorUndoContext'
+import { useEditorUndo } from '@/contexts/useEditorUndo'
 import { uiLogger } from '@/utils/uiLogger'
 import { normalizeAvatarDraft } from '@/utils/entityAvatarValidation'
 import { avatarEntityIconLetter, getAvatarRosterEntityIds } from '@/utils/avatarUtils'

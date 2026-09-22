@@ -7,7 +7,7 @@
  * the pattern of useRawWheelInput.
  */
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, type RefObject } from 'react'
 
 export interface RawMouseDragState {
   deltaX: number
@@ -19,8 +19,8 @@ export interface RawMouseDragState {
  * Attach to the canvas container so drags outside the canvas are ignored.
  */
 export function useRawMouseDrag(
-  containerRef: React.RefObject<HTMLElement | null>,
-): React.RefObject<RawMouseDragState> {
+  containerRef: RefObject<HTMLElement | null>,
+): RefObject<RawMouseDragState> {
   const dragRef = useRef<RawMouseDragState>({ deltaX: 0, deltaY: 0 })
 
   useEffect(() => {

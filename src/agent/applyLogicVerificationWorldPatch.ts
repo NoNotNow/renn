@@ -323,7 +323,7 @@ export function applyLogicVerificationWorldPatch(
       }
       const prevEntity = nextWorld.entities[idx]!
       const merged = applyEntityPipeStackPatch(prevEntity, stackPatch)
-      if ('ok' in merged && merged.ok === false) {
+      if ('ok' in merged) {
         return merged
       }
       nextWorld.entities[idx] = merged as Entity
@@ -342,14 +342,13 @@ export function applyLogicVerificationWorldPatch(
         return { ok: false, message: `Unknown transformer pipe id: ${pipeId}` }
       }
       const withStages = applyPipeStagePatches(prevPipe, pipePatch.stagePatches)
-      if ('ok' in withStages && withStages.ok === false) {
+      if ('ok' in withStages) {
         return withStages
       }
-      const mergedPipe = {
+      nextWorld.transformerPipes![pipeId] = {
         ...(withStages as TransformerPipe),
         ...(pipePatch.name !== undefined ? { name: pipePatch.name } : {}),
       }
-      nextWorld.transformerPipes![pipeId] = mergedPipe
       patchedPipeIds.push(pipeId)
     }
   }

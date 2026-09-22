@@ -1,4 +1,13 @@
-import { useRef, useCallback, useState, useEffect, type CSSProperties } from 'react'
+import {
+  useRef,
+  useCallback,
+  useState,
+  useEffect,
+  type ChangeEvent,
+  type CSSProperties,
+  type KeyboardEvent,
+  type PointerEvent,
+} from 'react'
 import { parseNumberInput, clamp } from '@/utils/numberUtils'
 import {
   advanceScrubVelocity,
@@ -122,7 +131,7 @@ export default function DraggableNumberField({
   }, [localValue, value, min, max, defaultValue, onChange, onBeforeCommit])
 
   const handlePointerDown = useCallback(
-    (e: React.PointerEvent<HTMLInputElement>) => {
+    (e: PointerEvent<HTMLInputElement>) => {
       if (e.button !== 0 || disabled) return
       onScrubStart?.()
       const effectiveValue = value ?? defaultValue
@@ -150,7 +159,7 @@ export default function DraggableNumberField({
   )
 
   const handlePointerMove = useCallback(
-    (e: React.PointerEvent<HTMLInputElement>) => {
+    (e: PointerEvent<HTMLInputElement>) => {
       const scrub = scrubRef.current
       if (!scrub) return
 
@@ -181,7 +190,7 @@ export default function DraggableNumberField({
   )
 
   const endScrub = useCallback(
-    (e: React.PointerEvent<HTMLInputElement>) => {
+    (e: PointerEvent<HTMLInputElement>) => {
       const scrub = scrubRef.current
       const hadScrub = scrub?.deadZoneUsed ?? false
       scrubRef.current = null
@@ -199,21 +208,21 @@ export default function DraggableNumberField({
   )
 
   const handlePointerUp = useCallback(
-    (e: React.PointerEvent<HTMLInputElement>) => {
+    (e: PointerEvent<HTMLInputElement>) => {
       endScrub(e)
     },
     [endScrub],
   )
 
   const handlePointerCancel = useCallback(
-    (e: React.PointerEvent<HTMLInputElement>) => {
+    (e: PointerEvent<HTMLInputElement>) => {
       endScrub(e)
     },
     [endScrub],
   )
 
   const handleChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
+    (e: ChangeEvent<HTMLInputElement>) => {
       if (isFocused) {
         setLocalValue(e.target.value)
       } else {
@@ -228,7 +237,7 @@ export default function DraggableNumberField({
     [onChange, min, max, isFocused, defaultValue, onBeforeCommit, value],
   )
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleKeyDown = useCallback((e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' || e.key === 'Return') {
       e.currentTarget.blur()
     }

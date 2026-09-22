@@ -8,6 +8,7 @@ import {
   getEntityPipeStack,
   normalizePipeMembers,
   collectPipeStageConfigsForCopy,
+  entityWithLegacyTransformerPipe,
   TransformerPipeCycleError,
 } from './transformerPipeResolve'
 
@@ -75,7 +76,7 @@ describe('transformerPipeResolve', () => {
   })
 
   it('resolves entity pipe stack with legacy fallback', () => {
-    const legacy: Entity = { id: 'e1', transformerPipe: 'p-flat' }
+    const legacy = entityWithLegacyTransformerPipe({ id: 'e1' }, 'p-flat')
     expect(getEntityPipeStack(legacy)).toEqual([{ pipeId: 'p-flat' }])
 
     const stacked: Entity = {

@@ -5,8 +5,7 @@ import { useRawMouseDrag } from './rawMouseDrag'
 function makeContainerRef() {
   const div = document.createElement('div')
   document.body.appendChild(div)
-  const ref = { current: div }
-  return ref
+  return { current: div }
 }
 
 describe('useRawMouseDrag', () => {

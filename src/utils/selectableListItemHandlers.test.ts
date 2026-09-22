@@ -1,3 +1,4 @@
+import type { MouseEvent } from 'react'
 import { describe, it, expect, vi } from 'vitest'
 import { selectableListItemHandlers } from './selectableListItemHandlers'
 
@@ -7,7 +8,7 @@ describe('selectableListItemHandlers', () => {
     const onConfirm = vi.fn()
     const handlers = selectableListItemHandlers(onSelect, onConfirm)
 
-    handlers.onClick({} as React.MouseEvent)
+    handlers.onClick({} as MouseEvent)
 
     expect(onSelect).toHaveBeenCalledTimes(1)
     expect(onConfirm).not.toHaveBeenCalled()
@@ -18,7 +19,7 @@ describe('selectableListItemHandlers', () => {
     const onConfirm = vi.fn()
     const handlers = selectableListItemHandlers(onSelect, onConfirm)
 
-    handlers.onDoubleClick({} as React.MouseEvent)
+    handlers.onDoubleClick({} as MouseEvent)
 
     expect(onSelect).toHaveBeenCalledTimes(1)
     expect(onConfirm).toHaveBeenCalledTimes(1)

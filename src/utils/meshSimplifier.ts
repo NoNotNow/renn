@@ -77,7 +77,6 @@ function simplifyWithMeshoptimizer(geometry: ExtractedGeometry, config: TrimeshS
   const originalTriangleCount = geometry.indices.length / 3
   let targetTriangleCount = computeTargetTriangleCount(originalTriangleCount, config)
   targetTriangleCount = Math.max(1, Math.min(targetTriangleCount, originalTriangleCount))
-  targetTriangleCount = Math.max(1, targetTriangleCount)
 
   if (originalTriangleCount <= targetTriangleCount) {
     return {

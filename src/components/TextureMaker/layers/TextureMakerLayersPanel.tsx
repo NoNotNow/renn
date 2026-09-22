@@ -1,4 +1,5 @@
 import { useRef } from 'react'
+import type { Dispatch, SetStateAction } from 'react'
 import type { BlendMode, TextureDocument, TextureLayer, TextureLayerDest } from '@/utils/textureCompositor'
 import { TEXTURE_BLEND_MODES } from '@/utils/textureCompositor'
 
@@ -7,11 +8,11 @@ export interface TextureMakerLayersPanelProps {
   selectedLayerId: string | null
   selectedLayer: TextureLayer | undefined
   placementDraft: TextureLayerDest | null
-  setPlacementDraft: React.Dispatch<React.SetStateAction<TextureLayerDest | null>>
+  setPlacementDraft: Dispatch<SetStateAction<TextureLayerDest | null>>
   nameDraft: string
-  setNameDraft: React.Dispatch<React.SetStateAction<string>>
+  setNameDraft: Dispatch<SetStateAction<string>>
   opacityDraft: number
-  setOpacityDraft: React.Dispatch<React.SetStateAction<number>>
+  setOpacityDraft: Dispatch<SetStateAction<number>>
   onSelectLayer: (layerId: string) => void
   onPatchLayer: (
     layerId: string,

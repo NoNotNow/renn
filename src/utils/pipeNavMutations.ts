@@ -13,6 +13,7 @@ import {
   flattenPipeMembers,
   getEntityPipeStack,
   normalizePipeMembers,
+  withPipeStackBindings,
 } from '@/utils/transformerPipeResolve'
 
 type CreatePipeOptions = {
@@ -150,14 +151,13 @@ export function wrapUngroupedStagesIntoStackPipe(
         ...nextWorld,
         entities: nextWorld.entities.map((e) =>
           e.id === entityId
-            ? {
-                ...e,
-                transformerPipeStack: stack.map((b) => ({
+            ? withPipeStackBindings(
+                e,
+                stack.map((b) => ({
                   ...b,
                   enabled: b.enabled !== false,
                 })),
-                transformerPipe: undefined,
-              }
+              )
             : e,
         ),
       }
@@ -227,13 +227,9 @@ export function wrapEntityStagesIntoPipe(
       ...nextWorld,
       entities: nextWorld.entities.map((e) =>
         e.id === entityId
-          ? {
-              ...e,
-              transformerPipeStack: [
-                { pipeId, enabled: true, ...(initialParams ? { params: initialParams } : {}) },
-              ],
-              transformerPipe: undefined,
-            }
+          ? withPipeStackBindings(e, [
+              { pipeId, enabled: true, ...(initialParams ? { params: initialParams } : {}) },
+            ])
           : e,
       ),
     }
@@ -634,9 +630,7 @@ function updateEntityStack(world: RennWorld, entityId: string, stack: Transforme
   return {
     ...world,
     entities: world.entities.map((e) =>
-      e.id === entityId
-        ? { ...e, transformerPipeStack: stack.length > 0 ? stack : undefined, transformerPipe: undefined }
-        : e,
+      e.id === entityId ? withPipeStackBindings(e, stack) : e,
     ),
   }
 }

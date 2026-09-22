@@ -9,6 +9,7 @@ import { stageWorldEditDescriptor } from './applyStageWorldWrite'
 import type { ApplyWorldWrite } from './applyWorldEdit'
 import type { TransformerConfig } from '@/types/transformer'
 import type { RennWorld } from '@/types/world'
+import { legacyEntityPipeId } from '@/utils/transformerPipeResolve'
 
 const sharedStageConfig: TransformerConfig = { type: 'car2', params: { power: 50 } }
 const otherStageConfig: TransformerConfig = { type: 'input' }
@@ -196,7 +197,6 @@ describe('commitStageEdit', () => {
             position: [0, 0, 0],
             transformers: ['shared_tf'],
             transformerPipeStack: [{ pipeId: 'drive', params: { speed: 50 } }],
-            transformerPipe: 'drive',
           },
         ],
       })
@@ -222,7 +222,7 @@ describe('commitStageEdit', () => {
       const car = next.entities.find((e) => e.id === 'car')!
       expect(car.transformers).toEqual([outcome.selectStageId])
       expect(car.transformerPipeStack).toBeUndefined()
-      expect(car.transformerPipe).toBeUndefined()
+      expect(legacyEntityPipeId(car)).toBeUndefined()
 
       expect(ctx.onMergedParamSync).not.toHaveBeenCalled()
       expect(ctx.writeStack).not.toHaveBeenCalled()

@@ -62,7 +62,10 @@ export function useEntityListFilters(
   entities: Entity[],
   options: UseEntityListFiltersOptions = {},
 ): EntityListFilters {
-  const entityWorkHistory = options.entityWorkHistory ?? []
+  const entityWorkHistory = useMemo(
+    () => options.entityWorkHistory ?? [],
+    [options.entityWorkHistory],
+  )
 
   const [searchQuery, setSearchQuery] = useState('')
   const [filterHasModel, setFilterHasModel] = useState<TriState>('any')
@@ -83,8 +86,6 @@ export function useEntityListFilters(
       filterPlayableAvatar,
     [filterHasModel, filterShape, filterHasTransformers, filterSizeMin, filterSizeMax, filterPlayableAvatar],
   )
-
-  const hasActivePickerFilters = hasActiveEntityFilters
 
   const clearEntityFilters = useCallback(() => {
     setFilterHasModel('any')
@@ -195,7 +196,7 @@ export function useEntityListFilters(
     sortByHistory,
     setSortByHistory,
     hasActiveEntityFilters,
-    hasActivePickerFilters,
+    hasActivePickerFilters: hasActiveEntityFilters,
     clearEntityFilters,
     filteredEntities,
     recentEntityIds,

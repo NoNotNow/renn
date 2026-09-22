@@ -114,7 +114,7 @@ function sampleRandomRotation(): Rotation {
 
 export class WandererTransformer extends BaseTransformer {
   readonly type = 'wanderer'
-  private params: Required<
+  private readonly params: Required<
     Pick<
       WandererParams,
       'speed' | 'jumpDistance' | 'linear' | 'angular' | 'positionEpsilon' | 'rotationEpsilon'

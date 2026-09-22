@@ -1,10 +1,10 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, type RefObject } from 'react'
 import { DEFAULT_FREE_FLY_KEYS, type FreeFlyKeys } from '@/types/camera'
 import { isKeyboardEventInEditableContext } from '@/input/rawInput'
 
 export { DEFAULT_FREE_FLY_KEYS } from '@/types/camera'
 
-export function useKeyboardInput(): React.RefObject<FreeFlyKeys> {
+export function useKeyboardInput(): RefObject<FreeFlyKeys> {
   const keysRef = useRef<FreeFlyKeys>({ ...DEFAULT_FREE_FLY_KEYS })
 
   useEffect(() => {

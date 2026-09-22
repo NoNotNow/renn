@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import type { CSSProperties } from 'react'
 import type { TransformerConfig } from '@/types/transformer'
 import { theme } from '@/config/theme'
 import { TRANSFORMER_PRESET_OPTIONS } from '@/transformers/transformerPresets'
@@ -25,7 +26,7 @@ export interface AddTransformerDialogPanelProps {
   onCancel: () => void
 }
 
-const inputStyle: React.CSSProperties = {
+const inputStyle: CSSProperties = {
   width: '100%',
   padding: '8px 12px',
   borderRadius: 6,
@@ -35,7 +36,7 @@ const inputStyle: React.CSSProperties = {
   fontSize: 14,
 }
 
-const ghostButtonStyle: React.CSSProperties = {
+const ghostButtonStyle: CSSProperties = {
   padding: '6px 12px',
   background: 'transparent',
   border: `1px solid ${theme.border.default}`,
@@ -45,7 +46,7 @@ const ghostButtonStyle: React.CSSProperties = {
   fontSize: 12,
 }
 
-function tabStyle(active: boolean): React.CSSProperties {
+function tabStyle(active: boolean): CSSProperties {
   return {
     padding: '8px 14px',
     borderRadius: 6,
@@ -75,7 +76,7 @@ function groupMatchesSearch(group: GroupedRegistryTransformer, registry: Record<
   })
 }
 
-function listItemStyle(selected: boolean): React.CSSProperties {
+function listItemStyle(selected: boolean): CSSProperties {
   return {
     display: 'block',
     width: '100%',

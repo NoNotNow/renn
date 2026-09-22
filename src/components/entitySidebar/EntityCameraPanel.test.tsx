@@ -1,3 +1,4 @@
+import type { ComponentProps } from 'react'
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import EntityCameraPanel from './EntityCameraPanel'
@@ -37,7 +38,7 @@ function makeAvatar(id: string, name: string): Entity {
   } as unknown as Entity
 }
 
-function renderPanel(props: Partial<React.ComponentProps<typeof EntityCameraPanel>> = {}) {
+function renderPanel(props: Partial<ComponentProps<typeof EntityCameraPanel>> = {}) {
   const onCameraControlChange = vi.fn()
   const onCameraTargetChange = vi.fn()
   const onCameraModeChange = vi.fn()

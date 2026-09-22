@@ -185,6 +185,8 @@ export async function convertVideoToWebMp4(
       if (logLines.length > 40) logLines.shift()
     }
 
+    let output: Blob | undefined
+    let failure: unknown
     try {
       await ffmpeg.writeFile(inName, await fetchFile(file))
       /** FFmpeg.wasm often emits no `progress` during encode; nudge UI so the bar is not stuck at 0%. */
@@ -217,22 +219,18 @@ export async function convertVideoToWebMp4(
       console.warn(`[videoConverter] ffmpeg.exec finished (exit code ${code})`)
       if (code !== 0) {
         const tail = logLines.length ? `\n${logLines.slice(-12).join('\n')}` : ''
-        throw new Error(`ffmpeg exited with code ${code}.${tail}`)
+        failure = new Error(`ffmpeg exited with code ${code}.${tail}`)
+      } else {
+        const data = await ffmpeg.readFile(outName)
+        if (!(data instanceof Uint8Array)) {
+          failure = new Error('Expected binary MP4 output from ffmpeg')
+        } else {
+          onProgress?.(1)
+          output = new Blob([data], { type: 'video/mp4' })
+        }
       }
-      const data = await ffmpeg.readFile(outName)
-      if (!(data instanceof Uint8Array)) {
-        throw new Error('Expected binary MP4 output from ffmpeg')
-      }
-      onProgress?.(1)
-      return new Blob([data], { type: 'video/mp4' })
     } catch (err) {
-      if (
-        signal?.aborted ||
-        (err instanceof DOMException && err.name === 'AbortError')
-      ) {
-        killFfmpeg()
-      }
-      throw err
+      failure = err
     } finally {
       ffmpeg.off('log', logHandler)
       if (progressHandler) {
@@ -241,6 +239,17 @@ export async function convertVideoToWebMp4(
       await ffmpeg.deleteFile(inName).catch(() => {})
       await ffmpeg.deleteFile(outName).catch(() => {})
     }
+
+    if (failure !== undefined) {
+      if (
+        signal?.aborted ||
+        (failure instanceof DOMException && failure.name === 'AbortError')
+      ) {
+        killFfmpeg()
+      }
+      throw failure
+    }
+    return output!
   }
 
   const job = queue.then(run)

@@ -1,16 +1,23 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type MutableRefObject,
+  type RefObject,
+} from 'react'
 import { useLocalStorageState } from '@/hooks/useLocalStorageState'
 import { usePointerRevealTimeout } from '@/hooks/usePointerRevealTimeout'
 import { isFullscreenEnabled } from '@/utils/fullscreenApi'
 
 export interface BuilderFullscreenChrome {
   /** Ref attached to the Builder column root (becomes the fullscreen target). */
-  builderColumnRef: React.RefObject<HTMLDivElement>
+  builderColumnRef: RefObject<HTMLDivElement>
   /**
    * Attach to the full-area sidebars overlay wrapper (`position: absolute; inset: 0; pointer-events: none`).
    * Used to detect when the pointer is over sidebar UI so idle fullscreen auto-hide is suppressed.
    */
-  fsSidebarsHitTestRef: React.MutableRefObject<HTMLDivElement | null>
+  fsSidebarsHitTestRef: MutableRefObject<HTMLDivElement | null>
   /** Left sidebar drawer open state (persisted to localStorage). */
   leftDrawerOpen: boolean
   setLeftDrawerOpen: (value: boolean | ((prev: boolean) => boolean)) => void

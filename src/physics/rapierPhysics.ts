@@ -35,20 +35,20 @@ export type CachedTransform = {
 }
 
 export class PhysicsWorld {
-  private world: RAPIER.World
-  private bodyMap: Map<string, RAPIER.RigidBody> = new Map()
-  private colliderMap: Map<string, RAPIER.Collider> = new Map()
-  private colliderHandleToEntityId: Map<number, string> = new Map()
+  private readonly world: RAPIER.World
+  private readonly bodyMap: Map<string, RAPIER.RigidBody> = new Map()
+  private readonly colliderMap: Map<string, RAPIER.Collider> = new Map()
+  private readonly colliderHandleToEntityId: Map<number, string> = new Map()
   private lastCollisions: CollisionPair[] = []
   private disposed: boolean = false
   private stepping: boolean = false
-  private cachedTransforms: Map<string, CachedTransform> = new Map()
+  private readonly cachedTransforms: Map<string, CachedTransform> = new Map()
   /** Reused each step in drainContactForceEvents; cleared before fill. */
-  private contactForceByPair: Map<string, CollisionImpact> = new Map()
+  private readonly contactForceByPair: Map<string, CollisionImpact> = new Map()
   private eventQueue: RAPIER.EventQueue | null = null
   /** When set from world JSON, per-body timers advance toward `body.sleep()`. */
-  private sleepingConfig: WorldSleepingSettings | undefined
-  private customSleepTimers: Map<string, number> = new Map()
+  private readonly sleepingConfig: WorldSleepingSettings | undefined
+  private readonly customSleepTimers: Map<string, number> = new Map()
 
   /**
    * Per-entity touching/support cache, rebuilt once per step() from narrow-phase.
@@ -56,11 +56,11 @@ export class PhysicsWorld {
    * which otherwise create thousands of temporary WASM wrapper objects per frame
    * (each triggering FinalizationRegistry register/unregister overhead).
    */
-  private touchingCache: Map<string, { touching: boolean; supportVelocity?: [number, number, number] }> = new Map()
+  private readonly touchingCache: Map<string, { touching: boolean; supportVelocity?: [number, number, number] }> = new Map()
   /** Entity ids that need touching cache rebuilt each step (set by caller). */
-  private touchingCacheEntityIds: Set<string> = new Set()
+  private readonly touchingCacheEntityIds: Set<string> = new Set()
   /** Bodies disabled via distance-culling sleep (Rapier `setEnabled(false)`). */
-  private culledForDistance: Set<string> = new Set()
+  private readonly culledForDistance: Set<string> = new Set()
 
   constructor(gravity: [number, number, number] = DEFAULT_GRAVITY, sleeping?: WorldSleepingSettings) {
     this.world = new RAPIER.World({ x: gravity[0], y: gravity[1], z: gravity[2] })
@@ -522,6 +522,8 @@ export class PhysicsWorld {
 
   /**
    * Copy rigid-body pose/velocities into {@link cachedTransforms}.
+   * @param entityId - entity id for the cache entry
+   * @param body - rigid body to read pose and velocities from
    * @param full - if true, always write pose/vel (e.g. after distance-cull re-enable so transformers
    *   do not read stale `isSleeping` from before `setEnabled(false)`). If false, matches post-step
    *   behaviour: skip pose/velocity when sleeping to avoid churn.

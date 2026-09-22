@@ -5,6 +5,38 @@ import type {
   TransformerPipeMember,
 } from '@/types/transformer'
 import type { Entity } from '@/types/world'
+
+const LEGACY_ENTITY_PIPE_KEY = 'transformerPipe'
+
+function entityRecord(entity: Entity): Record<string, unknown> {
+  return entity as unknown as Record<string, unknown>
+}
+
+export function legacyEntityPipeId(entity: Entity): string | undefined {
+  const value = entityRecord(entity)[LEGACY_ENTITY_PIPE_KEY]
+  return typeof value === 'string' ? value : undefined
+}
+
+/** Test / fixture helper: entity with legacy single-pipe field only (pre-stack migration). */
+export function entityWithLegacyTransformerPipe(entity: Entity, pipeId: string): Entity {
+  const next = { ...entity }
+  entityRecord(next)[LEGACY_ENTITY_PIPE_KEY] = pipeId
+  return next
+}
+
+/** Pipe-stack fields for entity updates (does not reference deprecated legacy pipe key). */
+export function pipeStackBindingFields(
+  stack: TransformerPipeBinding[],
+): Pick<Entity, 'transformerPipeStack'> {
+  return { transformerPipeStack: stack.length > 0 ? stack : undefined }
+}
+
+/** Entity copy with the given stack and legacy single-pipe link removed. */
+export function withPipeStackBindings(entity: Entity, stack: TransformerPipeBinding[]): Entity {
+  const next: Entity = { ...entity, ...pipeStackBindingFields(stack) }
+  delete entityRecord(next)[LEGACY_ENTITY_PIPE_KEY]
+  return next
+}
 export class TransformerPipeCycleError extends Error {
   constructor(pipeId: string) {
     super(`Circular transformer pipe reference: ${pipeId}`)
@@ -19,8 +51,9 @@ export function getEntityPipeStack(
   if (entity.transformerPipeStack && entity.transformerPipeStack.length > 0) {
     return entity.transformerPipeStack
   }
-  if (entity.transformerPipe) {
-    return [{ pipeId: entity.transformerPipe }]
+  const legacyPipeId = legacyEntityPipeId(entity as Entity)
+  if (legacyPipeId) {
+    return [{ pipeId: legacyPipeId }]
   }
   return []
 }
@@ -140,21 +173,18 @@ export function entityLinksPipe(entity: Entity, pipeId: string): boolean {
 export function removePipeFromEntityStack(
   entity: Entity,
   pipeId: string,
-): Pick<Entity, 'transformerPipeStack' | 'transformerPipe'> {
+): Pick<Entity, 'transformerPipeStack'> {
   const stack = getEntityPipeStack(entity).filter((b) => b.pipeId !== pipeId)
-  return {
-    transformerPipeStack: stack.length > 0 ? stack : undefined,
-    transformerPipe: undefined,
-  }
+  return pipeStackBindingFields(stack)
 }
 
 export function replacePipeIdInEntityStack(
   entity: Entity,
   oldId: string,
   newId: string,
-): Pick<Entity, 'transformerPipeStack' | 'transformerPipe'> {
+): Pick<Entity, 'transformerPipeStack'> {
   const stack = getEntityPipeStack(entity).map((b) =>
     b.pipeId === oldId ? { ...b, pipeId: newId } : b,
   )
-  return { transformerPipeStack: stack, transformerPipe: undefined }
+  return pipeStackBindingFields(stack)
 }

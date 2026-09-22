@@ -29,13 +29,13 @@ interface OnTimerEntry {
 }
 
 export class ScriptRunner {
-  private game: GameAPI
-  private hooks: Map<string, HookFn> = new Map()
-  private entityMap: Map<string, Entity> = new Map()
+  private readonly game: GameAPI
+  private readonly hooks: Map<string, HookFn> = new Map()
+  private readonly entityMap: Map<string, Entity> = new Map()
   private onUpdateEntries: OnUpdateEntry[] = []
   private onTimerEntries: OnTimerEntry[] = []
-  private onCollisionHooks: Map<string, Array<{ fn: HookFn; ctx: OnCollisionCtx }>> = new Map()
-  private onSpawnHooks: Map<string, Array<{ fn: HookFn; ctx: OnSpawnCtx }>> = new Map()
+  private readonly onCollisionHooks: Map<string, Array<{ fn: HookFn; ctx: OnCollisionCtx }>> = new Map()
+  private readonly onSpawnHooks: Map<string, Array<{ fn: HookFn; ctx: OnSpawnCtx }>> = new Map()
 
   constructor(
     world: RennWorld,

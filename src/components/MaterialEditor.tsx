@@ -21,7 +21,7 @@ import {
   secondaryPickIconButtonHoverHandlers,
 } from './sharedStyles'
 import { EntityPanelIcons } from './EntityPanelIcons'
-import { useEditorUndo } from '@/contexts/EditorUndoContext'
+import { useEditorUndo } from '@/contexts/useEditorUndo'
 import { theme } from '@/config/theme'
 
 export interface MaterialEditorProps {

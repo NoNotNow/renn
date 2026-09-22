@@ -11,7 +11,7 @@ const ajv = new Ajv({ strict: true, allErrors: true })
 
 // Compile the avatar definition *from the full schema* so `$ref` targets (Vec3/Rotation/etc.) resolve.
 ajv.addSchema(worldSchema as object, 'world')
-const validateAvatar: ValidateFunction<unknown> = ajv.compile({
+const validateAvatar: ValidateFunction = ajv.compile({
   $ref: 'world#/$defs/EntityAvatarConfig',
 } as object)
 const getErrors = (): AjvError[] => (validateAvatar.errors ?? []) as unknown as AjvError[]
@@ -34,7 +34,7 @@ export function normalizeAvatarDraft(
   // We accept `null` as "remove avatar config".
   if (parsed === null) return { avatar: undefined, error: null }
 
-  if (typeof parsed !== 'object' || parsed === undefined) {
+  if (typeof parsed !== 'object') {
     return { avatar: undefined, error: 'Avatar config must be an object (or null).' }
   }
 

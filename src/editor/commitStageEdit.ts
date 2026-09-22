@@ -5,6 +5,7 @@ import { applyStageWorldWrite, stageWorldEditDescriptor } from '@/editor/applySt
 import type { ApplyWorldWrite } from '@/editor/applyWorldEdit'
 import { allocateTransformerRegistryId } from '@/utils/commitTransformerConfigsToWorld'
 import { patchStageConfigInWorld } from '@/utils/pipeNavMutations'
+import { withPipeStackBindings } from '@/utils/transformerPipeResolve'
 
 /**
  * Names the user action behind a transformer-stage edit.
@@ -204,10 +205,8 @@ function makeStageUniqueWorld(
       entities: world.entities.map((e) =>
         e.id === entityId
           ? {
-              ...e,
+              ...withPipeStackBindings(e, []),
               transformers: e.transformers?.map((tid) => (tid === stageId ? uniqueId : tid)) ?? [],
-              transformerPipeStack: undefined,
-              transformerPipe: undefined,
             }
           : e,
       ),

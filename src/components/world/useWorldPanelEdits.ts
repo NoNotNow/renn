@@ -1,5 +1,5 @@
 import type { RennWorld } from '@/types/world'
-import { useEditorUndo } from '@/contexts/EditorUndoContext'
+import { useEditorUndo } from '@/contexts/useEditorUndo'
 
 /**
  * Shared edit helpers for the World tab sub-panels.

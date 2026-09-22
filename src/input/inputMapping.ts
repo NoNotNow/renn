@@ -66,14 +66,12 @@ export function applyInputMappingInto(
 
     if (mapping.wheel.horizontal && rawInput.wheel.deltaX !== 0) {
       const actionName = mapping.wheel.horizontal
-      const value = normalizeWheelDelta(rawInput.wheel.deltaX, wheelSensitivity)
-      out[actionName] = value
+      out[actionName] = normalizeWheelDelta(rawInput.wheel.deltaX, wheelSensitivity)
     }
 
     if (mapping.wheel.vertical && rawInput.wheel.deltaY !== 0) {
       const actionName = mapping.wheel.vertical
-      const value = normalizeWheelDelta(rawInput.wheel.deltaY, wheelSensitivity)
-      out[actionName] = value
+      out[actionName] = normalizeWheelDelta(rawInput.wheel.deltaY, wheelSensitivity)
     }
   }
 }

@@ -20,7 +20,7 @@ import {
   secondaryPickIconButtonHoverHandlers,
 } from './sharedStyles'
 import { EntityPanelIcons } from './EntityPanelIcons'
-import { useEditorUndo } from '@/contexts/EditorUndoContext'
+import { useEditorUndo } from '@/contexts/useEditorUndo'
 import type { MixedDimensionFieldSpec, MixedDimensionKind } from '@/utils/mixedShapeDimensions'
 
 const ADDABLE_SHAPE_TYPES: AddableShapeType[] = ['box', 'sphere', 'cylinder', 'capsule', 'cone', 'pyramid', 'plane', 'trimesh']

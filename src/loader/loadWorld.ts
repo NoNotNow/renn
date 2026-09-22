@@ -83,8 +83,7 @@ export async function loadWorld(
   const scene = new THREE.Scene()
   const userData = getSceneUserData(scene)
 
-  const gravity = world.world.gravity ?? DEFAULT_GRAVITY
-  userData.gravity = gravity
+  userData.gravity = world.world.gravity ?? DEFAULT_GRAVITY
 
   const ambient = world.world.ambientLight
   if (ambient) {

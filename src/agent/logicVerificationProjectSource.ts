@@ -59,9 +59,7 @@ export async function resolveVerificationProjectSource(
       return resolveFixtureVerificationProject(source.fixtureId)
     case 'bundle':
       return resolveBundleVerificationProject(source.bundleId)
-    default: {
-      const _exhaustive: never = source
-      throw new Error(`Unknown verification project source: ${String(_exhaustive)}`)
-    }
+    default:
+      throw new Error(`Unknown verification project source: ${String(source)}`)
   }
 }

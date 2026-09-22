@@ -2,19 +2,6 @@ import * as THREE from 'three'
 import type { Shape } from '@/types/world'
 
 /**
- * Create a test THREE.js mesh
- */
-export function createTestMesh(
-  geometry?: THREE.BufferGeometry,
-  material?: THREE.Material
-): THREE.Mesh {
-  return new THREE.Mesh(
-    geometry ?? new THREE.BoxGeometry(1, 1, 1),
-    material ?? new THREE.MeshBasicMaterial()
-  )
-}
-
-/**
  * Create a THREE.js mesh for a specific shape
  */
 export function createMeshForShape(shape: Shape): THREE.Mesh {

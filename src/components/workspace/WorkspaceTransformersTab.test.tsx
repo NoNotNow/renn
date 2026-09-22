@@ -20,6 +20,7 @@ import {
   setTransformerWatchEnabled,
 } from '@/runtime/transformerWatchBridge'
 import { assignPipeToEntity } from '@/utils/commitTransformerConfigsToWorld'
+import { entityWithLegacyTransformerPipe } from '@/utils/transformerPipeResolve'
 import { findUngroupedStageIds } from '@/utils/pipeNavResolve'
 
 vi.mock('@monaco-editor/react', () => ({
@@ -377,14 +378,16 @@ describe('WorkspaceTransformersTab', () => {
       version: '1',
       world: {},
       entities: [
-        {
-          id: 'car',
-          bodyType: 'dynamic',
-          shape: { type: 'box', width: 1, height: 1, depth: 1 },
-          position: [0, 0, 0],
-          transformers: ['car_tf0', 'car_tf1'],
-          transformerPipe: 'p1',
-        },
+        entityWithLegacyTransformerPipe(
+          {
+            id: 'car',
+            bodyType: 'dynamic',
+            shape: { type: 'box', width: 1, height: 1, depth: 1 },
+            position: [0, 0, 0],
+            transformers: ['car_tf0', 'car_tf1'],
+          },
+          'p1',
+        ),
       ],
       transformers: {
         car_tf0: { type: 'input', priority: 0, enabled: true, params: {} },

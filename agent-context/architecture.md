@@ -8,17 +8,17 @@ High-level architecture of the 3D game world builder and runtime.
 
 ## Tech stack
 
-| Layer         | Choice                       |
-| ------------- | ---------------------------- |
-| 3D            | Three.js                     |
+| Layer         | Choice                             |
+| ------------- | ---------------------------------- |
+| 3D            | Three.js                           |
 | Physics       | Rapier (@dimforge/rapier3d-compat) |
-| UI            | React                        |
-| Script editor | Monaco (@monaco-editor/react) |
-| Bundler       | Vite                         |
-| Validation    | Ajv (2020 dialect)           |
-| Persistence   | IndexedDB (idb), JSZip       |
-| Routing       | react-router-dom             |
-| E2E tests     | Playwright                   |
+| UI            | React                              |
+| Script editor | Monaco (@monaco-editor/react)      |
+| Bundler       | Vite                               |
+| Validation    | Ajv (2020 dialect)                 |
+| Persistence   | IndexedDB (idb), JSZip             |
+| Routing       | react-router-dom                   |
+| E2E tests     | Playwright                         |
 
 ---
 

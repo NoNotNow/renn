@@ -13,9 +13,3 @@ export const MINIMAL_MP4_BYTES = new Uint8Array([
 export function minimalMp4Blob(): Blob {
   return new Blob([MINIMAL_MP4_BYTES], { type: 'video/mp4' })
 }
-
-/** HTML download stub saved with a `.mp4` name (regression: NS_ERROR_DOM_MEDIA_METADATA_ERR). */
-export const HTML_STUB_AS_MP4 = new Blob(
-  ['<!DOCTYPE html><html><head><title>redirect</title></head><body></body></html>'],
-  { type: 'video/mp4' },
-)

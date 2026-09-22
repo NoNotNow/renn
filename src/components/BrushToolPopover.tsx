@@ -1,3 +1,4 @@
+import type { RefObject } from 'react'
 import { HexColorInput, HexColorPicker } from 'react-colorful'
 import { BUILDER_SCENE_CANVAS_HOST_ATTR } from '@/config/constants'
 import { theme } from '@/config/theme'
@@ -9,7 +10,7 @@ const sceneCanvasHostSelector = `[${BUILDER_SCENE_CANVAS_HOST_ATTR}]`
 
 export interface BrushToolPopoverProps {
   open: boolean
-  anchorRef: React.RefObject<HTMLElement | null>
+  anchorRef: RefObject<HTMLElement | null>
   onClose: () => void
   colorHex: string
   onColorHexChange: (hex: string) => void

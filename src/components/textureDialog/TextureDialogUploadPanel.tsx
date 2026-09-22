@@ -1,3 +1,4 @@
+import type { ChangeEvent, DragEvent, RefObject } from 'react'
 import { theme } from '@/config/theme'
 import { TextureManager } from '@/utils/textureManager'
 import { VideoManager } from '@/utils/videoManager'
@@ -9,15 +10,15 @@ export interface TextureDialogUploadPanelProps {
   allowVideo: boolean
   dragActive: boolean
   uploadPreview: UploadCandidate | null
-  fileInputRef: React.RefObject<HTMLInputElement>
+  fileInputRef: RefObject<HTMLInputElement>
   onConfirmUpload: () => void
   onCancelUpload: () => void
-  onDragEnter: (e: React.DragEvent) => void
-  onDragOver: (e: React.DragEvent) => void
-  onDragLeave: (e: React.DragEvent) => void
-  onDrop: (e: React.DragEvent) => void
+  onDragEnter: (e: DragEvent) => void
+  onDragOver: (e: DragEvent) => void
+  onDragLeave: (e: DragEvent) => void
+  onDrop: (e: DragEvent) => void
   onOpenFilePicker: () => void
-  onFileInputChange: (e: React.ChangeEvent<HTMLInputElement>) => void
+  onFileInputChange: (e: ChangeEvent<HTMLInputElement>) => void
 }
 
 export default function TextureDialogUploadPanel({

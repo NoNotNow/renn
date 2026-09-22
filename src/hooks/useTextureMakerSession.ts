@@ -44,13 +44,13 @@ import {
 } from '@/utils/idGenerator'
 import type { RennWorld } from '@/types/world'
 import type { WorldAssetsRef } from '@/hooks/useEditorHistory'
-import type React from 'react'
+import type { MutableRefObject, RefObject } from 'react'
 
 export interface UseTextureMakerSessionParams {
   world: RennWorld
   assets: Map<string, Blob>
   worldAssetsRef: WorldAssetsRef
-  sceneViewRef: React.RefObject<SceneViewHandle>
+  sceneViewRef: RefObject<SceneViewHandle>
   selectedEntityIds: string[]
   documentEpoch: number
   pushHistory: () => void
@@ -75,7 +75,7 @@ export interface UseTextureMakerSessionResult {
   canUndoTextureMaker: boolean
   canRedoTextureMaker: boolean
   textureBrushDisabled: boolean
-  textureDocsRef: React.MutableRefObject<Map<string, TextureDocument>>
+  textureDocsRef: MutableRefObject<Map<string, TextureDocument>>
   textureStudioTick: number
   activateTextureStudioForEntity: (id: string) => Promise<void>
   provisionBlankCompositeTextureIfMissing: (id: string) => Promise<void>
@@ -433,7 +433,7 @@ export function useTextureMakerSession({
       const comp = await compositeTextureLayers(docNew, next)
       next.set(compositeAssetId, comp)
       next.set(texDocAssetId(compositeAssetId), serializeDocToBlob(docNew))
-      await updateAssets(() => next)
+      updateAssets(() => next)
       updateWorld((prev) => ({
         ...prev,
         entities: prev.entities.map((e) =>
@@ -519,7 +519,7 @@ export function useTextureMakerSession({
       const comp = await compositeTextureLayers(docNew, next)
       next.set(compositeAssetId, comp)
       next.set(texDocAssetId(compositeAssetId), serializeDocToBlob(docNew))
-      await updateAssets(() => next)
+      updateAssets(() => next)
       updateWorld((prev) => ({
         ...prev,
         entities: prev.entities.map((e) =>
@@ -630,7 +630,7 @@ export function useTextureMakerSession({
           const comp = await compositeTextureLayers(doc, next)
           next.set(doc.compositeAssetId, comp)
           next.set(texDocAssetId(doc.compositeAssetId), serializeDocToBlob(doc))
-          await updateAssets(() => next)
+          updateAssets(() => next)
           bumpTextureStudio()
           requestAnimationFrame(() => {
             const entity = worldAssetsRef.current.world.entities.find(
@@ -645,7 +645,7 @@ export function useTextureMakerSession({
       const { writeAssetId, entityShouldPointToWriteId } = resolvePaintStrokeWriteTarget(
         payload.mapAssetId,
       )
-      await updateAssets((prev) => {
+      updateAssets((prev) => {
         const next = new Map(prev)
         next.set(writeAssetId, payload.newBlob)
         return next
@@ -918,7 +918,7 @@ export function useTextureMakerSession({
       }
     }
 
-    await updateAssets(() => next)
+    updateAssets(() => next)
     updateWorld(() => worldAfter)
     textureDocsRef.current.delete(eid)
     bumpTextureStudio()

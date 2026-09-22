@@ -1,3 +1,4 @@
+import type { RefObject } from 'react'
 import { describe, expect, test } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 import {
@@ -208,8 +209,8 @@ describe('getRawInputSnapshot', () => {
     const wheelRef = { current: { deltaX: 10, deltaY: -5, pinchDelta: 3, mouseWheelDelta: 7 } }
 
     const snapshot = getRawInputSnapshot(
-      keyboardRef as React.RefObject<RawKeyboardState>,
-      wheelRef as React.RefObject<RawWheelState>,
+      keyboardRef as RefObject<RawKeyboardState>,
+      wheelRef as RefObject<RawWheelState>,
     )
 
     expect(snapshot.keys.w).toBe(true)

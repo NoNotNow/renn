@@ -435,7 +435,6 @@ export function runSceneFrame(input: SceneFrameLoopInputs): void {
   if (timing) {
     const n = performance.now()
     timing.renderMs = skipRender ? 0 : n - prev
-    prev = n
   }
 
   finishTiming()

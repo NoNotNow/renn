@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import type { CSSProperties } from 'react'
+import type { CSSProperties, MutableRefObject, PointerEvent as ReactPointerEvent } from 'react'
 import type { SceneFrameTiming } from '@/runtime/frameTiming'
 import { useLocalStorageState } from '@/hooks/useLocalStorageState'
 
@@ -51,7 +51,7 @@ export function FrameStatsOverlay({
   frameTimingRef,
   onClose,
 }: {
-  frameTimingRef: React.MutableRefObject<SceneFrameTiming | null>
+  frameTimingRef: MutableRefObject<SceneFrameTiming | null>
   onClose: () => void
 }) {
   const [pos, setPos] = useLocalStorageState<{ left: number; top: number }>(
@@ -90,7 +90,7 @@ export function FrameStatsOverlay({
   }, [onDragPointerMove])
 
   const onDragHandlePointerDown = useCallback(
-    (e: React.PointerEvent) => {
+    (e: ReactPointerEvent) => {
       if (e.button !== 0) return
       e.preventDefault()
       dragRef.current = {

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type RefObject } from 'react'
+import { useEffect, useRef, useState, useCallback, type RefObject } from 'react'
 
 /** Delay before showing compile errors while the user is still typing. */
 export const COMPILE_ERROR_DISPLAY_DEBOUNCE_MS = 500
@@ -23,10 +23,10 @@ export function useDebouncedCompileErrorDisplay(
     }
   }
 
-  const flushDisplayed = (): void => {
+  const flushDisplayed = useCallback((): void => {
     clearDebounceTimer()
     setDisplayed(compileErrorRef.current)
-  }
+  }, [])
 
   useEffect(() => {
     clearDebounceTimer()
@@ -64,7 +64,7 @@ export function useDebouncedCompileErrorDisplay(
 
     root.addEventListener('focusout', onFocusOut)
     return () => root.removeEventListener('focusout', onFocusOut)
-  }, [editorContainerRef])
+  }, [editorContainerRef, flushDisplayed])
 
   return displayed
 }

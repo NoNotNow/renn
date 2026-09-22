@@ -10,48 +10,48 @@ Living backlog for stabilization passes. **Do not redo completed work** — scan
 
 ## Test-only modules (kept, flagged)
 
-| Module | Note |
-|---|---|
-| `src/utils/worldUtils.ts` | Only `Builder.test.tsx` |
-| `src/utils/trimeshVisualPhysicsAlignment.ts` | Integration test only |
+| Module                                       | Note                    |
+| -------------------------------------------- | ----------------------- |
+| `src/utils/worldUtils.ts`                    | Only `Builder.test.tsx` |
+| `src/utils/trimeshVisualPhysicsAlignment.ts` | Integration test only   |
 
 ---
 
 ## Completed phases (index)
 
-| Phase | Theme |
-|---|---|
-| 1 | Dead files, unused constants exports, DEV-gated logs, JSON parse helper |
-| 2 | `DEFAULT_FREE_FLY_KEYS`, ground patch, UI infra doc, theme/sharedStyles, LivePosesPoll |
-| 3 | `ValidatedJsonTextarea`, hex migration (priority panels), `assetUpload` tests |
-| 4 | `visualBaseQuaternion`, CSS `:root` tokens, modelPresets/sampleWorld/scriptCtx tests |
-| 5 | Live `scriptCtx.time`, `modelPreviewFraming` extraction |
-| 6 | Hex migration (Builder, Material/Model/Property panels) |
-| 7 | `sceneFrameLoop` branch tests (28) |
-| 8 | `ProjectContext` → `useCameraState`, `useModelPresets`, `getWorldToSave` |
-| 9 | Builder hooks: keyboard, fullscreen chrome, editor history |
-| 10 | SceneView → sky/audio/fullscreen hooks + error overlay |
-| 11 | `WorldPanel` → `world/*` sections |
-| 12 | `EntitySidebar` → `entitySidebar/*` |
-| 13–13b | `PropertyPanel` split; pre-existing `tsc -b` fixes |
-| 14 | `TextureDialog` → `textureDialog/*` |
-| 15 | `useTextureMakerSession` from Builder (-41% lines) |
-| 16 | Asset picker layout, `AssignEntitiesDialog` |
-| 17 | Workspace shell tab preserves pipe nav state |
-| 18 | Hex: `Switch`, `ErrorBoundary` |
-| 19 | `incrementalSceneSync` tests, registry port smoke tests |
-| 20 | Undo gaps, param-scope single projection, `worldPipeRegistryChanged` fast path |
-| 21 | `commitStageEdit` deep module |
-| 22 | `pipeNavEdit` seam; controller 23 → 13 keys |
-| 23 | `EntityStageRuntime` snapshot; per-row walk fix |
-| 24 | `workspaceEditorSession` (Monaco view-state policy) |
-| 25 | Stage strip `scope` prop; flat-index enable fix |
-| 26 | Transformers tab hooks, editor store split, `behaviorRegistryBindings` |
-| 27 | Pipe-strip ancestor grey-out; flat stack `applyStageWorldWrite` (partial candidate 6) |
-| 28 | AI doc consolidation (audit slim, history archive) |
-| 29 | Hex `BuilderHeader`/`SoundPanel`; pipe-nav dead exports; workspace tab/strip loose ends |
-| 30 | God-file slices: TextureMaker shell, collider builder, registry culling, SceneView helpers, ProjectContext MRU, Builder pose-sync + explorer selection/groups |
-| 31 | Builder workspace hook; ProjectContext persisted assets + last-project MRU pure module |
+| Phase  | Theme                                                                                                                                                         |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1      | Dead files, unused constants exports, DEV-gated logs, JSON parse helper                                                                                       |
+| 2      | `DEFAULT_FREE_FLY_KEYS`, ground patch, UI infra doc, theme/sharedStyles, LivePosesPoll                                                                        |
+| 3      | `ValidatedJsonTextarea`, hex migration (priority panels), `assetUpload` tests                                                                                 |
+| 4      | `visualBaseQuaternion`, CSS `:root` tokens, modelPresets/sampleWorld/scriptCtx tests                                                                          |
+| 5      | Live `scriptCtx.time`, `modelPreviewFraming` extraction                                                                                                       |
+| 6      | Hex migration (Builder, Material/Model/Property panels)                                                                                                       |
+| 7      | `sceneFrameLoop` branch tests (28)                                                                                                                            |
+| 8      | `ProjectContext` → `useCameraState`, `useModelPresets`, `getWorldToSave`                                                                                      |
+| 9      | Builder hooks: keyboard, fullscreen chrome, editor history                                                                                                    |
+| 10     | SceneView → sky/audio/fullscreen hooks + error overlay                                                                                                        |
+| 11     | `WorldPanel` → `world/*` sections                                                                                                                             |
+| 12     | `EntitySidebar` → `entitySidebar/*`                                                                                                                           |
+| 13–13b | `PropertyPanel` split; pre-existing `tsc -b` fixes                                                                                                            |
+| 14     | `TextureDialog` → `textureDialog/*`                                                                                                                           |
+| 15     | `useTextureMakerSession` from Builder (-41% lines)                                                                                                            |
+| 16     | Asset picker layout, `AssignEntitiesDialog`                                                                                                                   |
+| 17     | Workspace shell tab preserves pipe nav state                                                                                                                  |
+| 18     | Hex: `Switch`, `ErrorBoundary`                                                                                                                                |
+| 19     | `incrementalSceneSync` tests, registry port smoke tests                                                                                                       |
+| 20     | Undo gaps, param-scope single projection, `worldPipeRegistryChanged` fast path                                                                                |
+| 21     | `commitStageEdit` deep module                                                                                                                                 |
+| 22     | `pipeNavEdit` seam; controller 23 → 13 keys                                                                                                                   |
+| 23     | `EntityStageRuntime` snapshot; per-row walk fix                                                                                                               |
+| 24     | `workspaceEditorSession` (Monaco view-state policy)                                                                                                           |
+| 25     | Stage strip `scope` prop; flat-index enable fix                                                                                                               |
+| 26     | Transformers tab hooks, editor store split, `behaviorRegistryBindings`                                                                                        |
+| 27     | Pipe-strip ancestor grey-out; flat stack `applyStageWorldWrite` (partial candidate 6)                                                                         |
+| 28     | AI doc consolidation (audit slim, history archive)                                                                                                            |
+| 29     | Hex `BuilderHeader`/`SoundPanel`; pipe-nav dead exports; workspace tab/strip loose ends                                                                       |
+| 30     | God-file slices: TextureMaker shell, collider builder, registry culling, SceneView helpers, ProjectContext MRU, Builder pose-sync + explorer selection/groups |
+| 31     | Builder workspace hook; ProjectContext persisted assets + last-project MRU pure module                                                                        |
 
 ---
 
@@ -188,14 +188,14 @@ Living backlog for stabilization passes. **Do not redo completed work** — scan
 
 ### God files
 
-| File | Lines (approx) | Suggested extraction |
-|------|------------------|----------------------|
-| `pages/Builder.tsx` | **1004** | Gizmo/perf/texture wiring remain; entity world actions in `useBuilderEntityWorldActions` |
-| `components/SceneView.tsx` | **906** | Main scene-build **done** — [`SceneRuntimeSession`](./scene-runtime-session-extract.md) (~**35**-line adapter); orchestration in `sceneRuntimeSession*.ts` (~**1226** LOC); safe helpers (Phase 30) |
-| `physics/rapierPhysics.ts` | **930** | Step/touching contact dedup (hot — perf gate); collider factory done |
-| `TextureMaker/TextureMaker.tsx` | **288** | Done (Phase 30); optional types module for studio tool |
-| `runtime/renderItemRegistry.ts` | **1018** | Transformer exec (culling Phase 30; mesh sync Phase 34) |
-| `contexts/ProjectContext.tsx` | **680** | `useProjectPersistence`, `useProjectImportExport`; assets + last-project id done (Phase 31) |
+| File                            | Lines (approx) | Suggested extraction                                                                                                                                                                                |
+| ------------------------------- | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pages/Builder.tsx`             | **1004**       | Gizmo/perf/texture wiring remain; entity world actions in `useBuilderEntityWorldActions`                                                                                                            |
+| `components/SceneView.tsx`      | **906**        | Main scene-build **done** — [`SceneRuntimeSession`](./scene-runtime-session-extract.md) (~**35**-line adapter); orchestration in `sceneRuntimeSession*.ts` (~**1226** LOC); safe helpers (Phase 30) |
+| `physics/rapierPhysics.ts`      | **930**        | Step/touching contact dedup (hot — perf gate); collider factory done                                                                                                                                |
+| `TextureMaker/TextureMaker.tsx` | **288**        | Done (Phase 30); optional types module for studio tool                                                                                                                                              |
+| `runtime/renderItemRegistry.ts` | **1018**       | Transformer exec (culling Phase 30; mesh sync Phase 34)                                                                                                                                             |
+| `contexts/ProjectContext.tsx`   | **680**        | `useProjectPersistence`, `useProjectImportExport`; assets + last-project id done (Phase 31)                                                                                                         |
 
 **Architecture review (2026-09-18):** `/var/folders/cg/87j3kd8s3dqctsflnp71st2w0000gn/T/architecture-review-20260918-2128.html` — SceneRuntimeSession **approved** ([plan](./scene-runtime-session-extract.md)); Phases **0–6 done** (2026-09-18).
 
@@ -207,11 +207,11 @@ Priority panels done (phases 2–3, 6, 18, 29). Still scattered accents: `SceneV
 
 ### Test gaps
 
-| Area | Status |
-|---|---|
-| `renderItemRegistry.ts` | Port/contract smoke (Phase 19); behaviour via integration |
-| `sceneFrameLoop.ts` | Unit + accumulator; SceneView rAF loop integration-only |
-| `modelPreview.ts` | WebGL entry untested; framing in `modelPreviewFraming.ts` |
+| Area                      | Status                                                                        |
+| ------------------------- | ----------------------------------------------------------------------------- |
+| `renderItemRegistry.ts`   | Port/contract smoke (Phase 19); behaviour via integration                     |
+| `sceneFrameLoop.ts`       | Unit + accumulator; SceneView rAF loop integration-only                       |
+| `modelPreview.ts`         | WebGL entry untested; framing in `modelPreviewFraming.ts`                     |
 | `incrementalSceneSync.ts` | 20 tests; reference equality by design (see `feature-world-update-reload.md`) |
 
 ### Open from recent pipe/workspace work (Phase 21–27)

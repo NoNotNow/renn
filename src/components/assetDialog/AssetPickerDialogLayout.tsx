@@ -1,8 +1,8 @@
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import Modal from '@/components/Modal'
 import { theme } from '@/config/theme'
 
-const searchInputStyle: React.CSSProperties = {
+const searchInputStyle: CSSProperties = {
   width: '100%',
   padding: '8px 12px',
   borderRadius: 6,

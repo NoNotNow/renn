@@ -309,7 +309,9 @@ export default function BuilderHeader({
     {
       type: 'item',
       label: 'Delete Project',
-      onClick: () => currentProject.id && deleteProject(currentProject.id),
+      onClick: () => {
+        if (currentProject.id) void deleteProject(currentProject.id)
+      },
       disabled: !currentProject.id,
     },
   ]
@@ -697,7 +699,7 @@ export default function BuilderHeader({
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation()
-                        deleteProject(project.id)
+                        void deleteProject(project.id)
                       }}
                       title="Delete project"
                       style={{

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, type MutableRefObject } from 'react'
 import * as THREE from 'three'
 
 /** Radius inside camera far plane (PerspectiveCamera default far = 1000). */
@@ -28,7 +28,7 @@ export interface UseSkyDomeArgs {
  * scene frame loop, which copies the camera position into it).
  */
 export function useSkyDome({ scene, skyboxAssetId, assets }: UseSkyDomeArgs): {
-  skyDomeRef: React.MutableRefObject<THREE.Mesh | null>
+  skyDomeRef: MutableRefObject<THREE.Mesh | null>
 } {
   const skyDomeRef = useRef<THREE.Mesh | null>(null)
 

@@ -1,17 +1,18 @@
 import { useState } from 'react'
+import type { MouseEvent, ReactNode } from 'react'
 import { sectionStyle, sectionTitleStyle } from './sharedStyles'
-import { useCopyMenuOptional } from '@/contexts/CopyContext'
+import { useCopyMenuOptional } from '@/contexts/useCopyMenu'
 
 export interface CollapsibleSectionProps {
   title: string
   defaultCollapsed?: boolean
   /** Rendered on the same line as the title (e.g. lock button). Clicks do not toggle collapse. */
-  trailing?: React.ReactNode
+  trailing?: ReactNode
   /** When set, right-click on the section header opens "Copy to clipboard" with this payload (JSON or raw string). */
   copyPayload?: object | string | (() => object | string)
   /** Native tooltip on the section title (hover). */
   titleTooltip?: string
-  children: React.ReactNode
+  children: ReactNode
 }
 
 export default function CollapsibleSection({
@@ -28,7 +29,7 @@ export default function CollapsibleSection({
 
   const handleContextMenu =
     copyPayload != null && copyMenu
-      ? (e: React.MouseEvent) => {
+      ? (e: MouseEvent) => {
           e.preventDefault()
           const getPayload = () =>
             typeof copyPayload === 'function'

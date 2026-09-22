@@ -12,8 +12,10 @@ import {
   entityLinksPipe,
   flattenPipeMembers,
   getEntityPipeStack,
+  legacyEntityPipeId,
   normalizePipeMembers,
   TransformerPipeCycleError,
+  withPipeStackBindings,
 } from '@/utils/transformerPipeResolve'
 
 export interface ClonePipeTreeResult {
@@ -247,12 +249,7 @@ export function assignPipeToEntity(
     ...nextWorld,
     entities: nextWorld.entities.map((e) =>
       e.id === entityId
-        ? {
-            ...e,
-            transformers: nextTransformers,
-            transformerPipeStack: nextStack,
-            transformerPipe: undefined,
-          }
+        ? { ...withPipeStackBindings(e, nextStack), transformers: nextTransformers }
         : e,
     ),
   }
@@ -268,12 +265,7 @@ export function decoupleEntityFromPipe(world: RennWorld, entityId: string): Renn
     ...nextWorld,
     entities: nextWorld.entities.map((e) =>
       e.id === entityId
-        ? {
-            ...e,
-            transformers: newTransformerIds,
-            transformerPipeStack: undefined,
-            transformerPipe: undefined,
-          }
+        ? { ...withPipeStackBindings(e, []), transformers: newTransformerIds }
         : e,
     ),
   }
@@ -285,14 +277,11 @@ export function deletePipeFromWorld(world: RennWorld, pipeId: string): RennWorld
   delete nextPipes[pipeId]
 
   const nextEntities = world.entities.map((e) => {
-    const stack = getEntityPipeStack(e).filter((b) => b.pipeId !== pipeId)
-    const hadLegacy = e.transformerPipe === pipeId
-    if (stack.length === getEntityPipeStack(e).length && !hadLegacy) return e
-    return {
-      ...e,
-      transformerPipeStack: stack.length > 0 ? stack : undefined,
-      transformerPipe: undefined,
-    }
+    const stackBefore = getEntityPipeStack(e)
+    const stack = stackBefore.filter((b) => b.pipeId !== pipeId)
+    const hadLegacy = legacyEntityPipeId(e) === pipeId
+    if (stack.length === stackBefore.length && !hadLegacy) return e
+    return withPipeStackBindings(e, stack)
   })
 
   return { ...world, transformerPipes: nextPipes, entities: nextEntities }
@@ -334,11 +323,7 @@ export function savePipeFromEntity(
       ...nextWorld,
       entities: nextWorld.entities.map((e) =>
         e.id === entityId
-          ? {
-              ...e,
-              transformerPipeStack: [{ pipeId, enabled: true }],
-              transformerPipe: undefined,
-            }
+          ? withPipeStackBindings(e, [{ pipeId, enabled: true }])
           : e,
       ),
     }

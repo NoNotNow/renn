@@ -526,7 +526,7 @@ export default function Builder() {
           }
           return
         }
-        await updateAssets(() => result.assets)
+        updateAssets(() => result.assets)
         updateWorld(() => result.world)
       } catch (err) {
         console.error('[PerformanceBooster] Failed to persist simplified mesh', err)
@@ -545,7 +545,7 @@ export default function Builder() {
       if (!blob) throw new Error('Texture asset missing')
       const newBlob = await downscaleImageBlob(blob, maxEdgePx)
       pushHistory()
-      await updateAssets((prev) => {
+      updateAssets((prev) => {
         const next = new Map(prev)
         next.set(mapId, newBlob)
         return next

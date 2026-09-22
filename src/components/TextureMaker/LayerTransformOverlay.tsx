@@ -1,4 +1,5 @@
 import { useCallback, useLayoutEffect, useRef } from 'react'
+import type { CSSProperties, PointerEvent as ReactPointerEvent, RefObject } from 'react'
 import type { TextureLayerDest } from '@/utils/textureCompositor'
 import {
   type TransformHandle,
@@ -12,7 +13,7 @@ export interface LayerTransformOverlayProps {
   docHeight: number
   dest: TextureLayerDest
   /** Preview frame (for pointer → doc during drag; may extend beyond the image). */
-  frameRef: React.RefObject<HTMLElement | null>
+  frameRef: RefObject<HTMLElement | null>
   /** When false, overlay does not capture pointers (e.g. brush or hand tool active). */
   interactive?: boolean
   onDestLiveChange: (next: TextureLayerDest) => void
@@ -83,7 +84,7 @@ export default function LayerTransformOverlay({
   }, [wrapMove, wrapUp])
 
   const startDrag = useCallback(
-    (handle: TransformHandle, e: React.PointerEvent) => {
+    (handle: TransformHandle, e: ReactPointerEvent) => {
       e.preventDefault()
       e.stopPropagation()
       const el = frameRef.current
@@ -108,7 +109,7 @@ export default function LayerTransformOverlay({
 
   const pct = (v: number, dim: number) => `${(v / dim) * 100}%`
 
-  const handleStyle = (left: string, top: string, cursor: string): React.CSSProperties => ({
+  const handleStyle = (left: string, top: string, cursor: string): CSSProperties => ({
     position: 'absolute',
     left,
     top,

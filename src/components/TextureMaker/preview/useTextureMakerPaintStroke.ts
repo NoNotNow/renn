@@ -1,4 +1,10 @@
-import { useCallback, useRef, type MutableRefObject, type RefObject } from 'react'
+import {
+  useCallback,
+  useRef,
+  type MutableRefObject,
+  type PointerEvent as ReactPointerEvent,
+  type RefObject,
+} from 'react'
 import type { TextureDocument, TextureLayerDest } from '@/utils/textureCompositor'
 import {
   TEXTURE_BRUSH_RADIUS_MAX,
@@ -136,7 +142,7 @@ export function useTextureMakerPaintStroke(options: {
   )
 
   const onStackPointerDown = useCallback(
-    async (e: React.PointerEvent) => {
+    async (e: ReactPointerEvent) => {
       if (studioTool !== 'brush' && studioTool !== 'pen') return
       if (!selectedLayerId || !placementDraft) return
       // React synthetic events may null out `currentTarget` after an async gap.

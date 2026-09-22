@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState, useEffect, useRef } from 'react'
+import type { ReactNode } from 'react'
 import Modal from './Modal'
 import { theme } from '@/config/theme'
 import {
@@ -15,7 +16,7 @@ import { TransformerDocsLocaleProvider } from '@/components/transformerDocs/Tran
 interface DocChapter {
   id: string
   title: string
-  content: React.ReactNode
+  content: ReactNode
   keywords: string[]
   plainText?: string
 }
@@ -29,7 +30,7 @@ export interface TransformerDocsContentProps {
   /** If true, the chapters sidebar is collapsed into a simple list or hidden. */
   forceCollapsedChapters?: boolean
   /** Optional extra header element (like search bar). */
-  headerExtra?: React.ReactNode
+  headerExtra?: ReactNode
   /** Builder modal wires both for a localized modal title — embedded panel leaves them unset. */
   locale?: TransformerDocsLocale
   onLocaleChange?: (locale: TransformerDocsLocale) => void

@@ -4,10 +4,10 @@ Transformers convert high-level intent (input, AI, waypoints) into physics impul
 
 ## Target intent vs movement execution
 
-| Layer | Responsibility |
-|--------|------------------|
+| Layer                                                                          | Responsibility                                                                                                                                                                                                       |
+| ------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Target sources** (`targetPoseInput`, `wanderer`, `follow`, future AI/script) | **Where** to go: `TransformInput.target` with `pose`, **linear** `speed` (m/s average along translation toward `pose.position`), optional `curve` / `velocity`. Does **not** specify kinematic vs dynamic vs forces. |
-| **Movement transformers** (`kinematicMovement`, future force-based movers) | **How** to realize intent: read `input.target` and emit forces or `setPose` as designed. |
+| **Movement transformers** (`kinematicMovement`, future force-based movers)     | **How** to realize intent: read `input.target` and emit forces or `setPose` as designed.                                                                                                                             |
 
 **Paradigms**
 
@@ -86,15 +86,15 @@ src/
 
 Templates live under `src/data/transformerPresets/<type>/*.json` and appear in the Builder transformer template dialog.
 
-| Type | Purpose | Key params |
-|---|---|---|
-| `input` | Maps raw keys/wheel → actions | `inputMapping` (keyboard/wheel bindings) |
-| `car2` | Impulse + addRotation for steering; optional **jump** (world-Y impulse once per press); **physics only when touching another object** | `power`, `steeringIntensity`, `steeringSpeed`, `lateralGrip`, `lateralToForwardTransfer`, `tireGripSlipSpeedThreshold`, `lateralGripSlipScale`, `jumpImpulse` |
-| `person` | WASD walk/run + turn torque when grounded | `walkForce`, `runForce`, `maxWalkSpeed`, `maxRunSpeed`, `turnSpeed` |
-| `targetPoseInput` | Waypoint list → **`TransformInput.target`** (pose + linear speed); modes `cycle`, `pingPong`, `stopAtEnd` | `poses`, `speed`, `mode`, `positionEpsilon`, `rotationEpsilon` |
-| `wanderer` | Random poses within perimeter cube → **`TransformInput.target`**; configurable speed, jump distance, linear/angular toggles | `speed`, `jumpDistance`, `linear`, `angular`, `perimeter` (center, halfExtents), `positionEpsilon`, `rotationEpsilon` |
-| `follow` | Each frame, copy another item's world pose into **`TransformInput.target`** (pose + linear `speed`); runtime resolves pose via `RenderItemRegistry` (physics cache + mesh fallback) | `targetEntityId`, `speed`, `linear`, `angular` |
-| `kinematicMovement` | Reads **`input.target`**, emits **`setPose`** (linear move at `target.speed`, rotation via `maxRotationRate`) | `maxRotationRate` |
+| Type                | Purpose                                                                                                                                                                             | Key params                                                                                                                                                    |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `input`             | Maps raw keys/wheel → actions                                                                                                                                                       | `inputMapping` (keyboard/wheel bindings)                                                                                                                      |
+| `car2`              | Impulse + addRotation for steering; optional **jump** (world-Y impulse once per press); **physics only when touching another object**                                               | `power`, `steeringIntensity`, `steeringSpeed`, `lateralGrip`, `lateralToForwardTransfer`, `tireGripSlipSpeedThreshold`, `lateralGripSlipScale`, `jumpImpulse` |
+| `person`            | WASD walk/run + turn torque when grounded                                                                                                                                           | `walkForce`, `runForce`, `maxWalkSpeed`, `maxRunSpeed`, `turnSpeed`                                                                                           |
+| `targetPoseInput`   | Waypoint list → **`TransformInput.target`** (pose + linear speed); modes `cycle`, `pingPong`, `stopAtEnd`                                                                           | `poses`, `speed`, `mode`, `positionEpsilon`, `rotationEpsilon`                                                                                                |
+| `wanderer`          | Random poses within perimeter cube → **`TransformInput.target`**; configurable speed, jump distance, linear/angular toggles                                                         | `speed`, `jumpDistance`, `linear`, `angular`, `perimeter` (center, halfExtents), `positionEpsilon`, `rotationEpsilon`                                         |
+| `follow`            | Each frame, copy another item's world pose into **`TransformInput.target`** (pose + linear `speed`); runtime resolves pose via `RenderItemRegistry` (physics cache + mesh fallback) | `targetEntityId`, `speed`, `linear`, `angular`                                                                                                                |
+| `kinematicMovement` | Reads **`input.target`**, emits **`setPose`** (linear move at `target.speed`, rotation via `maxRotationRate`)                                                                       | `maxRotationRate`                                                                                                                                             |
 
 **Typical kinematic path:** `targetPoseInput`, `wanderer`, or `follow` (priority 5) then `kinematicMovement` (priority 6). Entity should use **`bodyType: kinematic`** for clean pose driving.
 
@@ -133,16 +133,16 @@ The `car2` preset (**impulse** + **addRotation**) accepts optional `params` in J
 
 **Chain note:** Transformers may set `TransformOutput.impulse`; `TransformerChain.execute` **adds** impulse components into the accumulated **`force`** vector (see `src/transformers/transformer.ts`). For a typical `car2`-only or `input`+`car2` chain, the play runtime therefore often applies the result via **`output.force`**, not a separate **`output.impulse`**. See the **Input Transformer + Car2** section below for the full input/car2 split and transferable patterns.
 
-| Param | Default | Meaning |
-|-------|---------|---------|
-| `power` | 400 | Throttle/brake impulse magnitude |
-| `steeringIntensity` | 0.1 | Yaw per distance per wheel angle (radians per metre) |
-| `steeringSpeed` | 0.01 | Wheel angle change rate (how fast steer input moves the wheel) |
-| `lateralGrip` | 100 | Sideways grip strength (higher = less sliding) |
-| `lateralToForwardTransfer` | 0.2 | Fraction of lateral grip translated into forward impulse when turning (0–1) |
-| `tireGripSlipSpeedThreshold` | 2 | Relative lateral speed above which grip is multiplied by `lateralGripSlipScale` (sliding); at or below, full `lateralGrip` |
-| `lateralGripSlipScale` | 0.3 | Effective `lateralGrip` multiplier when lateral speed exceeds the threshold |
-| `jumpImpulse` | 200 | World-space +Y impulse applied once per **rising edge** of action `jump` while touching; set `0` to disable |
+| Param                        | Default | Meaning                                                                                                                    |
+| ---------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `power`                      | 400     | Throttle/brake impulse magnitude                                                                                           |
+| `steeringIntensity`          | 0.1     | Yaw per distance per wheel angle (radians per metre)                                                                       |
+| `steeringSpeed`              | 0.01    | Wheel angle change rate (how fast steer input moves the wheel)                                                             |
+| `lateralGrip`                | 100     | Sideways grip strength (higher = less sliding)                                                                             |
+| `lateralToForwardTransfer`   | 0.2     | Fraction of lateral grip translated into forward impulse when turning (0–1)                                                |
+| `tireGripSlipSpeedThreshold` | 2       | Relative lateral speed above which grip is multiplied by `lateralGripSlipScale` (sliding); at or below, full `lateralGrip` |
+| `lateralGripSlipScale`       | 0.3     | Effective `lateralGrip` multiplier when lateral speed exceeds the threshold                                                |
+| `jumpImpulse`                | 200     | World-space +Y impulse applied once per **rising edge** of action `jump` while touching; set `0` to disable                |
 
 Map **Space** (or any key) to the semantic action **`jump`** in the `input` transformer’s `inputMapping` (see `src/data/transformerPresets/input/keyboard-car.json`).
 
@@ -209,25 +209,25 @@ flowchart LR
 
 ### Layer 1: `InputTransformer` (device → semantic actions)
 
-| Aspect | Detail |
-|--------|--------|
-| **Role** | Map hardware state to **named scalar actions** (`Record<string, number>`). |
-| **Implementation** | [src/transformers/presets/inputTransformer.ts](../src/transformers/presets/inputTransformer.ts) |
+| Aspect             | Detail                                                                                                                                                                |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Role**           | Map hardware state to **named scalar actions** (`Record<string, number>`).                                                                                            |
+| **Implementation** | [src/transformers/presets/inputTransformer.ts](../src/transformers/presets/inputTransformer.ts)                                                                       |
 | **Mapping engine** | [src/input/inputMapping.ts](../src/input/inputMapping.ts) — keyboard keys and optional wheel axes → action names; typical values in `0..1` or signed ranges for axes. |
-| **Output** | Always **`EMPTY_TRANSFORM_OUTPUT`**; side effect is **`input.actions = { ...input.actions, ...actions }`** (or `{}` if no raw input). |
-| **Configuration** | Per-entity **`inputMapping`** in world JSON (`keyboard`, `wheel`, `sensitivity`). |
+| **Output**         | Always **`EMPTY_TRANSFORM_OUTPUT`**; side effect is **`input.actions = { ...input.actions, ...actions }`** (or `{}` if no raw input).                                 |
+| **Configuration**  | Per-entity **`inputMapping`** in world JSON (`keyboard`, `wheel`, `sensitivity`).                                                                                     |
 
 **Why separate from Car2:** Any controller (keyboard, future gamepad, network) can fill the same **action names**; the drive model does not hard-code keys.
 
 ### Layer 2: `CarTransformer2` (actions + body state → physics intent)
 
-| Aspect | Detail |
-|--------|--------|
-| **Role** | Interpret **throttle / brake / steer / jump** as **impulses** and **steering rotation delta**. |
-| **Implementation** | [src/transformers/presets/car2Transformer.ts](../src/transformers/presets/car2Transformer.ts) |
-| **Actions consumed** | `throttle`, `brake`, `steer_left`, `steer_right`, `jump` (via **`BaseTransformer.getAction`**). |
-| **Internal state** | **`wheelAngle`** (−1…1, smoothed toward zero), **`jumpHeldPrev`** (rising-edge detection for jump). |
-| **Touch gating** | If **`input.environment.isTouchingObject !== true`**, returns **`{ earlyExit: false }`** with **no** **`impulse`** or **`addRotation`**. |
+| Aspect                | Detail                                                                                                                                                                                   |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Role**              | Interpret **throttle / brake / steer / jump** as **impulses** and **steering rotation delta**.                                                                                           |
+| **Implementation**    | [src/transformers/presets/car2Transformer.ts](../src/transformers/presets/car2Transformer.ts)                                                                                            |
+| **Actions consumed**  | `throttle`, `brake`, `steer_left`, `steer_right`, `jump` (via **`BaseTransformer.getAction`**).                                                                                          |
+| **Internal state**    | **`wheelAngle`** (−1…1, smoothed toward zero), **`jumpHeldPrev`** (rising-edge detection for jump).                                                                                      |
+| **Touch gating**      | If **`input.environment.isTouchingObject !== true`**, returns **`{ earlyExit: false }`** with **no** **`impulse`** or **`addRotation`**.                                                 |
 | **Runtime fills env** | [src/runtime/renderItemRegistry.ts](../src/runtime/renderItemRegistry.ts) sets **`isTouchingObject`** from **`physicsWorld.isEntityTouchingAny`** before **`transformerChain.execute`**. |
 
 **Behaviour summary (when touching)**
@@ -242,19 +242,19 @@ flowchart LR
 Typical bindings (also **`CAR_PRESET`** in [src/input/inputPresets.ts](../src/input/inputPresets.ts) and [src/data/transformerPresets/input/keyboard-car.json](../src/data/transformerPresets/input/keyboard-car.json)):
 
 | Key / binding | Semantic action |
-|---------------|-----------------|
-| W | `throttle` |
-| S | `brake` |
-| A | `steer_left` |
-| D | `steer_right` |
-| Space | `jump` |
+| ------------- | --------------- |
+| W             | `throttle`      |
+| S             | `brake`         |
+| A             | `steer_left`    |
+| D             | `steer_right`   |
+| Space         | `jump`          |
 
 ### Two kinds of "presets"
 
-| Layer | Where | Purpose |
-|-------|--------|---------|
-| **TypeScript defaults** | `getDefaultTransformerConfig`, `CAR_PRESET`, `DEFAULT_CAR2_PARAMS` | Sensible defaults when creating configs in the app or in code. |
-| **JSON templates** | [src/data/transformerPresets/car2/](../src/data/transformerPresets/car2/) (`default.json`, `fast.json`), [input/keyboard-car.json](../src/data/transformerPresets/input/keyboard-car.json) | Load/save in the Builder **Templates…** dialog; same schema as entity transformer config. |
+| Layer                   | Where                                                                                                                                                                                      | Purpose                                                                                   |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| **TypeScript defaults** | `getDefaultTransformerConfig`, `CAR_PRESET`, `DEFAULT_CAR2_PARAMS`                                                                                                                         | Sensible defaults when creating configs in the app or in code.                            |
+| **JSON templates**      | [src/data/transformerPresets/car2/](../src/data/transformerPresets/car2/) (`default.json`, `fast.json`), [input/keyboard-car.json](../src/data/transformerPresets/input/keyboard-car.json) | Load/save in the Builder **Templates…** dialog; same schema as entity transformer config. |
 
 **Note:** Builder dropdown default for **`car2`** uses **`power: 1000`**; **`car2/default.json`** uses **`power: 300`** — both are valid.
 
@@ -264,14 +264,14 @@ Individual transformers may set **`TransformOutput.impulse`**. The chain **adds*
 
 ### Abstract paradigms (transferable)
 
-| Paradigm | Idea |
-|----------|------|
-| **Separation: sensing vs execution** | One stage turns devices into **neutral action names**; the next turns actions + pose/velocity into **forces/impulses/rotation**. |
-| **Named intent bus** | **`TransformInput.actions`** is a string-keyed bus. Executors use **`getAction(name)`** only — no direct keyboard checks in **`car2`**. |
-| **Priority as pipeline order** | Lower **`priority`** runs first. Early stages **mutate shared input**; later stages **emit output** that the chain merges. |
-| **State where it belongs** | **Input** mapping is stateless per frame. **Car2** keeps **short-lived behavior state** (wheel angle, edge detection). |
-| **Environment gating** | The runtime publishes facts (**contacts**, wind, future ground flags). Movement code **decides** whether to apply physics without re-querying Rapier inside **`transform()`**. |
-| **Dual preset layers** | Code defaults for UX + JSON libraries for sharing — same config shape. |
+| Paradigm                             | Idea                                                                                                                                                                           |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Separation: sensing vs execution** | One stage turns devices into **neutral action names**; the next turns actions + pose/velocity into **forces/impulses/rotation**.                                               |
+| **Named intent bus**                 | **`TransformInput.actions`** is a string-keyed bus. Executors use **`getAction(name)`** only — no direct keyboard checks in **`car2`**.                                        |
+| **Priority as pipeline order**       | Lower **`priority`** runs first. Early stages **mutate shared input**; later stages **emit output** that the chain merges.                                                     |
+| **State where it belongs**           | **Input** mapping is stateless per frame. **Car2** keeps **short-lived behavior state** (wheel angle, edge detection).                                                         |
+| **Environment gating**               | The runtime publishes facts (**contacts**, wind, future ground flags). Movement code **decides** whether to apply physics without re-querying Rapier inside **`transform()`**. |
+| **Dual preset layers**               | Code defaults for UX + JSON libraries for sharing — same config shape.                                                                                                         |
 
 ### Checklist: another vehicle or character model
 

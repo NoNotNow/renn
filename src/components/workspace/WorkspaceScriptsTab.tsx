@@ -3,7 +3,7 @@ import type { RennWorld, ScriptDef, ScriptEvent } from '@/types/world'
 import type { WorkspaceMonacoPayload, WorkspaceTarget } from '@/types/workspace'
 import type { GlobalBehaviorLibrary } from '@/types/globalBehaviorLibrary'
 import WorkspaceGlobalScriptPanel from '@/components/workspace/WorkspaceGlobalScriptPanel'
-import { useEditorUndo } from '@/contexts/EditorUndoContext'
+import { useEditorUndo } from '@/contexts/useEditorUndo'
 import { getScriptDef } from '@/scripts/scriptDef'
 import { uiLogger } from '@/utils/uiLogger'
 import { theme } from '@/config/theme'
@@ -142,6 +142,12 @@ function WorkspaceScriptsTabEntity({
   const entityScriptIds = scriptIdsIntersectionForEntities(selectedEntities)
 
   const attachedScriptIdsOrdered = entityScriptIds.filter((id) => scripts[id] != null)
+  const selectedEntityIdsKey = useMemo(() => selectedEntityIds.join(','), [selectedEntityIds])
+  const attachedScriptIdsKey = useMemo(
+    () => attachedScriptIdsOrdered.join(','),
+    [attachedScriptIdsOrdered],
+  )
+  const scriptIdsKey = useMemo(() => scriptIds.join(','), [scriptIds])
   const dropdownOptions =
     selectedEntityIds.length > 0
       ? [...attachedScriptIdsOrdered, ...scriptIds.filter((id) => !entityScriptIds.includes(id))]
@@ -159,13 +165,21 @@ function WorkspaceScriptsTabEntity({
     } else {
       setSelectedId(null)
     }
-  }, [selectedEntityIds.join(','), attachedScriptIdsOrdered.join(','), scriptIds.join(','), selectedId])
+  }, [
+    selectedEntityIdsKey,
+    selectedEntityIds.length,
+    attachedScriptIdsKey,
+    attachedScriptIdsOrdered,
+    scriptIdsKey,
+    scriptIds,
+    selectedId,
+  ])
 
   useEffect(() => {
     if (!workspaceOpen || entry?.tab !== 'scripts' || !entry.itemId) return
     if (!scriptIds.includes(entry.itemId)) return
     setSelectedId(entry.itemId)
-  }, [workspaceOpen, entry?.tab, entry?.itemId, scriptIds.join(',')])
+  }, [workspaceOpen, entry?.tab, entry?.itemId, scriptIdsKey, scriptIds])
 
   const def = selectedId ? getScriptDef(scripts, selectedId) : null
   const source = def?.source ?? ''

@@ -5,7 +5,7 @@
  * and convert them to RawInput snapshots.
  */
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, type RefObject } from 'react'
 import type {
   RawInput,
   RawKeyboardState,
@@ -79,7 +79,7 @@ export function isEditableElement(): boolean {
  * React hook to capture raw keyboard input.
  * Returns a ref that holds the current keyboard state.
  */
-export function useRawKeyboardInput(): React.RefObject<RawKeyboardState> {
+export function useRawKeyboardInput(): RefObject<RawKeyboardState> {
   const keysRef = useRef<RawKeyboardState>({ ...DEFAULT_KEYBOARD_STATE })
 
   useEffect(() => {
@@ -170,8 +170,8 @@ export function useRawKeyboardInput(): React.RefObject<RawKeyboardState> {
  *                     If not provided, attaches to window (for backward compatibility).
  */
 export function useRawWheelInput(
-  containerRef?: React.RefObject<HTMLElement>
-): React.RefObject<RawWheelState> {
+  containerRef?: RefObject<HTMLElement>
+): RefObject<RawWheelState> {
   const wheelRef = useRef<RawWheelState>({ ...DEFAULT_WHEEL_STATE })
 
   useEffect(() => {
@@ -219,8 +219,8 @@ export function useRawWheelInput(
  * For wheel, this also resets the accumulated deltas.
  */
 export function getRawInputSnapshot(
-  keyboard: React.RefObject<RawKeyboardState>,
-  wheel: React.RefObject<RawWheelState>,
+  keyboard: RefObject<RawKeyboardState>,
+  wheel: RefObject<RawWheelState>,
 ): RawInput {
   const keys = keyboard.current ?? DEFAULT_KEYBOARD_STATE
   const wheelState = wheel.current ?? DEFAULT_WHEEL_STATE

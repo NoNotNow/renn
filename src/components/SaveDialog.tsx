@@ -1,9 +1,9 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, type CSSProperties } from 'react'
 import type { ProjectMeta } from '@/persistence/types'
 import Modal from '@/components/Modal'
 import { theme } from '@/config/theme'
 
-const buttonBase: React.CSSProperties = {
+const buttonBase: CSSProperties = {
   padding: '8px 16px',
   color: theme.text.primary,
   border: `1px solid ${theme.border.default}`,

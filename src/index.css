@@ -75,7 +75,9 @@ input, select, textarea {
   border-radius: 6px;
 }
 
-/* Script editor: allow IntelliSense dropdown to extend outside the editor area */
+/* Script editor: allow IntelliSense dropdown to extend outside the editor area.
+   Monaco Editor injects `.overflow-guard` at runtime (CssUnusedSymbol). */
+/*noinspection CssUnusedSymbol*/
 .script-editor-container .overflow-guard {
   overflow: visible !important;
 }

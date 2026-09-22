@@ -123,6 +123,7 @@ vi.mock('@/components/TransformerCustomCodeEditor', () => ({
       }
       onEditorReady?.(editor)
       // Mount-only: Workspace keeps a stable onEditorReady callback via useCallback.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
     return (

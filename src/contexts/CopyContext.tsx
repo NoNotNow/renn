@@ -1,25 +1,18 @@
 import {
-  createContext,
   useState,
   useCallback,
   useEffect,
   useRef,
-  useContext,
   type ReactNode,
   type MouseEvent as ReactMouseEvent,
 } from 'react'
+import { CopyContext } from './copyMenuContext'
 
 interface CopyMenuState {
   x: number
   y: number
   getPayload: () => object | string
 }
-
-interface CopyContextValue {
-  openMenu: (e: ReactMouseEvent, getPayload: () => object | string) => void
-}
-
-const CopyContext = createContext<CopyContextValue | null>(null)
 
 function ContextMenu({
   state,
@@ -109,6 +102,9 @@ function ContextMenu({
   )
 }
 
+export { useCopyMenu, useCopyMenuOptional } from './useCopyMenu'
+export type { CopyContextValue } from './copyMenuContext'
+
 export function CopyProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<CopyMenuState | null>(null)
   const openMenu = useCallback((e: ReactMouseEvent, getPayload: () => object | string) => {
@@ -127,15 +123,3 @@ export function CopyProvider({ children }: { children: ReactNode }) {
   )
 }
 
-export function useCopyMenu(): CopyContextValue {
-  const value = useContext(CopyContext)
-  if (value == null) {
-    throw new Error('useCopyMenu must be used within CopyProvider')
-  }
-  return value
-}
-
-/** Returns null when outside CopyProvider. Use when copy is optional (e.g. CollapsibleSection). */
-export function useCopyMenuOptional(): CopyContextValue | null {
-  return useContext(CopyContext)
-}

@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useState, type ChangeEvent, type CSSProperties, type ReactNode } from 'react'
 import { theme } from '@/config/theme'
 import { entityPanelIconButtonStyle } from './sharedStyles'
 import { EntityPanelIcons } from './EntityPanelIcons'
@@ -82,7 +82,7 @@ export default function ValidatedJsonTextarea({
     isParseValid && validate ? validate(parsed) : null
   const canApply = !disabled && isParseValid && (contentResult === null || contentResult.ok)
 
-  const onChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+  const onChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
     const next = e.target.value
     setDraft(next)
     try {
@@ -133,7 +133,7 @@ export default function ValidatedJsonTextarea({
         </div>
       ) : null}
 
-      {isParseValid && contentResult && contentResult.ok === false ? (
+      {contentResult && !contentResult.ok ? (
         <div style={{ fontSize: 10, color: theme.text.error, flexShrink: 0 }}>
           <div>Validation error:</div>
           <pre style={{ margin: '6px 0 0', fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>

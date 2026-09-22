@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+  type RefObject,
+} from 'react'
 import type { TextureMakerStudioTool } from '@/components/TextureMaker/textureMakerTypes'
 
 const VIEW_ZOOM_MIN = 0.25
@@ -49,7 +56,7 @@ export function useTextureMakerViewNav(options: {
     return () => el.removeEventListener('wheel', onWheel)
   }, [compositePreviewUrl, previewViewportRef])
 
-  const onViewportPointerDown = useCallback((e: React.PointerEvent, studioTool: TextureMakerStudioTool) => {
+  const onViewportPointerDown = useCallback((e: ReactPointerEvent, studioTool: TextureMakerStudioTool) => {
     if (studioTool !== 'hand') return
     e.preventDefault()
     const p = viewPanRef.current

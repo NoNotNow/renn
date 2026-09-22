@@ -1,4 +1,5 @@
 import { useRef, useEffect, forwardRef, useImperativeHandle, useState, useMemo, useCallback } from 'react'
+import type { MutableRefObject, Ref, RefObject } from 'react'
 import * as THREE from 'three'
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js'
 import { buildLoadedEntity } from '@/loader/loadWorld'
@@ -102,7 +103,7 @@ export interface SceneViewProps {
   gizmoMode?: BuilderGizmoMode
   version?: number
   /** Ref set by parent before world update; applied to registry after reload and then cleared. */
-  initialPosesRef?: React.MutableRefObject<
+  initialPosesRef?: MutableRefObject<
     Map<string, { position: Vec3; rotation: Rotation; scale?: Vec3 }> | null
   >
   /** Called after initial poses are applied so parent can sync world state. */
@@ -113,7 +114,7 @@ export interface SceneViewProps {
    */
   editNavigationMode?: boolean
   /** Builder: session ref for last free-fly pose; merged on save via ProjectContext.getWorldToSave. */
-  editorFreePoseRef?: React.MutableRefObject<EditorFreePose | null>
+  editorFreePoseRef?: MutableRefObject<EditorFreePose | null>
   /** Optional command from editor UI to manually control world background sound. */
   soundPlaybackCommand?: SoundPlaybackCommand | null
   /**
@@ -153,7 +154,7 @@ export interface SceneViewProps {
    * When set (e.g. Builder), `requestFullscreen` targets this node instead of the SceneView wrapper.
    * Must be stable for the lifetime of the SceneView instance.
    */
-  fullscreenTargetRef?: React.RefObject<HTMLElement | null>
+  fullscreenTargetRef?: RefObject<HTMLElement | null>
   /**
    * When set, pointer-reveal for the fullscreen button is driven by the parent (e.g. document-wide
    * listeners). SceneView does not attach pointer handlers on the scene root for chrome visibility.
@@ -247,7 +248,7 @@ function SceneViewInner({
   fullscreenChromeControl,
   shouldExitFullscreenOnEscape,
   playMode = false,
-}: SceneViewProps, ref: React.Ref<SceneViewHandle>) {
+}: SceneViewProps, ref: Ref<SceneViewHandle>) {
   const sceneKey = useMemo(() => getSceneDependencyKey(world), [world])
   const sceneRootRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -631,7 +632,7 @@ function SceneViewInner({
     },
     syncWorldEntities: (prev, next) => syncWorldEntitiesRef.current(prev, next),
     toggleFullscreen: () => fullscreen.toggle(),
-  }), [camera, world.world.camera, editorFreePoseRef, fullscreen.toggle])
+  }), [camera, world.world.camera, editorFreePoseRef, fullscreen])
 
   const sceneRuntimeRestartKey = useMemo(
     () =>
@@ -699,7 +700,59 @@ function SceneViewInner({
       skyDomeRef,
       coordinateOverlayDisplayVidRef,
     }),
-    [editorFreePoseRef, freeFlyKeysRef],
+    [
+      effectIdRef,
+      assetResolverRef,
+      entitiesRef,
+      registryRef,
+      cameraCtrlRef,
+      avatarSessionRef,
+      physicsRef,
+      scriptRunnerRef,
+      css2dRendererRef,
+      variableOverlayControllerRef,
+      coordinateOverlayControllerRef,
+      frameRef,
+      frameTimingRef,
+      resizeHandlerRef,
+      savedCameraStateRef,
+      disposePickGizmoRef,
+      syncGizmoAttachRef,
+      gizmoDraggingRef,
+      worldRef,
+      assetsRef,
+      playModeRef,
+      editNavigationModeRef,
+      runPhysicsRef,
+      runScriptsRef,
+      rawKeyboardRef,
+      rawWheelRef,
+      timeRef,
+      recordFrameStatsOverlayRef,
+      activeDebugForcesRef,
+      freeFlyKeysRef,
+      rawMouseDragRef,
+      orbitWheelRef,
+      editorFreePoseRef,
+      lastEditorPoseWriteTimeRef,
+      selectedEntityIdsRef,
+      gizmoModeRef,
+      onSelectEntityRef,
+      onEntityPoseCommitRef,
+      onCurrentAvatarChangeRef,
+      onTexturePaintStrokeEndRef,
+      pushUndoBeforePaintStrokeRef,
+      textureBrushRgbRef,
+      textureBrushAlphaRef,
+      textureBrushRadiusPxRef,
+      getPaintTargetAssetIdRef,
+      prepareWorldPaintStrokeRef,
+      showGameHudRef,
+      hudPatchBridgeRef,
+      lastHudDriveRef,
+      skyDomeRef,
+      coordinateOverlayDisplayVidRef,
+    ],
   )
 
   const sceneRuntimeDeps = useMemo(() => createDefaultSceneRuntimeRuntimeDeps(), [])
@@ -816,7 +869,7 @@ function SceneViewInner({
   // Update pixel ratio when quality setting changes (no full reload needed)
   useEffect(() => {
     if (renderer) renderer.setPixelRatio(resolvedPixelRatio(world.world))
-  }, [world.world.renderPixelRatio, renderer])
+  }, [world.world, renderer])
 
   // Update the directional shadow camera orthographic bounds when planes change.
   // Note: plane `scale`/`position` updates in the Builder do not trigger a full scene rebuild.

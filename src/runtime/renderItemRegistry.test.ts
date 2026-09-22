@@ -11,8 +11,7 @@ describe('renderItemRegistryPorts', () => {
   it('RenderItemRegistry satisfies SimulationFramePort', () => {
     const entity: Entity = { id: 'e', position: [0, 0, 0] }
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial())
-    const registry = RenderItemRegistry.create([{ entity, mesh }], null)
-    const port: SimulationFramePort = registry
+    const port: SimulationFramePort = RenderItemRegistry.create([{ entity, mesh }], null)
     expect(port.getPosition('e')).toEqual([0, 0, 0])
   })
 

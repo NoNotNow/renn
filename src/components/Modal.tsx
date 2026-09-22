@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { MouseEvent, ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { theme } from '@/config/theme'
 import { useCornerBrResize } from '@/hooks/useCornerBrResize'
@@ -6,16 +7,16 @@ import { useCornerBrResize } from '@/hooks/useCornerBrResize'
 export interface ModalProps {
   isOpen: boolean
   onClose: () => void
-  title: React.ReactNode
-  children: React.ReactNode
+  title: ReactNode
+  children: ReactNode
   width?: number
   height?: number
   minWidth?: number
   minHeight?: number
   resizable?: boolean
-  headerExtra?: React.ReactNode
-  subheader?: React.ReactNode
-  footer?: React.ReactNode
+  headerExtra?: ReactNode
+  subheader?: ReactNode
+  footer?: ReactNode
   /** When 'hidden', children must manage their own scroll regions (e.g. asset picker dialogs). */
   contentOverflow?: 'auto' | 'hidden'
 }
@@ -93,7 +94,7 @@ export default function Modal({
 
   if (!isOpen) return null
 
-  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleBackdropClick = (e: MouseEvent<HTMLDivElement>) => {
     if (e.target === e.currentTarget) {
       onClose()
     }

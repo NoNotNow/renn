@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
+import type { CSSProperties } from 'react'
 import type { PresetTransformerType, TransformerConfig } from '@/types/transformer'
 import { listPresetNames, loadPreset } from '@/data/transformerPresets/loader'
 import { TRANSFORMER_PRESET_OPTIONS } from '@/transformers/transformerPresets'
@@ -13,7 +14,7 @@ export interface TransformerTemplateDialogProps {
   onLoadTemplate: (config: TransformerConfig) => void
 }
 
-const inputStyle: React.CSSProperties = {
+const inputStyle: CSSProperties = {
   width: '100%',
   padding: '8px 12px',
   borderRadius: 6,
@@ -23,7 +24,7 @@ const inputStyle: React.CSSProperties = {
   fontSize: 14,
 }
 
-const selectStyle: React.CSSProperties = {
+const selectStyle: CSSProperties = {
   width: '100%',
   padding: '6px 8px',
   fontSize: 12,
@@ -34,13 +35,13 @@ const selectStyle: React.CSSProperties = {
   cursor: 'pointer',
 }
 
-const fieldLabelStyle: React.CSSProperties = {
+const fieldLabelStyle: CSSProperties = {
   fontSize: 11,
   color: theme.text.muted,
   marginBottom: 4,
 }
 
-const ghostButtonStyle: React.CSSProperties = {
+const ghostButtonStyle: CSSProperties = {
   padding: '6px 12px',
   background: 'transparent',
   border: `1px solid ${theme.border.default}`,
@@ -50,7 +51,7 @@ const ghostButtonStyle: React.CSSProperties = {
   fontSize: 12,
 }
 
-const downloadButtonStyle: React.CSSProperties = {
+const downloadButtonStyle: CSSProperties = {
   padding: '6px 12px',
   background: theme.feedback.successBg,
   border: `1px solid ${theme.feedback.successBorder}`,
@@ -60,7 +61,7 @@ const downloadButtonStyle: React.CSSProperties = {
   fontSize: 12,
 }
 
-const copyButtonStyle: React.CSSProperties = {
+const copyButtonStyle: CSSProperties = {
   padding: '6px 12px',
   background: theme.button.info,
   border: `1px solid ${theme.button.infoBorder}`,

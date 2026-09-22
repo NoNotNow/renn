@@ -1,3 +1,4 @@
+import type { MouseEvent } from 'react'
 import { uiLogger } from '@/utils/uiLogger'
 
 const RESIZE_HANDLE_TITLE = 'Drag to resize, click to collapse'
@@ -8,7 +9,7 @@ interface SidebarToggleButtonProps {
   side: 'left' | 'right'
   logContext: string
   /** When set, this button acts as a resize handle; mousedown is captured and toggle is handled by parent on mouseup when no drag. */
-  onResizeHandleMouseDown?: (e: React.MouseEvent<HTMLButtonElement>) => void
+  onResizeHandleMouseDown?: (e: MouseEvent<HTMLButtonElement>) => void
 }
 
 export function SidebarToggleButton({ isOpen, onToggle, side, logContext, onResizeHandleMouseDown }: SidebarToggleButtonProps) {
@@ -21,19 +22,19 @@ export function SidebarToggleButton({ isOpen, onToggle, side, logContext, onResi
     onToggle()
   }
 
-  const handleMouseDownCapture = (e: React.MouseEvent<HTMLButtonElement>) => {
+  const handleMouseDownCapture = (e: MouseEvent<HTMLButtonElement>) => {
     if (!isResizeHandle) return
     onResizeHandleMouseDown(e)
     e.preventDefault()
     e.stopPropagation()
   }
 
-  const handleMouseEnter = (e: React.MouseEvent<HTMLButtonElement>) => {
+  const handleMouseEnter = (e: MouseEvent<HTMLButtonElement>) => {
     e.currentTarget.style.background = '#232836'
     e.currentTarget.style.boxShadow = '0 2px 10px rgba(0,0,0,0.55)'
   }
 
-  const handleMouseLeave = (e: React.MouseEvent<HTMLButtonElement>) => {
+  const handleMouseLeave = (e: MouseEvent<HTMLButtonElement>) => {
     e.currentTarget.style.background = '#1b1f2a'
     e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.45)'
   }

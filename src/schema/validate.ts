@@ -60,7 +60,7 @@ function cloneWorldDocumentForStripping(data: unknown): unknown {
   try {
     return structuredClone(data)
   } catch {
-    return JSON.parse(JSON.stringify(data)) as unknown
+    return JSON.parse(JSON.stringify(data))
   }
 }
 

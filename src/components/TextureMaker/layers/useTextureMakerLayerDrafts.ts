@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import type { Dispatch, SetStateAction } from 'react'
 import type { TextureDocument, TextureLayer, TextureLayerDest } from '@/utils/textureCompositor'
 import { layerDestOrDefault } from '@/utils/textureCompositor'
 
@@ -14,11 +15,11 @@ export interface UseTextureMakerLayerDraftsArgs {
 export interface UseTextureMakerLayerDraftsResult {
   selectedLayer: TextureLayer | undefined
   nameDraft: string
-  setNameDraft: React.Dispatch<React.SetStateAction<string>>
+  setNameDraft: Dispatch<SetStateAction<string>>
   opacityDraft: number
-  setOpacityDraft: React.Dispatch<React.SetStateAction<number>>
+  setOpacityDraft: Dispatch<SetStateAction<number>>
   placementDraft: TextureLayerDest | null
-  setPlacementDraft: React.Dispatch<React.SetStateAction<TextureLayerDest | null>>
+  setPlacementDraft: Dispatch<SetStateAction<TextureLayerDest | null>>
   commitLayerDest: (d: TextureLayerDest) => void
 }
 

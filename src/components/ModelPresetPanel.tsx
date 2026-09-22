@@ -3,7 +3,7 @@ import { useProjectContext } from '@/hooks/useProjectContext'
 import { extractPresetFromEntity, applyPresetToEntity } from '@/data/modelPresets'
 import type { Entity, ModelPreset } from '@/types/world'
 import { uiLogger } from '@/utils/uiLogger'
-import { useEditorUndo } from '@/contexts/EditorUndoContext'
+import { useEditorUndo } from '@/contexts/useEditorUndo'
 import { sectionStyle, sectionTitleStyle, sidebarTextInputStyle, fieldLabelStyle } from './sharedStyles'
 import { theme } from '@/config/theme'
 

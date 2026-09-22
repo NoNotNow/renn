@@ -130,7 +130,7 @@ export default function WorldSimulationSection({ world, edits }: WorldSimulation
           type="checkbox"
           checked={world.world.logarithmicDepthBuffer !== false}
           onChange={(e) =>
-            updateWorldSettings({ logarithmicDepthBuffer: e.target.checked ? true : false })
+            updateWorldSettings({ logarithmicDepthBuffer: e.target.checked })
           }
           style={{ cursor: 'pointer' }}
         />

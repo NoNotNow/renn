@@ -154,9 +154,9 @@ async function attachTransformerChains(
 }
 
 export class LogicVerificationHost {
-  private physicsWorld: PhysicsWorld
-  private registry: RenderItemRegistry
-  private entities: LoadedEntity[]
+  private readonly physicsWorld: PhysicsWorld
+  private readonly registry: RenderItemRegistry
+  private readonly entities: LoadedEntity[]
   private world: RennWorld
   private readonly dt: number
   private readonly wind: Vec3 | undefined
@@ -164,7 +164,7 @@ export class LogicVerificationHost {
   private readonly controlledEntityIdRef: { current: string | null } | undefined
   private readonly observationSession: AgentObservationSession
   private readonly ownsPhysics: boolean
-  private assetResolver: DisposableAssetResolver | null
+  private readonly assetResolver: DisposableAssetResolver | null
   private stepCount = 0
   private simTime = 0
 

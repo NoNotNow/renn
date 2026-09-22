@@ -42,11 +42,6 @@ export function resolveAgentProjectBundleDirectory(bundleId: string): string {
   return dir
 }
 
-/** @deprecated Prefer `prepareWorldForLogicVerification` — kept for bundle import call sites. */
-export function prepareImportedWorldDocument(worldJson: unknown): RennWorld {
-  return prepareWorldForLogicVerification(worldJson, { inPlace: true })
-}
-
 /** Known bundle ids: subdirectories of `projects/` that contain `world.json`. */
 export async function listAgentProjectBundleIds(): Promise<string[]> {
   let names: string[]
@@ -86,7 +81,7 @@ export async function loadAgentProjectBundle(bundleId: string): Promise<LoadedAg
   }
 
   const worldJson: unknown = JSON.parse(raw)
-  const world = prepareImportedWorldDocument(worldJson)
+  const world = prepareWorldForLogicVerification(worldJson, { inPlace: true })
   const assets = await loadWorldFolderAssets(world, bundlePath)
 
   return { bundleId, bundlePath, world, assets }

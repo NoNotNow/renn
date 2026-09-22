@@ -178,7 +178,7 @@ export function migrateDistanceCullingFields(worldData: unknown): void {
   const world = root.world as Record<string, unknown> | undefined
   if (!world) return
   const dc = world.distanceCulling
-  if (!dc || typeof dc !== 'object' || dc === null) return
+  if (!dc || typeof dc !== 'object') return
   const o = dc as Record<string, unknown>
   if (o.maxDistance !== undefined) return
   if (typeof o.radius !== 'number' || !Number.isFinite(o.radius)) return

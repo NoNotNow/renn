@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, type ChangeEvent } from 'react'
 import type { RennWorld } from '@/types/world'
 import { uiLogger } from '@/utils/uiLogger'
 import CopyableArea from './CopyableArea'
@@ -10,7 +10,7 @@ import { defaultPersistence } from '@/persistence/indexedDb'
 import TextureThumbnail from './TextureThumbnail'
 import VideoThumbnail from './VideoThumbnail'
 import ModelThumbnail from './ModelThumbnail'
-import { useEditorUndo } from '@/contexts/EditorUndoContext'
+import { useEditorUndo } from '@/contexts/useEditorUndo'
 import { buildAssetsZipBlob, resolveAssetFilename, triggerBlobDownload } from '@/utils/assetExport'
 
 export interface AssetPanelProps {
@@ -34,7 +34,7 @@ export default function AssetPanel({ assets, world, onAssetsChange, onWorldChang
     fileInputRef.current?.click()
   }
 
-  const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const onFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (!files?.length) return
     pushUndo()

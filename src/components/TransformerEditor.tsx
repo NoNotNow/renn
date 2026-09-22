@@ -16,7 +16,7 @@ import {
 import { syncPriorities, sortAndSyncPriorities } from '@/transformers/transformerUtils'
 import { nextUniqueCustomTransformerName } from '@/transformers/customTransformerNaming'
 import { effectiveCustomTransformerCode } from '@/transformers/customCodeTransformer'
-import { useEditorUndo } from '@/contexts/EditorUndoContext'
+import { useEditorUndo } from '@/contexts/useEditorUndo'
 import type { TransformerTraceStep } from '@/transformers/transformerTrace'
 import {
   hasNonZeroSemanticActions,

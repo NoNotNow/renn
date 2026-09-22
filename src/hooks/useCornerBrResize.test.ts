@@ -1,3 +1,4 @@
+import type { PointerEvent } from 'react'
 import { renderHook, act } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { useCornerBrResize } from './useCornerBrResize'
@@ -27,7 +28,7 @@ describe('useCornerBrResize', () => {
         clientY: 200,
         currentTarget: target,
         pointerId: 1,
-      } as unknown as React.PointerEvent<HTMLElement>)
+      } as unknown as PointerEvent<HTMLElement>)
     })
 
     act(() => {
@@ -35,7 +36,7 @@ describe('useCornerBrResize', () => {
         clientX: 130,
         clientY: 240,
         currentTarget: target,
-      } as unknown as React.PointerEvent<HTMLElement>)
+      } as unknown as PointerEvent<HTMLElement>)
     })
 
     expect(onSizeChange).toHaveBeenCalledWith({ width: 430, height: 340 })
@@ -65,7 +66,7 @@ describe('useCornerBrResize', () => {
         clientY: 50,
         currentTarget: target,
         pointerId: 1,
-      } as unknown as React.PointerEvent<HTMLElement>)
+      } as unknown as PointerEvent<HTMLElement>)
     })
 
     act(() => {
@@ -73,7 +74,7 @@ describe('useCornerBrResize', () => {
         clientX: 0,
         clientY: 0,
         currentTarget: target,
-      } as unknown as React.PointerEvent<HTMLElement>)
+      } as unknown as PointerEvent<HTMLElement>)
     })
 
     expect(onSizeChange).toHaveBeenCalledWith({ width: 200, height: 160 })

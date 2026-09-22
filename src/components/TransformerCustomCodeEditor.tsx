@@ -123,7 +123,7 @@ export default function TransformerCustomCodeEditor({
 
   useEffect(() => {
     lastEmittedValueRef.current = value
-  }, [modelPath])
+  }, [modelPath, value])
 
   /** Push parent value changes that did not originate from this editor (item switch, template, undo). */
   useEffect(() => {

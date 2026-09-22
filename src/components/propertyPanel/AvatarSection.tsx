@@ -28,10 +28,9 @@ export default function AvatarSection({
   onUndoBeforeEdit,
   updateAll,
 }: AvatarSectionProps) {
-  const switchChecked =
-    mergedAvatar !== undefined && mergedAvatar !== null && mergedAvatar.enabled !== false
+  const switchChecked = mergedAvatar != null && mergedAvatar.enabled !== false
   const showDetails =
-    !isMulti && mergedAvatar && mergedAvatar !== null && mergedAvatar.enabled !== false
+    !isMulti && mergedAvatar != null && mergedAvatar.enabled !== false
   return (
     <>
       <Switch

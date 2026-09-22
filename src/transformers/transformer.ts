@@ -30,7 +30,7 @@ export abstract class BaseTransformer implements Transformer {
   readonly priority: number
   enabled: boolean
 
-  constructor(priority: number = 10, enabled: boolean = true) {
+  protected constructor(priority: number = 10, enabled: boolean = true) {
     this.priority = priority
     this.enabled = enabled
   }

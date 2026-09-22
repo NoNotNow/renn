@@ -36,6 +36,7 @@
 | Canonical names — stages, bindings, param scopes, merge rules | `nomenclature.md` |
 | Agent program–run–fix (transformers, probes, MCP) | `feature-agent-logic-verification.md` |
 | Agent project setup (bundles, MCP dev, in-game attach) | `feature-agent-authoring-setup.md` |
+| Self-driving **Player Car copy** in hunt_repair2 (status + `/improve-car`) | `improve-car-player-copy.md` |
 
 ## Tech stack (quick ref)
 

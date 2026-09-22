@@ -26,7 +26,6 @@ function cloneTuple3(t: readonly [number, number, number] | undefined): [number,
 }
 
 export function serializeTransformInputForTrace(input: TransformInput): TransformInputTraceSnapshot {
-  const target = input.target
   return {
     actions: { ...input.actions },
     position: cloneTuple3(input.position),
@@ -38,16 +37,16 @@ export function serializeTransformInputForTrace(input: TransformInput): Transfor
     environment: { ...input.environment },
     deltaTime: input.deltaTime,
     entityId: input.entityId,
-    target: target
+    target: input.target
       ? {
           pose: {
-            position: cloneTuple3(target.pose?.position),
-            rotation: cloneTuple3(target.pose?.rotation),
+            position: cloneTuple3(input.target.pose?.position),
+            rotation: cloneTuple3(input.target.pose?.rotation),
           },
-          speed: target.speed,
-          curve: target.curve,
-          velocity: target.velocity ? cloneTuple3(target.velocity) : undefined,
-          label: target.label,
+          speed: input.target.speed,
+          curve: input.target.curve,
+          velocity: input.target.velocity ? cloneTuple3(input.target.velocity) : undefined,
+          label: input.target.label,
         }
       : undefined,
   }

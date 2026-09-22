@@ -91,12 +91,12 @@ describe('scheduleMaterialTextureDecodePrefetch', () => {
 
   afterEach(() => {
     if (origCreateImageBitmap !== undefined) {
-      ;globalStubRef.createImageBitmap = origCreateImageBitmap
+      globalStubRef.createImageBitmap = origCreateImageBitmap
     } else {
       delete globalStubRef.createImageBitmap
     }
     if (origRequestIdleCallback !== undefined) {
-      ;globalStubRef.requestIdleCallback = origRequestIdleCallback
+      globalStubRef.requestIdleCallback = origRequestIdleCallback
     } else {
       delete globalStubRef.requestIdleCallback
     }
@@ -117,7 +117,7 @@ describe('scheduleMaterialTextureDecodePrefetch', () => {
   })
 
   it('returns a no-op disposer when assetIds is empty', () => {
-    ;globalStubRef.createImageBitmap = vi.fn()
+    globalStubRef.createImageBitmap = vi.fn()
     const cacheTexture = vi.fn()
     const disposer = scheduleMaterialTextureDecodePrefetch(
       { cacheTexture },
@@ -130,7 +130,7 @@ describe('scheduleMaterialTextureDecodePrefetch', () => {
 
   it('skips asset when blob is missing', async () => {
     const bitmap = { close: vi.fn(), width: 1, height: 1 }
-    ;globalStubRef.createImageBitmap = vi.fn().mockResolvedValue(bitmap)
+    globalStubRef.createImageBitmap = vi.fn().mockResolvedValue(bitmap)
     delete globalStubRef.requestIdleCallback
 
     const cacheTexture = vi.fn()
@@ -147,7 +147,7 @@ describe('scheduleMaterialTextureDecodePrefetch', () => {
 
   it('decodes blob and calls cacheTexture for each asset id', async () => {
     const bitmap = { close: vi.fn(), width: 4, height: 4 }
-    ;globalStubRef.createImageBitmap = vi.fn().mockResolvedValue(bitmap)
+    globalStubRef.createImageBitmap = vi.fn().mockResolvedValue(bitmap)
     delete globalStubRef.requestIdleCallback
 
     const cacheTexture = vi.fn()
@@ -173,7 +173,7 @@ describe('scheduleMaterialTextureDecodePrefetch', () => {
   it('cancels pending work and closes decoded bitmap', async () => {
     let resolveDecodePromise: ((v: unknown) => void) | undefined
     const bitmap = { close: vi.fn() }
-    ;globalStubRef.createImageBitmap = vi.fn().mockImplementation(
+    globalStubRef.createImageBitmap = vi.fn().mockImplementation(
       () => new Promise((res) => { resolveDecodePromise = res }),
     )
     delete globalStubRef.requestIdleCallback
@@ -206,7 +206,7 @@ describe('scheduleMaterialTextureDecodePrefetch', () => {
       idleCallbacks.push(() => cb({ didTimeout: false, timeRemaining: () => 50 } as IdleDeadline))
       return idleCallbacks.length - 1
     }) as typeof globalThis.requestIdleCallback
-    ;globalStubRef.createImageBitmap = vi.fn().mockResolvedValue({ close: vi.fn() })
+    globalStubRef.createImageBitmap = vi.fn().mockResolvedValue({ close: vi.fn() })
 
     const cacheTexture = vi.fn()
     scheduleMaterialTextureDecodePrefetch(

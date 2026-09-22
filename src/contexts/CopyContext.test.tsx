@@ -1,7 +1,8 @@
-import { useEffect } from 'react'
+import { useEffect, type MouseEvent } from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-import { CopyProvider, useCopyMenu } from './CopyContext'
+import { CopyProvider } from './CopyContext'
+import { useCopyMenu } from './useCopyMenu'
 
 const mockWriteText = vi.fn()
 
@@ -13,7 +14,7 @@ function TestTrigger({ openOnMount = false }: { openOnMount?: boolean }) {
         preventDefault: vi.fn(),
         clientX: 100,
         clientY: 200,
-      } as unknown as React.MouseEvent
+      } as unknown as MouseEvent
       openMenu(mockEvent, () => ({ foo: 1, bar: 'baz' }))
     }
   }, [openOnMount, openMenu])
@@ -26,7 +27,7 @@ function TestTrigger({ openOnMount = false }: { openOnMount?: boolean }) {
             preventDefault: vi.fn(),
             clientX: 100,
             clientY: 200,
-          } as unknown as React.MouseEvent
+          } as unknown as MouseEvent
           openMenu(mockEvent, () => ({ foo: 1, bar: 'baz' }))
         }}
       >
@@ -83,7 +84,7 @@ describe('CopyContext', () => {
               preventDefault: vi.fn(),
               clientX: 100,
               clientY: 200,
-            } as unknown as React.MouseEvent
+            } as unknown as MouseEvent
             openMenu(mockEvent, () => 'line1\nline2')
           }}
         >

@@ -2,7 +2,7 @@
  * Dev-only: connect open Builder scene to localhost logic verification bridge.
  */
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, type RefObject } from 'react'
 import type { LoadedEntity } from '@/loader/loadWorld'
 import type { PhysicsWorld } from '@/physics/rapierPhysics'
 import type { AvatarSession } from '@/runtime/avatarSession'
@@ -12,11 +12,11 @@ import { DEFAULT_LOGIC_VERIFICATION_DT } from '@/agent/logicVerificationHost'
 
 export type UseLogicVerificationBrowserAttachArgs = {
   enabled: boolean
-  registryRef: React.RefObject<RenderItemRegistry | null>
-  physicsRef: React.RefObject<PhysicsWorld | null>
-  worldRef: React.RefObject<RennWorld>
-  entitiesRef: React.RefObject<LoadedEntity[]>
-  avatarSessionRef?: React.RefObject<AvatarSession | null>
+  registryRef: RefObject<RenderItemRegistry | null>
+  physicsRef: RefObject<PhysicsWorld | null>
+  worldRef: RefObject<RennWorld>
+  entitiesRef: RefObject<LoadedEntity[]>
+  avatarSessionRef?: RefObject<AvatarSession | null>
 }
 
 export function useLogicVerificationBrowserAttach({

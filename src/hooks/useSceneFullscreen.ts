@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import {
   addFullscreenChangeListener,
   exitFullscreenDocument,
@@ -19,9 +19,9 @@ export interface SceneFullscreenChromeControl {
 
 export interface UseSceneFullscreenArgs {
   /** Container that becomes the fullscreen element when toggled. */
-  sceneRootRef: React.RefObject<HTMLElement | null>
+  sceneRootRef: RefObject<HTMLElement | null>
   /** Optional override (e.g. Builder uses its outer column). */
-  fullscreenTargetRef?: React.RefObject<HTMLElement | null>
+  fullscreenTargetRef?: RefObject<HTMLElement | null>
   /** Notified on every fullscreen on/off transition for this target. */
   onFullscreenChange?: (active: boolean) => void
   /**

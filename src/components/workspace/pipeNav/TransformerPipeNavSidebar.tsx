@@ -14,12 +14,11 @@ import { clamp } from '@/utils/numberUtils'
 import { pipeNavButtonStyle } from './pipeNavStyles'
 import PipeNavTree from './PipeNavTree'
 import type { PipeTreeContextTarget } from '@/utils/pipeNavTreeHelpers'
+import { readPipeNavWidth } from './transformerPipeNavStorage'
 
 const SIDEBAR_MIN_PX = 200
 const SIDEBAR_MAX_PX = 420
-const SIDEBAR_DEFAULT_PX = 240
 const HANDLE_PX = 5
-const OPEN_KEY = 'rennTransformerPipeNavOpen'
 const WIDTH_KEY = 'rennTransformerPipeNavWidthPx'
 
 export interface TransformerPipeNavSidebarProps {
@@ -64,31 +63,6 @@ export interface TransformerPipeNavSidebarProps {
     params: Record<string, unknown>
   }) => void
   onDecouplePipeBinding?: (stackIndex: number) => void
-}
-
-export function readPipeNavOpen(): boolean {
-  try {
-    return localStorage.getItem(OPEN_KEY) === 'true'
-  } catch {
-    return false
-  }
-}
-
-export function writePipeNavOpen(open: boolean): void {
-  try {
-    localStorage.setItem(OPEN_KEY, String(open))
-  } catch {
-    /* ignore */
-  }
-}
-
-export function readPipeNavWidth(): number {
-  try {
-    const n = Number(localStorage.getItem(WIDTH_KEY))
-    return Number.isFinite(n) && n >= SIDEBAR_MIN_PX ? n : SIDEBAR_DEFAULT_PX
-  } catch {
-    return SIDEBAR_DEFAULT_PX
-  }
 }
 
 export default function TransformerPipeNavSidebar({
@@ -308,3 +282,5 @@ const titleInputStyle: CSSProperties = {
   fontSize: 12,
   fontWeight: 700,
 }
+
+export { readPipeNavOpen, writePipeNavOpen } from './transformerPipeNavStorage'

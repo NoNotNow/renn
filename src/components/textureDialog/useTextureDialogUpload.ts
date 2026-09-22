@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
+import type { ChangeEvent, DragEvent, RefObject } from 'react'
 import { TextureManager } from '@/utils/textureManager'
 import { VideoManager } from '@/utils/videoManager'
 
@@ -11,14 +12,14 @@ export interface TextureDialogUploadState {
   dragActive: boolean
   uploadPreview: UploadCandidate | null
   pendingVideoConversion: UploadCandidate | null
-  fileInputRef: React.RefObject<HTMLInputElement>
+  fileInputRef: RefObject<HTMLInputElement>
   setUploadPreview: (next: UploadCandidate | null) => void
   setPendingVideoConversion: (next: UploadCandidate | null) => void
-  handleDragEnter: (e: React.DragEvent) => void
-  handleDragLeave: (e: React.DragEvent) => void
-  handleDragOver: (e: React.DragEvent) => void
-  handleDrop: (e: React.DragEvent) => void
-  handleFileInput: (e: React.ChangeEvent<HTMLInputElement>) => void
+  handleDragEnter: (e: DragEvent) => void
+  handleDragLeave: (e: DragEvent) => void
+  handleDragOver: (e: DragEvent) => void
+  handleDrop: (e: DragEvent) => void
+  handleFileInput: (e: ChangeEvent<HTMLInputElement>) => void
   /** Programmatically open the OS file picker (used by the drop-zone click handler). */
   openFilePicker: () => void
   /** Reset to the initial idle state (clears preview + drag flag, no video pending). */
@@ -64,25 +65,25 @@ export function useTextureDialogUpload(allowVideo: boolean): TextureDialogUpload
     [allowVideo],
   )
 
-  const handleDragEnter = useCallback((e: React.DragEvent) => {
+  const handleDragEnter = useCallback((e: DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
     setDragActive(true)
   }, [])
 
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
+  const handleDragLeave = useCallback((e: DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
     setDragActive(false)
   }, [])
 
-  const handleDragOver = useCallback((e: React.DragEvent) => {
+  const handleDragOver = useCallback((e: DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
   }, [])
 
   const handleDrop = useCallback(
-    (e: React.DragEvent) => {
+    (e: DragEvent) => {
       e.preventDefault()
       e.stopPropagation()
       setDragActive(false)
@@ -99,7 +100,7 @@ export function useTextureDialogUpload(allowVideo: boolean): TextureDialogUpload
   )
 
   const handleFileInput = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
+    (e: ChangeEvent<HTMLInputElement>) => {
       const files = e.target.files
       if (!files?.length) return
       tryPickUploadFile(files[0])

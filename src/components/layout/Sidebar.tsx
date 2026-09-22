@@ -7,25 +7,11 @@ import {
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from 'react'
-import { clamp } from '@/utils/numberUtils'
 import { SidebarToggleButton } from '../SidebarToggleButton'
 import SidebarTabs, { type TabConfig } from '../SidebarTabs'
+import { SIDEBAR_MIN_WIDTH, clampSidebarWidth } from './sidebarLayout'
 
-/** Minimum sidebar width (resize + open state). */
-export const SIDEBAR_MIN_WIDTH = 180
-
-const VIEWPORT_RESERVE_PX = 24
 const RESIZE_THRESHOLD_PX = 5
-
-/** Upper bound for sidebar width so the panel stays within the browser viewport. */
-export function getSidebarViewportMaxWidth(): number {
-  if (typeof window === 'undefined') return 100_000
-  return Math.max(SIDEBAR_MIN_WIDTH, window.innerWidth - VIEWPORT_RESERVE_PX)
-}
-
-function clampSidebarWidth(width: number): number {
-  return clamp(width, SIDEBAR_MIN_WIDTH, getSidebarViewportMaxWidth())
-}
 
 export type SidebarLayoutMode = 'overlay' | 'inline'
 

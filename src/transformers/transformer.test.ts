@@ -16,7 +16,7 @@ import { createMockTransformInput, assertEmptyOutput } from '@/test/helpers/tran
 // Mock transformer implementations for testing
 class MockTransformer extends BaseTransformer {
   readonly type = 'mock'
-  private outputFn: (input: TransformInput) => TransformOutput
+  private readonly outputFn: (input: TransformInput) => TransformOutput
 
   constructor(
     priority: number,
@@ -35,7 +35,7 @@ class MockTransformer extends BaseTransformer {
 /** Same as MockTransformer but `type === 'input'` for trace LED semantics. */
 class MockInputTransformer extends BaseTransformer {
   readonly type = 'input'
-  private outputFn: (input: TransformInput) => TransformOutput
+  private readonly outputFn: (input: TransformInput) => TransformOutput
 
   constructor(
     priority: number,

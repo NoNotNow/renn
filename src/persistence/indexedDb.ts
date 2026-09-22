@@ -39,9 +39,9 @@ type PlaySessionRow = { id: typeof PLAY_SESSION_RECORD_ID; world: RennWorld }
  */
 async function blobToArrayBuffer(blob: Blob): Promise<ArrayBuffer> {
   if (typeof blob.arrayBuffer === 'function') {
-    return await blob.arrayBuffer()
+    return blob.arrayBuffer()
   }
-  return await new Promise<ArrayBuffer>((resolve, reject) => {
+  return new Promise<ArrayBuffer>((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = () => resolve(reader.result as ArrayBuffer)
     reader.onerror = () => reject(reader.error)
@@ -125,7 +125,7 @@ export function createIndexedDbPersistence(): PersistenceAPI {
     async listProjects(): Promise<ProjectMeta[]> {
       const db = await getDB()
       const list = await db.getAll(STORE_PROJECTS) as ProjectMeta[]
-      await db.close()
+      db.close()
       return [...list].sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))
     },
 
@@ -133,7 +133,7 @@ export function createIndexedDbPersistence(): PersistenceAPI {
       const db = await getDB()
       const row = await db.get(STORE_PROJECTS, id)
       if (!row) {
-        await db.close()
+        db.close()
         throw new Error(`Project not found: ${id}`)
       }
       const world = row.world as RennWorld
@@ -144,7 +144,7 @@ export function createIndexedDbPersistence(): PersistenceAPI {
         const blob = storedAssetToBlob(asset)
         if (blob) assets.set(asset.assetId, blob)
       }
-      await db.close()
+      db.close()
       const entityWorkHistory = Array.isArray(row.entityWorkHistory)
         ? (row.entityWorkHistory as string[])
         : []
@@ -215,7 +215,7 @@ export function createIndexedDbPersistence(): PersistenceAPI {
         }
         if (import.meta.env.DEV) console.log('[Persistence] All assets written')
 
-        await db.close()
+        db.close()
         db = null
         if (import.meta.env.DEV) console.log('[Persistence] saveProject done')
       } catch (err) {
@@ -227,12 +227,10 @@ export function createIndexedDbPersistence(): PersistenceAPI {
           stack: e?.stack,
           toString: err != null ? String(err) : undefined,
         })
-        if (db) {
-          try {
-            db.close()
-          } catch {
-            // ignore close error
-          }
+        try {
+          db?.close()
+        } catch {
+          // ignore close error
         }
         throw err
       }
@@ -242,7 +240,7 @@ export function createIndexedDbPersistence(): PersistenceAPI {
       const db = await getDB()
       // Delete project only - assets persist globally
       await db.delete(STORE_PROJECTS, id)
-      await db.close()
+      db.close()
     },
 
     async exportProject(id: string): Promise<Blob> {
@@ -332,13 +330,13 @@ export function createIndexedDbPersistence(): PersistenceAPI {
       const db = await getDB()
       const row: PlaySessionRow = { id: PLAY_SESSION_RECORD_ID, world }
       await db.put(STORE_PLAY_SESSION, row)
-      await db.close()
+      db.close()
     },
 
     async loadPlaySessionWorld(): Promise<RennWorld | null> {
       const db = await getDB()
       const row = (await db.get(STORE_PLAY_SESSION, PLAY_SESSION_RECORD_ID)) as PlaySessionRow | undefined
-      await db.close()
+      db.close()
       return row?.world ?? null
     },
 
@@ -392,19 +390,19 @@ export function createIndexedDbPersistence(): PersistenceAPI {
           previewType: resolvedPreviewType,
         })
       }
-      await db.close()
+      db.close()
     },
 
     async deleteAsset(assetId: string): Promise<void> {
       const db = await getDB()
       await db.delete(STORE_ASSETS, assetId)
-      await db.close()
+      db.close()
     },
 
     async listAllAssets(): Promise<Array<{ assetId: string; type: string; size: number }>> {
       const db = await getDB()
       const allAssets = (await db.getAll(STORE_ASSETS)) as StoredAsset[]
-      await db.close()
+      db.close()
       return allAssets.map((asset) => ({
         assetId: asset.assetId,
         type: asset.type ?? 'unknown',
@@ -420,14 +418,14 @@ export function createIndexedDbPersistence(): PersistenceAPI {
         const blob = storedAssetToBlob(asset)
         if (blob) assets.set(asset.assetId, blob)
       }
-      await db.close()
+      db.close()
       return assets
     },
 
     async loadAssetPreview(assetId: string): Promise<Blob | null> {
       const db = await getDB()
       const asset = await db.get(STORE_ASSETS, assetId)
-      await db.close()
+      db.close()
       const preview = asset?.previewBlob
       const previewType = typeof asset?.previewType === 'string' ? asset.previewType : 'image/png'
       if (preview instanceof Blob) {
@@ -457,20 +455,20 @@ export function createIndexedDbPersistence(): PersistenceAPI {
     async listModelPresets(): Promise<ModelPreset[]> {
       const db = await getDB()
       const rows = (await db.getAll(STORE_MODEL_PRESETS)) as ModelPreset[]
-      await db.close()
+      db.close()
       return [...rows].sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
     },
 
     async saveModelPreset(preset: ModelPreset): Promise<void> {
       const db = await getDB()
       await db.put(STORE_MODEL_PRESETS, preset)
-      await db.close()
+      db.close()
     },
 
     async deleteModelPreset(id: string): Promise<void> {
       const db = await getDB()
       await db.delete(STORE_MODEL_PRESETS, id)
-      await db.close()
+      db.close()
     },
 
     async loadGlobalBehaviorLibrary(): Promise<GlobalBehaviorLibrary> {

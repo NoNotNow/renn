@@ -198,7 +198,7 @@ export function createAssetResolverFromGetter(
     if (!url) return null
 
     try {
-      const gltf = await new Promise<GLTF>((resolveGltf, reject) => {
+      return await new Promise<GLTF>((resolveGltf, reject) => {
         loader.load(
           url,
           (gltf: GLTF) => resolveGltf(gltf),
@@ -206,7 +206,6 @@ export function createAssetResolverFromGetter(
           (error: unknown) => reject(error)
         )
       })
-      return gltf
     } catch (error) {
       console.error(`Failed to load model for asset ${assetId}:`, error)
       return null

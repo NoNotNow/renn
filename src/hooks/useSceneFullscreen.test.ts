@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { createRef } from 'react'
+import { createRef, type RefObject } from 'react'
 import { renderHook, act } from '@testing-library/react'
 import { useSceneFullscreen } from '@/hooks/useSceneFullscreen'
 
@@ -66,19 +66,19 @@ describe('useSceneFullscreen', () => {
   })
 
   it('detects fullscreen support after mount', () => {
-    const ref = { current: sceneRoot } as React.RefObject<HTMLElement | null>
+    const ref = { current: sceneRoot } as RefObject<HTMLElement | null>
     const { result } = renderHook(() => useSceneFullscreen({ sceneRootRef: ref }))
     expect(result.current.supported).toBe(true)
   })
 
   it('reports inactive when no element is fullscreen', () => {
-    const ref = { current: sceneRoot } as React.RefObject<HTMLElement | null>
+    const ref = { current: sceneRoot } as RefObject<HTMLElement | null>
     const { result } = renderHook(() => useSceneFullscreen({ sceneRootRef: ref }))
     expect(result.current.active).toBe(false)
   })
 
   it('toggle requests fullscreen on the configured target', () => {
-    const ref = { current: sceneRoot } as React.RefObject<HTMLElement | null>
+    const ref = { current: sceneRoot } as RefObject<HTMLElement | null>
     const { result } = renderHook(() => useSceneFullscreen({ sceneRootRef: ref }))
     act(() => {
       result.current.toggle()
@@ -89,7 +89,7 @@ describe('useSceneFullscreen', () => {
 
   it('toggle exits when target is already the fullscreen element', () => {
     setFullscreenElement(sceneRoot)
-    const ref = { current: sceneRoot } as React.RefObject<HTMLElement | null>
+    const ref = { current: sceneRoot } as RefObject<HTMLElement | null>
     const { result } = renderHook(() => useSceneFullscreen({ sceneRootRef: ref }))
     act(() => {
       fireFullscreenChange()
@@ -105,8 +105,8 @@ describe('useSceneFullscreen', () => {
   it('prefers fullscreenTargetRef over sceneRootRef', () => {
     const altTarget = document.createElement('div')
     document.body.appendChild(altTarget)
-    const sceneRef = { current: sceneRoot } as React.RefObject<HTMLElement | null>
-    const altRef = { current: altTarget } as React.RefObject<HTMLElement | null>
+    const sceneRef = { current: sceneRoot } as RefObject<HTMLElement | null>
+    const altRef = { current: altTarget } as RefObject<HTMLElement | null>
     const { result } = renderHook(() =>
       useSceneFullscreen({ sceneRootRef: sceneRef, fullscreenTargetRef: altRef }),
     )
@@ -119,7 +119,7 @@ describe('useSceneFullscreen', () => {
 
   it('fires onFullscreenChange on every transition', () => {
     const onChange = vi.fn()
-    const ref = { current: sceneRoot } as React.RefObject<HTMLElement | null>
+    const ref = { current: sceneRoot } as RefObject<HTMLElement | null>
     renderHook(() => useSceneFullscreen({ sceneRootRef: ref, onFullscreenChange: onChange }))
     expect(onChange).not.toHaveBeenCalled()
 
@@ -137,7 +137,7 @@ describe('useSceneFullscreen', () => {
   })
 
   it('locks Escape on fullscreen enter and unlocks on exit', () => {
-    const ref = { current: sceneRoot } as React.RefObject<HTMLElement | null>
+    const ref = { current: sceneRoot } as RefObject<HTMLElement | null>
     renderHook(() => useSceneFullscreen({ sceneRootRef: ref }))
 
     setFullscreenElement(sceneRoot)
@@ -154,7 +154,7 @@ describe('useSceneFullscreen', () => {
   })
 
   it('externalChromeControl overrides the internal pointer reveal timer', () => {
-    const ref = { current: sceneRoot } as React.RefObject<HTMLElement | null>
+    const ref = { current: sceneRoot } as RefObject<HTMLElement | null>
     const bump = vi.fn()
     const { result } = renderHook(() =>
       useSceneFullscreen({
@@ -179,7 +179,7 @@ describe('useSceneFullscreen', () => {
 
   it('re-enters fullscreen on Shift+Escape when Keyboard Lock is unavailable', async () => {
     Reflect.deleteProperty(navigator, 'keyboard')
-    const ref = { current: sceneRoot } as React.RefObject<HTMLElement | null>
+    const ref = { current: sceneRoot } as RefObject<HTMLElement | null>
     const { result } = renderHook(() => useSceneFullscreen({ sceneRootRef: ref }))
     setFullscreenElement(sceneRoot)
     act(() => {
@@ -208,7 +208,7 @@ describe('useSceneFullscreen', () => {
 
   it('plain Escape requests document exit while target is fullscreen', () => {
     const onChange = vi.fn()
-    const ref = { current: sceneRoot } as React.RefObject<HTMLElement | null>
+    const ref = { current: sceneRoot } as RefObject<HTMLElement | null>
     const { result } = renderHook(() =>
       useSceneFullscreen({ sceneRootRef: ref, onFullscreenChange: onChange }),
     )
@@ -235,7 +235,7 @@ describe('useSceneFullscreen', () => {
   })
 
   it('plain Escape does not exit fullscreen when shouldExitFullscreenOnEscape is false', () => {
-    const ref = { current: sceneRoot } as React.RefObject<HTMLElement | null>
+    const ref = { current: sceneRoot } as RefObject<HTMLElement | null>
     renderHook(() =>
       useSceneFullscreen({
         sceneRootRef: ref,

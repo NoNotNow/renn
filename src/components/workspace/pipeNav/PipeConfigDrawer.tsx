@@ -1,4 +1,5 @@
 import { useCallback, useLayoutEffect, useState } from 'react'
+import type { RefObject } from 'react'
 import type { TransformerPipe, TransformerPipeBinding } from '@/types/transformer'
 import type { PipeNavPathSegment } from '@/types/pipeNav'
 import WorkspaceFloatingDrawer from '@/components/workspace/WorkspaceFloatingDrawer'
@@ -12,7 +13,7 @@ export interface PipeConfigDrawerProps {
   binding?: TransformerPipeBinding
   scopePath?: PipeNavPathSegment[]
   portalTarget: HTMLElement
-  anchorRef: React.RefObject<HTMLElement | null>
+  anchorRef: RefObject<HTMLElement | null>
   onClose: () => void
   onParamChange?: (key: string, value: unknown) => void
   onParamsReplace?: (params: Record<string, unknown>) => void
