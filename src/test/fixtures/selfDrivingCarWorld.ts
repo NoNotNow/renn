@@ -12,6 +12,13 @@ const defaultDirectionCode = readFileSync(
   'utf8',
 )
 
+/** Builder overlay: car → current `input.target` (waypoint or Umlenker aim). */
+const TARGET_LINE_VISUALIZER_CODE = `function transform(input, dt, params, state, api) {
+  if (!input.target || !input.target.pose || !input.target.pose.position) return {}
+  api.visualizeLine(input.position, input.target.pose.position, '#ffcc00')
+  return {}
+}`
+
 const AUTO_BRAKE_CODE = `function transform(input, dt, params, state, api) {
   if (params && params.id) return {}
   if (input.actions && input.actions._obstacle_escape) return {}
@@ -42,7 +49,102 @@ const AUTO_BRAKE_CODE = `function transform(input, dt, params, state, api) {
   return {}
 }`
 
-export type SelfDrivingCarVariant = 'wallAhead' | 'clearPath' | 'cubeGoalBehind'
+export type SelfDrivingCarVariant =
+  | 'wallAhead'
+  | 'clearPath'
+  | 'cubeGoalBehind'
+  | 'parkour'
+  | 'parkourBeside'
+
+/** Ordered mission — each pose sits **behind** the next obstacle on −Z (Umlenker goal-block pattern). */
+export const SELF_DRIVE_PARKOUR_WAYPOINTS = [
+  { position: [0, 0.5, -16] as [number, number, number], rotation: [0, 0, 0] as [number, number, number] },
+  { position: [0, 0.5, -36] as [number, number, number], rotation: [0, 0, 0] as [number, number, number] },
+  { position: [0, 0.5, -50] as [number, number, number], rotation: [0, 0, 0] as [number, number, number] },
+  { position: [0, 0.5, -58] as [number, number, number], rotation: [0, 0, 0] as [number, number, number] },
+] as const
+
+/** Short course: cone on centerline; mission ends on **beside** pose (−X flank). */
+export const SELF_DRIVE_PARKOUR_BESIDE_WAYPOINTS = [
+  { position: [0, 0.5, -11] as [number, number, number], rotation: [0, 0, 0] as [number, number, number] },
+  { position: [8, 0.5, -9] as [number, number, number], rotation: [0, 0, 0] as [number, number, number] },
+] as const
+
+export const SELF_DRIVE_PARKOUR_BESIDE_OBSTACLES: readonly ParkourObstacleSpec[] = [
+  {
+    id: 'beside_cone_m',
+    name: 'Beside gate cone (M)',
+    shape: { type: 'cone', radius: 2.4, height: 2.8 },
+    position: [0, 1.4, -7],
+  },
+  {
+    id: 'beside_capsule_s',
+    name: 'Beside gate capsule (S)',
+    shape: { type: 'capsule', radius: 1.4, height: 2 },
+    position: [5, 1, -7],
+  },
+] as const
+
+export type SelfDriveParkourSegmentId = 'seg1_box' | 'seg2_beside_cone' | 'seg3_sphere' | 'full'
+
+/** Frame budgets @ 60Hz — segment runs use partial pass; `full` matches integration test. */
+export const SELF_DRIVE_PARKOUR_SEGMENTS: Readonly<
+  Record<
+    SelfDriveParkourSegmentId,
+    { frames: number; label: string; waypointIndex: number; fullCourse?: boolean }
+  >
+> = {
+  seg1_box: { frames: 520, label: 'Past box toward wp1', waypointIndex: 0 },
+  seg2_beside_cone: { frames: 920, label: 'Beside cone lateral gate', waypointIndex: 1 },
+  seg3_sphere: { frames: 1050, label: 'Through sphere leg', waypointIndex: 2 },
+  full: {
+    frames: 1400,
+    label: 'Full course',
+    waypointIndex: SELF_DRIVE_PARKOUR_WAYPOINTS.length - 1,
+    fullCourse: true,
+  },
+}
+
+export const SELF_DRIVE_PARKOUR = {
+  ground: { width: 100, depth: 110, position: [0, -0.5, -18] as [number, number, number] },
+  /** Final waypoint index for pass checks. */
+  finalWaypointIndex: SELF_DRIVE_PARKOUR_WAYPOINTS.length - 1,
+} as const
+
+export type ParkourObstacleSpec = {
+  id: string
+  name: string
+  shape:
+    | { type: 'box'; width: number; height: number; depth: number }
+    | { type: 'sphere'; radius: number }
+    | { type: 'pyramid'; baseSize: number; height: number }
+    | { type: 'cylinder'; radius: number; height: number }
+    | { type: 'cone'; radius: number; height: number }
+    | { type: 'capsule'; radius: number; height: number }
+  position: [number, number, number]
+}
+
+/** Three obstacles — mixed shapes and scales (S/M). */
+export const SELF_DRIVE_PARKOUR_OBSTACLES: readonly ParkourObstacleSpec[] = [
+  {
+    id: 'parkour_box_m',
+    name: 'Parkour box (M)',
+    shape: { type: 'box', width: 6, height: 3, depth: 6 },
+    position: [0, 1.5, -10],
+  },
+  {
+    id: 'parkour_sphere_s',
+    name: 'Parkour sphere (S)',
+    shape: { type: 'sphere', radius: 2.2 },
+    position: [0, 1.1, -28],
+  },
+  {
+    id: 'parkour_cylinder_l',
+    name: 'Parkour cylinder (L)',
+    shape: { type: 'cylinder', radius: 3.4, height: 3.8 },
+    position: [0, 1.9, -42],
+  },
+] as const
 
 export type GoalBehindObstacleShape = 'box' | 'sphere' | 'pyramid' | 'cylinder'
 
@@ -52,6 +154,13 @@ export const SELF_DRIVE_SPAWN = {
   carRotation: [0, 0, 0] as [number, number, number],
   goalZ: -32,
   cubeCenter: [0, 1.5, -10] as [number, number, number],
+} as const
+
+/** Wide enough for flank (|x|≈40) and goal approach (z≈-32) without falling off edge. */
+export const SELF_DRIVE_GROUND = {
+  width: 100,
+  depth: 80,
+  position: [0, -0.5, 0] as [number, number, number],
 } as const
 
 /**
@@ -103,6 +212,17 @@ export const SELF_DRIVE_SPAWN_MATRIX = {
 
 export type SelfDriveSpawnId = keyof typeof SELF_DRIVE_SPAWN_MATRIX
 
+/** Pose-only spawn ids for parkour (shape keys in `SELF_DRIVE_SPAWN_MATRIX` are cube-scene only). */
+export const SELF_DRIVE_PARKOUR_SPAWN_IDS = [
+  'center',
+  'left1',
+  'right1',
+  'yawLeft',
+  'yawRight',
+] as const satisfies readonly SelfDriveSpawnId[]
+
+export type SelfDriveParkourSpawnId = (typeof SELF_DRIVE_PARKOUR_SPAWN_IDS)[number]
+
 export type BuildSelfDrivingCarWorldOptions = {
   variant: SelfDrivingCarVariant
   spawnId?: SelfDriveSpawnId
@@ -142,6 +262,14 @@ function goalBehindObstacleEntity(
   }
 }
 
+export function selfDriveGrounded(pos: [number, number, number]): boolean {
+  return pos[1] > -0.55 && pos[1] < 2.5
+}
+
+export function selfDriveGoalDistance(pos: [number, number, number], goalZ: number): number {
+  return Math.abs(pos[2] - goalZ)
+}
+
 /** Shared headless acceptance for go-around scenarios (after warmup). */
 export function selfDriveGoAroundPass(params: {
   startPos: [number, number, number]
@@ -152,8 +280,117 @@ export function selfDriveGoAroundPass(params: {
   const passedFlank = Math.abs(endPos[0]) > 2.5
   const passedObstacle = endPos[2] < obstacleCenterZ - 3.5
   const progress = endPos[2] < startPos[2] - 4
-  const grounded = endPos[1] > -0.55 && endPos[1] < 2.5
-  return passedFlank && passedObstacle && progress && grounded
+  return passedFlank && passedObstacle && progress && selfDriveGrounded(endPos)
+}
+
+/** Long sim window: stay grounded while closing on wanderer goal after flank. */
+function horizontalDistance(
+  a: [number, number, number],
+  b: [number, number, number],
+): number {
+  const dx = a[0] - b[0]
+  const dz = a[2] - b[2]
+  return Math.sqrt(dx * dx + dz * dz)
+}
+
+/** Parkour course: flank evidence, deep progress, near final waypoint. */
+export function selfDriveParkourPass(params: {
+  startPos: [number, number, number]
+  endPos: [number, number, number]
+  maxAbsX?: number
+  finalWaypoint?: [number, number, number]
+  maxFinalHorizDist?: number
+  minDepthProgress?: number
+}): boolean {
+  const {
+    startPos,
+    endPos,
+    maxAbsX = 0,
+    finalWaypoint = SELF_DRIVE_PARKOUR_WAYPOINTS[SELF_DRIVE_PARKOUR.finalWaypointIndex].position,
+    maxFinalHorizDist = 14,
+    minDepthProgress = 48,
+  } = params
+  const flankEvidence = Math.abs(endPos[0]) > 2.5 || maxAbsX > 2.5
+  const depthProgress = startPos[2] - endPos[2] >= minDepthProgress
+  const nearFinish = horizontalDistance(endPos, finalWaypoint) <= maxFinalHorizDist
+  return flankEvidence && depthProgress && nearFinish && selfDriveGrounded(endPos)
+}
+
+/** Partial course acceptance for spawn/segment matrix (defined start each case). */
+/** Beside-gate mini course (cone + capsule, lateral middle waypoint). */
+export function selfDriveParkourBesideGatePass(params: {
+  startPos: [number, number, number]
+  endPos: [number, number, number]
+  maxAbsX?: number
+  maxFinalHorizDist?: number
+}): boolean {
+  const { startPos, endPos, maxAbsX = 0, maxFinalHorizDist = 10.5 } = params
+  const flank = Math.abs(endPos[0]) > 2.5 || maxAbsX > 2.5
+  const besideWp =
+    SELF_DRIVE_PARKOUR_BESIDE_WAYPOINTS[SELF_DRIVE_PARKOUR_BESIDE_WAYPOINTS.length - 1].position
+  const besideOffset = Math.abs(endPos[0]) >= 4
+  const depth = startPos[2] - endPos[2] >= 8
+  const nearBesidePose = horizontalDistance(endPos, besideWp) <= maxFinalHorizDist
+  return flank && besideOffset && depth && nearBesidePose && selfDriveGrounded(endPos)
+}
+
+export function selfDriveParkourSegmentPass(params: {
+  segmentId: SelfDriveParkourSegmentId
+  startPos: [number, number, number]
+  endPos: [number, number, number]
+  maxAbsX?: number
+}): boolean {
+  const { segmentId, startPos, endPos, maxAbsX = 0 } = params
+  if (!selfDriveGrounded(endPos)) return false
+  const flank = Math.abs(endPos[0]) > 2.5 || maxAbsX > 2.5
+  const depth = startPos[2] - endPos[2]
+
+  if (segmentId === 'full') {
+    return selfDriveParkourPass({ startPos, endPos, maxAbsX })
+  }
+
+  const wp = SELF_DRIVE_PARKOUR_WAYPOINTS[SELF_DRIVE_PARKOUR_SEGMENTS[segmentId].waypointIndex]
+    .position
+
+  switch (segmentId) {
+    case 'seg1_box':
+      return flank && endPos[2] < -9 && depth >= 8
+    case 'seg2_beside_cone':
+      return selfDriveParkourBesideGatePass({ startPos, endPos, maxAbsX })
+    case 'seg3_sphere':
+      return flank && endPos[2] < -30 && horizontalDistance(endPos, wp) <= 12 && depth >= 28
+    default:
+      return false
+  }
+}
+
+export function buildSelfDrivingParkourWorld(
+  options: Omit<BuildSelfDrivingCarWorldOptions, 'variant'> = {},
+): RennWorld {
+  return buildSelfDrivingCarWorld({ ...options, variant: 'parkour' })
+}
+
+export function buildSelfDrivingParkourBesideWorld(
+  options: Omit<BuildSelfDrivingCarWorldOptions, 'variant'> = {},
+): RennWorld {
+  return buildSelfDrivingCarWorld({ ...options, variant: 'parkourBeside' })
+}
+
+export function selfDriveLongRunPass(params: {
+  startPos: [number, number, number]
+  endPos: [number, number, number]
+  obstacleCenterZ: number
+  goalZ: number
+  minGoalProgress?: number
+  /** Peak lateral offset during run (car may re-center after flank). */
+  maxAbsX?: number
+}): boolean {
+  const { startPos, endPos, obstacleCenterZ, goalZ, minGoalProgress = 18, maxAbsX = 0 } = params
+  const flankEvidence = Math.abs(endPos[0]) > 2.5 || maxAbsX > 2.5
+  const passedObstacle = endPos[2] < obstacleCenterZ - 3.5
+  const goalProgress =
+    selfDriveGoalDistance(startPos, goalZ) - selfDriveGoalDistance(endPos, goalZ) >= minGoalProgress
+  return flankEvidence && passedObstacle && goalProgress && selfDriveGrounded(endPos)
 }
 
 /** Deterministic wanderer: zero-size perimeter pins goal at center. */
@@ -189,13 +426,29 @@ export function buildSelfDrivingCarWorld(options: BuildSelfDrivingCarWorldOption
   const obstacleShape =
     obstacleShapeOverride ?? matrixRow?.obstacleShape ?? ('box' satisfies GoalBehindObstacleShape)
   const goalZ = SELF_DRIVE_SPAWN.goalZ
+  const isParkourMission = variant === 'parkour' || variant === 'parkourBeside'
+  const groundSpec = isParkourMission ? SELF_DRIVE_PARKOUR.ground : SELF_DRIVE_GROUND
+  const missionStageId = 'tf_mission'
+  const targetStageId = isParkourMission ? missionStageId : 'tf_wanderer'
+  const parkourPoses =
+    variant === 'parkourBeside'
+      ? SELF_DRIVE_PARKOUR_BESIDE_WAYPOINTS
+      : SELF_DRIVE_PARKOUR_WAYPOINTS
+  const parkourObstacles =
+    variant === 'parkourBeside' ? SELF_DRIVE_PARKOUR_BESIDE_OBSTACLES : SELF_DRIVE_PARKOUR_OBSTACLES
+
   const entities: RennWorld['entities'] = [
     {
       id: 'ground',
       name: 'Ground',
       bodyType: 'static',
-      shape: { type: 'box', width: 40, height: 1, depth: 40 },
-      position: [0, -0.5, 0],
+      shape: {
+        type: 'box',
+        width: groundSpec.width,
+        height: 1,
+        depth: groundSpec.depth,
+      },
+      position: [...groundSpec.position],
       rotation: [0, 0, 0],
     },
     {
@@ -208,14 +461,16 @@ export function buildSelfDrivingCarWorld(options: BuildSelfDrivingCarWorldOption
       mass: 2,
       friction: 0.8,
       transformers: forceUmlManeuverFlag
-        ? ['tf_wanderer', 'tf_umlenker', 'tf_uml_flag', directionStageId, 'tf_autobrake', 'tf_car']
-        : [
-            'tf_wanderer',
+        ? [
+            targetStageId,
             'tf_umlenker',
+            'tf_uml_flag',
+            'tf_target_line',
             directionStageId,
             'tf_autobrake',
             'tf_car',
-          ],
+          ]
+        : [targetStageId, 'tf_umlenker', 'tf_target_line', directionStageId, 'tf_autobrake', 'tf_car'],
       transformerPipeStack: [{ pipeId: 'pipe3', enabled: true }],
     },
   ]
@@ -235,31 +490,80 @@ export function buildSelfDrivingCarWorld(options: BuildSelfDrivingCarWorldOption
     entities.push(goalBehindObstacleEntity(obstacleShape, SELF_DRIVE_SPAWN.cubeCenter))
   }
 
+  if (variant === 'parkour' || variant === 'parkourBeside') {
+    for (const spec of parkourObstacles) {
+      entities.push({
+        id: spec.id,
+        name: spec.name,
+        bodyType: 'static',
+        shape: spec.shape,
+        position: [...spec.position],
+        rotation: [0, 0, 0],
+      })
+    }
+  }
+
   const stageIds = forceUmlManeuverFlag
     ? ([
-        'tf_wanderer',
+        targetStageId,
         'tf_umlenker',
         'tf_uml_flag',
+        'tf_target_line',
         directionStageId,
         'tf_autobrake',
         'tf_car',
       ] as const)
-    : (['tf_wanderer', 'tf_umlenker', directionStageId, 'tf_autobrake', 'tf_car'] as const)
+    : ([
+        targetStageId,
+        'tf_umlenker',
+        'tf_target_line',
+        directionStageId,
+        'tf_autobrake',
+        'tf_car',
+      ] as const)
 
   const transformers: RennWorld['transformers'] = {
-      tf_wanderer: {
-        type: 'wanderer',
-        priority: 1,
-        enabled: true,
-        name: 'Wanderer',
-        params: wandererParams(goalZ),
-      },
+      ...(isParkourMission
+        ? {
+            [missionStageId]: {
+              type: 'targetPoseInput' as const,
+              priority: 1,
+              enabled: true,
+              name: variant === 'parkourBeside' ? 'BesideGateMission' : 'ParkourMission',
+              params: {
+                speed: 2,
+                mode: 'stopAtEnd' as const,
+                positionEpsilon: 4,
+                rotationEpsilon: 20,
+                poses: parkourPoses.map((wp) => ({
+                  position: [...wp.position],
+                  rotation: [...wp.rotation],
+                })),
+              },
+            },
+          }
+        : {
+            tf_wanderer: {
+              type: 'wanderer' as const,
+              priority: 1,
+              enabled: true,
+              name: 'Wanderer',
+              params: wandererParams(goalZ),
+            },
+          }),
       tf_umlenker: {
         type: 'custom',
         priority: 4,
         enabled: true,
         name: 'Umlenker',
         code: umlenkerCode,
+      },
+      tf_target_line: {
+        type: 'custom',
+        priority: 4.8,
+        enabled: true,
+        name: 'TargetLine',
+        code: TARGET_LINE_VISUALIZER_CODE,
       },
       [directionStageId]: {
         type: 'custom',

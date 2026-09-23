@@ -1,13 +1,15 @@
 {
-  "recordedAt": "2026-09-23T20:47:43.235Z",
+  "recordedAt": "2026-09-23T22:38:40.624Z",
+  "frames": 400,
   "runs": [
     {
-      "recordedAt": "2026-09-23T20:47:43.111Z",
+      "recordedAt": "2026-09-23T22:38:40.623Z",
       "runIndex": 0,
-      "variant": "cubeGoalBehind",
-      "spawnId": "center",
+      "variant": "parkour",
+      "spawnId": "yawRight",
+      "parkourSegment": null,
       "obstacleShape": "box",
-      "frames": 175,
+      "frames": 400,
       "spawn": {
         "carPosition": [
           0,
@@ -27,23 +29,27 @@
         ]
       },
       "startPos": [
-        0.10443909466266632,
-        0.49400952458381653,
-        1.5256634950637817
+        0.07253746688365936,
+        0.4940090775489807,
+        1.5239319801330566
       ],
       "endPos": [
-        20.898693084716797,
-        0.4045580327510834,
-        -14.438996315002441
+        -2.4370274543762207,
+        0.49461469054222107,
+        -37.718231201171875
       ],
       "bounds": {
-        "minX": 0.12944144010543823,
-        "maxX": 20.898693084716797,
-        "minY": 0.4045580327510834,
-        "maxY": 0.49553027749061584,
-        "minZ": -14.438996315002441,
-        "maxZ": 1.3812592029571533
+        "minX": -18.761587142944336,
+        "maxX": 0.06500574946403503,
+        "minY": 0.4941234290599823,
+        "maxY": 0.49461668729782104,
+        "minZ": -38.93640899658203,
+        "maxZ": 1.3776066303253174
       },
+      "maxAbsX": 18.761587142944336,
+      "goalDistStart": 33.52393198013306,
+      "goalDistEnd": 5.718231201171875,
+      "goalDistDelta": 27.80570077896118,
       "sawManeuver": true,
       "sawBackoff": false,
       "aimThroughCount": 0,
@@ -51,62 +57,137 @@
         {
           "frame": 0,
           "tag": "SAMPLE",
-          "detail": "z=1.38 uml=1 backoff=0 aimX=12.51157184980518 aimZ=-15.89354060753066"
+          "detail": "z=1.38 uml=1 backoff=0 aimX=-5.4040467019400715 aimZ=-3.695077073568937"
         },
         {
           "frame": 15,
           "tag": "SAMPLE",
-          "detail": "z=-0.81 uml=1 backoff=0 aimX=12.51157184980518 aimZ=-15.89354060753066"
+          "detail": "z=-0.88 uml=1 backoff=0 aimX=-5.4040467019400715 aimZ=-3.695077073568937"
         },
         {
           "frame": 30,
           "tag": "SAMPLE",
-          "detail": "z=-2.84 uml=1 backoff=0 aimX=-22.910801068526983 aimZ=-12.98679010538944"
+          "detail": "z=-2.88 uml=1 backoff=0 aimX=-5.4040467019400715 aimZ=-3.695077073568937"
         },
         {
           "frame": 45,
           "tag": "SAMPLE",
-          "detail": "z=-4.75 uml=1 backoff=0 aimX=25.12973128138839 aimZ=-16.46135279049335"
+          "detail": "z=-4.47 uml=1 backoff=0 aimX=-12.401225344082693 aimZ=-4.420974703792197"
         },
         {
           "frame": 60,
           "tag": "SAMPLE",
-          "detail": "z=-6.27 uml=1 backoff=0 aimX=25.12973128138839 aimZ=-16.46135279049335"
+          "detail": "z=-5.49 uml=1 backoff=0 aimX=-12.401225344082693 aimZ=-4.420974703792197"
         },
         {
           "frame": 75,
           "tag": "SAMPLE",
-          "detail": "z=-7.53 uml=1 backoff=0 aimX=25.12973128138839 aimZ=-16.46135279049335"
+          "detail": "z=-5.86 uml=1 backoff=0 aimX=-12.401225344082693 aimZ=-4.420974703792197"
         },
         {
           "frame": 90,
           "tag": "SAMPLE",
-          "detail": "z=-8.67 uml=1 backoff=0 aimX=25.12973128138839 aimZ=-16.46135279049335"
+          "detail": "z=-5.72 uml=1 backoff=0 aimX=-18.84067614169915 aimZ=-29.789919436144096"
         },
         {
           "frame": 105,
           "tag": "SAMPLE",
-          "detail": "z=-9.77 uml=1 backoff=0 aimX=25.12973128138839 aimZ=-16.46135279049335"
+          "detail": "z=-6.05 uml=1 backoff=0 aimX=-18.84067614169915 aimZ=-29.789919436144096"
         },
         {
           "frame": 120,
           "tag": "SAMPLE",
-          "detail": "z=-10.83 uml=1 backoff=0 aimX=25.12973128138839 aimZ=-16.46135279049335"
+          "detail": "z=-7.05 uml=1 backoff=0 aimX=-18.84067614169915 aimZ=-29.789919436144096"
         },
         {
           "frame": 135,
           "tag": "SAMPLE",
-          "detail": "z=-11.85 uml=1 backoff=0 aimX=25.12973128138839 aimZ=-16.46135279049335"
+          "detail": "z=-8.65 uml=1 backoff=0 aimX=-18.84067614169915 aimZ=-29.789919436144096"
         },
         {
           "frame": 150,
           "tag": "SAMPLE",
-          "detail": "z=-12.84 uml=1 backoff=0 aimX=25.12973128138839 aimZ=-16.46135279049335"
+          "detail": "z=-10.69 uml=1 backoff=0 aimX=-18.84067614169915 aimZ=-29.789919436144096"
         },
         {
           "frame": 165,
           "tag": "SAMPLE",
-          "detail": "z=-13.83 uml=1 backoff=0 aimX=25.12973128138839 aimZ=-16.46135279049335"
+          "detail": "z=-12.95 uml=1 backoff=0 aimX=-18.84067614169915 aimZ=-29.789919436144096"
+        },
+        {
+          "frame": 180,
+          "tag": "SAMPLE",
+          "detail": "z=-15.21 uml=1 backoff=0 aimX=-18.84067614169915 aimZ=-29.789919436144096"
+        },
+        {
+          "frame": 195,
+          "tag": "SAMPLE",
+          "detail": "z=-17.52 uml=1 backoff=0 aimX=-18.84067614169915 aimZ=-29.789919436144096"
+        },
+        {
+          "frame": 210,
+          "tag": "SAMPLE",
+          "detail": "z=-19.86 uml=1 backoff=0 aimX=-18.84067614169915 aimZ=-29.789919436144096"
+        },
+        {
+          "frame": 225,
+          "tag": "SAMPLE",
+          "detail": "z=-22.22 uml=1 backoff=0 aimX=-18.84067614169915 aimZ=-29.789919436144096"
+        },
+        {
+          "frame": 240,
+          "tag": "SAMPLE",
+          "detail": "z=-24.58 uml=1 backoff=0 aimX=-18.84067614169915 aimZ=-29.789919436144096"
+        },
+        {
+          "frame": 255,
+          "tag": "SAMPLE",
+          "detail": "z=-26.97 uml=0 backoff=0 aimX=-18.84067614169915 aimZ=-29.789919436144096"
+        },
+        {
+          "frame": 270,
+          "tag": "SAMPLE",
+          "detail": "z=-29.24 uml=0 backoff=0 aimX=-18.84067614169915 aimZ=-29.789919436144096"
+        },
+        {
+          "frame": 285,
+          "tag": "SAMPLE",
+          "detail": "z=-31.25 uml=0 backoff=0 aimX=-18.84067614169915 aimZ=-29.789919436144096"
+        },
+        {
+          "frame": 300,
+          "tag": "SAMPLE",
+          "detail": "z=-33.00 uml=0 backoff=0 aimX=-14.87197224971051 aimZ=-55.73232834227095"
+        },
+        {
+          "frame": 315,
+          "tag": "SAMPLE",
+          "detail": "z=-34.73 uml=1 backoff=0 aimX=-15.694905837634892 aimZ=-58.6571779495664"
+        },
+        {
+          "frame": 330,
+          "tag": "SAMPLE",
+          "detail": "z=-36.48 uml=1 backoff=0 aimX=-1.3822746231601055 aimZ=-29.16426882947625"
+        },
+        {
+          "frame": 345,
+          "tag": "SAMPLE",
+          "detail": "z=-37.92 uml=1 backoff=0 aimX=-1.3822746231601055 aimZ=-29.16426882947625"
+        },
+        {
+          "frame": 360,
+          "tag": "SAMPLE",
+          "detail": "z=-38.75 uml=1 backoff=0 aimX=-1.3822746231601055 aimZ=-29.16426882947625"
+        },
+        {
+          "frame": 375,
+          "tag": "SAMPLE",
+          "detail": "z=-38.91 uml=1 backoff=0 aimX=-1.3822746231601055 aimZ=-29.16426882947625"
+        },
+        {
+          "frame": 390,
+          "tag": "SAMPLE",
+          "detail": "z=-38.36 uml=1 backoff=0 aimX=-1.3822746231601055 aimZ=-29.16426882947625"
         }
       ],
       "paths": {
@@ -115,240 +196,8 @@
         "summaryPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-summary.json",
         "pathPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-path.json"
       },
-      "pass": true
-    },
-    {
-      "recordedAt": "2026-09-23T20:47:43.179Z",
-      "runIndex": 1,
-      "variant": "cubeGoalBehind",
-      "spawnId": "center",
-      "obstacleShape": "box",
-      "frames": 175,
-      "spawn": {
-        "carPosition": [
-          0,
-          0.55,
-          3
-        ],
-        "carRotation": [
-          0,
-          0,
-          0
-        ],
-        "goalZ": -32,
-        "cubeCenter": [
-          0,
-          1.5,
-          -10
-        ]
-      },
-      "startPos": [
-        0.10443909466266632,
-        0.49400952458381653,
-        1.5256634950637817
-      ],
-      "endPos": [
-        20.898693084716797,
-        0.4045580327510834,
-        -14.438996315002441
-      ],
-      "bounds": {
-        "minX": 0.12944144010543823,
-        "maxX": 20.898693084716797,
-        "minY": 0.4045580327510834,
-        "maxY": 0.49553027749061584,
-        "minZ": -14.438996315002441,
-        "maxZ": 1.3812592029571533
-      },
-      "sawManeuver": true,
-      "sawBackoff": false,
-      "aimThroughCount": 0,
-      "keyMoments": [
-        {
-          "frame": 0,
-          "tag": "SAMPLE",
-          "detail": "z=1.38 uml=1 backoff=0 aimX=12.51157184980518 aimZ=-15.89354060753066"
-        },
-        {
-          "frame": 15,
-          "tag": "SAMPLE",
-          "detail": "z=-0.81 uml=1 backoff=0 aimX=12.51157184980518 aimZ=-15.89354060753066"
-        },
-        {
-          "frame": 30,
-          "tag": "SAMPLE",
-          "detail": "z=-2.84 uml=1 backoff=0 aimX=-22.910801068526983 aimZ=-12.98679010538944"
-        },
-        {
-          "frame": 45,
-          "tag": "SAMPLE",
-          "detail": "z=-4.75 uml=1 backoff=0 aimX=25.12973128138839 aimZ=-16.46135279049335"
-        },
-        {
-          "frame": 60,
-          "tag": "SAMPLE",
-          "detail": "z=-6.27 uml=1 backoff=0 aimX=25.12973128138839 aimZ=-16.46135279049335"
-        },
-        {
-          "frame": 75,
-          "tag": "SAMPLE",
-          "detail": "z=-7.53 uml=1 backoff=0 aimX=25.12973128138839 aimZ=-16.46135279049335"
-        },
-        {
-          "frame": 90,
-          "tag": "SAMPLE",
-          "detail": "z=-8.67 uml=1 backoff=0 aimX=25.12973128138839 aimZ=-16.46135279049335"
-        },
-        {
-          "frame": 105,
-          "tag": "SAMPLE",
-          "detail": "z=-9.77 uml=1 backoff=0 aimX=25.12973128138839 aimZ=-16.46135279049335"
-        },
-        {
-          "frame": 120,
-          "tag": "SAMPLE",
-          "detail": "z=-10.83 uml=1 backoff=0 aimX=25.12973128138839 aimZ=-16.46135279049335"
-        },
-        {
-          "frame": 135,
-          "tag": "SAMPLE",
-          "detail": "z=-11.85 uml=1 backoff=0 aimX=25.12973128138839 aimZ=-16.46135279049335"
-        },
-        {
-          "frame": 150,
-          "tag": "SAMPLE",
-          "detail": "z=-12.84 uml=1 backoff=0 aimX=25.12973128138839 aimZ=-16.46135279049335"
-        },
-        {
-          "frame": 165,
-          "tag": "SAMPLE",
-          "detail": "z=-13.83 uml=1 backoff=0 aimX=25.12973128138839 aimZ=-16.46135279049335"
-        }
-      ],
-      "paths": {
-        "eventsPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-events.log",
-        "jsonlPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-latest.jsonl",
-        "summaryPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-summary.json",
-        "pathPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-path.json"
-      },
-      "pass": true
-    },
-    {
-      "recordedAt": "2026-09-23T20:47:43.235Z",
-      "runIndex": 2,
-      "variant": "cubeGoalBehind",
-      "spawnId": "center",
-      "obstacleShape": "box",
-      "frames": 175,
-      "spawn": {
-        "carPosition": [
-          0,
-          0.55,
-          3
-        ],
-        "carRotation": [
-          0,
-          0,
-          0
-        ],
-        "goalZ": -32,
-        "cubeCenter": [
-          0,
-          1.5,
-          -10
-        ]
-      },
-      "startPos": [
-        0.10443909466266632,
-        0.49400952458381653,
-        1.5256634950637817
-      ],
-      "endPos": [
-        20.898693084716797,
-        0.4045580327510834,
-        -14.438996315002441
-      ],
-      "bounds": {
-        "minX": 0.12944144010543823,
-        "maxX": 20.898693084716797,
-        "minY": 0.4045580327510834,
-        "maxY": 0.49553027749061584,
-        "minZ": -14.438996315002441,
-        "maxZ": 1.3812592029571533
-      },
-      "sawManeuver": true,
-      "sawBackoff": false,
-      "aimThroughCount": 0,
-      "keyMoments": [
-        {
-          "frame": 0,
-          "tag": "SAMPLE",
-          "detail": "z=1.38 uml=1 backoff=0 aimX=12.51157184980518 aimZ=-15.89354060753066"
-        },
-        {
-          "frame": 15,
-          "tag": "SAMPLE",
-          "detail": "z=-0.81 uml=1 backoff=0 aimX=12.51157184980518 aimZ=-15.89354060753066"
-        },
-        {
-          "frame": 30,
-          "tag": "SAMPLE",
-          "detail": "z=-2.84 uml=1 backoff=0 aimX=-22.910801068526983 aimZ=-12.98679010538944"
-        },
-        {
-          "frame": 45,
-          "tag": "SAMPLE",
-          "detail": "z=-4.75 uml=1 backoff=0 aimX=25.12973128138839 aimZ=-16.46135279049335"
-        },
-        {
-          "frame": 60,
-          "tag": "SAMPLE",
-          "detail": "z=-6.27 uml=1 backoff=0 aimX=25.12973128138839 aimZ=-16.46135279049335"
-        },
-        {
-          "frame": 75,
-          "tag": "SAMPLE",
-          "detail": "z=-7.53 uml=1 backoff=0 aimX=25.12973128138839 aimZ=-16.46135279049335"
-        },
-        {
-          "frame": 90,
-          "tag": "SAMPLE",
-          "detail": "z=-8.67 uml=1 backoff=0 aimX=25.12973128138839 aimZ=-16.46135279049335"
-        },
-        {
-          "frame": 105,
-          "tag": "SAMPLE",
-          "detail": "z=-9.77 uml=1 backoff=0 aimX=25.12973128138839 aimZ=-16.46135279049335"
-        },
-        {
-          "frame": 120,
-          "tag": "SAMPLE",
-          "detail": "z=-10.83 uml=1 backoff=0 aimX=25.12973128138839 aimZ=-16.46135279049335"
-        },
-        {
-          "frame": 135,
-          "tag": "SAMPLE",
-          "detail": "z=-11.85 uml=1 backoff=0 aimX=25.12973128138839 aimZ=-16.46135279049335"
-        },
-        {
-          "frame": 150,
-          "tag": "SAMPLE",
-          "detail": "z=-12.84 uml=1 backoff=0 aimX=25.12973128138839 aimZ=-16.46135279049335"
-        },
-        {
-          "frame": 165,
-          "tag": "SAMPLE",
-          "detail": "z=-13.83 uml=1 backoff=0 aimX=25.12973128138839 aimZ=-16.46135279049335"
-        }
-      ],
-      "paths": {
-        "eventsPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-events.log",
-        "jsonlPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-latest.jsonl",
-        "summaryPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-summary.json",
-        "pathPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-path.json"
-      },
-      "pass": true
+      "pass": false
     }
   ],
-  "pass": true
+  "pass": false
 }

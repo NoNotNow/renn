@@ -271,6 +271,8 @@ export interface WorldSettings {
   simulation?: SimulationSettings
   /** When true, show last-frame ms / fps overlay on the scene canvas. */
   showFrameStats?: boolean
+  /** Builder sim: always draw `api.visualizeLine` for this entity (without Visualize gizmo). */
+  debugTargetLineEntityId?: string
   /**
    * When not `false`, `WebGLRenderer` uses a logarithmic depth buffer (less z-fighting where meshes intersect, especially from far away).
    * Omitted or `true`: enabled. `false`: disabled (linear depth only).

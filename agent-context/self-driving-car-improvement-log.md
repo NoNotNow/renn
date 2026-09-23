@@ -28,11 +28,36 @@ rg 'RENNDIAG:' agent-context/recordings/car-diagnostic-events.log
 
 | When | Run | Result | Notes |
 |------|-----|--------|--------|
+| 2026-09-24 | umlenker flank + hunt_repair2 Play | cylinder fix | **Root:** goal-blocked `flankFallback` picked far **same-depth** lateral points (yellow line through curved hull). Reject when `closestObstacle < 4`, `ahead < 2.5`, and `\|Δx\| > 6`. Vitest spawn matrix + parkour green; sync `sync-hunt-car-patches.mjs`. |
 | 2026-09-23 | diagnostic 180f cubeGoalBehind | STUCK z≈-2.24, pass=false | `goalBlock=1`, maneuver then 0 |
 | 2026-09-23 | L2 orchestrate spawned | pending | Scope: go-around, path trace, multi-spawn, multi-shape |
 | 2026-09-23 | patches + spawn z=3 + v3x fix | pass | Root: Vec3 `.x` filters dead; 15f warmup wedged car at cube face; flank-first when goalBlocked |
 | 2026-09-23 | vitest spawn matrix 8×175f | pass | box/sphere/pyramid/cylinder + yaw/offset spawns; `selfDriveGoAroundPass` |
 | 2026-09-23 | sim-car-diagnostic ×3 runs 175f | pass | endZ≈-14.4 endX≈21; path `car-diagnostic-path.json` |
+| 2026-09-23 | diagnostic 400f×3 (pre-fix) | fail | **Root:** 40×40 ground; flank to x≈39 → minY≈-471; go-around logic OK |
+| 2026-09-23 | ground 100×80 + long-run pass | pass | `SELF_DRIVE_GROUND`; `selfDriveLongRunPass` + `maxAbsX`; export `self_drive_cube` |
+| 2026-09-23 | batch 400/600/900 ×3 runs | pass | minY≈0.49; 400f goalDist≈1.5; CSV `car-diagnostic-batch-summary.csv` |
+| 2026-09-23 | vitest longrun 400+600f | pass | `self-driving-car-longrun.integration.test.ts` |
+| 2026-09-23 | parkour fixture v1 | pass | `buildSelfDrivingParkourWorld()` — 4 waypoints (`tf_mission` / `targetPoseInput`), obstacles box M + sphere S + cylinder L; ground 100×110 |
+| 2026-09-23 | vitest parkour 1400f | pass | `self-driving-car-parkour.integration.test.ts`; frame budget **1400f** (~23s sim) for full course |
+| 2026-09-23 | diagnostic `--variant parkour` 1400f | pass | endZ≈−65.5; export `self_drive_parkour` |
+| 2026-09-23 | round obstacles (sphere/cylinder) | pass | Umlenker: keep `goalBlocked` when front ray closer; `sideScrape` → flank from bumper; looser `pathClear` at curved hull; no backward aim; direction clears backoff during `_uml_maneuver`. Parkour 1400f + cube 175f green; re-export `self_drive_parkour` / `self_drive_cube`. |
+| 2026-09-23 | Chunk E spawn matrix | pass | `SELF_DRIVE_PARKOUR_SPAWN_IDS` × seg1 **520f** + beside **920f** (4 spawns; yawRight beside LEFTOVER) |
+| 2026-09-23 | Beside gate (`parkourBeside`) | pass | cone + capsule; lateral mission wp; `selfDriveParkourBesideGatePass`; diagnostic `--variant parkourBeside --frames 920` |
+| 2026-09-23 | diagnostic `--parkour-spawn-matrix` | pass | `agent-context/recordings/car-diagnostic-parkour-spawn-matrix.json` |
+| 2026-09-23 | cube spawn matrix **195f** | pass | yaw spawns borderline @ 175f with `tf_target_line` in pipe3 |
+| 2026-09-23 | L1 accept Chunk E | pass | Vitest parkour + spawn-matrix (26 tests); `world-schema.json` + `debugTargetLineEntityId`; re-export `self_drive_parkour` / `self_drive_cube`; Pipe3 sync. Handoff: `$TMPDIR/handoff-self-driving-parkour-20260923-2338.md`. |
+| 2026-09-23 | spawn resilience pass | partial | Umlenker: keep `goalBlocked` when front ray wins; direction skips backoff during `_uml_maneuver`. Diagnostic `--parkour-full-spawn-matrix` + `RENNDIAG:STUCK` in events log. **Green full 1400f (CI):** center. **Seg1 all spawns green.** **LEFTOVER full course:** left1, right1, yawLeft, yawRight (sphere leg ~z−29; grep STUCK). |
+
+---
+
+## Handoff workflow (notes)
+
+- **Works:** L2 wrote `/tmp/handoff-self-driving-go-around-l2.md` with baseline, LEFTOVER, RISK; L1 re-ran vitest/diagnostic before trusting claims.
+- **Gap:** L2 marked **green** at 175f while user scope is open-ended — L1 must **chain fresh L2 from LEFTOVER**, not treat STATUS done as “all tasks finished.”
+- **Next handoffs:** `$TMPDIR/handoff-self-driving-longrun-*.md` for long-run tranche.
+- **Parkour perpetual AFK:** `/var/folders/cg/87j3kd8s3dqctsflnp71st2w0000gn/T/handoff-self-driving-parkour-perpetual-orchestrate-20260923.md`
+- **Chunk E (spawn matrix + beside):** `$TMPDIR/handoff-self-driving-parkour-20260923-2338.md` — LEFTOVER: yawRight beside, full course non-center spawns, seg3 matrix row, narrow gap.
 
 ---
 

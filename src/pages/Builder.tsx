@@ -74,6 +74,7 @@ export default function Builder() {
     version,
     newProject,
     loadProject,
+    reloadWorld,
     saveProject,
     saveProjectAs,
     saveToProject,
@@ -375,6 +376,7 @@ export default function Builder() {
     syncPosesToRefOnly,
     newProject,
     loadProject,
+    reloadWorld,
     loadExampleWorld,
   })
 

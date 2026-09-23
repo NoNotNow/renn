@@ -438,8 +438,11 @@ function SceneViewInner({
     }
   }, [playMode, gizmoMode, sceneKey, version])
 
+  const debugTargetLineEntityId = world.world.debugTargetLineEntityId
+  const coordinateOverlayFromWorld =
+    typeof debugTargetLineEntityId === 'string' && debugTargetLineEntityId.length > 0
   useEffect(() => {
-    if (playMode || gizmoMode !== 'visualize') {
+    if (playMode || (gizmoMode !== 'visualize' && !coordinateOverlayFromWorld)) {
       setCoordinateOverlayFn(null)
       return
     }
@@ -447,7 +450,7 @@ function SceneViewInner({
     return () => {
       setCoordinateOverlayFn(null)
     }
-  }, [playMode, gizmoMode, sceneKey, version])
+  }, [playMode, gizmoMode, sceneKey, version, coordinateOverlayFromWorld])
 
   useEffect(() => {
     const entities =

@@ -63,6 +63,7 @@ flowchart LR
 3. **ProjectContext** ([src/contexts/ProjectContext.tsx](src/contexts/ProjectContext.tsx))  
    - `updateWorld(updater)`: applies updater to previous world, updates `worldRef.current`, calls `setWorld(next)`, marks project dirty.  
    - `syncPosesFromScene(poses)`: merges poses into entities and calls `setWorld(merged)` so the document matches the scene.
+   - **`reloadWorld()`** (Builder **Project → Reload**): restores the world document from the **open baseline** (captured on new/load/example/import), bumps `version` + `documentEpoch`, and rebuilds physics from entity `position`/`rotation` in that document. Saved projects reload from IndexedDB via `loadProject`; example/unsaved sessions use the in-memory baseline (not live registry poses).
 
 4. **SceneView** ([src/components/SceneView.tsx](src/components/SceneView.tsx))  
    - **Full restart** is owned by [`SceneRuntimeSession`](../src/runtime/sceneRuntimeSession.ts): a thin main `useEffect` builds `restartKey` via `buildSceneRuntimeRestartKey` (same inputs as before: `sceneKey = getSceneDependencyKey(world)`, Builder `version`, render-quality flags, `playMode`, etc.), then `createSceneRuntimeSession(...).start()` / cleanup `dispose()`. The session runs teardown, `loadWorld(world, assets)`, physics/registry async, frame loop, resize, builder pick/gizmo, and applies `initialPosesRef` + `onPosesRestored` on success — see [scene-runtime-session-extract.md](./scene-runtime-session-extract.md).  

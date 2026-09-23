@@ -27,6 +27,12 @@ describe('validateWorldDocument', () => {
     expect(() => validateWorldDocument(sampleWorld)).not.toThrow()
   })
 
+  it('accepts world.debugTargetLineEntityId for builder target line overlay', () => {
+    const world = structuredClone(sampleWorld) as RennWorld
+    world.world.debugTargetLineEntityId = 'car'
+    expect(() => validateWorldDocument(world)).not.toThrow()
+  })
+
   it('does not throw for world with one entity per addable shape type', () => {
     const world = worldWithOneEntityPerShape()
     expect(() => validateWorldDocument(world)).not.toThrow()

@@ -165,6 +165,10 @@
           "type": "boolean",
           "description": "Overlay last-frame timing / fps on the scene canvas"
         },
+        "debugTargetLineEntityId": {
+          "type": "string",
+          "description": "Builder sim: always draw transformer target line for this entity (without Visualize gizmo)"
+        },
         "logarithmicDepthBuffer": {
           "type": "boolean",
           "description": "When false, WebGLRenderer uses linear depth only. Omitted or true: logarithmic depth (default) for better intersection stability at distance"

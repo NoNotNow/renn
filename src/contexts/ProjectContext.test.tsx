@@ -378,3 +378,62 @@ describe('ProjectContext – restore last project on reload', () => {
     expect(storage.has('renn-last-project-id')).toBe(false)
   })
 })
+
+describe('ProjectContext – reload world', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockListProjects.mockResolvedValue([])
+    mockLoadAllAssets.mockResolvedValue(new Map())
+    createLocalStorageMock()
+    vi.stubGlobal('confirm', vi.fn(() => true))
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('restores example world baseline and bumps scene version (unsaved project)', async () => {
+    const exampleWorld = {
+      version: '1.0',
+      world: { gravity: [0, -100, 0] as Vec3 },
+      entities: [
+        {
+          id: CAR_ID,
+          bodyType: 'dynamic' as const,
+          shape: { type: 'box' as const, width: 2, height: 1, depth: 4 },
+          position: [0, 0.55, 3] as Vec3,
+          rotation: [0, 0, 0] as Rotation,
+        },
+      ],
+    }
+
+    const captured = renderContext()
+    await flushEffects()
+
+    const ctx = captured.current!
+    const versionBefore = ctx.version
+
+    act(() => {
+      ctx.loadExampleWorld(exampleWorld, 'self_drive_cube')
+    })
+
+    act(() => {
+      ctx.updateWorld((prev) => ({
+        ...prev,
+        entities: prev.entities.map((e) =>
+          e.id === CAR_ID ? { ...e, position: [0, 0.55, -20] as Vec3 } : e,
+        ),
+      }))
+    })
+
+    expect(captured.current!.world.entities.find((e) => e.id === CAR_ID)?.position?.[2]).toBe(-20)
+
+    await act(async () => {
+      await ctx.reloadWorld()
+    })
+
+    expect(captured.current!.world.entities.find((e) => e.id === CAR_ID)?.position?.[2]).toBe(3)
+    expect(captured.current!.version).toBeGreaterThan(versionBefore)
+    expect(captured.current!.currentProject.isDirty).toBe(false)
+  })
+})

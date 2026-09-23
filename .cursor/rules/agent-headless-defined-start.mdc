@@ -22,7 +22,7 @@ Mitigates headless vs browser drift: **same `world.json` on disk** and **every r
    - `self_drive_cube`: `npx tsx tools/renn-mcp/export-self-drive-example-world.ts`
    - `hunt_repair2` patches: `node tools/renn-mcp/sync-hunt-car-patches.mjs`
 2. **Verify headless first** — Vitest and/or `npx tsx tools/renn-mcp/sim-car-diagnostic.ts` (grep `RENNDIAG:` in `agent-context/recordings/`).
-3. **Human browser check** — user reloads **File → Example Worlds → `<id>`** (not an stale IndexedDB project) and reports visuals.
+3. **Human browser check** — **Project → Reload** (resets all entities to document poses at last open) or re-open **File → Example Worlds → `<id>`**; not a stale mid-scene tab.
 
 Do not treat browser-only Play as the primary regression signal.
 

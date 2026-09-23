@@ -18,7 +18,8 @@ describe('self-driving car spawn matrix (integration)', () => {
     )
     try {
       const startPos = sim.getPosition('car')
-      sim.runFrames(175)
+      /** 175f borderline for yaw spawns with target-line probe stage in pipe3. */
+      sim.runFrames(195)
       const endPos = sim.getPosition('car')
       expect(
         selfDriveGoAroundPass({

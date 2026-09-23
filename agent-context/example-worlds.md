@@ -24,6 +24,7 @@ Browser and MCP loaders fetch `world.json` and hydrate blobs from `exampleWorlds
 | `world1` | [`public/exampleWorlds/world1/`](../public/exampleWorlds/world1/) | General example |
 | `hunt_repair2` | [`public/exampleWorlds/hunt_repair2/`](../public/exampleWorlds/hunt_repair2/) | Large repair/hunt scene (660+ entities); exported via agent disk import |
 | `self_drive_cube` | [`public/exampleWorlds/self_drive_cube/`](../public/exampleWorlds/self_drive_cube/) | Headless diagnostic scene in Play: car + cube obstacle, goal behind cube; Pipe3 self-driving patches. Regenerate: `npx tsx tools/renn-mcp/export-self-drive-example-world.ts` |
+| `self_drive_parkour` | [`public/exampleWorlds/self_drive_parkour/`](../public/exampleWorlds/self_drive_parkour/) | Multi-segment parkour: `targetPoseInput` mission (4 waypoints), 3 mixed obstacles; same Pipe3 stack as cube. Regenerate: `npx tsx tools/renn-mcp/export-self-drive-parkour-example-world.ts` |
 
 ### Agent / MCP worlds → example menu
 

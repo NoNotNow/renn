@@ -1,21 +1,21 @@
 #!/usr/bin/env npx tsx
 /**
- * Write headless self-driving diagnostic world to public/exampleWorlds/ (File → Example Worlds).
- * Source of truth: src/test/fixtures/selfDrivingCarWorld.ts + patch JS files.
+ * Write parkour self-driving world to public/exampleWorlds/ (File → Example Worlds).
+ * Source of truth: buildSelfDrivingParkourWorld() + patch JS files.
  */
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { invalidateAgentDevExampleWorldIdCache } from '../../src/agent/agentDevExampleWorlds'
-import { buildSelfDrivingCarWorld } from '../../src/test/fixtures/selfDrivingCarWorld'
+import { buildSelfDrivingParkourWorld } from '../../src/test/fixtures/selfDrivingCarWorld'
 
-const EXAMPLE_WORLD_ID = 'self_drive_cube'
+const EXAMPLE_WORLD_ID = 'self_drive_parkour'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const outDir = resolve(root, 'public/exampleWorlds', EXAMPLE_WORLD_ID)
 const outPath = resolve(outDir, 'world.json')
 
-const world = buildSelfDrivingCarWorld({ variant: 'cubeGoalBehind' })
+const world = buildSelfDrivingParkourWorld()
 world.world = {
   ...world.world,
   debugTargetLineEntityId: 'car',

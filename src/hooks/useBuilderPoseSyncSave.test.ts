@@ -46,6 +46,7 @@ function makeParams(overrides: Partial<Parameters<typeof useBuilderPoseSyncSave>
     syncPosesToRefOnly: vi.fn(),
     newProject: vi.fn(),
     loadProject: vi.fn(),
+    reloadWorld: vi.fn().mockResolvedValue(true),
     loadExampleWorld: vi.fn(),
     ...overrides,
   }
@@ -148,6 +149,19 @@ describe('useBuilderPoseSyncSave', () => {
 
     expect(confirmMock).toHaveBeenCalled()
     expect(params.newProject).not.toHaveBeenCalled()
+  })
+
+  it('handleReload calls reloadWorld (saved and example worlds)', () => {
+    const params = makeParams({
+      currentProject: { id: null, name: 'self_drive_cube', isDirty: false },
+    })
+    const { result } = renderHook(() => useBuilderPoseSyncSave(params))
+
+    act(() => {
+      result.current.handleReload()
+    })
+
+    expect(params.reloadWorld).toHaveBeenCalledTimes(1)
   })
 
   it('registers beforeunload when project is dirty', () => {

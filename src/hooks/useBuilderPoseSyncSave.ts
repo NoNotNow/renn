@@ -30,6 +30,7 @@ export interface UseBuilderPoseSyncSaveParams {
   syncPosesToRefOnly: (poses: ScenePoses) => void
   newProject: () => void
   loadProject: (id: string) => void
+  reloadWorld: () => Promise<boolean>
   loadExampleWorld: (world: RennWorld, name: string, assets?: Map<string, Blob>) => void
 }
 
@@ -64,6 +65,7 @@ export function useBuilderPoseSyncSave({
   syncPosesToRefOnly,
   newProject,
   loadProject,
+  reloadWorld,
   loadExampleWorld,
 }: UseBuilderPoseSyncSaveParams): UseBuilderPoseSyncSaveResult {
   const [showSaveDialog, setShowSaveDialog] = useState(false)
@@ -116,10 +118,8 @@ export function useBuilderPoseSyncSave({
   )
 
   const handleReload = useCallback(() => {
-    if (!currentProject.id) return
-    if (currentProject.isDirty && !confirm('Discard unsaved changes and reload from storage?')) return
-    loadProject(currentProject.id)
-  }, [currentProject.id, currentProject.isDirty, loadProject])
+    void reloadWorld()
+  }, [reloadWorld])
 
   const handleSave = useCallback(async () => {
     if (!currentProject.id) {

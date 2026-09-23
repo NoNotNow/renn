@@ -257,6 +257,11 @@ function flankFallback(api, input, carPos, forward, up, truePos, distTrue, close
     if (!pathClear(api, input, carPos, candidate, up)) continue
     if (!goalBlocked && !pathClear(api, input, candidate, pathGoal, up)) continue
     if (goalBlocked && Math.abs(v3x(candidate) - v3x(carPos)) < 4) continue
+    if (goalBlocked && closestObstacle < 4) {
+      var toCand = api.vec.projectOntoPlane(api.vec.subtract(candidate, carPos), up)
+      var ahead = api.vec.dot(toCand, forward)
+      if (ahead < 2.5 && Math.abs(v3x(toCand)) > 6) continue
+    }
     var toTrue = api.vec.length(api.vec.subtract(truePos, candidate))
     if (toTrue > distTrue + 14) continue
     return { candidate: candidate, deviation: 0.8, candidateDist: toTrue }

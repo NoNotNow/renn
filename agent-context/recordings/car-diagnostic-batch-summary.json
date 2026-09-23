@@ -1,0 +1,2472 @@
+{
+  "recordedAt": "2026-09-23T20:57:00.595Z",
+  "batches": [
+    {
+      "recordedAt": "2026-09-23T20:57:00.191Z",
+      "frames": 400,
+      "runs": [
+        {
+          "recordedAt": "2026-09-23T20:57:00.056Z",
+          "runIndex": 0,
+          "variant": "cubeGoalBehind",
+          "spawnId": "center",
+          "obstacleShape": "box",
+          "frames": 400,
+          "spawn": {
+            "carPosition": [
+              0,
+              0.55,
+              3
+            ],
+            "carRotation": [
+              0,
+              0,
+              0
+            ],
+            "goalZ": -32,
+            "cubeCenter": [
+              0,
+              1.5,
+              -10
+            ]
+          },
+          "startPos": [
+            0.10443911701440811,
+            0.49400952458381653,
+            1.5256634950637817
+          ],
+          "endPos": [
+            6.226576328277588,
+            0.494610995054245,
+            -33.52556228637695
+          ],
+          "bounds": {
+            "minX": 0.12944146990776062,
+            "maxX": 26.152912139892578,
+            "minY": 0.49412351846694946,
+            "maxY": 0.49461978673934937,
+            "minZ": -33.530250549316406,
+            "maxZ": 1.3812592029571533
+          },
+          "maxAbsX": 26.152912139892578,
+          "goalDistStart": 33.52566349506378,
+          "goalDistEnd": 1.5255622863769531,
+          "goalDistDelta": 32.00010120868683,
+          "sawManeuver": true,
+          "sawBackoff": false,
+          "aimThroughCount": 0,
+          "keyMoments": [
+            {
+              "frame": 0,
+              "tag": "SAMPLE",
+              "detail": "z=1.38 uml=1 backoff=0 aimX=12.511571845786618 aimZ=-15.893540607205946"
+            },
+            {
+              "frame": 15,
+              "tag": "SAMPLE",
+              "detail": "z=-0.81 uml=1 backoff=0 aimX=12.511571845786618 aimZ=-15.893540607205946"
+            },
+            {
+              "frame": 30,
+              "tag": "SAMPLE",
+              "detail": "z=-2.84 uml=1 backoff=0 aimX=-22.9108007147575 aimZ=-12.986790969501854"
+            },
+            {
+              "frame": 45,
+              "tag": "SAMPLE",
+              "detail": "z=-4.75 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 60,
+              "tag": "SAMPLE",
+              "detail": "z=-6.27 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 75,
+              "tag": "SAMPLE",
+              "detail": "z=-7.53 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 90,
+              "tag": "SAMPLE",
+              "detail": "z=-8.67 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 105,
+              "tag": "SAMPLE",
+              "detail": "z=-9.77 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 120,
+              "tag": "SAMPLE",
+              "detail": "z=-10.83 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 135,
+              "tag": "SAMPLE",
+              "detail": "z=-11.85 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 150,
+              "tag": "SAMPLE",
+              "detail": "z=-12.84 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 165,
+              "tag": "SAMPLE",
+              "detail": "z=-13.83 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 180,
+              "tag": "SAMPLE",
+              "detail": "z=-14.82 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 195,
+              "tag": "SAMPLE",
+              "detail": "z=-16.12 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 210,
+              "tag": "SAMPLE",
+              "detail": "z=-17.96 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 225,
+              "tag": "SAMPLE",
+              "detail": "z=-20.13 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 240,
+              "tag": "SAMPLE",
+              "detail": "z=-22.49 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 255,
+              "tag": "SAMPLE",
+              "detail": "z=-24.74 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 270,
+              "tag": "SAMPLE",
+              "detail": "z=-26.79 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 285,
+              "tag": "SAMPLE",
+              "detail": "z=-28.52 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 300,
+              "tag": "SAMPLE",
+              "detail": "z=-29.93 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 315,
+              "tag": "SAMPLE",
+              "detail": "z=-31.07 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 330,
+              "tag": "SAMPLE",
+              "detail": "z=-31.95 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 345,
+              "tag": "SAMPLE",
+              "detail": "z=-32.63 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 360,
+              "tag": "SAMPLE",
+              "detail": "z=-33.09 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 375,
+              "tag": "SAMPLE",
+              "detail": "z=-33.38 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 390,
+              "tag": "SAMPLE",
+              "detail": "z=-33.52 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            }
+          ],
+          "paths": {
+            "eventsPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-events.log",
+            "jsonlPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-latest.jsonl",
+            "summaryPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-summary.json",
+            "pathPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-path.json"
+          },
+          "pass": true
+        },
+        {
+          "recordedAt": "2026-09-23T20:57:00.148Z",
+          "runIndex": 1,
+          "variant": "cubeGoalBehind",
+          "spawnId": "center",
+          "obstacleShape": "box",
+          "frames": 400,
+          "spawn": {
+            "carPosition": [
+              0,
+              0.55,
+              3
+            ],
+            "carRotation": [
+              0,
+              0,
+              0
+            ],
+            "goalZ": -32,
+            "cubeCenter": [
+              0,
+              1.5,
+              -10
+            ]
+          },
+          "startPos": [
+            0.10443911701440811,
+            0.49400952458381653,
+            1.5256634950637817
+          ],
+          "endPos": [
+            6.226576328277588,
+            0.494610995054245,
+            -33.52556228637695
+          ],
+          "bounds": {
+            "minX": 0.12944146990776062,
+            "maxX": 26.152912139892578,
+            "minY": 0.49412351846694946,
+            "maxY": 0.49461978673934937,
+            "minZ": -33.530250549316406,
+            "maxZ": 1.3812592029571533
+          },
+          "maxAbsX": 26.152912139892578,
+          "goalDistStart": 33.52566349506378,
+          "goalDistEnd": 1.5255622863769531,
+          "goalDistDelta": 32.00010120868683,
+          "sawManeuver": true,
+          "sawBackoff": false,
+          "aimThroughCount": 0,
+          "keyMoments": [
+            {
+              "frame": 0,
+              "tag": "SAMPLE",
+              "detail": "z=1.38 uml=1 backoff=0 aimX=12.511571845786618 aimZ=-15.893540607205946"
+            },
+            {
+              "frame": 15,
+              "tag": "SAMPLE",
+              "detail": "z=-0.81 uml=1 backoff=0 aimX=12.511571845786618 aimZ=-15.893540607205946"
+            },
+            {
+              "frame": 30,
+              "tag": "SAMPLE",
+              "detail": "z=-2.84 uml=1 backoff=0 aimX=-22.9108007147575 aimZ=-12.986790969501854"
+            },
+            {
+              "frame": 45,
+              "tag": "SAMPLE",
+              "detail": "z=-4.75 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 60,
+              "tag": "SAMPLE",
+              "detail": "z=-6.27 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 75,
+              "tag": "SAMPLE",
+              "detail": "z=-7.53 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 90,
+              "tag": "SAMPLE",
+              "detail": "z=-8.67 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 105,
+              "tag": "SAMPLE",
+              "detail": "z=-9.77 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 120,
+              "tag": "SAMPLE",
+              "detail": "z=-10.83 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 135,
+              "tag": "SAMPLE",
+              "detail": "z=-11.85 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 150,
+              "tag": "SAMPLE",
+              "detail": "z=-12.84 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 165,
+              "tag": "SAMPLE",
+              "detail": "z=-13.83 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 180,
+              "tag": "SAMPLE",
+              "detail": "z=-14.82 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 195,
+              "tag": "SAMPLE",
+              "detail": "z=-16.12 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 210,
+              "tag": "SAMPLE",
+              "detail": "z=-17.96 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 225,
+              "tag": "SAMPLE",
+              "detail": "z=-20.13 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 240,
+              "tag": "SAMPLE",
+              "detail": "z=-22.49 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 255,
+              "tag": "SAMPLE",
+              "detail": "z=-24.74 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 270,
+              "tag": "SAMPLE",
+              "detail": "z=-26.79 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 285,
+              "tag": "SAMPLE",
+              "detail": "z=-28.52 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 300,
+              "tag": "SAMPLE",
+              "detail": "z=-29.93 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 315,
+              "tag": "SAMPLE",
+              "detail": "z=-31.07 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 330,
+              "tag": "SAMPLE",
+              "detail": "z=-31.95 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 345,
+              "tag": "SAMPLE",
+              "detail": "z=-32.63 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 360,
+              "tag": "SAMPLE",
+              "detail": "z=-33.09 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 375,
+              "tag": "SAMPLE",
+              "detail": "z=-33.38 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 390,
+              "tag": "SAMPLE",
+              "detail": "z=-33.52 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            }
+          ],
+          "paths": {
+            "eventsPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-events.log",
+            "jsonlPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-latest.jsonl",
+            "summaryPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-summary.json",
+            "pathPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-path.json"
+          },
+          "pass": true
+        },
+        {
+          "recordedAt": "2026-09-23T20:57:00.191Z",
+          "runIndex": 2,
+          "variant": "cubeGoalBehind",
+          "spawnId": "center",
+          "obstacleShape": "box",
+          "frames": 400,
+          "spawn": {
+            "carPosition": [
+              0,
+              0.55,
+              3
+            ],
+            "carRotation": [
+              0,
+              0,
+              0
+            ],
+            "goalZ": -32,
+            "cubeCenter": [
+              0,
+              1.5,
+              -10
+            ]
+          },
+          "startPos": [
+            0.10443911701440811,
+            0.49400952458381653,
+            1.5256634950637817
+          ],
+          "endPos": [
+            6.226576328277588,
+            0.494610995054245,
+            -33.52556228637695
+          ],
+          "bounds": {
+            "minX": 0.12944146990776062,
+            "maxX": 26.152912139892578,
+            "minY": 0.49412351846694946,
+            "maxY": 0.49461978673934937,
+            "minZ": -33.530250549316406,
+            "maxZ": 1.3812592029571533
+          },
+          "maxAbsX": 26.152912139892578,
+          "goalDistStart": 33.52566349506378,
+          "goalDistEnd": 1.5255622863769531,
+          "goalDistDelta": 32.00010120868683,
+          "sawManeuver": true,
+          "sawBackoff": false,
+          "aimThroughCount": 0,
+          "keyMoments": [
+            {
+              "frame": 0,
+              "tag": "SAMPLE",
+              "detail": "z=1.38 uml=1 backoff=0 aimX=12.511571845786618 aimZ=-15.893540607205946"
+            },
+            {
+              "frame": 15,
+              "tag": "SAMPLE",
+              "detail": "z=-0.81 uml=1 backoff=0 aimX=12.511571845786618 aimZ=-15.893540607205946"
+            },
+            {
+              "frame": 30,
+              "tag": "SAMPLE",
+              "detail": "z=-2.84 uml=1 backoff=0 aimX=-22.9108007147575 aimZ=-12.986790969501854"
+            },
+            {
+              "frame": 45,
+              "tag": "SAMPLE",
+              "detail": "z=-4.75 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 60,
+              "tag": "SAMPLE",
+              "detail": "z=-6.27 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 75,
+              "tag": "SAMPLE",
+              "detail": "z=-7.53 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 90,
+              "tag": "SAMPLE",
+              "detail": "z=-8.67 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 105,
+              "tag": "SAMPLE",
+              "detail": "z=-9.77 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 120,
+              "tag": "SAMPLE",
+              "detail": "z=-10.83 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 135,
+              "tag": "SAMPLE",
+              "detail": "z=-11.85 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 150,
+              "tag": "SAMPLE",
+              "detail": "z=-12.84 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 165,
+              "tag": "SAMPLE",
+              "detail": "z=-13.83 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 180,
+              "tag": "SAMPLE",
+              "detail": "z=-14.82 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 195,
+              "tag": "SAMPLE",
+              "detail": "z=-16.12 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 210,
+              "tag": "SAMPLE",
+              "detail": "z=-17.96 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 225,
+              "tag": "SAMPLE",
+              "detail": "z=-20.13 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 240,
+              "tag": "SAMPLE",
+              "detail": "z=-22.49 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 255,
+              "tag": "SAMPLE",
+              "detail": "z=-24.74 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 270,
+              "tag": "SAMPLE",
+              "detail": "z=-26.79 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 285,
+              "tag": "SAMPLE",
+              "detail": "z=-28.52 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 300,
+              "tag": "SAMPLE",
+              "detail": "z=-29.93 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 315,
+              "tag": "SAMPLE",
+              "detail": "z=-31.07 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 330,
+              "tag": "SAMPLE",
+              "detail": "z=-31.95 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 345,
+              "tag": "SAMPLE",
+              "detail": "z=-32.63 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 360,
+              "tag": "SAMPLE",
+              "detail": "z=-33.09 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 375,
+              "tag": "SAMPLE",
+              "detail": "z=-33.38 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 390,
+              "tag": "SAMPLE",
+              "detail": "z=-33.52 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            }
+          ],
+          "paths": {
+            "eventsPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-events.log",
+            "jsonlPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-latest.jsonl",
+            "summaryPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-summary.json",
+            "pathPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-path.json"
+          },
+          "pass": true
+        }
+      ],
+      "pass": true
+    },
+    {
+      "recordedAt": "2026-09-23T20:57:00.408Z",
+      "frames": 600,
+      "runs": [
+        {
+          "recordedAt": "2026-09-23T20:57:00.285Z",
+          "runIndex": 0,
+          "variant": "cubeGoalBehind",
+          "spawnId": "center",
+          "obstacleShape": "box",
+          "frames": 600,
+          "spawn": {
+            "carPosition": [
+              0,
+              0.55,
+              3
+            ],
+            "carRotation": [
+              0,
+              0,
+              0
+            ],
+            "goalZ": -32,
+            "cubeCenter": [
+              0,
+              1.5,
+              -10
+            ]
+          },
+          "startPos": [
+            0.10443911701440811,
+            0.49400952458381653,
+            1.5256634950637817
+          ],
+          "endPos": [
+            5.10795783996582,
+            0.4946155548095703,
+            -18.1766357421875
+          ],
+          "bounds": {
+            "minX": -5.38213586807251,
+            "maxX": 26.152912139892578,
+            "minY": 0.49412351846694946,
+            "maxY": 0.4946455657482147,
+            "minZ": -33.530250549316406,
+            "maxZ": 1.3812592029571533
+          },
+          "maxAbsX": 26.152912139892578,
+          "goalDistStart": 33.52566349506378,
+          "goalDistEnd": 13.8233642578125,
+          "goalDistDelta": 19.70229923725128,
+          "sawManeuver": true,
+          "sawBackoff": false,
+          "aimThroughCount": 0,
+          "keyMoments": [
+            {
+              "frame": 0,
+              "tag": "SAMPLE",
+              "detail": "z=1.38 uml=1 backoff=0 aimX=12.511571845786618 aimZ=-15.893540607205946"
+            },
+            {
+              "frame": 15,
+              "tag": "SAMPLE",
+              "detail": "z=-0.81 uml=1 backoff=0 aimX=12.511571845786618 aimZ=-15.893540607205946"
+            },
+            {
+              "frame": 30,
+              "tag": "SAMPLE",
+              "detail": "z=-2.84 uml=1 backoff=0 aimX=-22.9108007147575 aimZ=-12.986790969501854"
+            },
+            {
+              "frame": 45,
+              "tag": "SAMPLE",
+              "detail": "z=-4.75 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 60,
+              "tag": "SAMPLE",
+              "detail": "z=-6.27 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 75,
+              "tag": "SAMPLE",
+              "detail": "z=-7.53 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 90,
+              "tag": "SAMPLE",
+              "detail": "z=-8.67 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 105,
+              "tag": "SAMPLE",
+              "detail": "z=-9.77 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 120,
+              "tag": "SAMPLE",
+              "detail": "z=-10.83 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 135,
+              "tag": "SAMPLE",
+              "detail": "z=-11.85 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 150,
+              "tag": "SAMPLE",
+              "detail": "z=-12.84 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 165,
+              "tag": "SAMPLE",
+              "detail": "z=-13.83 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 180,
+              "tag": "SAMPLE",
+              "detail": "z=-14.82 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 195,
+              "tag": "SAMPLE",
+              "detail": "z=-16.12 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 210,
+              "tag": "SAMPLE",
+              "detail": "z=-17.96 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 225,
+              "tag": "SAMPLE",
+              "detail": "z=-20.13 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 240,
+              "tag": "SAMPLE",
+              "detail": "z=-22.49 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 255,
+              "tag": "SAMPLE",
+              "detail": "z=-24.74 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 270,
+              "tag": "SAMPLE",
+              "detail": "z=-26.79 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 285,
+              "tag": "SAMPLE",
+              "detail": "z=-28.52 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 300,
+              "tag": "SAMPLE",
+              "detail": "z=-29.93 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 315,
+              "tag": "SAMPLE",
+              "detail": "z=-31.07 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 330,
+              "tag": "SAMPLE",
+              "detail": "z=-31.95 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 345,
+              "tag": "SAMPLE",
+              "detail": "z=-32.63 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 360,
+              "tag": "SAMPLE",
+              "detail": "z=-33.09 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 375,
+              "tag": "SAMPLE",
+              "detail": "z=-33.38 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 390,
+              "tag": "SAMPLE",
+              "detail": "z=-33.52 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 405,
+              "tag": "SAMPLE",
+              "detail": "z=-33.50 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 420,
+              "tag": "SAMPLE",
+              "detail": "z=-33.32 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 435,
+              "tag": "SAMPLE",
+              "detail": "z=-32.92 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 450,
+              "tag": "SAMPLE",
+              "detail": "z=-32.08 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 465,
+              "tag": "SAMPLE",
+              "detail": "z=-30.64 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 480,
+              "tag": "SAMPLE",
+              "detail": "z=-28.75 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 495,
+              "tag": "SAMPLE",
+              "detail": "z=-26.54 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 510,
+              "tag": "SAMPLE",
+              "detail": "z=-24.21 uml=1 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 525,
+              "tag": "SAMPLE",
+              "detail": "z=-22.01 uml=1 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 540,
+              "tag": "SAMPLE",
+              "detail": "z=-20.11 uml=1 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 555,
+              "tag": "SAMPLE",
+              "detail": "z=-18.68 uml=1 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 570,
+              "tag": "SAMPLE",
+              "detail": "z=-17.84 uml=1 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 585,
+              "tag": "SAMPLE",
+              "detail": "z=-17.69 uml=1 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            }
+          ],
+          "paths": {
+            "eventsPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-events.log",
+            "jsonlPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-latest.jsonl",
+            "summaryPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-summary.json",
+            "pathPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-path.json"
+          },
+          "pass": true
+        },
+        {
+          "recordedAt": "2026-09-23T20:57:00.360Z",
+          "runIndex": 1,
+          "variant": "cubeGoalBehind",
+          "spawnId": "center",
+          "obstacleShape": "box",
+          "frames": 600,
+          "spawn": {
+            "carPosition": [
+              0,
+              0.55,
+              3
+            ],
+            "carRotation": [
+              0,
+              0,
+              0
+            ],
+            "goalZ": -32,
+            "cubeCenter": [
+              0,
+              1.5,
+              -10
+            ]
+          },
+          "startPos": [
+            0.10443911701440811,
+            0.49400952458381653,
+            1.5256634950637817
+          ],
+          "endPos": [
+            5.10795783996582,
+            0.4946155548095703,
+            -18.1766357421875
+          ],
+          "bounds": {
+            "minX": -5.38213586807251,
+            "maxX": 26.152912139892578,
+            "minY": 0.49412351846694946,
+            "maxY": 0.4946455657482147,
+            "minZ": -33.530250549316406,
+            "maxZ": 1.3812592029571533
+          },
+          "maxAbsX": 26.152912139892578,
+          "goalDistStart": 33.52566349506378,
+          "goalDistEnd": 13.8233642578125,
+          "goalDistDelta": 19.70229923725128,
+          "sawManeuver": true,
+          "sawBackoff": false,
+          "aimThroughCount": 0,
+          "keyMoments": [
+            {
+              "frame": 0,
+              "tag": "SAMPLE",
+              "detail": "z=1.38 uml=1 backoff=0 aimX=12.511571845786618 aimZ=-15.893540607205946"
+            },
+            {
+              "frame": 15,
+              "tag": "SAMPLE",
+              "detail": "z=-0.81 uml=1 backoff=0 aimX=12.511571845786618 aimZ=-15.893540607205946"
+            },
+            {
+              "frame": 30,
+              "tag": "SAMPLE",
+              "detail": "z=-2.84 uml=1 backoff=0 aimX=-22.9108007147575 aimZ=-12.986790969501854"
+            },
+            {
+              "frame": 45,
+              "tag": "SAMPLE",
+              "detail": "z=-4.75 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 60,
+              "tag": "SAMPLE",
+              "detail": "z=-6.27 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 75,
+              "tag": "SAMPLE",
+              "detail": "z=-7.53 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 90,
+              "tag": "SAMPLE",
+              "detail": "z=-8.67 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 105,
+              "tag": "SAMPLE",
+              "detail": "z=-9.77 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 120,
+              "tag": "SAMPLE",
+              "detail": "z=-10.83 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 135,
+              "tag": "SAMPLE",
+              "detail": "z=-11.85 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 150,
+              "tag": "SAMPLE",
+              "detail": "z=-12.84 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 165,
+              "tag": "SAMPLE",
+              "detail": "z=-13.83 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 180,
+              "tag": "SAMPLE",
+              "detail": "z=-14.82 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 195,
+              "tag": "SAMPLE",
+              "detail": "z=-16.12 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 210,
+              "tag": "SAMPLE",
+              "detail": "z=-17.96 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 225,
+              "tag": "SAMPLE",
+              "detail": "z=-20.13 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 240,
+              "tag": "SAMPLE",
+              "detail": "z=-22.49 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 255,
+              "tag": "SAMPLE",
+              "detail": "z=-24.74 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 270,
+              "tag": "SAMPLE",
+              "detail": "z=-26.79 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 285,
+              "tag": "SAMPLE",
+              "detail": "z=-28.52 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 300,
+              "tag": "SAMPLE",
+              "detail": "z=-29.93 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 315,
+              "tag": "SAMPLE",
+              "detail": "z=-31.07 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 330,
+              "tag": "SAMPLE",
+              "detail": "z=-31.95 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 345,
+              "tag": "SAMPLE",
+              "detail": "z=-32.63 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 360,
+              "tag": "SAMPLE",
+              "detail": "z=-33.09 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 375,
+              "tag": "SAMPLE",
+              "detail": "z=-33.38 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 390,
+              "tag": "SAMPLE",
+              "detail": "z=-33.52 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 405,
+              "tag": "SAMPLE",
+              "detail": "z=-33.50 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 420,
+              "tag": "SAMPLE",
+              "detail": "z=-33.32 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 435,
+              "tag": "SAMPLE",
+              "detail": "z=-32.92 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 450,
+              "tag": "SAMPLE",
+              "detail": "z=-32.08 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 465,
+              "tag": "SAMPLE",
+              "detail": "z=-30.64 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 480,
+              "tag": "SAMPLE",
+              "detail": "z=-28.75 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 495,
+              "tag": "SAMPLE",
+              "detail": "z=-26.54 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 510,
+              "tag": "SAMPLE",
+              "detail": "z=-24.21 uml=1 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 525,
+              "tag": "SAMPLE",
+              "detail": "z=-22.01 uml=1 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 540,
+              "tag": "SAMPLE",
+              "detail": "z=-20.11 uml=1 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 555,
+              "tag": "SAMPLE",
+              "detail": "z=-18.68 uml=1 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 570,
+              "tag": "SAMPLE",
+              "detail": "z=-17.84 uml=1 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 585,
+              "tag": "SAMPLE",
+              "detail": "z=-17.69 uml=1 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            }
+          ],
+          "paths": {
+            "eventsPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-events.log",
+            "jsonlPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-latest.jsonl",
+            "summaryPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-summary.json",
+            "pathPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-path.json"
+          },
+          "pass": true
+        },
+        {
+          "recordedAt": "2026-09-23T20:57:00.407Z",
+          "runIndex": 2,
+          "variant": "cubeGoalBehind",
+          "spawnId": "center",
+          "obstacleShape": "box",
+          "frames": 600,
+          "spawn": {
+            "carPosition": [
+              0,
+              0.55,
+              3
+            ],
+            "carRotation": [
+              0,
+              0,
+              0
+            ],
+            "goalZ": -32,
+            "cubeCenter": [
+              0,
+              1.5,
+              -10
+            ]
+          },
+          "startPos": [
+            0.10443911701440811,
+            0.49400952458381653,
+            1.5256634950637817
+          ],
+          "endPos": [
+            5.10795783996582,
+            0.4946155548095703,
+            -18.1766357421875
+          ],
+          "bounds": {
+            "minX": -5.38213586807251,
+            "maxX": 26.152912139892578,
+            "minY": 0.49412351846694946,
+            "maxY": 0.4946455657482147,
+            "minZ": -33.530250549316406,
+            "maxZ": 1.3812592029571533
+          },
+          "maxAbsX": 26.152912139892578,
+          "goalDistStart": 33.52566349506378,
+          "goalDistEnd": 13.8233642578125,
+          "goalDistDelta": 19.70229923725128,
+          "sawManeuver": true,
+          "sawBackoff": false,
+          "aimThroughCount": 0,
+          "keyMoments": [
+            {
+              "frame": 0,
+              "tag": "SAMPLE",
+              "detail": "z=1.38 uml=1 backoff=0 aimX=12.511571845786618 aimZ=-15.893540607205946"
+            },
+            {
+              "frame": 15,
+              "tag": "SAMPLE",
+              "detail": "z=-0.81 uml=1 backoff=0 aimX=12.511571845786618 aimZ=-15.893540607205946"
+            },
+            {
+              "frame": 30,
+              "tag": "SAMPLE",
+              "detail": "z=-2.84 uml=1 backoff=0 aimX=-22.9108007147575 aimZ=-12.986790969501854"
+            },
+            {
+              "frame": 45,
+              "tag": "SAMPLE",
+              "detail": "z=-4.75 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 60,
+              "tag": "SAMPLE",
+              "detail": "z=-6.27 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 75,
+              "tag": "SAMPLE",
+              "detail": "z=-7.53 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 90,
+              "tag": "SAMPLE",
+              "detail": "z=-8.67 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 105,
+              "tag": "SAMPLE",
+              "detail": "z=-9.77 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 120,
+              "tag": "SAMPLE",
+              "detail": "z=-10.83 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 135,
+              "tag": "SAMPLE",
+              "detail": "z=-11.85 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 150,
+              "tag": "SAMPLE",
+              "detail": "z=-12.84 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 165,
+              "tag": "SAMPLE",
+              "detail": "z=-13.83 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 180,
+              "tag": "SAMPLE",
+              "detail": "z=-14.82 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 195,
+              "tag": "SAMPLE",
+              "detail": "z=-16.12 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 210,
+              "tag": "SAMPLE",
+              "detail": "z=-17.96 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 225,
+              "tag": "SAMPLE",
+              "detail": "z=-20.13 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 240,
+              "tag": "SAMPLE",
+              "detail": "z=-22.49 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 255,
+              "tag": "SAMPLE",
+              "detail": "z=-24.74 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 270,
+              "tag": "SAMPLE",
+              "detail": "z=-26.79 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 285,
+              "tag": "SAMPLE",
+              "detail": "z=-28.52 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 300,
+              "tag": "SAMPLE",
+              "detail": "z=-29.93 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 315,
+              "tag": "SAMPLE",
+              "detail": "z=-31.07 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 330,
+              "tag": "SAMPLE",
+              "detail": "z=-31.95 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 345,
+              "tag": "SAMPLE",
+              "detail": "z=-32.63 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 360,
+              "tag": "SAMPLE",
+              "detail": "z=-33.09 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 375,
+              "tag": "SAMPLE",
+              "detail": "z=-33.38 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 390,
+              "tag": "SAMPLE",
+              "detail": "z=-33.52 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 405,
+              "tag": "SAMPLE",
+              "detail": "z=-33.50 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 420,
+              "tag": "SAMPLE",
+              "detail": "z=-33.32 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 435,
+              "tag": "SAMPLE",
+              "detail": "z=-32.92 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 450,
+              "tag": "SAMPLE",
+              "detail": "z=-32.08 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 465,
+              "tag": "SAMPLE",
+              "detail": "z=-30.64 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 480,
+              "tag": "SAMPLE",
+              "detail": "z=-28.75 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 495,
+              "tag": "SAMPLE",
+              "detail": "z=-26.54 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 510,
+              "tag": "SAMPLE",
+              "detail": "z=-24.21 uml=1 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 525,
+              "tag": "SAMPLE",
+              "detail": "z=-22.01 uml=1 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 540,
+              "tag": "SAMPLE",
+              "detail": "z=-20.11 uml=1 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 555,
+              "tag": "SAMPLE",
+              "detail": "z=-18.68 uml=1 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 570,
+              "tag": "SAMPLE",
+              "detail": "z=-17.84 uml=1 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 585,
+              "tag": "SAMPLE",
+              "detail": "z=-17.69 uml=1 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            }
+          ],
+          "paths": {
+            "eventsPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-events.log",
+            "jsonlPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-latest.jsonl",
+            "summaryPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-summary.json",
+            "pathPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-path.json"
+          },
+          "pass": true
+        }
+      ],
+      "pass": true
+    },
+    {
+      "recordedAt": "2026-09-23T20:57:00.595Z",
+      "frames": 900,
+      "runs": [
+        {
+          "recordedAt": "2026-09-23T20:57:00.469Z",
+          "runIndex": 0,
+          "variant": "cubeGoalBehind",
+          "spawnId": "center",
+          "obstacleShape": "box",
+          "frames": 900,
+          "spawn": {
+            "carPosition": [
+              0,
+              0.55,
+              3
+            ],
+            "carRotation": [
+              0,
+              0,
+              0
+            ],
+            "goalZ": -32,
+            "cubeCenter": [
+              0,
+              1.5,
+              -10
+            ]
+          },
+          "startPos": [
+            0.10443911701440811,
+            0.49400952458381653,
+            1.5256634950637817
+          ],
+          "endPos": [
+            -0.17223355174064636,
+            0.4946126341819763,
+            -19.302162170410156
+          ],
+          "bounds": {
+            "minX": -6.834808349609375,
+            "maxX": 26.152912139892578,
+            "minY": 0.49412351846694946,
+            "maxY": 0.4946455657482147,
+            "minZ": -34.66667175292969,
+            "maxZ": 1.3812592029571533
+          },
+          "maxAbsX": 26.152912139892578,
+          "goalDistStart": 33.52566349506378,
+          "goalDistEnd": 12.697837829589844,
+          "goalDistDelta": 20.827825665473938,
+          "sawManeuver": true,
+          "sawBackoff": false,
+          "aimThroughCount": 0,
+          "keyMoments": [
+            {
+              "frame": 0,
+              "tag": "SAMPLE",
+              "detail": "z=1.38 uml=1 backoff=0 aimX=12.511571845786618 aimZ=-15.893540607205946"
+            },
+            {
+              "frame": 15,
+              "tag": "SAMPLE",
+              "detail": "z=-0.81 uml=1 backoff=0 aimX=12.511571845786618 aimZ=-15.893540607205946"
+            },
+            {
+              "frame": 30,
+              "tag": "SAMPLE",
+              "detail": "z=-2.84 uml=1 backoff=0 aimX=-22.9108007147575 aimZ=-12.986790969501854"
+            },
+            {
+              "frame": 45,
+              "tag": "SAMPLE",
+              "detail": "z=-4.75 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 60,
+              "tag": "SAMPLE",
+              "detail": "z=-6.27 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 75,
+              "tag": "SAMPLE",
+              "detail": "z=-7.53 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 90,
+              "tag": "SAMPLE",
+              "detail": "z=-8.67 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 105,
+              "tag": "SAMPLE",
+              "detail": "z=-9.77 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 120,
+              "tag": "SAMPLE",
+              "detail": "z=-10.83 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 135,
+              "tag": "SAMPLE",
+              "detail": "z=-11.85 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 150,
+              "tag": "SAMPLE",
+              "detail": "z=-12.84 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 165,
+              "tag": "SAMPLE",
+              "detail": "z=-13.83 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 180,
+              "tag": "SAMPLE",
+              "detail": "z=-14.82 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 195,
+              "tag": "SAMPLE",
+              "detail": "z=-16.12 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 210,
+              "tag": "SAMPLE",
+              "detail": "z=-17.96 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 225,
+              "tag": "SAMPLE",
+              "detail": "z=-20.13 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 240,
+              "tag": "SAMPLE",
+              "detail": "z=-22.49 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 255,
+              "tag": "SAMPLE",
+              "detail": "z=-24.74 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 270,
+              "tag": "SAMPLE",
+              "detail": "z=-26.79 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 285,
+              "tag": "SAMPLE",
+              "detail": "z=-28.52 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 300,
+              "tag": "SAMPLE",
+              "detail": "z=-29.93 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 315,
+              "tag": "SAMPLE",
+              "detail": "z=-31.07 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 330,
+              "tag": "SAMPLE",
+              "detail": "z=-31.95 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 345,
+              "tag": "SAMPLE",
+              "detail": "z=-32.63 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 360,
+              "tag": "SAMPLE",
+              "detail": "z=-33.09 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 375,
+              "tag": "SAMPLE",
+              "detail": "z=-33.38 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 390,
+              "tag": "SAMPLE",
+              "detail": "z=-33.52 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 405,
+              "tag": "SAMPLE",
+              "detail": "z=-33.50 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 420,
+              "tag": "SAMPLE",
+              "detail": "z=-33.32 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 435,
+              "tag": "SAMPLE",
+              "detail": "z=-32.92 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 450,
+              "tag": "SAMPLE",
+              "detail": "z=-32.08 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 465,
+              "tag": "SAMPLE",
+              "detail": "z=-30.64 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 480,
+              "tag": "SAMPLE",
+              "detail": "z=-28.75 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 495,
+              "tag": "SAMPLE",
+              "detail": "z=-26.54 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 510,
+              "tag": "SAMPLE",
+              "detail": "z=-24.21 uml=1 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 525,
+              "tag": "SAMPLE",
+              "detail": "z=-22.01 uml=1 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 540,
+              "tag": "SAMPLE",
+              "detail": "z=-20.11 uml=1 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 555,
+              "tag": "SAMPLE",
+              "detail": "z=-18.68 uml=1 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 570,
+              "tag": "SAMPLE",
+              "detail": "z=-17.84 uml=1 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 585,
+              "tag": "SAMPLE",
+              "detail": "z=-17.69 uml=1 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 600,
+              "tag": "SAMPLE",
+              "detail": "z=-18.24 uml=0 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 615,
+              "tag": "SAMPLE",
+              "detail": "z=-19.44 uml=0 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 630,
+              "tag": "SAMPLE",
+              "detail": "z=-21.19 uml=0 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 645,
+              "tag": "SAMPLE",
+              "detail": "z=-23.30 uml=0 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 660,
+              "tag": "SAMPLE",
+              "detail": "z=-25.63 uml=0 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 675,
+              "tag": "SAMPLE",
+              "detail": "z=-27.93 uml=0 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 690,
+              "tag": "SAMPLE",
+              "detail": "z=-30.04 uml=0 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 705,
+              "tag": "SAMPLE",
+              "detail": "z=-31.89 uml=0 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 720,
+              "tag": "SAMPLE",
+              "detail": "z=-33.31 uml=0 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 735,
+              "tag": "SAMPLE",
+              "detail": "z=-34.29 uml=0 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 750,
+              "tag": "SAMPLE",
+              "detail": "z=-34.67 uml=0 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 765,
+              "tag": "SAMPLE",
+              "detail": "z=-34.35 uml=0 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 780,
+              "tag": "SAMPLE",
+              "detail": "z=-33.35 uml=0 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 795,
+              "tag": "SAMPLE",
+              "detail": "z=-31.78 uml=0 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 810,
+              "tag": "SAMPLE",
+              "detail": "z=-29.77 uml=0 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 825,
+              "tag": "SAMPLE",
+              "detail": "z=-27.51 uml=0 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 840,
+              "tag": "SAMPLE",
+              "detail": "z=-25.16 uml=0 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 855,
+              "tag": "SAMPLE",
+              "detail": "z=-23.01 uml=1 backoff=0 aimX=4.931165341351264 aimZ=-24.32804861756108"
+            },
+            {
+              "frame": 870,
+              "tag": "SAMPLE",
+              "detail": "z=-21.19 uml=1 backoff=0 aimX=4.931165341351264 aimZ=-24.32804861756108"
+            },
+            {
+              "frame": 885,
+              "tag": "SAMPLE",
+              "detail": "z=-19.91 uml=1 backoff=0 aimX=4.931165341351264 aimZ=-24.32804861756108"
+            }
+          ],
+          "paths": {
+            "eventsPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-events.log",
+            "jsonlPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-latest.jsonl",
+            "summaryPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-summary.json",
+            "pathPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-path.json"
+          },
+          "pass": true
+        },
+        {
+          "recordedAt": "2026-09-23T20:57:00.527Z",
+          "runIndex": 1,
+          "variant": "cubeGoalBehind",
+          "spawnId": "center",
+          "obstacleShape": "box",
+          "frames": 900,
+          "spawn": {
+            "carPosition": [
+              0,
+              0.55,
+              3
+            ],
+            "carRotation": [
+              0,
+              0,
+              0
+            ],
+            "goalZ": -32,
+            "cubeCenter": [
+              0,
+              1.5,
+              -10
+            ]
+          },
+          "startPos": [
+            0.10443911701440811,
+            0.49400952458381653,
+            1.5256634950637817
+          ],
+          "endPos": [
+            -0.17223355174064636,
+            0.4946126341819763,
+            -19.302162170410156
+          ],
+          "bounds": {
+            "minX": -6.834808349609375,
+            "maxX": 26.152912139892578,
+            "minY": 0.49412351846694946,
+            "maxY": 0.4946455657482147,
+            "minZ": -34.66667175292969,
+            "maxZ": 1.3812592029571533
+          },
+          "maxAbsX": 26.152912139892578,
+          "goalDistStart": 33.52566349506378,
+          "goalDistEnd": 12.697837829589844,
+          "goalDistDelta": 20.827825665473938,
+          "sawManeuver": true,
+          "sawBackoff": false,
+          "aimThroughCount": 0,
+          "keyMoments": [
+            {
+              "frame": 0,
+              "tag": "SAMPLE",
+              "detail": "z=1.38 uml=1 backoff=0 aimX=12.511571845786618 aimZ=-15.893540607205946"
+            },
+            {
+              "frame": 15,
+              "tag": "SAMPLE",
+              "detail": "z=-0.81 uml=1 backoff=0 aimX=12.511571845786618 aimZ=-15.893540607205946"
+            },
+            {
+              "frame": 30,
+              "tag": "SAMPLE",
+              "detail": "z=-2.84 uml=1 backoff=0 aimX=-22.9108007147575 aimZ=-12.986790969501854"
+            },
+            {
+              "frame": 45,
+              "tag": "SAMPLE",
+              "detail": "z=-4.75 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 60,
+              "tag": "SAMPLE",
+              "detail": "z=-6.27 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 75,
+              "tag": "SAMPLE",
+              "detail": "z=-7.53 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 90,
+              "tag": "SAMPLE",
+              "detail": "z=-8.67 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 105,
+              "tag": "SAMPLE",
+              "detail": "z=-9.77 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 120,
+              "tag": "SAMPLE",
+              "detail": "z=-10.83 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 135,
+              "tag": "SAMPLE",
+              "detail": "z=-11.85 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 150,
+              "tag": "SAMPLE",
+              "detail": "z=-12.84 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 165,
+              "tag": "SAMPLE",
+              "detail": "z=-13.83 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 180,
+              "tag": "SAMPLE",
+              "detail": "z=-14.82 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 195,
+              "tag": "SAMPLE",
+              "detail": "z=-16.12 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 210,
+              "tag": "SAMPLE",
+              "detail": "z=-17.96 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 225,
+              "tag": "SAMPLE",
+              "detail": "z=-20.13 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 240,
+              "tag": "SAMPLE",
+              "detail": "z=-22.49 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 255,
+              "tag": "SAMPLE",
+              "detail": "z=-24.74 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 270,
+              "tag": "SAMPLE",
+              "detail": "z=-26.79 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 285,
+              "tag": "SAMPLE",
+              "detail": "z=-28.52 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 300,
+              "tag": "SAMPLE",
+              "detail": "z=-29.93 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 315,
+              "tag": "SAMPLE",
+              "detail": "z=-31.07 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 330,
+              "tag": "SAMPLE",
+              "detail": "z=-31.95 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 345,
+              "tag": "SAMPLE",
+              "detail": "z=-32.63 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 360,
+              "tag": "SAMPLE",
+              "detail": "z=-33.09 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 375,
+              "tag": "SAMPLE",
+              "detail": "z=-33.38 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 390,
+              "tag": "SAMPLE",
+              "detail": "z=-33.52 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 405,
+              "tag": "SAMPLE",
+              "detail": "z=-33.50 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 420,
+              "tag": "SAMPLE",
+              "detail": "z=-33.32 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 435,
+              "tag": "SAMPLE",
+              "detail": "z=-32.92 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 450,
+              "tag": "SAMPLE",
+              "detail": "z=-32.08 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 465,
+              "tag": "SAMPLE",
+              "detail": "z=-30.64 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 480,
+              "tag": "SAMPLE",
+              "detail": "z=-28.75 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 495,
+              "tag": "SAMPLE",
+              "detail": "z=-26.54 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 510,
+              "tag": "SAMPLE",
+              "detail": "z=-24.21 uml=1 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 525,
+              "tag": "SAMPLE",
+              "detail": "z=-22.01 uml=1 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 540,
+              "tag": "SAMPLE",
+              "detail": "z=-20.11 uml=1 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 555,
+              "tag": "SAMPLE",
+              "detail": "z=-18.68 uml=1 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 570,
+              "tag": "SAMPLE",
+              "detail": "z=-17.84 uml=1 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 585,
+              "tag": "SAMPLE",
+              "detail": "z=-17.69 uml=1 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 600,
+              "tag": "SAMPLE",
+              "detail": "z=-18.24 uml=0 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 615,
+              "tag": "SAMPLE",
+              "detail": "z=-19.44 uml=0 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 630,
+              "tag": "SAMPLE",
+              "detail": "z=-21.19 uml=0 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 645,
+              "tag": "SAMPLE",
+              "detail": "z=-23.30 uml=0 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 660,
+              "tag": "SAMPLE",
+              "detail": "z=-25.63 uml=0 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 675,
+              "tag": "SAMPLE",
+              "detail": "z=-27.93 uml=0 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 690,
+              "tag": "SAMPLE",
+              "detail": "z=-30.04 uml=0 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 705,
+              "tag": "SAMPLE",
+              "detail": "z=-31.89 uml=0 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 720,
+              "tag": "SAMPLE",
+              "detail": "z=-33.31 uml=0 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 735,
+              "tag": "SAMPLE",
+              "detail": "z=-34.29 uml=0 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 750,
+              "tag": "SAMPLE",
+              "detail": "z=-34.67 uml=0 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 765,
+              "tag": "SAMPLE",
+              "detail": "z=-34.35 uml=0 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 780,
+              "tag": "SAMPLE",
+              "detail": "z=-33.35 uml=0 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 795,
+              "tag": "SAMPLE",
+              "detail": "z=-31.78 uml=0 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 810,
+              "tag": "SAMPLE",
+              "detail": "z=-29.77 uml=0 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 825,
+              "tag": "SAMPLE",
+              "detail": "z=-27.51 uml=0 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 840,
+              "tag": "SAMPLE",
+              "detail": "z=-25.16 uml=0 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 855,
+              "tag": "SAMPLE",
+              "detail": "z=-23.01 uml=1 backoff=0 aimX=4.931165341351264 aimZ=-24.32804861756108"
+            },
+            {
+              "frame": 870,
+              "tag": "SAMPLE",
+              "detail": "z=-21.19 uml=1 backoff=0 aimX=4.931165341351264 aimZ=-24.32804861756108"
+            },
+            {
+              "frame": 885,
+              "tag": "SAMPLE",
+              "detail": "z=-19.91 uml=1 backoff=0 aimX=4.931165341351264 aimZ=-24.32804861756108"
+            }
+          ],
+          "paths": {
+            "eventsPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-events.log",
+            "jsonlPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-latest.jsonl",
+            "summaryPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-summary.json",
+            "pathPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-path.json"
+          },
+          "pass": true
+        },
+        {
+          "recordedAt": "2026-09-23T20:57:00.595Z",
+          "runIndex": 2,
+          "variant": "cubeGoalBehind",
+          "spawnId": "center",
+          "obstacleShape": "box",
+          "frames": 900,
+          "spawn": {
+            "carPosition": [
+              0,
+              0.55,
+              3
+            ],
+            "carRotation": [
+              0,
+              0,
+              0
+            ],
+            "goalZ": -32,
+            "cubeCenter": [
+              0,
+              1.5,
+              -10
+            ]
+          },
+          "startPos": [
+            0.10443911701440811,
+            0.49400952458381653,
+            1.5256634950637817
+          ],
+          "endPos": [
+            -0.17223355174064636,
+            0.4946126341819763,
+            -19.302162170410156
+          ],
+          "bounds": {
+            "minX": -6.834808349609375,
+            "maxX": 26.152912139892578,
+            "minY": 0.49412351846694946,
+            "maxY": 0.4946455657482147,
+            "minZ": -34.66667175292969,
+            "maxZ": 1.3812592029571533
+          },
+          "maxAbsX": 26.152912139892578,
+          "goalDistStart": 33.52566349506378,
+          "goalDistEnd": 12.697837829589844,
+          "goalDistDelta": 20.827825665473938,
+          "sawManeuver": true,
+          "sawBackoff": false,
+          "aimThroughCount": 0,
+          "keyMoments": [
+            {
+              "frame": 0,
+              "tag": "SAMPLE",
+              "detail": "z=1.38 uml=1 backoff=0 aimX=12.511571845786618 aimZ=-15.893540607205946"
+            },
+            {
+              "frame": 15,
+              "tag": "SAMPLE",
+              "detail": "z=-0.81 uml=1 backoff=0 aimX=12.511571845786618 aimZ=-15.893540607205946"
+            },
+            {
+              "frame": 30,
+              "tag": "SAMPLE",
+              "detail": "z=-2.84 uml=1 backoff=0 aimX=-22.9108007147575 aimZ=-12.986790969501854"
+            },
+            {
+              "frame": 45,
+              "tag": "SAMPLE",
+              "detail": "z=-4.75 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 60,
+              "tag": "SAMPLE",
+              "detail": "z=-6.27 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 75,
+              "tag": "SAMPLE",
+              "detail": "z=-7.53 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 90,
+              "tag": "SAMPLE",
+              "detail": "z=-8.67 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 105,
+              "tag": "SAMPLE",
+              "detail": "z=-9.77 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 120,
+              "tag": "SAMPLE",
+              "detail": "z=-10.83 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 135,
+              "tag": "SAMPLE",
+              "detail": "z=-11.85 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 150,
+              "tag": "SAMPLE",
+              "detail": "z=-12.84 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 165,
+              "tag": "SAMPLE",
+              "detail": "z=-13.83 uml=1 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 180,
+              "tag": "SAMPLE",
+              "detail": "z=-14.82 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 195,
+              "tag": "SAMPLE",
+              "detail": "z=-16.12 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 210,
+              "tag": "SAMPLE",
+              "detail": "z=-17.96 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 225,
+              "tag": "SAMPLE",
+              "detail": "z=-20.13 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 240,
+              "tag": "SAMPLE",
+              "detail": "z=-22.49 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 255,
+              "tag": "SAMPLE",
+              "detail": "z=-24.74 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 270,
+              "tag": "SAMPLE",
+              "detail": "z=-26.79 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 285,
+              "tag": "SAMPLE",
+              "detail": "z=-28.52 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 300,
+              "tag": "SAMPLE",
+              "detail": "z=-29.93 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 315,
+              "tag": "SAMPLE",
+              "detail": "z=-31.07 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 330,
+              "tag": "SAMPLE",
+              "detail": "z=-31.95 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 345,
+              "tag": "SAMPLE",
+              "detail": "z=-32.63 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 360,
+              "tag": "SAMPLE",
+              "detail": "z=-33.09 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 375,
+              "tag": "SAMPLE",
+              "detail": "z=-33.38 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 390,
+              "tag": "SAMPLE",
+              "detail": "z=-33.52 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 405,
+              "tag": "SAMPLE",
+              "detail": "z=-33.50 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 420,
+              "tag": "SAMPLE",
+              "detail": "z=-33.32 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 435,
+              "tag": "SAMPLE",
+              "detail": "z=-32.92 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 450,
+              "tag": "SAMPLE",
+              "detail": "z=-32.08 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 465,
+              "tag": "SAMPLE",
+              "detail": "z=-30.64 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 480,
+              "tag": "SAMPLE",
+              "detail": "z=-28.75 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 495,
+              "tag": "SAMPLE",
+              "detail": "z=-26.54 uml=0 backoff=0 aimX=25.12973187323654 aimZ=-16.46135523938856"
+            },
+            {
+              "frame": 510,
+              "tag": "SAMPLE",
+              "detail": "z=-24.21 uml=1 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 525,
+              "tag": "SAMPLE",
+              "detail": "z=-22.01 uml=1 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 540,
+              "tag": "SAMPLE",
+              "detail": "z=-20.11 uml=1 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 555,
+              "tag": "SAMPLE",
+              "detail": "z=-18.68 uml=1 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 570,
+              "tag": "SAMPLE",
+              "detail": "z=-17.84 uml=1 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 585,
+              "tag": "SAMPLE",
+              "detail": "z=-17.69 uml=1 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 600,
+              "tag": "SAMPLE",
+              "detail": "z=-18.24 uml=0 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 615,
+              "tag": "SAMPLE",
+              "detail": "z=-19.44 uml=0 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 630,
+              "tag": "SAMPLE",
+              "detail": "z=-21.19 uml=0 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 645,
+              "tag": "SAMPLE",
+              "detail": "z=-23.30 uml=0 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 660,
+              "tag": "SAMPLE",
+              "detail": "z=-25.63 uml=0 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 675,
+              "tag": "SAMPLE",
+              "detail": "z=-27.93 uml=0 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 690,
+              "tag": "SAMPLE",
+              "detail": "z=-30.04 uml=0 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 705,
+              "tag": "SAMPLE",
+              "detail": "z=-31.89 uml=0 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 720,
+              "tag": "SAMPLE",
+              "detail": "z=-33.31 uml=0 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 735,
+              "tag": "SAMPLE",
+              "detail": "z=-34.29 uml=0 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 750,
+              "tag": "SAMPLE",
+              "detail": "z=-34.67 uml=0 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 765,
+              "tag": "SAMPLE",
+              "detail": "z=-34.35 uml=0 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 780,
+              "tag": "SAMPLE",
+              "detail": "z=-33.35 uml=0 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 795,
+              "tag": "SAMPLE",
+              "detail": "z=-31.78 uml=0 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 810,
+              "tag": "SAMPLE",
+              "detail": "z=-29.77 uml=0 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 825,
+              "tag": "SAMPLE",
+              "detail": "z=-27.51 uml=0 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 840,
+              "tag": "SAMPLE",
+              "detail": "z=-25.16 uml=0 backoff=0 aimX=6.853725685539852 aimZ=-21.67076962983267"
+            },
+            {
+              "frame": 855,
+              "tag": "SAMPLE",
+              "detail": "z=-23.01 uml=1 backoff=0 aimX=4.931165341351264 aimZ=-24.32804861756108"
+            },
+            {
+              "frame": 870,
+              "tag": "SAMPLE",
+              "detail": "z=-21.19 uml=1 backoff=0 aimX=4.931165341351264 aimZ=-24.32804861756108"
+            },
+            {
+              "frame": 885,
+              "tag": "SAMPLE",
+              "detail": "z=-19.91 uml=1 backoff=0 aimX=4.931165341351264 aimZ=-24.32804861756108"
+            }
+          ],
+          "paths": {
+            "eventsPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-events.log",
+            "jsonlPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-latest.jsonl",
+            "summaryPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-summary.json",
+            "pathPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-path.json"
+          },
+          "pass": true
+        }
+      ],
+      "pass": true
+    }
+  ],
+  "pass": true
+}

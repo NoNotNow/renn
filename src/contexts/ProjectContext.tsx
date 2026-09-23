@@ -37,6 +37,11 @@ import {
 const persistence = createIndexedDbPersistence()
 const BASE_URL = import.meta.env.BASE_URL || '/'
 
+/** Deep copy for reload baseline (document poses at last open/new/import). */
+function cloneWorldDocument(world: RennWorld): RennWorld {
+  return structuredClone(world)
+}
+
 interface CurrentProject {
   id: string | null
   name: string
@@ -73,6 +78,8 @@ interface ProjectContextActions {
   // Project operations
   newProject: () => void
   loadProject: (id: string, options?: { silent?: boolean }) => Promise<boolean>
+  /** Restore last-open document and rebuild scene (saved → IndexedDB; example/unsaved → open baseline). */
+  reloadWorld: () => Promise<boolean>
   saveProject: () => Promise<boolean>
   saveProjectAs: (name: string) => Promise<boolean>
   saveToProject: (id: string) => Promise<boolean>
@@ -141,6 +148,11 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const [world, setWorld] = useState<RennWorld>(sampleWorld)
   // worldRef mirrors world state synchronously so save functions never read a stale closure value
   const worldRef = useRef<RennWorld>(sampleWorld)
+  /** World document at last new/load/example/import — used by Project → Reload for unsaved sessions. */
+  const worldReloadBaselineRef = useRef<RennWorld | null>(null)
+  const captureWorldReloadBaseline = useCallback((w: RennWorld) => {
+    worldReloadBaselineRef.current = cloneWorldDocument(w)
+  }, [])
   const markProjectDirty = useCallback(() => {
     setCurrentProject((prev) => ({ ...prev, isDirty: true }))
   }, [])
@@ -195,10 +207,11 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     editorFreePoseRef.current = null
     resetEntityWorkHistory()
     resetCameraFromWorld(sampleWorld)
+    captureWorldReloadBaseline(sampleWorld)
     setVersion((v) => v + 1)
     setDocumentEpoch((e) => e + 1)
     clearLastProjectId()
-  }, [resetCameraFromWorld, resetEntityWorkHistory])
+  }, [resetCameraFromWorld, resetEntityWorkHistory, captureWorldReloadBaseline])
   
   const loadProject = useCallback(async (id: string, options?: { silent?: boolean }): Promise<boolean> => {
     try {
@@ -229,6 +242,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       })
       resetCameraFromWorld(w)
       editorFreePoseRef.current = w.world.camera?.editorFreePose ?? null
+      captureWorldReloadBaseline(w)
       setVersion((v) => v + 1)
       setDocumentEpoch((e) => e + 1)
       setLastProjectId(id)
@@ -240,7 +254,35 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       }
       return false
     }
-  }, [resetCameraFromWorld, replaceEntityWorkHistoryFromLoaded, setAssets])
+  }, [resetCameraFromWorld, replaceEntityWorkHistoryFromLoaded, setAssets, captureWorldReloadBaseline])
+
+  const reloadWorld = useCallback(async (): Promise<boolean> => {
+    uiLogger.click('Builder', 'Reload world')
+    if (currentProject.isDirty && !confirm('Discard unsaved changes and reload the world?')) {
+      return false
+    }
+    if (currentProject.id) {
+      return loadProject(currentProject.id)
+    }
+    const baseline = worldReloadBaselineRef.current
+    if (!baseline) return false
+    const w = cloneWorldDocument(baseline)
+    worldRef.current = w
+    setWorld(w)
+    resetCameraFromWorld(w)
+    editorFreePoseRef.current = w.world.camera?.editorFreePose ?? null
+    resetEntityWorkHistory()
+    setCurrentProject((prev) => ({ ...prev, isDirty: false }))
+    setVersion((v) => v + 1)
+    setDocumentEpoch((e) => e + 1)
+    return true
+  }, [
+    currentProject.id,
+    currentProject.isDirty,
+    loadProject,
+    resetCameraFromWorld,
+    resetEntityWorkHistory,
+  ])
 
   // Load world on initialization: reopen last saved project when possible.
   useEffect(() => {
@@ -530,6 +572,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
           editorFreePoseRef.current = w.world.camera?.editorFreePose ?? null
           setAssets(new Map())
           resetEntityWorkHistory()
+          captureWorldReloadBaseline(w)
           setCurrentProject({
             id: null,
             name: 'Untitled',
@@ -545,7 +588,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       reader.readAsText(file)
     }
     e.target.value = ''
-  }, [refreshProjects, loadProject, resetCameraFromWorld, resetEntityWorkHistory, setAssets])
+  }, [refreshProjects, loadProject, resetCameraFromWorld, resetEntityWorkHistory, setAssets, captureWorldReloadBaseline])
   
   const loadExampleWorld = useCallback((world: RennWorld, name: string, assets?: Map<string, Blob>) => {
     uiLogger.select('Builder', 'Open example world', { worldName: name })
@@ -561,9 +604,10 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       isDirty: false,
     })
     clearLastProjectId()
+    captureWorldReloadBaseline(world)
     setVersion((v) => v + 1)
     setDocumentEpoch((e) => e + 1)
-  }, [resetCameraFromWorld, resetEntityWorkHistory, setAssets])
+  }, [resetCameraFromWorld, resetEntityWorkHistory, setAssets, captureWorldReloadBaseline])
   
   const handlePlay = useCallback(() => {
     uiLogger.click('Builder', 'Play - navigate to play mode')
@@ -606,6 +650,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     // Actions
     newProject,
     loadProject,
+    reloadWorld,
     saveProject,
     saveProjectAs,
     saveToProject,
@@ -662,6 +707,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     modelPresets,
     newProject,
     loadProject,
+    reloadWorld,
     saveProject,
     saveProjectAs,
     saveToProject,

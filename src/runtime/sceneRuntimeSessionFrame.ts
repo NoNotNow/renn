@@ -161,8 +161,14 @@ export function scheduleSceneRuntimeFrameLoop(ctx: SceneRuntimeFrameLoopContext)
         onFrameStart: () => {
           const mode = handles.gizmoModeRef.current
           const ids = handles.selectedEntityIdsRef.current
-          const vid = mode === 'visualize' && ids.length === 1 ? ids[0]! : null
-          setVariableOverlayDisplayEntityId(vid)
+          const debugLineId = handles.worldRef.current.world.debugTargetLineEntityId
+          const vid =
+            mode === 'visualize' && ids.length === 1
+              ? ids[0]!
+              : typeof debugLineId === 'string' && debugLineId.length > 0
+                ? debugLineId
+                : null
+          setVariableOverlayDisplayEntityId(mode === 'visualize' && ids.length === 1 ? ids[0]! : null)
           setCoordinateOverlayDisplayEntityId(vid)
           if (vid !== handles.coordinateOverlayDisplayVidRef.current) {
             clearCoordinateEntries()
@@ -174,19 +180,30 @@ export function scheduleSceneRuntimeFrameLoop(ctx: SceneRuntimeFrameLoopContext)
           const coordOverlay = handles.coordinateOverlayControllerRef.current
           const mode = handles.gizmoModeRef.current
           const ids = handles.selectedEntityIdsRef.current
-          if (!overlay || mode !== 'visualize' || ids.length !== 1) {
+          const debugLineId = handles.worldRef.current.world.debugTargetLineEntityId
+          const visualizeId = mode === 'visualize' && ids.length === 1 ? ids[0]! : null
+          const lineId =
+            visualizeId ??
+            (typeof debugLineId === 'string' && debugLineId.length > 0 ? debugLineId : null)
+
+          if (!lineId) {
             overlay?.sync(null, null, [])
             coordOverlay?.sync([])
             return
           }
-          const id = ids[0]!
-          const pos = handles.registryRef.current?.getPosition(id)
+
+          const pos = handles.registryRef.current?.getPosition(lineId)
           if (!pos) {
-            overlay.sync(null, null, [])
+            overlay?.sync(null, null, [])
             coordOverlay?.sync([])
             return
           }
-          overlay.sync(id, pos, getVariableOverlaySlots(), ctx.cam)
+
+          if (visualizeId && overlay) {
+            overlay.sync(visualizeId, pos, getVariableOverlaySlots(), ctx.cam)
+          } else {
+            overlay?.sync(null, null, [])
+          }
           coordOverlay?.sync(getCoordinateOverlayEntries())
         },
         css2dRenderer: handles.css2dRendererRef.current,
