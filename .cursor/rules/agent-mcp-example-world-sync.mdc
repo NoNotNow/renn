@@ -1,0 +1,23 @@
+---
+description: MCP/agent world edits must land in public/exampleWorlds for File → Example Worlds
+globs:
+  - tools/renn-mcp/**/*
+  - src/agent/**/*
+  - agent-context/improve-car-player-copy.md
+  - agent-context/example-worlds.md
+  - public/exampleWorlds/**/*
+---
+
+# Agent MCP — sync worlds to example worlds
+
+When agent or MCP work **materially changes a world** that humans or agents should reopen in Builder (Play, Watch, attach):
+
+1. **Persist under `public/exampleWorlds/<exampleWorldId>/world.json`** (and `assets/` when the export has blobs). Discovery is automatic — **File → Example Worlds** and `load_example_world` use folder ids (see `listAgentDevExampleWorldIds()`); do not hardcode id lists in `src/`.
+2. **Prefer the right export path:**
+   - **IndexedDB project after attach:** MCP `export_saved_project_to_example_world` or `npx tsx tools/renn-mcp/agent-export-saved-to-example-world.ts`
+   - **Repo patch sync (e.g. hunt repair scene):** `node tools/renn-mcp/sync-hunt-car-patches.mjs` → existing example folder
+   - **Headless fixture / diagnostic scene:** `npx tsx tools/renn-mcp/export-self-drive-example-world.ts` (from `selfDrivingCarWorld.ts`)
+3. **Document** the id and purpose in `agent-context/example-worlds.md` (shipped examples table). Link from task-specific docs (e.g. improve-car tracker) — do not duplicate full world JSON in markdown.
+4. **After export:** reload dev or open **File → Example Worlds → `<id>`**; verify MCP `load_example_world { "exampleWorldId": "<id>" }`.
+
+Do not leave MCP-only state in IndexedDB as the sole copy of a world agents are expected to regression-test in Play.

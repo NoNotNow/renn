@@ -17,6 +17,7 @@ import * as THREE from 'three'
 import { initRapier, createPhysicsWorld, PhysicsWorld } from '@/physics/rapierPhysics'
 import { RenderItemRegistry } from '@/runtime/renderItemRegistry'
 import { createTransformerChain } from '@/transformers/transformerRegistry'
+import { resolveMergedTransformerConfigsForEntitySync } from '@/utils/pipeStageResolve'
 import { migrateEntityTransformersToRegistry, migrateCustomTransformerNames } from '@/scripts/migrateWorld'
 import type { RennWorld, Entity } from '@/types/world'
 import type { LoadedEntity } from '@/loader/loadWorld'
@@ -117,9 +118,11 @@ export class WorldSimulator {
     // don't need to wait for the async fire-and-forget inside RenderItemRegistry.
     for (const { entity } of entities) {
       if (entity.transformers && entity.transformers.length > 0) {
-        const configs = entity.transformers
-          .map(id => world.transformers?.[id])
-          .filter((c): c is NonNullable<typeof c> => c != null)
+        const configs =
+          resolveMergedTransformerConfigsForEntitySync(world, entity.id) ??
+          entity.transformers
+            .map((id) => world.transformers?.[id])
+            .filter((c): c is NonNullable<typeof c> => c != null)
         const chain = await createTransformerChain(
           configs,
           rawInputGetter,

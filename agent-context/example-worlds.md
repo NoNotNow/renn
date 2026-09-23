@@ -23,6 +23,11 @@ Browser and MCP loaders fetch `world.json` and hydrate blobs from `exampleWorlds
 | `hunt` | [`public/exampleWorlds/hunt/`](../public/exampleWorlds/hunt/) | Includes GLB assets |
 | `world1` | [`public/exampleWorlds/world1/`](../public/exampleWorlds/world1/) | General example |
 | `hunt_repair2` | [`public/exampleWorlds/hunt_repair2/`](../public/exampleWorlds/hunt_repair2/) | Large repair/hunt scene (660+ entities); exported via agent disk import |
+| `self_drive_cube` | [`public/exampleWorlds/self_drive_cube/`](../public/exampleWorlds/self_drive_cube/) | Headless diagnostic scene in Play: car + cube obstacle, goal behind cube; Pipe3 self-driving patches. Regenerate: `npx tsx tools/renn-mcp/export-self-drive-example-world.ts` |
+
+### Agent / MCP worlds → example menu
+
+Any world agents tune via MCP attach should also exist under `public/exampleWorlds/<id>/` so **File → Example Worlds** and `load_example_world` match what Play tests. Rule: [`.cursor/rules/agent-mcp-example-world-sync.mdc`](../.cursor/rules/agent-mcp-example-world-sync.mdc).
 
 ### Legacy Example
 

@@ -38,6 +38,7 @@ import {
   buildEntityAuthoringSummary,
   buildWorldAuthoringSnapshot,
 } from '@/agent/agentEntityAuthoringSummary'
+import { buildPipeAuthoringSummary } from '@/agent/agentPipeAuthoringSummary'
 import {
   createHostTimedMacroRunner,
   executeTimedVerificationMacro,
@@ -403,6 +404,14 @@ export class LogicVerificationMcpSession {
     }
     const world = this.requireHeadlessHost().getWorld()
     return buildWorldAuthoringSnapshot(world, input)
+  }
+
+  async getPipeAuthoringSummary(input: { pipeId: string; projectName?: string }) {
+    if (this.browserClient) {
+      return await this.browserClient.invoke('get_pipe_authoring_summary', input)
+    }
+    const world = this.requireHeadlessHost().getWorld()
+    return buildPipeAuthoringSummary(world, input.pipeId)
   }
 
   async loadProjectBundle(

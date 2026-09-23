@@ -5,7 +5,10 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { loadAgentProjectBundle } from './loadAgentProjectBundle'
 import { loadLogicVerificationFixture } from './logicVerificationFixtures'
-import { listAgentDevExampleWorldIds } from './agentDevExampleWorlds'
+import {
+  invalidateAgentDevExampleWorldIdCache,
+  listAgentDevExampleWorldIds,
+} from './agentDevExampleWorlds'
 import { loadAgentExampleWorldFromDisk } from './loadAgentExampleWorldFromDisk'
 import { writeAgentExampleWorldFromExportZip } from './writeAgentExampleWorldFromExportZip'
 import { resolveMcpDevToken, verifyMcpDevToken } from './logicVerificationMcpAuth'
@@ -115,6 +118,7 @@ export async function handleAgentDevProjectMiddleware(
 
   if (path.match(EXAMPLE_WORLDS_LIST_PATH_RE)) {
     try {
+      invalidateAgentDevExampleWorldIdCache()
       const ids = await listAgentDevExampleWorldIds()
       sendJson(res, 200, { ids })
     } catch (err) {

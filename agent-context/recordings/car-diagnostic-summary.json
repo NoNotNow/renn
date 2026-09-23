@@ -1,0 +1,354 @@
+{
+  "recordedAt": "2026-09-23T20:47:43.235Z",
+  "runs": [
+    {
+      "recordedAt": "2026-09-23T20:47:43.111Z",
+      "runIndex": 0,
+      "variant": "cubeGoalBehind",
+      "spawnId": "center",
+      "obstacleShape": "box",
+      "frames": 175,
+      "spawn": {
+        "carPosition": [
+          0,
+          0.55,
+          3
+        ],
+        "carRotation": [
+          0,
+          0,
+          0
+        ],
+        "goalZ": -32,
+        "cubeCenter": [
+          0,
+          1.5,
+          -10
+        ]
+      },
+      "startPos": [
+        0.10443909466266632,
+        0.49400952458381653,
+        1.5256634950637817
+      ],
+      "endPos": [
+        20.898693084716797,
+        0.4045580327510834,
+        -14.438996315002441
+      ],
+      "bounds": {
+        "minX": 0.12944144010543823,
+        "maxX": 20.898693084716797,
+        "minY": 0.4045580327510834,
+        "maxY": 0.49553027749061584,
+        "minZ": -14.438996315002441,
+        "maxZ": 1.3812592029571533
+      },
+      "sawManeuver": true,
+      "sawBackoff": false,
+      "aimThroughCount": 0,
+      "keyMoments": [
+        {
+          "frame": 0,
+          "tag": "SAMPLE",
+          "detail": "z=1.38 uml=1 backoff=0 aimX=12.51157184980518 aimZ=-15.89354060753066"
+        },
+        {
+          "frame": 15,
+          "tag": "SAMPLE",
+          "detail": "z=-0.81 uml=1 backoff=0 aimX=12.51157184980518 aimZ=-15.89354060753066"
+        },
+        {
+          "frame": 30,
+          "tag": "SAMPLE",
+          "detail": "z=-2.84 uml=1 backoff=0 aimX=-22.910801068526983 aimZ=-12.98679010538944"
+        },
+        {
+          "frame": 45,
+          "tag": "SAMPLE",
+          "detail": "z=-4.75 uml=1 backoff=0 aimX=25.12973128138839 aimZ=-16.46135279049335"
+        },
+        {
+          "frame": 60,
+          "tag": "SAMPLE",
+          "detail": "z=-6.27 uml=1 backoff=0 aimX=25.12973128138839 aimZ=-16.46135279049335"
+        },
+        {
+          "frame": 75,
+          "tag": "SAMPLE",
+          "detail": "z=-7.53 uml=1 backoff=0 aimX=25.12973128138839 aimZ=-16.46135279049335"
+        },
+        {
+          "frame": 90,
+          "tag": "SAMPLE",
+          "detail": "z=-8.67 uml=1 backoff=0 aimX=25.12973128138839 aimZ=-16.46135279049335"
+        },
+        {
+          "frame": 105,
+          "tag": "SAMPLE",
+          "detail": "z=-9.77 uml=1 backoff=0 aimX=25.12973128138839 aimZ=-16.46135279049335"
+        },
+        {
+          "frame": 120,
+          "tag": "SAMPLE",
+          "detail": "z=-10.83 uml=1 backoff=0 aimX=25.12973128138839 aimZ=-16.46135279049335"
+        },
+        {
+          "frame": 135,
+          "tag": "SAMPLE",
+          "detail": "z=-11.85 uml=1 backoff=0 aimX=25.12973128138839 aimZ=-16.46135279049335"
+        },
+        {
+          "frame": 150,
+          "tag": "SAMPLE",
+          "detail": "z=-12.84 uml=1 backoff=0 aimX=25.12973128138839 aimZ=-16.46135279049335"
+        },
+        {
+          "frame": 165,
+          "tag": "SAMPLE",
+          "detail": "z=-13.83 uml=1 backoff=0 aimX=25.12973128138839 aimZ=-16.46135279049335"
+        }
+      ],
+      "paths": {
+        "eventsPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-events.log",
+        "jsonlPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-latest.jsonl",
+        "summaryPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-summary.json",
+        "pathPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-path.json"
+      },
+      "pass": true
+    },
+    {
+      "recordedAt": "2026-09-23T20:47:43.179Z",
+      "runIndex": 1,
+      "variant": "cubeGoalBehind",
+      "spawnId": "center",
+      "obstacleShape": "box",
+      "frames": 175,
+      "spawn": {
+        "carPosition": [
+          0,
+          0.55,
+          3
+        ],
+        "carRotation": [
+          0,
+          0,
+          0
+        ],
+        "goalZ": -32,
+        "cubeCenter": [
+          0,
+          1.5,
+          -10
+        ]
+      },
+      "startPos": [
+        0.10443909466266632,
+        0.49400952458381653,
+        1.5256634950637817
+      ],
+      "endPos": [
+        20.898693084716797,
+        0.4045580327510834,
+        -14.438996315002441
+      ],
+      "bounds": {
+        "minX": 0.12944144010543823,
+        "maxX": 20.898693084716797,
+        "minY": 0.4045580327510834,
+        "maxY": 0.49553027749061584,
+        "minZ": -14.438996315002441,
+        "maxZ": 1.3812592029571533
+      },
+      "sawManeuver": true,
+      "sawBackoff": false,
+      "aimThroughCount": 0,
+      "keyMoments": [
+        {
+          "frame": 0,
+          "tag": "SAMPLE",
+          "detail": "z=1.38 uml=1 backoff=0 aimX=12.51157184980518 aimZ=-15.89354060753066"
+        },
+        {
+          "frame": 15,
+          "tag": "SAMPLE",
+          "detail": "z=-0.81 uml=1 backoff=0 aimX=12.51157184980518 aimZ=-15.89354060753066"
+        },
+        {
+          "frame": 30,
+          "tag": "SAMPLE",
+          "detail": "z=-2.84 uml=1 backoff=0 aimX=-22.910801068526983 aimZ=-12.98679010538944"
+        },
+        {
+          "frame": 45,
+          "tag": "SAMPLE",
+          "detail": "z=-4.75 uml=1 backoff=0 aimX=25.12973128138839 aimZ=-16.46135279049335"
+        },
+        {
+          "frame": 60,
+          "tag": "SAMPLE",
+          "detail": "z=-6.27 uml=1 backoff=0 aimX=25.12973128138839 aimZ=-16.46135279049335"
+        },
+        {
+          "frame": 75,
+          "tag": "SAMPLE",
+          "detail": "z=-7.53 uml=1 backoff=0 aimX=25.12973128138839 aimZ=-16.46135279049335"
+        },
+        {
+          "frame": 90,
+          "tag": "SAMPLE",
+          "detail": "z=-8.67 uml=1 backoff=0 aimX=25.12973128138839 aimZ=-16.46135279049335"
+        },
+        {
+          "frame": 105,
+          "tag": "SAMPLE",
+          "detail": "z=-9.77 uml=1 backoff=0 aimX=25.12973128138839 aimZ=-16.46135279049335"
+        },
+        {
+          "frame": 120,
+          "tag": "SAMPLE",
+          "detail": "z=-10.83 uml=1 backoff=0 aimX=25.12973128138839 aimZ=-16.46135279049335"
+        },
+        {
+          "frame": 135,
+          "tag": "SAMPLE",
+          "detail": "z=-11.85 uml=1 backoff=0 aimX=25.12973128138839 aimZ=-16.46135279049335"
+        },
+        {
+          "frame": 150,
+          "tag": "SAMPLE",
+          "detail": "z=-12.84 uml=1 backoff=0 aimX=25.12973128138839 aimZ=-16.46135279049335"
+        },
+        {
+          "frame": 165,
+          "tag": "SAMPLE",
+          "detail": "z=-13.83 uml=1 backoff=0 aimX=25.12973128138839 aimZ=-16.46135279049335"
+        }
+      ],
+      "paths": {
+        "eventsPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-events.log",
+        "jsonlPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-latest.jsonl",
+        "summaryPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-summary.json",
+        "pathPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-path.json"
+      },
+      "pass": true
+    },
+    {
+      "recordedAt": "2026-09-23T20:47:43.235Z",
+      "runIndex": 2,
+      "variant": "cubeGoalBehind",
+      "spawnId": "center",
+      "obstacleShape": "box",
+      "frames": 175,
+      "spawn": {
+        "carPosition": [
+          0,
+          0.55,
+          3
+        ],
+        "carRotation": [
+          0,
+          0,
+          0
+        ],
+        "goalZ": -32,
+        "cubeCenter": [
+          0,
+          1.5,
+          -10
+        ]
+      },
+      "startPos": [
+        0.10443909466266632,
+        0.49400952458381653,
+        1.5256634950637817
+      ],
+      "endPos": [
+        20.898693084716797,
+        0.4045580327510834,
+        -14.438996315002441
+      ],
+      "bounds": {
+        "minX": 0.12944144010543823,
+        "maxX": 20.898693084716797,
+        "minY": 0.4045580327510834,
+        "maxY": 0.49553027749061584,
+        "minZ": -14.438996315002441,
+        "maxZ": 1.3812592029571533
+      },
+      "sawManeuver": true,
+      "sawBackoff": false,
+      "aimThroughCount": 0,
+      "keyMoments": [
+        {
+          "frame": 0,
+          "tag": "SAMPLE",
+          "detail": "z=1.38 uml=1 backoff=0 aimX=12.51157184980518 aimZ=-15.89354060753066"
+        },
+        {
+          "frame": 15,
+          "tag": "SAMPLE",
+          "detail": "z=-0.81 uml=1 backoff=0 aimX=12.51157184980518 aimZ=-15.89354060753066"
+        },
+        {
+          "frame": 30,
+          "tag": "SAMPLE",
+          "detail": "z=-2.84 uml=1 backoff=0 aimX=-22.910801068526983 aimZ=-12.98679010538944"
+        },
+        {
+          "frame": 45,
+          "tag": "SAMPLE",
+          "detail": "z=-4.75 uml=1 backoff=0 aimX=25.12973128138839 aimZ=-16.46135279049335"
+        },
+        {
+          "frame": 60,
+          "tag": "SAMPLE",
+          "detail": "z=-6.27 uml=1 backoff=0 aimX=25.12973128138839 aimZ=-16.46135279049335"
+        },
+        {
+          "frame": 75,
+          "tag": "SAMPLE",
+          "detail": "z=-7.53 uml=1 backoff=0 aimX=25.12973128138839 aimZ=-16.46135279049335"
+        },
+        {
+          "frame": 90,
+          "tag": "SAMPLE",
+          "detail": "z=-8.67 uml=1 backoff=0 aimX=25.12973128138839 aimZ=-16.46135279049335"
+        },
+        {
+          "frame": 105,
+          "tag": "SAMPLE",
+          "detail": "z=-9.77 uml=1 backoff=0 aimX=25.12973128138839 aimZ=-16.46135279049335"
+        },
+        {
+          "frame": 120,
+          "tag": "SAMPLE",
+          "detail": "z=-10.83 uml=1 backoff=0 aimX=25.12973128138839 aimZ=-16.46135279049335"
+        },
+        {
+          "frame": 135,
+          "tag": "SAMPLE",
+          "detail": "z=-11.85 uml=1 backoff=0 aimX=25.12973128138839 aimZ=-16.46135279049335"
+        },
+        {
+          "frame": 150,
+          "tag": "SAMPLE",
+          "detail": "z=-12.84 uml=1 backoff=0 aimX=25.12973128138839 aimZ=-16.46135279049335"
+        },
+        {
+          "frame": 165,
+          "tag": "SAMPLE",
+          "detail": "z=-13.83 uml=1 backoff=0 aimX=25.12973128138839 aimZ=-16.46135279049335"
+        }
+      ],
+      "paths": {
+        "eventsPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-events.log",
+        "jsonlPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-latest.jsonl",
+        "summaryPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-summary.json",
+        "pathPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-path.json"
+      },
+      "pass": true
+    }
+  ],
+  "pass": true
+}

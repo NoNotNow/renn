@@ -19,6 +19,9 @@ import {
   getEntityAuthoringSummaryFromWorldSource,
   getWorldAuthoringSnapshotFromWorldSource,
 } from '@/agent/agentAuthoringWorldSource'
+import {
+  getPipeAuthoringSummaryFromWorldSource,
+} from '@/agent/agentAuthoringWorldSource'
 import { runAgentBuilderLiveSceneSync } from '@/agent/agentBuilderLiveSceneSync'
 import {
   createHostTimedMacroRunner,
@@ -225,6 +228,12 @@ export function createLogicVerificationBrowserAttachHandler(): {
           includeCode?: boolean
           codeMaxChars?: number
           maxEntities?: number
+          projectName?: string
+        })
+      }
+      case 'get_pipe_authoring_summary': {
+        return getPipeAuthoringSummaryFromWorldSource(state, params as {
+          pipeId: string
           projectName?: string
         })
       }

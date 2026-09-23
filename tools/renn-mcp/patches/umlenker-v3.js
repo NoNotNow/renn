@@ -1,3 +1,10 @@
+function v3x(v) {
+  return Array.isArray(v) ? v[0] : v.x
+}
+function v3z(v) {
+  return Array.isArray(v) ? v[2] : v.z
+}
+
 var maneuver = {
   isOn: function () { return this.expires > Date.now(); },
   trigger: function (vector, timeMs) {
@@ -25,17 +32,20 @@ function maneuverLockMs(deviation, urgency) {
   return Math.max(120, Math.floor(base + urgency * 70))
 }
 
-function resolveTrueFollow(input, params, api) {
-  if (typeof params.id === 'string' && params.id.length > 0) {
-    var live = api.getWorldPosition(params.id)
-    if (live) return { position: live, id: params.id }
+function sanitizeObstacleHit(input, hit) {
+  if (!hit || !hit.hit) return hit
+  if (hit.entityId && hit.entityId === input.entityId) {
+    return { hit: false, distance: 0, entityId: '' }
   }
-  if (input.target && input.target.pose && input.target.pose.position) {
-    var tid =
-      typeof input.target.id === 'string' && input.target.id.length > 0 ? input.target.id : null
-    return { position: input.target.pose.position, id: tid }
+  if (hit.distance < 0.35) {
+    return { hit: false, distance: 0, entityId: '' }
   }
-  return null
+  return hit
+}
+
+function raycastObstacle(api, input, origin, direction, distance, options) {
+  var hit = api.raycastSpread(origin, direction, distance, 2, 10, options || { visualize: false })
+  return sanitizeObstacleHit(input, hit)
 }
 
 function transform(input, dt, params, state, api) {
@@ -48,18 +58,23 @@ function transform(input, dt, params, state, api) {
     return
   }
 
-  var follow = resolveTrueFollow(input, params, api)
-  if (!follow) return {}
+  if (!input.target || !input.target.pose || !input.target.pose.position) return {}
 
-  var truePos = follow.position
+  // Upstream (e.g. wanderer) owns input.target.pose; use it for path scoring only.
+  var goalPos = input.target.pose.position
+  var truePos = goalPos
+  if (typeof params.id === 'string' && params.id.length > 0) {
+    var liveFollow = api.getWorldPosition(params.id)
+    if (liveFollow) truePos = liveFollow
+  }
+  // Never snap input.target to a follow entity here — that pins the red debug line (and direction) on "car".
   var toTrue = api.vec.subtract(truePos, input.position)
   var distTrue = api.vec.length(toTrue)
   input.target.distance = distTrue
-  input.target.pose.position = truePos
-  if (follow.id) input.target.id = follow.id
 
   if (distTrue < 5) {
     maneuver.reset()
+    delete input.actions._uml_maneuver
     return
   }
 
@@ -67,7 +82,20 @@ function transform(input, dt, params, state, api) {
   var forward = api.getForwardVector(input.rotation)
   forward = api.vec.normalize(api.vec.projectOntoPlane(forward, up))
   var flatToTrue = api.vec.normalize(api.vec.projectOntoPlane(toTrue, up))
-  var frontPosition = api.vec.offsetAlong(input.position, forward, 5)
+  var frontOffset = distTrue < 28 ? 2.2 : 4.5
+  var frontPosition = api.vec.offsetAlong(input.position, forward, frontOffset)
+  var goalRayDist = Math.min(distTrue, 24)
+  var goalHitEarly = raycastObstacle(api, input, input.position, flatToTrue, goalRayDist, {
+    visualize: false,
+  })
+  var earlyGoalBlocked = goalHitEarly.hit && goalHitEarly.distance < distTrue - 0.8
+  var pathGoal = truePos
+  if (goalHitEarly.hit && goalHitEarly.distance < distTrue - 0.5) {
+    // Past the blocker (thick obstacles need more than hit.distance + small slack).
+    var pastBlock = goalHitEarly.distance + 10
+    if (pastBlock > distTrue - 2) pastBlock = distTrue - 2
+    pathGoal = api.vec.add(input.position, api.vec.scale(flatToTrue, pastBlock))
+  }
 
   if (maneuver.isOn() && maneuver.vector) {
     if (api.vec.length(api.vec.subtract(maneuver.vector, input.position)) < 4) {
@@ -79,64 +107,205 @@ function transform(input, dt, params, state, api) {
 
   if (maneuver.isOn() && maneuver.vector) {
     var checkDist = Math.min(16, Math.max(8, distTrue))
-    var frontClear = api.raycastSpread(frontPosition, forward, checkDist, 2, 8, { visualize: false })
+    var frontClear = raycastObstacle(api, input, frontPosition, forward, checkDist, { visualize: false })
     if (!frontClear.hit && api.vec.angleBetween(forward, flatToTrue) < 0.45) {
       maneuver.reset()
-    } else {
+    } else if (
+      pathClear(api, input, input.position, maneuver.vector, up) &&
+      (earlyGoalBlocked || pathClear(api, input, maneuver.vector, pathGoal, up))
+    ) {
       input.target.pose.position = maneuver.vector
+      input.actions._uml_maneuver = 1
+      api.watch('uml.aimX', v3x(maneuver.vector))
+      api.watch('uml.aimZ', v3z(maneuver.vector))
       return
     }
+    maneuver.reset()
   }
 
   var lookahead = distTrue - 6
   if (lookahead < 10) lookahead = 10
   if (lookahead > 22) lookahead = 22
 
-  var frontHit = api.raycastSpread(frontPosition, forward, lookahead, 2, 10, { visualize: false })
-  if (!frontHit.hit) return {}
+  var frontHit = raycastObstacle(api, input, frontPosition, forward, lookahead, {
+    visualize: true,
+    hitColor: 'orange',
+    missColor: 'cyan',
+  })
+  var goalHit = goalHitEarly
+  var goalBlocked = goalHit.hit && goalHit.distance < distTrue - 0.8
+  var blockHit = frontHit
+  if (goalBlocked && (!frontHit.hit || goalHit.distance < frontHit.distance + 3)) {
+    blockHit = goalHit
+    api.watch('uml.goalBlock', 1)
+  } else {
+    api.watch('uml.goalBlock', 0)
+    goalBlocked = false
+  }
+  api.watch('uml.lookahead', lookahead)
+  api.watch('uml.frontHit', blockHit.hit ? 1 : 0)
+  api.watch('uml.frontDist', blockHit.hit ? blockHit.distance : -1)
+  api.watch('uml.frontEnt', blockHit.hit ? blockHit.entityId : '')
+  if (!blockHit.hit) {
+    api.watch('uml.maneuver', 0)
+    delete input.actions._uml_maneuver
+    delete input.actions._uml_blocked
+    return {}
+  }
 
-  var picked = findCorrectionVector(
-    api,
-    frontPosition,
-    forward,
-    lookahead,
-    input.rotation,
-    truePos,
-    distTrue,
-    flatToTrue,
-    frontHit.distance,
-  )
-  if (!picked) return {}
+  // Goal-blocked rays are straight at the obstacle; lateral fan needs the bumper forward axis.
+  var scanFromGoalRay = blockHit === goalHit && !frontHit.hit
+  var scanOrigin = scanFromGoalRay ? input.position : frontPosition
+  var scanForward = scanFromGoalRay ? flatToTrue : forward
+  var scanDist = scanFromGoalRay ? Math.min(goalHit.distance + 2, 18) : lookahead
+  var picked = goalBlocked
+    ? flankFallback(
+        api,
+        input,
+        input.position,
+        scanForward,
+        up,
+        truePos,
+        distTrue,
+        blockHit.distance,
+        pathGoal,
+        goalBlocked,
+      )
+    : undefined
+  if (!picked) {
+    picked = findCorrectionVector(
+      api,
+      input,
+      input.position,
+      scanOrigin,
+      scanForward,
+      scanDist,
+      input.rotation,
+      truePos,
+      distTrue,
+      flatToTrue,
+      blockHit.distance,
+      pathGoal,
+      goalBlocked,
+    )
+  }
+  if (!picked) {
+    picked = flankFallback(
+      api,
+      input,
+      input.position,
+      scanForward,
+      up,
+      truePos,
+      distTrue,
+      blockHit.distance,
+      pathGoal,
+      goalBlocked,
+    )
+  }
+  if (!picked) {
+    api.watch('uml.maneuver', 0)
+    delete input.actions._uml_maneuver
+    input.actions._uml_blocked = 1
+    return {}
+  }
 
   input.target.pose.position = picked.candidate
-  maneuver.trigger(picked.candidate, maneuverLockMs(picked.deviation, obstacleUrgency(frontHit.distance)))
+  api.watch('uml.maneuver', 1)
+  api.watch('uml.aimX', v3x(picked.candidate))
+  api.watch('uml.aimZ', v3z(picked.candidate))
+  input.actions._uml_maneuver = 1
+  delete input.actions._uml_blocked
+  maneuver.trigger(picked.candidate, maneuverLockMs(picked.deviation, obstacleUrgency(blockHit.distance)))
   return {}
 }
 
-function findCorrectionVector(api, origin, forward, distance, entityRotation, truePos, distTrue, flatToTrue, closestObstacle) {
+function pathClear(api, input, from, to, up) {
+  var delta = api.vec.subtract(to, from)
+  var len = api.vec.length(delta)
+  if (len < 0.5) return true
+  var dir = api.vec.normalize(api.vec.projectOntoPlane(delta, up))
+  var hit = raycastObstacle(api, input, from, dir, len, { visualize: false })
+  return !hit.hit || hit.distance > len - 1.2
+}
+
+function flankFallback(api, input, carPos, forward, up, truePos, distTrue, closestObstacle, pathGoal, goalBlocked) {
+  var urgency = obstacleUrgency(closestObstacle)
+  var lateral = api.vec.normalize(api.vec.cross(up, forward))
+  var offset = goalBlocked ? 14 + urgency * 10 : 8 + urgency * 10
+  if (goalBlocked && closestObstacle < 2.8) offset += 4
+  var options = [
+    api.vec.add(carPos, api.vec.scale(lateral, offset)),
+    api.vec.add(carPos, api.vec.scale(lateral, -offset)),
+  ]
+  if (goalBlocked) {
+    var ahead = closestObstacle < 3 ? 10 + urgency * 6 : 7 + urgency * 5
+    var midLat = 5.5 + urgency * 2
+    var midAhead = 5 + urgency * 3
+    options = [
+      api.vec.add(carPos, api.vec.add(api.vec.scale(lateral, midLat), api.vec.scale(forward, midAhead))),
+      api.vec.add(carPos, api.vec.add(api.vec.scale(lateral, -midLat), api.vec.scale(forward, midAhead))),
+      api.vec.add(carPos, api.vec.add(api.vec.scale(lateral, offset), api.vec.scale(forward, ahead))),
+      api.vec.add(carPos, api.vec.add(api.vec.scale(lateral, -offset), api.vec.scale(forward, ahead))),
+      api.vec.add(carPos, api.vec.scale(lateral, offset)),
+      api.vec.add(carPos, api.vec.scale(lateral, -offset)),
+    ]
+  }
+  var i
+  for (i = 0; i < options.length; i++) {
+    var candidate = options[i]
+    if (!pathClear(api, input, carPos, candidate, up)) continue
+    if (!goalBlocked && !pathClear(api, input, candidate, pathGoal, up)) continue
+    if (goalBlocked && Math.abs(v3x(candidate) - v3x(carPos)) < 4) continue
+    var toTrue = api.vec.length(api.vec.subtract(truePos, candidate))
+    if (toTrue > distTrue + 14) continue
+    return { candidate: candidate, deviation: 0.8, candidateDist: toTrue }
+  }
+  return undefined
+}
+
+function findCorrectionVector(
+  api,
+  input,
+  carPos,
+  origin,
+  forward,
+  distance,
+  entityRotation,
+  truePos,
+  distTrue,
+  flatToTrue,
+  closestObstacle,
+  pathGoal,
+  goalBlocked,
+) {
   var up = api.getUpVector(entityRotation)
   var urgency = obstacleUrgency(closestObstacle)
-  var spread = 0.75 + urgency * 0.95
-  var steps = 40
+  var spread = 0.95 + urgency * 1.35
+  var steps = 44
   var results = []
   var i
 
-  var ALIGN_WEIGHT = 3.6 - urgency * 0.85
-  var DEVIATION_SQ_WEIGHT = 3.4 + (1 - urgency) * 2.6
-  var CLEAR_WEIGHT = 0.18 + urgency * 0.52
+  var ALIGN_WEIGHT = 3.2 - urgency * 1.1
+  var DEVIATION_SQ_WEIGHT = 3.4 + (1 - urgency) * 1.8
+  var CLEAR_WEIGHT = 0.22 + urgency * 0.62
 
   for (i = 0; i <= steps; i++) {
     var angle = -spread + (2 * spread * i) / steps
-    var result = evaluateVector(api, origin, forward, up, distance, angle)
+    var result = evaluateVector(api, input, origin, forward, up, distance, angle)
     var flatDir = api.vec.normalize(api.vec.projectOntoPlane(result.rotation, up))
     var deviation = api.vec.angleBetween(flatDir, flatToTrue)
     var alignment = 1 - deviation / Math.PI
     var clearance = result.raycast.hit ? result.raycast.distance / distance : 1.25
 
-    if (clearance < 0.28 && urgency < 0.92) continue
+    if (clearance < 0.32 && urgency < 0.95) continue
 
-    var pushDist = distance * (0.5 + 0.35 * (1 - urgency)) + urgency * 4
+    var pushDist = distance * (0.42 + 0.28 * (1 - urgency)) + urgency * 6
+    if (deviation > 0.35) pushDist += deviation * 4
     var candidate = api.vec.add(origin, api.vec.scale(api.vec.normalize(result.rotation), pushDist))
+    if (!pathClear(api, input, carPos, candidate, up)) continue
+    if (goalBlocked && Math.abs(v3x(candidate) - v3x(carPos)) < 4.5) continue
+    if (!goalBlocked && !pathClear(api, input, candidate, pathGoal, up)) continue
     var candidateDist = api.vec.length(api.vec.subtract(truePos, candidate))
 
     var score =
@@ -144,9 +313,10 @@ function findCorrectionVector(api, origin, forward, distance, entityRotation, tr
       clearance * CLEAR_WEIGHT -
       deviation * deviation * DEVIATION_SQ_WEIGHT
 
-    if (!result.raycast.hit) score += 0.15
-    if (candidateDist > distTrue + 4) score -= 1.5
-    if (candidateDist < distTrue) score += 0.2
+    if (!result.raycast.hit) score += 0.2
+    if (deviation > 0.25 && urgency > 0.4) score += deviation * 0.35
+    if (candidateDist > distTrue + 4) score -= 1.2
+    if (candidateDist < distTrue) score += 0.25
 
     results.push({ score: score, candidate: candidate, deviation: deviation, candidateDist: candidateDist })
   }
@@ -162,10 +332,10 @@ function findCorrectionVector(api, origin, forward, distance, entityRotation, tr
   return results[0]
 }
 
-function evaluateVector(api, origin, forward, up, distance, angle) {
+function evaluateVector(api, input, origin, forward, up, distance, angle) {
   var direction = api.vec.rotateAroundAxis(forward, up, angle)
   return {
     rotation: direction,
-    raycast: api.raycastSpread(origin, direction, distance, 2, 10, { visualize: false }),
+    raycast: raycastObstacle(api, input, origin, direction, distance, { visualize: false }),
   }
 }

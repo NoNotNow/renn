@@ -1,0 +1,109 @@
+{
+  "summary": {
+    "recordedAt": "2026-09-23T19:13:48.047Z",
+    "startZ": -2.1725358963012695,
+    "endZ": -1.7168267965316772,
+    "maxZDuringBackoff": -1.72248113155365,
+    "retreatDeltaDuringBackoff": 0.45005476474761963,
+    "sawBackoff": true,
+    "pass": true
+  },
+  "samples": [
+    {
+      "frame": 0,
+      "z": -2.172748565673828,
+      "watch": {
+        "dir.frontDist": "0",
+        "dir.backoff": "1"
+      }
+    },
+    {
+      "frame": 5,
+      "z": -2.133270502090454,
+      "watch": {
+        "dir.frontDist": "0",
+        "dir.backoff": "1"
+      }
+    },
+    {
+      "frame": 10,
+      "z": -2.0867831707000732,
+      "watch": {
+        "dir.frontDist": "0",
+        "dir.backoff": "1"
+      }
+    },
+    {
+      "frame": 15,
+      "z": -2.0507619380950928,
+      "watch": {
+        "dir.frontDist": "0",
+        "dir.backoff": "0"
+      }
+    },
+    {
+      "frame": 20,
+      "z": -2.0203866958618164,
+      "watch": {
+        "dir.frontDist": "0",
+        "dir.backoff": "1"
+      }
+    },
+    {
+      "frame": 25,
+      "z": -1.9812809228897095,
+      "watch": {
+        "dir.frontDist": "0",
+        "dir.backoff": "1"
+      }
+    },
+    {
+      "frame": 30,
+      "z": -1.9350016117095947,
+      "watch": {
+        "dir.frontDist": "0",
+        "dir.backoff": "1"
+      }
+    },
+    {
+      "frame": 35,
+      "z": -1.8989616632461548,
+      "watch": {
+        "dir.frontDist": "0",
+        "dir.backoff": "0"
+      }
+    },
+    {
+      "frame": 40,
+      "z": -1.868595004081726,
+      "watch": {
+        "dir.frontDist": "0",
+        "dir.backoff": "1"
+      }
+    },
+    {
+      "frame": 45,
+      "z": -1.8295198678970337,
+      "watch": {
+        "dir.frontDist": "0",
+        "dir.backoff": "1"
+      }
+    },
+    {
+      "frame": 50,
+      "z": -1.7831928730010986,
+      "watch": {
+        "dir.frontDist": "0",
+        "dir.backoff": "1"
+      }
+    },
+    {
+      "frame": 55,
+      "z": -1.7471847534179688,
+      "watch": {
+        "dir.frontDist": "0",
+        "dir.backoff": "0"
+      }
+    }
+  ]
+}

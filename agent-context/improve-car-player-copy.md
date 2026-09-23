@@ -10,11 +10,11 @@ Living tracker for self-driving behavior on **Player Car copy** in the **hunt_re
 |--------|--------|
 | **Entity id** | `entity_1779823253285_brtkx1p` |
 | **Display name** | Player Car copy |
-| **Example world** | `hunt_repair2` — [`public/exampleWorlds/hunt_repair2/`](../public/exampleWorlds/hunt_repair2/) |
-| **Follow target** | Entity `car` (“Player Car”) — binding `transformerPipeStack[].params.id: "car"` on **Pipe3** |
+| **Example world** | `hunt_repair2` — [`public/exampleWorlds/hunt_repair2/`](../public/exampleWorlds/hunt_repair2/); box diagnostic: **`self_drive_cube`** — [`public/exampleWorlds/self_drive_cube/`](../public/exampleWorlds/self_drive_cube/) |
+| **Goal source** | **Wanderer** only at start of **Pipe3** (`targetPoseInput` removed — duplicate target publisher) |
 | **Primary pipe** | `pipe3` (shared registry stages `car_tf*`, entity-local stages `entity_1779823253285_brtkx1p_tf*`) |
 
-**Success (working definition):** Copy drives autonomously toward `car`, avoids static/dynamic obstacles with stable steering/throttle, no console/runtime errors, human takeover (WASD) still wins when pressed.
+**Success (working definition):** Copy drives autonomously toward **wanderer goals** (not follow-`car`), avoids static/dynamic obstacles with stable steering/throttle, no console/runtime errors, human takeover (WASD) still wins when pressed.
 
 ---
 
@@ -39,17 +39,21 @@ High-level pipeline on **Pipe3** (priority order — see `get_entity_authoring_s
 
 ## Current status
 
-**Last updated:** 2026-09-22 (document created; baseline from hunt_repair2 export + prior MCP repair arc)
+**Last updated:** 2026-09-23 (Pipe3 headless self-driving tests + uml/direction cooperation)
 
 | Area | State | Notes |
 |------|--------|--------|
-| **Pipe3 binding** | Fixed on disk | `params.id: "car"` on Player Car copy — avoids `getWorldPosition(undefined)` |
-| **Shared Target (`car_tf3`)** | Guard only | `if (!params.id) return {}` — other entities using `car_tf3` without binding id stay no-op |
-| **Shared Umlenker / direction** | v3 patch files in repo | Not necessarily applied in live IndexedDB until MCP patch + save/export |
-| **Wanderer on copy** | Enabled | May randomize target inside 370×370 perimeter — candidate to **disable** for pure follow-`car` behavior |
-| **Known code smell** | Open | Several customs use `steer_right' \|\| api.getAction(...)` (missing `)` ) — manual input bypass may be broken |
-| **Browser acceptance** | Pending human | Example Worlds → **hunt_repair2** → Play; watch console for Pipe3 / target errors |
-| **Live MCP macro** | Blocked until MCP restart | `run_timed_macro` in repo; stale Cursor MCP process may hide tool |
+| **Pipe3 binding** | OK | **No `params.id`** — wanderer owns `input.target`; sync script does not seed follow binding |
+| **Umlenker / direction** | Updated | [`umlenker-v3.js`](../tools/renn-mcp/patches/umlenker-v3.js): maneuver sets `_uml_maneuver`; never snaps target to follow entity; [`direction-v3.js`](../tools/renn-mcp/patches/direction-v3.js): per-entity back-off state; defers back-off when Umlenker detouring (`_uml_maneuver` + mid-range front hit); **brake** reverse for car2 |
+| **AutoBrake (`car_tf1_copy`)** | Patched | Skips when `params.id` (follow mode) or `_obstacle_escape` — was braking after direction every frame at obstacles |
+| **Pipe3 link** | Only **Player Car copy** | Editing Pipe3 layout affects that entity’s flatten; shared registry ids (`car_tf5`, …) still affect every entity listing those ids |
+| **Wanderer** | Restored in Pipe3 | `targetPoseInput` (`tf0`) omitted; wanderer sets yellow goal; Umlenker red line tracks maneuver waypoint when avoiding |
+| **MCP** | `get_pipe_authoring_summary` `{ pipeId }` | Linked entities + per-stage usage counts (who shares registry stages) |
+| **Repo `hunt_repair2/world.json`** | Synced | `node tools/renn-mcp/sync-hunt-car-patches.mjs`; MCP `apply-hunt-car-patches.ts` + save to agent IndexedDB |
+| **Integration tests** | Added | Full Pipe3 headless: [`self-driving-car.integration.test.ts`](../src/test/scenarios/self-driving-car.integration.test.ts) + red-check file; [`direction-backoff.integration.test.ts`](../src/test/scenarios/direction-backoff.integration.test.ts); Umlenker [`umlenker-raycast.integration.test.ts`](../src/test/scenarios/umlenker-raycast.integration.test.ts) |
+| **Recordings** | Added | [`record-self-driving-car.ts`](../tools/renn-mcp/record-self-driving-car.ts) → `agent-context/recordings/self-driving-car-latest.json`; direction back-off recording unchanged |
+| **Browser acceptance** | Pending human | Reload **hunt_repair2** in agent Chrome → Play; copy should steer around obstacles, reverse when boxed in |
+| **MCP authoring snapshot** | Stale-host caveat | After attach, `get_world_authoring_snapshot` may show fixture entity count until readopt; patches still apply to live Builder doc |
 | **Repo git** | Uncommitted / policy open | Large GLBs — see [`example-worlds.md`](./example-worlds.md) |
 
 ### Session log
@@ -58,18 +62,26 @@ High-level pipeline on **Pipe3** (priority order — see `get_entity_authoring_s
 |------|----------------|--------|--------|
 | 2026-09-21 | Prior arc | Pipe3 `id: car`; guards on shared `car_tf3/4/5` | On-disk `hunt_repair2/world.json` updated |
 | 2026-09-22 | — | Created this tracker + `/improve-car` skill | No logic changes |
+| 2026-09-22 | Agent | Obstacle-stop fix: Umlenker/direction v3, AutoBrake guard, wanderer off; sync world + MCP save | Pending human Play on hunt_repair2 |
+| 2026-09-22 | Agent | Fix MCP ungrouped stages + `pose` crash: realign Pipe3/entity list, add `car_tf3` Target | Reload hunt_repair2 in agent Chrome |
+| 2026-09-23 | Agent | Reverse fix (brake not throttle), Pipe3 sync (wanderer-only, `params.id: car`), Umlenker follow contract, backoff integration test | Vitest green; human Play pending |
+| 2026-09-23 | Agent | Removed follow snap + `params.id: car` from Pipe3 binding; Umlenker integration test for no-snap | Red line should diverge from yellow when detouring |
+| 2026-09-23 | Agent | Wanderer + Umlenker + direction + AutoBrake fixture; `_uml_maneuver` cooperation; per-entity back-off state; cue-driven tests + recordings | Vitest 255 files / 2088 passed; tsc clean |
+| 2026-09-23 | L2 orchestrate | `self_drive_cube` go-around: v3x flank filters, spawn z=3, spawn-matrix + path diagnostic; export + patch sync | Vitest 256 files / 2098 pass; cube pass @175f |
 
 ---
 
+## Improvement log (headless runs)
+
+Batch results and spawn/shape matrix: [`self-driving-car-improvement-log.md`](./self-driving-car-improvement-log.md).
+
 ## Backlog (priority)
 
-1. **Confirm runtime clean** — reload hunt_repair2; no `getWorldPosition(undefined)` on Play.
-2. **Reconcile pipeline intent** — disable or repurpose wanderer / targetPoseInput on copy if goal is strictly follow `car`.
-3. **Apply v3 Umlenker + direction** via MCP; tune with `api.watch` (urgency, distance, steering) and visible attach runs.
-4. **Fix getAction guard typos** in Umlenker/direction (parentheses) so human override works.
-5. **Propagate `params.id: "car"`** to all Pipe3 stages that read `params.id` (not only binding-level merge).
-6. **Macro regression** — after MCP restart: attach → load hunt_repair2 → `run_timed_macro` with probes on copy entity (pose, speed, trace).
-7. **Export to repo** when satisfied — `export_saved_project_to_example_world`; align with user on binary commit policy.
+1. **Human Play check** — reload hunt_repair2 in agent Chrome; copy pursues wanderer goals, clears obstacles without permanent stop.
+2. **Macro regression** — attach → load hunt_repair2 → `run_timed_macro` with probes on copy (pose, speed).
+3. **Tune** — urgency/spread/backOff timing if still hesitates at tight gaps.
+4. **Export to repo** when satisfied — `export_saved_project_to_example_world` (world.json already synced via `sync-hunt-car-patches.mjs`).
+5. **Fix attach readopt** — optional: `get_entity_authoring_summary` should prefer `getCurrentWorld()` when document epoch > host adopt (friction).
 
 ---
 

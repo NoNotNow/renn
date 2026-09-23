@@ -1,0 +1,45 @@
+---
+description: Headless-first car/sim verification — disk-synced worlds and full entity reset every run
+globs:
+  - tools/renn-mcp/**/*
+  - src/test/scenarios/self-driving-car*.ts
+  - src/test/scenarios/direction-backoff*.ts
+  - src/test/scenarios/umlenker-raycast*.ts
+  - src/test/fixtures/selfDrivingCarWorld.ts
+  - agent-context/improve-car-player-copy.md
+  - agent-context/feature-agent-logic-verification.md
+  - public/exampleWorlds/self_drive_cube/**/*
+  - public/exampleWorlds/hunt_repair2/**/*
+---
+
+# Headless verification — defined start every run
+
+Mitigates headless vs browser drift: **same `world.json` on disk** and **every run starts from document poses**, not leftover Play/MCP state.
+
+## Workflow
+
+1. **Canonical copy on disk** — after logic edits, export/sync (see `agent-mcp-example-world-sync.mdc`):
+   - `self_drive_cube`: `npx tsx tools/renn-mcp/export-self-drive-example-world.ts`
+   - `hunt_repair2` patches: `node tools/renn-mcp/sync-hunt-car-patches.mjs`
+2. **Verify headless first** — Vitest and/or `npx tsx tools/renn-mcp/sim-car-diagnostic.ts` (grep `RENNDIAG:` in `agent-context/recordings/`).
+3. **Human browser check** — user reloads **File → Example Worlds → `<id>`** (not an stale IndexedDB project) and reports visuals.
+
+Do not treat browser-only Play as the primary regression signal.
+
+## Reset rule (required each run)
+
+**Never continue a sim from arbitrary mid-scene state** when comparing runs or claiming a fix.
+
+| Context | Do this before stepping / Play |
+|--------|--------------------------------|
+| **Vitest / `WorldSimulator`** | New `WorldSimulator.create(world)` (or new host) per test case; `dispose()` after. Do not reuse one sim across scenarios. |
+| **MCP headless** | `stop_run` if active → **`load_example_world` / `load_fixture` / `load_world_json` / `load_project_bundle`** again → `start_verification_run` → step/run. Each load rebuilds entities from JSON poses. |
+| **MCP attach** | Prefer **`load_example_world`** (or reload saved project from disk export) before a timed macro — not “Play from wherever the car stopped.” |
+| **CLI diagnostic** | Each invocation already fresh (`sim-car-diagnostic.ts`); keep it that way. |
+| **Browser (human parity)** | Re-open example world from menu **or** reset entities to saved world poses before comparing to headless. |
+
+Pinned spawns for the box car scene live in `SELF_DRIVE_SPAWN` / `buildSelfDrivingCarWorld()` — headless and exported `self_drive_cube/world.json` must stay aligned.
+
+## Parity expectation
+
+Same disk world + defined start + no human WASD ⇒ **matching logic/physics** (float tolerance in tests). Divergence usually means unsynced IndexedDB, skipped reload, or stepping without reload.

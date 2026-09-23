@@ -6,4 +6,8 @@ For dialogs, floating panels, popovers, or resize handles, also read `agent-cont
 
 For agent MCP / dev attach tooling, follow `.cursor/rules/agent-mcp-no-project-names.mdc` (generic parameterized tools; no product project names in code).
 
+When MCP/agent edits a verification world, sync it to **`public/exampleWorlds/`** so **File → Example Worlds** and `load_example_world` stay in sync — see `.cursor/rules/agent-mcp-example-world-sync.mdc`.
+
+For self-driving / headless sim vs browser parity: default to headless tests + disk export, and **reload the world (reset all entities to document poses) before every run** — see `.cursor/rules/agent-headless-defined-start.mdc`.
+
 For interactive Builder work on a named IndexedDB project (visible browser + MCP), use skill `.cursor/skills/work-on-project/SKILL.md` (`/work-on-project`).

@@ -145,7 +145,10 @@ export default function BuilderHeader({
         return body.ids ?? []
       })
       .then((ids) => {
-        if (!cancelled) setExampleWorldIds(ids)
+        if (!cancelled) {
+          const merged = [...new Set([...ids, ...discoverExampleWorldIdsFromBuild()])].sort()
+          setExampleWorldIds(merged)
+        }
       })
       .catch(() => {
         if (!cancelled) setExampleWorldIds(discoverExampleWorldIdsFromBuild())

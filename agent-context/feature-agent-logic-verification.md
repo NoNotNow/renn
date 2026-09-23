@@ -155,3 +155,37 @@ Copy `.cursor/mcp.json.example` to `.cursor/mcp.json`, set `cwd` to your repo ro
 - Fixture lives under `src/agent/fixtures/` (shared by Vitest + MCP), not `src/test/fixtures/`: JSON includes `car_telemetry_tf` custom stage with `api.watch('speedZ', …)` for author-telemetry rows on the observation timeline.
 - Loader exports `loadAgentVerificationCarWorld`, `buildAgentCarDriveInputScript`, warmup/drive constants; host + MCP integration tests import the same module.
 - Primary scenario: `agent-car-verification.integration.test.ts` — 2 s scripted drive, `entityPose` / `entityBody` probes, compile-error path, idle-without-throttle guard.
+
+---
+
+## Self-driving car diagnostic (CLI, grep-friendly)
+
+For the **Pipe3 self-driving stack** (wanderer + umlenker + direction) on the pinned `selfDrivingCarWorld` fixture, use the headless CLI instead of MCP when you want **stable on-disk artifacts** and **`RENNDIAG:`** one-liners agents can `rg` without parsing a huge JSON blob.
+
+**Defined start:** Each headless run must load from disk/fixture again so every entity matches `world.json` poses (see `.cursor/rules/agent-headless-defined-start.mdc`). MCP: `stop_run` → `load_example_world` → `start_verification_run`. Browser parity: re-open **Example Worlds**, do not compare against a stale Play pose.
+
+**Run** (from repo root; fresh sim each invocation; exit `1` if summary `pass` is false):
+
+```bash
+npx tsx tools/renn-mcp/sim-car-diagnostic.ts
+npx tsx tools/renn-mcp/sim-car-diagnostic.ts --variant cubeGoalBehind --frames 120
+```
+
+| Output | Path |
+| ------ | ---- |
+| Grep-friendly events (`RENNDIAG:START`, `STUCK`, `BACKFORTH`, `AIM_THROUGH_OBSTACLE`, `DONE`, …) | `agent-context/recordings/car-diagnostic-events.log` |
+| Per-frame pose, velocity, `api.watch` snapshot | `agent-context/recordings/car-diagnostic-latest.jsonl` |
+| Pass/fail summary + `keyMoments` | `agent-context/recordings/car-diagnostic-summary.json` |
+
+**Grep examples:**
+
+```bash
+rg 'RENNDIAG:' agent-context/recordings/car-diagnostic-events.log
+rg 'RENNDIAG:AIM_THROUGH_OBSTACLE|RENNDIAG:STUCK' agent-context/recordings/
+```
+
+Each jsonl line is `{ frame, t, pos, vel, watch }` where `watch` mirrors transformer watch labels (e.g. `uml.maneuver`, `dir.backoff`, `uml.aimX`).
+
+**Related one-shot recorders** (JSON only, no `RENNDIAG` prefix): `tools/renn-mcp/record-self-driving-car.ts` → `self-driving-car-latest.json`; `record-direction-backoff.ts` → `direction-backoff-latest.json`.
+
+**MCP:** `run_timed_macro` returns the macro log (timeline + events) in the tool response only; there is no built-in disk export path yet. For the same car world via MCP, load fixture `selfDrivingCarWorld` (or inline world from the test fixture builder), register probes / rely on author `api.watch`, then `run_timed_macro` or `run_for_sim_time` + `get_observation`. Persist grep-friendly lines by writing the client-side result or by running the CLI diagnostic above.

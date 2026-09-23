@@ -4,6 +4,7 @@ import {
   buildEntityAuthoringSummary,
   buildWorldAuthoringSnapshot,
 } from '@/agent/agentEntityAuthoringSummary'
+import { buildPipeAuthoringSummary } from '@/agent/agentPipeAuthoringSummary'
 import type { LogicVerificationHost } from '@/agent/logicVerificationHost'
 
 type AttachAuthoringState = {
@@ -52,4 +53,12 @@ export async function getWorldAuthoringSnapshotFromWorldSource(
 ) {
   const world = await resolveAuthoringWorldForAttach(state, input.projectName)
   return buildWorldAuthoringSnapshot(world, input)
+}
+
+export async function getPipeAuthoringSummaryFromWorldSource(
+  state: AttachAuthoringState,
+  input: { pipeId: string; projectName?: string },
+) {
+  const world = await resolveAuthoringWorldForAttach(state, input.projectName)
+  return buildPipeAuthoringSummary(world, input.pipeId)
 }
