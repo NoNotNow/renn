@@ -8,8 +8,9 @@ import { fileURLToPath } from 'node:url'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const worldPath = resolve(root, 'public/exampleWorlds/hunt_repair2/world.json')
-const umlenker = readFileSync(resolve(root, 'tools/renn-mcp/patches/umlenker-v3.js'), 'utf8')
-const direction = readFileSync(resolve(root, 'tools/renn-mcp/patches/direction-v3.js'), 'utf8')
+const globalDir = resolve(root, 'public/global/transformers/self-driving-car')
+const umlenker = readFileSync(resolve(globalDir, 'umlenker.js'), 'utf8')
+const direction = readFileSync(resolve(globalDir, 'direction.js'), 'utf8')
 
 const AUTO_BRAKE_GUARD =
   "  if (params && params.id) return {}\n  if (input.actions && input.actions._obstacle_escape) return {}\n"

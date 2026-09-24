@@ -24,8 +24,8 @@ High-level pipeline on **Pipe3** (priority order — see `get_entity_authoring_s
 
 1. **Target motion (optional / legacy)** — `targetPoseInput` + **wanderer** on entity-local stages can move `input.target`; may fight “follow `car`” unless disabled or retuned.
 2. **Follow target** — custom **Target** (`car_tf3`): `api.getWorldPosition(params.id)` → `input.target.pose.position`. Requires **`params.id`** on the pipe binding (see status).
-3. **Obstacle avoidance** — custom **Umlenker** (`car_tf5`): raycast fan, maneuver lock, retargets `input.target.pose.position` when blocked. Canonical iteration files: [`tools/renn-mcp/patches/umlenker-v3.js`](../tools/renn-mcp/patches/umlenker-v3.js).
-4. **Steering / speed** — custom **direction** (`car_tf4`): `steering_angle`, throttle from heading and distance. Patch file: [`tools/renn-mcp/patches/direction-v3.js`](../tools/renn-mcp/patches/direction-v3.js).
+3. **Obstacle avoidance** — custom **Umlenker** (`car_tf5`): raycast fan, maneuver lock, retargets `input.target.pose.position` when blocked. **Global disk SoT:** [`public/global/transformers/self-driving-car/umlenker.js`](../public/global/transformers/self-driving-car/umlenker.js) (authoring copies: [`tools/renn-mcp/patches/umlenker-v3.js`](../tools/renn-mcp/patches/umlenker-v3.js) → `npm run sync:global-pipeline`).
+4. **Steering / speed** — custom **direction** (`car_tf4`): [`public/global/transformers/self-driving-car/direction.js`](../public/global/transformers/self-driving-car/direction.js).
 5. **Physics** — **car2** (`car_tf1` / entity-local `car_tf9`): applies forces from actions.
 6. **Debug** — TargetVisualizer / `Umlenker2` / `api.watch` — trim or disable when tuning is stable.
 

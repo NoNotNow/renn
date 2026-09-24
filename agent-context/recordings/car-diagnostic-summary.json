@@ -1,15 +1,15 @@
 {
-  "recordedAt": "2026-09-23T22:38:40.624Z",
-  "frames": 400,
+  "recordedAt": "2026-09-24T13:19:31.412Z",
+  "frames": 550,
   "runs": [
     {
-      "recordedAt": "2026-09-23T22:38:40.623Z",
+      "recordedAt": "2026-09-24T13:19:31.410Z",
       "runIndex": 0,
       "variant": "parkour",
-      "spawnId": "yawRight",
-      "parkourSegment": null,
+      "spawnId": "center",
+      "parkourSegment": "seg4_cylinder",
       "obstacleShape": "box",
-      "frames": 400,
+      "frames": 550,
       "spawn": {
         "carPosition": [
           0,
@@ -29,165 +29,215 @@
         ]
       },
       "startPos": [
-        0.07253746688365936,
-        0.4940090775489807,
-        1.5239319801330566
+        -0.20305128395557404,
+        0.49371781945228577,
+        -33.25440979003906
       ],
       "endPos": [
-        -2.4370274543762207,
-        0.49461469054222107,
-        -37.718231201171875
+        5.173684120178223,
+        0.49463537335395813,
+        -45.62675094604492
       ],
       "bounds": {
-        "minX": -18.761587142944336,
-        "maxX": 0.06500574946403503,
-        "minY": 0.4941234290599823,
-        "maxY": 0.49461668729782104,
-        "minZ": -38.93640899658203,
-        "maxZ": 1.3776066303253174
+        "minX": -9.743749618530273,
+        "maxX": 5.689174175262451,
+        "minY": 0.49387964606285095,
+        "maxY": 0.4946931302547455,
+        "minZ": -56.180728912353516,
+        "maxZ": -33.397071838378906
       },
-      "maxAbsX": 18.761587142944336,
-      "goalDistStart": 33.52393198013306,
-      "goalDistEnd": 5.718231201171875,
-      "goalDistDelta": 27.80570077896118,
+      "maxAbsX": 9.743749618530273,
+      "goalDistStart": 1.2544097900390625,
+      "goalDistEnd": 13.626750946044922,
+      "goalDistDelta": -12.37234115600586,
       "sawManeuver": true,
-      "sawBackoff": false,
+      "sawBackoff": true,
       "aimThroughCount": 0,
       "keyMoments": [
         {
           "frame": 0,
           "tag": "SAMPLE",
-          "detail": "z=1.38 uml=1 backoff=0 aimX=-5.4040467019400715 aimZ=-3.695077073568937"
+          "detail": "z=-33.40 uml=1 backoff=0 aimX=-7.007712682088216 aimZ=-38.39203169498112"
         },
         {
           "frame": 15,
           "tag": "SAMPLE",
-          "detail": "z=-0.88 uml=1 backoff=0 aimX=-5.4040467019400715 aimZ=-3.695077073568937"
+          "detail": "z=-35.53 uml=1 backoff=0 aimX=-7.007712682088216 aimZ=-38.39203169498112"
         },
         {
           "frame": 30,
           "tag": "SAMPLE",
-          "detail": "z=-2.88 uml=1 backoff=0 aimX=-5.4040467019400715 aimZ=-3.695077073568937"
+          "detail": "z=-37.29 uml=1 backoff=0 aimX=-7.007712682088216 aimZ=-38.39203169498112"
         },
         {
           "frame": 45,
           "tag": "SAMPLE",
-          "detail": "z=-4.47 uml=1 backoff=0 aimX=-12.401225344082693 aimZ=-4.420974703792197"
+          "detail": "z=-38.76 uml=1 backoff=0 aimX=-10.416620489451557 aimZ=-47.85332715795526"
         },
         {
           "frame": 60,
           "tag": "SAMPLE",
-          "detail": "z=-5.49 uml=1 backoff=0 aimX=-12.401225344082693 aimZ=-4.420974703792197"
+          "detail": "z=-40.50 uml=1 backoff=0 aimX=-10.416620489451557 aimZ=-47.85332715795526"
         },
         {
           "frame": 75,
           "tag": "SAMPLE",
-          "detail": "z=-5.86 uml=1 backoff=0 aimX=-12.401225344082693 aimZ=-4.420974703792197"
+          "detail": "z=-42.43 uml=1 backoff=0 aimX=-10.416620489451557 aimZ=-47.85332715795526"
         },
         {
           "frame": 90,
           "tag": "SAMPLE",
-          "detail": "z=-5.72 uml=1 backoff=0 aimX=-18.84067614169915 aimZ=-29.789919436144096"
+          "detail": "z=-44.37 uml=1 backoff=0 aimX=-10.416620489451557 aimZ=-47.85332715795526"
         },
         {
           "frame": 105,
           "tag": "SAMPLE",
-          "detail": "z=-6.05 uml=1 backoff=0 aimX=-18.84067614169915 aimZ=-29.789919436144096"
+          "detail": "z=-46.50 uml=0 backoff=0 aimX=-10.416620489451557 aimZ=-47.85332715795526"
         },
         {
           "frame": 120,
           "tag": "SAMPLE",
-          "detail": "z=-7.05 uml=1 backoff=0 aimX=-18.84067614169915 aimZ=-29.789919436144096"
+          "detail": "z=-48.84 uml=0 backoff=0 aimX=-10.416620489451557 aimZ=-47.85332715795526"
         },
         {
           "frame": 135,
           "tag": "SAMPLE",
-          "detail": "z=-8.65 uml=1 backoff=0 aimX=-18.84067614169915 aimZ=-29.789919436144096"
+          "detail": "z=-51.12 uml=0 backoff=0 aimX=-10.416620489451557 aimZ=-47.85332715795526"
         },
         {
           "frame": 150,
           "tag": "SAMPLE",
-          "detail": "z=-10.69 uml=1 backoff=0 aimX=-18.84067614169915 aimZ=-29.789919436144096"
+          "detail": "z=-53.17 uml=0 backoff=0 aimX=-10.416620489451557 aimZ=-47.85332715795526"
         },
         {
           "frame": 165,
           "tag": "SAMPLE",
-          "detail": "z=-12.95 uml=1 backoff=0 aimX=-18.84067614169915 aimZ=-29.789919436144096"
+          "detail": "z=-54.79 uml=0 backoff=0 aimX=-10.416620489451557 aimZ=-47.85332715795526"
         },
         {
           "frame": 180,
           "tag": "SAMPLE",
-          "detail": "z=-15.21 uml=1 backoff=0 aimX=-18.84067614169915 aimZ=-29.789919436144096"
+          "detail": "z=-55.83 uml=0 backoff=0 aimX=-10.416620489451557 aimZ=-47.85332715795526"
         },
         {
           "frame": 195,
           "tag": "SAMPLE",
-          "detail": "z=-17.52 uml=1 backoff=0 aimX=-18.84067614169915 aimZ=-29.789919436144096"
+          "detail": "z=-56.18 uml=0 backoff=0 aimX=-10.416620489451557 aimZ=-47.85332715795526"
         },
         {
           "frame": 210,
           "tag": "SAMPLE",
-          "detail": "z=-19.86 uml=1 backoff=0 aimX=-18.84067614169915 aimZ=-29.789919436144096"
+          "detail": "z=-55.83 uml=0 backoff=0 aimX=-10.416620489451557 aimZ=-47.85332715795526"
         },
         {
           "frame": 225,
           "tag": "SAMPLE",
-          "detail": "z=-22.22 uml=1 backoff=0 aimX=-18.84067614169915 aimZ=-29.789919436144096"
+          "detail": "z=-54.82 uml=0 backoff=0 aimX=-10.416620489451557 aimZ=-47.85332715795526"
         },
         {
           "frame": 240,
           "tag": "SAMPLE",
-          "detail": "z=-24.58 uml=1 backoff=0 aimX=-18.84067614169915 aimZ=-29.789919436144096"
+          "detail": "z=-53.23 uml=0 backoff=0 aimX=-10.416620489451557 aimZ=-47.85332715795526"
         },
         {
           "frame": 255,
           "tag": "SAMPLE",
-          "detail": "z=-26.97 uml=0 backoff=0 aimX=-18.84067614169915 aimZ=-29.789919436144096"
+          "detail": "z=-51.24 uml=0 backoff=0 aimX=-10.416620489451557 aimZ=-47.85332715795526"
         },
         {
           "frame": 270,
           "tag": "SAMPLE",
-          "detail": "z=-29.24 uml=0 backoff=0 aimX=-18.84067614169915 aimZ=-29.789919436144096"
+          "detail": "z=-48.97 uml=0 backoff=0 aimX=-10.416620489451557 aimZ=-47.85332715795526"
         },
         {
           "frame": 285,
           "tag": "SAMPLE",
-          "detail": "z=-31.25 uml=0 backoff=0 aimX=-18.84067614169915 aimZ=-29.789919436144096"
+          "detail": "z=-46.67 uml=1 backoff=0 aimX=-3.9679317972871875 aimZ=-49.596265720150015"
         },
         {
           "frame": 300,
           "tag": "SAMPLE",
-          "detail": "z=-33.00 uml=0 backoff=0 aimX=-14.87197224971051 aimZ=-55.73232834227095"
+          "detail": "z=-45.36 uml=0 backoff=1 aimX=-3.9679317972871875 aimZ=-49.596265720150015"
         },
         {
           "frame": 315,
           "tag": "SAMPLE",
-          "detail": "z=-34.73 uml=1 backoff=0 aimX=-15.694905837634892 aimZ=-58.6571779495664"
+          "detail": "z=-45.48 uml=0 backoff=1 aimX=-3.9679317972871875 aimZ=-49.596265720150015"
         },
         {
           "frame": 330,
           "tag": "SAMPLE",
-          "detail": "z=-36.48 uml=1 backoff=0 aimX=-1.3822746231601055 aimZ=-29.16426882947625"
+          "detail": "z=-45.57 uml=0 backoff=1 aimX=-3.9679317972871875 aimZ=-49.596265720150015"
         },
         {
           "frame": 345,
           "tag": "SAMPLE",
-          "detail": "z=-37.92 uml=1 backoff=0 aimX=-1.3822746231601055 aimZ=-29.16426882947625"
+          "detail": "z=-45.62 uml=0 backoff=1 aimX=-3.9679317972871875 aimZ=-49.596265720150015"
         },
         {
           "frame": 360,
           "tag": "SAMPLE",
-          "detail": "z=-38.75 uml=1 backoff=0 aimX=-1.3822746231601055 aimZ=-29.16426882947625"
+          "detail": "z=-45.62 uml=0 backoff=1 aimX=-3.9679317972871875 aimZ=-49.596265720150015"
         },
         {
           "frame": 375,
           "tag": "SAMPLE",
-          "detail": "z=-38.91 uml=1 backoff=0 aimX=-1.3822746231601055 aimZ=-29.16426882947625"
+          "detail": "z=-45.62 uml=0 backoff=1 aimX=-3.9679317972871875 aimZ=-49.596265720150015"
         },
         {
           "frame": 390,
           "tag": "SAMPLE",
-          "detail": "z=-38.36 uml=1 backoff=0 aimX=-1.3822746231601055 aimZ=-29.16426882947625"
+          "detail": "z=-45.62 uml=0 backoff=1 aimX=-3.9679317972871875 aimZ=-49.596265720150015"
+        },
+        {
+          "frame": 405,
+          "tag": "SAMPLE",
+          "detail": "z=-45.62 uml=0 backoff=1 aimX=-3.9679317972871875 aimZ=-49.596265720150015"
+        },
+        {
+          "frame": 420,
+          "tag": "SAMPLE",
+          "detail": "z=-45.62 uml=0 backoff=1 aimX=-3.9679317972871875 aimZ=-49.596265720150015"
+        },
+        {
+          "frame": 435,
+          "tag": "SAMPLE",
+          "detail": "z=-45.62 uml=0 backoff=1 aimX=-3.9679317972871875 aimZ=-49.596265720150015"
+        },
+        {
+          "frame": 450,
+          "tag": "SAMPLE",
+          "detail": "z=-45.62 uml=0 backoff=1 aimX=-3.9679317972871875 aimZ=-49.596265720150015"
+        },
+        {
+          "frame": 465,
+          "tag": "SAMPLE",
+          "detail": "z=-45.62 uml=0 backoff=1 aimX=-3.9679317972871875 aimZ=-49.596265720150015"
+        },
+        {
+          "frame": 480,
+          "tag": "SAMPLE",
+          "detail": "z=-45.62 uml=0 backoff=1 aimX=-3.9679317972871875 aimZ=-49.596265720150015"
+        },
+        {
+          "frame": 495,
+          "tag": "SAMPLE",
+          "detail": "z=-45.62 uml=0 backoff=1 aimX=-3.9679317972871875 aimZ=-49.596265720150015"
+        },
+        {
+          "frame": 510,
+          "tag": "SAMPLE",
+          "detail": "z=-45.63 uml=0 backoff=1 aimX=-3.9679317972871875 aimZ=-49.596265720150015"
+        },
+        {
+          "frame": 525,
+          "tag": "SAMPLE",
+          "detail": "z=-45.63 uml=0 backoff=1 aimX=-3.9679317972871875 aimZ=-49.596265720150015"
+        },
+        {
+          "frame": 540,
+          "tag": "SAMPLE",
+          "detail": "z=-45.63 uml=0 backoff=1 aimX=-3.9679317972871875 aimZ=-49.596265720150015"
         }
       ],
       "paths": {
@@ -196,8 +246,8 @@
         "summaryPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-summary.json",
         "pathPath": "/Users/manuelgilbertriviere/Documents/Dev/renn/agent-context/recordings/car-diagnostic-path.json"
       },
-      "pass": false
+      "pass": true
     }
   ],
-  "pass": false
+  "pass": true
 }

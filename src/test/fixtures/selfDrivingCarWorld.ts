@@ -1,53 +1,10 @@
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { readSelfDrivingStageCode } from '@/globalPipeline/selfDrivingCarStagePaths'
 import type { RennWorld } from '@/types/world'
 
-const umlenkerCode = readFileSync(
-  resolve(process.cwd(), 'tools/renn-mcp/patches/umlenker-v3.js'),
-  'utf8',
-)
-
-const defaultDirectionCode = readFileSync(
-  resolve(process.cwd(), 'tools/renn-mcp/patches/direction-v3.js'),
-  'utf8',
-)
-
-/** Builder overlay: car → current `input.target` (waypoint or Umlenker aim). */
-const TARGET_LINE_VISUALIZER_CODE = `function transform(input, dt, params, state, api) {
-  if (!input.target || !input.target.pose || !input.target.pose.position) return {}
-  api.visualizeLine(input.position, input.target.pose.position, '#ffcc00')
-  return {}
-}`
-
-const AUTO_BRAKE_CODE = `function transform(input, dt, params, state, api) {
-  if (params && params.id) return {}
-  if (input.actions && input.actions._obstacle_escape) return {}
-  if (input.actions && input.actions._uml_maneuver) return {}
-  if (input.target && input.target.distance && input.target.distance < 10) return {}
-  var forward = api.getForwardVector(input.rotation)
-  var backward = api.vec.scale(forward, -1)
-  var speed = api.vec.getForwardSpeed(input.velocity, forward)
-  var frontPosition = api.vec.offsetAlong(input.position, forward, 5)
-  var backdPosition = api.vec.offsetAlong(input.position, backward, 5)
-  if (speed > 0) {
-    var castResult = api.raycastSpread(frontPosition, forward, speed * speed / 300, 2, 8, { visualize: false })
-    if (castResult.hit === true && speed > 0.1) {
-      var breakSpeed = 1 / (castResult.distance + 1) * ((speed * speed) / 200)
-      if (breakSpeed > 1) breakSpeed = 1
-      input.actions.brake = breakSpeed
-      input.actions.throttle = 0
-    }
-  } else {
-    var castResult = api.raycastSpread(backdPosition, backward, speed * speed / 300, 2, 8, { visualize: false })
-    if (castResult.hit === true && speed < -0.1) {
-      var breakSpeed = 1 / (castResult.distance + 1) * ((speed * speed) / 200)
-      if (breakSpeed > 1) breakSpeed = 1
-      input.actions.brake = 0
-      input.actions.throttle = breakSpeed
-    }
-  }
-  return {}
-}`
+const umlenkerCode = readSelfDrivingStageCode('umlenker')
+const defaultDirectionCode = readSelfDrivingStageCode('direction')
+const TARGET_LINE_VISUALIZER_CODE = readSelfDrivingStageCode('targetLine')
+const AUTO_BRAKE_CODE = readSelfDrivingStageCode('autoBrake')
 
 export type SelfDrivingCarVariant =
   | 'wallAhead'
@@ -85,7 +42,38 @@ export const SELF_DRIVE_PARKOUR_BESIDE_OBSTACLES: readonly ParkourObstacleSpec[]
   },
 ] as const
 
-export type SelfDriveParkourSegmentId = 'seg1_box' | 'seg2_beside_cone' | 'seg3_sphere' | 'full'
+export type SelfDriveParkourSegmentId =
+  | 'seg1_box'
+  | 'seg2_beside_cone'
+  | 'seg3_sphere'
+  | 'seg4_cylinder'
+  | 'full'
+
+/** Approach pose for parkour cylinder L (z=−42): mission already past box/sphere legs. */
+export const SELF_DRIVE_PARKOUR_CYLINDER_APPROACH = {
+  /** Just past sphere leg (seg3 depth); room to build speed before cylinder L. */
+  carPosition: [0, 0.55, -31] as [number, number, number],
+  carRotation: [0, 0, 0] as [number, number, number],
+  /** Target pose behind cylinder (z=−50) only — box/sphere legs omitted. */
+  missionWaypointStartIndex: 2,
+  cylinderCenterZ: -42,
+} as const
+
+/** Within uml lookahead of cylinder L — cold start stall repro (Play hug approach). */
+export const SELF_DRIVE_PARKOUR_CYLINDER_TIGHT = {
+  carPosition: [0, 0.55, -36] as [number, number, number],
+  carRotation: [0, 0, 0] as [number, number, number],
+  missionWaypointStartIndex: 1,
+  cylinderCenterZ: -42,
+} as const
+
+/** Nose-on-cylinder contact; direction `frontDist≈0` while uml lateral aim. */
+export const SELF_DRIVE_PARKOUR_CYLINDER_HUG = {
+  carPosition: [0, 0.55, -40.5] as [number, number, number],
+  carRotation: [0, 0, 0] as [number, number, number],
+  missionWaypointStartIndex: 2,
+  cylinderCenterZ: -42,
+} as const
 
 /** Frame budgets @ 60Hz — segment runs use partial pass; `full` matches integration test. */
 export const SELF_DRIVE_PARKOUR_SEGMENTS: Readonly<
@@ -97,6 +85,11 @@ export const SELF_DRIVE_PARKOUR_SEGMENTS: Readonly<
   seg1_box: { frames: 520, label: 'Past box toward wp1', waypointIndex: 0 },
   seg2_beside_cone: { frames: 920, label: 'Beside cone lateral gate', waypointIndex: 1 },
   seg3_sphere: { frames: 1050, label: 'Through sphere leg', waypointIndex: 2 },
+  seg4_cylinder: {
+    frames: 550,
+    label: 'Past cylinder L toward wp3',
+    waypointIndex: 2,
+  },
   full: {
     frames: 1400,
     label: 'Full course',
@@ -235,6 +228,8 @@ export type BuildSelfDrivingCarWorldOptions = {
   directionStageId?: string
   /** Inserts a stage that sets `_uml_maneuver` before direction (red-check only). */
   forceUmlManeuverFlag?: boolean
+  /** Parkour only: drop earlier mission poses (defined-start segment runs). */
+  missionWaypointStartIndex?: number
 }
 
 function goalBehindObstacleEntity(
@@ -359,15 +354,70 @@ export function selfDriveParkourSegmentPass(params: {
       return selfDriveParkourBesideGatePass({ startPos, endPos, maxAbsX })
     case 'seg3_sphere':
       return flank && endPos[2] < -30 && horizontalDistance(endPos, wp) <= 12 && depth >= 28
+    case 'seg4_cylinder': {
+      const pastCylinder = endPos[2] < SELF_DRIVE_PARKOUR_CYLINDER_APPROACH.cylinderCenterZ - 2.5
+      const towardBehindWp = horizontalDistance(endPos, wp) <= 14 && depth >= 5
+      return flank && pastCylinder && towardBehindWp
+    }
     default:
       return false
   }
+}
+
+export type SelfDriveParkourCylinderStartId = 'approach' | 'tight' | 'hug'
+
+export function selfDrivingParkourCylinderStart(
+  startId: SelfDriveParkourCylinderStartId,
+): Pick<
+  BuildSelfDrivingCarWorldOptions,
+  'carPosition' | 'carRotation' | 'missionWaypointStartIndex' | 'variant'
+> {
+  const spec =
+    startId === 'tight'
+      ? SELF_DRIVE_PARKOUR_CYLINDER_TIGHT
+      : startId === 'hug'
+        ? SELF_DRIVE_PARKOUR_CYLINDER_HUG
+        : SELF_DRIVE_PARKOUR_CYLINDER_APPROACH
+  return {
+    variant: 'parkour',
+    carPosition: [...spec.carPosition],
+    carRotation: [...spec.carRotation],
+    missionWaypointStartIndex: spec.missionWaypointStartIndex,
+  }
+}
+
+export function selfDrivingParkourSegmentWorldOptions(
+  segmentId: SelfDriveParkourSegmentId,
+  cylinderStart: SelfDriveParkourCylinderStartId = 'approach',
+): Pick<
+  BuildSelfDrivingCarWorldOptions,
+  'carPosition' | 'carRotation' | 'missionWaypointStartIndex' | 'variant'
+> {
+  if (segmentId === 'seg4_cylinder') {
+    return selfDrivingParkourCylinderStart(cylinderStart)
+  }
+  return { variant: 'parkour' }
 }
 
 export function buildSelfDrivingParkourWorld(
   options: Omit<BuildSelfDrivingCarWorldOptions, 'variant'> = {},
 ): RennWorld {
   return buildSelfDrivingCarWorld({ ...options, variant: 'parkour' })
+}
+
+/** Minimal cylinder problem site: ground + cylinder L + car (mission wp behind). */
+export function buildSelfDrivingCylinderWorld(
+  options: Omit<BuildSelfDrivingCarWorldOptions, 'variant'> = {},
+): RennWorld {
+  const world = buildSelfDrivingParkourWorld({
+    ...selfDrivingParkourCylinderStart('approach'),
+    ...options,
+  })
+  const keep = new Set(['ground', 'car', 'parkour_cylinder_l'])
+  return {
+    ...world,
+    entities: world.entities?.filter((entity) => keep.has(entity.id)),
+  }
 }
 
 export function buildSelfDrivingParkourBesideWorld(
@@ -419,6 +469,7 @@ export function buildSelfDrivingCarWorld(options: BuildSelfDrivingCarWorldOption
     directionCode = defaultDirectionCode,
     directionStageId = 'tf_direction',
     forceUmlManeuverFlag = false,
+    missionWaypointStartIndex = 0,
   } = options
   const matrixRow = spawnId ? SELF_DRIVE_SPAWN_MATRIX[spawnId] : undefined
   const carPosition = carPositionOverride ?? matrixRow?.carPosition ?? SELF_DRIVE_SPAWN.carPosition
@@ -430,10 +481,14 @@ export function buildSelfDrivingCarWorld(options: BuildSelfDrivingCarWorldOption
   const groundSpec = isParkourMission ? SELF_DRIVE_PARKOUR.ground : SELF_DRIVE_GROUND
   const missionStageId = 'tf_mission'
   const targetStageId = isParkourMission ? missionStageId : 'tf_wanderer'
-  const parkourPoses =
+  const parkourPosesRaw =
     variant === 'parkourBeside'
       ? SELF_DRIVE_PARKOUR_BESIDE_WAYPOINTS
       : SELF_DRIVE_PARKOUR_WAYPOINTS
+  const parkourPoses =
+    missionWaypointStartIndex > 0
+      ? parkourPosesRaw.slice(missionWaypointStartIndex)
+      : parkourPosesRaw
   const parkourObstacles =
     variant === 'parkourBeside' ? SELF_DRIVE_PARKOUR_BESIDE_OBSTACLES : SELF_DRIVE_PARKOUR_OBSTACLES
 

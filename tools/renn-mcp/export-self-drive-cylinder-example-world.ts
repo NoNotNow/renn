@@ -1,21 +1,20 @@
 #!/usr/bin/env npx tsx
 /**
- * Write headless self-driving diagnostic world to public/exampleWorlds/ (File → Example Worlds).
- * Source: selfDrivingCarWorld fixture + public/global/transformers/self-driving-car/ (see npm run sync:global-pipeline).
+ * Minimal cylinder self-driving site → public/exampleWorlds/self_drive_cylinder/
  */
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { invalidateAgentDevExampleWorldIdCache } from '../../src/agent/agentDevExampleWorlds'
-import { buildSelfDrivingCarWorld } from '../../src/test/fixtures/selfDrivingCarWorld'
+import { buildSelfDrivingCylinderWorld } from '../../src/test/fixtures/selfDrivingCarWorld'
 
-const EXAMPLE_WORLD_ID = 'self_drive_cube'
+const EXAMPLE_WORLD_ID = 'self_drive_cylinder'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const outDir = resolve(root, 'public/exampleWorlds', EXAMPLE_WORLD_ID)
 const outPath = resolve(outDir, 'world.json')
 
-const world = buildSelfDrivingCarWorld({ variant: 'cubeGoalBehind' })
+const world = buildSelfDrivingCylinderWorld()
 world.world = {
   ...world.world,
   debugTargetLineEntityId: 'car',

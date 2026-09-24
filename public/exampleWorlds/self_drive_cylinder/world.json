@@ -26,12 +26,12 @@
         "type": "box",
         "width": 100,
         "height": 1,
-        "depth": 80
+        "depth": 110
       },
       "position": [
         0,
         -0.5,
-        0
+        -18
       ],
       "rotation": [
         0,
@@ -52,7 +52,7 @@
       "position": [
         0,
         0.55,
-        3
+        -31
       ],
       "rotation": [
         0,
@@ -62,7 +62,7 @@
       "mass": 2,
       "friction": 0.8,
       "transformers": [
-        "tf_wanderer",
+        "tf_mission",
         "tf_umlenker",
         "tf_target_line",
         "tf_direction",
@@ -77,52 +77,63 @@
       ]
     },
     {
-      "id": "cube",
-      "name": "Cube",
+      "id": "parkour_cylinder_l",
+      "name": "Parkour cylinder (L)",
       "bodyType": "static",
+      "shape": {
+        "type": "cylinder",
+        "radius": 3.4,
+        "height": 3.8
+      },
       "position": [
         0,
-        1.5,
-        -10
+        1.9,
+        -42
       ],
       "rotation": [
         0,
         0,
         0
-      ],
-      "shape": {
-        "type": "box",
-        "width": 6,
-        "height": 3,
-        "depth": 6
-      }
+      ]
     }
   ],
   "transformers": {
-    "tf_wanderer": {
-      "type": "wanderer",
+    "tf_mission": {
+      "type": "targetPoseInput",
       "priority": 1,
       "enabled": true,
-      "name": "Wanderer",
+      "name": "ParkourMission",
       "params": {
         "speed": 2,
-        "jumpDistance": 0,
-        "linear": true,
-        "angular": false,
-        "perimeter": {
-          "center": [
-            0,
-            0.5,
-            -32
-          ],
-          "halfExtents": [
-            0,
-            0,
-            0
-          ]
-        },
-        "positionEpsilon": 20,
-        "rotationEpsilon": 20
+        "mode": "stopAtEnd",
+        "positionEpsilon": 4,
+        "rotationEpsilon": 20,
+        "poses": [
+          {
+            "position": [
+              0,
+              0.5,
+              -50
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ]
+          },
+          {
+            "position": [
+              0,
+              0.5,
+              -58
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ]
+          }
+        ]
       }
     },
     "tf_umlenker": {
@@ -170,7 +181,7 @@
       "id": "pipe3",
       "name": "pipe3",
       "stageIds": [
-        "tf_wanderer",
+        "tf_mission",
         "tf_umlenker",
         "tf_target_line",
         "tf_direction",
@@ -181,7 +192,7 @@
       "members": [
         {
           "kind": "stage",
-          "stageId": "tf_wanderer"
+          "stageId": "tf_mission"
         },
         {
           "kind": "stage",

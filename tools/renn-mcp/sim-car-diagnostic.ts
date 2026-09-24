@@ -12,6 +12,7 @@
  *   npx tsx tools/renn-mcp/sim-car-diagnostic.ts --variant cubeGoalBehind --frames 120
  *   npx tsx tools/renn-mcp/sim-car-diagnostic.ts --variant parkour --frames 1550
  *   npx tsx tools/renn-mcp/sim-car-diagnostic.ts --variant parkour --segment seg2_beside_cone
+ *   npx tsx tools/renn-mcp/sim-car-diagnostic.ts --variant parkour --segment seg4_cylinder
  *   npx tsx tools/renn-mcp/sim-car-diagnostic.ts --variant parkour --parkour-spawn-matrix
  *   npx tsx tools/renn-mcp/sim-car-diagnostic.ts --variant parkour --parkour-full-spawn-matrix
  *   npx tsx tools/renn-mcp/sim-car-diagnostic.ts --batch 400,600,900 --runs 3
@@ -34,6 +35,7 @@ import {
   SELF_DRIVE_PARKOUR_SEGMENTS,
   SELF_DRIVE_PARKOUR_SPAWN_IDS,
   SELF_DRIVE_PARKOUR_WAYPOINTS,
+  selfDrivingParkourSegmentWorldOptions,
   type GoalBehindObstacleShape,
   type SelfDriveParkourSegmentId,
   type SelfDriveSpawnId,
@@ -166,10 +168,19 @@ async function runOnce(params: {
   writeFileSync(jsonlPath, '')
 
   setAgentObservationWatchActive(true)
+  const segmentWorld =
+    variant === 'parkour' && parkourSegment
+      ? selfDrivingParkourSegmentWorldOptions(parkourSegment)
+      : undefined
   const world =
     variant === 'parkourBeside'
       ? buildSelfDrivingParkourBesideWorld({ spawnId, obstacleShape })
-      : buildSelfDrivingCarWorld({ variant, spawnId, obstacleShape })
+      : buildSelfDrivingCarWorld({
+          variant,
+          spawnId,
+          obstacleShape,
+          ...segmentWorld,
+        })
   const sim = await WorldSimulator.create(world, 15)
   try {
     const start = sim.getPosition('car')

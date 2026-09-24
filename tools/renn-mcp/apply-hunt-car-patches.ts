@@ -23,8 +23,8 @@ function loadWorld(): RennWorld {
 }
 
 async function main(): Promise<void> {
-  const umlenkerCode = readJs('tools/renn-mcp/patches/umlenker-v3.js')
-  const directionCode = readJs('tools/renn-mcp/patches/direction-v3.js')
+  const umlenkerCode = readJs('public/global/transformers/self-driving-car/umlenker.js')
+  const directionCode = readJs('public/global/transformers/self-driving-car/direction.js')
   const diskWorld = loadWorld()
   const autoBrakeCode = diskWorld.transformers!.car_tf1_copy!.code!
   const pipe3 = diskWorld.transformerPipes!.pipe3!

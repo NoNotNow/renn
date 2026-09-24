@@ -1,11 +1,7 @@
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { readSelfDrivingStageCode } from '@/globalPipeline/selfDrivingCarStagePaths'
 import type { RennWorld } from '@/types/world'
 
-const directionCode = readFileSync(
-  resolve(process.cwd(), 'tools/renn-mcp/patches/direction-v3.js'),
-  'utf8',
-)
+const directionCode = readSelfDrivingStageCode('direction')
 
 /** Minimal world: car drives toward wall; direction should trigger short back-off. */
 export function buildDirectionBackoffWorld(): RennWorld {

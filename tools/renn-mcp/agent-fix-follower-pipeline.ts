@@ -20,8 +20,8 @@ async function main(): Promise<void> {
   const followTargetId = process.env.RENN_FOLLOW_TARGET_ID?.trim() || DEFAULT_FOLLOW_TARGET_ID
   const followerPipeId = process.env.RENN_FOLLOWER_PIPE_ID?.trim() || DEFAULT_FOLLOWER_PIPE_ID
 
-  const umlenkerCode = readJs('tools/renn-mcp/patches/umlenker-v3.js')
-  const directionCode = readJs('tools/renn-mcp/patches/direction-v3.js')
+  const umlenkerCode = readJs('public/global/transformers/self-driving-car/umlenker.js')
+  const directionCode = readJs('public/global/transformers/self-driving-car/direction.js')
 
   const session = new LogicVerificationMcpSession()
   const devToken = resolveMcpDevToken()

@@ -9,6 +9,8 @@ import {
   selfDriveGrounded,
   selfDriveParkourBesideGatePass,
   selfDriveParkourPass,
+  selfDriveParkourSegmentPass,
+  selfDrivingParkourSegmentWorldOptions,
 } from '@/test/fixtures/selfDrivingCarWorld'
 import { setAgentObservationWatchActive } from '@/runtime/transformerWatchBridge'
 import { WorldSimulator } from '@/test/helpers/worldSimulator'
@@ -53,6 +55,81 @@ describe('self-driving car parkour (integration)', () => {
       }
       const endPos = sim.getPosition('car')
       expect(selfDriveParkourBesideGatePass({ startPos, endPos, maxAbsX })).toBe(true)
+    } finally {
+      sim.dispose()
+      setAgentObservationWatchActive(false)
+    }
+  })
+
+  it('seg4_cylinder: cold start at cylinder approach (defined start)', async () => {
+    const segmentId = 'seg4_cylinder' as const
+    setAgentObservationWatchActive(true)
+    const sim = await WorldSimulator.create(
+      buildSelfDrivingParkourWorld(selfDrivingParkourSegmentWorldOptions(segmentId)),
+      15,
+    )
+    try {
+      const startPos = sim.getPosition('car')
+      let maxAbsX = 0
+      const frames = SELF_DRIVE_PARKOUR_SEGMENTS[segmentId].frames
+      for (let frame = 0; frame < frames; frame++) {
+        sim.runFrames(1)
+        maxAbsX = Math.max(maxAbsX, Math.abs(sim.getPosition('car')[0]))
+      }
+      const endPos = sim.getPosition('car')
+      expect(selfDriveGrounded(endPos)).toBe(true)
+      expect(
+        selfDriveParkourSegmentPass({ segmentId, startPos, endPos, maxAbsX }),
+      ).toBe(true)
+    } finally {
+      sim.dispose()
+      setAgentObservationWatchActive(false)
+    }
+  })
+
+  it.fails('seg4_cylinder: tight z=−36 cold start (contact stall repro)', async () => {
+    const segmentId = 'seg4_cylinder' as const
+    setAgentObservationWatchActive(true)
+    const sim = await WorldSimulator.create(
+      buildSelfDrivingParkourWorld(selfDrivingParkourSegmentWorldOptions(segmentId, 'tight')),
+      15,
+    )
+    try {
+      const startPos = sim.getPosition('car')
+      let maxAbsX = 0
+      for (let frame = 0; frame < SELF_DRIVE_PARKOUR_SEGMENTS[segmentId].frames; frame++) {
+        sim.runFrames(1)
+        maxAbsX = Math.max(maxAbsX, Math.abs(sim.getPosition('car')[0]))
+      }
+      const endPos = sim.getPosition('car')
+      expect(
+        selfDriveParkourSegmentPass({ segmentId, startPos, endPos, maxAbsX }),
+      ).toBe(true)
+    } finally {
+      sim.dispose()
+      setAgentObservationWatchActive(false)
+    }
+  })
+
+  it('seg4_cylinder: after seg3 prefix clears cylinder toward wp behind', async () => {
+    const segmentId = 'seg4_cylinder' as const
+    setAgentObservationWatchActive(true)
+    const sim = await WorldSimulator.create(buildSelfDrivingParkourWorld({ spawnId: 'center' }), 15)
+    try {
+      for (let frame = 0; frame < SELF_DRIVE_PARKOUR_SEGMENTS.seg3_sphere.frames; frame++) {
+        sim.runFrames(1)
+      }
+      const startPos = sim.getPosition('car')
+      let maxAbsX = 0
+      for (let frame = 0; frame < SELF_DRIVE_PARKOUR_SEGMENTS[segmentId].frames; frame++) {
+        sim.runFrames(1)
+        maxAbsX = Math.max(maxAbsX, Math.abs(sim.getPosition('car')[0]))
+      }
+      const endPos = sim.getPosition('car')
+      expect(selfDriveGrounded(endPos)).toBe(true)
+      expect(
+        selfDriveParkourSegmentPass({ segmentId, startPos, endPos, maxAbsX }),
+      ).toBe(true)
     } finally {
       sim.dispose()
       setAgentObservationWatchActive(false)

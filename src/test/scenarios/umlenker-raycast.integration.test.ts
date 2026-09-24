@@ -1,6 +1,5 @@
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { readSelfDrivingStageCode } from '@/globalPipeline/selfDrivingCarStagePaths'
 import {
   getTransformerWatchEntries,
   setAgentObservationWatchActive,
@@ -8,10 +7,7 @@ import {
 import { WorldSimulator } from '@/test/helpers/worldSimulator'
 import type { RennWorld } from '@/types/world'
 
-const umlenkerCode = readFileSync(
-  resolve(process.cwd(), 'tools/renn-mcp/patches/umlenker-v3.js'),
-  'utf8',
-)
+const umlenkerCode = readSelfDrivingStageCode('umlenker')
 
 function worldWithWallAhead(): RennWorld {
   return {

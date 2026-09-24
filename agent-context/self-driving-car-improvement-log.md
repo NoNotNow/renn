@@ -28,6 +28,8 @@ rg 'RENNDIAG:' agent-context/recordings/car-diagnostic-events.log
 
 | When | Run | Result | Notes |
 |------|-----|--------|--------|
+| 2026-09-24 | L2 retry tight diagnosis | partial | **Root:** `_uml_maneuver` + goal-block ~2 m, direction **no backoff**; lateral aim → **Δz≈0**. Naïve contact backoff → **550f reverse lock**. Handoff: `handoff-cylinder-orchestrate-20260924-L2-retry.md`. Next: rate-limited backoff + forward-biased close flank. |
+| 2026-09-24 | seg4_cylinder + `self_drive_cylinder` | partial | **Infra:** `SELF_DRIVE_PARKOUR_SEGMENTS.seg4_cylinder`, `missionWaypointStartIndex`, cold @ z=−31 **pass** 550f; **`it.fails` tight z=−36** repro (`dir.frontDist=0`, `RENNDIAG:STUCK`); diagnostic `--segment seg4_cylinder`. Patches unchanged vs flank fix. |
 | 2026-09-24 | umlenker flank + hunt_repair2 Play | cylinder fix | **Root:** goal-blocked `flankFallback` picked far **same-depth** lateral points (yellow line through curved hull). Reject when `closestObstacle < 4`, `ahead < 2.5`, and `\|Δx\| > 6`. Vitest spawn matrix + parkour green; sync `sync-hunt-car-patches.mjs`. |
 | 2026-09-23 | diagnostic 180f cubeGoalBehind | STUCK z≈-2.24, pass=false | `goalBlock=1`, maneuver then 0 |
 | 2026-09-23 | L2 orchestrate spawned | pending | Scope: go-around, path trace, multi-spawn, multi-shape |

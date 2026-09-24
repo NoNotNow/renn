@@ -1,5 +1,18 @@
 # Example Worlds and Test Fixtures
 
+## Global transformers and pipes (`public/global/`)
+
+Shared **custom transformer source** and **pipe manifests** for the self-driving car stack. Headless tests, example worlds, and `hunt_repair2` all read the same files under [`public/global/`](../public/global/).
+
+| Path | Role |
+|------|------|
+| [`public/global/transformers/self-driving-car/`](../public/global/transformers/self-driving-car/) | `umlenker.js`, `direction.js`, `auto-brake.js`, `target-line-visualizer.js` |
+| [`public/global/pipes/self-driving-car-pipe3.json`](../public/global/pipes/self-driving-car-pipe3.json) | Pipe3 stage order + hunt vs fixture stage-id bindings |
+
+**Sync after patch edits:** `npm run sync:global-pipeline` — copies `tools/renn-mcp/patches/` → global transformers, updates manifest checksums, syncs `hunt_repair2`, re-exports all `self_drive_*` example worlds.
+
+On another browser/port: **File → Example Worlds** (loads exported `world.json` with embedded registry). Fetch raw stage JS from `/global/transformers/self-driving-car/` when debugging.
+
 ## Folder Structure (`public/exampleWorlds/`)
 
 Example worlds are stored in [`public/exampleWorlds/`](../public/exampleWorlds/) and can be opened via **File → Example Worlds** menu in the Builder. Each id is a folder name that contains at least `world.json`; GLB-heavy exports also need an `assets/` tree (same layout as a Builder **Export** zip).
@@ -25,6 +38,8 @@ Browser and MCP loaders fetch `world.json` and hydrate blobs from `exampleWorlds
 | `hunt_repair2` | [`public/exampleWorlds/hunt_repair2/`](../public/exampleWorlds/hunt_repair2/) | Large repair/hunt scene (660+ entities); exported via agent disk import |
 | `self_drive_cube` | [`public/exampleWorlds/self_drive_cube/`](../public/exampleWorlds/self_drive_cube/) | Headless diagnostic scene in Play: car + cube obstacle, goal behind cube; Pipe3 self-driving patches. Regenerate: `npx tsx tools/renn-mcp/export-self-drive-example-world.ts` |
 | `self_drive_parkour` | [`public/exampleWorlds/self_drive_parkour/`](../public/exampleWorlds/self_drive_parkour/) | Multi-segment parkour: `targetPoseInput` mission (4 waypoints), 3 mixed obstacles; same Pipe3 stack as cube. Regenerate: `npx tsx tools/renn-mcp/export-self-drive-parkour-example-world.ts` |
+| `self_drive_cylinder` | [`public/exampleWorlds/self_drive_cylinder/`](../public/exampleWorlds/self_drive_cylinder/) | Cylinder-only problem site (ground + `parkour_cylinder_l`, car @ z≈−31, wp @ z=−50). Regenerate: `npm run sync:global-pipeline` or `export-self-drive-cylinder-example-world.ts` |
+| `self_drive_parkour_beside` | [`public/exampleWorlds/self_drive_parkour_beside/`](../public/exampleWorlds/self_drive_parkour_beside/) | Short beside-gate parkour (cone + flank waypoint). Regenerate: `export-self-drive-parkour-beside-example-world.ts` or `npm run sync:global-pipeline` |
 
 ### Agent / MCP worlds → example menu
 

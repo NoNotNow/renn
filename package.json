@@ -23,7 +23,8 @@
     "agent:dev-attach": "tsx tools/renn-mcp/agent-dev-attach.ts",
     "agent:authoring-smoke": "tsx tools/renn-mcp/agent-authoring-smoke.ts",
     "agent:authoring-smoke-headed": "RENN_AGENT_SMOKE_HEADED=1 tsx tools/renn-mcp/agent-authoring-smoke.ts",
-    "agent:work-on-project": "tsx tools/renn-mcp/agent-work-on-project.ts"
+    "agent:work-on-project": "tsx tools/renn-mcp/agent-work-on-project.ts",
+    "sync:global-pipeline": "node tools/renn-mcp/sync-global-pipeline.mjs && node tools/renn-mcp/sync-hunt-car-patches.mjs && npx tsx tools/renn-mcp/export-all-self-drive-example-worlds.ts"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.19.3",
