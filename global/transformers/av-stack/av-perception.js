@@ -3,7 +3,7 @@
 // + obstacle memory ("local costmap") so the planners also know what is behind / beside.
 // Publishes: av.scan {angles, ranges, range}, av.points [[x,z],...] (world), av.rearClear.
 // debug draw (params.debugDraw, debugRayStride, debugMaxPoints): red = lidar hit rays, magenta ticks = costmap points.
-// params: rayCount, fovDeg, sensorRange, memoryTtl, memoryCell, vehicleWidth, vehicleLength
+// params: drivableArea [xmin, xmax, zmin, zmax] (virtual walls at the edge), edgeStep, rayCount, fovDeg, sensorRange, memoryTtl, memoryCell, vehicleWidth, vehicleLength
 function transform(input, dt, params, state, api) {
   var av = input.av
   if (!av || !av.ego) return {}
@@ -50,6 +50,21 @@ function transform(input, dt, params, state, api) {
     }
   }
   var pts = []
+  // virtual walls along the edge of the drivable area (map prior): [xmin, xmax, zmin, zmax]
+  var area = params.drivableArea
+  if (area && area.length === 4) {
+    var step = params.edgeStep || 1.2
+    var reach = range
+    var xs = Math.max(area[0], pos[0] - reach)
+    var xe = Math.min(area[1], pos[0] + reach)
+    var zs = Math.max(area[2], pos[2] - reach)
+    var ze = Math.min(area[3], pos[2] + reach)
+    var j
+    if (pos[2] - area[2] < reach) for (j = xs; j <= xe; j += step) pts.push([j, area[2]])
+    if (area[3] - pos[2] < reach) for (j = xs; j <= xe; j += step) pts.push([j, area[3]])
+    if (pos[0] - area[0] < reach) for (j = zs; j <= ze; j += step) pts.push([area[0], j])
+    if (area[1] - pos[0] < reach) for (j = zs; j <= ze; j += step) pts.push([area[1], j])
+  }
   var keys = Object.keys(mem)
   for (var k = 0; k < keys.length; k++) {
     var m = mem[keys[k]]
