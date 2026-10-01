@@ -12,6 +12,7 @@ const scripts = [
   'export-self-drive-parkour-example-world.ts',
   'export-self-drive-parkour-beside-example-world.ts',
   'export-self-drive-cylinder-example-world.ts',
+  'export-self-drive-av-example-world.ts',
 ]
 
 for (const script of scripts) {

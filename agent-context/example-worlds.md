@@ -40,6 +40,7 @@ Browser and MCP loaders fetch `world.json` and hydrate blobs from `exampleWorlds
 | `self_drive_parkour` | [`public/exampleWorlds/self_drive_parkour/`](../public/exampleWorlds/self_drive_parkour/) | Multi-segment parkour: `targetPoseInput` mission (4 waypoints), 3 mixed obstacles; same Pipe3 stack as cube. Regenerate: `npx tsx tools/renn-mcp/export-self-drive-parkour-example-world.ts` |
 | `self_drive_cylinder` | [`public/exampleWorlds/self_drive_cylinder/`](../public/exampleWorlds/self_drive_cylinder/) | Cylinder-only stall repro (ground + `parkour_cylinder_l`, car **tight @ z≈−36**, wp @ z=−50). Headless artifact: `agent-context/recordings/seg4-cylinder-tight-stall.json`. Regenerate: `npm run sync:global-pipeline` or `export-self-drive-cylinder-example-world.ts` |
 | `self_drive_parkour_beside` | [`public/exampleWorlds/self_drive_parkour_beside/`](../public/exampleWorlds/self_drive_parkour_beside/) | Short beside-gate parkour (cone + flank waypoint). Regenerate: `export-self-drive-parkour-beside-example-world.ts` or `npm run sync:global-pipeline` |
+| `self_drive_av` | [`public/exampleWorlds/self_drive_av/`](../public/exampleWorlds/self_drive_av/) | Parkour course driven by the industry-style **AV stack** (nested pipes: sense / plan / control / safety, Hybrid-A* manoeuvre planner). See [feature-av-stack.md](./feature-av-stack.md). Regenerate: `npx tsx tools/renn-mcp/export-self-drive-av-example-world.ts` |
 
 ### Agent / MCP worlds → example menu
 
