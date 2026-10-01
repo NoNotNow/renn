@@ -3,7 +3,8 @@
 // debug draw (params.debugDraw, default true): cyan = velocity vector.
 // Owns the simulated clock (state.t) so no downstream stage needs a wall clock.
 function transform(input, dt, params, state, api) {
-  var av = input.av || (input.av = {})
+  // fresh blackboard every frame (the input object is reused by the runtime)
+  var av = (input.av = {})
   if (state.t === undefined) {
     state.t = 0
     state.speedF = 0

@@ -8,7 +8,7 @@
 import type { Vec3 } from '@/types/world'
 
 /** Maximum coordinate entries rendered per frame (higher indices are ignored). */
-export const COORDINATE_OVERLAY_MAX_COUNT = 16
+export const COORDINATE_OVERLAY_MAX_COUNT = 200
 
 export type CoordinateOverlayWireFn = () => void
 

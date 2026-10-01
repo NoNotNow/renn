@@ -1,28 +1,43 @@
-// AV stack · PLAN / tight-space manoeuvre planner (Hybrid-A* over forward/reverse arc primitives).
-// Activated by the supervisor (`av.needManeuver`). Searches (x, z, heading, gear) with a swept
-// footprint check against the costmap, executes the resulting multi-point turn segment by segment
-// and re-plans from the real pose after every segment. Hands back to the local planner as soon as it
-// has a comfortable free path ahead.
-// debug draw: magenta = planned path + status mast while manoeuvring, orange = current segment end.
-// params: maneuverSpeed, primitiveLength, maxExpansions, gearSwitchPenalty, reversePenalty,
-//         planMargin, tightMargin, guardMargin, stallTime, goalReach, handbackFree, maxCurvature, vehicleWidth, vehicleLength
+// AV stack · PLAN / route + manoeuvre planner (Hybrid-A* over forward/reverse arc primitives).
+// Two jobs, one search:
+//  1. ROUTE: every `routeInterval` s plans a collision-free route to the goal over the costmap and publishes
+//     `av.carrot` (a point ~lookahead metres along the forward part of the route). The local planner chases
+//     the carrot instead of the raw goal, so a goal behind an obstacle no longer produces endless orbits.
+//  2. MANOEUVRE: if the route starts by reversing (or the car is stuck) it takes over (`av.override`): drives the
+//     multi-point turn segment by segment, re-plans on drift/blockage/stall, and hands back as soon as the route
+//     has a long forward run.
+// Runs BEFORE the local motion planner. Simulated time only.
+// debug draw: magenta = route / manoeuvre path (+ status mast while manoeuvring), orange = current segment end.
+// params: maneuverSpeed, routeInterval, routeExpansions, lookahead, primitiveLength, maxExpansions,
+//         gearSwitchPenalty, reversePenalty, planMargin, tightMargin, guardMargin, stallTime, stuckTime,
+//         goalReach, handbackFree, goalTolerance, maxCurvature, vehicleWidth, vehicleLength
 function transform(input, dt, params, state, api) {
   var av = input.av
-  if (!av || !av.plan || !av.ego || !av.goal) return {}
+  if (!av || !av.ego) return {}
   var e = av.ego
-  var plan = av.plan
+  var tgt = input.target && input.target.pose && input.target.pose.position
+  if (!tgt) return {}
+  var gxw = tgt[0]
+  var gzw = tgt[2]
   var kmax = params.maxCurvature || 0.115
   var planMargin = params.planMargin != null ? params.planMargin : 0.4
   var tightMargin = params.tightMargin != null ? params.tightMargin : 0.1
   var guardMargin = params.guardMargin != null ? params.guardMargin : 0.15
   var ell = params.primitiveLength || 1.8
-  var maxExp = params.maxExpansions || 4000
+  var maxExpFull = params.maxExpansions || 4000
+  var routeExp = params.routeExpansions || 1500
+  var routeInterval = params.routeInterval != null ? params.routeInterval : 0.8
+  var lookahead = params.lookahead != null ? params.lookahead : 14
   var gearPen = params.gearSwitchPenalty != null ? params.gearSwitchPenalty : 4
   var revPen = params.reversePenalty != null ? params.reversePenalty : 1.6
   var reach = params.goalReach != null ? params.goalReach : 3.5
   var handback = params.handbackFree != null ? params.handbackFree : 10
   var vMan = params.maneuverSpeed != null ? params.maneuverSpeed : 3
+  var stuckTime = params.stuckTime != null ? params.stuckTime : 1.5
+  var holdTol = params.goalTolerance != null ? params.goalTolerance : 3.5
   var ks = [-kmax, -kmax / 2, 0, kmax / 2, kmax]
+  var pos = input.position
+  var goalDist = Math.sqrt((gxw - pos[0]) * (gxw - pos[0]) + (gzw - pos[2]) * (gzw - pos[2]))
 
   // spatial hash over costmap points + swept-footprint test (hl/hw are the active margins)
   function makeHit(pts, hlA, hwA) {
@@ -54,7 +69,7 @@ function transform(input, dt, params, state, api) {
     }
   }
 
-  function search(sx, sz, sfx, sfz, gx, gz, pts) {
+  function search(sx, sz, sfx, sfz, gx, gz, pts, maxExp) {
     var hlS = (params.vehicleLength || 4) / 2 + planMargin
     var hwS = (params.vehicleWidth || 2) / 2 + planMargin
     var hit = makeHit(pts, hlS, hwS)
@@ -206,7 +221,9 @@ function transform(input, dt, params, state, api) {
     }
     var pathPts = []
     for (var pj = 0; pj < chain.length; pj++) pathPts.push([chain[pj].x, chain[pj].z])
-    return { segs: segs, reached: !!goalNode, expansions: expansions, hRemaining: bestH, path: pathPts }
+    var nodes = []
+    for (var nj = 0; nj < chain.length; nj++) nodes.push({ x: chain[nj].x, z: chain[nj].z, g: chain[nj].gear })
+    return { segs: segs, reached: !!goalNode, expansions: expansions, hRemaining: bestH, path: pathPts, nodes: nodes }
   }
 
   function begin(res) {
@@ -214,36 +231,94 @@ function transform(input, dt, params, state, api) {
     state.idx = 0
     state.segStart = null
     state.prevGear = 0
-    state.exp = res.expansions
     state.path = res.path
   }
   function deviates(seg) {
     if (!seg || !seg.end) return false
-    var ex = input.position[0] - seg.end.x
-    var ez = input.position[2] - seg.end.z
+    var ex = pos[0] - seg.end.x
+    var ez = pos[2] - seg.end.z
     var dot = e.fwd[0] * seg.end.fx + e.fwd[2] * seg.end.fz
     return Math.sqrt(ex * ex + ez * ez) > 0.9 || dot < 0.97
   }
-
-  if (!state.active) {
-    if (!av.needManeuver) return {}
-    var res = search(input.position[0], input.position[2], e.fwd[0], e.fwd[2], av.goal.x, av.goal.z, av.points || [])
-    if (res.segs.length === 0) return {}
-    state.active = true
-    state.replans = (state.replans || 0) + 1
-    begin(res)
+  function plan(maxE) {
+    return search(pos[0], pos[2], e.fwd[0], e.fwd[2], gxw, gzw, av.points || [], maxE)
+  }
+  // route summary: first gear, length of the leading forward run, carrot point
+  function summarize(res) {
+    var nodes = res.nodes
+    var firstGear = nodes.length > 1 ? nodes[1].g : 1
+    var run = 0
+    var carrot = null
+    if (firstGear === 1) {
+      var want = Math.min(lookahead, 6 + 1.0 * Math.max(0, e.speedF))
+      var acc = 0
+      for (var i = 1; i < nodes.length && nodes[i].g === 1; i++) {
+        var dx = nodes[i].x - nodes[i - 1].x
+        var dz = nodes[i].z - nodes[i - 1].z
+        acc += Math.sqrt(dx * dx + dz * dz)
+        carrot = [nodes[i].x, nodes[i].z]
+        if (acc >= want) break
+      }
+      run = acc
+      for (var j = i; j < nodes.length && nodes[j].g === 1; j++) {
+        var ddx = nodes[j].x - nodes[j - 1].x
+        var ddz = nodes[j].z - nodes[j - 1].z
+        run += Math.sqrt(ddx * ddx + ddz * ddz)
+      }
+    }
+    return { firstGear: firstGear, run: run, carrot: carrot, reached: res.reached, nodes: nodes, path: res.path }
   }
 
-  // --- execute ---
+  // stuck watchdog (own, independent of the local planner)
+  if (state.stuckT === undefined) state.stuckT = 0
+  if (!state.active && Math.abs(e.speed) < 0.25 && goalDist > holdTol) state.stuckT += dt
+  else state.stuckT = 0
+
+  if (!state.active) {
+    if (state.route === undefined || e.t - state.routeT >= routeInterval) {
+      state.route = summarize(plan(routeExp))
+      state.routeT = e.t
+      state.revFresh = true
+      state.routes = (state.routes || 0) + 1
+    }
+    var rt = state.route
+    // hysteresis: a reverse-first route must be confirmed by two consecutive plans before the car manoeuvres
+    state.revVotes = rt.firstGear === -1 ? (state.revFresh ? (state.revVotes || 0) + 1 : state.revVotes || 1) : 0
+    state.revFresh = false
+    var wantManeuver = (rt.firstGear === -1 && (state.revVotes >= 2 || Math.abs(e.speed) < 0.3) && Math.abs(e.speed) < 1.5) || state.stuckT > stuckTime
+    if (wantManeuver && goalDist > holdTol) {
+      var res = plan(maxExpFull)
+      if (res.segs.length > 0) {
+        state.active = true
+        state.replans = (state.replans || 0) + 1
+        state.stuckT = 0
+        begin(res)
+      }
+    }
+    if (!state.active) {
+      if (rt.carrot) av.carrot = rt.carrot
+      av.route = { firstGear: rt.firstGear, run: rt.run, reached: rt.reached }
+      if (params.debugDraw !== false) {
+        var y0 = pos[1]
+        for (var di = 2; di < rt.path.length; di += 2) {
+          api.visualizeLine([rt.path[di - 2][0], y0, rt.path[di - 2][1]], [rt.path[di][0], y0, rt.path[di][1]], '#ff44ff')
+        }
+      }
+      api.watch('av.route', 'gear ' + rt.firstGear + ' run ' + rt.run.toFixed(1) + (rt.reached ? ' goal' : ' partial'))
+      return {}
+    }
+  }
+
+  // --- execute manoeuvre ---
   var cur = state.segs[state.idx]
   if (state.segStart === null) {
     // a gear change must come to rest first so the odometer does not count coasting
-    if (cur.g === state.prevGear || Math.abs(e.speed) < 0.4) state.segStart = [input.position[0], input.position[2]]
+    if (cur.g === state.prevGear || Math.abs(e.speed) < 0.4) state.segStart = [pos[0], pos[2]]
   }
   var travelled = 0
   if (state.segStart) {
-    var dx = input.position[0] - state.segStart[0]
-    var dz = input.position[2] - state.segStart[1]
+    var dx = pos[0] - state.segStart[0]
+    var dz = pos[2] - state.segStart[1]
     travelled = Math.sqrt(dx * dx + dz * dz)
   }
   // --- execution guard: re-plan when the real pose makes the rest of the segment collide, or when stalled ---
@@ -260,8 +335,8 @@ function transform(input, dt, params, state, api) {
       var gth = cur.k * gdd
       var gx2 = Math.abs(cur.k) < 1e-6 ? gdd : Math.sin(gth) / cur.k
       var gy2 = Math.abs(cur.k) < 1e-6 ? 0 : (1 - Math.cos(gth)) / cur.k
-      var px = input.position[0] + e.fwd[0] * gx2 + lx0 * gy2
-      var pz = input.position[2] + e.fwd[2] * gx2 + lz0 * gy2
+      var px = pos[0] + e.fwd[0] * gx2 + lx0 * gy2
+      var pz = pos[2] + e.fwd[2] * gx2 + lz0 * gy2
       var pfx = e.fwd[0] * Math.cos(gth) + lx0 * Math.sin(gth)
       var pfz = e.fwd[2] * Math.cos(gth) + lz0 * Math.sin(gth)
       if (gHit(px, pz, pfx, pfz)) blockedAhead = true
@@ -269,7 +344,7 @@ function transform(input, dt, params, state, api) {
     state.stallT = Math.abs(e.speed) < 0.15 ? (state.stallT || 0) + dt : 0
     var stallTime = params.stallTime != null ? params.stallTime : 1.2
     if ((blockedAhead || state.stallT > stallTime) && e.t - (state.lastReplanT || -9) > 0.6) {
-      var fix = search(input.position[0], input.position[2], e.fwd[0], e.fwd[2], av.goal.x, av.goal.z, av.points || [])
+      var fix = plan(maxExpFull)
       state.lastReplanT = e.t
       state.stallT = 0
       state.replans++
@@ -281,45 +356,67 @@ function transform(input, dt, params, state, api) {
       }
     }
   }
-  var finished = state.segStart !== null && travelled >= cur.len - 0.25
-  var handbackOk = plan.free >= handback && state.idx > 0 && (cur.g > 0 || Math.abs(e.speed) < 0.3)
-  if (handbackOk) {
+  // hand back once the rest of the plan starts with a long forward run
+  var fwdRun = 0
+  if (state.idx > 0 || state.segs.length === 1) {
+    for (var si = state.idx; si < state.segs.length && state.segs[si].g > 0; si++) fwdRun += state.segs[si].len
+    fwdRun -= travelled
+  }
+  var aheadFree = false
+  if (fwdRun >= handback && cur.g > 0) {
+    // the car must really have room ahead on its own heading, not just a plan that will get there
+    var aHit = makeHit(av.points || [], (params.vehicleLength || 4) / 2 + planMargin, (params.vehicleWidth || 2) / 2 + planMargin)
+    aheadFree = true
+    for (var ad = 0; ad <= handback && aheadFree; ad += 1) {
+      // along the current segment's arc (what the local planner would also pick), not just straight on
+      var ath = cur.k * ad
+      var ax = Math.abs(cur.k) < 1e-6 ? ad : Math.sin(ath) / cur.k
+      var ay = Math.abs(cur.k) < 1e-6 ? 0 : (1 - Math.cos(ath)) / cur.k
+      var apx = pos[0] + e.fwd[0] * ax + e.left[0] * ay
+      var apz = pos[2] + e.fwd[2] * ax + e.left[2] * ay
+      if (aHit(apx, apz, e.fwd[0] * Math.cos(ath) + e.left[0] * Math.sin(ath), e.fwd[2] * Math.cos(ath) + e.left[2] * Math.sin(ath))) aheadFree = false
+    }
+  }
+  if (aheadFree) {
     state.active = false
+    state.route = undefined
     return {}
   }
+  var finished = state.segStart !== null && travelled >= cur.len - 0.25
   if (finished) {
     state.prevGear = cur.g
     if (state.idx + 1 >= state.segs.length || deviates(cur)) {
-      var again = search(input.position[0], input.position[2], e.fwd[0], e.fwd[2], av.goal.x, av.goal.z, av.points || [])
+      var again = plan(maxExpFull)
       state.replans++
-      if (again.segs.length === 0) {
+      if (again.segs.length === 0 || state.idx + 1 >= state.segs.length) {
         state.active = false
-        return {}
+        state.route = undefined
+        if (again.segs.length === 0) return {}
       }
-      begin(again)
-      state.prevGear = cur.g
+      if (again.segs.length > 0 && state.active) {
+        begin(again)
+        state.prevGear = cur.g
+      }
     } else {
       state.idx++
       state.segStart = null
     }
+    if (!state.active) return {}
     cur = state.segs[state.idx]
     travelled = 0
   }
   if (params.debugDraw !== false && state.path) {
-    // magenta: planned multi-point-turn path (hybrid A*), orange: end of current segment
-    var py = input.position[1]
-    for (var di = 1; di < state.path.length; di++) {
-      api.visualizeLine([state.path[di - 1][0], py, state.path[di - 1][1]], [state.path[di][0], py, state.path[di][1]], '#ff44ff')
+    var py = pos[1]
+    for (var pi = 2; pi < state.path.length; pi += 2) {
+      api.visualizeLine([state.path[pi - 2][0], py, state.path[pi - 2][1]], [state.path[pi][0], py, state.path[pi][1]], '#ff44ff')
     }
-    if (cur.end) api.visualizeLine(input.position, [cur.end.x, py, cur.end.z], '#ff8800')
-    api.visualizeLine([input.position[0], py + 1.2, input.position[2]], [input.position[0], py + 4, input.position[2]], '#ff44ff')
+    if (cur.end) api.visualizeLine(pos, [cur.end.x, py, cur.end.z], '#ff8800')
+    api.visualizeLine([pos[0], py + 1.2, pos[2]], [pos[0], py + 4, pos[2]], '#ff44ff')
   }
   var remain = state.segStart ? Math.max(0, cur.len - travelled) : cur.len
   var vMax = Math.min(vMan, 0.9 + Math.sqrt(2 * 3 * remain))
   var wrongWay = state.segStart === null || cur.g * e.speed < -0.35
-  plan.kappa = cur.k
-  plan.vDesired = wrongWay ? 0 : cur.g * vMax
-  plan.maneuver = true
+  av.override = { kappa: cur.k, vDesired: wrongWay ? 0 : cur.g * vMax }
   av.mode = 'maneuver'
   api.watch('av.maneuver', 'seg ' + state.idx + '/' + state.segs.length + ' g' + cur.g + ' k' + cur.k.toFixed(3) + ' replans ' + state.replans)
   return {}

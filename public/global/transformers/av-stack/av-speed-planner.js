@@ -1,30 +1,62 @@
 // AV stack · PLAN / speed planner.
-// v_des = min(cruise, stopping-distance limit, lateral-acceleration limit, goal approach).
-// Publishes av.plan.vDesired.
-// params: cruiseSpeed, comfortDecel, maxLatAccel, stopMargin, crawlSpeed, goalTolerance
+// v_des = min(cruise, stopping-distance limit, clearance limit, lateral-acceleration limit, goal approach).
+// Clearance limit: lots of room beside obstacles → full speed; squeezing past → slow.
+// Goal approach only slows for the FINAL waypoint (params.waypoints, if given; otherwise every goal is final).
+// Publishes av.plan.vDesired / av.plan.vLimit.
+// params: cruiseSpeed, comfortDecel, maxLatAccel, stopMargin, crawlSpeed, goalTolerance, clearSpeedBase,
+//         clearSpeedGain, waypoints
 function transform(input, dt, params, state, api) {
   var av = input.av
   if (!av || !av.plan) return {}
   var plan = av.plan
-  var cruise = params.cruiseSpeed != null ? params.cruiseSpeed : 8
+  if (plan.override) return {}
+  var cruise = params.cruiseSpeed != null ? params.cruiseSpeed : 10
   var aBrake = params.comfortDecel || 5
-  var aLat = params.maxLatAccel || 6
+  var aLat = params.maxLatAccel || 7
   var stopMargin = params.stopMargin != null ? params.stopMargin : 1.2
   var crawl = params.crawlSpeed != null ? params.crawlSpeed : 2
+  var base = params.clearSpeedBase != null ? params.clearSpeedBase : 5
+  var gain = params.clearSpeedGain != null ? params.clearSpeedGain : 3.5
+  var limit = 'cruise'
   var v = cruise
   var vFree = Math.sqrt(2 * aBrake * Math.max(0, plan.free - stopMargin))
-  if (vFree < v) v = vFree
+  if (vFree < v) {
+    v = vFree
+    limit = 'free'
+  }
+  // lateral gap to the nearest obstacle surface along the chosen path (safety margin + measured extra room)
+  var vClear = base + gain * Math.max(0, (plan.margin || 0.5) + (plan.clearance || 0) - 0.3)
+  if (vClear < v) {
+    v = vClear
+    limit = 'clearance'
+  }
   var k = Math.abs(plan.kappa)
   if (k > 1e-4) {
     var vCurve = Math.sqrt(aLat / k)
-    if (vCurve < v) v = vCurve
+    if (vCurve < v) {
+      v = vCurve
+      limit = 'curve'
+    }
   }
   if (av.goal) {
-    var tol = params.goalTolerance != null ? params.goalTolerance : 2.5
-    var vGoal = Math.sqrt(2 * aBrake * Math.max(0, av.goal.dist - tol))
-    if (vGoal < v) v = Math.max(vGoal, crawl)
+    var tol = params.goalTolerance != null ? params.goalTolerance : 3.5
+    var wps = params.waypoints
+    var isFinal = true
+    if (wps && wps.length) {
+      var last = wps[wps.length - 1]
+      isFinal = Math.abs(av.goal.x - last[0]) < 0.05 && Math.abs(av.goal.z - last[1]) < 0.05
+    }
+    if (isFinal) {
+      var vGoal = Math.sqrt(2 * aBrake * Math.max(0, av.goal.dist - tol))
+      if (vGoal < v) {
+        v = Math.max(vGoal, crawl)
+        limit = 'goal'
+      }
+    }
   }
   if (!plan.blocked && v < crawl) v = crawl
   plan.vDesired = v
+  plan.vLimit = limit
+  api.watch('av.vLimit', limit + ' ' + v.toFixed(1))
   return {}
 }

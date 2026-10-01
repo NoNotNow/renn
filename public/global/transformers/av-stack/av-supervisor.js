@@ -20,10 +20,11 @@ function transform(input, dt, params, state, api) {
   if (plan.blocked && Math.abs(e.speed) < 1.2) state.blockedT += dt
   else state.blockedT = 0
   av.needManeuver = state.blockedT > blockedTime || state.stuckT > stuckTime
-  av.mode = 'drive'
-  var tol = params.goalTolerance != null ? params.goalTolerance : 2.5
+  av.mode = av.override ? 'maneuver' : 'drive'
+  var tol = params.goalTolerance != null ? params.goalTolerance : 3.5
   if (params.holdAtGoal !== false && av.goal && av.goal.dist < tol) {
     av.mode = 'hold'
+    plan.override = false
     plan.vDesired = 0
     plan.kappa = 0
   }
