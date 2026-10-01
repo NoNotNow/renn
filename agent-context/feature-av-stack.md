@@ -42,6 +42,26 @@ rebuilt every frame; cross-frame memory lives in each stage's own `state`.
 - **Ablation:** `applyAvStack(world, { disable: ['maneuverPlanner'] })` — used for the red-check.
 - Per-stage params are documented in the header comment of each `.js` file.
 
+## Debug overlay (Builder visualize mode; no-op in Play/tests)
+
+Every stage draws with `api.visualizeLine`; switch off per stack/layer/stage with `debugDraw: false`.
+
+| Colour | What |
+|---|---|
+| mint polyline + poles, **yellow** pole | whole mission route, active waypoint (`av_waypoint_viz`) |
+| **yellow** line | car → current goal |
+| **red** rays | lidar hits (every `debugRayStride`-th ray) |
+| **magenta** ticks | costmap memory points (nearest `debugMaxPoints`) |
+| dark **blue** fan | candidate arcs (collision-free part) |
+| **green** arc / **orange** tail | chosen arc / where it would collide |
+| **magenta** polyline + mast | Hybrid-A* manoeuvre path while manoeuvring; orange = current segment end |
+| **cyan** | velocity vector |
+| **white** | commanded steering direction |
+| dark gold / **red** | AEB look-ahead / AEB triggered |
+| mast over car: green / orange / white | drive / manoeuvre requested / hold |
+
+`self_drive_av` is the showcase: parkour + 10 coloured extra obstacles + a return lane (9 waypoints, `buildAvShowcaseWorld`).
+
 ## Plant facts the controllers are built around (car2, `power: 340`)
 
 - Static-friction **deadband**: throttle < ~0.35 does not move the car; 0.4 ≈ 2.4 m/s², 0.5 ≈ 18 m/s² → longitudinal PI adds a

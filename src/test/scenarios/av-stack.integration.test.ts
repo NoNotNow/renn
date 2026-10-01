@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   AV_STACK_PIPE_ID,
   applyAvStack,
+  buildAvShowcaseWorld,
+  AV_SHOWCASE_OBSTACLES,
   type AvStackOptions,
 } from '@/test/fixtures/avStackWorld'
 import {
@@ -78,6 +80,7 @@ describe('AV stack: nested pipe structure and configuration', () => {
       'tf_mission',
       'av_ego',
       'av_perception',
+      'av_waypoint_viz',
       'av_motion_planner',
       'av_speed_planner',
       'av_supervisor',
@@ -189,4 +192,25 @@ describe('AV stack: goal behind obstacle (wanderer mission)', () => {
         }),
     ).toBe(true)
   })
+})
+
+describe('AV stack: colourful showcase run (example world self_drive_av)', () => {
+  it('has the extra coloured obstacles and a longer mission', () => {
+    const world = buildAvShowcaseWorld(buildSelfDrivingParkourWorld())
+    const ids = world.entities!.map((e) => e.id)
+    expect(new Set(ids).size).toBe(ids.length)
+    for (const o of AV_SHOWCASE_OBSTACLES) {
+      const e = world.entities!.find((x) => x.id === o.id)!
+      expect(e.material?.color).toEqual(o.color)
+    }
+    expect((world.transformers!.tf_mission!.params!.poses as unknown[]).length).toBe(9)
+    expect(world.entities!.find((e) => e.id === 'car')!.transformerPipeStack![0]!.params!.waypoints).toHaveLength(9)
+  })
+
+  it('drives the whole course out and back without hitting anything', async () => {
+    const r = await drive(buildAvShowcaseWorld(buildSelfDrivingParkourWorld()), 3600)
+    // finishes the return lane near the start pose (mission ends at [0, 6])
+    expect(Math.hypot(r.endPos[0], r.endPos[2] - 6)).toBeLessThan(8)
+    expect(r.endPos[1]).toBeGreaterThan(-0.55)
+  }, 120_000)
 })

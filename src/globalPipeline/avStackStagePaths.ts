@@ -10,6 +10,7 @@ export const AV_STACK_TRANSFORMER_DIR = resolve(moduleDir, '../../public/global/
 export const AV_STACK_STAGE_FILES = {
   ego: 'av-ego.js',
   perception: 'av-perception.js',
+  waypointViz: 'av-waypoint-viz.js',
   motionPlanner: 'av-motion-planner.js',
   speedPlanner: 'av-speed-planner.js',
   supervisor: 'av-supervisor.js',

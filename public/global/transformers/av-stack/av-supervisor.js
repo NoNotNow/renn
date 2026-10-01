@@ -1,6 +1,7 @@
 // AV stack · PLAN / behaviour supervisor.
 // Watches planner health and flags `av.needManeuver` when the local planner is blocked
 // or the vehicle is stuck; holds at the final goal. Sets av.mode ('drive' | 'hold').
+// debug draw: vertical mast above the car = status (green drive, orange needs manoeuvre, white hold).
 // Simulated time only. params: stuckTime, blockedTime, holdAtGoal, goalTolerance
 function transform(input, dt, params, state, api) {
   var av = input.av
@@ -25,6 +26,11 @@ function transform(input, dt, params, state, api) {
     av.mode = 'hold'
     plan.vDesired = 0
     plan.kappa = 0
+  }
+  if (params.debugDraw !== false) {
+    // status mast above the car: green drive, orange manoeuvre requested, white hold
+    var c = av.mode === 'hold' ? '#ffffff' : av.needManeuver ? '#ff8800' : '#00ff66'
+    api.visualizeLine([e.pos[0], e.pos[1] + 1.2, e.pos[2]], [e.pos[0], e.pos[1] + 4, e.pos[2]], c)
   }
   return {}
 }

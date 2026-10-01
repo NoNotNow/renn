@@ -1,6 +1,7 @@
 // AV stack · PLAN / local motion planner (sampling-based, dynamic-window style).
 // Rolls out constant-curvature arcs of the bicycle model, checks the swept vehicle footprint
 // against the costmap, and picks the arc with the best progress / clearance / smoothness cost.
+// debug draw: yellow = goal line, dark blue = candidate arcs, green = chosen arc, orange = where it would hit.
 // Publishes av.plan {kappa, free, freeSoft, blocked, horizon}.
 // params: vehicleWidth, vehicleLength, safetyMargin, softMargin, maxCurvature, arcCount,
 //         horizonMin, horizonGain, horizonMax, wProgress, wHeading, wFree, wSoft, wSmooth, minFree
@@ -119,6 +120,33 @@ function transform(input, dt, params, state, api) {
     }
   }
   state.prevKappa = best
+  if (params.debugDraw !== false) {
+    var py = pos[1]
+    function arcPoint(kk, ss) {
+      var tt = kk * ss
+      var ax = Math.abs(kk) < 1e-6 ? ss : Math.sin(tt) / kk
+      var ay = Math.abs(kk) < 1e-6 ? 0 : (1 - Math.cos(tt)) / kk
+      return [pos[0] + e.fwd[0] * ax + e.left[0] * ay, py, pos[2] + e.fwd[2] * ax + e.left[2] * ay]
+    }
+    function drawArc(kk, len, color) {
+      var prevP = arcPoint(kk, 0)
+      for (var ss = 1.5; ss <= len + 1e-6; ss += 1.5) {
+        var np = arcPoint(kk, ss)
+        api.visualizeLine(prevP, np, color)
+        prevP = np
+      }
+    }
+    // yellow: line to the mission goal
+    api.visualizeLine(pos, [tgt[0], py, tgt[2]], '#ffcc00')
+    // dark blue: candidate fan (every 4th arc, collision-free part)
+    for (var ca = 0; ca < count; ca += 4) {
+      var ck = -kmax + (2 * kmax * ca) / (count - 1)
+      drawArc(ck, freeLength(ck, halfW, halfL), '#3a5a9a')
+    }
+    // green: chosen arc up to the hard-free length; orange continuation up to the planning horizon
+    drawArc(best, bestHard, '#22dd66')
+    if (bestHard < H) drawArc(best, Math.min(H, bestHard + 3), '#ff8800')
+  }
   av.plan = {
     kappa: best,
     free: bestHard,

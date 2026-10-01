@@ -3,6 +3,7 @@
 // footprint check against the costmap, executes the resulting multi-point turn segment by segment
 // and re-plans from the real pose after every segment. Hands back to the local planner as soon as it
 // has a comfortable free path ahead.
+// debug draw: magenta = planned path + status mast while manoeuvring, orange = current segment end.
 // params: maneuverSpeed, primitiveLength, maxExpansions, gearSwitchPenalty, reversePenalty,
 //         planMargin, tightMargin, guardMargin, stallTime, goalReach, handbackFree, maxCurvature, vehicleWidth, vehicleLength
 function transform(input, dt, params, state, api) {
@@ -203,7 +204,9 @@ function transform(input, dt, params, state, api) {
       }
       segs[si].end = { x: nn.x, z: nn.z, fx: nn.fx, fz: nn.fz }
     }
-    return { segs: segs, reached: !!goalNode, expansions: expansions, hRemaining: bestH }
+    var pathPts = []
+    for (var pj = 0; pj < chain.length; pj++) pathPts.push([chain[pj].x, chain[pj].z])
+    return { segs: segs, reached: !!goalNode, expansions: expansions, hRemaining: bestH, path: pathPts }
   }
 
   function begin(res) {
@@ -212,6 +215,7 @@ function transform(input, dt, params, state, api) {
     state.segStart = null
     state.prevGear = 0
     state.exp = res.expansions
+    state.path = res.path
   }
   function deviates(seg) {
     if (!seg || !seg.end) return false
@@ -300,6 +304,15 @@ function transform(input, dt, params, state, api) {
     }
     cur = state.segs[state.idx]
     travelled = 0
+  }
+  if (params.debugDraw !== false && state.path) {
+    // magenta: planned multi-point-turn path (hybrid A*), orange: end of current segment
+    var py = input.position[1]
+    for (var di = 1; di < state.path.length; di++) {
+      api.visualizeLine([state.path[di - 1][0], py, state.path[di - 1][1]], [state.path[di][0], py, state.path[di][1]], '#ff44ff')
+    }
+    if (cur.end) api.visualizeLine(input.position, [cur.end.x, py, cur.end.z], '#ff8800')
+    api.visualizeLine([input.position[0], py + 1.2, input.position[2]], [input.position[0], py + 4, input.position[2]], '#ff44ff')
   }
   var remain = state.segStart ? Math.max(0, cur.len - travelled) : cur.len
   var vMax = Math.min(vMan, 0.9 + Math.sqrt(2 * 3 * remain))

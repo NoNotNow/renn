@@ -1,5 +1,6 @@
 // AV stack · SENSE / state estimation ("localization" layer).
 // Publishes the ego state on the shared blackboard `input.av.ego` for all later stages.
+// debug draw (params.debugDraw, default true): cyan = velocity vector.
 // Owns the simulated clock (state.t) so no downstream stage needs a wall clock.
 function transform(input, dt, params, state, api) {
   var av = input.av || (input.av = {})
@@ -33,5 +34,9 @@ function transform(input, dt, params, state, api) {
     kappa: Math.abs(speed) > 1.5 ? yawRate / speed : 0,
   }
   api.watch('av.speed', Math.round(speed * 10) / 10)
+  if (params.debugDraw !== false) {
+    // cyan: velocity vector
+    api.visualizeLine(input.position, api.vec.add(input.position, api.vec.scale(input.velocity, 0.6)), '#00e5ff')
+  }
   return {}
 }

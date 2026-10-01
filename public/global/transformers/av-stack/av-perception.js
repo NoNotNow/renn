@@ -2,6 +2,7 @@
 // 360° range-scan ring (lidar-like, mounted at the vehicle centre, rays start on the hull)
 // + obstacle memory ("local costmap") so the planners also know what is behind / beside.
 // Publishes: av.scan {angles, ranges, range}, av.points [[x,z],...] (world), av.rearClear.
+// debug draw (params.debugDraw, debugRayStride, debugMaxPoints): red = lidar hit rays, magenta ticks = costmap points.
 // params: rayCount, fovDeg, sensorRange, memoryTtl, memoryCell, vehicleWidth, vehicleLength
 function transform(input, dt, params, state, api) {
   var av = input.av
@@ -21,6 +22,8 @@ function transform(input, dt, params, state, api) {
   var angles = []
   var ranges = []
   var rearClear = params.rearRange || 8
+  var draw = params.debugDraw !== false
+  var rayStride = params.debugRayStride || 2
   for (var i = 0; i < n; i++) {
     var th = full ? -Math.PI + (2 * Math.PI * i) / n : n === 1 ? 0 : -fov / 2 + (fov * i) / (n - 1)
     var c = Math.cos(th)
@@ -36,6 +39,7 @@ function transform(input, dt, params, state, api) {
     var r = api.raycast(origin, dir, range, { visualize: false })
     angles.push(th)
     if (r.hit) {
+      if (draw && i % rayStride === 0) api.visualizeLine(origin, api.vec.offsetAlong(origin, dir, r.distance), '#ff4d4d')
       ranges.push(r.distance)
       var hx = origin[0] + dir[0] * r.distance
       var hz = origin[2] + dir[2] * r.distance
@@ -51,6 +55,23 @@ function transform(input, dt, params, state, api) {
     var m = mem[keys[k]]
     if (e.t - m.t > ttl) delete mem[keys[k]]
     else pts.push([m.x, m.z])
+  }
+  if (draw) {
+    // magenta ticks: remembered obstacle points (costmap), nearest 60
+    var near = pts
+      .map(function (q) {
+        var ddx = q[0] - pos[0]
+        var ddz = q[1] - pos[2]
+        return [ddx * ddx + ddz * ddz, q]
+      })
+      .sort(function (a, b) {
+        return a[0] - b[0]
+      })
+      .slice(0, params.debugMaxPoints || 60)
+    for (var pi = 0; pi < near.length; pi++) {
+      var q2 = near[pi][1]
+      api.visualizeLine([q2[0], pos[1] - 0.4, q2[1]], [q2[0], pos[1] + 0.5, q2[1]], '#ff00ff')
+    }
   }
   av.scan = { angles: angles, ranges: ranges, range: range }
   av.points = pts

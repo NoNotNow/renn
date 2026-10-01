@@ -184,7 +184,7 @@
       "priority": 0,
       "enabled": true,
       "name": "Target",
-      "code": "/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  //your code goes here\n  if (!params.id) return {}\n  let position = api.getWorldPosition(params.id);\n\n  input.target = {pose:{position:position},id:params.id}\n  return {  };\n}"
+      "code": "/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  //your code goes here\n  if (!params.id) return {}\n  if (typeof params.id !== 'string' || !params.id) return {}\n  let position = api.getWorldPosition(params.id);\n  if (!position) return {}\n\n  input.target = {pose:{position:position},id:params.id}\n  return {  };\n}"
     },
     "entity_1779823253285_brtkx1p_tf1": {
       "type": "wanderer",
@@ -224,7 +224,7 @@
       "priority": 0,
       "enabled": true,
       "name": "Target",
-      "code": "/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  //your code goes here\n  let position = api.getWorldPosition(params.id);\n\n  input.target = {pose:{position:position},id:params.id}\n  return {  };\n}",
+      "code": "/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  //your code goes here\n  if (typeof params.id !== 'string' || !params.id) return {}\n  let position = api.getWorldPosition(params.id);\n  if (!position) return {}\n\n  input.target = {pose:{position:position},id:params.id}\n  return {  };\n}",
       "params": {
         "id": "entity_1779823253285_brtkx1p"
       }
@@ -416,7 +416,7 @@
         "id": "entity_1780539051770_wy2smf6"
       },
       "name": "Target",
-      "code": "/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  //your code goes here\n  let position = api.getWorldPosition(params.id);\n  input.target = {pose:{position:position}}\n  return {  };\n}"
+      "code": "/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  //your code goes here\n  if (typeof params.id !== 'string' || !params.id) return {}\n  let position = api.getWorldPosition(params.id);\n  if (!position) return {}\n  input.target = {pose:{position:position}}\n  return {  };\n}"
     },
     "entity_1780567559558_cfd0jsx_tf1": {
       "type": "custom",
@@ -495,7 +495,7 @@
         "id": "entity_1780539051770_wy2smf6"
       },
       "name": "Target",
-      "code": "/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  //your code goes here\n  let position = api.getWorldPosition(params.id);\n  input.target = {pose:{position:position}}\n  return {  };\n}"
+      "code": "/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  //your code goes here\n  if (typeof params.id !== 'string' || !params.id) return {}\n  let position = api.getWorldPosition(params.id);\n  if (!position) return {}\n  input.target = {pose:{position:position}}\n  return {  };\n}"
     },
     "entity_1780567560067_k46oklv_tf1": {
       "type": "custom",
@@ -574,7 +574,7 @@
         "id": "entity_1780539051770_wy2smf6"
       },
       "name": "Target",
-      "code": "/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  //your code goes here\n  let position = api.getWorldPosition(params.id);\n  input.target = {pose:{position:position}}\n  return {  };\n}"
+      "code": "/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  //your code goes here\n  if (typeof params.id !== 'string' || !params.id) return {}\n  let position = api.getWorldPosition(params.id);\n  if (!position) return {}\n  input.target = {pose:{position:position}}\n  return {  };\n}"
     },
     "entity_1780567561358_50ayrlj_tf1": {
       "type": "custom",
@@ -653,7 +653,7 @@
         "id": "entity_1780539051770_wy2smf6"
       },
       "name": "Target",
-      "code": "/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  //your code goes here\n  let position = api.getWorldPosition(params.id);\n  input.target = {pose:{position:position}}\n  return {  };\n}"
+      "code": "/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  //your code goes here\n  if (typeof params.id !== 'string' || !params.id) return {}\n  let position = api.getWorldPosition(params.id);\n  if (!position) return {}\n  input.target = {pose:{position:position}}\n  return {  };\n}"
     },
     "entity_1780567562742_apt4kyf_tf1": {
       "type": "custom",
@@ -732,7 +732,7 @@
         "id": "entity_1780539051770_wy2smf6"
       },
       "name": "Target",
-      "code": "/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  //your code goes here\n  let position = api.getWorldPosition(params.id);\n  input.target = {pose:{position:position}}\n  return {  };\n}"
+      "code": "/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  //your code goes here\n  if (typeof params.id !== 'string' || !params.id) return {}\n  let position = api.getWorldPosition(params.id);\n  if (!position) return {}\n  input.target = {pose:{position:position}}\n  return {  };\n}"
     },
     "entity_1780567564183_a0eo83c_tf1": {
       "type": "custom",
@@ -811,7 +811,7 @@
         "id": "entity_1780539051770_wy2smf6"
       },
       "name": "Target",
-      "code": "/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  //your code goes here\n  let position = api.getWorldPosition(params.id);\n  input.target = {pose:{position:position}}\n  return {  };\n}"
+      "code": "/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  //your code goes here\n  if (typeof params.id !== 'string' || !params.id) return {}\n  let position = api.getWorldPosition(params.id);\n  if (!position) return {}\n  input.target = {pose:{position:position}}\n  return {  };\n}"
     },
     "entity_1780567568042_xx9dnwt_tf1": {
       "type": "custom",
@@ -890,7 +890,7 @@
         "id": "entity_1780539051770_wy2smf6"
       },
       "name": "Target",
-      "code": "/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  //your code goes here\n  let position = api.getWorldPosition(params.id);\n  input.target = {pose:{position:position}}\n  return {  };\n}"
+      "code": "/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  //your code goes here\n  if (typeof params.id !== 'string' || !params.id) return {}\n  let position = api.getWorldPosition(params.id);\n  if (!position) return {}\n  input.target = {pose:{position:position}}\n  return {  };\n}"
     },
     "entity_1780567569150_nd03a8k_tf1": {
       "type": "custom",
@@ -969,7 +969,7 @@
         "id": "entity_1780539051770_wy2smf6"
       },
       "name": "Target",
-      "code": "/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  //your code goes here\n  let position = api.getWorldPosition(params.id);\n  input.target = {pose:{position:position}}\n  return {  };\n}"
+      "code": "/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  //your code goes here\n  if (typeof params.id !== 'string' || !params.id) return {}\n  let position = api.getWorldPosition(params.id);\n  if (!position) return {}\n  input.target = {pose:{position:position}}\n  return {  };\n}"
     },
     "entity_1780567570426_s8dx9ee_tf1": {
       "type": "custom",
@@ -1048,7 +1048,7 @@
         "id": "entity_1780539051770_wy2smf6"
       },
       "name": "Target",
-      "code": "/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  //your code goes here\n  let position = api.getWorldPosition(params.id);\n  input.target = {pose:{position:position}}\n  return {  };\n}"
+      "code": "/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  //your code goes here\n  if (typeof params.id !== 'string' || !params.id) return {}\n  let position = api.getWorldPosition(params.id);\n  if (!position) return {}\n  input.target = {pose:{position:position}}\n  return {  };\n}"
     },
     "entity_1780567571568_8vg6kmg_tf1": {
       "type": "custom",

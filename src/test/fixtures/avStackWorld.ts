@@ -32,6 +32,7 @@ export const AV_STACK_PARAM_DEFS: PipeParamDef[] = [
 const STAGE_META: Record<AvStackLogicalStage, { id: string; name: string; priority: number }> = {
   ego: { id: 'av_ego', name: 'AV Ego state', priority: 2 },
   perception: { id: 'av_perception', name: 'AV Perception', priority: 3 },
+  waypointViz: { id: 'av_waypoint_viz', name: 'AV Waypoint overlay', priority: 3.1 },
   motionPlanner: { id: 'av_motion_planner', name: 'AV Motion planner', priority: 4 },
   speedPlanner: { id: 'av_speed_planner', name: 'AV Speed planner', priority: 4.5 },
   supervisor: { id: 'av_supervisor', name: 'AV Supervisor', priority: 4.6 },
@@ -62,6 +63,8 @@ export function applyAvStack(world: RennWorld, options: AvStackOptions = {}): Re
     if (id === 'tf_mission' || id === 'tf_wanderer') transformers[id] = cfg
   }
   const missionId = transformers.tf_mission ? 'tf_mission' : 'tf_wanderer'
+  const missionPoses = transformers.tf_mission?.params?.poses as Array<{ position: [number, number, number] }> | undefined
+  const missionWaypoints = missionPoses?.map((p) => [p.position[0], p.position[2]])
   for (const logical of Object.keys(STAGE_META) as AvStackLogicalStage[]) {
     const meta = STAGE_META[logical]
     transformers[meta.id] = {
@@ -92,7 +95,7 @@ export function applyAvStack(world: RennWorld, options: AvStackOptions = {}): Re
   const sub = (pipeId: string) => ({ kind: 'pipe' as const, pipeId })
 
   const pipes: Record<string, TransformerPipe> = {
-    av_sense: pipe('av_sense', [st('av_ego'), st('av_perception')]),
+    av_sense: pipe('av_sense', [st('av_ego'), st('av_perception'), st('av_waypoint_viz')]),
     av_plan_local: pipe('av_plan_local', [st('av_motion_planner'), st('av_speed_planner')]),
     av_plan_tight: pipe('av_plan_tight', [st('av_maneuver_planner')]),
     av_plan: pipe('av_plan', [sub('av_plan_local'), st('av_supervisor'), sub('av_plan_tight')]),
@@ -119,11 +122,11 @@ export function applyAvStack(world: RennWorld, options: AvStackOptions = {}): Re
   const binding: TransformerPipeBinding = {
     pipeId: AV_STACK_PIPE_ID,
     enabled: true,
-    params: options.params ?? {},
+    params: { ...(missionWaypoints ? { waypoints: missionWaypoints } : {}), ...(options.params ?? {}) },
     ...(Object.keys(scopeParams).length ? { scopeParams } : {}),
   }
 
-  const flat = [missionId, 'av_ego', 'av_perception', 'av_motion_planner', 'av_speed_planner', 'av_supervisor', 'av_maneuver_planner', 'av_control_lateral', 'av_control_longitudinal', 'av_aeb', 'tf_car'].filter(
+  const flat = [missionId, 'av_ego', 'av_perception', 'av_waypoint_viz', 'av_motion_planner', 'av_speed_planner', 'av_supervisor', 'av_maneuver_planner', 'av_control_lateral', 'av_control_longitudinal', 'av_aeb', 'tf_car'].filter(
     (id) => transformers[id]?.enabled !== false,
   )
   return {
@@ -134,4 +137,72 @@ export function applyAvStack(world: RennWorld, options: AvStackOptions = {}): Re
     transformers,
     transformerPipes: pipes,
   }
+}
+
+type ShowcaseObstacle = {
+  id: string
+  shape: NonNullable<RennWorld['entities']>[number]['shape']
+  position: [number, number, number]
+  color: [number, number, number]
+}
+
+/** Extra obstacles for the colourful showcase run: a return lane at x≈20 plus fillers beside the main lane. */
+export const AV_SHOWCASE_OBSTACLES: readonly ShowcaseObstacle[] = [
+  { id: 'show_box_red', shape: { type: 'box', width: 4, height: 3, depth: 4 }, position: [20, 1.5, -50], color: [0.9, 0.2, 0.2] },
+  { id: 'show_sphere_orange', shape: { type: 'sphere', radius: 2 }, position: [23, 1, -38], color: [1, 0.55, 0.1] },
+  { id: 'show_cylinder_yellow', shape: { type: 'cylinder', radius: 2.4, height: 3 }, position: [17, 1.5, -26], color: [0.95, 0.85, 0.15] },
+  { id: 'show_cone_green', shape: { type: 'cone', radius: 2, height: 3 }, position: [21, 1.5, -14], color: [0.2, 0.75, 0.3] },
+  { id: 'show_pyramid_cyan', shape: { type: 'pyramid', baseSize: 4, height: 3 }, position: [18, 1.5, -2], color: [0.15, 0.8, 0.85] },
+  { id: 'show_capsule_blue', shape: { type: 'capsule', radius: 1.2, height: 2.4 }, position: [8, 1.2, -52], color: [0.2, 0.35, 0.95] },
+  { id: 'show_box_purple', shape: { type: 'box', width: 3, height: 2.5, depth: 5 }, position: [-9, 1.25, -20], color: [0.6, 0.25, 0.85] },
+  { id: 'show_sphere_pink', shape: { type: 'sphere', radius: 1.6 }, position: [-8, 0.8, -36], color: [1, 0.4, 0.7] },
+  { id: 'show_cone_lime', shape: { type: 'cone', radius: 1.8, height: 2.6 }, position: [10, 1.3, -22], color: [0.6, 0.9, 0.2] },
+  { id: 'show_cylinder_teal', shape: { type: 'cylinder', radius: 1.6, height: 2.6 }, position: [-12, 1.3, -50], color: [0.1, 0.6, 0.55] },
+]
+
+/** Return lane after the parkour finish (x≈20 heading +Z), ending back near the start. */
+export const AV_SHOWCASE_EXTRA_WAYPOINTS: ReadonlyArray<[number, number, number]> = [
+  [20, 0, -62],
+  [20, 0, -42],
+  [20, 0, -20],
+  [20, 0, 0],
+  [0, 0, 6],
+]
+
+const PARKOUR_COLORS: Record<string, [number, number, number]> = {
+  parkour_box_m: [0.85, 0.3, 0.25],
+  parkour_sphere_s: [0.95, 0.75, 0.15],
+  parkour_cylinder_l: [0.25, 0.55, 0.9],
+}
+
+/** Parkour + extra coloured obstacles + longer mission, driven by the AV stack. Not a test fixture. */
+export function buildAvShowcaseWorld(base: RennWorld, options: AvStackOptions = {}): RennWorld {
+  const poses = (base.transformers?.tf_mission?.params?.poses ?? []) as Array<{ position: number[]; rotation: number[] }>
+  const withExtra = [
+    ...poses,
+    ...AV_SHOWCASE_EXTRA_WAYPOINTS.map((p) => ({ position: [...p], rotation: [0, 0, 0] })),
+  ]
+  const entities = [
+    ...(base.entities ?? []).map((e) =>
+      PARKOUR_COLORS[e.id] ? { ...e, material: { color: PARKOUR_COLORS[e.id] } } : e,
+    ),
+    ...AV_SHOWCASE_OBSTACLES.map((o) => ({
+      id: o.id,
+      name: o.id.replace('show_', '').replace(/_/g, ' '),
+      bodyType: 'static' as const,
+      shape: o.shape,
+      position: [...o.position] as [number, number, number],
+      rotation: [0, 0, 0] as [number, number, number],
+      material: { color: o.color },
+    })),
+  ]
+  const mission = base.transformers!.tf_mission!
+  return applyAvStack(
+    {
+      ...base,
+      entities,
+      transformers: { ...base.transformers, tf_mission: { ...mission, params: { ...mission.params, poses: withExtra } } },
+    },
+    options,
+  )
 }
