@@ -71,3 +71,10 @@ rg 'RENNDIAG:' agent-context/recordings/car-diagnostic-events.log
 2. **Path:** Diagnostic records full polyline (jsonl or dedicated path file) inspectable without browser.
 3. **Robustness:** Matrix of spawn offsets/yaws within documented margins — majority pass.
 4. **Shapes:** At least box, sphere, pyramid (and one other primitive) as static obstacles with same goal-behind layout.
+
+## 2026-10-01 — Headless clock finding (cylinder tight)
+
+- **Wall-clock coupling:** `umlenker`/`direction` hold maneuver lock, backoff and hug pulses with `Date.now()`. `WorldSimulator` does not advance it, so a 550-frame headless run (<1 s wall) can sit inside a single 920 ms hold. Results depend on machine speed (likely cause of the beside-gate flake and of tight differing between machines).
+- **Experiment:** virtual clock in `WorldSimulator` (`Date.now()` += dt per frame). Tight z=−36 then clears the cylinder (endZ≈−44.9, `it.fails` flips) but 6 parkour spawn-matrix cases fail (`seg1_box` ×5, beside `left1`); they pass on wall clock.
+- **Why they break:** in both modes the car **orbits** the waypoint (~8 m radius, 9 m/s) and never settles; `selfDriveParkourSegmentPass` samples the endpoint at a fixed frame, so passing is orbit-phase luck (e.g. seg1 center wall-clock ends z=−11.3, clock ends z=−0.1; seg1 left1 wall-clock runs away to x≈20). The clock only shifts the phase.
+- **Decision:** do not adopt the clock yet. Next: (1) fix waypoint-arrival behavior (brake/settle instead of orbiting); (2) make segment passes robust (e.g. min waypoint distance / depth reached during the run, not final position); (3) then add the clock and promote the tight `it.fails`.
