@@ -164,7 +164,7 @@
         "id": "entity_1779823253285_brtkx1p"
       },
       "name": "Target",
-      "code": "/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  let position = api.getWorldPosition(params.id);\n  input.target = { pose: { position } };\n  return {};\n}"
+      "code": "/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  if (typeof params.id !== 'string' || !params.id) return {}\n  let position = api.getWorldPosition(params.id);\n  if (!position) return {}\n  input.target = { pose: { position } };\n  return {};\n}"
     },
     "entity_1779823253285_brtkx1p_tf1": {
       "type": "targetPoseInput",
@@ -9418,7 +9418,7 @@
             "id": "entity_1779823253285_brtkx1p"
           },
           "name": "Target",
-          "code": "/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  let position = api.getWorldPosition(params.id);\n  input.target = { pose: { position } };\n  return {};\n}"
+          "code": "/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  if (typeof params.id !== 'string' || !params.id) return {}\n  let position = api.getWorldPosition(params.id);\n  if (!position) return {}\n  input.target = { pose: { position } };\n  return {};\n}"
         },
         {
           "type": "custom",

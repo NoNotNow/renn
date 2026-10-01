@@ -1,0 +1,75 @@
+{
+  "version": 1,
+  "coordinateSystem": {
+    "vec3Order": [
+      "x",
+      "y",
+      "z"
+    ],
+    "upAxis": "y",
+    "note": "All positions in world JSON and wanderer perimeter use [x, y, z]. Horizontal driving uses XZ; wanderer halfExtents[1]=0 locks Y to perimeter.center[1] (floor plane, typically y=0). Entity position.y may be ~0.55 above the floor."
+  },
+  "description": "Shared Pipe3 self-driving car stack (wanderer or targetPoseInput mission → Umlenker → direction → auto-brake → car2).",
+  "logicalStages": {
+    "umlenker": "../transformers/self-driving-car/umlenker.js",
+    "direction": "../transformers/self-driving-car/direction.js",
+    "autoBrake": "../transformers/self-driving-car/auto-brake.js",
+    "targetLine": "../transformers/self-driving-car/target-line-visualizer.js"
+  },
+  "consumers": {
+    "selfDriveFixture": {
+      "pipeId": "pipe3",
+      "codeStageIds": {
+        "umlenker": "tf_umlenker",
+        "direction": "tf_direction",
+        "autoBrake": "tf_autobrake",
+        "targetLine": "tf_target_line"
+      },
+      "stageOrders": {
+        "wanderer": [
+          "tf_wanderer",
+          "tf_umlenker",
+          "tf_target_line",
+          "tf_direction",
+          "tf_autobrake",
+          "tf_car"
+        ],
+        "mission": [
+          "tf_mission",
+          "tf_umlenker",
+          "tf_target_line",
+          "tf_direction",
+          "tf_autobrake",
+          "tf_car"
+        ]
+      }
+    },
+    "hunt_repair2": {
+      "pipeId": "pipe3",
+      "entityId": "entity_1779823253285_brtkx1p",
+      "codeStageIds": {
+        "umlenker": "car_tf5",
+        "direction": "car_tf4",
+        "autoBrake": "car_tf1_copy"
+      },
+      "stageIds": [
+        "entity_1779823253285_brtkx1p_tf1",
+        "car_tf2",
+        "car_tf0",
+        "car_tf5",
+        "car_tf4",
+        "Umlenker2",
+        "car_tf1_copy",
+        "entity_1779823253285_brtkx1p_tf2",
+        "car_tf1"
+      ]
+    }
+  },
+  "syncedAt": "2026-09-26T08:59:31.098Z",
+  "checksums": {
+    "umlenker": "03831023957a",
+    "direction": "a2f160438831",
+    "autoBrake": "1a2b9139fa61",
+    "targetLine": "dac6b3e5196c"
+  }
+}
