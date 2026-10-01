@@ -149,7 +149,7 @@ export function usePipeNavController(
   useEffect(() => {
     if (!entity.id) return
     commitRef.current({ kind: 'ensurePipeStack' })
-  }, [entity.id, world])
+  }, [entity.id])
 
   const promptName = useCallback(
     (title: string, defaultName: string, onConfirm: (name: string) => void) => {

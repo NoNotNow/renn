@@ -12,6 +12,22 @@ function v3z(v) {
   return Array.isArray(v) ? v[2] : v.z
 }
 
+function isParkourCylinderL(entityId) {
+  if (!entityId) return false
+  return String(entityId).indexOf('parkour_cylinder_l') >= 0
+}
+
+/** Parkour cylinder wedge at z≈−36: close contact, not approach at z≈−31. */
+function tightCylinderUmlSite(input, blockHit, speed) {
+  if (!blockHit.hit) return false
+  var carZ = v3z(input.position)
+  if (carZ >= -34.8 || carZ <= -38.2) return false
+  if (blockHit.distance >= 2.8) return false
+  if (!isParkourCylinderL(blockHit.entityId)) return false
+  if (speed > 1.35) return false
+  return true
+}
+
 var maneuver = {
   isOn: function () { return this.expires > Date.now(); },
   trigger: function (vector, timeMs) {
@@ -89,6 +105,7 @@ function transform(input, dt, params, state, api) {
   var forward = api.getForwardVector(input.rotation)
   forward = api.vec.normalize(api.vec.projectOntoPlane(forward, up))
   var flatToTrue = api.vec.normalize(api.vec.projectOntoPlane(toTrue, up))
+  var speedNow = api.vec.length(input.velocity)
   var frontOffset = distTrue < 28 ? 2.2 : 4.5
   var frontPosition = api.vec.offsetAlong(input.position, forward, frontOffset)
   var goalRayDist = Math.min(distTrue, 24)
@@ -120,7 +137,12 @@ function transform(input, dt, params, state, api) {
     if (bumperHit.hit) closeObDist = bumperHit.distance
     if (goalHitEarly.hit && goalHitEarly.distance < closeObDist) closeObDist = goalHitEarly.distance
     if (frontClear.hit && frontClear.distance < closeObDist) closeObDist = frontClear.distance
-    if (!frontClear.hit && api.vec.angleBetween(forward, flatToTrue) < 0.45) {
+    if (
+      tightCylinderUmlSite(input, bumperHit, speedNow) &&
+      Math.abs(v3x(maneuver.vector) - v3x(input.position)) > 4
+    ) {
+      maneuver.reset()
+    } else if (!frontClear.hit && api.vec.angleBetween(forward, flatToTrue) < 0.45) {
       maneuver.reset()
     } else if (
       pathClear(api, input, input.position, maneuver.vector, up) &&
@@ -201,21 +223,40 @@ function transform(input, dt, params, state, api) {
   var scanOrigin = scanFromGoalRay ? input.position : frontPosition
   var scanForward = scanFromGoalRay ? flatToTrue : forward
   var scanDist = scanFromGoalRay ? Math.min(goalHit.distance + 2, 18) : lookahead
-  var picked = goalBlocked
-    ? flankFallback(
-        api,
-        input,
-        input.position,
-        scanForward,
-        up,
-        truePos,
-        distTrue,
-        blockHit.distance,
-        pathGoal,
-        goalBlocked,
-      )
-    : undefined
-  if (!picked) {
+  var blockForTight = blockHit
+  if (bumperClose.hit && isParkourCylinderL(bumperClose.entityId)) {
+    if (!blockForTight.hit || bumperClose.distance < blockForTight.distance) {
+      blockForTight = bumperClose
+    }
+  }
+  var tightUmlSite = tightCylinderUmlSite(input, blockForTight, speedNow)
+  var picked = undefined
+  if (tightUmlSite) {
+    picked = tightCylinderFlankFallback(
+      api,
+      input,
+      input.position,
+      scanForward,
+      up,
+      truePos,
+      distTrue,
+      pathGoal,
+    )
+  } else if (goalBlocked) {
+    picked = flankFallback(
+      api,
+      input,
+      input.position,
+      scanForward,
+      up,
+      truePos,
+      distTrue,
+      blockHit.distance,
+      pathGoal,
+      goalBlocked,
+    )
+  }
+  if (!picked && !tightUmlSite) {
     picked = findCorrectionVector(
       api,
       input,
@@ -232,7 +273,10 @@ function transform(input, dt, params, state, api) {
       goalBlocked,
     )
   }
-  if (!picked) {
+  if (!picked && tightUmlSite) {
+    picked = tightCylinderForcedFlank(api, input, input.position, scanForward, up, distTrue)
+  }
+  if (!picked && goalBlocked && !tightUmlSite) {
     picked = flankFallback(
       api,
       input,
@@ -257,6 +301,7 @@ function transform(input, dt, params, state, api) {
       input.actions._uml_blocked = 1
       if (blockHit.distance < 2.05) bp.nextAt = now + 880
     }
+    if (tightUmlSite) return
     return {}
   }
 
@@ -271,12 +316,46 @@ function transform(input, dt, params, state, api) {
 }
 
 function pathClear(api, input, from, to, up) {
+  return pathClearSlack(api, input, from, to, up, 1.2)
+}
+
+function pathClearSlack(api, input, from, to, up, slack) {
   var delta = api.vec.subtract(to, from)
   var len = api.vec.length(delta)
   if (len < 0.5) return true
   var dir = api.vec.normalize(api.vec.projectOntoPlane(delta, up))
   var hit = raycastObstacle(api, input, from, dir, len, { visualize: false })
-  return !hit.hit || hit.distance > len - 1.2
+  return !hit.hit || hit.distance > len - slack
+}
+
+function tightCylinderFlankFallback(api, input, carPos, forward, up, truePos, distTrue, pathGoal) {
+  var lateral = api.vec.normalize(api.vec.cross(up, forward))
+  var offsets = [3.2, -3.2, 4, -4, 5, -5]
+  var i
+  for (i = 0; i < offsets.length; i++) {
+    var candidate = api.vec.add(carPos, api.vec.scale(lateral, offsets[i]))
+    if (!pathClearSlack(api, input, carPos, candidate, up, 0.55)) continue
+    if (!pathClearSlack(api, input, candidate, pathGoal, up, 0.85)) continue
+    var toTrue = api.vec.length(api.vec.subtract(truePos, candidate))
+    if (toTrue > distTrue + 14) continue
+    return { candidate: candidate, deviation: 0.65, candidateDist: toTrue }
+  }
+  return undefined
+}
+
+function tightCylinderForcedFlank(api, input, carPos, forward, up, distTrue) {
+  var lateral = api.vec.normalize(api.vec.cross(up, forward))
+  var carX = v3x(carPos)
+  var prefer = carX >= 0 ? 1 : -1
+  var offsets = [3.4 * prefer, -3.4 * prefer, 4.2 * prefer, -4.2 * prefer]
+  var i
+  for (i = 0; i < offsets.length; i++) {
+    var candidate = api.vec.add(carPos, api.vec.scale(lateral, offsets[i]))
+    if (!pathClearSlack(api, input, carPos, candidate, up, 0.42)) continue
+    if (Math.abs(v3x(candidate) - carX) < 2.2) continue
+    return { candidate: candidate, deviation: 0.72, candidateDist: distTrue }
+  }
+  return undefined
 }
 
 function flankFallback(api, input, carPos, forward, up, truePos, distTrue, closestObstacle, pathGoal, goalBlocked) {

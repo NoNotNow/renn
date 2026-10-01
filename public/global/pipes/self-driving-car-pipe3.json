@@ -1,5 +1,14 @@
 {
   "version": 1,
+  "coordinateSystem": {
+    "vec3Order": [
+      "x",
+      "y",
+      "z"
+    ],
+    "upAxis": "y",
+    "note": "All positions in world JSON and wanderer perimeter use [x, y, z]. Horizontal driving uses XZ; wanderer halfExtents[1]=0 locks Y to perimeter.center[1] (floor plane, typically y=0). Entity position.y may be ~0.55 above the floor."
+  },
   "description": "Shared Pipe3 self-driving car stack (wanderer or targetPoseInput mission → Umlenker → direction → auto-brake → car2).",
   "logicalStages": {
     "umlenker": "../transformers/self-driving-car/umlenker.js",
@@ -56,10 +65,10 @@
       ]
     }
   },
-  "syncedAt": "2026-09-24T15:00:56.894Z",
+  "syncedAt": "2026-09-26T08:59:31.098Z",
   "checksums": {
-    "umlenker": "f275f88d1688",
-    "direction": "37098295cdb3",
+    "umlenker": "03831023957a",
+    "direction": "a2f160438831",
     "autoBrake": "1a2b9139fa61",
     "targetLine": "dac6b3e5196c"
   }

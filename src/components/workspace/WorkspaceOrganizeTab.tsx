@@ -10,6 +10,7 @@ import { useEditorUndo } from '@/contexts/useEditorUndo'
 import { getScriptDef } from '@/scripts/scriptDef'
 import { uiLogger } from '@/utils/uiLogger'
 import { theme } from '@/config/theme'
+import { copyGlobalPipeIntoWorld } from '@/globalPipeline/copyGlobalPipeIntoWorld'
 import { assignPipeToEntity, deletePipeFromWorld } from '@/utils/commitTransformerConfigsToWorld'
 import { behaviorRegistryBindings } from '@/utils/behaviorRegistryBindings'
 import {
@@ -421,10 +422,7 @@ export default function WorkspaceOrganizeTab({
     if (!newId) return
 
     pushUndo()
-    onWorldChange({
-      ...world,
-      transformerPipes: { ...(world.transformerPipes ?? {}), [newId]: { ...deepClone(def), id: newId } },
-    })
+    onWorldChange(copyGlobalPipeIntoWorld(world, globalLibrary, id, newId))
   }
 
   const handleAssignPipeFromGlobal = (id: string) => {
@@ -442,10 +440,7 @@ export default function WorkspaceOrganizeTab({
       return
     }
     pushUndo()
-    onWorldChange({
-      ...world,
-      transformerPipes: { ...(world.transformerPipes ?? {}), [id]: deepClone(def) },
-    })
+    onWorldChange(copyGlobalPipeIntoWorld(world, globalLibrary, id, id))
     setAssignTarget({ registry: 'pipes', id })
   }
 

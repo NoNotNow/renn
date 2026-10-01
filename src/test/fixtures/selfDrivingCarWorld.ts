@@ -1,4 +1,5 @@
 import { readSelfDrivingStageCode } from '@/globalPipeline/selfDrivingCarStagePaths'
+import { selfDrivePinnedGoalWandererParams } from '@/globalPipeline/wandererPerimeterParams'
 import type { RennWorld } from '@/types/world'
 
 const umlenkerCode = readSelfDrivingStageCode('umlenker')
@@ -15,16 +16,16 @@ export type SelfDrivingCarVariant =
 
 /** Ordered mission — each pose sits **behind** the next obstacle on −Z (Umlenker goal-block pattern). */
 export const SELF_DRIVE_PARKOUR_WAYPOINTS = [
-  { position: [0, 0.5, -16] as [number, number, number], rotation: [0, 0, 0] as [number, number, number] },
-  { position: [0, 0.5, -36] as [number, number, number], rotation: [0, 0, 0] as [number, number, number] },
-  { position: [0, 0.5, -50] as [number, number, number], rotation: [0, 0, 0] as [number, number, number] },
-  { position: [0, 0.5, -58] as [number, number, number], rotation: [0, 0, 0] as [number, number, number] },
+  { position: [0, 0, -16] as [number, number, number], rotation: [0, 0, 0] as [number, number, number] },
+  { position: [0, 0, -36] as [number, number, number], rotation: [0, 0, 0] as [number, number, number] },
+  { position: [0, 0, -50] as [number, number, number], rotation: [0, 0, 0] as [number, number, number] },
+  { position: [0, 0, -58] as [number, number, number], rotation: [0, 0, 0] as [number, number, number] },
 ] as const
 
 /** Short course: cone on centerline; mission ends on **beside** pose (−X flank). */
 export const SELF_DRIVE_PARKOUR_BESIDE_WAYPOINTS = [
-  { position: [0, 0.5, -11] as [number, number, number], rotation: [0, 0, 0] as [number, number, number] },
-  { position: [8, 0.5, -9] as [number, number, number], rotation: [0, 0, 0] as [number, number, number] },
+  { position: [0, 0, -11] as [number, number, number], rotation: [0, 0, 0] as [number, number, number] },
+  { position: [8, 0, -9] as [number, number, number], rotation: [0, 0, 0] as [number, number, number] },
 ] as const
 
 export const SELF_DRIVE_PARKOUR_BESIDE_OBSTACLES: readonly ParkourObstacleSpec[] = [
@@ -63,7 +64,8 @@ export const SELF_DRIVE_PARKOUR_CYLINDER_APPROACH = {
 export const SELF_DRIVE_PARKOUR_CYLINDER_TIGHT = {
   carPosition: [0, 0.55, -36] as [number, number, number],
   carRotation: [0, 0, 0] as [number, number, number],
-  missionWaypointStartIndex: 1,
+  /** Skip wp at z=−36 (on top of spawn) — umlenker bails when distTrue < 5. */
+  missionWaypointStartIndex: 2,
   cylinderCenterZ: -42,
 } as const
 
@@ -406,11 +408,27 @@ export function buildSelfDrivingParkourWorld(
 }
 
 /** Minimal cylinder problem site: ground + cylinder L + car (mission wp behind). */
+/** Seeded nudges for cylinder tight stall search (deterministic headless). */
+export function perturbSelfDriveCylinderTight(seed: number): Pick<
+  BuildSelfDrivingCarWorldOptions,
+  'carPosition' | 'carRotation'
+> {
+  const base = SELF_DRIVE_PARKOUR_CYLINDER_TIGHT
+  const s = seed >>> 0
+  const dx = ((s % 7) - 3) * 0.12
+  const dz = (((s / 7) | 0) % 5 - 2) * 0.18
+  const dyaw = (((s / 35) | 0) % 5 - 2) * 0.06
+  return {
+    carPosition: [base.carPosition[0] + dx, base.carPosition[1], base.carPosition[2] + dz],
+    carRotation: [0, base.carRotation[1] + dyaw, 0],
+  }
+}
+
 export function buildSelfDrivingCylinderWorld(
   options: Omit<BuildSelfDrivingCarWorldOptions, 'variant'> = {},
 ): RennWorld {
   const world = buildSelfDrivingParkourWorld({
-    ...selfDrivingParkourCylinderStart('approach'),
+    ...selfDrivingParkourCylinderStart('tight'),
     ...options,
   })
   const keep = new Set(['ground', 'car', 'parkour_cylinder_l'])
@@ -443,20 +461,8 @@ export function selfDriveLongRunPass(params: {
   return flankEvidence && passedObstacle && goalProgress && selfDriveGrounded(endPos)
 }
 
-/** Deterministic wanderer: zero-size perimeter pins goal at center. */
 function wandererParams(goalZ: number) {
-  return {
-    speed: 2,
-    jumpDistance: 0,
-    linear: true,
-    angular: false,
-    perimeter: {
-      center: [0, 0.5, goalZ] as [number, number, number],
-      halfExtents: [0, 0, 0] as [number, number, number],
-    },
-    positionEpsilon: 20,
-    rotationEpsilon: 20,
-  }
+  return selfDrivePinnedGoalWandererParams(goalZ)
 }
 
 export function buildSelfDrivingCarWorld(options: BuildSelfDrivingCarWorldOptions): RennWorld {
@@ -577,7 +583,7 @@ export function buildSelfDrivingCarWorld(options: BuildSelfDrivingCarWorldOption
         'tf_car',
       ] as const)
 
-  const transformers: RennWorld['transformers'] = {
+  const transformers: Record<string, NonNullable<RennWorld['transformers']>[string]> = {
       ...(isParkourMission
         ? {
             [missionStageId]: {
@@ -603,7 +609,7 @@ export function buildSelfDrivingCarWorld(options: BuildSelfDrivingCarWorldOption
               priority: 1,
               enabled: true,
               name: 'Wanderer',
-              params: wandererParams(goalZ),
+              params: wandererParams(goalZ) as Record<string, unknown>,
             },
           }),
       tf_umlenker: {
@@ -675,6 +681,6 @@ export function buildSelfDrivingCarWorld(options: BuildSelfDrivingCarWorldOption
 export function stripDirectionUmlDeferral(directionCode: string): string {
   return directionCode.replace(
     /\n    \/\/ Umlenker owns lateral detours[\s\S]*?needBackOff = false\n    \}/,
-    '',
+    '\n    needBackOff = needBackOff',
   )
 }

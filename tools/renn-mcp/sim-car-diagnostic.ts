@@ -13,6 +13,7 @@
  *   npx tsx tools/renn-mcp/sim-car-diagnostic.ts --variant parkour --frames 1550
  *   npx tsx tools/renn-mcp/sim-car-diagnostic.ts --variant parkour --segment seg2_beside_cone
  *   npx tsx tools/renn-mcp/sim-car-diagnostic.ts --variant parkour --segment seg4_cylinder
+ *   npx tsx tools/renn-mcp/sim-car-diagnostic.ts --variant parkour --segment seg4_cylinder --cylinder-start tight
  *   npx tsx tools/renn-mcp/sim-car-diagnostic.ts --variant parkour --parkour-spawn-matrix
  *   npx tsx tools/renn-mcp/sim-car-diagnostic.ts --variant parkour --parkour-full-spawn-matrix
  *   npx tsx tools/renn-mcp/sim-car-diagnostic.ts --batch 400,600,900 --runs 3
@@ -37,6 +38,7 @@ import {
   SELF_DRIVE_PARKOUR_WAYPOINTS,
   selfDrivingParkourSegmentWorldOptions,
   type GoalBehindObstacleShape,
+  type SelfDriveParkourCylinderStartId,
   type SelfDriveParkourSegmentId,
   type SelfDriveSpawnId,
   type SelfDrivingCarVariant,
@@ -63,6 +65,7 @@ function parseArgs(): {
   parkourSegment?: SelfDriveParkourSegmentId
   parkourSpawnMatrix: boolean
   parkourFullSpawnMatrix: boolean
+  cylinderStart: SelfDriveParkourCylinderStartId
   runs: number
 } {
   const args = process.argv.slice(2)
@@ -74,6 +77,7 @@ function parseArgs(): {
   let parkourSegment: SelfDriveParkourSegmentId | undefined
   let parkourSpawnMatrix = false
   let parkourFullSpawnMatrix = false
+  let cylinderStart: SelfDriveParkourCylinderStartId = 'approach'
   let runs = 1
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--variant' && args[i + 1]) {
@@ -100,6 +104,9 @@ function parseArgs(): {
     } else if (args[i] === '--segment' && args[i + 1]) {
       parkourSegment = args[i + 1] as SelfDriveParkourSegmentId
       i++
+    } else if (args[i] === '--cylinder-start' && args[i + 1]) {
+      cylinderStart = args[i + 1] as SelfDriveParkourCylinderStartId
+      i++
     } else if (args[i] === '--parkour-spawn-matrix') {
       parkourSpawnMatrix = true
     } else if (args[i] === '--parkour-full-spawn-matrix') {
@@ -115,6 +122,7 @@ function parseArgs(): {
     parkourSegment,
     parkourSpawnMatrix,
     parkourFullSpawnMatrix,
+    cylinderStart,
     runs,
   }
 }
@@ -162,15 +170,20 @@ async function runOnce(params: {
   spawnId?: SelfDriveSpawnId
   obstacleShape?: GoalBehindObstacleShape
   parkourSegment?: SelfDriveParkourSegmentId
+  cylinderStart?: SelfDriveParkourCylinderStartId
   runIndex: number
 }): Promise<{ pass: boolean; summary: Record<string, unknown> }> {
-  const { variant, frames, spawnId, obstacleShape, parkourSegment, runIndex } = params
+  const { variant, frames, spawnId, obstacleShape, parkourSegment, cylinderStart = 'approach', runIndex } =
+    params
   writeFileSync(jsonlPath, '')
 
   setAgentObservationWatchActive(true)
   const segmentWorld =
     variant === 'parkour' && parkourSegment
-      ? selfDrivingParkourSegmentWorldOptions(parkourSegment)
+      ? selfDrivingParkourSegmentWorldOptions(
+          parkourSegment,
+          parkourSegment === 'seg4_cylinder' ? cylinderStart : 'approach',
+        )
       : undefined
   const world =
     variant === 'parkourBeside'
@@ -374,6 +387,7 @@ async function main() {
     parkourSegment,
     parkourSpawnMatrix,
     parkourFullSpawnMatrix,
+    cylinderStart,
     runs,
   } = parseArgs()
   mkdirSync(outDir, { recursive: true })
@@ -477,6 +491,7 @@ async function main() {
         spawnId,
         obstacleShape,
         parkourSegment: resolvedSegment,
+        cylinderStart,
         runIndex: run,
       })
       runSummaries.push(summary)

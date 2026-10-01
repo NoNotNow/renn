@@ -44,6 +44,21 @@ registry.car_tf4.code = direction
 registry.entity_1779823253285_brtkx1p_tf0.enabled = false
 registry.entity_1779823253285_brtkx1p_tf1.enabled = true
 
+/** Wanderer perimeter: Vec3 [x, y, z], Y up — roam on XZ at floor plane (y=0). */
+const WANDER_FLOOR_Y = 0
+function normalizeWandererParams(params) {
+  if (!params?.perimeter) return params
+  const center = [...params.perimeter.center]
+  const half = [...params.perimeter.halfExtents]
+  if (half[1] === 0 && center[1] === 0.5) center[1] = WANDER_FLOOR_Y
+  return { ...params, perimeter: { center, halfExtents: half } }
+}
+for (const def of Object.values(registry)) {
+  if (def?.type === 'wanderer' && def.params) {
+    def.params = normalizeWandererParams(def.params)
+  }
+}
+
 let autoBrake = registry.car_tf1_copy.code
 if (!autoBrake.includes('params.id')) {
   autoBrake = autoBrake.replace(

@@ -2,12 +2,15 @@
 
 Disk copies of shared **custom transformer code** and **pipe manifests** used by headless tests, example worlds, and `hunt_repair2` sync.
 
+**Coordinates:** all `Vec3` values in world JSON and wanderer `perimeter` are **`[x, y, z]` with Y up**. Floor surface is **`y = 0`** (ground box center `y = -0.5`). Wanderer targets and mission waypoints use **`y = 0`** on the floor plane; entity **`position.y`** may be ~0.55 (box center above floor). Open-world wanderers roam on **XZ** (`halfExtents` `[wide, 0, wide]`, `halfExtents[1] = 0`).
+
 ## Layout
 
 | Path | Purpose |
 |------|---------|
 | [`transformers/self-driving-car/`](transformers/self-driving-car/) | Umlenker, direction, auto-brake, target-line visualizer (`.js` source) |
 | [`pipes/self-driving-car-pipe3.json`](pipes/self-driving-car-pipe3.json) | Pipe3 stage order + stage-id bindings per consumer |
+| [`shipped-global-behavior-library.json`](shipped-global-behavior-library.json) | **Organize → Global** defaults (pipes + transformers); merged on Builder open |
 
 ## Workflow
 

@@ -35,6 +35,11 @@ import { addFullscreenChangeListener, getFullscreenElement } from '@/utils/fulls
 import { defaultPersistence } from '@/persistence/indexedDb'
 import type { GlobalBehaviorLibrary } from '@/types/globalBehaviorLibrary'
 import { EMPTY_GLOBAL_BEHAVIOR_LIBRARY } from '@/types/globalBehaviorLibrary'
+import { fetchShippedGlobalBehaviorLibrary } from '@/globalPipeline/fetchShippedGlobalBehaviorLibrary'
+import {
+  mergeShippedGlobalBehaviorLibrary,
+  shippedGlobalBehaviorLibraryChanged,
+} from '@/globalPipeline/mergeShippedGlobalBehaviorLibrary'
 import { WorkspaceMonacoContext } from '@/contexts/WorkspaceMonacoContext'
 import {
   WORKSPACE_EDITOR_OPEN_REFRESH_MS,
@@ -321,9 +326,17 @@ export default function Workspace({
   useEffect(() => {
     if (!open) return
     let cancelled = false
-    void defaultPersistence.loadGlobalBehaviorLibrary().then((lib) => {
-      if (!cancelled) setGlobalLibrary(lib)
-    })
+    void (async () => {
+      const [stored, shipped] = await Promise.all([
+        defaultPersistence.loadGlobalBehaviorLibrary(),
+        fetchShippedGlobalBehaviorLibrary(),
+      ])
+      const merged = mergeShippedGlobalBehaviorLibrary(stored, shipped)
+      if (!cancelled) setGlobalLibrary(merged)
+      if (shipped && shippedGlobalBehaviorLibraryChanged(stored, merged)) {
+        await defaultPersistence.saveGlobalBehaviorLibrary(merged)
+      }
+    })()
     return () => {
       cancelled = true
     }

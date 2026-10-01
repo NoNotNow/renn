@@ -10,6 +10,7 @@ import { EMPTY_TRANSFORM_OUTPUT } from '@/types/transformer'
 import type { Rotation, Vec3 } from '@/types/world'
 import { positionReached, rotationReached } from '@/utils/transformTargetReach'
 
+/** World-space AABB: **center** and **halfExtents** are `[x, y, z]` with **Y up**. */
 export interface WandererPerimeter {
   center: Vec3
   halfExtents: Vec3

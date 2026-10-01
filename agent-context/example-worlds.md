@@ -11,7 +11,7 @@ Shared **custom transformer source** and **pipe manifests** for the self-driving
 
 **Sync after patch edits:** `npm run sync:global-pipeline` — copies `tools/renn-mcp/patches/` → global transformers, updates manifest checksums, syncs `hunt_repair2`, re-exports all `self_drive_*` example worlds.
 
-On another browser/port: **File → Example Worlds** (loads exported `world.json` with embedded registry). Fetch raw stage JS from `/global/transformers/self-driving-car/` when debugging.
+On another browser/port: **File → Example Worlds** (loads exported `world.json` with embedded registry). **Organize → Global → Pipes** lists shipped defaults from [`shipped-global-behavior-library.json`](../public/global/shipped-global-behavior-library.json) (auto-merged into IndexedDB on Builder open). Fetch raw stage JS from `/global/transformers/self-driving-car/` when debugging.
 
 ## Folder Structure (`public/exampleWorlds/`)
 
@@ -38,7 +38,7 @@ Browser and MCP loaders fetch `world.json` and hydrate blobs from `exampleWorlds
 | `hunt_repair2` | [`public/exampleWorlds/hunt_repair2/`](../public/exampleWorlds/hunt_repair2/) | Large repair/hunt scene (660+ entities); exported via agent disk import |
 | `self_drive_cube` | [`public/exampleWorlds/self_drive_cube/`](../public/exampleWorlds/self_drive_cube/) | Headless diagnostic scene in Play: car + cube obstacle, goal behind cube; Pipe3 self-driving patches. Regenerate: `npx tsx tools/renn-mcp/export-self-drive-example-world.ts` |
 | `self_drive_parkour` | [`public/exampleWorlds/self_drive_parkour/`](../public/exampleWorlds/self_drive_parkour/) | Multi-segment parkour: `targetPoseInput` mission (4 waypoints), 3 mixed obstacles; same Pipe3 stack as cube. Regenerate: `npx tsx tools/renn-mcp/export-self-drive-parkour-example-world.ts` |
-| `self_drive_cylinder` | [`public/exampleWorlds/self_drive_cylinder/`](../public/exampleWorlds/self_drive_cylinder/) | Cylinder-only problem site (ground + `parkour_cylinder_l`, car @ z≈−31, wp @ z=−50). Regenerate: `npm run sync:global-pipeline` or `export-self-drive-cylinder-example-world.ts` |
+| `self_drive_cylinder` | [`public/exampleWorlds/self_drive_cylinder/`](../public/exampleWorlds/self_drive_cylinder/) | Cylinder-only stall repro (ground + `parkour_cylinder_l`, car **tight @ z≈−36**, wp @ z=−50). Headless artifact: `agent-context/recordings/seg4-cylinder-tight-stall.json`. Regenerate: `npm run sync:global-pipeline` or `export-self-drive-cylinder-example-world.ts` |
 | `self_drive_parkour_beside` | [`public/exampleWorlds/self_drive_parkour_beside/`](../public/exampleWorlds/self_drive_parkour_beside/) | Short beside-gate parkour (cone + flank waypoint). Regenerate: `export-self-drive-parkour-beside-example-world.ts` or `npm run sync:global-pipeline` |
 
 ### Agent / MCP worlds → example menu

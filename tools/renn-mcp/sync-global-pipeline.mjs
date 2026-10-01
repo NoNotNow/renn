@@ -3,6 +3,7 @@
  * Sync self-driving transformer sources → public/global/transformers/ and refresh pipe manifest checksums.
  * Authoring copies: tools/renn-mcp/patches/umlenker-v3.js, direction-v3.js
  */
+import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
@@ -58,3 +59,9 @@ console.log(
     2,
   ),
 )
+
+const exportShipped = spawnSync('npx', ['tsx', resolve(root, 'tools/renn-mcp/export-shipped-global-behavior-library.ts')], {
+  cwd: root,
+  stdio: 'inherit',
+})
+if (exportShipped.status !== 0) process.exit(exportShipped.status ?? 1)

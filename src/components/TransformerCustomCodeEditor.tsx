@@ -123,6 +123,19 @@ export default function TransformerCustomCodeEditor({
 
   useEffect(() => {
     lastEmittedValueRef.current = value
+    const ed = editorRef.current
+    if (!ed) return
+    const model = ed.getModel()
+    if (!model || model.getValue() === value) return
+    const viewState = ed.saveViewState()
+    ed.executeEdits('model-path-sync', [
+      {
+        range: model.getFullModelRange(),
+        text: value,
+        forceMoveMarkers: true,
+      },
+    ])
+    if (viewState) ed.restoreViewState(viewState)
   }, [modelPath, value])
 
   /** Push parent value changes that did not originate from this editor (item switch, template, undo). */
