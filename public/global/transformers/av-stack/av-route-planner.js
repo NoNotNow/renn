@@ -29,14 +29,27 @@ function transform(input, dt, params, state, api) {
   var routeInterval = params.routeInterval != null ? params.routeInterval : 0.8
   var lookahead = params.lookahead != null ? params.lookahead : 14
   var gearPen = params.gearSwitchPenalty != null ? params.gearSwitchPenalty : 4
-  var revPen = params.reversePenalty != null ? params.reversePenalty : 1.6
-  var reach = params.goalReach != null ? params.goalReach : 3.5
+  var revPen = params.reversePenalty != null ? params.reversePenalty : 2.5
   var handback = params.handbackFree != null ? params.handbackFree : 10
   var vMan = params.maneuverSpeed != null ? params.maneuverSpeed : 3
   var stuckTime = params.stuckTime != null ? params.stuckTime : 1.5
   var holdTol = params.goalTolerance != null ? params.goalTolerance : 3.5
+  // route ends inside the waypoint acceptance zone (not only at its centre)
+  var reach = params.goalReach != null ? params.goalReach : 3.5
+  var termHeadW = params.exitHeadingWeight != null ? params.exitHeadingWeight : 0
   var ks = [-kmax, -kmax / 2, 0, kmax / 2, kmax]
   var pos = input.position
+  // next waypoint after the current target: the route should arrive heading towards it
+  var nextWp = null
+  var wps = params.waypoints
+  if (wps && wps.length) {
+    for (var wi = 0; wi < wps.length - 1; wi++) {
+      if (Math.abs(wps[wi][0] - gxw) < 0.05 && Math.abs(wps[wi][1] - gzw) < 0.05) {
+        nextWp = wps[wi + 1]
+        break
+      }
+    }
+  }
   var goalDist = Math.sqrt((gxw - pos[0]) * (gxw - pos[0]) + (gzw - pos[2]) * (gzw - pos[2]))
 
   // spatial hash over costmap points + swept-footprint test (hl/hw are the active margins)
@@ -145,8 +158,18 @@ function transform(input, dt, params, state, api) {
         bestNode = cur
       }
       if (h < reach) {
-        goalNode = cur
-        break
+        if (cur.terminal || !nextWp) {
+          goalNode = cur
+          break
+        }
+        // arrival cost: leave the goal zone heading towards the next waypoint
+        var ndx = nextWp[0] - cur.x
+        var ndz = nextWp[1] - cur.z
+        var nl = Math.sqrt(ndx * ndx + ndz * ndz) || 1
+        var cosA = Math.max(-1, Math.min(1, (cur.fx * ndx + cur.fz * ndz) / nl))
+        var termG = cur.g + termHeadW * Math.acos(cosA)
+        push({ x: cur.x, z: cur.z, fx: cur.fx, fz: cur.fz, g: termG, gear: cur.gear, k: cur.k, parent: cur, terminal: true, f: termG })
+        continue
       }
       for (var gi = 0; gi < 2; gi++) {
         var gear = gi === 0 ? 1 : -1
@@ -195,6 +218,7 @@ function transform(input, dt, params, state, api) {
       }
     }
     var end = goalNode || bestNode
+    if (end.terminal) end = end.parent
     var segs = []
     for (var nd = end; nd && nd.parent; nd = nd.parent) {
       var last = segs[0]

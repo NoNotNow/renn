@@ -122,7 +122,9 @@ describe.skipIf(!process.env.AV_AUDIT)('AV route audit', () => {
   it('audits routes from many starts', async () => {
     const rows: Record<string, unknown>[] = []
     const frames = Number(process.env.AV_AUDIT_FRAMES ?? 3000)
+    const only = process.env.AV_AUDIT_ONLY
     for (const st of buildStarts()) {
+      if (only && !st.name.includes(only)) continue
       setAgentObservationWatchActive(true)
       const world = applyAvStack(buildSelfDrivingParkourWorld({ carPosition: st.pos, carRotation: [0, st.yaw, 0] }))
       const sim = await WorldSimulator.create(world, 15)
@@ -141,6 +143,7 @@ describe.skipIf(!process.env.AV_AUDIT)('AV route audit', () => {
         const p = sim.getPosition('car')
         len += Math.hypot(p[0] - prev[0], p[2] - prev[2])
         prev = p
+        if (only && f % 30 === 0) console.log(`TRACE ${st.name} f${f} [${p[0].toFixed(1)},${p[2].toFixed(1)}] v=${Math.hypot(sim.getVelocity('car')[0], sim.getVelocity('car')[2]).toFixed(1)}`)
         minGap = Math.min(minGap, gapTo(p[0], p[2]) - CAR_HALF_WIDTH)
         if (p[1] < -0.8 || Math.abs(p[0]) > 49 || p[2] < -72 || p[2] > 36) offPlatform = true
         const v = sim.getVelocity('car')
