@@ -293,7 +293,21 @@ function transform(input, dt, params, state, api) {
         run += Math.sqrt(ddx * ddx + ddz * ddz)
       }
     }
-    return { firstGear: firstGear, run: run, carrot: carrot, reached: res.reached, nodes: nodes, path: res.path }
+    // speed limit from the bends ahead on the route: corner speed sqrt(aLat / kappa), reachable by braking
+    var aLat = params.maxLatAccel || 7
+    var aBrk = params.comfortDecel || 5
+    var vLimit = Infinity
+    var dAhead = 0
+    for (var si = 0; si < res.segs.length && dAhead < 40 && res.segs[si].g > 0; si++) {
+      var kk = Math.abs(res.segs[si].k)
+      if (kk > 0.04) {
+        var vi = Math.sqrt(aLat / kk)
+        var allowed = Math.sqrt(vi * vi + 2 * aBrk * dAhead)
+        if (allowed < vLimit) vLimit = allowed
+      }
+      dAhead += res.segs[si].len
+    }
+    return { firstGear: firstGear, run: run, carrot: carrot, reached: res.reached, nodes: nodes, path: res.path, vLimit: vLimit }
   }
 
   // stuck watchdog (own, independent of the local planner)
@@ -324,7 +338,7 @@ function transform(input, dt, params, state, api) {
     }
     if (!state.active) {
       if (rt.carrot) av.carrot = rt.carrot
-      av.route = { firstGear: rt.firstGear, run: rt.run, reached: rt.reached }
+      av.route = { firstGear: rt.firstGear, run: rt.run, reached: rt.reached, vLimit: rt.vLimit }
       if (params.debugDraw !== false) {
         var y0 = pos[1]
         for (var di = 2; di < rt.path.length; di += 2) {

@@ -1,5 +1,5 @@
 // AV stack · PLAN / speed planner.
-// v_des = min(cruise, stopping-distance limit, clearance limit, lateral-acceleration limit, goal approach).
+// v_des = min(cruise, stopping-distance limit, clearance limit, route bends ahead, lateral-acceleration limit, goal approach).
 // Clearance limit: lots of room beside obstacles → full speed; squeezing past → slow.
 // Goal approach only slows for the FINAL waypoint (params.waypoints, if given; otherwise every goal is final).
 // Publishes av.plan.vDesired / av.plan.vLimit.
@@ -29,6 +29,11 @@ function transform(input, dt, params, state, api) {
   if (vClear < v) {
     v = vClear
     limit = 'clearance'
+  }
+  // bends ahead on the global route (corner speed, reachable by braking)
+  if (av.route && av.route.vLimit < v) {
+    v = Math.max(av.route.vLimit, crawl)
+    limit = 'route'
   }
   var k = Math.abs(plan.kappa)
   if (k > 1e-4) {
