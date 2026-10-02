@@ -9,7 +9,7 @@
 // Runs BEFORE the local motion planner. Simulated time only.
 // debug draw: magenta = route / manoeuvre path (+ status mast while manoeuvring), orange = current segment end.
 // params: maneuverSpeed, routeInterval, routeExpansions, lookahead, primitiveLength, maxExpansions,
-//         gearSwitchPenalty, reversePenalty, planMargin, tightMargin, guardMargin, stallTime, stuckTime,
+//         gearSwitchPenalty, reversePenalty, maxReverseRun, planMargin, tightMargin, guardMargin, stallTime, stuckTime,
 //         goalReach, handbackFree, goalTolerance, maxCurvature, vehicleWidth, vehicleLength
 function transform(input, dt, params, state, api) {
   var av = input.av
@@ -29,14 +29,28 @@ function transform(input, dt, params, state, api) {
   var routeInterval = params.routeInterval != null ? params.routeInterval : 0.8
   var lookahead = params.lookahead != null ? params.lookahead : 14
   var gearPen = params.gearSwitchPenalty != null ? params.gearSwitchPenalty : 4
-  var revPen = params.reversePenalty != null ? params.reversePenalty : 1.6
-  var reach = params.goalReach != null ? params.goalReach : 3.5
+  var revPen = params.reversePenalty != null ? params.reversePenalty : 4
   var handback = params.handbackFree != null ? params.handbackFree : 10
   var vMan = params.maneuverSpeed != null ? params.maneuverSpeed : 3
   var stuckTime = params.stuckTime != null ? params.stuckTime : 1.5
   var holdTol = params.goalTolerance != null ? params.goalTolerance : 3.5
+  // route ends inside the waypoint acceptance zone (not only at its centre)
+  var reach = params.goalReach != null ? params.goalReach : 3.5
+  var maxRevRun = params.maxReverseRun != null ? params.maxReverseRun : 8
+  var termHeadW = params.exitHeadingWeight != null ? params.exitHeadingWeight : 0
   var ks = [-kmax, -kmax / 2, 0, kmax / 2, kmax]
   var pos = input.position
+  // next waypoint after the current target: the route should arrive heading towards it
+  var nextWp = null
+  var wps = params.waypoints
+  if (wps && wps.length) {
+    for (var wi = 0; wi < wps.length - 1; wi++) {
+      if (Math.abs(wps[wi][0] - gxw) < 0.05 && Math.abs(wps[wi][1] - gzw) < 0.05) {
+        nextWp = wps[wi + 1]
+        break
+      }
+    }
+  }
   var goalDist = Math.sqrt((gxw - pos[0]) * (gxw - pos[0]) + (gzw - pos[2]) * (gzw - pos[2]))
 
   // spatial hash over costmap points + swept-footprint test (hl/hw are the active margins)
@@ -145,8 +159,18 @@ function transform(input, dt, params, state, api) {
         bestNode = cur
       }
       if (h < reach) {
-        goalNode = cur
-        break
+        if (cur.terminal || !nextWp) {
+          goalNode = cur
+          break
+        }
+        // arrival cost: leave the goal zone heading towards the next waypoint
+        var ndx = nextWp[0] - cur.x
+        var ndz = nextWp[1] - cur.z
+        var nl = Math.sqrt(ndx * ndx + ndz * ndz) || 1
+        var cosA = Math.max(-1, Math.min(1, (cur.fx * ndx + cur.fz * ndz) / nl))
+        var termG = cur.g + termHeadW * Math.acos(cosA)
+        push({ x: cur.x, z: cur.z, fx: cur.fx, fz: cur.fz, g: termG, gear: cur.gear, k: cur.k, parent: cur, terminal: true, f: termG })
+        continue
       }
       for (var gi = 0; gi < 2; gi++) {
         var gear = gi === 0 ? 1 : -1
@@ -154,6 +178,8 @@ function transform(input, dt, params, state, api) {
           var k = ks[ki]
           var lx = cur.fz
           var lz = -cur.fx
+          var revRun = gear < 0 ? (cur.gear < 0 ? cur.revRun || 0 : 0) + ell : 0
+          if (revRun > maxRevRun) continue
           var ok = true
           var nx = cur.x
           var nz = cur.z
@@ -190,11 +216,12 @@ function transform(input, dt, params, state, api) {
           var nk = skey(nx, nz, nfx, nfz, gear)
           if (best[nk] !== undefined && best[nk] <= g2) continue
           best[nk] = g2
-          push({ x: nx, z: nz, fx: nfx, fz: nfz, g: g2, gear: gear, k: k, parent: cur, f: g2 + dist(nx, nz) * HW })
+          push({ x: nx, z: nz, fx: nfx, fz: nfz, g: g2, gear: gear, k: k, revRun: revRun, parent: cur, f: g2 + dist(nx, nz) * HW })
         }
       }
     }
     var end = goalNode || bestNode
+    if (end.terminal) end = end.parent
     var segs = []
     for (var nd = end; nd && nd.parent; nd = nd.parent) {
       var last = segs[0]
@@ -266,7 +293,21 @@ function transform(input, dt, params, state, api) {
         run += Math.sqrt(ddx * ddx + ddz * ddz)
       }
     }
-    return { firstGear: firstGear, run: run, carrot: carrot, reached: res.reached, nodes: nodes, path: res.path }
+    // speed limit from the bends ahead on the route: corner speed sqrt(aLat / kappa), reachable by braking
+    var aLat = params.maxLatAccel || 7
+    var aBrk = params.comfortDecel || 5
+    var vLimit = Infinity
+    var dAhead = 0
+    for (var si = 0; si < res.segs.length && dAhead < 40 && res.segs[si].g > 0; si++) {
+      var kk = Math.abs(res.segs[si].k)
+      if (kk > 0.04) {
+        var vi = Math.sqrt(aLat / kk)
+        var allowed = Math.sqrt(vi * vi + 2 * aBrk * dAhead)
+        if (allowed < vLimit) vLimit = allowed
+      }
+      dAhead += res.segs[si].len
+    }
+    return { firstGear: firstGear, run: run, carrot: carrot, reached: res.reached, nodes: nodes, path: res.path, vLimit: vLimit }
   }
 
   // stuck watchdog (own, independent of the local planner)
@@ -297,7 +338,7 @@ function transform(input, dt, params, state, api) {
     }
     if (!state.active) {
       if (rt.carrot) av.carrot = rt.carrot
-      av.route = { firstGear: rt.firstGear, run: rt.run, reached: rt.reached }
+      av.route = { firstGear: rt.firstGear, run: rt.run, reached: rt.reached, vLimit: rt.vLimit }
       if (params.debugDraw !== false) {
         var y0 = pos[1]
         for (var di = 2; di < rt.path.length; di += 2) {
