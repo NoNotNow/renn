@@ -12,15 +12,17 @@ import { setAgentObservationWatchActive } from '@/runtime/transformerWatchBridge
 import { WorldSimulator } from '@/test/helpers/worldSimulator'
 import type { RennWorld } from '@/types/world'
 
+type BuggyBody = Partial<NonNullable<RennWorld['entities']>[number]>
+
 /** A brand-new project that knows nothing about the AV stack: a floor, one box, one obstacle. */
-function foreignProject(): RennWorld {
+function foreignProject(buggy: BuggyBody = {}): RennWorld {
   return {
     version: '1.0',
     world: { gravity: [0, -100, 0] },
     entities: [
       { id: 'floor', name: 'Floor', bodyType: 'static', shape: { type: 'box', width: 160, height: 1, depth: 160 }, position: [0, -0.5, 0], rotation: [0, 0, 0] },
       { id: 'rock', name: 'Rock', bodyType: 'static', shape: { type: 'sphere', radius: 2.5 }, position: [12, 1.25, -30], rotation: [0, 0, 0] },
-      { id: 'buggy', name: 'Buggy', bodyType: 'dynamic', shape: { type: 'box', width: 2, height: 1, depth: 4 }, position: [0, 0.55, 5], rotation: [0, 0, 0], mass: 2, friction: 0.8 },
+      { id: 'buggy', name: 'Buggy', bodyType: 'dynamic', shape: { type: 'box', width: 2, height: 1, depth: 4 }, position: [0, 0.55, 5], rotation: [0, 0, 0], mass: 2, friction: 0.8, ...buggy },
     ],
   } as RennWorld
 }
@@ -82,6 +84,33 @@ describe('AV stack as a shipped global pipe', () => {
       }
       expect(visited).toEqual([true, true, true])
       expect(minGap).toBeGreaterThan(0) // never overlaps the rock
+    } finally {
+      sim.dispose()
+      setAgentObservationWatchActive(false)
+    }
+  }, 120_000)
+
+  it('also drives a heavy 1x1x1 cube (mass 5, friction 0.5, damping 0.3) — the longitudinal controller learns its breakaway throttle', async () => {
+    let world = copyGlobalPipeIntoWorld(
+      foreignProject({ shape: { type: 'box', width: 1, height: 1, depth: 1 }, mass: 5, friction: 0.5, linearDamping: 0.3, angularDamping: 0.3 } as BuggyBody),
+      library,
+      AV_GLOBAL_STACK_PIPE_ID,
+    )
+    world = assignPipeToEntity(world, 'buggy', world.transformerPipes![AV_GLOBAL_STACK_PIPE_ID]!, 'linked')
+    setAgentObservationWatchActive(true)
+    const sim = await WorldSimulator.create(world, 15)
+    try {
+      let maxSpeed = 0
+      let farthest = 0
+      for (let f = 0; f < 1200; f++) {
+        sim.runFrames(1)
+        const v = sim.getVelocity('buggy')
+        maxSpeed = Math.max(maxSpeed, Math.hypot(v[0], v[2]))
+        const p = sim.getPosition('buggy')
+        farthest = Math.max(farthest, Math.hypot(p[0], p[2] - 5))
+      }
+      expect(maxSpeed).toBeGreaterThan(5)
+      expect(farthest).toBeGreaterThan(20)
     } finally {
       sim.dispose()
       setAgentObservationWatchActive(false)
