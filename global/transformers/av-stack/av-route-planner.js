@@ -42,7 +42,7 @@ function transform(input, dt, params, state, api) {
   var pos = input.position
   // next waypoint after the current target: the route should arrive heading towards it
   var nextWp = null
-  var wps = params.waypoints
+  var wps = av.mission ? av.mission.waypoints : params.waypoints
   if (wps && wps.length) {
     for (var wi = 0; wi < wps.length - 1; wi++) {
       if (Math.abs(wps[wi][0] - gxw) < 0.05 && Math.abs(wps[wi][1] - gzw) < 0.05) {

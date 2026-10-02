@@ -22,7 +22,8 @@ function transform(input, dt, params, state, api) {
   av.needManeuver = state.blockedT > blockedTime || state.stuckT > stuckTime
   av.mode = av.override ? 'maneuver' : 'drive'
   var tol = params.goalTolerance != null ? params.goalTolerance : 3.5
-  if (params.holdAtGoal !== false && av.goal && av.goal.dist < tol) {
+  var finalGoal = !av.mission || av.mission.isFinal
+  if (params.holdAtGoal !== false && finalGoal && av.goal && av.goal.dist < tol) {
     av.mode = 'hold'
     plan.override = false
     plan.vDesired = 0
