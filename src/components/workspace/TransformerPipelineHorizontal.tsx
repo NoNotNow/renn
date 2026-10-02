@@ -362,6 +362,10 @@ function PipelineTrailOutArrow() {
   )
 }
 
+/** Settings requested from the pipe-nav tree: open this stage's config drawer. */
+export type StageConfigRequest = { stageId: string; token: number }
+const STAGE_CONFIG_REQUEST_TTL_MS = 2000
+
 function TransformerTraceItem({
   index,
   stackIndex,
@@ -387,6 +391,7 @@ function TransformerTraceItem({
   cardError,
   cardDepth,
   ancestorEnabled,
+  configRequestToken,
 }: {
   index: number
   /** Index of this transformer in the full entity stack (for custom display names). */
@@ -414,10 +419,28 @@ function TransformerTraceItem({
   cardDepth?: number
   /** False when a parent pipe scope is disabled (cascade), which also locks the toggle. */
   ancestorEnabled: boolean
+  /** `Date.now()` of a recent "open settings" request for this stage (pipe-nav tree gear); opens the config drawer. */
+  configRequestToken?: number
 }) {
   const [inOpen, setInOpen] = useState(false)
   const [outOpen, setOutOpen] = useState(false)
   const [configOpen, setConfigOpen] = useState(false)
+  const handledConfigToken = useRef<number | undefined>(undefined)
+  useEffect(() => {
+    if (configRequestToken === undefined || handledConfigToken.current === configRequestToken) return
+    handledConfigToken.current = configRequestToken
+    // stale tokens (card re-mounted much later) must not pop the drawer open again
+    if (Date.now() - configRequestToken >= STAGE_CONFIG_REQUEST_TTL_MS) return
+    // wait for the strip to lay out the freshly selected card, or the drawer anchors at the wrong spot
+    let inner = 0
+    const outer = requestAnimationFrame(() => {
+      inner = requestAnimationFrame(() => setConfigOpen(true))
+    })
+    return () => {
+      cancelAnimationFrame(outer)
+      cancelAnimationFrame(inner)
+    }
+  }, [configRequestToken])
   const [fieldRefOpen, setFieldRefOpen] = useState(false)
   const [isToolsExpanded, setIsToolsExpanded] = useState(true)
   const itemRef = useRef<HTMLDivElement>(null)
@@ -1014,6 +1037,7 @@ export function TransformerHorizontalPipeline({
   existingRegistry,
   selectedId,
   cardErrorsByStackIndex,
+  configRequest,
   scope = { kind: 'entityStack' },
 }: {
   transformers: TransformerConfig[]
@@ -1034,6 +1058,8 @@ export function TransformerHorizontalPipeline({
   selectedId?: string | null
   /** Per-stage error chrome keyed by stack index (compile overrides runtime on the same card). */
   cardErrorsByStackIndex?: Record<number, TransformerCardErrorKind>
+  /** Open the config drawer of one stage (set by the pipe-nav tree's settings button). */
+  configRequest?: StageConfigRequest | null
   /** Host context — layout, add affordance and enable cascade all follow from it. */
   scope?: StageStripScope
 }) {
@@ -1304,6 +1330,7 @@ export function TransformerHorizontalPipeline({
               cardError={cardErrorsByStackIndex?.[item.originalIndex]}
               cardDepth={chrome.cardDepth}
               ancestorEnabled={chrome.isStageEnabled(item.originalIndex)}
+              configRequestToken={configRequest?.stageId === item.id ? configRequest.token : undefined}
             />
           </div>
           {!chrome.inline && i < displayItems.length - 1 ? <PipelineConnector /> : null}

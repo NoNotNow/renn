@@ -40,6 +40,10 @@ export interface PipeNavTreeProps {
     params: Record<string, unknown>
   }) => void
   onDecouplePipeBinding?: (stackIndex: number) => void
+  /** Open a stage's settings (select it, then open its config drawer in the strip). */
+  onConfigureStage?: (path: PipeNavPathSegment[], index: number, stageId: string) => void
+  /** Enable / disable one stage (same switch as the card's power dot). */
+  onToggleStageEnabled?: (stageId: string) => void
 }
 
 export default function PipeNavTree({
@@ -56,6 +60,8 @@ export default function PipeNavTree({
   onPipeParamChange,
   onPipeParamsReplace,
   onDecouplePipeBinding,
+  onConfigureStage,
+  onToggleStageEnabled,
 }: PipeNavTreeProps) {
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(['entity']))
   const [hoveredId, setHoveredId] = useState<string | null>(null)
@@ -120,6 +126,25 @@ export default function PipeNavTree({
               hovered={hoveredId === key}
               onHover={(h) => setHoveredId(h ? key : null)}
               onClick={() => onSelectPath(nodePath, memberIndex, member.stageId)}
+              canEditConfig={Boolean(onConfigureStage)}
+              onEditConfig={() => onConfigureStage?.(nodePath, memberIndex, member.stageId)}
+              trailing={
+                onConfigureStage && (hoveredId === key || isSelected || openMenuKey === key) ?
+                  <span style={{ display: 'flex', gap: 2, flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+                    {onToggleStageEnabled ?
+                      <IconBtn
+                        title={cfg?.enabled === false ? 'Enable stage' : 'Disable stage'}
+                        onClick={() => onToggleStageEnabled(member.stageId)}
+                      >
+                        {cfg?.enabled === false ? '○' : '●'}
+                      </IconBtn>
+                    : null}
+                    <IconBtn title="Stage settings" onClick={() => onConfigureStage(nodePath, memberIndex, member.stageId)}>
+                      ⚙
+                    </IconBtn>
+                  </span>
+                : null
+              }
               onDelete={onDeleteNode ? () => onDeleteNode(node) : undefined}
               onMenu={() => setOpenMenuKey(key)}
               menuOpen={openMenuKey === key}
@@ -242,6 +267,8 @@ export default function PipeNavTree({
       onPipeParamChange,
       onPipeParamsReplace,
       onDecouplePipeBinding,
+      onConfigureStage,
+      onToggleStageEnabled,
       drawerPortalTarget,
       openConfigKey,
     ],

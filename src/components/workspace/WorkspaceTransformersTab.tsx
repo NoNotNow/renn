@@ -58,6 +58,7 @@ import PipeNavOpenToggle from '@/components/workspace/pipeNav/PipeNavOpenToggle'
 import { mergeTransformers } from '@/utils/entityInspectorMerge'
 import {
   TransformerHorizontalPipeline,
+  type StageConfigRequest,
   type TransformerCardErrorKind,
 } from '@/components/workspace/TransformerPipelineHorizontal'
 import { uiLogger } from '@/utils/uiLogger'
@@ -650,6 +651,24 @@ function WorkspaceTransformersTabEntity({
     [changeSelectedIdWithFlush, flushPendingCode, pipeNav, singleEntity, world],
   )
 
+  /** Tree gear: select the stage (focus + strip) and ask its card to open the config drawer. */
+  const [stageConfigRequest, setStageConfigRequest] = useState<StageConfigRequest | null>(null)
+  const handleConfigureStageFromTree = useCallback(
+    (path: PipeNavPathSegment[], index: number, stageId: string) => {
+      applyPipeNavSelection(path, index, stageId)
+      setStageConfigRequest({ stageId, token: Date.now() })
+    },
+    [applyPipeNavSelection],
+  )
+  const handleToggleStageEnabledFromTree = useCallback(
+    (stageId: string) => {
+      const cfg = world.transformers?.[stageId]
+      if (!cfg) return
+      handlePatchStage(stageId, { ...cfg, enabled: cfg.enabled === false }, 'strip')
+    },
+    [world.transformers, handlePatchStage],
+  )
+
   const handleDrillIntoPipe = useCallback(
     (itemIndex: number, pipeId: string) => {
       if (!singleEntity) return
@@ -931,6 +950,8 @@ function WorkspaceTransformersTabEntity({
           {...pipeNav.treeActions}
           drawerPortalTarget={floatingDrawerPortalRef}
           {...pipeNav.pipeControls}
+          onConfigureStage={handleConfigureStageFromTree}
+          onToggleStageEnabled={handleToggleStageEnabledFromTree}
         />
       : null}
       <div
@@ -1061,6 +1082,7 @@ function WorkspaceTransformersTabEntity({
                 usageCounts={usageCounts}
                 selectedStageId={selectedId}
                 cardErrorsByStackIndex={cardErrorsByStackIndex}
+                stageConfigRequest={stageConfigRequest}
               />
             : <TransformerHorizontalPipeline
                 transformers={list}

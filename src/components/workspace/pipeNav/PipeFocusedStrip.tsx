@@ -5,7 +5,7 @@ import type { StageCommitKind } from '@/editor/commitStageEdit'
 import type { Entity, RennWorld } from '@/types/world'
 import type { TransformerTraceStep } from '@/transformers/transformerTrace'
 import { theme } from '@/config/theme'
-import { TransformerHorizontalPipeline, type TransformerCardErrorKind } from '@/components/workspace/TransformerPipelineHorizontal'
+import { TransformerHorizontalPipeline, type StageConfigRequest, type TransformerCardErrorKind } from '@/components/workspace/TransformerPipelineHorizontal'
 import type { AddExistingTransformerMode } from '@/components/workspace/AddTransformerDialogPanel'
 import {
   appendExistingTransformerStage,
@@ -66,6 +66,8 @@ export interface PipeFocusedStripProps {
   usageCounts?: Record<string, number>
   selectedStageId?: string | null
   cardErrorsByStackIndex?: Record<number, TransformerCardErrorKind>
+  /** Settings requested from the pipe-nav tree: open this stage's config drawer. */
+  stageConfigRequest?: StageConfigRequest | null
 }
 
 export default function PipeFocusedStrip({
@@ -98,6 +100,7 @@ export default function PipeFocusedStrip({
   usageCounts,
   selectedStageId,
   cardErrorsByStackIndex,
+  stageConfigRequest,
 }: PipeFocusedStripProps) {
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [scrollLeft, setScrollLeft] = useState(0)
@@ -191,6 +194,7 @@ export default function PipeFocusedStrip({
           existingRegistry={world.transformers}
           selectedId={selectedStageId}
           cardErrorsByStackIndex={cardErrorsByStackIndex}
+          configRequest={stageConfigRequest}
           scope={{ kind: 'pipeStrip', depth, renderAddButton: renderPlusButton }}
         />
         {addDialog}
@@ -294,6 +298,7 @@ export default function PipeFocusedStrip({
             existingRegistry={world.transformers}
             selectedId={selectedStageId}
             cardErrorsByStackIndex={cardErrorsByStackIndex}
+            configRequest={stageConfigRequest}
             scope={{
               kind: 'pipeStrip',
               depth,
@@ -353,10 +358,12 @@ export default function PipeFocusedStrip({
     }
 
     const renderStageCard = (item: Extract<StripItem, { kind: 'stage' }>) => {
-      const stageIdx = item.index
-      if (stageIdx < 0 || stageIdx >= stageIds.length) return null
-      const cfg = stageConfigs[stageIdx]
+      // `item.index` is the position among ALL members (stages and pipes mixed); `stageIds` lists only the stages,
+      // so address the stage by id. Index math silently dropped every stage that follows a nested pipe.
+      const cfg = world.transformers?.[item.stageId]
       if (!cfg) return null
+      const flatIdx = stageIds.indexOf(item.stageId)
+      const stageIdx = flatIdx >= 0 ? flatIdx : 0
       return (
         <TransformerHorizontalPipeline
           transformers={[cfg]}
@@ -369,8 +376,9 @@ export default function PipeFocusedStrip({
               onPatchStage(item.stageId, nextConfigs[0]!)
               return
             }
+            if (flatIdx < 0) return
             const nextAll = [...stageConfigs]
-            nextAll[stageIdx] = nextConfigs[0]!
+            nextAll[flatIdx] = nextConfigs[0]!
             onCommitStages(nextAll)
           }}
           onPatchStage={onPatchStage}
@@ -385,6 +393,7 @@ export default function PipeFocusedStrip({
               { 0: cardErrorsByStackIndex[stageIdx]! }
             : undefined
           }
+          configRequest={stageConfigRequest}
           scope={{ kind: 'pipeMember', depth, stackIndex: stageIdx }}
         />
       )

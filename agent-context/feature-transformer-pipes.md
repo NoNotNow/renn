@@ -162,6 +162,19 @@ Legacy `entity.transformerPipe` migrates to a single-entry stack on load (`migra
 - **Auto-wrap:** `ensureEntityPipeStack` on select; legacy flat stages → optional wrap banner.
 - **Runtime params & enable cascade:** [`resolveEntityStageRuntime`](../src/utils/pipeStageResolve.ts) + [`paramScopes.ts`](../src/utils/paramScopes.ts) — merge rules, editing vs merged, disable cascade, strip grey-out → [nomenclature.md](./nomenclature.md) (Entity stage runtime + Param scope merge rules).
 
+#### Tree ↔ strip sync and stage settings
+
+- **Stages are addressed by id in the strip.** `StripItem.index` is the position among *all* members (stages and nested
+  pipes mixed); `stageIds` / `stageConfigs` list only the stages. `PipeFocusedStrip` therefore looks a stage card up by
+  `stageId` (registry entry + `stageIds.indexOf`), never by member index — index math used to drop every stage that
+  follows a nested pipe (`[stage, pipe, stage]` showed the tree row but no card). Regression:
+  [`PipeFocusedStrip.mixedMembers.test.tsx`](../src/components/workspace/pipeNav/PipeFocusedStrip.mixedMembers.test.tsx).
+- **Stage rows in the tree have a settings bar** (on hover / when selected): a power dot (enable / disable, same switch as the
+  card) and a gear. The gear selects the stage (focus + strip) and sets `stageConfigRequest { stageId, token }` in
+  `WorkspaceTransformersTab`; the matching card opens its config drawer (token is only honoured for ~2 s so a re-mounted card
+  does not pop the drawer open later). Row menu "Edit params" does the same. Test:
+  [`PipeNavTree.stageSettings.test.tsx`](../src/components/workspace/pipeNav/PipeNavTree.stageSettings.test.tsx).
+
 #### Stage commits → world (`commitStageEdit`)
 
 Whole-stack and patch stage edits from the Transformers tab route through [`commitStageEdit`](../src/editor/commitStageEdit.ts). Flush / undo policy by `StageEditIntent['kind']` — see [feature-world-update-reload.md § Stage edits in WorkspaceTransformersTab](./feature-world-update-reload.md#stage-edits-in-workspacetransformerstab).
