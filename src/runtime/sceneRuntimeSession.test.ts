@@ -94,7 +94,7 @@ function createMinimalHandleBag(): import('./sceneRuntimeSession').SceneRuntimeH
     activeDebugForcesRef: mk([]),
     freeFlyKeysRef: mk(null),
     rawMouseDragRef: mk(null),
-    orbitWheelRef: mk({ deltaX: 0, deltaY: 0, distanceDelta: 0 }),
+    orbitWheelRef: mk({ deltaX: 0, deltaY: 0, zoomLog: 0 }),
     lastEditorPoseWriteTimeRef: mk(0),
     selectedEntityIdsRef: mk([]),
     gizmoModeRef: mk('translate'),

@@ -11,6 +11,7 @@ import type {
   RawKeyboardState,
   RawWheelState,
 } from '@/types/transformer'
+import { WheelClassifier, getWheelBehavior, normalizeWheelDeltaPx } from '@/input/wheelGesture'
 
 const DEFAULT_KEYBOARD_STATE: RawKeyboardState = {
   w: false,
@@ -26,15 +27,6 @@ const DEFAULT_WHEEL_STATE: RawWheelState = {
   deltaY: 0,
   pinchDelta: 0,
   mouseWheelDelta: 0,
-}
-
-/**
- * Heuristic: event likely from a physical mouse wheel (not trackpad two-finger scroll).
- * deltaMode !== 0 (lines/pages) is typical for mouse; pixel mode with step-like deltaY also.
- */
-function isLikelyMouseWheel(e: WheelEvent): boolean {
-  if (e.deltaMode !== 0) return true
-  return Math.abs(e.deltaX) === 0 && Math.abs(e.deltaY) > 4
 }
 
 /**
@@ -176,6 +168,7 @@ export function useRawWheelInput(
 
   useEffect(() => {
     const wheel = wheelRef.current
+    const classifier = new WheelClassifier()
 
     const onWheel = (e: Event): void => {
       const ev = e as WheelEvent
@@ -188,20 +181,25 @@ export function useRawWheelInput(
       // Capture phase + preventDefault stops macOS swipe-back while orbiting the camera.
       ev.preventDefault()
 
-      if (ev.ctrlKey) {
-        // Trackpad pinch-to-zoom: Ctrl+wheel
-        wheel.pinchDelta += ev.deltaY
+      const kind = classifier.classify(ev, ev.timeStamp || performance.now(), getWheelBehavior())
+      const pagePx = container?.clientHeight || window.innerHeight
+      const deltaY = normalizeWheelDeltaPx(ev.deltaY, ev.deltaMode, pagePx)
+
+      if (kind === 'pinch') {
+        // Trackpad pinch-to-zoom (Ctrl+wheel); raw pixels, small per event
+        wheel.pinchDelta += deltaY
         return
       }
 
-      if (isLikelyMouseWheel(ev)) {
-        wheel.mouseWheelDelta += ev.deltaY
+      if (kind === 'mouse') {
+        // Physical wheel: normalised so one notch is ±100 on every browser/OS
+        wheel.mouseWheelDelta += deltaY
         return
       }
 
       // Trackpad two-finger scroll → orbit (yaw + pitch)
-      wheel.deltaX += ev.deltaX
-      wheel.deltaY += ev.deltaY
+      wheel.deltaX += normalizeWheelDeltaPx(ev.deltaX, ev.deltaMode, pagePx)
+      wheel.deltaY += deltaY
     }
 
     document.addEventListener('wheel', onWheel, { passive: false, capture: true })

@@ -8,6 +8,7 @@ import type { RefObject, MutableRefObject } from 'react'
 import type { RennWorld, Vec3, EditorFreePose } from '@/types/world'
 import { resolveDistanceCullingSettings } from '@/types/world'
 import type { RawInput, RawKeyboardState, RawWheelState } from '@/types/transformer'
+import { wheelZoomLog } from '@/input/wheelZoom'
 import type { FreeFlyKeys } from '@/types/camera'
 import type { PhysicsWorld } from '@/physics/rapierPhysics'
 import type { SimulationFramePort } from '@/runtime/renderItemRegistryPorts'
@@ -92,7 +93,7 @@ export interface SceneFrameLoopInputs {
   fixedDt: number
   timeRef: MutableRefObject<number>
   rawWheelRef: RefObject<RawWheelState>
-  orbitWheelRef: MutableRefObject<{ deltaX: number; deltaY: number; distanceDelta: number }>
+  orbitWheelRef: MutableRefObject<{ deltaX: number; deltaY: number; zoomLog: number }>
   editNavigationModeRef: MutableRefObject<boolean>
   cameraCtrlRef: MutableRefObject<CameraController | null>
   physicsRef: MutableRefObject<PhysicsWorld | null>
@@ -217,7 +218,7 @@ export function runSceneFrame(input: SceneFrameLoopInputs): void {
     const rw = rawWheelRef.current
     orbitWheelRef.current.deltaX = rw.deltaX
     orbitWheelRef.current.deltaY = rw.deltaY
-    orbitWheelRef.current.distanceDelta = (rw.pinchDelta ?? 0) + (rw.mouseWheelDelta ?? 0)
+    orbitWheelRef.current.zoomLog = wheelZoomLog(rw.mouseWheelDelta ?? 0, rw.pinchDelta ?? 0)
     rw.deltaX = 0
     rw.deltaY = 0
     rw.pinchDelta = 0
@@ -225,7 +226,7 @@ export function runSceneFrame(input: SceneFrameLoopInputs): void {
   } else {
     orbitWheelRef.current.deltaX = 0
     orbitWheelRef.current.deltaY = 0
-    orbitWheelRef.current.distanceDelta = 0
+    orbitWheelRef.current.zoomLog = 0
   }
 
   const pw = physicsRef.current
@@ -297,9 +298,9 @@ export function runSceneFrame(input: SceneFrameLoopInputs): void {
       drag.deltaX = 0
       drag.deltaY = 0
     }
-    if (orbitWheel.distanceDelta !== 0) {
-      ctrl.setOrbitDistanceDelta(orbitWheel.distanceDelta * 0.75)
-      orbitWheel.distanceDelta = 0
+    if (orbitWheel.zoomLog !== 0) {
+      ctrl.zoomByLog(orbitWheel.zoomLog)
+      orbitWheel.zoomLog = 0
     }
     if (editNavigationModeRef.current) {
       const selPivot = averageUnlockedSelectionWorldPosition(

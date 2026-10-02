@@ -127,7 +127,7 @@ export interface SceneRuntimeHandleBag {
   activeDebugForcesRef: MutableRefObject<ActiveDebugForce[]>
   freeFlyKeysRef: RefObject<FreeFlyKeys | null>
   rawMouseDragRef: RefObject<RawMouseDragState | null>
-  orbitWheelRef: MutableRefObject<{ deltaX: number; deltaY: number; distanceDelta: number }>
+  orbitWheelRef: MutableRefObject<{ deltaX: number; deltaY: number; zoomLog: number }>
   editorFreePoseRef?: MutableRefObject<EditorFreePose | null>
   lastEditorPoseWriteTimeRef: MutableRefObject<number>
   selectedEntityIdsRef: MutableRefObject<string[]>

@@ -12,6 +12,7 @@
  * branch behaviour.
  */
 
+import { wheelZoomLog } from '@/input/wheelZoom'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import * as THREE from 'three'
 import {
@@ -62,7 +63,7 @@ function makeBaseInput(over: BaseOverrides = {}): SceneFrameLoopInputs {
     fixedDt: SCENE_FIXED_DT,
     timeRef: { current: 0 },
     rawWheelRef: { current: makeWheel() },
-    orbitWheelRef: { current: { deltaX: 0, deltaY: 0, distanceDelta: 0 } },
+    orbitWheelRef: { current: { deltaX: 0, deltaY: 0, zoomLog: 0 } },
     editNavigationModeRef: { current: false },
     cameraCtrlRef: { current: null },
     physicsRef: { current: null },
@@ -116,7 +117,7 @@ describe('runSceneFrame — time advance', () => {
       setForceFreeFlyNavigation: () => {},
       setFreeFlyInput: () => {},
       setOrbitDelta: () => {},
-      setOrbitDistanceDelta: () => {},
+      zoomByLog: () => {},
       setEditNavigationOrbitPivot: () => {},
       update,
     } as unknown as CameraController
@@ -136,7 +137,7 @@ describe('runSceneFrame — time advance', () => {
       setForceFreeFlyNavigation: () => {},
       setFreeFlyInput: () => {},
       setOrbitDelta: () => {},
-      setOrbitDistanceDelta: () => {},
+      zoomByLog: () => {},
       setEditNavigationOrbitPivot: () => {},
       update,
     } as unknown as CameraController
@@ -153,7 +154,7 @@ describe('runSceneFrame — time advance', () => {
       setForceFreeFlyNavigation: () => {},
       setFreeFlyInput: () => {},
       setOrbitDelta: () => {},
-      setOrbitDistanceDelta: () => {},
+      zoomByLog: () => {},
       setEditNavigationOrbitPivot: () => {},
       update,
     } as unknown as CameraController
@@ -181,7 +182,7 @@ describe('runSceneFrame — time advance', () => {
       setForceFreeFlyNavigation: () => {},
       setFreeFlyInput: () => {},
       setOrbitDelta: () => {},
-      setOrbitDistanceDelta: () => {},
+      zoomByLog: () => {},
       setEditNavigationOrbitPivot: () => {},
       update: vi.fn(),
     } as unknown as CameraController
@@ -205,13 +206,13 @@ describe('runSceneFrame — wheel orbit gating', () => {
     const wheel = makeWheel({ deltaX: 5, deltaY: 6, mouseWheelDelta: 7 })
     const input = makeBaseInput({
       rawWheelRef: { current: wheel },
-      orbitWheelRef: { current: { deltaX: 1, deltaY: 1, distanceDelta: 1 } },
+      orbitWheelRef: { current: { deltaX: 1, deltaY: 1, zoomLog: 1 } },
     })
     runSceneFrame(input)
     expect(input.orbitWheelRef.current).toEqual({
       deltaX: 0,
       deltaY: 0,
-      distanceDelta: 0,
+      zoomLog: 0,
     })
     // Raw wheel left untouched in the gated-out path.
     expect(wheel.deltaX).toBe(5)
@@ -228,7 +229,7 @@ describe('runSceneFrame — wheel orbit gating', () => {
     runSceneFrame(input)
     expect(input.orbitWheelRef.current.deltaX).toBe(3)
     expect(input.orbitWheelRef.current.deltaY).toBe(4)
-    expect(input.orbitWheelRef.current.distanceDelta).toBeCloseTo(0.75)
+    expect(input.orbitWheelRef.current.zoomLog).toBeCloseTo(wheelZoomLog(0.25, 0.5))
     expect(wheel.deltaX).toBe(0)
     expect(wheel.deltaY).toBe(0)
     expect(wheel.pinchDelta).toBe(0)
@@ -237,13 +238,13 @@ describe('runSceneFrame — wheel orbit gating', () => {
 
   it('consumes raw wheel when control=follow + mode=follow (and not editNav)', () => {
     const wheel = makeWheel({ deltaX: 2, deltaY: 1, mouseWheelDelta: 0.3 })
-    const setOrbitDistanceDelta = vi.fn()
+    const zoomByLog = vi.fn()
     const ctrl = {
       getConfig: () => ({ control: 'follow', mode: 'follow' }),
       setForceFreeFlyNavigation: () => {},
       setFreeFlyInput: () => {},
       setOrbitDelta: () => {},
-      setOrbitDistanceDelta,
+      zoomByLog,
       setEditNavigationOrbitPivot: () => {},
       update: () => {},
     } as unknown as CameraController
@@ -258,19 +259,19 @@ describe('runSceneFrame — wheel orbit gating', () => {
     expect(wheel.mouseWheelDelta).toBe(0)
     expect(input.orbitWheelRef.current.deltaX).toBe(2)
     expect(input.orbitWheelRef.current.deltaY).toBe(1)
-    expect(input.orbitWheelRef.current.distanceDelta).toBe(0)
-    expect(setOrbitDistanceDelta).toHaveBeenCalledWith(0.3 * 0.75)
+    expect(input.orbitWheelRef.current.zoomLog).toBe(0)
+    expect(zoomByLog).toHaveBeenCalledWith(wheelZoomLog(0.3, 0))
   })
 
   it('passes accumulated orbit delta to camera (with mouse drag added)', () => {
     const setOrbitDelta = vi.fn()
-    const setOrbitDistanceDelta = vi.fn()
+    const zoomByLog = vi.fn()
     const ctrl = {
       getConfig: () => ({ control: 'free', mode: 'follow' }),
       setForceFreeFlyNavigation: () => {},
       setFreeFlyInput: () => {},
       setOrbitDelta,
-      setOrbitDistanceDelta,
+      zoomByLog,
       setEditNavigationOrbitPivot: () => {},
       update: () => {},
     } as unknown as CameraController
@@ -283,7 +284,7 @@ describe('runSceneFrame — wheel orbit gating', () => {
     })
     runSceneFrame(input)
     expect(setOrbitDelta).toHaveBeenCalledWith(11, 22)
-    expect(setOrbitDistanceDelta).toHaveBeenCalledWith(0.4 * 0.75)
+    expect(zoomByLog).toHaveBeenCalledWith(wheelZoomLog(0.4, 0))
     expect(drag.deltaX).toBe(0)
     expect(drag.deltaY).toBe(0)
   })
@@ -295,7 +296,7 @@ describe('runSceneFrame — wheel orbit gating', () => {
       setForceFreeFlyNavigation: () => {},
       setFreeFlyInput: () => {},
       setOrbitDelta,
-      setOrbitDistanceDelta: () => {},
+      zoomByLog: () => {},
       setEditNavigationOrbitPivot: () => {},
       update: () => {},
     } as unknown as CameraController
@@ -448,7 +449,7 @@ describe('runSceneFrame — HUD diff threshold', () => {
       setForceFreeFlyNavigation: () => {},
       setFreeFlyInput: () => {},
       setOrbitDelta: () => {},
-      setOrbitDistanceDelta: () => {},
+      zoomByLog: () => {},
       setEditNavigationOrbitPivot: () => {},
       update: () => {},
     } as unknown as CameraController
@@ -535,7 +536,7 @@ describe('runSceneFrame — editor pose throttling', () => {
       setForceFreeFlyNavigation: () => {},
       setFreeFlyInput: () => {},
       setOrbitDelta: () => {},
-      setOrbitDistanceDelta: () => {},
+      zoomByLog: () => {},
       setEditNavigationOrbitPivot: () => {},
       update: () => {},
     } as unknown as CameraController

@@ -1,3 +1,4 @@
+import { WHEEL_NOTCH_PX, normalizeWheelDeltaPx } from '@/input/wheelGesture'
 import {
   useCallback,
   useEffect,
@@ -10,6 +11,8 @@ import type { TextureMakerStudioTool } from '@/components/TextureMaker/textureMa
 
 const VIEW_ZOOM_MIN = 0.25
 const VIEW_ZOOM_MAX = 8
+/** ln(zoom ratio) per normalised wheel pixel: a 100 px mouse notch ≈ 8 %. */
+const TEXTURE_VIEW_ZOOM_LOG_PER_PX = 0.0008
 
 export function useTextureMakerViewNav(options: {
   previewViewportRef: RefObject<HTMLDivElement | null>
@@ -42,7 +45,9 @@ export function useTextureMakerViewNav(options: {
       const fy = e.clientY - fr.top
       const z0 = viewZoomRef.current
       const p0 = viewPanRef.current
-      const factor = e.deltaY > 0 ? 0.92 : 1.08
+      // proportional to the normalised delta (a mouse notch = 8 %), so trackpad scroll streams no longer zoom 8 % per event
+      const px = normalizeWheelDeltaPx(e.deltaY, e.deltaMode, el.clientHeight)
+      const factor = Math.exp(-Math.max(-WHEEL_NOTCH_PX, Math.min(WHEEL_NOTCH_PX, px)) * TEXTURE_VIEW_ZOOM_LOG_PER_PX)
       const z1 = Math.min(VIEW_ZOOM_MAX, Math.max(VIEW_ZOOM_MIN, z0 * factor))
       if (Math.abs(z1 - z0) < 1e-6) return
       const p1 = {
