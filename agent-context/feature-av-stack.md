@@ -7,6 +7,29 @@ classic autonomy architecture — **sense → plan → control → safety** — 
 Sources: `public/global/transformers/av-stack/*.js` · fixture/builder: `src/test/fixtures/avStackWorld.ts`
 (`applyAvStack`) · tests: `src/test/scenarios/av-stack.integration.test.ts`.
 
+## Use it in any project (global library)
+
+The stack ships as **Organize → Global** pipes (`public/global/shipped-global-behavior-library.json`, refreshed on Builder
+open when the checksum changes):
+
+| Global pipe | What it is |
+|---|---|
+| `global_av_stack` | Full vehicle: `av_mission` (waypoints) + autopilot + `car2` actuator. **Assign to one object and it drives.** |
+| `global_av_autopilot` | Sense / plan / control / safety only — bring your own target source and actuator |
+| `global_av_sense`, `global_av_plan` (route + local), `global_av_control`, `global_av_safety` | The nested layers, usable on their own |
+
+In another project: Organize → Global → `AV Stack` → *Copy to project* / *Assign* (Link or Copy), or Transformers tab →
+**+ Add Pipe**. Copying brings the child pipes and all 12 stages along (`copyGlobalPipeIntoWorld` is recursive).
+Pipe params (`cruiseSpeed`, `vehicleWidth/Length`, `safetyMargin`, `maxCurvature`, `goalTolerance`, `debugDraw`) are seeded
+into the binding; edit them in the pipe config drawer, per nested layer if wanted.
+
+Set your route on the **AV Mission** stage: `waypoints: [[x, z], ...]` (world metres, floor plane), `acceptRadius` (9),
+`mode` `'loop'` (default demo square) or `'stop'`. The mission is position-only (no heading demanded). Optional stack params:
+`drivableArea: [xmin, xmax, zmin, zmax]` adds virtual walls at the edge of your floor so the car stays on it.
+The object should be a dynamic body of roughly the default vehicle size (2 × 1 × 4, front = −Z); set `vehicleWidth` /
+`vehicleLength` otherwise. Regenerate the library: `npm run sync:global-pipeline`.
+Test: `src/test/scenarios/av-stack-global-pipe.integration.test.ts` (foreign project → copy → assign → drives around an obstacle).
+
 ## Pipe tree
 
 ```
@@ -109,4 +132,4 @@ seg1 / beside-gate / full-course × 5 spawns, seg3 sphere, cube goal-behind × 4
 - Maneuver planner executes open-loop with guard re-planning; a tracking controller on the planned path would be tidier.
 - Overlay cap raised to 200 lines (`COORDINATE_OVERLAY_MAX_COUNT`; was 16, which silently dropped later stages' lines).
 - Costmap is hit-point memory (TTL 15 s), fine for static worlds; moving obstacles need tracking/prediction.
-- Not yet shipped: no entry in `shipped-global-behavior-library.json`, no example world, not wired to `sync:global-pipeline`.
+- The example world `self_drive_av` uses the fixture variant (stock `targetPoseInput` mission); the global library uses `av_mission`.

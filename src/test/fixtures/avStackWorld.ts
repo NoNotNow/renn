@@ -29,7 +29,9 @@ export const AV_STACK_PARAM_DEFS: PipeParamDef[] = [
   { key: 'maxCurvature', type: 'number', default: 0.115, description: 'Max path curvature 1/m (min turn radius)' },
 ]
 
-const STAGE_META: Record<AvStackLogicalStage, { id: string; name: string; priority: number }> = {
+/** Fixture worlds keep their own mission stage (targetPoseInput); `mission` is only used by the global library. */
+type FixtureStage = Exclude<AvStackLogicalStage, 'mission'>
+const STAGE_META: Record<FixtureStage, { id: string; name: string; priority: number }> = {
   ego: { id: 'av_ego', name: 'AV Ego state', priority: 2 },
   perception: { id: 'av_perception', name: 'AV Perception', priority: 3 },
   waypointViz: { id: 'av_waypoint_viz', name: 'AV Waypoint overlay', priority: 3.1 },
@@ -98,7 +100,7 @@ export function applyAvStack(world: RennWorld, options: AvStackOptions = {}): Re
   const missionId = transformers.tf_mission ? 'tf_mission' : 'tf_wanderer'
   const missionPoses = transformers.tf_mission?.params?.poses as Array<{ position: [number, number, number] }> | undefined
   const missionWaypoints = missionPoses?.map((p) => [p.position[0], p.position[2]])
-  for (const logical of Object.keys(STAGE_META) as AvStackLogicalStage[]) {
+  for (const logical of Object.keys(STAGE_META) as FixtureStage[]) {
     const meta = STAGE_META[logical]
     transformers[meta.id] = {
       type: 'custom',

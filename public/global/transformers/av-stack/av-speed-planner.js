@@ -1,7 +1,7 @@
 // AV stack · PLAN / speed planner.
 // v_des = min(cruise, stopping-distance limit, clearance limit, route bends ahead, lateral-acceleration limit, goal approach).
 // Clearance limit: lots of room beside obstacles → full speed; squeezing past → slow.
-// Goal approach only slows for the FINAL waypoint (params.waypoints, if given; otherwise every goal is final).
+// Goal approach only slows for the FINAL waypoint (av.mission, else params.waypoints; otherwise every goal is final).
 // Publishes av.plan.vDesired / av.plan.vLimit.
 // params: cruiseSpeed, comfortDecel, maxLatAccel, stopMargin, crawlSpeed, goalTolerance, clearSpeedBase,
 //         clearSpeedGain, waypoints
@@ -47,7 +47,9 @@ function transform(input, dt, params, state, api) {
     var tol = params.goalTolerance != null ? params.goalTolerance : 3.5
     var wps = params.waypoints
     var isFinal = true
-    if (wps && wps.length) {
+    if (av.mission) {
+      isFinal = av.mission.isFinal
+    } else if (wps && wps.length) {
       var last = wps[wps.length - 1]
       isFinal = Math.abs(av.goal.x - last[0]) < 0.05 && Math.abs(av.goal.z - last[1]) < 0.05
     }
