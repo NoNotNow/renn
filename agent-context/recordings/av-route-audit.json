@@ -1,18 +1,18 @@
 [
   {
-    "start": "(0,14)S",
+    "start": "(-12,4)N",
     "finished": true,
-    "seconds": 34.3,
-    "pathLen": 77.8,
-    "refLen": 61.2,
-    "ratio": 1.27,
-    "reversals": 26,
-    "minGap": 0.35,
+    "seconds": 17,
+    "pathLen": 123.2,
+    "refLen": 52,
+    "ratio": 2.37,
+    "reversals": 0,
+    "minGap": 1,
     "offPlatform": false,
     "end": [
-      -0.5,
+      3.3,
       0.5,
-      -52.6
+      -53.6
     ]
   }
 ]

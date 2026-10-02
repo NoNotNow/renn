@@ -55,9 +55,12 @@ export type AvStackOptions = {
   disable?: AvStackLogicalStage[]
   /**
    * Waypoint acceptance radius (m). A pass-through waypoint must be reachable with the turn radius (~8 m), so
-   * the mission's `positionEpsilon` is raised to at least this value. Default 6.
+   * the mission's `positionEpsilon` is raised to at least this value. Default 9: a pass that misses a smaller
+   * radius by centimetres otherwise sends the car on a loop back to the same waypoint.
    */
   waypointRadius?: number
+  /** Arrive/hold radius around the FINAL waypoint (m). Default 5.5 (must be reachable inside the turning circle). */
+  goalTolerance?: number
   /** Heading tolerance (deg) for accepting a waypoint; default 180 = position only (a pass-through waypoint must not need a heading). */
   waypointHeadingTolerance?: number
   /** Keep this far (m) from the ground slab edge (virtual walls). Default 3. */
@@ -73,7 +76,7 @@ export function applyAvStack(world: RennWorld, options: AvStackOptions = {}): Re
       const eps = Number(cfg.params.positionEpsilon ?? 0)
       transformers[id] = { ...cfg, params: {
           ...cfg.params,
-          positionEpsilon: Math.max(eps, options.waypointRadius ?? 6),
+          positionEpsilon: Math.max(eps, options.waypointRadius ?? 9),
           rotationEpsilon: options.waypointHeadingTolerance ?? 180,
         },
       }
@@ -156,7 +159,7 @@ export function applyAvStack(world: RennWorld, options: AvStackOptions = {}): Re
       ...(missionWaypoints ? { waypoints: missionWaypoints } : {}),
       ...(drivableArea ? { drivableArea } : {}),
       // arrive/hold inside the acceptance radius: the goal may lie within the turning circle
-      goalTolerance: (options.waypointRadius ?? 6) - 0.5,
+      goalTolerance: options.goalTolerance ?? 5.5,
       ...(options.params ?? {}),
     },
     ...(Object.keys(scopeParams).length ? { scopeParams } : {}),
