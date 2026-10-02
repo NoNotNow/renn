@@ -359,11 +359,11 @@ export default function WorkspaceOrganizeTab({
     if (entitiesUsing.length > 0) {
       if (
         !window.confirm(
-          `This pipe is used by ${entitiesUsing.length} entities. Deleting it will decouple them. Continue?`,
+          `This pipe is used by ${entitiesUsing.length} entities. Deleting it also deletes the stages it contains. Continue?`,
         )
       )
         return
-    } else if (!window.confirm(`Delete pipe "${id}"?`)) {
+    } else if (!window.confirm(`Delete pipe "${id}" and the stages it contains?`)) {
       return
     }
 

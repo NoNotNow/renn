@@ -271,20 +271,78 @@ export function decoupleEntityFromPipe(world: RennWorld, entityId: string): Renn
   }
 }
 
-/** Removes a pipe from the world and clears all entity stack entries referencing it. */
+/**
+ * Removes a pipe from the world together with what it contained.
+ *
+ * Entity stack entries referencing the pipe are cleared. Its stages are deleted from the stage registry and from every
+ * entity's `transformers` (they must not end up as ungrouped top-level stages). Nested pipes are deleted too, unless
+ * another surviving pipe or an entity stack still references them; a stage that a surviving pipe still lists is kept.
+ */
 export function deletePipeFromWorld(world: RennWorld, pipeId: string): RennWorld {
-  const nextPipes = { ...(world.transformerPipes ?? {}) }
-  delete nextPipes[pipeId]
+  const registry = world.transformerPipes ?? {}
+  const doomed = new Set<string>([pipeId])
+
+  // Nested pipes nobody else references go with it (fixpoint: a kept child keeps its own subtree alive).
+  const referencedOutside = (candidate: string): boolean => {
+    for (const [id, p] of Object.entries(registry)) {
+      if (doomed.has(id)) continue
+      if (normalizePipeMembers(p).some((m) => m.kind === 'pipe' && m.pipeId === candidate)) return true
+    }
+    return world.entities.some((e) => getEntityPipeStack(e).some((b) => b.pipeId === candidate))
+  }
+  let grew = true
+  while (grew) {
+    grew = false
+    for (const id of [...doomed]) {
+      const pipe = registry[id]
+      if (!pipe) continue
+      for (const m of normalizePipeMembers(pipe)) {
+        if (m.kind === 'pipe' && !doomed.has(m.pipeId) && registry[m.pipeId] && !referencedOutside(m.pipeId)) {
+          doomed.add(m.pipeId)
+          grew = true
+        }
+      }
+    }
+  }
+
+  const keptStageIds = new Set<string>()
+  for (const [id, p] of Object.entries(registry)) {
+    if (doomed.has(id)) continue
+    for (const sid of p.stageIds) keptStageIds.add(sid)
+    for (const m of normalizePipeMembers(p)) if (m.kind === 'stage') keptStageIds.add(m.stageId)
+  }
+  const doomedStageIds = new Set<string>()
+  for (const id of doomed) {
+    const pipe = registry[id]
+    if (!pipe) continue
+    for (const sid of pipe.stageIds) doomedStageIds.add(sid)
+    for (const m of normalizePipeMembers(pipe)) if (m.kind === 'stage') doomedStageIds.add(m.stageId)
+  }
+  for (const sid of keptStageIds) doomedStageIds.delete(sid)
+
+  const nextPipes = { ...registry }
+  for (const id of doomed) delete nextPipes[id]
+  const nextTransformers = { ...(world.transformers ?? {}) }
+  for (const sid of doomedStageIds) delete nextTransformers[sid]
 
   const nextEntities = world.entities.map((e) => {
     const stackBefore = getEntityPipeStack(e)
-    const stack = stackBefore.filter((b) => b.pipeId !== pipeId)
+    const stack = stackBefore.filter((b) => !doomed.has(b.pipeId))
     const hadLegacy = legacyEntityPipeId(e) === pipeId
-    if (stack.length === stackBefore.length && !hadLegacy) return e
-    return withPipeStackBindings(e, stack)
+    let next = e
+    if (stack.length !== stackBefore.length || hadLegacy) next = withPipeStackBindings(e, stack)
+    if ((next.transformers ?? []).some((sid) => doomedStageIds.has(sid))) {
+      next = { ...next, transformers: (next.transformers ?? []).filter((sid) => !doomedStageIds.has(sid)) }
+    }
+    return next
   })
 
-  return { ...world, transformerPipes: nextPipes, entities: nextEntities }
+  return {
+    ...world,
+    ...(world.transformers ? { transformers: nextTransformers } : {}),
+    transformerPipes: nextPipes,
+    entities: nextEntities,
+  }
 }
 
 /** Creates a new pipe from an entity's current pipeline. */

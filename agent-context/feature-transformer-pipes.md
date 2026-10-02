@@ -229,3 +229,7 @@ Config patches must **not** call `syncPriorities`, `updateFocusedStageOrder`, or
 - **`PipeLibraryDialog`**: project pipes + global-library pipes, search, structure preview (`PipeStructurePreview` over `summarizePipe` in `src/utils/pipeSummary.ts`), `Link (shared)` / `Copy (own)`. Double-click links.
 - **Intent `assignLibraryPipe`** (`pipeNavEdit.ts`, undo-pushing) → `assignLibraryPipeToEntity` (`src/utils/assignLibraryPipe.ts`): a global pipe is first copied into the project (recursive `copyGlobalPipeIntoWorld`; an existing project pipe with the same id is reused), then appended to the entity's pipe stack at root level.
 - **Organize → Pipes cards** show the pipe name (id in the subtitle), "N stages · M nested pipes", a collapsible Structure outline, and labeled actions (`Edit`, `Add to project`, `Assign`, …).
+
+## Deleting a pipe deletes its contents
+
+`deletePipeFromWorld` removes the pipe, its stages (registry + every entity's `transformers`) and nested pipes that nothing else references; stages/pipes still referenced by a surviving pipe or entity stack are kept. Tree delete (stack pipe / nested pipe) unlinks first and applies the same cascade only when the pipe is no longer referenced anywhere (`dropIfOrphaned` in `pipeNavEdit.ts`); a pipe shared with another entity or pipe only loses this reference.

@@ -3,7 +3,7 @@ import type { GlobalBehaviorLibrary } from '@/types/globalBehaviorLibrary'
 import { assignLibraryPipeToEntity, type LibraryPipeSource } from '@/utils/assignLibraryPipe'
 import type { PipeNavFocus, PipeNavPathSegment, PipeTreeNode } from '@/types/pipeNav'
 import type { Entity, RennWorld } from '@/types/world'
-import { countEntitiesLinkingPipe } from '@/utils/commitTransformerConfigsToWorld'
+import { countEntitiesLinkingPipe, deletePipeFromWorld } from '@/utils/commitTransformerConfigsToWorld'
 import {
   addExistingPipeAtFocus,
   createEmptyPipe,
@@ -345,11 +345,11 @@ function resolveTreeDelete(node: PipeTreeNode, ctx: PipeNavEditContext): PipeNav
   if (node.kind === 'stack_pipe') {
     if (!confirmPipeRemoval(world, node.pipeId, prompts, {
       shared: (count) => `${count} entities use "${node.label}". Remove this pipe from the entity stack only?`,
-      sole: `Remove pipe "${node.label}" from this entity?`,
+      sole: `Delete pipe "${node.label}" and the stages it contains?`,
     })) {
       return null
     }
-    return structural(deleteStackBinding(world, entityId, node.stackIndex), ctx)
+    return structural(dropIfOrphaned(deleteStackBinding(world, entityId, node.stackIndex), node.pipeId), ctx)
   }
 
   if (node.kind === 'member_stage') {
@@ -359,11 +359,26 @@ function resolveTreeDelete(node: PipeTreeNode, ctx: PipeNavEditContext): PipeNav
 
   if (!confirmPipeRemoval(world, node.pipeId, prompts, {
     shared: (count) => `${count} entities use "${node.label}". Remove this nested pipe reference only?`,
-    sole: `Remove nested pipe "${node.label}" from this pipe?`,
+    sole: `Delete nested pipe "${node.label}" and the stages it contains?`,
   })) {
     return null
   }
-  return structural(deletePipeMember(world, entityId, node.parentPipeId, node.memberIndex), ctx)
+  return structural(
+    dropIfOrphaned(deletePipeMember(world, entityId, node.parentPipeId, node.memberIndex), node.pipeId),
+    ctx,
+  )
+}
+
+/**
+ * After a pipe was unlinked, delete it with its contents when nothing else references it. A pipe still used elsewhere
+ * (another entity, another pipe) stays, so only this reference goes.
+ */
+function dropIfOrphaned(world: RennWorld, pipeId: string): RennWorld {
+  const usedByStack = world.entities.some((e) => getEntityPipeStack(e).some((b) => b.pipeId === pipeId))
+  const usedByPipe = Object.values(world.transformerPipes ?? {}).some((p) =>
+    normalizePipeMembers(p).some((m) => m.kind === 'pipe' && m.pipeId === pipeId),
+  )
+  return usedByStack || usedByPipe ? world : deletePipeFromWorld(world, pipeId)
 }
 
 /** Shared pipes get a "this entity only" warning; sole-owner pipes get a plain confirmation. */

@@ -337,6 +337,46 @@ describe('Transformer Pipes utilities', () => {
     })
   })
 
+  describe('deletePipeFromWorld cascade', () => {
+    const cascadeWorld = (): RennWorld => ({
+      version: '1',
+      world: {},
+      entities: [
+        { id: 'e1', name: 'E1', transformers: ['a', 'b', 'x'], transformerPipeStack: [{ pipeId: 'outer' }] },
+        { id: 'e2', name: 'E2', transformers: ['a'], transformerPipeStack: [{ pipeId: 'other' }] },
+      ],
+      transformers: {
+        a: { type: 'custom', name: 'A', code: '' },
+        b: { type: 'custom', name: 'B', code: '' },
+        x: { type: 'custom', name: 'Ungrouped', code: '' },
+      },
+      transformerPipes: {
+        outer: { id: 'outer', name: 'Outer', stageIds: [], stages: [], members: [{ kind: 'pipe', pipeId: 'inner' }, { kind: 'stage', stageId: 'b' }] },
+        inner: { id: 'inner', name: 'Inner', stageIds: ['a'], stages: [], members: [{ kind: 'stage', stageId: 'a' }] },
+        other: { id: 'other', name: 'Other', stageIds: ['a'], stages: [], members: [{ kind: 'stage', stageId: 'a' }] },
+      },
+    })
+
+    it('deletes contained stages instead of leaving them top-level', () => {
+      const w = cascadeWorld()
+      delete w.transformerPipes!.other
+      w.entities = [w.entities[0]!]
+      const next = deletePipeFromWorld(w, 'outer')
+      expect(next.transformerPipes).toEqual({})
+      expect(Object.keys(next.transformers!)).toEqual(['x'])
+      expect(next.entities[0]!.transformers).toEqual(['x'])
+    })
+
+    it('keeps nested pipes and stages that something else still references', () => {
+      const w = cascadeWorld()
+      w.transformerPipes!.other!.members = [{ kind: 'pipe', pipeId: 'inner' }]
+      const next = deletePipeFromWorld(w, 'outer')
+      expect(Object.keys(next.transformerPipes!).sort()).toEqual(['inner', 'other'])
+      expect(Object.keys(next.transformers!).sort()).toEqual(['a', 'x'])
+      expect(next.entities[0]!.transformers).toEqual(['a', 'x'])
+    })
+  })
+
   describe('clonePipeTreeForEntityCopy', () => {
     it('clones nested manifolds and remaps stage ids', () => {
       const manifoldWorld: RennWorld = {
