@@ -65,6 +65,7 @@ export interface TransformerPipeNavSidebarProps {
   onDecouplePipeBinding?: (stackIndex: number) => void
   onConfigureStage?: (path: PipeNavPathSegment[], index: number, stageId: string) => void
   onToggleStageEnabled?: (stageId: string) => void
+  onAddPipe?: () => void
 }
 
 export default function TransformerPipeNavSidebar({
@@ -92,6 +93,7 @@ export default function TransformerPipeNavSidebar({
   onDecouplePipeBinding,
   onConfigureStage,
   onToggleStageEnabled,
+  onAddPipe,
 }: TransformerPipeNavSidebarProps) {
   const [widthPx, setWidthPx] = useState(readPipeNavWidth)
   const [editingTitle, setEditingTitle] = useState(false)
@@ -231,6 +233,7 @@ export default function TransformerPipeNavSidebar({
         onDecouplePipeBinding={onDecouplePipeBinding}
         onConfigureStage={onConfigureStage}
         onToggleStageEnabled={onToggleStageEnabled}
+        onAddPipe={onAddPipe}
       />
       <div
         role="separator"

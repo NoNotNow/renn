@@ -5,6 +5,7 @@ import { theme } from '@/config/theme'
 import { getEntityPipeStack, normalizePipeMembers } from '@/utils/transformerPipeResolve'
 import { resolveEntityStageRuntime, stackIndexFromScopePath } from '@/utils/pipeStageResolve'
 import type { PipeTreeContextTarget } from '@/utils/pipeNavTreeHelpers'
+import { collectNestedPipeIds } from '@/utils/pipeSummary'
 import PipeTreePipeControls from './PipeTreePipeControls'
 
 export interface PipeNavTreeProps {
@@ -44,6 +45,8 @@ export interface PipeNavTreeProps {
   onConfigureStage?: (path: PipeNavPathSegment[], index: number, stageId: string) => void
   /** Enable / disable one stage (same switch as the card's power dot). */
   onToggleStageEnabled?: (stageId: string) => void
+  /** Open the "assign a pipe" dialog; shows the "+ Pipe" toolbar button when set. */
+  onAddPipe?: () => void
 }
 
 export default function PipeNavTree({
@@ -62,6 +65,7 @@ export default function PipeNavTree({
   onDecouplePipeBinding,
   onConfigureStage,
   onToggleStageEnabled,
+  onAddPipe,
 }: PipeNavTreeProps) {
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(['entity']))
   const [hoveredId, setHoveredId] = useState<string | null>(null)
@@ -82,6 +86,16 @@ export default function PipeNavTree({
       return next
     })
   }
+
+  const expandAll = () => {
+    const ids = collectNestedPipeIds(
+      pipes,
+      stack.map((b) => b.pipeId),
+    )
+    setExpanded(new Set(['entity', ...ids.map((id) => `pipe:${id}`)]))
+  }
+  /** Keeps the entity row open so the stack stays visible. */
+  const collapseAll = () => setExpanded(new Set(['entity']))
 
   const handleDrop = useCallback(
     (drop: PipeTreeNode) => {
@@ -283,6 +297,29 @@ export default function PipeNavTree({
   }
 
   return (
+    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+      <div
+        data-testid="pipe-nav-tree-toolbar"
+        style={{
+          display: 'flex',
+          gap: 4,
+          padding: '4px 8px',
+          borderBottom: `1px solid ${theme.pipeNav.accentMuted}`,
+          flexShrink: 0,
+        }}
+      >
+        {onAddPipe ?
+          <ToolbarBtn title="Assign a project or library pipe to this object" testId="pipe-nav-tree-add-pipe" onClick={onAddPipe}>
+            + Pipe
+          </ToolbarBtn>
+        : null}
+        <ToolbarBtn title="Expand all pipes" testId="pipe-nav-tree-expand-all" onClick={expandAll}>
+          Expand all
+        </ToolbarBtn>
+        <ToolbarBtn title="Collapse all pipes" testId="pipe-nav-tree-collapse-all" onClick={collapseAll}>
+          Collapse all
+        </ToolbarBtn>
+      </div>
     <div
       data-testid="pipe-nav-tree"
       onScroll={(e) => {
@@ -404,6 +441,39 @@ export default function PipeNavTree({
         </div>
       : null}
     </div>
+    </div>
+  )
+}
+
+function ToolbarBtn({
+  children,
+  onClick,
+  title,
+  testId,
+}: {
+  children: string
+  onClick: () => void
+  title: string
+  testId: string
+}) {
+  return (
+    <button
+      type="button"
+      title={title}
+      data-testid={testId}
+      onClick={onClick}
+      style={{
+        padding: '2px 8px',
+        border: `1px solid ${theme.pipeNav.accentMuted}`,
+        borderRadius: 4,
+        background: 'transparent',
+        color: theme.pipeNav.accent,
+        fontSize: 10,
+        cursor: 'pointer',
+      }}
+    >
+      {children}
+    </button>
   )
 }
 

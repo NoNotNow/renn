@@ -54,6 +54,7 @@ import {
 } from '@/components/workspace/pipeNav/transformerPipeNavStorage'
 import PipeFocusedStrip from '@/components/workspace/pipeNav/PipeFocusedStrip'
 import PipeNavDialogs from '@/components/workspace/pipeNav/PipeNavDialogs'
+import PipeLibraryDialog from '@/components/workspace/pipeNav/PipeLibraryDialog'
 import PipeNavOpenToggle from '@/components/workspace/pipeNav/PipeNavOpenToggle'
 import { mergeTransformers } from '@/utils/entityInspectorMerge'
 import {
@@ -206,6 +207,7 @@ function WorkspaceTransformersTabEntity({
   onEntryChange,
   entityWorkHistory = [],
   onSelectEntity,
+  globalLibrary,
 }: WorkspaceTransformersTabProps) {
   const undo = useEditorUndo()
   const { openMenu } = useCopyMenu()
@@ -652,6 +654,7 @@ function WorkspaceTransformersTabEntity({
   )
 
   /** Tree gear: select the stage (focus + strip) and ask its card to open the config drawer. */
+  const [pipeLibraryOpen, setPipeLibraryOpen] = useState(false)
   const [stageConfigRequest, setStageConfigRequest] = useState<StageConfigRequest | null>(null)
   const handleConfigureStageFromTree = useCallback(
     (path: PipeNavPathSegment[], index: number, stageId: string) => {
@@ -932,6 +935,7 @@ function WorkspaceTransformersTabEntity({
       >
       {usePipeNav && singleEntity && pipeNav.view && pipeNavOpen ?
         <TransformerPipeNavSidebar
+          onAddPipe={() => setPipeLibraryOpen(true)}
           world={world}
           entity={singleEntity}
           focusPath={pipeNav.focus.path}
@@ -1247,6 +1251,18 @@ function WorkspaceTransformersTabEntity({
       : null}
 
       {usePipeNav ? <PipeNavDialogs {...pipeNav.nameDialogProps} /> : null}
+      {usePipeNav && singleEntity ?
+        <PipeLibraryDialog
+          isOpen={pipeLibraryOpen}
+          onClose={() => setPipeLibraryOpen(false)}
+          world={world}
+          globalLibrary={globalLibrary}
+          entityName={singleEntity.name ?? singleEntity.id}
+          onAssign={(source, pipeId, mode) =>
+            pipeNav.addPipe.onAssignLibraryPipe(source, pipeId, mode, globalLibrary)
+          }
+        />
+      : null}
       </div>
       </div>
       )}

@@ -222,3 +222,10 @@ Config patches must **not** call `syncPriorities`, `updateFocusedStageOrder`, or
 - [x] Phase 3: Transformers Tab (pipe nav sidebar, focused strip, + menu)
 - [ ] Phase 4: Organize Tab (Management + Global Scope)
 - [x] Phase 5: Verification & Polish (pipe nav tree + strip tests)
+
+## Assigning pipes from the Transformers tree, library dialog, tree toolbar
+
+- **Tree toolbar** (`PipeNavTree`): `+ Pipe` (opens `PipeLibraryDialog`), `Expand all` (entity + every nested pipe reachable from the stack, via `collectNestedPipeIds`), `Collapse all` (keeps the entity row open).
+- **`PipeLibraryDialog`**: project pipes + global-library pipes, search, structure preview (`PipeStructurePreview` over `summarizePipe` in `src/utils/pipeSummary.ts`), `Link (shared)` / `Copy (own)`. Double-click links.
+- **Intent `assignLibraryPipe`** (`pipeNavEdit.ts`, undo-pushing) → `assignLibraryPipeToEntity` (`src/utils/assignLibraryPipe.ts`): a global pipe is first copied into the project (recursive `copyGlobalPipeIntoWorld`; an existing project pipe with the same id is reused), then appended to the entity's pipe stack at root level.
+- **Organize → Pipes cards** show the pipe name (id in the subtitle), "N stages · M nested pipes", a collapsible Structure outline, and labeled actions (`Edit`, `Add to project`, `Assign`, …).

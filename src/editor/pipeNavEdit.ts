@@ -1,4 +1,6 @@
 import type { TransformerPipe } from '@/types/transformer'
+import type { GlobalBehaviorLibrary } from '@/types/globalBehaviorLibrary'
+import { assignLibraryPipeToEntity, type LibraryPipeSource } from '@/utils/assignLibraryPipe'
 import type { PipeNavFocus, PipeNavPathSegment, PipeTreeNode } from '@/types/pipeNav'
 import type { Entity, RennWorld } from '@/types/world'
 import { countEntitiesLinkingPipe } from '@/utils/commitTransformerConfigsToWorld'
@@ -51,6 +53,14 @@ export type PipeNavEditIntent =
   | { kind: 'createChildPipe'; name: string }
   /** Link or copy an existing registry pipe in at the focused level. */
   | { kind: 'addExistingPipe'; pipe: TransformerPipe; mode: 'linked' | 'copy' }
+  /** Append a project or global-library pipe to the end of the entity's pipe stack, whatever the focus. */
+  | {
+      kind: 'assignLibraryPipe'
+      source: LibraryPipeSource
+      pipeId: string
+      mode: 'linked' | 'copy'
+      library?: GlobalBehaviorLibrary
+    }
   /** Rename the focused pipe. */
   | { kind: 'renamePipe'; name: string }
   /** Enable/disable a stack binding or a pipe member. */
@@ -92,6 +102,7 @@ export const PIPE_NAV_EDIT_POLICY: Record<PipeNavEditIntent['kind'], PipeNavEdit
   createPipe: { pushUndo: true },
   createChildPipe: { pushUndo: true },
   addExistingPipe: { pushUndo: true },
+  assignLibraryPipe: { pushUndo: true },
   renamePipe: { pushUndo: true },
   togglePipeEnabled: { pushUndo: true },
   editPipeParams: { pushUndo: true },
@@ -201,6 +212,19 @@ function resolveIntent(
         atLeaf ? stackSiblingInsertIndexFromPath(focus.path) : undefined,
       )
       return { world: next, nav: focusAt(focusPath) }
+    }
+
+    case 'assignLibraryPipe': {
+      const res = assignLibraryPipeToEntity(
+        world,
+        entityId,
+        intent.source,
+        intent.pipeId,
+        intent.mode,
+        intent.library,
+      )
+      if (!res) return null
+      return { world: res.world, nav: focusAt(res.focusPath) }
     }
 
     case 'renamePipe': {

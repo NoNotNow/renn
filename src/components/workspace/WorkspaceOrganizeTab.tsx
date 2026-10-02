@@ -10,6 +10,8 @@ import { useEditorUndo } from '@/contexts/useEditorUndo'
 import { getScriptDef } from '@/scripts/scriptDef'
 import { uiLogger } from '@/utils/uiLogger'
 import { theme } from '@/config/theme'
+import PipeStructurePreview from '@/components/workspace/pipeNav/PipeStructurePreview'
+import { describePipeSummary, summarizePipe } from '@/utils/pipeSummary'
 import { copyGlobalPipeIntoWorld } from '@/globalPipeline/copyGlobalPipeIntoWorld'
 import { assignPipeToEntity, deletePipeFromWorld } from '@/utils/commitTransformerConfigsToWorld'
 import { behaviorRegistryBindings } from '@/utils/behaviorRegistryBindings'
@@ -1046,11 +1048,21 @@ export default function WorkspaceOrganizeTab({
               const def = (scope === 'global' ? globalLibrary.transformerPipes ?? {} : world.transformerPipes ?? {})[id]
               if (!def) return null
               const users = behaviorRegistryBindings('pipes').entitiesUsing(world, id)
+              const summary = summarizePipe(
+                scope === 'global' ?
+                  { pipes: globalLibrary.transformerPipes ?? {}, transformers: globalLibrary.transformers ?? {} }
+                : { pipes: world.transformerPipes ?? {}, transformers: world.transformers ?? {} },
+                id,
+              )
               return (
                 <WorkspaceOrganizeCard
                   key={id}
-                  title={id}
-                  subtitle={`${def.stages.length} stages`}
+                  title={def.name || id}
+                  subtitle={`${id}${summary ? ` · ${describePipeSummary(summary)}` : ''}`}
+                  preview={summary ? <PipeStructurePreview nodes={summary.children} /> : undefined}
+                  labeledActions
+                  testId={`workspace-organize-card-${scope}-pipe-${id}`}
+                  copyLabel={scope === 'global' ? 'Add to project' : 'Copy'}
                   usageLine={`Used by ${users.length} entities`}
                   assignments={
                     scope === 'global'

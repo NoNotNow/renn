@@ -8,6 +8,7 @@ const INTENT_KINDS: PipeNavEditIntent['kind'][] = [
   'createPipe',
   'createChildPipe',
   'addExistingPipe',
+  'assignLibraryPipe',
   'renamePipe',
   'togglePipeEnabled',
   'editPipeParams',

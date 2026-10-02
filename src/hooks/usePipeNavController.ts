@@ -1,3 +1,5 @@
+import type { GlobalBehaviorLibrary } from '@/types/globalBehaviorLibrary'
+import type { LibraryPipeSource } from '@/utils/assignLibraryPipe'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { TransformerConfig, TransformerPipe } from '@/types/transformer'
 import type { PipeTreeNode } from '@/types/pipeNav'
@@ -35,6 +37,13 @@ interface AddPipeHandlers {
   onCreatePipe: (name: string) => void
   onAddChildPipe: (name: string) => void
   onAddExistingPipe: (pipe: TransformerPipe, mode: 'linked' | 'copy') => void
+  /** Append a project or global-library pipe to the entity's stack. */
+  onAssignLibraryPipe: (
+    source: LibraryPipeSource,
+    pipeId: string,
+    mode: 'linked' | 'copy',
+    library?: GlobalBehaviorLibrary,
+  ) => void
 }
 
 /** Tree callbacks, in the prop shape `TransformerPipeNavSidebar` expects. */
@@ -233,6 +242,8 @@ export function usePipeNavController(
       onCreatePipe: (name) => commit({ kind: 'createPipe', name }),
       onAddChildPipe: (name) => commit({ kind: 'createChildPipe', name }),
       onAddExistingPipe: (pipe, mode) => commit({ kind: 'addExistingPipe', pipe, mode }),
+      onAssignLibraryPipe: (source, pipeId, mode, library) =>
+        commit({ kind: 'assignLibraryPipe', source, pipeId, mode, library }),
     }),
     [commit],
   )
