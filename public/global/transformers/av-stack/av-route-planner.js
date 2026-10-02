@@ -9,7 +9,7 @@
 // Runs BEFORE the local motion planner. Simulated time only.
 // debug draw: magenta = route / manoeuvre path (+ status mast while manoeuvring), orange = current segment end.
 // params: maneuverSpeed, routeInterval, routeExpansions, lookahead, primitiveLength, maxExpansions,
-//         gearSwitchPenalty, reversePenalty, planMargin, tightMargin, guardMargin, stallTime, stuckTime,
+//         gearSwitchPenalty, reversePenalty, maxReverseRun, planMargin, tightMargin, guardMargin, stallTime, stuckTime,
 //         goalReach, handbackFree, goalTolerance, maxCurvature, vehicleWidth, vehicleLength
 function transform(input, dt, params, state, api) {
   var av = input.av
@@ -29,13 +29,14 @@ function transform(input, dt, params, state, api) {
   var routeInterval = params.routeInterval != null ? params.routeInterval : 0.8
   var lookahead = params.lookahead != null ? params.lookahead : 14
   var gearPen = params.gearSwitchPenalty != null ? params.gearSwitchPenalty : 4
-  var revPen = params.reversePenalty != null ? params.reversePenalty : 2.5
+  var revPen = params.reversePenalty != null ? params.reversePenalty : 4
   var handback = params.handbackFree != null ? params.handbackFree : 10
   var vMan = params.maneuverSpeed != null ? params.maneuverSpeed : 3
   var stuckTime = params.stuckTime != null ? params.stuckTime : 1.5
   var holdTol = params.goalTolerance != null ? params.goalTolerance : 3.5
   // route ends inside the waypoint acceptance zone (not only at its centre)
   var reach = params.goalReach != null ? params.goalReach : 3.5
+  var maxRevRun = params.maxReverseRun != null ? params.maxReverseRun : 8
   var termHeadW = params.exitHeadingWeight != null ? params.exitHeadingWeight : 0
   var ks = [-kmax, -kmax / 2, 0, kmax / 2, kmax]
   var pos = input.position
@@ -177,6 +178,8 @@ function transform(input, dt, params, state, api) {
           var k = ks[ki]
           var lx = cur.fz
           var lz = -cur.fx
+          var revRun = gear < 0 ? (cur.gear < 0 ? cur.revRun || 0 : 0) + ell : 0
+          if (revRun > maxRevRun) continue
           var ok = true
           var nx = cur.x
           var nz = cur.z
@@ -213,7 +216,7 @@ function transform(input, dt, params, state, api) {
           var nk = skey(nx, nz, nfx, nfz, gear)
           if (best[nk] !== undefined && best[nk] <= g2) continue
           best[nk] = g2
-          push({ x: nx, z: nz, fx: nfx, fz: nfz, g: g2, gear: gear, k: k, parent: cur, f: g2 + dist(nx, nz) * HW })
+          push({ x: nx, z: nz, fx: nfx, fz: nfz, g: g2, gear: gear, k: k, revRun: revRun, parent: cur, f: g2 + dist(nx, nz) * HW })
         }
       }
     }
