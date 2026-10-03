@@ -150,3 +150,21 @@ The autopilot only needs a **goal**; any stage that publishes it can sit in fron
 
 To replace the mission in a project: focus the stack pipe → `+` → Transformer → **Global library** → *AV Wander* → delete the old mission stage
 (execution order follows `priority`, not list position: 2.5 keeps it right behind ego).
+
+## Goal contract (any source, same autopilot)
+
+The autopilot does not care where a goal comes from — only about the engine's `TransformInput.target`:
+
+| Field | Meaning |
+| --- | --- |
+| `target.pose.position` | Goal; the AV uses X/Z (floor plane), Y and rotation are ignored. |
+| `target.speed` | Speed hint (m/s). |
+| `target.isFinal` | `false` = more goals follow (wanderer, waypoint list): the car keeps cruising. Absent/`true` = a single final goal: brake and hold there. |
+
+Producers that satisfy it: `targetPoseInput`, **preset `wanderer`** (now `planar` mode + `isFinal:false`), **preset `follow`** (goal = another entity's pose, e.g. chase a ball or another car),
+`av-mission` (waypoints), `av-wander` (random goals in the drivable area), or any custom stage that sets `input.target`.
+`av-ego` turns a non-final `input.target` into `av.mission`, so the speed planner / supervisor behave. Goal sources can be top-level stages next to the autopilot pipe
+(`av-stack-goal-contract.integration.test.ts` runs wanderer and follow that way).
+
+Preset wanderer for a car: `planar: true`, `angular: false`, `positionEpsilon` ≈ 9 (the AV's acceptance radius), `perimeter.halfExtents` y = 0. `follow` targets sit inside the
+followed object's footprint, so give the stack `goalReach`/`goalTolerance` a few metres more than the object's radius (standoff).

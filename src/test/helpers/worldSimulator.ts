@@ -127,6 +127,15 @@ export class WorldSimulator {
           configs,
           rawInputGetter,
           entity,
+          // other entities' poses for `follow`-style goal sources (the real runtime provides the same)
+          (id) => {
+            const cached = physicsWorld.getCachedTransform(id)
+            // static bodies are not in the physics cache and headless meshes sit at the origin: use the document pose
+            const doc = world.entities.find((e) => e.id === id)
+            const position = cached ? ([cached.position.x, cached.position.y, cached.position.z] as [number, number, number]) : doc?.position
+            if (!position) return null
+            return { position: [position[0], position[1], position[2]], rotation: doc?.rotation ?? [0, 0, 0] }
+          },
         )
         const item = registry.get(entity.id)
         if (item && chain) {

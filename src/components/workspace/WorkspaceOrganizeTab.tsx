@@ -13,6 +13,7 @@ import { theme } from '@/config/theme'
 import { deleteStackBinding } from '@/utils/pipeNavMutations'
 import PipeStructurePreview from '@/components/workspace/pipeNav/PipeStructurePreview'
 import { describePipeSummary, summarizePipe } from '@/utils/pipeSummary'
+import { updateWorldFromGlobalLibrary } from '@/globalPipeline/globalOrigin'
 import { copyGlobalPipeIntoWorld } from '@/globalPipeline/copyGlobalPipeIntoWorld'
 import { assignPipeToEntity, deletePipeFromWorld } from '@/utils/commitTransformerConfigsToWorld'
 import { behaviorRegistryBindings } from '@/utils/behaviorRegistryBindings'
@@ -347,6 +348,23 @@ export default function WorkspaceOrganizeTab({
     },
     [onNavigateToEditor, onSelectEntity],
   )
+
+  const handleSyncWithLibrary = () => {
+    const { world: next, report } = updateWorldFromGlobalLibrary(world, globalLibrary)
+    const changed = report.updatedStages.length + report.updatedPipes.length
+    if (next !== world) {
+      pushUndo()
+      onWorldChange(next)
+    }
+    const diverged = report.divergedStages.length + report.divergedPipes.length
+    window.alert(
+      changed > 0 ?
+        `Updated ${report.updatedStages.length} stage(s) and ${report.updatedPipes.length} pipe(s) from the global library.` +
+          (diverged ? `\n${diverged} copy/copies were edited locally and left unchanged.` : '')
+      : diverged > 0 ? `Nothing to update. ${diverged} copy/copies were edited locally and differ from the library.`
+      : 'Project copies are up to date with the global library.',
+    )
+  }
 
   const handleDeletePipe = (id: string) => {
     if (scope === 'global') {
@@ -924,11 +942,30 @@ export default function WorkspaceOrganizeTab({
         {scope === 'project' && (
           <button
             type="button"
+            onClick={handleSyncWithLibrary}
+            title="Apply fixes from the global library to project copies that were not edited locally"
+            data-testid="organize-sync-library"
+            style={{
+              ...SUBTAB_BTN,
+              marginLeft: 'auto',
+              background: 'transparent',
+              color: theme.text.muted,
+              borderColor: theme.border.default,
+              fontSize: 11,
+              padding: '4px 8px',
+            }}
+          >
+            ⟳ Sync with library
+          </button>
+        )}
+        {scope === 'project' && (
+          <button
+            type="button"
             onClick={handleCleanupUnused}
             title={`Remove all ${kind} that are not assigned to any entity`}
             style={{
               ...SUBTAB_BTN,
-              marginLeft: 'auto',
+              marginLeft: 6,
               background: 'transparent',
               color: theme.text.muted,
               borderColor: theme.border.default,

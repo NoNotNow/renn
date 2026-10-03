@@ -62,12 +62,14 @@ import TransformerDocs from '@/components/TransformerDocs'
 import { applyWorldEdit } from '@/editor/applyWorldEdit'
 import { canApplyWorldSnapshotIncrementally } from '@/utils/incrementalSceneSync'
 import { useAgentDevProjectBundleBootstrap } from '@/hooks/useAgentDevProjectBundleBootstrap'
+import { useGlobalLibraryUpgrade } from '@/hooks/useGlobalLibraryUpgrade'
 
 const EDITOR_HISTORY_MAX_DEPTH = 80
 
 export default function Builder() {
   const {
     currentProject,
+    initialLoadPending,
     world,
     assets,
     projects,
@@ -225,6 +227,9 @@ export default function Builder() {
     pushHistory,
     syncPosesFromScene,
   })
+
+  // library fixes reach project copies of global stages / pipes (edited copies are left alone)
+  useGlobalLibraryUpgrade({ projectId: currentProject.id, initialLoadPending, world, applyWorldWrite })
 
   const applyHistorySnapshot = useCallback(
     (snap: EditorSnapshot) => {

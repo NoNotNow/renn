@@ -2,6 +2,7 @@ import type { GlobalBehaviorLibrary } from '@/types/globalBehaviorLibrary'
 import type { RennWorld } from '@/types/world'
 import type { TransformerPipe } from '@/types/transformer'
 import { normalizePipeMembers } from '@/utils/transformerPipeResolve'
+import { originForPipe, originForStage } from '@/globalPipeline/globalOrigin'
 
 function deepClone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
@@ -27,14 +28,14 @@ export function copyGlobalPipeIntoWorld(
   const copyStage = (stageId: string, snapshot?: TransformerPipe['stages'][number]) => {
     if (nextTransformers[stageId]) return
     const fromGlobal = globalLibrary.transformers?.[stageId]
-    if (fromGlobal) nextTransformers[stageId] = deepClone(fromGlobal)
+    if (fromGlobal) nextTransformers[stageId] = { ...deepClone(fromGlobal), origin: originForStage(stageId, fromGlobal) }
     else if (snapshot) nextTransformers[stageId] = deepClone(snapshot)
   }
 
   const visit = (source: TransformerPipe, targetId: string, visited: Set<string>) => {
     if (visited.has(source.id)) return
     visited.add(source.id)
-    const pipe: TransformerPipe = { ...deepClone(source), id: targetId }
+    const pipe: TransformerPipe = { ...deepClone(source), id: targetId, origin: originForPipe(source.id, source) }
     for (let i = 0; i < pipe.stageIds.length; i++) copyStage(pipe.stageIds[i]!, pipe.stages[i])
     for (const member of normalizePipeMembers(pipe)) {
       if (member.kind === 'stage') {

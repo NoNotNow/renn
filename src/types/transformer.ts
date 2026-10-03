@@ -123,6 +123,11 @@ export interface TransformTarget {
   velocity?: Vec3
   /** Optional display label (e.g. "A", "B") for waypoints. */
   label?: string
+  /**
+   * Goal contract: `false` when another goal follows this one (waypoint lists, wanderers), so followers such as the AV
+   * stack keep cruising instead of braking and holding here. Absent / `true` = a single, final goal.
+   */
+  isFinal?: boolean
 }
 
 /**
@@ -294,6 +299,19 @@ export interface TransformerConfig {
    * Must return a `TransformOutput` object (possibly empty `{}`).
    */
   code?: string
+
+  /**
+   * Set when this stage was copied from the global library. `hash` fingerprints the library version it was copied
+   * from, so a later library fix can be applied here when the local code was not edited (see `globalOrigin.ts`).
+   */
+  origin?: GlobalOrigin
+}
+
+/** Link from a project stage / pipe back to the global library entry it was copied from. */
+export interface GlobalOrigin {
+  globalId: string
+  /** Fingerprint of the library version the project copy is based on. */
+  hash: string
 }
 
 /**
@@ -368,6 +386,8 @@ export interface TransformerPipe {
   /** @deprecated Unused — same-key merge only. */
   paramBindings?: Record<string, string>
   createdAt?: number
+  /** Set when copied from the global library; see `GlobalOrigin`. */
+  origin?: GlobalOrigin
 }
 
 // ---------------------------------------------------------------------------

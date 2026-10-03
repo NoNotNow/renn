@@ -258,3 +258,16 @@ the "ungrouped stages" banner) is gone.
   makes it top-level).
 - **Wrap all** (tree toolbar, intent `wrapAllInPipe`, `wrapEverythingIntoPipe`): wraps the entity's pipes (as nested members, binding params moved to the matching nested scope)
   and its top-level stages in one new pipe; what runs stays the same.
+
+## Library fixes reach every consumer (`origin`)
+
+Stages and pipes copied from the global library carry `origin: { globalId, hash }` (`src/globalPipeline/globalOrigin.ts`; set by `copyGlobalPipeIntoWorld`, the add dialog's Global tab).
+`updateWorldFromGlobalLibrary(world, library)` compares each copy with the current library:
+
+- unchanged copy + library moved on → the copy is updated (stage code/name; pipe member tree, `paramDefs`; missing stages/child pipes are copied; entities re-sync and drop stages the pipe lost). **Params, enabled flags, priorities stay local.**
+- copy edited locally + library moved on → untouched, reported as `diverged`.
+- copies made before origins existed (same id and identical content as a library entry) are *adopted*, so later fixes reach them too.
+
+When it runs: automatically when a project is opened / its registry changes (`useGlobalLibraryUpgrade` in `Builder`, silent, no undo entry, scene rebuild only if code/structure changed), and on demand via Organize → Project → **⟳ Sync with library**.
+The library itself is refreshed from `public/global/` by checksum (`mergeShippedGlobalBehaviorLibrary`), so fixing e.g. the AV stack in the repo and deploying updates consumers on their next open.
+Fingerprint: custom stages = type + code; pipes = member tree + paramDefs.

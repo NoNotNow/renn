@@ -31,6 +31,11 @@ export interface WandererParams {
   positionEpsilon?: number
   /** Reach threshold for rotation (rad). */
   rotationEpsilon?: number
+  /**
+   * Ground-vehicle mode: pick goals in the floor plane (the wanderer's own height is kept) and measure "reached" in
+   * X/Z only. Use together with `angular: false` and a `positionEpsilon` of a few metres for cars.
+   */
+  planar?: boolean
 }
 
 const DEFAULT_PERIMETER: WandererPerimeter = {
@@ -45,6 +50,7 @@ const DEFAULTS = {
   angular: true,
   positionEpsilon: 0.05,
   rotationEpsilon: 0.08,
+  planar: false,
 }
 
 /** Sample uniform random direction on unit sphere. */
@@ -118,7 +124,7 @@ export class WandererTransformer extends BaseTransformer {
   private readonly params: Required<
     Pick<
       WandererParams,
-      'speed' | 'jumpDistance' | 'linear' | 'angular' | 'positionEpsilon' | 'rotationEpsilon'
+      'speed' | 'jumpDistance' | 'linear' | 'angular' | 'positionEpsilon' | 'rotationEpsilon' | 'planar'
     >
   > & { perimeter: WandererPerimeter }
 
@@ -136,6 +142,7 @@ export class WandererTransformer extends BaseTransformer {
       perimeter,
       positionEpsilon: params.positionEpsilon ?? DEFAULTS.positionEpsilon,
       rotationEpsilon: params.rotationEpsilon ?? DEFAULTS.rotationEpsilon,
+      planar: params.planar ?? DEFAULTS.planar,
     }
   }
 
@@ -149,15 +156,17 @@ export class WandererTransformer extends BaseTransformer {
       this.params.positionEpsilon = params.positionEpsilon
     if (params.rotationEpsilon !== undefined)
       this.params.rotationEpsilon = params.rotationEpsilon
+    if (params.planar !== undefined) this.params.planar = params.planar
   }
 
   private pickNewTarget(input: TransformInput): void {
-    const { perimeter, jumpDistance, linear, angular } = this.params
-    const pos: Vec3 = linear
+    const { perimeter, jumpDistance, linear, angular, planar } = this.params
+    let pos: Vec3 = linear
       ? jumpDistance > 0
         ? samplePositionWithJump(input.position, jumpDistance, perimeter)
         : samplePositionInPerimeter(perimeter)
       : ([input.position[0], input.position[1], input.position[2]] as Vec3)
+    if (planar) pos = [pos[0], input.position[1], pos[2]]
     const rot: Rotation = angular
       ? sampleRandomRotation()
       : ([input.rotation[0], input.rotation[1], input.rotation[2]] as Rotation)
@@ -175,8 +184,15 @@ export class WandererTransformer extends BaseTransformer {
 
   private targetReached(input: TransformInput): boolean {
     if (!this.currentTarget) return true
-    const { positionEpsilon, rotationEpsilon, linear, angular } = this.params
-    const posReached = !linear || positionReached(input.position, this.currentTarget.position, positionEpsilon)
+    const { positionEpsilon, rotationEpsilon, linear, angular, planar } = this.params
+    const goal = this.currentTarget.position
+    const posReached =
+      !linear ||
+      positionReached(
+        planar ? [input.position[0], 0, input.position[2]] : input.position,
+        planar ? [goal[0], 0, goal[2]] : goal,
+        positionEpsilon,
+      )
     const rotReached = !angular || rotationReached(input.rotation, this.currentTarget.rotation, rotationEpsilon)
     return posReached && rotReached
   }
@@ -203,6 +219,7 @@ export class WandererTransformer extends BaseTransformer {
       },
       speed,
       label: this.currentLabel,
+      isFinal: false, // a wanderer always has a next goal: followers keep cruising
     }
     return { targetLabel: this.currentLabel }
   }

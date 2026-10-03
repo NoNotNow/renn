@@ -10,6 +10,12 @@ function transform(input, dt, params, state, api) {
     av.mission = input.goalSource
     input.goalSource = undefined
   }
+  // Goal contract: a source that declares `input.target.isFinal === false` (preset wanderer, ...) makes the stack cruise
+  // through its goals instead of braking at each one. (Sources without that flag are single, final goals.)
+  if (!av.mission && input.target && input.target.pose && input.target.isFinal === false) {
+    var tp = input.target.pose.position
+    av.mission = { index: 0, waypoints: [[tp[0], tp[2]]], isFinal: false }
+  }
   if (state.t === undefined) {
     state.t = 0
     state.speedF = 0
