@@ -3,6 +3,7 @@
 // + obstacle memory ("local costmap") so the planners also know what is behind / beside.
 // Publishes: av.scan {angles, ranges, range}, av.points [[x,z],...] (world), av.rearClear.
 // debug draw (params.debugDraw, debugRayStride, debugMaxPoints): red = lidar hit rays, magenta ticks = costmap points.
+// Extra ray plane at the car's top edge (params.rayLevels false = off); params.lowRayClearance (m above the underside) adds a low plane.
 // params: drivableArea [xmin, xmax, zmin, zmax] (virtual walls at the edge), edgeStep, rayCount, fovDeg, sensorRange, memoryTtl, memoryCell, vehicleWidth, vehicleLength
 function transform(input, dt, params, state, api) {
   var av = input.av
@@ -27,6 +28,14 @@ function transform(input, dt, params, state, api) {
   var rearClear = params.rearRange || 8
   var draw = params.debugDraw !== false
   var rayStride = params.debugRayStride || 2
+  // extra ray planes (offsets from the centre ray): the car's top edge (+ optionally just above its underside)
+  var levels = []
+  var carH = av.vehicle && av.vehicle.height ? av.vehicle.height : 0
+  if (params.rayLevels !== false && carH > 0.3) {
+    levels = [carH / 2 - 0.08]
+    // optional underside plane for low bars (off by default: ground bumps then read as obstacles)
+    if (params.lowRayClearance != null) levels.push(-carH / 2 + params.lowRayClearance)
+  }
   for (var i = 0; i < n; i++) {
     var th = full ? -Math.PI + (2 * Math.PI * i) / n : n === 1 ? 0 : -fov / 2 + (fov * i) / (n - 1)
     var c = Math.cos(th)
@@ -39,7 +48,17 @@ function transform(input, dt, params, state, api) {
     // start just outside the hull rectangle along this ray
     var tHull = Math.min(Math.abs(c) > 1e-6 ? hl / Math.abs(c) : 1e9, Math.abs(s) > 1e-6 ? hw / Math.abs(s) : 1e9)
     var origin = api.vec.offsetAlong(pos, dir, tHull)
+    // One horizontal plane misses what curves away from it (a sphere / dome is farther at the car's top edge than at the
+    // equator, a low bar hides under the plane): cast at the car's top edge too and keep the nearest hit.
     var r = api.raycast(origin, dir, range, { visualize: false })
+    for (var li = 0; li < levels.length; li++) {
+      var lo = [origin[0], origin[1] + levels[li], origin[2]]
+      var rl = api.raycast(lo, dir, range, { visualize: false })
+      if (rl.hit && (!r.hit || rl.distance < r.distance)) {
+        r = rl
+        origin = lo
+      }
+    }
     angles.push(th)
     if (r.hit) {
       if (draw && i % rayStride === 0) api.visualizeLine(origin, api.vec.offsetAlong(origin, dir, r.distance), '#ff4d4d')

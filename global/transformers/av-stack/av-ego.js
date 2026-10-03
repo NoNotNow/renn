@@ -1,6 +1,6 @@
 // AV stack · SENSE / state estimation ("localization" layer).
 // Publishes the ego state on the shared blackboard `input.av.ego` for all later stages.
-// Also publishes av.vehicle {width, length} = max(params, own box collider) used by all planners.
+// Also publishes av.vehicle {width, length, height} = max(params, own box collider) used by all planners.
 // debug draw (params.debugDraw, default true): cyan = velocity vector.
 // Owns the simulated clock (state.t) so no downstream stage needs a wall clock.
 function transform(input, dt, params, state, api) {
@@ -33,10 +33,12 @@ function transform(input, dt, params, state, api) {
     var sc = (ent && ent.scale) || [1, 1, 1]
     state.vehW = sh && sh.type === 'box' ? Math.abs(sh.width * (sc[0] || 1)) : 0
     state.vehL = sh && sh.type === 'box' ? Math.abs(sh.depth * (sc[2] || 1)) : 0
+    state.vehH = sh && sh.type === 'box' ? Math.abs(sh.height * (sc[1] || 1)) : 0
   }
   av.vehicle = {
     width: Math.max(params.vehicleWidth || 2, state.vehW || 0),
     length: Math.max(params.vehicleLength || 4, state.vehL || 0),
+    height: state.vehH || 0,
   }
   var up = api.getUpVector(input.rotation)
   var fwd = api.vec.normalize(api.vec.projectOntoPlane(api.getForwardVector(input.rotation), up))
