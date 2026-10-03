@@ -84,3 +84,73 @@ describe('AV stack: pipe param `cruiseSpeed` is what the car drives', () => {
     }
   }, 120_000)
 })
+
+
+describe('AV stack: obstacles only slow the car when they matter', () => {
+  const box = (id: string, x: number, z: number) => ({
+    id,
+    bodyType: 'static',
+    shape: { type: 'box', width: 3, height: 3, depth: 3 },
+    position: [x, 1.5, z],
+    rotation: [0, 0, 0],
+  })
+  const run = async (obstacles: ReturnType<typeof box>[], params: Record<string, unknown> = {}) => {
+    let world = openFieldWorld(14)
+    world = { ...world, entities: [...world.entities, ...(obstacles as never[])] }
+    world = updateBindingParams(world, 'buggy', 0, params)
+    setAgentObservationWatchActive(true)
+    const sim = await WorldSimulator.create(world, 15)
+    try {
+      let sum = 0
+      let n = 0
+      for (let f = 0; f < 900; f++) {
+        sim.runFrames(1)
+        const v = sim.getVelocity('buggy')
+        if (f > 240) {
+          sum += Math.hypot(v[0], v[2])
+          n++
+        }
+      }
+      return sum / n
+    } finally {
+      sim.dispose()
+      setAgentObservationWatchActive(false)
+    }
+  }
+
+  it('obstacles far to the side and behind do not slow the car', async () => {
+    const clear = await run([])
+    const farAside = await run([box('a', 16, -50), box('b', -16, -90), box('c', 16, -130), box('d', 0, 40)])
+    expect(clear).toBeGreaterThan(11)
+    expect(farAside).toBeGreaterThan(clear * 0.9)
+  }, 120_000)
+
+  it('an obstacle right next to the lane slows the car, and the radius is adjustable (0 = off)', async () => {
+    const closeAside = [box('a', 4.2, -50), box('b', -4.2, -90), box('c', 4.2, -130)]
+    const near = await run(closeAside)
+    const off = await run(closeAside, { obstacleSlowRadius: 0 })
+    const wide = await run(closeAside, { obstacleSlowFactor: 1 })
+    expect(near).toBeLessThan(off * 0.95)
+    expect(wide).toBeGreaterThan(near)
+  }, 180_000)
+
+  it('an obstacle in the path is handled like auto-brake: full speed until the braking distance', async () => {
+    let world = openFieldWorld(14)
+    world = { ...world, entities: [...world.entities, box('wall', 0, -120) as never] }
+    setAgentObservationWatchActive(true)
+    const sim = await WorldSimulator.create(world, 15)
+    try {
+      let topSpeed = 0
+      for (let f = 0; f < 1200; f++) {
+        sim.runFrames(1)
+        const v = sim.getVelocity('buggy')
+        topSpeed = Math.max(topSpeed, Math.hypot(v[0], v[2]))
+        expect(sim.getPosition('buggy')[1]).toBeGreaterThan(-0.5)
+      }
+      expect(topSpeed).toBeGreaterThan(12) // not held back by a far-away obstacle
+    } finally {
+      sim.dispose()
+      setAgentObservationWatchActive(false)
+    }
+  }, 120_000)
+})

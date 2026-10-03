@@ -294,7 +294,7 @@ function transform(input, dt, params, state, api) {
       }
     }
     // speed limit from the bends ahead on the route: corner speed sqrt(aLat / kappa), reachable by braking
-    var aLat = params.maxLatAccel || 7
+    var aLat = params.maxLatAccel || 9
     var aBrk = params.comfortDecel || 5
     var vLimit = Infinity
     var dAhead = 0

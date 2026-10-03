@@ -40,6 +40,11 @@ export const AV_GLOBAL_PARAM_DEFS: PipeParamDef[] = [
   { key: 'vehicleLength', label: 'Vehicle length (m)', type: 'number', default: 4 },
   { key: 'safetyMargin', label: 'Safety margin (m)', type: 'number', default: 0.5 },
   { key: 'maxCurvature', label: 'Max curvature 1/m (min turn radius)', type: 'number', default: 0.115 },
+  { key: 'minSpeed', label: 'Minimum speed while driving (m/s)', type: 'number', default: 4 },
+  { key: 'obstacleSlowRadius', label: 'Obstacles slow the car only within (m) — 0 = off', type: 'number', default: 5 },
+  { key: 'obstacleSlowFactor', label: 'Speed right next to an obstacle (× cruise)', type: 'number', default: 0.5 },
+  { key: 'comfortDecel', label: 'Braking for obstacles in the path (m/s²)', type: 'number', default: 5 },
+  { key: 'maxLatAccel', label: 'Cornering limit, lateral accel (m/s²)', type: 'number', default: 9 },
   { key: 'goalTolerance', label: 'Final goal hold radius (m)', type: 'number', default: 5.5 },
   { key: 'debugDraw', label: 'Draw debug vectors (Builder visualize mode)', type: 'boolean', default: true },
 ]

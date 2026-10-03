@@ -171,13 +171,22 @@ followed object's footprint, so give the stack `goalReach`/`goalTolerance` a few
 
 ## Speed: what `cruiseSpeed` does and what else limits the car
 
-`cruiseSpeed` (pipe param, seeded 10) is the **upper bound**; the car drives `min(cruiseSpeed, …)` of the limits below (`av.vLimit` in the watch panel names the active one).
-Verified (`av-stack-params.integration.test.ts`): the param is taken at start-up and live when edited while driving (5 → 5.0 m/s, 10 → 10.0 m/s, 4 live).
+`cruiseSpeed` (pipe param, seeded 10) is the **upper bound**; the car drives the minimum of the limits below. `av.vLimit` in the watch panel names the active one
+(`cruise | free | near | route | curve | goal`). Verified in `av-stack-params.integration.test.ts`: the param is taken at start-up and live while driving.
 
-- **Free path** `sqrt(2 · comfortDecel · horizon)`: the planning horizon (`horizonMax`) and the sensor range (`sensorRange`) now scale with the stopping distance of `cruiseSpeed`
-  (they used to be fixed 26 m / 24 m, which capped *every* cruiseSpeed at 15.8 m/s).
-- **Clearance** near obstacles: `clearSpeedBase + clearSpeedGain · (room beside the path)`; both scale with `cruiseSpeed/10` above 10; wide open = no limit.
-- **Curves** `sqrt(maxLatAccel / κ)` and **route bends** (≤ 7.8 m/s in a full-lock turn at `maxLatAccel` 7): raise `maxLatAccel` / `maxCurvature` for grippier, more agile bodies.
-- **Goal approach** (final goal only), AEB, and the car's `power`/`maxThrottle` (0.46) for acceleration.
-- Layering reminder: pipe params (binding, then nested scope) **override** a stage's own `params` for the same key — editing `cruiseSpeed` in a single stage's params has no effect while the pipe seeds it;
-  edit it in the pipe's param drawer. A goal source's own `speed` (e.g. preset `wanderer` `speed`) is only a hint the AV ignores.
+All of these are **pipe params** (drawer on the AV pipe, labelled; defaults in brackets):
+
+| Param | Effect |
+| --- | --- |
+| `minSpeed` [4] | Lowest speed while driving (bends, near obstacles); not applied while arriving at the final goal (`goalCrawlSpeed` [2]). |
+| `obstacleSlowRadius` [5 m, 0 = off] | Only obstacles within this distance **of the car's hull** slow it. Farther ones, and everything behind the rear axle, never do. |
+| `obstacleSlowFactor` [0.5] | Speed right next to an obstacle as a fraction of `cruiseSpeed`; rises linearly to full cruise at the radius. |
+| `comfortDecel` [5 m/s²] | **Auto-brake for obstacles in the path**: `v ≤ sqrt(2 · decel · (free distance − stopMargin))` — a far obstacle in the path only matters once it is within braking distance. The independent AEB stage (`av-aeb`) still guards the last metres. |
+| `maxLatAccel` [9 m/s²] | Cornering limit (`sqrt(a / κ)`) for the local arc and for route bends. Raise for grippier/more agile bodies. |
+| `goalDecel` [3] | Gentler braking used for the final approach so the car can stop inside the hold radius. |
+
+Other limits: the planning horizon and sensor range scale with the stopping distance of `cruiseSpeed` (they used to cap everything at 15.8 m/s), the final-goal approach, the AEB and the car's
+`power` / `maxThrottle` (0.46) for acceleration. The old "side clearance" speed limit (which looked 25 m ahead and 4 m sideways) is gone.
+
+Layering reminder: pipe params (binding, then nested scope) **override** a stage's own `params` for the same key — edit speeds in the pipe's param drawer, not in one stage's params.
+A goal source's own `speed` (e.g. preset `wanderer` `speed`) is only a hint the AV ignores. Preset `wanderer` publishes `isFinal:false` only in `planar` (car) mode.

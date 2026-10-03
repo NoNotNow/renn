@@ -219,7 +219,9 @@ export class WandererTransformer extends BaseTransformer {
       },
       speed,
       label: this.currentLabel,
-      isFinal: false, // a wanderer always has a next goal: followers keep cruising
+      // Ground-vehicle mode (`planar`): a next goal always follows, so followers keep cruising instead of stopping at each one.
+      // Otherwise the goal counts as a single, final one (followers brake and hold there).
+      isFinal: this.params.planar ? false : undefined,
     }
     return { targetLabel: this.currentLabel }
   }

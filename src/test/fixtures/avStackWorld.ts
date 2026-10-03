@@ -27,6 +27,11 @@ export const AV_STACK_PARAM_DEFS: PipeParamDef[] = [
   { key: 'vehicleLength', type: 'number', default: 4, description: 'Footprint length (m)' },
   { key: 'safetyMargin', type: 'number', default: 0.5, description: 'Hard collision margin around footprint (m)' },
   { key: 'maxCurvature', type: 'number', default: 0.115, description: 'Max path curvature 1/m (min turn radius)' },
+  { key: 'minSpeed', type: 'number', default: 4, description: 'Lowest speed while driving (m/s)' },
+  { key: 'obstacleSlowRadius', type: 'number', default: 5, description: 'Obstacles slow the car only within this distance of the hull (m); 0 = off' },
+  { key: 'obstacleSlowFactor', type: 'number', default: 0.5, description: 'Speed right next to an obstacle as a fraction of cruiseSpeed' },
+  { key: 'comfortDecel', type: 'number', default: 5, description: 'Braking deceleration for obstacles in the path (m/s²)' },
+  { key: 'maxLatAccel', type: 'number', default: 9, description: 'Cornering limit: lateral acceleration (m/s²)' },
 ]
 
 /** Fixture worlds keep their own mission stage (targetPoseInput); `mission` is only used by the global library. */
