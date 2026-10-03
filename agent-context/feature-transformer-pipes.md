@@ -285,3 +285,5 @@ Fingerprint: custom stages = type + code; pipes = member tree + paramDefs.
 - **Tree and strip are one view**: the tree lists entity children with the same `entityLevelItems` order the strip uses (run order, not "pipes first"), and tree drags use before / after / into
   zones (top / bottom edge = insert before / after; middle of a pipe row = drop into it; stage rows split in halves). Same-level before/after goes through the same `moveEntityLevelItem` / `moveMemberItem`
   as the strip, so both always agree. Pipe cards have a × (delete through the tree-delete edit, with its confirmation).
+
+**Schema gotcha**: `world-schema.json` is hand-maintained and strict (`additionalProperties: false`): a new field on `TransformerConfig` / `TransformerPipe` (like `origin`) must be added there too, otherwise project load strips it with an "Unknown or deprecated fields" warning. `validate.origin.test.ts` guards `origin`.
