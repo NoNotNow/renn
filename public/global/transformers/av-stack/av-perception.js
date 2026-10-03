@@ -10,7 +10,10 @@ function transform(input, dt, params, state, api) {
   var e = av.ego
   var n = params.rayCount || 72
   var fov = ((params.fovDeg || 360) * Math.PI) / 180
-  var range = params.sensorRange || 24
+  // Sense far enough to stop: cruise speed needs v^2 / (2 * decel) of free view (default 24 m covers the stock 10 m/s).
+  var cruiseV = params.cruiseSpeed != null ? params.cruiseSpeed : 10
+  var stopD = (cruiseV * cruiseV) / (2 * (params.comfortDecel || 5))
+  var range = params.sensorRange || Math.min(150, Math.max(24, 1.1 * stopD + 8))
   var ttl = params.memoryTtl != null ? params.memoryTtl : 15
   var cell = params.memoryCell || 0.5
   var hl = (params.vehicleLength || 4) / 2 + 0.15

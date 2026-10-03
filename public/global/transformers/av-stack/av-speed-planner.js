@@ -15,8 +15,10 @@ function transform(input, dt, params, state, api) {
   var aLat = params.maxLatAccel || 7
   var stopMargin = params.stopMargin != null ? params.stopMargin : 1.2
   var crawl = params.crawlSpeed != null ? params.crawlSpeed : 2
-  var base = params.clearSpeedBase != null ? params.clearSpeedBase : 5
-  var gain = params.clearSpeedGain != null ? params.clearSpeedGain : 3.5
+  // squeezing past obstacles scales with the speed class: the stock 5 + 3.5/m is tuned for cruiseSpeed 10
+  var speedClass = Math.max(1, cruise / 10)
+  var base = params.clearSpeedBase != null ? params.clearSpeedBase : 5 * speedClass
+  var gain = params.clearSpeedGain != null ? params.clearSpeedGain : 3.5 * speedClass
   var limit = 'cruise'
   var v = cruise
   var vFree = Math.sqrt(2 * aBrake * Math.max(0, plan.free - stopMargin))
@@ -25,7 +27,8 @@ function transform(input, dt, params, state, api) {
     limit = 'free'
   }
   // lateral gap to the nearest obstacle surface along the chosen path (safety margin + measured extra room)
-  var vClear = base + gain * Math.max(0, (plan.margin || 0.5) + (plan.clearance || 0) - 0.3)
+  // clearance 2.5 = the widest margin that was tested: wide open, no limit from the sides
+  var vClear = (plan.clearance || 0) >= 2.5 ? Infinity : base + gain * Math.max(0, (plan.margin || 0.5) + (plan.clearance || 0) - 0.3)
   if (vClear < v) {
     v = vClear
     limit = 'clearance'

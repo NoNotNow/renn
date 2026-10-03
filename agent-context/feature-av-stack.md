@@ -168,3 +168,16 @@ Producers that satisfy it: `targetPoseInput`, **preset `wanderer`** (now `planar
 
 Preset wanderer for a car: `planar: true`, `angular: false`, `positionEpsilon` ≈ 9 (the AV's acceptance radius), `perimeter.halfExtents` y = 0. `follow` targets sit inside the
 followed object's footprint, so give the stack `goalReach`/`goalTolerance` a few metres more than the object's radius (standoff).
+
+## Speed: what `cruiseSpeed` does and what else limits the car
+
+`cruiseSpeed` (pipe param, seeded 10) is the **upper bound**; the car drives `min(cruiseSpeed, …)` of the limits below (`av.vLimit` in the watch panel names the active one).
+Verified (`av-stack-params.integration.test.ts`): the param is taken at start-up and live when edited while driving (5 → 5.0 m/s, 10 → 10.0 m/s, 4 live).
+
+- **Free path** `sqrt(2 · comfortDecel · horizon)`: the planning horizon (`horizonMax`) and the sensor range (`sensorRange`) now scale with the stopping distance of `cruiseSpeed`
+  (they used to be fixed 26 m / 24 m, which capped *every* cruiseSpeed at 15.8 m/s).
+- **Clearance** near obstacles: `clearSpeedBase + clearSpeedGain · (room beside the path)`; both scale with `cruiseSpeed/10` above 10; wide open = no limit.
+- **Curves** `sqrt(maxLatAccel / κ)` and **route bends** (≤ 7.8 m/s in a full-lock turn at `maxLatAccel` 7): raise `maxLatAccel` / `maxCurvature` for grippier, more agile bodies.
+- **Goal approach** (final goal only), AEB, and the car's `power`/`maxThrottle` (0.46) for acceleration.
+- Layering reminder: pipe params (binding, then nested scope) **override** a stage's own `params` for the same key — editing `cruiseSpeed` in a single stage's params has no effect while the pipe seeds it;
+  edit it in the pipe's param drawer. A goal source's own `speed` (e.g. preset `wanderer` `speed`) is only a hint the AV ignores.
