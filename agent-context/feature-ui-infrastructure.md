@@ -126,3 +126,5 @@ Track status here when consolidating. Update this table whenever a row is fixed 
 - Cleanup history: [`codebase-cleanup-audit.md`](codebase-cleanup-audit.md) (shared UI phases)
 
 **Builder sidebars (`layout/Sidebar.tsx`)**: besides the toggle/resize button, an open sidebar has a full-height 8px grab strip on its inner edge (`sidebar-edge-resize-left|right`) that drags the width (no collapse-on-click, unlike the button).
+
+**Audit backlog — dismiss behaviour**: the pipe-nav tree row menu (`PipeNavTree`, "Add before / after / child") has its own outside-click / Escape / scroll dismiss effect, duplicating `useAnchoredPopover`'s. Any new popup, menu or row action must close on outside click and Escape; consider extracting a shared `useDismissOnOutside` and switching the tree to it.

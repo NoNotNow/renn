@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, type DragEvent, type ReactNode, type RefObject } from 'react'
+import { useCallback, useEffect, useMemo, useState, type DragEvent, type ReactNode, type RefObject } from 'react'
 import type { PipeNavPathSegment, PipeTreeNode } from '@/types/pipeNav'
 import type { Entity, RennWorld } from '@/types/world'
 import { theme } from '@/config/theme'
@@ -84,6 +84,28 @@ export default function PipeNavTree({
   const pipes = useMemo(() => world.transformerPipes ?? {}, [world.transformerPipes])
   const stageRuntime = useMemo(() => resolveEntityStageRuntime(world, entity), [world, entity])
 
+  // The row menu ("Add before / after / child…") closes on any click outside it, on Escape, and when the tree scrolls.
+  useEffect(() => {
+    if (openMenuKey === null) return
+    const close = () => setOpenMenuKey(null)
+    const onPointerDown = (e: PointerEvent) => {
+      const el = e.target as Element | null
+      if (el?.closest?.('[data-tree-menu], [data-tree-menu-trigger]')) return
+      close()
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') close()
+    }
+    document.addEventListener('pointerdown', onPointerDown, true)
+    document.addEventListener('keydown', onKey)
+    window.addEventListener('blur', close)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown, true)
+      document.removeEventListener('keydown', onKey)
+      window.removeEventListener('blur', close)
+    }
+  }, [openMenuKey])
+
   const toggleExpand = (key: string) => {
     setExpanded((prev) => {
       const next = new Set(prev)
@@ -166,7 +188,7 @@ export default function PipeNavTree({
                 : null
               }
               onDelete={onDeleteNode ? () => onDeleteNode(node) : undefined}
-              onMenu={() => setOpenMenuKey(key)}
+              onMenu={() => setOpenMenuKey((cur) => (cur === key ? null : key))}
               menuOpen={openMenuKey === key}
               onContextAction={(a) => onContextAction?.(a, contextTarget(node))}
               onCloseMenu={() => setOpenMenuKey(null)}
@@ -205,7 +227,7 @@ export default function PipeNavTree({
                 onSelectPath(nodePath, memberIndex)
               }}
               onDelete={onDeleteNode ? () => onDeleteNode(node) : undefined}
-              onMenu={() => setOpenMenuKey(key)}
+              onMenu={() => setOpenMenuKey((cur) => (cur === key ? null : key))}
               menuOpen={openMenuKey === key}
               onContextAction={(a) => onContextAction?.(a, contextTarget(node))}
               onCloseMenu={() => setOpenMenuKey(null)}
@@ -382,6 +404,7 @@ export default function PipeNavTree({
       data-testid="pipe-nav-tree"
       onScroll={(e) => {
         setScrollLeft(e.currentTarget.scrollLeft)
+        setOpenMenuKey(null)
       }}
       style={{
         flex: 1,
@@ -406,7 +429,7 @@ export default function PipeNavTree({
           onContextAction?.(a, { node: entityNode, containerPath: [] })
         }
         menuOpen={openMenuKey === entityKey}
-        onMenu={() => setOpenMenuKey(entityKey)}
+        onMenu={() => setOpenMenuKey((cur) => (cur === entityKey ? null : entityKey))}
         onCloseMenu={() => setOpenMenuKey(null)}
         dropTarget
         onDrop={() => handleDrop(entityNode)}
@@ -438,7 +461,7 @@ export default function PipeNavTree({
                   onSelectPath(path, 0)
                 }}
                 onDelete={onDeleteNode ? () => onDeleteNode(node) : undefined}
-                onMenu={() => setOpenMenuKey(key)}
+                onMenu={() => setOpenMenuKey((cur) => (cur === key ? null : key))}
                 menuOpen={openMenuKey === key}
                 onContextAction={(a) =>
                   onContextAction?.(a, { node, containerPath: path })
@@ -622,7 +645,7 @@ function TreeRow({
             </IconBtn>
           : null}
           {onMenu ?
-            <IconBtn title="More" onClick={onMenu}>
+            <IconBtn title="More" onClick={onMenu} menuTrigger>
               …
             </IconBtn>
           : null}
@@ -630,6 +653,7 @@ function TreeRow({
       : null}
       {menuOpen && onContextAction ?
         <div
+          data-tree-menu
           style={{
             position: 'absolute',
             right: 8,
@@ -673,11 +697,12 @@ function TreeRow({
   )
 }
 
-function IconBtn({ children, onClick, title }: { children: string; onClick: () => void; title: string }) {
+function IconBtn({ children, onClick, title, menuTrigger }: { children: string; onClick: () => void; title: string; menuTrigger?: boolean }) {
   return (
     <button
       type="button"
       title={title}
+      {...(menuTrigger ? { 'data-tree-menu-trigger': true } : {})}
       onClick={onClick}
       style={{
         width: 18,
