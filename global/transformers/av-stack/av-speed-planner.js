@@ -30,8 +30,8 @@ function transform(input, dt, params, state, api) {
   var slowR = params.obstacleSlowRadius != null ? params.obstacleSlowRadius : 5
   if (slowR > 0 && av.points && av.points.length && av.ego) {
     var e = av.ego
-    var hl = (params.vehicleLength || 4) / 2
-    var hw = (params.vehicleWidth || 2) / 2
+    var hl = ((av.vehicle && av.vehicle.length) || params.vehicleLength || 4) / 2
+    var hw = ((av.vehicle && av.vehicle.width) || params.vehicleWidth || 2) / 2
     var pos = input.position
     var dn = Infinity
     for (var i = 0; i < av.points.length; i++) {

@@ -16,8 +16,8 @@ function transform(input, dt, params, state, api) {
   var range = params.sensorRange || Math.min(150, Math.max(24, 1.1 * stopD + 8))
   var ttl = params.memoryTtl != null ? params.memoryTtl : 15
   var cell = params.memoryCell || 0.5
-  var hl = (params.vehicleLength || 4) / 2 + 0.15
-  var hw = (params.vehicleWidth || 2) / 2 + 0.15
+  var hl = ((av.vehicle && av.vehicle.length) || params.vehicleLength || 4) / 2 + 0.15
+  var hw = ((av.vehicle && av.vehicle.width) || params.vehicleWidth || 2) / 2 + 0.15
   if (!state.mem) state.mem = {}
   var mem = state.mem
   var pos = input.position

@@ -36,8 +36,8 @@ function transform(input, dt, params, state, api) {
   var v = Math.max(0, e.speedF)
   var margin = (params.safetyMargin != null ? params.safetyMargin : 0.5) + (params.marginSpeedGain != null ? params.marginSpeedGain : 0.05) * v
   var soft = params.softMargin != null ? params.softMargin : 1.1
-  var halfW = (params.vehicleWidth || 2) / 2 + margin
-  var halfL = (params.vehicleLength || 4) / 2 + margin
+  var halfW = ((av.vehicle && av.vehicle.width) || params.vehicleWidth || 2) / 2 + margin
+  var halfL = ((av.vehicle && av.vehicle.length) || params.vehicleLength || 4) / 2 + margin
   var kmax = params.maxCurvature || 0.115
   var count = params.arcCount || 31
   var hMin = params.horizonMin != null ? params.horizonMin : 10
