@@ -871,6 +871,7 @@ export class RenderItemRegistry implements SimulationFramePort, SceneEditPort, E
       const cachedTouch = this.physicsWorld.getCachedTouching(item.entity.id)
       if (cachedTouch) {
         env.isTouchingObject = cachedTouch.touching
+        env.isTouchingSide = cachedTouch.touchingSide === true
         if (cachedTouch.supportVelocity) {
           env.supportVelocity = cachedTouch.supportVelocity
         } else {
@@ -879,6 +880,7 @@ export class RenderItemRegistry implements SimulationFramePort, SceneEditPort, E
       } else {
         const touching = this.physicsWorld.isEntityTouchingAny(item.entity.id) ?? false
         env.isTouchingObject = touching
+        env.isTouchingSide = undefined
         if (touching) {
           const support = this.physicsWorld.getAverageSupportVelocity(item.entity.id)
           env.supportVelocity = support ?? undefined

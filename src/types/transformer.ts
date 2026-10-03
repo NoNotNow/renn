@@ -99,6 +99,11 @@ export interface EnvironmentState {
   /** True when the entity's collider has at least one contact with another collider. */
   isTouchingObject?: boolean
   /**
+   * True when at least one contact is lateral (contact normal mostly horizontal): a wall, another body, a low bar — not
+   * the floor. `isTouchingObject` is also true when merely standing on the ground.
+   */
+  isTouchingSide?: boolean
+  /**
    * World-space linear velocity of supporting surface at contacts (averaged across solver contacts).
    * Filled by the runtime when `isTouchingObject` is true; omit when airborne or unknown.
    */

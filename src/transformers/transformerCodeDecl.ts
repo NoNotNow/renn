@@ -23,6 +23,8 @@ interface EnvironmentState {
   groundNormal?: Vec3;
   /** True when this collider has at least one active contact with another collider. */
   isTouchingObject?: boolean;
+  /** True when a contact is lateral (wall, other body, low bar), not just the floor. */
+  isTouchingSide?: boolean;
   /**
    * World-space velocity of supporting surface averaged from solver contacts.
    * Present when grounded/touching; absent when airborne or unknown.

@@ -56,7 +56,7 @@ export class PhysicsWorld {
    * which otherwise create thousands of temporary WASM wrapper objects per frame
    * (each triggering FinalizationRegistry register/unregister overhead).
    */
-  private readonly touchingCache: Map<string, { touching: boolean; supportVelocity?: [number, number, number] }> = new Map()
+  private readonly touchingCache: Map<string, { touching: boolean; touchingSide?: boolean; supportVelocity?: [number, number, number] }> = new Map()
   /** Entity ids that need touching cache rebuilt each step (set by caller). */
   private readonly touchingCacheEntityIds: Set<string> = new Set()
   /** Bodies disabled via distance-culling sleep (Rapier `setEnabled(false)`). */
@@ -292,7 +292,7 @@ export class PhysicsWorld {
    * Read cached touching/support state for an entity (from last step).
    * Falls back to live query if entity is not in the cache set.
    */
-  getCachedTouching(entityId: string): { touching: boolean; supportVelocity?: [number, number, number] } | undefined {
+  getCachedTouching(entityId: string): { touching: boolean; touchingSide?: boolean; supportVelocity?: [number, number, number] } | undefined {
     return this.touchingCache.get(entityId)
   }
 
@@ -338,12 +338,14 @@ export class PhysicsWorld {
       }
 
       let touching = false
+      let side = false
       let sx = 0, sy = 0, sz = 0, n = 0
 
       this.world.contactPairsWith(collider, (other) => {
         const otherEntityId = this.colliderHandleToEntityId.get(other.handle)
         if (!otherEntityId || otherEntityId === entityId) return
         this.world.contactPair(collider, other, (manifold, _flipped) => {
+          if (manifold.numContacts() > 0 && Math.abs(manifold.normal().y) < 0.5) side = true
           const ns = manifold.numSolverContacts()
           if (ns > 0) {
             touching = true
@@ -374,6 +376,7 @@ export class PhysicsWorld {
         this.touchingCache.set(entityId, entry)
       }
       entry.touching = touching
+      entry.touchingSide = side
       if (n > 0) {
         if (!entry.supportVelocity) {
           entry.supportVelocity = [sx / n, sy / n, sz / n]

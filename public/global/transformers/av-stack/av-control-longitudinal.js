@@ -53,13 +53,13 @@ function transform(input, dt, params, state, api) {
   }
   // Chatter guard: the actuator answers one frame late, so reverse-thrust braking of a rolling car can overshoot and
   // flip the speed sign every frame (bang-bang at +-5 m/s that moves nothing but never counts as "stopped").
-  // After repeated sign flips at speed, stop pushing and let the car coast to rest.
+  // After repeated sign flips at speed, stop pushing for a moment (0.25 s, re-armed while the flipping continues) so the car can settle; a rolling car is braked normally again afterwards.
   state.t = (state.t || 0) + dt
   var sgn = Math.abs(e.speed) > 1 ? (e.speed > 0 ? 1 : -1) : 0
   if (sgn !== 0 && state.lastSgn && sgn !== state.lastSgn) {
     state.flips = (state.flips || 0) + 1
     state.flipAt = state.t
-    if (state.flips >= 3) state.coastUntil = state.t + 1.5
+    if (state.flips >= 3) state.coastUntil = state.t + 0.25
   }
   if (sgn !== 0) state.lastSgn = sgn
   if (state.flips && state.t - (state.flipAt || 0) > 0.5) state.flips = 0

@@ -4,6 +4,7 @@
 // Publishes: av.scan {angles, ranges, range}, av.points [[x,z],...] (world), av.rearClear.
 // debug draw (params.debugDraw, debugRayStride, debugMaxPoints): red = lidar hit rays, magenta ticks = costmap points.
 // Extra ray plane at the car's top edge (params.rayLevels false = off); params.lowRayClearance (m above the underside) adds a low plane.
+// Memory clearing: remembered cells that fresh rays pass through (within memClearRange 45 m, 0 = off) are dropped, so moving obstacles leave no ghost trail.
 // params: drivableArea [xmin, xmax, zmin, zmax] (virtual walls at the edge), edgeStep, rayCount, fovDeg, sensorRange, memoryTtl, memoryCell, vehicleWidth, vehicleLength
 function transform(input, dt, params, state, api) {
   var av = input.av
@@ -27,6 +28,7 @@ function transform(input, dt, params, state, api) {
   var ranges = []
   var rearClear = params.rearRange || 8
   var draw = params.debugDraw !== false
+  var rayInfo = []
   var rayStride = params.debugRayStride || 2
   // extra ray planes (offsets from the centre ray): the car's top edge (+ optionally just above its underside)
   var levels = []
@@ -63,12 +65,30 @@ function transform(input, dt, params, state, api) {
     if (r.hit) {
       if (draw && i % rayStride === 0) api.visualizeLine(origin, api.vec.offsetAlong(origin, dir, r.distance), '#ff4d4d')
       ranges.push(r.distance)
+      rayInfo.push([dir, tHull, r.distance])
       var hx = origin[0] + dir[0] * r.distance
       var hz = origin[2] + dir[2] * r.distance
       mem[Math.round(hx / cell) + ',' + Math.round(hz / cell)] = { x: hx, z: hz, t: e.t }
       if (c < -0.9 && r.distance < rearClear) rearClear = r.distance
     } else {
       ranges.push(range)
+      rayInfo.push([dir, tHull, range])
+    }
+  }
+  // Free-space clearing: a remembered obstacle that a fresh ray now passes straight through is gone (a car that drove
+  // on). Without it moving traffic leaves ghost trails that box the car in for the whole memory time.
+  // Cells written this frame are never cleared (a ray grazing a thin obstacle must not erase it).
+  var clearRange = params.memClearRange != null ? params.memClearRange : 45
+  if (clearRange > 0) {
+    for (var ri = 0; ri < rayInfo.length; ri++) {
+      var rd = rayInfo[ri][0]
+      var rs = rayInfo[ri][1]
+      var rend = Math.min(rayInfo[ri][2] - 1.0, clearRange)
+      for (var rt = rs + cell; rt < rend; rt += cell) {
+        var kk = Math.round((pos[0] + rd[0] * rt) / cell) + ',' + Math.round((pos[2] + rd[2] * rt) / cell)
+        var mm = mem[kk]
+        if (mm && mm.t < e.t - 1e-6) delete mem[kk]
+      }
     }
   }
   var pts = []

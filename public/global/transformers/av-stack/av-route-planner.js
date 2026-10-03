@@ -10,7 +10,7 @@
 // debug draw: magenta = route / manoeuvre path (+ status mast while manoeuvring), orange = current segment end.
 // params: maneuverSpeed, routeInterval, routeExpansions, lookahead, primitiveLength, maxExpansions,
 //         gearSwitchPenalty, reversePenalty, maxReverseRun, planMargin, tightMargin, guardMargin, stallTime, stuckTime,
-//         contactTtl (s, how long an unseen contact stays a virtual obstacle, default 25), contactRestTime (s at rest before a stall counts as contact, default 1.5), contactMemory (false = off), restWaitMax (s, wait for rest before a gear change), maxOffPath (m, drop a plan the car is farther from), crawlTime,
+//         contactTtl (s, how long an unseen contact stays a virtual obstacle, default 25), contactRestTime (s at rest before a lateral stall counts as contact, default 1), contactMemory (false = off), restWaitMax (s, wait for rest before a gear change), maxOffPath (m, drop a plan the car is farther from), crawlTime,
 //         goalReach, handbackFree, goalTolerance, maxCurvature, vehicleWidth, vehicleLength
 function transform(input, dt, params, state, api) {
   var av = input.av
@@ -59,12 +59,25 @@ function transform(input, dt, params, state, api) {
   // virtual obstacle points so every planner after this stage routes around them instead of driving into them again.
   var contactTtl = params.contactTtl != null ? params.contactTtl : 25
   if (!state.contacts) state.contacts = []
-  state.contacts = state.contacts.filter(function (c) { return e.t - c.t < contactTtl })
+  // drop expired marks and any mark that now lies inside (or hugging) the car's own footprint: it is obsolete by
+  // definition and, left in place, makes every start pose collide so the car can never plan a way out
+  var pHalfL = ((av.vehicle && av.vehicle.length) || params.vehicleLength || 4) / 2 + 0.1
+  var pHalfW = ((av.vehicle && av.vehicle.width) || params.vehicleWidth || 2) / 2 + 0.1
+  state.contacts = state.contacts.filter(function (c) {
+    if (e.t - c.t >= contactTtl) return false
+    var rx = c.x - pos[0]
+    var rz = c.z - pos[2]
+    var lf = rx * e.fwd[0] + rz * e.fwd[2]
+    var ll = rx * e.left[0] + rz * e.left[2]
+    return !(Math.abs(lf) < pHalfL && Math.abs(ll) < pHalfW)
+  })
   state.restT = Math.abs(e.speed) < 0.25 && goalDist > ((params.goalTolerance != null ? params.goalTolerance : 3.5)) ? (state.restT || 0) + dt : 0
-  function markContact(g) {
-    // `isTouchingObject` is also true on the floor, so it proves nothing: only mark after the car has really been pushing
+  api.watch('av.contacts', state.contacts.length + ' rest ' + (state.restT || 0).toFixed(1) + ' side ' + (input.environment && input.environment.isTouchingSide ? 1 : 0))
+  function markContact(g, stalledAlready) {
+    // only a LATERAL contact (isTouchingSide: wall, other body, low bar) counts — isTouchingObject is also true on the floor — and only after the car has really been pushing
     // without moving for a while, and never build a cage (no new mark where a recent one already sits ahead).
-    if (params.contactMemory === false || (state.restT || 0) < (params.contactRestTime != null ? params.contactRestTime : 1.5)) return
+    if (params.contactMemory === false) return
+    if (!stalledAlready && (state.restT || 0) < (params.contactRestTime != null ? params.contactRestTime : 1.0)) return
     var cdd = ((av.vehicle && av.vehicle.length) || params.vehicleLength || 4) / 2 + 0.3
     for (var ck = 0; ck < state.contacts.length; ck++) {
       var dxk = state.contacts[ck].x - (pos[0] + e.fwd[0] * g * cdd)
@@ -396,7 +409,7 @@ function transform(input, dt, params, state, api) {
     var wantManeuver = (rt.firstGear === -1 && (state.revVotes >= 2 || Math.abs(e.speed) < 0.3) && Math.abs(e.speed) < 1.5) || state.stuckT > stuckTime
     if (wantManeuver && goalDist > holdTol) {
       // stuck although the costmap shows a free way, and in contact with something: it is invisible to the lidar
-      if (state.stuckT > stuckTime && input.environment && input.environment.isTouchingObject) {
+      if (state.stuckT > stuckTime && input.environment && input.environment.isTouchingSide) {
         markContact(rt.firstGear === -1 ? -1 : 1)
         av.points = (av.points || []).concat(state.contacts.slice(-3).map(function (c) { return [c.x, c.z] }))
       }
@@ -485,7 +498,7 @@ function transform(input, dt, params, state, api) {
     var stallTime = params.stallTime != null ? params.stallTime : 1.2
     if ((blockedAhead || state.stallT > stallTime) && e.t - (state.lastReplanT || -9) > 0.6) {
       // pushing against something the costmap does not show: mark the spot ahead (in the driving direction) as occupied
-      if (!blockedAhead && input.environment && input.environment.isTouchingObject) markContact(cur.g)
+      if (!blockedAhead && input.environment && input.environment.isTouchingSide) markContact(cur.g, true)
       var fix = plan(maxExpFull)
       state.lastReplanT = e.t
       state.stallT = 0
@@ -557,8 +570,12 @@ function transform(input, dt, params, state, api) {
   }
   var remain = state.segStart ? Math.max(0, cur.len - travelled) : cur.len
   var vMax = Math.min(vMan, 0.9 + Math.sqrt(2 * 3 * remain))
-  var wrongWay = state.segStart === null || cur.g * e.speed < -0.35
-  av.override = { kappa: cur.k, vDesired: wrongWay ? 0 : cur.g * vMax }
+  // waiting for rest before a gear change: demand zero. Once the segment has started but the car still rolls the other
+  // way (momentum from the previous segment; an icy car does not stop by itself and a zero-demand brake is below the
+  // actuator deadband), drive in the demanded direction: that brakes it hard and turns it around.
+  var waitingForRest = state.segStart === null
+  var rollingWrong = !waitingForRest && cur.g * e.speed < -0.35
+  av.override = { kappa: cur.k, vDesired: waitingForRest ? 0 : rollingWrong ? cur.g * Math.min(vMax, 2.5) : cur.g * vMax }
   av.mode = 'maneuver'
   api.watch('av.maneuver', 'seg ' + state.idx + '/' + state.segs.length + ' g' + cur.g + ' k' + cur.k.toFixed(3) + ' replans ' + state.replans)
   return {}
