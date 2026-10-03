@@ -10,6 +10,7 @@ import { useEditorUndo } from '@/contexts/useEditorUndo'
 import { getScriptDef } from '@/scripts/scriptDef'
 import { uiLogger } from '@/utils/uiLogger'
 import { theme } from '@/config/theme'
+import { deleteStackBinding } from '@/utils/pipeNavMutations'
 import PipeStructurePreview from '@/components/workspace/pipeNav/PipeStructurePreview'
 import { describePipeSummary, summarizePipe } from '@/utils/pipeSummary'
 import { copyGlobalPipeIntoWorld } from '@/globalPipeline/copyGlobalPipeIntoWorld'
@@ -17,6 +18,7 @@ import { assignPipeToEntity, deletePipeFromWorld } from '@/utils/commitTransform
 import { behaviorRegistryBindings } from '@/utils/behaviorRegistryBindings'
 import {
   entityUsesPipe,
+  getEntityPipeStack,
   removePipeFromEntityStack,
   replacePipeIdInEntityStack,
 } from '@/utils/transformerPipeResolve'
@@ -1082,11 +1084,14 @@ export default function WorkspaceOrganizeTab({
                   }}
                   onDetach={() => {
                     pushUndo()
-                    const nextWorld = {
-                      ...world,
-                      entities: world.entities.map((e) =>
-                        entityUsesPipe(e, id) ? { ...e, ...removePipeFromEntityStack(e, id) } : e,
-                      ),
+                    // Removes the pipe's stages from each entity too (no ungrouped leftovers).
+                    let nextWorld = world
+                    for (const e of world.entities) {
+                      const indices = getEntityPipeStack(e)
+                        .map((b, i) => (b.pipeId === id ? i : -1))
+                        .filter((i) => i >= 0)
+                        .reverse()
+                      for (const i of indices) nextWorld = deleteStackBinding(nextWorld, e.id, i)
                     }
                     onWorldChange(nextWorld)
                   }}

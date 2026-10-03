@@ -12,6 +12,7 @@ import {
   buildInitialBindingParams,
   flattenPipeMembers,
   getEntityPipeStack,
+  flattenPipeStageIds,
   normalizePipeMembers,
   withPipeStackBindings,
 } from '@/utils/transformerPipeResolve'
@@ -732,8 +733,22 @@ export function deleteStackBinding(
   if (!entity) return world
   const stack = [...getEntityPipeStack(entity)]
   if (stackIndex < 0 || stackIndex >= stack.length) return world
+  const registry = world.transformerPipes ?? {}
+  const stageIdsOf = (bindings: TransformerPipeBinding[]) =>
+    new Set(bindings.flatMap((b) => flattenPipeStageIds(registry, b.pipeId)))
+  const before = stageIdsOf(stack)
   stack.splice(stackIndex, 1)
+  // Stages the removed pipe contributed go with it. Without this an emptied stack stops being "piped" and the
+  // stages would linger on the entity as ungrouped top-level transformers.
+  const stillProvided = stageIdsOf(stack)
+  const dropped = new Set([...before].filter((id) => !stillProvided.has(id)))
   let nextWorld = updateEntityStack(world, entityId, stack)
+  nextWorld = {
+    ...nextWorld,
+    entities: nextWorld.entities.map((e) =>
+      e.id === entityId ? { ...e, transformers: (e.transformers ?? []).filter((id) => !dropped.has(id)) } : e,
+    ),
+  }
   nextWorld = applyEntityTransformerSync(nextWorld, entityId)
   return nextWorld
 }

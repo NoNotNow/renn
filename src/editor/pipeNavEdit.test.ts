@@ -360,6 +360,40 @@ describe('resolvePipeNavEdit', () => {
       expect(result!.nav!.path).toEqual(expectedPath)
     })
 
+    it('treeDelete of the only (shared) pipe also removes its stages from the entity, not leaving them ungrouped', () => {
+      const { prompts } = makePrompts()
+      const w: RennWorld = {
+        version: '1',
+        world: {},
+        entities: [
+          { id: 'e1', transformers: ['s1', 's2'], transformerPipeStack: [{ pipeId: 'shared', enabled: true }] },
+          { id: 'e2', transformers: ['s1', 's2'], transformerPipeStack: [{ pipeId: 'shared', enabled: true }] },
+        ],
+        transformers: { s1: { type: 'input' }, s2: { type: 'input' } },
+        transformerPipes: {
+          shared: {
+            id: 'shared',
+            name: 'Shared',
+            stageIds: ['s1', 's2'],
+            stages: [],
+            members: [
+              { kind: 'stage', stageId: 's1' },
+              { kind: 'stage', stageId: 's2' },
+            ],
+          },
+        },
+      }
+      const node: PipeTreeNode = { kind: 'stack_pipe', pipeId: 'shared', stackIndex: 0, label: 'Shared' }
+      const result = resolvePipeNavEdit(
+        { kind: 'treeDelete', node },
+        makeCtx({ world: w, prompts, focus: { path: [], selectedSiblingIndex: 0 } }),
+      )!
+      expect(result.world.entities[0]!.transformers).toEqual([])
+      // the other entity still uses the shared pipe untouched
+      expect(result.world.entities[1]!.transformers).toEqual(['s1', 's2'])
+      expect(result.world.transformerPipes?.shared).toBeDefined()
+    })
+
     it('treeInsert returns nav pointing at the newly inserted stack pipe', () => {
       const singleStackWorld: RennWorld = {
         version: '1',
