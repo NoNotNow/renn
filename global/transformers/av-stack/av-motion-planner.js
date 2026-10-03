@@ -41,9 +41,12 @@ function transform(input, dt, params, state, api) {
   var kmax = params.maxCurvature || 0.115
   var count = params.arcCount || 31
   var hMin = params.horizonMin != null ? params.horizonMin : 10
-  var hMax = params.horizonMax != null ? params.horizonMax : 26
-  var H = Math.min(hMax, hMin + (params.horizonGain != null ? params.horizonGain : 1.2) * v)
   var aBrake = params.comfortDecel || 5
+  // The planning horizon has to cover the stopping distance of the speed we want to drive, otherwise the free-path
+  // limit (sqrt(2 * decel * horizon)) silently caps cruiseSpeed (26 m / 5 m/s^2 = 15.8 m/s).
+  var cruiseV = params.cruiseSpeed != null ? params.cruiseSpeed : 10
+  var hMax = params.horizonMax != null ? params.horizonMax : Math.min(150, Math.max(26, 1.1 * ((cruiseV * cruiseV) / (2 * aBrake)) + 10))
+  var H = Math.min(hMax, hMin + Math.max((params.horizonGain != null ? params.horizonGain : 1.2) * v, (1.1 * v * v) / (2 * aBrake)))
   var Lreq = Math.min(H, (v * v) / (2 * aBrake) + 5)
   var wProg = params.wProgress != null ? params.wProgress : 1.0
   var wHead = params.wHeading != null ? params.wHeading : 2.0
