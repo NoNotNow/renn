@@ -1087,6 +1087,7 @@ function WorkspaceTransformersTabEntity({
                 selectedStageId={selectedId}
                 cardErrorsByStackIndex={cardErrorsByStackIndex}
                 stageConfigRequest={stageConfigRequest}
+                globalTransformers={globalLibrary?.transformers as Record<string, TransformerConfig> | undefined}
               />
             : <TransformerHorizontalPipeline
                 transformers={list}

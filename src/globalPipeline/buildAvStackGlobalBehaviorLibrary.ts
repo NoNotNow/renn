@@ -15,10 +15,12 @@ const P = SHIPPED_GLOBAL_AV_PREFIX
 
 export const AV_GLOBAL_STACK_PIPE_ID = `${P}stack`
 export const AV_GLOBAL_AUTOPILOT_PIPE_ID = `${P}autopilot`
+export const AV_GLOBAL_WANDER_STACK_PIPE_ID = `${P}stack_wander`
 
 type StageMeta = { id: string; name: string; priority: number }
 const STAGES: Record<AvStackLogicalStage, StageMeta> = {
   mission: { id: `${P}mission`, name: 'AV Mission (waypoints)', priority: 2.5 },
+  wander: { id: `${P}wander`, name: 'AV Wander (random goals)', priority: 2.5 },
   ego: { id: `${P}ego`, name: 'AV Ego state', priority: 2 },
   perception: { id: `${P}perception`, name: 'AV Perception', priority: 3 },
   waypointViz: { id: `${P}waypoint_viz`, name: 'AV Waypoint overlay', priority: 3.1 },
@@ -52,6 +54,9 @@ function stageDefs(): Record<string, TransformerDef> {
       enabled: true,
       name: meta.name,
       code: readAvStackStageCode(logical),
+      ...(logical === 'wander'
+        ? { params: { acceptRadius: 9, minDistance: 25, maxDistance: 60, giveUpAfter: 45, speed: 10 } }
+        : {}),
       ...(logical === 'mission'
         ? {
             // demo square so a freshly assigned object visibly drives; edit waypoints [[x, z], ...] for your world
@@ -85,6 +90,11 @@ export function buildAvStackGlobalBehaviorLibrary(): GlobalBehaviorLibrary {
     [AV_GLOBAL_AUTOPILOT_PIPE_ID]: {
       name: 'AV Autopilot (sense, plan, control, safety)',
       members: [sub(`${P}sense`), sub(`${P}plan`), sub(`${P}control`), sub(`${P}safety`)],
+      paramDefs: AV_GLOBAL_PARAM_DEFS,
+    },
+    [AV_GLOBAL_WANDER_STACK_PIPE_ID]: {
+      name: 'AV Stack (random goals + autopilot + car)',
+      members: [st(STAGES.wander.id), sub(AV_GLOBAL_AUTOPILOT_PIPE_ID), st(CAR_ID)],
       paramDefs: AV_GLOBAL_PARAM_DEFS,
     },
     [AV_GLOBAL_STACK_PIPE_ID]: {

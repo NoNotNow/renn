@@ -233,3 +233,13 @@ Config patches must **not** call `syncPriorities`, `updateFocusedStageOrder`, or
 ## Deleting a pipe deletes its contents
 
 `deletePipeFromWorld` removes the pipe, its stages (registry + every entity's `transformers`) and nested pipes that nothing else references; stages/pipes still referenced by a surviving pipe or entity stack are kept. Tree delete (stack pipe / nested pipe) unlinks first and applies the same cascade only when the pipe is no longer referenced anywhere (`dropIfOrphaned` in `pipeNavEdit.ts`); a pipe shared with another entity or pipe only loses this reference.
+
+## Editing stages inside composite pipes (guards)
+
+- Entities run stages **sorted by `priority` across the whole composite stack**. The strip hands over re-indexed priorities (0..n); `preserveCompositePriorities`
+  (in `commitFocusedStageConfigs`) maps that back so other pipes' stages keep their values and a new stage lands between its neighbours.
+  Library stages added through the add dialog's **Global library** tab keep their own priority (`insertGlobalTransformerStage`).
+- `updateFocusedStageOrder` merges the new stage order into the members without moving nested pipes (`mergeStageOrderIntoMembers`).
+- `RenderItemRegistry.syncEntityTransformers` used to write live configs into the document's registry under `${entityId}_tf${i}`, overwriting real stages
+  with that name (e.g. a new stage got the car actuator's config). It now uses `${id}__live${i}` in a copy of the registry.
+- At the **pipe-siblings level** (strip shows pipes) the `+` dialog has no Transformer tab: stages live inside a pipe, open one first (the dialog says so).

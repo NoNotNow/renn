@@ -344,6 +344,51 @@ export function patchStageConfigInWorld(
  * Pipe binding / scope params are edited separately via the pipe params UI.
  * Pass `orderedIds` only for explicit reorder/add/remove — not for metadata patches.
  */
+const round3 = (n: number) => Math.round(n * 1000) / 1000
+
+/**
+ * The strip hands over configs whose `priority` was re-indexed to 0..n-1 (flat-list habit). Entities run stages sorted
+ * by priority across the *whole* composite stack, so writing those back would scramble stages of other pipes
+ * (e.g. a mission at 2.5 would drop below the ego stage at 2). Here a re-index is translated instead:
+ *  - existing stages reuse their own priority values (a reorder permutes the values among the moved stages),
+ *  - a new stage gets a priority between its neighbours (or just beyond the ends).
+ * Configs with deliberate, non-reindexed priorities are passed through untouched.
+ */
+export function preserveCompositePriorities(
+  registry: Record<string, TransformerConfig>,
+  configs: TransformerConfig[],
+  ids: string[],
+): TransformerConfig[] {
+  if (configs.length === 0) return configs
+  const reindexed = configs.every((c, i) => c.priority === i)
+  if (!reindexed) return configs
+
+  const existing = ids.map((id) => id !== undefined && registry[id]?.priority !== undefined)
+  const oldValues = ids
+    .filter((_, i) => existing[i])
+    .map((id) => registry[id]!.priority as number)
+    .sort((a, b) => a - b)
+  const out = [...configs]
+  const assigned: (number | undefined)[] = new Array(configs.length).fill(undefined)
+  let k = 0
+  for (let i = 0; i < configs.length; i++) {
+    if (existing[i]) assigned[i] = oldValues[k++]
+  }
+  for (let i = 0; i < configs.length; i++) {
+    if (existing[i]) continue
+    let prev: number | undefined
+    for (let j = i - 1; j >= 0 && prev === undefined; j--) prev = assigned[j]
+    let next: number | undefined
+    for (let j = i + 1; j < configs.length && next === undefined; j++) if (existing[j]) next = assigned[j]
+    assigned[i] =
+      prev !== undefined && next !== undefined ? (prev === next ? prev : round3((prev + next) / 2))
+      : prev !== undefined ? round3(prev + 1)
+      : next !== undefined ? round3(next - 1)
+      : configs[i]!.priority
+  }
+  return out.map((c, i) => (assigned[i] === undefined ? c : { ...c, priority: assigned[i] }))
+}
+
 export function commitFocusedStageConfigs(
   world: RennWorld,
   entityId: string,
@@ -356,6 +401,7 @@ export function commitFocusedStageConfigs(
   if (!entity) return world
 
   let nextWorld = world
+  configs = preserveCompositePriorities(world.transformers ?? {}, configs, ids)
   for (let i = 0; i < configs.length; i++) {
     const id = ids[i]
     if (id && configs[i]) {
@@ -543,6 +589,37 @@ export function reorderPipeMembers(
   return syncAllEntitiesUsingPipes(nextWorld, [pipeId])
 }
 
+/**
+ * Applies a new stage order to a pipe's members without disturbing nested pipes.
+ *
+ * Nested pipes keep their slots (a pipe like `[mission, sense, plan, control, car]` must stay in execution order).
+ * Removed stages drop out, reordered survivors refill the stage slots, and a new stage is inserted right before the
+ * member of the next stage that follows it in `orderedStageIds` (append when none follows).
+ */
+export function mergeStageOrderIntoMembers(
+  members: TransformerPipeMember[],
+  orderedStageIds: string[],
+): TransformerPipeMember[] {
+  const byId = new Map<string, TransformerPipeMember>()
+  for (const m of members) if (m.kind === 'stage') byId.set(m.stageId, m)
+  const wanted = new Set(orderedStageIds)
+
+  const kept = members.filter((m) => m.kind === 'pipe' || wanted.has(m.stageId))
+  const survivorsNew = orderedStageIds.filter((id) => byId.has(id))
+  let k = 0
+  const result: TransformerPipeMember[] = kept.map((m) => (m.kind === 'stage' ? byId.get(survivorsNew[k++]!)! : m))
+
+  orderedStageIds.forEach((id, i) => {
+    if (byId.has(id)) return
+    const fresh: TransformerPipeMember = { kind: 'stage', stageId: id }
+    const nextSurvivor = orderedStageIds.slice(i + 1).find((x) => result.some((m) => m.kind === 'stage' && m.stageId === x))
+    const at = nextSurvivor === undefined ? -1 : result.findIndex((m) => m.kind === 'stage' && m.stageId === nextSurvivor)
+    if (at < 0) result.push(fresh)
+    else result.splice(at, 0, fresh)
+  })
+  return result
+}
+
 export function updateFocusedStageOrder(
   world: RennWorld,
   entityId: string,
@@ -567,14 +644,7 @@ export function updateFocusedStageOrder(
   const pipe = world.transformerPipes?.[pipeId]
   if (!pipe) return world
 
-  const members = normalizePipeMembers(pipe)
-  const reorderedStages: TransformerPipeMember[] = orderedStageIds.map((stageId) => ({
-    kind: 'stage' as const,
-    stageId,
-    enabled: members.find((m) => m.kind === 'stage' && m.stageId === stageId)?.enabled,
-  }))
-  const pipeMembers = members.filter((m) => m.kind === 'pipe')
-  const nextMembers = [...reorderedStages, ...pipeMembers]
+  const nextMembers = mergeStageOrderIntoMembers(normalizePipeMembers(pipe), orderedStageIds)
 
   const nextWorld = updatePipeMembers(world, pipeId, nextMembers)
   return syncAllEntitiesUsingPipes(nextWorld, [pipeId])

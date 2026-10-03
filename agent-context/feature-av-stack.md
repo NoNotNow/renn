@@ -133,3 +133,20 @@ seg1 / beside-gate / full-course × 5 spawns, seg3 sphere, cube goal-behind × 4
 - Overlay cap raised to 200 lines (`COORDINATE_OVERLAY_MAX_COUNT`; was 16, which silently dropped later stages' lines).
 - Costmap is hit-point memory (TTL 15 s), fine for static worlds; moving obstacles need tracking/prediction.
 - The example world `self_drive_av` uses the fixture variant (stock `targetPoseInput` mission); the global library uses `av_mission`.
+
+## Goal sources (mission vs. wander) — swapping the target generator
+
+The autopilot only needs a **goal**; any stage that publishes it can sit in front:
+
+- `input.target = { pose: { position: [x, 0, z] }, speed }` — what planners read (x/z, floor plane; heading is ignored).
+- optional `input.goalSource = { index, waypoints: [[x, z], ...], isFinal }` — `av-ego` adopts it as `av.mission` (it rebuilds `input.av` every
+  frame, so a source that runs *before* ego hands its mission over this way; `av-mission`/`av-wander` at 2.5 write `av.mission` directly).
+  Without it every goal counts as final (speed planner brakes for it, supervisor holds there) — right for a single goal, wrong for endless goals.
+- **`av-wander`** (`global_av_wander`, ready-made pipe `global_av_stack_wander`): random goals inside `area` / the stack's `drivableArea`
+  (default ±40 m around the start), `acceptRadius` 9, `minDistance`/`maxDistance` 25/60, `giveUpAfter` 45 s (unreachable goals are replaced), `seed`
+  (reproducible). `isFinal` is always false, so the car keeps cruising. Test: `av-stack-wander.integration.test.ts`.
+- The stock `wanderer` *preset* is **not** a drop-in: it samples 3D positions + random rotations and only counts a goal as reached within
+  `positionEpsilon` (0.05 m) in 3D, which a car never satisfies — use `av-wander`.
+
+To replace the mission in a project: focus the stack pipe → `+` → Transformer → **Global library** → *AV Wander* → delete the old mission stage
+(execution order follows `priority`, not list position: 2.5 keeps it right behind ego).

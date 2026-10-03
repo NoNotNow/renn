@@ -23,6 +23,8 @@ export interface PipeAddDialogProps {
   excludedStageIds: string[]
   onAddPreset: (type: string) => void
   onAddExisting: (registryId: string, mode: AddExistingTransformerMode) => void
+  globalTransformers?: Record<string, TransformerConfig>
+  onAddGlobalTransformer?: (globalId: string) => void
   onCreatePipe: (name: string) => void
   onAddChildPipe: (name: string) => void
   onAddExistingPipe: (pipe: TransformerPipe, mode: 'linked' | 'copy') => void
@@ -71,6 +73,8 @@ export default function PipeAddDialog({
   excludedStageIds,
   onAddPreset,
   onAddExisting,
+  globalTransformers,
+  onAddGlobalTransformer,
   onCreatePipe,
   onAddChildPipe,
   onAddExistingPipe,
@@ -124,6 +128,15 @@ export default function PipeAddDialog({
           onAddExisting(registryId, linkMode)
           onClose()
         }}
+        globalTransformers={globalTransformers}
+        onAddGlobal={
+          onAddGlobalTransformer ?
+            (id) => {
+              onAddGlobalTransformer(id)
+              onClose()
+            }
+          : undefined
+        }
         onCancel={onClose}
       />
     )
@@ -134,6 +147,11 @@ export default function PipeAddDialog({
         <label style={{ fontSize: 12, color: theme.text.muted }}>
           {activeSection === 'child_pipe' ? 'Child pipe name' : 'Pipe name'}
         </label>
+        {mode === 'pipe_siblings' ?
+          <div style={{ fontSize: 11, color: theme.text.muted }} data-testid="pipe-add-stage-hint">
+            Transformers live inside a pipe: open a pipe (Open →, or select it in the tree) and press + there.
+          </div>
+        : null}
         <input
           type="text"
           value={pipeName}

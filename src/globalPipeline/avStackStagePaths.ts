@@ -11,6 +11,7 @@ export const AV_STACK_TRANSFORMER_DIR = resolve(moduleDir, '../../public/global/
 export const AV_STACK_STAGE_FILES = {
   ego: 'av-ego.js',
   mission: 'av-mission.js',
+  wander: 'av-wander.js',
   perception: 'av-perception.js',
   waypointViz: 'av-waypoint-viz.js',
   routePlanner: 'av-route-planner.js',

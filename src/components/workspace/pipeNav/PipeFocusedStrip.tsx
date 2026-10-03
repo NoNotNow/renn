@@ -9,6 +9,7 @@ import { TransformerHorizontalPipeline, type StageConfigRequest, type Transforme
 import type { AddExistingTransformerMode } from '@/components/workspace/AddTransformerDialogPanel'
 import {
   appendExistingTransformerStage,
+  insertGlobalTransformerStage,
   appendPresetTransformerStage,
 } from '@/utils/appendTransformerStage'
 import PipeCard from './PipeCard'
@@ -68,6 +69,8 @@ export interface PipeFocusedStripProps {
   cardErrorsByStackIndex?: Record<number, TransformerCardErrorKind>
   /** Settings requested from the pipe-nav tree: open this stage's config drawer. */
   stageConfigRequest?: StageConfigRequest | null
+  /** Global-library transformers offered in the add dialog (copied into the project on add). */
+  globalTransformers?: Record<string, TransformerConfig>
 }
 
 export default function PipeFocusedStrip({
@@ -101,6 +104,7 @@ export default function PipeFocusedStrip({
   selectedStageId,
   cardErrorsByStackIndex,
   stageConfigRequest,
+  globalTransformers,
 }: PipeFocusedStripProps) {
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [scrollLeft, setScrollLeft] = useState(0)
@@ -144,6 +148,25 @@ export default function PipeFocusedStrip({
     [stageConfigs, stageIds, registryEntityId, world.transformers, onCommitStages, onSelectStageId],
   )
 
+  const handleAddGlobalTransformer = useCallback(
+    (globalId: string) => {
+      const def = globalTransformers?.[globalId]
+      if (!def) return
+      // Copy the global stage into the project under a fresh id (never overwrites a project stage).
+      const next = insertGlobalTransformerStage(
+        stageConfigs,
+        stageIds,
+        globalId,
+        def,
+        registryEntityId,
+        { ...(world.transformers ?? {}), [globalId]: def },
+      )
+      onCommitStages(next.configs, next.ids)
+      onSelectStageId(next.selectId)
+    },
+    [globalTransformers, stageConfigs, stageIds, registryEntityId, world.transformers, onCommitStages, onSelectStageId],
+  )
+
   const plusButtonStyle = isLeafLevel ? transformerPlusBtnStyle : pipeLevelPlusBtnStyle
 
   const renderPlusButton = () => (
@@ -170,6 +193,8 @@ export default function PipeFocusedStrip({
       excludedStageIds={stageIds}
       onAddPreset={handleAddPreset}
       onAddExisting={handleAddExisting}
+      globalTransformers={globalTransformers}
+      onAddGlobalTransformer={globalTransformers ? handleAddGlobalTransformer : undefined}
       onCreatePipe={onCreatePipe}
       onAddChildPipe={onAddChildPipe}
       onAddExistingPipe={onAddExistingPipe}

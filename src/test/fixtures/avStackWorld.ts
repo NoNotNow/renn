@@ -30,7 +30,7 @@ export const AV_STACK_PARAM_DEFS: PipeParamDef[] = [
 ]
 
 /** Fixture worlds keep their own mission stage (targetPoseInput); `mission` is only used by the global library. */
-type FixtureStage = Exclude<AvStackLogicalStage, 'mission'>
+type FixtureStage = Exclude<AvStackLogicalStage, 'mission' | 'wander'>
 const STAGE_META: Record<FixtureStage, { id: string; name: string; priority: number }> = {
   ego: { id: 'av_ego', name: 'AV Ego state', priority: 2 },
   perception: { id: 'av_perception', name: 'AV Perception', priority: 3 },
