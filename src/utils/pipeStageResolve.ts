@@ -278,6 +278,27 @@ function walkEntityStageRuntime(world: RennWorld, entity: Entity): StageRuntimeW
     flatEnabledStageIds.push(stageId)
   }
 
+  // `entity.transformers` is not guaranteed to be in walk order (stack stages first, then top-level stages): an entity
+  // saved with a top-level stage in front of the pipe has [stage, ...pipeStages, stage]. Index-pairing would hand
+  // each stage the merged params of a different one (the wanderer got the autopilot's params, the last pipe stage
+  // got the wanderer's). Re-key the contexts by stage id into the entity's own order.
+  const entityIds = entity.transformers ?? []
+  const sameOrder = entityIds.length === flatEnabledStageIds.length && entityIds.every((id, i) => id === flatEnabledStageIds[i])
+  if (!sameOrder && entityIds.length > 0) {
+    const used = new Set<number>()
+    const remapped = new Map<number, StageRuntimeContext>()
+    entityIds.forEach((id, entityIndex) => {
+      for (let j = 0; j < flatEnabledStageIds.length; j++) {
+        if (used.has(j) || flatEnabledStageIds[j] !== id) continue
+        used.add(j)
+        const ctx = stageContext.get(j)
+        if (ctx) remapped.set(entityIndex, ctx)
+        break
+      }
+    })
+    return { stageContext: remapped, scopeEffectiveEnabled, flatEnabledStageIds, scopeFlatRange }
+  }
+
   return { stageContext, scopeEffectiveEnabled, flatEnabledStageIds, scopeFlatRange }
 }
 

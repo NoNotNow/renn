@@ -287,3 +287,7 @@ Fingerprint: custom stages = type + code; pipes = member tree + paramDefs.
   as the strip, so both always agree. Pipe cards have a × (delete through the tree-delete edit, with its confirmation).
 
 **Schema gotcha**: `world-schema.json` is hand-maintained and strict (`additionalProperties: false`): a new field on `TransformerConfig` / `TransformerPipe` (like `origin`) must be added there too, otherwise project load strips it with an "Unknown or deprecated fields" warning. `validate.origin.test.ts` guards `origin`.
+
+## entity.transformers order vs. pipe walk order
+
+The pipe walk lists stack stages first, then top-level stages. An entity saved with a top-level stage in front of the pipe (`[wanderer, ...pipeStages, car2]`) used to get index-paired merged params: the wanderer received the autopilot's params (so it ran with defaults: ±5 m cube, 0.05 m epsilon → never "reached") and the last pipe stage received the wanderer's. `walkEntityStageRuntime` now re-keys the stage contexts by stage id into the entity's own order (`pipeStageResolve.order.test.ts`). Known limit: `flatRangeForScope` / `flatIndexOffsetForStackBinding` still assume walk order (pipe-card IN/OUT for such out-of-order entities).
