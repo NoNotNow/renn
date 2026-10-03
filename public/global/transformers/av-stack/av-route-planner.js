@@ -83,17 +83,27 @@ function transform(input, dt, params, state, api) {
     }
   }
 
-  function search(sx, sz, sfx, sfz, gx, gz, pts, maxExp) {
+  function search(sx, sz, sfx, sfz, gx, gz, pts, maxExp, marginOverride) {
     var hlS = (params.vehicleLength || 4) / 2 + planMargin
     var hwS = (params.vehicleWidth || 2) / 2 + planMargin
     var hit = makeHit(pts, hlS, hwS)
     // start already inside the comfort margin (drift, soft contact): re-plan with the tight margin so
     // the planner can still drive out of the margin band instead of finding every primitive blocked
-    if (hit(sx, sz, sfx, sfz)) {
+    // start already inside the comfort margin (drift, soft contact): re-plan with the tight margin so
+    // the planner can still drive out of the margin band instead of finding every primitive blocked
+    var marginUsed = planMargin
+    if (marginOverride != null) {
+      marginUsed = marginOverride
+      hlS = (params.vehicleLength || 4) / 2 + marginUsed
+      hwS = (params.vehicleWidth || 2) / 2 + marginUsed
+      hit = makeHit(pts, hlS, hwS)
+    } else if (hit(sx, sz, sfx, sfz)) {
+      marginUsed = tightMargin
       hlS = (params.vehicleLength || 4) / 2 + tightMargin
       hwS = (params.vehicleWidth || 2) / 2 + tightMargin
       hit = makeHit(pts, hlS, hwS)
     }
+    state.startMargin = marginUsed
     function dist(x, z) {
       var dx = gx - x
       var dz = gz - z
@@ -268,7 +278,14 @@ function transform(input, dt, params, state, api) {
     return Math.sqrt(ex * ex + ez * ez) > 0.9 || dot < 0.97
   }
   function plan(maxE) {
-    return search(pos[0], pos[2], e.fwd[0], e.fwd[2], gxw, gzw, av.points || [], maxE)
+    var res = search(pos[0], pos[2], e.fwd[0], e.fwd[2], gxw, gzw, av.points || [], maxE, null)
+    // Pressed against something (a corner touching a long wall): every primitive is blocked at the comfort margins, so
+    // retry with ever smaller margins until the car can at least drive out of the contact.
+    var escape = [0.05, 0.02, 0]
+    for (var ei = 0; ei < escape.length && res.segs.length === 0 && !res.reached; ei++) {
+      res = search(pos[0], pos[2], e.fwd[0], e.fwd[2], gxw, gzw, av.points || [], maxE, escape[ei])
+    }
+    return res
   }
   // route summary: first gear, length of the leading forward run, carrot point
   function summarize(res) {
@@ -314,6 +331,21 @@ function transform(input, dt, params, state, api) {
   if (state.stuckT === undefined) state.stuckT = 0
   if (!state.active && Math.abs(e.speed) < 0.25 && goalDist > holdTol) state.stuckT += dt
   else state.stuckT = 0
+  // Scraping along an obstacle (wheels spinning against contact friction) is slow but not "stopped": also count it as
+  // stuck when the car has hardly moved over a longer window while driving slowly.
+  if (!state.crawlAnchor) state.crawlAnchor = [pos[0], pos[2]]
+  var crawlMoved = Math.sqrt((pos[0] - state.crawlAnchor[0]) * (pos[0] - state.crawlAnchor[0]) + (pos[2] - state.crawlAnchor[1]) * (pos[2] - state.crawlAnchor[1]))
+  if (state.active || goalDist <= holdTol || Math.abs(e.speed) > 1.2 || crawlMoved > 2.5) {
+    state.crawlAnchor = [pos[0], pos[2]]
+    state.crawlT = 0
+  } else {
+    state.crawlT = (state.crawlT || 0) + dt
+    if (state.crawlT > (params.crawlTime != null ? params.crawlTime : 6)) {
+      state.stuckT = Math.max(state.stuckT, stuckTime + 0.1)
+      state.crawlT = 0
+      state.crawlAnchor = [pos[0], pos[2]]
+    }
+  }
 
   if (!state.active) {
     if (state.route === undefined || e.t - state.routeT >= routeInterval) {
@@ -364,8 +396,10 @@ function transform(input, dt, params, state, api) {
   }
   // --- execution guard: re-plan when the real pose makes the rest of the segment collide, or when stalled ---
   if (state.segStart !== null) {
-    var guardL = (params.vehicleLength || 4) / 2 + guardMargin
-    var guardW = (params.vehicleWidth || 2) / 2 + guardMargin
+    // the guard must not be stricter than the margin the manoeuvre was planned with (escaping from contact)
+    var guardM = Math.min(guardMargin, state.startMargin != null ? state.startMargin : guardMargin)
+    var guardL = (params.vehicleLength || 4) / 2 + guardM
+    var guardW = (params.vehicleWidth || 2) / 2 + guardM
     var gHit = makeHit(av.points || [], guardL, guardW)
     var lx0 = e.left[0]
     var lz0 = e.left[2]

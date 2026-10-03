@@ -125,15 +125,43 @@ function transform(input, dt, params, state, api) {
   var bestSoft = 0
   var bestTurnLen = 0
   var cand = []
+  // Direct aim: turn at curvature `kappa` until the car points at the goal, then drive straight (shortest way when the
+  // way is free). Returns the turn angle (rad), or 0 when the goal is on the other side / cannot be aimed at this way.
+  function aimTurnAngle(kappa) {
+    var ak = Math.abs(kappa)
+    if (ak < 1e-6) return 0
+    var gyS = kappa > 0 ? gy : -gy
+    if (gyS <= 0.05 && gx > 0) return 0
+    var prevF = null
+    for (var th = 0.02; th <= Math.PI; th += 0.02) {
+      var x = Math.sin(th) / ak
+      var y = (1 - Math.cos(th)) / ak
+      var f = Math.atan2(gyS - y, gx - x) - th
+      while (f > Math.PI) f -= 2 * Math.PI
+      while (f < -Math.PI) f += 2 * Math.PI
+      if (prevF !== null && prevF > 0 && f <= 0) return th
+      prevF = f
+    }
+    return 0
+  }
   for (var a = 0; a < count; a++) {
     var kappa = count === 1 ? 0 : -kmax + (2 * kmax * a) / (count - 1)
-    for (var ti = 0; ti < turnAngles.length; ti++) {
+    var aimAng = aimTurnAngle(kappa)
+    var nAngles = turnAngles.length + (aimAng > 0 ? 1 : 0)
+    for (var ti = 0; ti < nAngles; ti++) {
       if (Math.abs(kappa) < 1e-6 && ti > 0) continue
-      var turnLen = Math.abs(kappa) < 1e-6 ? H : Math.min(H, turnAngles[ti] / Math.abs(kappa))
+      var isAim = ti >= turnAngles.length
+      var turnLen = Math.abs(kappa) < 1e-6 ? H : Math.min(H, (isAim ? aimAng : turnAngles[ti]) / Math.abs(kappa))
       var fHard = freeLength(kappa, turnLen, halfW, halfL)
       var fSoft = freeLength(kappa, turnLen, halfW + soft - margin, halfL + soft - margin)
       var L = fHard
-      poseAt(kappa, turnLen, L, P)
+      var Lpose = L
+      if (isAim) {
+        // judged where it reaches the goal (not far beyond it); free-length terms still use the full free path
+        poseAt(kappa, turnLen, turnLen, P)
+        Lpose = Math.min(L, turnLen + Math.sqrt((gx - P.x) * (gx - P.x) + (gy - P.y) * (gy - P.y)))
+      }
+      poseAt(kappa, turnLen, Lpose, P)
       var gdEnd = Math.sqrt((gx - P.x) * (gx - P.x) + (gy - P.y) * (gy - P.y))
       var progress = goalDist - gdEnd
       var herr = Math.atan2(gy - P.y, gx - P.x) - P.th

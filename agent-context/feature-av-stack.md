@@ -190,3 +190,9 @@ Other limits: the planning horizon and sensor range scale with the stopping dist
 
 Layering reminder: pipe params (binding, then nested scope) **override** a stage's own `params` for the same key — edit speeds in the pipe's param drawer, not in one stage's params.
 A goal source's own `speed` (e.g. preset `wanderer` `speed`) is only a hint the AV ignores. Preset `wanderer` publishes `isFinal:false` only in `planar` (car) mode.
+
+## Direct aim, escape from contact, edge-case world
+
+- **Direct aim (motion planner):** besides the fixed turn angles each curvature gets one candidate that turns exactly until the car points at the goal, then drives straight; it is judged at the goal, so a free way is driven in a straight line instead of an arc.
+- **Escape from contact (route planner):** when the Hybrid-A* finds no path at the comfort margins (corner touching a long wall), `plan()` retries with margins 0.05 / 0.02 / 0 m. A crawl watchdog (`crawlTime`, default 6 s: < 2.5 m moved while slow) also triggers the manoeuvre planner when the car scrapes along an obstacle instead of standing still.
+- **Edge-case test set:** `src/test/fixtures/avEdgeWorld.ts` (`AV_EDGE_CASES`, `wallAgainstCar`, `runEdgeCase`) + `src/test/scenarios/av-edge-cases.integration.test.ts`. Add every new "car gets stuck" situation there (expects: arrives, never leaves the floor, longest stall < 300 frames).
