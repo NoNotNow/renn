@@ -196,3 +196,7 @@ A goal source's own `speed` (e.g. preset `wanderer` `speed`) is only a hint the 
 - **Direct aim (motion planner):** besides the fixed turn angles each curvature gets one candidate that turns exactly until the car points at the goal, then drives straight; it is judged at the goal, so a free way is driven in a straight line instead of an arc.
 - **Escape from contact (route planner):** when the Hybrid-A* finds no path at the comfort margins (corner touching a long wall), `plan()` retries with margins 0.05 / 0.02 / 0 m. A crawl watchdog (`crawlTime`, default 6 s: < 2.5 m moved while slow) also triggers the manoeuvre planner when the car scrapes along an obstacle instead of standing still.
 - **Edge-case test set:** `src/test/fixtures/avEdgeWorld.ts` (`AV_EDGE_CASES`, `wallAgainstCar`, `runEdgeCase`) + `src/test/scenarios/av-edge-cases.integration.test.ts`. Add every new "car gets stuck" situation there (expects: arrives, never leaves the floor, longest stall < 300 frames).
+
+## Snapshot (debugging)
+
+Watch panel → **Snapshot** records, for one simulated frame, every custom stage of the selected entity: params, input (before), input after (if mutated in place, e.g. the `av` blackboard), returned output, `state` and all `api.watch` values (even with the panel closed). Result: textarea + Copy/Save JSON. Code: `src/runtime/transformerSnapshotBridge.ts` (hook in `CustomCodeTransformer.transform`).
