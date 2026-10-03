@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useMemo, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
-import type { PipeNavPathSegment } from '@/types/pipeNav'
+import type { PipeNavPathSegment, PipeTreeNode } from '@/types/pipeNav'
 import type { TransformerConfig, TransformerPipe } from '@/types/transformer'
 import type { StageCommitKind } from '@/editor/commitStageEdit'
 import type { Entity, RennWorld } from '@/types/world'
@@ -83,6 +83,8 @@ export interface PipeFocusedStripProps {
   onReorderEntityLevel?: (fromKey: string, toIndex: number) => void
   /** Drag inside a pipe whose members mix stages and pipes. */
   onReorderMembers?: (pipeId: string, fromIndex: number, toIndex: number) => void
+  /** × on a pipe card: delete the pipe (stack pipe or nested member) through the tree-delete edit. */
+  onDeleteNode?: (node: PipeTreeNode) => void
 }
 
 export default function PipeFocusedStrip({
@@ -121,6 +123,7 @@ export default function PipeFocusedStrip({
   globalTransformers,
   onReorderEntityLevel,
   onReorderMembers,
+  onDeleteNode,
 }: PipeFocusedStripProps) {
   const [addDialogOpenLocal, setAddDialogOpenLocal] = useState(false)
   const addDialogOpen = addDialogOpenProp ?? addDialogOpenLocal
@@ -321,6 +324,11 @@ export default function PipeFocusedStrip({
           onParamChange={pipeCardCallbacks.onParamChange}
           onParamsReplace={pipeCardCallbacks.onParamsReplace}
           onDecoupleBinding={() => onDecouplePipeBinding?.(stackIdx)}
+          onRemove={
+            onDeleteNode ?
+              () => onDeleteNode({ kind: 'stack_pipe', pipeId, stackIndex: stackIdx, label: pipe.name })
+            : undefined
+          }
         />
       )
     }
@@ -428,6 +436,18 @@ export default function PipeFocusedStrip({
               () => onDecouplePipeBinding?.(stackIdx)
             : undefined
           }
+          onRemove={
+            onDeleteNode && parentPipeId ?
+              () =>
+                onDeleteNode({
+                  kind: 'member_pipe',
+                  pipeId: item.pipeId,
+                  parentPipeId,
+                  memberIndex: item.index,
+                  label: pipe.name,
+                })
+            : undefined
+          }
         />
       )
     }
@@ -486,7 +506,7 @@ interface StripDragState {
   setOverIndex: (i: number | null) => void
 }
 
-/** One strip item with a grab handle; dropping another item here moves it to this slot. */
+/** One strip item; dragging its card / header and dropping on another slot moves it there (run order). */
 function StripSlot({
   index,
   itemKey,
@@ -505,6 +525,16 @@ function StripSlot({
   return (
     <div
       data-testid={`strip-slot-${itemKey}`}
+      // The draggable part is the card itself (a stage card) or its header (a pipe card): their dragstart bubbles here.
+      onDragStart={(e) => {
+        e.dataTransfer.setData('text/plain', itemKey)
+        e.dataTransfer.effectAllowed = 'move'
+        drag.setDragKey(itemKey)
+      }}
+      onDragEnd={() => {
+        drag.setDragKey(null)
+        drag.setOverIndex(null)
+      }}
       onDragOver={(e) => {
         if (drag.dragKey === null) return
         e.preventDefault()
@@ -523,37 +553,8 @@ function StripSlot({
         opacity: dragging ? 0.45 : 1,
         borderLeft: isTarget ? `3px solid ${theme.pipeNav.accent}` : '3px solid transparent',
         paddingLeft: 2,
-        paddingTop: 12,
       }}
     >
-      <span
-        draggable
-        data-testid={`strip-grip-${itemKey}`}
-        title="Drag to reorder (run order)"
-        onDragStart={(e) => {
-          e.dataTransfer.setData('text/plain', itemKey)
-          e.dataTransfer.effectAllowed = 'move'
-          drag.setDragKey(itemKey)
-        }}
-        onDragEnd={() => {
-          drag.setDragKey(null)
-          drag.setOverIndex(null)
-        }}
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 2,
-          zIndex: 3,
-          cursor: 'grab',
-          fontSize: 11,
-          lineHeight: 1,
-          padding: '0 3px',
-          color: theme.pipeNav.accent,
-          userSelect: 'none',
-        }}
-      >
-        ⋮⋮
-      </span>
       {children}
     </div>
   )

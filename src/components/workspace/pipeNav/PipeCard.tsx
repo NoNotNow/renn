@@ -28,6 +28,8 @@ export interface PipeCardProps {
   onParamsReplace?: (params: Record<string, unknown>) => void
   onDecoupleBinding?: () => void
   decoupleDisabledReason?: string
+  /** × in the header: delete this pipe (asks for confirmation). */
+  onRemove?: () => void
 }
 
 export default function PipeCard({
@@ -48,6 +50,7 @@ export default function PipeCard({
   onParamsReplace,
   onDecoupleBinding,
   decoupleDisabledReason,
+  onRemove,
 }: PipeCardProps) {
   const cardRef = useRef<HTMLDivElement>(null)
   const [toolsExpanded, setToolsExpanded] = useState(true)
@@ -86,7 +89,12 @@ export default function PipeCard({
       }}
     >
       <div
+        // the whole header row is the drag handle (the strip's slot reorders on its dragstart)
+        draggable
+        data-strip-drag-handle
+        title="Drag the header to reorder"
         style={{
+          cursor: 'grab',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -110,6 +118,31 @@ export default function PipeCard({
           configOpen={configOpen}
           onConfigToggle={() => setConfigOpen((o) => !o)}
         />
+        {onRemove ?
+          <button
+            type="button"
+            data-testid="pipe-card-remove"
+            title="Remove pipe"
+            onClick={(e) => {
+              e.stopPropagation()
+              onRemove()
+            }}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: theme.text.muted,
+              cursor: 'pointer',
+              fontSize: 12,
+              lineHeight: 1,
+              padding: '0 2px',
+              opacity: 0.6,
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+            onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.6')}
+          >
+            ×
+          </button>
+        : null}
       </div>
 
       <div style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 4 }}>

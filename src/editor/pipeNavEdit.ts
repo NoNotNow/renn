@@ -1,8 +1,8 @@
 import type { TransformerPipe } from '@/types/transformer'
 import type { GlobalBehaviorLibrary } from '@/types/globalBehaviorLibrary'
-import { moveEntityLevelItem, moveMemberItem } from '@/utils/stripOrder'
+import { entityLevelItems, moveEntityLevelItem, moveMemberItem } from '@/utils/stripOrder'
 import { assignLibraryPipeToEntity, type LibraryPipeSource } from '@/utils/assignLibraryPipe'
-import type { PipeNavFocus, PipeNavPathSegment, PipeTreeNode } from '@/types/pipeNav'
+import type { PipeNavFocus, PipeNavPathSegment, PipeTreeNode, TreeDropPosition } from '@/types/pipeNav'
 import type { Entity, RennWorld } from '@/types/world'
 import { countEntitiesLinkingPipe, deletePipeFromWorld } from '@/utils/commitTransformerConfigsToWorld'
 import {
@@ -85,7 +85,7 @@ export type PipeNavEditIntent =
   /** Tree context-menu insert; the caller has already collected the name. */
   | { kind: 'treeInsert'; name: string; placement: InsertPipePlacement }
   /** Tree drag-and-drop reorder, nest, promote, or move. */
-  | { kind: 'treeDrop'; drag: PipeTreeNode; drop: PipeTreeNode }
+  | { kind: 'treeDrop'; drag: PipeTreeNode; drop: PipeTreeNode; position?: TreeDropPosition }
   /** Bootstrap: give an entity with no pipe stack its first pipe. Not a user action. */
   | { kind: 'ensurePipeStack' }
 
@@ -310,7 +310,7 @@ function resolveIntent(
     }
 
     case 'treeDrop':
-      return resolveTreeDrop(intent.drag, intent.drop, ctx)
+      return resolveTreeDrop(intent.drag, intent.drop, ctx, intent.position)
   }
 }
 
@@ -435,19 +435,66 @@ function confirmPipeRemoval(
 
 const CYCLE_WARNING = 'Cannot nest a pipe inside its own descendant.'
 
+const entityLevelKeyOf = (n: PipeTreeNode): string | null =>
+  n.kind === 'stack_pipe' ? `pipe:${n.stackIndex}` : n.kind === 'top_stage' ? `stage:${n.stageId}` : null
+
+/** Slot index for "before / after `at`" once the dragged item (currently at `from`) is taken out. */
+function slotFor(at: number, from: number, position: TreeDropPosition): number {
+  const to = position === 'after' ? at + 1 : at
+  return from < to ? to - 1 : to
+}
+
 function resolveTreeDrop(
   drag: PipeTreeNode,
   drop: PipeTreeNode,
   ctx: PipeNavEditContext,
+  position?: TreeDropPosition,
 ): PipeNavEditResult | null {
   const { world, entityId, prompts } = ctx
   const registry = world.transformerPipes ?? {}
+  const entity = world.entities.find((e) => e.id === entityId)
+  const placed = position === 'before' || position === 'after' ? position : undefined
+
+  // Insert before / after a sibling at entity level (pipes and top-level stages share one run order).
+  if (placed && entity) {
+    const dropKey = entityLevelKeyOf(drop)
+    const dragKey = entityLevelKeyOf(drag)
+    if (dropKey) {
+      let w = world
+      let key = dragKey
+      if (drag.kind === 'member_stage') {
+        w = moveMemberStageToTopLevel(world, entityId, drag.parentPipeId, drag.memberIndex)
+        key = `stage:${drag.stageId}`
+      }
+      if (key && key !== dropKey) {
+        const fresh = w.entities.find((e) => e.id === entityId)!
+        const items = entityLevelItems(w, fresh)
+        const from = items.findIndex((i) => i.key === key)
+        const at = items.findIndex((i) => i.key === dropKey)
+        if (from >= 0 && at >= 0) {
+          const next = moveEntityLevelItem(w, entityId, key, slotFor(at, from, placed))
+          return next === world ? null : structural(next, ctx)
+        }
+      }
+    }
+    // Reorder among members of one pipe: priorities follow the new order.
+    const memberOf = (n: PipeTreeNode) =>
+      n.kind === 'member_stage' || n.kind === 'member_pipe' ? { parentPipeId: n.parentPipeId, memberIndex: n.memberIndex } : null
+    const dm = memberOf(drag)
+    const om = memberOf(drop)
+    if (dm && om && dm.parentPipeId === om.parentPipeId) {
+      if (dm.memberIndex === om.memberIndex) return null
+      const next = moveMemberItem(world, dm.parentPipeId, dm.memberIndex, slotFor(om.memberIndex, dm.memberIndex, placed))
+      return next === world ? null : structural(next, ctx)
+    }
+  }
+  const afterOffset = placed === 'after' ? 1 : 0
 
   if (drag.kind === 'member_stage') {
     if (drop.kind === 'entity') {
       return structural(moveMemberStageToTopLevel(world, entityId, drag.parentPipeId, drag.memberIndex), ctx)
     }
-    if (drop.kind === 'top_stage') return null
+    if (drop.kind === 'top_stage') return null // (before / after a top-level stage was handled above)
 
     if (drop.kind === 'member_stage') {
       if (drag.parentPipeId === drop.parentPipeId) {
@@ -458,7 +505,7 @@ function resolveTreeDrop(
         )
       }
       return structural(
-        moveMemberStage(world, entityId, drag.parentPipeId, drag.memberIndex, drop.parentPipeId, drop.memberIndex),
+        moveMemberStage(world, entityId, drag.parentPipeId, drag.memberIndex, drop.parentPipeId, drop.memberIndex + afterOffset),
         ctx,
       )
     }
@@ -482,7 +529,7 @@ function resolveTreeDrop(
     }
     if (drop.kind === 'member_stage') {
       return structural(
-        moveTopLevelStageIntoPipe(world, entityId, drag.stageId, drop.parentPipeId, drop.memberIndex),
+        moveTopLevelStageIntoPipe(world, entityId, drag.stageId, drop.parentPipeId, drop.memberIndex + afterOffset),
         ctx,
       )
     }

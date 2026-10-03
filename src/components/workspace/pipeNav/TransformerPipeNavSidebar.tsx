@@ -8,7 +8,7 @@ import {
   type RefObject,
 } from 'react'
 import type { Entity, RennWorld } from '@/types/world'
-import type { PipeNavPathSegment, PipeTreeNode } from '@/types/pipeNav'
+import type { PipeNavPathSegment, PipeTreeNode, TreeDropPosition } from '@/types/pipeNav'
 import { theme } from '@/config/theme'
 import { clamp } from '@/utils/numberUtils'
 import { pipeNavButtonStyle } from './pipeNavStyles'
@@ -41,7 +41,7 @@ export interface TransformerPipeNavSidebarProps {
     action: 'add_before' | 'add_after' | 'add_child' | 'delete',
     target: PipeTreeContextTarget,
   ) => void
-  onTreeDrop?: (drag: PipeTreeNode, drop: PipeTreeNode) => void
+  onTreeDrop?: (drag: PipeTreeNode, drop: PipeTreeNode, position?: TreeDropPosition) => void
   drawerPortalTarget?: RefObject<HTMLDivElement | null>
   onPipeControlToggle?: (opts: {
     pipeId: string

@@ -2,7 +2,7 @@ import type { GlobalBehaviorLibrary } from '@/types/globalBehaviorLibrary'
 import type { LibraryPipeSource } from '@/utils/assignLibraryPipe'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { TransformerConfig, TransformerPipe } from '@/types/transformer'
-import type { PipeTreeNode } from '@/types/pipeNav'
+import type { PipeTreeNode, TreeDropPosition } from '@/types/pipeNav'
 import type { Entity, RennWorld } from '@/types/world'
 import type { WorkspaceTarget } from '@/types/workspace'
 import { usePipeNavigator } from '@/hooks/usePipeNavigator'
@@ -64,7 +64,7 @@ interface PipeTreeHandlers {
     action: 'add_before' | 'add_after' | 'add_child' | 'delete',
     target: PipeTreeContextTarget,
   ) => void
-  onTreeDrop: (drag: PipeTreeNode, drop: PipeTreeNode) => void
+  onTreeDrop: (drag: PipeTreeNode, drop: PipeTreeNode, position?: TreeDropPosition) => void
 }
 
 type NameDialogState = { title: string; name: string; onConfirm: (name: string) => void }
@@ -281,7 +281,7 @@ export function usePipeNavController(
       onRenamePipe: focusedPipeId ? (name) => commit({ kind: 'renamePipe', name }) : undefined,
       onTreeDelete: (node) => commit({ kind: 'treeDelete', node }),
       onTreeContext: handleTreeContext,
-      onTreeDrop: (drag, drop) => commit({ kind: 'treeDrop', drag, drop }),
+      onTreeDrop: (drag, drop, position) => commit({ kind: 'treeDrop', drag, drop, position }),
     }),
     [commit, focusedPipeId, handleTreeContext],
   )

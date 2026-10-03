@@ -1078,6 +1078,7 @@ function WorkspaceTransformersTabEntity({
                   pipeNav.addPipe.onAssignLibraryPipe(source, pipeId, mode, globalLibrary)
                 }
                 onReorderEntityLevel={pipeNav.stripReorder.onReorderEntityLevel}
+                onDeleteNode={pipeNav.treeActions.onTreeDelete}
                 onReorderMembers={pipeNav.stripReorder.onReorderMembers}
               />
             : <TransformerHorizontalPipeline

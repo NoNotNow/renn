@@ -277,7 +277,11 @@ Fingerprint: custom stages = type + code; pipes = member tree + paramDefs.
 - **One dialog everywhere**: the strip's `+` and the tree's `+ Add` open the same `PipeAddDialog` (state lifted into `WorkspaceTransformersTab`). Tabs: **Transformer** (preset / existing / global library),
   **New pipe**, **Existing pipe** (`PipeLibraryPanel`: project + global-library pipes, search, structure preview, Link / Copy), **Child pipe** (inside a pipe). Every level offers all of them;
   a library pipe lands at the focused level (`assignLibraryPipe` is focus-aware like `addExistingPipe`).
-- **Drag to reorder** (grip `⋮⋮` on every strip item, `StripSlot` in `PipeFocusedStrip`): entities run stages sorted by `priority`, so strip order = run order.
+- **Drag to reorder** (stage cards drag by their card, pipe cards by their header row; `StripSlot` in `PipeFocusedStrip` listens for the bubbling dragstart): entities run stages sorted by `priority`, so strip order = run order.
   Entity level shows pipes (by their first stage) and top-level stages in that order; dragging uses `moveEntityLevelItem` (stack order for pipes, a fitting priority for stages);
   inside a pipe with mixed members `moveMemberItem` reorders the member and fits priorities (`src/utils/stripOrder.ts`, intents `reorderEntityLevel` / `reorderMembers`).
   Pipes never get their priorities rewritten; dropping on an item takes its slot. A new top-level stage joins the end of the run order.
+
+- **Tree and strip are one view**: the tree lists entity children with the same `entityLevelItems` order the strip uses (run order, not "pipes first"), and tree drags use before / after / into
+  zones (top / bottom edge = insert before / after; middle of a pipe row = drop into it; stage rows split in halves). Same-level before/after goes through the same `moveEntityLevelItem` / `moveMemberItem`
+  as the strip, so both always agree. Pipe cards have a × (delete through the tree-delete edit, with its confirmation).

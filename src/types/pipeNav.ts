@@ -28,6 +28,9 @@ export type PipeTreeNode =
   | { kind: 'top_stage'; stageId: string; label: string }
   | { kind: 'member_pipe'; pipeId: string; parentPipeId: string; memberIndex: number; label: string }
 
+/** Where a tree drag lands relative to the row it is dropped on. */
+export type TreeDropPosition = 'before' | 'after' | 'into'
+
 export type ResolvedPipeNavView = {
   mode: PipeNavViewMode
   depth: number
