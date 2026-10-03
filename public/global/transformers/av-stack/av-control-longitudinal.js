@@ -51,7 +51,23 @@ function transform(input, dt, params, state, api) {
     retard = Math.min(maxBrk, brakeGain * -err)
     if (vAlong < 0.3 && vTarget < 0.05) retard = 0
   }
-  if (vTarget < 0.05 && Math.abs(e.speed) >= 0.3) {
+  // Chatter guard: the actuator answers one frame late, so reverse-thrust braking of a rolling car can overshoot and
+  // flip the speed sign every frame (bang-bang at +-5 m/s that moves nothing but never counts as "stopped").
+  // After repeated sign flips at speed, stop pushing and let the car coast to rest.
+  state.t = (state.t || 0) + dt
+  var sgn = Math.abs(e.speed) > 1 ? (e.speed > 0 ? 1 : -1) : 0
+  if (sgn !== 0 && state.lastSgn && sgn !== state.lastSgn) {
+    state.flips = (state.flips || 0) + 1
+    state.flipAt = state.t
+    if (state.flips >= 3) state.coastUntil = state.t + 1.5
+  }
+  if (sgn !== 0) state.lastSgn = sgn
+  if (state.flips && state.t - (state.flipAt || 0) > 0.5) state.flips = 0
+  var coasting = vTarget < 0.05 && state.coastUntil !== undefined && state.t < state.coastUntil
+  if (coasting) {
+    thr = 0
+    brk = 0
+  } else if (vTarget < 0.05 && Math.abs(e.speed) >= 0.3) {
     // demand zero but still rolling: brake against the current direction of travel
     var oppose = e.speed > 0 ? 1 : -1
     var b = Math.min(maxBrk, brakeGain * Math.abs(e.speed))

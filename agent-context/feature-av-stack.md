@@ -204,3 +204,8 @@ Watch panel → **Snapshot** records, for one simulated frame, every custom stag
 ## IN / OUT trace on cards
 
 Stages talk by mutating `input` (`input.target`, `input.goalSource`, blackboard `input.av.*`), not only via the returned output. The trace therefore fingerprints every non-standard input key (one level deep) before/after each stage: **IN** lists live channels (`target`, `av.points[213]`, …), **OUT** adds `wrote <channels>`. Pipe cards show IN (first stage that ran) and OUT (union of member stages), using `EntityStageRuntime.flatRangeForScope`. Code: `transformerTrace.ts` (`collectChannelFingerprints`, `summarizePipeTraceBrief`), `PipeCard.tsx`.
+
+## Standstill deadlocks (found via Snapshot)
+
+- **Longitudinal chatter:** zero demand + reverse-thrust braking flipped the speed sign every frame (±5 m/s, no net motion). `av-control-longitudinal.js` now coasts (no thrust) for 1.5 s after 3 sign flips.
+- **Manoeuvre waited for rest forever:** a gear change waited for `|speed| < 0.4`, never true while chattering → `vDesired 0` for ever. Now `restWaitMax` (1.2 s) ends the wait; a plan the car is `maxOffPath` (6 m) away from is dropped and replanned.
