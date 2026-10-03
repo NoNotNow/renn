@@ -10,6 +10,7 @@
 // debug draw: magenta = route / manoeuvre path (+ status mast while manoeuvring), orange = current segment end.
 // params: maneuverSpeed, routeInterval, routeExpansions, lookahead, primitiveLength, maxExpansions,
 //         gearSwitchPenalty, reversePenalty, maxReverseRun, planMargin, tightMargin, guardMargin, stallTime, stuckTime,
+//         restWaitMax (s, wait for rest before a gear change), maxOffPath (m, drop a plan the car is farther from), crawlTime,
 //         goalReach, handbackFree, goalTolerance, maxCurvature, vehicleWidth, vehicleLength
 function transform(input, dt, params, state, api) {
   var av = input.av
@@ -33,6 +34,8 @@ function transform(input, dt, params, state, api) {
   var handback = params.handbackFree != null ? params.handbackFree : 10
   var vMan = params.maneuverSpeed != null ? params.maneuverSpeed : 3
   var stuckTime = params.stuckTime != null ? params.stuckTime : 1.5
+  var restWaitMax = params.restWaitMax != null ? params.restWaitMax : 1.2
+  var maxOffPath = params.maxOffPath != null ? params.maxOffPath : 6
   var holdTol = params.goalTolerance != null ? params.goalTolerance : 3.5
   // route ends inside the waypoint acceptance zone (not only at its centre)
   var reach = params.goalReach != null ? params.goalReach : 3.5
@@ -386,7 +389,32 @@ function transform(input, dt, params, state, api) {
   var cur = state.segs[state.idx]
   if (state.segStart === null) {
     // a gear change must come to rest first so the odometer does not count coasting
-    if (cur.g === state.prevGear || Math.abs(e.speed) < 0.4) state.segStart = [pos[0], pos[2]]
+    // (not forever: a car that chatters around zero speed never reads as stopped)
+    state.restWaitT = (state.restWaitT || 0) + dt
+    if (cur.g === state.prevGear || Math.abs(e.speed) < 0.4 || state.restWaitT > restWaitMax) {
+      state.segStart = [pos[0], pos[2]]
+      state.restWaitT = 0
+    }
+  }
+  // a plan the car is far away from (pushed, teleported, stale): drop it and plan from the real pose
+  if (state.path && state.path.length > 1) {
+    var offPath = Infinity
+    for (var oi = 1; oi < state.path.length; oi++) {
+      var ax0 = state.path[oi - 1][0]
+      var az0 = state.path[oi - 1][1]
+      var abx = state.path[oi][0] - ax0
+      var abz = state.path[oi][1] - az0
+      var ab2 = abx * abx + abz * abz
+      var tt = ab2 > 1e-9 ? Math.max(0, Math.min(1, ((pos[0] - ax0) * abx + (pos[2] - az0) * abz) / ab2)) : 0
+      var dd = Math.hypot(pos[0] - (ax0 + tt * abx), pos[2] - (az0 + tt * abz))
+      if (dd < offPath) offPath = dd
+    }
+    if (offPath > maxOffPath) {
+      state.active = false
+      state.route = undefined
+      state.stuckT = 0
+      return {}
+    }
   }
   var travelled = 0
   if (state.segStart) {
