@@ -243,3 +243,18 @@ Config patches must **not** call `syncPriorities`, `updateFocusedStageOrder`, or
 - `RenderItemRegistry.syncEntityTransformers` used to write live configs into the document's registry under `${entityId}_tf${i}`, overwriting real stages
   with that name (e.g. a new stage got the car actuator's config). It now uses `${id}__live${i}` in a copy of the registry.
 - At the **pipe-siblings level** (strip shows pipes) the `+` dialog has no Transformer tab: stages live inside a pipe, open one first (the dialog says so).
+
+## Top-level stages (no pipe required) and "Wrap all"
+
+Stages may sit **directly on an entity**, with or without a pipe stack — the old "every stage must live in a pipe" rule (auto-wrapping a fresh entity into `Pipe1`,
+the "ungrouped stages" banner) is gone.
+
+- Model: `entity.transformers` = the stack's stages (enabled flatten) followed by the entity's top-level stages. A top-level stage is "on the entity but in no pipe"
+  (`topLevelStageIds`, `src/utils/pipeStageResolve.ts`); the runtime walk gives it its own params/enable flag after the stack's stages (disabled ones stay in the list).
+- Because top-level is inferred, edits that take a stage out of a pipe go through `dropStagesLeftBehind(prev, next)` so it does not resurface as top-level
+  (`deletePipeMember`, `moveMemberStage`, `deleteStackBinding`, `commitFocusedStageConfigs`, `deletePipeFromWorld`).
+- UI: the `+` dialog offers **Transformer** at every level (at the entity level it adds a top-level stage, at a pipe level a member); the entity-level strip shows pipes
+  and top-level stages together; the tree lists top-level stages under the entity (delete, settings, drag into a pipe; dragging a pipe stage onto the entity row
+  makes it top-level).
+- **Wrap all** (tree toolbar, intent `wrapAllInPipe`, `wrapEverythingIntoPipe`): wraps the entity's pipes (as nested members, binding params moved to the matching nested scope)
+  and its top-level stages in one new pipe; what runs stays the same.

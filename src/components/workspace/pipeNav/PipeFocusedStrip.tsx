@@ -201,6 +201,49 @@ export default function PipeFocusedStrip({
     />
   )
 
+  const renderStageCard = (item: Extract<StripItem, { kind: 'stage' }>) => {
+    // `item.index` is the position among ALL members (stages and pipes mixed); `stageIds` lists only the stages,
+    // so address the stage by id. Index math silently dropped every stage that follows a nested pipe.
+    const cfg = world.transformers?.[item.stageId]
+    if (!cfg) return null
+    const flatIdx = stageIds.indexOf(item.stageId)
+    const stageIdx = flatIdx >= 0 ? flatIdx : 0
+    return (
+      <TransformerHorizontalPipeline
+        transformers={[cfg]}
+        transformerIds={[item.stageId]}
+        registryEntityId={registryEntityId}
+        liveTraceSteps={liveTraceSteps}
+        drawerPortalTarget={drawerPortalTarget}
+        onCommit={(nextConfigs) => {
+          if (onPatchStage) {
+            onPatchStage(item.stageId, nextConfigs[0]!)
+            return
+          }
+          if (flatIdx < 0) return
+          const nextAll = [...stageConfigs]
+          nextAll[flatIdx] = nextConfigs[0]!
+          onCommitStages(nextAll)
+        }}
+        onPatchStage={onPatchStage}
+        onSelectCode={onSelectStageId}
+        onMakeUnique={onMakeUnique}
+        makeUniqueDisabledReason={makeUniqueDisabledReason}
+        usageCounts={usageCounts}
+        existingRegistry={world.transformers}
+        selectedId={selectedStageId}
+        cardErrorsByStackIndex={
+          cardErrorsByStackIndex?.[stageIdx] != null ?
+            { 0: cardErrorsByStackIndex[stageIdx]! }
+          : undefined
+        }
+        configRequest={stageConfigRequest}
+        scope={{ kind: 'pipeMember', depth, stackIndex: stageIdx }}
+      />
+    )
+  }
+
+
   if (view.mode === 'entity_stages' && stack.length === 0) {
     return (
       <>
@@ -277,6 +320,14 @@ export default function PipeFocusedStrip({
               </Fragment>
             )
           })}
+          {view.mode === 'pipe_siblings' ?
+            stageIds.map((stageId, i) => (
+              <Fragment key={`top-${stageId}`}>
+                <div style={{ width: 16, height: 2, background: theme.pipeNav.accentMuted, flexShrink: 0 }} />
+                {renderStageCard({ kind: 'stage', stageId, index: i })}
+              </Fragment>
+            ))
+          : null}
           <div
             style={{
               position: 'relative',
@@ -378,48 +429,6 @@ export default function PipeFocusedStrip({
               () => onDecouplePipeBinding?.(stackIdx)
             : undefined
           }
-        />
-      )
-    }
-
-    const renderStageCard = (item: Extract<StripItem, { kind: 'stage' }>) => {
-      // `item.index` is the position among ALL members (stages and pipes mixed); `stageIds` lists only the stages,
-      // so address the stage by id. Index math silently dropped every stage that follows a nested pipe.
-      const cfg = world.transformers?.[item.stageId]
-      if (!cfg) return null
-      const flatIdx = stageIds.indexOf(item.stageId)
-      const stageIdx = flatIdx >= 0 ? flatIdx : 0
-      return (
-        <TransformerHorizontalPipeline
-          transformers={[cfg]}
-          transformerIds={[item.stageId]}
-          registryEntityId={registryEntityId}
-          liveTraceSteps={liveTraceSteps}
-          drawerPortalTarget={drawerPortalTarget}
-          onCommit={(nextConfigs) => {
-            if (onPatchStage) {
-              onPatchStage(item.stageId, nextConfigs[0]!)
-              return
-            }
-            if (flatIdx < 0) return
-            const nextAll = [...stageConfigs]
-            nextAll[flatIdx] = nextConfigs[0]!
-            onCommitStages(nextAll)
-          }}
-          onPatchStage={onPatchStage}
-          onSelectCode={onSelectStageId}
-          onMakeUnique={onMakeUnique}
-          makeUniqueDisabledReason={makeUniqueDisabledReason}
-          usageCounts={usageCounts}
-          existingRegistry={world.transformers}
-          selectedId={selectedStageId}
-          cardErrorsByStackIndex={
-            cardErrorsByStackIndex?.[stageIdx] != null ?
-              { 0: cardErrorsByStackIndex[stageIdx]! }
-            : undefined
-          }
-          configRequest={stageConfigRequest}
-          scope={{ kind: 'pipeMember', depth, stackIndex: stageIdx }}
         />
       )
     }

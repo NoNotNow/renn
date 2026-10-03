@@ -66,6 +66,8 @@ export interface TransformerPipeNavSidebarProps {
   onConfigureStage?: (path: PipeNavPathSegment[], index: number, stageId: string) => void
   onToggleStageEnabled?: (stageId: string) => void
   onAddPipe?: () => void
+  onWrapAll?: () => void
+  selectedStageId?: string | null
 }
 
 export default function TransformerPipeNavSidebar({
@@ -94,6 +96,8 @@ export default function TransformerPipeNavSidebar({
   onConfigureStage,
   onToggleStageEnabled,
   onAddPipe,
+  onWrapAll,
+  selectedStageId,
 }: TransformerPipeNavSidebarProps) {
   const [widthPx, setWidthPx] = useState(readPipeNavWidth)
   const [editingTitle, setEditingTitle] = useState(false)
@@ -234,6 +238,8 @@ export default function TransformerPipeNavSidebar({
         onConfigureStage={onConfigureStage}
         onToggleStageEnabled={onToggleStageEnabled}
         onAddPipe={onAddPipe}
+        onWrapAll={onWrapAll}
+        selectedStageId={selectedStageId}
       />
       <div
         role="separator"

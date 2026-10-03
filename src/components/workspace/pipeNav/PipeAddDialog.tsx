@@ -147,11 +147,6 @@ export default function PipeAddDialog({
         <label style={{ fontSize: 12, color: theme.text.muted }}>
           {activeSection === 'child_pipe' ? 'Child pipe name' : 'Pipe name'}
         </label>
-        {mode === 'pipe_siblings' ?
-          <div style={{ fontSize: 11, color: theme.text.muted }} data-testid="pipe-add-stage-hint">
-            Transformers live inside a pipe: open a pipe (Open →, or select it in the tree) and press + there.
-          </div>
-        : null}
         <input
           type="text"
           value={pipeName}

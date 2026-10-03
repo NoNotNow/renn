@@ -22,6 +22,7 @@ import {
 import { assignPipeToEntity } from '@/utils/commitTransformerConfigsToWorld'
 import { entityWithLegacyTransformerPipe } from '@/utils/transformerPipeResolve'
 import { findUngroupedStageIds } from '@/utils/pipeNavResolve'
+import { topLevelStageIds } from '@/utils/pipeStageResolve'
 
 vi.mock('@monaco-editor/react', () => ({
   default: () => null,
@@ -325,7 +326,7 @@ describe('WorkspaceTransformersTab', () => {
     )
   })
 
-  it('auto-wraps a fresh entity in Pipe1 when opened in transformers tab', async () => {
+  it('does not force a pipe around a fresh entity: it keeps a bare stage list with + for transformers or pipes', async () => {
     const user = userEvent.setup()
     const freshWorld: RennWorld = {
       version: '1',
@@ -342,38 +343,22 @@ describe('WorkspaceTransformersTab', () => {
       transformers: {},
     }
     const onWorldChange = vi.fn()
-    const setMonacoPayload = vi.fn()
     renderTab({
       world: freshWorld,
       onWorldChange,
-      setMonacoPayload,
       selectedEntityIds: ['fresh'],
       entry: { entityId: 'fresh', tab: 'transformers' },
     })
 
-    await waitFor(() => expect(onWorldChange).toHaveBeenCalled())
-    const next = onWorldChange.mock.calls.at(-1)?.[0] as RennWorld
-    const entity = next.entities.find((e) => e.id === 'fresh')!
-    const pipeId = entity.transformerPipeStack?.[0]?.pipeId
-    expect(pipeId).toBeDefined()
-    expect(next.transformerPipes?.[pipeId!]?.name).toBe('Pipe1')
-
     const addButton = await screen.findByTestId('pipe-focused-add-button')
-    expect(addButton.getAttribute('data-leaf-level')).toBe('true')
-
     await user.click(addButton)
     expect(screen.getByText('Add to pipeline')).toBeInTheDocument()
-    expect(screen.getByTestId('add-transformer-search')).toBeInTheDocument()
-
-    await waitFor(() => {
-      const payload = lastMonacoPayload(setMonacoPayload)
-      expect(payload?.kind).toBe('placeholder')
-      expect(payload?.value).toContain('Add a custom transformer to Pipe using the + button.')
-    })
+    expect(screen.getByTestId('pipe-add-tab-stage')).toBeInTheDocument()
+    expect(screen.getByTestId('pipe-add-tab-create_pipe')).toBeInTheDocument()
+    expect(onWorldChange).not.toHaveBeenCalled()
   })
 
-  it('wraps legacy ungrouped stages into the existing pipe without corrupting world', async () => {
-    const user = userEvent.setup()
+  it('stages next to a pipe are plain top-level stages: no banner, world untouched', async () => {
     const legacyWorld: RennWorld = {
       version: '1',
       world: {},
@@ -391,14 +376,7 @@ describe('WorkspaceTransformersTab', () => {
       ],
       transformers: {
         car_tf0: { type: 'input', priority: 0, enabled: true, params: {} },
-        car_tf1: {
-          type: 'custom',
-          priority: 1,
-          enabled: true,
-          params: {},
-          code: 'return {};',
-          name: 'Follower',
-        },
+        car_tf1: { type: 'custom', priority: 1, enabled: true, params: {}, code: 'return {};', name: 'Follower' },
       },
       transformerPipes: {
         p1: {
@@ -409,33 +387,18 @@ describe('WorkspaceTransformersTab', () => {
         },
       },
     }
-
-    function Harness() {
-      const [world, setWorld] = useState(legacyWorld)
-      return (
-        <TabWithMonacoHarness
-          world={world}
-          onWorldChange={setWorld}
-          selectedEntityIds={['car']}
-          entry={{ entityId: 'car', tab: 'transformers' }}
-        />
-      )
-    }
-
-    render(
-      <CopyProvider>
-        <EditorUndoProvider value={undoApi}>
-          <Harness />
-        </EditorUndoProvider>
-      </CopyProvider>,
-    )
-
-    expect(screen.getByTestId('pipe-ungrouped-banner')).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Wrap into pipe' }))
-
-    await waitFor(() => {
-      expect(screen.queryByTestId('pipe-ungrouped-banner')).not.toBeInTheDocument()
+    const onWorldChange = vi.fn()
+    renderTab({
+      world: legacyWorld,
+      onWorldChange,
+      selectedEntityIds: ['car'],
+      entry: { entityId: 'car', tab: 'transformers' },
     })
+
+    expect(await screen.findByText('Follower')).toBeInTheDocument() // the top-level stage is shown next to the pipe
+    expect(screen.queryByTestId('pipe-ungrouped-banner')).not.toBeInTheDocument()
+    expect(topLevelStageIds(legacyWorld, legacyWorld.entities[0]!)).toEqual(['car_tf1'])
+    expect(onWorldChange).not.toHaveBeenCalled()
   })
 
   it('editing custom code in a linked pipe keeps stack flatten valid when a copy pipe is also stacked', async () => {

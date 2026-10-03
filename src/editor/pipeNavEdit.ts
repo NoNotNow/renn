@@ -10,6 +10,10 @@ import {
   decoupleStackBindingToCopy,
   deletePipeMember,
   deleteStackBinding,
+  deleteTopLevelStage,
+  moveMemberStageToTopLevel,
+  moveTopLevelStageIntoPipe,
+  wrapEverythingIntoPipe,
   ensureEntityPipeStack,
   insertEmptyPipeAtNode,
   moveMemberPipe,
@@ -71,6 +75,8 @@ export type PipeNavEditIntent =
   | { kind: 'decouplePipeBinding'; stackIndex: number }
   /** Tree context-menu delete of a stack pipe, nested pipe, or stage. */
   | { kind: 'treeDelete'; node: PipeTreeNode }
+  /** Wrap all of the entity's pipes and top-level stages in one new pipe. */
+  | { kind: 'wrapAllInPipe'; name: string }
   /** Tree context-menu insert; the caller has already collected the name. */
   | { kind: 'treeInsert'; name: string; placement: InsertPipePlacement }
   /** Tree drag-and-drop reorder, nest, promote, or move. */
@@ -108,6 +114,7 @@ export const PIPE_NAV_EDIT_POLICY: Record<PipeNavEditIntent['kind'], PipeNavEdit
   editPipeParams: { pushUndo: true },
   decouplePipeBinding: { pushUndo: true },
   treeDelete: { pushUndo: true },
+  wrapAllInPipe: { pushUndo: true },
   treeInsert: { pushUndo: true },
   treeDrop: { pushUndo: true },
   ensurePipeStack: { pushUndo: false },
@@ -268,6 +275,14 @@ function resolveIntent(
     case 'treeDelete':
       return resolveTreeDelete(intent.node, ctx)
 
+    case 'wrapAllInPipe': {
+      const { world: next, pipeId } = wrapEverythingIntoPipe(world, entityId, intent.name)
+      if (!pipeId) return null
+      const fresh = next.entities.find((e) => e.id === entityId)
+      if (!fresh) return null
+      return { world: next, nav: focusAt(drillIntoPipePath(next, fresh, [], 0, 'pipe', pipeId)) }
+    }
+
     case 'treeInsert': {
       const { world: next, focusPath } = insertEmptyPipeAtNode(world, entityId, intent.name, intent.placement)
       return structural(next, ctx, focusAt(focusPath))
@@ -342,6 +357,11 @@ function resolveTreeDelete(node: PipeTreeNode, ctx: PipeNavEditContext): PipeNav
   const { world, entityId, prompts } = ctx
   if (node.kind === 'entity') return null
 
+  if (node.kind === 'top_stage') {
+    if (!prompts.confirm(`Remove stage "${node.label}" from this object?`)) return null
+    return structural(deleteTopLevelStage(world, entityId, node.stageId), ctx)
+  }
+
   if (node.kind === 'stack_pipe') {
     if (!confirmPipeRemoval(world, node.pipeId, prompts, {
       shared: (count) => `${count} entities use "${node.label}". Remove this pipe from the entity stack only?`,
@@ -404,9 +424,9 @@ function resolveTreeDrop(
 
   if (drag.kind === 'member_stage') {
     if (drop.kind === 'entity') {
-      prompts.warn('Stages must live inside a pipe.')
-      return null
+      return structural(moveMemberStageToTopLevel(world, entityId, drag.parentPipeId, drag.memberIndex), ctx)
     }
+    if (drop.kind === 'top_stage') return null
 
     if (drop.kind === 'member_stage') {
       if (drag.parentPipeId === drop.parentPipeId) {
@@ -433,6 +453,19 @@ function resolveTreeDrop(
       moveMemberStage(world, entityId, drag.parentPipeId, drag.memberIndex, drop.pipeId, targetMembers.length),
       ctx,
     )
+  }
+
+  if (drag.kind === 'top_stage') {
+    if (drop.kind === 'stack_pipe' || drop.kind === 'member_pipe') {
+      return structural(moveTopLevelStageIntoPipe(world, entityId, drag.stageId, drop.pipeId), ctx)
+    }
+    if (drop.kind === 'member_stage') {
+      return structural(
+        moveTopLevelStageIntoPipe(world, entityId, drag.stageId, drop.parentPipeId, drop.memberIndex),
+        ctx,
+      )
+    }
+    return null
   }
 
   if (drag.kind === 'stack_pipe' && drop.kind === 'stack_pipe') {

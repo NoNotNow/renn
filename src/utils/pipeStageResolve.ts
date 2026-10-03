@@ -159,6 +159,34 @@ function walkCopyBindingStages(
   }
 }
 
+/**
+ * Every stage id the entity's pipe stack accounts for (all members of every bound pipe, enabled or not).
+ * Cycles / missing pipes contribute nothing.
+ */
+export function stackStageIds(world: RennWorld, entity: Entity): Set<string> {
+  const registry = world.transformerPipes ?? {}
+  const ids = new Set<string>()
+  for (const binding of getEntityPipeStack(entity)) {
+    for (const id of binding.localStageIds ?? []) ids.add(id)
+    try {
+      for (const id of flattenPipeMembers(registry[binding.pipeId] ?? ({ id: '', name: '', stageIds: [], stages: [] } as TransformerPipe), registry)) ids.add(id)
+    } catch {
+      /* cycle: ignore */
+    }
+  }
+  return ids
+}
+
+/**
+ * Stages that sit directly on the entity next to its pipe stack (no pipe around them).
+ * Empty for entities without a stack: there every stage is on the entity anyway.
+ */
+export function topLevelStageIds(world: RennWorld, entity: Entity): string[] {
+  if (getEntityPipeStack(entity).length === 0) return []
+  const inStack = stackStageIds(world, entity)
+  return (entity.transformers ?? []).filter((id) => !inStack.has(id))
+}
+
 type StageRuntimeWalk = {
   stageContext: Map<number, StageRuntimeContext>
   scopeEffectiveEnabled: Map<string, boolean>
@@ -228,6 +256,17 @@ function walkEntityStageRuntime(world: RennWorld, entity: Entity): StageRuntimeW
     }
 
     visitMembers(pipe, binding, stackPath, walkBase, true, new Set())
+  }
+
+  // Top-level stages follow the stack's stages (disabled ones stay in the list, like in flat mode).
+  for (const stageId of topLevelStageIds(world, entity)) {
+    const config = worldTransformers[stageId]
+    const flatIndex = flatEnabledStageIds.length
+    stageContext.set(flatIndex, {
+      mergedParams: { ...(config?.params ?? {}) },
+      effectivelyEnabled: config?.enabled !== false,
+    })
+    flatEnabledStageIds.push(stageId)
   }
 
   return { stageContext, scopeEffectiveEnabled, flatEnabledStageIds }

@@ -18,6 +18,7 @@ import {
   type PipeNavEditIntent,
 } from '@/editor/pipeNavEdit'
 import type { PipeCardStageHandlers } from '@/components/workspace/pipeNav/pipeStageCallbacks'
+import { nextFreeDefaultPipeName } from '@/utils/allocatePipeId'
 import { commitFocusedStageConfigs } from '@/utils/pipeNavMutations'
 import { resolveFocusedStageConfigs } from '@/utils/pipeNavResolve'
 import {
@@ -38,6 +39,8 @@ interface AddPipeHandlers {
   onAddChildPipe: (name: string) => void
   onAddExistingPipe: (pipe: TransformerPipe, mode: 'linked' | 'copy') => void
   /** Append a project or global-library pipe to the entity's stack. */
+  /** Ask for a name, then wrap everything the entity has (pipes and top-level stages) in one new pipe. */
+  onWrapAll: () => void
   onAssignLibraryPipe: (
     source: LibraryPipeSource,
     pipeId: string,
@@ -149,17 +152,6 @@ export function usePipeNavController(
   const commitRef = useRef(commit)
   commitRef.current = commit
 
-  /**
-   * Bootstrap: entities predating the pipe stack get their first pipe on mount.
-   *
-   * Deliberately does **not** depend on `commit` (and so not on `focus`): this intent moves the
-   * focus, and a host that does not feed the new world back would otherwise loop forever.
-   */
-  useEffect(() => {
-    if (!entity.id) return
-    commitRef.current({ kind: 'ensurePipeStack' })
-  }, [entity.id])
-
   const promptName = useCallback(
     (title: string, defaultName: string, onConfirm: (name: string) => void) => {
       setNameDialog({ title, name: defaultName, onConfirm })
@@ -242,10 +234,14 @@ export function usePipeNavController(
       onCreatePipe: (name) => commit({ kind: 'createPipe', name }),
       onAddChildPipe: (name) => commit({ kind: 'createChildPipe', name }),
       onAddExistingPipe: (pipe, mode) => commit({ kind: 'addExistingPipe', pipe, mode }),
+      onWrapAll: () =>
+        promptName('Wrap everything in a pipe', nextFreeDefaultPipeName(world.transformerPipes), (name) =>
+          commitRef.current({ kind: 'wrapAllInPipe', name }),
+        ),
       onAssignLibraryPipe: (source, pipeId, mode, library) =>
         commit({ kind: 'assignLibraryPipe', source, pipeId, mode, library }),
     }),
-    [commit],
+    [commit, promptName, world.transformerPipes],
   )
 
   const handleTreeContext = useCallback(

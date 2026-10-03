@@ -3,7 +3,7 @@ import type { PipeNavPathSegment, PipeTreeNode } from '@/types/pipeNav'
 import type { Entity, RennWorld } from '@/types/world'
 import { theme } from '@/config/theme'
 import { getEntityPipeStack, normalizePipeMembers } from '@/utils/transformerPipeResolve'
-import { resolveEntityStageRuntime, stackIndexFromScopePath } from '@/utils/pipeStageResolve'
+import { resolveEntityStageRuntime, stackIndexFromScopePath, topLevelStageIds } from '@/utils/pipeStageResolve'
 import type { PipeTreeContextTarget } from '@/utils/pipeNavTreeHelpers'
 import { collectNestedPipeIds } from '@/utils/pipeSummary'
 import PipeTreePipeControls from './PipeTreePipeControls'
@@ -13,6 +13,8 @@ export interface PipeNavTreeProps {
   entity: Entity
   focusPath: PipeNavPathSegment[]
   selectedIndex: number
+  /** Stage currently selected in the editor (highlights top-level stage rows). */
+  selectedStageId?: string | null
   onSelectPath: (path: PipeNavPathSegment[], index: number, stageId?: string) => void
   onDeleteNode?: (node: PipeTreeNode) => void
   onContextAction?: (
@@ -47,6 +49,8 @@ export interface PipeNavTreeProps {
   onToggleStageEnabled?: (stageId: string) => void
   /** Open the "assign a pipe" dialog; shows the "+ Pipe" toolbar button when set. */
   onAddPipe?: () => void
+  /** Wrap everything (pipes + top-level stages) in one new pipe; shows the "Wrap all" toolbar button when set. */
+  onWrapAll?: () => void
 }
 
 export default function PipeNavTree({
@@ -54,6 +58,7 @@ export default function PipeNavTree({
   entity,
   focusPath,
   selectedIndex,
+  selectedStageId,
   onSelectPath,
   onDeleteNode,
   onContextAction,
@@ -66,6 +71,7 @@ export default function PipeNavTree({
   onConfigureStage,
   onToggleStageEnabled,
   onAddPipe,
+  onWrapAll,
 }: PipeNavTreeProps) {
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(['entity']))
   const [hoveredId, setHoveredId] = useState<string | null>(null)
@@ -288,6 +294,52 @@ export default function PipeNavTree({
     ],
   )
 
+  /** Stages sitting directly on the entity (next to its pipes, or all of them when it has no pipes). */
+  const renderTopLevelStages = (): ReactNode[] => {
+    const ids = stack.length === 0 ? (entity.transformers ?? []) : topLevelStageIds(world, entity)
+    return ids.map((stageId, i) => {
+      const cfg = world.transformers?.[stageId]
+      const label = cfg?.type === 'custom' ? (cfg.name ?? 'Custom') : String(cfg?.type ?? stageId)
+      const key = `top:${stageId}`
+      const node: PipeTreeNode = { kind: 'top_stage', stageId, label }
+      const isSelected = focusPath.length === 0 && selectedStageId === stageId
+      return (
+        <TreeRow
+          key={key}
+          depth={1}
+          label={label}
+          icon="●"
+          selected={isSelected}
+          hovered={hoveredId === key}
+          onHover={(h) => setHoveredId(h ? key : null)}
+          onClick={() => onSelectPath([], i, stageId)}
+          canEditConfig={Boolean(onConfigureStage)}
+          onEditConfig={() => onConfigureStage?.([], i, stageId)}
+          trailing={
+            onConfigureStage && (hoveredId === key || isSelected) ?
+              <span style={{ display: 'flex', gap: 2, flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+                {onToggleStageEnabled ?
+                  <IconBtn
+                    title={cfg?.enabled === false ? 'Enable stage' : 'Disable stage'}
+                    onClick={() => onToggleStageEnabled(stageId)}
+                  >
+                    {cfg?.enabled === false ? '○' : '●'}
+                  </IconBtn>
+                : null}
+                <IconBtn title="Stage settings" onClick={() => onConfigureStage([], i, stageId)}>
+                  ⚙
+                </IconBtn>
+              </span>
+            : null
+          }
+          onDelete={onDeleteNode ? () => onDeleteNode(node) : undefined}
+          draggable
+          onDragStart={() => setDragNode(node)}
+        />
+      )
+    })
+  }
+
   const entityKey = 'entity'
   const entityExpanded = expanded.has(entityKey)
   const entityNode: PipeTreeNode = {
@@ -302,6 +354,7 @@ export default function PipeNavTree({
         data-testid="pipe-nav-tree-toolbar"
         style={{
           display: 'flex',
+          flexWrap: 'wrap',
           gap: 4,
           padding: '4px 8px',
           borderBottom: `1px solid ${theme.pipeNav.accentMuted}`,
@@ -311,6 +364,11 @@ export default function PipeNavTree({
         {onAddPipe ?
           <ToolbarBtn title="Assign a project or library pipe to this object" testId="pipe-nav-tree-add-pipe" onClick={onAddPipe}>
             + Pipe
+          </ToolbarBtn>
+        : null}
+        {onWrapAll && (entity.transformers ?? []).length > 0 ?
+          <ToolbarBtn title="Wrap everything this object has in one new pipe" testId="pipe-nav-tree-wrap-all" onClick={onWrapAll}>
+            Wrap all
           </ToolbarBtn>
         : null}
         <ToolbarBtn title="Expand all pipes" testId="pipe-nav-tree-expand-all" onClick={expandAll}>
@@ -435,10 +493,9 @@ export default function PipeNavTree({
           )
         })
       : null}
-      {stack.length === 0 && entityExpanded ?
-        <div style={{ paddingLeft: 20, color: theme.text.muted, fontSize: 10 }}>
-          {(entity.transformers ?? []).length > 0 ? 'Stages (ungrouped)' : 'Empty'}
-        </div>
+      {entityExpanded ? renderTopLevelStages() : null}
+      {stack.length === 0 && entityExpanded && (entity.transformers ?? []).length === 0 ?
+        <div style={{ paddingLeft: 20, color: theme.text.muted, fontSize: 10 }}>Empty</div>
       : null}
     </div>
     </div>
@@ -464,6 +521,7 @@ function ToolbarBtn({
       onClick={onClick}
       style={{
         padding: '2px 8px',
+        whiteSpace: 'nowrap',
         border: `1px solid ${theme.pipeNav.accentMuted}`,
         borderRadius: 4,
         background: 'transparent',

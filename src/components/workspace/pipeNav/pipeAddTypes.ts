@@ -9,10 +9,10 @@ export type PipeAddAction =
 export type PipeAddSection = 'stage' | 'create_pipe' | 'existing_pipe' | 'child_pipe'
 
 export function pipeAddSectionsForMode(mode: PipeNavViewMode, hasPipeStack: boolean): PipeAddSection[] {
-  const sections: PipeAddSection[] = []
-  if (mode !== 'pipe_siblings') sections.push('stage')
-  if (mode === 'pipe_siblings' || mode === 'pipe_members') sections.push('create_pipe')
-  if ((mode === 'pipe_siblings' && hasPipeStack) || mode === 'pipe_members') sections.push('existing_pipe')
+  // Stages may sit directly on the entity (no pipe needed), so every level offers a Transformer section.
+  const sections: PipeAddSection[] = ['stage']
+  sections.push('create_pipe')
+  if (hasPipeStack || mode === 'pipe_members' || mode === 'entity_stages') sections.push('existing_pipe')
   if (mode === 'pipe_members') sections.push('child_pipe')
   return sections
 }

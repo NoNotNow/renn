@@ -16,6 +16,7 @@ const INTENT_KINDS: PipeNavEditIntent['kind'][] = [
   'treeDelete',
   'treeInsert',
   'treeDrop',
+  'wrapAllInPipe',
   'ensurePipeStack',
 ]
 
@@ -250,7 +251,7 @@ describe('resolvePipeNavEdit', () => {
       ).toBeNull()
     })
 
-    it('treeDrop of member_stage onto entity warns and returns null', () => {
+    it('treeDrop of a member stage onto the entity moves it to the top level (no pipe needed)', () => {
       const { prompts, warned } = makePrompts()
       const world = twoPipeStackWorld()
       const ctx = makeCtx({ world, prompts })
@@ -264,8 +265,12 @@ describe('resolvePipeNavEdit', () => {
       }
       const drop: PipeTreeNode = { kind: 'entity', entityId: 'e1', label: 'Car' }
 
-      expect(resolvePipeNavEdit({ kind: 'treeDrop', drag, drop }, ctx)).toBeNull()
-      expect(warned).toEqual(['Stages must live inside a pipe.'])
+      const result = resolvePipeNavEdit({ kind: 'treeDrop', drag, drop }, ctx)
+      expect(result).not.toBeNull()
+      expect(warned).toEqual([])
+      const e1 = result!.world.entities.find((e) => e.id === 'e1')!
+      expect(e1.transformers).toContain('s1')
+      expect(result!.world.transformerPipes!.p1!.members!.some((m) => m.kind === 'stage' && m.stageId === 's1')).toBe(false)
     })
 
     it('treeDrop nesting a pipe into its own descendant warns and returns null', () => {

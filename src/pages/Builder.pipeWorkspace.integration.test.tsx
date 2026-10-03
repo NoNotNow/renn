@@ -134,6 +134,11 @@ async function ensurePipeNavOpen() {
 }
 
 async function waitForPlayerCarPipeWrap() {
+  // Fresh entities keep their stages on the entity; the tree's "Wrap all" puts them in a first pipe.
+  if (!(entityByName(currentWorld(), 'Player Car')?.transformerPipeStack?.length)) {
+    fireEvent.click(await screen.findByTestId('pipe-nav-tree-wrap-all'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Create' }))
+  }
   await waitFor(() => {
     const car = entityByName(currentWorld(), 'Player Car')
     expect(car?.transformerPipeStack?.length).toBeGreaterThan(0)
@@ -276,6 +281,8 @@ describe('Builder pipe workspace integration', () => {
 
       await switchWorkspaceEntity(user, 'Box 1')
       const boxId = entityByName(currentWorld(), 'Box 1')!.id
+      // a fresh entity keeps a bare stage list; give Box 1 its own first pipe explicitly
+      await createStackSiblingPipe(user, 'BoxPipe')
       await waitFor(() =>
         expect(getEntityPipeStack(entityByName(currentWorld(), 'Box 1')!).length).toBeGreaterThan(0),
       )
@@ -315,7 +322,7 @@ describe('Builder pipe workspace integration', () => {
       expect(boxStack).toContain('Pipe1')
       expect(boxStack).toContain('AuxPipe (copy)')
       const boxLocalPipe = boxStack.find((name) => name !== 'Pipe1' && name !== 'AuxPipe (copy)')
-      expect(boxLocalPipe).toMatch(/^Pipe\d+$/)
+      expect(boxLocalPipe).toBe('BoxPipe')
     },
     60_000,
   )
@@ -340,6 +347,8 @@ describe('Builder pipe workspace integration', () => {
 
       await switchWorkspaceEntity(user, 'Box 1')
       const boxId = entityByName(currentWorld(), 'Box 1')!.id
+      // a fresh entity keeps a bare stage list; give Box 1 its own first pipe explicitly
+      await createStackSiblingPipe(user, 'BoxPipe')
       await waitFor(() =>
         expect(getEntityPipeStack(entityByName(currentWorld(), 'Box 1')!).length).toBeGreaterThan(0),
       )

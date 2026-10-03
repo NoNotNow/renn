@@ -38,15 +38,13 @@ import {
 } from '@/editor/commitStageEdit'
 import { applyStageWorldWrite, stageWorldEditDescriptor } from '@/editor/applyStageWorldWrite'
 import { usePipeNavController } from '@/hooks/usePipeNavController'
-import { findUngroupedStageIds, resolveSelectedFlatStackIndex, resolvePreferredStageId, drillIntoPipePath, pipeNavParentPath } from '@/utils/pipeNavResolve'
+import { resolveSelectedFlatStackIndex, resolvePreferredStageId, drillIntoPipePath, pipeNavParentPath } from '@/utils/pipeNavResolve'
 import type { PipeNavPathSegment } from '@/types/pipeNav'
 import {
   flatIndexOffsetForStackBinding,
   stackIndexFromScopePath,
 } from '@/utils/pipeStageResolve'
-import { wrapUngroupedStagesIntoStackPipe } from '@/utils/pipeNavMutations'
 import { getEntityPipeStack } from '@/utils/transformerPipeResolve'
-import { nextFreeDefaultPipeName } from '@/utils/allocatePipeId'
 import TransformerPipeNavSidebar from '@/components/workspace/pipeNav/TransformerPipeNavSidebar'
 import {
   readPipeNavOpen,
@@ -522,23 +520,6 @@ function WorkspaceTransformersTabEntity({
     )
   }
 
-  const ungroupedStageIds = useMemo(() => {
-    if (!singleEntity) return []
-    return findUngroupedStageIds(world, singleEntity)
-  }, [singleEntity, world])
-
-  const handleWrapUngroupedStages = useCallback(() => {
-    if (!singleEntity || ungroupedStageIds.length === 0) return
-    const name = nextFreeDefaultPipeName(world.transformerPipes)
-    const nextWorld = wrapUngroupedStagesIntoStackPipe(world, singleEntity.id, name)
-    if (applyWorldWrite) {
-      applyStageWorldWrite(applyWorldWrite, stageWorldEditDescriptor(true), nextWorld)
-    } else {
-      undo?.pushBeforeEdit()
-      onWorldChange(nextWorld)
-    }
-  }, [singleEntity, ungroupedStageIds.length, world, undo, onWorldChange, applyWorldWrite])
-
   const runtimeErrors = useStageRuntimeErrorDisplay(selectedEntityIds, selectedFlatStackIndex)
   const { hasErrorAt: runtimeErrorAtFlatIndex } = runtimeErrors
   const codeColumnRef = useRef<HTMLDivElement>(null)
@@ -936,6 +917,8 @@ function WorkspaceTransformersTabEntity({
       {usePipeNav && singleEntity && pipeNav.view && pipeNavOpen ?
         <TransformerPipeNavSidebar
           onAddPipe={() => setPipeLibraryOpen(true)}
+          onWrapAll={pipeNav.addPipe.onWrapAll}
+          selectedStageId={selectedId}
           world={world}
           entity={singleEntity}
           focusPath={pipeNav.focus.path}
@@ -1162,46 +1145,6 @@ function WorkspaceTransformersTabEntity({
           </button>
         </div>
       </div>
-
-      {usePipeNav && singleEntity && ungroupedStageIds.length > 0 ?
-        <div
-          data-testid="pipe-ungrouped-banner"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            padding: '6px 10px',
-            margin: '0 0 4px',
-            borderRadius: 6,
-            border: `1px solid ${theme.pipeNav.accentMuted}`,
-            background: theme.pipeNav.levelBg[0],
-            fontSize: 11,
-            color: theme.text.secondary,
-            flexShrink: 0,
-          }}
-        >
-          <span>
-            {ungroupedStageIds.length} ungrouped stage{ungroupedStageIds.length !== 1 ? 's' : ''} remain outside the
-            pipe stack.
-          </span>
-          <button
-            type="button"
-            onClick={handleWrapUngroupedStages}
-            style={{
-              padding: '4px 10px',
-              borderRadius: 4,
-              border: `1px solid ${theme.pipeNav.accentBorder}`,
-              background: theme.pipeNav.treeSelected,
-              color: theme.pipeNav.accent,
-              fontSize: 11,
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
-          >
-            Wrap into pipe
-          </button>
-        </div>
-      : null}
 
       <div
         ref={codeColumnRef}
