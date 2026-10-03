@@ -212,9 +212,13 @@ Stages talk by mutating `input` (`input.target`, `input.goalSource`, blackboard 
 
 ## Contacts the lidar cannot see
 
-Low bars below the ray plane (height < ~0.5 m) or cars pressed against the hull never show up in `av.points`, so the planners kept driving into them (car frozen / jittering, `isTouchingObject` true, `av.plan.free` large). The route planner now turns "stalled while `environment.isTouchingObject`" into virtual obstacle points just ahead of the hull in the driving direction (`state.contacts`, `contactTtl` 25 s) and merges them into `av.points` for all later stages, so the manoeuvre planner reverses and routes around. Edge cases: `low bar …` in `AV_EDGE_CASES`.
+Low bars below the ray plane (height < ~0.5 m) or cars pressed against the hull never show up in `av.points`, so the planners kept driving into them (car frozen / jittering, `isTouchingObject` true, `av.plan.free` large). The route planner now turns "stalled while `environment.isTouchingObject`" into virtual obstacle points just ahead of the hull in the driving direction (`state.contacts`, `contactTtl` 25 s, only after `contactRestTime` 1.5 s at rest — `isTouchingObject` is also true on the floor, so it is not evidence by itself; no new mark within 1.5 m of an existing one; `contactMemory: false` disables) and merges them into `av.points` for all later stages, so the manoeuvre planner reverses and routes around. Edge cases: `low bar …` in `AV_EDGE_CASES`.
 Note: `vehicleWidth` / `vehicleLength` must match the entity's collider (a 4 × 8 collider with the 2 × 4 defaults makes the car plan with half its real size and touch neighbours constantly).
 
 ## Vehicle footprint (`av.vehicle`)
 
 `av-ego` publishes `av.vehicle {width, length}` = max(`vehicleWidth`/`vehicleLength` params, the entity's own box collider incl. scale). Perception, motion/route/speed planners use it, so a body larger than the 2 × 4 defaults (e.g. 4 × 8) no longer plans with half its real size and scrapes walls / other cars. Params can only enlarge the footprint. Non-box shapes keep the params. Edge cases: `big car …` in `AV_EDGE_CASES` (`carSize`).
+
+## Snapshot physics block
+
+The snapshot now also records `physics` (Rapier linear velocity + every collider in contact with the entity: other entity id, deepest overlap `minDist` (negative = penetration), contact normal). Use it to tell "wedged in another body / floor jitter" from a controller problem. Code: `PhysicsWorld.getContactSummary`, `setTransformerSnapshotPhysicsProbe`.

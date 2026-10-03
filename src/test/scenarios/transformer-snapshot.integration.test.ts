@@ -14,6 +14,8 @@ it('snapshot records input/output/watch of every custom stage for one frame', as
     expect(snap?.entityId).toBe('buggy')
     expect(snap!.stages.length).toBeGreaterThan(8)
     expect(new Set(snap!.stages.map((s) => s.stackIndex)).size).toBe(snap!.stages.length)
+    const phys = snap!.physics as { contacts: { entityId: string }[] } | undefined
+    expect(phys?.contacts.some((c) => c.entityId === 'floor')).toBe(true)
     const speedStage = snap!.stages.find((s) => 'av.vLimit' in s.watch)
     expect(speedStage).toBeTruthy()
     expect(JSON.stringify(snap).length).toBeLessThan(400_000)

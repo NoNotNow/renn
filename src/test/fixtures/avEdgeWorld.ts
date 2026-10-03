@@ -27,6 +27,8 @@ export interface EdgeObstacle {
   /** Yaw in degrees (0 = long axis along X, i.e. a wall across the car's way). */
   yawDeg: number
   height?: number
+  /** Round obstacle instead of a box: `at` is the centre on the floor, `length` the diameter. */
+  round?: 'sphere' | 'cylinder' | 'cone'
 }
 
 export interface EdgeCase {
@@ -76,8 +78,12 @@ function buildWorld(c: EdgeCase): RennWorld {
         id: `obs${i}`,
         name: `Obstacle ${i}`,
         bodyType: 'static',
-        shape: { type: 'box', width: o.length, height: o.height ?? 3, depth: o.thickness ?? 2 },
-        position: [o.at[0], (o.height ?? 3) / 2, o.at[1]],
+        shape:
+          o.round === 'sphere' ? { type: 'sphere', radius: o.length / 2 }
+          : o.round === 'cylinder' ? { type: 'cylinder', radius: o.length / 2, height: o.height ?? 10 }
+          : o.round === 'cone' ? { type: 'cone', radius: o.length / 2, height: o.height ?? 10 }
+          : { type: 'box', width: o.length, height: o.height ?? 3, depth: o.thickness ?? 2 },
+        position: [o.at[0], o.round === 'sphere' ? o.length / 2 : (o.height ?? (o.round ? 10 : 3)) / 2, o.at[1]],
         rotation: [0, (o.yawDeg * Math.PI) / 180, 0],
       })),
     ],
@@ -182,9 +188,12 @@ export const AV_EDGE_CASES: EdgeCase[] = [
   { name: 'pressed against a long wall: car -20° / wall 50° (5 cm gap)', goal: [0, -45], carYawDeg: -20, obstacles: [wallAgainstCar({ yawDeg: 50, carYawDeg: -20, clearance: 0.05 })] },
   { name: 'pressed against a long wall: car 20° / wall 110° (5 cm gap)', goal: [0, -45], carYawDeg: 20, obstacles: [wallAgainstCar({ yawDeg: 110, carYawDeg: 20, clearance: 0.05 })] },
   { name: 'pressed against a long wall: car 40° / wall 130° (5 cm gap)', goal: [0, -45], carYawDeg: 40, obstacles: [wallAgainstCar({ yawDeg: 130, carYawDeg: 40, clearance: 0.05 })] },
-  { name: 'low bar (invisible to the lidar) across the way, 6 m', goal: [0, -50], frames: 3000, obstacles: [{ at: [0, -8], length: 6, thickness: 1, yawDeg: 0, height: 0.35 }] },
-  { name: 'low bar (invisible to the lidar) across the way, 12 m', goal: [0, -50], frames: 3000, obstacles: [{ at: [0, -8], length: 12, thickness: 1, yawDeg: 0, height: 0.35 }] },
+  { name: 'low bar (35 cm, under the centre ray plane) across the way, 6 m', goal: [0, -50], frames: 3000, obstacles: [{ at: [0, -8], length: 6, thickness: 1, yawDeg: 0, height: 0.35 }] },
+  { name: 'low bar (35 cm, under the centre ray plane) across the way, 12 m', goal: [0, -50], frames: 3000, obstacles: [{ at: [0, -8], length: 12, thickness: 1, yawDeg: 0, height: 0.35 }] },
   { name: 'low bar 45° to the car (invisible to the lidar)', goal: [0, -50], frames: 3000, obstacles: [{ at: [0, -8], length: 10, thickness: 1, yawDeg: 45, height: 0.35 }] },
   { name: 'big car (4 x 8 collider, default 2 x 4 params) past a wall alongside', goal: [0, -60], carSize: [4, 8], obstacles: [{ at: [4.5, -20], length: 50, thickness: 2, yawDeg: 90 }] },
   { name: 'big car (4 x 8 collider) around a long wall ahead', goal: [0, -60], carSize: [4, 8], obstacles: [{ at: [0, -15], length: 24, thickness: 2, yawDeg: 0 }] },
+  { name: 'big sphere ahead (surface curves away below the lidar plane)', goal: [0, -50], obstacles: [{ at: [0, -22], length: 20, yawDeg: 0, round: 'sphere' }] },
+  { name: 'big sphere ahead, car off-centre', goal: [0, -50], carAt: [2.5, 5], obstacles: [{ at: [0, -22], length: 20, yawDeg: 0, round: 'sphere' }] },
+  { name: 'big cone ahead', goal: [0, -50], obstacles: [{ at: [0, -22], length: 20, yawDeg: 0, round: 'cone', height: 12 }] },
 ]

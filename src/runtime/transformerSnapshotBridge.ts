@@ -21,6 +21,8 @@ export type TransformerSnapshotStage = {
 
 export type TransformerSnapshot = {
   entityId: string
+  /** Rapier view of the entity at the start of the frame: velocities and every collider in contact (id, overlap, normal). */
+  physics?: unknown
   capturedAt: string
   frameDt: number
   stages: TransformerSnapshotStage[]
@@ -70,7 +72,13 @@ export function sanitizeForSnapshot(value: unknown, depth = 0, seen: WeakSet<obj
   }
 }
 
-type Armed = { entityId: string; stages: TransformerSnapshotStage[]; seenIndices: Set<number>; timer: ReturnType<typeof setTimeout> | null; startedAt: number; frameDt: number }
+type Armed = { physics?: unknown; entityId: string; stages: TransformerSnapshotStage[]; seenIndices: Set<number>; timer: ReturnType<typeof setTimeout> | null; startedAt: number; frameDt: number }
+
+let physicsProbe: ((entityId: string) => unknown) | null = null
+/** Wired by the render item registry while transformers run (physics diagnostics for the snapshot). */
+export function setTransformerSnapshotPhysicsProbe(fn: ((entityId: string) => unknown) | null): void {
+  physicsProbe = fn
+}
 
 let armed: Armed | null = null
 let latest: TransformerSnapshot | null = null
@@ -115,6 +123,7 @@ function finish(a: Armed, why: 'complete' | 'timeout'): void {
   a.stages.sort((x, y) => x.stackIndex - y.stackIndex)
   latest = {
     entityId: a.entityId,
+    physics: a.physics,
     capturedAt: new Date(a.startedAt).toISOString(),
     frameDt: a.frameDt,
     stages: a.stages,
@@ -147,6 +156,7 @@ export function beginStageSnapshot(
     return null
   }
   a.seenIndices.add(idx)
+  if (a.physics === undefined && physicsProbe && entityId) a.physics = sanitizeForSnapshot(physicsProbe(entityId))
   a.frameDt = dt
   const before = sanitizeForSnapshot(input)
   const beforeJson = JSON.stringify(before)

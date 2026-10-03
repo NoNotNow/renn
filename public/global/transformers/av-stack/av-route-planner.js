@@ -10,7 +10,7 @@
 // debug draw: magenta = route / manoeuvre path (+ status mast while manoeuvring), orange = current segment end.
 // params: maneuverSpeed, routeInterval, routeExpansions, lookahead, primitiveLength, maxExpansions,
 //         gearSwitchPenalty, reversePenalty, maxReverseRun, planMargin, tightMargin, guardMargin, stallTime, stuckTime,
-//         contactTtl (s, how long an unseen contact stays a virtual obstacle), restWaitMax (s, wait for rest before a gear change), maxOffPath (m, drop a plan the car is farther from), crawlTime,
+//         contactTtl (s, how long an unseen contact stays a virtual obstacle, default 25), contactRestTime (s at rest before a stall counts as contact, default 1.5), contactMemory (false = off), restWaitMax (s, wait for rest before a gear change), maxOffPath (m, drop a plan the car is farther from), crawlTime,
 //         goalReach, handbackFree, goalTolerance, maxCurvature, vehicleWidth, vehicleLength
 function transform(input, dt, params, state, api) {
   var av = input.av
@@ -60,7 +60,17 @@ function transform(input, dt, params, state, api) {
   var contactTtl = params.contactTtl != null ? params.contactTtl : 25
   if (!state.contacts) state.contacts = []
   state.contacts = state.contacts.filter(function (c) { return e.t - c.t < contactTtl })
+  state.restT = Math.abs(e.speed) < 0.25 && goalDist > ((params.goalTolerance != null ? params.goalTolerance : 3.5)) ? (state.restT || 0) + dt : 0
   function markContact(g) {
+    // `isTouchingObject` is also true on the floor, so it proves nothing: only mark after the car has really been pushing
+    // without moving for a while, and never build a cage (no new mark where a recent one already sits ahead).
+    if (params.contactMemory === false || (state.restT || 0) < (params.contactRestTime != null ? params.contactRestTime : 1.5)) return
+    var cdd = ((av.vehicle && av.vehicle.length) || params.vehicleLength || 4) / 2 + 0.3
+    for (var ck = 0; ck < state.contacts.length; ck++) {
+      var dxk = state.contacts[ck].x - (pos[0] + e.fwd[0] * g * cdd)
+      var dzk = state.contacts[ck].z - (pos[2] + e.fwd[2] * g * cdd)
+      if (dxk * dxk + dzk * dzk < 2.25) return
+    }
     var cd = ((av.vehicle && av.vehicle.length) || params.vehicleLength || 4) / 2 + 0.3
     var cw = ((av.vehicle && av.vehicle.width) || params.vehicleWidth || 2) / 2
     for (var cl = -cw; cl <= cw + 1e-6; cl += cw) {
@@ -70,7 +80,7 @@ function transform(input, dt, params, state, api) {
         t: e.t,
       })
     }
-    if (state.contacts.length > 60) state.contacts.splice(0, state.contacts.length - 60)
+    if (state.contacts.length > 40) state.contacts.splice(0, state.contacts.length - 40)
   }
   if (state.contacts.length > 0) {
     var withContacts = (av.points || []).slice()

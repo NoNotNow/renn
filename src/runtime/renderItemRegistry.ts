@@ -4,6 +4,7 @@ import type { PhysicsWorld } from '@/physics/rapierPhysics'
 import type { Vec3, Rotation, Entity, DistanceCullingSettings } from '@/types/world'
 import type { DisposableAssetResolver } from '@/loader/assetResolverImpl'
 import { RenderItem } from './renderItem'
+import { isTransformerSnapshotArmed, setTransformerSnapshotPhysicsProbe } from './transformerSnapshotBridge'
 import { rapierQuaternionToEulerInto } from '@/utils/rotationUtils'
 import { createTransformerChain } from '@/transformers/transformerRegistry'
 import { resolveEntityStageRuntime } from '@/utils/pipeStageResolve'
@@ -907,9 +908,18 @@ export class RenderItemRegistry implements SimulationFramePort, SceneEditPort, E
           raycastEntityId,
         ),
       )
+      if (isTransformerSnapshotArmed(item.entity.id)) {
+        const pw = this.physicsWorld!
+        const sid = item.entity.id
+        setTransformerSnapshotPhysicsProbe(() => ({
+          linvel: pw.getLinearVelocity(sid),
+          contacts: pw.getContactSummary(sid),
+        }))
+      }
       try {
         output = item.transformerChain.execute(input, dt, traceSteps)
       } finally {
+        setTransformerSnapshotPhysicsProbe(null)
         setTransformerRuntimeEntityLookup(null)
         setTransformerRuntimeLivePositionLookup(null)
         setTransformerRuntimeRaycast(null)
