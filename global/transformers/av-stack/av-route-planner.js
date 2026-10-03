@@ -10,7 +10,7 @@
 // debug draw: magenta = route / manoeuvre path (+ status mast while manoeuvring), orange = current segment end.
 // params: maneuverSpeed, routeInterval, routeExpansions, lookahead, primitiveLength, maxExpansions,
 //         gearSwitchPenalty, reversePenalty, maxReverseRun, planMargin, tightMargin, guardMargin, stallTime, stuckTime,
-//         restWaitMax (s, wait for rest before a gear change), maxOffPath (m, drop a plan the car is farther from), crawlTime,
+//         contactTtl (s, how long an unseen contact stays a virtual obstacle), restWaitMax (s, wait for rest before a gear change), maxOffPath (m, drop a plan the car is farther from), crawlTime,
 //         goalReach, handbackFree, goalTolerance, maxCurvature, vehicleWidth, vehicleLength
 function transform(input, dt, params, state, api) {
   var av = input.av
@@ -55,6 +55,28 @@ function transform(input, dt, params, state, api) {
     }
   }
   var goalDist = Math.sqrt((gxw - pos[0]) * (gxw - pos[0]) + (gzw - pos[2]) * (gzw - pos[2]))
+  // Contacts the lidar cannot see (a low bar under the ray plane, a car pressed against the hull): remembered as
+  // virtual obstacle points so every planner after this stage routes around them instead of driving into them again.
+  var contactTtl = params.contactTtl != null ? params.contactTtl : 25
+  if (!state.contacts) state.contacts = []
+  state.contacts = state.contacts.filter(function (c) { return e.t - c.t < contactTtl })
+  function markContact(g) {
+    var cd = (params.vehicleLength || 4) / 2 + 0.3
+    var cw = (params.vehicleWidth || 2) / 2
+    for (var cl = -cw; cl <= cw + 1e-6; cl += cw) {
+      state.contacts.push({
+        x: pos[0] + e.fwd[0] * g * cd + e.left[0] * cl,
+        z: pos[2] + e.fwd[2] * g * cd + e.left[2] * cl,
+        t: e.t,
+      })
+    }
+    if (state.contacts.length > 60) state.contacts.splice(0, state.contacts.length - 60)
+  }
+  if (state.contacts.length > 0) {
+    var withContacts = (av.points || []).slice()
+    for (var ci2 = 0; ci2 < state.contacts.length; ci2++) withContacts.push([state.contacts[ci2].x, state.contacts[ci2].z])
+    av.points = withContacts
+  }
 
   // spatial hash over costmap points + swept-footprint test (hl/hw are the active margins)
   function makeHit(pts, hlA, hwA) {
@@ -363,6 +385,11 @@ function transform(input, dt, params, state, api) {
     state.revFresh = false
     var wantManeuver = (rt.firstGear === -1 && (state.revVotes >= 2 || Math.abs(e.speed) < 0.3) && Math.abs(e.speed) < 1.5) || state.stuckT > stuckTime
     if (wantManeuver && goalDist > holdTol) {
+      // stuck although the costmap shows a free way, and in contact with something: it is invisible to the lidar
+      if (state.stuckT > stuckTime && input.environment && input.environment.isTouchingObject) {
+        markContact(rt.firstGear === -1 ? -1 : 1)
+        av.points = (av.points || []).concat(state.contacts.slice(-3).map(function (c) { return [c.x, c.z] }))
+      }
       var res = plan(maxExpFull)
       if (res.segs.length > 0) {
         state.active = true
@@ -447,6 +474,8 @@ function transform(input, dt, params, state, api) {
     state.stallT = Math.abs(e.speed) < 0.15 ? (state.stallT || 0) + dt : 0
     var stallTime = params.stallTime != null ? params.stallTime : 1.2
     if ((blockedAhead || state.stallT > stallTime) && e.t - (state.lastReplanT || -9) > 0.6) {
+      // pushing against something the costmap does not show: mark the spot ahead (in the driving direction) as occupied
+      if (!blockedAhead && input.environment && input.environment.isTouchingObject) markContact(cur.g)
       var fix = plan(maxExpFull)
       state.lastReplanT = e.t
       state.stallT = 0
