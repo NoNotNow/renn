@@ -180,4 +180,7 @@ export const AV_EDGE_CASES: EdgeCase[] = [
   { name: 'pressed against a long wall: car -20° / wall 50° (5 cm gap)', goal: [0, -45], carYawDeg: -20, obstacles: [wallAgainstCar({ yawDeg: 50, carYawDeg: -20, clearance: 0.05 })] },
   { name: 'pressed against a long wall: car 20° / wall 110° (5 cm gap)', goal: [0, -45], carYawDeg: 20, obstacles: [wallAgainstCar({ yawDeg: 110, carYawDeg: 20, clearance: 0.05 })] },
   { name: 'pressed against a long wall: car 40° / wall 130° (5 cm gap)', goal: [0, -45], carYawDeg: 40, obstacles: [wallAgainstCar({ yawDeg: 130, carYawDeg: 40, clearance: 0.05 })] },
+  { name: 'low bar (invisible to the lidar) across the way, 6 m', goal: [0, -50], frames: 3000, obstacles: [{ at: [0, -8], length: 6, thickness: 1, yawDeg: 0, height: 0.35 }] },
+  { name: 'low bar (invisible to the lidar) across the way, 12 m', goal: [0, -50], frames: 3000, obstacles: [{ at: [0, -8], length: 12, thickness: 1, yawDeg: 0, height: 0.35 }] },
+  { name: 'low bar 45° to the car (invisible to the lidar)', goal: [0, -50], frames: 3000, obstacles: [{ at: [0, -8], length: 10, thickness: 1, yawDeg: 45, height: 0.35 }] },
 ]

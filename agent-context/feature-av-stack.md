@@ -209,3 +209,8 @@ Stages talk by mutating `input` (`input.target`, `input.goalSource`, blackboard 
 
 - **Longitudinal chatter:** zero demand + reverse-thrust braking flipped the speed sign every frame (±5 m/s, no net motion). `av-control-longitudinal.js` now coasts (no thrust) for 1.5 s after 3 sign flips.
 - **Manoeuvre waited for rest forever:** a gear change waited for `|speed| < 0.4`, never true while chattering → `vDesired 0` for ever. Now `restWaitMax` (1.2 s) ends the wait; a plan the car is `maxOffPath` (6 m) away from is dropped and replanned.
+
+## Contacts the lidar cannot see
+
+Low bars below the ray plane (height < ~0.5 m) or cars pressed against the hull never show up in `av.points`, so the planners kept driving into them (car frozen / jittering, `isTouchingObject` true, `av.plan.free` large). The route planner now turns "stalled while `environment.isTouchingObject`" into virtual obstacle points just ahead of the hull in the driving direction (`state.contacts`, `contactTtl` 25 s) and merges them into `av.points` for all later stages, so the manoeuvre planner reverses and routes around. Edge cases: `low bar …` in `AV_EDGE_CASES`.
+Note: `vehicleWidth` / `vehicleLength` must match the entity's collider (a 4 × 8 collider with the 2 × 4 defaults makes the car plan with half its real size and touch neighbours constantly).
