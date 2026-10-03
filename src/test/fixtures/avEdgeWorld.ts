@@ -39,6 +39,8 @@ export interface EdgeCase {
   carAt?: [number, number]
   frames?: number
   cruiseSpeed?: number
+  /** Car collider [width, length] in m (default 2 x 4); the AV params stay at the 2 x 4 defaults. */
+  carSize?: [number, number]
 }
 
 export interface EdgeResult {
@@ -64,7 +66,7 @@ function buildWorld(c: EdgeCase): RennWorld {
         id: 'buggy',
         name: 'Buggy',
         bodyType: 'dynamic',
-        shape: { type: 'box', width: 2, height: 1, depth: 4 },
+        shape: { type: 'box', width: c.carSize?.[0] ?? 2, height: 1, depth: c.carSize?.[1] ?? 4 },
         position: [c.carAt?.[0] ?? 0, 0.55, c.carAt?.[1] ?? 5],
         rotation: [0, carYaw, 0],
         mass: 2,
@@ -183,4 +185,6 @@ export const AV_EDGE_CASES: EdgeCase[] = [
   { name: 'low bar (invisible to the lidar) across the way, 6 m', goal: [0, -50], frames: 3000, obstacles: [{ at: [0, -8], length: 6, thickness: 1, yawDeg: 0, height: 0.35 }] },
   { name: 'low bar (invisible to the lidar) across the way, 12 m', goal: [0, -50], frames: 3000, obstacles: [{ at: [0, -8], length: 12, thickness: 1, yawDeg: 0, height: 0.35 }] },
   { name: 'low bar 45° to the car (invisible to the lidar)', goal: [0, -50], frames: 3000, obstacles: [{ at: [0, -8], length: 10, thickness: 1, yawDeg: 45, height: 0.35 }] },
+  { name: 'big car (4 x 8 collider, default 2 x 4 params) past a wall alongside', goal: [0, -60], carSize: [4, 8], obstacles: [{ at: [4.5, -20], length: 50, thickness: 2, yawDeg: 90 }] },
+  { name: 'big car (4 x 8 collider) around a long wall ahead', goal: [0, -60], carSize: [4, 8], obstacles: [{ at: [0, -15], length: 24, thickness: 2, yawDeg: 0 }] },
 ]

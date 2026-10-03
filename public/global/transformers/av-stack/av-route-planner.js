@@ -61,8 +61,8 @@ function transform(input, dt, params, state, api) {
   if (!state.contacts) state.contacts = []
   state.contacts = state.contacts.filter(function (c) { return e.t - c.t < contactTtl })
   function markContact(g) {
-    var cd = (params.vehicleLength || 4) / 2 + 0.3
-    var cw = (params.vehicleWidth || 2) / 2
+    var cd = ((av.vehicle && av.vehicle.length) || params.vehicleLength || 4) / 2 + 0.3
+    var cw = ((av.vehicle && av.vehicle.width) || params.vehicleWidth || 2) / 2
     for (var cl = -cw; cl <= cw + 1e-6; cl += cw) {
       state.contacts.push({
         x: pos[0] + e.fwd[0] * g * cd + e.left[0] * cl,
@@ -109,8 +109,8 @@ function transform(input, dt, params, state, api) {
   }
 
   function search(sx, sz, sfx, sfz, gx, gz, pts, maxExp, marginOverride) {
-    var hlS = (params.vehicleLength || 4) / 2 + planMargin
-    var hwS = (params.vehicleWidth || 2) / 2 + planMargin
+    var hlS = ((av.vehicle && av.vehicle.length) || params.vehicleLength || 4) / 2 + planMargin
+    var hwS = ((av.vehicle && av.vehicle.width) || params.vehicleWidth || 2) / 2 + planMargin
     var hit = makeHit(pts, hlS, hwS)
     // start already inside the comfort margin (drift, soft contact): re-plan with the tight margin so
     // the planner can still drive out of the margin band instead of finding every primitive blocked
@@ -119,13 +119,13 @@ function transform(input, dt, params, state, api) {
     var marginUsed = planMargin
     if (marginOverride != null) {
       marginUsed = marginOverride
-      hlS = (params.vehicleLength || 4) / 2 + marginUsed
-      hwS = (params.vehicleWidth || 2) / 2 + marginUsed
+      hlS = ((av.vehicle && av.vehicle.length) || params.vehicleLength || 4) / 2 + marginUsed
+      hwS = ((av.vehicle && av.vehicle.width) || params.vehicleWidth || 2) / 2 + marginUsed
       hit = makeHit(pts, hlS, hwS)
     } else if (hit(sx, sz, sfx, sfz)) {
       marginUsed = tightMargin
-      hlS = (params.vehicleLength || 4) / 2 + tightMargin
-      hwS = (params.vehicleWidth || 2) / 2 + tightMargin
+      hlS = ((av.vehicle && av.vehicle.length) || params.vehicleLength || 4) / 2 + tightMargin
+      hwS = ((av.vehicle && av.vehicle.width) || params.vehicleWidth || 2) / 2 + tightMargin
       hit = makeHit(pts, hlS, hwS)
     }
     state.startMargin = marginUsed
@@ -453,8 +453,8 @@ function transform(input, dt, params, state, api) {
   if (state.segStart !== null) {
     // the guard must not be stricter than the margin the manoeuvre was planned with (escaping from contact)
     var guardM = Math.min(guardMargin, state.startMargin != null ? state.startMargin : guardMargin)
-    var guardL = (params.vehicleLength || 4) / 2 + guardM
-    var guardW = (params.vehicleWidth || 2) / 2 + guardM
+    var guardL = ((av.vehicle && av.vehicle.length) || params.vehicleLength || 4) / 2 + guardM
+    var guardW = ((av.vehicle && av.vehicle.width) || params.vehicleWidth || 2) / 2 + guardM
     var gHit = makeHit(av.points || [], guardL, guardW)
     var lx0 = e.left[0]
     var lz0 = e.left[2]
@@ -497,7 +497,7 @@ function transform(input, dt, params, state, api) {
   var aheadFree = false
   if (fwdRun >= handback && cur.g > 0) {
     // the car must really have room ahead on its own heading, not just a plan that will get there
-    var aHit = makeHit(av.points || [], (params.vehicleLength || 4) / 2 + planMargin, (params.vehicleWidth || 2) / 2 + planMargin)
+    var aHit = makeHit(av.points || [], ((av.vehicle && av.vehicle.length) || params.vehicleLength || 4) / 2 + planMargin, ((av.vehicle && av.vehicle.width) || params.vehicleWidth || 2) / 2 + planMargin)
     aheadFree = true
     for (var ad = 0; ad <= handback && aheadFree; ad += 1) {
       // along the current segment's arc (what the local planner would also pick), not just straight on
