@@ -5,6 +5,11 @@
 function transform(input, dt, params, state, api) {
   // fresh blackboard every frame (the input object is reused by the runtime)
   var av = (input.av = {})
+  // a goal source running in front of this stage hands its mission over via input.goalSource (see av-wander.js)
+  if (input.goalSource) {
+    av.mission = input.goalSource
+    input.goalSource = undefined
+  }
   if (state.t === undefined) {
     state.t = 0
     state.speedF = 0
