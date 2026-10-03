@@ -10,6 +10,8 @@ import {
   flatIndexOffsetForStackBinding,
   resolveEntityStageRuntime,
   stackIndexFromScopePath,
+  stackStageIds,
+  topLevelStageIds,
 } from '@/utils/pipeStageResolve'
 
 /** Stage-editing strip level (gray +): flat entity stages or inside a pipe without nested pipe cards. */
@@ -133,7 +135,8 @@ function resolveFocusedStageIds(
   if (view.mode === 'pipe_members') {
     return view.items.filter((i) => i.kind === 'stage').map((i) => i.stageId)
   }
-  return []
+  // entity level next to a pipe stack: the stages sitting directly on the entity
+  return topLevelStageIds(world, entity)
 }
 
 function preferredStageIdFromMembers(
@@ -288,13 +291,37 @@ export function resolveSelectedFlatStackIndex(
   return flatIndexOffsetForStackBinding(world, entity, stackIdx) + localIdx
 }
 
-/** Stage ids on entity.transformers not accounted for by the pipe stack flatten. */
-export function findUngroupedStageIds(world: RennWorld, entity: Entity): string[] {
-  const stack = getEntityPipeStack(entity)
-  if (stack.length === 0) return []
-  const syncedSet = new Set(syncEntityTransformerIds(world, entity))
-  return (entity.transformers ?? []).filter((id) => !syncedSet.has(id))
+/** Stages that sit directly on the entity next to its pipe stack (see `topLevelStageIds`). */
+export function findTopLevelStageIds(world: RennWorld, entity: Entity): string[] {
+  return topLevelStageIds(world, entity)
 }
+
+/**
+ * Drops stages an edit removed from the entity's pipes so they do not reappear as top-level stages.
+ *
+ * Top-level stages are "on the entity but in no pipe", so a stage that just left every pipe of an entity would
+ * otherwise be mistaken for one. Anything that was in the entity's pipes before the edit and is in none now is
+ * removed from `entity.transformers` (explicitly top-level stages were never in a pipe and are untouched).
+ */
+export function dropStagesLeftBehind(prev: RennWorld, next: RennWorld): RennWorld {
+  let changed = false
+  const entities = next.entities.map((e) => {
+    const before = prev.entities.find((p) => p.id === e.id)
+    if (!before || getEntityPipeStack(before).length === 0) return e
+    const wasInPipes = stackStageIds(prev, before)
+    const nowInPipes = stackStageIds(next, e)
+    const gone = [...wasInPipes].filter((id) => !nowInPipes.has(id))
+    if (gone.length === 0) return e
+    const kept = (e.transformers ?? []).filter((id) => !gone.includes(id) || nowInPipes.has(id))
+    if (kept.length === (e.transformers ?? []).length) return e
+    changed = true
+    return { ...e, transformers: kept }
+  })
+  return changed ? { ...next, entities } : next
+}
+
+/** @deprecated top-level stages are legitimate now; kept as an alias. */
+export const findUngroupedStageIds = findTopLevelStageIds
 
 /** Clamp navigation path and selection after structural edits. */
 export function reconcilePipeNavPath(

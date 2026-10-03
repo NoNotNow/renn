@@ -10,11 +10,16 @@ import { useEditorUndo } from '@/contexts/useEditorUndo'
 import { getScriptDef } from '@/scripts/scriptDef'
 import { uiLogger } from '@/utils/uiLogger'
 import { theme } from '@/config/theme'
+import { deleteStackBinding } from '@/utils/pipeNavMutations'
+import PipeStructurePreview from '@/components/workspace/pipeNav/PipeStructurePreview'
+import { describePipeSummary, summarizePipe } from '@/utils/pipeSummary'
+import { updateWorldFromGlobalLibrary } from '@/globalPipeline/globalOrigin'
 import { copyGlobalPipeIntoWorld } from '@/globalPipeline/copyGlobalPipeIntoWorld'
 import { assignPipeToEntity, deletePipeFromWorld } from '@/utils/commitTransformerConfigsToWorld'
 import { behaviorRegistryBindings } from '@/utils/behaviorRegistryBindings'
 import {
   entityUsesPipe,
+  getEntityPipeStack,
   removePipeFromEntityStack,
   replacePipeIdInEntityStack,
 } from '@/utils/transformerPipeResolve'
@@ -344,6 +349,23 @@ export default function WorkspaceOrganizeTab({
     [onNavigateToEditor, onSelectEntity],
   )
 
+  const handleSyncWithLibrary = () => {
+    const { world: next, report } = updateWorldFromGlobalLibrary(world, globalLibrary)
+    const changed = report.updatedStages.length + report.updatedPipes.length
+    if (next !== world) {
+      pushUndo()
+      onWorldChange(next)
+    }
+    const diverged = report.divergedStages.length + report.divergedPipes.length
+    window.alert(
+      changed > 0 ?
+        `Updated ${report.updatedStages.length} stage(s) and ${report.updatedPipes.length} pipe(s) from the global library.` +
+          (diverged ? `\n${diverged} copy/copies were edited locally and left unchanged.` : '')
+      : diverged > 0 ? `Nothing to update. ${diverged} copy/copies were edited locally and differ from the library.`
+      : 'Project copies are up to date with the global library.',
+    )
+  }
+
   const handleDeletePipe = (id: string) => {
     if (scope === 'global') {
       if (!window.confirm(`Remove pipe "${id}" from the global library?`)) return
@@ -357,11 +379,11 @@ export default function WorkspaceOrganizeTab({
     if (entitiesUsing.length > 0) {
       if (
         !window.confirm(
-          `This pipe is used by ${entitiesUsing.length} entities. Deleting it will decouple them. Continue?`,
+          `This pipe is used by ${entitiesUsing.length} entities. Deleting it also deletes the stages it contains. Continue?`,
         )
       )
         return
-    } else if (!window.confirm(`Delete pipe "${id}"?`)) {
+    } else if (!window.confirm(`Delete pipe "${id}" and the stages it contains?`)) {
       return
     }
 
@@ -920,11 +942,30 @@ export default function WorkspaceOrganizeTab({
         {scope === 'project' && (
           <button
             type="button"
+            onClick={handleSyncWithLibrary}
+            title="Apply fixes from the global library to project copies that were not edited locally"
+            data-testid="organize-sync-library"
+            style={{
+              ...SUBTAB_BTN,
+              marginLeft: 'auto',
+              background: 'transparent',
+              color: theme.text.muted,
+              borderColor: theme.border.default,
+              fontSize: 11,
+              padding: '4px 8px',
+            }}
+          >
+            ⟳ Sync with library
+          </button>
+        )}
+        {scope === 'project' && (
+          <button
+            type="button"
             onClick={handleCleanupUnused}
             title={`Remove all ${kind} that are not assigned to any entity`}
             style={{
               ...SUBTAB_BTN,
-              marginLeft: 'auto',
+              marginLeft: 6,
               background: 'transparent',
               color: theme.text.muted,
               borderColor: theme.border.default,
@@ -1046,11 +1087,21 @@ export default function WorkspaceOrganizeTab({
               const def = (scope === 'global' ? globalLibrary.transformerPipes ?? {} : world.transformerPipes ?? {})[id]
               if (!def) return null
               const users = behaviorRegistryBindings('pipes').entitiesUsing(world, id)
+              const summary = summarizePipe(
+                scope === 'global' ?
+                  { pipes: globalLibrary.transformerPipes ?? {}, transformers: globalLibrary.transformers ?? {} }
+                : { pipes: world.transformerPipes ?? {}, transformers: world.transformers ?? {} },
+                id,
+              )
               return (
                 <WorkspaceOrganizeCard
                   key={id}
-                  title={id}
-                  subtitle={`${def.stages.length} stages`}
+                  title={def.name || id}
+                  subtitle={`${id}${summary ? ` · ${describePipeSummary(summary)}` : ''}`}
+                  preview={summary ? <PipeStructurePreview nodes={summary.children} /> : undefined}
+                  labeledActions
+                  testId={`workspace-organize-card-${scope}-pipe-${id}`}
+                  copyLabel={scope === 'global' ? 'Add to project' : 'Copy'}
                   usageLine={`Used by ${users.length} entities`}
                   assignments={
                     scope === 'global'
@@ -1070,11 +1121,14 @@ export default function WorkspaceOrganizeTab({
                   }}
                   onDetach={() => {
                     pushUndo()
-                    const nextWorld = {
-                      ...world,
-                      entities: world.entities.map((e) =>
-                        entityUsesPipe(e, id) ? { ...e, ...removePipeFromEntityStack(e, id) } : e,
-                      ),
+                    // Removes the pipe's stages from each entity too (no ungrouped leftovers).
+                    let nextWorld = world
+                    for (const e of world.entities) {
+                      const indices = getEntityPipeStack(e)
+                        .map((b, i) => (b.pipeId === id ? i : -1))
+                        .filter((i) => i >= 0)
+                        .reverse()
+                      for (const i of indices) nextWorld = deleteStackBinding(nextWorld, e.id, i)
                     }
                     onWorldChange(nextWorld)
                   }}

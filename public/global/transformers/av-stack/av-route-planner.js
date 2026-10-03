@@ -9,7 +9,8 @@
 // Runs BEFORE the local motion planner. Simulated time only.
 // debug draw: magenta = route / manoeuvre path (+ status mast while manoeuvring), orange = current segment end.
 // params: maneuverSpeed, routeInterval, routeExpansions, lookahead, primitiveLength, maxExpansions,
-//         gearSwitchPenalty, reversePenalty, planMargin, tightMargin, guardMargin, stallTime, stuckTime,
+//         gearSwitchPenalty, reversePenalty, maxReverseRun, planMargin, tightMargin, guardMargin, stallTime, stuckTime,
+//         contactTtl (s, how long an unseen contact stays a virtual obstacle, default 25), contactRestTime (s at rest before a stall counts as contact, default 1.5), contactMemory (false = off), restWaitMax (s, wait for rest before a gear change), maxOffPath (m, drop a plan the car is farther from), crawlTime,
 //         goalReach, handbackFree, goalTolerance, maxCurvature, vehicleWidth, vehicleLength
 function transform(input, dt, params, state, api) {
   var av = input.av
@@ -29,15 +30,63 @@ function transform(input, dt, params, state, api) {
   var routeInterval = params.routeInterval != null ? params.routeInterval : 0.8
   var lookahead = params.lookahead != null ? params.lookahead : 14
   var gearPen = params.gearSwitchPenalty != null ? params.gearSwitchPenalty : 4
-  var revPen = params.reversePenalty != null ? params.reversePenalty : 1.6
-  var reach = params.goalReach != null ? params.goalReach : 3.5
+  var revPen = params.reversePenalty != null ? params.reversePenalty : 4
   var handback = params.handbackFree != null ? params.handbackFree : 10
   var vMan = params.maneuverSpeed != null ? params.maneuverSpeed : 3
   var stuckTime = params.stuckTime != null ? params.stuckTime : 1.5
+  var restWaitMax = params.restWaitMax != null ? params.restWaitMax : 1.2
+  var maxOffPath = params.maxOffPath != null ? params.maxOffPath : 6
   var holdTol = params.goalTolerance != null ? params.goalTolerance : 3.5
+  // route ends inside the waypoint acceptance zone (not only at its centre)
+  var reach = params.goalReach != null ? params.goalReach : 3.5
+  var maxRevRun = params.maxReverseRun != null ? params.maxReverseRun : 8
+  var termHeadW = params.exitHeadingWeight != null ? params.exitHeadingWeight : 0
   var ks = [-kmax, -kmax / 2, 0, kmax / 2, kmax]
   var pos = input.position
+  // next waypoint after the current target: the route should arrive heading towards it
+  var nextWp = null
+  var wps = av.mission ? av.mission.waypoints : params.waypoints
+  if (wps && wps.length) {
+    for (var wi = 0; wi < wps.length - 1; wi++) {
+      if (Math.abs(wps[wi][0] - gxw) < 0.05 && Math.abs(wps[wi][1] - gzw) < 0.05) {
+        nextWp = wps[wi + 1]
+        break
+      }
+    }
+  }
   var goalDist = Math.sqrt((gxw - pos[0]) * (gxw - pos[0]) + (gzw - pos[2]) * (gzw - pos[2]))
+  // Contacts the lidar cannot see (a low bar under the ray plane, a car pressed against the hull): remembered as
+  // virtual obstacle points so every planner after this stage routes around them instead of driving into them again.
+  var contactTtl = params.contactTtl != null ? params.contactTtl : 25
+  if (!state.contacts) state.contacts = []
+  state.contacts = state.contacts.filter(function (c) { return e.t - c.t < contactTtl })
+  state.restT = Math.abs(e.speed) < 0.25 && goalDist > ((params.goalTolerance != null ? params.goalTolerance : 3.5)) ? (state.restT || 0) + dt : 0
+  function markContact(g) {
+    // `isTouchingObject` is also true on the floor, so it proves nothing: only mark after the car has really been pushing
+    // without moving for a while, and never build a cage (no new mark where a recent one already sits ahead).
+    if (params.contactMemory === false || (state.restT || 0) < (params.contactRestTime != null ? params.contactRestTime : 1.5)) return
+    var cdd = ((av.vehicle && av.vehicle.length) || params.vehicleLength || 4) / 2 + 0.3
+    for (var ck = 0; ck < state.contacts.length; ck++) {
+      var dxk = state.contacts[ck].x - (pos[0] + e.fwd[0] * g * cdd)
+      var dzk = state.contacts[ck].z - (pos[2] + e.fwd[2] * g * cdd)
+      if (dxk * dxk + dzk * dzk < 2.25) return
+    }
+    var cd = ((av.vehicle && av.vehicle.length) || params.vehicleLength || 4) / 2 + 0.3
+    var cw = ((av.vehicle && av.vehicle.width) || params.vehicleWidth || 2) / 2
+    for (var cl = -cw; cl <= cw + 1e-6; cl += cw) {
+      state.contacts.push({
+        x: pos[0] + e.fwd[0] * g * cd + e.left[0] * cl,
+        z: pos[2] + e.fwd[2] * g * cd + e.left[2] * cl,
+        t: e.t,
+      })
+    }
+    if (state.contacts.length > 40) state.contacts.splice(0, state.contacts.length - 40)
+  }
+  if (state.contacts.length > 0) {
+    var withContacts = (av.points || []).slice()
+    for (var ci2 = 0; ci2 < state.contacts.length; ci2++) withContacts.push([state.contacts[ci2].x, state.contacts[ci2].z])
+    av.points = withContacts
+  }
 
   // spatial hash over costmap points + swept-footprint test (hl/hw are the active margins)
   function makeHit(pts, hlA, hwA) {
@@ -69,17 +118,27 @@ function transform(input, dt, params, state, api) {
     }
   }
 
-  function search(sx, sz, sfx, sfz, gx, gz, pts, maxExp) {
-    var hlS = (params.vehicleLength || 4) / 2 + planMargin
-    var hwS = (params.vehicleWidth || 2) / 2 + planMargin
+  function search(sx, sz, sfx, sfz, gx, gz, pts, maxExp, marginOverride) {
+    var hlS = ((av.vehicle && av.vehicle.length) || params.vehicleLength || 4) / 2 + planMargin
+    var hwS = ((av.vehicle && av.vehicle.width) || params.vehicleWidth || 2) / 2 + planMargin
     var hit = makeHit(pts, hlS, hwS)
     // start already inside the comfort margin (drift, soft contact): re-plan with the tight margin so
     // the planner can still drive out of the margin band instead of finding every primitive blocked
-    if (hit(sx, sz, sfx, sfz)) {
-      hlS = (params.vehicleLength || 4) / 2 + tightMargin
-      hwS = (params.vehicleWidth || 2) / 2 + tightMargin
+    // start already inside the comfort margin (drift, soft contact): re-plan with the tight margin so
+    // the planner can still drive out of the margin band instead of finding every primitive blocked
+    var marginUsed = planMargin
+    if (marginOverride != null) {
+      marginUsed = marginOverride
+      hlS = ((av.vehicle && av.vehicle.length) || params.vehicleLength || 4) / 2 + marginUsed
+      hwS = ((av.vehicle && av.vehicle.width) || params.vehicleWidth || 2) / 2 + marginUsed
+      hit = makeHit(pts, hlS, hwS)
+    } else if (hit(sx, sz, sfx, sfz)) {
+      marginUsed = tightMargin
+      hlS = ((av.vehicle && av.vehicle.length) || params.vehicleLength || 4) / 2 + tightMargin
+      hwS = ((av.vehicle && av.vehicle.width) || params.vehicleWidth || 2) / 2 + tightMargin
       hit = makeHit(pts, hlS, hwS)
     }
+    state.startMargin = marginUsed
     function dist(x, z) {
       var dx = gx - x
       var dz = gz - z
@@ -145,8 +204,18 @@ function transform(input, dt, params, state, api) {
         bestNode = cur
       }
       if (h < reach) {
-        goalNode = cur
-        break
+        if (cur.terminal || !nextWp) {
+          goalNode = cur
+          break
+        }
+        // arrival cost: leave the goal zone heading towards the next waypoint
+        var ndx = nextWp[0] - cur.x
+        var ndz = nextWp[1] - cur.z
+        var nl = Math.sqrt(ndx * ndx + ndz * ndz) || 1
+        var cosA = Math.max(-1, Math.min(1, (cur.fx * ndx + cur.fz * ndz) / nl))
+        var termG = cur.g + termHeadW * Math.acos(cosA)
+        push({ x: cur.x, z: cur.z, fx: cur.fx, fz: cur.fz, g: termG, gear: cur.gear, k: cur.k, parent: cur, terminal: true, f: termG })
+        continue
       }
       for (var gi = 0; gi < 2; gi++) {
         var gear = gi === 0 ? 1 : -1
@@ -154,6 +223,8 @@ function transform(input, dt, params, state, api) {
           var k = ks[ki]
           var lx = cur.fz
           var lz = -cur.fx
+          var revRun = gear < 0 ? (cur.gear < 0 ? cur.revRun || 0 : 0) + ell : 0
+          if (revRun > maxRevRun) continue
           var ok = true
           var nx = cur.x
           var nz = cur.z
@@ -190,11 +261,12 @@ function transform(input, dt, params, state, api) {
           var nk = skey(nx, nz, nfx, nfz, gear)
           if (best[nk] !== undefined && best[nk] <= g2) continue
           best[nk] = g2
-          push({ x: nx, z: nz, fx: nfx, fz: nfz, g: g2, gear: gear, k: k, parent: cur, f: g2 + dist(nx, nz) * HW })
+          push({ x: nx, z: nz, fx: nfx, fz: nfz, g: g2, gear: gear, k: k, revRun: revRun, parent: cur, f: g2 + dist(nx, nz) * HW })
         }
       }
     }
     var end = goalNode || bestNode
+    if (end.terminal) end = end.parent
     var segs = []
     for (var nd = end; nd && nd.parent; nd = nd.parent) {
       var last = segs[0]
@@ -241,7 +313,14 @@ function transform(input, dt, params, state, api) {
     return Math.sqrt(ex * ex + ez * ez) > 0.9 || dot < 0.97
   }
   function plan(maxE) {
-    return search(pos[0], pos[2], e.fwd[0], e.fwd[2], gxw, gzw, av.points || [], maxE)
+    var res = search(pos[0], pos[2], e.fwd[0], e.fwd[2], gxw, gzw, av.points || [], maxE, null)
+    // Pressed against something (a corner touching a long wall): every primitive is blocked at the comfort margins, so
+    // retry with ever smaller margins until the car can at least drive out of the contact.
+    var escape = [0.05, 0.02, 0]
+    for (var ei = 0; ei < escape.length && res.segs.length === 0 && !res.reached; ei++) {
+      res = search(pos[0], pos[2], e.fwd[0], e.fwd[2], gxw, gzw, av.points || [], maxE, escape[ei])
+    }
+    return res
   }
   // route summary: first gear, length of the leading forward run, carrot point
   function summarize(res) {
@@ -266,13 +345,42 @@ function transform(input, dt, params, state, api) {
         run += Math.sqrt(ddx * ddx + ddz * ddz)
       }
     }
-    return { firstGear: firstGear, run: run, carrot: carrot, reached: res.reached, nodes: nodes, path: res.path }
+    // speed limit from the bends ahead on the route: corner speed sqrt(aLat / kappa), reachable by braking
+    var aLat = params.maxLatAccel || 9
+    var aBrk = params.comfortDecel || 5
+    var vLimit = Infinity
+    var dAhead = 0
+    for (var si = 0; si < res.segs.length && dAhead < 40 && res.segs[si].g > 0; si++) {
+      var kk = Math.abs(res.segs[si].k)
+      if (kk > 0.04) {
+        var vi = Math.sqrt(aLat / kk)
+        var allowed = Math.sqrt(vi * vi + 2 * aBrk * dAhead)
+        if (allowed < vLimit) vLimit = allowed
+      }
+      dAhead += res.segs[si].len
+    }
+    return { firstGear: firstGear, run: run, carrot: carrot, reached: res.reached, nodes: nodes, path: res.path, vLimit: vLimit }
   }
 
   // stuck watchdog (own, independent of the local planner)
   if (state.stuckT === undefined) state.stuckT = 0
   if (!state.active && Math.abs(e.speed) < 0.25 && goalDist > holdTol) state.stuckT += dt
   else state.stuckT = 0
+  // Scraping along an obstacle (wheels spinning against contact friction) is slow but not "stopped": also count it as
+  // stuck when the car has hardly moved over a longer window while driving slowly.
+  if (!state.crawlAnchor) state.crawlAnchor = [pos[0], pos[2]]
+  var crawlMoved = Math.sqrt((pos[0] - state.crawlAnchor[0]) * (pos[0] - state.crawlAnchor[0]) + (pos[2] - state.crawlAnchor[1]) * (pos[2] - state.crawlAnchor[1]))
+  if (state.active || goalDist <= holdTol || Math.abs(e.speed) > 1.2 || crawlMoved > 2.5) {
+    state.crawlAnchor = [pos[0], pos[2]]
+    state.crawlT = 0
+  } else {
+    state.crawlT = (state.crawlT || 0) + dt
+    if (state.crawlT > (params.crawlTime != null ? params.crawlTime : 6)) {
+      state.stuckT = Math.max(state.stuckT, stuckTime + 0.1)
+      state.crawlT = 0
+      state.crawlAnchor = [pos[0], pos[2]]
+    }
+  }
 
   if (!state.active) {
     if (state.route === undefined || e.t - state.routeT >= routeInterval) {
@@ -287,6 +395,11 @@ function transform(input, dt, params, state, api) {
     state.revFresh = false
     var wantManeuver = (rt.firstGear === -1 && (state.revVotes >= 2 || Math.abs(e.speed) < 0.3) && Math.abs(e.speed) < 1.5) || state.stuckT > stuckTime
     if (wantManeuver && goalDist > holdTol) {
+      // stuck although the costmap shows a free way, and in contact with something: it is invisible to the lidar
+      if (state.stuckT > stuckTime && input.environment && input.environment.isTouchingObject) {
+        markContact(rt.firstGear === -1 ? -1 : 1)
+        av.points = (av.points || []).concat(state.contacts.slice(-3).map(function (c) { return [c.x, c.z] }))
+      }
       var res = plan(maxExpFull)
       if (res.segs.length > 0) {
         state.active = true
@@ -297,7 +410,7 @@ function transform(input, dt, params, state, api) {
     }
     if (!state.active) {
       if (rt.carrot) av.carrot = rt.carrot
-      av.route = { firstGear: rt.firstGear, run: rt.run, reached: rt.reached }
+      av.route = { firstGear: rt.firstGear, run: rt.run, reached: rt.reached, vLimit: rt.vLimit }
       if (params.debugDraw !== false) {
         var y0 = pos[1]
         for (var di = 2; di < rt.path.length; di += 2) {
@@ -313,7 +426,32 @@ function transform(input, dt, params, state, api) {
   var cur = state.segs[state.idx]
   if (state.segStart === null) {
     // a gear change must come to rest first so the odometer does not count coasting
-    if (cur.g === state.prevGear || Math.abs(e.speed) < 0.4) state.segStart = [pos[0], pos[2]]
+    // (not forever: a car that chatters around zero speed never reads as stopped)
+    state.restWaitT = (state.restWaitT || 0) + dt
+    if (cur.g === state.prevGear || Math.abs(e.speed) < 0.4 || state.restWaitT > restWaitMax) {
+      state.segStart = [pos[0], pos[2]]
+      state.restWaitT = 0
+    }
+  }
+  // a plan the car is far away from (pushed, teleported, stale): drop it and plan from the real pose
+  if (state.path && state.path.length > 1) {
+    var offPath = Infinity
+    for (var oi = 1; oi < state.path.length; oi++) {
+      var ax0 = state.path[oi - 1][0]
+      var az0 = state.path[oi - 1][1]
+      var abx = state.path[oi][0] - ax0
+      var abz = state.path[oi][1] - az0
+      var ab2 = abx * abx + abz * abz
+      var tt = ab2 > 1e-9 ? Math.max(0, Math.min(1, ((pos[0] - ax0) * abx + (pos[2] - az0) * abz) / ab2)) : 0
+      var dd = Math.hypot(pos[0] - (ax0 + tt * abx), pos[2] - (az0 + tt * abz))
+      if (dd < offPath) offPath = dd
+    }
+    if (offPath > maxOffPath) {
+      state.active = false
+      state.route = undefined
+      state.stuckT = 0
+      return {}
+    }
   }
   var travelled = 0
   if (state.segStart) {
@@ -323,8 +461,10 @@ function transform(input, dt, params, state, api) {
   }
   // --- execution guard: re-plan when the real pose makes the rest of the segment collide, or when stalled ---
   if (state.segStart !== null) {
-    var guardL = (params.vehicleLength || 4) / 2 + guardMargin
-    var guardW = (params.vehicleWidth || 2) / 2 + guardMargin
+    // the guard must not be stricter than the margin the manoeuvre was planned with (escaping from contact)
+    var guardM = Math.min(guardMargin, state.startMargin != null ? state.startMargin : guardMargin)
+    var guardL = ((av.vehicle && av.vehicle.length) || params.vehicleLength || 4) / 2 + guardM
+    var guardW = ((av.vehicle && av.vehicle.width) || params.vehicleWidth || 2) / 2 + guardM
     var gHit = makeHit(av.points || [], guardL, guardW)
     var lx0 = e.left[0]
     var lz0 = e.left[2]
@@ -344,6 +484,8 @@ function transform(input, dt, params, state, api) {
     state.stallT = Math.abs(e.speed) < 0.15 ? (state.stallT || 0) + dt : 0
     var stallTime = params.stallTime != null ? params.stallTime : 1.2
     if ((blockedAhead || state.stallT > stallTime) && e.t - (state.lastReplanT || -9) > 0.6) {
+      // pushing against something the costmap does not show: mark the spot ahead (in the driving direction) as occupied
+      if (!blockedAhead && input.environment && input.environment.isTouchingObject) markContact(cur.g)
       var fix = plan(maxExpFull)
       state.lastReplanT = e.t
       state.stallT = 0
@@ -365,7 +507,7 @@ function transform(input, dt, params, state, api) {
   var aheadFree = false
   if (fwdRun >= handback && cur.g > 0) {
     // the car must really have room ahead on its own heading, not just a plan that will get there
-    var aHit = makeHit(av.points || [], (params.vehicleLength || 4) / 2 + planMargin, (params.vehicleWidth || 2) / 2 + planMargin)
+    var aHit = makeHit(av.points || [], ((av.vehicle && av.vehicle.length) || params.vehicleLength || 4) / 2 + planMargin, ((av.vehicle && av.vehicle.width) || params.vehicleWidth || 2) / 2 + planMargin)
     aheadFree = true
     for (var ad = 0; ad <= handback && aheadFree; ad += 1) {
       // along the current segment's arc (what the local planner would also pick), not just straight on

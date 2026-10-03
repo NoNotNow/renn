@@ -1,6 +1,8 @@
+import type { GlobalBehaviorLibrary } from '@/types/globalBehaviorLibrary'
+import type { LibraryPipeSource } from '@/utils/assignLibraryPipe'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { TransformerConfig, TransformerPipe } from '@/types/transformer'
-import type { PipeTreeNode } from '@/types/pipeNav'
+import type { PipeTreeNode, TreeDropPosition } from '@/types/pipeNav'
 import type { Entity, RennWorld } from '@/types/world'
 import type { WorkspaceTarget } from '@/types/workspace'
 import { usePipeNavigator } from '@/hooks/usePipeNavigator'
@@ -16,6 +18,7 @@ import {
   type PipeNavEditIntent,
 } from '@/editor/pipeNavEdit'
 import type { PipeCardStageHandlers } from '@/components/workspace/pipeNav/pipeStageCallbacks'
+import { nextFreeDefaultPipeName } from '@/utils/allocatePipeId'
 import { commitFocusedStageConfigs } from '@/utils/pipeNavMutations'
 import { resolveFocusedStageConfigs } from '@/utils/pipeNavResolve'
 import {
@@ -35,6 +38,21 @@ interface AddPipeHandlers {
   onCreatePipe: (name: string) => void
   onAddChildPipe: (name: string) => void
   onAddExistingPipe: (pipe: TransformerPipe, mode: 'linked' | 'copy') => void
+  /** Append a project or global-library pipe to the entity's stack. */
+  /** Ask for a name, then wrap everything the entity has (pipes and top-level stages) in one new pipe. */
+  onWrapAll: () => void
+  onAssignLibraryPipe: (
+    source: LibraryPipeSource,
+    pipeId: string,
+    mode: 'linked' | 'copy',
+    library?: GlobalBehaviorLibrary,
+  ) => void
+}
+
+/** Strip drag-and-drop callbacks, in the prop shape `PipeFocusedStrip` expects. */
+interface StripReorderHandlers {
+  onReorderEntityLevel: (fromKey: string, toIndex: number) => void
+  onReorderMembers: (pipeId: string, fromIndex: number, toIndex: number) => void
 }
 
 /** Tree callbacks, in the prop shape `TransformerPipeNavSidebar` expects. */
@@ -46,7 +64,7 @@ interface PipeTreeHandlers {
     action: 'add_before' | 'add_after' | 'add_child' | 'delete',
     target: PipeTreeContextTarget,
   ) => void
-  onTreeDrop: (drag: PipeTreeNode, drop: PipeTreeNode) => void
+  onTreeDrop: (drag: PipeTreeNode, drop: PipeTreeNode, position?: TreeDropPosition) => void
 }
 
 type NameDialogState = { title: string; name: string; onConfirm: (name: string) => void }
@@ -140,17 +158,6 @@ export function usePipeNavController(
   const commitRef = useRef(commit)
   commitRef.current = commit
 
-  /**
-   * Bootstrap: entities predating the pipe stack get their first pipe on mount.
-   *
-   * Deliberately does **not** depend on `commit` (and so not on `focus`): this intent moves the
-   * focus, and a host that does not feed the new world back would otherwise loop forever.
-   */
-  useEffect(() => {
-    if (!entity.id) return
-    commitRef.current({ kind: 'ensurePipeStack' })
-  }, [entity.id])
-
   const promptName = useCallback(
     (title: string, defaultName: string, onConfirm: (name: string) => void) => {
       setNameDialog({ title, name: defaultName, onConfirm })
@@ -233,6 +240,20 @@ export function usePipeNavController(
       onCreatePipe: (name) => commit({ kind: 'createPipe', name }),
       onAddChildPipe: (name) => commit({ kind: 'createChildPipe', name }),
       onAddExistingPipe: (pipe, mode) => commit({ kind: 'addExistingPipe', pipe, mode }),
+      onWrapAll: () =>
+        promptName('Wrap everything in a pipe', nextFreeDefaultPipeName(world.transformerPipes), (name) =>
+          commitRef.current({ kind: 'wrapAllInPipe', name }),
+        ),
+      onAssignLibraryPipe: (source, pipeId, mode, library) =>
+        commit({ kind: 'assignLibraryPipe', source, pipeId, mode, library }),
+    }),
+    [commit, promptName, world.transformerPipes],
+  )
+
+  const stripReorder = useMemo<StripReorderHandlers>(
+    () => ({
+      onReorderEntityLevel: (fromKey, toIndex) => commit({ kind: 'reorderEntityLevel', fromKey, toIndex }),
+      onReorderMembers: (pipeId, fromIndex, toIndex) => commit({ kind: 'reorderMembers', pipeId, fromIndex, toIndex }),
     }),
     [commit],
   )
@@ -260,7 +281,7 @@ export function usePipeNavController(
       onRenamePipe: focusedPipeId ? (name) => commit({ kind: 'renamePipe', name }) : undefined,
       onTreeDelete: (node) => commit({ kind: 'treeDelete', node }),
       onTreeContext: handleTreeContext,
-      onTreeDrop: (drag, drop) => commit({ kind: 'treeDrop', drag, drop }),
+      onTreeDrop: (drag, drop, position) => commit({ kind: 'treeDrop', drag, drop, position }),
     }),
     [commit, focusedPipeId, handleTreeContext],
   )
@@ -292,6 +313,7 @@ export function usePipeNavController(
     writeFocusedStages,
     pipeControls,
     addPipe,
+    stripReorder,
     treeActions,
     nameDialogProps,
   }

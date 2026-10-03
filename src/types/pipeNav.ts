@@ -24,7 +24,12 @@ export type PipeTreeNode =
   | { kind: 'entity'; entityId: string; label: string }
   | { kind: 'stack_pipe'; pipeId: string; stackIndex: number; label: string }
   | { kind: 'member_stage'; pipeId: string; parentPipeId: string; memberIndex: number; stageId: string; label: string }
+  /** A stage sitting directly on the entity, next to its pipe stack. */
+  | { kind: 'top_stage'; stageId: string; label: string }
   | { kind: 'member_pipe'; pipeId: string; parentPipeId: string; memberIndex: number; label: string }
+
+/** Where a tree drag lands relative to the row it is dropped on. */
+export type TreeDropPosition = 'before' | 'after' | 'into'
 
 export type ResolvedPipeNavView = {
   mode: PipeNavViewMode

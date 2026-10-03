@@ -184,7 +184,7 @@ Other `.tsx` files still contain one-off inline hex (`SceneView.tsx`, `ShapeEdit
 Covers branches not exercised by `sceneFrameLoop.accumulator.test.ts` or the `shadow-follow-camera` integration test:
 
 - **Time advance:** `simAdvance` increments `timeRef` by `fixedDt`; `skipSimulation` does not. `variableFrameDt` is what flows into `CameraController.update` when sim is skipped; `fixedDt` otherwise.
-- **Wheel orbit gating:** orbit ref is zeroed when neither `editNav` nor `control=follow + follow-mode`; raw wheel is consumed (and zeroed) in edit-nav and in follow-control + follow-mode; orbit deltas are forwarded to `setOrbitDelta` / `setOrbitDistanceDelta` (with the 0.75 scale on distance) and accumulated with mouse drag; mouse drag is ignored under `gizmoDragging` but still cleared.
+- **Wheel orbit gating:** orbit ref is zeroed when neither `editNav` nor `control=follow + follow-mode`; raw wheel is consumed (and zeroed) in edit-nav and in follow-control + follow-mode; orbit deltas are forwarded to `setOrbitDelta`; the wheel zoom goes through `wheelZoomLog` → `zoomByLog` (multiplicative, see [feature-camera-wheel-input.md](./feature-camera-wheel-input.md)) and accumulated with mouse drag; mouse drag is ignored under `gizmoDragging` but still cleared.
 - **Debug forces:** expired entries (past `endTime`) are dropped; live forces are applied via `pw.applyForce`; in `editNav`, no forces apply but expired entries are still trimmed and `pw.step` is skipped.
 - **Distance culling:** `world.distanceCulling === false` calls `clearDistanceCulling`; omitted/undefined merges defaults (`maxDistance: 2000`, `minSizeDistanceRatio: 0.02`) and calls `applyDistanceCulling`.
 - **Sky dome:** position copies camera position each frame; absent sky dome is a no-op.

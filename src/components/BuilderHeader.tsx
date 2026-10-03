@@ -15,6 +15,7 @@ import { GizmoMoveIcon, GizmoBrushIcon, GizmoRotateIcon, GizmoScaleIcon, GizmoTr
 import { BrushToolPopover } from '@/components/BrushToolPopover'
 import { entityPanelIconButtonStyle } from '@/components/sharedStyles'
 import { formatMenuShortcut } from '@/utils/menuShortcut'
+import { getWheelBehavior, setWheelBehavior, type WheelBehavior } from '@/input/wheelGesture'
 import { EntityPanelIcons } from './EntityPanelIcons'
 import { agentDevExampleWorldsListApiPath } from '@/agent/agentDevBootstrapParams'
 import { discoverExampleWorldIdsFromBuild } from '@/utils/discoverExampleWorldIds'
@@ -111,6 +112,11 @@ export default function BuilderHeader({
     onFileChange,
   } = useProjectContext()
   const [showProjectSelector, setShowProjectSelector] = useState(false)
+  const [wheelBehavior, setWheelBehaviorState] = useState<WheelBehavior>(getWheelBehavior)
+  const chooseWheelBehavior = (next: WheelBehavior) => {
+    setWheelBehavior(next)
+    setWheelBehaviorState(next)
+  }
   const [brushPopoverOpen, setBrushPopoverOpen] = useState(false)
   const brushToolButtonRef = useRef<HTMLButtonElement>(null)
 
@@ -286,6 +292,17 @@ export default function BuilderHeader({
       checked: showFrameStats,
       onClick: onFrameStatsToggle,
       disabled: !onFrameStatsToggle,
+    },
+    { type: 'separator' },
+    {
+      // A plain mouse wheel and a trackpad scroll look alike to the browser; this fixes the guess.
+      type: 'submenu',
+      label: 'Mouse wheel',
+      items: [
+        { type: 'item', label: 'Auto (detect device)', checked: wheelBehavior === 'auto', onClick: () => chooseWheelBehavior('auto') },
+        { type: 'item', label: 'Always zoom', checked: wheelBehavior === 'zoom', onClick: () => chooseWheelBehavior('zoom') },
+        { type: 'item', label: 'Always orbit', checked: wheelBehavior === 'orbit', onClick: () => chooseWheelBehavior('orbit') },
+      ],
     },
   ]
 

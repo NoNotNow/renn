@@ -39,51 +39,19 @@ function countEnsurePipeStackCalls() {
   ).length
 }
 
-describe('usePipeNavController ensurePipeStack bootstrap', () => {
+describe('usePipeNavController does not force a pipe around an entity\'s stages', () => {
   beforeEach(() => {
     resolvePipeNavEditMock.mockClear()
   })
 
-  it('commits ensurePipeStack once on mount and not again when world reference changes', () => {
-    const entity = entityWithPipeStack()
-    const onWorldChange = vi.fn()
-
-    const { rerender } = renderHook(
-      ({ world, ent }) =>
-        usePipeNavController(world, ent, undefined, onWorldChange),
-      {
-        initialProps: { world: worldFor(entity), ent: entity },
-      },
-    )
-
-    expect(countEnsurePipeStackCalls()).toBe(1)
-
-    const world2: RennWorld = {
-      ...worldFor(entity),
-      world: { gravity: [0, -10, 0] },
-    }
-    rerender({ world: world2, ent: entity })
-
-    expect(countEnsurePipeStackCalls()).toBe(1)
-  })
-
-  it('commits ensurePipeStack again when entity.id changes', () => {
+  it('never commits ensurePipeStack on mount or when the entity changes', () => {
     const onWorldChange = vi.fn()
     const e1 = entityWithPipeStack('e1')
     const e2 = entityWithPipeStack('e2')
-
-    const { rerender } = renderHook(
-      ({ world, ent }) =>
-        usePipeNavController(world, ent, undefined, onWorldChange),
-      {
-        initialProps: { world: worldFor(e1), ent: e1 },
-      },
-    )
-
-    expect(countEnsurePipeStackCalls()).toBe(1)
-
+    const { rerender } = renderHook(({ world, ent }) => usePipeNavController(world, ent, undefined, onWorldChange), {
+      initialProps: { world: worldFor(e1), ent: e1 },
+    })
     rerender({ world: worldFor(e2), ent: e2 })
-
-    expect(countEnsurePipeStackCalls()).toBe(2)
+    expect(countEnsurePipeStackCalls()).toBe(0)
   })
 })

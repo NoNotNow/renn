@@ -27,9 +27,16 @@ export const AV_STACK_PARAM_DEFS: PipeParamDef[] = [
   { key: 'vehicleLength', type: 'number', default: 4, description: 'Footprint length (m)' },
   { key: 'safetyMargin', type: 'number', default: 0.5, description: 'Hard collision margin around footprint (m)' },
   { key: 'maxCurvature', type: 'number', default: 0.115, description: 'Max path curvature 1/m (min turn radius)' },
+  { key: 'minSpeed', type: 'number', default: 4, description: 'Lowest speed while driving (m/s)' },
+  { key: 'obstacleSlowRadius', type: 'number', default: 5, description: 'Obstacles slow the car only within this distance of the hull (m); 0 = off' },
+  { key: 'obstacleSlowFactor', type: 'number', default: 0.5, description: 'Speed right next to an obstacle as a fraction of cruiseSpeed' },
+  { key: 'comfortDecel', type: 'number', default: 5, description: 'Braking deceleration for obstacles in the path (m/s²)' },
+  { key: 'maxLatAccel', type: 'number', default: 9, description: 'Cornering limit: lateral acceleration (m/s²)' },
 ]
 
-const STAGE_META: Record<AvStackLogicalStage, { id: string; name: string; priority: number }> = {
+/** Fixture worlds keep their own mission stage (targetPoseInput); `mission` is only used by the global library. */
+type FixtureStage = Exclude<AvStackLogicalStage, 'mission' | 'wander'>
+const STAGE_META: Record<FixtureStage, { id: string; name: string; priority: number }> = {
   ego: { id: 'av_ego', name: 'AV Ego state', priority: 2 },
   perception: { id: 'av_perception', name: 'AV Perception', priority: 3 },
   waypointViz: { id: 'av_waypoint_viz', name: 'AV Waypoint overlay', priority: 3.1 },
@@ -55,9 +62,12 @@ export type AvStackOptions = {
   disable?: AvStackLogicalStage[]
   /**
    * Waypoint acceptance radius (m). A pass-through waypoint must be reachable with the turn radius (~8 m), so
-   * the mission's `positionEpsilon` is raised to at least this value. Default 6.
+   * the mission's `positionEpsilon` is raised to at least this value. Default 9: a pass that misses a smaller
+   * radius by centimetres otherwise sends the car on a loop back to the same waypoint.
    */
   waypointRadius?: number
+  /** Arrive/hold radius around the FINAL waypoint (m). Default 5.5 (must be reachable inside the turning circle). */
+  goalTolerance?: number
   /** Heading tolerance (deg) for accepting a waypoint; default 180 = position only (a pass-through waypoint must not need a heading). */
   waypointHeadingTolerance?: number
   /** Keep this far (m) from the ground slab edge (virtual walls). Default 3. */
@@ -73,7 +83,7 @@ export function applyAvStack(world: RennWorld, options: AvStackOptions = {}): Re
       const eps = Number(cfg.params.positionEpsilon ?? 0)
       transformers[id] = { ...cfg, params: {
           ...cfg.params,
-          positionEpsilon: Math.max(eps, options.waypointRadius ?? 6),
+          positionEpsilon: Math.max(eps, options.waypointRadius ?? 9),
           rotationEpsilon: options.waypointHeadingTolerance ?? 180,
         },
       }
@@ -95,7 +105,7 @@ export function applyAvStack(world: RennWorld, options: AvStackOptions = {}): Re
   const missionId = transformers.tf_mission ? 'tf_mission' : 'tf_wanderer'
   const missionPoses = transformers.tf_mission?.params?.poses as Array<{ position: [number, number, number] }> | undefined
   const missionWaypoints = missionPoses?.map((p) => [p.position[0], p.position[2]])
-  for (const logical of Object.keys(STAGE_META) as AvStackLogicalStage[]) {
+  for (const logical of Object.keys(STAGE_META) as FixtureStage[]) {
     const meta = STAGE_META[logical]
     transformers[meta.id] = {
       type: 'custom',
@@ -156,7 +166,7 @@ export function applyAvStack(world: RennWorld, options: AvStackOptions = {}): Re
       ...(missionWaypoints ? { waypoints: missionWaypoints } : {}),
       ...(drivableArea ? { drivableArea } : {}),
       // arrive/hold inside the acceptance radius: the goal may lie within the turning circle
-      goalTolerance: (options.waypointRadius ?? 6) - 0.5,
+      goalTolerance: options.goalTolerance ?? 5.5,
       ...(options.params ?? {}),
     },
     ...(Object.keys(scopeParams).length ? { scopeParams } : {}),

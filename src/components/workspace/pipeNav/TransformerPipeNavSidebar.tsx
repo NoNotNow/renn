@@ -8,7 +8,7 @@ import {
   type RefObject,
 } from 'react'
 import type { Entity, RennWorld } from '@/types/world'
-import type { PipeNavPathSegment, PipeTreeNode } from '@/types/pipeNav'
+import type { PipeNavPathSegment, PipeTreeNode, TreeDropPosition } from '@/types/pipeNav'
 import { theme } from '@/config/theme'
 import { clamp } from '@/utils/numberUtils'
 import { pipeNavButtonStyle } from './pipeNavStyles'
@@ -41,7 +41,7 @@ export interface TransformerPipeNavSidebarProps {
     action: 'add_before' | 'add_after' | 'add_child' | 'delete',
     target: PipeTreeContextTarget,
   ) => void
-  onTreeDrop?: (drag: PipeTreeNode, drop: PipeTreeNode) => void
+  onTreeDrop?: (drag: PipeTreeNode, drop: PipeTreeNode, position?: TreeDropPosition) => void
   drawerPortalTarget?: RefObject<HTMLDivElement | null>
   onPipeControlToggle?: (opts: {
     pipeId: string
@@ -63,6 +63,11 @@ export interface TransformerPipeNavSidebarProps {
     params: Record<string, unknown>
   }) => void
   onDecouplePipeBinding?: (stackIndex: number) => void
+  onConfigureStage?: (path: PipeNavPathSegment[], index: number, stageId: string) => void
+  onToggleStageEnabled?: (stageId: string) => void
+  onAddPipe?: () => void
+  onWrapAll?: () => void
+  selectedStageId?: string | null
 }
 
 export default function TransformerPipeNavSidebar({
@@ -88,6 +93,11 @@ export default function TransformerPipeNavSidebar({
   onPipeParamChange,
   onPipeParamsReplace,
   onDecouplePipeBinding,
+  onConfigureStage,
+  onToggleStageEnabled,
+  onAddPipe,
+  onWrapAll,
+  selectedStageId,
 }: TransformerPipeNavSidebarProps) {
   const [widthPx, setWidthPx] = useState(readPipeNavWidth)
   const [editingTitle, setEditingTitle] = useState(false)
@@ -225,6 +235,11 @@ export default function TransformerPipeNavSidebar({
         onPipeParamChange={onPipeParamChange}
         onPipeParamsReplace={onPipeParamsReplace}
         onDecouplePipeBinding={onDecouplePipeBinding}
+        onConfigureStage={onConfigureStage}
+        onToggleStageEnabled={onToggleStageEnabled}
+        onAddPipe={onAddPipe}
+        onWrapAll={onWrapAll}
+        selectedStageId={selectedStageId}
       />
       <div
         role="separator"

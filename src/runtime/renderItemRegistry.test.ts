@@ -83,3 +83,23 @@ describe('renderItemRegistryPorts', () => {
     expect(mesh.position.x).toBe(4)
   })
 })
+
+describe('RenderItemRegistry.syncEntityTransformers', () => {
+  it('never overwrites real registry stages named `${entityId}_tf${n}` with merged live configs', () => {
+    const entity: Entity = { id: 'box1', position: [0, 0, 0] }
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial())
+    const registryObject = {
+      box1_tf1: { type: 'custom', name: 'Real stage', code: '' },
+      box1_tf0: { type: 'car2' },
+    } as unknown as Record<string, import('@/types/transformer').TransformerDef>
+    const registry = RenderItemRegistry.create([{ entity, mesh }], null, undefined, undefined, registryObject)
+    const before = JSON.parse(JSON.stringify(registryObject))
+
+    registry.syncEntityTransformers('box1', [
+      { type: 'car2' } as import('@/types/transformer').TransformerConfig,
+      { type: 'car2' } as import('@/types/transformer').TransformerConfig,
+    ])
+
+    expect(registryObject).toEqual(before) // the document's registry object is left untouched
+  })
+})

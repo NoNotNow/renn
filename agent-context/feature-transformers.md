@@ -69,7 +69,7 @@ src/
 │   ├── follow/
 │   └── kinematicMovement/
 ├── input/
-│   ├── rawInput.ts                           # Keyboard + trackpad capture
+│   ├── rawInput.ts                           # Keyboard + wheel capture (device classification: wheelGesture.ts)
 │   ├── inputMapping.ts                       # RawInput → semantic actions
 │   └── inputPresets.ts                       # CHARACTER_PRESET, CAR_PRESET
 ├── physics/rapierPhysics.ts                  # applyForce/Impulse/TorqueFromTransformer

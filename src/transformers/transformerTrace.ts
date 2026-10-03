@@ -16,6 +16,10 @@ export interface TransformerTraceStep {
   transformOutput?: TransformOutput
   /** `input.actions` after this step (tracing only); shows published semantics for `input` transformers. */
   actionsAfter?: Record<string, number>
+  /** Non-empty data channels on the wire into this step (`target`, blackboard keys like `av.ego`, `av.points[213]`). */
+  channelsIn?: string[]
+  /** Channels this step changed in place (wrote `input.target`, `input.av.plan`, …). */
+  channelsWritten?: string[]
   /** Builder output LED — forces/setPose/etc., or input-mapping publishing actions. */
   outputLedActive: boolean
 }
@@ -172,16 +176,17 @@ export function summarizeTransformOutputBrief(o: TransformOutput): string {
   return tags.join(', ')
 }
 
-/** Brief summary of TransformInput for Builder trace cards (IN: ...). */
-export function summarizeTransformInputBrief(input: TransformInputTraceSnapshot): string {
+/** Brief summary of what flows into a step (actions + live data channels) for Builder trace cards (IN: ...). */
+export function summarizeTransformInputBrief(input: TransformInputTraceSnapshot, channelsIn?: string[]): string {
+  const parts: string[] = []
   const actionsSummary = summarizeActions(input.actions)
-  const target = input.target as { label?: string } | undefined
-  const targetLabel = target?.label ? `target: ${target.label}` : null
-
-  if (actionsSummary !== '(idle)' && targetLabel) return `${actionsSummary}; ${targetLabel}`
-  if (actionsSummary !== '(idle)') return actionsSummary
-  if (targetLabel) return targetLabel
-  return '(idle)'
+  if (actionsSummary !== '(idle)') parts.push(actionsSummary)
+  if (channelsIn && channelsIn.length > 0) parts.push(briefList(channelsIn))
+  else {
+    const target = input.target as { label?: string } | undefined
+    if (target?.label) parts.push(`target: ${target.label}`)
+  }
+  return parts.length > 0 ? parts.join('; ') : '(idle)'
 }
 
 /** Combines physics/pose return value with actions-wire delta for `input` transformers. */
@@ -202,11 +207,11 @@ export function summarizeTransformerTraceOutputBrief(
       ? summarizePublishedActionsDelta(before, after)
       : null
 
-  if (structural !== '(none)' && actionsDeltaBrief)
-    return `${structural}; actions · ${actionsDeltaBrief}`
-  if (structural !== '(none)') return structural
-  if (actionsDeltaBrief) return `actions · ${actionsDeltaBrief}`
-  return '(none)'
+  const parts: string[] = []
+  if (structural !== '(none)') parts.push(structural)
+  if (actionsDeltaBrief) parts.push(`actions · ${actionsDeltaBrief}`)
+  if (step.channelsWritten && step.channelsWritten.length > 0) parts.push(`wrote ${briefList(step.channelsWritten)}`)
+  return parts.length > 0 ? parts.join('; ') : '(none)'
 }
 
 export function serializeTransformerTraceOutputJson(step: TransformerTraceStep): unknown {
@@ -235,9 +240,123 @@ export function serializeTransformInputForDisplay(input: TransformInputTraceSnap
 }
 
 /** Input LED: semantic actions present on the wire into this step. */
-export function hasNonZeroSemanticActions(inputBefore: TransformInputTraceSnapshot | undefined): boolean {
+export function hasNonZeroSemanticActions(
+  inputBefore: TransformInputTraceSnapshot | undefined,
+  channelsIn?: string[],
+): boolean {
   if (!inputBefore) return false
+  if (channelsIn && channelsIn.length > 0) return true
   const actions = inputBefore.actions as Record<string, number> | undefined
   if (!actions) return false
   return Object.values(actions).some((v) => v !== 0)
+}
+
+// ---- data channels (what stages pass to each other by mutating `input`) ----
+
+const STANDARD_INPUT_KEYS = new Set([
+  'actions',
+  'position',
+  'rotation',
+  'velocity',
+  'angularVelocity',
+  'accumulatedForce',
+  'accumulatedTorque',
+  'environment',
+  'deltaTime',
+  'entityId',
+])
+
+function fpValue(v: unknown, depth: number): string {
+  if (v === null || v === undefined) return '∅'
+  if (typeof v === 'number') return Number.isFinite(v) ? v.toFixed(2) : String(v)
+  if (typeof v === 'string') return v.slice(0, 60)
+  if (typeof v === 'boolean') return v ? '1' : '0'
+  if (typeof v !== 'object' || depth <= 0) return typeof v === 'object' ? '{…}' : ''
+  if (Array.isArray(v)) {
+    const head = v.slice(0, 3).map((x) => fpValue(x, depth - 1))
+    return `[${v.length}:${head.join(',')}]`
+  }
+  const keys = Object.keys(v as Record<string, unknown>).slice(0, 14)
+  return `{${keys.map((k) => `${k}:${fpValue((v as Record<string, unknown>)[k], depth - 1)}`).join(',')}}`
+}
+
+function isNonEmpty(v: unknown): boolean {
+  if (v === null || v === undefined || v === false || v === '') return false
+  if (Array.isArray(v)) return v.length > 0
+  if (typeof v === 'object') return Object.keys(v as object).length > 0
+  return true
+}
+
+function channelLabel(name: string, v: unknown): string {
+  return Array.isArray(v) ? `${name}[${v.length}]` : name
+}
+
+/** Fingerprint per data channel: `target`, plus every non-standard input key (one level deeper for blackboard objects). */
+export function collectChannelFingerprints(input: TransformInput): Map<string, { fp: string; label: string; live: boolean }> {
+  const out = new Map<string, { fp: string; label: string; live: boolean }>()
+  const rec = input as unknown as Record<string, unknown>
+  for (const key of Object.keys(rec)) {
+    if (STANDARD_INPUT_KEYS.has(key)) continue
+    const v = rec[key]
+    if (typeof v === 'function') continue
+    if (v && typeof v === 'object' && !Array.isArray(v) && key !== 'target') {
+      for (const sub of Object.keys(v as Record<string, unknown>)) {
+        const sv = (v as Record<string, unknown>)[sub]
+        if (typeof sv === 'function') continue
+        out.set(`${key}.${sub}`, { fp: fpValue(sv, 2), label: channelLabel(`${key}.${sub}`, sv), live: isNonEmpty(sv) })
+      }
+    } else {
+      out.set(key, { fp: fpValue(v, 3), label: channelLabel(key, v), live: isNonEmpty(v) })
+    }
+  }
+  return out
+}
+
+export function channelsLive(ch: Map<string, { label: string; live: boolean }>): string[] {
+  return [...ch.values()].filter((c) => c.live).map((c) => c.label)
+}
+
+export function channelsChanged(
+  before: Map<string, { fp: string; label: string }>,
+  after: Map<string, { fp: string; label: string }>,
+): string[] {
+  const names: string[] = []
+  for (const [k, a] of after) {
+    const b = before.get(k)
+    if (!b || b.fp !== a.fp) names.push(a.label)
+  }
+  for (const [k, b] of before) if (!after.has(k)) names.push(`${b.label} (removed)`)
+  return names
+}
+
+/** `a, b, c +4` for brief card lines. */
+export function briefList(items: string[], max = 4): string {
+  if (items.length <= max) return items.join(', ')
+  return `${items.slice(0, max).join(', ')} +${items.length - max}`
+}
+
+/** Pipe-level IN/OUT: IN of the first stage that ran, OUT = everything the member stages produced. */
+export function summarizePipeTraceBrief(steps: readonly TransformerTraceStep[]): { input: string; output: string } {
+  const ran = steps.filter((st) => !st.skipped)
+  if (ran.length === 0) return { input: steps.length > 0 ? '(disabled)' : '—', output: steps.length > 0 ? '(disabled)' : '—' }
+  const first = ran[0]!
+  const input = first.inputBefore ? summarizeTransformInputBrief(first.inputBefore, first.channelsIn) : '(idle)'
+  const written: string[] = []
+  const structural = new Set<string>()
+  const actionTags = new Set<string>()
+  for (const st of ran) {
+    for (const c of st.channelsWritten ?? []) if (!written.includes(c)) written.push(c)
+    if (st.transformOutput) {
+      const b = summarizeTransformOutputBrief(st.transformOutput)
+      if (b !== '(none)') for (const t of b.split(', ')) structural.add(t)
+    }
+    const before = st.inputBefore?.actions as Record<string, number> | undefined
+    if (st.type === 'input' && before && st.actionsAfter && actionsMapsDiffer(before, st.actionsAfter))
+      actionTags.add('actions')
+  }
+  const parts: string[] = []
+  if (structural.size > 0) parts.push([...structural].join(', '))
+  if (actionTags.size > 0) parts.push('actions')
+  if (written.length > 0) parts.push(`wrote ${briefList(written, 5)}`)
+  return { input, output: parts.length > 0 ? parts.join('; ') : '(none)' }
 }

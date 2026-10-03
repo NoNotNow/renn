@@ -12,17 +12,21 @@ import { selectableListItemHandlers } from '@/utils/selectableListItemHandlers'
 
 export type AddExistingTransformerMode = 'link' | 'copy'
 
-type AddTransformerTab = 'preset' | 'existing'
+type AddTransformerTab = 'preset' | 'existing' | 'global'
 
 type AddTransformerSelection =
   | { kind: 'preset'; type: string }
   | { kind: 'existing'; registryId: string }
+  | { kind: 'global'; id: string }
 
 export interface AddTransformerDialogPanelProps {
   existingRegistry: Record<string, TransformerConfig>
   excludedIds: string[]
   onAddPreset: (type: string) => void
   onAddExisting: (registryId: string, mode: AddExistingTransformerMode) => void
+  /** Transformers of the global library; shows a "Global" tab. Adding copies the stage into the project. */
+  globalTransformers?: Record<string, TransformerConfig>
+  onAddGlobal?: (globalId: string) => void
   onCancel: () => void
 }
 
@@ -96,6 +100,8 @@ export default function AddTransformerDialogPanel({
   excludedIds,
   onAddPreset,
   onAddExisting,
+  globalTransformers,
+  onAddGlobal,
   onCancel,
 }: AddTransformerDialogPanelProps) {
   const [activeTab, setActiveTab] = useState<AddTransformerTab>('preset')
@@ -118,6 +124,14 @@ export default function AddTransformerDialogPanel({
     [groupedExisting, existingRegistry, searchQuery],
   )
 
+  const globalEntries = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    return Object.entries(globalTransformers ?? {})
+      .map(([id, cfg]) => ({ id, cfg, title: transformerOrganizeTitle(cfg) }))
+      .filter((e) => !q || e.title.toLowerCase().includes(q) || e.id.toLowerCase().includes(q))
+      .sort((a, b) => a.title.localeCompare(b.title))
+  }, [globalTransformers, searchQuery])
+
   useEffect(() => {
     setActiveTab('preset')
     setSearchQuery('')
@@ -129,10 +143,12 @@ export default function AddTransformerDialogPanel({
     const stillVisible =
       selection.kind === 'preset'
         ? activeTab === 'preset' && filteredPresets.some((opt) => opt.value === selection.type)
-        : activeTab === 'existing' &&
-          filteredExistingGroups.some((group) => group.representativeId === selection.registryId)
+        : selection.kind === 'global'
+          ? activeTab === 'global' && globalEntries.some((e) => e.id === selection.id)
+          : activeTab === 'existing' &&
+            filteredExistingGroups.some((group) => group.representativeId === selection.registryId)
     if (!stillVisible) setSelection(null)
-  }, [activeTab, filteredPresets, filteredExistingGroups, selection])
+  }, [activeTab, filteredPresets, filteredExistingGroups, globalEntries, selection])
 
   const handleTabChange = (tab: AddTransformerTab) => {
     setActiveTab(tab)
@@ -157,8 +173,11 @@ export default function AddTransformerDialogPanel({
     confirmAddExisting(selection.registryId, mode)
   }
 
+  const addKind = activeTab === 'global' ? 'global' : 'preset'
   const searchPlaceholder =
-    activeTab === 'preset' ? 'Search presets…' : 'Search existing transformers…'
+    activeTab === 'preset' ? 'Search presets…'
+    : activeTab === 'global' ? 'Search global library…'
+    : 'Search existing transformers…'
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12, height: '100%', minHeight: 0 }}>
@@ -183,6 +202,18 @@ export default function AddTransformerDialogPanel({
         >
           Existing
         </button>
+        {globalTransformers && onAddGlobal ?
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'global'}
+            data-testid="add-transformer-tab-global"
+            onClick={() => handleTabChange('global')}
+            style={tabStyle(activeTab === 'global')}
+          >
+            Global library
+          </button>
+        : null}
       </div>
 
       <input
@@ -230,6 +261,46 @@ export default function AddTransformerDialogPanel({
                   style={listItemStyle(selected)}
                 >
                   <div style={{ fontSize: 13, fontWeight: 600 }}>{opt.label}</div>
+                </button>
+              )
+            })
+          }
+        </div>
+      : activeTab === 'global' ?
+        <div
+          role="listbox"
+          aria-label="Global transformers"
+          data-testid="add-transformer-global-list"
+          style={{
+            flex: 1,
+            minHeight: 0,
+            overflow: 'auto',
+            border: `1px solid ${theme.border.default}`,
+            borderRadius: 6,
+            background: theme.bg.panelAlt,
+          }}
+        >
+          {globalEntries.length === 0 ?
+            <div style={{ padding: 16, fontSize: 12, color: theme.text.muted, textAlign: 'center' }}>
+              No global transformers match.
+            </div>
+          : globalEntries.map((e) => {
+              const selected = selection?.kind === 'global' && selection.id === e.id
+              return (
+                <button
+                  key={e.id}
+                  type="button"
+                  role="option"
+                  aria-selected={selected}
+                  data-testid={`add-transformer-global-${e.id}`}
+                  {...selectableListItemHandlers(
+                    () => setSelection({ kind: 'global', id: e.id }),
+                    () => onAddGlobal?.(e.id),
+                  )}
+                  style={listItemStyle(selected)}
+                >
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>{e.title}</div>
+                  <div style={{ fontSize: 11, color: theme.text.muted, marginTop: 2 }}>{e.id}</div>
                 </button>
               )
             })
@@ -331,16 +402,16 @@ export default function AddTransformerDialogPanel({
           </div>
         : <button
             type="button"
-            disabled={selection?.kind !== 'preset'}
-            onClick={handleAddPreset}
+            disabled={selection?.kind !== addKind}
+            onClick={() => (selection?.kind === 'global' ? onAddGlobal?.(selection.id) : handleAddPreset())}
             data-testid="add-transformer-add-preset"
             style={{
               padding: '6px 12px',
               borderRadius: 4,
               border: `1px solid ${theme.accent}`,
-              background: selection?.kind === 'preset' ? theme.accent : theme.bg.surface,
-              color: selection?.kind === 'preset' ? '#fff' : theme.text.muted,
-              cursor: selection?.kind === 'preset' ? 'pointer' : 'not-allowed',
+              background: selection?.kind === addKind ? theme.accent : theme.bg.surface,
+              color: selection?.kind === addKind ? '#fff' : theme.text.muted,
+              cursor: selection?.kind === addKind ? 'pointer' : 'not-allowed',
               fontSize: 12,
               fontWeight: 600,
             }}

@@ -42,6 +42,8 @@ const FIRST_PERSON_FOV_MIN = 35
 const FIRST_PERSON_FOV_MAX = 75
 /** Maps wheel/pinch distance delta to FOV change (degrees per unit delta). */
 const FIRST_PERSON_FOV_PER_DISTANCE_DELTA = 0.8
+/** First-person zoom: FOV degrees per unit of ln(distance ratio) — a mouse notch (0.12) is ≈ 4.8° of the 35–75° range. */
+const FIRST_PERSON_FOV_DEGREES_PER_LOG_ZOOM = 40
 
 /** Maps lag slider 1–5000 to catch-up rate (higher lag → slower / heavier). */
 const CAMERA_LAG_RESPONSE_SCALE = 800
@@ -81,6 +83,8 @@ export class CameraController {
   private editNavOrbitPixelDy = 0
   /** Per-frame zoom delta (same units as `setOrbitDistanceDelta` for non–first-person). */
   private editNavZoomDelta = 0
+  /** Per-frame multiplicative zoom (ln of the distance ratio) for edit navigation. */
+  private editNavZoomLog = 0
   private readonly editNavPivotScratch = new THREE.Vector3()
   private readonly editNavOffsetScratch = new THREE.Vector3()
   /** When set, edit-navigation orbit/zoom uses this world point instead of camera target / view focus. */
@@ -191,6 +195,33 @@ export class CameraController {
     this.orbitDistance = Math.max(
       ORBIT_DISTANCE_MIN,
       Math.min(ORBIT_DISTANCE_MAX, this.orbitDistance + delta),
+    )
+  }
+
+  /**
+   * Multiplicative zoom: the camera distance is scaled by `exp(logDelta)` (> 0 zoom out, < 0 zoom in), so each wheel step
+   * changes the view by the same percentage whether the camera is 1 m or 100 m away. First person changes the FOV instead.
+   * Prefer this over `setOrbitDistanceDelta` for input devices (mouse wheel, pinch).
+   */
+  zoomByLog(logDelta: number): void {
+    if (logDelta === 0 || !Number.isFinite(logDelta)) return
+    if (this.config.mode === 'firstPerson') {
+      this.camera.fov = THREE.MathUtils.clamp(
+        this.camera.fov + logDelta * FIRST_PERSON_FOV_DEGREES_PER_LOG_ZOOM,
+        FIRST_PERSON_FOV_MIN,
+        FIRST_PERSON_FOV_MAX,
+      )
+      this.camera.updateProjectionMatrix()
+      return
+    }
+    if (this.forceFreeFlyNavigation) {
+      this.editNavZoomLog += logDelta
+      return
+    }
+    this.orbitDistance = THREE.MathUtils.clamp(
+      this.orbitDistance * Math.exp(logDelta),
+      ORBIT_DISTANCE_MIN,
+      ORBIT_DISTANCE_MAX,
     )
   }
 
@@ -514,11 +545,13 @@ export class CameraController {
     const dx = this.editNavOrbitPixelDx
     const dy = this.editNavOrbitPixelDy
     const zoomDelta = this.editNavZoomDelta
+    const zoomLog = this.editNavZoomLog
     this.editNavOrbitPixelDx = 0
     this.editNavOrbitPixelDy = 0
     this.editNavZoomDelta = 0
+    this.editNavZoomLog = 0
 
-    if (dx === 0 && dy === 0 && zoomDelta === 0) return
+    if (dx === 0 && dy === 0 && zoomDelta === 0 && zoomLog === 0) return
 
     const pivot = this.editNavPivotScratch
     if (this.editNavUseSelectionPivot) {
@@ -585,7 +618,7 @@ export class CameraController {
     dist = offset.length()
     if (dist < 1e-6) return
 
-    const newDist = Math.max(ORBIT_DISTANCE_MIN, dist + zoomDelta)
+    const newDist = Math.max(ORBIT_DISTANCE_MIN, dist * Math.exp(zoomLog) + zoomDelta)
     offset.normalize().multiplyScalar(newDist)
     this.camera.position.copy(pivot).add(offset)
     this.camera.lookAt(pivot)

@@ -294,7 +294,7 @@ export default function TransformerEditor({
         list.map((transformer, index) => {
         const enabled = transformer.enabled ?? true
         const step = traceByStackIndex?.get(index)
-        const inputLit = Boolean(step && !step.skipped && hasNonZeroSemanticActions(step.inputBefore))
+        const inputLit = Boolean(step && !step.skipped && hasNonZeroSemanticActions(step.inputBefore, step.channelsIn))
         const outputLit = Boolean(step && !step.skipped && step.outputLedActive)
 
         const traceSummaryRowStyle = {

@@ -7,11 +7,13 @@ import {
   assignPipeToEntity,
   clonePipeTreeForEntityCopy,
 } from '@/utils/commitTransformerConfigsToWorld'
-import { applyEntityTransformerSync, findUngroupedStageIds, wouldNestCreateCycle } from '@/utils/pipeNavResolve'
+import { stackStageIds, topLevelStageIds } from '@/utils/pipeStageResolve'
+import { applyEntityTransformerSync, dropStagesLeftBehind, findUngroupedStageIds, wouldNestCreateCycle } from '@/utils/pipeNavResolve'
 import {
   buildInitialBindingParams,
   flattenPipeMembers,
   getEntityPipeStack,
+  flattenPipeStageIds,
   normalizePipeMembers,
   withPipeStackBindings,
 } from '@/utils/transformerPipeResolve'
@@ -277,7 +279,7 @@ export function toggleMemberEnabled(
     i === memberIndex ? { ...m, enabled: m.enabled === false } : m,
   )
   const nextWorld = updatePipeMembers(world, pipeId, members)
-  return syncAllEntitiesUsingPipes(nextWorld, [pipeId])
+  return dropStagesLeftBehind(world, syncAllEntitiesUsingPipes(nextWorld, [pipeId]))
 }
 
 function syncAllEntitiesUsingPipes(world: RennWorld, pipeIds: string[]): RennWorld {
@@ -343,6 +345,51 @@ export function patchStageConfigInWorld(
  * Pipe binding / scope params are edited separately via the pipe params UI.
  * Pass `orderedIds` only for explicit reorder/add/remove — not for metadata patches.
  */
+const round3 = (n: number) => Math.round(n * 1000) / 1000
+
+/**
+ * The strip hands over configs whose `priority` was re-indexed to 0..n-1 (flat-list habit). Entities run stages sorted
+ * by priority across the *whole* composite stack, so writing those back would scramble stages of other pipes
+ * (e.g. a mission at 2.5 would drop below the ego stage at 2). Here a re-index is translated instead:
+ *  - existing stages reuse their own priority values (a reorder permutes the values among the moved stages),
+ *  - a new stage gets a priority between its neighbours (or just beyond the ends).
+ * Configs with deliberate, non-reindexed priorities are passed through untouched.
+ */
+export function preserveCompositePriorities(
+  registry: Record<string, TransformerConfig>,
+  configs: TransformerConfig[],
+  ids: string[],
+): TransformerConfig[] {
+  if (configs.length === 0) return configs
+  const reindexed = configs.every((c, i) => c.priority === i)
+  if (!reindexed) return configs
+
+  const existing = ids.map((id) => id !== undefined && registry[id]?.priority !== undefined)
+  const oldValues = ids
+    .filter((_, i) => existing[i])
+    .map((id) => registry[id]!.priority as number)
+    .sort((a, b) => a - b)
+  const out = [...configs]
+  const assigned: (number | undefined)[] = new Array(configs.length).fill(undefined)
+  let k = 0
+  for (let i = 0; i < configs.length; i++) {
+    if (existing[i]) assigned[i] = oldValues[k++]
+  }
+  for (let i = 0; i < configs.length; i++) {
+    if (existing[i]) continue
+    let prev: number | undefined
+    for (let j = i - 1; j >= 0 && prev === undefined; j--) prev = assigned[j]
+    let next: number | undefined
+    for (let j = i + 1; j < configs.length && next === undefined; j++) if (existing[j]) next = assigned[j]
+    assigned[i] =
+      prev !== undefined && next !== undefined ? (prev === next ? prev : round3((prev + next) / 2))
+      : prev !== undefined ? round3(prev + 1)
+      : next !== undefined ? round3(next - 1)
+      : configs[i]!.priority
+  }
+  return out.map((c, i) => (assigned[i] === undefined ? c : { ...c, priority: assigned[i] }))
+}
+
 export function commitFocusedStageConfigs(
   world: RennWorld,
   entityId: string,
@@ -355,6 +402,21 @@ export function commitFocusedStageConfigs(
   if (!entity) return world
 
   let nextWorld = world
+  const topLevelEdit = focusPath.length === 0 && getEntityPipeStack(entity).length > 0
+  const reindexed = configs.length > 0 && configs.every((c, i) => c.priority === i)
+  configs = preserveCompositePriorities(world.transformers ?? {}, configs, ids)
+  if (topLevelEdit && reindexed) {
+    // a new top-level stage joins the end of the run order (after everything the entity already runs)
+    let maxPriority = Math.max(
+      Number.NEGATIVE_INFINITY,
+      ...(entity.transformers ?? []).map((id) => world.transformers?.[id]?.priority ?? Number.NEGATIVE_INFINITY),
+    )
+    configs = configs.map((c, i) => {
+      if (world.transformers?.[ids[i]!]) return c
+      maxPriority = Number.isFinite(maxPriority) ? maxPriority + 1 : 0
+      return { ...c, priority: maxPriority }
+    })
+  }
   for (let i = 0; i < configs.length; i++) {
     const id = ids[i]
     if (id && configs[i]) {
@@ -366,9 +428,43 @@ export function commitFocusedStageConfigs(
   }
 
   if (orderedIds) {
-    nextWorld = updateFocusedStageOrder(nextWorld, entityId, focusPath, orderedIds)
+    nextWorld =
+      focusPath.length === 0 && getEntityPipeStack(entity).length > 0 ?
+        setTopLevelStageIds(nextWorld, entityId, orderedIds)
+      : updateFocusedStageOrder(nextWorld, entityId, focusPath, orderedIds)
   }
 
+  return dropStagesLeftBehind(world, nextWorld)
+}
+
+/**
+ * Entity-level stages next to a pipe stack: `ids` become the entity's top-level stages (order = list order).
+ * Stages removed from the list are dropped from the registry when nothing else references them.
+ */
+export function setTopLevelStageIds(world: RennWorld, entityId: string, ids: string[]): RennWorld {
+  const entity = world.entities.find((e) => e.id === entityId)
+  if (!entity) return world
+  const previous = topLevelStageIds(world, entity)
+  const inStack = [...stackStageIds(world, entity)]
+  const stackList = (entity.transformers ?? []).filter((id) => inStack.includes(id))
+  const nextIds = [...stackList, ...ids.filter((id) => !inStack.includes(id))]
+
+  let nextWorld: RennWorld = {
+    ...world,
+    entities: world.entities.map((e) => (e.id === entityId ? { ...e, transformers: nextIds } : e)),
+  }
+  const removed = previous.filter((id) => !ids.includes(id))
+  if (removed.length > 0) {
+    const stillUsed = new Set<string>()
+    for (const e of nextWorld.entities) for (const id of e.transformers ?? []) stillUsed.add(id)
+    for (const p of Object.values(nextWorld.transformerPipes ?? {})) {
+      for (const id of p.stageIds) stillUsed.add(id)
+      for (const m of normalizePipeMembers(p)) if (m.kind === 'stage') stillUsed.add(m.stageId)
+    }
+    const registry = { ...(nextWorld.transformers ?? {}) }
+    for (const id of removed) if (!stillUsed.has(id)) delete registry[id]
+    nextWorld = { ...nextWorld, transformers: registry }
+  }
   return nextWorld
 }
 
@@ -539,7 +635,38 @@ export function reorderPipeMembers(
   if (!item) return world
   members.splice(toIndex, 0, item)
   const nextWorld = updatePipeMembers(world, pipeId, members)
-  return syncAllEntitiesUsingPipes(nextWorld, [pipeId])
+  return dropStagesLeftBehind(world, syncAllEntitiesUsingPipes(nextWorld, [pipeId]))
+}
+
+/**
+ * Applies a new stage order to a pipe's members without disturbing nested pipes.
+ *
+ * Nested pipes keep their slots (a pipe like `[mission, sense, plan, control, car]` must stay in execution order).
+ * Removed stages drop out, reordered survivors refill the stage slots, and a new stage is inserted right before the
+ * member of the next stage that follows it in `orderedStageIds` (append when none follows).
+ */
+export function mergeStageOrderIntoMembers(
+  members: TransformerPipeMember[],
+  orderedStageIds: string[],
+): TransformerPipeMember[] {
+  const byId = new Map<string, TransformerPipeMember>()
+  for (const m of members) if (m.kind === 'stage') byId.set(m.stageId, m)
+  const wanted = new Set(orderedStageIds)
+
+  const kept = members.filter((m) => m.kind === 'pipe' || wanted.has(m.stageId))
+  const survivorsNew = orderedStageIds.filter((id) => byId.has(id))
+  let k = 0
+  const result: TransformerPipeMember[] = kept.map((m) => (m.kind === 'stage' ? byId.get(survivorsNew[k++]!)! : m))
+
+  orderedStageIds.forEach((id, i) => {
+    if (byId.has(id)) return
+    const fresh: TransformerPipeMember = { kind: 'stage', stageId: id }
+    const nextSurvivor = orderedStageIds.slice(i + 1).find((x) => result.some((m) => m.kind === 'stage' && m.stageId === x))
+    const at = nextSurvivor === undefined ? -1 : result.findIndex((m) => m.kind === 'stage' && m.stageId === nextSurvivor)
+    if (at < 0) result.push(fresh)
+    else result.splice(at, 0, fresh)
+  })
+  return result
 }
 
 export function updateFocusedStageOrder(
@@ -566,17 +693,10 @@ export function updateFocusedStageOrder(
   const pipe = world.transformerPipes?.[pipeId]
   if (!pipe) return world
 
-  const members = normalizePipeMembers(pipe)
-  const reorderedStages: TransformerPipeMember[] = orderedStageIds.map((stageId) => ({
-    kind: 'stage' as const,
-    stageId,
-    enabled: members.find((m) => m.kind === 'stage' && m.stageId === stageId)?.enabled,
-  }))
-  const pipeMembers = members.filter((m) => m.kind === 'pipe')
-  const nextMembers = [...reorderedStages, ...pipeMembers]
+  const nextMembers = mergeStageOrderIntoMembers(normalizePipeMembers(pipe), orderedStageIds)
 
   const nextWorld = updatePipeMembers(world, pipeId, nextMembers)
-  return syncAllEntitiesUsingPipes(nextWorld, [pipeId])
+  return dropStagesLeftBehind(world, syncAllEntitiesUsingPipes(nextWorld, [pipeId]))
 }
 
 export function addExistingPipeAtFocus(
@@ -732,8 +852,22 @@ export function deleteStackBinding(
   if (!entity) return world
   const stack = [...getEntityPipeStack(entity)]
   if (stackIndex < 0 || stackIndex >= stack.length) return world
+  const registry = world.transformerPipes ?? {}
+  const stageIdsOf = (bindings: TransformerPipeBinding[]) =>
+    new Set(bindings.flatMap((b) => flattenPipeStageIds(registry, b.pipeId)))
+  const before = stageIdsOf(stack)
   stack.splice(stackIndex, 1)
+  // Stages the removed pipe contributed go with it. Without this an emptied stack stops being "piped" and the
+  // stages would linger on the entity as ungrouped top-level transformers.
+  const stillProvided = stageIdsOf(stack)
+  const dropped = new Set([...before].filter((id) => !stillProvided.has(id)))
   let nextWorld = updateEntityStack(world, entityId, stack)
+  nextWorld = {
+    ...nextWorld,
+    entities: nextWorld.entities.map((e) =>
+      e.id === entityId ? { ...e, transformers: (e.transformers ?? []).filter((id) => !dropped.has(id)) } : e,
+    ),
+  }
   nextWorld = applyEntityTransformerSync(nextWorld, entityId)
   return nextWorld
 }
@@ -750,7 +884,7 @@ export function deletePipeMember(
   if (memberIndex < 0 || memberIndex >= members.length) return world
   members.splice(memberIndex, 1)
   const nextWorld = updatePipeMembers(world, parentPipeId, members)
-  return syncAllEntitiesUsingPipes(nextWorld, [parentPipeId])
+  return dropStagesLeftBehind(world, syncAllEntitiesUsingPipes(nextWorld, [parentPipeId]))
 }
 
 export function nestStackPipeAsMember(
@@ -838,7 +972,7 @@ export function moveMemberStage(
   insertIdx = Math.max(0, Math.min(insertIdx, toMembers.length))
   toMembers.splice(insertIdx, 0, member)
   nextWorld = updatePipeMembers(nextWorld, toParentPipeId, toMembers)
-  return syncAllEntitiesUsingPipes(nextWorld, [fromParentPipeId, toParentPipeId])
+  return dropStagesLeftBehind(world, syncAllEntitiesUsingPipes(nextWorld, [fromParentPipeId, toParentPipeId]))
 }
 
 export function moveMemberPipe(
@@ -870,5 +1004,115 @@ export function moveMemberPipe(
   insertIdx = Math.max(0, Math.min(insertIdx, toMembers.length))
   toMembers.splice(insertIdx, 0, member)
   nextWorld = updatePipeMembers(nextWorld, toParentPipeId, toMembers)
-  return syncAllEntitiesUsingPipes(nextWorld, [fromParentPipeId, toParentPipeId])
+  return dropStagesLeftBehind(world, syncAllEntitiesUsingPipes(nextWorld, [fromParentPipeId, toParentPipeId]))
+}
+
+
+/** Remove a top-level stage from the entity (and from the registry when nothing else uses it). */
+export function deleteTopLevelStage(world: RennWorld, entityId: string, stageId: string): RennWorld {
+  const entity = world.entities.find((e) => e.id === entityId)
+  if (!entity) return world
+  // without a pipe stack every stage on the entity is a top-level stage
+  const top = getEntityPipeStack(entity).length === 0 ? (entity.transformers ?? []) : topLevelStageIds(world, entity)
+  if (!top.includes(stageId)) return world
+  return setTopLevelStageIds(world, entityId, top.filter((id) => id !== stageId))
+}
+
+/** Take a stage out of its pipe and put it directly on this entity (other entities using the pipe lose it). */
+export function moveMemberStageToTopLevel(
+  world: RennWorld,
+  entityId: string,
+  parentPipeId: string,
+  memberIndex: number,
+): RennWorld {
+  const pipe = world.transformerPipes?.[parentPipeId]
+  const entity = world.entities.find((e) => e.id === entityId)
+  if (!pipe || !entity) return world
+  const members = [...normalizePipeMembers(pipe)]
+  const member = members[memberIndex]
+  if (!member || member.kind !== 'stage') return world
+  members.splice(memberIndex, 1)
+  let nextWorld = updatePipeMembers(world, parentPipeId, members)
+  nextWorld = dropStagesLeftBehind(world, syncAllEntitiesUsingPipes(nextWorld, [parentPipeId]))
+  const fresh = nextWorld.entities.find((e) => e.id === entityId)!
+  return setTopLevelStageIds(nextWorld, entityId, [...topLevelStageIds(nextWorld, fresh), member.stageId])
+}
+
+/** Move a top-level stage into a pipe (appended, or at `index`). */
+export function moveTopLevelStageIntoPipe(
+  world: RennWorld,
+  entityId: string,
+  stageId: string,
+  targetPipeId: string,
+  index?: number,
+): RennWorld {
+  const pipe = world.transformerPipes?.[targetPipeId]
+  const entity = world.entities.find((e) => e.id === entityId)
+  if (!pipe || !entity || !topLevelStageIds(world, entity).includes(stageId)) return world
+  const members = [...normalizePipeMembers(pipe)]
+  members.splice(index ?? members.length, 0, { kind: 'stage', stageId })
+  let nextWorld = updatePipeMembers(world, targetPipeId, members)
+  const top = topLevelStageIds(nextWorld, nextWorld.entities.find((e) => e.id === entityId)!)
+  nextWorld = setTopLevelStageIds(nextWorld, entityId, top.filter((id) => id !== stageId))
+  return syncAllEntitiesUsingPipes(nextWorld, [targetPipeId])
+}
+
+/**
+ * Wrap everything the entity has (its pipes and its top-level stages) in one new pipe.
+ * Existing stack pipes become nested members; their binding params move to the matching nested scope.
+ */
+export function wrapEverythingIntoPipe(
+  world: RennWorld,
+  entityId: string,
+  name: string,
+): { world: RennWorld; pipeId: string } {
+  const entity = world.entities.find((e) => e.id === entityId)
+  if (!entity) return { world, pipeId: '' }
+  const stack = getEntityPipeStack(entity)
+  if (stack.length === 0) {
+    return (entity.transformers ?? []).length === 0 ?
+        { world, pipeId: '' }
+      : wrapEntityStagesIntoPipe(world, entityId, name, 'linked')
+  }
+  const top = topLevelStageIds(world, entity)
+
+  const taken = new Set(Object.keys(world.transformerPipes ?? {}))
+  const pipeId = allocatePipeId(name, taken)
+  const members: TransformerPipeMember[] = [
+    ...stack.map((b) => ({ kind: 'pipe' as const, pipeId: b.pipeId, enabled: b.enabled !== false })),
+    ...top.map((stageId) => ({ kind: 'stage' as const, stageId })),
+  ]
+
+  // old `stack:k[/rest]` scopes become `stack:0/member:<new>:k[/rest]`; the old root params apply to that member scope
+  const scopeParams: Record<string, Record<string, unknown>> = {}
+  stack.forEach((b, k) => {
+    const childRoot = `stack:0/member:${pipeId}:${k}`
+    const rootParams = { ...(b.params ?? {}), ...(b.scopeParams?.[`stack:${k}`] ?? {}) }
+    if (Object.keys(rootParams).length > 0) scopeParams[childRoot] = rootParams
+    for (const [key, value] of Object.entries(b.scopeParams ?? {})) {
+      if (key === `stack:${k}`) continue
+      if (key.startsWith(`stack:${k}/`)) scopeParams[`${childRoot}${key.slice(`stack:${k}`.length)}`] = value
+    }
+  })
+
+  const newPipe: TransformerPipe = {
+    id: pipeId,
+    name: name.trim() || pipeId,
+    stageIds: top,
+    stages: [],
+    members,
+    createdAt: Date.now(),
+  }
+  const nextWorld: RennWorld = {
+    ...world,
+    transformerPipes: { ...(world.transformerPipes ?? {}), [pipeId]: newPipe },
+    entities: world.entities.map((e) =>
+      e.id === entityId ?
+        withPipeStackBindings(e, [
+          { pipeId, enabled: true, ...(Object.keys(scopeParams).length > 0 ? { scopeParams } : {}) },
+        ])
+      : e,
+    ),
+  }
+  return { world: applyEntityTransformerSync(nextWorld, entityId), pipeId }
 }

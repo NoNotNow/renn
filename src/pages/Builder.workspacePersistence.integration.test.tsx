@@ -225,9 +225,15 @@ async function ensurePipeNavOpen() {
 }
 
 async function waitForPlayerCarPipeWrap() {
+  // Fresh entities keep their stages on the entity; the tree's "Wrap all" puts them in a first pipe.
+  if (!(entityByName(currentWorld(), 'Player Car')?.transformerPipeStack?.length)) {
+    fireEvent.click(await screen.findByTestId('pipe-nav-tree-wrap-all'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Create' }))
+  }
   await waitFor(() => {
     const car = entityByName(currentWorld(), 'Player Car')
     expect(car?.transformerPipeStack?.length).toBeGreaterThan(0)
+    expect(Object.keys(currentWorld().transformerPipes ?? {}).length).toBeGreaterThan(0)
   })
 }
 

@@ -4,6 +4,7 @@ import type { PhysicsWorld } from '@/physics/rapierPhysics'
 import type { Vec3, Rotation, Entity, DistanceCullingSettings } from '@/types/world'
 import type { DisposableAssetResolver } from '@/loader/assetResolverImpl'
 import { RenderItem } from './renderItem'
+import { isTransformerSnapshotArmed, setTransformerSnapshotPhysicsProbe } from './transformerSnapshotBridge'
 import { rapierQuaternionToEulerInto } from '@/utils/rotationUtils'
 import { createTransformerChain } from '@/transformers/transformerRegistry'
 import { resolveEntityStageRuntime } from '@/utils/pipeStageResolve'
@@ -324,20 +325,25 @@ export class RenderItemRegistry implements SimulationFramePort, SceneEditPort, E
    * when chain length matches config order. Otherwise rebuilds the chain asynchronously.
    *
    * Phase 1 shim: still accepts TransformerConfig[] from UI components; maps them to IDs
-   * in worldTransformers using `${id}_tf${i}` keys. Workspace (Phase 3+) will replace this.
+   * in a copy of worldTransformers using `${id}__live${i}` keys. Workspace (Phase 3+) will replace this.
    */
   syncEntityTransformers(id: string, configs: TransformerConfig[] | undefined): void {
     const item = this.items.get(id)
     if (!item) return
 
     // Map configs into worldTransformers and build the ID array
+    // Live ids live in their own namespace and in a copy of the registry: `worldTransformers` is the document's
+    // registry object, and real stage ids are named `${entityId}_tf${n}`, so writing `${id}_tf${i}` here would
+    // overwrite real stages with whatever merged config happens to sit at index i.
     let transformerIds: string[] | undefined
     if (configs && configs.length > 0) {
+      const live = { ...this.worldTransformers }
       transformerIds = configs.map((cfg, i) => {
-        const tfId = `${id}_tf${i}`
-        this.worldTransformers[tfId] = cfg
+        const tfId = `${id}__live${i}`
+        live[tfId] = cfg
         return tfId
       })
+      this.worldTransformers = live
     }
 
     const nextEntity: Entity = { ...item.entity, transformers: transformerIds }
@@ -902,9 +908,18 @@ export class RenderItemRegistry implements SimulationFramePort, SceneEditPort, E
           raycastEntityId,
         ),
       )
+      if (isTransformerSnapshotArmed(item.entity.id)) {
+        const pw = this.physicsWorld!
+        const sid = item.entity.id
+        setTransformerSnapshotPhysicsProbe(() => ({
+          linvel: pw.getLinearVelocity(sid),
+          contacts: pw.getContactSummary(sid),
+        }))
+      }
       try {
         output = item.transformerChain.execute(input, dt, traceSteps)
       } finally {
+        setTransformerSnapshotPhysicsProbe(null)
         setTransformerRuntimeEntityLookup(null)
         setTransformerRuntimeLivePositionLookup(null)
         setTransformerRuntimeRaycast(null)

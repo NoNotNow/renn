@@ -134,6 +134,11 @@ async function ensurePipeNavOpen() {
 }
 
 async function waitForPlayerCarPipeWrap() {
+  // Fresh entities keep their stages on the entity; the tree's "Wrap all" puts them in a first pipe.
+  if (!(entityByName(currentWorld(), 'Player Car')?.transformerPipeStack?.length)) {
+    fireEvent.click(await screen.findByTestId('pipe-nav-tree-wrap-all'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Create' }))
+  }
   await waitFor(() => {
     const car = entityByName(currentWorld(), 'Player Car')
     expect(car?.transformerPipeStack?.length).toBeGreaterThan(0)
@@ -167,9 +172,9 @@ async function addExistingPipe(
   await user.click(screen.getByTestId('pipe-focused-add-button'))
   await waitFor(() => expect(screen.getByTestId('pipe-add-tab-existing_pipe')).toBeInTheDocument())
   await user.click(screen.getByTestId('pipe-add-tab-existing_pipe'))
-  const list = screen.getByTestId('pipe-add-existing-list')
-  await user.click(within(list).getByRole('button', { name: pipeName }))
-  await user.click(screen.getByTestId(mode === 'linked' ? 'pipe-add-link' : 'pipe-add-copy'))
+  const list = screen.getByTestId('pipe-library-project')
+  await user.click(within(list).getByText(pipeName))
+  await user.click(screen.getByTestId(mode === 'linked' ? 'pipe-library-link' : 'pipe-library-copy'))
 }
 
 async function switchWorkspaceEntity(user: ReturnType<typeof userEvent.setup>, entityName: string) {
@@ -276,6 +281,8 @@ describe('Builder pipe workspace integration', () => {
 
       await switchWorkspaceEntity(user, 'Box 1')
       const boxId = entityByName(currentWorld(), 'Box 1')!.id
+      // a fresh entity keeps a bare stage list; give Box 1 its own first pipe explicitly
+      await createStackSiblingPipe(user, 'BoxPipe')
       await waitFor(() =>
         expect(getEntityPipeStack(entityByName(currentWorld(), 'Box 1')!).length).toBeGreaterThan(0),
       )
@@ -315,7 +322,7 @@ describe('Builder pipe workspace integration', () => {
       expect(boxStack).toContain('Pipe1')
       expect(boxStack).toContain('AuxPipe (copy)')
       const boxLocalPipe = boxStack.find((name) => name !== 'Pipe1' && name !== 'AuxPipe (copy)')
-      expect(boxLocalPipe).toMatch(/^Pipe\d+$/)
+      expect(boxLocalPipe).toBe('BoxPipe')
     },
     60_000,
   )
@@ -340,6 +347,8 @@ describe('Builder pipe workspace integration', () => {
 
       await switchWorkspaceEntity(user, 'Box 1')
       const boxId = entityByName(currentWorld(), 'Box 1')!.id
+      // a fresh entity keeps a bare stage list; give Box 1 its own first pipe explicitly
+      await createStackSiblingPipe(user, 'BoxPipe')
       await waitFor(() =>
         expect(getEntityPipeStack(entityByName(currentWorld(), 'Box 1')!).length).toBeGreaterThan(0),
       )

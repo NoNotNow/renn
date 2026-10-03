@@ -162,6 +162,19 @@ Legacy `entity.transformerPipe` migrates to a single-entry stack on load (`migra
 - **Auto-wrap:** `ensureEntityPipeStack` on select; legacy flat stages → optional wrap banner.
 - **Runtime params & enable cascade:** [`resolveEntityStageRuntime`](../src/utils/pipeStageResolve.ts) + [`paramScopes.ts`](../src/utils/paramScopes.ts) — merge rules, editing vs merged, disable cascade, strip grey-out → [nomenclature.md](./nomenclature.md) (Entity stage runtime + Param scope merge rules).
 
+#### Tree ↔ strip sync and stage settings
+
+- **Stages are addressed by id in the strip.** `StripItem.index` is the position among *all* members (stages and nested
+  pipes mixed); `stageIds` / `stageConfigs` list only the stages. `PipeFocusedStrip` therefore looks a stage card up by
+  `stageId` (registry entry + `stageIds.indexOf`), never by member index — index math used to drop every stage that
+  follows a nested pipe (`[stage, pipe, stage]` showed the tree row but no card). Regression:
+  [`PipeFocusedStrip.mixedMembers.test.tsx`](../src/components/workspace/pipeNav/PipeFocusedStrip.mixedMembers.test.tsx).
+- **Stage rows in the tree have a settings bar** (on hover / when selected): a power dot (enable / disable, same switch as the
+  card) and a gear. The gear selects the stage (focus + strip) and sets `stageConfigRequest { stageId, token }` in
+  `WorkspaceTransformersTab`; the matching card opens its config drawer (token is only honoured for ~2 s so a re-mounted card
+  does not pop the drawer open later). Row menu "Edit params" does the same. Test:
+  [`PipeNavTree.stageSettings.test.tsx`](../src/components/workspace/pipeNav/PipeNavTree.stageSettings.test.tsx).
+
 #### Stage commits → world (`commitStageEdit`)
 
 Whole-stack and patch stage edits from the Transformers tab route through [`commitStageEdit`](../src/editor/commitStageEdit.ts). Flush / undo policy by `StageEditIntent['kind']` — see [feature-world-update-reload.md § Stage edits in WorkspaceTransformersTab](./feature-world-update-reload.md#stage-edits-in-workspacetransformerstab).
@@ -209,3 +222,72 @@ Config patches must **not** call `syncPriorities`, `updateFocusedStageOrder`, or
 - [x] Phase 3: Transformers Tab (pipe nav sidebar, focused strip, + menu)
 - [ ] Phase 4: Organize Tab (Management + Global Scope)
 - [x] Phase 5: Verification & Polish (pipe nav tree + strip tests)
+
+## Assigning pipes from the Transformers tree, library dialog, tree toolbar
+
+- **Tree toolbar** (`PipeNavTree`): `+ Pipe` (opens `PipeLibraryDialog`), `Expand all` (entity + every nested pipe reachable from the stack, via `collectNestedPipeIds`), `Collapse all` (keeps the entity row open).
+- **`PipeLibraryDialog`**: project pipes + global-library pipes, search, structure preview (`PipeStructurePreview` over `summarizePipe` in `src/utils/pipeSummary.ts`), `Link (shared)` / `Copy (own)`. Double-click links.
+- **Intent `assignLibraryPipe`** (`pipeNavEdit.ts`, undo-pushing) → `assignLibraryPipeToEntity` (`src/utils/assignLibraryPipe.ts`): a global pipe is first copied into the project (recursive `copyGlobalPipeIntoWorld`; an existing project pipe with the same id is reused), then appended to the entity's pipe stack at root level.
+- **Organize → Pipes cards** show the pipe name (id in the subtitle), "N stages · M nested pipes", a collapsible Structure outline, and labeled actions (`Edit`, `Add to project`, `Assign`, …).
+
+## Deleting a pipe deletes its contents
+
+`deletePipeFromWorld` removes the pipe, its stages (registry + every entity's `transformers`) and nested pipes that nothing else references; stages/pipes still referenced by a surviving pipe or entity stack are kept. Tree delete (stack pipe / nested pipe) unlinks first and applies the same cascade only when the pipe is no longer referenced anywhere (`dropIfOrphaned` in `pipeNavEdit.ts`); a pipe shared with another entity or pipe only loses this reference.
+
+## Editing stages inside composite pipes (guards)
+
+- Entities run stages **sorted by `priority` across the whole composite stack**. The strip hands over re-indexed priorities (0..n); `preserveCompositePriorities`
+  (in `commitFocusedStageConfigs`) maps that back so other pipes' stages keep their values and a new stage lands between its neighbours.
+  Library stages added through the add dialog's **Global library** tab keep their own priority (`insertGlobalTransformerStage`).
+- `updateFocusedStageOrder` merges the new stage order into the members without moving nested pipes (`mergeStageOrderIntoMembers`).
+- `RenderItemRegistry.syncEntityTransformers` used to write live configs into the document's registry under `${entityId}_tf${i}`, overwriting real stages
+  with that name (e.g. a new stage got the car actuator's config). It now uses `${id}__live${i}` in a copy of the registry.
+- At the **pipe-siblings level** (strip shows pipes) the `+` dialog has no Transformer tab: stages live inside a pipe, open one first (the dialog says so).
+
+## Top-level stages (no pipe required) and "Wrap all"
+
+Stages may sit **directly on an entity**, with or without a pipe stack — the old "every stage must live in a pipe" rule (auto-wrapping a fresh entity into `Pipe1`,
+the "ungrouped stages" banner) is gone.
+
+- Model: `entity.transformers` = the stack's stages (enabled flatten) followed by the entity's top-level stages. A top-level stage is "on the entity but in no pipe"
+  (`topLevelStageIds`, `src/utils/pipeStageResolve.ts`); the runtime walk gives it its own params/enable flag after the stack's stages (disabled ones stay in the list).
+- Because top-level is inferred, edits that take a stage out of a pipe go through `dropStagesLeftBehind(prev, next)` so it does not resurface as top-level
+  (`deletePipeMember`, `moveMemberStage`, `deleteStackBinding`, `commitFocusedStageConfigs`, `deletePipeFromWorld`).
+- UI: the `+` dialog offers **Transformer** at every level (at the entity level it adds a top-level stage, at a pipe level a member); the entity-level strip shows pipes
+  and top-level stages together; the tree lists top-level stages under the entity (delete, settings, drag into a pipe; dragging a pipe stage onto the entity row
+  makes it top-level).
+- **Wrap all** (tree toolbar, intent `wrapAllInPipe`, `wrapEverythingIntoPipe`): wraps the entity's pipes (as nested members, binding params moved to the matching nested scope)
+  and its top-level stages in one new pipe; what runs stays the same.
+
+## Library fixes reach every consumer (`origin`)
+
+Stages and pipes copied from the global library carry `origin: { globalId, hash }` (`src/globalPipeline/globalOrigin.ts`; set by `copyGlobalPipeIntoWorld`, the add dialog's Global tab).
+`updateWorldFromGlobalLibrary(world, library)` compares each copy with the current library:
+
+- unchanged copy + library moved on → the copy is updated (stage code/name; pipe member tree, `paramDefs`; missing stages/child pipes are copied; entities re-sync and drop stages the pipe lost). **Params, enabled flags, priorities stay local.**
+- copy edited locally + library moved on → untouched, reported as `diverged`.
+- copies made before origins existed (same id and identical content as a library entry) are *adopted*, so later fixes reach them too.
+
+When it runs: automatically when a project is opened / its registry changes (`useGlobalLibraryUpgrade` in `Builder`, silent, no undo entry, scene rebuild only if code/structure changed), and on demand via Organize → Project → **⟳ Sync with library**.
+The library itself is refreshed from `public/global/` by checksum (`mergeShippedGlobalBehaviorLibrary`), so fixing e.g. the AV stack in the repo and deploying updates consumers on their next open.
+Fingerprint: custom stages = type + code; pipes = member tree + paramDefs.
+
+## One add dialog, drag = run order
+
+- **One dialog everywhere**: the strip's `+` and the tree's `+ Add` open the same `PipeAddDialog` (state lifted into `WorkspaceTransformersTab`). Tabs: **Transformer** (preset / existing / global library),
+  **New pipe**, **Existing pipe** (`PipeLibraryPanel`: project + global-library pipes, search, structure preview, Link / Copy), **Child pipe** (inside a pipe). Every level offers all of them;
+  a library pipe lands at the focused level (`assignLibraryPipe` is focus-aware like `addExistingPipe`).
+- **Drag to reorder** (stage cards drag by their card, pipe cards by their header row; `StripSlot` in `PipeFocusedStrip` listens for the bubbling dragstart): entities run stages sorted by `priority`, so strip order = run order.
+  Entity level shows pipes (by their first stage) and top-level stages in that order; dragging uses `moveEntityLevelItem` (stack order for pipes, a fitting priority for stages);
+  inside a pipe with mixed members `moveMemberItem` reorders the member and fits priorities (`src/utils/stripOrder.ts`, intents `reorderEntityLevel` / `reorderMembers`).
+  Pipes never get their priorities rewritten; dropping on an item takes its slot. A new top-level stage joins the end of the run order.
+
+- **Tree and strip are one view**: the tree lists entity children with the same `entityLevelItems` order the strip uses (run order, not "pipes first"), and tree drags use before / after / into
+  zones (top / bottom edge = insert before / after; middle of a pipe row = drop into it; stage rows split in halves). Same-level before/after goes through the same `moveEntityLevelItem` / `moveMemberItem`
+  as the strip, so both always agree. Pipe cards have a × (delete through the tree-delete edit, with its confirmation).
+
+**Schema gotcha**: `world-schema.json` is hand-maintained and strict (`additionalProperties: false`): a new field on `TransformerConfig` / `TransformerPipe` (like `origin`) must be added there too, otherwise project load strips it with an "Unknown or deprecated fields" warning. `validate.origin.test.ts` guards `origin`.
+
+## entity.transformers order vs. pipe walk order
+
+The pipe walk lists stack stages first, then top-level stages. An entity saved with a top-level stage in front of the pipe (`[wanderer, ...pipeStages, car2]`) used to get index-paired merged params: the wanderer received the autopilot's params (so it ran with defaults: ±5 m cube, 0.05 m epsilon → never "reached") and the last pipe stage received the wanderer's. `walkEntityStageRuntime` now re-keys the stage contexts by stage id into the entity's own order (`pipeStageResolve.order.test.ts`). Known limit: `flatRangeForScope` / `flatIndexOffsetForStackBinding` still assume walk order (pipe-card IN/OUT for such out-of-order entities).

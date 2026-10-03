@@ -277,7 +277,7 @@ function SceneViewInner({
   const rawKeyboardRef = useRawKeyboardInput()
   const rawWheelRef = useRawWheelInput(containerRef)
   const rawMouseDragRef = useRawMouseDrag(containerRef)
-  const orbitWheelRef = useRef({ deltaX: 0, deltaY: 0, distanceDelta: 0 })
+  const orbitWheelRef = useRef({ deltaX: 0, deltaY: 0, zoomLog: 0 })
   const lastEditorPoseWriteTimeRef = useRef(0)
 
   const activeDebugForcesRef = useRef<ActiveDebugForce[]>([])

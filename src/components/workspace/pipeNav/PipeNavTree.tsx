@@ -1,10 +1,12 @@
-import { useCallback, useMemo, useState, type DragEvent, type ReactNode, type RefObject } from 'react'
-import type { PipeNavPathSegment, PipeTreeNode } from '@/types/pipeNav'
+import { useCallback, useEffect, useMemo, useState, type DragEvent, type ReactNode, type RefObject } from 'react'
+import type { PipeNavPathSegment, PipeTreeNode, TreeDropPosition } from '@/types/pipeNav'
 import type { Entity, RennWorld } from '@/types/world'
 import { theme } from '@/config/theme'
 import { getEntityPipeStack, normalizePipeMembers } from '@/utils/transformerPipeResolve'
 import { resolveEntityStageRuntime, stackIndexFromScopePath } from '@/utils/pipeStageResolve'
 import type { PipeTreeContextTarget } from '@/utils/pipeNavTreeHelpers'
+import { collectNestedPipeIds } from '@/utils/pipeSummary'
+import { entityLevelItems } from '@/utils/stripOrder'
 import PipeTreePipeControls from './PipeTreePipeControls'
 
 export interface PipeNavTreeProps {
@@ -12,13 +14,15 @@ export interface PipeNavTreeProps {
   entity: Entity
   focusPath: PipeNavPathSegment[]
   selectedIndex: number
+  /** Stage currently selected in the editor (highlights top-level stage rows). */
+  selectedStageId?: string | null
   onSelectPath: (path: PipeNavPathSegment[], index: number, stageId?: string) => void
   onDeleteNode?: (node: PipeTreeNode) => void
   onContextAction?: (
     action: 'add_before' | 'add_after' | 'add_child' | 'delete',
     target: PipeTreeContextTarget,
   ) => void
-  onTreeDrop?: (drag: PipeTreeNode, drop: PipeTreeNode) => void
+  onTreeDrop?: (drag: PipeTreeNode, drop: PipeTreeNode, position?: TreeDropPosition) => void
   drawerPortalTarget?: RefObject<HTMLDivElement | null>
   onPipeControlToggle?: (opts: {
     pipeId: string
@@ -40,6 +44,14 @@ export interface PipeNavTreeProps {
     params: Record<string, unknown>
   }) => void
   onDecouplePipeBinding?: (stackIndex: number) => void
+  /** Open a stage's settings (select it, then open its config drawer in the strip). */
+  onConfigureStage?: (path: PipeNavPathSegment[], index: number, stageId: string) => void
+  /** Enable / disable one stage (same switch as the card's power dot). */
+  onToggleStageEnabled?: (stageId: string) => void
+  /** Open the "assign a pipe" dialog; shows the "+ Pipe" toolbar button when set. */
+  onAddPipe?: () => void
+  /** Wrap everything (pipes + top-level stages) in one new pipe; shows the "Wrap all" toolbar button when set. */
+  onWrapAll?: () => void
 }
 
 export default function PipeNavTree({
@@ -47,6 +59,7 @@ export default function PipeNavTree({
   entity,
   focusPath,
   selectedIndex,
+  selectedStageId,
   onSelectPath,
   onDeleteNode,
   onContextAction,
@@ -56,6 +69,10 @@ export default function PipeNavTree({
   onPipeParamChange,
   onPipeParamsReplace,
   onDecouplePipeBinding,
+  onConfigureStage,
+  onToggleStageEnabled,
+  onAddPipe,
+  onWrapAll,
 }: PipeNavTreeProps) {
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(['entity']))
   const [hoveredId, setHoveredId] = useState<string | null>(null)
@@ -68,6 +85,28 @@ export default function PipeNavTree({
   const pipes = useMemo(() => world.transformerPipes ?? {}, [world.transformerPipes])
   const stageRuntime = useMemo(() => resolveEntityStageRuntime(world, entity), [world, entity])
 
+  // The row menu ("Add before / after / child…") closes on any click outside it, on Escape, and when the tree scrolls.
+  useEffect(() => {
+    if (openMenuKey === null) return
+    const close = () => setOpenMenuKey(null)
+    const onPointerDown = (e: PointerEvent) => {
+      const el = e.target as Element | null
+      if (el?.closest?.('[data-tree-menu], [data-tree-menu-trigger]')) return
+      close()
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') close()
+    }
+    document.addEventListener('pointerdown', onPointerDown, true)
+    document.addEventListener('keydown', onKey)
+    window.addEventListener('blur', close)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown, true)
+      document.removeEventListener('keydown', onKey)
+      window.removeEventListener('blur', close)
+    }
+  }, [openMenuKey])
+
   const toggleExpand = (key: string) => {
     setExpanded((prev) => {
       const next = new Set(prev)
@@ -77,9 +116,19 @@ export default function PipeNavTree({
     })
   }
 
+  const expandAll = () => {
+    const ids = collectNestedPipeIds(
+      pipes,
+      stack.map((b) => b.pipeId),
+    )
+    setExpanded(new Set(['entity', ...ids.map((id) => `pipe:${id}`)]))
+  }
+  /** Keeps the entity row open so the stack stays visible. */
+  const collapseAll = () => setExpanded(new Set(['entity']))
+
   const handleDrop = useCallback(
-    (drop: PipeTreeNode) => {
-      if (dragNode && onTreeDrop) onTreeDrop(dragNode, drop)
+    (drop: PipeTreeNode, position?: TreeDropPosition) => {
+      if (dragNode && onTreeDrop) onTreeDrop(dragNode, drop, position)
       setDragNode(null)
     },
     [dragNode, onTreeDrop],
@@ -120,14 +169,33 @@ export default function PipeNavTree({
               hovered={hoveredId === key}
               onHover={(h) => setHoveredId(h ? key : null)}
               onClick={() => onSelectPath(nodePath, memberIndex, member.stageId)}
+              canEditConfig={Boolean(onConfigureStage)}
+              onEditConfig={() => onConfigureStage?.(nodePath, memberIndex, member.stageId)}
+              trailing={
+                onConfigureStage && (hoveredId === key || isSelected || openMenuKey === key) ?
+                  <span style={{ display: 'flex', gap: 2, flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+                    {onToggleStageEnabled ?
+                      <IconBtn
+                        title={cfg?.enabled === false ? 'Enable stage' : 'Disable stage'}
+                        onClick={() => onToggleStageEnabled(member.stageId)}
+                      >
+                        {cfg?.enabled === false ? '○' : '●'}
+                      </IconBtn>
+                    : null}
+                    <IconBtn title="Stage settings" onClick={() => onConfigureStage(nodePath, memberIndex, member.stageId)}>
+                      ⚙
+                    </IconBtn>
+                  </span>
+                : null
+              }
               onDelete={onDeleteNode ? () => onDeleteNode(node) : undefined}
-              onMenu={() => setOpenMenuKey(key)}
+              onMenu={() => setOpenMenuKey((cur) => (cur === key ? null : key))}
               menuOpen={openMenuKey === key}
               onContextAction={(a) => onContextAction?.(a, contextTarget(node))}
               onCloseMenu={() => setOpenMenuKey(null)}
               draggable
               onDragStart={() => setDragNode(node)}
-              onDrop={() => handleDrop(node)}
+              onDrop={(pos) => handleDrop(node, pos)}
             />
           )
         }
@@ -160,7 +228,7 @@ export default function PipeNavTree({
                 onSelectPath(nodePath, memberIndex)
               }}
               onDelete={onDeleteNode ? () => onDeleteNode(node) : undefined}
-              onMenu={() => setOpenMenuKey(key)}
+              onMenu={() => setOpenMenuKey((cur) => (cur === key ? null : key))}
               menuOpen={openMenuKey === key}
               onContextAction={(a) => onContextAction?.(a, contextTarget(node))}
               onCloseMenu={() => setOpenMenuKey(null)}
@@ -168,7 +236,7 @@ export default function PipeNavTree({
               draggable
               dropTarget
               onDragStart={() => setDragNode(node)}
-              onDrop={() => handleDrop(node)}
+              onDrop={(pos) => handleDrop(node, pos)}
               canEditConfig
               onEditConfig={() => setOpenConfigKey(key)}
               trailing={
@@ -242,55 +310,14 @@ export default function PipeNavTree({
       onPipeParamChange,
       onPipeParamsReplace,
       onDecouplePipeBinding,
+      onConfigureStage,
+      onToggleStageEnabled,
       drawerPortalTarget,
       openConfigKey,
     ],
   )
 
-  const entityKey = 'entity'
-  const entityExpanded = expanded.has(entityKey)
-  const entityNode: PipeTreeNode = {
-    kind: 'entity',
-    entityId: entity.id,
-    label: entity.name ?? entity.id,
-  }
-
-  return (
-    <div
-      data-testid="pipe-nav-tree"
-      onScroll={(e) => {
-        setScrollLeft(e.currentTarget.scrollLeft)
-      }}
-      style={{
-        flex: 1,
-        minHeight: 0,
-        overflow: 'auto',
-        fontSize: 11,
-        padding: '4px 0',
-      }}
-    >
-      <TreeRow
-        depth={0}
-        label={entity.name ?? entity.id}
-        icon={entityExpanded ? '▼' : '▶'}
-        selected={focusPath.length === 0}
-        hovered={hoveredId === entityKey}
-        onHover={(h) => setHoveredId(h ? entityKey : null)}
-        onClick={() => {
-          toggleExpand(entityKey)
-          onSelectPath([], 0)
-        }}
-        onContextAction={(a) =>
-          onContextAction?.(a, { node: entityNode, containerPath: [] })
-        }
-        menuOpen={openMenuKey === entityKey}
-        onMenu={() => setOpenMenuKey(entityKey)}
-        onCloseMenu={() => setOpenMenuKey(null)}
-        dropTarget
-        onDrop={() => handleDrop(entityNode)}
-      />
-      {entityExpanded ?
-        stack.map((binding, stackIndex) => {
+  const renderStackPipe = (binding: (typeof stack)[number], stackIndex: number): ReactNode => {
           const pipe = pipes[binding.pipeId]
           const key = `stack:${stackIndex}`
           const expandKey = `pipe:${binding.pipeId}`
@@ -316,7 +343,7 @@ export default function PipeNavTree({
                   onSelectPath(path, 0)
                 }}
                 onDelete={onDeleteNode ? () => onDeleteNode(node) : undefined}
-                onMenu={() => setOpenMenuKey(key)}
+                onMenu={() => setOpenMenuKey((cur) => (cur === key ? null : key))}
                 menuOpen={openMenuKey === key}
                 onContextAction={(a) =>
                   onContextAction?.(a, { node, containerPath: path })
@@ -326,7 +353,7 @@ export default function PipeNavTree({
                 draggable
                 dropTarget
                 onDragStart={() => setDragNode(node)}
-                onDrop={() => handleDrop(node)}
+                onDrop={(pos) => handleDrop(node, pos)}
                 canEditConfig
                 onEditConfig={() => setOpenConfigKey(key)}
                 trailing={
@@ -369,14 +396,175 @@ export default function PipeNavTree({
               {isExpanded ? renderMemberNodes(binding.pipeId, path, 2) : null}
             </div>
           )
-        })
-      : null}
-      {stack.length === 0 && entityExpanded ?
-        <div style={{ paddingLeft: 20, color: theme.text.muted, fontSize: 10 }}>
-          {(entity.transformers ?? []).length > 0 ? 'Stages (ungrouped)' : 'Empty'}
-        </div>
+  }
+
+  /** Stages sitting directly on the entity (next to its pipes, or all of them when it has no pipes). */
+  const renderTopLevelStage = (stageId: string, i: number): ReactNode => {
+    {
+      const cfg = world.transformers?.[stageId]
+      const label = cfg?.type === 'custom' ? (cfg.name ?? 'Custom') : String(cfg?.type ?? stageId)
+      const key = `top:${stageId}`
+      const node: PipeTreeNode = { kind: 'top_stage', stageId, label }
+      const isSelected = focusPath.length === 0 && selectedStageId === stageId
+      return (
+        <TreeRow
+          key={key}
+          depth={1}
+          label={label}
+          icon="●"
+          selected={isSelected}
+          hovered={hoveredId === key}
+          onHover={(h) => setHoveredId(h ? key : null)}
+          onClick={() => onSelectPath([], i, stageId)}
+          canEditConfig={Boolean(onConfigureStage)}
+          onEditConfig={() => onConfigureStage?.([], i, stageId)}
+          trailing={
+            onConfigureStage && (hoveredId === key || isSelected) ?
+              <span style={{ display: 'flex', gap: 2, flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+                {onToggleStageEnabled ?
+                  <IconBtn
+                    title={cfg?.enabled === false ? 'Enable stage' : 'Disable stage'}
+                    onClick={() => onToggleStageEnabled(stageId)}
+                  >
+                    {cfg?.enabled === false ? '○' : '●'}
+                  </IconBtn>
+                : null}
+                <IconBtn title="Stage settings" onClick={() => onConfigureStage([], i, stageId)}>
+                  ⚙
+                </IconBtn>
+              </span>
+            : null
+          }
+          onDelete={onDeleteNode ? () => onDeleteNode(node) : undefined}
+          draggable
+          onDragStart={() => setDragNode(node)}
+        />
+      )
+    }
+  }
+
+  /** Entity children in run order — the same order the strip shows (`entityLevelItems`). */
+  const renderEntityChildren = (): ReactNode[] => {
+    if (stack.length === 0) return (entity.transformers ?? []).map((id, i) => renderTopLevelStage(id, i))
+    return entityLevelItems(world, entity).map((item, i) =>
+      item.kind === 'pipe' ?
+        renderStackPipe(stack[item.stackIndex!]!, item.stackIndex!)
+      : renderTopLevelStage(item.stageId, i),
+    )
+  }
+
+  const entityKey = 'entity'
+  const entityExpanded = expanded.has(entityKey)
+  const entityNode: PipeTreeNode = {
+    kind: 'entity',
+    entityId: entity.id,
+    label: entity.name ?? entity.id,
+  }
+
+  return (
+    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+      <div
+        data-testid="pipe-nav-tree-toolbar"
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 4,
+          padding: '4px 8px',
+          borderBottom: `1px solid ${theme.pipeNav.accentMuted}`,
+          flexShrink: 0,
+        }}
+      >
+        {onAddPipe ?
+          <ToolbarBtn title="Add a transformer or pipe at the focused level" testId="pipe-nav-tree-add-pipe" onClick={onAddPipe}>
+            + Add
+          </ToolbarBtn>
+        : null}
+        {onWrapAll && (entity.transformers ?? []).length > 0 ?
+          <ToolbarBtn title="Wrap everything this object has in one new pipe" testId="pipe-nav-tree-wrap-all" onClick={onWrapAll}>
+            Wrap all
+          </ToolbarBtn>
+        : null}
+        <ToolbarBtn title="Expand all pipes" testId="pipe-nav-tree-expand-all" onClick={expandAll}>
+          Expand all
+        </ToolbarBtn>
+        <ToolbarBtn title="Collapse all pipes" testId="pipe-nav-tree-collapse-all" onClick={collapseAll}>
+          Collapse all
+        </ToolbarBtn>
+      </div>
+    <div
+      data-testid="pipe-nav-tree"
+      onScroll={(e) => {
+        setScrollLeft(e.currentTarget.scrollLeft)
+        setOpenMenuKey(null)
+      }}
+      style={{
+        flex: 1,
+        minHeight: 0,
+        overflow: 'auto',
+        fontSize: 11,
+        padding: '4px 0',
+      }}
+    >
+      <TreeRow
+        depth={0}
+        label={entity.name ?? entity.id}
+        icon={entityExpanded ? '▼' : '▶'}
+        selected={focusPath.length === 0}
+        hovered={hoveredId === entityKey}
+        onHover={(h) => setHoveredId(h ? entityKey : null)}
+        onClick={() => {
+          toggleExpand(entityKey)
+          onSelectPath([], 0)
+        }}
+        onContextAction={(a) =>
+          onContextAction?.(a, { node: entityNode, containerPath: [] })
+        }
+        menuOpen={openMenuKey === entityKey}
+        onMenu={() => setOpenMenuKey((cur) => (cur === entityKey ? null : entityKey))}
+        onCloseMenu={() => setOpenMenuKey(null)}
+        dropTarget
+        intoOnly
+        onDrop={(pos) => handleDrop(entityNode, pos)}
+      />
+      {entityExpanded ? renderEntityChildren() : null}
+      {stack.length === 0 && entityExpanded && (entity.transformers ?? []).length === 0 ?
+        <div style={{ paddingLeft: 20, color: theme.text.muted, fontSize: 10 }}>Empty</div>
       : null}
     </div>
+    </div>
+  )
+}
+
+function ToolbarBtn({
+  children,
+  onClick,
+  title,
+  testId,
+}: {
+  children: string
+  onClick: () => void
+  title: string
+  testId: string
+}) {
+  return (
+    <button
+      type="button"
+      title={title}
+      data-testid={testId}
+      onClick={onClick}
+      style={{
+        padding: '2px 8px',
+        whiteSpace: 'nowrap',
+        border: `1px solid ${theme.pipeNav.accentMuted}`,
+        borderRadius: 4,
+        background: 'transparent',
+        color: theme.pipeNav.accent,
+        fontSize: 10,
+        cursor: 'pointer',
+      }}
+    >
+      {children}
+    </button>
   )
 }
 
@@ -403,6 +591,7 @@ function TreeRow({
   draggable,
   onDragStart,
   onDrop,
+  intoOnly,
   dropTarget,
   trailing,
 }: {
@@ -423,16 +612,32 @@ function TreeRow({
   onEditConfig?: () => void
   draggable?: boolean
   onDragStart?: () => void
-  onDrop?: () => void
+  onDrop?: (position: TreeDropPosition) => void
+  /** Only "drop into" makes sense (the entity row). */
+  intoOnly?: boolean
   dropTarget?: boolean
   trailing?: ReactNode
 }) {
+  const [dropPos, setDropPos] = useState<TreeDropPosition | null>(null)
+  /** Top / bottom edge = insert before / after this row; the middle (pipes and the entity only) = drop into it. */
+  const positionFor = (e: DragEvent): TreeDropPosition => {
+    if (intoOnly) return 'into'
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    const f = r.height > 0 ? (e.clientY - r.top) / r.height : 0.5
+    if (!dropTarget) return f < 0.5 ? 'before' : 'after'
+    return f < 0.28 ? 'before' : f > 0.72 ? 'after' : 'into'
+  }
   const onDragOver = (e: DragEvent) => {
-    if (draggable || dropTarget || onDrop) e.preventDefault()
+    if (!(draggable || dropTarget || onDrop)) return
+    e.preventDefault()
+    const pos = positionFor(e)
+    if (pos !== dropPos) setDropPos(pos)
   }
   const handleDrop = (e: DragEvent) => {
     e.preventDefault()
-    onDrop?.()
+    const pos = positionFor(e)
+    setDropPos(null)
+    onDrop?.(pos)
   }
 
   return (
@@ -440,6 +645,8 @@ function TreeRow({
       draggable={draggable}
       onDragStart={onDragStart}
       onDragOver={onDragOver}
+      onDragLeave={() => setDropPos(null)}
+      onDragEnd={() => setDropPos(null)}
       onDrop={handleDrop}
       onMouseEnter={() => onHover(true)}
       onMouseLeave={() => onHover(false)}
@@ -450,8 +657,16 @@ function TreeRow({
         gap: 4,
         padding: '4px 8px 4px',
         paddingLeft: 8 + depth * 14,
-        background: selected ? theme.pipeNav.treeSelected : hovered ? theme.pipeNav.treeHover : 'transparent',
+        background:
+          dropPos === 'into' ? 'rgba(240,208,64,0.22)'
+          : selected ? theme.pipeNav.treeSelected
+          : hovered ? theme.pipeNav.treeHover
+          : 'transparent',
         borderLeft: selected ? `2px solid ${theme.pipeNav.accent}` : '2px solid transparent',
+        boxShadow:
+          dropPos === 'before' ? `inset 0 2px 0 ${theme.pipeNav.accent}`
+          : dropPos === 'after' ? `inset 0 -2px 0 ${theme.pipeNav.accent}`
+          : undefined,
         cursor: 'pointer',
       }}
       onClick={onClick}
@@ -467,7 +682,7 @@ function TreeRow({
             </IconBtn>
           : null}
           {onMenu ?
-            <IconBtn title="More" onClick={onMenu}>
+            <IconBtn title="More" onClick={onMenu} menuTrigger>
               …
             </IconBtn>
           : null}
@@ -475,6 +690,7 @@ function TreeRow({
       : null}
       {menuOpen && onContextAction ?
         <div
+          data-tree-menu
           style={{
             position: 'absolute',
             right: 8,
@@ -518,11 +734,12 @@ function TreeRow({
   )
 }
 
-function IconBtn({ children, onClick, title }: { children: string; onClick: () => void; title: string }) {
+function IconBtn({ children, onClick, title, menuTrigger }: { children: string; onClick: () => void; title: string; menuTrigger?: boolean }) {
   return (
     <button
       type="button"
       title={title}
+      {...(menuTrigger ? { 'data-tree-menu-trigger': true } : {})}
       onClick={onClick}
       style={{
         width: 18,

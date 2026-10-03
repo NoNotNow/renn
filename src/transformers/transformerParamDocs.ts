@@ -121,6 +121,8 @@ export const TRANSFORMER_PARAMS_DOCS: {
       'Position reach threshold (world units) before picking the next wander target. Default 0.05.',
     rotationEpsilon:
       'Rotation reach threshold (radians) before picking the next wander target. Default 0.08.',
+    planar:
+      'Ground-vehicle mode: goals stay at the wanderer\'s own height and "reached" ignores Y. Use with angular=false and positionEpsilon of a few metres (e.g. 9) for the AV stack.',
   },
 
   follow: {

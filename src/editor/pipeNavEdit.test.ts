@@ -8,6 +8,7 @@ const INTENT_KINDS: PipeNavEditIntent['kind'][] = [
   'createPipe',
   'createChildPipe',
   'addExistingPipe',
+  'assignLibraryPipe',
   'renamePipe',
   'togglePipeEnabled',
   'editPipeParams',
@@ -15,6 +16,9 @@ const INTENT_KINDS: PipeNavEditIntent['kind'][] = [
   'treeDelete',
   'treeInsert',
   'treeDrop',
+  'wrapAllInPipe',
+  'reorderEntityLevel',
+  'reorderMembers',
   'ensurePipeStack',
 ]
 
@@ -249,7 +253,7 @@ describe('resolvePipeNavEdit', () => {
       ).toBeNull()
     })
 
-    it('treeDrop of member_stage onto entity warns and returns null', () => {
+    it('treeDrop of a member stage onto the entity moves it to the top level (no pipe needed)', () => {
       const { prompts, warned } = makePrompts()
       const world = twoPipeStackWorld()
       const ctx = makeCtx({ world, prompts })
@@ -263,8 +267,12 @@ describe('resolvePipeNavEdit', () => {
       }
       const drop: PipeTreeNode = { kind: 'entity', entityId: 'e1', label: 'Car' }
 
-      expect(resolvePipeNavEdit({ kind: 'treeDrop', drag, drop }, ctx)).toBeNull()
-      expect(warned).toEqual(['Stages must live inside a pipe.'])
+      const result = resolvePipeNavEdit({ kind: 'treeDrop', drag, drop }, ctx)
+      expect(result).not.toBeNull()
+      expect(warned).toEqual([])
+      const e1 = result!.world.entities.find((e) => e.id === 'e1')!
+      expect(e1.transformers).toContain('s1')
+      expect(result!.world.transformerPipes!.p1!.members!.some((m) => m.kind === 'stage' && m.stageId === 's1')).toBe(false)
     })
 
     it('treeDrop nesting a pipe into its own descendant warns and returns null', () => {
@@ -357,6 +365,40 @@ describe('resolvePipeNavEdit', () => {
       expect(result).not.toBeNull()
       expect(result!.world.entities[0]?.transformerPipeStack).toHaveLength(1)
       expect(result!.nav!.path).toEqual(expectedPath)
+    })
+
+    it('treeDelete of the only (shared) pipe also removes its stages from the entity, not leaving them ungrouped', () => {
+      const { prompts } = makePrompts()
+      const w: RennWorld = {
+        version: '1',
+        world: {},
+        entities: [
+          { id: 'e1', transformers: ['s1', 's2'], transformerPipeStack: [{ pipeId: 'shared', enabled: true }] },
+          { id: 'e2', transformers: ['s1', 's2'], transformerPipeStack: [{ pipeId: 'shared', enabled: true }] },
+        ],
+        transformers: { s1: { type: 'input' }, s2: { type: 'input' } },
+        transformerPipes: {
+          shared: {
+            id: 'shared',
+            name: 'Shared',
+            stageIds: ['s1', 's2'],
+            stages: [],
+            members: [
+              { kind: 'stage', stageId: 's1' },
+              { kind: 'stage', stageId: 's2' },
+            ],
+          },
+        },
+      }
+      const node: PipeTreeNode = { kind: 'stack_pipe', pipeId: 'shared', stackIndex: 0, label: 'Shared' }
+      const result = resolvePipeNavEdit(
+        { kind: 'treeDelete', node },
+        makeCtx({ world: w, prompts, focus: { path: [], selectedSiblingIndex: 0 } }),
+      )!
+      expect(result.world.entities[0]!.transformers).toEqual([])
+      // the other entity still uses the shared pipe untouched
+      expect(result.world.entities[1]!.transformers).toEqual(['s1', 's2'])
+      expect(result.world.transformerPipes?.shared).toBeDefined()
     })
 
     it('treeInsert returns nav pointing at the newly inserted stack pipe', () => {

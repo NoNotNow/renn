@@ -297,6 +297,30 @@ export class PhysicsWorld {
   }
 
   /**
+   * Diagnostics (Builder snapshot): every collider currently in contact with `entityId` — which entity, deepest
+   * penetration (negative contactDist = overlap), contact normal. Not used in the simulation loop.
+   */
+  getContactSummary(entityId: string): { entityId: string; minDist: number; normal: [number, number, number]; points: number }[] {
+    const collider = this.colliderMap.get(entityId)
+    if (!collider) return []
+    const out: { entityId: string; minDist: number; normal: [number, number, number]; points: number }[] = []
+    this.world.contactPairsWith(collider, (other) => {
+      const otherId = this.colliderHandleToEntityId.get(other.handle)
+      if (!otherId || otherId === entityId) return
+      this.world.contactPair(collider, other, (manifold, flipped) => {
+        const n = manifold.numContacts()
+        if (n === 0) return
+        let minDist = Infinity
+        for (let i = 0; i < n; i++) minDist = Math.min(minDist, manifold.contactDist(i))
+        const nr = manifold.normal()
+        const k = flipped ? -1 : 1
+        out.push({ entityId: otherId, minDist, normal: [nr.x * k, nr.y * k, nr.z * k], points: n })
+      })
+    })
+    return out
+  }
+
+  /**
    * Rebuild touching cache for all registered entity ids in one pass.
    * Replaces per-entity contactPairsWith+contactPair calls, dramatically reducing
    * WASM wrapper object churn (FinalizationRegistry overhead).

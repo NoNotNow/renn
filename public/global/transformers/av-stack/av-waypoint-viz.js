@@ -1,9 +1,11 @@
 // AV stack · SENSE / mission overlay (debug only, no effect on driving).
 // Draws the whole mission route: mint polyline + poles at every waypoint; the active target pole is yellow.
-// params: waypoints [[x, z], ...], debugDraw
+// Reads av.mission.waypoints (av-mission stage) or params.waypoints [[x, z], ...].
+// params: waypoints, debugDraw
 function transform(input, dt, params, state, api) {
   if (params.debugDraw === false) return {}
-  var wps = params.waypoints
+  var av = input.av
+  var wps = (av && av.mission && av.mission.waypoints) || params.waypoints
   if (!wps || !wps.length) return {}
   var y = input.position[1]
   var cur = input.target && input.target.pose && input.target.pose.position

@@ -44,6 +44,7 @@ import {
   publishTransformerWatchEntry,
 } from '@/runtime/transformerWatchBridge'
 import { formatWatchValue } from '@/transformers/formatWatchValue'
+import { beginStageSnapshot } from '@/runtime/transformerSnapshotBridge'
 import {
   extractWrappedLineFromEvalError,
   formatEvalErrorWithUserLine,
@@ -608,6 +609,7 @@ export const TRANSFORMER_RUNTIME_API: TransformerRuntimeApi = Object.freeze({
       label = trimmed
       watchValue = value
     }
+    if (_snapshotWatchSink) _snapshotWatchSink[label] = formatWatchValue(watchValue)
     const entityId = _customCodeWatchEntityId
     const stackIndex = _customCodeWatchStackIndex
     if (entityId == null || stackIndex == null) return
@@ -767,6 +769,9 @@ export function validateCustomTransformerSource(source: string, configKey = 'cus
   }
 }
 
+/** While a snapshot records a stage: collects that stage's `api.watch` values (even with the watch panel closed). */
+let _snapshotWatchSink: Record<string, string> | null = null
+
 export class CustomCodeTransformer implements Transformer {
   readonly type = 'custom' as const
   /** Wake sleeping dynamics when keyboard is held so input-driven custom stages still run (same as car2). */
@@ -813,16 +818,31 @@ export class CustomCodeTransformer implements Transformer {
     _customCodeWatchEntityId = this.runtimeEntityId ?? null
     _customCodeWatchStackIndex =
       typeof this.configStackIndex === 'number' && this.configStackIndex >= 0 ? this.configStackIndex : null
+    const record = beginStageSnapshot(
+      this.runtimeEntityId,
+      this.configStackIndex,
+      this.priority,
+      this.authoringCode,
+      input,
+      dt,
+      this.liveParams,
+    )
+    const prevSink = _snapshotWatchSink
+    const sink: Record<string, string> = {}
+    if (record) _snapshotWatchSink = sink
     try {
       const raw = this.transformFn(input, dt, this.liveParams, this.state, TRANSFORMER_RUNTIME_API)
       const out = sanitizeTransformOutput(raw)
       this.clearPublishedRuntimeErrorIfTargeted()
+      record?.({ output: out, state: this.state, watch: sink, inputAfter: input })
       return out
     } catch (e) {
       console.warn('[CustomCodeTransformer] Runtime error:', e)
       this.publishRuntimeError(e)
+      record?.({ state: this.state, watch: sink, inputAfter: input, error: e instanceof Error ? e.message : String(e) })
       return {}
     } finally {
+      _snapshotWatchSink = prevSink
       _customCodeVisualizeEntityId = prevVisualizeEntity
       _customCodeWatchEntityId = prevWatchEntity
       _customCodeWatchStackIndex = prevWatchStackIndex

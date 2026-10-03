@@ -6,6 +6,8 @@ import {
   buildSelfDrivingParkourWorld,
 } from '@/test/fixtures/selfDrivingCarWorld'
 import { selfDrivingStageChecksums } from '@/globalPipeline/selfDrivingCarStagePaths'
+import { avStackChecksum } from '@/globalPipeline/avStackStagePaths'
+import { buildAvStackGlobalBehaviorLibrary } from '@/globalPipeline/buildAvStackGlobalBehaviorLibrary'
 import {
   SHIPPED_GLOBAL_PIPE_PREFIX,
   SHIPPED_GLOBAL_TF_PREFIX,
@@ -71,7 +73,7 @@ function mergeLibraries(...parts: GlobalBehaviorLibrary[]): GlobalBehaviorLibrar
   return { transformers, scripts: {}, transformerPipes }
 }
 
-/** Build Organize → Global defaults for the self-driving Pipe3 stack. */
+/** Build Organize → Global defaults: self-driving Pipe3 stack + nested AV stack. */
 export function buildSelfDrivingGlobalBehaviorLibrary(): GlobalBehaviorLibrary {
   const wandererWorld = buildSelfDrivingCarWorld({ variant: 'cubeGoalBehind' })
   const missionWorld = buildSelfDrivingParkourWorld()
@@ -89,12 +91,12 @@ export function buildSelfDrivingGlobalBehaviorLibrary(): GlobalBehaviorLibrary {
     'Self-drive Pipe3 (mission waypoints)',
   )
 
-  return mergeLibraries(wanderer, mission)
+  return mergeLibraries(wanderer, mission, buildAvStackGlobalBehaviorLibrary())
 }
 
 export function buildShippedGlobalBehaviorLibraryBundle(): ShippedGlobalBehaviorLibraryBundle {
   const sums = selfDrivingStageChecksums()
-  const checksum = `${sums.umlenker}-${sums.direction}-${sums.autoBrake}-${sums.targetLine}`
+  const checksum = `${sums.umlenker}-${sums.direction}-${sums.autoBrake}-${sums.targetLine}-${avStackChecksum()}`
   return {
     version: 1,
     checksum,

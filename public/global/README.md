@@ -9,7 +9,7 @@ Disk copies of shared **custom transformer code** and **pipe manifests** used by
 | Path | Purpose |
 |------|---------|
 | [`transformers/self-driving-car/`](transformers/self-driving-car/) | Umlenker, direction, auto-brake, target-line visualizer (`.js` source) |
-| [`transformers/av-stack/`](transformers/av-stack/) | Industry-style AV stack stages (ego, perception, planners, control, AEB) — see [`agent-context/feature-av-stack.md`](../../agent-context/feature-av-stack.md) |
+| [`transformers/av-stack/`](transformers/av-stack/) | Industry-style AV stack stages (ego, perception, planners, control, AEB) — see [`agent-context/feature-av-stack.md`](../../agent-context/feature-av-stack.md). Shipped as global pipes `global_av_stack` / `global_av_autopilot` |
 | [`pipes/self-driving-car-pipe3.json`](pipes/self-driving-car-pipe3.json) | Pipe3 stage order + stage-id bindings per consumer |
 | [`shipped-global-behavior-library.json`](shipped-global-behavior-library.json) | **Organize → Global** defaults (pipes + transformers); merged on Builder open |
 

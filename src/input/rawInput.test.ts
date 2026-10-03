@@ -157,15 +157,15 @@ describe('useRawWheelInput', () => {
     expect(result.current.current!.deltaY).toBe(0)
   })
 
-  test('wheel with deltaMode 1 (lines) accumulates into mouseWheelDelta', () => {
+  test('wheel with deltaMode 1 (lines) accumulates into mouseWheelDelta, normalised to 100 px per notch', () => {
     const { result } = renderHook(() => useRawWheelInput())
 
     act(() => {
-      // deltaMode 1 = DOM_DELTA_LINE, typical for physical mouse wheel
-      document.dispatchEvent(new WheelEvent('wheel', { deltaX: 0, deltaY: 40, deltaMode: 1, bubbles: true }))
+      // Firefox: DOM_DELTA_LINE, 3 lines per physical notch → one normalised notch (100)
+      document.dispatchEvent(new WheelEvent('wheel', { deltaX: 0, deltaY: 3, deltaMode: 1, bubbles: true }))
     })
 
-    expect(result.current.current!.mouseWheelDelta).toBe(40)
+    expect(result.current.current!.mouseWheelDelta).toBeCloseTo(100)
     expect(result.current.current!.deltaX).toBe(0)
     expect(result.current.current!.deltaY).toBe(0)
   })

@@ -1,5 +1,6 @@
 import type { TransformerConfig } from '@/types/transformer'
 import { getDefaultTransformerConfig } from '@/transformers/transformerPresets'
+import { originForStage } from '@/globalPipeline/globalOrigin'
 import { syncPriorities } from '@/transformers/transformerUtils'
 import { nextUniqueCustomTransformerName } from '@/transformers/customTransformerNaming'
 import { allocateTransformerRegistryId } from '@/utils/commitTransformerConfigsToWorld'
@@ -73,6 +74,40 @@ export function appendExistingTransformerStage(
   return {
     configs: syncPriorities([...configs, config]),
     ids: [...ids, newId],
+    selectId: newId,
+  }
+}
+
+/**
+ * Copy a global-library stage into a pipe, keeping its own `priority` (execution order is priority-sorted across the
+ * whole composite stack, so the library's value is meaningful) and listing it where that priority fits among the
+ * pipe's existing stages. Existing stages are not re-indexed.
+ */
+export function insertGlobalTransformerStage(
+  configs: TransformerConfig[],
+  ids: string[],
+  globalId: string,
+  globalDef: TransformerConfig,
+  registryEntityId: string | undefined,
+  registry: Record<string, TransformerConfig>,
+): { configs: TransformerConfig[]; ids: string[]; selectId: string } {
+  const used = new Set(ids)
+  const newId =
+    registryEntityId ?
+      allocateTransformerRegistryId(registryEntityId, registry, used)
+    : suggestCopyRegistryId(globalId, registry, used)
+  const config = JSON.parse(JSON.stringify(globalDef)) as TransformerConfig
+  config.origin = originForStage(globalId, globalDef)
+  // an equal priority would make the run order depend on list order only: nudge it just past the tie
+  while (config.priority !== undefined && configs.some((c) => c.priority === config.priority)) {
+    config.priority = Math.round((config.priority + 0.01) * 1000) / 1000
+  }
+  const p = config.priority ?? Number.POSITIVE_INFINITY
+  let at = configs.findIndex((c) => (c.priority ?? Number.POSITIVE_INFINITY) > p)
+  if (at < 0) at = configs.length
+  return {
+    configs: [...configs.slice(0, at), config, ...configs.slice(at)],
+    ids: [...ids.slice(0, at), newId, ...ids.slice(at)],
     selectId: newId,
   }
 }

@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { theme } from '@/config/theme'
 import { EntityPanelIcons } from '@/components/EntityPanelIcons'
 import { entityPanelIconButtonStyle } from '@/components/sharedStyles'
@@ -45,6 +45,12 @@ export interface WorkspaceOrganizeCardProps {
   stackCount?: number
   onExpand?: () => void
   onRegroup?: () => void
+  /** Collapsible "Structure" section (e.g. a pipe outline). */
+  preview?: ReactNode
+  /** Show text next to the Edit / Assign / Copy icons. */
+  labeledActions?: boolean
+  /** Replaces the "Copy" tooltip/label (e.g. "Add to project"). */
+  copyLabel?: string
 }
 
 export default function WorkspaceOrganizeCard({
@@ -72,7 +78,20 @@ export default function WorkspaceOrganizeCard({
   stackCount = 0,
   onExpand,
   onRegroup,
+  preview,
+  labeledActions = false,
+  copyLabel = 'Copy',
 }: WorkspaceOrganizeCardProps) {
+  const labelStyle: CSSProperties = { fontSize: 11, marginLeft: 4 }
+  const withLabel = (icon: ReactNode, label: string) =>
+    labeledActions ? (
+      <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+        {icon}
+        <span style={labelStyle}>{label}</span>
+      </span>
+    ) : (
+      icon
+    )
   const isStack = stackCount > 1
 
   return (
@@ -200,6 +219,12 @@ export default function WorkspaceOrganizeCard({
           ))}
         </div>
       )}
+      {preview ?
+        <details data-testid={testId ? `${testId}-structure` : undefined}>
+          <summary style={{ fontSize: 11, color: theme.text.secondary, cursor: 'pointer' }}>Structure</summary>
+          <div style={{ marginTop: 4, maxHeight: 160, overflow: 'auto' }}>{preview}</div>
+        </details>
+      : null}
       <div style={actionRowStyle}>
         <button
           type="button"
@@ -213,7 +238,7 @@ export default function WorkspaceOrganizeCard({
           title="Edit"
           data-testid={testId ? `${testId}-edit` : undefined}
         >
-          {EntityPanelIcons.code}
+          {withLabel(EntityPanelIcons.code, 'Edit')}
         </button>
         {onToggleEnabled && (
           <button
@@ -241,10 +266,10 @@ export default function WorkspaceOrganizeCard({
               border: `1px solid ${theme.border.default}`,
               color: theme.text.primary,
             }}
-            title="Copy"
+            title={copyLabel}
             data-testid={testId ? `${testId}-copy` : undefined}
           >
-            {EntityPanelIcons.clone}
+            {withLabel(EntityPanelIcons.clone, copyLabel)}
           </button>
         )}
         {showRename && (
@@ -276,7 +301,7 @@ export default function WorkspaceOrganizeCard({
             title="Promote to Global"
             data-testid={testId ? `${testId}-promote` : undefined}
           >
-            {EntityPanelIcons.arrowUp}
+            {withLabel(EntityPanelIcons.arrowUp, 'Promote')}
           </button>
         )}
         {showAssign && (
@@ -292,7 +317,7 @@ export default function WorkspaceOrganizeCard({
             title="Assign to Entities"
             data-testid={testId ? `${testId}-assign` : undefined}
           >
-            {EntityPanelIcons.add}
+            {withLabel(EntityPanelIcons.add, 'Assign')}
           </button>
         )}
         {showDetach && (
@@ -308,7 +333,7 @@ export default function WorkspaceOrganizeCard({
             title="Detach from Selection"
             data-testid={testId ? `${testId}-detach` : undefined}
           >
-            {EntityPanelIcons.minus}
+            {withLabel(EntityPanelIcons.minus, 'Detach')}
           </button>
         )}
         {showDelete && (
