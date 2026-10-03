@@ -102,3 +102,32 @@ describe('transformerTrace helpers', () => {
     expect(snap2.target.pose.position).toEqual([0, 0, 0])
   })
 })
+
+describe('data channel trace (blackboard / target written in place)', () => {
+  it('reports what a stage wrote into input and what the next stage reads', async () => {
+    const { TransformerChain } = await import('@/transformers/transformer')
+    const { CustomCodeTransformer } = await import('@/transformers/customCodeTransformer')
+    const { summarizePipeTraceBrief, summarizeTransformerTraceOutputBrief, summarizeTransformInputBrief } = await import(
+      '@/transformers/transformerTrace'
+    )
+    const chain = new TransformerChain()
+    chain.add(
+      new CustomCodeTransformer({
+        type: 'custom',
+        priority: 1,
+        code: "input.target = { pose: { position: [5, 0, 5] }, label: 'E' }; input.av = { plan: { kappa: 0.1 } }; return {}",
+      }),
+    )
+    chain.add(new CustomCodeTransformer({ type: 'custom', priority: 2, code: 'return {}' }))
+    const steps: import('@/transformers/transformerTrace').TransformerTraceStep[] = []
+    const input = createMockTransformInput({})
+    chain.execute(input, 1 / 60, steps)
+    expect(summarizeTransformerTraceOutputBrief('custom', steps[0])).toContain('wrote')
+    expect(summarizeTransformerTraceOutputBrief('custom', steps[0])).toContain('target')
+    expect(summarizeTransformerTraceOutputBrief('custom', steps[0])).toContain('av.plan')
+    expect(summarizeTransformInputBrief(steps[1]!.inputBefore!, steps[1]!.channelsIn)).toContain('av.plan')
+    const pipe = summarizePipeTraceBrief(steps)
+    expect(pipe.output).toContain('wrote')
+    expect(pipe.input).toBe('(idle)')
+  })
+})

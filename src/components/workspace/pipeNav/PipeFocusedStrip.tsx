@@ -297,6 +297,12 @@ export default function PipeFocusedStrip({
 
   if (view.mode === 'pipe_siblings') {
     const ordered = entityLevelItems(world, entity)
+    const pipeTraceSteps = (path: PipeNavPathSegment[]): TransformerTraceStep[] | undefined => {
+      if (!liveTraceSteps) return undefined
+      const range = stageRuntime.flatRangeForScope(path)
+      if (!range) return undefined
+      return liveTraceSteps.filter((st) => st.configStackIndex >= range[0] && st.configStackIndex < range[1])
+    }
     const renderSiblingPipeCard = (stackIdx: number, pipeId: string) => {
       const pipe = pipes[pipeId] as TransformerPipe | undefined
       if (!pipe) return null
@@ -315,6 +321,7 @@ export default function PipeFocusedStrip({
           depth={depth}
           isSelected={selectedIndex === stackIdx}
           enabled={stageRuntime.isScopeEnabled(scopePath)}
+          traceSteps={pipeTraceSteps(scopePath)}
           stackIndex={stackIdx}
           drawerPortalTarget={drawerPortalTarget}
           scrollLeft={scrollLeft}
@@ -398,6 +405,12 @@ export default function PipeFocusedStrip({
     }
 
     const parentPipeId = view.containerPipeId
+    const pipeTraceSteps = (path: PipeNavPathSegment[]): TransformerTraceStep[] | undefined => {
+      if (!liveTraceSteps) return undefined
+      const range = stageRuntime.flatRangeForScope(path)
+      if (!range) return undefined
+      return liveTraceSteps.filter((st) => st.configStackIndex >= range[0] && st.configStackIndex < range[1])
+    }
     const renderPipeCard = (item: Extract<StripItem, { kind: 'pipe' }>) => {
       const pipe = pipes[item.pipeId]
       if (!pipe) return null
@@ -423,6 +436,7 @@ export default function PipeFocusedStrip({
           depth={depth}
           isSelected={selectedIndex === item.index}
           enabled={enabled}
+          traceSteps={pipeTraceSteps(memberScopePath)}
           stackIndex={stackIdx !== undefined && stackIdx >= 0 ? stackIdx : undefined}
           drawerPortalTarget={drawerPortalTarget}
           scrollLeft={scrollLeft}

@@ -55,6 +55,8 @@ export interface EntityStageRuntime {
   mergedParamsAt(flatIndex: number): Record<string, unknown> | undefined
   /** Ids to write back to `entity.transformers`: all stages when flat, enabled flatten when piped. */
   syncedStageIds(): string[]
+  /** Flat stage index range [start, end) a pipe scope contributes (enabled stages), or undefined. */
+  flatRangeForScope(path: PipeNavPathSegment[]): [number, number] | undefined
   /** Merged runtime configs for the transformer chain (enabled stages only). */
   runtimeConfigs(): TransformerConfig[] | null
 }
@@ -68,6 +70,8 @@ type WalkState = {
   stageContext: Map<number, StageRuntimeContext>
   flatEnabledStageIds: string[]
   flatIndexCounter: { current: number }
+  /** Flat stage index range [start, end) contributed by each pipe scope (for pipe-level trace). */
+  scopeFlatRange?: Map<string, [number, number]>
 }
 
 function visitMembers(
@@ -88,6 +92,7 @@ function visitMembers(
   }
 
   const layersWithPipe = [...state.paramLayers, resolveLocalScopeParams(binding, stackPath)]
+  const rangeStart = state.flatIndexCounter.current
 
   const members = normalizePipeMembers(pipe)
   for (let memberIndex = 0; memberIndex < members.length; memberIndex++) {
@@ -133,6 +138,7 @@ function visitMembers(
       visited,
     )
   }
+  state.scopeFlatRange?.set(scopeKey, [rangeStart, state.flatIndexCounter.current])
 }
 
 function walkCopyBindingStages(
@@ -191,6 +197,7 @@ type StageRuntimeWalk = {
   stageContext: Map<number, StageRuntimeContext>
   scopeEffectiveEnabled: Map<string, boolean>
   flatEnabledStageIds: string[]
+  scopeFlatRange: Map<string, [number, number]>
 }
 
 /**
@@ -204,6 +211,7 @@ function walkEntityStageRuntime(world: RennWorld, entity: Entity): StageRuntimeW
   const stageContext = new Map<number, StageRuntimeContext>()
   const scopeEffectiveEnabled = new Map<string, boolean>()
   const flatEnabledStageIds: string[] = []
+  const scopeFlatRange = new Map<string, [number, number]>()
 
   if (stack.length === 0) {
     for (let flatIndex = 0; flatIndex < (entity.transformers ?? []).length; flatIndex++) {
@@ -217,7 +225,7 @@ function walkEntityStageRuntime(world: RennWorld, entity: Entity): StageRuntimeW
     const enabledIds = [...(entity.transformers ?? [])].filter(
       (_, flatIndex) => stageContext.get(flatIndex)?.effectivelyEnabled,
     )
-    return { stageContext, scopeEffectiveEnabled, flatEnabledStageIds: enabledIds }
+    return { stageContext, scopeEffectiveEnabled, flatEnabledStageIds: enabledIds, scopeFlatRange }
   }
 
   for (let stackIndex = 0; stackIndex < stack.length; stackIndex++) {
@@ -237,6 +245,7 @@ function walkEntityStageRuntime(world: RennWorld, entity: Entity): StageRuntimeW
       stageContext,
       flatEnabledStageIds,
       flatIndexCounter: { current: flatEnabledStageIds.length },
+      scopeFlatRange,
     }
 
     if (!stackEnabled) {
@@ -269,7 +278,7 @@ function walkEntityStageRuntime(world: RennWorld, entity: Entity): StageRuntimeW
     flatEnabledStageIds.push(stageId)
   }
 
-  return { stageContext, scopeEffectiveEnabled, flatEnabledStageIds }
+  return { stageContext, scopeEffectiveEnabled, flatEnabledStageIds, scopeFlatRange }
 }
 
 /** Start index in `entity.transformers` for stages contributed by one stack binding. */
@@ -305,6 +314,7 @@ export function resolveEntityStageRuntime(world: RennWorld, entity: Entity): Ent
 
   return {
     isScopeEnabled: (path) => walk.scopeEffectiveEnabled.get(pipeScopeKeyFromPath(path)) ?? true,
+    flatRangeForScope: (path) => walk.scopeFlatRange.get(pipeScopeKeyFromPath(path)),
     isStageEnabledAt: (flatIndex) => walk.stageContext.get(flatIndex)?.effectivelyEnabled ?? true,
     mergedParamsAt: (flatIndex) => walk.stageContext.get(flatIndex)?.mergedParams,
     syncedStageIds: () =>

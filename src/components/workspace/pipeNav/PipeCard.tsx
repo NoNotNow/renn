@@ -8,6 +8,7 @@ import { normalizePipeMembers } from '@/utils/transformerPipeResolve'
 import PipeConfigDrawer from './PipeConfigDrawer'
 import PipeInlineControls from './PipeInlineControls'
 import { pipeNavCardStyle } from './pipeNavStyles'
+import { summarizePipeTraceBrief, type TransformerTraceStep } from '@/transformers/transformerTrace'
 
 export interface PipeCardProps {
   pipe: TransformerPipe
@@ -18,6 +19,8 @@ export interface PipeCardProps {
   isSelected: boolean
   enabled?: boolean
   stackIndex?: number
+  /** Live trace steps of the stages inside this pipe (IN/OUT lines). */
+  traceSteps?: readonly TransformerTraceStep[]
   drawerPortalTarget?: RefObject<HTMLDivElement | null>
   /** Horizontal scroll offset of the parent container for proper drawer positioning. */
   scrollLeft?: number
@@ -41,6 +44,7 @@ export default function PipeCard({
   isSelected,
   enabled = true,
   stackIndex,
+  traceSteps,
   drawerPortalTarget,
   scrollLeft = 0,
   onSelect,
@@ -162,6 +166,23 @@ export default function PipeCard({
           {stageCount} stage{stageCount !== 1 ? 's' : ''}
           {childPipeCount > 0 ? ` · ${childPipeCount} nested` : ''}
         </div>
+        {traceSteps ?
+          <div data-testid="pipe-card-trace" style={{ fontSize: 10, color: theme.text.secondary, lineHeight: 1.35 }}>
+            {(() => {
+              const t = summarizePipeTraceBrief(traceSteps)
+              return (
+                <>
+                  <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={t.input}>
+                    IN: {t.input}
+                  </div>
+                  <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={t.output}>
+                    OUT: {t.output}
+                  </div>
+                </>
+              )
+            })()}
+          </div>
+        : null}
         <button
           type="button"
           onClick={(e) => {

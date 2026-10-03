@@ -457,7 +457,7 @@ function TransformerTraceItem({
   const enabled = (transformer.enabled ?? true) && ancestorEnabled
   const toggleEnabledDisabled = !ancestorEnabled
   const showSelectedChrome = Boolean(isSelected && !isDragging && transformer.type === 'custom')
-  const inputLit = Boolean(step && !step.skipped && hasNonZeroSemanticActions(step.inputBefore))
+  const inputLit = Boolean(step && !step.skipped && hasNonZeroSemanticActions(step.inputBefore, step.channelsIn))
   const outputLit = Boolean(step && !step.skipped && step.outputLedActive)
 
   const traceInputSummaryColor =
@@ -476,7 +476,7 @@ function TransformerTraceItem({
   const traceInputBrief = step?.skipped
     ? '(disabled)'
     : step?.inputBefore
-      ? summarizeTransformInputBrief(step.inputBefore)
+      ? summarizeTransformInputBrief(step.inputBefore, step.channelsIn)
       : '(idle)'
   const traceOutputBrief = step
     ? summarizeTransformerTraceOutputBrief(transformer.type, step)

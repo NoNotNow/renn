@@ -19,6 +19,9 @@ import {
   cloneTransformOutputForTrace,
   computeOutputLedActive,
   serializeTransformInputForTrace,
+  collectChannelFingerprints,
+  channelsLive,
+  channelsChanged,
 } from '@/transformers/transformerTrace'
 
 /**
@@ -199,15 +202,18 @@ export class TransformerChain {
 
       let actionsBefore: Record<string, number> | undefined
       let inputBeforeSnapshot: TransformerTraceStep['inputBefore']
+      let channelsBefore: ReturnType<typeof collectChannelFingerprints> | undefined
       if (traceSteps) {
         inputBeforeSnapshot = serializeTransformInputForTrace(input)
         actionsBefore = { ...input.actions }
+        channelsBefore = collectChannelFingerprints(input)
       }
 
       const output = transformer.transform(input, dt)
 
       if (traceSteps && actionsBefore) {
         const actionsAfter = { ...input.actions }
+        const channelsWritten = channelsBefore ? channelsChanged(channelsBefore, collectChannelFingerprints(input)) : undefined
         traceSteps.push({
           configStackIndex,
           type: transformer.type,
@@ -216,12 +222,11 @@ export class TransformerChain {
           inputBefore: inputBeforeSnapshot,
           transformOutput: cloneTransformOutputForTrace(output),
           actionsAfter,
-          outputLedActive: computeOutputLedActive(
-            transformer.type,
-            output,
-            actionsBefore,
-            actionsAfter,
-          ),
+          channelsIn: channelsBefore ? channelsLive(channelsBefore) : undefined,
+          channelsWritten,
+          outputLedActive:
+            computeOutputLedActive(transformer.type, output, actionsBefore, actionsAfter) ||
+            (channelsWritten?.length ?? 0) > 0,
         })
       }
 

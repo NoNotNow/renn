@@ -200,3 +200,7 @@ A goal source's own `speed` (e.g. preset `wanderer` `speed`) is only a hint the 
 ## Snapshot (debugging)
 
 Watch panel → **Snapshot** records, for one simulated frame, every custom stage of the selected entity: params, input (before), input after (if mutated in place, e.g. the `av` blackboard), returned output, `state` and all `api.watch` values (even with the panel closed). Result: textarea + Copy/Save JSON. Code: `src/runtime/transformerSnapshotBridge.ts` (hook in `CustomCodeTransformer.transform`).
+
+## IN / OUT trace on cards
+
+Stages talk by mutating `input` (`input.target`, `input.goalSource`, blackboard `input.av.*`), not only via the returned output. The trace therefore fingerprints every non-standard input key (one level deep) before/after each stage: **IN** lists live channels (`target`, `av.points[213]`, …), **OUT** adds `wrote <channels>`. Pipe cards show IN (first stage that ran) and OUT (union of member stages), using `EntityStageRuntime.flatRangeForScope`. Code: `transformerTrace.ts` (`collectChannelFingerprints`, `summarizePipeTraceBrief`), `PipeCard.tsx`.
