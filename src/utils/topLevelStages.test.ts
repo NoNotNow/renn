@@ -119,3 +119,13 @@ describe('wrapEverythingIntoPipe', () => {
     expect(e(wrapped, 'e1').transformerPipeStack![0]!.pipeId).toBe(pipeId)
   })
 })
+
+describe('new top-level stage lands at the end of the run order', () => {
+  it('gets a priority above everything the entity already runs', () => {
+    const w = world()
+    const next = commitFocusedStageConfigs(w, 'e1', [], [cfg('Top', { priority: 0 }), cfg('New', { priority: 1 })], ['t', 'n'], ['t', 'n'])
+    const maxBefore = Math.max(...['a', 'b', 't'].map((id) => w.transformers![id]!.priority ?? 0))
+    expect(next.transformers!.n!.priority).toBeGreaterThan(maxBefore)
+    expect(next.transformers!.t!.priority).toBe(9) // existing stage untouched
+  })
+})

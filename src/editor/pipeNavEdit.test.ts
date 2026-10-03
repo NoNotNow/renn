@@ -17,6 +17,8 @@ const INTENT_KINDS: PipeNavEditIntent['kind'][] = [
   'treeInsert',
   'treeDrop',
   'wrapAllInPipe',
+  'reorderEntityLevel',
+  'reorderMembers',
   'ensurePipeStack',
 ]
 

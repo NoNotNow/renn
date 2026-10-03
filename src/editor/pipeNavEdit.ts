@@ -1,5 +1,6 @@
 import type { TransformerPipe } from '@/types/transformer'
 import type { GlobalBehaviorLibrary } from '@/types/globalBehaviorLibrary'
+import { moveEntityLevelItem, moveMemberItem } from '@/utils/stripOrder'
 import { assignLibraryPipeToEntity, type LibraryPipeSource } from '@/utils/assignLibraryPipe'
 import type { PipeNavFocus, PipeNavPathSegment, PipeTreeNode } from '@/types/pipeNav'
 import type { Entity, RennWorld } from '@/types/world'
@@ -57,7 +58,7 @@ export type PipeNavEditIntent =
   | { kind: 'createChildPipe'; name: string }
   /** Link or copy an existing registry pipe in at the focused level. */
   | { kind: 'addExistingPipe'; pipe: TransformerPipe; mode: 'linked' | 'copy' }
-  /** Append a project or global-library pipe to the end of the entity's pipe stack, whatever the focus. */
+  /** Add a project or global-library pipe at the focused level (stack sibling, or nested into the focused pipe). */
   | {
       kind: 'assignLibraryPipe'
       source: LibraryPipeSource
@@ -75,6 +76,10 @@ export type PipeNavEditIntent =
   | { kind: 'decouplePipeBinding'; stackIndex: number }
   /** Tree context-menu delete of a stack pipe, nested pipe, or stage. */
   | { kind: 'treeDelete'; node: PipeTreeNode }
+  /** Strip drag at entity level: move an item (`pipe:<stackIndex>` / `stage:<id>`) to a slot of the displayed run order. */
+  | { kind: 'reorderEntityLevel'; fromKey: string; toIndex: number }
+  /** Strip drag inside a pipe with mixed members. */
+  | { kind: 'reorderMembers'; pipeId: string; fromIndex: number; toIndex: number }
   /** Wrap all of the entity's pipes and top-level stages in one new pipe. */
   | { kind: 'wrapAllInPipe'; name: string }
   /** Tree context-menu insert; the caller has already collected the name. */
@@ -115,6 +120,8 @@ export const PIPE_NAV_EDIT_POLICY: Record<PipeNavEditIntent['kind'], PipeNavEdit
   decouplePipeBinding: { pushUndo: true },
   treeDelete: { pushUndo: true },
   wrapAllInPipe: { pushUndo: true },
+  reorderEntityLevel: { pushUndo: true },
+  reorderMembers: { pushUndo: true },
   treeInsert: { pushUndo: true },
   treeDrop: { pushUndo: true },
   ensurePipeStack: { pushUndo: false },
@@ -222,6 +229,8 @@ function resolveIntent(
     }
 
     case 'assignLibraryPipe': {
+      // same placement rules as `addExistingPipe`: at the focused level
+      const atLeaf = isPipeNavLeafLevel(resolvePipeNavView(world, entity, focus))
       const res = assignLibraryPipeToEntity(
         world,
         entityId,
@@ -229,6 +238,8 @@ function resolveIntent(
         intent.pipeId,
         intent.mode,
         intent.library,
+        atLeaf ? [] : focus.path,
+        atLeaf ? stackSiblingInsertIndexFromPath(focus.path) : undefined,
       )
       if (!res) return null
       return { world: res.world, nav: focusAt(res.focusPath) }
@@ -274,6 +285,16 @@ function resolveIntent(
 
     case 'treeDelete':
       return resolveTreeDelete(intent.node, ctx)
+
+    case 'reorderEntityLevel': {
+      const next = moveEntityLevelItem(world, entityId, intent.fromKey, intent.toIndex)
+      return next === world ? null : structural(next, ctx)
+    }
+
+    case 'reorderMembers': {
+      const next = moveMemberItem(world, intent.pipeId, intent.fromIndex, intent.toIndex)
+      return next === world ? null : structural(next, ctx)
+    }
 
     case 'wrapAllInPipe': {
       const { world: next, pipeId } = wrapEverythingIntoPipe(world, entityId, intent.name)

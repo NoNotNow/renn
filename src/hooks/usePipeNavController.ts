@@ -49,6 +49,12 @@ interface AddPipeHandlers {
   ) => void
 }
 
+/** Strip drag-and-drop callbacks, in the prop shape `PipeFocusedStrip` expects. */
+interface StripReorderHandlers {
+  onReorderEntityLevel: (fromKey: string, toIndex: number) => void
+  onReorderMembers: (pipeId: string, fromIndex: number, toIndex: number) => void
+}
+
 /** Tree callbacks, in the prop shape `TransformerPipeNavSidebar` expects. */
 interface PipeTreeHandlers {
   /** Undefined when the focus is not on a pipe, which hides the sidebar's rename affordance. */
@@ -244,6 +250,14 @@ export function usePipeNavController(
     [commit, promptName, world.transformerPipes],
   )
 
+  const stripReorder = useMemo<StripReorderHandlers>(
+    () => ({
+      onReorderEntityLevel: (fromKey, toIndex) => commit({ kind: 'reorderEntityLevel', fromKey, toIndex }),
+      onReorderMembers: (pipeId, fromIndex, toIndex) => commit({ kind: 'reorderMembers', pipeId, fromIndex, toIndex }),
+    }),
+    [commit],
+  )
+
   const handleTreeContext = useCallback(
     (
       action: 'add_before' | 'add_after' | 'add_child' | 'delete',
@@ -299,6 +313,7 @@ export function usePipeNavController(
     writeFocusedStages,
     pipeControls,
     addPipe,
+    stripReorder,
     treeActions,
     nameDialogProps,
   }

@@ -52,7 +52,6 @@ import {
 } from '@/components/workspace/pipeNav/transformerPipeNavStorage'
 import PipeFocusedStrip from '@/components/workspace/pipeNav/PipeFocusedStrip'
 import PipeNavDialogs from '@/components/workspace/pipeNav/PipeNavDialogs'
-import PipeLibraryDialog from '@/components/workspace/pipeNav/PipeLibraryDialog'
 import PipeNavOpenToggle from '@/components/workspace/pipeNav/PipeNavOpenToggle'
 import { mergeTransformers } from '@/utils/entityInspectorMerge'
 import {
@@ -635,7 +634,8 @@ function WorkspaceTransformersTabEntity({
   )
 
   /** Tree gear: select the stage (focus + strip) and ask its card to open the config drawer. */
-  const [pipeLibraryOpen, setPipeLibraryOpen] = useState(false)
+  /** The unified "add" dialog (transformer / new pipe / existing pipe) — opened from the strip's + or the tree's + Add. */
+  const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [stageConfigRequest, setStageConfigRequest] = useState<StageConfigRequest | null>(null)
   const handleConfigureStageFromTree = useCallback(
     (path: PipeNavPathSegment[], index: number, stageId: string) => {
@@ -916,7 +916,7 @@ function WorkspaceTransformersTabEntity({
       >
       {usePipeNav && singleEntity && pipeNav.view && pipeNavOpen ?
         <TransformerPipeNavSidebar
-          onAddPipe={() => setPipeLibraryOpen(true)}
+          onAddPipe={() => setAddDialogOpen(true)}
           onWrapAll={pipeNav.addPipe.onWrapAll}
           selectedStageId={selectedId}
           world={world}
@@ -1071,6 +1071,14 @@ function WorkspaceTransformersTabEntity({
                 cardErrorsByStackIndex={cardErrorsByStackIndex}
                 stageConfigRequest={stageConfigRequest}
                 globalTransformers={globalLibrary?.transformers as Record<string, TransformerConfig> | undefined}
+                addDialogOpen={addDialogOpen}
+                onAddDialogOpenChange={setAddDialogOpen}
+                globalLibrary={globalLibrary}
+                onAddLibraryPipe={(source, pipeId, mode) =>
+                  pipeNav.addPipe.onAssignLibraryPipe(source, pipeId, mode, globalLibrary)
+                }
+                onReorderEntityLevel={pipeNav.stripReorder.onReorderEntityLevel}
+                onReorderMembers={pipeNav.stripReorder.onReorderMembers}
               />
             : <TransformerHorizontalPipeline
                 transformers={list}
@@ -1195,18 +1203,6 @@ function WorkspaceTransformersTabEntity({
       : null}
 
       {usePipeNav ? <PipeNavDialogs {...pipeNav.nameDialogProps} /> : null}
-      {usePipeNav && singleEntity ?
-        <PipeLibraryDialog
-          isOpen={pipeLibraryOpen}
-          onClose={() => setPipeLibraryOpen(false)}
-          world={world}
-          globalLibrary={globalLibrary}
-          entityName={singleEntity.name ?? singleEntity.id}
-          onAssign={(source, pipeId, mode) =>
-            pipeNav.addPipe.onAssignLibraryPipe(source, pipeId, mode, globalLibrary)
-          }
-        />
-      : null}
       </div>
       </div>
       )}

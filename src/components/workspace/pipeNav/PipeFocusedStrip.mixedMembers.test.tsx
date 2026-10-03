@@ -66,7 +66,7 @@ describe('PipeFocusedStrip with mixed stage / pipe members', () => {
         onDrillIntoPipe={vi.fn()}
         onCreatePipe={vi.fn()}
         onAddChildPipe={vi.fn()}
-        onAddExistingPipe={vi.fn()}
+        onAddLibraryPipe={vi.fn()}
       />,
     )
 

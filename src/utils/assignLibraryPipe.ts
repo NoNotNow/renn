@@ -7,7 +7,7 @@ import { addExistingPipeAtFocus } from '@/utils/pipeNavMutations'
 export type LibraryPipeSource = 'project' | 'global'
 
 /**
- * Append a project pipe or a global-library pipe to the end of an entity's pipe stack.
+ * Add a project pipe or a global-library pipe to an entity: at the end of its pipe stack, or as a nested pipe at `parentPath`.
  *
  * A global pipe is first copied into the project (with nested pipes and stages) unless a project pipe with the same id
  * already exists, which is then reused. `linked` shares the project pipe; `copy` gives the entity its own clone.
@@ -20,6 +20,9 @@ export function assignLibraryPipeToEntity(
   pipeId: string,
   mode: 'linked' | 'copy',
   library?: GlobalBehaviorLibrary,
+  /** Where to add: `[]` = the entity's pipe stack, otherwise the pipe at this path (as a nested pipe). */
+  parentPath: PipeNavPathSegment[] = [],
+  insertIndex?: number,
 ): { world: RennWorld; focusPath: PipeNavPathSegment[] } | null {
   let base = world
   if (source === 'global') {
@@ -28,5 +31,5 @@ export function assignLibraryPipeToEntity(
   }
   const pipe = base.transformerPipes?.[pipeId]
   if (!pipe) return null
-  return addExistingPipeAtFocus(base, entityId, pipe, mode, [])
+  return addExistingPipeAtFocus(base, entityId, pipe, mode, parentPath, insertIndex)
 }

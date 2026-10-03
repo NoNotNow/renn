@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { RennWorld } from '@/types/world'
 import type { GlobalBehaviorLibrary } from '@/types/globalBehaviorLibrary'
-import PipeLibraryDialog from './PipeLibraryDialog'
+import PipeLibraryPanel from './PipeLibraryPanel'
 
 const world: RennWorld = {
   version: '1',
@@ -16,10 +16,10 @@ const lib: GlobalBehaviorLibrary = {
   transformerPipes: { glob: { id: 'glob', name: 'Autopilot', stageIds: ['g1'], stages: [], members: [{ kind: 'stage', stageId: 'g1' }] } },
 } as unknown as GlobalBehaviorLibrary
 
-describe('PipeLibraryDialog', () => {
+describe('PipeLibraryPanel', () => {
   it('lists project and global pipes and assigns a global pipe', () => {
     const onAssign = vi.fn()
-    render(<PipeLibraryDialog isOpen onClose={() => {}} world={world} globalLibrary={lib} entityName="Buggy" onAssign={onAssign} />)
+    render(<PipeLibraryPanel world={world} globalLibrary={lib} onAssign={onAssign} />)
     expect(screen.getByTestId('pipe-library-project-loc')).toBeTruthy()
     fireEvent.click(screen.getByTestId('pipe-library-global-glob'))
     expect(screen.getByTestId('pipe-library-preview').textContent).toContain('Global stage')
@@ -28,7 +28,7 @@ describe('PipeLibraryDialog', () => {
   })
 
   it('filters by search', () => {
-    render(<PipeLibraryDialog isOpen onClose={() => {}} world={world} globalLibrary={lib} entityName="Buggy" onAssign={() => {}} />)
+    render(<PipeLibraryPanel world={world} globalLibrary={lib} onAssign={() => {}} />)
     fireEvent.change(screen.getByTestId('pipe-library-search'), { target: { value: 'auto' } })
     expect(screen.queryByTestId('pipe-library-project-loc')).toBeNull()
     expect(screen.getByTestId('pipe-library-global-glob')).toBeTruthy()

@@ -271,3 +271,13 @@ Stages and pipes copied from the global library carry `origin: { globalId, hash 
 When it runs: automatically when a project is opened / its registry changes (`useGlobalLibraryUpgrade` in `Builder`, silent, no undo entry, scene rebuild only if code/structure changed), and on demand via Organize → Project → **⟳ Sync with library**.
 The library itself is refreshed from `public/global/` by checksum (`mergeShippedGlobalBehaviorLibrary`), so fixing e.g. the AV stack in the repo and deploying updates consumers on their next open.
 Fingerprint: custom stages = type + code; pipes = member tree + paramDefs.
+
+## One add dialog, drag = run order
+
+- **One dialog everywhere**: the strip's `+` and the tree's `+ Add` open the same `PipeAddDialog` (state lifted into `WorkspaceTransformersTab`). Tabs: **Transformer** (preset / existing / global library),
+  **New pipe**, **Existing pipe** (`PipeLibraryPanel`: project + global-library pipes, search, structure preview, Link / Copy), **Child pipe** (inside a pipe). Every level offers all of them;
+  a library pipe lands at the focused level (`assignLibraryPipe` is focus-aware like `addExistingPipe`).
+- **Drag to reorder** (grip `⋮⋮` on every strip item, `StripSlot` in `PipeFocusedStrip`): entities run stages sorted by `priority`, so strip order = run order.
+  Entity level shows pipes (by their first stage) and top-level stages in that order; dragging uses `moveEntityLevelItem` (stack order for pipes, a fitting priority for stages);
+  inside a pipe with mixed members `moveMemberItem` reorders the member and fits priorities (`src/utils/stripOrder.ts`, intents `reorderEntityLevel` / `reorderMembers`).
+  Pipes never get their priorities rewritten; dropping on an item takes its slot. A new top-level stage joins the end of the run order.

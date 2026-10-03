@@ -1,8 +1,10 @@
-import { Fragment, useCallback, useMemo, useState, type CSSProperties, type RefObject } from 'react'
+import { Fragment, useCallback, useMemo, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
 import type { PipeNavPathSegment } from '@/types/pipeNav'
 import type { TransformerConfig, TransformerPipe } from '@/types/transformer'
 import type { StageCommitKind } from '@/editor/commitStageEdit'
 import type { Entity, RennWorld } from '@/types/world'
+import type { GlobalBehaviorLibrary } from '@/types/globalBehaviorLibrary'
+import type { LibraryPipeSource } from '@/utils/assignLibraryPipe'
 import type { TransformerTraceStep } from '@/transformers/transformerTrace'
 import { theme } from '@/config/theme'
 import { TransformerHorizontalPipeline, type StageConfigRequest, type TransformerCardErrorKind } from '@/components/workspace/TransformerPipelineHorizontal'
@@ -16,6 +18,7 @@ import PipeCard from './PipeCard'
 import PipeAddDialog from './PipeAddDialog'
 import type { ResolvedPipeNavView, StripItem } from '@/types/pipeNav'
 import { isPipeNavLeafLevel } from '@/utils/pipeNavResolve'
+import { entityLevelItems } from '@/utils/stripOrder'
 import { getEntityPipeStack } from '@/utils/transformerPipeResolve'
 import { resolveEntityStageRuntime, stackIndexFromScopePath } from '@/utils/pipeStageResolve'
 import { createPipeCardStageCallbacks } from './pipeStageCallbacks'
@@ -40,7 +43,12 @@ export interface PipeFocusedStripProps {
   onDrillIntoPipe: (index: number, pipeId: string) => void
   onCreatePipe: (name: string) => void
   onAddChildPipe: (name: string) => void
-  onAddExistingPipe: (pipe: TransformerPipe, mode: 'linked' | 'copy') => void
+  /** Add a project or global-library pipe at the focused level. */
+  onAddLibraryPipe: (source: LibraryPipeSource, pipeId: string, mode: 'linked' | 'copy') => void
+  globalLibrary?: GlobalBehaviorLibrary
+  /** Controlled open state of the add dialog (the tree's "+ Add" opens the same dialog). */
+  addDialogOpen?: boolean
+  onAddDialogOpenChange?: (open: boolean) => void
   stackIndexForPipeId?: (pipeId: string) => number
   onPipeControlToggle?: (opts: {
     pipeId: string
@@ -71,6 +79,10 @@ export interface PipeFocusedStripProps {
   stageConfigRequest?: StageConfigRequest | null
   /** Global-library transformers offered in the add dialog (copied into the project on add). */
   globalTransformers?: Record<string, TransformerConfig>
+  /** Drag in the entity-level strip (pipes + top-level stages): move `fromKey` to slot `toIndex`. */
+  onReorderEntityLevel?: (fromKey: string, toIndex: number) => void
+  /** Drag inside a pipe whose members mix stages and pipes. */
+  onReorderMembers?: (pipeId: string, fromIndex: number, toIndex: number) => void
 }
 
 export default function PipeFocusedStrip({
@@ -92,8 +104,10 @@ export default function PipeFocusedStrip({
   onDrillIntoPipe,
   onCreatePipe,
   onAddChildPipe,
-  onAddExistingPipe,
-  stackIndexForPipeId,
+  onAddLibraryPipe,
+  globalLibrary,
+  addDialogOpen: addDialogOpenProp,
+  onAddDialogOpenChange,
   onPipeControlToggle,
   onPipeParamChange,
   onPipeParamsReplace,
@@ -105,9 +119,16 @@ export default function PipeFocusedStrip({
   cardErrorsByStackIndex,
   stageConfigRequest,
   globalTransformers,
+  onReorderEntityLevel,
+  onReorderMembers,
 }: PipeFocusedStripProps) {
-  const [addDialogOpen, setAddDialogOpen] = useState(false)
+  const [addDialogOpenLocal, setAddDialogOpenLocal] = useState(false)
+  const addDialogOpen = addDialogOpenProp ?? addDialogOpenLocal
+  const setAddDialogOpen = onAddDialogOpenChange ?? setAddDialogOpenLocal
   const [scrollLeft, setScrollLeft] = useState(0)
+  const [dragKey, setDragKey] = useState<string | null>(null)
+  const [overIndex, setOverIndex] = useState<number | null>(null)
+  const dragState: StripDragState = { dragKey, setDragKey, overIndex, setOverIndex }
   const pipes = world.transformerPipes ?? {}
   const stack = getEntityPipeStack(entity)
   const stageRuntime = useMemo(() => resolveEntityStageRuntime(world, entity), [world, entity])
@@ -197,7 +218,8 @@ export default function PipeFocusedStrip({
       onAddGlobalTransformer={globalTransformers ? handleAddGlobalTransformer : undefined}
       onCreatePipe={onCreatePipe}
       onAddChildPipe={onAddChildPipe}
-      onAddExistingPipe={onAddExistingPipe}
+      globalLibrary={globalLibrary}
+      onAddLibraryPipe={onAddLibraryPipe}
     />
   )
 
@@ -270,82 +292,59 @@ export default function PipeFocusedStrip({
     )
   }
 
-  if (view.mode === 'pipe_siblings' || (view.mode === 'pipe_members' && view.items.every((i) => i.kind === 'pipe'))) {
-    const pipeItems = view.items.filter((i) => i.kind === 'pipe')
+  if (view.mode === 'pipe_siblings') {
+    const ordered = entityLevelItems(world, entity)
+    const renderSiblingPipeCard = (stackIdx: number, pipeId: string) => {
+      const pipe = pipes[pipeId] as TransformerPipe | undefined
+      if (!pipe) return null
+      const binding = stack[stackIdx]
+      const scopePath: PipeNavPathSegment[] = [{ kind: 'stack', index: stackIdx }]
+      const pipeCardCallbacks = createPipeCardStageCallbacks(
+        { pipeId, stackIndex: stackIdx, scopePath },
+        { onPipeControlToggle, onPipeParamChange, onPipeParamsReplace },
+      )
+      return (
+        <PipeCard
+          pipe={pipe}
+          binding={binding}
+          scopePath={scopePath}
+          world={world}
+          depth={depth}
+          isSelected={selectedIndex === stackIdx}
+          enabled={stageRuntime.isScopeEnabled(scopePath)}
+          stackIndex={stackIdx}
+          drawerPortalTarget={drawerPortalTarget}
+          scrollLeft={scrollLeft}
+          onSelect={() => onSelectPipeIndex(stackIdx)}
+          onDrillIn={() => onDrillIntoPipe(stackIdx, pipeId)}
+          onToggleEnabled={pipeCardCallbacks.onToggleEnabled}
+          onParamChange={pipeCardCallbacks.onParamChange}
+          onParamsReplace={pipeCardCallbacks.onParamsReplace}
+          onDecoupleBinding={() => onDecouplePipeBinding?.(stackIdx)}
+        />
+      )
+    }
     return (
       <>
         <div onScroll={(e) => setScrollLeft(e.currentTarget.scrollLeft)} style={pipeStripScrollStyle}>
-          {pipeItems.map((item, idx) => {
-            const pipe = pipes[item.pipeId] as TransformerPipe | undefined
-            if (!pipe) return null
-            const binding = item.kind === 'pipe' ? item.binding : undefined
-            const stackIdx = view.mode === 'pipe_siblings' ? idx : stackIndexForPipeId?.(item.pipeId)
-            const scopePath: PipeNavPathSegment[] =
-              view.mode === 'pipe_siblings' ?
-                [{ kind: 'stack', index: idx }]
-              : focusPath
-            const enabled = stageRuntime.isScopeEnabled(scopePath)
-            const stackIdxForScope = stackIndexFromScopePath(scopePath)
-            const pipeCardCallbacks = createPipeCardStageCallbacks(
-              { pipeId: item.pipeId, stackIndex: stackIdxForScope, scopePath },
-              { onPipeControlToggle, onPipeParamChange, onPipeParamsReplace },
-            )
-            return (
-              <Fragment key={`${item.pipeId}-${idx}`}>
-                {idx > 0 ?
-                  <div style={{ width: 24, height: 2, background: theme.pipeNav.accentMuted, flexShrink: 0 }} />
-                : null}
-                <PipeCard
-                  pipe={pipe}
-                  binding={binding}
-                  scopePath={scopePath}
-                  world={world}
-                  depth={depth}
-                  isSelected={selectedIndex === idx}
-                  enabled={enabled}
-                  stackIndex={stackIdxForScope !== undefined && stackIdxForScope >= 0 ? stackIdxForScope : undefined}
-                  drawerPortalTarget={drawerPortalTarget}
-                  scrollLeft={scrollLeft}
-                  onSelect={() => onSelectPipeIndex(idx)}
-                  onDrillIn={() => onDrillIntoPipe(idx, item.pipeId)}
-                  onToggleEnabled={pipeCardCallbacks.onToggleEnabled}
-                  onParamChange={pipeCardCallbacks.onParamChange}
-                  onParamsReplace={pipeCardCallbacks.onParamsReplace}
-                  onDecoupleBinding={
-                    stackIdx !== undefined && stackIdx >= 0 ?
-                      () => onDecouplePipeBinding?.(stackIdx)
-                    : undefined
-                  }
-                />
-              </Fragment>
-            )
-          })}
-          {view.mode === 'pipe_siblings' ?
-            stageIds.map((stageId, i) => (
-              <Fragment key={`top-${stageId}`}>
+          {ordered.map((item, pos) => (
+            <Fragment key={item.key}>
+              {pos > 0 ?
                 <div style={{ width: 16, height: 2, background: theme.pipeNav.accentMuted, flexShrink: 0 }} />
-                {renderStageCard({ kind: 'stage', stageId, index: i })}
-              </Fragment>
-            ))
-          : null}
-          <div
-            style={{
-              position: 'relative',
-              marginLeft: 8,
-              flexShrink: 0,
-              padding: 4,
-              boxSizing: 'border-box',
-              border: `1px dashed ${theme.pipeNav.accentMuted}`,
-              borderRadius: 6,
-              background: theme.pipeNav.levelBg[depth % theme.pipeNav.levelBg.length],
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              alignSelf: 'center',
-            }}
-          >
-            {renderPlusButton()}
-          </div>
+              : null}
+              <StripSlot
+                index={pos}
+                itemKey={item.key}
+                drag={dragState}
+                onDrop={(fromKey, toIndex) => onReorderEntityLevel?.(fromKey, toIndex)}
+              >
+                {item.kind === 'pipe' ?
+                  renderSiblingPipeCard(item.stackIndex!, item.pipeId)
+                : renderStageCard({ kind: 'stage', stageId: item.stageId, index: pos })}
+              </StripSlot>
+            </Fragment>
+          ))}
+          <div style={addSlotStyle(depth)}>{renderPlusButton()}</div>
         </div>
         {addDialog}
       </>
@@ -441,7 +440,16 @@ export default function PipeFocusedStrip({
               {displayIdx > 0 ?
                 <div style={{ width: 16, height: 2, background: theme.pipeNav.accentMuted, flexShrink: 0 }} />
               : null}
-              {item.kind === 'pipe' ? renderPipeCard(item) : renderStageCard(item)}
+              <StripSlot
+                index={displayIdx}
+                itemKey={`member:${item.index}`}
+                drag={dragState}
+                onDrop={(fromKey, toIndex) => {
+                  if (parentPipeId) onReorderMembers?.(parentPipeId, Number(fromKey.slice('member:'.length)), toIndex)
+                }}
+              >
+                {item.kind === 'pipe' ? renderPipeCard(item) : renderStageCard(item)}
+              </StripSlot>
             </Fragment>
           ))}
           <div
@@ -470,6 +478,101 @@ export default function PipeFocusedStrip({
 
   return null
 }
+
+interface StripDragState {
+  dragKey: string | null
+  setDragKey: (k: string | null) => void
+  overIndex: number | null
+  setOverIndex: (i: number | null) => void
+}
+
+/** One strip item with a grab handle; dropping another item here moves it to this slot. */
+function StripSlot({
+  index,
+  itemKey,
+  drag,
+  onDrop,
+  children,
+}: {
+  index: number
+  itemKey: string
+  drag: StripDragState
+  onDrop: (fromKey: string, toIndex: number) => void
+  children: ReactNode
+}) {
+  const dragging = drag.dragKey === itemKey
+  const isTarget = drag.dragKey !== null && drag.overIndex === index && !dragging
+  return (
+    <div
+      data-testid={`strip-slot-${itemKey}`}
+      onDragOver={(e) => {
+        if (drag.dragKey === null) return
+        e.preventDefault()
+        if (drag.overIndex !== index) drag.setOverIndex(index)
+      }}
+      onDrop={(e) => {
+        e.preventDefault()
+        const from = drag.dragKey
+        drag.setDragKey(null)
+        drag.setOverIndex(null)
+        if (from !== null && from !== itemKey) onDrop(from, index)
+      }}
+      style={{
+        position: 'relative',
+        flexShrink: 0,
+        opacity: dragging ? 0.45 : 1,
+        borderLeft: isTarget ? `3px solid ${theme.pipeNav.accent}` : '3px solid transparent',
+        paddingLeft: 2,
+        paddingTop: 12,
+      }}
+    >
+      <span
+        draggable
+        data-testid={`strip-grip-${itemKey}`}
+        title="Drag to reorder (run order)"
+        onDragStart={(e) => {
+          e.dataTransfer.setData('text/plain', itemKey)
+          e.dataTransfer.effectAllowed = 'move'
+          drag.setDragKey(itemKey)
+        }}
+        onDragEnd={() => {
+          drag.setDragKey(null)
+          drag.setOverIndex(null)
+        }}
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 2,
+          zIndex: 3,
+          cursor: 'grab',
+          fontSize: 11,
+          lineHeight: 1,
+          padding: '0 3px',
+          color: theme.pipeNav.accent,
+          userSelect: 'none',
+        }}
+      >
+        ⋮⋮
+      </span>
+      {children}
+    </div>
+  )
+}
+
+const addSlotStyle = (depth: number): CSSProperties => ({
+  position: 'relative',
+  marginLeft: 8,
+  flexShrink: 0,
+  padding: 4,
+  boxSizing: 'border-box',
+  border: `1px dashed ${theme.pipeNav.accentMuted}`,
+  borderRadius: 6,
+  background: theme.pipeNav.levelBg[depth % theme.pipeNav.levelBg.length],
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  alignSelf: 'center',
+})
 
 const pipeStripScrollStyle: CSSProperties = {
   display: 'flex',

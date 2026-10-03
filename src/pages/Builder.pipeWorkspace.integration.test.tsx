@@ -172,9 +172,9 @@ async function addExistingPipe(
   await user.click(screen.getByTestId('pipe-focused-add-button'))
   await waitFor(() => expect(screen.getByTestId('pipe-add-tab-existing_pipe')).toBeInTheDocument())
   await user.click(screen.getByTestId('pipe-add-tab-existing_pipe'))
-  const list = screen.getByTestId('pipe-add-existing-list')
-  await user.click(within(list).getByRole('button', { name: pipeName }))
-  await user.click(screen.getByTestId(mode === 'linked' ? 'pipe-add-link' : 'pipe-add-copy'))
+  const list = screen.getByTestId('pipe-library-project')
+  await user.click(within(list).getByText(pipeName))
+  await user.click(screen.getByTestId(mode === 'linked' ? 'pipe-library-link' : 'pipe-library-copy'))
 }
 
 async function switchWorkspaceEntity(user: ReturnType<typeof userEvent.setup>, entityName: string) {

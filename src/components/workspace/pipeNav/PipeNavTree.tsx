@@ -362,8 +362,8 @@ export default function PipeNavTree({
         }}
       >
         {onAddPipe ?
-          <ToolbarBtn title="Assign a project or library pipe to this object" testId="pipe-nav-tree-add-pipe" onClick={onAddPipe}>
-            + Pipe
+          <ToolbarBtn title="Add a transformer or pipe at the focused level" testId="pipe-nav-tree-add-pipe" onClick={onAddPipe}>
+            + Add
           </ToolbarBtn>
         : null}
         {onWrapAll && (entity.transformers ?? []).length > 0 ?

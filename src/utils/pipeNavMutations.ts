@@ -402,7 +402,21 @@ export function commitFocusedStageConfigs(
   if (!entity) return world
 
   let nextWorld = world
+  const topLevelEdit = focusPath.length === 0 && getEntityPipeStack(entity).length > 0
+  const reindexed = configs.length > 0 && configs.every((c, i) => c.priority === i)
   configs = preserveCompositePriorities(world.transformers ?? {}, configs, ids)
+  if (topLevelEdit && reindexed) {
+    // a new top-level stage joins the end of the run order (after everything the entity already runs)
+    let maxPriority = Math.max(
+      Number.NEGATIVE_INFINITY,
+      ...(entity.transformers ?? []).map((id) => world.transformers?.[id]?.priority ?? Number.NEGATIVE_INFINITY),
+    )
+    configs = configs.map((c, i) => {
+      if (world.transformers?.[ids[i]!]) return c
+      maxPriority = Number.isFinite(maxPriority) ? maxPriority + 1 : 0
+      return { ...c, priority: maxPriority }
+    })
+  }
   for (let i = 0; i < configs.length; i++) {
     const id = ids[i]
     if (id && configs[i]) {
