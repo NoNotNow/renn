@@ -12,6 +12,8 @@ import SidebarTabs, { type TabConfig } from '../SidebarTabs'
 import { SIDEBAR_MIN_WIDTH, clampSidebarWidth } from './sidebarLayout'
 
 const RESIZE_THRESHOLD_PX = 5
+/** Width of the full-height grab strip on the inner edge of an open sidebar. */
+const EDGE_GRAB_PX = 8
 
 export type SidebarLayoutMode = 'overlay' | 'inline'
 
@@ -68,7 +70,7 @@ export default function Sidebar({
   const effectiveWidth = clampSidebarWidth(width)
 
   const handleResizeMouseDown = useCallback(
-    (e: ReactMouseEvent<HTMLButtonElement>) => {
+    (e: ReactMouseEvent<HTMLElement>, toggleOnClick = true) => {
       if (onWidthChange == null) return
       resizeRef.current = {
         startX: e.clientX,
@@ -95,7 +97,7 @@ export default function Sidebar({
         setIsResizing(false)
         document.removeEventListener('mousemove', onMouseMove)
         document.removeEventListener('mouseup', onMouseUp)
-        if (data != null && !data.resizing) {
+        if (toggleOnClick && data != null && !data.resizing) {
           onToggle()
         }
       }
@@ -164,6 +166,29 @@ export default function Sidebar({
           </div>
         </div>
       </aside>
+
+      {isOpen && onWidthChange != null ?
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label={`Resize ${side} sidebar`}
+          data-testid={`sidebar-edge-resize-${side}`}
+          onMouseDown={(e) => {
+            e.preventDefault()
+            handleResizeMouseDown(e, false)
+          }}
+          style={{
+            position: 'absolute',
+            top: 0,
+            bottom: 0,
+            width: EDGE_GRAB_PX,
+            [isLeft ? 'left' : 'right']: effectiveWidth - 2,
+            cursor: 'ew-resize',
+            zIndex: 1000,
+            transition: isResizing ? 'none' : 'left 0.3s cubic-bezier(0.4, 0, 0.2, 1), right 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+          }}
+        />
+      : null}
 
       <SidebarToggleButton
         isOpen={isOpen}
