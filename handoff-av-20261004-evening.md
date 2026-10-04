@@ -9,10 +9,11 @@ Full suite green there. Standing rules from `handoff-av-lab-20261004.md` still a
 - Seed lab (`av-lab.diagnostic.test.ts`) only as smoke check. Code-version hashes in lab + Builder header; guard test keeps `self_hunt_flexible/world.json` in sync with the library.
 - Docs: `agent-context/feature-av-lab.md`, `agent-context/feature-av-stack.md`.
 
-## Parked unverified work (rate limit hit mid-task)
-- `claude/magical-dirac-um54mz-wip-pipe` (f024391): "escape" driving style (drop fixed manoeuvre/reverse speed caps, physics-based limit, footprint-exact fit), turn-around instead of long reversing, presets/self-calibration for a reusable `global_av_autopilot`. Not tested.
-- `claude/magical-dirac-um54mz-wip-weave` (fbf328f): straight-road weaving metrics + lateral fix (`av-control-lateral.js`). Not tested.
-Review, finish against scenarios, then merge.
+## WIP branches: merged (2026-10-04 late, branch `ccr-1d0e55ac-g1g4s5`, live build `2ce7879`)
+- wip-weave -> `921794c`: carrot string-pulling + pure-pursuit refinement. Open road +-14 m weave / 1.35 steering reversals/s -> 0.00. Red check documented in feature-av-stack.md ("Straight-road weaving").
+- wip-pipe -> `2ce7879`: presets (opt-in, `av.preset` merged under each stage's own params), self-calibrating launch (`selfCalibrate`, via presets), style 'escape', vehicle-reuse suite (20 cases pass). The route-planner experiments (`headingHeuristic`, `mazeLatch`, `runTotal`, `mazeManeuverSpeed`) each regressed existing scenarios and are opt-in; `turnaround-open` / `turnaround-corridor` are KNOWN_FAILING (prio 3 is therefore still open).
+- Sweep on the Linux runner: 61/75 winnable, robust 59/64. `pair/v25/low/b-30+30/near` fails here on the old stand too (macOS-recorded baseline).
+- The `-wip-*` branches can be deleted.
 
 ## Open user requests (priority order)
 1. **Economy mode / CPU budget (new, configurable)** — Manuel wants many cars per world, so:
@@ -20,9 +21,9 @@ Review, finish against scenarios, then merge.
    - Path blocked → a higher layer sets **waypoints** (route planner on the static map / distance field); the car only focuses on the next waypoint.
    - Moving objects nearby → observe them, update them often. **Bug:** pink obstacle marks of moving objects stay behind instead of moving with them; dynamic marks must be short-lived (frequent refresh, quick expiry), static ones persistent.
    - All configurable (e.g. `budget: 'eco' | 'normal' | 'full'`), with CPU per car measured by the lab profiler; add a many-cars perf test.
-2. Weaving on straight roads (see wip-weave; relates to 1).
-3. Manoeuvres/reverse too slow; turn instead of long reversing (see wip-pipe).
-4. Reusable pipe: safe defaults, presets (`car`, `chaser-evasion`, `maze`), self-calibration, short "use in your game" doc, tests with other vehicles (heavy cube, icy car, small car, truck).
+2. ~~Weaving on straight roads~~ done (921794c).
+3. Manoeuvres/reverse too slow (style 'escape' exists, opt-in via preset); turn instead of long reversing still open (heading-aware search that does not break alley reversing).
+4. ~~Reusable pipe~~ done (2ce7879): presets, self-calibration, doc section "Using the AV autopilot in your game", reuse tests.
 5. Remaining: seed-5 pocket with moving neighbours; 6 robust multi-chaser sweep cases (needs early gap commitment); route planner p95 7.4 ms since the field heuristic.
 
 ## World notes
