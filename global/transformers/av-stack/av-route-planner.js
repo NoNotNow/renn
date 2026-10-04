@@ -102,13 +102,95 @@ function transform(input, dt, params, state, api) {
   }
 
   // spatial hash over costmap points + swept-footprint test (hl/hw are the active margins)
-  function makeHit(pts, hlA, hwA) {
-    var grid = {}
-    for (var i = 0; i < pts.length; i++) {
-      var key = Math.floor(pts[i][0] / 2) + ',' + Math.floor(pts[i][1] / 2)
-      ;(grid[key] || (grid[key] = [])).push(pts[i])
+  // one grid per point list (several margins / guard / handback tests share it). Dense counting-sort layout over the
+  // points' bounding box (cell lists keep the input order); a Map fallback covers absurdly wide point sets.
+  var gridCache = null
+  function gridFor(pts) {
+    if (gridCache && gridCache.pts === pts && gridCache.n === pts.length) return gridCache
+    var n = pts.length
+    var minCx = Infinity
+    var maxCx = -Infinity
+    var minCz = Infinity
+    var maxCz = -Infinity
+    for (var i = 0; i < n; i++) {
+      var cx = Math.floor(pts[i][0] / 2)
+      var cz = Math.floor(pts[i][1] / 2)
+      if (cx < minCx) minCx = cx
+      if (cx > maxCx) maxCx = cx
+      if (cz < minCz) minCz = cz
+      if (cz > maxCz) maxCz = cz
     }
+    var g = { pts: pts, n: n, dense: false, minCx: minCx, minCz: minCz, w: 0, h: 0, start: null, xs: null, zs: null, map: null }
+    var w = maxCx - minCx + 1
+    var h = maxCz - minCz + 1
+    if (n > 0 && w * h <= 1048576) {
+      g.dense = true
+      g.w = w
+      g.h = h
+      var start = new Int32Array(w * h + 1)
+      var cellOf = new Int32Array(n)
+      for (var j = 0; j < n; j++) {
+        var c = (Math.floor(pts[j][0] / 2) - minCx) * h + (Math.floor(pts[j][1] / 2) - minCz)
+        cellOf[j] = c
+        start[c + 1]++
+      }
+      for (var k = 0; k < w * h; k++) start[k + 1] += start[k]
+      var fill = start.slice(0, w * h)
+      var xs = new Float64Array(n)
+      var zs = new Float64Array(n)
+      for (var m = 0; m < n; m++) {
+        var pos2 = fill[cellOf[m]]++
+        xs[pos2] = pts[m][0]
+        zs[pos2] = pts[m][1]
+      }
+      g.start = start
+      g.xs = xs
+      g.zs = zs
+    } else {
+      var map = new Map()
+      for (var q = 0; q < n; q++) {
+        var key = (Math.floor(pts[q][0] / 2) + 524288) * 1048576 + (Math.floor(pts[q][1] / 2) + 524288)
+        var cell = map.get(key)
+        if (cell) cell.push(pts[q])
+        else map.set(key, [pts[q]])
+      }
+      g.map = map
+    }
+    gridCache = g
+    return g
+  }
+  function makeHit(pts, hlA, hwA) {
+    var grid = gridFor(pts)
     var R = Math.sqrt(hlA * hlA + hwA * hwA)
+    if (grid.dense) {
+      var gMinX = grid.minCx
+      var gMinZ = grid.minCz
+      var gW = grid.w
+      var gH = grid.h
+      var gStart = grid.start
+      var gXs = grid.xs
+      var gZs = grid.zs
+      return function (x, z, fx, fz) {
+        var x0 = Math.max(Math.floor((x - R) / 2), gMinX)
+        var x1 = Math.min(Math.floor((x + R) / 2), gMinX + gW - 1)
+        var z0 = Math.max(Math.floor((z - R) / 2), gMinZ)
+        var z1 = Math.min(Math.floor((z + R) / 2), gMinZ + gH - 1)
+        for (var cx = x0; cx <= x1; cx++) {
+          for (var cz = z0; cz <= z1; cz++) {
+            var ci = (cx - gMinX) * gH + (cz - gMinZ)
+            for (var q = gStart[ci], qe = gStart[ci + 1]; q < qe; q++) {
+              var dx = gXs[q] - x
+              var dz = gZs[q] - z
+              var lx = dx * fx + dz * fz
+              var ly = dx * fz - dz * fx
+              if (lx > -hlA && lx < hlA && ly > -hwA && ly < hwA) return true
+            }
+          }
+        }
+        return false
+      }
+    }
+    var map = grid.map
     return function (x, z, fx, fz) {
       var x0 = Math.floor((x - R) / 2)
       var x1 = Math.floor((x + R) / 2)
@@ -116,7 +198,7 @@ function transform(input, dt, params, state, api) {
       var z1 = Math.floor((z + R) / 2)
       for (var cx = x0; cx <= x1; cx++) {
         for (var cz = z0; cz <= z1; cz++) {
-          var list = grid[cx + ',' + cz]
+          var list = map.get((cx + 524288) * 1048576 + (cz + 524288))
           if (!list) continue
           for (var q = 0; q < list.length; q++) {
             var dx = list[q][0] - x
@@ -192,24 +274,39 @@ function transform(input, dt, params, state, api) {
       }
       return top
     }
-    function skey(x, z, fx, fz, g) {
+    // best-cost table: open addressing over typed arrays (numeric state key = cell x, cell z, heading bin, gear)
+    var cap = 1024
+    while (cap < maxExp * 24) cap <<= 1
+    var capMask = cap - 1
+    var tKeys = new Float64Array(cap).fill(-1)
+    var tVals = new Float64Array(cap)
+    var slotKey = 0
+    function slotOf(x, z, fx, fz, g) {
       var ih = Math.round((Math.atan2(fz, fx) / (2 * Math.PI)) * 36)
       if (ih < 0) ih += 36
-      return Math.round(x / 0.6) + ',' + Math.round(z / 0.6) + ',' + (ih % 36) + ',' + g
+      var ix = Math.round(x / 0.6) + 524288
+      var iz = Math.round(z / 0.6) + 524288
+      var ihg = (ih % 36) * 3 + (g + 1)
+      slotKey = (ix * 1048576 + iz) * 108 + ihg
+      var h = (Math.imul(ix, 0x9e3779b1) ^ Math.imul(iz, 0x85ebca6b) ^ Math.imul(ihg + 1, 0xc2b2ae35)) >>> 0
+      var sl = (h ^ (h >>> 15)) & capMask
+      while (tKeys[sl] !== -1 && tKeys[sl] !== slotKey) sl = (sl + 1) & capMask
+      return sl
     }
     var HW = 1.4
     var start = { x: sx, z: sz, fx: sfx, fz: sfz, g: 0, gear: 0, k: 0, parent: null, f: dist(sx, sz) * HW, d: 0 }
     push(start)
-    var best = {}
-    best[skey(sx, sz, sfx, sfz, 0)] = 0
+    var s0 = slotOf(sx, sz, sfx, sfz, 0)
+    tKeys[s0] = slotKey
+    tVals[s0] = 0
     var bestNode = start
     var bestH = dist(sx, sz)
     var goalNode = null
     var expansions = 0
     while (heap.length > 0 && expansions < maxExp) {
       var cur = pop()
-      var ck = skey(cur.x, cur.z, cur.fx, cur.fz, cur.gear)
-      if (best[ck] !== undefined && cur.g > best[ck] + 1e-6) continue
+      var cs = slotOf(cur.x, cur.z, cur.fx, cur.fz, cur.gear)
+      if (tKeys[cs] !== -1 && cur.g > tVals[cs] + 1e-6) continue
       expansions++
       var h = dist(cur.x, cur.z)
       if (h < bestH) {
@@ -271,9 +368,10 @@ function transform(input, dt, params, state, api) {
           if (cur.gear !== 0 && cur.gear !== gear) step += gearPen
           if (cur.gear !== 0 && cur.k !== k) step += 0.3
           var g2 = cur.g + step
-          var nk = skey(nx, nz, nfx, nfz, gear)
-          if (best[nk] !== undefined && best[nk] <= g2) continue
-          best[nk] = g2
+          var ns = slotOf(nx, nz, nfx, nfz, gear)
+          if (tKeys[ns] !== -1 && tVals[ns] <= g2) continue
+          tKeys[ns] = slotKey
+          tVals[ns] = g2
           push({ x: nx, z: nz, fx: nfx, fz: nfz, g: g2, gear: gear, k: k, revRun: revRun, parent: cur, f: g2 + dist(nx, nz) * HW })
         }
       }

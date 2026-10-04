@@ -2,7 +2,7 @@
 // steering = feed-forward(kappa_plan / kappaPerSteer) + P feedback on measured curvature,
 // with a steering-rate limiter (comfort / actuator model).
 // debug draw: white = commanded steering direction.
-// params: kappaPerSteer, fbGain, steerRate
+// params: kappaPerSteer, fbGain, steerRate, kappaTau (0.04 s + 0.008 s per m/s), kappaJump (0.025 1/m)
 function transform(input, dt, params, state, api) {
   var av = input.av
   if (!av || !av.plan || !av.ego) return {}
@@ -10,7 +10,16 @@ function transform(input, dt, params, state, api) {
   var kps = params.kappaPerSteer || 0.12
   var fb = params.fbGain != null ? params.fbGain : 0.35
   var rate = params.steerRate != null ? params.steerRate : 4
-  var kCmd = av.plan.kappa
+  var kRaw = av.plan.kappa
+  // Smoothing: the planner picks one of a few dozen discrete curvatures every frame, so a tiny change of goal / costmap hops
+  // between neighbours (visible as fast left-right steering). Small changes (< kappaJump) are low-passed
+  // (tau 0.04 s + 0.008 s per m/s); a large change (avoidance) passes through quickly (tau 0.04 s). Reverse / manoeuvre override bypass the filter (precise geometry).
+  var v = Math.abs(e.speed)
+  if (state.kf === undefined || av.mode === 'reverse' || av.plan.override || v < 2) state.kf = kRaw
+  var jump = Math.abs(kRaw - state.kf)
+  var tauK = jump > (params.kappaJump != null ? params.kappaJump : 0.025) ? 0.04 : (params.kappaTau != null ? params.kappaTau : 0.04) + 0.008 * v
+  state.kf += (kRaw - state.kf) * Math.min(1, dt / (tauK + dt))
+  var kCmd = state.kf
   var steer = kCmd / kps
   if (Math.abs(e.speed) > 2 && av.mode !== 'reverse') {
     steer += (fb * (kCmd - e.kappa)) / kps
