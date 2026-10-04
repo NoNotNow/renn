@@ -405,14 +405,10 @@ const SCENARIOS: Scenario[] = [
  * Remove the entry as soon as the scenario passes (`it.fails` then turns red to remind you).
  */
 const KNOWN_FAILING: Record<string, string> = {
-  'from-behind':
-    'no dodge: the 30 m/s homing chaser reaches the car at ~18 m/s (t=3.1 s) and then rides on its rear; threat prediction is constant-velocity (a homing chaser is mispredicted) and the rear scan is sparse (12 deg / every 3rd frame)',
   pincer: 'both homing chasers touch the car at t=3.1 s, then 7 s stalled / 17 speed spikes (constant-velocity threat prediction, no gap between two converging threats)',
   'corner-trap': 'car turns into the wall corner side while the homing chaser closes: touches the chaser (t=5.1 s) and the walls; boxed in with 3 s stalled',
   'reverse-escape':
     'reverses to -11.6 m/s within 2 s, swerves into the pocket side wall at -14.8 m/s (t=2.8 s: the dense forward scan cone stays forward while reversing, so the rear / sides are seen only by the sparse zone), then shuffles forward/backward at 2-3 m/s (36 m in 20 s)',
-  'open-road-speed':
-    'peak 23.1 m/s: speed-planner limit is "curve" in 64% of frames (small planned curvature wobble on a straight, v = sqrt(maxLatAccel / kappa)) and "free" in 36% (planning horizon grows with the current speed, so it gates acceleration)',
   'open-road-reverse': 'a 2 s reverse burst (-17.8 m/s) then 2-3 m/s forward/backward shuffling: 41 m of 350 m in 20 s (reverse manoeuvre speed is low and the gear flips)',
 }
 

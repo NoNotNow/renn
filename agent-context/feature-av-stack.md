@@ -185,6 +185,11 @@ All of these are **pipe params** (drawer on the AV pipe, labelled; defaults in b
 | `maxLatAccel` [9 m/s²] | Cornering limit (`sqrt(a / κ)`) for the local arc and for route bends. Raise for grippier/more agile bodies. |
 | `goalDecel` [3] | Gentler braking used for the final approach so the car can stop inside the hold radius. |
 
+**Curve limit on a straight (2026-10):** the per-frame chosen candidate curvature wobbles left/right on a straight road (discrete kappas), and `sqrt(maxLatAccel / |kappa|)` of that wobble capped
+`open-road-speed` at 23 m/s (`curve` in 64% of frames). `av-speed-planner` now uses the signed kappa smoothed over `curveSmooth` s (0.6 in `self_hunt_flexible`, 0 = raw) and ignores
+`|k| < curveDeadband` (0.004 1/m); open-road peak is ~32 m/s. `av-motion-planner` also has `horizonClear` (m, 0 = off: floor for the look-ahead; tried 60-100, it made head-on flaky, so off) and
+`switchMargin` (3 in `self_hunt_flexible`, 0 = off: plan-switch hysteresis, keeps last frame's candidate unless another is cheaper by the margin; fewer blue-line flips, steering reversals/s drop ~10-25%).
+
 Other limits: the planning horizon and sensor range scale with the stopping distance of `cruiseSpeed` (they used to cap everything at 15.8 m/s), the final-goal approach, the AEB and the car's
 `power` / `maxThrottle` (0.46) for acceleration. The old "side clearance" speed limit (which looked 25 m ahead and 4 m sideways) is gone.
 
