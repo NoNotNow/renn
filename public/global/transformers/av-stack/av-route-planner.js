@@ -479,6 +479,7 @@ function transform(input, dt, params, state, api) {
     return F.d[cx * F.H + cz] + extra
   }
 
+  var turnOk = false
   function search(sx, sz, sfx, sfz, gx, gz, pts, maxExp, marginOverride) {
     var useField = fld !== null && Math.abs(gx - fld.gx) < 1.5 && Math.abs(gz - fld.gz) < 1.5
     var hlS = ((av.vehicle && av.vehicle.length) || params.vehicleLength || 4) / 2 + planMargin
@@ -511,7 +512,7 @@ function transform(input, dt, params, state, api) {
     // 8 m reverse runs, a short forward arc, reverse again, 46 m reversed in 20 s instead of one 3-point turn.
     // Opt-in because the inadmissible extra cost misleads the budgeted search where turning is impossible (18 m alley, goal behind: it explores turns instead of reversing out;
     // reverse-escape / open-road-reverse fail with it). Turnaround tests: av-maze-scenarios KNOWN_FAILING until that is solved.
-    var hHead = params.headingHeuristic === true && !state.maze
+    var hHead = (params.headingHeuristic === true || turnOk) && !state.maze
     var Rturn = 1 / kmax
     var hW = params.headingWeight != null ? params.headingWeight : 0.8
     var hMin = params.headingMin != null ? params.headingMin : 0.4
@@ -700,6 +701,7 @@ function transform(input, dt, params, state, api) {
   function begin(res) {
     state.segs = res.segs
     state.mazePlan = state.maze
+    state.turnPlan = turnOk
     state.idx = 0
     state.segStart = null
     state.prevGear = 0
@@ -839,6 +841,7 @@ function transform(input, dt, params, state, api) {
   var revCruiseOn = params.reverseCruise !== false
   var revCruiseSpeed = params.reverseSpeed != null ? params.reverseSpeed : params.style === 'escape' ? 15 : 10
   var scanRange = (av.scan && av.scan.range) || 40
+  var turnRoom = params.turnRoom != null ? params.turnRoom : 20
   // lazy: the costmap grid is only built when a reverse-cruise check actually needs it (most frames: goal ahead, nothing to check)
   var freeStraight = (function () {
     var hitS = null
@@ -850,6 +853,7 @@ function transform(input, dt, params, state, api) {
       return maxD
     }
   })()
+  turnOk = false
   if (revCruiseOn && goalDist > holdTol) {
     // where the route leads: the goal, or (field) the point 24 m down the obstacle-aware route
     var gd = fieldGuide(pos[0], pos[2], 24)
@@ -867,6 +871,14 @@ function transform(input, dt, params, state, api) {
         }
       }
     } else if (gBehind < 0 || freeStraight(-1, 12) < 10) state.revCruise = false
+    // turn-around: goal behind, not reversing out of a blocked way, and room ahead to swing round -> the heading-aware heuristic (see search) makes the search find the U / 3-point turn
+    // instead of the cheapest-looking reverse run (distance only). Where the way ahead is short (alley, dead end) reversing out stays the plan.
+    if (params.turnAround !== false && !state.revCruise && gBehind > 0.3) turnOk = freeStraight(1, turnRoom) >= turnRoom
+    // a U / 3-point turn is a long search (the turn pays off only after ~30 m of arcs): bigger budget while turning is the plan
+    if (turnOk) {
+      routeExp = Math.max(routeExp, params.turnRouteExpansions != null ? params.turnRouteExpansions : 5000)
+      maxExpFull = Math.max(maxExpFull, params.turnMaxExpansions != null ? params.turnMaxExpansions : 12000)
+    }
     api.watch('av.revc', (state.revCruise ? 'on ' : 'off ') + gBehind.toFixed(2) + ' fb ' + fbW + ' ff ' + ffW)
   } else state.revCruise = false
   if (state.revCruise) {
@@ -1158,6 +1170,8 @@ function transform(input, dt, params, state, api) {
   var runTot = runLen
   for (var rb = state.idx - 1; params.runTotal === true && rb >= 0 && state.segs[rb].g === cur.g; rb--) runTot += state.segs[rb].len
   var vShuffle = state.maze && params.mazeManeuverSpeed != null ? Math.max(vMan, params.mazeManeuverSpeed) : vMan
+  // a U / 3-point turn planned by this planner (turnOk at plan time) shuffles faster (short legs at 3 m/s took 16 s in a 14 m corridor)
+  if (state.turnPlan) vShuffle = Math.max(vShuffle, params.turnManeuverSpeed != null ? params.turnManeuverSpeed : 4.5)
   var vRun = state.maze && params.maneuverRunSpeed != null && runTot > 8 ? Math.max(params.maneuverRunSpeed, vShuffle) : vShuffle
   var vMax = Math.min(vRun, 0.9 + Math.sqrt(2 * 3 * (runLen > 8 ? runLen : remain)))
   // style 'escape': the plan is collision-free along its whole length (footprint-exact, same costmap), so a run is driven as fast as it can still be STOPPED at its end with the real braking

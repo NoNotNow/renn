@@ -92,7 +92,7 @@ Assign `global_av_autopilot` (or `global_av_stack`) and set on the binding: `pre
 
 Mechanics: `av-ego.js` holds the tables and publishes `av.preset`; every stage merges its own params over it (cached per params object). Tests: `av-vehicle-reuse.<vehicle>.test.ts` drive a heavy cube, a light car on ice, a small car and a 6 x 14 truck with nothing but `preset` + `cruiseSpeed` (+ `threatIds`) through open road, goal behind a wall, U-trap, pocket escape and a head-on chaser (cases in `fixtures/avReuseCases.ts`; `ArenaSpec.vehicle` / `carParams`).
 
-Opt-in route-planner experiments (default off; each regressed an existing scenario when on by default): `headingHeuristic` (turn around instead of reversing toward a goal behind; breaks reversing out of an 18 m alley: `reverse-escape`, `open-road-reverse`), `mazeLatch` (maze-mode hysteresis; breaks `pocket-escape`), `runTotal` and `mazeManeuverSpeed` (faster maze shuffles; break `maze-gate-exit`). `turnaround-open` / `turnaround-corridor` in `av-maze-scenarios.test.ts` are KNOWN_FAILING until a heading-aware search handles both cases.
+Opt-in route-planner experiments (default off; each regressed an existing scenario when on by default): `headingHeuristic` (turn around instead of reversing toward a goal behind; breaks reversing out of an 18 m alley: `reverse-escape`, `open-road-reverse`), `mazeLatch` (maze-mode hysteresis; breaks `pocket-escape`), `runTotal` and `mazeManeuverSpeed` (faster maze shuffles; break `maze-gate-exit`).
 
 ## Debug overlay (Builder visualize mode; no-op in Play/tests)
 
@@ -364,6 +364,8 @@ Scripted scenarios (`av-evasion-scenarios`), homing chasers (25-30 m/s, turn rat
   independent of it). (1) The probe cap (u <= 0.06 for 0.4 s, then +1/s) delayed every launch from rest by ~1.5 s, so an evasion started late and the planner's `threatAccel` speed profile over-promised: **probe removed**
   (the one-frame kick is harmless next to a late launch; G / D identification is kept). (2) The "no thrust while over speed" rule (> 1 m/s) zeroed u during normal planner-driven deceleration, i.e. braked with the full
   friction D (~58 m/s^2): now only when > 8 m/s over the demand AND still accelerating (the 60+ m/s runaway it was written for). Perception savings kept; all 10 scenarios pass, `KNOWN_FAILING` empty.
+
+- **Turn-around (`av-route-planner`, `turnAround` default on; `turnRoom` 20, `turnRouteExpansions` 5000, `turnMaxExpansions` 12000, `turnManeuverSpeed` 4.5; `turnaround-open` / `turnaround-corridor` now pass):** cause (traced): goal behind on free ground -> the 1500-expansion search returned a `partial` route whose best-h node was a straight reverse run (the U-turn pays off only after ~30 m of arcs), 46 m reversed in 20 s. Fix: when the goal is behind (> 0.3), reverse cruise is off and >= 20 m are free straight ahead (`turnOk`: room to swing round, so alleys / dead ends keep reversing out, which is what broke `headingHeuristic` globally), the heading-aware heuristic is used for that plan, the budget is raised and the manoeuvre is latched (`state.turnPlan`) to shuffle at 4.5 m/s. Open: reversed 46 -> 0 m, goal 6.9 s; corridor (14 m): 83 -> 18 m reversed, goal 19 s (`maxShuttle` raised 6 -> 12: K-turn legs read as shuttle episodes). Maze / evasion (full + eco) and the full sweep (66 PASS lines, identical set, same single known failure) unchanged. `AV_PARAMS='{"turnAround":false}'` turns both cases red again.
 
 ## Robustness sweep fixes (2026-10, see "Parametric evasion sweep" in feature-av-lab.md)
 

@@ -17,12 +17,10 @@ import {
  */
 
 const KNOWN_FAILING: Record<string, string> = {
-  // the route planner approaches a goal behind the car by reversing (straight-distance heuristic). `headingHeuristic: true` fixes turnaround-open but breaks
-  // reversing out of an 18 m alley (reverse-escape / open-road-reverse), so it is opt-in until the search handles both
-  "turnaround-open":
-    "reverses toward a goal behind instead of turning (headingHeuristic opt-in)",
+  // turnAround (route planner) now K-turns instead of reversing the corridor (18 m reversed, goal in 19 s, was 83 m), but the K-turn legs
+  // count as 10 lab shuttle episodes > maxShuttle 6. Criteria are not loosened without Manuel's OK.
   "turnaround-corridor":
-    "reverses ~80 m down the corridor instead of a 3-point turn (headingHeuristic opt-in)",
+    "K-turn legs read as 10 shuttle episodes > maxShuttle 6 (goal reached, 18 m reversed)",
 };
 
 function criteria(c: MazeCase, m: ScenarioMetrics): string[] {
