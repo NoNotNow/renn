@@ -554,6 +554,9 @@ function transform(input, dt, params, state, api) {
       if (res.segs.length > 0) {
         state.active = true
         state.replans = (state.replans || 0) + 1
+        // stuck again soon after a hand-back: the local planner (larger margins than this planner's) refuses the forward run the manoeuvre handed over
+        // (a parked car's corner 0.8 m from the nose: route 'free', local planner free 0.8 m, car at rest for 30 s). Drive the first 8 m of this one ourselves.
+        state.noHandbackFrom = state.stuckT > stuckTime && state.handbackT !== undefined && e.t - state.handbackT < 40 ? [pos[0], pos[2]] : null
         state.stuckT = 0
         begin(res)
       }
@@ -689,9 +692,14 @@ function transform(input, dt, params, state, api) {
       if (aHit(apx, apz, e.fwd[0] * Math.cos(ath) + e.left[0] * Math.sin(ath), e.fwd[2] * Math.cos(ath) + e.left[2] * Math.sin(ath))) aheadFree = false
     }
   }
+  if (aheadFree && state.noHandbackFrom) {
+    if (Math.hypot(pos[0] - state.noHandbackFrom[0], pos[2] - state.noHandbackFrom[1]) > 8) state.noHandbackFrom = null
+    else aheadFree = false
+  }
   if (aheadFree) {
     state.active = false
     state.route = undefined
+    state.handbackT = e.t
     return {}
   }
   var finished = state.segStart !== null && travelled >= cur.len - 0.25
