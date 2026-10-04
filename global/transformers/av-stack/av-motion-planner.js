@@ -6,7 +6,7 @@
 // debug draw: yellow = line to goal / route carrot, dark blue = candidate fan, green = chosen path, orange = where it would hit.
 // params: vehicleWidth, vehicleLength, safetyMargin, marginSpeedGain, softMargin, maxCurvature, arcCount,
 //         horizonMin, horizonGain, horizonMax, horizonClear (m floor, 0 = off), switchMargin (cost; keep last candidate unless better by this, 0 = off), comfortDecel, wProgress, wHeading, wRequired, wFree, wSoft,
-//         wSmooth, wTurn, minFree, rearIgnore, wThreat (0 = off; cost of predicted proximity to av.threats), threatHorizon (s, 2.5), threatRadius (m, 1.8), threatRange (m, 10: proximity felt inside this gap), threatTurnRate (rad/s, 0 = constant-velocity prediction; > 0: bodies faster than threatPursuitSpeed (4 m/s) are predicted HOMING on the car: pure pursuit with that turn-rate limit, threatLead s), threatBodyRadius (m, 0 = off: costmap points within this radius of a fast tracked body are dropped), threatAccel (m/s^2, 0 = constant speed along the candidate), threatHit (x wThreat: penalty of a predicted contact by its time, default 3), marginRamp (m over which the margin grows from the current clearance), debugDraw
+//         wSmooth, wTurn, minFree, rearIgnore, wThreat (0 = off; cost of predicted proximity to av.threats), threatHorizon (s, 2.5), threatRadius (m, 1.8), threatRange (m, 10: proximity felt inside this gap), threatTurnRate (rad/s, 0 = constant-velocity prediction; > 0: bodies faster than threatPursuitSpeed (4 m/s) are predicted HOMING on the car: pure pursuit with that turn-rate limit, threatLead s), threatBodyRadius (m, 0 = off: costmap points within this radius of a fast tracked body are dropped), threatAccel (m/s^2, 0 = constant speed along the candidate), threatHit (x wThreat: penalty of a predicted contact by its time, default 3), threatHitFloor (flat cost of any predicted contact, default 0), marginRamp (m over which the margin grows from the current clearance), debugDraw
 function transform(input, dt, params, state, api) {
   var av = input.av
   if (!av || !av.ego) return {}
@@ -110,6 +110,9 @@ function transform(input, dt, params, state, api) {
   var thrTurn = params.threatTurnRate != null ? params.threatTurnRate : 0
   var thrLead = params.threatLead != null ? params.threatLead : 0.3
   var thrHit = params.threatHit != null ? params.threatHit : 3
+  // threatHitFloor (cost units, default 0): extra flat penalty of ANY predicted contact. Progress toward the goal is worth ~1 per metre over a 100+ m horizon, so a candidate that
+  // reaches the goal but is predicted to hit used to beat the straight run with no hit (corner-trap: the 'aim at the carrot' arc into a pursuer won by 115 m of progress).
+  var thrHitFloor = params.threatHitFloor != null ? params.threatHitFloor : 0
   var thrMinPursuit = params.threatPursuitSpeed != null ? params.threatPursuitSpeed : 4
   var vEff = Math.max(v, 5)
   // distance travelled after t s along a candidate for the threat prediction: the car is assumed to keep accelerating (threatAccel m/s^2, 0 = constant speed)
@@ -247,7 +250,7 @@ function transform(input, dt, params, state, api) {
       }
       tprev = t
     }
-    return tc / thrSteps + thrHit * hit
+    return tc / thrSteps + thrHit * hit + (hit > 0 ? thrHitFloor / wThreat : 0)
   }
 
   // forward paths only sweep the front of the footprint: an obstacle already behind/at the tail (touching
