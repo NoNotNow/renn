@@ -5,7 +5,7 @@
 // Tracked bodies (params.threatIds: entity ids, e.g. pursuers; default none): live positions -> filtered velocities, published as av.threats [{id,x,z,vx,vz}]
 // within params.threatRange (default 120 m). The motion planner predicts them (cost wThreat) and the flee layer below steers the goal away from them:
 // params.fleeArea [xmin,xmax,zmin,zmax] (world; required for the flee layer), fleeRadius (m, 16: a goal way passing a near threat closer than this is unsafe),
-// fleeMinDist / fleeMaxDist (candidate goal distance, 50 / 110), fleeHold (s a chosen flee goal is kept, 4).
+// fleeMinDist / fleeMaxDist (candidate goal distance, 50 / 110), fleeHold (s a chosen flee goal is kept, 4), fleeTurnPenalty (1.5: score penalty of a candidate needing a turn of 180 deg, growing from 70 deg).
 // Goal watchdog (params.goalWatchdog = seconds, default 0 = off; needs fleeArea): a goal the car does not get closer to (>= 8 m) within that time is
 // unreachable (outside the walls, boxed in a corner); the car then picks its own open-road goals instead until the source hands over another goal.
 // Owns the simulated clock (state.t) so no downstream stage needs a wall clock.
@@ -155,6 +155,7 @@ function fleeGoal(av, thrs, input, params, state) {
     var hx = av.ego.fwd[0]
     var hz = av.ego.fwd[2]
     var gl = Math.sqrt((g0[0] - pos[0]) * (g0[0] - pos[0]) + (g0[2] - pos[2]) * (g0[2] - pos[2])) + 1e-6
+    var fleeTurnPen = params.fleeTurnPenalty != null ? params.fleeTurnPenalty : 1.5
     var best = null
     var bestS = -Infinity
     for (var pass = 0; pass < 2 && !best; pass++) {
@@ -184,7 +185,10 @@ function fleeGoal(av, thrs, input, params, state) {
               ws += wg
             }
           }
-          var sc = clear / 150 + (ws > 0 ? away / ws : 0) + (bad ? 0 : 0.5) * ((ux * (g0[0] - pos[0]) + uz * (g0[2] - pos[2])) / gl) + 0.7 * (ux * hx + uz * hz)
+          // a flee goal that needs a big turn is reached at curve speed (a hairpin is ~9 m/s): a chaser at 20+ m/s catches the car in the turn
+          // (head-on chaser: the 'away' goal behind the car sent it into a U-turn across the chaser's nose). Penalise the turn beyond ~70 deg.
+          var turn = Math.acos(Math.max(-1, Math.min(1, ux * hx + uz * hz)))
+          var sc = clear / 150 + (ws > 0 ? away / ws : 0) + (bad ? 0 : 0.5) * ((ux * (g0[0] - pos[0]) + uz * (g0[2] - pos[2])) / gl) + 0.7 * (ux * hx + uz * hz) - fleeTurnPen * Math.max(0, (turn - 1.2) / 1.9)
           if (sc > bestS) {
             bestS = sc
             best = [cx, cz]
