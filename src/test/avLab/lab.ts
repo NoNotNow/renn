@@ -251,14 +251,14 @@ export function watchValues(entityId: string): Record<string, unknown> {
   return out
 }
 
-function yawOf(q: { x: number; y: number; z: number; w: number }): number {
+export function yawOf(q: { x: number; y: number; z: number; w: number }): number {
   // forward = −Z rotated by q, projected onto the floor
   const fx = -(2 * (q.x * q.z + q.w * q.y))
   const fz = -(1 - 2 * (q.x * q.x + q.y * q.y))
   return Math.atan2(fx, fz)
 }
 
-function forwardSpeed(q: { x: number; y: number; z: number; w: number }, v: [number, number, number]): number {
+export function forwardSpeed(q: { x: number; y: number; z: number; w: number }, v: [number, number, number]): number {
   const fx = -(2 * (q.x * q.z + q.w * q.y))
   const fz = -(1 - 2 * (q.x * q.x + q.y * q.y))
   const l = Math.hypot(fx, fz) || 1
