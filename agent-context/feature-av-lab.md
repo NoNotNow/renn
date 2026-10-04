@@ -82,3 +82,10 @@ fixed duration and explicit criteria, so a regression names the situation. ~40 s
 ## Maze scenarios (2026-10)
 
 `src/test/scenarios/av-maze-scenarios.test.ts` (+ `.eco.test.ts`, suite in `fixtures/avMazeSuite.ts`) + `src/test/fixtures/avMazeCases.ts` (walls 1 m x 1.5 m like the example world; `seg(a, b)` helper, 24-box `cylinder`, `worldMazeWalls('wall_maze_C')` reads the example world). Same runner as the evasion scenarios plus `goalReachT` (within 10 m of the goal), `reversals` (forward-speed sign flips), `shuttleEvents` / `shuttleMaxSec` (lab motion monitor; a K-turn in a dead end reads as one episode, allowed per case via `maxShuttle`). Cases: `maze-goal-behind-wall`, `maze-dead-end`, `maze-u-trap`, `maze-u-trap-inside`, `maze-corridor-chase`, `maze-gate-exit` (maze C pocket, lab seed 3), `pocket-escape`. `AV_SCENARIO_TRACE=2` also prints route / manoeuvre / carrot / reverse-cruise watch values.
+
+## Probe one case (env-driven, no ad-hoc probe tests)
+
+`AV_PROBE_CASE=<evasion scenario | maze case | sweep id> AV_PROBE_KEYS=av.vLimit,av.mode npx vitest run src/test/scenarios/av-probe.diagnostic.test.ts`
+- Prints `t x z v <keys>` per tick (v = signed forward speed); keys are the watch labels of the car (`av.*` blackboard values); missing = `-`.
+- `AV_PROBE_EVERY` frame cadence (default 10), `AV_PROBE_FROM` / `AV_PROBE_TO` time window in s, `AV_PARAMS='{"cruiseSpeed":12}'` extra car params (merged by `buildArenaWorld`).
+- Skipped without `AV_PROBE_CASE`; built on the `onFrame` hook of `runScenario` (`fixtures/avEvasionRunner.ts`). Param layering guard: `av-stack-param-layers.integration.test.ts`.

@@ -105,7 +105,7 @@ function straightCriteria(
   return out;
 }
 
-const SCENARIOS: Scenario[] = [
+export const SCENARIOS: Scenario[] = [
   {
     name: "head-on",
     about: "chaser at 25 m/s straight down the car lane toward the car",
