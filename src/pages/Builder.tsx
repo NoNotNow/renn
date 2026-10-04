@@ -63,10 +63,13 @@ import { applyWorldEdit } from '@/editor/applyWorldEdit'
 import { canApplyWorldSnapshotIncrementally } from '@/utils/incrementalSceneSync'
 import { useAgentDevProjectBundleBootstrap } from '@/hooks/useAgentDevProjectBundleBootstrap'
 import { useGlobalLibraryUpgrade } from '@/hooks/useGlobalLibraryUpgrade'
+import { useScreenWakeLock } from '@/hooks/useScreenWakeLock'
 
 const EDITOR_HISTORY_MAX_DEPTH = 80
 
 export default function Builder() {
+  // The Builder viewport simulates live, so keep the display awake while it is visible.
+  useScreenWakeLock(true)
   const {
     currentProject,
     initialLoadPending,
