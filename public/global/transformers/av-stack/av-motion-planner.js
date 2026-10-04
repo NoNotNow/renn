@@ -112,6 +112,15 @@ function transform(input, dt, params, state, api) {
     if (gap < startGap) startGap = gap
   }
   var ramp = params.marginRamp != null ? params.marginRamp : 3
+  // 8 m spatial hash over the ego-frame costmap: only points near the swept pose can hit its rectangle
+  var HC = 8
+  var hash = new Map()
+  for (var hi = 0; hi < ox.length; hi++) {
+    var hk = (Math.floor(ox[hi] / HC) + 512) * 1024 + (Math.floor(oy[hi] / HC) + 512)
+    var hcell = hash.get(hk)
+    if (hcell) hcell.push(hi)
+    else hash.set(hk, [hi])
+  }
   function freeLength(kappa, turnLen, hw, hl) {
     var extra = hw - hullW
     var m0 = Math.max(0, Math.min(extra, startGap - 0.05))
@@ -123,12 +132,25 @@ function transform(input, dt, params, state, api) {
       poseAt(kappa, turnLen, s, P)
       var ct = Math.cos(P.th)
       var st = Math.sin(P.th)
-      for (var q = 0; q < ox.length; q++) {
-        var rx = ox[q] - P.x
-        var ry = oy[q] - P.y
-        var lx = ct * rx + st * ry
-        var ly = -st * rx + ct * ry
-        if (lx > -hlRear && lx < hlS && ly > -hwS && ly < hwS) return Math.max(0, s - ds)
+      var hlMax = hlS > hlRear ? hlS : hlRear
+      var rad = Math.sqrt(hlMax * hlMax + hwS * hwS) + 1e-6
+      var cx0 = Math.floor((P.x - rad) / HC)
+      var cx1 = Math.floor((P.x + rad) / HC)
+      var cy0 = Math.floor((P.y - rad) / HC)
+      var cy1 = Math.floor((P.y + rad) / HC)
+      for (var cx = cx0; cx <= cx1; cx++) {
+        for (var cy = cy0; cy <= cy1; cy++) {
+          var cell = hash.get((cx + 512) * 1024 + (cy + 512))
+          if (!cell) continue
+          for (var qi = 0; qi < cell.length; qi++) {
+            var q = cell[qi]
+            var rx = ox[q] - P.x
+            var ry = oy[q] - P.y
+            var lx = ct * rx + st * ry
+            var ly = -st * rx + ct * ry
+            if (lx > -hlRear && lx < hlS && ly > -hwS && ly < hwS) return Math.max(0, s - ds)
+          }
+        }
       }
     }
     return H

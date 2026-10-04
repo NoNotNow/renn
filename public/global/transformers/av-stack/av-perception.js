@@ -80,14 +80,26 @@ function transform(input, dt, params, state, api) {
   // Cells written this frame are never cleared (a ray grazing a thin obstacle must not erase it).
   var clearRange = params.memClearRange != null ? params.memClearRange : 45
   if (clearRange > 0) {
+    // numeric cell index -> memory key (built once per frame; avoids building a string key per ray step)
+    var cellIdx = new Map()
+    var memKeys0 = Object.keys(mem)
+    for (var mk = 0; mk < memKeys0.length; mk++) {
+      var me = mem[memKeys0[mk]]
+      cellIdx.set((Math.round(me.x / cell) + 4194304) * 8388608 + (Math.round(me.z / cell) + 4194304), memKeys0[mk])
+    }
     for (var ri = 0; ri < rayInfo.length; ri++) {
       var rd = rayInfo[ri][0]
       var rs = rayInfo[ri][1]
       var rend = Math.min(rayInfo[ri][2] - 1.0, clearRange)
       for (var rt = rs + cell; rt < rend; rt += cell) {
-        var kk = Math.round((pos[0] + rd[0] * rt) / cell) + ',' + Math.round((pos[2] + rd[2] * rt) / cell)
-        var mm = mem[kk]
-        if (mm && mm.t < e.t - 1e-6) delete mem[kk]
+        var kk = (Math.round((pos[0] + rd[0] * rt) / cell) + 4194304) * 8388608 + (Math.round((pos[2] + rd[2] * rt) / cell) + 4194304)
+        var memKey = cellIdx.get(kk)
+        if (memKey === undefined) continue
+        var mm = mem[memKey]
+        if (mm && mm.t < e.t - 1e-6) {
+          delete mem[memKey]
+          cellIdx.delete(kk)
+        }
       }
     }
   }
@@ -115,16 +127,24 @@ function transform(input, dt, params, state, api) {
   }
   if (draw) {
     // magenta ticks: remembered obstacle points (costmap), nearest 60
-    var near = pts
-      .map(function (q) {
-        var ddx = q[0] - pos[0]
-        var ddz = q[1] - pos[2]
-        return [ddx * ddx + ddz * ddz, q]
-      })
-      .sort(function (a, b) {
-        return a[0] - b[0]
-      })
-      .slice(0, params.debugMaxPoints || 60)
+    // partial selection (stable): keep only the nearest N in a sorted buffer instead of sorting every point
+    var nearMax = params.debugMaxPoints || 60
+    var nearD = []
+    var near = []
+    for (var ni = 0; ni < pts.length; ni++) {
+      var ddx = pts[ni][0] - pos[0]
+      var ddz = pts[ni][1] - pos[2]
+      var dd2 = ddx * ddx + ddz * ddz
+      if (nearD.length >= nearMax && dd2 >= nearD[nearD.length - 1]) continue
+      var ins = nearD.length
+      while (ins > 0 && nearD[ins - 1] > dd2) ins--
+      nearD.splice(ins, 0, dd2)
+      near.splice(ins, 0, [dd2, pts[ni]])
+      if (nearD.length > nearMax) {
+        nearD.pop()
+        near.pop()
+      }
+    }
     for (var pi = 0; pi < near.length; pi++) {
       var q2 = near[pi][1]
       api.visualizeLine([q2[0], pos[1] - 0.4, q2[1]], [q2[0], pos[1] + 0.5, q2[1]], '#ff00ff')
