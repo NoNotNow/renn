@@ -37,6 +37,7 @@
 | Agent program–run–fix (transformers, probes, MCP) | `feature-agent-logic-verification.md` |
 | Agent project setup (bundles, MCP dev, in-game attach) | `feature-agent-authoring-setup.md` |
 | Self-driving **Player Car copy** in hunt_repair2 (status + `/improve-car`) | `improve-car-player-copy.md` |
+| AV car stuck / jittering in a real world: deterministic runs, triggers, scene replay, pipe timing | `feature-av-lab.md` |
 
 ## Tech stack (quick ref)
 

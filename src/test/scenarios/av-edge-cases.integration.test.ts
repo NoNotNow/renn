@@ -9,9 +9,10 @@ describe('AV stack edge cases (elongated obstacles, awkward angles)', () => {
   it.each(AV_EDGE_CASES.map((c) => [c.name, c] as const))('%s', async (_name, c) => {
     const r = await runEdgeCase(c)
     // eslint-disable-next-line no-console
-    console.log('EDGE', c.name, JSON.stringify({ arrived: r.arrived, at: r.framesToArrive, d: Math.round(r.finalDistance), stall: r.longestStall, path: Math.round(r.path) }))
+    console.log('EDGE', c.name, JSON.stringify({ arrived: r.arrived, at: r.framesToArrive, d: Math.round(r.finalDistance), stall: r.longestStall, path: Math.round(r.path), rough: Math.round(r.roughness * 1000) / 1000 }))
     expect(r.minY).toBeGreaterThan(-0.5)
     expect(r.arrived).toBe(true)
     expect(r.longestStall).toBeLessThan(300) // < 5 s without moving
+    expect(r.roughness).toBeLessThan(c.maxRoughness ?? 0.5) // no bang-bang speed chatter (low bars: bumps until the contact is remembered)
   }, 120_000)
 })

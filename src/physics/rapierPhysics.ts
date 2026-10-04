@@ -781,6 +781,8 @@ export class PhysicsWorld {
   }
 
   applyImpulse(entityId: string, x: number, y: number, z: number): void {
+    // a zero vector changes nothing but would wake a sleeping body every frame
+    if (x === 0 && y === 0 && z === 0) return
     const body = this.bodyMap.get(entityId)
     if (body && body.isDynamic()) {
       if (body.isSleeping()) {
@@ -792,6 +794,8 @@ export class PhysicsWorld {
   }
 
   applyForce(entityId: string, x: number, y: number, z: number): void {
+    // a zero vector changes nothing but would wake a sleeping body every frame
+    if (x === 0 && y === 0 && z === 0) return
     const body = this.bodyMap.get(entityId)
     if (body && body.isDynamic()) {
       if (body.isSleeping()) {
@@ -822,6 +826,8 @@ export class PhysicsWorld {
    * Apply torque (rotational force).
    */
   applyTorque(entityId: string, x: number, y: number, z: number): void {
+    // a zero vector changes nothing but would wake a sleeping body every frame
+    if (x === 0 && y === 0 && z === 0) return
     const body = this.bodyMap.get(entityId)
     if (body && body.isDynamic()) {
       if (body.isSleeping()) {

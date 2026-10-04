@@ -15,6 +15,7 @@ import type { Rotation } from '@/types/world'
 import { EMPTY_TRANSFORM_OUTPUT } from '@/types/transformer'
 import { getForwardVectorFromEuler, getUpVectorFromEuler } from '@/utils/rotationUtils'
 import type { TransformerTraceStep } from '@/transformers/transformerTrace'
+import { isTransformerProfilerEnabled, profilerNow, recordStageTiming } from '@/runtime/transformerProfilerBridge'
 import {
   cloneTransformOutputForTrace,
   computeOutputLedActive,
@@ -184,6 +185,7 @@ export class TransformerChain {
 
     const f = input.accumulatedForce
     const tq = input.accumulatedTorque
+    const profiling = isTransformerProfilerEnabled()
 
     for (const transformer of this.sorted) {
       const configStackIndex = transformer.configStackIndex ?? -1
@@ -209,7 +211,9 @@ export class TransformerChain {
         channelsBefore = collectChannelFingerprints(input)
       }
 
+      const t0 = profiling ? profilerNow() : 0
       const output = transformer.transform(input, dt)
+      if (profiling) recordStageTiming(transformer.runtimeEntityId ?? input.entityId ?? '?', configStackIndex, transformer.type, profilerNow() - t0)
 
       if (traceSteps && actionsBefore) {
         const actionsAfter = { ...input.actions }

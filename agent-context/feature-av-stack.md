@@ -205,9 +205,40 @@ Watch panel → **Snapshot** records, for one simulated frame, every custom stag
 
 Stages talk by mutating `input` (`input.target`, `input.goalSource`, blackboard `input.av.*`), not only via the returned output. The trace therefore fingerprints every non-standard input key (one level deep) before/after each stage: **IN** lists live channels (`target`, `av.points[213]`, …), **OUT** adds `wrote <channels>`. Pipe cards show IN (first stage that ran) and OUT (union of member stages), using `EntityStageRuntime.flatRangeForScope`. Code: `transformerTrace.ts` (`collectChannelFingerprints`, `summarizePipeTraceBrief`), `PipeCard.tsx`.
 
+## Longitudinal control: identified actuator model (2026-10)
+
+car2 turns `u = throttle − brake` into a force, so the body follows `a = G·u − D·sgn(v)`. The reference car has G ≈ 156, D ≈ 60 m/s²; a light car with
+`power 2400` has G ≈ 1200 (Rapier averages friction, so an "icy" friction 0.01 body still slides with ≈ 0.6 on normal ground: D ≈ 60). The old fixed
+deadband feed-forward (0.36) meant ≈ 430 m/s² on such a car → a permanent 4-frame limit cycle (speed 2 → 15 → 7 → 10 m/s; the "jitter").
+`av-control-longitudinal.js` now estimates G and D online (RLS with forgetting on last frame's applied command vs measured acceleration; learns from
+0.12 m/s, skipped while `isTouchingSide`; rescue path for a saturated, underestimated G) and commands an acceleration:
+`u = (a_des + D·s) / G`, `a_des = clamp((v_target − v)/tau + I, −maxDecel, maxAccel)`; never brakes through zero within a frame; breakaway push
+ramps while demanded motion does not start and is held until the car really drives. Publishes `av.actuator {G, D, u}` — a later stage that overrides
+the actions (AEB) writes the applied command into `av.actuator.u` (mailbox the controller reads next frame). Params: `tau`, `ki`, `maxAccel`, `maxDecel`,
+`gainInit`, `frictionInit`, `forget`, `breakawayRate`, `maxThrottle`/`maxBrake` (hard caps, default 1).
+**AEB** brakes with a deceleration through the same model (a raw brake 0.3 was 360 m/s² on the light car and flipped its speed), and uses `av.vehicle`
+for the look-ahead origin (nose) and width.
+
+## Sleeping bodies (runtime, 2026-10)
+
+`RenderItemRegistry.executeTransformers` used to skip the chain of a sleeping, non-controlled body for good (only held keys woke it). An AV car that
+stopped for a few seconds fell asleep and never decided to drive again — "stuck although everything is free; editing code (rebuild) makes it go".
+Sleeping chain entities now tick every 0.25 s with the accumulated dt; an inert output (no force / torque / turn / pose) keeps them asleep, anything
+else wakes the body. `PhysicsWorld.applyForce/Impulse/Torque` ignore zero vectors (they used to wake the body). Edge case `car asleep at start`.
+Trace targets are still never skipped (the Builder trace view runs them every frame).
+
+## Planner fixes from the lab (2026-10)
+
+- **Motion planner margin ramp:** with any point inside `safetyMargin` of the current pose every candidate collided at s = 0 → `free 0`, standstill next
+  to a parked car / sloped obstacle. The margin now starts at the current clearance and grows to the full value over `marginRamp` (3 m).
+- **Manoeuvre handback from the first segment:** a plan that starts with a long forward run is handed back to the local planner at once (it used to creep
+  along it at manoeuvre speed until a guard replan reversed it → shuttling).
+- **Speed planner:** the stopping-distance limit (`free`) is a hard upper bound; `minSpeed`, route / curve / goal floors no longer lift the speed above it.
+
 ## Standstill deadlocks (found via Snapshot)
 
-- **Longitudinal chatter:** zero demand + reverse-thrust braking flipped the speed sign every frame (±5 m/s, no net motion). `av-control-longitudinal.js` now coasts (no thrust) for 1.5 s after 3 sign flips.
+- **Longitudinal chatter:** zero demand + reverse-thrust braking flipped the speed sign every frame (±5 m/s, no net motion). Superseded by the model-based
+  controller above (it never brakes through zero within a frame).
 - **Manoeuvre waited for rest forever:** a gear change waited for `|speed| < 0.4`, never true while chattering → `vDesired 0` for ever. Now `restWaitMax` (1.2 s) ends the wait; a plan the car is `maxOffPath` (6 m) away from is dropped and replanned.
 
 ## Contacts the lidar cannot see

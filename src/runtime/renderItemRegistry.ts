@@ -42,6 +42,7 @@ import {
   isAgentObservationTraceEntity,
   publishTransformerLiveTrace,
 } from '@/runtime/transformerTraceBridge'
+import { isTransformerProfilerEnabled, profilerNow, recordChainTiming } from '@/runtime/transformerProfilerBridge'
 import type { TransformerTraceStep } from '@/transformers/transformerTrace'
 import type { TransformerChain } from '@/transformers/transformer'
 import { clearCoordinateEntries } from '@/runtime/coordinateOverlayBridge'
@@ -65,6 +66,18 @@ import {
  * Implements audience ports ({@link SimulationFramePort}, {@link SceneEditPort},
  * {@link EntityHandlePort}) so consumers depend on narrow interfaces, not this class.
  */
+/** Sleeping chain entities still tick at this interval (s) so autonomous behaviours can wake their body. */
+const SLEEP_TICK_INTERVAL = 0.25
+
+function isZeroVec(v: readonly number[] | null | undefined): boolean {
+  return !v || (v[0] === 0 && v[1] === 0 && v[2] === 0)
+}
+
+/** Output that would not change a resting body (no force / torque / turn / pose). */
+function isInertOutput(o: TransformOutput): boolean {
+  return isZeroVec(o.force) && isZeroVec(o.impulse) && isZeroVec(o.torque) && isZeroVec(o.addRotation as number[] | null | undefined) && !o.setPose
+}
+
 export class RenderItemRegistry implements SimulationFramePort, SceneEditPort, EntityHandlePort {
   private items = new Map<string, RenderItem>()
   private physicsWorld: PhysicsWorld | null = null
@@ -89,6 +102,8 @@ export class RenderItemRegistry implements SimulationFramePort, SceneEditPort, E
   }
 
   /** Reused `TransformInput` for executeTransformers (one entity per iteration; cleared each time). */
+  /** Accumulated dt of sleeping chain entities between their low-rate ticks (see executeTransformers). */
+  private readonly _sleepTickDt = new Map<string, number>()
   private readonly _tfPosition: Vec3 = [0, 0, 0]
   private readonly _tfRotation: Rotation = [0, 0, 0]
   private readonly _tfVelocity: Vec3 = [0, 0, 0]
@@ -814,6 +829,7 @@ export class RenderItemRegistry implements SimulationFramePort, SceneEditPort, E
     }
 
     const traceTargetId = getTransformerTraceTargetEntityId()
+    const profiling = isTransformerProfilerEnabled()
     const rawKeyboardHeld = hasTrackedKeyboardActivity(this.rawInputGetter?.() ?? null)
 
     for (const item of this.items.values()) {
@@ -826,27 +842,37 @@ export class RenderItemRegistry implements SimulationFramePort, SceneEditPort, E
       const isTraceTarget =
         (traceTargetId !== null && item.entity.id === traceTargetId) ||
         isAgentObservationTraceEntity(item.entity.id)
-      // Sleeping dynamics are skipped to save work — unless controlled (always woken above) or the
-      // Builder transformer trace target (UI needs publishTransformerLiveTrace), or a wake-on-input
-      // transformer (e.g. car2) with held keys so forces can apply.
+      // Sleeping dynamics run their chain only at a low rate (SLEEP_TICK_INTERVAL, with the accumulated dt) to save work —
+      // unless controlled (always woken above), the Builder transformer trace target (UI needs publishTransformerLiveTrace),
+      // or a wake-on-input transformer (e.g. car2) with held keys. The low-rate tick matters for autonomous chains (an AI
+      // driver that stopped and fell asleep): skipping them entirely meant the chain could never decide to move again,
+      // so the body slept forever (until a collision or a world rebuild woke it). A tick whose output is inert keeps the
+      // body asleep; any force / torque / pose wakes it (PhysicsWorld.applyForce wakes, zero vectors do not).
+      let stepDt = dt
+      let sleepTick = false
       if (!isControlled && cached.isSleeping && !isTraceTarget) {
-        if (
-          !rawKeyboardHeld ||
-          !this.chainWantsWakeOnKeyboardInput(item.transformerChain)
-        ) {
-          continue
+        if (rawKeyboardHeld && this.chainWantsWakeOnKeyboardInput(item.transformerChain)) {
+          this.physicsWorld.wakeDynamicAndRefreshTransformCache(item.entity.id)
+          const refreshed = this.physicsWorld.getCachedTransform(item.entity.id)
+          if (!refreshed || refreshed.isSleeping) continue
+          cached = refreshed
+        } else {
+          const acc = (this._sleepTickDt.get(item.entity.id) ?? 0) + dt
+          if (acc < SLEEP_TICK_INTERVAL) {
+            this._sleepTickDt.set(item.entity.id, acc)
+            continue
+          }
+          this._sleepTickDt.set(item.entity.id, 0)
+          stepDt = acc
+          sleepTick = true
         }
-        this.physicsWorld.wakeDynamicAndRefreshTransformCache(item.entity.id)
-        const refreshed = this.physicsWorld.getCachedTransform(item.entity.id)
-        if (!refreshed || refreshed.isSleeping) continue
-        cached = refreshed
       }
       if (!isControlled && item.distanceCulled) continue
 
       clearActionRecord(this._tfActions)
       input.target = undefined
       input.entityId = item.entity.id
-      input.deltaTime = dt
+      input.deltaTime = stepDt
       this._tfAccumulatedForce[0] = 0
       this._tfAccumulatedForce[1] = 0
       this._tfAccumulatedForce[2] = 0
@@ -918,9 +944,11 @@ export class RenderItemRegistry implements SimulationFramePort, SceneEditPort, E
           contacts: pw.getContactSummary(sid),
         }))
       }
+      const chainT0 = profiling ? profilerNow() : 0
       try {
-        output = item.transformerChain.execute(input, dt, traceSteps)
+        output = item.transformerChain.execute(input, stepDt, traceSteps)
       } finally {
+        if (profiling) recordChainTiming(item.entity.id, profilerNow() - chainT0)
         setTransformerSnapshotPhysicsProbe(null)
         setTransformerRuntimeEntityLookup(null)
         setTransformerRuntimeLivePositionLookup(null)
@@ -929,6 +957,8 @@ export class RenderItemRegistry implements SimulationFramePort, SceneEditPort, E
       if (traceSteps) {
         publishTransformerLiveTrace(item.entity.id, traceSteps)
       }
+
+      if (sleepTick && isInertOutput(output)) continue
 
       // Apply forces to physics body (hasPhysicsBody() is guaranteed by loop guard)
       if (output.force) {

@@ -6,7 +6,7 @@ const src = fs.readFileSync(path.resolve(__dirname, '../../../public/global/tran
 // eslint-disable-next-line @typescript-eslint/no-implied-eval
 const transform = new Function(`${src}; return transform`)() as (i: any, dt: number, p: any, s: any, a: any) => void
 
-it('zero demand while the speed sign flips every frame stops pushing (no bang-bang chatter)', () => {
+it('zero demand while the speed sign flips every frame never pushes along the motion and never brakes through zero (no bang-bang chatter)', () => {
   const state: Record<string, unknown> = {}
   const api = { watch: () => undefined }
   let lastThrust = 1

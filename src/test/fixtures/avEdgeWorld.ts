@@ -43,6 +43,15 @@ export interface EdgeCase {
   cruiseSpeed?: number
   /** Car collider [width, length] in m (default 2 x 4); the AV params stay at the 2 x 4 defaults. */
   carSize?: [number, number]
+  /** Body / actuator overrides (default: friction 0.8, mass 2, car2 power 340) — e.g. a light, icy, very powerful car. */
+  carFriction?: number
+  carMass?: number
+  carPower?: number
+  carLateralGrip?: number
+  /** Allowed speed roughness (default 0.5); cases that must bump into an invisible obstacle get more. */
+  maxRoughness?: number
+  /** Put the car to sleep right after start-up (an AI car that fell asleep must still drive off). */
+  startAsleep?: boolean
 }
 
 export interface EdgeResult {
@@ -51,6 +60,8 @@ export interface EdgeResult {
   finalDistance: number
   /** Longest stretch (frames) at < 0.3 m/s before arriving. */
   longestStall: number
+  /** Mean |Δ forward speed| per frame before arriving (m/s); a bang-bang limit cycle shows up as metres. */
+  roughness: number
   minY: number
   path: number
 }
@@ -71,8 +82,8 @@ function buildWorld(c: EdgeCase): RennWorld {
         shape: { type: 'box', width: c.carSize?.[0] ?? 2, height: 1, depth: c.carSize?.[1] ?? 4 },
         position: [c.carAt?.[0] ?? 0, 0.55, c.carAt?.[1] ?? 5],
         rotation: [0, carYaw, 0],
-        mass: 2,
-        friction: 0.8,
+        mass: c.carMass ?? 2,
+        friction: c.carFriction ?? 0.8,
       },
       ...c.obstacles.map((o, i) => ({
         id: `obs${i}`,
@@ -91,12 +102,17 @@ function buildWorld(c: EdgeCase): RennWorld {
   world = copyGlobalPipeIntoWorld(world, library, AV_GLOBAL_STACK_PIPE_ID)
   world = assignPipeToEntity(world, 'buggy', world.transformerPipes![AV_GLOBAL_STACK_PIPE_ID]!, 'linked')
   world.transformers!.global_av_mission!.params = { waypoints: [c.goal], acceptRadius: 9, mode: 'stop' }
+  if (c.carPower != null || c.carLateralGrip != null) {
+    const car = world.transformers!.global_av_car!
+    car.params = { ...car.params, ...(c.carPower != null ? { power: c.carPower } : {}), ...(c.carLateralGrip != null ? { lateralGrip: c.carLateralGrip } : {}) }
+  }
   return updateBindingParams(world, 'buggy', 0, { cruiseSpeed: c.cruiseSpeed ?? 10 })
 }
 
 export async function runEdgeCase(c: EdgeCase): Promise<EdgeResult> {
   setAgentObservationWatchActive(true)
   const sim = await WorldSimulator.create(buildWorld(c), 15)
+  if (c.startAsleep) sim.getPhysicsWorld().getBody('buggy')?.sleep()
   try {
     const frames = c.frames ?? 2400
     let prev = sim.getPosition('buggy')
@@ -105,6 +121,9 @@ export async function runEdgeCase(c: EdgeCase): Promise<EdgeResult> {
     let longestStall = 0
     let minY = Infinity
     let arrivedAt: number | null = null
+    let rough = 0
+    let roughN = 0
+    let prevV: number | null = null
     for (let f = 0; f < frames; f++) {
       sim.runFrames(1)
       const p = sim.getPosition('buggy')
@@ -115,6 +134,12 @@ export async function runEdgeCase(c: EdgeCase): Promise<EdgeResult> {
       const d = Math.hypot(p[0] - c.goal[0], p[2] - c.goal[1])
       if (arrivedAt === null && d < 6) arrivedAt = f
       if (arrivedAt === null) {
+        const sp = Math.hypot(v[0], v[2])
+        if (prevV !== null) {
+          rough += Math.abs(sp - prevV)
+          roughN++
+        }
+        prevV = sp
         stall = Math.hypot(v[0], v[2]) < 0.3 ? stall + 1 : 0
         longestStall = Math.max(longestStall, stall)
       }
@@ -126,6 +151,7 @@ export async function runEdgeCase(c: EdgeCase): Promise<EdgeResult> {
       framesToArrive: arrivedAt,
       finalDistance: Math.hypot(p[0] - c.goal[0], p[2] - c.goal[1]),
       longestStall,
+      roughness: rough / Math.max(1, roughN),
       minY,
       path,
     }
@@ -188,12 +214,18 @@ export const AV_EDGE_CASES: EdgeCase[] = [
   { name: 'pressed against a long wall: car -20° / wall 50° (5 cm gap)', goal: [0, -45], carYawDeg: -20, obstacles: [wallAgainstCar({ yawDeg: 50, carYawDeg: -20, clearance: 0.05 })] },
   { name: 'pressed against a long wall: car 20° / wall 110° (5 cm gap)', goal: [0, -45], carYawDeg: 20, obstacles: [wallAgainstCar({ yawDeg: 110, carYawDeg: 20, clearance: 0.05 })] },
   { name: 'pressed against a long wall: car 40° / wall 130° (5 cm gap)', goal: [0, -45], carYawDeg: 40, obstacles: [wallAgainstCar({ yawDeg: 130, carYawDeg: 40, clearance: 0.05 })] },
-  { name: 'low bar (35 cm, under the centre ray plane) across the way, 6 m', goal: [0, -50], frames: 3000, obstacles: [{ at: [0, -8], length: 6, thickness: 1, yawDeg: 0, height: 0.35 }] },
-  { name: 'low bar (35 cm, under the centre ray plane) across the way, 12 m', goal: [0, -50], frames: 3000, obstacles: [{ at: [0, -8], length: 12, thickness: 1, yawDeg: 0, height: 0.35 }] },
-  { name: 'low bar 45° to the car (invisible to the lidar)', goal: [0, -50], frames: 3000, obstacles: [{ at: [0, -8], length: 10, thickness: 1, yawDeg: 45, height: 0.35 }] },
+  { name: 'low bar (35 cm, under the centre ray plane) across the way, 6 m', maxRoughness: 1.2, goal: [0, -50], frames: 3000, obstacles: [{ at: [0, -8], length: 6, thickness: 1, yawDeg: 0, height: 0.35 }] },
+  { name: 'low bar (35 cm, under the centre ray plane) across the way, 12 m', maxRoughness: 1.2, goal: [0, -50], frames: 3000, obstacles: [{ at: [0, -8], length: 12, thickness: 1, yawDeg: 0, height: 0.35 }] },
+  { name: 'low bar 45° to the car (invisible to the lidar)', maxRoughness: 1.2, goal: [0, -50], frames: 3000, obstacles: [{ at: [0, -8], length: 10, thickness: 1, yawDeg: 45, height: 0.35 }] },
   { name: 'big car (4 x 8 collider, default 2 x 4 params) past a wall alongside', goal: [0, -60], carSize: [4, 8], obstacles: [{ at: [4.5, -20], length: 50, thickness: 2, yawDeg: 90 }] },
   { name: 'big car (4 x 8 collider) around a long wall ahead', goal: [0, -60], carSize: [4, 8], obstacles: [{ at: [0, -15], length: 24, thickness: 2, yawDeg: 0 }] },
   { name: 'big sphere ahead (surface curves away below the lidar plane)', goal: [0, -50], obstacles: [{ at: [0, -22], length: 20, yawDeg: 0, round: 'sphere' }] },
   { name: 'big sphere ahead, car off-centre', goal: [0, -50], carAt: [2.5, 5], obstacles: [{ at: [0, -22], length: 20, yawDeg: 0, round: 'sphere' }] },
   { name: 'big cone ahead', goal: [0, -50], obstacles: [{ at: [0, -22], length: 20, yawDeg: 0, round: 'cone', height: 12 }] },
+  // light, icy, very powerful body (G ≈ 1200 m/s² per unit command vs 156 for the reference car): fixed-gain control bang-banged
+  { name: 'icy powerful car (power 2400, friction 0.01, 4 x 8), free way', goal: [0, -60], carSize: [4, 8], carFriction: 0.01, carPower: 2400, carLateralGrip: 100, obstacles: [] },
+  { name: 'icy powerful car around a long wall ahead', goal: [0, -60], carSize: [4, 8], carFriction: 0.01, carPower: 2400, carLateralGrip: 100, frames: 3000, obstacles: [{ at: [0, -15], length: 24, thickness: 2, yawDeg: 0 }] },
+  { name: 'icy powerful car, goal behind (manoeuvre)', goal: [0, 50], carSize: [4, 8], carFriction: 0.01, carPower: 2400, carLateralGrip: 100, frames: 3000, obstacles: [] },
+  // sleeping body: its chain used to be skipped for good, so the car never drove off
+  { name: 'car asleep at start', goal: [0, -50], startAsleep: true, obstacles: [] },
 ]

@@ -6,7 +6,7 @@
 // debug draw: yellow = line to goal / route carrot, dark blue = candidate fan, green = chosen path, orange = where it would hit.
 // params: vehicleWidth, vehicleLength, safetyMargin, marginSpeedGain, softMargin, maxCurvature, arcCount,
 //         horizonMin, horizonGain, horizonMax, comfortDecel, wProgress, wHeading, wRequired, wFree, wSoft,
-//         wSmooth, wTurn, minFree, rearIgnore, debugDraw
+//         wSmooth, wTurn, minFree, rearIgnore, marginRamp (m over which the margin grows from the current clearance), debugDraw
 function transform(input, dt, params, state, api) {
   var av = input.av
   if (!av || !av.ego) return {}
@@ -100,9 +100,26 @@ function transform(input, dt, params, state, api) {
   // forward paths only sweep the front of the footprint: an obstacle already behind/at the tail (touching
   // start pose) must not veto driving away from it
   var rearIgnore = params.rearIgnore != null ? params.rearIgnore : 1.4
+  // Start already inside the margin (parked next to a car / wall): the full margin would veto every path at s = 0 and
+  // freeze the car. The margin therefore starts at the clearance the car has now and grows to the full value over
+  // `marginRamp` metres — a path may not get closer than the car already is, but it may drive away.
+  var hullL = halfL - margin
+  var hullW = halfW - margin
+  var startGap = margin + soft
+  for (var sg = 0; sg < ox.length; sg++) {
+    if (ox[sg] < -hullL + rearIgnore - margin) continue
+    var gap = Math.max(Math.abs(ox[sg]) - hullL, Math.abs(oy[sg]) - hullW)
+    if (gap < startGap) startGap = gap
+  }
+  var ramp = params.marginRamp != null ? params.marginRamp : 3
   function freeLength(kappa, turnLen, hw, hl) {
-    var hlRear = Math.max(0.3, hl - rearIgnore)
+    var extra = hw - hullW
+    var m0 = Math.max(0, Math.min(extra, startGap - 0.05))
     for (var s = 0; s <= H; s += ds) {
+      var m = s >= ramp || m0 >= extra ? extra : m0 + ((extra - m0) * s) / ramp
+      var hwS = hullW + m
+      var hlS = hullL + m
+      var hlRear = Math.max(0.3, hlS - rearIgnore)
       poseAt(kappa, turnLen, s, P)
       var ct = Math.cos(P.th)
       var st = Math.sin(P.th)
@@ -111,7 +128,7 @@ function transform(input, dt, params, state, api) {
         var ry = oy[q] - P.y
         var lx = ct * rx + st * ry
         var ly = -st * rx + ct * ry
-        if (lx > -hlRear && lx < hl && ly > -hw && ly < hw) return Math.max(0, s - ds)
+        if (lx > -hlRear && lx < hlS && ly > -hwS && ly < hwS) return Math.max(0, s - ds)
       }
     }
     return H
@@ -204,6 +221,7 @@ function transform(input, dt, params, state, api) {
     clearance: clearance,
     margin: margin,
     blocked: bestHard < minFree,
+    startGap: startGap,
     horizon: H,
     required: Lreq,
     cost: bestCost,

@@ -294,6 +294,21 @@ export class WorldSimulator {
   // Test-only accessors
   // ---------------------------------------------------------------------------
 
+  /** Exposes the render-item registry (transformer chains) for lab / introspection tooling. */
+  getRegistry(): RenderItemRegistry {
+    return this.registry
+  }
+
+  /** Entity ids that have a running transformer chain. */
+  getChainEntityIds(): string[] {
+    return this.entities.map((e) => e.entity.id).filter((id) => this.registry.get(id)?.transformerChain)
+  }
+
+  /** True while Rapier has the body asleep (sleeping bodies skip their transformer chain). */
+  isSleeping(entityId: string): boolean {
+    return this.physicsWorld.getBody(entityId)?.isSleeping() ?? false
+  }
+
   /** Exposes the underlying PhysicsWorld for benchmark / introspection tests. */
   getPhysicsWorld(): PhysicsWorld {
     return this.physicsWorld

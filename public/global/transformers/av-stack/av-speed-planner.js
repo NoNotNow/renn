@@ -4,6 +4,7 @@
 //  - Next to the car: only obstacles within `obstacleSlowRadius` (default 5 m) of the hull slow the car, linearly from `obstacleSlowFactor * cruiseSpeed` (touching) up to cruise (at the radius).
 //    Obstacles that are farther away, or behind the car, never slow it. Set the radius to 0 to switch this off.
 // Goal approach only slows for the FINAL waypoint (av.mission, else params.waypoints; otherwise every goal is final).
+// The free-path (stopping distance) limit always wins over the floors.
 // Publishes av.plan.vDesired / av.plan.vLimit ('cruise' | 'free' | 'near' | 'route' | 'curve' | 'goal').
 // params: cruiseSpeed, minSpeed (lowest speed while driving, default 4), comfortDecel (brake decel for obstacles in the path, default 5),
 //         stopMargin, obstacleSlowRadius (5), obstacleSlowFactor (speed right next to an obstacle as a fraction of cruise, default 0.5), maxLatAccel (default 9),
@@ -88,6 +89,13 @@ function transform(input, dt, params, state, api) {
     }
   }
   if (!plan.blocked && v < crawl && limit !== 'goal') v = crawl
+  // The stopping-distance limit is a safety bound, not a preference: no floor (minSpeed, route/curve crawl, goal crawl)
+  // may lift the speed above what can still stop within the free path (minSpeed 9.4 with 5 m free and 2 m/s² used to
+  // drive at 9.4 instead of 3.9 m/s — straight into the AEB, then stop-and-go).
+  if (v > vFree) {
+    v = vFree
+    limit = 'free'
+  }
   plan.vDesired = v
   plan.vLimit = limit
   api.watch('av.vLimit', limit + ' ' + v.toFixed(1))

@@ -513,10 +513,10 @@ function transform(input, dt, params, state, api) {
   }
   // hand back once the rest of the plan starts with a long forward run
   var fwdRun = 0
-  if (state.idx > 0 || state.segs.length === 1) {
-    for (var si = state.idx; si < state.segs.length && state.segs[si].g > 0; si++) fwdRun += state.segs[si].len
-    fwdRun -= travelled
-  }
+  // (also from the first segment: a plan that simply starts with a long forward run is a route, not a manoeuvre — creeping
+  // along it at manoeuvre speed with open-loop segments is what made the car shuttle back and forth next to obstacles)
+  for (var si = state.idx; si < state.segs.length && state.segs[si].g > 0; si++) fwdRun += state.segs[si].len
+  fwdRun -= travelled
   var aheadFree = false
   if (fwdRun >= handback && cur.g > 0) {
     // the car must really have room ahead on its own heading, not just a plan that will get there
