@@ -710,12 +710,57 @@ function transform(input, dt, params, state, api) {
     }
     return res
   }
+  // Carrot string-pulling (carrotPull, default on): Hybrid-A* headings are discretised, so the route zig-zags around the straight line (+-5-10 m at 25 m
+  // lookahead) and a carrot taken from it makes the car weave on an empty road. Line-of-sight shortcut on the same costmap and margin: the farthest node of the
+  // leading forward run that the car can reach in a straight, footprint-free line; the carrot is the point `want` m along that line (the route itself is unchanged).
+  // `want` = max(lookahead, carrotLookT (1.6) s * speed): over a free line the carrot is a time-headway ahead (a 14 m carrot at 30 m/s is 0.5 s: pure-pursuit loop unstable, +-10 m weave).
+  function pullCarrot(nodes, want, fallback, reached) {
+    var hitP = makeHit(av.points || [], ((av.vehicle && av.vehicle.length) || params.vehicleLength || 4) / 2 + planMargin, ((av.vehicle && av.vehicle.width) || params.vehicleWidth || 2) / 2 + planMargin)
+    var last = 1
+    while (last + 1 < nodes.length && nodes[last + 1].g === 1) last++
+    var acc2 = 0
+    var reach = Math.max(2.5 * want, 60)
+    var cands = []
+    for (var i2 = 1; i2 <= last; i2++) {
+      acc2 += Math.hypot(nodes[i2].x - nodes[i2 - 1].x, nodes[i2].z - nodes[i2 - 1].z)
+      if (acc2 > reach) break
+      cands.push(i2)
+    }
+    var stride = Math.max(1, Math.ceil(cands.length / 14))
+    // the route ends a cell short of / beside the goal (grid tolerance): when the whole route is one forward run, try the goal itself first (index -1)
+    if (reached && last === nodes.length - 1) cands.push(-1)
+    for (var ci = cands.length - 1; ci >= 0; ci -= ci >= cands.length - 2 ? 1 : stride) {
+      var nd = cands[ci] < 0 ? { x: gxw, z: gzw } : nodes[cands[ci]]
+      var dx = nd.x - pos[0]
+      var dz = nd.z - pos[2]
+      var dl = Math.hypot(dx, dz)
+      if (dl < want * 0.5) break
+      var ux = dx / dl
+      var uz = dz / dl
+      // only a car that already heads about that way (cos 20 deg): the pull refines a straight run, it does not decide turns / avoidance (those keep the route's own carrot)
+      if (ux * e.fwd[0] + uz * e.fwd[2] < (params.carrotPullCos != null ? params.carrotPullCos : 0.94)) continue
+      var ok = true
+      for (var d = 1.5; d < Math.min(dl, 150); d += 1.5) {
+        if (hitP(pos[0] + ux * d, pos[2] + uz * d, ux, uz)) {
+          ok = false
+          break
+        }
+      }
+      if (ok) {
+        var dd = Math.min(want, dl)
+        // `pull` = the line-of-sight target; the carrot is re-aimed at it every frame (the route is replanned only every routeInterval, a world-fixed carrot would go stale / shrink)
+        return { carrot: [pos[0] + ux * dd, pos[2] + uz * dd], pull: [nd.x, nd.z] }
+      }
+    }
+    return { carrot: fallback, pull: null }
+  }
   // route summary: first gear, length of the leading forward run, carrot point
   function summarize(res) {
     var nodes = res.nodes
     var firstGear = nodes.length > 1 ? nodes[1].g : 1
     var run = 0
     var carrot = null
+    var pulled = null
     if (firstGear === 1) {
       var want = Math.min(lookahead, 6 + 1.0 * Math.max(0, e.speedF))
       var acc = 0
@@ -727,6 +772,10 @@ function transform(input, dt, params, state, api) {
         if (acc >= want) break
       }
       run = acc
+      if (params.carrotPull !== false && carrot && !(av.threats && av.threats.length)) {
+        pulled = pullCarrot(nodes, Math.max(want, (params.carrotLookT != null ? params.carrotLookT : 1.6) * Math.max(0, e.speedF)), carrot, res.reached)
+        carrot = pulled.carrot
+      }
       for (var j = i; j < nodes.length && nodes[j].g === 1; j++) {
         var ddx = nodes[j].x - nodes[j - 1].x
         var ddz = nodes[j].z - nodes[j - 1].z
@@ -758,7 +807,7 @@ function transform(input, dt, params, state, api) {
       }
       dAhead += segs[si].len
     }
-    return { firstGear: firstGear, run: run, carrot: carrot, reached: res.reached, expansions: res.expansions, hRem: res.hRemaining, nodes: nodes, path: res.path, vLimit: vLimit }
+    return { firstGear: firstGear, run: run, carrot: carrot, pull: pulled && pulled.pull, reached: res.reached, expansions: res.expansions, hRem: res.hRemaining, nodes: nodes, path: res.path, vLimit: vLimit }
   }
 
   // --- reverse cruise: the goal is behind, the way ahead is blocked, the way behind is free -> drive backwards steadily (long reverse
@@ -853,6 +902,16 @@ function transform(input, dt, params, state, api) {
     }
     if (!state.active) {
       if (rt.carrot) av.carrot = rt.carrot
+      if (rt.pull && !(av.threats && av.threats.length)) {
+        var pdx = rt.pull[0] - pos[0]
+        var pdz = rt.pull[1] - pos[2]
+        var pdl = Math.hypot(pdx, pdz)
+        var pwant = Math.max(14, (params.carrotLookT != null ? params.carrotLookT : 1.6) * Math.max(0, e.speedF))
+        if (pdl > 1e-3 && pdx * e.fwd[0] + pdz * e.fwd[2] > 0) {
+          var pk = Math.min(pwant, pdl) / pdl
+          av.carrot = [pos[0] + pdx * pk, pos[2] + pdz * pk]
+        }
+      }
       api.watch('av.carrotw', rt.carrot ? rt.carrot[0].toFixed(0) + ',' + rt.carrot[1].toFixed(0) : '-')
       av.route = { firstGear: rt.firstGear, run: rt.run, reached: rt.reached, vLimit: rt.vLimit }
       if (params.debugDraw !== false) {
