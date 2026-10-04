@@ -98,6 +98,8 @@ function transform(input, dt, params, state, api) {
   }
   plan.vDesired = v
   plan.vLimit = limit
+  state.lim = limit
+  state.vd = v
   api.watch('av.vLimit', limit + ' ' + v.toFixed(1))
   return {}
 }

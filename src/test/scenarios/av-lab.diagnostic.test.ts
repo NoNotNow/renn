@@ -28,6 +28,7 @@ function summary(tag: string, r: LabResult): string {
     `LAB ${tag}: [av ${r.stackVersion}] ${r.frames} frames, path ${r.pathLength.toFixed(1)} m, ${r.realtimeFactor.toFixed(2)}x realtime, roughness ${r.speedRoughness.toFixed(3)} m/s/frame, spikes ${r.speedSpikes}, classes ${JSON.stringify(r.classFrames)}`,
     `  METRICS speed mean ${r.meanSpeed.toFixed(1)} max ${r.maxSpeed.toFixed(1)} m/s | path ${r.pathLength.toFixed(0)} m | catches ${r.catches} | minChaserDist ${r.minChaserDist.toFixed(1)} m (${r.chaserCount} chasers) | chaser<15m ${(r.nearFraction * 100).toFixed(0)}% | events ${r.events.length}`,
     `  STEER |dsteer|/frame ${r.steerRoughness.toFixed(4)} | reversals/s ${r.steerReversalsPerSec.toFixed(2)} | |dyawRate|/frame ${r.yawRateRoughness.toFixed(3)} rad/s | plan changes/s ${r.planChangesPerSec.toFixed(2)} switches/s ${r.planSwitchesPerSec.toFixed(2)} | obstacle flicker ${r.obstacleFlicker.toFixed(4)}`,
+    `  LIMITS all ${JSON.stringify(r.limitHist)} | below10 ${JSON.stringify(r.limitHistSlow)} | means ${JSON.stringify(r.limitMeans)}`,
     `  events: ${ev.length ? ev.join('\n          ') : 'none'}`,
     `  scenes: ${r.sceneFiles.join(', ') || '-'}`,
     `  final: ${JSON.stringify({ pos: r.final.pos, sleeping: r.final.sleeping, v: r.final.velocity, watch: r.final.watch })}`,

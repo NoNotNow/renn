@@ -378,6 +378,10 @@ export interface LabResult {
   /** Speed stats of the focus (forward speed, m/s). */
   maxSpeed: number
   meanSpeed: number
+  /** Frames per active speed limit source ('free' | 'route' | 'curve' | 'near' | 'goal' | 'cruise' | 'maneuver'), all frames and frames below 10 m/s. */
+  limitHist: Record<string, number>
+  limitMeans: Record<string, string>
+  limitHistSlow: Record<string, number>
   /** Chasers = other chain entities whose first pipe id matches `chaserPipe` (default /^pipe_/). */
   chaserCount: number
   /** Min center distance to any chaser over the run (m). */
@@ -465,6 +469,12 @@ export async function runLab(o: LabOptions): Promise<LabResult> {
   let percState: Record<string, unknown> | undefined
   let planState: Record<string, unknown> | undefined
   let prevKap: number | null = null
+  let spdState: Record<string, unknown> | undefined
+  let rtState: Record<string, unknown> | undefined
+  const limHist: Record<string, number> = {}
+  const limHistSlow: Record<string, number> = {}
+  const limVd: Record<string, number> = {}
+  const limV: Record<string, number> = {}
   let planChanges = 0
   let planSwitches = 0
   let prevMem: number | null = null
@@ -533,6 +543,15 @@ export async function runLab(o: LabOptions): Promise<LabResult> {
         latState ??= liveStageState(sim, world, o.focus, 'lateral')
         percState ??= liveStageState(sim, world, o.focus, 'perception')
         planState ??= liveStageState(sim, world, o.focus, 'motion planner')
+        spdState ??= liveStageState(sim, world, o.focus, 'speed planner')
+        rtState ??= liveStageState(sim, world, o.focus, 'route planner')
+        {
+          const key = rtState?.active ? 'maneuver' : String(spdState?.lim ?? '?')
+          limHist[key] = (limHist[key] ?? 0) + 1
+          limVd[key] = (limVd[key] ?? 0) + (typeof spdState?.vd === 'number' ? Math.min(60, spdState.vd) : 0)
+          limV[key] = (limV[key] ?? 0) + fwdSpeed
+          if (fwdSpeed < 10) limHistSlow[key] = (limHistSlow[key] ?? 0) + 1
+        }
         const mc = percState?.memCount
         if (typeof mc === 'number') {
           if (prevMem !== null) memDSum += Math.abs(mc - prevMem)
@@ -658,6 +677,9 @@ export async function runLab(o: LabOptions): Promise<LabResult> {
       steerRoughness: steerDSum / Math.max(1, steerFrames),
       steerReversalsPerSec: steerRev / Math.max(1e-6, steerFrames * DEFAULT_DT),
       yawRateRoughness: yawRateDSum / Math.max(1, steerFrames),
+      limitHist: limHist,
+      limitMeans: Object.fromEntries(Object.keys(limHist).map((k) => [k, `v ${(limV[k]! / limHist[k]!).toFixed(1)} vDes ${(limVd[k]! / limHist[k]!).toFixed(1)}`])),
+      limitHistSlow: limHistSlow,
       maxSpeed,
       meanSpeed: speedSum / Math.max(1, f - f0),
       chaserCount: chaserIds.length,
