@@ -49,6 +49,7 @@ stage timing table, chain means of all entities and slow calls.
 
 - `METRICS` line per seed: mean / max speed, path, **catches** (a chaser centre within 1 m of the focus hull: OBB distance minus 2 m chaser half-width < `CATCH_GAP`; an episode ends when the gap exceeds `CATCH_CLEAR` 3 m), min chaser distance, fraction of time with a chaser centre < 15 m. Chasers = other chain entities whose first pipe id matches `AVLAB_CHASER_PIPE` (default `^pipe_`).
 - `STEER` line: mean |Δsteer| per frame, steering **reversals per second** (swing > 0.03 against the previous direction, speed > 3 m/s), |Δ yaw rate|, planner curvature changes/switches per second, obstacle-memory flicker (needs the perception `memCount` state). Baseline before the lateral smoothing: 8-10 reversals/s; after: 2.5-3.
+- `SPEED` line: focus vs chaser speed mean/p50/p90/p99 and the speed-limit-source histogram while no chaser is within 60 m.
 - `AVLAB_PARAMS='{"comfortDecel":6}'` overrides params of the focus pipe binding for quick tuning.
 - **Versioning:** `CODE VERSION` line = hash per AV stage + overall stack version (hash of the code that executes, `src/globalPipeline/avStackVersion.ts`), plus whether `world.json` embeds stale code. Scenes carry `stackVersion`; replay warns on mismatch. The Builder header shows `build <sha> · av <version>` and logs the same to the console, so compare it with the lab line.
 - `npm run sync:global-pipeline` also upgrades stage code embedded in `public/exampleWorlds/*/world.json` (`tools/renn-mcp/upgrade-example-worlds-library.ts`); `avStackVersion.test.ts` fails when `self_hunt_flexible/world.json` is out of sync. Example `world.json` is fetched with `?v=<build sha>` and `cache: 'no-cache'`.
@@ -66,7 +67,7 @@ fixed duration and explicit criteria, so a regression names the situation. ~40 s
 - **Add a scenario:** append to `SCENARIOS` (name, one-line `about`, `seconds`, `spec()` returning an `ArenaSpec`, `criteria(m)` returning the violated criteria; start from `surviveCriteria()`). A spec may derive its timing from another run (`crossing` reads the open-road trace so the chaser meets the car at t=6 s if it keeps going).
 - **Known failures:** `KNOWN_FAILING[name] = 'suspected cause'` runs the scenario with `it.fails`: CI is green, the table still prints `FAIL` + the broken criteria, and the entry's text. When the AV is fixed the `it.fails` turns red -> delete the entry (it becomes a normal `it`). 
 
-- **Known failures:** `KNOWN_FAILING[name] = 'suspected cause'` runs the scenario with `it.fails`: CI is green, the table still prints `FAIL` + the broken criteria, and the entry's text. When the AV is fixed the `it.fails` turns red -> delete the entry (it becomes a normal `it`). Currently none: all 10 scenarios pass.
+- **Known failures:** `KNOWN_FAILING[name] = 'suspected cause'` runs the scenario with `it.fails`: CI is green, the table still prints `FAIL` + the broken criteria, and the entry's text. When the AV is fixed the `it.fails` turns red -> delete the entry (it becomes a normal `it`). Currently none: all 11 scenarios pass (`boxed-in-corner` added).
 - Runs are bit-identical across repeats (checked twice). If you change the AV stack run `npm run sync:global-pipeline` first; the arena applies the library on load.
 
 ## Parametric evasion sweep (2026-10) — robustness against overfitting the 10 scenarios

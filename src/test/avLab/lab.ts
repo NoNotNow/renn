@@ -378,6 +378,10 @@ export interface LabResult {
   /** Speed stats of the focus (forward speed, m/s). */
   maxSpeed: number
   meanSpeed: number
+  /** focus / chaser speed percentiles (m/s), sampled every 6 frames; chaser = speed magnitude of every chaser */
+  speedPct: { focus: number[]; chasers: number[] }
+  /** speed-limit-source histogram + mean speed while no chaser is within 60 m */
+  limitHistFree: Record<string, string>
   /** Frames per active speed limit source ('free' | 'route' | 'curve' | 'near' | 'goal' | 'cruise' | 'maneuver'), all frames and frames below 10 m/s. */
   limitHist: Record<string, number>
   limitMeans: Record<string, string>
@@ -457,6 +461,9 @@ export async function runLab(o: LabOptions): Promise<LabResult> {
   let minChaserDist = Infinity
   let nearFrames = 0
   let speedSum = 0
+  const focusSamples: number[] = []
+  const chaserSamples: number[] = []
+  const freeHist: Record<string, { n: number; v: number }> = {}
   let maxSpeed = 0
   let latState: Record<string, unknown> | undefined
   let prevSteer: number | null = null
@@ -599,6 +606,24 @@ export async function runLab(o: LabOptions): Promise<LabResult> {
           }
         }
         if (near) nearFrames++
+        if (f % 6 === 0) {
+          focusSamples.push(fwdSpeed)
+          for (const id of chaserIds) {
+            const cv = sim.getVelocity(id)
+            chaserSamples.push(Math.hypot(cv[0], cv[2]))
+          }
+        }
+        let minD = Infinity
+        for (const id of chaserIds) {
+          const cp = sim.getPosition(id)
+          minD = Math.min(minD, Math.hypot(cp[0] - p[0], cp[2] - p[2]))
+        }
+        if (minD > 60) {
+          const key = rtState?.active ? 'maneuver' : String(spdState?.lim ?? '?')
+          const h = (freeHist[key] ??= { n: 0, v: 0 })
+          h.n++
+          h.v += fwdSpeed
+        }
       }
       monitor.push({ frame: f, x: p[0], z: p[2], yaw: yawOf(q), speed: fwdSpeed, sleeping: sim.isSleeping(o.focus) })
       if (f % snapshotEvery === 0) {
@@ -682,6 +707,8 @@ export async function runLab(o: LabOptions): Promise<LabResult> {
       limitHistSlow: limHistSlow,
       maxSpeed,
       meanSpeed: speedSum / Math.max(1, f - f0),
+      speedPct: { focus: pcts(focusSamples), chasers: pcts(chaserSamples) },
+      limitHistFree: Object.fromEntries(Object.entries(freeHist).map(([k, h]) => [k, `${h.n} frames, mean v ${(h.v / h.n).toFixed(1)}`])),
       chaserCount: chaserIds.length,
       minChaserDist: Number.isFinite(minChaserDist) ? minChaserDist : -1,
       catches,
@@ -695,6 +722,13 @@ export async function runLab(o: LabOptions): Promise<LabResult> {
     setAgentObservationWatchActive(false)
     if (profile) setTransformerProfilerEnabled(false)
   }
+}
+
+function pcts(a: number[]): number[] {
+  if (!a.length) return []
+  const b = [...a].sort((x, y) => x - y)
+  const at = (q: number) => b[Math.min(b.length - 1, Math.floor(q * b.length))]!
+  return [b.reduce((x, y) => x + y, 0) / b.length, at(0.5), at(0.9), at(0.99)]
 }
 
 export function formatProfile(world: RennWorld): string {

@@ -161,6 +161,23 @@ const SCENARIOS: Scenario[] = [
     },
   },
   {
+    name: 'boxed-in-corner',
+    about: 'lab regression (self_hunt_flexible seed 5, 30 s stall): nose 3 m from the corner of a parked car on the left, a pillar behind, goal ahead-right; the route planner calls it free, the local planner has only 0.8 m',
+    seconds: 20,
+    spec: () => ({
+      car: { at: [0, 0], yawDeg: 0 },
+      goal: [18, -100],
+      boxes: [wall([-4.6, -7.0], [4, 8], 52), wall([-4.8, 14.5], [10, 10])],
+      puppets: [],
+    }),
+    criteria: (m) => {
+      // starts almost touching the parked car: a short scrape while getting out is fine, a stall is not
+      const out = surviveCriteria({ maxStalledSec: 7 })(m).filter((c) => !(c.startsWith('touched a static obstacle') && m.staticContactFrames < 40))
+      if (m.progress < 40) out.push(`no progress toward the goal (${f1(m.progress)} m < 40)`)
+      return out
+    },
+  },
+  {
     name: 'open-road-speed',
     about: 'no chasers, 680 m free straight: reach >= 25 m/s',
     seconds: 20,
