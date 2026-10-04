@@ -154,6 +154,11 @@ function requireRotation(scope: string, param: string, raw: unknown): Rotation {
   return r
 }
 
+function isVec3Shape(raw: unknown): raw is Vec3 {
+  if (!Array.isArray(raw) || raw.length !== 3) return false
+  return isFiniteNum(raw[0]) && isFiniteNum(raw[1]) && isFiniteNum(raw[2])
+}
+
 function requireVec3(scope: string, param: string, raw: unknown): Vec3 {
   const v = readVec3(raw)
   if (!v) {
@@ -521,13 +526,15 @@ function raycastApi(
   maxDistance?: number,
   options?: { visualize?: boolean; hitColor?: string; missColor?: string },
 ): RaycastResult {
-  const NO_HIT: RaycastResult = { hit: false, distance: 0, entityId: '' }
-  const o = requireVec3('TransformerRuntimeApi.raycast', 'origin', origin)
-  const d = requireVec3('TransformerRuntimeApi.raycast', 'fwd', fwd)
+  // Hot path (hundreds of rays per car and frame): validate in place instead of copying both vectors.
+  if (!isVec3Shape(origin)) requireVec3('TransformerRuntimeApi.raycast', 'origin', origin)
+  if (!isVec3Shape(fwd)) requireVec3('TransformerRuntimeApi.raycast', 'fwd', fwd)
+  const o = origin
+  const d = fwd
   if (maxDistance !== undefined) {
     requireFiniteNumber('TransformerRuntimeApi.raycast', 'maxDistance', maxDistance)
   }
-  const result = _transformerRuntimeRaycast?.(o, d, maxDistance) ?? NO_HIT
+  const result = _transformerRuntimeRaycast?.(o, d, maxDistance) ?? { hit: false, distance: 0, entityId: '' }
 
   if (options?.visualize) {
     const id = _customCodeVisualizeEntityId

@@ -41,6 +41,7 @@ export class PhysicsWorld {
   private readonly colliderHandleToEntityId: Map<number, string> = new Map()
   private lastCollisions: CollisionPair[] = []
   private disposed: boolean = false
+  private scratchRay: RAPIER.Ray | null = null
   private stepping: boolean = false
   private readonly cachedTransforms: Map<string, CachedTransform> = new Map()
   /** Reused each step in drainContactForceEvents; cleared before fill. */
@@ -869,7 +870,15 @@ export class PhysicsWorld {
     const ny = dirY / len
     const nz = dirZ / len
 
-    const ray = new RAPIER.Ray({ x: originX, y: originY, z: originZ }, { x: nx, y: ny, z: nz })
+    // one reusable Ray (castRay only reads it): saves three object allocations per cast
+    let ray = this.scratchRay
+    if (!ray) ray = this.scratchRay = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 })
+    ray.origin.x = originX
+    ray.origin.y = originY
+    ray.origin.z = originZ
+    ray.dir.x = nx
+    ray.dir.y = ny
+    ray.dir.z = nz
     const excludeCollider = excludeEntityId ? this.colliderMap.get(excludeEntityId) : undefined
     const hit = this.world.castRay(ray, maxDistance, true, undefined, undefined, excludeCollider)
     if (!hit) return NO_HIT

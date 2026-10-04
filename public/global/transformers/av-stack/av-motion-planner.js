@@ -76,9 +76,13 @@ function transform(input, dt, params, state, api) {
   var ox = []
   var oy = []
   var olive = []
+  // every point of the ego window below lies within wRad of the car: a world-axis box test rejects the far ones without the rotation (conservative: the exact window test still decides)
+  var wX = H + halfL + soft + 3
+  var wRad = Math.sqrt(wX * wX + (H + 4) * (H + 4)) * 1.000001 + 1e-3
   for (var i = 0; i < pts.length; i++) {
     var dx = pts[i][0] - pos[0]
     var dz = pts[i][1] - pos[2]
+    if (dx > wRad || dx < -wRad || dz > wRad || dz < -wRad) continue
     var px = dx * e.fwd[0] + dz * e.fwd[2]
     var py = dx * e.left[0] + dz * e.left[2]
     if (px > -halfL - soft - 3 && px < H + halfL + soft + 3 && py > -H - 4 && py < H + 4) {
@@ -288,38 +292,101 @@ function transform(input, dt, params, state, api) {
   var ramp = params.marginRamp != null ? params.marginRamp : 3
   // 8 m spatial hash over the ego-frame costmap: only points near the swept pose can hit its rectangle
   var HC = 8
-  var hash = new Map()
+  // dense grid over the occupied cell range (an array lookup instead of a Map lookup per swept cell); cells keep insertion order
+  var gx0 = 1e9
+  var gx1 = -1e9
+  var gy0 = 1e9
+  var gy1 = -1e9
   for (var hi = 0; hi < ox.length; hi++) {
-    var hk = (Math.floor(ox[hi] / HC) + 512) * 1024 + (Math.floor(oy[hi] / HC) + 512)
-    var hcell = hash.get(hk)
-    if (hcell) hcell.push(hi)
-    else hash.set(hk, [hi])
+    var hcx = Math.floor(ox[hi] / HC)
+    var hcy = Math.floor(oy[hi] / HC)
+    if (hcx < gx0) gx0 = hcx
+    if (hcx > gx1) gx1 = hcx
+    if (hcy < gy0) gy0 = hcy
+    if (hcy > gy1) gy1 = hcy
   }
+  var gNy = gy1 - gy0 + 1
+  var grid = []
+  if (ox.length) {
+    var gN = (gx1 - gx0 + 1) * gNy
+    for (var gi = 0; gi < gN; gi++) grid.push(null)
+    for (var hj = 0; hj < ox.length; hj++) {
+      var hgi = (Math.floor(ox[hj] / HC) - gx0) * gNy + (Math.floor(oy[hj] / HC) - gy0)
+      var hcell = grid[hgi]
+      if (hcell) hcell.push(hj)
+      else grid[hgi] = [hj]
+    }
+  }
+  // pose cache of the candidate last swept (hard and soft sweeps of one candidate share every pose; the clearance probes too): per step index x, y, cos, sin of the heading
+  var pcK = NaN
+  var pcT = NaN
+  var pcX = []
+  var pcY = []
+  var pcC = []
+  var pcS = []
   function freeLength(kappa, turnLen, hw, hl) {
+    if (kappa !== pcK || turnLen !== pcT) {
+      pcK = kappa
+      pcT = turnLen
+      pcX.length = 0
+      pcY.length = 0
+      pcC.length = 0
+      pcS.length = 0
+    }
     var extra = hw - hullW
     var m0 = Math.max(0, Math.min(extra, startGap - 0.05))
-    for (var s = 0; s <= H; s += ds) {
+    var si = 0
+    for (var s = 0; s <= H; s += ds, si++) {
       var m = s >= ramp || m0 >= extra ? extra : m0 + ((extra - m0) * s) / ramp
       var hwS = hullW + m
       var hlS = hullL + m
       var hlRear = Math.max(0.3, hlS - rearIgnore)
-      poseAt(kappa, turnLen, s, P)
-      var ct = Math.cos(P.th)
-      var st = Math.sin(P.th)
+      if (si >= pcX.length) {
+        // same arithmetic as poseAt (heading th = kappa * min(s, turnLen); cos / sin of it are shared with the footprint rotation)
+        var sa = s < turnLen ? s : turnLen
+        var th = kappa * sa
+        var cth = Math.cos(th)
+        var sth = Math.sin(th)
+        var qx
+        var qy
+        if (Math.abs(kappa) < 1e-6) {
+          qx = sa
+          qy = 0
+        } else {
+          qx = sth / kappa
+          qy = (1 - cth) / kappa
+        }
+        if (s > turnLen) {
+          qx += cth * (s - turnLen)
+          qy += sth * (s - turnLen)
+        }
+        pcX.push(qx)
+        pcY.push(qy)
+        pcC.push(cth)
+        pcS.push(sth)
+      }
+      var Px = pcX[si]
+      var Py = pcY[si]
       var hlMax = hlS > hlRear ? hlS : hlRear
       var rad = Math.sqrt(hlMax * hlMax + hwS * hwS) + 1e-6
-      var cx0 = Math.floor((P.x - rad) / HC)
-      var cx1 = Math.floor((P.x + rad) / HC)
-      var cy0 = Math.floor((P.y - rad) / HC)
-      var cy1 = Math.floor((P.y + rad) / HC)
+      var cx0 = Math.floor((Px - rad) / HC)
+      var cx1 = Math.floor((Px + rad) / HC)
+      var cy0 = Math.floor((Py - rad) / HC)
+      var cy1 = Math.floor((Py + rad) / HC)
+      if (cx0 < gx0) cx0 = gx0
+      if (cx1 > gx1) cx1 = gx1
+      if (cy0 < gy0) cy0 = gy0
+      if (cy1 > gy1) cy1 = gy1
       for (var cx = cx0; cx <= cx1; cx++) {
         for (var cy = cy0; cy <= cy1; cy++) {
-          var cell = hash.get((cx + 512) * 1024 + (cy + 512))
+          var cell = grid[(cx - gx0) * gNy + (cy - gy0)]
           if (!cell) continue
+          var ct = pcC[si]
+          var st = pcS[si]
           for (var qi = 0; qi < cell.length; qi++) {
             var q = cell[qi]
-            var rx = ox[q] - P.x
-            var ry = oy[q] - P.y
+            var rx = ox[q] - Px
+            var ry = oy[q] - Py
             var lx = ct * rx + st * ry
             var ly = -st * rx + ct * ry
             if (lx > -hlRear && lx < hlS && ly > -hwS && ly < hwS) return Math.max(0, s - ds)
@@ -386,15 +453,30 @@ function transform(input, dt, params, state, api) {
   }
   // Direct aim: turn at curvature `kappa` until the car points at the goal, then drive straight (shortest way when the
   // way is free). Returns the turn angle (rad), or 0 when the goal is on the other side / cannot be aimed at this way.
+  var aimTh = null
+  var aimSin = null
+  var aimCos = null
   function aimTurnAngle(kappa) {
     var ak = Math.abs(kappa)
     if (ak < 1e-6) return 0
     var gyS = kappa > 0 ? gy : -gy
     if (gyS <= 0.05 && gx > 0) return 0
     var prevF = null
-    for (var th = 0.02; th <= Math.PI; th += 0.02) {
-      var x = Math.sin(th) / ak
-      var y = (1 - Math.cos(th)) / ak
+    // sin / cos of the fixed angle grid, built once per frame (identical values for every curvature)
+    if (!aimTh) {
+      aimTh = []
+      aimSin = []
+      aimCos = []
+      for (var ath = 0.02; ath <= Math.PI; ath += 0.02) {
+        aimTh.push(ath)
+        aimSin.push(Math.sin(ath))
+        aimCos.push(Math.cos(ath))
+      }
+    }
+    for (var ti2 = 0; ti2 < aimTh.length; ti2++) {
+      var th = aimTh[ti2]
+      var x = aimSin[ti2] / ak
+      var y = (1 - aimCos[ti2]) / ak
       var f = Math.atan2(gyS - y, gx - x) - th
       while (f > Math.PI) f -= 2 * Math.PI
       while (f < -Math.PI) f += 2 * Math.PI
