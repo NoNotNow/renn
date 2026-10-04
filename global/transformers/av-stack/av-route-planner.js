@@ -8,12 +8,14 @@
 //     has a long forward run.
 // Runs BEFORE the local motion planner. Simulated time only.
 // debug draw: magenta = route / manoeuvre path (+ status mast while manoeuvring), orange = current segment end.
-// params: maneuverSpeed, maneuverMargin, handbackMargin, maneuverRunSpeed (maze mode only), mazeDetour (15) / mazeDeviate (2.5) / mazeReversePenalty / mazeMaxReverseRun (maze mode, see below), routeInterval, routeExpansions, lookahead, primitiveLength, maxExpansions,
+// params: style ('comfort' | 'escape', see below), maneuverDecel (10), escapeManeuverSpeed (15), maneuverSpeed, mazeManeuverSpeed (off; maze-mode shuffle floor, e.g. 4.5), headingHeuristic / mazeLatch / runTotal (opt-in, see below), maneuverMargin, handbackMargin, maneuverRunSpeed (maze mode only), mazeDetour (15) / mazeDeviate (2.5) / mazeReversePenalty / mazeMaxReverseRun (maze mode, see below), routeInterval, routeExpansions, lookahead, primitiveLength, maxExpansions,
 //         exploreTime (s, 0 = off; see below), fieldHeuristic (2D goal-distance field over the persistent static map, see ensureField), fieldCell, fieldInflate, fieldBlockCost, fieldEvery, gearSwitchPenalty, reversePenalty, maxReverseRun, planMargin, tightMargin, guardMargin, stallTime, stuckTime,
 //         contactTtl (s, how long an unseen contact stays a virtual obstacle, default 25), contactRestTime (s at rest before a lateral stall counts as contact, default 1), contactMemory (false = off), restWaitMax (s, wait for rest before a gear change), maxOffPath (m, drop a plan the car is farther from), crawlTime,
 //         goalReach, handbackFree, goalTolerance, maxCurvature, vehicleWidth, vehicleLength
 function transform(input, dt, params, state, api) {
   var av = input.av
+  // av-ego's preset table (params.preset) under this stage's own params (binding / scope / stage params win); cached while both are the same objects
+  if (av && av.preset) params = state.pmP === params && state.pmB === av.preset ? state.pm : ((state.pmP = params), (state.pmB = av.preset), (state.pm = Object.assign({}, av.preset, params)))
   if (!av || !av.ego) return {}
   var e = av.ego
   var tgt = input.target && input.target.pose && input.target.pose.position
@@ -501,11 +503,26 @@ function transform(input, dt, params, state, api) {
       var dz = gz - z
       return Math.sqrt(dx * dx + dz * dz)
     }
-    function dist(x, z) {
+    // Heading-aware heuristic (headingHeuristic, OPT-IN: true; off in maze mode where the field already carries the geometry): a goal BEHIND the car costs the turn that is needed to face it (arc of the minimum turn radius, scaled 0.8), not just the
+    // straight distance. With the pure distance a goal 80 m behind was "approached" by reversing in a straight line (the cheapest way to shrink the distance inside the expansion budget):
+    // 8 m reverse runs, a short forward arc, reverse again, 46 m reversed in 20 s instead of one 3-point turn.
+    // Opt-in because the inadmissible extra cost misleads the budgeted search where turning is impossible (18 m alley, goal behind: it explores turns instead of reversing out;
+    // reverse-escape / open-road-reverse fail with it). Turnaround tests: av-maze-scenarios KNOWN_FAILING until that is solved.
+    var hHead = params.headingHeuristic === true && !state.maze
+    var Rturn = 1 / kmax
+    var hW = params.headingWeight != null ? params.headingWeight : 0.8
+    var hMin = params.headingMin != null ? params.headingMin : 0.4
+    function dist(x, z, fx, fz) {
       var e1 = eu(x, z)
-      if (!useField) return e1
-      var f1 = fieldAt(x, z)
-      return f1 > e1 ? f1 : e1
+      var base = e1
+      if (useField) {
+        var f1 = fieldAt(x, z)
+        if (f1 > e1) base = f1
+      }
+      if (!hHead || fx === undefined || e1 < 12) return base
+      var c = (fx * (gx - x) + fz * (gz - z)) / e1
+      var th = Math.acos(c > 1 ? 1 : c < -1 ? -1 : c)
+      return th > hMin ? base + hW * Rturn * (th - hMin) : base
     }
     // binary min-heap on f
     var heap = []
@@ -562,13 +579,13 @@ function transform(input, dt, params, state, api) {
       return sl
     }
     var HW = 1.4
-    var start = { x: sx, z: sz, fx: sfx, fz: sfz, g: 0, gear: 0, k: 0, parent: null, f: dist(sx, sz) * HW, d: 0 }
+    var start = { x: sx, z: sz, fx: sfx, fz: sfz, g: 0, gear: 0, k: 0, parent: null, f: dist(sx, sz, sfx, sfz) * HW, d: 0 }
     push(start)
     var s0 = slotOf(sx, sz, sfx, sfz, 0)
     tKeys[s0] = slotKey
     tVals[s0] = 0
     var bestNode = start
-    var bestH = dist(sx, sz)
+    var bestH = dist(sx, sz, sfx, sfz)
     var goalNode = null
     var expansions = 0
     while (heap.length > 0 && expansions < maxExp) {
@@ -576,7 +593,7 @@ function transform(input, dt, params, state, api) {
       var cs = slotOf(cur.x, cur.z, cur.fx, cur.fz, cur.gear)
       if (tKeys[cs] !== -1 && cur.g > tVals[cs] + 1e-6) continue
       expansions++
-      var h = dist(cur.x, cur.z)
+      var h = dist(cur.x, cur.z, cur.fx, cur.fz)
       if (h < bestH) {
         bestH = h
         bestNode = cur
@@ -640,7 +657,7 @@ function transform(input, dt, params, state, api) {
           if (tKeys[ns] !== -1 && tVals[ns] <= g2) continue
           tKeys[ns] = slotKey
           tVals[ns] = g2
-          push({ x: nx, z: nz, fx: nfx, fz: nfz, g: g2, gear: gear, k: k, revRun: revRun, parent: cur, f: g2 + dist(nx, nz) * HW })
+          push({ x: nx, z: nz, fx: nfx, fz: nfz, g: g2, gear: gear, k: k, revRun: revRun, parent: cur, f: g2 + dist(nx, nz, nfx, nfz) * HW })
         }
       }
     }
@@ -679,6 +696,7 @@ function transform(input, dt, params, state, api) {
 
   function begin(res) {
     state.segs = res.segs
+    state.mazePlan = state.maze
     state.idx = 0
     state.segStart = null
     state.prevGear = 0
@@ -816,7 +834,7 @@ function transform(input, dt, params, state, api) {
   // or the rear is blocked (hysteresis, the planner's own gear-switch penalty does the rest).
   ensureField()
   var revCruiseOn = params.reverseCruise !== false
-  var revCruiseSpeed = params.reverseSpeed != null ? params.reverseSpeed : 10
+  var revCruiseSpeed = params.reverseSpeed != null ? params.reverseSpeed : params.style === 'escape' ? 15 : 10
   var scanRange = (av.scan && av.scan.range) || 40
   var freeStraight = (function () {
     var hitS = makeHit(av.points || [], ((av.vehicle && av.vehicle.length) || params.vehicleLength || 4) / 2 + planMargin, ((av.vehicle && av.vehicle.width) || params.vehicleWidth || 2) / 2 + planMargin)
@@ -845,7 +863,12 @@ function transform(input, dt, params, state, api) {
   // Maze mode: the obstacle-aware route is much longer than the straight line (walls in between: backing out of a dead end, turning around in a corridor). Reversing is then cheap
   // (mazeReversePenalty 1.5 per m instead of 4, runs up to mazeMaxReverseRun 40 m) so the search finds 'back out 30 m' / a K-turn inside its expansion budget, and runs in one gear
   // are driven at maneuverRunSpeed. Open ground (field ~ straight line) keeps the normal costs.
-  state.maze = !!(fld && av.fieldGoal && av.fieldGoal.d - goalDist > (params.mazeDetour != null ? params.mazeDetour : 15))
+  // mazeLatch (OPT-IN: true): hysteresis (on above mazeDetour, off below half of it) and latched while a manoeuvre runs: the detour of a pocket shrinks as the car backs out of it (16-17 m near the threshold),
+  // which flipped the mode from plan to plan and in the middle of a plan (other reverse costs / speeds / re-plan thresholds each time).
+  var detourM = params.mazeDetour != null ? params.mazeDetour : 15
+  var mazeNow = !!(fld && av.fieldGoal && (av.fieldGoal.d - goalDist > detourM || (params.mazeLatch === true && state.mazeOn && av.fieldGoal.d - goalDist > 0.5 * detourM)))
+  if (!state.active) state.mazeOn = mazeNow
+  state.maze = state.active && params.mazeLatch === true ? !!state.mazePlan : mazeNow
   if (state.maze) {
     revPen = Math.min(revPen, params.mazeReversePenalty != null ? params.mazeReversePenalty : 1.5)
     maxRevRun = Math.max(maxRevRun, params.mazeMaxReverseRun != null ? params.mazeMaxReverseRun : 40)
@@ -1118,8 +1141,22 @@ function transform(input, dt, params, state, api) {
   // maneuverRunSpeed (default off): a long run of segments in one gear (backing out of a dead end, a straight corridor leg) is driven faster than the shuffle speed
   var runLen = remain
   for (var rq = state.idx + 1; rq < state.segs.length && state.segs[rq].g === cur.g; rq++) runLen += state.segs[rq].len
-  var vRun = state.maze && params.maneuverRunSpeed != null && runLen > 8 ? params.maneuverRunSpeed : vMan
+  // runTotal (OPT-IN: true): the whole run counts (what was driven already too): a 13 m reverse run used to drop to the shuffle speed (3 m/s) for its last 5 m because only the REMAINING length was > 8 m
+  var runTot = runLen
+  for (var rb = state.idx - 1; params.runTotal === true && rb >= 0 && state.segs[rb].g === cur.g; rb--) runTot += state.segs[rb].len
+  var vShuffle = state.maze && params.mazeManeuverSpeed != null ? Math.max(vMan, params.mazeManeuverSpeed) : vMan
+  var vRun = state.maze && params.maneuverRunSpeed != null && runTot > 8 ? Math.max(params.maneuverRunSpeed, vShuffle) : vShuffle
   var vMax = Math.min(vRun, 0.9 + Math.sqrt(2 * 3 * (runLen > 8 ? runLen : remain)))
+  // style 'escape': the plan is collision-free along its whole length (footprint-exact, same costmap), so a run is driven as fast as it can still be STOPPED at its end with the real braking
+  // capability (maneuverDecel, default 10 m/s^2: v <= sqrt(2 a run)), cornering limit of its arcs (maxLatAccel) and escapeManeuverSpeed (15): 'fits = go'. 'comfort' keeps the 3 m/s shuffle / 7 m/s runs.
+  if (params.style === 'escape') {
+    var aStop = params.maneuverDecel != null ? params.maneuverDecel : 10
+    var vEsc = Math.min(params.escapeManeuverSpeed != null ? params.escapeManeuverSpeed : 15, Math.sqrt(2 * aStop * Math.max(runLen, 0.8)))
+    var kRun = Math.abs(cur.k)
+    for (var rk = state.idx + 1; rk < state.segs.length && state.segs[rk].g === cur.g && rk <= state.idx + 2; rk++) kRun = Math.max(kRun, Math.abs(state.segs[rk].k))
+    if (kRun > 1e-4) vEsc = Math.min(vEsc, Math.sqrt((params.maxLatAccel || 9) / kRun))
+    vMax = Math.max(vMax, vEsc)
+  }
   if (state.revCruise && cur.g < 0 && state.segStart !== null) {
     // steady reverse: speed from the free distance along this segment's arc behind the car (stop within it at the comfort deceleration),
     // the lateral acceleration of the arc and the remaining segment length
@@ -1131,15 +1168,63 @@ function transform(input, dt, params, state, api) {
     for (var qi = state.idx + 1; qi < state.segs.length && state.segs[qi].g < 0; qi++) runRemain += state.segs[qi].len
     var vRevFree = freeR < Math.min(arcLook, remain) ? Math.sqrt(2 * (params.comfortDecel || 5) * Math.max(0, freeR - 2)) : 1e9
     var vRevCurve = Math.abs(cur.k) > 1e-4 ? Math.sqrt((params.maxLatAccel || 9) / Math.abs(cur.k)) : 1e9
-    vMax = Math.min(revCruiseSpeed, vRevFree, vRevCurve, 0.9 + Math.sqrt(2 * 3 * runRemain))
+    vMax = Math.min(revCruiseSpeed, vRevFree, vRevCurve, 0.9 + Math.sqrt(2 * (params.style === 'escape' ? (params.maneuverDecel != null ? params.maneuverDecel : 10) : 3) * runRemain))
   }
   // waiting for rest before a gear change: demand zero. Once the segment has started but the car still rolls the other
   // way (momentum from the previous segment; an icy car does not stop by itself and a zero-demand brake is below the
   // actuator deadband), drive in the demanded direction: that brakes it hard and turns it around.
   var waitingForRest = state.segStart === null
   var rollingWrong = !waitingForRest && cur.g * e.speed < -0.35
-  av.override = { kappa: cur.k, vDesired: waitingForRest ? 0 : rollingWrong ? cur.g * Math.min(vMax, 2.5) : cur.g * vMax }
+  // Path tracking (manTrack, default on in style 'escape'): the executor used to be open loop (the arcs' curvature only), so a 6 degree heading error accumulated over a 10 m reverse run at 9 m/s and the
+  // rear corner scraped the wall of a U that the plan cleared by 0.4 m. Cross-track and heading error against the polyline of THIS segment steer the commanded curvature (pure-pursuit style).
+  var kCmd = cur.k
+  if ((params.manTrack != null ? params.manTrack : params.style === 'escape') && state.path && !waitingForRest && Math.abs(e.speed) > 1) {
+    var n0 = 0
+    for (var sj = 0; sj < state.idx; sj++) n0 += Math.round(state.segs[sj].len / ell)
+    var n1 = n0 + Math.round(cur.len / ell)
+    var gearS = cur.g
+    var bestD = 1e9
+    var bi = -1
+    var jLo = Math.max(0, n0 - 1)
+    var jHi = Math.min(state.path.length - 2, n1)
+    for (var pj2 = jLo; pj2 <= jHi; pj2++) {
+      var ax = state.path[pj2][0]
+      var az = state.path[pj2][1]
+      var bx = state.path[pj2 + 1][0]
+      var bz = state.path[pj2 + 1][1]
+      var abx = bx - ax
+      var abz = bz - az
+      var tt = Math.max(0, Math.min(1, ((pos[0] - ax) * abx + (pos[2] - az) * abz) / (abx * abx + abz * abz + 1e-9)))
+      var qx = ax + tt * abx - pos[0]
+      var qz = az + tt * abz - pos[2]
+      var dq = qx * qx + qz * qz
+      if (dq < bestD) {
+        bestD = dq
+        bi = pj2
+      }
+    }
+    if (bi >= 0) {
+      var tx = state.path[bi + 1][0] - state.path[bi][0]
+      var tz = state.path[bi + 1][1] - state.path[bi][1]
+      var tl = Math.sqrt(tx * tx + tz * tz) || 1
+      tx /= tl
+      tz /= tl
+      // travel direction frame: m = gear * fwd, its left normal = gear * left
+      var mx = gearS * e.fwd[0]
+      var mz = gearS * e.fwd[2]
+      var lx2 = gearS * e.left[0]
+      var lz2 = gearS * e.left[2]
+      var ptx = state.path[bi][0] - pos[0]
+      var ptz = state.path[bi][1] - pos[2]
+      var eyL = ptx * lx2 + ptz * lz2 // path point is to the left (positive) of the car in the travel frame
+      var psiE = Math.atan2(tx * lx2 + tz * lz2, tx * mx + tz * mz) // tangent angle relative to the travel direction, left positive
+      var Lk = Math.max(5, 0.5 * Math.abs(e.speed) + 3)
+      var kM = cur.k * gearS + (params.trackGain != null ? params.trackGain : 0.7) * (psiE / Lk + (2 * Math.max(-3, Math.min(3, eyL))) / (Lk * Lk))
+      kCmd = Math.max(-kmax, Math.min(kmax, kM * gearS))
+    }
+  }
+  av.override = { kappa: kCmd, vDesired: waitingForRest ? 0 : rollingWrong ? cur.g * Math.min(vMax, 2.5) : cur.g * vMax }
   av.mode = 'maneuver'
-  api.watch('av.maneuver', 'seg ' + state.idx + '/' + state.segs.length + ' g' + cur.g + ' k' + cur.k.toFixed(3) + ' replans ' + state.replans)
+  api.watch('av.maneuver', 'seg ' + state.idx + '/' + state.segs.length + ' g' + cur.g + ' k' + cur.k.toFixed(3) + ' replans ' + state.replans + (state.maze ? ' maze' : '') + ' vm ' + vMax.toFixed(1))
   return {}
 }

@@ -7,6 +7,8 @@
 // params: aebDecel, aebMargin, aebHalfWidth
 function transform(input, dt, params, state, api) {
   var av = input.av
+  // av-ego's preset table (params.preset) under this stage's own params (binding / scope / stage params win); cached while both are the same objects
+  if (av && av.preset) params = state.pmP === params && state.pmB === av.preset ? state.pm : ((state.pmP = params), (state.pmB = av.preset), (state.pm = Object.assign({}, av.preset, params)))
   if (!av || !av.ego) return {}
   var e = av.ego
   if (e.speed < 0.8) {
@@ -21,7 +23,16 @@ function transform(input, dt, params, state, api) {
   var hw = params.aebHalfWidth != null ? params.aebHalfWidth : Math.max(0.9, wid / 2 - 0.1)
   var need = (e.speed * e.speed) / (2 * a) + margin
   var origin = api.vec.offsetAlong(input.position, e.fwd, len / 2 + 0.3)
-  var hit = api.raycastSpread(origin, e.fwd, need + 1, hw, 5, { visualize: false })
+  var dirA = e.fwd
+  // style 'escape' while manoeuvring: the plan curves, a straight ray into the wall the arc turns away from would brake a collision-free manoeuvre (nose 1.5 m from a cylinder, turning away at 5 m/s):
+  // look along the chord of the commanded arc instead
+  if (params.style === 'escape' && av.mode === 'maneuver' && av.plan && av.plan.kappa) {
+    var ang = (av.plan.kappa * (need + len / 2)) / 2
+    var ca = Math.cos(ang)
+    var sa = Math.sin(ang)
+    dirA = [e.fwd[0] * ca + e.left[0] * sa, e.fwd[1] * ca + e.left[1] * sa, e.fwd[2] * ca + e.left[2] * sa]
+  }
+  var hit = api.raycastSpread(origin, dirA, need + 1, hw, 5, { visualize: false })
   av.aeb = false
   var drawOn = params.debugDraw !== false
   if (drawOn) api.visualizeLine(origin, api.vec.offsetAlong(origin, e.fwd, need), '#b8860b')
