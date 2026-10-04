@@ -60,6 +60,18 @@ function alley(x: number, inner: number, z0: number, z1: number): ArenaBox[] {
   return [wall([x - inner / 2 - 1, c], [2, len]), wall([x + inner / 2 + 1, c], [2, len])]
 }
 
+/** Straight-line tracking bars (after `PATH_SETTLE_T` s): RMS / peak cross-track, heading oscillation, steering reversals, path ratio. */
+function straightCriteria(m: ScenarioMetrics, lim: { rms?: number; peak?: number; headAmp?: number; rev?: number } = {}): string[] {
+  const out = surviveCriteria()(m)
+  const p = m.path
+  if (p.rmsCross > (lim.rms ?? 0.3)) out.push(`cross-track RMS ${p.rmsCross.toFixed(2)} m > ${lim.rms ?? 0.3}`)
+  if (p.peakCross > (lim.peak ?? 0.6)) out.push(`peak cross-track ${p.peakCross.toFixed(2)} m > ${lim.peak ?? 0.6}`)
+  if (p.headAmpDeg > (lim.headAmp ?? 0.5)) out.push(`heading oscillation ${p.headAmpDeg.toFixed(2)} deg > ${lim.headAmp ?? 0.5}`)
+  if (m.steerReversalsPerSec > (lim.rev ?? 0.3)) out.push(`${m.steerReversalsPerSec.toFixed(2)} steering reversals/s > ${lim.rev ?? 0.3}`)
+  if (p.pathRatio > 1.01) out.push(`path ratio ${p.pathRatio.toFixed(4)} > 1.01`)
+  return out
+}
+
 const SCENARIOS: Scenario[] = [
   {
     name: 'head-on',
@@ -185,6 +197,25 @@ const SCENARIOS: Scenario[] = [
     criteria: (m) => {
       const out = surviveCriteria()(m)
       if (m.peakSpeed < 25) out.push(`peak speed ${f1(m.peakSpeed)} m/s < 25`)
+      return [...out, ...straightCriteria(m).filter((c) => !out.includes(c))]
+    },
+  },
+  {
+    name: 'straight-to-goal',
+    about: 'goal 300 m dead ahead, nothing in between (run ends before the final approach): no weave (RMS cross-track < 0.3 m after 6 s, < 0.3 steering reversals/s, path ratio < 1.01)',
+    seconds: 8.5,
+    spec: () => ({ car: { at: [0, 150], yawDeg: 0 }, goal: [0, -150], boxes: [], puppets: [] }),
+    criteria: (m) => straightCriteria(m),
+  },
+  {
+    name: 'straight-offset-10deg',
+    about: 'same, but the car starts 10 deg off the line to the goal: heads for the goal without overshoot oscillation (looser bars: the start offset is only regained as fast as the goal direction allows)',
+    seconds: 8.5,
+    spec: () => ({ car: { at: [0, 150], yawDeg: 10 }, goal: [0, -150], boxes: [], puppets: [] }),
+    criteria: (m) => {
+      // the line is only regained slowly (the goal is the target, the start offset is 10 deg): looser settled bars, but no heading overshoot past the initial offset
+      const out = straightCriteria(m, { rms: 6, peak: 25, headAmp: 2.5, rev: 0.5 })
+      if (m.path.peakHeadAllDeg > 12) out.push(`heading overshoot ${m.path.peakHeadAllDeg.toFixed(1)} deg (> 12)`)
       return out
     },
   },
@@ -242,6 +273,7 @@ function line(r: ScenarioResult): string {
   return (
     `${r.pass ? 'PASS' : 'FAIL'} ${r.name.padEnd(17)} minChaserGap ${f1(m.minChaserGap).padStart(6)} m | contact ${String(m.chaserContactFrames).padStart(3)}f chaser ` +
     `${String(m.staticContactFrames).padStart(3)}f static | stalled ${f1(m.stalledSec).padStart(4)} s | steer rev ${m.steerReversalsPerSec.toFixed(2)}/s | ` +
+    (r.name.includes('road') || r.name.includes('straight') ? `path rms ${m.path.rmsCross.toFixed(2)} peak ${m.path.peakCross.toFixed(2)} (all ${m.path.peakCrossAll.toFixed(2)}) m, head amp ${m.path.headAmpDeg.toFixed(2)} deg @ ${m.path.headFreqHz.toFixed(2)} Hz (peak ${m.path.peakHeadAllDeg.toFixed(1)}), ratio ${m.path.pathRatio.toFixed(4)} | ` : '') +
     `speed mean ${f1(m.meanSpeed).padStart(5)} peak ${f1(m.peakSpeed).padStart(5)} rev ${f1(m.peakReverse).padStart(5)} end ${f1(m.endSpeed).padStart(5)} | progress ${f1(m.progress)} m` +
     (r.failed.some((f) => f.includes('speed')) ? `\n      speed limit source (frames) ${JSON.stringify(r.m.limitHist)}` : '') +
     (r.m.speedSpikes ? `\n      ${r.m.speedSpikes} speed spikes, first ${r.m.firstSpike}` : '') +
