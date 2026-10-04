@@ -4,22 +4,12 @@ import userEvent from '@testing-library/user-event'
 import Switch from '@/components/Switch'
 
 describe('Switch', () => {
-  it('renders with role switch and aria-checked', () => {
-    render(<Switch checked={true} onChange={vi.fn()} />)
-    const sw = screen.getByRole('switch', { checked: true })
-    expect(sw).toBeInTheDocument()
-  })
-
-  it('renders unchecked when checked is false', () => {
-    render(<Switch checked={false} onChange={vi.fn()} />)
-    const sw = screen.getByRole('switch', { checked: false })
-    expect(sw).toBeInTheDocument()
-  })
-
   it('calls onChange with toggled value when clicked', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     render(<Switch checked={false} onChange={onChange} />)
+    const switchElement = screen.getByRole('switch', { checked: false })
+    expect(switchElement).toBeInTheDocument()
     await user.click(screen.getByRole('switch'))
     expect(onChange).toHaveBeenCalledWith(true)
   })
@@ -28,6 +18,8 @@ describe('Switch', () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     render(<Switch checked={true} onChange={onChange} />)
+    const switchElement = screen.getByRole('switch', { checked: true })
+    expect(switchElement).toBeInTheDocument()
     await user.click(screen.getByRole('switch'))
     expect(onChange).toHaveBeenCalledWith(false)
   })

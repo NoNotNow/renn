@@ -118,14 +118,10 @@ describe('SceneView', () => {
     vi.unstubAllGlobals()
   })
 
-  it('renders a container div', () => {
+  it('hides scene bootstrap overlay after loadWorld completes', async () => {
     render(<SceneView world={minimalWorld} runPhysics={false} runScripts={false} />)
     const container = document.querySelector('div[style*="width: 100%"]')
     expect(container).toBeInTheDocument()
-  })
-
-  it('hides scene bootstrap overlay after loadWorld completes', async () => {
-    render(<SceneView world={minimalWorld} runPhysics={false} runScripts={false} />)
     expect(document.querySelector('[data-testid="scene-bootstrap-loading"]')).toBeInTheDocument()
     await waitFor(() => {
       expect(document.querySelector('[data-testid="scene-bootstrap-loading"]')).not.toBeInTheDocument()
@@ -191,23 +187,6 @@ describe('SceneView', () => {
     }).not.toThrow()
     expect(onSelectEntity).not.toHaveBeenCalled()
     expect(onEntityPoseCommit).not.toHaveBeenCalled()
-  })
-
-  it('renders without error when world shadowsEnabled is false', () => {
-    expect(() => {
-      render(
-        <SceneView
-          world={{
-            ...minimalWorld,
-            world: { ...minimalWorld.world, shadowsEnabled: false },
-          }}
-          runPhysics={false}
-          runScripts={false}
-        />
-      )
-    }).not.toThrow()
-    const container = document.querySelector('div[style*="width: 100%"]')
-    expect(container).toBeInTheDocument()
   })
 
   it('does not reload when only world shadowsEnabled toggles', async () => {
