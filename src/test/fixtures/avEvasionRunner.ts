@@ -203,6 +203,8 @@ export function surviveCriteria(opts: { minChaserGap?: number; maxStalledSec?: n
     if (m.chaserContactFrames > 0) out.push(`touched a chaser (${m.chaserContactFrames} frames)`)
     if (m.minChaserGap < (opts.minChaserGap ?? 1)) out.push(`min chaser gap ${f1(m.minChaserGap)} m < ${opts.minChaserGap ?? 1}`)
     if (m.staticContactFrames > 0) out.push(`touched a static obstacle (${m.staticContactFrames} frames)`)
+    // standing-start launch: no one-frame velocity kick (a command that is 8x too large because of wrong actuator priors: 0 -> 8 m/s in a frame)
+    if (m.launchMaxDv > 1.5) out.push(`launch kick ${f1(m.launchMaxDv)} m/s in one frame (> 1.5)`)
     if (m.endSpeed < (opts.minEndSpeed ?? 2)) out.push(`not moving at the end (${f1(m.endSpeed)} m/s)`)
     if (m.stalledSec > (opts.maxStalledSec ?? 5)) out.push(`stalled ${f1(m.stalledSec)} s > ${opts.maxStalledSec ?? 5}`)
     return out

@@ -129,7 +129,7 @@ const SCENARIOS: Scenario[] = [
       boxes: [wall([-60, -10], [2, 100]), wall([-10, -60], [100, 2])],
       puppets: [{ id: 'chaser_a', size: CHASER, at: [70, 70], yawDeg: 135, motion: { kind: 'home', speed: 30, turnRate: 1.5, lead: 0.3 } }],
     }),
-    criteria: surviveCriteria(),
+    criteria: surviveCriteria({ minChaserGap: 5 }),
   },
   {
     name: 'corridor-block',

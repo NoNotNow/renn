@@ -57,7 +57,19 @@ function transform(input, dt, params, state, api) {
     }
   }
   // bends ahead on the global route (corner speed, reachable by braking)
-  if (av.route && av.route.vLimit < v) {
+  // ... except while a fast body closes in on the car: braking for a bend of the (stale) route in front of a 30 m/s pursuer lets it catch up
+  // (corner-trap: 32 -> 11 m/s on the route limit, caught 2 s later). The planned path's own curve limit below still applies.
+  var chased = false
+  if (av.threats && av.threats.length) {
+    for (var ti = 0; ti < av.threats.length; ti++) {
+      var th = av.threats[ti]
+      var tx = th.x - input.position[0]
+      var tz = th.z - input.position[2]
+      var tsp = Math.sqrt(th.vx * th.vx + th.vz * th.vz)
+      if (tsp > 4 && tx * tx + tz * tz < 90 * 90 && th.vx * tx + th.vz * tz < 0) chased = true
+    }
+  }
+  if (av.route && av.route.vLimit < v && !chased) {
     v = Math.max(av.route.vLimit, crawl)
     limit = 'route'
   }

@@ -186,6 +186,16 @@ export function buildSweepCases(): SweepCase[] {
       }
     }
   }
+  // the hand-made corner-trap scenario (reference: passes with a 1.5 m gap)
+  out.push({
+    id: 'corner-trap-ref',
+    family: 'static-chaser',
+    params: { layout: 'corner-ref', speed: '30', turn: 'high' },
+    seconds: 14,
+    core: true,
+    spec: { car: { at: [-36, -30], yawDeg: 0 }, goal: [120, 120], boxes: [wall([-60, -10], [2, 100]), wall([-10, -60], [100, 2])], puppets: [{ id: 'c1', size: CHASER_SIZE, at: [70, 70], yawDeg: 135, motion: { kind: 'home', speed: 30, turnRate: 1.5, lead: 0.3 } }] },
+    unwinnable: '',
+  })
   // 20 m wide alley (length 300) with a chaser head-on / from behind
   const alleyBoxes = [wall([-11, -150], [2, 300]), wall([11, -150], [2, 300]), wall([-11, 100], [2, 200]), wall([11, 100], [2, 200])]
   for (const v of [25, 35]) {
