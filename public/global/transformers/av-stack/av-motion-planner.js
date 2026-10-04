@@ -93,6 +93,7 @@ function transform(input, dt, params, state, api) {
         y: tdx0 * e.left[0] + tdz0 * e.left[2],
         vx: tq.vx * e.fwd[0] + tq.vz * e.fwd[2],
         vy: tq.vx * e.left[0] + tq.vz * e.left[2],
+        turn: tq.turn,
       })
       var tl = thr[thr.length - 1]
       tl.sp = Math.sqrt(tl.vx * tl.vx + tl.vy * tl.vy)
@@ -109,6 +110,8 @@ function transform(input, dt, params, state, api) {
   // that misses, and the gap between two converging pursuers looks free.
   var thrTurn = params.threatTurnRate != null ? params.threatTurnRate : 0
   var thrLead = params.threatLead != null ? params.threatLead : 0.3
+  // threatTurnMin (rad/s, 0 = off): the pursuit prediction uses the body's OBSERVED turn rate (av.threats[].turn, x1.3 + 0.15), clamped to [threatTurnMin, threatTurnRate]
+  var thrTurnMin = params.threatTurnMin != null ? params.threatTurnMin : 0
   var thrHit = params.threatHit != null ? params.threatHit : 3
   // threatHitFloor (cost units, default 0): extra flat penalty of ANY predicted contact. Progress toward the goal is worth ~1 per metre over a 100+ m horizon, so a candidate that
   // reaches the goal but is predicted to hit used to beat the straight run with no hit (corner-trap: the 'aim at the carrot' arc into a pursuer won by 115 m of progress).
@@ -230,7 +233,7 @@ function transform(input, dt, params, state, api) {
             var dh = Math.atan2(tgy - c.y, tgx - c.x) - c.h
             while (dh > Math.PI) dh -= 2 * Math.PI
             while (dh < -Math.PI) dh += 2 * Math.PI
-            var lim = thrTurn * sdt
+            var lim = (q.turn != null && thrTurnMin > 0 ? Math.min(thrTurn, Math.max(thrTurnMin, 1.3 * q.turn + 0.15)) : thrTurn) * sdt
             c.h += dh > lim ? lim : dh < -lim ? -lim : dh
             c.x += Math.cos(c.h) * q.sp * sdt
             c.y += Math.sin(c.h) * q.sp * sdt

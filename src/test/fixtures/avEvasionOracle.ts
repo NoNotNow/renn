@@ -27,18 +27,27 @@ function boxPoly(b: ArenaBox) {
 }
 
 export function oracle(spec: ArenaSpec, seconds: number, margin = 0.1): OracleResult {
-  const r = openLoopOracle(spec, seconds, margin)
+  const r = openLoopOracle(spec, seconds, margin, false)
   if (r.winnable) return r
   const m = mpcOracle(spec, seconds, margin)
   return m.winnable ? m : r
 }
 
-function openLoopOracle(spec: ArenaSpec, seconds: number, margin: number): OracleResult {
+/** Largest minimum hull gap (m, capped at 8) any searched manoeuvre achieves: how much room the best possible play has. */
+export function oracleMargin(spec: ArenaSpec, seconds: number): number {
+  const r = openLoopOracle(spec, seconds, 0.1, true)
+  if (r.best.minGap >= 8) return 8
+  const m = mpcOracle(spec, seconds, 0.1)
+  return Math.min(8, Math.max(r.best.minGap, m.winnable ? m.best.minGap : 0))
+}
+
+function openLoopOracle(spec: ArenaSpec, seconds: number, margin: number, maximise: boolean): OracleResult {
   const boxes = spec.boxes.map((b) => ({ poly: boxPoly(b), cx: b.at[0], cz: b.at[1], r: Math.hypot(b.size[0], b.size[1]) / 2 }))
   const startV = spec.car.speed ?? 0
   const steps = Math.round(seconds / DT)
   let best = { k1: 0, t1: 0, k2: 0, t2: 0, vt: 0, minGap: -1 }
   const sim = (k1: number, t1: number, k2: number, t2: number, vt: number, k3 = 0, t3 = 0): number => {
+    const floor = maximise ? Math.max(margin, best.minGap) : margin
     let x = spec.car.at[0]
     let z = spec.car.at[1]
     let yaw = (spec.car.yawDeg * Math.PI) / 180
@@ -67,13 +76,13 @@ function openLoopOracle(spec: ArenaSpec, seconds: number, margin: number): Oracl
           continue
         }
         const g = polyGap(hull, rectPoly(q.s.x, q.s.z, q.s.yaw, q.p.size[0], q.p.size[1]))
-        if (g < margin) return g
+        if (g < floor) return g
         minGap = Math.min(minGap, g)
       }
       for (const b of boxes) {
         if (Math.hypot(b.cx - x, b.cz - z) > b.r + 6) continue
         const g = polyGap(hull, b.poly)
-        if (g < margin) return g
+        if (g < floor) return g
         minGap = Math.min(minGap, g)
       }
     }
@@ -86,7 +95,7 @@ function openLoopOracle(spec: ArenaSpec, seconds: number, margin: number): Oracl
           for (const t2 of k2 === 0 ? [0.5] : T2) {
             const g = sim(k1, t1, k2, t2, vt)
             if (g > best.minGap) best = { k1, t1, k2, t2, vt, minGap: g }
-            if (g >= margin) return { winnable: true, best }
+            if (g >= (maximise ? 8 : margin)) return { winnable: true, best }
           }
         }
       }
@@ -98,7 +107,7 @@ function openLoopOracle(spec: ArenaSpec, seconds: number, margin: number): Oracl
     seed = (seed * 1664525 + 1013904223) % 4294967296
     return seed / 4294967296
   }
-  for (let i = 0; i < 20000; i++) {
+  for (let i = 0; i < (maximise ? 8000 : 20000); i++) {
     const kr = () => (rnd() < 0.15 ? 0 : (rnd() * 2 - 1) * 0.115)
     const k1 = kr()
     const k2 = kr()
@@ -109,7 +118,7 @@ function openLoopOracle(spec: ArenaSpec, seconds: number, margin: number): Oracl
     const vt = 5 + rnd() * 30
     const g = sim(k1, t1, k2, t2, vt, k3, t3)
     if (g > best.minGap) best = { k1, t1, k2, t2, vt, minGap: g }
-    if (g >= margin) return { winnable: true, best }
+    if (g >= (maximise ? 8 : margin)) return { winnable: true, best }
   }
   return { winnable: false, best }
 }

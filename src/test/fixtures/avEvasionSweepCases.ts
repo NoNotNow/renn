@@ -1,3 +1,4 @@
+import { ORACLE_MARGIN } from '@/test/fixtures/avEvasionSweepMargins'
 import { headingDir, type ArenaBox, type ArenaSpec, type PuppetSpec, type V2 } from '@/test/fixtures/avEvasionArena'
 
 /**
@@ -19,6 +20,8 @@ export interface SweepCase {
   spec: ArenaSpec
   /** Always-on subset (the rest runs with AV_SWEEP=full). */
   core?: boolean
+  /** Best minimum gap (m, cap 8) the omniscient oracle achieves (see avEvasionSweepMargins.ts). */
+  margin: number
   /** Empty = winnable; otherwise the geometric reason this case cannot be won by any car (see `classify`). */
   unwinnable: string
 }
@@ -49,38 +52,10 @@ export interface ChaserGeom {
   turnRate: number
 }
 
-/**
- * Cases no controller can win, from `oracle()` (`avEvasionOracle.ts`: no open-loop manoeuvre of an idealised car - 30 m/s^2 launch, 35 m/s top,
- * curvature 0.115, 10 m/s^2 lateral - clears the exact puppet motion by 0.5 m). Regenerate after changing a case geometry:
- * `AV_ORACLE=1 npx vitest run src/test/scenarios/av-sweep-oracle.diagnostic.test.ts`.
- */
-const ORACLE_UNWINNABLE = new Set<string>([
-  'single/v30/high/b0/near',
-  'single/v40/low/b0/near',
-  'single/v40/high/b-30/near',
-  'single/v40/high/b-30/far',
-  'single/v40/high/b0/near',
-  'single/v40/high/b0/far',
-  'single/v40/high/b30/near',
-  'single/v40/high/b30/far',
-  'single/v40/high/b150/near',
-  'pair/v25/high/b-30+30/near',
-  'pair/v35/low/b-30+30/near',
-  'pair/v35/high/b-30+30/near',
-  'pair/v35/high/b-30+30/far',
-  'pair/v35/high/b0+150/near',
-  'triple/v25/low/fan/near',
-  'triple/v25/high/fan/near',
-  'triple/v35/low/fan/near',
-  'triple/v35/high/fan/near',
-  'triple/v35/high/fan/far',
-  'corner/v35/low/L',
-  'corner/v35/high/L',
-  'corner/v35/low/R',
-  'corner/v35/high/R',
-  'alley/v25/ahead',
-  'alley/v35/ahead',
-])
+/** Oracle margin below which a case counts as unwinnable (no play clears it by 0.3 m even with perfect knowledge). */
+export const UNWINNABLE_BELOW = 0.3
+/** ... and above which it counts as robustly winnable (>= 2 m of room for the best play). */
+export const ROBUST_ABOVE = 2
 
 const OPEN_GOAL: V2 = [0, -400]
 
@@ -107,7 +82,8 @@ function make(
     seconds,
     core,
     spec: { car: carStart(), goal, boxes, puppets: chasers.map((c) => chaserAt(c.id, c.bearing, c.dist, c.speed, c.turnRate)) },
-    unwinnable: ORACLE_UNWINNABLE.has(id) ? 'oracle: no manoeuvre clears it' : '',
+    margin: ORACLE_MARGIN[id] ?? 8,
+    unwinnable: (ORACLE_MARGIN[id] ?? 8) < UNWINNABLE_BELOW ? 'oracle: no manoeuvre clears it by 0.3 m' : '',
   }
 }
 
@@ -194,6 +170,7 @@ export function buildSweepCases(): SweepCase[] {
     seconds: 14,
     core: true,
     spec: { car: { at: [-36, -30], yawDeg: 0 }, goal: [120, 120], boxes: [wall([-60, -10], [2, 100]), wall([-10, -60], [100, 2])], puppets: [{ id: 'c1', size: CHASER_SIZE, at: [70, 70], yawDeg: 135, motion: { kind: 'home', speed: 30, turnRate: 1.5, lead: 0.3 } }] },
+    margin: 8,
     unwinnable: '',
   })
   // 20 m wide alley (length 300) with a chaser head-on / from behind

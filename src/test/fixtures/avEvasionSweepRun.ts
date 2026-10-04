@@ -10,6 +10,7 @@ export interface SweepResult {
   family: string
   params: Record<string, string>
   unwinnable: string
+  margin: number
   pass: boolean
   failed: string[]
   minChaserGap: number
@@ -48,5 +49,5 @@ export function runSweepShard(shard: number): void {
 }
 
 function resultOf(c: SweepCase, m: ScenarioMetrics, failed: string[]): SweepResult {
-  return { id: c.id, family: c.family, params: c.params, unwinnable: c.unwinnable, pass: failed.length === 0, failed, minChaserGap: m.minChaserGap, firstContact: m.firstContact, launchMaxDv: m.launchMaxDv }
+  return { id: c.id, family: c.family, params: c.params, unwinnable: c.unwinnable, margin: c.margin, pass: failed.length === 0, failed, minChaserGap: m.minChaserGap, firstContact: m.firstContact, launchMaxDv: m.launchMaxDv }
 }

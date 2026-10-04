@@ -20,8 +20,10 @@ for (const fam of [...new Set(all.map((r) => r.family))]) {
     console.log(`  by ${k.padEnd(8)} ${vals.map((v) => `${v}: ${cell(rs.filter((r) => r.params[k] === v))}`).join('  ')}`)
   }
 }
+const tier = (lo, hi) => win.filter((r) => r.margin >= lo && r.margin < hi)
+console.log(`\nby oracle margin (best achievable min gap): robust >= 2 m: ${cell(tier(2, 99))}   marginal 0.3-2 m: ${cell(tier(0.3, 2))}`)
 console.log('\nFAIL (winnable):')
-for (const r of win.filter((r) => !r.pass)) console.log(`  ${r.id.padEnd(34)} ${r.failed.join('; ')} ${r.firstContact}`)
+for (const r of win.filter((r) => !r.pass)) console.log(`  ${r.id.padEnd(34)} margin ${r.margin.toFixed(1).padStart(3)} ${r.failed.join('; ')} ${r.firstContact}`)
 
 if (process.argv.includes('--write-baseline')) {
   const { writeFileSync } = await import('node:fs')
