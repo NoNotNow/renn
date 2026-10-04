@@ -8,7 +8,7 @@
 // acceleration: u = (a_des + D · s) / G, a_des = clamp((v_target − v) / tau + I, −maxDecel, maxAccel).
 // Publishes av.actuator {G, D, u} (u = applied command; a later stage that overrides the actions must update it — the AEB does). The AEB uses it to brake with a deceleration instead of a raw command) and av.cmd.
 // At rest the static friction can exceed D: a breakaway offset ramps while demanded motion does not start.
-// params: tau, ki, maxAccel, maxDecel, maxThrottle, maxBrake, breakawayRate, gainInit, frictionInit, probeCommand, probeTime, probeRelax
+// params: tau, ki, maxAccel, maxDecel, maxThrottle, maxBrake, breakawayRate, gainInit, frictionInit
 function transform(input, dt, params, state, api) {
   var av = input.av
   if (!av || !av.plan || !av.ego) return {}
@@ -105,21 +105,8 @@ function transform(input, dt, params, state, api) {
     // at rest, friction helps braking: no reverse push needed to stay stopped
     if (Math.abs(v) <= 0.3 && Math.abs(vDes) < 0.05) fric = 0
     u = (aDes + fric) / G
-    // Unidentified model (priors G 156 / D 60 are a guess): on a light powerful car (true G ~ 1400) the first command u = (aDes + D) / G = 0.45
-    // launched it 0 -> 8 m/s in ONE frame (the 'standing-start kick', every run). Until the filter has seen a few moving frames the feed-forward
-    // command is therefore capped to a small probe; the breakaway ramp below still lifts a car with high static friction, and the cap
-    // is gone as soon as G / D are learned (samples) or the car is really rolling.
-    // The cap is time limited (a car that does not move at the probe command needs the full command to break away: it is not the icy one) and
-    // then relaxes at probeRelax / s instead of dropping at once (a dropped cap with a half-learned G is a second kick).
-    var probing = false
-    if (state.samples < 30) {
-      state.probeT = (state.probeT || 0) + dt
-      var pTime = params.probeTime != null ? params.probeTime : 0.4
-      probing = state.probeT < pTime
-      var uProbe = (params.probeCommand != null ? params.probeCommand : 0.06) + Math.max(0, state.probeT - pTime) * (params.probeRelax != null ? params.probeRelax : 1)
-      if (u > uProbe) u = uProbe
-      if (u < -uProbe) u = -uProbe
-    }
+    // (A probe cap on the first command was tried against the one-frame standing-start kick: it delayed every launch by ~1.5 s, so an
+    // evasion from rest started late and the planner's threatAccel speed profile over-promised -> pincer / crossing / corner-trap contacts. Removed.)
     // breakaway: demanded motion does not start (static friction > D) -> ramp an extra push
     var want = Math.abs(vDes) > 0.3
     // far below the demanded speed and not gaining (static friction / force balance the model does not explain yet)
@@ -128,17 +115,15 @@ function transform(input, dt, params, state, api) {
     var driveThr = Math.max(0.5, Math.min(1.5, 0.25 * Math.abs(vDes)))
     var drive = vDes > 0 ? v : -v
     var stuck = want && drive < driveThr && vDes * aDes > 0 && aMeas * (vDes > 0 ? 1 : -1) < 0.5
-    if (stuck && probing) {
-      // (no breakaway push while the probe command is being tried)
-    } else if (stuck) state.boost = Math.min(1, state.boost + (params.breakawayRate != null ? params.breakawayRate : 0.5) * dt)
+    if (stuck) state.boost = Math.min(1, state.boost + (params.breakawayRate != null ? params.breakawayRate : 0.5) * dt)
     // keep the push until the car really drives (else it jerks, stops, ramps again); then relax it slowly
     else if (!want || drive >= driveThr) state.boost = Math.max(0, state.boost - 0.5 * dt)
     if (state.boost > 0 && want) u += (vDes > 0 ? 1 : -1) * state.boost
-    // overspeed (faster than demanded, in the direction of travel): never push along the direction of travel either. A friction feed-forward
+    // overspeed (much faster than demanded (> 8 m/s), in the direction of travel, and still accelerating): never push along the direction of travel either. A friction feed-forward
     // (aDes + D) / G with an overestimated D asked for forward thrust while braking, i.e. the car accelerated to 60+ m/s against a demand of 10;
     // friction / brake alone slow it down, and the model catches up.
     var sTrav = v > 0 ? 1 : -1
-    if (Math.abs(v) > 1 && (v - vDes) * sTrav > 1 && u * sTrav > 0) u = 0
+    if (Math.abs(v) > 1 && (v - vDes) * sTrav > 8 && u * sTrav > 0 && aMeas * sTrav > 0) u = 0
     // stopping: never push along the direction of travel (friction alone may decelerate harder than maxDecel — fine)
     if (Math.abs(vDes) < 0.05 && u * v > 0) u = 0
   }

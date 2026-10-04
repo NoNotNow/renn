@@ -414,11 +414,7 @@ const SCENARIOS: Scenario[] = [
  * Scenarios the AV does not pass today -> `it.fails` (suite green, table shows FAIL). Value = suspected cause.
  * Remove the entry as soon as the scenario passes (`it.fails` then turns red to remind you).
  */
-const KNOWN_FAILING: Record<string, string> = {
-  pincer: 'regressed when merging reverse-cruise/travel-direction scan/longitudinal kick fix with the pursuit-aware planner (contact 680f)',
-  crossing: 'regressed in the same merge (contact 14f)',
-  'corner-trap': 'regressed in the same merge (chaser contact 82f, static contact 510f, 8 s stalled)',
-}
+const KNOWN_FAILING: Record<string, string> = {}
 
 // ---------------------------------------------------------------------------------------------------------------------
 // Report

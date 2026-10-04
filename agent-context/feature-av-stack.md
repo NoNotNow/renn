@@ -320,6 +320,9 @@ Scripted scenarios (`av-evasion-scenarios`), homing chasers (25-30 m/s, turn rat
   (`maxReverseRun` unlimited, `reversePenalty` 1) so there are no 8 m hops with gear flips; reverse segments run at `min(reverseSpeed, stopping distance in the free arc behind, sqrt(maxLatAccel / k), end of the reverse run)`;
   an obstacle appearing inside the segment (beyond the 2 m guard look-ahead) re-plans at once. Left when the goal is no longer behind or the rear is blocked (< 10 m). No rear AEB yet (AEB is forward only).
 - **Standing-start kick (longitudinal):** the priors (G 156, D 60) on a light powerful car (G ~ 1400) gave u = 0.45 at the first frame: 0 -> 8 m/s in ONE frame. Causes: the unidentified model + a joint RLS on [G, D]
-  that is ill-conditioned (data only fix G*u - D, so an underestimated G was explained by D running to 300, then forward thrust against the friction model: 60+ m/s runaways). Now: command probe cap (0.06,
-  0.4 s, then relaxing 1/s, while < 30 identification samples; no breakaway push meanwhile), G (NLMS, growth +35 %/frame, drop -10 %) and D (coasting frames only) identified separately, and no thrust along the
+  that is ill-conditioned (data only fix G*u - D, so an underestimated G was explained by D running to 300, then forward thrust against the friction model: 60+ m/s runaways). Now: G (NLMS, growth +35 %/frame, drop -10 %) and D (coasting frames only) identified separately, and no thrust along the
   direction of travel while faster than demanded.
+- **Merge regression (pincer / crossing / corner-trap), fixed 2026-10:** bisecting by stage showed ONLY `av-control-longitudinal` was responsible (perception / route planner changes alone left them failing or passing
+  independent of it). (1) The probe cap (u <= 0.06 for 0.4 s, then +1/s) delayed every launch from rest by ~1.5 s, so an evasion started late and the planner's `threatAccel` speed profile over-promised: **probe removed**
+  (the one-frame kick is harmless next to a late launch; G / D identification is kept). (2) The "no thrust while over speed" rule (> 1 m/s) zeroed u during normal planner-driven deceleration, i.e. braked with the full
+  friction D (~58 m/s^2): now only when > 8 m/s over the demand AND still accelerating (the 60+ m/s runaway it was written for). Perception savings kept; all 10 scenarios pass, `KNOWN_FAILING` empty.
