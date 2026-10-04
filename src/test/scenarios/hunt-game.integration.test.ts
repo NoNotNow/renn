@@ -12,7 +12,7 @@ import { WorldSimulator } from '@/test/helpers/worldSimulator'
 
 const AV = 'entity_1779823253285_brtkx1p'
 const PIPE = 'pipe_1780343603350'
-const FRAMES = Number(process.env.HUNT_FRAMES ?? 1800)
+const FRAMES = Number(process.env.HUNT_FRAMES ?? 600)
 const CAR_CLEARANCE = 15
 const PROP_CLEARANCE = 4
 

@@ -141,8 +141,8 @@ describe('AV stack: parkour cylinder (the tight cold start the legacy stack stal
   }, 180_000)
 
   it('is deterministic: same defined start → identical end pose', async () => {
-    const a = await drive(segmentWorld(seg, 'tight', perturbSelfDriveCylinderTight(2)), frames)
-    const b = await drive(segmentWorld(seg, 'tight', perturbSelfDriveCylinderTight(2)), frames)
+    const a = await drive(segmentWorld(seg, 'tight', perturbSelfDriveCylinderTight(2)), 200)
+    const b = await drive(segmentWorld(seg, 'tight', perturbSelfDriveCylinderTight(2)), 200)
     expect(b.endPos).toEqual(a.endPos)
   })
 

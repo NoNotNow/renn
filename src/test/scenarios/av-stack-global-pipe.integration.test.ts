@@ -108,6 +108,7 @@ describe('AV stack as a shipped global pipe', () => {
         maxSpeed = Math.max(maxSpeed, Math.hypot(v[0], v[2]))
         const p = sim.getPosition('buggy')
         farthest = Math.max(farthest, Math.hypot(p[0], p[2] - 5))
+        if (maxSpeed > 5 && farthest > 20) break
       }
       expect(maxSpeed).toBeGreaterThan(5)
       expect(farthest).toBeGreaterThan(20)

@@ -111,6 +111,7 @@ describe('replacing the mission of an assigned AV stack by a wander stage, the w
         const p = sim.getPosition('buggy')
         travelled += Math.hypot(p[0] - prev[0], p[2] - prev[2])
         prev = p
+        if (travelled > 300) break
       }
       expect(travelled).toBeGreaterThan(300)
     } finally {

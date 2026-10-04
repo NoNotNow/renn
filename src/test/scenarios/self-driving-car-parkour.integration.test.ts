@@ -142,6 +142,7 @@ describe('self-driving car parkour (integration)', () => {
         sim.dispose()
         setAgentObservationWatchActive(false)
       }
+      if (stallCount > 0) break
     }
     expect(stallCount).toBeGreaterThan(0)
     },

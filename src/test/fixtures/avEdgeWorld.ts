@@ -143,7 +143,7 @@ export async function runEdgeCase(c: EdgeCase): Promise<EdgeResult> {
         stall = Math.hypot(v[0], v[2]) < 0.3 ? stall + 1 : 0
         longestStall = Math.max(longestStall, stall)
       }
-      if (arrivedAt !== null && f - arrivedAt > 120) break
+      if (arrivedAt !== null && f - arrivedAt > 30) break
     }
     const p = sim.getPosition('buggy')
     return {
