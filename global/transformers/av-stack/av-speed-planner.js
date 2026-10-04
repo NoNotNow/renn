@@ -7,7 +7,7 @@
 // The free-path (stopping distance) limit always wins over the floors.
 // Publishes av.plan.vDesired / av.plan.vLimit ('cruise' | 'free' | 'near' | 'route' | 'curve' | 'goal').
 // params: cruiseSpeed, minSpeed (lowest speed while driving, default 4), comfortDecel (brake decel for obstacles in the path, default 5),
-//         stopMargin, obstacleSlowRadius (5), obstacleSlowFactor (speed right next to an obstacle as a fraction of cruise, default 0.5), maxLatAccel (default 9),
+//         stopMargin, obstacleSlowRadius (5), obstacleSlowFactor (speed right next to an obstacle as a fraction of cruise, default 0.5), maxLatAccel (default 9), curveSmooth (s, 0 = raw kappa), curveDeadband (1/m, 0 = off),
 //         goalDecel (gentler braking used for the final approach, default 3), goalCrawlSpeed (floor while arriving, default 2), goalTolerance, vehicleWidth, vehicleLength, waypoints
 function transform(input, dt, params, state, api) {
   var av = input.av
@@ -61,7 +61,17 @@ function transform(input, dt, params, state, api) {
     v = Math.max(av.route.vLimit, crawl)
     limit = 'route'
   }
-  var k = Math.abs(plan.kappa)
+  // Curve limit from the NET path curvature: signed kappa smoothed over `curveSmooth` s (default 0 = raw) cancels the
+  // left/right wobble of the discrete candidate curvatures on a straight; |k| below `curveDeadband` (1/m) is ignored.
+  var kRaw = plan.kappa
+  var tau = params.curveSmooth != null ? params.curveSmooth : 0
+  if (tau > 0) {
+    var al = Math.min(1, (dt || 0.016) / tau)
+    state.ks = (state.ks || 0) + al * (kRaw - (state.ks || 0))
+    kRaw = state.ks
+  }
+  var k = Math.abs(kRaw)
+  if (k < (params.curveDeadband || 0)) k = 0
   if (k > 1e-4) {
     var vCurve = Math.sqrt(aLat / k)
     if (vCurve < v) {

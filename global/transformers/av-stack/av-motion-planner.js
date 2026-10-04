@@ -5,7 +5,7 @@
 // length, clearance, smoothness. Publishes av.plan {kappa, free, freeSoft, clearance, blocked, horizon}.
 // debug draw: yellow = line to goal / route carrot, dark blue = candidate fan, green = chosen path, orange = where it would hit.
 // params: vehicleWidth, vehicleLength, safetyMargin, marginSpeedGain, softMargin, maxCurvature, arcCount,
-//         horizonMin, horizonGain, horizonMax, comfortDecel, wProgress, wHeading, wRequired, wFree, wSoft,
+//         horizonMin, horizonGain, horizonMax, horizonClear (m floor, 0 = off), switchMargin (cost; keep last candidate unless better by this, 0 = off), comfortDecel, wProgress, wHeading, wRequired, wFree, wSoft,
 //         wSmooth, wTurn, minFree, rearIgnore, wThreat (0 = off; cost of predicted proximity to av.threats), threatHorizon (s, 2.5), threatRadius (m, 1.8), threatRange (m, 10: proximity felt inside this gap), marginRamp (m over which the margin grows from the current clearance), debugDraw
 function transform(input, dt, params, state, api) {
   var av = input.av
@@ -47,6 +47,11 @@ function transform(input, dt, params, state, api) {
   var cruiseV = params.cruiseSpeed != null ? params.cruiseSpeed : 10
   var hMax = params.horizonMax != null ? params.horizonMax : Math.min(150, Math.max(26, 1.1 * ((cruiseV * cruiseV) / (2 * aBrake)) + 10))
   var H = Math.min(hMax, hMin + Math.max((params.horizonGain != null ? params.horizonGain : 1.2) * v, (1.1 * v * v) / (2 * aBrake)))
+  // horizonClear (m, 0 = off): generous minimum look-ahead independent of the current speed, so a clear road is judged far
+  // ahead from a standstill (otherwise slow -> short horizon -> low free-path speed limit stays low). Only a floor: blocked
+  // paths still end at the obstacle.
+  var hClear = params.horizonClear != null ? params.horizonClear : 0
+  if (hClear > H) H = Math.min(hMax, hClear)
   var Lreq = Math.min(H, (v * v) / (2 * aBrake) + 5)
   var wProg = params.wProgress != null ? params.wProgress : 1.0
   var wHead = params.wHeading != null ? params.wHeading : 2.0
@@ -210,6 +215,9 @@ function transform(input, dt, params, state, api) {
   var bestHard = 0
   var bestSoft = 0
   var bestTurnLen = 0
+  var bestKey = -1
+  var prevKey = state.prevKey != null ? state.prevKey : -1
+  var prevHit = null
   var cand = []
   // Direct aim: turn at curvature `kappa` until the car points at the goal, then drive straight (shortest way when the
   // way is free). Returns the turn angle (rad), or 0 when the goal is on the other side / cannot be aimed at this way.
@@ -262,7 +270,10 @@ function transform(input, dt, params, state, api) {
         wSmooth * (Math.abs(kappa - prev) / kmax) +
         wTurn * Math.abs(kappa * turnLen)
       if (thr.length) cost += wThreat * threatCost(kappa, turnLen, hullL, hullW)
+      var key = a * 4 + ti
+      if (key === prevKey) prevHit = { cost: cost, kappa: kappa, hard: fHard, soft: fSoft, turnLen: turnLen }
       if (cost < bestCost) {
+        bestKey = key
         bestCost = cost
         best = kappa
         bestHard = fHard
@@ -272,7 +283,19 @@ function transform(input, dt, params, state, api) {
       if (params.debugDraw !== false && a % 8 === 0 && ti === 0) cand.push([kappa, turnLen, fHard])
     }
   }
+  // plan-switch hysteresis (switchMargin, cost units, 0 = off): keep last frame's candidate (same curvature index / turn
+  // segment) unless another one is cheaper by the margin. Stops the chosen path flipping between near-equal candidates.
+  var switchMargin = params.switchMargin != null ? params.switchMargin : 0
+  if (switchMargin > 0 && prevHit && bestKey !== prevKey && bestCost > prevHit.cost - switchMargin && prevHit.hard >= minFree) {
+    bestKey = prevKey
+    bestCost = prevHit.cost
+    best = prevHit.kappa
+    bestHard = prevHit.hard
+    bestSoft = prevHit.soft
+    bestTurnLen = prevHit.turnLen
+  }
   state.prevKappa = best
+  state.prevKey = bestKey
 
   // lateral clearance of the chosen path over the distance that matters (beyond the hard margin)
   var clearance = 0
