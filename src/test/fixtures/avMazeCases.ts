@@ -30,6 +30,11 @@ export interface MazeCase {
   maxShuttle?: number
   /** Min hull gap to chasers / parked cars (default 1 m). */
   minGap?: number
+  /** Max distance driven in reverse (m). */
+  maxReverseDist?: number
+  /** Min mean |speed| while reversing (m/s) and max seconds until the car is 15 m away from its start. */
+  minReverseMeanSpeed?: number
+  maxLeaveSec?: number
 }
 
 /** Walls of one maze of the example world (ids `wall_maze_<A|B|C>_*`) as arena boxes. */
@@ -58,6 +63,29 @@ function cylinder(c: V2, r: number): ArenaBox[] {
 }
 
 export const MAZE_CASES: MazeCase[] = [
+  {
+    name: 'turnaround-open',
+    about: 'goal 80 m straight behind the car on open ground (no walls): turn around (U-turn / 3-point turn) and drive forward, do not reverse the whole way',
+    seconds: 20,
+    maxReversals: 4,
+    maxReverseDist: 12,
+    spec: () => ({ car: { at: [0, 0], yawDeg: 0 }, goal: [0, 80], boxes: [], puppets: [] }),
+  },
+  {
+    name: 'turnaround-corridor',
+    about: '14 m wide, 200 m long corridor, goal 80 m behind the car inside it: a 3-point turn fits a 4 x 8 car, so turn instead of reversing the corridor',
+    seconds: 30,
+    maxReversals: 16,
+    // the lab monitor reads each leg of a K-turn in a 14 m corridor (minimum turn radius 8.7 m) as a short shuttle episode
+    maxShuttle: 6,
+    maxReverseDist: 30,
+    spec: () => ({
+      car: { at: [0, 0], yawDeg: 0 },
+      goal: [0, 80],
+      boxes: [seg([-7.5, 130], [-7.5, -70]), seg([7.5, 130], [7.5, -70])],
+      puppets: [],
+    }),
+  },
   {
     name: 'maze-goal-behind-wall',
     about: 'goal 100 m ahead behind a 180 m long wall 40 m in front of the car: drive around it (90 m detour)',

@@ -11,6 +11,8 @@
 //         chasedDecel (0 = off; free-path braking decel while a fast body closes in), goalDecel (gentler braking used for the final approach, default 3), goalCrawlSpeed (floor while arriving, default 2), goalTolerance, vehicleWidth, vehicleLength, waypoints
 function transform(input, dt, params, state, api) {
   var av = input.av
+  // av-ego's preset table (params.preset) under this stage's own params (binding / scope / stage params win); cached while both are the same objects
+  if (av && av.preset) params = state.pmP === params && state.pmB === av.preset ? state.pm : ((state.pmP = params), (state.pmB = av.preset), (state.pm = Object.assign({}, av.preset, params)))
   if (!av || !av.plan) return {}
   var plan = av.plan
   if (plan.override) return {}

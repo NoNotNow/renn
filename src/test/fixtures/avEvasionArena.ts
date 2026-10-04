@@ -63,8 +63,29 @@ export interface CarStart {
   speed?: number
 }
 
+/** Body / actuator overrides of the scenario car (reusability tests: other masses, powers, grip, sizes). Defaults = the example world car (4 x 8, mass 2, friction 0.01, car2 power 2400). */
+export interface VehicleSpec {
+  /** [width, length] in m: collider and hull. */
+  size?: V2
+  mass?: number
+  friction?: number
+  /** car2 `power` (impulse magnitude; acceleration at full command ~ power / mass). */
+  power?: number
+  /** car2 `lateralGrip`. */
+  lateralGrip?: number
+  /** Friction of the ground slab (default 1): a low value makes the whole arena icy. */
+  groundFriction?: number
+}
+
 export interface ArenaSpec {
   car: CarStart
+  /** Other body / actuator than the example car. */
+  vehicle?: VehicleSpec
+  /**
+   * Generic car: the pipe binding params are REPLACED by these (plus `threatIds` = the puppets) instead of the example world's hand-tuned car params.
+   * Use `{ preset: 'chaser-evasion' }` etc. to test a vehicle with nothing but the preset.
+   */
+  carParams?: Record<string, unknown>
   goal: V2
   boxes: ArenaBox[]
   puppets: PuppetSpec[]
@@ -72,6 +93,11 @@ export interface ArenaSpec {
 }
 
 export const CAR_START_Y = 0.494
+
+/** Hull size [width, length] of the scenario car. */
+export function carSizeOf(spec: ArenaSpec): V2 {
+  return spec.vehicle?.size ?? CAR_SIZE
+}
 
 let sourceCache: RennWorld | null = null
 function sourceWorld(): RennWorld {
@@ -97,13 +123,24 @@ export function buildArenaWorld(spec: ArenaSpec): RennWorld {
   car.position = [spec.car.at[0], CAR_START_Y, spec.car.at[1]]
   car.rotation = [0, rad(spec.car.yawDeg), 0]
   const binding = car.transformerPipeStack[0]
-  binding.params = { ...binding.params, ...(process.env.AV_PARAMS ? JSON.parse(process.env.AV_PARAMS) : {}), threatIds: spec.puppets.map((p) => p.id) }
+  const threatIds = spec.puppets.map((p) => p.id)
+  const extra = process.env.AV_PARAMS ? JSON.parse(process.env.AV_PARAMS) : {}
+  binding.params = spec.carParams ? { ...spec.carParams, ...extra, ...(threatIds.length ? { threatIds } : {}) } : { ...binding.params, ...extra, threatIds }
+  const veh = spec.vehicle
+  if (veh) {
+    if (veh.size) car.shape = { ...car.shape, width: veh.size[0], depth: veh.size[1] }
+    if (veh.mass != null) car.mass = veh.mass
+    if (veh.friction != null) car.friction = veh.friction
+    const act = src.transformers![`${AV_CAR_SOURCE_ID}_tf1`] as any
+    if (!act || act.type !== 'car2') throw new Error('car2 stage of the AV car not found')
+    act.params = { ...act.params, ...(veh.power != null ? { power: veh.power } : {}), ...(veh.lateralGrip != null ? { lateralGrip: veh.lateralGrip } : {}) }
+  }
   // goal: collapse the wanderer perimeter onto the goal point
   const wander = src.transformers![`${AV_CAR_SOURCE_ID}_tf10`] as any
   if (!wander || wander.type !== 'wanderer') throw new Error('wanderer stage of the AV car not found')
   wander.params = { ...wander.params, perimeter: { center: [spec.goal[0], 0, spec.goal[1]], halfExtents: [0, 0, 0] } }
 
-  const entities: any[] = [{ id: 'ground', name: 'Ground', bodyType: 'static', shape: { type: 'plane' }, position: [0, 0, 0], rotation: [0, 0, 0], friction: 1 }, car]
+  const entities: any[] = [{ id: 'ground', name: 'Ground', bodyType: 'static', shape: { type: 'plane' }, position: [0, 0, 0], rotation: [0, 0, 0], friction: spec.vehicle?.groundFriction ?? 1 }, car]
   spec.boxes.forEach((b, i) => {
     const h = b.height ?? 6
     entities.push({

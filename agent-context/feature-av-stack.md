@@ -65,6 +65,22 @@ rebuilt every frame; cross-frame memory lives in each stage's own `state`.
 - **Ablation:** `applyAvStack(world, { disable: ['routePlanner'] })` — used for the red-check.
 - Per-stage params are documented in the header comment of each `.js` file.
 
+## Using the AV autopilot in your game (presets, 2026-10-04)
+
+Assign `global_av_autopilot` (or `global_av_stack`) and set on the binding: `preset`, `cruiseSpeed`, `vehicleWidth` / `vehicleLength` (or let `av.vehicle` read the box collider), a goal source, and `threatIds` if something hunts the car. Nothing else is needed; explicit params always win over the preset (binding, layer scope and stage params alike).
+
+| `preset` | Turns on |
+|---|---|
+| unset / `'none'` | nothing: the raw per-stage defaults (how every world behaved before presets; the example worlds keep their hand-tuned params) |
+| `'car'` | `selfCalibrate` (the longitudinal actuator identifies G / D at the first launch: no per-vehicle `gainInit` / `maxAccel` tuning), curvature smoothing + plan hysteresis, footprint-aware hand-back, travel-direction scan, goal watchdog, prediction params (inert without `threatIds`) |
+| `'chaser-evasion'` | `car` + `style: 'escape'` (manoeuvres / reversing as fast as the collision-free plan can still be stopped, closed-loop path tracking, AEB along the arc) + evasion tuning (`wThreat`, `threatHitFloor`, `minSpeed` 9.4, `comfortDecel` 4) |
+| `'maze'` | `car` + persistent static map + 2D goal-distance field |
+| `'arena'` | `chaser-evasion` + `maze` |
+
+Mechanics: `av-ego.js` holds the tables and publishes `av.preset`; every stage merges its own params over it (cached per params object). Tests: `av-vehicle-reuse.<vehicle>.test.ts` drive a heavy cube, a light car on ice, a small car and a 6 x 14 truck with nothing but `preset` + `cruiseSpeed` (+ `threatIds`) through open road, goal behind a wall, U-trap, pocket escape and a head-on chaser (cases in `fixtures/avReuseCases.ts`; `ArenaSpec.vehicle` / `carParams`).
+
+Opt-in route-planner experiments (default off; each regressed an existing scenario when on by default): `headingHeuristic` (turn around instead of reversing toward a goal behind; breaks reversing out of an 18 m alley: `reverse-escape`, `open-road-reverse`), `mazeLatch` (maze-mode hysteresis; breaks `pocket-escape`), `runTotal` and `mazeManeuverSpeed` (faster maze shuffles; break `maze-gate-exit`). `turnaround-open` / `turnaround-corridor` in `av-maze-scenarios.test.ts` are KNOWN_FAILING until a heading-aware search handles both cases.
+
 ## Debug overlay (Builder visualize mode; no-op in Play/tests)
 
 Every stage draws with `api.visualizeLine`; switch off per stack/layer/stage with `debugDraw: false`.
