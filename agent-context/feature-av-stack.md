@@ -326,3 +326,13 @@ Scripted scenarios (`av-evasion-scenarios`), homing chasers (25-30 m/s, turn rat
   independent of it). (1) The probe cap (u <= 0.06 for 0.4 s, then +1/s) delayed every launch from rest by ~1.5 s, so an evasion started late and the planner's `threatAccel` speed profile over-promised: **probe removed**
   (the one-frame kick is harmless next to a late launch; G / D identification is kept). (2) The "no thrust while over speed" rule (> 1 m/s) zeroed u during normal planner-driven deceleration, i.e. braked with the full
   friction D (~58 m/s^2): now only when > 8 m/s over the demand AND still accelerating (the 60+ m/s runaway it was written for). Perception savings kept; all 10 scenarios pass, `KNOWN_FAILING` empty.
+
+## Robustness sweep fixes (2026-10, see "Parametric evasion sweep" in feature-av-lab.md)
+
+Sweep (winnable cases, oracle-classified): 29/78 -> 60/75 (robust, margin >= 2 m: 58/64). Causes found by tracing single cases:
+- **Flee goal behind the car (av-ego):** head-on chaser -> the "away" goal lay behind the car, the car U-turned across the chaser's nose at curve speed (9 m/s) and was run over. `fleeTurnPenalty` (1.5) penalises candidates needing > ~70 deg of turn.
+- **Standing-start kick:** wrong actuator priors (G 156 vs ~1300 real) gave 0 -> 8 m/s in one frame. Car params now `gainInit 1300`, `maxAccel 60`, `tau 0.12` (launch ~ 60 m/s^2 ramp, <= 1.2 m/s per frame, same v(0.5 s) ~ 14 m/s as the kick; a plain `gainInit` + `maxAccel 10` launch lost ~5 sweep cases, `tau` 0.35 too slow).
+- **Progress beat a predicted contact (av-motion-planner):** an "aim at the carrot" arc (+115 m progress) into the pursuer cost less than the straight run with no predicted hit. `threatHitFloor` (250) = flat cost of ANY predicted contact. That then outweighed a certain wall collision (blocked path <= 78), so `wRequired` 300 (alley: hard left into the wall at 35 m/s).
+- **Braking while chased (av-speed-planner):** the route-bend limit (stale route, 32 -> 11 m/s) and the comfort-decel free-path limit (35 m free path = 16 m/s) slowed the car in front of a 25-30 m/s pursuer. While a fast body closes in (`chased`): no route limit, free limit with `chasedDecel` (9). Side effect: open-road speed with a pursuer can reach ~50 m/s.
+- **Pursuer turn rate (av-ego / av-motion-planner):** `av.threats[].turn` = recent max observed turn rate; the homing prediction uses `clamp(1.3 * turn + 0.15, threatTurnMin 0.5, threatTurnRate 1.5)` instead of always 1.5 rad/s.
+- Not fixed: fan / pair-with-rear chasers at 110-130 m (the car drives at 40-50 m/s at the central chaser and starts the dodge < 25 m before contact; a `chasedMaxSpeed` cap 32-36 was tried and did not help), and cases with oracle margin < 2 m.
