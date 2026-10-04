@@ -5,6 +5,7 @@
 // params: kappaPerSteer, fbGain, steerRate, kappaTau (0.04 s + 0.008 s per m/s), kappaJump (0.025 1/m)
 function transform(input, dt, params, state, api) {
   var av = input.av
+  if (av && av.cfg) params = av.cfg // preset-expanded params published by av-ego
   if (!av || !av.plan || !av.ego) return {}
   var e = av.ego
   var kps = params.kappaPerSteer || 0.12

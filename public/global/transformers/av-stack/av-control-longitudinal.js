@@ -8,22 +8,32 @@
 // acceleration: u = (a_des + D · s) / G, a_des = clamp((v_target − v) / tau + I, −maxDecel, maxAccel).
 // Publishes av.actuator {G, D, u} (u = applied command; a later stage that overrides the actions must update it — the AEB does). The AEB uses it to brake with a deceleration instead of a raw command) and av.cmd.
 // At rest the static friction can exceed D: a breakaway offset ramps while demanded motion does not start.
-// params: tau, ki, maxAccel, maxDecel, maxThrottle, maxBrake, breakawayRate, gainInit, frictionInit
+// SELF-CALIBRATION (no per-vehicle tuning): from a standstill the first launch ramps the command geometrically (probeStart 0.01, x1.4 per frame) until the body starts to move; two consecutive moving frames give the
+// slope G = da / du exactly (a = G u - D, so the differences cancel D) and then D = G u - a. That takes ~0.1-0.2 s (the breakaway command is D / G, 0.02 for a 2400 m/s^2 body, 0.4 for a 156 m/s^2 one)
+// and never kicks: the commands before motion are below breakaway and the first moving frames are < 1.5 m/s per frame. The identified model then drives a = (v_target - v) / tau capped by maxAccel.
+// Without a standstill start (car already moving) there is no probe: the priors err on the SAFE side (gainInit 2500: a larger G than any realistic body gives smaller commands than needed, never a kick;
+// frictionInit 0: no forward feed-forward against friction the body may not have) and the online estimate (G +35 % / D from coasting frames) converges within ~0.3 s. An explicit `gainInit` skips the probe.
+// A launch that does not start moving (blocked, pinned to a wall) gives up after ~0.4 s at full command and is re-armed 2 s later.
+// params: tau (0.12), ki, maxAccel (80 once calibrated, 10 before), maxDecel, maxThrottle, maxBrake, breakawayRate, gainInit (prior 2500; set = skip the probe), frictionInit (prior 0), probeStart (0.01), probeGrowth (1.4)
 function transform(input, dt, params, state, api) {
   var av = input.av
+  if (av && av.cfg) params = av.cfg // preset-expanded params published by av-ego
   if (!av || !av.plan || !av.ego) return {}
   var e = av.ego
   var vDes = av.plan.vDesired || 0
-  var tau = params.tau != null ? params.tau : 0.35
+  var tau = params.tau != null ? params.tau : 0.12
   var ki = params.ki != null ? params.ki : 0.6
-  var maxAcc = params.maxAccel != null ? params.maxAccel : 10
   var maxDec = params.maxDecel != null ? params.maxDecel : 12
   var maxThr = params.maxThrottle != null ? params.maxThrottle : 1
   var maxBrk = params.maxBrake != null ? params.maxBrake : 1
   var v = e.speed
   if (state.G === undefined) {
-    state.G = params.gainInit != null ? params.gainInit : 156
-    state.D = params.frictionInit != null ? params.frictionInit : 60
+    state.G = params.gainInit != null ? params.gainInit : 2500
+    state.D = params.frictionInit != null ? params.frictionInit : 0
+    state.cal = params.gainInit != null || Math.abs(v) > 0.5 ? 'done' : 'pending'
+    state.pairs = []
+    state.pk = 0
+    state.restT = 0
     state.uPrev = 0
     state.vPrev = v
     state.I = 0
@@ -43,7 +53,7 @@ function transform(input, dt, params, state, api) {
   // thrust against its own friction model: speed kicks and 60+ m/s runaways on light powerful cars):
   //  - D from COASTING frames (command ~ 0, moving): the deceleration is the friction, a = -D * sgn(v), directly;
   //  - G from COMMANDED frames with D fixed: normalised LMS on a = G * u - D * sgn(v), weighted by the command (a tiny command says little).
-  if (!pushing && Math.abs(vMid) > 0.12 && state.vPrev * v > 0) {
+  if (state.cal !== 'probing' && !pushing && Math.abs(vMid) > 0.12 && state.vPrev * v > 0) {
     var sgnV = vMid > 0 ? 1 : -1
     if (Math.abs(state.uPrev) > 1e-4) {
       var x0 = state.uPrev
@@ -73,12 +83,72 @@ function transform(input, dt, params, state, api) {
   // (G underestimated — e.g. learned while pushing against a slope, or while the speed sign flipped every frame, where
   // the RLS is gated off). Pull G towards the observed gain directly so the controller stops saturating.
   // Only for a saturated command (that is the failure mode); collisions also produce big accelerations and must not pump G.
-  if (!pushing && Math.abs(state.uPrev) > 0.3 && aMeas * state.uPrev > 0 && Math.abs(aMeas) > 3 * state.D + 10) {
+  if (state.cal !== 'probing' && !pushing && Math.abs(state.uPrev) > 0.3 && aMeas * state.uPrev > 0 && Math.abs(aMeas) > 3 * state.D + 10) {
     var gObs = Math.abs(aMeas / state.uPrev)
     if (gObs > 1.5 * state.G) state.G = Math.min(20000, state.G + 0.3 * (gObs - state.G))
   }
   var G = state.G
   var D = state.D
+  var maxAcc = params.maxAccel != null ? params.maxAccel : state.cal === 'done' ? 80 : 10
+
+
+  // --- standstill launch probe (see header) ---
+  var probeU = null
+  if (state.cal === 'gaveup') {
+    state.restT += dt
+    if (state.restT > 2) state.cal = 'pending'
+  }
+  if (state.cal === 'pending' && Math.abs(vDes) > 0.3 && Math.abs(v) < 0.3 && !pushing) {
+    state.cal = 'probing'
+    state.pk = 0
+    state.pairs = []
+    state.pS = vDes > 0 ? 1 : -1
+  }
+  if (state.cal === 'probing') {
+    var ps = state.pS
+    if (Math.abs(vDes) < 0.3 || vDes * ps < 0 || pushing) {
+      state.cal = 'pending'
+      probeU = 0
+    } else {
+      if (state.pk > 0) {
+        var asig = ps * aMeas
+        if (asig > 2.5 && ps * v > 0.02) state.pairs.push([ps * state.uPrev, asig])
+        else state.pairs.length = 0
+      }
+      var np = state.pairs.length
+      if (np >= 2) {
+        var p1 = state.pairs[np - 2]
+        var p2 = state.pairs[np - 1]
+        var gEst = (p2[1] - p1[1]) / (p2[0] - p1[0])
+        if (gEst > 15) {
+          state.G = Math.max(15, Math.min(20000, gEst))
+          state.D = Math.max(0, Math.min(400, state.G * p1[0] - p1[1]))
+          state.cal = 'done'
+          state.samples = 6
+          G = state.G
+          D = state.D
+          maxAcc = params.maxAccel != null ? params.maxAccel : 80
+          state.uPrev = 0
+          state.boost = 0
+        } else state.pairs.shift()
+      }
+      if (state.cal === 'probing') {
+        var pu = (params.probeStart != null ? params.probeStart : 0.01) * Math.pow(params.probeGrowth != null ? params.probeGrowth : 1.4, state.pk)
+        state.pk++
+        if (pu >= 1) {
+          state.pFull = (state.pFull || 0) + 1
+          pu = 1
+          if (state.pFull > 24) {
+            state.cal = 'gaveup'
+            state.pFull = 0
+            state.restT = 0
+            probeU = 0
+          }
+        }
+        if (state.cal === 'probing') probeU = ps * Math.min(pu, Math.min(maxThr, maxBrk))
+      }
+    }
+  }
 
   // --- control ---
   var u = 0
@@ -115,7 +185,8 @@ function transform(input, dt, params, state, api) {
     var driveThr = Math.max(0.5, Math.min(1.5, 0.25 * Math.abs(vDes)))
     var drive = vDes > 0 ? v : -v
     var stuck = want && drive < driveThr && vDes * aDes > 0 && aMeas * (vDes > 0 ? 1 : -1) < 0.5
-    if (stuck) state.boost = Math.min(1, state.boost + (params.breakawayRate != null ? params.breakawayRate : 0.5) * dt)
+    if (state.cal === 'probing') state.boost = 0
+    else if (stuck) state.boost = Math.min(1, state.boost + (params.breakawayRate != null ? params.breakawayRate : 0.5) * dt)
     // keep the push until the car really drives (else it jerks, stops, ramps again); then relax it slowly
     else if (!want || drive >= driveThr) state.boost = Math.max(0, state.boost - 0.5 * dt)
     if (state.boost > 0 && want) u += (vDes > 0 ? 1 : -1) * state.boost
@@ -127,6 +198,7 @@ function transform(input, dt, params, state, api) {
     // stopping: never push along the direction of travel (friction alone may decelerate harder than maxDecel — fine)
     if (Math.abs(vDes) < 0.05 && u * v > 0) u = 0
   }
+  if (probeU !== null) u = probeU
   if (u > maxThr) u = maxThr
   if (u < -maxBrk) u = -maxBrk
   state.uPrev = u

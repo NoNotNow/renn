@@ -11,6 +11,7 @@
 //         chasedDecel (0 = off; free-path braking decel while a fast body closes in), goalDecel (gentler braking used for the final approach, default 3), goalCrawlSpeed (floor while arriving, default 2), goalTolerance, vehicleWidth, vehicleLength, waypoints
 function transform(input, dt, params, state, api) {
   var av = input.av
+  if (av && av.cfg) params = av.cfg // preset-expanded params published by av-ego
   if (!av || !av.plan) return {}
   var plan = av.plan
   if (plan.override) return {}

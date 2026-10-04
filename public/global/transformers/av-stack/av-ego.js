@@ -15,10 +15,54 @@
 // Goal watchdog (params.goalWatchdog = seconds, default 0 = off; needs fleeArea): a goal the car does not get closer to (>= 8 m) within that time is
 // unreachable (outside the walls, boxed in a corner); the car then picks its own open-road goals instead until the source hands over another goal.
 // Owns the simulated clock (state.t) so no downstream stage needs a wall clock.
+// PRESETS (params.preset, default 'car'; 'none' = the raw per-stage defaults, no expansion): one switch that expands to the feature params the stages gate on. Explicit params (pipe binding, scope, stage)
+// always override the preset's value for the same key. This stage runs first and publishes the expanded set as `av.cfg`; every later stage reads `av.cfg` instead of its own `params`
+// (a stage used without this one falls back to its raw params). Keep the tables in sync with agent-context/feature-av-stack.md ("Using the AV autopilot in your game").
+//  car             generic vehicle: curvature smoothing + plan hysteresis, footprint-aware hand-back, travel-direction zoned scan, goal watchdog (unreachable goals are replaced by open-road goals),
+//                  prediction params (inert without threatIds). The longitudinal actuator calibrates itself (see av-control-longitudinal.js).
+//  chaser-evasion  car + style 'escape' (manoeuvres / reversing as fast as the plan can be stopped, not 3 m/s) + pursuit evasion tuning (obstacle slow radius 1 m, minSpeed 9.4, comfortDecel 4, wThreat, hit floor, flee layer); give it `threatIds`.
+//  maze            car + persistent static map + 2D goal-distance field (goals behind walls, dead ends, pockets).
+//  arena           chaser-evasion + maze.
+var AV_PRESET_CAR = {
+  curveSmooth: 0.6,
+  curveDeadband: 0.004,
+  switchMargin: 3,
+  handbackMargin: 0.9,
+  maneuverRunSpeed: 7,
+  fleeStoppedSpeed: 1.5,
+  fwdFovDeg: 70,
+  goalWatchdog: 10,
+  wRequired: 300,
+  threatRadius: 2.8,
+  threatBodyRadius: 4.5,
+  threatTurnRate: 1.5,
+  threatTurnMin: 0.5,
+  threatHorizon: 4,
+  threatAccel: 7,
+  chasedDecel: 9,
+}
+var AV_PRESET_EVASION = { style: 'escape', wThreat: 30, threatHitFloor: 250, comfortDecel: 4, minSpeed: 9.4, obstacleSlowRadius: 1 }
+var AV_PRESET_MAZE = { staticMap: true, fieldHeuristic: true }
+function avCfg(params, pos) {
+  var name = params.preset
+  if (name === 'none') return params
+  var base = {}
+  var k
+  var layers = [AV_PRESET_CAR]
+  if (name === 'chaser-evasion' || name === 'arena') layers.push(AV_PRESET_EVASION)
+  if (name === 'maze' || name === 'arena') layers.push(AV_PRESET_MAZE)
+  for (var li = 0; li < layers.length; li++) for (k in layers[li]) base[k] = layers[li][k]
+  for (k in params) if (params[k] !== undefined) base[k] = params[k]
+  // flee / own-goal area: the drivable area when given, else a box around the car (open ground: no limit, candidates are 50-110 m away)
+  if (!base.fleeArea) base.fleeArea = base.drivableArea || [pos[0] - 370, pos[0] + 370, pos[2] - 370, pos[2] + 370]
+  return base
+}
 function transform(input, dt, params, state, api) {
+  params = avCfg(params, input.position)
   // fresh blackboard every frame (the input object is reused by the runtime)
   var prevAv = input.av
   var av = (input.av = {})
+  av.cfg = params
   // the route planner (fieldHeuristic) leaves the obstacle-aware distance to its goal on last frame's blackboard (goal watchdog: a long detour is progress)
   if (prevAv && prevAv.fieldGoal) av.prevField = prevAv.fieldGoal
   // a goal source running in front of this stage hands its mission over via input.goalSource (see av-wander.js)

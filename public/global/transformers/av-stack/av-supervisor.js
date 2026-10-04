@@ -5,6 +5,7 @@
 // Simulated time only. params: stuckTime, blockedTime, holdAtGoal, goalTolerance
 function transform(input, dt, params, state, api) {
   var av = input.av
+  if (av && av.cfg) params = av.cfg // preset-expanded params published by av-ego
   if (!av || !av.plan || !av.ego) return {}
   var e = av.ego
   var plan = av.plan

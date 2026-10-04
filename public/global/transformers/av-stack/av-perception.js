@@ -17,6 +17,7 @@
 // params: drivableArea [xmin, xmax, zmin, zmax] (virtual walls at the edge), edgeStep, rayCount, fovDeg, sensorRange, memoryTtl, memoryCell, vehicleWidth, vehicleLength
 function transform(input, dt, params, state, api) {
   var av = input.av
+  if (av && av.cfg) params = av.cfg // preset-expanded params published by av-ego
   if (!av || !av.ego) return {}
   var e = av.ego
   var n = params.rayCount || 72

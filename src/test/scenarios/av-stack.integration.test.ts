@@ -137,6 +137,7 @@ describe('AV stack: parkour cylinder (the tight cold start the legacy stack stal
       const r = await drive(segmentWorld(seg, 'tight', perturbSelfDriveCylinderTight(seed)), 800)
       if (!selfDriveParkourSegmentPass({ segmentId: seg, ...r })) failed.push(seed)
     }
+    console.log('GRIDFAIL', JSON.stringify(failed))
     expect(failed).toEqual([])
   }, 180_000)
 

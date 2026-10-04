@@ -9,6 +9,7 @@
 //         wSmooth, wTurn, minFree, rearIgnore, wThreat (0 = off; cost of predicted proximity to av.threats), threatHorizon (s, 2.5), threatRadius (m, 1.8), threatRange (m, 10: proximity felt inside this gap), threatTurnRate (rad/s, 0 = constant-velocity prediction; > 0: bodies faster than threatPursuitSpeed (4 m/s) are predicted HOMING on the car: pure pursuit with that turn-rate limit, threatLead s), threatBodyRadius (m, 0 = off: costmap points within this radius of a fast tracked body are dropped), threatAccel (m/s^2, 0 = constant speed along the candidate), threatHit (x wThreat: penalty of a predicted contact by its time, default 3), threatHitFloor (flat cost of any predicted contact, default 0), marginRamp (m over which the margin grows from the current clearance), debugDraw
 function transform(input, dt, params, state, api) {
   var av = input.av
+  if (av && av.cfg) params = av.cfg // preset-expanded params published by av-ego
   if (!av || !av.ego) return {}
   var e = av.ego
   var tgt = input.target && input.target.pose && input.target.pose.position

@@ -130,6 +130,7 @@ describe('AV stack: obstacles only slow the car when they matter', () => {
     const near = await run(closeAside)
     const off = await run(closeAside, { obstacleSlowRadius: 0 })
     const wide = await run(closeAside, { obstacleSlowFactor: 1 })
+    console.log("LANE", near, off, wide)
     expect(near).toBeLessThan(off * 0.95)
     expect(wide).toBeGreaterThan(near)
   }, 180_000)

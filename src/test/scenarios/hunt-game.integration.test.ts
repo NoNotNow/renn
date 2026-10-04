@@ -24,8 +24,8 @@ const isCar = (e: Ent) => e.id === AV || (e.transformerPipeStack?.length ?? 0) >
 function distToWall(wall: Ent, x: number, z: number): number {
   const s = wall.shape as { width: number; depth: number }
   const yaw = (wall.rotation as number[])[1]
-  const dx = x - wall.position[0]
-  const dz = z - wall.position[2]
+  const dx = x - wall.position![0]
+  const dz = z - wall.position![2]
   // local x axis in world = (cos, -sin) for a Y rotation
   const lx = dx * Math.cos(yaw) - dz * Math.sin(yaw)
   const lz = dx * Math.sin(yaw) + dz * Math.cos(yaw)
@@ -69,7 +69,7 @@ describe('self_hunt_flexible', () => {
       if (isWall(e) || e.shape?.type === 'plane') continue
       const need = isCar(e) ? CAR_CLEARANCE : e.bodyType === 'dynamic' ? PROP_CLEARANCE : 0
       for (const w of walls) {
-        const d = distToWall(w, e.position[0], e.position[2])
+        const d = distToWall(w, e.position![0], e.position![2])
         expect(d, `${e.id} (${e.name}) to ${w.id}`).toBeGreaterThanOrEqual(need)
       }
     }
