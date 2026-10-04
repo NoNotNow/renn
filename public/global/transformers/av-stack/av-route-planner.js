@@ -714,6 +714,8 @@ function transform(input, dt, params, state, api) {
     var dot = e.fwd[0] * seg.end.fx + e.fwd[2] * seg.end.fz
     // maze mode: commit to the plan (a re-plan from every small drift picks another equal-cost K-turn and flips direction); only a real deviation re-plans
     if (state.maze) return Math.sqrt(ex * ex + ez * ez) > (params.mazeDeviate != null ? params.mazeDeviate : 2.5) || dot < 0.85
+    // a U / 3-point turn planned here (turnOk at plan time) is committed to as well (turnCommit: false = off): the drift at each gear change re-planned it into another turn
+    if (state.turnPlan && params.turnCommit !== false) return Math.sqrt(ex * ex + ez * ez) > (params.turnDeviate != null ? params.turnDeviate : 2.5) || dot < 0.85
     return Math.sqrt(ex * ex + ez * ez) > 0.9 || dot < 0.97
   }
   function plan(maxE) {

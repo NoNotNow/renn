@@ -16,12 +16,7 @@ import {
  * Same machinery and KNOWN_FAILING mechanism as `av-evasion-scenarios.test.ts`.
  */
 
-const KNOWN_FAILING: Record<string, string> = {
-  // turnAround (route planner) now K-turns instead of reversing the corridor (18 m reversed, goal in 19 s, was 83 m), but the K-turn legs
-  // count as 10 lab shuttle episodes > maxShuttle 6. Criteria are not loosened without Manuel's OK.
-  "turnaround-corridor":
-    "K-turn legs read as 10 shuttle episodes > maxShuttle 6 (goal reached, 18 m reversed)",
-};
+const KNOWN_FAILING: Record<string, string> = {};
 
 function criteria(c: MazeCase, m: ScenarioMetrics): string[] {
   const out = surviveCriteria({
