@@ -9,7 +9,7 @@
 // Runs BEFORE the local motion planner. Simulated time only.
 // debug draw: magenta = route / manoeuvre path (+ status mast while manoeuvring), orange = current segment end.
 // params: maneuverSpeed, routeInterval, routeExpansions, lookahead, primitiveLength, maxExpansions,
-//         gearSwitchPenalty, reversePenalty, maxReverseRun, planMargin, tightMargin, guardMargin, stallTime, stuckTime,
+//         exploreTime (s, 0 = off; see below), gearSwitchPenalty, reversePenalty, maxReverseRun, planMargin, tightMargin, guardMargin, stallTime, stuckTime,
 //         contactTtl (s, how long an unseen contact stays a virtual obstacle, default 25), contactRestTime (s at rest before a lateral stall counts as contact, default 1), contactMemory (false = off), restWaitMax (s, wait for rest before a gear change), maxOffPath (m, drop a plan the car is farther from), crawlTime,
 //         goalReach, handbackFree, goalTolerance, maxCurvature, vehicleWidth, vehicleLength
 function transform(input, dt, params, state, api) {
@@ -55,6 +55,56 @@ function transform(input, dt, params, state, api) {
     }
   }
   var goalDist = Math.sqrt((gxw - pos[0]) * (gxw - pos[0]) + (gzw - pos[2]) * (gzw - pos[2]))
+  // Exploration (params.exploreTime s, 0 = off): a goal that cannot be reached (behind walls: maze, building; the Hybrid-A* then returns the 'least bad' partial
+  // route, and the car shuffles 1.8 m back and forth in its local minimum) is dropped when the car has not left a 12 m disc for exploreTime seconds. It then drives to a
+  // reachable point (A* over the costmap, unknown = free) 30-100 m away that is far from the earlier dead ends, for at most 25 s, and tries the real goal again.
+  var exploreT = params.exploreTime != null ? params.exploreTime : 0
+  if (exploreT > 0) {
+    if (!state.xa || Math.hypot(pos[0] - state.xa.x, pos[2] - state.xa.z) > 12) state.xa = { x: pos[0], z: pos[2], t: e.t }
+    var xg = state.explore
+    if (xg && (Math.hypot(pos[0] - xg.x, pos[2] - xg.z) < 6 || e.t - xg.t0 > 25)) {
+      state.explore = xg = null
+      state.xa = { x: pos[0], z: pos[2], t: e.t }
+      state.route = undefined
+    }
+    if (!xg && e.t - state.xa.t > exploreT && goalDist > holdTol * 2) {
+      if (!state.dead) state.dead = []
+      state.dead.push([pos[0], pos[2]])
+      if (state.dead.length > 8) state.dead.shift()
+      var bestC = null
+      var bestSc = -Infinity
+      for (var xr = 30; xr <= 100; xr += 35) {
+        for (var xi = 0; xi < 16; xi++) {
+          var xa2 = (xi * Math.PI * 2) / 16
+          var cxw = pos[0] + Math.cos(xa2) * xr
+          var czw = pos[2] + Math.sin(xa2) * xr
+          var rs = search(pos[0], pos[2], e.fwd[0], e.fwd[2], cxw, czw, av.points || [], routeExp, null)
+          if (!rs.reached) continue
+          var plen = 0
+          for (var xn = 1; xn < rs.nodes.length; xn++) plen += Math.hypot(rs.nodes[xn].x - rs.nodes[xn - 1].x, rs.nodes[xn].z - rs.nodes[xn - 1].z)
+          var dmin = 60
+          for (var xd = 0; xd < state.dead.length; xd++) dmin = Math.min(dmin, Math.hypot(cxw - state.dead[xd][0], czw - state.dead[xd][1]))
+          var sc = dmin + 0.2 * xr - 0.5 * Math.max(0, plen - xr) - 0.05 * Math.hypot(cxw - gxw, czw - gzw)
+          if (sc > bestSc) {
+            bestSc = sc
+            bestC = { x: cxw, z: czw }
+          }
+        }
+      }
+      if (bestC) {
+        state.explore = xg = { x: bestC.x, z: bestC.z, t0: e.t }
+        state.route = undefined
+        state.active = false
+        state.stuckT = 0
+        state.xa = { x: pos[0], z: pos[2], t: e.t }
+      } else state.xa = { x: pos[0], z: pos[2], t: e.t }
+    }
+    if (xg) {
+      gxw = xg.x
+      gzw = xg.z
+      goalDist = Math.sqrt((gxw - pos[0]) * (gxw - pos[0]) + (gzw - pos[2]) * (gzw - pos[2]))
+    }
+  }
   // Contacts the lidar cannot see (a low bar under the ray plane, a car pressed against the hull): remembered as
   // virtual obstacle points so every planner after this stage routes around them instead of driving into them again.
   var contactTtl = params.contactTtl != null ? params.contactTtl : 25

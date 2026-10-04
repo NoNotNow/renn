@@ -10,6 +10,8 @@
 // (escapeAccel 15 m/s^2, escapeSpeed 36 m/s top, kappa <= maxCurvature, lateral accel <= maxLatAccel) for escapeHorizon (5 s) against the pursuit-predicted pursuers (pure pursuit with their observed turn
 // rate, as the motion planner); score = smallest centre distance reached (capped at escapeSafe) + goal alignment / turn penalties. The heading is kept (hysteresis) and the goal is 90 m ahead on it. It also
 // triggers when the heading to the real goal is predicted to come within escapeTrigger (m, 16) of a pursuer, which can be far outside the 90 m geometric danger range. escapeRange (m, 160): pursuers considered.
+// fleeLos (bool, default off): the geometric flee / own-goal candidates are also scored by line of sight (one ray per heading from the hull edge): a goal whose straight way is blocked by a wall
+// before it is reached (maze, building) is penalised, free length is a bonus, so the car explores along open corridors instead of shuffling in front of a wall towards a goal behind it.
 // Goal watchdog (params.goalWatchdog = seconds, default 0 = off; needs fleeArea): a goal the car does not get closer to (>= 8 m) within that time is
 // unreachable (outside the walls, boxed in a corner); the car then picks its own open-road goals instead until the source hands over another goal.
 // Owns the simulated clock (state.t) so no downstream stage needs a wall clock.
@@ -108,7 +110,7 @@ function transform(input, dt, params, state, api) {
     }
     av.threats = thrs
   }
-  if (params.fleeArea && input.target && input.target.pose && ((tids && tids.length) || params.goalWatchdog > 0)) fleeGoal(av, av.threats || [], input, params, state)
+  if (params.fleeArea && input.target && input.target.pose && ((tids && tids.length) || params.goalWatchdog > 0)) fleeGoal(av, av.threats || [], input, params, state, api)
   api.watch('av.speed', Math.round(speed * 10) / 10)
   if (state.flee) api.watch('av.flee', Math.round(state.flee.x) + ',' + Math.round(state.flee.z))
   if (params.debugDraw !== false) {
@@ -120,7 +122,7 @@ function transform(input, dt, params, state, api) {
 
 // Flee layer: when the way to the goal leads past a near pursuer, drive to a goal that is away from the pursuers instead
 // (candidates on a ring around the car, scored by clearance from the pursuers, heading away, alignment with the real goal and the car's heading).
-function fleeGoal(av, thrs, input, params, state) {
+function fleeGoal(av, thrs, input, params, state, api) {
   var pos = input.position
   var g0 = input.target.pose.position
   var area = params.fleeArea
@@ -208,6 +210,7 @@ function fleeGoal(av, thrs, input, params, state) {
     var hz = av.ego.fwd[2]
     var gl = Math.sqrt((g0[0] - pos[0]) * (g0[0] - pos[0]) + (g0[2] - pos[2]) * (g0[2] - pos[2])) + 1e-6
     var fleeTurnPen = params.fleeTurnPenalty != null ? params.fleeTurnPenalty : 1.5
+    var losCache = {}
     var best = null
     var bestS = -Infinity
     for (var pass = 0; pass < 2 && !best; pass++) {
@@ -239,8 +242,18 @@ function fleeGoal(av, thrs, input, params, state) {
           }
           // a flee goal that needs a big turn is reached at curve speed (a hairpin is ~9 m/s): a chaser at 20+ m/s catches the car in the turn
           // (head-on chaser: the 'away' goal behind the car sent it into a U-turn across the chaser's nose). Penalise the turn beyond ~70 deg.
+          var los = 0
+          if (params.fleeLos === true) {
+            var lk = ai + ':' + Math.round(dd)
+            if (!losCache[lk]) {
+              var lr = api.raycast([pos[0] + ux * 5, pos[1], pos[2] + uz * 5], [ux, 0, uz], dMax + 10, { visualize: false })
+              losCache[lk] = lr.hit ? lr.distance + 5 : dMax + 15
+            }
+            var freeLen = losCache[lk]
+            los = freeLen < dd * 0.85 ? -2 + freeLen / dd : 0.4 * Math.min(1, freeLen / dMax)
+          }
           var turn = Math.acos(Math.max(-1, Math.min(1, ux * hx + uz * hz)))
-          var sc = clear / 150 + (ws > 0 ? away / ws : 0) + (bad ? 0 : 0.5) * ((ux * (g0[0] - pos[0]) + uz * (g0[2] - pos[2])) / gl) + 0.7 * (ux * hx + uz * hz) - fleeTurnPen * Math.max(0, (turn - 1.2) / 1.9)
+          var sc = clear / 150 + (ws > 0 ? away / ws : 0) + (bad ? 0 : 0.5) * ((ux * (g0[0] - pos[0]) + uz * (g0[2] - pos[2])) / gl) + 0.7 * (ux * hx + uz * hz) + los - fleeTurnPen * Math.max(0, (turn - 1.2) / 1.9)
           if (sc > bestS) {
             bestS = sc
             best = [cx, cz]
