@@ -26,6 +26,10 @@ export interface MazeCase {
   maxReversals: number
   /** Max seconds without moving (> 0.5 m/s). */
   maxStalledSec?: number
+  /** Allowed shuttle / jitter episodes (a K-turn in a dead end reads as one, <= 6 s each). Default 0. */
+  maxShuttle?: number
+  /** Min hull gap to chasers / parked cars (default 1 m). */
+  minGap?: number
 }
 
 /** Walls of one maze of the example world (ids `wall_maze_<A|B|C>_*`) as arena boxes. */
@@ -40,6 +44,19 @@ function worldMazeWalls(prefix: string): ArenaBox[] {
 
 const CHASER: V2 = [2.5, 5]
 
+/** Round obstacle (large cylinder prop) as a shell of 24 thin boxes. */
+function cylinder(c: V2, r: number): ArenaBox[] {
+  const n = 24
+  const out: ArenaBox[] = []
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * 2 * Math.PI
+    const side = 2 * r * Math.sin(Math.PI / n) + 0.3
+    // tangent direction = a + 90 deg; arena box yaw 0 = size[0] along X
+    out.push({ at: [c[0] + r * Math.cos(a), c[1] + r * Math.sin(a)], size: [side, WALL_T], yawDeg: -((a + Math.PI / 2) * 180) / Math.PI, height: WALL_H })
+  }
+  return out
+}
+
 export const MAZE_CASES: MazeCase[] = [
   {
     name: 'maze-goal-behind-wall',
@@ -53,6 +70,7 @@ export const MAZE_CASES: MazeCase[] = [
     about: 'goal east behind an L-shaped dead-end corridor the car starts in (the end of the L is hidden until it gets there): turn around, leave, go around',
     seconds: 55,
     maxReversals: 8,
+    maxShuttle: 1,
     spec: () => ({
       car: { at: [0, 0], yawDeg: 0 },
       goal: [100, -51],
@@ -77,6 +95,7 @@ export const MAZE_CASES: MazeCase[] = [
     about: 'car starts deep inside the 16 m wide U (nose to the closed side), goal straight through it: back out / turn around, go around the arm',
     seconds: 45,
     maxReversals: 8,
+    maxShuttle: 1,
     spec: () => ({
       car: { at: [0, -30], yawDeg: 0 },
       goal: [0, -120],
@@ -87,7 +106,7 @@ export const MAZE_CASES: MazeCase[] = [
   {
     name: 'maze-corridor-chase',
     about: '14 m wide, 320 m long corridor, a homing 25 m/s chaser enters 60 m behind the car: outrun it to the open end, no contact',
-    seconds: 22,
+    seconds: 15,
     maxReversals: 1,
     spec: () => ({
       car: { at: [0, 40], yawDeg: 0 },
@@ -101,6 +120,22 @@ export const MAZE_CASES: MazeCase[] = [
     about: 'maze C of the example world (lab seed 3 shuttle): car in the dead-end pocket facing the north wall, goal north behind the maze: out through the east gate and around',
     seconds: 45,
     maxReversals: 8,
+    maxShuttle: 2,
     spec: () => ({ car: { at: [-256, 68], yawDeg: -3 }, goal: [-254, -41], boxes: worldMazeWalls('wall_maze_C'), puppets: [] }),
+  },
+  {
+    name: 'pocket-escape',
+    about: 'live-build case: wall 1.5 m left of the hull, a 15 m radius cylinder 1.5 m ahead, a parked car right-front leaving a 2 m gap (car is 4 m wide), open ground 25 m behind: reverse out committed, then go around',
+    seconds: 20,
+    maxReversals: 4,
+    maxStalledSec: 3,
+    maxShuttle: 1,
+    minGap: 0.4,
+    spec: () => ({
+      car: { at: [0, 0], yawDeg: 0 },
+      goal: [0, -120],
+      boxes: [seg([-4, 25], [-4, -20]), ...cylinder([0, -20.5], 15)],
+      puppets: [{ id: 'parked_car', size: [4, 8], at: [6, -3], yawDeg: 0, motion: { kind: 'park' } }],
+    }),
   },
 ]

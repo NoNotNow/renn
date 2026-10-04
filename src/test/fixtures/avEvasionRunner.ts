@@ -66,6 +66,10 @@ export interface ScenarioMetrics {
   reversals: number
   /** Lab motion-monitor episodes classified 'shuttle' / 'jitter' (slow back-and-forth without progress / chatter). */
   shuttleEvents: number
+  /** Longest such episode (s). */
+  shuttleMaxSec: number
+  /** First 3 motion episodes: `kind@t (x,z)`. */
+  shuttleInfo: string
   /** Car track: [t, x, z, forward speed] every frame. */
   trace: [number, number, number, number][]
 }
@@ -106,6 +110,8 @@ export async function runScenario(spec: ArenaSpec, seconds: number): Promise<Sce
     goalReachT: Infinity,
     reversals: 0,
     shuttleEvents: 0,
+    shuttleMaxSec: 0,
+    shuttleInfo: '',
     trace: [],
   }
   let revSign = 0
@@ -151,7 +157,7 @@ export async function runScenario(spec: ArenaSpec, seconds: number): Promise<Sce
           return `${p.spec.id}(${p.s.x.toFixed(0)},${p.s.z.toFixed(0)} y${((p.s.yaw * 180) / Math.PI).toFixed(0)} g${g.toFixed(1)})`
         })
         const w = watchValues(ARENA_CAR_ID)
-        const wv = ['av.plan.kappa', 'av.plan.free', 'av.vLimit', 'av.aeb', 'av.flee', 'av.mode', 'av.throttle'].map((k) => (w[k] != null ? `${k.slice(3)}=${w[k]}` : '')).filter(Boolean).join(' ')
+        const wv = ['av.plan.kappa', 'av.plan.free', 'av.vLimit', 'av.aeb', 'av.flee', 'av.mode', 'av.route', 'av.maneuver', 'av.revc', 'av.carrotw'].map((k) => (w[k] != null ? `${k.slice(3)}=${w[k]}` : '')).filter(Boolean).join(' ')
         console.log(`T ${t.toFixed(2)} [${wv}] car(${cp[0].toFixed(1)},${cp[2].toFixed(1)} y${(((yawOf(q) - Math.PI) * 180) / Math.PI).toFixed(0)} v${fwd.toFixed(1)}) ${ch.join(' ')}`)
       }
       for (const p of puppets.values()) {
@@ -204,6 +210,8 @@ export async function runScenario(spec: ArenaSpec, seconds: number): Promise<Sce
     const rows = m.trace.filter((_, i) => i % 60 === 59).map((r) => `${r[0].toFixed(0)}s (${r[1].toFixed(0)},${r[2].toFixed(0)}) v${r[3].toFixed(1)}`)
     console.log(`TRACE ${rows.join(' | ')}`)
   }
+  m.shuttleInfo = res.events.filter((ev) => ev.kind === 'shuttle' || ev.kind === 'jitter').slice(0, 3).map((ev) => `${ev.kind}@${((ev.windowStartFrame * DEFAULT_DT)).toFixed(0)}-${((ev.endFrame ?? ev.startFrame) * DEFAULT_DT).toFixed(0)}s (${ev.at.x.toFixed(0)},${ev.at.z.toFixed(0)})`).join(' ')
+  m.shuttleMaxSec = Math.max(0, ...res.events.filter((ev) => ev.kind === 'shuttle' || ev.kind === 'jitter').map((ev) => ((ev.endFrame ?? ev.startFrame) - ev.windowStartFrame) * DEFAULT_DT))
   m.shuttleEvents = res.events.filter((ev) => ev.kind === 'shuttle' || ev.kind === 'jitter').length
   m.stalledSec = stalled * DEFAULT_DT
   m.steerReversalsPerSec = res.steerReversalsPerSec

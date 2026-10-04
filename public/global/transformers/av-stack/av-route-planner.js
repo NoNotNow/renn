@@ -8,8 +8,8 @@
 //     has a long forward run.
 // Runs BEFORE the local motion planner. Simulated time only.
 // debug draw: magenta = route / manoeuvre path (+ status mast while manoeuvring), orange = current segment end.
-// params: maneuverSpeed, routeInterval, routeExpansions, lookahead, primitiveLength, maxExpansions,
-//         exploreTime (s, 0 = off; see below), gearSwitchPenalty, reversePenalty, maxReverseRun, planMargin, tightMargin, guardMargin, stallTime, stuckTime,
+// params: maneuverSpeed, maneuverMargin, handbackMargin, maneuverRunSpeed (maze mode only), mazeDetour (15) / mazeDeviate (2.5) / mazeReversePenalty / mazeMaxReverseRun (maze mode, see below), routeInterval, routeExpansions, lookahead, primitiveLength, maxExpansions,
+//         exploreTime (s, 0 = off; see below), fieldHeuristic (2D goal-distance field over the persistent static map, see ensureField), fieldCell, fieldInflate, fieldBlockCost, fieldEvery, gearSwitchPenalty, reversePenalty, maxReverseRun, planMargin, tightMargin, guardMargin, stallTime, stuckTime,
 //         contactTtl (s, how long an unseen contact stays a virtual obstacle, default 25), contactRestTime (s at rest before a lateral stall counts as contact, default 1), contactMemory (false = off), restWaitMax (s, wait for rest before a gear change), maxOffPath (m, drop a plan the car is farther from), crawlTime,
 //         goalReach, handbackFree, goalTolerance, maxCurvature, vehicleWidth, vehicleLength
 function transform(input, dt, params, state, api) {
@@ -263,7 +263,219 @@ function transform(input, dt, params, state, api) {
     }
   }
 
+
+  // --- 2D goal-distance field (params.fieldHeuristic true, needs av.smap from the perception stage with staticMap) ---
+  // Hybrid-A* with a euclidean heuristic is blind to walls: in a maze it floods the pocket in front of a wall, runs out of expansions and returns a PARTIAL route whose best node is a local
+  // minimum of the euclidean distance (the car then shuffles 1.8 m back and forth). The field is the holonomic obstacle-aware distance to the goal over the PERSISTENT static map
+  // (walls seen once stay known), unknown cells count as free (optimistic: the car explores by following the field and re-plans as walls appear, dead ends it has seen stay closed),
+  // blocked (inflated) cells are passable at 400x cost so the field is finite everywhere (a goal inside a wall / fully enclosed still has a gradient). cell 2 m, window snapped to 32 m.
+  var fld = null
+  function ensureField() {
+    if (params.fieldHeuristic !== true || !av.smap) {
+      fld = null
+      return
+    }
+    var F = state.fl
+    var c0 = params.fieldCell || 2
+    var pad = 70
+    var wx0 = Math.floor((Math.min(pos[0], gxw) - pad) / 32) * 32
+    var wz0 = Math.floor((Math.min(pos[2], gzw) - pad) / 32) * 32
+    var wx1 = Math.ceil((Math.max(pos[0], gxw) + pad) / 32) * 32
+    var wz1 = Math.ceil((Math.max(pos[2], gzw) + pad) / 32) * 32
+    var cs = c0
+    while (((wx1 - wx0) / cs) * ((wz1 - wz0) / cs) > 100000) cs += 1
+    var W = Math.ceil((wx1 - wx0) / cs)
+    var H = Math.ceil((wz1 - wz0) / cs)
+    var sameWin = F && F.wx0 === wx0 && F.wz0 === wz0 && F.W === W && F.H === H && F.cs === cs
+    if (!sameWin) {
+      F = state.fl = { wx0: wx0, wz0: wz0, W: W, H: H, cs: cs, occ: new Uint8Array(W * H), used: 0, d: new Float64Array(W * H), hk: new Float64Array(W * H * 8 + 16), hi: new Int32Array(W * H * 8 + 16), gcell: -1, ver: -1, t: -9 }
+    }
+    var list = av.smap.list
+    var rInf = (params.fieldInflate != null ? params.fieldInflate : ((av.vehicle && av.vehicle.width) || params.vehicleWidth || 2) / 2 + 0.8)
+    var rc = Math.ceil(rInf / cs)
+    for (; F.used < list.length; F.used++) {
+      var pp = list[F.used]
+      var ix = Math.floor((pp[0] - wx0) / cs)
+      var iz = Math.floor((pp[1] - wz0) / cs)
+      if (ix < -rc || iz < -rc || ix >= W + rc || iz >= H + rc) continue
+      for (var ox = -rc; ox <= rc; ox++) {
+        for (var oz = -rc; oz <= rc; oz++) {
+          var jx = ix + ox
+          var jz = iz + oz
+          if (jx < 0 || jz < 0 || jx >= W || jz >= H) continue
+          var cxm = wx0 + (jx + 0.5) * cs - pp[0]
+          var czm = wz0 + (jz + 0.5) * cs - pp[1]
+          if (cxm * cxm + czm * czm <= (rInf + cs * 0.5) * (rInf + cs * 0.5)) {
+            F.occ[jx * H + jz] = 1
+            F.dirty = true
+          }
+        }
+      }
+    }
+    // stopped dynamic bodies (parked car, stalled chaser: remembered lidar points not near a moving tracked threat) are stamped on a per-build copy of the occupancy; moving ones are the motion planner's job
+    var dsig = ''
+    var dynIn = []
+    if (params.fieldDynamic !== false && av.dyn && av.dyn.length) {
+      var thr = av.threats || []
+      for (var dpi = 0; dpi < av.dyn.length; dpi++) {
+        var dp = av.dyn[dpi]
+        var moving = false
+        for (var ti = 0; ti < thr.length; ti++) {
+          if (thr[ti].vx * thr[ti].vx + thr[ti].vz * thr[ti].vz > 4 && (thr[ti].x - dp[0]) * (thr[ti].x - dp[0]) + (thr[ti].z - dp[1]) * (thr[ti].z - dp[1]) < 100) {
+            moving = true
+            break
+          }
+        }
+        if (!moving) dynIn.push(dp)
+      }
+      var sx = 0
+      var sz = 0
+      for (var dq = 0; dq < dynIn.length; dq++) {
+        sx += dynIn[dq][0]
+        sz += dynIn[dq][1]
+      }
+      dsig = dynIn.length + ':' + Math.round(sx / 6) + ':' + Math.round(sz / 6)
+    }
+    if (dsig !== F.dsig) {
+      F.dsig = dsig
+      F.dirty = true
+    }
+    var gcx = Math.max(0, Math.min(W - 1, Math.floor((gxw - wx0) / cs)))
+    var gcz = Math.max(0, Math.min(H - 1, Math.floor((gzw - wz0) / cs)))
+    var gcell = gcx * H + gcz
+    if (gcell !== F.gcell || (F.dirty && e.t - F.t >= (params.fieldEvery != null ? params.fieldEvery : 0.3))) {
+      F.gcell = gcell
+      F.dirty = false
+      F.t = e.t
+      F.builds = (F.builds || 0) + 1
+      var N = W * H
+      var occ = F.occ
+      if (dynIn.length) {
+        occ = F.occD || (F.occD = new Uint8Array(N))
+        occ.set(F.occ)
+        for (var dz2 = 0; dz2 < dynIn.length; dz2++) {
+          var ix2 = Math.floor((dynIn[dz2][0] - wx0) / cs)
+          var iz2 = Math.floor((dynIn[dz2][1] - wz0) / cs)
+          for (var ox2 = -rc; ox2 <= rc; ox2++) {
+            for (var oz2 = -rc; oz2 <= rc; oz2++) {
+              var jx2 = ix2 + ox2
+              var jz2 = iz2 + oz2
+              if (jx2 >= 0 && jz2 >= 0 && jx2 < W && jz2 < H) occ[jx2 * H + jz2] = 1
+            }
+          }
+        }
+      }
+      var d = F.d
+      d.fill(1e9)
+      var hk = F.hk
+      var hi = F.hi
+      var hn = 0
+      var blockCost = params.fieldBlockCost != null ? params.fieldBlockCost : 400
+      d[gcell] = 0
+      hk[0] = 0
+      hi[0] = gcell
+      hn = 1
+      var dxs = [1, -1, 0, 0, 1, 1, -1, -1]
+      var dzs = [0, 0, 1, -1, 1, -1, 1, -1]
+      while (hn > 0) {
+        var topK = hk[0]
+        var topI = hi[0]
+        hn--
+        if (hn > 0) {
+          var lk = hk[hn]
+          var li = hi[hn]
+          var cc = 0
+          for (;;) {
+            var l = 2 * cc + 1
+            if (l >= hn) break
+            var r2 = l + 1
+            var mm = r2 < hn && hk[r2] < hk[l] ? r2 : l
+            if (hk[mm] >= lk) break
+            hk[cc] = hk[mm]
+            hi[cc] = hi[mm]
+            cc = mm
+          }
+          hk[cc] = lk
+          hi[cc] = li
+        }
+        if (topK > d[topI]) continue
+        var tx = (topI / H) | 0
+        var tz = topI - tx * H
+        for (var q = 0; q < 8; q++) {
+          var nx = tx + dxs[q]
+          var nz = tz + dzs[q]
+          if (nx < 0 || nz < 0 || nx >= W || nz >= H) continue
+          var ni = nx * H + nz
+          var step = (q < 4 ? cs : cs * 1.4142) * (occ[ni] ? blockCost : 1)
+          var nd = topK + step
+          if (nd < d[ni]) {
+            d[ni] = nd
+            var pc = hn++
+            while (pc > 0) {
+              var pa = (pc - 1) >> 1
+              if (hk[pa] <= nd) break
+              hk[pc] = hk[pa]
+              hi[pc] = hi[pa]
+              pc = pa
+            }
+            hk[pc] = nd
+            hi[pc] = ni
+          }
+        }
+      }
+    }
+    fld = { gx: gxw, gz: gzw, F: F }
+    av.fieldGoal = { x: gxw, z: gzw, d: fieldAt(pos[0], pos[2]) }
+  }
+  // point ~`dist` m along the steepest descent of the field from (x, z): where the obstacle-aware route leads (the goal itself when no field)
+  function fieldGuide(x, z, dist) {
+    if (!fld) return [gxw, gzw]
+    var F = fld.F
+    var cx = Math.max(0, Math.min(F.W - 1, Math.floor((x - F.wx0) / F.cs)))
+    var cz = Math.max(0, Math.min(F.H - 1, Math.floor((z - F.wz0) / F.cs)))
+    var n = Math.max(1, Math.round(dist / F.cs))
+    for (var i = 0; i < n; i++) {
+      var best = F.d[cx * F.H + cz]
+      var bx = cx
+      var bz = cz
+      for (var ox = -1; ox <= 1; ox++) {
+        for (var oz = -1; oz <= 1; oz++) {
+          var nx = cx + ox
+          var nz = cz + oz
+          if (nx < 0 || nz < 0 || nx >= F.W || nz >= F.H) continue
+          var dv = F.d[nx * F.H + nz]
+          if (dv < best) {
+            best = dv
+            bx = nx
+            bz = nz
+          }
+        }
+      }
+      if (bx === cx && bz === cz) break
+      cx = bx
+      cz = bz
+    }
+    return [F.wx0 + (cx + 0.5) * F.cs, F.wz0 + (cz + 0.5) * F.cs]
+  }
+  function fieldAt(x, z) {
+    var F = fld.F
+    var fx = (x - F.wx0) / F.cs - 0.5
+    var fz = (z - F.wz0) / F.cs - 0.5
+    var extra = 0
+    var cx = Math.round(fx)
+    var cz = Math.round(fz)
+    if (cx < 0 || cx >= F.W || cz < 0 || cz >= F.H) {
+      var ex = cx < 0 ? -cx : cx >= F.W ? cx - F.W + 1 : 0
+      var ez = cz < 0 ? -cz : cz >= F.H ? cz - F.H + 1 : 0
+      extra = Math.sqrt(ex * ex + ez * ez) * F.cs
+      cx = Math.max(0, Math.min(F.W - 1, cx))
+      cz = Math.max(0, Math.min(F.H - 1, cz))
+    }
+    return F.d[cx * F.H + cz] + extra
+  }
+
   function search(sx, sz, sfx, sfz, gx, gz, pts, maxExp, marginOverride) {
+    var useField = fld !== null && Math.abs(gx - fld.gx) < 1.5 && Math.abs(gz - fld.gz) < 1.5
     var hlS = ((av.vehicle && av.vehicle.length) || params.vehicleLength || 4) / 2 + planMargin
     var hwS = ((av.vehicle && av.vehicle.width) || params.vehicleWidth || 2) / 2 + planMargin
     var hit = makeHit(pts, hlS, hwS)
@@ -284,10 +496,16 @@ function transform(input, dt, params, state, api) {
       hit = makeHit(pts, hlS, hwS)
     }
     state.startMargin = marginUsed
-    function dist(x, z) {
+    function eu(x, z) {
       var dx = gx - x
       var dz = gz - z
       return Math.sqrt(dx * dx + dz * dz)
+    }
+    function dist(x, z) {
+      var e1 = eu(x, z)
+      if (!useField) return e1
+      var f1 = fieldAt(x, z)
+      return f1 > e1 ? f1 : e1
     }
     // binary min-heap on f
     var heap = []
@@ -363,7 +581,7 @@ function transform(input, dt, params, state, api) {
         bestH = h
         bestNode = cur
       }
-      if (h < reach) {
+      if (eu(cur.x, cur.z) < reach) {
         if (cur.terminal || !nextWp) {
           goalNode = cur
           break
@@ -471,9 +689,18 @@ function transform(input, dt, params, state, api) {
     var ex = pos[0] - seg.end.x
     var ez = pos[2] - seg.end.z
     var dot = e.fwd[0] * seg.end.fx + e.fwd[2] * seg.end.fz
+    // maze mode: commit to the plan (a re-plan from every small drift picks another equal-cost K-turn and flips direction); only a real deviation re-plans
+    if (state.maze) return Math.sqrt(ex * ex + ez * ez) > (params.mazeDeviate != null ? params.mazeDeviate : 2.5) || dot < 0.85
     return Math.sqrt(ex * ex + ez * ez) > 0.9 || dot < 0.97
   }
   function plan(maxE) {
+    ensureField()
+    // maneuverMargin (m, default off): a manoeuvre is first planned with this larger margin (squeezing past a parked car at 0.2 m is a plan the local planner would refuse after the hand-back);
+    // the normal margins are the fallback when no complete route exists with it.
+    if (params.maneuverMargin > planMargin && maxE === maxExpFull) {
+      var wide = search(pos[0], pos[2], e.fwd[0], e.fwd[2], gxw, gzw, av.points || [], maxE, params.maneuverMargin)
+      if (wide.reached && wide.segs.length > 0) return wide
+    }
     var res = search(pos[0], pos[2], e.fwd[0], e.fwd[2], gxw, gzw, av.points || [], maxE, null)
     // Pressed against something (a corner touching a long wall): every primitive is blocked at the comfort margins, so
     // retry with ever smaller margins until the car can at least drive out of the contact.
@@ -531,13 +758,14 @@ function transform(input, dt, params, state, api) {
       }
       dAhead += segs[si].len
     }
-    return { firstGear: firstGear, run: run, carrot: carrot, reached: res.reached, nodes: nodes, path: res.path, vLimit: vLimit }
+    return { firstGear: firstGear, run: run, carrot: carrot, reached: res.reached, expansions: res.expansions, hRem: res.hRemaining, nodes: nodes, path: res.path, vLimit: vLimit }
   }
 
   // --- reverse cruise: the goal is behind, the way ahead is blocked, the way behind is free -> drive backwards steadily (long reverse
   // run, no gear flips, speed from the free distance behind) instead of 8 m reverse hops between forward shuffles.
   // Entry needs the forward way blocked (a free road is better crossed by a forward U-turn); it holds until the goal is no longer behind
   // or the rear is blocked (hysteresis, the planner's own gear-switch penalty does the rest).
+  ensureField()
   var revCruiseOn = params.reverseCruise !== false
   var revCruiseSpeed = params.reverseSpeed != null ? params.reverseSpeed : 10
   var scanRange = (av.scan && av.scan.range) || 40
@@ -551,8 +779,12 @@ function transform(input, dt, params, state, api) {
     }
   })()
   if (revCruiseOn && goalDist > holdTol) {
-    var gBehind = -((gxw - pos[0]) * e.fwd[0] + (gzw - pos[2]) * e.fwd[2]) / Math.max(goalDist, 1e-6)
+    // where the route leads: the goal, or (field) the point 24 m down the obstacle-aware route
+    var gd = fieldGuide(pos[0], pos[2], 24)
+    var gdl = Math.max(Math.hypot(gd[0] - pos[0], gd[1] - pos[2]), 1e-6)
+    var gBehind = -((gd[0] - pos[0]) * e.fwd[0] + (gd[1] - pos[2]) * e.fwd[2]) / gdl
     var revLook = Math.min(40, scanRange)
+    api.watch('av.revc', (state.revCruise ? 'on ' : 'off ') + gBehind.toFixed(2) + ' fb ' + freeStraight(-1, revLook) + ' ff ' + freeStraight(1, 20))
     if (!state.revCruise) {
       if (gBehind > 0.3 && freeStraight(-1, revLook) >= Math.min(30, revLook) && freeStraight(1, 20) < 20) state.revCruise = true
     } else if (gBehind < 0 || freeStraight(-1, 12) < 10) state.revCruise = false
@@ -560,6 +792,14 @@ function transform(input, dt, params, state, api) {
   if (state.revCruise) {
     maxRevRun = 1e4
     revPen = 1
+  }
+  // Maze mode: the obstacle-aware route is much longer than the straight line (walls in between: backing out of a dead end, turning around in a corridor). Reversing is then cheap
+  // (mazeReversePenalty 1.5 per m instead of 4, runs up to mazeMaxReverseRun 40 m) so the search finds 'back out 30 m' / a K-turn inside its expansion budget, and runs in one gear
+  // are driven at maneuverRunSpeed. Open ground (field ~ straight line) keeps the normal costs.
+  state.maze = !!(fld && av.fieldGoal && av.fieldGoal.d - goalDist > (params.mazeDetour != null ? params.mazeDetour : 15))
+  if (state.maze) {
+    revPen = Math.min(revPen, params.mazeReversePenalty != null ? params.mazeReversePenalty : 1.5)
+    maxRevRun = Math.max(maxRevRun, params.mazeMaxReverseRun != null ? params.mazeMaxReverseRun : 40)
   }
 
   // stuck watchdog (own, independent of the local planner)
@@ -613,6 +853,7 @@ function transform(input, dt, params, state, api) {
     }
     if (!state.active) {
       if (rt.carrot) av.carrot = rt.carrot
+      api.watch('av.carrotw', rt.carrot ? rt.carrot[0].toFixed(0) + ',' + rt.carrot[1].toFixed(0) : '-')
       av.route = { firstGear: rt.firstGear, run: rt.run, reached: rt.reached, vLimit: rt.vLimit }
       if (params.debugDraw !== false) {
         var y0 = pos[1]
@@ -620,7 +861,7 @@ function transform(input, dt, params, state, api) {
           api.visualizeLine([rt.path[di - 2][0], y0, rt.path[di - 2][1]], [rt.path[di][0], y0, rt.path[di][1]], '#ff44ff')
         }
       }
-      api.watch('av.route', 'gear ' + rt.firstGear + ' run ' + rt.run.toFixed(1) + (rt.reached ? ' goal' : ' partial'))
+      api.watch('av.route', 'gear ' + rt.firstGear + ' run ' + rt.run.toFixed(1) + (rt.reached ? ' goal' : ' partial') + ' exp ' + rt.expansions + ' h ' + rt.hRem.toFixed(0) + (fld ? ' fd ' + av.fieldGoal.d.toFixed(0) : ''))
       return {}
     }
   }
@@ -742,6 +983,37 @@ function transform(input, dt, params, state, api) {
       if (aHit(apx, apz, e.fwd[0] * Math.cos(ath) + e.left[0] * Math.sin(ath), e.fwd[2] * Math.cos(ath) + e.left[2] * Math.sin(ath))) aheadFree = false
     }
   }
+  // handbackMargin (m, default off): the local planner works with larger margins than this planner (comfort 0.4). Hand back only when the ROUTE itself stays clear with that margin
+  // for the next handback metres (footprint-swept along the planned segments, not the car's current heading): otherwise the local planner refuses the squeeze and turns back into the pocket.
+  if (aheadFree && params.handbackMargin > 0 && cur.g > 0) {
+    var hbHit = makeHit(av.points || [], ((av.vehicle && av.vehicle.length) || params.vehicleLength || 4) / 2 + params.handbackMargin, ((av.vehicle && av.vehicle.width) || params.vehicleWidth || 2) / 2 + params.handbackMargin)
+    var qx = pos[0]
+    var qz = pos[2]
+    var qfx = e.fwd[0]
+    var qfz = e.fwd[2]
+    var walked = 0
+    for (var hs = state.idx; hs < state.segs.length && walked < handback && aheadFree; hs++) {
+      var sg = state.segs[hs]
+      if (sg.g < 0) break
+      var sl = hs === state.idx ? Math.max(0, sg.len - travelled) : sg.len
+      for (var hd = 0.5; hd <= sl + 1e-6 && aheadFree; hd += 0.5) {
+        var dth = sg.k * 0.5
+        var cth = Math.cos(dth)
+        var sth = Math.sin(dth)
+        // advance 0.5 m along the arc: chord in the current frame, then rotate the heading
+        var chord = Math.abs(sg.k) < 1e-6 ? 0.5 : (2 * Math.sin(dth / 2)) / sg.k
+        var mx = Math.cos(dth / 2)
+        var my = Math.sin(dth / 2)
+        qx += chord * (qfx * mx + qfz * my)
+        qz += chord * (qfz * mx - qfx * my)
+        var nfx = qfx * cth + qfz * sth
+        qfz = qfz * cth - qfx * sth
+        qfx = nfx
+        walked += 0.5
+        if (hbHit(qx, qz, qfx, qfz)) aheadFree = false
+      }
+    }
+  }
   if (aheadFree && state.noHandbackFrom) {
     if (Math.hypot(pos[0] - state.noHandbackFrom[0], pos[2] - state.noHandbackFrom[1]) > 8) state.noHandbackFrom = null
     else aheadFree = false
@@ -784,7 +1056,11 @@ function transform(input, dt, params, state, api) {
     api.visualizeLine([pos[0], py + 1.2, pos[2]], [pos[0], py + 4, pos[2]], '#ff44ff')
   }
   var remain = state.segStart ? Math.max(0, cur.len - travelled) : cur.len
-  var vMax = Math.min(vMan, 0.9 + Math.sqrt(2 * 3 * remain))
+  // maneuverRunSpeed (default off): a long run of segments in one gear (backing out of a dead end, a straight corridor leg) is driven faster than the shuffle speed
+  var runLen = remain
+  for (var rq = state.idx + 1; rq < state.segs.length && state.segs[rq].g === cur.g; rq++) runLen += state.segs[rq].len
+  var vRun = state.maze && params.maneuverRunSpeed != null && runLen > 8 ? params.maneuverRunSpeed : vMan
+  var vMax = Math.min(vRun, 0.9 + Math.sqrt(2 * 3 * (runLen > 8 ? runLen : remain)))
   if (state.revCruise && cur.g < 0 && state.segStart !== null) {
     // steady reverse: speed from the free distance along this segment's arc behind the car (stop within it at the comfort deceleration),
     // the lateral acceleration of the arc and the remaining segment length

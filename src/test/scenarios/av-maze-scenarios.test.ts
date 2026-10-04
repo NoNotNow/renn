@@ -8,17 +8,14 @@ import { GOAL_REACH, SCENARIO_TIMEOUT, SEED, f1, runScenario, surviveCriteria, t
  * Same machinery and KNOWN_FAILING mechanism as `av-evasion-scenarios.test.ts`.
  */
 
-const KNOWN_FAILING: Record<string, string> = {
-  'maze-dead-end': 'baseline 2026-10: shuttles (30 reversals), partial Hybrid-A* routes executed as 1.8 m manoeuvres; no persistent map, euclid heuristic local minima',
-  'maze-u-trap-inside': 'baseline 2026-10: shuttles (24 reversals), same cause',
-  'maze-gate-exit': 'baseline 2026-10: shuttles (17 reversals), same cause (lab seed 3 maze C)',
-}
+const KNOWN_FAILING: Record<string, string> = {}
 
 function criteria(c: MazeCase, m: ScenarioMetrics): string[] {
-  const out = surviveCriteria({ maxStalledSec: c.maxStalledSec ?? 6, minEndSpeed: 0 })(m)
+  const out = surviveCriteria({ maxStalledSec: c.maxStalledSec ?? 6, minEndSpeed: 0, minChaserGap: c.minGap })(m)
   if (m.goalReachT === Infinity) out.push(`goal not reached in ${c.seconds} s (closest ${f1(m.minGoalDist)} m > ${GOAL_REACH})`)
   if (m.reversals > c.maxReversals) out.push(`${m.reversals} direction reversals > ${c.maxReversals}`)
-  if (m.shuttleEvents > 0) out.push(`${m.shuttleEvents} shuttle / jitter episodes`)
+  if (m.shuttleEvents > (c.maxShuttle ?? 0)) out.push(`${m.shuttleEvents} shuttle / jitter episodes > ${c.maxShuttle ?? 0}`)
+  if (m.shuttleMaxSec > 6) out.push(`shuttle episode of ${f1(m.shuttleMaxSec)} s > 6`)
   return out
 }
 
@@ -38,6 +35,8 @@ describe('AV maze scenarios (deterministic)', () => {
         rows.push(
           `${failed.length ? 'FAIL' : 'PASS'} ${c.name.padEnd(22)} goal ${m.goalReachT === Infinity ? 'never (min ' + f1(m.minGoalDist) + ' m)' : f1(m.goalReachT) + ' s'} | rev ${m.reversals} | shuttle ${m.shuttleEvents} | static ${m.staticContactFrames}f chaser ${m.chaserContactFrames}f | stalled ${f1(m.stalledSec)} s | peak ${f1(m.peakSpeed)} m/s` +
             (failed.length ? `\n      -> ${failed.join('; ')}` : '') +
+            (m.shuttleInfo ? `\n      episodes ${m.shuttleInfo}` : '') +
+            (m.firstContact ? `\n      first contact ${m.firstContact}` : '') +
             (KNOWN_FAILING[c.name] ? `\n      known: ${KNOWN_FAILING[c.name]}` : ''),
         )
         expect(failed).toEqual([])
