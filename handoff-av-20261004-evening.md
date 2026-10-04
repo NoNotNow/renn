@@ -1,7 +1,7 @@
 # Handoff: AV car in self_hunt_flexible — evening 2026-10-04
 
 Branch `claude/magical-dirac-um54mz` @ `7cb1ec2` = live on gh-pages (build `7cb1ec2`, av `136evba`).
-Full suite green there. Standing rules from `handoff-av-lab-20261004.md` still apply (suite → commit → push → deploy; `npm run sync:global-pipeline` after av-stack edits; Manuel answers in German).
+Full suite green there. Manuel (2026-10-04): deploy regularly in between, not only at the end (after every green, pushed step). Standing rules from `handoff-av-lab-20261004.md` still apply (suite → commit → push → deploy; `npm run sync:global-pipeline` after av-stack edits; Manuel answers in German).
 
 ## Test flow (use this, not seed aggregates)
 - Deterministic scripted scenarios with puppet chasers: `src/test/scenarios/av-evasion-scenarios.test.ts` (11 evasion + 7 maze incl. `pocket-escape`), all pass. `KNOWN_FAILING` → `it.fails`.
