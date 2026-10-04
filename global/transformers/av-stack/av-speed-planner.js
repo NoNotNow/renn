@@ -8,7 +8,7 @@
 // Publishes av.plan.vDesired / av.plan.vLimit ('cruise' | 'free' | 'near' | 'route' | 'curve' | 'goal').
 // params: cruiseSpeed, minSpeed (lowest speed while driving, default 4), comfortDecel (brake decel for obstacles in the path, default 5),
 //         stopMargin, obstacleSlowRadius (5), obstacleSlowFactor (speed right next to an obstacle as a fraction of cruise, default 0.5), maxLatAccel (default 9), curveSmooth (s, 0 = raw kappa), curveDeadband (1/m, 0 = off),
-//         goalDecel (gentler braking used for the final approach, default 3), goalCrawlSpeed (floor while arriving, default 2), goalTolerance, vehicleWidth, vehicleLength, waypoints
+//         chasedDecel (0 = off; free-path braking decel while a fast body closes in), goalDecel (gentler braking used for the final approach, default 3), goalCrawlSpeed (floor while arriving, default 2), goalTolerance, vehicleWidth, vehicleLength, waypoints
 function transform(input, dt, params, state, api) {
   var av = input.av
   if (!av || !av.plan) return {}
@@ -21,8 +21,22 @@ function transform(input, dt, params, state, api) {
   var crawl = params.minSpeed != null ? params.minSpeed : params.crawlSpeed != null ? params.crawlSpeed : 4
   var limit = 'cruise'
   var v = cruise
+  // Chased = a fast body closes in on the car. While chased: (1) braking for a bend of the (stale) route in front of a 30 m/s pursuer lets it catch up
+  // (corner-trap: 32 -> 11 m/s on the route limit, caught 2 s later): no route limit (the planned path's own curve limit below still applies); (2) the free-path
+  // stopping limit uses `chasedDecel` (the car's emergency braking) instead of the comfort decel (a 35 m free path toward a far wall capped the car at 16 m/s with a 25 m/s pursuer behind).
+  var chased = false
+  if (av.threats && av.threats.length) {
+    for (var ti = 0; ti < av.threats.length; ti++) {
+      var th = av.threats[ti]
+      var tx = th.x - input.position[0]
+      var tz = th.z - input.position[2]
+      var tsp = Math.sqrt(th.vx * th.vx + th.vz * th.vz)
+      if (tsp > 4 && tx * tx + tz * tz < 90 * 90 && th.vx * tx + th.vz * tz < 0) chased = true
+    }
+  }
   // obstacle in the path: auto-brake (free distance of the chosen path)
-  var vFree = Math.sqrt(2 * aBrake * Math.max(0, plan.free - stopMargin))
+  var aFree = chased && params.chasedDecel > aBrake ? params.chasedDecel : aBrake
+  var vFree = Math.sqrt(2 * aFree * Math.max(0, plan.free - stopMargin))
   if (vFree < v) {
     v = vFree
     limit = 'free'
@@ -57,18 +71,6 @@ function transform(input, dt, params, state, api) {
     }
   }
   // bends ahead on the global route (corner speed, reachable by braking)
-  // ... except while a fast body closes in on the car: braking for a bend of the (stale) route in front of a 30 m/s pursuer lets it catch up
-  // (corner-trap: 32 -> 11 m/s on the route limit, caught 2 s later). The planned path's own curve limit below still applies.
-  var chased = false
-  if (av.threats && av.threats.length) {
-    for (var ti = 0; ti < av.threats.length; ti++) {
-      var th = av.threats[ti]
-      var tx = th.x - input.position[0]
-      var tz = th.z - input.position[2]
-      var tsp = Math.sqrt(th.vx * th.vx + th.vz * th.vz)
-      if (tsp > 4 && tx * tx + tz * tz < 90 * 90 && th.vx * tx + th.vz * tz < 0) chased = true
-    }
-  }
   if (av.route && av.route.vLimit < v && !chased) {
     v = Math.max(av.route.vLimit, crawl)
     limit = 'route'

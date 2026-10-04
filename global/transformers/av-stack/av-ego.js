@@ -2,7 +2,7 @@
 // Publishes the ego state on the shared blackboard `input.av.ego` for all later stages.
 // Also publishes av.vehicle {width, length, height} = max(params, own box collider) used by all planners.
 // debug draw (params.debugDraw, default true): cyan = velocity vector.
-// Tracked bodies (params.threatIds: entity ids, e.g. pursuers; default none): live positions -> filtered velocities, published as av.threats [{id,x,z,vx,vz}]
+// Tracked bodies (params.threatIds: entity ids, e.g. pursuers; default none): live positions -> filtered velocities, published as av.threats [{id,x,z,vx,vz,turn}] (turn = recent max observed turn rate rad/s, null until seen moving)
 // within params.threatRange (default 120 m). The motion planner predicts them (cost wThreat) and the flee layer below steers the goal away from them:
 // params.fleeArea [xmin,xmax,zmin,zmax] (world; required for the flee layer), fleeRadius (m, 16: a goal way passing a near threat closer than this is unsafe),
 // fleeMinDist / fleeMaxDist (candidate goal distance, 50 / 110), fleeHold (s a chosen flee goal is kept, 4), fleeTurnPenalty (1.5: score penalty of a candidate needing a turn of 180 deg, growing from 70 deg).
@@ -78,16 +78,29 @@ function transform(input, dt, params, state, api) {
       var tpos = api.getWorldPosition(tids[ti])
       if (!tpos) continue
       var rec = state.trk[tids[ti]]
-      if (!rec) rec = state.trk[tids[ti]] = { x: tpos[0], z: tpos[2], vx: 0, vz: 0 }
+      if (!rec) rec = state.trk[tids[ti]] = { x: tpos[0], z: tpos[2], vx: 0, vz: 0, psi: null, w: 0, wmax: null }
       else {
         rec.vx += 0.5 * ((tpos[0] - rec.x) / tdt - rec.vx)
         rec.vz += 0.5 * ((tpos[2] - rec.z) / tdt - rec.vz)
         rec.x = tpos[0]
         rec.z = tpos[2]
+        // observed turn rate of the body (heading of its filtered velocity): the largest recent value is a lower bound of what it can do (a pursuer
+        // that is saturated turns at its limit); the planner predicts it with that instead of a fixed worst case (see threatTurnMin)
+        if (rec.vx * rec.vx + rec.vz * rec.vz > 16) {
+          var psi = Math.atan2(rec.vz, rec.vx)
+          if (rec.psi !== null) {
+            var dpsi = psi - rec.psi
+            while (dpsi > Math.PI) dpsi -= 2 * Math.PI
+            while (dpsi < -Math.PI) dpsi += 2 * Math.PI
+            rec.w += Math.min(1, tdt * 8) * (Math.abs(dpsi) / tdt - rec.w)
+            rec.wmax = rec.wmax === null ? rec.w : Math.max(rec.w, rec.wmax - 0.3 * tdt)
+          }
+          rec.psi = psi
+        } else rec.psi = null
       }
       var tdx = rec.x - input.position[0]
       var tdz = rec.z - input.position[2]
-      if (tdx * tdx + tdz * tdz < tRange * tRange) thrs.push({ id: tids[ti], x: rec.x, z: rec.z, vx: rec.vx, vz: rec.vz })
+      if (tdx * tdx + tdz * tdz < tRange * tRange) thrs.push({ id: tids[ti], x: rec.x, z: rec.z, vx: rec.vx, vz: rec.vz, turn: rec.wmax })
     }
     av.threats = thrs
   }
