@@ -292,7 +292,7 @@ function transform(input, dt, params, state, api) {
     var H = Math.ceil((wz1 - wz0) / cs)
     var sameWin = F && F.wx0 === wx0 && F.wz0 === wz0 && F.W === W && F.H === H && F.cs === cs
     if (!sameWin) {
-      F = state.fl = { wx0: wx0, wz0: wz0, W: W, H: H, cs: cs, occ: new Uint8Array(W * H), used: 0, d: new Float64Array(W * H), hk: new Float64Array(W * H * 8 + 16), hi: new Int32Array(W * H * 8 + 16), gcell: -1, ver: -1, t: -9 }
+      F = state.fl = { wx0: wx0, wz0: wz0, W: W, H: H, cs: cs, occ: new Uint8Array(W * H), used: 0, d: new Float64Array(W * H), hk: new Float64Array(W * H * 8 + 16), hi: new Int32Array(W * H * 8 + 16), bn: new Int32Array(W * H * 8 + 16), bh: null, gcell: -1, ver: -1, t: -9 }
     }
     var list = av.smap.list
     var rInf = (params.fieldInflate != null ? params.fieldInflate : ((av.vehicle && av.vehicle.width) || params.vehicleWidth || 2) / 2 + 0.8)
@@ -373,35 +373,40 @@ function transform(input, dt, params, state, api) {
       d.fill(1e9)
       var hk = F.hk
       var hi = F.hi
-      var hn = 0
+      var bnext = F.bn
       var blockCost = params.fieldBlockCost != null ? params.fieldBlockCost : 400
+      // Dial's algorithm (circular bucket queue). Bucket width < the smallest edge cost, so nodes of one bucket never improve each other and settle order is irrelevant:
+      // the resulting d values are exactly those of a heap Dijkstra (same float sums), just without the log factor.
+      var cdiag = cs * 1.4142
+      var bw = 0.99 * cs * Math.min(1, blockCost > 0.05 ? blockCost : 0.05)
+      var maxEdge = cdiag * Math.max(1, blockCost)
+      var R = Math.ceil(maxEdge / bw) + 2
+      var heads = F.bh && F.bh.length >= R ? F.bh : (F.bh = new Int32Array(R))
+      for (var bi0 = 0; bi0 < R; bi0++) heads[bi0] = -1
+      var np = 0
+      var pending = 1
       d[gcell] = 0
       hk[0] = 0
       hi[0] = gcell
-      hn = 1
+      bnext[0] = -1
+      heads[0] = 0
+      np = 1
+      var curB = 0
+      var stepA = [cs, cs, cs, cs, cdiag, cdiag, cdiag, cdiag]
       var dxs = [1, -1, 0, 0, 1, 1, -1, -1]
       var dzs = [0, 0, 1, -1, 1, -1, 1, -1]
-      while (hn > 0) {
-        var topK = hk[0]
-        var topI = hi[0]
-        hn--
-        if (hn > 0) {
-          var lk = hk[hn]
-          var li = hi[hn]
-          var cc = 0
-          for (;;) {
-            var l = 2 * cc + 1
-            if (l >= hn) break
-            var r2 = l + 1
-            var mm = r2 < hn && hk[r2] < hk[l] ? r2 : l
-            if (hk[mm] >= lk) break
-            hk[cc] = hk[mm]
-            hi[cc] = hi[mm]
-            cc = mm
-          }
-          hk[cc] = lk
-          hi[cc] = li
+      var invBw = 1 / bw
+      while (pending > 0) {
+        var slot = curB % R
+        var ent = heads[slot]
+        if (ent < 0) {
+          curB++
+          continue
         }
+        heads[slot] = bnext[ent]
+        pending--
+        var topK = hk[ent]
+        var topI = hi[ent]
         if (topK > d[topI]) continue
         var tx = (topI / H) | 0
         var tz = topI - tx * H
@@ -410,20 +415,16 @@ function transform(input, dt, params, state, api) {
           var nz = tz + dzs[q]
           if (nx < 0 || nz < 0 || nx >= W || nz >= H) continue
           var ni = nx * H + nz
-          var step = (q < 4 ? cs : cs * 1.4142) * (occ[ni] ? blockCost : 1)
-          var nd = topK + step
+          var nd = topK + stepA[q] * (occ[ni] ? blockCost : 1)
           if (nd < d[ni]) {
             d[ni] = nd
-            var pc = hn++
-            while (pc > 0) {
-              var pa = (pc - 1) >> 1
-              if (hk[pa] <= nd) break
-              hk[pc] = hk[pa]
-              hi[pc] = hi[pa]
-              pc = pa
-            }
-            hk[pc] = nd
-            hi[pc] = ni
+            var pe = np++
+            hk[pe] = nd
+            hi[pe] = ni
+            var nb = Math.floor(nd * invBw) % R
+            bnext[pe] = heads[nb]
+            heads[nb] = pe
+            pending++
           }
         }
       }
