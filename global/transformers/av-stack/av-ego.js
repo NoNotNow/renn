@@ -93,6 +93,7 @@ function transform(input, dt, params, state, api) {
   }
   if (params.fleeArea && input.target && input.target.pose && ((tids && tids.length) || params.goalWatchdog > 0)) fleeGoal(av, av.threats || [], input, params, state)
   api.watch('av.speed', Math.round(speed * 10) / 10)
+  if (state.flee) api.watch('av.flee', Math.round(state.flee.x) + ',' + Math.round(state.flee.z))
   if (params.debugDraw !== false) {
     // cyan: velocity vector
     api.visualizeLine(input.position, api.vec.add(input.position, api.vec.scale(input.velocity, 0.6)), '#00e5ff')

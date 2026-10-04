@@ -484,6 +484,34 @@ function transform(input, dt, params, state, api) {
     return { firstGear: firstGear, run: run, carrot: carrot, reached: res.reached, nodes: nodes, path: res.path, vLimit: vLimit }
   }
 
+  // --- reverse cruise: the goal is behind, the way ahead is blocked, the way behind is free -> drive backwards steadily (long reverse
+  // run, no gear flips, speed from the free distance behind) instead of 8 m reverse hops between forward shuffles.
+  // Entry needs the forward way blocked (a free road is better crossed by a forward U-turn); it holds until the goal is no longer behind
+  // or the rear is blocked (hysteresis, the planner's own gear-switch penalty does the rest).
+  var revCruiseOn = params.reverseCruise !== false
+  var revCruiseSpeed = params.reverseSpeed != null ? params.reverseSpeed : 10
+  var scanRange = (av.scan && av.scan.range) || 40
+  var freeStraight = (function () {
+    var hitS = makeHit(av.points || [], ((av.vehicle && av.vehicle.length) || params.vehicleLength || 4) / 2 + planMargin, ((av.vehicle && av.vehicle.width) || params.vehicleWidth || 2) / 2 + planMargin)
+    return function (g, maxD) {
+      for (var d = 1; d <= maxD; d += 1) {
+        if (hitS(pos[0] + e.fwd[0] * g * d, pos[2] + e.fwd[2] * g * d, e.fwd[0], e.fwd[2])) return d - 1
+      }
+      return maxD
+    }
+  })()
+  if (revCruiseOn && goalDist > holdTol) {
+    var gBehind = -((gxw - pos[0]) * e.fwd[0] + (gzw - pos[2]) * e.fwd[2]) / Math.max(goalDist, 1e-6)
+    var revLook = Math.min(40, scanRange)
+    if (!state.revCruise) {
+      if (gBehind > 0.3 && freeStraight(-1, revLook) >= Math.min(30, revLook) && freeStraight(1, 20) < 20) state.revCruise = true
+    } else if (gBehind < 0 || freeStraight(-1, 12) < 10) state.revCruise = false
+  } else state.revCruise = false
+  if (state.revCruise) {
+    maxRevRun = 1e4
+    revPen = 1
+  }
+
   // stuck watchdog (own, independent of the local planner)
   if (state.stuckT === undefined) state.stuckT = 0
   if (!state.active && Math.abs(e.speed) < 0.25 && goalDist > holdTol) state.stuckT += dt
@@ -544,6 +572,21 @@ function transform(input, dt, params, state, api) {
     }
   }
 
+  // free distance (m, up to `look`) along a reverse segment's arc behind the car, same swept footprint / costmap as the planner
+  function revArcFree(seg, look) {
+    var hitR = makeHit(av.points || [], ((av.vehicle && av.vehicle.length) || params.vehicleLength || 4) / 2 + planMargin, ((av.vehicle && av.vehicle.width) || params.vehicleWidth || 2) / 2 + planMargin)
+    for (var rd = 1; rd <= look; rd += 1) {
+      var rth = seg.k * -rd
+      var rx = Math.abs(seg.k) < 1e-6 ? -rd : Math.sin(rth) / seg.k
+      var ry = Math.abs(seg.k) < 1e-6 ? 0 : (1 - Math.cos(rth)) / seg.k
+      var rpx = pos[0] + e.fwd[0] * rx + e.left[0] * ry
+      var rpz = pos[2] + e.fwd[2] * rx + e.left[2] * ry
+      var rfx = e.fwd[0] * Math.cos(rth) + e.left[0] * Math.sin(rth)
+      var rfz = e.fwd[2] * Math.cos(rth) + e.left[2] * Math.sin(rth)
+      if (hitR(rpx, rpz, rfx, rfz)) return rd - 1
+    }
+    return look
+  }
   // --- execute manoeuvre ---
   var cur = state.segs[state.idx]
   if (state.segStart === null) {
@@ -602,6 +645,11 @@ function transform(input, dt, params, state, api) {
       var pfx = e.fwd[0] * Math.cos(gth) + lx0 * Math.sin(gth)
       var pfz = e.fwd[2] * Math.cos(gth) + lz0 * Math.sin(gth)
       if (gHit(px, pz, pfx, pfz)) blockedAhead = true
+    }
+    // steady reverse: an obstacle the plan did not know (seen later, farther than the 2 m look-ahead) inside this segment -> re-plan at once
+    if (!blockedAhead && state.revCruise && cur.g < 0) {
+      var revLookG = Math.min(60, scanRange, Math.max(0, cur.len - travelled))
+      if (revArcFree(cur, revLookG) < revLookG) blockedAhead = true
     }
     state.stallT = Math.abs(e.speed) < 0.15 ? (state.stallT || 0) + dt : 0
     var stallTime = params.stallTime != null ? params.stallTime : 1.2
@@ -679,6 +727,19 @@ function transform(input, dt, params, state, api) {
   }
   var remain = state.segStart ? Math.max(0, cur.len - travelled) : cur.len
   var vMax = Math.min(vMan, 0.9 + Math.sqrt(2 * 3 * remain))
+  if (state.revCruise && cur.g < 0 && state.segStart !== null) {
+    // steady reverse: speed from the free distance along this segment's arc behind the car (stop within it at the comfort deceleration),
+    // the lateral acceleration of the arc and the remaining segment length
+    var arcLook = Math.min(60, scanRange)
+    var freeR = revArcFree(cur, arcLook)
+    // the plan itself is collision-free (same costmap) up to its end: a blocked arc beyond this segment is where the plan turns away, not a
+    // wall to brake for; only a blockage inside the segment (an obstacle the plan did not know) limits the speed by stopping distance
+    var runRemain = remain
+    for (var qi = state.idx + 1; qi < state.segs.length && state.segs[qi].g < 0; qi++) runRemain += state.segs[qi].len
+    var vRevFree = freeR < Math.min(arcLook, remain) ? Math.sqrt(2 * (params.comfortDecel || 5) * Math.max(0, freeR - 2)) : 1e9
+    var vRevCurve = Math.abs(cur.k) > 1e-4 ? Math.sqrt((params.maxLatAccel || 9) / Math.abs(cur.k)) : 1e9
+    vMax = Math.min(revCruiseSpeed, vRevFree, vRevCurve, 0.9 + Math.sqrt(2 * 3 * runRemain))
+  }
   // waiting for rest before a gear change: demand zero. Once the segment has started but the car still rolls the other
   // way (momentum from the previous segment; an icy car does not stop by itself and a zero-demand brake is below the
   // actuator deadband), drive in the demanded direction: that brakes it hard and turns it around.
