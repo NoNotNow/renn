@@ -264,3 +264,25 @@ The motion planner picks one of ~31 discrete curvatures per frame, so neighbours
 - **Route corner speed** uses the net heading change over 14 m (`routeCurveWindow`) instead of single Hybrid-A* arcs (k 0.058 capped at 12.5 m/s).
 - Lab, self_hunt_flexible, 3600 frames, seeds 2/6/7/1/3/5: path 834/162/704/995/812/881 m (baseline 566/735/643/896/727/544), mean speed 13.7/1.6/11.3/16.5/13.4/14.6 m/s (baseline 9.1/12.2/10.0/14.9/11.7/8.7). `comfortDecel` 4 or `maxLatAccel` 12 changed individual seeds by +-300 m without a net gain (more chaser hits).
 - Wall: the 12 chasers (20-46 m/s) box the car in on some seeds (seed 6: 91% of the time with a chaser < 15 m); mean speed is then set by manoeuvres, not by the speed limits. Next levers: moving-obstacle prediction in the planners, direction-aware long-range sensing, an escape rule when a chaser is within 6 m.
+
+## Pursuit evasion, zoned sensing, goal watchdog (2026-10)
+
+Found with the lab (`self_hunt_flexible`, 11 + 1 chasers): the chasers never "box in" a moving car — they coast inside 10 m (`approachspeed` 3) and only a car that is
+slow / stopped gets surrounded. Most stalls started with a late reaction to a fast chaser crossing the nose (TTC < 1 s), a launch (see below) or an unreachable goal.
+All new behaviour is **opt-in via stage params** (defaults = old behaviour; the parkour / lane / low-bar tests stay green); `self_hunt_flexible` enables it on the car's AV pipe binding.
+
+- **Tracked bodies** (`av-ego`, `threatIds`: entity ids; `threatRange` 120 m): live positions -> filtered velocity -> `av.threats [{id,x,z,vx,vz}]`. Generic (any list of ids), set per world.
+- **Predictive avoidance** (`av-motion-planner`, `wThreat` > 0 = on, e.g. 30; `threatHorizon` 2.5 s, `threatRadius` 1.8, `threatRange` 10): every candidate path is evaluated over time —
+  hull pose at `t` along the path (speed `max(v, 5)`) against each threat extrapolated at constant velocity; penetration of the 10 m gap band, earlier = heavier, overlap = double. A smooth
+  cost term (not a hard obstacle): a pursuer that is *aimed at the car* would otherwise always read as a wall. Effect in the lab: catches 15 -> 1 over 6 seeds, seed 6 (91 % boxed) 1.6 -> 13.8 m/s.
+- **Flee layer** (`av-ego`, needs `fleeArea` [xmin,xmax,zmin,zmax]): when the straight way to the goal passes a pursuer closer than `fleeRadius` (16 m), `input.target` is replaced by a ring candidate (50-110 m)
+  scored by clearance from the threats, heading away from the near ones, alignment with the real goal and the car's heading; kept `fleeHold` s (4).
+- **Goal watchdog** (`goalWatchdog` s, needs `fleeArea`): a goal the car does not approach by >= 8 m within that time is unreachable (the preset wanderer clamps goals to the perimeter corners, behind walls the car
+  crawled up to for ever: 40 s stalls) -> the car picks its own open-road goals until the source hands over another one (`av.goalBad`).
+- **Zoned scan** (`av-perception`, `fwdFovDeg` > 0, e.g. 70): dense forward cone (`fwdStepDeg` 1.5, full range), sparse sides (`sideStepDeg` 6, `sideRange` 45), sparse rear every `rearEvery` 3 frames (`rearStepDeg` 12, `rearRange2` 30) — ~85
+  rays instead of 72 x 2 planes, and the road ahead is seen at 150 m.
+- **Longitudinal bug fixed (default, all worlds):** one noisy RLS sample (speed jitter 1 m/s per frame = 60 m/s^2 against a command of 0.04, covariance 1e5) dropped `G` from 800 to the floor of 10 in a single update;
+  the next frame `u = 1.0` with the real G of 1200 gave +20 m/s in two frames (a launch into whatever was ahead, "max speed 60-80 m/s" in the lab). The RLS step is now bounded (G +-10 %, D +-20 % per frame).
+- Car params used in `self_hunt_flexible`: `comfortDecel` 4 (was 2: the free-path limit `sqrt(2 a (free - margin))` was the active speed limit 2/3 of the time), `fwdFovDeg` 70, `goalWatchdog` 10, `wThreat` 30, `fleeArea` +-370, `threatIds` (all other chain cars).
+- Lab, 3600 frames, seeds 2/6/7/1/3/5, mean speed (catches): before 13.7(1)/1.6(10)/11.3(2)/16.5(0)/13.4(2)/14.6(0); after 15.6(0)/17.4(0)/14.6(1)/18.8(0)/17.2(0)/15.8(0).
+- The lab is chaotic: one early stall flips a seed from 16 to 3 m/s (`comfortDecel` 5 alone: seed 1 16.5 -> 2.6). Judge changes over >= 6 seeds, never one.

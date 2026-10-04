@@ -6,7 +6,7 @@
 // debug draw: yellow = line to goal / route carrot, dark blue = candidate fan, green = chosen path, orange = where it would hit.
 // params: vehicleWidth, vehicleLength, safetyMargin, marginSpeedGain, softMargin, maxCurvature, arcCount,
 //         horizonMin, horizonGain, horizonMax, comfortDecel, wProgress, wHeading, wRequired, wFree, wSoft,
-//         wSmooth, wTurn, minFree, rearIgnore, marginRamp (m over which the margin grows from the current clearance), debugDraw
+//         wSmooth, wTurn, minFree, rearIgnore, wThreat (0 = off; cost of predicted proximity to av.threats), threatHorizon (s, 2.5), threatRadius (m, 1.8), threatRange (m, 10: proximity felt inside this gap), marginRamp (m over which the margin grows from the current clearance), debugDraw
 function transform(input, dt, params, state, api) {
   var av = input.av
   if (!av || !av.ego) return {}
@@ -74,6 +74,29 @@ function transform(input, dt, params, state, api) {
     }
   }
 
+  // tracked moving bodies (av.threats from perception) in the ego frame, predicted at constant velocity along every candidate
+  var wThreat = params.wThreat != null ? params.wThreat : 0
+  var thr = []
+  if (wThreat > 0 && av.threats && av.threats.length) {
+    for (var tk = 0; tk < av.threats.length; tk++) {
+      var tq = av.threats[tk]
+      var tdx0 = tq.x - pos[0]
+      var tdz0 = tq.z - pos[2]
+      if (tdx0 * tdx0 + tdz0 * tdz0 > 90 * 90) continue
+      thr.push({
+        x: tdx0 * e.fwd[0] + tdz0 * e.fwd[2],
+        y: tdx0 * e.left[0] + tdz0 * e.left[2],
+        vx: tq.vx * e.fwd[0] + tq.vz * e.fwd[2],
+        vy: tq.vx * e.left[0] + tq.vz * e.left[2],
+      })
+    }
+  }
+  var thrH = params.threatHorizon != null ? params.threatHorizon : 2.5
+  var thrR = params.threatRadius != null ? params.threatRadius : 1.8
+  var thrGap = params.threatRange != null ? params.threatRange : 10
+  var thrSteps = Math.max(1, Math.round(thrH / 0.25))
+  var vEff = Math.max(v, 5)
+
   // pose along a path: turn at `kappa` for `turnLen`, then straight
   function poseAt(kappa, turnLen, s, out) {
     var sa = s < turnLen ? s : turnLen
@@ -96,6 +119,30 @@ function transform(input, dt, params, state, api) {
     out.th = th
   }
   var P = { x: 0, y: 0, th: 0 }
+  // Predicted proximity of the car (hull at the pose reached at time t along the path) to each tracked body (constant velocity):
+  // sum over time of the relative penetration of the gap band, earlier = heavier; an actual overlap counts double.
+  function threatCost(kappa, turnLen, hullLx, hullWx) {
+    var tc = 0
+    for (var si = 1; si <= thrSteps; si++) {
+      var t = si * 0.25
+      poseAt(kappa, turnLen, vEff * t, P)
+      var ct = Math.cos(P.th)
+      var st = Math.sin(P.th)
+      var wt = 1 - (0.6 * (si - 1)) / thrSteps
+      for (var qi = 0; qi < thr.length; qi++) {
+        var q = thr[qi]
+        var rx = q.x + q.vx * t - P.x
+        var ry = q.y + q.vy * t - P.y
+        var lx = ct * rx + st * ry
+        var ly = -st * rx + ct * ry
+        var ex = Math.max(Math.abs(lx) - hullLx, 0)
+        var ey = Math.max(Math.abs(ly) - hullWx, 0)
+        var d = Math.sqrt(ex * ex + ey * ey) - thrR
+        if (d < thrGap) tc += wt * (d < 0 ? 2 : 0) + (wt * (thrGap - Math.max(d, 0))) / thrGap
+      }
+    }
+    return tc / thrSteps
+  }
 
   // forward paths only sweep the front of the footprint: an obstacle already behind/at the tail (touching
   // start pose) must not veto driving away from it
@@ -214,6 +261,7 @@ function transform(input, dt, params, state, api) {
         wSoft * (1 - Math.min(fSoft, H) / H) +
         wSmooth * (Math.abs(kappa - prev) / kmax) +
         wTurn * Math.abs(kappa * turnLen)
+      if (thr.length) cost += wThreat * threatCost(kappa, turnLen, hullL, hullW)
       if (cost < bestCost) {
         bestCost = cost
         best = kappa
