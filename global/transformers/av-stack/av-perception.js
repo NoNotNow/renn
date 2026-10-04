@@ -5,6 +5,8 @@
 // debug draw (params.debugDraw, debugRayStride, debugMaxPoints): red = lidar hit rays, magenta ticks = costmap points.
 // Extra ray plane at the car's top edge (params.rayLevels false = off); params.lowRayClearance (m above the underside) adds a low plane.
 // Memory clearing: remembered cells that fresh rays pass through (within memClearRange 45 m, 0 = off) are dropped, so moving obstacles leave no ghost trail.
+// Zoned scan (params.fwdFovDeg > 0, default off = uniform ring): dense long-range forward cone (fwdStepDeg, range = sensorRange), sparse sides (sideStepDeg, sideRange),
+// sparse rear every rearEvery frames (rearStepDeg, rearRange2). Far fewer rays than a dense 360 ring and a longer look at the road ahead.
 // params: drivableArea [xmin, xmax, zmin, zmax] (virtual walls at the edge), edgeStep, rayCount, fovDeg, sensorRange, memoryTtl, memoryCell, vehicleWidth, vehicleLength
 function transform(input, dt, params, state, api) {
   var av = input.av
@@ -38,8 +40,47 @@ function transform(input, dt, params, state, api) {
     // optional underside plane for low bars (off by default: ground bumps then read as obstacles)
     if (params.lowRayClearance != null) levels.push(-carH / 2 + params.lowRayClearance)
   }
-  for (var i = 0; i < n; i++) {
-    var th = full ? -Math.PI + (2 * Math.PI * i) / n : n === 1 ? 0 : -fov / 2 + (fov * i) / (n - 1)
+  // ray set: uniform ring (default) or zoned (forward cone dense, sides sparse, rear rarely)
+  var scanSet = null
+  state.frame = (state.frame || 0) + 1
+  if (params.fwdFovDeg > 0) {
+    var zkey = params.fwdFovDeg + '|' + (params.fwdStepDeg || 1.5) + '|' + (params.sideStepDeg || 6) + '|' + (params.rearStepDeg || 12)
+    if (!state.zones || state.zonesKey !== zkey) {
+      var half = (params.fwdFovDeg * Math.PI) / 360
+      var fs = ((params.fwdStepDeg || 1.5) * Math.PI) / 180
+      var ss = ((params.sideStepDeg || 6) * Math.PI) / 180
+      var rs = ((params.rearStepDeg || 12) * Math.PI) / 180
+      var zl = []
+      var a
+      for (a = -half; a <= half + 1e-6; a += fs) zl.push([a, 0])
+      for (a = half + ss; a < (3 * Math.PI) / 4; a += ss) {
+        zl.push([a, 1])
+        zl.push([-a, 1])
+      }
+      for (a = (3 * Math.PI) / 4; a <= Math.PI + 1e-6; a += rs) {
+        zl.push([a, 2])
+        if (a < Math.PI - 1e-6) zl.push([-a, 2])
+      }
+      state.zones = zl
+      state.zonesKey = zkey
+    }
+    scanSet = state.zones
+  }
+  var sideRange = Math.min(range, params.sideRange || 45)
+  var rearEvery = params.rearEvery || 3
+  var rearRay = params.rearRange2 || 30
+  var nRays = scanSet ? scanSet.length : n
+  for (var i = 0; i < nRays; i++) {
+    var rayRange = range
+    var th
+    if (scanSet) {
+      var zone = scanSet[i][1]
+      if (zone === 2) {
+        if (state.frame % rearEvery !== 0) continue
+        rayRange = Math.min(range, rearRay)
+      } else if (zone === 1) rayRange = sideRange
+      th = scanSet[i][0]
+    } else th = full ? -Math.PI + (2 * Math.PI * i) / n : n === 1 ? 0 : -fov / 2 + (fov * i) / (n - 1)
     var c = Math.cos(th)
     var s = Math.sin(th)
     var dir = [
@@ -52,10 +93,10 @@ function transform(input, dt, params, state, api) {
     var origin = api.vec.offsetAlong(pos, dir, tHull)
     // One horizontal plane misses what curves away from it (a sphere / dome is farther at the car's top edge than at the
     // equator, a low bar hides under the plane): cast at the car's top edge too and keep the nearest hit.
-    var r = api.raycast(origin, dir, range, { visualize: false })
+    var r = api.raycast(origin, dir, rayRange, { visualize: false })
     for (var li = 0; li < levels.length; li++) {
       var lo = [origin[0], origin[1] + levels[li], origin[2]]
-      var rl = api.raycast(lo, dir, range, { visualize: false })
+      var rl = api.raycast(lo, dir, rayRange, { visualize: false })
       if (rl.hit && (!r.hit || rl.distance < r.distance)) {
         r = rl
         origin = lo
@@ -71,8 +112,8 @@ function transform(input, dt, params, state, api) {
       mem[Math.round(hx / cell) + ',' + Math.round(hz / cell)] = { x: hx, z: hz, t: e.t }
       if (c < -0.9 && r.distance < rearClear) rearClear = r.distance
     } else {
-      ranges.push(range)
-      rayInfo.push([dir, tHull, range])
+      ranges.push(rayRange)
+      rayInfo.push([dir, tHull, rayRange])
     }
   }
   // Free-space clearing: a remembered obstacle that a fresh ray now passes straight through is gone (a car that drove

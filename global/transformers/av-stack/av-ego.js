@@ -2,6 +2,12 @@
 // Publishes the ego state on the shared blackboard `input.av.ego` for all later stages.
 // Also publishes av.vehicle {width, length, height} = max(params, own box collider) used by all planners.
 // debug draw (params.debugDraw, default true): cyan = velocity vector.
+// Tracked bodies (params.threatIds: entity ids, e.g. pursuers; default none): live positions -> filtered velocities, published as av.threats [{id,x,z,vx,vz}]
+// within params.threatRange (default 120 m). The motion planner predicts them (cost wThreat) and the flee layer below steers the goal away from them:
+// params.fleeArea [xmin,xmax,zmin,zmax] (world; required for the flee layer), fleeRadius (m, 16: a goal way passing a near threat closer than this is unsafe),
+// fleeMinDist / fleeMaxDist (candidate goal distance, 50 / 110), fleeHold (s a chosen flee goal is kept, 4).
+// Goal watchdog (params.goalWatchdog = seconds, default 0 = off; needs fleeArea): a goal the car does not get closer to (>= 8 m) within that time is
+// unreachable (outside the walls, boxed in a corner); the car then picks its own open-road goals instead until the source hands over another goal.
 // Owns the simulated clock (state.t) so no downstream stage needs a wall clock.
 function transform(input, dt, params, state, api) {
   // fresh blackboard every frame (the input object is reused by the runtime)
@@ -62,10 +68,132 @@ function transform(input, dt, params, state, api) {
     yawRate: yawRate,
     kappa: Math.abs(speed) > 1.5 ? yawRate / speed : 0,
   }
+  var tids = params.threatIds
+  if (tids && tids.length) {
+    if (!state.trk) state.trk = {}
+    var thrs = []
+    var tRange = params.threatRange || 120
+    var tdt = dt > 1e-6 ? dt : 1 / 60
+    for (var ti = 0; ti < tids.length; ti++) {
+      var tpos = api.getWorldPosition(tids[ti])
+      if (!tpos) continue
+      var rec = state.trk[tids[ti]]
+      if (!rec) rec = state.trk[tids[ti]] = { x: tpos[0], z: tpos[2], vx: 0, vz: 0 }
+      else {
+        rec.vx += 0.5 * ((tpos[0] - rec.x) / tdt - rec.vx)
+        rec.vz += 0.5 * ((tpos[2] - rec.z) / tdt - rec.vz)
+        rec.x = tpos[0]
+        rec.z = tpos[2]
+      }
+      var tdx = rec.x - input.position[0]
+      var tdz = rec.z - input.position[2]
+      if (tdx * tdx + tdz * tdz < tRange * tRange) thrs.push({ id: tids[ti], x: rec.x, z: rec.z, vx: rec.vx, vz: rec.vz })
+    }
+    av.threats = thrs
+  }
+  if (params.fleeArea && input.target && input.target.pose && ((tids && tids.length) || params.goalWatchdog > 0)) fleeGoal(av, av.threats || [], input, params, state)
   api.watch('av.speed', Math.round(speed * 10) / 10)
   if (params.debugDraw !== false) {
     // cyan: velocity vector
     api.visualizeLine(input.position, api.vec.add(input.position, api.vec.scale(input.velocity, 0.6)), '#00e5ff')
   }
   return {}
+}
+
+// Flee layer: when the way to the goal leads past a near pursuer, drive to a goal that is away from the pursuers instead
+// (candidates on a ring around the car, scored by clearance from the pursuers, heading away, alignment with the real goal and the car's heading).
+function fleeGoal(av, thrs, input, params, state) {
+  var pos = input.position
+  var g0 = input.target.pose.position
+  var area = params.fleeArea
+  var R = params.fleeRadius != null ? params.fleeRadius : 16
+  function danger(gx, gz) {
+    var sx = gx - pos[0]
+    var sz = gz - pos[2]
+    var sl2 = sx * sx + sz * sz + 1e-6
+    for (var i = 0; i < thrs.length; i++) {
+      var qx = thrs[i].x - pos[0]
+      var qz = thrs[i].z - pos[2]
+      if (qx * qx + qz * qz > 90 * 90) continue
+      var dot = qx * sx + qz * sz
+      if (dot <= 0) continue
+      var tt = Math.min(1, dot / sl2)
+      var ddx = qx - sx * tt
+      var ddz = qz - sz * tt
+      if (ddx * ddx + ddz * ddz < R * R) return true
+    }
+    return false
+  }
+  var fl = state.flee
+  var now = state.t
+  var bad = false
+  if (params.goalWatchdog > 0) {
+    var wd = state.wd
+    var gDist = Math.sqrt((g0[0] - pos[0]) * (g0[0] - pos[0]) + (g0[2] - pos[2]) * (g0[2] - pos[2]))
+    if (!wd || Math.abs(wd.x - g0[0]) > 1 || Math.abs(wd.z - g0[2]) > 1) wd = state.wd = { x: g0[0], z: g0[2], best: gDist, t: now, bad: false }
+    else if (gDist < wd.best - 8) {
+      wd.best = gDist
+      wd.t = now
+    } else if (now - wd.t > params.goalWatchdog) wd.bad = true
+    bad = wd.bad
+    av.goalBad = bad
+  }
+  if (!bad && !danger(g0[0], g0[2])) {
+    state.flee = null
+    av.fleeing = false
+    return
+  }
+  if (fl) {
+    var rdx = fl.x - pos[0]
+    var rdz = fl.z - pos[2]
+    if (now - fl.t > (params.fleeHold != null ? params.fleeHold : 4) || rdx * rdx + rdz * rdz < 15 * 15 || (!bad && danger(fl.x, fl.z))) fl = null
+  }
+  if (!fl) {
+    var dMin = params.fleeMinDist != null ? params.fleeMinDist : 50
+    var dMax = params.fleeMaxDist != null ? params.fleeMaxDist : 110
+    var hx = av.ego.fwd[0]
+    var hz = av.ego.fwd[2]
+    var gl = Math.sqrt((g0[0] - pos[0]) * (g0[0] - pos[0]) + (g0[2] - pos[2]) * (g0[2] - pos[2])) + 1e-6
+    var best = null
+    var bestS = -Infinity
+    for (var pass = 0; pass < 2 && !best; pass++) {
+      for (var ai = 0; ai < 24; ai++) {
+        var ang = (ai * Math.PI * 2) / 24
+        var ux = Math.cos(ang)
+        var uz = Math.sin(ang)
+        for (var dd = dMin; dd <= dMax + 1e-6; dd += (dMax - dMin) / 2 || 1) {
+          var cx = pos[0] + ux * dd
+          var cz = pos[2] + uz * dd
+          if (cx < area[0] + 10 || cx > area[1] - 10 || cz < area[2] + 10 || cz > area[3] - 10) continue
+          if (pass === 0 && danger(cx, cz)) continue
+          var clear = 150
+          var away = 0
+          var ws = 0
+          for (var k = 0; k < thrs.length; k++) {
+            var ex = cx - thrs[k].x
+            var ez = cz - thrs[k].z
+            var ed = Math.sqrt(ex * ex + ez * ez)
+            if (ed < clear) clear = ed
+            var px = pos[0] - thrs[k].x
+            var pz = pos[2] - thrs[k].z
+            var pd = Math.sqrt(px * px + pz * pz) + 1e-6
+            if (pd < 90) {
+              var wg = 1 / (pd + 10)
+              away += (wg * (ux * px + uz * pz)) / pd
+              ws += wg
+            }
+          }
+          var sc = clear / 150 + (ws > 0 ? away / ws : 0) + (bad ? 0 : 0.5) * ((ux * (g0[0] - pos[0]) + uz * (g0[2] - pos[2])) / gl) + 0.7 * (ux * hx + uz * hz)
+          if (sc > bestS) {
+            bestS = sc
+            best = [cx, cz]
+          }
+        }
+      }
+    }
+    if (best) fl = { x: best[0], z: best[1], t: now }
+  }
+  state.flee = fl
+  av.fleeing = !!fl
+  if (fl) input.target.pose.position = [fl.x, g0[1], fl.z]
 }

@@ -55,8 +55,19 @@ function transform(input, dt, params, state, api) {
     var lim = 50 + 0.5 * Math.abs(state.G * x0)
     if (err > lim) err = lim
     if (err < -lim) err = -lim
-    state.G = Math.max(10, Math.min(20000, state.G + k0 * err))
-    state.D = Math.max(0, Math.min(300, state.D + k1 * err))
+    // one noisy sample (a speed jitter of 1 m/s per frame is 60 m/s^2 against a tiny command, with a wide covariance) used to drop G
+    // from 800 to the floor in a single update -> next frame u = 1.0 with the real G = 1200: +20 m/s in two frames (launch / crash).
+    // The model may therefore only change by a bounded fraction per frame (growth is covered by the rescue path below).
+    var dG = k0 * err
+    var capG = 0.1 * state.G + 2
+    if (dG > capG) dG = capG
+    if (dG < -capG) dG = -capG
+    var dD = k1 * err
+    var capD = 0.2 * state.D + 2
+    if (dD > capD) dD = capD
+    if (dD < -capD) dD = -capD
+    state.G = Math.max(10, Math.min(20000, state.G + dG))
+    state.D = Math.max(0, Math.min(300, state.D + dD))
     var n0 = (P[0] - k0 * px0) / lam
     var n1 = (P[1] - k0 * px1) / lam
     var n2 = (P[2] - k1 * px0) / lam
