@@ -461,14 +461,25 @@ function transform(input, dt, params, state, api) {
     var aBrk = params.comfortDecel || 5
     var vLimit = Infinity
     var dAhead = 0
-    for (var si = 0; si < res.segs.length && dAhead < 40 && res.segs[si].g > 0; si++) {
-      var kk = Math.abs(res.segs[si].k)
+    // Hybrid-A* arcs are discrete (k = 0.058 / 0.115) and zig-zag around a smooth line, so a single short arc is no real bend:
+    // the corner speed uses the net heading change over a window (kWin m) ahead of each segment (S-wiggles cancel).
+    var kWin = params.routeCurveWindow != null ? params.routeCurveWindow : 14
+    var segs = res.segs
+    for (var si = 0; si < segs.length && dAhead < 40 && segs[si].g > 0; si++) {
+      var turn = 0
+      var wl = 0
+      for (var sj = si; sj < segs.length && segs[sj].g > 0 && wl < kWin; sj++) {
+        var take = Math.min(segs[sj].len, kWin - wl)
+        turn += segs[sj].k * take
+        wl += take
+      }
+      var kk = Math.abs(turn) / Math.max(kWin, wl)
       if (kk > 0.04) {
         var vi = Math.sqrt(aLat / kk)
         var allowed = Math.sqrt(vi * vi + 2 * aBrk * dAhead)
         if (allowed < vLimit) vLimit = allowed
       }
-      dAhead += res.segs[si].len
+      dAhead += segs[si].len
     }
     return { firstGear: firstGear, run: run, carrot: carrot, reached: res.reached, nodes: nodes, path: res.path, vLimit: vLimit }
   }
