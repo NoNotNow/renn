@@ -5,8 +5,12 @@
 // debug draw (params.debugDraw, debugRayStride, debugMaxPoints): red = lidar hit rays, magenta ticks = costmap points.
 // Extra ray plane at the car's top edge (params.rayLevels false = off); params.lowRayClearance (m above the underside) adds a low plane.
 // Memory clearing: remembered cells that fresh rays pass through (within memClearRange 45 m, 0 = off) are dropped, so moving obstacles leave no ghost trail.
-// Zoned scan (params.fwdFovDeg > 0, default off = uniform ring): dense long-range forward cone (fwdStepDeg, range = sensorRange), sparse sides (sideStepDeg, sideRange),
-// sparse rear every rearEvery frames (rearStepDeg, rearRange2). Far fewer rays than a dense 360 ring and a longer look at the road ahead.
+// Zoned scan (params.fwdFovDeg > 0, default off = uniform ring): ~half the rays of a dense ring, aimed where they are needed.
+//  - dense long-range cone (fwdFovDeg, fwdStepDeg 2, range = sensorRange) in the DIRECTION OF TRAVEL: forward, or to the rear while reversing (velocity sign;
+//    at rest / slow it aims at the freer of front / rear, free distances from the cone and the sweep, hysteresis, scanFollowFree false = always forward);
+//  - sparse sides next to the cone (sideStepDeg 12, sideRange, every sideEvery 2nd frame);
+//  - cheap coarse 360 sweep (sweepStepDeg 10, sweepRange) every sweepEvery 15 frames (sweepEverySlow 5 while slow / blocked) that finds the freest direction.
+// Publishes av.scan {dir, freeFront, freeRear} for the planners / debugging.
 // params: drivableArea [xmin, xmax, zmin, zmax] (virtual walls at the edge), edgeStep, rayCount, fovDeg, sensorRange, memoryTtl, memoryCell, vehicleWidth, vehicleLength
 function transform(input, dt, params, state, api) {
   var av = input.av
@@ -40,45 +44,57 @@ function transform(input, dt, params, state, api) {
     // optional underside plane for low bars (off by default: ground bumps then read as obstacles)
     if (params.lowRayClearance != null) levels.push(-carH / 2 + params.lowRayClearance)
   }
-  // ray set: uniform ring (default) or zoned (forward cone dense, sides sparse, rear rarely)
+  // ray set: uniform ring (default) or zoned (dense cone in the direction of travel, sparse sides, periodic coarse 360 sweep)
   var scanSet = null
   state.frame = (state.frame || 0) + 1
-  if (params.fwdFovDeg > 0) {
-    var zkey = params.fwdFovDeg + '|' + (params.fwdStepDeg || 1.5) + '|' + (params.sideStepDeg || 6) + '|' + (params.rearStepDeg || 12)
-    if (!state.zones || state.zonesKey !== zkey) {
-      var half = (params.fwdFovDeg * Math.PI) / 360
-      var fs = ((params.fwdStepDeg || 1.5) * Math.PI) / 180
-      var ss = ((params.sideStepDeg || 6) * Math.PI) / 180
-      var rs = ((params.rearStepDeg || 12) * Math.PI) / 180
-      var zl = []
-      var a
-      for (a = -half; a <= half + 1e-6; a += fs) zl.push([a, 0])
-      for (a = half + ss; a < (3 * Math.PI) / 4; a += ss) {
-        zl.push([a, 1])
-        zl.push([-a, 1])
-      }
-      for (a = (3 * Math.PI) / 4; a <= Math.PI + 1e-6; a += rs) {
-        zl.push([a, 2])
-        if (a < Math.PI - 1e-6) zl.push([-a, 2])
-      }
-      state.zones = zl
-      state.zonesKey = zkey
-    }
-    scanSet = state.zones
-  }
+  var zoned = params.fwdFovDeg > 0
   var sideRange = Math.min(range, params.sideRange || 45)
-  var rearEvery = params.rearEvery || 3
-  var rearRay = params.rearRange2 || 30
+  var sweepRay = Math.min(range, params.sweepRange || 45)
+  if (zoned) {
+    var half = (params.fwdFovDeg * Math.PI) / 360
+    var fs = ((params.fwdStepDeg || 2) * Math.PI) / 180
+    var ss = ((params.sideStepDeg || 12) * Math.PI) / 180
+    var sweepStep = ((params.sweepStepDeg || 10) * Math.PI) / 180
+    var slow = Math.abs(e.speed) < 1.5
+    // --- aim: the dense cone follows the direction of travel (velocity sign; gear reverse = cone to the rear). At rest / slow
+    // it aims at the freer of front / rear (free distances from the dense cone and the coarse sweep), with hysteresis.
+    if (state.dir === undefined) state.dir = 1
+    if (e.speed > 1.5) state.dir = 1
+    else if (e.speed < -1.5) state.dir = -1
+    else if (params.scanFollowFree !== false && state.freeF !== undefined && state.freeR !== undefined) {
+      var fOwn = state.dir > 0 ? state.freeF : state.freeR
+      var fOther = state.dir > 0 ? state.freeR : state.freeF
+      if (fOther > fOwn * 1.3 + 6) state.dir = -state.dir
+    }
+    var aim = state.dir > 0 ? 0 : Math.PI
+    var sweepEvery = slow ? params.sweepEverySlow || 5 : params.sweepEvery || 15
+    var doSweep = state.frame === 1 || state.frame % sweepEvery === 0
+    var sideEvery = params.sideEvery || 2
+    var doSides = state.frame % sideEvery === 0
+    var zl = []
+    var a
+    for (a = -half; a <= half + 1e-6; a += fs) zl.push([aim + a, 0])
+    if (doSides) {
+      for (a = half + ss; a <= (3 * Math.PI) / 4 + 1e-6; a += ss) {
+        zl.push([aim + a, 1])
+        zl.push([aim - a, 1])
+      }
+    }
+    if (doSweep) {
+      for (a = 0; a < 2 * Math.PI - 1e-6; a += sweepStep) zl.push([a > Math.PI ? a - 2 * Math.PI : a, 2])
+    }
+    scanSet = zl
+  }
   var nRays = scanSet ? scanSet.length : n
+  var winF = null
+  var winR = null
   for (var i = 0; i < nRays; i++) {
     var rayRange = range
     var th
     if (scanSet) {
       var zone = scanSet[i][1]
-      if (zone === 2) {
-        if (state.frame % rearEvery !== 0) continue
-        rayRange = Math.min(range, rearRay)
-      } else if (zone === 1) rayRange = sideRange
+      if (zone === 2) rayRange = sweepRay
+      else if (zone === 1) rayRange = sideRange
       th = scanSet[i][0]
     } else th = full ? -Math.PI + (2 * Math.PI * i) / n : n === 1 ? 0 : -fov / 2 + (fov * i) / (n - 1)
     var c = Math.cos(th)
@@ -103,6 +119,12 @@ function transform(input, dt, params, state, api) {
       }
     }
     angles.push(th)
+    if (scanSet) {
+      var dEff = r.hit ? r.distance : rayRange
+      var thN = Math.atan2(Math.sin(th), Math.cos(th))
+      if (Math.abs(thN) < 0.35) winF = winF === null || dEff < winF ? dEff : winF
+      else if (Math.abs(thN) > Math.PI - 0.35) winR = winR === null || dEff < winR ? dEff : winR
+    }
     if (r.hit) {
       if (draw && i % rayStride === 0) api.visualizeLine(origin, api.vec.offsetAlong(origin, dir, r.distance), '#ff4d4d')
       ranges.push(r.distance)
@@ -144,6 +166,8 @@ function transform(input, dt, params, state, api) {
       }
     }
   }
+  if (winF !== null) state.freeF = winF
+  if (winR !== null) state.freeR = winR
   var pts = []
   // virtual walls along the edge of the drivable area (map prior): [xmin, xmax, zmin, zmax]
   var area = params.drivableArea
@@ -191,7 +215,7 @@ function transform(input, dt, params, state, api) {
       api.visualizeLine([q2[0], pos[1] - 0.4, q2[1]], [q2[0], pos[1] + 0.5, q2[1]], '#ff00ff')
     }
   }
-  av.scan = { angles: angles, ranges: ranges, range: range }
+  av.scan = { angles: angles, ranges: ranges, range: range, dir: state.dir === undefined ? 1 : state.dir, freeFront: state.freeF, freeRear: state.freeR }
   av.points = pts
   av.rearClear = rearClear
   return {}

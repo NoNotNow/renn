@@ -310,3 +310,16 @@ Scripted scenarios (`av-evasion-scenarios`), homing chasers (25-30 m/s, turn rat
 - **corridor-block 88.7 m/s peak is not physics**: at t = 19.2 s the longitudinal RLS (`av-control-longitudinal`) has G = 250 (real ~1200) after the earlier AEB / manoeuvre phase; u = 0.09-0.25 then gives
   +100 m/s^2, and above the target the estimate runs away (D -> 300, G -> 2000: u stays positive at 80 m/s with vd 34.5). Needs a physical bound on D (e.g. <= 0.3 G) and a hard
   `v > vDes -> u <= 0` rule in that stage (not changed here: owned by the parallel longitudinal work).
+
+## Reverse driving, travel-direction scan, standing-start kick (2026-10, scripted scenarios `reverse-escape`, `open-road-reverse`)
+
+- **Zoned scan follows the travel direction** (`av-perception`): the dense cone (`fwdFovDeg`, `fwdStepDeg` 2) points where the car goes (velocity sign; slow / at rest: the freer of front / rear from the
+  cone + sweep, hysteresis; `scanFollowFree: false` = always forward). Sides every 2nd frame (`sideStepDeg` 12), rear = a coarse 360 sweep (`sweepStepDeg` 10, `sweepRange` 45) every 15 frames (5 while slow).
+  ~46 instead of ~84 rays/frame; lab `self_hunt_flexible` seed 2, 1200 frames: perception mean 2.57 -> 1.82 ms (p95 4.7 -> 2.8).
+- **Reverse cruise** (`av-route-planner`, `reverseCruise` default on, `reverseSpeed` 10): goal behind + forward way blocked (< 20 m) + free way behind (>= 30 m) -> the Hybrid-A* may reverse long runs
+  (`maxReverseRun` unlimited, `reversePenalty` 1) so there are no 8 m hops with gear flips; reverse segments run at `min(reverseSpeed, stopping distance in the free arc behind, sqrt(maxLatAccel / k), end of the reverse run)`;
+  an obstacle appearing inside the segment (beyond the 2 m guard look-ahead) re-plans at once. Left when the goal is no longer behind or the rear is blocked (< 10 m). No rear AEB yet (AEB is forward only).
+- **Standing-start kick (longitudinal):** the priors (G 156, D 60) on a light powerful car (G ~ 1400) gave u = 0.45 at the first frame: 0 -> 8 m/s in ONE frame. Causes: the unidentified model + a joint RLS on [G, D]
+  that is ill-conditioned (data only fix G*u - D, so an underestimated G was explained by D running to 300, then forward thrust against the friction model: 60+ m/s runaways). Now: command probe cap (0.06,
+  0.4 s, then relaxing 1/s, while < 30 identification samples; no breakaway push meanwhile), G (NLMS, growth +35 %/frame, drop -10 %) and D (coasting frames only) identified separately, and no thrust along the
+  direction of travel while faster than demanded.
