@@ -11,6 +11,9 @@
 //  - sparse sides next to the cone (sideStepDeg 12, sideRange, every sideEvery 2nd frame);
 //  - cheap coarse 360 sweep (sweepStepDeg 10, sweepRange) every sweepEvery 15 frames (sweepEverySlow 5 while slow / blocked) that finds the freest direction.
 // Publishes av.scan {dir, freeFront, freeRear} for the planners / debugging.
+// Persistent static map (params.staticMap true, default off): hits on STATIC bodies (walls, props; bodyType 'static', not planes) are kept forever in a 1 m cell map instead of the 15 s memory,
+// consecutive hits on the same convex body (<= staticLinkMax 10 m apart in angle order) are linked by interpolated points so far-range scans leave no holes; dynamic / kinematic hits (chasers, props)
+// stay in the short-lived memory only and are never burned into the map. av.points also contains the static points within staticRange (130 m) of the car; the route planner reads the whole map as av.smap {list, ver}.
 // params: drivableArea [xmin, xmax, zmin, zmax] (virtual walls at the edge), edgeStep, rayCount, fovDeg, sensorRange, memoryTtl, memoryCell, vehicleWidth, vehicleLength
 function transform(input, dt, params, state, api) {
   var av = input.av
@@ -88,6 +91,9 @@ function transform(input, dt, params, state, api) {
   var nRays = scanSet ? scanSet.length : n
   var winF = null
   var winR = null
+  var useSmap = params.staticMap === true
+  var hits = []
+  if (useSmap && !state.bt) state.bt = {}
   for (var i = 0; i < nRays; i++) {
     var rayRange = range
     var th
@@ -131,7 +137,17 @@ function transform(input, dt, params, state, api) {
       rayInfo.push([dir, tHull, r.distance])
       var hx = origin[0] + dir[0] * r.distance
       var hz = origin[2] + dir[2] * r.distance
-      mem[Math.round(hx / cell) + ',' + Math.round(hz / cell)] = { x: hx, z: hz, t: e.t }
+      var isStatic = false
+      if (useSmap && r.entityId) {
+        var bt = state.bt[r.entityId]
+        if (bt === undefined) {
+          var he = api.getEntity(r.entityId)
+          bt = state.bt[r.entityId] = he && he.bodyType === 'static' && !(he.shape && he.shape.type === 'plane') ? 1 : 0
+        }
+        isStatic = bt === 1
+      }
+      if (isStatic) hits.push([Math.atan2(Math.sin(th), Math.cos(th)), r.entityId, hx, hz])
+      else mem[Math.round(hx / cell) + ',' + Math.round(hz / cell)] = { x: hx, z: hz, t: e.t }
       if (c < -0.9 && r.distance < rearClear) rearClear = r.distance
     } else {
       ranges.push(rayRange)
@@ -166,6 +182,36 @@ function transform(input, dt, params, state, api) {
       }
     }
   }
+  if (useSmap) {
+    if (!state.sm) state.sm = { cells: {}, list: [], buckets: {} }
+    var sm = state.sm
+    var addS = function (x, z) {
+      var key = Math.round(x) + ',' + Math.round(z)
+      if (sm.cells[key]) return
+      sm.cells[key] = 1
+      var pt = [x, z]
+      sm.list.push(pt)
+      var bk = Math.floor(x / 16) + ',' + Math.floor(z / 16)
+      if (sm.buckets[bk]) sm.buckets[bk].push(pt)
+      else sm.buckets[bk] = [pt]
+    }
+    hits.sort(function (a, b) { return a[0] - b[0] })
+    var linkMax = params.staticLinkMax || 10
+    for (var hi = 0; hi < hits.length; hi++) {
+      var h0 = hits[hi]
+      addS(h0[2], h0[3])
+      var h1 = hits[hi + 1]
+      if (h1 && h1[1] === h0[1]) {
+        var cdx = h1[2] - h0[2]
+        var cdz = h1[3] - h0[3]
+        var clen = Math.sqrt(cdx * cdx + cdz * cdz)
+        if (clen > 1 && clen <= linkMax) {
+          var nl = Math.ceil(clen)
+          for (var li2 = 1; li2 < nl; li2++) addS(h0[2] + (cdx * li2) / nl, h0[3] + (cdz * li2) / nl)
+        }
+      }
+    }
+  }
   if (winF !== null) state.freeF = winF
   if (winR !== null) state.freeR = winR
   var pts = []
@@ -183,6 +229,27 @@ function transform(input, dt, params, state, api) {
     if (area[3] - pos[2] < reach) for (j = xs; j <= xe; j += step) pts.push([j, area[3]])
     if (pos[0] - area[0] < reach) for (j = zs; j <= ze; j += step) pts.push([area[0], j])
     if (area[1] - pos[0] < reach) for (j = zs; j <= ze; j += step) pts.push([area[1], j])
+  }
+  if (useSmap && state.sm) {
+    var sR = params.staticRange || 130
+    var bx0 = Math.floor((pos[0] - sR) / 16)
+    var bx1 = Math.floor((pos[0] + sR) / 16)
+    var bz0 = Math.floor((pos[2] - sR) / 16)
+    var bz1 = Math.floor((pos[2] + sR) / 16)
+    for (var bxi = bx0; bxi <= bx1; bxi++) {
+      for (var bzi = bz0; bzi <= bz1; bzi++) {
+        var bl = state.sm.buckets[bxi + ',' + bzi]
+        if (bl) for (var bli = 0; bli < bl.length; bli++) pts.push(bl[bli])
+      }
+    }
+    av.smap = { list: state.sm.list, ver: state.sm.list.length }
+  }
+  if (useSmap) {
+    // dynamic / kinematic obstacles only (short memory): the route planner overlays the STOPPED ones on its goal-distance field (a parked car is an obstacle for the plan, never part of the persistent map)
+    var dynPts = []
+    var dk = Object.keys(mem)
+    for (var di = 0; di < dk.length; di++) dynPts.push([mem[dk[di]].x, mem[dk[di]].z])
+    av.dyn = dynPts
   }
   var keys = Object.keys(mem)
   for (var k = 0; k < keys.length; k++) {

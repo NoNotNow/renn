@@ -17,7 +17,10 @@
 // Owns the simulated clock (state.t) so no downstream stage needs a wall clock.
 function transform(input, dt, params, state, api) {
   // fresh blackboard every frame (the input object is reused by the runtime)
+  var prevAv = input.av
   var av = (input.av = {})
+  // the route planner (fieldHeuristic) leaves the obstacle-aware distance to its goal on last frame's blackboard (goal watchdog: a long detour is progress)
+  if (prevAv && prevAv.fieldGoal) av.prevField = prevAv.fieldGoal
   // a goal source running in front of this stage hands its mission over via input.goalSource (see av-wander.js)
   if (input.goalSource) {
     av.mission = input.goalSource
@@ -132,6 +135,8 @@ function fleeGoal(av, thrs, input, params, state, api) {
     var sz = gz - pos[2]
     var sl2 = sx * sx + sz * sz + 1e-6
     for (var i = 0; i < thrs.length; i++) {
+      // fleeStoppedSpeed (m/s, default 0 = off): a stopped body (parked car, stalled chaser) is an obstacle for the planners (memory + prediction), not a reason to flee elsewhere
+      if (params.fleeStoppedSpeed > 0 && thrs[i].vx * thrs[i].vx + thrs[i].vz * thrs[i].vz < params.fleeStoppedSpeed * params.fleeStoppedSpeed) continue
       var qx = thrs[i].x - pos[0]
       var qz = thrs[i].z - pos[2]
       if (qx * qx + qz * qz > 90 * 90) continue
@@ -150,11 +155,24 @@ function fleeGoal(av, thrs, input, params, state, api) {
   if (params.goalWatchdog > 0) {
     var wd = state.wd
     var gDist = Math.sqrt((g0[0] - pos[0]) * (g0[0] - pos[0]) + (g0[2] - pos[2]) * (g0[2] - pos[2]))
-    if (!wd || Math.abs(wd.x - g0[0]) > 1 || Math.abs(wd.z - g0[2]) > 1) wd = state.wd = { x: g0[0], z: g0[2], best: gDist, t: now, bad: false }
-    else if (gDist < wd.best - 8) {
+    var pf = av.prevField
+    var usesField = !!(pf && Math.abs(pf.x - g0[0]) < 1.5 && Math.abs(pf.z - g0[2]) < 1.5 && pf.d < 1e8)
+    if (usesField) gDist = pf.d
+    if (!wd || Math.abs(wd.x - g0[0]) > 1 || Math.abs(wd.z - g0[2]) > 1 || (wd.f && !usesField)) wd = state.wd = { x: g0[0], z: g0[2], best: gDist, t: now, bad: false, f: usesField }
+    else if (usesField && !wd.f) {
+      // the obstacle-aware distance replaces the euclidean one: restart the window with it
+      wd.f = true
+      wd.best = gDist
+      wd.t = now
+    } else if (gDist < wd.best - 8) {
       wd.best = gDist
       wd.t = now
     } else if (now - wd.t > params.goalWatchdog) wd.bad = true
+    // the obstacle-aware distance says the goal is reachable without crossing a known wall (a field value >= 600 m crosses one): a long detour is not an unreachable goal
+    if (usesField && pf.d < 600) {
+      wd.bad = false
+      wd.t = now
+    }
     bad = wd.bad
     av.goalBad = bad
   }
