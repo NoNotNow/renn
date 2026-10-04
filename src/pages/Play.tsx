@@ -7,6 +7,7 @@ import { validateWorldDocument } from '@/schema/validate'
 import { migrateWorldScripts, migrateWorldSimplificationFields, migrateCustomTransformerNames, migrateWorldRingShapesToCylinder, migrateEntityTransformersToRegistry } from '@/scripts/migrateWorld'
 import type { RennWorld } from '@/types/world'
 import { defaultPersistence } from '@/persistence/indexedDb'
+import { useScreenWakeLock } from '@/hooks/useScreenWakeLock'
 import { usePlayModeKeyboardShortcuts } from '@/hooks/usePlayModeKeyboardShortcuts'
 
 function normalizeLoadedWorld(data: unknown): RennWorld {
@@ -47,6 +48,7 @@ export default function Play() {
   const [sessionWorld, setSessionWorld] = useState<RennWorld | null>(null)
   const [assets, setAssets] = useState<Map<string, Blob>>(new Map())
   const [ready, setReady] = useState(false)
+  useScreenWakeLock(ready)
 
   useEffect(() => {
     let cancelled = false
