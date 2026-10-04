@@ -253,3 +253,7 @@ Note: `vehicleWidth` / `vehicleLength` must match the entity's collider (a 4 × 
 ## Snapshot physics block
 
 The snapshot now also records `physics` (Rapier linear velocity + every collider in contact with the entity: other entity id, deepest overlap `minDist` (negative = penetration), contact normal). Use it to tell "wedged in another body / floor jitter" from a controller problem. Code: `PhysicsWorld.getContactSummary`, `setTransformerSnapshotPhysicsProbe`.
+
+## Steering smoothing (2026-10)
+
+The motion planner picks one of ~31 discrete curvatures per frame, so neighbours hopped (8-10 steering reversals/s). `av-control-lateral.js` now low-passes the planned curvature: changes below `kappaJump` (0.025 1/m) use tau `kappaTau` (0.04 s) + 0.008 s per m/s; larger ones (avoidance) pass with tau 0.04 s; reverse / manoeuvre / speed < 2 m/s bypass it. Result: 2.5-3 reversals/s. Tried and rejected (flip parkour / lane / low-bar tests): stronger planner commitment (`wSmooth` 6), larger lag, hysteresis bands. Perception sector clearing (ghost cells next to a standing car) and a windowed route-curvature speed limit looked promising in the lab but changed the parkour tests; they are not shipped yet.

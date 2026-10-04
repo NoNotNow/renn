@@ -44,3 +44,12 @@ stage timing table, chain means of all entities and slow calls.
 - Fidelity of the focus is limited by chaos in the scene (contacts, solver warm-start are not snapshotted); the environment is exact via puppets.
 - Puppets are moved by velocity tracking: they still collide and can be pushed, but they do not react to the focus.
 - A single stage call of ~25 s in long background runs was an OS pause (it vanished in the identical deterministic rerun); look at p95, not max, for cost.
+
+## Metrics, code versioning (2026-10)
+
+- `METRICS` line per seed: mean / max speed, path, **catches** (a chaser centre within 1 m of the focus hull: OBB distance minus 2 m chaser half-width < `CATCH_GAP`; an episode ends when the gap exceeds `CATCH_CLEAR` 3 m), min chaser distance, fraction of time with a chaser centre < 15 m. Chasers = other chain entities whose first pipe id matches `AVLAB_CHASER_PIPE` (default `^pipe_`).
+- `STEER` line: mean |Δsteer| per frame, steering **reversals per second** (swing > 0.03 against the previous direction, speed > 3 m/s), |Δ yaw rate|, planner curvature changes/switches per second, obstacle-memory flicker (needs the perception `memCount` state). Baseline before the lateral smoothing: 8-10 reversals/s; after: 2.5-3.
+- `AVLAB_PARAMS='{"comfortDecel":6}'` overrides params of the focus pipe binding for quick tuning.
+- **Versioning:** `CODE VERSION` line = hash per AV stage + overall stack version (hash of the code that executes, `src/globalPipeline/avStackVersion.ts`), plus whether `world.json` embeds stale code. Scenes carry `stackVersion`; replay warns on mismatch. The Builder header shows `build <sha> · av <version>` and logs the same to the console, so compare it with the lab line.
+- `npm run sync:global-pipeline` also upgrades stage code embedded in `public/exampleWorlds/*/world.json` (`tools/renn-mcp/upgrade-example-worlds-library.ts`); `avStackVersion.test.ts` fails when `self_hunt_flexible/world.json` is out of sync. Example `world.json` is fetched with `?v=<build sha>` and `cache: 'no-cache'`.
+- Many AV integration tests (course, beside-gate, wander, lane-slowing) are chaotic: any behaviour change flips one of them. Judge a change by the whole set and re-run flaky ones (the wanderer tests use wall-clock time and also fail at HEAD sometimes).
