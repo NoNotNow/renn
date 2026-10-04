@@ -1,88 +1,127 @@
-// AV stack · CONTROL / longitudinal (speed PI with deadband feed-forward).
-// The actuator has a static-friction deadband, so the controller adds `deadband` as feed-forward
-// and PI-trims on top. Negative demand maps to the car's `brake` input (reverse thrust at standstill).
-// Self-calibrating breakaway: if the vehicle does not move although speed is demanded, the static deadband
-// is ramped up (0.5/s, to 1.0), kept while driving and relaxed again on over-speed, so heavier or grippier bodies than the reference car still get going.
-// params: kp, ki, deadband, maxThrottle, maxBrake, brakeGain, breakawayRate
+// AV stack · CONTROL / longitudinal (model-based speed control with an online-identified actuator model).
+// The car2 actuator turns a command u = throttle − brake into a force, so the body follows
+//     a = G · u − D · sgn(v)          (G: m/s² per unit command, D: sliding/rolling friction deceleration, m/s²)
+// G and D differ by orders of magnitude between bodies (reference car: G ≈ 156, D ≈ 60; a light icy car with power 2400:
+// G ≈ 1200, D ≈ 1). A fixed deadband / gain only fits one of them — on the other the smallest command jumps the speed by
+// metres per second per frame and the controller bang-bangs (the "jitter"). So G and D are estimated online (recursive
+// least squares on the previous frame's command vs. the measured acceleration) and the controller asks for an
+// acceleration: u = (a_des + D · s) / G, a_des = clamp((v_target − v) / tau + I, −maxDecel, maxAccel).
+// Publishes av.actuator {G, D, u} (u = applied command; a later stage that overrides the actions must update it — the AEB does). The AEB uses it to brake with a deceleration instead of a raw command) and av.cmd.
+// At rest the static friction can exceed D: a breakaway offset ramps while demanded motion does not start.
+// params: tau, ki, maxAccel, maxDecel, maxThrottle, maxBrake, breakawayRate, gainInit, frictionInit, forget
 function transform(input, dt, params, state, api) {
   var av = input.av
   if (!av || !av.plan || !av.ego) return {}
   var e = av.ego
   var vDes = av.plan.vDesired || 0
-  var kp = params.kp != null ? params.kp : 0.03
-  var ki = params.ki != null ? params.ki : 0.02
-  var db = params.deadband != null ? params.deadband : 0.36
-  var maxThr = params.maxThrottle != null ? params.maxThrottle : 0.46
-  var maxBrk = params.maxBrake != null ? params.maxBrake : 0.6
-  var brakeGain = params.brakeGain != null ? params.brakeGain : 0.12
-  // signed demand: positive = forward drive (throttle), negative = reverse drive (brake channel)
-  var dir = vDes >= 0 ? 1 : -1
-  var vAlong = e.speed * dir // speed in the demanded direction
-  var vTarget = Math.abs(vDes)
-  // learned deadband: ramps while the body refuses to move or creeps
-  if (state.dbS === undefined) {
-    state.dbS = db
-    state.stallT = 0
+  var tau = params.tau != null ? params.tau : 0.35
+  var ki = params.ki != null ? params.ki : 0.6
+  var maxAcc = params.maxAccel != null ? params.maxAccel : 10
+  var maxDec = params.maxDecel != null ? params.maxDecel : 12
+  var maxThr = params.maxThrottle != null ? params.maxThrottle : 1
+  var maxBrk = params.maxBrake != null ? params.maxBrake : 1
+  var lam = params.forget != null ? params.forget : 0.97
+  var v = e.speed
+  if (state.G === undefined) {
+    state.G = params.gainInit != null ? params.gainInit : 156
+    state.D = params.frictionInit != null ? params.frictionInit : 60
+    // RLS covariance over [G, D]
+    state.P = [1e4, 0, 0, 1e3]
+    state.uPrev = 0
+    state.vPrev = v
+    state.I = 0
+    state.boost = 0
+    state.samples = 0
   }
-  var rate = params.breakawayRate != null ? params.breakawayRate : 0.5
-  // stagnation = far below the demanded speed and no longer accelerating (stuck at rest or creeping)
-  var stagnant = vTarget > 0.5 && vAlong < Math.min(2, 0.4 * vTarget) && Math.abs(e.accel) < 0.3
-  // decay instead of reset: a creeping body jitters in and out of the 'no acceleration' band
-  if (stagnant) state.stallT += dt
-  else state.stallT = Math.max(0, state.stallT - 0.5 * dt)
-  if (state.stallT > 0.4 && state.dbS < 1) state.dbS = Math.min(1, state.dbS + rate * dt)
-  // over-speed: the learned value is too high, relax it back towards the reference deadband
-  if (vTarget > 0.5 && vAlong > vTarget + 0.5 && state.dbS > db) state.dbS = Math.max(db, state.dbS - 0.2 * dt)
-  var dbEff = state.dbS
-  var err = vTarget - vAlong
-  var thr = 0
-  var brk = 0
-  var drive = 0 // magnitude along the demanded direction
-  var retard = 0 // magnitude opposing motion in the demanded direction
-  if (vTarget < 0.05 && Math.abs(e.speed) < 0.3) {
-    state.i = 0
-  } else if (err > 0) {
-    state.i = Math.min(state.dbS > db + 1e-6 ? 0.4 : 0.1, (state.i || 0) + ki * err * dt)
-    // the reference car keeps the original caps; a learned (heavier) body may use more throttle
-    var learned = state.dbS > db + 1e-6
-    drive = Math.min(learned ? Math.max(maxThr, dbEff + 0.15) : maxThr, dbEff + kp * err + state.i)
+  // --- identify: last frame's command produced this frame's acceleration ---
+  // a later stage (AEB) that overrode the command reports what was really applied in last frame's av.actuator.u
+  if (state.lastAct && typeof state.lastAct.u === 'number') state.uPrev = state.lastAct.u
+  var aMeas = dt > 1e-6 ? (v - state.vPrev) / dt : 0
+  var vMid = 0.5 * (v + state.vPrev)
+  var pushing = input.environment && input.environment.isTouchingSide
+  // (sliding friction acts as soon as the body slides: learn from 0.12 m/s on, so a car creeping in force balance is not
+  // stuck between 'too slow to learn' and 'too fast for the breakaway push')
+  if (!pushing && Math.abs(state.uPrev) > 1e-4 && Math.abs(vMid) > 0.12 && state.vPrev * v > 0) {
+    var x0 = state.uPrev
+    var x1 = -(vMid > 0 ? 1 : -1)
+    var P = state.P
+    var px0 = P[0] * x0 + P[1] * x1
+    var px1 = P[2] * x0 + P[3] * x1
+    var den = lam + x0 * px0 + x1 * px1
+    var k0 = px0 / den
+    var k1 = px1 / den
+    var err = aMeas - (state.G * x0 + state.D * x1)
+    // robust: a collision / kerb spike must not wreck the model
+    var lim = 50 + 0.5 * Math.abs(state.G * x0)
+    if (err > lim) err = lim
+    if (err < -lim) err = -lim
+    state.G = Math.max(10, Math.min(20000, state.G + k0 * err))
+    state.D = Math.max(0, Math.min(300, state.D + k1 * err))
+    var n0 = (P[0] - k0 * px0) / lam
+    var n1 = (P[1] - k0 * px1) / lam
+    var n2 = (P[2] - k1 * px0) / lam
+    var n3 = (P[3] - k1 * px1) / lam
+    // keep the covariance bounded (forgetting without excitation blows it up)
+    state.P = [Math.min(n0, 1e5), n1, n2, Math.min(n3, 1e4)]
+    state.samples++
+  }
+  // Rescue path: the command clearly dominates friction and the response is far larger than the model predicts
+  // (G underestimated — e.g. learned while pushing against a slope, or while the speed sign flipped every frame, where
+  // the RLS is gated off). Pull G towards the observed gain directly so the controller stops saturating.
+  // Only for a saturated command (that is the failure mode); collisions also produce big accelerations and must not pump G.
+  if (!pushing && Math.abs(state.uPrev) > 0.3 && aMeas * state.uPrev > 0 && Math.abs(aMeas) > 3 * state.D + 10) {
+    var gObs = Math.abs(aMeas / state.uPrev)
+    if (gObs > 1.5 * state.G) state.G = Math.min(20000, state.G + 0.3 * (gObs - state.G))
+  }
+  var G = state.G
+  var D = state.D
+
+  // --- control ---
+  var u = 0
+  var holding = Math.abs(vDes) < 0.05 && Math.abs(v) < 0.3
+  if (holding) {
+    state.I = 0
+    state.boost = 0
   } else {
-    state.i = Math.max(0, (state.i || 0) * 0.9)
-    retard = Math.min(maxBrk, brakeGain * -err)
-    if (vAlong < 0.3 && vTarget < 0.05) retard = 0
+    var errV = vDes - v
+    // integral (acceleration units) only while not saturated, so steady errors (slope, model error) vanish
+    var aDes = errV / tau + state.I
+    if (aDes > maxAcc) aDes = maxAcc
+    if (aDes < -maxDec) aDes = -maxDec
+    if (aDes > -maxDec && aDes < maxAcc) state.I = Math.max(-3, Math.min(3, state.I + ki * errV * dt))
+    // never brake through zero within one frame: the deceleration that stops the car this frame is the most we ask for
+    if (Math.abs(vDes) < 0.05) {
+      var stopA = Math.abs(v) / Math.max(dt, 1e-3)
+      if (v > 0 && aDes < -stopA) aDes = -stopA
+      if (v < 0 && aDes > stopA) aDes = stopA
+    }
+    // friction feed-forward in the direction of travel (at rest: of the wanted motion)
+    var s = Math.abs(v) > 0.3 ? (v > 0 ? 1 : -1) : aDes > 0 ? 1 : aDes < 0 ? -1 : 0
+    var fric = D * s
+    // at rest, friction helps braking: no reverse push needed to stay stopped
+    if (Math.abs(v) <= 0.3 && Math.abs(vDes) < 0.05) fric = 0
+    u = (aDes + fric) / G
+    // breakaway: demanded motion does not start (static friction > D) -> ramp an extra push
+    var want = Math.abs(vDes) > 0.3
+    // far below the demanded speed and not gaining (static friction / force balance the model does not explain yet)
+    var stuck = want && vDes * v < Math.min(1, 0.4 * Math.abs(vDes)) && vDes * aDes > 0 && aMeas * (vDes > 0 ? 1 : -1) < 0.5
+    if (stuck) state.boost = Math.min(1, state.boost + (params.breakawayRate != null ? params.breakawayRate : 0.5) * dt)
+    // keep the push until the car really drives (else it jerks, stops, ramps again); then relax it slowly
+    else if (!want || vDes * v >= Math.min(1, 0.4 * Math.abs(vDes))) state.boost = Math.max(0, state.boost - 0.5 * dt)
+    if (state.boost > 0 && want) u += (vDes > 0 ? 1 : -1) * state.boost
+    // stopping: never push along the direction of travel (friction alone may decelerate harder than maxDecel — fine)
+    if (Math.abs(vDes) < 0.05 && u * v > 0) u = 0
   }
-  // Chatter guard: the actuator answers one frame late, so reverse-thrust braking of a rolling car can overshoot and
-  // flip the speed sign every frame (bang-bang at +-5 m/s that moves nothing but never counts as "stopped").
-  // After repeated sign flips at speed, stop pushing and let the car coast to rest.
-  state.t = (state.t || 0) + dt
-  var sgn = Math.abs(e.speed) > 1 ? (e.speed > 0 ? 1 : -1) : 0
-  if (sgn !== 0 && state.lastSgn && sgn !== state.lastSgn) {
-    state.flips = (state.flips || 0) + 1
-    state.flipAt = state.t
-    if (state.flips >= 3) state.coastUntil = state.t + 1.5
-  }
-  if (sgn !== 0) state.lastSgn = sgn
-  if (state.flips && state.t - (state.flipAt || 0) > 0.5) state.flips = 0
-  var coasting = vTarget < 0.05 && state.coastUntil !== undefined && state.t < state.coastUntil
-  if (coasting) {
-    thr = 0
-    brk = 0
-  } else if (vTarget < 0.05 && Math.abs(e.speed) >= 0.3) {
-    // demand zero but still rolling: brake against the current direction of travel
-    var oppose = e.speed > 0 ? 1 : -1
-    var b = Math.min(maxBrk, brakeGain * Math.abs(e.speed))
-    if (oppose > 0) brk = b
-    else thr = b
-  } else if (dir > 0) {
-    thr = drive
-    brk = retard
-  } else {
-    brk = drive
-    thr = retard
-  }
-  input.actions.throttle = thr
-  input.actions.brake = brk
-  av.cmd = { throttle: thr, brake: brk }
-  api.watch('av.throttle', thr.toFixed(2) + ' brake ' + brk.toFixed(2) + ' dbS ' + state.dbS.toFixed(2) + ' vd ' + vDes.toFixed(1))
+  if (u > maxThr) u = maxThr
+  if (u < -maxBrk) u = -maxBrk
+  state.uPrev = u
+  state.vPrev = v
+  input.actions.throttle = u > 0 ? u : 0
+  input.actions.brake = u < 0 ? -u : 0
+  // mailbox: stages after this one write the command they actually applied into av.actuator.u
+  av.actuator = { G: G, D: D, samples: state.samples, u: u }
+  state.lastAct = av.actuator
+  av.cmd = { throttle: input.actions.throttle, brake: input.actions.brake }
+  api.watch('av.throttle', 'u ' + u.toFixed(3) + ' G ' + G.toFixed(0) + ' D ' + D.toFixed(1) + ' vd ' + vDes.toFixed(1))
   return {}
 }
