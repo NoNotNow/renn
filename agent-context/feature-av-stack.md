@@ -263,6 +263,15 @@ The snapshot now also records `physics` (Rapier linear velocity + every collider
 
 The motion planner picks one of ~31 discrete curvatures per frame, so neighbours hopped (8-10 steering reversals/s). `av-control-lateral.js` now low-passes the planned curvature: changes below `kappaJump` (0.025 1/m) use tau `kappaTau` (0.04 s) + 0.008 s per m/s; larger ones (avoidance) pass with tau 0.04 s; reverse / manoeuvre / speed < 2 m/s bypass it. Result: 2.5-3 reversals/s. Tried and rejected (flip parkour / lane / low-bar tests): stronger planner commitment (`wSmooth` 6), larger lag, hysteresis bands. Perception sector clearing (ghost cells next to a standing car; `memClearFrames` hysteresis) and planner commitment (`switchMargin`) looked promising in the lab but flip parkour / beside-gate tests; not shipped.
 
+### Straight-road weaving (2026-10-04)
+
+Even smoothed, a straight free road still weaved +-14 m (heading +-35 deg at 0.6 Hz, 1.35 steering reversals/s): the discrete planner curvature plus a Hybrid-A* route that zig-zags around the straight line (discretised headings) and a carrot only 14 m ahead (0.5 s at 30 m/s, an unstable pure-pursuit loop). Two fixes, both only on a free, threat-free plan:
+
+- **Carrot string-pulling** (`av-route-planner.js`, `carrotPull`, default on): line-of-sight shortcut on the same costmap / margin to the farthest node of the leading forward run the car already heads towards (cos 20 deg, `carrotPullCos`); the carrot is re-aimed every frame `max(lookahead, carrotLookT 1.6 s * speed)` along that line.
+- **Pure-pursuit refinement** (`av-control-lateral.js`, `purePursuit`, default on): the continuous curvature `2y/d^2` toward the carrot replaces the planned one when within `ppWindow` (0.02 1/m) of it, so it fine-tunes, never undoes an avoidance; `kappaDeadband` 0.0015.
+
+Tests: `straight-to-goal`, `straight-offset-10deg` and tracking bars on `open-road-speed` (`av-evasion-scenarios.test.ts`, metrics `ScenarioMetrics.path`). Red check with `AV_PARAMS='{"purePursuit":false,"carrotPull":false}'`: RMS cross-track 6.3 m / 1.35 reversals/s -> with the fix 0.00 m / 0.00. Full sweep 61/75 winnable (robust 59/64). `pair/v25/low/b-30+30/near` (margin 1.1) fails on this Linux runner both with and without the fix (it is in the macOS-recorded baseline).
+
 ## Speed / stall fixes (2026-10, abb71d2)
 
 - **Breakaway push** (longitudinal): a 0.1 m/s creep counted as driving and relaxed the push, so a car on a free road idled for ever at throttle 0.39 (RLS had G 2725 / D 300). Driving now needs 0.5-1.5 m/s.
