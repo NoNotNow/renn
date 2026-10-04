@@ -37,6 +37,7 @@ import {
 import { WorldSimulator, DEFAULT_DT } from '@/test/helpers/worldSimulator'
 import type { RennWorld } from '@/types/world'
 import { installDeterminism } from './determinism'
+import { avStackVersion, avStageHashes, avCodeDrift, formatAvVersion } from '@/globalPipeline/avStackVersion'
 import { MotionMonitor, type MotionEvent, type MotionMonitorOptions } from './motionMonitor'
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -47,6 +48,19 @@ export type WorldRef = { exampleId: string } | { file: string } | { inline: Renn
 
 const repoRoot = path.resolve(__dirname, '../../..')
 
+export function shippedLibrary() {
+  return mergeShippedGlobalBehaviorLibrary(EMPTY_GLOBAL_BEHAVIOR_LIBRARY, buildShippedGlobalBehaviorLibraryBundle())
+}
+
+/** Version line of the code a (prepared) world executes + drift of the raw world.json against the shipped library. */
+export function versionReport(ref: WorldRef): { version: string; line: string; stale: string[]; diverged: string[] } {
+  const raw = loadLabWorld(ref, { applyLibrary: false })
+  const run = loadLabWorld(ref)
+  const drift = avCodeDrift(raw, shippedLibrary())
+  const line = `${formatAvVersion(run)} | world.json embeds ${avStackVersion(raw)}${drift.stale.length || drift.diverged.length ? ` -- DRIFT: stale ${JSON.stringify(drift.stale)} diverged ${JSON.stringify(drift.diverged)}` : ' (in sync with library)'}`
+  return { version: avStackVersion(run), line, stale: drift.stale, diverged: drift.diverged }
+}
+
 export function loadLabWorld(ref: WorldRef, opts: { applyLibrary?: boolean } = {}): RennWorld {
   let world: RennWorld
   if ('inline' in ref) world = JSON.parse(JSON.stringify(ref.inline)) as RennWorld
@@ -56,8 +70,7 @@ export function loadLabWorld(ref: WorldRef, opts: { applyLibrary?: boolean } = {
   }
   if (opts.applyLibrary !== false) {
     // the tool runs the current library code (Builder does the same on open via useGlobalLibraryUpgrade)
-    const lib = mergeShippedGlobalBehaviorLibrary(EMPTY_GLOBAL_BEHAVIOR_LIBRARY, buildShippedGlobalBehaviorLibraryBundle())
-    world = updateWorldFromGlobalLibrary(world, lib).world
+    world = updateWorldFromGlobalLibrary(world, shippedLibrary()).world
   }
   return world
 }
@@ -90,6 +103,8 @@ export interface Scene {
   applyLibrary: boolean
   focus: string
   seed: number
+  /** AV stack code version the run executed (hash of stage code); replay warns when it differs from the current code. */
+  stackVersion?: string
   trigger: { kind: string; frame: number; windowStartFrame: number; metrics: MotionEvent['metrics'] }
   /** Oldest first; the last one is the trigger frame. */
   snapshots: SceneSnapshot[]
@@ -302,6 +317,8 @@ export function diagnose(sim: WorldSimulator, world: RennWorld, focus: string, o
 export interface LabOptions {
   world: WorldRef
   focus: string
+  /** Regex on the first pipe id of other vehicles that count as chasers for catch metrics (default ^pipe_). */
+  chaserPipe?: string
   seed?: number
   frames?: number
   applyLibrary?: boolean
@@ -355,8 +372,49 @@ export interface LabResult {
   speedRoughness: number
   /** Frames with |Δ forward speed| > 2 m/s (velocity spikes / sign flips). */
   speedSpikes: number
+  /** AV stack code version + per-stage hashes the run executed. */
+  stackVersion: string
+  stageHashes: Record<string, string>
+  /** Speed stats of the focus (forward speed, m/s). */
+  maxSpeed: number
+  meanSpeed: number
+  /** Chasers = other chain entities whose first pipe id matches `chaserPipe` (default /^pipe_/). */
+  chaserCount: number
+  /** Min center distance to any chaser over the run (m). */
+  minChaserDist: number
+  /** Distinct catch episodes: a chaser's centre is within `CATCH_GAP` m of the focus hull (OBB distance minus chaser half-width); an episode ends once the gap exceeds `CATCH_CLEAR`. */
+  catches: number
+  /** Fraction of frames with a chaser centre within 15 m. */
+  nearFraction: number
+  /** Steering command roughness (frames with speed > 3 m/s): mean |Δsteer| per frame (steer in [-1,1]). */
+  steerRoughness: number
+  /** Steering direction reversals per second of driving (reversal = swing > 0.03 against the previous direction). */
+  steerReversalsPerSec: number
+  /** Mean |Δ yaw rate| per frame (rad/s) while driving > 3 m/s. */
+  yawRateRoughness: number
+  /** Planner curvature changes per second of driving (any change) and 'switches' (jump > 0.03 1/m, i.e. a different candidate family). */
+  planChangesPerSec: number
+  planSwitchesPerSec: number
+  /** Obstacle memory flicker: mean |Δ cell count| per frame, relative to the mean count (0 = stable). */
+  obstacleFlicker: number
   /** Stage calls slower than 50 ms (entity, stage, frame) — spike triggers to replay. */
   slowCalls: (SlowStageCall & { label: string })[]
+}
+
+/** Catch = chaser hull within ~1 m of the focus hull (gap measured chaser centre -> focus OBB minus 2 m chaser half-width). */
+export const CATCH_GAP = 1
+export const CATCH_CLEAR = 3
+const CHASER_HALF_W = 2
+
+/** Distance from point (px,pz) to the focus rectangle (half extents hx,hz along its yaw), in the XZ plane. */
+function obbDist(px: number, pz: number, cx: number, cz: number, yaw: number, hx: number, hz: number): number {
+  const dx = px - cx
+  const dz = pz - cz
+  const c = Math.cos(yaw)
+  const s = Math.sin(yaw)
+  const lx = Math.abs(dx * c - dz * s)
+  const lz = Math.abs(dx * s + dz * c)
+  return Math.hypot(Math.max(0, lx - hx), Math.max(0, lz - hz))
 }
 
 export async function runLab(o: LabOptions): Promise<LabResult> {
@@ -381,6 +439,40 @@ export async function runLab(o: LabOptions): Promise<LabResult> {
   const historyLen = Math.ceil(((o.historySec ?? 8) / DEFAULT_DT) / snapshotEvery) + 1
   const history: SceneSnapshot[] = []
   const trackIds = sim.getChainEntityIds().filter((id) => id !== o.focus)
+  const chaserRe = new RegExp(o.chaserPipe ?? '^pipe_')
+  const chaserIds = trackIds.filter((id) => {
+    const e = world.entities.find((x) => x.id === id)
+    const pid = (e as { transformerPipeStack?: { pipeId?: string }[] } | undefined)?.transformerPipeStack?.[0]?.pipeId ?? ''
+    return e?.bodyType === 'dynamic' && chaserRe.test(pid)
+  })
+  const focusEnt = world.entities.find((x) => x.id === o.focus) as { size?: number[] } | undefined
+  const hx = (focusEnt?.size?.[0] ?? 4) / 2
+  const hz = (focusEnt?.size?.[2] ?? 8) / 2
+  const inCatch = new Set<string>()
+  let catches = 0
+  let minChaserDist = Infinity
+  let nearFrames = 0
+  let speedSum = 0
+  let maxSpeed = 0
+  let latState: Record<string, unknown> | undefined
+  let prevSteer: number | null = null
+  let steerDSum = 0
+  let steerFrames = 0
+  let steerRev = 0
+  let steerDir = 0
+  let steerExt = 0
+  let prevYaw: number | null = null
+  let percState: Record<string, unknown> | undefined
+  let planState: Record<string, unknown> | undefined
+  let prevKap: number | null = null
+  let planChanges = 0
+  let planSwitches = 0
+  let prevMem: number | null = null
+  let memDSum = 0
+  let memSum = 0
+  let memN = 0
+  let prevYawRate: number | null = null
+  let yawRateDSum = 0
   const trackLen = historyLen * snapshotEvery
   const tracks: Record<string, number[][]> = Object.fromEntries(trackIds.map((id) => [id, []]))
   const stateHistory: Scene['stageStates'] = []
@@ -429,6 +521,66 @@ export async function runLab(o: LabOptions): Promise<LabResult> {
         if (dv > 2) spikes++
       }
       prevSpeed = fwdSpeed
+      speedSum += fwdSpeed
+      if (fwdSpeed > maxSpeed) maxSpeed = fwdSpeed
+      {
+        const yw = yawOf(q)
+        let yr = prevYaw === null ? 0 : yw - prevYaw
+        if (yr > Math.PI) yr -= 2 * Math.PI
+        if (yr < -Math.PI) yr += 2 * Math.PI
+        yr /= DEFAULT_DT
+        prevYaw = yw
+        latState ??= liveStageState(sim, world, o.focus, 'lateral')
+        percState ??= liveStageState(sim, world, o.focus, 'perception')
+        planState ??= liveStageState(sim, world, o.focus, 'motion planner')
+        const mc = percState?.memCount
+        if (typeof mc === 'number') {
+          if (prevMem !== null) memDSum += Math.abs(mc - prevMem)
+          prevMem = mc
+          memSum += mc
+          memN++
+        }
+        const pk = planState?.prevKappa
+        if (typeof pk === 'number' && fwdSpeed > 3) {
+          if (prevKap !== null && Math.abs(pk - prevKap) > 1e-6) {
+            planChanges++
+            if (Math.abs(pk - prevKap) > 0.03) planSwitches++
+          }
+          prevKap = pk
+        } else prevKap = null
+        const st = latState?.steer
+        if (typeof st === 'number' && fwdSpeed > 3) {
+          if (prevSteer !== null) {
+            steerDSum += Math.abs(st - prevSteer)
+            steerFrames++
+            if (prevYawRate !== null) yawRateDSum += Math.abs(yr - prevYawRate)
+            const sd = st - steerExt
+            if (steerDir === 0) { steerDir = sd >= 0 ? 1 : -1; steerExt = st }
+            else if (steerDir * (st - steerExt) > 0) steerExt = st
+            else if (-steerDir * (st - steerExt) > 0.03) { steerRev++; steerDir = -steerDir; steerExt = st }
+          }
+          prevSteer = st
+          prevYawRate = yr
+        } else { prevSteer = null; prevYawRate = null; steerDir = 0 }
+      }
+      {
+        const fy = yawOf(q)
+        let near = false
+        for (const id of chaserIds) {
+          const cp = sim.getPosition(id)
+          const d = Math.hypot(cp[0] - p[0], cp[2] - p[2])
+          if (d < minChaserDist) minChaserDist = d
+          if (d < 15) near = true
+          const gap = obbDist(cp[0], cp[2], p[0], p[2], fy, hx, hz) - CHASER_HALF_W
+          if (inCatch.has(id)) {
+            if (gap > CATCH_CLEAR) inCatch.delete(id)
+          } else if (gap < CATCH_GAP) {
+            inCatch.add(id)
+            catches++
+          }
+        }
+        if (near) nearFrames++
+      }
       monitor.push({ frame: f, x: p[0], z: p[2], yaw: yawOf(q), speed: fwdSpeed, sleeping: sim.isSleeping(o.focus) })
       if (f % snapshotEvery === 0) {
         history.push({ frame: f, simMs: det.simMs(), rng: det.rngState(), bodies: captureBodies(sim, dynIds) })
@@ -454,6 +606,7 @@ export async function runLab(o: LabOptions): Promise<LabResult> {
         const snap = { frame: f, simMs: det.simMs(), rng: det.rngState(), bodies: captureBodies(sim, dynIds) }
         const scene: Scene = {
           version: 1,
+          stackVersion: avStackVersion(world),
           world: o.world,
           applyLibrary,
           focus: o.focus,
@@ -497,6 +650,20 @@ export async function runLab(o: LabOptions): Promise<LabResult> {
       pathLength,
       speedRoughness: roughSum / Math.max(1, f - f0 - 1),
       speedSpikes: spikes,
+      planChangesPerSec: planChanges / Math.max(1e-6, steerFrames * DEFAULT_DT),
+      planSwitchesPerSec: planSwitches / Math.max(1e-6, steerFrames * DEFAULT_DT),
+      obstacleFlicker: memN ? memDSum / memN / Math.max(1, memSum / memN) : 0,
+      stackVersion: avStackVersion(world),
+      stageHashes: avStageHashes(world),
+      steerRoughness: steerDSum / Math.max(1, steerFrames),
+      steerReversalsPerSec: steerRev / Math.max(1e-6, steerFrames * DEFAULT_DT),
+      yawRateRoughness: yawRateDSum / Math.max(1, steerFrames),
+      maxSpeed,
+      meanSpeed: speedSum / Math.max(1, f - f0),
+      chaserCount: chaserIds.length,
+      minChaserDist: Number.isFinite(minChaserDist) ? minChaserDist : -1,
+      catches,
+      nearFraction: nearFrames / Math.max(1, f - f0),
       slowCalls: getSlowStageCalls().map((c) => ({ ...c, label: stageLabels(world, c.entityId)[c.configStackIndex] ?? c.type })),
     }
   } finally {
@@ -555,6 +722,10 @@ export async function replayScene(
 ): Promise<LabResult & { startFrame: number; restoredStages: number; fidelity: ReplayFidelity[] }> {
   const world = loadLabWorld(scene.world, { applyLibrary: scene.applyLibrary })
   o.editWorld?.(world)
+  const nowVersion = avStackVersion(world)
+  if (scene.stackVersion && scene.stackVersion !== nowVersion) {
+    console.log(`!!! REPLAY WARNING: scene was recorded with AV stack ${scene.stackVersion}, current code is ${nowVersion} -- trajectories will not match`)
+  } else if (!scene.stackVersion) console.log('!!! REPLAY WARNING: scene has no stackVersion (recorded before code versioning)')
   const puppetTracks = o.puppets === false ? {} : (scene.tracks ?? {})
   for (const e of world.entities) {
     if (!puppetTracks[e.id]) continue

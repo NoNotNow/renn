@@ -8,3 +8,6 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv
 }
+
+/** git short SHA (+dirty) at build time, injected by vite.config.ts */
+declare const __BUILD_SHA__: string

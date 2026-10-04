@@ -1,7 +1,8 @@
-import { useRef, useState, useLayoutEffect, useCallback, useEffect } from 'react'
+import { useRef, useState, useLayoutEffect, useCallback, useEffect, useSyncExternalStore } from 'react'
 import MenuBar from './MenuBar'
 import DropdownMenu, { type MenuItemConfig } from './DropdownMenu'
 import type { RennWorld, Vec3 } from '@/types/world'
+import { getRunningAvVersion, subscribeAvVersion } from '@/globalPipeline/avStackVersion'
 import { useProjectContext } from '@/hooks/useProjectContext'
 import { uiLogger } from '@/utils/uiLogger'
 import {
@@ -432,6 +433,7 @@ export default function BuilderHeader({
             <DropdownMenu label="Debug" items={debugMenuItems} />
             <DropdownMenu label="Help" items={helpMenuItems} />
           </MenuBar>
+          <BuildVersionBadge />
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 12px' }}>
@@ -757,5 +759,17 @@ export default function BuilderHeader({
         </div>
       )}
     </header>
+  )
+}
+
+/** Build SHA + the AV stack code version the open project runs (compare with the AV lab output). */
+function BuildVersionBadge() {
+  const av = useSyncExternalStore(subscribeAvVersion, getRunningAvVersion)
+  const sha = typeof __BUILD_SHA__ === 'string' ? __BUILD_SHA__ : '?'
+  return (
+    <span title="Build (git SHA) and AV stack code version (hash of the stage code this project runs)" style={{ fontSize: 10, opacity: 0.55, padding: '0 10px', whiteSpace: 'nowrap' }}>
+      build {sha}
+      {av && av !== 'none' ? ` · av ${av}` : ''}
+    </span>
   )
 }

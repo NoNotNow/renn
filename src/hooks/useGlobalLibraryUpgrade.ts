@@ -4,6 +4,7 @@ import type { RennWorld } from '@/types/world'
 import type { ApplyWorldWrite } from '@/editor/applyWorldEdit'
 import { loadMergedGlobalLibrary } from '@/globalPipeline/loadMergedGlobalLibrary'
 import { updateWorldFromGlobalLibrary } from '@/globalPipeline/globalOrigin'
+import { avCodeDrift, formatAvVersion, avStackVersion, setRunningAvVersion } from '@/globalPipeline/avStackVersion'
 
 /**
  * Keeps project copies of global-library stages / pipes current: when a project is opened (and whenever its stage
@@ -40,6 +41,10 @@ export function useGlobalLibraryUpgrade(opts: {
     const lib = libraryRef.current
     if (!lib) return
     const { world: next, report } = updateWorldFromGlobalLibrary(world, lib)
+    const drift = avCodeDrift(next, lib)
+    setRunningAvVersion(avStackVersion(next))
+    console.info(`[renn] build ${typeof __BUILD_SHA__ === 'string' ? __BUILD_SHA__ : '?'} · ${formatAvVersion(next)}`)
+    if (drift.diverged.length) console.warn('[renn] AV stage code in this project differs from the shipped library (edited locally, never upgraded):', drift.diverged)
     if (next === world) return
     const changed = report.updatedStages.length + report.updatedPipes.length > 0
     if (changed) console.info('[global library] updated project copies', report)

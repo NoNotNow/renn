@@ -9,7 +9,7 @@
  */
 import { expect, it } from 'vitest'
 import fs from 'node:fs'
-import { formatProfile, loadLabWorld, readScene, replayScene, runLab, type LabResult, type WorldRef } from '@/test/avLab/lab'
+import { versionReport, formatProfile, loadLabWorld, readScene, replayScene, runLab, type LabResult, type WorldRef } from '@/test/avLab/lab'
 
 const env = process.env
 const out = env.AVLAB_OUT ?? 'test-results/avlab'
@@ -25,7 +25,9 @@ function summary(tag: string, r: LabResult): string {
     ? r.profile.stages.map((s) => `    ${s.label.padEnd(36)} mean ${s.meanMs.toFixed(3)} ms  p95 ${s.p95Ms.toFixed(3)}  max ${s.maxMs.toFixed(2)}  ${(s.share * 100).toFixed(0)}%`).join('\n')
     : ''
   return [
-    `LAB ${tag}: ${r.frames} frames, path ${r.pathLength.toFixed(1)} m, ${r.realtimeFactor.toFixed(2)}x realtime, roughness ${r.speedRoughness.toFixed(3)} m/s/frame, spikes ${r.speedSpikes}, classes ${JSON.stringify(r.classFrames)}`,
+    `LAB ${tag}: [av ${r.stackVersion}] ${r.frames} frames, path ${r.pathLength.toFixed(1)} m, ${r.realtimeFactor.toFixed(2)}x realtime, roughness ${r.speedRoughness.toFixed(3)} m/s/frame, spikes ${r.speedSpikes}, classes ${JSON.stringify(r.classFrames)}`,
+    `  METRICS speed mean ${r.meanSpeed.toFixed(1)} max ${r.maxSpeed.toFixed(1)} m/s | path ${r.pathLength.toFixed(0)} m | catches ${r.catches} | minChaserDist ${r.minChaserDist.toFixed(1)} m (${r.chaserCount} chasers) | chaser<15m ${(r.nearFraction * 100).toFixed(0)}% | events ${r.events.length}`,
+    `  STEER |dsteer|/frame ${r.steerRoughness.toFixed(4)} | reversals/s ${r.steerReversalsPerSec.toFixed(2)} | |dyawRate|/frame ${r.yawRateRoughness.toFixed(3)} rad/s | plan changes/s ${r.planChangesPerSec.toFixed(2)} switches/s ${r.planSwitchesPerSec.toFixed(2)} | obstacle flicker ${r.obstacleFlicker.toFixed(4)}`,
     `  events: ${ev.length ? ev.join('\n          ') : 'none'}`,
     `  scenes: ${r.sceneFiles.join(', ') || '-'}`,
     `  final: ${JSON.stringify({ pos: r.final.pos, sleeping: r.final.sleeping, v: r.final.velocity, watch: r.final.watch })}`,
@@ -57,11 +59,22 @@ it.skipIf(!enabled)('av lab run', async () => {
   const focus = env.AVLAB_FOCUS ?? world.entities.find((e) => e.transformerPipeStack?.length)?.id
   expect(focus).toBeTruthy()
   fs.mkdirSync(out, { recursive: true })
+  const vr = versionReport(ref)
+  console.log(`CODE VERSION ${vr.line}`)
+  if (vr.stale.length || vr.diverged.length) console.log('!!! world.json embeds stage code that differs from the shipped library (Builder upgrades stale copies on open; diverged copies stay old)')
   for (const seed of (env.AVLAB_SEEDS ?? '1').split(',').map(Number)) {
+    const prepared = loadLabWorld(ref)
+    // AVLAB_PARAMS='{"comfortDecel":6}' overrides params of the focus entity's first pipe binding (quick tuning without editing the world).
+    if (env.AVLAB_PARAMS) {
+      const fe = prepared.entities.find((e) => e.id === focus)
+      const b = fe?.transformerPipeStack?.[0]
+      if (b) b.params = { ...(b.params ?? {}), ...JSON.parse(env.AVLAB_PARAMS) }
+    }
     const r = await runLab({
       world: ref,
-      preparedWorld: loadLabWorld(ref),
+      preparedWorld: prepared,
       focus: focus!,
+      chaserPipe: env.AVLAB_CHASER_PIPE,
       seed,
       frames: Number(env.AVLAB_FRAMES ?? 3600),
       outDir: out,

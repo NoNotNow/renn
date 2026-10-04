@@ -58,7 +58,9 @@ export async function loadExampleWorldFromPublicBase(
     throw new Error('exampleWorldId is required')
   }
   const assetRoot = normalizeExampleWorldPublicRoot(baseUrl, trimmed)
-  const worldRes = await fetch(`${assetRoot}world.json`)
+  // revalidate: GitHub Pages serves max-age=600, so a plain fetch could hand out the previous deploy's world.json
+  const buildTag = typeof __BUILD_SHA__ === 'string' ? `?v=${encodeURIComponent(__BUILD_SHA__)}` : ''
+  const worldRes = await fetch(`${assetRoot}world.json${buildTag}`, { cache: 'no-cache' })
   if (!worldRes.ok) {
     throw new Error(`Example world not found: ${trimmed}`)
   }

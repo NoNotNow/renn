@@ -16,7 +16,7 @@ describe('loadExampleWorldFromPublicBase', () => {
       },
     }
     const fetchMock = vi.fn(async (url: string) => {
-      if (url.endsWith('/exampleWorlds/demo/world.json')) {
+      if (url.includes('/exampleWorlds/demo/world.json')) {
         return new Response(JSON.stringify(world), { status: 200 })
       }
       if (url.includes('/exampleWorlds/demo/assets/mesh-1.glb')) {
