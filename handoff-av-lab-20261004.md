@@ -33,7 +33,16 @@ Result on seed 2: roughness 18.9 → 0.05 m/s/frame. Edge cases added: icy power
 ## Open problems (priority order)
 
 1. **Deploy is pending.** `dist/` is built from 88f88ac2, but `npx gh-pages -d dist` failed (curl HTTP/2 stream cancelled, then hung for 30 min). Retry `npx gh-pages -d dist` (delete `node_modules/.cache/gh-pages` first). If it hangs again, tell Manuel; do not loop.
-2. **Performance agent in flight.** A subagent was optimising `av-route-planner.js` (replans 50–200 ms; p95 ~0.2 ms), `av-perception.js` (~0.9 ms/frame) and `av-motion-planner.js`. The rule was behaviour-identical (deterministic lab output unchanged). Worktree: `.claude/worktrees/agent-a046520a95b2b2780`, branch `worktree-agent-a046520a95b2b2780`. Check `git -C .claude/worktrees/agent-a046520a95b2b2780 log --oneline -3`. If it has a commit: verify the lab output is identical (seeds 2 and 6, 1800 frames, same path length / final pos), run the AV tests, then cherry-pick and sync. If it is empty, redo the task yourself.
+2. **Performance optimisation is ready but not merged.** Commit `d4d9ebdb` is on branch `worktree-agent-a046520a95b2b2780` (worktree `.claude/worktrees/agent-a046520a95b2b2780`, based on 88f88ac2, not pushed). The subagent reports that the lab output is identical to the baseline (seed 2: path 203.6 m, final pos [33.21, 0.49, 52.92]; seed 6: 351.5 m, [1.39, 0.49, -32.27]; 1800 frames) and that the 6 AV test files pass (72 tests). Reported means for the focus car, seed 2 / seed 6 (ms):
+
+   | Stage | seed 2 | seed 6 |
+   | --- | --- | --- |
+   | Route planner | 1.27 → 0.36 (max 242 → 72) | 1.10 → 0.30 |
+   | Motion planner | 0.97 → 0.37 (p95 4.3 → 0.9) | 2.49 → 0.67 (p95 11.0 → 0.9) |
+   | Perception | 1.05 → 0.76 | 1.45 → 1.09 |
+
+   Replans over 50 ms: ~15 per run → 1. What changed: numeric A* keys with a typed best-cost table, one shared hit grid per point list, an 8 m spatial hash in `freeLength`, numeric cell index for perception clearing, partial selection for debug draw.
+   To do: review the diff (`git show d4d9ebdb`), reproduce the identical lab output yourself, then cherry-pick, `npm run sync:global-pipeline`, run the suite, commit, push and deploy. Note: the commit includes the regenerated `shipped-global-behavior-library.json`, which may carry unrelated sync drift, so regenerate it after the cherry-pick rather than trusting it. The worktree also has uncommitted `self_drive_av/world.json` / `self-driving-car-pipe3.json` changes; ignore them. Remove the worktree when you are done (`git worktree remove`).
 3. **Red check for the sleep fix not done.** Temporarily restore the old skip in `RenderItemRegistry.executeTransformers` → edge case `car asleep at start` must fail, then revert.
 4. **Remaining standstill/shuttle in the crowded start area** (x ≈ −40…−10, z ≈ 150…185: "pyramid orange 2" tilted at scale 9.1, "sphere purple 1", followers). The probe showed one sample was a legitimate back-off for crossing traffic, but seeds 2/6/7 still only make 150–400 m per 60 s versus 600–860 m for seeds 1/3. Run the 6-seed batch, check `stall` / `shuttle` scenes with a probe (see below), decide bug vs traffic.
    - Known weak points: the manoeuvre planner replans restart at segment 0 (no commitment); the route summary (1500 expansions) and the full plan (4000) can disagree on the first gear; the lidar sees sloped surfaces (pyramid) differently per ray plane.
