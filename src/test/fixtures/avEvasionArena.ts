@@ -97,7 +97,7 @@ export function buildArenaWorld(spec: ArenaSpec): RennWorld {
   car.position = [spec.car.at[0], CAR_START_Y, spec.car.at[1]]
   car.rotation = [0, rad(spec.car.yawDeg), 0]
   const binding = car.transformerPipeStack[0]
-  binding.params = { ...binding.params, threatIds: spec.puppets.map((p) => p.id) }
+  binding.params = { ...binding.params, ...(process.env.AV_PARAMS ? JSON.parse(process.env.AV_PARAMS) : {}), threatIds: spec.puppets.map((p) => p.id) }
   // goal: collapse the wanderer perimeter onto the goal point
   const wander = src.transformers![`${AV_CAR_SOURCE_ID}_tf10`] as any
   if (!wander || wander.type !== 'wanderer') throw new Error('wanderer stage of the AV car not found')
