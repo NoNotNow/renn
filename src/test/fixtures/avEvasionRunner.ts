@@ -1,6 +1,7 @@
 /* Scripted-scenario runner shared by av-evasion-scenarios.test.ts and av-evasion-sweep.*.test.ts */
 import { runLab, forwardSpeed, yawOf, watchValues } from '@/test/avLab/lab'
-import { DEFAULT_DT } from '@/test/helpers/worldSimulator'
+import { DEFAULT_DT, type WorldSimulator } from '@/test/helpers/worldSimulator'
+import type { RennWorld } from '@/types/world'
 import {
   ARENA_CAR_ID,
   carSizeOf,
@@ -52,6 +53,8 @@ export interface ScenarioMetrics {
   speedSpikes: number
   /** Max |forward speed change| in one frame during the first 0.5 s (standing-start launch kick; includes frame 0). */
   launchMaxDv: number
+  /** Fraction of driving frames (> 2 m/s) the motion planner was fixated on its aim point (economy budget, watch av.fixWhy). */
+  fixShare: number
   /** First time (s) the forward speed reached 8 m/s (launch time-to-8); Infinity = never. */
   t8: number
   /** Distance driven in reverse (m, forward speed < -0.3 m/s). */
@@ -149,8 +152,15 @@ function boxPoly(b: ArenaBox): V2[] {
 }
 
 /** Runs one scenario headless from its defined start (a fresh world every call, seeded RNG, simulated clock). */
-export async function runScenario(spec: ArenaSpec, seconds: number): Promise<ScenarioMetrics> {
+export interface ScenarioHooks {
+  /** Per frame after the physics step (t = simulated seconds). */
+  onFrame?: (ctx: { t: number; frame: number; sim: WorldSimulator; world: RennWorld }) => void
+}
+
+export async function runScenario(spec: ArenaSpec, seconds: number, hooks: ScenarioHooks = {}): Promise<ScenarioMetrics> {
   const world = buildArenaWorld(spec)
+  let fixFrames = 0
+  let driveFrames = 0
   const carSize = carSizeOf(spec)
   const frames = Math.round(seconds / DEFAULT_DT)
   const puppets = new Map<string, { spec: PuppetSpec; s: PuppetState }>(spec.puppets.map((p) => [p.id, { spec: p, s: initialPuppetState(p) }]))
@@ -172,6 +182,7 @@ export async function runScenario(spec: ArenaSpec, seconds: number): Promise<Sce
     progress: 0,
     speedSpikes: 0,
     launchMaxDv: 0,
+    fixShare: 0,
     t8: Infinity,
     reverseDist: 0,
     reverseMeanSpeed: 0,
@@ -224,6 +235,11 @@ export async function runScenario(spec: ArenaSpec, seconds: number): Promise<Sce
       const q = sim.getRotation(ARENA_CAR_ID)
       const v = sim.getVelocity(ARENA_CAR_ID)
       const fwd = forwardSpeed(q, v)
+      if (Math.abs(fwd) > 2) {
+        driveFrames++
+        if (watchValues(ARENA_CAR_ID)['av.fixWhy'] === 'fix') fixFrames++
+      }
+      hooks.onFrame?.({ t, frame, sim, world })
       const hull = rectPoly(cp[0], cp[2], yawOf(q), carSize[0], carSize[1])
       m.trace.push([t, cp[0], cp[2], fwd])
       track.push({ t, x: cp[0], z: cp[2], hx: v[0], hz: v[2], v: Math.hypot(v[0], v[2]) * Math.sign(fwd || 1) })
@@ -298,6 +314,7 @@ export async function runScenario(spec: ArenaSpec, seconds: number): Promise<Sce
   m.shuttleEvents = res.events.filter((ev) => ev.kind === 'shuttle' || ev.kind === 'jitter').length
   m.path = pathMetrics(track, spec.car.at, goal)
   m.stalledSec = stalled * DEFAULT_DT
+  m.fixShare = fixFrames / Math.max(1, driveFrames)
   m.reverseMeanSpeed = revFrames > 0 ? m.reverseDist / (revFrames * DEFAULT_DT) : 0
   m.steerReversalsPerSec = res.steerReversalsPerSec
   m.limitHist = res.limitHist

@@ -54,6 +54,8 @@ export interface PuppetSpec {
   motion: PuppetMotion
   /** Seconds the puppet waits at its start pose. */
   delay?: number
+  /** false = background traffic: a moving body the car only perceives (not in `threatIds`, no pursuit prediction). Default true. */
+  threat?: boolean
 }
 
 export interface CarStart {
@@ -86,6 +88,8 @@ export interface ArenaSpec {
    * Use `{ preset: 'chaser-evasion' }` etc. to test a vehicle with nothing but the preset.
    */
   carParams?: Record<string, unknown>
+  /** Merged over the example car's params (e.g. `{ budget: 'eco' }`); ignored with `carParams`. */
+  extraParams?: Record<string, unknown>
   goal: V2
   boxes: ArenaBox[]
   puppets: PuppetSpec[]
@@ -123,9 +127,9 @@ export function buildArenaWorld(spec: ArenaSpec): RennWorld {
   car.position = [spec.car.at[0], CAR_START_Y, spec.car.at[1]]
   car.rotation = [0, rad(spec.car.yawDeg), 0]
   const binding = car.transformerPipeStack[0]
-  const threatIds = spec.puppets.map((p) => p.id)
+  const threatIds = spec.puppets.filter((p) => p.threat !== false).map((p) => p.id)
   const extra = process.env.AV_PARAMS ? JSON.parse(process.env.AV_PARAMS) : {}
-  binding.params = spec.carParams ? { ...spec.carParams, ...extra, ...(threatIds.length ? { threatIds } : {}) } : { ...binding.params, ...extra, threatIds }
+  binding.params = spec.carParams ? { ...spec.carParams, ...extra, ...(threatIds.length ? { threatIds } : {}) } : { ...binding.params, ...spec.extraParams, ...extra, threatIds }
   const veh = spec.vehicle
   if (veh) {
     if (veh.size) car.shape = { ...car.shape, width: veh.size[0], depth: veh.size[1] }

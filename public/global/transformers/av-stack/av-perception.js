@@ -14,6 +14,12 @@
 // Persistent static map (params.staticMap true, default off): hits on STATIC bodies (walls, props; bodyType 'static', not planes) are kept forever in a 1 m cell map instead of the 15 s memory,
 // consecutive hits on the same convex body (<= staticLinkMax 10 m apart in angle order) are linked by interpolated points so far-range scans leave no holes; dynamic / kinematic hits (chasers, props)
 // stay in the short-lived memory only and are never burned into the map. av.points also contains the static points within staticRange (130 m) of the car; the route planner reads the whole map as av.smap {list, ver}.
+// Moving-body marks (memFollow, default on): a hit on a non-static body is remembered RELATIVE to that body (offset to its live position), so the mark moves with it
+// instead of staying behind as a pink ghost; once the body has moved (> 0.5 m since the hit) the mark expires after dynTtl (2 s) unless re-seen. Marks of bodies that
+// stay put (parked dynamic cars, props) keep memoryTtl; static bodies keep memoryTtl / the static map. Tracked threats (threatIds) keep the old fixed marks unless memFollowThreats: true
+// (the pursuit prediction covers them, and their recent trail measurably helps evasion: corner-trap min gap 5.7 -> 3.5 m, sweep 61 -> 59/75 with following). Followed marks are published as [x, z, 1] in av.points (live position: the motion planner keeps them even on a tracked fast body). Publishes av.dynNear = distance to the nearest moving mark (m, 1e9 = none) and av.movers [[x, z], ...] (moving marks within 150 m).
+// Economy (budget 'eco'): while the motion planner is fixated on a free, visible goal (av.prevFix, see av-motion-planner.js) the dense cone is a narrow one
+// (fixConeDeg 24, fwdStepDeg 3) around the aim direction, sides every ecoSideEvery 6th frame, the coarse 360 sweep every ecoSweepEvery 20th frame, extra ray planes every 2nd frame.
 // params: drivableArea [xmin, xmax, zmin, zmax] (virtual walls at the edge), edgeStep, rayCount, fovDeg, sensorRange, memoryTtl, memoryCell, vehicleWidth, vehicleLength
 function transform(input, dt, params, state, api) {
   var av = input.av
@@ -52,12 +58,13 @@ function transform(input, dt, params, state, api) {
   // ray set: uniform ring (default) or zoned (dense cone in the direction of travel, sparse sides, periodic coarse 360 sweep)
   var scanSet = null
   state.frame = (state.frame || 0) + 1
-  var zoned = params.fwdFovDeg > 0
+  var eco = params.budget === 'eco' && !!av.prevFix
+  var zoned = params.fwdFovDeg > 0 || eco
   var sideRange = Math.min(range, params.sideRange || 45)
   var sweepRay = Math.min(range, params.sweepRange || 45)
   if (zoned) {
-    var half = (params.fwdFovDeg * Math.PI) / 360
-    var fs = ((params.fwdStepDeg || 2) * Math.PI) / 180
+    var half = ((eco ? params.fixConeDeg || 24 : params.fwdFovDeg) * Math.PI) / 360
+    var fs = ((params.fwdStepDeg || (eco ? 3 : 2)) * Math.PI) / 180
     var ss = ((params.sideStepDeg || 12) * Math.PI) / 180
     var sweepStep = ((params.sweepStepDeg || 10) * Math.PI) / 180
     var slow = Math.abs(e.speed) < 1.5
@@ -71,10 +78,10 @@ function transform(input, dt, params, state, api) {
       var fOther = state.dir > 0 ? state.freeR : state.freeF
       if (fOther > fOwn * 1.3 + 6) state.dir = -state.dir
     }
-    var aim = state.dir > 0 ? 0 : Math.PI
-    var sweepEvery = slow ? params.sweepEverySlow || 5 : params.sweepEvery || 15
+    var aim = eco ? av.prevFix.ang : state.dir > 0 ? 0 : Math.PI
+    var sweepEvery = slow ? params.sweepEverySlow || 5 : eco ? params.ecoSweepEvery || 20 : params.sweepEvery || 15
     var doSweep = state.frame === 1 || state.frame % sweepEvery === 0
-    var sideEvery = params.sideEvery || 2
+    var sideEvery = eco ? params.ecoSideEvery || 6 : params.sideEvery || 2
     var doSides = state.frame % sideEvery === 0
     var zl = []
     var a
@@ -95,7 +102,40 @@ function transform(input, dt, params, state, api) {
   var winR = null
   var useSmap = params.staticMap === true
   var hits = []
-  if (useSmap && !state.bt) state.bt = {}
+  if (!state.bt) state.bt = {}
+  // moving-body marks follow their body (see header): live positions once per frame per body
+  var follow = params.memFollow !== false
+  var dynTtl = params.dynTtl != null ? params.dynTtl : 2
+  var livePos = {}
+  function live(id) {
+    var lp = livePos[id]
+    if (lp === undefined) lp = livePos[id] = api.getWorldPosition(id)
+    return lp
+  }
+  var dynNear = 1e9
+  var threatSet = {}
+  if (params.threatIds) for (var tsi = 0; tsi < params.threatIds.length; tsi++) threatSet[params.threatIds[tsi]] = 1
+  var movers = []
+  if (follow) {
+    var fk = Object.keys(mem)
+    for (var fi = 0; fi < fk.length; fi++) {
+      var fm = mem[fk[fi]]
+      if (!fm.id) continue
+      var lpp = live(fm.id)
+      if (!lpp) continue
+      fm.x = lpp[0] + fm.ox
+      fm.z = lpp[2] + fm.oz
+      if (!fm.mv && (lpp[0] - fm.bx) * (lpp[0] - fm.bx) + (lpp[2] - fm.bz) * (lpp[2] - fm.bz) > 0.25) fm.mv = 1
+      if (fm.mv) {
+        var fdx = fm.x - pos[0]
+        var fdz = fm.z - pos[2]
+        var fd = Math.sqrt(fdx * fdx + fdz * fdz)
+        if (fd < dynNear) dynNear = fd
+        if (fd < 150) movers.push([fm.x, fm.z])
+      }
+    }
+  }
+  var levelsNow = eco && state.frame % 2 === 1 ? [] : levels
   for (var i = 0; i < nRays; i++) {
     var rayRange = range
     var th
@@ -118,8 +158,8 @@ function transform(input, dt, params, state, api) {
     // One horizontal plane misses what curves away from it (a sphere / dome is farther at the car's top edge than at the
     // equator, a low bar hides under the plane): cast at the car's top edge too and keep the nearest hit.
     var r = api.raycast(origin, dir, rayRange, { visualize: false })
-    for (var li = 0; li < levels.length; li++) {
-      var lo = [origin[0], origin[1] + levels[li], origin[2]]
+    for (var li = 0; li < levelsNow.length; li++) {
+      var lo = [origin[0], origin[1] + levelsNow[li], origin[2]]
       var rl = api.raycast(lo, dir, rayRange, { visualize: false })
       if (rl.hit && (!r.hit || rl.distance < r.distance)) {
         r = rl
@@ -139,17 +179,28 @@ function transform(input, dt, params, state, api) {
       rayInfo.push([dir, tHull, r.distance])
       var hx = origin[0] + dir[0] * r.distance
       var hz = origin[2] + dir[2] * r.distance
-      var isStatic = false
-      if (useSmap && r.entityId) {
-        var bt = state.bt[r.entityId]
+      // body class per entity (cached): 1 = static (map / plain memory), 2 = plane, 0 = dynamic / kinematic (marks follow the body)
+      var bt = 2
+      if (r.entityId) {
+        bt = state.bt[r.entityId]
         if (bt === undefined) {
           var he = api.getEntity(r.entityId)
-          bt = state.bt[r.entityId] = he && he.bodyType === 'static' && !(he.shape && he.shape.type === 'plane') ? 1 : 0
+          bt = state.bt[r.entityId] = !he ? 2 : he.shape && he.shape.type === 'plane' ? 2 : he.bodyType === 'static' ? 1 : 0
         }
-        isStatic = bt === 1
       }
-      if (isStatic) hits.push([Math.atan2(Math.sin(th), Math.cos(th)), r.entityId, hx, hz])
-      else mem[Math.round(hx / cell) + ',' + Math.round(hz / cell)] = { x: hx, z: hz, t: e.t }
+      if (useSmap && bt === 1) hits.push([Math.atan2(Math.sin(th), Math.cos(th)), r.entityId, hx, hz])
+      else {
+        var mrec = { x: hx, z: hz, t: e.t }
+        var bp = follow && bt === 0 && !(params.memFollowThreats !== true && threatSet[r.entityId]) ? live(r.entityId) : null
+        if (bp) {
+          mrec.id = r.entityId
+          mrec.ox = hx - bp[0]
+          mrec.oz = hz - bp[2]
+          mrec.bx = bp[0]
+          mrec.bz = bp[2]
+        }
+        mem[Math.round(hx / cell) + ',' + Math.round(hz / cell)] = mrec
+      }
       if (c < -0.9 && r.distance < rearClear) rearClear = r.distance
     } else {
       ranges.push(rayRange)
@@ -256,8 +307,8 @@ function transform(input, dt, params, state, api) {
   var keys = Object.keys(mem)
   for (var k = 0; k < keys.length; k++) {
     var m = mem[keys[k]]
-    if (e.t - m.t > ttl) delete mem[keys[k]]
-    else pts.push([m.x, m.z])
+    if (e.t - m.t > (m.mv ? dynTtl : ttl)) delete mem[keys[k]]
+    else pts.push(m.id ? [m.x, m.z, 1] : [m.x, m.z])
   }
   if (draw) {
     // magenta ticks: remembered obstacle points (costmap), nearest 60
@@ -287,5 +338,7 @@ function transform(input, dt, params, state, api) {
   av.scan = { angles: angles, ranges: ranges, range: range, dir: state.dir === undefined ? 1 : state.dir, freeFront: state.freeF, freeRear: state.freeR }
   av.points = pts
   av.rearClear = rearClear
+  av.dynNear = dynNear
+  av.movers = movers
   return {}
 }

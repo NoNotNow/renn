@@ -30,6 +30,19 @@ The object should be a dynamic body of roughly the default vehicle size (2 × 1 
 `vehicleLength` otherwise. Regenerate the library: `npm run sync:global-pipeline`.
 Test: `src/test/scenarios/av-stack-global-pipe.integration.test.ts` (foreign project → copy → assign → drives around an obstacle).
 
+## CPU budget / economy mode (2026-10-04, many cars per world)
+
+Binding param `budget`: `'full'` (default, unchanged behaviour) | `'normal'` | `'eco'`. Measured with 6 cars on an open map (`av-fleet-budget.test.ts`, profiler chain time per car per frame): full ~3.3 ms, normal ~1.6 ms, eco ~1.2 ms (ratio ~0.35-0.4); all cars reach their goals in every mode. The time ratio is the only machine-dependent number; the test bar is eco < 0.8 x full.
+
+- **Fixation** (`normal` + `eco`, `av-motion-planner.js`): when the aim point (route carrot or goal) is within `fixAimDeg` 35 of the heading, no tracked threat (`threatIds`) is within `fixThreatRange` 150 m, no MOVING costmap mark (`av.movers`) is within `fixDynRange` 12 m or inside a `fixDynBand` 6 m band beside the arc, and the footprint corridor of the pure-pursuit arc to the aim is free (hard + soft margin), the planner drives that arc (`av.plan.fixed`, `av.fix`) instead of sampling ~190 candidates. Anything failing -> the full planner that frame. A blocked way is handled by the route planner: its carrot is the next waypoint the car then fixates on. Watch `av.fixWhy` (`fix`, `cone`, `near`, `slow`, `threat`, `dyn`, `curve`, `blocked`).
+- **Narrow perception** (`eco`, `av-perception.js`): while fixated (`av.prevFix` from last frame), the dense cone is `fixConeDeg` 24 around the aim (3 deg rays), sides every `ecoSideEvery` 6th frame, coarse 360 sweep every `ecoSweepEvery` 20th, extra ray planes every 2nd frame.
+- **Fewer route refreshes** (`eco`): `routeInterval` x `ecoRouteFactor` 2.5 while fixated. All budgets: the reverse-cruise checks build their costmap grid lazily (only when the goal is behind).
+- `fixThreatRange` 150 m: with 60 m the eco car collided in `corner-trap` (30 m/s pursuer closes 60 m in ~1 s). In a world where every other car is a threat (self_hunt_flexible) the car is rarely fixated near them: hunted = full attention.
+
+**Moving-body marks (the pink ticks).** Hits on a non-static body are stored relative to that body and move with it; once it has moved they expire after `dynTtl` 2 s unless re-seen (`memFollow`, default on). Before, they stayed at the hit position for 15 s (trail up to 135 m long). Test `av-perception-marks.test.ts` (background traffic crossing ahead: 0 ghost marks; red check `memFollow: false`: ~46 000 ghost mark-frames). Exception: tracked threats keep the old fixed marks unless `memFollowThreats: true`, because following measurably hurt evasion (corner-trap 5.7 -> 3.5 m min gap, full sweep 61 -> 59/75): their recent trail acts as a buffer the pursuit prediction does not replace.
+
+Tests: `av-evasion-scenarios.eco.test.ts`, `av-maze-scenarios.eco.test.ts` (all scripted scenarios with `budget: 'eco'`, same criteria; suites in `fixtures/avEvasionSuite.ts` / `avMazeSuite.ts`), `av-fleet-budget.test.ts`; report with stage table and fixation outcomes: `AV_FLEET=1 AV_FLEET_LAYOUT=spread|ring AV_FLEET_N=8 AV_FLEET_BUDGETS=full,normal,eco npx vitest run src/test/scenarios/av-fleet-budget.diagnostic.test.ts` (fixture `fixtures/avFleet.ts`: n copies of the example car; `ring` = all cross the middle, worst case).
+
 ## Pipe tree
 
 ```

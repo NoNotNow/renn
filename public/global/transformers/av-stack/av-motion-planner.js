@@ -3,6 +3,11 @@
 // swing around an obstacle and then run alongside it. Each path is swept with the vehicle footprint
 // (margin grows with speed) against the costmap. Cost = progress to goal, heading, required stopping
 // length, clearance, smoothness. Publishes av.plan {kappa, free, freeSoft, clearance, blocked, horizon}.
+// CPU budget (params.budget 'full' (default) | 'normal' | 'eco'): with 'normal' / 'eco' the planner FIXATES on a free, visible aim point instead of sampling ~190 candidates every frame:
+// aim (route carrot or goal) within fixAimDeg (35) of the heading, no tracked threat within fixThreatRange (150 m: a 30 m/s pursuer closes 60 m in ~1 s; corner-trap collided with 60 m), no moving costmap mark (av.movers) within fixDynRange (12 m) or inside
+// the band of fixDynBand (6 m) beside the fixation arc up to 10 m beyond the aim / horizon,
+// and the footprint corridor of the pure-pursuit arc to it is free (hard + soft margin) up to min(aim distance, horizon) -> plan = that arc (av.fix, cyan in debug draw).
+// Any condition failing -> the full sampling planner this frame. Path blocked -> the route planner's carrot becomes the next waypoint the car fixates on.
 // debug draw: yellow = line to goal / route carrot, dark blue = candidate fan, green = chosen path, orange = where it would hit.
 // params: vehicleWidth, vehicleLength, safetyMargin, marginSpeedGain, softMargin, maxCurvature, arcCount,
 //         horizonMin, horizonGain, horizonMax, horizonClear (m floor, 0 = off), switchMargin (cost; keep last candidate unless better by this, 0 = off), comfortDecel, wProgress, wHeading, wRequired, wFree, wSoft,
@@ -70,6 +75,7 @@ function transform(input, dt, params, state, api) {
   var pts = av.points || []
   var ox = []
   var oy = []
+  var olive = []
   for (var i = 0; i < pts.length; i++) {
     var dx = pts[i][0] - pos[0]
     var dz = pts[i][1] - pos[2]
@@ -78,6 +84,7 @@ function transform(input, dt, params, state, api) {
     if (px > -halfL - soft - 3 && px < H + halfL + soft + 3 && py > -H - 4 && py < H + 4) {
       ox.push(px)
       oy.push(py)
+      olive.push(pts[i][2] === 1)
     }
   }
 
@@ -156,6 +163,12 @@ function transform(input, dt, params, state, api) {
     var fy = []
     for (var oi = 0; oi < ox.length; oi++) {
       var skip = false
+      // a mark that follows the body (perception memFollow) is where the body IS, not a stale trail: keep it
+      if (olive[oi]) {
+        fx.push(ox[oi])
+        fy.push(oy[oi])
+        continue
+      }
       for (var mi = 0; mi < thr.length; mi++) {
         if (thr[mi].sp > thrMinPursuit) {
           var mx = ox[oi] - thr[mi].x
@@ -328,6 +341,49 @@ function transform(input, dt, params, state, api) {
   var prevKey = state.prevKey != null ? state.prevKey : -1
   var prevHit = null
   var cand = []
+  // --- economy: fixate on a free, visible aim point (see header) ---
+  var budget = params.budget || 'full'
+  if (budget !== 'full') {
+    // why not fixated (watch av.fixWhy): aim (outside the cone / behind / too close / standing), threat, dyn (moving mark near), curve, blocked (corridor not free)
+    var why = v <= 0.5 ? 'slow' : gx <= 1.5 ? 'near' : 'cone'
+    if (gx > 1.5 && Math.abs(Math.atan2(gy, gx)) < ((params.fixAimDeg || 35) * Math.PI) / 180 && v > 0.5) {
+      why = ''
+      var fixThrR = params.fixThreatRange != null ? params.fixThreatRange : 150
+      for (var tq2 = 0; tq2 < thr.length; tq2++) if (thr[tq2].x * thr[tq2].x + thr[tq2].y * thr[tq2].y < fixThrR * fixThrR) why = 'threat'
+      var kFix = (2 * gy) / (goalDist * goalDist)
+      if (!why && av.movers && av.movers.length) {
+        var dynR = params.fixDynRange != null ? params.fixDynRange : 12
+        var band = halfW + (params.fixDynBand != null ? params.fixDynBand : 6)
+        var xEnd = Math.min(goalDist, H) + 10
+        for (var mv = 0; mv < av.movers.length && !why; mv++) {
+          var mdx = av.movers[mv][0] - pos[0]
+          var mdz = av.movers[mv][1] - pos[2]
+          var mx2 = mdx * e.fwd[0] + mdz * e.fwd[2]
+          var my2 = mdx * e.left[0] + mdz * e.left[2]
+          if (mx2 * mx2 + my2 * my2 < dynR * dynR || (mx2 > -halfL && mx2 < xEnd && Math.abs(my2 - 0.5 * kFix * mx2 * mx2) < band)) why = 'dyn'
+        }
+      }
+      if (!why && Math.abs(kFix) >= kmax) why = 'curve'
+      if (!why) {
+        var need = Math.min(goalDist, H)
+        var fH = freeLength(kFix, H, halfW, halfL)
+        var fS = fH >= need - 1e-6 ? freeLength(kFix, H, halfW + soft - margin, halfL + soft - margin) : 0
+        if (fH >= need - 1e-6 && fS >= Math.min(need, Lreq) - 1e-6) {
+          state.prevKappa = kFix
+          state.prevKey = -1
+          av.fix = { ang: Math.atan2(gy, gx), dist: goalDist }
+          av.plan = { kappa: kFix, free: fH, freeSoft: fS, clearance: 1, margin: margin, blocked: false, startGap: startGap, horizon: H, required: Lreq, cost: 0, fixed: true }
+          api.watch('av.plan.kappa', Math.round(kFix * 1000) / 1000)
+          api.watch('av.plan.free', Math.round(fH * 10) / 10 + ' fix')
+          api.watch('av.fixWhy', 'fix')
+          if (params.debugDraw !== false) api.visualizeLine(pos, [aim[0], pos[1], aim[2]], '#00e5ff')
+          return {}
+        }
+        why = 'blocked'
+      }
+    }
+    api.watch('av.fixWhy', why)
+  }
   // Direct aim: turn at curvature `kappa` until the car points at the goal, then drive straight (shortest way when the
   // way is free). Returns the turn angle (rad), or 0 when the goal is on the other side / cannot be aimed at this way.
   function aimTurnAngle(kappa) {

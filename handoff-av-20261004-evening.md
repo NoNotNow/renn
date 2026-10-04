@@ -16,11 +16,7 @@ Full suite green there. Standing rules from `handoff-av-lab-20261004.md` still a
 - The `-wip-*` branches can be deleted.
 
 ## Open user requests (priority order)
-1. **Economy mode / CPU budget (new, configurable)** — Manuel wants many cars per world, so:
-   - Goal in line of sight and path free → look only toward the goal (narrow cone), drive straight at it, fixate on it (no re-aiming every frame; this is also the main cause of weaving).
-   - Path blocked → a higher layer sets **waypoints** (route planner on the static map / distance field); the car only focuses on the next waypoint.
-   - Moving objects nearby → observe them, update them often. **Bug:** pink obstacle marks of moving objects stay behind instead of moving with them; dynamic marks must be short-lived (frequent refresh, quick expiry), static ones persistent.
-   - All configurable (e.g. `budget: 'eco' | 'normal' | 'full'`), with CPU per car measured by the lab profiler; add a many-cars perf test.
+1. ~~Economy mode / CPU budget~~ done (see feature-av-stack.md "CPU budget / economy mode"): `budget: 'full' | 'normal' | 'eco'`, goal fixation, narrow cone, fewer route refreshes; 6 cars: eco ~0.35-0.4 x CPU of full, same goals reached. Pink marks of moving bodies follow them (not for threatIds: hurts evasion). Not yet set in any example world (opt-in per binding).
 2. ~~Weaving on straight roads~~ done (921794c).
 3. Manoeuvres/reverse too slow (style 'escape' exists, opt-in via preset); turn instead of long reversing still open (heading-aware search that does not break alley reversing).
 4. ~~Reusable pipe~~ done (2ce7879): presets, self-calibration, doc section "Using the AV autopilot in your game", reuse tests.

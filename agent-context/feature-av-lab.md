@@ -57,7 +57,7 @@ stage timing table, chain means of all entities and slow calls.
 
 ## Scripted scenarios (2026-10) — pass / fail instead of seed aggregates
 
-`src/test/scenarios/av-evasion-scenarios.test.ts` + `src/test/fixtures/avEvasionArena.ts`. Random-seed aggregates (mean speed, metres over 6 seeds) are chaotic; a scenario is one fixed start, a
+`src/test/scenarios/av-evasion-scenarios.test.ts` (+ `.eco.test.ts`, suite in `fixtures/avEvasionSuite.ts`) + `src/test/fixtures/avEvasionArena.ts`. Random-seed aggregates (mean speed, metres over 6 seeds) are chaotic; a scenario is one fixed start, a
 fixed duration and explicit criteria, so a regression names the situation. ~40 s for 10 scenarios (<= 20 s sim each, `profile: false`).
 
 - **Car:** the `self_hunt_flexible` AV (entity, pipe binding + all params, wanderer + car2 stages, current global library code), copied at test time. Only the start pose, the goal and `threatIds` (= the scripted chasers) differ. The goal is the preset wanderer with its perimeter collapsed onto one point (a fixed, non-final goal).
@@ -81,4 +81,4 @@ fixed duration and explicit criteria, so a regression names the situation. ~40 s
 
 ## Maze scenarios (2026-10)
 
-`src/test/scenarios/av-maze-scenarios.test.ts` + `src/test/fixtures/avMazeCases.ts` (walls 1 m x 1.5 m like the example world; `seg(a, b)` helper, 24-box `cylinder`, `worldMazeWalls('wall_maze_C')` reads the example world). Same runner as the evasion scenarios plus `goalReachT` (within 10 m of the goal), `reversals` (forward-speed sign flips), `shuttleEvents` / `shuttleMaxSec` (lab motion monitor; a K-turn in a dead end reads as one episode, allowed per case via `maxShuttle`). Cases: `maze-goal-behind-wall`, `maze-dead-end`, `maze-u-trap`, `maze-u-trap-inside`, `maze-corridor-chase`, `maze-gate-exit` (maze C pocket, lab seed 3), `pocket-escape`. `AV_SCENARIO_TRACE=2` also prints route / manoeuvre / carrot / reverse-cruise watch values.
+`src/test/scenarios/av-maze-scenarios.test.ts` (+ `.eco.test.ts`, suite in `fixtures/avMazeSuite.ts`) + `src/test/fixtures/avMazeCases.ts` (walls 1 m x 1.5 m like the example world; `seg(a, b)` helper, 24-box `cylinder`, `worldMazeWalls('wall_maze_C')` reads the example world). Same runner as the evasion scenarios plus `goalReachT` (within 10 m of the goal), `reversals` (forward-speed sign flips), `shuttleEvents` / `shuttleMaxSec` (lab motion monitor; a K-turn in a dead end reads as one episode, allowed per case via `maxShuttle`). Cases: `maze-goal-behind-wall`, `maze-dead-end`, `maze-u-trap`, `maze-u-trap-inside`, `maze-corridor-chase`, `maze-gate-exit` (maze C pocket, lab seed 3), `pocket-escape`. `AV_SCENARIO_TRACE=2` also prints route / manoeuvre / carrot / reverse-cruise watch values.

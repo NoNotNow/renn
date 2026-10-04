@@ -69,6 +69,8 @@ function transform(input, dt, params, state, api) {
   if (preset) av.preset = preset
   // the route planner (fieldHeuristic) leaves the obstacle-aware distance to its goal on last frame's blackboard (goal watchdog: a long detour is progress)
   if (prevAv && prevAv.fieldGoal) av.prevField = prevAv.fieldGoal
+  // economy mode: last frame's goal fixation (av-motion-planner) steers this frame's narrow perception cone
+  if (prevAv && prevAv.fix) av.prevFix = prevAv.fix
   // a goal source running in front of this stage hands its mission over via input.goalSource (see av-wander.js)
   if (input.goalSource) {
     av.mission = input.goalSource

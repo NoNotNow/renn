@@ -30,6 +30,8 @@ function transform(input, dt, params, state, api) {
   var maxExpFull = params.maxExpansions || 4000
   var routeExp = params.routeExpansions || 1500
   var routeInterval = params.routeInterval != null ? params.routeInterval : 0.8
+  // economy (budget 'eco'): while the motion planner is fixated on a free, visible aim point the route is refreshed ecoRouteFactor (2.5) x less often
+  if (params.budget === 'eco' && av.prevFix) routeInterval *= params.ecoRouteFactor || 2.5
   var lookahead = params.lookahead != null ? params.lookahead : 14
   var gearPen = params.gearSwitchPenalty != null ? params.gearSwitchPenalty : 4
   var revPen = params.reversePenalty != null ? params.reversePenalty : 4
@@ -836,9 +838,11 @@ function transform(input, dt, params, state, api) {
   var revCruiseOn = params.reverseCruise !== false
   var revCruiseSpeed = params.reverseSpeed != null ? params.reverseSpeed : params.style === 'escape' ? 15 : 10
   var scanRange = (av.scan && av.scan.range) || 40
+  // lazy: the costmap grid is only built when a reverse-cruise check actually needs it (most frames: goal ahead, nothing to check)
   var freeStraight = (function () {
-    var hitS = makeHit(av.points || [], ((av.vehicle && av.vehicle.length) || params.vehicleLength || 4) / 2 + planMargin, ((av.vehicle && av.vehicle.width) || params.vehicleWidth || 2) / 2 + planMargin)
+    var hitS = null
     return function (g, maxD) {
+      if (!hitS) hitS = makeHit(av.points || [], ((av.vehicle && av.vehicle.length) || params.vehicleLength || 4) / 2 + planMargin, ((av.vehicle && av.vehicle.width) || params.vehicleWidth || 2) / 2 + planMargin)
       for (var d = 1; d <= maxD; d += 1) {
         if (hitS(pos[0] + e.fwd[0] * g * d, pos[2] + e.fwd[2] * g * d, e.fwd[0], e.fwd[2])) return d - 1
       }
@@ -851,10 +855,18 @@ function transform(input, dt, params, state, api) {
     var gdl = Math.max(Math.hypot(gd[0] - pos[0], gd[1] - pos[2]), 1e-6)
     var gBehind = -((gd[0] - pos[0]) * e.fwd[0] + (gd[1] - pos[2]) * e.fwd[2]) / gdl
     var revLook = Math.min(40, scanRange)
-    api.watch('av.revc', (state.revCruise ? 'on ' : 'off ') + gBehind.toFixed(2) + ' fb ' + freeStraight(-1, revLook) + ' ff ' + freeStraight(1, 20))
+    var fbW = '-'
+    var ffW = '-'
     if (!state.revCruise) {
-      if (gBehind > 0.3 && freeStraight(-1, revLook) >= Math.min(30, revLook) && freeStraight(1, 20) < 20) state.revCruise = true
+      if (gBehind > 0.3) {
+        fbW = freeStraight(-1, revLook)
+        if (fbW >= Math.min(30, revLook)) {
+          ffW = freeStraight(1, 20)
+          if (ffW < 20) state.revCruise = true
+        }
+      }
     } else if (gBehind < 0 || freeStraight(-1, 12) < 10) state.revCruise = false
+    api.watch('av.revc', (state.revCruise ? 'on ' : 'off ') + gBehind.toFixed(2) + ' fb ' + fbW + ' ff ' + ffW)
   } else state.revCruise = false
   if (state.revCruise) {
     maxRevRun = 1e4
