@@ -22,6 +22,8 @@ export const SEED = 1
 export const SCENARIO_TIMEOUT = 120_000
 /** Hull-to-hull gap (m) below which two bodies count as touching. */
 export const CONTACT_GAP = 0.1
+/** Distance (m) to the goal point that counts as reaching it (maze scenarios). */
+export const GOAL_REACH = 10
 
 // ---------------------------------------------------------------------------------------------------------------------
 // Runner
@@ -56,6 +58,14 @@ export interface ScenarioMetrics {
   firstSpike: string
   /** Frames per active speed-limit source of the speed planner ('cruise' | 'free' | 'near' | 'route' | 'curve' | 'goal' | 'maneuver'). */
   limitHist: Record<string, number>
+  /** Smallest distance of the car centre to the goal over the run (m). */
+  minGoalDist: number
+  /** First time (s) the car centre was within `GOAL_REACH` m of the goal; Infinity = never. */
+  goalReachT: number
+  /** Direction reversals: forward-speed sign flips (hysteresis +-1 m/s). A K-turn costs 2-3. */
+  reversals: number
+  /** Lab motion-monitor episodes classified 'shuttle' / 'jitter' (slow back-and-forth without progress / chatter). */
+  shuttleEvents: number
   /** Car track: [t, x, z, forward speed] every frame. */
   trace: [number, number, number, number][]
 }
@@ -92,8 +102,13 @@ export async function runScenario(spec: ArenaSpec, seconds: number): Promise<Sce
     firstContact: '',
     firstSpike: '',
     limitHist: {},
+    minGoalDist: Infinity,
+    goalReachT: Infinity,
+    reversals: 0,
+    shuttleEvents: 0,
     trace: [],
   }
+  let revSign = 0
   let stalled = 0
   let speedSum = 0
   let prevSpeed: number | null = null
@@ -175,6 +190,13 @@ export async function runScenario(spec: ArenaSpec, seconds: number): Promise<Sce
       if (t <= 0.5) m.launchMaxDv = Math.max(m.launchMaxDv, Math.abs(fwd - (prevSpeed ?? spec.car.speed ?? 0)))
       prevSpeed = fwd
       endDist = Math.hypot(cp[0] - goal[0], cp[2] - goal[1])
+      m.minGoalDist = Math.min(m.minGoalDist, endDist)
+      if (endDist < GOAL_REACH && m.goalReachT === Infinity) m.goalReachT = t
+      if (Math.abs(fwd) > 1) {
+        const sg = Math.sign(fwd)
+        if (revSign !== 0 && sg !== revSign) m.reversals++
+        revSign = sg
+      }
     },
   })
   if (process.env.AV_SCENARIO_TRACE) {
@@ -182,6 +204,7 @@ export async function runScenario(spec: ArenaSpec, seconds: number): Promise<Sce
     const rows = m.trace.filter((_, i) => i % 60 === 59).map((r) => `${r[0].toFixed(0)}s (${r[1].toFixed(0)},${r[2].toFixed(0)}) v${r[3].toFixed(1)}`)
     console.log(`TRACE ${rows.join(' | ')}`)
   }
+  m.shuttleEvents = res.events.filter((ev) => ev.kind === 'shuttle' || ev.kind === 'jitter').length
   m.stalledSec = stalled * DEFAULT_DT
   m.steerReversalsPerSec = res.steerReversalsPerSec
   m.limitHist = res.limitHist
