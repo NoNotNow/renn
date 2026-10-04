@@ -291,3 +291,22 @@ All new behaviour is **opt-in via stage params** (defaults = old behaviour; the 
 - Car params used in `self_hunt_flexible`: `comfortDecel` 4 (was 2: the free-path limit `sqrt(2 a (free - margin))` was the active speed limit 2/3 of the time), `fwdFovDeg` 70, `goalWatchdog` 10, `wThreat` 30, `fleeArea` +-370, `threatIds` (all other chain cars).
 - Lab, 3600 frames, seeds 2/6/7/1/3/5, mean speed (catches): before 13.7(1)/1.6(10)/11.3(2)/16.5(0)/13.4(2)/14.6(0); after 15.6(0)/17.4(0)/14.6(1)/18.8(0)/17.2(0)/15.8(0).
 - The lab is chaotic: one early stall flips a seed from 16 to 3 m/s (`comfortDecel` 5 alone: seed 1 16.5 -> 2.6). Judge changes over >= 6 seeds, never one.
+
+## Pursuit-aware prediction (2026-10): pincer + corner-trap pass
+
+Scripted scenarios (`av-evasion-scenarios`), homing chasers (25-30 m/s, turn rate 1.5 rad/s -> turn radius 17-20 m, the car's 8.7 m at <= 9 m/s):
+- **pincer** (chasers 75 m left / right, 60 m ahead, converge on x = 0 in ~3 s): constant-velocity prediction saw two passing lines; the car drove into the closing gap at 28 m/s and then swerved
+  toward one chaser. The flee layer only fired at 16 m (too late: goal swap -> path blocked by the chaser's own costmap points -> AEB 166 m/s^2 -> stopped in front of it, 7 s ridden along).
+  The gap IS passable if the car keeps accelerating (31 m/s at z = 35 vs the chasers' 25): the car must be predicted as accelerating and the chasers' own points must not block it.
+- **corner-trap**: the car started facing the wall, turned at 9.8 m/s (curve / route limit) right into the chaser's path. Open-loop search (`k1,T1,k2,T2,vt` vs the exact puppet): the winning
+  line is full throttle along the wall away from the chaser's intercept, a gentle turn, centre distance 6-9 m; slow dodges (the chaser's radius 20 m vs the car's 9 m) are too late once the chaser is < 30 m away.
+- **Fix, `av-motion-planner` (all opt-in via params, `self_hunt_flexible` sets them):** `threatTurnRate` (1.5) = bodies faster than `threatPursuitSpeed` (4) are predicted HOMING (pure pursuit of the car's
+  pose on the candidate + `threatLead`, speed kept, turn-rate limited; nearer of that and constant velocity per step); the car's own speed profile per candidate (`threatAccel` 7 m/s^2 up towards cruise, down at
+  `comfortDecel`, capped by the curve limit `sqrt(maxLatAccel / |kappa|)` so a hard dodge is slow); `threatHit` (3 x wThreat) = one penalty for the earliest predicted contact (the averaged proximity cost let a
+  straight run into the closing gap win against 50 m of progress); `threatRadius` 2.8 (the chaser is 5 m long); `threatBodyRadius` 4.5 = costmap points around a fast tracked body are dropped
+  (it is predicted, its smeared hull is not an obstacle: a chaser alongside blocked every path). `threatHorizon` 4 s.
+- Debug: `AV_SCENARIO_TRACE=2` prints 4 Hz car / chaser poses, gap, plan kappa / free, speed limit, AEB, flee goal, throttle (`AV_TRACE_T0` / `AV_TRACE_T1` = every frame in that window).
+- Not done: a touched car riding along with a chaser (no break-free logic needed in the two scenarios once contact is avoided), reverse as an escape.
+- **corridor-block 88.7 m/s peak is not physics**: at t = 19.2 s the longitudinal RLS (`av-control-longitudinal`) has G = 250 (real ~1200) after the earlier AEB / manoeuvre phase; u = 0.09-0.25 then gives
+  +100 m/s^2, and above the target the estimate runs away (D -> 300, G -> 2000: u stays positive at 80 m/s with vd 34.5). Needs a physical bound on D (e.g. <= 0.3 G) and a hard
+  `v > vDes -> u <= 0` rule in that stage (not changed here: owned by the parallel longitudinal work).

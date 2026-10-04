@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, it } from 'vitest'
-import { runLab, forwardSpeed, yawOf } from '@/test/avLab/lab'
+import { runLab, forwardSpeed, yawOf, watchValues } from '@/test/avLab/lab'
 import { DEFAULT_DT } from '@/test/helpers/worldSimulator'
 import {
   ARENA_CAR_ID,
@@ -158,6 +158,16 @@ export async function runScenario(spec: ArenaSpec, seconds: number): Promise<Sce
       const fwd = forwardSpeed(q, v)
       const hull = rectPoly(cp[0], cp[2], yawOf(q), CAR_SIZE[0], CAR_SIZE[1])
       m.trace.push([t, cp[0], cp[2], fwd])
+      if (process.env.AV_SCENARIO_TRACE === '2' && (process.env.AV_TRACE_T0 ? t >= +process.env.AV_TRACE_T0 && t <= +(process.env.AV_TRACE_T1 ?? 1e9) : frame % 15 === 14)) {
+        // 4 Hz detail: car pose / yaw / speed and every chaser (x, z, yaw deg, gap)
+        const ch = [...puppets.values()].map((p) => {
+          const g = polyGap(hull, rectPoly(p.s.x, p.s.z, p.s.yaw, p.spec.size[0], p.spec.size[1]))
+          return `${p.spec.id}(${p.s.x.toFixed(0)},${p.s.z.toFixed(0)} y${((p.s.yaw * 180) / Math.PI).toFixed(0)} g${g.toFixed(1)})`
+        })
+        const w = watchValues(ARENA_CAR_ID)
+        const wv = ['av.plan.kappa', 'av.plan.free', 'av.vLimit', 'av.aeb', 'av.flee', 'av.mode', 'av.throttle'].map((k) => (w[k] != null ? `${k.slice(3)}=${w[k]}` : '')).filter(Boolean).join(' ')
+        console.log(`T ${t.toFixed(2)} [${wv}] car(${cp[0].toFixed(1)},${cp[2].toFixed(1)} y${(((yawOf(q) - Math.PI) * 180) / Math.PI).toFixed(0)} v${fwd.toFixed(1)}) ${ch.join(' ')}`)
+      }
       for (const p of puppets.values()) {
         const g = polyGap(hull, rectPoly(p.s.x, p.s.z, p.s.yaw, p.spec.size[0], p.spec.size[1]))
         m.minChaserGap = Math.min(m.minChaserGap, g)
@@ -405,8 +415,6 @@ const SCENARIOS: Scenario[] = [
  * Remove the entry as soon as the scenario passes (`it.fails` then turns red to remind you).
  */
 const KNOWN_FAILING: Record<string, string> = {
-  pincer: 'both homing chasers touch the car at t=3.1 s, then 7 s stalled / 17 speed spikes (constant-velocity threat prediction, no gap between two converging threats)',
-  'corner-trap': 'car turns into the wall corner side while the homing chaser closes: touches the chaser (t=5.1 s) and the walls; boxed in with 3 s stalled',
   'reverse-escape':
     'reverses to -11.6 m/s within 2 s, swerves into the pocket side wall at -14.8 m/s (t=2.8 s: the dense forward scan cone stays forward while reversing, so the rear / sides are seen only by the sparse zone), then shuffles forward/backward at 2-3 m/s (36 m in 20 s)',
   'open-road-reverse': 'a 2 s reverse burst (-17.8 m/s) then 2-3 m/s forward/backward shuffling: 41 m of 350 m in 20 s (reverse manoeuvre speed is low and the gear flips)',

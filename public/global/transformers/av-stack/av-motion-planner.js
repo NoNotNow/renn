@@ -6,7 +6,7 @@
 // debug draw: yellow = line to goal / route carrot, dark blue = candidate fan, green = chosen path, orange = where it would hit.
 // params: vehicleWidth, vehicleLength, safetyMargin, marginSpeedGain, softMargin, maxCurvature, arcCount,
 //         horizonMin, horizonGain, horizonMax, horizonClear (m floor, 0 = off), switchMargin (cost; keep last candidate unless better by this, 0 = off), comfortDecel, wProgress, wHeading, wRequired, wFree, wSoft,
-//         wSmooth, wTurn, minFree, rearIgnore, wThreat (0 = off; cost of predicted proximity to av.threats), threatHorizon (s, 2.5), threatRadius (m, 1.8), threatRange (m, 10: proximity felt inside this gap), marginRamp (m over which the margin grows from the current clearance), debugDraw
+//         wSmooth, wTurn, minFree, rearIgnore, wThreat (0 = off; cost of predicted proximity to av.threats), threatHorizon (s, 2.5), threatRadius (m, 1.8), threatRange (m, 10: proximity felt inside this gap), threatTurnRate (rad/s, 0 = constant-velocity prediction; > 0: bodies faster than threatPursuitSpeed (4 m/s) are predicted HOMING on the car: pure pursuit with that turn-rate limit, threatLead s), threatBodyRadius (m, 0 = off: costmap points within this radius of a fast tracked body are dropped), threatAccel (m/s^2, 0 = constant speed along the candidate), threatHit (x wThreat: penalty of a predicted contact by its time, default 3), marginRamp (m over which the margin grows from the current clearance), debugDraw
 function transform(input, dt, params, state, api) {
   var av = input.av
   if (!av || !av.ego) return {}
@@ -94,13 +94,75 @@ function transform(input, dt, params, state, api) {
         vx: tq.vx * e.fwd[0] + tq.vz * e.fwd[2],
         vy: tq.vx * e.left[0] + tq.vz * e.left[2],
       })
+      var tl = thr[thr.length - 1]
+      tl.sp = Math.sqrt(tl.vx * tl.vx + tl.vy * tl.vy)
+      tl.h = Math.atan2(tl.vy, tl.vx)
     }
   }
   var thrH = params.threatHorizon != null ? params.threatHorizon : 2.5
   var thrR = params.threatRadius != null ? params.threatRadius : 1.8
   var thrGap = params.threatRange != null ? params.threatRange : 10
   var thrSteps = Math.max(1, Math.round(thrH / 0.25))
+  // pursuit prediction (threatTurnRate rad/s > 0 = on): a fast tracked body is assumed to HOME on the car (pure pursuit of the
+  // car's pose on the candidate path + threatLead s of its motion, speed kept, heading change limited to threatTurnRate). Per step the
+  // nearer of the constant-velocity and the pursuit prediction counts. Without it a pursuer aimed at the car reads as a straight line
+  // that misses, and the gap between two converging pursuers looks free.
+  var thrTurn = params.threatTurnRate != null ? params.threatTurnRate : 0
+  var thrLead = params.threatLead != null ? params.threatLead : 0.3
+  var thrHit = params.threatHit != null ? params.threatHit : 3
+  var thrMinPursuit = params.threatPursuitSpeed != null ? params.threatPursuitSpeed : 4
   var vEff = Math.max(v, 5)
+  // distance travelled after t s along a candidate for the threat prediction: the car is assumed to keep accelerating (threatAccel m/s^2, 0 = constant speed)
+  // up to the cruise speed (a car that is about to launch / is accelerating covers more ground than its current speed says)
+  var thrAcc = params.threatAccel != null ? params.threatAccel : 0
+  var vTop = Math.max(vEff, params.cruiseSpeed != null ? params.cruiseSpeed : 10)
+  var aLatThr = params.maxLatAccel || 9
+  var vCurveMin = params.minSpeed != null ? params.minSpeed : 4
+  var sKappa = 0
+  var sVt = vEff
+  // speed profile along the candidate with curvature kappa: towards min(cruise, curve limit sqrt(aLat / |kappa|)) at threatAccel (up) / comfortDecel (down);
+  // a hard dodge is slow (and therefore tight), a straight run keeps accelerating
+  function setProfile(kappa) {
+    sKappa = kappa
+    var vt = vTop
+    var ak = Math.abs(kappa)
+    if (ak > 1e-3) vt = Math.min(vt, Math.max(vCurveMin, Math.sqrt(aLatThr / ak)))
+    if (thrAcc <= 0 && vt > vEff) vt = vEff
+    sVt = vt
+  }
+  function sAt(t) {
+    if (thrAcc <= 0 && sVt >= vEff) return vEff * t
+    var dv = sVt - vEff
+    var acc = dv >= 0 ? thrAcc : aBrake
+    if (acc <= 0) return vEff * t
+    var t1 = Math.abs(dv) / acc
+    var sg = dv >= 0 ? 1 : -1
+    if (t <= t1) return vEff * t + 0.5 * sg * acc * t * t
+    return vEff * t1 + 0.5 * sg * acc * t1 * t1 + sVt * (t - t1)
+  }
+  // Points on a FAST tracked body (threatPursuitSpeed) are not static obstacles: it is predicted (threatCost), and its current position
+  // smeared into the costmap reads as a wall that it has long left (a chaser alongside blocked every path -> full stop in front of it).
+  var moverR = params.threatBodyRadius != null ? params.threatBodyRadius : 0
+  if (moverR > 0 && thr.length) {
+    var fx = []
+    var fy = []
+    for (var oi = 0; oi < ox.length; oi++) {
+      var skip = false
+      for (var mi = 0; mi < thr.length; mi++) {
+        if (thr[mi].sp > thrMinPursuit) {
+          var mx = ox[oi] - thr[mi].x
+          var my = oy[oi] - thr[mi].y
+          if (mx * mx + my * my < moverR * moverR) skip = true
+        }
+      }
+      if (!skip) {
+        fx.push(ox[oi])
+        fy.push(oy[oi])
+      }
+    }
+    ox = fx
+    oy = fy
+  }
 
   // pose along a path: turn at `kappa` for `turnLen`, then straight
   function poseAt(kappa, turnLen, s, out) {
@@ -126,11 +188,24 @@ function transform(input, dt, params, state, api) {
   var P = { x: 0, y: 0, th: 0 }
   // Predicted proximity of the car (hull at the pose reached at time t along the path) to each tracked body (constant velocity):
   // sum over time of the relative penetration of the gap band, earlier = heavier; an actual overlap counts double.
+  var PQ = []
   function threatCost(kappa, turnLen, hullLx, hullWx) {
     var tc = 0
+    var hit = 0
+    setProfile(kappa)
+    var pursue = thrTurn > 0
+    if (pursue) {
+      for (var pi = 0; pi < thr.length; pi++) {
+        var q0 = thr[pi]
+        PQ[pi] = { x: q0.x, y: q0.y, h: q0.h }
+      }
+    }
+    var sub = 2
+    var tprev = 0
     for (var si = 1; si <= thrSteps; si++) {
       var t = si * 0.25
-      poseAt(kappa, turnLen, vEff * t, P)
+      var sPath = sAt(t)
+      poseAt(kappa, turnLen, sPath, P)
       var ct = Math.cos(P.th)
       var st = Math.sin(P.th)
       var wt = 1 - (0.6 * (si - 1)) / thrSteps
@@ -143,10 +218,36 @@ function transform(input, dt, params, state, api) {
         var ex = Math.max(Math.abs(lx) - hullLx, 0)
         var ey = Math.max(Math.abs(ly) - hullWx, 0)
         var d = Math.sqrt(ex * ex + ey * ey) - thrR
+        if (pursue && q.sp > thrMinPursuit) {
+          var c = PQ[qi]
+          var tgx = P.x + (sAt(t + thrLead) - sPath) * ct
+          var tgy = P.y + (sAt(t + thrLead) - sPath) * st
+          var sdt = (t - tprev) / sub
+          for (var ss = 0; ss < sub; ss++) {
+            var dh = Math.atan2(tgy - c.y, tgx - c.x) - c.h
+            while (dh > Math.PI) dh -= 2 * Math.PI
+            while (dh < -Math.PI) dh += 2 * Math.PI
+            var lim = thrTurn * sdt
+            c.h += dh > lim ? lim : dh < -lim ? -lim : dh
+            c.x += Math.cos(c.h) * q.sp * sdt
+            c.y += Math.sin(c.h) * q.sp * sdt
+          }
+          var prx = c.x - P.x
+          var pry = c.y - P.y
+          var plx = ct * prx + st * pry
+          var ply = -st * prx + ct * pry
+          var pex = Math.max(Math.abs(plx) - hullLx, 0)
+          var pey = Math.max(Math.abs(ply) - hullWx, 0)
+          var pd = Math.sqrt(pex * pex + pey * pey) - thrR
+          if (pd < d) d = pd
+        }
         if (d < thrGap) tc += wt * (d < 0 ? 2 : 0) + (wt * (thrGap - Math.max(d, 0))) / thrGap
+        // predicted contact: one penalty by the EARLIEST hit (a later hit can still be dodged by re-planning), not diluted by the horizon average
+        if (d < 0 && hit === 0) hit = 1 - (0.5 * (si - 1)) / thrSteps
       }
+      tprev = t
     }
-    return tc / thrSteps
+    return tc / thrSteps + thrHit * hit
   }
 
   // forward paths only sweep the front of the footprint: an obstacle already behind/at the tail (touching
