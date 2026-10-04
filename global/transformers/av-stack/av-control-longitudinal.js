@@ -104,10 +104,14 @@ function transform(input, dt, params, state, api) {
     // breakaway: demanded motion does not start (static friction > D) -> ramp an extra push
     var want = Math.abs(vDes) > 0.3
     // far below the demanded speed and not gaining (static friction / force balance the model does not explain yet)
-    var stuck = want && vDes * v < Math.min(1, 0.4 * Math.abs(vDes)) && vDes * aDes > 0 && aMeas * (vDes > 0 ? 1 : -1) < 0.5
+    // 'driving' = clearly moving in the demanded direction (a creep of 0.1 m/s that comes and goes must not count: the push relaxed
+    // at every creep and the car idled for ever at a boost just below breakaway, G / D of the model nonsense)
+    var driveThr = Math.max(0.5, Math.min(1.5, 0.25 * Math.abs(vDes)))
+    var drive = vDes > 0 ? v : -v
+    var stuck = want && drive < driveThr && vDes * aDes > 0 && aMeas * (vDes > 0 ? 1 : -1) < 0.5
     if (stuck) state.boost = Math.min(1, state.boost + (params.breakawayRate != null ? params.breakawayRate : 0.5) * dt)
     // keep the push until the car really drives (else it jerks, stops, ramps again); then relax it slowly
-    else if (!want || vDes * v >= Math.min(1, 0.4 * Math.abs(vDes))) state.boost = Math.max(0, state.boost - 0.5 * dt)
+    else if (!want || drive >= driveThr) state.boost = Math.max(0, state.boost - 0.5 * dt)
     if (state.boost > 0 && want) u += (vDes > 0 ? 1 : -1) * state.boost
     // stopping: never push along the direction of travel (friction alone may decelerate harder than maxDecel — fine)
     if (Math.abs(vDes) < 0.05 && u * v > 0) u = 0
