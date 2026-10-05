@@ -12,6 +12,7 @@
 // triggers when the heading to the real goal is predicted to come within escapeTrigger (m, 16) of a pursuer, which can be far outside the 90 m geometric danger range. escapeRange (m, 160): pursuers considered.
 // gapWalls (bool, default OFF; opt-in, needs gapCommit): the escape headings also need a free run over the persistent static map (av.prevSmap = last frame's av.smap, 2 m cells, car half-width + gapWallClear 3.5 m): headings shorter than gapWallMin (60 m) are not candidates unless that costs more than gapWallTrade (8) score points against the best short one (race first); none long enough = the longest run; the goal is put at the last free point of the run (min 8 m, gapWallClamp:false = off), a held goal whose heading hits a known wall is re-picked, a goal clamped that way is re-picked once the car is within gapReach (10 m). Cuts the lab seed-6 maze-pocket shuttle (path 955 -> 1500-1750 m) but flips other lab seeds (chaotic), hence off.
 // gapCommit (bool, default ON; false disables): fleeSim's escape-heading search, but only against >= 2 pursuers, and the chosen goal (escapeGoalDist 150 m) is an ABSOLUTE point kept until reached / clearly worse (escapeSwitch 6, eval every 0.3 s) so the motion planner gets a fixed target. Also with gapCommit: gapWarmup (s, 0.1: no commit before the pursuers' velocities are filtered), gapTrackRange (m, 160: far list av.threatsFar for the sim only), escapeAccel default 9, av.fleeSim (motion planner `fleeAimDirect`, default on, aims at the committed goal instead of the route carrot).
+// goalOpen (bool, default ON; false disables; flee / escape goals only, never mission goals): candidate goals are scored by openness on the persistent static map (av.prevSmap, 2 m cells): the geometric ring subtracts goalOpenW (1.5) x (wall cells within goalOpenRadius 15 m of the candidate / 100; goalOpenLine:true also the share of the straight way past the first wall, off: it flips corner-trap), the gapCommit escape headings subtract goalOpenGap (6) x (1 - free run / goalOpenRun 60 m); a held escape goal is re-scored every evaluation so new walls around it make it lose.
 // fleeLos (bool, default off): the geometric flee / own-goal candidates are also scored by line of sight (one ray per heading from the hull edge): a goal whose straight way is blocked by a wall
 // before it is reached (maze, building) is penalised, free length is a bonus, so the car explores along open corridors instead of shuffling in front of a wall towards a goal behind it.
 // Goal watchdog (params.goalWatchdog = seconds, default 0 = off; needs fleeArea): a goal the car does not get closer to (>= 8 m) within that time is
@@ -328,6 +329,9 @@ function fleeGoal(av, thrs, input, params, state, api) {
     var gl = Math.sqrt((g0[0] - pos[0]) * (g0[0] - pos[0]) + (g0[2] - pos[2]) * (g0[2] - pos[2])) + 1e-6
     var fleeTurnPen = params.fleeTurnPenalty != null ? params.fleeTurnPenalty : 1.5
     var losCache = {}
+    var og = params.goalOpen !== false && av.prevSmap && av.prevSmap.list && av.prevSmap.list.length ? wallGrid(av.prevSmap.list, state) : null
+    var oW = params.goalOpenW != null ? params.goalOpenW : 1.5
+    var oR = params.goalOpenRadius != null ? params.goalOpenRadius : 15
     var best = null
     var bestS = -Infinity
     for (var pass = 0; pass < 2 && !best; pass++) {
@@ -370,7 +374,8 @@ function fleeGoal(av, thrs, input, params, state, api) {
             los = freeLen < dd * 0.85 ? -2 + freeLen / dd : 0.4 * Math.min(1, freeLen / dMax)
           }
           var turn = Math.acos(Math.max(-1, Math.min(1, ux * hx + uz * hz)))
-          var sc = clear / 150 + (ws > 0 ? away / ws : 0) + (bad ? 0 : 0.5) * ((ux * (g0[0] - pos[0]) + uz * (g0[2] - pos[2])) / gl) + 0.7 * (ux * hx + uz * hz) + los - fleeTurnPen * Math.max(0, (turn - 1.2) / 1.9)
+          var op = og && oW > 0 ? oW * (Math.min(1, openCells(og, cx, cz, oR) / 100) + (params.goalOpenLine === true ? wallShare(og, pos[0], pos[2], cx, cz) : 0)) : 0
+          var sc = -op + clear / 150 + (ws > 0 ? away / ws : 0) + (bad ? 0 : 0.5) * ((ux * (g0[0] - pos[0]) + uz * (g0[2] - pos[2])) / gl) + 0.7 * (ux * hx + uz * hz) + los - fleeTurnPen * Math.max(0, (turn - 1.2) / 1.9)
           if (sc > bestS) {
             bestS = sc
             best = [cx, cz]
@@ -476,6 +481,27 @@ function freeRun(g, x, z, ang, maxD, half) {
   return maxD
 }
 
+function openCells(g, x, z, R) {
+  var r = Math.ceil(R / 2)
+  var px = Math.floor(x / 2)
+  var pz = Math.floor(z / 2)
+  var n = 0
+  for (var ox = -r; ox <= r; ox++) for (var oz = -r; oz <= r; oz++) if (ox * ox + oz * oz <= r * r && g.set[(px + ox) * 100003 + pz + oz]) n++
+  return n
+}
+// share (0..1) of the straight way (x0,z0)->(x1,z1) lying beyond the first wall cell (0 = free)
+function wallShare(g, x0, z0, x1, z1) {
+  var dx = x1 - x0
+  var dz = z1 - z0
+  var L = Math.sqrt(dx * dx + dz * dz) + 1e-6
+  for (var d = 4; d <= L; d += 2) {
+    var px = Math.floor((x0 + (dx * d) / L) / 2)
+    var pz = Math.floor((z0 + (dz * d) / L) / 2)
+    for (var ox = -1; ox <= 1; ox++) for (var oz = -1; oz <= 1; oz++) if (g.set[(px + ox) * 100003 + pz + oz]) return 1 - d / L
+  }
+  return 0
+}
+
 // fleeSim: pick / keep the escape heading (see the header). The committed heading lives in state.flee = {ang, t, t0, x, z}; the goal handed down is 90 m ahead on it.
 function fleeSim(av, input, params, state, g0, area, fl, now, thrs, q, yaw0) {
   var pos = input.position
@@ -487,6 +513,9 @@ function fleeSim(av, input, params, state, g0, area, fl, now, thrs, q, yaw0) {
   var D = params.escapeGoalDist != null ? params.escapeGoalDist : gap ? 150 : 90
   var goalAng = Math.atan2(g0[2] - pos[2], g0[0] - pos[0])
   var walls = gap && params.gapWalls === true && av.prevSmap && av.prevSmap.list && av.prevSmap.list.length ? wallGrid(av.prevSmap.list, state) : null
+  var og = params.goalOpen !== false && av.prevSmap && av.prevSmap.list && av.prevSmap.list.length ? wallGrid(av.prevSmap.list, state) : null
+  var oW = params.goalOpenGap != null ? params.goalOpenGap : 6
+  var oRun = params.goalOpenRun != null ? params.goalOpenRun : 60
   var wNeed = params.gapWallNeed != null ? params.gapWallNeed : 60
   var wPen = params.gapWallPen != null ? params.gapWallPen : 0
   var wFilter = params.gapWallFilter !== false
@@ -508,7 +537,9 @@ function fleeSim(av, input, params, state, g0, area, fl, now, thrs, q, yaw0) {
       if (run < need) wp = wPen * (1 - run / need)
       if (run < Math.min(wMin, need)) blocked = true
     }
-    return { d: d, run: run, blocked: blocked, score: (d > safeD ? safeD : d) + wAlign * al - 2 * turnPen * Math.max(0, (turn - 1.2) / 1.9) - wp }
+    var op = 0
+    if (og && oW > 0) op = oW * (1 - Math.min(freeRun(og, pos[0], pos[2], ang, oRun, wHalf), oRun) / oRun)
+    return { d: d, run: run, blocked: blocked, score: (d > safeD ? safeD : d) + wAlign * al - 2 * turnPen * Math.max(0, (turn - 1.2) / 1.9) - wp - op }
   }
   // the committed heading is re-simulated from the current state; another one replaces it only when clearly better
   // gapCommit: the committed goal is an ABSOLUTE point (fixed at commit time); its bearing from the moving car is what is re-simulated
