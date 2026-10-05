@@ -668,7 +668,8 @@ function transform(input, dt, params, state, api) {
       var lat = params.clearConfineLat != null ? params.clearConfineLat : 4
       if (clearDist(clrF, sx + e.left[0] * lat, sz + e.left[2] * lat) < 2.5 && clearDist(clrF, sx - e.left[0] * lat, sz - e.left[2] * lat) < 2.5) clrF = null
       // corridor / dead end wider than that (walls on both sides within clearConfineWide, 11 m): a wall line is crossed laterally on BOTH sides -> plain plan (no berth to buy, and the unseen end of a corridor counts as free)
-      if (clrF !== null) {
+      // clearCruiseWide (OPT-IN): a car already cruising (>= clearMinSpeed, long forward plan: checked in clearOn) keeps the berth in a corridor too: it drives on, it does not turn around in it
+      if (clrF !== null && !(params.clearCruiseWide === true && (e.speedF || 0) >= (params.clearMinSpeed != null ? params.clearMinSpeed : 9))) {
         var wide = params.clearConfineWide != null ? params.clearConfineWide : 11
         var wl = false
         var wr = false
@@ -1022,12 +1023,22 @@ function transform(input, dt, params, state, api) {
     if (firstGear === 1) {
       var want = Math.min(lookahead, 6 + 1.0 * Math.max(0, e.speedF))
       var acc = 0
+      var cb = av.threats && av.threats.length ? 0 : params.carrotBend != null ? params.carrotBend : 0.6
+      var cbMin = params.carrotBendMin != null ? params.carrotBendMin : 4
+      var a0 = 0
       for (var i = 1; i < nodes.length && nodes[i].g === 1; i++) {
         var dx = nodes[i].x - nodes[i - 1].x
         var dz = nodes[i].z - nodes[i - 1].z
         acc += Math.sqrt(dx * dx + dz * dz)
         carrot = [nodes[i].x, nodes[i].z]
         if (acc >= want) break
+        // carrotBend (rad, 0 = off): the carrot stops where the route has turned this far from its first segment. A carrot a whole look-ahead (6 + v m) down the route sits
+        // beyond a 90 deg bend (R 8.7 = 14 m of arc): pure pursuit then steers a gentle chord and turns in too late; inside the bend it follows the arc.
+        if (cb > 0 && i > 1) {
+          var da = Math.atan2(dz, dx) - a0
+          da = Math.atan2(Math.sin(da), Math.cos(da))
+          if (acc >= cbMin && Math.abs(da) > cb) break
+        } else if (i === 1) a0 = Math.atan2(dz, dx)
       }
       run = acc
       if (params.carrotPull !== false && carrot && !(av.threats && av.threats.length)) {
@@ -1212,7 +1223,47 @@ function transform(input, dt, params, state, api) {
     }
     if (!state.active) {
       if (rt.carrot) av.carrot = rt.carrot
-      if (rt.pull && !(av.threats && av.threats.length)) {
+      // carrotLive (default on, false = off): a plan-time carrot is a world-fixed point; between replans (eco: 2 s = 20 m at 10 m/s) the car drives up to / past it and the pure-pursuit
+      // arc to it is stale, in a corridor bend the car turns in a second late and brakes to a stop at the wall. Re-derive it every frame: `want` m down the stored route from the nearest node.
+      var liveUsed = false
+      if (rt.carrot && params.carrotLive !== false && (!rt.pull || Math.hypot(rt.pull[0] - pos[0], rt.pull[1] - pos[2]) < Math.max(params.carrotLiveNear != null ? params.carrotLiveNear : 12, 0))  && rt.firstGear === 1 && rt.nodes && !(av.threats && av.threats.length)) {
+        var ln = rt.nodes
+        var lbest = 0
+        var lbd = Infinity
+        for (var li = 0; li < ln.length && (ln[li].g === 1 || li === 0); li++) {
+          var ld = Math.hypot(ln[li].x - pos[0], ln[li].z - pos[2])
+          if (ld < lbd) { lbd = ld; lbest = li }
+        }
+        var lwant = Math.min(lookahead, 6 + 1.0 * Math.max(0, e.speedF))
+        var lacc = 0
+        var lcar = null
+        var lcb = params.carrotBend != null ? params.carrotBend : 0.6
+        var la0 = 0
+        var lcut = false
+        for (var lj = lbest + 1; lj < ln.length && ln[lj].g === 1; lj++) {
+          var ldx = ln[lj].x - ln[lj - 1].x
+          var ldz = ln[lj].z - ln[lj - 1].z
+          lacc += Math.hypot(ldx, ldz)
+          lcar = [ln[lj].x, ln[lj].z]
+          if (lacc >= lwant) break
+          if (lcb > 0) {
+            if (lj === lbest + 1) la0 = Math.atan2(ldz, ldx)
+            else {
+              var lda = Math.atan2(ldz, ldx) - la0
+              if (lacc >= 4 && Math.abs(Math.atan2(Math.sin(lda), Math.cos(lda))) > lcb) {
+                lcut = true
+                break
+              }
+            }
+          }
+        }
+        // only where the route bends inside the look-ahead (a straight run keeps the plan-time / pulled carrot: open-field berth)
+        if (lcut && lcar && lacc >= 4) {
+          av.carrot = lcar
+          liveUsed = true
+        }
+      }
+      if (rt.pull && !(av.threats && av.threats.length) && !liveUsed) {
         var pdx = rt.pull[0] - pos[0]
         var pdz = rt.pull[1] - pos[2]
         var pdl = Math.hypot(pdx, pdz)
@@ -1222,7 +1273,7 @@ function transform(input, dt, params, state, api) {
           av.carrot = [pos[0] + pdx * pk, pos[2] + pdz * pk]
         }
       }
-      api.watch('av.carrotw', rt.carrot ? rt.carrot[0].toFixed(0) + ',' + rt.carrot[1].toFixed(0) : '-')
+      api.watch('av.carrotw', rt.carrot ? rt.carrot[0].toFixed(0) + ',' + rt.carrot[1].toFixed(0) + (av.carrot ? ' live ' + av.carrot[0].toFixed(0) + ',' + av.carrot[1].toFixed(0) : '') + (rt.pull ? ' pull' : '') : '-')
       // a route that was driving forward (>= 2 s on a long forward run) turns reverse-first for two plans in a row (the vote that starts the manoeuvre), the car still
       // rolling: a missed turn. Brake to a stop for the manoeuvre instead of accelerating on the old forward limit (crawl floor ignored, av-speed-planner 'rstop').
       // Decided once per such flip. OPT-IN (routeLimitRevStop: true): it fixes missed entrances but turns forward U-turns of the maze cases into K-turns (dead-end, corridor turnaround).

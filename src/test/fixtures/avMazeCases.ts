@@ -82,6 +82,28 @@ function gapEntry(d: number): ArenaSpec {
   }
 }
 
+/**
+ * S-bend corridor of width `w`: north from z=+60 to z=-L, 90 deg right (east) for `run` m centre to centre, 90 deg left (north) again to z=-L-90.
+ * Same topology as the corridors of maze D-G (two consecutive turns in opposite directions).
+ */
+function sBend(w: number, run: number, L = 40): ArenaSpec {
+  const h = w / 2
+  const zEnd = -L - 90
+  return {
+    car: { at: [0, 40], yawDeg: 0 },
+    goal: [run, zEnd + 10],
+    boxes: [
+      seg([-h, 60], [-h, -L - h]), // west outer
+      seg([h, 60], [h, -L + h]), // west inner
+      seg([-h, -L - h], [run - h, -L - h]), // north outer of the east leg
+      seg([h, -L + h], [run + h, -L + h]), // south inner of the east leg
+      seg([run - h, -L - h], [run - h, zEnd]),
+      seg([run + h, -L + h], [run + h, zEnd]),
+    ],
+    puppets: [],
+  }
+}
+
 export const MAZE_CASES: MazeCase[] = [
   {
     name: 'turnaround-open',
@@ -258,5 +280,29 @@ export const MAZE_CASES: MazeCase[] = [
     maxLatAcc: 30,
     maxReversals: 1,
     spec: () => gapEntry(10),
+  },
+  {
+    name: 's-chicane',
+    about: 'S chicane of the example world (5 gates, 14 m gaps alternating x 240 / 280, rows 36 m apart): car at the south end facing north, goal beyond the last gate',
+    seconds: 40,
+    maxReversals: 1,
+    minStaticGap: 0.3,
+    spec: () => ({ car: { at: [240, 200], yawDeg: 0 }, goal: [240, -40], boxes: worldMazeWalls('wall_chicane'), puppets: [] }),
+  },
+  {
+    name: 's-bend-14',
+    about: 'S-bend corridor 14 m wide (north, 90 deg right over 40 m, 90 deg left): drive through to the goal at its end without touching a wall',
+    seconds: 30,
+    maxReversals: 1,
+    minStaticGap: 0.3,
+    spec: () => sBend(14, 40),
+  },
+  {
+    name: 's-bend-14-short',
+    about: 'tighter S-bend: 14 m wide corridor, only 24 m between the turns (the second turn starts right after the first)',
+    seconds: 30,
+    maxReversals: 1,
+    minStaticGap: 0.3,
+    spec: () => sBend(14, 24),
   },
 ]
