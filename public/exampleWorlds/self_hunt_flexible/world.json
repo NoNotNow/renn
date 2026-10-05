@@ -2844,10 +2844,10 @@
             "threatRadius": 2.8,
             "threatBodyRadius": 4.5,
             "fleeArea": [
-              -370,
-              370,
-              -370,
-              370
+              -450,
+              450,
+              -450,
+              450
             ],
             "threatIds": [
               "car",
@@ -27720,6 +27720,5593 @@
       "rotation": [
         0,
         0.463648,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_D_1",
+      "name": "wall maze D 1",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 99,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -307.5,
+        0.75,
+        210.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_D_2",
+      "name": "wall maze D 2",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 29,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -314.5,
+        0.75,
+        224.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_D_3",
+      "name": "wall maze D 3",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -279.5,
+        0.75,
+        224.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_D_4",
+      "name": "wall maze D 4",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -349.5,
+        0.75,
+        238.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_D_5",
+      "name": "wall maze D 5",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -293.5,
+        0.75,
+        238.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_D_6",
+      "name": "wall maze D 6",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -265.5,
+        0.75,
+        238.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_D_7",
+      "name": "wall maze D 7",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -335.5,
+        0.75,
+        252.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_D_8",
+      "name": "wall maze D 8",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -307.5,
+        0.75,
+        252.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_D_9",
+      "name": "wall maze D 9",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -279.5,
+        0.75,
+        252.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_D_10",
+      "name": "wall maze D 10",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -335.5,
+        0.75,
+        266.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_D_11",
+      "name": "wall maze D 11",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 29,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -300.5,
+        0.75,
+        266.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_D_12",
+      "name": "wall maze D 12",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -321.5,
+        0.75,
+        280.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_D_13",
+      "name": "wall maze D 13",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 29,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -272.5,
+        0.75,
+        280.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_D_14",
+      "name": "wall maze D 14",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 29,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -342.5,
+        0.75,
+        294.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_D_15",
+      "name": "wall maze D 15",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -363.5,
+        0.75,
+        308.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_D_16",
+      "name": "wall maze D 16",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 57,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -314.5,
+        0.75,
+        308.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_D_17",
+      "name": "wall maze D 17",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -349.5,
+        0.75,
+        322.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_D_18",
+      "name": "wall maze D 18",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 29,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -314.5,
+        0.75,
+        322.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_D_19",
+      "name": "wall maze D 19",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -279.5,
+        0.75,
+        322.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_D_20",
+      "name": "wall maze D 20",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -363.5,
+        0.75,
+        336.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_D_21",
+      "name": "wall maze D 21",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -293.5,
+        0.75,
+        336.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_D_22",
+      "name": "wall maze D 22",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 113,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -314.5,
+        0.75,
+        350.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_D_23",
+      "name": "wall maze D 23",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 127,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -370.5,
+        0.75,
+        273.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_D_24",
+      "name": "wall maze D 24",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 85,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -356.5,
+        0.75,
+        252.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_D_25",
+      "name": "wall maze D 25",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -342.5,
+        0.75,
+        245.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_D_26",
+      "name": "wall maze D 26",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -342.5,
+        0.75,
+        273.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_D_27",
+      "name": "wall maze D 27",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 43,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -342.5,
+        0.75,
+        315.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_D_28",
+      "name": "wall maze D 28",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -328.5,
+        0.75,
+        259.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_D_29",
+      "name": "wall maze D 29",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 29,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -328.5,
+        0.75,
+        336.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_D_30",
+      "name": "wall maze D 30",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 29,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -314.5,
+        0.75,
+        238.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_D_31",
+      "name": "wall maze D 31",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 29,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -314.5,
+        0.75,
+        294.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_D_32",
+      "name": "wall maze D 32",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -300.5,
+        0.75,
+        259.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_D_33",
+      "name": "wall maze D 33",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -300.5,
+        0.75,
+        287.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_D_34",
+      "name": "wall maze D 34",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 29,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -286.5,
+        0.75,
+        238.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_D_35",
+      "name": "wall maze D 35",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 29,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -286.5,
+        0.75,
+        322.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_D_36",
+      "name": "wall maze D 36",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 29,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -272.5,
+        0.75,
+        266.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_D_37",
+      "name": "wall maze D 37",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -272.5,
+        0.75,
+        315.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_D_38",
+      "name": "wall maze D 38",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -272.5,
+        0.75,
+        343.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_D_39",
+      "name": "wall maze D 39",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -258.5,
+        0.75,
+        217.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_D_40",
+      "name": "wall maze D 40",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 113,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -258.5,
+        0.75,
+        294.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_E_1",
+      "name": "wall maze E 1",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 85,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        245.5,
+        0.75,
+        273.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_E_2",
+      "name": "wall maze E 2",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 29,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        315.5,
+        0.75,
+        273.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_E_3",
+      "name": "wall maze E 3",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 29,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        231.5,
+        0.75,
+        287.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_E_4",
+      "name": "wall maze E 4",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        266.5,
+        0.75,
+        287.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_E_5",
+      "name": "wall maze E 5",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 29,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        301.5,
+        0.75,
+        287.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_E_6",
+      "name": "wall maze E 6",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 43,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        224.5,
+        0.75,
+        301.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_E_7",
+      "name": "wall maze E 7",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 43,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        308.5,
+        0.75,
+        301.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_E_8",
+      "name": "wall maze E 8",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        224.5,
+        0.75,
+        315.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_E_9",
+      "name": "wall maze E 9",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        280.5,
+        0.75,
+        315.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_E_10",
+      "name": "wall maze E 10",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        308.5,
+        0.75,
+        315.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_E_11",
+      "name": "wall maze E 11",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        210.5,
+        0.75,
+        329.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_E_12",
+      "name": "wall maze E 12",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 29,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        245.5,
+        0.75,
+        329.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_E_13",
+      "name": "wall maze E 13",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 43,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        294.5,
+        0.75,
+        329.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_E_14",
+      "name": "wall maze E 14",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        224.5,
+        0.75,
+        343.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_E_15",
+      "name": "wall maze E 15",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        252.5,
+        0.75,
+        343.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_E_16",
+      "name": "wall maze E 16",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 29,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        301.5,
+        0.75,
+        343.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_E_17",
+      "name": "wall maze E 17",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 43,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        238.5,
+        0.75,
+        357.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_E_18",
+      "name": "wall maze E 18",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        294.5,
+        0.75,
+        357.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_E_19",
+      "name": "wall maze E 19",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        322.5,
+        0.75,
+        357.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_E_20",
+      "name": "wall maze E 20",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        210.5,
+        0.75,
+        371.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_E_21",
+      "name": "wall maze E 21",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 29,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        273.5,
+        0.75,
+        371.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_E_22",
+      "name": "wall maze E 22",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        308.5,
+        0.75,
+        371.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_E_23",
+      "name": "wall maze E 23",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 43,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        224.5,
+        0.75,
+        385.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_E_24",
+      "name": "wall maze E 24",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 71,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        294.5,
+        0.75,
+        385.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_E_25",
+      "name": "wall maze E 25",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 113,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        203.5,
+        0.75,
+        329.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_E_26",
+      "name": "wall maze E 26",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        217.5,
+        0.75,
+        280.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_E_27",
+      "name": "wall maze E 27",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        217.5,
+        0.75,
+        350.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_E_28",
+      "name": "wall maze E 28",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 29,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        231.5,
+        0.75,
+        329.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_E_29",
+      "name": "wall maze E 29",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        231.5,
+        0.75,
+        364.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_E_30",
+      "name": "wall maze E 30",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        245.5,
+        0.75,
+        308.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_E_31",
+      "name": "wall maze E 31",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        245.5,
+        0.75,
+        378.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_E_32",
+      "name": "wall maze E 32",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        259.5,
+        0.75,
+        294.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_E_33",
+      "name": "wall maze E 33",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        259.5,
+        0.75,
+        322.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_E_34",
+      "name": "wall maze E 34",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 29,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        259.5,
+        0.75,
+        357.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_E_35",
+      "name": "wall maze E 35",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        273.5,
+        0.75,
+        308.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_E_36",
+      "name": "wall maze E 36",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 29,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        287.5,
+        0.75,
+        301.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_E_37",
+      "name": "wall maze E 37",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 29,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        301.5,
+        0.75,
+        371.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_E_38",
+      "name": "wall maze E 38",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        315.5,
+        0.75,
+        322.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_E_39",
+      "name": "wall maze E 39",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 43,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        329.5,
+        0.75,
+        294.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_E_40",
+      "name": "wall maze E 40",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 57,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        329.5,
+        0.75,
+        357.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_F_1",
+      "name": "wall maze F 1",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 85,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        259.5,
+        0.75,
+        -419.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_F_2",
+      "name": "wall maze F 2",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        322.5,
+        0.75,
+        -419.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_F_3",
+      "name": "wall maze F 3",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 29,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        259.5,
+        0.75,
+        -405.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_F_4",
+      "name": "wall maze F 4",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        308.5,
+        0.75,
+        -405.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_F_5",
+      "name": "wall maze F 5",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        252.5,
+        0.75,
+        -391.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_F_6",
+      "name": "wall maze F 6",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 29,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        245.5,
+        0.75,
+        -377.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_F_7",
+      "name": "wall maze F 7",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 29,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        287.5,
+        0.75,
+        -363.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_F_8",
+      "name": "wall maze F 8",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        252.5,
+        0.75,
+        -349.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_F_9",
+      "name": "wall maze F 9",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        280.5,
+        0.75,
+        -349.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_F_10",
+      "name": "wall maze F 10",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        238.5,
+        0.75,
+        -335.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_F_11",
+      "name": "wall maze F 11",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 43,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        280.5,
+        0.75,
+        -335.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_F_12",
+      "name": "wall maze F 12",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        238.5,
+        0.75,
+        -321.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_F_13",
+      "name": "wall maze F 13",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 43,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        294.5,
+        0.75,
+        -321.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_F_14",
+      "name": "wall maze F 14",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 99,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        280.5,
+        0.75,
+        -307.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_F_15",
+      "name": "wall maze F 15",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 57,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        217.5,
+        0.75,
+        -391.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_F_16",
+      "name": "wall maze F 16",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 43,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        217.5,
+        0.75,
+        -328.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_F_17",
+      "name": "wall maze F 17",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 29,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        231.5,
+        0.75,
+        -391.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_F_18",
+      "name": "wall maze F 18",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        231.5,
+        0.75,
+        -342.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_F_19",
+      "name": "wall maze F 19",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        245.5,
+        0.75,
+        -398.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_F_20",
+      "name": "wall maze F 20",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 29,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        245.5,
+        0.75,
+        -363.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_F_21",
+      "name": "wall maze F 21",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        245.5,
+        0.75,
+        -328.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_F_22",
+      "name": "wall maze F 22",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        259.5,
+        0.75,
+        -370.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_F_23",
+      "name": "wall maze F 23",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 29,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        259.5,
+        0.75,
+        -335.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_F_24",
+      "name": "wall maze F 24",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 57,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        273.5,
+        0.75,
+        -377.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_F_25",
+      "name": "wall maze F 25",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        273.5,
+        0.75,
+        -314.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_F_26",
+      "name": "wall maze F 26",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 43,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        287.5,
+        0.75,
+        -398.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_F_27",
+      "name": "wall maze F 27",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 29,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        301.5,
+        0.75,
+        -391.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_F_28",
+      "name": "wall maze F 28",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        301.5,
+        0.75,
+        -342.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_F_29",
+      "name": "wall maze F 29",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 57,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        315.5,
+        0.75,
+        -377.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_F_30",
+      "name": "wall maze F 30",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        315.5,
+        0.75,
+        -328.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_F_31",
+      "name": "wall maze F 31",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 113,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        329.5,
+        0.75,
+        -363.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_G_1",
+      "name": "wall maze G 1",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 99,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -391.5,
+        0.75,
+        -440.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_G_2",
+      "name": "wall maze G 2",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 29,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -314.5,
+        0.75,
+        -440.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_G_3",
+      "name": "wall maze G 3",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -377.5,
+        0.75,
+        -426.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_G_4",
+      "name": "wall maze G 4",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 57,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -412.5,
+        0.75,
+        -412.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_G_5",
+      "name": "wall maze G 5",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -321.5,
+        0.75,
+        -412.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_G_6",
+      "name": "wall maze G 6",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -405.5,
+        0.75,
+        -398.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_G_7",
+      "name": "wall maze G 7",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -363.5,
+        0.75,
+        -398.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_G_8",
+      "name": "wall maze G 8",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 29,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -328.5,
+        0.75,
+        -398.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_G_9",
+      "name": "wall maze G 9",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 57,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -370.5,
+        0.75,
+        -384.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_G_10",
+      "name": "wall maze G 10",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 71,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -335.5,
+        0.75,
+        -370.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_G_11",
+      "name": "wall maze G 11",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -419.5,
+        0.75,
+        -356.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_G_12",
+      "name": "wall maze G 12",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -391.5,
+        0.75,
+        -356.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_G_13",
+      "name": "wall maze G 13",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -363.5,
+        0.75,
+        -356.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_G_14",
+      "name": "wall maze G 14",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -335.5,
+        0.75,
+        -356.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_G_15",
+      "name": "wall maze G 15",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -419.5,
+        0.75,
+        -342.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_G_16",
+      "name": "wall maze G 16",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -377.5,
+        0.75,
+        -342.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_G_17",
+      "name": "wall maze G 17",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -349.5,
+        0.75,
+        -342.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_G_18",
+      "name": "wall maze G 18",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -307.5,
+        0.75,
+        -342.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_G_19",
+      "name": "wall maze G 19",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 57,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -412.5,
+        0.75,
+        -328.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_G_20",
+      "name": "wall maze G 20",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 71,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -335.5,
+        0.75,
+        -328.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_G_21",
+      "name": "wall maze G 21",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 113,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -440.5,
+        0.75,
+        -384.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_G_22",
+      "name": "wall maze G 22",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -426.5,
+        0.75,
+        -433.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_G_23",
+      "name": "wall maze G 23",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 29,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -426.5,
+        0.75,
+        -398.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_G_24",
+      "name": "wall maze G 24",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 29,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -412.5,
+        0.75,
+        -384.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_G_25",
+      "name": "wall maze G 25",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -412.5,
+        0.75,
+        -335.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_G_26",
+      "name": "wall maze G 26",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -398.5,
+        0.75,
+        -419.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_G_27",
+      "name": "wall maze G 27",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 43,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -398.5,
+        0.75,
+        -363.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_G_28",
+      "name": "wall maze G 28",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -384.5,
+        0.75,
+        -433.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_G_29",
+      "name": "wall maze G 29",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 29,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -384.5,
+        0.75,
+        -398.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_G_30",
+      "name": "wall maze G 30",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 29,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -370.5,
+        0.75,
+        -412.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_G_31",
+      "name": "wall maze G 31",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 29,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -370.5,
+        0.75,
+        -356.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_G_32",
+      "name": "wall maze G 32",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 29,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -356.5,
+        0.75,
+        -412.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_G_33",
+      "name": "wall maze G 33",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -356.5,
+        0.75,
+        -335.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_G_34",
+      "name": "wall maze G 34",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 43,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -342.5,
+        0.75,
+        -405.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_G_35",
+      "name": "wall maze G 35",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -342.5,
+        0.75,
+        -349.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_G_36",
+      "name": "wall maze G 36",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -328.5,
+        0.75,
+        -377.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_G_37",
+      "name": "wall maze G 37",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -328.5,
+        0.75,
+        -349.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_G_38",
+      "name": "wall maze G 38",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 29,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -314.5,
+        0.75,
+        -426.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_G_39",
+      "name": "wall maze G 39",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -314.5,
+        0.75,
+        -391.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "material": {
+        "color": [
+          0.22,
+          0.72,
+          0.35
+        ]
+      },
+      "mass": 4.696348583192423,
+      "friction": 0.4001323421035119,
+      "restitution": 0.7412928963239563,
+      "locked": false
+    },
+    {
+      "id": "wall_maze_G_40",
+      "name": "wall maze G 40",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 99,
+        "height": 1.5,
+        "depth": 1
+      },
+      "position": [
+        -300.5,
+        0.75,
+        -377.5
+      ],
+      "rotation": [
+        0,
+        -1.570796,
         0
       ],
       "scale": [

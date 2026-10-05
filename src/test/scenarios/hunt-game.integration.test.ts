@@ -118,7 +118,10 @@ describe('self_hunt_flexible', () => {
   it('walls are static low boxes and no car or prop starts inside or near one', () => {
     const world = loadLabWorld({ exampleId: 'self_hunt_flexible' })
     const walls = world.entities.filter(isWall)
-    expect(walls.length).toBeGreaterThanOrEqual(40)
+    expect(walls.length).toBeGreaterThanOrEqual(220)
+    for (const k of ['D', 'E', 'F', 'G']) {
+      expect(walls.filter((w) => w.id.startsWith(`wall_maze_${k}_`)).length, `maze ${k}`).toBeGreaterThanOrEqual(25)
+    }
     for (const w of walls) {
       expect(w.bodyType).toBe('static')
       expect((w.shape as { type: string }).type).toBe('box')
@@ -137,7 +140,7 @@ describe('self_hunt_flexible', () => {
   it('no dynamic entity intersects or rests on a static wall (2 m gap, conservative boxes)', () => {
     const world = loadLabWorld({ exampleId: 'self_hunt_flexible' })
     const walls = world.entities.filter(isWallLike)
-    expect(walls.length).toBeGreaterThanOrEqual(80)
+    expect(walls.length).toBeGreaterThanOrEqual(220)
     const wallBoxes = walls.map((w) => ({ w, box: obbOf(w, 2) }))
     for (const e of world.entities) {
       if (e.bodyType !== 'dynamic' || e.shape?.type === 'plane') continue
