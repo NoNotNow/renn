@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import type { CameraController } from '@/camera/cameraController'
-import { setTransformerSnackbarFn } from '@/transformers/customCodeTransformer'
+import { setTransformerHudFn, setTransformerSnackbarFn } from '@/transformers/customCodeTransformer'
 import { setVariableOverlayFn } from '@/runtime/variableOverlayBridge'
 import { setCoordinateOverlayFn } from '@/runtime/coordinateOverlayBridge'
 import type { PrefetchDisposer } from '@/loader/prefetchMaterialTextures'
@@ -49,6 +49,7 @@ export function disposeSceneRuntimeSession(args: DisposeSceneRuntimeSessionArgs)
   args.prefetchDisposer?.cancel()
 
   setTransformerSnackbarFn(null)
+  setTransformerHudFn(null)
   if (args.scriptSnackbarTimer.id !== undefined) {
     window.clearTimeout(args.scriptSnackbarTimer.id)
     args.scriptSnackbarTimer.id = undefined

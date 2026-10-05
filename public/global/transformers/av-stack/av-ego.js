@@ -206,6 +206,7 @@ function transform(input, dt, params, state, api) {
     av.threats = thrs
     av.threatsFar = far
   }
+  scoreKeeping(av, input, params, state, api)
   if (params.fleeArea && input.target && input.target.pose && ((tids && tids.length) || params.goalWatchdog > 0)) fleeGoal(av, av.threats || [], input, params, state, api)
   api.watch('av.speed', Math.round(speed * 10) / 10)
   if (state.flee) api.watch('av.flee', Math.round(state.flee.x) + ',' + Math.round(state.flee.z))
@@ -214,6 +215,55 @@ function transform(input, dt, params, state, api) {
     api.visualizeLine(input.position, api.vec.add(input.position, api.vec.scale(input.velocity, 0.6)), '#00e5ff')
   }
   return {}
+}
+
+// Score / damage bookkeeping (debug / game, no effect on driving). Runs BEFORE the flee layer replaces input.target, so `goal` is the source's own goal.
+//  goalsReached: the goal source replaced its goal while the car was within `goalReachDist` (12 m; a source's own accept radius, e.g. the wanderer preset's positionEpsilon, plus a metre) of the old one. A jump of the goal by more than
+//    8 m between frames counts as "replaced" (a `follow` goal drifts, it never jumps); flee goals never count. av.goalRaw = the source's goal [x, z]; av.goalReachDist = the radius (overlay ring).
+//  hits (damage): per tracked threat (`threatIds`) one hit per approach episode: its centre comes within `damageDist` (8 m), re-armed once it is farther than `damageClear` (14 m).
+//  params.hud === true: the totals go to the game HUD (api.setScore / api.setDamage; Play, Builder View -> Game HUD). Watch rows av.goals / av.hits (on change).
+function scoreKeeping(av, input, params, state, api) {
+  var pos = input.position
+  var reachD = params.goalReachDist != null ? params.goalReachDist : 12
+  av.goalReachDist = reachD
+  var sc = state.sc
+  if (!sc) sc = state.sc = { goals: 0, hits: 0, g: null, near: {}, shown: '' }
+  var tp = input.target && input.target.pose && input.target.pose.position
+  if (tp) {
+    var gx = tp[0]
+    var gz = tp[2]
+    if (sc.g && (gx - sc.g[0]) * (gx - sc.g[0]) + (gz - sc.g[1]) * (gz - sc.g[1]) > 64 && Math.hypot(pos[0] - sc.g[0], pos[2] - sc.g[1]) <= reachD) sc.goals++
+    sc.g = [gx, gz]
+    av.goalRaw = sc.g
+  }
+  var tids = params.threatIds
+  if (tids && state.trk) {
+    var dd = params.damageDist != null ? params.damageDist : 8
+    var dc = params.damageClear != null ? params.damageClear : 14
+    for (var i = 0; i < tids.length; i++) {
+      var rec = state.trk[tids[i]]
+      if (!rec) continue
+      var d = Math.hypot(rec.x - pos[0], rec.z - pos[2])
+      if (sc.near[tids[i]]) {
+        if (d > dc) sc.near[tids[i]] = false
+      } else if (d < dd) {
+        sc.near[tids[i]] = true
+        sc.hits++
+      }
+    }
+  }
+  av.goalsReached = sc.goals
+  av.hits = sc.hits
+  var key = sc.goals + ',' + sc.hits
+  if (key !== sc.shown) {
+    sc.shown = key
+    api.watch('av.goals', sc.goals)
+    api.watch('av.hits', sc.hits)
+    if (params.hud === true) {
+      api.setScore(sc.goals)
+      api.setDamage(sc.hits)
+    }
+  }
 }
 
 // Flee layer: when the way to the goal leads past a near pursuer, drive to a goal that is away from the pursuers instead

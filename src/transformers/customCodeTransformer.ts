@@ -298,6 +298,10 @@ export interface TransformerRuntimeApi {
   eulerDeltaAroundAxis(currentRotation: Rotation, axis: Vec3, angleRad: number): Rotation
   /** Show a message in the play-mode snackbar. durationSeconds defaults to 4. No-op in tests unless wired via setTransformerSnackbarFn. */
   log(message: string, durationSeconds?: number): void
+  /** Set the game HUD score (same HUD as script `ctx.setScore`). Negative / non-finite values are ignored; shown as a non-negative integer. No-op when unwired (tests). */
+  setScore(value: number): void
+  /** Set the game HUD damage (same HUD as script `ctx.setDamage`). Negative / non-finite values are ignored. No-op when unwired (tests). */
+  setDamage(value: number): void
   /**
    * Builder Workspace only: publish a labeled value to the Watch panel when the bridge is enabled.
    * One argument uses label `value`; two arguments are `(label, value)`.
@@ -376,6 +380,19 @@ let _snackbarFn: SnackbarFn | null = null
 /** Wire the runtime snackbar for `api.log`. Call with `null` on teardown. */
 export function setTransformerSnackbarFn(fn: SnackbarFn | null): void {
   _snackbarFn = fn
+}
+
+type HudFn = (patch: { score?: number; damage?: number }) => void
+let _hudFn: HudFn | null = null
+
+/** Wire the game HUD for `api.setScore` / `api.setDamage`. Call with `null` on teardown. */
+export function setTransformerHudFn(fn: HudFn | null): void {
+  _hudFn = fn
+}
+
+function hudValue(value: unknown): number | null {
+  const n = Number(value)
+  return Number.isFinite(n) && n >= 0 ? Math.floor(n) : null
 }
 
 function addVec3Impl(a: Vec3, b: Vec3): Vec3 {
@@ -601,6 +618,14 @@ export const TRANSFORMER_RUNTIME_API: TransformerRuntimeApi = Object.freeze({
       )
     }
     _snackbarFn?.(message, durationSeconds)
+  },
+  setScore: (value: number): void => {
+    const v = hudValue(value)
+    if (v !== null) _hudFn?.({ score: v })
+  },
+  setDamage: (value: number): void => {
+    const v = hudValue(value)
+    if (v !== null) _hudFn?.({ damage: v })
   },
   watch: (labelOrValue: unknown, value?: unknown): void => {
     let label: string

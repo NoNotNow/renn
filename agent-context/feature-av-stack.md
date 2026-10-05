@@ -123,6 +123,10 @@ Every stage draws with `api.visualizeLine`; switch off per stack/layer/stage wit
 |---|---|
 | mint polyline + poles, **yellow** pole | whole mission route, active waypoint (`av_waypoint_viz`) |
 | **yellow** line | car → current goal |
+| **lime** `#b6ff00` mast (40 m) + crossbar, ground cross + ring, line car → goal | the car's OWN goal (`goalViz: true`); ring radius = `goalReachDist` = the radius that scores a point |
+| **orange** `#ff9a1f` mast + diamond | route carrot = intermediate goal (`av.carrot`; in eco the route refreshes every 0.8 x 2.5 s and the carrot persists between plans) |
+| light orange `#ffd27f` polyline | planned route to the goal (`av.routePath`, at most `goalChainMax` 24 segments) = the goal chain |
+| red-orange `#ff5533` mast + cross | flee goal while the flee layer overrides the goal (lime stays at the real goal) |
 | **red** rays | lidar hits (every `debugRayStride`-th ray) |
 | **magenta** ticks | costmap memory points (nearest `debugMaxPoints`) |
 | dark **blue** fan | candidate arcs (collision-free part) |
@@ -132,6 +136,10 @@ Every stage draws with `api.visualizeLine`; switch off per stack/layer/stage wit
 | **white** | commanded steering direction |
 | dark gold / **red** | AEB look-ahead / AEB triggered |
 | mast over car: green / orange / white | drive / manoeuvre requested / hold |
+
+**Goal display (`goalViz`, `av-waypoint-viz`, 2026-10-05):** `true`/`'full'` = the lime / orange / red-orange markers above; `'dim'` (default, what the 10 chasers run) = the old mint mission route + yellow pole only; `false` = nothing. The stage is never decimated (`tickEvery` stages skip their draw calls on the frames in between, the overlay is cleared every physics step), so goal markers do not flicker; it runs right after ego, i.e. first in the overlay line budget (200). Only the displayed entity (selected in Visualize mode, or `world.debugTargetLineEntityId`) is drawn at all, and `api.visualizeLine` is a no-op in Play (Builder visualize / debug-line only; a Play renderer was not built). Params: `goalViz`, `goalMastHeight` (40), `goalChainMax` (24), `debugDraw`.
+
+**Score and damage (`av-ego` `scoreKeeping`, params `hud`, `goalReachDist` 12, `damageDist` 8, `damageClear` 14):** score +1 when the goal source REPLACES its goal (the goal jumps > 8 m between frames; a `follow` goal only drifts) while the car is within `goalReachDist` of the old one (sources: preset wanderer, `av-wander`, any `input.target` before ego); flee / escape goals never count, a goal replaced far away (av-wander `giveUpAfter`) does not count. Damage +1 per approach episode of each tracked body (`threatIds`): centre distance < `damageDist`, re-armed only above `damageClear` (hysteresis, so one hit per approach, not per frame). Blackboard `av.goalsReached` / `av.hits`, watch rows `av.goals` / `av.hits`; with `hud: true` the totals are pushed to the game HUD via the new transformer API `api.setScore(n)` / `api.setDamage(n)` (same HUD as script `ctx.setScore`: Play always, Builder View -> Game HUD). `self_hunt_flexible` AV binding: `hud: true`, `goalViz: true`, `goalReachDist: 31` (wanderer `positionEpsilon` 30 + 1 m). Tests: `hunt-game-score.integration.test.ts` (score only at the goal source's reach, damage == independent oracle of approach episodes, HUD feed).
 
 `self_drive_av` is the showcase: parkour + 10 coloured extra obstacles + a return lane (9 waypoints, `buildAvShowcaseWorld`).
 

@@ -265,6 +265,10 @@ interface TransformerRuntimeApi {
   eulerDeltaAroundAxis(currentRotation: Rotation, axis: Vec3, angleRad: number): Rotation;
   /** Show message on play snackbar via ScriptSnackbar; default durationSeconds 4. No-op when unwired (e.g. tests). */
   log(message: string, durationSeconds?: number): void;
+  /** Set the game HUD score (same HUD as script \`ctx.setScore\`). Negative / non-finite values are ignored. No-op when unwired (tests). */
+  setScore(value: number): void;
+  /** Set the game HUD damage (same HUD as script \`ctx.setDamage\`). Negative / non-finite values are ignored. No-op when unwired (tests). */
+  setDamage(value: number): void;
   /**
    * Builder Workspace only: publish a labeled value to the Watch panel when the bridge is enabled.
    * One argument uses label \`value\`; two arguments are \`(label, value)\`.
