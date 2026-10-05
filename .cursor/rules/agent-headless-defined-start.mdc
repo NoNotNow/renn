@@ -8,7 +8,8 @@ globs:
   - src/test/fixtures/selfDrivingCarWorld.ts
   - agent-context/improve-car-player-copy.md
   - agent-context/feature-agent-logic-verification.md
-  - public/exampleWorlds/self_drive_cube/**/*
+  - public/exampleWorlds/self_drive_av/**/*
+  - public/exampleWorlds/av_fleet_eco/**/*
   - public/exampleWorlds/hunt_repair2/**/*
 ---
 
@@ -19,7 +20,7 @@ Mitigates headless vs browser drift: **same `world.json` on disk** and **every r
 ## Workflow
 
 1. **Canonical copy on disk** — after logic edits, export/sync (see `agent-mcp-example-world-sync.mdc`):
-   - `self_drive_cube`: `npx tsx tools/renn-mcp/export-self-drive-example-world.ts`
+   - `self_drive_av` / `av_fleet_eco`: `npx tsx tools/renn-mcp/export-all-self-drive-example-worlds.ts`
    - `hunt_repair2` patches: `node tools/renn-mcp/sync-hunt-car-patches.mjs`
 2. **Verify headless first** — Vitest and/or `npx tsx tools/renn-mcp/sim-car-diagnostic.ts` (grep `RENNDIAG:` in `agent-context/recordings/`).
 3. **Human browser check** — **Project → Reload** (resets all entities to document poses at last open) or re-open **File → Example Worlds → `<id>`**; not a stale mid-scene tab.
@@ -38,7 +39,7 @@ Do not treat browser-only Play as the primary regression signal.
 | **CLI diagnostic** | Each invocation already fresh (`sim-car-diagnostic.ts`); keep it that way. |
 | **Browser (human parity)** | Re-open example world from menu **or** reset entities to saved world poses before comparing to headless. |
 
-Pinned spawns for the box car scene live in `SELF_DRIVE_SPAWN` / `buildSelfDrivingCarWorld()` — headless and exported `self_drive_cube/world.json` must stay aligned.
+Pinned spawns for the box car scene live in `SELF_DRIVE_SPAWN` / `buildSelfDrivingCarWorld()` (headless fixture only; its example world was removed).
 
 ## Parity expectation
 

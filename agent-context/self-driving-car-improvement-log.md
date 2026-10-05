@@ -9,7 +9,7 @@ Living log for **obstacle go-around** on `selfDrivingCarWorld` / **`self_drive_c
 ```bash
 npx tsx tools/renn-mcp/sim-car-diagnostic.ts --variant cubeGoalBehind --frames 240
 npx vitest run src/test/scenarios/self-driving-car.integration.test.ts
-npx tsx tools/renn-mcp/export-self-drive-example-world.ts
+# (export tool and example world removed; scene is the headless fixture)
 rg 'RENNDIAG:' agent-context/recordings/car-diagnostic-events.log
 ```
 

@@ -414,7 +414,7 @@ describe('ProjectContext – reload world', () => {
     const versionBefore = ctx.version
 
     act(() => {
-      ctx.loadExampleWorld(exampleWorld, 'self_drive_cube')
+      ctx.loadExampleWorld(exampleWorld, 'example_world')
     })
 
     act(() => {

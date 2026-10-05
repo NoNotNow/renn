@@ -153,7 +153,7 @@ describe('useBuilderPoseSyncSave', () => {
 
   it('handleReload calls reloadWorld (saved and example worlds)', () => {
     const params = makeParams({
-      currentProject: { id: null, name: 'self_drive_cube', isDirty: false },
+      currentProject: { id: null, name: 'example_world', isDirty: false },
     })
     const { result } = renderHook(() => useBuilderPoseSyncSave(params))
 

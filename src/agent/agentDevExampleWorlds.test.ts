@@ -16,17 +16,13 @@ describe('agent dev example worlds', () => {
     }
   })
 
-  it('build-time discovery matches disk list (world.json folders)', () => {
+  it('build-time discovery matches disk list (world.json folders)', async () => {
+    resetAgentDevExampleWorldIdCacheForTests()
     const fromGlob = discoverExampleWorldIdsFromBuild()
     expect(fromGlob.length).toBeGreaterThan(0)
     expect(fromGlob).toContain('hunt')
-    expect(fromGlob).toContain('self_drive_cube')
-  })
-
-  it('includes self_drive_cube on disk after export', async () => {
-    resetAgentDevExampleWorldIdCacheForTests()
-    const ids = await listAgentDevExampleWorldIds()
-    expect(ids).toContain('self_drive_cube')
+    const onDisk = await listAgentDevExampleWorldIds()
+    for (const id of onDisk) expect(fromGlob).toContain(id)
   })
 
   it('loads hunt example world with at least one asset when assets/ exists', async () => {

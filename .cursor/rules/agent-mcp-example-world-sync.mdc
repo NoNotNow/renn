@@ -16,7 +16,7 @@ When agent or MCP work **materially changes a world** that humans or agents shou
 2. **Prefer the right export path:**
    - **IndexedDB project after attach:** MCP `export_saved_project_to_example_world` or `npx tsx tools/renn-mcp/agent-export-saved-to-example-world.ts`
    - **Repo patch sync (e.g. hunt repair scene):** `node tools/renn-mcp/sync-hunt-car-patches.mjs` → existing example folder
-   - **Headless fixture / diagnostic scene:** `npx tsx tools/renn-mcp/export-self-drive-example-world.ts` (from `selfDrivingCarWorld.ts`)
+   - **Headless fixture / diagnostic scene:** `npx tsx tools/renn-mcp/export-all-self-drive-example-worlds.ts` (AV parkour + AV fleet fixtures)
 3. **Document** the id and purpose in `agent-context/example-worlds.md` (shipped examples table). Link from task-specific docs (e.g. improve-car tracker) — do not duplicate full world JSON in markdown.
 4. **After export:** reload dev or open **File → Example Worlds → `<id>`**; verify MCP `load_example_world { "exampleWorldId": "<id>" }`.
 

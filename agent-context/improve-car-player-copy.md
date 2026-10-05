@@ -10,7 +10,7 @@ Living tracker for self-driving behavior on **Player Car copy** in the **hunt_re
 |--------|--------|
 | **Entity id** | `entity_1779823253285_brtkx1p` |
 | **Display name** | Player Car copy |
-| **Example world** | `hunt_repair2` — [`public/exampleWorlds/hunt_repair2/`](../public/exampleWorlds/hunt_repair2/); box diagnostic: **`self_drive_cube`** — [`public/exampleWorlds/self_drive_cube/`](../public/exampleWorlds/self_drive_cube/) |
+| **Example world** | `hunt_repair2` — [`public/exampleWorlds/hunt_repair2/`](../public/exampleWorlds/hunt_repair2/) (the old `self_drive_cube` example world was removed; the box scene is the headless fixture `buildSelfDrivingCarWorld()`) |
 | **Goal source** | **Wanderer** only at start of **Pipe3** (`targetPoseInput` removed — duplicate target publisher) |
 | **Primary pipe** | `pipe3` (shared registry stages `car_tf*`, entity-local stages `entity_1779823253285_brtkx1p_tf*`) |
 

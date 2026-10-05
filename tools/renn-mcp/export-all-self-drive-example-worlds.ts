@@ -1,6 +1,6 @@
 #!/usr/bin/env npx tsx
 /**
- * Re-export every headless self-driving fixture scene to public/exampleWorlds/ (File → Example Worlds).
+ * Re-export every headless fixture scene (AV parkour, AV fleet) to public/exampleWorlds/ (File → Example Worlds).
  */
 import { spawnSync } from 'node:child_process'
 import { dirname, resolve } from 'node:path'
@@ -8,11 +8,8 @@ import { fileURLToPath } from 'node:url'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const scripts = [
-  'export-self-drive-example-world.ts',
-  'export-self-drive-parkour-example-world.ts',
-  'export-self-drive-parkour-beside-example-world.ts',
-  'export-self-drive-cylinder-example-world.ts',
   'export-self-drive-av-example-world.ts',
+  'export-av-fleet-example-world.ts',
 ]
 
 for (const script of scripts) {
