@@ -13,6 +13,9 @@ export async function exportAgentProjectBundleWorld(
 ): Promise<{ bundleId: string; worldPath: string }> {
   const bundlePath = resolveAgentProjectBundleDirectory(bundleId)
   const worldPath = path.join(bundlePath, 'world.json')
-  await fs.writeFile(worldPath, `${JSON.stringify(world, null, 2)}\n`, 'utf8')
+  // write + rename: a concurrent load_project_bundle never reads a half-written world.json
+  const tmpPath = `${worldPath}.${process.pid}.${Date.now()}.tmp`
+  await fs.writeFile(tmpPath, `${JSON.stringify(world, null, 2)}\n`, 'utf8')
+  await fs.rename(tmpPath, worldPath)
   return { bundleId, worldPath }
 }
