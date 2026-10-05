@@ -44,3 +44,19 @@ export function resolveLocalScopeParams(
   }
   return binding.scopeParams?.[scopeKey] ?? {}
 }
+
+/**
+ * Params an edit at `scopePath` inherits from the enclosing scopes (stack root and outer nested scopes);
+ * the same layering the runtime applies, minus the scope itself.
+ */
+export function resolveInheritedScopeParams(
+  binding: TransformerPipeBinding | undefined,
+  scopePath?: PipeNavPathSegment[],
+): Record<string, unknown> {
+  const path = scopePath ?? []
+  const layers: Record<string, unknown>[] = []
+  for (let len = 1; len < path.length; len++) {
+    layers.push(resolveLocalScopeParams(binding, path.slice(0, len)))
+  }
+  return mergeParamScopeLayers(layers)
+}

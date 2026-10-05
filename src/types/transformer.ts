@@ -11,6 +11,7 @@
  */
 
 import type { Vec3, Rotation } from './world'
+import type { ParamDef, ParamType } from './paramSchema'
 
 export type { Vec3, Rotation }
 
@@ -334,16 +335,9 @@ export type TransformerDef = TransformerConfig
 // Transformer Pipes
 // ---------------------------------------------------------------------------
 
-/** Typed pipe input — extend as needed. */
-export type PipeParamType = 'number' | 'string' | 'boolean' | 'entityId' | 'vec3'
-
-export interface PipeParamDef {
-  key: string
-  label?: string
-  type: PipeParamType
-  default?: unknown
-  description?: string
-}
+/** Typed pipe input; the schema is shared with stage params (`@/types/paramSchema`). */
+export type PipeParamType = ParamType
+export type PipeParamDef = ParamDef
 
 /**
  * One member inside a **manifold** (nested pipe): either a leaf stage or a child pipe.

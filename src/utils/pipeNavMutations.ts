@@ -468,6 +468,19 @@ export function setTopLevelStageIds(world: RennWorld, entityId: string, ids: str
   return nextWorld
 }
 
+/** Shallow-merge `patch` into `base`; a key whose patch value is `undefined` is removed (param reset). */
+export function mergeParamPatch(
+  base: Record<string, unknown>,
+  patch: Record<string, unknown>,
+): Record<string, unknown> {
+  const out = { ...base }
+  for (const [k, v] of Object.entries(patch)) {
+    if (v === undefined) delete out[k]
+    else out[k] = v
+  }
+  return out
+}
+
 export function updateBindingParams(
   world: RennWorld,
   entityId: string,
@@ -477,7 +490,7 @@ export function updateBindingParams(
   const entity = world.entities.find((e) => e.id === entityId)
   if (!entity) return world
   const stack = getEntityPipeStack(entity).map((b, i) =>
-    i === stackIndex ? { ...b, params: { ...(b.params ?? {}), ...params } } : b,
+    i === stackIndex ? { ...b, params: mergeParamPatch(b.params ?? {}, params) } : b,
   )
   return updateEntityStack(world, entityId, stack)
 }
@@ -498,7 +511,7 @@ export function updateBindingScopeParams(
     const prev = prevScope[scopeKey] ?? {}
     return {
       ...b,
-      scopeParams: { ...prevScope, [scopeKey]: { ...prev, ...params } },
+      scopeParams: { ...prevScope, [scopeKey]: mergeParamPatch(prev, params) },
     }
   })
   return updateEntityStack(world, entityId, stack)
