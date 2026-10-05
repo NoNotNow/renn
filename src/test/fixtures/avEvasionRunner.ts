@@ -75,6 +75,8 @@ export interface ScenarioMetrics {
   goalReachT: number
   /** Direction reversals: forward-speed sign flips (hysteresis +-1 m/s). A K-turn costs 2-3. */
   reversals: number
+  /** Peak lateral acceleration |v * yaw rate| (m/s^2) at > 5 m/s, yaw rate over 0.1 s. */
+  peakLatAcc: number
   /** Lab motion-monitor episodes classified 'shuttle' / 'jitter' (slow back-and-forth without progress / chatter). */
   shuttleEvents: number
   /** Longest such episode (s). */
@@ -193,6 +195,7 @@ export async function runScenario(spec: ArenaSpec, seconds: number, hooks: Scena
     minGoalDist: Infinity,
     goalReachT: Infinity,
     reversals: 0,
+    peakLatAcc: 0,
     shuttleEvents: 0,
     shuttleMaxSec: 0,
     shuttleInfo: '',
@@ -205,6 +208,7 @@ export async function runScenario(spec: ArenaSpec, seconds: number, hooks: Scena
   let stalled = 0
   let speedSum = 0
   let prevSpeed: number | null = null
+  const yawHist: number[] = []
   const startDist = Math.hypot(spec.car.at[0] - goal[0], spec.car.at[1] - goal[1])
   let endDist = startDist
   const res = await runLab({
@@ -294,6 +298,16 @@ export async function runScenario(spec: ArenaSpec, seconds: number, hooks: Scena
       }
       if (t <= 0.5) m.launchMaxDv = Math.max(m.launchMaxDv, Math.abs(fwd - (prevSpeed ?? spec.car.speed ?? 0)))
       prevSpeed = fwd
+      {
+        const yw = yawOf(q)
+        yawHist.push(yw)
+        const lag = Math.round(0.1 / DEFAULT_DT)
+        if (yawHist.length > lag && Math.abs(fwd) > 5) {
+          let dy = yw - yawHist[yawHist.length - 1 - lag]!
+          dy = Math.atan2(Math.sin(dy), Math.cos(dy))
+          m.peakLatAcc = Math.max(m.peakLatAcc, Math.abs((fwd * dy) / (lag * DEFAULT_DT)))
+        }
+      }
       endDist = Math.hypot(cp[0] - goal[0], cp[2] - goal[1])
       m.minGoalDist = Math.min(m.minGoalDist, endDist)
       if (endDist < GOAL_REACH && m.goalReachT === Infinity) m.goalReachT = t

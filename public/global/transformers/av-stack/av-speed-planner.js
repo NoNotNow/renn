@@ -77,6 +77,11 @@ function transform(input, dt, params, state, api) {
     v = Math.max(av.route.vLimit, crawl)
     limit = 'route'
   }
+  // route starts in reverse (routeLimitFull): brake to the stop speed without the crawl floor, the manoeuvre needs the car nearly at rest
+  if (av.route && av.route.revFirst && av.route.vLimit < v && !chased) {
+    v = av.route.vLimit
+    limit = 'rstop'
+  }
   // Curve limit from the NET path curvature: signed kappa smoothed over `curveSmooth` s (default 0 = raw) cancels the
   // left/right wobble of the discrete candidate curvatures on a straight; |k| below `curveDeadband` (1/m) is ignored.
   var kRaw = plan.kappa
@@ -114,7 +119,7 @@ function transform(input, dt, params, state, api) {
       }
     }
   }
-  if (!plan.blocked && v < crawl && limit !== 'goal') v = crawl
+  if (!plan.blocked && v < crawl && limit !== 'goal' && limit !== 'rstop') v = crawl
   // The stopping-distance limit is a safety bound, not a preference: no floor (minSpeed, route/curve crawl, goal crawl)
   // may lift the speed above what can still stop within the free path (minSpeed 9.4 with 5 m free and 2 m/s² used to
   // drive at 9.4 instead of 3.9 m/s — straight into the AEB, then stop-and-go).

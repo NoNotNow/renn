@@ -30,6 +30,8 @@ function criteria(c: MazeCase, m: ScenarioMetrics): string[] {
     );
   if (m.reversals > c.maxReversals)
     out.push(`${m.reversals} direction reversals > ${c.maxReversals}`);
+  if (c.maxLatAcc != null && m.peakLatAcc > c.maxLatAcc)
+    out.push(`peak lateral acceleration ${f1(m.peakLatAcc)} m/s^2 > ${c.maxLatAcc}`);
   if (m.shuttleEvents > (c.maxShuttle ?? 0))
     out.push(
       `${m.shuttleEvents} shuttle / jitter episodes > ${c.maxShuttle ?? 0}`,
@@ -76,7 +78,7 @@ export function defineMazeSuite(
           );
           const failed = criteria(c, m);
           rows.push(
-            `${failed.length ? "FAIL" : "PASS"} ${c.name.padEnd(22)} goal ${m.goalReachT === Infinity ? "never (min " + f1(m.minGoalDist) + " m)" : f1(m.goalReachT) + " s"} | rev ${m.reversals} (${f1(m.reverseDist)} m @ ${f1(m.reverseMeanSpeed)} m/s) | leave ${f1(m.leaveT)} s | shuttle ${m.shuttleEvents} | static ${m.staticContactFrames}f chaser ${m.chaserContactFrames}f | stalled ${f1(m.stalledSec)} s | peak ${f1(m.peakSpeed)} m/s` +
+            `${failed.length ? "FAIL" : "PASS"} ${c.name.padEnd(22)} goal ${m.goalReachT === Infinity ? "never (min " + f1(m.minGoalDist) + " m)" : f1(m.goalReachT) + " s"} | rev ${m.reversals} (${f1(m.reverseDist)} m @ ${f1(m.reverseMeanSpeed)} m/s) | leave ${f1(m.leaveT)} s | shuttle ${m.shuttleEvents} | static ${m.staticContactFrames}f chaser ${m.chaserContactFrames}f | stalled ${f1(m.stalledSec)} s | peak ${f1(m.peakSpeed)} m/s | lat ${f1(m.peakLatAcc)}` +
               (failed.length ? `\n      -> ${failed.join("; ")}` : "") +
               (m.shuttleInfo ? `\n      episodes ${m.shuttleInfo}` : "") +
               (m.firstContact

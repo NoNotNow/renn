@@ -22,6 +22,8 @@ export interface MazeCase {
   about: string
   seconds: number
   spec: () => ArenaSpec
+  /** Max peak lateral acceleration (m/s^2, see ScenarioMetrics.peakLatAcc). */
+  maxLatAcc?: number
   /** Max direction reversals (a K-turn costs 2-3). */
   maxReversals: number
   /** The case judges leaving / stalling only (a tracked chaser in it makes the car flee instead of heading for the goal). */
@@ -64,6 +66,18 @@ function cylinder(c: V2, r: number): ArenaBox[] {
     out.push({ at: [c[0] + r * Math.cos(a), c[1] + r * Math.sin(a)], size: [side, WALL_T], yawDeg: -((a + Math.PI / 2) * 180) / Math.PI, height: WALL_H })
   }
   return out
+}
+
+/** Car at speed along a wall (x = -d), a 14 m gap 90 m ahead, goal outside the gap. */
+function gapEntry(d: number): ArenaSpec {
+  const gz0 = -90
+  const gw = 14
+  return {
+    car: { at: [0, 0], yawDeg: 0, speed: 25 },
+    goal: [-d - 40, gz0 - gw / 2],
+    boxes: [seg([-d, 60], [-d, gz0]), seg([-d, gz0 - gw], [-d, -240])],
+    puppets: [],
+  }
 }
 
 export const MAZE_CASES: MazeCase[] = [
@@ -224,5 +238,14 @@ export const MAZE_CASES: MazeCase[] = [
         { id: 'chaser_b', size: CHASER, at: [12, 40], yawDeg: 0, motion: { kind: 'home', speed: 25, turnRate: 1.5, lead: 0.3 } },
       ],
     }),
+  },
+  {
+    name: 'gap-entry-wall10',
+    about: 'no pursuers, car at 25 m/s along a wall, a 14 m gap in it 90 m ahead, goal behind the gap, wall 10 m beside the car: brake early enough (route speed limit over the braking distance, from the car pose) to turn into the gap instead of driving past it (routeLimitFull: false = takes it at 35 m/s with 44 m/s^2 lateral). Criteria: goal within 12 s, no static contact, peak lateral acceleration <= 30 m/s^2 (full budget: 28, routeLimitFull: false: 44)',
+    seconds: 12,
+    fullBudgetOnly: true, // eco: the route is 2.5x staler, the car still takes the gap at 32 m/s (lat 33-37)
+    maxLatAcc: 30,
+    maxReversals: 1,
+    spec: () => gapEntry(10),
   },
 ]
