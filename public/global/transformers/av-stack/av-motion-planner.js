@@ -552,7 +552,66 @@ function transform(input, dt, params, state, api) {
     }
     return 0
   }
-  for (var a = 0; a < count; a++) {
+  // eco (ecoPrune, default on): branch and bound over the fan. Candidates are tried from the arc nearest the aim curvature outward (last frame's choice first); after the
+  // hard sweep a candidate whose cost WITHOUT the soft sweep (soft term at its minimum: with soft >= margin the soft free length is at most the hard one, else only 0 is known) and without
+  // the threat prediction is already >= the best so far is dropped (both terms are >= 0 / >= that bound), so the winner is the same as without pruning (up to exact cost ties).
+  var prune = budget === 'eco' && params.ecoPrune !== false && count >= 5
+  // the soft sweep uses a footprint extra of `soft` where the hard one has `margin` (which grows with speed): it is the LARGER footprint (so it never sweeps farther than the hard one) only while soft >= margin
+  var softSuper = soft >= margin + 1e-9
+  var order = []
+  for (var oa = 0; oa < count; oa++) order.push(oa)
+  if (prune) {
+    var aimA = goalDist > 1e-6 ? Math.max(0, Math.min(count - 1, Math.round(((2 * gy) / (goalDist * goalDist) / kmax + 1) * 0.5 * (count - 1)))) : count >> 1
+    var prevA = prevKey >= 0 ? prevKey >> 2 : -1
+    order.sort(function (p, q) {
+      var dp = p === prevA ? -1 : Math.abs(p - aimA)
+      var dq = q === prevA ? -1 : Math.abs(q - aimA)
+      return dp - dq || p - q
+    })
+  }
+  // closest approach (m) of the candidate path (arc `turnLen` at `kappa`, then straight up to the horizon H) to the aim point (gx, gy): analytic, a lower bound of the distance at the pose the candidate is judged at
+  function minGoalDist(kappa, turnLen) {
+    var best2
+    var ex
+    var ey
+    var eth = 0
+    if (Math.abs(kappa) < 1e-6) {
+      ex = 0
+      ey = 0
+      best2 = 1e18
+    } else {
+      var Rr = 1 / Math.abs(kappa)
+      var cy = 1 / kappa
+      var vx = gx
+      var vy = gy - cy
+      var vl = Math.sqrt(vx * vx + vy * vy)
+      var kT = kappa * turnLen
+      var lo = kT < 0 ? kT : 0
+      var span = Math.abs(kT)
+      var sg = kappa > 0 ? 1 : -1
+      var thS = Math.atan2(sg * vx, -sg * vy)
+      var rel = (thS - lo) % (2 * Math.PI)
+      if (rel < 0) rel += 2 * Math.PI
+      eth = kT
+      ex = Math.sin(kT) / kappa
+      ey = (1 - Math.cos(kT)) / kappa
+      if (vl > 1e-9 && rel <= span) best2 = Math.abs(vl - Rr)
+      else best2 = Math.sqrt((gx - ex) * (gx - ex) + (gy - ey) * (gy - ey))
+    }
+    var Ls = Math.abs(kappa) < 1e-6 ? H : Math.max(0, H - turnLen)
+    var dx = Math.cos(eth)
+    var dy = Math.sin(eth)
+    var tp = (gx - ex) * dx + (gy - ey) * dy
+    tp = tp < 0 ? 0 : tp > Ls ? Ls : tp
+    var sx = gx - (ex + dx * tp)
+    var sy = gy - (ey + dy * tp)
+    var dseg = Math.sqrt(sx * sx + sy * sy)
+    var d0 = Math.sqrt(gx * gx + gy * gy)
+    return Math.max(0, Math.min(best2, dseg, d0) - 1e-6)
+  }
+  var pruneGeom = prune && params.ecoPruneGeom !== false && wProg >= 0 && wHead >= 0 && wReq >= 0 && wFree >= 0 && wSoft >= 0
+  for (var oi = 0; oi < count; oi++) {
+    var a = order[oi]
     var kappa = count === 1 ? 0 : -kmax + (2 * kmax * a) / (count - 1)
     var aimAng = aimTurnAngle(kappa)
     var nAngles = turnAngles.length + (aimAng > 0 ? 1 : 0)
@@ -561,8 +620,9 @@ function transform(input, dt, params, state, api) {
       var isAim = ti >= turnAngles.length
       var turnLen = Math.abs(kappa) < 1e-6 ? H : Math.min(H, (isAim ? aimAng : turnAngles[ti]) / Math.abs(kappa))
       av.work.cands++
+      // geometry bound before any sweep: progress <= goalDist - closest approach, every other term (heading, required / free length, soft, threat) is >= 0 -> cannot beat the best so far
+      if (pruneGeom && bestCost < Infinity && a * 4 + ti !== prevKey && -wProg * (goalDist - minGoalDist(kappa, turnLen)) + wSmooth * (Math.abs(kappa - prev) / kmax) + wTurn * Math.abs(kappa * turnLen) > bestCost + 1e-9) continue
       var fHard = freeLength(kappa, turnLen, halfW, halfL)
-      var fSoft = freeLength(kappa, turnLen, halfW + soft - margin, halfL + soft - margin)
       var L = fHard
       var Lpose = L
       if (isAim) {
@@ -576,18 +636,22 @@ function transform(input, dt, params, state, api) {
       var herr = Math.atan2(gy - P.y, gx - P.x) - P.th
       while (herr > Math.PI) herr -= 2 * Math.PI
       while (herr < -Math.PI) herr += 2 * Math.PI
-      var cost =
-        -wProg * progress +
-        wHead * Math.abs(herr) +
-        wReq * Math.max(0, 1 - L / Lreq) +
-        wFree * (1 - L / H) +
-        wSoft * (1 - Math.min(fSoft, H) / H) +
-        wSmooth * (Math.abs(kappa - prev) / kmax) +
-        wTurn * Math.abs(kappa * turnLen)
-      if (thr.length) cost += wThreat * threatCost(kappa, turnLen, hullL, hullW)
       var key = a * 4 + ti
+      var fSoft
+      var cost
+      var cBase = -wProg * progress + wHead * Math.abs(herr) + wReq * Math.max(0, 1 - L / Lreq) + wFree * (1 - L / H)
+      var cTail = wSmooth * (Math.abs(kappa - prev) / kmax)
+      var cTurn = wTurn * Math.abs(kappa * turnLen)
+      if (prune && key !== prevKey) {
+        // bit-identical to the full cost with fSoft = fHard (same summation order); ties keep the lower key like the unordered loop
+        var cLb = cBase + (softSuper ? wSoft * (1 - Math.min(fHard, H) / H) : 0) + cTail + cTurn
+        if (cLb > bestCost || (cLb === bestCost && key > bestKey)) continue
+      }
+      fSoft = prune && softSuper && fHard <= 0 ? 0 : freeLength(kappa, turnLen, halfW + soft - margin, halfL + soft - margin)
+      cost = cBase + wSoft * (1 - Math.min(fSoft, H) / H) + cTail + cTurn
+      if (thr.length) cost += wThreat * threatCost(kappa, turnLen, hullL, hullW)
       if (key === prevKey) prevHit = { cost: cost, kappa: kappa, hard: fHard, soft: fSoft, turnLen: turnLen }
-      if (cost < bestCost) {
+      if (cost < bestCost || (prune && cost === bestCost && key < bestKey)) {
         bestKey = key
         bestCost = cost
         best = kappa
