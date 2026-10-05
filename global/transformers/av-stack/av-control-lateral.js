@@ -4,7 +4,7 @@
 // debug draw: white = commanded steering direction.
 // Free-road refinement (purePursuit, default on): the planner's curvature is one of ~31 discrete values (0.0077 1/m apart), so tracking a straight
 // line is a limit cycle between neighbours (+-1-2 m, ~0.5 reversals/s). When the plan is a plain, unconstrained "go toward the aim point" (small
-// curvature, free path, clear margins, no override, no tracked moving body) the continuous pure-pursuit curvature kPP = 2 y / d^2 toward the aim (route carrot / goal) replaces it,
+// curvature, free path, clear margins, no override, no tracked moving body, no keep-right bias of the planner (plan.pass)) the continuous pure-pursuit curvature kPP = 2 y / d^2 toward the aim (route carrot / goal) replaces it,
 // provided it stays within ppWindow (0.02 1/m) of the planned one (so it can only fine-tune the planner's choice, never undo an avoidance).
 // params: kappaPerSteer, fbGain, steerRate, kappaTau (0.04 s + 0.008 s per m/s), kappaJump (0.025 1/m), purePursuit, ppWindow, ppMaxKappa (0.04), kappaDeadband (0.0015)
 function transform(input, dt, params, state, api) {
@@ -18,7 +18,7 @@ function transform(input, dt, params, state, api) {
   var rate = params.steerRate != null ? params.steerRate : 4
   var kRaw = av.plan.kappa
   var pl = av.plan
-  if (params.purePursuit !== false && !(av.threats && av.threats.length) && av.mode !== 'reverse' && !pl.override && !pl.blocked && pl.free >= (pl.required || 0) && pl.clearance >= 1 && e.speedF > 3 && Math.abs(kRaw) < (params.ppMaxKappa != null ? params.ppMaxKappa : 0.04)) {
+  if (params.purePursuit !== false && !(av.threats && av.threats.length) && av.mode !== 'reverse' && !pl.override && !pl.pass && !pl.blocked && pl.free >= (pl.required || 0) && pl.clearance >= 1 && e.speedF > 3 && Math.abs(kRaw) < (params.ppMaxKappa != null ? params.ppMaxKappa : 0.04)) {
     var tg = input.target && input.target.pose && input.target.pose.position
     var ax = av.carrot ? av.carrot[0] : tg ? tg[0] : null
     var az = av.carrot ? av.carrot[1] : tg ? tg[2] : null
