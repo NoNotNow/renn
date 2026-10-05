@@ -1241,6 +1241,7 @@ function transform(input, dt, params, state, api) {
       }
       var revStop = !!state.revStopOn && rt.firstGear === -1
       av.route = { firstGear: rt.firstGear, run: rt.run, reached: rt.reached, vLimit: revStop ? 0 : routeLimitNow(rt), revFirst: revStop }
+      av.routePath = rt.path // [[x, z], ...] planned route nodes (read-only; av-waypoint-viz draws it as the goal chain)
       if (params.debugDraw !== false) {
         var y0 = pos[1]
         for (var di = 2; di < rt.path.length; di += 2) {
