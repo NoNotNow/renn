@@ -11,7 +11,7 @@ import { installDeterminism } from '@/test/avLab/determinism'
 import { WorldSimulator } from '@/test/helpers/worldSimulator'
 
 const AV = 'entity_1779823253285_brtkx1p'
-const PIPE = 'pipe_1780343603350'
+const AV_PIPE = 'global_av_autopilot'
 const FRAMES = Number(process.env.HUNT_FRAMES ?? 600)
 const CAR_CLEARANCE = 15
 const PROP_CLEARANCE = 4
@@ -93,19 +93,29 @@ function distToWall(wall: Ent, x: number, z: number): number {
   return Math.hypot(ox, oz)
 }
 
+type Bound = Ent & { transformerPipeStack?: { pipeId?: string; params?: Record<string, unknown> }[] }
+/** Pursuers: AV pipe (eco), no threatIds, a `follow` goal-source stage. The AV itself has threatIds. */
+const isChaser = (e: Bound, world: ReturnType<typeof loadLabWorld>) =>
+  e.transformerPipeStack?.[0]?.pipeId === AV_PIPE &&
+  !(e.transformerPipeStack[0].params?.threatIds as unknown[] | undefined)?.length &&
+  (e.transformers ?? []).some((id) => (world.transformers as Record<string, { type?: string }>)[id]?.type === 'follow')
+
 describe('self_hunt_flexible', () => {
   it('pack cars carry their pipeline once (no entity-level duplicate of the pipe stages)', () => {
     const world = loadLabWorld({ exampleId: 'self_hunt_flexible' })
-    const stages = new Set((world.transformerPipes?.[PIPE] as { stageIds: string[] }).stageIds)
+    const stages = new Set((world.transformerPipes?.[AV_PIPE] as { stageIds: string[] }).stageIds)
     let n = 0
-    for (const e of world.entities) {
-      if (e.transformerPipeStack?.[0]?.pipeId !== PIPE) continue
+    for (const e of world.entities as Bound[]) {
+      if (!isChaser(e, world)) continue
       n++
-      const extra = (e.transformers ?? []).filter((id) => !stages.has(id))
-      expect(extra, `${e.id} entity-level stages beyond the pipe`).toEqual([])
-      expect(new Set(e.transformers).size).toBe(e.transformers?.length)
+      expect(e.transformerPipeStack![0].params?.budget, `${e.id} budget`).toBe('eco')
+      const ids = e.transformers ?? []
+      expect(new Set(ids).size).toBe(ids.length)
+      for (const id of stages) expect(ids, `${e.id} pipe stage ${id}`).toContain(id)
+      const extra = ids.filter((id) => !stages.has(id)).map((id) => (world.transformers as Record<string, { type?: string }>)[id]?.type)
+      expect(extra.sort(), `${e.id} extra stages = goal source + actuator`).toEqual(['car2', 'follow'])
     }
-    expect(n).toBeGreaterThanOrEqual(11)
+    expect(n).toBe(10)
   })
 
   it('has no referee, score, tint or beacon leftovers', () => {
@@ -171,13 +181,19 @@ describe('self_hunt_flexible', () => {
     const sim = await WorldSimulator.create(world, 0)
     try {
       const pos = (id: string) => sim.getPhysicsWorld().getCachedTransform(id)!.position
-      const chasers = world.entities.filter((e) => e.id !== AV && e.transformerPipeStack?.[0]?.pipeId === PIPE).map((e) => e.id)
+      const chasers = world.entities.filter((e) => isChaser(e as Bound, world)).map((e) => e.id)
       sim.runFrames(1)
+      let minGap = Infinity
       const start = Object.fromEntries(chasers.map((id) => [id, { ...pos(id) }]))
       for (let f = 0; f < FRAMES; f++) {
         sim.runFrames(1)
         det.advance(1 / 60)
+        if (f % 30 === 0) {
+          const a = pos(AV)
+          for (const id of chasers) minGap = Math.min(minGap, Math.hypot(pos(id).x - a.x, pos(id).z - a.z))
+        }
       }
+      if (process.env.HUNT_LOG) console.log('hunt: min chaser-AV distance', minGap.toFixed(1))
       let moved = 0
       for (const id of chasers) {
         const p = pos(id)

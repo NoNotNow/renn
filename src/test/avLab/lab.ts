@@ -317,7 +317,7 @@ export function diagnose(sim: WorldSimulator, world: RennWorld, focus: string, o
 export interface LabOptions {
   world: WorldRef
   focus: string
-  /** Regex on the first pipe id of other vehicles that count as chasers for catch metrics (default ^pipe_). */
+  /** Regex on the first pipe id of other vehicles that count as chasers for catch metrics (default: pursuers on the AV pipe = no threatIds + a `follow` stage). */
   chaserPipe?: string
   seed?: number
   frames?: number
@@ -386,7 +386,7 @@ export interface LabResult {
   limitHist: Record<string, number>
   limitMeans: Record<string, string>
   limitHistSlow: Record<string, number>
-  /** Chasers = other chain entities whose first pipe id matches `chaserPipe` (default /^pipe_/). */
+  /** Chasers = other chain entities whose first pipe id matches `chaserPipe`, default: AV-pipe cars without threatIds that carry a `follow` stage. */
   chaserCount: number
   /** Min center distance to any chaser over the run (m). */
   minChaserDist: number
@@ -447,11 +447,18 @@ export async function runLab(o: LabOptions): Promise<LabResult> {
   const historyLen = Math.ceil(((o.historySec ?? 8) / DEFAULT_DT) / snapshotEvery) + 1
   const history: SceneSnapshot[] = []
   const trackIds = sim.getChainEntityIds().filter((id) => id !== o.focus)
-  const chaserRe = new RegExp(o.chaserPipe ?? '^pipe_')
+  const chaserRe = o.chaserPipe ? new RegExp(o.chaserPipe) : undefined
   const chaserIds = trackIds.filter((id) => {
-    const e = world.entities.find((x) => x.id === id)
-    const pid = (e as { transformerPipeStack?: { pipeId?: string }[] } | undefined)?.transformerPipeStack?.[0]?.pipeId ?? ''
-    return e?.bodyType === 'dynamic' && chaserRe.test(pid)
+    const e = world.entities.find((x) => x.id === id) as
+      | { bodyType?: string; transformers?: string[]; transformerPipeStack?: { pipeId?: string; params?: Record<string, unknown> }[] }
+      | undefined
+    if (e?.bodyType !== 'dynamic') return false
+    const bind = e.transformerPipeStack?.[0]
+    if (chaserRe) return chaserRe.test(bind?.pipeId ?? '')
+    // default: a pursuer = same autopilot pipe, no threats to flee, and a `follow` goal-source stage
+    const threats = bind?.params?.threatIds
+    if (!bind?.pipeId?.startsWith('global_av_') || (Array.isArray(threats) && threats.length > 0)) return false
+    return (e.transformers ?? []).some((sid) => (world.transformers as Record<string, { type?: string }> | undefined)?.[sid]?.type === 'follow')
   })
   const focusEnt = world.entities.find((x) => x.id === o.focus) as { size?: number[] } | undefined
   const hx = (focusEnt?.size?.[0] ?? 4) / 2
