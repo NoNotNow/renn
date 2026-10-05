@@ -1043,7 +1043,8 @@
               450,
               -450,
               450
-            ]
+            ],
+            "passSide": "right"
           },
           "enabled": true
         }
@@ -1229,7 +1230,8 @@
               450,
               -450,
               450
-            ]
+            ],
+            "passSide": "right"
           },
           "enabled": true
         }
@@ -1327,7 +1329,8 @@
               450,
               -450,
               450
-            ]
+            ],
+            "passSide": "right"
           },
           "enabled": true
         }
@@ -1425,7 +1428,8 @@
               450,
               -450,
               450
-            ]
+            ],
+            "passSide": "right"
           },
           "enabled": true
         }
@@ -1523,7 +1527,8 @@
               450,
               -450,
               450
-            ]
+            ],
+            "passSide": "right"
           },
           "enabled": true
         }
@@ -1621,7 +1626,8 @@
               450,
               -450,
               450
-            ]
+            ],
+            "passSide": "right"
           },
           "enabled": true
         }
@@ -1719,7 +1725,8 @@
               450,
               -450,
               450
-            ]
+            ],
+            "passSide": "right"
           },
           "enabled": true
         }

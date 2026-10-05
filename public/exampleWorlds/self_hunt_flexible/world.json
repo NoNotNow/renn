@@ -2910,7 +2910,8 @@
               "entity_1780567569150_nd03a8k",
               "entity_1780567570426_s8dx9ee",
               "entity_1780567571568_8vg6kmg"
-            ]
+            ],
+            "passSide": "right"
           },
           "scopeParams": {
             "stack:0/member:global_av_autopilot:0/member:global_av_sense:1": {
@@ -18594,7 +18595,11 @@
             "gainInit": 1300,
             "maxAccel": 60,
             "tau": 0.12,
-            "goalReach": 2
+            "goalReach": 2,
+            "passSide": "right",
+            "passIgnoreIds": [
+              "entity_1779823253285_brtkx1p"
+            ]
           },
           "scopeParams": {
             "stack:0/member:global_av_autopilot:0/member:global_av_sense:1": {
@@ -18792,7 +18797,11 @@
             "gainInit": 1300,
             "maxAccel": 60,
             "tau": 0.12,
-            "goalReach": 2
+            "goalReach": 2,
+            "passSide": "right",
+            "passIgnoreIds": [
+              "entity_1779823253285_brtkx1p"
+            ]
           },
           "scopeParams": {
             "stack:0/member:global_av_autopilot:0/member:global_av_sense:1": {
@@ -18907,7 +18916,11 @@
             "gainInit": 1300,
             "maxAccel": 60,
             "tau": 0.12,
-            "goalReach": 2
+            "goalReach": 2,
+            "passSide": "right",
+            "passIgnoreIds": [
+              "entity_1779823253285_brtkx1p"
+            ]
           },
           "scopeParams": {
             "stack:0/member:global_av_autopilot:0/member:global_av_sense:1": {
@@ -19019,7 +19032,11 @@
             "gainInit": 1300,
             "maxAccel": 60,
             "tau": 0.12,
-            "goalReach": 2
+            "goalReach": 2,
+            "passSide": "right",
+            "passIgnoreIds": [
+              "entity_1779823253285_brtkx1p"
+            ]
           },
           "scopeParams": {
             "stack:0/member:global_av_autopilot:0/member:global_av_sense:1": {
@@ -19131,7 +19148,11 @@
             "gainInit": 1300,
             "maxAccel": 60,
             "tau": 0.12,
-            "goalReach": 2
+            "goalReach": 2,
+            "passSide": "right",
+            "passIgnoreIds": [
+              "entity_1779823253285_brtkx1p"
+            ]
           },
           "scopeParams": {
             "stack:0/member:global_av_autopilot:0/member:global_av_sense:1": {
@@ -19243,7 +19264,11 @@
             "gainInit": 1300,
             "maxAccel": 60,
             "tau": 0.12,
-            "goalReach": 2
+            "goalReach": 2,
+            "passSide": "right",
+            "passIgnoreIds": [
+              "entity_1780539051770_wy2smf6"
+            ]
           },
           "scopeParams": {
             "stack:0/member:global_av_autopilot:0/member:global_av_sense:1": {
@@ -19355,7 +19380,11 @@
             "gainInit": 1300,
             "maxAccel": 60,
             "tau": 0.12,
-            "goalReach": 2
+            "goalReach": 2,
+            "passSide": "right",
+            "passIgnoreIds": [
+              "entity_1780539051770_wy2smf6"
+            ]
           },
           "scopeParams": {
             "stack:0/member:global_av_autopilot:0/member:global_av_sense:1": {
@@ -19467,7 +19496,11 @@
             "gainInit": 1300,
             "maxAccel": 60,
             "tau": 0.12,
-            "goalReach": 2
+            "goalReach": 2,
+            "passSide": "right",
+            "passIgnoreIds": [
+              "entity_1780539051770_wy2smf6"
+            ]
           },
           "scopeParams": {
             "stack:0/member:global_av_autopilot:0/member:global_av_sense:1": {
@@ -19579,7 +19612,11 @@
             "gainInit": 1300,
             "maxAccel": 60,
             "tau": 0.12,
-            "goalReach": 2
+            "goalReach": 2,
+            "passSide": "right",
+            "passIgnoreIds": [
+              "entity_1780539051770_wy2smf6"
+            ]
           },
           "scopeParams": {
             "stack:0/member:global_av_autopilot:0/member:global_av_sense:1": {
@@ -19691,7 +19728,11 @@
             "gainInit": 1300,
             "maxAccel": 60,
             "tau": 0.12,
-            "goalReach": 2
+            "goalReach": 2,
+            "passSide": "right",
+            "passIgnoreIds": [
+              "entity_1780539051770_wy2smf6"
+            ]
           },
           "scopeParams": {
             "stack:0/member:global_av_autopilot:0/member:global_av_sense:1": {

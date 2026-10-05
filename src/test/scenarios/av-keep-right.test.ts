@@ -53,14 +53,14 @@ describe('AV keep right when passing (oncoming traffic)', () => {
 
   describe("passSide 'off' / unset = the old behaviour", () => {
     it("'off' is bit-identical to no passSide at all", async () => {
-      const a = await runOncoming({ name: 'goal', offset: 0, goalX: -15 })
+      const a = await runOncoming({ name: 'goal', offset: 0, goalX: -15 }, { passSide: undefined })
       const b = await runOncoming({ name: 'goal', offset: 0, goalX: -15 }, { passSide: 'off' })
       expect(b).toEqual(a)
       // and the old planner followed its goal: with the goal to the left it passed on its own LEFT (this is what 'right' changes)
       expect(a.lat, fmtPass(a)).toBeLessThan(0)
     }, T)
     it('the old planner hits the oncoming car in the corridor (the passing rule is what lets it through)', async () => {
-      const m = await runOncoming(corridor(-1.5))
+      const m = await runOncoming(corridor(-1.5), { passSide: 'off' })
       expect(m.contact, fmtPass(m)).toBe(true)
     }, T)
   })

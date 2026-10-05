@@ -82,7 +82,8 @@ export async function runOncoming(s: OncomingSpec, params: Record<string, unknow
     car: { at: [0, 0], yawDeg: 0, speed: s.carSpeed ?? 15 },
     goal: [s.goalX ?? 0, -700],
     boxes: s.boxes ?? [],
-    extraParams: { ...(s.cruise != null ? { cruiseSpeed: s.cruise, sensorRange: 150 } : {}), ...params },
+    // the example car runs passSide 'right' (self_hunt_flexible): the baseline of a scenario is 'off' unless it says otherwise
+    extraParams: { passSide: 'off', ...(s.cruise != null ? { cruiseSpeed: s.cruise, sensorRange: 150 } : {}), ...params },
     puppets: [{ id: 'oncoming', size: CAR, at: [s.offset ?? 0, -260], yawDeg: 180, motion: { kind: 'line', speed: s.puppetSpeed ?? 12 }, threat: s.threat === true }],
   }
   const probe = new PassProbe()
@@ -96,7 +97,7 @@ export async function runOncoming(s: OncomingSpec, params: Record<string, unknow
 
 /** Two real AV-pipe cars heading for each other's start (fleet ring, no fleet walls unless given). */
 export async function runFacingPair(params: Record<string, unknown> = {}, boxes: ArenaBox[] = [], seconds = 20): Promise<{ a: PassMetrics; b: PassMetrics }> {
-  const world = buildFleetWorld({ n: 2, ring: 110, params, walls: boxes })
+  const world = buildFleetWorld({ n: 2, ring: 110, params: { passSide: 'off', ...params }, walls: boxes })
   const pa = new PassProbe()
   const pb = new PassProbe()
   const id0 = fleetCarId(0)
