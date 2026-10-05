@@ -297,6 +297,8 @@ function transform(input, dt, params, state, api) {
     var list = av.smap.list
     var rInf = (params.fieldInflate != null ? params.fieldInflate : ((av.vehicle && av.vehicle.width) || params.vehicleWidth || 2) / 2 + 0.8)
     var rc = Math.ceil(rInf / cs)
+    var ecoExact = params.budget === 'eco' && params.ecoFieldExact !== false
+    var ecoDynSlow = params.budget === 'eco' && (params.ecoFieldFactor || 3) > 1
     for (; F.used < list.length; F.used++) {
       var pp = list[F.used]
       var ix = Math.floor((pp[0] - wx0) / cs)
@@ -310,8 +312,9 @@ function transform(input, dt, params, state, api) {
           var cxm = wx0 + (jx + 0.5) * cs - pp[0]
           var czm = wz0 + (jz + 0.5) * cs - pp[1]
           if (cxm * cxm + czm * czm <= (rInf + cs * 0.5) * (rInf + cs * 0.5)) {
+            // eco (ecoFieldExact): a point landing in an already blocked cell changes nothing, the field is not marked dirty (no identical rebuild)
+            if (!ecoExact || !F.occ[jx * H + jz]) F.dirty = true
             F.occ[jx * H + jz] = 1
-            F.dirty = true
           }
         }
       }
@@ -342,14 +345,18 @@ function transform(input, dt, params, state, api) {
     }
     if (dsig !== F.dsig) {
       F.dsig = dsig
-      F.dirty = true
+      // eco: a change of the stopped-body stamps (they flicker as lidar re-sees them) waits ecoFieldFactor x fieldEvery; new static map points keep the normal rate
+      if (ecoDynSlow) F.dirtyDyn = true
+      else F.dirty = true
     }
     var gcx = Math.max(0, Math.min(W - 1, Math.floor((gxw - wx0) / cs)))
     var gcz = Math.max(0, Math.min(H - 1, Math.floor((gzw - wz0) / cs)))
     var gcell = gcx * H + gcz
-    if (gcell !== F.gcell || (F.dirty && e.t - F.t >= (params.fieldEvery != null ? params.fieldEvery : 0.3))) {
+    var fieldEvery = params.fieldEvery != null ? params.fieldEvery : 0.3
+    if (gcell !== F.gcell || (F.dirty && e.t - F.t >= fieldEvery) || (F.dirtyDyn && e.t - F.t >= fieldEvery * (params.ecoFieldFactor || 3))) {
       F.gcell = gcell
       F.dirty = false
+      F.dirtyDyn = false
       F.t = e.t
       F.builds = (F.builds || 0) + 1
       var N = W * H
@@ -1256,7 +1263,7 @@ function transform(input, dt, params, state, api) {
       kCmd = Math.max(-kmax, Math.min(kmax, kM * gearS))
     }
   }
-  av.override = { kappa: kCmd, vDesired: waitingForRest ? 0 : rollingWrong ? cur.g * Math.min(vMax, 2.5) : cur.g * vMax }
+  av.override = { kappa: kCmd, vDesired: waitingForRest ? 0 : rollingWrong ? cur.g * Math.min(vMax, 2.5) : cur.g * vMax, maze: !!state.maze }
   av.mode = 'maneuver'
   api.watch('av.maneuver', 'seg ' + state.idx + '/' + state.segs.length + ' g' + cur.g + ' k' + cur.k.toFixed(3) + ' replans ' + state.replans + (state.maze ? ' maze' : '') + ' vm ' + vMax.toFixed(1))
   return {}

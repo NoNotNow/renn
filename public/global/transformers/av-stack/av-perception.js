@@ -58,12 +58,14 @@ function transform(input, dt, params, state, api) {
   // ray set: uniform ring (default) or zoned (dense cone in the direction of travel, sparse sides, periodic coarse 360 sweep)
   var scanSet = null
   state.frame = (state.frame || 0) + 1
-  var eco = params.budget === 'eco' && !!av.prevFix
+  // ecoManeuver (default on in eco): while a multi-point manoeuvre drives (input.avMan from last frame's motion planner) the ring is narrowed too: dense cone (ecoManConeDeg 100) around the gear's direction, sides / sweep at the eco rates
+  var ecoMan = params.budget === 'eco' && params.ecoManeuver !== false && !av.prevFix && !!input.avMan
+  var eco = params.budget === 'eco' && (!!av.prevFix || ecoMan)
   var zoned = params.fwdFovDeg > 0 || eco
   var sideRange = Math.min(range, params.sideRange || 45)
   var sweepRay = Math.min(range, params.sweepRange || 45)
   if (zoned) {
-    var half = ((eco ? params.fixConeDeg || 24 : params.fwdFovDeg) * Math.PI) / 360
+    var half = ((ecoMan ? params.ecoManConeDeg || 100 : eco ? params.fixConeDeg || 24 : params.fwdFovDeg) * Math.PI) / 360
     var fs = ((params.fwdStepDeg || (eco ? 3 : 2)) * Math.PI) / 180
     var ss = ((params.sideStepDeg || 12) * Math.PI) / 180
     var sweepStep = ((params.sweepStepDeg || 10) * Math.PI) / 180
@@ -78,7 +80,7 @@ function transform(input, dt, params, state, api) {
       var fOther = state.dir > 0 ? state.freeR : state.freeF
       if (fOther > fOwn * 1.3 + 6) state.dir = -state.dir
     }
-    var aim = eco ? av.prevFix.ang : state.dir > 0 ? 0 : Math.PI
+    var aim = eco && !ecoMan ? av.prevFix.ang : state.dir > 0 ? 0 : Math.PI
     var sweepEvery = slow ? params.sweepEverySlow || 5 : eco ? params.ecoSweepEvery || 20 : params.sweepEvery || 15
     var doSweep = state.frame === 1 || state.frame % sweepEvery === 0
     var sideEvery = eco ? params.ecoSideEvery || 6 : params.sideEvery || 2

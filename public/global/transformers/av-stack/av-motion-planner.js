@@ -18,6 +18,8 @@ function transform(input, dt, params, state, api) {
   if (av && av.preset) params = state.pmP === params && state.pmB === av.preset ? state.pm : ((state.pmP = params), (state.pmB = av.preset), (state.pm = Object.assign({}, av.preset, params)))
   if (!av || !av.ego) return {}
   var e = av.ego
+  // economy: tell next frame's perception whether this frame is a non-maze (multi-point) manoeuvre (the blackboard is rebuilt per frame, the input object is not)
+  input.avMan = !!av.override && !av.override.maze
   var tgt = input.target && input.target.pose && input.target.pose.position
   if (!tgt) {
     av.plan = { kappa: 0, free: 0, freeSoft: 0, clearance: 0, blocked: false, horizon: 0, noGoal: true }
