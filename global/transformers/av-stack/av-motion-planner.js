@@ -35,7 +35,52 @@ function transform(input, dt, params, state, api) {
     return {}
   }
   // chase the route's carrot (global plan) when there is one, else the raw goal
-  var aim = av.carrot && !(params.fleeAimDirect !== false && av.fleeSim) ? [av.carrot[0], 0, av.carrot[1]] : tgt
+  var direct = params.fleeAimDirect !== false && av.fleeSim
+  // fleeAimLos (default on; false = always aim direct): the direct aim at the absolute flee goal only while the straight line to it is clear of STATIC costmap points for
+  // max(fleeLosMin 30, fleeLosK 1.2 x stopping distance) m (swept by the footprint half-width + fleeLosMargin 0.8); otherwise the route carrot (the route already goes to the flee goal). Hysteresis: back to direct only after a clear line (1.3 x length, +0.5 m width) for fleeLosHold 0.5 s.
+  if (direct && av.carrot && params.fleeAimLos !== false) {
+    var lv = Math.max(0, e.speedF)
+    var lL = Math.max(params.fleeLosMin != null ? params.fleeLosMin : 30, (params.fleeLosK != null ? params.fleeLosK : 1.2) * ((lv * lv) / (2 * (params.comfortDecel || 5))))
+    var lW = ((av.vehicle && av.vehicle.width) || params.vehicleWidth || 2) / 2 + (params.fleeLosMargin != null ? params.fleeLosMargin : 0.8)
+    var ls = state.fleeLos || (state.fleeLos = { carrot: false, clearT: 0 })
+    var lh = ls.carrot
+    var ldx = tgt[0] - pos[0]
+    var ldz = tgt[2] - pos[2]
+    var ld = Math.sqrt(ldx * ldx + ldz * ldz)
+    var losClear = true
+    if (ld > 1e-3) {
+      var lux = ldx / ld
+      var luz = ldz / ld
+      var lLen = Math.min(ld, lL * (lh ? 1.3 : 1))
+      var lw = lW + (lh ? 0.5 : 0)
+      var lp = av.points || []
+      var lGR2 = (params.fleeLosGoalR != null ? params.fleeLosGoalR : 20) * (params.fleeLosGoalR != null ? params.fleeLosGoalR : 20)
+      for (var li = 0; li < lp.length; li++) {
+        if (lp[li][2] === 1) continue
+        var lgx = lp[li][0] - tgt[0]
+        var lgz = lp[li][1] - tgt[2]
+        if (lgx * lgx + lgz * lgz < lGR2) continue
+        var lpx = lp[li][0] - pos[0]
+        var lpz = lp[li][1] - pos[2]
+        var la = lpx * lux + lpz * luz
+        if (la < 0 || la > lLen) continue
+        var lb = lpx * luz - lpz * lux
+        if (lb < lw && lb > -lw) {
+          losClear = false
+          break
+        }
+      }
+    }
+    if (!losClear) {
+      ls.carrot = true
+      ls.clearT = 0
+    } else if (lh) {
+      ls.clearT += dt
+      if (ls.clearT >= (params.fleeLosHold != null ? params.fleeLosHold : 0.5)) ls.carrot = false
+    }
+    if (ls.carrot) direct = false
+  }
+  var aim = av.carrot && !direct ? [av.carrot[0], 0, av.carrot[1]] : tgt
   var gdx = aim[0] - pos[0]
   var gdz = aim[2] - pos[2]
   var gx = gdx * e.fwd[0] + gdz * e.fwd[2]

@@ -10,6 +10,7 @@
 // (escapeAccel 15 m/s^2, escapeSpeed 36 m/s top, kappa <= maxCurvature, lateral accel <= maxLatAccel) for escapeHorizon (5 s) against the pursuit-predicted pursuers (pure pursuit with their observed turn
 // rate, as the motion planner); score = smallest centre distance reached (capped at escapeSafe) + goal alignment / turn penalties. The heading is kept (hysteresis) and the goal is 90 m ahead on it. It also
 // triggers when the heading to the real goal is predicted to come within escapeTrigger (m, 16) of a pursuer, which can be far outside the 90 m geometric danger range. escapeRange (m, 160): pursuers considered.
+// gapWalls (bool, default OFF; opt-in, needs gapCommit): the escape headings also need a free run over the persistent static map (av.prevSmap = last frame's av.smap, 2 m cells, car half-width + gapWallClear 3.5 m): headings shorter than gapWallMin (60 m) are not candidates unless that costs more than gapWallTrade (8) score points against the best short one (race first); none long enough = the longest run; the goal is put at the last free point of the run (min 8 m, gapWallClamp:false = off), a held goal whose heading hits a known wall is re-picked, a goal clamped that way is re-picked once the car is within gapReach (10 m). Cuts the lab seed-6 maze-pocket shuttle (path 955 -> 1500-1750 m) but flips other lab seeds (chaotic), hence off.
 // gapCommit (bool, default ON; false disables): fleeSim's escape-heading search, but only against >= 2 pursuers, and the chosen goal (escapeGoalDist 150 m) is an ABSOLUTE point kept until reached / clearly worse (escapeSwitch 6, eval every 0.3 s) so the motion planner gets a fixed target. Also with gapCommit: gapWarmup (s, 0.1: no commit before the pursuers' velocities are filtered), gapTrackRange (m, 160: far list av.threatsFar for the sim only), escapeAccel default 9, av.fleeSim (motion planner `fleeAimDirect`, default on, aims at the committed goal instead of the route carrot).
 // fleeLos (bool, default off): the geometric flee / own-goal candidates are also scored by line of sight (one ray per heading from the hull edge): a goal whose straight way is blocked by a wall
 // before it is reached (maze, building) is penalised, free length is a bonus, so the car explores along open corridors instead of shuffling in front of a wall towards a goal behind it.
@@ -85,6 +86,8 @@ function transform(input, dt, params, state, api) {
   if (prevAv && prevAv.fieldGoal) av.prevField = prevAv.fieldGoal
   // economy mode: last frame's goal fixation (av-motion-planner) steers this frame's narrow perception cone
   if (prevAv && prevAv.fix) av.prevFix = prevAv.fix
+  // last frame's persistent static map (gapWalls: free run of the escape headings)
+  if (prevAv && prevAv.smap) av.prevSmap = prevAv.smap
   // a goal source running in front of this stage hands its mission over via input.goalSource (see av-wander.js)
   if (input.goalSource) {
     av.mission = input.goalSource
@@ -302,8 +305,8 @@ function fleeGoal(av, thrs, input, params, state, api) {
     return
   }
   if (sim && simThrs.length) {
-    fleeSim(av, input, params, state, g0, area, fl, now, simThrs, simQ, simYaw)
-    return
+    if (fleeSim(av, input, params, state, g0, area, fl, now, simThrs, simQ, simYaw) !== false) return
+    fl = null
   }
   if (fl) {
     var rdx = fl.x - pos[0]
@@ -446,6 +449,26 @@ function escapeSim(thrs, pos, yaw0, v0, psi, pol, q) {
   return Math.sqrt(minD)
 }
 
+// Static-map free run (gapWalls): persistent wall points hashed into 2 m cells (incremental, the map list only grows); freeRun marches a heading from (x, z) and returns the distance to the first
+// cell within `half` m of a map point (0 = blocked at once; `maxD` = free). The first 4 m are skipped (walls hugging the hull are the planners' business).
+function wallGrid(list, state) {
+  var g = state.wg
+  if (!g || g.n > list.length) g = state.wg = { n: 0, set: {} }
+  for (; g.n < list.length; g.n++) g.set[Math.floor(list[g.n][0] / 2) * 100003 + Math.floor(list[g.n][1] / 2)] = 1
+  return g
+}
+function freeRun(g, x, z, ang, maxD, half) {
+  var cx = Math.cos(ang)
+  var cz = Math.sin(ang)
+  var r = Math.max(1, Math.ceil(half / 2) - 1)
+  for (var d = 4; d <= maxD; d += 2) {
+    var px = Math.floor((x + cx * d) / 2)
+    var pz = Math.floor((z + cz * d) / 2)
+    for (var ox = -r; ox <= r; ox++) for (var oz = -r; oz <= r; oz++) if (g.set[(px + ox) * 100003 + pz + oz]) return d - 2
+  }
+  return maxD
+}
+
 // fleeSim: pick / keep the escape heading (see the header). The committed heading lives in state.flee = {ang, t, t0, x, z}; the goal handed down is 90 m ahead on it.
 function fleeSim(av, input, params, state, g0, area, fl, now, thrs, q, yaw0) {
   var pos = input.position
@@ -456,36 +479,83 @@ function fleeSim(av, input, params, state, g0, area, fl, now, thrs, q, yaw0) {
   var gap = params.gapCommit !== false
   var D = params.escapeGoalDist != null ? params.escapeGoalDist : gap ? 150 : 90
   var goalAng = Math.atan2(g0[2] - pos[2], g0[0] - pos[0])
-  function scoreOf(ang) {
+  var walls = gap && params.gapWalls === true && av.prevSmap && av.prevSmap.list && av.prevSmap.list.length ? wallGrid(av.prevSmap.list, state) : null
+  var wNeed = params.gapWallNeed != null ? params.gapWallNeed : 60
+  var wPen = params.gapWallPen != null ? params.gapWallPen : 0
+  var wFilter = params.gapWallFilter !== false
+  var wMin = params.gapWallMin != null ? params.gapWallMin : 60
+  var wHalf = params.gapWallClear != null ? params.gapWallClear : 3.5
+  function scoreOf(ang, dGoal) {
     var d0 = escapeSim(thrs, pos, yaw0, v0, ang, 0, q)
     var d1 = escapeSim(thrs, pos, yaw0, v0, ang, 1, q)
     var d = d0 > d1 ? d0 : d1
     var turn = Math.abs(ang - yaw0)
     while (turn > Math.PI) turn = Math.abs(turn - 2 * Math.PI)
     var al = Math.cos(ang - goalAng)
-    return { d: d, score: (d > safeD ? safeD : d) + wAlign * al - 2 * turnPen * Math.max(0, (turn - 1.2) / 1.9) }
+    var run = D
+    var wp = 0
+    var blocked = false
+    if (walls) {
+      run = freeRun(walls, pos[0], pos[2], ang, D, wHalf)
+      var need = dGoal != null ? Math.min(wNeed, dGoal) : Math.min(wNeed, D)
+      if (run < need) wp = wPen * (1 - run / need)
+      if (run < Math.min(wMin, need)) blocked = true
+    }
+    return { d: d, run: run, blocked: blocked, score: (d > safeD ? safeD : d) + wAlign * al - 2 * turnPen * Math.max(0, (turn - 1.2) / 1.9) - wp }
   }
   // the committed heading is re-simulated from the current state; another one replaces it only when clearly better
   // gapCommit: the committed goal is an ABSOLUTE point (fixed at commit time); its bearing from the moving car is what is re-simulated
   if (gap && fl && fl.ang != null && fl.gx != null) fl.ang = Math.atan2(fl.gz - pos[2], fl.gx - pos[0])
-  var cur = fl && fl.ang != null ? scoreOf(fl.ang) : null
+  var cur = fl && fl.ang != null ? scoreOf(fl.ang, fl.gx != null ? Math.sqrt((fl.gx - pos[0]) * (fl.gx - pos[0]) + (fl.gz - pos[2]) * (fl.gz - pos[2])) : null) : null
+  // gapWalls: a committed goal that was clamped to the free run is reached when the car gets within gapReach (m, 10): re-pick from here instead of sitting on it
+  var curBlocked = !!(cur && cur.blocked && wFilter)
+  var reached = !!(cur && !curBlocked && walls && fl.gx != null && (fl.gx - pos[0]) * (fl.gx - pos[0]) + (fl.gz - pos[2]) * (fl.gz - pos[2]) < Math.pow(params.gapReach != null ? params.gapReach : 10, 2))
+  if (reached) cur = null
   var evalDue = !fl || fl.ang == null || now - (fl.te || 0) > (params.escapeEvalEvery != null ? params.escapeEvalEvery : gap ? 0.3 : 0.15)
-  if (evalDue || !cur) {
+  if (evalDue || !cur || curBlocked) {
     var best = null
     var bestS = -Infinity
+    var any = null
+    var ub = null
+    var ubS = -Infinity
+    var uns = false
+    var anyS = -Infinity
     for (var ai = 0; ai < 24; ai++) {
       var ang = (ai * Math.PI * 2) / 24 - Math.PI
       var cx = pos[0] + Math.cos(ang) * D
       var cz = pos[2] + Math.sin(ang) * D
       if (cx < area[0] + 10 || cx > area[1] - 10 || cz < area[2] + 10 || cz > area[3] - 10) continue
       var r = scoreOf(ang)
+      // fallback when every heading is short (inside a pocket): the longest free run, the score only breaks ties
+      var rs = r.run + 0.2 * r.score
+      if (rs > anyS) {
+        anyS = rs
+        any = { ang: ang, d: r.d, run: r.run, score: r.score }
+      }
+      if (r.score > ubS) {
+        ubS = r.score
+        ub = { ang: ang, d: r.d, run: r.run, score: r.score }
+      }
+      if (wFilter && r.blocked) continue
       if (r.score > bestS) {
         bestS = r.score
-        best = { ang: ang, d: r.d }
+        best = { ang: ang, d: r.d, run: r.run }
       }
     }
+    // a long-run heading must not cost more than gapWallTrade (8) score points against the best short one (the race comes first)
+    if (best && ub && walls && wFilter && bestS < ubS - (params.gapWallTrade != null ? params.gapWallTrade : 8)) {
+      best = ub
+      bestS = ubS
+      uns = true
+    }
+    if (!best && any && walls && wFilter) {
+      // every heading ends at a wall within gapWallMin (maze / clutter): the unfiltered best, goal as before
+      best = any
+      bestS = any.score
+    }
     if (best) {
-      if (!cur || bestS > cur.score + (params.escapeSwitch != null ? params.escapeSwitch : gap ? 6 : 3)) fl = { ang: best.ang, t: now, t0: fl && fl.t0 != null && cur ? fl.t0 : now, te: now, gap: gap, gx: gap ? pos[0] + Math.cos(best.ang) * D : null, gz: gap ? pos[2] + Math.sin(best.ang) * D : null }
+      var Dg = walls && wFilter && !uns && params.gapWallClamp !== false && best.run < D ? Math.max(8, best.run - 3) : D
+      if (!cur || curBlocked || bestS > cur.score + (params.escapeSwitch != null ? params.escapeSwitch : gap ? 6 : 3)) fl = { ang: best.ang, t: now, t0: fl && fl.t0 != null && cur ? fl.t0 : now, te: now, gap: gap, gx: gap ? pos[0] + Math.cos(best.ang) * Dg : null, gz: gap ? pos[2] + Math.sin(best.ang) * Dg : null }
       else {
         fl.te = now
       }
