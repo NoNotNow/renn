@@ -118,6 +118,27 @@ describe('self_hunt_flexible', () => {
     expect(n).toBe(10)
   })
 
+  it('goal sources (follow / wanderer) run before the AV stack on every AV-pipe car', () => {
+    // the chain runs by priority (stable on ties): a goal source with the same priority as global_av_ego but listed after it
+    // left the autopilot reading last frame's target (Manuel spotted 'follow' after the autopilot in the Builder)
+    const world = loadLabWorld({ exampleId: 'self_hunt_flexible' })
+    const defs = (world as unknown as { transformers: Record<string, { type?: string; priority?: number }> }).transformers
+    const prio = (id: string) => defs[id]?.priority ?? 10
+    let n = 0
+    for (const e of world.entities as Bound[]) {
+      if (!(e.transformerPipeStack ?? []).some((b) => b.pipeId === AV_PIPE)) continue
+      const ids = (e as unknown as { transformers?: string[] }).transformers ?? []
+      const goal = ids.filter((id) => defs[id]?.type === 'follow' || defs[id]?.type === 'wanderer')
+      expect(goal.length, `${e.id} has a goal source`).toBeGreaterThan(0)
+      const egoAt = ids.indexOf('global_av_ego')
+      for (const g of goal) {
+        expect(prio(g) < prio('global_av_ego') || (prio(g) === prio('global_av_ego') && ids.indexOf(g) < egoAt), `${e.id}: ${g} before global_av_ego`).toBe(true)
+      }
+      n++
+    }
+    expect(n).toBeGreaterThanOrEqual(11)
+  })
+
   it('has no referee, score, tint or beacon leftovers', () => {
     const world = loadLabWorld({ exampleId: 'self_hunt_flexible' })
     expect(world.scripts).not.toHaveProperty('hunt_referee')
