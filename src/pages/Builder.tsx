@@ -1,4 +1,6 @@
 import { useState, useCallback, useRef, useEffect, useMemo, useSyncExternalStore } from 'react'
+import { loadExampleWorldFromPublicBase } from '@/utils/loadExampleWorldFromPublicBase'
+import { readExampleWorldUrlParam, setExampleWorldUrlParam } from '@/utils/exampleWorldUrlParam'
 import { createPortal } from 'react-dom'
 import SceneView, { type SceneViewHandle } from '@/components/SceneView'
 import BuilderHeader from '@/components/BuilderHeader'
@@ -113,6 +115,21 @@ export default function Builder() {
     enabled: import.meta.env.DEV,
     loadDevWorld: loadExampleWorld,
   })
+
+  // shareable link: ?example=<id> opens that example world (public/exampleWorlds/<id>/) on start
+  const exampleUrlLoadedRef = useRef(false)
+  useEffect(() => {
+    if (exampleUrlLoadedRef.current) return
+    exampleUrlLoadedRef.current = true
+    const id = readExampleWorldUrlParam(window.location.search)
+    if (!id) return
+    loadExampleWorldFromPublicBase(import.meta.env.BASE_URL || '/', id)
+      .then(({ world, assets }) => loadExampleWorld(world, id, assets))
+      .catch((err) => {
+        console.error('Failed to load example world from URL:', err)
+        setExampleWorldUrlParam(null)
+      })
+  }, [loadExampleWorld])
 
   const [gizmoMode, setGizmoMode] = useState<BuilderGizmoMode>('translate')
   const [textureBrushRgb, setTextureBrushRgb] = useState<Vec3>(() => [...DEFAULT_TEXTURE_BRUSH_RGB])

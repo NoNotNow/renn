@@ -21,6 +21,7 @@ import { EntityPanelIcons } from './EntityPanelIcons'
 import { agentDevExampleWorldsListApiPath } from '@/agent/agentDevBootstrapParams'
 import { discoverExampleWorldIdsFromBuild } from '@/utils/discoverExampleWorldIds'
 import { loadExampleWorldFromPublicBase } from '@/utils/loadExampleWorldFromPublicBase'
+import { setExampleWorldUrlParam } from '@/utils/exampleWorldUrlParam'
 
 const BUILDER_BASE_URL = import.meta.env.BASE_URL || '/'
 
@@ -171,6 +172,7 @@ export default function BuilderHeader({
       try {
         const { world, assets } = await loadExampleWorldFromPublicBase(BUILDER_BASE_URL, worldId)
         onOpenExampleWorld(world, worldId, assets)
+        setExampleWorldUrlParam(worldId)
         uiLogger.select('BuilderHeader', 'Open example world from menu', { worldName: worldId })
       } catch (err) {
         console.error('Failed to load example world:', err)
