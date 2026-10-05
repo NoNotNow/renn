@@ -168,8 +168,10 @@ export default function ParamForm({
           ))}
         </div>
       ) : null}
-      {defs.length === 0 && !allowAdd ? (
-        <div style={{ color: theme.text.muted }}>No parameters set.</div>
+      {defs.length === 0 ? (
+        <div style={{ color: theme.text.muted }}>
+          No parameters set{allowAdd ? ' yet. Add one below, or declare them with @params in the stage code.' : '.'}
+        </div>
       ) : null}
       {groups.map((g) => {
         const body = <div style={flowStyle}>{g.items.map(field)}</div>

@@ -42,7 +42,7 @@ export default function PipeConfigDrawer({
     const drawerWidth = 360
     const clamped = clampDrawerPosition(
       { x, y },
-      { width: drawerWidth, height: hasParamDefs ? 300 : 220 },
+      { width: drawerWidth, height: hasParamDefs ? 420 : 320 },
       { width: host.clientWidth, height: host.clientHeight },
     )
     setDrawerAnchor(clamped)
@@ -61,7 +61,7 @@ export default function PipeConfigDrawer({
       initialLeft={drawerAnchor.x}
       initialTop={drawerAnchor.y + 28}
       portalTarget={portalTarget}
-      initialHeight={hasParamDefs ? 300 : 220}
+      initialHeight={hasParamDefs ? 420 : 320}
       resizable
       minWidth={280}
       minHeight={160}
