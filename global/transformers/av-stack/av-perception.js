@@ -4,7 +4,7 @@
 // Publishes: av.scan {angles, ranges, range}, av.points [[x,z],...] (world), av.rearClear.
 // debug draw (params.debugDraw, debugRayStride, debugMaxPoints): red = lidar hit rays, magenta ticks = costmap points.
 // Extra ray plane at the car's top edge (params.rayLevels false = off); params.lowRayClearance (m above the underside) adds a low plane.
-// Memory clearing: remembered cells that fresh rays pass through (within memClearRange 45 m, 0 = off) are dropped, so moving obstacles leave no ghost trail.
+// Memory clearing: remembered cells that fresh rays pass through (within memClearRange 45 m, 0 = off) are dropped, so moving obstacles leave no ghost trail. hullClear (default on, false = old): the sweep starts at the hull edge instead of one cell beyond it (marks hugging the hull were never cleared).
 // Zoned scan (params.fwdFovDeg > 0, default off = uniform ring): ~half the rays of a dense ring, aimed where they are needed.
 //  - dense long-range cone (fwdFovDeg, fwdStepDeg 2, range = sensorRange) in the DIRECTION OF TRAVEL: forward, or to the rear while reversing (velocity sign;
 //    at rest / slow it aims at the freer of front / rear, free distances from the cone and the sweep, hysteresis, scanFollowFree false = always forward);
@@ -58,12 +58,14 @@ function transform(input, dt, params, state, api) {
   // ray set: uniform ring (default) or zoned (dense cone in the direction of travel, sparse sides, periodic coarse 360 sweep)
   var scanSet = null
   state.frame = (state.frame || 0) + 1
-  var eco = params.budget === 'eco' && !!av.prevFix
+  // ecoManeuver (default on in eco): while a multi-point manoeuvre drives (input.avMan from last frame's motion planner) the ring is narrowed too: dense cone (ecoManConeDeg 100) around the gear's direction, sides / sweep at the eco rates
+  var ecoMan = params.budget === 'eco' && params.ecoManeuver !== false && !av.prevFix && !!input.avMan
+  var eco = params.budget === 'eco' && (!!av.prevFix || ecoMan)
   var zoned = params.fwdFovDeg > 0 || eco
   var sideRange = Math.min(range, params.sideRange || 45)
   var sweepRay = Math.min(range, params.sweepRange || 45)
   if (zoned) {
-    var half = ((eco ? params.fixConeDeg || 24 : params.fwdFovDeg) * Math.PI) / 360
+    var half = ((ecoMan ? params.ecoManConeDeg || 100 : eco ? params.fixConeDeg || 24 : params.fwdFovDeg) * Math.PI) / 360
     var fs = ((params.fwdStepDeg || (eco ? 3 : 2)) * Math.PI) / 180
     var ss = ((params.sideStepDeg || 12) * Math.PI) / 180
     var sweepStep = ((params.sweepStepDeg || 10) * Math.PI) / 180
@@ -78,7 +80,7 @@ function transform(input, dt, params, state, api) {
       var fOther = state.dir > 0 ? state.freeR : state.freeF
       if (fOther > fOwn * 1.3 + 6) state.dir = -state.dir
     }
-    var aim = eco ? av.prevFix.ang : state.dir > 0 ? 0 : Math.PI
+    var aim = eco && !ecoMan ? av.prevFix.ang : state.dir > 0 ? 0 : Math.PI
     var sweepEvery = slow ? params.sweepEverySlow || 5 : eco ? params.ecoSweepEvery || 20 : params.sweepEvery || 15
     var doSweep = state.frame === 1 || state.frame % sweepEvery === 0
     var sideEvery = eco ? params.ecoSideEvery || 6 : params.sideEvery || 2
@@ -101,6 +103,7 @@ function transform(input, dt, params, state, api) {
   var winF = null
   var winR = null
   var useSmap = params.staticMap === true
+  var keys
   var hits = []
   if (!state.bt) state.bt = {}
   // moving-body marks follow their body (see header): live positions once per frame per body
@@ -154,13 +157,15 @@ function transform(input, dt, params, state, api) {
     ]
     // start just outside the hull rectangle along this ray
     var tHull = Math.min(Math.abs(c) > 1e-6 ? hl / Math.abs(c) : 1e9, Math.abs(s) > 1e-6 ? hw / Math.abs(s) : 1e9)
-    var origin = api.vec.offsetAlong(pos, dir, tHull)
+    var origin = [pos[0] + dir[0] * tHull, pos[1] + dir[1] * tHull, pos[2] + dir[2] * tHull]
     // One horizontal plane misses what curves away from it (a sphere / dome is farther at the car's top edge than at the
     // equator, a low bar hides under the plane): cast at the car's top edge too and keep the nearest hit.
     var r = api.raycast(origin, dir, rayRange, { visualize: false })
+    av.work.rays++
     for (var li = 0; li < levelsNow.length; li++) {
       var lo = [origin[0], origin[1] + levelsNow[li], origin[2]]
       var rl = api.raycast(lo, dir, rayRange, { visualize: false })
+      av.work.rays++
       if (rl.hit && (!r.hit || rl.distance < r.distance)) {
         r = rl
         origin = lo
@@ -169,7 +174,7 @@ function transform(input, dt, params, state, api) {
     angles.push(th)
     if (scanSet) {
       var dEff = r.hit ? r.distance : rayRange
-      var thN = Math.atan2(Math.sin(th), Math.cos(th))
+      var thN = Math.atan2(s, c)
       if (Math.abs(thN) < 0.35) winF = winF === null || dEff < winF ? dEff : winF
       else if (Math.abs(thN) > Math.PI - 0.35) winR = winR === null || dEff < winR ? dEff : winR
     }
@@ -188,7 +193,7 @@ function transform(input, dt, params, state, api) {
           bt = state.bt[r.entityId] = !he ? 2 : he.shape && he.shape.type === 'plane' ? 2 : he.bodyType === 'static' ? 1 : 0
         }
       }
-      if (useSmap && bt === 1) hits.push([Math.atan2(Math.sin(th), Math.cos(th)), r.entityId, hx, hz])
+      if (useSmap && bt === 1) hits.push([Math.atan2(s, c), r.entityId, hx, hz])
       else {
         var mrec = { x: hx, z: hz, t: e.t }
         var bp = follow && bt === 0 && !(params.memFollowThreats !== true && threatSet[r.entityId]) ? live(r.entityId) : null
@@ -210,21 +215,36 @@ function transform(input, dt, params, state, api) {
   // Free-space clearing: a remembered obstacle that a fresh ray now passes straight through is gone (a car that drove
   // on). Without it moving traffic leaves ghost trails that box the car in for the whole memory time.
   // Cells written this frame are never cleared (a ray grazing a thin obstacle must not erase it).
+  var cellInv = 1 / cell
+  // for a power-of-two cell, x * (1 / cell) is exactly x / cell (the usual 0.5 m): multiply instead of divide
+  var cellP2 = cellInv * cell === 1 && Math.log2(cellInv) % 1 === 0
   var clearRange = params.memClearRange != null ? params.memClearRange : 45
+  var hullClear = params.hullClear !== false
   if (clearRange > 0) {
     // numeric cell index -> memory key (built once per frame; avoids building a string key per ray step)
     var cellIdx = new Map()
     var memKeys0 = Object.keys(mem)
+    // cheap bloom-style prefilter (small per-frame table): most ray steps pass through empty cells, so skip the Map lookup unless the cell hash is set
+    var bloom = new Uint8Array(8192)
     for (var mk = 0; mk < memKeys0.length; mk++) {
       var me = mem[memKeys0[mk]]
-      cellIdx.set((Math.round(me.x / cell) + 4194304) * 8388608 + (Math.round(me.z / cell) + 4194304), memKeys0[mk])
+      var mix = Math.round(me.x / cell)
+      var miz = Math.round(me.z / cell)
+      bloom[(Math.imul(mix, 73856093) ^ Math.imul(miz, 19349663)) & 8191] = 1
+      cellIdx.set((mix + 4194304) * 8388608 + (miz + 4194304), memKeys0[mk])
     }
     for (var ri = 0; ri < rayInfo.length; ri++) {
       var rd = rayInfo[ri][0]
       var rs = rayInfo[ri][1]
       var rend = Math.min(rayInfo[ri][2] - 1.0, clearRange)
-      for (var rt = rs + cell; rt < rend; rt += cell) {
-        var kk = (Math.round((pos[0] + rd[0] * rt) / cell) + 4194304) * 8388608 + (Math.round((pos[2] + rd[2] * rt) / cell) + 4194304)
+      // hullClear (default on, false = old): the sweep starts at the hull edge. Marks within one cell outside the hull (a chaser that waited right behind the bumper and drove off: its fixed marks) were never swept, so they walled the car in for the whole memoryTtl
+      for (var rt = hullClear ? rs : rs + cell; rt < rend; rt += cell) {
+        var kux = pos[0] + rd[0] * rt
+        var kuz = pos[2] + rd[2] * rt
+        var kix = Math.round(cellP2 ? kux * cellInv : kux / cell)
+        var kiz = Math.round(cellP2 ? kuz * cellInv : kuz / cell)
+        if (bloom[(Math.imul(kix, 73856093) ^ Math.imul(kiz, 19349663)) & 8191] === 0) continue
+        var kk = (kix + 4194304) * 8388608 + (kiz + 4194304)
         var memKey = cellIdx.get(kk)
         if (memKey === undefined) continue
         var mm = mem[memKey]
@@ -289,22 +309,34 @@ function transform(input, dt, params, state, api) {
     var bx1 = Math.floor((pos[0] + sR) / 16)
     var bz0 = Math.floor((pos[2] - sR) / 16)
     var bz1 = Math.floor((pos[2] + sR) / 16)
-    for (var bxi = bx0; bxi <= bx1; bxi++) {
-      for (var bzi = bz0; bzi <= bz1; bzi++) {
-        var bl = state.sm.buckets[bxi + ',' + bzi]
-        if (bl) for (var bli = 0; bli < bl.length; bli++) pts.push(bl[bli])
+    // the static points of the bucket window only change when the window moves to other buckets or the map grows: cache them (non-enumerable, so scene dumps / state clones skip it)
+    var spc = state.sm.pc
+    if (!spc || spc.x0 !== bx0 || spc.x1 !== bx1 || spc.z0 !== bz0 || spc.z1 !== bz1 || spc.n !== state.sm.list.length) {
+      var sa = []
+      for (var bxi = bx0; bxi <= bx1; bxi++) {
+        for (var bzi = bz0; bzi <= bz1; bzi++) {
+          var bl = state.sm.buckets[bxi + ',' + bzi]
+          if (bl) for (var bli = 0; bli < bl.length; bli++) sa.push(bl[bli])
+        }
       }
+      spc = { x0: bx0, x1: bx1, z0: bz0, z1: bz1, n: state.sm.list.length, a: sa }
+      Object.defineProperty(state.sm, 'pc', { value: spc, writable: true, enumerable: false, configurable: true })
     }
+    for (var spi = 0; spi < spc.a.length; spi++) pts.push(spc.a[spi])
     av.smap = { list: state.sm.list, ver: state.sm.list.length }
   }
   if (useSmap) {
     // dynamic / kinematic obstacles only (short memory): the route planner overlays the STOPPED ones on its goal-distance field (a parked car is an obstacle for the plan, never part of the persistent map)
     var dynPts = []
     var dk = Object.keys(mem)
-    for (var di = 0; di < dk.length; di++) dynPts.push([mem[dk[di]].x, mem[dk[di]].z])
+    for (var di = 0; di < dk.length; di++) {
+      var dm = mem[dk[di]]
+      dynPts.push([dm.x, dm.z])
+    }
     av.dyn = dynPts
-  }
-  var keys = Object.keys(mem)
+    // the memory is unchanged since dk was read: reuse the key list for the expiry pass below
+    keys = dk
+  } else keys = Object.keys(mem)
   for (var k = 0; k < keys.length; k++) {
     var m = mem[keys[k]]
     if (e.t - m.t > (m.mv ? dynTtl : ttl)) delete mem[keys[k]]

@@ -292,11 +292,13 @@ function transform(input, dt, params, state, api) {
     var H = Math.ceil((wz1 - wz0) / cs)
     var sameWin = F && F.wx0 === wx0 && F.wz0 === wz0 && F.W === W && F.H === H && F.cs === cs
     if (!sameWin) {
-      F = state.fl = { wx0: wx0, wz0: wz0, W: W, H: H, cs: cs, occ: new Uint8Array(W * H), used: 0, d: new Float64Array(W * H), hk: new Float64Array(W * H * 8 + 16), hi: new Int32Array(W * H * 8 + 16), gcell: -1, ver: -1, t: -9 }
+      F = state.fl = { wx0: wx0, wz0: wz0, W: W, H: H, cs: cs, occ: new Uint8Array(W * H), used: 0, d: new Float64Array(W * H), hk: new Float64Array(W * H * 8 + 16), hi: new Int32Array(W * H * 8 + 16), bn: new Int32Array(W * H * 8 + 16), bh: null, gcell: -1, ver: -1, t: -9 }
     }
     var list = av.smap.list
     var rInf = (params.fieldInflate != null ? params.fieldInflate : ((av.vehicle && av.vehicle.width) || params.vehicleWidth || 2) / 2 + 0.8)
     var rc = Math.ceil(rInf / cs)
+    var ecoExact = params.budget === 'eco' && params.ecoFieldExact !== false
+    var ecoDynSlow = params.budget === 'eco' && (params.ecoFieldFactor || 3) > 1
     for (; F.used < list.length; F.used++) {
       var pp = list[F.used]
       var ix = Math.floor((pp[0] - wx0) / cs)
@@ -310,8 +312,9 @@ function transform(input, dt, params, state, api) {
           var cxm = wx0 + (jx + 0.5) * cs - pp[0]
           var czm = wz0 + (jz + 0.5) * cs - pp[1]
           if (cxm * cxm + czm * czm <= (rInf + cs * 0.5) * (rInf + cs * 0.5)) {
+            // eco (ecoFieldExact): a point landing in an already blocked cell changes nothing, the field is not marked dirty (no identical rebuild)
+            if (!ecoExact || !F.occ[jx * H + jz]) F.dirty = true
             F.occ[jx * H + jz] = 1
-            F.dirty = true
           }
         }
       }
@@ -342,14 +345,18 @@ function transform(input, dt, params, state, api) {
     }
     if (dsig !== F.dsig) {
       F.dsig = dsig
-      F.dirty = true
+      // eco: a change of the stopped-body stamps (they flicker as lidar re-sees them) waits ecoFieldFactor x fieldEvery; new static map points keep the normal rate
+      if (ecoDynSlow) F.dirtyDyn = true
+      else F.dirty = true
     }
     var gcx = Math.max(0, Math.min(W - 1, Math.floor((gxw - wx0) / cs)))
     var gcz = Math.max(0, Math.min(H - 1, Math.floor((gzw - wz0) / cs)))
     var gcell = gcx * H + gcz
-    if (gcell !== F.gcell || (F.dirty && e.t - F.t >= (params.fieldEvery != null ? params.fieldEvery : 0.3))) {
+    var fieldEvery = params.fieldEvery != null ? params.fieldEvery : 0.3
+    if (gcell !== F.gcell || (F.dirty && e.t - F.t >= fieldEvery) || (F.dirtyDyn && e.t - F.t >= fieldEvery * (params.ecoFieldFactor || 3))) {
       F.gcell = gcell
       F.dirty = false
+      F.dirtyDyn = false
       F.t = e.t
       F.builds = (F.builds || 0) + 1
       var N = W * H
@@ -373,36 +380,43 @@ function transform(input, dt, params, state, api) {
       d.fill(1e9)
       var hk = F.hk
       var hi = F.hi
-      var hn = 0
+      var bnext = F.bn
       var blockCost = params.fieldBlockCost != null ? params.fieldBlockCost : 400
+      // Dial's algorithm (circular bucket queue). Bucket width < the smallest edge cost, so nodes of one bucket never improve each other and settle order is irrelevant:
+      // the resulting d values are exactly those of a heap Dijkstra (same float sums), just without the log factor.
+      var cdiag = cs * 1.4142
+      var bw = 0.99 * cs * Math.min(1, blockCost > 0.05 ? blockCost : 0.05)
+      var maxEdge = cdiag * Math.max(1, blockCost)
+      var R = Math.ceil(maxEdge / bw) + 2
+      var heads = F.bh && F.bh.length >= R ? F.bh : (F.bh = new Int32Array(R))
+      for (var bi0 = 0; bi0 < R; bi0++) heads[bi0] = -1
+      var np = 0
+      var pending = 1
       d[gcell] = 0
       hk[0] = 0
       hi[0] = gcell
-      hn = 1
+      bnext[0] = -1
+      heads[0] = 0
+      np = 1
+      var curB = 0
+      var settled = 0
+      var stepA = [cs, cs, cs, cs, cdiag, cdiag, cdiag, cdiag]
       var dxs = [1, -1, 0, 0, 1, 1, -1, -1]
       var dzs = [0, 0, 1, -1, 1, -1, 1, -1]
-      while (hn > 0) {
-        var topK = hk[0]
-        var topI = hi[0]
-        hn--
-        if (hn > 0) {
-          var lk = hk[hn]
-          var li = hi[hn]
-          var cc = 0
-          for (;;) {
-            var l = 2 * cc + 1
-            if (l >= hn) break
-            var r2 = l + 1
-            var mm = r2 < hn && hk[r2] < hk[l] ? r2 : l
-            if (hk[mm] >= lk) break
-            hk[cc] = hk[mm]
-            hi[cc] = hi[mm]
-            cc = mm
-          }
-          hk[cc] = lk
-          hi[cc] = li
+      var invBw = 1 / bw
+      while (pending > 0) {
+        var slot = curB % R
+        var ent = heads[slot]
+        if (ent < 0) {
+          curB++
+          continue
         }
+        heads[slot] = bnext[ent]
+        pending--
+        var topK = hk[ent]
+        var topI = hi[ent]
         if (topK > d[topI]) continue
+        settled++
         var tx = (topI / H) | 0
         var tz = topI - tx * H
         for (var q = 0; q < 8; q++) {
@@ -410,23 +424,20 @@ function transform(input, dt, params, state, api) {
           var nz = tz + dzs[q]
           if (nx < 0 || nz < 0 || nx >= W || nz >= H) continue
           var ni = nx * H + nz
-          var step = (q < 4 ? cs : cs * 1.4142) * (occ[ni] ? blockCost : 1)
-          var nd = topK + step
+          var nd = topK + stepA[q] * (occ[ni] ? blockCost : 1)
           if (nd < d[ni]) {
             d[ni] = nd
-            var pc = hn++
-            while (pc > 0) {
-              var pa = (pc - 1) >> 1
-              if (hk[pa] <= nd) break
-              hk[pc] = hk[pa]
-              hi[pc] = hi[pa]
-              pc = pa
-            }
-            hk[pc] = nd
-            hi[pc] = ni
+            var pe = np++
+            hk[pe] = nd
+            hi[pe] = ni
+            var nb = Math.floor(nd * invBw) % R
+            bnext[pe] = heads[nb]
+            heads[nb] = pe
+            pending++
           }
         }
       }
+      av.work.fieldCells += settled
     }
     fld = { gx: gxw, gz: gzw, F: F }
     av.fieldGoal = { x: gxw, z: gzw, d: fieldAt(pos[0], pos[2]) }
@@ -478,6 +489,7 @@ function transform(input, dt, params, state, api) {
     return F.d[cx * F.H + cz] + extra
   }
 
+  var turnOk = false
   function search(sx, sz, sfx, sfz, gx, gz, pts, maxExp, marginOverride) {
     var useField = fld !== null && Math.abs(gx - fld.gx) < 1.5 && Math.abs(gz - fld.gz) < 1.5
     var hlS = ((av.vehicle && av.vehicle.length) || params.vehicleLength || 4) / 2 + planMargin
@@ -510,7 +522,7 @@ function transform(input, dt, params, state, api) {
     // 8 m reverse runs, a short forward arc, reverse again, 46 m reversed in 20 s instead of one 3-point turn.
     // Opt-in because the inadmissible extra cost misleads the budgeted search where turning is impossible (18 m alley, goal behind: it explores turns instead of reversing out;
     // reverse-escape / open-road-reverse fail with it). Turnaround tests: av-maze-scenarios KNOWN_FAILING until that is solved.
-    var hHead = params.headingHeuristic === true && !state.maze
+    var hHead = (params.headingHeuristic === true || turnOk) && !state.maze
     var Rturn = 1 / kmax
     var hW = params.headingWeight != null ? params.headingWeight : 0.8
     var hMin = params.headingMin != null ? params.headingMin : 0.4
@@ -693,12 +705,14 @@ function transform(input, dt, params, state, api) {
     for (var pj = 0; pj < chain.length; pj++) pathPts.push([chain[pj].x, chain[pj].z])
     var nodes = []
     for (var nj = 0; nj < chain.length; nj++) nodes.push({ x: chain[nj].x, z: chain[nj].z, g: chain[nj].gear })
+    av.work.astarExp += expansions
     return { segs: segs, reached: !!goalNode, expansions: expansions, hRemaining: bestH, path: pathPts, nodes: nodes }
   }
 
   function begin(res) {
     state.segs = res.segs
     state.mazePlan = state.maze
+    state.turnPlan = turnOk
     state.idx = 0
     state.segStart = null
     state.prevGear = 0
@@ -711,6 +725,8 @@ function transform(input, dt, params, state, api) {
     var dot = e.fwd[0] * seg.end.fx + e.fwd[2] * seg.end.fz
     // maze mode: commit to the plan (a re-plan from every small drift picks another equal-cost K-turn and flips direction); only a real deviation re-plans
     if (state.maze) return Math.sqrt(ex * ex + ez * ez) > (params.mazeDeviate != null ? params.mazeDeviate : 2.5) || dot < 0.85
+    // a U / 3-point turn planned here (turnOk at plan time) is committed to as well (turnCommit: false = off): the drift at each gear change re-planned it into another turn
+    if (state.turnPlan && params.turnCommit !== false) return Math.sqrt(ex * ex + ez * ez) > (params.turnDeviate != null ? params.turnDeviate : 2.5) || dot < 0.85
     return Math.sqrt(ex * ex + ez * ez) > 0.9 || dot < 0.97
   }
   function plan(maxE) {
@@ -838,6 +854,7 @@ function transform(input, dt, params, state, api) {
   var revCruiseOn = params.reverseCruise !== false
   var revCruiseSpeed = params.reverseSpeed != null ? params.reverseSpeed : params.style === 'escape' ? 15 : 10
   var scanRange = (av.scan && av.scan.range) || 40
+  var turnRoom = params.turnRoom != null ? params.turnRoom : 20
   // lazy: the costmap grid is only built when a reverse-cruise check actually needs it (most frames: goal ahead, nothing to check)
   var freeStraight = (function () {
     var hitS = null
@@ -849,6 +866,7 @@ function transform(input, dt, params, state, api) {
       return maxD
     }
   })()
+  turnOk = false
   if (revCruiseOn && goalDist > holdTol) {
     // where the route leads: the goal, or (field) the point 24 m down the obstacle-aware route
     var gd = fieldGuide(pos[0], pos[2], 24)
@@ -866,6 +884,14 @@ function transform(input, dt, params, state, api) {
         }
       }
     } else if (gBehind < 0 || freeStraight(-1, 12) < 10) state.revCruise = false
+    // turn-around: goal behind, not reversing out of a blocked way, and room ahead to swing round -> the heading-aware heuristic (see search) makes the search find the U / 3-point turn
+    // instead of the cheapest-looking reverse run (distance only). Where the way ahead is short (alley, dead end) reversing out stays the plan.
+    if (params.turnAround !== false && !state.revCruise && gBehind > 0.3) turnOk = freeStraight(1, turnRoom) >= turnRoom
+    // a U / 3-point turn is a long search (the turn pays off only after ~30 m of arcs): bigger budget while turning is the plan
+    if (turnOk) {
+      routeExp = Math.max(routeExp, params.turnRouteExpansions != null ? params.turnRouteExpansions : 5000)
+      maxExpFull = Math.max(maxExpFull, params.turnMaxExpansions != null ? params.turnMaxExpansions : 12000)
+    }
     api.watch('av.revc', (state.revCruise ? 'on ' : 'off ') + gBehind.toFixed(2) + ' fb ' + fbW + ' ff ' + ffW)
   } else state.revCruise = false
   if (state.revCruise) {
@@ -1157,6 +1183,8 @@ function transform(input, dt, params, state, api) {
   var runTot = runLen
   for (var rb = state.idx - 1; params.runTotal === true && rb >= 0 && state.segs[rb].g === cur.g; rb--) runTot += state.segs[rb].len
   var vShuffle = state.maze && params.mazeManeuverSpeed != null ? Math.max(vMan, params.mazeManeuverSpeed) : vMan
+  // a U / 3-point turn planned by this planner (turnOk at plan time) shuffles faster (short legs at 3 m/s took 16 s in a 14 m corridor)
+  if (state.turnPlan) vShuffle = Math.max(vShuffle, params.turnManeuverSpeed != null ? params.turnManeuverSpeed : 4.5)
   var vRun = state.maze && params.maneuverRunSpeed != null && runTot > 8 ? Math.max(params.maneuverRunSpeed, vShuffle) : vShuffle
   var vMax = Math.min(vRun, 0.9 + Math.sqrt(2 * 3 * (runLen > 8 ? runLen : remain)))
   // style 'escape': the plan is collision-free along its whole length (footprint-exact, same costmap), so a run is driven as fast as it can still be STOPPED at its end with the real braking
@@ -1235,7 +1263,7 @@ function transform(input, dt, params, state, api) {
       kCmd = Math.max(-kmax, Math.min(kmax, kM * gearS))
     }
   }
-  av.override = { kappa: kCmd, vDesired: waitingForRest ? 0 : rollingWrong ? cur.g * Math.min(vMax, 2.5) : cur.g * vMax }
+  av.override = { kappa: kCmd, vDesired: waitingForRest ? 0 : rollingWrong ? cur.g * Math.min(vMax, 2.5) : cur.g * vMax, maze: !!state.maze }
   av.mode = 'maneuver'
   api.watch('av.maneuver', 'seg ' + state.idx + '/' + state.segs.length + ' g' + cur.g + ' k' + cur.k.toFixed(3) + ' replans ' + state.replans + (state.maze ? ' maze' : '') + ' vm ' + vMax.toFixed(1))
   return {}
