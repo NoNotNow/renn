@@ -9,7 +9,8 @@
  */
 import { expect, it } from 'vitest'
 import fs from 'node:fs'
-import { versionReport, formatProfile, loadLabWorld, readScene, replayScene, runLab, type LabResult, type WorldRef } from '@/test/avLab/lab'
+import { rectPoly, polyGap, pointPolyGap } from '@/test/fixtures/avEvasionArena'
+import { versionReport, formatProfile, loadLabWorld, readScene, yawOf, replayScene, runLab, type LabResult, type WorldRef } from '@/test/avLab/lab'
 
 const env = process.env
 const out = env.AVLAB_OUT ?? 'test-results/avlab'
@@ -17,6 +18,58 @@ const enabled = !!(env.AVLAB_WORLD || env.AVLAB_SCENE)
 
 function worldRef(v: string): WorldRef {
   return v.endsWith('.json') || v.includes('/') ? { file: v } : { exampleId: v }
+}
+
+// Static-clearance metrics (physics truth, not the AV's perception). Hull = focus box (width x depth) via the lab's yawOf; statics = static box / cylinder entities.
+const CLOSE_GAP = 2.0
+const CLOSE_SPEED = 10
+const HEADON = { dist: 25, angDeg: 10, closing: 6, minSpeed: 4, minExtent: 2 }
+type StaticOb = { id: string; x: number; z: number; r: number; box?: { w: number; d: number }; poly?: [number, number][] }
+function makeClearanceTracker(world: ReturnType<typeof loadLabWorld>, focusId: string) {
+  const fe = world.entities.find((e) => e.id === focusId)!
+  const fs_ = fe.shape as { width?: number; depth?: number }
+  const carW = fs_.width ?? 4
+  const carL = fs_.depth ?? 8
+  const obs: StaticOb[] = []
+  for (const e of world.entities as any[]) {
+    if (e.id === focusId || e.bodyType !== 'static') continue
+    const s = e.shape
+    if (s.type === 'box') obs.push({ id: e.id, x: e.position[0], z: e.position[2], r: Math.hypot(s.width, s.depth) / 2, box: { w: s.width, d: s.depth } })
+    else if (s.type === 'cylinder') obs.push({ id: e.id, x: e.position[0], z: e.position[2], r: s.radius ?? 0.5 })
+  }
+  const m = { minStaticGap: Infinity, closePassFrames: 0, headOnFrames: 0 }
+  return {
+    m,
+    onFrame(sim: { getPosition(id: string): number[]; getVelocity(id: string): number[]; getRotation(id: string): { x: number; y: number; z: number; w: number } }) {
+      const p = sim.getPosition(focusId)
+      const v = sim.getVelocity(focusId)
+      const sp = Math.hypot(v[0], v[2])
+      const hull = rectPoly(p[0], p[2], yawOf(sim.getRotation(focusId)), carW, carL)
+      let best = Infinity
+      let headOn = false
+      const hx = sp > 1e-6 ? v[0] / sp : 0
+      const hz = sp > 1e-6 ? v[2] / sp : 0
+      for (const o of obs) {
+        const dx = o.x - p[0]
+        const dz = o.z - p[2]
+        if (Math.abs(dx) > 60 || Math.abs(dz) > 60) continue
+        if (o.box && !o.poly) o.poly = rectPoly(o.x, o.z, yawOf(sim.getRotation(o.id)), o.box.w, o.box.d) as [number, number][]
+        const g = o.poly ? polyGap(hull, o.poly) : Math.max(0, pointPolyGap(o.x, o.z, hull) - o.r)
+        if (g < best) best = g
+        if (!headOn && sp >= HEADON.minSpeed && o.r * 2 >= HEADON.minExtent) {
+          const d = o.poly ? pointPolyGap(p[0], p[2], o.poly) : Math.hypot(dx, dz) - o.r
+          if (d > HEADON.dist) continue
+          const dist = Math.max(1e-6, Math.hypot(dx, dz))
+          const bear = Math.abs(Math.atan2(hx * dz - hz * dx, hx * dx + hz * dz)) * (180 / Math.PI)
+          const closing = (v[0] * dx + v[2] * dz) / dist
+          if (bear <= HEADON.angDeg && closing > HEADON.closing) headOn = true
+        }
+      }
+      if (best < m.minStaticGap) m.minStaticGap = best
+      if (best < CLOSE_GAP && sp > CLOSE_SPEED) m.closePassFrames++
+      if (headOn) m.headOnFrames++
+    },
+  }
 }
 
 function summary(tag: string, r: LabResult): string {
@@ -72,6 +125,7 @@ it.skipIf(!enabled)('av lab run', async () => {
       const b = fe?.transformerPipeStack?.[0]
       if (b) b.params = { ...(b.params ?? {}), ...JSON.parse(env.AVLAB_PARAMS) }
     }
+    const clr = makeClearanceTracker(prepared, focus!)
     const r = await runLab({
       world: ref,
       preparedWorld: prepared,
@@ -85,7 +139,9 @@ it.skipIf(!enabled)('av lab run', async () => {
       stopAfterScenes: env.AVLAB_STOP ? Number(env.AVLAB_STOP) : undefined,
       captureAt: env.AVLAB_CAPTURE_AT ? env.AVLAB_CAPTURE_AT.split(',').map(Number) : undefined,
       slowTriggerMs: env.AVLAB_SLOW_MS ? Number(env.AVLAB_SLOW_MS) : 0,
+      onFrame: ({ sim }) => clr.onFrame(sim),
     })
+    console.log(`  CLEARANCE min static hull gap ${clr.m.minStaticGap.toFixed(2)} m | close-pass frames (<${CLOSE_GAP} m & >${CLOSE_SPEED} m/s) ${clr.m.closePassFrames} | head-on frames ${clr.m.headOnFrames}`)
     console.log(summary(`seed ${seed}`, r))
     // Machine-readable per-seed summary (read by tools/av-health.mjs).
     fs.writeFileSync(`${out}/${env.AVLAB_NAME ?? 'lab'}-s${seed}.summary.json`, JSON.stringify({
@@ -93,6 +149,7 @@ it.skipIf(!enabled)('av lab run', async () => {
       catches: r.catches, minChaserDist: r.minChaserDist, chaserCount: r.chaserCount, classFrames: r.classFrames,
       events: r.events.map((e) => ({ kind: e.kind, startFrame: e.startFrame, endFrame: e.endFrame ?? null })),
       maneuverFrames: r.limitHist.maneuver ?? 0, wallMs: r.wallMs,
+      minStaticGap: clr.m.minStaticGap, closePassFrames: clr.m.closePassFrames, headOnFrames: clr.m.headOnFrames,
     }, null, 1))
     for (const sc of r.scenes) console.log(`  DIAG ${sc.trigger.kind}@${sc.trigger.frame}:`, JSON.stringify(sc.diagnostics))
     if (env.AVLAB_PROFILE === '1') console.log(formatProfile(world))

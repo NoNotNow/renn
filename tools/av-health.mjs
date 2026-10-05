@@ -7,7 +7,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 // Regression thresholds (single place).
-const THRESHOLDS = { catchesRise: 2, troubleFramesRisePct: 25, medianPathDropPct: 10 }
+const THRESHOLDS = { catchesRise: 2, troubleFramesRisePct: 25, medianPathDropPct: 10, closePassRisePct: 25, headOnRisePct: 25 }
 
 const env = process.env
 const args = process.argv.slice(2)
@@ -39,11 +39,11 @@ const median = (a) => { const b = [...a].sort((x, y) => x - y); const n = b.leng
 
 const kinds = ['stall', 'shuttle', 'jitter']
 console.log(`world ${world} focus ${focus} seeds ${seeds.length} x ${frames} frames  av ${rows[0].stackVersion}`)
-console.log('seed  path_m  mean_v  catch | stall ep/fr  shuttle ep/fr  jitter ep/fr | maneuver_fr  minDist')
+console.log('seed  path_m  mean_v  catch | stall ep/fr  shuttle ep/fr  jitter ep/fr | maneuver_fr  minDist | closePass headOn minStatGap')
 for (const r of rows) {
   console.log([
     String(r.seed).padStart(4), r.pathLength.toFixed(0).padStart(7), r.meanSpeed.toFixed(1).padStart(7), String(r.catches).padStart(6), '|',
-    ...kinds.map((k) => `${ep(r, k)}/${fr(r, k)}`.padStart(12)), '|', String(r.maneuverFrames).padStart(11), r.minChaserDist.toFixed(1).padStart(8),
+    ...kinds.map((k) => `${ep(r, k)}/${fr(r, k)}`.padStart(12)), '|', String(r.maneuverFrames).padStart(11), r.minChaserDist.toFixed(1).padStart(8), '|', String(r.closePassFrames ?? 0).padStart(9), String(r.headOnFrames ?? 0).padStart(6), (r.minStaticGap ?? NaN).toFixed(2).padStart(10),
   ].join(' '))
 }
 const agg = {
@@ -56,10 +56,12 @@ const agg = {
   medianPath: median(rows.map((r) => r.pathLength)), meanPath: sum(rows.map((r) => r.pathLength)) / rows.length,
   meanSpeed: sum(rows.map((r) => r.meanSpeed)) / rows.length,
   minChaserDist: Math.min(...rows.map((r) => r.minChaserDist)),
+  closePassFrames: sum(rows.map((r) => r.closePassFrames ?? 0)), headOnFrames: sum(rows.map((r) => r.headOnFrames ?? 0)),
+  medianMinStaticGap: median(rows.map((r) => r.minStaticGap ?? NaN)),
 }
 const f1 = (x) => (typeof x === 'number' ? Math.round(x * 1000) / 1000 : x)
 for (const k of Object.keys(agg)) agg[k] = f1(agg[k])
-console.log(`AGG catches ${agg.catches} | stall+shuttle+jitter frames ${agg.troubleFrames} (${agg.stallFrames}/${agg.shuttleFrames}/${agg.jitterFrames}) | episodes ${agg.episodes} | maneuver frames ${agg.maneuverFrames} | path median ${agg.medianPath} mean ${agg.meanPath} | mean speed ${agg.meanSpeed} | min chaser dist ${agg.minChaserDist}`)
+console.log(`AGG catches ${agg.catches} | stall+shuttle+jitter frames ${agg.troubleFrames} (${agg.stallFrames}/${agg.shuttleFrames}/${agg.jitterFrames}) | episodes ${agg.episodes} | maneuver frames ${agg.maneuverFrames} | path median ${agg.medianPath} mean ${agg.meanPath} | mean speed ${agg.meanSpeed} | min chaser dist ${agg.minChaserDist} | close-pass frames ${agg.closePassFrames} | head-on frames ${agg.headOnFrames} | median min static gap ${agg.medianMinStaticGap}`)
 
 const dir = 'test-results/av-health'
 const save = arg('--save')
@@ -69,13 +71,18 @@ if (cmp) {
   const b = JSON.parse(fs.readFileSync(path.join(dir, `${cmp}.json`), 'utf8'))
   if (b.seeds !== agg.seeds || b.frames !== agg.frames) console.log(`WARNING: baseline used ${b.seeds} x ${b.frames}`)
   console.log(`DELTA vs ${cmp}:`)
-  for (const k of ['catches', 'troubleFrames', 'episodes', 'maneuverFrames', 'medianPath', 'meanPath', 'meanSpeed', 'minChaserDist']) console.log(`  ${k.padEnd(15)} ${b[k]} -> ${agg[k]} (${agg[k] - b[k] >= 0 ? '+' : ''}${f1(agg[k] - b[k])})`)
+  for (const k of ['catches', 'troubleFrames', 'episodes', 'maneuverFrames', 'medianPath', 'meanPath', 'meanSpeed', 'minChaserDist', 'closePassFrames', 'headOnFrames', 'medianMinStaticGap']) console.log(`  ${k.padEnd(15)} ${b[k]} -> ${agg[k]} (${(agg[k] - b[k]) >= 0 ? '+' : ''}${f1(agg[k] - b[k])})`)
   const reg = []
   if (agg.catches - b.catches > THRESHOLDS.catchesRise) reg.push(`catches +${agg.catches - b.catches} > ${THRESHOLDS.catchesRise}`)
   const tr = b.troubleFrames > 0 ? ((agg.troubleFrames - b.troubleFrames) / b.troubleFrames) * 100 : (agg.troubleFrames > 0 ? Infinity : 0)
   if (tr > THRESHOLDS.troubleFramesRisePct) reg.push(`stall+shuttle+jitter frames +${f1(tr)}% > ${THRESHOLDS.troubleFramesRisePct}%`)
   const pd = ((b.medianPath - agg.medianPath) / b.medianPath) * 100
   if (pd > THRESHOLDS.medianPathDropPct) reg.push(`median path -${f1(pd)}% > ${THRESHOLDS.medianPathDropPct}%`)
+  for (const [k, lim, label] of [['closePassFrames', THRESHOLDS.closePassRisePct, 'close-pass frames'], ['headOnFrames', THRESHOLDS.headOnRisePct, 'head-on frames']]) {
+    if (b[k] === undefined) continue
+    const pct = b[k] > 0 ? ((agg[k] - b[k]) / b[k]) * 100 : (agg[k] > 0 ? Infinity : 0)
+    if (pct > lim) reg.push(`${label} +${f1(pct)}% > ${lim}%`)
+  }
   console.log(reg.length ? `REGRESSION: ${reg.join('; ')}` : 'OK: no regression')
   if (reg.length) process.exitCode = 2
 }
