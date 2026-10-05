@@ -392,6 +392,7 @@ function transform(input, dt, params, state, api) {
       heads[0] = 0
       np = 1
       var curB = 0
+      var settled = 0
       var stepA = [cs, cs, cs, cs, cdiag, cdiag, cdiag, cdiag]
       var dxs = [1, -1, 0, 0, 1, 1, -1, -1]
       var dzs = [0, 0, 1, -1, 1, -1, 1, -1]
@@ -408,6 +409,7 @@ function transform(input, dt, params, state, api) {
         var topK = hk[ent]
         var topI = hi[ent]
         if (topK > d[topI]) continue
+        settled++
         var tx = (topI / H) | 0
         var tz = topI - tx * H
         for (var q = 0; q < 8; q++) {
@@ -428,6 +430,7 @@ function transform(input, dt, params, state, api) {
           }
         }
       }
+      av.work.fieldCells += settled
     }
     fld = { gx: gxw, gz: gzw, F: F }
     av.fieldGoal = { x: gxw, z: gzw, d: fieldAt(pos[0], pos[2]) }
@@ -695,6 +698,7 @@ function transform(input, dt, params, state, api) {
     for (var pj = 0; pj < chain.length; pj++) pathPts.push([chain[pj].x, chain[pj].z])
     var nodes = []
     for (var nj = 0; nj < chain.length; nj++) nodes.push({ x: chain[nj].x, z: chain[nj].z, g: chain[nj].gear })
+    av.work.astarExp += expansions
     return { segs: segs, reached: !!goalNode, expansions: expansions, hRemaining: bestH, path: pathPts, nodes: nodes }
   }
 

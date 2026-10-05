@@ -22,6 +22,27 @@ export interface FleetSpec {
   layout?: 'ring' | 'spread'
 }
 
+/**
+ * Deterministic work counters of the AV stages (published by av-ego as watch 'av.work', cumulative per car: perception rays, motion-planner freeLength sweeps / candidates,
+ * route-planner A* expansions / goal-field cells settled). Integer tallies, identical on every run; wall-clock ms stay info only.
+ */
+export interface AvWork {
+  rays: number
+  freeLen: number
+  cands: number
+  astarExp: number
+  fieldCells: number
+}
+const WORK_KEYS: (keyof AvWork)[] = ['rays', 'freeLen', 'cands', 'astarExp', 'fieldCells']
+
+/**
+ * Weights of the work counters in ray-equivalents (the ONE place). Calibrated from one profile run (6 cars, 16 s, full: perception 0.455 ms / ~93 rays per car-frame = ~0.005 ms per ray;
+ * motion planner 1.0 ms / ~132 sweeps = ~0.0065 ms; route planner 0.28 ms split into ~5 expansions at ~0.037 ms and ~520 field cells at ~0.0002 ms); candidates are counted but weigh 0 (their cost is in the sweeps).
+ * Changing them changes the budget test's ratio, so re-measure the threshold in av-fleet-budget.test.ts when you do.
+ */
+export const WORK_WEIGHTS: AvWork = { rays: 1, freeLen: 1.3, cands: 0, astarExp: 7, fieldCells: 0.04 }
+export const weightedWork = (w: AvWork): number => WORK_KEYS.reduce((a, k) => a + w[k] * WORK_WEIGHTS[k], 0)
+
 export const fleetCarId = (i: number) => (i === 0 ? AV_CAR_SOURCE_ID : `fleet_car_${i}`)
 
 export const FLEET_WALLS: ArenaBox[] = [seg([-60, -40], [-20, -40]), seg([20, 40], [60, 40]), seg([-45, 10], [-45, 50]), seg([45, -50], [45, -10])]
@@ -75,6 +96,9 @@ export function buildFleetWorld(spec: FleetSpec): RennWorld {
 
 export interface FleetResult {
   n: number
+  /** Deterministic work counters summed over all cars (see AvWork), and weighted work per car per frame (ray-equivalents, WORK_WEIGHTS). */
+  work: AvWork
+  workPerCar: number
   seconds: number
   /** Mean chain ms per car per frame (all cars). */
   perCarMs: number
@@ -127,6 +151,11 @@ export async function runFleet(spec: FleetSpec, seconds: number, seed = 1): Prom
       })
     },
   })
+  const work: AvWork = { rays: 0, freeLen: 0, cands: 0, astarExp: 0, fieldCells: 0 }
+  for (const id of ids) {
+    const nums = String(watchValues(id)['av.work'] ?? '').split(' ').map(Number)
+    WORK_KEYS.forEach((k, i) => (work[k] += nums[i] || 0))
+  }
   const means = ids.map((id) => res.chainMeans[id] ?? 0)
   const frames = Math.round(seconds / DEFAULT_DT)
   const agg = new Map<number, number>()
@@ -138,6 +167,8 @@ export async function runFleet(spec: FleetSpec, seconds: number, seed = 1): Prom
   const aggTotal = [...agg.values()].reduce((a, b) => a + b, 0) || 1
   return {
     n: spec.n,
+    work,
+    workPerCar: weightedWork(work) / ids.length / frames,
     seconds,
     perCarMs: means.reduce((a, b) => a + b, 0) / means.length,
     maxCarMs: Math.max(...means),
@@ -155,6 +186,7 @@ export async function runFleet(spec: FleetSpec, seconds: number, seed = 1): Prom
 
 export function formatFleet(label: string, r: FleetResult): string {
   return (
+    `${label.padEnd(8)} work/car/frame ${r.workPerCar.toFixed(1)} ${JSON.stringify(r.work)}\n` +
     `${label.padEnd(8)} ${r.n} cars ${r.seconds} s: per car ${r.perCarMs.toFixed(3)} ms/frame (max ${r.maxCarMs.toFixed(3)}), fixated ${(r.fixShare * 100).toFixed(0)}% of driving, reached ${r.reached}/${r.n}, mean progress ${r.meanProgress.toFixed(0)} m, wall ${(r.wallMs / 1000).toFixed(1)} s ${JSON.stringify(r.whyHist)}\n` +
     r.stages.slice(0, 8).map((s) => `    ${s.label.padEnd(30)} ${s.meanMs.toFixed(3)} ms ${(s.share * 100).toFixed(0)}%`).join('\n')
   )

@@ -39,6 +39,10 @@ stage timing table, chain means of all entities and slow calls.
 3. Probe test around `replayScene` printing the stage states per frame → root cause.
 4. Fix, re-run the same seeds (deterministic ⇒ before/after is a fair comparison), add the situation to `AV_EDGE_CASES`.
 
+## Deterministic work counters (CPU budget tests)
+
+Wall-clock profiler numbers are noisy on a shared machine, so CPU-budget assertions use the integer work counters the AV stages publish (`av.work`, cumulative watch of the same name, see feature-av-stack.md "CPU budget"). `runFleet` (`fixtures/avFleet.ts`) sums them over the cars; `weightedWork` applies `WORK_WEIGHTS` (ray-equivalents, calibrated once from a profile run). Identical numbers on every run; ms stay info output.
+
 ## Known limits
 
 - Fidelity of the focus is limited by chaos in the scene (contacts, solver warm-start are not snapshotted); the environment is exact via puppets.

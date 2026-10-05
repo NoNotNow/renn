@@ -66,6 +66,19 @@ function transform(input, dt, params, state, api) {
   // fresh blackboard every frame (the input object is reused by the runtime)
   var prevAv = input.av
   var av = (input.av = {})
+  // work counters (CPU budget measure, integers only, no effect on behaviour): av.work is this frame's tally, filled by perception (rays), route planner (astarExp, fieldCells) and motion planner (freeLen, cands);
+  // the tally of last frame (complete: every stage has run) is added to a cumulative total published as watch 'av.work' = 'rays freeLen cands astarExp fieldCells' (fixtures read it at the end of a run)
+  av.work = { rays: 0, freeLen: 0, cands: 0, astarExp: 0, fieldCells: 0 }
+  var wt = state.workTot || (state.workTot = [0, 0, 0, 0, 0])
+  if (prevAv && prevAv.work) {
+    var pw = prevAv.work
+    wt[0] += pw.rays
+    wt[1] += pw.freeLen
+    wt[2] += pw.cands
+    wt[3] += pw.astarExp
+    wt[4] += pw.fieldCells
+  }
+  api.watch('av.work', wt.join(' '))
   if (preset) av.preset = preset
   // the route planner (fieldHeuristic) leaves the obstacle-aware distance to its goal on last frame's blackboard (goal watchdog: a long detour is progress)
   if (prevAv && prevAv.fieldGoal) av.prevField = prevAv.fieldGoal

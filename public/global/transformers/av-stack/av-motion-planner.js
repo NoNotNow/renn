@@ -325,6 +325,7 @@ function transform(input, dt, params, state, api) {
   var pcC = []
   var pcS = []
   function freeLength(kappa, turnLen, hw, hl) {
+    av.work.freeLen++
     if (kappa !== pcK || turnLen !== pcT) {
       pcK = kappa
       pcT = turnLen
@@ -493,6 +494,7 @@ function transform(input, dt, params, state, api) {
       if (Math.abs(kappa) < 1e-6 && ti > 0) continue
       var isAim = ti >= turnAngles.length
       var turnLen = Math.abs(kappa) < 1e-6 ? H : Math.min(H, (isAim ? aimAng : turnAngles[ti]) / Math.abs(kappa))
+      av.work.cands++
       var fHard = freeLength(kappa, turnLen, halfW, halfL)
       var fSoft = freeLength(kappa, turnLen, halfW + soft - margin, halfL + soft - margin)
       var L = fHard

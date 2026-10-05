@@ -159,9 +159,11 @@ function transform(input, dt, params, state, api) {
     // One horizontal plane misses what curves away from it (a sphere / dome is farther at the car's top edge than at the
     // equator, a low bar hides under the plane): cast at the car's top edge too and keep the nearest hit.
     var r = api.raycast(origin, dir, rayRange, { visualize: false })
+    av.work.rays++
     for (var li = 0; li < levelsNow.length; li++) {
       var lo = [origin[0], origin[1] + levelsNow[li], origin[2]]
       var rl = api.raycast(lo, dir, rayRange, { visualize: false })
+      av.work.rays++
       if (rl.hit && (!r.hit || rl.distance < r.distance)) {
         r = rl
         origin = lo
