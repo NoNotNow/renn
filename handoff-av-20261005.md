@@ -2,7 +2,7 @@
 
 Branch `ccr-4c762c23-y7noe2` (pushed). Builds on `handoff-av-20261004-evening.md` (same standing rules: answer Manuel in German, sync after av-stack edits, never loosen criteria/oracle/baseline).
 
-**Deployed** after green merge batches on Manuel's request (latest: build c4a7070, gh-pages 66ef6f3). Deploy after every green batch and tell Manuel what to expect in `self_hunt_flexible`.
+**Deployed** after every green step on Manuel's request (latest: build 10874c7, gh-pages 524ead8). Deploy every intermediate state and tell Manuel what to expect in `self_hunt_flexible`.
 
 ## Done this session
 | Commit | What |
@@ -22,9 +22,18 @@ Branch `ccr-4c762c23-y7noe2` (pushed). Builds on `handoff-av-20261004-evening.md
 | 75280cf | `npm run av:health`: deterministic 8-seed aggregate gate (`--save`, `--compare`) |
 | c790ebe | Flaky agent test: atomic world.json write |
 | c4a7070 | fleeAimLos: direct flee aim only on a clear static line, else route carrot (Manuel: car heads at obstacles); head-on frames 9/0/111 -> 0/8/5 |
+| 7f22137 | routeClearance on in self_hunt_flexible (clearConfineWide) |
+| b7eb9b4, ca431aa, 9edb737 | Examples pruned (4 small grey worlds out; world_default, av_fleet_eco in); hunt world: only the righting script, props off walls, 4 new mazes D-G (151 walls), fleeArea +-450 |
+| edd7f27 | eco is the default budget (+ scanFocus); full suites / sweep pin full |
+| 821b00f, bf10e56, 47564b3 | 10 chasers on the AV pipe (eco) with follow goal (lead, non-final, tight tolerance); follow runs BEFORE the autopilot (priority 0; guard test) |
+| 6c6c72c | goalOpen: wander / flee / gap goals prefer open ground |
+| 07525fd | routeLimitFull: route speed limit over the braking distance (missed gap entries) |
+| 8f003e6, eb2e395, 0fed21e | eco CPU: weighted work -33 %, perception records (-36 % wall), route planner -21 % (bit-identical) |
+| c24058d, 1512e06, 10874c7 | revGuard / revSweep: reverse manoeuvres never run into walls (maze-b-rev-door 0 contact), caps floored at 2 m/s |
+| 2263765 | saver mode: engine stage tickEvery (per-entity phase), av.budget / av.ms watches; all 11 hunt cars on saver: frame 19.6 -> 10.4 ms (p95 33 -> 21.6) |
 | 610617d | routeClearance v2 (opt-in): wide berth on forward cruise routes (open field gap 2.1 -> 3.6 m, path +1.7 %); default on breaks maze-dead-end |
 
-Full suite: 2404 passed, 13 skipped. Merge gate: `npm run av:quick`, full sweep (~2 min), `npm run av:health -- --compare <name>`, full suite (`--maxWorkers=2` if a sim runs in parallel), then deploy.
+Full suite: 2415 passed, 15 skipped. Gates: `npm run av:quick`, sweep (~2 min, full pinned), `npm run av:health -- --compare <name>` (gate = wall contact, catches, trouble frames, median path), full suite in background after every behaviour merge (av:quick misses the vehicle-reuse suites!), deploy.
 
 ## How this run was orchestrated (reuse it)
 - Lead model plans, reviews diffs, runs the full suite, commits; cheaper workers (Sonnet/Haiku) do audits and edits in git worktrees.
@@ -37,8 +46,9 @@ Full suite: 2404 passed, 13 skipped. Merge gate: `npm run av:quick`, full sweep 
 - Generated-file conflicts on cherry-pick: take ours, re-run `npm run sync:global-pipeline`, continue; discard pure `syncedAt` drift.
 
 ## Open
-1. routeClearance default on (Manuel wants wide berths): blocked by maze-dead-end (2 shuttle episodes > 1); check av:health with it on.
-2. Seed 6 maze-B pocket (gapWalls fixes it but costs catches elsewhere; lab is chaotic -> judge with av:health only).
-3. Sweep baseline does not yet list the 5 newly passing cases (ask Manuel before re-recording).
-4. Question to Manuel: example world with many eco cars? Keep legacy pipe3 parkour coverage (spawn matrix) or drop it?
-5. Profiler view in the Watch panel.
+1. Frame budget: saver reaches 10.4 ms mean / 21.6 ms p95 for 11 cars; target <= 4 ms AV total. Next: time-slice route-planner bursts (A* / field over several frames), cheaper perception rays.
+2. maze-b-rev-door still KNOWN_FAILING for its goal (no contact any more).
+3. Gap entry with the wall 5 m beside the car needs a swing-out (not solved).
+4. Seed 6 maze-B pocket (gapWalls opt-in).
+5. Sweep baseline does not list the newly passing cases (ask Manuel).
+6. Profiler view in the Watch panel (av.ms exists now).
