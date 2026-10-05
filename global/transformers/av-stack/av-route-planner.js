@@ -1216,11 +1216,12 @@ function transform(input, dt, params, state, api) {
   }
 
   // free distance (m, up to `look`) along a reverse segment's arc behind the car, same swept footprint / costmap as the planner
-  function revArcFree(seg, look) {
+  function revArcFree(seg, look, gearSign) {
+    var gs = gearSign || -1
     var hitR = makeHit(av.points || [], ((av.vehicle && av.vehicle.length) || params.vehicleLength || 4) / 2 + planMargin, ((av.vehicle && av.vehicle.width) || params.vehicleWidth || 2) / 2 + planMargin)
     for (var rd = 1; rd <= look; rd += 1) {
-      var rth = seg.k * -rd
-      var rx = Math.abs(seg.k) < 1e-6 ? -rd : Math.sin(rth) / seg.k
+      var rth = seg.k * gs * rd
+      var rx = Math.abs(seg.k) < 1e-6 ? gs * rd : Math.sin(rth) / seg.k
       var ry = Math.abs(seg.k) < 1e-6 ? 0 : (1 - Math.cos(rth)) / seg.k
       var rpx = pos[0] + e.fwd[0] * rx + e.left[0] * ry
       var rpz = pos[2] + e.fwd[2] * rx + e.left[2] * ry
@@ -1277,6 +1278,8 @@ function transform(input, dt, params, state, api) {
     var lx0 = e.left[0]
     var lz0 = e.left[2]
     var look = Math.min(2.0, Math.max(0, cur.len - travelled))
+    // revGuard (default on): look ahead the stopping distance (v^2 / 2a + 1 m) along the planned segment, not a fixed 2 m (a 6.6 m/s reverse needs ~4.4 m to stop)
+    if (params.revGuard !== false) look = Math.min(Math.max(2.0, e.speed * e.speed / (2 * (params.comfortDecel || 5)) + 1), Math.max(0, cur.len - travelled))
     var blockedAhead = false
     for (var gd = 0.5; gd <= look + 1e-6 && !blockedAhead; gd += 0.5) {
       var gdd = cur.g * gd
@@ -1438,6 +1441,14 @@ function transform(input, dt, params, state, api) {
     var vRevFree = freeR < Math.min(arcLook, remain) ? Math.sqrt(2 * (params.comfortDecel || 5) * Math.max(0, freeR - 2)) : 1e9
     var vRevCurve = Math.abs(cur.k) > 1e-4 ? Math.sqrt((params.maxLatAccel || 9) / Math.abs(cur.k)) : 1e9
     vMax = Math.min(revCruiseSpeed, vRevFree, vRevCurve, 0.9 + Math.sqrt(2 * (params.style === 'escape' ? (params.maneuverDecel != null ? params.maneuverDecel : 10) : 3) * runRemain))
+  }
+  // revGuard: every manoeuvre segment (either gear) not already capped above: stop within the free arc ahead (v <= sqrt(2 a (free - margin))); only a blockage inside the segment limits the speed
+  if (params.revGuard !== false && state.segStart !== null && cur.g < 0 && !state.revCruise) {
+    var rgLook = Math.min(30, scanRange, remain)
+    if (rgLook >= 1) {
+      var rgFree = revArcFree(cur, rgLook, cur.g < 0 ? -1 : 1)
+      if (rgFree < rgLook) vMax = Math.min(vMax, Math.sqrt(2 * (params.comfortDecel || 5) * Math.max(0, rgFree - 0.5)) + 0.5)
+    }
   }
   // waiting for rest before a gear change: demand zero. Once the segment has started but the car still rolls the other
   // way (momentum from the previous segment; an icy car does not stop by itself and a zero-demand brake is below the
