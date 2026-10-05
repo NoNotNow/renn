@@ -21,6 +21,10 @@ export interface FollowParams {
   linear?: boolean
   /** When true, target rotation tracks the lead entity. */
   angular?: boolean
+  /** Pursuit: aim `leadTime` seconds ahead of the followed entity (finite-difference velocity, planar). 0 = aim at it. */
+  leadTime?: number
+  /** Goal contract (see AV stack): `false` = keep cruising through the goal (no arrival braking / hold); omitted = single final goal. */
+  isFinal?: boolean
 }
 
 const DEFAULTS = {
@@ -35,6 +39,9 @@ export class FollowTransformer extends BaseTransformer {
   private readonly params: Required<
     Pick<FollowParams, 'targetEntityId' | 'speed' | 'linear' | 'angular'>
   >
+  private readonly extra: { leadTime: number; isFinal: boolean | undefined } = { leadTime: 0, isFinal: undefined }
+  private prevLead: { id: string; x: number; z: number } | null = null
+  private leadVel: [number, number] = [0, 0]
   private readonly getEntityWorldPose: EntityWorldPoseGetter | undefined
 
   constructor(
@@ -49,6 +56,8 @@ export class FollowTransformer extends BaseTransformer {
       linear: params.linear ?? DEFAULTS.linear,
       angular: params.angular ?? DEFAULTS.angular,
     }
+    this.extra.leadTime = Math.max(0, params.leadTime ?? 0)
+    this.extra.isFinal = params.isFinal
     this.getEntityWorldPose = getEntityWorldPose
   }
 
@@ -58,9 +67,11 @@ export class FollowTransformer extends BaseTransformer {
     if (params.speed !== undefined) this.params.speed = params.speed
     if (params.linear !== undefined) this.params.linear = params.linear
     if (params.angular !== undefined) this.params.angular = params.angular
+    if (params.leadTime !== undefined) this.extra.leadTime = Math.max(0, params.leadTime)
+    if ('isFinal' in params) this.extra.isFinal = params.isFinal
   }
 
-  transform(input: TransformInput, _dt: number): TransformOutput {
+  transform(input: TransformInput, dt: number): TransformOutput {
     const { targetEntityId, speed, linear, angular } = this.params
 
     if (!targetEntityId || targetEntityId === input.entityId) {
@@ -74,7 +85,22 @@ export class FollowTransformer extends BaseTransformer {
       return EMPTY_TRANSFORM_OUTPUT
     }
 
-    const targetPos = linear ? lead.position : input.position
+    let targetPos: readonly number[] = linear ? lead.position : input.position
+    if (linear && this.extra.leadTime > 0) {
+      const prev = this.prevLead
+      if (prev && prev.id === targetEntityId && dt > 1e-6) {
+        // low-pass the finite-difference velocity (physics jitter)
+        const vx = (lead.position[0] - prev.x) / dt
+        const vz = (lead.position[2] - prev.z) / dt
+        this.leadVel = [this.leadVel[0] * 0.8 + vx * 0.2, this.leadVel[1] * 0.8 + vz * 0.2]
+      }
+      this.prevLead = { id: targetEntityId, x: lead.position[0], z: lead.position[2] }
+      targetPos = [
+        lead.position[0] + this.leadVel[0] * this.extra.leadTime,
+        lead.position[1],
+        lead.position[2] + this.leadVel[1] * this.extra.leadTime,
+      ]
+    }
     const targetRot = angular ? lead.rotation : input.rotation
 
     input.target = {
@@ -84,6 +110,7 @@ export class FollowTransformer extends BaseTransformer {
       },
       speed,
       label: 'follow',
+      ...(this.extra.isFinal !== undefined ? { isFinal: this.extra.isFinal } : {}),
     }
     return { targetLabel: 'follow' }
   }

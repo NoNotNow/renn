@@ -134,6 +134,10 @@ export const TRANSFORMER_PARAMS_DOCS: {
       'When true, target position tracks the followed entity.',
     angular:
       'When true, target rotation tracks the followed entity.',
+    leadTime:
+      'Pursuit: aim this many seconds ahead of the followed entity (its planar velocity, estimated per frame). 0 = aim at it.',
+    isFinal:
+      'Goal contract: false = the goal is not a final stop (AV stack keeps cruising through it, no arrival braking or hold). Omit for a single final goal.',
   },
 
   custom: {},

@@ -175,7 +175,7 @@ describe('self_hunt_flexible', () => {
 
   it('simulates headless without errors and the chasers move', async () => {
     const world = loadLabWorld({ exampleId: 'self_hunt_flexible' })
-    const det = installDeterminism(1, 0)
+    const det = installDeterminism(8, 0)
     const warn = console.warn
     console.warn = () => {}
     const sim = await WorldSimulator.create(world, 0)
@@ -183,12 +183,14 @@ describe('self_hunt_flexible', () => {
       const pos = (id: string) => sim.getPhysicsWorld().getCachedTransform(id)!.position
       const chasers = world.entities.filter((e) => isChaser(e as Bound, world)).map((e) => e.id)
       sim.runFrames(1)
+      const gapNow = () => { const a = pos(AV); return Math.min(...chasers.map((id) => Math.hypot(pos(id).x - a.x, pos(id).z - a.z))) }
+      const startGap = gapNow()
       let minGap = Infinity
       const start = Object.fromEntries(chasers.map((id) => [id, { ...pos(id) }]))
       for (let f = 0; f < FRAMES; f++) {
         sim.runFrames(1)
         det.advance(1 / 60)
-        if (f % 30 === 0) {
+        {
           const a = pos(AV)
           for (const id of chasers) minGap = Math.min(minGap, Math.hypot(pos(id).x - a.x, pos(id).z - a.z))
         }
@@ -201,6 +203,9 @@ describe('self_hunt_flexible', () => {
         if (Math.hypot(p.x - start[id].x, p.z - start[id].z) > 10) moved++
       }
       expect(moved).toBeGreaterThanOrEqual(Math.floor(chasers.length / 2))
+      // pursuit (follow with lead, non-final goal): the pack closes in on the AV. Absolute catch distances are chaotic per seed
+      // (seed 8: 4.7 m on one commit, 12 m on the next), so assert the approach relative to the start; catches are tracked by av:health.
+      expect(minGap, `closest chaser-AV distance vs start ${startGap.toFixed(1)} m`).toBeLessThan(0.6 * startGap)
     } finally {
       console.warn = warn
       sim.dispose()
