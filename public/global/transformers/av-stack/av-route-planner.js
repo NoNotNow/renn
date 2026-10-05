@@ -166,9 +166,14 @@ function transform(input, dt, params, state, api) {
     var maxCx = -Infinity
     var minCz = Infinity
     var maxCz = -Infinity
+    var cxA = new Float64Array(n)
+    var czA = new Float64Array(n)
     for (var i = 0; i < n; i++) {
-      var cx = Math.floor(pts[i][0] / 2)
-      var cz = Math.floor(pts[i][1] / 2)
+      var pi = pts[i]
+      var cx = Math.floor(pi[0] / 2)
+      var cz = Math.floor(pi[1] / 2)
+      cxA[i] = cx
+      czA[i] = cz
       if (cx < minCx) minCx = cx
       if (cx > maxCx) maxCx = cx
       if (cz < minCz) minCz = cz
@@ -184,7 +189,7 @@ function transform(input, dt, params, state, api) {
       var start = new Int32Array(w * h + 1)
       var cellOf = new Int32Array(n)
       for (var j = 0; j < n; j++) {
-        var c = (Math.floor(pts[j][0] / 2) - minCx) * h + (Math.floor(pts[j][1] / 2) - minCz)
+        var c = (cxA[j] - minCx) * h + (czA[j] - minCz)
         cellOf[j] = c
         start[c + 1]++
       }
@@ -506,7 +511,10 @@ function transform(input, dt, params, state, api) {
       var cdiag = cs * 1.4142
       var bw = 0.99 * cs * Math.min(1, blockCost > 0.05 ? blockCost : 0.05)
       var maxEdge = cdiag * Math.max(1, blockCost)
-      var R = Math.ceil(maxEdge / bw) + 2
+      // ring size: any R above the largest bucket span keeps the pop order (absolute bucket index decides it); a power of two turns the slot modulo into a mask
+      var R = 16
+      while (R < Math.ceil(maxEdge / bw) + 2) R *= 2
+      var RM = R - 1
       var heads = F.bh && F.bh.length >= R ? F.bh : (F.bh = new Int32Array(R))
       for (var bi0 = 0; bi0 < R; bi0++) heads[bi0] = -1
       var np = 0
@@ -533,7 +541,7 @@ function transform(input, dt, params, state, api) {
       // bucket index by int truncation (== floor for nd >= 0) when the largest possible distance stays below 2^31 buckets
       var intBucket = N * maxEdge * invBw < 2000000000
       while (pending > 0) {
-        var slot = curB % R
+        var slot = intBucket ? curB & RM : curB % R
         var ent = heads[slot]
         if (ent < 0) {
           curB++
@@ -564,7 +572,7 @@ function transform(input, dt, params, state, api) {
             var pe = np++
             hk[pe] = nd
             hi[pe] = ni
-            var nb = (intBucket ? (nd * invBw) | 0 : Math.floor(nd * invBw)) % R
+            var nb = intBucket ? ((nd * invBw) | 0) & RM : Math.floor(nd * invBw) % R
             bnext[pe] = heads[nb]
             heads[nb] = pe
             pending++
