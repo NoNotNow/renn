@@ -21,12 +21,6 @@ const KNOWN_FAILING: Record<string, string> = {
     "revSweep (default on) removed the wall contact (0 static frames, gap 0.9) but the goal is still not reached in 12 s: the plan was made before the wall B_21 was seen (it overlaps from t 0.7 s, 24 m ahead on the plan), the re-plans drive away from the door (min goal 32 m). Early re-plan on a swept overlap regressed maze-u-trap-inside (shuttle). Before: 7 static contact frames (gap 0.0; revGuard off: 8 frames at v -5.1): the 13-segment maze reverse manoeuvre (7 m/s, rear-first) drives at the long wall B_21 (z 314.5) and the rear corner touches it at t 4.3 s. The wall is in av.points / av.smap from t 0.1 s (verified), but the guard only counts blockages inside the current segment and reacts ~1.1 m before (revGuard caps vLimit to 0.5 at t 3.95 s, the cap flickers back to 7.0 at 4.07 s and the car re-accelerates -2.7 -> -5 m/s); revGuard only cuts the contact speed (5.1 -> 2.4 m/s). The free-arc cap counts blockages inside the current segment only and the wall is missing from the costmap until too late.",
 };
 
-/** Known failures of the eco / normal budgets only (the full budget passes these cases). */
-const KNOWN_FAILING_REDUCED: Record<string, string> = {
-  "maze-dead-end":
-    "carrotBend / carrotLive (world car, S-bend fix) turn the first L bend properly (t 4 s, east leg) instead of the old stall + reverse-in; the eco run then K-turns twice (episodes shuttle@8-11s at the end of the east leg, shuttle@24-28s at the corridor mouth (1,12)): 2 > maxShuttle 1, goal 41.5 s (before: 38.1 s, 0 shuttle episodes, 8 reversals by a reverse run of 225 m). Chaotic: carrotBend 0.8 / 0.45 and speed gates flip it or the S cases.",
-};
-
 function criteria(c: MazeCase, m: ScenarioMetrics): string[] {
   const out = surviveCriteria({
     maxStalledSec: c.maxStalledSec ?? 6,
@@ -78,7 +72,7 @@ export function defineMazeSuite(
       );
     });
     for (const c of MAZE_CASES) {
-      const run = c.fullBudgetOnly && budget !== "full" ? it.skip : KNOWN_FAILING[c.name] != null || (budget !== "full" && KNOWN_FAILING_REDUCED[c.name] != null) ? it.fails : it;
+      const run = c.fullBudgetOnly && budget !== "full" ? it.skip : KNOWN_FAILING[c.name] != null ? it.fails : it;
       run(
         `${c.name}: ${c.about}`,
         async () => {
@@ -95,8 +89,8 @@ export function defineMazeSuite(
               (m.firstContact
                 ? `\n      first contact ${m.firstContact}`
                 : "") +
-              (KNOWN_FAILING[c.name] || (budget !== "full" && KNOWN_FAILING_REDUCED[c.name])
-                ? `\n      known: ${KNOWN_FAILING[c.name] ?? KNOWN_FAILING_REDUCED[c.name]}`
+              (KNOWN_FAILING[c.name]
+                ? `\n      known: ${KNOWN_FAILING[c.name]}`
                 : ""),
           );
           expect(failed).toEqual([]);

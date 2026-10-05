@@ -1023,7 +1023,7 @@ function transform(input, dt, params, state, api) {
     if (firstGear === 1) {
       var want = Math.min(lookahead, 6 + 1.0 * Math.max(0, e.speedF))
       var acc = 0
-      var cb = (av.threats && av.threats.length) || (e.speedF || 0) < (params.carrotBendMinSpeed != null ? params.carrotBendMinSpeed : 0) ? 0 : params.carrotBend != null ? params.carrotBend : 0
+      var cb = (av.threats && av.threats.length) || (params.carrotNoMaze === true && state.maze) || (e.speedF || 0) < (params.carrotBendMinSpeed != null ? params.carrotBendMinSpeed : 0) ? 0 : params.carrotBend != null ? params.carrotBend : 0
       var cbMin = params.carrotBendMin != null ? params.carrotBendMin : 4
       var a0 = 0
       for (var i = 1; i < nodes.length && nodes[i].g === 1; i++) {
@@ -1237,7 +1237,7 @@ function transform(input, dt, params, state, api) {
         var lwant = Math.min(lookahead, 6 + 1.0 * Math.max(0, e.speedF))
         var lacc = 0
         var lcar = null
-        var lcb = (e.speedF || 0) < (params.carrotBendMinSpeed != null ? params.carrotBendMinSpeed : 0) ? 0 : params.carrotBend != null ? params.carrotBend : 0
+        var lcb = (params.carrotNoMaze === true && state.maze) || (e.speedF || 0) < (params.carrotBendMinSpeed != null ? params.carrotBendMinSpeed : 0) ? 0 : params.carrotBend != null ? params.carrotBend : 0
         var la0 = 0
         var lcut = false
         for (var lj = lbest + 1; lj < ln.length && ln[lj].g === 1; lj++) {
