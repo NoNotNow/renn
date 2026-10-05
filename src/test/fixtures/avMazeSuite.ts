@@ -16,7 +16,10 @@ import {
  * Same machinery and KNOWN_FAILING mechanism as `av-evasion-scenarios.test.ts`.
  */
 
-const KNOWN_FAILING: Record<string, string> = {};
+const KNOWN_FAILING: Record<string, string> = {
+  "maze-b-rev-door":
+    "full budget: 7 static contact frames (gap 0.0; revGuard off: 8 frames at v -5.1): the 13-segment maze reverse manoeuvre (7 m/s, rear-first) drives at the long wall B_21 (z 314.5) and the rear corner touches it at t 4.3 s. The wall is only known ~1.1 m before (revGuard caps vLimit to 0.5 at t 3.95 s, the cap flickers back to 7.0 at 4.07 s and the car re-accelerates -2.7 -> -5 m/s); revGuard only cuts the contact speed (5.1 -> 2.4 m/s). The free-arc cap counts blockages inside the current segment only and the wall is missing from the costmap until too late.",
+};
 
 function criteria(c: MazeCase, m: ScenarioMetrics): string[] {
   const out = surviveCriteria({

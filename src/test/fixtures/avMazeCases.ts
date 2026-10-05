@@ -242,6 +242,15 @@ export const MAZE_CASES: MazeCase[] = [
     }),
   },
   {
+    name: 'maze-b-rev-door',
+    about: 'maze B of the example world: car in cell (107.5, 292.5) facing north (-Z), goal 45 m straight behind it (107.5, 337.5): reverse out through the door past the wall ends (reverse manoeuvre at ~6 m/s). Hard rule: the car never touches a wall (minStaticGap > 0.05)',
+    seconds: 12,
+    maxReversals: 4,
+    maxShuttle: 2,
+    minStaticGap: 0.3,
+    spec: () => ({ car: { at: [107.5, 292.5], yawDeg: 0 }, goal: [107.5, 337.5], boxes: worldMazeWalls('wall_maze_B'), puppets: []}),
+  },
+  {
     name: 'gap-entry-wall10',
     about: 'no pursuers, car at 25 m/s along a wall, a 14 m gap in it 90 m ahead, goal behind the gap, wall 10 m beside the car: brake early enough (route speed limit over the braking distance, from the car pose) to turn into the gap instead of driving past it (routeLimitFull: false = takes it at 35 m/s with 44 m/s^2 lateral). Criteria: goal within 12 s, no static contact, peak lateral acceleration <= 30 m/s^2 (full budget: 28, routeLimitFull: false: 44)',
     seconds: 12,
