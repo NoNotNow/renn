@@ -4,7 +4,6 @@ import type { TransformerPipe, TransformerPipeBinding } from '@/types/transforme
 import type { PipeNavPathSegment } from '@/types/pipeNav'
 import WorkspaceFloatingDrawer from '@/components/workspace/WorkspaceFloatingDrawer'
 import { clampDrawerPosition, drawerPositionRelativeToHost } from '@/components/workspace/floatingDrawerLayout'
-import PipeParamsJsonEditor from './PipeParamsJsonEditor'
 import PipeParamsStrip from './PipeParamsStrip'
 import { theme } from '@/config/theme'
 
@@ -71,15 +70,16 @@ export default function PipeConfigDrawer({
       <p style={{ margin: '0 0 8px', fontSize: 11, color: theme.text.muted, lineHeight: 1.4 }}>
         This entity&apos;s pipe params — changes apply only to this entity.
       </p>
-      {hasParamDefs ?
-        <PipeParamsStrip pipe={pipe} binding={binding} scopePath={scopePath} onParamChange={onParamChange} />
-      : <PipeParamsJsonEditor
-          pipe={pipe}
-          binding={binding}
-          scopePath={scopePath}
-          onParamsReplace={onParamsReplace}
-        />
-      }
+      <PipeParamsStrip
+        pipe={pipe}
+        binding={binding}
+        scopePath={scopePath}
+        onParamChange={onParamChange}
+        onParamsReplace={onParamsReplace}
+        layout="form"
+        jsonOpenByDefault={!hasParamDefs}
+        allowAdd
+      />
     </WorkspaceFloatingDrawer>
   )
 }
