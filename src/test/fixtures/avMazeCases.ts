@@ -39,6 +39,8 @@ export interface MazeCase {
   /** Min mean |speed| while reversing (m/s) and max seconds until the car is 15 m away from its start. */
   minReverseMeanSpeed?: number
   maxLeaveSec?: number
+  /** Min physics gap (m) to any static obstacle over the run (ScenarioMetrics.minStaticGap): wall clearance for fast manoeuvres. */
+  minStaticGap?: number
   /** Time-to-goal limit tuned on the full CPU budget: skipped in the eco / normal suites. */
   fullBudgetOnly?: boolean
 }
