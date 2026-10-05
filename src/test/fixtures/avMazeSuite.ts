@@ -65,7 +65,7 @@ export function defineMazeSuite(
       );
     });
     for (const c of MAZE_CASES) {
-      const run = KNOWN_FAILING[c.name] != null ? it.fails : it;
+      const run = c.fullBudgetOnly && budget !== "full" ? it.skip : KNOWN_FAILING[c.name] != null ? it.fails : it;
       run(
         `${c.name}: ${c.about}`,
         async () => {

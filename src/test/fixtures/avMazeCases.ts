@@ -37,6 +37,8 @@ export interface MazeCase {
   /** Min mean |speed| while reversing (m/s) and max seconds until the car is 15 m away from its start. */
   minReverseMeanSpeed?: number
   maxLeaveSec?: number
+  /** Time-to-goal limit tuned on the full CPU budget: skipped in the eco / normal suites. */
+  fullBudgetOnly?: boolean
 }
 
 /** Walls of one maze of the example world (ids `wall_maze_<A|B|C>_*`) as arena boxes. */
@@ -200,6 +202,23 @@ export const MAZE_CASES: MazeCase[] = [
       goal: [0, -160],
       extraParams: { gapWalls: true },
       boxes: [seg([-150, -70], [150, -70])],
+      puppets: [
+        { id: 'chaser_a', size: CHASER, at: [-12, 40], yawDeg: 0, motion: { kind: 'home', speed: 25, turnRate: 1.5, lead: 0.3 } },
+        { id: 'chaser_b', size: CHASER, at: [12, 40], yawDeg: 0, motion: { kind: 'home', speed: 25, turnRate: 1.5, lead: 0.3 } },
+      ],
+    }),
+  },
+  {
+    name: 'flee-aim-wall',
+    about: 'two homing chasers behind the car (gap commit), a 60 m wall 55 m ahead on the line to the goal: the straight line to the flee goal is blocked, so the car follows the route carrot around the wall end; time-to-goal criterion (fleeAimLos: false = aims at the flee goal, reaches the goal later than the limit)',
+    seconds: 6.4,
+    fullBudgetOnly: true,
+    maxReversals: 2,
+    minGap: 0.5,
+    spec: () => ({
+      car: { at: [0, 0], yawDeg: 0, speed: 20 },
+      goal: [0, -150],
+      boxes: [seg([-30, -55], [30, -55])],
       puppets: [
         { id: 'chaser_a', size: CHASER, at: [-12, 40], yawDeg: 0, motion: { kind: 'home', speed: 25, turnRate: 1.5, lead: 0.3 } },
         { id: 'chaser_b', size: CHASER, at: [12, 40], yawDeg: 0, motion: { kind: 'home', speed: 25, turnRate: 1.5, lead: 0.3 } },
