@@ -10,6 +10,7 @@
 // (escapeAccel 15 m/s^2, escapeSpeed 36 m/s top, kappa <= maxCurvature, lateral accel <= maxLatAccel) for escapeHorizon (5 s) against the pursuit-predicted pursuers (pure pursuit with their observed turn
 // rate, as the motion planner); score = smallest centre distance reached (capped at escapeSafe) + goal alignment / turn penalties. The heading is kept (hysteresis) and the goal is 90 m ahead on it. It also
 // triggers when the heading to the real goal is predicted to come within escapeTrigger (m, 16) of a pursuer, which can be far outside the 90 m geometric danger range. escapeRange (m, 160): pursuers considered.
+// gapCommit (bool, default ON; false disables): fleeSim's escape-heading search, but only against >= 2 pursuers, and the chosen goal (escapeGoalDist 150 m) is an ABSOLUTE point kept until reached / clearly worse (escapeSwitch 6, eval every 0.3 s) so the motion planner gets a fixed target.
 // fleeLos (bool, default off): the geometric flee / own-goal candidates are also scored by line of sight (one ray per heading from the hull edge): a goal whose straight way is blocked by a wall
 // before it is reached (maze, building) is penalised, free length is a bonus, so the car explores along open corridors instead of shuffling in front of a wall towards a goal behind it.
 // Goal watchdog (params.goalWatchdog = seconds, default 0 = off; needs fleeArea): a goal the car does not get closer to (>= 8 m) within that time is
@@ -239,7 +240,8 @@ function fleeGoal(av, thrs, input, params, state, api) {
     bad = wd.bad
     av.goalBad = bad
   }
-  var sim = params.fleeSim === true
+  var gap = params.gapCommit !== false
+  var sim = params.fleeSim === true || gap
   var simQ = null
   var simThrs = null
   var simGoalD = 1e9
@@ -265,11 +267,19 @@ function fleeGoal(av, thrs, input, params, state, api) {
       turnMax: params.threatTurnRate || 1.5,
       turnMin: params.threatTurnMin || 0,
     }
+    // gapCommit alone only acts against >= 2 pursuers (a lone chaser keeps the geometric flee layer)
+    if (gap && params.fleeSim !== true && simThrs.length < 2) sim = false
     simYaw = Math.atan2(av.ego.fwd[2], av.ego.fwd[0])
-    if (simThrs.length) simGoalD = escapeSim(simThrs, pos, simYaw, Math.max(0, av.ego.speedF), Math.atan2(g0[2] - pos[2], g0[0] - pos[0]), 0, simQ)
+    if (sim && simThrs.length) simGoalD = escapeSim(simThrs, pos, simYaw, Math.max(0, av.ego.speedF), Math.atan2(g0[2] - pos[2], g0[0] - pos[0]), 0, simQ)
   }
   var simDanger = sim && simThrs.length > 0 && simGoalD < (params.escapeTrigger != null ? params.escapeTrigger : 16)
+  if (sim && fl && fl.gap && fl.gx != null) {
+    var gdx = fl.gx - pos[0]
+    var gdz = fl.gz - pos[2]
+    if (gdx * gdx + gdz * gdz > 25 * 25) simDanger = true
+  }
   if (sim && fl && now - fl.t0 < (params.escapeHold != null ? params.escapeHold : 1.5)) simDanger = true
+  if (!sim && fl && fl.gap) fl = state.flee = null
   if (!bad && !simDanger && !danger(g0[0], g0[2])) {
     state.flee = null
     av.fleeing = false
@@ -427,7 +437,8 @@ function fleeSim(av, input, params, state, g0, area, fl, now, thrs, q, yaw0) {
   var safeD = params.escapeSafe != null ? params.escapeSafe : 20
   var wAlign = params.escapeAlign != null ? params.escapeAlign : 4
   var turnPen = params.fleeTurnPenalty != null ? params.fleeTurnPenalty : 1.5
-  var D = params.escapeGoalDist != null ? params.escapeGoalDist : 90
+  var gap = params.gapCommit !== false
+  var D = params.escapeGoalDist != null ? params.escapeGoalDist : gap ? 150 : 90
   var goalAng = Math.atan2(g0[2] - pos[2], g0[0] - pos[0])
   function scoreOf(ang) {
     var d0 = escapeSim(thrs, pos, yaw0, v0, ang, 0, q)
@@ -439,8 +450,10 @@ function fleeSim(av, input, params, state, g0, area, fl, now, thrs, q, yaw0) {
     return { d: d, score: (d > safeD ? safeD : d) + wAlign * al - 2 * turnPen * Math.max(0, (turn - 1.2) / 1.9) }
   }
   // the committed heading is re-simulated from the current state; another one replaces it only when clearly better
+  // gapCommit: the committed goal is an ABSOLUTE point (fixed at commit time); its bearing from the moving car is what is re-simulated
+  if (gap && fl && fl.ang != null && fl.gx != null) fl.ang = Math.atan2(fl.gz - pos[2], fl.gx - pos[0])
   var cur = fl && fl.ang != null ? scoreOf(fl.ang) : null
-  var evalDue = !fl || fl.ang == null || now - (fl.te || 0) > (params.escapeEvalEvery != null ? params.escapeEvalEvery : 0.15)
+  var evalDue = !fl || fl.ang == null || now - (fl.te || 0) > (params.escapeEvalEvery != null ? params.escapeEvalEvery : gap ? 0.3 : 0.15)
   if (evalDue || !cur) {
     var best = null
     var bestS = -Infinity
@@ -456,7 +469,7 @@ function fleeSim(av, input, params, state, g0, area, fl, now, thrs, q, yaw0) {
       }
     }
     if (best) {
-      if (!cur || bestS > cur.score + (params.escapeSwitch != null ? params.escapeSwitch : 3)) fl = { ang: best.ang, t: now, t0: fl && fl.t0 != null && cur ? fl.t0 : now, te: now }
+      if (!cur || bestS > cur.score + (params.escapeSwitch != null ? params.escapeSwitch : gap ? 6 : 3)) fl = { ang: best.ang, t: now, t0: fl && fl.t0 != null && cur ? fl.t0 : now, te: now, gap: gap, gx: gap ? pos[0] + Math.cos(best.ang) * D : null, gz: gap ? pos[2] + Math.sin(best.ang) * D : null }
       else {
         fl.te = now
       }
@@ -467,8 +480,13 @@ function fleeSim(av, input, params, state, g0, area, fl, now, thrs, q, yaw0) {
     av.fleeing = false
     return
   }
-  fl.x = pos[0] + Math.cos(fl.ang) * D
-  fl.z = pos[2] + Math.sin(fl.ang) * D
+  if (fl.gx != null) {
+    fl.x = fl.gx
+    fl.z = fl.gz
+  } else {
+    fl.x = pos[0] + Math.cos(fl.ang) * D
+    fl.z = pos[2] + Math.sin(fl.ang) * D
+  }
   state.flee = fl
   av.fleeing = true
   input.target.pose.position = [fl.x, g0[1], fl.z]

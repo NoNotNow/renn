@@ -380,6 +380,12 @@ Sweep (winnable cases, oracle-classified): 29/78 -> 60/75 (robust, margin >= 2 m
 - **Pursuer turn rate (av-ego / av-motion-planner):** `av.threats[].turn` = recent max observed turn rate; the homing prediction uses `clamp(1.3 * turn + 0.15, threatTurnMin 0.5, threatTurnRate 1.5)` instead of always 1.5 rad/s.
 - Not fixed: fan / pair-with-rear chasers at 110-130 m (the car drives at 40-50 m/s at the central chaser and starts the dodge < 25 m before contact; a `chasedMaxSpeed` cap 32-36 was tried and did not help), and cases with oracle margin < 2 m.
 
+## Early gap commitment (`gapCommit`, av-ego, default ON; `gapCommit:false` disables) (2026-10)
+
+- Trace (`triple/v25/high/fan/far`, before): real goal (straight ahead) until t = 1.2 s, then the geometric flee goal appears ahead (14,-68) and jumps (108,-34 -> 86,8 -> 14,36 -> ...) while the car is at 40-47 m/s on the central chaser; contact at 2.6 s.
+- Design: against >= 2 pursuers (escapeRange 160 m) `fleeSim`'s heading search is used, but the chosen goal (150 m) is an ABSOLUTE point held until reached (< 25 m) or a clearly better heading appears (`escapeSwitch` 6, re-evaluated every 0.3 s). The planner gets a fixed target (trace: goal 130,70 held for 3.5 s, turn at 15 m/s). A lone chaser keeps the geometric layer.
+- Sweep full: winnable 61/75 -> 63/75, robust 59/64 -> 61/64; flipped `pair/v25/high/b-30+30/far`, `pair/v35/low/b0+150/far`; still failing robust: `triple/v25/high/fan/far` (30 frames), `triple/v35/low/fan/far`, `pair/v35/high/b0+150/far`. No baseline case lost; av:quick and `src/test/scenarios/av-` + hunt-game pass.
+
 ## Lab smoke check + boxed-in deadlock (2026-10, self_hunt_flexible, 6 seeds x 3600 frames)
 
 - **Speed vs chasers (lab `SPEED` line):** free-road seeds (4, 6): AV mean/p50/p90 35-39 / 38-42 / 48-50 m/s, chasers 21 / 21 / 43. Hardware: AV and chaser cars are both 4x1x8, mass 2, friction 0.01; AV `car2` power 2400 vs chaser 400 (the AV is NOT hardware-limited; the referee's pressure ramp adds up to +4 m/s^2 x level for chasers below a 20 + 4 x level m/s cap). Free-road limit sources: `curve` (planned-kappa wobble, mean vDes ~32) and `free`; not cruise. Raising `maxLatAccel` 9 -> 13 gave 40 vs 35 m/s on seed 4 and no change on seed 6 (chaos) and was not adopted.
