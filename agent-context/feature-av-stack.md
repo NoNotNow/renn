@@ -498,4 +498,19 @@ Two cars meeting head-on each keep to THEIR OWN right (right-hand traffic: the o
   - two real AV cars facing each other (fleet ring, 2 cars): both right (gap 2.4) -> both right (13 m, gap 8.7); `'left'`: both left (8.8 m, gap 4.3)
   - `self_hunt_flexible` (all 11 AV-pipe cars `passSide: 'right'`), av:health 8 seeds x 1800 frames, off -> on: catches 0 -> 1, trouble frames 75 -> 120 (one more 45-frame jitter episode; over the +25 % gate but a single episode), mean speed 16.1 -> 14.9 m/s, median path 629 -> 690 m (+9.7 %), min static gap 0.49 -> 0.48 m. The fleeing AV's rule never fired in the checked seed 2 (`av.pass` stayed `-`: oncoming non-threat traffic did not occur), so per-seed changes (seed 2 19.9 -> 7.4 m/s, 8: 15.8 -> -4.4, 6: 11.8 -> 26.9, 1: 21.2 -> 24.1) come from the chasers diverging: chaotic, judge by aggregate only (`av-keep-right-hunt.diagnostic.test.ts` prints the per-seed off / on rows).
 - **Tests:** `src/test/scenarios/av-keep-right.test.ts` (15 cases: right / left x dead ahead, offset left / right, goal pull, corridor in its own lane, two AV cars; `'off'` bit-identical to unset; the old planner contacts in the corridor; a threat puppet is unaffected). The arena copies the hunt car (now `passSide: 'right'`), so the fixture pins `passSide: 'off'` unless a test says otherwise. Red-check (`AV_PARAMS='{"passSide":"off"}'` forces the feature off in the puppet cases): right fails for puppet-to-our-right, goal pull and corridor; left fails in all 5 puppet cases; the two-car cases ignore AV_PARAMS (the old planner passes right by chirality, so only their `left` variant is red).
+<<<<<<< HEAD
 >>>>>>> bb42c2c (feat(av): enable passSide right in self_hunt_flexible, passIgnoreIds, docs and tests)
+=======
+- **Noise floor of the av:health gate (rebased on 92d604d, 8 seeds x 1800 frames, `kr2-*` saves):** the hunt world is chaotic; a 0.01 degree start-yaw change of ONE chaser (no passSide anywhere) moves the aggregate as much as the rule does.
+
+| variant | catches | trouble frames (stall/shuttle/jitter) | episodes | mean speed | median path |
+|---|---|---|---|---|---|
+| (a) all `off` | 0 | 75 (0/75/0) | 5 | 16.1 | 629 |
+| (d) all `off`, chaser 1 yaw +0.01 deg | 1 | 105 (0/90/15) | 3 | 13.4 | 550 |
+| (b) `right` on chasers only | 1 | 120 (0/30/90) | 4 | 14.9 | 690 |
+| (c) `right` on the AV only | 0 | 75 | 5 | 16.1 | 629 (rows byte-identical to (a)) |
+| all `right` (shipped) | 1 | 120 | 4 | 14.9 | 690 (rows identical to (b)) |
+
+  (c) = (a) exactly: the AV's rule never fires in the hunt world (chasers are threats, no other traffic), so the whole (a) -> shipped difference is the chasers' trajectories diverging. (d) shows the same magnitude (trouble +30, catches +1, mean speed -2.7, median path -79) from a perturbation that touches no logic, so the gate delta (+45 frames, +1 catch) is within the noise of this world for this change. No per-seed pattern (e.g. chasers blocking the AV in corridors) was found: the per-seed rows of (b) and (d) differ in both directions.
+- **Open:** the corridor with the oncoming car dead ahead or in the wrong lane (its x +1.5 for passSide right) still collides, as before the rule. Dead ahead needs both cars to move over (a non-yielding puppet cannot); in the wrong lane the rule pulls the car to the wall side where no free path exists. Not changed (a feasibility-aware pass target would need the costmap window at the meeting point).
+>>>>>>> d3f3566 (docs(av): passSide av:health noise floor (perturbation, chasers-only, AV-only))
