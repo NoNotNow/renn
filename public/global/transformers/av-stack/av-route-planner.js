@@ -224,11 +224,32 @@ function transform(input, dt, params, state, api) {
       var gStart = grid.start
       var gXs = grid.xs
       var gZs = grid.zs
+      // summed-area table of the cell counts (built once per grid): an all-empty query window (the common case in open terrain) returns false without walking its cells
+      var sat = grid.sat
+      if (!sat) {
+        var sh = gH + 1
+        sat = grid.sat = new Int32Array((gW + 1) * sh)
+        for (var si = 0; si < gW; si++) {
+          var rowSum = 0
+          for (var sj = 0; sj < gH; sj++) {
+            var sc = si * gH + sj
+            rowSum += gStart[sc + 1] - gStart[sc]
+            sat[(si + 1) * sh + sj + 1] = sat[si * sh + sj + 1] + rowSum
+          }
+        }
+      }
+      var satH = gH + 1
       return function (x, z, fx, fz) {
         var x0 = Math.max(Math.floor((x - R) / 2), gMinX)
         var x1 = Math.min(Math.floor((x + R) / 2), gMinX + gW - 1)
         var z0 = Math.max(Math.floor((z - R) / 2), gMinZ)
         var z1 = Math.min(Math.floor((z + R) / 2), gMinZ + gH - 1)
+        if (x0 > x1 || z0 > z1) return false
+        var sa0 = x0 - gMinX
+        var sa1 = x1 - gMinX + 1
+        var sb0 = z0 - gMinZ
+        var sb1 = z1 - gMinZ + 1
+        if (sat[sa1 * satH + sb1] - sat[sa0 * satH + sb1] - sat[sa1 * satH + sb0] + sat[sa0 * satH + sb0] === 0) return false
         for (var cx = x0; cx <= x1; cx++) {
           for (var cz = z0; cz <= z1; cz++) {
             var ci = (cx - gMinX) * gH + (cz - gMinZ)
@@ -502,10 +523,15 @@ function transform(input, dt, params, state, api) {
       var fieldPad = params.ecoFieldPad != null ? params.ecoFieldPad : 20
       var cutoff = fieldCut > 0 ? Infinity : -1
       var carCell = fieldCut > 0 ? Math.max(0, Math.min(W - 1, Math.floor((pos[0] - wx0) / cs))) * H + Math.max(0, Math.min(H - 1, Math.floor((pos[2] - wz0) / cs))) : -1
-      var stepA = [cs, cs, cs, cs, cdiag, cdiag, cdiag, cdiag]
+      // neighbour order, offsets and edge costs are fixed (push order = bucket list order = same tentative values at the cut): free / blocked edge cost precomputed (same float product as stepA * blockCost)
+      var offs = [H, -H, 1, -1, H + 1, H - 1, 1 - H, -H - 1]
       var dxs = [1, -1, 0, 0, 1, 1, -1, -1]
       var dzs = [0, 0, 1, -1, 1, -1, 1, -1]
+      var stepF = [cs, cs, cs, cs, cdiag, cdiag, cdiag, cdiag]
+      var stepB = [cs * blockCost, cs * blockCost, cs * blockCost, cs * blockCost, cdiag * blockCost, cdiag * blockCost, cdiag * blockCost, cdiag * blockCost]
       var invBw = 1 / bw
+      // bucket index by int truncation (== floor for nd >= 0) when the largest possible distance stays below 2^31 buckets
+      var intBucket = N * maxEdge * invBw < 2000000000
       while (pending > 0) {
         var slot = curB % R
         var ent = heads[slot]
@@ -524,18 +550,21 @@ function transform(input, dt, params, state, api) {
         settled++
         var tx = (topI / H) | 0
         var tz = topI - tx * H
+        var inner = tx > 0 && tz > 0 && tx < W - 1 && tz < H - 1
         for (var q = 0; q < 8; q++) {
-          var nx = tx + dxs[q]
-          var nz = tz + dzs[q]
-          if (nx < 0 || nz < 0 || nx >= W || nz >= H) continue
-          var ni = nx * H + nz
-          var nd = topK + stepA[q] * (occ[ni] ? blockCost : 1)
+          if (!inner) {
+            var nx = tx + dxs[q]
+            var nz = tz + dzs[q]
+            if (nx < 0 || nz < 0 || nx >= W || nz >= H) continue
+          }
+          var ni = topI + offs[q]
+          var nd = topK + (occ[ni] ? stepB[q] : stepF[q])
           if (nd < d[ni]) {
             d[ni] = nd
             var pe = np++
             hk[pe] = nd
             hi[pe] = ni
-            var nb = Math.floor(nd * invBw) % R
+            var nb = (intBucket ? (nd * invBw) | 0 : Math.floor(nd * invBw)) % R
             bnext[pe] = heads[nb]
             heads[nb] = pe
             pending++

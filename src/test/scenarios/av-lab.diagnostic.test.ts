@@ -139,7 +139,21 @@ it.skipIf(!enabled)('av lab run', async () => {
       stopAfterScenes: env.AVLAB_STOP ? Number(env.AVLAB_STOP) : undefined,
       captureAt: env.AVLAB_CAPTURE_AT ? env.AVLAB_CAPTURE_AT.split(',').map(Number) : undefined,
       slowTriggerMs: env.AVLAB_SLOW_MS ? Number(env.AVLAB_SLOW_MS) : 0,
-      onFrame: ({ sim }) => clr.onFrame(sim),
+      onFrame: ({ sim, frame }) => {
+        clr.onFrame(sim)
+        // AVLAB_HASH=1: FNV hash of every entity pose every 50 frames (bit-identity proof for perf work).
+        if (env.AVLAB_HASH === '1' && frame != null && frame % 50 === 0) {
+          let h = 2166136261
+          for (const e of prepared.entities as any[]) {
+            const q = sim.getPosition(e.id)
+            const rq = sim.getRotation(e.id)
+            for (const n of [q[0], q[1], q[2], rq.x, rq.y, rq.z, rq.w]) {
+              h = Math.imul(h ^ Math.round(n * 1e9), 16777619) >>> 0
+            }
+          }
+          console.log(`POSEHASH seed ${seed} f${frame} ${h.toString(16)}`)
+        }
+      },
     })
     console.log(`  CLEARANCE min static hull gap ${clr.m.minStaticGap.toFixed(2)} m | close-pass frames (<${CLOSE_GAP} m & >${CLOSE_SPEED} m/s) ${clr.m.closePassFrames} | head-on frames ${clr.m.headOnFrames}`)
     console.log(summary(`seed ${seed}`, r))
