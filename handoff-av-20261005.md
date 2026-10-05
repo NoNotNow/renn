@@ -52,3 +52,15 @@ Full suite: 2415 passed, 15 skipped. Gates: `npm run av:quick`, sweep (~2 min, f
 4. Seed 6 maze-B pocket (gapWalls opt-in).
 5. Sweep baseline does not list the newly passing cases (ask Manuel).
 6. Profiler view in the Watch panel (av.ms exists now).
+
+## Next agent: start here
+1. `git fetch && git checkout ccr-4c762c23-y7noe2`, `npm ci`, `npm run sync:global-pipeline`, `npm run av:quick` (expect all pass; `maze-b-rev-door` is `it.fails`).
+2. A worker was stopped mid-task at the usage limit ("cut route-planner frame spikes": time-slice Hybrid-A* / field builds in saver). If its commit is not on the branch, restart from Open item 1. Check leftover worktrees: `git worktree list` (remove with `git worktree remove -f -f`).
+3. Watch values for Manuel: `av.budget`, `av.ms` on the "AV Ego state" rows. Perf measurement: `src/test/scenarios/av-perf.diagnostic.test.ts`; aggregate behaviour: `npm run av:health -- --save <name>` / `--compare <name>` (8 seeds, ~5 min, run in background).
+4. Lessons from this run (full log of 44 rounds was in the session scratchpad):
+   - Measure first; most hypotheses (thin footprint, perception blind spot, threat-zone eco cost, moving-goal field rebuilds) were refuted by a 10-minute measurement.
+   - Gates must contain the user's complaint as a metric (frame ms, wall contact) and an activation share in the target world.
+   - Never assert absolute per-seed outcomes in unit tests (chaotic sim); use relative checks, keep absolutes in av:health.
+   - The scripted arena copies the AV car params from `self_hunt_flexible`: world params == test params.
+   - After every behaviour merge run the full suite in background (`npx vitest run --maxWorkers=2` if a sim runs in parallel); `av:quick` misses the vehicle-reuse files.
+   - Workers: reset worktree to the branch first, never `git add -A` (node_modules symlink), no background timers, commit early, criteria/limits are never loosened (KNOWN_FAILING + measured reason instead); cherry-pick conflicts in generated files -> take ours + re-sync.
