@@ -24,6 +24,8 @@ export interface MazeCase {
   spec: () => ArenaSpec
   /** Max direction reversals (a K-turn costs 2-3). */
   maxReversals: number
+  /** The case judges leaving / stalling only (a tracked chaser in it makes the car flee instead of heading for the goal). */
+  noGoal?: boolean
   /** Max seconds without moving (> 0.5 m/s). */
   maxStalledSec?: number
   /** Allowed shuttle / jitter episodes (a K-turn in a dead end reads as one, <= 6 s each). Default 0. */
@@ -164,6 +166,27 @@ export const MAZE_CASES: MazeCase[] = [
       goal: [0, -120],
       boxes: [seg([-4, 25], [-4, -20]), ...cylinder([0, -20.5], 15)],
       puppets: [{ id: 'parked_car', size: [4, 8], at: [6, -3], yawDeg: 0, motion: { kind: 'park' } }],
+    }),
+  },
+  {
+    name: 'pocket-ghost',
+    about: 'pocket-escape, and a chaser-like car sits 0.2 m behind the bumper for 1.5 s, then drives off (its fixed memory marks hug the hull, where the free-space clearing used to start one cell out): the way back is open, reverse out at once instead of sitting out the 15 s memory (hullClear:false = stalled 16 s, left after 23 s)',
+    seconds: 25,
+    maxReversals: 6,
+    maxStalledSec: 5,
+    maxShuttle: 2,
+    minGap: 0.1,
+    maxLeaveSec: 14,
+    noGoal: true,
+    spec: () => ({
+      car: { at: [0, 0], yawDeg: 0 },
+      goal: [0, -120],
+      boxes: [seg([-4, 3], [-4, -20]), ...cylinder([0, -20.5], 15)],
+      puppets: [
+        { id: 'parked_car', size: [4, 8], at: [6, -3], yawDeg: 0, motion: { kind: 'park' } },
+        // across the rear (+Z), heading +X (yaw -90): the near flank is 0.5 m behind the 8 m hull; it leaves after 1.5 s
+        { id: 'rear_car', size: [2.5, 12], at: [0, 5.45], yawDeg: -90, delay: 1.5, motion: { kind: 'line', speed: 10 } },
+      ],
     }),
   },
 ]

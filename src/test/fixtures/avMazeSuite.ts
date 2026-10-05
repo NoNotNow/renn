@@ -24,7 +24,7 @@ function criteria(c: MazeCase, m: ScenarioMetrics): string[] {
     minEndSpeed: 0,
     minChaserGap: c.minGap,
   })(m);
-  if (m.goalReachT === Infinity)
+  if (m.goalReachT === Infinity && !c.noGoal)
     out.push(
       `goal not reached in ${c.seconds} s (closest ${f1(m.minGoalDist)} m > ${GOAL_REACH})`,
     );

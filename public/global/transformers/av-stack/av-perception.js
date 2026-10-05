@@ -4,7 +4,7 @@
 // Publishes: av.scan {angles, ranges, range}, av.points [[x,z],...] (world), av.rearClear.
 // debug draw (params.debugDraw, debugRayStride, debugMaxPoints): red = lidar hit rays, magenta ticks = costmap points.
 // Extra ray plane at the car's top edge (params.rayLevels false = off); params.lowRayClearance (m above the underside) adds a low plane.
-// Memory clearing: remembered cells that fresh rays pass through (within memClearRange 45 m, 0 = off) are dropped, so moving obstacles leave no ghost trail.
+// Memory clearing: remembered cells that fresh rays pass through (within memClearRange 45 m, 0 = off) are dropped, so moving obstacles leave no ghost trail. hullClear (default on, false = old): the sweep starts at the hull edge instead of one cell beyond it (marks hugging the hull were never cleared).
 // Zoned scan (params.fwdFovDeg > 0, default off = uniform ring): ~half the rays of a dense ring, aimed where they are needed.
 //  - dense long-range cone (fwdFovDeg, fwdStepDeg 2, range = sensorRange) in the DIRECTION OF TRAVEL: forward, or to the rear while reversing (velocity sign;
 //    at rest / slow it aims at the freer of front / rear, free distances from the cone and the sweep, hysteresis, scanFollowFree false = always forward);
@@ -219,6 +219,7 @@ function transform(input, dt, params, state, api) {
   // for a power-of-two cell, x * (1 / cell) is exactly x / cell (the usual 0.5 m): multiply instead of divide
   var cellP2 = cellInv * cell === 1 && Math.log2(cellInv) % 1 === 0
   var clearRange = params.memClearRange != null ? params.memClearRange : 45
+  var hullClear = params.hullClear !== false
   if (clearRange > 0) {
     // numeric cell index -> memory key (built once per frame; avoids building a string key per ray step)
     var cellIdx = new Map()
@@ -236,7 +237,8 @@ function transform(input, dt, params, state, api) {
       var rd = rayInfo[ri][0]
       var rs = rayInfo[ri][1]
       var rend = Math.min(rayInfo[ri][2] - 1.0, clearRange)
-      for (var rt = rs + cell; rt < rend; rt += cell) {
+      // hullClear (default on, false = old): the sweep starts at the hull edge. Marks within one cell outside the hull (a chaser that waited right behind the bumper and drove off: its fixed marks) were never swept, so they walled the car in for the whole memoryTtl
+      for (var rt = hullClear ? rs : rs + cell; rt < rend; rt += cell) {
         var kux = pos[0] + rd[0] * rt
         var kuz = pos[2] + rd[2] * rt
         var kix = Math.round(cellP2 ? kux * cellInv : kux / cell)
