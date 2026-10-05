@@ -1023,7 +1023,7 @@ function transform(input, dt, params, state, api) {
     if (firstGear === 1) {
       var want = Math.min(lookahead, 6 + 1.0 * Math.max(0, e.speedF))
       var acc = 0
-      var cb = av.threats && av.threats.length ? 0 : params.carrotBend != null ? params.carrotBend : 0.6
+      var cb = (av.threats && av.threats.length) || (e.speedF || 0) < (params.carrotBendMinSpeed != null ? params.carrotBendMinSpeed : 0) ? 0 : params.carrotBend != null ? params.carrotBend : 0
       var cbMin = params.carrotBendMin != null ? params.carrotBendMin : 4
       var a0 = 0
       for (var i = 1; i < nodes.length && nodes[i].g === 1; i++) {
@@ -1032,7 +1032,7 @@ function transform(input, dt, params, state, api) {
         acc += Math.sqrt(dx * dx + dz * dz)
         carrot = [nodes[i].x, nodes[i].z]
         if (acc >= want) break
-        // carrotBend (rad, 0 = off): the carrot stops where the route has turned this far from its first segment. A carrot a whole look-ahead (6 + v m) down the route sits
+        // carrotBend (rad, 0 = off; OPT-IN (0.6 in self_hunt_flexible), only without threats): the carrot stops where the route has turned this far from its first segment. A carrot a whole look-ahead (6 + v m) down the route sits
         // beyond a 90 deg bend (R 8.7 = 14 m of arc): pure pursuit then steers a gentle chord and turns in too late; inside the bend it follows the arc.
         if (cb > 0 && i > 1) {
           var da = Math.atan2(dz, dx) - a0
@@ -1223,10 +1223,10 @@ function transform(input, dt, params, state, api) {
     }
     if (!state.active) {
       if (rt.carrot) av.carrot = rt.carrot
-      // carrotLive (default on, false = off): a plan-time carrot is a world-fixed point; between replans (eco: 2 s = 20 m at 10 m/s) the car drives up to / past it and the pure-pursuit
+      // carrotLive (OPT-IN: true): a plan-time carrot is a world-fixed point; between replans (eco: 2 s = 20 m at 10 m/s) the car drives up to / past it and the pure-pursuit
       // arc to it is stale, in a corridor bend the car turns in a second late and brakes to a stop at the wall. Re-derive it every frame: `want` m down the stored route from the nearest node.
       var liveUsed = false
-      if (rt.carrot && params.carrotLive !== false && (!rt.pull || Math.hypot(rt.pull[0] - pos[0], rt.pull[1] - pos[2]) < Math.max(params.carrotLiveNear != null ? params.carrotLiveNear : 12, 0))  && rt.firstGear === 1 && rt.nodes && !(av.threats && av.threats.length)) {
+      if (rt.carrot && params.carrotLive === true && (!rt.pull || Math.hypot(rt.pull[0] - pos[0], rt.pull[1] - pos[2]) < Math.max(params.carrotLiveNear != null ? params.carrotLiveNear : 12, 0))  && rt.firstGear === 1 && rt.nodes && !(av.threats && av.threats.length)) {
         var ln = rt.nodes
         var lbest = 0
         var lbd = Infinity
@@ -1237,7 +1237,7 @@ function transform(input, dt, params, state, api) {
         var lwant = Math.min(lookahead, 6 + 1.0 * Math.max(0, e.speedF))
         var lacc = 0
         var lcar = null
-        var lcb = params.carrotBend != null ? params.carrotBend : 0.6
+        var lcb = (e.speedF || 0) < (params.carrotBendMinSpeed != null ? params.carrotBendMinSpeed : 0) ? 0 : params.carrotBend != null ? params.carrotBend : 0
         var la0 = 0
         var lcut = false
         for (var lj = lbest + 1; lj < ln.length && ln[lj].g === 1; lj++) {
