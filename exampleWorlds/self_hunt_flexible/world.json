@@ -610,6 +610,45 @@
         "lateralGripSlipScale": 0.3,
         "jumpImpulse": 200
       }
+    },
+    "hunt_chase_av": {
+      "type": "follow",
+      "priority": 1,
+      "enabled": true,
+      "name": "Chase AV",
+      "params": {
+        "targetEntityId": "entity_1779823253285_brtkx1p",
+        "linear": true,
+        "angular": false,
+        "speed": 40
+      }
+    },
+    "hunt_chase_leader": {
+      "type": "follow",
+      "priority": 1,
+      "enabled": true,
+      "name": "Chase leader",
+      "params": {
+        "targetEntityId": "entity_1780539051770_wy2smf6",
+        "linear": true,
+        "angular": false,
+        "speed": 40
+      }
+    },
+    "hunt_chaser_car": {
+      "type": "car2",
+      "priority": 11,
+      "enabled": true,
+      "params": {
+        "power": 400,
+        "steeringIntensity": 0.1,
+        "steeringSpeed": 0.5,
+        "lateralGrip": 100,
+        "tireGripSlipSpeedThreshold": 2,
+        "lateralGripSlipScale": 0.3,
+        "jumpImpulse": 200
+      },
+      "name": "Chaser drive (car2)"
     }
   },
   "assets": {
@@ -18455,14 +18494,18 @@
       "restitution": 0.1,
       "friction": 0.01,
       "transformers": [
-        "car_tf3",
-        "car_tf2",
-        "car_tf0",
-        "car_tf5",
-        "Umlenker2",
-        "car_tf4",
-        "car_tf1_copy",
-        "car_tf1"
+        "global_av_ego",
+        "global_av_perception",
+        "global_av_waypoint_viz",
+        "global_av_route_planner",
+        "global_av_motion_planner",
+        "global_av_speed_planner",
+        "global_av_supervisor",
+        "global_av_control_lateral",
+        "global_av_control_longitudinal",
+        "global_av_aeb",
+        "hunt_chase_av",
+        "hunt_chaser_car"
       ],
       "angularDamping": 0.3,
       "scripts": [
@@ -18505,11 +18548,35 @@
       },
       "transformerPipeStack": [
         {
-          "pipeId": "pipe_1780343603350",
-          "enabled": true,
+          "pipeId": "global_av_autopilot",
           "params": {
-            "id": "entity_1779823253285_brtkx1p"
-          }
+            "cruiseSpeed": 1000,
+            "curveSmooth": 0.6,
+            "switchMargin": 3,
+            "curveDeadband": 0.004,
+            "vehicleWidth": 4,
+            "vehicleLength": 8,
+            "safetyMargin": 0.5,
+            "maxCurvature": 0.115,
+            "goalTolerance": 6,
+            "debugDraw": false,
+            "obstacleSlowRadius": 1,
+            "minSpeed": 9.4,
+            "comfortDecel": 4,
+            "fwdFovDeg": 70,
+            "goalWatchdog": 10,
+            "staticMap": true,
+            "fieldHeuristic": true,
+            "routeClearance": true,
+            "budget": "eco",
+            "maneuverRunSpeed": 7,
+            "handbackMargin": 0.9,
+            "gainInit": 1300,
+            "maxAccel": 60,
+            "tau": 0.12,
+            "goalReach": 6
+          },
+          "enabled": true
         }
       ]
     },
@@ -18623,14 +18690,18 @@
       "restitution": 0.1,
       "friction": 0.01,
       "transformers": [
-        "car_tf3",
-        "car_tf2",
-        "car_tf0",
-        "car_tf5",
-        "Umlenker2",
-        "car_tf4",
-        "car_tf1_copy",
-        "car_tf1"
+        "global_av_ego",
+        "global_av_perception",
+        "global_av_waypoint_viz",
+        "global_av_route_planner",
+        "global_av_motion_planner",
+        "global_av_speed_planner",
+        "global_av_supervisor",
+        "global_av_control_lateral",
+        "global_av_control_longitudinal",
+        "global_av_aeb",
+        "hunt_chase_av",
+        "hunt_chaser_car"
       ],
       "angularDamping": 0.3,
       "scripts": [
@@ -18663,9 +18734,33 @@
       "locked": false,
       "transformerPipeStack": [
         {
-          "pipeId": "pipe_1780343603350",
+          "pipeId": "global_av_autopilot",
           "params": {
-            "id": "entity_1779823253285_brtkx1p"
+            "cruiseSpeed": 1000,
+            "curveSmooth": 0.6,
+            "switchMargin": 3,
+            "curveDeadband": 0.004,
+            "vehicleWidth": 4,
+            "vehicleLength": 8,
+            "safetyMargin": 0.5,
+            "maxCurvature": 0.115,
+            "goalTolerance": 6,
+            "debugDraw": false,
+            "obstacleSlowRadius": 1,
+            "minSpeed": 9.4,
+            "comfortDecel": 4,
+            "fwdFovDeg": 70,
+            "goalWatchdog": 10,
+            "staticMap": true,
+            "fieldHeuristic": true,
+            "routeClearance": true,
+            "budget": "eco",
+            "maneuverRunSpeed": 7,
+            "handbackMargin": 0.9,
+            "gainInit": 1300,
+            "maxAccel": 60,
+            "tau": 0.12,
+            "goalReach": 6
           },
           "enabled": true
         }
@@ -18695,14 +18790,18 @@
       "restitution": 0.1,
       "friction": 0.01,
       "transformers": [
-        "car_tf3",
-        "car_tf2",
-        "car_tf0",
-        "car_tf5",
-        "Umlenker2",
-        "car_tf4",
-        "car_tf1_copy",
-        "car_tf1"
+        "global_av_ego",
+        "global_av_perception",
+        "global_av_waypoint_viz",
+        "global_av_route_planner",
+        "global_av_motion_planner",
+        "global_av_speed_planner",
+        "global_av_supervisor",
+        "global_av_control_lateral",
+        "global_av_control_longitudinal",
+        "global_av_aeb",
+        "hunt_chase_av",
+        "hunt_chaser_car"
       ],
       "angularDamping": 0.3,
       "scripts": [
@@ -18738,9 +18837,33 @@
       "locked": false,
       "transformerPipeStack": [
         {
-          "pipeId": "pipe_1780343603350",
+          "pipeId": "global_av_autopilot",
           "params": {
-            "id": "entity_1779823253285_brtkx1p"
+            "cruiseSpeed": 1000,
+            "curveSmooth": 0.6,
+            "switchMargin": 3,
+            "curveDeadband": 0.004,
+            "vehicleWidth": 4,
+            "vehicleLength": 8,
+            "safetyMargin": 0.5,
+            "maxCurvature": 0.115,
+            "goalTolerance": 6,
+            "debugDraw": false,
+            "obstacleSlowRadius": 1,
+            "minSpeed": 9.4,
+            "comfortDecel": 4,
+            "fwdFovDeg": 70,
+            "goalWatchdog": 10,
+            "staticMap": true,
+            "fieldHeuristic": true,
+            "routeClearance": true,
+            "budget": "eco",
+            "maneuverRunSpeed": 7,
+            "handbackMargin": 0.9,
+            "gainInit": 1300,
+            "maxAccel": 60,
+            "tau": 0.12,
+            "goalReach": 6
           },
           "enabled": true
         }
@@ -18770,14 +18893,18 @@
       "restitution": 0.1,
       "friction": 0.01,
       "transformers": [
-        "car_tf3",
-        "car_tf2",
-        "car_tf0",
-        "car_tf5",
-        "Umlenker2",
-        "car_tf4",
-        "car_tf1_copy",
-        "car_tf1"
+        "global_av_ego",
+        "global_av_perception",
+        "global_av_waypoint_viz",
+        "global_av_route_planner",
+        "global_av_motion_planner",
+        "global_av_speed_planner",
+        "global_av_supervisor",
+        "global_av_control_lateral",
+        "global_av_control_longitudinal",
+        "global_av_aeb",
+        "hunt_chase_av",
+        "hunt_chaser_car"
       ],
       "angularDamping": 0.3,
       "scripts": [
@@ -18810,9 +18937,33 @@
       "locked": false,
       "transformerPipeStack": [
         {
-          "pipeId": "pipe_1780343603350",
+          "pipeId": "global_av_autopilot",
           "params": {
-            "id": "entity_1779823253285_brtkx1p"
+            "cruiseSpeed": 1000,
+            "curveSmooth": 0.6,
+            "switchMargin": 3,
+            "curveDeadband": 0.004,
+            "vehicleWidth": 4,
+            "vehicleLength": 8,
+            "safetyMargin": 0.5,
+            "maxCurvature": 0.115,
+            "goalTolerance": 6,
+            "debugDraw": false,
+            "obstacleSlowRadius": 1,
+            "minSpeed": 9.4,
+            "comfortDecel": 4,
+            "fwdFovDeg": 70,
+            "goalWatchdog": 10,
+            "staticMap": true,
+            "fieldHeuristic": true,
+            "routeClearance": true,
+            "budget": "eco",
+            "maneuverRunSpeed": 7,
+            "handbackMargin": 0.9,
+            "gainInit": 1300,
+            "maxAccel": 60,
+            "tau": 0.12,
+            "goalReach": 6
           },
           "enabled": true
         }
@@ -18842,14 +18993,18 @@
       "restitution": 0.1,
       "friction": 0.01,
       "transformers": [
-        "car_tf3",
-        "car_tf2",
-        "car_tf0",
-        "car_tf5",
-        "Umlenker2",
-        "car_tf4",
-        "car_tf1_copy",
-        "car_tf1"
+        "global_av_ego",
+        "global_av_perception",
+        "global_av_waypoint_viz",
+        "global_av_route_planner",
+        "global_av_motion_planner",
+        "global_av_speed_planner",
+        "global_av_supervisor",
+        "global_av_control_lateral",
+        "global_av_control_longitudinal",
+        "global_av_aeb",
+        "hunt_chase_av",
+        "hunt_chaser_car"
       ],
       "angularDamping": 0.3,
       "scripts": [
@@ -18882,9 +19037,33 @@
       "locked": false,
       "transformerPipeStack": [
         {
-          "pipeId": "pipe_1780343603350",
+          "pipeId": "global_av_autopilot",
           "params": {
-            "id": "entity_1779823253285_brtkx1p"
+            "cruiseSpeed": 1000,
+            "curveSmooth": 0.6,
+            "switchMargin": 3,
+            "curveDeadband": 0.004,
+            "vehicleWidth": 4,
+            "vehicleLength": 8,
+            "safetyMargin": 0.5,
+            "maxCurvature": 0.115,
+            "goalTolerance": 6,
+            "debugDraw": false,
+            "obstacleSlowRadius": 1,
+            "minSpeed": 9.4,
+            "comfortDecel": 4,
+            "fwdFovDeg": 70,
+            "goalWatchdog": 10,
+            "staticMap": true,
+            "fieldHeuristic": true,
+            "routeClearance": true,
+            "budget": "eco",
+            "maneuverRunSpeed": 7,
+            "handbackMargin": 0.9,
+            "gainInit": 1300,
+            "maxAccel": 60,
+            "tau": 0.12,
+            "goalReach": 6
           },
           "enabled": true
         }
@@ -18914,14 +19093,18 @@
       "restitution": 0.1,
       "friction": 0.01,
       "transformers": [
-        "car_tf3",
-        "car_tf2",
-        "car_tf0",
-        "car_tf5",
-        "Umlenker2",
-        "car_tf4",
-        "car_tf1_copy",
-        "car_tf1"
+        "global_av_ego",
+        "global_av_perception",
+        "global_av_waypoint_viz",
+        "global_av_route_planner",
+        "global_av_motion_planner",
+        "global_av_speed_planner",
+        "global_av_supervisor",
+        "global_av_control_lateral",
+        "global_av_control_longitudinal",
+        "global_av_aeb",
+        "hunt_chase_leader",
+        "hunt_chaser_car"
       ],
       "angularDamping": 0.3,
       "scripts": [
@@ -18954,9 +19137,33 @@
       "locked": false,
       "transformerPipeStack": [
         {
-          "pipeId": "pipe_1780343603350",
+          "pipeId": "global_av_autopilot",
           "params": {
-            "id": "entity_1780539051770_wy2smf6"
+            "cruiseSpeed": 1000,
+            "curveSmooth": 0.6,
+            "switchMargin": 3,
+            "curveDeadband": 0.004,
+            "vehicleWidth": 4,
+            "vehicleLength": 8,
+            "safetyMargin": 0.5,
+            "maxCurvature": 0.115,
+            "goalTolerance": 6,
+            "debugDraw": false,
+            "obstacleSlowRadius": 1,
+            "minSpeed": 9.4,
+            "comfortDecel": 4,
+            "fwdFovDeg": 70,
+            "goalWatchdog": 10,
+            "staticMap": true,
+            "fieldHeuristic": true,
+            "routeClearance": true,
+            "budget": "eco",
+            "maneuverRunSpeed": 7,
+            "handbackMargin": 0.9,
+            "gainInit": 1300,
+            "maxAccel": 60,
+            "tau": 0.12,
+            "goalReach": 6
           },
           "enabled": true
         }
@@ -18986,14 +19193,18 @@
       "restitution": 0.1,
       "friction": 0.01,
       "transformers": [
-        "car_tf3",
-        "car_tf2",
-        "car_tf0",
-        "car_tf5",
-        "Umlenker2",
-        "car_tf4",
-        "car_tf1_copy",
-        "car_tf1"
+        "global_av_ego",
+        "global_av_perception",
+        "global_av_waypoint_viz",
+        "global_av_route_planner",
+        "global_av_motion_planner",
+        "global_av_speed_planner",
+        "global_av_supervisor",
+        "global_av_control_lateral",
+        "global_av_control_longitudinal",
+        "global_av_aeb",
+        "hunt_chase_leader",
+        "hunt_chaser_car"
       ],
       "angularDamping": 0.3,
       "scripts": [
@@ -19026,9 +19237,33 @@
       "locked": false,
       "transformerPipeStack": [
         {
-          "pipeId": "pipe_1780343603350",
+          "pipeId": "global_av_autopilot",
           "params": {
-            "id": "entity_1780539051770_wy2smf6"
+            "cruiseSpeed": 1000,
+            "curveSmooth": 0.6,
+            "switchMargin": 3,
+            "curveDeadband": 0.004,
+            "vehicleWidth": 4,
+            "vehicleLength": 8,
+            "safetyMargin": 0.5,
+            "maxCurvature": 0.115,
+            "goalTolerance": 6,
+            "debugDraw": false,
+            "obstacleSlowRadius": 1,
+            "minSpeed": 9.4,
+            "comfortDecel": 4,
+            "fwdFovDeg": 70,
+            "goalWatchdog": 10,
+            "staticMap": true,
+            "fieldHeuristic": true,
+            "routeClearance": true,
+            "budget": "eco",
+            "maneuverRunSpeed": 7,
+            "handbackMargin": 0.9,
+            "gainInit": 1300,
+            "maxAccel": 60,
+            "tau": 0.12,
+            "goalReach": 6
           },
           "enabled": true
         }
@@ -19058,14 +19293,18 @@
       "restitution": 0.1,
       "friction": 0.01,
       "transformers": [
-        "car_tf3",
-        "car_tf2",
-        "car_tf0",
-        "car_tf5",
-        "Umlenker2",
-        "car_tf4",
-        "car_tf1_copy",
-        "car_tf1"
+        "global_av_ego",
+        "global_av_perception",
+        "global_av_waypoint_viz",
+        "global_av_route_planner",
+        "global_av_motion_planner",
+        "global_av_speed_planner",
+        "global_av_supervisor",
+        "global_av_control_lateral",
+        "global_av_control_longitudinal",
+        "global_av_aeb",
+        "hunt_chase_leader",
+        "hunt_chaser_car"
       ],
       "angularDamping": 0.3,
       "scripts": [
@@ -19098,9 +19337,33 @@
       "locked": false,
       "transformerPipeStack": [
         {
-          "pipeId": "pipe_1780343603350",
+          "pipeId": "global_av_autopilot",
           "params": {
-            "id": "entity_1780539051770_wy2smf6"
+            "cruiseSpeed": 1000,
+            "curveSmooth": 0.6,
+            "switchMargin": 3,
+            "curveDeadband": 0.004,
+            "vehicleWidth": 4,
+            "vehicleLength": 8,
+            "safetyMargin": 0.5,
+            "maxCurvature": 0.115,
+            "goalTolerance": 6,
+            "debugDraw": false,
+            "obstacleSlowRadius": 1,
+            "minSpeed": 9.4,
+            "comfortDecel": 4,
+            "fwdFovDeg": 70,
+            "goalWatchdog": 10,
+            "staticMap": true,
+            "fieldHeuristic": true,
+            "routeClearance": true,
+            "budget": "eco",
+            "maneuverRunSpeed": 7,
+            "handbackMargin": 0.9,
+            "gainInit": 1300,
+            "maxAccel": 60,
+            "tau": 0.12,
+            "goalReach": 6
           },
           "enabled": true
         }
@@ -19130,14 +19393,18 @@
       "restitution": 0.1,
       "friction": 0.01,
       "transformers": [
-        "car_tf3",
-        "car_tf2",
-        "car_tf0",
-        "car_tf5",
-        "Umlenker2",
-        "car_tf4",
-        "car_tf1_copy",
-        "car_tf1"
+        "global_av_ego",
+        "global_av_perception",
+        "global_av_waypoint_viz",
+        "global_av_route_planner",
+        "global_av_motion_planner",
+        "global_av_speed_planner",
+        "global_av_supervisor",
+        "global_av_control_lateral",
+        "global_av_control_longitudinal",
+        "global_av_aeb",
+        "hunt_chase_leader",
+        "hunt_chaser_car"
       ],
       "angularDamping": 0.3,
       "scripts": [
@@ -19170,9 +19437,33 @@
       "locked": false,
       "transformerPipeStack": [
         {
-          "pipeId": "pipe_1780343603350",
+          "pipeId": "global_av_autopilot",
           "params": {
-            "id": "entity_1780539051770_wy2smf6"
+            "cruiseSpeed": 1000,
+            "curveSmooth": 0.6,
+            "switchMargin": 3,
+            "curveDeadband": 0.004,
+            "vehicleWidth": 4,
+            "vehicleLength": 8,
+            "safetyMargin": 0.5,
+            "maxCurvature": 0.115,
+            "goalTolerance": 6,
+            "debugDraw": false,
+            "obstacleSlowRadius": 1,
+            "minSpeed": 9.4,
+            "comfortDecel": 4,
+            "fwdFovDeg": 70,
+            "goalWatchdog": 10,
+            "staticMap": true,
+            "fieldHeuristic": true,
+            "routeClearance": true,
+            "budget": "eco",
+            "maneuverRunSpeed": 7,
+            "handbackMargin": 0.9,
+            "gainInit": 1300,
+            "maxAccel": 60,
+            "tau": 0.12,
+            "goalReach": 6
           },
           "enabled": true
         }
@@ -19202,14 +19493,18 @@
       "restitution": 0.1,
       "friction": 0.01,
       "transformers": [
-        "car_tf3",
-        "car_tf2",
-        "car_tf0",
-        "car_tf5",
-        "Umlenker2",
-        "car_tf4",
-        "car_tf1_copy",
-        "car_tf1"
+        "global_av_ego",
+        "global_av_perception",
+        "global_av_waypoint_viz",
+        "global_av_route_planner",
+        "global_av_motion_planner",
+        "global_av_speed_planner",
+        "global_av_supervisor",
+        "global_av_control_lateral",
+        "global_av_control_longitudinal",
+        "global_av_aeb",
+        "hunt_chase_leader",
+        "hunt_chaser_car"
       ],
       "angularDamping": 0.3,
       "scripts": [
@@ -19242,9 +19537,33 @@
       "locked": false,
       "transformerPipeStack": [
         {
-          "pipeId": "pipe_1780343603350",
+          "pipeId": "global_av_autopilot",
           "params": {
-            "id": "entity_1780539051770_wy2smf6"
+            "cruiseSpeed": 1000,
+            "curveSmooth": 0.6,
+            "switchMargin": 3,
+            "curveDeadband": 0.004,
+            "vehicleWidth": 4,
+            "vehicleLength": 8,
+            "safetyMargin": 0.5,
+            "maxCurvature": 0.115,
+            "goalTolerance": 6,
+            "debugDraw": false,
+            "obstacleSlowRadius": 1,
+            "minSpeed": 9.4,
+            "comfortDecel": 4,
+            "fwdFovDeg": 70,
+            "goalWatchdog": 10,
+            "staticMap": true,
+            "fieldHeuristic": true,
+            "routeClearance": true,
+            "budget": "eco",
+            "maneuverRunSpeed": 7,
+            "handbackMargin": 0.9,
+            "gainInit": 1300,
+            "maxAccel": 60,
+            "tau": 0.12,
+            "goalReach": 6
           },
           "enabled": true
         }
