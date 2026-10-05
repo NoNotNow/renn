@@ -975,7 +975,6 @@
       "restitution": 0.1,
       "friction": 0.01,
       "transformers": [
-        "entity_1779823253285_brtkx1p_tf10",
         "global_av_ego",
         "global_av_perception",
         "global_av_waypoint_viz",
@@ -986,6 +985,7 @@
         "global_av_control_lateral",
         "global_av_control_longitudinal",
         "global_av_aeb",
+        "entity_1779823253285_brtkx1p_tf10",
         "entity_1779823253285_brtkx1p_tf1"
       ],
       "angularDamping": 0.3,
@@ -1161,7 +1161,6 @@
       "restitution": 0.1,
       "friction": 0.01,
       "transformers": [
-        "fleet_car_1_tf10",
         "global_av_ego",
         "global_av_perception",
         "global_av_waypoint_viz",
@@ -1172,6 +1171,7 @@
         "global_av_control_lateral",
         "global_av_control_longitudinal",
         "global_av_aeb",
+        "fleet_car_1_tf10",
         "fleet_car_1_tf1"
       ],
       "angularDamping": 0.3,
@@ -1259,7 +1259,6 @@
       "restitution": 0.1,
       "friction": 0.01,
       "transformers": [
-        "fleet_car_2_tf10",
         "global_av_ego",
         "global_av_perception",
         "global_av_waypoint_viz",
@@ -1270,6 +1269,7 @@
         "global_av_control_lateral",
         "global_av_control_longitudinal",
         "global_av_aeb",
+        "fleet_car_2_tf10",
         "fleet_car_2_tf1"
       ],
       "angularDamping": 0.3,
@@ -1357,7 +1357,6 @@
       "restitution": 0.1,
       "friction": 0.01,
       "transformers": [
-        "fleet_car_3_tf10",
         "global_av_ego",
         "global_av_perception",
         "global_av_waypoint_viz",
@@ -1368,6 +1367,7 @@
         "global_av_control_lateral",
         "global_av_control_longitudinal",
         "global_av_aeb",
+        "fleet_car_3_tf10",
         "fleet_car_3_tf1"
       ],
       "angularDamping": 0.3,
@@ -1455,7 +1455,6 @@
       "restitution": 0.1,
       "friction": 0.01,
       "transformers": [
-        "fleet_car_4_tf10",
         "global_av_ego",
         "global_av_perception",
         "global_av_waypoint_viz",
@@ -1466,6 +1465,7 @@
         "global_av_control_lateral",
         "global_av_control_longitudinal",
         "global_av_aeb",
+        "fleet_car_4_tf10",
         "fleet_car_4_tf1"
       ],
       "angularDamping": 0.3,
@@ -1553,7 +1553,6 @@
       "restitution": 0.1,
       "friction": 0.01,
       "transformers": [
-        "fleet_car_5_tf10",
         "global_av_ego",
         "global_av_perception",
         "global_av_waypoint_viz",
@@ -1564,6 +1563,7 @@
         "global_av_control_lateral",
         "global_av_control_longitudinal",
         "global_av_aeb",
+        "fleet_car_5_tf10",
         "fleet_car_5_tf1"
       ],
       "angularDamping": 0.3,
@@ -1651,7 +1651,6 @@
       "restitution": 0.1,
       "friction": 0.01,
       "transformers": [
-        "fleet_car_6_tf10",
         "global_av_ego",
         "global_av_perception",
         "global_av_waypoint_viz",
@@ -1662,6 +1661,7 @@
         "global_av_control_lateral",
         "global_av_control_longitudinal",
         "global_av_aeb",
+        "fleet_car_6_tf10",
         "fleet_car_6_tf1"
       ],
       "angularDamping": 0.3,
@@ -2091,8 +2091,19 @@
       ],
       "origin": {
         "globalId": "global_av_sense",
-        "hash": "1uen7n1"
-      }
+        "hash": "184rgnp"
+      },
+      "paramDefs": [
+        {
+          "key": "tickEvery",
+          "label": "Run every N-th frame",
+          "type": "integer",
+          "default": 1,
+          "min": 1,
+          "step": 1,
+          "description": "Decimates the stages of this layer (cars never plan in the same frame). 1 = every frame."
+        }
+      ]
     },
     "global_av_plan_route": {
       "id": "global_av_plan_route",
@@ -2117,8 +2128,19 @@
       ],
       "origin": {
         "globalId": "global_av_plan_route",
-        "hash": "so3nko"
-      }
+        "hash": "8noxyi"
+      },
+      "paramDefs": [
+        {
+          "key": "tickEvery",
+          "label": "Run every N-th frame",
+          "type": "integer",
+          "default": 1,
+          "min": 1,
+          "step": 1,
+          "description": "Decimates the stages of this layer (cars never plan in the same frame). 1 = every frame."
+        }
+      ]
     },
     "global_av_plan_local": {
       "id": "global_av_plan_local",
@@ -2155,8 +2177,19 @@
       ],
       "origin": {
         "globalId": "global_av_plan_local",
-        "hash": "hwqyvm"
-      }
+        "hash": "1px4phk"
+      },
+      "paramDefs": [
+        {
+          "key": "tickEvery",
+          "label": "Run every N-th frame",
+          "type": "integer",
+          "default": 1,
+          "min": 1,
+          "step": 1,
+          "description": "Decimates the stages of this layer (cars never plan in the same frame). 1 = every frame."
+        }
+      ]
     },
     "global_av_plan": {
       "id": "global_av_plan",
@@ -2388,80 +2421,121 @@
       "paramDefs": [
         {
           "key": "cruiseSpeed",
-          "label": "Cruise speed (m/s)",
+          "label": "Cruise speed",
           "type": "number",
-          "default": 10
-        },
-        {
-          "key": "vehicleWidth",
-          "label": "Vehicle width (m)",
-          "type": "number",
-          "default": 2
-        },
-        {
-          "key": "vehicleLength",
-          "label": "Vehicle length (m)",
-          "type": "number",
-          "default": 4
-        },
-        {
-          "key": "safetyMargin",
-          "label": "Safety margin (m)",
-          "type": "number",
-          "default": 0.5
-        },
-        {
-          "key": "maxCurvature",
-          "label": "Max curvature 1/m (min turn radius)",
-          "type": "number",
-          "default": 0.115
+          "default": 10,
+          "min": 0,
+          "unit": "m/s",
+          "group": "Speed",
+          "description": "Upper bound of the target speed; the car drives the minimum of all speed limits."
         },
         {
           "key": "minSpeed",
-          "label": "Minimum speed while driving (m/s)",
+          "label": "Minimum speed while driving",
           "type": "number",
-          "default": 4
+          "default": 4,
+          "min": 0,
+          "unit": "m/s",
+          "group": "Speed"
         },
         {
           "key": "obstacleSlowRadius",
-          "label": "Obstacles slow the car only within (m) — 0 = off",
+          "label": "Obstacles slow the car only within",
           "type": "number",
-          "default": 5
+          "default": 5,
+          "min": 0,
+          "unit": "m",
+          "group": "Speed",
+          "description": "0 = off"
         },
         {
           "key": "obstacleSlowFactor",
-          "label": "Speed right next to an obstacle (× cruise)",
+          "label": "Speed right next to an obstacle",
           "type": "number",
-          "default": 0.5
+          "default": 0.5,
+          "min": 0,
+          "max": 1,
+          "step": 0.05,
+          "unit": "x cruise",
+          "group": "Speed"
         },
         {
           "key": "comfortDecel",
-          "label": "Braking for obstacles in the path (m/s²)",
+          "label": "Braking for obstacles in the path",
           "type": "number",
-          "default": 5
+          "default": 5,
+          "min": 0,
+          "unit": "m/s²",
+          "group": "Speed"
         },
         {
           "key": "maxLatAccel",
-          "label": "Cornering limit, lateral accel (m/s²)",
+          "label": "Cornering limit (lateral accel)",
           "type": "number",
-          "default": 9
+          "default": 9,
+          "min": 0,
+          "unit": "m/s²",
+          "group": "Speed"
+        },
+        {
+          "key": "vehicleWidth",
+          "label": "Vehicle width",
+          "type": "number",
+          "default": 2,
+          "min": 0,
+          "unit": "m",
+          "group": "Vehicle"
+        },
+        {
+          "key": "vehicleLength",
+          "label": "Vehicle length",
+          "type": "number",
+          "default": 4,
+          "min": 0,
+          "unit": "m",
+          "group": "Vehicle"
+        },
+        {
+          "key": "maxCurvature",
+          "label": "Max curvature (min turn radius)",
+          "type": "number",
+          "default": 0.115,
+          "min": 0,
+          "step": 0.005,
+          "unit": "1/m",
+          "group": "Vehicle"
+        },
+        {
+          "key": "safetyMargin",
+          "label": "Safety margin",
+          "type": "number",
+          "default": 0.5,
+          "min": 0,
+          "step": 0.05,
+          "unit": "m",
+          "group": "Safety"
         },
         {
           "key": "goalTolerance",
-          "label": "Final goal hold radius (m)",
+          "label": "Final goal hold radius",
           "type": "number",
-          "default": 5.5
+          "default": 5.5,
+          "min": 0,
+          "step": 0.1,
+          "unit": "m",
+          "group": "Goal"
         },
         {
           "key": "debugDraw",
           "label": "Draw debug vectors (Builder visualize mode)",
           "type": "boolean",
-          "default": true
+          "default": true,
+          "group": "Debug"
         }
       ],
       "origin": {
         "globalId": "global_av_autopilot",
-        "hash": "e97rtk"
+        "hash": "1skyik0"
       }
     }
   }
