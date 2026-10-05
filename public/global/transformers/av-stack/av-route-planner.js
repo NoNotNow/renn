@@ -623,6 +623,17 @@ function transform(input, dt, params, state, api) {
       // confined (walls on BOTH sides of the start pose within ~4 m: corridor, gate, dead end): no berth to buy there, keep the plain plan
       var lat = params.clearConfineLat != null ? params.clearConfineLat : 4
       if (clearDist(clrF, sx + e.left[0] * lat, sz + e.left[2] * lat) < 2.5 && clearDist(clrF, sx - e.left[0] * lat, sz - e.left[2] * lat) < 2.5) clrF = null
+      // corridor / dead end wider than that (walls on both sides within clearConfineWide, 11 m): a wall line is crossed laterally on BOTH sides -> plain plan (no berth to buy, and the unseen end of a corridor counts as free)
+      if (clrF !== null) {
+        var wide = params.clearConfineWide != null ? params.clearConfineWide : 11
+        var wl = false
+        var wr = false
+        for (var wd = 1; wd <= wide; wd++) {
+          if (!wl && clearDist(clrF, sx + e.left[0] * wd, sz + e.left[2] * wd) < 0.8) wl = true
+          if (!wr && clearDist(clrF, sx - e.left[0] * wd, sz - e.left[2] * wd) < 0.8) wr = true
+        }
+        if (wl && wr) clrF = null
+      }
       clrActive = clrF !== null
       clrW = params.clearWeight != null ? params.clearWeight : 0.03
       clrHalfW = ((av.vehicle && av.vehicle.width) || params.vehicleWidth || 2) / 2
@@ -1066,6 +1077,7 @@ function transform(input, dt, params, state, api) {
       // maze mode only while the previous plan was a long forward run (a wall to drive around is 'maze' by the field detour, a dead end / corridor turn-around is not a cruise plan)
       clearOn = params.routeClearance === true && !turnOk && !state.revCruise && (!state.maze || ((e.speedF || 0) >= (params.clearMinSpeed != null ? params.clearMinSpeed : 9) && state.route !== undefined && state.route.firstGear === 1 && state.route.reached && state.route.run >= (params.clearMazeRun != null ? params.clearMazeRun : 40)))
       state.route = summarize(plan(routeExp))
+      api.watch('av.clr', clrActive ? clearDc().toFixed(1) : '-')
       clearOn = false
       state.routeT = e.t
       state.revFresh = true
