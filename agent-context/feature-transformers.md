@@ -159,6 +159,22 @@ game.setTransformerEnabled(entityId, type, enabled)
 game.setTransformerParam(entityId, type, paramName, value)
 ```
 
+## Param forms (typed UI for every pipe and stage)
+
+One schema, one field, one form, reused everywhere a param can be tuned:
+
+- **Schema** `ParamDef` (`src/types/paramSchema.ts`; `PipeParamDef` is an alias): `key, label, type (number | integer | string | boolean | enum | color | entityId | vec2 | vec3 | numberList | json), default, description, group, min, max, step, unit, options, advanced`. **`min` / `max` are drag hints only**: typed or stored values are never clamped or rejected (a `cruiseSpeed` of 1000 is legal); a drag that starts inside the range stays inside it, a value outside shows a subtle warning mark.
+- **Where schemas come from** (`resolveStageParamSchema` / `resolvePipeParamSchema` in `src/params/resolveParamSchema.ts`):
+  1. preset types: `src/params/presetParamSchemas.ts` (descriptions from `TRANSFORMER_PARAMS_DOCS`, defaults from `getDefaultTransformerConfig`; a test keeps all three in step; dotted keys such as `perimeter.center` edit nested objects);
+  2. custom stages: a strict-JSON array in the **first block comment of the stage source**: `/* @params [ {"key":"aebDecel","type":"number","default":7,"min":1,"unit":"m/s²"} ] */` (`parseParamsDecl`). It travels with the code (copy, link, library sync) so no library/world field is needed; a malformed block shows a warning and falls back to inference;
+  3. pipes: `TransformerPipe.paramDefs`;
+  4. **always topped up by inference** (`inferParamDefs.ts`): every key present in the params but not declared gets a field typed from its value (number, boolean, string, `...Id` entity id, 2/3 numbers vec2/vec3, number list, else `json`), group "Other". So stages with no declaration still get a usable form. An "Add param" row creates new keys.
+- **Components** (`src/components/params/`): `ParamField` (one control per type), `ParamForm` (groups, advanced section, inherited values, reset, add, JSON toggle), `ParamsJsonEditor` (the single raw-JSON escape hatch), `StageParamsForm` (stage adapter). `PipeParamsStrip` is the pipe adapter (props and test ids unchanged).
+- **Mounted in:** pipe drawer (`PipeConfigDrawer`, opens the JSON editor first when the pipe declares no params), stage Configure drawer (`TransformerPipelineHorizontal`, tabs **Params | JSON**, reached from the pipe tree "Stage settings"), entity transformer list (`TransformerEditor`, custom + preset stages), global stage panel (`WorkspaceGlobalTransformerPanel`, edits the stage defaults).
+- **Overrides:** values are written at exactly the edited scope (stack params, nested `scopeParams`, or the stage's own `params`). Explicit values equal to the default are kept. At a nested scope the form also gets the inherited layers (`resolveInheritedScopeParams`): the inherited value is shown as effective, the field gets a dot once set at this scope, and the reset button writes `undefined`, which `mergeParamPatch` turns into **deleting the key at that scope**.
+- **Undo:** number drags are buffered and written once on release (one undo step); typed/checkbox/select edits are single commits.
+- Declaring a stage's params: put the `@params` block first in the stage source, keep the prose header below it. The shipped av-stack stages get their blocks in a separate pass; until then they use inferred fields.
+
 ## Rules when adding a transformer
 
 1. Preserve `priority` order semantics.

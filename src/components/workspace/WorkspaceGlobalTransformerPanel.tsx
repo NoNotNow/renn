@@ -1,6 +1,6 @@
+import StageParamsForm from '@/components/params/StageParamsForm'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { PresetTransformerType, TransformerDef } from '@/types/transformer'
-import ValidatedJsonTextarea from '@/components/ValidatedJsonTextarea'
 import TransformerTemplateDialog from '@/components/TransformerTemplateDialog'
 import TransformerFieldReference from '@/components/TransformerFieldReference'
 import { EntityPanelIcons } from '@/components/EntityPanelIcons'
@@ -250,18 +250,11 @@ export default function WorkspaceGlobalTransformerPanel({
               <TransformerFieldReference transformerType={def.type as PresetTransformerType} />
             </div>
           : null}
-          <div style={{ ...fieldLabelStyle, marginTop: 4 }}>Params (JSON)</div>
-          <ValidatedJsonTextarea
-            value={JSON.stringify(def.params ?? {}, null, 2)}
-            onApply={(updated) => {
-              const patch =
-                typeof updated === 'object' && updated !== null && !Array.isArray(updated) ? (updated as Record<string, unknown>) : {}
-              onDefChange({ ...def, params: patch })
-            }}
-            disabled={false}
-            applyVariant="icon"
-            textareaTestId="workspace-global-tf-params"
-            applyTestId="workspace-global-tf-params-apply"
+          <div style={{ ...fieldLabelStyle, marginTop: 4 }}>Params (default values)</div>
+          <StageParamsForm
+            stage={def}
+            testIdSuffix="-global"
+            onParamsChange={(params) => onDefChange({ ...def, params })}
           />
         </div>
       ) : (

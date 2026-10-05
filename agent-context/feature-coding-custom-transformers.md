@@ -287,3 +287,7 @@ npm run test:run -- src/utils/monacoExtraLib.test.ts src/transformers/transforme
 | Names / uniqueness | [`customTransformerNaming.ts`](../src/transformers/customTransformerNaming.ts) |
 | Load-time migration | [`migrateWorld.ts`](../src/scripts/migrateWorld.ts) |
 | Sidebar host | [`PropertySidebar.tsx`](../src/components/PropertySidebar.tsx) |
+
+## Declaring params (`@params`)
+
+Put a strict-JSON array in the first block comment of the stage code to get typed fields in the Config drawer and entity list: `/* @params [ {"key":"gain","type":"number","default":1,"min":0,"max":5,"unit":"x"} ] */`. Types: number, integer, string, boolean, enum (`options`), color, entityId, vec2, vec3, numberList, json; also `label`, `description`, `group`, `step`, `advanced`. `min`/`max` are drag hints, never enforced. Undeclared params still get inferred fields. Details: [feature-transformers.md](feature-transformers.md) "Param forms".

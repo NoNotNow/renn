@@ -198,3 +198,5 @@ npm run test:e2e -- e2e/performance-booster-giraffe.spec.ts
 ```
 
 If `giraffe-world.zip` is missing, the giraffe suite is skipped. See [`e2e/fixtures/README.md`](../e2e/fixtures/README.md).
+
+- 2026-10-05: `npm run sync:global-pipeline` re-run for param forms: AV pipes carry richer `paramDefs` (groups, units, per-layer `tickEvery`) and the self-driving-car stages carry `@params` blocks; world params/poses unchanged.

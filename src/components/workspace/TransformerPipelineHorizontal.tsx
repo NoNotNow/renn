@@ -15,6 +15,7 @@ import WorkspaceFloatingDrawer from '@/components/workspace/WorkspaceFloatingDra
 import { clampDrawerPosition, drawerPositionRelativeToHost } from '@/components/workspace/floatingDrawerLayout'
 import ValidatedJsonTextarea from '@/components/ValidatedJsonTextarea'
 import TransformerFieldReference from '@/components/TransformerFieldReference'
+import StageParamsForm from '@/components/params/StageParamsForm'
 import { EntityPanelIcons } from '@/components/EntityPanelIcons'
 import { entityPanelIconButtonStyle } from '@/components/sharedStyles'
 import { theme } from '@/config/theme'
@@ -442,6 +443,7 @@ function TransformerTraceItem({
     }
   }, [configRequestToken])
   const [fieldRefOpen, setFieldRefOpen] = useState(false)
+  const [configTab, setConfigTab] = useState<'params' | 'json'>('params')
   const [isToolsExpanded, setIsToolsExpanded] = useState(true)
   const itemRef = useRef<HTMLDivElement>(null)
   const traceFontRef = useRef('10px sans-serif')
@@ -943,14 +945,46 @@ function TransformerTraceItem({
                 minHeight: 0,
               }}
             >
-              {transformer.type === 'custom' ? (
+              <div role="tablist" style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                {(['params', 'json'] as const).map((tab) => (
+                  <button
+                    key={tab}
+                    type="button"
+                    role="tab"
+                    aria-selected={configTab === tab}
+                    data-testid={`transformer-horizontal-config-tab-${tab}-${index}`}
+                    onClick={() => setConfigTab(tab)}
+                    style={{
+                      padding: '2px 10px',
+                      borderRadius: 4,
+                      fontSize: 11,
+                      cursor: 'pointer',
+                      color: configTab === tab ? theme.text.primary : theme.text.muted,
+                      background: configTab === tab ? theme.bg.input : 'transparent',
+                      border: `1px solid ${configTab === tab ? theme.pipeNav.accentMuted : 'transparent'}`,
+                    }}
+                  >
+                    {tab === 'params' ? 'Params' : 'JSON'}
+                  </button>
+                ))}
+              </div>
+              {configTab === 'params' ? (
+                <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+                  <StageParamsForm
+                    stage={transformer}
+                    testIdSuffix={`-${index}`}
+                    onParamsChange={(params) => onUpdate({ ...transformer, params })}
+                  />
+                </div>
+              ) : null}
+              {configTab === 'json' && transformer.type === 'custom' ? (
                 <p style={{ margin: 0, fontSize: 11, color: theme.text.muted, lineHeight: 1.4, flexShrink: 0 }}>
                   Edit TypeScript in the code editor. This JSON is name, priority, params, and enabled only.
                 </p>
               ) : null}
               <div
                 style={{
-                  display: 'flex',
+                  display: configTab === 'json' ? 'flex' : 'none',
                   flexDirection: 'row',
                   gap: 8,
                   flex: 1,

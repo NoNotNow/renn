@@ -95,6 +95,7 @@ Track status here when consolidating. Update this table whenever a row is fixed 
 | `Sidebar` resize                                | **Intentional**    | Layout-specific toggle resize; keep separate.                                                                                                                                     |
 | `TransformerCustomCodeEditor` height handle     | **Intentional**    | Editor-specific vertical resize; not a dialog pattern.                                                                                                                            |
 | Extend `Modal` to full edge resize              | **Open (low)**     | Only needed if a centered modal requires left/top edge drag.                                                                                                                      |
+| Param editors (pipe strip, 4 JSON textareas)    | **Done**           | One `ParamField` / `ParamForm` / `ParamsJsonEditor` (`src/components/params/`) used by `PipeConfigDrawer`, the stage Configure drawer (Params / JSON tabs), `TransformerEditor` and `WorkspaceGlobalTransformerPanel`. Drawers are the existing `WorkspaceFloatingDrawer`; no new floating infra. Entity-id params are plain text (`EntitySearchPicker` needs world context; follow-up). |
 
 ---
 
