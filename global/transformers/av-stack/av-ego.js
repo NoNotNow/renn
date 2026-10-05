@@ -20,12 +20,13 @@
 // PRESETS (params.preset, OPT-IN; unset / 'none' = the raw per-stage defaults, no expansion, as before presets existed): one switch that expands to the feature params the stages gate on. Explicit params (pipe binding, scope, stage)
 // always override the preset's value for the same key. This stage runs first and publishes the preset table as `av.preset`; every later stage merges its OWN params over it
 // (so per-layer scopeParams / stageParams keep working; a stage used without this one sees its raw params). Keep the tables in sync with agent-context/feature-av-stack.md ("Using the AV autopilot in your game").
-//  car             generic vehicle: curvature smoothing + plan hysteresis, footprint-aware hand-back, travel-direction zoned scan, goal watchdog (unreachable goals are replaced by open-road goals),
+//  car             generic vehicle: CPU budget 'eco' (economy mode: goal fixation, calm-cruise scanFocus; budget: 'full' in the binding = old behaviour), curvature smoothing + plan hysteresis, footprint-aware hand-back, travel-direction zoned scan, goal watchdog (unreachable goals are replaced by open-road goals),
 //                  prediction params (inert without threatIds), selfCalibrate (the longitudinal actuator identifies itself at the first launch, see av-control-longitudinal.js).
 //  chaser-evasion  car + style 'escape' (manoeuvres / reversing as fast as the plan can be stopped, not 3 m/s) + pursuit evasion tuning (obstacle slow radius 1 m, minSpeed 9.4, comfortDecel 4, wThreat, hit floor, flee layer); give it `threatIds`.
 //  maze            car + persistent static map + 2D goal-distance field (goals behind walls, dead ends, pockets).
 //  arena           chaser-evasion + maze.
 var AV_PRESET_CAR = {
+  budget: 'eco',
   selfCalibrate: true,
   curveSmooth: 0.6,
   curveDeadband: 0.004,
@@ -86,6 +87,12 @@ function transform(input, dt, params, state, api) {
   if (prevAv && prevAv.fieldGoal) av.prevField = prevAv.fieldGoal
   // economy mode: last frame's goal fixation (av-motion-planner) steers this frame's narrow perception cone
   if (prevAv && prevAv.fix) av.prevFix = prevAv.fix
+  // scanFocus (av-perception): last frame's route / carrot / blocked plan decide whether this frame's perception may stay narrow
+  if (prevAv) {
+    av.prevRoute = prevAv.route
+    av.prevCarrot = prevAv.carrot
+    av.prevBlocked = !!(prevAv.plan && (prevAv.plan.blocked || prevAv.plan.override || !(prevAv.plan.free >= 0.9 * prevAv.plan.horizon)))
+  }
   // last frame's persistent static map (gapWalls: free run of the escape headings)
   if (prevAv && prevAv.smap) av.prevSmap = prevAv.smap
   // a goal source running in front of this stage hands its mission over via input.goalSource (see av-wander.js)
