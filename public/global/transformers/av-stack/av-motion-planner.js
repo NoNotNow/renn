@@ -4,7 +4,7 @@
 // (margin grows with speed) against the costmap. Cost = progress to goal, heading, required stopping
 // length, clearance, smoothness. Publishes av.plan {kappa, free, freeSoft, clearance, blocked, horizon}.
 // CPU budget (params.budget 'full' (default) | 'normal' | 'eco'): with 'normal' / 'eco' the planner FIXATES on a free, visible aim point instead of sampling ~190 candidates every frame:
-// aim (route carrot or goal) within fixAimDeg (35) of the heading, no tracked threat within fixThreatRange (150 m: a 30 m/s pursuer closes 60 m in ~1 s; corner-trap collided with 60 m), no moving costmap mark (av.movers) within fixDynRange (12 m) or inside
+// aim (route carrot or goal) within fixAimDeg (35) of the heading, no tracked threat that is within fixThreatMin (25 m) or reaches the car within fixThreatTime (5 s) at max(closing speed along the line of sight, the body's own speed: a homing body turns onto the car; floor fixThreatVMin 2 m/s) (bodies beyond fixThreatRange 90 m never block, the same reach the old rule effectively had; fixThreatTime 0 = old rule: any threat within fixThreatRange; a 30 m/s pursuer closes 60 m in ~1 s, corner-trap collided with a 60 m range), no moving costmap mark (av.movers) within fixDynRange (12 m) or inside
 // the band of fixDynBand (6 m) beside the fixation arc up to 10 m beyond the aim / horizon,
 // and the footprint corridor of the pure-pursuit arc to it is free (hard + soft margin) up to min(aim distance, horizon) -> plan = that arc (av.fix, cyan in debug draw).
 // Any condition failing -> the full sampling planner this frame. Path blocked -> the route planner's carrot becomes the next waypoint the car fixates on.
@@ -416,8 +416,27 @@ function transform(input, dt, params, state, api) {
     var why = v <= 0.5 ? 'slow' : gx <= 1.5 ? 'near' : 'cone'
     if (gx > 1.5 && Math.abs(Math.atan2(gy, gx)) < ((params.fixAimDeg || 35) * Math.PI) / 180 && v > 0.5) {
       why = ''
-      var fixThrR = params.fixThreatRange != null ? params.fixThreatRange : 150
-      for (var tq2 = 0; tq2 < thr.length; tq2++) if (thr[tq2].x * thr[tq2].x + thr[tq2].y * thr[tq2].y < fixThrR * fixThrR) why = 'threat'
+      var fixThrR = params.fixThreatRange != null ? params.fixThreatRange : 90
+      var fixThrT = params.fixThreatTime != null ? params.fixThreatTime : 5
+      if (fixThrT > 0) {
+        // time rule: a tracked body blocks fixation when it is within fixThreatMin (25 m) or reaches the car within fixThreatTime s at its closing speed
+        // (max of the relative velocity on the line of sight and the body's own speed, floored at fixThreatVMin); fixThreatRange (90 m) is the upper bound (further bodies never block)
+        var fixThrMin = params.fixThreatMin != null ? params.fixThreatMin : 25
+        var fixThrVMin = params.fixThreatVMin != null ? params.fixThreatVMin : 2
+        var ats = av.threats || []
+        var evx = input.velocity ? input.velocity[0] : v * e.fwd[0]
+        var evz = input.velocity ? input.velocity[2] : v * e.fwd[2]
+        for (var tq2 = 0; tq2 < ats.length && !why; tq2++) {
+          var tdx2 = ats[tq2].x - pos[0]
+          var tdz2 = ats[tq2].z - pos[2]
+          var td2 = Math.sqrt(tdx2 * tdx2 + tdz2 * tdz2)
+          if (td2 >= fixThrR) continue
+          var tcl = td2 > 1e-6 ? -(tdx2 * (ats[tq2].vx - evx) + tdz2 * (ats[tq2].vz - evz)) / td2 : 1e9
+          // a homing body closes at its own speed whatever the instantaneous line-of-sight rate (it turns toward the car): use the larger of the two
+          var tsp = Math.sqrt(ats[tq2].vx * ats[tq2].vx + ats[tq2].vz * ats[tq2].vz)
+          if (td2 < fixThrMin || td2 < fixThrT * Math.max(tcl, tsp, fixThrVMin)) why = 'threat'
+        }
+      } else for (var tq2 = 0; tq2 < thr.length; tq2++) if (thr[tq2].x * thr[tq2].x + thr[tq2].y * thr[tq2].y < fixThrR * fixThrR) why = 'threat'
       var kFix = (2 * gy) / (goalDist * goalDist)
       if (!why && av.movers && av.movers.length) {
         var dynR = params.fixDynRange != null ? params.fixDynRange : 12
