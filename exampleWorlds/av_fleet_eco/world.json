@@ -107,7 +107,7 @@
       "type": "custom",
       "priority": 6,
       "enabled": true,
-      "code": "/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  if (params && params.id) return {}\n  if (input.actions && input.actions._obstacle_escape) return {}\n  if(input.target.distance && input.target.distance < 10) return;\n  let forward = api.getForwardVector(input.rotation);\n  let backward = api.vec.scale(forward, -1);\n  let speed = api.vec.getForwardSpeed(input.velocity, forward);\n  let frontPosition = api.vec.offsetAlong(input.position, forward, 5);\n  let backdPosition = api.vec.offsetAlong(input.position, backward, 5);\n  if (speed > 0) {\n    let castResult = api.raycastSpread(frontPosition, forward, speed * speed / 300, 2, 8, { visualize: false });\n    if (castResult.hit === true) {\n      if (speed > 0.1) {\n        let breakSpeed = 1 / (castResult.distance + 1) * ((speed * speed) / 200);\n        if (breakSpeed > 1) breakSpeed = 1;\n        input.actions.brake = breakSpeed;\n        input.actions.throttle = 0;\n      }\n    }\n  } else {\n    let castResult = api.raycastSpread(backdPosition, backward, speed * speed / 300, 2, 8, { visualize: false });\n    if (castResult.hit === true) {\n      if (speed < -0.1) {\n        let breakSpeed = 1 / (castResult.distance + 1) * ((speed * speed) / 200);\n        if (breakSpeed > 1) breakSpeed = 1;\n        input.actions.brake = 0;\n        input.actions.throttle = breakSpeed;\n      }\n    }\n  }\n  return {};\n}",
+      "code": "/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  if (params && params.id) return {}\n  if (input.actions && input.actions._obstacle_escape) return {}\n  if(input.target && input.target.distance && input.target.distance < 10) return;\n  let forward = api.getForwardVector(input.rotation);\n  let backward = api.vec.scale(forward, -1);\n  let speed = api.vec.getForwardSpeed(input.velocity, forward);\n  let frontPosition = api.vec.offsetAlong(input.position, forward, 5);\n  let backdPosition = api.vec.offsetAlong(input.position, backward, 5);\n  if (speed > 0) {\n    let castResult = api.raycastSpread(frontPosition, forward, speed * speed / 300, 2, 8, { visualize: false });\n    if (castResult.hit === true) {\n      if (speed > 0.1) {\n        let breakSpeed = 1 / (castResult.distance + 1) * ((speed * speed) / 200);\n        if (breakSpeed > 1) breakSpeed = 1;\n        input.actions.brake = breakSpeed;\n        input.actions.throttle = 0;\n      }\n    }\n  } else {\n    let castResult = api.raycastSpread(backdPosition, backward, speed * speed / 300, 2, 8, { visualize: false });\n    if (castResult.hit === true) {\n      if (speed < -0.1) {\n        let breakSpeed = 1 / (castResult.distance + 1) * ((speed * speed) / 200);\n        if (breakSpeed > 1) breakSpeed = 1;\n        input.actions.brake = 0;\n        input.actions.throttle = breakSpeed;\n      }\n    }\n  }\n  return {};\n}",
       "name": "AutoBrake"
     },
     "car_tf5": {
@@ -122,7 +122,7 @@
       "priority": 5,
       "enabled": true,
       "name": "vis2",
-      "code": "\n\n/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  api.visualizeLine(input.position, input.target.pose.position, \"red\");\n\n\n  return {};\n}\n\n\n"
+      "code": "\n\n/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  if (!input.target || !input.target.pose) return {};\n  api.visualizeLine(input.position, input.target.pose.position, \"red\");\n\n\n  return {};\n}\n\n\n"
     },
     "entity_1779823253285_brtkx1p_tf0": {
       "type": "targetPoseInput",
@@ -223,7 +223,7 @@
       "priority": 4,
       "enabled": true,
       "name": "vis2",
-      "code": "\n\n/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  api.visualizeLine(input.position, input.target.pose.position, \"red\");\n\n\n  return {};\n}\n\n\n",
+      "code": "\n\n/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  if (!input.target || !input.target.pose) return {};\n  api.visualizeLine(input.position, input.target.pose.position, \"red\");\n\n\n  return {};\n}\n\n\n",
       "params": {
         "id": "entity_1779823253285_brtkx1p"
       }
@@ -242,7 +242,7 @@
       "type": "custom",
       "priority": 6,
       "enabled": true,
-      "code": "/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  if(input.target.distance && input.target.distance < 10) return;\n  let forward = api.getForwardVector(input.rotation);\n  let backward = api.vec.scale(forward, -1);\n  let speed = api.vec.getForwardSpeed(input.velocity, forward);\n  let frontPosition = api.vec.offsetAlong(input.position, forward, 5);\n  let backdPosition = api.vec.offsetAlong(input.position, backward, 5);\n  if (speed > 0) {\n    let castResult = api.raycastSpread(frontPosition, forward, speed * speed / 300, 2, 8, { visualize: false });\n    if (castResult.hit === true) {\n      if (speed > 0.1) {\n        let breakSpeed = 1 / (castResult.distance + 1) * ((speed * speed) / 200);\n        if (breakSpeed > 1) breakSpeed = 1;\n        input.actions.brake = breakSpeed;\n        input.actions.throttle = 0;\n      }\n    }\n  } else {\n    let castResult = api.raycastSpread(backdPosition, backward, speed * speed / 300, 2, 8, { visualize: false });\n    if (castResult.hit === true) {\n      if (speed < -0.1) {\n        let breakSpeed = 1 / (castResult.distance + 1) * ((speed * speed) / 200);\n        if (breakSpeed > 1) breakSpeed = 1;\n        input.actions.brake = 0;\n        input.actions.throttle = breakSpeed;\n      }\n    }\n  }\n  return {};\n}",
+      "code": "/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  if(input.target && input.target.distance && input.target.distance < 10) return;\n  let forward = api.getForwardVector(input.rotation);\n  let backward = api.vec.scale(forward, -1);\n  let speed = api.vec.getForwardSpeed(input.velocity, forward);\n  let frontPosition = api.vec.offsetAlong(input.position, forward, 5);\n  let backdPosition = api.vec.offsetAlong(input.position, backward, 5);\n  if (speed > 0) {\n    let castResult = api.raycastSpread(frontPosition, forward, speed * speed / 300, 2, 8, { visualize: false });\n    if (castResult.hit === true) {\n      if (speed > 0.1) {\n        let breakSpeed = 1 / (castResult.distance + 1) * ((speed * speed) / 200);\n        if (breakSpeed > 1) breakSpeed = 1;\n        input.actions.brake = breakSpeed;\n        input.actions.throttle = 0;\n      }\n    }\n  } else {\n    let castResult = api.raycastSpread(backdPosition, backward, speed * speed / 300, 2, 8, { visualize: false });\n    if (castResult.hit === true) {\n      if (speed < -0.1) {\n        let breakSpeed = 1 / (castResult.distance + 1) * ((speed * speed) / 200);\n        if (breakSpeed > 1) breakSpeed = 1;\n        input.actions.brake = 0;\n        input.actions.throttle = breakSpeed;\n      }\n    }\n  }\n  return {};\n}",
       "name": "AutoBrake",
       "params": {
         "id": "entity_1779823253285_brtkx1p"
@@ -410,14 +410,14 @@
       "priority": 6,
       "enabled": true,
       "name": "vis2",
-      "code": "\n\n/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  api.visualizeLine(input.position, input.target.pose.position, \"red\");\n\n\n  return {};\n}\n\n\n",
+      "code": "\n\n/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  if (!input.target || !input.target.pose) return {};\n  api.visualizeLine(input.position, input.target.pose.position, \"red\");\n\n\n  return {};\n}\n\n\n",
       "params": {}
     },
     "entity_1779823253285_brtkx1p_tf7": {
       "type": "custom",
       "priority": 7,
       "enabled": true,
-      "code": "/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  if(input.target.distance && input.target.distance < 10) return;\n  let forward = api.getForwardVector(input.rotation);\n  let backward = api.vec.scale(forward, -1);\n  let speed = api.vec.getForwardSpeed(input.velocity, forward);\n  let frontPosition = api.vec.offsetAlong(input.position, forward, 5);\n  let backdPosition = api.vec.offsetAlong(input.position, backward, 5);\n  if (speed > 0) {\n    let castResult = api.raycastSpread(frontPosition, forward, speed * speed / 300, 2, 8, { visualize: false });\n    if (castResult.hit === true) {\n      if (speed > 0.1) {\n        let breakSpeed = 1 / (castResult.distance + 1) * ((speed * speed) / 200);\n        if (breakSpeed > 1) breakSpeed = 1;\n        input.actions.brake = breakSpeed;\n        input.actions.throttle = 0;\n      }\n    }\n  } else {\n    let castResult = api.raycastSpread(backdPosition, backward, speed * speed / 300, 2, 8, { visualize: false });\n    if (castResult.hit === true) {\n      if (speed < -0.1) {\n        let breakSpeed = 1 / (castResult.distance + 1) * ((speed * speed) / 200);\n        if (breakSpeed > 1) breakSpeed = 1;\n        input.actions.brake = 0;\n        input.actions.throttle = breakSpeed;\n      }\n    }\n  }\n  return {};\n}",
+      "code": "/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  if(input.target && input.target.distance && input.target.distance < 10) return;\n  let forward = api.getForwardVector(input.rotation);\n  let backward = api.vec.scale(forward, -1);\n  let speed = api.vec.getForwardSpeed(input.velocity, forward);\n  let frontPosition = api.vec.offsetAlong(input.position, forward, 5);\n  let backdPosition = api.vec.offsetAlong(input.position, backward, 5);\n  if (speed > 0) {\n    let castResult = api.raycastSpread(frontPosition, forward, speed * speed / 300, 2, 8, { visualize: false });\n    if (castResult.hit === true) {\n      if (speed > 0.1) {\n        let breakSpeed = 1 / (castResult.distance + 1) * ((speed * speed) / 200);\n        if (breakSpeed > 1) breakSpeed = 1;\n        input.actions.brake = breakSpeed;\n        input.actions.throttle = 0;\n      }\n    }\n  } else {\n    let castResult = api.raycastSpread(backdPosition, backward, speed * speed / 300, 2, 8, { visualize: false });\n    if (castResult.hit === true) {\n      if (speed < -0.1) {\n        let breakSpeed = 1 / (castResult.distance + 1) * ((speed * speed) / 200);\n        if (breakSpeed > 1) breakSpeed = 1;\n        input.actions.brake = 0;\n        input.actions.throttle = breakSpeed;\n      }\n    }\n  }\n  return {};\n}",
       "name": "AutoBrake",
       "params": {}
     },
@@ -602,7 +602,9 @@
         "targetEntityId": "entity_1779823253285_brtkx1p",
         "linear": true,
         "angular": false,
-        "speed": 40
+        "speed": 40,
+        "isFinal": false,
+        "leadTime": 1
       }
     },
     "hunt_chase_leader": {
@@ -614,7 +616,9 @@
         "targetEntityId": "entity_1780539051770_wy2smf6",
         "linear": true,
         "angular": false,
-        "speed": 40
+        "speed": 40,
+        "isFinal": false,
+        "leadTime": 0.3
       }
     },
     "hunt_chaser_car": {

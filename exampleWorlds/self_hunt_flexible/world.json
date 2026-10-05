@@ -125,7 +125,7 @@
       "type": "custom",
       "priority": 6,
       "enabled": true,
-      "code": "/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  if (params && params.id) return {}\n  if (input.actions && input.actions._obstacle_escape) return {}\n  if(input.target.distance && input.target.distance < 10) return;\n  let forward = api.getForwardVector(input.rotation);\n  let backward = api.vec.scale(forward, -1);\n  let speed = api.vec.getForwardSpeed(input.velocity, forward);\n  let frontPosition = api.vec.offsetAlong(input.position, forward, 5);\n  let backdPosition = api.vec.offsetAlong(input.position, backward, 5);\n  if (speed > 0) {\n    let castResult = api.raycastSpread(frontPosition, forward, speed * speed / 300, 2, 8, { visualize: false });\n    if (castResult.hit === true) {\n      if (speed > 0.1) {\n        let breakSpeed = 1 / (castResult.distance + 1) * ((speed * speed) / 200);\n        if (breakSpeed > 1) breakSpeed = 1;\n        input.actions.brake = breakSpeed;\n        input.actions.throttle = 0;\n      }\n    }\n  } else {\n    let castResult = api.raycastSpread(backdPosition, backward, speed * speed / 300, 2, 8, { visualize: false });\n    if (castResult.hit === true) {\n      if (speed < -0.1) {\n        let breakSpeed = 1 / (castResult.distance + 1) * ((speed * speed) / 200);\n        if (breakSpeed > 1) breakSpeed = 1;\n        input.actions.brake = 0;\n        input.actions.throttle = breakSpeed;\n      }\n    }\n  }\n  return {};\n}",
+      "code": "/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  if (params && params.id) return {}\n  if (input.actions && input.actions._obstacle_escape) return {}\n  if(input.target && input.target.distance && input.target.distance < 10) return;\n  let forward = api.getForwardVector(input.rotation);\n  let backward = api.vec.scale(forward, -1);\n  let speed = api.vec.getForwardSpeed(input.velocity, forward);\n  let frontPosition = api.vec.offsetAlong(input.position, forward, 5);\n  let backdPosition = api.vec.offsetAlong(input.position, backward, 5);\n  if (speed > 0) {\n    let castResult = api.raycastSpread(frontPosition, forward, speed * speed / 300, 2, 8, { visualize: false });\n    if (castResult.hit === true) {\n      if (speed > 0.1) {\n        let breakSpeed = 1 / (castResult.distance + 1) * ((speed * speed) / 200);\n        if (breakSpeed > 1) breakSpeed = 1;\n        input.actions.brake = breakSpeed;\n        input.actions.throttle = 0;\n      }\n    }\n  } else {\n    let castResult = api.raycastSpread(backdPosition, backward, speed * speed / 300, 2, 8, { visualize: false });\n    if (castResult.hit === true) {\n      if (speed < -0.1) {\n        let breakSpeed = 1 / (castResult.distance + 1) * ((speed * speed) / 200);\n        if (breakSpeed > 1) breakSpeed = 1;\n        input.actions.brake = 0;\n        input.actions.throttle = breakSpeed;\n      }\n    }\n  }\n  return {};\n}",
       "name": "AutoBrake"
     },
     "car_tf5": {
@@ -140,7 +140,7 @@
       "priority": 5,
       "enabled": true,
       "name": "vis2",
-      "code": "\n\n/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  api.visualizeLine(input.position, input.target.pose.position, \"red\");\n\n\n  return {};\n}\n\n\n"
+      "code": "\n\n/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  if (!input.target || !input.target.pose) return {};\n  api.visualizeLine(input.position, input.target.pose.position, \"red\");\n\n\n  return {};\n}\n\n\n"
     },
     "entity_1779823253285_brtkx1p_tf0": {
       "type": "targetPoseInput",
@@ -241,7 +241,7 @@
       "priority": 4,
       "enabled": true,
       "name": "vis2",
-      "code": "\n\n/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  api.visualizeLine(input.position, input.target.pose.position, \"red\");\n\n\n  return {};\n}\n\n\n",
+      "code": "\n\n/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  if (!input.target || !input.target.pose) return {};\n  api.visualizeLine(input.position, input.target.pose.position, \"red\");\n\n\n  return {};\n}\n\n\n",
       "params": {
         "id": "entity_1779823253285_brtkx1p"
       }
@@ -260,7 +260,7 @@
       "type": "custom",
       "priority": 6,
       "enabled": true,
-      "code": "/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  if(input.target.distance && input.target.distance < 10) return;\n  let forward = api.getForwardVector(input.rotation);\n  let backward = api.vec.scale(forward, -1);\n  let speed = api.vec.getForwardSpeed(input.velocity, forward);\n  let frontPosition = api.vec.offsetAlong(input.position, forward, 5);\n  let backdPosition = api.vec.offsetAlong(input.position, backward, 5);\n  if (speed > 0) {\n    let castResult = api.raycastSpread(frontPosition, forward, speed * speed / 300, 2, 8, { visualize: false });\n    if (castResult.hit === true) {\n      if (speed > 0.1) {\n        let breakSpeed = 1 / (castResult.distance + 1) * ((speed * speed) / 200);\n        if (breakSpeed > 1) breakSpeed = 1;\n        input.actions.brake = breakSpeed;\n        input.actions.throttle = 0;\n      }\n    }\n  } else {\n    let castResult = api.raycastSpread(backdPosition, backward, speed * speed / 300, 2, 8, { visualize: false });\n    if (castResult.hit === true) {\n      if (speed < -0.1) {\n        let breakSpeed = 1 / (castResult.distance + 1) * ((speed * speed) / 200);\n        if (breakSpeed > 1) breakSpeed = 1;\n        input.actions.brake = 0;\n        input.actions.throttle = breakSpeed;\n      }\n    }\n  }\n  return {};\n}",
+      "code": "/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  if(input.target && input.target.distance && input.target.distance < 10) return;\n  let forward = api.getForwardVector(input.rotation);\n  let backward = api.vec.scale(forward, -1);\n  let speed = api.vec.getForwardSpeed(input.velocity, forward);\n  let frontPosition = api.vec.offsetAlong(input.position, forward, 5);\n  let backdPosition = api.vec.offsetAlong(input.position, backward, 5);\n  if (speed > 0) {\n    let castResult = api.raycastSpread(frontPosition, forward, speed * speed / 300, 2, 8, { visualize: false });\n    if (castResult.hit === true) {\n      if (speed > 0.1) {\n        let breakSpeed = 1 / (castResult.distance + 1) * ((speed * speed) / 200);\n        if (breakSpeed > 1) breakSpeed = 1;\n        input.actions.brake = breakSpeed;\n        input.actions.throttle = 0;\n      }\n    }\n  } else {\n    let castResult = api.raycastSpread(backdPosition, backward, speed * speed / 300, 2, 8, { visualize: false });\n    if (castResult.hit === true) {\n      if (speed < -0.1) {\n        let breakSpeed = 1 / (castResult.distance + 1) * ((speed * speed) / 200);\n        if (breakSpeed > 1) breakSpeed = 1;\n        input.actions.brake = 0;\n        input.actions.throttle = breakSpeed;\n      }\n    }\n  }\n  return {};\n}",
       "name": "AutoBrake",
       "params": {
         "id": "entity_1779823253285_brtkx1p"
@@ -428,14 +428,14 @@
       "priority": 6,
       "enabled": true,
       "name": "vis2",
-      "code": "\n\n/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  api.visualizeLine(input.position, input.target.pose.position, \"red\");\n\n\n  return {};\n}\n\n\n",
+      "code": "\n\n/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  if (!input.target || !input.target.pose) return {};\n  api.visualizeLine(input.position, input.target.pose.position, \"red\");\n\n\n  return {};\n}\n\n\n",
       "params": {}
     },
     "entity_1779823253285_brtkx1p_tf7": {
       "type": "custom",
       "priority": 7,
       "enabled": true,
-      "code": "/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  if(input.target.distance && input.target.distance < 10) return;\n  let forward = api.getForwardVector(input.rotation);\n  let backward = api.vec.scale(forward, -1);\n  let speed = api.vec.getForwardSpeed(input.velocity, forward);\n  let frontPosition = api.vec.offsetAlong(input.position, forward, 5);\n  let backdPosition = api.vec.offsetAlong(input.position, backward, 5);\n  if (speed > 0) {\n    let castResult = api.raycastSpread(frontPosition, forward, speed * speed / 300, 2, 8, { visualize: false });\n    if (castResult.hit === true) {\n      if (speed > 0.1) {\n        let breakSpeed = 1 / (castResult.distance + 1) * ((speed * speed) / 200);\n        if (breakSpeed > 1) breakSpeed = 1;\n        input.actions.brake = breakSpeed;\n        input.actions.throttle = 0;\n      }\n    }\n  } else {\n    let castResult = api.raycastSpread(backdPosition, backward, speed * speed / 300, 2, 8, { visualize: false });\n    if (castResult.hit === true) {\n      if (speed < -0.1) {\n        let breakSpeed = 1 / (castResult.distance + 1) * ((speed * speed) / 200);\n        if (breakSpeed > 1) breakSpeed = 1;\n        input.actions.brake = 0;\n        input.actions.throttle = breakSpeed;\n      }\n    }\n  }\n  return {};\n}",
+      "code": "/** @returns {TransformOutput | undefined} */\nfunction transform(\n  /** @type {TransformInput} */ input,\n  /** @type {number} */ dt,\n  /** @type {Record<string, unknown>} */ params,\n  /** @type {Record<string, unknown>} */ state,\n  /** @type {TransformerRuntimeApi} */ api,\n) {\n  if(input.target && input.target.distance && input.target.distance < 10) return;\n  let forward = api.getForwardVector(input.rotation);\n  let backward = api.vec.scale(forward, -1);\n  let speed = api.vec.getForwardSpeed(input.velocity, forward);\n  let frontPosition = api.vec.offsetAlong(input.position, forward, 5);\n  let backdPosition = api.vec.offsetAlong(input.position, backward, 5);\n  if (speed > 0) {\n    let castResult = api.raycastSpread(frontPosition, forward, speed * speed / 300, 2, 8, { visualize: false });\n    if (castResult.hit === true) {\n      if (speed > 0.1) {\n        let breakSpeed = 1 / (castResult.distance + 1) * ((speed * speed) / 200);\n        if (breakSpeed > 1) breakSpeed = 1;\n        input.actions.brake = breakSpeed;\n        input.actions.throttle = 0;\n      }\n    }\n  } else {\n    let castResult = api.raycastSpread(backdPosition, backward, speed * speed / 300, 2, 8, { visualize: false });\n    if (castResult.hit === true) {\n      if (speed < -0.1) {\n        let breakSpeed = 1 / (castResult.distance + 1) * ((speed * speed) / 200);\n        if (breakSpeed > 1) breakSpeed = 1;\n        input.actions.brake = 0;\n        input.actions.throttle = breakSpeed;\n      }\n    }\n  }\n  return {};\n}",
       "name": "AutoBrake",
       "params": {}
     },
@@ -620,7 +620,9 @@
         "targetEntityId": "entity_1779823253285_brtkx1p",
         "linear": true,
         "angular": false,
-        "speed": 40
+        "speed": 40,
+        "isFinal": false,
+        "leadTime": 1.0
       }
     },
     "hunt_chase_leader": {
@@ -632,7 +634,9 @@
         "targetEntityId": "entity_1780539051770_wy2smf6",
         "linear": true,
         "angular": false,
-        "speed": 40
+        "speed": 40,
+        "isFinal": false,
+        "leadTime": 0.3
       }
     },
     "hunt_chaser_car": {
@@ -2763,9 +2767,9 @@
         -289.2528381347656
       ],
       "rotation": [
-        8.752394207298492e-8,
+        8.752394207298492e-08,
         -1.0163177793176725,
-        1.0749469928159689e-7
+        1.0749469928159689e-07
       ],
       "scale": [
         8.843083209401962,
@@ -3133,9 +3137,9 @@
         27.77610969543457
       ],
       "rotation": [
-        2.370721789400397e-7,
+        2.370721789400397e-07,
         1.3494837953171652,
-        -2.7567886237383036e-7
+        -2.7567886237383036e-07
       ],
       "scale": [
         2.2946596077695687,
@@ -3311,7 +3315,7 @@
       "rotation": [
         -3.1415925196754886,
         0.22413883161508869,
-        -1.3153935910874207e-7
+        -1.3153935910874207e-07
       ],
       "scale": [
         2.2647512666934344,
@@ -3725,9 +3729,9 @@
         19.55799674987793
       ],
       "rotation": [
-        -8.125848358357873e-8,
+        -8.125848358357873e-08,
         -0.8440450773148683,
-        -5.703000566242096e-8
+        -5.703000566242096e-08
       ],
       "scale": [
         2.1752299308503082,
@@ -3865,9 +3869,9 @@
         -324.79827880859375
       ],
       "rotation": [
-        -3.833105494345114e-8,
+        -3.833105494345114e-08,
         -0.566575882943829,
-        -1.6440564897671533e-8
+        -1.6440564897671533e-08
       ],
       "scale": [
         3.2471679328562906,
@@ -4181,9 +4185,9 @@
         -184.14532470703125
       ],
       "rotation": [
-        7.287378755631827e-8,
+        7.287378755631827e-08,
         0.9362847029791554,
-        -1.0637014483021756e-7
+        -1.0637014483021756e-07
       ],
       "scale": [
         2.1683023331873246,
@@ -4428,7 +4432,7 @@
       ],
       "rotation": [
         -1.5707956394722342,
-        -1.3573438639724642e-7,
+        -1.3573438639724642e-07,
         -2.9527703549298523
       ],
       "scale": [
@@ -5336,7 +5340,7 @@
         741.460205078125
       ],
       "rotation": [
-        0.0000020532323157856426,
+        2.0532323157856426e-06,
         0.7811466801372657,
         1.5707946819696026
       ],
@@ -5371,9 +5375,9 @@
         -70.97776794433594
       ],
       "rotation": [
-        -1.0262834545476269e-7,
+        -1.0262834545476269e-07,
         1.1918536172803977,
-        1.2943311552292147e-7
+        1.2943311552292147e-07
       ],
       "scale": [
         2.81111493120188,
@@ -5720,9 +5724,9 @@
         413.10772705078125
       ],
       "rotation": [
-        -4.682107149608067e-8,
+        -4.682107149608067e-08,
         -0.24271806341844226,
-        -6.7746175458887345e-9
+        -6.7746175458887345e-09
       ],
       "scale": [
         2.3100421476452024,
@@ -6034,7 +6038,7 @@
         874.8822631835938
       ],
       "rotation": [
-        -9.400229341182972e-7,
+        -9.400229341182972e-07,
         1.4900208321146624,
         -3.1415916996813955
       ],
@@ -6140,9 +6144,9 @@
         -56.582706451416016
       ],
       "rotation": [
-        -5.126257985182526e-8,
+        -5.126257985182526e-08,
         0.6770624120847137,
-        3.592760205846784e-8
+        3.592760205846784e-08
       ],
       "scale": [
         2.5490601323619133,
@@ -6176,7 +6180,7 @@
         -567.8770141601562
       ],
       "rotation": [
-        7.117500868119815e-7,
+        7.117500868119815e-07,
         0.4326095607386273,
         -1.5707969351086482
       ],
@@ -6248,7 +6252,7 @@
       ],
       "rotation": [
         -1.5707949980698979,
-        9.239312070974406e-8,
+        9.239312070974406e-08,
         -0.16681096229806702
       ],
       "scale": [
@@ -6318,7 +6322,7 @@
         -1085.65771484375
       ],
       "rotation": [
-        4.4094812260638073e-7,
+        4.4094812260638073e-07,
         0.4040802541294183,
         -1.570796612838955
       ],
@@ -6353,9 +6357,9 @@
         1601.1549072265625
       ],
       "rotation": [
-        3.0618704272988187e-8,
+        3.0618704272988187e-08,
         -0.27360017818028537,
-        3.1119577300557536e-8
+        3.1119577300557536e-08
       ],
       "scale": [
         3.114055685507383,
@@ -6529,9 +6533,9 @@
         -733.7052001953125
       ],
       "rotation": [
-        -4.955302581513437e-8,
+        -4.955302581513437e-08,
         0.4326782231937196,
-        2.5640664479844174e-8
+        2.5640664479844174e-08
       ],
       "scale": [
         2.4443100610295705,
@@ -6599,9 +6603,9 @@
         -611.1655883789062
       ],
       "rotation": [
-        1.1658499382156107e-7,
+        1.1658499382156107e-07,
         1.2929620734390992,
-        -1.1348967526067708e-7
+        -1.1348967526067708e-07
       ],
       "scale": [
         3.0560915366758685,
@@ -6635,7 +6639,7 @@
         -512.3340454101562
       ],
       "rotation": [
-        -1.180895367401001e-7,
+        -1.180895367401001e-07,
         1.0813461471396595,
         -3.1415925208905113
       ],
@@ -7124,7 +7128,7 @@
         -316.730224609375
       ],
       "rotation": [
-        0.000002688001999561882,
+        2.688001999561882e-06,
         -1.0506607536079402,
         1.570798276476126
       ],
@@ -7404,9 +7408,9 @@
         -1852.7122802734375
       ],
       "rotation": [
-        1.0381524552308916e-7,
+        1.0381524552308916e-07,
         1.3468099576057397,
-        -7.53982122833019e-8
+        -7.53982122833019e-08
       ],
       "scale": [
         3.2262288258175893,
@@ -7718,7 +7722,7 @@
         1069.0787353515625
       ],
       "rotation": [
-        3.4155781655168067e-7,
+        3.4155781655168067e-07,
         -1.3062501841305876,
         -3.1415922815521227
       ],
@@ -7999,7 +8003,7 @@
         221.78695678710938
       ],
       "rotation": [
-        0.0000042849804145688935,
+        4.2849804145688935e-06,
         -1.2491090255921111,
         -1.570791699539741
       ],
@@ -8139,9 +8143,9 @@
         -187.2707061767578
       ],
       "rotation": [
-        3.7030820865726876e-8,
+        3.7030820865726876e-08,
         0.08051359252957173,
-        -4.299048283819817e-8
+        -4.299048283819817e-08
       ],
       "scale": [
         3.3427863568709806,
@@ -8280,7 +8284,7 @@
         -681.6859130859375
       ],
       "rotation": [
-        0.000007421358500782551,
+        7.421358500782551e-06,
         -1.39418863227774,
         1.5708027752901972
       ],
@@ -8489,9 +8493,9 @@
         1056.970703125
       ],
       "rotation": [
-        2.1929657453143509e-7,
+        2.1929657453143509e-07,
         1.4054746864247494,
-        -1.815304509268358e-7
+        -1.815304509268358e-07
       ],
       "scale": [
         2.151332623943285,
@@ -8594,7 +8598,7 @@
         388.5418701171875
       ],
       "rotation": [
-        4.685137244460908e-8,
+        4.685137244460908e-08,
         1.0143308744899335,
         -3.1415926294985144
       ],
@@ -8631,7 +8635,7 @@
       "rotation": [
         -3.141592648489503,
         -0.6882376662831329,
-        -2.2303100290666265e-8
+        -2.2303100290666265e-08
       ],
       "scale": [
         2.7299324841098422,
@@ -8699,7 +8703,7 @@
         -1069.77392578125
       ],
       "rotation": [
-        2.1639141477641493e-7,
+        2.1639141477641493e-07,
         -0.11096556649554257,
         -1.5707947476092825
       ],
@@ -8737,7 +8741,7 @@
       "rotation": [
         -3.141592069478893,
         -1.502425997236637,
-        5.427283059550915e-7
+        5.427283059550915e-07
       ],
       "scale": [
         2.9048283500108654,
@@ -8805,9 +8809,9 @@
         316.86651611328125
       ],
       "rotation": [
-        4.1376324423071063e-8,
+        4.1376324423071063e-08,
         -0.47159907047226257,
-        -2.3781314357407783e-8
+        -2.3781314357407783e-08
       ],
       "scale": [
         2.7560741877723016,
@@ -8947,7 +8951,7 @@
       "rotation": [
         3.141591858653783,
         -1.4547737139468178,
-        -7.327731712810427e-7
+        -7.327731712810427e-07
       ],
       "scale": [
         2.989650804968008,
@@ -9087,7 +9091,7 @@
       ],
       "rotation": [
         -1.5707955944497431,
-        -0.000001126242906934987,
+        -1.126242906934987e-06,
         -1.8457426006204787
       ],
       "scale": [
@@ -9295,9 +9299,9 @@
         192.44493103027344
       ],
       "rotation": [
-        6.688762595937478e-8,
+        6.688762595937478e-08,
         -0.7775430968531094,
-        7.885273186953456e-8
+        7.885273186953456e-08
       ],
       "scale": [
         2.078558713204428,
@@ -9434,9 +9438,9 @@
         433.8192138671875
       ],
       "rotation": [
-        1.636759658129233e-7,
+        1.636759658129233e-07,
         -1.265457915951156,
-        1.0310718068390237e-7
+        1.0310718068390237e-07
       ],
       "scale": [
         9.939163597484217,
@@ -9470,9 +9474,9 @@
         -945.786376953125
       ],
       "rotation": [
-        -4.161229346271567e-7,
+        -4.161229346271567e-07,
         -1.489652118151183,
-        -4.158477435148784e-7
+        -4.158477435148784e-07
       ],
       "scale": [
         6.517417529065594,
@@ -9578,7 +9582,7 @@
       "rotation": [
         -3.141592458251653,
         -0.96237390452616,
-        4.066816020157134e-8
+        4.066816020157134e-08
       ],
       "scale": [
         6.820229345597415,
@@ -9646,9 +9650,9 @@
         -1107.014892578125
       ],
       "rotation": [
-        5.360449989150713e-7,
+        5.360449989150713e-07,
         -1.4949209912115813,
-        5.6560785136973e-7
+        5.6560785136973e-07
       ],
       "scale": [
         9.455049815202221,
@@ -9822,9 +9826,9 @@
         -254.04771423339844
       ],
       "rotation": [
-        3.9039675565538815e-8,
+        3.9039675565538815e-08,
         -0.7363871444327929,
-        4.91715105609394e-8
+        4.91715105609394e-08
       ],
       "scale": [
         6.805661444647949,
@@ -10105,7 +10109,7 @@
       ],
       "rotation": [
         -1.570794796826615,
-        8.524947219258261e-7,
+        8.524947219258261e-07,
         -0.9967427427190755
       ],
       "scale": [
@@ -10139,9 +10143,9 @@
         -149.89535522460938
       ],
       "rotation": [
-        3.69530216173839e-7,
+        3.69530216173839e-07,
         -1.4527529502948078,
-        4.048959144366868e-7
+        4.048959144366868e-07
       ],
       "scale": [
         9.092648609215399,
@@ -10278,7 +10282,7 @@
         595.1638793945312
       ],
       "rotation": [
-        1.2813549386447102e-7,
+        1.2813549386447102e-07,
         -0.9400338009154389,
         -3.1415925454873803
       ],
@@ -10487,9 +10491,9 @@
         -57.90229034423828
       ],
       "rotation": [
-        2.36973418379951e-8,
+        2.36973418379951e-08,
         0.34414457677602434,
-        -3.5590399576384594e-8
+        -3.5590399576384594e-08
       ],
       "scale": [
         7.626251272525549,
@@ -10767,9 +10771,9 @@
         276.6596374511719
       ],
       "rotation": [
-        3.460712506789998e-8,
+        3.460712506789998e-08,
         1.0513375714404407,
-        -1.4143075701178452e-8
+        -1.4143075701178452e-08
       ],
       "scale": [
         7.920739929040035,
@@ -10908,7 +10912,7 @@
         510.6255187988281
       ],
       "rotation": [
-        0.0000022088193476941443,
+        2.2088193476941443e-06,
         0.8870728761375192,
         -1.5707980548514595
       ],
@@ -10943,7 +10947,7 @@
         -1403.283935546875
       ],
       "rotation": [
-        0.000002785571088793256,
+        2.785571088793256e-06,
         1.5373966353078532,
         3.141589817073701
       ],
@@ -10978,9 +10982,9 @@
         1446.59033203125
       ],
       "rotation": [
-        1.137249959544015e-7,
+        1.137249959544015e-07,
         1.1483177348752462,
-        -1.5304833631638066e-7
+        -1.5304833631638066e-07
       ],
       "scale": [
         8.783672227804924,
@@ -11048,7 +11052,7 @@
         -186.97964477539062
       ],
       "rotation": [
-        9.079584261454216e-8,
+        9.079584261454216e-08,
         0.003152636126966318,
         1.5707952368650306
       ],
@@ -11260,7 +11264,7 @@
       "rotation": [
         3.1415925723743796,
         0.30848783952701575,
-        3.338423303501133e-8
+        3.338423303501133e-08
       ],
       "scale": [
         6.231889520304156,
@@ -11330,7 +11334,7 @@
       "rotation": [
         3.1415912003192306,
         1.4945661289487107,
-        0.0000014014426599435817
+        1.4014426599435817e-06
       ],
       "scale": [
         9.416216567501515,
@@ -11433,7 +11437,7 @@
       "rotation": [
         3.1415925838501795,
         0.15885824156655737,
-        4.405909233276918e-8
+        4.405909233276918e-08
       ],
       "scale": [
         7.010428408422862,
@@ -11536,9 +11540,9 @@
         1005.5747680664062
       ],
       "rotation": [
-        7.165684523912562e-8,
+        7.165684523912562e-08,
         -0.9000040168853458,
-        6.097457759971537e-8
+        6.097457759971537e-08
       ],
       "scale": [
         5.415449993174761,
@@ -11641,7 +11645,7 @@
         777.9473876953125
       ],
       "rotation": [
-        1.343679004217534e-7,
+        1.343679004217534e-07,
         -0.9326466022609471,
         -3.1415925234855804
       ],
@@ -11676,7 +11680,7 @@
         -1077.7559814453125
       ],
       "rotation": [
-        0.00001640997925373224,
+        1.640997925373224e-05,
         -1.5638912916922894,
         -3.141576222311304
       ],
@@ -11713,7 +11717,7 @@
       ],
       "rotation": [
         -1.570795093451885,
-        3.8458800766251026e-7,
+        3.8458800766251026e-07,
         -0.5939933924064138
       ],
       "scale": [
@@ -11942,9 +11946,9 @@
         1019.4409790039062
       ],
       "rotation": [
-        3.649194789110651e-7,
+        3.649194789110651e-07,
         -1.458725810592043,
-        3.940182638259166e-7
+        3.940182638259166e-07
       ],
       "scale": [
         5.050634856684104,
@@ -12082,7 +12086,7 @@
         -97.73989868164062
       ],
       "rotation": [
-        0.0000023611067075207656,
+        2.3611067075207656e-06,
         -0.8795438330400055,
         1.5707982863576138
       ],
@@ -12117,9 +12121,9 @@
         1455.134521484375
       ],
       "rotation": [
-        4.090563794261408e-8,
+        4.090563794261408e-08,
         -0.3952559932848549,
-        4.1352592302596686e-8
+        4.1352592302596686e-08
       ],
       "scale": [
         5.265739425000932,
@@ -12155,7 +12159,7 @@
       "rotation": [
         -3.1415925314895565,
         0.3145448797260917,
-        -1.186455161854048e-7
+        -1.186455161854048e-07
       ],
       "scale": [
         9.076107652984971,
@@ -12328,7 +12332,7 @@
       ],
       "rotation": [
         1.5707954709874565,
-        -3.4500685508476864e-7,
+        -3.4500685508476864e-07,
         -0.5422825325849767
       ],
       "scale": [
@@ -12466,9 +12470,9 @@
         -293.5249328613281
       ],
       "rotation": [
-        5.554801056544789e-8,
+        5.554801056544789e-08,
         1.0135260918545987,
-        -8.556080396633821e-8
+        -8.556080396633821e-08
       ],
       "scale": [
         6.415170217733694,
@@ -12501,9 +12505,9 @@
         -18.57
       ],
       "rotation": [
-        3.1026560519014e-8,
+        3.1026560519014e-08,
         0.002290656127332271,
-        3.401356318168465e-8
+        3.401356318168465e-08
       ],
       "scale": [
         9.144910479232042,
@@ -12782,9 +12786,9 @@
         -849.3333740234375
       ],
       "rotation": [
-        0.0000025231217508976935,
+        2.5231217508976935e-06,
         1.5534401496648669,
-        -0.0000025681914114091784
+        -2.5681914114091784e-06
       ],
       "scale": [
         8.256017107184288,
@@ -13065,7 +13069,7 @@
       "rotation": [
         -3.1415922679380035,
         -1.5160347953034432,
-        3.4076109148181577e-7
+        3.4076109148181577e-07
       ],
       "scale": [
         6.992839284512549,
@@ -13204,7 +13208,7 @@
       ],
       "rotation": [
         1.5707950150456818,
-        9.666113669483507e-7,
+        9.666113669483507e-07,
         -2.2511942707094
       ],
       "scale": [
@@ -13274,9 +13278,9 @@
         1134.1837158203125
       ],
       "rotation": [
-        -9.409066983140627e-8,
+        -9.409066983140627e-08,
         1.2469324494196274,
-        9.006478634696305e-8
+        9.006478634696305e-08
       ],
       "scale": [
         7.71339449648546,
@@ -13311,7 +13315,7 @@
       ],
       "rotation": [
         1.570798029552179,
-        2.2705368252218446e-7,
+        2.2705368252218446e-07,
         1.9437133743474888
       ],
       "scale": [
@@ -13345,9 +13349,9 @@
         146.7798614501953
       ],
       "rotation": [
-        5.327473098095442e-8,
+        5.327473098095442e-08,
         -0.8542420699830725,
-        4.037046278292418e-8
+        4.037046278292418e-08
       ],
       "scale": [
         6.44391832093456,
@@ -13452,7 +13456,7 @@
       "rotation": [
         -3.1415924898441365,
         -1.214785078392574,
-        1.4292246552000018e-7
+        1.4292246552000018e-07
       ],
       "scale": [
         6.406036573494384,
@@ -13628,7 +13632,7 @@
       "rotation": [
         3.141592560603401,
         -0.10097814790501586,
-        3.908641362751257e-8
+        3.908641362751257e-08
       ],
       "scale": [
         9.690381089621953,
@@ -13663,7 +13667,7 @@
       ],
       "rotation": [
         1.5707951153125692,
-        0.0000010229293678778013,
+        1.0229293678778013e-06,
         -2.031421609926319
       ],
       "scale": [
@@ -13909,7 +13913,7 @@
       "rotation": [
         3.141592506309469,
         1.3445347003435553,
-        6.144944002275013e-8
+        6.144944002275013e-08
       ],
       "scale": [
         8.286088828260809,
@@ -14187,9 +14191,9 @@
         186.4349365234375
       ],
       "rotation": [
-        5.824888452950658e-8,
+        5.824888452950658e-08,
         1.1519472387976892,
-        -8.794199247138228e-8
+        -8.794199247138228e-08
       ],
       "scale": [
         7.79150687411674,
@@ -14538,7 +14542,7 @@
       ],
       "rotation": [
         1.5707949896196132,
-        9.657708588406436e-8,
+        9.657708588406436e-08,
         -1.4045938128066457
       ],
       "scale": [
@@ -14572,9 +14576,9 @@
         692.19189453125
       ],
       "rotation": [
-        3.685447391213674e-7,
+        3.685447391213674e-07,
         1.4837447382446471,
-        -3.404911852138016e-7
+        -3.404911852138016e-07
       ],
       "scale": [
         5.484609262745868,
@@ -14609,7 +14613,7 @@
       ],
       "rotation": [
         -1.5707956299924333,
-        2.157079617148855e-7,
+        2.157079617148855e-07,
         0.16314561268930583
       ],
       "scale": [
@@ -14651,7 +14655,7 @@
         81.7257308959961
       ],
       "rotation": [
-        0.0000034577480654636922,
+        3.4577480654636922e-06,
         -1.0660959373233228,
         -1.5707926086245865
       ],
@@ -14791,9 +14795,9 @@
         1423.96337890625
       ],
       "rotation": [
-        4.5857218695916064e-8,
+        4.5857218695916064e-08,
         -0.40582612428889636,
-        5.206151853185539e-8
+        5.206151853185539e-08
       ],
       "scale": [
         9.915728214078847,
@@ -14861,7 +14865,7 @@
         317.0438232421875
       ],
       "rotation": [
-        1.718874391238815e-7,
+        1.718874391238815e-07,
         0.09818543299603204,
         1.5707945873450684
       ],
@@ -15349,7 +15353,7 @@
         1495.1009521484375
       ],
       "rotation": [
-        8.071327670366507e-7,
+        8.071327670366507e-07,
         -0.7148295698471994,
         1.5707984455551067
       ],
@@ -15523,9 +15527,9 @@
         538.9188232421875
       ],
       "rotation": [
-        1.1311798141802339e-7,
+        1.1311798141802339e-07,
         1.3199417593334506,
-        -1.376218076182264e-7
+        -1.376218076182264e-07
       ],
       "scale": [
         7.519236660618087,
@@ -15628,9 +15632,9 @@
         -1670.6524658203125
       ],
       "rotation": [
-        -2.4901807449071e-7,
+        -2.4901807449071e-07,
         -1.459488447444472,
-        -2.4610328600915846e-7
+        -2.4610328600915846e-07
       ],
       "scale": [
         7.939208267117705,
@@ -15942,7 +15946,7 @@
         1262.596435546875
       ],
       "rotation": [
-        -5.012658373724909e-7,
+        -5.012658373724909e-07,
         1.3826145154642764,
         -3.141592133913493
       ],
@@ -16050,7 +16054,7 @@
       "rotation": [
         -3.1415920998494307,
         -1.5218519398034231,
-        5.060593210032455e-7
+        5.060593210032455e-07
       ],
       "scale": [
         6.519268994962584,
@@ -16118,9 +16122,9 @@
         821.0704956054688
       ],
       "rotation": [
-        2.2282893995881923e-7,
+        2.2282893995881923e-07,
         1.389028951511291,
-        -2.680617126128522e-7
+        -2.680617126128522e-07
       ],
       "scale": [
         8.257446714399325,
@@ -16188,7 +16192,7 @@
         487.7026062011719
       ],
       "rotation": [
-        -6.287090311719311e-7,
+        -6.287090311719311e-07,
         1.4582811186225113,
         -3.14159204273429
       ],
@@ -16226,7 +16230,7 @@
       "rotation": [
         3.1415905775632944,
         1.5070326596523032,
-        0.0000021871664889971344
+        2.1871664889971344e-06
       ],
       "scale": [
         8.00950422464964,
@@ -16297,7 +16301,7 @@
       ],
       "rotation": [
         1.5707965659118808,
-        -4.87865579046362e-7,
+        -4.87865579046362e-07,
         0.5162373859994994
       ],
       "scale": [
@@ -16434,7 +16438,7 @@
         -125.5230712890625
       ],
       "rotation": [
-        4.214819670787617e-7,
+        4.214819670787617e-07,
         1.3618155055445496,
         3.141592167469033
       ],
@@ -16505,9 +16509,9 @@
         -67.34295654296875
       ],
       "rotation": [
-        4.026759108962457e-8,
+        4.026759108962457e-08,
         0.7790516617586872,
-        -1.5367429581865204e-9
+        -1.5367429581865204e-09
       ],
       "scale": [
         5.467225365736001,
@@ -16576,7 +16580,7 @@
         1007.4354858398438
       ],
       "rotation": [
-        0.000004688112289521117,
+        4.688112289521117e-06,
         -1.2471243298841184,
         -1.5707914033477974
       ],
@@ -16752,7 +16756,7 @@
       ],
       "rotation": [
         1.5707972364777467,
-        7.902183796204562e-8,
+        7.902183796204562e-08,
         2.907970143417055
       ],
       "scale": [
@@ -16787,7 +16791,7 @@
         1096.48095703125
       ],
       "rotation": [
-        8.877347975152707e-8,
+        8.877347975152707e-08,
         0.9091221115435529,
         -3.141592612634248
       ],
@@ -17136,9 +17140,9 @@
         -1028.4215087890625
       ],
       "rotation": [
-        4.2092947594768706e-8,
+        4.2092947594768706e-08,
         0.047082848541303374,
-        -5.681866987331594e-8
+        -5.681866987331594e-08
       ],
       "scale": [
         9.522772726943355,
@@ -17171,9 +17175,9 @@
         -537.4201049804688
       ],
       "rotation": [
-        8.759128115584532e-8,
+        8.759128115584532e-08,
         1.1836247467188157,
-        -4.06584691883715e-8
+        -4.06584691883715e-08
       ],
       "scale": [
         9.280047912586896,
@@ -17209,7 +17213,7 @@
       "rotation": [
         3.1415923809859247,
         -1.2109900384892531,
-        -2.9218941459520144e-7
+        -2.9218941459520144e-07
       ],
       "scale": [
         5.87517815232843,
@@ -17631,7 +17635,7 @@
       ],
       "rotation": [
         -1.5707974529952842,
-        -1.5985256629491642e-7,
+        -1.5985256629491642e-07,
         -3.0708431997456547
       ],
       "scale": [
@@ -17735,9 +17739,9 @@
         -1036.8126220703125
       ],
       "rotation": [
-        6.322234840862614e-7,
+        6.322234840862614e-07,
         1.5061137317314877,
-        -6.718679897220784e-7
+        -6.718679897220784e-07
       ],
       "scale": [
         5.997402975206774,
@@ -17877,7 +17881,7 @@
       ],
       "rotation": [
         -1.5707981585524697,
-        -8.770866415376291e-7,
+        -8.770866415376291e-07,
         2.1419832286043254
       ],
       "scale": [
@@ -18086,7 +18090,7 @@
       ],
       "rotation": [
         -1.570795012858093,
-        9.706234038732579e-7,
+        9.706234038732579e-07,
         -1.0564332531714444
       ],
       "scale": [
@@ -18155,7 +18159,7 @@
         440.8078308105469
       ],
       "rotation": [
-        -8.908370824662919e-8,
+        -8.908370824662919e-08,
         0.8883166245259242,
         -3.1415925495552988
       ],
@@ -18228,7 +18232,7 @@
       ],
       "rotation": [
         -1.5707972933273116,
-        -4.04263577280528e-7,
+        -4.04263577280528e-07,
         0.5235439338023733
       ],
       "scale": [
@@ -18301,9 +18305,9 @@
         -98.46676635742188
       ],
       "rotation": [
-        3.4985670348741577e-9,
+        3.4985670348741577e-09,
         -0.48834837568026573,
-        2.5213395458401916e-9
+        2.5213395458401916e-09
       ],
       "scale": [
         0.9999999999560412,
@@ -18340,7 +18344,7 @@
       "rotation": [
         -3.14159265137802,
         -0.3605667796090823,
-        1.0808918297232567e-9
+        1.0808918297232567e-09
       ],
       "scale": [
         0.9999999999995834,
@@ -18376,7 +18380,7 @@
       ],
       "rotation": [
         1.5707953933916887,
-        7.720857322369368e-7,
+        7.720857322369368e-07,
         -0.5181840707807623
       ],
       "scale": [
@@ -18413,7 +18417,7 @@
       ],
       "rotation": [
         -1.5707956307001416,
-        2.5521307911447186e-7,
+        2.5521307911447186e-07,
         0.28898256275654255
       ],
       "scale": [
@@ -18449,7 +18453,7 @@
         -96.44546508789062
       ],
       "rotation": [
-        2.1911258794232068e-7,
+        2.1911258794232068e-07,
         -1.27546241273872,
         -3.1415924452833086
       ],
@@ -18558,7 +18562,7 @@
             "vehicleLength": 8,
             "safetyMargin": 0.5,
             "maxCurvature": 0.115,
-            "goalTolerance": 6,
+            "goalTolerance": 1.5,
             "debugDraw": false,
             "obstacleSlowRadius": 1,
             "minSpeed": 9.4,
@@ -18574,7 +18578,7 @@
             "gainInit": 1300,
             "maxAccel": 60,
             "tau": 0.12,
-            "goalReach": 6
+            "goalReach": 2
           },
           "enabled": true
         }
@@ -18596,9 +18600,9 @@
         234.6231231689453
       ],
       "rotation": [
-        2.0796084943759438e-8,
+        2.0796084943759438e-08,
         0.6403901292687851,
-        -2.3699206233545035e-8
+        -2.3699206233545035e-08
       ],
       "mass": 2,
       "restitution": 0.1,
@@ -18744,7 +18748,7 @@
             "vehicleLength": 8,
             "safetyMargin": 0.5,
             "maxCurvature": 0.115,
-            "goalTolerance": 6,
+            "goalTolerance": 1.5,
             "debugDraw": false,
             "obstacleSlowRadius": 1,
             "minSpeed": 9.4,
@@ -18760,7 +18764,7 @@
             "gainInit": 1300,
             "maxAccel": 60,
             "tau": 0.12,
-            "goalReach": 6
+            "goalReach": 2
           },
           "enabled": true
         }
@@ -18847,7 +18851,7 @@
             "vehicleLength": 8,
             "safetyMargin": 0.5,
             "maxCurvature": 0.115,
-            "goalTolerance": 6,
+            "goalTolerance": 1.5,
             "debugDraw": false,
             "obstacleSlowRadius": 1,
             "minSpeed": 9.4,
@@ -18863,7 +18867,7 @@
             "gainInit": 1300,
             "maxAccel": 60,
             "tau": 0.12,
-            "goalReach": 6
+            "goalReach": 2
           },
           "enabled": true
         }
@@ -18947,7 +18951,7 @@
             "vehicleLength": 8,
             "safetyMargin": 0.5,
             "maxCurvature": 0.115,
-            "goalTolerance": 6,
+            "goalTolerance": 1.5,
             "debugDraw": false,
             "obstacleSlowRadius": 1,
             "minSpeed": 9.4,
@@ -18963,7 +18967,7 @@
             "gainInit": 1300,
             "maxAccel": 60,
             "tau": 0.12,
-            "goalReach": 6
+            "goalReach": 2
           },
           "enabled": true
         }
@@ -19047,7 +19051,7 @@
             "vehicleLength": 8,
             "safetyMargin": 0.5,
             "maxCurvature": 0.115,
-            "goalTolerance": 6,
+            "goalTolerance": 1.5,
             "debugDraw": false,
             "obstacleSlowRadius": 1,
             "minSpeed": 9.4,
@@ -19063,7 +19067,7 @@
             "gainInit": 1300,
             "maxAccel": 60,
             "tau": 0.12,
-            "goalReach": 6
+            "goalReach": 2
           },
           "enabled": true
         }
@@ -19147,7 +19151,7 @@
             "vehicleLength": 8,
             "safetyMargin": 0.5,
             "maxCurvature": 0.115,
-            "goalTolerance": 6,
+            "goalTolerance": 1.5,
             "debugDraw": false,
             "obstacleSlowRadius": 1,
             "minSpeed": 9.4,
@@ -19163,7 +19167,7 @@
             "gainInit": 1300,
             "maxAccel": 60,
             "tau": 0.12,
-            "goalReach": 6
+            "goalReach": 2
           },
           "enabled": true
         }
@@ -19247,7 +19251,7 @@
             "vehicleLength": 8,
             "safetyMargin": 0.5,
             "maxCurvature": 0.115,
-            "goalTolerance": 6,
+            "goalTolerance": 1.5,
             "debugDraw": false,
             "obstacleSlowRadius": 1,
             "minSpeed": 9.4,
@@ -19263,7 +19267,7 @@
             "gainInit": 1300,
             "maxAccel": 60,
             "tau": 0.12,
-            "goalReach": 6
+            "goalReach": 2
           },
           "enabled": true
         }
@@ -19285,9 +19289,9 @@
         16.254425048828125
       ],
       "rotation": [
-        0.00006746554938022556,
+        6.746554938022556e-05,
         0.08701406244899397,
-        -0.00006447878660591933
+        -6.447878660591933e-05
       ],
       "mass": 2,
       "restitution": 0.1,
@@ -19347,7 +19351,7 @@
             "vehicleLength": 8,
             "safetyMargin": 0.5,
             "maxCurvature": 0.115,
-            "goalTolerance": 6,
+            "goalTolerance": 1.5,
             "debugDraw": false,
             "obstacleSlowRadius": 1,
             "minSpeed": 9.4,
@@ -19363,7 +19367,7 @@
             "gainInit": 1300,
             "maxAccel": 60,
             "tau": 0.12,
-            "goalReach": 6
+            "goalReach": 2
           },
           "enabled": true
         }
@@ -19385,7 +19389,7 @@
         31.27677345275879
       ],
       "rotation": [
-        0.0000610724969940252,
+        6.10724969940252e-05,
         0.875833342735627,
         -0.00019435394126421452
       ],
@@ -19447,7 +19451,7 @@
             "vehicleLength": 8,
             "safetyMargin": 0.5,
             "maxCurvature": 0.115,
-            "goalTolerance": 6,
+            "goalTolerance": 1.5,
             "debugDraw": false,
             "obstacleSlowRadius": 1,
             "minSpeed": 9.4,
@@ -19463,7 +19467,7 @@
             "gainInit": 1300,
             "maxAccel": 60,
             "tau": 0.12,
-            "goalReach": 6
+            "goalReach": 2
           },
           "enabled": true
         }
@@ -19547,7 +19551,7 @@
             "vehicleLength": 8,
             "safetyMargin": 0.5,
             "maxCurvature": 0.115,
-            "goalTolerance": 6,
+            "goalTolerance": 1.5,
             "debugDraw": false,
             "obstacleSlowRadius": 1,
             "minSpeed": 9.4,
@@ -19563,7 +19567,7 @@
             "gainInit": 1300,
             "maxAccel": 60,
             "tau": 0.12,
-            "goalReach": 6
+            "goalReach": 2
           },
           "enabled": true
         }
@@ -19623,7 +19627,7 @@
       ],
       "rotation": [
         1.5707944277722257,
-        2.1258489413256143e-8,
+        2.1258489413256143e-08,
         -0.03008242857945193
       ],
       "scale": [
@@ -19659,9 +19663,9 @@
         -126.79728698730469
       ],
       "rotation": [
-        2.221777734859925e-8,
+        2.221777734859925e-08,
         -0.7917699822019479,
-        1.666517135533077e-8
+        1.666517135533077e-08
       ],
       "scale": [
         0.9999999999834635,
@@ -19870,9 +19874,9 @@
         -663.49951171875
       ],
       "rotation": [
-        1.1601567838697608e-7,
+        1.1601567838697608e-07,
         1.3692869403818861,
-        -9.17042484036741e-8
+        -9.17042484036741e-08
       ],
       "scale": [
         3.4776699961526107,
@@ -19940,9 +19944,9 @@
         -857.0499267578125
       ],
       "rotation": [
-        4.9689569282992055e-8,
+        4.9689569282992055e-08,
         -0.05337945853828379,
-        -5.790592181556963e-8
+        -5.790592181556963e-08
       ],
       "scale": [
         4.000295047219426,
@@ -19976,7 +19980,7 @@
         -444.0810241699219
       ],
       "rotation": [
-        -1.2159782473701578e-7,
+        -1.2159782473701578e-07,
         0.12151146383310006,
         3.141592536354943
       ],
@@ -20011,9 +20015,9 @@
         -363.2795104980469
       ],
       "rotation": [
-        7.758770111966347e-7,
+        7.758770111966347e-07,
         -1.5133746098013505,
-        8.081623690011978e-7
+        8.081623690011978e-07
       ],
       "scale": [
         4.4437542149296405,
@@ -20116,9 +20120,9 @@
         -594.9382934570312
       ],
       "rotation": [
-        6.899936525877069e-8,
+        6.899936525877069e-08,
         0.7288801844841601,
-        -4.3805871936888105e-8
+        -4.3805871936888105e-08
       ],
       "scale": [
         4.492034734765066,
@@ -20187,7 +20191,7 @@
         561.1384887695312
       ],
       "rotation": [
-        -2.221423824291693e-8,
+        -2.221423824291693e-08,
         0.04843394615615315,
         -1.5707957036639226
       ],
@@ -20329,7 +20333,7 @@
       "rotation": [
         3.1415919520022317,
         1.426329859387521,
-        6.564968805565851e-7
+        6.564968805565851e-07
       ],
       "scale": [
         4.840376594697446,
@@ -20535,7 +20539,7 @@
         140.40318298339844
       ],
       "rotation": [
-        -6.329446961663088e-8,
+        -6.329446961663088e-08,
         0.09594931895085826,
         3.141592595201537
       ],
@@ -20571,9 +20575,9 @@
         74.83798217773438
       ],
       "rotation": [
-        -8.318032711770287e-8,
+        -8.318032711770287e-08,
         -0.9270524583341302,
-        -6.536451828286016e-8
+        -6.536451828286016e-08
       ],
       "scale": [
         4.5725037201421666,
@@ -20642,9 +20646,9 @@
         -133.99732971191406
       ],
       "rotation": [
-        4.306006341122413e-8,
+        4.306006341122413e-08,
         0.32793216861993746,
-        1.6060732486700613e-8
+        1.6060732486700613e-08
       ],
       "scale": [
         4.785429687821084,
@@ -21134,7 +21138,7 @@
       ],
       "rotation": [
         -1.5707976134143562,
-        -4.0035568815711645e-7,
+        -4.0035568815711645e-07,
         2.7012769929446008
       ],
       "scale": [
@@ -21170,7 +21174,7 @@
       ],
       "rotation": [
         -1.5707978267891995,
-        9.849329671853185e-7,
+        9.849329671853185e-07,
         0.9722730625615389
       ],
       "scale": [
@@ -21239,9 +21243,9 @@
         -141.53916931152344
       ],
       "rotation": [
-        0.000001412364433697912,
+        1.412364433697912e-06,
         1.5475302198831622,
-        -0.000001438246086002603
+        -1.438246086002603e-06
       ],
       "scale": [
         3.338595409973492,
@@ -21518,7 +21522,7 @@
       "rotation": [
         3.1415923998849675,
         -1.2352755046980977,
-        -2.61464661005863e-7
+        -2.61464661005863e-07
       ],
       "scale": [
         14.402996448580268,
@@ -21553,7 +21557,7 @@
       ],
       "rotation": [
         1.5707981456187667,
-        -9.327723802245135e-7,
+        -9.327723802245135e-07,
         1.8481710952718329
       ],
       "scale": [
@@ -21659,7 +21663,7 @@
       ],
       "rotation": [
         1.5707949734612792,
-        9.627911055078252e-7,
+        9.627911055078252e-07,
         -1.9714678629276592
       ],
       "scale": [
@@ -21693,7 +21697,7 @@
         -147.24476623535156
       ],
       "rotation": [
-        -5.534287782169583e-8,
+        -5.534287782169583e-08,
         -0.7577255631098612,
         -3.1415926266278023
       ],
@@ -21832,9 +21836,9 @@
         83.10658264160156
       ],
       "rotation": [
-        1.4929674843699732e-7,
+        1.4929674843699732e-07,
         1.368737044502152,
-        -1.1711787643367713e-7
+        -1.1711787643367713e-07
       ],
       "scale": [
         9.317119274547835,
@@ -21902,9 +21906,9 @@
         230.134
       ],
       "rotation": [
-        -8.978363836504783e-8,
+        -8.978363836504783e-08,
         1.2048397572389549,
-        8.647602417096327e-8
+        8.647602417096327e-08
       ],
       "scale": [
         7.079163772676192,
@@ -22007,9 +22011,9 @@
         -302.1466369628906
       ],
       "rotation": [
-        3.484891373518402e-8,
+        3.484891373518402e-08,
         0.6650264356776161,
-        1.3183303329775544e-8
+        1.3183303329775544e-08
       ],
       "scale": [
         10.574900023448354,
@@ -22162,7 +22166,7 @@
       ],
       "rotation": [
         1.5707981181651878,
-        -0.000001392098987196727,
+        -1.392098987196727e-06,
         1.9234750874148434
       ],
       "scale": [
@@ -22233,7 +22237,7 @@
       "rotation": [
         3.1415925841951995,
         -0.6625694424862534,
-        -2.8057842710995556e-8
+        -2.8057842710995556e-08
       ],
       "scale": [
         13.216341759883704,
@@ -22442,7 +22446,7 @@
       "rotation": [
         -3.141592588917594,
         0.9123097891811777,
-        4.8162849934321334e-8
+        4.8162849934321334e-08
       ],
       "scale": [
         7.078054345818459,
@@ -22615,9 +22619,9 @@
         -108.76
       ],
       "rotation": [
-        2.2530363354296803e-8,
+        2.2530363354296803e-08,
         -0.48868447396465176,
-        -1.2240366346221896e-8
+        -1.2240366346221896e-08
       ],
       "scale": [
         8.042284205534669,
@@ -22789,9 +22793,9 @@
         411.2470703125
       ],
       "rotation": [
-        2.8647858795316928e-8,
+        2.8647858795316928e-08,
         -0.18457779515159353,
-        2.999113371527417e-8
+        2.999113371527417e-08
       ],
       "scale": [
         14.476508015320462,
@@ -23037,7 +23041,7 @@
       "rotation": [
         3.141592584169816,
         0.21597855837933394,
-        5.755381649130623e-8
+        5.755381649130623e-08
       ],
       "scale": [
         14.767076528807255,
@@ -23735,7 +23739,7 @@
       ],
       "rotation": [
         -1.5707955301822543,
-        -0.000001180339484818934,
+        -1.180339484818934e-06,
         -2.0482776588186757
       ],
       "scale": [
@@ -23876,7 +23880,7 @@
         -54.107025146484375
       ],
       "rotation": [
-        0.0000016992775487157092,
+        1.6992775487157092e-06,
         0.9289388858108221,
         -1.5707971191262842
       ],
@@ -24102,7 +24106,7 @@
       ],
       "rotation": [
         -1.5707944583151692,
-        5.677492254108379e-7,
+        5.677492254108379e-07,
         -1.0460400389688822
       ],
       "scale": [
@@ -24310,9 +24314,9 @@
         529.2816162109375
       ],
       "rotation": [
-        3.606054738119381e-8,
+        3.606054738119381e-08,
         0.3890746338151313,
-        1.634210091210826e-8
+        1.634210091210826e-08
       ],
       "scale": [
         12.66494497725903,
@@ -24345,9 +24349,9 @@
         633.0820922851562
       ],
       "rotation": [
-        7.680638319664806e-8,
+        7.680638319664806e-08,
         1.0410322404040884,
-        -2.4346295304113352e-8
+        -2.4346295304113352e-08
       ],
       "scale": [
         8.286293642451259,
@@ -24764,9 +24768,9 @@
         -470.323974609375
       ],
       "rotation": [
-        -4.876019485224168e-7,
+        -4.876019485224168e-07,
         1.5107337992911112,
-        4.899627942395528e-7
+        4.899627942395528e-07
       ],
       "scale": [
         14.58838394942314,
@@ -24905,9 +24909,9 @@
         206.90966796875
       ],
       "rotation": [
-        -1.5992482541389966e-8,
+        -1.5992482541389966e-08,
         -0.09781137143458121,
-        -0.00007504759018576239
+        -7.504759018576239e-05
       ],
       "scale": [
         10.915104203394094,
@@ -24942,7 +24946,7 @@
       ],
       "rotation": [
         1.570795053185683,
-        9.461197336692341e-7,
+        9.461197336692341e-07,
         -2.3914198559963964
       ],
       "scale": [
