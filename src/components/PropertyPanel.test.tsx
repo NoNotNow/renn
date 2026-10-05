@@ -127,7 +127,7 @@ describe('PropertyPanel', () => {
   })
 
   it('calls onSelectEntity when a search result is picked', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const onSelectEntity = vi.fn()
     const world = worldWithSphere()
     render(
@@ -151,7 +151,7 @@ describe('PropertyPanel', () => {
   })
 
   it('calls onRefreshFromPhysics with entity id when refresh button is clicked', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const onRefreshFromPhysics = vi.fn()
     const world = worldWithBox()
     const entityId = world.entities[0].id
@@ -169,7 +169,7 @@ describe('PropertyPanel', () => {
   })
 
   it('calls onCloneEntity with entity id when clone button is clicked', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const onCloneEntity = vi.fn()
     const world = worldWithBox()
     const entityId = world.entities[0].id
@@ -198,7 +198,7 @@ describe('PropertyPanel', () => {
   })
 
   it('updating box width does not throw', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const onWorldChange = vi.fn()
     const world = worldWithBox()
     renderPropertyPanel(world, [world.entities[0]!.id], onWorldChange)
@@ -211,7 +211,7 @@ describe('PropertyPanel', () => {
   })
 
   it('changing Position X calls onWorldChange with updated entity position', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const onWorldChange = vi.fn()
     const world = worldWithBox()
     const entityId = world.entities[0].id
@@ -245,7 +245,7 @@ describe('PropertyPanel', () => {
     })
 
     it('changing Shape type updates entity shape', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       const onWorldChange = vi.fn()
       const world = worldWithBox()
       const entityId = world.entities[0].id
@@ -258,7 +258,7 @@ describe('PropertyPanel', () => {
     })
 
     it('changing Body type updates entity bodyType', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       const onWorldChange = vi.fn()
       const world = worldWithBox()
       const entityId = world.entities[0].id
@@ -286,7 +286,7 @@ describe('PropertyPanel', () => {
     })
 
     it('changing Scale X updates entity scale on blur', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       const onWorldChange = vi.fn()
       const world = worldWithBox()
       const entityId = world.entities[0].id
@@ -304,7 +304,7 @@ describe('PropertyPanel', () => {
     })
 
     it('linked scale edits uniform when axes are equal', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       const onWorldChange = vi.fn()
       const world = worldWithBox()
       const entityId = world.entities[0].id
@@ -320,7 +320,7 @@ describe('PropertyPanel', () => {
     })
 
     it('changing Rotation X updates entity rotation on blur', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       const onWorldChange = vi.fn()
       const world = worldWithBox()
       const entityId = world.entities[0].id
@@ -365,7 +365,7 @@ describe('PropertyPanel', () => {
     })
 
     it('changing Opacity updates entity material on blur', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       const onWorldChange = vi.fn()
       const world = worldWithBox()
       const entityId = world.entities[0].id
@@ -382,7 +382,7 @@ describe('PropertyPanel', () => {
     })
 
     it('changing Metalness updates entity material on blur', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       const onWorldChange = vi.fn()
       const world = worldWithBox()
       const entityId = world.entities[0].id
@@ -399,7 +399,7 @@ describe('PropertyPanel', () => {
     })
 
     it('Delete entity button calls onDeleteEntities with entity id', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       const onDeleteEntities = vi.fn()
       const world = worldWithBox()
       const entityId = world.entities[0].id
@@ -520,7 +520,7 @@ describe('PropertyPanel', () => {
     })
 
     it('clicking lock button toggles lock state', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       const onWorldChange = vi.fn()
       const world = worldWithBox()
       renderPropertyPanel(world, [world.entities[0]!.id], onWorldChange)
@@ -588,7 +588,7 @@ describe('PropertyPanel', () => {
     })
 
     it('does not call onDeleteEntities when clicking delete on locked entity', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       const onDeleteEntities = vi.fn()
       const world = worldWithBox()
       world.entities[0].locked = true
@@ -616,7 +616,7 @@ describe('PropertyPanel', () => {
     })
 
     it('calls onRefreshFromPhysics with all selected ids', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       const onRefresh = vi.fn()
       const world = worldBoxAndSphere()
       renderPropertyPanel(world, [...ids], vi.fn(), undefined, new Map(), onRefresh)
@@ -643,7 +643,7 @@ describe('PropertyPanel', () => {
     })
 
     it('shape type pyramid applies per-entity preserved sizes and pushBeforeEdit runs once', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       const onWorldChange = vi.fn()
       const pushBeforeEdit = vi.fn()
       const editorUndo: EditorUndoApi = {
@@ -669,7 +669,7 @@ describe('PropertyPanel', () => {
     })
 
     it('body type change applies to all selected', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       const onWorldChange = vi.fn()
       const world = worldBoxAndSphere()
       renderPropertyPanel(world, [...ids], onWorldChange)
@@ -708,7 +708,7 @@ describe('PropertyPanel', () => {
     })
 
     it('scale X applies to all selected', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       const onWorldChange = vi.fn()
       const world = worldBoxAndSphere()
       renderPropertyPanel(world, [...ids], onWorldChange)
@@ -724,7 +724,7 @@ describe('PropertyPanel', () => {
     })
 
     it('lock toggle locks all selected entities', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       const onWorldChange = vi.fn()
       const world = worldBoxAndSphere()
       renderPropertyPanel(world, [...ids], onWorldChange)
@@ -746,7 +746,7 @@ describe('PropertyPanel', () => {
   })
 
   it('calls onEntityModelTransformChange for model position edits', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const onEntityModelTransformChange = vi.fn()
     const entity = createDefaultEntity('box')
     const world: RennWorld = {

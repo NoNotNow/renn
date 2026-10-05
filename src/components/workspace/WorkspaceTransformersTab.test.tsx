@@ -327,7 +327,7 @@ describe('WorkspaceTransformersTab', () => {
   })
 
   it('does not force a pipe around a fresh entity: it keeps a bare stage list with + for transformers or pipes', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const freshWorld: RennWorld = {
       version: '1',
       world: {},
@@ -807,7 +807,7 @@ describe('WorkspaceTransformersTab', () => {
   })
 
   it('renames a custom transformer inline on the pipeline card', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const onWorldChange = vi.fn()
     renderTab({
       onWorldChange,
@@ -825,7 +825,7 @@ describe('WorkspaceTransformersTab', () => {
   })
 
   it('selects a newly added custom transformer so Monaco shows its code', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const inputOnlyWorld: RennWorld = {
       version: '1.0',
       world: { gravity: [0, -9.81, 0] },
@@ -1204,7 +1204,7 @@ describe('WorkspaceTransformersTab', () => {
     })
 
     it('a stage rename pushes exactly one undo entry for the whole edit', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       const onWorldChange = vi.fn()
       const multiEntityWorld: RennWorld = {
         ...carStackWorld,

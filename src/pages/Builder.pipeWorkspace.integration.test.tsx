@@ -249,9 +249,9 @@ describe('Builder pipe workspace integration', () => {
   })
 
   it(
-    'new project → Player Car workspace: custom pipe, link/copy existing pipes, and local reorder',
+    'new project → Player Car workspace: custom pipe, link/copy existing pipes, local reorder, and linked reorder propagation',
     async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       renderBuilder()
       await settleBuilder()
 
@@ -309,6 +309,14 @@ describe('Builder pipe workspace integration', () => {
         expect(transformerTypesForEntity(currentWorld(), carId)).toEqual(['custom', 'input', 'car2'])
       })
 
+      // linked pipe reorder propagates to the other linked instance (Box 1)
+      await switchWorkspaceEntity(user, 'Box 1')
+      await waitFor(() => {
+        const boxTypes = transformerTypesForEntity(currentWorld(), boxId)
+        const carTypes = transformerTypesForEntity(currentWorld(), carId)
+        expect(boxTypes.slice(0, 3)).toEqual(carTypes)
+      })
+
       await switchWorkspaceEntity(user, 'Player Car')
       selectEntityRootInPipeTree('Player Car')
       expandPipeTreeEntity('Player Car')
@@ -323,50 +331,6 @@ describe('Builder pipe workspace integration', () => {
       expect(boxStack).toContain('AuxPipe (copy)')
       const boxLocalPipe = boxStack.find((name) => name !== 'Pipe1' && name !== 'AuxPipe (copy)')
       expect(boxLocalPipe).toBe('BoxPipe')
-    },
-    60_000,
-  )
-
-  it(
-    'linked pipe stage reorder on one entity propagates to other linked instances',
-    async () => {
-      const user = userEvent.setup()
-      renderBuilder()
-      await settleBuilder()
-
-      await openEntitiesTab(user)
-      await selectEntityByName(user, 'Player Car')
-      await openWorkspace(user)
-      await ensurePipeNavOpen()
-      await waitForPlayerCarPipeWrap()
-
-      const carId = entityByName(currentWorld(), 'Player Car')!.id
-
-      await addCustomTransformer(user)
-      await createStackSiblingPipe(user, 'AuxPipe')
-
-      await switchWorkspaceEntity(user, 'Box 1')
-      const boxId = entityByName(currentWorld(), 'Box 1')!.id
-      // a fresh entity keeps a bare stage list; give Box 1 its own first pipe explicitly
-      await createStackSiblingPipe(user, 'BoxPipe')
-      await waitFor(() =>
-        expect(getEntityPipeStack(entityByName(currentWorld(), 'Box 1')!).length).toBeGreaterThan(0),
-      )
-      await addExistingPipe(user, 'Pipe1', 'linked')
-
-      await switchWorkspaceEntity(user, 'Player Car')
-      await drillIntoPipeInTree('Player Car', 'Pipe1')
-      reorderHorizontalStage(2, 0)
-      await waitFor(() => {
-        expect(transformerTypesForEntity(currentWorld(), carId)).toEqual(['custom', 'input', 'car2'])
-      })
-
-      await switchWorkspaceEntity(user, 'Box 1')
-      await waitFor(() => {
-        const boxTypes = transformerTypesForEntity(currentWorld(), boxId)
-        const carTypes = transformerTypesForEntity(currentWorld(), carId)
-        expect(boxTypes.slice(0, 3)).toEqual(carTypes)
-      })
     },
     60_000,
   )

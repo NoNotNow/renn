@@ -153,7 +153,7 @@ describe('Builder', () => {
   })
 
   it('renders add entity dropdown and entity list', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     renderBuilder()
     await act(async () => {
       await Promise.resolve()
@@ -168,7 +168,7 @@ describe('Builder', () => {
   it(
     'adds entity when selecting "Add box" and selects the new entity',
     async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       renderBuilder()
       await openEntitiesTab(user)
       const entityList = screen.getByRole('tree', { name: 'Entity explorer' })
@@ -190,7 +190,7 @@ describe('Builder', () => {
   it(
     'passes editor props to SceneView: selectedEntityIds, onSelectEntity, onEntityPoseCommit, gizmoMode',
     async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       renderBuilder()
       await act(async () => {
         await Promise.resolve()
@@ -227,7 +227,7 @@ describe('Builder', () => {
   })
 
   it('persists edit navigation mode when toggled via View → Edit-Modus', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     renderBuilder()
     await act(async () => {
       await Promise.resolve()
@@ -244,7 +244,7 @@ describe('Builder', () => {
   })
 
   it('passes showGameHud true to SceneView after View → Game HUD', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     renderBuilder()
     await act(async () => {
       await Promise.resolve()
@@ -258,7 +258,7 @@ describe('Builder', () => {
   })
 
   it('persists shadowsEnabled false on world when Shadows is toggled off in World panel', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     renderBuilder()
     await act(async () => {
       await Promise.resolve()
@@ -272,7 +272,7 @@ describe('Builder', () => {
   })
 
   it('passes selected entity id to SceneView when an entity is selected', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     renderBuilder()
     await act(async () => {
       await Promise.resolve()
@@ -284,7 +284,7 @@ describe('Builder', () => {
   })
 
   it('renders and opens the Sound tab in the left sidebar', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     renderBuilder()
     await act(async () => {
       await Promise.resolve()

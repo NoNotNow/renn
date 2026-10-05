@@ -289,9 +289,9 @@ describe('Builder workspace persistence integration', () => {
   })
 
   it(
-    'close and reopen workspace restores pipe depth and selected custom transformer',
+    'close and reopen workspace restores pipe depth, selected custom transformer, and Monaco scroll/cursor',
     async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       renderBuilder()
       await settleBuilder()
 
@@ -313,6 +313,10 @@ describe('Builder workspace persistence integration', () => {
         expect(monacoEl().getAttribute('data-monaco-value')).toContain('return {')
       })
 
+      monacoHarness.scrollTop = 320
+      monacoHarness.lineNumber = 15
+      monacoHarness.column = 4
+
       await closeWorkspace(user)
       await openWorkspace(user)
       await ensurePipeNavOpen()
@@ -320,34 +324,25 @@ describe('Builder workspace persistence integration', () => {
       await waitFor(() => {
         expect(screen.getByTestId('transformer-horizontal-item-2')).toBeInTheDocument()
         expect(monacoEl().getAttribute('data-monaco-value')).toContain('return {')
+        expect(monacoEl().getAttribute('data-monaco-scroll')).toBe('320')
+        expect(monacoEl().getAttribute('data-monaco-line')).toBe('15')
       })
 
       const tree = screen.getByTestId('pipe-nav-tree')
       expect(within(tree).getByText('Pipe1')).toBeInTheDocument()
       expect(screen.getByTestId('transformer-horizontal-item-0')).toBeInTheDocument()
-    },
-    60_000,
-  )
-
-  it(
-    'clicking a transformer card body selects it for Monaco editing',
-    async () => {
-      const user = userEvent.setup()
-      renderBuilder()
-      await settleBuilder()
-
-      await openEntitiesTab(user)
-      await selectEntityByName(user, 'Player Car')
-      await openWorkspace(user)
-      await ensurePipeNavOpen()
-      await waitForPlayerCarPipeWrap()
-      await addCustomTransformer(user)
-      await drillIntoPipeInTree('Player Car', 'Pipe1')
-
-      fireEvent.click(screen.getByTestId('transformer-horizontal-item-2'))
-      await waitFor(() => {
-        expect(monacoEl().getAttribute('data-monaco-value')).toContain('return {')
-      })
+      expect(
+        viewStateScrollTop(
+          loadWorkspaceEditorViewState(
+            workspaceEditorItemKey({
+              entityId: carId,
+              tab: 'transformers',
+              itemId: customId,
+              pipeNavPath: [{ kind: 'stack', index: 0 }],
+            })!,
+          ),
+        ),
+      ).toBe(320)
     },
     60_000,
   )
@@ -355,7 +350,7 @@ describe('Builder workspace persistence integration', () => {
   it(
     'clicking a pipe row in the tree selects the first custom stage and opens its code',
     async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       renderBuilder()
       await settleBuilder()
 
@@ -381,7 +376,7 @@ describe('Builder workspace persistence integration', () => {
   it(
     'restores Monaco scroll and cursor when switching between custom transformers',
     async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       renderBuilder()
       await settleBuilder()
 
@@ -442,54 +437,9 @@ describe('Builder workspace persistence integration', () => {
   )
 
   it(
-    'close and reopen workspace restores Monaco scroll and cursor for the same transformer',
-    async () => {
-      const user = userEvent.setup()
-      renderBuilder()
-      await settleBuilder()
-
-      await openEntitiesTab(user)
-      await selectEntityByName(user, 'Player Car')
-      await openWorkspace(user)
-      await ensurePipeNavOpen()
-      await waitForPlayerCarPipeWrap()
-      await addCustomTransformer(user)
-      await drillIntoPipeInTree('Player Car', 'Pipe1')
-
-      fireEvent.click(screen.getByTestId('transformer-horizontal-item-2'))
-      await waitFor(() => {
-        expect(monacoEl().getAttribute('data-monaco-value')).toContain('return {')
-      })
-
-      monacoHarness.scrollTop = 320
-      monacoHarness.lineNumber = 15
-      monacoHarness.column = 4
-
-      await closeWorkspace(user)
-      await openWorkspace(user)
-
-      await waitFor(() => {
-        expect(monacoEl().getAttribute('data-monaco-scroll')).toBe('320')
-        expect(monacoEl().getAttribute('data-monaco-line')).toBe('15')
-      })
-
-      const carId = entityByName(currentWorld(), 'Player Car')!.id
-      const customId = customTransformerId(currentWorld(), carId)
-      const editorKey = workspaceEditorItemKey({
-        entityId: carId,
-        tab: 'transformers',
-        itemId: customId,
-        pipeNavPath: [{ kind: 'stack', index: 0 }],
-      })!
-      expect(viewStateScrollTop(loadWorkspaceEditorViewState(editorKey))).toBe(320)
-    },
-    60_000,
-  )
-
-  it(
     'entity switch in workspace restores each entity pipe depth and selection',
     async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       renderBuilder()
       await settleBuilder()
 

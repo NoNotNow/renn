@@ -97,7 +97,7 @@ function scaleModeGroup() {
 describe('VectorField integration', () => {
   describe('absolute ↔ relative mode switching', () => {
     it('absolute → relative without edit: shows zeros, stored value unchanged', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       render(<ControlledVectorField initial={[2, 4, 6]} defaultLinked />)
       expect(getAxisInput('Test vector', 'X')).toHaveValue(2)
       await clickMode(user, 'Relative offsets')
@@ -108,7 +108,7 @@ describe('VectorField integration', () => {
     })
 
     it('relative → absolute without edit: restores absolute display', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       render(<ControlledVectorField initial={[2, 4, 6]} />)
       await clickMode(user, 'Relative offsets')
       await clickMode(user, 'Absolute values')
@@ -118,7 +118,7 @@ describe('VectorField integration', () => {
     })
 
     it('ping-pong absolute → relative → absolute → relative: no spurious edits', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       render(<ControlledVectorField initial={[1, 2, 3]} defaultLinked />)
       await clickMode(user, 'Relative offsets')
       await clickMode(user, 'Absolute values')
@@ -131,7 +131,7 @@ describe('VectorField integration', () => {
     })
 
     it('absolute edit → relative: baseline is committed absolute value', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       render(<ControlledVectorField initial={[1, 1, 1]} defaultLinked />)
       await commitAxisValue(user, getAxisInput('Test vector', 'X'), '2')
       expect(getVectorValue()).toEqual([2, 2, 2])
@@ -142,7 +142,7 @@ describe('VectorField integration', () => {
     })
 
     it('relative edit → absolute: displays committed absolute numbers', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       render(<ControlledVectorField initial={[1, 1, 1]} defaultLinked />)
       await clickMode(user, 'Relative offsets')
       await commitAxisValue(user, getAxisInput('Test vector', 'X'), '1')
@@ -154,7 +154,7 @@ describe('VectorField integration', () => {
     })
 
     it('relative edit → absolute → relative: second relative baseline uses latest absolute', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       render(<ControlledVectorField initial={[1, 1, 1]} />)
       await clickMode(user, 'Relative offsets')
       await commitAxisValue(user, getAxisInput('Test vector', 'X'), '1')
@@ -166,7 +166,7 @@ describe('VectorField integration', () => {
     })
 
     it('uncommitted relative typing commits on mode switch to absolute', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       render(<ControlledVectorField initial={[1, 2, 3]} />)
       await clickMode(user, 'Relative offsets')
       const input = getAxisInput('Test vector', 'X')
@@ -179,7 +179,7 @@ describe('VectorField integration', () => {
     })
 
     it('uncommitted absolute typing commits on mode switch to relative', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       render(<ControlledVectorField initial={[1, 2, 3]} />)
       const input = getAxisInput('Test vector', 'X')
       await user.click(input)
@@ -191,7 +191,7 @@ describe('VectorField integration', () => {
     })
 
     it('linked scale: absolute uniform then relative offset preserves link', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       render(<ControlledVectorField initial={[2, 2, 2]} defaultLinked />)
       await commitAxisValue(user, getAxisInput('Test vector', 'X'), '3')
       expect(getVectorValue()).toEqual([3, 3, 3])
@@ -205,7 +205,7 @@ describe('VectorField integration', () => {
     })
 
     it('unlinked scale: absolute per-axis survives mode round-trip', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       render(<ControlledVectorField initial={[1, 1, 1]} />)
       await commitAxisValue(user, getAxisInput('Test vector', 'X'), '2')
       expect(getVectorValue()).toEqual([2, 1, 1])
@@ -221,28 +221,28 @@ describe('VectorField integration', () => {
 
   describe('absolute mode', () => {
     it('unlinked: edits a single axis on blur', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       render(<ControlledVectorField initial={[1, 2, 3]} />)
       await commitAxisValue(user, getAxisInput('Test vector', 'X'), '5')
       expect(getVectorValue()).toEqual([5, 2, 3])
     })
 
     it('linked + equal: uniform scale when one axis changes', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       render(<ControlledVectorField initial={[2, 2, 2]} defaultLinked />)
       await commitAxisValue(user, getAxisInput('Test vector', 'Y'), '4')
       expect(getVectorValue()).toEqual([4, 4, 4])
     })
 
     it('linked + unequal: applies delta to all axes', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       render(<ControlledVectorField initial={[1, 2, 3]} defaultLinked />)
       await commitAxisValue(user, getAxisInput('Test vector', 'X'), '3')
       expect(getVectorValue()).toEqual([3, 4, 5])
     })
 
     it('unlink restores per-axis editing', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       render(<ControlledVectorField initial={[2, 2, 2]} defaultLinked />)
       await user.click(screen.getByLabelText('Test vector unlink axes'))
       await commitAxisValue(user, getAxisInput('Test vector', 'X'), '3')
@@ -250,7 +250,7 @@ describe('VectorField integration', () => {
     })
 
     it('link mid-session groups subsequent edits', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       render(<ControlledVectorField initial={[1, 2, 3]} />)
       await user.click(screen.getByLabelText('Test vector link axes'))
       await commitAxisValue(user, getAxisInput('Test vector', 'Z'), '5')
@@ -260,7 +260,7 @@ describe('VectorField integration', () => {
 
   describe('relative mode', () => {
     it('unlinked: adds offset to one axis from baseline at mode switch', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       render(<ControlledVectorField initial={[1, 2, 3]} />)
       await user.click(screen.getByLabelText('Relative offsets'))
       await commitAxisValue(user, getAxisInput('Test vector', 'X'), '0.5')
@@ -268,7 +268,7 @@ describe('VectorField integration', () => {
     })
 
     it('linked: adds same offset to all axes', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       render(<ControlledVectorField initial={[1, 2, 3]} defaultLinked />)
       await user.click(screen.getByLabelText('Relative offsets'))
       await commitAxisValue(user, getAxisInput('Test vector', 'X'), '0.25')
@@ -276,7 +276,7 @@ describe('VectorField integration', () => {
     })
 
     it('sequential relative edits accumulate from updated baseline', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       render(<ControlledVectorField initial={[0, 0, 0]} />)
       await user.click(screen.getByLabelText('Relative offsets'))
       await commitAxisValue(user, getAxisInput('Test vector', 'X'), '1')
@@ -286,7 +286,7 @@ describe('VectorField integration', () => {
     })
 
     it('displays zero deltas when idle in relative mode', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       render(<ControlledVectorField initial={[4, 5, 6]} />)
       await user.click(screen.getByLabelText('Relative offsets'))
       expect(getAxisInput('Test vector', 'X')).toHaveValue(0)
@@ -295,7 +295,7 @@ describe('VectorField integration', () => {
     })
 
     it('switching back to absolute shows stored values', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       render(<ControlledVectorField initial={[1, 1, 1]} />)
       await user.click(screen.getByLabelText('Relative offsets'))
       await commitAxisValue(user, getAxisInput('Test vector', 'X'), '2')
@@ -307,28 +307,28 @@ describe('VectorField integration', () => {
 
   describe('mode × link combinations', () => {
     it('absolute + unlinked edits one axis only', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       render(<ControlledVectorField initial={[1, 2, 3]} />)
       await commitAxisValue(user, getAxisInput('Test vector', 'X'), '5')
       expect(getVectorValue()).toEqual([5, 2, 3])
     })
 
     it('absolute + linked + equal sets uniform value', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       render(<ControlledVectorField initial={[2, 2, 2]} defaultLinked />)
       await commitAxisValue(user, getAxisInput('Test vector', 'Y'), '4')
       expect(getVectorValue()).toEqual([4, 4, 4])
     })
 
     it('absolute + linked + unequal applies shared delta', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       render(<ControlledVectorField initial={[1, 2, 3]} defaultLinked />)
       await commitAxisValue(user, getAxisInput('Test vector', 'X'), '4')
       expect(getVectorValue()).toEqual([4, 5, 6])
     })
 
     it('relative + unlinked offsets one axis', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       render(<ControlledVectorField initial={[1, 2, 3]} />)
       await user.click(screen.getByLabelText('Relative offsets'))
       await commitAxisValue(user, getAxisInput('Test vector', 'Z'), '0.5')
@@ -336,7 +336,7 @@ describe('VectorField integration', () => {
     })
 
     it('relative + linked offsets all axes equally', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       render(<ControlledVectorField initial={[0, 10, 20]} defaultLinked />)
       await user.click(screen.getByLabelText('Relative offsets'))
       await commitAxisValue(user, getAxisInput('Test vector', 'X'), '1')
@@ -380,7 +380,7 @@ describe('VectorField integration', () => {
 
   describe('UV-style two-axis group', () => {
     it('links only U and V, leaves third component unchanged', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       render(
         <ControlledVectorField
           initial={[1, 2, 99]}
@@ -422,7 +422,7 @@ describe('PropertyPanel vector groups integration', () => {
   }
 
   it('position defaults unlinked — X only', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const { onWorldChange } = renderPanel()
     await commitAxisValue(user, screen.getByLabelText(/position x/i), '5')
     const entity = onWorldChange.mock.calls.at(-1)![0].entities[0]
@@ -430,7 +430,7 @@ describe('PropertyPanel vector groups integration', () => {
   })
 
   it('scale defaults linked — uniform when equal', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const { onWorldChange } = renderPanel([2, 2, 2])
     await commitAxisValue(user, screen.getByLabelText(/scale x/i), '3')
     const entity = onWorldChange.mock.calls.at(-1)![0].entities[0]
@@ -439,7 +439,7 @@ describe('PropertyPanel vector groups integration', () => {
 
 
   it('scale unlink then per-axis edit', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const { onWorldChange } = renderPanel()
     await user.click(screen.getByLabelText('Scale unlink axes'))
     await commitAxisValue(user, screen.getByLabelText(/scale x/i), '2')
@@ -448,7 +448,7 @@ describe('PropertyPanel vector groups integration', () => {
   })
 
   it('position relative offset', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const { onWorldChange } = renderPanel()
     await user.click(within(positionGroup()).getByLabelText('Relative offsets'))
     await commitAxisValue(user, screen.getByLabelText(/position y/i), '3')
@@ -457,7 +457,7 @@ describe('PropertyPanel vector groups integration', () => {
   })
 
   it('rotation relative linked applies delta to all euler components', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const { onWorldChange } = renderPanel()
     const rotationGroup = screen.getByRole('group', { name: /rotation edit mode/i })
     await user.click(within(rotationGroup).getByLabelText('Relative offsets'))
@@ -473,7 +473,7 @@ describe('PropertyPanel vector groups integration', () => {
     }
 
     it('absolute linked uniform → relative zeros → relative offset → absolute shows result', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       const { onWorldChange } = renderPanel([2, 2, 2])
       const { x } = scaleInputs()
       await commitAxisValue(user, x, '3')
@@ -496,7 +496,7 @@ describe('PropertyPanel vector groups integration', () => {
     })
 
     it('scale ping-pong modes without edits preserves scale', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       renderPanel([1, 2, 3])
       const { x, y, z } = scaleInputs()
       const group = scaleModeGroup()
@@ -510,7 +510,7 @@ describe('PropertyPanel vector groups integration', () => {
     })
 
     it('scale unlinked: absolute per-axis edit survives relative round-trip', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       const { onWorldChange } = renderPanel()
       await user.click(screen.getByLabelText('Scale unlink axes'))
       const { x, y } = scaleInputs()
@@ -532,7 +532,7 @@ describe('PropertyPanel vector groups integration', () => {
     })
 
     it('scale relative offset commits when switching to absolute mid-typing', async () => {
-      const user = userEvent.setup()
+      const user = userEvent.setup({ delay: null })
       const { onWorldChange } = renderPanel([1, 1, 1])
       const group = scaleModeGroup()
       const { x } = scaleInputs()
