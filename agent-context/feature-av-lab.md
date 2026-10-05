@@ -94,3 +94,12 @@ fixed duration and explicit criteria, so a regression names the situation. ~40 s
 - Prints `t x z v <keys>` per tick (v = signed forward speed); keys are the watch labels of the car (`av.*` blackboard values); missing = `-`.
 - `AV_PROBE_EVERY` frame cadence (default 10), `AV_PROBE_FROM` / `AV_PROBE_TO` time window in s, `AV_PARAMS='{"cruiseSpeed":12}'` extra car params (merged by `buildArenaWorld`).
 - Skipped without `AV_PROBE_CASE`; built on the `onFrame` hook of `runScenario` (`fixtures/avEvasionRunner.ts`). Param layering guard: `av-stack-param-layers.integration.test.ts`.
+
+## Aggregate health gate (`npm run av:health`)
+
+Per-seed before/after on `self_hunt_flexible` is noise (chaos: any early change reshuffles every run). `tools/av-health.mjs` runs the lab over N seeds and judges the **aggregate**.
+- `npm run av:health [-- --save <name>] [-- --compare <name>] [--no-run]`. Runs `av-lab.diagnostic.test.ts` (world `self_hunt_flexible`, focus `entity_1779823253285_brtkx1p`, `AVLAB_MAX_SCENES=0`, out `test-results/av-health/run`). The lab writes `health-s<seed>.summary.json` per seed (machine-readable); the tool prints per-seed rows (path m, mean v, catches, stall / shuttle / jitter episodes/frames, maneuver frames, min chaser distance) and the aggregate (sum catches, sum stall+shuttle+jitter frames, median / mean path, mean speed).
+- Env: `AVHEALTH_SEEDS` (count N -> seeds 1..N, or a comma list; default **8**), `AVHEALTH_FRAMES` (default 1800), `AVHEALTH_PARAMS` (JSON, -> `AVLAB_PARAMS`), `AVHEALTH_WORLD`, `AVHEALTH_FOCUS`.
+- Runtime: ~35 s per seed x 1800 frames, so 8 seeds ~ 4.5 min (16 seeds would be ~9 min; use `AVHEALTH_SEEDS=16` for a deeper check). Runs are bit-identical (two runs, identical aggregate JSON).
+- `--save <name>` -> `test-results/av-health/<name>.json` (gitignored). `--compare <name>` prints deltas and exits 2 with `REGRESSION` if catches rise by > 2, stall+shuttle+jitter frames rise by > 25 %, or median path drops by > 10 % (`THRESHOLDS` at the top of the tool). Compare only runs with the same seeds x frames.
+- Baseline convention: `--save baseline-<short hash>` on the commit before your change, then `--compare` after. Baseline at 2321ee0 (8 x 1800): catches 0, trouble frames 105 (one seed, shuttle), median path 737.8 m, mean speed 22.4 m/s.

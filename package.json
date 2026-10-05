@@ -25,6 +25,7 @@
     "agent:authoring-smoke-headed": "RENN_AGENT_SMOKE_HEADED=1 tsx tools/renn-mcp/agent-authoring-smoke.ts",
     "agent:work-on-project": "tsx tools/renn-mcp/agent-work-on-project.ts",
     "sync:global-pipeline": "node tools/renn-mcp/sync-global-pipeline.mjs && node tools/renn-mcp/sync-hunt-car-patches.mjs && npx tsx tools/renn-mcp/export-all-self-drive-example-worlds.ts && npx tsx tools/renn-mcp/upgrade-example-worlds-library.ts",
+    "av:health": "node tools/av-health.mjs",
     "av:quick": "npm run sync:global-pipeline && vitest run src/test/scenarios/av-evasion-scenarios.test.ts src/test/scenarios/av-maze-scenarios.test.ts",
     "av:pre": "vitest run src/test/scenarios/av- src/test/scenarios/hunt-game"
   },

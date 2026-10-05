@@ -87,6 +87,13 @@ it.skipIf(!enabled)('av lab run', async () => {
       slowTriggerMs: env.AVLAB_SLOW_MS ? Number(env.AVLAB_SLOW_MS) : 0,
     })
     console.log(summary(`seed ${seed}`, r))
+    // Machine-readable per-seed summary (read by tools/av-health.mjs).
+    fs.writeFileSync(`${out}/${env.AVLAB_NAME ?? 'lab'}-s${seed}.summary.json`, JSON.stringify({
+      seed, frames: r.frames, stackVersion: r.stackVersion, pathLength: r.pathLength, meanSpeed: r.meanSpeed, maxSpeed: r.maxSpeed,
+      catches: r.catches, minChaserDist: r.minChaserDist, chaserCount: r.chaserCount, classFrames: r.classFrames,
+      events: r.events.map((e) => ({ kind: e.kind, startFrame: e.startFrame, endFrame: e.endFrame ?? null })),
+      maneuverFrames: r.limitHist.maneuver ?? 0, wallMs: r.wallMs,
+    }, null, 1))
     for (const sc of r.scenes) console.log(`  DIAG ${sc.trigger.kind}@${sc.trigger.frame}:`, JSON.stringify(sc.diagnostics))
     if (env.AVLAB_PROFILE === '1') console.log(formatProfile(world))
   }
