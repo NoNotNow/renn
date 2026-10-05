@@ -35,7 +35,7 @@ function transform(input, dt, params, state, api) {
     return {}
   }
   // chase the route's carrot (global plan) when there is one, else the raw goal
-  var aim = av.carrot ? [av.carrot[0], 0, av.carrot[1]] : tgt
+  var aim = av.carrot && !(params.fleeAimDirect !== false && av.fleeSim) ? [av.carrot[0], 0, av.carrot[1]] : tgt
   var gdx = aim[0] - pos[0]
   var gdz = aim[2] - pos[2]
   var gx = gdx * e.fwd[0] + gdz * e.fwd[2]

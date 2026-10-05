@@ -10,7 +10,7 @@
 // (escapeAccel 15 m/s^2, escapeSpeed 36 m/s top, kappa <= maxCurvature, lateral accel <= maxLatAccel) for escapeHorizon (5 s) against the pursuit-predicted pursuers (pure pursuit with their observed turn
 // rate, as the motion planner); score = smallest centre distance reached (capped at escapeSafe) + goal alignment / turn penalties. The heading is kept (hysteresis) and the goal is 90 m ahead on it. It also
 // triggers when the heading to the real goal is predicted to come within escapeTrigger (m, 16) of a pursuer, which can be far outside the 90 m geometric danger range. escapeRange (m, 160): pursuers considered.
-// gapCommit (bool, default ON; false disables): fleeSim's escape-heading search, but only against >= 2 pursuers, and the chosen goal (escapeGoalDist 150 m) is an ABSOLUTE point kept until reached / clearly worse (escapeSwitch 6, eval every 0.3 s) so the motion planner gets a fixed target.
+// gapCommit (bool, default ON; false disables): fleeSim's escape-heading search, but only against >= 2 pursuers, and the chosen goal (escapeGoalDist 150 m) is an ABSOLUTE point kept until reached / clearly worse (escapeSwitch 6, eval every 0.3 s) so the motion planner gets a fixed target. Also with gapCommit: gapWarmup (s, 0.1: no commit before the pursuers' velocities are filtered), gapTrackRange (m, 160: far list av.threatsFar for the sim only), escapeAccel default 9, av.fleeSim (motion planner `fleeAimDirect`, default on, aims at the committed goal instead of the route carrot).
 // fleeLos (bool, default off): the geometric flee / own-goal candidates are also scored by line of sight (one ray per heading from the hull edge): a goal whose straight way is blocked by a wall
 // before it is reached (maze, building) is penalised, free length is a bonus, so the car explores along open corridors instead of shuffling in front of a wall towards a goal behind it.
 // Goal watchdog (params.goalWatchdog = seconds, default 0 = off; needs fleeArea): a goal the car does not get closer to (>= 8 m) within that time is
@@ -146,13 +146,16 @@ function transform(input, dt, params, state, api) {
     if (!state.trk) state.trk = {}
     var thrs = []
     var tRange = params.threatRange || 120
+    var farRange = params.gapCommit !== false ? (params.gapTrackRange != null ? params.gapTrackRange : 160) : 0
+    var far = []
     var tdt = dt > 1e-6 ? dt : 1 / 60
     for (var ti = 0; ti < tids.length; ti++) {
       var tpos = api.getWorldPosition(tids[ti])
       if (!tpos) continue
       var rec = state.trk[tids[ti]]
-      if (!rec) rec = state.trk[tids[ti]] = { x: tpos[0], z: tpos[2], vx: 0, vz: 0, psi: null, w: 0, wmax: null }
+      if (!rec) rec = state.trk[tids[ti]] = { x: tpos[0], z: tpos[2], vx: 0, vz: 0, psi: null, w: 0, wmax: null, age: 0 }
       else {
+        rec.age += tdt
         rec.vx += 0.5 * ((tpos[0] - rec.x) / tdt - rec.vx)
         rec.vz += 0.5 * ((tpos[2] - rec.z) / tdt - rec.vz)
         rec.x = tpos[0]
@@ -173,9 +176,12 @@ function transform(input, dt, params, state, api) {
       }
       var tdx = rec.x - input.position[0]
       var tdz = rec.z - input.position[2]
-      if (tdx * tdx + tdz * tdz < tRange * tRange) thrs.push({ id: tids[ti], x: rec.x, z: rec.z, vx: rec.vx, vz: rec.vz, turn: rec.wmax })
+      var tEnt = { id: tids[ti], x: rec.x, z: rec.z, vx: rec.vx, vz: rec.vz, turn: rec.wmax, age: rec.age }
+      if (tdx * tdx + tdz * tdz < tRange * tRange) thrs.push(tEnt)
+      if (tdx * tdx + tdz * tdz < Math.max(tRange, farRange) * Math.max(tRange, farRange)) far.push(tEnt)
     }
     av.threats = thrs
+    av.threatsFar = far
   }
   if (params.fleeArea && input.target && input.target.pose && ((tids && tids.length) || params.goalWatchdog > 0)) fleeGoal(av, av.threats || [], input, params, state, api)
   api.watch('av.speed', Math.round(speed * 10) / 10)
@@ -249,17 +255,18 @@ function fleeGoal(av, thrs, input, params, state, api) {
   if (sim) {
     var eR = params.escapeRange != null ? params.escapeRange : 160
     simThrs = []
-    for (var si = 0; si < thrs.length; si++) {
-      var sdx = thrs[si].x - pos[0]
-      var sdz = thrs[si].z - pos[2]
-      if (sdx * sdx + sdz * sdz < eR * eR) simThrs.push(thrs[si])
+    var simSrc = av.threatsFar || thrs
+    for (var si = 0; si < simSrc.length; si++) {
+      var sdx = simSrc[si].x - pos[0]
+      var sdz = simSrc[si].z - pos[2]
+      if (sdx * sdx + sdz * sdz < eR * eR) simThrs.push(simSrc[si])
     }
     simQ = {
       dt: 0.1,
       H: params.escapeHorizon != null ? params.escapeHorizon : 5,
       kmax: params.maxCurvature || 0.115,
       aLat: params.escapeLatAccel != null ? params.escapeLatAccel : 12,
-      aUp: params.escapeAccel != null ? params.escapeAccel : 15,
+      aUp: params.escapeAccel != null ? params.escapeAccel : gap ? 9 : 15,
       aDown: params.chasedDecel || 9,
       vTop: params.escapeSpeed != null ? params.escapeSpeed : 36,
       vTurn: params.escapeTurnSpeed != null ? params.escapeTurnSpeed : 12,
@@ -269,6 +276,15 @@ function fleeGoal(av, thrs, input, params, state, api) {
     }
     // gapCommit alone only acts against >= 2 pursuers (a lone chaser keeps the geometric flee layer)
     if (gap && params.fleeSim !== true && simThrs.length < 2) sim = false
+    // gapWarmup (s, 0 = off): a pursuer's filtered velocity needs a few frames; before that it reads as parked and the sim calls every heading safe (a heading committed at t = 0.02 s that was never revised)
+    var gw = params.gapWarmup != null ? params.gapWarmup : gap ? 0.1 : 0
+    if (sim && gw > 0 && !fl) {
+      for (var wi = 0; wi < simThrs.length; wi++)
+        if (simThrs[wi].age < gw) {
+          av.fleeing = false
+          return
+        }
+    }
     simYaw = Math.atan2(av.ego.fwd[2], av.ego.fwd[0])
     if (sim && simThrs.length) simGoalD = escapeSim(simThrs, pos, simYaw, Math.max(0, av.ego.speedF), Math.atan2(g0[2] - pos[2], g0[0] - pos[0]), 0, simQ)
   }
@@ -489,5 +505,6 @@ function fleeSim(av, input, params, state, g0, area, fl, now, thrs, q, yaw0) {
   }
   state.flee = fl
   av.fleeing = true
+  av.fleeSim = gap
   input.target.pose.position = [fl.x, g0[1], fl.z]
 }
