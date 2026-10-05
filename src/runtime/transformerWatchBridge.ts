@@ -17,6 +17,8 @@ const EMPTY_TARGET_LIST: readonly TransformerWatchEntry[] = []
 
 let entriesByKey: ReadonlyMap<string, TransformerWatchEntry> = EMPTY_ENTRIES
 let entriesByTargetCache: ReadonlyMap<string, readonly TransformerWatchEntry[]> = new Map()
+/** The per-target index is rebuilt on first read after a change (a publish per stage per frame must not rebuild it when nobody reads it). */
+let entriesByTargetDirty = false
 let watchEnabled = false
 /** When true, `api.watch` publishes even if Builder has not enabled the watch panel. */
 let agentObservationWatchActive = false
@@ -37,6 +39,7 @@ function rebuildEntriesByTargetCache(): void {
     frozen.set(targetKey, list)
   }
   entriesByTargetCache = frozen
+  entriesByTargetDirty = false
 }
 
 export function watchEntryKey(entityId: string, configStackIndex: number, label: string): string {
@@ -44,7 +47,7 @@ export function watchEntryKey(entityId: string, configStackIndex: number, label:
 }
 
 function notifyListeners(): void {
-  rebuildEntriesByTargetCache()
+  entriesByTargetDirty = true
   for (const l of listeners) l()
 }
 
@@ -108,7 +111,9 @@ export function publishTransformerWatchEntry(payload: {
   ) {
     return
   }
-  const next = new Map(entriesByKey)
+  // Subscribers (Builder panel) compare snapshots by identity, so they get a fresh Map per change. With nobody subscribed (headless sims, labs) the map is
+  // updated in place: copying every entry on every publish of every stage every frame is quadratic in the number of watch labels.
+  const next = listeners.size === 0 && entriesByKey !== EMPTY_ENTRIES ? (entriesByKey as Map<string, TransformerWatchEntry>) : new Map(entriesByKey)
   next.set(key, nextEntry)
   entriesByKey = next
   notifyListeners()
@@ -138,6 +143,7 @@ export function clearTransformerWatchEntriesForTarget(entityId: string, configSt
 export function resetTransformerWatchBridgeForTests(): void {
   entriesByKey = EMPTY_ENTRIES
   entriesByTargetCache = new Map()
+  entriesByTargetDirty = false
   watchEnabled = false
   agentObservationWatchActive = false
   currentRunId = 0
@@ -157,5 +163,6 @@ export function getTransformerWatchEntriesForTarget(
   entityId: string,
   configStackIndex: number,
 ): readonly TransformerWatchEntry[] {
+  if (entriesByTargetDirty) rebuildEntriesByTargetCache()
   return entriesByTargetCache.get(`${entityId}:${configStackIndex}`) ?? EMPTY_TARGET_LIST
 }
