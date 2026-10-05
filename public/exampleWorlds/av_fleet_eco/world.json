@@ -593,6 +593,45 @@
         "jumpImpulse": 200
       }
     },
+    "hunt_chase_av": {
+      "type": "follow",
+      "priority": 1,
+      "enabled": true,
+      "name": "Chase AV",
+      "params": {
+        "targetEntityId": "entity_1779823253285_brtkx1p",
+        "linear": true,
+        "angular": false,
+        "speed": 40
+      }
+    },
+    "hunt_chase_leader": {
+      "type": "follow",
+      "priority": 1,
+      "enabled": true,
+      "name": "Chase leader",
+      "params": {
+        "targetEntityId": "entity_1780539051770_wy2smf6",
+        "linear": true,
+        "angular": false,
+        "speed": 40
+      }
+    },
+    "hunt_chaser_car": {
+      "type": "car2",
+      "priority": 11,
+      "enabled": true,
+      "params": {
+        "power": 400,
+        "steeringIntensity": 0.1,
+        "steeringSpeed": 0.5,
+        "lateralGrip": 100,
+        "tireGripSlipSpeedThreshold": 2,
+        "lateralGripSlipScale": 0.3,
+        "jumpImpulse": 200
+      },
+      "name": "Chaser drive (car2)"
+    },
     "fleet_car_1_tf10": {
       "type": "wanderer",
       "priority": 0,
