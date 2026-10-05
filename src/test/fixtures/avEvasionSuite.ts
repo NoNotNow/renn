@@ -37,6 +37,8 @@ interface Scenario {
   spec: () => Promise<ArenaSpec> | ArenaSpec;
   /** Returns the violated criteria (empty = pass). */
   criteria: (m: ScenarioMetrics) => string[];
+  /** Skipped in the eco / normal budget suites (full budget only). */
+  fullOnly?: boolean;
 }
 
 export interface ScenarioResult {
@@ -319,6 +321,44 @@ export const SCENARIOS: Scenario[] = [
     criteria: (m) => straightCriteria(m),
   },
   {
+    name: "wide-berth-open-field",
+    fullOnly: true, // eco refreshes the route 2.5x less often: the berth is not held (min gap 1.1 m there)
+    about:
+      "open ground, goal 150 m ahead, four large obstacles on / near the line, no chasers: the route keeps a wide berth (routeClearance; min hull gap >= 2.5 m: 3.6 m with it, 2.1 m without) and still reaches the goal",
+    seconds: 9, // the goal is reached at ~6 s; what the car does after that (loops around the goal) is not part of the berth test
+    spec: () => {
+      const cyl = (c: V2, r: number): ArenaBox[] =>
+        Array.from({ length: 24 }, (_, i) => {
+          const a = (i / 24) * 2 * Math.PI;
+          return {
+            at: [c[0] + r * Math.cos(a), c[1] + r * Math.sin(a)] as V2,
+            size: [2 * r * Math.sin(Math.PI / 24) + 0.3, 1] as V2,
+            yawDeg: -((a + Math.PI / 2) * 180) / Math.PI,
+            height: 6,
+          };
+        });
+      return {
+        car: { at: [0, 0], yawDeg: 0 },
+        goal: [0, -150],
+        boxes: [
+          ...cyl([0, -45], 8),
+          { at: [6, -85], size: [16, 10], height: 6 },
+          ...cyl([-12, -115], 10),
+          { at: [3, -122], size: [8, 14], height: 6 },
+        ],
+        puppets: [],
+        extraParams: { routeClearance: true },
+      };
+    },
+    criteria: (m) => {
+      const out = surviveCriteria({ minEndSpeed: 0 })(m);
+      if (!Number.isFinite(m.goalReachT)) out.push("goal not reached");
+      if (m.minStaticGap < 2.5)
+        out.push(`min static gap ${f1(m.minStaticGap)} m < 2.5`);
+      return out;
+    },
+  },
+  {
     name: "straight-offset-10deg",
     about:
       "same, but the car starts 10 deg off the line to the goal: heads for the goal without overshoot oscillation (looser bars: the start offset is only regained as fast as the goal direction allows)",
@@ -433,6 +473,7 @@ export function defineEvasionSuite(
     });
 
     for (const sc of SCENARIOS) {
+      if (sc.fullOnly && budget !== "full") continue;
       const known = KNOWN_FAILING[sc.name] != null;
       const run = known ? it.fails : it;
       run(
