@@ -63,7 +63,12 @@ function logicalRotationFromMeshWorldQuaternion(mesh: THREE.Mesh, worldQuat: THR
   return quaternionToEuler(stripVisualBase(worldQuat, mesh, _gizmoScratchQuat))
 }
 
-export type BuilderGizmoMode = 'translate' | 'rotate' | 'scale' | 'transform' | 'paint' | 'visualize'
+export const BUILDER_GIZMO_MODES = ['translate', 'rotate', 'scale', 'transform', 'paint', 'visualize'] as const
+export type BuilderGizmoMode = (typeof BUILDER_GIZMO_MODES)[number]
+
+export function isBuilderGizmoMode(value: unknown): value is BuilderGizmoMode {
+  return typeof value === 'string' && (BUILDER_GIZMO_MODES as readonly string[]).includes(value)
+}
 
 /**
  * World-space width for the variable overlay bar group (scale of columns + bar height mapping).

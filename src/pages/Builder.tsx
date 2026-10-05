@@ -1,6 +1,12 @@
 import { useState, useCallback, useRef, useEffect, useMemo, useSyncExternalStore } from 'react'
 import { loadExampleWorldFromPublicBase } from '@/utils/loadExampleWorldFromPublicBase'
-import { readExampleWorldUrlParam, setExampleWorldUrlParam } from '@/utils/exampleWorldUrlParam'
+import {
+  readExampleWorldUrlParam,
+  readExampleWorldUrlState,
+  setExampleWorldUrlParam,
+  setExampleWorldUrlState,
+  type ExampleWorldUrlState,
+} from '@/utils/exampleWorldUrlParam'
 import { createPortal } from 'react-dom'
 import SceneView, { type SceneViewHandle } from '@/components/SceneView'
 import BuilderHeader from '@/components/BuilderHeader'
@@ -49,6 +55,7 @@ import {
   TEXTURE_BRUSH_RADIUS_MIN,
   TEXTURE_PAINT_RADIUS_PX,
   type BuilderGizmoMode,
+  isBuilderGizmoMode,
   type BuilderPoseCommitEntry,
 } from '@/editor/transformGizmoController'
 import type { EditorSnapshot } from '@/editor/editorHistory'
@@ -116,18 +123,28 @@ export default function Builder() {
     loadDevWorld: loadExampleWorld,
   })
 
-  // shareable link: ?example=<id> opens that example world (public/exampleWorlds/<id>/) on start
+  // shareable link: ?example=<id>[&entity=<id>][&tool=<gizmo mode>] opens that example world (public/exampleWorlds/<id>/)
+  // on start and restores the selected entity and Builder tool (restore + URL sync effects further down)
   const exampleUrlLoadedRef = useRef(false)
+  const exampleUrlRestoreRef = useRef<ExampleWorldUrlState | null>(null)
+  const [exampleUrlPending, setExampleUrlPending] = useState(
+    () => readExampleWorldUrlParam(window.location.search) !== null,
+  )
   useEffect(() => {
     if (exampleUrlLoadedRef.current) return
     exampleUrlLoadedRef.current = true
-    const id = readExampleWorldUrlParam(window.location.search)
+    const state = readExampleWorldUrlState(window.location.search)
+    const id = state.example
     if (!id) return
     loadExampleWorldFromPublicBase(import.meta.env.BASE_URL || '/', id)
-      .then(({ world, assets }) => loadExampleWorld(world, id, assets))
+      .then(({ world, assets }) => {
+        exampleUrlRestoreRef.current = state
+        loadExampleWorld(world, id, assets)
+      })
       .catch((err) => {
         console.error('Failed to load example world from URL:', err)
         setExampleWorldUrlParam(null)
+        setExampleUrlPending(false)
       })
   }, [loadExampleWorld])
 
@@ -591,6 +608,29 @@ export default function Builder() {
     if (!Number.isFinite(a)) return
     setTextureBrushAlpha(Math.min(1, Math.max(0, a)))
   }, [])
+
+  // example-world link: restore entity / tool from the URL once the world is loaded
+  useEffect(() => {
+    const restore = exampleUrlRestoreRef.current
+    if (!restore || currentProject.id !== null || currentProject.name !== restore.example) return
+    exampleUrlRestoreRef.current = null
+    if (restore.entity && world.entities.some((e) => e.id === restore.entity)) setSelectedEntityIds([restore.entity])
+    if (isBuilderGizmoMode(restore.tool)) setGizmoMode(restore.tool)
+    setExampleUrlPending(false)
+  }, [currentProject.id, currentProject.name, world, setSelectedEntityIds])
+
+  // example-world link: keep entity / tool in the URL; drop the link when another project is opened
+  useEffect(() => {
+    if (exampleUrlPending) return
+    const example = readExampleWorldUrlParam(window.location.search)
+    if (!example) return
+    if (currentProject.id !== null || currentProject.name !== example) {
+      setExampleWorldUrlParam(null)
+      return
+    }
+    const entity = selectedEntityIds.find((id) => world.entities.some((e) => e.id === id)) ?? null
+    setExampleWorldUrlState({ example, entity, tool: gizmoMode })
+  }, [exampleUrlPending, currentProject.id, currentProject.name, selectedEntityIds, world, gizmoMode])
 
   useEffect(() => {
     if (gizmoMode === 'paint' && textureBrushDisabled) {

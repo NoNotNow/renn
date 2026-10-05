@@ -17,6 +17,8 @@ On another browser/port: **File → Example Worlds** (loads exported `world.json
 
 Example worlds are stored in [`public/exampleWorlds/`](../public/exampleWorlds/) and can be opened via **File → Example Worlds** menu in the Builder. Each id is a folder name that contains at least `world.json`; GLB-heavy exports also need an `assets/` tree (same layout as a Builder **Export** zip).
 
+**Shareable links** (`src/utils/exampleWorldUrlParam.ts`, wired in `src/pages/Builder.tsx`): opening an example world writes `?example=<id>` into the address bar; `&entity=<entityId>` (first selected entity) and `&tool=<gizmo mode>` (`translate`, `rotate`, `scale`, `transform`, `paint`, `visualize` = Visualize custom transformer variables) follow the Builder state live (`history.replaceState`). Starting the Builder with such a URL loads the world and restores selection + tool (unknown entity / tool are dropped). Opening any other project (IndexedDB, New, import) removes the params.
+
 **Discovery:** In dev, the Builder menu loads ids from `GET /__renn-agent/dev/example-worlds` (folders under `public/exampleWorlds/` with `world.json`). Production builds use the same folder set at compile time. Agent/MCP code uses `listAgentDevExampleWorldIds()` — never a hardcoded id list in `src/` or `tools/`.
 
 ### Adding a world from Export
