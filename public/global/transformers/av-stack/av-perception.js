@@ -60,12 +60,40 @@ function transform(input, dt, params, state, api) {
   state.frame = (state.frame || 0) + 1
   // ecoManeuver (default on in eco): while a multi-point manoeuvre drives (input.avMan from last frame's motion planner) the ring is narrowed too: dense cone (ecoManConeDeg 100) around the gear's direction, sides / sweep at the eco rates
   var ecoMan = params.budget === 'eco' && params.ecoManeuver !== false && !av.prevFix && !!input.avMan
-  var eco = params.budget === 'eco' && (!!av.prevFix || ecoMan)
+  // scanFocus (default on in eco, false = off): CALM cruise = last frame's route reached a goal, forward gear, no manoeuvre / blocked plan, past the start-up (scanStartFrames 360 = 6 s of mapping the surroundings first), no tracked body reaching the car within
+  // scanThreatT (2 s at the larger of its line-of-sight closing speed and its own speed (a homing body closes at its own speed; scanThreatOwn: false = closing speed only, loses maze flee-wall-ahead), or inside scanThreatMin 20 m; bodies beyond scanThreatRange 90 m never count). Only then the dense cone is narrow (scanConeDeg 30 around the middle of heading and route carrot),
+  // sides every scanSideEvery (4th) frame, the coarse 360 sweep (detects moving vehicles) every scanSweepEvery (30th). Anything else keeps the normal zoned scan.
+  var calm = false
+  var calmAng = 0
+  if (params.budget === 'eco' && params.scanFocus !== false && !av.prevFix && !ecoMan && state.frame > (params.scanStartFrames != null ? params.scanStartFrames : 360) && e.speed > 3 && av.prevRoute && av.prevRoute.reached && av.prevRoute.firstGear === 1 && !av.prevBlocked) {
+    calm = true
+    var cThrR = params.scanThreatRange != null ? params.scanThreatRange : 90
+    var cThrT = params.scanThreatT != null ? params.scanThreatT : 2
+    var cThrMin = params.scanThreatMin != null ? params.scanThreatMin : 20
+    var cts = av.threats || []
+    for (var cti = 0; cti < cts.length && calm; cti++) {
+      var cdx = cts[cti].x - pos[0]
+      var cdz = cts[cti].z - pos[2]
+      var cd = Math.sqrt(cdx * cdx + cdz * cdz)
+      if (cd >= cThrR) continue
+      var cvx = cts[cti].vx - (input.velocity ? input.velocity[0] : e.speed * e.fwd[0])
+      var cvz = cts[cti].vz - (input.velocity ? input.velocity[2] : e.speed * e.fwd[2])
+      var ccl = cd > 1e-6 ? -(cdx * cvx + cdz * cvz) / cd : 1e9
+      var csp = Math.sqrt(cts[cti].vx * cts[cti].vx + cts[cti].vz * cts[cti].vz)
+      if (cd < cThrMin || cd < cThrT * Math.max(ccl, params.scanThreatOwn === false ? 0 : csp, 2)) calm = false
+    }
+    if (calm && av.prevCarrot) {
+      var cax = av.prevCarrot[0] - pos[0]
+      var caz = av.prevCarrot[1] - pos[2]
+      calmAng = Math.max(-0.8, Math.min(0.8, Math.atan2(cax * e.left[0] + caz * e.left[2], cax * e.fwd[0] + caz * e.fwd[2])))
+    }
+  }
+  var eco = params.budget === 'eco' && (!!av.prevFix || ecoMan || calm)
   var zoned = params.fwdFovDeg > 0 || eco
   var sideRange = Math.min(range, params.sideRange || 45)
   var sweepRay = Math.min(range, params.sweepRange || 45)
   if (zoned) {
-    var half = ((ecoMan ? params.ecoManConeDeg || 100 : eco ? params.fixConeDeg || 24 : params.fwdFovDeg) * Math.PI) / 360
+    var half = ((ecoMan ? params.ecoManConeDeg || 100 : calm ? 2 * (params.scanConeDeg || 30) + (Math.abs(calmAng) * 180) / Math.PI : eco ? params.fixConeDeg || 24 : params.fwdFovDeg) * Math.PI) / 360
     var fs = ((params.fwdStepDeg || (eco ? 3 : 2)) * Math.PI) / 180
     var ss = ((params.sideStepDeg || 12) * Math.PI) / 180
     var sweepStep = ((params.sweepStepDeg || 10) * Math.PI) / 180
@@ -80,10 +108,10 @@ function transform(input, dt, params, state, api) {
       var fOther = state.dir > 0 ? state.freeR : state.freeF
       if (fOther > fOwn * 1.3 + 6) state.dir = -state.dir
     }
-    var aim = eco && !ecoMan ? av.prevFix.ang : state.dir > 0 ? 0 : Math.PI
-    var sweepEvery = slow ? params.sweepEverySlow || 5 : eco ? params.ecoSweepEvery || 20 : params.sweepEvery || 15
+    var aim = calm ? calmAng / 2 : eco && !ecoMan ? av.prevFix.ang : state.dir > 0 ? 0 : Math.PI
+    var sweepEvery = slow ? params.sweepEverySlow || 5 : calm ? params.scanSweepEvery || 30 : eco ? params.ecoSweepEvery || 20 : params.sweepEvery || 15
     var doSweep = state.frame === 1 || state.frame % sweepEvery === 0
-    var sideEvery = eco ? params.ecoSideEvery || 6 : params.sideEvery || 2
+    var sideEvery = calm ? params.scanSideEvery || 4 : eco ? params.ecoSideEvery || 6 : params.sideEvery || 2
     var doSides = state.frame % sideEvery === 0
     var zl = []
     var a
@@ -367,6 +395,8 @@ function transform(input, dt, params, state, api) {
       api.visualizeLine([q2[0], pos[1] - 0.4, q2[1]], [q2[0], pos[1] + 0.5, q2[1]], '#ff00ff')
     }
   }
+  state.calmN = (state.calmN || 0) + (calm ? 1 : 0)
+  api.watch('av.calm', calm ? 'calm ' + state.calmN + '/' + state.frame : 'no ' + state.calmN + '/' + state.frame)
   av.scan = { angles: angles, ranges: ranges, range: range, dir: state.dir === undefined ? 1 : state.dir, freeFront: state.freeF, freeRear: state.freeR }
   av.points = pts
   av.rearClear = rearClear

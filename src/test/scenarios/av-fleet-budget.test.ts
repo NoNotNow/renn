@@ -13,7 +13,7 @@ describe('AV fleet: economy budget', () => {
   it(
     "6 cars: budget 'eco' needs much less CPU per car and drives as well as 'full'",
     async () => {
-      const full = await runFleet({ n: 6, layout: 'spread' }, 16)
+      const full = await runFleet({ n: 6, layout: 'spread', params: { budget: 'full' } }, 16)
       const eco = await runFleet({ n: 6, layout: 'spread', params: { budget: 'eco' } }, 16)
       const workRatio = weightedWork(eco.work) / weightedWork(full.work)
       console.log(`AV FLEET\n${formatFleet('full', full)}\n${formatFleet('eco', eco)}\nwork ratio eco / full ${workRatio.toFixed(3)} (info: wall-clock ratio ${(eco.perCarMs / full.perCarMs).toFixed(2)})`)

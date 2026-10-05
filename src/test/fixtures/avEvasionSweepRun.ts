@@ -36,7 +36,7 @@ export function runSweepShard(shard: number): void {
       it(
         c.id,
         async () => {
-          const m: ScenarioMetrics = await runScenario(c.spec, c.seconds)
+          const m: ScenarioMetrics = await runScenario({ ...c.spec, extraParams: { ...c.spec.extraParams, budget: 'full' } }, c.seconds) // pursuit benchmark: pinned to the full budget (the world car defaults to eco)
           const failed = surviveCriteria({ minChaserGap: 0 })(m)
           results.push(resultOf(c, m, failed))
           if (c.unwinnable || !SWEEP_BASELINE_PASS.has(c.id)) return

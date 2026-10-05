@@ -481,9 +481,7 @@ export function defineEvasionSuite(
         async () => {
           const spec = await sc.spec();
           const m = await runScenario(
-            budget === "full"
-              ? spec
-              : { ...spec, extraParams: { ...spec.extraParams, budget } },
+            { ...spec, extraParams: { ...spec.extraParams, budget } }, // the world car defaults to eco: the full suite pins budget "full"
             sc.seconds,
           );
           const failed = sc.criteria(m);

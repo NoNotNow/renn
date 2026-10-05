@@ -71,9 +71,7 @@ export function defineMazeSuite(
         async () => {
           const spec = c.spec();
           const m = await runScenario(
-            budget === "full"
-              ? spec
-              : { ...spec, extraParams: { ...spec.extraParams, budget } },
+            { ...spec, extraParams: { ...spec.extraParams, budget } }, // the world car defaults to eco: the full suite pins budget "full"
             c.seconds,
           );
           const failed = criteria(c, m);
