@@ -927,6 +927,47 @@ function transform(input, dt, params, state, api) {
     }
     return { carrot: fallback, pull: null }
   }
+  // route speed limit re-evaluated from the car's current pose: its along-route offset (nearest plan node) is subtracted from every bend distance
+  // A fast tracked body that closes in within routeLimitChaseT (8) s keeps the old short-horizon limit: braking early in front of a chaser costs sweep cases (corner-trap).
+  function chasedSoon() {
+    var th = av.threats
+    if (!th || !th.length) return false
+    var tMax = params.routeLimitChaseT != null ? params.routeLimitChaseT : 8
+    for (var ti = 0; ti < th.length; ti++) {
+      var tx = th[ti].x - pos[0]
+      var tz = th[ti].z - pos[2]
+      var dd = Math.hypot(tx, tz) || 1
+      var tsp = Math.hypot(th[ti].vx, th[ti].vz)
+      if (tsp <= 4) continue
+      var closing = -(th[ti].vx * tx + th[ti].vz * tz) / dd + Math.max(0, e.speedF) * ((e.fwd[0] * tx + e.fwd[2] * tz) / dd)
+      if (closing > 4 && dd / closing < tMax) return true
+    }
+    return false
+  }
+  function routeLimitNow(rt) {
+    if (rt.vOld != null && chasedSoon()) return rt.vOld
+    if (!rt.bends || !rt.bends.length || !rt.nodes) return rt.vLimit
+    var nn = rt.nodes
+    var best = 0
+    var bd = Infinity
+    var cum = 0
+    var bc = 0
+    for (var ni = 0; ni < nn.length && nn[ni].g === 1 || ni === 0; ni++) {
+      if (ni > 0) cum += Math.hypot(nn[ni].x - nn[ni - 1].x, nn[ni].z - nn[ni - 1].z)
+      var dd = Math.hypot(nn[ni].x - pos[0], nn[ni].z - pos[2])
+      if (dd < bd) { bd = dd; bc = cum; best = ni }
+    }
+    var aL = params.maxLatAccel || 9
+    var aB = params.comfortDecel || 5
+    var lim = Infinity
+    for (var bi = 0; bi < rt.bends.length; bi++) {
+      var ds = Math.max(0, rt.bends[bi].s - ((params.routeLimitPose != null ? params.routeLimitPose : params.budget === 'eco') ? bc : 0))
+      var al = Math.sqrt(rt.bends[bi].vi * rt.bends[bi].vi + 2 * aB * ds)
+      if (al < lim) lim = al
+    }
+    return lim
+  }
+
   // route summary: first gear, length of the leading forward run, carrot point
   function summarize(res) {
     var nodes = res.nodes
@@ -964,7 +1005,14 @@ function transform(input, dt, params, state, api) {
     // the corner speed uses the net heading change over a window (kWin m) ahead of each segment (S-wiggles cancel).
     var kWin = params.routeCurveWindow != null ? params.routeCurveWindow : 14
     var segs = res.segs
-    for (var si = 0; si < segs.length && dAhead < 40 && segs[si].g > 0; si++) {
+    // routeLimitFull (default on): horizon = the whole forward run (braking from cruise needs ~100 m, not 40), bends from kk 0.005 (the corner speed
+    // sqrt(aLat/kk) is harmless at low kk); the bends are kept (bends) so the limit is re-evaluated from the car's CURRENT pose, not the plan start.
+    var full = params.routeLimitFull !== false
+    var horizon = full ? 160 : 40
+    var kMin = full ? (params.routeLimitKappa != null ? params.routeLimitKappa : 0.04) : 0.04
+    var bends = []
+    var vOld = Infinity
+    for (var si = 0; si < segs.length && dAhead < horizon && segs[si].g > 0; si++) {
       var turn = 0
       var wl = 0
       for (var sj = si; sj < segs.length && segs[sj].g > 0 && wl < kWin; sj++) {
@@ -973,14 +1021,24 @@ function transform(input, dt, params, state, api) {
         wl += take
       }
       var kk = Math.abs(turn) / Math.max(kWin, wl)
-      if (kk > 0.04) {
-        var vi = Math.sqrt(aLat / kk)
+      if (full && dAhead < 40 && kk > 0.04) vOld = Math.min(vOld, Math.sqrt(Math.sqrt(aLat / kk) * Math.sqrt(aLat / kk) + 2 * aBrk * dAhead))
+      if (kk > kMin) {
+        // routeLimitLatScale (1): the extended horizon sees every bend of the weave around obstacles, the plain maxLatAccel budget (9) is too slow for the route-clearance weave
+        var vi = Math.sqrt(aLat * (params.routeLimitLatScale != null ? params.routeLimitLatScale : 1) / kk)
         var allowed = Math.sqrt(vi * vi + 2 * aBrk * dAhead)
         if (allowed < vLimit) vLimit = allowed
+        bends.push({ s: dAhead, vi: vi })
       }
       dAhead += segs[si].len
     }
-    return { firstGear: firstGear, run: run, carrot: carrot, pull: pulled && pulled.pull, reached: res.reached, expansions: res.expansions, hRem: res.hRemaining, nodes: nodes, path: res.path, vLimit: vLimit }
+    // the forward run ends in a gear change (a reversal ahead): the car has to be (nearly) stopped there, not at cruise
+    if (full && params.routeLimitStops === true && firstGear === 1 && run > 0 && run < horizon && nodes.some(function (nd) { return nd.g !== 1 })) {
+      var vEnd = params.routeLimitGearSwitch != null ? params.routeLimitGearSwitch : 3
+      var aEnd = Math.sqrt(vEnd * vEnd + 2 * aBrk * run)
+      if (aEnd < vLimit) vLimit = aEnd
+      bends.push({ s: run, vi: vEnd })
+    }
+    return { firstGear: firstGear, run: run, carrot: carrot, pull: pulled && pulled.pull, reached: res.reached, expansions: res.expansions, hRem: res.hRemaining, nodes: nodes, path: res.path, vLimit: vLimit, vOld: vOld, bends: full ? bends : null }
   }
 
   // --- reverse cruise: the goal is behind, the way ahead is blocked, the way behind is free -> drive backwards steadily (long reverse
@@ -1070,7 +1128,7 @@ function transform(input, dt, params, state, api) {
   }
 
   if (!state.active) {
-    if (state.route === undefined || e.t - state.routeT >= routeInterval) {
+    if (state.route === undefined || e.t - state.routeT >= (params.routeFastRefresh === true && (e.speedF || 0) > 20 ? Math.max(0.3, routeInterval * 20 / e.speedF) : routeInterval)) {
       // wide berth (routeClearance): forward cruise route plans only
       clrField = null
       clrActive = false
@@ -1118,7 +1176,24 @@ function transform(input, dt, params, state, api) {
         }
       }
       api.watch('av.carrotw', rt.carrot ? rt.carrot[0].toFixed(0) + ',' + rt.carrot[1].toFixed(0) : '-')
-      av.route = { firstGear: rt.firstGear, run: rt.run, reached: rt.reached, vLimit: rt.vLimit }
+      // a route that was driving forward (>= 2 s on a long forward run) turns reverse-first for two plans in a row (the vote that starts the manoeuvre), the car still
+      // rolling: a missed turn. Brake to a stop for the manoeuvre instead of accelerating on the old forward limit (crawl floor ignored, av-speed-planner 'rstop').
+      // Decided once per such flip. OPT-IN (routeLimitRevStop: true): it fixes missed entrances but turns forward U-turns of the maze cases into K-turns (dead-end, corridor turnaround).
+      if (rt.bends && params.routeLimitRevStop === true) {
+        if (rt.firstGear === 1 && rt.run > 10) {
+          state.fwdStreak = (state.fwdStreak || 0) + dt
+          state.revStopOn = false
+          state.revDecided = false
+        } else if (rt.firstGear === -1) {
+          if (state.revVotes >= 2 && !state.revDecided) {
+            state.revDecided = true
+            state.revStopOn = (state.fwdStreak || 0) > 2 && e.speedF > 1.5
+            state.fwdStreak = 0
+          }
+        } else state.revStopOn = false
+      }
+      var revStop = !!state.revStopOn && rt.firstGear === -1
+      av.route = { firstGear: rt.firstGear, run: rt.run, reached: rt.reached, vLimit: revStop ? 0 : routeLimitNow(rt), revFirst: revStop }
       if (params.debugDraw !== false) {
         var y0 = pos[1]
         for (var di = 2; di < rt.path.length; di += 2) {
