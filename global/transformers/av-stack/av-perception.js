@@ -166,7 +166,8 @@ function transform(input, dt, params, state, api) {
       }
     }
   }
-  var levelsNow = eco && state.frame % 2 === 1 ? [] : levels
+  // ecoPlane2 (default on): in eco the extra ray planes (top edge / low) are cast every 2nd frame in ALL frames, hunted ones too (the dense cone keeps its full density: thinning the cone itself failed maze flee-wall-ahead)
+  var levelsNow = (eco || (params.budget === 'eco' && params.ecoPlane2 !== false)) && state.frame % 2 === 1 ? [] : levels
   for (var i = 0; i < nRays; i++) {
     var rayRange = range
     var th

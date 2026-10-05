@@ -498,6 +498,10 @@ function transform(input, dt, params, state, api) {
       np = 1
       var curB = 0
       var settled = 0
+      var fieldCut = params.budget === 'eco' && params.ecoFieldCut != null ? params.ecoFieldCut : params.budget === 'eco' ? 1.1 : 0
+      var fieldPad = params.ecoFieldPad != null ? params.ecoFieldPad : 20
+      var cutoff = fieldCut > 0 ? Infinity : -1
+      var carCell = fieldCut > 0 ? Math.max(0, Math.min(W - 1, Math.floor((pos[0] - wx0) / cs))) * H + Math.max(0, Math.min(H - 1, Math.floor((pos[2] - wz0) / cs))) : -1
       var stepA = [cs, cs, cs, cs, cdiag, cdiag, cdiag, cdiag]
       var dxs = [1, -1, 0, 0, 1, 1, -1, -1]
       var dzs = [0, 0, 1, -1, 1, -1, 1, -1]
@@ -514,6 +518,9 @@ function transform(input, dt, params, state, api) {
         var topK = hk[ent]
         var topI = hi[ent]
         if (topK > d[topI]) continue
+        // eco (ecoFieldCut 1.1, 0 = off): the Dijkstra stops once it is past ecoFieldCut x the car's own distance + ecoFieldPad (20): the search never goes farther from the goal than the route it looks for
+        if (topI === carCell) cutoff = topK * fieldCut + fieldPad
+        else if (cutoff >= 0 && topK > cutoff) break
         settled++
         var tx = (topI / H) | 0
         var tz = topI - tx * H
@@ -1128,7 +1135,10 @@ function transform(input, dt, params, state, api) {
   }
 
   if (!state.active) {
-    if (state.route === undefined || e.t - state.routeT >= (params.routeFastRefresh === true && (e.speedF || 0) > 20 ? Math.max(0.3, routeInterval * 20 / e.speedF) : routeInterval)) {
+    // eco (ecoPartialFactor 2): the last plan found no route to the goal and used its whole expansion budget (goal behind a wall, searching again 0.8 s later finds the same dead end): wait longer
+    var ri = routeInterval
+    if (params.budget === 'eco' && state.route !== undefined && !state.route.reached && state.route.expansions >= 0.9 * routeExp) ri *= params.ecoPartialFactor || 2
+    if (state.route === undefined || e.t - state.routeT >= (params.routeFastRefresh === true && (e.speedF || 0) > 20 ? Math.max(0.3, ri * 20 / e.speedF) : ri)) {
       // wide berth (routeClearance): forward cruise route plans only
       clrField = null
       clrActive = false
