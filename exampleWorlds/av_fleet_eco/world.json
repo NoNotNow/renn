@@ -595,7 +595,7 @@
     },
     "hunt_chase_av": {
       "type": "follow",
-      "priority": 1,
+      "priority": 0,
       "enabled": true,
       "name": "Chase AV",
       "params": {
@@ -609,7 +609,7 @@
     },
     "hunt_chase_leader": {
       "type": "follow",
-      "priority": 1,
+      "priority": 0,
       "enabled": true,
       "name": "Chase leader",
       "params": {

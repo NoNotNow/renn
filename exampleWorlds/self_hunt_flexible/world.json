@@ -613,7 +613,7 @@
     },
     "hunt_chase_av": {
       "type": "follow",
-      "priority": 1,
+      "priority": 0,
       "enabled": true,
       "name": "Chase AV",
       "params": {
@@ -627,7 +627,7 @@
     },
     "hunt_chase_leader": {
       "type": "follow",
-      "priority": 1,
+      "priority": 0,
       "enabled": true,
       "name": "Chase leader",
       "params": {
@@ -18498,6 +18498,7 @@
       "restitution": 0.1,
       "friction": 0.01,
       "transformers": [
+        "hunt_chase_av",
         "global_av_ego",
         "global_av_perception",
         "global_av_waypoint_viz",
@@ -18508,7 +18509,6 @@
         "global_av_control_lateral",
         "global_av_control_longitudinal",
         "global_av_aeb",
-        "hunt_chase_av",
         "hunt_chaser_car"
       ],
       "angularDamping": 0.3,
@@ -18694,6 +18694,7 @@
       "restitution": 0.1,
       "friction": 0.01,
       "transformers": [
+        "hunt_chase_av",
         "global_av_ego",
         "global_av_perception",
         "global_av_waypoint_viz",
@@ -18704,7 +18705,6 @@
         "global_av_control_lateral",
         "global_av_control_longitudinal",
         "global_av_aeb",
-        "hunt_chase_av",
         "hunt_chaser_car"
       ],
       "angularDamping": 0.3,
@@ -18794,6 +18794,7 @@
       "restitution": 0.1,
       "friction": 0.01,
       "transformers": [
+        "hunt_chase_av",
         "global_av_ego",
         "global_av_perception",
         "global_av_waypoint_viz",
@@ -18804,7 +18805,6 @@
         "global_av_control_lateral",
         "global_av_control_longitudinal",
         "global_av_aeb",
-        "hunt_chase_av",
         "hunt_chaser_car"
       ],
       "angularDamping": 0.3,
@@ -18897,6 +18897,7 @@
       "restitution": 0.1,
       "friction": 0.01,
       "transformers": [
+        "hunt_chase_av",
         "global_av_ego",
         "global_av_perception",
         "global_av_waypoint_viz",
@@ -18907,7 +18908,6 @@
         "global_av_control_lateral",
         "global_av_control_longitudinal",
         "global_av_aeb",
-        "hunt_chase_av",
         "hunt_chaser_car"
       ],
       "angularDamping": 0.3,
@@ -18997,6 +18997,7 @@
       "restitution": 0.1,
       "friction": 0.01,
       "transformers": [
+        "hunt_chase_av",
         "global_av_ego",
         "global_av_perception",
         "global_av_waypoint_viz",
@@ -19007,7 +19008,6 @@
         "global_av_control_lateral",
         "global_av_control_longitudinal",
         "global_av_aeb",
-        "hunt_chase_av",
         "hunt_chaser_car"
       ],
       "angularDamping": 0.3,
@@ -19097,6 +19097,7 @@
       "restitution": 0.1,
       "friction": 0.01,
       "transformers": [
+        "hunt_chase_leader",
         "global_av_ego",
         "global_av_perception",
         "global_av_waypoint_viz",
@@ -19107,7 +19108,6 @@
         "global_av_control_lateral",
         "global_av_control_longitudinal",
         "global_av_aeb",
-        "hunt_chase_leader",
         "hunt_chaser_car"
       ],
       "angularDamping": 0.3,
@@ -19197,6 +19197,7 @@
       "restitution": 0.1,
       "friction": 0.01,
       "transformers": [
+        "hunt_chase_leader",
         "global_av_ego",
         "global_av_perception",
         "global_av_waypoint_viz",
@@ -19207,7 +19208,6 @@
         "global_av_control_lateral",
         "global_av_control_longitudinal",
         "global_av_aeb",
-        "hunt_chase_leader",
         "hunt_chaser_car"
       ],
       "angularDamping": 0.3,
@@ -19297,6 +19297,7 @@
       "restitution": 0.1,
       "friction": 0.01,
       "transformers": [
+        "hunt_chase_leader",
         "global_av_ego",
         "global_av_perception",
         "global_av_waypoint_viz",
@@ -19307,7 +19308,6 @@
         "global_av_control_lateral",
         "global_av_control_longitudinal",
         "global_av_aeb",
-        "hunt_chase_leader",
         "hunt_chaser_car"
       ],
       "angularDamping": 0.3,
@@ -19397,6 +19397,7 @@
       "restitution": 0.1,
       "friction": 0.01,
       "transformers": [
+        "hunt_chase_leader",
         "global_av_ego",
         "global_av_perception",
         "global_av_waypoint_viz",
@@ -19407,7 +19408,6 @@
         "global_av_control_lateral",
         "global_av_control_longitudinal",
         "global_av_aeb",
-        "hunt_chase_leader",
         "hunt_chaser_car"
       ],
       "angularDamping": 0.3,
@@ -19497,6 +19497,7 @@
       "restitution": 0.1,
       "friction": 0.01,
       "transformers": [
+        "hunt_chase_leader",
         "global_av_ego",
         "global_av_perception",
         "global_av_waypoint_viz",
@@ -19507,7 +19508,6 @@
         "global_av_control_lateral",
         "global_av_control_longitudinal",
         "global_av_aeb",
-        "hunt_chase_leader",
         "hunt_chaser_car"
       ],
       "angularDamping": 0.3,
