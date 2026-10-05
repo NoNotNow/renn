@@ -189,4 +189,21 @@ export const MAZE_CASES: MazeCase[] = [
       ],
     }),
   },
+  {
+    name: 'flee-wall-ahead',
+    about: 'two homing 25 m/s chasers 40 m behind the car (gap commit), a 300 m long wall 70 m ahead with the goal behind it: the best open-space escape heading (straight ahead, away from the pack) ends at the wall; run along the wall and around it instead of committing a goal behind it (gapWalls off = commits through the wall, reaches the goal after 34.5 s, > 30; opt-in param gapWalls: true)',
+    seconds: 30,
+    maxReversals: 2,
+    minGap: 0.5,
+    spec: () => ({
+      car: { at: [0, 0], yawDeg: 0, speed: 25 },
+      goal: [0, -160],
+      extraParams: { gapWalls: true },
+      boxes: [seg([-150, -70], [150, -70])],
+      puppets: [
+        { id: 'chaser_a', size: CHASER, at: [-12, 40], yawDeg: 0, motion: { kind: 'home', speed: 25, turnRate: 1.5, lead: 0.3 } },
+        { id: 'chaser_b', size: CHASER, at: [12, 40], yawDeg: 0, motion: { kind: 'home', speed: 25, turnRate: 1.5, lead: 0.3 } },
+      ],
+    }),
+  },
 ]
