@@ -268,6 +268,104 @@ function transform(input, dt, params, state, api) {
   }
 
 
+
+  // --- route clearance (routeClearance, param; v2): smooth "wide berth" cost for FORWARD CRUISE route plans only (never maze / turn-around / reverse cruise / manoeuvre plans).
+  // One distance transform of the costmap points per plan (1 m lattice, two-pass nearest-point propagation, window = car..goal box +-25 m, <= 300 m square); the cost is integrated along every primitive
+  // (4 samples per 1.8 m, bilinear lookup): clearWeight (0.03) * max(0, Dc - gap)^2 / Dc per metre, gap = distance to the nearest costmap point - half vehicle width, Dc = clearMin (3) + clearSpeedGain (0.12) * speed, capped at clearMax (6).
+  // Quadratic and small: a berth is bought only where it costs little path (no zig-zag around obstacles that are far from the line). Not a veto (planMargin stays the hard margin).
+  var clrField = null
+  var clrActive = false
+  function clearDc() {
+    return Math.min(params.clearMax != null ? params.clearMax : 6, (params.clearMin != null ? params.clearMin : 3) + (params.clearSpeedGain != null ? params.clearSpeedGain : 0.12) * Math.max(0, e.speedF || 0))
+  }
+  function buildClearField(pts) {
+    var cap = (params.clearMax != null ? params.clearMax : 6) + ((av.vehicle && av.vehicle.width) || params.vehicleWidth || 2) / 2
+    var x0 = Math.min(pos[0], gxw) - 25
+    var x1 = Math.max(pos[0], gxw) + 25
+    var z0 = Math.min(pos[2], gzw) - 25
+    var z1 = Math.max(pos[2], gzw) + 25
+    if (x1 - x0 > 300) { x0 = pos[0] - 150; x1 = pos[0] + 150 }
+    if (z1 - z0 > 300) { z0 = pos[2] - 150; z1 = pos[2] + 150 }
+    var W = Math.ceil(x1 - x0) + 1
+    var H = Math.ceil(z1 - z0) + 1
+    var n = W * H
+    var px = new Float32Array(n)
+    var pz = new Float32Array(n)
+    var dd = new Float32Array(n).fill(1e9)
+    for (var i = 0; i < pts.length; i++) {
+      var qx = pts[i][0]
+      var qz = pts[i][1]
+      if (qx < x0 - cap || qx > x1 + cap || qz < z0 - cap || qz > z1 + cap) continue
+      var cx = Math.round(qx - x0)
+      var cz = Math.round(qz - z0)
+      if (cx < 0) cx = 0
+      else if (cx >= W) cx = W - 1
+      if (cz < 0) cz = 0
+      else if (cz >= H) cz = H - 1
+      var ci = cx * H + cz
+      var dx = qx - (x0 + cx)
+      var dz = qz - (z0 + cz)
+      var d2 = dx * dx + dz * dz
+      if (d2 < dd[ci]) {
+        dd[ci] = d2
+        px[ci] = qx
+        pz[ci] = qz
+      }
+    }
+    function relax(ci, cx, cz, nx2, nz2) {
+      if (nx2 < 0 || nx2 >= W || nz2 < 0 || nz2 >= H) return
+      var ni = nx2 * H + nz2
+      if (dd[ni] >= 1e9) return
+      var dx2 = px[ni] - (x0 + cx)
+      var dz2 = pz[ni] - (z0 + cz)
+      var d3 = dx2 * dx2 + dz2 * dz2
+      if (d3 < dd[ci]) {
+        dd[ci] = d3
+        px[ci] = px[ni]
+        pz[ci] = pz[ni]
+      }
+    }
+    var cxi
+    var czi
+    for (cxi = 0; cxi < W; cxi++) {
+      for (czi = 0; czi < H; czi++) {
+        var c0 = cxi * H + czi
+        relax(c0, cxi, czi, cxi - 1, czi)
+        relax(c0, cxi, czi, cxi, czi - 1)
+        relax(c0, cxi, czi, cxi - 1, czi - 1)
+        relax(c0, cxi, czi, cxi - 1, czi + 1)
+      }
+    }
+    for (cxi = W - 1; cxi >= 0; cxi--) {
+      for (czi = H - 1; czi >= 0; czi--) {
+        var c1 = cxi * H + czi
+        relax(c1, cxi, czi, cxi + 1, czi)
+        relax(c1, cxi, czi, cxi, czi + 1)
+        relax(c1, cxi, czi, cxi + 1, czi + 1)
+        relax(c1, cxi, czi, cxi + 1, czi - 1)
+      }
+    }
+    var dist = new Float32Array(n)
+    for (var k2 = 0; k2 < n; k2++) dist[k2] = dd[k2] >= 1e9 ? cap : Math.min(cap, Math.sqrt(dd[k2]))
+    return { x0: x0, z0: z0, W: W, H: H, d: dist, cap: cap }
+  }
+  // bilinear distance to the nearest costmap point (cap outside the window)
+  function clearDist(F, x, z) {
+    var fx = x - F.x0
+    var fz = z - F.z0
+    if (fx < 0 || fz < 0 || fx >= F.W - 1 || fz >= F.H - 1) return F.cap
+    var ix = Math.floor(fx)
+    var iz = Math.floor(fz)
+    var tx = fx - ix
+    var tz = fz - iz
+    var b = ix * F.H + iz
+    var a00 = F.d[b]
+    var a01 = F.d[b + 1]
+    var a10 = F.d[b + F.H]
+    var a11 = F.d[b + F.H + 1]
+    return (a00 * (1 - tx) + a10 * tx) * (1 - tz) + (a01 * (1 - tx) + a11 * tx) * tz
+  }
+
   // --- 2D goal-distance field (params.fieldHeuristic true, needs av.smap from the perception stage with staticMap) ---
   // Hybrid-A* with a euclidean heuristic is blind to walls: in a maze it floods the pocket in front of a wall, runs out of expansions and returns a PARTIAL route whose best node is a local
   // minimum of the euclidean distance (the car then shuffles 1.8 m back and forth). The field is the holonomic obstacle-aware distance to the goal over the PERSISTENT static map
@@ -490,6 +588,7 @@ function transform(input, dt, params, state, api) {
   }
 
   var turnOk = false
+  var clearOn = false
   function search(sx, sz, sfx, sfz, gx, gz, pts, maxExp, marginOverride) {
     var useField = fld !== null && Math.abs(gx - fld.gx) < 1.5 && Math.abs(gz - fld.gz) < 1.5
     var hlS = ((av.vehicle && av.vehicle.length) || params.vehicleLength || 4) / 2 + planMargin
@@ -512,6 +611,33 @@ function transform(input, dt, params, state, api) {
       hit = makeHit(pts, hlS, hwS)
     }
     state.startMargin = marginUsed
+    var clrF = null
+    var clrDc = 0
+    var clrW = 0
+    var clrHalfW = 0
+    if (clearOn && marginOverride == null && marginUsed === planMargin && pts.length > 0) {
+      clrF = clrField && clrField.pts === pts && clrField.n === pts.length ? clrField : (clrField = buildClearField(pts))
+      clrF.pts = pts
+      clrF.n = pts.length
+      clrDc = clearDc()
+      // confined (walls on BOTH sides of the start pose within ~4 m: corridor, gate, dead end): no berth to buy there, keep the plain plan
+      var lat = params.clearConfineLat != null ? params.clearConfineLat : 4
+      if (clearDist(clrF, sx + e.left[0] * lat, sz + e.left[2] * lat) < 2.5 && clearDist(clrF, sx - e.left[0] * lat, sz - e.left[2] * lat) < 2.5) clrF = null
+      // corridor / dead end wider than that (walls on both sides within clearConfineWide, 11 m): a wall line is crossed laterally on BOTH sides -> plain plan (no berth to buy, and the unseen end of a corridor counts as free)
+      if (clrF !== null) {
+        var wide = params.clearConfineWide != null ? params.clearConfineWide : 11
+        var wl = false
+        var wr = false
+        for (var wd = 1; wd <= wide; wd++) {
+          if (!wl && clearDist(clrF, sx + e.left[0] * wd, sz + e.left[2] * wd) < 0.8) wl = true
+          if (!wr && clearDist(clrF, sx - e.left[0] * wd, sz - e.left[2] * wd) < 0.8) wr = true
+        }
+        if (wl && wr) clrF = null
+      }
+      clrActive = clrF !== null
+      clrW = params.clearWeight != null ? params.clearWeight : 0.03
+      clrHalfW = ((av.vehicle && av.vehicle.width) || params.vehicleWidth || 2) / 2
+    }
     function eu(x, z) {
       var dx = gx - x
       var dz = gz - z
@@ -635,6 +761,7 @@ function transform(input, dt, params, state, api) {
           var revRun = gear < 0 ? (cur.gear < 0 ? cur.revRun || 0 : 0) + ell : 0
           if (revRun > maxRevRun) continue
           var ok = true
+          var clrPen = 0
           var nx = cur.x
           var nz = cur.z
           var nfx = cur.fx
@@ -661,11 +788,16 @@ function transform(input, dt, params, state, api) {
               ok = false
               break
             }
+            if (clrF !== null && gear > 0) {
+              var cgap = clrDc - (clearDist(clrF, nx, nz) - clrHalfW)
+              if (cgap > 0) clrPen += cgap * cgap
+            }
           }
           if (!ok) continue
           var step = ell * (gear < 0 ? revPen : 1) + (Math.abs(k) / kmax) * 0.4 * ell
           if (cur.gear !== 0 && cur.gear !== gear) step += gearPen
           if (cur.gear !== 0 && cur.k !== k) step += 0.3
+          if (clrPen > 0) step += (clrW * clrPen * ell) / (4 * clrDc)
           var g2 = cur.g + step
           var ns = slotOf(nx, nz, nfx, nfz, gear)
           if (tKeys[ns] !== -1 && tVals[ns] <= g2) continue
@@ -752,6 +884,8 @@ function transform(input, dt, params, state, api) {
   // `want` = max(lookahead, carrotLookT (1.6) s * speed): over a free line the carrot is a time-headway ahead (a 14 m carrot at 30 m/s is 0.5 s: pure-pursuit loop unstable, +-10 m weave).
   function pullCarrot(nodes, want, fallback, reached) {
     var hitP = makeHit(av.points || [], ((av.vehicle && av.vehicle.length) || params.vehicleLength || 4) / 2 + planMargin, ((av.vehicle && av.vehicle.width) || params.vehicleWidth || 2) / 2 + planMargin)
+    // wide-berth pass first (routeClearance cruise plans): the shortcut must keep Dc where possible; the plain margin test is the second pass
+    var hitW = clrActive && params.clearPull !== false ? makeHit(av.points || [], ((av.vehicle && av.vehicle.length) || params.vehicleLength || 4) / 2 + clearDc(), ((av.vehicle && av.vehicle.width) || params.vehicleWidth || 2) / 2 + clearDc()) : null
     var last = 1
     while (last + 1 < nodes.length && nodes[last + 1].g === 1) last++
     var acc2 = 0
@@ -765,6 +899,8 @@ function transform(input, dt, params, state, api) {
     var stride = Math.max(1, Math.ceil(cands.length / 14))
     // the route ends a cell short of / beside the goal (grid tolerance): when the whole route is one forward run, try the goal itself first (index -1)
     if (reached && last === nodes.length - 1) cands.push(-1)
+    for (var pass = hitW ? 0 : 1; pass < 2; pass++) {
+    var hitUse = pass === 0 ? hitW : hitP
     for (var ci = cands.length - 1; ci >= 0; ci -= ci >= cands.length - 2 ? 1 : stride) {
       var nd = cands[ci] < 0 ? { x: gxw, z: gzw } : nodes[cands[ci]]
       var dx = nd.x - pos[0]
@@ -777,7 +913,7 @@ function transform(input, dt, params, state, api) {
       if (ux * e.fwd[0] + uz * e.fwd[2] < (params.carrotPullCos != null ? params.carrotPullCos : 0.94)) continue
       var ok = true
       for (var d = 1.5; d < Math.min(dl, 150); d += 1.5) {
-        if (hitP(pos[0] + ux * d, pos[2] + uz * d, ux, uz)) {
+        if (hitUse(pos[0] + ux * d, pos[2] + uz * d, ux, uz)) {
           ok = false
           break
         }
@@ -787,6 +923,7 @@ function transform(input, dt, params, state, api) {
         // `pull` = the line-of-sight target; the carrot is re-aimed at it every frame (the route is replanned only every routeInterval, a world-fixed carrot would go stale / shrink)
         return { carrot: [pos[0] + ux * dd, pos[2] + uz * dd], pull: [nd.x, nd.z] }
       }
+    }
     }
     return { carrot: fallback, pull: null }
   }
@@ -934,7 +1071,14 @@ function transform(input, dt, params, state, api) {
 
   if (!state.active) {
     if (state.route === undefined || e.t - state.routeT >= routeInterval) {
+      // wide berth (routeClearance): forward cruise route plans only
+      clrField = null
+      clrActive = false
+      // maze mode only while the previous plan was a long forward run (a wall to drive around is 'maze' by the field detour, a dead end / corridor turn-around is not a cruise plan)
+      clearOn = params.routeClearance === true && !turnOk && !state.revCruise && (!state.maze || ((e.speedF || 0) >= (params.clearMinSpeed != null ? params.clearMinSpeed : 9) && state.route !== undefined && state.route.firstGear === 1 && state.route.reached && state.route.run >= (params.clearMazeRun != null ? params.clearMazeRun : 40)))
       state.route = summarize(plan(routeExp))
+      api.watch('av.clr', clrActive ? clearDc().toFixed(1) : '-')
+      clearOn = false
       state.routeT = e.t
       state.revFresh = true
       state.routes = (state.routes || 0) + 1
