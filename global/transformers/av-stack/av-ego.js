@@ -46,20 +46,26 @@ var AV_PRESET_CAR = {
   threatAccel: 7,
   chasedDecel: 9,
 }
+// 'saver' budget (params.saver: true on top of budget 'eco', works with or without params.preset): thinner ray sets and slower field rebuilds. The big win is the engine's stage tick decimation (`tickEvery` in a stage scope, see feature-av-stack.md "Saver").
+var AV_PRESET_SAVER = { fieldEvery: 1 }
 var AV_PRESET_EVASION = { style: 'escape', wThreat: 30, threatHitFloor: 250, comfortDecel: 4, minSpeed: 9.4, obstacleSlowRadius: 1 }
 var AV_PRESET_MAZE = { staticMap: true, fieldHeuristic: true }
 // preset table for params.preset (null = none). Built once per preset name; fleeArea defaults to the drivable area, else a 740 m box around the START position.
 function avPreset(params, state, pos) {
   var name = params.preset
-  if (!name || name === 'none') return null
-  if (state.presetName === name && state.preset) return state.preset
+  var none = !name || name === 'none'
+  if (none && !params.saver) return null
+  var cacheKey = (none ? 'none' : name) + (params.saver ? '+saver' : '')
+  if (state.presetName === cacheKey && state.preset) return state.preset
+  name = cacheKey
   var base = {}
-  var layers = [AV_PRESET_CAR]
-  if (name === 'chaser-evasion' || name === 'arena') layers.push(AV_PRESET_EVASION)
-  if (name === 'maze' || name === 'arena') layers.push(AV_PRESET_MAZE)
+  var layers = none ? [] : [AV_PRESET_CAR]
+  if (name.indexOf('chaser-evasion') === 0 || name.indexOf('arena') === 0) layers.push(AV_PRESET_EVASION)
+  if (name.indexOf('maze') === 0 || name.indexOf('arena') === 0) layers.push(AV_PRESET_MAZE)
+  if (params.saver) layers.push(AV_PRESET_SAVER)
   for (var li = 0; li < layers.length; li++) for (var k in layers[li]) base[k] = layers[li][k]
   // flee / own-goal area (open ground: no limit, candidates are 50-110 m away)
-  if (!params.fleeArea) base.fleeArea = params.drivableArea || [pos[0] - 370, pos[0] + 370, pos[2] - 370, pos[2] + 370]
+  if (!none && !params.fleeArea) base.fleeArea = params.drivableArea || [pos[0] - 370, pos[0] + 370, pos[2] - 370, pos[2] + 370]
   state.presetName = name
   state.preset = base
   return base
@@ -83,6 +89,12 @@ function transform(input, dt, params, state, api) {
     wt[4] += pw.fieldCells
   }
   api.watch('av.work', wt.join(' '))
+  // visibility (Watch panel): the active budget ('saver' = eco + saver flag) and this car's smoothed chain cost in ms per frame (input.chainMs, measured by the runtime; every 20th frame)
+  state.msN = (state.msN || 0) + 1
+  if (state.msN % 20 === 1) {
+    api.watch('av.budget', params.saver ? 'saver' : params.budget || 'full')
+    if (typeof input.chainMs === 'number') api.watch('av.ms', input.chainMs.toFixed(2))
+  }
   if (preset) av.preset = preset
   // the route planner (fieldHeuristic) leaves the obstacle-aware distance to its goal on last frame's blackboard (goal watchdog: a long detour is progress)
   if (prevAv && prevAv.fieldGoal) av.prevField = prevAv.fieldGoal
