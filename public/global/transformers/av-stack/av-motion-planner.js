@@ -8,6 +8,7 @@
 // the band of fixDynBand (6 m) beside the fixation arc up to 10 m beyond the aim / horizon,
 // and the footprint corridor of the pure-pursuit arc to it is free (hard + soft margin) up to min(aim distance, horizon) -> plan = that arc (av.fix, cyan in debug draw).
 // Any condition failing -> the full sampling planner this frame. Path blocked -> the route planner's carrot becomes the next waypoint the car fixates on.
+// keep right (passSide 'right' | 'left' | 'off' default, passOffset 6 m, passWeight 20, passRange 150, passCross 3.5, passMaxShift 7, passMinSpeed 1.5, passHeadDeg 60): see the passCost comment below.
 // debug draw: yellow = line to goal / route carrot, dark blue = candidate fan, green = chosen path, orange = where it would hit.
 // params: vehicleWidth, vehicleLength, safetyMargin, marginSpeedGain, softMargin, maxCurvature, arcCount,
 //         horizonMin, horizonGain, horizonMax, horizonClear (m floor, 0 = off), switchMargin (cost; keep last candidate unless better by this, 0 = off), comfortDecel, wProgress, wHeading, wRequired, wFree, wSoft,
@@ -159,6 +160,46 @@ function transform(input, dt, params, state, api) {
       tl.sp = Math.sqrt(tl.vx * tl.vx + tl.vy * tl.vy)
       tl.h = Math.atan2(tl.vy, tl.vx)
     }
+  }
+  // keep-right rule (passSide 'right' | 'left', default off): an ONCOMING moving body (av.oncoming from perception: not a tracked threat, speed >= passMinSpeed, heading within passHeadDeg of opposite to ours,
+  // ahead within passRange, predicted lateral offset at the meeting time on the pass side or at most passCross m beyond it) pulls every candidate towards passing it on our passSide: the cost is passWeight per metre
+  // that the candidate's lateral position at the meeting point is closer than passOffset (centre to centre) to the other's predicted line on that side (capped at passMaxShift). Not the nearest free side: the same side whatever the offset.
+  var pasSgn = params.passSide === 'right' ? 1 : params.passSide === 'left' ? -1 : 0
+  var pas = []
+  if (pasSgn !== 0 && av.oncoming && av.oncoming.length && v > 2) {
+    var pasRange = params.passRange != null ? params.passRange : 150
+    var pasMin = params.passMinSpeed != null ? params.passMinSpeed : 1.5
+    var pasCos = Math.cos((params.passHeadDeg != null ? params.passHeadDeg : 60) * Math.PI / 180)
+    var pasCross = params.passCross != null ? params.passCross : 3.5
+    var pasV = Math.max(v, 5)
+    for (var pk = 0; pk < av.oncoming.length; pk++) {
+      var po = av.oncoming[pk]
+      var pdx = po.x - pos[0]
+      var pdz = po.z - pos[2]
+      var px0 = pdx * e.fwd[0] + pdz * e.fwd[2]
+      if (px0 < 0 || px0 > pasRange) continue
+      var pvx = po.vx * e.fwd[0] + po.vz * e.fwd[2]
+      var pvy = po.vx * e.left[0] + po.vz * e.left[2]
+      var psp = Math.sqrt(pvx * pvx + pvy * pvy)
+      if (psp < pasMin || pvx > -pasCos * psp) continue
+      var ptm = px0 / (pasV - pvx)
+      var pyo = pdx * e.left[0] + pdz * e.left[2] + pvy * ptm
+      if (pasSgn * pyo < -pasCross) continue
+      pas.push({ s: pasV * ptm, y: pyo })
+    }
+  }
+  if (pasSgn !== 0) api.watch('av.pass', pas.length ? pas.length + ' y' + Math.round(pas[0].y * 10) / 10 + ' s' + Math.round(pas[0].s) : '-')
+  var pasW = params.passWeight != null ? params.passWeight : 20
+  var pasOff = params.passOffset != null ? params.passOffset : 6
+  var pasMax = params.passMaxShift != null ? params.passMaxShift : 7
+  function passCost(kappa, turnLen) {
+    var pc = 0
+    for (var qi = 0; qi < pas.length; qi++) {
+      poseAt(kappa, turnLen, pas[qi].s, P)
+      var d = pasSgn * (P.y - pas[qi].y) + pasOff
+      if (d > 0) pc += d > pasMax ? pasMax : d
+    }
+    return pasW * pc
   }
   var thrH = params.threatHorizon != null ? params.threatHorizon : 2.5
   var thrR = params.threatRadius != null ? params.threatRadius : 1.8
@@ -484,6 +525,7 @@ function transform(input, dt, params, state, api) {
           if (td2 < fixThrMin || td2 < fixThrT * Math.max(tcl, tsp, fixThrVMin)) why = 'threat'
         }
       } else for (var tq2 = 0; tq2 < thr.length; tq2++) if (thr[tq2].x * thr[tq2].x + thr[tq2].y * thr[tq2].y < fixThrR * fixThrR) why = 'threat'
+      if (!why && pas.length) why = 'pass'
       var kFix = (2 * gy) / (goalDist * goalDist)
       if (!why && av.movers && av.movers.length) {
         var dynR = params.fixDynRange != null ? params.fixDynRange : 12
@@ -650,6 +692,7 @@ function transform(input, dt, params, state, api) {
       fSoft = prune && softSuper && fHard <= 0 ? 0 : freeLength(kappa, turnLen, halfW + soft - margin, halfL + soft - margin)
       cost = cBase + wSoft * (1 - Math.min(fSoft, H) / H) + cTail + cTurn
       if (thr.length) cost += wThreat * threatCost(kappa, turnLen, hullL, hullW)
+      if (pas.length) cost += passCost(kappa, turnLen)
       if (key === prevKey) prevHit = { cost: cost, kappa: kappa, hard: fHard, soft: fSoft, turnLen: turnLen }
       if (cost < bestCost || (prune && cost === bestCost && key < bestKey)) {
         bestKey = key
@@ -697,6 +740,7 @@ function transform(input, dt, params, state, api) {
     horizon: H,
     required: Lreq,
     cost: bestCost,
+    pass: pas.length > 0,
   }
   api.watch('av.plan.kappa', Math.round(best * 1000) / 1000)
   api.watch('av.plan.free', Math.round(bestHard * 10) / 10 + ' clr ' + clearance)

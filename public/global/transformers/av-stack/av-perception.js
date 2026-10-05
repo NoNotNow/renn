@@ -18,6 +18,7 @@
 // instead of staying behind as a pink ghost; once the body has moved (> 0.5 m since the hit) the mark expires after dynTtl (2 s) unless re-seen. Marks of bodies that
 // stay put (parked dynamic cars, props) keep memoryTtl; static bodies keep memoryTtl / the static map. Tracked threats (threatIds) keep the old fixed marks unless memFollowThreats: true
 // (the pursuit prediction covers them, and their recent trail measurably helps evasion: corner-trap min gap 5.7 -> 3.5 m, sweep 61 -> 59/75 with following). Followed marks are published as [x, z, 1] in av.points (live position: the motion planner keeps them even on a tracked fast body). Publishes av.dynNear = distance to the nearest moving mark (m, 1e9 = none) and av.movers [[x, z], ...] (moving marks within 150 m).
+// passSide ('right' | 'left', default off): publishes av.oncoming [{id,x,z,vx,vz}] = moving bodies (not in threatIds / passIgnoreIds) with their velocity, for the motion planner's keep-right rule (see av-motion-planner.js).
 // Economy (budget 'eco'): while the motion planner is fixated on a free, visible goal (av.prevFix, see av-motion-planner.js) the dense cone is a narrow one
 // (fixConeDeg 24, fwdStepDeg 3) around the aim direction, sides every ecoSideEvery 6th frame, the coarse 360 sweep every ecoSweepEvery 20th frame, extra ray planes every 2nd frame.
 // params: drivableArea [xmin, xmax, zmin, zmax] (virtual walls at the edge), edgeStep, rayCount, fovDeg, sensorRange, memoryTtl, memoryCell, vehicleWidth, vehicleLength
@@ -161,6 +162,16 @@ function transform(input, dt, params, state, api) {
   var threatSet = {}
   if (params.threatIds) for (var tsi = 0; tsi < params.threatIds.length; tsi++) threatSet[params.threatIds[tsi]] = 1
   var movers = []
+  // passSide ('right' | 'left'): oncoming-traffic tracking for the motion planner (av.oncoming [{id,x,z,vx,vz}], body centres + finite-difference velocity of moving NON-threat bodies)
+  var oncoming = null
+  var seenBody = null
+  if (params.passSide === 'right' || params.passSide === 'left') {
+    oncoming = []
+    seenBody = {}
+    // passIgnoreIds: bodies the car must not make way for (a chaser's own target)
+    if (params.passIgnoreIds) for (var pii = 0; pii < params.passIgnoreIds.length; pii++) seenBody[params.passIgnoreIds[pii]] = 1
+    if (!state.pv) state.pv = {}
+  }
   if (follow) {
     for (var fi = 0; fi < ml.length; fi++) {
       var fm = ml[fi]
@@ -176,8 +187,26 @@ function transform(input, dt, params, state, api) {
         var fd = Math.sqrt(fdx * fdx + fdz * fdz)
         if (fd < dynNear) dynNear = fd
         if (fd < 150) movers.push([fm.x, fm.z])
+        if (oncoming && fd < 150 && !threatSet[fm.id] && !seenBody[fm.id]) {
+          seenBody[fm.id] = 1
+          var pvr = state.pv[fm.id]
+          if (!pvr) pvr = state.pv[fm.id] = { x: lpp[0], z: lpp[2], t: e.t, vx: 0, vz: 0, n: 0 }
+          else if (e.t - pvr.t >= 0.04) {
+            var pdt = e.t - pvr.t
+            var pnx = (lpp[0] - pvr.x) / pdt
+            var pnz = (lpp[2] - pvr.z) / pdt
+            pvr.vx = pvr.n ? 0.5 * pvr.vx + 0.5 * pnx : pnx
+            pvr.vz = pvr.n ? 0.5 * pvr.vz + 0.5 * pnz : pnz
+            pvr.n++
+            pvr.x = lpp[0]
+            pvr.z = lpp[2]
+            pvr.t = e.t
+          }
+          if (pvr.n > 0) oncoming.push({ id: fm.id, x: lpp[0], z: lpp[2], vx: pvr.vx, vz: pvr.vz })
+        }
       }
     }
+    if (oncoming) for (var pk in state.pv) if (!seenBody[pk] && e.t - state.pv[pk].t > 2) delete state.pv[pk]
   }
   // ecoPlane2 (default on): in eco the extra ray planes (top edge / low) are cast every 2nd frame in ALL frames, hunted ones too (the dense cone keeps its full density: thinning the cone itself failed maze flee-wall-ahead)
   var levelsNow = (eco || (params.budget === 'eco' && params.ecoPlane2 !== false)) && state.frame % 2 === 1 ? [] : levels
@@ -430,5 +459,6 @@ function transform(input, dt, params, state, api) {
   av.rearClear = rearClear
   av.dynNear = dynNear
   av.movers = movers
+  if (oncoming) av.oncoming = oncoming
   return {}
 }
