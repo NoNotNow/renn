@@ -71,6 +71,7 @@ export function setTransformerProfilerEnabled(on: boolean): void {
 }
 
 export function resetTransformerProfile(): void {
+  smoothedChainMs.clear()
   profiles.clear()
   slowCalls.length = 0
 }
@@ -106,6 +107,21 @@ export function recordStageTiming(entityId: string, configStackIndex: number, ty
   s.calls++
   s.totalMs += ms
   if (ms > s.maxMs) s.maxMs = ms
+}
+
+/** Always-on smoothed chain cost per entity (exponential average, ~1 s at 60 fps), read by `TransformerChain` into `input.chainMs`. */
+const smoothedChainMs = new Map<string, number>()
+const CHAIN_MS_ALPHA = 1 / 60
+
+export function noteChainMs(entityId: string, ms: number): number {
+  const prev = smoothedChainMs.get(entityId)
+  const next = prev === undefined ? ms : prev + (ms - prev) * CHAIN_MS_ALPHA
+  smoothedChainMs.set(entityId, next)
+  return next
+}
+
+export function getSmoothedChainMs(entityId: string): number {
+  return smoothedChainMs.get(entityId) ?? 0
 }
 
 export function recordChainTiming(entityId: string, ms: number): void {

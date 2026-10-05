@@ -67,6 +67,8 @@ interface TransformInput {
   entityId: string;
   /** Movement intent from targetPoseInput (or similar earlier in chain). Last writer wins. */
   target?: TransformTarget;
+  /** Smoothed wall-clock cost (ms per frame, ~1 s average) of this entity's whole transformer chain (runtime-set, 0 until measured). */
+  chainMs?: number;
 }
 
 /** Grouped vector helpers for tuple Vec3; use \`api.vec\` after typing \`api\` as \`TransformerRuntimeApi\`. */

@@ -129,7 +129,9 @@ export function buildArenaWorld(spec: ArenaSpec): RennWorld {
   const binding = car.transformerPipeStack[0]
   const threatIds = spec.puppets.filter((p) => p.threat !== false).map((p) => p.id)
   const extra = process.env.AV_PARAMS ? JSON.parse(process.env.AV_PARAMS) : {}
-  binding.params = spec.carParams ? { ...spec.carParams, ...extra, ...(threatIds.length ? { threatIds } : {}) } : { ...binding.params, ...spec.extraParams, ...extra, threatIds }
+  binding.params = spec.carParams ? { ...spec.carParams, ...extra, ...(threatIds.length ? { threatIds } : {}) } : { ...binding.params, saver: false, ...spec.extraParams, ...extra, threatIds }
+  // the example car runs the 'saver' budget (saver flag + tickEvery stage scopes): scenarios keep their own budget unless they ask for `saver: true` (AV_PARAMS='{"saver":true}')
+  if (binding.params.saver !== true) delete binding.scopeParams
   const veh = spec.vehicle
   if (veh) {
     if (veh.size) car.shape = { ...car.shape, width: veh.size[0], depth: veh.size[1] }

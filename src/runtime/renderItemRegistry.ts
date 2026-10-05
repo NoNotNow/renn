@@ -42,7 +42,7 @@ import {
   isAgentObservationTraceEntity,
   publishTransformerLiveTrace,
 } from '@/runtime/transformerTraceBridge'
-import { isTransformerProfilerEnabled, profilerNow, recordChainTiming } from '@/runtime/transformerProfilerBridge'
+import { getSmoothedChainMs, isTransformerProfilerEnabled, noteChainMs, profilerNow, recordChainTiming } from '@/runtime/transformerProfilerBridge'
 import type { TransformerTraceStep } from '@/transformers/transformerTrace'
 import type { TransformerChain } from '@/transformers/transformer'
 import { clearCoordinateEntries } from '@/runtime/coordinateOverlayBridge'
@@ -944,11 +944,14 @@ export class RenderItemRegistry implements SimulationFramePort, SceneEditPort, E
           contacts: pw.getContactSummary(sid),
         }))
       }
-      const chainT0 = profiling ? profilerNow() : 0
+      const chainT0 = profilerNow()
+      input.chainMs = getSmoothedChainMs(item.entity.id)
       try {
         output = item.transformerChain.execute(input, stepDt, traceSteps)
       } finally {
-        if (profiling) recordChainTiming(item.entity.id, profilerNow() - chainT0)
+        const chainDt = profilerNow() - chainT0
+        noteChainMs(item.entity.id, chainDt)
+        if (profiling) recordChainTiming(item.entity.id, chainDt)
         setTransformerSnapshotPhysicsProbe(null)
         setTransformerRuntimeEntityLookup(null)
         setTransformerRuntimeLivePositionLookup(null)

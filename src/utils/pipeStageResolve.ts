@@ -105,8 +105,10 @@ function visitMembers(
       if (stageMemberEnabled) {
         const stageParamLayer = stageConfig?.params ? [stageConfig.params] : []
         const flatIndex = state.flatIndexCounter.current
+        // a stage member may carry its own scope (`<pipe scope>/member:<pipeId>:<memberIndex>`), e.g. `tickEvery` for one stage
+        const stageScope = resolveLocalScopeParams(binding, [...stackPath, { kind: 'member', pipeId: pipe.id, memberIndex }])
         state.stageContext.set(flatIndex, {
-          mergedParams: mergeParamScopeLayers([...stageParamLayer, ...layersWithPipe]),
+          mergedParams: mergeParamScopeLayers([...stageParamLayer, ...layersWithPipe, stageScope]),
           effectivelyEnabled: true,
         })
         state.flatEnabledStageIds.push(member.stageId)

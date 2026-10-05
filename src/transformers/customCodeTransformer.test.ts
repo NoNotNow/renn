@@ -794,3 +794,48 @@ describe('CustomCodeTransformer', () => {
     expect(getTransformerWatchEntriesForTarget('ent-a', 0)).toEqual([])
   })
 })
+
+describe('stage tick decimation (tickEvery)', () => {
+  const code = `function transform(input, dt, params, state) {
+    state.runs = (state.runs || 0) + 1
+    input.av.plan = { run: state.runs, dt }
+    return { force: [1, 0, 0] }
+  }`
+  const frame = (t: CustomCodeTransformer) => {
+    const input = createMockTransformInput({ entityId: 'ent-a' }) as TransformInput & { av?: Record<string, unknown> }
+    // the runtime hands every frame a fresh blackboard (av-ego); the stage's keys must come back on skipped frames
+    input.av = {}
+    const out = t.transform(input, 0.01)
+    return { plan: input.av.plan as { run: number; dt: number } | undefined, out }
+  }
+
+  test('runs every Nth call with accumulated dt, holds blackboard keys and force in between', () => {
+    const t = new CustomCodeTransformer({ type: 'custom', code, params: { tickEvery: 3 } })
+    t.configStackIndex = 1
+    t.runtimeEntityId = 'ent-a'
+    const rows = Array.from({ length: 9 }, () => frame(t))
+    expect(rows.every((r) => r.plan !== undefined)).toBe(true)
+    expect(new Set(rows.map((r) => r.plan!.run)).size).toBeLessThanOrEqual(4)
+    expect(new Set(rows.map((r) => r.plan!.run)).size).toBeGreaterThanOrEqual(3)
+    for (const r of rows) expect(r.out.force).toEqual([1, 0, 0])
+    // accumulated dt of the skipped calls (3 x 0.01) once the cadence is established
+    expect(Math.max(...rows.map((r) => r.plan!.dt))).toBeCloseTo(0.03, 9)
+  })
+
+  test('without tickEvery the stage runs every call', () => {
+    const t = new CustomCodeTransformer({ type: 'custom', code })
+    expect(Array.from({ length: 4 }, () => frame(t).plan!.run)).toEqual([1, 2, 3, 4])
+  })
+
+  test('phase is staggered by entity id', () => {
+    const phases = new Set<number>()
+    for (const id of ['a', 'b', 'c', 'd', 'e', 'f']) {
+      const t = new CustomCodeTransformer({ type: 'custom', code, params: { tickEvery: 3 } })
+      t.configStackIndex = 1
+      t.runtimeEntityId = id
+      const rows = Array.from({ length: 6 }, () => frame(t).plan!.run)
+      phases.add(rows.findIndex((r, i) => i > 0 && r !== rows[i - 1]))
+    }
+    expect(phases.size).toBeGreaterThan(1)
+  })
+})

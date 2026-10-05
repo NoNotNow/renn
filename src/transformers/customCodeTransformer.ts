@@ -817,7 +817,58 @@ export class CustomCodeTransformer implements Transformer {
     return nextCode !== this.authoringCode
   }
 
+  /** Tick decimation (param `tickEvery` N > 1): per-instance counters and the held result of the last real run. */
+  private tickN = 0
+  private tickDt = 0
+  private tickHeld: { top: Record<string, unknown>; av: Record<string, unknown>; out: TransformOutput } | null = null
+  private tickPhase = -1
+
+  /**
+   * Stage tick decimation (generic, param-driven): with `tickEvery` N > 1 the stage body runs on every Nth call only
+   * (phase staggered per ENTITY so cars do not all plan in the same frame; all decimated stages of one entity share the phase, so stages with the same N run in the same frame and a stage that post-processes another's output in place, e.g. speed planner on the motion plan, stays consistent; N = 2 and N = 4 nest). In between, the blackboard
+   * contributions of the last run (every key of `input.av` and of `input` the stage added or replaced) are re-published
+   * and its force / torque / color output is repeated (impulses are not). The body gets the accumulated dt of the
+   * skipped calls. Put the param on a stage-member scope (`scopeParams`), never stack-wide.
+   */
   transform(input: TransformInput, dt: number): TransformOutput {
+    const every = Math.floor(Number(this.liveParams.tickEvery))
+    if (!(every > 1)) {
+      this.tickHeld = null
+      this.tickDt = 0
+      return this.transformNow(input, dt)
+    }
+    if (this.tickPhase < 0) {
+      let h = 2166136261
+      const key = this.runtimeEntityId ?? ''
+      for (let i = 0; i < key.length; i++) h = Math.imul(h ^ key.charCodeAt(i), 16777619)
+      this.tickPhase = (h >>> 0) % 1024
+    }
+    this.tickDt += dt
+    const n = this.tickN++
+    const inp = input as unknown as Record<string, unknown>
+    const held = this.tickHeld
+    if (held && (n + this.tickPhase) % every !== 0) {
+      Object.assign(inp, held.top)
+      const av = inp.av as Record<string, unknown> | undefined
+      if (av) Object.assign(av, held.av)
+      return held.out
+    }
+    const topBefore: Record<string, unknown> = { ...inp }
+    const avObj = inp.av as Record<string, unknown> | undefined
+    const avBefore: Record<string, unknown> = avObj ? { ...avObj } : {}
+    const out = this.transformNow(input, this.tickDt)
+    this.tickDt = 0
+    const top: Record<string, unknown> = {}
+    for (const k of Object.keys(inp)) if (k !== 'av' && inp[k] !== topBefore[k]) top[k] = inp[k]
+    const avHeld: Record<string, unknown> = {}
+    const avAfter = inp.av as Record<string, unknown> | undefined
+    if (avAfter) for (const k of Object.keys(avAfter)) if (avAfter[k] !== avBefore[k] || !(k in avBefore)) avHeld[k] = avAfter[k]
+    const { impulse: _imp, ...rest } = out as TransformOutput & { impulse?: unknown }
+    this.tickHeld = { top, av: avHeld, out: rest as TransformOutput }
+    return out
+  }
+
+  private transformNow(input: TransformInput, dt: number): TransformOutput {
     const prevVisualizeEntity = _customCodeVisualizeEntityId
     const prevWatchEntity = _customCodeWatchEntityId
     const prevWatchStackIndex = _customCodeWatchStackIndex

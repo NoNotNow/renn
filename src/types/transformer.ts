@@ -168,6 +168,9 @@ export interface TransformInput {
    * Last writer wins if multiple transformers mutate it in one frame.
    */
   target?: TransformTarget
+
+  /** Smoothed wall-clock cost (ms per frame, ~1 s average) of this entity's whole transformer chain; set by the runtime, 0 until measured. */
+  chainMs?: number
 }
 
 /**

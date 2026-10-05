@@ -16,6 +16,8 @@ run into a deterministic, observable, replayable experiment. Code: `src/test/avL
 | Probes | `liveStageState`, `watchValues`, `diagnose` | Per-frame access to a stage's live `state` / watch values in `onFrame` hooks — write a throw-away probe test around `replayScene`. |
 | Pipe timing | `transformerProfilerBridge.ts` | Off by default. `TransformerChain.execute` times every stage, `RenderItemRegistry` every chain. Per entity × stage: calls, mean, p95, max, share; slow-call list with frame tag (`setTransformerProfilerFrame`). Browser console: `__rennProfiler.enable()` / `.report()`. |
 
+Per-frame CPU split of a many-car world (frame / all AV chains / physics+rest / every stage by name, mean p95 max, per-car mean): `AVPERF_WORLD=self_hunt_flexible AVPERF_SEEDS=1,2 AVPERF_FRAMES=600 [AVPERF_PARAMS=...] npx vitest run src/test/scenarios/av-perf.diagnostic.test.ts` (stage rows are aggregated by stage name over all cars; flat indices differ per entity).
+
 ## CLI
 
 ```bash
