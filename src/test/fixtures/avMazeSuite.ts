@@ -1,4 +1,5 @@
 import { afterAll, describe, expect, it } from "vitest";
+import { ARENA_CAR_ID } from "@/test/fixtures/avEvasionArena";
 import { MAZE_CASES, type MazeCase } from "@/test/fixtures/avMazeCases";
 import {
   GOAL_REACH,
@@ -21,7 +22,7 @@ const KNOWN_FAILING: Record<string, string> = {
     "revSweep (default on) removed the wall contact (0 static frames, gap 0.9) but the goal is still not reached in 12 s: the plan was made before the wall B_21 was seen (it overlaps from t 0.7 s, 24 m ahead on the plan), the re-plans drive away from the door (min goal 32 m). Early re-plan on a swept overlap regressed maze-u-trap-inside (shuttle). Before: 7 static contact frames (gap 0.0; revGuard off: 8 frames at v -5.1): the 13-segment maze reverse manoeuvre (7 m/s, rear-first) drives at the long wall B_21 (z 314.5) and the rear corner touches it at t 4.3 s. The wall is in av.points / av.smap from t 0.1 s (verified), but the guard only counts blockages inside the current segment and reacts ~1.1 m before (revGuard caps vLimit to 0.5 at t 3.95 s, the cap flickers back to 7.0 at 4.07 s and the car re-accelerates -2.7 -> -5 m/s); revGuard only cuts the contact speed (5.1 -> 2.4 m/s). The free-arc cap counts blockages inside the current segment only and the wall is missing from the costmap until too late.",
 };
 
-function criteria(c: MazeCase, m: ScenarioMetrics): string[] {
+function criteria(c: MazeCase, m: ScenarioMetrics, pocketDepth = 0): string[] {
   const out = surviveCriteria({
     maxStalledSec: c.maxStalledSec ?? 6,
     minEndSpeed: 0,
@@ -55,6 +56,8 @@ function criteria(c: MazeCase, m: ScenarioMetrics): string[] {
     );
   if (c.minStaticGap != null && m.minStaticGap < c.minStaticGap)
     out.push(`min static gap ${f1(m.minStaticGap)} m < ${c.minStaticGap}`);
+  if (c.maxPocketDepth != null && pocketDepth > c.maxPocketDepth)
+    out.push(`drove ${f1(pocketDepth)} m into the pocket > ${c.maxPocketDepth}`);
   if (m.shuttleMaxSec > 6)
     out.push(`shuttle episode of ${f1(m.shuttleMaxSec)} s > 6`);
   return out;
@@ -77,13 +80,25 @@ export function defineMazeSuite(
         `${c.name}: ${c.about}`,
         async () => {
           const spec = c.spec();
+          let pocketDepth = 0;
+          const pk = c.pocket;
           const m = await runScenario(
             { ...spec, extraParams: { ...spec.extraParams, budget } }, // the world car defaults to eco: the full suite pins budget "full"
             c.seconds,
+            pk
+              ? {
+                  onFrame: ({ sim }) => {
+                    const p = sim.getPosition(ARENA_CAR_ID);
+                    if (p[0] < pk.x0 || p[0] > pk.x1 || p[2] < pk.z0 || p[2] > pk.z1) return;
+                    const d = pk.mouth === "west" ? p[0] - pk.x0 : pk.mouth === "east" ? pk.x1 - p[0] : pk.mouth === "north" ? pk.z1 - p[2] : p[2] - pk.z0;
+                    pocketDepth = Math.max(pocketDepth, d);
+                  },
+                }
+              : undefined,
           );
-          const failed = criteria(c, m);
+          const failed = criteria(c, m, pocketDepth);
           rows.push(
-            `${failed.length ? "FAIL" : "PASS"} ${c.name.padEnd(22)} goal ${m.goalReachT === Infinity ? "never (min " + f1(m.minGoalDist) + " m)" : f1(m.goalReachT) + " s"} | rev ${m.reversals} (${f1(m.reverseDist)} m @ ${f1(m.reverseMeanSpeed)} m/s) | leave ${f1(m.leaveT)} s | shuttle ${m.shuttleEvents} | static ${m.staticContactFrames}f chaser ${m.chaserContactFrames}f | gap ${f1(m.minStaticGap)} | stalled ${f1(m.stalledSec)} s | peak ${f1(m.peakSpeed)} m/s | lat ${f1(m.peakLatAcc)}` +
+            `${failed.length ? "FAIL" : "PASS"} ${c.name.padEnd(22)}${pk ? ` pocket ${f1(pocketDepth)} m |` : ""} goal ${m.goalReachT === Infinity ? "never (min " + f1(m.minGoalDist) + " m)" : f1(m.goalReachT) + " s"} | rev ${m.reversals} (${f1(m.reverseDist)} m @ ${f1(m.reverseMeanSpeed)} m/s) | leave ${f1(m.leaveT)} s | shuttle ${m.shuttleEvents} | static ${m.staticContactFrames}f chaser ${m.chaserContactFrames}f | gap ${f1(m.minStaticGap)} | stalled ${f1(m.stalledSec)} s | peak ${f1(m.peakSpeed)} m/s | lat ${f1(m.peakLatAcc)}` +
               (failed.length ? `\n      -> ${failed.join("; ")}` : "") +
               (m.shuttleInfo ? `\n      episodes ${m.shuttleInfo}` : "") +
               (m.firstContact

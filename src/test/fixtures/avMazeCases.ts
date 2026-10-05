@@ -41,6 +41,9 @@ export interface MazeCase {
   maxLeaveSec?: number
   /** Min physics gap (m) to any static obstacle over the run (ScenarioMetrics.minStaticGap): wall clearance for fast manoeuvres. */
   minStaticGap?: number
+  /** Pocket (U) the car must not drive into: rect + open side; max depth of the car centre past the mouth plane (m). */
+  pocket?: { x0: number; x1: number; z0: number; z1: number; mouth: 'west' | 'east' | 'north' | 'south' }
+  maxPocketDepth?: number
   /** Time-to-goal limit tuned on the full CPU budget: skipped in the eco / normal suites. */
   fullBudgetOnly?: boolean
 }
@@ -304,5 +307,23 @@ export const MAZE_CASES: MazeCase[] = [
     maxReversals: 1,
     minStaticGap: 0.3,
     spec: () => sBend(14, 24),
+  },
+  {
+    name: 'u-mouth-pass',
+    about: 'U pocket (opening west, 16 m wide, 30 m deep, all three walls in view) beside the way to the goal: the car comes in at 12 m/s heading east-north-east, the goal lies far north past the mouth, two homing chasers 50-80 m behind: replay of lab seed 6 t 13.5-19 s (the car drove into the U at 15 m/s and stopped at its end wall). Measured: how deep the car centre gets into the pocket',
+    seconds: 12,
+    maxReversals: 2,
+    noGoal: true,
+    maxPocketDepth: 4,
+    pocket: { x0: 175, x1: 205, z0: 133, z1: 149, mouth: 'west' },
+    spec: () => ({
+      car: { at: [143, 167], yawDeg: -66, speed: 12 },
+      goal: [208, 13],
+      boxes: [seg([175, 133], [205, 133]), seg([175, 149], [205, 149]), seg([205, 133], [205, 149])],
+      puppets: [
+        { id: 'chaser_a', size: CHASER, at: [100, 124], yawDeg: -90, motion: { kind: 'home', speed: 25, turnRate: 1.5, lead: 0.3 } },
+        { id: 'chaser_b', size: CHASER, at: [63, 135], yawDeg: -90, motion: { kind: 'home', speed: 25, turnRate: 1.5, lead: 0.3 } },
+      ],
+    }),
   },
 ]
