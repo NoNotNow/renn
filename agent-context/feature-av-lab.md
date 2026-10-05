@@ -97,6 +97,8 @@ fixed duration and explicit criteria, so a regression names the situation. ~40 s
 
 ## Aggregate health gate (`npm run av:health`)
 
+Gate (2026-10-05, Manuel): regressions = catches +2, stall/shuttle/jitter frames +25 %, median path -10 %, and **wall contact** (any seed with min static gap <= 0.05 m). Close-pass and head-on frames are printed as info only: clearance does not matter as long as walls are not touched.
+
 Per-seed before/after on `self_hunt_flexible` is noise (chaos: any early change reshuffles every run). `tools/av-health.mjs` runs the lab over N seeds and judges the **aggregate**.
 - `npm run av:health [-- --save <name>] [-- --compare <name>] [--no-run]`. Runs `av-lab.diagnostic.test.ts` (world `self_hunt_flexible`, focus `entity_1779823253285_brtkx1p`, `AVLAB_MAX_SCENES=0`, out `test-results/av-health/run`). The lab writes `health-s<seed>.summary.json` per seed (machine-readable); the tool prints per-seed rows (path m, mean v, catches, stall / shuttle / jitter episodes/frames, maneuver frames, min chaser distance) and the aggregate (sum catches, sum stall+shuttle+jitter frames, median / mean path, mean speed).
 - Env: `AVHEALTH_SEEDS` (count N -> seeds 1..N, or a comma list; default **8**), `AVHEALTH_FRAMES` (default 1800), `AVHEALTH_PARAMS` (JSON, -> `AVLAB_PARAMS`), `AVHEALTH_WORLD`, `AVHEALTH_FOCUS`.
