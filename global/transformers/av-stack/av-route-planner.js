@@ -1363,7 +1363,7 @@ function transform(input, dt, params, state, api) {
     var lz0 = e.left[2]
     var look = Math.min(2.0, Math.max(0, cur.len - travelled))
     // revGuard (default on): look ahead the stopping distance (v^2 / 2a + 1 m) along the planned segment, not a fixed 2 m (a 6.6 m/s reverse needs ~4.4 m to stop)
-    if (params.revGuard !== false) look = Math.min(Math.max(2.0, e.speed * e.speed / (2 * (params.comfortDecel || 5)) + 1), Math.max(0, cur.len - travelled))
+    if (params.revGuard !== false) look = Math.min(Math.min(params.revGuardLookMax != null ? params.revGuardLookMax : 1e9, Math.max(2.0, e.speed * e.speed / (2 * (params.comfortDecel || 5)) + 1)), Math.max(0, cur.len - travelled))
     var blockedAhead = false
     for (var gd = 0.5; gd <= look + 1e-6 && !blockedAhead; gd += 0.5) {
       var gdd = cur.g * gd
@@ -1546,11 +1546,11 @@ function transform(input, dt, params, state, api) {
         state.rsCapT = e.t
       } else if (state.rsCap != null && e.t - state.rsCapT < rsLatch) rsCap = state.rsCap
       else state.rsCap = null
-      if (rsCap < 1e8) vMax = Math.min(vMax, rsCap)
+      if (rsCap < 1e8) vMax = Math.min(vMax, Math.max(params.revSweepFloor != null ? params.revSweepFloor : 2, rsCap))
     }
     if (rgLook >= 1) {
       var rgFree = revArcFree(cur, rgLook, cur.g < 0 ? -1 : 1)
-      if (rgFree < rgLook) vMax = Math.min(vMax, Math.sqrt(2 * (params.comfortDecel || 5) * Math.max(0, rgFree - 0.5)) + 0.5)
+      if (rgFree < rgLook) vMax = Math.min(vMax, Math.max(params.revGuardFloor != null ? params.revGuardFloor : 2, Math.sqrt(2 * (params.comfortDecel || 5) * Math.max(0, rgFree - 0.5)) + 0.5))
     }
   }
   // waiting for rest before a gear change: demand zero. Once the segment has started but the car still rolls the other
