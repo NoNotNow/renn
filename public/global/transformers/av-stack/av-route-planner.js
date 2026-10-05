@@ -1305,6 +1305,53 @@ function transform(input, dt, params, state, api) {
     var dz = pos[2] - state.segStart[1]
     travelled = Math.sqrt(dx * dx + dz * dz)
   }
+  // revSweep (default on): sweep the full footprint (rear corners included) along the rest of the run of same-gear reverse segments (through the next cusp, not only the current segment) against av.points.
+  // first = distance to the first overlap at the plan margin (-1 none), cusp = distance to the run end when it lies within 1.5 m of mapped points, d = swept length
+  function sweepRun(remainLen) {
+    var rsM = Math.min(planMargin, state.startMargin != null ? state.startMargin : planMargin)
+    var rsHit = makeHit(av.points || [], ((av.vehicle && av.vehicle.length) || params.vehicleLength || 4) / 2 + rsM, ((av.vehicle && av.vehicle.width) || params.vehicleWidth || 2) / 2 + rsM)
+    var rsHitNear = makeHit(av.points || [], ((av.vehicle && av.vehicle.length) || params.vehicleLength || 4) / 2 + planMargin + 1.5, ((av.vehicle && av.vehicle.width) || params.vehicleWidth || 2) / 2 + planMargin + 1.5)
+    var rsRange = Math.min(40, Math.max(scanRange, 10))
+    var rsX = 0
+    var rsY = 0
+    var rsTh = 0
+    var rsD = 0
+    var rsFirst = -1
+    var rsCusp = -1
+    var rsSi = state.idx
+    var rsLeft = remainLen
+    while (rsSi < state.segs.length && state.segs[rsSi].g < 0 && rsD < rsRange && rsFirst < 0) {
+      var rsSeg = state.segs[rsSi]
+      var rsDone = 0
+      while (rsDone < rsLeft - 1e-6 && rsD < rsRange) {
+        var rsStep = Math.min(0.5, rsLeft - rsDone)
+        var rsS = -rsStep
+        var rsTh1 = rsTh + rsSeg.k * rsS
+        if (Math.abs(rsSeg.k) < 1e-6) {
+          rsX += rsS * Math.cos(rsTh)
+          rsY += rsS * Math.sin(rsTh)
+        } else {
+          rsX += (Math.sin(rsTh1) - Math.sin(rsTh)) / rsSeg.k
+          rsY += (Math.cos(rsTh) - Math.cos(rsTh1)) / rsSeg.k
+        }
+        rsTh = rsTh1
+        rsDone += rsStep
+        rsD += rsStep
+        var rsWx = pos[0] + e.fwd[0] * rsX + e.left[0] * rsY
+        var rsWz = pos[2] + e.fwd[2] * rsX + e.left[2] * rsY
+        var rsFx = e.fwd[0] * Math.cos(rsTh) + e.left[0] * Math.sin(rsTh)
+        var rsFz = e.fwd[2] * Math.cos(rsTh) + e.left[2] * Math.sin(rsTh)
+        if (rsHit(rsWx, rsWz, rsFx, rsFz)) {
+          rsFirst = rsD
+          break
+        }
+        if (rsDone >= rsLeft - 1e-6 && (rsSi + 1 >= state.segs.length || state.segs[rsSi + 1].g >= 0) && rsHitNear(rsWx, rsWz, rsFx, rsFz)) rsCusp = rsD
+      }
+      rsSi++
+      rsLeft = rsSi < state.segs.length ? state.segs[rsSi].len : 0
+    }
+    return { first: rsFirst, cusp: rsCusp, d: rsD }
+  }
   // --- execution guard: re-plan when the real pose makes the rest of the segment collide, or when stalled ---
   if (state.segStart !== null) {
     // the guard must not be stricter than the margin the manoeuvre was planned with (escaping from contact)
@@ -1482,6 +1529,25 @@ function transform(input, dt, params, state, api) {
   // revGuard: every manoeuvre segment (either gear) not already capped above: stop within the free arc ahead (v <= sqrt(2 a (free - margin))); only a blockage inside the segment limits the speed
   if (params.revGuard !== false && state.segStart !== null && cur.g < 0 && !state.revCruise) {
     var rgLook = Math.min(30, scanRange, remain)
+    // revSweep (default on): sweep the full footprint (rear corners included) along the REST OF THE RUN of same-gear segments through the next cusp (not only the current segment: the cap used to flicker off at the segment end
+    // where the plan's cusp lies at the wall). Cap: stop before the first predicted overlap, and before the cusp when it lies within 1.5 m of mapped points; the cap is latched revSweepLatch s (0.5) against flicker.
+    if (params.revSweep !== false) {
+      var rsSw = sweepRun(remain)
+      var rsA = params.comfortDecel || 5
+      var rsFirst = rsSw.first
+      var rsCusp = rsSw.cusp
+      var rsD = rsSw.d
+      var rsCap = 1e9
+      if (rsFirst >= 0) rsCap = Math.sqrt(2 * rsA * Math.max(0, rsFirst - 0.5 - 0.5)) + 0.5
+      else if (rsCusp >= 0 && params.revSweepCusp === true) rsCap = Math.sqrt(2 * rsA * Math.max(0, rsCusp - 0.25)) + 1.0
+      var rsLatch = params.revSweepLatch != null ? params.revSweepLatch : 0.5
+      if (rsCap < 1e8) {
+        state.rsCap = rsCap
+        state.rsCapT = e.t
+      } else if (state.rsCap != null && e.t - state.rsCapT < rsLatch) rsCap = state.rsCap
+      else state.rsCap = null
+      if (rsCap < 1e8) vMax = Math.min(vMax, rsCap)
+    }
     if (rgLook >= 1) {
       var rgFree = revArcFree(cur, rgLook, cur.g < 0 ? -1 : 1)
       if (rgFree < rgLook) vMax = Math.min(vMax, Math.sqrt(2 * (params.comfortDecel || 5) * Math.max(0, rgFree - 0.5)) + 0.5)
