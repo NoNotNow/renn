@@ -39,6 +39,21 @@ function transform(input, dt, params, state, api) {
   var hw = ((av.vehicle && av.vehicle.width) || params.vehicleWidth || 2) / 2 + 0.15
   if (!state.mem) state.mem = {}
   var mem = state.mem
+  // ml = the records of mem in Object.keys(mem) order (derived index, non-enumerable: scene dumps / state clones skip it). The per-frame passes walk this array instead of Object.keys(mem) + dictionary lookups.
+  // Each record carries its key (k) and its position in ml (i). Rebuilt when absent or when mem is another object (restored state).
+  var ml = state.ml
+  if (!ml || state.mlm !== mem) {
+    ml = []
+    var mk0 = Object.keys(mem)
+    for (var mki = 0; mki < mk0.length; mki++) {
+      var mr0 = mem[mk0[mki]]
+      mr0.k = mk0[mki]
+      mr0.i = mki
+      ml.push(mr0)
+    }
+    Object.defineProperty(state, 'ml', { value: ml, writable: true, enumerable: false, configurable: true })
+    Object.defineProperty(state, 'mlm', { value: mem, writable: true, enumerable: false, configurable: true })
+  }
   var pos = input.position
   var full = fov >= 2 * Math.PI - 1e-3
   var angles = []
@@ -131,7 +146,6 @@ function transform(input, dt, params, state, api) {
   var winF = null
   var winR = null
   var useSmap = params.staticMap === true
-  var keys
   var hits = []
   if (!state.bt) state.bt = {}
   // moving-body marks follow their body (see header): live positions once per frame per body
@@ -148,9 +162,8 @@ function transform(input, dt, params, state, api) {
   if (params.threatIds) for (var tsi = 0; tsi < params.threatIds.length; tsi++) threatSet[params.threatIds[tsi]] = 1
   var movers = []
   if (follow) {
-    var fk = Object.keys(mem)
-    for (var fi = 0; fi < fk.length; fi++) {
-      var fm = mem[fk[fi]]
+    for (var fi = 0; fi < ml.length; fi++) {
+      var fm = ml[fi]
       if (!fm.id) continue
       var lpp = live(fm.id)
       if (!lpp) continue
@@ -224,7 +237,11 @@ function transform(input, dt, params, state, api) {
       }
       if (useSmap && bt === 1) hits.push([Math.atan2(s, c), r.entityId, hx, hz])
       else {
-        var mrec = { x: hx, z: hz, t: e.t }
+        var mcx = Math.round(hx / cell)
+        var mcz = Math.round(hz / cell)
+        var mkey = mcx + ',' + mcz
+        // one fixed object shape for every mark (id / ox.. / mv / dead / pt are set later; falsy = unset). cx / cz / cc: the cell of a fixed mark (the clearing index below skips re-dividing for it); pt: the shared [x, z] of a fixed mark (readers never mutate points)
+        var mrec = { x: hx, z: hz, t: e.t, k: mkey, i: 0, cx: mcx, cz: mcz, cc: cell, id: 0, ox: 0, oz: 0, bx: 0, bz: 0, mv: 0, dead: 0, pt: null }
         var bp = follow && bt === 0 && !(params.memFollowThreats !== true && threatSet[r.entityId]) ? live(r.entityId) : null
         if (bp) {
           mrec.id = r.entityId
@@ -233,7 +250,16 @@ function transform(input, dt, params, state, api) {
           mrec.bx = bp[0]
           mrec.bz = bp[2]
         }
-        mem[Math.round(hx / cell) + ',' + Math.round(hz / cell)] = mrec
+        var mold = mem[mkey]
+        mem[mkey] = mrec
+        // an overwritten key keeps its place (object key order), a new / re-added key goes to the end
+        if (mold !== undefined) {
+          mrec.i = mold.i
+          ml[mold.i] = mrec
+        } else {
+          mrec.i = ml.length
+          ml.push(mrec)
+        }
       }
       if (c < -0.9 && r.distance < rearClear) rearClear = r.distance
     } else {
@@ -252,15 +278,16 @@ function transform(input, dt, params, state, api) {
   if (clearRange > 0) {
     // numeric cell index -> memory key (built once per frame; avoids building a string key per ray step)
     var cellIdx = new Map()
-    var memKeys0 = Object.keys(mem)
     // cheap bloom-style prefilter (small per-frame table): most ray steps pass through empty cells, so skip the Map lookup unless the cell hash is set
     var bloom = new Uint8Array(8192)
-    for (var mk = 0; mk < memKeys0.length; mk++) {
-      var me = mem[memKeys0[mk]]
-      var mix = Math.round(me.x / cell)
-      var miz = Math.round(me.z / cell)
+    for (var mk = 0; mk < ml.length; mk++) {
+      var me = ml[mk]
+      // a fixed mark's cell was computed when it was written (same expression, same cell size); a followed mark moves, so it is re-divided
+      var fixedCell = me.cc === cell && !me.id
+      var mix = fixedCell ? me.cx : Math.round(me.x / cell)
+      var miz = fixedCell ? me.cz : Math.round(me.z / cell)
       bloom[(Math.imul(mix, 73856093) ^ Math.imul(miz, 19349663)) & 8191] = 1
-      cellIdx.set((mix + 4194304) * 8388608 + (miz + 4194304), memKeys0[mk])
+      cellIdx.set((mix + 4194304) * 8388608 + (miz + 4194304), me)
     }
     for (var ri = 0; ri < rayInfo.length; ri++) {
       var rd = rayInfo[ri][0]
@@ -274,11 +301,11 @@ function transform(input, dt, params, state, api) {
         var kiz = Math.round(cellP2 ? kuz * cellInv : kuz / cell)
         if (bloom[(Math.imul(kix, 73856093) ^ Math.imul(kiz, 19349663)) & 8191] === 0) continue
         var kk = (kix + 4194304) * 8388608 + (kiz + 4194304)
-        var memKey = cellIdx.get(kk)
-        if (memKey === undefined) continue
-        var mm = mem[memKey]
-        if (mm && mm.t < e.t - 1e-6) {
-          delete mem[memKey]
+        var mm = cellIdx.get(kk)
+        if (mm === undefined) continue
+        if (mm.t < e.t - 1e-6) {
+          delete mem[mm.k]
+          mm.dead = 1
           cellIdx.delete(kk)
         }
       }
@@ -351,26 +378,26 @@ function transform(input, dt, params, state, api) {
       spc = { x0: bx0, x1: bx1, z0: bz0, z1: bz1, n: state.sm.list.length, a: sa }
       Object.defineProperty(state.sm, 'pc', { value: spc, writable: true, enumerable: false, configurable: true })
     }
-    for (var spi = 0; spi < spc.a.length; spi++) pts.push(spc.a[spi])
+    pts = pts.length ? pts.concat(spc.a) : spc.a.slice()
     av.smap = { list: state.sm.list, ver: state.sm.list.length }
   }
-  if (useSmap) {
-    // dynamic / kinematic obstacles only (short memory): the route planner overlays the STOPPED ones on its goal-distance field (a parked car is an obstacle for the plan, never part of the persistent map)
-    var dynPts = []
-    var dk = Object.keys(mem)
-    for (var di = 0; di < dk.length; di++) {
-      var dm = mem[dk[di]]
-      dynPts.push([dm.x, dm.z])
+  // dynamic / kinematic obstacles only (short memory): the route planner overlays the STOPPED ones on its goal-distance field (a parked car is an obstacle for the plan, never part of the persistent map)
+  // one pass over the memory: av.dyn (all marks that survived the clearing, expiring ones included), the expiry + compaction of ml (dead = cleared above) and the points; fixed marks publish one shared [x, z] (readers never mutate points)
+  var dynPts = useSmap ? [] : null
+  var mj = 0
+  for (var k = 0; k < ml.length; k++) {
+    var m = ml[k]
+    if (m.dead) continue
+    if (dynPts) dynPts.push(m.id ? [m.x, m.z] : m.pt || (m.pt = [m.x, m.z]))
+    if (e.t - m.t > (m.mv ? dynTtl : ttl)) delete mem[m.k]
+    else {
+      m.i = mj
+      ml[mj++] = m
+      pts.push(m.id ? [m.x, m.z, 1] : m.pt || (m.pt = [m.x, m.z]))
     }
-    av.dyn = dynPts
-    // the memory is unchanged since dk was read: reuse the key list for the expiry pass below
-    keys = dk
-  } else keys = Object.keys(mem)
-  for (var k = 0; k < keys.length; k++) {
-    var m = mem[keys[k]]
-    if (e.t - m.t > (m.mv ? dynTtl : ttl)) delete mem[keys[k]]
-    else pts.push(m.id ? [m.x, m.z, 1] : [m.x, m.z])
   }
+  ml.length = mj
+  if (dynPts) av.dyn = dynPts
   if (draw) {
     // magenta ticks: remembered obstacle points (costmap), nearest 60
     // partial selection (stable): keep only the nearest N in a sorted buffer instead of sorting every point
