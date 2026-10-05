@@ -123,7 +123,7 @@ Every stage draws with `api.visualizeLine`; switch off per stack/layer/stage wit
 |---|---|
 | mint polyline + poles, **yellow** pole | whole mission route, active waypoint (`av_waypoint_viz`) |
 | **yellow** line | car → current goal |
-| **lime** `#b6ff00` mast (40 m) + crossbar, ground cross + ring, line car → goal | the car's OWN goal (`goalViz: true`); ring radius = `goalReachDist` = the radius that scores a point |
+| **lime** `#b6ff00` four-line pillar (40 m) with ring + cross on top, ground cross + ring, line car → goal | the car's OWN goal (`goalViz: true`); ring radius = `goalReachDist` = the radius that scores a point |
 | **orange** `#ff9a1f` mast + diamond | route carrot = intermediate goal (`av.carrot`; in eco the route refreshes every 0.8 x 2.5 s and the carrot persists between plans) |
 | light orange `#ffd27f` polyline | planned route to the goal (`av.routePath`, at most `goalChainMax` 24 segments) = the goal chain |
 | red-orange `#ff5533` mast + cross | flee goal while the flee layer overrides the goal (lime stays at the real goal) |

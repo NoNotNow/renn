@@ -2,7 +2,7 @@
 // Runs every frame (never decimated), right after av-ego, so its lines are always on the first lines of the overlay budget and never flicker.
 // Reads av.mission.waypoints (av-mission stage) or params.waypoints [[x, z], ...]; av.goalRaw / av.goalReachDist (av-ego), av.carrot / av.routePath (route planner).
 // goalViz (default 'dim'): true | 'full' = the full goal display, 'dim' = old behaviour (mint mission route, yellow pole at the active waypoint), false = nothing.
-//   full:  LIME beacon (tall mast + crossbar) and ground ring (radius goalReachDist = the radius that counts as "goal reached") at the car's own goal, lime line car -> goal;
+//   full:  LIME beacon (tall four-line pillar + ring and cross on top) and ground ring (radius goalReachDist = the radius that counts as "goal reached") at the car's own goal, lime line car -> goal;
 //          ORANGE small mast + diamond at the route carrot (the intermediate goal the planners steer to; in eco mode the route is refreshed less often, the carrot persists), light-orange polyline of the planned route (goal chain);
 //          while the flee layer overrides the goal: small RED-ORANGE marker at the flee goal (lime stays at the real goal).
 // params: waypoints, debugDraw, goalViz, goalMastHeight (40), goalChainMax (24 segments)
@@ -31,7 +31,20 @@ function transform(input, dt, params, state, api) {
     var H = params.goalMastHeight != null ? params.goalMastHeight : 40
     var R = av.goalReachDist || 9
     var LIME = '#b6ff00'
-    api.visualizeLine([gx, y - 0.5, gz], [gx, y + H, gz], LIME)
+    // overlay lines are ~7 cm thin tubes: a fat four-line pillar + a ring on top stays visible from far away
+    for (var c = 0; c < 4; c++) {
+      var cx = c < 2 ? -0.7 : 0.7
+      var cz = c % 2 ? -0.7 : 0.7
+      api.visualizeLine([gx + cx, y - 0.5, gz + cz], [gx + cx, y + H, gz + cz], LIME)
+    }
+    var tx = gx + 4
+    var tz = gz
+    for (var t = 1; t <= 8; t++) {
+      var ta = (t * 2 * Math.PI) / 8
+      api.visualizeLine([tx, y + H, tz], [gx + 4 * Math.cos(ta), y + H, gz + 4 * Math.sin(ta)], LIME)
+      tx = gx + 4 * Math.cos(ta)
+      tz = gz + 4 * Math.sin(ta)
+    }
     api.visualizeLine([gx - 4, y + H, gz], [gx + 4, y + H, gz], LIME)
     api.visualizeLine([gx, y + H, gz - 4], [gx, y + H, gz + 4], LIME)
     api.visualizeLine([gx - 3, y + 0.3, gz], [gx + 3, y + 0.3, gz], LIME)
