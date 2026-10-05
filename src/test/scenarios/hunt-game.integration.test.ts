@@ -20,6 +20,65 @@ type Ent = ReturnType<typeof loadLabWorld>['entities'][number]
 const isWall = (e: Ent) => e.id.startsWith('wall_')
 const isCar = (e: Ent) => e.id === AV || (e.transformerPipeStack?.length ?? 0) > 0 || e.id === 'entity_1780566414550_ju2ejzl'
 
+type V3 = [number, number, number]
+type Obb = { c: V3; h: V3; R: number[][] }
+const dot = (a: V3, b: V3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+const cross = (a: V3, b: V3): V3 => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]
+const colOf = (R: number[][], i: number): V3 => [R[0][i], R[1][i], R[2][i]]
+
+/** Conservative box (half extents + three.js XYZ Euler rotation) around any shape; round shapes use their bounding box. */
+function obbOf(e: Ent, margin = 0): Obb {
+  const s = (e.scale as number[] | undefined) ?? [1, 1, 1]
+  const sh = e.shape as Record<string, number> & { type: string }
+  let h: V3
+  switch (sh.type) {
+    case 'box': h = [(sh.width * s[0]) / 2, (sh.height * s[1]) / 2, (sh.depth * s[2]) / 2]; break
+    case 'sphere': h = [sh.radius * s[0], sh.radius * s[0], sh.radius * s[0]]; break
+    case 'cylinder':
+    case 'cone': h = [sh.radius * s[0], (sh.height * s[1]) / 2, sh.radius * s[0]]; break
+    case 'capsule': h = [sh.radius * s[0], (sh.height * s[1]) / 2 + sh.radius * s[0], sh.radius * s[0]]; break
+    case 'pyramid': h = [(sh.baseSize / 2) * s[0], (sh.height * s[1]) / 2, (sh.baseSize / 2) * s[2]]; break
+    default: throw new Error(`unsupported shape ${sh.type} on ${e.id}`)
+  }
+  const [x, y, z] = (e.rotation as number[] | undefined) ?? [0, 0, 0]
+  const [cx, sx, cy, sy, cz, sz] = [Math.cos(x), Math.sin(x), Math.cos(y), Math.sin(y), Math.cos(z), Math.sin(z)]
+  const Rx = [[1, 0, 0], [0, cx, -sx], [0, sx, cx]]
+  const Ry = [[cy, 0, sy], [0, 1, 0], [-sy, 0, cy]]
+  const Rz = [[cz, -sz, 0], [sz, cz, 0], [0, 0, 1]]
+  const mm = (A: number[][], B: number[][]) => A.map((_, i) => B[0].map((__, j) => A[i][0] * B[0][j] + A[i][1] * B[1][j] + A[i][2] * B[2][j]))
+  return { c: e.position as V3, h: h.map((v) => v + margin) as V3, R: mm(mm(Rx, Ry), Rz) }
+}
+
+/** Separating-axis overlap of two oriented boxes. */
+function obbOverlap(a: Obb, b: Obb): boolean {
+  const axes: V3[] = [0, 1, 2].map((i) => colOf(a.R, i)).concat([0, 1, 2].map((i) => colOf(b.R, i)))
+  for (let i = 0; i < 3; i++) {
+    for (let j = 0; j < 3; j++) {
+      const c = cross(colOf(a.R, i), colOf(b.R, j))
+      const n = Math.hypot(...c)
+      if (n > 1e-6) axes.push([c[0] / n, c[1] / n, c[2] / n])
+    }
+  }
+  const d: V3 = [b.c[0] - a.c[0], b.c[1] - a.c[1], b.c[2] - a.c[2]]
+  for (const ax of axes) {
+    let ra = 0
+    let rb = 0
+    for (let i = 0; i < 3; i++) {
+      ra += a.h[i] * Math.abs(dot(colOf(a.R, i), ax))
+      rb += b.h[i] * Math.abs(dot(colOf(b.R, i), ax))
+    }
+    if (ra + rb <= Math.abs(dot(d, ax))) return false
+  }
+  return true
+}
+
+const isGreen = (e: Ent) => {
+  const c = (e.material as { color?: number[] } | undefined)?.color
+  return !!c && [0.22, 0.72, 0.35].every((v, i) => Math.abs(c[i] - v) < 0.01)
+}
+/** Static boxes that act as walls: the `wall_*` labyrinth plus the older green static boxes. */
+const isWallLike = (e: Ent) => e.bodyType === 'static' && e.shape?.type === 'box' && (isWall(e) || isGreen(e))
+
 /** Planar distance from a point to the footprint (OBB, yaw only) of a box wall. */
 function distToWall(wall: Ent, x: number, z: number): number {
   const s = wall.shape as { width: number; depth: number }
@@ -72,6 +131,32 @@ describe('self_hunt_flexible', () => {
         const d = distToWall(w, e.position![0], e.position![2])
         expect(d, `${e.id} (${e.name}) to ${w.id}`).toBeGreaterThanOrEqual(need)
       }
+    }
+  })
+
+  it('no dynamic entity intersects or rests on a static wall (2 m gap, conservative boxes)', () => {
+    const world = loadLabWorld({ exampleId: 'self_hunt_flexible' })
+    const walls = world.entities.filter(isWallLike)
+    expect(walls.length).toBeGreaterThanOrEqual(80)
+    const wallBoxes = walls.map((w) => ({ w, box: obbOf(w, 2) }))
+    for (const e of world.entities) {
+      if (e.bodyType !== 'dynamic' || e.shape?.type === 'plane') continue
+      const box = obbOf(e)
+      for (const { w, box: wb } of wallBoxes) {
+        expect(obbOverlap(box, wb), `${e.id} (${e.name}) overlaps or rests above ${w.id}`).toBe(false)
+      }
+    }
+  })
+
+  it('has no score/collision scripts and every car carries the righting script', () => {
+    const world = loadLabWorld({ exampleId: 'self_hunt_flexible' })
+    expect(Object.keys(world.scripts ?? {})).toEqual(['hinnstellen'])
+    expect((world.scripts as Record<string, { event: string }>).hinnstellen.event).toBe('onTimer')
+    const cars = world.entities.filter((e) => e.id === 'car' || e.name?.startsWith('Player'))
+    expect(cars.length).toBe(13)
+    for (const e of cars) expect(e.scripts, `${e.id} scripts`).toEqual(['hinnstellen'])
+    for (const e of world.entities) {
+      for (const id of e.scripts ?? []) expect(world.scripts, `${e.id} -> ${id}`).toHaveProperty(id)
     }
   })
 
