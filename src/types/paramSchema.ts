@@ -14,6 +14,7 @@ export type ParamType =
   | 'vec2'
   | 'vec3'
   | 'numberList'
+  | 'entityIdList'
   | 'json'
 
 export const PARAM_TYPES: readonly ParamType[] = [
@@ -27,6 +28,7 @@ export const PARAM_TYPES: readonly ParamType[] = [
   'vec2',
   'vec3',
   'numberList',
+  'entityIdList',
   'json',
 ]
 

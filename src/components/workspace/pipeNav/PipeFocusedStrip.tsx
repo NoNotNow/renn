@@ -19,8 +19,9 @@ import PipeAddDialog from './PipeAddDialog'
 import type { ResolvedPipeNavView, StripItem } from '@/types/pipeNav'
 import { isPipeNavLeafLevel } from '@/utils/pipeNavResolve'
 import { entityLevelItems } from '@/utils/stripOrder'
-import { getEntityPipeStack } from '@/utils/transformerPipeResolve'
+import { getEntityPipeStack, normalizePipeMembers } from '@/utils/transformerPipeResolve'
 import { resolveEntityStageRuntime, stackIndexFromScopePath } from '@/utils/pipeStageResolve'
+import type { StageParamContext } from '@/components/params/StageParamsForm'
 import { createPipeCardStageCallbacks } from './pipeStageCallbacks'
 import { pipeStripStageEnabledFromFocus } from './pipeStripStageEnable'
 
@@ -137,6 +138,25 @@ export default function PipeFocusedStrip({
   const stageRuntime = useMemo(() => resolveEntityStageRuntime(world, entity), [world, entity])
 
   const isLeafLevel = isPipeNavLeafLevel(view)
+
+  /** Pipe layers above the stage member at `memberIndex` of the focused pipe (undefined without a pipe stack). */
+  const memberParamContext = (memberIndex: number | undefined): StageParamContext | undefined => {
+    const pipeId = view.containerPipeId
+    const stackIndex = stackIndexFromScopePath(focusPath)
+    if (view.mode !== 'pipe_members' || !pipeId || stackIndex === undefined || memberIndex === undefined) return undefined
+    // A focus path may end on a stage member (focus then stays on its parent pipe): the container is the path without it.
+    const last = focusPath[focusPath.length - 1]
+    const lastPipe = last?.kind === 'member' ? pipes[last.pipeId] : undefined
+    const endsOnStage = lastPipe && last?.kind === 'member' && normalizePipeMembers(lastPipe)[last.memberIndex]?.kind === 'stage'
+    const containerPath = endsOnStage ? focusPath.slice(0, -1) : focusPath
+    const layers = stageRuntime.paramLayersForMember([...containerPath, { kind: 'member', pipeId, memberIndex }])
+    if (!layers || !onPipeParamsReplace) return undefined
+    return {
+      layers,
+      onLayerParamsChange: (layer, params) =>
+        onPipeParamsReplace({ pipeId, stackIndex, scopePath: layer.path, params }),
+    }
+  }
 
   const openAddDialog = useCallback(() => setAddDialogOpen(true), [])
 
@@ -263,6 +283,7 @@ export default function PipeFocusedStrip({
           : undefined
         }
         configRequest={stageConfigRequest}
+        stageParamContext={() => memberParamContext(item.index)}
         scope={{ kind: 'pipeMember', depth, stackIndex: stageIdx }}
       />
     )
@@ -389,6 +410,7 @@ export default function PipeFocusedStrip({
             selectedId={selectedStageId}
             cardErrorsByStackIndex={cardErrorsByStackIndex}
             configRequest={stageConfigRequest}
+            stageParamContext={(_id, i) => memberParamContext(view.items[i]?.index)}
             scope={{
               kind: 'pipeStrip',
               depth,

@@ -15,7 +15,7 @@ import WorkspaceFloatingDrawer from '@/components/workspace/WorkspaceFloatingDra
 import { clampDrawerPosition, drawerPositionRelativeToHost } from '@/components/workspace/floatingDrawerLayout'
 import ValidatedJsonTextarea from '@/components/ValidatedJsonTextarea'
 import TransformerFieldReference from '@/components/TransformerFieldReference'
-import StageParamsForm from '@/components/params/StageParamsForm'
+import StageParamsForm, { type StageParamContext } from '@/components/params/StageParamsForm'
 import { EntityPanelIcons } from '@/components/EntityPanelIcons'
 import { entityPanelIconButtonStyle } from '@/components/sharedStyles'
 import { theme } from '@/config/theme'
@@ -393,6 +393,7 @@ function TransformerTraceItem({
   cardDepth,
   ancestorEnabled,
   configRequestToken,
+  paramContext,
 }: {
   index: number
   /** Index of this transformer in the full entity stack (for custom display names). */
@@ -422,6 +423,8 @@ function TransformerTraceItem({
   ancestorEnabled: boolean
   /** `Date.now()` of a recent "open settings" request for this stage (pipe-nav tree gear); opens the config drawer. */
   configRequestToken?: number
+  /** Pipe layers above this stage for the viewed entity: the Params tab shows effective values and edits the winning layer. */
+  paramContext?: StageParamContext
 }) {
   const [inOpen, setInOpen] = useState(false)
   const [outOpen, setOutOpen] = useState(false)
@@ -973,6 +976,7 @@ function TransformerTraceItem({
                   <StageParamsForm
                     stage={transformer}
                     testIdSuffix={`-${index}`}
+                    paramContext={paramContext}
                     onParamsChange={(params) => onUpdate({ ...transformer, params })}
                   />
                 </div>
@@ -1072,6 +1076,7 @@ export function TransformerHorizontalPipeline({
   selectedId,
   cardErrorsByStackIndex,
   configRequest,
+  stageParamContext,
   scope = { kind: 'entityStack' },
 }: {
   transformers: TransformerConfig[]
@@ -1094,6 +1099,8 @@ export function TransformerHorizontalPipeline({
   cardErrorsByStackIndex?: Record<number, TransformerCardErrorKind>
   /** Open the config drawer of one stage (set by the pipe-nav tree's settings button). */
   configRequest?: StageConfigRequest | null
+  /** Per stage (by registry id and list index): the pipe layers above it for the viewed entity. */
+  stageParamContext?: (stageId: string, listIndex: number) => StageParamContext | undefined
   /** Host context — layout, add affordance and enable cascade all follow from it. */
   scope?: StageStripScope
 }) {
@@ -1365,6 +1372,7 @@ export function TransformerHorizontalPipeline({
               cardDepth={chrome.cardDepth}
               ancestorEnabled={chrome.isStageEnabled(item.originalIndex)}
               configRequestToken={configRequest?.stageId === item.id ? configRequest.token : undefined}
+              paramContext={stageParamContext?.(item.id, item.originalIndex)}
             />
           </div>
           {!chrome.inline && i < displayItems.length - 1 ? <PipelineConnector /> : null}

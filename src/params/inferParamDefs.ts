@@ -5,6 +5,11 @@ function isNumArray(v: unknown, len?: number): v is number[] {
   return Array.isArray(v) && (len === undefined || v.length === len) && v.every((x) => typeof x === 'number')
 }
 
+/** `threatIds`-style key holding a list of strings. */
+export function isIdList(key: string, value: unknown): value is string[] {
+  return /(^|[a-z])Ids$/.test(key) && Array.isArray(value) && value.every((x) => typeof x === 'string')
+}
+
 /** Infer a def for one current value (type, default = the value). */
 export function inferParamDef(key: string, value: unknown): ParamDef {
   const base = { key, label: labelFromKey(key), default: value }

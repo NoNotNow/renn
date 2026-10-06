@@ -3,7 +3,7 @@ import type { ParamDef, ParamType } from '@/types/paramSchema'
 import { PARAM_TYPES } from '@/types/paramSchema'
 import { theme } from '@/config/theme'
 import { getParamValue } from '@/params/paramValue'
-import ParamField from './ParamField'
+import ParamField, { type ParamFieldSource } from './ParamField'
 import ParamsJsonEditor from './ParamsJsonEditor'
 
 export interface ParamFormProps {
@@ -12,6 +12,14 @@ export interface ParamFormProps {
   values: Record<string, unknown>
   /** Values inherited from outer scopes (shown greyed-in as the effective value until overridden). */
   inheritedValues?: Record<string, unknown>
+  /** What the JSON editor shows and replaces (defaults to `values`; the stage form passes the stage's own params). */
+  jsonValues?: Record<string, unknown>
+  /** Layer that supplies each key's value when it is not the stage's own (keyed by top-level key); drives the "from pipe" badge. */
+  sources?: Record<string, ParamFieldSource>
+  /** Where "Add" may write (e.g. the stage itself or this stage inside its pipe); a select shows when there are 2+. */
+  addTargets?: { id: string; label: string }[]
+  /** Called instead of `onChange` when an add target is chosen. */
+  onAddAt?: (targetId: string, key: string, value: unknown) => void
   /** Set (`value`) or remove (`undefined`) one key at the edited scope. Omit for read-only. */
   onChange?: (key: string, value: unknown) => void
   /** Replace the whole params object (JSON toggle). Hides the toggle when omitted. */
@@ -41,6 +49,7 @@ const DEFAULT_BY_TYPE: Record<ParamType, unknown> = {
   vec2: [0, 0],
   vec3: [0, 0, 0],
   numberList: [],
+  entityIdList: [],
   json: {},
 }
 
@@ -69,7 +78,14 @@ function groupDefs(defs: ParamDef[]): { name: string | null; advanced: boolean; 
   return out.sort((a, b) => Number(a.name !== null) - Number(b.name !== null))
 }
 
-function AddParamRow({ onAdd }: { onAdd: (key: string, type: ParamType) => void }) {
+function AddParamRow({
+  onAdd,
+  targets,
+}: {
+  onAdd: (key: string, type: ParamType, targetId?: string) => void
+  targets?: { id: string; label: string }[]
+}) {
+  const [target, setTarget] = useState(targets?.[0]?.id)
   const [key, setKey] = useState('')
   const [type, setType] = useState<ParamType>('number')
   const trimmed = key.trim()
@@ -94,13 +110,28 @@ function AddParamRow({ onAdd }: { onAdd: (key: string, type: ParamType) => void 
           </option>
         ))}
       </select>
+      {targets && targets.length > 1 ?
+        <select
+          data-testid="param-add-target"
+          value={target}
+          onChange={(e) => setTarget(e.target.value)}
+          style={smallButton}
+          title="Where the new param is written"
+        >
+          {targets.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.label}
+            </option>
+          ))}
+        </select>
+      : null}
       <button
         type="button"
         data-testid="param-add"
         disabled={trimmed === ''}
         style={smallButton}
         onClick={() => {
-          onAdd(trimmed, type)
+          onAdd(trimmed, type, target)
           setKey('')
         }}
       >
@@ -118,6 +149,10 @@ export default function ParamForm({
   defs,
   values,
   inheritedValues,
+  jsonValues,
+  sources,
+  addTargets,
+  onAddAt,
   onChange,
   onReplace,
   layout = 'strip',
@@ -138,6 +173,7 @@ export default function ParamForm({
       layout={layout}
       value={getParamValue(values, def.key)}
       inherited={inheritedValues ? getParamValue(inheritedValues, def.key) : undefined}
+      source={sources?.[def.key.split('.')[0]!]}
       onChange={onChange ? (v) => onChange(def.key, v) : undefined}
       onReset={onChange ? () => onChange(def.key, undefined) : undefined}
     />
@@ -185,7 +221,12 @@ export default function ParamForm({
         )
       })}
       {allowAdd && onChange ?
-        <AddParamRow onAdd={(key, type) => onChange(key, DEFAULT_BY_TYPE[type])} />
+        <AddParamRow
+          targets={addTargets}
+          onAdd={(key, type, targetId) =>
+            onAddAt && targetId ? onAddAt(targetId, key, DEFAULT_BY_TYPE[type]) : onChange(key, DEFAULT_BY_TYPE[type])
+          }
+        />
       : null}
       {onReplace ?
         <div>
@@ -200,7 +241,7 @@ export default function ParamForm({
           {showJson ?
             <div style={{ marginTop: 6 }}>
               <ParamsJsonEditor
-                value={values}
+                value={jsonValues ?? values}
                 onApply={onReplace}
                 hint={jsonHint}
                 textareaTestId={jsonTestIdPrefix}

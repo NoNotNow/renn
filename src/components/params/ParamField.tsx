@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 
 import type { ParamDef } from '@/types/paramSchema'
 import { theme } from '@/config/theme'
 import DraggableNumberField from '@/components/DraggableNumberField'
+import { EntityIdListPicker, EntityIdPicker } from './EntityIdControl'
+import { isIdList } from '@/params/inferParamDefs'
 import { defLabel, isOverridden, numberStepFor, numericOr, outsideHint } from '@/params/paramValue'
 
 export interface ParamFieldProps {
@@ -15,6 +17,20 @@ export interface ParamFieldProps {
   /** Remove the value at this scope (reset to inherited / default). Shows a reset button while overridden. */
   onReset?: () => void
   layout?: 'strip' | 'form'
+  /**
+   * Set when a layer above the stage's own params supplies `value` (pipe binding / nested scope / stage-member scope):
+   * the field shows a "from pipe" badge, `title` lists the layer chain.
+   */
+  source?: ParamFieldSource
+}
+
+export interface ParamFieldSource {
+  /** Layer that sets the value, e.g. "Route planner" or "pipe binding". */
+  label: string
+  /** Tooltip with the full layer chain. */
+  title: string
+  /** True for a pipe layer (badge shown); false for stage / preset (no badge). */
+  overridden: boolean
 }
 
 const inputStyle: CSSProperties = {
@@ -202,12 +218,18 @@ function JsonControl({
 }
 
 /** One typed control for a `ParamDef`, shared by the pipe drawer and the stage settings forms. */
-export default function ParamField({ def, value, inherited, onChange, onReset, layout = 'strip' }: ParamFieldProps) {
+export default function ParamField({ def: declaredDef, value, inherited, onChange, onReset, layout = 'strip', source }: ParamFieldProps) {
+  // `threatIds` is declared as json in older stage blocks: a string-array `...Ids` key is still an entity id list
+  const def: ParamDef =
+    declaredDef.type === 'json' && /(^|[a-z])Ids$/.test(declaredDef.key) && (value === undefined || isIdList(declaredDef.key, value)) ?
+      { ...declaredDef, type: 'entityIdList' }
+    : declaredDef
   const label = defLabel(def)
   const disabled = !onChange
   const fallback = inherited !== undefined ? inherited : def.default
   const shown = value !== undefined ? value : fallback
-  const setHere = value !== undefined && (inherited !== undefined || isOverridden(value, def))
+  const fromPipe = source?.overridden === true
+  const setHere = value !== undefined && (fromPipe || inherited !== undefined || isOverridden(value, def))
   const testId = `param-field-${def.key}`
 
   const rowStyle: CSSProperties =
@@ -217,14 +239,17 @@ export default function ParamField({ def, value, inherited, onChange, onReset, l
 
   const mark = setHere ? (
     <>
-      <span style={MARK_STYLE} title={inherited !== undefined ? 'Set at this scope' : 'Differs from default'}>
+      <span
+        style={MARK_STYLE}
+        title={fromPipe ? 'Set by a pipe layer' : inherited !== undefined ? 'Set at this scope' : 'Differs from default'}
+      >
         •
       </span>
       {onReset && onChange ? (
         <button
           type="button"
           data-testid={`param-reset-${def.key}`}
-          title={inherited !== undefined ? 'Remove the override at this scope' : 'Reset to default'}
+          title={fromPipe ? `Remove the override from ${source.label}` : inherited !== undefined ? 'Remove the override at this scope' : 'Reset to default'}
           onClick={onReset}
           style={{ ...inputStyle, padding: '0 4px', cursor: 'pointer', border: 'none', background: 'transparent' }}
         >
@@ -232,6 +257,16 @@ export default function ParamField({ def, value, inherited, onChange, onReset, l
         </button>
       ) : null}
     </>
+  ) : null
+
+  const badge = fromPipe ? (
+    <span
+      data-testid={`param-source-${def.key}`}
+      title={source.title}
+      style={{ ...MARK_STYLE, fontSize: 10, border: `1px solid ${theme.pipeNav.accentMuted}`, borderRadius: 8, padding: '0 5px', whiteSpace: 'nowrap', flexShrink: 0 }}
+    >
+      from pipe: {source.label}
+    </span>
   ) : null
 
   const labelNode = (
@@ -261,7 +296,7 @@ export default function ParamField({ def, value, inherited, onChange, onReset, l
           shown={numericOr(shown, def.default)}
           onChange={onChange}
           testId={testId}
-          width={layout === 'form' ? 90 : 64}
+          width={layout === 'form' ? 70 : 64}
         />
       )
       break
@@ -345,10 +380,57 @@ export default function ParamField({ def, value, inherited, onChange, onReset, l
       )
       break
     }
+    case 'entityIdList': {
+      const arr = Array.isArray(shown) ? shown.map(String) : []
+      control = (
+        <EntityIdListPicker
+          ids={arr}
+          disabled={disabled}
+          testId={testId}
+          onChange={onChange}
+          textInput={
+            <DraftInput
+              text={arr.join(', ')}
+              width={layout === 'form' ? 200 : 120}
+              disabled={disabled}
+              testId={testId}
+              placeholder="ids, comma separated"
+              onCommit={(t) =>
+                onChange?.(
+                  t
+                    .split(/[\s,]+/)
+                    .map((x) => x.trim())
+                    .filter((x) => x !== ''),
+                )
+              }
+            />
+          }
+        />
+      )
+      break
+    }
     case 'json':
       control = <JsonControl shown={shown} onChange={onChange} disabled={disabled} testId={testId} />
       break
     case 'entityId':
+      control = (
+        <EntityIdPicker
+          id={String(shown ?? '')}
+          disabled={disabled}
+          testId={testId}
+          onChange={onChange}
+          textInput={
+            <DraftInput
+              text={String(shown ?? '')}
+              width={layout === 'form' ? 200 : 100}
+              disabled={disabled}
+              testId={testId}
+              onCommit={(t) => onChange?.(t)}
+            />
+          }
+        />
+      )
+      break
     case 'string':
     default:
       control = (
@@ -368,15 +450,19 @@ export default function ParamField({ def, value, inherited, onChange, onReset, l
       <label style={rowStyle} title={def.description}>
         {control}
         {label}
+        {badge}
         {mark}
       </label>
     )
   }
+  // The pickers hold their own buttons and result rows: a <label> would forward their clicks to the first control.
+  const Row = def.type === 'entityId' || def.type === 'entityIdList' ? 'div' : 'label'
   return (
-    <label style={rowStyle}>
+    <Row style={rowStyle}>
       {labelNode}
       {control}
+      {badge}
       {mark}
-    </label>
+    </Row>
   )
 }
