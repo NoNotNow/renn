@@ -175,7 +175,7 @@ function JsonControl({
   disabled: boolean
   testId?: string
 }) {
-  const text = JSON.stringify(shown ?? null)
+  const text = shown === undefined ? '' : JSON.stringify(shown)
   const [bad, setBad] = useState(false)
   return (
     <DraftInput
@@ -185,6 +185,11 @@ function JsonControl({
       testId={testId}
       parseError={bad}
       onCommit={(t) => {
+        if (t.trim() === '') {
+          onChange?.(undefined)
+          setBad(false)
+          return
+        }
         try {
           onChange?.(JSON.parse(t))
           setBad(false)

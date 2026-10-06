@@ -1,3 +1,20 @@
+/* @params
+[
+  {"key": "acceptRadius", "type": "number", "default": 9, "group": "Goal", "unit": "m", "min": 0, "description": "A waypoint / goal counts as reached inside this radius."},
+  {"key": "area", "type": "numberList", "label": "Goal area [xmin, xmax, zmin, zmax]", "group": "Goal", "description": "World box [xmin, xmax, zmin, zmax] for random goals (default: drivableArea, else +-40 m around the start)."},
+  {"key": "maxDistance", "type": "number", "default": 60, "group": "Goal", "unit": "m", "min": 0},
+  {"key": "minDistance", "type": "number", "default": 25, "group": "Goal", "unit": "m", "min": 0},
+  {"key": "speed", "type": "number", "default": 10, "group": "Goal", "unit": "m/s", "min": 0, "description": "Target speed hint published with the goal."},
+  {"key": "drivableArea", "type": "numberList", "label": "Drivable area [xmin, xmax, zmin, zmax]", "group": "Goal", "description": "World box [xmin, xmax, zmin, zmax]; virtual walls at its edge.", "advanced": true},
+  {"key": "giveUpAfter", "type": "number", "default": 45, "group": "Goal", "unit": "s", "min": 0, "description": "seconds (sim time) after which an unreachable goal is replaced (default 45)", "advanced": true},
+  {"key": "goalOpen", "type": "boolean", "default": true, "group": "Evasion", "description": "(default on; false = off) candidates are scored by openness on the persistent static map (av.smap): wall cells within goalOpenRadius (15 m) of the candidate and wall samples on the straight line from the car cost points;", "advanced": true},
+  {"key": "goalOpenEvery", "type": "number", "default": 2, "group": "Evasion", "min": 0, "advanced": true},
+  {"key": "goalOpenRadius", "type": "number", "default": 15, "group": "Evasion", "unit": "m", "min": 0, "advanced": true},
+  {"key": "goalOpenRecheck", "type": "number", "default": 10, "group": "Evasion", "min": 0, "advanced": true},
+  {"key": "margin", "type": "number", "default": 8, "group": "Goal", "min": 0, "description": "keep goals this far from the area edge (default 8)", "advanced": true},
+  {"key": "seed", "type": "number", "default": 1, "group": "Goal", "min": 0, "advanced": true}
+]
+*/
 // AV stack · GOAL SOURCE: random goals ("wanderer") — drop-in replacement for the waypoint mission (av-mission).
 // Any goal source speaks the same contract, so the autopilot does not care which one is in front of it:
 //   input.target       = { pose: { position: [x, 0, z] }, speed }   current goal (what planners read)

@@ -1,3 +1,12 @@
+/* @params
+[
+  {"key": "blockedTime", "type": "number", "default": 0.4, "group": "Behaviour", "unit": "s", "min": 0, "description": "Seconds the local planner must be blocked before a manoeuvre is requested."},
+  {"key": "goalTolerance", "type": "number", "default": 3.5, "label": "Final goal hold radius", "group": "Goal", "unit": "m", "min": 0, "description": "Final goal counts as reached inside this radius; the car holds there."},
+  {"key": "holdAtGoal", "type": "boolean", "default": true, "group": "Behaviour", "description": "Hold (stop) at the final goal."},
+  {"key": "stuckTime", "type": "number", "default": 1.5, "group": "Behaviour", "unit": "s", "min": 0, "description": "Seconds without progress before the vehicle counts as stuck."},
+  {"key": "debugDraw", "type": "boolean", "default": true, "label": "Draw debug vectors", "group": "Debug", "description": "Draw debug vectors (visible in the Builder visualize mode).", "advanced": true}
+]
+*/
 // AV stack · PLAN / behaviour supervisor.
 // Watches planner health and flags `av.needManeuver` when the local planner is blocked
 // or the vehicle is stuck; holds at the final goal. Sets av.mode ('drive' | 'hold').

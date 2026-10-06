@@ -904,7 +904,7 @@ function TransformerTraceItem({
             initialTop={drawerAnchor.y + 120}
             portalTarget={drawerPortalTarget.current}
             width={fieldRefOpen && isPresetTransformerType(transformer.type) ? 520 : 360}
-            initialHeight={300}
+            initialHeight={420}
             resizable
             bodyOverflow="hidden"
             headerExtra={

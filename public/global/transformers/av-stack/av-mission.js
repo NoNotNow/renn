@@ -1,3 +1,11 @@
+/* @params
+[
+  {"key": "acceptRadius", "type": "number", "default": 9, "group": "Goal", "unit": "m", "min": 0, "description": "A waypoint / goal counts as reached inside this radius."},
+  {"key": "mode", "type": "enum", "options": [{"value": "stop"}, {"value": "loop"}], "default": "stop", "group": "Goal", "description": "'stop' halts at the last waypoint, 'loop' restarts the route."},
+  {"key": "speed", "type": "number", "default": 10, "group": "Goal", "unit": "m/s", "min": 0, "description": "Target speed hint published with the goal."},
+  {"key": "waypoints", "type": "json", "group": "Goal", "description": "Waypoint list [[x, z], ...] in world metres."}
+]
+*/
 // AV stack · MISSION: position-only waypoint sequencer.
 // Publishes `input.target` (current waypoint) and `av.mission` {index, waypoints, isFinal} for the whole stack.
 // Position-only on purpose: a pass-through waypoint must never demand a heading (the stock targetPoseInput does).
