@@ -44,6 +44,8 @@ export interface MazeCase {
   /** Pocket (U) the car must not drive into: rect + open side; max depth of the car centre past the mouth plane (m). */
   pocket?: { x0: number; x1: number; z0: number; z1: number; mouth: 'west' | 'east' | 'north' | 'south' }
   maxPocketDepth?: number
+  /** The case judges something else than the pursuit (pocket depth): chaser contact / gap are not criteria. */
+  ignoreChasers?: boolean
   /** Time-to-goal limit tuned on the full CPU budget: skipped in the eco / normal suites. */
   fullBudgetOnly?: boolean
 }
@@ -318,6 +320,25 @@ export const MAZE_CASES: MazeCase[] = [
     pocket: { x0: 175, x1: 205, z0: 133, z1: 149, mouth: 'west' },
     spec: () => ({
       car: { at: [143, 167], yawDeg: -66, speed: 12 },
+      goal: [208, 13],
+      boxes: [seg([175, 133], [205, 133]), seg([175, 149], [205, 149]), seg([205, 133], [205, 149])],
+      puppets: [
+        { id: 'chaser_a', size: CHASER, at: [100, 124], yawDeg: -90, motion: { kind: 'home', speed: 25, turnRate: 1.5, lead: 0.3 } },
+        { id: 'chaser_b', size: CHASER, at: [63, 135], yawDeg: -90, motion: { kind: 'home', speed: 25, turnRate: 1.5, lead: 0.3 } },
+      ],
+    }),
+  },
+  {
+    name: 'u-mouth-enter',
+    about: 'REPRODUCTION of lab seed 6 (the car drives into a fully seen U and stops at its end wall): car (100, 150) at 15 m/s heading ENE toward the mouth of the U (opening west, 16 m wide, 30 m deep, walls seen while approaching), goal far north past the mouth, two homing chasers behind: the route bends north at the mouth, the chased car skipped the bend speed limit and overshot into the pocket (pocketBrake: false = 25.9 m deep, 254 static contact frames). Measured: how deep the car centre gets into the pocket',
+    seconds: 12,
+    maxReversals: 2,
+    noGoal: true,
+    maxPocketDepth: 4,
+    ignoreChasers: true, // the chaser at (100, 124) is 26 m from the start and catches the car in ~1 s whatever it does
+    pocket: { x0: 175, x1: 205, z0: 133, z1: 149, mouth: 'west' },
+    spec: () => ({
+      car: { at: [100, 150], yawDeg: -75, speed: 15 },
       goal: [208, 13],
       boxes: [seg([175, 133], [205, 133]), seg([175, 149], [205, 149]), seg([205, 133], [205, 149])],
       puppets: [

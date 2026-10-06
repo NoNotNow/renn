@@ -989,8 +989,70 @@ function transform(input, dt, params, state, api) {
     }
     return false
   }
-  function routeLimitNow(rt) {
-    if (rt.vOld != null && chasedSoon()) return rt.vOld
+  // pocketBrake (OPT-IN, needs the field): the car's straight continuation (heading, up to ~2 braking distances) ends in a dead end that the static map has fully seen: a wall within reach,
+  // walls on BOTH sides over the last metres (a U / dead-end corridor, not a lone wall or a bend that opens sideways) and the field distance rises along the way (the route does not
+  // lead in). Then the route bend limit stays active although the car is chased (av-speed-planner skips it otherwise): driving into a visible U is always worse than braking for its mouth.
+  function pocketAhead() {
+    if (params.pocketBrake !== true || !fld || !(av.threats && av.threats.length)) return false
+    var v = Math.max(0, e.speedF)
+    if (v < (params.pocketMinSpeed != null ? params.pocketMinSpeed : 5)) return false
+    var F = fld.F
+    var aB = params.comfortDecel || 5
+    var dMax = Math.min(params.pocketMaxDist != null ? params.pocketMaxDist : 80, 15 + (v * v) / aB)
+    var wMax = params.pocketSideMax != null ? params.pocketSideMax : 16
+    var h0 = Math.atan2(e.fwd[2], e.fwd[0])
+    var cs = F.cs
+    var fan = params.pocketFanDeg != null ? params.pocketFanDeg : 35
+    var rise = params.pocketFieldRise != null ? params.pocketFieldRise : 10
+    var minDirs = params.pocketDirs != null ? params.pocketDirs : 5
+    var inset = params.pocketInset != null ? params.pocketInset : 6
+    var fd0 = fieldAt(pos[0], pos[2])
+    function blockedAt(x, z) {
+      var ix = Math.floor((x - F.wx0) / cs)
+      var iz = Math.floor((z - F.wz0) / cs)
+      return ix >= 0 && iz >= 0 && ix < F.W && iz < F.H && F.occ[ix * F.H + iz] === 1
+    }
+    // a fan of rays around the heading (the local planner may steer into any of them): one that ends at a seen wall within reach, inside an enclosed space whose field distance
+    // rises (a U / dead-end corridor, not a lone wall: the field is ~equal on both faces of it; not a bend: the field falls along it)
+    for (var fi = -2; fi <= 2; fi++) {
+      var ha = h0 + (fi * fan * Math.PI) / 360
+      var hx = Math.cos(ha)
+      var hz = Math.sin(ha)
+      var dEnd = -1
+      for (var s = 4; s <= dMax; s += cs) {
+        if (blockedAt(pos[0] + hx * s, pos[2] + hz * s)) {
+          dEnd = s
+          break
+        }
+      }
+      if (dEnd < 0) continue
+      var sIn = Math.max(0, dEnd - inset)
+      var qx = pos[0] + hx * sIn
+      var qz = pos[2] + hz * sIn
+      // the field must climb along the ray: the end point is `rise` m above the lowest value passed on the way (the mouth of the pocket; a lone wall has its minimum at the wall)
+      var fMin = fd0
+      for (var sf = cs; sf <= sIn; sf += cs) {
+        var fv = fieldAt(pos[0] + hx * sf, pos[2] + hz * sf)
+        if (fv < fMin) fMin = fv
+      }
+      if (fieldAt(qx, qz) < fMin + rise) continue
+      // enclosure: at least `pocketDirs` of 8 directions (world axes, 45 deg apart) hit a blocked cell within `wMax` m (a U has ~7 of 8, a lone wall only the 3 facing it)
+      var nBlocked = 0
+      for (var di = 0; di < 8; di++) {
+        var ang = (di * Math.PI) / 4
+        for (var w = cs; w <= wMax; w += cs) {
+          if (blockedAt(qx + Math.cos(ang) * w, qz + Math.sin(ang) * w)) {
+            nBlocked++
+            break
+          }
+        }
+      }
+      if (nBlocked >= minDirs) return true
+    }
+    return false
+  }
+  function routeLimitNow(rt, pocket) {
+    if (rt.vOld != null && !pocket && chasedSoon()) return rt.vOld
     if (!rt.bends || !rt.bends.length || !rt.nodes) return rt.vLimit
     var nn = rt.nodes
     var best = 0
@@ -1291,7 +1353,8 @@ function transform(input, dt, params, state, api) {
         } else state.revStopOn = false
       }
       var revStop = !!state.revStopOn && rt.firstGear === -1
-      av.route = { firstGear: rt.firstGear, run: rt.run, reached: rt.reached, vLimit: revStop ? 0 : routeLimitNow(rt), revFirst: revStop }
+      var pocket = pocketAhead()
+      av.route = { firstGear: rt.firstGear, run: rt.run, reached: rt.reached, vLimit: revStop ? 0 : routeLimitNow(rt, pocket), revFirst: revStop, pocket: pocket }
       av.routePath = rt.path // [[x, z], ...] planned route nodes (read-only; av-waypoint-viz draws it as the goal chain)
       if (params.debugDraw !== false) {
         var y0 = pos[1]
@@ -1299,7 +1362,7 @@ function transform(input, dt, params, state, api) {
           api.visualizeLine([rt.path[di - 2][0], y0, rt.path[di - 2][1]], [rt.path[di][0], y0, rt.path[di][1]], '#ff44ff')
         }
       }
-      api.watch('av.route', 'gear ' + rt.firstGear + ' run ' + rt.run.toFixed(1) + (rt.reached ? ' goal' : ' partial') + ' exp ' + rt.expansions + ' h ' + rt.hRem.toFixed(0) + (fld ? ' fd ' + av.fieldGoal.d.toFixed(0) : ''))
+      api.watch('av.route', (pocket ? 'POCKET ' : '') + 'gear ' + rt.firstGear + ' run ' + rt.run.toFixed(1) + (rt.reached ? ' goal' : ' partial') + ' exp ' + rt.expansions + ' h ' + rt.hRem.toFixed(0) + (fld ? ' fd ' + av.fieldGoal.d.toFixed(0) : ''))
       return {}
     }
   }
