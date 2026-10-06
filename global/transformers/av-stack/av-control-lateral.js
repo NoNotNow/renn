@@ -1,3 +1,17 @@
+/* @params
+[
+  {"key": "fbGain", "type": "number", "default": 0.35, "group": "Steering", "min": 0, "description": "P gain of the feedback on measured curvature."},
+  {"key": "purePursuit", "type": "boolean", "default": true, "group": "Steering", "description": "Free-road refinement: continuous pure-pursuit curvature fine-tunes the planner curvature."},
+  {"key": "steerRate", "type": "number", "default": 4, "group": "Steering", "min": 0, "description": "Steering rate limit (comfort / actuator model)."},
+  {"key": "debugDraw", "type": "boolean", "default": true, "label": "Draw debug vectors", "group": "Debug", "description": "Draw debug vectors (visible in the Builder visualize mode).", "advanced": true},
+  {"key": "kappaDeadband", "type": "number", "default": 0.0015, "group": "Steering", "min": 0, "advanced": true},
+  {"key": "kappaJump", "type": "number", "default": 0.025, "group": "Steering", "min": 0, "advanced": true},
+  {"key": "kappaPerSteer", "type": "number", "default": 0.12, "group": "Steering", "min": 0, "advanced": true},
+  {"key": "kappaTau", "type": "number", "default": 0.04, "group": "Steering", "min": 0, "description": "0.04 s + 0.008 s per m/s", "advanced": true},
+  {"key": "ppMaxKappa", "type": "number", "default": 0.04, "group": "Steering", "min": 0, "advanced": true},
+  {"key": "ppWindow", "type": "number", "default": 0.02, "group": "Steering", "min": 0, "advanced": true}
+]
+*/
 // AV stack · CONTROL / lateral (curvature tracking).
 // steering = feed-forward(kappa_plan / kappaPerSteer) + P feedback on measured curvature,
 // with a steering-rate limiter (comfort / actuator model).

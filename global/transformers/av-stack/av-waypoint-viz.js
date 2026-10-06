@@ -1,3 +1,12 @@
+/* @params
+[
+  {"key": "debugDraw", "type": "boolean", "default": true, "label": "Draw debug vectors", "group": "Debug", "description": "Draw debug vectors (visible in the Builder visualize mode)."},
+  {"key": "goalViz", "type": "enum", "options": [{"value": "dim"}, {"value": "full"}], "default": "dim", "label": "Goal display", "group": "Debug", "description": "Goal display: 'dim' = mint mission route + yellow pole, 'full' = lime beacon, ring, route carrot and chain. Set false in JSON to hide."},
+  {"key": "goalChainMax", "type": "number", "default": 24, "group": "Debug", "min": 0, "description": "Maximum route segments drawn in the goal chain.", "advanced": true},
+  {"key": "goalMastHeight", "type": "number", "default": 40, "group": "Debug", "min": 0, "description": "Height of the goal mast / beacon.", "advanced": true},
+  {"key": "waypoints", "type": "json", "group": "Goal", "description": "Waypoint list [[x, z], ...] in world metres.", "advanced": true}
+]
+*/
 // AV stack · SENSE / goal + mission overlay (debug only, no effect on driving).
 // Runs every frame (never decimated), right after av-ego, so its lines are always on the first lines of the overlay budget and never flicker.
 // Reads av.mission.waypoints (av-mission stage) or params.waypoints [[x, z], ...]; av.goalRaw / av.goalReachDist (av-ego), av.carrot / av.routePath (route planner).
