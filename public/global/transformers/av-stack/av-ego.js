@@ -46,6 +46,11 @@
   {"key": "gapWallNeed", "type": "number", "default": 60, "group": "Evasion", "min": 0, "advanced": true},
   {"key": "gapWallPen", "type": "number", "default": 0, "group": "Evasion", "min": 0, "advanced": true},
   {"key": "gapWallTrade", "type": "number", "default": 8, "group": "Evasion", "min": 0, "advanced": true},
+  {"key": "fleeRelease", "type": "boolean", "default": true, "group": "Evasion", "description": "Drop a committed escape goal once the simulated run to the real goal stays fleeReleaseD from every pursuer for fleeReleaseT s (not while the goal is flagged unreachable).", "advanced": true},
+  {"key": "fleeReleaseD", "type": "number", "default": 30, "group": "Evasion", "unit": "m", "min": 0, "advanced": true},
+  {"key": "fleeReleaseDetour", "type": "number", "default": 15, "group": "Evasion", "unit": "m", "min": 0, "advanced": true},
+  {"key": "fleeBadAlign", "type": "number", "default": 1, "group": "Evasion", "min": 0, "max": 1, "description": "Weight of the alignment with the real goal in escape-heading scoring while the goal is flagged unreachable (1 = unchanged).", "advanced": true},
+  {"key": "fleeReleaseT", "type": "number", "default": 1, "group": "Evasion", "unit": "s", "min": 0, "advanced": true},
   {"key": "gapWalls", "type": "boolean", "default": false, "group": "Evasion", "description": "bool, default OFF; opt-in, needs gapCommit", "advanced": true},
   {"key": "gapWarmup", "type": "number", "default": 0, "group": "Evasion", "unit": "s", "min": 0, "description": "s, 0.1: no commit before the pursuers' velocities are filtered", "advanced": true},
   {"key": "goalOpen", "type": "boolean", "default": true, "group": "Evasion", "description": "bool, default ON; false disables; flee / escape goals only, never mission goals", "advanced": true},
@@ -167,6 +172,7 @@ function transform(input, dt, params, state, api) {
   if (prevAv) {
     av.prevRoute = prevAv.route
     av.prevCarrot = prevAv.carrot
+    av.prevRoutePath = prevAv.routePath
     av.prevBlocked = !!(prevAv.plan && (prevAv.plan.blocked || prevAv.plan.override || !(prevAv.plan.free >= 0.9 * prevAv.plan.horizon)))
   }
   // last frame's persistent static map (gapWalls: free run of the escape headings)
@@ -425,6 +431,21 @@ function fleeGoal(av, thrs, input, params, state, api) {
     if (sim && simThrs.length) simGoalD = escapeSim(simThrs, pos, simYaw, Math.max(0, av.ego.speedF), Math.atan2(g0[2] - pos[2], g0[0] - pos[0]), 0, simQ)
   }
   var simDanger = sim && simThrs.length > 0 && simGoalD < (params.escapeTrigger != null ? params.escapeTrigger : 16)
+  // fleeRelease (default on, false = off): a committed gap goal is an absolute point ~150 m away that is held until the car is within 25 m of it, i.e. the car flees for many seconds although the pursuers
+  // are 50-150 m away and the real goal is safe again (measured: 59 % of the flee frames have the nearest chaser > 40 m away). Release it once the simulated run to the REAL goal keeps
+  // >= fleeReleaseD (30 m, trigger is 16) from every pursuer for fleeReleaseT (1 s) with a clear straight way (the obstacle-aware field distance of the goal is within fleeReleaseDetour 15 m of the straight line: no wall in between; not while the watchdog says the goal is unreachable): the car drives to its goal again.
+  if (params.fleeRelease !== false && sim && fl && fl.gap && !bad) {
+    var pfR = av.prevField
+    var directGoal = !!(pfR && Math.abs(pfR.x - g0[0]) < 1.5 && Math.abs(pfR.z - g0[2]) < 1.5 && pfR.d - Math.hypot(g0[0] - pos[0], g0[2] - pos[2]) < (params.fleeReleaseDetour != null ? params.fleeReleaseDetour : 15))
+    if (directGoal && simGoalD > (params.fleeReleaseD != null ? params.fleeReleaseD : 30) && !danger(g0[0], g0[2]) && now - fl.t0 > (params.escapeHold != null ? params.escapeHold : 1.5)) {
+      if (fl.rel === undefined) fl.rel = now
+      if (now - fl.rel >= (params.fleeReleaseT != null ? params.fleeReleaseT : 1)) {
+        state.flee = null
+        av.fleeing = false
+        return
+      }
+    } else fl.rel = undefined
+  }
   if (sim && fl && fl.gap && fl.gx != null) {
     var gdx = fl.gx - pos[0]
     var gdz = fl.gz - pos[2]
@@ -652,7 +673,8 @@ function fleeSim(av, input, params, state, g0, area, fl, now, thrs, q, yaw0) {
     var d = d0 > d1 ? d0 : d1
     var turn = Math.abs(ang - yaw0)
     while (turn > Math.PI) turn = Math.abs(turn - 2 * Math.PI)
-    var al = Math.cos(ang - goalAng)
+    // fleeBadAlign (0..1, default 1 = unchanged): weight of the alignment with the real goal while the watchdog says that goal is unreachable (the car then picks its own goals; steering them at the unreachable goal ends at its wall)
+    var al = Math.cos(ang - goalAng) * (av.goalBad && params.fleeBadAlign != null ? params.fleeBadAlign : 1)
     var run = D
     var wp = 0
     var blocked = false

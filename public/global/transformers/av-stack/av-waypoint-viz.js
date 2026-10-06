@@ -13,7 +13,8 @@
 // goalViz (default 'dim'): true | 'full' = the full goal display, 'dim' = old behaviour (mint mission route, yellow pole at the active waypoint), false = nothing.
 //   full:  LIME beacon (tall four-line pillar + ring and cross on top) and ground ring (radius goalReachDist = the radius that counts as "goal reached") at the car's own goal, lime line car -> goal;
 //          ORANGE small mast + diamond at the route carrot (the intermediate goal the planners steer to; in eco mode the route is refreshed less often, the carrot persists), light-orange polyline of the planned route (goal chain);
-//          while the flee layer overrides the goal: small RED-ORANGE marker at the flee goal (lime stays at the real goal).
+//          while the flee layer overrides the goal: the lime goal is DIMMED (short pole + ring, no car -> goal line) and the active goal is the RED-ORANGE escape point (tall pillar, cross, line car -> escape point); the route chain leads to it. No red marker while the flee layer is inactive.
+//          The planners run after this stage: carrot / chain are last frame's (av.prevCarrot / av.prevRoutePath).
 // params: waypoints, debugDraw, goalViz, goalMastHeight (40), goalChainMax (24 segments)
 function transform(input, dt, params, state, api) {
   if (params.debugDraw === false || params.goalViz === false) return {}
@@ -34,12 +35,15 @@ function transform(input, dt, params, state, api) {
   }
   if (!full || !av) return {}
   var pos = input.position
+  var fleeOn = !!(av.fleeing && cur)
   if (own) {
     var gx = own[0]
     var gz = own[1]
     var H = params.goalMastHeight != null ? params.goalMastHeight : 40
     var R = av.goalReachDist || 9
-    var LIME = '#b6ff00'
+    // the flee layer overrides the goal: the real goal is dimmed (short pole + ground ring, no beacon, no car -> goal line); the escape point below is the active goal
+    var LIME = fleeOn ? '#5c7a14' : '#b6ff00'
+    if (fleeOn) H = 6
     // overlay lines are ~7 cm thin tubes: a fat four-line pillar + a ring on top stays visible from far away
     for (var c = 0; c < 4; c++) {
       var cx = c < 2 ? -0.7 : 0.7
@@ -68,17 +72,22 @@ function transform(input, dt, params, state, api) {
       px = qx
       pz = qz
     }
-    api.visualizeLine([pos[0], y + 0.6, pos[2]], [gx, y + 0.6, gz], LIME)
+    if (!fleeOn) api.visualizeLine([pos[0], y + 0.6, pos[2]], [gx, y + 0.6, gz], LIME)
   }
-  // flee goal (the stack's current target differs from the source's own goal)
-  if (av.fleeing && cur) {
+  // escape point = the flee layer's goal (only while it is active): tall red-orange pillar + cross + line car -> escape point; the route chain below leads to it
+  if (fleeOn) {
     var FL = '#ff5533'
-    api.visualizeLine([cur[0], y - 0.5, cur[2]], [cur[0], y + 10, cur[2]], FL)
-    api.visualizeLine([cur[0] - 2, y + 0.3, cur[2]], [cur[0] + 2, y + 0.3, cur[2]], FL)
-    api.visualizeLine([cur[0], y + 0.3, cur[2] - 2], [cur[0], y + 0.3, cur[2] + 2], FL)
+    for (var fc = 0; fc < 4; fc++) {
+      var fx = fc < 2 ? -0.7 : 0.7
+      var fz = fc % 2 ? -0.7 : 0.7
+      api.visualizeLine([cur[0] + fx, y - 0.5, cur[2] + fz], [cur[0] + fx, y + 25, cur[2] + fz], FL)
+    }
+    api.visualizeLine([cur[0] - 3, y + 0.3, cur[2]], [cur[0] + 3, y + 0.3, cur[2]], FL)
+    api.visualizeLine([cur[0], y + 0.3, cur[2] - 3], [cur[0], y + 0.3, cur[2] + 3], FL)
+    api.visualizeLine([pos[0], y + 0.6, pos[2]], [cur[0], y + 0.6, cur[2]], FL)
   }
-  // route carrot (intermediate goal) + planned route chain
-  var cr = av.carrot
+  // route carrot (intermediate goal) + planned route chain. The route planner runs AFTER this stage in the same frame, so the blackboard of THIS frame has neither yet: draw last frame's (av.prevCarrot / av.prevRoutePath, published by av-ego).
+  var cr = av.carrot || av.prevCarrot
   if (cr) {
     var OR = '#ff9a1f'
     api.visualizeLine([cr[0], y - 0.5, cr[1]], [cr[0], y + 7, cr[1]], OR)
@@ -87,7 +96,7 @@ function transform(input, dt, params, state, api) {
     api.visualizeLine([cr[0] + 1.5, y + 0.4, cr[1]], [cr[0], y + 0.4, cr[1] - 1.5], OR)
     api.visualizeLine([cr[0], y + 0.4, cr[1] - 1.5], [cr[0] - 1.5, y + 0.4, cr[1]], OR)
   }
-  var rp = av.routePath
+  var rp = av.routePath || av.prevRoutePath
   if (rp && rp.length > 1) {
     var maxSeg = params.goalChainMax != null ? params.goalChainMax : 24
     var step = Math.max(1, Math.ceil((rp.length - 1) / maxSeg))

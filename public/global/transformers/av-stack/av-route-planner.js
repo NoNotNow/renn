@@ -12,6 +12,9 @@
   {"key": "carrotBendMin", "type": "number", "default": 4, "group": "Route planning", "min": 0, "advanced": true},
   {"key": "carrotBendMinSpeed", "type": "number", "default": 0, "group": "Route planning", "unit": "m/s", "min": 0, "advanced": true},
   {"key": "carrotLive", "type": "boolean", "default": false, "group": "Route planning", "advanced": true},
+  {"key": "goalViz", "type": "enum", "options": [{"value": "dim"}, {"value": "full"}], "default": "dim", "group": "Debug", "description": "'full' = the goal overlay draws the route chain (this stage then skips its magenta copy).", "advanced": true},
+  {"key": "carrotTrack", "type": "boolean", "default": false, "group": "Route planning", "description": "Re-derive the carrot every frame from the current route (also while pursuers are tracked); a carrot behind a forward-cruising car is dropped.", "advanced": true},
+  {"key": "goalJumpReplan", "type": "number", "default": 8, "group": "Route planning", "unit": "m", "min": 0, "description": "A goal jump larger than this between frames drops the stored route, carrot and manoeuvre (default 8 m, 0 / false = off).", "advanced": true},
   {"key": "carrotLiveNear", "type": "number", "default": 12, "group": "Route planning", "min": 0, "advanced": true},
   {"key": "carrotLookT", "type": "number", "default": 1.6, "group": "Route planning", "min": 0, "advanced": true},
   {"key": "carrotPull", "type": "boolean", "default": true, "group": "Route planning", "advanced": true},
@@ -143,6 +146,23 @@ function transform(input, dt, params, state, api) {
   if (!tgt) return {}
   var gxw = tgt[0]
   var gzw = tgt[2]
+  // goalJumpReplan (m, default 8, 0 / false = off): the goal source / flee layer replaced the goal (a jump between frames, not a drifting follow goal). The stored route, its carrot and a running
+  // manoeuvre belong to the OLD goal (eco: a plan is kept 2-4 s = 40-80 m): drop them now and plan to the new one. Measured: 8 % of the carrot frames steered along a route to the previous goal.
+  var gJump = params.goalJumpReplan === false ? 0 : typeof params.goalJumpReplan === 'number' ? params.goalJumpReplan : 8
+  if (gJump > 0) {
+    var pg = state.pgoal
+    // flee-layer goals are excluded (a switch between escape headings keeps the plan: flee-wall-ahead loses its way with a replan per switch); only the goal source's own jumps count
+    var fleeNow = !!av.fleeing
+    if (pg && !fleeNow && !state.pfl && Math.hypot(gxw - pg[0], gzw - pg[1]) > gJump) {
+      state.route = undefined
+      if (state.active) {
+        state.active = false
+        state.stuckT = 0
+      }
+    }
+    state.pgoal = [gxw, gzw]
+    state.pfl = fleeNow
+  }
   var kmax = params.maxCurvature || 0.115
   var planMargin = params.planMargin != null ? params.planMargin : 0.4
   var tightMargin = params.tightMargin != null ? params.tightMargin : 0.1
@@ -1409,7 +1429,11 @@ function transform(input, dt, params, state, api) {
       // carrotLive (OPT-IN: true): a plan-time carrot is a world-fixed point; between replans (eco: 2 s = 20 m at 10 m/s) the car drives up to / past it and the pure-pursuit
       // arc to it is stale, in a corridor bend the car turns in a second late and brakes to a stop at the wall. Re-derive it every frame: `want` m down the stored route from the nearest node.
       var liveUsed = false
-      if (rt.carrot && params.carrotLive === true && (!rt.pull || Math.hypot(rt.pull[0] - pos[0], rt.pull[1] - pos[2]) < Math.max(params.carrotLiveNear != null ? params.carrotLiveNear : 12, 0))  && rt.firstGear === 1 && rt.nodes && !(av.threats && av.threats.length)) {
+      // carrotTrack (OPT-IN: true; on in self_hunt_flexible; default on breaks corner-trap / gap-entry-wall10 / open-field cases): the carrot is ALWAYS derived from the CURRENT route each frame (`want` m along the stored nodes from the car's nearest node), also while pursuers are tracked (the plan-time carrot
+      // of a threatened plan is a world-fixed node: the car drives past it within the 2-4 s a plan is kept in eco, 46 % of the carrot frames had it BEHIND the car). A carrot that is behind a forward-cruising car is dropped.
+      var thr = !!(av.threats && av.threats.length)
+      var trackOn = params.carrotTrack === true && rt.firstGear === 1 && !!rt.nodes && (thr || !rt.pull)
+      if (rt.carrot && ((params.carrotLive === true && (!rt.pull || Math.hypot(rt.pull[0] - pos[0], rt.pull[1] - pos[2]) < Math.max(params.carrotLiveNear != null ? params.carrotLiveNear : 12, 0)) && rt.firstGear === 1 && rt.nodes && !thr) || trackOn)) {
         var ln = rt.nodes
         var lbest = 0
         var lbd = Infinity
@@ -1420,7 +1444,7 @@ function transform(input, dt, params, state, api) {
         var lwant = Math.min(lookahead, 6 + 1.0 * Math.max(0, e.speedF))
         var lacc = 0
         var lcar = null
-        var lcb = (e.speedF || 0) < (params.carrotBendMinSpeed != null ? params.carrotBendMinSpeed : 0) ? 0 : params.carrotBend != null ? params.carrotBend : 0
+        var lcb = thr || (e.speedF || 0) < (params.carrotBendMinSpeed != null ? params.carrotBendMinSpeed : 0) ? 0 : params.carrotBend != null ? params.carrotBend : 0
         var la0 = 0
         var lcut = false
         for (var lj = lbest + 1; lj < ln.length && ln[lj].g === 1; lj++) {
@@ -1441,10 +1465,10 @@ function transform(input, dt, params, state, api) {
           }
         }
         // only where the route bends inside the look-ahead (a straight run keeps the plan-time / pulled carrot: open-field berth)
-        if (lcut && lcar && lacc >= 4) {
+        if ((lcut && lcar && lacc >= 4) || (trackOn && lcar && lacc >= 1)) {
           av.carrot = lcar
           liveUsed = true
-        }
+        } else if (trackOn && !lcar) delete av.carrot
       }
       if (rt.pull && !(av.threats && av.threats.length) && !liveUsed) {
         var pdx = rt.pull[0] - pos[0]
@@ -1456,6 +1480,7 @@ function transform(input, dt, params, state, api) {
           av.carrot = [pos[0] + pdx * pk, pos[2] + pdz * pk]
         }
       }
+      if (params.carrotTrack === true && av.carrot && rt.firstGear === 1 && e.speedF > 2 && (av.carrot[0] - pos[0]) * e.fwd[0] + (av.carrot[1] - pos[2]) * e.fwd[2] < 0) delete av.carrot
       api.watch('av.carrotw', rt.carrot ? rt.carrot[0].toFixed(0) + ',' + rt.carrot[1].toFixed(0) + (av.carrot ? ' live ' + av.carrot[0].toFixed(0) + ',' + av.carrot[1].toFixed(0) : '') + (rt.pull ? ' pull' : '') : '-')
       // a route that was driving forward (>= 2 s on a long forward run) turns reverse-first for two plans in a row (the vote that starts the manoeuvre), the car still
       // rolling: a missed turn. Brake to a stop for the manoeuvre instead of accelerating on the old forward limit (crawl floor ignored, av-speed-planner 'rstop').
@@ -1477,7 +1502,8 @@ function transform(input, dt, params, state, api) {
       var pocket = pocketAhead()
       av.route = { firstGear: rt.firstGear, run: rt.run, reached: rt.reached, vLimit: revStop ? 0 : routeLimitNow(rt, pocket), revFirst: revStop, pocket: pocket }
       av.routePath = rt.path // [[x, z], ...] planned route nodes (read-only; av-waypoint-viz draws it as the goal chain)
-      if (params.debugDraw !== false) {
+      // goalViz 'full' draws the same route as the light-orange chain (av-waypoint-viz): no second magenta copy
+      if (params.debugDraw !== false && params.goalViz !== true && params.goalViz !== 'full') {
         var y0 = pos[1]
         for (var di = 2; di < rt.path.length; di += 2) {
           api.visualizeLine([rt.path[di - 2][0], y0, rt.path[di - 2][1]], [rt.path[di][0], y0, rt.path[di][1]], '#ff44ff')
