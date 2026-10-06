@@ -23,7 +23,7 @@ Details and numbers: `agent-context/feature-av-stack.md` (sections "Keep right w
 3. Keep-right: corridor with the oncoming car dead ahead / in the wrong lane still collides (needs a feasibility-aware pass target).
 4. carrotBend/carrotLive on chasers breaks hunt-game (pack falls back to 98.8 m): not enabled.
 5. Overlay is Builder-only (`visualizeLine` no-op in Play); lines are 7 cm tubes; other stages' lines flicker on non-tick frames with `tickEvery`.
-6. Param UI: stage Configure drawer shows stage-level `params`, not the effective value after pipe/binding layering (e.g. route planner shows vehicleWidth 2 while the binding sets 4) — add an "overridden by pipe" badge / inherited display; entity-id params are plain text; per-stage-member scope params not in the stage drawer; number drags commit on release.
+6. ~~Param UI effective values~~ done (2fad0fe): stage drawer shows the effective value with a `from pipe: <layer>` badge, edits go to the supplying layer, member-scope params editable, entity picker for `entityId` / `entityIdList`. Left: AV preset layer not shown; narrow drawer clips the reset arrow next to the badge.
 7. Older items from handoff-av-20261005.md (frame budget, maze-b-rev-door goal, gap swing-out) still open.
 
 ## Orchestration used
