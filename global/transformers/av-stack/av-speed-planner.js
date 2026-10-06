@@ -73,7 +73,7 @@ function transform(input, dt, params, state, api) {
     }
   }
   // bends ahead on the global route (corner speed, reachable by braking)
-  if (av.route && av.route.vLimit < v && !chased) {
+  if (av.route && av.route.vLimit < v && (!chased || av.route.pocket)) {
     v = Math.max(av.route.vLimit, crawl)
     limit = 'route'
   }
