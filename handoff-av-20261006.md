@@ -17,6 +17,7 @@ Full suite at c3c4bfc: 2558 passed, 17 skipped.
 Details and numbers: `agent-context/feature-av-stack.md` (sections "Keep right when passing", "S-curves in the labyrinth", "Visible U pockets"), `agent-context/feature-transformers.md` ("Param forms"), `agent-context/example-worlds.md`.
 
 ## Open
+0. **Goals / intermediate goals (Manuel, 2026-10-06, high priority):** the intermediate goals (orange carrot / route chain in the overlay) appear at odd places, often lead AWAY from the goal and look randomly chosen; they seem to complicate a lot. The goals themselves also seem to change randomly. Worker `wk-subgoals` measures causes (flee layer, legit maze detour, stale eco/saver carrot, partial route, goal change, viz bug) and fixes them; keep this on the list until Manuel confirms it in the world.
 1. Saver budget (the world's real mode): `maze-dead-end` never reaches the goal (min 46.5 m), `s-bend-14` 2 reversals. Not gated (suites run eco/full).
 2. `maze-dead-end` at eco passes with carrotBend 0.65 but sits near a chaotic shuttle-detector threshold.
 3. Keep-right: corridor with the oncoming car dead ahead / in the wrong lane still collides (needs a feasibility-aware pass target).
