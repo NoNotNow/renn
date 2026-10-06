@@ -46,9 +46,12 @@
   {"key": "gapWallNeed", "type": "number", "default": 60, "group": "Evasion", "min": 0, "advanced": true},
   {"key": "gapWallPen", "type": "number", "default": 0, "group": "Evasion", "min": 0, "advanced": true},
   {"key": "gapWallTrade", "type": "number", "default": 8, "group": "Evasion", "min": 0, "advanced": true},
+  {"key": "goalGiveUp", "type": "number", "default": 0, "group": "Evasion", "unit": "s", "min": 0, "description": "Seconds after the watchdog flagged the goal unreachable at which the goal source is told to pick another goal (input.goalFeedback); 0 = off.", "advanced": true},
+  {"key": "goalGiveUpDistance", "type": "number", "default": 150, "group": "Evasion", "unit": "m", "min": 0, "advanced": true},
+  {"key": "escapeTriggerHorizon", "type": "number", "default": 0, "group": "Evasion", "unit": "s", "min": 0, "description": "A flee is started only when the heading to the real goal meets a pursuer within this horizon (0 = the full escapeHorizon).", "advanced": true},
   {"key": "fleeRelease", "type": "boolean", "default": true, "group": "Evasion", "description": "Drop a committed escape goal once the simulated run to the real goal stays fleeReleaseD from every pursuer for fleeReleaseT s (not while the goal is flagged unreachable).", "advanced": true},
   {"key": "fleeReleaseD", "type": "number", "default": 30, "group": "Evasion", "unit": "m", "min": 0, "advanced": true},
-  {"key": "fleeReleaseDetour", "type": "number", "default": 15, "group": "Evasion", "unit": "m", "min": 0, "advanced": true},
+  {"key": "fleeReleaseRun", "type": "number", "default": 80, "group": "Evasion", "unit": "m", "min": 0, "advanced": true},
   {"key": "fleeBadAlign", "type": "number", "default": 1, "group": "Evasion", "min": 0, "max": 1, "description": "Weight of the alignment with the real goal in escape-heading scoring while the goal is flagged unreachable (1 = unchanged).", "advanced": true},
   {"key": "fleeReleaseT", "type": "number", "default": 1, "group": "Evasion", "unit": "s", "min": 0, "advanced": true},
   {"key": "gapWalls", "type": "boolean", "default": false, "group": "Evasion", "description": "bool, default OFF; opt-in, needs gapCommit", "advanced": true},
@@ -387,6 +390,17 @@ function fleeGoal(av, thrs, input, params, state, api) {
     }
     bad = wd.bad
     av.goalBad = bad
+    // goalGiveUp (s after the watchdog flagged the goal, 0 = off): tell the goal source (input.goalFeedback, read by the wanderer preset / av-wander, one frame late) that this goal cannot be reached, so it picks another one
+    // instead of the car fleeing for ever (measured: the flagged goal is kept for the rest of the run and 19 % of all frames are spent in it); the new goal is at most goalGiveUpDistance (150) m away.
+    var gGive = params.goalGiveUp != null ? params.goalGiveUp : 0
+    if (gGive > 0 && bad) {
+      if (wd.badT === undefined) wd.badT = now
+      if (!wd.gave && now - wd.badT >= gGive) {
+        wd.gave = true
+        var gfb = input.goalFeedback || (input.goalFeedback = {})
+        gfb[input.entityId] = { giveUp: true, maxDistance: params.goalGiveUpDistance != null ? params.goalGiveUpDistance : 150 }
+      }
+    }
   }
   var gap = params.gapCommit !== false
   var sim = params.fleeSim === true || gap
@@ -428,15 +442,25 @@ function fleeGoal(av, thrs, input, params, state, api) {
         }
     }
     simYaw = Math.atan2(av.ego.fwd[2], av.ego.fwd[0])
-    if (sim && simThrs.length) simGoalD = escapeSim(simThrs, pos, simYaw, Math.max(0, av.ego.speedF), Math.atan2(g0[2] - pos[2], g0[0] - pos[0]), 0, simQ)
+    // escapeTriggerHorizon (s, 0 = off): a flee is only STARTED when the heading to the real goal is predicted to meet a pursuer within this shorter horizon (intercept-based: a chaser that needs > 3.5 s to get to the car's line does not
+    // make it flee); once fleeing, the full escapeHorizon keeps judging (hysteresis, and fleeRelease).
+    var qTrig = simQ
+    if (params.escapeTriggerHorizon > 0 && !fl && params.escapeTriggerHorizon < simQ.H) qTrig = Object.assign({}, simQ, { H: params.escapeTriggerHorizon })
+    if (sim && simThrs.length) simGoalD = escapeSim(simThrs, pos, simYaw, Math.max(0, av.ego.speedF), Math.atan2(g0[2] - pos[2], g0[0] - pos[0]), 0, qTrig)
   }
   var simDanger = sim && simThrs.length > 0 && simGoalD < (params.escapeTrigger != null ? params.escapeTrigger : 16)
   // fleeRelease (default on, false = off): a committed gap goal is an absolute point ~150 m away that is held until the car is within 25 m of it, i.e. the car flees for many seconds although the pursuers
   // are 50-150 m away and the real goal is safe again (measured: 59 % of the flee frames have the nearest chaser > 40 m away). Release it once the simulated run to the REAL goal keeps
-  // >= fleeReleaseD (30 m, trigger is 16) from every pursuer for fleeReleaseT (1 s) with a clear straight way (the obstacle-aware field distance of the goal is within fleeReleaseDetour 15 m of the straight line: no wall in between; not while the watchdog says the goal is unreachable): the car drives to its goal again.
+  // >= fleeReleaseD (30 m, trigger is 16) from every pursuer for fleeReleaseT (1 s) with a clear straight way (the persistent static map shows a free straight run to the goal (fleeReleaseRun 80 m); not while the watchdog says the goal is unreachable): the car drives to its goal again.
   if (params.fleeRelease !== false && sim && fl && fl.gap && !bad) {
-    var pfR = av.prevField
-    var directGoal = !!(pfR && Math.abs(pfR.x - g0[0]) < 1.5 && Math.abs(pfR.z - g0[2]) < 1.5 && pfR.d - Math.hypot(g0[0] - pos[0], g0[2] - pos[2]) < (params.fleeReleaseDetour != null ? params.fleeReleaseDetour : 15))
+    // direct way: the obstacle-aware field belongs to the FLEE goal while fleeing (the route planner targets it), so the real goal's directness is read from the persistent static map: a free straight run
+    // (car half-width + 3.5 m) over min(goal distance, fleeReleaseRun 80 m); an empty map reads as free
+    var gdR = Math.hypot(g0[0] - pos[0], g0[2] - pos[2])
+    var directGoal = true
+    if (av.prevSmap && av.prevSmap.list && av.prevSmap.list.length) {
+      var rr = Math.min(gdR, params.fleeReleaseRun != null ? params.fleeReleaseRun : 80)
+      directGoal = freeRun(wallGrid(av.prevSmap.list, state), pos[0], pos[2], Math.atan2(g0[2] - pos[2], g0[0] - pos[0]), rr, 3.5) >= rr - 2
+    }
     if (directGoal && simGoalD > (params.fleeReleaseD != null ? params.fleeReleaseD : 30) && !danger(g0[0], g0[2]) && now - fl.t0 > (params.escapeHold != null ? params.escapeHold : 1.5)) {
       if (fl.rel === undefined) fl.rel = now
       if (now - fl.rel >= (params.fleeReleaseT != null ? params.fleeReleaseT : 1)) {

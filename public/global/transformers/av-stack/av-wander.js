@@ -95,6 +95,13 @@ function transform(input, dt, params, state, api) {
   var g = state.goal
   var reached = g && Math.hypot(pos[0] - g[0], pos[2] - g[1]) < radius
   var stale = g && state.t - state.pickedAt > giveUp
+  // goal feedback (av-ego goalGiveUp): the stage behind us reports this goal unreachable -> re-pick now, closer to the car
+  var fb = input.goalFeedback && input.goalFeedback[input.entityId]
+  if (fb) delete input.goalFeedback[input.entityId]
+  if (g && fb && fb.giveUp) {
+    stale = true
+    if (fb.maxDistance > 0) dMax = Math.min(dMax, Math.max(fb.maxDistance, dMin + 1))
+  }
   var walled = false
   if (g && og && !reached && !stale && state.t - (state.openT || 0) >= (params.goalOpenEvery != null ? params.goalOpenEvery : 2)) {
     state.openT = state.t

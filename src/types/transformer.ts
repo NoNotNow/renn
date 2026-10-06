@@ -172,6 +172,13 @@ export interface TransformInput {
 
   /** Smoothed wall-clock cost (ms per frame, ~1 s average) of this entity's whole transformer chain; set by the runtime, 0 until measured. */
   chainMs?: number
+
+  /**
+   * Feedback from a later stage to the goal source of the SAME entity, one frame late. The runtime keeps one input object for all entities, so the map is keyed by entity id;
+   * the writer sets `[entityId] = { giveUp: true, maxDistance? }` (the goal cannot be reached), the goal source (wanderer preset, `av-wander`) takes (reads and deletes) its own entry and picks another goal,
+   * at most `maxDistance` m from the vehicle when given.
+   */
+  goalFeedback?: Record<string, { giveUp: boolean; maxDistance?: number }>
 }
 
 /**
