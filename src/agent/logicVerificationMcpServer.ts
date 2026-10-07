@@ -71,7 +71,7 @@ export function createLogicVerificationMcpServer(
     { name: 'renn-logic-verification', version: '0.1.0' },
     {
       instructions:
-        'Headless: load_project_bundle | load_fixture | load_example_world | load_world_json → apply_world_patch / patch_entity_material_color → export_project_bundle → start_verification_run → run_for_sim_time | run_timed_macro | step → get_observation → stop_run. Builder attach: attach_browser → load_saved_project, load_example_world, export_saved_project_to_example_world, save_project*, patch_entity_material_color, get_saved_entity_material_color, get_entity_authoring_summary, get_world_authoring_snapshot, get_pipe_authoring_summary, run_timed_macro (segmentWallPauseMs for visible pacing). Headless load/export unavailable while attached.',
+        'Headless: load_project_bundle | load_fixture | load_example_world | load_world_json → apply_world_patch / patch_entity_material_color → export_project_bundle → start_verification_run → run_for_sim_time | run_timed_macro | step → get_observation → stop_run. Builder attach: attach_browser → load_saved_project, load_example_world, export_saved_project_to_example_world, save_project*, patch_entity_material_color, get_saved_entity_material_color, get_entity_authoring_summary, get_world_authoring_snapshot, get_pipe_authoring_summary, av_evolution_list/best/apply, run_timed_macro (segmentWallPauseMs for visible pacing). Headless load/export unavailable while attached.',
     },
   )
 
@@ -211,6 +211,48 @@ export function createLogicVerificationMcpServer(
       },
     },
     withAuth(async (input) => jsonText(await session.getSavedEntityMaterialColor(input))),
+  )
+
+  server.registerTool(
+    'av_evolution_list',
+    {
+      description:
+        'List evolutionary parameter-search runs: Builder IndexedDB when attached, else exported JSON files (schema renn.av-evolution/1) under test-results/av-evolution.',
+      inputSchema: { devToken: devTokenSchema },
+    },
+    withAuth(async () => jsonText(await session.avEvolutionList())),
+  )
+
+  server.registerTool(
+    'av_evolution_best',
+    {
+      description:
+        'Best N candidates (lowest fitness first) of a run, or across all runs. Attached: Builder IndexedDB; otherwise exported JSON files on disk.',
+      inputSchema: {
+        devToken: devTokenSchema,
+        runId: z.string().optional(),
+        topN: z.number().int().positive().optional(),
+        minEpisodes: z.number().int().min(0).optional(),
+      },
+    },
+    withAuth(async (input) => jsonText(await session.avEvolutionBest(input))),
+  )
+
+  server.registerTool(
+    'av_evolution_apply',
+    {
+      description:
+        'Builder attach only: merge a stored candidate params into an entity pipe binding (explicit entityId required; uses the apply_world_patch path). Call save_project afterwards to persist.',
+      inputSchema: {
+        devToken: devTokenSchema,
+        runId: z.string(),
+        candidateId: z.string(),
+        entityId: z.string(),
+        pipeId: z.string().optional(),
+        stackIndex: z.number().int().min(0).optional(),
+      },
+    },
+    withAuth(async (input) => jsonText(await session.avEvolutionApply(input))),
   )
 
   server.registerTool(

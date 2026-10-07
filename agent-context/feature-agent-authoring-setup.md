@@ -107,6 +107,9 @@ Rule: do not add npm scripts or tests named after this illustration — keep flo
 | `get_world_authoring_snapshot` | Attach + headless | Bounded multi-entity authoring snapshot |
 | `patch_entity_material_color` | Both | `{ entityId, color }` hex or 0–1 RGB(A); attach updates live doc + host |
 | `get_saved_entity_material_color` | Attach only | Read back from IndexedDB by `projectName` |
+| `av_evolution_list` | Attach + headless | List evolution runs (attach: IndexedDB `renn-av-evolution`; headless: `test-results/av-evolution/*.json`, schema `renn.av-evolution/1`) |
+| `av_evolution_best` | Attach + headless | `{ runId?, topN?, minEpisodes? }` → best candidates, lowest fitness first, with full `params` |
+| `av_evolution_apply` | Attach only | `{ runId, candidateId, entityId, pipeId?, stackIndex? }` → `apply_world_patch` with `entityPipeStack[].mergeBindingParams = candidate.params` (shallow merge; explicit entity only; `save_project` to persist). Browser API: `window.__rennAvEvolution` (`installAvEvolutionAgentApi()` in `src/avEvolution/browser/agentApi.ts`) |
 
 Headless **`export_project_bundle`** remains the on-disk save path for allowlisted agent bundles.
 

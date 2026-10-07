@@ -31,6 +31,8 @@ import {
   resolveFixtureVerificationProject,
   resolveInlineVerificationProject,
 } from '@/agent/logicVerificationProjectSource'
+import { readExportsFromDisk } from '@/avEvolution/agent/diskExports'
+import { bestFromExports, listRunsFromExports, type BestCandidatesInput } from '@/avEvolution/agent/readApi'
 import { exportAgentProjectBundleWorld } from '@/agent/exportAgentProjectBundle'
 import { loadAgentExampleWorldFromDisk } from '@/agent/loadAgentExampleWorldFromDisk'
 import { parseAgentMaterialColorInput } from '@/agent/agentMaterialColorParse'
@@ -404,6 +406,29 @@ export class LogicVerificationMcpSession {
     }
     const world = this.requireHeadlessHost().getWorld()
     return buildWorldAuthoringSnapshot(world, input)
+  }
+
+  /** AV-evolution runs: browser IndexedDB when attached, else exported JSON under test-results/av-evolution. */
+  async avEvolutionList(opts?: { exportDir?: string }) {
+    if (this.browserClient) return await this.browserClient.invoke('av_evolution_list', {})
+    return listRunsFromExports(await readExportsFromDisk(opts?.exportDir))
+  }
+
+  async avEvolutionBest(input: BestCandidatesInput & { exportDir?: string }) {
+    const { exportDir, ...rest } = input
+    if (this.browserClient) return await this.browserClient.invoke('av_evolution_best', rest)
+    return bestFromExports(await readExportsFromDisk(exportDir), rest)
+  }
+
+  async avEvolutionApply(input: {
+    runId: string
+    candidateId: string
+    entityId: string
+    pipeId?: string
+    stackIndex?: number
+  }) {
+    this.assertBrowserAttachMode('av_evolution_apply')
+    return await this.browserClient!.invoke('av_evolution_apply', input)
   }
 
   async getPipeAuthoringSummary(input: { pipeId: string; projectName?: string }) {

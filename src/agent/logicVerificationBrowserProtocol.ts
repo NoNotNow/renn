@@ -80,6 +80,9 @@ export const LOGIC_VERIFICATION_BROWSER_RPC_METHODS = [
   'get_world_authoring_snapshot',
   'get_pipe_authoring_summary',
   'export_saved_project_to_example_world',
+  'av_evolution_list',
+  'av_evolution_best',
+  'av_evolution_apply',
 ] as const
 
 export type LogicVerificationBrowserRpcMethod =

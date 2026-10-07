@@ -22,6 +22,9 @@ import {
 import {
   getPipeAuthoringSummaryFromWorldSource,
 } from '@/agent/agentAuthoringWorldSource'
+import { applyAvEvolutionCandidate, type AvEvolutionApplyInput } from '@/avEvolution/agent/applyCandidate'
+import { bestCandidates, listRuns, type BestCandidatesInput } from '@/avEvolution/agent/readApi'
+import { getAvEvolutionStore } from '@/avEvolution/agent/storeRegistry'
 import { runAgentBuilderLiveSceneSync } from '@/agent/agentBuilderLiveSceneSync'
 import {
   createHostTimedMacroRunner,
@@ -236,6 +239,18 @@ export function createLogicVerificationBrowserAttachHandler(): {
           pipeId: string
           projectName?: string
         })
+      }
+      case 'av_evolution_list':
+        return listRuns(getAvEvolutionStore())
+      case 'av_evolution_best':
+        return bestCandidates(getAvEvolutionStore(), params as BestCandidatesInput)
+      case 'av_evolution_apply': {
+        const { patch, result } = await applyAvEvolutionCandidate(
+          getAvEvolutionStore(),
+          params as AvEvolutionApplyInput,
+          (p) => dispatchRpc('apply_world_patch', p),
+        )
+        return { patch, result }
       }
       default:
         throw new Error(`Unknown browser RPC method: ${method}`)
