@@ -107,5 +107,23 @@ function transform(input, dt, params, state, api) {
       prev = cp
     }
   }
+  // maze module (av-ego, mazeModule): the escape route to the nearest reachable exit as a violet polyline, a violet pillar + cross at the exit, a short pillar at the held escape waypoint
+  var mzv = av.maze
+  if (mzv && mzv.route && mzv.route.length > 1) {
+    var MZ = '#c46bff'
+    var mr = mzv.route
+    var mStep = Math.max(1, Math.ceil((mr.length - 1) / 40))
+    var mp = mr[0]
+    for (var mj = mStep; mj < mr.length + mStep - 1; mj += mStep) {
+      var mc = mr[Math.min(mj, mr.length - 1)]
+      api.visualizeLine([mp[0], y + 0.8, mp[1]], [mc[0], y + 0.8, mc[1]], MZ)
+      mp = mc
+    }
+    var me = mzv.exit
+    api.visualizeLine([me[0], y - 0.5, me[1]], [me[0], y + 14, me[1]], MZ)
+    api.visualizeLine([me[0] - 3, y + 0.8, me[1]], [me[0] + 3, y + 0.8, me[1]], MZ)
+    api.visualizeLine([me[0], y + 0.8, me[1] - 3], [me[0], y + 0.8, me[1] + 3], MZ)
+    if (mzv.goal) api.visualizeLine([mzv.goal[0], y - 0.5, mzv.goal[1]], [mzv.goal[0], y + 5, mzv.goal[1]], MZ)
+  }
   return {}
 }

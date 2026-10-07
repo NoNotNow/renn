@@ -106,6 +106,7 @@
 // gapWalls (bool, default OFF; opt-in, needs gapCommit): the escape headings also need a free run over the persistent static map (av.prevSmap = last frame's av.smap, 2 m cells, car half-width + gapWallClear 3.5 m): headings shorter than gapWallMin (60 m) are not candidates unless that costs more than gapWallTrade (8) score points against the best short one (race first); none long enough = the longest run; the goal is put at the last free point of the run (min 8 m, gapWallClamp:false = off), a held goal whose heading hits a known wall is re-picked, a goal clamped that way is re-picked once the car is within gapReach (10 m). Cuts the lab seed-6 maze-pocket shuttle (path 955 -> 1500-1750 m) but flips other lab seeds (chaotic), hence off.
 // gapCommit (bool, default ON; false disables): fleeSim's escape-heading search, but only against >= 2 pursuers, and the chosen goal (escapeGoalDist 150 m) is an ABSOLUTE point kept until reached / clearly worse (escapeSwitch 6, eval every 0.3 s) so the motion planner gets a fixed target. Also with gapCommit: gapWarmup (s, 0.1: no commit before the pursuers' velocities are filtered), gapTrackRange (m, 160: far list av.threatsFar for the sim only), escapeAccel default 9, av.fleeSim (motion planner `fleeAimDirect`, default on, aims at the committed goal instead of the route carrot).
 // goalOpen (bool, default ON; false disables; flee / escape goals only, never mission goals): candidate goals are scored by openness on the persistent static map (av.prevSmap, 2 m cells): the geometric ring subtracts goalOpenW (1.5) x (wall cells within goalOpenRadius 15 m of the candidate / 100; goalOpenLine:true also the share of the straight way past the first wall, off: it flips corner-trap), the gapCommit escape headings subtract goalOpenGap (6) x (1 - free run / goalOpenRun 60 m); a held escape goal is re-scored every evaluation so new walls around it make it lose.
+// mazeModule (bool, default off; on in self_hunt_flexible): in a confined space (labyrinth) the flee goal is a waypoint on the least-resistance route to the nearest reachable exit instead of a ring / heading goal; watch `av.maze`, overlay = violet route (see mazeStep below and agent-context/feature-av-stack.md 'Maze module').
 // fleeLos (bool, default off): the geometric flee / own-goal candidates are also scored by line of sight (one ray per heading from the hull edge): a goal whose straight way is blocked by a wall
 // before it is reached (maze, building) is penalised, free length is a bonus, so the car explores along open corridors instead of shuffling in front of a wall towards a goal behind it.
 // Goal watchdog (params.goalWatchdog = seconds, default 0 = off; needs fleeArea): a goal the car does not get closer to (>= 8 m) within that time is
@@ -897,6 +898,7 @@ function mazeBuild(mz, list, dyn, thrs, pos, params, av) {
   }
   var m0 = oR + 1
   var nSrc = 0
+  var minD2 = Math.pow(params.mazeRange != null ? params.mazeRange : 18, 2)
   var seen = satS
   var seenMin = (params.mazeSeenShare != null ? params.mazeSeenShare : 0.3) * (2 * oR + 1) * (2 * oR + 1)
   mz.explore = false
@@ -906,6 +908,8 @@ function mazeBuild(mz, list, dyn, thrs, pos, params, av) {
       for (var sz = m0; sz < H - m0; sz++) {
         var si = sx * H + sz
         if (inf[si]) continue
+        // open ground is never inside the confinement radius of the car itself (a barely mapped pocket reads as open)
+        if (Math.pow(wx0 + (sx + 0.5) * cs - pos[0], 2) + Math.pow(wz0 + (sz + 0.5) * cs - pos[2], 2) < minD2) continue
         if (pass === 0 && seen && seen[(sx + oR + 1) * (H + 1) + sz + oR + 1] - seen[(sx - oR) * (H + 1) + sz + oR + 1] - seen[(sx + oR + 1) * (H + 1) + sz - oR] + seen[(sx - oR) * (H + 1) + sz - oR] < seenMin) continue
         var cnt = sat[(sx + oR + 1) * (H + 1) + sz + oR + 1] - sat[(sx - oR) * (H + 1) + sz + oR + 1] - sat[(sx + oR + 1) * (H + 1) + sz - oR] + sat[(sx - oR) * (H + 1) + sz - oR]
         if (cnt <= oMax) {
@@ -971,7 +975,7 @@ function mazeBuild(mz, list, dyn, thrs, pos, params, av) {
       var px = (cur / H) | 0
       pts.push([wx0 + (px + 0.5) * cs, wz0 + (cur - px * H + 0.5) * cs])
     }
-    if (d[cur] === 0 && wallN === 0) route = pts
+    if (d[cur] === 0 && wallN === 0 && pts.length > 3) route = pts
     else mz.why = wallN > 0 ? 'walled in' : 'no way'
   }
   // hysteresis: the kept route (re-costed on the new field) is replaced only when the new one is mazeSwitch cheaper

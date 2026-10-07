@@ -9,7 +9,6 @@ import path from 'node:path'
  * are not entered, hysteresis of the kept route. The driven end-to-end cases are `mazemod-*` in `av-maze-scenarios.test.ts`.
  */
 const src = fs.readFileSync(path.resolve(__dirname, '../../../public/global/transformers/av-stack/av-ego.js'), 'utf8')
-// eslint-disable-next-line @typescript-eslint/no-implied-eval
 const mazeStep = new Function(`${src}; return mazeStep`)() as (av: any, input: any, params: any, state: any, api: any, thrs: any[]) => { on: boolean; goal: [number, number] | null }
 
 type P = [number, number]
