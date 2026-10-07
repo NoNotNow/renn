@@ -1,72 +1,3 @@
-/* @params
-[
-  {"key": "budget", "type": "enum", "options": [{"value": "full"}, {"value": "normal"}, {"value": "eco"}], "default": "full", "label": "CPU budget", "group": "Performance", "description": "CPU budget: 'full' (default), 'normal' or 'eco' (economy paths, less sensing work)."},
-  {"key": "maxCurvature", "type": "number", "default": 0.115, "label": "Max curvature (min turn radius)", "group": "Vehicle", "min": 0, "description": "Tightest curvature the car can drive (1 / minimum turn radius)."},
-  {"key": "passSide", "type": "enum", "options": [{"value": "off"}, {"value": "right"}, {"value": "left"}], "default": "off", "label": "Keep to one side (passing)", "group": "Passing", "description": "Opt-in keep-right / keep-left bias when passing bodies head-on: 'right', 'left' or 'off'."},
-  {"key": "safetyMargin", "type": "number", "default": 0.5, "label": "Safety margin", "group": "Local planning", "unit": "m", "min": 0, "description": "Clearance kept to obstacles by the local planner."},
-  {"key": "vehicleLength", "type": "number", "default": 4, "label": "Vehicle length", "group": "Vehicle", "unit": "m", "min": 0, "description": "Body length used for clearance; the box collider can only enlarge it."},
-  {"key": "vehicleWidth", "type": "number", "default": 2, "label": "Vehicle width", "group": "Vehicle", "unit": "m", "min": 0, "description": "Body width used for clearance; the box collider can only enlarge it."},
-  {"key": "wThreat", "type": "number", "default": 0, "group": "Evasion", "min": 0, "description": "0 = off; cost of predicted proximity to av.threats"},
-  {"key": "arcCount", "type": "number", "default": 31, "group": "Local planning", "min": 0, "advanced": true},
-  {"key": "comfortDecel", "type": "number", "default": 5, "label": "Braking for obstacles in the path", "group": "Speed", "unit": "m/s²", "min": 0, "description": "Braking deceleration used for obstacles in the path.", "advanced": true},
-  {"key": "cruiseSpeed", "type": "number", "default": 10, "label": "Cruise speed", "group": "Speed", "unit": "m/s", "min": 0, "description": "Upper bound of the target speed; the car drives the minimum of all speed limits.", "advanced": true},
-  {"key": "debugDraw", "type": "boolean", "default": true, "label": "Draw debug vectors", "group": "Debug", "description": "Draw debug vectors (visible in the Builder visualize mode).", "advanced": true},
-  {"key": "ecoPrune", "type": "boolean", "default": true, "group": "Performance", "advanced": true},
-  {"key": "ecoPruneGeom", "type": "boolean", "default": true, "group": "Performance", "advanced": true},
-  {"key": "fixAimDeg", "type": "number", "default": 35, "group": "Evasion", "unit": "°", "min": 0, "advanced": true},
-  {"key": "fixDynBand", "type": "number", "default": 6, "group": "Evasion", "min": 0, "advanced": true},
-  {"key": "fixDynRange", "type": "number", "default": 12, "group": "Evasion", "unit": "m", "min": 0, "advanced": true},
-  {"key": "fixThreatMin", "type": "number", "default": 25, "group": "Evasion", "min": 0, "advanced": true},
-  {"key": "fixThreatRange", "type": "number", "default": 90, "group": "Evasion", "unit": "m", "min": 0, "advanced": true},
-  {"key": "fixThreatTime", "type": "number", "default": 5, "group": "Evasion", "unit": "s", "min": 0, "advanced": true},
-  {"key": "fixThreatVMin", "type": "number", "default": 2, "group": "Evasion", "min": 0, "advanced": true},
-  {"key": "fleeAimDirect", "type": "boolean", "default": true, "group": "Evasion", "advanced": true},
-  {"key": "fleeAimLos", "type": "boolean", "default": true, "group": "Evasion", "advanced": true},
-  {"key": "fleeLosGoalR", "type": "number", "default": 20, "group": "Evasion", "min": 0, "advanced": true},
-  {"key": "fleeLosHold", "type": "number", "default": 0.5, "group": "Evasion", "unit": "s", "min": 0, "advanced": true},
-  {"key": "fleeLosK", "type": "number", "default": 1.2, "group": "Evasion", "min": 0, "advanced": true},
-  {"key": "fleeLosMargin", "type": "number", "default": 0.8, "group": "Evasion", "unit": "m", "min": 0, "advanced": true},
-  {"key": "fleeLosMin", "type": "number", "default": 30, "group": "Evasion", "min": 0, "advanced": true},
-  {"key": "horizonClear", "type": "number", "default": 0, "group": "Local planning", "min": 0, "description": "m floor, 0 = off", "advanced": true},
-  {"key": "horizonGain", "type": "number", "default": 1.2, "group": "Local planning", "min": 0, "advanced": true},
-  {"key": "horizonMax", "type": "number", "group": "Local planning", "advanced": true},
-  {"key": "horizonMin", "type": "number", "default": 10, "group": "Local planning", "min": 0, "advanced": true},
-  {"key": "marginRamp", "type": "number", "default": 3, "group": "Local planning", "min": 0, "description": "m over which the margin grows from the current clearance", "advanced": true},
-  {"key": "marginSpeedGain", "type": "number", "default": 0.05, "group": "Local planning", "min": 0, "advanced": true},
-  {"key": "maxLatAccel", "type": "number", "default": 9, "label": "Cornering limit (lateral accel)", "group": "Speed", "unit": "m/s²", "min": 0, "description": "Cornering limit: lateral acceleration the speed planner allows in bends.", "advanced": true},
-  {"key": "minFree", "type": "number", "default": 4.5, "group": "Local planning", "min": 0, "advanced": true},
-  {"key": "minSpeed", "type": "number", "default": 4, "label": "Minimum speed while driving", "group": "Speed", "unit": "m/s", "min": 0, "description": "Lowest speed while driving (the free-path stopping limit still wins).", "advanced": true},
-  {"key": "passCross", "type": "number", "default": 3.5, "group": "Passing", "min": 0, "advanced": true},
-  {"key": "passHeadDeg", "type": "number", "default": 60, "group": "Passing", "unit": "°", "min": 0, "advanced": true},
-  {"key": "passMaxShift", "type": "number", "default": 7, "group": "Passing", "unit": "m", "min": 0, "advanced": true},
-  {"key": "passMinSpeed", "type": "number", "default": 1.5, "group": "Passing", "unit": "m/s", "min": 0, "advanced": true},
-  {"key": "passOffset", "type": "number", "default": 6, "group": "Passing", "unit": "m", "min": 0, "advanced": true},
-  {"key": "passRange", "type": "number", "default": 150, "group": "Passing", "unit": "m", "min": 0, "advanced": true},
-  {"key": "passWeight", "type": "number", "default": 20, "group": "Passing", "min": 0, "advanced": true},
-  {"key": "rearIgnore", "type": "number", "default": 1.4, "group": "Local planning", "min": 0, "advanced": true},
-  {"key": "softMargin", "type": "number", "default": 1.1, "group": "Local planning", "unit": "m", "min": 0, "advanced": true},
-  {"key": "switchMargin", "type": "number", "default": 0, "group": "Local planning", "unit": "m", "min": 0, "description": "cost; keep last candidate unless better by this, 0 = off", "advanced": true},
-  {"key": "threatAccel", "type": "number", "default": 0, "group": "Evasion", "unit": "m/s²", "min": 0, "description": "m/s^2, 0 = constant speed along the candidate", "advanced": true},
-  {"key": "threatBodyRadius", "type": "number", "default": 0, "group": "Evasion", "unit": "m", "min": 0, "description": "m, 0 = off: costmap points within this radius of a fast tracked body are dropped", "advanced": true},
-  {"key": "threatHit", "type": "number", "default": 3, "group": "Evasion", "min": 0, "description": "x wThreat: penalty of a predicted contact by its time, default 3", "advanced": true},
-  {"key": "threatHitFloor", "type": "number", "default": 0, "group": "Evasion", "min": 0, "description": "flat cost of any predicted contact, default 0", "advanced": true},
-  {"key": "threatHorizon", "type": "number", "default": 2.5, "group": "Evasion", "unit": "s", "min": 0, "advanced": true},
-  {"key": "threatLead", "type": "number", "default": 0.3, "group": "Evasion", "min": 0, "advanced": true},
-  {"key": "threatPursuitSpeed", "type": "number", "default": 4, "group": "Evasion", "unit": "m/s", "min": 0, "advanced": true},
-  {"key": "threatRadius", "type": "number", "default": 1.8, "group": "Evasion", "unit": "m", "min": 0, "advanced": true},
-  {"key": "threatRange", "type": "number", "default": 10, "group": "Evasion", "unit": "m", "min": 0, "description": "m, 10: proximity felt inside this gap", "advanced": true},
-  {"key": "threatTurnMin", "type": "number", "default": 0, "group": "Evasion", "min": 0, "advanced": true},
-  {"key": "threatTurnRate", "type": "number", "default": 0, "group": "Evasion", "min": 0, "advanced": true},
-  {"key": "wFree", "type": "number", "default": 10, "group": "Cost weights", "min": 0, "advanced": true},
-  {"key": "wHeading", "type": "number", "default": 2.0, "group": "Cost weights", "min": 0, "advanced": true},
-  {"key": "wProgress", "type": "number", "default": 1.0, "group": "Cost weights", "min": 0, "advanced": true},
-  {"key": "wRequired", "type": "number", "default": 60, "group": "Cost weights", "min": 0, "advanced": true},
-  {"key": "wSmooth", "type": "number", "default": 2.5, "group": "Cost weights", "min": 0, "advanced": true},
-  {"key": "wSoft", "type": "number", "default": 8, "group": "Cost weights", "min": 0, "advanced": true},
-  {"key": "wTurn", "type": "number", "default": 1.5, "group": "Cost weights", "min": 0, "advanced": true},
-  {"key": "tickEvery", "type": "number", "default": 1, "min": 1, "step": 1, "description": "Engine feature: this stage runs only every N-th frame (accumulated dt); 1 = every frame. Never use it on controllers.", "label": "Run every N-th frame", "group": "Performance", "advanced": true}
-]
-*/
 // AV stack · PLAN / local motion planner (sampling-based, receding horizon).
 // Candidate paths = constant-curvature turn (limited turn angle) followed by a straight, so a path can
 // swing around an obstacle and then run alongside it. Each path is swept with the vehicle footprint
@@ -77,7 +8,6 @@
 // the band of fixDynBand (6 m) beside the fixation arc up to 10 m beyond the aim / horizon,
 // and the footprint corridor of the pure-pursuit arc to it is free (hard + soft margin) up to min(aim distance, horizon) -> plan = that arc (av.fix, cyan in debug draw).
 // Any condition failing -> the full sampling planner this frame. Path blocked -> the route planner's carrot becomes the next waypoint the car fixates on.
-// keep right (passSide 'right' | 'left' | 'off' default, passOffset 6 m, passWeight 20, passRange 150, passCross 3.5, passMaxShift 7, passMinSpeed 1.5, passHeadDeg 60): see the passCost comment below.
 // debug draw: yellow = line to goal / route carrot, dark blue = candidate fan, green = chosen path, orange = where it would hit.
 // params: vehicleWidth, vehicleLength, safetyMargin, marginSpeedGain, softMargin, maxCurvature, arcCount,
 //         horizonMin, horizonGain, horizonMax, horizonClear (m floor, 0 = off), switchMargin (cost; keep last candidate unless better by this, 0 = off), comfortDecel, wProgress, wHeading, wRequired, wFree, wSoft,
@@ -229,46 +159,6 @@ function transform(input, dt, params, state, api) {
       tl.sp = Math.sqrt(tl.vx * tl.vx + tl.vy * tl.vy)
       tl.h = Math.atan2(tl.vy, tl.vx)
     }
-  }
-  // keep-right rule (passSide 'right' | 'left', default off): an ONCOMING moving body (av.oncoming from perception: not a tracked threat, speed >= passMinSpeed, heading within passHeadDeg of opposite to ours,
-  // ahead within passRange, predicted lateral offset at the meeting time on the pass side or at most passCross m beyond it) pulls every candidate towards passing it on our passSide: the cost is passWeight per metre
-  // that the candidate's lateral position at the meeting point is closer than passOffset (centre to centre) to the other's predicted line on that side (capped at passMaxShift). Not the nearest free side: the same side whatever the offset.
-  var pasSgn = params.passSide === 'right' ? 1 : params.passSide === 'left' ? -1 : 0
-  var pas = []
-  if (pasSgn !== 0 && av.oncoming && av.oncoming.length && v > 2) {
-    var pasRange = params.passRange != null ? params.passRange : 150
-    var pasMin = params.passMinSpeed != null ? params.passMinSpeed : 1.5
-    var pasCos = Math.cos((params.passHeadDeg != null ? params.passHeadDeg : 60) * Math.PI / 180)
-    var pasCross = params.passCross != null ? params.passCross : 3.5
-    var pasV = Math.max(v, 5)
-    for (var pk = 0; pk < av.oncoming.length; pk++) {
-      var po = av.oncoming[pk]
-      var pdx = po.x - pos[0]
-      var pdz = po.z - pos[2]
-      var px0 = pdx * e.fwd[0] + pdz * e.fwd[2]
-      if (px0 < 0 || px0 > pasRange) continue
-      var pvx = po.vx * e.fwd[0] + po.vz * e.fwd[2]
-      var pvy = po.vx * e.left[0] + po.vz * e.left[2]
-      var psp = Math.sqrt(pvx * pvx + pvy * pvy)
-      if (psp < pasMin || pvx > -pasCos * psp) continue
-      var ptm = px0 / (pasV - pvx)
-      var pyo = pdx * e.left[0] + pdz * e.left[2] + pvy * ptm
-      if (pasSgn * pyo < -pasCross) continue
-      pas.push({ s: pasV * ptm, y: pyo })
-    }
-  }
-  if (pasSgn !== 0) api.watch('av.pass', pas.length ? pas.length + ' y' + Math.round(pas[0].y * 10) / 10 + ' s' + Math.round(pas[0].s) : '-')
-  var pasW = params.passWeight != null ? params.passWeight : 20
-  var pasOff = params.passOffset != null ? params.passOffset : 6
-  var pasMax = params.passMaxShift != null ? params.passMaxShift : 7
-  function passCost(kappa, turnLen) {
-    var pc = 0
-    for (var qi = 0; qi < pas.length; qi++) {
-      poseAt(kappa, turnLen, pas[qi].s, P)
-      var d = pasSgn * (P.y - pas[qi].y) + pasOff
-      if (d > 0) pc += d > pasMax ? pasMax : d
-    }
-    return pasW * pc
   }
   var thrH = params.threatHorizon != null ? params.threatHorizon : 2.5
   var thrR = params.threatRadius != null ? params.threatRadius : 1.8
@@ -594,7 +484,6 @@ function transform(input, dt, params, state, api) {
           if (td2 < fixThrMin || td2 < fixThrT * Math.max(tcl, tsp, fixThrVMin)) why = 'threat'
         }
       } else for (var tq2 = 0; tq2 < thr.length; tq2++) if (thr[tq2].x * thr[tq2].x + thr[tq2].y * thr[tq2].y < fixThrR * fixThrR) why = 'threat'
-      if (!why && pas.length) why = 'pass'
       var kFix = (2 * gy) / (goalDist * goalDist)
       if (!why && av.movers && av.movers.length) {
         var dynR = params.fixDynRange != null ? params.fixDynRange : 12
@@ -761,7 +650,6 @@ function transform(input, dt, params, state, api) {
       fSoft = prune && softSuper && fHard <= 0 ? 0 : freeLength(kappa, turnLen, halfW + soft - margin, halfL + soft - margin)
       cost = cBase + wSoft * (1 - Math.min(fSoft, H) / H) + cTail + cTurn
       if (thr.length) cost += wThreat * threatCost(kappa, turnLen, hullL, hullW)
-      if (pas.length) cost += passCost(kappa, turnLen)
       if (key === prevKey) prevHit = { cost: cost, kappa: kappa, hard: fHard, soft: fSoft, turnLen: turnLen }
       if (cost < bestCost || (prune && cost === bestCost && key < bestKey)) {
         bestKey = key
@@ -809,7 +697,6 @@ function transform(input, dt, params, state, api) {
     horizon: H,
     required: Lreq,
     cost: bestCost,
-    pass: pas.length > 0,
   }
   api.watch('av.plan.kappa', Math.round(best * 1000) / 1000)
   api.watch('av.plan.free', Math.round(bestHard * 10) / 10 + ' clr ' + clearance)

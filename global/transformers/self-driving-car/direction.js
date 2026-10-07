@@ -1,8 +1,3 @@
-/* @params
-[
-  {"key": "id", "label": "Follow target", "type": "entityId", "default": "", "description": "Entity id to follow. When set, its live world position becomes the steering target; empty = use the existing input.target."}
-]
-*/
 function hugBackoffState(state) {
   if (!state._dirHugBackoff) {
     state._dirHugBackoff = { nextPulseAt: 0 }

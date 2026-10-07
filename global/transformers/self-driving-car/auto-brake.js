@@ -1,8 +1,3 @@
-/* @params
-[
-  {"key": "id", "label": "Follow target", "type": "entityId", "default": "", "description": "Entity id of the target this car follows. While set, this stage stays out of the way (the target-follow stages drive)."}
-]
-*/
 function transform(input, dt, params, state, api) {
   if (params && params.id) return {}
   if (input.actions && input.actions._obstacle_escape) return {}

@@ -1,62 +1,3 @@
-/* @params
-[
-  {"key": "budget", "type": "enum", "options": [{"value": "full"}, {"value": "normal"}, {"value": "eco"}], "default": "full", "label": "CPU budget", "group": "Performance", "description": "CPU budget: 'full' (default), 'normal' or 'eco' (economy paths, less sensing work)."},
-  {"key": "debugDraw", "type": "boolean", "default": true, "label": "Draw debug vectors", "group": "Debug", "description": "Draw debug vectors (visible in the Builder visualize mode)."},
-  {"key": "drivableArea", "type": "numberList", "label": "Drivable area [xmin, xmax, zmin, zmax]", "group": "Sensing", "description": "World box [xmin, xmax, zmin, zmax]; virtual walls at its edge."},
-  {"key": "passIgnoreIds", "type": "json", "group": "Passing", "description": "Entity ids the keep-side logic ignores (e.g. static bodies)."},
-  {"key": "passSide", "type": "enum", "options": [{"value": "off"}, {"value": "right"}, {"value": "left"}], "default": "off", "label": "Keep to one side (passing)", "group": "Passing", "description": "Opt-in keep-right / keep-left bias when passing bodies head-on: 'right', 'left' or 'off'."},
-  {"key": "sensorRange", "type": "number", "group": "Sensing", "unit": "m", "description": "Ray range in metres (default: stopping distance based, 24 to 150 m)."},
-  {"key": "staticMap", "type": "boolean", "default": false, "group": "Sensing", "description": "Keep a persistent static map (needed by the goal-distance field / maze mode)."},
-  {"key": "vehicleLength", "type": "number", "default": 4, "label": "Vehicle length", "group": "Vehicle", "unit": "m", "min": 0, "description": "Body length used for clearance; the box collider can only enlarge it."},
-  {"key": "vehicleWidth", "type": "number", "default": 2, "label": "Vehicle width", "group": "Vehicle", "unit": "m", "min": 0, "description": "Body width used for clearance; the box collider can only enlarge it."},
-  {"key": "comfortDecel", "type": "number", "default": 5, "label": "Braking for obstacles in the path", "group": "Speed", "unit": "m/s²", "min": 0, "description": "Braking deceleration used for obstacles in the path.", "advanced": true},
-  {"key": "cruiseSpeed", "type": "number", "default": 10, "label": "Cruise speed", "group": "Speed", "unit": "m/s", "min": 0, "description": "Upper bound of the target speed; the car drives the minimum of all speed limits.", "advanced": true},
-  {"key": "debugMaxPoints", "type": "number", "default": 60, "group": "Debug", "min": 0, "advanced": true},
-  {"key": "debugRayStride", "type": "number", "default": 2, "group": "Debug", "min": 0, "advanced": true},
-  {"key": "dynTtl", "type": "number", "default": 2, "group": "Sensing", "unit": "s", "min": 0, "advanced": true},
-  {"key": "ecoManConeDeg", "type": "number", "default": 100, "group": "Performance", "unit": "°", "min": 0, "advanced": true},
-  {"key": "ecoManeuver", "type": "boolean", "default": true, "group": "Performance", "advanced": true},
-  {"key": "ecoPlane2", "type": "boolean", "default": true, "group": "Performance", "advanced": true},
-  {"key": "ecoSideEvery", "type": "number", "default": 6, "group": "Performance", "min": 0, "advanced": true},
-  {"key": "ecoSweepEvery", "type": "number", "default": 20, "group": "Performance", "min": 0, "advanced": true},
-  {"key": "edgeStep", "type": "number", "default": 1.2, "group": "Sensing", "min": 0, "advanced": true},
-  {"key": "fixConeDeg", "type": "number", "default": 24, "group": "Evasion", "unit": "°", "min": 0, "advanced": true},
-  {"key": "fovDeg", "type": "number", "default": 360, "group": "Sensing", "unit": "°", "min": 0, "advanced": true},
-  {"key": "fwdFovDeg", "type": "number", "default": 0, "group": "Sensing", "unit": "°", "min": 0, "advanced": true},
-  {"key": "fwdStepDeg", "type": "number", "group": "Sensing", "unit": "°", "advanced": true},
-  {"key": "hullClear", "type": "boolean", "default": true, "group": "Sensing", "advanced": true},
-  {"key": "lowRayClearance", "type": "number", "group": "Sensing", "description": "m above the underside", "advanced": true},
-  {"key": "memClearRange", "type": "number", "default": 45, "group": "Sensing", "unit": "m", "min": 0, "advanced": true},
-  {"key": "memFollow", "type": "boolean", "default": true, "group": "Sensing", "advanced": true},
-  {"key": "memFollowThreats", "type": "boolean", "default": false, "group": "Sensing", "advanced": true},
-  {"key": "memoryCell", "type": "number", "default": 0.5, "group": "Sensing", "min": 0, "advanced": true},
-  {"key": "memoryTtl", "type": "number", "default": 15, "group": "Sensing", "unit": "s", "min": 0, "advanced": true},
-  {"key": "rayCount", "type": "number", "default": 72, "group": "Sensing", "min": 0, "advanced": true},
-  {"key": "rayLevels", "type": "boolean", "default": true, "group": "Sensing", "advanced": true},
-  {"key": "rearRange", "type": "number", "default": 8, "group": "Sensing", "unit": "m", "min": 0, "advanced": true},
-  {"key": "scanConeDeg", "type": "number", "default": 30, "group": "Sensing", "unit": "°", "min": 0, "advanced": true},
-  {"key": "scanFocus", "type": "boolean", "default": true, "group": "Sensing", "advanced": true},
-  {"key": "scanFollowFree", "type": "boolean", "default": true, "group": "Sensing", "advanced": true},
-  {"key": "scanSideEvery", "type": "number", "default": 4, "group": "Sensing", "min": 0, "advanced": true},
-  {"key": "scanStartFrames", "type": "number", "default": 360, "group": "Sensing", "min": 0, "advanced": true},
-  {"key": "scanSweepEvery", "type": "number", "default": 30, "group": "Sensing", "min": 0, "advanced": true},
-  {"key": "scanThreatMin", "type": "number", "default": 20, "group": "Sensing", "min": 0, "advanced": true},
-  {"key": "scanThreatOwn", "type": "boolean", "default": true, "group": "Sensing", "advanced": true},
-  {"key": "scanThreatRange", "type": "number", "default": 90, "group": "Sensing", "unit": "m", "min": 0, "advanced": true},
-  {"key": "scanThreatT", "type": "number", "default": 2, "group": "Sensing", "min": 0, "advanced": true},
-  {"key": "sideEvery", "type": "number", "default": 2, "group": "Sensing", "min": 0, "advanced": true},
-  {"key": "sideRange", "type": "number", "default": 45, "group": "Sensing", "unit": "m", "min": 0, "advanced": true},
-  {"key": "sideStepDeg", "type": "number", "default": 12, "group": "Sensing", "unit": "°", "min": 0, "advanced": true},
-  {"key": "staticLinkMax", "type": "number", "default": 10, "group": "Sensing", "min": 0, "advanced": true},
-  {"key": "staticRange", "type": "number", "default": 130, "group": "Sensing", "unit": "m", "min": 0, "advanced": true},
-  {"key": "sweepEvery", "type": "number", "default": 15, "group": "Sensing", "min": 0, "advanced": true},
-  {"key": "sweepEverySlow", "type": "number", "default": 5, "group": "Sensing", "min": 0, "advanced": true},
-  {"key": "sweepRange", "type": "number", "default": 45, "group": "Sensing", "unit": "m", "min": 0, "advanced": true},
-  {"key": "sweepStepDeg", "type": "number", "default": 10, "group": "Sensing", "unit": "°", "min": 0, "advanced": true},
-  {"key": "threatIds", "type": "json", "label": "Threat entity ids", "group": "Evasion", "description": "Entity ids of bodies to track and evade (e.g. pursuers).", "advanced": true},
-  {"key": "tickEvery", "type": "number", "default": 1, "min": 1, "step": 1, "description": "Engine feature: this stage runs only every N-th frame (accumulated dt); 1 = every frame. Never use it on controllers.", "label": "Run every N-th frame", "group": "Performance", "advanced": true}
-]
-*/
 // AV stack · SENSE / perception.
 // 360° range-scan ring (lidar-like, mounted at the vehicle centre, rays start on the hull)
 // + obstacle memory ("local costmap") so the planners also know what is behind / beside.
@@ -77,7 +18,6 @@
 // instead of staying behind as a pink ghost; once the body has moved (> 0.5 m since the hit) the mark expires after dynTtl (2 s) unless re-seen. Marks of bodies that
 // stay put (parked dynamic cars, props) keep memoryTtl; static bodies keep memoryTtl / the static map. Tracked threats (threatIds) keep the old fixed marks unless memFollowThreats: true
 // (the pursuit prediction covers them, and their recent trail measurably helps evasion: corner-trap min gap 5.7 -> 3.5 m, sweep 61 -> 59/75 with following). Followed marks are published as [x, z, 1] in av.points (live position: the motion planner keeps them even on a tracked fast body). Publishes av.dynNear = distance to the nearest moving mark (m, 1e9 = none) and av.movers [[x, z], ...] (moving marks within 150 m).
-// passSide ('right' | 'left', default off): publishes av.oncoming [{id,x,z,vx,vz}] = moving bodies (not in threatIds / passIgnoreIds) with their velocity, for the motion planner's keep-right rule (see av-motion-planner.js).
 // Economy (budget 'eco'): while the motion planner is fixated on a free, visible goal (av.prevFix, see av-motion-planner.js) the dense cone is a narrow one
 // (fixConeDeg 24, fwdStepDeg 3) around the aim direction, sides every ecoSideEvery 6th frame, the coarse 360 sweep every ecoSweepEvery 20th frame, extra ray planes every 2nd frame.
 // params: drivableArea [xmin, xmax, zmin, zmax] (virtual walls at the edge), edgeStep, rayCount, fovDeg, sensorRange, memoryTtl, memoryCell, vehicleWidth, vehicleLength
@@ -221,16 +161,6 @@ function transform(input, dt, params, state, api) {
   var threatSet = {}
   if (params.threatIds) for (var tsi = 0; tsi < params.threatIds.length; tsi++) threatSet[params.threatIds[tsi]] = 1
   var movers = []
-  // passSide ('right' | 'left'): oncoming-traffic tracking for the motion planner (av.oncoming [{id,x,z,vx,vz}], body centres + finite-difference velocity of moving NON-threat bodies)
-  var oncoming = null
-  var seenBody = null
-  if (params.passSide === 'right' || params.passSide === 'left') {
-    oncoming = []
-    seenBody = {}
-    // passIgnoreIds: bodies the car must not make way for (a chaser's own target)
-    if (params.passIgnoreIds) for (var pii = 0; pii < params.passIgnoreIds.length; pii++) seenBody[params.passIgnoreIds[pii]] = 1
-    if (!state.pv) state.pv = {}
-  }
   if (follow) {
     for (var fi = 0; fi < ml.length; fi++) {
       var fm = ml[fi]
@@ -246,26 +176,8 @@ function transform(input, dt, params, state, api) {
         var fd = Math.sqrt(fdx * fdx + fdz * fdz)
         if (fd < dynNear) dynNear = fd
         if (fd < 150) movers.push([fm.x, fm.z])
-        if (oncoming && fd < 150 && !threatSet[fm.id] && !seenBody[fm.id]) {
-          seenBody[fm.id] = 1
-          var pvr = state.pv[fm.id]
-          if (!pvr) pvr = state.pv[fm.id] = { x: lpp[0], z: lpp[2], t: e.t, vx: 0, vz: 0, n: 0 }
-          else if (e.t - pvr.t >= 0.04) {
-            var pdt = e.t - pvr.t
-            var pnx = (lpp[0] - pvr.x) / pdt
-            var pnz = (lpp[2] - pvr.z) / pdt
-            pvr.vx = pvr.n ? 0.5 * pvr.vx + 0.5 * pnx : pnx
-            pvr.vz = pvr.n ? 0.5 * pvr.vz + 0.5 * pnz : pnz
-            pvr.n++
-            pvr.x = lpp[0]
-            pvr.z = lpp[2]
-            pvr.t = e.t
-          }
-          if (pvr.n > 0) oncoming.push({ id: fm.id, x: lpp[0], z: lpp[2], vx: pvr.vx, vz: pvr.vz })
-        }
       }
     }
-    if (oncoming) for (var pk in state.pv) if (!seenBody[pk] && e.t - state.pv[pk].t > 2) delete state.pv[pk]
   }
   // ecoPlane2 (default on): in eco the extra ray planes (top edge / low) are cast every 2nd frame in ALL frames, hunted ones too (the dense cone keeps its full density: thinning the cone itself failed maze flee-wall-ahead)
   var levelsNow = (eco || (params.budget === 'eco' && params.ecoPlane2 !== false)) && state.frame % 2 === 1 ? [] : levels
@@ -518,6 +430,5 @@ function transform(input, dt, params, state, api) {
   av.rearClear = rearClear
   av.dynNear = dynNear
   av.movers = movers
-  if (oncoming) av.oncoming = oncoming
   return {}
 }
