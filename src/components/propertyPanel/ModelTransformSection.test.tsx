@@ -30,12 +30,10 @@ describe('ModelTransformSection', () => {
         entities={[entity]}
         ids={[entity.id]}
         editorIdPrefix={entity.id}
-        mergedModelPosition={[0.1, 0.2, 0.3]}
-        mergedModelRotation={[0, 0, 0]}
-        mergedModelScale={[1, 1, 1]}
         anyLocked={false}
         onEntityModelTransformChange={onEntityModelTransformChange}
         updateAll={vi.fn()}
+        updateEach={vi.fn()}
       />,
     )
     expect(screen.getByLabelText(/model position x/i)).toBeInTheDocument()
@@ -58,11 +56,9 @@ describe('ModelTransformSection', () => {
         entities={[entity]}
         ids={[entity.id]}
         editorIdPrefix={entity.id}
-        mergedModelPosition={[0, 0, 0]}
-        mergedModelRotation={[0, 0, 0]}
-        mergedModelScale={[1, 1, 1]}
         anyLocked={false}
         updateAll={updateAll}
+        updateEach={vi.fn()}
       />,
     )
     const yInput = screen.getByLabelText(/model position y/i)

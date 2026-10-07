@@ -1,4 +1,10 @@
-import type { Entity, Rotation, Vec3 } from '@/types/world'
+import type { Entity, Vec3 } from '@/types/world'
+import { DEFAULT_POSITION, DEFAULT_ROTATION, DEFAULT_SCALE } from '@/types/world'
+import {
+  mergeVec3Components,
+  applyVecComponentChange,
+  type VecComponentChange,
+} from '@/utils/mixedInspectorEdit'
 import { uiLogger } from '@/utils/uiLogger'
 import { theme } from '@/config/theme'
 import Switch from '../Switch'
@@ -11,32 +17,49 @@ export interface ModelTransformSectionProps {
   entities: Entity[]
   ids: string[]
   editorIdPrefix: string
-  mergedModelPosition: Vec3 | null
-  mergedModelRotation: Rotation | null
-  mergedModelScale: Vec3 | null
   anyLocked: boolean
   vec3Undo?: Vec3UndoProps
   onUndoBeforeEdit?: () => void
   onEntityModelTransformChange?: (
     ids: string[],
-    patch: { modelPosition?: Vec3; modelRotation?: Rotation; modelScale?: Vec3; doubleSided?: boolean },
+    patch: { modelPosition?: Vec3; modelRotation?: Vec3; modelScale?: Vec3; doubleSided?: boolean },
   ) => void
   updateAll: (patch: Partial<Entity>) => void
+  /** Per-entity patch in one world change (used for mixed-component edits). */
+  updateEach: (patchFor: (e: Entity) => Partial<Entity>) => void
 }
 
 export default function ModelTransformSection({
   entities,
   ids,
   editorIdPrefix,
-  mergedModelPosition,
-  mergedModelRotation,
-  mergedModelScale,
   anyLocked,
   vec3Undo,
   onUndoBeforeEdit,
   onEntityModelTransformChange,
   updateAll,
+  updateEach,
 }: ModelTransformSectionProps) {
+  const posMix = mergeVec3Components(entities, (e) => e.modelPosition, DEFAULT_POSITION)
+  const rotMix = mergeVec3Components(entities, (e) => e.modelRotation, DEFAULT_ROTATION)
+  const scaleMix = mergeVec3Components(entities, (e) => e.modelScale, DEFAULT_SCALE)
+
+  /** One-axis edit on a mixed vec3: each entity keeps its own other axes. */
+  const componentChange =
+    (key: 'modelPosition' | 'modelRotation' | 'modelScale', fallback: Vec3, min?: number) =>
+    (change: VecComponentChange) => {
+      uiLogger.change('PropertyPanel', `Change ${key} component`, { entityIds: ids, ...change })
+      const nextById = new Map<string, Vec3>()
+      for (const e of entities) {
+        nextById.set(e.id, applyVecComponentChange<Vec3>((e[key] ?? fallback) as Vec3, change, min))
+      }
+      if (onEntityModelTransformChange) {
+        for (const [id, v] of nextById) onEntityModelTransformChange([id], { [key]: v })
+      } else {
+        updateEach((e) => ({ [key]: nextById.get(e.id)! }))
+      }
+    }
+
   const showWireframeToggle = entities.every((e) => e.shape?.type !== 'trimesh' && e.model)
   const wireframeChecked = entities.every((e) => e.showShapeWireframe === true)
   const doubleSidedChecked = entities.every((e) => e.doubleSided === true)
@@ -81,7 +104,9 @@ export default function ModelTransformSection({
       <Vec3Field
         label="Model position"
         labelTitle="Translation offset applied to the visual model only (relative to the entity origin)."
-        value={mergedModelPosition}
+        value={posMix?.value ?? null}
+        mixed={posMix?.mixed}
+        onComponentChange={componentChange('modelPosition', DEFAULT_POSITION)}
         onChange={(v) => {
           uiLogger.change('PropertyPanel', 'Change model position', { entityIds: ids, newValue: v })
           if (onEntityModelTransformChange) {
@@ -102,7 +127,9 @@ export default function ModelTransformSection({
         <Vec3Field
           label="Model rotation"
           labelTitle="Euler rotation offset (radians, XYZ) applied to the visual model only."
-          value={mergedModelRotation}
+          value={rotMix?.value ?? null}
+          mixed={rotMix?.mixed}
+          onComponentChange={componentChange('modelRotation', DEFAULT_ROTATION)}
           onChange={(r) => {
             uiLogger.change('PropertyPanel', 'Change model rotation', { entityIds: ids, newValue: r })
             if (onEntityModelTransformChange) {
@@ -144,7 +171,9 @@ export default function ModelTransformSection({
       <Vec3Field
         label="Model scale"
         labelTitle="Per-axis scale multiplier for the visual model relative to its file units."
-        value={mergedModelScale}
+        value={scaleMix?.value ?? null}
+        mixed={scaleMix?.mixed}
+        onComponentChange={componentChange('modelScale', DEFAULT_SCALE, 0.01)}
         onChange={(v) => {
           uiLogger.change('PropertyPanel', 'Change model scale', { entityIds: ids, newValue: v })
           if (onEntityModelTransformChange) {

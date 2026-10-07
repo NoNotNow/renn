@@ -1,6 +1,7 @@
 import type { Vec3 } from '@/types/world'
 import VectorField from './form/VectorField'
 import type { VectorEditMode } from '@/utils/vectorFieldEdit'
+import type { VecComponentChange } from '@/utils/mixedInspectorEdit'
 
 export interface Vec3FieldProps {
   label: string
@@ -25,6 +26,9 @@ export interface Vec3FieldProps {
   defaultLinked?: boolean
   allowRelative?: boolean
   defaultMode?: VectorEditMode
+  /** Per-axis mixed flags (multi-select); see `VectorField`. */
+  mixed?: readonly boolean[]
+  onComponentChange?: (change: VecComponentChange) => void
 }
 
 const DEFAULT_AXIS_LABELS: [string, string, string] = ['X', 'Y', 'Z']
@@ -49,6 +53,8 @@ export default function Vec3Field({
   defaultLinked,
   allowRelative,
   defaultMode,
+  mixed,
+  onComponentChange,
 }: Vec3FieldProps) {
   return (
     <VectorField
@@ -71,6 +77,8 @@ export default function Vec3Field({
       defaultLinked={defaultLinked}
       allowRelative={allowRelative}
       defaultMode={defaultMode}
+      mixed={mixed}
+      onComponentChange={onComponentChange}
     />
   )
 }

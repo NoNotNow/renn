@@ -1,6 +1,12 @@
 import { useState } from 'react'
 import type { Vec3, MaterialRef, RennWorld } from '@/types/world'
 import { uiLogger } from '@/utils/uiLogger'
+import {
+  applyVecComponentChange,
+  type MaterialMixInfo,
+  type MaterialUpdater,
+  type VecComponentChange,
+} from '@/utils/mixedInspectorEdit'
 import { clampUnit } from '@/utils/numberUtils'
 import { colorToHex, hexToColor } from '@/utils/colorUtils'
 import { saveVideoMapBlob, uploadTexture } from '@/utils/assetUpload'
@@ -30,6 +36,14 @@ export interface MaterialEditorProps {
   assets: Map<string, Blob>
   world: RennWorld
   onMaterialChange: (material: MaterialRef) => void
+  /**
+   * Multi-select: sub-field edits are reported as an updater so the parent can apply it to EACH
+   * entity's own material (changing only colour keeps every entity's roughness, texture, ...).
+   * Without it, `onMaterialChange(updater(material))` is used.
+   */
+  onMaterialUpdate?: (update: MaterialUpdater) => void
+  /** Multi-select: which sub-fields differ across the selection (shown as "Mixed", not a fake value). */
+  mix?: MaterialMixInfo
   onWorldChange?: (world: RennWorld) => void
   onAssetsChange?: (assets: Map<string, Blob>) => void
   disabled?: boolean
@@ -37,17 +51,29 @@ export interface MaterialEditorProps {
   onOpenTextureStudio?: () => void | Promise<void>
 }
 
+/** Neutral swatch shown while entities disagree on colour (never a real common value). */
+const MIXED_COLOR_SWATCH = '#808080'
+
 export default function MaterialEditor({
   entityId,
   material,
   assets,
   world,
   onMaterialChange,
+  onMaterialUpdate,
+  mix,
   onWorldChange,
   onAssetsChange,
   disabled = false,
   onOpenTextureStudio,
 }: MaterialEditorProps) {
+  const isMixed = (key: Parameters<MaterialMixInfo['mixed']['has']>[0]) => mix?.mixed.has(key) ?? false
+  const update = (fn: MaterialUpdater) => (onMaterialUpdate ? onMaterialUpdate(fn) : onMaterialChange(fn(material)))
+  const vecComponentUpdate =
+    (key: 'mapRepeat' | 'mapOffset', fallback: Vec3) => (change: VecComponentChange) => {
+      uiLogger.change('PropertyPanel', `Change texture ${key} component`, { entityId, ...change })
+      update((m) => ({ ...m, [key]: applyVecComponentChange<Vec3>((m?.[key] ?? fallback) as Vec3, change) }))
+    }
   const undo = useEditorUndo()
   const pushUndo = () => undo?.pushBeforeEdit()
   const vec3Undo =
@@ -68,7 +94,7 @@ export default function MaterialEditor({
   const opacity = material?.opacity ?? 1
   const colorHex = colorToHex(color)
   
-  const hasTexture = !!material?.map
+  const hasTexture = !!material?.map || (mix?.anyMap ?? false)
   const mapRepeat = material?.mapRepeat ?? [1, 1, 0]
   const mapWrapS = material?.mapWrapS ?? 'repeat'
   const mapWrapT = material?.mapWrapT ?? 'repeat'
@@ -86,12 +112,13 @@ export default function MaterialEditor({
           <input
             id={`${entityId}-material-color`}
             type="color"
-            value={colorHex}
+            value={isMixed('color') ? MIXED_COLOR_SWATCH : colorHex}
+            data-mixed={isMixed('color') ? 'true' : undefined}
             onChange={(e) => {
               pushUndo()
               const next = hexToColor(e.target.value)
               uiLogger.change('PropertyPanel', 'Change color', { entityId, oldValue: color, newValue: next })
-              onMaterialChange({ ...material, color: next })
+              update((m) => ({ ...m, color: next }))
             }}
             aria-label="Material color"
             style={{
@@ -106,7 +133,7 @@ export default function MaterialEditor({
             disabled={disabled}
           />
           <span style={{ fontSize: 12, color: theme.text.muted }}>
-            {color.map((c) => clampUnit(c).toFixed(2)).join(', ')}
+            {isMixed('color') ? 'Mixed' : color.map((c) => clampUnit(c).toFixed(2)).join(', ')}
           </span>
         </div>
       </div>
@@ -119,7 +146,38 @@ export default function MaterialEditor({
           Texture
         </label>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {material?.map && assets.get(material.map) ? (
+            {isMixed('map') ? (
+            <>
+              <span style={{ fontSize: 12, color: theme.text.muted }} data-testid="material-map-mixed">
+                Mixed
+              </span>
+              <button
+                type="button"
+                onClick={() => setTextureDialogOpen(true)}
+                disabled={disabled}
+                title="Set one texture on all selected"
+                aria-label="Add texture"
+                style={secondaryPickIconButtonStyle(disabled)}
+                {...secondaryPickIconButtonHoverHandlers(disabled)}
+              >
+                {EntityPanelIcons.image}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  pushUndo()
+                  uiLogger.change('PropertyPanel', 'Remove texture', { entityId, oldValue: 'mixed' })
+                  update((m) => ({ ...m, map: undefined }))
+                }}
+                disabled={disabled}
+                title="Remove texture from all selected"
+                aria-label="Remove texture"
+                style={{ ...removeButtonStyle, ...(disabled && removeButtonStyleDisabled), ...entityPanelIconButtonStyle }}
+              >
+                {EntityPanelIcons.trash}
+              </button>
+            </>
+          ) : material?.map && assets.get(material.map) ? (
             <>
               <button
                 type="button"
@@ -141,7 +199,7 @@ export default function MaterialEditor({
                 onClick={() => {
                   pushUndo()
                   uiLogger.change('PropertyPanel', 'Remove texture', { entityId, oldValue: material?.map })
-                  onMaterialChange({ ...material, map: undefined })
+                  update((m) => ({ ...m, map: undefined }))
                 }}
                 disabled={disabled}
                 title="Remove texture"
@@ -199,12 +257,12 @@ export default function MaterialEditor({
         onClose={() => setTextureDialogOpen(false)}
         assets={assets}
         world={world}
-        selectedTextureId={material?.map}
+        selectedTextureId={isMixed('map') ? undefined : material?.map}
         allowVideo
         onSelectTexture={(assetId) => {
           pushUndo()
           uiLogger.change('PropertyPanel', 'Change texture', { entityId, oldValue: material?.map, newValue: assetId })
-          onMaterialChange({ ...material, map: assetId })
+          update((m) => ({ ...m, map: assetId }))
         }}
         onUploadTexture={async (file: File, assetId: string) => {
           pushUndo()
@@ -247,9 +305,11 @@ export default function MaterialEditor({
                 label="UV Repeat"
                 labelTitle="How many times the texture repeats along U and V on the surface. The third value is reserved for advanced mapping."
                 value={mapRepeat}
+                mixed={mix?.mixedVec.mapRepeat}
+                onComponentChange={vecComponentUpdate('mapRepeat', [1, 1, 0])}
                 onChange={(v) => {
                   uiLogger.change('PropertyPanel', 'Change texture repeat', { entityId, oldValue: mapRepeat, newValue: v })
-                  onMaterialChange({ ...material, mapRepeat: v })
+                  update((m) => ({ ...m, mapRepeat: v }))
                 }}
                 min={0.1}
                 step={0.1}
@@ -263,11 +323,12 @@ export default function MaterialEditor({
                 id={`${entityId}-mapWrapS`}
                 label="Wrap S"
                 labelTitle="Horizontal texture wrap mode: repeat tiles the map; clamp pins edge texels; mirrored repeat tiles with flipped copies."
-                value={mapWrapS}
+                value={isMixed('mapWrapS') ? '' : mapWrapS}
+                emptyLabel={isMixed('mapWrapS') ? 'Mixed' : undefined}
                 onBeforeCommit={pushUndo}
                 onChange={(value) => {
                   uiLogger.change('PropertyPanel', 'Change texture wrap S', { entityId, oldValue: mapWrapS, newValue: value })
-                  onMaterialChange({ ...material, mapWrapS: value as 'repeat' | 'clampToEdge' | 'mirroredRepeat' })
+                  update((m) => ({ ...m, mapWrapS: value as 'repeat' | 'clampToEdge' | 'mirroredRepeat' }))
                 }}
                 options={[
                   { value: 'repeat', label: 'Repeat' },
@@ -283,11 +344,12 @@ export default function MaterialEditor({
                 id={`${entityId}-mapWrapT`}
                 label="Wrap T"
                 labelTitle="Vertical texture wrap mode (same options as Wrap S, along the V direction)."
-                value={mapWrapT}
+                value={isMixed('mapWrapT') ? '' : mapWrapT}
+                emptyLabel={isMixed('mapWrapT') ? 'Mixed' : undefined}
                 onBeforeCommit={pushUndo}
                 onChange={(value) => {
                   uiLogger.change('PropertyPanel', 'Change texture wrap T', { entityId, oldValue: mapWrapT, newValue: value })
-                  onMaterialChange({ ...material, mapWrapT: value as 'repeat' | 'clampToEdge' | 'mirroredRepeat' })
+                  update((m) => ({ ...m, mapWrapT: value as 'repeat' | 'clampToEdge' | 'mirroredRepeat' }))
                 }}
                 options={[
                   { value: 'repeat', label: 'Repeat' },
@@ -303,9 +365,11 @@ export default function MaterialEditor({
                 label="UV Offset"
                 labelTitle="Shifts the texture in UV space before repeat is applied (typically U and V in 0–1 range)."
                 value={mapOffset}
+                mixed={mix?.mixedVec.mapOffset}
+                onComponentChange={vecComponentUpdate('mapOffset', [0, 0, 0])}
                 onChange={(v) => {
                   uiLogger.change('PropertyPanel', 'Change texture offset', { entityId, oldValue: mapOffset, newValue: v })
-                  onMaterialChange({ ...material, mapOffset: v })
+                  update((m) => ({ ...m, mapOffset: v }))
                 }}
                 min={-1}
                 max={1}
@@ -320,11 +384,11 @@ export default function MaterialEditor({
                 id={`${entityId}-mapRotation`}
                 label="Rotation (degrees)"
                 labelTitle="Rotates the UV coordinates around the surface origin before sampling the map."
-                value={(mapRotation * 180) / Math.PI}
+                value={isMixed('mapRotation') ? null : (mapRotation * 180) / Math.PI}
                 onChange={(value) => {
                   const radians = (value * Math.PI) / 180
                   uiLogger.change('PropertyPanel', 'Change texture rotation', { entityId, oldValue: mapRotation, newValue: radians })
-                  onMaterialChange({ ...material, mapRotation: radians })
+                  update((m) => ({ ...m, mapRotation: radians }))
                 }}
                 min={0}
                 max={360}
@@ -343,10 +407,10 @@ export default function MaterialEditor({
         id={`${entityId}-opacity`}
         label="Opacity"
         labelTitle="Surface alpha: 1 is fully opaque, 0 is fully transparent (rendering depends on depth/material settings)."
-        value={opacity}
+        value={isMixed('opacity') ? null : opacity}
         onChange={(value) => {
           uiLogger.change('PropertyPanel', 'Change opacity', { entityId, oldValue: opacity, newValue: value })
-          onMaterialChange({ ...material, opacity: value })
+          update((m) => ({ ...m, opacity: value }))
         }}
         min={0}
         max={1}
@@ -360,8 +424,8 @@ export default function MaterialEditor({
         id={`${entityId}-roughness`}
         label="Roughness"
         labelTitle="Micro-surface scatter: 0 is mirror-like, 1 is fully diffuse (PBR roughness)."
-        value={roughness}
-        onChange={(value) => onMaterialChange({ ...material, roughness: value })}
+        value={isMixed('roughness') ? null : roughness}
+        onChange={(value) => update((m) => ({ ...m, roughness: value }))}
         min={0}
         max={1}
         step={0.1}
@@ -374,8 +438,8 @@ export default function MaterialEditor({
         id={`${entityId}-metalness`}
         label="Metalness"
         labelTitle="0 = dielectric (plastic, paint), 1 = metal (colored by base color and environment reflections)."
-        value={metalness}
-        onChange={(value) => onMaterialChange({ ...material, metalness: value })}
+        value={isMixed('metalness') ? null : metalness}
+        onChange={(value) => update((m) => ({ ...m, metalness: value }))}
         min={0}
         max={1}
         step={0.1}

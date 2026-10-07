@@ -1,4 +1,5 @@
-import type { RennWorld, Entity, MaterialRef } from '@/types/world'
+import type { RennWorld, Entity } from '@/types/world'
+import { mergeMaterialFields, type MaterialUpdater } from '@/utils/mixedInspectorEdit'
 import { uiLogger } from '@/utils/uiLogger'
 import { theme } from '@/config/theme'
 import MaterialEditor from '../MaterialEditor'
@@ -10,7 +11,6 @@ export interface MaterialSectionProps {
   primaryEntity: Entity
   isMulti: boolean
   isModelOrTrimesh: boolean
-  mergedMaterial: MaterialRef | null | undefined
   editorIdPrefix: string
   assets: Map<string, Blob>
   world: RennWorld
@@ -19,6 +19,8 @@ export interface MaterialSectionProps {
   onAssetsChange?: (assets: Map<string, Blob>) => void
   onEntityMaterialChange?: (ids: string[], patch: Partial<Entity>) => void
   updateAll: (patch: Partial<Entity>) => void
+  /** Per-entity patch in one world change. */
+  updateEach: (patchFor: (e: Entity) => Partial<Entity>) => void
   onOpenTextureStudio?: (entityId: string) => void | Promise<void>
 }
 
@@ -28,7 +30,6 @@ export default function MaterialSection({
   primaryEntity,
   isMulti,
   isModelOrTrimesh,
-  mergedMaterial,
   editorIdPrefix,
   assets,
   world,
@@ -37,37 +38,46 @@ export default function MaterialSection({
   onAssetsChange,
   onEntityMaterialChange,
   updateAll,
+  updateEach,
   onOpenTextureStudio,
 }: MaterialSectionProps) {
+  const mix = mergeMaterialFields(entities)
+
+  /**
+   * Apply a sub-field edit to EACH entity's own material, so changing only the colour leaves every
+   * entity's roughness / metalness / textures intact. One call -> one world change (one undo step).
+   */
+  const onMaterialUpdate = (update: MaterialUpdater) => {
+    const nextById = new Map(entities.map((e) => [e.id, update(e.material)] as const))
+    if (onEntityMaterialChange) {
+      for (const [id, material] of nextById) onEntityMaterialChange([id], { material })
+    } else {
+      updateEach((e) => ({ material: nextById.get(e.id) }))
+    }
+  }
+  const editor = (
+    <MaterialEditor
+      entityId={editorIdPrefix}
+      material={mix.material}
+      mix={isMulti ? mix : undefined}
+      assets={assets}
+      world={world}
+      onMaterialChange={(material) => onMaterialUpdate(() => material)}
+      onMaterialUpdate={onMaterialUpdate}
+      onWorldChange={onWorldChange}
+      onAssetsChange={onAssetsChange}
+      disabled={anyLocked}
+      onOpenTextureStudio={
+        !isMulti && onOpenTextureStudio ? () => onOpenTextureStudio(primaryEntity.id) : undefined
+      }
+    />
+  )
+
   const materialAllNull = entities.every((e) => e.material == null)
   const materialAllSet = entities.every((e) => e.material != null)
 
-  if (!isModelOrTrimesh) {
-    if (mergedMaterial === null) {
-      return (
-        <p style={{ margin: '8px 0', fontSize: 12, color: theme.text.muted }}>
-          Material properties differ across selection. Edit one entity or apply a change to set all to the same material.
-        </p>
-      )
-    }
-    return (
-      <MaterialEditor
-        entityId={editorIdPrefix}
-        material={mergedMaterial}
-        assets={assets}
-        world={world}
-        onMaterialChange={(material) =>
-          onEntityMaterialChange ? onEntityMaterialChange(ids, { material }) : updateAll({ material })
-        }
-        onWorldChange={onWorldChange}
-        onAssetsChange={onAssetsChange}
-        disabled={anyLocked}
-        onOpenTextureStudio={
-          !isMulti && onOpenTextureStudio ? () => onOpenTextureStudio(primaryEntity.id) : undefined
-        }
-      />
-    )
-  }
+  // Inconsistent layouts (not the uniform model/trimesh path below): plain editor, mixed-aware.
+  if (!isModelOrTrimesh) return editor
 
   if (materialAllNull) {
     return (
@@ -98,7 +108,7 @@ export default function MaterialSection({
     )
   }
 
-  if (materialAllSet && mergedMaterial != null) {
+  if (materialAllSet) {
     return (
       <>
         <button
@@ -124,21 +134,7 @@ export default function MaterialSection({
         >
           Use model colors
         </button>
-        <MaterialEditor
-          entityId={editorIdPrefix}
-          material={mergedMaterial}
-          assets={assets}
-          world={world}
-          onMaterialChange={(material) =>
-            onEntityMaterialChange ? onEntityMaterialChange(ids, { material }) : updateAll({ material })
-          }
-          onWorldChange={onWorldChange}
-          onAssetsChange={onAssetsChange}
-          disabled={anyLocked}
-          onOpenTextureStudio={
-            !isMulti && onOpenTextureStudio ? () => onOpenTextureStudio(primaryEntity.id) : undefined
-          }
-        />
+        {editor}
       </>
     )
   }
