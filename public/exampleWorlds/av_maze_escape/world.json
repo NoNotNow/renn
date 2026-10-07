@@ -793,6 +793,9 @@
             "maxCurvature": 0.115,
             "goalTolerance": 5.5,
             "debugDraw": true,
+            "goalViz": true,
+            "hud": false,
+            "goalReachDist": 12,
             "obstacleSlowRadius": 1,
             "minSpeed": 9.4,
             "comfortDecel": 4,
@@ -801,6 +804,11 @@
             "staticMap": true,
             "fieldHeuristic": true,
             "routeClearance": true,
+            "carrotLive": false,
+            "goalGiveUp": 0,
+            "escapeTriggerHorizon": 0,
+            "carrotBend": 0,
+            "pocketBrake": false,
             "budget": "eco",
             "saver": false,
             "maneuverRunSpeed": 7,
@@ -825,7 +833,11 @@
               -450,
               450
             ],
-            "threatIds": []
+            "threatIds": [],
+            "passSide": "off",
+            "manualOverride": false,
+            "overrideHold": 1,
+            "mazeModule": false
           },
           "enabled": true
         }

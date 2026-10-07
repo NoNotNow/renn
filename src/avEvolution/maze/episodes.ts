@@ -94,11 +94,33 @@ function mazeOf(seed: number): Maze {
   return m
 }
 
+/**
+ * Car params pinned to their pre-maze-module behaviour for every maze episode (evolution + example world).
+ * `self_hunt_flexible` now carries the maze-module / manual-override / pass-side / carrot / pocket-brake params of the
+ * merged av-stack branch; left alone they would silently change the evolution baseline and make `av_maze_escape`
+ * differ from the harness episodes. These values equal the stage defaults when a param is absent (what the world had
+ * before the merge). Switching the maze module on in the evolution world is a deliberate user decision (flip
+ * `mazeModule` here); evolved params (applied after this) still override.
+ */
+export const MAZE_PINNED_CAR_PARAMS: Record<string, unknown> = {
+  mazeModule: false,
+  manualOverride: false,
+  overrideHold: 1,
+  passSide: 'off',
+  pocketBrake: false,
+  carrotLive: false,
+  carrotBend: 0,
+  escapeTriggerHorizon: 0,
+  goalGiveUp: 0,
+  goalReachDist: 12,
+  hud: false,
+}
+
 /** Arena spec (boxes, start pose, goal) of an episode; feed it to `buildArenaWorldFrom` / `runScenario`. */
 export function mazeArenaSpec(ep: MazeEpisodeSpec): ArenaSpec {
   const maze = mazeOf(ep.mazeSeed)
   const at: V2 = cellCentre(maze, ep.startCell[0], ep.startCell[1])
-  return { car: { at, yawDeg: ep.startYaw }, goal: maze.goal, boxes: maze.walls, puppets: [] }
+  return { car: { at, yawDeg: ep.startYaw }, goal: maze.goal, boxes: maze.walls, puppets: [], extraParams: MAZE_PINNED_CAR_PARAMS }
 }
 
 /** Fresh world of an episode. `source` = the world holding the AV car (`self_hunt_flexible`, current library code). */
