@@ -34,7 +34,7 @@ function ring(gaps: ('S' | 'E')[], plugs: P[] = []): P[] {
 /** Stateful driver: one call per 0.5 s of simulated time with last frame's static map (and remembered dynamic marks). */
 function driver(list: P[], params: Record<string, unknown> = {}) {
   const state: any = { t: 0 }
-  const api = { watch: () => undefined }
+  const api = { watch: () => undefined, raycast: () => ({ hit: false, distance: 0, entityId: '' }), getEntity: () => undefined }
   const p = { mazeModule: true, mazeSeenRange: 0, ...params }
   return {
     state,
@@ -161,5 +161,44 @@ describe('maze module', () => {
     expect(b).toEqual(a)
     const c = d.step([a[0] - 2, a[1]]).goal!
     expect(c).not.toEqual(a)
+  })
+
+  it('a partly mapped maze: an unmapped part (inside the known wall field) is not an exit, the exit lies outside the maze region', () => {
+    // only the north half of the ring is known; the inner block / south half are unmapped and look like open ground
+    const known: P[] = [...wall([-50, -50], [50, -50]), ...wall([-50, -50], [-50, 0]), ...wall([50, -50], [50, 0]), ...wall([-36, -36], [36, -36]), ...wall([-36, -36], [-36, 0]), ...wall([36, -36], [36, 0])]
+    const d = driver(known)
+    const r = d.step([-10, -43])
+    expect(r.on).toBe(true)
+    expect(r.route).not.toBeNull()
+    const [ex, ez] = exitOf(r.route)
+    // outside the bounding box of the known walls (x -50..50, z -50..0) + margin 8
+    expect(Math.abs(ex) > 58 || ez < -58 || ez > 8).toBe(true)
+  })
+
+  it('every waypoint is in line of sight: the straight line car -> waypoint crosses no wall (U route round a separator wall)', () => {
+    // upper corridor (z 0..14) closed in the east, separator z = 0 (x 0..40), way round its west end, lower corridor (z -14..0) open in the east
+    const pts: P[] = [...wall([-10, -14], [40, -14]), ...wall([-10, 14], [40, 14]), ...wall([-10, -14], [-10, 14]), ...wall([0, 0], [40, 0]), ...wall([40, 0], [40, 14])]
+    const crosses = (a: P, b: P) => pts.some(([x, z]) => {
+      const dx = b[0] - a[0]
+      const dz = b[1] - a[1]
+      const t = Math.max(0, Math.min(1, ((x - a[0]) * dx + (z - a[1]) * dz) / (dx * dx + dz * dz)))
+      return Math.hypot(a[0] + dx * t - x, a[1] + dz * t - z) < 0.5
+    })
+    const d = driver(pts)
+    let checked = 0
+    for (const car of [[30, 7], [20, 7], [8, 7], [-2, 5], [-6, -2], [-2, -7]] as P[]) {
+      const r = d.step(car)
+      if (!r.goal) continue
+      checked++
+      expect(crosses(car, r.goal), `car ${car} goal ${r.goal}`).toBe(false)
+    }
+    expect(checked).toBeGreaterThan(3)
+  })
+
+  it('a maze mouth (few blocked rays, but inside a big wall field) counts as confined', () => {
+    // wide hall mouth: walls of a 100 x 60 m maze on both sides, the car in the open middle row
+    const pts: P[] = [...wall([-50, -30], [50, -30]), ...wall([-50, 30], [50, 30]), ...wall([-50, -30], [-50, 30]), ...wall([-20, -30], [-20, 6]), ...wall([10, 30], [10, -6]), ...wall([36, -30], [36, 8])]
+    const d = driver(pts)
+    expect(d.step([-30, 14]).mz.on).toBe(true)
   })
 })

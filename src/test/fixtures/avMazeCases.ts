@@ -44,6 +44,10 @@ export interface MazeCase {
   /** Pocket (U) the car must not drive into: rect + open side; max depth of the car centre past the mouth plane (m). */
   pocket?: { x0: number; x1: number; z0: number; z1: number; mouth: 'west' | 'east' | 'north' | 'south' }
   maxPocketDepth?: number
+  /** Max frames in which the straight line from the car to its flee goal (ego `state.flee`, whatever its source) crosses a wall of the case (axis-aligned boxes). */
+  maxFleeCross?: number
+  /** Rect [x0, x1, z0, z1] (the labyrinth) that the car must be inside for a frame to count in `maxFleeCross`. */
+  fleeRegion?: [number, number, number, number]
   /** The case judges something else than the pursuit (pocket depth): chaser contact / gap are not criteria. */
   ignoreChasers?: boolean
   /** The first time the car centre coordinate `axis` reaches `at` the other coordinate must lie in [lo, hi] (the exit the maze module has to pick); never crossing fails. */
@@ -368,6 +372,8 @@ export const MAZE_CASES: MazeCase[] = [
   },
   {
     name: 'mazemod-one-exit',
+    fleeRegion: [-50, 50, -50, 50],
+    maxFleeCross: 0,
     about: 'maze module: ring corridor (14 m), ONE exit (south, middle), the west corridor is a dead end (cross wall at z 0); car in the north corridor, two homing chasers behind it in the west: the escape goes round the east and out through the south exit (open-ground flee goals lie behind walls), goal outside in the south',
     seconds: 40,
     maxReversals: 4,
@@ -386,6 +392,8 @@ export const MAZE_CASES: MazeCase[] = [
   },
   {
     name: 'mazemod-two-exits',
+    fleeRegion: [-50, 50, -50, 50],
+    maxFleeCross: 0,
     about: 'maze module: ring corridor with two exits (south, east), car in the north corridor, two homing chasers behind it: takes the NEAR exit (east, ~110 m of corridor against ~190 m)',
     seconds: 30,
     maxReversals: 4,
@@ -404,6 +412,8 @@ export const MAZE_CASES: MazeCase[] = [
   },
   {
     name: 'mazemod-dead-end-branch',
+    fleeRegion: [-60, 200, -47, 7],
+    maxFleeCross: 0,
     about: 'maze module: 14 m corridor (closed west end, open east end), a 40 m deep dead-end branch to the north at x 60..74, homing chaser behind the car: the escape stays in the corridor to the east exit, does not enter the branch (pocket depth <= 4 m), goal outside the exit',
     seconds: 25,
     maxReversals: 2,
