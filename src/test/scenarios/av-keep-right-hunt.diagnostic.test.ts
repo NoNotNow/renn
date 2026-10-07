@@ -12,9 +12,9 @@ it.skipIf(!process.env.AV_KRH)('hunt: passSide off vs shipped', async () => {
       const ref = { exampleId: 'self_hunt_flexible' }
       const world = loadLabWorld(ref)
       if (mode === 'off') {
-        for (const e of world.entities as any[]) {
+        for (const e of world.entities) {
           const b = e.transformerPipeStack?.[0]
-          if (b?.pipeId === 'global_av_autopilot') b.params.passSide = 'off'
+          if (b?.pipeId === 'global_av_autopilot' && b.params) b.params.passSide = 'off'
         }
       }
       let passFrames = 0

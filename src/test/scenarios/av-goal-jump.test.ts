@@ -8,7 +8,7 @@ import path from 'node:path'
  * Drives the real route planner stage code on a hand-made blackboard (empty costmap, car at the origin heading +x, 40 m/s so the 2 s eco interval would hold the old plan).
  */
 const code = fs.readFileSync(path.resolve(__dirname, '../../../public/global/transformers/av-stack/av-route-planner.js'), 'utf8')
-const transform = new Function(`${code}\nreturn transform`)() as (input: any, dt: number, params: any, state: any, api: any) => unknown
+const transform = new Function(`${code}\nreturn transform`)() as (input: unknown, dt: number, params: unknown, state: unknown, api: unknown) => unknown
 
 function run(extra: Record<string, unknown>) {
   const state: Record<string, unknown> = {}
@@ -29,7 +29,7 @@ function run(extra: Record<string, unknown>) {
   })
   let t = 0
   let x = 0
-  let a: any
+  let a!: ReturnType<typeof mk>
   for (let i = 0; i < 10; i++) {
     a = mk(t, [200, 0], x)
     transform(a, 0.02, params, state, api)

@@ -12,11 +12,30 @@ import type { WorldSimulator } from '@/test/helpers/worldSimulator'
 const env = process.env
 const enabled = env.AVCARROT === '1'
 
-type Stage = { transform: (input: any, dt: number) => unknown; __wrapped?: boolean }
+/** Loose view of the AV blackboard fields this diagnostic reads. */
+interface AvBoard {
+  ego?: { fwd: number[]; speedF: number; t: number }
+  carrot?: number[] | null
+  goalRaw?: number[] | null
+  fieldGoal?: { x: number; z: number; d: number }
+  goalBad?: boolean
+  fleeing?: boolean
+  threats?: { x: number; z: number }[]
+  threatsFar?: { x: number; z: number }[]
+  routePath?: number[][]
+  route?: { firstGear?: number; reached?: boolean }
+}
+interface StageInput {
+  av?: AvBoard
+  target?: { pose?: { position: number[] } }
+}
+type Stage = { transform: (input: StageInput, dt: number) => unknown; __wrapped?: boolean; configStackIndex?: number }
+
+type LiveState = { routeT: number; active?: boolean; flee?: { gap?: boolean } } | undefined
 
 function stages(sim: WorldSimulator, id: string): Stage[] {
-  const chain = (sim as any).getRegistry().get(id)?.transformerChain
-  return chain ? (chain.getAll() as Stage[]) : []
+  const chain = sim.getRegistry().get(id)?.transformerChain
+  return chain ? (chain.getAll() as unknown as Stage[]) : []
 }
 
 const deg = (a: number) => (a * 180) / Math.PI
@@ -49,8 +68,8 @@ it.skipIf(!enabled)('carrot audit', async () => {
     }
     const labels = stageLabels(prepared, focus)
     if (seed === seeds[0]) console.log('LABELS', JSON.stringify(labels))
-    let capAv: any = null
-    let capVizCarrot: any = undefined
+    let capAv: AvBoard | null | undefined = null
+    let capVizCarrot: number[] | null | undefined = undefined
     let capTarget: number[] | null = null
     let wrapped = false
     let prevCarrot: number[] | null = null
@@ -77,10 +96,10 @@ it.skipIf(!enabled)('carrot audit', async () => {
           wrapped = true
           const st = stages(sim, focus)
           st.forEach((s, i) => {
-            const label = (labels[(s as any).configStackIndex ?? i] ?? '').toLowerCase()
+            const label = (labels[s.configStackIndex ?? i] ?? '').toLowerCase()
             const orig = s.transform.bind(s)
             if (label.includes('aeb')) {
-              s.transform = (input: any, dt: number) => {
+              s.transform = (input: StageInput, dt: number) => {
                 const r = orig(input, dt)
                 capAv = input.av
                 const tp = input.target?.pose?.position
@@ -88,7 +107,7 @@ it.skipIf(!enabled)('carrot audit', async () => {
                 return r
               }
             } else if (label.includes('overlay')) {
-              s.transform = (input: any, dt: number) => {
+              s.transform = (input: StageInput, dt: number) => {
                 capVizCarrot = input.av?.carrot ? [input.av.carrot[0], input.av.carrot[1]] : null
                 return orig(input, dt)
               }
@@ -103,8 +122,8 @@ it.skipIf(!enabled)('carrot audit', async () => {
         const pz = pos[2]
         const fwd = av.ego.fwd
         const spd = av.ego.speedF
-        const rt = liveStageState(sim, prepared, focus, 'route planner') as any
-        const ego = liveStageState(sim, prepared, focus, 'ego state') as any
+        const rt = liveStageState(sim, prepared, focus, 'route planner') as LiveState
+        const ego = liveStageState(sim, prepared, focus, 'ego state') as LiveState
         const goal: number[] | null = av.goalRaw ? [av.goalRaw[0], av.goalRaw[1]] : null
         // ---- goal jumps (the source's own goal)
         if (goal && prevGoal && Math.hypot(goal[0] - prevGoal[0], goal[1] - prevGoal[1]) > 8) {

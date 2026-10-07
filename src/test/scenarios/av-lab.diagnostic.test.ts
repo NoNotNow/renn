@@ -31,11 +31,12 @@ function makeClearanceTracker(world: ReturnType<typeof loadLabWorld>, focusId: s
   const carW = fs_.width ?? 4
   const carL = fs_.depth ?? 8
   const obs: StaticOb[] = []
-  for (const e of world.entities as any[]) {
+  for (const e of world.entities) {
     if (e.id === focusId || e.bodyType !== 'static') continue
-    const s = e.shape
-    if (s.type === 'box') obs.push({ id: e.id, x: e.position[0], z: e.position[2], r: Math.hypot(s.width, s.depth) / 2, box: { w: s.width, d: s.depth } })
-    else if (s.type === 'cylinder') obs.push({ id: e.id, x: e.position[0], z: e.position[2], r: s.radius ?? 0.5 })
+    const s = e.shape as { type?: string; width: number; depth: number; radius?: number }
+    const ep = e.position as number[]
+    if (s.type === 'box') obs.push({ id: e.id, x: ep[0], z: ep[2], r: Math.hypot(s.width, s.depth) / 2, box: { w: s.width, d: s.depth } })
+    else if (s.type === 'cylinder') obs.push({ id: e.id, x: ep[0], z: ep[2], r: s.radius ?? 0.5 })
   }
   const m = { minStaticGap: Infinity, closePassFrames: 0, headOnFrames: 0 }
   return {
@@ -161,7 +162,7 @@ it.skipIf(!enabled)('av lab run', async () => {
         // AVLAB_HASH=1: FNV hash of every entity pose every 50 frames (bit-identity proof for perf work).
         if (env.AVLAB_HASH === '1' && frame != null && frame % 50 === 0) {
           let h = 2166136261
-          for (const e of prepared.entities as any[]) {
+          for (const e of prepared.entities) {
             const q = sim.getPosition(e.id)
             const rq = sim.getRotation(e.id)
             for (const n of [q[0], q[1], q[2], rq.x, rq.y, rq.z, rq.w]) {
