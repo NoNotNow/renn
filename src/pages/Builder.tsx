@@ -15,6 +15,9 @@ import { EditorUndoProvider } from '@/contexts/EditorUndoContext'
 import { useEditorHistory } from '@/hooks/useEditorHistory'
 import { useTextureMakerSession } from '@/hooks/useTextureMakerSession'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
+import AvEvolutionPanel from '@/components/AvEvolutionPanel'
+import { installAvEvolutionAgentApi } from '@/avEvolution/browser/agentApi'
+import { getAvEvolutionStore } from '@/avEvolution/agent/storeRegistry'
 import { useProjectContext } from '@/hooks/useProjectContext'
 import {
   clearTransformerLiveTraceSnapshot,
@@ -138,6 +141,8 @@ export default function Builder() {
   const [editNavigationMode, setEditNavigationMode] = useLocalStorageState('builderEditNavigationMode', false)
   const [gameFrozen, setGameFrozen] = useState(false)
   const [performanceBoosterOpen, setPerformanceBoosterOpen] = useState(false)
+  const [avEvolutionOpen, setAvEvolutionOpen] = useState(false)
+  useEffect(() => installAvEvolutionAgentApi(getAvEvolutionStore()), [])
   const [transformerDocsOpen, setTransformerDocsOpen] = useState(false)
   const [perfPickMode, setPerfPickMode] = useState<'mesh' | 'texture' | null>(null)
   const [perfMeshEntityId, setPerfMeshEntityId] = useState<string | null>(null)
@@ -707,6 +712,10 @@ export default function Builder() {
           setPerformanceBoosterOpen(true)
           uiLogger.click('Builder', 'Open Performance booster', {})
         }}
+        onOpenAvEvolution={() => {
+          setAvEvolutionOpen(true)
+          uiLogger.click('Builder', 'Open AV evolution', {})
+        }}
         onOpenTransformerDocs={() => {
           setTransformerDocsOpen(true)
           uiLogger.click('Builder', 'Open Transformer docs', {})
@@ -726,6 +735,10 @@ export default function Builder() {
           onOverwrite={handleSaveDialogOverwrite}
           onCancel={() => setShowSaveDialog(false)}
         />
+      )}
+
+      {avEvolutionOpen && (
+        <AvEvolutionPanel onClose={() => setAvEvolutionOpen(false)} selectedEntityId={selectedEntityIds.length === 1 ? selectedEntityIds[0]! : null} />
       )}
 
       <PerformanceBoosterDialog

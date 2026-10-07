@@ -58,6 +58,7 @@ export interface BuilderHeaderProps {
   showFrameStats?: boolean
   onFrameStatsToggle?: () => void
   onOpenPerformanceBooster?: () => void
+  onOpenAvEvolution?: () => void
   onOpenTransformerDocs?: () => void
   /** Single textured entity: open layered texture editor. */
   onOpenTextureStudio?: () => void
@@ -95,6 +96,7 @@ export default function BuilderHeader({
   showFrameStats = false,
   onFrameStatsToggle,
   onOpenPerformanceBooster,
+  onOpenAvEvolution,
   onOpenTransformerDocs,
   onOpenTextureStudio,
   onOpenWorkspace,
@@ -345,6 +347,12 @@ export default function BuilderHeader({
       label: 'Performance booster',
       onClick: onOpenPerformanceBooster,
       disabled: !onOpenPerformanceBooster,
+    },
+    {
+      type: 'item',
+      label: 'AV evolution',
+      onClick: onOpenAvEvolution,
+      disabled: !onOpenAvEvolution,
     },
   ]
 
