@@ -470,3 +470,27 @@ Deterministic cases (`src/test/fixtures/avMazeCases.ts`, runner metrics `goalRea
 
 - **revSweep (route planner, default on; `revSweep:false` = old behaviour, `revSweepLatch` 0.5 s, `revSweepCusp:true` opt-in)**: the reverse-manoeuvre speed cap sweeps the full footprint (rear corners included) along the rest of the run of same-gear segments (not only the current one) against `av.points` at `min(planMargin, startMargin)`; vMax <= sqrt(2 comfortDecel (d_first_overlap - 1)) + 0.5, latched 0.5 s so the cap no longer flickers off at a segment end. `maze-b-rev-door`: wall contact 7 frames -> 0 (gap 0.9). The cusp-near-points cap is opt-in (it made `turnaround-corridor` shuttle). `maze-b-rev-door` stays KNOWN_FAILING: goal not reached (the plan predates the wall; an early re-plan on a swept overlap regressed `maze-u-trap-inside`).
 - **revGuardFloor / revSweepFloor (route planner, default 2 m/s)**: floor of the free-arc and sweep speed caps on reverse manoeuvre segments. The caps used to fall to 0.5 m/s in a tight pocket (the planned path is allowed there), which stalled `heavy-cube` pocket-escape (5.4 s) and made `small-car` u-trap-inside shuttle; below the floor the creep is still bounded by the guard look-ahead replan. `revGuardLookMax` (default off) caps that look-ahead.
+
+## Exposed maze constants (evolution genes, 2026-10, defaults = old hard-coded values, bit-identical)
+Former literals, now `params.x != null ? params.x : <old>` in the stage (binding > scope > stage layering). Proof each is read: `src/test/scenarios/av-maze-params-exposed.test.ts`.
+
+| Param (default) | Stage | Effect |
+|---|---|---|
+| `turnAngle1` (0.5) / `turnAngle2` (1.15) rad | motion planner | turn-then-straight candidate path angles (how sharp a turn line may be) |
+| `sweepStep` (0.75 m) | motion planner | footprint sweep step along candidates (coarser = faster, may miss thin walls) |
+| `requiredExtra` (5 m) | motion planner | extra metres added to the stopping length `v^2/2a` (`Lreq`) |
+| `maneuverRunDecel` (3) / `maneuverRunOffset` (0.9) | route planner | speed cap of every comfort manoeuvre run: `offset + sqrt(2 * decel * runLen)` |
+| `revVotes` (2) | route planner | consecutive plans that must confirm a reverse-first route before the manoeuvre starts |
+| `maneuverEntrySpeed` (1.5) / `maneuverEntryStopSpeed` (0.3) m/s | route planner | reverse manoeuvre needs speed below the first; below the second the vote count is waived |
+| `replanCooldown` (0.6 s) | route planner | min time between blocked-ahead / stall replans in a manoeuvre |
+| `stuckSpeed` (0.25) | route planner | stuck watchdog: speed below which the car counts as stopped |
+| `routeLimitHorizon` (160 m) | route planner | how far ahead bends are braked for (routeLimitFull only) |
+| `nearHitExtra` (1.5 m) | route planner | extra hull margin of the near-cusp hit test (only used with opt-in `revSweepCusp`) |
+| `revCruiseBehind` (0.3) | route planner | goal-behind fraction above which reverse-cruise is considered |
+| `nearTouchDist` (0.3 m) | speed planner | hull distance where the proximity slowdown reaches its floor |
+| `aebMinSpeed` (0.8) / `aebManeuverMargin` (0.2 m) | aeb | AEB arming speed and braking margin in manoeuvre mode |
+| `ppMinSpeed` (3) / `ppMinClearance` (1) | lateral | pure-pursuit fine-tune entry thresholds |
+| `kappaTauFast` (0.04 s) / `kappaTauSpeed` (0.008 s per m/s) | lateral | curvature filter taus |
+| `iClamp` (3) / `overspeedCut` (8 m/s) | longitudinal | integral clamp (accel units) / overspeed throttle cut |
+
+Not exposed on purpose: crawl watchdog speeds (no maze run changed), supervisor `wantsMove/rest/blocked` speeds (its `needManeuver` flag is read by no stage) and the route-limit near-kappa `vOld` (only used while chased).

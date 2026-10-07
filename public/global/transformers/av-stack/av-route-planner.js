@@ -1052,7 +1052,7 @@ function transform(input, dt, params, state, api) {
     // routeLimitFull (default on): horizon = the whole forward run (braking from cruise needs ~100 m, not 40), bends from kk 0.005 (the corner speed
     // sqrt(aLat/kk) is harmless at low kk); the bends are kept (bends) so the limit is re-evaluated from the car's CURRENT pose, not the plan start.
     var full = params.routeLimitFull !== false
-    var horizon = full ? 160 : 40
+    var horizon = full ? (params.routeLimitHorizon != null ? params.routeLimitHorizon : 160) : 40
     var kMin = full ? (params.routeLimitKappa != null ? params.routeLimitKappa : 0.04) : 0.04
     var bends = []
     var vOld = Infinity
@@ -1115,7 +1115,7 @@ function transform(input, dt, params, state, api) {
     var fbW = '-'
     var ffW = '-'
     if (!state.revCruise) {
-      if (gBehind > 0.3) {
+      if (gBehind > (params.revCruiseBehind != null ? params.revCruiseBehind : 0.3)) {
         fbW = freeStraight(-1, revLook)
         if (fbW >= Math.min(30, revLook)) {
           ffW = freeStraight(1, 20)
@@ -1153,7 +1153,7 @@ function transform(input, dt, params, state, api) {
 
   // stuck watchdog (own, independent of the local planner)
   if (state.stuckT === undefined) state.stuckT = 0
-  if (!state.active && Math.abs(e.speed) < 0.25 && goalDist > holdTol) state.stuckT += dt
+  if (!state.active && Math.abs(e.speed) < (params.stuckSpeed != null ? params.stuckSpeed : 0.25) && goalDist > holdTol) state.stuckT += dt
   else state.stuckT = 0
   // Scraping along an obstacle (wheels spinning against contact friction) is slow but not "stopped": also count it as
   // stuck when the car has hardly moved over a longer window while driving slowly.
@@ -1192,7 +1192,7 @@ function transform(input, dt, params, state, api) {
     // hysteresis: a reverse-first route must be confirmed by two consecutive plans before the car manoeuvres
     state.revVotes = rt.firstGear === -1 ? (state.revFresh ? (state.revVotes || 0) + 1 : state.revVotes || 1) : 0
     state.revFresh = false
-    var wantManeuver = (rt.firstGear === -1 && (state.revVotes >= 2 || Math.abs(e.speed) < 0.3) && Math.abs(e.speed) < 1.5) || state.stuckT > stuckTime
+    var wantManeuver = (rt.firstGear === -1 && (state.revVotes >= (params.revVotes != null ? params.revVotes : 2) || Math.abs(e.speed) < (params.maneuverEntryStopSpeed != null ? params.maneuverEntryStopSpeed : 0.3)) && Math.abs(e.speed) < (params.maneuverEntrySpeed != null ? params.maneuverEntrySpeed : 1.5)) || state.stuckT > stuckTime
     if (wantManeuver && goalDist > holdTol) {
       // stuck although the costmap shows a free way, and in contact with something: it is invisible to the lidar
       if (state.stuckT > stuckTime && input.environment && input.environment.isTouchingSide) {
@@ -1232,7 +1232,7 @@ function transform(input, dt, params, state, api) {
           state.revStopOn = false
           state.revDecided = false
         } else if (rt.firstGear === -1) {
-          if (state.revVotes >= 2 && !state.revDecided) {
+          if (state.revVotes >= (params.revVotes != null ? params.revVotes : 2) && !state.revDecided) {
             state.revDecided = true
             state.revStopOn = (state.fwdStreak || 0) > 2 && e.speedF > 1.5
             state.fwdStreak = 0
@@ -1310,7 +1310,7 @@ function transform(input, dt, params, state, api) {
   function sweepRun(remainLen) {
     var rsM = Math.min(planMargin, state.startMargin != null ? state.startMargin : planMargin)
     var rsHit = makeHit(av.points || [], ((av.vehicle && av.vehicle.length) || params.vehicleLength || 4) / 2 + rsM, ((av.vehicle && av.vehicle.width) || params.vehicleWidth || 2) / 2 + rsM)
-    var rsHitNear = makeHit(av.points || [], ((av.vehicle && av.vehicle.length) || params.vehicleLength || 4) / 2 + planMargin + 1.5, ((av.vehicle && av.vehicle.width) || params.vehicleWidth || 2) / 2 + planMargin + 1.5)
+    var rsHitNear = makeHit(av.points || [], ((av.vehicle && av.vehicle.length) || params.vehicleLength || 4) / 2 + planMargin + (params.nearHitExtra != null ? params.nearHitExtra : 1.5), ((av.vehicle && av.vehicle.width) || params.vehicleWidth || 2) / 2 + planMargin + (params.nearHitExtra != null ? params.nearHitExtra : 1.5))
     var rsRange = Math.min(40, Math.max(scanRange, 10))
     var rsX = 0
     var rsY = 0
@@ -1383,7 +1383,7 @@ function transform(input, dt, params, state, api) {
     }
     state.stallT = Math.abs(e.speed) < 0.15 ? (state.stallT || 0) + dt : 0
     var stallTime = params.stallTime != null ? params.stallTime : 1.2
-    if ((blockedAhead || state.stallT > stallTime) && e.t - (state.lastReplanT || -9) > 0.6) {
+    if ((blockedAhead || state.stallT > stallTime) && e.t - (state.lastReplanT || -9) > (params.replanCooldown != null ? params.replanCooldown : 0.6)) {
       // pushing against something the costmap does not show: mark the spot ahead (in the driving direction) as occupied
       if (!blockedAhead && input.environment && input.environment.isTouchingSide) markContact(cur.g, true)
       var fix = plan(maxExpFull)
@@ -1502,7 +1502,7 @@ function transform(input, dt, params, state, api) {
   // a U / 3-point turn planned by this planner (turnOk at plan time) shuffles faster (short legs at 3 m/s took 16 s in a 14 m corridor)
   if (state.turnPlan) vShuffle = Math.max(vShuffle, params.turnManeuverSpeed != null ? params.turnManeuverSpeed : 4.5)
   var vRun = state.maze && params.maneuverRunSpeed != null && runTot > 8 ? Math.max(params.maneuverRunSpeed, vShuffle) : vShuffle
-  var vMax = Math.min(vRun, 0.9 + Math.sqrt(2 * 3 * (runLen > 8 ? runLen : remain)))
+  var vMax = Math.min(vRun, (params.maneuverRunOffset != null ? params.maneuverRunOffset : 0.9) + Math.sqrt(2 * (params.maneuverRunDecel != null ? params.maneuverRunDecel : 3) * (runLen > 8 ? runLen : remain)))
   // style 'escape': the plan is collision-free along its whole length (footprint-exact, same costmap), so a run is driven as fast as it can still be STOPPED at its end with the real braking
   // capability (maneuverDecel, default 10 m/s^2: v <= sqrt(2 a run)), cornering limit of its arcs (maxLatAccel) and escapeManeuverSpeed (15): 'fits = go'. 'comfort' keeps the 3 m/s shuffle / 7 m/s runs.
   if (params.style === 'escape') {
@@ -1524,7 +1524,7 @@ function transform(input, dt, params, state, api) {
     for (var qi = state.idx + 1; qi < state.segs.length && state.segs[qi].g < 0; qi++) runRemain += state.segs[qi].len
     var vRevFree = freeR < Math.min(arcLook, remain) ? Math.sqrt(2 * (params.comfortDecel || 5) * Math.max(0, freeR - 2)) : 1e9
     var vRevCurve = Math.abs(cur.k) > 1e-4 ? Math.sqrt((params.maxLatAccel || 9) / Math.abs(cur.k)) : 1e9
-    vMax = Math.min(revCruiseSpeed, vRevFree, vRevCurve, 0.9 + Math.sqrt(2 * (params.style === 'escape' ? (params.maneuverDecel != null ? params.maneuverDecel : 10) : 3) * runRemain))
+    vMax = Math.min(revCruiseSpeed, vRevFree, vRevCurve, (params.maneuverRunOffset != null ? params.maneuverRunOffset : 0.9) + Math.sqrt(2 * (params.style === 'escape' ? (params.maneuverDecel != null ? params.maneuverDecel : 10) : params.maneuverRunDecel != null ? params.maneuverRunDecel : 3) * runRemain))
   }
   // revGuard: every manoeuvre segment (either gear) not already capped above: stop within the free arc ahead (v <= sqrt(2 a (free - margin))); only a blockage inside the segment limits the speed
   if (params.revGuard !== false && state.segStart !== null && cur.g < 0 && !state.revCruise) {

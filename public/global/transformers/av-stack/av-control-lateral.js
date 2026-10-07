@@ -18,7 +18,7 @@ function transform(input, dt, params, state, api) {
   var rate = params.steerRate != null ? params.steerRate : 4
   var kRaw = av.plan.kappa
   var pl = av.plan
-  if (params.purePursuit !== false && !(av.threats && av.threats.length) && av.mode !== 'reverse' && !pl.override && !pl.blocked && pl.free >= (pl.required || 0) && pl.clearance >= 1 && e.speedF > 3 && Math.abs(kRaw) < (params.ppMaxKappa != null ? params.ppMaxKappa : 0.04)) {
+  if (params.purePursuit !== false && !(av.threats && av.threats.length) && av.mode !== 'reverse' && !pl.override && !pl.blocked && pl.free >= (pl.required || 0) && pl.clearance >= (params.ppMinClearance != null ? params.ppMinClearance : 1) && e.speedF > (params.ppMinSpeed != null ? params.ppMinSpeed : 3) && Math.abs(kRaw) < (params.ppMaxKappa != null ? params.ppMaxKappa : 0.04)) {
     var tg = input.target && input.target.pose && input.target.pose.position
     var ax = av.carrot ? av.carrot[0] : tg ? tg[0] : null
     var az = av.carrot ? av.carrot[1] : tg ? tg[2] : null
@@ -40,7 +40,7 @@ function transform(input, dt, params, state, api) {
   var v = Math.abs(e.speed)
   if (state.kf === undefined || av.mode === 'reverse' || av.plan.override || v < 2) state.kf = kRaw
   var jump = Math.abs(kRaw - state.kf)
-  var tauK = jump > (params.kappaJump != null ? params.kappaJump : 0.025) ? 0.04 : (params.kappaTau != null ? params.kappaTau : 0.04) + 0.008 * v
+  var tauK = jump > (params.kappaJump != null ? params.kappaJump : 0.025) ? (params.kappaTauFast != null ? params.kappaTauFast : 0.04) : (params.kappaTau != null ? params.kappaTau : 0.04) + (params.kappaTauSpeed != null ? params.kappaTauSpeed : 0.008) * v
   state.kf += (kRaw - state.kf) * Math.min(1, dt / (tauK + dt))
   var kCmd = state.kf
   var steer = kCmd / kps

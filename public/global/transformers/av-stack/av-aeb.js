@@ -11,13 +11,13 @@ function transform(input, dt, params, state, api) {
   if (av && av.preset) params = state.pmP === params && state.pmB === av.preset ? state.pm : ((state.pmP = params), (state.pmB = av.preset), (state.pm = Object.assign({}, av.preset, params)))
   if (!av || !av.ego) return {}
   var e = av.ego
-  if (e.speed < 0.8) {
+  if (e.speed < (params.aebMinSpeed != null ? params.aebMinSpeed : 0.8)) {
     av.aeb = false
     return {}
   }
   var a = params.aebDecel || 7
   var margin = params.aebMargin != null ? params.aebMargin : 1.0
-  if (av.mode === 'maneuver') margin = 0.2
+  if (av.mode === 'maneuver') margin = params.aebManeuverMargin != null ? params.aebManeuverMargin : 0.2
   var len = (av.vehicle && av.vehicle.length) || params.vehicleLength || 4
   var wid = (av.vehicle && av.vehicle.width) || params.vehicleWidth || 2
   var hw = params.aebHalfWidth != null ? params.aebHalfWidth : Math.max(0.9, wid / 2 - 0.1)

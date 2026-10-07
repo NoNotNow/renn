@@ -64,7 +64,7 @@ function transform(input, dt, params, state, api) {
     }
     if (dn < slowR) {
       var vNear = Math.max(crawl, (params.obstacleSlowFactor != null ? params.obstacleSlowFactor : 0.5) * cruise)
-      var t = Math.min(1, Math.max(0, (dn - 0.3) / Math.max(0.01, slowR - 0.3)))
+      var t = Math.min(1, Math.max(0, (dn - (params.nearTouchDist != null ? params.nearTouchDist : 0.3)) / Math.max(0.01, slowR - (params.nearTouchDist != null ? params.nearTouchDist : 0.3))))
       var vProx = vNear + (cruise - vNear) * t
       if (vProx < v) {
         v = vProx

@@ -106,7 +106,7 @@ function transform(input, dt, params, state, api) {
   // paths still end at the obstacle.
   var hClear = params.horizonClear != null ? params.horizonClear : 0
   if (hClear > H) H = Math.min(hMax, hClear)
-  var Lreq = Math.min(H, (v * v) / (2 * aBrake) + 5)
+  var Lreq = Math.min(H, (v * v) / (2 * aBrake) + (params.requiredExtra != null ? params.requiredExtra : 5))
   var wProg = params.wProgress != null ? params.wProgress : 1.0
   var wHead = params.wHeading != null ? params.wHeading : 2.0
   var wReq = params.wRequired != null ? params.wRequired : 60
@@ -115,8 +115,8 @@ function transform(input, dt, params, state, api) {
   var wSmooth = params.wSmooth != null ? params.wSmooth : 2.5
   var wTurn = params.wTurn != null ? params.wTurn : 1.5
   var minFree = params.minFree != null ? params.minFree : 4.5
-  var ds = 0.75
-  var turnAngles = [0.5, 1.15]
+  var ds = params.sweepStep != null ? params.sweepStep : 0.75
+  var turnAngles = [params.turnAngle1 != null ? params.turnAngle1 : 0.5, params.turnAngle2 != null ? params.turnAngle2 : 1.15]
 
   // costmap into ego frame
   var pts = av.points || []

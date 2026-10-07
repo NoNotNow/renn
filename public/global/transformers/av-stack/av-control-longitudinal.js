@@ -165,7 +165,7 @@ function transform(input, dt, params, state, api) {
     var aDes = errV / tau + state.I
     if (aDes > maxAcc) aDes = maxAcc
     if (aDes < -maxDec) aDes = -maxDec
-    if (aDes > -maxDec && aDes < maxAcc) state.I = Math.max(-3, Math.min(3, state.I + ki * errV * dt))
+    if (aDes > -maxDec && aDes < maxAcc) state.I = Math.max(-(params.iClamp != null ? params.iClamp : 3), Math.min(params.iClamp != null ? params.iClamp : 3, state.I + ki * errV * dt))
     // never brake through zero within one frame: the deceleration that stops the car this frame is the most we ask for
     if (Math.abs(vDes) < 0.05) {
       var stopA = Math.abs(v) / Math.max(dt, 1e-3)
@@ -197,7 +197,7 @@ function transform(input, dt, params, state, api) {
     // (aDes + D) / G with an overestimated D asked for forward thrust while braking, i.e. the car accelerated to 60+ m/s against a demand of 10;
     // friction / brake alone slow it down, and the model catches up.
     var sTrav = v > 0 ? 1 : -1
-    if (Math.abs(v) > 1 && (v - vDes) * sTrav > 8 && u * sTrav > 0 && aMeas * sTrav > 0) u = 0
+    if (Math.abs(v) > 1 && (v - vDes) * sTrav > (params.overspeedCut != null ? params.overspeedCut : 8) && u * sTrav > 0 && aMeas * sTrav > 0) u = 0
     // stopping: never push along the direction of travel (friction alone may decelerate harder than maxDecel — fine)
     if (Math.abs(vDes) < 0.05 && u * v > 0) u = 0
   }
