@@ -100,7 +100,6 @@ export function buildShippedGlobalBehaviorLibraryBundle(): ShippedGlobalBehavior
   return {
     version: 1,
     checksum,
-    syncedAt: new Date().toISOString(),
     library: buildSelfDrivingGlobalBehaviorLibrary(),
   }
 }

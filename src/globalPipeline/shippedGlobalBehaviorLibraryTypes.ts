@@ -4,7 +4,6 @@ import type { GlobalBehaviorLibrary } from '@/types/globalBehaviorLibrary'
 export type ShippedGlobalBehaviorLibraryBundle = {
   version: number
   checksum: string
-  syncedAt?: string
   library: GlobalBehaviorLibrary
 }
 

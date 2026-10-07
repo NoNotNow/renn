@@ -48,7 +48,6 @@ for (const name of ['umlenker.js', 'direction.js', 'auto-brake.js', 'target-line
 }
 
 const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
-manifest.syncedAt = new Date().toISOString()
 manifest.checksums = checksums
 writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n')
 
