@@ -43,7 +43,10 @@ export class EpisodePool {
             const p = this.running.get(w)
             this.running.delete(w)
             this.idle.push(w)
-            if (p) (msg.error ? p.reject(new Error(msg.error)) : p.resolve(msg.metrics!))
+            if (p) {
+              if (msg.error) p.reject(new Error(msg.error))
+              else p.resolve(msg.metrics!)
+            }
             this.pump()
           })
         }),
