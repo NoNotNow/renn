@@ -43,3 +43,12 @@ IndexedDB database `renn-av-evolution` (stores `runs`, `candidates`, `generation
 - Trade-off: #1 is the fastest but scrapes walls more than the baseline. #2 is faster with fewer contacts.
 - The params are not applied to any shipped car. Apply them explicitly from the panel or with `av_evolution_apply`.
 - The first run (single-maze TRAIN, rotating episode subsets) reached only -21% on the original 6 HOLDOUT episodes. That led to the protocol above.
+
+### v3 run (spec v3, 132 genes, maze module on) - effectively a replication
+- The maze module is inert on maze episodes (M5: byte-identical to off, no chasers/danger/goal-watchdog), so the 5 maze genes do nothing. This is a second D1-style run with a different gene vector and RNG, not a test of the module.
+- Command: `npm run av:evolve -- --gens 50 --pop 16 --workers 9 --out test-results/av-evolution/e5.json`. 6762 episodes in 5267 s (1.28 episodes/s; slower than v2 because the machine was heavily loaded by other jobs). Per-generation best fitness (rotating batches, not comparable across gens) went from about 1.0 (first 10 gens) to about 0.74 (last 10).
+- HOLDOUT-24 (mean / median exit s, reached, contact events / frames), top 3 by TRAIN fitness picked beforehand:
+  - `baseline-off` 43.6 / 34.1, 21/24, 1 / 44. `baseline-shipped` 48.7 / 35.5, 22/24, 2 / 182.
+  - New #1 c784 31.7 / 20.0, 24/24, 2 / 14. #2 c795 28.0 / 19.8, 24/24, 5 / 58. #3 c623 30.2 / 23.1, 24/24, 2 / 28.
+  - Old v2 best (re-run on this head): c750 25.7 / 14.4, 23/24, 5 / 303; c702 28.4 / 21.8, 24/24, 1 / 8.
+- Reading: the new run lands at 27-36% faster than `baseline-off` and reaches 24/24, but did not beat the v2 optima (c750, c702) on HOLDOUT. Differences between the top candidates are within what a single 24-episode set and one run can resolve. Raw outputs are under the orchestrate run dir `l3/E5/`.
