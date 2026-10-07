@@ -76,11 +76,18 @@
   {"key": "mazeChaserRadius", "type": "number", "default": 14, "group": "Maze", "unit": "m", "min": 0, "description": "Radius of the cost zone around a moving chaser (linear fall-off) and its predicted positions.", "advanced": true},
   {"key": "mazeChaserLead", "type": "number", "default": 2, "group": "Maze", "unit": "s", "min": 0, "description": "Prediction time of the chaser cost zone along its velocity.", "advanced": true},
   {"key": "mazeWallCost", "type": "number", "default": 400, "group": "Maze", "min": 1, "description": "Cost factor of cells next to a known wall (inflated by the vehicle): a route that has to cross one (beyond the first 3 steps) is no escape route.", "advanced": true},
-  {"key": "mazeSeenRange", "type": "number", "default": 70, "group": "Maze", "unit": "m", "min": 0, "description": "Exits must be open ground the car has seen: cells in line of sight on the static map within this range of the places it has been; 0 = unseen ground counts as open too.", "advanced": true},
+  {"key": "mazeSeenRange", "type": "number", "default": 70, "group": "Maze", "unit": "m", "min": 0, "description": "Range of the module's own survey rays: exits must be open ground the car has SEEN (real line of sight within this range of the places it has been); 0 = no survey, unseen ground counts as open too.", "advanced": true},
   {"key": "mazeReach", "type": "number", "default": 10, "group": "Maze", "unit": "m", "min": 0, "description": "The escape waypoint is replaced by the next one when the car is this close to it.", "advanced": true},
   {"key": "mazeSeenShare", "type": "number", "default": 0.3, "group": "Maze", "min": 0, "max": 1, "description": "An exit must be open ground whose surroundings (mazeOpenRadius) the car has seen at least this share of.", "advanced": true},
   {"key": "mazeLead", "type": "number", "default": 25, "group": "Maze", "unit": "m", "min": 0, "description": "The escape waypoint is at most this far ahead of the car on the route (earlier at the first route corner).", "advanced": true},
   {"key": "mazeSwitch", "type": "number", "default": 0.25, "group": "Maze", "min": 0, "max": 1, "description": "A new escape route replaces the kept one only when it is this share cheaper (hysteresis).", "advanced": true},
+  {"key": "mazeDens", "type": "number", "default": 50, "group": "Maze", "min": 0, "description": "Labyrinth by wall density: a car with at least this many known wall cells (2 m) within mazeDensRadius also counts as confined when at least mazeDensShare of its rays are blocked (a maze mouth / wide junction reads below mazeEnter). 0 = off.", "advanced": true},
+  {"key": "mazeDensRadius", "type": "number", "default": 30, "group": "Maze", "unit": "m", "min": 0, "description": "Radius of the wall density count.", "advanced": true},
+  {"key": "mazeDensShare", "type": "number", "default": 0.3, "group": "Maze", "min": 0, "max": 1, "description": "Blocked-ray share needed besides the wall density.", "advanced": true},
+  {"key": "mazeHullShare", "type": "number", "default": 0.2, "group": "Maze", "min": 0, "max": 1, "description": "Inside the maze region of a big wall cluster (bounding box >= 30 x 30 m, >= 60 wall points) the car counts as confined at this blocked-ray share (a maze mouth).", "advanced": true},
+  {"key": "mazeHull", "type": "number", "default": 8, "group": "Maze", "unit": "m", "min": 0, "description": "Margin of the maze region: the bounding box of the wall cluster the car is in (known walls closer than ~16 m to each other). Exits must lie outside it plus this margin; open-looking ground inside a maze (unmapped corners, rooms) is never an exit.", "advanced": true},
+  {"key": "mazeScanRays", "type": "number", "default": 72, "group": "Maze", "min": 0, "description": "Rays of the module's own survey per exit field rebuild (full circle, mazeSeenRange): what counts as seen ground and extra wall points; the perception map only holds what it has hit.", "advanced": true},
+  {"key": "mazeDeadR", "type": "number", "default": 24, "group": "Maze", "unit": "m", "min": 0, "description": "An exit the car reached (within 4 m) while still confined was not one (unmapped corner): no exit within this radius of it any more, until the car is free again.", "advanced": true},
   {"key": "mazeEvery", "type": "number", "default": 0.4, "group": "Maze", "unit": "s", "min": 0, "description": "Minimum time between rebuilds of the exit field.", "advanced": true},
   {"key": "mazeHold", "type": "number", "default": 3, "group": "Maze", "unit": "s", "min": 0, "description": "The maze escape stays active this long after its last trigger (unreachable goal, danger, chaser within mazeThreatRange).", "advanced": true},
   {"key": "mazeThreatRange", "type": "number", "default": 60, "group": "Maze", "unit": "m", "min": 0, "description": "A moving tracked car within this distance triggers the maze escape.", "advanced": true},
@@ -513,7 +520,9 @@ function fleeGoal(av, thrs, input, params, state, api) {
       for (var mi = 0; mi < thrs.length; mi++) {
         var mvx = thrs[mi].vx
         var mvz = thrs[mi].vz
-        if (mvx * mvx + mvz * mvz > 4 && Math.pow(thrs[mi].x - pos[0], 2) + Math.pow(thrs[mi].z - pos[2], 2) < mzRange * mzRange) mzNear = true
+        // a moving chaser within mazeThreatRange, a stalled one (stuck behind a wall, waiting) within half of it: it is still a chaser
+        var mzd2 = Math.pow(thrs[mi].x - pos[0], 2) + Math.pow(thrs[mi].z - pos[2], 2)
+        if (mzd2 < (mvx * mvx + mvz * mvz > 4 ? mzRange * mzRange : mzRange * mzRange * 0.25)) mzNear = true
       }
       if (bad || simDanger || mzNear || danger(g0[0], g0[2])) state.mzT = now
       if (state.mzT !== undefined && now - state.mzT < (params.mazeHold != null ? params.mazeHold : 3) && mzr.goal) {
@@ -643,7 +652,10 @@ function fleeGoal(av, thrs, input, params, state, api) {
 //     The route is the steepest descent of the field from the car (the path of least resistance); the exit is its last cell.
 //  3. Hysteresis: the kept route is re-costed on the new field and replaced only when the new one is mazeSwitch (25 %) cheaper. Rebuild at most every mazeEvery (0.4 s) when the map, the car zones or the car cell changed.
 //  4. The flee goal = a held waypoint on the route: the first route corner >= 12 m ahead, at most mazeLead (25 m) ahead (the exit itself at the end); the next one when the car is within mazeReach (10 m). The route planner then drives it with its own goal-distance field.
-// Blackboard: av.maze = {on, share, route, exit, cost, goal, why}; watch 'av.maze'.
+// 2026-10-07 round 2 (details in agent-context/feature-av-stack.md 'Maze module'): confined also by wall density (mazeDens) or inside a big wall cluster (mazeHullShare); exits = breadcrumbs (open ground driven on), seen open ground outside the maze region
+// (bounding box of the known wall cluster + 45 m of walls round the car, mazeHull margin), only then unseen ground outside it + mazeHullExplore; a reached exit while still confined is blacklisted (mazeDeadR); the module's own survey rays
+// (mazeScanRays) define 'seen' and add wall points; the waypoint is always in line of sight (static map, then a physics ray); stalled tracked chasers within half mazeThreatRange also trigger.
+// Blackboard: av.maze = {on, share, dens, hull, route, exit, cost, goal, why}; watch 'av.maze'.
 function mazeStep(av, input, params, state, api, thrs) {
   var mz = state.mz || (state.mz = { on: false, share: 0, ver: -1, tB: -99, sig: '', route: null, cost: 0, idx: 0, why: '', shown: '' })
   var now = state.t
@@ -661,15 +673,54 @@ function mazeStep(av, input, params, state, api, thrs) {
   var nb = 0
   for (var i = 0; i < 16; i++) if (freeRun(g, pos[0], pos[2], (i * Math.PI) / 8, range, 2) < range - 2) nb++
   mz.share = nb / 16
-  if (!mz.on && mz.share >= (params.mazeEnter != null ? params.mazeEnter : 0.6)) mz.on = true
-  else if (mz.on && mz.share < (params.mazeLeave != null ? params.mazeLeave : 0.4)) {
+  // wall density: known wall cells within mazeDensRadius (a maze mouth / junction blocks fewer rays than a corridor but sits in a dense wall field)
+  var densN = params.mazeDens != null ? params.mazeDens : 50
+  var dens = 0
+  if (densN > 0) {
+    var dR = Math.ceil((params.mazeDensRadius != null ? params.mazeDensRadius : 30) / 2)
+    var dpx = Math.floor(pos[0] / 2)
+    var dpz = Math.floor(pos[2] / 2)
+    for (var dox = -dR; dox <= dR; dox++) for (var doz = -dR; doz <= dR; doz++) if (dox * dox + doz * doz <= dR * dR && g.set[(dpx + dox) * 100003 + dpz + doz]) dens++
+  }
+  mz.dens = dens
+  // inside a big wall cluster (bounding box >= 30 x 30 m, >= 60 known wall points: a labyrinth, not a lone block): refreshed every mazeEvery (the cluster only grows)
+  if (now - (mz.hullT === undefined ? -99 : mz.hullT) >= 0.4) {
+    mz.hullT = now
+    mz.hullC = mazeHullBox(list, pos)
+  }
+  var hc = mz.hullC
+  var inBig = !!hc && pos[0] > hc[0] && pos[0] < hc[2] && pos[2] > hc[1] && pos[2] < hc[3] && hc[2] - hc[0] >= 30 && hc[3] - hc[1] >= 30 && hc[4] >= 60
+  mz.inBig = inBig
+  var enterS = params.mazeEnter != null ? params.mazeEnter : 0.6
+  var leaveS = params.mazeLeave != null ? params.mazeLeave : 0.4
+  var densS = params.mazeDensShare != null ? params.mazeDensShare : 0.3
+  // breadcrumbs: where the car drove in clearly open ground (the way it came in is the one exit known to be drivable)
+  var cb = mz.crumbs || (mz.crumbs = [])
+  if (mz.share < 0.3 && (densN <= 0 || dens < densN * 0.5) && (!cb.length || Math.pow(cb[cb.length - 1][0] - pos[0], 2) + Math.pow(cb[cb.length - 1][1] - pos[2], 2) > 36)) {
+    cb.push([pos[0], pos[2]])
+    if (cb.length > 160) cb.shift()
+  }
+  var hullS = params.mazeHullShare != null ? params.mazeHullShare : 0.2
+  if (!mz.on && (mz.share >= enterS || (densN > 0 && dens >= densN && mz.share >= densS) || (inBig && mz.share >= hullS))) mz.on = true
+  else if (mz.on && mz.share < leaveS && !(densN > 0 && dens >= densN * 0.7 && mz.share >= densS * 0.8) && !(inBig && mz.share >= hullS * 0.75)) {
     mz.on = false
     mz.route = null
     mz.ver = -1
+    mz.dead = null
   }
   if (!mz.on) {
     mazeWatch(mz, api, 'free ' + Math.round(mz.share * 100) + '%')
     return res
+  }
+  // the end of the route reached while still confined: that 'exit' was open-looking ground of a part not mapped yet, not an exit. It is remembered (no exit within mazeDeadR of it) and a new route is built now.
+  if (mz.route) {
+    var re = mz.route[mz.route.length - 1]
+    if (Math.pow(re[0] - pos[0], 2) + Math.pow(re[1] - pos[2], 2) < 16) {
+      ;(mz.dead || (mz.dead = [])).push(re)
+      mz.route = null
+      mz.wp = null
+      mz.tB = -99
+    }
   }
   // car zones signature: the rebuild waits for a change of the map or of the zones
   var sig = ''
@@ -677,13 +728,15 @@ function mazeStep(av, input, params, state, api, thrs) {
   for (var ti = 0; ti < thrs.length; ti++) sig += Math.round(thrs[ti].x / 4) + ',' + Math.round(thrs[ti].z / 4) + ';'
   sig += dyn ? dyn.length + ':' + Math.round(dyn.length ? dyn[0][0] / 3 : 0) : '0'
   var every = params.mazeEvery != null ? params.mazeEvery : 0.4
-  if ((list.length !== mz.ver || sig !== mz.sig || !mz.route) && now - mz.tB >= every) {
+  if ((list.length !== mz.ver || (mz.xv || 0) !== (mz.xv0 || 0) || sig !== mz.sig || !mz.route) && now - mz.tB >= every) {
     mz.tB = now
     mz.ver = list.length
     mz.sig = sig
     var seenR = params.mazeSeenRange != null ? params.mazeSeenRange : 70
-    if (seenR > 0) mazeSee(mz, g, pos, seenR)
-    mazeBuild(mz, list, dyn, thrs, pos, params, av)
+    if (seenR > 0) mazeScan(mz, api, input, av, seenR, params.mazeScanRays != null ? params.mazeScanRays : 72)
+    mz.ver = list.length
+    mz.xv0 = mz.xv || 0
+    mazeBuild(mz, mz.extra && mz.extra.list.length ? list.concat(mz.extra.list) : list, dyn, thrs, pos, params, av)
   }
   res.on = true
   if (mz.route) {
@@ -702,6 +755,8 @@ function mazeStep(av, input, params, state, api, thrs) {
     var lead = params.mazeLead != null ? params.mazeLead : 25
     // the waypoint is held (a stable goal for the route planner) until the car is within mazeReach of it; the next one is the first route corner (heading change > 30 deg) 12 m or more ahead, at the latest `lead` m ahead
     // (the exit itself at the end of the route)
+    // a held waypoint that the car no longer sees (a wall between: it swung wide / the route moved) is replaced
+    if (mz.wp && mz.wpRoute === rt && (!mazeLos(g, pos[0], pos[2], mz.wp[0], mz.wp[1]) || mazeRayBlocked(mz, api, input, av, mz.wp))) mz.wp = null
     if (mz.wpRoute !== rt || !mz.wp || Math.hypot(mz.wp[0] - pos[0], mz.wp[1] - pos[2]) < (params.mazeReach != null ? params.mazeReach : 10)) {
       var acc = 0
       var gi = bi
@@ -717,31 +772,79 @@ function mazeStep(av, input, params, state, api, thrs) {
           if (ux * wx + uz * wz < 0.866 * Math.hypot(ux, uz) * Math.hypot(wx, wz)) break
         }
       }
+      // the waypoint is a point the car can drive at in a straight line: back off along the route to the last point in line of sight (static map, then a physics ray: the map only holds what was seen) - never a goal behind a wall
+      while (gi > bi + 1 && !mazeLos(g, pos[0], pos[2], rt[gi][0], rt[gi][1])) gi--
+      for (var rb = 0; rb < 6 && gi > bi + 1 && mazeRayBlocked(mz, api, input, av, rt[gi]); rb++) gi = bi + 1 + Math.floor((gi - bi - 1) / 2)
       mz.wp = rt[gi]
       mz.wpRoute = rt
     }
     res.goal = mz.wp
     mz.goal = mz.wp
   } else mz.goal = null
-  av.maze = { on: true, share: mz.share, route: mz.route, exit: mz.route ? mz.route[mz.route.length - 1] : null, cost: mz.cost, goal: mz.goal, why: mz.why }
+  av.maze = { on: true, share: mz.share, dens: mz.dens, hull: mz.hull, route: mz.route, exit: mz.route ? mz.route[mz.route.length - 1] : null, cost: mz.cost, goal: mz.goal, why: mz.why }
   mazeWatch(mz, api, 'confined ' + Math.round(mz.share * 100) + '% ' + (mz.route ? (mz.explore ? 'explore ' : '') + 'exit ' + Math.round(mz.route[mz.route.length - 1][0]) + ',' + Math.round(mz.route[mz.route.length - 1][1]) + ' cost ' + Math.round(mz.cost / 5) * 5 : mz.why))
   return res
 }
-function mazeWatch(mz, api, txt) {
-  if (txt !== mz.shown) {
-    mz.shown = txt
-    api.watch('av.maze', txt)
+// the straight segment (x0,z0) -> (x1,z1) meets no known wall cell (2 m cells, 1 m steps; the first 2 m are free: the car may stand next to a wall)
+function mazeLos(g, x0, z0, x1, z1) {
+  var dx = x1 - x0
+  var dz = z1 - z0
+  var len = Math.hypot(dx, dz)
+  for (var d = 2; d <= len; d += 1) {
+    if (g.set[Math.floor((x0 + (dx * d) / len) / 2) * 100003 + Math.floor((z0 + (dz * d) / len) / 2)]) return false
   }
+  return true
 }
-// cells in line of sight of the car on the static map (rays every 5 deg, marched to the first wall cell or `range`): the places the car has seen; kept for the run (2 m cells, same keys as wallGrid)
-function mazeSee(mz, g, pos, range) {
+// a physics ray from the car (outside its hull) to the point hits a STATIC body before it (the map only holds what was seen: a wall round the corner is real all the same). The hit is remembered as a wall point (mz.extra) and
+// forces a rebuild of the exit field. Cars / props do not count (they are costs of the field, not walls).
+function mazeRayBlocked(mz, api, input, av, pt) {
+  var pos = input.position
+  var dx = pt[0] - pos[0]
+  var dz = pt[1] - pos[2]
+  var len = Math.hypot(dx, dz)
+  var hl = ((av.vehicle && av.vehicle.length) || 8) / 2 + 0.6
+  if (len < hl + 3) return false
+  var ux = dx / len
+  var uz = dz / len
+  var r = api.raycast([pos[0] + ux * hl, pos[1], pos[2] + uz * hl], [ux, 0, uz], len - hl, { visualize: false })
+  if (!r.hit || r.distance > len - hl - 1.5) return false
+  if (!mazeStaticBody(mz, api, r.entityId)) return false
+  mazeAddWall(mz, pos[0] + ux * (hl + r.distance), pos[2] + uz * (hl + r.distance))
+  return true
+}
+// 1 when the entity is a static non-plane body (a wall), cached
+function mazeStaticBody(mz, api, id) {
+  if (!mz.bt) mz.bt = {}
+  var bt = mz.bt[id]
+  if (bt === undefined) {
+    var he = id ? api.getEntity(id) : null
+    bt = mz.bt[id] = he && he.bodyType === 'static' && !(he.shape && he.shape.type === 'plane') ? 1 : 0
+  }
+  return bt
+}
+// a wall point the module found itself (physics rays): joins the exit field next to the perception map; a new one forces a rebuild
+function mazeAddWall(mz, x, z) {
+  var key = Math.floor(x / 2) * 100003 + Math.floor(z / 2)
+  var ex = mz.extra || (mz.extra = { set: {}, list: [] })
+  if (ex.set[key] || ex.list.length >= 4000) return
+  ex.set[key] = 1
+  ex.list.push([x, z])
+  mz.xv = (mz.xv || 0) + 1
+}
+// the module's own survey (mazeScanRays rays, mazeSeenRange m, every rebuild): the places in line of sight on the REAL geometry (cells up to the first body hit: the perception map only holds what it has hit, so a wall it has
+// not seen would let the ray run on and mark the cells behind it as seen); static hits become wall points. Seen cells are kept for the run (2 m cells, same keys as wallGrid).
+function mazeScan(mz, api, input, av, range, nRays) {
   var seen = mz.seen || (mz.seen = {})
   if (!mz.seenList) mz.seenList = []
-  for (var i = 0; i < 72; i++) {
-    var a = (i * Math.PI) / 36
-    var rd = freeRun(g, pos[0], pos[2], a, range, 2)
+  var pos = input.position
+  var hl = ((av.vehicle && av.vehicle.length) || 8) / 2 + 0.6
+  for (var i = 0; i < nRays; i++) {
+    var a = (i * 2 * Math.PI) / nRays
     var cx = Math.cos(a)
     var cz = Math.sin(a)
+    var r = api.raycast([pos[0] + cx * hl, pos[1], pos[2] + cz * hl], [cx, 0, cz], range, { visualize: false })
+    var rd = hl + (r.hit ? r.distance : range)
+    if (r.hit && mazeStaticBody(mz, api, r.entityId)) mazeAddWall(mz, pos[0] + cx * rd, pos[2] + cz * rd)
     for (var d = 0; d <= rd; d += 2) {
       var ix = Math.floor((pos[0] + cx * d) / 2)
       var iz = Math.floor((pos[2] + cz * d) / 2)
@@ -752,10 +855,77 @@ function mazeSee(mz, g, pos, range) {
     }
   }
 }
+// bounding box [x0, z0, x1, z1, points] of the wall cluster the car is in (plus every known wall point within 45 m of it): 8 m buckets of known wall points, 8-connected (walls closer than ~16 m belong together); the cluster of the nearest occupied bucket within 3 buckets of the car; null when none
+function mazeHullBox(list, pos) {
+  var bs = 8
+  var occ = {}
+  for (var i = 0; i < list.length; i++) occ[Math.floor(list[i][0] / bs) * 100003 + Math.floor(list[i][1] / bs)] = 1
+  var cx = Math.floor(pos[0] / bs)
+  var cz = Math.floor(pos[2] / bs)
+  var start = null
+  var bd = 1e9
+  for (var ox = -3; ox <= 3; ox++) {
+    for (var oz = -3; oz <= 3; oz++) {
+      if (occ[(cx + ox) * 100003 + cz + oz] && ox * ox + oz * oz < bd) {
+        bd = ox * ox + oz * oz
+        start = [cx + ox, cz + oz]
+      }
+    }
+  }
+  if (!start) return null
+  var seen = {}
+  var stack = [start]
+  seen[start[0] * 100003 + start[1]] = 1
+  var x0 = start[0]
+  var x1 = start[0]
+  var z0 = start[1]
+  var z1 = start[1]
+  while (stack.length) {
+    var c = stack.pop()
+    if (c[0] < x0) x0 = c[0]
+    if (c[0] > x1) x1 = c[0]
+    if (c[1] < z0) z0 = c[1]
+    if (c[1] > z1) z1 = c[1]
+    for (var ax = -1; ax <= 1; ax++) {
+      for (var az = -1; az <= 1; az++) {
+        var k = (c[0] + ax) * 100003 + c[1] + az
+        if (occ[k] && !seen[k]) {
+          seen[k] = 1
+          stack.push([c[0] + ax, c[1] + az])
+        }
+      }
+    }
+  }
+  var n = 0
+  var bx0 = x0 * bs
+  var bz0 = z0 * bs
+  var bx1 = (x1 + 1) * bs
+  var bz1 = (z1 + 1) * bs
+  for (var pi = 0; pi < list.length; pi++) {
+    var lx = list[pi][0]
+    var lz = list[pi][1]
+    var inC = seen[Math.floor(lx / bs) * 100003 + Math.floor(lz / bs)]
+    if (inC) n++
+    // plus every known wall point within 45 m of the car: a partly mapped maze splits into fragments, the walls round the car belong to the same maze
+    if (inC || (lx - pos[0]) * (lx - pos[0]) + (lz - pos[2]) * (lz - pos[2]) < 2025) {
+      if (lx < bx0) bx0 = lx
+      if (lx > bx1) bx1 = lx
+      if (lz < bz0) bz0 = lz
+      if (lz > bz1) bz1 = lz
+    }
+  }
+  return [bx0, bz0, bx1, bz1, n]
+}
+function mazeWatch(mz, api, txt) {
+  if (txt !== mz.shown) {
+    mz.shown = txt
+    api.watch('av.maze', txt)
+  }
+}
 // (re)build the exit field and pick / keep the escape route
 function mazeBuild(mz, list, dyn, thrs, pos, params, av) {
   var cs = 2
-  var half = 128
+  var half = 144
   var wx0 = Math.floor(pos[0] / 32) * 32 - half
   var wz0 = Math.floor(pos[2] / 32) * 32 - half
   var W = Math.round((2 * half + 32) / cs)
@@ -897,29 +1067,68 @@ function mazeBuild(mz, list, dyn, thrs, pos, params, av) {
     return top
   }
   var m0 = oR + 1
+  var isSrc = new Uint8Array(N)
   var nSrc = 0
   var minD2 = Math.pow(params.mazeRange != null ? params.mazeRange : 18, 2)
+  // the maze region (bounding box of the known wall cluster the car is in) + margin: open-looking ground inside it is a room or an unmapped corner, not an exit
+  var hullM = params.mazeHull != null ? params.mazeHull : 8
+  var hull = mazeHullBox(list, pos)
+  mz.hull = hull
+  var hx0 = hull ? hull[0] - hullM : 0
+  var hz0 = hull ? hull[1] - hullM : 0
+  var hx1 = hull ? hull[2] + hullM : 0
+  var hz1 = hull ? hull[3] + hullM : 0
   var seen = satS
   var seenMin = (params.mazeSeenShare != null ? params.mazeSeenShare : 0.3) * (2 * oR + 1) * (2 * oR + 1)
   mz.explore = false
-  // open ground the car has seen first; without any, every open-looking cell counts (the car explores along the field)
-  for (var pass = 0; pass < 2 && !nSrc; pass++) {
+  // sources, in tiers (a source key is the cost handicap of that exit):
+  //  1. breadcrumbs: places the car has DRIVEN on in open ground (low wall density, outside the maze region, not within mazeRange of the car): known drivable, known free, e.g. the way it came in. Key 0.
+  //  2. open ground the car has SEEN (>= mazeSeenShare of its surroundings in line of sight) outside the maze region. Key mazeSeenPen (40 m of free corridor): a far entrance beats a doubtful near gap.
+  //  3. only when there is neither: every open-looking cell outside the maze region plus mazeHullExplore (24 m) counts (the car explores outwards, the region grows as walls appear).
+  var deadR2 = Math.pow(params.mazeDeadR != null ? params.mazeDeadR : 24, 2)
+  function isDead(xw, zw) {
+    var dl = mz.dead
+    if (dl) for (var di2 = 0; di2 < dl.length; di2++) if ((dl[di2][0] - xw) * (dl[di2][0] - xw) + (dl[di2][1] - zw) * (dl[di2][1] - zw) < deadR2) return true
+    return false
+  }
+  function inHull(xw, zw, mg) {
+    return !!hull && xw > hull[0] - mg && xw < hull[2] + mg && zw > hull[1] - mg && zw < hull[3] + mg
+  }
+  var crumbs = mz.crumbs || []
+  for (var ci = 0; ci < crumbs.length; ci++) {
+    var bcx = Math.floor((crumbs[ci][0] - wx0) / cs)
+    var bcz = Math.floor((crumbs[ci][1] - wz0) / cs)
+    if (bcx < 1 || bcz < 1 || bcx >= W - 1 || bcz >= H - 1 || inf[bcx * H + bcz]) continue
+    if (Math.pow(crumbs[ci][0] - pos[0], 2) + Math.pow(crumbs[ci][1] - pos[2], 2) < minD2 || inHull(crumbs[ci][0], crumbs[ci][1], hullM) || isDead(crumbs[ci][0], crumbs[ci][1])) continue
+    d[bcx * H + bcz] = 0
+    isSrc[bcx * H + bcz] = 1
+    push(0, bcx * H + bcz)
+    nSrc++
+  }
+  var seenPen = params.mazeSeenPen != null ? params.mazeSeenPen : 40
+  var hullX = params.mazeHullExplore != null ? params.mazeHullExplore : 24
+  for (var pass = 0; pass < 2; pass++) {
+    if (pass === 1 && (nSrc || !seen)) break
+    var mgn = pass === 0 ? hullM : Math.max(hullM, hullX)
     for (var sx = m0; sx < W - m0; sx++) {
       for (var sz = m0; sz < H - m0; sz++) {
         var si = sx * H + sz
         if (inf[si]) continue
         // open ground is never inside the confinement radius of the car itself (a barely mapped pocket reads as open)
-        if (Math.pow(wx0 + (sx + 0.5) * cs - pos[0], 2) + Math.pow(wz0 + (sz + 0.5) * cs - pos[2], 2) < minD2) continue
+        var sxw = wx0 + (sx + 0.5) * cs
+        var szw = wz0 + (sz + 0.5) * cs
+        if (Math.pow(sxw - pos[0], 2) + Math.pow(szw - pos[2], 2) < minD2) continue
+        if (inHull(sxw, szw, mgn) || isDead(sxw, szw)) continue
         if (pass === 0 && seen && seen[(sx + oR + 1) * (H + 1) + sz + oR + 1] - seen[(sx - oR) * (H + 1) + sz + oR + 1] - seen[(sx + oR + 1) * (H + 1) + sz - oR] + seen[(sx - oR) * (H + 1) + sz - oR] < seenMin) continue
         var cnt = sat[(sx + oR + 1) * (H + 1) + sz + oR + 1] - sat[(sx - oR) * (H + 1) + sz + oR + 1] - sat[(sx + oR + 1) * (H + 1) + sz - oR] + sat[(sx - oR) * (H + 1) + sz - oR]
-        if (cnt <= oMax) {
-          d[si] = 0
-          push(0, si)
+        if (cnt <= oMax && d[si] > seenPen) {
+          d[si] = pass === 0 && seen ? seenPen : 0
+          isSrc[si] = 1
+          push(d[si], si)
           nSrc++
         }
       }
     }
-    if (!seen) break
     mz.explore = pass === 1
   }
   var offs = [H, -H, 1, -1, H + 1, H - 1, 1 - H, -H - 1]
@@ -954,7 +1163,7 @@ function mazeBuild(mz, list, dyn, thrs, pos, params, av) {
     var wallN = 0
     // a car that starts inside the inflated zone of a wall may leave it; blocked cells after the first free one are crossings
     var clear = !inf[cur]
-    for (var s = 0; s < 800 && d[cur] > 0; s++) {
+    for (var s = 0; s < 800 && !isSrc[cur]; s++) {
       var cx = (cur / H) | 0
       var cz = cur - cx * H
       var best = d[cur]
@@ -975,7 +1184,7 @@ function mazeBuild(mz, list, dyn, thrs, pos, params, av) {
       var px = (cur / H) | 0
       pts.push([wx0 + (px + 0.5) * cs, wz0 + (cur - px * H + 0.5) * cs])
     }
-    if (d[cur] === 0 && wallN === 0 && pts.length > 3) route = pts
+    if (isSrc[cur] && wallN === 0 && pts.length > 3) route = pts
     else mz.why = wallN > 0 ? 'walled in' : 'no way'
   }
   // hysteresis: the kept route (re-costed on the new field) is replaced only when the new one is mazeSwitch cheaper
