@@ -98,6 +98,7 @@
   {"key": "mazeTurnSpeed", "type": "number", "default": 8, "group": "Maze", "unit": "m/s", "min": 0, "description": "Speed at which the escape route's first sharp corner (exit gap) is taken: the car brakes (mazeTurnDecel) to it while the maze flee goal is active, also when chased.", "advanced": true},
   {"key": "mazeTurnDecel", "type": "number", "default": 4, "group": "Maze", "unit": "m/s^2", "min": 0, "description": "Braking deceleration assumed for the speed cap before the escape route's first sharp corner.", "advanced": true},
   {"key": "mazeEvery", "type": "number", "default": 0.4, "group": "Maze", "unit": "s", "min": 0, "description": "Minimum time between rebuilds of the exit field.", "advanced": true},
+  {"key": "mazeForce", "type": "boolean", "default": false, "group": "Maze", "description": "Maze module: while the space is detected as confined the maze escape stays active every frame (no trigger needed: unreachable goal, danger or chaser). Without it the escape only starts on a trigger, which a chaser-free maze never gives.", "advanced": true},
   {"key": "mazeHold", "type": "number", "default": 3, "group": "Maze", "unit": "s", "min": 0, "description": "The maze escape stays active this long after its last trigger (unreachable goal, danger, chaser within mazeThreatRange).", "advanced": true},
   {"key": "mazeThreatRange", "type": "number", "default": 60, "group": "Maze", "unit": "m", "min": 0, "description": "A moving tracked car within this distance triggers the maze escape.", "advanced": true},
   {"key": "maxCurvature", "type": "number", "default": 0.115, "label": "Max curvature (min turn radius)", "group": "Vehicle", "min": 0, "description": "Tightest curvature the car can drive (1 / minimum turn radius).", "advanced": true},
@@ -533,7 +534,7 @@ function fleeGoal(av, thrs, input, params, state, api) {
         var mzd2 = Math.pow(thrs[mi].x - pos[0], 2) + Math.pow(thrs[mi].z - pos[2], 2)
         if (mzd2 < (mvx * mvx + mvz * mvz > 4 ? mzRange * mzRange : mzRange * mzRange * 0.25)) mzNear = true
       }
-      if (bad || simDanger || mzNear || danger(g0[0], g0[2])) state.mzT = now
+      if (bad || simDanger || mzNear || params.mazeForce === true || danger(g0[0], g0[2])) state.mzT = now
       if (state.mzT !== undefined && now - state.mzT < (params.mazeHold != null ? params.mazeHold : 3) && mzr.goal) {
         state.flee = { maze: true, x: mzr.goal[0], z: mzr.goal[1], t: now, t0: fl && fl.maze ? fl.t0 : now }
         av.fleeing = true

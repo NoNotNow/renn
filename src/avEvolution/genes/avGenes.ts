@@ -13,7 +13,7 @@ const f = (key: string, def: number, group: string, min: number, max: number, sc
 const i = (key: string, def: number, group: string, min: number, max: number, scale: 'lin' | 'log' = 'lin'): GeneSpec => ({ key, type: 'int', default: def, group, min, max, scale })
 const b = (key: string, def: boolean, group: string): GeneSpec => ({ key, type: 'bool', default: def, group })
 
-export const AV_SPEC_VERSION = '3'
+export const AV_SPEC_VERSION = '4'
 
 const AV_GENES_M1: GeneSpec[] = [
   f('maxLatAccel', 9, 'turn', 6, 30, 'lin'),
@@ -155,6 +155,8 @@ export const AV_GENES_EXTRA: GeneSpec[] = [
   f('mazeArriveR', 4, 'maze', 2, 8),
   f('mazeOffRoute', 8, 'maze', 4, 14),
   i('mazeRays', 16, 'maze', 8, 32),
+  // v4: maze-module activation (default off = the escape only starts on a trigger, which chaser-free maze episodes never give)
+  b('mazeForce', false, 'maze'),
 ]
 
 export const AV_GENOME_SPEC: GenomeSpec = { specVersion: AV_SPEC_VERSION, genes: [...AV_GENES_M1, ...AV_GENES_EXTRA] }

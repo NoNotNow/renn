@@ -27,6 +27,10 @@ IndexedDB database `renn-av-evolution` (stores `runs`, `candidates`, `generation
 - Fitness: every candidate of a generation (and the re-scored elites) runs on the same mini-batch of TRAIN keys (common random numbers). The score of each episode is `exitT / baselineExitT(key)`, so hard and easy mazes weigh the same. Contacts and DNFs are penalised. The episode timeout is `clamp(1.6 x baseline, 25 s, 120 s)`. The hall of fame only admits candidates evaluated on all TRAIN keys.
 - Tools: `npm run av:evolve` (`--batch`, `--timeout-factor`, `--active <sensitivity.json>`), `npm run av:evolve:compare -- --run FILE --top 3 --keys holdout-all` (full runs, no stop-on-reach, compares against `baseline-off` = defaults with saver off and `baseline-shipped` = `{saver:true}`), `tools/av-evolution/sensitivity.ts` (one-at-a-time gene screen), `tools/av-evolution/baseline.ts`.
 
+### Maze module activation (spec v4)
+- Spec v4 (133 genes) = v3 + bool gene `mazeForce` (default false = stage default). The maze module (pinned `mazeModule: true`) was inert in maze-escape episodes (M5: byte-identical to off) because its escape only starts on a trigger (goal watchdog, sim danger, chaser, danger on the way) and chaser-free mazes never give one. `mazeForce` makes every frame with a confined-space detection a trigger, so the module drives the whole episode. Baseline stays force-off; evolution decides via the gene. v1-v3 runs are refused on resume.
+- Measured TRAIN-24 (`av:evolve:compare`, pinned params + overrides): off / module-on 52.7 s mean, 38.8 median, 20/24 reached, 3 contact events / 107 frames. `mazeForce` on: 98.1 s mean, 120 median, 7/24 reached, 2 / 13. With `goalWatchdog` 5: 102.2 s, 6/24, 2 / 13. Forcing steers toward the nearest exit to open ground, not the mission goal, so it fights the maze goal; it is a real, measurable lever but a bad default (fewer contacts mostly because the car rarely gets anywhere).
+
 ## Results (2026-10-07, headless, 10-core Mac)
 - Run: pop 16, 50 generations, 127 genes, 8048 episodes in 31 min (4.3 episodes/s, 9 workers).
 - HOLDOUT, all 24 episodes, full runs (mean / median exit s, reached, contact events / frames):
