@@ -34,6 +34,10 @@ Mirrored into `.claude/skills/` so they're invocable the same way here:
 - `.claude/skills/codebase-cleanup/SKILL.md` — incremental dead-code/tech-debt cleanup pass.
 - `.claude/skills/improve-car/SKILL.md` — `/improve-car` program-run-fix loop for the Player Car copy.
 - `.claude/skills/work-on-project/SKILL.md` — `/work-on-project` opens visible Builder + MCP attach.
+- `.claude/skills/retro/SKILL.md` — `/retro` session retrospective suggesting environment improvements
+  (vendored from [mattpocock/skills](https://github.com/mattpocock/skills/tree/main/skills/engineering/retro)).
+- `.claude/skills/writing-for-agents/SKILL.md` — style guide for skills / AGENTS.md / CLAUDE.md; used by `/retro`
+  (vendored from mattpocock/skills).
 
 The originals under `.cursor/skills/` remain the Cursor-side copies; keep both in sync
 when editing either (or replace the Cursor one with a pointer if that drifts).
