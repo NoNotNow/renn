@@ -95,15 +95,18 @@ function mazeOf(seed: number): Maze {
 }
 
 /**
- * Car params pinned to their pre-maze-module behaviour for every maze episode (evolution + example world).
- * `self_hunt_flexible` now carries the maze-module / manual-override / pass-side / carrot / pocket-brake params of the
- * merged av-stack branch; left alone they would silently change the evolution baseline and make `av_maze_escape`
- * differ from the harness episodes. These values equal the stage defaults when a param is absent (what the world had
- * before the merge). Switching the maze module on in the evolution world is a deliberate user decision (flip
- * `mazeModule` here); evolved params (applied after this) still override.
+ * Car params pinned for every maze episode (evolution + example world). `self_hunt_flexible` carries the maze-module /
+ * manual-override / pass-side / carrot / pocket-brake params of the merged av-stack branch; left alone they would
+ * silently change the evolution baseline and make `av_maze_escape` differ from the harness episodes.
+ * The maze module is ON (user decision). The other flags were measured one at a time on TRAIN (24 episodes, see
+ * agent-context/feature-av-evolution.md): passSide right, pocketBrake and the goal flags (escapeTriggerHorizon,
+ * goalGiveUp, goalReachDist) are byte-identical to off (they only act with chasers / goal sources; the maze has none),
+ * carrotLive+carrotBend 0.65 is slower (mean exitT 56.6 vs 52.7 s, 4 vs 3 contact events) so it stays off. The other
+ * values equal the stage defaults when a param is absent. manualOverride / hud are UI only (off). Evolved params
+ * (applied after this) still override.
  */
 export const MAZE_PINNED_CAR_PARAMS: Record<string, unknown> = {
-  mazeModule: false,
+  mazeModule: true,
   manualOverride: false,
   overrideHold: 1,
   passSide: 'off',

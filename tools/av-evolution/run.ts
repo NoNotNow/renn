@@ -28,7 +28,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { DEFAULT_EVOLUTION_CONFIG, type EvaluateFn, DEFAULT_FITNESS_WEIGHTS, EvolutionEngine, MemoryEvolutionStore, type RunExport, type RunRecord } from '@/avEvolution/core'
 import type { Params } from '@/avEvolution/core/genes'
-import { AV_GENOME_SPEC } from '@/avEvolution/genes'
+import { AV_GENOME_SPEC, avSpecResumeError } from '@/avEvolution/genes'
 import { listMazeEpisodes } from '@/avEvolution/maze/episodes'
 import { avStackVersion } from '@/globalPipeline/avStackVersion'
 import { computeBaseline, timeoutFor, type TimeoutPolicy } from './baseline'
@@ -75,8 +75,8 @@ async function main() {
     const id = await store.importJSON(data)
     run = (await store.loadRun(id))!
     if (!run.state) throw new Error(`${resumeFile}: export has no resumable engine state`)
-    if (run.specVersion !== AV_GENOME_SPEC.specVersion)
-      throw new Error(`${resumeFile}: created with gene spec v${run.specVersion}, current spec is v${AV_GENOME_SPEC.specVersion}; cannot resume. Start a new run (drop --resume or use another --out).`)
+    const specErr = avSpecResumeError(run.specVersion)
+    if (specErr) throw new Error(`${resumeFile}: ${specErr}`)
     engine = EvolutionEngine.fromJSON(run.state)
     console.log(`resumed ${id} at generation ${engine.gen} (${run.state.evals} episodes so far)`)
   } else {

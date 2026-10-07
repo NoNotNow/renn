@@ -1,6 +1,7 @@
 import 'fake-indexeddb/auto'
 import { describe, expect, it } from 'vitest'
 import type { EpisodeMetrics } from '../core/fitness'
+import { AV_GENOME_SPEC } from '../genes'
 import { IdbEvolutionStore } from '../core/store'
 import { AvEvolutionController, type EvalBackend } from './controller'
 
@@ -80,6 +81,21 @@ describe('AvEvolutionController', () => {
     await expect(c.start({ newRun: { popSize: 4 }, workers: 1 })).rejects.toThrow('boom')
     expect(c.getState().status).toBe('idle')
     expect(c.getState().error).toBe('boom')
+    await store.close()
+  })
+
+  it('refuses to resume a run saved under an older gene spec version (v2 -> v3) and leaves it untouched', async () => {
+    const store = new IdbEvolutionStore(Date.now, `test-av-${Math.random()}`)
+    const c1 = new AvEvolutionController({ store, createBackend: backendFactory() })
+    const runId = await c1.start({ newRun: { popSize: 4, eliteCount: 2, episodesPerEval: 1, seed: 3 }, workers: 1, maxGenerations: 1 })
+    await c1.whenIdle()
+    const run = (await store.loadRun(runId))!
+    expect(run.specVersion).toBe(AV_GENOME_SPEC.specVersion)
+    await store.saveRun({ ...run, specVersion: '2' })
+    const c2 = new AvEvolutionController({ store, createBackend: backendFactory() })
+    await expect(c2.start({ runId, workers: 1, maxGenerations: 1 })).rejects.toThrow(/gene spec v2.*current spec is v3/)
+    expect(c2.getState().status).toBe('idle')
+    expect((await store.loadRun(runId))!.state!.gen).toBe(run.state!.gen)
     await store.close()
   })
 })

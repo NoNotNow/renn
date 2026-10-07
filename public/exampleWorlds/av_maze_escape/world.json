@@ -837,7 +837,7 @@
             "passSide": "off",
             "manualOverride": false,
             "overrideHold": 1,
-            "mazeModule": false
+            "mazeModule": true
           },
           "enabled": true
         }

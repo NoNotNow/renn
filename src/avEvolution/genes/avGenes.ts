@@ -13,7 +13,7 @@ const f = (key: string, def: number, group: string, min: number, max: number, sc
 const i = (key: string, def: number, group: string, min: number, max: number, scale: 'lin' | 'log' = 'lin'): GeneSpec => ({ key, type: 'int', default: def, group, min, max, scale })
 const b = (key: string, def: boolean, group: string): GeneSpec => ({ key, type: 'bool', default: def, group })
 
-export const AV_SPEC_VERSION = '2'
+export const AV_SPEC_VERSION = '3'
 
 const AV_GENES_M1: GeneSpec[] = [
   f('maxLatAccel', 9, 'turn', 6, 30, 'lin'),
@@ -149,9 +149,26 @@ export const AV_GENES_EXTRA: GeneSpec[] = [
   f('kappaTauSpeed', 0.008, 'turn', 0, 0.02, 'lin'),
   f('iClamp', 3, 'speed', 1, 8, 'lin'),
   f('overspeedCut', 8, 'speed', 2, 20, 'lin'),
+  // v3: maze-module genes (only act when the maze module is on; defaults identical to the stage code)
+  f('mazeTurnCos', 0.5, 'maze', 0.2, 0.8),
+  f('mazeWpMin', 12, 'maze', 6, 20),
+  f('mazeArriveR', 4, 'maze', 2, 8),
+  f('mazeOffRoute', 8, 'maze', 4, 14),
+  i('mazeRays', 16, 'maze', 8, 32),
 ]
 
 export const AV_GENOME_SPEC: GenomeSpec = { specVersion: AV_SPEC_VERSION, genes: [...AV_GENES_M1, ...AV_GENES_EXTRA] }
+
+/**
+ * Resume guard shared by the CLI (`--resume`) and the browser controller: a run saved under another gene spec version has
+ * a different gene vector (engine state, population and elites are index-aligned to the spec), so resuming it would silently
+ * mix gene sets. Returns an error message, or undefined when the run's spec version is the current one.
+ */
+export function avSpecResumeError(runSpecVersion: string): string | undefined {
+  return runSpecVersion === AV_SPEC_VERSION
+    ? undefined
+    : `created with gene spec v${runSpecVersion}; the current spec is v${AV_SPEC_VERSION}. Start a new run (resuming would change the gene set).`
+}
 
 export function avDefaultParams(spec: GenomeSpec = AV_GENOME_SPEC): Params {
   return Object.fromEntries(spec.genes.map((g) => [g.key, g.default]))
