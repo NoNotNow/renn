@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- probe over untyped stage state */
 /**
  * Maze flee diagnostic (skipped unless AVMZ_WORLD is set): per frame of the focus car, is it inside a labyrinth (bbox of a static wall group),
  * is the maze module confined / engaged, where is the flee goal, does the straight segment car -> flee goal cross a static wall (key metric).

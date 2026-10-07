@@ -76,7 +76,7 @@
   {"key": "mazeChaserRadius", "type": "number", "default": 14, "group": "Maze", "unit": "m", "min": 0, "description": "Radius of the cost zone around a moving chaser (linear fall-off) and its predicted positions.", "advanced": true},
   {"key": "mazeChaserLead", "type": "number", "default": 2, "group": "Maze", "unit": "s", "min": 0, "description": "Prediction time of the chaser cost zone along its velocity.", "advanced": true},
   {"key": "mazeWallCost", "type": "number", "default": 400, "group": "Maze", "min": 1, "description": "Cost factor of cells next to a known wall (inflated by the vehicle): a route that has to cross one (beyond the first 3 steps) is no escape route.", "advanced": true},
-  {"key": "mazeSeenRange", "type": "number", "default": 70, "group": "Maze", "unit": "m", "min": 0, "description": "Exits must be open ground the car has seen: cells in line of sight on the static map within this range of the places it has been; 0 = unseen ground counts as open too.", "advanced": true},
+  {"key": "mazeSeenRange", "type": "number", "default": 70, "group": "Maze", "unit": "m", "min": 0, "description": "Range of the module's own survey rays: exits must be open ground the car has SEEN (real line of sight within this range of the places it has been); 0 = no survey, unseen ground counts as open too.", "advanced": true},
   {"key": "mazeReach", "type": "number", "default": 10, "group": "Maze", "unit": "m", "min": 0, "description": "The escape waypoint is replaced by the next one when the car is this close to it.", "advanced": true},
   {"key": "mazeSeenShare", "type": "number", "default": 0.3, "group": "Maze", "min": 0, "max": 1, "description": "An exit must be open ground whose surroundings (mazeOpenRadius) the car has seen at least this share of.", "advanced": true},
   {"key": "mazeLead", "type": "number", "default": 25, "group": "Maze", "unit": "m", "min": 0, "description": "The escape waypoint is at most this far ahead of the car on the route (earlier at the first route corner).", "advanced": true},
@@ -652,7 +652,10 @@ function fleeGoal(av, thrs, input, params, state, api) {
 //     The route is the steepest descent of the field from the car (the path of least resistance); the exit is its last cell.
 //  3. Hysteresis: the kept route is re-costed on the new field and replaced only when the new one is mazeSwitch (25 %) cheaper. Rebuild at most every mazeEvery (0.4 s) when the map, the car zones or the car cell changed.
 //  4. The flee goal = a held waypoint on the route: the first route corner >= 12 m ahead, at most mazeLead (25 m) ahead (the exit itself at the end); the next one when the car is within mazeReach (10 m). The route planner then drives it with its own goal-distance field.
-// Blackboard: av.maze = {on, share, route, exit, cost, goal, why}; watch 'av.maze'.
+// 2026-10-07 round 2 (details in agent-context/feature-av-stack.md 'Maze module'): confined also by wall density (mazeDens) or inside a big wall cluster (mazeHullShare); exits = breadcrumbs (open ground driven on), seen open ground outside the maze region
+// (bounding box of the known wall cluster + 45 m of walls round the car, mazeHull margin), only then unseen ground outside it + mazeHullExplore; a reached exit while still confined is blacklisted (mazeDeadR); the module's own survey rays
+// (mazeScanRays) define 'seen' and add wall points; the waypoint is always in line of sight (static map, then a physics ray); stalled tracked chasers within half mazeThreatRange also trigger.
+// Blackboard: av.maze = {on, share, dens, hull, route, exit, cost, goal, why}; watch 'av.maze'.
 function mazeStep(av, input, params, state, api, thrs) {
   var mz = state.mz || (state.mz = { on: false, share: 0, ver: -1, tB: -99, sig: '', route: null, cost: 0, idx: 0, why: '', shown: '' })
   var now = state.t
