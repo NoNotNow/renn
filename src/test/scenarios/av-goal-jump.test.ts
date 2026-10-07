@@ -14,7 +14,7 @@ function run(extra: Record<string, unknown>) {
   const state: Record<string, unknown> = {}
   const api = { watch() {}, visualizeLine() {} }
   const params = { budget: 'eco', maxCurvature: 0.115, ...extra }
-  const mk = (t: number, goal: [number, number], x: number) => ({
+  const mk = (t: number, goal: [number, number], x: number): { av: Record<string, unknown> } & Record<string, unknown> => ({
     position: [x, 0, 0],
     entityId: 'car',
     environment: {},

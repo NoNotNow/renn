@@ -7,7 +7,7 @@
  */
 import { it } from 'vitest'
 import { loadLabWorld, runLab, liveStageState, stageLabels, type WorldRef } from '@/test/avLab/lab'
-import type { WorldSimulator } from '@/runtime/worldSimulator'
+import type { WorldSimulator } from '@/test/helpers/worldSimulator'
 
 const env = process.env
 const enabled = env.AVCARROT === '1'
