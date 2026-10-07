@@ -78,7 +78,7 @@
   {"key": "mazeWallCost", "type": "number", "default": 400, "group": "Maze", "min": 1, "description": "Cost factor of cells next to a known wall (inflated by the vehicle): a route that has to cross one (beyond the first 3 steps) is no escape route.", "advanced": true},
   {"key": "mazeSeenRange", "type": "number", "default": 70, "group": "Maze", "unit": "m", "min": 0, "description": "Range of the module's own survey rays: exits must be open ground the car has SEEN (real line of sight within this range of the places it has been); 0 = no survey, unseen ground counts as open too.", "advanced": true},
   {"key": "mazeReach", "type": "number", "default": 10, "group": "Maze", "unit": "m", "min": 0, "description": "The escape waypoint is replaced by the next one when the car is this close to it.", "advanced": true},
-  {"key": "mazeSeenShare", "type": "number", "default": 0.3, "group": "Maze", "min": 0, "max": 1, "description": "An exit must be open ground whose surroundings (mazeOpenRadius) the car has seen at least this share of.", "advanced": true},
+  {"key": "mazeSeenShare", "type": "number", "default": 0.1, "group": "Maze", "min": 0, "max": 1, "description": "An exit must be open ground whose surroundings (mazeOpenRadius) the car has seen at least this share of.", "advanced": true},
   {"key": "mazeLead", "type": "number", "default": 25, "group": "Maze", "unit": "m", "min": 0, "description": "The escape waypoint is at most this far ahead of the car on the route (earlier at the first route corner).", "advanced": true},
   {"key": "mazeSwitch", "type": "number", "default": 0.25, "group": "Maze", "min": 0, "max": 1, "description": "A new escape route replaces the kept one only when it is this share cheaper (hysteresis).", "advanced": true},
   {"key": "mazeDens", "type": "number", "default": 50, "group": "Maze", "min": 0, "description": "Labyrinth by wall density: a car with at least this many known wall cells (2 m) within mazeDensRadius also counts as confined when at least mazeDensShare of its rays are blocked (a maze mouth / wide junction reads below mazeEnter). 0 = off.", "advanced": true},
@@ -87,7 +87,11 @@
   {"key": "mazeHullShare", "type": "number", "default": 0.2, "group": "Maze", "min": 0, "max": 1, "description": "Inside the maze region of a big wall cluster (bounding box >= 30 x 30 m, >= 60 wall points) the car counts as confined at this blocked-ray share (a maze mouth).", "advanced": true},
   {"key": "mazeHull", "type": "number", "default": 8, "group": "Maze", "unit": "m", "min": 0, "description": "Margin of the maze region: the bounding box of the wall cluster the car is in (known walls closer than ~16 m to each other). Exits must lie outside it plus this margin; open-looking ground inside a maze (unmapped corners, rooms) is never an exit.", "advanced": true},
   {"key": "mazeScanRays", "type": "number", "default": 72, "group": "Maze", "min": 0, "description": "Rays of the module's own survey per exit field rebuild (full circle, mazeSeenRange): what counts as seen ground and extra wall points; the perception map only holds what it has hit.", "advanced": true},
+  {"key": "mazeSeenPen", "type": "number", "default": 40, "group": "Maze", "unit": "m", "min": 0, "description": "Cost handicap of exits that are seen open ground (breadcrumbs, places the car drove on, have none): a far known entrance beats a doubtful near gap.", "advanced": true},
+  {"key": "mazeHullExplore", "type": "number", "default": 24, "group": "Maze", "unit": "m", "min": 0, "description": "Without any known exit: margin outside the maze region for the explore tier (unseen open-looking ground).", "advanced": true},
   {"key": "mazeDeadR", "type": "number", "default": 24, "group": "Maze", "unit": "m", "min": 0, "description": "An exit the car reached (within 4 m) while still confined was not one (unmapped corner): no exit within this radius of it any more, until the car is free again.", "advanced": true},
+  {"key": "mazeTurnSpeed", "type": "number", "default": 8, "group": "Maze", "unit": "m/s", "min": 0, "description": "Speed at which the escape route's first sharp corner (exit gap) is taken: the car brakes (mazeTurnDecel) to it while the maze flee goal is active, also when chased.", "advanced": true},
+  {"key": "mazeTurnDecel", "type": "number", "default": 4, "group": "Maze", "unit": "m/s^2", "min": 0, "description": "Braking deceleration assumed for the speed cap before the escape route's first sharp corner.", "advanced": true},
   {"key": "mazeEvery", "type": "number", "default": 0.4, "group": "Maze", "unit": "s", "min": 0, "description": "Minimum time between rebuilds of the exit field.", "advanced": true},
   {"key": "mazeHold", "type": "number", "default": 3, "group": "Maze", "unit": "s", "min": 0, "description": "The maze escape stays active this long after its last trigger (unreachable goal, danger, chaser within mazeThreatRange).", "advanced": true},
   {"key": "mazeThreatRange", "type": "number", "default": 60, "group": "Maze", "unit": "m", "min": 0, "description": "A moving tracked car within this distance triggers the maze escape.", "advanced": true},
@@ -722,6 +726,17 @@ function mazeStep(av, input, params, state, api, thrs) {
       mz.tB = -99
     }
   }
+  // off the route (the car overshot a turn / drove another way): the kept route is stale, its remaining points are far behind or beside the car; build a new one from here (also when the hysteresis would keep it)
+  if (mz.route) {
+    var rtq = mz.route
+    var offD = 1e18
+    for (var kq = mz.idx; kq < Math.min(rtq.length, mz.idx + 40); kq++) offD = Math.min(offD, Math.pow(rtq[kq][0] - pos[0], 2) + Math.pow(rtq[kq][1] - pos[2], 2))
+    if (offD > 64) {
+      mz.route = null
+      mz.wp = null
+      mz.tB = -99
+    }
+  }
   // car zones signature: the rebuild waits for a change of the map or of the zones
   var sig = ''
   var dyn = av.prevDyn
@@ -780,8 +795,26 @@ function mazeStep(av, input, params, state, api, thrs) {
     }
     res.goal = mz.wp
     mz.goal = mz.wp
+    // corner speed on the escape route: a chased car does not take the route bend limit, so a 90 deg turn of the route (an exit gap) 27 m/s ahead is overshot. vMax = the speed from which the first sharp route corner
+    // (> 60 deg over a 4-point chord) is reached at the turn speed mazeTurnSpeed (8 m/s) braking at mazeTurnDecel (4); the speed planner applies it while the maze flee goal is active.
+    mz.vMax = null
+    var acc2 = 0
+    for (var ck = bi; ck + 8 < rt.length && acc2 < 80; ck++) {
+      acc2 += Math.hypot(rt[ck + 1][0] - rt[ck][0], rt[ck + 1][1] - rt[ck][1])
+      if (ck >= bi + 4) {
+        var cux = rt[ck][0] - rt[ck - 4][0]
+        var cuz = rt[ck][1] - rt[ck - 4][1]
+        var cwx = rt[ck + 4][0] - rt[ck][0]
+        var cwz = rt[ck + 4][1] - rt[ck][1]
+        if (cux * cwx + cuz * cwz < 0.5 * Math.hypot(cux, cuz) * Math.hypot(cwx, cwz)) {
+          var vt = params.mazeTurnSpeed != null ? params.mazeTurnSpeed : 8
+          mz.vMax = Math.sqrt(vt * vt + 2 * (params.mazeTurnDecel != null ? params.mazeTurnDecel : 4) * Math.max(0, acc2 - 4))
+          break
+        }
+      }
+    }
   } else mz.goal = null
-  av.maze = { on: true, share: mz.share, dens: mz.dens, hull: mz.hull, route: mz.route, exit: mz.route ? mz.route[mz.route.length - 1] : null, cost: mz.cost, goal: mz.goal, why: mz.why }
+  av.maze = { on: true, vMax: mz.vMax, share: mz.share, dens: mz.dens, hull: mz.hull, route: mz.route, exit: mz.route ? mz.route[mz.route.length - 1] : null, cost: mz.cost, goal: mz.goal, why: mz.why }
   mazeWatch(mz, api, 'confined ' + Math.round(mz.share * 100) + '% ' + (mz.route ? (mz.explore ? 'explore ' : '') + 'exit ' + Math.round(mz.route[mz.route.length - 1][0]) + ',' + Math.round(mz.route[mz.route.length - 1][1]) + ' cost ' + Math.round(mz.cost / 5) * 5 : mz.why))
   return res
 }
@@ -1079,7 +1112,7 @@ function mazeBuild(mz, list, dyn, thrs, pos, params, av) {
   var hx1 = hull ? hull[2] + hullM : 0
   var hz1 = hull ? hull[3] + hullM : 0
   var seen = satS
-  var seenMin = (params.mazeSeenShare != null ? params.mazeSeenShare : 0.3) * (2 * oR + 1) * (2 * oR + 1)
+  var seenMin = (params.mazeSeenShare != null ? params.mazeSeenShare : 0.1) * (2 * oR + 1) * (2 * oR + 1)
   mz.explore = false
   // sources, in tiers (a source key is the cost handicap of that exit):
   //  1. breadcrumbs: places the car has DRIVEN on in open ground (low wall density, outside the maze region, not within mazeRange of the car): known drivable, known free, e.g. the way it came in. Key 0.
