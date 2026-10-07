@@ -27,6 +27,7 @@
     "sync:global-pipeline": "node tools/renn-mcp/sync-global-pipeline.mjs && node tools/renn-mcp/sync-hunt-car-patches.mjs && npx tsx tools/renn-mcp/export-all-self-drive-example-worlds.ts && npx tsx tools/renn-mcp/upgrade-example-worlds-library.ts",
     "av:health": "node tools/av-health.mjs",
     "av:quick": "npm run sync:global-pipeline && vitest run src/test/scenarios/av-evasion-scenarios.test.ts src/test/scenarios/av-maze-scenarios.test.ts",
+    "av:evolve": "tsx tools/av-evolution/run.ts",
     "av:pre": "vitest run src/test/scenarios/av- src/test/scenarios/hunt-game"
   },
   "dependencies": {

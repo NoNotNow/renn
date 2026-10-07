@@ -37,8 +37,11 @@ import {
 import { WorldSimulator, DEFAULT_DT } from '@/test/helpers/worldSimulator'
 import type { RennWorld } from '@/types/world'
 import { installDeterminism } from './determinism'
+import { yawOf, forwardSpeed } from '@/avEvolution/eval/geometry'
 import { avStackVersion, avStageHashes, avCodeDrift, formatAvVersion } from '@/globalPipeline/avStackVersion'
 import { MotionMonitor, type MotionEvent, type MotionMonitorOptions } from './motionMonitor'
+
+export { yawOf, forwardSpeed }
 
 // ---------------------------------------------------------------------------------------------------------------------
 // World loading
@@ -249,20 +252,6 @@ export function watchValues(entityId: string): Record<string, unknown> {
   const out: Record<string, unknown> = {}
   for (const e of getTransformerWatchEntries().values()) if (e.entityId === entityId) out[e.label] = e.value
   return out
-}
-
-export function yawOf(q: { x: number; y: number; z: number; w: number }): number {
-  // forward = −Z rotated by q, projected onto the floor
-  const fx = -(2 * (q.x * q.z + q.w * q.y))
-  const fz = -(1 - 2 * (q.x * q.x + q.y * q.y))
-  return Math.atan2(fx, fz)
-}
-
-export function forwardSpeed(q: { x: number; y: number; z: number; w: number }, v: [number, number, number]): number {
-  const fx = -(2 * (q.x * q.z + q.w * q.y))
-  const fz = -(1 - 2 * (q.x * q.x + q.y * q.y))
-  const l = Math.hypot(fx, fz) || 1
-  return (v[0] * fx + v[2] * fz) / l
 }
 
 /** Rays against the real physics around the focus (8 directions, hull height), with what they hit. */
