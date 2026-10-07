@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, test } from 'vitest'
 import {
   WHEEL_GESTURE_GAP_MS,
   WHEEL_NOTCH_PX,
+  isWholeDevicePixels,
   WheelClassifier,
   getWheelBehavior,
   normalizeWheelDeltaPx,
@@ -48,6 +49,16 @@ describe('WheelClassifier — device streams', () => {
   test('Windows display scaling (±120 / ±150 per notch) is still mouse', () => {
     expect(c.classify(ev(120), 0)).toBe('mouse')
     expect(c.classify(ev(-150), 500)).toBe('mouse')
+  })
+
+  test('fractional notches on scaled displays / browser zoom are still mouse (regression: wheel orbited instead of zooming)', () => {
+    // Chrome reports CSS px: a 100-device-px notch at DPR 1.33 is 75.19, at DPR 1.5 it is 66.67, at DPR 1.75 it is 57.14
+    expect(c.classify(ev(-75.19), 0, 'auto', 1.33)).toBe('mouse')
+    expect(c.classify(ev(66.6667), 500, 'auto', 1.5)).toBe('mouse')
+    expect(c.classify(ev(-57.1429), 1000, 'auto', 1.75)).toBe('mouse')
+    // same fractional value at DPR 1 does not line up with the device grid → still a trackpad
+    expect(new WheelClassifier().classify(ev(-75.19), 0, 'auto', 1)).toBe('trackpad')
+    expect(isWholeDevicePixels(41.37, 1.33)).toBe(false)
   })
 
   test('Firefox line mode is always mouse', () => {

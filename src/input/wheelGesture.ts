@@ -39,6 +39,18 @@ export const WHEEL_GESTURE_GAP_MS = 180
 export const WHEEL_MOUSE_NOTCH_MIN_PX = 40
 
 /**
+ * True when `deltaY` is a whole number of *device* pixels. Chrome reports wheel deltas in CSS px, so a 100-unit notch
+ * becomes 75.19 / 66.67 / 80 … on a 1.33× / 1.5× / 1.25× display or at a browser zoom ≠ 100 % — fractional, yet still a
+ * discrete wheel step. (Trackpads are fractional without lining up with the device grid, and rarely start ≥ 40 px.)
+ */
+export function isWholeDevicePixels(deltaY: number, dpr = 1): boolean {
+  if (Number.isInteger(deltaY)) return true
+  const scale = Number.isFinite(dpr) && dpr > 0 ? dpr : 1
+  const device = Math.abs(deltaY) * scale
+  return Math.abs(device - Math.round(device)) < 0.02
+}
+
+/**
  * Stateful classifier. Per-gesture continuity matters: a trackpad swipe's momentum tail must not flip to
  * "mouse" halfway, and a quickly spun wheel must not flip to "trackpad" when single deltas get small.
  */
@@ -46,7 +58,7 @@ export class WheelClassifier {
   private lastTime = Number.NEGATIVE_INFINITY
   private lastKind: WheelKind = 'trackpad'
 
-  classify(ev: WheelLikeEvent, nowMs: number, behavior: WheelBehavior = 'auto'): WheelKind {
+  classify(ev: WheelLikeEvent, nowMs: number, behavior: WheelBehavior = 'auto', dpr = 1): WheelKind {
     if (ev.ctrlKey) return 'pinch' // trackpad pinch (browsers send ctrl+wheel); ctrl+wheel on a mouse zooms too
 
     const continuing = nowMs - this.lastTime < WHEEL_GESTURE_GAP_MS
@@ -58,7 +70,7 @@ export class WheelClassifier {
     else if (ev.deltaMode !== 0) kind = 'mouse' // line / page mode only comes from wheels
     else if (ev.deltaX !== 0) kind = 'trackpad' // only trackpads scroll sideways
     else if (continuing) kind = this.lastKind
-    else kind = Number.isInteger(ev.deltaY) && Math.abs(ev.deltaY) >= WHEEL_MOUSE_NOTCH_MIN_PX ? 'mouse' : 'trackpad'
+    else kind = isWholeDevicePixels(ev.deltaY, dpr) && Math.abs(ev.deltaY) >= WHEEL_MOUSE_NOTCH_MIN_PX ? 'mouse' : 'trackpad'
 
     this.lastKind = kind
     return kind

@@ -42,3 +42,11 @@ still exists for scripted use; input devices use `zoomByLog`.
   limits, 1 m start, first person, edit navigation.
 - [`wheelPipeline.test.ts`](../src/input/wheelPipeline.test.ts) — DOM events → hook → zoom → `CameraController` for each device.
 - Texture Maker preview zoom uses the same normalisation (`useTextureMakerViewNav.ts`, ≈ 8 % per notch).
+
+## Fractional notches on scaled displays (2026-10-07)
+
+Chrome reports wheel deltas in CSS px, so a 100-device-px notch is 75.19 / 66.67 / 80 … at DPR 1.33 / 1.5 / 1.25 (or with browser
+zoom ≠ 100 %). The classifier required an *integer* `deltaY ≥ 40` for a fresh pixel-mode notch, so those notches were taken for
+a trackpad swipe and **orbited instead of zooming**. `isWholeDevicePixels(deltaY, devicePixelRatio)` now accepts a delta that is a
+whole number of device pixels (`rawInput.ts` passes `window.devicePixelRatio`). Verified in Chromium (Playwright, DPR 1.33,
+`mouse.wheel`): zoom in/out returns to the start view; before the fix the same events pitched the camera to top view.

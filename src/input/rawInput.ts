@@ -181,7 +181,7 @@ export function useRawWheelInput(
       // Capture phase + preventDefault stops macOS swipe-back while orbiting the camera.
       ev.preventDefault()
 
-      const kind = classifier.classify(ev, ev.timeStamp || performance.now(), getWheelBehavior())
+      const kind = classifier.classify(ev, ev.timeStamp || performance.now(), getWheelBehavior(), window.devicePixelRatio)
       const pagePx = container?.clientHeight || window.innerHeight
       const deltaY = normalizeWheelDeltaPx(ev.deltaY, ev.deltaMode, pagePx)
 
