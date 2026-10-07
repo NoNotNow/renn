@@ -1,6 +1,6 @@
 # Inspector (Property panel)
 
-The inspector is the right-side panel that edits the **selection** (one or more entities): name, transform, shape, physics, material, 3D model, transformers, and script attachments. With **multiple** entities selected, fields show a shared value only when all agree; otherwise they appear empty or show a short “mixed” notice. Edits apply to **every** selected entity. It reads from the world document and optional live pose data so displayed poses stay in sync with the running scene.
+The inspector is the right-side panel that edits the **selection** (one or more entities): name, transform, shape, physics, material, 3D model, transformers, and script attachments. With **multiple** entities selected, fields show a shared value only when all agree; otherwise they show an empty input with a **“Mixed”** placeholder (see *Mixed-value editing* below). Edits apply to **every** selected entity, but only to the sub-field the user actually changed. It reads from the world document and optional live pose data so displayed poses stay in sync with the running scene.
 
 **Multi-select**: In the **left entity explorer**, **Cmd/Ctrl+click** toggles one entity in or out of the selection; **Shift+click** selects every entity **between** the anchor (last plain-selected entity) and the clicked row in visible tree order; a normal click replaces the selection with one entity. In the **3D viewport**, **Shift+click** still behaves like **Cmd/Ctrl+click** (toggle into/out of the selection) via the pick handler. **Escape** clears the selection when focus is not in an input. **Clone** is disabled when more than one entity is selected.
 
@@ -15,7 +15,7 @@ The inspector is the right-side panel that edits the **selection** (one or more 
 **Transform and gizmo**
 
 - As a builder, I **move / rotate / scale** several unlocked entities at once using the **world-space pivot** at the average position; locked entities stay selected but **do not** participate in the gizmo.
-- As a builder, I edit **position / rotation / scale** in the inspector when all agree; when values **differ**, I see empty fields and committing one triple applies it to **all** selected (uniform override).
+- As a builder, I edit **position / rotation / scale** in the inspector; each **axis** that differs shows empty (“Mixed”) while agreeing axes show their value. Editing one axis sets only that axis on every entity and keeps each entity's own other axes.
 - As a builder, one **gizmo drag** produces **one undo step** for the whole group move.
 
 **Shape and layout**
@@ -81,16 +81,28 @@ See [`mixedShapeDimensions.ts`](../src/utils/mixedShapeDimensions.ts).
 | **livePoses** | Display-only; never write `world` from the poller. |
 | **Trimesh / model** | `shapePatchForEntity` still strips `model` / wireframe when switching to trimesh, etc. |
 
+### Mixed-value editing (multi-select)
+
+Helpers: [`mixedInspectorEdit.ts`](../src/utils/mixedInspectorEdit.ts); UI in `VectorField` (`mixed` + `onComponentChange`), `MaterialEditor` (`mix` + `onMaterialUpdate`), `ModelTransformSection`, `PropertyPanel` (`updateEach`).
+
+- **Display**: a component / sub-field the entities disagree on shows an empty input with placeholder **Mixed** (colour: neutral swatch + “Mixed” text with `data-mixed="true"`; wrap selects: a “Mixed” option; texture: “Mixed” label). No fake common value is shown.
+- **No edit, no change**: focusing/tabbing through a mixed number input without typing commits nothing (`DraggableNumberField` blur on a `null` value with empty text is a no-op). Scrubbing a mixed field is disabled (no meaningful origin); type a value or use relative mode.
+- **Vectors** (position, rotation, scale, model position/rotation/scale): the edit is reported as one `{index, value, relative}` change and applied to **each entity's own vector** (`applyVecComponentChange`), so editing X keeps every entity's Y/Z. Linked-axes editing is suspended while any axis is mixed. **Relative mode** (existing absolute/relative toggle) adds the typed/scrubbed offset to each entity's own value, which is the way to do “+= n” on mixed numbers.
+- **Material**: `mergeMaterialFields` compares effective values per sub-field (colour, texture, roughness, metalness, opacity, wraps, rotation, UV repeat/offset per axis). Every edit is an updater `(entityMaterial) => material` applied per entity, so changing only the colour keeps each entity's roughness / metalness / texture. An entity with no material gets a material containing just the edited field (defaults fill the rest).
+- **Undo**: a mixed edit is still one `pushBeforeEdit` plus one `onWorldChange` (`updateEach` patches every selected entity in a single world update; Builder per-entity scene callbacks use the same undo-skip path), so one step.
+- **Known limits / follow-ups**: (1) a set-vs-unset material mix on model/trimesh selections still shows the “Material override differs” message; (2) the native colour picker cannot show an indeterminate state, so choosing exactly the neutral mixed swatch colour (#808080) fires no change; (3) physics scalars, shape numbers and body type still use the uniform “same value to all” model (they only commit on a real edit, but have no relative mode); (4) bulk name rename still writes the same name to all.
+- Tests: [`PropertyPanel.mixed.test.tsx`](../src/components/PropertyPanel.mixed.test.tsx).
+
 ### Property matrix (multiselect)
 
 | Area | Agree | Differ | Bulk edit |
 |------|-------|--------|-----------|
 | Title / Name / ID | Shared values | Mixed / `—` for ID | Name → all same on blur |
 | Lock | One state | Toggle normalizes all | All |
-| Transform | Merged vec3 | Empty (`null`) | All same on commit |
+| Transform | Merged vec3 | Per-axis “Mixed” | Only the edited axis, per entity |
 | Shape | Full editor | Type `—` when types differ; shared **Radius / Height / Width / Depth / Base size** when applicable ([`mixedShapeDimensions.ts`](../src/utils/mixedShapeDimensions.ts)) | Type change → per-entity preserve; same-type → uniform; mixed-type numeric → partial per shape |
 | Physics | Merged | Empty | All |
-| Material | Editor | Messages when mixed | All when path active |
+| Material | Editor | Per-sub-field “Mixed” | Only the edited sub-field, per entity |
 | 3D Model / Model-Transform | Merged / mixed | Mixed messages | All when allowed |
 | Transformers | List | Mixed | All same on commit |
 | Mixed layout | — | Warning hides shape/material | Narrow selection |

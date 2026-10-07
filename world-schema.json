@@ -682,10 +682,28 @@
         "label": { "type": "string" },
         "type": {
           "type": "string",
-          "enum": ["number", "string", "boolean", "entityId", "vec3"]
+          "enum": ["number", "integer", "string", "boolean", "enum", "color", "entityId", "vec2", "vec3", "numberList", "json"]
         },
         "default": {},
-        "description": { "type": "string" }
+        "description": { "type": "string" },
+        "group": { "type": "string" },
+        "min": { "type": "number", "description": "UI drag hint only; never enforced" },
+        "max": { "type": "number", "description": "UI drag hint only; never enforced" },
+        "step": { "type": "number" },
+        "unit": { "type": "string" },
+        "options": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["value"],
+            "properties": {
+              "value": { "oneOf": [{ "type": "string" }, { "type": "number" }] },
+              "label": { "type": "string" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "advanced": { "type": "boolean" }
       },
       "additionalProperties": false
     },

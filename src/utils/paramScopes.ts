@@ -27,6 +27,23 @@ export function mergeParamScopeLayers(layers: Record<string, unknown>[]): Record
   return out
 }
 
+/**
+ * One named layer of a stage's param stack, lowest first: `preset` < `stage` < `binding` (stack root) <
+ * `scope` (nested pipe) < `member` (one stage inside its pipe). Later layers win key by key.
+ */
+export type ParamLayerKind = 'preset' | 'stage' | 'binding' | 'scope' | 'member'
+
+export interface ParamLayer {
+  kind: ParamLayerKind
+  /** Human name: pipe name for binding / scope, stage name for member. */
+  label: string
+  /** `binding.scopeParams` key for `scope` / `member` layers, '' for the stack root binding. */
+  scopeKey: string
+  /** Nav path of the layer's scope (stack root for the binding); empty for stage / preset. */
+  path: PipeNavPathSegment[]
+  params: Record<string, unknown>
+}
+
 /** Shared projection for editing UI and runtime layer resolution at one nav scope. */
 export function resolveLocalScopeParams(
   binding: TransformerPipeBinding | undefined,
@@ -43,4 +60,40 @@ export function resolveLocalScopeParams(
     }
   }
   return binding.scopeParams?.[scopeKey] ?? {}
+}
+
+/**
+ * `resolveLocalScopeParams` as a named layer (what the runtime merges at one scope). The stack root is the
+ * `binding` layer, nested scopes and stage members are `scope` / `member` layers.
+ */
+export function localScopeLayer(
+  binding: TransformerPipeBinding | undefined,
+  scopePath: PipeNavPathSegment[],
+  label: string,
+  kind?: 'member',
+): ParamLayer {
+  const root = scopePath.length === 0 || isStackRootScopePath(scopePath)
+  return {
+    kind: kind ?? (root ? 'binding' : 'scope'),
+    label,
+    scopeKey: root ? '' : pipeScopeKeyFromPath(scopePath),
+    path: scopePath,
+    params: resolveLocalScopeParams(binding, scopePath),
+  }
+}
+
+/**
+ * Params an edit at `scopePath` inherits from the enclosing scopes (stack root and outer nested scopes);
+ * the same layering the runtime applies, minus the scope itself.
+ */
+export function resolveInheritedScopeParams(
+  binding: TransformerPipeBinding | undefined,
+  scopePath?: PipeNavPathSegment[],
+): Record<string, unknown> {
+  const path = scopePath ?? []
+  const layers: Record<string, unknown>[] = []
+  for (let len = 1; len < path.length; len++) {
+    layers.push(resolveLocalScopeParams(binding, path.slice(0, len)))
+  }
+  return mergeParamScopeLayers(layers)
 }

@@ -26,6 +26,11 @@ import {
   allTrimeshOrAllPrimitiveModelLayout,
 } from '@/utils/entityInspectorMerge'
 import { DEFAULT_POSITION, DEFAULT_ROTATION, DEFAULT_SCALE } from '@/types/world'
+import {
+  mergeVec3Components,
+  applyVecComponentChange,
+  type VecComponentChange,
+} from '@/utils/mixedInspectorEdit'
 import { applyMultiShapeEdit, shapePatchForEntity } from '@/utils/multiSelectShapeChange'
 import {
   getMixedDimensionFieldSpecs,
@@ -149,6 +154,17 @@ export default function PropertyPanel({
     })
   }
 
+  /**
+   * Apply a PER-ENTITY patch (each entity computes its own next value) in ONE world change, so a
+   * mixed-field edit only touches the sub-field the user changed and stays a single undo step.
+   */
+  const updateEach = (patchFor: (e: Entity) => Partial<Entity>) => {
+    onWorldChange({
+      ...world,
+      entities: world.entities.map((e) => (idSet.has(e.id) ? ({ ...e, ...patchFor(e) } as Entity) : e)),
+    })
+  }
+
   const anyLocked = entities.some((e) => e.locked)
   const allLocked = entities.every((e) => e.locked)
   const lockMerged = mergeLocked(entities)
@@ -174,9 +190,9 @@ export default function PropertyPanel({
   const mergedModelRotation = mergeRotation(entities, (e) => e.modelRotation ?? DEFAULT_ROTATION)
   const mergedModelScale = mergeVec3(entities, (e) => e.modelScale ?? DEFAULT_SCALE)
   const mergedMaterial = mergeMaterial(entities)
-  const posMerged = mergeVec3(entities, (e) => poseSource(e).position ?? DEFAULT_POSITION)
-  const rotMerged = mergeRotation(entities, (e) => poseSource(e).rotation ?? DEFAULT_ROTATION)
-  const scaleMerged = mergeScale(entities)
+  const posMix = mergeVec3Components(entities, (e) => poseSource(e).position, DEFAULT_POSITION)
+  const rotMix = mergeVec3Components(entities, (e) => poseSource(e).rotation, DEFAULT_ROTATION)
+  const scaleMix = mergeVec3Components(entities, (e) => e.scale, DEFAULT_SCALE)
   const mergedAvatar = mergeAvatar(entities)
   const mergedBodyType = mergeBodyType(entities)
   const mergedMass = mergeNumber(entities, (e) => e.mass, 1)
@@ -190,6 +206,19 @@ export default function PropertyPanel({
   const shapeTypesDiffer =
     entities.length > 0 &&
     !entities.every((e) => e.shape?.type === entities[0]!.shape?.type)
+
+  /** One-axis edit of a vec3 pose field that is mixed: each entity keeps its own other axes. */
+  const handlePoseComponentChange =
+    (key: 'position' | 'rotation' | 'scale', fallback: Vec3, min?: number) => (change: VecComponentChange) => {
+      uiLogger.change('PropertyPanel', `Change ${key} component`, { entityIds: ids, ...change })
+      const nextById = new Map<string, Vec3>()
+      for (const e of entities) {
+        const base = (key === 'scale' ? e.scale : poseSource(e)[key]) ?? fallback
+        nextById.set(e.id, applyVecComponentChange<Vec3>(base as Vec3, change, min))
+      }
+      for (const [id, v] of nextById) onEntityPoseChange?.([id], { [key]: v })
+      updateEach((e) => ({ [key]: nextById.get(e.id)! }))
+    }
 
   const handleMixedDimensionChange = (kind: MixedDimensionKind, value: number) => {
     uiLogger.change('PropertyPanel', 'Mixed shape dimension', { entityIds: ids, kind, value })
@@ -342,9 +371,15 @@ export default function PropertyPanel({
       >
         <TransformEditor
           entityId={editorIdPrefix}
-          position={posMerged === null ? null : posMerged}
-          rotation={rotMerged === null ? null : rotMerged}
-          scale={scaleMerged === null ? null : scaleMerged}
+          position={posMix?.value ?? null}
+          rotation={rotMix?.value ?? null}
+          scale={scaleMix?.value ?? null}
+          positionMixed={posMix?.mixed}
+          rotationMixed={rotMix?.mixed}
+          scaleMixed={scaleMix?.mixed}
+          onPositionComponentChange={handlePoseComponentChange('position', DEFAULT_POSITION)}
+          onRotationComponentChange={handlePoseComponentChange('rotation', DEFAULT_ROTATION)}
+          onScaleComponentChange={handlePoseComponentChange('scale', DEFAULT_SCALE, 0.01)}
           vec3Undo={vec3Undo}
           onPositionChange={(v) => {
             onEntityPoseChange?.(ids, { position: v })
@@ -441,7 +476,6 @@ export default function PropertyPanel({
               primaryEntity={primaryEntity}
               isMulti={isMulti}
               isModelOrTrimesh={isModelOrTrimesh}
-              mergedMaterial={mergedMaterial}
               editorIdPrefix={editorIdPrefix}
               assets={assets}
               world={world}
@@ -450,6 +484,7 @@ export default function PropertyPanel({
               onAssetsChange={onAssetsChange}
               onEntityMaterialChange={onEntityMaterialChange}
               updateAll={updateAll}
+              updateEach={updateEach}
               onOpenTextureStudio={onOpenTextureStudio}
             />
           </CollapsibleSection>
@@ -494,14 +529,12 @@ export default function PropertyPanel({
                 entities={entities}
                 ids={ids}
                 editorIdPrefix={editorIdPrefix}
-                mergedModelPosition={mergedModelPosition}
-                mergedModelRotation={mergedModelRotation}
-                mergedModelScale={mergedModelScale}
                 anyLocked={anyLocked}
                 vec3Undo={vec3Undo}
                 onUndoBeforeEdit={undo ? () => undo.pushBeforeEdit() : undefined}
                 onEntityModelTransformChange={onEntityModelTransformChange}
                 updateAll={updateAll}
+                updateEach={updateEach}
               />
             </CollapsibleSection>
           )}

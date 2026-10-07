@@ -8,6 +8,7 @@ import {
   setTransformerRuntimeEntityLookup,
   setTransformerRuntimeLivePositionLookup,
   setTransformerRuntimeRaycast,
+  setTransformerHudFn,
   setTransformerSnackbarFn,
   validateCustomTransformerSource,
 } from './customCodeTransformer'
@@ -693,6 +694,21 @@ describe('CustomCodeTransformer', () => {
     } finally {
       setTransformerSnackbarFn(null)
     }
+  })
+
+  test('api.setScore / api.setDamage feed the wired HUD (integers >= 0 only)', () => {
+    const hud = vi.fn()
+    setTransformerHudFn(hud)
+    try {
+      TRANSFORMER_RUNTIME_API.setScore(3.9)
+      TRANSFORMER_RUNTIME_API.setDamage(2)
+      TRANSFORMER_RUNTIME_API.setScore(-1)
+      TRANSFORMER_RUNTIME_API.setDamage(Number.NaN)
+      expect(hud.mock.calls).toEqual([[{ score: 3 }], [{ damage: 2 }]])
+    } finally {
+      setTransformerHudFn(null)
+    }
+    expect(() => TRANSFORMER_RUNTIME_API.setScore(1)).not.toThrow()
   })
 
   test('TRANSFORMER_RUNTIME_API.vec matches tuple math', () => {

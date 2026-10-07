@@ -1,5 +1,6 @@
 import type { Vec3, Rotation } from '@/types/world'
 import Vec3Field from './Vec3Field'
+import type { VecComponentChange } from '@/utils/mixedInspectorEdit'
 import { uiLogger } from '@/utils/uiLogger'
 import { entityPanelIconButtonStyle } from './sharedStyles'
 import { EntityPanelIcons } from './EntityPanelIcons'
@@ -19,6 +20,16 @@ export interface TransformEditorProps {
   onPositionChange: (position: Vec3) => void
   onRotationChange: (rotation: Rotation) => void
   onScaleChange: (scale: Vec3) => void
+  /**
+   * Multi-select: per-axis mixed flags. When any axis is mixed, edits go to the matching
+   * `on*ComponentChange` (one axis, applied per entity) instead of `on*Change`.
+   */
+  positionMixed?: readonly boolean[]
+  rotationMixed?: readonly boolean[]
+  scaleMixed?: readonly boolean[]
+  onPositionComponentChange?: (change: VecComponentChange) => void
+  onRotationComponentChange?: (change: VecComponentChange) => void
+  onScaleComponentChange?: (change: VecComponentChange) => void
   disabled?: boolean
   /** Undo: one step per scrub / blur on draggable vec3 fields; use onBeforeCommit before reset clicks. */
   vec3Undo?: Vec3UndoProps
@@ -32,6 +43,12 @@ export default function TransformEditor({
   onPositionChange,
   onRotationChange,
   onScaleChange,
+  positionMixed,
+  rotationMixed,
+  scaleMixed,
+  onPositionComponentChange,
+  onRotationComponentChange,
+  onScaleComponentChange,
   disabled = false,
   vec3Undo,
 }: TransformEditorProps) {
@@ -46,6 +63,8 @@ export default function TransformEditor({
           onPositionChange(v)
         }}
         sensitivity={0.05}
+        mixed={positionMixed}
+        onComponentChange={onPositionComponentChange}
         idPrefix={`${entityId}-position`}
         disabled={disabled}
         onScrubStart={vec3Undo?.onScrubStart}
@@ -62,6 +81,8 @@ export default function TransformEditor({
             onRotationChange(r)
           }}
           axisLabels={['X', 'Y', 'Z']}
+          mixed={rotationMixed}
+          onComponentChange={onRotationComponentChange}
           idPrefix={`${entityId}-rotation`}
           disabled={disabled}
           onScrubStart={vec3Undo?.onScrubStart}
@@ -99,6 +120,8 @@ export default function TransformEditor({
         step={0.1}
         sensitivity={0.01}
         defaultLinked
+        mixed={scaleMixed}
+        onComponentChange={onScaleComponentChange}
         idPrefix={`${entityId}-scale`}
         disabled={disabled}
         onScrubStart={vec3Undo?.onScrubStart}

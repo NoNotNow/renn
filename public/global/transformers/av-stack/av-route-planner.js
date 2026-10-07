@@ -1,3 +1,137 @@
+/* @params
+[
+  {"key": "budget", "type": "enum", "options": [{"value": "full"}, {"value": "normal"}, {"value": "eco"}], "default": "full", "label": "CPU budget", "group": "Performance", "description": "CPU budget: 'full' (default), 'normal' or 'eco' (economy paths, less sensing work)."},
+  {"key": "goalTolerance", "type": "number", "default": 3.5, "label": "Final goal hold radius", "group": "Goal", "unit": "m", "min": 0, "description": "Final goal counts as reached inside this radius; the car holds there."},
+  {"key": "maxCurvature", "type": "number", "default": 0.115, "label": "Max curvature (min turn radius)", "group": "Vehicle", "min": 0, "description": "Tightest curvature the car can drive (1 / minimum turn radius)."},
+  {"key": "pocketBrake", "type": "boolean", "default": false, "group": "Evasion", "description": "Keep the route bend limit while chased when the heading fan ends in a seen dead end."},
+  {"key": "style", "type": "enum", "options": [{"value": "comfort"}, {"value": "escape"}], "default": "comfort", "group": "Route planning", "description": "'escape' = manoeuvres / reversing as fast as the plan can be stopped; 'comfort' = gentle."},
+  {"key": "vehicleLength", "type": "number", "default": 4, "label": "Vehicle length", "group": "Vehicle", "unit": "m", "min": 0, "description": "Body length used for clearance; the box collider can only enlarge it."},
+  {"key": "vehicleWidth", "type": "number", "default": 2, "label": "Vehicle width", "group": "Vehicle", "unit": "m", "min": 0, "description": "Body width used for clearance; the box collider can only enlarge it."},
+  {"key": "waypoints", "type": "json", "group": "Goal", "description": "Waypoint list [[x, z], ...] in world metres."},
+  {"key": "carrotBend", "type": "number", "default": 0, "group": "Route planning", "min": 0, "advanced": true},
+  {"key": "carrotBendMin", "type": "number", "default": 4, "group": "Route planning", "min": 0, "advanced": true},
+  {"key": "carrotBendMinSpeed", "type": "number", "default": 0, "group": "Route planning", "unit": "m/s", "min": 0, "advanced": true},
+  {"key": "carrotLive", "type": "boolean", "default": false, "group": "Route planning", "advanced": true},
+  {"key": "goalViz", "type": "enum", "options": [{"value": "dim"}, {"value": "full"}], "default": "dim", "group": "Debug", "description": "'full' = the goal overlay draws the route chain (this stage then skips its magenta copy).", "advanced": true},
+  {"key": "carrotTrack", "type": "boolean", "default": false, "group": "Route planning", "description": "Re-derive the carrot every frame from the current route (also while pursuers are tracked); a carrot behind a forward-cruising car is dropped.", "advanced": true},
+  {"key": "goalJumpReplan", "type": "number", "default": 8, "group": "Route planning", "unit": "m", "min": 0, "description": "A goal jump larger than this between frames drops the stored route, carrot and manoeuvre (default 8 m, 0 / false = off).", "advanced": true},
+  {"key": "carrotLiveNear", "type": "number", "default": 12, "group": "Route planning", "min": 0, "advanced": true},
+  {"key": "carrotLookT", "type": "number", "default": 1.6, "group": "Route planning", "min": 0, "advanced": true},
+  {"key": "carrotPull", "type": "boolean", "default": true, "group": "Route planning", "advanced": true},
+  {"key": "carrotPullCos", "type": "number", "default": 0.94, "group": "Route planning", "min": 0, "advanced": true},
+  {"key": "clearConfineLat", "type": "number", "default": 4, "group": "Route planning", "min": 0, "advanced": true},
+  {"key": "clearConfineWide", "type": "number", "default": 11, "group": "Route planning", "min": 0, "advanced": true},
+  {"key": "clearCruiseWide", "type": "boolean", "default": false, "group": "Route planning", "advanced": true},
+  {"key": "clearMax", "type": "number", "default": 6, "group": "Route planning", "min": 0, "advanced": true},
+  {"key": "clearMazeRun", "type": "number", "default": 40, "group": "Route planning", "min": 0, "advanced": true},
+  {"key": "clearMin", "type": "number", "default": 3, "group": "Route planning", "min": 0, "advanced": true},
+  {"key": "clearMinSpeed", "type": "number", "default": 9, "group": "Route planning", "unit": "m/s", "min": 0, "advanced": true},
+  {"key": "clearPull", "type": "boolean", "default": true, "group": "Route planning", "advanced": true},
+  {"key": "clearSpeedGain", "type": "number", "default": 0.12, "group": "Route planning", "min": 0, "advanced": true},
+  {"key": "clearWeight", "type": "number", "default": 0.03, "group": "Route planning", "min": 0, "advanced": true},
+  {"key": "comfortDecel", "type": "number", "default": 5, "label": "Braking for obstacles in the path", "group": "Speed", "unit": "m/s²", "min": 0, "description": "Braking deceleration used for obstacles in the path.", "advanced": true},
+  {"key": "contactMemory", "type": "boolean", "default": true, "group": "Evasion", "description": "false = off", "advanced": true},
+  {"key": "contactRestTime", "type": "number", "default": 1.0, "group": "Evasion", "unit": "s", "min": 0, "description": "s at rest before a lateral stall counts as contact, default 1", "advanced": true},
+  {"key": "contactTtl", "type": "number", "default": 25, "group": "Evasion", "unit": "s", "min": 0, "description": "s, how long an unseen contact stays a virtual obstacle, default 25", "advanced": true},
+  {"key": "crawlTime", "type": "number", "default": 6, "group": "Manoeuvres and maze", "unit": "s", "min": 0, "advanced": true},
+  {"key": "debugDraw", "type": "boolean", "default": true, "label": "Draw debug vectors", "group": "Debug", "description": "Draw debug vectors (visible in the Builder visualize mode).", "advanced": true},
+  {"key": "ecoFieldCut", "type": "number", "group": "Performance", "advanced": true},
+  {"key": "ecoFieldExact", "type": "boolean", "default": true, "group": "Performance", "advanced": true},
+  {"key": "ecoFieldFactor", "type": "number", "default": 3, "group": "Performance", "min": 0, "advanced": true},
+  {"key": "ecoFieldPad", "type": "number", "default": 20, "group": "Performance", "min": 0, "advanced": true},
+  {"key": "ecoPartialFactor", "type": "number", "default": 2, "group": "Performance", "min": 0, "advanced": true},
+  {"key": "ecoRouteFactor", "type": "number", "default": 2.5, "group": "Performance", "min": 0, "advanced": true},
+  {"key": "escapeManeuverSpeed", "type": "number", "default": 15, "group": "Evasion", "unit": "m/s", "min": 0, "advanced": true},
+  {"key": "exitHeadingWeight", "type": "number", "default": 0, "group": "Manoeuvres and maze", "min": 0, "advanced": true},
+  {"key": "exploreTime", "type": "number", "default": 0, "group": "Manoeuvres and maze", "unit": "s", "min": 0, "description": "s, 0 = off; see below", "advanced": true},
+  {"key": "fieldBlockCost", "type": "number", "default": 400, "group": "Manoeuvres and maze", "min": 0, "advanced": true},
+  {"key": "fieldCell", "type": "number", "default": 2, "group": "Manoeuvres and maze", "min": 0, "advanced": true},
+  {"key": "fieldDynamic", "type": "boolean", "default": true, "group": "Manoeuvres and maze", "advanced": true},
+  {"key": "fieldEvery", "type": "number", "default": 0.3, "group": "Manoeuvres and maze", "min": 0, "advanced": true},
+  {"key": "fieldHeuristic", "type": "boolean", "default": false, "group": "Manoeuvres and maze", "description": "2D goal-distance field over the persistent static map, see ensureField", "advanced": true},
+  {"key": "fieldInflate", "type": "number", "group": "Manoeuvres and maze", "advanced": true},
+  {"key": "gearSwitchPenalty", "type": "number", "default": 4, "group": "Manoeuvres and maze", "min": 0, "advanced": true},
+  {"key": "goalReach", "type": "number", "default": 3.5, "group": "Goal", "min": 0, "advanced": true},
+  {"key": "guardMargin", "type": "number", "default": 0.15, "group": "Route planning", "unit": "m", "min": 0, "advanced": true},
+  {"key": "handbackFree", "type": "number", "default": 10, "group": "Route planning", "min": 0, "advanced": true},
+  {"key": "handbackMargin", "type": "number", "default": 0, "group": "Route planning", "unit": "m", "min": 0, "advanced": true},
+  {"key": "headingHeuristic", "type": "boolean", "default": false, "group": "Manoeuvres and maze", "advanced": true},
+  {"key": "headingMin", "type": "number", "default": 0.4, "group": "Route planning", "min": 0, "advanced": true},
+  {"key": "headingWeight", "type": "number", "default": 0.8, "group": "Route planning", "min": 0, "advanced": true},
+  {"key": "lookahead", "type": "number", "default": 14, "group": "Route planning", "min": 0, "advanced": true},
+  {"key": "manTrack", "type": "boolean", "group": "Manoeuvres and maze", "advanced": true},
+  {"key": "maneuverDecel", "type": "number", "default": 10, "group": "Manoeuvres and maze", "unit": "m/s²", "min": 0, "advanced": true},
+  {"key": "maneuverMargin", "type": "number", "group": "Manoeuvres and maze", "unit": "m", "advanced": true},
+  {"key": "maneuverRunSpeed", "type": "number", "group": "Manoeuvres and maze", "unit": "m/s", "description": "maze mode only", "advanced": true},
+  {"key": "maneuverSpeed", "type": "number", "default": 3, "group": "Manoeuvres and maze", "unit": "m/s", "min": 0, "advanced": true},
+  {"key": "maxExpansions", "type": "number", "default": 4000, "group": "Route planning", "min": 0, "advanced": true},
+  {"key": "maxLatAccel", "type": "number", "default": 9, "label": "Cornering limit (lateral accel)", "group": "Speed", "unit": "m/s²", "min": 0, "description": "Cornering limit: lateral acceleration the speed planner allows in bends.", "advanced": true},
+  {"key": "maxOffPath", "type": "number", "default": 6, "group": "Route planning", "min": 0, "description": "m, drop a plan the car is farther from", "advanced": true},
+  {"key": "maxReverseRun", "type": "number", "default": 8, "group": "Manoeuvres and maze", "min": 0, "advanced": true},
+  {"key": "mazeDetour", "type": "number", "default": 15, "group": "Manoeuvres and maze", "min": 0, "advanced": true},
+  {"key": "mazeDeviate", "type": "number", "default": 2.5, "group": "Manoeuvres and maze", "min": 0, "advanced": true},
+  {"key": "mazeLatch", "type": "boolean", "default": false, "group": "Manoeuvres and maze", "advanced": true},
+  {"key": "mazeManeuverSpeed", "type": "number", "group": "Manoeuvres and maze", "unit": "m/s", "description": "off; maze-mode shuffle floor, e.g. 4.5", "advanced": true},
+  {"key": "mazeMaxReverseRun", "type": "number", "default": 40, "group": "Manoeuvres and maze", "min": 0, "description": "maze mode, see below", "advanced": true},
+  {"key": "mazeReversePenalty", "type": "number", "default": 1.5, "group": "Manoeuvres and maze", "min": 0, "advanced": true},
+  {"key": "planMargin", "type": "number", "default": 0.4, "group": "Route planning", "unit": "m", "min": 0, "advanced": true},
+  {"key": "pocketDirs", "type": "number", "default": 5, "group": "Evasion", "min": 0, "advanced": true},
+  {"key": "pocketFanDeg", "type": "number", "default": 35, "group": "Evasion", "unit": "°", "min": 0, "advanced": true},
+  {"key": "pocketFieldRise", "type": "number", "default": 10, "group": "Evasion", "min": 0, "advanced": true},
+  {"key": "pocketInset", "type": "number", "default": 6, "group": "Evasion", "min": 0, "advanced": true},
+  {"key": "pocketMaxDist", "type": "number", "default": 80, "group": "Evasion", "unit": "m", "min": 0, "advanced": true},
+  {"key": "pocketMinSpeed", "type": "number", "default": 5, "group": "Evasion", "unit": "m/s", "min": 0, "advanced": true},
+  {"key": "pocketSideMax", "type": "number", "default": 16, "group": "Evasion", "min": 0, "advanced": true},
+  {"key": "primitiveLength", "type": "number", "default": 1.8, "group": "Route planning", "unit": "m", "min": 0, "advanced": true},
+  {"key": "restWaitMax", "type": "number", "default": 1.2, "group": "Manoeuvres and maze", "min": 0, "description": "s, wait for rest before a gear change", "advanced": true},
+  {"key": "revGuard", "type": "boolean", "default": true, "group": "Manoeuvres and maze", "advanced": true},
+  {"key": "revGuardFloor", "type": "number", "default": 2, "group": "Manoeuvres and maze", "min": 0, "advanced": true},
+  {"key": "revGuardLookMax", "type": "number", "group": "Manoeuvres and maze", "advanced": true},
+  {"key": "revSweep", "type": "boolean", "default": true, "group": "Manoeuvres and maze", "advanced": true},
+  {"key": "revSweepCusp", "type": "boolean", "default": false, "group": "Manoeuvres and maze", "advanced": true},
+  {"key": "revSweepFloor", "type": "number", "default": 2, "group": "Manoeuvres and maze", "min": 0, "advanced": true},
+  {"key": "revSweepLatch", "type": "number", "default": 0.5, "group": "Manoeuvres and maze", "min": 0, "advanced": true},
+  {"key": "reverseCruise", "type": "boolean", "default": true, "group": "Manoeuvres and maze", "advanced": true},
+  {"key": "reversePenalty", "type": "number", "default": 4, "group": "Manoeuvres and maze", "min": 0, "advanced": true},
+  {"key": "reverseSpeed", "type": "number", "group": "Manoeuvres and maze", "unit": "m/s", "advanced": true},
+  {"key": "routeClearance", "type": "boolean", "default": false, "group": "Route planning", "advanced": true},
+  {"key": "routeCurveWindow", "type": "number", "default": 14, "group": "Route planning", "min": 0, "advanced": true},
+  {"key": "routeExpansions", "type": "number", "default": 1500, "group": "Route planning", "min": 0, "advanced": true},
+  {"key": "routeFastRefresh", "type": "boolean", "default": false, "group": "Route planning", "advanced": true},
+  {"key": "routeInterval", "type": "number", "default": 0.8, "group": "Route planning", "unit": "s", "min": 0, "advanced": true},
+  {"key": "routeLimitChaseT", "type": "number", "default": 8, "group": "Route planning", "min": 0, "advanced": true},
+  {"key": "routeLimitFull", "type": "boolean", "default": true, "group": "Route planning", "advanced": true},
+  {"key": "routeLimitGearSwitch", "type": "number", "default": 3, "group": "Route planning", "min": 0, "advanced": true},
+  {"key": "routeLimitKappa", "type": "number", "default": 0.04, "group": "Route planning", "min": 0, "advanced": true},
+  {"key": "routeLimitLatScale", "type": "number", "default": 1, "group": "Route planning", "min": 0, "advanced": true},
+  {"key": "routeLimitPose", "type": "boolean", "group": "Route planning", "advanced": true},
+  {"key": "routeLimitRevStop", "type": "boolean", "default": false, "group": "Route planning", "advanced": true},
+  {"key": "routeLimitStops", "type": "boolean", "default": false, "group": "Route planning", "advanced": true},
+  {"key": "runTotal", "type": "boolean", "default": false, "group": "Manoeuvres and maze", "description": "opt-in, see below", "advanced": true},
+  {"key": "stallTime", "type": "number", "default": 1.2, "group": "Manoeuvres and maze", "unit": "s", "min": 0, "advanced": true},
+  {"key": "stuckTime", "type": "number", "default": 1.5, "group": "Route planning", "unit": "s", "min": 0, "description": "Seconds without progress before the vehicle counts as stuck.", "advanced": true},
+  {"key": "tightMargin", "type": "number", "default": 0.1, "group": "Route planning", "unit": "m", "min": 0, "advanced": true},
+  {"key": "trackGain", "type": "number", "default": 0.7, "group": "Route planning", "min": 0, "advanced": true},
+  {"key": "turnAround", "type": "boolean", "default": true, "group": "Manoeuvres and maze", "advanced": true},
+  {"key": "turnCommit", "type": "boolean", "default": true, "group": "Manoeuvres and maze", "advanced": true},
+  {"key": "turnDeviate", "type": "number", "default": 2.5, "group": "Manoeuvres and maze", "min": 0, "advanced": true},
+  {"key": "turnManeuverSpeed", "type": "number", "default": 4.5, "group": "Manoeuvres and maze", "unit": "m/s", "min": 0, "advanced": true},
+  {"key": "turnMaxExpansions", "type": "number", "default": 12000, "group": "Manoeuvres and maze", "min": 0, "advanced": true},
+  {"key": "turnRoom", "type": "number", "default": 20, "group": "Manoeuvres and maze", "min": 0, "advanced": true},
+  {"key": "turnRouteExpansions", "type": "number", "default": 5000, "group": "Manoeuvres and maze", "min": 0, "advanced": true},
+  {"key": "tickEvery", "type": "number", "default": 1, "min": 1, "step": 1, "description": "Engine feature: this stage runs only every N-th frame (accumulated dt); 1 = every frame. Never use it on controllers.", "label": "Run every N-th frame", "group": "Performance", "advanced": true},
+  {"key": "maneuverRunDecel", "type": "number", "default": 3, "label": "Manoeuvre run deceleration", "group": "Route planning", "unit": "m/s²", "min": 0, "description": "Speed cap of every comfort manoeuvre run: offset + sqrt(2 * decel * runLen).", "advanced": true},
+  {"key": "maneuverRunOffset", "type": "number", "default": 0.9, "label": "Manoeuvre run speed offset", "group": "Route planning", "unit": "m/s", "min": 0, "description": "Offset of the manoeuvre run speed cap.", "advanced": true},
+  {"key": "revVotes", "type": "number", "default": 2, "label": "Reverse plan votes", "group": "Route planning", "min": 0, "description": "Consecutive plans that must confirm a reverse-first route before the manoeuvre starts.", "advanced": true},
+  {"key": "maneuverEntrySpeed", "type": "number", "default": 1.5, "label": "Manoeuvre entry speed", "group": "Route planning", "unit": "m/s", "min": 0, "description": "Reverse manoeuvre needs speed below this.", "advanced": true},
+  {"key": "maneuverEntryStopSpeed", "type": "number", "default": 0.3, "label": "Manoeuvre entry stop speed", "group": "Route planning", "unit": "m/s", "min": 0, "description": "Below this speed the vote count is waived.", "advanced": true},
+  {"key": "replanCooldown", "type": "number", "default": 0.6, "label": "Replan cooldown", "group": "Route planning", "unit": "s", "min": 0, "description": "Minimum time between blocked-ahead / stall replans in a manoeuvre.", "advanced": true},
+  {"key": "stuckSpeed", "type": "number", "default": 0.25, "label": "Stuck speed", "group": "Route planning", "unit": "m/s", "min": 0, "description": "Stuck watchdog: speed below which the car counts as stopped.", "advanced": true},
+  {"key": "routeLimitHorizon", "type": "number", "default": 160, "label": "Route limit horizon", "group": "Route planning", "unit": "m", "min": 0, "description": "How far ahead bends are braked for (routeLimitFull only).", "advanced": true},
+  {"key": "nearHitExtra", "type": "number", "default": 1.5, "label": "Near-cusp hit margin", "group": "Route planning", "unit": "m", "min": 0, "description": "Extra hull margin of the near-cusp hit test (only used with revSweepCusp).", "advanced": true},
+  {"key": "revCruiseBehind", "type": "number", "default": 0.3, "label": "Reverse-cruise behind fraction", "group": "Route planning", "min": 0, "description": "Goal-behind fraction above which reverse-cruise is considered.", "advanced": true}
+]
+*/
 // AV stack · PLAN / route + manoeuvre planner (Hybrid-A* over forward/reverse arc primitives).
 // Two jobs, one search:
 //  1. ROUTE: every `routeInterval` s plans a collision-free route to the goal over the costmap and publishes
@@ -22,6 +156,23 @@ function transform(input, dt, params, state, api) {
   if (!tgt) return {}
   var gxw = tgt[0]
   var gzw = tgt[2]
+  // goalJumpReplan (m, default 8, 0 / false = off): the goal source / flee layer replaced the goal (a jump between frames, not a drifting follow goal). The stored route, its carrot and a running
+  // manoeuvre belong to the OLD goal (eco: a plan is kept 2-4 s = 40-80 m): drop them now and plan to the new one. Measured: 8 % of the carrot frames steered along a route to the previous goal.
+  var gJump = params.goalJumpReplan === false ? 0 : typeof params.goalJumpReplan === 'number' ? params.goalJumpReplan : 8
+  if (gJump > 0) {
+    var pg = state.pgoal
+    // flee-layer goals are excluded (a switch between escape headings keeps the plan: flee-wall-ahead loses its way with a replan per switch); only the goal source's own jumps count
+    var fleeNow = !!av.fleeing
+    if (pg && !fleeNow && !state.pfl && Math.hypot(gxw - pg[0], gzw - pg[1]) > gJump) {
+      state.route = undefined
+      if (state.active) {
+        state.active = false
+        state.stuckT = 0
+      }
+    }
+    state.pgoal = [gxw, gzw]
+    state.pfl = fleeNow
+  }
   var kmax = params.maxCurvature || 0.115
   var planMargin = params.planMargin != null ? params.planMargin : 0.4
   var tightMargin = params.tightMargin != null ? params.tightMargin : 0.1
@@ -668,7 +819,8 @@ function transform(input, dt, params, state, api) {
       var lat = params.clearConfineLat != null ? params.clearConfineLat : 4
       if (clearDist(clrF, sx + e.left[0] * lat, sz + e.left[2] * lat) < 2.5 && clearDist(clrF, sx - e.left[0] * lat, sz - e.left[2] * lat) < 2.5) clrF = null
       // corridor / dead end wider than that (walls on both sides within clearConfineWide, 11 m): a wall line is crossed laterally on BOTH sides -> plain plan (no berth to buy, and the unseen end of a corridor counts as free)
-      if (clrF !== null) {
+      // clearCruiseWide (OPT-IN): a car already cruising (>= clearMinSpeed, long forward plan: checked in clearOn) keeps the berth in a corridor too: it drives on, it does not turn around in it
+      if (clrF !== null && !(params.clearCruiseWide === true && (e.speedF || 0) >= (params.clearMinSpeed != null ? params.clearMinSpeed : 9))) {
         var wide = params.clearConfineWide != null ? params.clearConfineWide : 11
         var wl = false
         var wr = false
@@ -988,8 +1140,70 @@ function transform(input, dt, params, state, api) {
     }
     return false
   }
-  function routeLimitNow(rt) {
-    if (rt.vOld != null && chasedSoon()) return rt.vOld
+  // pocketBrake (OPT-IN, needs the field): the car's straight continuation (heading, up to ~2 braking distances) ends in a dead end that the static map has fully seen: a wall within reach,
+  // walls on BOTH sides over the last metres (a U / dead-end corridor, not a lone wall or a bend that opens sideways) and the field distance rises along the way (the route does not
+  // lead in). Then the route bend limit stays active although the car is chased (av-speed-planner skips it otherwise): driving into a visible U is always worse than braking for its mouth.
+  function pocketAhead() {
+    if (params.pocketBrake !== true || !fld || !(av.threats && av.threats.length)) return false
+    var v = Math.max(0, e.speedF)
+    if (v < (params.pocketMinSpeed != null ? params.pocketMinSpeed : 5)) return false
+    var F = fld.F
+    var aB = params.comfortDecel || 5
+    var dMax = Math.min(params.pocketMaxDist != null ? params.pocketMaxDist : 80, 15 + (v * v) / aB)
+    var wMax = params.pocketSideMax != null ? params.pocketSideMax : 16
+    var h0 = Math.atan2(e.fwd[2], e.fwd[0])
+    var cs = F.cs
+    var fan = params.pocketFanDeg != null ? params.pocketFanDeg : 35
+    var rise = params.pocketFieldRise != null ? params.pocketFieldRise : 10
+    var minDirs = params.pocketDirs != null ? params.pocketDirs : 5
+    var inset = params.pocketInset != null ? params.pocketInset : 6
+    var fd0 = fieldAt(pos[0], pos[2])
+    function blockedAt(x, z) {
+      var ix = Math.floor((x - F.wx0) / cs)
+      var iz = Math.floor((z - F.wz0) / cs)
+      return ix >= 0 && iz >= 0 && ix < F.W && iz < F.H && F.occ[ix * F.H + iz] === 1
+    }
+    // a fan of rays around the heading (the local planner may steer into any of them): one that ends at a seen wall within reach, inside an enclosed space whose field distance
+    // rises (a U / dead-end corridor, not a lone wall: the field is ~equal on both faces of it; not a bend: the field falls along it)
+    for (var fi = -2; fi <= 2; fi++) {
+      var ha = h0 + (fi * fan * Math.PI) / 360
+      var hx = Math.cos(ha)
+      var hz = Math.sin(ha)
+      var dEnd = -1
+      for (var s = 4; s <= dMax; s += cs) {
+        if (blockedAt(pos[0] + hx * s, pos[2] + hz * s)) {
+          dEnd = s
+          break
+        }
+      }
+      if (dEnd < 0) continue
+      var sIn = Math.max(0, dEnd - inset)
+      var qx = pos[0] + hx * sIn
+      var qz = pos[2] + hz * sIn
+      // the field must climb along the ray: the end point is `rise` m above the lowest value passed on the way (the mouth of the pocket; a lone wall has its minimum at the wall)
+      var fMin = fd0
+      for (var sf = cs; sf <= sIn; sf += cs) {
+        var fv = fieldAt(pos[0] + hx * sf, pos[2] + hz * sf)
+        if (fv < fMin) fMin = fv
+      }
+      if (fieldAt(qx, qz) < fMin + rise) continue
+      // enclosure: at least `pocketDirs` of 8 directions (world axes, 45 deg apart) hit a blocked cell within `wMax` m (a U has ~7 of 8, a lone wall only the 3 facing it)
+      var nBlocked = 0
+      for (var di = 0; di < 8; di++) {
+        var ang = (di * Math.PI) / 4
+        for (var w = cs; w <= wMax; w += cs) {
+          if (blockedAt(qx + Math.cos(ang) * w, qz + Math.sin(ang) * w)) {
+            nBlocked++
+            break
+          }
+        }
+      }
+      if (nBlocked >= minDirs) return true
+    }
+    return false
+  }
+  function routeLimitNow(rt, pocket) {
+    if (rt.vOld != null && !pocket && chasedSoon()) return rt.vOld
     if (!rt.bends || !rt.bends.length || !rt.nodes) return rt.vLimit
     var nn = rt.nodes
     var best = 0
@@ -1022,12 +1236,22 @@ function transform(input, dt, params, state, api) {
     if (firstGear === 1) {
       var want = Math.min(lookahead, 6 + 1.0 * Math.max(0, e.speedF))
       var acc = 0
+      var cb = (av.threats && av.threats.length) || (e.speedF || 0) < (params.carrotBendMinSpeed != null ? params.carrotBendMinSpeed : 0) ? 0 : params.carrotBend != null ? params.carrotBend : 0
+      var cbMin = params.carrotBendMin != null ? params.carrotBendMin : 4
+      var a0 = 0
       for (var i = 1; i < nodes.length && nodes[i].g === 1; i++) {
         var dx = nodes[i].x - nodes[i - 1].x
         var dz = nodes[i].z - nodes[i - 1].z
         acc += Math.sqrt(dx * dx + dz * dz)
         carrot = [nodes[i].x, nodes[i].z]
         if (acc >= want) break
+        // carrotBend (rad, 0 = off; OPT-IN (0.65 in self_hunt_flexible), only without threats): the carrot stops where the route has turned this far from its first segment. A carrot a whole look-ahead (6 + v m) down the route sits
+        // beyond a 90 deg bend (R 8.7 = 14 m of arc): pure pursuit then steers a gentle chord and turns in too late; inside the bend it follows the arc.
+        if (cb > 0 && i > 1) {
+          var da = Math.atan2(dz, dx) - a0
+          da = Math.atan2(Math.sin(da), Math.cos(da))
+          if (acc >= cbMin && Math.abs(da) > cb) break
+        } else if (i === 1) a0 = Math.atan2(dz, dx)
       }
       run = acc
       if (params.carrotPull !== false && carrot && !(av.threats && av.threats.length)) {
@@ -1212,7 +1436,51 @@ function transform(input, dt, params, state, api) {
     }
     if (!state.active) {
       if (rt.carrot) av.carrot = rt.carrot
-      if (rt.pull && !(av.threats && av.threats.length)) {
+      // carrotLive (OPT-IN: true): a plan-time carrot is a world-fixed point; between replans (eco: 2 s = 20 m at 10 m/s) the car drives up to / past it and the pure-pursuit
+      // arc to it is stale, in a corridor bend the car turns in a second late and brakes to a stop at the wall. Re-derive it every frame: `want` m down the stored route from the nearest node.
+      var liveUsed = false
+      // carrotTrack (OPT-IN: true; on in self_hunt_flexible; default on breaks corner-trap / gap-entry-wall10 / open-field cases): the carrot is ALWAYS derived from the CURRENT route each frame (`want` m along the stored nodes from the car's nearest node), also while pursuers are tracked (the plan-time carrot
+      // of a threatened plan is a world-fixed node: the car drives past it within the 2-4 s a plan is kept in eco, 46 % of the carrot frames had it BEHIND the car). A carrot that is behind a forward-cruising car is dropped.
+      var thr = !!(av.threats && av.threats.length)
+      var trackOn = params.carrotTrack === true && rt.firstGear === 1 && !!rt.nodes && (thr || !rt.pull)
+      if (rt.carrot && ((params.carrotLive === true && (!rt.pull || Math.hypot(rt.pull[0] - pos[0], rt.pull[1] - pos[2]) < Math.max(params.carrotLiveNear != null ? params.carrotLiveNear : 12, 0)) && rt.firstGear === 1 && rt.nodes && !thr) || trackOn)) {
+        var ln = rt.nodes
+        var lbest = 0
+        var lbd = Infinity
+        for (var li = 0; li < ln.length && (ln[li].g === 1 || li === 0); li++) {
+          var ld = Math.hypot(ln[li].x - pos[0], ln[li].z - pos[2])
+          if (ld < lbd) { lbd = ld; lbest = li }
+        }
+        var lwant = Math.min(lookahead, 6 + 1.0 * Math.max(0, e.speedF))
+        var lacc = 0
+        var lcar = null
+        var lcb = thr || (e.speedF || 0) < (params.carrotBendMinSpeed != null ? params.carrotBendMinSpeed : 0) ? 0 : params.carrotBend != null ? params.carrotBend : 0
+        var la0 = 0
+        var lcut = false
+        for (var lj = lbest + 1; lj < ln.length && ln[lj].g === 1; lj++) {
+          var ldx = ln[lj].x - ln[lj - 1].x
+          var ldz = ln[lj].z - ln[lj - 1].z
+          lacc += Math.hypot(ldx, ldz)
+          lcar = [ln[lj].x, ln[lj].z]
+          if (lacc >= lwant) break
+          if (lcb > 0) {
+            if (lj === lbest + 1) la0 = Math.atan2(ldz, ldx)
+            else {
+              var lda = Math.atan2(ldz, ldx) - la0
+              if (lacc >= 4 && Math.abs(Math.atan2(Math.sin(lda), Math.cos(lda))) > lcb) {
+                lcut = true
+                break
+              }
+            }
+          }
+        }
+        // only where the route bends inside the look-ahead (a straight run keeps the plan-time / pulled carrot: open-field berth)
+        if ((lcut && lcar && lacc >= 4) || (trackOn && lcar && lacc >= 1)) {
+          av.carrot = lcar
+          liveUsed = true
+        } else if (trackOn && !lcar) delete av.carrot
+      }
+      if (rt.pull && !(av.threats && av.threats.length) && !liveUsed) {
         var pdx = rt.pull[0] - pos[0]
         var pdz = rt.pull[1] - pos[2]
         var pdl = Math.hypot(pdx, pdz)
@@ -1222,7 +1490,8 @@ function transform(input, dt, params, state, api) {
           av.carrot = [pos[0] + pdx * pk, pos[2] + pdz * pk]
         }
       }
-      api.watch('av.carrotw', rt.carrot ? rt.carrot[0].toFixed(0) + ',' + rt.carrot[1].toFixed(0) : '-')
+      if (params.carrotTrack === true && av.carrot && rt.firstGear === 1 && e.speedF > 2 && (av.carrot[0] - pos[0]) * e.fwd[0] + (av.carrot[1] - pos[2]) * e.fwd[2] < 0) delete av.carrot
+      api.watch('av.carrotw', rt.carrot ? rt.carrot[0].toFixed(0) + ',' + rt.carrot[1].toFixed(0) + (av.carrot ? ' live ' + av.carrot[0].toFixed(0) + ',' + av.carrot[1].toFixed(0) : '') + (rt.pull ? ' pull' : '') : '-')
       // a route that was driving forward (>= 2 s on a long forward run) turns reverse-first for two plans in a row (the vote that starts the manoeuvre), the car still
       // rolling: a missed turn. Brake to a stop for the manoeuvre instead of accelerating on the old forward limit (crawl floor ignored, av-speed-planner 'rstop').
       // Decided once per such flip. OPT-IN (routeLimitRevStop: true): it fixes missed entrances but turns forward U-turns of the maze cases into K-turns (dead-end, corridor turnaround).
@@ -1240,14 +1509,17 @@ function transform(input, dt, params, state, api) {
         } else state.revStopOn = false
       }
       var revStop = !!state.revStopOn && rt.firstGear === -1
-      av.route = { firstGear: rt.firstGear, run: rt.run, reached: rt.reached, vLimit: revStop ? 0 : routeLimitNow(rt), revFirst: revStop }
-      if (params.debugDraw !== false) {
+      var pocket = pocketAhead()
+      av.route = { firstGear: rt.firstGear, run: rt.run, reached: rt.reached, vLimit: revStop ? 0 : routeLimitNow(rt, pocket), revFirst: revStop, pocket: pocket }
+      av.routePath = rt.path // [[x, z], ...] planned route nodes (read-only; av-waypoint-viz draws it as the goal chain)
+      // goalViz 'full' draws the same route as the light-orange chain (av-waypoint-viz): no second magenta copy
+      if (params.debugDraw !== false && params.goalViz !== true && params.goalViz !== 'full') {
         var y0 = pos[1]
         for (var di = 2; di < rt.path.length; di += 2) {
           api.visualizeLine([rt.path[di - 2][0], y0, rt.path[di - 2][1]], [rt.path[di][0], y0, rt.path[di][1]], '#ff44ff')
         }
       }
-      api.watch('av.route', 'gear ' + rt.firstGear + ' run ' + rt.run.toFixed(1) + (rt.reached ? ' goal' : ' partial') + ' exp ' + rt.expansions + ' h ' + rt.hRem.toFixed(0) + (fld ? ' fd ' + av.fieldGoal.d.toFixed(0) : ''))
+      api.watch('av.route', (pocket ? 'POCKET ' : '') + 'gear ' + rt.firstGear + ' run ' + rt.run.toFixed(1) + (rt.reached ? ' goal' : ' partial') + ' exp ' + rt.expansions + ' h ' + rt.hRem.toFixed(0) + (fld ? ' fd ' + av.fieldGoal.d.toFixed(0) : ''))
       return {}
     }
   }

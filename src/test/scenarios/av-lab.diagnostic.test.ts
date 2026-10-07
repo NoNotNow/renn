@@ -126,6 +126,10 @@ it.skipIf(!enabled)('av lab run', async () => {
       if (b) b.params = { ...(b.params ?? {}), ...JSON.parse(env.AVLAB_PARAMS) }
     }
     const clr = makeClearanceTracker(prepared, focus!)
+    // AVLAB_POCKET='x0,x1,z0,z1,west|east|north|south': max depth of the focus centre inside a pocket (and when).
+    const pk = env.AVLAB_POCKET ? env.AVLAB_POCKET.split(',') : null
+    let pkDepth = 0
+    let pkFrame = -1
     const r = await runLab({
       world: ref,
       preparedWorld: prepared,
@@ -141,6 +145,19 @@ it.skipIf(!enabled)('av lab run', async () => {
       slowTriggerMs: env.AVLAB_SLOW_MS ? Number(env.AVLAB_SLOW_MS) : 0,
       onFrame: ({ sim, frame }) => {
         clr.onFrame(sim)
+        if (env.AVLAB_TRACE && frame != null && frame % Number(env.AVLAB_TRACE) === 0) {
+          const p = sim.getPosition(focus!)
+          const v = sim.getVelocity(focus!)
+          console.log(`TRACE f${frame} ${(frame / 60).toFixed(1)}s x ${p[0].toFixed(1)} z ${p[2].toFixed(1)} v ${Math.hypot(v[0], v[2]).toFixed(1)}`)
+        }
+        if (pk) {
+          const [x0, x1, z0, z1] = pk.slice(0, 4).map(Number)
+          const p = sim.getPosition(focus!)
+          if (p[0] >= x0 && p[0] <= x1 && p[2] >= z0 && p[2] <= z1) {
+            const d = pk[4] === 'west' ? p[0] - x0 : pk[4] === 'east' ? x1 - p[0] : pk[4] === 'north' ? z1 - p[2] : p[2] - z0
+            if (d > pkDepth) { pkDepth = d; pkFrame = frame ?? -1 }
+          }
+        }
         // AVLAB_HASH=1: FNV hash of every entity pose every 50 frames (bit-identity proof for perf work).
         if (env.AVLAB_HASH === '1' && frame != null && frame % 50 === 0) {
           let h = 2166136261
@@ -155,6 +172,7 @@ it.skipIf(!enabled)('av lab run', async () => {
         }
       },
     })
+    if (pk) console.log(`  POCKET seed ${seed} max depth ${pkDepth.toFixed(1)} m at frame ${pkFrame}`)
     console.log(`  CLEARANCE min static hull gap ${clr.m.minStaticGap.toFixed(2)} m | close-pass frames (<${CLOSE_GAP} m & >${CLOSE_SPEED} m/s) ${clr.m.closePassFrames} | head-on frames ${clr.m.headOnFrames}`)
     console.log(summary(`seed ${seed}`, r))
     // Machine-readable per-seed summary (read by tools/av-health.mjs).

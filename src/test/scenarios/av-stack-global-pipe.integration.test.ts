@@ -49,7 +49,8 @@ describe('AV stack as a shipped global pipe', () => {
     for (const id of ['global_av_stack', 'global_av_autopilot', 'global_av_sense', 'global_av_plan', 'global_av_plan_route', 'global_av_plan_local', 'global_av_control', 'global_av_safety']) {
       expect(world.transformerPipes?.[id], id).toBeDefined()
     }
-    expect(Object.keys(world.transformers ?? {}).length).toBe(12)
+    // 12 AV stages + the manual-override input stage (appended last in the autopilot pipe)
+    expect(Object.keys(world.transformers ?? {}).length).toBe(13)
   })
 
   it('the autopilot pipe alone has no mission and no actuator (bring your own)', () => {

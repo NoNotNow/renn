@@ -12,7 +12,7 @@ const AV_STAGE_PREFIX = 'global_av_'
 export function avStageHashes(world: RennWorld): Record<string, string> {
   const out: Record<string, string> = {}
   for (const id of Object.keys(world.transformers ?? {}).sort()) {
-    if (!id.startsWith(AV_STAGE_PREFIX)) continue
+    if (!id.startsWith(AV_STAGE_PREFIX) || !world.transformers![id]) continue
     out[id] = stageFingerprint(world.transformers![id]!)
   }
   return out
@@ -40,6 +40,7 @@ export function avCodeDrift(world: RennWorld, library: GlobalBehaviorLibrary): A
   const diverged = only(report.divergedStages)
   // stages without an origin that simply differ from the library are neither updatable nor diverged by origin: report them as diverged
   for (const [id, cfg] of Object.entries(world.transformers ?? {})) {
+    if (!cfg) continue
     const lib = library.transformers?.[id]
     if (id.startsWith(AV_STAGE_PREFIX) && lib && !cfg.origin && stageFingerprint(lib) !== stageFingerprint(cfg) && !diverged.includes(id)) diverged.push(id)
   }

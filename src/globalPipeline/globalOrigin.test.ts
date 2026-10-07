@@ -27,6 +27,21 @@ function consumer(library: GlobalBehaviorLibrary): RennWorld {
   return assignPipeToEntity(w, 'e2', w.transformerPipes!.p!, 'linked')
 }
 
+describe('library update tolerates broken registries', () => {
+  it('skips undefined registry entries (project saved by an old stage-delete bug) instead of crashing', () => {
+    const w = consumer(lib('a1'))
+    const broken = {
+      ...w,
+      transformers: { ...w.transformers, ghost: undefined },
+      transformerPipes: { ...w.transformerPipes, ghostPipe: undefined },
+    } as unknown as RennWorld
+    expect(() => updateWorldFromGlobalLibrary(broken, lib('a1'))).not.toThrow()
+    const { world, report } = updateWorldFromGlobalLibrary(broken, lib('a2 FIXED'))
+    expect(report.updatedStages).toEqual(['a'])
+    expect(world.transformers!.a!.code).toBe('a2 FIXED')
+  })
+})
+
 describe('library fixes reach project copies', () => {
   it('copies remember their origin', () => {
     const w = consumer(lib('a1'))

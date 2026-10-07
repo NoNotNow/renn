@@ -15,6 +15,7 @@ import WorkspaceFloatingDrawer from '@/components/workspace/WorkspaceFloatingDra
 import { clampDrawerPosition, drawerPositionRelativeToHost } from '@/components/workspace/floatingDrawerLayout'
 import ValidatedJsonTextarea from '@/components/ValidatedJsonTextarea'
 import TransformerFieldReference from '@/components/TransformerFieldReference'
+import StageParamsForm, { type StageParamContext } from '@/components/params/StageParamsForm'
 import { EntityPanelIcons } from '@/components/EntityPanelIcons'
 import { entityPanelIconButtonStyle } from '@/components/sharedStyles'
 import { theme } from '@/config/theme'
@@ -392,6 +393,7 @@ function TransformerTraceItem({
   cardDepth,
   ancestorEnabled,
   configRequestToken,
+  paramContext,
 }: {
   index: number
   /** Index of this transformer in the full entity stack (for custom display names). */
@@ -421,6 +423,8 @@ function TransformerTraceItem({
   ancestorEnabled: boolean
   /** `Date.now()` of a recent "open settings" request for this stage (pipe-nav tree gear); opens the config drawer. */
   configRequestToken?: number
+  /** Pipe layers above this stage for the viewed entity: the Params tab shows effective values and edits the winning layer. */
+  paramContext?: StageParamContext
 }) {
   const [inOpen, setInOpen] = useState(false)
   const [outOpen, setOutOpen] = useState(false)
@@ -442,6 +446,7 @@ function TransformerTraceItem({
     }
   }, [configRequestToken])
   const [fieldRefOpen, setFieldRefOpen] = useState(false)
+  const [configTab, setConfigTab] = useState<'params' | 'json'>('params')
   const [isToolsExpanded, setIsToolsExpanded] = useState(true)
   const itemRef = useRef<HTMLDivElement>(null)
   const traceFontRef = useRef('10px sans-serif')
@@ -902,7 +907,7 @@ function TransformerTraceItem({
             initialTop={drawerAnchor.y + 120}
             portalTarget={drawerPortalTarget.current}
             width={fieldRefOpen && isPresetTransformerType(transformer.type) ? 520 : 360}
-            initialHeight={300}
+            initialHeight={420}
             resizable
             bodyOverflow="hidden"
             headerExtra={
@@ -943,14 +948,47 @@ function TransformerTraceItem({
                 minHeight: 0,
               }}
             >
-              {transformer.type === 'custom' ? (
+              <div role="tablist" style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                {(['params', 'json'] as const).map((tab) => (
+                  <button
+                    key={tab}
+                    type="button"
+                    role="tab"
+                    aria-selected={configTab === tab}
+                    data-testid={`transformer-horizontal-config-tab-${tab}-${index}`}
+                    onClick={() => setConfigTab(tab)}
+                    style={{
+                      padding: '2px 10px',
+                      borderRadius: 4,
+                      fontSize: 11,
+                      cursor: 'pointer',
+                      color: configTab === tab ? theme.text.primary : theme.text.muted,
+                      background: configTab === tab ? theme.bg.input : 'transparent',
+                      border: `1px solid ${configTab === tab ? theme.pipeNav.accentMuted : 'transparent'}`,
+                    }}
+                  >
+                    {tab === 'params' ? 'Params' : 'JSON'}
+                  </button>
+                ))}
+              </div>
+              {configTab === 'params' ? (
+                <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+                  <StageParamsForm
+                    stage={transformer}
+                    testIdSuffix={`-${index}`}
+                    paramContext={paramContext}
+                    onParamsChange={(params) => onUpdate({ ...transformer, params })}
+                  />
+                </div>
+              ) : null}
+              {configTab === 'json' && transformer.type === 'custom' ? (
                 <p style={{ margin: 0, fontSize: 11, color: theme.text.muted, lineHeight: 1.4, flexShrink: 0 }}>
                   Edit TypeScript in the code editor. This JSON is name, priority, params, and enabled only.
                 </p>
               ) : null}
               <div
                 style={{
-                  display: 'flex',
+                  display: configTab === 'json' ? 'flex' : 'none',
                   flexDirection: 'row',
                   gap: 8,
                   flex: 1,
@@ -1038,6 +1076,7 @@ export function TransformerHorizontalPipeline({
   selectedId,
   cardErrorsByStackIndex,
   configRequest,
+  stageParamContext,
   scope = { kind: 'entityStack' },
 }: {
   transformers: TransformerConfig[]
@@ -1060,6 +1099,8 @@ export function TransformerHorizontalPipeline({
   cardErrorsByStackIndex?: Record<number, TransformerCardErrorKind>
   /** Open the config drawer of one stage (set by the pipe-nav tree's settings button). */
   configRequest?: StageConfigRequest | null
+  /** Per stage (by registry id and list index): the pipe layers above it for the viewed entity. */
+  stageParamContext?: (stageId: string, listIndex: number) => StageParamContext | undefined
   /** Host context — layout, add affordance and enable cascade all follow from it. */
   scope?: StageStripScope
 }) {
@@ -1331,6 +1372,7 @@ export function TransformerHorizontalPipeline({
               cardDepth={chrome.cardDepth}
               ancestorEnabled={chrome.isStageEnabled(item.originalIndex)}
               configRequestToken={configRequest?.stageId === item.id ? configRequest.token : undefined}
+              paramContext={stageParamContext?.(item.id, item.originalIndex)}
             />
           </div>
           {!chrome.inline && i < displayItems.length - 1 ? <PipelineConnector /> : null}

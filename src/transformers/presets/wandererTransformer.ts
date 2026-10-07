@@ -159,8 +159,10 @@ export class WandererTransformer extends BaseTransformer {
     if (params.planar !== undefined) this.params.planar = params.planar
   }
 
-  private pickNewTarget(input: TransformInput): void {
-    const { perimeter, jumpDistance, linear, angular, planar } = this.params
+  private pickNewTarget(input: TransformInput, maxDistance?: number): void {
+    const { perimeter, linear, angular, planar } = this.params
+    // `maxDistance` (goal feedback: the old goal was unreachable): re-pick close to the vehicle, a far random goal is as likely to be walled off as the old one
+    const jumpDistance = maxDistance != null && maxDistance > 0 && this.params.jumpDistance > 0 ? Math.min(this.params.jumpDistance, maxDistance) : this.params.jumpDistance
     let pos: Vec3 = linear
       ? jumpDistance > 0
         ? samplePositionWithJump(input.position, jumpDistance, perimeter)
@@ -200,8 +202,13 @@ export class WandererTransformer extends BaseTransformer {
   transform(input: TransformInput, _dt: number): TransformOutput {
     const { speed, linear, angular } = this.params
 
+    // goal feedback (a later stage of this entity reports the goal unreachable): give up this goal
+    const fb = input.goalFeedback?.[input.entityId]
+    if (fb) delete input.goalFeedback![input.entityId]
     if (!this.currentTarget || this.targetReached(input)) {
       this.pickNewTarget(input)
+    } else if (fb?.giveUp) {
+      this.pickNewTarget(input, fb.maxDistance)
     }
 
     if (!this.currentTarget) {

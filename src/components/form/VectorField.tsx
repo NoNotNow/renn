@@ -4,6 +4,7 @@ import DraggableNumberField from '../DraggableNumberField'
 import { EntityPanelIcons } from '../EntityPanelIcons'
 import { entityPanelIconButtonStyle } from '../sharedStyles'
 import { theme } from '@/config/theme'
+import type { VecComponentChange } from '@/utils/mixedInspectorEdit'
 import {
   activeLinkIndices,
   applyVectorComponentChange,
@@ -39,6 +40,17 @@ export interface VectorFieldProps<T extends number[]> {
   allowRelative?: boolean
   /** Initial edit mode. */
   defaultMode?: VectorEditMode
+  /**
+   * Multi-select: `mixed[i]` marks components the selected entities disagree on (shown empty with a
+   * "Mixed" placeholder). `value` then carries the first entity's vector for the shared components.
+   */
+  mixed?: readonly boolean[]
+  /**
+   * Required with `mixed`: receives a single-component edit (set, or relative increment in relative
+   * mode) so the parent can apply it to each entity's own vector. Linked editing is suspended while any
+   * component is mixed, and `onChange` is not called.
+   */
+  onComponentChange?: (change: VecComponentChange) => void
 }
 
 export default function VectorField<T extends number[]>({
@@ -61,6 +73,8 @@ export default function VectorField<T extends number[]>({
   defaultLinked = false,
   allowRelative = true,
   defaultMode = 'absolute',
+  mixed,
+  onComponentChange,
 }: VectorFieldProps<T>) {
   const linkIndices = useMemo(() => activeLinkIndices(componentLabels), [componentLabels])
   const showLinkToggle = linkable && canLink(componentLabels)
@@ -69,6 +83,9 @@ export default function VectorField<T extends number[]>({
   const [linked, setLinked] = useState(defaultLinked)
   const relativeBaselineRef = useRef<number[] | null>(null)
   const isScrubbingRef = useRef(false)
+  /** Relative + mixed: last total delta emitted per component during the current scrub. */
+  const relativeScrubLastRef = useRef<Record<number, number>>({})
+  const hasMixed = onComponentChange !== undefined && mixed !== undefined && mixed.some(Boolean)
   const valueRef = useRef(value)
   valueRef.current = value
 
@@ -93,12 +110,23 @@ export default function VectorField<T extends number[]>({
     setEditMode(next)
   }, [captureRelativeBaseline])
 
-  const displayComponents = useMemo(
-    () => displayComponentsForMode(value, editMode, componentLabels.length),
-    [value, editMode, componentLabels.length],
-  )
+  const displayComponents = useMemo(() => {
+    const base = displayComponentsForMode(value, editMode, componentLabels.length)
+    if (editMode !== 'absolute' || !mixed) return base
+    return base.map((v, i) => (mixed[i] ? null : v))
+  }, [value, editMode, componentLabels.length, mixed])
 
   const handleComponentChange = (index: number) => (newValue: number) => {
+    if (hasMixed) {
+      let amount = newValue
+      if (editMode === 'relative' && isScrubbingRef.current) {
+        // Scrub reports the running total from scrub start; emit only the increment since the last move.
+        amount = newValue - (relativeScrubLastRef.current[index] ?? 0)
+        relativeScrubLastRef.current[index] = newValue
+      }
+      onComponentChange!({ index, value: amount, relative: editMode === 'relative' })
+      return
+    }
     const next = applyVectorComponentChange({
       current: value,
       relativeBaseline: relativeBaselineRef.current,
@@ -212,7 +240,7 @@ export default function VectorField<T extends number[]>({
             {compLabel.trim() ? (
               <DraggableNumberField
                 id={`${idPrefix}-${compLabel.toLowerCase()}`}
-                value={value === null ? null : displayComponents[index]!}
+                value={value === null ? null : (displayComponents[index] ?? null)}
                 onChange={handleComponentChange(index)}
                 min={editMode === 'relative' ? undefined : min}
                 max={editMode === 'relative' ? undefined : max}
@@ -228,6 +256,7 @@ export default function VectorField<T extends number[]>({
                 onScrubStart={() => {
                   if (editMode === 'relative') captureRelativeBaseline()
                   isScrubbingRef.current = true
+                  relativeScrubLastRef.current = {}
                   onScrubStart?.()
                 }}
                 onScrubEnd={(hadScrub) => {

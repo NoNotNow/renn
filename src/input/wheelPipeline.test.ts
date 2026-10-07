@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest'
+import { describe, expect, test, vi } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 import * as THREE from 'three'
 import { CameraController } from '@/camera/cameraController'
@@ -31,7 +31,7 @@ function rig() {
     c.zoomByLog(wheelZoomLog(w.mouseWheelDelta ?? 0, w.pinchDelta ?? 0))
     return w
   }
-  return { fire, frame, dist }
+  return { fire, frame, dist, controller: c }
 }
 
 describe('wheel → camera pipeline', () => {
@@ -70,6 +70,35 @@ describe('wheel → camera pipeline', () => {
     for (let i = 0; i < 30; i++) fire({ deltaY: -100 }, 1000 + i * 4)
     frame()
     expect(dist()).toBeGreaterThan(10 * Math.exp(-0.61))
+  })
+
+  test('scaled display (fractional ±75.19 notch at DPR 1.33) zooms and does not orbit', () => {
+    const dprSpy = vi.spyOn(window, 'devicePixelRatio', 'get').mockReturnValue(1.33)
+    const { fire, frame, dist } = rig()
+    fire({ deltaY: -75.19 }, 1000)
+    const w = frame()
+    dprSpy.mockRestore()
+    expect(w.deltaX).toBe(0)
+    expect(w.deltaY).toBe(0)
+    expect(dist()).toBeLessThan(10)
+    expect(dist()).toBeGreaterThan(8.5)
+  })
+
+  test('wheel zoom leaves orbit angles alone; middle-drag orbit (setOrbitDelta) still turns the camera', () => {
+    const { fire, frame, dist, controller } = rig()
+    const angles = () => {
+      const c = controller as unknown as { orbitYaw: number; orbitPitch: number }
+      return [c.orbitYaw, c.orbitPitch]
+    }
+    const before = angles()
+    fire({ deltaY: -100 }, 1000)
+    frame()
+    expect(angles()).toEqual(before)
+    expect(dist()).toBeLessThan(10)
+    const zoomed = dist()
+    controller.setOrbitDelta(200, 100)
+    expect(angles()).not.toEqual(before)
+    expect(dist()).toBe(zoomed)
   })
 
   test('trackpad two-finger swipe orbits and does not zoom', () => {

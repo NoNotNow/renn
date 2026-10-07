@@ -108,6 +108,11 @@ export default function DraggableNumberField({
     const clamped = clampWithOptional(parsed, min, max)
 
     if (value === null) {
+      // Mixed field: focusing/tabbing through without typing must not write a fake common value.
+      if (localValue.trim() === '') {
+        setLocalValue('')
+        return
+      }
       onBeforeCommit?.(clamped)
       onChange(clamped)
       setLocalValue(stringifyValue(clamped))
@@ -132,7 +137,8 @@ export default function DraggableNumberField({
 
   const handlePointerDown = useCallback(
     (e: PointerEvent<HTMLInputElement>) => {
-      if (e.button !== 0 || disabled) return
+      // Mixed (null) fields have no meaningful scrub origin: type a value (or use relative mode) instead.
+      if (e.button !== 0 || disabled || value === null) return
       onScrubStart?.()
       const effectiveValue = value ?? defaultValue
       const startValue = isFocused
@@ -192,7 +198,8 @@ export default function DraggableNumberField({
   const endScrub = useCallback(
     (e: PointerEvent<HTMLInputElement>) => {
       const scrub = scrubRef.current
-      const hadScrub = scrub?.deadZoneUsed ?? false
+      if (!scrub) return // pointer-down was ignored (disabled / mixed field)
+      const hadScrub = scrub.deadZoneUsed
       scrubRef.current = null
       setIsScrubbing(false)
       onScrubEnd?.(hadScrub)
@@ -258,6 +265,7 @@ export default function DraggableNumberField({
       onPointerCancel={disabled ? undefined : handlePointerCancel}
       aria-label={label}
       title={resolvedInputTitle}
+      placeholder={value === null ? 'Mixed' : undefined}
       min={min}
       max={max}
       step={step}

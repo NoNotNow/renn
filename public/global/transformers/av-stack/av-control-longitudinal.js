@@ -1,3 +1,21 @@
+/* @params
+[
+  {"key": "maxAccel", "type": "number", "default": 10, "group": "Speed control", "unit": "m/s²", "min": 0, "description": "Acceleration cap (80 once self-calibrated)."},
+  {"key": "maxDecel", "type": "number", "default": 12, "group": "Speed control", "unit": "m/s²", "min": 0, "description": "Deceleration cap."},
+  {"key": "selfCalibrate", "type": "boolean", "default": false, "group": "Speed control", "description": "Identify the actuator (G / D) at the first launch instead of using fixed priors."},
+  {"key": "tau", "type": "number", "default": 0.35, "group": "Speed control", "min": 0, "description": "Speed-tracking time constant (0.12 when selfCalibrate is on)."},
+  {"key": "breakawayRate", "type": "number", "default": 0.5, "group": "Speed control", "min": 0, "advanced": true},
+  {"key": "frictionInit", "type": "number", "default": 60, "group": "Speed control", "min": 0, "description": "Prior for the actuator friction D (0 while self-calibrating without gainInit).", "advanced": true},
+  {"key": "gainInit", "type": "number", "default": 156, "group": "Speed control", "min": 0, "description": "Prior for the actuator gain G (2500 when self-calibrating; setting it skips the probe).", "advanced": true},
+  {"key": "ki", "type": "number", "default": 0.6, "group": "Speed control", "min": 0, "advanced": true},
+  {"key": "maxBrake", "type": "number", "default": 1, "group": "Speed control", "min": 0, "advanced": true},
+  {"key": "maxThrottle", "type": "number", "default": 1, "group": "Speed control", "min": 0, "advanced": true},
+  {"key": "probeGrowth", "type": "number", "default": 1.4, "group": "Speed control", "min": 0, "advanced": true},
+  {"key": "probeStart", "type": "number", "default": 0.01, "group": "Speed control", "min": 0, "advanced": true},
+  {"key": "iClamp", "type": "number", "default": 3, "label": "Integral clamp", "group": "Speed control", "min": 0, "description": "Integral clamp (acceleration units).", "advanced": true},
+  {"key": "overspeedCut", "type": "number", "default": 8, "label": "Overspeed throttle cut", "group": "Speed control", "unit": "m/s", "min": 0, "description": "Overspeed above which the throttle is cut.", "advanced": true}
+]
+*/
 // AV stack · CONTROL / longitudinal (model-based speed control with an online-identified actuator model).
 // The car2 actuator turns a command u = throttle − brake into a force, so the body follows
 //     a = G · u − D · sgn(v)          (G: m/s² per unit command, D: sliding/rolling friction deceleration, m/s²)
@@ -22,6 +40,14 @@ function transform(input, dt, params, state, api) {
   if (av && av.preset) params = state.pmP === params && state.pmB === av.preset ? state.pm : ((state.pmP = params), (state.pmB = av.preset), (state.pm = Object.assign({}, av.preset, params)))
   if (!av || !av.plan || !av.ego) return {}
   var e = av.ego
+  // manual keyboard override (av-ego av.manual): yield, the keys give throttle / brake (the AEB after this stage still brakes). Keep the speed / actuator bookkeeping current so the identification sees no jump on resume.
+  if (av.manual) {
+    state.uPrev = 0
+    state.vPrev = e.speed
+    state.lastAct = null
+    if (state.G !== undefined) av.actuator = { G: state.G, D: state.D, samples: state.samples, u: (input.actions.throttle || 0) - (input.actions.brake || 0) }
+    return {}
+  }
   var vDes = av.plan.vDesired || 0
   var selfCal = params.selfCalibrate === true
   var tau = params.tau != null ? params.tau : selfCal ? 0.12 : 0.35

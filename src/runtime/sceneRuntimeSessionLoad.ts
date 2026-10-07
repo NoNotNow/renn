@@ -20,7 +20,7 @@ import { getSceneUserData } from '@/types/sceneUserData'
 import {
   type PrefetchDisposer,
 } from '@/loader/prefetchMaterialTextures'
-import { setTransformerSnackbarFn } from '@/transformers/customCodeTransformer'
+import { setTransformerHudFn, setTransformerSnackbarFn } from '@/transformers/customCodeTransformer'
 import { VariableOverlayController } from '@/runtime/variableOverlayController'
 import { CoordinateOverlayController } from '@/runtime/coordinateOverlayController'
 import { AvatarSession } from '@/runtime/avatarSession'
@@ -201,6 +201,7 @@ export function executeSceneRuntimeLoadPath(
   }
   setTransformerSnackbarFn(onScriptSnackbar)
   const onHudPatch = (patch: HudPatch) => handles.hudPatchBridgeRef.current(patch)
+  setTransformerHudFn(onHudPatch)
   const gameApi = createGameAPI(
     getPositionForGame,
     setPositionForGame,

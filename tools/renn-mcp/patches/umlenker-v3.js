@@ -1,3 +1,8 @@
+/* @params
+[
+  {"key": "id", "label": "Follow target", "type": "entityId", "default": "", "description": "Entity id to follow. When set, its live world position is the target of the U-turn manoeuvre logic; empty = use input.target."}
+]
+*/
 function blockedPulseState(state) {
   if (!state._umlBlockedPulse) {
     state._umlBlockedPulse = { nextAt: 0 }

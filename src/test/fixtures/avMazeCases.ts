@@ -34,6 +34,17 @@ export interface MazeCase {
   maxLeaveSec?: number
   /** Min physics gap (m) to any static obstacle over the run (ScenarioMetrics.minStaticGap): wall clearance for fast manoeuvres. */
   minStaticGap?: number
+  /** Pocket (U) the car must not drive into: rect + open side; max depth of the car centre past the mouth plane (m). */
+  pocket?: { x0: number; x1: number; z0: number; z1: number; mouth: 'west' | 'east' | 'north' | 'south' }
+  maxPocketDepth?: number
+  /** Max frames in which the straight line from the car to its flee goal (ego `state.flee`, whatever its source) crosses a wall of the case (axis-aligned boxes). */
+  maxFleeCross?: number
+  /** Rect [x0, x1, z0, z1] (the labyrinth) that the car must be inside for a frame to count in `maxFleeCross`. */
+  fleeRegion?: [number, number, number, number]
+  /** The case judges something else than the pursuit (pocket depth): chaser contact / gap are not criteria. */
+  ignoreChasers?: boolean
+  /** The first time the car centre coordinate `axis` reaches `at` the other coordinate must lie in [lo, hi] (the exit the maze module has to pick); never crossing fails. */
+  crossing?: { axis: 'x' | 'z'; at: number; lo: number; hi: number }
   /** Time-to-goal limit tuned on the full CPU budget: skipped in the eco / normal suites. */
   fullBudgetOnly?: boolean
 }
@@ -74,6 +85,45 @@ function gapEntry(d: number): ArenaSpec {
     puppets: [],
   }
 }
+
+/**
+ * S-bend corridor of width `w`: north from z=+60 to z=-L, 90 deg right (east) for `run` m centre to centre, 90 deg left (north) again to z=-L-90.
+ * Same topology as the corridors of maze D-G (two consecutive turns in opposite directions).
+ */
+function sBend(w: number, run: number, L = 40): ArenaSpec {
+  const h = w / 2
+  const zEnd = -L - 90
+  return {
+    car: { at: [0, 40], yawDeg: 0 },
+    goal: [run, zEnd + 10],
+    boxes: [
+      seg([-h, 60], [-h, -L - h]), // west outer
+      seg([h, 60], [h, -L + h]), // west inner
+      seg([-h, -L - h], [run - h, -L - h]), // north outer of the east leg
+      seg([h, -L + h], [run + h, -L + h]), // south inner of the east leg
+      seg([run - h, -L - h], [run - h, zEnd]),
+      seg([run + h, -L + h], [run + h, zEnd]),
+    ],
+    puppets: [],
+  }
+}
+
+/**
+ * Ring labyrinth for the maze-module cases: outer wall square +-50, inner block +-36 (a 14 m corridor all round), 1 m walls.
+ * `gaps` open the outer wall (S = z +50, E = x +50, 14 m wide, centred on the middle of the side); `plugs` are cross walls closing the corridor at (x, z) (a dead end).
+ */
+function ring(gaps: ('S' | 'E')[], plugs: V2[]): ArenaBox[] {
+  const open = (g: 'S' | 'E') => gaps.includes(g)
+  const boxes: ArenaBox[] = [seg([-50, -50], [50, -50]), seg([-50, -50], [-50, 50])]
+  if (open('S')) boxes.push(seg([-50, 50], [-7, 50]), seg([7, 50], [50, 50]))
+  else boxes.push(seg([-50, 50], [50, 50]))
+  if (open('E')) boxes.push(seg([50, -50], [50, -7]), seg([50, 7], [50, 50]))
+  else boxes.push(seg([50, -50], [50, 50]))
+  boxes.push(seg([-36, -36], [36, -36]), seg([-36, 36], [36, 36]), seg([-36, -36], [-36, 36]), seg([36, -36], [36, 36]))
+  for (const [x, z] of plugs) boxes.push(Math.abs(x) > Math.abs(z) ? seg([x - 7, z], [x + 7, z]) : seg([x, z - 7], [x, z + 7]))
+  return boxes
+}
+const MAZE_MOD = { mazeModule: true }
 
 export const MAZE_CASES: MazeCase[] = [
   {
@@ -251,5 +301,124 @@ export const MAZE_CASES: MazeCase[] = [
     maxLatAcc: 30,
     maxReversals: 1,
     spec: () => gapEntry(10),
+  },
+  {
+    name: 's-chicane',
+    about: 'S chicane of the example world (5 gates, 14 m gaps alternating x 240 / 280, rows 36 m apart): car at the south end facing north, goal beyond the last gate',
+    seconds: 40,
+    maxReversals: 1,
+    minStaticGap: 0.3,
+    spec: () => ({ car: { at: [240, 200], yawDeg: 0 }, goal: [240, -40], boxes: worldMazeWalls('wall_chicane'), puppets: [] }),
+  },
+  {
+    name: 's-bend-14',
+    about: 'S-bend corridor 14 m wide (north, 90 deg right over 40 m, 90 deg left): drive through to the goal at its end without touching a wall',
+    seconds: 30,
+    maxReversals: 1,
+    minStaticGap: 0.3,
+    spec: () => sBend(14, 40),
+  },
+  {
+    name: 's-bend-14-short',
+    about: 'tighter S-bend: 14 m wide corridor, only 24 m between the turns (the second turn starts right after the first)',
+    seconds: 30,
+    maxReversals: 1,
+    minStaticGap: 0.3,
+    spec: () => sBend(14, 24),
+  },
+  {
+    name: 'u-mouth-pass',
+    about: 'U pocket (opening west, 16 m wide, 30 m deep, all three walls in view) beside the way to the goal: the car comes in at 12 m/s heading east-north-east, the goal lies far north past the mouth, two homing chasers 50-80 m behind: replay of lab seed 6 t 13.5-19 s (the car drove into the U at 15 m/s and stopped at its end wall). Measured: how deep the car centre gets into the pocket',
+    seconds: 12,
+    maxReversals: 2,
+    noGoal: true,
+    maxPocketDepth: 4,
+    pocket: { x0: 175, x1: 205, z0: 133, z1: 149, mouth: 'west' },
+    spec: () => ({
+      car: { at: [143, 167], yawDeg: -66, speed: 12 },
+      goal: [208, 13],
+      boxes: [seg([175, 133], [205, 133]), seg([175, 149], [205, 149]), seg([205, 133], [205, 149])],
+      puppets: [
+        { id: 'chaser_a', size: CHASER, at: [100, 124], yawDeg: -90, motion: { kind: 'home', speed: 25, turnRate: 1.5, lead: 0.3 } },
+        { id: 'chaser_b', size: CHASER, at: [63, 135], yawDeg: -90, motion: { kind: 'home', speed: 25, turnRate: 1.5, lead: 0.3 } },
+      ],
+    }),
+  },
+  {
+    name: 'u-mouth-enter',
+    about: 'REPRODUCTION of lab seed 6 (the car drives into a fully seen U and stops at its end wall): car (100, 150) at 15 m/s heading ENE toward the mouth of the U (opening west, 16 m wide, 30 m deep, walls seen while approaching), goal far north past the mouth, two homing chasers behind: the route bends north at the mouth, the chased car skipped the bend speed limit and overshot into the pocket (pocketBrake: false = 25.9 m deep, 254 static contact frames). Measured: how deep the car centre gets into the pocket',
+    seconds: 12,
+    maxReversals: 2,
+    noGoal: true,
+    maxPocketDepth: 4,
+    ignoreChasers: true, // the chaser at (100, 124) is 26 m from the start and catches the car in ~1 s whatever it does
+    pocket: { x0: 175, x1: 205, z0: 133, z1: 149, mouth: 'west' },
+    spec: () => ({
+      car: { at: [100, 150], yawDeg: -75, speed: 15 },
+      goal: [208, 13],
+      boxes: [seg([175, 133], [205, 133]), seg([175, 149], [205, 149]), seg([205, 133], [205, 149])],
+      puppets: [
+        { id: 'chaser_a', size: CHASER, at: [100, 124], yawDeg: -90, motion: { kind: 'home', speed: 25, turnRate: 1.5, lead: 0.3 } },
+        { id: 'chaser_b', size: CHASER, at: [63, 135], yawDeg: -90, motion: { kind: 'home', speed: 25, turnRate: 1.5, lead: 0.3 } },
+      ],
+    }),
+  },
+  {
+    name: 'mazemod-one-exit',
+    fleeRegion: [-50, 50, -50, 50],
+    maxFleeCross: 0,
+    about: 'maze module: ring corridor (14 m), ONE exit (south, middle), the west corridor is a dead end (cross wall at z 0); car in the north corridor, two homing chasers behind it in the west: the escape goes round the east and out through the south exit (open-ground flee goals lie behind walls), goal outside in the south',
+    seconds: 40,
+    maxReversals: 4,
+    maxShuttle: 2,
+    crossing: { axis: 'z', at: 50, lo: -7, hi: 7 },
+    spec: () => ({
+      car: { at: [-10, -43], yawDeg: -90, speed: 12 },
+      extraParams: MAZE_MOD,
+      goal: [0, 90],
+      boxes: ring(['S'], [[-43, 0]]),
+      puppets: [
+        { id: 'chaser_a', size: CHASER, at: [-48, -43], yawDeg: -90, motion: { kind: 'home', speed: 10, turnRate: 1.2, lead: 0.3 } },
+        { id: 'chaser_b', size: CHASER, at: [-45, -30], yawDeg: -90, delay: 2, motion: { kind: 'home', speed: 10, turnRate: 1.2, lead: 0.3 } },
+      ],
+    }),
+  },
+  {
+    name: 'mazemod-two-exits',
+    fleeRegion: [-50, 50, -50, 50],
+    maxFleeCross: 0,
+    about: 'maze module: ring corridor with two exits (south, east), car in the north corridor, two homing chasers behind it: takes the NEAR exit (east, ~110 m of corridor against ~190 m)',
+    seconds: 30,
+    maxReversals: 4,
+    maxShuttle: 2,
+    crossing: { axis: 'x', at: 50, lo: -7, hi: 7 },
+    spec: () => ({
+      car: { at: [-10, -43], yawDeg: -90, speed: 12 },
+      extraParams: MAZE_MOD,
+      goal: [120, 120],
+      boxes: ring(['S', 'E'], []),
+      puppets: [
+        { id: 'chaser_a', size: CHASER, at: [-48, -43], yawDeg: -90, motion: { kind: 'home', speed: 10, turnRate: 1.2, lead: 0.3 } },
+        { id: 'chaser_b', size: CHASER, at: [-45, -30], yawDeg: -90, delay: 2, motion: { kind: 'home', speed: 10, turnRate: 1.2, lead: 0.3 } },
+      ],
+    }),
+  },
+  {
+    name: 'mazemod-dead-end-branch',
+    fleeRegion: [-60, 200, -47, 7],
+    maxFleeCross: 0,
+    about: 'maze module: 14 m corridor (closed west end, open east end), a 40 m deep dead-end branch to the north at x 60..74, homing chaser behind the car: the escape stays in the corridor to the east exit, does not enter the branch (pocket depth <= 4 m), goal outside the exit',
+    seconds: 25,
+    maxReversals: 2,
+    maxShuttle: 1,
+    maxPocketDepth: 4,
+    pocket: { x0: 60, x1: 74, z0: -47, z1: -7, mouth: 'south' },
+    spec: () => ({
+      car: { at: [-30, 0], yawDeg: -90 },
+      extraParams: MAZE_MOD,
+      goal: [240, 0],
+      boxes: [seg([-60, -7], [-60, 7]), seg([-60, 7], [200, 7]), seg([-60, -7], [60, -7]), seg([74, -7], [200, -7]), seg([60, -7], [60, -47]), seg([74, -7], [74, -47]), seg([60, -47], [74, -47])],
+      puppets: [{ id: 'chaser_a', size: CHASER, at: [-55, 0], yawDeg: -90, motion: { kind: 'home', speed: 8, turnRate: 1.2, lead: 0.3 } }],
+    }),
   },
 ]

@@ -11,6 +11,7 @@
  */
 
 import type { Vec3, Rotation } from './world'
+import type { ParamDef, ParamType } from './paramSchema'
 
 export type { Vec3, Rotation }
 
@@ -171,6 +172,13 @@ export interface TransformInput {
 
   /** Smoothed wall-clock cost (ms per frame, ~1 s average) of this entity's whole transformer chain; set by the runtime, 0 until measured. */
   chainMs?: number
+
+  /**
+   * Feedback from a later stage to the goal source of the SAME entity, one frame late. The runtime keeps one input object for all entities, so the map is keyed by entity id;
+   * the writer sets `[entityId] = { giveUp: true, maxDistance? }` (the goal cannot be reached), the goal source (wanderer preset, `av-wander`) takes (reads and deletes) its own entry and picks another goal,
+   * at most `maxDistance` m from the vehicle when given.
+   */
+  goalFeedback?: Record<string, { giveUp: boolean; maxDistance?: number }>
 }
 
 /**
@@ -334,16 +342,9 @@ export type TransformerDef = TransformerConfig
 // Transformer Pipes
 // ---------------------------------------------------------------------------
 
-/** Typed pipe input — extend as needed. */
-export type PipeParamType = 'number' | 'string' | 'boolean' | 'entityId' | 'vec3'
-
-export interface PipeParamDef {
-  key: string
-  label?: string
-  type: PipeParamType
-  default?: unknown
-  description?: string
-}
+/** Typed pipe input; the schema is shared with stage params (`@/types/paramSchema`). */
+export type PipeParamType = ParamType
+export type PipeParamDef = ParamDef
 
 /**
  * One member inside a **manifold** (nested pipe): either a leaf stage or a child pipe.

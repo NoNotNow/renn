@@ -19,8 +19,9 @@ import PipeAddDialog from './PipeAddDialog'
 import type { ResolvedPipeNavView, StripItem } from '@/types/pipeNav'
 import { isPipeNavLeafLevel } from '@/utils/pipeNavResolve'
 import { entityLevelItems } from '@/utils/stripOrder'
-import { getEntityPipeStack } from '@/utils/transformerPipeResolve'
+import { getEntityPipeStack, normalizePipeMembers } from '@/utils/transformerPipeResolve'
 import { resolveEntityStageRuntime, stackIndexFromScopePath } from '@/utils/pipeStageResolve'
+import type { StageParamContext } from '@/components/params/StageParamsForm'
 import { createPipeCardStageCallbacks } from './pipeStageCallbacks'
 import { pipeStripStageEnabledFromFocus } from './pipeStripStageEnable'
 
@@ -138,6 +139,25 @@ export default function PipeFocusedStrip({
 
   const isLeafLevel = isPipeNavLeafLevel(view)
 
+  /** Pipe layers above the stage member at `memberIndex` of the focused pipe (undefined without a pipe stack). */
+  const memberParamContext = (memberIndex: number | undefined): StageParamContext | undefined => {
+    const pipeId = view.containerPipeId
+    const stackIndex = stackIndexFromScopePath(focusPath)
+    if (view.mode !== 'pipe_members' || !pipeId || stackIndex === undefined || memberIndex === undefined) return undefined
+    // A focus path may end on a stage member (focus then stays on its parent pipe): the container is the path without it.
+    const last = focusPath[focusPath.length - 1]
+    const lastPipe = last?.kind === 'member' ? pipes[last.pipeId] : undefined
+    const endsOnStage = lastPipe && last?.kind === 'member' && normalizePipeMembers(lastPipe)[last.memberIndex]?.kind === 'stage'
+    const containerPath = endsOnStage ? focusPath.slice(0, -1) : focusPath
+    const layers = stageRuntime.paramLayersForMember([...containerPath, { kind: 'member', pipeId, memberIndex }])
+    if (!layers || !onPipeParamsReplace) return undefined
+    return {
+      layers,
+      onLayerParamsChange: (layer, params) =>
+        onPipeParamsReplace({ pipeId, stackIndex, scopePath: layer.path, params }),
+    }
+  }
+
   const openAddDialog = useCallback(() => setAddDialogOpen(true), [])
 
   const handleAddPreset = useCallback(
@@ -226,7 +246,7 @@ export default function PipeFocusedStrip({
     />
   )
 
-  const renderStageCard = (item: Extract<StripItem, { kind: 'stage' }>) => {
+  const renderStageCard = (item: Extract<StripItem, { kind: 'stage' }>, parentPipeId?: string) => {
     // `item.index` is the position among ALL members (stages and pipes mixed); `stageIds` lists only the stages,
     // so address the stage by id. Index math silently dropped every stage that follows a nested pipe.
     const cfg = world.transformers?.[item.stageId]
@@ -241,6 +261,17 @@ export default function PipeFocusedStrip({
         liveTraceSteps={liveTraceSteps}
         drawerPortalTarget={drawerPortalTarget}
         onCommit={(nextConfigs) => {
+          // The single-stage card's remove button commits an empty list: that is a delete, never a patch
+          // (patching with `nextConfigs[0]` would write `undefined` into the stage registry).
+          if (nextConfigs.length === 0) {
+            const label = cfg.name ?? cfg.type
+            onDeleteNode?.(
+              parentPipeId ?
+                { kind: 'member_stage', pipeId: parentPipeId, parentPipeId, memberIndex: item.index, stageId: item.stageId, label }
+              : { kind: 'top_stage', stageId: item.stageId, label },
+            )
+            return
+          }
           if (onPatchStage) {
             onPatchStage(item.stageId, nextConfigs[0]!)
             return
@@ -263,6 +294,7 @@ export default function PipeFocusedStrip({
           : undefined
         }
         configRequest={stageConfigRequest}
+        stageParamContext={() => memberParamContext(item.index)}
         scope={{ kind: 'pipeMember', depth, stackIndex: stageIdx }}
       />
     )
@@ -389,6 +421,7 @@ export default function PipeFocusedStrip({
             selectedId={selectedStageId}
             cardErrorsByStackIndex={cardErrorsByStackIndex}
             configRequest={stageConfigRequest}
+            stageParamContext={(_id, i) => memberParamContext(view.items[i]?.index)}
             scope={{
               kind: 'pipeStrip',
               depth,
@@ -482,7 +515,7 @@ export default function PipeFocusedStrip({
                   if (parentPipeId) onReorderMembers?.(parentPipeId, Number(fromKey.slice('member:'.length)), toIndex)
                 }}
               >
-                {item.kind === 'pipe' ? renderPipeCard(item) : renderStageCard(item)}
+                {item.kind === 'pipe' ? renderPipeCard(item) : renderStageCard(item, parentPipeId)}
               </StripSlot>
             </Fragment>
           ))}

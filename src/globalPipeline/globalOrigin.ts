@@ -62,7 +62,9 @@ export function updateWorldFromGlobalLibrary(
   let adopted = false
 
   // Adopt: copies made before origins existed (same id and code as a library entry) join the update stream.
+  // registry entries can be undefined in projects saved by an old stage-delete bug: skip them everywhere below
   for (const [id, cfg] of Object.entries(transformers)) {
+    if (!cfg) continue
     const lib = library.transformers?.[id]
     if (cfg.origin || !lib || lib.type !== cfg.type || stageFingerprint(lib) !== stageFingerprint(cfg)) continue
     if (transformers === world.transformers) transformers = { ...transformers }
@@ -70,6 +72,7 @@ export function updateWorldFromGlobalLibrary(
     adopted = true
   }
   for (const [id, pipe] of Object.entries(pipes)) {
+    if (!pipe) continue
     const lib = library.transformerPipes?.[id]
     if (pipe.origin || !lib || pipeFingerprint(lib) !== pipeFingerprint(pipe)) continue
     if (pipes === world.transformerPipes) pipes = { ...pipes }
@@ -78,6 +81,7 @@ export function updateWorldFromGlobalLibrary(
   }
 
   for (const [id, cfg] of Object.entries(transformers)) {
+    if (!cfg) continue
     const origin = cfg.origin
     const lib = origin ? library.transformers?.[origin.globalId] : undefined
     if (!origin || !lib || lib.type !== cfg.type) continue
@@ -94,6 +98,7 @@ export function updateWorldFromGlobalLibrary(
 
   const touchedPipeIds: string[] = []
   for (const [id, pipe] of Object.entries(pipes)) {
+    if (!pipe) continue
     const origin = pipe.origin
     const lib = origin ? library.transformerPipes?.[origin.globalId] : undefined
     if (!origin || !lib) continue

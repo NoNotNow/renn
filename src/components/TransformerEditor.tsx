@@ -4,6 +4,7 @@ import CopyableArea from './CopyableArea'
 import TransformerFieldReference from './TransformerFieldReference'
 import TransformerTemplateDialog from './TransformerTemplateDialog'
 import ValidatedJsonTextarea from './ValidatedJsonTextarea'
+import StageParamsForm from './params/StageParamsForm'
 import TransformerCustomCodeEditor from './TransformerCustomCodeEditor'
 import { fieldLabelStyle, entityPanelIconButtonStyle, removeButtonStyle, removeButtonStyleDisabled } from './sharedStyles'
 import { theme } from '@/config/theme'
@@ -632,26 +633,16 @@ export default function TransformerEditor({
                       Apply code
                     </button>
                   </div>
-                  <div
-                    style={{ ...fieldLabelStyle, cursor: 'help', marginTop: 12 }}
-                    title='"params" only; merged into this transformer.'
-                  >
-                    Params (JSON)
-                  </div>
-                  <ValidatedJsonTextarea
-                    value={JSON.stringify(transformer.params ?? {}, null, 2)}
-                      onApply={(updated) => {
-                        const patch = typeof updated === 'object' && updated !== null && !Array.isArray(updated)
-                          ? (updated as Record<string, unknown>)
-                          : {}
-                        onChange?.(
-                          syncPriorities(list.map((t, i) => (i === index ? { ...t, params: patch } : t))),
-                        )
-                      }}
-                    disabled={disabled}
-                    applyVariant="icon"
-                    textareaTestId={`transformer-custom-params-textarea-${index}`}
-                    applyTestId={`transformer-custom-params-apply-${index}`}
+                  <div style={{ ...fieldLabelStyle, marginTop: 12 }}>Params</div>
+                  <StageParamsForm
+                    stage={transformer}
+                    testIdSuffix={`-${index}`}
+                    onParamsChange={
+                      disabled ? undefined : (params) => {
+                        pushUndo()
+                        onChange?.(syncPriorities(list.map((t, i) => (i === index ? { ...t, params } : t))))
+                      }
+                    }
                   />
                 </>
               ) : (
@@ -663,6 +654,26 @@ export default function TransformerEditor({
                     gap: 2,
                   }}
                 >
+                  {transformer.type !== 'input' ? (
+                    <details style={COLLAPSIBLE_TRACE_DETAILS_STYLE} open>
+                      <summary
+                        style={{ ...traceSummaryRowStyle, color: theme.text.secondary }}
+                        data-testid={`transformer-params-summary-${index}`}
+                      >
+                        Params · {transformer.type}
+                      </summary>
+                      <StageParamsForm
+                        stage={transformer}
+                        testIdSuffix={`-${index}`}
+                        onParamsChange={
+                          disabled ? undefined : (params) => {
+                            pushUndo()
+                            onChange?.(sortAndSyncPriorities(list.map((t, i) => (i === index ? { ...t, params } : t))))
+                          }
+                        }
+                      />
+                    </details>
+                  ) : null}
                   <details style={COLLAPSIBLE_TRACE_DETAILS_STYLE} open>
                     <summary
                       title="JSON config for this transformer. Use the field reference panel when available; Apply commits valid JSON."

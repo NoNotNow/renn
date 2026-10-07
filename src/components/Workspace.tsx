@@ -7,6 +7,7 @@ import {
   useState,
   type CSSProperties,
 } from 'react'
+import { ParamEntityProvider } from '@/components/params/ParamEntityContext'
 import EntitySearchPicker from '@/components/entitySearch/EntitySearchPicker'
 import type { WorkspaceMonacoEditorChrome } from '@/types/workspaceMonacoChrome'
 import { createPortal } from 'react-dom'
@@ -764,6 +765,7 @@ export default function Workspace({
                 <WorkspaceDocsSplit open={docsOpen} onClose={() => setDocsOpen(false)}>
                   <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                     {activeTab === 'transformers' ? (
+                      <ParamEntityProvider entities={world.entities} entityWorkHistory={entityWorkHistory}>
                       <WorkspaceTransformersTab
                         key={entry?.entityId ?? 'none'}
                         world={world}
@@ -785,6 +787,7 @@ export default function Workspace({
                         onGlobalLibraryChange={persistGlobalLibrary}
                         onEntryChange={onEntryChange}
                       />
+                      </ParamEntityProvider>
                     ) : activeTab === 'scripts' ? (
                       <WorkspaceScriptsTab
                         world={world}
