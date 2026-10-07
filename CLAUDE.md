@@ -35,5 +35,9 @@ Mirrored into `.claude/skills/` so they're invocable the same way here:
 - `.claude/skills/improve-car/SKILL.md` — `/improve-car` program-run-fix loop for the Player Car copy.
 - `.claude/skills/work-on-project/SKILL.md` — `/work-on-project` opens visible Builder + MCP attach.
 
+Claude-only (no Cursor copy; relies on the Agent tool with per-agent models):
+
+- `.claude/skills/orchestrate/SKILL.md` — `/orchestrate` three-level agents (L1 dispatcher → one opus L2 → N parallel sonnet/haiku L3), small contexts, handoff docs.
+
 The originals under `.cursor/skills/` remain the Cursor-side copies; keep both in sync
 when editing either (or replace the Cursor one with a pointer if that drifts).

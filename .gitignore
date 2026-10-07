@@ -32,3 +32,6 @@ coverage/
 .cache/
 /.idea/copilotDiffState.xml
 /.aiassistant/rules/starting_point.md
+
+# Agent orchestration run dirs (/orchestrate skill)
+.orchestrate/
