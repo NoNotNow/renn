@@ -66,9 +66,10 @@ export class EpisodePool {
     }
   }
 
-  episode(params: Params, key: string): Promise<EpisodeMetrics> {
+  /** `seconds` = per-episode sim timeout (default: the episode runner's MAZE_EPISODE_SECONDS). */
+  episode(params: Params, key: string, seconds?: number): Promise<EpisodeMetrics> {
     return new Promise((resolve, reject) => {
-      this.queue.push({ job: { id: this.nextId++, params, key }, resolve, reject })
+      this.queue.push({ job: { id: this.nextId++, params, key, seconds }, resolve, reject })
       void this.ready.then(() => this.pump())
     })
   }

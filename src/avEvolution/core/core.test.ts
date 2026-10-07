@@ -128,7 +128,7 @@ describe('fitness', () => {
     expect(episodeScore(metrics({ reached: false, remainingDist: 10 }))).toBeGreaterThan(dnf)
     const clean = episodeScore(metrics())
     expect(episodeScore(metrics({ contactEvents: 2 }))).toBeCloseTo(clean + 2 * DEFAULT_FITNESS_WEIGHTS.wContact, 9)
-    expect(episodeScore(metrics({ contactFrames: 60 }))).toBeCloseTo(clean + 2, 9)
+    expect(episodeScore(metrics({ contactFrames: 60 }))).toBeCloseTo(clean + DEFAULT_FITNESS_WEIGHTS.wContactTime, 9)
     expect(episodeScore(metrics({ flipped: true }))).toBeCloseTo(clean + 200, 9)
   })
   it('aggregates', () => {
@@ -137,7 +137,14 @@ describe('fitness', () => {
     expect(a.n).toBe(2)
     expect(a.reachRate).toBe(0.5)
     expect(a.meanContactEvents).toBe(1)
-    expect(a.fitness).toBeCloseTo((10 + 60 + 2 + 6) / 2, 9)
+    expect(a.fitness).toBeCloseTo((10 + 60 + 2 + 2 * DEFAULT_FITNESS_WEIGHTS.wContact) / 2, 9)
+  })
+  it('normalises per episode by the baseline score and weighs the worst episode', () => {
+    const w = { ...DEFAULT_FITNESS_WEIGHTS, wWorst: 0.5 }
+    const eps = [toEpisodeRecord(metrics({ key: 'easy', exitT: 5 }), w, 10), toEpisodeRecord(metrics({ key: 'hard', exitT: 60 }), w, 40)]
+    expect(eps.map((e) => e.ratio)).toEqual([0.5, 1.5])
+    expect(aggregate(eps, w).fitness).toBeCloseTo(0.5 * 1.0 + 0.5 * 1.5, 9)
+    expect(aggregate(eps, { wWorst: 0 }).fitness).toBeCloseTo(1.0, 9)
   })
 })
 
@@ -182,7 +189,7 @@ describe('engine', () => {
   })
 
   it('plus selection: best never gets worse on a noiseless objective; elites survive', async () => {
-    const eng = new EvolutionEngine({ spec: qSpec, trainKeys: keys, config: { seed: 3, reevalElites: false } })
+    const eng = new EvolutionEngine({ spec: qSpec, trainKeys: keys, config: { seed: 3 } })
     const ev = quadEval(0)
     let prev = Infinity
     for (let i = 0; i < 12; i++) {
@@ -197,16 +204,58 @@ describe('engine', () => {
     }
   })
 
-  it('re-evaluates elites so fitness is a running mean', async () => {
-    const eng = new EvolutionEngine({ spec: qSpec, trainKeys: keys, config: { seed: 3, episodesPerEval: 2 } })
-    const ev = quadEval(0.5)
+  it('common random numbers: every candidate of a generation is scored on the same batch; elites only run unseen keys', async () => {
+    const eng = new EvolutionEngine({ spec: qSpec, trainKeys: keys, config: { seed: 3, episodesPerEval: 2, popSize: 8, eliteCount: 2, fullEvalTop: 0 } })
+    const calls: string[][] = []
+    const inner = quadEval(0)
+    const ev: EvaluateFn = async (p, ks) => {
+      calls.push(ks)
+      return inner(p, ks)
+    }
     await eng.step(ev)
+    expect(calls.length).toBe(8)
+    expect(new Set(calls.map((k) => k.join()))).toEqual(new Set(['k0,k1']))
+    expect(eng.getBatchKeys()).toEqual(['k0', 'k1'])
+    calls.length = 0
     await eng.step(ev)
+    // 8 offspring on k2,k3 + 2 elites that only lack k2,k3 (their k0,k1 results are cached)
+    expect(calls.length).toBe(10)
+    expect(new Set(calls.map((k) => k.join()))).toEqual(new Set(['k2,k3']))
+    for (const c of eng.getPopulation()) expect(c.episodes.filter((e) => ['k2', 'k3'].includes(e.key)).length).toBe(2)
+    // all population members are ranked on the same batch => sorted by that fitness
+    const f = eng.getPopulation().map((c) => fitnessOf(c, eng.getBatchKeys() as string[]))
+    expect(f).toEqual([...f].sort((a, b) => a - b))
+  })
+
+  it('hall of fame only holds candidates evaluated on every train key; top candidates get completed', async () => {
+    const eng = new EvolutionEngine({ spec: qSpec, trainKeys: keys, config: { seed: 4, episodesPerEval: 2, popSize: 8, eliteCount: 2, fullEvalTop: 2 } })
+    const ev = quadEval(0)
+    for (let i = 0; i < 4; i++) await eng.step(ev)
+    expect(eng.getHallOfFame().length).toBeGreaterThan(0)
+    for (const h of eng.getHallOfFame()) expect(new Set(h.episodes.map((e) => e.key)).size).toBe(keys.length)
+    const fits = eng.getHallOfFame().map((h) => eng.fullFitness(h))
+    expect(fits).toEqual([...fits].sort((a, b) => a - b))
+  })
+
+  it('normalises by the baseline so easy and hard keys weigh equally', async () => {
+    const baseline = Object.fromEntries(keys.map((k, i) => [k, { score: 10 * (i + 1), exitT: 10 * (i + 1) }]))
+    const eng = new EvolutionEngine({ spec: qSpec, trainKeys: keys, baseline, config: { seed: 3, popSize: 4, eliteCount: 1, episodesPerEval: 6, ratioFloor: 0 } })
+    const ev: EvaluateFn = async (_p, ks) => ks.map((key) => metrics({ key, exitT: baseline[key]!.exitT * 0.5 }))
     await eng.step(ev)
-    const maxN = Math.max(...eng.getPopulation().map((c) => c.episodes.length))
-    expect(maxN).toBeGreaterThanOrEqual(4)
-    const top = eng.getPopulation().find((c) => c.episodes.length === maxN)!
-    expect(fitnessOf(top)).toBeCloseTo(top.episodes.reduce((s, e) => s + e.score, 0) / top.episodes.length, 9)
+    for (const c of eng.getPopulation()) expect(fitnessOf(c, undefined, eng.weights)).toBeCloseTo(0.5, 9)
+    expect(EvolutionEngine.fromJSON(eng.toJSON()).getBaseline()).toEqual(baseline)
+  })
+
+  it('activeGenes restricts mutation; seedParams are extra seed individuals', async () => {
+    const eng = new EvolutionEngine({ spec: qSpec, trainKeys: keys, seedParams: [{ g9: 0.2 }], config: { seed: 5, popSize: 8, activeGenes: ['g0', 'g1'] } })
+    await eng.step(quadEval(0))
+    expect(eng.getPopulation().some((c) => c.params.g9 === 0.2)).toBe(true)
+    for (const c of eng.getPopulation().filter((c) => c.parents.length === 0 && c.params.g9 !== 0.2 && c.id !== 'c0')) void c
+    await eng.step(quadEval(0))
+    for (const c of eng.getPopulation().filter((c) => c.gen > 0 && c.parents.length === 1)) {
+      const par = eng.getPopulation().find((p) => p.id === c.parents[0])
+      if (par) for (let i = 2; i < 10; i++) expect(c.params[`g${i}`]).toBeCloseTo(par.params[`g${i}`] as number, 9)
+    }
   })
 
   it('toJSON/fromJSON resume gives identical continuation', async () => {

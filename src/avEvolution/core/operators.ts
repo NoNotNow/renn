@@ -16,6 +16,8 @@ export interface MutateOpts {
   tau?: number
   /** flip probability for bool/enum genes when selected for mutation (default 0.5) */
   flipProb?: number
+  /** restrict mutation to these gene indices (default: all) */
+  activeIdx?: number[]
 }
 
 export function reflect01(x: number): number {
@@ -52,13 +54,14 @@ export function mutate(spec: GenomeSpec, ind: Genotype, rng: Rng, opts: MutateOp
       vec[i] = reflect01(vec[i] + sigma * gaussian(rng))
     }
   }
-  for (let i = 0; i < n; i++) {
+  const idx = opts.activeIdx ?? Array.from({ length: n }, (_, i) => i)
+  for (const i of idx) {
     if (rng.next() < pm) {
       apply(i)
       any = true
     }
   }
-  if (!any && n > 0) apply(randInt(rng, n), true)
+  if (!any && idx.length > 0) apply(idx[randInt(rng, idx.length)]!, true)
   return { vec, sigma }
 }
 

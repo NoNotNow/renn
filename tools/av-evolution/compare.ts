@@ -7,7 +7,7 @@
  *   --run FILE        evolution export; its top --top candidates by TRAIN fitness are compared (omit for baselines only)
  *   --top N           number of evolved candidates (default 3)
  *   --params FILES    comma list of JSON files: a params object, or an array of {label, params}
- *   --keys SET        'holdout' (default) | 'train' | 'all' | comma list of episode keys
+ *   --keys SET        'holdout' (original 6, default) | 'holdout-extra' (18 fresh mazes) | 'holdout-all' (24) | 'train' | 'all' | comma list of episode keys
  *   --no-baselines    skip the two baselines
  *   --workers N       default cores - 1
  *   --out BASE        writes BASE.json and BASE.md (default test-results/av-evolution/compare)
@@ -58,9 +58,16 @@ async function main() {
   const args = parseArgs(process.argv.slice(2))
   const workers = Math.max(1, Math.floor(Number(args.workers ?? Math.max(1, os.cpus().length - 1))))
   const outBase = path.resolve(String(args.out ?? 'test-results/av-evolution/compare'))
-  const { train, holdout } = listMazeEpisodes()
+  const { train, holdout, holdoutExtra } = listMazeEpisodes()
   const ks = String(args.keys ?? 'holdout')
-  const keys = ks === 'holdout' ? holdout.map((e) => e.key) : ks === 'train' ? train.map((e) => e.key) : ks === 'all' ? [...train, ...holdout].map((e) => e.key) : ks.split(',')
+  const sets: Record<string, string[]> = {
+    holdout: holdout.map((e) => e.key),
+    'holdout-extra': holdoutExtra.map((e) => e.key),
+    'holdout-all': [...holdout, ...holdoutExtra].map((e) => e.key),
+    train: train.map((e) => e.key),
+    all: [...train, ...holdout, ...holdoutExtra].map((e) => e.key),
+  }
+  const keys = sets[ks] ?? ks.split(',')
 
   const variants: Variant[] = []
   if (!args['no-baselines']) {
@@ -70,9 +77,12 @@ async function main() {
   if (args.run) {
     const data = JSON.parse(fs.readFileSync(path.resolve(String(args.run)), 'utf8')) as RunExport
     const top = Math.floor(Number(args.top ?? 3))
-    const sorted = [...data.candidates].filter((c) => c.n > 0).sort((a, b) => a.fitness - b.fitness).slice(0, top)
+    // rank by full-TRAIN fitness: only candidates evaluated on every train key (falls back to all candidates for old runs)
+    const nTrain = data.run.trainKeys.length
+    const pickFrom = data.candidates.filter((c) => c.n >= nTrain && new Set(c.episodes.map((e) => e.key)).size >= nTrain)
+    const sorted = (pickFrom.length >= top ? pickFrom : data.candidates.filter((c) => c.n > 0)).sort((a, b) => a.fitness - b.fitness).slice(0, top)
     sorted.forEach((c, i) =>
-      variants.push({ label: `evolved#${i + 1}`, params: c.params, note: `${c.id} gen ${c.gen}, train fitness ${c.fitness.toFixed(2)} over n=${c.n} episodes (train mean exit ${c.meanExitT.toFixed(1)} s, reach ${(c.reachRate * 100).toFixed(0)}%)` }),
+      variants.push({ label: `evolved#${i + 1}`, params: c.params, note: `${c.id} gen ${c.gen}, train fitness ${c.fitness.toFixed(3)} over n=${c.n} episodes (train mean exit ${c.meanExitT.toFixed(1)} s, reach ${(c.reachRate * 100).toFixed(0)}%)` }),
     )
   }
   if (args.params) {

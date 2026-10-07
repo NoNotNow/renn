@@ -8,7 +8,12 @@
  *   --gens N            generations to run in THIS invocation (default 5; the first ever one seeds the population)
  *   --pop N             population size (default: core default 16)       [ignored on --resume]
  *   --elite N           elite count (default: core default 4)            [ignored on --resume]
- *   --episodes N        episodes per new candidate per generation (core default 2) [ignored on --resume]
+ *   --episodes N        episode BATCH per generation: all candidates are ranked on the same N keys (rotating window over TRAIN) [ignored on --resume]
+ *   --batch N           alias of --episodes
+ *   --full-top N        best N candidates of each generation are completed on all TRAIN keys (default 2) [ignored on --resume]
+ *   --timeout-factor F  episode timeout = clamp(F * baselineExitT(key), --timeout-floor, 120 s); default 1.6 / 25 s
+ *   --active FILE|a,b   only mutate these genes (JSON array or {active:[...]} file from sensitivity.ts, or comma list) [ignored on --resume]
+ *   --seed-params FILES comma list of params JSON files added as extra seed individuals [ignored on --resume]
  *   --seed N            evolution RNG seed (default 1)                   [ignored on --resume]
  *   --train a,b,c       train episode keys (default: all TRAIN episodes) [ignored on --resume]
  *   --workers N         worker threads (default: cores - 1)
@@ -21,10 +26,12 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { DEFAULT_EVOLUTION_CONFIG, EvolutionEngine, MemoryEvolutionStore, type RunExport, type RunRecord } from '@/avEvolution/core'
+import { DEFAULT_EVOLUTION_CONFIG, type EvaluateFn, DEFAULT_FITNESS_WEIGHTS, EvolutionEngine, MemoryEvolutionStore, type RunExport, type RunRecord } from '@/avEvolution/core'
+import type { Params } from '@/avEvolution/core/genes'
 import { AV_GENOME_SPEC } from '@/avEvolution/genes'
 import { listMazeEpisodes } from '@/avEvolution/maze/episodes'
 import { avStackVersion } from '@/globalPipeline/avStackVersion'
+import { computeBaseline, timeoutFor, type TimeoutPolicy } from './baseline'
 import { DEFAULT_SOURCE_WORLD_ID, loadSourceWorld } from './loadSource'
 import { EpisodePool } from './pool'
 
@@ -60,6 +67,8 @@ async function main() {
 
   let engine: EvolutionEngine
   let run: RunRecord
+  const policy: TimeoutPolicy = { factor: num(args['timeout-factor'], 1.6), floor: num(args['timeout-floor'], 25) }
+  const pool = new EpisodePool({ workers, exampleId, stopOnReach: !args.full })
   const resumeFile = args.resume === undefined ? undefined : path.resolve(args.resume === true ? out : String(args.resume))
   if (resumeFile && fs.existsSync(resumeFile)) {
     const data = JSON.parse(fs.readFileSync(resumeFile, 'utf8')) as RunExport
@@ -80,7 +89,24 @@ async function main() {
       episodesPerEval: Math.floor(num(args.episodes, DEFAULT_EVOLUTION_CONFIG.episodesPerEval)),
     }
     config.eliteCount = Math.min(config.eliteCount, config.popSize)
-    engine = new EvolutionEngine({ spec: AV_GENOME_SPEC, trainKeys: train, config })
+    if (args.batch !== undefined) config.episodesPerEval = Math.floor(num(args.batch, config.episodesPerEval))
+    const fullTop = args['full-top'] === undefined ? undefined : Math.floor(num(args['full-top'], 2))
+    let activeGenes: string[] | undefined
+    if (args.active) {
+      const a = String(args.active)
+      if (fs.existsSync(a)) {
+        const j = JSON.parse(fs.readFileSync(a, 'utf8')) as string[] | { active: string[] }
+        activeGenes = Array.isArray(j) ? j : j.active
+      } else activeGenes = a.split(',')
+      const known = new Set(AV_GENOME_SPEC.genes.map((g) => g.key))
+      const bad = activeGenes.filter((k) => !known.has(k))
+      if (bad.length) throw new Error(`--active: unknown genes ${bad.join(',')}`)
+    }
+    const seedParams = args['seed-params'] ? String(args['seed-params']).split(',').map((f) => JSON.parse(fs.readFileSync(path.resolve(f), 'utf8')) as Params) : undefined
+    console.log(`baseline (default params, ${train.length} train episodes)...`)
+    const baseline = await computeBaseline(pool, train, { ...DEFAULT_FITNESS_WEIGHTS })
+    console.log(`baseline mean exit ${(train.reduce((s, k) => s + baseline[k]!.exitT, 0) / train.length).toFixed(1)} s`)
+    engine = new EvolutionEngine({ spec: AV_GENOME_SPEC, trainKeys: train, baseline, seedParams, config: { ...config, ...(fullTop === undefined ? {} : { fullEvalTop: fullTop }), ...(activeGenes ? { activeGenes } : {}) } })
     const now = Date.now()
     run = {
       runId: `run-${now.toString(36)}`,
@@ -97,8 +123,8 @@ async function main() {
     await store.saveRun(run)
   }
 
-  const pool = new EpisodePool({ workers, exampleId, stopOnReach: !args.full })
-  const evaluate = pool.evaluator()
+  const baselineMap = engine.getBaseline()
+  const evaluate: EvaluateFn = (params, keys) => Promise.all(keys.map((k) => pool.episode(params, k, timeoutFor(baselineMap, k, policy))))
   const t0 = Date.now()
   const startEvals = engine.toJSON().evals
   console.log(`run ${run.runId}: pop ${engine.config.popSize}, train [${engine.trainKeys.join(',')}], ${AV_GENOME_SPEC.genes.length} genes, ${workers} workers, ${gens} generation(s) -> ${out}`)

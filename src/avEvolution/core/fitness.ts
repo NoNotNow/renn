@@ -21,9 +21,15 @@ export interface FitnessWeights {
   /** multiplier on contact seconds (contactFrames*dt) */
   wContactTime: number
   flipPenalty: number
+  /**
+   * Weight lambda of the worst episode in the aggregate: fitness = (1 - lambda) * mean + lambda * max (over per-episode
+   * values; ratios to the baseline when available). Penalises candidates that fail or crawl on a single start.
+   */
+  wWorst: number
 }
 
-export const DEFAULT_FITNESS_WEIGHTS: FitnessWeights = { kDist: 0.5, wContact: 3, wContactTime: 2, flipPenalty: 200 }
+/** v2 (design D1): contacts are expensive (10 s per event, 5 s per contact second), the worst episode counts 20 %. */
+export const DEFAULT_FITNESS_WEIGHTS: FitnessWeights = { kDist: 0.5, wContact: 10, wContactTime: 5, flipPenalty: 200, wWorst: 0.2 }
 
 /** Lower is better (seconds-equivalent). */
 export function episodeScore(m: EpisodeMetrics, w: FitnessWeights = DEFAULT_FITNESS_WEIGHTS): number {
@@ -38,10 +44,16 @@ export interface EpisodeRecord {
   reached: boolean
   exitT: number
   contactEvents: number
+  /** score / baselineScore(key): per-episode normalisation so hard and easy mazes weigh equally (1 = baseline). */
+  ratio?: number
 }
 
-export function toEpisodeRecord(m: EpisodeMetrics, w: FitnessWeights = DEFAULT_FITNESS_WEIGHTS): EpisodeRecord {
-  return { key: m.key, score: episodeScore(m, w), reached: m.reached, exitT: m.reached ? m.exitT : m.timeoutSec, contactEvents: m.contactEvents }
+/** `baselineScore` = episodeScore of the default-params run on the same key (omit => no normalisation). */
+export function toEpisodeRecord(m: EpisodeMetrics, w: FitnessWeights = DEFAULT_FITNESS_WEIGHTS, baselineScore?: number): EpisodeRecord {
+  const score = episodeScore(m, w)
+  const rec: EpisodeRecord = { key: m.key, score, reached: m.reached, exitT: m.reached ? m.exitT : m.timeoutSec, contactEvents: m.contactEvents }
+  if (baselineScore !== undefined && baselineScore > 0) rec.ratio = score / baselineScore
+  return rec
 }
 
 export interface Aggregate {
@@ -53,18 +65,25 @@ export interface Aggregate {
   n: number
 }
 
-export function aggregate(eps: EpisodeRecord[]): Aggregate {
+/** Per-episode value that is averaged: the baseline ratio when present, else the raw score. */
+export const episodeValue = (e: EpisodeRecord): number => e.ratio ?? e.score
+
+export function aggregate(eps: EpisodeRecord[], w: Pick<FitnessWeights, 'wWorst'> = { wWorst: 0 }): Aggregate {
   const n = eps.length
   if (n === 0) return { fitness: Infinity, meanExitT: Infinity, reachRate: 0, meanContactEvents: 0, n: 0 }
   let s = 0
   let t = 0
   let r = 0
   let c = 0
+  let worst = -Infinity
   for (const e of eps) {
-    s += e.score
+    const v = episodeValue(e)
+    s += v
+    if (v > worst) worst = v
     t += e.exitT
     r += e.reached ? 1 : 0
     c += e.contactEvents
   }
-  return { fitness: s / n, meanExitT: t / n, reachRate: r / n, meanContactEvents: c / n, n }
+  const lam = w.wWorst ?? 0
+  return { fitness: (1 - lam) * (s / n) + lam * worst, meanExitT: t / n, reachRate: r / n, meanContactEvents: c / n, n }
 }

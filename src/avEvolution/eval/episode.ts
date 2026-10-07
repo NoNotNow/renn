@@ -29,8 +29,8 @@ export interface EpisodeOptions {
 }
 
 export function mazeEpisodeByKey(key: string): MazeEpisodeSpec {
-  const { train, holdout } = listMazeEpisodes()
-  const ep = [...train, ...holdout].find((e) => e.key === key)
+  const { train, holdout, holdoutExtra, legacyTrain } = listMazeEpisodes()
+  const ep = [...train, ...holdout, ...holdoutExtra, ...legacyTrain].find((e) => e.key === key)
   if (!ep) throw new Error(`unknown maze episode key: ${key}`)
   return ep
 }

@@ -93,7 +93,7 @@ export function toCandidateRecord(
   now: number,
   createdAt?: number,
 ): CandidateRecord {
-  const a = aggregate(c.episodes)
+  const a = aggregate(c.episodes, run.weights)
   return {
     runId: run.runId,
     id: c.id,

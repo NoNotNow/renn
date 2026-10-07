@@ -56,17 +56,23 @@ describe('maze generator', () => {
 })
 
 describe('maze episodes', () => {
-  const { train, holdout } = listMazeEpisodes()
+  const { train, holdout, holdoutExtra, legacyTrain } = listMazeEpisodes()
   const id = (e: MazeEpisodeSpec) => `${e.mazeSeed}:${e.startCell}:${e.startYaw}`
-  it('has >= 6 TRAIN and >= 6 HOLDOUT episodes with disjoint (maze, cell) starts and inner start cells', () => {
-    expect(train.length).toBeGreaterThanOrEqual(6)
-    expect(holdout.length).toBeGreaterThanOrEqual(6)
-    const cell = (e: MazeEpisodeSpec) => `${e.mazeSeed}:${e.startCell}`
-    const trainCells = new Set(train.map(cell))
-    for (const e of holdout) expect(trainCells.has(cell(e)), e.key).toBe(false)
-    expect(new Set([...train, ...holdout].map((e) => e.key)).size).toBe(train.length + holdout.length)
+  it('TRAIN (24, 8 mazes) and HOLDOUT (6 original + 18 extra) share no key, no maze seed and no start', () => {
+    expect(train.length).toBe(24)
+    expect(holdout.map((e) => e.key)).toEqual(['ho1', 'ho2', 'ho3', 'ho4', 'ho5', 'ho6'])
+    expect(holdoutExtra.length).toBeGreaterThanOrEqual(18)
+    const allHold = [...holdout, ...holdoutExtra]
+    const trainSeeds = new Set(train.map((e) => e.mazeSeed))
+    expect(trainSeeds.size).toBe(8)
+    for (const e of allHold) expect(trainSeeds.has(e.mazeSeed), e.key).toBe(false)
+    const all = [...train, ...allHold, ...legacyTrain]
+    expect(new Set(all.map((e) => e.key)).size).toBe(all.length)
     expect(new Set(train.map(id)).size).toBe(train.length)
-    for (const e of [...train, ...holdout]) {
+    // the extra holdout mazes are also new relative to the original holdout set
+    const origSeeds = new Set(holdout.map((e) => e.mazeSeed))
+    for (const e of holdoutExtra) expect(origSeeds.has(e.mazeSeed), e.key).toBe(false)
+    for (const e of [...train, ...allHold, ...legacyTrain]) {
       expect(e.startCell[0]).toBeGreaterThanOrEqual(1)
       expect(e.startCell[0]).toBeLessThanOrEqual(6)
       expect(e.startCell[1]).toBeGreaterThanOrEqual(1)
@@ -102,7 +108,7 @@ describe(`example world ${EXAMPLE_ID}`, () => {
     const onDisk = loadLabWorld({ exampleId: EXAMPLE_ID })
     expect(onDisk.entities.some((e) => e.id === GOAL_MARKER_ID)).toBe(true)
     const end: number[][] = []
-    for (const world of [{ exampleId: EXAMPLE_ID }, { inline: buildMazeEpisodeWorld(loadLabWorld({ exampleId: AV_CAR_SOURCE_WORLD }), listMazeEpisodes().train[0]!) }]) {
+    for (const world of [{ exampleId: EXAMPLE_ID }, { inline: buildMazeEpisodeWorld(loadLabWorld({ exampleId: AV_CAR_SOURCE_WORLD }), listMazeEpisodes().legacyTrain[0]!) }]) {
       let last: number[] = []
       await runLab({ world, focus: AV_CAR_SOURCE_ID, seed: 1, frames: 300, maxScenes: 0, onFrame: ({ sim }) => { last = [...sim.getPosition(AV_CAR_SOURCE_ID)] } })
       end.push(last)

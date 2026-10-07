@@ -8,6 +8,8 @@ export interface WorkerJob {
   id: number
   params: Params
   key: string
+  /** per-episode sim timeout */
+  seconds?: number
 }
 
 const opts = (workerData ?? {}) as { exampleId?: string; stopOnReach?: boolean }
@@ -17,7 +19,7 @@ let queue: Promise<void> = Promise.resolve()
 parentPort!.on('message', (job: WorkerJob) => {
   queue = queue.then(async () => {
     try {
-      const metrics = await runMazeEpisode(source, job.params, mazeEpisodeByKey(job.key), { stopOnReach: opts.stopOnReach })
+      const metrics = await runMazeEpisode(source, job.params, mazeEpisodeByKey(job.key), { stopOnReach: opts.stopOnReach, seconds: job.seconds })
       parentPort!.postMessage({ id: job.id, metrics })
     } catch (e) {
       parentPort!.postMessage({ id: job.id, error: e instanceof Error ? (e.stack ?? e.message) : String(e) })

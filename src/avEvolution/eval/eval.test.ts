@@ -14,7 +14,7 @@ import { EpisodePool } from '../../../tools/av-evolution/pool'
 
 // the baseline path: shipped car, source world upgraded with the freshly built library (loadLabWorld)
 const source = loadLabWorld({ exampleId: 'self_hunt_flexible' })
-const tr1 = listMazeEpisodes().train[0]!
+const tr1 = listMazeEpisodes().legacyTrain[0]!
 
 type Binding = { params: Record<string, unknown> }
 const bindingOf = (w: { entities: unknown[] }): Binding => (w.entities as { id: string; transformerPipeStack: Binding[] }[]).find((e) => e.id === AV_CAR_SOURCE_ID)!.transformerPipeStack[0]!
