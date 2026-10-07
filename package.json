@@ -28,6 +28,7 @@
     "av:health": "node tools/av-health.mjs",
     "av:quick": "npm run sync:global-pipeline && vitest run src/test/scenarios/av-evasion-scenarios.test.ts src/test/scenarios/av-maze-scenarios.test.ts",
     "av:evolve": "tsx tools/av-evolution/run.ts",
+    "av:evolve:compare": "tsx tools/av-evolution/compare.ts",
     "av:pre": "vitest run src/test/scenarios/av- src/test/scenarios/hunt-game"
   },
   "dependencies": {
