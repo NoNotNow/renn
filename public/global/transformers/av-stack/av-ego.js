@@ -90,6 +90,11 @@
   {"key": "mazeSeenPen", "type": "number", "default": 40, "group": "Maze", "unit": "m", "min": 0, "description": "Cost handicap of exits that are seen open ground (breadcrumbs, places the car drove on, have none): a far known entrance beats a doubtful near gap.", "advanced": true},
   {"key": "mazeHullExplore", "type": "number", "default": 24, "group": "Maze", "unit": "m", "min": 0, "description": "Without any known exit: margin outside the maze region for the explore tier (unseen open-looking ground).", "advanced": true},
   {"key": "mazeDeadR", "type": "number", "default": 24, "group": "Maze", "unit": "m", "min": 0, "description": "An exit the car reached (within 4 m) while still confined was not one (unmapped corner): no exit within this radius of it any more, until the car is free again.", "advanced": true},
+  {"key": "mazeTurnCos", "type": "number", "default": 0.5, "group": "Maze", "min": -1, "description": "Cosine of the route corner angle that limits the speed (0.5 = 60 deg heading change over a 4-point chord); lower = only sharper corners.", "advanced": true},
+  {"key": "mazeWpMin", "type": "number", "default": 12, "group": "Maze", "unit": "m", "min": 0, "description": "Minimum arc length ahead of the car before a route corner may be picked as the flee waypoint.", "advanced": true},
+  {"key": "mazeArriveR", "type": "number", "default": 4, "group": "Maze", "unit": "m", "min": 0, "description": "Radius around the route exit that counts as reached (a reached exit while still confined becomes a dead exit).", "advanced": true},
+  {"key": "mazeOffRoute", "type": "number", "default": 8, "group": "Maze", "unit": "m", "min": 0, "description": "Distance from the next 40 route points beyond which the route is stale and rebuilt.", "advanced": true},
+  {"key": "mazeRays", "type": "number", "default": 16, "group": "Maze", "min": 1, "description": "Rays of the confinement test (share of rays blocked within mazeRange).", "advanced": true},
   {"key": "mazeTurnSpeed", "type": "number", "default": 8, "group": "Maze", "unit": "m/s", "min": 0, "description": "Speed at which the escape route's first sharp corner (exit gap) is taken: the car brakes (mazeTurnDecel) to it while the maze flee goal is active, also when chased.", "advanced": true},
   {"key": "mazeTurnDecel", "type": "number", "default": 4, "group": "Maze", "unit": "m/s^2", "min": 0, "description": "Braking deceleration assumed for the speed cap before the escape route's first sharp corner.", "advanced": true},
   {"key": "mazeEvery", "type": "number", "default": 0.4, "group": "Maze", "unit": "s", "min": 0, "description": "Minimum time between rebuilds of the exit field.", "advanced": true},
@@ -675,8 +680,9 @@ function mazeStep(av, input, params, state, api, thrs) {
   var g = wallGrid(list, state)
   var range = params.mazeRange != null ? params.mazeRange : 18
   var nb = 0
-  for (var i = 0; i < 16; i++) if (freeRun(g, pos[0], pos[2], (i * Math.PI) / 8, range, 2) < range - 2) nb++
-  mz.share = nb / 16
+  var nRays = Math.max(1, Math.round(params.mazeRays != null ? params.mazeRays : 16))
+  for (var i = 0; i < nRays; i++) if (freeRun(g, pos[0], pos[2], (i * 2 * Math.PI) / nRays, range, 2) < range - 2) nb++
+  mz.share = nb / nRays
   // wall density: known wall cells within mazeDensRadius (a maze mouth / junction blocks fewer rays than a corridor but sits in a dense wall field)
   var densN = params.mazeDens != null ? params.mazeDens : 50
   var dens = 0
@@ -719,7 +725,8 @@ function mazeStep(av, input, params, state, api, thrs) {
   // the end of the route reached while still confined: that 'exit' was open-looking ground of a part not mapped yet, not an exit. It is remembered (no exit within mazeDeadR of it) and a new route is built now.
   if (mz.route) {
     var re = mz.route[mz.route.length - 1]
-    if (Math.pow(re[0] - pos[0], 2) + Math.pow(re[1] - pos[2], 2) < 16) {
+    var arriveR = params.mazeArriveR != null ? params.mazeArriveR : 4
+    if (Math.pow(re[0] - pos[0], 2) + Math.pow(re[1] - pos[2], 2) < arriveR * arriveR) {
       ;(mz.dead || (mz.dead = [])).push(re)
       mz.route = null
       mz.wp = null
@@ -731,7 +738,8 @@ function mazeStep(av, input, params, state, api, thrs) {
     var rtq = mz.route
     var offD = 1e18
     for (var kq = mz.idx; kq < Math.min(rtq.length, mz.idx + 40); kq++) offD = Math.min(offD, Math.pow(rtq[kq][0] - pos[0], 2) + Math.pow(rtq[kq][1] - pos[2], 2))
-    if (offD > 64) {
+    var offR = params.mazeOffRoute != null ? params.mazeOffRoute : 8
+    if (offD > offR * offR) {
       mz.route = null
       mz.wp = null
       mz.tB = -99
@@ -775,11 +783,12 @@ function mazeStep(av, input, params, state, api, thrs) {
     if (mz.wpRoute !== rt || !mz.wp || Math.hypot(mz.wp[0] - pos[0], mz.wp[1] - pos[2]) < (params.mazeReach != null ? params.mazeReach : 10)) {
       var acc = 0
       var gi = bi
+      var wpMin = params.mazeWpMin != null ? params.mazeWpMin : 12
       while (gi < rt.length - 1) {
         acc += Math.hypot(rt[gi + 1][0] - rt[gi][0], rt[gi + 1][1] - rt[gi][1])
         gi++
         if (acc >= lead) break
-        if (acc >= 12 && gi >= 4 && gi + 4 < rt.length) {
+        if (acc >= wpMin && gi >= 4 && gi + 4 < rt.length) {
           var ux = rt[gi][0] - rt[gi - 4][0]
           var uz = rt[gi][1] - rt[gi - 4][1]
           var wx = rt[gi + 4][0] - rt[gi][0]
@@ -799,6 +808,7 @@ function mazeStep(av, input, params, state, api, thrs) {
     // (> 60 deg over a 4-point chord) is reached at the turn speed mazeTurnSpeed (8 m/s) braking at mazeTurnDecel (4); the speed planner applies it while the maze flee goal is active.
     mz.vMax = null
     var acc2 = 0
+    var turnCos = params.mazeTurnCos != null ? params.mazeTurnCos : 0.5
     for (var ck = bi; ck + 8 < rt.length && acc2 < 80; ck++) {
       acc2 += Math.hypot(rt[ck + 1][0] - rt[ck][0], rt[ck + 1][1] - rt[ck][1])
       if (ck >= bi + 4) {
@@ -806,7 +816,7 @@ function mazeStep(av, input, params, state, api, thrs) {
         var cuz = rt[ck][1] - rt[ck - 4][1]
         var cwx = rt[ck + 4][0] - rt[ck][0]
         var cwz = rt[ck + 4][1] - rt[ck][1]
-        if (cux * cwx + cuz * cwz < 0.5 * Math.hypot(cux, cuz) * Math.hypot(cwx, cwz)) {
+        if (cux * cwx + cuz * cwz < turnCos * Math.hypot(cux, cuz) * Math.hypot(cwx, cwz)) {
           var vt = params.mazeTurnSpeed != null ? params.mazeTurnSpeed : 8
           mz.vMax = Math.sqrt(vt * vt + 2 * (params.mazeTurnDecel != null ? params.mazeTurnDecel : 4) * Math.max(0, acc2 - 4))
           break

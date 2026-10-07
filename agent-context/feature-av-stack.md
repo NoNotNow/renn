@@ -609,6 +609,11 @@ Former literals, now `params.x != null ? params.x : <old>` in the stage (binding
 | `ppMinSpeed` (3) / `ppMinClearance` (1) | lateral | pure-pursuit fine-tune entry thresholds |
 | `kappaTauFast` (0.04 s) / `kappaTauSpeed` (0.008 s per m/s) | lateral | curvature filter taus |
 | `iClamp` (3) / `overspeedCut` (8 m/s) | longitudinal | integral clamp (accel units) / overspeed throttle cut |
+| `mazeTurnCos` (0.5) | ego (maze module) | cosine of the route corner angle (60 deg) that caps the speed at `mazeTurnSpeed` |
+| `mazeWpMin` (12 m) | ego (maze module) | min arc length ahead before a route corner may become the flee waypoint |
+| `mazeArriveR` (4 m) | ego (maze module) | radius at which the route exit counts as reached (dead-exit rule) |
+| `mazeOffRoute` (8 m) | ego (maze module) | distance from the next 40 route points beyond which the route is rebuilt |
+| `mazeRays` (16) | ego (maze module) | rays of the confinement test (`share` = blocked / rays) |
 
 Not exposed on purpose: crawl watchdog speeds (no maze run changed), supervisor `wantsMove/rest/blocked` speeds (its `needManeuver` flag is read by no stage) and the route-limit near-kappa `vOld` (only used while chased).
 

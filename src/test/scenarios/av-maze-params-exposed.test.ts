@@ -29,6 +29,11 @@ const BASES: Record<string, Record<string, number | boolean>> = {
   stuckSpeed: { cruiseSpeed: 2, stuckTime: 0.2 },
   nearHitExtra: { revSweepCusp: true },
   maneuverEntryStopSpeed: { revVotes: 6 },
+  mazeTurnCos: { mazeModule: true },
+  mazeWpMin: { mazeModule: true },
+  mazeArriveR: { mazeModule: true },
+  mazeOffRoute: { mazeModule: true },
+  mazeRays: { mazeModule: true },
 }
 
 const EXTREMES: Record<string, Record<string, number>> = {
@@ -55,6 +60,11 @@ const EXTREMES: Record<string, Record<string, number>> = {
   ppMinSpeed: { ppMinSpeed: 1000 }, // 3
   kappaTauSpeed: { kappaTauSpeed: 0.3 }, // 0.008
   kappaTauFast: { kappaTauFast: 0.5 }, // 0.04
+  mazeTurnCos: { mazeTurnCos: -0.9 }, // 0.5
+  mazeWpMin: { mazeWpMin: 1000 }, // 12
+  mazeArriveR: { mazeArriveR: 60 }, // 4
+  mazeOffRoute: { mazeOffRoute: 0.01 }, // 8
+  mazeRays: { mazeRays: 2 }, // 16
 }
 
 describe('av-stack maze params are read', () => {
