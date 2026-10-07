@@ -41,3 +41,19 @@ Claude-only (no Cursor copy; relies on the Agent tool with per-agent models):
 
 The originals under `.cursor/skills/` remain the Cursor-side copies; keep both in sync
 when editing either (or replace the Cursor one with a pointer if that drifts).
+
+## Agent skills
+
+Matt Pocock's engineering skills live in `.agents/skills/`, managed by `npx skills` (`skills-lock.json`).
+
+### Issue tracker
+
+GitHub Issues on `NoNotNow/renn`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default five-role vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: root `CONTEXT.md` + `docs/adr/`. See `docs/agents/domain.md`.
