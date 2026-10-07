@@ -38,6 +38,14 @@ function transform(input, dt, params, state, api) {
   if (av && av.preset) params = state.pmP === params && state.pmB === av.preset ? state.pm : ((state.pmP = params), (state.pmB = av.preset), (state.pm = Object.assign({}, av.preset, params)))
   if (!av || !av.plan || !av.ego) return {}
   var e = av.ego
+  // manual keyboard override (av-ego av.manual): yield, the keys give throttle / brake (the AEB after this stage still brakes). Keep the speed / actuator bookkeeping current so the identification sees no jump on resume.
+  if (av.manual) {
+    state.uPrev = 0
+    state.vPrev = e.speed
+    state.lastAct = null
+    if (state.G !== undefined) av.actuator = { G: state.G, D: state.D, samples: state.samples, u: (input.actions.throttle || 0) - (input.actions.brake || 0) }
+    return {}
+  }
   var vDes = av.plan.vDesired || 0
   var selfCal = params.selfCalibrate === true
   var tau = params.tau != null ? params.tau : selfCal ? 0.12 : 0.35
