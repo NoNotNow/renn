@@ -190,15 +190,20 @@ export class MemoryEvolutionStore implements EvolutionStore {
   }
 }
 
+export const IDB_UNAVAILABLE_MESSAGE = 'IndexedDB unavailable: AV evolution runs cannot be stored in this environment'
 export const IDB_NAME = 'renn-av-evolution'
 
 export class IdbEvolutionStore implements EvolutionStore {
-  private dbp: Promise<IDBPDatabase>
+  private _dbp: Promise<IDBPDatabase> | null = null
   constructor(
     private now: () => number = Date.now,
-    dbName: string = IDB_NAME,
-  ) {
-    this.dbp = openDB(dbName, 1, {
+    private dbName: string = IDB_NAME,
+  ) {}
+  /** Opened lazily on first use, so constructing the store never touches IndexedDB (jsdom / SSR / blocked storage). */
+  private get dbp(): Promise<IDBPDatabase> {
+    if (this._dbp) return this._dbp
+    if (typeof indexedDB === 'undefined') return Promise.reject(new Error(IDB_UNAVAILABLE_MESSAGE))
+    return (this._dbp = openDB(this.dbName, 1, {
       upgrade(db) {
         db.createObjectStore('runs', { keyPath: 'runId' })
         const c = db.createObjectStore('candidates', { keyPath: ['runId', 'id'] })
@@ -207,10 +212,10 @@ export class IdbEvolutionStore implements EvolutionStore {
         const g = db.createObjectStore('generations', { keyPath: ['runId', 'gen'] })
         g.createIndex('byRun', 'runId')
       },
-    })
+    }))
   }
   async close() {
-    ;(await this.dbp).close()
+    if (this._dbp) (await this._dbp).close()
   }
   async saveRun(run: RunRecord) {
     await (await this.dbp).put('runs', clone(run))

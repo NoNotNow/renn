@@ -1,7 +1,7 @@
 import type { GeneSpec, GenomeSpec, Params } from '../core/genes'
 
 /**
- * Gene spec of the AV stack tuned by the maze-escape evolution (generated from the M1 gene list, specVersion 1).
+ * Gene spec of the AV stack tuned by the maze-escape evolution (generated from the M1 gene list, specVersion 1; P1 genes added in specVersion 2).
  * Genes are applied as AV pipe binding params on the car (binding > stage defaults). Every default equals the effective value
  * of the car in the maze episodes (saver off, like the baseline), so the all-default genome reproduces the baseline run.
  *
@@ -10,9 +10,10 @@ import type { GeneSpec, GenomeSpec, Params } from '../core/genes'
  */
 
 const f = (key: string, def: number, group: string, min: number, max: number, scale: 'lin' | 'log' = 'lin'): GeneSpec => ({ key, type: 'float', default: def, group, min, max, scale })
+const i = (key: string, def: number, group: string, min: number, max: number, scale: 'lin' | 'log' = 'lin'): GeneSpec => ({ key, type: 'int', default: def, group, min, max, scale })
 const b = (key: string, def: boolean, group: string): GeneSpec => ({ key, type: 'bool', default: def, group })
 
-export const AV_SPEC_VERSION = '1'
+export const AV_SPEC_VERSION = '2'
 
 const AV_GENES_M1: GeneSpec[] = [
   f('maxLatAccel', 9, 'turn', 6, 30, 'lin'),
@@ -123,7 +124,32 @@ const AV_GENES_M1: GeneSpec[] = [
 ]
 
 /** Append new genes here (e.g. params added to the AV stack later); keys must be unique. */
-export const AV_GENES_EXTRA: GeneSpec[] = []
+export const AV_GENES_EXTRA: GeneSpec[] = [
+  // P1: motion-planner / maneuver / misc stage constants exposed as params (defaults identical to the stage code)
+  f('turnAngle1', 0.5, 'turn', 0.2, 0.9, 'lin'),
+  f('turnAngle2', 1.15, 'turn', 0.8, 1.55, 'lin'),
+  f('sweepStep', 0.75, 'cpu', 0.4, 1.5, 'lin'),
+  f('requiredExtra', 5, 'safety', 2, 12, 'lin'),
+  f('maneuverRunDecel', 3, 'maneuver', 1.5, 10, 'lin'),
+  f('maneuverRunOffset', 0.9, 'maneuver', 0, 3, 'lin'),
+  i('revVotes', 2, 'maneuver', 1, 4, 'lin'),
+  f('maneuverEntrySpeed', 1.5, 'maneuver', 0.5, 5, 'lin'),
+  f('maneuverEntryStopSpeed', 0.3, 'maneuver', 0.1, 1.5, 'lin'),
+  f('replanCooldown', 0.6, 'maneuver', 0.15, 2, 'log'),
+  f('stuckSpeed', 0.25, 'trigger', 0.1, 1, 'lin'),
+  f('routeLimitHorizon', 160, 'turn', 60, 300, 'lin'),
+  f('nearHitExtra', 1.5, 'maneuver', 0, 4, 'lin'),
+  f('revCruiseBehind', 0.3, 'maneuver', 0, 0.9, 'lin'),
+  f('nearTouchDist', 0.3, 'speed', 0, 1.5, 'lin'),
+  f('aebMinSpeed', 0.8, 'safety', 0.3, 3, 'lin'),
+  f('aebManeuverMargin', 0.2, 'safety', 0.05, 0.8, 'lin'),
+  f('ppMinSpeed', 3, 'turn', 1, 10, 'lin'),
+  f('ppMinClearance', 1, 'turn', 0, 3, 'lin'),
+  f('kappaTauFast', 0.04, 'turn', 0.01, 0.15, 'log'),
+  f('kappaTauSpeed', 0.008, 'turn', 0, 0.02, 'lin'),
+  f('iClamp', 3, 'speed', 1, 8, 'lin'),
+  f('overspeedCut', 8, 'speed', 2, 20, 'lin'),
+]
 
 export const AV_GENOME_SPEC: GenomeSpec = { specVersion: AV_SPEC_VERSION, genes: [...AV_GENES_M1, ...AV_GENES_EXTRA] }
 

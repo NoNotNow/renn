@@ -36,8 +36,13 @@ export default function AvEvolutionPanel({ onClose, selectedEntityId }: AvEvolut
   const [note, setNote] = useState('')
 
   const refresh = useCallback(async () => {
-    const store = getAvEvolutionStore()
-    const all = (await store.listRuns()).sort((a, b) => b.updatedAt - a.updatedAt)
+    let all: RunRecord[]
+    try {
+      all = (await getAvEvolutionStore().listRuns()).sort((a, b) => b.updatedAt - a.updatedAt)
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : String(e))
+      return
+    }
     setRuns(all)
     setRunId((cur) => (cur && all.some((r) => r.runId === cur) ? cur : (all[0]?.runId ?? '')))
   }, [])
@@ -55,6 +60,7 @@ export default function AvEvolutionPanel({ onClose, selectedEntityId }: AvEvolut
     void getAvEvolutionStore()
       .topCandidates(runId, TOP_N, 1)
       .then((t) => live && setTop(t))
+      .catch((e) => live && setNote(e instanceof Error ? e.message : String(e)))
     return () => {
       live = false
     }
@@ -87,7 +93,12 @@ export default function AvEvolutionPanel({ onClose, selectedEntityId }: AvEvolut
 
   const exportJson = async () => {
     if (!runId) return
-    const data = await getAvEvolutionStore().exportJSON(runId)
+    let data
+    try {
+      data = await getAvEvolutionStore().exportJSON(runId)
+    } catch (e) {
+      return setNote(e instanceof Error ? e.message : String(e))
+    }
     const url = URL.createObjectURL(new Blob([JSON.stringify(data)], { type: 'application/json' }))
     const a = document.createElement('a')
     a.href = url

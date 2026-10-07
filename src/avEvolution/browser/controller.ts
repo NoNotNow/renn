@@ -99,6 +99,8 @@ export class AvEvolutionController {
       const run = await store.loadRun(opts.runId)
       if (!run) throw new Error(`unknown run ${opts.runId}`)
       if (!run.state) throw new Error(`run ${opts.runId} has no resumable engine state`)
+      if (run.specVersion !== AV_GENOME_SPEC.specVersion)
+        throw new Error(`run ${opts.runId} was created with gene spec v${run.specVersion}; the current spec is v${AV_GENOME_SPEC.specVersion}. Start a new run (resuming would change the gene set).`)
       return { engine: EvolutionEngine.fromJSON(run.state), run }
     }
     const n = opts.newRun

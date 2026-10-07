@@ -66,6 +66,8 @@ async function main() {
     const id = await store.importJSON(data)
     run = (await store.loadRun(id))!
     if (!run.state) throw new Error(`${resumeFile}: export has no resumable engine state`)
+    if (run.specVersion !== AV_GENOME_SPEC.specVersion)
+      throw new Error(`${resumeFile}: created with gene spec v${run.specVersion}, current spec is v${AV_GENOME_SPEC.specVersion}; cannot resume. Start a new run (drop --resume or use another --out).`)
     engine = EvolutionEngine.fromJSON(run.state)
     console.log(`resumed ${id} at generation ${engine.gen} (${run.state.evals} episodes so far)`)
   } else {

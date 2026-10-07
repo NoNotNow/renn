@@ -20,9 +20,11 @@ type Binding = { params: Record<string, unknown> }
 const bindingOf = (w: { entities: unknown[] }): Binding => (w.entities as { id: string; transformerPipeStack: Binding[] }[]).find((e) => e.id === AV_CAR_SOURCE_ID)!.transformerPipeStack[0]!
 
 describe('AV gene spec', () => {
-  it('is a valid spec of the M1 genes (no threat / flee genes)', () => {
+  it('is a valid spec of the M1 + P1 genes (no threat / flee genes)', () => {
     expect(validateSpec(AV_GENOME_SPEC)).toEqual([])
-    expect(AV_GENOME_SPEC.genes.length).toBe(104)
+    expect(AV_GENOME_SPEC.genes.length).toBe(127)
+    expect(AV_GENOME_SPEC.specVersion).toBe('2')
+    expect(new Set(AV_GENOME_SPEC.genes.map((g) => g.key)).size).toBe(AV_GENOME_SPEC.genes.length)
     expect(AV_GENOME_SPEC.genes.some((g) => /threat|flee/i.test(g.key))).toBe(false)
   })
 
