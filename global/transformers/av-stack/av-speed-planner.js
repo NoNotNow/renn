@@ -99,6 +99,11 @@ function transform(input, dt, params, state, api) {
     v = Math.max(av.route.vLimit, crawl)
     limit = 'route'
   }
+  // maze flee goal active: brake for the first sharp corner of the escape route (an exit gap), also when chased (av.maze.vMax from av-ego mazeStep)
+  if (av.mazeFlee && av.maze && av.maze.vMax != null && av.maze.vMax < v) {
+    v = Math.max(av.maze.vMax, crawl)
+    limit = 'maze'
+  }
   // route starts in reverse (routeLimitFull): brake to the stop speed without the crawl floor, the manoeuvre needs the car nearly at rest
   if (av.route && av.route.revFirst && av.route.vLimit < v && !chased) {
     v = av.route.vLimit
