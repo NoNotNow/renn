@@ -254,7 +254,7 @@ export async function runScenario(spec: ArenaSpec, seconds: number, hooks: Scena
           return `${p.spec.id}(${p.s.x.toFixed(0)},${p.s.z.toFixed(0)} y${((p.s.yaw * 180) / Math.PI).toFixed(0)} g${g.toFixed(1)})`
         })
         const w = watchValues(ARENA_CAR_ID)
-        const wv = ['av.plan.kappa', 'av.plan.free', 'av.vLimit', 'av.aeb', 'av.flee', 'av.mode', 'av.route', 'av.maneuver', 'av.revc', 'av.carrotw', 'av.latk', 'av.throttle', 'av.pass'].map((k) => (w[k] != null ? `${k.slice(3)}=${w[k]}` : '')).filter(Boolean).join(' ')
+        const wv = ['av.plan.kappa', 'av.plan.free', 'av.vLimit', 'av.aeb', 'av.flee', 'av.mode', 'av.route', 'av.maneuver', 'av.revc', 'av.carrotw', 'av.latk', 'av.throttle', 'av.pass', 'av.maze'].map((k) => (w[k] != null ? `${k.slice(3)}=${w[k]}` : '')).filter(Boolean).join(' ')
         console.log(`T ${t.toFixed(2)} [${wv}] car(${cp[0].toFixed(1)},${cp[2].toFixed(1)} y${(((yawOf(q) - Math.PI) * 180) / Math.PI).toFixed(0)} v${fwd.toFixed(1)}) ${ch.join(' ')}`)
       }
       for (const p of puppets.values()) {
