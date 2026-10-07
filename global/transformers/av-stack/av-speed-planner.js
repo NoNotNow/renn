@@ -1,3 +1,26 @@
+/* @params
+[
+  {"key": "comfortDecel", "type": "number", "default": 5, "label": "Braking for obstacles in the path", "group": "Speed", "unit": "m/s²", "min": 0, "description": "Braking deceleration used for obstacles in the path."},
+  {"key": "cruiseSpeed", "type": "number", "default": 10, "label": "Cruise speed", "group": "Speed", "unit": "m/s", "min": 0, "description": "Upper bound of the target speed; the car drives the minimum of all speed limits."},
+  {"key": "goalDecel", "type": "number", "default": 3, "group": "Speed", "unit": "m/s²", "min": 0, "description": "Gentler braking used for the final approach."},
+  {"key": "goalTolerance", "type": "number", "default": 3.5, "label": "Final goal hold radius", "group": "Goal", "unit": "m", "min": 0, "description": "Final goal counts as reached inside this radius; the car holds there."},
+  {"key": "maxLatAccel", "type": "number", "default": 9, "label": "Cornering limit (lateral accel)", "group": "Speed", "unit": "m/s²", "min": 0, "description": "Cornering limit: lateral acceleration the speed planner allows in bends."},
+  {"key": "minSpeed", "type": "number", "default": 4, "label": "Minimum speed while driving", "group": "Speed", "unit": "m/s", "min": 0, "description": "Lowest speed while driving (the free-path stopping limit still wins)."},
+  {"key": "obstacleSlowFactor", "type": "number", "default": 0.5, "label": "Speed right next to an obstacle", "group": "Speed", "min": 0, "description": "Speed right next to an obstacle as a fraction of cruise speed."},
+  {"key": "obstacleSlowRadius", "type": "number", "default": 5, "label": "Obstacles slow the car only within", "group": "Speed", "unit": "m", "min": 0, "description": "Only obstacles within this distance of the hull slow the car; 0 = off."},
+  {"key": "chasedDecel", "type": "number", "default": 0, "group": "Evasion", "unit": "m/s²", "min": 0, "description": "Free-path braking deceleration while a fast body closes in; 0 = off.", "advanced": true},
+  {"key": "crawlSpeed", "type": "number", "default": 4, "group": "Speed", "unit": "m/s", "min": 0, "description": "Legacy alias of minSpeed.", "advanced": true},
+  {"key": "curveDeadband", "type": "number", "default": 0, "group": "Speed", "min": 0, "description": "1/m, 0 = off", "advanced": true},
+  {"key": "curveSmooth", "type": "number", "default": 0, "group": "Speed", "min": 0, "description": "s, 0 = raw kappa", "advanced": true},
+  {"key": "goalCrawlSpeed", "type": "number", "default": 2, "group": "Speed", "unit": "m/s", "min": 0, "description": "Speed floor while arriving at the final goal.", "advanced": true},
+  {"key": "stopMargin", "type": "number", "default": 1.2, "group": "Speed", "unit": "m", "min": 0, "advanced": true},
+  {"key": "vehicleLength", "type": "number", "default": 4, "label": "Vehicle length", "group": "Vehicle", "unit": "m", "min": 0, "description": "Body length used for clearance; the box collider can only enlarge it.", "advanced": true},
+  {"key": "vehicleWidth", "type": "number", "default": 2, "label": "Vehicle width", "group": "Vehicle", "unit": "m", "min": 0, "description": "Body width used for clearance; the box collider can only enlarge it.", "advanced": true},
+  {"key": "waypoints", "type": "json", "group": "Goal", "description": "Waypoint list [[x, z], ...] in world metres.", "advanced": true},
+  {"key": "tickEvery", "type": "number", "default": 1, "min": 1, "step": 1, "description": "Engine feature: this stage runs only every N-th frame (accumulated dt); 1 = every frame. Never use it on controllers.", "label": "Run every N-th frame", "group": "Performance", "advanced": true},
+  {"key": "nearTouchDist", "type": "number", "default": 0.3, "label": "Proximity slowdown floor distance", "group": "Speed", "unit": "m", "min": 0, "description": "Hull distance where the proximity slowdown reaches its floor.", "advanced": true}
+]
+*/
 // AV stack · PLAN / speed planner.
 // v_des = min(cruise, obstacle in the path (auto-brake), obstacle right next to the car, route bends ahead, lateral acceleration, goal approach).
 //  - In the path: auto-brake logic — v <= sqrt(2 * brakeDecel * (free distance - stopMargin)). Far obstacles only matter once they are within braking distance.
@@ -64,7 +87,7 @@ function transform(input, dt, params, state, api) {
     }
     if (dn < slowR) {
       var vNear = Math.max(crawl, (params.obstacleSlowFactor != null ? params.obstacleSlowFactor : 0.5) * cruise)
-      var t = Math.min(1, Math.max(0, (dn - 0.3) / Math.max(0.01, slowR - 0.3)))
+      var t = Math.min(1, Math.max(0, (dn - (params.nearTouchDist != null ? params.nearTouchDist : 0.3)) / Math.max(0.01, slowR - (params.nearTouchDist != null ? params.nearTouchDist : 0.3))))
       var vProx = vNear + (cruise - vNear) * t
       if (vProx < v) {
         v = vProx
@@ -73,9 +96,14 @@ function transform(input, dt, params, state, api) {
     }
   }
   // bends ahead on the global route (corner speed, reachable by braking)
-  if (av.route && av.route.vLimit < v && !chased) {
+  if (av.route && av.route.vLimit < v && (!chased || av.route.pocket)) {
     v = Math.max(av.route.vLimit, crawl)
     limit = 'route'
+  }
+  // maze flee goal active: brake for the first sharp corner of the escape route (an exit gap), also when chased (av.maze.vMax from av-ego mazeStep)
+  if (av.mazeFlee && av.maze && av.maze.vMax != null && av.maze.vMax < v) {
+    v = Math.max(av.maze.vMax, crawl)
+    limit = 'maze'
   }
   // route starts in reverse (routeLimitFull): brake to the stop speed without the crawl floor, the manoeuvre needs the car nearly at rest
   if (av.route && av.route.revFirst && av.route.vLimit < v && !chased) {

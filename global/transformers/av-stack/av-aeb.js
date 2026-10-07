@@ -1,9 +1,23 @@
+/* @params
+[
+  {"key": "aebDecel", "type": "number", "default": 7, "label": "AEB braking deceleration", "group": "Safety", "unit": "m/s²", "min": 0, "description": "Deceleration the AEB brakes with."},
+  {"key": "aebMargin", "type": "number", "default": 1.0, "label": "AEB extra stopping margin", "group": "Safety", "unit": "m", "min": 0, "description": "Extra stopping distance kept by the AEB."},
+  {"key": "aebHalfWidth", "type": "number", "label": "AEB look-ahead half width", "group": "Safety", "unit": "m", "description": "Half width of the AEB look-ahead strip (default derives from the vehicle width).", "advanced": true},
+  {"key": "debugDraw", "type": "boolean", "default": true, "label": "Draw debug vectors", "group": "Debug", "description": "Draw debug vectors (visible in the Builder visualize mode).", "advanced": true},
+  {"key": "style", "type": "enum", "options": [{"value": "comfort"}, {"value": "escape"}], "default": "comfort", "group": "Safety", "description": "'escape' = manoeuvres / reversing as fast as the plan can be stopped; 'comfort' = gentle.", "advanced": true},
+  {"key": "vehicleLength", "type": "number", "default": 4, "label": "Vehicle length", "group": "Vehicle", "unit": "m", "min": 0, "description": "Body length used for clearance; the box collider can only enlarge it.", "advanced": true},
+  {"key": "vehicleWidth", "type": "number", "default": 2, "label": "Vehicle width", "group": "Vehicle", "unit": "m", "min": 0, "description": "Body width used for clearance; the box collider can only enlarge it.", "advanced": true},
+  {"key": "aebMinSpeed", "type": "number", "default": 0.8, "label": "AEB arming speed", "group": "Safety", "unit": "m/s", "min": 0, "description": "Speed below which the AEB does not act (unless manual override).", "advanced": true},
+  {"key": "aebManeuverMargin", "type": "number", "default": 0.2, "label": "AEB manoeuvre margin", "group": "Safety", "unit": "m", "min": 0, "description": "Braking margin while the manoeuvre planner is driving.", "advanced": true}
+]
+*/
 // AV stack · SAFETY / autonomous emergency braking (independent monitor, own sensing).
 // Runs after control and may only reduce throttle / add brake. Uses a smaller margin while the manoeuvre planner is driving (it already keeps swept clearance).
 // Brakes with a deceleration (aebDecel), turned into a command with the actuator model the longitudinal stage identified
 // (av.actuator {G, D}): a raw brake value means 360 m/s² on a light, powerful car and flips its speed within a frame.
 // Footprint from av.vehicle (look-ahead starts at the nose, spread covers the body width).
 // debug draw: dark gold = AEB look-ahead, red = AEB triggered.
+// Manual keyboard override (av.manual, av-ego): the AEB deliberately does NOT yield; it also brakes against the user's throttle (only ever lowers throttle / adds brake, never steers).
 // params: aebDecel, aebMargin, aebHalfWidth
 function transform(input, dt, params, state, api) {
   var av = input.av
@@ -11,13 +25,14 @@ function transform(input, dt, params, state, api) {
   if (av && av.preset) params = state.pmP === params && state.pmB === av.preset ? state.pm : ((state.pmP = params), (state.pmB = av.preset), (state.pm = Object.assign({}, av.preset, params)))
   if (!av || !av.ego) return {}
   var e = av.ego
-  if (e.speed < 0.8) {
+  // (manual override: a standing car must not be pushed into an obstacle by a held throttle either, so the low-speed exemption does not apply)
+  if (e.speed < (params.aebMinSpeed != null ? params.aebMinSpeed : 0.8) && !av.manual) {
     av.aeb = false
     return {}
   }
   var a = params.aebDecel || 7
   var margin = params.aebMargin != null ? params.aebMargin : 1.0
-  if (av.mode === 'maneuver') margin = 0.2
+  if (av.mode === 'maneuver') margin = params.aebManeuverMargin != null ? params.aebManeuverMargin : 0.2
   var len = (av.vehicle && av.vehicle.length) || params.vehicleLength || 4
   var wid = (av.vehicle && av.vehicle.width) || params.vehicleWidth || 2
   var hw = params.aebHalfWidth != null ? params.aebHalfWidth : Math.max(0.9, wid / 2 - 0.1)

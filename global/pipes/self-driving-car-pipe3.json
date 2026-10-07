@@ -65,11 +65,10 @@
       ]
     }
   },
-  "syncedAt": "2026-10-05T19:46:44.380Z",
   "checksums": {
-    "umlenker": "03831023957a",
-    "direction": "a2f160438831",
-    "autoBrake": "1a2b9139fa61",
+    "umlenker": "176a5c8213c8",
+    "direction": "4f9096775571",
+    "autoBrake": "2701c92b28cf",
     "targetLine": "dac6b3e5196c"
   }
 }
