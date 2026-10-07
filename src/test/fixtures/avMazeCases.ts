@@ -7,15 +7,8 @@ import type { ArenaBox, ArenaSpec, V2 } from '@/test/fixtures/avEvasionArena'
  * Walls match the `self_hunt_flexible` labyrinth: 1 m thick, 1.5 m high, corridors ~14 m. North = -Z, the car starts facing north (yaw 0).
  */
 
-export const WALL_H = 1.5
-export const WALL_T = 1
-
-/** Axis-aligned wall from `a` to `b` (one coordinate must match), 1 m thick, ends extended by half a thickness so corners close. */
-export function seg(a: V2, b: V2): ArenaBox {
-  const horizontal = Math.abs(a[1] - b[1]) < 1e-9
-  const len = Math.abs(horizontal ? b[0] - a[0] : b[1] - a[1]) + WALL_T
-  return { at: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], size: horizontal ? [len, WALL_T] : [WALL_T, len], height: WALL_H }
-}
+export { WALL_H, WALL_T, seg } from '@/avEvolution/maze/mazeGen'
+import { WALL_H, WALL_T, seg } from '@/avEvolution/maze/mazeGen'
 
 export interface MazeCase {
   name: string
