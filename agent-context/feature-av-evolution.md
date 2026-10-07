@@ -19,3 +19,21 @@ IndexedDB database `renn-av-evolution` (stores `runs`, `candidates`, `generation
 ## Tests
 - `npx vitest run src/avEvolution` (controller test: fake evaluator + fake-indexeddb, unattended generations, stop, resume by a new controller).
 - `npx playwright test e2e/av-evolution-panel.spec.ts` (real browser: Web Workers run generations, reload restores elites, `__rennAvEvolution.best()` matches).
+
+## Evaluation protocol (episode set v2, gene spec v2)
+- Episodes (`maze/episodes.ts`, `EPISODE_SET_VERSION 2`): TRAIN = 24 episodes (8 maze seeds 101-108 x 3 starts); HOLDOUT = the original 6 (`ho1-ho6`, seeds 7/11/23/42) + 18 extra (`h201a`..`h206c`, seeds 201-206). TRAIN and HOLDOUT share no maze seed. The first single-maze TRAIN (`LEGACY_TRAIN_EPISODES`, seed 7) overfit and is kept only for parity tests.
+- Fitness: every candidate of a generation (and the re-scored elites) runs on the same mini-batch of TRAIN keys (common random numbers). The score of each episode is `exitT / baselineExitT(key)`, so hard and easy mazes weigh the same. Contacts and DNFs are penalised. The episode timeout is `clamp(1.6 x baseline, 25 s, 120 s)`. The hall of fame only admits candidates evaluated on all TRAIN keys.
+- Tools: `npm run av:evolve` (`--batch`, `--timeout-factor`, `--active <sensitivity.json>`), `npm run av:evolve:compare -- --run FILE --top 3 --keys holdout-all` (full runs, no stop-on-reach, compares against `baseline-off` = defaults with saver off and `baseline-shipped` = `{saver:true}`), `tools/av-evolution/sensitivity.ts` (one-at-a-time gene screen), `tools/av-evolution/baseline.ts`.
+
+## Results (2026-10-07, headless, 10-core Mac)
+- Run: pop 16, 50 generations, 127 genes, 8048 episodes in 31 min (4.3 episodes/s, 9 workers).
+- HOLDOUT, all 24 episodes, full runs (mean / median exit s, reached, contact events / frames):
+  - `baseline-off`: 43.6 / 34.1, 21/24 reached, 5 / 157.
+  - `baseline-shipped`: 48.7 / 35.5, 22/24 reached, 2 / 182.
+  - Top 3 by TRAIN fitness, picked before looking at HOLDOUT:
+    - #1 c750: 25.7 / 14.4, 23/24 reached, 5 / 303. 41% faster than `baseline-off` and 47% faster than `baseline-shipped`.
+    - #2 c702: 28.4 / 21.8, 24/24 reached, 1 / 8. 35% and 42% faster.
+    - #3 c690: 29.9 / 22.2, 24/24 reached, 5 / 207. 31% and 39% faster.
+- Trade-off: #1 is the fastest but scrapes walls more than the baseline. #2 is faster with fewer contacts.
+- The params are not applied to any shipped car. Apply them explicitly from the panel or with `av_evolution_apply`.
+- The first run (single-maze TRAIN, rotating episode subsets) reached only -21% on the original 6 HOLDOUT episodes. That led to the protocol above.
