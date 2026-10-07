@@ -246,7 +246,7 @@ export default function PipeFocusedStrip({
     />
   )
 
-  const renderStageCard = (item: Extract<StripItem, { kind: 'stage' }>) => {
+  const renderStageCard = (item: Extract<StripItem, { kind: 'stage' }>, parentPipeId?: string) => {
     // `item.index` is the position among ALL members (stages and pipes mixed); `stageIds` lists only the stages,
     // so address the stage by id. Index math silently dropped every stage that follows a nested pipe.
     const cfg = world.transformers?.[item.stageId]
@@ -261,6 +261,17 @@ export default function PipeFocusedStrip({
         liveTraceSteps={liveTraceSteps}
         drawerPortalTarget={drawerPortalTarget}
         onCommit={(nextConfigs) => {
+          // The single-stage card's remove button commits an empty list: that is a delete, never a patch
+          // (patching with `nextConfigs[0]` would write `undefined` into the stage registry).
+          if (nextConfigs.length === 0) {
+            const label = cfg.name ?? cfg.type
+            onDeleteNode?.(
+              parentPipeId ?
+                { kind: 'member_stage', pipeId: parentPipeId, parentPipeId, memberIndex: item.index, stageId: item.stageId, label }
+              : { kind: 'top_stage', stageId: item.stageId, label },
+            )
+            return
+          }
           if (onPatchStage) {
             onPatchStage(item.stageId, nextConfigs[0]!)
             return
@@ -504,7 +515,7 @@ export default function PipeFocusedStrip({
                   if (parentPipeId) onReorderMembers?.(parentPipeId, Number(fromKey.slice('member:'.length)), toIndex)
                 }}
               >
-                {item.kind === 'pipe' ? renderPipeCard(item) : renderStageCard(item)}
+                {item.kind === 'pipe' ? renderPipeCard(item) : renderStageCard(item, parentPipeId)}
               </StripSlot>
             </Fragment>
           ))}

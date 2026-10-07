@@ -334,6 +334,8 @@ export function patchStageConfigInWorld(
   stageId: string,
   config: TransformerConfig,
 ): RennWorld {
+  // never store an undefined registry entry (a later `cfg.origin` read would crash)
+  if (!config) return world
   return {
     ...world,
     transformers: { ...(world.transformers ?? {}), [stageId]: config },

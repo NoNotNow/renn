@@ -294,6 +294,14 @@ export function migrateEntityTransformersToRegistry(worldData: unknown): void {
     world.transformers = {}
   }
   const registry = world.transformers as Record<string, unknown>
+  // a registry key holding undefined/null (written by an old stage-delete bug) would crash every registry reader
+  for (const id of Object.keys(registry)) if (registry[id] == null) delete registry[id]
+  const pipeRegistry = world.transformerPipes
+  if (pipeRegistry && typeof pipeRegistry === 'object') {
+    for (const id of Object.keys(pipeRegistry)) {
+      if ((pipeRegistry as Record<string, unknown>)[id] == null) delete (pipeRegistry as Record<string, unknown>)[id]
+    }
+  }
 
   for (const entity of entities) {
     if (!entity || typeof entity !== 'object') continue

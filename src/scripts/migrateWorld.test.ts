@@ -202,6 +202,17 @@ describe('clampTrimeshSimplificationConfig', () => {
 })
 
 describe('migrateEntityTransformersToRegistry', () => {
+  it('drops undefined registry entries left by an old stage-delete bug', () => {
+    const world = {
+      entities: [{ id: 'e', transformers: ['ok'] }],
+      transformers: { ok: { type: 'input' }, ghost: undefined },
+      transformerPipes: { p: { id: 'p' }, ghostPipe: undefined },
+    } as Record<string, unknown>
+    migrateEntityTransformersToRegistry(world)
+    expect(Object.keys(world.transformers as object)).toEqual(['ok'])
+    expect(Object.keys(world.transformerPipes as object)).toEqual(['p'])
+  })
+
   it('extracts embedded TransformerConfig[] into world.transformers and replaces with IDs', () => {
     const world = {
       version: '1.0',
