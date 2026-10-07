@@ -10,7 +10,7 @@
 // AV stack · PLAN / behaviour supervisor.
 // Watches planner health and flags `av.needManeuver` when the local planner is blocked
 // or the vehicle is stuck; holds at the final goal. Sets av.mode ('drive' | 'hold').
-// debug draw: vertical mast above the car = status (green drive, orange needs manoeuvre, white hold).
+// debug draw: vertical mast above the car = status (green drive, orange needs manoeuvre, white hold, cyan manual keyboard override).
 // Simulated time only. params: stuckTime, blockedTime, holdAtGoal, goalTolerance
 function transform(input, dt, params, state, api) {
   var av = input.av
@@ -26,9 +26,14 @@ function transform(input, dt, params, state, api) {
   var stuckTime = params.stuckTime != null ? params.stuckTime : 1.5
   var blockedTime = params.blockedTime != null ? params.blockedTime : 0.4
   var wantsMove = (plan.vDesired || 0) > 0.8
-  if (wantsMove && Math.abs(e.speed) < 0.25) state.stuckT += dt
+  // manual keyboard override (av-ego av.manual): the user drives, the stuck / blocked timers must not run up a manoeuvre request
+  if (av.manual) {
+    state.stuckT = 0
+    state.blockedT = 0
+  }
+  if (wantsMove && Math.abs(e.speed) < 0.25 && !av.manual) state.stuckT += dt
   else state.stuckT = 0
-  if (plan.blocked && Math.abs(e.speed) < 1.2) state.blockedT += dt
+  if (plan.blocked && Math.abs(e.speed) < 1.2 && !av.manual) state.blockedT += dt
   else state.blockedT = 0
   av.needManeuver = state.blockedT > blockedTime || state.stuckT > stuckTime
   av.mode = av.override ? 'maneuver' : 'drive'
@@ -42,7 +47,7 @@ function transform(input, dt, params, state, api) {
   }
   if (params.debugDraw !== false) {
     // status mast above the car: green drive, orange manoeuvre requested, white hold
-    var c = av.mode === 'hold' ? '#ffffff' : av.needManeuver ? '#ff8800' : '#00ff66'
+    var c = av.mode === 'hold' ? '#ffffff' : av.manual ? '#00ccff' : av.needManeuver ? '#ff8800' : '#00ff66'
     api.visualizeLine([e.pos[0], e.pos[1] + 1.2, e.pos[2]], [e.pos[0], e.pos[1] + 4, e.pos[2]], c)
   }
   return {}

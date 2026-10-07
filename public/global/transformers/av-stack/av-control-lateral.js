@@ -26,6 +26,12 @@ function transform(input, dt, params, state, api) {
   // av-ego's preset table (params.preset) under this stage's own params (binding / scope / stage params win); cached while both are the same objects
   if (av && av.preset) params = state.pmP === params && state.pmB === av.preset ? state.pm : ((state.pmP = params), (state.pmB = av.preset), (state.pm = Object.assign({}, av.preset, params)))
   if (!av || !av.plan || !av.ego) return {}
+  // manual keyboard override (av-ego av.manual): yield, the keys steer; reset the filters so the autopilot resumes from the current state
+  if (av.manual) {
+    state.steer = 0
+    state.kf = undefined
+    return {}
+  }
   var e = av.ego
   var kps = params.kappaPerSteer || 0.12
   var fb = params.fbGain != null ? params.fbGain : 0.35

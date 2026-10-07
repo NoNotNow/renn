@@ -6,6 +6,8 @@
   {"key": "fleeArea", "type": "numberList", "label": "Flee area [xmin, xmax, zmin, zmax]", "group": "Evasion", "description": "World box [xmin, xmax, zmin, zmax] flee / escape goals are kept inside (needed for the flee layer)."},
   {"key": "goalReachDist", "type": "number", "default": 12, "group": "Goal", "unit": "m", "min": 0, "description": "Radius that counts as 'goal reached' for the goal display and logic."},
   {"key": "goalWatchdog", "type": "number", "default": 0, "group": "Evasion", "min": 0, "description": "Seconds without getting 8 m closer after which a goal counts as unreachable (needs fleeArea); 0 = off."},
+  {"key": "manualOverride", "type": "boolean", "default": false, "label": "Keyboard manual override", "group": "Manual", "description": "Any key press (the pipe's input stage; only the current play avatar receives keys) suspends the autopilot steering / throttle for overrideHold seconds; AEB stays active."},
+  {"key": "overrideHold", "type": "number", "default": 1, "label": "Manual override hold", "group": "Manual", "unit": "s", "min": 0, "description": "Seconds after the last key event (restarted while a key is held) during which the autopilot yields to the keyboard."},
   {"key": "hud", "type": "boolean", "default": false, "label": "Show HUD", "group": "Debug", "description": "Show the status HUD for this car."},
   {"key": "preset", "type": "enum", "options": [{"value": "none"}, {"value": "car"}, {"value": "chaser-evasion"}, {"value": "maze"}, {"value": "arena"}], "default": "none", "label": "Preset", "group": "Performance", "description": "One switch that expands to the feature params the stages gate on ('none' = raw per-stage defaults)."},
   {"key": "saver", "type": "boolean", "default": false, "label": "Saver (thinner rays, slower field)", "group": "Performance", "description": "With budget 'eco': thinner ray sets and slower field rebuilds."},
@@ -198,6 +200,33 @@ function transform(input, dt, params, state, api) {
     state.accelF = 0
   }
   state.t += dt
+  // Manual keyboard override (manualOverride: true): the pipe's `input` stage (priority 1, ahead of this stage) maps the keys to the car actions
+  // (throttle / brake / steer_left / steer_right / jump). Any non-zero action = a key is down: the timer restarts every frame while held and
+  // av.manual stays true for overrideHold s (default 1) after the last key. The control stages (lateral, longitudinal) yield while av.manual
+  // (no steering / throttle output, the keys drive car2); the AEB does NOT yield (safety). manualOverride off: the key actions are dropped here
+  // (the avatar gate of the input stage lets keys through for the controlled car), so default behaviour is unchanged.
+  var keyDown = false
+  for (var ak in input.actions) {
+    if (input.actions[ak]) {
+      keyDown = true
+      break
+    }
+  }
+  if (params.manualOverride === true) {
+    if (keyDown) state.keyT = state.t
+    var holdS = params.overrideHold != null ? params.overrideHold : 1
+    av.manual = keyDown || (state.keyT !== undefined && state.t - state.keyT < holdS)
+    api.watch('av.manual', av.manual ? (keyDown ? 'keys' : (holdS - (state.t - state.keyT)).toFixed(1) + ' s') : 'off')
+  } else {
+    av.manual = false
+    if (keyDown) {
+      input.actions.throttle = 0
+      input.actions.brake = 0
+      input.actions.steer_left = 0
+      input.actions.steer_right = 0
+      input.actions.jump = 0
+    }
+  }
   // Vehicle footprint: never plan with a hull smaller than the entity's own box collider (a 4 x 8 m body driven with the
   // 2 x 4 defaults touches every neighbour). params.vehicleWidth / vehicleLength can only enlarge it. Cached (getEntity copies).
   if (state.vehT === undefined || state.t - state.vehT > 2) {

@@ -1,3 +1,4 @@
+import { CAR_PRESET } from '@/input/inputPresets'
 import { readAvStackStageCode, type AvStackLogicalStage } from '@/globalPipeline/avStackStagePaths'
 import type { PipeParamDef, TransformerConfig, TransformerPipe, TransformerPipeBinding } from '@/types/transformer'
 import type { RennWorld } from '@/types/world'
@@ -72,6 +73,8 @@ export type AvStackOptions = {
   waypointHeadingTolerance?: number
   /** Keep this far (m) from the ground slab edge (virtual walls). Default 3. */
   edgeInset?: number
+  /** Add the keyboard `input` stage (priority 1, last member of the stack pipe) that feeds the manual override (`manualOverride` param). */
+  manualInput?: boolean
 }
 
 /** Replace the pipe3 pipeline on a parkour/cube world with the nested AV stack. */
@@ -116,6 +119,15 @@ export function applyAvStack(world: RennWorld, options: AvStackOptions = {}): Re
       ...(options.stageParams?.[logical] ? { params: options.stageParams[logical] } : {}),
     } as TransformerConfig
   }
+  if (options.manualInput) {
+    transformers.av_input = {
+      type: 'input',
+      priority: 1,
+      enabled: true,
+      name: 'AV Manual input (keys)',
+      inputMapping: JSON.parse(JSON.stringify(CAR_PRESET)),
+    } as TransformerConfig
+  }
   transformers.tf_car = {
     type: 'car2',
     priority: 8,
@@ -143,7 +155,7 @@ export function applyAvStack(world: RennWorld, options: AvStackOptions = {}): Re
     av_safety: pipe('av_safety', [st('av_aeb')]),
     [AV_STACK_PIPE_ID]: pipe(
       AV_STACK_PIPE_ID,
-      [st(missionId), sub('av_sense'), sub('av_plan'), sub('av_control'), sub('av_safety'), st('tf_car')],
+      [st(missionId), sub('av_sense'), sub('av_plan'), sub('av_control'), sub('av_safety'), st('tf_car'), ...(options.manualInput ? [st('av_input')] : [])],
       { paramDefs: AV_STACK_PARAM_DEFS },
     ),
   }
@@ -172,7 +184,7 @@ export function applyAvStack(world: RennWorld, options: AvStackOptions = {}): Re
     ...(Object.keys(scopeParams).length ? { scopeParams } : {}),
   }
 
-  const flat = [missionId, 'av_ego', 'av_perception', 'av_waypoint_viz', 'av_route_planner', 'av_motion_planner', 'av_speed_planner', 'av_supervisor', 'av_control_lateral', 'av_control_longitudinal', 'av_aeb', 'tf_car'].filter(
+  const flat = [...(options.manualInput ? ['av_input'] : []), missionId, 'av_ego', 'av_perception', 'av_waypoint_viz', 'av_route_planner', 'av_motion_planner', 'av_speed_planner', 'av_supervisor', 'av_control_lateral', 'av_control_longitudinal', 'av_aeb', 'tf_car'].filter(
     (id) => transformers[id]?.enabled !== false,
   )
   return {

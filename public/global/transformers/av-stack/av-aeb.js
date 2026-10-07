@@ -15,6 +15,7 @@
 // (av.actuator {G, D}): a raw brake value means 360 m/s² on a light, powerful car and flips its speed within a frame.
 // Footprint from av.vehicle (look-ahead starts at the nose, spread covers the body width).
 // debug draw: dark gold = AEB look-ahead, red = AEB triggered.
+// Manual keyboard override (av.manual, av-ego): the AEB deliberately does NOT yield; it also brakes against the user's throttle (only ever lowers throttle / adds brake, never steers).
 // params: aebDecel, aebMargin, aebHalfWidth
 function transform(input, dt, params, state, api) {
   var av = input.av
@@ -22,7 +23,8 @@ function transform(input, dt, params, state, api) {
   if (av && av.preset) params = state.pmP === params && state.pmB === av.preset ? state.pm : ((state.pmP = params), (state.pmB = av.preset), (state.pm = Object.assign({}, av.preset, params)))
   if (!av || !av.ego) return {}
   var e = av.ego
-  if (e.speed < 0.8) {
+  // (manual override: a standing car must not be pushed into an obstacle by a held throttle either, so the low-speed exemption does not apply)
+  if (e.speed < 0.8 && !av.manual) {
     av.aeb = false
     return {}
   }

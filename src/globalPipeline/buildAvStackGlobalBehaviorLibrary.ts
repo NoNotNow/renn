@@ -2,6 +2,7 @@ import type { GlobalBehaviorLibrary } from '@/types/globalBehaviorLibrary'
 import type { PipeParamDef, TransformerDef, TransformerPipe } from '@/types/transformer'
 import { flattenPipeStageIds } from '@/utils/transformerPipeResolve'
 import { readAvStackStageCode, type AvStackLogicalStage } from '@/globalPipeline/avStackStagePaths'
+import { CAR_PRESET } from '@/input/inputPresets'
 import { SHIPPED_GLOBAL_AV_PREFIX } from '@/globalPipeline/shippedGlobalBehaviorLibraryTypes'
 
 /**
@@ -33,6 +34,8 @@ const STAGES: Record<AvStackLogicalStage, StageMeta> = {
   aeb: { id: `${P}aeb`, name: 'AV AEB', priority: 7 },
 }
 const CAR_ID = `${P}car`
+/** Keyboard stage in front of the autopilot (priority 1, before ego 2): feeds the manual override (`manualOverride`, see av-ego.js). Appended as the LAST autopilot member so existing scope keys keep their member indices. */
+export const AV_GLOBAL_INPUT_STAGE_ID = `${P}input`
 
 // min/max are drag hints only (typed values are never clamped: e.g. a cruiseSpeed of 1000 is legal), so no max on speeds.
 export const AV_GLOBAL_PARAM_DEFS: PipeParamDef[] = [
@@ -47,6 +50,8 @@ export const AV_GLOBAL_PARAM_DEFS: PipeParamDef[] = [
   { key: 'maxCurvature', label: 'Max curvature (min turn radius)', type: 'number', default: 0.115, min: 0, step: 0.005, unit: '1/m', group: 'Vehicle' },
   { key: 'safetyMargin', label: 'Safety margin', type: 'number', default: 0.5, min: 0, step: 0.05, unit: 'm', group: 'Safety' },
   { key: 'goalTolerance', label: 'Final goal hold radius', type: 'number', default: 5.5, min: 0, step: 0.1, unit: 'm', group: 'Goal' },
+  { key: 'manualOverride', label: 'Keyboard manual override', type: 'boolean', default: false, group: 'Manual', description: 'Any key press (current play avatar) suspends the autopilot steering / throttle for the hold time; AEB stays active.' },
+  { key: 'overrideHold', label: 'Manual override hold', type: 'number', default: 1, min: 0, unit: 's', group: 'Manual', description: 'Seconds after the last key event (restarted while held) the autopilot yields.' },
   { key: 'debugDraw', label: 'Draw debug vectors (Builder visualize mode)', type: 'boolean', default: true, group: 'Debug' },
 ]
 
@@ -76,6 +81,13 @@ function stageDefs(): Record<string, TransformerDef> {
         : {}),
     } as TransformerDef
   }
+  out[AV_GLOBAL_INPUT_STAGE_ID] = {
+    type: 'input',
+    priority: 1,
+    enabled: true,
+    name: 'AV Manual input (keys)',
+    inputMapping: JSON.parse(JSON.stringify(CAR_PRESET)),
+  } as TransformerDef
   out[CAR_ID] = {
     type: 'car2',
     priority: 8,
@@ -100,7 +112,7 @@ export function buildAvStackGlobalBehaviorLibrary(): GlobalBehaviorLibrary {
     [`${P}safety`]: { name: 'AV Safety (AEB)', members: [st(STAGES.aeb.id)] },
     [AV_GLOBAL_AUTOPILOT_PIPE_ID]: {
       name: 'AV Autopilot (sense, plan, control, safety)',
-      members: [sub(`${P}sense`), sub(`${P}plan`), sub(`${P}control`), sub(`${P}safety`)],
+      members: [sub(`${P}sense`), sub(`${P}plan`), sub(`${P}control`), sub(`${P}safety`), st(AV_GLOBAL_INPUT_STAGE_ID)],
       paramDefs: AV_GLOBAL_PARAM_DEFS,
     },
     [AV_GLOBAL_WANDER_STACK_PIPE_ID]: {
