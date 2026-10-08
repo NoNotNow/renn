@@ -7,7 +7,7 @@
  */
 import { DEFAULT_DT, WorldSimulator } from '@/test/helpers/worldSimulator'
 import { installDeterminism } from '@/test/avLab/determinism'
-import { setAgentObservationWatchActive } from '@/runtime/transformerWatchBridge'
+import { getTransformerWatchEntries, setAgentObservationWatchActive } from '@/runtime/transformerWatchBridge'
 import { forwardSpeed, polyGap, rectPoly, upY, yawOf } from '@/avEvolution/eval/geometry'
 import { ReversalCounter } from '@/avEvolution/eval/reversals'
 import type { RennWorld } from '@/types/world'
@@ -40,6 +40,8 @@ export interface EpResult {
   exitT: number; outT: number | null; catchT: number | null
   contactEvents: number; contactFrames: number; reversals: number; reverseS: number
   hits: number; firstHitT: number | null; minChaserDist: number
+  /** av.profile watch transitions to 'on' (mazeProfile switch flips) and seconds with it on */
+  profFlips: number; profOnS: number
   flipped: boolean; simS: number; wallMs: number; endDist: number
 }
 
@@ -125,6 +127,8 @@ export async function runEpisode(src: RennWorld, spec: EpSpec, o: EpOpts): Promi
     let events = 0, contactFrames = 0, inContact = false, minGap = Infinity
     let outT: number | null = null, catchT: number | null = null, reachT: number | null = null
     let hits = 0, firstHit: number | null = null, minCh = Infinity, flipped = false, endDist = 0, simS = 0
+    let profFlips = 0, profOnFrames = 0, profPrev = false
+    const profKey = `${AV_ID}:0:av.profile`
     const armed = new Map<string, boolean>(chasers.map((c) => [c, true]))
     for (let f = 0; f < frames; f++) {
       sim.runFrames(1)
@@ -144,6 +148,11 @@ export async function runEpisode(src: RennWorld, spec: EpSpec, o: EpOpts): Promi
         if (g < 0.1) touch = true
       }
       if (process.env.HM_TRACE && f % 60 === 0) console.log(`  ${spec.id} t=${t.toFixed(0)} pos ${cp[0].toFixed(0)},${cp[2].toFixed(0)} v ${Math.hypot(v[0], v[2]).toFixed(1)} fwd ${forwardSpeed(q, v).toFixed(1)}`)
+      const pe = getTransformerWatchEntries().get(profKey)
+      const profOn = pe?.value === 'on'
+      if (profOn) profOnFrames++
+      if (profOn && !profPrev) profFlips++
+      profPrev = profOn
       if (touch) { contactFrames++; if (!inContact) events++ }
       inContact = touch
       const stillIn = outT === null && catchT === null && reachT === null
@@ -177,7 +186,7 @@ export async function runEpisode(src: RennWorld, spec: EpSpec, o: EpOpts): Promi
     return {
       id: spec.id, kind: spec.kind, maze: spec.maze, reached, exitT, outT, catchT,
       contactEvents: events, contactFrames, reversals: rev.count, reverseS: rev.reverseFrames * DEFAULT_DT,
-      hits, firstHitT: firstHit, minChaserDist: minCh, flipped, simS, wallMs: performance.now() - t0, endDist,
+      profFlips, profOnS: profOnFrames * DEFAULT_DT, hits, firstHitT: firstHit, minChaserDist: minCh, flipped, simS, wallMs: performance.now() - t0, endDist,
     }
   } finally {
     sim?.dispose()

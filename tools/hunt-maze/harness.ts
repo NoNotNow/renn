@@ -99,13 +99,13 @@ await Promise.all(workers.map((w) => w.terminate()))
 const mean = (a: number[]) => (a.length ? a.reduce((s, x) => s + x, 0) / a.length : NaN)
 const median = (a: number[]) => { const s = [...a].sort((x, y) => x - y); return s.length ? s[Math.floor((s.length - 1) / 2)]! : NaN }
 const f1 = (x: number) => (Number.isFinite(x) ? x.toFixed(1) : '-')
-const lines: string[] = [`# hunt-maze results (${seconds}s cap)`, '', '| set | scenario | n | reached | mean exit s (reached) | median | mean w/ timeout | contact eps (frames) | contact-free | reversals | reverseS | hits | wall s/ep |', '|---|---|---|---|---|---|---|---|---|---|---|---|---|']
+const lines: string[] = [`# hunt-maze results (${seconds}s cap)`, '', '| set | scenario | n | reached | mean exit s (reached) | median | mean w/ timeout | contact eps (frames) | contact-free | reversals | reverseS | hits | prof flips mean/max | prof on s | wall s/ep |', '|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|']
 const byKey = (label: string, pred: (r: EpResult) => boolean) => results.filter((x) => x.label === label && pred(x.res)).map((x) => x.res)
 const row = (label: string, name: string, rs: EpResult[]) => {
   if (!rs.length) return
   const ok = rs.filter((r) => r.reached)
   const sum = (f: (r: EpResult) => number) => rs.reduce((s, r) => s + f(r), 0)
-  lines.push(`| ${label} | ${name} | ${rs.length} | ${ok.length}/${rs.length} | ${f1(mean(ok.map((r) => r.exitT)))} | ${f1(median(ok.map((r) => r.exitT)))} | ${f1(mean(rs.map((r) => r.exitT)))} | ${sum((r) => r.contactEvents)} (${sum((r) => r.contactFrames)}) | ${rs.filter((r) => r.contactEvents === 0).length}/${rs.length} | ${f1(mean(rs.map((r) => r.reversals)))} | ${f1(mean(rs.map((r) => r.reverseS)))} | ${sum((r) => r.hits)} | ${f1(mean(rs.map((r) => r.wallMs / 1000)))} |`)
+  lines.push(`| ${label} | ${name} | ${rs.length} | ${ok.length}/${rs.length} | ${f1(mean(ok.map((r) => r.exitT)))} | ${f1(median(ok.map((r) => r.exitT)))} | ${f1(mean(rs.map((r) => r.exitT)))} | ${sum((r) => r.contactEvents)} (${sum((r) => r.contactFrames)}) | ${rs.filter((r) => r.contactEvents === 0).length}/${rs.length} | ${f1(mean(rs.map((r) => r.reversals)))} | ${f1(mean(rs.map((r) => r.reverseS)))} | ${sum((r) => r.hits)} | ${f1(mean(rs.map((r) => r.profFlips)))}/${Math.max(...rs.map((r) => r.profFlips))} | ${f1(mean(rs.map((r) => r.profOnS)))} | ${f1(mean(rs.map((r) => r.wallMs / 1000)))} |`)
 }
 for (const set of sets) {
   for (const k of kinds) {
