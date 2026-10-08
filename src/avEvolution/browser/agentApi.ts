@@ -7,7 +7,7 @@
  * (same authoring-registry path as RPC apply_world_patch). Default params are never changed implicitly.
  */
 import { requireAgentBuilderAuthoring } from '@/agent/agentBuilderAuthoringRegistry'
-import type { EvolutionStore, RunExport } from '../core/store'
+import type { EvolutionStore, ExportOptions, RunExport } from '../core/store'
 import { applyAvEvolutionCandidate, type AvEvolutionApplyInput } from '../agent/applyCandidate'
 import { bestCandidates, listRuns, type BestCandidatesInput } from '../agent/readApi'
 import { getAvEvolutionStore, setAvEvolutionStore } from '../agent/storeRegistry'
@@ -16,7 +16,8 @@ export interface RennAvEvolutionApi {
   list(): ReturnType<typeof listRuns>
   best(input?: BestCandidatesInput): ReturnType<typeof bestCandidates>
   apply(input: AvEvolutionApplyInput): ReturnType<typeof applyAvEvolutionCandidate>
-  export(runId: string): Promise<RunExport>
+  /** candidates best-first; `{compact: true, topN?}` drops episodes / vecs / engine state */
+  export(runId: string, opts?: ExportOptions): Promise<RunExport>
 }
 
 declare global {
@@ -33,7 +34,7 @@ export function createAvEvolutionAgentApi(): RennAvEvolutionApi {
       applyAvEvolutionCandidate(getAvEvolutionStore(), input, async (patch) =>
         requireAgentBuilderAuthoring().applyLogicVerificationWorldPatchToDocument(patch),
       ),
-    export: (runId) => getAvEvolutionStore().exportJSON(runId),
+    export: (runId, opts) => getAvEvolutionStore().exportJSON(runId, opts),
   }
 }
 

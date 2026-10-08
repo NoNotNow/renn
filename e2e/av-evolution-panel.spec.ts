@@ -30,6 +30,20 @@ test.describe('AV evolution panel', () => {
     const stopped = await status.innerText()
     console.log('status after stop:', stopped)
 
+    // fitness weights of a UI-started run must be the documented defaults (wReversal 0.5, wReverseS 0), and the compact export is best-first
+    const exp = await page.evaluate(async () => {
+      const api = window.__rennAvEvolution!
+      const id = (await api.list())[0]!.runId
+      const x = await api.export(id, { compact: true, topN: 5 })
+      return { weights: x.run.weights, compact: x.compact, hasState: !!x.run.state, fits: x.candidates.map((c) => c.fitness), episodes: x.candidates.map((c) => c.episodes.length) }
+    })
+    expect(exp.weights.wReversal).toBe(0.5)
+    expect(exp.weights.wReverseS).toBe(0)
+    expect(exp.compact).toBeDefined()
+    expect(exp.hasState).toBe(false)
+    expect(exp.fits).toEqual([...exp.fits].sort((a, b) => a - b))
+    expect(exp.episodes.every((n) => n === 0)).toBe(true)
+
     const before = await page.evaluate(async () => {
       const api = window.__rennAvEvolution!
       return { runs: await api.list(), best: await api.best({ topN: 3, minEpisodes: 1 }) }

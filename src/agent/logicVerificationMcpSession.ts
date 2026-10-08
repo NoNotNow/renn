@@ -31,8 +31,9 @@ import {
   resolveFixtureVerificationProject,
   resolveInlineVerificationProject,
 } from '@/agent/logicVerificationProjectSource'
-import { readExportsFromDisk } from '@/avEvolution/agent/diskExports'
-import { bestFromExports, listRunsFromExports, type BestCandidatesInput } from '@/avEvolution/agent/readApi'
+import type { RunExport } from '@/avEvolution/core/store'
+import { readExportsFromDisk, writeExportToDisk } from '@/avEvolution/agent/diskExports'
+import { bestFromExports, exportFromExports, listRunsFromExports, type BestCandidatesInput } from '@/avEvolution/agent/readApi'
 import { exportAgentProjectBundleWorld } from '@/agent/exportAgentProjectBundle'
 import { loadAgentExampleWorldFromDisk } from '@/agent/loadAgentExampleWorldFromDisk'
 import { parseAgentMaterialColorInput } from '@/agent/agentMaterialColorParse'
@@ -418,6 +419,24 @@ export class LogicVerificationMcpSession {
     const { exportDir, ...rest } = input
     if (this.browserClient) return await this.browserClient.invoke('av_evolution_best', rest)
     return bestFromExports(await readExportsFromDisk(exportDir), rest)
+  }
+
+  /**
+   * Export one run (default: compact top-50, best-first). Attached: from the Builder IndexedDB; else re-read from disk exports.
+   * With `outFile` the JSON is written under test-results/av-evolution (basename only) and only a summary is returned.
+   */
+  async avEvolutionExport(input: { runId?: string; compact?: boolean; topN?: number; outFile?: string; exportDir?: string }) {
+    const { exportDir, outFile, runId, compact = true, topN } = input
+    const opts = { compact, topN }
+    let data: RunExport
+    if (this.browserClient) {
+      const id = runId ?? ((await this.browserClient.invoke('av_evolution_list', {})) as { runId: string; updatedAt: number }[]).sort((a, b) => b.updatedAt - a.updatedAt)[0]?.runId
+      if (!id) throw new Error('no AV-evolution runs in the attached Builder')
+      data = (await this.browserClient.invoke('av_evolution_export', { runId: id, ...opts })) as RunExport
+    } else {
+      data = exportFromExports(await readExportsFromDisk(exportDir), { runId, ...opts })
+    }
+    return outFile ? await writeExportToDisk(data, outFile, exportDir) : data
   }
 
   async avEvolutionApply(input: {

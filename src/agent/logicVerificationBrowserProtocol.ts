@@ -83,6 +83,7 @@ export const LOGIC_VERIFICATION_BROWSER_RPC_METHODS = [
   'av_evolution_list',
   'av_evolution_best',
   'av_evolution_apply',
+  'av_evolution_export',
 ] as const
 
 export type LogicVerificationBrowserRpcMethod =

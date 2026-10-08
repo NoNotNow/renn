@@ -8,7 +8,12 @@
  *   run: RunRecord,                 // incl. specVersion, stackVersion, fitness weights, config, spec, resumable engine state
  *   candidates: CandidateRecord[],  // params + per-episode records + aggregate (fitness lower = better)
  *   generations: GenerationRecord[] // per-generation stats
+ *   compact?: { topN: number, totalCandidates: number } // present only on compact exports
  * }
+ * Candidates are written best-first (evaluated by fitness ascending, then unevaluated by gen/id); readers must not rely
+ * on it (old files are unsorted). Compact exports keep only the top-N candidates without per-episode records / vecs and
+ * drop the resumable engine state (not resumable, still importable); the schema string is unchanged because every
+ * field is still present and readers need no change.
  * Bump the schema string on any breaking change; importJSON rejects unknown schemas.
  */
 import { openDB, type IDBPDatabase } from 'idb'
@@ -69,6 +74,45 @@ export interface RunExport {
   run: RunRecord
   candidates: CandidateRecord[]
   generations: GenerationRecord[]
+  /** set on compact exports only */
+  compact?: { topN: number; totalCandidates: number }
+}
+
+export interface ExportOptions {
+  /** top-N candidates, no per-episode records / vecs, no resumable engine state */
+  compact?: boolean
+  /** compact only: number of candidates kept (default DEFAULT_COMPACT_TOP_N) */
+  topN?: number
+}
+
+export const DEFAULT_COMPACT_TOP_N = 50
+
+const isEvaluated = (c: Pick<CandidateRecord, 'n' | 'fitness'>) => c.n > 0 && c.fitness < 1e12
+
+/** Best first: evaluated candidates by fitness ascending (lower = better), then unevaluated by gen / id. Returns a new array. */
+export function sortCandidatesBestFirst<T extends Pick<CandidateRecord, 'n' | 'fitness' | 'gen' | 'id'>>(cands: readonly T[]): T[] {
+  return [...cands].sort((a, b) => {
+    const ea = isEvaluated(a)
+    const eb = isEvaluated(b)
+    if (ea !== eb) return ea ? -1 : 1
+    if (ea && a.fitness !== b.fitness) return a.fitness - b.fitness
+    return a.gen - b.gen || a.id.localeCompare(b.id, undefined, { numeric: true })
+  })
+}
+
+/** Sorts candidates best-first; with `compact` also truncates to top-N and strips episodes, vecs and engine state. Pure. */
+export function prepareExport(data: RunExport, opts: ExportOptions = {}): RunExport {
+  const sorted = sortCandidatesBestFirst(data.candidates)
+  if (!opts.compact) return { ...data, candidates: sorted }
+  const topN = Math.max(1, Math.floor(opts.topN ?? DEFAULT_COMPACT_TOP_N))
+  const { state: _state, ...run } = data.run
+  void _state
+  return {
+    ...data,
+    run,
+    candidates: sorted.slice(0, topN).map((c) => ({ ...c, vec: [], episodes: [] })),
+    compact: { topN, totalCandidates: data.candidates.length },
+  }
 }
 
 export interface EvolutionStore {
@@ -81,7 +125,8 @@ export interface EvolutionStore {
   topCandidates(runId: string | 'all', n: number, minEpisodes?: number): Promise<CandidateRecord[]>
   saveGeneration(rec: GenerationRecord): Promise<void>
   listGenerations(runId: string): Promise<GenerationRecord[]>
-  exportJSON(runId: string): Promise<RunExport>
+  /** candidates best-first; see ExportOptions for the compact variant */
+  exportJSON(runId: string, opts?: ExportOptions): Promise<RunExport>
   /** returns the imported runId (suffixed if it already exists) */
   importJSON(data: RunExport): Promise<string>
 }
@@ -172,16 +217,19 @@ export class MemoryEvolutionStore implements EvolutionStore {
   async listGenerations(runId: string) {
     return [...this.gens.values()].filter((g) => g.runId === runId).sort((a, b) => a.gen - b.gen).map(clone)
   }
-  async exportJSON(runId: string): Promise<RunExport> {
+  async exportJSON(runId: string, opts?: ExportOptions): Promise<RunExport> {
     const run = await this.loadRun(runId)
     if (!run) throw new Error(`unknown run ${runId}`)
-    return {
-      schema: EXPORT_SCHEMA,
-      exportedAt: this.now(),
-      run,
-      candidates: [...this.cands.values()].filter((c) => c.runId === runId).map(clone),
-      generations: await this.listGenerations(runId),
-    }
+    return prepareExport(
+      {
+        schema: EXPORT_SCHEMA,
+        exportedAt: this.now(),
+        run,
+        candidates: [...this.cands.values()].filter((c) => c.runId === runId).map(clone),
+        generations: await this.listGenerations(runId),
+      },
+      opts,
+    )
   }
   async importJSON(data: RunExport) {
     checkImport(data)
@@ -256,17 +304,20 @@ export class IdbEvolutionStore implements EvolutionStore {
     const all = (await (await this.dbp).getAllFromIndex('generations', 'byRun', runId)) as GenerationRecord[]
     return all.sort((a, b) => a.gen - b.gen)
   }
-  async exportJSON(runId: string): Promise<RunExport> {
+  async exportJSON(runId: string, opts?: ExportOptions): Promise<RunExport> {
     const run = await this.loadRun(runId)
     if (!run) throw new Error(`unknown run ${runId}`)
     const db = await this.dbp
-    return {
-      schema: EXPORT_SCHEMA,
-      exportedAt: this.now(),
-      run,
-      candidates: (await db.getAllFromIndex('candidates', 'byRun', runId)) as CandidateRecord[],
-      generations: await this.listGenerations(runId),
-    }
+    return prepareExport(
+      {
+        schema: EXPORT_SCHEMA,
+        exportedAt: this.now(),
+        run,
+        candidates: (await db.getAllFromIndex('candidates', 'byRun', runId)) as CandidateRecord[],
+        generations: await this.listGenerations(runId),
+      },
+      opts,
+    )
   }
   async importJSON(data: RunExport) {
     checkImport(data)
