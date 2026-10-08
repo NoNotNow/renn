@@ -129,7 +129,15 @@
   {"key": "stuckSpeed", "type": "number", "default": 0.25, "label": "Stuck speed", "group": "Route planning", "unit": "m/s", "min": 0, "description": "Stuck watchdog: speed below which the car counts as stopped.", "advanced": true},
   {"key": "routeLimitHorizon", "type": "number", "default": 160, "label": "Route limit horizon", "group": "Route planning", "unit": "m", "min": 0, "description": "How far ahead bends are braked for (routeLimitFull only).", "advanced": true},
   {"key": "nearHitExtra", "type": "number", "default": 1.5, "label": "Near-cusp hit margin", "group": "Route planning", "unit": "m", "min": 0, "description": "Extra hull margin of the near-cusp hit test (only used with revSweepCusp).", "advanced": true},
-  {"key": "revCruiseBehind", "type": "number", "default": 0.3, "label": "Reverse-cruise behind fraction", "group": "Route planning", "min": 0, "description": "Goal-behind fraction above which reverse-cruise is considered.", "advanced": true}
+  {"key": "revCruiseBehind", "type": "number", "default": 0.3, "label": "Reverse-cruise behind fraction", "group": "Route planning", "min": 0, "description": "Goal-behind fraction above which reverse-cruise is considered.", "advanced": true},
+  {"key": "cuspHeadW", "type": "number", "default": 0, "label": "K-turn cusp heading weight", "group": "Manoeuvres and maze", "min": 0, "description": "Cost of a reverse->forward gear change per (1 - cos) of heading misalignment with the onward route (0 = off).", "advanced": true},
+  {"key": "cuspReachW", "type": "number", "default": 0, "label": "K-turn cusp reach weight", "group": "Manoeuvres and maze", "min": 0, "description": "Cost of a reverse->forward gear change when the onward route point is not reachable by a forward arc of the minimum turn radius (0 = off).", "advanced": true},
+  {"key": "cuspLook", "type": "number", "default": 12, "label": "K-turn cusp look-ahead", "group": "Manoeuvres and maze", "unit": "m", "min": 3, "description": "Distance down the obstacle-aware route that defines the onward direction at a cusp.", "advanced": true},
+  {"key": "gearIncW", "type": "number", "default": 0, "label": "Gear-change increment", "group": "Manoeuvres and maze", "min": 0, "description": "Extra cost per gear change already made in the sequence (prefers 3-point over 5-point turns; 0 = off).", "advanced": true},
+  {"key": "cuspCommit", "type": "boolean", "default": false, "label": "Keep aligned K-turns", "group": "Manoeuvres and maze", "description": "A plan whose cusps all end aligned with the onward route is kept through small drift while the rest stays swept-free.", "advanced": true},
+  {"key": "cuspDeviate", "type": "number", "default": 4, "label": "Aligned K-turn deviation", "group": "Manoeuvres and maze", "unit": "m", "min": 0, "description": "Max end-pose deviation for which an aligned K-turn is kept (cuspCommit).", "advanced": true},
+  {"key": "cuspCommitCos", "type": "number", "default": 0.85, "label": "Aligned K-turn heading cos", "group": "Manoeuvres and maze", "min": -1, "max": 1, "description": "Min cos between cusp-end heading and the onward route for a cusp to count as aligned (cuspCommit).", "advanced": true},
+  {"key": "cuspDot", "type": "number", "default": 0.6, "label": "Aligned K-turn heading drift", "group": "Manoeuvres and maze", "min": -1, "max": 1, "description": "Min cos between the real heading and a planned segment end for an aligned K-turn to be kept (cuspCommit).", "advanced": true}
 ]
 */
 // AV stack · PLAN / route + manoeuvre planner (Hybrid-A* over forward/reverse arc primitives).
@@ -860,6 +868,33 @@ function transform(input, dt, params, state, api) {
       var th = Math.acos(c > 1 ? 1 : c < -1 ? -1 : c)
       return th > hMin ? base + hW * Rturn * (th - hMin) : base
     }
+    // Heading-aware K-turn (cuspHeadW / cuspReachW / gearIncW, all default 0 = off, old code path exactly): a reverse->forward gear change (cusp) is scored by where the car will stand and point afterwards.
+    // The onward direction is the point `cuspLook` m down the obstacle-aware route (field guide, or the goal): (i) heading misalignment (1 - cos) * cuspHeadW, (ii) room for the next forward arc: the guide point has to be
+    // reachable by a forward arc of the minimum turn radius without another reversal, else cuspReachW * (excess curvature, behind = 3). Cached per cusp node. gearIncW adds a per-gear-change cost that grows with
+    // the number of changes so far (a 3-point turn beats a 5-point one).
+    var cuspHeadW = params.cuspHeadW || 0
+    var cuspReachW = params.cuspReachW || 0
+    var gearIncW = params.gearIncW || 0
+    var cuspOn = (cuspHeadW > 0 || cuspReachW > 0) && !!fld
+    var cuspLook = params.cuspLook != null ? params.cuspLook : 12
+    function cuspCost(nd) {
+      if (nd.cuspPen !== undefined) return nd.cuspPen
+      var gp = fieldGuide(nd.x, nd.z, cuspLook)
+      var gdx = gp[0] - nd.x
+      var gdz = gp[1] - nd.z
+      var gl = Math.sqrt(gdx * gdx + gdz * gdz)
+      var pen = 0
+      if (gl > 1) {
+        var cs = (nd.fx * gdx + nd.fz * gdz) / gl
+        var xl = nd.fx * gdx + nd.fz * gdz
+        var yl = nd.fz * gdx - nd.fx * gdz // lateral (sign irrelevant)
+        pen += cuspHeadW * (1 - cs)
+        var kreq = (2 * Math.abs(yl)) / (xl * xl + yl * yl)
+        pen += cuspReachW * (xl <= 0 ? 3 : Math.min(3, Math.max(0, kreq / kmax - 1)))
+      }
+      nd.cuspPen = pen
+      return pen
+    }
     // binary min-heap on f
     var heap = []
     function push(nd) {
@@ -991,7 +1026,11 @@ function transform(input, dt, params, state, api) {
           }
           if (!ok) continue
           var step = ell * (gear < 0 ? revPen : 1) + (Math.abs(k) / kmax) * 0.4 * ell
-          if (cur.gear !== 0 && cur.gear !== gear) step += gearPen
+          if (cur.gear !== 0 && cur.gear !== gear) {
+            step += gearPen
+            if (gearIncW > 0) step += gearIncW * (cur.nsw || 0)
+            if (cuspOn && cur.gear < 0) step += cuspCost(cur)
+          }
           if (cur.gear !== 0 && cur.k !== k) step += 0.3
           if (clrPen > 0) step += (clrW * clrPen * ell) / (4 * clrDc)
           var g2 = cur.g + step
@@ -999,7 +1038,7 @@ function transform(input, dt, params, state, api) {
           if (tKeys[ns] !== -1 && tVals[ns] <= g2) continue
           tKeys[ns] = slotKey
           tVals[ns] = g2
-          push({ x: nx, z: nz, fx: nfx, fz: nfz, g: g2, gear: gear, k: k, revRun: revRun, parent: cur, f: g2 + dist(nx, nz, nfx, nfz) * HW })
+          push({ x: nx, z: nz, fx: nfx, fz: nfz, g: g2, gear: gear, k: k, revRun: revRun, parent: cur, nsw: (cur.nsw || 0) + (cur.gear !== 0 && cur.gear !== gear ? 1 : 0), f: g2 + dist(nx, nz, nfx, nfz) * HW })
         }
       }
     }
@@ -1037,7 +1076,58 @@ function transform(input, dt, params, state, api) {
     return { segs: segs, reached: !!goalNode, expansions: expansions, hRemaining: bestH, path: pathPts, nodes: nodes }
   }
 
+  // cuspCommit (OPT-IN: true, needs cuspHeadW / cuspReachW): a plan whose every reverse->forward cusp ends in an aligned pose (heading within cuspCommitCos of the onward route, onward point reachable by a forward arc)
+  // is kept through small pose drift at segment ends (cuspDeviate m / cuspDot) while the rest of the sequence, swept from the REAL pose, is still free. Everything else re-plans as before.
+  function planAligned(segs) {
+    if (params.cuspCommit !== true || !fld) return false
+    var any = false
+    for (var i = 0; i + 1 < segs.length; i++) {
+      if (segs[i].g < 0 && segs[i + 1].g > 0) {
+        var en = segs[i].end
+        if (!en) return false
+        var gp = fieldGuide(en.x, en.z, params.cuspLook != null ? params.cuspLook : 12)
+        var gdx = gp[0] - en.x
+        var gdz = gp[1] - en.z
+        var gl = Math.sqrt(gdx * gdx + gdz * gdz)
+        if (gl < 1) continue
+        var xl = en.fx * gdx + en.fz * gdz
+        var yl = en.fz * gdx - en.fx * gdz
+        if (xl / gl < (params.cuspCommitCos != null ? params.cuspCommitCos : 0.85)) return false
+        if ((2 * Math.abs(yl)) / (xl * xl + yl * yl) > kmax * 1.05) return false
+        any = true
+      }
+    }
+    return any
+  }
+  // the rest of the planned sequence (segments idx+1 ..) swept from the real pose, plan margin, <= 240 steps of 0.5 m
+  function restFree() {
+    var h = makeHit(av.points || [], ((av.vehicle && av.vehicle.length) || params.vehicleLength || 4) / 2 + planMargin, ((av.vehicle && av.vehicle.width) || params.vehicleWidth || 2) / 2 + planMargin)
+    var x = pos[0]
+    var z = pos[2]
+    var fx = e.fwd[0]
+    var fz = e.fwd[2]
+    var steps = 0
+    for (var i = state.idx + 1; i < state.segs.length && steps < 240; i++) {
+      var sg = state.segs[i]
+      var n = Math.max(1, Math.round(sg.len / 0.5))
+      var ds = (sg.g * sg.len) / n
+      for (var j = 0; j < n && steps < 240; j++, steps++) {
+        var th = sg.k * ds
+        var ch = Math.abs(sg.k) < 1e-6 ? ds : (2 * Math.sin(th / 2)) / sg.k
+        var mx = Math.cos(th / 2)
+        var my = Math.sin(th / 2)
+        x += ch * (fx * mx + fz * my)
+        z += ch * (fz * mx - fx * my)
+        var nfx = fx * Math.cos(th) + fz * Math.sin(th)
+        fz = fz * Math.cos(th) - fx * Math.sin(th)
+        fx = nfx
+        if (h(x, z, fx, fz)) return false
+      }
+    }
+    return true
+  }
   function begin(res) {
+    state.alignedPlan = planAligned(res.segs)
     state.segs = res.segs
     state.mazePlan = state.maze
     state.turnPlan = turnOk
@@ -1047,6 +1137,15 @@ function transform(input, dt, params, state, api) {
     state.path = res.path
   }
   function deviates(seg) {
+    var dv = deviatesBase(seg)
+    if (dv && state.alignedPlan && seg && seg.end && state.idx + 1 < state.segs.length) {
+      var cx = pos[0] - seg.end.x
+      var cz = pos[2] - seg.end.z
+      if (Math.sqrt(cx * cx + cz * cz) <= (params.cuspDeviate != null ? params.cuspDeviate : 4) && e.fwd[0] * seg.end.fx + e.fwd[2] * seg.end.fz >= (params.cuspDot != null ? params.cuspDot : 0.6) && restFree()) return false
+    }
+    return dv
+  }
+  function deviatesBase(seg) {
     if (!seg || !seg.end) return false
     var ex = pos[0] - seg.end.x
     var ez = pos[2] - seg.end.z
