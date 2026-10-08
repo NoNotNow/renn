@@ -68,6 +68,8 @@
   {"key": "mazeRange", "type": "number", "default": 18, "group": "Maze", "unit": "m", "min": 0, "description": "Look-out distance of the confinement test (16 rays over the static map).", "advanced": true},
   {"key": "mazeEnter", "type": "number", "default": 0.6, "group": "Maze", "min": 0, "max": 1, "description": "Share of blocked directions at which the car counts as confined.", "advanced": true},
   {"key": "mazeLeave", "type": "number", "default": 0.4, "group": "Maze", "min": 0, "max": 1, "description": "Share of blocked directions below which the car counts as free again (hysteresis).", "advanced": true},
+  {"key": "mazeProfile", "type": "json", "group": "Maze", "description": "Opt-in object of param overrides applied on top of the binding (profile wins) only while the car is confined in a maze (av.maze) and for mazeProfileHold s after. Chasers never get av.maze, so it is inert for them.", "advanced": true},
+  {"key": "mazeProfileHold", "type": "number", "default": 1.5, "group": "Maze", "unit": "s", "min": 0, "description": "How long mazeProfile stays active after the car stops being confined (hysteresis on top of mazeEnter / mazeLeave).", "advanced": true},
   {"key": "mazeOpenRadius", "type": "number", "default": 20, "group": "Maze", "unit": "m", "min": 0, "description": "A cell is open ground (an exit target) when at most mazeOpenCells wall cells lie within this radius.", "advanced": true},
   {"key": "mazeOpenCells", "type": "number", "default": 8, "group": "Maze", "min": 0, "advanced": true},
   {"key": "mazeCarPen", "type": "number", "default": 6, "group": "Maze", "min": 0, "description": "Extra route cost factor inside the zone of a moving chaser and its predicted path: cost x (1 + factor).", "advanced": true},
@@ -187,7 +189,9 @@ function avPreset(params, state, pos) {
 }
 function transform(input, dt, params, state, api) {
   var preset = avPreset(params, state, input.position)
-  if (preset) params = state.pmP === params ? state.pm : ((state.pmP = params), (state.pm = Object.assign({}, preset, params)))
+  // maze profile (params.mazeProfile): overrides on top of the binding while confined; ego reads last frame's decision (state.prevProfile), later stages read av.profile
+  var prof = state.prevProfile
+  if (preset || prof) params = state.pmP === params && state.pmB === preset && state.pmO === prof ? state.pm : ((state.pmP = params), (state.pmB = preset), (state.pmO = prof), (state.pm = Object.assign({}, preset, params, prof)))
   // fresh blackboard every frame (the input object is reused by the runtime)
   var prevAv = input.av
   var av = (input.av = {})
@@ -353,6 +357,18 @@ function transform(input, dt, params, state, api) {
   }
   scoreKeeping(av, input, params, state, api)
   if (params.fleeArea && input.target && input.target.pose && ((tids && tids.length) || params.goalWatchdog > 0)) fleeGoal(av, av.threats || [], input, params, state, api)
+  // maze profile switch (opt-in, default off): params.mazeProfile (object of param overrides, applied LAST so it beats the binding) is published as av.profile while the car is confined (av.maze) and for
+  // params.mazeProfileHold s (default 1.5) after it left. Hold-based, not sticky to the route exit. Chasers (no fleeArea => no av.maze) never get it. Stages take effect on their next real run.
+  var mProf = params.mazeProfile
+  if (mProf && typeof mProf === 'object') {
+    if (av.maze) state.profT = state.t + (params.mazeProfileHold != null ? params.mazeProfileHold : 1.5)
+    if (state.profT !== undefined && state.t <= state.profT) av.profile = mProf
+  }
+  state.prevProfile = av.profile
+  if ((av.profile ? 1 : 0) !== state.profShown) {
+    state.profShown = av.profile ? 1 : 0
+    api.watch('av.profile', av.profile ? 'on' : 'off')
+  }
   api.watch('av.speed', Math.round(speed * 10) / 10)
   if (state.flee) api.watch('av.flee', Math.round(state.flee.x) + ',' + Math.round(state.flee.z))
   if (params.debugDraw !== false) {

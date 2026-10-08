@@ -157,7 +157,7 @@
 function transform(input, dt, params, state, api) {
   var av = input.av
   // av-ego's preset table (params.preset) under this stage's own params (binding / scope / stage params win); cached while both are the same objects
-  if (av && av.preset) params = state.pmP === params && state.pmB === av.preset ? state.pm : ((state.pmP = params), (state.pmB = av.preset), (state.pm = Object.assign({}, av.preset, params)))
+  if (av && (av.preset || av.profile)) params = state.pmP === params && state.pmB === av.preset && state.pmO === av.profile ? state.pm : ((state.pmP = params), (state.pmB = av.preset), (state.pmO = av.profile), (state.pm = Object.assign({}, av.preset, params, av.profile)))
   if (!av || !av.ego) return {}
   var e = av.ego
   var tgt = input.target && input.target.pose && input.target.pose.position
