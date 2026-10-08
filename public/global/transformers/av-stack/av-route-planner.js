@@ -135,7 +135,9 @@
   {"key": "cuspLook", "type": "number", "default": 12, "label": "K-turn cusp look-ahead", "group": "Manoeuvres and maze", "unit": "m", "min": 3, "description": "Distance down the obstacle-aware route that defines the onward direction at a cusp.", "advanced": true},
   {"key": "gearIncW", "type": "number", "default": 0, "label": "Gear-change increment", "group": "Manoeuvres and maze", "min": 0, "description": "Extra cost per gear change already made in the sequence (prefers 3-point over 5-point turns; 0 = off).", "advanced": true},
   {"key": "cuspCommit", "type": "boolean", "default": false, "label": "Keep aligned K-turns", "group": "Manoeuvres and maze", "description": "A plan whose cusps all end aligned with the onward route is kept through small drift while the rest stays swept-free.", "advanced": true},
-  {"key": "cuspDeviate", "type": "number", "default": 4, "label": "Aligned K-turn deviation", "group": "Manoeuvres and maze", "unit": "m", "min": 0, "description": "Max end-pose deviation for which an aligned K-turn is kept (cuspCommit).", "advanced": true}
+  {"key": "cuspDeviate", "type": "number", "default": 4, "label": "Aligned K-turn deviation", "group": "Manoeuvres and maze", "unit": "m", "min": 0, "description": "Max end-pose deviation for which an aligned K-turn is kept (cuspCommit).", "advanced": true},
+  {"key": "cuspCommitCos", "type": "number", "default": 0.85, "label": "Aligned K-turn heading cos", "group": "Manoeuvres and maze", "min": -1, "max": 1, "description": "Min cos between cusp-end heading and the onward route for a cusp to count as aligned (cuspCommit).", "advanced": true},
+  {"key": "cuspDot", "type": "number", "default": 0.6, "label": "Aligned K-turn heading drift", "group": "Manoeuvres and maze", "min": -1, "max": 1, "description": "Min cos between the real heading and a planned segment end for an aligned K-turn to be kept (cuspCommit).", "advanced": true}
 ]
 */
 // AV stack · PLAN / route + manoeuvre planner (Hybrid-A* over forward/reverse arc primitives).
