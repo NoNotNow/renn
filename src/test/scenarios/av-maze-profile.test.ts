@@ -31,7 +31,9 @@ describe("AV maze profile", () => {
   it(
     "active only while confined (+hold); default and empty profile are identical",
     async () => {
-      const base = await run({});
+      // The arena car copies the self_hunt_flexible AV binding, which now ships a mazeProfile; clear it explicitly so
+      // `base` really is "no profile configured" (the case this assertion is about).
+      const base = await run({ mazeProfile: undefined });
       expect(base.frames.some((f) => f.active || f.applied)).toBe(false);
 
       const empty = await run({ mazeProfile: {} });
