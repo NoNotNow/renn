@@ -99,6 +99,10 @@
   {"key": "mazeTurnDecel", "type": "number", "default": 4, "group": "Maze", "unit": "m/s^2", "min": 0, "description": "Braking deceleration assumed for the speed cap before the escape route's first sharp corner.", "advanced": true},
   {"key": "mazeEvery", "type": "number", "default": 0.4, "group": "Maze", "unit": "s", "min": 0, "description": "Minimum time between rebuilds of the exit field.", "advanced": true},
   {"key": "mazeForce", "type": "boolean", "default": false, "group": "Maze", "description": "Maze module: while the space is detected as confined the maze escape stays active every frame (no trigger needed: unreachable goal, danger or chaser). Without it the escape only starts on a trigger, which a chaser-free maze never gives.", "advanced": true},
+  {"key": "mazeGoalW", "type": "number", "default": 0, "group": "Maze", "min": 0, "description": "Maze module: the exit field also weighs the mission goal. Each exit's cost gets mazeGoalW per metre of distance between the exit and the mission goal added (0 = off: the exits are goal-blind and the module only leaves the labyrinth by the cheapest way).", "advanced": true},
+  {"key": "mazeStallT", "type": "number", "default": 0, "group": "Maze", "unit": "s", "min": 0, "description": "Maze module as a fallback (0 = off). While confined and a mission goal exists, the net progress towards the goal is measured over a sliding window of this length; when it is below mazeStallProg the maze escape is activated (like mazeForce) and stays active for mazeStallHold s or until the goal is within 25 m. Otherwise the stack's own goal field stays in charge.", "advanced": true},
+  {"key": "mazeStallProg", "type": "number", "default": 8, "group": "Maze", "unit": "m", "min": 0, "description": "Stall threshold of mazeStallT: net decrease of the distance to the mission goal over the window that counts as progress.", "advanced": true},
+  {"key": "mazeStallHold", "type": "number", "default": 10, "group": "Maze", "unit": "s", "min": 0, "description": "How long a stall-triggered maze escape stays active (the stall window then restarts).", "advanced": true},
   {"key": "mazeHold", "type": "number", "default": 3, "group": "Maze", "unit": "s", "min": 0, "description": "The maze escape stays active this long after its last trigger (unreachable goal, danger, chaser within mazeThreatRange).", "advanced": true},
   {"key": "mazeThreatRange", "type": "number", "default": 60, "group": "Maze", "unit": "m", "min": 0, "description": "A moving tracked car within this distance triggers the maze escape.", "advanced": true},
   {"key": "maxCurvature", "type": "number", "default": 0.115, "label": "Max curvature (min turn radius)", "group": "Vehicle", "min": 0, "description": "Tightest curvature the car can drive (1 / minimum turn radius).", "advanced": true},
@@ -523,6 +527,13 @@ function fleeGoal(av, thrs, input, params, state, api) {
   // >= fleeReleaseD (30 m, trigger is 16) from every pursuer for fleeReleaseT (1 s) with a clear straight way (the persistent static map shows a free straight run to the goal (fleeReleaseRun 80 m); not while the watchdog says the goal is unreachable): the car drives to its goal again.
   // Maze module (mazeModule, default off): in a confined space the open-ground flee logic below is replaced by a waypoint on the least-resistance route to the nearest reachable exit (see mazeStep).
   if (params.mazeModule === true) {
+    var mzGoalD = undefined
+    if (params.mazeStallT > 0) {
+      mzGoalD = Math.hypot(g0[0] - pos[0], g0[2] - pos[2])
+      var mzh = state.mzHist || (state.mzHist = [])
+      mzh.push([now, mzGoalD])
+      while (mzh.length > 1 && mzh[1][0] <= now - params.mazeStallT) mzh.shift()
+    }
     var mzr = mazeStep(av, input, params, state, api, thrs)
     if (mzr.on) {
       var mzNear = false
@@ -534,7 +545,26 @@ function fleeGoal(av, thrs, input, params, state, api) {
         var mzd2 = Math.pow(thrs[mi].x - pos[0], 2) + Math.pow(thrs[mi].z - pos[2], 2)
         if (mzd2 < (mvx * mvx + mvz * mvz > 4 ? mzRange * mzRange : mzRange * mzRange * 0.25)) mzNear = true
       }
-      if (bad || simDanger || mzNear || params.mazeForce === true || danger(g0[0], g0[2])) state.mzT = now
+      // mazeStallT (s, 0 = off): fallback mode. A stall (net distance-to-goal progress < mazeStallProg over the last mazeStallT s while confined) latches the escape for mazeStallHold s (or until the goal is within 25 m);
+      // the window then restarts. Deterministic: sim time only.
+      var mzStall = false
+      if (params.mazeStallT > 0 && mzGoalD !== undefined) {
+        var stl = state.mzStall
+        if (stl) {
+          if (now - stl.t0 < (params.mazeStallHold != null ? params.mazeStallHold : 10) && mzGoalD > 25) mzStall = true
+          else {
+            state.mzStall = null
+            state.mzHist = []
+          }
+        } else {
+          var hh = state.mzHist
+          if (hh.length && now - hh[0][0] >= params.mazeStallT * 0.95 && mzGoalD > 25 && hh[0][1] - mzGoalD < (params.mazeStallProg != null ? params.mazeStallProg : 8)) {
+            state.mzStall = { t0: now }
+            mzStall = true
+          }
+        }
+      }
+      if (bad || simDanger || mzNear || params.mazeForce === true || mzStall || danger(g0[0], g0[2])) state.mzT = now
       if (state.mzT !== undefined && now - state.mzT < (params.mazeHold != null ? params.mazeHold : 3) && mzr.goal) {
         state.flee = { maze: true, x: mzr.goal[0], z: mzr.goal[1], t: now, t0: fl && fl.maze ? fl.t0 : now }
         av.fleeing = true
@@ -760,6 +790,7 @@ function mazeStep(av, input, params, state, api, thrs) {
     if (seenR > 0) mazeScan(mz, api, input, av, seenR, params.mazeScanRays != null ? params.mazeScanRays : 72)
     mz.ver = list.length
     mz.xv0 = mz.xv || 0
+    mz.goalPt = input.target && input.target.pose ? [input.target.pose.position[0], input.target.pose.position[2]] : null
     mazeBuild(mz, mz.extra && mz.extra.list.length ? list.concat(mz.extra.list) : list, dyn, thrs, pos, params, av)
   }
   res.on = true
@@ -1139,14 +1170,16 @@ function mazeBuild(mz, list, dyn, thrs, pos, params, av) {
     return !!hull && xw > hull[0] - mg && xw < hull[2] + mg && zw > hull[1] - mg && zw < hull[3] + mg
   }
   var crumbs = mz.crumbs || []
+  var gp = mz.goalPt
+  var gw = gp && params.mazeGoalW > 0 ? params.mazeGoalW : 0
   for (var ci = 0; ci < crumbs.length; ci++) {
     var bcx = Math.floor((crumbs[ci][0] - wx0) / cs)
     var bcz = Math.floor((crumbs[ci][1] - wz0) / cs)
     if (bcx < 1 || bcz < 1 || bcx >= W - 1 || bcz >= H - 1 || inf[bcx * H + bcz]) continue
     if (Math.pow(crumbs[ci][0] - pos[0], 2) + Math.pow(crumbs[ci][1] - pos[2], 2) < minD2 || inHull(crumbs[ci][0], crumbs[ci][1], hullM) || isDead(crumbs[ci][0], crumbs[ci][1])) continue
-    d[bcx * H + bcz] = 0
+    d[bcx * H + bcz] = gw > 0 ? gw * Math.hypot(crumbs[ci][0] - gp[0], crumbs[ci][1] - gp[1]) : 0
     isSrc[bcx * H + bcz] = 1
-    push(0, bcx * H + bcz)
+    push(d[bcx * H + bcz], bcx * H + bcz)
     nSrc++
   }
   var seenPen = params.mazeSeenPen != null ? params.mazeSeenPen : 40
@@ -1165,8 +1198,8 @@ function mazeBuild(mz, list, dyn, thrs, pos, params, av) {
         if (inHull(sxw, szw, mgn) || isDead(sxw, szw)) continue
         if (pass === 0 && seen && seen[(sx + oR + 1) * (H + 1) + sz + oR + 1] - seen[(sx - oR) * (H + 1) + sz + oR + 1] - seen[(sx + oR + 1) * (H + 1) + sz - oR] + seen[(sx - oR) * (H + 1) + sz - oR] < seenMin) continue
         var cnt = sat[(sx + oR + 1) * (H + 1) + sz + oR + 1] - sat[(sx - oR) * (H + 1) + sz + oR + 1] - sat[(sx + oR + 1) * (H + 1) + sz - oR] + sat[(sx - oR) * (H + 1) + sz - oR]
-        if (cnt <= oMax && d[si] > seenPen) {
-          d[si] = pass === 0 && seen ? seenPen : 0
+        if (cnt <= oMax && (gw > 0 ? !isSrc[si] : d[si] > seenPen)) {
+          d[si] = (pass === 0 && seen ? seenPen : 0) + (gw > 0 ? gw * Math.hypot(sxw - gp[0], szw - gp[1]) : 0)
           isSrc[si] = 1
           push(d[si], si)
           nSrc++
@@ -1235,6 +1268,10 @@ function mazeBuild(mz, list, dyn, thrs, pos, params, av) {
   var sw = params.mazeSwitch != null ? params.mazeSwitch : 0.25
   if (route && mz.route) {
     var kept = mazeRouteCost(mz.route, mz.idx, wx0, wz0, W, H, cs, mult, inf, wallCost)
+    if (gw > 0 && kept < 1e17) {
+      var ke = mz.route[mz.route.length - 1]
+      kept += gw * Math.hypot(ke[0] - gp[0], ke[1] - gp[1]) + (mz.explore ? 0 : seenPen)
+    }
     if (kept < 1e17 && cost > kept * (1 - sw)) {
       mz.cost = kept
       return

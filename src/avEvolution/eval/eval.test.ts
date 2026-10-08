@@ -22,8 +22,8 @@ const bindingOf = (w: { entities: unknown[] }): Binding => (w.entities as { id: 
 describe('AV gene spec', () => {
   it('is a valid spec of the M1 + P1 + maze genes (no threat / flee genes)', () => {
     expect(validateSpec(AV_GENOME_SPEC)).toEqual([])
-    expect(AV_GENOME_SPEC.genes.length).toBe(133)
-    expect(AV_GENOME_SPEC.specVersion).toBe('4')
+    expect(AV_GENOME_SPEC.genes.length).toBe(137)
+    expect(AV_GENOME_SPEC.specVersion).toBe('5')
     expect(new Set(AV_GENOME_SPEC.genes.map((g) => g.key)).size).toBe(AV_GENOME_SPEC.genes.length)
     expect(AV_GENOME_SPEC.genes.some((g) => /threat|flee/i.test(g.key))).toBe(false)
   })
