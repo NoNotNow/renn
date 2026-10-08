@@ -46,6 +46,8 @@ export interface CandidateRecord {
   meanExitT: number
   reachRate: number
   meanContactEvents: number
+  /** mean reversals per episode (absent in exports from before the metric) */
+  meanReversals?: number
   n: number
   specVersion: string
   stackVersion: string
@@ -107,6 +109,7 @@ export function toCandidateRecord(
     meanExitT: Number.isFinite(a.meanExitT) ? a.meanExitT : 0,
     reachRate: a.reachRate,
     meanContactEvents: a.meanContactEvents,
+    meanReversals: a.meanReversals,
     n: a.n,
     specVersion: run.specVersion,
     stackVersion: run.stackVersion,

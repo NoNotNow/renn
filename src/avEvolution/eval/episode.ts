@@ -6,7 +6,8 @@ import { installDeterminism } from '@/test/avLab/determinism'
 import { WorldSimulator, DEFAULT_DT } from '@/test/helpers/worldSimulator'
 import { setAgentObservationWatchActive } from '@/runtime/transformerWatchBridge'
 import type { RennWorld } from '@/types/world'
-import { polyGap, rectPoly, upY, yawOf, type V2 } from './geometry'
+import { forwardSpeed, polyGap, rectPoly, upY, yawOf, type V2 } from './geometry'
+import { ReversalCounter } from './reversals'
 
 /**
  * One maze-escape episode, pure and browser-safe (no fs / process / path): a FRESH world per call (defined start),
@@ -62,6 +63,7 @@ export async function runMazeEpisode(sourceWorld: RennWorld, params: Params, ep:
     let minGap = Infinity
     let stalled = 0
     let flipped = false
+    const rev = new ReversalCounter()
     let endDist = Math.hypot(spec.car.at[0] - goal[0], spec.car.at[1] - goal[1])
     for (let frame = 0; frame < frames; frame++) {
       sim.runFrames(1)
@@ -86,6 +88,8 @@ export async function runMazeEpisode(sourceWorld: RennWorld, params: Params, ep:
       }
       inContact = touch
       if (t > 1 && Math.hypot(v[0], v[2]) < 0.5) stalled++
+      // reversals are counted until the goal is reached (what happens after the exit is irrelevant and stop-on-reach would cut it anyway)
+      if (exitT === Infinity) rev.push(forwardSpeed(q, v))
       endDist = Math.hypot(cp[0] - goal[0], cp[2] - goal[1])
       if (endDist < GOAL_REACH && exitT === Infinity) {
         exitT = t
@@ -111,6 +115,8 @@ export async function runMazeEpisode(sourceWorld: RennWorld, params: Params, ep:
       minStaticGap: minGap,
       flipped,
       stalledSec: stalled * DEFAULT_DT,
+      reversals: rev.count,
+      reverseS: rev.reverseFrames * DEFAULT_DT,
       wallMs: performance.now() - t0,
     }
   } finally {

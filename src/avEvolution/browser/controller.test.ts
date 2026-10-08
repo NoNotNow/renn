@@ -19,6 +19,8 @@ const fakeMetrics = (key: string, params: Record<string, number>): EpisodeMetric
     minStaticGap: 1,
     flipped: false,
     stalledSec: 0,
+    reversals: 0,
+    reverseS: 0,
     wallMs: 1,
   }
 }

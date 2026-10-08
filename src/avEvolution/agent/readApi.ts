@@ -26,6 +26,7 @@ export interface AvEvolutionCandidateSummary {
   reachRate: number
   meanExitT: number
   meanContactEvents: number
+  meanReversals?: number
   params: CandidateRecord['params']
 }
 
@@ -54,6 +55,7 @@ export function summarizeCandidate(c: CandidateRecord): AvEvolutionCandidateSumm
     reachRate: c.reachRate,
     meanExitT: c.meanExitT,
     meanContactEvents: c.meanContactEvents,
+    meanReversals: c.meanReversals,
     params: c.params,
   }
 }

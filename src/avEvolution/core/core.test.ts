@@ -18,6 +18,7 @@ import {
   validateSpec,
   type EpisodeMetrics,
   type EvaluateFn,
+  type FitnessWeights,
   type GenomeSpec,
   type RunRecord,
 } from './index'
@@ -35,7 +36,7 @@ const spec: GenomeSpec = {
 
 const metrics = (o: Partial<EpisodeMetrics> = {}): EpisodeMetrics => ({
   key: 'k', reached: true, exitT: 20, timeoutSec: 60, remainingDist: 0, contactEvents: 0, contactFrames: 0, dt: 1 / 60,
-  minStaticGap: 1, flipped: false, stalledSec: 0, wallMs: 1, ...o,
+  minStaticGap: 1, flipped: false, stalledSec: 0, reversals: 0, reverseS: 0, wallMs: 1, ...o,
 })
 
 describe('genes', () => {
@@ -130,6 +131,35 @@ describe('fitness', () => {
     expect(episodeScore(metrics({ contactEvents: 2 }))).toBeCloseTo(clean + 2 * DEFAULT_FITNESS_WEIGHTS.wContact, 9)
     expect(episodeScore(metrics({ contactFrames: 60 }))).toBeCloseTo(clean + DEFAULT_FITNESS_WEIGHTS.wContactTime, 9)
     expect(episodeScore(metrics({ flipped: true }))).toBeCloseTo(clean + 200, 9)
+  })
+  it('reversal term: weight 0 is bit-identical, weight w adds w per reversal, default is 0.5 s', () => {
+    const w0 = { ...DEFAULT_FITNESS_WEIGHTS, wReversal: 0 }
+    const noTerm: Partial<FitnessWeights> = { ...DEFAULT_FITNESS_WEIGHTS }
+    delete noTerm.wReversal // a weights object from before the term existed
+    for (const o of [{}, { exitT: 33.3, contactEvents: 2, contactFrames: 7 }, { reached: false, remainingDist: 3.7 }, { flipped: true }]) {
+      const before = episodeScore(metrics(o), noTerm as FitnessWeights)
+      expect(Object.is(episodeScore(metrics({ ...o, reversals: 17 }), w0), before)).toBe(true)
+      expect(Object.is(episodeScore(metrics({ ...o, reversals: 17 }), noTerm as FitnessWeights), before)).toBe(true)
+    }
+    const clean = episodeScore(metrics())
+    expect(episodeScore(metrics({ reversals: 4 }))).toBeCloseTo(clean + 4 * 0.5, 9)
+    expect(DEFAULT_FITNESS_WEIGHTS.wReversal).toBe(0.5)
+    expect(episodeScore(metrics({ reversals: 4 }), { ...DEFAULT_FITNESS_WEIGHTS, wReversal: 2 })).toBeCloseTo(clean + 8, 9)
+    const rec = toEpisodeRecord(metrics({ reversals: 6, reverseS: 1.5 }), { ...DEFAULT_FITNESS_WEIGHTS, wReversal: 1 })
+    expect(rec.reversals).toBe(6)
+    expect(rec.reverseS).toBe(1.5)
+    expect(rec.score).toBeCloseTo(clean + 6, 9)
+    expect(aggregate([rec, toEpisodeRecord(metrics({ reversals: 2 }))]).meanReversals).toBe(4)
+    expect(aggregate([{ key: 'old', score: 1, reached: true, exitT: 1, contactEvents: 0 }]).meanReversals).toBe(0)
+  })
+  it('engine state saved without wReversal resumes with 0; new engines default to 0.5', () => {
+    const fresh = new EvolutionEngine({ spec, trainKeys: ['k'] })
+    expect(fresh.weights.wReversal).toBe(0.5)
+    const st = JSON.parse(JSON.stringify(fresh.toJSON()))
+    delete st.weights.wReversal
+    expect(EvolutionEngine.fromJSON(st).weights.wReversal).toBe(0)
+    st.weights.wReversal = 1.25
+    expect(EvolutionEngine.fromJSON(st).weights.wReversal).toBe(1.25)
   })
   it('aggregates', () => {
     const eps = [metrics({ exitT: 10 }), metrics({ reached: false, remainingDist: 4, contactEvents: 2 })].map((m) => toEpisodeRecord(m))

@@ -1,4 +1,5 @@
 /* Scripted-scenario runner shared by av-evasion-scenarios.test.ts and av-evasion-sweep.*.test.ts */
+import { ReversalCounter } from '@/avEvolution/eval/reversals'
 import { runLab, forwardSpeed, yawOf, watchValues } from '@/test/avLab/lab'
 import { DEFAULT_DT, type WorldSimulator } from '@/test/helpers/worldSimulator'
 import type { RennWorld } from '@/types/world'
@@ -203,7 +204,7 @@ export async function runScenario(spec: ArenaSpec, seconds: number, hooks: Scena
     trace: [],
   }
   const track: { t: number; x: number; z: number; hx: number; hz: number; v: number }[] = []
-  let revSign = 0
+  const revCounter = new ReversalCounter()
   let revFrames = 0
   let stalled = 0
   let speedSum = 0
@@ -311,11 +312,8 @@ export async function runScenario(spec: ArenaSpec, seconds: number, hooks: Scena
       endDist = Math.hypot(cp[0] - goal[0], cp[2] - goal[1])
       m.minGoalDist = Math.min(m.minGoalDist, endDist)
       if (endDist < GOAL_REACH && m.goalReachT === Infinity) m.goalReachT = t
-      if (Math.abs(fwd) > 1) {
-        const sg = Math.sign(fwd)
-        if (revSign !== 0 && sg !== revSign) m.reversals++
-        revSign = sg
-      }
+      revCounter.push(fwd)
+      m.reversals = revCounter.count
     },
   })
   if (process.env.AV_SCENARIO_TRACE) {

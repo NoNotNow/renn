@@ -12,6 +12,7 @@
  *   --workers N       default cores - 1
  *   --out BASE        writes BASE.json and BASE.md (default test-results/av-evolution/compare)
  *   --example ID      example world holding the AV car
+ * Output: exit times, contacts and reversals (direction flips of forward speed, +-1 m/s hysteresis, counted until the goal) per variant and per episode, plus reverseS (s spent below -1 m/s).
  * Baselines: "baseline-off" = default params, saver off (the evolution protocol); "baseline-shipped" = { saver: true } (the shipped car config).
  */
 import fs from 'node:fs'
@@ -109,6 +110,7 @@ async function main() {
   const rows = variants.map((v) => {
     const m = results[v.label]!
     const t = m.map((x) => x.exitT)
+    const rv = m.map((x) => x.reversals)
     return {
       label: v.label,
       note: v.note,
@@ -119,21 +121,25 @@ async function main() {
       contactEvents: m.reduce((s, x) => s + x.contactEvents, 0),
       contactFrames: m.reduce((s, x) => s + x.contactFrames, 0),
       flipped: m.filter((x) => x.flipped).length,
+      meanReversals: mean(rv),
+      medianReversals: median(rv),
+      totalReversals: rv.reduce((a, b) => a + b, 0),
+      meanReverseS: mean(m.map((x) => x.reverseS)),
       minStaticGap: Math.min(...m.map((x) => x.minStaticGap)),
     }
   })
   const lines: string[] = []
   lines.push(`# Comparison on [${keys.join(', ')}] (full run to goal or ${results[variants[0]!.label]![0]!.timeoutSec} s timeout, no stop-on-reach)`, '')
-  lines.push('## Summary', '', '| variant | mean exitT | median | max | reached | contactEvents | contactFrames | flipped | min static gap |', '|---|---|---|---|---|---|---|---|---|')
-  for (const r of rows) lines.push(`| ${r.label} | ${f1(r.meanExitT)} | ${f1(r.medianExitT)} | ${f1(r.maxExitT)} | ${r.reached}/${keys.length} | ${r.contactEvents} | ${r.contactFrames} | ${r.flipped} | ${f2(r.minStaticGap)} |`)
-  lines.push('', '## Per episode (exitT s [R=reached, T=timeout] / contactEvents / contactFrames / minStaticGap)', '', `| variant | ${keys.join(' | ')} |`, `|---|${keys.map(() => '---').join('|')}|`)
-  for (const v of variants) lines.push(`| ${v.label} | ${results[v.label]!.map((m) => `${f1(m.exitT)}${m.reached ? 'R' : 'T'} / ${m.contactEvents} / ${m.contactFrames} / ${f2(m.minStaticGap)}`).join(' | ')} |`)
+  lines.push('## Summary', '', '| variant | mean exitT | median | max | reached | contactEvents | contactFrames | flipped | min static gap | reversals mean | median | total | reverseS mean |', '|---|---|---|---|---|---|---|---|---|---|---|---|---|')
+  for (const r of rows) lines.push(`| ${r.label} | ${f1(r.meanExitT)} | ${f1(r.medianExitT)} | ${f1(r.maxExitT)} | ${r.reached}/${keys.length} | ${r.contactEvents} | ${r.contactFrames} | ${r.flipped} | ${f2(r.minStaticGap)} | ${f1(r.meanReversals)} | ${f1(r.medianReversals)} | ${r.totalReversals} | ${f1(r.meanReverseS)} |`)
+  lines.push('', '## Per episode (exitT s [R=reached, T=timeout] / contactEvents / contactFrames / minStaticGap / reversals / reverseS)', '', `| variant | ${keys.join(' | ')} |`, `|---|${keys.map(() => '---').join('|')}|`)
+  for (const v of variants) lines.push(`| ${v.label} | ${results[v.label]!.map((m) => `${f1(m.exitT)}${m.reached ? 'R' : 'T'} / ${m.contactEvents} / ${m.contactFrames} / ${f2(m.minStaticGap)} / ${m.reversals} / ${f1(m.reverseS)}`).join(' | ')} |`)
   const bases = rows.filter((b) => b.label.startsWith('baseline'))
   if (bases.length) {
     lines.push('', '## Mean exitT vs baselines', '')
     for (const r of rows.filter((x) => !x.label.startsWith('baseline'))) {
       const parts = bases.map((b) => `${((1 - r.meanExitT / b.meanExitT) * 100).toFixed(1)}% faster than ${b.label}`)
-      lines.push(`- ${r.label}: ${parts.join('; ')}; contacts ${r.contactEvents} events / ${r.contactFrames} frames`)
+      lines.push(`- ${r.label}: ${parts.join('; ')}; contacts ${r.contactEvents} events / ${r.contactFrames} frames; reversals mean ${f1(r.meanReversals)} (total ${r.totalReversals})`)
     }
   }
   lines.push('', '## Variants', '', ...variants.map((v) => `- ${v.label}: ${v.note ?? ''}`))

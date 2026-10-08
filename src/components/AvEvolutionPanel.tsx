@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, useSyncExternalStore, type CSSPropert
 import WorkspaceFloatingDrawer from '@/components/workspace/WorkspaceFloatingDrawer'
 import { theme } from '@/config/theme'
 import { getAvEvolutionStore } from '@/avEvolution/agent/storeRegistry'
+import { DEFAULT_FITNESS_WEIGHTS } from '@/avEvolution/core/fitness'
 import type { CandidateRecord, RunRecord } from '@/avEvolution/core/store'
 import { defaultWorkerCount, getAvEvolutionController } from '@/avEvolution/browser/workerBackend'
 
@@ -32,6 +33,7 @@ export default function AvEvolutionPanel({ onClose, selectedEntityId }: AvEvolut
   const [top, setTop] = useState<CandidateRecord[]>([])
   const [pop, setPop] = useState(8)
   const [episodes, setEpisodes] = useState(2)
+  const [reversalWeight, setReversalWeight] = useState(DEFAULT_FITNESS_WEIGHTS.wReversal)
   const [workers, setWorkers] = useState(defaultWorkerCount())
   const [note, setNote] = useState('')
 
@@ -141,11 +143,14 @@ export default function AvEvolutionPanel({ onClose, selectedEntityId }: AvEvolut
             episodes <input aria-label="Episodes per candidate" style={input} type="number" min={1} value={episodes} disabled={busy} onChange={(e) => setEpisodes(Number(e.target.value))} />
           </label>
           <label>
+            rev s <input aria-label="Seconds charged per reversal" style={input} type="number" min={0} step={0.1} value={reversalWeight} disabled={busy} onChange={(e) => setReversalWeight(Number(e.target.value))} />
+          </label>
+          <label>
             workers <input aria-label="Workers" style={input} type="number" min={1} value={workers} disabled={busy} onChange={(e) => setWorkers(Number(e.target.value))} />
           </label>
         </div>
         <div style={row}>
-          <button style={btn} data-testid="av-evo-new" disabled={busy} onClick={() => void start({ newRun: { popSize: pop, episodesPerEval: episodes }, workers })}>
+          <button style={btn} data-testid="av-evo-new" disabled={busy} onClick={() => void start({ newRun: { popSize: pop, episodesPerEval: episodes, reversalWeight }, workers })}>
             New run
           </button>
           <button style={btn} data-testid="av-evo-resume" disabled={busy || !selected?.state} onClick={() => void start({ runId, workers })}>
@@ -180,6 +185,7 @@ export default function AvEvolutionPanel({ onClose, selectedEntityId }: AvEvolut
               <th style={cell}>fitness</th>
               <th style={cell}>exit s</th>
               <th style={cell}>contacts</th>
+              <th style={cell}>rev</th>
               <th style={cell}>n</th>
               <th />
             </tr>
@@ -191,6 +197,7 @@ export default function AvEvolutionPanel({ onClose, selectedEntityId }: AvEvolut
                 <td style={cell}>{f(c.fitness)}</td>
                 <td style={cell}>{f(c.meanExitT, 1)}</td>
                 <td style={cell}>{f(c.meanContactEvents, 1)}</td>
+                <td style={cell}>{c.meanReversals === undefined ? '-' : f(c.meanReversals, 1)}</td>
                 <td style={cell}>{c.n}</td>
                 <td style={cell}>
                   <button style={btn} title={selectedEntityId ? `Apply to ${selectedEntityId}` : 'Select an entity first'} disabled={!selectedEntityId} onClick={() => void apply(c)}>
