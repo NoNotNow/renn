@@ -18,6 +18,7 @@
  */
 import fs from 'node:fs'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { buildShippedGlobalBehaviorLibraryBundle } from '@/globalPipeline/buildSelfDrivingGlobalBehaviorLibrary'
 import { mergeShippedGlobalBehaviorLibrary } from '@/globalPipeline/mergeShippedGlobalBehaviorLibrary'
 import { updateWorldFromGlobalLibrary } from '@/globalPipeline/globalOrigin'
@@ -49,7 +50,7 @@ export { yawOf, forwardSpeed }
 
 export type WorldRef = { exampleId: string } | { file: string } | { inline: RennWorld }
 
-const repoRoot = path.resolve(__dirname, '../../..')
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..')
 
 export function shippedLibrary() {
   return mergeShippedGlobalBehaviorLibrary(EMPTY_GLOBAL_BEHAVIOR_LIBRARY, buildShippedGlobalBehaviorLibraryBundle())

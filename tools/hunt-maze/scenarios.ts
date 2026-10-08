@@ -22,15 +22,20 @@ function chaserRing(info: MazeInfo, s: MazeInfo['starts'][number], obs: Obstacle
   })
 }
 
-export function buildSpecs(world: RennWorld, kinds: Kind[], mazes?: string[]): { specs: EpSpec[]; infos: MazeInfo[] } {
+/** heldOut: a disjoint start set (>= 12 m from every training start, shallower cells, rotated yaw roles); ids are `<kind>-<maze>h<n>`. */
+export function buildSpecs(world: RennWorld, kinds: Kind[], mazes?: string[], heldOut = false): { specs: EpSpec[]; infos: MazeInfo[] } {
   const obs = collectObstacles(world)
-  const infos = mazeIds(world).filter((m) => !mazes || mazes.includes(m)).map((m) => analyseMaze(world, m, obs))
+  const infos = mazeIds(world).filter((m) => !mazes || mazes.includes(m)).map((m) => {
+    const train = analyseMaze(world, m, obs)
+    if (!heldOut) return train
+    return analyseMaze(world, m, obs, 3, { avoid: train.starts.map((t) => [t.x, t.z] as [number, number]), avoidR: 12, floorFrac: 0.3, roleShift: 1 })
+  })
   const specs: EpSpec[] = []
   for (const kind of kinds) {
     for (const info of infos) {
       info.starts.forEach((s, i) => {
         specs.push({
-          id: `${kind}-${info.id}${i + 1}`, kind, maze: info.id, bbox: info.bbox, start: { x: s.x, z: s.z, yawDeg: s.yawDeg }, goal: s.goal,
+          id: `${kind}-${info.id}${heldOut ? 'h' : ''}${i + 1}`, kind, maze: info.id, bbox: info.bbox, start: { x: s.x, z: s.z, yawDeg: s.yawDeg }, goal: s.goal,
           chasers: kind === 'flee' ? chaserRing(info, s, obs) : [],
         })
       })

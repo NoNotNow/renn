@@ -132,7 +132,10 @@ export const insideBBox = (b: BBox, x: number, z: number, margin = 0) => x > b[0
 /** Yaw (deg, entity rotation[1]) of a car that faces direction (fx, fz): forward = (-sin yaw, -cos yaw). */
 export const yawDegFacing = (fx: number, fz: number) => Math.round((Math.atan2(-fx, -fz) * 180) / Math.PI)
 
-export function analyseMaze(world: RennWorld, id: string, obs: Obstacles, nStarts = 3): MazeInfo {
+/** Options for an alternative (held-out) start set: starts >= avoidR m from every `avoid` point, shallower depth floor, rotated yaw roles. */
+export interface StartOpts { avoid?: V2[]; avoidR?: number; floorFrac?: number; roleShift?: number }
+
+export function analyseMaze(world: RennWorld, id: string, obs: Obstacles, nStarts = 3, so: StartOpts = {}): MazeInfo {
   const { bbox, n } = mazeBBox(world, id)
   const pad = 45
   const x0 = Math.floor(bbox[0]) - pad
@@ -173,15 +176,17 @@ export function analyseMaze(world: RennWorld, id: string, obs: Obstacles, nStart
   cand.sort((a, b) => b.d - a.d || a.k - b.k)
   const maxDepthM = cand[0]?.d ?? 0
   const chosen: { k: number; d: number }[] = []
-  const floorD = maxDepthM * 0.5
+  const floorD = maxDepthM * (so.floorFrac ?? 0.5)
   for (const c of cand) {
     if (c.d < floorD || chosen.length >= nStarts) break
     const ci = c.k % W
     const cj = (c.k - ci) / W
+    if (so.avoid?.some((a) => Math.hypot(a[0] - (x0 + ci + 0.5), a[1] - (z0 + cj + 0.5)) < (so.avoidR ?? 12))) continue
     if (chosen.every((o) => Math.hypot((o.k % W) - ci, Math.floor(o.k / W) - cj) >= 25)) chosen.push(c)
   }
   const roles = ['toward-exit', 'away-from-exit', 'sideways']
-  const starts: StartCell[] = chosen.map((c, n2) => {
+  const starts: StartCell[] = chosen.map((c, n2i) => {
+    const n2 = n2i + (so.roleShift ?? 0)
     // backtrack to the first outside cell: gate = last interior cell, direction of the first 12 m of the route for the yaw
     let k = c.k
     let gate = k
