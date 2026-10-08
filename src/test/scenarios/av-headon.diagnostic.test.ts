@@ -24,6 +24,7 @@ it.skipIf(!process.env.AV_HEADON)('headon', async () => {
     const threat = new Set<string>((b.params as { threatIds?: string[] }).threatIds ?? [])
     type Ob = { id: string; kind: string; stat: boolean; r: number; poly?: [number, number][]; pos: number[] }
     const obs: Ob[] = []
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     for (const e of world.entities as any[]) {
       if (e.id === FOCUS || e.shape.type === 'plane') continue
       const s = e.shape
@@ -66,6 +67,7 @@ it.skipIf(!process.env.AV_HEADON)('headon', async () => {
           const dz = op[2] - p[2]
           if (Math.abs(dx) > 70 || Math.abs(dz) > 70) continue
           let d = Math.hypot(dx, dz) - o.r
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           if (o.poly) d = pointPolyGap(p[0], p[2], o.poly as any)
           if (d > DMAX) continue
           const bear = Math.abs(Math.atan2(hx * dz - hz * dx, hx * dx + hz * dz)) * (180 / Math.PI)

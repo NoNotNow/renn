@@ -136,7 +136,6 @@ describe.skipIf(!process.env.AV_AUDIT)('AV route audit', () => {
       let reversals = 0
       let finishFrame = -1
       let offPlatform = false
-      let speedSum = 0
       const fin = WPS[WPS.length - 1]!
       for (let f = 0; f < frames; f++) {
         sim.runFrames(1)
@@ -152,7 +151,6 @@ describe.skipIf(!process.env.AV_AUDIT)('AV route audit', () => {
         const yaw = 2 * Math.atan2(q.y, q.w)
         const fwd = [-Math.sin(yaw), -Math.cos(yaw)]
         const along = v[0] * fwd[0]! + v[2] * fwd[1]!
-        speedSum += Math.hypot(v[0], v[2])
         const rev = along < -0.5
         if (rev && !reversing) reversals++
         reversing = rev

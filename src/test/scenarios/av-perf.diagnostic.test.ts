@@ -29,6 +29,7 @@ it.skipIf(!enabled)('av perf split', async () => {
   for (const seed of (env.AVPERF_SEEDS ?? '1,2').split(',').map(Number)) {
     const world = loadLabWorld({ exampleId: env.AVPERF_WORLD! })
     if (env.AVPERF_PARAMS) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       for (const e of world.entities as any[]) {
         const b = e.transformerPipeStack?.[0]
         if (b?.pipeId?.startsWith('global_av_')) b.params = { ...(b.params ?? {}), ...JSON.parse(env.AVPERF_PARAMS) }

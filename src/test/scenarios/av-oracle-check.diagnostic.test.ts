@@ -4,6 +4,7 @@ import { oracle } from '@/test/fixtures/avEvasionOracle'
 it.runIf(!!process.env.AV_ORACLE)('oracle on the hand-made scenarios', () => {
   const CH: [number, number] = [2.5, 5]
   const wall = (at: [number, number], size: [number, number]) => ({ at, size, yawDeg: 0 })
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const specs: Record<string, any> = {
     'corner-trap': { car: { at: [-36, -30], yawDeg: 0 }, goal: [120, 120], boxes: [wall([-60, -10], [2, 100]), wall([-10, -60], [100, 2])], puppets: [{ id: 'c', size: CH, at: [70, 70], yawDeg: 135, motion: { kind: 'home', speed: 30, turnRate: 1.5, lead: 0.3 } }] },
     pincer: { car: { at: [0, 100], yawDeg: 0 }, goal: [0, -300], boxes: [], puppets: [

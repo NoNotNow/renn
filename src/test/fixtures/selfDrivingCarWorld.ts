@@ -680,7 +680,7 @@ export function buildSelfDrivingCarWorld(options: BuildSelfDrivingCarWorldOption
 
 export function stripDirectionUmlDeferral(directionCode: string): string {
   return directionCode.replace(
-    /\n    \/\/ Umlenker owns lateral detours[\s\S]*?needBackOff = false\n    \}/,
+    /\n {4}\/\/ Umlenker owns lateral detours[\s\S]*?needBackOff = false\n {4}\}/,
     '\n    needBackOff = needBackOff',
   )
 }

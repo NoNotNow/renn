@@ -36,15 +36,58 @@ User ⇄ L1 (this session: dispatcher, talks to the user)
   `<repo>/.orchestrate/<run-id>/` with `run-id = YYYYMMDD-HHMM-<slug>`. It is gitignored.
   - `brief.md` — the user's task(s), acceptance criteria, constraints (L1 writes, appends).
   - `plan.md` — L2's task breakdown and status table (L2 owns).
-  - `l3/<task-id>.md` — each worker's report (L3 writes).
+  - `l3/<task-id>.md` — each worker's report (copied here from the worker's worktree, see
+    "Worker reports").
   - `handoff/<level>-<n>.md` — handoff documents (see template below).
   - `log.md` — one line per spawn / return / handoff, any level may append.
+  - `workers.tsv` — the **worker register** (see "Worker register" below).
 - **Status words** in every final reply's first line: `DONE`, `PARTIAL`, `BLOCKED: <why>`,
   `HANDOFF: <path>`. A parent acts on that word.
 - **Repo rules still apply** (CLAUDE.md, AGENTS.md, `agent-context/start-here.md`,
   `.cursor/rules/*.mdc`). Children don't inherit this conversation — pass the relevant ones.
 - **Never loosen criteria** to make something pass. Unmet → `PARTIAL`/`BLOCKED` with the
   measured reason.
+
+## Short-lived orchestrator (the normal case)
+
+Background workers have no durable owner: their completion message goes to the agent that
+spawned them, and if that agent has already returned, the message is lost (L1 had to
+forward ~15 of them by hand in one run). "Don't return while workers run" did not hold in
+practice, so the design assumes the opposite. **L2 works in decision rounds:**
+
+1. Read `plan.md`, `workers.tsv` and finished reports; decide the next round.
+2. Spawn the round's workers (one message, `run_in_background: true`), register each in
+   `workers.tsv` immediately, update `plan.md`.
+3. Return `PARTIAL: round <n> running, waiting on <ids>` (or `DONE`/`BLOCKED`).
+
+**L1 starts the next L2 only when every worker of the round has reported** (status `done`
+or `failed` in `workers.tsv`; reports exist under `l3/`). L1 never spawns a successor
+while the old L2 still has running workers, and an L2 that was replaced is told explicitly
+"stand down: do nothing further" if it is still addressable. An L2 never re-triggers
+itself (no self-wake-ups); one that finds the run already owned by a newer L2 stops
+silently.
+
+## Worker register
+
+`<RUN_DIR>/workers.tsv`, tab-separated, one row per worker, header first:
+
+```
+id	name	worktree	branch	report-path	status
+```
+
+`status`: `running` | `done` | `failed` | `merged`. **Whoever spawns a worker appends its row
+in the same step** (before doing anything else); L1 or L2 flips the status when the
+completion message arrives, and L2 sets `merged` after integrating. A fresh L2 learns what
+is running from this file, not from handoff prose. (`handoff/*.md` "Running children"
+just points at it.)
+
+## Worker reports
+
+Workers in a worktree usually cannot write into `<RUN_DIR>` (outside their sandbox).
+So the L3 prompt always says: write the report to
+`<worktree>/.orch-report/<task-id>.md` (untracked; never commit it), and the agent that
+collects the worker copies it to `<RUN_DIR>/l3/<task-id>.md` and records the path in
+`workers.tsv`. Read-only workers without a worktree may write to `l3/` directly.
 
 ## Handoff document (template)
 
@@ -79,13 +122,16 @@ and no exploration beyond a quick look needed to phrase the brief.
 2. **Spawn L2** with the Agent tool: `subagent_type: general-purpose`, `model: opus`,
    `run_in_background: true`, `name: "orch-l2"` (later generations `orch-l2-2`, …), prompt =
    the **L2 role prompt** below with the run dir filled in. Log it in `log.md`.
-3. **Exactly one L2.** While it runs:
+3. **Exactly one L2, and never a second while the first has workers.** While it runs:
    - New user tasks or changed priorities → append to `brief.md` under `## Added <time>`,
      then `SendMessage` to the running L2 ("brief.md updated: …"). Don't start a second L2.
    - User asks for status → read `plan.md` (status table only) and answer. Don't guess the
      state of a running agent; if plan.md is stale, say it's still running.
 4. **On L2 return**, act on the status word:
-   - `DONE` / `PARTIAL` → summarize for the user in a few lines (what's done, verified how,
+   - `PARTIAL: round <n> running` → do NOT spawn a new L2 yet. Wait until every worker in
+     `workers.tsv` is `done`/`failed` (update the rows from each completion message, copy
+     reports into `l3/`), then spawn the next L2 ("continue; round <n> finished").
+   - `DONE` / `PARTIAL` (nothing running) → summarize for the user in a few lines (what's done, verified how,
      what's open, commits). Ask whether to continue with open items.
    - `HANDOFF: <path>` → spawn a fresh L2 (same prompt + "continue from handoff"). Tell the
      user in one line.
@@ -112,7 +158,8 @@ broad exploration yourself — spawn L3 workers for that. Keep your context unde
    search, running gates and summarizing output; do it yourself only if trivial), status.
    Measure before you theorize: if the cause is unknown, the first task is a measurement.
 2. Parallelize. Tasks with no dependency and disjoint files run concurrently: spawn them in
-   ONE message, each with run_in_background: true. Code-changing workers use
+   ONE message, each with run_in_background: true, and register each in
+   <RUN_DIR>/workers.tsv (id, name, worktree, branch, report-path, status) right away. Code-changing workers use
    isolation: "worktree"; read-only workers (Explore, measurements) don't need it.
    Overlapping files → serialize.
 3. Spawn each worker with the Agent tool (subagent_type general-purpose or Explore,
@@ -125,11 +172,14 @@ broad exploration yourself — spawn L3 workers for that. Keep your context unde
    PARTIAL/BLOCKED → re-plan: smaller task, different approach, or escalate to L1.
    Update the status table in plan.md after every change.
 5. New work: L1 may SendMessage you that brief.md changed. Re-read it and add tasks.
-6. Integration gate: after merging behaviour changes run the project's full suite in the
-   background (see agent-context for the right command) before reporting DONE.
-7. Your budget: when near the limit, stop spawning, wait for running workers or note them,
-   write <RUN_DIR>/handoff/L2-<n>.md (template in the skill file) and return
-   "HANDOFF: <path>".
+6. Integration gate: after merging behaviour changes run `npm run gate` (typecheck, lint,
+   all unit tests, av:quick, optimizer browser test; one PASS/FAIL line per check) before
+   reporting DONE. Never accept a worker's "N/N green" without the exact command it ran.
+7. Rounds, not vigils: after spawning a round, append every worker to
+   <RUN_DIR>/workers.tsv and RETURN "PARTIAL: round <n> running, waiting on <ids>".
+   L1 restarts you once all of them have reported. Do not wait for workers, do not
+   schedule your own wake-ups. If your budget runs out, write
+   <RUN_DIR>/handoff/L2-<n>.md and return "HANDOFF: <path>".
 8. Final reply to L1 (≤25 lines): status word first, then what's done + how verified,
    commits, open items, questions for the user.
 
@@ -162,7 +212,12 @@ Run dir: <RUN_DIR>.
 - Keep your context under ~100k: narrow reads, tail test output. If you get close, write
   <RUN_DIR>/handoff/L3-<TASK_ID>-<n>.md (template in
   <REPO>/.claude/skills/orchestrate/SKILL.md) and return "HANDOFF: <path>".
-- Write details (findings, numbers, decisions) to <RUN_DIR>/l3/<TASK_ID>.md.
+- Write details (findings, numbers, decisions) to <WORKTREE>/.orch-report/<TASK_ID>.md
+  (untracked, do not commit; you usually cannot write into <RUN_DIR>). The agent that
+  collects you copies it to <RUN_DIR>/l3/. Read-only workers without a worktree may write
+  to <RUN_DIR>/l3/<TASK_ID>.md directly.
+- Report test results with the exact command run and its totals ("npx vitest run: 812/812",
+  not "quick suite green"); a subset must be named as a subset.
 - Final reply ≤15 lines: status word (DONE/PARTIAL/BLOCKED/HANDOFF), branch/worktree +
   commit hashes, acceptance check result, path to your report.
 ```
@@ -186,4 +241,5 @@ Upgrade an L3 to `opus` only after a `sonnet` worker failed the same task twice 
 - Chaotic sims: relative checks in unit tests, absolute outcomes only in the health gates.
 - Workers: reset worktree first, explicit staging, commit early. Clean up worktrees at the
   end (`git worktree list`, `git worktree remove -f -f <path>`).
+- A worker saying "green" is a claim about the command it ran. Verify with `npm run gate`.
 - Cherry-pick conflicts in generated files → take ours and re-run the generator.

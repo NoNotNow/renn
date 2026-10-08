@@ -68,3 +68,7 @@ src/
 ├── contexts/ProjectContext.tsx
 └── components/SceneView.tsx  # Main render + game loop
 ```
+
+## Health check
+
+`npm run gate` runs typecheck, lint, all unit tests, `av:quick` and the AV-evolution browser test (`npm run test:e2e:av-evolution`) one after another and prints one PASS/FAIL line per check (`--skip-e2e` without a browser, `--only=<name>` to re-run one). CI (`.github/workflows/ci.yml`) runs typecheck, lint and `vitest run` on every push. Quote the exact command and totals when reporting results; a subset (e.g. only the `av:quick` variants) is not "all green".

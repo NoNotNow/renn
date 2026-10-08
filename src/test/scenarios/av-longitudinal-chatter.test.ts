@@ -4,6 +4,7 @@ import path from 'node:path'
 
 const src = fs.readFileSync(path.resolve(__dirname, '../../../public/global/transformers/av-stack/av-control-longitudinal.js'), 'utf8')
 // eslint-disable-next-line @typescript-eslint/no-implied-eval
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const transform = new Function(`${src}; return transform`)() as (i: any, dt: number, p: any, s: any, a: any) => void
 
 it('zero demand while the speed sign flips every frame never pushes along the motion and never brakes through zero (no bang-bang chatter)', () => {
