@@ -34,7 +34,7 @@ const STAGES: Record<AvStackLogicalStage, StageMeta> = {
   aeb: { id: `${P}aeb`, name: 'AV AEB', priority: 7 },
 }
 const CAR_ID = `${P}car`
-/** Keyboard stage in front of the autopilot (priority 1, before ego 2): feeds the manual override (`manualOverride`, see av-ego.js). Appended as the LAST autopilot member so existing scope keys keep their member indices. */
+/** Keyboard stage in front of the autopilot (priority 1, before ego 2): feeds the manual override (`manualOverride`, see av-ego.js). The FIRST autopilot member (so scope keys address sense=1, plan=2, control=3, safety=4). */
 export const AV_GLOBAL_INPUT_STAGE_ID = `${P}input`
 
 // min/max are drag hints only (typed values are never clamped: e.g. a cruiseSpeed of 1000 is legal), so no max on speeds.
@@ -112,7 +112,7 @@ export function buildAvStackGlobalBehaviorLibrary(): GlobalBehaviorLibrary {
     [`${P}safety`]: { name: 'AV Safety (AEB)', members: [st(STAGES.aeb.id)] },
     [AV_GLOBAL_AUTOPILOT_PIPE_ID]: {
       name: 'AV Autopilot (sense, plan, control, safety)',
-      members: [sub(`${P}sense`), sub(`${P}plan`), sub(`${P}control`), sub(`${P}safety`), st(AV_GLOBAL_INPUT_STAGE_ID)],
+      members: [st(AV_GLOBAL_INPUT_STAGE_ID), sub(`${P}sense`), sub(`${P}plan`), sub(`${P}control`), sub(`${P}safety`)],
       paramDefs: AV_GLOBAL_PARAM_DEFS,
     },
     [AV_GLOBAL_WANDER_STACK_PIPE_ID]: {

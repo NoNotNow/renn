@@ -2834,6 +2834,7 @@
       "restitution": 0.1,
       "friction": 0.01,
       "transformers": [
+        "global_av_input",
         "global_av_ego",
         "global_av_perception",
         "global_av_waypoint_viz",
@@ -2844,7 +2845,6 @@
         "global_av_control_lateral",
         "global_av_control_longitudinal",
         "global_av_aeb",
-        "global_av_input",
         "entity_1779823253285_brtkx1p_tf10",
         "entity_1779823253285_brtkx1p_tf1"
       ],
@@ -2946,13 +2946,13 @@
             "mazeModule": true
           },
           "scopeParams": {
-            "stack:0/member:global_av_autopilot:0/member:global_av_sense:1": {
+            "stack:0/member:global_av_autopilot:1/member:global_av_sense:1": {
               "tickEvery": 3
             },
-            "stack:0/member:global_av_autopilot:1/member:global_av_plan:0": {
+            "stack:0/member:global_av_autopilot:2/member:global_av_plan:0": {
               "tickEvery": 4
             },
-            "stack:0/member:global_av_autopilot:1/member:global_av_plan:1": {
+            "stack:0/member:global_av_autopilot:2/member:global_av_plan:1": {
               "tickEvery": 2
             }
           },
@@ -18546,6 +18546,7 @@
       "restitution": 0.1,
       "friction": 0.01,
       "transformers": [
+        "global_av_input",
         "global_av_ego",
         "global_av_perception",
         "global_av_waypoint_viz",
@@ -18556,7 +18557,6 @@
         "global_av_control_lateral",
         "global_av_control_longitudinal",
         "global_av_aeb",
-        "global_av_input",
         "hunt_chase_av",
         "hunt_chaser_car"
       ],
@@ -18636,13 +18636,13 @@
             "mazeModule": true
           },
           "scopeParams": {
-            "stack:0/member:global_av_autopilot:0/member:global_av_sense:1": {
+            "stack:0/member:global_av_autopilot:1/member:global_av_sense:1": {
               "tickEvery": 3
             },
-            "stack:0/member:global_av_autopilot:1/member:global_av_plan:0": {
+            "stack:0/member:global_av_autopilot:2/member:global_av_plan:0": {
               "tickEvery": 4
             },
-            "stack:0/member:global_av_autopilot:1/member:global_av_plan:1": {
+            "stack:0/member:global_av_autopilot:2/member:global_av_plan:1": {
               "tickEvery": 2
             }
           },
@@ -18760,6 +18760,7 @@
       "restitution": 0.1,
       "friction": 0.01,
       "transformers": [
+        "global_av_input",
         "global_av_ego",
         "global_av_perception",
         "global_av_waypoint_viz",
@@ -18770,7 +18771,6 @@
         "global_av_control_lateral",
         "global_av_control_longitudinal",
         "global_av_aeb",
-        "global_av_input",
         "hunt_chase_av",
         "hunt_chaser_car"
       ],
@@ -18840,13 +18840,13 @@
             "mazeModule": true
           },
           "scopeParams": {
-            "stack:0/member:global_av_autopilot:0/member:global_av_sense:1": {
+            "stack:0/member:global_av_autopilot:1/member:global_av_sense:1": {
               "tickEvery": 3
             },
-            "stack:0/member:global_av_autopilot:1/member:global_av_plan:0": {
+            "stack:0/member:global_av_autopilot:2/member:global_av_plan:0": {
               "tickEvery": 4
             },
-            "stack:0/member:global_av_autopilot:1/member:global_av_plan:1": {
+            "stack:0/member:global_av_autopilot:2/member:global_av_plan:1": {
               "tickEvery": 2
             }
           },
@@ -18878,6 +18878,7 @@
       "restitution": 0.1,
       "friction": 0.01,
       "transformers": [
+        "global_av_input",
         "global_av_ego",
         "global_av_perception",
         "global_av_waypoint_viz",
@@ -18888,7 +18889,6 @@
         "global_av_control_lateral",
         "global_av_control_longitudinal",
         "global_av_aeb",
-        "global_av_input",
         "hunt_chase_av",
         "hunt_chaser_car"
       ],
@@ -18961,13 +18961,13 @@
             "mazeModule": true
           },
           "scopeParams": {
-            "stack:0/member:global_av_autopilot:0/member:global_av_sense:1": {
+            "stack:0/member:global_av_autopilot:1/member:global_av_sense:1": {
               "tickEvery": 3
             },
-            "stack:0/member:global_av_autopilot:1/member:global_av_plan:0": {
+            "stack:0/member:global_av_autopilot:2/member:global_av_plan:0": {
               "tickEvery": 4
             },
-            "stack:0/member:global_av_autopilot:1/member:global_av_plan:1": {
+            "stack:0/member:global_av_autopilot:2/member:global_av_plan:1": {
               "tickEvery": 2
             }
           },
@@ -18999,6 +18999,7 @@
       "restitution": 0.1,
       "friction": 0.01,
       "transformers": [
+        "global_av_input",
         "global_av_ego",
         "global_av_perception",
         "global_av_waypoint_viz",
@@ -19009,7 +19010,6 @@
         "global_av_control_lateral",
         "global_av_control_longitudinal",
         "global_av_aeb",
-        "global_av_input",
         "hunt_chase_av",
         "hunt_chaser_car"
       ],
@@ -19079,13 +19079,13 @@
             "mazeModule": true
           },
           "scopeParams": {
-            "stack:0/member:global_av_autopilot:0/member:global_av_sense:1": {
+            "stack:0/member:global_av_autopilot:1/member:global_av_sense:1": {
               "tickEvery": 3
             },
-            "stack:0/member:global_av_autopilot:1/member:global_av_plan:0": {
+            "stack:0/member:global_av_autopilot:2/member:global_av_plan:0": {
               "tickEvery": 4
             },
-            "stack:0/member:global_av_autopilot:1/member:global_av_plan:1": {
+            "stack:0/member:global_av_autopilot:2/member:global_av_plan:1": {
               "tickEvery": 2
             }
           },
@@ -19117,6 +19117,7 @@
       "restitution": 0.1,
       "friction": 0.01,
       "transformers": [
+        "global_av_input",
         "global_av_ego",
         "global_av_perception",
         "global_av_waypoint_viz",
@@ -19127,7 +19128,6 @@
         "global_av_control_lateral",
         "global_av_control_longitudinal",
         "global_av_aeb",
-        "global_av_input",
         "hunt_chase_av",
         "hunt_chaser_car"
       ],
@@ -19197,13 +19197,13 @@
             "mazeModule": true
           },
           "scopeParams": {
-            "stack:0/member:global_av_autopilot:0/member:global_av_sense:1": {
+            "stack:0/member:global_av_autopilot:1/member:global_av_sense:1": {
               "tickEvery": 3
             },
-            "stack:0/member:global_av_autopilot:1/member:global_av_plan:0": {
+            "stack:0/member:global_av_autopilot:2/member:global_av_plan:0": {
               "tickEvery": 4
             },
-            "stack:0/member:global_av_autopilot:1/member:global_av_plan:1": {
+            "stack:0/member:global_av_autopilot:2/member:global_av_plan:1": {
               "tickEvery": 2
             }
           },
@@ -19235,6 +19235,7 @@
       "restitution": 0.1,
       "friction": 0.01,
       "transformers": [
+        "global_av_input",
         "global_av_ego",
         "global_av_perception",
         "global_av_waypoint_viz",
@@ -19245,7 +19246,6 @@
         "global_av_control_lateral",
         "global_av_control_longitudinal",
         "global_av_aeb",
-        "global_av_input",
         "hunt_chase_leader",
         "hunt_chaser_car"
       ],
@@ -19315,13 +19315,13 @@
             "mazeModule": true
           },
           "scopeParams": {
-            "stack:0/member:global_av_autopilot:0/member:global_av_sense:1": {
+            "stack:0/member:global_av_autopilot:1/member:global_av_sense:1": {
               "tickEvery": 3
             },
-            "stack:0/member:global_av_autopilot:1/member:global_av_plan:0": {
+            "stack:0/member:global_av_autopilot:2/member:global_av_plan:0": {
               "tickEvery": 4
             },
-            "stack:0/member:global_av_autopilot:1/member:global_av_plan:1": {
+            "stack:0/member:global_av_autopilot:2/member:global_av_plan:1": {
               "tickEvery": 2
             }
           },
@@ -19353,6 +19353,7 @@
       "restitution": 0.1,
       "friction": 0.01,
       "transformers": [
+        "global_av_input",
         "global_av_ego",
         "global_av_perception",
         "global_av_waypoint_viz",
@@ -19363,7 +19364,6 @@
         "global_av_control_lateral",
         "global_av_control_longitudinal",
         "global_av_aeb",
-        "global_av_input",
         "hunt_chase_leader",
         "hunt_chaser_car"
       ],
@@ -19433,13 +19433,13 @@
             "mazeModule": true
           },
           "scopeParams": {
-            "stack:0/member:global_av_autopilot:0/member:global_av_sense:1": {
+            "stack:0/member:global_av_autopilot:1/member:global_av_sense:1": {
               "tickEvery": 3
             },
-            "stack:0/member:global_av_autopilot:1/member:global_av_plan:0": {
+            "stack:0/member:global_av_autopilot:2/member:global_av_plan:0": {
               "tickEvery": 4
             },
-            "stack:0/member:global_av_autopilot:1/member:global_av_plan:1": {
+            "stack:0/member:global_av_autopilot:2/member:global_av_plan:1": {
               "tickEvery": 2
             }
           },
@@ -19471,6 +19471,7 @@
       "restitution": 0.1,
       "friction": 0.01,
       "transformers": [
+        "global_av_input",
         "global_av_ego",
         "global_av_perception",
         "global_av_waypoint_viz",
@@ -19481,7 +19482,6 @@
         "global_av_control_lateral",
         "global_av_control_longitudinal",
         "global_av_aeb",
-        "global_av_input",
         "hunt_chase_leader",
         "hunt_chaser_car"
       ],
@@ -19551,13 +19551,13 @@
             "mazeModule": true
           },
           "scopeParams": {
-            "stack:0/member:global_av_autopilot:0/member:global_av_sense:1": {
+            "stack:0/member:global_av_autopilot:1/member:global_av_sense:1": {
               "tickEvery": 3
             },
-            "stack:0/member:global_av_autopilot:1/member:global_av_plan:0": {
+            "stack:0/member:global_av_autopilot:2/member:global_av_plan:0": {
               "tickEvery": 4
             },
-            "stack:0/member:global_av_autopilot:1/member:global_av_plan:1": {
+            "stack:0/member:global_av_autopilot:2/member:global_av_plan:1": {
               "tickEvery": 2
             }
           },
@@ -19589,6 +19589,7 @@
       "restitution": 0.1,
       "friction": 0.01,
       "transformers": [
+        "global_av_input",
         "global_av_ego",
         "global_av_perception",
         "global_av_waypoint_viz",
@@ -19599,7 +19600,6 @@
         "global_av_control_lateral",
         "global_av_control_longitudinal",
         "global_av_aeb",
-        "global_av_input",
         "hunt_chase_leader",
         "hunt_chaser_car"
       ],
@@ -19669,13 +19669,13 @@
             "mazeModule": true
           },
           "scopeParams": {
-            "stack:0/member:global_av_autopilot:0/member:global_av_sense:1": {
+            "stack:0/member:global_av_autopilot:1/member:global_av_sense:1": {
               "tickEvery": 3
             },
-            "stack:0/member:global_av_autopilot:1/member:global_av_plan:0": {
+            "stack:0/member:global_av_autopilot:2/member:global_av_plan:0": {
               "tickEvery": 4
             },
-            "stack:0/member:global_av_autopilot:1/member:global_av_plan:1": {
+            "stack:0/member:global_av_autopilot:2/member:global_av_plan:1": {
               "tickEvery": 2
             }
           },
@@ -19707,6 +19707,7 @@
       "restitution": 0.1,
       "friction": 0.01,
       "transformers": [
+        "global_av_input",
         "global_av_ego",
         "global_av_perception",
         "global_av_waypoint_viz",
@@ -19717,7 +19718,6 @@
         "global_av_control_lateral",
         "global_av_control_longitudinal",
         "global_av_aeb",
-        "global_av_input",
         "hunt_chase_leader",
         "hunt_chaser_car"
       ],
@@ -19787,13 +19787,13 @@
             "mazeModule": true
           },
           "scopeParams": {
-            "stack:0/member:global_av_autopilot:0/member:global_av_sense:1": {
+            "stack:0/member:global_av_autopilot:1/member:global_av_sense:1": {
               "tickEvery": 3
             },
-            "stack:0/member:global_av_autopilot:1/member:global_av_plan:0": {
+            "stack:0/member:global_av_autopilot:2/member:global_av_plan:0": {
               "tickEvery": 4
             },
-            "stack:0/member:global_av_autopilot:1/member:global_av_plan:1": {
+            "stack:0/member:global_av_autopilot:2/member:global_av_plan:1": {
               "tickEvery": 2
             }
           },
@@ -34484,6 +34484,7 @@
       "id": "global_av_autopilot",
       "name": "AV Autopilot (sense, plan, control, safety)",
       "stageIds": [
+        "global_av_input",
         "global_av_ego",
         "global_av_perception",
         "global_av_waypoint_viz",
@@ -34493,8 +34494,7 @@
         "global_av_supervisor",
         "global_av_control_lateral",
         "global_av_control_longitudinal",
-        "global_av_aeb",
-        "global_av_input"
+        "global_av_aeb"
       ],
       "stages": [
         {
@@ -34570,6 +34570,10 @@
       ],
       "members": [
         {
+          "kind": "stage",
+          "stageId": "global_av_input"
+        },
+        {
           "kind": "pipe",
           "pipeId": "global_av_sense"
         },
@@ -34584,10 +34588,6 @@
         {
           "kind": "pipe",
           "pipeId": "global_av_safety"
-        },
-        {
-          "kind": "stage",
-          "stageId": "global_av_input"
         }
       ],
       "paramDefs": [
@@ -34725,7 +34725,7 @@
       ],
       "origin": {
         "globalId": "global_av_autopilot",
-        "hash": "148k8kd"
+        "hash": "ronevx"
       }
     }
   }

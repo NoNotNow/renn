@@ -19,7 +19,7 @@ import type { RennWorld } from '@/types/world'
 const library = mergeShippedGlobalBehaviorLibrary(EMPTY_GLOBAL_BEHAVIOR_LIBRARY, buildShippedGlobalBehaviorLibraryBundle())
 const SPEED_STAGE = 'global_av_speed_planner'
 /** Scope of the local-planner nested pipe (stack > autopilot[1] > plan[1]), which contains the speed planner. */
-const PLAN_LOCAL_SCOPE = 'stack:0/member:global_av_stack:1/member:global_av_autopilot:1/member:global_av_plan:1'
+const PLAN_LOCAL_SCOPE = 'stack:0/member:global_av_stack:1/member:global_av_autopilot:2/member:global_av_plan:1'
 
 const box = (id: string, x: number, z: number) => ({
   id,

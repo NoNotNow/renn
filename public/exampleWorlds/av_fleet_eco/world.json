@@ -998,6 +998,7 @@
       "restitution": 0.1,
       "friction": 0.01,
       "transformers": [
+        "global_av_input",
         "global_av_ego",
         "global_av_perception",
         "global_av_waypoint_viz",
@@ -1008,7 +1009,6 @@
         "global_av_control_lateral",
         "global_av_control_longitudinal",
         "global_av_aeb",
-        "global_av_input",
         "entity_1779823253285_brtkx1p_tf10",
         "entity_1779823253285_brtkx1p_tf1"
       ],
@@ -1194,6 +1194,7 @@
       "restitution": 0.1,
       "friction": 0.01,
       "transformers": [
+        "global_av_input",
         "global_av_ego",
         "global_av_perception",
         "global_av_waypoint_viz",
@@ -1204,7 +1205,6 @@
         "global_av_control_lateral",
         "global_av_control_longitudinal",
         "global_av_aeb",
-        "global_av_input",
         "fleet_car_1_tf10",
         "fleet_car_1_tf1"
       ],
@@ -1302,6 +1302,7 @@
       "restitution": 0.1,
       "friction": 0.01,
       "transformers": [
+        "global_av_input",
         "global_av_ego",
         "global_av_perception",
         "global_av_waypoint_viz",
@@ -1312,7 +1313,6 @@
         "global_av_control_lateral",
         "global_av_control_longitudinal",
         "global_av_aeb",
-        "global_av_input",
         "fleet_car_2_tf10",
         "fleet_car_2_tf1"
       ],
@@ -1410,6 +1410,7 @@
       "restitution": 0.1,
       "friction": 0.01,
       "transformers": [
+        "global_av_input",
         "global_av_ego",
         "global_av_perception",
         "global_av_waypoint_viz",
@@ -1420,7 +1421,6 @@
         "global_av_control_lateral",
         "global_av_control_longitudinal",
         "global_av_aeb",
-        "global_av_input",
         "fleet_car_3_tf10",
         "fleet_car_3_tf1"
       ],
@@ -1518,6 +1518,7 @@
       "restitution": 0.1,
       "friction": 0.01,
       "transformers": [
+        "global_av_input",
         "global_av_ego",
         "global_av_perception",
         "global_av_waypoint_viz",
@@ -1528,7 +1529,6 @@
         "global_av_control_lateral",
         "global_av_control_longitudinal",
         "global_av_aeb",
-        "global_av_input",
         "fleet_car_4_tf10",
         "fleet_car_4_tf1"
       ],
@@ -1626,6 +1626,7 @@
       "restitution": 0.1,
       "friction": 0.01,
       "transformers": [
+        "global_av_input",
         "global_av_ego",
         "global_av_perception",
         "global_av_waypoint_viz",
@@ -1636,7 +1637,6 @@
         "global_av_control_lateral",
         "global_av_control_longitudinal",
         "global_av_aeb",
-        "global_av_input",
         "fleet_car_5_tf10",
         "fleet_car_5_tf1"
       ],
@@ -1734,6 +1734,7 @@
       "restitution": 0.1,
       "friction": 0.01,
       "transformers": [
+        "global_av_input",
         "global_av_ego",
         "global_av_perception",
         "global_av_waypoint_viz",
@@ -1744,7 +1745,6 @@
         "global_av_control_lateral",
         "global_av_control_longitudinal",
         "global_av_aeb",
-        "global_av_input",
         "fleet_car_6_tf10",
         "fleet_car_6_tf1"
       ],
@@ -2410,6 +2410,7 @@
       "id": "global_av_autopilot",
       "name": "AV Autopilot (sense, plan, control, safety)",
       "stageIds": [
+        "global_av_input",
         "global_av_ego",
         "global_av_perception",
         "global_av_waypoint_viz",
@@ -2419,8 +2420,7 @@
         "global_av_supervisor",
         "global_av_control_lateral",
         "global_av_control_longitudinal",
-        "global_av_aeb",
-        "global_av_input"
+        "global_av_aeb"
       ],
       "stages": [
         {
@@ -2496,6 +2496,10 @@
       ],
       "members": [
         {
+          "kind": "stage",
+          "stageId": "global_av_input"
+        },
+        {
           "kind": "pipe",
           "pipeId": "global_av_sense"
         },
@@ -2510,10 +2514,6 @@
         {
           "kind": "pipe",
           "pipeId": "global_av_safety"
-        },
-        {
-          "kind": "stage",
-          "stageId": "global_av_input"
         }
       ],
       "paramDefs": [
@@ -2651,7 +2651,7 @@
       ],
       "origin": {
         "globalId": "global_av_autopilot",
-        "hash": "148k8kd"
+        "hash": "ronevx"
       }
     }
   }

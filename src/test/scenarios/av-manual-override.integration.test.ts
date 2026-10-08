@@ -51,11 +51,11 @@ const dt = 1 / 60
 const frames = (s: number): number => Math.round(s / dt)
 
 describe('AV manual keyboard override', () => {
-  it('declares the pipe params and ships the input stage ahead of the autopilot (last member, priority 1)', () => {
+  it('declares the pipe params and ships the input stage ahead of the autopilot (first member, priority 1)', () => {
     const pipe = library.transformerPipes!.global_av_autopilot!
     expect(pipe.paramDefs!.map((p) => p.key)).toEqual(expect.arrayContaining(['manualOverride', 'overrideHold']))
-    const last = pipe.members![pipe.members!.length - 1]!
-    expect(last).toEqual({ kind: 'stage', stageId: 'global_av_input' })
+    const first = pipe.members![0]!
+    expect(first).toEqual({ kind: 'stage', stageId: 'global_av_input' })
     expect(library.transformers!.global_av_input!.type).toBe('input')
     expect(library.transformers!.global_av_input!.priority!).toBeLessThan(library.transformers!.global_av_ego!.priority!)
   })
