@@ -23,6 +23,8 @@ export interface NewRunOptions {
   trainKeys?: string[]
   /** fitness seconds per direction reversal (default DEFAULT_FITNESS_WEIGHTS.wReversal; 0 disables) */
   reversalWeight?: number
+  /** fitness seconds per second spent reversing (default 0 = off) */
+  reverseSecondsWeight?: number
 }
 
 export type StartOptions = ({ runId: string } | { newRun: NewRunOptions }) & {
@@ -114,7 +116,7 @@ export class AvEvolutionController {
       eliteCount: Math.min(Math.max(1, Math.floor(n.eliteCount ?? DEFAULT_EVOLUTION_CONFIG.eliteCount)), popSize),
       episodesPerEval: Math.max(1, Math.floor(n.episodesPerEval ?? DEFAULT_EVOLUTION_CONFIG.episodesPerEval)),
     }
-    const engine = new EvolutionEngine({ spec: AV_GENOME_SPEC, trainKeys: train, config, weights: n.reversalWeight === undefined ? undefined : { wReversal: Math.max(0, n.reversalWeight) } })
+    const engine = new EvolutionEngine({ spec: AV_GENOME_SPEC, trainKeys: train, config, weights: n.reversalWeight === undefined && n.reverseSecondsWeight === undefined ? undefined : { ...(n.reversalWeight === undefined ? {} : { wReversal: Math.max(0, n.reversalWeight) }), ...(n.reverseSecondsWeight === undefined ? {} : { wReverseS: Math.max(0, n.reverseSecondsWeight) }) } })
     const now = Date.now()
     const run: RunRecord = {
       runId: `run-${now.toString(36)}`,

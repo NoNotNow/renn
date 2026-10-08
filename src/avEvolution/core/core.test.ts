@@ -161,6 +161,23 @@ describe('fitness', () => {
     st.weights.wReversal = 1.25
     expect(EvolutionEngine.fromJSON(st).weights.wReversal).toBe(1.25)
   })
+  it('reverseS term: weight 0 bit-identical, weight w adds w * reverseS, old state resumes with 0', () => {
+    const noTerm: Partial<FitnessWeights> = { ...DEFAULT_FITNESS_WEIGHTS }
+    delete noTerm.wReverseS
+    expect(DEFAULT_FITNESS_WEIGHTS.wReverseS).toBe(0)
+    for (const o of [{}, { exitT: 33.3, contactEvents: 2 }, { reached: false, remainingDist: 3.7 }, { flipped: true, reversals: 5 }]) {
+      const before = episodeScore(metrics(o), noTerm as FitnessWeights)
+      expect(Object.is(episodeScore(metrics({ ...o, reverseS: 9.5 })), before)).toBe(true)
+      expect(Object.is(episodeScore(metrics({ ...o, reverseS: 9.5 }), { ...DEFAULT_FITNESS_WEIGHTS, wReverseS: 0 }), before)).toBe(true)
+    }
+    const clean = episodeScore(metrics())
+    expect(episodeScore(metrics({ reverseS: 8 }), { ...DEFAULT_FITNESS_WEIGHTS, wReverseS: 0.25 })).toBeCloseTo(clean + 2, 9)
+    expect(toEpisodeRecord(metrics({ reverseS: 4 }), { ...DEFAULT_FITNESS_WEIGHTS, wReverseS: 0.5 }).score).toBeCloseTo(clean + 2, 9)
+    const st = JSON.parse(JSON.stringify(new EvolutionEngine({ spec, trainKeys: ['k'], weights: { wReverseS: 0.3 } }).toJSON()))
+    expect(EvolutionEngine.fromJSON(st).weights.wReverseS).toBe(0.3)
+    delete st.weights.wReverseS
+    expect(EvolutionEngine.fromJSON(st).weights.wReverseS).toBe(0)
+  })
   it('aggregates', () => {
     const eps = [metrics({ exitT: 10 }), metrics({ reached: false, remainingDist: 4, contactEvents: 2 })].map((m) => toEpisodeRecord(m))
     const a = aggregate(eps)

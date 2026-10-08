@@ -34,6 +34,7 @@ export default function AvEvolutionPanel({ onClose, selectedEntityId }: AvEvolut
   const [pop, setPop] = useState(8)
   const [episodes, setEpisodes] = useState(2)
   const [reversalWeight, setReversalWeight] = useState(DEFAULT_FITNESS_WEIGHTS.wReversal)
+  const [reverseSWeight, setReverseSWeight] = useState(DEFAULT_FITNESS_WEIGHTS.wReverseS)
   const [workers, setWorkers] = useState(defaultWorkerCount())
   const [note, setNote] = useState('')
 
@@ -146,11 +147,14 @@ export default function AvEvolutionPanel({ onClose, selectedEntityId }: AvEvolut
             rev s <input aria-label="Seconds charged per reversal" style={input} type="number" min={0} step={0.1} value={reversalWeight} disabled={busy} onChange={(e) => setReversalWeight(Number(e.target.value))} />
           </label>
           <label>
+            rev-time s/s <input aria-label="Seconds charged per second spent reversing" style={input} type="number" min={0} step={0.05} value={reverseSWeight} disabled={busy} onChange={(e) => setReverseSWeight(Number(e.target.value))} />
+          </label>
+          <label>
             workers <input aria-label="Workers" style={input} type="number" min={1} value={workers} disabled={busy} onChange={(e) => setWorkers(Number(e.target.value))} />
           </label>
         </div>
         <div style={row}>
-          <button style={btn} data-testid="av-evo-new" disabled={busy} onClick={() => void start({ newRun: { popSize: pop, episodesPerEval: episodes, reversalWeight }, workers })}>
+          <button style={btn} data-testid="av-evo-new" disabled={busy} onClick={() => void start({ newRun: { popSize: pop, episodesPerEval: episodes, reversalWeight, reverseSecondsWeight: reverseSWeight }, workers })}>
             New run
           </button>
           <button style={btn} data-testid="av-evo-resume" disabled={busy || !selected?.state} onClick={() => void start({ runId, workers })}>

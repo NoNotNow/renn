@@ -31,6 +31,11 @@ export interface FitnessWeights {
    */
   wReversal: number
   /**
+   * seconds charged per second spent reversing (forward speed below -1 m/s, `reverseS`). 0 disables the term (bit-identical
+   * fitness). Runs saved before this weight existed resume with 0.
+   */
+  wReverseS: number
+  /**
    * Weight lambda of the worst episode in the aggregate: fitness = (1 - lambda) * mean + lambda * max (over per-episode
    * values; ratios to the baseline when available). Penalises candidates that fail or crawl on a single start.
    */
@@ -41,14 +46,15 @@ export interface FitnessWeights {
  * v2 (design D1): contacts are expensive (10 s per event, 5 s per contact second), the worst episode counts 20 %.
  * wReversal 0.5: one reversal costs half a second of exit time (the baseline makes ~12-20 per maze episode, i.e. ~10-20 % of its score).
  */
-export const DEFAULT_FITNESS_WEIGHTS: FitnessWeights = { kDist: 0.5, wContact: 10, wContactTime: 5, flipPenalty: 200, wWorst: 0.2, wReversal: 0.5 }
+export const DEFAULT_FITNESS_WEIGHTS: FitnessWeights = { kDist: 0.5, wContact: 10, wContactTime: 5, flipPenalty: 200, wWorst: 0.2, wReversal: 0.5, wReverseS: 0 }
 
 /** Lower is better (seconds-equivalent). */
 export function episodeScore(m: EpisodeMetrics, w: FitnessWeights = DEFAULT_FITNESS_WEIGHTS): number {
   const base = m.reached ? m.exitT : m.timeoutSec + w.kDist * m.remainingDist
   const score = base + w.wContact * m.contactEvents + w.wContactTime * m.contactFrames * m.dt + (m.flipped ? w.flipPenalty : 0)
   // guarded so weight 0 (or a missing field on old data) leaves the score bit-identical
-  return w.wReversal ? score + w.wReversal * (m.reversals ?? 0) : score
+  const withRev = w.wReversal ? score + w.wReversal * (m.reversals ?? 0) : score
+  return w.wReverseS ? withRev + w.wReverseS * (m.reverseS ?? 0) : withRev
 }
 
 /** Compact per-episode record stored on candidates (score pre-computed with the run's weights). */

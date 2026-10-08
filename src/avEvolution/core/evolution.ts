@@ -396,7 +396,7 @@ export class EvolutionEngine {
 
   static fromJSON(s: EvolutionState): EvolutionEngine {
     if (s.schema !== 'renn.av-evolution.state/1') throw new Error(`unsupported state schema ${String(s.schema)}`)
-    const e = new EvolutionEngine({ spec: s.spec, trainKeys: s.trainKeys, config: s.config, weights: { ...s.weights, wReversal: (s.weights as Partial<FitnessWeights>).wReversal ?? 0 }, initialParams: s.initialParams ?? undefined, baseline: s.baseline ?? undefined })
+    const e = new EvolutionEngine({ spec: s.spec, trainKeys: s.trainKeys, config: s.config, weights: { ...s.weights, wReversal: (s.weights as Partial<FitnessWeights>).wReversal ?? 0, wReverseS: (s.weights as Partial<FitnessWeights>).wReverseS ?? 0 }, initialParams: s.initialParams ?? undefined, baseline: s.baseline ?? undefined })
     // states saved before the reversal weight existed resume with 0 so their stored fitness stays comparable
     e.rng.setState(s.rngState)
     e._gen = s.gen

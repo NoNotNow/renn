@@ -17,6 +17,7 @@
  *   --seed N            evolution RNG seed (default 1)                   [ignored on --resume]
  *   --train a,b,c       train episode keys (default: all TRAIN episodes) [ignored on --resume]
  *   --w-reversal W      fitness seconds per direction reversal (default 0.5 = DEFAULT_FITNESS_WEIGHTS.wReversal; 0 disables) [ignored on --resume: the run keeps its weights]
+ *   --w-reverse-s W     fitness seconds charged per second spent reversing (v < -1 m/s; default 0 = off; suggested 0.25 for mazes) [ignored on --resume]
  *   --workers N         worker threads (default: cores - 1)
  *   --out FILE          export JSON, schema 'renn.av-evolution/1' (default test-results/av-evolution/run.json); rewritten after every generation
  *   --resume [FILE]     resume from FILE (default: --out) if it exists
@@ -104,7 +105,7 @@ async function main() {
       if (bad.length) throw new Error(`--active: unknown genes ${bad.join(',')}`)
     }
     const seedParams = args['seed-params'] ? String(args['seed-params']).split(',').map((f) => JSON.parse(fs.readFileSync(path.resolve(f), 'utf8')) as Params) : undefined
-    const weights = { ...DEFAULT_FITNESS_WEIGHTS, wReversal: num(args['w-reversal'], DEFAULT_FITNESS_WEIGHTS.wReversal) }
+    const weights = { ...DEFAULT_FITNESS_WEIGHTS, wReversal: num(args['w-reversal'], DEFAULT_FITNESS_WEIGHTS.wReversal), wReverseS: num(args['w-reverse-s'], DEFAULT_FITNESS_WEIGHTS.wReverseS) }
     console.log(`baseline (default params, ${train.length} train episodes)...`)
     const baseline = await computeBaseline(pool, train, weights)
     console.log(`baseline mean exit ${(train.reduce((s, k) => s + baseline[k]!.exitT, 0) / train.length).toFixed(1)} s`)
