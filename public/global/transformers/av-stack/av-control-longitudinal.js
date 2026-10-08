@@ -37,7 +37,7 @@
 function transform(input, dt, params, state, api) {
   var av = input.av
   // av-ego's preset table (params.preset) under this stage's own params (binding / scope / stage params win); cached while both are the same objects
-  if (av && av.preset) params = state.pmP === params && state.pmB === av.preset ? state.pm : ((state.pmP = params), (state.pmB = av.preset), (state.pm = Object.assign({}, av.preset, params)))
+  if (av && (av.preset || av.profile)) params = state.pmP === params && state.pmB === av.preset && state.pmO === av.profile ? state.pm : ((state.pmP = params), (state.pmB = av.preset), (state.pmO = av.profile), (state.pm = Object.assign({}, av.preset, params, av.profile)))
   if (!av || !av.plan || !av.ego) return {}
   var e = av.ego
   // manual keyboard override (av-ego av.manual): yield, the keys give throttle / brake (the AEB after this stage still brakes). Keep the speed / actuator bookkeeping current so the identification sees no jump on resume.
