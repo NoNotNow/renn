@@ -20,6 +20,7 @@
 | Scripts, game API, events, intellisense | `feature-scripting.md` |
 | Property panel, inspector, live poses, picking (incl. 3D model meshes), no-update-loop | `feature-inspector.md` |
 | AV evolution (param tuning of the AV car: CLI `npm run av:evolve`, Builder Tools → AV evolution panel, `window.__rennAvEvolution`, MCP `av_evolution_*`) | `feature-av-evolution.md` |
+| Policy evolution (neural driving policy evolved from scratch, `npm run policy:evolve`, `src/policyEvolution/`) | `feature-policy-evolution.md` |
 | Explorer groups (folders, tree, Group/Ungroup/Add/Remove buttons, Cmd+G) | `feature-groups.md` |
 | Future rigging concept (Rapier joints, story mapping, UI sketch) | `feature-rigging-roadmap.md` |
 | Global model/material/shape presets (IndexedDB, Presets tab) | `architecture.md` (Persistence, ModelPresetPanel) |
