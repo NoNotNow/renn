@@ -80,6 +80,7 @@ await new Promise<void>((resolve, reject) => {
     const w = new Worker(url, { workerData: {} })
     workers.push(w)
     w.on('error', reject)
+    w.on('exit', (code) => { if (done < jobs.length) reject(new Error(`worker exited early (code ${code}) on job ${(w as Worker & { cur?: number }).cur}`)) })
     w.on('message', (m: { ready?: boolean; id?: number; result?: EpResult; error?: string }) => {
       if (m.ready) return feed(w)
       if (m.error) return reject(new Error(m.error))
