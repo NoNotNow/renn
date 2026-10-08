@@ -2943,28 +2943,7 @@
             "passSide": "right",
             "manualOverride": true,
             "overrideHold": 1,
-            "mazeModule": true,
-            "mazeProfile": {
-              "mazeManeuverSpeed": 7.093216963278811,
-              "maneuverRunSpeed": 13.865680924549768,
-              "maneuverRunDecel": 9.511069985868215,
-              "mazeDeviate": 1.5058265290625237,
-              "mazeWpMin": 18.615274676938824,
-              "mazeArriveR": 3.359109584935502,
-              "mazeGoalW": 2.918416908475641,
-              "tightMargin": 0.2770415384199985,
-              "reversePenalty": 2.398717725292701,
-              "gearSwitchPenalty": 5.836606107723616,
-              "maxReverseRun": 11.013012342745125,
-              "reverseSpeed": 17.978056197115542,
-              "turnRoom": 20.504150507249975,
-              "revCruiseBehind": 0.13148435101911637,
-              "crawlTime": 2.5509160355750575,
-              "stuckSpeed": 0.6466874085774352,
-              "lookahead": 29.69238312140058,
-              "fieldBlockCost": 545.5645449076649
-            },
-            "mazeProfileHold": 3
+            "mazeModule": true
           },
           "scopeParams": {
             "stack:0/member:global_av_autopilot:0/member:global_av_sense:1": {

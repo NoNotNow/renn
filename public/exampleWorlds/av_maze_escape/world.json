@@ -839,7 +839,6 @@
             "overrideHold": 1,
             "mazeModule": true,
             "mazeProfile": null,
-            "mazeProfileHold": 3,
             "maxLatAccel": 16.746140089543843,
             "obstacleSlowFactor": 0.3958050151979219,
             "stopMargin": 1.357445010557769,
