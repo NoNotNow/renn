@@ -36,6 +36,10 @@ OpenAI-ES: antithetic perturbations, centred ranks, Adam on the mean, small weig
   best by TRAIN is stored as `best.genome` in the output file (HOLDOUT is only reported).
 - Tests: `npx vitest run src/policyEvolution` (courses, episode outcomes incl. a hand-wired goal follower, ES on a quadratic).
 
+## Shipped policy and example world
+`tools/policy-evolution/ship.ts <run.json>` rounds the best-by-TRAIN mean policy, re-scores it and writes `src/policyEvolution/shippedPolicy.json`;
+`npx tsx tools/renn-mcp/export-policy-drive-example-world.ts` writes `public/exampleWorlds/policy_drive/` (File -> Example Worlds; documented in example-worlds.md).
+First run (200 gens, pop 49, batch 6, ~10 min on 4 cores): shipped gen 145: TRAIN fitness 2.06 (8/12 courses finished, 4 crashes), HOLDOUT 1.42 (5/12 finished, 7 crashes), mean progress 313 m of 400.
+
 ## Not done yet
-Browser panel / playback of the best policy per generation, MCP tools, example world export (`public/exampleWorlds/`, see the example-world sync rule),
-comparison against the evolved AV pipeline on the same courses.
+Browser panel / live playback per generation, MCP tools, comparison against the evolved AV pipeline on the same courses.

@@ -45,48 +45,61 @@ export interface PolicyEpisodeMetrics {
   wallMs: number
 }
 
-export function buildPolicyWorld(course: Course, genome: ArrayLike<number>): RennWorld {
+/** Entities + transformer stages of one course driven by one policy; `origin` shifts the whole course (several courses in one world). */
+export function policyCourseParts(course: Course, genome: ArrayLike<number>, opts: { origin?: V2; suffix?: string } = {}) {
+  const [ox, oz] = opts.origin ?? [0, 0]
+  const sfx = opts.suffix ?? ''
+  const carId = POLICY_CAR_ID + sfx
+  const stageId = POLICY_STAGE_ID + sfx
+  const actuatorId = POLICY_ACTUATOR_ID + sfx
   const rad = (d: number) => (d * Math.PI) / 180
   const entities: unknown[] = [
-    { id: 'ground', name: 'Ground', bodyType: 'static', shape: { type: 'plane' }, position: [0, 0, 0], rotation: [0, 0, 0], friction: 1 },
     {
-      id: POLICY_CAR_ID,
-      name: 'Policy car',
+      id: carId,
+      name: 'Policy car' + sfx,
       bodyType: 'dynamic',
       shape: { type: 'box', width: CAR_SIZE[0], height: 1, depth: CAR_SIZE[1] },
-      position: [COURSE_START[0], CAR_START_Y, COURSE_START[1]],
+      position: [COURSE_START[0] + ox, CAR_START_Y, COURSE_START[1] + oz],
       rotation: [0, 0, 0],
       ...CAR_BODY,
-      transformers: [POLICY_STAGE_ID, POLICY_ACTUATOR_ID],
+      transformers: [stageId, actuatorId],
     },
   ]
   course.boxes.forEach((b, i) => {
     const h = 6
     entities.push({
-      id: `box_${i}`,
-      name: `Box ${i}`,
+      id: `box_${i}${sfx}`,
+      name: `Box ${i}${sfx}`,
       bodyType: 'static',
       shape: { type: 'box', width: b.size[0], height: h, depth: b.size[1] },
-      position: [b.at[0], h / 2, b.at[1]],
+      position: [b.at[0] + ox, h / 2, b.at[1] + oz],
       rotation: [0, rad(b.yawDeg), 0],
       friction: 0.5,
     })
   })
+  const transformers = {
+    [stageId]: {
+      type: 'custom',
+      priority: 5,
+      enabled: true,
+      name: 'Policy drive',
+      code: POLICY_STAGE_CODE,
+      params: { w: Array.from(genome), goals: course.waypoints.map((g) => [g[0] + ox, g[1] + oz]), reachR: 8, gain: CAR2_PARAMS.power / CAR_BODY.mass },
+    },
+    [actuatorId]: { type: 'car2', priority: 11, enabled: true, params: CAR2_PARAMS },
+  }
+  return { carId, entities, transformers }
+}
+
+export const POLICY_GROUND = { id: 'ground', name: 'Ground', bodyType: 'static', shape: { type: 'plane' }, position: [0, 0, 0], rotation: [0, 0, 0], friction: 1 }
+
+export function buildPolicyWorld(course: Course, genome: ArrayLike<number>): RennWorld {
+  const parts = policyCourseParts(course, genome)
   return {
     version: '1.0',
     world: { gravity: [0, -100, 0] },
-    transformers: {
-      [POLICY_STAGE_ID]: {
-        type: 'custom',
-        priority: 5,
-        enabled: true,
-        name: 'Policy drive',
-        code: POLICY_STAGE_CODE,
-        params: { w: Array.from(genome), goals: course.waypoints, reachR: 8, gain: CAR2_PARAMS.power / CAR_BODY.mass },
-      },
-      [POLICY_ACTUATOR_ID]: { type: 'car2', priority: 11, enabled: true, params: CAR2_PARAMS },
-    },
-    entities,
+    transformers: parts.transformers,
+    entities: [POLICY_GROUND, ...parts.entities],
     scripts: {},
     groups: [],
   } as unknown as RennWorld
