@@ -4,8 +4,9 @@ import evolvedCarParams from './mazeEscapeDefaultCar.json'
 
 /**
  * Default car params of the shipped maze-escape example world (flat AV param overrides, saver false).
- * Source: evolved set "c667+s2" = c667 from evolution E6 + heading-aware K-turn genes (cuspHeadW 20, cuspReachW 20,
- * gearIncW 8, cuspCommit); HOLDOUT-24 21.8 s mean, 24/24 reach, 3 contacts. Values live in ./mazeEscapeDefaultCar.json
+ * Source: evolution run run-muzksopu (H2, 2026-10-08; 60 gens, pop 16, wReversal 0.5, wReverseS 0.25, all genes incl.
+ * heading-aware K-turn cusp genes), candidate c870 (3rd by TRAIN fitness). HOLDOUT-24: 18.1 s mean exit (median 13.5),
+ * 24/24 reach, 0 contacts, 4.7 reversals/ep (vs default params 43.6 s, 21/24). Values live in ./mazeEscapeDefaultCar.json
  * (replace that file to swap in a newer evolved set, then re-export the example world).
  * Merged in buildMazeExampleWorld AFTER the pinned maze params; deliberately NOT part of MAZE_PINNED_CAR_PARAMS so
  * evolution baselines and harness episodes stay unchanged.
