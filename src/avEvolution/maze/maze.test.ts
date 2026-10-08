@@ -7,7 +7,7 @@ import { loadLabWorld, runLab } from '@/test/avLab/lab'
 import { AV_CAR_SOURCE_ID, AV_CAR_SOURCE_WORLD } from '@/test/fixtures/avEvasionArena'
 import { generateMaze, type Maze } from './mazeGen'
 import { buildMazeEpisodeWorld, listMazeEpisodes, mazeOfEpisode, mazeParamsFor, type MazeEpisodeSpec } from './episodes'
-import { buildMazeExampleWorld, GOAL_MARKER_ID } from './exampleWorld'
+import { buildMazeExampleWorld, GOAL_MARKER_ID, MAZE_ESCAPE_DEFAULT_CAR_PARAMS } from './exampleWorld'
 
 const EXAMPLE_ID = 'av_maze_escape'
 
@@ -107,8 +107,16 @@ describe(`example world ${EXAMPLE_ID}`, () => {
   it('runs headless: the car drives, the goal marker does not change the episode', async () => {
     const onDisk = loadLabWorld({ exampleId: EXAMPLE_ID })
     expect(onDisk.entities.some((e) => e.id === GOAL_MARKER_ID)).toBe(true)
+    // the exported car carries the evolved default params (saver off)
+    const carParams = (onDisk.entities.find((e) => e.id === AV_CAR_SOURCE_ID)!.transformerPipeStack as Array<{ params: Record<string, unknown> }>)[0]!.params
+    for (const [k, v] of Object.entries(MAZE_ESCAPE_DEFAULT_CAR_PARAMS)) expect(carParams[k], k).toEqual(v)
+    expect(carParams.saver).toBe(false)
+    // reference: the plain episode world + the same default car params => identical run (the goal marker is inert)
+    const ref = buildMazeEpisodeWorld(loadLabWorld({ exampleId: AV_CAR_SOURCE_WORLD }), listMazeEpisodes().legacyTrain[0]!)
+    const refBinding = (ref.entities.find((e) => e.id === AV_CAR_SOURCE_ID)!.transformerPipeStack as Array<{ params: Record<string, unknown> }>)[0]!
+    refBinding.params = { ...refBinding.params, ...MAZE_ESCAPE_DEFAULT_CAR_PARAMS, saver: false }
     const end: number[][] = []
-    for (const world of [{ exampleId: EXAMPLE_ID }, { inline: buildMazeEpisodeWorld(loadLabWorld({ exampleId: AV_CAR_SOURCE_WORLD }), listMazeEpisodes().legacyTrain[0]!) }]) {
+    for (const world of [{ exampleId: EXAMPLE_ID }, { inline: ref }]) {
       let last: number[] = []
       await runLab({ world, focus: AV_CAR_SOURCE_ID, seed: 1, frames: 300, maxScenes: 0, onFrame: ({ sim }) => { last = [...sim.getPosition(AV_CAR_SOURCE_ID)] } })
       end.push(last)

@@ -22,6 +22,7 @@ import type { EpisodeMetrics } from '@/avEvolution/core/fitness'
 import type { Params } from '@/avEvolution/core/genes'
 import type { RunExport } from '@/avEvolution/core/store'
 import { listMazeEpisodes } from '@/avEvolution/maze/episodes'
+import { MAZE_ESCAPE_DEFAULT_CAR_PARAMS } from '@/avEvolution/maze/exampleWorld'
 import { DEFAULT_SOURCE_WORLD_ID } from './loadSource'
 import { EpisodePool } from './pool'
 
@@ -74,6 +75,7 @@ async function main() {
   if (!args['no-baselines']) {
     variants.push({ label: 'baseline-off', params: {}, note: 'default params, saver off (evolution protocol)' })
     variants.push({ label: 'baseline-shipped', params: { saver: true }, note: 'shipped car config (saver: true)' })
+    variants.push({ label: 'baseline-evolved', params: { ...MAZE_ESCAPE_DEFAULT_CAR_PARAMS }, note: 'maze-escape example world default car (evolved set)' })
   }
   if (args.run) {
     const data = JSON.parse(fs.readFileSync(path.resolve(String(args.run)), 'utf8')) as RunExport
