@@ -239,6 +239,22 @@ export function createLogicVerificationMcpServer(
   )
 
   server.registerTool(
+    'av_evolution_export',
+    {
+      description:
+        'Export one evolution run as JSON (schema renn.av-evolution/1), candidates best-first. Default compact: top-N candidates without per-episode records / vecs / engine state (small); compact=false gives the full resumable export. Attached: Builder IndexedDB; otherwise re-reads exported files on disk. outFile (basename, written under test-results/av-evolution) returns only a summary instead of the JSON.',
+      inputSchema: {
+        devToken: devTokenSchema,
+        runId: z.string().optional(),
+        compact: z.boolean().optional(),
+        topN: z.number().int().positive().optional(),
+        outFile: z.string().optional(),
+      },
+    },
+    withAuth(async (input) => jsonText(await session.avEvolutionExport(input))),
+  )
+
+  server.registerTool(
     'av_evolution_apply',
     {
       description:

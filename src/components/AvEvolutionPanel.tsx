@@ -77,6 +77,7 @@ export default function AvEvolutionPanel({ onClose, selectedEntityId }: AvEvolut
     try {
       const id = await controller.start(opts)
       setRunId(id)
+      if ('newRun' in opts) setNote(`weights: ${opts.newRun.reversalWeight ?? '-'} s/reversal, ${opts.newRun.reverseSecondsWeight ?? '-'} s per reversing second`)
     } catch (e) {
       setNote(e instanceof Error ? e.message : String(e))
     }
@@ -94,18 +95,19 @@ export default function AvEvolutionPanel({ onClose, selectedEntityId }: AvEvolut
     }
   }
 
-  const exportJson = async () => {
+  /** compact (default): best-first top candidates, no per-episode records / vecs / engine state (small); full: everything, resumable */
+  const exportJson = async (compact: boolean) => {
     if (!runId) return
     let data
     try {
-      data = await getAvEvolutionStore().exportJSON(runId)
+      data = await getAvEvolutionStore().exportJSON(runId, compact ? { compact: true } : undefined)
     } catch (e) {
       return setNote(e instanceof Error ? e.message : String(e))
     }
     const url = URL.createObjectURL(new Blob([JSON.stringify(data)], { type: 'application/json' }))
     const a = document.createElement('a')
     a.href = url
-    a.download = `${runId}.av-evolution.json`
+    a.download = `${runId}.av-evolution${compact ? '.compact' : ''}.json`
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -171,8 +173,11 @@ export default function AvEvolutionPanel({ onClose, selectedEntityId }: AvEvolut
               </option>
             ))}
           </select>
-          <button style={btn} disabled={!runId} onClick={() => void exportJson()}>
+          <button style={btn} data-testid="av-evo-export" title="Best-first top 50 candidates, no per-episode detail" disabled={!runId} onClick={() => void exportJson(true)}>
             Export JSON
+          </button>
+          <button style={btn} data-testid="av-evo-export-full" title="Everything incl. per-episode records and resumable engine state (large)" disabled={!runId} onClick={() => void exportJson(false)}>
+            Export full
           </button>
         </div>
         <div data-testid="av-evo-status" style={{ marginBottom: 4 }}>

@@ -20,6 +20,7 @@
  *   --w-reverse-s W     fitness seconds charged per second spent reversing (v < -1 m/s; default 0 = off; suggested 0.25 for mazes) [ignored on --resume]
  *   --workers N         worker threads (default: cores - 1)
  *   --out FILE          export JSON, schema 'renn.av-evolution/1' (default test-results/av-evolution/run.json); rewritten after every generation
+ *   --compact [N]       also write <out>.compact.json each generation: top-N (default 50) candidates, no per-episode records / vecs / engine state
  *   --resume [FILE]     resume from FILE (default: --out) if it exists
  *   --name TEXT         run name
  *   --full              run every episode for the full timeout (no stop-on-reach; parity with the baseline diagnostic)
@@ -28,7 +29,7 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { DEFAULT_EVOLUTION_CONFIG, type EvaluateFn, DEFAULT_FITNESS_WEIGHTS, EvolutionEngine, MemoryEvolutionStore, type RunExport, type RunRecord } from '@/avEvolution/core'
+import { DEFAULT_EVOLUTION_CONFIG, type EvaluateFn, DEFAULT_FITNESS_WEIGHTS, EvolutionEngine, MemoryEvolutionStore, DEFAULT_COMPACT_TOP_N, type RunExport, type RunRecord } from '@/avEvolution/core'
 import type { Params } from '@/avEvolution/core/genes'
 import { AV_GENOME_SPEC, avSpecResumeError } from '@/avEvolution/genes'
 import { listMazeEpisodes } from '@/avEvolution/maze/episodes'
@@ -131,12 +132,19 @@ async function main() {
   const t0 = Date.now()
   const startEvals = engine.toJSON().evals
   console.log(`run ${run.runId}: pop ${engine.config.popSize}, train [${engine.trainKeys.join(',')}], ${AV_GENOME_SPEC.genes.length} genes, ${workers} workers, ${gens} generation(s) -> ${out}`)
+  // --compact [N]: also write <out>.compact.json (top-N candidates without episodes/vecs/engine state; the full file stays the resumable one)
+  const compactOut = args.compact ? out.replace(/\.json$/, '') + '.compact.json' : null
+  const compactTopN = typeof args.compact === 'string' ? Math.max(1, Math.floor(Number(args.compact)) || DEFAULT_COMPACT_TOP_N) : DEFAULT_COMPACT_TOP_N
   const write = async () => {
     const dir = path.dirname(out)
     fs.mkdirSync(dir, { recursive: true })
     const tmp = `${out}.tmp`
     fs.writeFileSync(tmp, JSON.stringify(await store.exportJSON(run.runId)))
     fs.renameSync(tmp, out)
+    if (compactOut) {
+      fs.writeFileSync(`${compactOut}.tmp`, JSON.stringify(await store.exportJSON(run.runId, { compact: true, topN: compactTopN })))
+      fs.renameSync(`${compactOut}.tmp`, compactOut)
+    }
   }
   try {
     for (let i = 0; i < gens; i++) {

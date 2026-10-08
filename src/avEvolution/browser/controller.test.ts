@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto'
 import { describe, expect, it } from 'vitest'
-import type { EpisodeMetrics } from '../core/fitness'
+import { DEFAULT_FITNESS_WEIGHTS, type EpisodeMetrics } from '../core/fitness'
 import { AV_GENOME_SPEC } from '../genes'
 import { IdbEvolutionStore } from '../core/store'
 import { AvEvolutionController, type EvalBackend } from './controller'
@@ -75,6 +75,34 @@ describe('AvEvolutionController', () => {
     expect(run2.state!.gen).toBe(savedGen + 1)
     expect(run2.state!.evals).toBeGreaterThan(run.state!.evals)
     await store2.close()
+  })
+
+  it('new runs carry the documented fitness weights (wReversal 0.5, wReverseS 0); explicit 0 disables; an old run saved without the keys resumes with 0', async () => {
+    const store = new IdbEvolutionStore(Date.now, `test-av-${Math.random()}`)
+    const start = async (newRun: object) => {
+      const c = new AvEvolutionController({ store, createBackend: backendFactory() })
+      const id = await c.start({ newRun: { popSize: 4, eliteCount: 2, episodesPerEval: 1, seed: 3, ...newRun }, workers: 1, maxGenerations: 1 })
+      await c.whenIdle()
+      return { id, run: (await store.loadRun(id))! }
+    }
+    const dflt = await start({})
+    expect(dflt.run.weights).toMatchObject({ wReversal: 0.5, wReverseS: 0 })
+    expect(dflt.run.state!.weights).toMatchObject({ wReversal: 0.5, wReverseS: 0 })
+    // what the panel sends with untouched inputs
+    const panel = await start({ reversalWeight: DEFAULT_FITNESS_WEIGHTS.wReversal, reverseSecondsWeight: DEFAULT_FITNESS_WEIGHTS.wReverseS })
+    expect(panel.run.weights).toMatchObject({ wReversal: 0.5, wReverseS: 0 })
+    const off = await start({ reversalWeight: 0 })
+    expect(off.run.weights.wReversal).toBe(0)
+    // old run: state without the keys resumes with 0 (bit-identical fitness)
+    const state = JSON.parse(JSON.stringify(dflt.run.state)) as { weights: Record<string, number> }
+    delete state.weights.wReversal
+    delete state.weights.wReverseS
+    await store.saveRun({ ...dflt.run, state: state as never })
+    const c = new AvEvolutionController({ store, createBackend: backendFactory() })
+    await c.start({ runId: dflt.id, workers: 1, maxGenerations: 1 })
+    await c.whenIdle()
+    expect((await store.loadRun(dflt.id))!.state!.weights).toMatchObject({ wReversal: 0, wReverseS: 0 })
+    await store.close()
   })
 
   it('surfaces backend failures as an error and returns to idle', async () => {

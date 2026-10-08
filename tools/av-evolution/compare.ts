@@ -4,7 +4,7 @@
  *   npx tsx tools/av-evolution/compare.ts --run test-results/av-evolution/run.json --top 3 --keys holdout --out test-results/av-evolution/compare
  *
  * Options:
- *   --run FILE        evolution export; its top --top candidates by TRAIN fitness are compared (omit for baselines only)
+ *   --run FILE        evolution export (full or compact, sorted or not); its top --top candidates by TRAIN fitness are compared (omit for baselines only)
  *   --top N           number of evolved candidates (default 3)
  *   --params FILES    comma list of JSON files: a params object, or an array of {label, params}
  *   --keys SET        'holdout' (original 6, default) | 'holdout-extra' (18 fresh mazes) | 'holdout-all' (24) | 'train' | 'all' | comma list of episode keys
@@ -82,7 +82,8 @@ async function main() {
     const top = Math.floor(Number(args.top ?? 3))
     // rank by full-TRAIN fitness: only candidates evaluated on every train key (falls back to all candidates for old runs)
     const nTrain = data.run.trainKeys.length
-    const pickFrom = data.candidates.filter((c) => c.n >= nTrain && new Set(c.episodes.map((e) => e.key)).size >= nTrain)
+    // compact exports carry no per-episode records (episodes: []): rely on n there
+    const pickFrom = data.candidates.filter((c) => c.n >= nTrain && (c.episodes.length === 0 || new Set(c.episodes.map((e) => e.key)).size >= nTrain))
     const sorted = (pickFrom.length >= top ? pickFrom : data.candidates.filter((c) => c.n > 0)).sort((a, b) => a.fitness - b.fitness).slice(0, top)
     sorted.forEach((c, i) =>
       variants.push({ label: `evolved#${i + 1}`, params: c.params, note: `${c.id} gen ${c.gen}, train fitness ${c.fitness.toFixed(3)} over n=${c.n} episodes (train mean exit ${c.meanExitT.toFixed(1)} s, reach ${(c.reachRate * 100).toFixed(0)}%)` }),

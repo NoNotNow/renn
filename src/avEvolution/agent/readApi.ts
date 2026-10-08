@@ -3,7 +3,7 @@
  * No fs / no window access here; see diskExports.ts (node-only) and ../browser/agentApi.ts.
  */
 import type { LogicVerificationWorldPatch } from '@/agent/applyLogicVerificationWorldPatch'
-import { EXPORT_SCHEMA, type CandidateRecord, type EvolutionStore, type RunExport, type RunRecord } from '../core/store'
+import { EXPORT_SCHEMA, prepareExport, sortCandidatesBestFirst, type ExportOptions, type CandidateRecord, type EvolutionStore, type RunExport, type RunRecord } from '../core/store'
 
 export interface AvEvolutionRunSummary {
   runId: string
@@ -60,12 +60,9 @@ export function summarizeCandidate(c: CandidateRecord): AvEvolutionCandidateSumm
   }
 }
 
-/** Lowest fitness first (fitness: lower = better). */
+/** Lowest fitness first (fitness: lower = better), ties and unevaluated candidates in a stable gen/id order. */
 export function sortCandidates(cands: CandidateRecord[], topN = DEFAULT_TOP_N, minEpisodes = 1): CandidateRecord[] {
-  return cands
-    .filter((c) => c.n >= minEpisodes)
-    .sort((a, b) => a.fitness - b.fitness)
-    .slice(0, Math.max(1, Math.floor(topN)))
+  return sortCandidatesBestFirst(cands.filter((c) => c.n >= minEpisodes)).slice(0, Math.max(1, Math.floor(topN)))
 }
 
 function runHeader(r: RunRecord): AvEvolutionRunSummary {
@@ -126,18 +123,40 @@ export function isRunExport(x: unknown): x is RunExport {
 }
 
 /** Pure helpers over already-parsed exports (headless disk fallback). */
+/**
+ * One export per runId: a full export and its compact twin (same dir) must not double-count. Prefers the full file,
+ * else the one with more candidates, else the newer one. Reads both formats; input order of first appearance is kept.
+ */
+export function dedupeExports(exports: RunExport[]): RunExport[] {
+  const best = new Map<string, RunExport>()
+  for (const e of exports) {
+    const cur = best.get(e.run.runId)
+    const better = !cur || (!!cur.compact && !e.compact) || (!!cur.compact === !!e.compact && (e.candidates.length > cur.candidates.length || (e.candidates.length === cur.candidates.length && e.exportedAt > cur.exportedAt)))
+    if (better) best.set(e.run.runId, e)
+  }
+  return [...best.values()]
+}
+
 export function listRunsFromExports(exports: RunExport[]): AvEvolutionRunSummary[] {
-  return exports.map((e) => ({
+  return dedupeExports(exports).map((e) => ({
     ...runHeader(e.run),
-    candidateCount: e.candidates.length,
+    candidateCount: e.compact?.totalCandidates ?? e.candidates.length,
     bestFitness: sortCandidates(e.candidates, 1)[0]?.fitness,
     generations: e.generations.length,
   }))
 }
 
 export function bestFromExports(exports: RunExport[], input: BestCandidatesInput = {}): AvEvolutionCandidateSummary[] {
-  const pool = exports
+  const pool = dedupeExports(exports)
     .filter((e) => !input.runId || input.runId === 'all' || e.run.runId === input.runId)
     .flatMap((e) => e.candidates)
   return sortCandidates(pool, input.topN, input.minEpisodes).map(summarizeCandidate)
+}
+
+/** Headless counterpart of `store.exportJSON`: re-sort / compact an already-read export (full or compact input). */
+export function exportFromExports(exports: RunExport[], input: ExportOptions & { runId?: string } = {}): RunExport {
+  const pool = dedupeExports(exports)
+  const found = input.runId ? pool.find((e) => e.run.runId === input.runId) : pool.sort((a, b) => b.run.updatedAt - a.run.updatedAt)[0]
+  if (!found) throw new Error(input.runId ? `unknown run ${input.runId}` : 'no exported AV-evolution runs found')
+  return prepareExport(found, input)
 }
