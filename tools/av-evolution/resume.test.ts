@@ -7,7 +7,7 @@ import { EvolutionEngine, MemoryEvolutionStore, type RunRecord } from '@/avEvolu
 import { AV_GENOME_SPEC } from '@/avEvolution/genes'
 
 describe('run.ts --resume with a spec-v2 export', () => {
-  it('fails with a gene-spec error instead of silently resuming under v5', async () => {
+  it('fails with a gene-spec error instead of silently resuming under v6', async () => {
     const keys = ['t101a', 't101b']
     const baseline = Object.fromEntries(
       keys.map((k) => [k, { key: k, reached: true, exitT: 30, timeoutSec: 60, remainingDist: 0, contactEvents: 0, contactFrames: 0, dt: 1 / 60, minStaticGap: 1, flipped: false, stalledSec: 0, wallMs: 1 }]),
@@ -33,7 +33,7 @@ describe('run.ts --resume with a spec-v2 export', () => {
     const before = fs.readFileSync(file, 'utf8')
     const r = spawnSync('npx', ['tsx', 'tools/av-evolution/run.ts', '--resume', file, '--gens', '1', '--workers', '1'], { encoding: 'utf8', timeout: 120000 })
     expect(r.status).not.toBe(0)
-    expect(`${r.stdout}${r.stderr}`).toMatch(/gene spec v2.*current spec is v5/)
+    expect(`${r.stdout}${r.stderr}`).toMatch(/gene spec v2.*current spec is v6/)
     expect(fs.readFileSync(file, 'utf8')).toBe(before)
     fs.rmSync(dir, { recursive: true, force: true })
   }, 130000)

@@ -13,7 +13,7 @@ const f = (key: string, def: number, group: string, min: number, max: number, sc
 const i = (key: string, def: number, group: string, min: number, max: number, scale: 'lin' | 'log' = 'lin'): GeneSpec => ({ key, type: 'int', default: def, group, min, max, scale })
 const b = (key: string, def: boolean, group: string): GeneSpec => ({ key, type: 'bool', default: def, group })
 
-export const AV_SPEC_VERSION = '5'
+export const AV_SPEC_VERSION = '6'
 
 const AV_GENES_M1: GeneSpec[] = [
   f('maxLatAccel', 9, 'turn', 6, 30, 'lin'),
@@ -162,6 +162,13 @@ export const AV_GENES_EXTRA: GeneSpec[] = [
   f('mazeStallT', 0, 'maze', 0, 20),
   f('mazeStallProg', 8, 'maze', 2, 20),
   f('mazeStallHold', 10, 'maze', 3, 30),
+  // v6: heading-aware K-turn (route planner cusp scoring; all default off = identical behaviour)
+  f('cuspHeadW', 0, 'maneuver', 0, 30),
+  f('cuspReachW', 0, 'maneuver', 0, 30),
+  f('cuspLook', 12, 'maneuver', 6, 25),
+  f('gearIncW', 0, 'maneuver', 0, 10),
+  b('cuspCommit', false, 'maneuver'),
+  f('cuspDeviate', 4, 'maneuver', 1.5, 8),
 ]
 
 export const AV_GENOME_SPEC: GenomeSpec = { specVersion: AV_SPEC_VERSION, genes: [...AV_GENES_M1, ...AV_GENES_EXTRA] }

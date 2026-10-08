@@ -86,7 +86,7 @@ describe('AvEvolutionController', () => {
     await store.close()
   })
 
-  it('refuses to resume a run saved under an older gene spec version (v2 -> v5) and leaves it untouched', async () => {
+  it('refuses to resume a run saved under an older gene spec version (v2 -> v6) and leaves it untouched', async () => {
     const store = new IdbEvolutionStore(Date.now, `test-av-${Math.random()}`)
     const c1 = new AvEvolutionController({ store, createBackend: backendFactory() })
     const runId = await c1.start({ newRun: { popSize: 4, eliteCount: 2, episodesPerEval: 1, seed: 3 }, workers: 1, maxGenerations: 1 })
@@ -95,7 +95,7 @@ describe('AvEvolutionController', () => {
     expect(run.specVersion).toBe(AV_GENOME_SPEC.specVersion)
     await store.saveRun({ ...run, specVersion: '2' })
     const c2 = new AvEvolutionController({ store, createBackend: backendFactory() })
-    await expect(c2.start({ runId, workers: 1, maxGenerations: 1 })).rejects.toThrow(/gene spec v2.*current spec is v5/)
+    await expect(c2.start({ runId, workers: 1, maxGenerations: 1 })).rejects.toThrow(/gene spec v2.*current spec is v6/)
     expect(c2.getState().status).toBe('idle')
     expect((await store.loadRun(runId))!.state!.gen).toBe(run.state!.gen)
     await store.close()
