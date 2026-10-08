@@ -4,7 +4,7 @@
  *   npx tsx tools/policy-evolution/run.ts --gens 100 --pairs 24 --workers 8 --out test-results/policy-evolution/run.json
  *   npx tsx tools/policy-evolution/run.ts --gens 50 --out test-results/policy-evolution/run.json --resume
  *
- * Options: --gens N (this invocation, default 20) --pairs N (antithetic pairs, default 24) --sigma S --lr L --seed N
+ * Options: --train-per-kind N / --holdout-per-kind N (courses per kind, default 6) --gens N (this invocation, default 20) --pairs N (antithetic pairs, default 24) --sigma S --lr L --seed N
  *   --batch N (train courses per generation, a rotating window; default 6) --eval-every N (full TRAIN + HOLDOUT report of the
  *   mean policy, default 5) --workers N --seconds S (episode time limit) --out FILE --resume
  * The best mean policy by TRAIN score is kept in the output file (`best.genome`); HOLDOUT is reported, never selected on.
@@ -47,8 +47,8 @@ async function main() {
   const batch = num(args.batch, 6)
   const evalEvery = num(args['eval-every'], 5)
   const workers = num(args.workers, Math.max(1, os.cpus().length - 1))
-  const train = trainCourseKeys()
-  const holdout = holdoutCourseKeys()
+  const train = trainCourseKeys(num(args['train-per-kind'], 6))
+  const holdout = holdoutCourseKeys(num(args['holdout-per-kind'], 6))
 
   let file: RunFile
   if (args.resume && fs.existsSync(out)) file = JSON.parse(fs.readFileSync(out, 'utf8')) as RunFile
@@ -82,8 +82,8 @@ async function main() {
         const [tr, ho] = await Promise.all([evaluate(theta, train), evaluate(theta, holdout)])
         rep.train = aggregateFitness(tr)
         rep.holdout = aggregateFitness(ho)
-        const reach = (m: typeof tr) => m.map((x) => x.progress.toFixed(0)).join(' ')
-        line += `  | TRAIN ${rep.train.toFixed(3)} HOLDOUT ${rep.holdout.toFixed(3)}  progress(m) train [${reach(tr)}]`
+        const reach = (m: typeof tr) => `finished ${m.filter((x) => x.outcome === 'finish').length}/${m.length}, mean ${(m.reduce((a, x) => a + x.progress, 0) / m.length).toFixed(0)} m`
+        line += `  | TRAIN ${rep.train.toFixed(3)} HOLDOUT ${rep.holdout.toFixed(3)}  train: ${reach(tr)}; holdout: ${reach(ho)}`
         if (!file.best || rep.train > file.best.train) file.best = { gen: rep.gen, train: rep.train, holdout: rep.holdout, genome: theta }
       }
       file.history.push(rep)
