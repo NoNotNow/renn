@@ -104,6 +104,8 @@ function mazeOf(seed: number): Maze {
  * carrotLive+carrotBend 0.65 is slower (mean exitT 56.6 vs 52.7 s, 4 vs 3 contact events) so it stays off. The other
  * values equal the stage defaults when a param is absent. manualOverride / hud are UI only (off). Evolved params
  * (applied after this) still override.
+ * mazeProfile is null: self_hunt_flexible's binding carries an opt-in maze-region profile (merged last while confined) that
+ * would override the evolved genes in-maze; null (not absent) survives JSON export and is visibly off.
  */
 export const MAZE_PINNED_CAR_PARAMS: Record<string, unknown> = {
   mazeModule: true,
@@ -117,6 +119,7 @@ export const MAZE_PINNED_CAR_PARAMS: Record<string, unknown> = {
   goalGiveUp: 0,
   goalReachDist: 12,
   hud: false,
+  mazeProfile: null,
 }
 
 /** Arena spec (boxes, start pose, goal) of an episode; feed it to `buildArenaWorldFrom` / `runScenario`. */
