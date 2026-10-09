@@ -98,5 +98,31 @@ courses and rewrites `src/policyEvolution/shippedPolicy.json` only if the candid
   `npx tsx tools/policy-evolution/compare.ts --group A a1.json a2.json --group B b1.json b2.json [--group shipped]` (every run's best on the same
   HOLDOUT courses; per run fitness + finish rate per kind, per group mean / sd / range). Only the winner gets a long run.
 
+## v2: command chains (implemented 2026-10-09, spec: [spec-command-chains.md](./spec-command-chains.md))
+The net follows a DYNAMIC target vector instead of memorising courses. v1 (16 inputs, `goals`, `shippedPolicy.json`, example worlds) is untouched.
+- **Setup / chain / episode key:** setup = geometry + start (`kind:seed[~variant][@difficulty]`, kinds `field slalom maze crowd`; chain setups use
+  `field@0.3` (`CHAIN_FIELD_DIFFICULTY`) and island-slalom geometry via `buildSetupCourse`); chain = waypoints start -> end (`chains.ts`, `chainsForSetup`);
+  episode key `<setupKey>#<chainIndex>`. Listing: `trainChainEpisodes(perKind, kinds)` (seeds 1..) / `holdoutChainEpisodes` (seeds 1001.., variant 1) return
+  `{ setupKey, keys }[]` grouped by setup (`flattenChainKeys`). Rejected setups (< 2 chains) are skipped deterministically.
+- **Generation (`chains.ts`):** 1 m grid, obstacles inflated by car half width + margin (open kinds 2.5 m, maze 1.5 m), 2-4 end targets, A* per end (comfort cost
+  away from obstacles), alternatives via penalty field + seeded cost noise, string-pull, Douglas-Peucker, corner rounding (radius 12 / 10 m, a chain
+  is rejected if a corner stays tighter than `MIN_TURN_RADIUS` = 6 m: the car's tightest circle is ~10 m), resample <= 10 m. Accepted only if exact clearance
+  holds, length <= 1.8 x shortest, symmetric Hausdorff >= 10 m to all accepted chains. Measured on seeds 1-8: 2.6-4.0 chains per setup (slalom 4.0, field 2.9, crowd 2.6, maze 2.8).
+- **Policy v2 (`policy.ts`):** `POLICY_STAGE_CODE_V2`, `policyForwardV2`, `GENOME_LENGTH_V2` = 272 (24 inputs), `padV1Genome` (v1 -> v2, identical outputs).
+  The stage reads `input.av.cmd = { aim, next }` or derives the command from `params.chain` + `params.cmd` (`cmdConfigFor(key)`: Lmin 6-10 m, T 0.4-0.8 s, refresh
+  0.2-0.8 s, bearing noise 3 deg; the spec's 10-20 m / 1-2 s made a pure-pursuit follower cut every corner).
+- **Episode (`episode.ts`):** `runPolicyEpisode(v2Genome, '<setup>#<i>')`; progress along the commanded chain (`RouteProgress` over the chain points), `offcourse` > `OFF_CHAIN_M` = 6 m,
+  90 s limit, norm per chain length (`metrics.length`). `opts.stageChain` commands a different chain than the scored one (exploit tests).
+- **Fitness (`es.ts`):** `aggregateEvenness(metrics)` (needs `key`): setupScore = 0.5 mean + 0.5 min over its chains; fitness = 0.5 mean + 0.5 worst-quarter mean over setups.
+  `aggregateFitness` stays for v1. `PolicyEs` / `IslandEs` take the fitness function as an optional last constructor argument; island helpers work for 16 and 24 inputs.
+- **Solvability baseline (`handWired.ts` `pursuitV2`, test in `chains.test.ts`):** hand-wired pure pursuit finishes slalom 100 %, field 88 %, crowd 86 %, maze 92 % of the chains
+  (first 5 setups per kind). Getting there needed: lookahead 6-10 m, clearance margin 2.5 m (open kinds), filleted corners and the turn-radius rejection above.
+- **Run:** `npx tsx tools/policy-evolution/run-islands.ts --v2 --warm src/policyEvolution/shippedPolicy.json --batch 6 --gens 600 --workers 4 --out test-results/policy-evolution/v2.json`
+  (`--batch` = SETUPS per generation, all their chains are driven; `--warm FILE` = v1 genome padded, or a v2 genome / run file, applied to every island centre;
+  `--kinds field,slalom,maze,crowd`; `--train-per-kind` 8 / `--holdout-per-kind` 5 setups; field curriculum capped at 0.3; `--resume` keeps the mode).
+  `ship.ts <run.json> --v2` and `compare.ts --v2 --group ...` use chain episodes + evenness and print per kind: chain finish rate, setups with all chains finished, offcourse, crashes.
+  `ship.ts --v2` writes `src/policyEvolution/shippedPolicyV2.json`. `run.ts` (single ES) has no `--v2`.
+- Not done: example worlds / AV integration for v2, dynamic obstacles, a real training run (only 2-3 generation smoke runs so far).
+
 ## Not done yet
 Browser panel / live playback per generation, MCP tools, comparison against the evolved AV pipeline on the same courses.

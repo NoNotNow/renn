@@ -4,42 +4,56 @@
  * fitness (or with --force). Then regenerate the example world: npx tsx tools/renn-mcp/export-policy-drive-example-world.ts
  *
  *   npx tsx tools/policy-evolution/ship.ts test-results/policy-evolution/run2.json [--workers 4] [--train-per-kind 30] [--holdout-per-kind 10] [--force]
+ *
+ * `--v2`: the run file is a command-chain run (run-islands.ts --v2): TRAIN / HOLDOUT are chain episodes of the first --train-per-kind / --holdout-per-kind
+ * accepted setups per kind (all their chains, defaults 8 / 6), fitness is the evenness aggregate and the per-kind chain finish rate, share of setups with all
+ * chains finished, offcourse and crashes are reported. Writes src/policyEvolution/shippedPolicyV2.json (compared against it, or against the padded v1 policy if
+ * there is none yet). `--kinds field,crowd` restricts the setup kinds.
  */
 import fs from 'node:fs'
 import os from 'node:os'
-import { holdoutCourseKeys, trainCourseKeys } from '@/policyEvolution/courses'
-import { aggregateFitness } from '@/policyEvolution/es'
+import { flattenChainKeys, holdoutChainEpisodes, trainChainEpisodes } from '@/policyEvolution/chains'
+import { chainReportByKind, formatChainReport, parseKinds, v2GenomeFromFile } from '@/policyEvolution/chainReport'
+import { CHAIN_KINDS, COURSE_KINDS, holdoutCourseKeys, trainCourseKeys } from '@/policyEvolution/courses'
+import { aggregateEvenness, aggregateFitness } from '@/policyEvolution/es'
 import { PolicyPool } from './pool'
 
-const SHIPPED = 'src/policyEvolution/shippedPolicy.json'
 const argv = process.argv.slice(2)
+const v2 = argv.includes('--v2')
+const SHIPPED = v2 ? 'src/policyEvolution/shippedPolicyV2.json' : 'src/policyEvolution/shippedPolicy.json'
 const runFile = argv[0]
-if (!runFile) throw new Error('usage: ship.ts <run.json> [--workers N] [--train-per-kind N] [--holdout-per-kind N] [--force]')
+if (!runFile) throw new Error('usage: ship.ts <run.json> [--workers N] [--train-per-kind N] [--holdout-per-kind N] [--force] [--v2] [--kinds a,b]')
 const opt = (name: string, d: number) => {
   const i = argv.indexOf(`--${name}`)
   return i > 0 ? Number(argv[i + 1]) : d
 }
 const run = JSON.parse(fs.readFileSync(runFile, 'utf8')) as { best?: { gen: number; genome: number[] } }
 if (!run.best) throw new Error('run file has no best policy yet')
-const genome = run.best.genome.map((x) => Math.round(x * 1e5) / 1e5)
+const genome = (v2 ? v2GenomeFromFile(run) : run.best.genome).map((x) => Math.round(x * 1e5) / 1e5)
 const pool = new PolicyPool(opt('workers', Math.max(1, os.cpus().length - 1)))
 const evaluate = pool.evaluator()
-const trainKeys = trainCourseKeys(opt('train-per-kind', 6))
-const holdoutKeys = holdoutCourseKeys(opt('holdout-per-kind', 6))
+const kindsArg = argv.indexOf('--kinds') > 0 ? argv[argv.indexOf('--kinds') + 1] : undefined
+const kinds = parseKinds(kindsArg, v2 ? CHAIN_KINDS : COURSE_KINDS)
+const trainKeys = v2 ? flattenChainKeys(trainChainEpisodes(opt('train-per-kind', 8), kinds)) : trainCourseKeys(opt('train-per-kind', 6), kinds)
+const holdoutKeys = v2 ? flattenChainKeys(holdoutChainEpisodes(opt('holdout-per-kind', 6), kinds)) : holdoutCourseKeys(opt('holdout-per-kind', 6), kinds)
+const fitness = v2 ? aggregateEvenness : aggregateFitness
 
 let holdoutNorms: number[] = []
 async function score(g: number[]) {
   const [tr, ho] = await Promise.all([evaluate(g, trainKeys), evaluate(g, holdoutKeys)])
   holdoutNorms = ho.map((m) => m.norm)
   const outcomes = (m: typeof tr) => Object.fromEntries(['finish', 'crash', 'offcourse', 'stall', 'flip', 'timeout'].map((o) => [o, m.filter((x) => x.outcome === o).length]))
-  const part = (m: typeof tr) => ({ fitness: aggregateFitness(m), meanProgress: m.reduce((a, x) => a + x.progress, 0) / m.length, outcomes: outcomes(m) })
+  const part = (m: typeof tr) => ({ fitness: fitness(m), meanProgress: m.reduce((a, x) => a + x.progress, 0) / m.length, outcomes: outcomes(m), ...(v2 ? { perKind: chainReportByKind(m, kinds) } : {}) })
   return { train: part(tr), holdout: part(ho) }
 }
 
 try {
   const cand = await score(genome)
   const candNorms = holdoutNorms
-  const current = fs.existsSync(SHIPPED) ? (JSON.parse(fs.readFileSync(SHIPPED, 'utf8')) as { genome: number[] }) : undefined
+  const V1 = 'src/policyEvolution/shippedPolicy.json'
+const currentFile = fs.existsSync(SHIPPED) ? SHIPPED : v2 && fs.existsSync(V1) ? V1 : undefined
+const current = currentFile ? { genome: v2GenomeFromFile(JSON.parse(fs.readFileSync(currentFile, 'utf8'))) } : undefined
+if (v2 && currentFile === V1) console.log('no shippedPolicyV2.json yet: comparing with the padded v1 policy')
   const cur = current ? await score(current.genome) : undefined
   // paired comparison on identical HOLDOUT courses: mean difference of the normalised score with a bootstrap 95 % interval
   let paired: unknown
@@ -65,6 +79,10 @@ try {
   }
   const better = !cur || cand.holdout.fitness > cur.holdout.fitness
   const force = argv.includes('--force')
+  if (v2) {
+    console.log('CANDIDATE TRAIN  ' + formatChainReport(cand.train.perKind!))
+    console.log('CANDIDATE HOLDOUT ' + formatChainReport(cand.holdout.perKind!))
+  }
   console.log(JSON.stringify({ candidate: { gen: run.best.gen, ...cand }, shipped: cur, paired, courses: { train: trainKeys.length, holdout: holdoutKeys.length }, better }, null, 2))
   if (better || force) {
     const info = { source: `${runFile} generation ${run.best.gen} (best mean policy by TRAIN fitness)`, ...cand, evaluatedOn: { train: trainKeys.length, holdout: holdoutKeys.length }, genome }

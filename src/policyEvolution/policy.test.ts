@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest'
+import { chainReportByKind, parseKinds, v2GenomeFromFile } from './chainReport'
+import { CHAIN_KINDS } from './courses'
 import { createRng, gaussian } from '@/avEvolution/core/rng'
 import { aggregateEvenness } from './es'
 import { GENOME_LENGTH, GENOME_LENGTH_V2, N_IN, N_IN_V2, N_RAYS, padV1Genome, POLICY_STAGE_CODE, POLICY_STAGE_CODE_V2, policyForward, policyForwardV2 } from './policy'
@@ -119,5 +121,30 @@ describe('evenness fitness', () => {
     expect(aggregateEvenness(unevenChains)).toBeLessThan(f)
     expect(aggregateEvenness(unevenChains)).toBeCloseTo(0.5 * 0.25 + 0.5 * 0.25)
     expect(aggregateEvenness([])).toBe(0)
+  })
+})
+
+describe('chain reports', () => {
+  it('per kind: chain finish rate, setups with all chains finished, offcourse, crashes', () => {
+    const m = [
+      { key: 'slalom:1#0', outcome: 'finish' as const },
+      { key: 'slalom:1#1', outcome: 'offcourse' as const },
+      { key: 'slalom:2#0', outcome: 'finish' as const },
+      { key: 'slalom:2#1', outcome: 'finish' as const },
+      { key: 'crowd:1#0', outcome: 'crash' as const },
+    ]
+    const r = chainReportByKind(m)
+    expect(r.map((x) => x.kind)).toEqual(['slalom', 'crowd'])
+    expect(r[0]).toMatchObject({ chains: 4, finished: 3, setups: 2, setupsAllFinished: 1, offcourse: 1, crashes: 0 })
+    expect(r[1]).toMatchObject({ chains: 1, finished: 0, crashes: 1, allFinishedShare: 0 })
+  })
+
+  it('genome files: v1 is padded, v2 kept, other lengths rejected; --kinds is validated', () => {
+    const v1 = new Array<number>(GENOME_LENGTH).fill(0.1)
+    expect(v2GenomeFromFile({ genome: v1 }).length).toBe(GENOME_LENGTH_V2)
+    expect(v2GenomeFromFile({ best: { genome: new Array<number>(GENOME_LENGTH_V2).fill(0) } }).length).toBe(GENOME_LENGTH_V2)
+    expect(() => v2GenomeFromFile({ genome: [1, 2] })).toThrow()
+    expect(parseKinds('field,crowd', CHAIN_KINDS)).toEqual(['field', 'crowd'])
+    expect(() => parseKinds('nope', CHAIN_KINDS)).toThrow()
   })
 })

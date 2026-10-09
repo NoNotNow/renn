@@ -1,6 +1,6 @@
 # Spec: command-following policy (v2) with test setups x target-vector chains
 
-Status: agreed with the user 2026-10-09, implemented step by step by subagents (AFK). Goal: the neural net follows a DYNAMIC directional
+Status: IMPLEMENTED 2026-10-09 (chains, policy v2, chain episodes, evenness fitness, tools `--v2`, tests); no training run yet; deviations: lookahead 6-10 m / 0.4-0.8 s, clearance margins 2.5 m (maze 1.5 m), corner rounding + min turn radius, `field` chain setups at difficulty 0.3, island `slalom` geometry for chain setups, `run.ts` has no `--v2` (see feature-policy-evolution.md, section v2). Agreed with the user 2026-10-09, implemented step by step by subagents (AFK). Goal: the neural net follows a DYNAMIC directional
 target vector (later supplied by the AV car, see [plan-policy-in-av-car.md](./plan-policy-in-av-car.md)), instead of memorising courses.
 User requirements: several test setups; per setup several different target-vector chains that lead through it in different ways; every
 chain is driven; EVENLY distributed performance is rewarded. Focused work, no side quests; token budget is limited, compute is not.
