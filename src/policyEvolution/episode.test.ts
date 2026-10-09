@@ -43,8 +43,8 @@ describe('courses', () => {
 
 describe('start variants', () => {
   it('keys parse and round-trip, variant 0 is the canonical course', () => {
-    expect(parseCourseKey('field:5')).toEqual({ kind: 'field', seed: 5, variant: 0 })
-    expect(parseCourseKey('maze:7~3')).toEqual({ kind: 'maze', seed: 7, variant: 3 })
+    expect(parseCourseKey('field:5')).toEqual({ kind: 'field', seed: 5, variant: 0, difficulty: 1 })
+    expect(parseCourseKey('maze:7~3')).toEqual({ kind: 'maze', seed: 7, variant: 3, difficulty: 1 })
     expect(courseKey('slalom', 2, 4)).toBe('slalom:2~4')
     expect(withVariant('field:5~2', 9)).toBe('field:5~9')
     expect(buildCourse('field', 5, 0)).toEqual(buildCourse('field', 5))
