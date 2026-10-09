@@ -29,6 +29,13 @@ chain (start and goals kept clear). `slalom`: corridor narrowing 28 -> 16 m, pil
 `maze`: seeded 6x6 maze (16 m pitch, generator shared with the AV maze task), start in a south-row cell facing the first route step, goal chain = cell centres along the shortest route to the exit gate (no map: the goal vector is the only hint where the route turns). A blind goal follower with no sensors already reaches ~130 m in a maze.
 TRAIN = seeds 1.. of each kind (`--train-per-kind`), HOLDOUT = seeds 1001.. (`--holdout-per-kind`), disjoint; sets interleave the kinds.
 
+## Noise and start variants (since 2026-10-09)
+- **Start variants**: a course key `kind:seed~n` is the same course with the n-th seeded random start pose (`courses.ts` `START_JITTER`: field +-6 m / +-25 deg, slalom +-5 m / +-25 deg, maze +-2 m / +-2 m / +-20 deg; the hull is kept clear of every wall, else canonical start). `kind:seed` (variant 0) is the canonical start; example worlds always use it.
+- `run.ts` gives every generation its own variants (`variant = generation + 1`, all candidates of a generation share them; `--no-variants` turns it off). TRAIN reports use the canonical start; HOLDOUT keys carry variant 1 (`holdoutCourseKeys(perKind, kinds, variant = 1)`), so the HOLDOUT set is `courses x random start`.
+- **Sensor noise**: every ray distance carries 2 % relative noise (`SENSOR_NOISE`, seeded per episode key, applied in the stage via `noise` / `noiseSeed`; example worlds run noise free).
+- `ship.ts` also prints a **paired comparison on identical HOLDOUT courses** (mean difference of the normalised score, bootstrap 95 % interval, wins / losses / ties). Differences whose interval contains 0 are noise.
+- Baseline for later runs: run-4 gen-390 policy on the new sets (`--train-per-kind 30 --holdout-per-kind 20` = 60 held-out courses with random start + noise): HOLDOUT-60 fitness 1.06, 210 m, 24 / 60 finished; TRAIN-90 (canonical start, with noise) 1.11, 211 m, 37 / 90.
+
 ## Episode and fitness (`episode.ts`)
 Fresh world per episode, headless `WorldSimulator`, ~0.2-1 s wall per episode (no planner). Ends on **contact** (hull vs. box gap < 0.1 m,
 geometric like the maze episodes), **stall** (< 1 m route progress in 3 s), flip, end of the route, or 60 s.

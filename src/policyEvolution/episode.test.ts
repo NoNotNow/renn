@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { polyGap, rectPoly } from '@/avEvolution/eval/geometry'
-import { buildCourse, COURSE_KINDS, COURSE_LENGTH, FIELD_HALF_WIDTH, holdoutCourseKeys, RouteProgress, trainCourseKeys } from './courses'
+import { buildCourse, COURSE_KINDS, courseKey, parseCourseKey, withVariant, COURSE_LENGTH, FIELD_HALF_WIDTH, holdoutCourseKeys, RouteProgress, trainCourseKeys } from './courses'
 import { runPolicyEpisode } from './episode'
 import { GENOME_LENGTH, N_HIDDEN, N_IN, N_OUT, N_RAYS } from './policy'
 
@@ -37,6 +37,34 @@ describe('courses', () => {
       const yaw = ((c.startYawDeg ?? 0) * Math.PI) / 180
       const hull = rectPoly(0, 0, yaw, 4, 8)
       for (const b of c.boxes) expect(polyGap(hull, rectPoly(b.at[0], b.at[1], 0, b.size[0], b.size[1]))).toBeGreaterThan(0.5)
+    }
+  })
+})
+
+describe('start variants', () => {
+  it('keys parse and round-trip, variant 0 is the canonical course', () => {
+    expect(parseCourseKey('field:5')).toEqual({ kind: 'field', seed: 5, variant: 0 })
+    expect(parseCourseKey('maze:7~3')).toEqual({ kind: 'maze', seed: 7, variant: 3 })
+    expect(courseKey('slalom', 2, 4)).toBe('slalom:2~4')
+    expect(withVariant('field:5~2', 9)).toBe('field:5~9')
+    expect(buildCourse('field', 5, 0)).toEqual(buildCourse('field', 5))
+    expect(() => parseCourseKey('field:5~x')).toThrow()
+  })
+
+  it('variants move only the start pose, deterministically, and keep the car clear of walls', () => {
+    for (const kind of COURSE_KINDS) {
+      for (let seed = 1; seed <= 8; seed++) {
+        const base = buildCourse(kind, seed)
+        const a = buildCourse(kind, seed, 1)
+        expect(buildCourse(kind, seed, 1)).toEqual(a)
+        expect(a.boxes).toEqual(base.boxes)
+        expect(a.waypoints).toEqual(base.waypoints)
+        const b = buildCourse(kind, seed, 2)
+        expect(a.startAt === undefined || b.startAt === undefined || a.startAt[0] !== b.startAt[0] || a.startYawDeg !== b.startYawDeg).toBe(true)
+        const at = a.startAt ?? [0, 0]
+        const hull = rectPoly(at[0], at[1], (((a.startYawDeg ?? 0)) * Math.PI) / 180, 4, 8)
+        for (const box of a.boxes) expect(polyGap(hull, rectPoly(box.at[0], box.at[1], (box.yawDeg * Math.PI) / 180, box.size[0], box.size[1]))).toBeGreaterThan(0.4)
+      }
     }
   })
 })
@@ -101,6 +129,14 @@ describe('policy episode', () => {
     const m = await runPolicyEpisode(w, 'field:3')
     expect(['crash', 'offcourse', 'stall']).toContain(m.outcome)
     expect(m.progress).toBeLessThan(100)
+  }, 60_000)
+
+  it('a start variant and sensor noise run deterministically and are not the canonical episode', async () => {
+    const a = await runPolicyEpisode(goalFollower(), 'field:2~1')
+    const b = await runPolicyEpisode(goalFollower(), 'field:2~1')
+    expect({ ...a, wallMs: 0 }).toEqual({ ...b, wallMs: 0 })
+    const c = await runPolicyEpisode(goalFollower(), 'field:2')
+    expect(c.progress).not.toBeCloseTo(a.progress, 3)
   }, 60_000)
 
   it('is deterministic', async () => {

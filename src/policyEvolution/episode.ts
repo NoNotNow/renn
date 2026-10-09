@@ -23,6 +23,8 @@ const STALL_WINDOW_S = 3
 const STALL_MIN_PROGRESS = 1
 const FINISH_MARGIN = 5
 export const OFF_COURSE_M = 16
+/** relative noise on every ray distance during evolution episodes (example worlds run noise free) */
+export const SENSOR_NOISE = 0.02
 /** a perfect-ish run averages ~10 m/s over the whole route: score / (length x 10) is then ~1 on every course */
 const NORM_SPEED = 10
 
@@ -48,7 +50,7 @@ export interface PolicyEpisodeMetrics {
 }
 
 /** Entities + transformer stages of one course driven by one policy; `origin` shifts the whole course (several courses in one world). */
-export function policyCourseParts(course: Course, genome: ArrayLike<number>, opts: { origin?: V2; suffix?: string } = {}) {
+export function policyCourseParts(course: Course, genome: ArrayLike<number>, opts: { origin?: V2; suffix?: string; noise?: number; noiseSeed?: number } = {}) {
   const [ox, oz] = opts.origin ?? [0, 0]
   const sfx = opts.suffix ?? ''
   const carId = POLICY_CAR_ID + sfx
@@ -61,7 +63,7 @@ export function policyCourseParts(course: Course, genome: ArrayLike<number>, opt
       name: 'Policy car' + sfx,
       bodyType: 'dynamic',
       shape: { type: 'box', width: CAR_SIZE[0], height: 1, depth: CAR_SIZE[1] },
-      position: [COURSE_START[0] + ox, CAR_START_Y, COURSE_START[1] + oz],
+      position: [(course.startAt ?? COURSE_START)[0] + ox, CAR_START_Y, (course.startAt ?? COURSE_START)[1] + oz],
       rotation: [0, rad(course.startYawDeg ?? 0), 0],
       ...CAR_BODY,
       transformers: [stageId, actuatorId],
@@ -86,7 +88,13 @@ export function policyCourseParts(course: Course, genome: ArrayLike<number>, opt
       enabled: true,
       name: 'Policy drive',
       code: POLICY_STAGE_CODE,
-      params: { w: Array.from(genome), goals: course.waypoints.map((g) => [g[0] + ox, g[1] + oz]), reachR: 8, gain: CAR2_PARAMS.power / CAR_BODY.mass },
+      params: {
+        w: Array.from(genome),
+        goals: course.waypoints.map((g) => [g[0] + ox, g[1] + oz]),
+        reachR: 8,
+        gain: CAR2_PARAMS.power / CAR_BODY.mass,
+        ...(opts.noise ? { noise: opts.noise, noiseSeed: opts.noiseSeed ?? 1 } : {}),
+      },
     },
     [actuatorId]: { type: 'car2', priority: 11, enabled: true, params: CAR2_PARAMS },
   }
@@ -95,8 +103,8 @@ export function policyCourseParts(course: Course, genome: ArrayLike<number>, opt
 
 export const POLICY_GROUND = { id: 'ground', name: 'Ground', bodyType: 'static', shape: { type: 'plane' }, position: [0, 0, 0], rotation: [0, 0, 0], friction: 1 }
 
-export function buildPolicyWorld(course: Course, genome: ArrayLike<number>): RennWorld {
-  const parts = policyCourseParts(course, genome)
+export function buildPolicyWorld(course: Course, genome: ArrayLike<number>, opts: { noise?: number; noiseSeed?: number } = {}): RennWorld {
+  const parts = policyCourseParts(course, genome, opts)
   return {
     version: '1.0',
     world: { gravity: [0, -100, 0] },
@@ -107,11 +115,13 @@ export function buildPolicyWorld(course: Course, genome: ArrayLike<number>): Ren
   } as unknown as RennWorld
 }
 
-export async function runPolicyEpisode(genome: ArrayLike<number>, key: string, opts: { seconds?: number; onFrame?: (x: number, z: number, t: number) => void } = {}): Promise<PolicyEpisodeMetrics> {
+export async function runPolicyEpisode(genome: ArrayLike<number>, key: string, opts: { seconds?: number; noise?: number; onFrame?: (x: number, z: number, t: number) => void } = {}): Promise<PolicyEpisodeMetrics> {
   const seconds = opts.seconds ?? EPISODE_SECONDS
-  const { kind, seed } = parseCourseKey(key)
-  const course = buildCourse(kind, seed)
-  const world = buildPolicyWorld(course, genome)
+  const { kind, seed, variant } = parseCourseKey(key)
+  const course = buildCourse(kind, seed, variant)
+  let noiseSeed = 17
+  for (let i = 0; i < key.length; i++) noiseSeed = (Math.imul(noiseSeed, 31) + key.charCodeAt(i)) >>> 0
+  const world = buildPolicyWorld(course, genome, { noise: opts.noise ?? SENSOR_NOISE, noiseSeed })
   const walls = course.boxes.map((b) => {
     const yaw = (b.yawDeg * Math.PI) / 180
     return { cx: b.at[0], cz: b.at[1], r: Math.hypot(b.size[0], b.size[1]) / 2, poly: rectPoly(b.at[0], b.at[1], yaw, b.size[0], b.size[1]) }

@@ -4,6 +4,8 @@
  *   npx tsx tools/policy-evolution/run.ts --gens 100 --pairs 24 --workers 8 --out test-results/policy-evolution/run.json
  *   npx tsx tools/policy-evolution/run.ts --gens 50 --out test-results/policy-evolution/run.json --resume
  *
+ * Start poses: each generation draws random start offsets / headings per course (disable with --no-variants); TRAIN reports use the
+ * canonical start, HOLDOUT keys carry start variant 1. Ray distances carry 2 % noise in every episode.
  * Options: --train-per-kind N / --holdout-per-kind N (courses per kind, default 6) --gens N (this invocation, default 20) --pairs N (antithetic pairs, default 24) --sigma S --lr L --seed N
  *   --batch N (train courses per generation, a rotating window; default 6) --eval-every N (full TRAIN + HOLDOUT report of the
  *   mean policy, default 5) --workers N --seconds S (episode time limit) --out FILE --resume
@@ -12,7 +14,7 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { holdoutCourseKeys, trainCourseKeys } from '@/policyEvolution/courses'
+import { holdoutCourseKeys, trainCourseKeys, withVariant } from '@/policyEvolution/courses'
 import { aggregateFitness, DEFAULT_ES_CONFIG, PolicyEs, type EsConfig, type EsState, type GenerationReport } from '@/policyEvolution/es'
 import { GENOME_LENGTH, N_OUT } from '@/policyEvolution/policy'
 import { PolicyPool } from './pool'
@@ -74,7 +76,11 @@ async function main() {
   try {
     for (let i = 0; i < gens; i++) {
       const g = es.state.gen
-      const keys = Array.from({ length: Math.min(batch, train.length) }, (_, j) => train[(g * batch + j) % train.length]!)
+      // every generation re-draws the start pose of its courses (variant = generation + 1); all candidates of a generation share them
+      const keys = Array.from({ length: Math.min(batch, train.length) }, (_, j) => {
+        const k = train[(g * batch + j) % train.length]!
+        return args['no-variants'] ? k : withVariant(k, g + 1)
+      })
       const rep: RunFile['history'][number] = await es.step(evaluate, keys)
       let line = `gen ${rep.gen}  batch best ${rep.best.toFixed(3)} mean ${rep.mean.toFixed(3)} center ${rep.center.toFixed(3)}`
       if (rep.gen % evalEvery === 0) {

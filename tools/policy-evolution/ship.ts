@@ -27,8 +27,10 @@ const evaluate = pool.evaluator()
 const trainKeys = trainCourseKeys(opt('train-per-kind', 6))
 const holdoutKeys = holdoutCourseKeys(opt('holdout-per-kind', 6))
 
+let holdoutNorms: number[] = []
 async function score(g: number[]) {
   const [tr, ho] = await Promise.all([evaluate(g, trainKeys), evaluate(g, holdoutKeys)])
+  holdoutNorms = ho.map((m) => m.norm)
   const outcomes = (m: typeof tr) => Object.fromEntries(['finish', 'crash', 'offcourse', 'stall', 'flip', 'timeout'].map((o) => [o, m.filter((x) => x.outcome === o).length]))
   const part = (m: typeof tr) => ({ fitness: aggregateFitness(m), meanProgress: m.reduce((a, x) => a + x.progress, 0) / m.length, outcomes: outcomes(m) })
   return { train: part(tr), holdout: part(ho) }
@@ -36,11 +38,34 @@ async function score(g: number[]) {
 
 try {
   const cand = await score(genome)
+  const candNorms = holdoutNorms
   const current = fs.existsSync(SHIPPED) ? (JSON.parse(fs.readFileSync(SHIPPED, 'utf8')) as { genome: number[] }) : undefined
   const cur = current ? await score(current.genome) : undefined
+  // paired comparison on identical HOLDOUT courses: mean difference of the normalised score with a bootstrap 95 % interval
+  let paired: unknown
+  if (cur) {
+    const d = candNorms.map((v, i) => v - holdoutNorms[i]!)
+    const mean = d.reduce((a, b) => a + b, 0) / d.length
+    let seed = 12345
+    const rnd = () => ((seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296)
+    const boots: number[] = []
+    for (let b = 0; b < 4000; b++) {
+      let sum = 0
+      for (let i = 0; i < d.length; i++) sum += d[Math.floor(rnd() * d.length)]!
+      boots.push(sum / d.length)
+    }
+    boots.sort((a, b) => a - b)
+    paired = {
+      meanDiff: mean,
+      ci95: [boots[Math.floor(0.025 * boots.length)], boots[Math.floor(0.975 * boots.length)]],
+      candidateWins: d.filter((x) => x > 1e-9).length,
+      candidateLosses: d.filter((x) => x < -1e-9).length,
+      ties: d.filter((x) => Math.abs(x) <= 1e-9).length,
+    }
+  }
   const better = !cur || cand.holdout.fitness > cur.holdout.fitness
   const force = argv.includes('--force')
-  console.log(JSON.stringify({ candidate: { gen: run.best.gen, ...cand }, shipped: cur, courses: { train: trainKeys.length, holdout: holdoutKeys.length }, better }, null, 2))
+  console.log(JSON.stringify({ candidate: { gen: run.best.gen, ...cand }, shipped: cur, paired, courses: { train: trainKeys.length, holdout: holdoutKeys.length }, better }, null, 2))
   if (better || force) {
     const info = { source: `${runFile} generation ${run.best.gen} (best mean policy by TRAIN fitness)`, ...cand, evaluatedOn: { train: trainKeys.length, holdout: holdoutKeys.length }, genome }
     fs.writeFileSync(SHIPPED, JSON.stringify(info, null, 1) + '\n')

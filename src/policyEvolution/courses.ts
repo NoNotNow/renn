@@ -1,5 +1,5 @@
 import { createRng, type Rng } from '@/avEvolution/core/rng'
-import { pointPolyGap, rectPoly, type V2 } from '@/avEvolution/eval/geometry'
+import { pointPolyGap, polyGap, rectPoly, type V2 } from '@/avEvolution/eval/geometry'
 import { cellCentre, generateMaze } from '@/avEvolution/maze/mazeGen'
 
 /**
@@ -32,6 +32,10 @@ export interface Course {
   length: number
   /** car heading at the start in degrees (0 = -Z, positive turns left); default 0 */
   startYawDeg?: number
+  /** car start position; default COURSE_START. Only start variants (key suffix `~n`, n >= 1) move it */
+  startAt?: V2
+  /** start variant: 0 = canonical start, n >= 1 = seeded random start offset and heading */
+  variant: number
 }
 
 export const COURSE_LENGTH = 400
@@ -39,15 +43,23 @@ export const COURSE_START: V2 = [0, 0]
 
 const KIND_SALT: Record<CourseKind, number> = { field: 7919, slalom: 104729, maze: 1299709 }
 
-export function courseKey(kind: CourseKind, seed: number): string {
-  return `${kind}:${seed}`
+/** `kind:seed` = canonical start; `kind:seed~n` = the same course with the n-th seeded random start pose (offset + heading). */
+export function courseKey(kind: CourseKind, seed: number, variant = 0): string {
+  return `${kind}:${seed}${variant > 0 ? `~${variant}` : ''}`
 }
 
-export function parseCourseKey(key: string): { kind: CourseKind; seed: number } {
-  const [kind, s] = key.split(':')
+export function withVariant(key: string, variant: number): string {
+  const { kind, seed } = parseCourseKey(key)
+  return courseKey(kind, seed, variant)
+}
+
+export function parseCourseKey(key: string): { kind: CourseKind; seed: number; variant: number } {
+  const [head, v] = key.split('~')
+  const [kind, s] = head!.split(':')
   const seed = Number(s)
-  if (!COURSE_KINDS.includes(kind as CourseKind) || !Number.isInteger(seed)) throw new Error(`bad course key: ${key}`)
-  return { kind: kind as CourseKind, seed }
+  const variant = v === undefined ? 0 : Number(v)
+  if (!COURSE_KINDS.includes(kind as CourseKind) || !Number.isInteger(seed) || !Number.isInteger(variant) || variant < 0) throw new Error(`bad course key: ${key}`)
+  return { kind: kind as CourseKind, seed, variant }
 }
 
 const range = (rng: Rng, lo: number, hi: number) => lo + (hi - lo) * rng.next()
@@ -149,7 +161,29 @@ function mazeCourse(seed: number, rng: Rng): Pick<Course, 'boxes' | 'waypoints' 
   return { boxes, waypoints, startYawDeg: Math.round(yawDeg) }
 }
 
-export function buildCourse(kind: CourseKind, seed: number): Course {
+/** Start jitter per kind: lateral (x) and longitudinal (z) offset in m, heading in degrees. Maze corridors are narrow (15 m), so small. */
+const START_JITTER: Record<CourseKind, { x: number; z: number; yawDeg: number }> = {
+  field: { x: 6, z: 0, yawDeg: 25 },
+  slalom: { x: 5, z: 0, yawDeg: 25 },
+  maze: { x: 2, z: 2, yawDeg: 20 },
+}
+
+/** Seeded random start pose for variant >= 1; keeps the car clear of every wall / box (falls back to the canonical start). */
+function jitterStart(course: Course): Course {
+  const j = START_JITTER[course.kind]
+  const rng = createRng((course.seed * 2246822519 + KIND_SALT[course.kind] * 3266489917 + course.variant * 668265263) >>> 0)
+  const baseYaw = course.startYawDeg ?? 0
+  for (let attempt = 0; attempt < 12; attempt++) {
+    const at: V2 = [COURSE_START[0] + range(rng, -j.x, j.x), COURSE_START[1] + range(rng, -j.z, j.z)]
+    const yaw = baseYaw + range(rng, -j.yawDeg, j.yawDeg)
+    const hull = rectPoly(at[0], at[1], (yaw * Math.PI) / 180, 4, 8)
+    const clear = course.boxes.every((b) => polyGap(hull, rectPoly(b.at[0], b.at[1], (b.yawDeg * Math.PI) / 180, b.size[0], b.size[1])) > 0.5)
+    if (clear) return { ...course, startAt: [Math.round(at[0] * 100) / 100, Math.round(at[1] * 100) / 100], startYawDeg: Math.round(yaw * 10) / 10 }
+  }
+  return course
+}
+
+export function buildCourse(kind: CourseKind, seed: number, variant = 0): Course {
   const rng = createRng((seed * 2654435761 + KIND_SALT[kind]) >>> 0)
   const body = kind === 'field' ? fieldCourse(rng) : kind === 'slalom' ? slalomCourse(rng) : mazeCourse(seed, rng)
   let length = 0
@@ -158,7 +192,8 @@ export function buildCourse(kind: CourseKind, seed: number): Course {
     length += Math.hypot(w[0] - prev[0], w[1] - prev[1])
     prev = w
   }
-  return { key: courseKey(kind, seed), kind, seed, length, ...body }
+  const course: Course = { key: courseKey(kind, seed, variant), kind, seed, length, variant, ...body }
+  return variant > 0 ? jitterStart(course) : course
 }
 
 /** Arc-length progress of a point along the route polyline (start + waypoints), searched near a segment hint. */
@@ -209,8 +244,9 @@ export function trainCourseKeys(perKind = 6, kinds: readonly CourseKind[] = COUR
   return keys
 }
 
-export function holdoutCourseKeys(perKind = 6, kinds: readonly CourseKind[] = COURSE_KINDS): string[] {
+/** HOLDOUT uses start variant 1 (random start pose), TRAIN keys are canonical; training generations add their own variants. */
+export function holdoutCourseKeys(perKind = 6, kinds: readonly CourseKind[] = COURSE_KINDS, variant = 1): string[] {
   const keys: string[] = []
-  for (let i = 0; i < perKind; i++) for (const k of kinds) keys.push(courseKey(k, 1001 + i))
+  for (let i = 0; i < perKind; i++) for (const k of kinds) keys.push(courseKey(k, 1001 + i, variant))
   return keys
 }
