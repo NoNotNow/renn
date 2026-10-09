@@ -5,10 +5,11 @@ import shipped from './shippedPolicy.json'
 
 export const POLICY_EXAMPLE_WORLD_ID = 'policy_drive'
 
-/** (course key, x offset) of the cars in the example world: two held-out courses side by side, each with its own car. */
+/** (course key, x offset) of the cars in the example world: one held-out course of each kind side by side, each with its own car. */
 export const POLICY_EXAMPLE_COURSES: Array<{ key: string; originX: number }> = [
   { key: 'field:1001', originX: 0 },
   { key: 'slalom:1001', originX: 120 },
+  { key: 'maze:1001', originX: 300 },
 ]
 
 export function shippedGenome(): number[] {
