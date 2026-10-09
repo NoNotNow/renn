@@ -4,6 +4,8 @@
 
 For dialogs, floating panels, popovers, or resize handles, also read `agent-context/feature-ui-infrastructure.md` and update its audit backlog when you find duplication.
 
+**After every finished, user-visible step: commit, push and `npm run deploy`, then tell the user what to look at on the live site** — see `.cursor/rules/deploy-after-each-step.mdc`.
+
 For agent MCP / dev attach tooling, follow `.cursor/rules/agent-mcp-no-project-names.mdc` (generic parameterized tools; no product project names in code).
 
 When MCP/agent edits a verification world, sync it to **`public/exampleWorlds/`** so **File → Example Worlds** and `load_example_world` stay in sync — see `.cursor/rules/agent-mcp-example-world-sync.mdc`.

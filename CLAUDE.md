@@ -17,6 +17,9 @@ each one lists in its own frontmatter, and read the full file before editing the
   MCP/agent world edits must be exported into `public/exampleWorlds/<id>/` (not left
   only in IndexedDB) and documented in `agent-context/example-worlds.md`. Applies to
   `tools/renn-mcp/**`, `src/agent/**`, and `public/exampleWorlds/**`.
+- [`.cursor/rules/deploy-after-each-step.mdc`](.cursor/rules/deploy-after-each-step.mdc) —
+  **always on**: after every finished, user-visible step run tests, commit + push and `npm run deploy`
+  (the live GitHub Pages site is how the user verifies work), then say what to look at.
 - [`.cursor/rules/agent-mcp-no-project-names.mdc`](.cursor/rules/agent-mcp-no-project-names.mdc) —
   keep agent MCP/dev tooling generic: no hardcoded product/example project names in
   `src/` or `tools/renn-mcp/`; example-world ids come from `public/exampleWorlds/`
@@ -26,6 +29,7 @@ each one lists in its own frontmatter, and read the full file before editing the
 @.cursor/rules/agent-headless-defined-start.mdc
 @.cursor/rules/agent-mcp-example-world-sync.mdc
 @.cursor/rules/agent-mcp-no-project-names.mdc
+@.cursor/rules/deploy-after-each-step.mdc
 
 ## Cursor skills (imported)
 

@@ -1,0 +1,17 @@
+---
+description: Deploy to GitHub Pages after every finished step; the live site is how the user verifies work
+alwaysApply: true
+---
+
+# Deploy after every step
+
+The user cannot inspect the app inside the agent session; the **deployed GitHub Pages site is how they verify every change**. Therefore:
+
+1. After **every finished step** that changes anything the user could look at (app code, example worlds, shipped assets, UI, docs of behaviour), do this before reporting the step as done and before starting the next one:
+   - tests / typecheck of the touched area pass, work is committed and pushed to the designated branch,
+   - `npm run deploy` (Vite build + push of `dist/` to `gh-pages`) has run and printed `Published`.
+2. Say in the report that the deploy happened (commit, `Published`) and **what the user should look at** on the live site (menu path / example world id).
+3. A step that did not change anything user-visible (pure notes, an intermediate run still in progress) needs no deploy, but say so explicitly instead of staying silent.
+4. Never claim something "is deployed" or "works on the site" without having run the deploy in the same step; the headless sim or tests passing is not evidence of what the site shows.
+5. Do not hold a fix back until a long background job finishes: deploy the fix now, then deploy again when the job's result is shipped. If the current state would show something misleading (e.g. a stale policy on a changed course), say what the user will see and why.
+6. The deploy publishes the whole current branch state (not only `main`); mention it when the branch is far ahead of `main`.
