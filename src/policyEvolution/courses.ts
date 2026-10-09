@@ -1,12 +1,17 @@
 import { createRng, type Rng } from '@/avEvolution/core/rng'
 import { pointPolyGap, rectPoly, type V2 } from '@/avEvolution/eval/geometry'
+import { cellCentre, generateMaze } from '@/avEvolution/maze/mazeGen'
 
 /**
  * Seeded driving courses for the policy evolution. The car starts at the origin facing -Z; the route runs along -Z.
  *  - `field`: open ground, scattered boxes whose density grows with distance, a wandering goal chain.
  *  - `slalom`: a corridor that narrows with distance, staggered pillars from alternating sides, goals in the gaps.
+ *  - `maze`: a seeded 6x6 maze; the car starts in a south-row cell, the goal chain follows the shortest route cell by cell to the exit gate
+ *    on the north side (the policy has no map: the goal vector is its only hint which way the route turns).
  */
-export type CourseKind = 'field' | 'slalom'
+export type CourseKind = 'field' | 'slalom' | 'maze'
+
+export const COURSE_KINDS: readonly CourseKind[] = ['field', 'slalom', 'maze']
 
 export interface CourseBox {
   at: V2
@@ -24,12 +29,14 @@ export interface Course {
   waypoints: V2[]
   /** route length from the start through the last waypoint (m) */
   length: number
+  /** car heading at the start in degrees (0 = -Z, positive turns left); default 0 */
+  startYawDeg?: number
 }
 
 export const COURSE_LENGTH = 400
 export const COURSE_START: V2 = [0, 0]
 
-const KIND_SALT: Record<CourseKind, number> = { field: 7919, slalom: 104729 }
+const KIND_SALT: Record<CourseKind, number> = { field: 7919, slalom: 104729, maze: 1299709 }
 
 export function courseKey(kind: CourseKind, seed: number): string {
   return `${kind}:${seed}`
@@ -38,8 +45,8 @@ export function courseKey(kind: CourseKind, seed: number): string {
 export function parseCourseKey(key: string): { kind: CourseKind; seed: number } {
   const [kind, s] = key.split(':')
   const seed = Number(s)
-  if ((kind !== 'field' && kind !== 'slalom') || !Number.isInteger(seed)) throw new Error(`bad course key: ${key}`)
-  return { kind, seed }
+  if (!COURSE_KINDS.includes(kind as CourseKind) || !Number.isInteger(seed)) throw new Error(`bad course key: ${key}`)
+  return { kind: kind as CourseKind, seed }
 }
 
 const range = (rng: Rng, lo: number, hi: number) => lo + (hi - lo) * rng.next()
@@ -96,9 +103,48 @@ function slalomCourse(rng: Rng): Pick<Course, 'boxes' | 'waypoints'> {
   return { boxes, waypoints }
 }
 
+const MAZE_CELLS = 6
+const MAZE_PITCH = 16
+
+function mazeCourse(seed: number, rng: Rng): Pick<Course, 'boxes' | 'waypoints' | 'startYawDeg'> {
+  const maze = generateMaze({ seed, cols: MAZE_CELLS, rows: MAZE_CELLS, cell: MAZE_PITCH, loopFraction: 0.1, goalDist: 0 })
+  const startCol = Math.floor(rng.next() * MAZE_CELLS)
+  const startRow = MAZE_CELLS - 1
+  const exitRow = 0
+  // shortest route over the cell graph (breadth first)
+  const key = (c: number, r: number) => r * MAZE_CELLS + c
+  const prev = new Map<number, number>([[key(startCol, startRow), -1]])
+  const queue: Array<[number, number]> = [[startCol, startRow]]
+  for (let qi = 0; qi < queue.length; qi++) {
+    const [c, r] = queue[qi]!
+    const next: Array<[number, number]> = []
+    if (r > 0 && !maze.hWall[r]![c]) next.push([c, r - 1])
+    if (r < MAZE_CELLS - 1 && !maze.hWall[r + 1]![c]) next.push([c, r + 1])
+    if (c > 0 && !maze.vWall[r]![c]) next.push([c - 1, r])
+    if (c < MAZE_CELLS - 1 && !maze.vWall[r]![c + 1]) next.push([c + 1, r])
+    for (const [nc, nr] of next) {
+      if (prev.has(key(nc, nr))) continue
+      prev.set(key(nc, nr), key(c, r))
+      queue.push([nc, nr])
+    }
+  }
+  const route: Array<[number, number]> = []
+  for (let k = key(maze.exitCol, exitRow); k !== -1; k = prev.get(k)!) route.unshift([k % MAZE_CELLS, Math.floor(k / MAZE_CELLS)])
+  // world frame: the start cell centre is the origin
+  const [sx, sz] = cellCentre(maze, startCol, startRow)
+  const shift = (p: V2): V2 => [p[0] - sx, p[1] - sz]
+  const waypoints: V2[] = route.slice(1).map(([c, r]) => shift(cellCentre(maze, c, r)))
+  const [ex, ez] = shift(cellCentre(maze, maze.exitCol, exitRow))
+  waypoints.push([ex, ez - MAZE_PITCH])
+  const first = waypoints[0]!
+  const yawDeg = (Math.atan2(-first[0], -first[1]) * 180) / Math.PI
+  const boxes: CourseBox[] = maze.walls.map((w) => ({ at: shift(w.at), size: w.size, yawDeg: 0 }))
+  return { boxes, waypoints, startYawDeg: Math.round(yawDeg) }
+}
+
 export function buildCourse(kind: CourseKind, seed: number): Course {
   const rng = createRng((seed * 2654435761 + KIND_SALT[kind]) >>> 0)
-  const body = kind === 'field' ? fieldCourse(seed, rng) : slalomCourse(rng)
+  const body = kind === 'field' ? fieldCourse(seed, rng) : kind === 'slalom' ? slalomCourse(rng) : mazeCourse(seed, rng)
   let length = 0
   let prev: V2 = COURSE_START
   for (const w of body.waypoints) {
@@ -147,14 +193,14 @@ export class RouteProgress {
 }
 
 /** Fixed episode sets: TRAIN seeds never appear in HOLDOUT. */
-export function trainCourseKeys(perKind = 6): string[] {
+export function trainCourseKeys(perKind = 6, kinds: readonly CourseKind[] = COURSE_KINDS): string[] {
   const keys: string[] = []
-  for (let i = 0; i < perKind; i++) keys.push(courseKey('field', 1 + i), courseKey('slalom', 1 + i))
+  for (let i = 0; i < perKind; i++) for (const k of kinds) keys.push(courseKey(k, 1 + i))
   return keys
 }
 
-export function holdoutCourseKeys(perKind = 6): string[] {
+export function holdoutCourseKeys(perKind = 6, kinds: readonly CourseKind[] = COURSE_KINDS): string[] {
   const keys: string[] = []
-  for (let i = 0; i < perKind; i++) keys.push(courseKey('field', 1001 + i), courseKey('slalom', 1001 + i))
+  for (let i = 0; i < perKind; i++) for (const k of kinds) keys.push(courseKey(k, 1001 + i))
   return keys
 }

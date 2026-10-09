@@ -60,7 +60,7 @@ export function policyCourseParts(course: Course, genome: ArrayLike<number>, opt
       bodyType: 'dynamic',
       shape: { type: 'box', width: CAR_SIZE[0], height: 1, depth: CAR_SIZE[1] },
       position: [COURSE_START[0] + ox, CAR_START_Y, COURSE_START[1] + oz],
-      rotation: [0, 0, 0],
+      rotation: [0, rad(course.startYawDeg ?? 0), 0],
       ...CAR_BODY,
       transformers: [stageId, actuatorId],
     },
