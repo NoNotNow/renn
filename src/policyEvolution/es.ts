@@ -41,6 +41,8 @@ export interface GenerationReport {
   worst: number
   sigma: number
   episodes: number
+  /** per-course metrics of the mean policy on this generation's batch (not persisted) */
+  centerMetrics?: PolicyEpisodeMetrics[]
 }
 
 /** Robust fitness of one genome over a set of courses: half mean, half the mean of the worst quarter (normalised scores). */
@@ -127,6 +129,7 @@ export class PolicyEs {
       worst: Math.min(...fit),
       sigma,
       episodes: (cands.length + 1) * keys.length,
+      centerMetrics: centerMetrics!,
     }
   }
 }

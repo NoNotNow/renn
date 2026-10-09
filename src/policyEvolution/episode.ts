@@ -117,8 +117,8 @@ export function buildPolicyWorld(course: Course, genome: ArrayLike<number>, opts
 
 export async function runPolicyEpisode(genome: ArrayLike<number>, key: string, opts: { seconds?: number; noise?: number; onFrame?: (x: number, z: number, t: number) => void } = {}): Promise<PolicyEpisodeMetrics> {
   const seconds = opts.seconds ?? EPISODE_SECONDS
-  const { kind, seed, variant } = parseCourseKey(key)
-  const course = buildCourse(kind, seed, variant)
+  const { kind, seed, variant, difficulty } = parseCourseKey(key)
+  const course = buildCourse(kind, seed, variant, difficulty)
   let noiseSeed = 17
   for (let i = 0; i < key.length; i++) noiseSeed = (Math.imul(noiseSeed, 31) + key.charCodeAt(i)) >>> 0
   const world = buildPolicyWorld(course, genome, { noise: opts.noise ?? SENSOR_NOISE, noiseSeed })

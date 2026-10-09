@@ -29,6 +29,7 @@
     "av:quick": "npm run sync:global-pipeline && vitest run src/test/scenarios/av-evasion-scenarios.test.ts src/test/scenarios/av-maze-scenarios.test.ts",
     "av:evolve": "tsx tools/av-evolution/run.ts",
     "policy:evolve": "tsx tools/policy-evolution/run.ts",
+    "policy:islands": "tsx tools/policy-evolution/run-islands.ts",
     "av:evolve:compare": "tsx tools/av-evolution/compare.ts",
     "av:pre": "vitest run src/test/scenarios/av- src/test/scenarios/hunt-game"
   },

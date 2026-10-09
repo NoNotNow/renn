@@ -36,6 +36,8 @@ export interface Course {
   startAt?: V2
   /** start variant: 0 = canonical start, n >= 1 = seeded random start offset and heading */
   variant: number
+  /** field difficulty 0..1 (1 = full density / box size, the default); only `field` reacts to it */
+  difficulty: number
 }
 
 export const COURSE_LENGTH = 400
@@ -43,23 +45,33 @@ export const COURSE_START: V2 = [0, 0]
 
 const KIND_SALT: Record<CourseKind, number> = { field: 7919, slalom: 104729, maze: 1299709 }
 
-/** `kind:seed` = canonical start; `kind:seed~n` = the same course with the n-th seeded random start pose (offset + heading). */
-export function courseKey(kind: CourseKind, seed: number, variant = 0): string {
-  return `${kind}:${seed}${variant > 0 ? `~${variant}` : ''}`
+/**
+ * `kind:seed` = canonical start; `kind:seed~n` = the same course with the n-th seeded random start pose (offset + heading);
+ * `kind:seed~n@d` additionally sets the field difficulty d (0..1, curriculum; omitted = 1 = full).
+ */
+export function courseKey(kind: CourseKind, seed: number, variant = 0, difficulty = 1): string {
+  return `${kind}:${seed}${variant > 0 ? `~${variant}` : ''}${difficulty < 1 ? `@${difficulty}` : ''}`
 }
 
 export function withVariant(key: string, variant: number): string {
-  const { kind, seed } = parseCourseKey(key)
-  return courseKey(kind, seed, variant)
+  const { kind, seed, difficulty } = parseCourseKey(key)
+  return courseKey(kind, seed, variant, difficulty)
 }
 
-export function parseCourseKey(key: string): { kind: CourseKind; seed: number; variant: number } {
-  const [head, v] = key.split('~')
+export function withDifficulty(key: string, difficulty: number): string {
+  const { kind, seed, variant } = parseCourseKey(key)
+  return courseKey(kind, seed, variant, difficulty)
+}
+
+export function parseCourseKey(key: string): { kind: CourseKind; seed: number; variant: number; difficulty: number } {
+  const [rest, d] = key.split('@')
+  const [head, v] = rest!.split('~')
   const [kind, s] = head!.split(':')
   const seed = Number(s)
   const variant = v === undefined ? 0 : Number(v)
-  if (!COURSE_KINDS.includes(kind as CourseKind) || !Number.isInteger(seed) || !Number.isInteger(variant) || variant < 0) throw new Error(`bad course key: ${key}`)
-  return { kind: kind as CourseKind, seed, variant }
+  const difficulty = d === undefined ? 1 : Number(d)
+  if (!COURSE_KINDS.includes(kind as CourseKind) || !Number.isInteger(seed) || !Number.isInteger(variant) || variant < 0 || !(difficulty >= 0 && difficulty <= 1)) throw new Error(`bad course key: ${key}`)
+  return { kind: kind as CourseKind, seed, variant, difficulty }
 }
 
 const range = (rng: Rng, lo: number, hi: number) => lo + (hi - lo) * rng.next()
@@ -67,7 +79,10 @@ const range = (rng: Rng, lo: number, hi: number) => lo + (hi - lo) * rng.next()
 /** half-width of the field track: side walls stand at +-FIELD_HALF_WIDTH (the field is a closed track, it cannot be bypassed) */
 export const FIELD_HALF_WIDTH = 19
 
-function fieldCourse(rng: Rng): Pick<Course, 'boxes' | 'waypoints'> {
+function fieldCourse(rng: Rng, difficulty: number): Pick<Course, 'boxes' | 'waypoints'> {
+  // curriculum: difficulty 1 = the full course (identical to before), lower = fewer and smaller boxes
+  const density = 0.3 + 0.7 * difficulty
+  const maxSize = 4 + 4 * difficulty
   const waypoints: V2[] = []
   let x = 0
   for (let z = -40; z >= -COURSE_LENGTH; z -= 40) {
@@ -81,11 +96,11 @@ function fieldCourse(rng: Rng): Pick<Course, 'boxes' | 'waypoints'> {
   boxes.push({ at: [0, -COURSE_LENGTH - 24], size: [2 * FIELD_HALF_WIDTH + 2, 2], yawDeg: 0 })
   for (let z0 = -30; z0 > -COURSE_LENGTH - 20; z0 -= 20) {
     const t = Math.min(1, -z0 / COURSE_LENGTH)
-    const count = Math.round(2.5 + 6.5 * t)
+    const count = Math.round((2.5 + 6.5 * t) * density)
     for (let i = 0; i < count; i++) {
       const box: CourseBox = {
         at: [range(rng, -(FIELD_HALF_WIDTH - 4), FIELD_HALF_WIDTH - 4), z0 - rng.next() * 20],
-        size: [range(rng, 2, 8), range(rng, 2, 8)],
+        size: [range(rng, 2, maxSize), range(rng, 2, maxSize)],
         yawDeg: range(rng, 0, 180),
       }
       const poly = rectPoly(box.at[0], box.at[1], (box.yawDeg * Math.PI) / 180, box.size[0], box.size[1])
@@ -183,16 +198,16 @@ function jitterStart(course: Course): Course {
   return course
 }
 
-export function buildCourse(kind: CourseKind, seed: number, variant = 0): Course {
+export function buildCourse(kind: CourseKind, seed: number, variant = 0, difficulty = 1): Course {
   const rng = createRng((seed * 2654435761 + KIND_SALT[kind]) >>> 0)
-  const body = kind === 'field' ? fieldCourse(rng) : kind === 'slalom' ? slalomCourse(rng) : mazeCourse(seed, rng)
+  const body = kind === 'field' ? fieldCourse(rng, difficulty) : kind === 'slalom' ? slalomCourse(rng) : mazeCourse(seed, rng)
   let length = 0
   let prev: V2 = COURSE_START
   for (const w of body.waypoints) {
     length += Math.hypot(w[0] - prev[0], w[1] - prev[1])
     prev = w
   }
-  const course: Course = { key: courseKey(kind, seed, variant), kind, seed, length, variant, ...body }
+  const course: Course = { key: courseKey(kind, seed, variant, difficulty), kind, seed, length, variant, difficulty, ...body }
   return variant > 0 ? jitterStart(course) : course
 }
 
