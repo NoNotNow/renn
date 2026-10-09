@@ -22,6 +22,7 @@ export const EPISODE_SECONDS = 60
 const STALL_WINDOW_S = 3
 const STALL_MIN_PROGRESS = 1
 const FINISH_MARGIN = 5
+export const OFF_COURSE_M = 16
 /** a perfect-ish run averages ~10 m/s over the whole route: score / (length x 10) is then ~1 on every course */
 const NORM_SPEED = 10
 
@@ -29,7 +30,8 @@ const NORM_SPEED = 10
 const CAR_BODY = { mass: 2, restitution: 0.1, friction: 0.01, angularDamping: 0.3 }
 const CAR2_PARAMS = { power: 2400, steeringIntensity: 0.1, steeringSpeed: 0.51, lateralGrip: 100, tireGripSlipSpeedThreshold: 2, lateralGripSlipScale: 0.3, jumpImpulse: 200 }
 
-export type EpisodeOutcome = 'crash' | 'stall' | 'flip' | 'finish' | 'timeout'
+/** `offcourse`: farther than OFF_COURSE_M from the route polyline (a safety net on top of the walls; counts like a crash) */
+export type EpisodeOutcome = 'crash' | 'offcourse' | 'stall' | 'flip' | 'finish' | 'timeout'
 
 export interface PolicyEpisodeMetrics {
   key: string
@@ -105,7 +107,7 @@ export function buildPolicyWorld(course: Course, genome: ArrayLike<number>): Ren
   } as unknown as RennWorld
 }
 
-export async function runPolicyEpisode(genome: ArrayLike<number>, key: string, opts: { seconds?: number } = {}): Promise<PolicyEpisodeMetrics> {
+export async function runPolicyEpisode(genome: ArrayLike<number>, key: string, opts: { seconds?: number; onFrame?: (x: number, z: number, t: number) => void } = {}): Promise<PolicyEpisodeMetrics> {
   const seconds = opts.seconds ?? EPISODE_SECONDS
   const { kind, seed } = parseCourseKey(key)
   const course = buildCourse(kind, seed)
@@ -134,6 +136,7 @@ export async function runPolicyEpisode(genome: ArrayLike<number>, key: string, o
       t = (frame + 1) * DEFAULT_DT
       const cp = sim.getPosition(POLICY_CAR_ID)
       const q = sim.getRotation(POLICY_CAR_ID)
+      opts.onFrame?.(cp[0], cp[2], t)
       const progress = route.update(cp[0], cp[2])
       if (upY(q) < 0.2) {
         outcome = 'flip'
@@ -152,6 +155,10 @@ export async function runPolicyEpisode(genome: ArrayLike<number>, key: string, o
       }
       if (touch) {
         outcome = 'crash'
+        break
+      }
+      if (route.lastDist > OFF_COURSE_M) {
+        outcome = 'offcourse'
         break
       }
       if (progress >= course.length - FINISH_MARGIN) {

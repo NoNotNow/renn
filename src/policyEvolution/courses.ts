@@ -4,7 +4,8 @@ import { cellCentre, generateMaze } from '@/avEvolution/maze/mazeGen'
 
 /**
  * Seeded driving courses for the policy evolution. The car starts at the origin facing -Z; the route runs along -Z.
- *  - `field`: open ground, scattered boxes whose density grows with distance, a wandering goal chain.
+ *  - `field`: a closed 38 m wide track (side walls, back and end wall) with scattered boxes whose density grows with distance and a goal
+ *    chain near the middle. The track is closed on purpose: an open field lets the car drive around the whole obstacle field.
  *  - `slalom`: a corridor that narrows with distance, staggered pillars from alternating sides, goals in the gaps.
  *  - `maze`: a seeded 6x6 maze; the car starts in a south-row cell, the goal chain follows the shortest route cell by cell to the exit gate
  *    on the north side (the policy has no map: the goal vector is its only hint which way the route turns).
@@ -51,31 +52,37 @@ export function parseCourseKey(key: string): { kind: CourseKind; seed: number } 
 
 const range = (rng: Rng, lo: number, hi: number) => lo + (hi - lo) * rng.next()
 
-function fieldCourse(seed: number, rng: Rng): Pick<Course, 'boxes' | 'waypoints'> {
+/** half-width of the field track: side walls stand at +-FIELD_HALF_WIDTH (the field is a closed track, it cannot be bypassed) */
+export const FIELD_HALF_WIDTH = 19
+
+function fieldCourse(rng: Rng): Pick<Course, 'boxes' | 'waypoints'> {
   const waypoints: V2[] = []
   let x = 0
   for (let z = -40; z >= -COURSE_LENGTH; z -= 40) {
-    x = Math.max(-25, Math.min(25, x + range(rng, -15, 15)))
+    x = Math.max(-8, Math.min(8, x + range(rng, -8, 8)))
     waypoints.push([x, z])
   }
   const boxes: CourseBox[] = []
+  // closed track: side walls, a back wall behind the start and an end wall behind the finish
+  for (let z = 20; z > -COURSE_LENGTH - 40; z -= 40) for (const side of [-1, 1]) boxes.push({ at: [side * FIELD_HALF_WIDTH, z - 20], size: [2, 40], yawDeg: 0 })
+  boxes.push({ at: [0, 24], size: [2 * FIELD_HALF_WIDTH + 2, 2], yawDeg: 0 })
+  boxes.push({ at: [0, -COURSE_LENGTH - 24], size: [2 * FIELD_HALF_WIDTH + 2, 2], yawDeg: 0 })
   for (let z0 = -30; z0 > -COURSE_LENGTH - 20; z0 -= 20) {
     const t = Math.min(1, -z0 / COURSE_LENGTH)
-    const count = Math.round(2 + 6 * t)
+    const count = Math.round(2.5 + 6.5 * t)
     for (let i = 0; i < count; i++) {
       const box: CourseBox = {
-        at: [range(rng, -35, 35), z0 - rng.next() * 20],
+        at: [range(rng, -(FIELD_HALF_WIDTH - 4), FIELD_HALF_WIDTH - 4), z0 - rng.next() * 20],
         size: [range(rng, 2, 8), range(rng, 2, 8)],
         yawDeg: range(rng, 0, 180),
       }
       const poly = rectPoly(box.at[0], box.at[1], (box.yawDeg * Math.PI) / 180, box.size[0], box.size[1])
-      // keep the start and every goal itself clear (the way between goals is open ground the car has to read)
+      // keep the start and every goal itself clear (the way between goals is ground the car has to read)
       if (pointPolyGap(COURSE_START[0], COURSE_START[1], poly) < 14) continue
       if (waypoints.some((w) => pointPolyGap(w[0], w[1], poly) < 6)) continue
       boxes.push(box)
     }
   }
-  void seed
   return { boxes, waypoints }
 }
 
@@ -144,7 +151,7 @@ function mazeCourse(seed: number, rng: Rng): Pick<Course, 'boxes' | 'waypoints' 
 
 export function buildCourse(kind: CourseKind, seed: number): Course {
   const rng = createRng((seed * 2654435761 + KIND_SALT[kind]) >>> 0)
-  const body = kind === 'field' ? fieldCourse(seed, rng) : kind === 'slalom' ? slalomCourse(rng) : mazeCourse(seed, rng)
+  const body = kind === 'field' ? fieldCourse(rng) : kind === 'slalom' ? slalomCourse(rng) : mazeCourse(seed, rng)
   let length = 0
   let prev: V2 = COURSE_START
   for (const w of body.waypoints) {
@@ -160,6 +167,8 @@ export class RouteProgress {
   private readonly cum: number[] = [0]
   private hint = 0
   best = 0
+  /** distance of the last position to the route polyline (m) */
+  lastDist = 0
 
   constructor(course: Course) {
     this.pts = [COURSE_START, ...course.waypoints]
@@ -187,6 +196,7 @@ export class RouteProgress {
       }
     }
     this.hint = bestSeg
+    this.lastDist = bestD
     if (bestS > this.best) this.best = bestS
     return this.best
   }

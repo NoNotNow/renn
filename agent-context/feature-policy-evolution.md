@@ -16,6 +16,13 @@ front of the **unchanged `car2` actuator** (same body and car2 params as the shi
   proportional law `pedal = (vTarget - v) / 0.05 s / 1200` (constants in `policy.ts`) is the single piece of "logic".
 - **Goal**: a chain of waypoints; the stage targets the first one not yet within 8 m. No planner, no map.
 
+## Known flaw, fixed 2026-10-09 (all earlier field results are void)
+The first `field` course was open ground with boxes only in |x| < 35. The fitness counts progress along the route polyline (projection), so the policy learned to swing 50-73 m sideways
+and drive AROUND the whole obstacle field (measured: max lateral deviation 50-73 m, never closer than 7 m to a box), yet counted as finished (10/10 on held-out fields). Fix: `field` is now a **closed track**
+(side walls at +-19 m, back and end wall, boxes inside, goals within +-8 m of the middle) and every episode ends as `offcourse` (counts like a crash) when the car is more than `OFF_COURSE_M` = 16 m from the route.
+The old shipped policy now crashes on all 10 held-out fields after 43-124 m. Runs 1-3 and the numbers below for them were trained / measured on the open field; do not compare with runs after this fix. Slalom and maze were never affected (walls).
+Test: `field track is closed` in `src/policyEvolution/episode.test.ts`.
+
 ## Courses (`courses.ts`), keys `field:<seed>` / `slalom:<seed>` / `maze:<seed>`
 Start at the origin facing -Z, route 400 m along -Z, fully seeded. `field`: open ground, boxes with density growing with distance, wandering goal
 chain (start and goals kept clear). `slalom`: corridor narrowing 28 -> 16 m, pillars from alternating sides (55 % of the width), goals in the gaps.

@@ -29,7 +29,7 @@ const holdoutKeys = holdoutCourseKeys(opt('holdout-per-kind', 6))
 
 async function score(g: number[]) {
   const [tr, ho] = await Promise.all([evaluate(g, trainKeys), evaluate(g, holdoutKeys)])
-  const outcomes = (m: typeof tr) => Object.fromEntries(['finish', 'crash', 'stall', 'flip', 'timeout'].map((o) => [o, m.filter((x) => x.outcome === o).length]))
+  const outcomes = (m: typeof tr) => Object.fromEntries(['finish', 'crash', 'offcourse', 'stall', 'flip', 'timeout'].map((o) => [o, m.filter((x) => x.outcome === o).length]))
   const part = (m: typeof tr) => ({ fitness: aggregateFitness(m), meanProgress: m.reduce((a, x) => a + x.progress, 0) / m.length, outcomes: outcomes(m) })
   return { train: part(tr), holdout: part(ho) }
 }
