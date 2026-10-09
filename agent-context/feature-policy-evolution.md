@@ -62,6 +62,10 @@ courses and rewrites `src/policyEvolution/shippedPolicy.json` only if the candid
 - Run 3 stopped at generation 596 when its 2 h background-task limit ran out (state saved, `--resume` continues; not restarted). Re-shipped the best-by-TRAIN snapshot, generation 510:
   - HOLDOUT-30: 1.93 / 322 m / 22 finished / 8 crashed (previous shipped gen 340: 1.90 / 315 m / 18 / 12). TRAIN-90: 2.03 / 318 m / 67 / 23 (previous 2.01 / 316 m / 59 / 31).
   - Per kind on the 10 held-out courses each: field 10/10 finished (404 m mean), slalom 8/10 (426 m), maze 4/10 (136 m mean). Mazes are the weak kind: the policy has no map, only the goal vector.
+- Run 4 (after the field fix, from scratch, same sets, seed 4, background task limit 2 h; still running when this interim was shipped): shipped on the user's request as an INTERIM result, run-4 generation 310 (snapshot at gen 363), `ship.ts --force`:
+  - HOLDOUT-30 fitness 0.99 / 202 m / 14 finished vs the previous shipped (trained on the open field) 1.05 / 211 m / 12 finished; TRAIN-90 1.08 / 210 m / 41 finished vs 1.06 / 209 m / 37. By HOLDOUT fitness it is not better, which is why `--force` was needed.
+  - Per kind, 10 held-out courses each: **field 0/10 finished (mean 71 m)**, slalom 10/10 (429 m), maze 4/10 (106 m). The closed field is the hard kind now (dense boxes, no way around); the earlier "field 10/10" was the bypass.
+  - Example courses: field:1001 crash 87 m, slalom:1001 finish, maze:1001 crash 100 m, maze:1002 finish 203 m, maze:1003 crash 20 m, maze:1004 finish 155 m.
 - A background run started with `nohup` / detached dies when the session idles; use the harness background task (Bash run_in_background) and `--resume` (state is saved every generation).
 
 ## Not done yet
