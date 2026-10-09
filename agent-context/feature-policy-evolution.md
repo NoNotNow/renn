@@ -36,6 +36,8 @@ TRAIN = seeds 1.. of each kind (`--train-per-kind`), HOLDOUT = seeds 1001.. (`--
 - `ship.ts` also prints a **paired comparison on identical HOLDOUT courses** (mean difference of the normalised score, bootstrap 95 % interval, wins / losses / ties). Differences whose interval contains 0 are noise.
 - Baseline for later runs: run-4 gen-390 policy on the new sets (`--train-per-kind 30 --holdout-per-kind 20` = 60 held-out courses with random start + noise): HOLDOUT-60 fitness 1.06, 210 m, 24 / 60 finished; TRAIN-90 (canonical start, with noise) 1.11, 211 m, 37 / 90.
 
+- **Run 5** (random start per generation + 2 % sensor noise, 60-course HOLDOUT, seed 5, stopped at gen 467 by the 2 h background limit, same budget as run 4): best-by-TRAIN gen 400 vs the shipped run-4 gen-390 policy, paired on the 60 identical held-out courses: HOLDOUT fitness 1.052 vs 1.059, 23 vs 24 finished, mean paired difference -0.055 (bootstrap 95 % interval -0.18 .. +0.06; 27 wins / 33 losses). No measurable difference; shipped policy kept. Both runs plateau at TRAIN ~1.1 (about 40 % of courses finished). Randomising the start did not move the plateau by itself; the learning curve was steadier (HOLDOUT 0.95 at gen 80 -> 1.07 at gen 240) but ended at the same level.
+
 ## Episode and fitness (`episode.ts`)
 Fresh world per episode, headless `WorldSimulator`, ~0.2-1 s wall per episode (no planner). Ends on **contact** (hull vs. box gap < 0.1 m,
 geometric like the maze episodes), **stall** (< 1 m route progress in 3 s), flip, end of the route, or 60 s.
