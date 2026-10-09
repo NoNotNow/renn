@@ -2,8 +2,10 @@ import { polyGap, rectPoly, upY, type V2 } from '@/avEvolution/eval/geometry'
 import { installDeterminism } from '@/test/avLab/determinism'
 import { DEFAULT_DT, WorldSimulator } from '@/test/helpers/worldSimulator'
 import type { RennWorld } from '@/types/world'
-import { buildCourse, parseCourseKey, RouteProgress, COURSE_START, type Course } from './courses'
-import { POLICY_ACTUATOR_ID, POLICY_STAGE_CODE, POLICY_STAGE_ID } from './policy'
+import { createRng } from '@/avEvolution/core/rng'
+import { buildCourse, buildSetupCourse, parseCourseKey, RouteProgress, COURSE_START, type Course } from './courses'
+import { chainOfEpisode, isChainEpisodeKey, polylineLength } from './chains'
+import { GENOME_LENGTH_V2, POLICY_ACTUATOR_ID, POLICY_STAGE_CODE, POLICY_STAGE_CODE_V2, POLICY_STAGE_ID } from './policy'
 
 
 /**
@@ -23,6 +25,10 @@ const STALL_WINDOW_S = 3
 const STALL_MIN_PROGRESS = 1
 const FINISH_MARGIN = 5
 export const OFF_COURSE_M = 16
+/** v2 chain episodes: farther than this from the COMMANDED chain ends the episode (chains differ by >= 10 m, so the wrong route is caught) */
+export const OFF_CHAIN_M = 6
+/** v2 chains are up to 1.8 x longer than the track, so the time limit is longer too */
+export const CHAIN_EPISODE_SECONDS = 90
 /** relative noise on every ray distance during evolution episodes (example worlds run noise free) */
 export const SENSOR_NOISE = 0.02
 /** a perfect-ish run averages ~10 m/s over the whole route: score / (length x 10) is then ~1 on every course */
@@ -47,10 +53,45 @@ export interface PolicyEpisodeMetrics {
   /** score / (route length x NORM_SPEED): comparable across course kinds */
   norm: number
   wallMs: number
+  /** length of the route / commanded chain (m); progress / length is the fraction covered */
+  length?: number
 }
 
 /** Entities + transformer stages of one course driven by one policy; `origin` shifts the whole course (several courses in one world). */
-export function policyCourseParts(course: Course, genome: ArrayLike<number>, opts: { origin?: V2; suffix?: string; noise?: number; noiseSeed?: number } = {}) {
+/** Seeded command configuration of a v2 episode (lookahead, refresh period, bearing noise); `seed` drives the bearing noise. */
+export interface CmdConfig {
+  lmin: number
+  tau: number
+  period: number
+  noiseDeg: number
+  seed: number
+}
+
+export function hashKey(key: string): number {
+  let h = 17
+  for (let i = 0; i < key.length; i++) h = (Math.imul(h, 31) + key.charCodeAt(i)) >>> 0
+  return h
+}
+
+/**
+ * Lookahead ranges of the command (m / s): L = clamp(Lmin + T v, Lmin, 40) in the stage. The spec's first guess (Lmin 10-20, T 1-2 s) made a pure-pursuit
+ * follower cut every corner into the obstacles (20 % of the slalom chains finished); 6-10 m / 0.4-0.8 s finishes 90-100 % of them.
+ */
+export const CMD_LMIN_RANGE: [number, number] = [6, 10]
+export const CMD_TAU_RANGE: [number, number] = [0.4, 0.8]
+
+/** Per-episode command config: Lmin / T from the ranges above, refresh every 0.2-0.8 s, bearing noise +-3 deg. */
+export function cmdConfigFor(key: string): CmdConfig {
+  const rng = createRng(hashKey(key) ^ 0x5bd1e995)
+  const range = (lo: number, hi: number) => lo + (hi - lo) * rng.next()
+  return { lmin: range(...CMD_LMIN_RANGE), tau: range(...CMD_TAU_RANGE), period: range(0.2, 0.8), noiseDeg: 3, seed: (hashKey(key) * 2654435761) >>> 0 }
+}
+
+/**
+ * Entities + transformer stages of one course driven by one policy; `origin` shifts the whole course (several courses in one world).
+ * With `opts.chain` (v2) the stage derives its command from that chain polyline and `opts.cmd`; without it the v1 goal stage is used.
+ */
+export function policyCourseParts(course: Course, genome: ArrayLike<number>, opts: { origin?: V2; suffix?: string; noise?: number; noiseSeed?: number; chain?: V2[]; cmd?: CmdConfig } = {}) {
   const [ox, oz] = opts.origin ?? [0, 0]
   const sfx = opts.suffix ?? ''
   const carId = POLICY_CAR_ID + sfx
@@ -87,11 +128,12 @@ export function policyCourseParts(course: Course, genome: ArrayLike<number>, opt
       priority: 5,
       enabled: true,
       name: 'Policy drive',
-      code: POLICY_STAGE_CODE,
+      code: opts.chain ? POLICY_STAGE_CODE_V2 : POLICY_STAGE_CODE,
       params: {
         w: Array.from(genome),
-        goals: course.waypoints.map((g) => [g[0] + ox, g[1] + oz]),
-        reachR: 8,
+        ...(opts.chain
+          ? { chain: opts.chain.map((p) => [p[0] + ox, p[1] + oz]), cmd: opts.cmd ?? cmdConfigFor('default') }
+          : { goals: course.waypoints.map((g) => [g[0] + ox, g[1] + oz]), reachR: 8 }),
         gain: CAR2_PARAMS.power / CAR_BODY.mass,
         ...(opts.noise ? { noise: opts.noise, noiseSeed: opts.noiseSeed ?? 1 } : {}),
       },
@@ -103,7 +145,7 @@ export function policyCourseParts(course: Course, genome: ArrayLike<number>, opt
 
 export const POLICY_GROUND = { id: 'ground', name: 'Ground', bodyType: 'static', shape: { type: 'plane' }, position: [0, 0, 0], rotation: [0, 0, 0], friction: 1 }
 
-export function buildPolicyWorld(course: Course, genome: ArrayLike<number>, opts: { noise?: number; noiseSeed?: number } = {}): RennWorld {
+export function buildPolicyWorld(course: Course, genome: ArrayLike<number>, opts: { noise?: number; noiseSeed?: number; chain?: V2[]; cmd?: CmdConfig } = {}): RennWorld {
   const parts = policyCourseParts(course, genome, opts)
   return {
     version: '1.0',
@@ -115,19 +157,40 @@ export function buildPolicyWorld(course: Course, genome: ArrayLike<number>, opts
   } as unknown as RennWorld
 }
 
-export async function runPolicyEpisode(genome: ArrayLike<number>, key: string, opts: { seconds?: number; noise?: number; onFrame?: (x: number, z: number, t: number) => void } = {}): Promise<PolicyEpisodeMetrics> {
-  const seconds = opts.seconds ?? EPISODE_SECONDS
-  const { kind, seed, variant, difficulty } = parseCourseKey(key)
-  const course = buildCourse(kind, seed, variant, difficulty)
-  let noiseSeed = 17
-  for (let i = 0; i < key.length; i++) noiseSeed = (Math.imul(noiseSeed, 31) + key.charCodeAt(i)) >>> 0
-  const world = buildPolicyWorld(course, genome, { noise: opts.noise ?? SENSOR_NOISE, noiseSeed })
+/**
+ * Keys: a course key `kind:seed[~v][@d]` runs the v1 episode (goal chain of the course); a chain episode key `<setupKey>#<i>` runs the v2
+ * episode: the stage is commanded along chain i of the setup (needs a v2 genome), progress counts along that chain only and the episode
+ * ends `offcourse` when the car is farther than OFF_CHAIN_M from it. `opts.stageChain` hands the stage a different chain than the scored
+ * one (exploit tests: following chain A while chain B is commanded must not pay).
+ */
+export async function runPolicyEpisode(
+  genome: ArrayLike<number>,
+  key: string,
+  opts: { seconds?: number; noise?: number; stageChain?: V2[]; onFrame?: (x: number, z: number, t: number) => void } = {},
+): Promise<PolicyEpisodeMetrics> {
+  const isChain = isChainEpisodeKey(key)
+  const seconds = opts.seconds ?? (isChain ? CHAIN_EPISODE_SECONDS : EPISODE_SECONDS)
+  let course: Course
+  let chainPoints: V2[] | undefined
+  if (isChain) {
+    if (genome.length !== GENOME_LENGTH_V2) throw new Error(`chain episode ${key} needs a v2 genome (${GENOME_LENGTH_V2} numbers), got ${genome.length}`)
+    const c = chainOfEpisode(key)
+    course = buildSetupCourse(c.setupKey)
+    chainPoints = c.chain.points
+  } else {
+    const { kind, seed, variant, difficulty } = parseCourseKey(key)
+    course = buildCourse(kind, seed, variant, difficulty)
+  }
+  const noiseSeed = hashKey(key)
+  const world = buildPolicyWorld(course, genome, { noise: opts.noise ?? SENSOR_NOISE, noiseSeed, ...(chainPoints ? { chain: opts.stageChain ?? chainPoints, cmd: cmdConfigFor(key) } : {}) })
+  const routeLength = chainPoints ? polylineLength(chainPoints) : course.length
+  const offCourseM = chainPoints ? OFF_CHAIN_M : OFF_COURSE_M
   const walls = course.boxes.map((b) => {
     const yaw = (b.yawDeg * Math.PI) / 180
     return { cx: b.at[0], cz: b.at[1], r: Math.hypot(b.size[0], b.size[1]) / 2, poly: rectPoly(b.at[0], b.at[1], yaw, b.size[0], b.size[1]) }
   })
   const hullR = Math.hypot(CAR_SIZE[0], CAR_SIZE[1]) / 2
-  const route = new RouteProgress(course)
+  const route = new RouteProgress(chainPoints ?? course)
   const t0 = performance.now()
   const det = installDeterminism(1, 0)
   const prevWarn = console.warn
@@ -167,11 +230,11 @@ export async function runPolicyEpisode(genome: ArrayLike<number>, key: string, o
         outcome = 'crash'
         break
       }
-      if (route.lastDist > OFF_COURSE_M) {
+      if (route.lastDist > offCourseM) {
         outcome = 'offcourse'
         break
       }
-      if (progress >= course.length - FINISH_MARGIN) {
+      if (progress >= routeLength - FINISH_MARGIN) {
         outcome = 'finish'
         break
       }
@@ -192,8 +255,9 @@ export async function runPolicyEpisode(genome: ArrayLike<number>, key: string, o
       timeS: t,
       meanSpeed: progress / Math.max(t, 1e-3),
       score,
-      norm: score / (course.length * NORM_SPEED),
+      norm: score / (routeLength * NORM_SPEED),
       wallMs: performance.now() - t0,
+      length: routeLength,
     }
   } finally {
     sim?.dispose()

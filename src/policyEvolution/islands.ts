@@ -1,6 +1,6 @@
 import { createRng, gaussian, type Rng } from '@/avEvolution/core/rng'
-import { GENOME_LENGTH, N_HIDDEN, N_IN, N_OUT, policyForward } from './policy'
-import { DEFAULT_ES_CONFIG, initialEsState, PolicyEs, type EsConfig, type EsState, type EvaluateGenome, type GenerationReport } from './es'
+import { inputsOfGenome, N_HIDDEN, N_IN, N_OUT, policyForward } from './policy'
+import { aggregateFitness, DEFAULT_ES_CONFIG, initialEsState, PolicyEs, type EsConfig, type EsState, type EvaluateGenome, type FitnessFn, type GenerationReport } from './es'
 
 /**
  * Island model on top of the evolution strategy: several independent ES centres ("islands") learn side by side on the same course
@@ -10,30 +10,36 @@ import { DEFAULT_ES_CONFIG, initialEsState, PolicyEs, type EsConfig, type EsStat
  * otherwise the child would be a broken mixture of unrelated feature orders.
  */
 
+/** Genome layout of a net with `nIn` inputs (v1: N_IN = 16, v2: 24); every helper below derives it from the genome length. */
+const layout = (nIn: number) => {
+  const B1 = N_HIDDEN * nIn
+  const W2 = B1 + N_HIDDEN
+  return { B1, W2, B2: W2 + N_OUT * N_HIDDEN }
+}
 const BLOCK = N_IN + 1 + N_OUT
-const W1 = 0
-const B1 = N_HIDDEN * N_IN
-const W2 = B1 + N_HIDDEN
-const B2 = W2 + N_OUT * N_HIDDEN
 
-/** Hidden neuron j of a genome as one block: [incoming weights (N_IN), bias, outgoing weights (N_OUT)]. */
+/** Hidden neuron j of a genome as one block: [incoming weights (nIn), bias, outgoing weights (N_OUT)]. */
 export function neuronBlock(g: ArrayLike<number>, j: number): number[] {
+  const nIn = inputsOfGenome(g.length)
+  const { B1, W2 } = layout(nIn)
   const b: number[] = []
-  for (let i = 0; i < N_IN; i++) b.push(g[W1 + j * N_IN + i]!)
+  for (let i = 0; i < nIn; i++) b.push(g[j * nIn + i]!)
   b.push(g[B1 + j]!)
   for (let k = 0; k < N_OUT; k++) b.push(g[W2 + k * N_HIDDEN + j]!)
   return b
 }
 
 export function setNeuronBlock(g: number[], j: number, b: ArrayLike<number>, sign = 1): void {
-  for (let i = 0; i < N_IN; i++) g[W1 + j * N_IN + i] = sign * b[i]!
-  g[B1 + j] = sign * b[N_IN]!
+  const nIn = inputsOfGenome(g.length)
+  const { B1, W2 } = layout(nIn)
+  for (let i = 0; i < nIn; i++) g[j * nIn + i] = sign * b[i]!
+  g[B1 + j] = sign * b[nIn]!
   // tanh is odd: negating a neuron's incoming side and its outgoing weights leaves the function unchanged
-  for (let k = 0; k < N_OUT; k++) g[W2 + k * N_HIDDEN + j] = sign * b[N_IN + 1 + k]!
+  for (let k = 0; k < N_OUT; k++) g[W2 + k * N_HIDDEN + j] = sign * b[nIn + 1 + k]!
 }
 
 /** Plausible policy inputs (rays mostly clear, speeds, unit goal vector ...) for comparing what hidden neurons compute. */
-export function sampleInputs(n: number, rng: Rng): number[][] {
+export function sampleInputs(n: number, rng: Rng, nIn = N_IN): number[][] {
   const out: number[][] = []
   for (let s = 0; s < n; s++) {
     const x: number[] = []
@@ -41,17 +47,25 @@ export function sampleInputs(n: number, rng: Rng): number[][] {
     for (let i = 0; i < nRays; i++) x.push(rng.next() < 0.55 ? rng.next() : 0)
     x.push(rng.next() * 1.3 - 0.3, gaussian(rng) * 0.3, gaussian(rng) * 0.3)
     const a = rng.next() * 2 * Math.PI
-    x.push(Math.cos(a), Math.sin(a), rng.next(), rng.next() * 2 - 1, rng.next() * 2 - 1)
+    x.push(Math.cos(a), Math.sin(a), rng.next())
+    if (nIn > N_IN) {
+      // v2: next-segment direction (unit vector) before previous steer / gas
+      const b = rng.next() * 2 * Math.PI
+      x.push(Math.cos(b), Math.sin(b))
+    }
+    x.push(rng.next() * 2 - 1, rng.next() * 2 - 1)
     out.push(x)
   }
   return out
 }
 
 function hiddenActivations(g: ArrayLike<number>, xs: number[][]): number[][] {
+  const nIn = inputsOfGenome(g.length)
+  const { B1 } = layout(nIn)
   return Array.from({ length: N_HIDDEN }, (_, j) =>
     xs.map((x) => {
       let s = g[B1 + j]!
-      for (let i = 0; i < N_IN; i++) s += g[W1 + j * N_IN + i]! * x[i]!
+      for (let i = 0; i < nIn; i++) s += g[j * nIn + i]! * x[i]!
       return Math.tanh(s)
     }),
   )
@@ -126,7 +140,7 @@ function assign(weight: number[][]): number[] {
  * found by correlating the hidden activations on shared sample inputs.
  */
 export function alignNeurons(a: ArrayLike<number>, b: ArrayLike<number>, samples = 200, seed = 7): { match: number[]; sign: number[] } {
-  const xs = sampleInputs(samples, createRng(seed))
+  const xs = sampleInputs(samples, createRng(seed), inputsOfGenome(a.length))
   const ha = hiddenActivations(a, xs)
   const hb = hiddenActivations(b, xs)
   const corr = ha.map((r) => hb.map((c) => correlation(r, c)))
@@ -143,12 +157,14 @@ export function crossoverNeurons(a: ArrayLike<number>, b: ArrayLike<number>, rng
   if (take.every(Boolean)) take[Math.floor(rng.next() * N_HIDDEN)] = false
   for (let i = 0; i < N_HIDDEN; i++) if (take[i]) setNeuronBlock(child, i, neuronBlock(b, match[i]!), sign[i]!)
   // output biases: average of the parents
-  for (let k = 0; k < N_OUT; k++) child[B2 + k] = (a[B2 + k]! + b[B2 + k]!) / 2
+  const o2 = layout(inputsOfGenome(a.length)).B2
+  for (let k = 0; k < N_OUT; k++) child[o2 + k] = (a[o2 + k]! + b[o2 + k]!) / 2
   return child
 }
 
-export function freshGenome(rng: Rng, initStd = DEFAULT_ES_CONFIG.initStd): number[] {
-  const g = Array.from({ length: GENOME_LENGTH }, () => gaussian(rng) * initStd)
+export function freshGenome(rng: Rng, initStd = DEFAULT_ES_CONFIG.initStd, nIn = N_IN): number[] {
+  const g = Array.from({ length: N_HIDDEN * nIn + N_HIDDEN + N_OUT * N_HIDDEN + N_OUT }, () => gaussian(rng) * initStd)
+  const B2 = layout(nIn).B2
   // start prior (see tools/policy-evolution/run.ts): a positive speed-target bias so random policies at least roll forward
   g[B2 + 1] = 0.5
   return g
@@ -182,12 +198,13 @@ export interface IslandsState {
   events: Array<{ gen: number; replaced: number; with: string; scores: number[] }>
 }
 
-export function initialIslands(esCfg: EsConfig, cfg: IslandsConfig): IslandsState {
+/** `warm`: a genome (of length esCfg.dim) every island centre starts from instead of a random network. */
+export function initialIslands(esCfg: EsConfig, cfg: IslandsConfig, warm?: ArrayLike<number>): IslandsState {
   const rng = createRng(esCfg.seed * 7919 + 13)
   const islands: IslandState[] = []
   for (let k = 0; k < cfg.islands; k++) {
     const es = initialEsState({ ...esCfg, seed: esCfg.seed * 1000 + k })
-    es.theta = freshGenome(createRng(esCfg.seed * 1000 + k), esCfg.initStd)
+    es.theta = warm ? Array.from(warm) : freshGenome(createRng(esCfg.seed * 1000 + k), esCfg.initStd, inputsOfGenome(esCfg.dim))
     islands.push({ es, age: 0, origin: 'random' })
   }
   return { gen: 0, islands, rngState: rng.getState(), events: [] }
@@ -204,8 +221,8 @@ export class IslandEs {
   readonly engines: PolicyEs[]
   private readonly rng: Rng
 
-  constructor(readonly esCfg: EsConfig, readonly cfg: IslandsConfig, public state: IslandsState) {
-    this.engines = state.islands.map((isl, k) => new PolicyEs({ ...esCfg, seed: esCfg.seed * 1000 + k }, isl.es))
+  constructor(readonly esCfg: EsConfig, readonly cfg: IslandsConfig, public state: IslandsState, private readonly fitness: FitnessFn = aggregateFitness) {
+    this.engines = state.islands.map((isl, k) => new PolicyEs({ ...esCfg, seed: esCfg.seed * 1000 + k }, isl.es, fitness))
     this.rng = createRng(0)
     this.rng.setState(state.rngState)
   }
@@ -239,11 +256,11 @@ export class IslandEs {
     const cross = this.rng.next() < this.cfg.pCross
     const genome = cross
       ? crossoverNeurons(this.state.islands[order[0]!]!.es.theta, this.state.islands[order[1]!]!.es.theta, this.rng)
-      : freshGenome(this.rng, this.esCfg.initStd)
+      : freshGenome(this.rng, this.esCfg.initStd, inputsOfGenome(this.esCfg.dim))
     const es = initialEsState({ ...this.esCfg, seed: this.esCfg.seed * 1000 + worst + this.state.gen })
     es.theta = genome
     this.state.islands[worst] = { es, age: 0, origin: cross ? 'cross' : 'random' }
-    this.engines[worst] = new PolicyEs({ ...this.esCfg, seed: this.esCfg.seed * 1000 + worst + this.state.gen }, es)
+    this.engines[worst] = new PolicyEs({ ...this.esCfg, seed: this.esCfg.seed * 1000 + worst + this.state.gen }, es, this.fitness)
     this.state.rngState = this.rng.getState()
     const event = { gen: this.state.gen, replaced: worst, with: cross ? 'crossover' : 'immigrant', scores: scores.map((s) => Math.round(s * 1000) / 1000) }
     this.state.events.push(event)

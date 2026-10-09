@@ -10,9 +10,12 @@ import { cellCentre, generateMaze } from '@/avEvolution/maze/mazeGen'
  *  - `maze`: a seeded 6x6 maze; the car starts in a south-row cell, the goal chain follows the shortest route cell by cell to the exit gate
  *    on the north side (the policy has no map: the goal vector is its only hint which way the route turns).
  */
-export type CourseKind = 'field' | 'slalom' | 'maze'
+export type CourseKind = 'field' | 'slalom' | 'maze' | 'crowd'
 
+/** The v1 kinds (default sets of the v1 tools). `crowd` is a v2 chain setup kind, see CHAIN_KINDS. */
 export const COURSE_KINDS: readonly CourseKind[] = ['field', 'slalom', 'maze']
+/** Setup kinds of the v2 command-chain training (src/policyEvolution/chains.ts). */
+export const CHAIN_KINDS: readonly CourseKind[] = ['field', 'slalom', 'maze', 'crowd']
 
 export interface CourseBox {
   at: V2
@@ -43,7 +46,7 @@ export interface Course {
 export const COURSE_LENGTH = 400
 export const COURSE_START: V2 = [0, 0]
 
-const KIND_SALT: Record<CourseKind, number> = { field: 7919, slalom: 104729, maze: 1299709 }
+const KIND_SALT: Record<CourseKind, number> = { field: 7919, slalom: 104729, maze: 1299709, crowd: 15485863 }
 
 /**
  * `kind:seed` = canonical start; `kind:seed~n` = the same course with the n-th seeded random start pose (offset + heading);
@@ -70,7 +73,7 @@ export function parseCourseKey(key: string): { kind: CourseKind; seed: number; v
   const seed = Number(s)
   const variant = v === undefined ? 0 : Number(v)
   const difficulty = d === undefined ? 1 : Number(d)
-  if (!COURSE_KINDS.includes(kind as CourseKind) || !Number.isInteger(seed) || !Number.isInteger(variant) || variant < 0 || !(difficulty >= 0 && difficulty <= 1)) throw new Error(`bad course key: ${key}`)
+  if (!CHAIN_KINDS.includes(kind as CourseKind) || !Number.isInteger(seed) || !Number.isInteger(variant) || variant < 0 || !(difficulty >= 0 && difficulty <= 1)) throw new Error(`bad course key: ${key}`)
   return { kind: kind as CourseKind, seed, variant, difficulty }
 }
 
@@ -137,6 +140,79 @@ function slalomCourse(rng: Rng): Pick<Course, 'boxes' | 'waypoints'> {
   return { boxes, waypoints }
 }
 
+/** half-width of the crowd track: side walls stand at +-CROWD_HALF_WIDTH (inner face 1 m inside, so ~42 m of drivable width) */
+export const CROWD_HALF_WIDTH = 22
+const CROWD_SLOT = 4.6
+const CROWD_SLOTS = 9
+
+/**
+ * `crowd` (v2 setup kind, static only): a closed ~40 m wide track with rows of parked 4 x 8 cars across it. Every row leaves 2 gaps
+ * (3-4 empty parking slots wide, 14.4 / 19 m) at random places, aisles between the rows carry a few clutter boxes. The way through is a
+ * different sequence of gaps per setup, and several gap sequences exist.
+ */
+function crowdCourse(rng: Rng): Pick<Course, 'boxes' | 'waypoints'> {
+  const hw = CROWD_HALF_WIDTH
+  const boxes: CourseBox[] = []
+  for (let z = 20; z > -COURSE_LENGTH - 40; z -= 40) for (const side of [-1, 1]) boxes.push({ at: [side * hw, z - 20], size: [2, 40], yawDeg: 0 })
+  boxes.push({ at: [0, 24], size: [2 * hw + 2, 2], yawDeg: 0 })
+  boxes.push({ at: [0, -COURSE_LENGTH - 24], size: [2 * hw + 2, 2], yawDeg: 0 })
+  const rowZ: number[] = []
+  for (let z = -50; z > -COURSE_LENGTH + 10; z -= range(rng, 28, 36)) rowZ.push(z)
+  for (const z of rowZ) {
+    const gap = new Array<boolean>(CROWD_SLOTS).fill(false)
+    const runs = 2
+    for (let r = 0; r < runs; r++) {
+      const len = 3 + Math.floor(rng.next() * 2)
+      for (let attempt = 0; attempt < 20; attempt++) {
+        const s0 = Math.floor(rng.next() * (CROWD_SLOTS - len + 1))
+        let ok = true
+        for (let i = Math.max(0, s0 - 1); i <= Math.min(CROWD_SLOTS - 1, s0 + len); i++) if (gap[i]) ok = false
+        if (!ok) continue
+        for (let i = s0; i < s0 + len; i++) gap[i] = true
+        break
+      }
+    }
+    for (let i = 0; i < CROWD_SLOTS; i++) {
+      if (gap[i]) continue
+      boxes.push({ at: [(i - (CROWD_SLOTS - 1) / 2) * CROWD_SLOT, z + range(rng, -1.5, 1.5)], size: [4, 8], yawDeg: range(rng, -3, 3) })
+    }
+  }
+  // clutter in the aisles (central part only, so it never plugs a row gap)
+  const edges = [-20, ...rowZ, -COURSE_LENGTH]
+  for (let a = 0; a + 1 < edges.length; a++) {
+    const zc = (edges[a]! + edges[a + 1]!) / 2
+    if (edges[a]! - edges[a + 1]! < 20) continue
+    const count = Math.floor(rng.next() * 4)
+    for (let i = 0; i < count; i++) boxes.push({ at: [range(rng, -(hw - 6), hw - 6), zc + range(rng, -4, 4)], size: [range(rng, 1.5, 3), range(rng, 1.5, 3)], yawDeg: range(rng, 0, 180) })
+  }
+  return { boxes, waypoints: [[0, -COURSE_LENGTH]] }
+}
+
+/**
+ * v2 `slalom` geometry (chain setups): the same narrowing corridor (44 -> 34 m), but the obstacles are central islands (20-26 % of the width, slightly offset
+ * to alternating sides) that can be passed on BOTH sides, so several routes through the corridor exist. v1 `slalomCourse` is untouched.
+ */
+function slalomIslandsCourse(rng: Rng): Pick<Course, 'boxes' | 'waypoints'> {
+  const widthAt = (z: number) => 44 - 10 * Math.min(1, -z / COURSE_LENGTH)
+  const boxes: CourseBox[] = []
+  const waypoints: V2[] = []
+  for (let z = 20; z > -COURSE_LENGTH - 20; z -= 40) {
+    const w = widthAt(z)
+    for (const side of [-1, 1]) boxes.push({ at: [side * (w / 2 + 1), z - 20], size: [2, 40], yawDeg: 0 })
+  }
+  let side = rng.next() < 0.5 ? -1 : 1
+  for (let z = -45; z > -COURSE_LENGTH; z -= range(rng, 24, 32)) {
+    const w = widthAt(z)
+    const p = w * range(rng, 0.2, 0.26)
+    const c = side * w * range(rng, 0.04, 0.1)
+    boxes.push({ at: [c, z], size: [p, 3], yawDeg: 0 })
+    waypoints.push([(-side * (w / 2) + c - (side * p) / 2) / 2, z])
+    side = -side
+  }
+  waypoints.push([0, -COURSE_LENGTH])
+  return { boxes, waypoints }
+}
+
 const MAZE_CELLS = 6
 const MAZE_PITCH = 16
 
@@ -181,6 +257,7 @@ const START_JITTER: Record<CourseKind, { x: number; z: number; yawDeg: number }>
   field: { x: 6, z: 0, yawDeg: 25 },
   slalom: { x: 5, z: 0, yawDeg: 25 },
   maze: { x: 2, z: 2, yawDeg: 20 },
+  crowd: { x: 6, z: 0, yawDeg: 25 },
 }
 
 /** Seeded random start pose for variant >= 1; keeps the car clear of every wall / box (falls back to the canonical start). */
@@ -198,9 +275,10 @@ function jitterStart(course: Course): Course {
   return course
 }
 
-export function buildCourse(kind: CourseKind, seed: number, variant = 0, difficulty = 1): Course {
+export function buildCourse(kind: CourseKind, seed: number, variant = 0, difficulty = 1, chainSetup = false): Course {
   const rng = createRng((seed * 2654435761 + KIND_SALT[kind]) >>> 0)
-  const body = kind === 'field' ? fieldCourse(rng, difficulty) : kind === 'slalom' ? slalomCourse(rng) : mazeCourse(seed, rng)
+  const body =
+    kind === 'field' ? fieldCourse(rng, difficulty) : kind === 'slalom' ? (chainSetup ? slalomIslandsCourse(rng) : slalomCourse(rng)) : kind === 'crowd' ? crowdCourse(rng) : mazeCourse(seed, rng)
   let length = 0
   let prev: V2 = COURSE_START
   for (const w of body.waypoints) {
@@ -209,6 +287,12 @@ export function buildCourse(kind: CourseKind, seed: number, variant = 0, difficu
   }
   const course: Course = { key: courseKey(kind, seed, variant, difficulty), kind, seed, length, variant, difficulty, ...body }
   return variant > 0 ? jitterStart(course) : course
+}
+
+/** Geometry of a v2 chain setup by setup key (`slalom` uses the island geometry, the other kinds equal `buildCourse`). */
+export function buildSetupCourse(setupKey: string): Course {
+  const { kind, seed, variant, difficulty } = parseCourseKey(setupKey)
+  return buildCourse(kind, seed, variant, difficulty, true)
 }
 
 /** Arc-length progress of a point along the route polyline (start + waypoints), searched near a segment hint. */
@@ -220,8 +304,9 @@ export class RouteProgress {
   /** distance of the last position to the route polyline (m) */
   lastDist = 0
 
-  constructor(course: Course) {
-    this.pts = [COURSE_START, ...course.waypoints]
+  /** `course`: the route is the start plus its waypoints; a point array is used as the polyline as is (v2 command chains). */
+  constructor(course: Course | V2[]) {
+    this.pts = Array.isArray(course) ? course : [COURSE_START, ...course.waypoints]
     for (let i = 1; i < this.pts.length; i++) this.cum.push(this.cum[i - 1]! + Math.hypot(this.pts[i]![0] - this.pts[i - 1]![0], this.pts[i]![1] - this.pts[i - 1]![1]))
   }
 

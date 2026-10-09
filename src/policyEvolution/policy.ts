@@ -14,7 +14,33 @@ export const N_IN = N_RAYS + 3 + 3 + 2
 export const N_HIDDEN = 10
 export const N_OUT = 2
 /** layout: W1 (hidden x in), b1, W2 (out x hidden), b2 */
-export const GENOME_LENGTH = N_HIDDEN * N_IN + N_HIDDEN + N_OUT * N_HIDDEN + N_OUT
+export const genomeLength = (nIn: number) => N_HIDDEN * nIn + N_HIDDEN + N_OUT * N_HIDDEN + N_OUT
+export const GENOME_LENGTH = genomeLength(N_IN)
+
+/**
+ * v2 (command chains): the same net with 24 inputs. rays (14) | fwd speed, side speed, yaw rate | aim cos, sin, min(dist / 60, 1) |
+ * next-segment cos, sin (car frame) | previous steer, gas. v1 stays as it is (shipped example worlds, shippedPolicy.json).
+ */
+export const N_IN_V2 = N_RAYS + 3 + 3 + 2 + 2
+export const GENOME_LENGTH_V2 = genomeLength(N_IN_V2)
+/** number of network inputs of a genome of this length (v1 or v2 layout) */
+export const inputsOfGenome = (len: number) => (len - N_HIDDEN - N_OUT * N_HIDDEN - N_OUT) / N_HIDDEN
+
+/**
+ * v1 genome -> v2 genome with identical outputs: the two new inputs (next-segment cos, sin) get zero weights, the aim inputs take over
+ * the goal weights (goal fwd, left, dist = aim cos, sin, dist), previous steer / gas move to their new input slots.
+ */
+export function padV1Genome(g: ArrayLike<number>): number[] {
+  if (g.length !== GENOME_LENGTH) throw new Error(`padV1Genome: expected a v1 genome of ${GENOME_LENGTH} numbers, got ${g.length}`)
+  const out = new Array<number>(GENOME_LENGTH_V2).fill(0)
+  const first = N_RAYS + 6 // rays + speeds + goal / aim: unchanged positions
+  for (let j = 0; j < N_HIDDEN; j++) {
+    for (let i = 0; i < N_IN; i++) out[j * N_IN_V2 + (i < first ? i : i + 2)] = g[j * N_IN + i]!
+  }
+  const tail = N_HIDDEN * N_IN
+  for (let i = 0; i < N_HIDDEN + N_OUT * N_HIDDEN + N_OUT; i++) out[N_HIDDEN * N_IN_V2 + i] = g[tail + i]!
+  return out
+}
 
 /**
  * The second output is a TARGET SPEED, not a raw pedal: the car2 actuator turns the pedal into an acceleration of
@@ -28,15 +54,14 @@ export const TAU_SPEED = 0.05
 export const POLICY_STAGE_ID = 'policy_drive'
 export const POLICY_ACTUATOR_ID = 'policy_car'
 
-/** Reference forward pass (the stage below computes the identical thing inside the transformer chain). */
-export function policyForward(w: ArrayLike<number>, x: ArrayLike<number>): [number, number] {
+function forwardN(w: ArrayLike<number>, x: ArrayLike<number>, nIn: number): [number, number] {
   const h = new Array<number>(N_HIDDEN)
   for (let j = 0; j < N_HIDDEN; j++) {
-    let s = w[N_HIDDEN * N_IN + j]!
-    for (let i = 0; i < N_IN; i++) s += w[j * N_IN + i]! * x[i]!
+    let s = w[N_HIDDEN * nIn + j]!
+    for (let i = 0; i < nIn; i++) s += w[j * nIn + i]! * x[i]!
     h[j] = Math.tanh(s)
   }
-  const o2 = N_HIDDEN * N_IN + N_HIDDEN
+  const o2 = N_HIDDEN * nIn + N_HIDDEN
   const out: [number, number] = [0, 0]
   for (let k = 0; k < N_OUT; k++) {
     let s = w[o2 + N_OUT * N_HIDDEN + k]!
@@ -46,13 +71,27 @@ export function policyForward(w: ArrayLike<number>, x: ArrayLike<number>): [numb
   return out
 }
 
+/** Reference forward pass (the stage below computes the identical thing inside the transformer chain). */
+export function policyForward(w: ArrayLike<number>, x: ArrayLike<number>): [number, number] {
+  return forwardN(w, x, N_IN)
+}
+
+/** Reference forward pass of the v2 net (24 inputs). */
+export function policyForwardV2(w: ArrayLike<number>, x: ArrayLike<number>): [number, number] {
+  return forwardN(w, x, N_IN_V2)
+}
+
 /**
  * Stage code (runs every frame before the car2 actuator). Params: `w` (genome), `goals` ([[x, z], ...]), `reachR`, `gain` (actuator acceleration per unit pedal, power / mass), optional `noise` (relative ray-distance noise, seeded by `noiseSeed`).
  * The target is the first goal not yet within `reachR`; goals are passed in order and never revisited.
+ *
+ * v2 (`POLICY_STAGE_CODE_V2`) replaces `goals` by a command: `input.av.cmd = { aim: [x, z], next: [x, z] }` (world points) when present, else it
+ * is derived every frame from `params.chain` (polyline [[x, z], ...]) and `params.cmd` = { lmin, tau, period, noiseDeg, seed }: the car is projected
+ * onto the chain (monotone), the aim point lies `clamp(lmin + tau * speed, lmin, 40)` m further along, is refreshed every `period` s (held in
+ * between) with a bearing noise of +-noiseDeg degrees; `next` is the chain point 12 m beyond the aim point (its direction = next-turn hint).
+ * The ray, forward-pass and actuator code is shared between v1 and v2 (the string pieces below).
  */
-export const POLICY_STAGE_CODE = `
-var ANGLES = ${JSON.stringify(RAY_ANGLES_DEG.map((d) => (d * Math.PI) / 180))}
-var N_IN = ${N_IN}, H = ${N_HIDDEN}, RANGE = ${RAY_RANGE}, VF = ${V_FWD_MAX}, VR = ${V_REV_MAX}, TAU = ${TAU_SPEED}
+const STAGE_RND = `
 function rnd(state) {
   state.rs = (state.rs + 0x6d2b79f5) >>> 0
   var t = state.rs
@@ -60,7 +99,80 @@ function rnd(state) {
   t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
   return ((t ^ (t >>> 14)) >>> 0) / 4294967296
 }
-function transform(input, dt, params, state, api) {
+`
+
+const STAGE_CMD_HELPERS = `
+function chainPoint(ch, cum, s) {
+  var n = ch.length
+  if (s <= 0) return ch[0]
+  if (s >= cum[n - 1]) return ch[n - 1]
+  var i = 0
+  while (i < n - 2 && cum[i + 1] < s) i++
+  var t = (s - cum[i]) / ((cum[i + 1] - cum[i]) || 1)
+  return [ch[i][0] + (ch[i + 1][0] - ch[i][0]) * t, ch[i][1] + (ch[i + 1][1] - ch[i][1]) * t]
+}
+function deriveCmd(params, state, dt, pos, speed) {
+  var ch = params.chain
+  var cfg = params.cmd || {}
+  var n = ch.length
+  if (!state.cum) {
+    state.cum = [0]
+    for (var q = 1; q < n; q++) state.cum.push(state.cum[q - 1] + Math.hypot(ch[q][0] - ch[q - 1][0], ch[q][1] - ch[q - 1][1]))
+    state.cs = 0
+    state.cseg = 0
+    state.ct = 1e9
+    state.cr = { rs: (cfg.seed >>> 0) || 1 }
+  }
+  var px = pos[0], pz = pos[2]
+  var bestD = Infinity, bestS = state.cs, bestSeg = state.cseg
+  for (var i = Math.max(0, state.cseg - 1); i <= Math.min(n - 2, state.cseg + 2); i++) {
+    var ax = ch[i][0], az = ch[i][1]
+    var dx = ch[i + 1][0] - ax, dz = ch[i + 1][1] - az
+    var len2 = dx * dx + dz * dz || 1
+    var t = Math.max(0, Math.min(1, ((px - ax) * dx + (pz - az) * dz) / len2))
+    var d = Math.hypot(px - (ax + t * dx), pz - (az + t * dz))
+    if (d < bestD) {
+      bestD = d
+      bestS = state.cum[i] + t * Math.sqrt(len2)
+      bestSeg = i
+    }
+  }
+  state.cseg = bestSeg
+  if (bestS > state.cs) state.cs = bestS
+  state.ct += dt
+  if (!state.aim || state.ct >= (cfg.period != null ? cfg.period : 0.5)) {
+    state.ct = 0
+    var total = state.cum[n - 1]
+    var lmin = cfg.lmin != null ? cfg.lmin : 12
+    var L = Math.min(Math.max(lmin + (cfg.tau != null ? cfg.tau : 1.5) * speed, lmin), 40)
+    var sa = Math.min(state.cs + L, total)
+    var a = chainPoint(ch, state.cum, sa)
+    var nd = cfg.noiseDeg != null ? cfg.noiseDeg : 3
+    if (nd > 0) {
+      var e = (rnd(state.cr) * 2 - 1) * nd * Math.PI / 180
+      var c = Math.cos(e), sn = Math.sin(e)
+      var vx = a[0] - px, vz = a[1] - pz
+      a = [px + vx * c - vz * sn, pz + vx * sn + vz * c]
+    }
+    var b = chainPoint(ch, state.cum, Math.min(sa + 12, total))
+    if (Math.hypot(b[0] - a[0], b[1] - a[1]) < 0.5) {
+      var lx = ch[n - 1][0] - ch[n - 2][0], lz = ch[n - 1][1] - ch[n - 2][1]
+      var ll = Math.hypot(lx, lz) || 1
+      b = [a[0] + lx / ll * 12, a[1] + lz / ll * 12]
+    }
+    state.aim = a
+    state.nxt = b
+  }
+  return [state.aim[0], state.aim[1], state.nxt[0], state.nxt[1]]
+}
+`
+
+const stageHead = (nIn: number, v2: boolean) => `
+var ANGLES = ${JSON.stringify(RAY_ANGLES_DEG.map((d) => (d * Math.PI) / 180))}
+var N_IN = ${nIn}, H = ${N_HIDDEN}, RANGE = ${RAY_RANGE}, VF = ${V_FWD_MAX}, VR = ${V_REV_MAX}, TAU = ${TAU_SPEED}${STAGE_RND}${v2 ? STAGE_CMD_HELPERS : ''}`
+
+/** rays + own speeds (shared by v1 and v2) */
+const STAGE_SENSE = `function transform(input, dt, params, state, api) {
   var w = params.w
   var noise = params.noise || 0
   if (state.rs === undefined) state.rs = (params.noiseSeed >>> 0) || 1
@@ -89,7 +201,9 @@ function transform(input, dt, params, state, api) {
   x[n] = api.vec.dot(input.velocity, fwd) / 30
   x[n + 1] = api.vec.dot(input.velocity, left) / 10
   x[n + 2] = api.vec.dot(input.angularVelocity, up) / 2
-  var goals = params.goals || []
+`
+
+const STAGE_GOAL_V1 = `  var goals = params.goals || []
   var reachR = params.reachR != null ? params.reachR : 8
   if (state.gi === undefined) state.gi = 0
   while (state.gi < goals.length - 1 && Math.hypot(goals[state.gi][0] - pos[0], goals[state.gi][1] - pos[2]) < reachR) state.gi++
@@ -101,7 +215,28 @@ function transform(input, dt, params, state, api) {
   x[n + 5] = Math.min(gd / 60, 1)
   x[n + 6] = state.steer || 0
   x[n + 7] = state.gas || 0
-  var h = new Array(H)
+`
+
+const STAGE_GOAL_V2 = `  var cmd = input.av && input.av.cmd
+  var ac
+  if (cmd && cmd.aim) ac = [cmd.aim[0], cmd.aim[1], (cmd.next || cmd.aim)[0], (cmd.next || cmd.aim)[1]]
+  else if (params.chain && params.chain.length > 1) ac = deriveCmd(params, state, dt, pos, Math.abs(api.vec.dot(input.velocity, fwd)))
+  else ac = [pos[0], pos[2], pos[0], pos[2]]
+  var gx = ac[0] - pos[0], gz = ac[1] - pos[2]
+  var gd = Math.hypot(gx, gz) || 1
+  x[n + 3] = (gx * fwd[0] + gz * fwd[2]) / gd
+  x[n + 4] = (gx * left[0] + gz * left[2]) / gd
+  x[n + 5] = Math.min(gd / 60, 1)
+  var tx = ac[2] - ac[0], tz = ac[3] - ac[1]
+  var td = Math.hypot(tx, tz)
+  x[n + 6] = td > 1e-6 ? (tx * fwd[0] + tz * fwd[2]) / td : 1
+  x[n + 7] = td > 1e-6 ? (tx * left[0] + tz * left[2]) / td : 0
+  x[n + 8] = state.steer || 0
+  x[n + 9] = state.gas || 0
+`
+
+/** forward pass + target-speed law + actuator inputs (shared by v1 and v2) */
+const STAGE_NET = `  var h = new Array(H)
   for (var j = 0; j < H; j++) {
     var sum = w[H * N_IN + j]
     for (var k = 0; k < N_IN; k++) sum += w[j * N_IN + k] * x[k]
@@ -126,3 +261,6 @@ function transform(input, dt, params, state, api) {
   return {}
 }
 `
+
+export const POLICY_STAGE_CODE = stageHead(N_IN, false) + STAGE_SENSE + STAGE_GOAL_V1 + STAGE_NET
+export const POLICY_STAGE_CODE_V2 = stageHead(N_IN_V2, true) + STAGE_SENSE + STAGE_GOAL_V2 + STAGE_NET

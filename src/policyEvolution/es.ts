@@ -1,4 +1,5 @@
 import { createRng, gaussian, type Rng } from '@/avEvolution/core/rng'
+import { parseChainEpisodeKey } from './chains'
 import type { PolicyEpisodeMetrics } from './episode'
 
 /**
@@ -55,6 +56,34 @@ export function aggregateFitness(metrics: Pick<PolicyEpisodeMetrics, 'norm'>[]):
   return 0.5 * mean + 0.5 * worst
 }
 
+/** Fitness of one genome over a batch of episode metrics (aggregateFitness for v1, aggregateEvenness for chain episodes). */
+export type FitnessFn = (metrics: PolicyEpisodeMetrics[]) => number
+
+/** mean of the worst quarter (at least one value) */
+function worstQuarterMean(values: number[]): number {
+  const s = values.slice().sort((a, b) => a - b)
+  const k = Math.max(1, Math.ceil(s.length / 4))
+  return s.slice(0, k).reduce((a, b) => a + b, 0) / k
+}
+
+/**
+ * Evenness fitness for chain episodes (metrics carry the episode key `<setupKey>#<i>`): per setup 0.5 mean + 0.5 min of the normalised
+ * score over its chains, over setups 0.5 mean + 0.5 mean of the worst quarter. A candidate that drives one chain well and fails the
+ * others scores below one with the same mean spread evenly.
+ */
+export function aggregateEvenness(metrics: Array<Pick<PolicyEpisodeMetrics, 'key' | 'norm'>>): number {
+  if (!metrics.length) return 0
+  const bySetup = new Map<string, number[]>()
+  for (const m of metrics) {
+    const { setupKey } = parseChainEpisodeKey(m.key)
+    const list = bySetup.get(setupKey)
+    if (list) list.push(m.norm)
+    else bySetup.set(setupKey, [m.norm])
+  }
+  const setupScores = [...bySetup.values()].map((v) => 0.5 * (v.reduce((a, b) => a + b, 0) / v.length) + 0.5 * Math.min(...v))
+  return 0.5 * (setupScores.reduce((a, b) => a + b, 0) / setupScores.length) + 0.5 * worstQuarterMean(setupScores)
+}
+
 /** Centred ranks in [-0.5, 0.5]; ties share their average rank. */
 export function centredRanks(values: number[]): number[] {
   const n = values.length
@@ -81,7 +110,7 @@ export class PolicyEs {
   state: EsState
   private readonly rng: Rng
 
-  constructor(readonly cfg: EsConfig, state?: EsState) {
+  constructor(readonly cfg: EsConfig, state?: EsState, private readonly fitness: FitnessFn = aggregateFitness) {
     this.state = state ?? initialEsState(cfg)
     this.rng = createRng(0)
     this.rng.setState(this.state.rngState)
@@ -99,7 +128,7 @@ export class PolicyEs {
       cands.push(s.theta.map((t, d) => t - sigma * e[d]!))
     }
     const [centerMetrics, ...results] = await Promise.all([evaluate(s.theta, keys), ...cands.map((c) => evaluate(c, keys))])
-    const fit = results.map((r) => aggregateFitness(r))
+    const fit = results.map((r) => this.fitness(r))
     const u = centredRanks(fit)
     const grad = new Array<number>(dim).fill(0)
     for (let i = 0; i < pairs; i++) {
@@ -123,7 +152,7 @@ export class PolicyEs {
     return {
       gen: s.gen,
       keys,
-      center: aggregateFitness(centerMetrics!),
+      center: this.fitness(centerMetrics!),
       best: Math.max(...fit),
       mean: fit.reduce((a, b) => a + b, 0) / fit.length,
       worst: Math.min(...fit),
