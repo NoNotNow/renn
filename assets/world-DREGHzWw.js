@@ -1,8 +1,17 @@
 const n="1.0",t={gravity:[0,-100,0],distanceCulling:!1,ambientLight:[.45,.45,.5],directionalLight:{direction:[1,2,1],color:[1,.98,.9],intensity:1.2},skyColor:[.35,.5,.75],camera:{control:"follow",mode:"thirdPerson",target:"policy_car_body_0",distance:30,height:14,cameraTargetLag:120,cameraPositionLag:180}},i={policy_drive_0:{type:"custom",priority:5,enabled:!0,name:"Policy drive",code:`
 var ANGLES = [0,0.17453292519943295,-0.17453292519943295,0.3490658503988659,-0.3490658503988659,0.6108652381980153,-0.6108652381980153,0.9599310885968813,-0.9599310885968813,1.3962634015954636,-1.3962634015954636,2.0943951023931953,-2.0943951023931953,3.141592653589793]
 var N_IN = 22, H = 10, RANGE = 50, VF = 30, VR = 8, TAU = 0.05
+function rnd(state) {
+  state.rs = (state.rs + 0x6d2b79f5) >>> 0
+  var t = state.rs
+  t = Math.imul(t ^ (t >>> 15), t | 1)
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+}
 function transform(input, dt, params, state, api) {
   var w = params.w
+  var noise = params.noise || 0
+  if (state.rs === undefined) state.rs = (params.noiseSeed >>> 0) || 1
   if (!w || !input.actions) return {}
   var up = api.getUpVector(input.rotation)
   var fwd = api.vec.normalize(api.vec.projectOntoPlane(api.getForwardVector(input.rotation), up))
@@ -16,7 +25,13 @@ function transform(input, dt, params, state, api) {
     var t = Math.min(Math.abs(c) > 1e-6 ? hl / Math.abs(c) : 1e9, Math.abs(s) > 1e-6 ? hw / Math.abs(s) : 1e9)
     var o = [pos[0] + dir[0] * t, pos[1], pos[2] + dir[2] * t]
     var r = api.raycast(o, dir, RANGE, { visualize: false })
-    x[i] = r.hit ? 1 - Math.min(r.distance, RANGE) / RANGE : 0
+    var dist = r.hit ? Math.min(r.distance, RANGE) : RANGE
+    if (noise > 0 && r.hit) {
+      // seeded multiplicative sensor noise (sum of three uniforms ~ unit variance)
+      dist *= 1 + noise * (rnd(state) + rnd(state) + rnd(state) - 1.5) * 2
+      dist = dist < 0 ? 0 : dist > RANGE ? RANGE : dist
+    }
+    x[i] = r.hit ? 1 - dist / RANGE : 0
   }
   var n = ANGLES.length
   x[n] = api.vec.dot(input.velocity, fwd) / 30
