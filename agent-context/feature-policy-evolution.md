@@ -37,9 +37,18 @@ OpenAI-ES: antithetic perturbations, centred ranks, Adam on the mean, small weig
 - Tests: `npx vitest run src/policyEvolution` (courses, episode outcomes incl. a hand-wired goal follower, ES on a quadratic).
 
 ## Shipped policy and example world
-`tools/policy-evolution/ship.ts <run.json>` rounds the best-by-TRAIN mean policy, re-scores it and writes `src/policyEvolution/shippedPolicy.json`;
-`npx tsx tools/renn-mcp/export-policy-drive-example-world.ts` writes `public/exampleWorlds/policy_drive/` (File -> Example Worlds; documented in example-worlds.md).
-First run (200 gens, pop 49, batch 6, ~10 min on 4 cores): shipped gen 145: TRAIN fitness 2.06 (8/12 courses finished, 4 crashes), HOLDOUT 1.42 (5/12 finished, 7 crashes), mean progress 313 m of 400.
+`tools/policy-evolution/ship.ts <run.json> [--train-per-kind N --holdout-per-kind N] [--force]` rounds the best-by-TRAIN mean policy, scores it AND the currently shipped one on the same
+courses and rewrites `src/policyEvolution/shippedPolicy.json` only if the candidate has the better HOLDOUT fitness. `npx tsx tools/renn-mcp/export-policy-drive-example-world.ts` writes
+`public/exampleWorlds/policy_drive/` (File -> Example Worlds; documented in example-worlds.md).
+
+- Run 1 (12 TRAIN / 12 HOLDOUT courses, 200 gens, ~11 min): TRAIN 2.06, HOLDOUT 1.42 (own 12 courses). Shipped first.
+- Run 2 (`--train-per-kind 30 --holdout-per-kind 10`, batch 12, seed 2, 1500 gens, ~4 h on 4 cores, resumed twice after container restarts): TRAIN rose 0.97 (gen 80) -> 1.5 (gen 600-870, plateau) -> ~1.7 (gen 1000+) -> 1.9 (gen 1340); HOLDOUT ~1.45 -> 1.6 (noisy, +-0.1 between evaluations).
+- Shipped now: run 2 generation 1340. Compared on the same 60 TRAIN + 20 HOLDOUT courses (fitness / mean progress of 400 m / finished / crashed):
+  - HOLDOUT-20: new 1.59 / 336 m / 8 / 12 vs previous shipped 1.38 / 305 m / 7 / 13.
+  - TRAIN-60: new 1.89 / 365 m / 29 / 31 vs previous 1.39 / 315 m / 23 / 37.
+- Reading: still only ~40 % of unseen courses are driven to the end and every other one ends in a contact (no stalls, no flips). The HOLDOUT gain is within the
+  evaluation noise of 20 courses; the TRAIN gain is larger. Course sets this size cannot separate generalisation from selection on TRAIN well; more seeds / a larger HOLDOUT would.
+- A background run started with `nohup` / detached dies when the session idles; use the harness background task (Bash run_in_background) and `--resume` (state is saved every generation).
 
 ## Not done yet
 Browser panel / live playback per generation, MCP tools, comparison against the evolved AV pipeline on the same courses.
