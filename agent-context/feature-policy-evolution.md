@@ -66,6 +66,9 @@ courses and rewrites `src/policyEvolution/shippedPolicy.json` only if the candid
   - HOLDOUT-30 fitness 0.99 / 202 m / 14 finished vs the previous shipped (trained on the open field) 1.05 / 211 m / 12 finished; TRAIN-90 1.08 / 210 m / 41 finished vs 1.06 / 209 m / 37. By HOLDOUT fitness it is not better, which is why `--force` was needed.
   - Per kind, 10 held-out courses each: **field 0/10 finished (mean 71 m)**, slalom 10/10 (429 m), maze 4/10 (106 m). The closed field is the hard kind now (dense boxes, no way around); the earlier "field 10/10" was the bypass.
   - Example courses: field:1001 crash 87 m, slalom:1001 finish, maze:1001 crash 100 m, maze:1002 finish 203 m, maze:1003 crash 20 m, maze:1004 finish 155 m.
+- Run 4 final: stopped at generation 457 by the 2 h background-task limit (state saved, `--resume` continues, not restarted). Shipped the best-by-TRAIN snapshot, generation 390 (`ship.ts`, better on HOLDOUT than the interim gen 310):
+  - HOLDOUT-30: 1.10 / 213 m / 14 finished (interim: 0.99 / 202 m / 14); TRAIN-90: 1.11 / 210 m / 38 finished (interim 1.08 / 210 m / 41).
+  - Per kind, 10 held-out courses each: field 0/10 finished (mean 78 m), slalom 9/10 (428 m), maze 5/10 (134 m). Progress has flattened around TRAIN ~1.1 since gen ~300; the closed field (dense boxes, no bypass) is not solved by the reactive policy yet.
 - A background run started with `nohup` / detached dies when the session idles; use the harness background task (Bash run_in_background) and `--resume` (state is saved every generation).
 
 ## Not done yet
