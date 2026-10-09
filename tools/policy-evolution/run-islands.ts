@@ -5,18 +5,18 @@
  *
  * Several independent ES centres (islands) learn on the same course batches; every `--epoch` generations they are ranked on fresh
  * courses and the worst MATURE island (age >= `--mature`) is replaced by a crossover of the two best islands (hidden neurons aligned
- * first) or by a new random network (`--p-cross` is the crossover share). The field course difficulty rises automatically while the
- * mean policies finish enough field courses (`--no-curriculum` turns it off). Same start variants / sensor noise as run.ts.
+ * first) or by a new random network (`--p-cross` is the crossover share). The field course difficulty (0 = empty track, 1 = full) rises automatically while the
+ * mean policies cover enough of the field route (`--no-curriculum` turns it off). Same start variants / sensor noise as run.ts.
  *
  * Options: --islands N (default 3) --pairs N (antithetic pairs PER island, default 8) --epoch N (25) --mature N (75) --p-cross P (0.5)
  *   --sigma --lr --seed --batch N (18) --train-per-kind N (30) --holdout-per-kind N (20) --workers N --out FILE --resume
- *   --no-variants --no-curriculum --curriculum-start D (0.2)
+ *   --no-variants --no-curriculum --curriculum-start D (0)
  * The best mean policy by TRAIN score (checked at every epoch end) is stored as `best.genome` (same layout as run.ts; ship.ts reads it).
  */
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { holdoutCourseKeys, parseCourseKey, trainCourseKeys, withVariant } from '@/policyEvolution/courses'
+import { COURSE_LENGTH, holdoutCourseKeys, parseCourseKey, trainCourseKeys, withVariant } from '@/policyEvolution/courses'
 import { applyCurriculum, DEFAULT_CURRICULUM, initialCurriculum, updateCurriculum, type CurriculumState } from '@/policyEvolution/curriculum'
 import { aggregateFitness, DEFAULT_ES_CONFIG, type EsConfig } from '@/policyEvolution/es'
 import { DEFAULT_ISLANDS, initialIslands, IslandEs, type IslandsConfig, type IslandsState } from '@/policyEvolution/islands'
@@ -99,8 +99,8 @@ async function main() {
       let line = `gen ${isl.state.gen}  centers [${reports.map((r) => r.center.toFixed(2)).join(' ')}] ages [${isl.state.islands.map((x) => x.age).join(' ')}]`
       if (file.curriculum) {
         const fieldRuns = reports.flatMap((r) => (r.centerMetrics ?? []).filter((m) => parseCourseKey(m.key).kind === 'field'))
-        if (fieldRuns.length) file.curriculum = updateCurriculum(file.curriculum, fieldRuns.filter((m) => m.outcome === 'finish').length / fieldRuns.length)
-        line += `  field difficulty ${file.curriculum.difficulty.toFixed(1)} (finish ema ${file.curriculum.ema.toFixed(2)})`
+        if (fieldRuns.length) file.curriculum = updateCurriculum(file.curriculum, fieldRuns.reduce((a, m) => a + Math.min(1, m.progress / COURSE_LENGTH), 0) / fieldRuns.length)
+        line += `  field difficulty ${file.curriculum.difficulty.toFixed(2)} (route fraction ema ${file.curriculum.ema.toFixed(2)})`
       }
       if (isl.isEpochEnd()) {
         // rank the islands on fresh courses at full difficulty, then reproduce

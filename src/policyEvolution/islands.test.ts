@@ -89,35 +89,42 @@ describe('IslandEs', () => {
 })
 
 describe('curriculum', () => {
-  it('field difficulty scales box count and size; difficulty 1 is the unchanged course', () => {
-    const easy = buildCourse('field', 3, 0, 0.2)
+  it('field difficulty scales box count and size; 1 is the unchanged course, 0 an empty track', () => {
+    const empty = buildCourse('field', 3, 0, 0)
+    const easy = buildCourse('field', 3, 0, 0.3)
     const full = buildCourse('field', 3)
-    expect(easy.boxes.length).toBeLessThan(full.boxes.length)
+    const obstacles = (c: typeof full) => c.boxes.filter((b) => b.size[1] < 39 && b.size[0] < 38).length
+    expect(obstacles(empty)).toBe(0)
+    expect(obstacles(easy)).toBeGreaterThan(0)
+    expect(obstacles(easy)).toBeLessThan(obstacles(full))
     expect(buildCourse('field', 3, 0, 1)).toEqual(full)
     expect(parseCourseKey('field:3~2@0.4')).toEqual({ kind: 'field', seed: 3, variant: 2, difficulty: 0.4 })
     expect(courseKey('field', 3, 2, 0.4)).toBe('field:3~2@0.4')
     expect(() => parseCourseKey('field:3@2')).toThrow()
   })
 
-  it('steps up only after enough successful generations, never past 1', () => {
+  it('steps up only after enough good generations, never past 1', () => {
     let s = initialCurriculum()
-    for (let i = 0; i < DEFAULT_CURRICULUM.minSteps - 1; i++) s = updateCurriculum(s, 1)
-    expect(s.difficulty).toBe(0.2)
-    s = updateCurriculum(s, 1)
-    expect(s.difficulty).toBeCloseTo(0.3)
-    for (let i = 0; i < 400; i++) s = updateCurriculum(s, 1)
+    expect(s.difficulty).toBe(0)
+    for (let i = 0; i < DEFAULT_CURRICULUM.minSteps - 1; i++) s = updateCurriculum(s, 0.9)
+    expect(s.difficulty).toBe(0)
+    s = updateCurriculum(s, 0.9)
+    expect(s.difficulty).toBeCloseTo(0.05)
+    for (let i = 0; i < 600; i++) s = updateCurriculum(s, 1)
     expect(s.difficulty).toBe(1)
     let low = initialCurriculum()
-    for (let i = 0; i < 50; i++) low = updateCurriculum(low, 0.1)
-    expect(low.difficulty).toBe(0.2)
+    for (let i = 0; i < 50; i++) low = updateCurriculum(low, 0.3)
+    expect(low.difficulty).toBe(0)
   })
 
-  it('applyCurriculum only touches field keys', () => {
+  it('applyCurriculum only touches field keys and stays inside the window', () => {
     const s = { difficulty: 0.5, ema: 0, sinceStep: 0 }
     const keys = applyCurriculum(['field:1~3', 'slalom:1~3', 'maze:1~3'], s, 7)
     expect(keys[1]).toBe('slalom:1~3')
     expect(keys[2]).toBe('maze:1~3')
-    expect(parseCourseKey(keys[0]!).difficulty).toBeLessThanOrEqual(0.5)
+    const d = parseCourseKey(keys[0]!).difficulty
+    expect(d).toBeLessThanOrEqual(0.5)
+    expect(d).toBeGreaterThanOrEqual(0.25)
     expect(applyCurriculum(['field:1~3'], { difficulty: 1, ema: 0, sinceStep: 0 }, 7)).toEqual(['field:1~3'])
   })
 })

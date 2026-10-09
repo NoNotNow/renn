@@ -80,8 +80,8 @@ const range = (rng: Rng, lo: number, hi: number) => lo + (hi - lo) * rng.next()
 export const FIELD_HALF_WIDTH = 19
 
 function fieldCourse(rng: Rng, difficulty: number): Pick<Course, 'boxes' | 'waypoints'> {
-  // curriculum: difficulty 1 = the full course (identical to before), lower = fewer and smaller boxes
-  const density = 0.3 + 0.7 * difficulty
+  // curriculum: difficulty 1 = the full course (identical to before), 0 = an empty track (walls and goals only), in between fewer and smaller boxes
+  const density = difficulty
   const maxSize = 4 + 4 * difficulty
   const waypoints: V2[] = []
   let x = 0
