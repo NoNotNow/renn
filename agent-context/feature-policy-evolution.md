@@ -87,5 +87,16 @@ courses and rewrites `src/policyEvolution/shippedPolicy.json` only if the candid
   - Per kind, 10 held-out courses each: field 0/10 finished (mean 78 m), slalom 9/10 (428 m), maze 5/10 (134 m). Progress has flattened around TRAIN ~1.1 since gen ~300; the closed field (dense boxes, no bypass) is not solved by the reactive policy yet.
 - A background run started with `nohup` / detached dies when the session idles; use the harness background task (Bash run_in_background) and `--resume` (state is saved every generation).
 
+## Experiment cost and screening protocol (measured 2026-10-09)
+- Per core the simulation already runs ~70-120x real time (`tools/policy-evolution/bench.ts`): world build ~5 ms per episode; per simulated
+  second ~6 ms transformers (of which Rapier `castRay` for the 14 rays is the largest single part, ~25 % of all CPU), ~4 ms physics step,
+  ~4 ms episode checks. Episodes are short: perturbed policies average ~6 sim s (crash 5.5 s, finish 9.8 s; no stall/timeout seen;
+  `tools/policy-evolution/bench-es.ts`). So code tuning can win at most ~1.3x (decision rate 20 Hz instead of 60 would save ~20 %, but
+  changes behaviour); the cost of a run is simply ~900 episodes x ~600 generations.
+- The lever is the protocol: runs reach ~95 % of their final level by generation 100-150 (run 4 TRAIN 1.00 at gen 100 vs 1.10 at 400; run 5 1.01 vs 1.12).
+  **Screening runs: `--gens 150` (~40 min on 4 cores), several seeds per configuration**, compared with
+  `npx tsx tools/policy-evolution/compare.ts --group A a1.json a2.json --group B b1.json b2.json [--group shipped]` (every run's best on the same
+  HOLDOUT courses; per run fitness + finish rate per kind, per group mean / sd / range). Only the winner gets a long run.
+
 ## Not done yet
 Browser panel / live playback per generation, MCP tools, comparison against the evolved AV pipeline on the same courses.
