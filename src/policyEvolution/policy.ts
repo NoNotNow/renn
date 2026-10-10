@@ -91,7 +91,7 @@ export function policyForwardV2(w: ArrayLike<number>, x: ArrayLike<number>): [nu
  * between) with a bearing noise of +-noiseDeg degrees; `next` is the chain point 12 m beyond the aim point (its direction = next-turn hint).
  * The ray, forward-pass and actuator code is shared between v1 and v2 (the string pieces below).
  */
-const STAGE_RND = `
+export const STAGE_RND = `
 function rnd(state) {
   state.rs = (state.rs + 0x6d2b79f5) >>> 0
   var t = state.rs
@@ -101,7 +101,7 @@ function rnd(state) {
 }
 `
 
-const STAGE_CMD_HELPERS = `
+export const STAGE_CMD_HELPERS = `
 function chainPoint(ch, cum, s) {
   var n = ch.length
   if (s <= 0) return ch[0]
@@ -167,12 +167,12 @@ function deriveCmd(params, state, dt, pos, speed) {
 }
 `
 
-const stageHead = (nIn: number, v2: boolean) => `
+export const stageHead = (nIn: number, v2: boolean) => `
 var ANGLES = ${JSON.stringify(RAY_ANGLES_DEG.map((d) => (d * Math.PI) / 180))}
 var N_IN = ${nIn}, H = ${N_HIDDEN}, RANGE = ${RAY_RANGE}, VF = ${V_FWD_MAX}, VR = ${V_REV_MAX}, TAU = ${TAU_SPEED}${STAGE_RND}${v2 ? STAGE_CMD_HELPERS : ''}`
 
 /** rays + own speeds (shared by v1 and v2) */
-const STAGE_SENSE = `function transform(input, dt, params, state, api) {
+export const STAGE_SENSE = `function transform(input, dt, params, state, api) {
   var w = params.w
   var noise = params.noise || 0
   if (state.rs === undefined) state.rs = (params.noiseSeed >>> 0) || 1
@@ -217,7 +217,7 @@ const STAGE_GOAL_V1 = `  var goals = params.goals || []
   x[n + 7] = state.gas || 0
 `
 
-const STAGE_GOAL_V2 = `  var cmd = input.av && input.av.cmd
+export const STAGE_GOAL_V2 = `  var cmd = input.av && input.av.cmd
   var ac
   if (cmd && cmd.aim) ac = [cmd.aim[0], cmd.aim[1], (cmd.next || cmd.aim)[0], (cmd.next || cmd.aim)[1]]
   else if (params.chain && params.chain.length > 1) ac = deriveCmd(params, state, dt, pos, Math.abs(api.vec.dot(input.velocity, fwd)))
@@ -236,7 +236,7 @@ const STAGE_GOAL_V2 = `  var cmd = input.av && input.av.cmd
 `
 
 /** forward pass + target-speed law + actuator inputs (shared by v1 and v2) */
-const STAGE_NET = `  var h = new Array(H)
+export const STAGE_NET = `  var h = new Array(H)
   for (var j = 0; j < H; j++) {
     var sum = w[H * N_IN + j]
     for (var k = 0; k < N_IN; k++) sum += w[j * N_IN + k] * x[k]

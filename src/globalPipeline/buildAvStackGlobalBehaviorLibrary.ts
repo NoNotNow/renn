@@ -1,7 +1,7 @@
 import type { GlobalBehaviorLibrary } from '@/types/globalBehaviorLibrary'
 import type { PipeParamDef, TransformerDef, TransformerPipe } from '@/types/transformer'
 import { flattenPipeStageIds } from '@/utils/transformerPipeResolve'
-import { readAvStackStageCode, type AvStackLogicalStage } from '@/globalPipeline/avStackStagePaths'
+import { readAvStackStageCode, readNeuralStageWeights, type AvStackLogicalStage } from '@/globalPipeline/avStackStagePaths'
 import { CAR_PRESET } from '@/input/inputPresets'
 import { SHIPPED_GLOBAL_AV_PREFIX } from '@/globalPipeline/shippedGlobalBehaviorLibraryTypes'
 
@@ -28,6 +28,7 @@ const STAGES: Record<AvStackLogicalStage, StageMeta> = {
   routePlanner: { id: `${P}route_planner`, name: 'AV Route planner', priority: 3.8 },
   motionPlanner: { id: `${P}motion_planner`, name: 'AV Motion planner', priority: 4 },
   speedPlanner: { id: `${P}speed_planner`, name: 'AV Speed planner', priority: 4.5 },
+  neural: { id: `${P}neural`, name: 'AV Neural drive (policy v2)', priority: 4.55 },
   supervisor: { id: `${P}supervisor`, name: 'AV Supervisor', priority: 4.6 },
   lateral: { id: `${P}control_lateral`, name: 'AV Lateral control', priority: 5 },
   longitudinal: { id: `${P}control_longitudinal`, name: 'AV Longitudinal control', priority: 5.5 },
@@ -52,6 +53,8 @@ export const AV_GLOBAL_PARAM_DEFS: PipeParamDef[] = [
   { key: 'goalTolerance', label: 'Final goal hold radius', type: 'number', default: 5.5, min: 0, step: 0.1, unit: 'm', group: 'Goal' },
   { key: 'manualOverride', label: 'Keyboard manual override', type: 'boolean', default: false, group: 'Manual', description: 'Any key press (current play avatar) suspends the autopilot steering / throttle for the hold time; AEB stays active.' },
   { key: 'overrideHold', label: 'Manual override hold', type: 'number', default: 1, min: 0, unit: 's', group: 'Manual', description: 'Seconds after the last key event (restarted while held) the autopilot yields.' },
+  { key: 'neuralMode', label: 'Neural drive mode', type: 'enum', options: [{ value: 'off' }, { value: 'always' }, { value: 'auto' }], default: 'off', group: 'Neural', description: "'off' = classic stack only (bit-identical); 'always' = the evolved net drives whenever allowed (debug); 'auto' = it takes over in crowded surroundings and hands back when they clear. Only for the 4 x 8 car of the example worlds." },
+  { key: 'neuralVMax', label: 'Neural speed cap', type: 'number', default: 12, min: 0, unit: 'm/s', group: 'Neural', description: 'Upper bound of the net target speed while it drives.' },
   { key: 'debugDraw', label: 'Draw debug vectors (Builder visualize mode)', type: 'boolean', default: true, group: 'Debug' },
 ]
 
@@ -73,6 +76,7 @@ function stageDefs(): Record<string, TransformerDef> {
       ...(logical === 'wander'
         ? { params: { acceptRadius: 9, minDistance: 25, maxDistance: 60, giveUpAfter: 45, speed: 10 } }
         : {}),
+      ...(logical === 'neural' ? { params: { w: readNeuralStageWeights() } } : {}),
       ...(logical === 'mission'
         ? {
             // demo square so a freshly assigned object visibly drives; edit waypoints [[x, z], ...] for your world
@@ -108,7 +112,7 @@ export function buildAvStackGlobalBehaviorLibrary(): GlobalBehaviorLibrary {
     [`${P}plan_route`]: { name: 'AV Route planner', members: [st(STAGES.routePlanner.id)], paramDefs: AV_LAYER_PARAM_DEFS },
     [`${P}plan_local`]: { name: 'AV Local planner', members: [st(STAGES.motionPlanner.id), st(STAGES.speedPlanner.id)], paramDefs: AV_LAYER_PARAM_DEFS },
     [`${P}plan`]: { name: 'AV Plan', members: [sub(`${P}plan_route`), sub(`${P}plan_local`), st(STAGES.supervisor.id)] },
-    [`${P}control`]: { name: 'AV Control', members: [st(STAGES.lateral.id), st(STAGES.longitudinal.id)] },
+    [`${P}control`]: { name: 'AV Control', members: [st(STAGES.lateral.id), st(STAGES.longitudinal.id), st(STAGES.neural.id)] },
     [`${P}safety`]: { name: 'AV Safety (AEB)', members: [st(STAGES.aeb.id)] },
     [AV_GLOBAL_AUTOPILOT_PIPE_ID]: {
       name: 'AV Autopilot (sense, plan, control, safety)',

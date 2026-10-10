@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { padV1Genome } from '@/policyEvolution/policy'
 
 const moduleDir = dirname(fileURLToPath(import.meta.url))
 
@@ -17,6 +18,7 @@ export const AV_STACK_STAGE_FILES = {
   routePlanner: 'av-route-planner.js',
   motionPlanner: 'av-motion-planner.js',
   speedPlanner: 'av-speed-planner.js',
+  neural: 'av-neural.js',
   supervisor: 'av-supervisor.js',
   lateral: 'av-control-lateral.js',
   longitudinal: 'av-control-longitudinal.js',
@@ -32,4 +34,15 @@ export function avStackChecksum(): string {
 
 export function readAvStackStageCode(logical: AvStackLogicalStage): string {
   return readFileSync(resolve(AV_STACK_TRANSFORMER_DIR, AV_STACK_STAGE_FILES[logical]), 'utf8')
+}
+
+/**
+ * Weights of the neural drive stage (v2 genome, 272 numbers): `shippedPolicyV2.json` when it exists at library build time, else the shipped v1 genome
+ * zero-padded to v2 (identical function). Node-only (reads the repo files), like the stage code above.
+ */
+export function readNeuralStageWeights(): number[] {
+  const dir = resolve(moduleDir, '../policyEvolution')
+  const v2 = resolve(dir, 'shippedPolicyV2.json')
+  if (existsSync(v2)) return (JSON.parse(readFileSync(v2, 'utf8')) as { genome: number[] }).genome
+  return padV1Genome((JSON.parse(readFileSync(resolve(dir, 'shippedPolicy.json'), 'utf8')) as { genome: number[] }).genome)
 }

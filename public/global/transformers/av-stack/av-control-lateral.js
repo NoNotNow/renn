@@ -36,6 +36,12 @@ function transform(input, dt, params, state, api) {
     state.kf = undefined
     return {}
   }
+  // neural drive (av-neural, av.neural.on): the net steers; same yield as the manual override, but the rate limiter resumes from the net's last steering
+  if (av.neural && av.neural.on) {
+    state.steer = input.actions.steering_angle || 0
+    state.kf = undefined
+    return {}
+  }
   var e = av.ego
   var kps = params.kappaPerSteer || 0.12
   var fb = params.fbGain != null ? params.fbGain : 0.35

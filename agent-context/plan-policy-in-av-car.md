@@ -1,6 +1,6 @@
 # Plan: neural policy in the AV car as a command-following "neural drive" mode
 
-Status 2026-10-09: PLAN ONLY, nothing implemented. Direction agreed with the user: the net must follow a directional target vector
+Status 2026-10-09: Phase 1 (stage plumbing, no training) IMPLEMENTED with the v2 policy (24 inputs, no speed command; the training spec `spec-command-chains.md` is authoritative over sections 1-2 here): see feature-av-stack.md 'Neural drive mode'. Phases 0, 2-4 open. Direction agreed with the user: the net must follow a directional target vector
 handed over by the AV stack and take over in mazes and crowded situations. Open questions for the user: section 7.
 Background: [feature-policy-evolution.md](./feature-policy-evolution.md), [handoff-policy-evolution.md](./handoff-policy-evolution.md).
 
