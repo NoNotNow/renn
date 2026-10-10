@@ -116,7 +116,11 @@ export const NEURAL_CROWD_GOAL_MARKER_ID = 'crowd_goal_marker'
  */
 export function buildNeuralCrowdExampleWorld(source: RennWorld, extraParams: Record<string, unknown> = {}): RennWorld {
   const c = AV_CROWD_CASES.find((x) => x.name === NEURAL_CROWD_WORLD_CASE)!
-  const spec = withNeuralMode(c.spec(), 'auto', { ...NEURAL_CROWD_TRIGGER, ...extraParams })
+  return buildNeuralExampleWorldFromSpec(source, withNeuralMode(c.spec(), 'auto', { ...NEURAL_CROWD_TRIGGER, ...extraParams }))
+}
+
+/** Arena spec -> example world: the AV car binding + goal marker + follow camera (shared by the crowd and the v3 worlds). */
+function buildNeuralExampleWorldFromSpec(source: RennWorld, spec: ArenaSpec): RennWorld {
   const world = buildArenaWorldFrom(source, spec)
   world.entities = [
     ...world.entities,
@@ -129,10 +133,37 @@ export function buildNeuralCrowdExampleWorld(source: RennWorld, extraParams: Rec
   return world
 }
 
-/** Binding params of the v3 variant of the example world: the v3 net (forward AND reverse) drives the AV car, capped at 15 m/s. */
-export const NEURAL_V3_WORLD_PARAMS = { neuralPolicy: 'v3', neuralReverse: true, neuralVMax: 15 } as const
+/**
+ * Dead-end bay (the v3 reversal case, plan-policy-in-av-car.md section 8.3): the car starts parked nose-first in a closed bay, its nose `BAY_ENDGAP` m
+ * from the end wall; the bay is `BAY_W` m wide (a 4 x 8 car cannot U-turn or three-point-turn in it) and `BAY_D` m deep, open to a hall on the other side. The goal lies in the
+ * open ground ahead-right of the bay mouth, so the only way there is: back out first. The route chain leaves the bay in reverse, the net has to drive it.
+ */
+const BAY_W = 13
+const BAY_D = 12
+const BAY_ENDGAP = 2
+const BAY_GOAL: V2 = [45, -20]
 
-/** Same scene as {@link buildNeuralCrowdExampleWorld} with the v3 policy + reversing (`av_neural_v3`). Exporter: tools/renn-mcp/export-av-neural-example-world.ts. */
+function deadEndBay(): ArenaSpec {
+  const t = 2
+  const hw = BAY_W / 2
+  const zEnd = -4 - BAY_ENDGAP // inner face of the end wall (the car's nose is at z = -4)
+  const zMouth = zEnd + BAY_D
+  const boxes: ArenaBox[] = [
+    { at: [0, zEnd - t / 2], size: [BAY_W + 2 * t, t], height: 3 },
+    ...[-1, 1].map((s) => ({ at: [s * (hw + t / 2), (zEnd + zMouth) / 2] as V2, size: [t, BAY_D] as V2, height: 3 })),
+  ]
+  return { car: { at: [0, 0], yawDeg: 0 }, goal: BAY_GOAL, boxes, puppets: [] }
+}
+
+/**
+ * Binding params of the v3 variant of the example world. The v3 net (forward AND reverse) drives the AV car all the time (`neuralMode: 'always'`), capped at 15 m/s.
+ * The classic stack's own reverse manoeuvres are switched off (`maneuverEntrySpeed: 0`, long `stuckTime` / `crawlTime`): measured, it otherwise backs out of any dead end
+ * within a frame or two and the net never gets to (the stage hands over to it as soon as the route planner starts a manoeuvre). `neuralRevMaxM` 40: the default 12 m ends
+ * the net's reversing before the route turns forward again (it then stalls and hands back).
+ */
+export const NEURAL_V3_WORLD_PARAMS = { neuralPolicy: 'v3', neuralReverse: true, neuralVMax: 15, neuralRevMaxM: 40, maneuverEntrySpeed: 0, stuckTime: 8, crawlTime: 8 } as const
+
+/** The `av_neural_v3` example world: the AV car parked in a dead-end bay it can only leave in reverse. Exporter: tools/renn-mcp/export-av-neural-example-world.ts. */
 export function buildNeuralV3ExampleWorld(source: RennWorld): RennWorld {
-  return buildNeuralCrowdExampleWorld(source, NEURAL_V3_WORLD_PARAMS)
+  return buildNeuralExampleWorldFromSpec(source, withNeuralMode(deadEndBay(), 'always', { ...NEURAL_V3_WORLD_PARAMS }))
 }
