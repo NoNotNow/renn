@@ -418,5 +418,9 @@ describe('v3 fitness: evenness across kinds', () => {
     // a single kind reduces to the setup aggregate
     expect(aggregateKindEvenness([m('free:1', 0.3), m('free:2', 0.6)])).toBeCloseTo(aggregateEvenness([m('free:1', 0.3), m('free:2', 0.6)]), 9)
     expect(aggregateKindEvenness([])).toBe(0)
+    // a crash keeps only V3_FAIL_FACTOR of its norm: fast-and-crashed scores below slower-and-finished
+    const crashed = { key: 'bay:1#0v3', norm: 0.8, outcome: 'crash' as const }
+    const finished = { key: 'bay:1#0v3', norm: 0.5, outcome: 'finish' as const }
+    expect(aggregateKindEvenness([finished])).toBeGreaterThan(aggregateKindEvenness([crashed]))
   })
 })

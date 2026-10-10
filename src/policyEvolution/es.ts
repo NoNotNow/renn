@@ -90,10 +90,18 @@ export function aggregateEvenness(metrics: Array<Pick<PolicyEpisodeMetrics, 'key
  * of the kind scores over the kinds present in the batch. A net that is great on some kinds and bad on others scores below an even one with the same mean.
  * `aggregateEvenness` (v2) is unchanged.
  */
-export function aggregateKindEvenness(metrics: Array<Pick<PolicyEpisodeMetrics, 'key' | 'norm'>>): number {
+/**
+ * v3: an episode that ends in contact / off the chain / stalled / flipped keeps only this share of its norm. Without it driving into a dead-end
+ * bay fast and crashing at the reversal scored almost like finishing it (measured 2026-10-10: a policy with bay 0/18 finished beat one with 16/18).
+ */
+export const V3_FAIL_FACTOR = 0.5
+
+export function aggregateKindEvenness(metrics: Array<Pick<PolicyEpisodeMetrics, 'key' | 'norm'> & { outcome?: PolicyEpisodeMetrics['outcome'] }>): number {
   if (!metrics.length) return 0
   const byKind = new Map<string, Array<Pick<PolicyEpisodeMetrics, 'key' | 'norm'>>>()
-  for (const m of metrics) {
+  for (const raw of metrics) {
+    const failed = raw.outcome !== undefined && raw.outcome !== 'finish' && raw.outcome !== 'timeout'
+    const m = failed ? { key: raw.key, norm: raw.norm * V3_FAIL_FACTOR } : raw
     const kind = parseCourseKey(parseChainEpisodeKey(m.key).setupKey).kind
     const list = byKind.get(kind)
     if (list) list.push(m)
