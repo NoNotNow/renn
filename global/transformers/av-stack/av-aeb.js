@@ -8,7 +8,8 @@
   {"key": "vehicleLength", "type": "number", "default": 4, "label": "Vehicle length", "group": "Vehicle", "unit": "m", "min": 0, "description": "Body length used for clearance; the box collider can only enlarge it.", "advanced": true},
   {"key": "vehicleWidth", "type": "number", "default": 2, "label": "Vehicle width", "group": "Vehicle", "unit": "m", "min": 0, "description": "Body width used for clearance; the box collider can only enlarge it.", "advanced": true},
   {"key": "aebMinSpeed", "type": "number", "default": 0.8, "label": "AEB arming speed", "group": "Safety", "unit": "m/s", "min": 0, "description": "Speed below which the AEB does not act (unless manual override).", "advanced": true},
-  {"key": "aebManeuverMargin", "type": "number", "default": 0.2, "label": "AEB manoeuvre margin", "group": "Safety", "unit": "m", "min": 0, "description": "Braking margin while the manoeuvre planner is driving.", "advanced": true}
+  {"key": "aebManeuverMargin", "type": "number", "default": 0.2, "label": "AEB manoeuvre margin", "group": "Safety", "unit": "m", "min": 0, "description": "Braking margin while the manoeuvre planner is driving.", "advanced": true},
+  {"key": "aebThreatRel", "type": "boolean", "default": true, "label": "AEB closing-speed for tracked threats", "group": "Safety", "description": "A hit on a tracked threat (av.threats, velocity known) brakes for the CLOSING speed along the probe ray instead of the own speed: a chaser fleeing with us needs no strip, one that cuts across keeps the full semantics. Static walls and untracked bodies are unchanged.", "advanced": true}
 ]
 */
 // AV stack · SAFETY / autonomous emergency braking (independent monitor, own sensing).
@@ -53,13 +54,36 @@ function transform(input, dt, params, state, api) {
   var hit = api.raycastSpread(origin, dirA, need + 1, hw, 5, { visualize: false })
   av.aeb = false
   var drawOn = params.debugDraw !== false
+  // tracked threats (av-ego's threatIds: {id, vx, vz}) are moving bodies: a hit on one is sized by the CLOSING speed along the probe ray
+  // instead of the own speed — a chaser that flees with us needs no strip at all; one that cuts across or closes head-on keeps (or exceeds) the static semantics
+  var tHit = null
+  if (hit.hit && av.threats && params.aebThreatRel !== false) {
+    for (var ti = 0; ti < av.threats.length; ti++)
+      if (av.threats[ti].id === hit.entityId) {
+        tHit = av.threats[ti]
+        break
+      }
+  }
+  var vRel = 0
+  var brake = hit.hit && hit.distance < need
+  if (tHit) {
+    vRel = spd - (tHit.vx * dirA[0] + tHit.vz * dirA[2])
+    if (vRel <= 0) brake = false // the threat recedes faster than we close: it needs no strip
+    else {
+      // the strip is sized by the closing speed, but NEVER larger than the own-speed strip: closing-speed awareness only relaxes
+      // (a hunted car must not brake harder than the static semantics for a chaser cutting across)
+      brake = hit.distance < Math.min(need, (vRel * vRel) / (2 * a) + margin)
+    }
+  }
   if (drawOn) api.visualizeLine(origin, api.vec.offsetAlong(origin, dirA, need), '#b8860b')
-  if (hit.hit && hit.distance < need) {
+  if (brake) {
     if (drawOn) api.visualizeLine(origin, api.vec.offsetAlong(origin, dirA, hit.distance), '#ff0000')
     av.aeb = true
-    // deceleration needed to stop before the hit (at least aebDecel), never more than stops the car within this frame
-    var room = Math.max(0.1, hit.distance - 0.2 * margin)
-    var dec = Math.max(a, (spd * spd) / (2 * room))
+    // deceleration needed to stop before the hit (at least aebDecel), never more than stops the car within this frame;
+    // for a tracked threat it is sized by the closing speed, so the car settles to the threat's speed instead of a standstill (never harder than static)
+    var room = tHit ? Math.max(0.1, hit.distance - margin) : Math.max(0.1, hit.distance - 0.2 * margin)
+    var decStatic = Math.max(a, (spd * spd) / (2 * room))
+    var dec = tHit ? Math.min((vRel * vRel) / (2 * room), decStatic) : decStatic
     dec = Math.min(dec, spd / Math.max(dt, 1e-3))
     var act = av.actuator
     var u
@@ -76,7 +100,7 @@ function transform(input, dt, params, state, api) {
       // tell the longitudinal controller what was really applied (its actuator identification)
       if (act) act.u = input.actions.throttle - input.actions.brake
     }
-    api.watch('av.aeb', Math.round(hit.distance * 10) / 10 + ' m dec ' + dec.toFixed(1))
+    api.watch('av.aeb', Math.round(hit.distance * 10) / 10 + ' m dec ' + dec.toFixed(1) + (tHit ? ' vc ' + vRel.toFixed(1) : ''))
   }
   return {}
 }
