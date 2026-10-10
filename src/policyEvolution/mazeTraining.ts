@@ -11,9 +11,10 @@
  */
 import type { RennWorld } from '@/types/world'
 import { createRng } from '@/avEvolution/core/rng'
+import { cellCentre, generateMaze } from '@/avEvolution/maze/mazeGen'
 import { pointPolyGap, rectPoly, type V2 } from '@/avEvolution/eval/geometry'
-import { buildCourse, type Course, type CourseBox } from './courses'
-import { POLICY_GROUND, policyCourseParts, type CmdConfig } from './episode'
+import { buildCourse, KIND_SALT, type Course, type CourseBox } from './courses'
+import { POLICY_CAR_ID, POLICY_GROUND, policyCourseParts, type CmdConfig } from './episode'
 
 export interface MazeTrainingWorldSpec {
   /** example world id (= folder name under public/exampleWorlds/, also the File-menu/dialog key) */
@@ -51,11 +52,23 @@ export interface MazeTrainingMeta {
   seed: number
   name: string
   candidate: MazeTrainingCandidate
-  /** best headless score of the candidate on this maze (points = vector path + speed bonus); null until measured */
+  /** best headless score of the candidate on this maze (max over all route cars; points = vector path + speed bonus); null until measured */
   bestScore: number | null
-  /** stats of the tapered guidance chain */
+  /** stats of the primary (shortest forward) guidance chain */
   chain: { points: number; lengthM: number }
+  /** how many ways the world trains on: forward routes + routes driven in reverse direction (bias removal) */
+  routes: { forward: number; reversed: number }
 }
+
+/** Route mix per world: several distinct routes through the maze, some of them driven in reverse direction. */
+export const MAZE_TRAIN_ROUTES = {
+  /** max distinct forward routes kept (shortest first, filtered for diversity) */
+  forward: 3,
+  /** max routes additionally kept in REVERSE direction (driven start<->goal swapped) */
+  reversed: 2,
+  /** x distance between the per-route maze copies (m) */
+  spacingM: 130,
+} as const
 
 /** Command config of the in-world policy stage (middle of the training ranges, like the AV neural stage defaults). */
 export const MAZE_TRAIN_CMD = { lmin: 8, tau: 0.6, period: 0.5, noiseDeg: 3, seed: 4711 } as const
@@ -83,18 +96,140 @@ export const MAZE_TRAIN_SCORE = {
 /** Colors of the drawn guidance chain (api.visualizeLine): start green, deep orange. */
 export const MAZE_TRAIN_CHAIN_COLORS = { start: '#44ff77', end: '#ffaa44' } as const
 
+/** Reversed-direction routes draw in blue tones so forward and reverse ways are distinguishable in-world. */
+export const MAZE_TRAIN_CHAIN_COLORS_REVERSED = { start: '#44bbff', end: '#ffaa44' } as const
+
 export type MazeTrainingBuildFn = (spec: MazeTrainingWorldSpec) => RennWorld
 
-// --- route + tapered guidance chain (pure, browser-safe) ---------------------------------------------------------------------------
+// --- route enumeration + tapered guidance chain (pure, browser-safe) ------------------------------------------------------------------
 
 /** Hard cap of chain points (visualizeLine renders at most 200 entries per frame: n-1 segments + 1 carrot line). */
 export const MAZE_CHAIN_MAX_POINTS = 80
 /** Noisy chain points must keep at least this distance to every course wall box (m). */
 export const MAZE_CHAIN_WALL_CLEAR_M = 1.5
 
-/** The true route polyline of a course: start + waypoints, in world coords. */
-export function mazeRoute(course: Course): V2[] {
-  return [[...(course.startAt ?? [0, 0])] as V2, ...course.waypoints]
+/** One training route through the maze: the full driving polyline in course coords (start cell centre = origin). */
+export interface MazeRoute {
+  /** true = the route is driven in REVERSE direction (start/goal swapped: the car starts beyond the north gate) */
+  reversed: boolean
+  /** car start pose: position = the first route point, heading facing the second route point (mazeCourse's rule) */
+  startAt: V2
+  startYawDeg: number
+  /** [start, ...cell centres along the path, 16 m beyond the exit gate] (reversed: that list reversed) */
+  route: V2[]
+}
+
+/** maze geometry constants of `mazeCourse` (src/policyEvolution/courses.ts): 6x6 cells, 16 m pitch, 10 % loops. */
+const MAZE_CELLS = 6
+const MAZE_PITCH = 16
+/** DFS caps of the route enumeration: longer simple paths and more collected paths stop the search. */
+const ROUTE_MAX_CELLS = 24
+const ROUTE_MAX_PATHS = 64
+/** a candidate route is kept only if its CELL set shares at most this fraction with every kept route. */
+const ROUTE_MAX_SHARE = 0.6
+
+/**
+ * All training routes of one maze (deterministic in the seed; the coordinate frame matches `buildCourse('maze', seed)`:
+ * the start cell centre is the origin). Primary forward route first (BFS shortest, the course's own route), then the
+ * other kept forward routes (next-shortest first, filtered for diversity), then the reversed directions of the first
+ * kept forward routes (the car starts 16 m beyond the north gate and drives the maze backwards).
+ */
+export function mazeRoutes(course: Course, seed: number): MazeRoute[] {
+  const maze = generateMaze({ seed, cols: MAZE_CELLS, rows: MAZE_CELLS, cell: MAZE_PITCH, loopFraction: 0.1, goalDist: 0 })
+  const rng = createRng((seed * 2654435761 + KIND_SALT.maze) >>> 0)
+  const startCol = Math.floor(rng.next() * MAZE_CELLS)
+  const startRow = MAZE_CELLS - 1
+  const exitRow = 0
+  const exitCol = maze.exitCol
+  const key = (c: number, r: number) => r * MAZE_CELLS + c
+  // same neighbour order as mazeCourse (N, S, W, E) so the BFS route matches course.waypoints
+  const neighbours = (c: number, r: number): Array<[number, number]> => {
+    const out: Array<[number, number]> = []
+    if (r > 0 && !maze.hWall[r]![c]) out.push([c, r - 1])
+    if (r < MAZE_CELLS - 1 && !maze.hWall[r + 1]![c]) out.push([c, r + 1])
+    if (c > 0 && !maze.vWall[r]![c]) out.push([c - 1, r])
+    if (c < MAZE_CELLS - 1 && !maze.vWall[r]![c + 1]) out.push([c + 1, r])
+    return out
+  }
+  // primary route: BFS shortest (the course's own route)
+  const prev = new Map<number, number>([[key(startCol, startRow), -1]])
+  const queue: Array<[number, number]> = [[startCol, startRow]]
+  for (let qi = 0; qi < queue.length; qi++) {
+    const [c, r] = queue[qi]!
+    for (const [nc, nr] of neighbours(c, r)) {
+      if (prev.has(key(nc, nr))) continue
+      prev.set(key(nc, nr), key(c, r))
+      queue.push([nc, nr])
+    }
+  }
+  const primaryCells: Array<[number, number]> = []
+  for (let k = key(exitCol, exitRow); k !== -1; k = prev.get(k)!) primaryCells.unshift([k % MAZE_CELLS, Math.floor(k / MAZE_CELLS)])
+  // all simple cell paths start -> exit (DFS over the wall graph, capped)
+  const paths: Array<Array<[number, number]>> = []
+  const onPath = new Set<number>([key(startCol, startRow)])
+  const stack: Array<[number, number]> = [[startCol, startRow]]
+  const dfs = (c: number, r: number) => {
+    if (c === exitCol && r === exitRow) {
+      paths.push(stack.map((p) => [p[0], p[1]] as [number, number]))
+      return
+    }
+    if (stack.length >= ROUTE_MAX_CELLS || paths.length >= ROUTE_MAX_PATHS) return
+    for (const [nc, nr] of neighbours(c, r)) {
+      if (onPath.has(key(nc, nr))) continue
+      onPath.add(key(nc, nr))
+      stack.push([nc, nr])
+      dfs(nc, nr)
+      stack.pop()
+      onPath.delete(key(nc, nr))
+      if (paths.length >= ROUTE_MAX_PATHS) return
+    }
+  }
+  dfs(startCol, startRow)
+  // world frame: the start cell centre is the origin (the same shift as mazeCourse)
+  const [sx, sz] = cellCentre(maze, startCol, startRow)
+  const shift = (p: V2): V2 => [p[0] - sx, p[1] - sz]
+  const routePoints = (cells: Array<[number, number]>): V2[] => {
+    const pts: V2[] = cells.map(([c, r]) => shift(cellCentre(maze, c, r)))
+    const [ex, ez] = shift(cellCentre(maze, exitCol, exitRow))
+    pts.push([ex, ez - MAZE_PITCH])
+    return pts
+  }
+  const sameCells = (a: Array<[number, number]>, b: Array<[number, number]>) => a.length === b.length && a.every((p, i) => p[0] === b[i]![0] && p[1] === b[i]![1])
+  // diversity selection: keep the primary, then greedily add the next-shortest route whose cell set shares <= 60 % with every kept route
+  const kept: Array<Array<[number, number]>> = [primaryCells]
+  const keptSets: Set<number>[] = [new Set(primaryCells.map(([c, r]) => key(c, r)))]
+  const share = (a: Set<number>, b: Set<number>) => {
+    let inter = 0
+    for (const k of a) if (b.has(k)) inter++
+    return inter / Math.min(a.size, b.size)
+  }
+  for (const p of [...paths].sort((a, b) => a.length - b.length)) {
+    if (kept.length >= MAZE_TRAIN_ROUTES.forward) break
+    if (sameCells(p, primaryCells)) continue
+    const ps = new Set(p.map(([c, r]) => key(c, r)))
+    if (keptSets.every((ks) => share(ps, ks) <= ROUTE_MAX_SHARE)) {
+      kept.push(p)
+      keptSets.push(ps)
+    }
+  }
+  const pose = (pts: V2[]): { startAt: V2; startYawDeg: number } => {
+    const [a, b] = [pts[0]!, pts[1]!]
+    return { startAt: [a[0], a[1]], startYawDeg: Math.round((Math.atan2(-(b[0] - a[0]), -(b[1] - a[1])) * 180) / Math.PI) }
+  }
+  const routes: MazeRoute[] = kept.map((cells) => {
+    const pts = routePoints(cells)
+    return { reversed: false, ...pose(pts), route: pts }
+  })
+  const nReversed = Math.min(kept.length, MAZE_TRAIN_ROUTES.reversed)
+  for (let i = 0; i < nReversed; i++) {
+    const pts = [...routePoints(kept[i]!)].reverse()
+    routes.push({ reversed: true, ...pose(pts), route: pts })
+  }
+  // frame check: the primary route must be the course's own route polyline
+  const coursePts: V2[] = [[...(course.startAt ?? [0, 0])] as V2, ...course.waypoints]
+  const eq = (a: V2[], b: V2[]) => a.length === b.length && a.every((p, i) => p[0] === b[i]![0] && p[1] === b[i]![1])
+  if (!eq(routes[0]!.route, coursePts)) throw new Error(`mazeRoutes: frame mismatch with buildCourse('maze', ${seed}) — the startCol rng derivation must mirror mazeCourse`)
+  return routes
 }
 
 function cumulative(points: V2[]): number[] {
@@ -179,33 +314,52 @@ export function taperChain(route: V2[], seed: number, boxes?: CourseBox[]): V2[]
   return out
 }
 
-/** Course + route + tapered chain of one training maze (deterministic in the seed). */
-export function mazeTrainingChain(spec: MazeTrainingWorldSpec): { course: Course; route: V2[]; chain: V2[] } {
+/** Course + all training routes + their tapered chains of one training maze (deterministic in the seed). */
+export interface MazeTrainingSetup {
+  course: Course
+  routes: MazeRoute[]
+  /** chains[i] = taperChain(routes[i].route, spec.seed * 31 + i, course.boxes): one chain per route, deterministic per route */
+  chains: V2[][]
+}
+
+export function mazeTrainingRoutes(spec: MazeTrainingWorldSpec): MazeTrainingSetup {
   const course = buildCourse('maze', spec.seed)
-  const route = mazeRoute(course)
-  return { course, route, chain: taperChain(route, spec.seed, course.boxes) }
+  const routes = mazeRoutes(course, spec.seed)
+  const chains = routes.map((r, i) => taperChain(r.route, spec.seed * 31 + i, course.boxes))
+  return { course, routes, chains }
 }
 
 // --- in-world scoring stage ---------------------------------------------------------------------------------------------------------
 
-/** Transformer id of the score stage (attached to the car, priority 6: after the drive stage, before the car2 actuator). */
-export const MAZE_SCORE_STAGE_ID = 'maze_score_0'
-/** Entity id of the goal slab above the route end. */
-export const MAZE_GOAL_ID = 'maze_goal'
+/** Transformer id base of the per-car score stages (attached to each car, priority 6: after the drive stage, before the car2 actuator): `<base><copy index>`. */
+export const MAZE_SCORE_STAGE_BASE = 'maze_score_'
+/** Entity id prefix of the per-copy goal slabs (one per route, floating at the route end): `<prefix><copy index>`. */
+export const MAZE_GOAL_PREFIX = 'maze_goal_'
+/** Score stage id of maze copy i. */
+export const mazeScoreStageId = (i: number) => `${MAZE_SCORE_STAGE_BASE}${i}`
+/** Goal slab entity id of maze copy i. */
+export const mazeGoalId = (i: number) => `${MAZE_GOAL_PREFIX}${i}`
+/** Car entity id of maze copy i (one car per route copy, like policy_chains_maze: one car per chain). */
+export const mazeCarId = (i: number) => `${POLICY_CAR_ID}_${i}`
 /**
- * The v3 net brakes to a stop ~5-8 m before the chain end (the leg-off margin): a car within this distance of the
- * goal has cleared the maze (exporter early-stop + the MAZE_TRAIN_SIM-gated test assertion).
+ * The v3 net brakes to a stop ~5-8 m before the chain end (the leg-off margin): a car within this distance of its goal
+ * has cleared its route (exporter early-stop + the MAZE_TRAIN_SIM-gated test assertion).
  */
 export const MAZE_GOAL_REACH_M = 8
-/** Height of the floating goal slab: above the 6 m walls, the car and the 0.5 m policy rays — nothing ever touches it. */
+/** Height of the floating goal slabs: above the 6 m walls, the car and the 0.5 m policy rays — nothing ever touches them. */
 export const MAZE_GOAL_Y = 9
-/** Color of the guidance carrot line (car -> ~8 m ahead on the chain). */
+/** Color of the guidance carrot line (car -> ~8 m ahead on its chain). */
 export const MAZE_CARROT_COLOR = '#aa44ff'
 
 /**
- * Custom-transformer code of the score stage on the car. Monotone arc-length progress along the tapered chain
- * (1 pt / m, never backwards) plus a speed bonus (up to `bonusRate` pt/s at `vRef`), drawn every frame:
- * the chain (green -> orange along its length) and the carrot line at y = 0.35 via `api.visualizeLine`.
+ * Custom-transformer code of the per-car score stage (same code string on every car, params differ: `chain` = the own
+ * shifted chain, `chains` = ALL shifted chains, `chainColors` = per-chain [start, end] color pairs, `cars` = all car
+ * entity ids, `idx` = the own copy index, `hud` = only car 0 writes the HUD score). Monotone arc-length progress along
+ * the own tapered chain (1 pt / m, never backwards) plus a speed bonus (up to `bonusRate` pt/s at `vRef`).
+ * DRAWING happens only from car 0's stage (api.visualizeLine renders for the entity named by
+ * world.debugTargetLineEntityId): every chain in its color pair (forward green -> orange, reversed blue -> orange,
+ * y = 0.35) plus one carrot per car (own from input.position at state.s + 8, the others via api.getWorldPosition,
+ * nearest chain point + 8 m ahead).
  */
 export const MAZE_SCORE_STAGE_CODE = `function transform(input, dt, params, state, api) {
   var ch = params.chain
@@ -238,75 +392,140 @@ export const MAZE_SCORE_STAGE_CODE = `function transform(input, dt, params, stat
   var v = Math.min(Math.hypot(input.velocity[0], input.velocity[2]), vRef)
   state.bonus += (v / vRef) * dt * (params.bonusRate || 5)
   var score = Math.floor(state.s + state.bonus)
-  api.setScore(score)
+  if (params.hud) api.setScore(score)
   api.watch('maze.score', score + ' pts')
   api.watch('maze.prog', state.s.toFixed(1) + ' / ' + total.toFixed(0) + ' m')
   api.watch('maze.speed', v.toFixed(1) + ' m/s')
-  function hexChannel(h, k) {
-    return parseInt(h.slice(1 + k * 2, 3 + k * 2), 16)
-  }
-  function hexLerp(a, b, t) {
-    var out = '#'
-    for (var k = 0; k < 3; k++) {
-      var va = hexChannel(a, k), vb = hexChannel(b, k)
-      var vv = Math.round(va + (vb - va) * t)
-      out += (vv < 16 ? '0' : '') + vv.toString(16)
+  if (params.hud) {
+    function hexChannel(h, k) {
+      return parseInt(h.slice(1 + k * 2, 3 + k * 2), 16)
     }
-    return out
+    function hexLerp(a, b, t) {
+      var out = '#'
+      for (var k = 0; k < 3; k++) {
+        var va = hexChannel(a, k), vb = hexChannel(b, k)
+        var vv = Math.round(va + (vb - va) * t)
+        out += (vv < 16 ? '0' : '') + vv.toString(16)
+      }
+      return out
+    }
+    if (!state.cums) {
+      state.cums = []
+      for (var c = 0; c < params.chains.length; c++) {
+        var chC = params.chains[c]
+        var cumC = [0]
+        for (var q2 = 1; q2 < chC.length; q2++) cumC.push(cumC[q2 - 1] + Math.hypot(chC[q2][0] - chC[q2 - 1][0], chC[q2][1] - chC[q2 - 1][1]))
+        state.cums.push(cumC)
+      }
+    }
+    function chainPoint(ch2, cum2, s2) {
+      var i2 = 0
+      while (i2 < ch2.length - 2 && cum2[i2 + 1] < s2) i2++
+      var t2 = (s2 - cum2[i2]) / (cum2[i2 + 1] - cum2[i2] || 1)
+      return [ch2[i2][0] + (ch2[i2 + 1][0] - ch2[i2][0]) * t2, ch2[i2][1] + (ch2[i2 + 1][1] - ch2[i2][1]) * t2]
+    }
+    for (var k2 = 0; k2 < params.chains.length; k2++) {
+      var chK = params.chains[k2], colK = params.chainColors[k2] || ['#44ff77', '#ffaa44']
+      for (var s3 = 0; s3 < chK.length - 1; s3++) {
+        api.visualizeLine([chK[s3][0], 0.35, chK[s3][1]], [chK[s3 + 1][0], 0.35, chK[s3 + 1][1]], hexLerp(colK[0], colK[1], chK.length > 2 ? s3 / (chK.length - 2) : 0))
+      }
+    }
+    for (var k3 = 0; k3 < params.cars.length; k3++) {
+      var fx = px, fz = pz, arc = 0
+      if (k3 === params.idx) {
+        arc = Math.min(state.s + 8, total)
+      } else {
+        var w = api.getWorldPosition(params.cars[k3])
+        if (!w) continue
+        fx = w[0]
+        fz = w[2]
+        var chW = params.chains[k3], cumW = state.cums[k3]
+        var bd = Infinity
+        for (var i3 = 0; i3 < chW.length - 1; i3++) {
+          var ax2 = chW[i3][0], az2 = chW[i3][1]
+          var dx2 = chW[i3 + 1][0] - ax2, dz2 = chW[i3 + 1][1] - az2
+          var l2 = dx2 * dx2 + dz2 * dz2 || 1
+          var t3 = Math.max(0, Math.min(1, ((fx - ax2) * dx2 + (fz - az2) * dz2) / l2))
+          var d2 = Math.hypot(fx - (ax2 + t3 * dx2), fz - (az2 + t3 * dz2))
+          if (d2 < bd) {
+            bd = d2
+            arc = cumW[i3] + t3 * Math.sqrt(l2)
+          }
+        }
+        arc = Math.min(arc + 8, cumW[chW.length - 1])
+      }
+      var tp = chainPoint(params.chains[k3], state.cums[k3], arc)
+      api.visualizeLine([fx, 0.35, fz], [tp[0], 0.35, tp[1]], '${MAZE_CARROT_COLOR}')
+    }
   }
-  var colA = params.colStart || '#44ff77'
-  var colB = params.colEnd || '#ffaa44'
-  for (var s2 = 0; s2 < n - 1; s2++) {
-    api.visualizeLine([ch[s2][0], 0.35, ch[s2][1]], [ch[s2 + 1][0], 0.35, ch[s2 + 1][1]], hexLerp(colA, colB, n > 2 ? s2 / (n - 2) : 0))
-  }
-  var ca = Math.min(state.s + 8, total)
-  var ci = 0
-  while (ci < n - 2 && state.cum[ci + 1] < ca) ci++
-  var tt = (ca - state.cum[ci]) / (state.cum[ci + 1] - state.cum[ci] || 1)
-  api.visualizeLine([px, 0.35, pz], [ch[ci][0] + (ch[ci + 1][0] - ch[ci][0]) * tt, 0.35, ch[ci][1] + (ch[ci + 1][1] - ch[ci][1]) * tt], '${MAZE_CARROT_COLOR}')
   return {}
 }`
 
 // --- world builder -------------------------------------------------------------------------------------------------------------------
 
 /**
- * One playable maze training world: the shipped v3 policy drives the maze on the tapered guidance chain, the score
- * stage scores progress + speed and draws the chain. The genome is handed in (the browser bundle must not read
- * shippedPolicyV3.json from disk — the exporter and the tests pass `shippedGenomeV3()`).
+ * One playable maze training world: one copy of the maze per training route (copy i at x = i * MAZE_TRAIN_ROUTES.spacingM,
+ * like policy_chains_maze: one setup copy per chain), the shipped v3 policy driving every copy on its own tapered
+ * guidance chain, one score stage per car (car 0 also draws every chain + one carrot per car and writes the HUD score).
+ * The genome is handed in (the browser bundle must not read shippedPolicyV3.json from disk — the exporter and the
+ * tests pass `shippedGenomeV3()`).
  */
 export function buildMazeTrainingWorld(spec: MazeTrainingWorldSpec, genome?: number[]): RennWorld {
   if (!genome || genome.length === 0) throw new Error('buildMazeTrainingWorld: pass the v3 genome (shippedGenomeV3() on the exporter/test side)')
-  const { course, route, chain } = mazeTrainingChain(spec)
-  const parts = policyCourseParts(course, genome, { chain, cmd: MAZE_TRAIN_CMD as CmdConfig, legEnds: [chain.length - 1], offM: 8, v3: true })
-  const car = parts.entities[0] as { transformers: string[] }
-  car.transformers = [...car.transformers, MAZE_SCORE_STAGE_ID]
-  const routeEnd = route[route.length - 1]!
-  const goal = {
-    id: MAZE_GOAL_ID,
-    name: 'Maze goal',
-    bodyType: 'static',
-    shape: { type: 'box', width: 4, height: 0.3, depth: 4 },
-    position: [routeEnd[0], MAZE_GOAL_Y, routeEnd[1]],
-    rotation: [0, 0, 0],
-    material: { color: [0.15, 0.9, 0.3] },
-  }
-  const transformers = {
-    ...parts.transformers,
-    [MAZE_SCORE_STAGE_ID]: {
+  const { course, routes, chains } = mazeTrainingRoutes(spec)
+  const spacing = MAZE_TRAIN_ROUTES.spacingM
+  const carIds = routes.map((_, i) => mazeCarId(i))
+  const chainsShifted: V2[][] = chains.map((ch, i) => ch.map((p) => [p[0] + i * spacing, p[1]] as V2))
+  const chainColors = routes.map((r) =>
+    r.reversed ? [MAZE_TRAIN_CHAIN_COLORS_REVERSED.start, MAZE_TRAIN_CHAIN_COLORS_REVERSED.end] : [MAZE_TRAIN_CHAIN_COLORS.start, MAZE_TRAIN_CHAIN_COLORS.end],
+  )
+  const entities: unknown[] = [POLICY_GROUND]
+  const transformers: Record<string, unknown> = {}
+  routes.forEach((route, i) => {
+    const courseI = { ...course, startAt: route.startAt, startYawDeg: route.startYawDeg }
+    const parts = policyCourseParts(courseI, genome, {
+      origin: [i * spacing, 0],
+      suffix: `_${i}`,
+      chain: chains[i]!,
+      cmd: MAZE_TRAIN_CMD as CmdConfig,
+      legEnds: [chains[i]!.length - 1],
+      offM: 8,
+      v3: true,
+    })
+    const car = parts.entities[0] as { transformers: string[] }
+    car.transformers = [...car.transformers, mazeScoreStageId(i)]
+    entities.push(...parts.entities)
+    Object.assign(transformers, parts.transformers)
+    const routeEnd = route.route[route.route.length - 1]!
+    entities.push({
+      id: mazeGoalId(i),
+      name: `Maze goal ${i}`,
+      bodyType: 'static',
+      shape: { type: 'box', width: 4, height: 0.3, depth: 4 },
+      position: [routeEnd[0] + i * spacing, MAZE_GOAL_Y, routeEnd[1]],
+      rotation: [0, 0, 0],
+      material: { color: [0.15, 0.9, 0.3] },
+    })
+  })
+  routes.forEach((_, i) => {
+    transformers[mazeScoreStageId(i)] = {
       type: 'custom',
       priority: 6,
       enabled: true,
       name: 'Maze score',
       code: MAZE_SCORE_STAGE_CODE,
       params: {
-        chain,
+        chain: chainsShifted[i]!,
+        chains: chainsShifted,
+        chainColors,
+        cars: carIds,
+        idx: i,
+        hud: i === 0,
         vRef: MAZE_TRAIN_SCORE.vRef,
         bonusRate: MAZE_TRAIN_SCORE.bonusRate,
-        colStart: MAZE_TRAIN_CHAIN_COLORS.start,
-        colEnd: MAZE_TRAIN_CHAIN_COLORS.end,
       },
-    },
-  }
+    }
+  })
   return {
     version: '1.0',
     world: {
@@ -315,18 +534,20 @@ export function buildMazeTrainingWorld(spec: MazeTrainingWorldSpec, genome?: num
       ambientLight: [0.45, 0.45, 0.5],
       directionalLight: { direction: [1, 2, 1], color: [1, 0.98, 0.9], intensity: 1.2 },
       skyColor: [0.35, 0.5, 0.75],
-      camera: { control: 'follow', mode: 'thirdPerson', target: parts.carId, distance: 35, height: 22, cameraTargetLag: 120, cameraPositionLag: 180 },
-      debugTargetLineEntityId: parts.carId,
+      camera: { control: 'follow', mode: 'thirdPerson', target: carIds[0]!, distance: 35, height: 22, cameraTargetLag: 120, cameraPositionLag: 180 },
+      debugTargetLineEntityId: carIds[0]!,
     },
     transformers,
-    entities: [POLICY_GROUND, ...parts.entities, goal],
+    entities,
     scripts: {},
     groups: [],
   } as unknown as RennWorld
 }
 
 /** meta.json of one training maze (the dialog cards read it next to world.json). */
-export function mazeTrainingMeta(spec: MazeTrainingWorldSpec, chain: V2[], bestScore: number | null): MazeTrainingMeta {
+export function mazeTrainingMeta(spec: MazeTrainingWorldSpec, routes: MazeRoute[], bestScore: number | null): MazeTrainingMeta {
+  const primary = routes[0]!
+  const chain = taperChain(primary.route, spec.seed * 31, buildCourse('maze', spec.seed).boxes)
   let lengthM = 0
   for (let i = 1; i < chain.length; i++) lengthM += Math.hypot(chain[i]![0] - chain[i - 1]![0], chain[i]![1] - chain[i - 1]![1])
   return {
@@ -336,5 +557,6 @@ export function mazeTrainingMeta(spec: MazeTrainingWorldSpec, chain: V2[], bestS
     candidate: { policy: 'v3', label: 'v3 shipped (gen 1000)', gen: 1000, source: 'shippedPolicyV3.json' },
     bestScore,
     chain: { points: chain.length, lengthM: Math.round(lengthM * 10) / 10 },
+    routes: { forward: routes.filter((r) => !r.reversed).length, reversed: routes.filter((r) => r.reversed).length },
   }
 }

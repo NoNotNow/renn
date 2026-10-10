@@ -1,27 +1,38 @@
-# Handoff: maze training worlds + v3maze run, state 2026-10-11 ~00:15 (Mac)
+# Handoff: maze training worlds + v3maze run, state 2026-10-11 ~00:45 (Mac)
 
 For the next agent. Branch `claude/autonomous-car-evolution-9p6zt2`. New work stream from user round 6:
 5 playable maze training worlds (dialog, tapered guidance vectors, scoring, play-mode line rendering)
-+ a v3 training run restricted to mazes. The worlds and the dialog are SHIPPED (this commit); the training run is live.
++ a v3 training run restricted to mazes. Round 6 feedback (shipped, this commit): dialog stays OPEN on Play,
+Play loads the world into the BUILDER (no play-mode navigation; HUD force-enabled), dialog has a compact LIST
+view (default, expandable thumbs; cards behind a headerExtra toggle; modal resizable), and each world now
+trains on SEVERAL routes (bias removal) — some driven in REVERSE direction (start/goal swapped).
 
 ## What exists now
 
 - **5 example worlds `maze_train_1..5`** (`public/exampleWorlds/maze_train_<n>/`: `world.json`, `meta.json`, `thumb.svg`).
-  Source of truth `src/policyEvolution/mazeTraining.ts` (registry + taper + score stage + builder; browser-safe, the dialog imports it).
-  Regenerate after any change or a policy ship: `npx tsx tools/renn-mcp/export-maze-training-worlds.ts --score` (measures the candidate headless, ~0.5 s).
-  Each world: 6x6 maze (seeds 2001-2005), the shipped v3 net (gen 1000) drives on a TAPERED guidance chain
-  (dense + exact at the start, spacing 8 -> 40 m and noise 0 -> 3.5 m deeper in; `MAZE_TRAIN_TAPER`), score stage on the car
-  (`MAZE_SCORE_STAGE_CODE`): 1 pt per m monotone chain progress + speed bonus (vRef 20, 5 pt/s at full speed), `api.setScore`
-  -> the Play HUD shows the points. The chain + carrot are drawn via `api.visualizeLine` (green -> orange; NO chain marker entities;
-  the goal slab floats at y 9). `world.debugTargetLineEntityId` = the car.
-- **Dialog**: Builder File menu -> "Training Mazes…" (`MazeTrainingDialog.tsx`): 5 cards (thumb.svg, seed, candidate label,
-  bestScore from meta.json), Play button = load example world + jump into play (`handlePlayExampleWorld` in `Builder.tsx`).
-  The pure training worlds (`policy_*`) and the maze training worlds are FILTERED OUT of the generic Example Worlds submenu
-  (`BuilderHeader.tsx`, prefix rule + registry set — worlds stay on disk).
-- **Play-mode lines**: `SceneView.tsx` no longer disables the coordinate overlay in play mode when the world sets
-  `world.debugTargetLineEntityId` (before: visualizeLine was a no-op in Play). Comment updated in `coordinateOverlayBridge.ts`.
-- **Measured baseline (shipped v3, `--score`)**: maze_train_1/2/4/5 cleared in ~5 s (153/144/156/156 pts); **maze_train_3 stalls at the first junction (47 pts, never reached)** — the documented weak point.
-- **Tests**: `src/test/scenarios/maze-training-worlds.test.ts` (default: disk==builder, taper unit tests, fast; `MAZE_TRAIN_SIM=1`: headless runs, ~0.5 s, currently maze_train_3 FAILS the reach gate on purpose — it is the maze-training progress gate, goes green when a maze-trained candidate clears it). UI tests: `MazeTrainingDialog.test.tsx`, `BuilderHeader.example-worlds.test.tsx`.
+  Source of truth `src/policyEvolution/mazeTraining.ts` (registry + route enumeration + taper + score stage + builder; browser-safe, the dialog imports it).
+  Regenerate after any change or a policy ship: `npx tsx tools/renn-mcp/export-maze-training-worlds.ts --score` (measures all cars headless, seconds).
+  Each world = K maze copies at x = i*130 m (one car per copy): K = kept routes. `mazeRoutes(course, seed)`: BFS primary
+  (frame-checked == course.waypoints), DFS alternatives with <= 60 % cell overlap, up to MAZE_TRAIN_ROUTES.forward=3 forward
+  + reversed=2 (primary first; reversed cars start OUTSIDE the north gate). Route counts per seed: 1: 2 cars, 2: 4, 3: 4, 4: 5, 5: 4.
+  The shipped v3 net drives each car on a TAPERED chain (dense + exact at the start, spacing 8 -> 40 m, noise 0 -> 3.5 m deeper in),
+  score stage per car (`MAZE_SCORE_STAGE_CODE`): 1 pt per m monotone chain progress + speed bonus (vRef 20, 5 pt/s), watch per entity;
+  `api.setScore` (HUD) ONLY from car 0; ALL chain/carrot drawing happens from car 0's stage (lines render only for
+  `world.debugTargetLineEntityId` = car 0; other carrots via `api.getWorldPosition`). Forward chains green -> orange, REVERSED chains
+  blue -> orange (`MAZE_TRAIN_CHAIN_COLORS_REVERSED`). Goal slabs `maze_goal_<i>` float at y 9.
+- **Dialog** (`MazeTrainingDialog.tsx`): LIST view default (rows: name, seed, candidate, `Best: N pts`, `N ways · M reversed`, Play;
+  row click expands the thumb accordion), Cards/List toggle in `headerExtra`, modal resizable (560 px list / 720 px cards).
+  Play = load example world into the BUILDER (`handlePlayExampleWorld` in `Builder.tsx`: NO play navigation, dialog stays open,
+  `setShowGameHud(true)`). The guidance lines render in builder mode because the worlds set `world.debugTargetLineEntityId`
+  (SceneView keeps the overlay wired for such worlds — this was the round-1 change, playMode no longer disables it).
+  The pure training worlds (`policy_*`) and the maze training worlds are FILTERED OUT of the generic Example Worlds submenu.
+- **Measured baseline (shipped v3 gen 1000, per-car, `--score`)**: 14/19 cars clear their route in ~5-10 s.
+  Stalls (the maze-training gaps the v3maze run exists to close): train_2 route 3 (rev), train_3 route 0 (fwd, 47 pts) + route 1 (fwd),
+  train_4 route 2 (fwd), train_5 route 2 (rev). bestScore in meta (max over cars): 161 / 582 / 519 / 479 / 439.
+- **Tests**: `src/test/scenarios/maze-training-worlds.test.ts` (default: disk==builder incl. K cars + route consistency, fast).
+  `MAZE_TRAIN_SIM=1`: headless per-car runs (~1 s); currently 4 cars fail the reach gate on purpose — it is the maze-training progress
+  gate, goes green when a maze-trained candidate clears every route. UI tests: `MazeTrainingDialog.test.tsx` (list/accordion/no-close),
+  `BuilderHeader.example-worlds.test.tsx`.
 
 ## The v3maze training run (LIVE)
 

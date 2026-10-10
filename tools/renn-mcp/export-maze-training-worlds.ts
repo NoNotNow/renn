@@ -1,10 +1,13 @@
 #!/usr/bin/env npx tsx
 /**
- * Write the five maze training worlds (the shipped v3 policy driving seeded 6x6 mazes on tapered guidance chains,
- * in-world scoring + chain rendering) to public/exampleWorlds/maze_train_<n>/ (File -> Example Worlds, Maze Training dialog).
- * Per world: world.json, meta.json (bestScore null until measured) and a top-down thumb.svg.
- * With --score: run each world headless (shipped v3 candidate, up to 90 s sim, stop within MAZE_GOAL_REACH_M of the goal),
- * write the measured bestScore into meta.json and print the summary table.
+ * Write the five maze training worlds (the shipped v3 policy driving seeded 6x6 mazes, one maze copy per training
+ * route — several routes through the maze, some of them in reverse direction — on tapered guidance chains, in-world
+ * scoring + chain rendering) to public/exampleWorlds/maze_train_<n>/ (File -> Example Worlds, Maze Training dialog).
+ * Per world: world.json, meta.json (bestScore null until measured) and a top-down thumb.svg (one maze frame per route
+ * copy side by side, like the world layout; forward chains orange, reversed chains blue).
+ * With --score: run each world headless (shipped v3 candidate, up to 120 s sim, all cars drive simultaneously, stop
+ * once EVERY car is within MAZE_GOAL_REACH_M of its goal), write the measured bestScore (max over all route cars)
+ * into meta.json and print the per-car table.
  * Source of truth: src/policyEvolution/mazeTraining.ts. Update the policy: tools/policy-evolution/ship.ts, then re-run.
  */
 import { mkdirSync, writeFileSync } from 'node:fs'
@@ -13,22 +16,29 @@ import { fileURLToPath } from 'node:url'
 import { invalidateAgentDevExampleWorldIdCache } from '../../src/agent/agentDevExampleWorlds'
 import { getTransformerWatchEntries, setAgentObservationWatchActive } from '../../src/runtime/transformerWatchBridge'
 import { shippedGenomeV3 } from '../../src/policyEvolution/exampleWorld'
-import { POLICY_CAR_ID } from '../../src/policyEvolution/episode'
 import {
-  MAZE_GOAL_ID,
+  MAZE_GOAL_PREFIX,
   MAZE_GOAL_REACH_M,
   MAZE_TRAINING_WORLDS,
+  MAZE_TRAIN_CHAIN_COLORS,
+  MAZE_TRAIN_CHAIN_COLORS_REVERSED,
+  MAZE_TRAIN_ROUTES,
   buildMazeTrainingWorld,
-  mazeTrainingChain,
+  mazeCarId,
+  mazeGoalId,
+  mazeScoreStageId,
   mazeTrainingMeta,
+  mazeTrainingRoutes,
   type MazeTrainingWorldSpec,
 } from '../../src/policyEvolution/mazeTraining'
+import type { CourseBox } from '../../src/policyEvolution/courses'
+import type { V2 } from '../../src/avEvolution/eval/geometry'
 import { DEFAULT_DT, WorldSimulator } from '../../src/test/helpers/worldSimulator'
 import type { RennWorld } from '../../src/types/world'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const withScore = process.argv.includes('--score')
-const MAX_SIM_S = 90
+const MAX_SIM_S = 120
 
 function watchValues(entityId: string): Record<string, unknown> {
   const out: Record<string, unknown> = {}
@@ -70,44 +80,47 @@ function identicalScorer(chain: number[][], vRef: number, bonusRate: number) {
   }
 }
 
-async function scoreWorld(world: RennWorld, chain: number[][], vRef: number, bonusRate: number) {
-  const goal = world.entities.find((e) => e.id === MAZE_GOAL_ID)
-  const goalPos = goal?.position ?? [0, 0, 0]
+/** Headless run of one world: every car drives simultaneously; per car reached/seconds/score, bestScore = max over cars. */
+async function scoreWorld(world: RennWorld, chains: number[][][], vRef: number, bonusRate: number) {
+  const K = chains.length
+  const goalPos = (world.entities as { id: string; position: number[] }[]).filter((e) => e.id.startsWith(MAZE_GOAL_PREFIX)).map((e) => e.position)
   setAgentObservationWatchActive(true)
   const sim = await WorldSimulator.create(world, 0)
   try {
-    const scorer = identicalScorer(chain, vRef, bonusRate)
+    const scorers = chains.map((ch) => identicalScorer(ch, vRef, bonusRate))
+    const reachedAt: Array<number | null> = new Array(K).fill(null)
+    const identical = new Array<number>(K).fill(0)
     let t = 0
-    let reached = false
-    let identical = 0
     const frames = Math.round(MAX_SIM_S / DEFAULT_DT)
     for (let f = 0; f < frames; f++) {
       sim.runFrames(1)
       t = (f + 1) * DEFAULT_DT
-      const p = sim.getPosition(POLICY_CAR_ID)
-      const v = sim.getVelocity(POLICY_CAR_ID)
-      identical = scorer.step(p[0], p[2], v[0], v[2], DEFAULT_DT)
-      if (Math.hypot(p[0] - goalPos[0]!, p[2] - goalPos[2]!) < MAZE_GOAL_REACH_M) {
-        reached = true
-        break
+      let allReached = true
+      for (let i = 0; i < K; i++) {
+        const p = sim.getPosition(mazeCarId(i))
+        const v = sim.getVelocity(mazeCarId(i))
+        identical[i] = scorers[i]!.step(p[0], p[2], v[0], v[2], DEFAULT_DT)
+        if (reachedAt[i] === null && Math.hypot(p[0] - goalPos[i]![0]!, p[2] - goalPos[i]![2]!) < MAZE_GOAL_REACH_M) reachedAt[i] = t
+        if (reachedAt[i] === null) allReached = false
       }
+      if (allReached) break
     }
-    const m = /(\d+)/.exec(String(watchValues(POLICY_CAR_ID)['maze.score'] ?? ''))
-    const fromWatch = m ? Number(m[1]) : null
-    const score = fromWatch ?? identical
-    return { reached, seconds: t, score, fromWatch }
+    return reachedAt.map((reached, i) => {
+      const m = /(\d+)/.exec(String(watchValues(mazeCarId(i))['maze.score'] ?? ''))
+      return { reached: reached !== null, seconds: reached ?? t, score: m ? Number(m[1]) : identical[i], fromWatch: Boolean(m) }
+    })
   } finally {
     sim.dispose()
     setAgentObservationWatchActive(false)
   }
 }
 
-// --- thumb.svg: 220 x 220 top-down map -----------------------------------------------------------------------------------------------
+// --- thumb.svg: one maze frame per route copy side by side (like the world layout) ---------------------------------------------------
 
-const THUMB_SIZE = 220
+const THUMB_H = 220
 const THUMB_MARGIN = 10
 
-function thumbSvg(boxes: { at: number[]; size: number[] }[], route: number[][], chain: number[][]): string {
+function thumbSvg(boxes: CourseBox[], frames: Array<{ ox: number; chain: V2[]; color: string; startColor: string }>): string {
   let minX = Infinity
   let maxX = -Infinity
   let minZ = Infinity
@@ -119,29 +132,31 @@ function thumbSvg(boxes: { at: number[]; size: number[] }[], route: number[][], 
     maxZ = Math.max(maxZ, z)
   }
   for (const b of boxes) {
-    grow(b.at[0]! - b.size[0]! / 2, b.at[1]! - b.size[1]! / 2)
-    grow(b.at[0]! + b.size[0]! / 2, b.at[1]! + b.size[1]! / 2)
+    grow(b.at[0] - b.size[0] / 2, b.at[1] - b.size[1] / 2)
+    grow(b.at[0] + b.size[0] / 2, b.at[1] + b.size[1] / 2)
   }
-  for (const p of [...route, ...chain]) grow(p[0]!, p[1]!)
+  for (const f of frames) for (const p of f.chain) grow(p[0] + f.ox, p[1])
   const spanX = Math.max(maxX - minX, 1)
   const spanZ = Math.max(maxZ - minZ, 1)
-  const scale = Math.min((THUMB_SIZE - 2 * THUMB_MARGIN) / spanX, (THUMB_SIZE - 2 * THUMB_MARGIN) / spanZ)
-  const ox = THUMB_MARGIN + ((THUMB_SIZE - 2 * THUMB_MARGIN) - spanX * scale) / 2
-  const oz = THUMB_MARGIN + ((THUMB_SIZE - 2 * THUMB_MARGIN) - spanZ * scale) / 2
+  const scale = (THUMB_H - 2 * THUMB_MARGIN) / spanZ
+  const width = Math.ceil(spanX * scale + 2 * THUMB_MARGIN)
+  const ox = THUMB_MARGIN + (width - 2 * THUMB_MARGIN - spanX * scale) / 2
+  const oz = THUMB_MARGIN + (THUMB_H - 2 * THUMB_MARGIN - spanZ * scale) / 2
   const mx = (x: number) => Math.round((ox + (x - minX) * scale) * 10) / 10
   const mz = (z: number) => Math.round((oz + (z - minZ) * scale) * 10) / 10
-  const poly = (pts: number[][]) => pts.map((p) => `${mx(p[0]!)},${mz(p[1]!)}`).join(' ')
-  const lines: string[] = [`<svg xmlns="http://www.w3.org/2000/svg" width="${THUMB_SIZE}" height="${THUMB_SIZE}" viewBox="0 0 ${THUMB_SIZE} ${THUMB_SIZE}">`]
-  lines.push(`<rect x="0" y="0" width="${THUMB_SIZE}" height="${THUMB_SIZE}" fill="#10131a"/>`)
-  for (const b of boxes) {
-    const x = mx(b.at[0]! - b.size[0]! / 2)
-    const y = mz(b.at[1]! - b.size[1]! / 2)
-    lines.push(`<rect x="${x}" y="${y}" width="${Math.round(b.size[0]! * scale * 10) / 10}" height="${Math.round(b.size[1]! * scale * 10) / 10}" fill="#444a55"/>`)
+  const poly = (pts: V2[], o: number) => pts.map((p) => `${mx(p[0] + o)},${mz(p[1])}`).join(' ')
+  const lines: string[] = [`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${THUMB_H}" viewBox="0 0 ${width} ${THUMB_H}">`]
+  lines.push(`<rect x="0" y="0" width="${width}" height="${THUMB_H}" fill="#10131a"/>`)
+  for (const f of frames) {
+    for (const b of boxes) {
+      const x = mx(b.at[0] - b.size[0] / 2 + f.ox)
+      const y = mz(b.at[1] - b.size[1] / 2)
+      lines.push(`<rect x="${x}" y="${y}" width="${Math.round(b.size[0] * scale * 10) / 10}" height="${Math.round(b.size[1] * scale * 10) / 10}" fill="#444a55"/>`)
+    }
+    lines.push(`<polyline points="${poly(f.chain, f.ox)}" fill="none" stroke="${f.color}" stroke-width="1.5" stroke-opacity="0.9"/>`)
+    lines.push(`<circle cx="${mx(f.chain[0]![0] + f.ox)}" cy="${mz(f.chain[0]![1])}" r="5" fill="${f.startColor}"/>`)
+    lines.push(`<circle cx="${mx(f.chain[f.chain.length - 1]![0] + f.ox)}" cy="${mz(f.chain[f.chain.length - 1]![1])}" r="5" fill="#ff4444"/>`)
   }
-  lines.push(`<polyline points="${poly(route)}" fill="none" stroke="#2e6b4f" stroke-width="1" stroke-opacity="0.75"/>`)
-  lines.push(`<polyline points="${poly(chain)}" fill="none" stroke="#ffaa44" stroke-width="1.5" stroke-opacity="0.9"/>`)
-  lines.push(`<circle cx="${mx(route[0]![0]!)}" cy="${mz(route[0]![1]!)}" r="5" fill="#44ff77"/>`)
-  lines.push(`<circle cx="${mx(route[route.length - 1]![0]!)}" cy="${mz(route[route.length - 1]![1]!)}" r="5" fill="#ff4444"/>`)
   lines.push('</svg>')
   return lines.join('\n') + '\n'
 }
@@ -153,26 +168,36 @@ const t0 = Date.now()
 async function main(): Promise<void> {
   const genome = shippedGenomeV3()
   if (!genome) throw new Error('shippedPolicyV3.json not shipped yet (tools/policy-evolution/ship.ts)')
-  const rows: string[] = []
+  const rows: string[] = [`${'world'.padEnd(13)} ${'route'.padStart(5)}  dir  reached  seconds  score`]
   for (const spec of MAZE_TRAINING_WORLDS) {
-  const { course, route, chain } = mazeTrainingChain(spec)
-  const world = buildMazeTrainingWorld(spec, genome)
-  const outDir = resolve(root, 'public/exampleWorlds', spec.id)
-  mkdirSync(outDir, { recursive: true })
-  writeFileSync(resolve(outDir, 'world.json'), JSON.stringify(world, null, 2) + '\n')
-  let bestScore: number | null = null
-  let reached = false
-  let seconds = 0
-  if (withScore) {
-    const scoreStage = (world.transformers as Record<string, { params?: { vRef?: number; bonusRate?: number } }>)['maze_score_0']
-    const r = await scoreWorld(world, chain as number[][], scoreStage?.params?.vRef ?? 20, scoreStage?.params?.bonusRate ?? 5)
-    bestScore = r.score
-    reached = r.reached
-    seconds = r.seconds
-  }
-  writeFileSync(resolve(outDir, 'meta.json'), JSON.stringify(mazeTrainingMeta(spec, chain, bestScore), null, 2) + '\n')
-  writeFileSync(resolve(outDir, 'thumb.svg'), thumbSvg(course.boxes as unknown as { at: number[]; size: number[] }[], route as number[][], chain as number[][]))
-  rows.push(`${spec.id.padEnd(14)} reached ${reached ? 'yes' : 'no '}  ${seconds.toFixed(1).padStart(5)} s  score ${String(bestScore).padStart(4)}  chain ${chain.length} pts / ${mazeTrainingMeta(spec, chain, null).chain.lengthM.toFixed(0)} m`)
+    const { course, routes, chains } = mazeTrainingRoutes(spec)
+    const world = buildMazeTrainingWorld(spec, genome)
+    const scoreStage0 = (world.transformers as Record<string, { params?: { vRef?: number; bonusRate?: number; chains?: number[][][] } }>)[mazeScoreStageId(0)]
+    const chainsWorld = (scoreStage0?.params?.chains ?? []) as number[][][]
+    const outDir = resolve(root, 'public/exampleWorlds', spec.id)
+    mkdirSync(outDir, { recursive: true })
+    writeFileSync(resolve(outDir, 'world.json'), JSON.stringify(world, null, 2) + '\n')
+    let bestScore: number | null = null
+    if (withScore) {
+      const results = await scoreWorld(world, chainsWorld, scoreStage0?.params?.vRef ?? 20, scoreStage0?.params?.bonusRate ?? 5)
+      bestScore = Math.max(...results.map((r) => r.score))
+      results.forEach((r, i) => {
+        rows.push(`${spec.id.padEnd(13)} ${String(i).padStart(5)}  ${routes[i]!.reversed ? 'rev' : 'fwd'}  ${r.reached ? 'yes' : 'no '}     ${r.seconds.toFixed(1).padStart(5)} s  ${String(r.score).padStart(4)}`)
+      })
+    }
+    writeFileSync(resolve(outDir, 'meta.json'), JSON.stringify(mazeTrainingMeta(spec, routes, bestScore), null, 2) + '\n')
+    writeFileSync(
+      resolve(outDir, 'thumb.svg'),
+      thumbSvg(
+        course.boxes,
+        routes.map((route, i) => ({
+          ox: i * MAZE_TRAIN_ROUTES.spacingM,
+          chain: chains[i]!,
+          color: route.reversed ? MAZE_TRAIN_CHAIN_COLORS_REVERSED.start : MAZE_TRAIN_CHAIN_COLORS.end,
+          startColor: route.reversed ? MAZE_TRAIN_CHAIN_COLORS_REVERSED.start : MAZE_TRAIN_CHAIN_COLORS.start,
+        })),
+      ),
+    )
   }
   invalidateAgentDevExampleWorldIdCache()
   console.log(`maze training worlds written to public/exampleWorlds/ (--score ${withScore ? 'on' : 'off'})`)

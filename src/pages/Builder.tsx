@@ -429,23 +429,22 @@ export default function Builder() {
     loadExampleWorld,
   })
 
-  // Training Mazes dialog → load the exported example world and jump straight into play mode.
-  // Safe as a direct sequential call: loadExampleWorld sets worldRef.current synchronously
-  // (ProjectContext) before handlePlay reads getWorldToSave().
+  // Training Mazes dialog → load the exported example world into the builder (no play mode):
+  // the world sets world.debugTargetLineEntityId, so the guidance chain overlay renders in builder
+  // mode. The dialog stays open; the game HUD is force-enabled so the score watch is visible.
   const handlePlayExampleWorld = useCallback(
     async (worldId: string) => {
-      setMazeTrainingOpen(false)
       try {
         const { world, assets } = await loadExampleWorldFromPublicBase(import.meta.env.BASE_URL || '/', worldId)
         handleOpenExampleWorld(world, worldId, assets)
-        uiLogger.select('Builder', 'Play training maze', { worldName: worldId })
-        handlePlay()
+        setShowGameHud(true)
+        uiLogger.select('Builder', 'Load training maze into builder', { worldName: worldId })
       } catch (err) {
         console.error('Failed to load example world:', err)
         alert('Failed to load example world')
       }
     },
-    [handleOpenExampleWorld, handlePlay],
+    [handleOpenExampleWorld, setShowGameHud],
   )
 
   const handleEntityPoseCommit = useCallback(

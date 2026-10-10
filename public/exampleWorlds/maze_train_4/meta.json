@@ -8,9 +8,13 @@
     "gen": 1000,
     "source": "shippedPolicyV3.json"
   },
-  "bestScore": 156,
+  "bestScore": 479,
   "chain": {
     "points": 10,
-    "lengthM": 140.1
+    "lengthM": 139.2
+  },
+  "routes": {
+    "forward": 3,
+    "reversed": 2
   }
 }
