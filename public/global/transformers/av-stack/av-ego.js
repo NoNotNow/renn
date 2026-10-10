@@ -38,6 +38,8 @@
   {"key": "fleeSim", "type": "boolean", "default": false, "group": "Evasion", "description": "bool, default off", "advanced": true},
   {"key": "fleeStoppedSpeed", "type": "number", "default": 0, "group": "Evasion", "unit": "m/s", "min": 0, "advanced": true},
   {"key": "fleeTurnPenalty", "type": "number", "default": 1.5, "group": "Evasion", "min": 0, "description": "1.5: score penalty of a candidate needing a turn of 180 deg, growing from 70 deg", "advanced": true},
+  {"key": "gapBlockHold", "type": "number", "default": 0.5, "group": "Evasion", "unit": "s", "min": 0, "description": "s a committed gap goal must stay walled-in on the persistent static map before it is replaced (0 = the old immediate switch): the map grows while driving, so a single blocked re-score must not flip the goal.", "advanced": true},
+  {"key": "gapClampBack", "type": "number", "default": 3.5, "group": "Evasion", "unit": "m", "min": 0, "description": "m a gap goal clamped to the free run is set back behind the run's end (vehicle hull inflation 2.5 + 1), so it does not land inside the inflated wall.", "advanced": true},
   {"key": "gapCommit", "type": "boolean", "default": true, "group": "Evasion", "description": "bool, default ON; false disables", "advanced": true},
   {"key": "gapReach", "type": "number", "default": 10, "group": "Evasion", "min": 0, "advanced": true},
   {"key": "gapTrackRange", "type": "number", "default": 160, "group": "Evasion", "unit": "m", "min": 0, "description": "m, 160: far list av.threatsFar for the sim only", "advanced": true},
@@ -1474,7 +1476,13 @@ function fleeSim(av, input, params, state, g0, area, fl, now, thrs, q, yaw0) {
   if (gap && fl && fl.ang != null && fl.gx != null) fl.ang = Math.atan2(fl.gz - pos[2], fl.gx - pos[0])
   var cur = fl && fl.ang != null ? scoreOf(fl.ang, fl.gx != null ? Math.sqrt((fl.gx - pos[0]) * (fl.gx - pos[0]) + (fl.gz - pos[2]) * (fl.gz - pos[2])) : null) : null
   // gapWalls: a committed goal that was clamped to the free run is reached when the car gets within gapReach (m, 10): re-pick from here instead of sitting on it
-  var curBlocked = !!(cur && cur.blocked && wFilter)
+  // the block must persist gapBlockHold s before the committed goal is replaced: the persistent static map grows while driving,
+  // so a transient blocked re-score (newly mapped wall cells on the goal line) must not flip the goal (was: immediate switch)
+  var curBlocked = false
+  if (cur && cur.blocked && wFilter) {
+    if (fl.blk == null) fl.blk = now
+    curBlocked = now - fl.blk >= (params.gapBlockHold != null ? params.gapBlockHold : 0.5)
+  } else if (fl) fl.blk = null
   var reached = !!(cur && !curBlocked && walls && fl.gx != null && (fl.gx - pos[0]) * (fl.gx - pos[0]) + (fl.gz - pos[2]) * (fl.gz - pos[2]) < Math.pow(params.gapReach != null ? params.gapReach : 10, 2))
   if (reached) cur = null
   var evalDue = !fl || fl.ang == null || now - (fl.te || 0) > (params.escapeEvalEvery != null ? params.escapeEvalEvery : gap ? 0.3 : 0.15)
@@ -1520,7 +1528,8 @@ function fleeSim(av, input, params, state, g0, area, fl, now, thrs, q, yaw0) {
       bestS = any.score
     }
     if (best) {
-      var Dg = walls && wFilter && !uns && params.gapWallClamp !== false && best.run < D ? Math.max(8, best.run - 3) : D
+      // set the clamped goal back behind the run's end by the hull inflation + 1 m (the old run - 3 landed inside the inflated wall)
+      var Dg = walls && wFilter && !uns && params.gapWallClamp !== false && best.run < D ? Math.max(8, best.run - (params.gapClampBack != null ? params.gapClampBack : 3.5)) : D
       if (!cur || curBlocked || bestS > cur.score + (params.escapeSwitch != null ? params.escapeSwitch : gap ? 6 : 3)) fl = { ang: best.ang, t: now, t0: fl && fl.t0 != null && cur ? fl.t0 : now, te: now, gap: gap, gx: gap ? pos[0] + Math.cos(best.ang) * Dg : null, gz: gap ? pos[2] + Math.sin(best.ang) * Dg : null }
       else {
         fl.te = now
