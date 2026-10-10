@@ -159,3 +159,7 @@ Same 24-input direction-only net, trained FROM SCRATCH (no warm start). Episode 
 - Capacity screening (2026-10-10, v2, warm from shippedPolicyV2.json, 160 TRAIN setups, 150 gens, 2 seeds each), HOLDOUT 125 chain episodes:
   H=10 fitness 1.52 / 1.57 (finish 77 %), H=24 1.49 / 1.54 (78 %), shipped 1.42 (70 %). No capacity effect when warm-started (the new units start
   silent); the run-vs-shipped gap is within selection noise. v3 is trained from scratch with H=24 (the manoeuvre task is harder; untested choice).
+- v3 first interim (2026-10-10, run `v3`, H=24 from scratch, seed 21): gen 430 after ~63 min, stage share 0.7 (all 7 kinds active). Shipped gen 400 as
+  `shippedPolicyV3.json` (worlds `policy_v3_*` re-exported). HOLDOUT per kind (chains finished / reverse share of time / max reverse): free 23/24 (50 %, 131 m),
+  corridor 14/18 (38 %, 26 m), slalom 18/23 (1 %), field 12/20 (1 %), crowd 12/19 (1 %), maze 10/15 (4 %), **bay 0/18 (all crash, reverses only 2 m)**.
+  The net reverses where it pays (free, corridor) and drives forward elsewhere; the dead-end bay is unsolved so far.

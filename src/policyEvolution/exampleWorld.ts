@@ -121,11 +121,15 @@ const SHIPPED_V3_URL = new URL('./shippedPolicyV3.json', import.meta.url)
 
 /** Shipped v3 genome, or undefined before training produced `shippedPolicyV3.json` (read at call time so the exporter works before and after a ship). */
 export function shippedGenomeV3(): number[] | undefined {
-  try {
-    return (JSON.parse(readFileSync(SHIPPED_V3_URL, 'utf8')) as { genome: number[] }).genome
-  } catch {
-    return undefined
+  // vitest rewrites import.meta.url, so also try the repo path from the working directory (tests and tools run from the repo root)
+  for (const file of [SHIPPED_V3_URL, 'src/policyEvolution/shippedPolicyV3.json']) {
+    try {
+      return (JSON.parse(readFileSync(file, 'utf8')) as { genome: number[] }).genome
+    } catch {
+      // try the next location
+    }
   }
+  return undefined
 }
 
 /** Deterministic fresh (untrained) v3-shaped genome: the hand-wired reverser cannot be a genome. */
