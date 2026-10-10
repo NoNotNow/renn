@@ -138,7 +138,7 @@ describe('MazeTrainingDialog', () => {
       expect(tile).toBeInTheDocument()
       const img = screen.getByTestId(`maze-training-thumb-maze_train_1-${i}`)
       expect(img).toHaveAttribute('src', expect.stringContaining(`route_${i}.svg`))
-      expect(img).toHaveStyle({ height: '6em' })
+      expect(img).toHaveStyle({ height: '8.4em' })
     }
     expect(screen.getByTestId('maze-training-route-tile-maze_train_1-3')).toHaveAttribute(
       'aria-label',

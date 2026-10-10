@@ -674,12 +674,12 @@ export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld
                               gap: 3,
                             }}
                           >
-                            <div style={{ position: 'relative', width: '100%', height: '6em' }}>
+                            <div style={{ position: 'relative', width: '100%', height: '8.4em' }}>
                               <img
                                 data-testid={`maze-training-thumb-${spec.id}-${i}`}
                                 src={mazeRouteTileUrl(spec, i)}
                                 alt={`${spec.name} way ${i + 1} (${reversed ? 'reversed' : 'forward'}) thumbnail (all guidance vectors)`}
-                                style={{ width: '100%', height: '6em', display: 'block', objectFit: 'contain', borderRadius: 4 }}
+                                style={{ width: '100%', height: '8.4em', display: 'block', objectFit: 'contain', borderRadius: 4 }}
                                 onError={handleThumbError}
                               />
                               {isLiveTile && meta.tileSvg ? (
