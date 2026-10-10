@@ -82,12 +82,12 @@ describe('AV neural drive: library registration', () => {
     expect(readNeuralStageWeights().length).toBe(GENOME_LENGTH_V2)
   })
 
-  it('without shippedPolicyV2.json the weights are the padded v1 genome (identical function)', () => {
+  it('without a promoted avNeuralWeights.json the weights are the padded v1 genome (identical function)', () => {
     const v1 = (JSON.parse(readFileSync(join(process.cwd(), 'src/policyEvolution/shippedPolicy.json'), 'utf8')) as { genome: number[] }).genome
     expect(v1.length).toBe(GENOME_LENGTH)
     let hasV2 = true
     try {
-      readFileSync(join(process.cwd(), 'src/policyEvolution/shippedPolicyV2.json'))
+      readFileSync(join(process.cwd(), 'src/policyEvolution/avNeuralWeights.json'))
     } catch {
       hasV2 = false
     }

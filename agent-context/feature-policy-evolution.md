@@ -126,3 +126,14 @@ The net follows a DYNAMIC target vector instead of memorising courses. v1 (16 in
 
 ## Not done yet
 Browser panel / live playback per generation, MCP tools, comparison against the evolved AV pipeline on the same courses.
+
+## v2 run "v2a" (2026-10-10): first command-chain result
+- `run-islands.ts --v2 --warm shippedPolicy.json --batch 6 --seed 11`, 558 generations in the first 2 h (resumed afterwards). HOLDOUT chains finished
+  (epoch evaluations): 16/65 (gen 25) -> 34/65 (150) -> 48/65 (300) -> ~48/65 plateau (300-550); TRAIN 21/97 -> 71/97.
+- Shipped as `shippedPolicyV2.json` (best by TRAIN, gen 400): paired HOLDOUT vs the padded v1 net: 62 wins / 15 losses, mean diff CI95 +0.94..+1.43.
+  Per kind on 10 HOLDOUT setups each (all chains): field 24/32 chains (75 %, all chains of a setup 4/10), slalom 29/37 (78 %, 3/10),
+  maze 16/28 (57 %, 2/10), crowd 18/28 (64 %, 3/10). Evenness is the weak part: only 12/40 setups have every chain finished.
+- **Inside the AV car the v2 net is NOT better yet**: crowd A/B (`AV_NEURAL_AB=1 npx vitest run src/test/scenarios/av-neural-ab.diagnostic.test.ts`)
+  with v2 weights: `always` reaches 4/4 without contact but 15-28 s vs classic 9-16 s, with 7-9 s stalled; `auto` slower than classic, and the
+  `av_neural_crowd` world did not reach its goal in time. So the AV library does NOT read `shippedPolicyV2.json`; it reads a separately promoted
+  `avNeuralWeights.json` (absent => padded v1). `upgrade-example-worlds-library.ts` now also refreshes the neural stage's `w` param in the example worlds.

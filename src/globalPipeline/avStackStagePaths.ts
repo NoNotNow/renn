@@ -37,12 +37,14 @@ export function readAvStackStageCode(logical: AvStackLogicalStage): string {
 }
 
 /**
- * Weights of the neural drive stage (v2 genome, 272 numbers): `shippedPolicyV2.json` when it exists at library build time, else the shipped v1 genome
- * zero-padded to v2 (identical function). Node-only (reads the repo files), like the stage code above.
+ * Weights of the neural drive stage (v2 genome, 272 numbers): `avNeuralWeights.json` (a v2 genome PROMOTED for the AV car after an A/B in the
+ * full stack, see plan-policy-in-av-car.md Phase 3) when it exists at library build time, else the shipped v1 genome zero-padded to v2
+ * (identical function). Deliberately not `shippedPolicyV2.json`: a policy that wins on the training chains can still be worse inside the AV
+ * (measured 2026-10-10: the first v2 net stalled in the crowd cases). Node-only (reads the repo files), like the stage code above.
  */
 export function readNeuralStageWeights(): number[] {
   const dir = resolve(moduleDir, '../policyEvolution')
-  const v2 = resolve(dir, 'shippedPolicyV2.json')
-  if (existsSync(v2)) return (JSON.parse(readFileSync(v2, 'utf8')) as { genome: number[] }).genome
+  const promoted = resolve(dir, 'avNeuralWeights.json')
+  if (existsSync(promoted)) return (JSON.parse(readFileSync(promoted, 'utf8')) as { genome: number[] }).genome
   return padV1Genome((JSON.parse(readFileSync(resolve(dir, 'shippedPolicy.json'), 'utf8')) as { genome: number[] }).genome)
 }
