@@ -94,7 +94,7 @@ All thresholds are params (tuned on TRAIN only).
 4. Speed cap while the net drives (default 12 m/s in crowds) or full 30 m/s with only the AEB as guard?
 
 ## 8. Phase 5 — v3 policy in the AV car
-Status 2026-10-10: PLAN only (no code). Read with `spec-command-chains.md` (v3 section) and the Phase-3 A/B in `feature-av-stack.md` ("Neural drive mode").
+Status 2026-10-10: implementation in progress (answers in 8.6). Read with `spec-command-chains.md` (v3 section) and the Phase-3 A/B in `feature-av-stack.md` ("Neural drive mode").
 
 ### 8.1 What v3 adds vs the integrated v2 (checked in `policy.ts`, `policyStage.ts`, `legs.ts`, `shippedPolicyV3.json`)
 - **Network: same interface.** v3 still has 24 inputs (14 rays at 0..180 deg all round, fwd/side speed, yaw rate, aim cos/sin/dist, next cos/sin, prev steer/gas) and 2 outputs (steer, gas). No speed input, no speed command. Only the size differs: `shippedPolicyV3.json` has 650 numbers = H 24 (27 H + 2), v2 in the AV has H 10 (272). `STAGE_HIDDEN` / `hiddenOf` infer H from the length, so the weights are a drop-in swap (`neuralWeights` param or `avNeuralWeights.json`). `POLICY_STAGE_CODE_V3` = v2 net code + only a different command helper (`STAGE_CMD_HELPERS_V3`).
@@ -138,6 +138,13 @@ Status 2026-10-10: PLAN only (no code). Read with `spec-command-chains.md` (v3 s
 3. Wait for `v3cap` before any A/B, or A/B the shipped gen1000 now with `neuralVMax`?
 4. Should reversing be allowed in `self_hunt_flexible` (chasers behind) or only in maze/bay worlds?
 5. Is a dedicated v3 world (`av_neural_v3`) preferred over flipping `neuralPolicy` in existing worlds?
+
+**Answers (user, 2026-10-10):**
+1. No forward-only first release: reversing is in from the start (AEB probes backwards while the net reverses, sign-aware watchdog, reverse trigger + `neuralRevMaxM`, handback only at |v| < 1 m/s).
+2. Promotion gate: v3 "not worse than classic" on crowd/maze HOLDOUT (reached >= classic, contact frames <= classic, maze not worse beyond noise). Beating v2 `auto` is NOT required.
+3. The A/B waits for `v3cap`: run it while training is paused, after a v3cap ship check passes. Implementation + unit/integration tests proceed now.
+4. Reversing (`neuralReverse`) only in maze/bay worlds and the new world; not in `self_hunt_flexible` without asking the user first (default off).
+5. Dedicated world `av_neural_v3` (copy of `av_neural_crowd` with `neuralPolicy: 'v3'`); existing worlds unchanged.
 
 ## Critical files
 `src/policyEvolution/policy.ts` (+ new `policyStage.ts`, `command.ts`), `courses.ts`, `episode.ts`;
