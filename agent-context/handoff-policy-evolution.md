@@ -31,7 +31,7 @@ mazes and crowded situations. Work focused, good tests, learn from past mistakes
 - `v3.json` = uncapped run, **stopped cleanly at gen 1500** (commit f76a5390), resumable with `tools/policy-evolution/run-v3.sh 3000 7`.
   Ship check of its best (gen 1425) with the finish-count gate: **KEEP**, 107 vs 114 finished (field -2, slalom -3, crowd -4 WORSE; bay +1, corridor +2).
 - `v3cap.json` = **speed-capped fork, running** (warm start from v3 gen 1500, `--speed-cap 15`, gen counter and curriculum restart at 0, target 3000,
-  7 workers, log `v3cap.nohup.log` / `v3cap.log`, both git-ignored). Commit `v3cap.json` regularly (first checkpoint d50aff8e).
+  7 workers, log `v3cap.nohup.log` / `v3cap.log`, both git-ignored). Commit `v3cap.json` regularly (first checkpoint d50aff8e). Local Mac session: running since 2026-10-10 ~15:45, ~gen 909 at handoff (see handoff-flee-improvements.md for the resume command and the due ship check).
 - All earlier runs + logs are copies for reference (run1-5, islands1-2 = v1; v2a, v2b, h10/h24 = v2 screening). `test-results/` stays git-ignored.
 
 ## Local workflow (Mac)
@@ -86,18 +86,7 @@ cand finished >= shipped finished - max(1, ceil(5 % of n)) (`kindTolerance`). Fi
 - World `av_neural_v3` (regenerate: `npx tsx tools/renn-mcp/export-av-neural-example-world.ts [av_neural_v3]`, then `npm run sync:global-pipeline`); on-disk-equals-exporter test + headless run in `src/test/scenarios/av-neural-v3-world.test.ts`.
 - To judge a candidate: A/B arm `v3` in `av-neural-ab.diagnostic.test.ts` / `av-neural-maze-ab.diagnostic.test.ts` with `AV_NEURAL_V3_WEIGHTS=<run json>` (not run in CI, not run yet).
 
-## NEW TASK from the user (posted in the cloud session; not started there — the attempt was stopped): improve the fleeing car in `self_hunt_flexible`
-Long-term goal: improve the AV autopilot pipe of the fleeing car (`entity_1779823253285_brtkx1p`) in `public/exampleWorlds/self_hunt_flexible`.
-Weaknesses the user observed in the browser:
-1. Flee targets are set clumsily: they switch too fast, or persist after being reached; sometimes they point into a maze or a dead end.
-2. The car often gets extremely slow, especially when surrounded by many chasers — exactly when it should be fast.
-3. Reversing is slower than necessary.
-4. After being distracted (near miss / contact / blocked) it enters a mode where it only drives slowly and reverses a lot.
-Wanted: (A) diagnose each weakness with headless measurements in `self_hunt_flexible` (defined start, several seeds; trace flee-goal switches /
-age / dead-end, which limiter sets vDesired under chaser pressure, reverse speed limits, supervisor modes/timers after contact); (B) write
-`agent-context/plan-flee-improvements.md`: root cause + evidence, fix, paired before/after metric + test, risk to `av_maze_escape`, `av_fleet_eco`,
-`self_drive_av`; cheap classic fixes first; then a smart integration strategy where the AV logic sets the target vectors for the neural net (v3,
-forward + reverse) in mazes / dense chasers / instead of the slow manoeuvre mode, with hand-over, fallback, training changes (chasers / moving
-obstacles) and an A/B gate before enabling.
-An unfinished, unverified start of that diagnosis is parked in `wip/flee-diagnosis/` (renamed `.wip` so vitest ignores it; review or discard).
-The cloud session runs nothing any more (no training, no scheduled check-ins, no agents).
+## NEW TASK from the user (posted in the cloud session): improve the fleeing car in `self_hunt_flexible` — MOVED to [handoff-flee-improvements.md](./handoff-flee-improvements.md)
+The local session of 2026-10-10 activated the diagnostic (`src/test/scenarios/av-flee.diagnostic.test.ts` + `tools/av-flee-compare.mjs`), wrote the diagnosis + fix plan
+(`plan-flee-improvements.md`), shipped the classic world-param fix (mean speed 10.1 -> 20.8 m/s, deployed) and parked the remaining gated stage fixes + neural-v3 integration
+in the new handoff. This section is kept for the original task statement (weaknesses 1-4, wanted A/B) — read the new handoff for the current state.
