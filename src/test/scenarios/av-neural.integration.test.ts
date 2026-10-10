@@ -2,9 +2,10 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { buildAvStackGlobalBehaviorLibrary } from '@/globalPipeline/buildAvStackGlobalBehaviorLibrary'
-import { readNeuralStageWeights, AV_STACK_STAGE_FILES } from '@/globalPipeline/avStackStagePaths'
+import { readNeuralStageWeights, readNeuralStageWeightsV3, AV_STACK_STAGE_FILES } from '@/globalPipeline/avStackStagePaths'
 import { createRng, gaussian } from '@/avEvolution/core/rng'
-import { GENOME_LENGTH, GENOME_LENGTH_V2, N_IN_V2, N_RAYS, padV1Genome, POLICY_STAGE_CODE_V2, policyForwardV2, widenHidden } from '@/policyEvolution/policy'
+import shippedV3 from '@/policyEvolution/shippedPolicyV3.json'
+import { GENOME_LENGTH, GENOME_LENGTH_V2, N_IN_V2, N_RAYS, padV1Genome, POLICY_STAGE_CODE_V2, POLICY_STAGE_CODE_V3, policyForwardV2, widenHidden } from '@/policyEvolution/policy'
 import { AV_NEURAL_STAGE_FILE, neuralStageFile } from '@/policyEvolution/policyStage'
 import { setAgentObservationWatchActive } from '@/runtime/transformerWatchBridge'
 import { loadLabWorld, watchValues } from '@/test/avLab/lab'
@@ -103,6 +104,11 @@ describe('AV neural drive (a) off = bit-identical', () => {
     const off = await poses(withNeuralMode(spec, 'off'), 8)
     expect(dflt).toEqual(none)
     expect(off).toEqual(none)
+    // the v3 keys absent == explicit v2 / no reversing: same poses with the net driving
+    const always = await poses(withNeuralMode(spec, 'always'), 8)
+    const alwaysV2 = await poses(withNeuralMode(spec, 'always', { neuralPolicy: 'v2', neuralReverse: false, neuralRevMaxM: 12 }), 8)
+    expect(alwaysV2).toEqual(always)
+    expect(always).not.toEqual(none)
   }, SCENARIO_TIMEOUT)
 
   it('a vehicle that is not ~4 x 8 never drives neural: always == off, watch says vehicle', async () => {
@@ -327,4 +333,272 @@ describe('av_neural_crowd example world', () => {
     expect(on).toBeGreaterThan(60)
     expect(reached).toBeLessThan(22)
   }, SCENARIO_TIMEOUT)
+})
+
+describe('AV neural drive v3 policy (neuralPolicy v3, reversing)', () => {
+  const dot = (a: number[], b: number[]) => a[0]! * b[0]! + a[1]! * b[1]! + a[2]! * b[2]!
+  type Ray = (o: number[], d: number[]) => { hit: boolean; distance: number }
+  const watched: Record<string, string> = {}
+  /** flat ground, identity heading (forward = +z, left = +x) */
+  const mkApi = (raycast: Ray) => ({
+    getUpVector: () => [0, 1, 0],
+    getForwardVector: () => [0, 0, 1],
+    vec: {
+      normalize: (v: number[]) => {
+        const l = Math.hypot(v[0]!, v[1]!, v[2]!) || 1
+        return [v[0]! / l, v[1]! / l, v[2]! / l]
+      },
+      projectOntoPlane: (v: number[], n: number[]) => {
+        const d = dot(v, n)
+        return [v[0]! - d * n[0]!, v[1]! - d * n[1]!, v[2]! - d * n[2]!]
+      },
+      cross: (a: number[], b: number[]) => [a[1]! * b[2]! - a[2]! * b[1]!, a[2]! * b[0]! - a[0]! * b[2]!, a[0]! * b[1]! - a[1]! * b[0]!],
+      dot,
+    },
+    getEntity: () => ({ shape: { type: 'box', width: 4, height: 1, depth: 8 } }),
+    raycast,
+    watch: (k: string, v: string) => {
+      watched[k] = v
+    },
+    visualizeLine: () => {},
+  })
+  const compile = (code: string) => new Function(`"use strict";\n${code}\nreturn transform;`)() as (i: unknown, dt: number, p: unknown, s: unknown, a: unknown) => unknown
+  const openApi = mkApi((_o, d) => (d[0]! > 0.9 ? { hit: false, distance: 0 } : { hit: true, distance: 6 + 30 * Math.abs(d[0]!) + 4 * Math.abs(d[2]!) }))
+  /** a wall 2 m in front of the nose; behind: free (or a wall at `rearHit` m) */
+  const blockedApi = (rearHit = 0) => mkApi((_o, d) => (d[2]! > 0.8 ? { hit: true, distance: 2 } : rearHit > 0 && d[2]! < -0.3 ? { hit: true, distance: rearHit } : { hit: false, distance: 0 }))
+  const genome = shippedV3.genome as number[]
+  const mkIn = (z: number, vz: number) => ({ position: [0, 0.5, z], rotation: [0, 0, 0, 1], velocity: [0, 0, vz], angularVelocity: [0, 0, 0], actions: {} as Record<string, number> })
+  const mkAv = (z: number, speed: number) => ({
+    ego: { speed, kappa: 0, speedF: speed, fwd: [0, 0, 1] },
+    plan: {},
+    vehicle: { width: 4, length: 8, height: 1 },
+    routePath: [[0, z], [0, z + 120]],
+    goal: { dist: 99 },
+    mission: { isFinal: false },
+  })
+  /** H = 1 net: gas = tanh(3 * tanh(3 * aimCos)), steering 0: forward with the aim ahead, target speed < 0 (reverse) with the aim behind */
+  const aimNet = (() => {
+    const w = new Array(29).fill(0)
+    w[N_RAYS + 3] = 3
+    w[25 + 1] = 3
+    return w
+  })()
+
+  it('the default v3 weights are the 650-number shippedPolicyV3 genome (generated json == shipped json)', () => {
+    expect(genome.length).toBe(650)
+    expect(readNeuralStageWeightsV3()).toEqual(genome)
+    const gen = readFileSync(join(process.cwd(), 'src/policyEvolution/avNeuralWeightsV3.json'), 'utf8')
+    expect(gen).toBe(readFileSync(join(process.cwd(), 'src/policyEvolution/shippedPolicyV3.json'), 'utf8'))
+  })
+
+  it('(b) stage net output == policyForward of the 650 genome through the shared pedal law', () => {
+    const route = [[0, 0], [0, 40], [30, 70]]
+    const inp = { ...mkIn(0, 5), av: { ...mkAv(0, 5), routePath: route } }
+    const state: Record<string, unknown> = {}
+    compile(diskStage())(inp, dt, { neuralMode: 'always', neuralPolicy: 'v3', wV3: genome, neuralVMax: 1000 }, state, openApi)
+    const p = state.p as { x: number[]; aim: number[] }
+    expect(state.on).toBe(true)
+    expect(p.x.length).toBe(N_IN_V2)
+    // leg-wise command: aim = clamp(8 + 0.6 * 5, 8, 40) = 11 m along the route (one leg)
+    expect(p.aim[0]).toBeCloseTo(0, 6)
+    expect(p.aim[1]).toBeCloseTo(11, 6)
+    const out = policyForwardV2(genome, p.x)
+    const a = inp.actions
+    expect(a.steering_angle).toBeCloseTo(Math.abs(out[0]) < 1e-4 ? 1e-4 : out[0], 12)
+    const vT = out[1] > 0 ? out[1] * 30 : out[1] * 8
+    const u = Math.max(-1, Math.min(1, (vT - 5) / 0.05 / 1200))
+    expect(a.throttle).toBeCloseTo(u > 0 ? u : 0, 12)
+    expect(a.brake).toBeCloseTo(u < 0 ? -u : 0, 12)
+  })
+
+  it('(b2) neuralWeights override wins over wV3; v3 without any v3 weights does nothing', () => {
+    const a = { ...mkIn(0, 5), av: mkAv(0, 5) }
+    compile(diskStage())(a, dt, { neuralMode: 'always', neuralPolicy: 'v3', wV3: genome, neuralWeights: aimNet, neuralVMax: 1000 }, {}, openApi)
+    const b = { ...mkIn(0, 5), av: mkAv(0, 5) }
+    compile(diskStage())(b, dt, { neuralMode: 'always', neuralPolicy: 'v3', neuralWeights: aimNet, neuralVMax: 1000 }, {}, openApi)
+    expect(a.actions).toEqual(b.actions)
+    const c = { ...mkIn(0, 5), av: mkAv(0, 5) }
+    compile(diskStage())(c, dt, { neuralMode: 'always', neuralPolicy: 'v3', w: genome.slice(0, 272) }, {}, openApi)
+    expect(c.actions).toEqual({})
+  })
+
+  /** run the blocked-ahead situation: the car stands still at z = 0 with a wall 2 m ahead */
+  const blockedRun = (params: Record<string, unknown>, rear = 0, secs = 1.6) => {
+    const stage = compile(diskStage())
+    const state: Record<string, unknown> = {}
+    const api = blockedApi(rear)
+    const dirs: string[] = []
+    let triggeredAt = -1
+    for (let i = 0; i < Math.round(secs * 60); i++) {
+      const inp = { ...mkIn(0, 0), av: mkAv(0, 0) }
+      stage(inp, dt, { neuralMode: 'always', neuralPolicy: 'v3', wV3: aimNet, neuralVMax: 1000, ...params }, state, api)
+      dirs.push((inp.av as unknown as { neural: { dir: string } }).neural.dir)
+      if (triggeredAt < 0 && (state.p as { revLeg?: boolean }).revLeg) triggeredAt = i
+    }
+    return { state, dirs, triggeredAt }
+  }
+
+  it('(d) blocked ahead + neuralReverse: a back leg 5-10 m along the heading (aim behind), dir rev, distance capped by neuralRevMaxM', () => {
+    const r = blockedRun({ neuralReverse: true, neuralRevMaxM: 6 })
+    const P = r.state.p as { revLeg: boolean; revChain: number[][]; revEnds: number[]; aim: number[] }
+    expect(r.triggeredAt).toBeGreaterThanOrEqual(55) // after ~1 s blocked
+    expect(P.revLeg).toBe(true)
+    // back leg: from the car 6 m (= neuralRevMaxM < 10, rear free) straight back along its own heading, then the route again
+    expect(P.revChain[0]).toEqual([0, 0])
+    expect(P.revChain[1]![0]).toBeCloseTo(0, 9)
+    expect(P.revChain[1]![1]).toBeCloseTo(-6, 9)
+    expect(P.revEnds).toEqual([1, P.revChain.length - 1])
+    expect(P.aim[1]).toBeLessThan(0) // aim point behind the car
+    expect(r.dirs.slice(0, r.triggeredAt)).not.toContain('rev')
+    expect(r.dirs[r.dirs.length - 1]).toBe('rev')
+    const av = (r.state as { revM: number }).revM
+    expect(av).toBeLessThanOrEqual(6)
+    // default cap 12 m: the leg is limited to 10 m
+    const r12 = blockedRun({ neuralReverse: true })
+    expect((r12.state.p as { revChain: number[][] }).revChain[1]![1]).toBeCloseTo(-10, 9)
+  })
+
+  it('(d) the leg metres are counted and the route comes back after the leg', () => {
+    const stage = compile(diskStage())
+    const state: Record<string, unknown> = {}
+    const api = blockedApi()
+    let z = 0
+    let maxRevM = 0
+    let legSeen = false
+    let legEnded = false
+    for (let i = 0; i < 60 * 12; i++) {
+      const blocked = i < 70
+      const speed = blocked ? 0 : (state.p as { revLeg?: boolean }).revLeg ? -3 : 3
+      const inp = { ...mkIn(z, speed), av: mkAv(z, speed) }
+      stage(inp, dt, { neuralMode: 'always', neuralPolicy: 'v3', wV3: aimNet, neuralVMax: 1000, neuralReverse: true, neuralRevMaxM: 7 }, state, blocked ? api : openApi)
+      if (!blocked) z += speed * dt
+      maxRevM = Math.max(maxRevM, state.revM as number)
+      const P = state.p as { revLeg: boolean; srcRp?: unknown }
+      if (P.revLeg) legSeen = true
+      else if (legSeen) legEnded = true
+      if (z > 3) break
+    }
+    expect(maxRevM).toBeGreaterThan(2)
+    expect(maxRevM).toBeLessThanOrEqual(7 + 1e-9)
+    expect(legSeen && legEnded).toBe(true)
+  })
+
+  it('(d) neuralReverse off: never reverses, never builds a back leg', () => {
+    const r = blockedRun({ neuralReverse: false }, 0, 3.5)
+    expect(r.dirs).not.toContain('rev')
+    expect((r.state.p as { revLeg?: boolean }).revLeg).toBeFalsy()
+    // an aim-behind net would reverse; without neuralReverse the target speed is floored at 0
+    const inp = { ...mkIn(0, 0), av: { ...mkAv(0, 0), routePath: [[0, 0], [0, -30]] } }
+    compile(diskStage())(inp, dt, { neuralMode: 'always', neuralPolicy: 'v3', wV3: aimNet, neuralVMax: 1000, neuralReverse: false }, {}, openApi)
+    expect((inp.av as unknown as { neural: { dir: string } }).neural.dir).toBe('fwd')
+    expect(inp.actions.throttle).toBe(0)
+    const rev = { ...mkIn(0, 0), av: { ...mkAv(0, 0), routePath: [[0, 0], [0, -30]] } }
+    compile(diskStage())(rev, dt, { neuralMode: 'always', neuralPolicy: 'v3', wV3: aimNet, neuralVMax: 1000, neuralReverse: true }, {}, openApi)
+    expect((rev.av as unknown as { neural: { dir: string } }).neural.dir).toBe('rev')
+  })
+
+  it('(d) rear not clear (wall 6 m behind) or neuralRevMaxM 0: no back leg', () => {
+    expect(blockedRun({ neuralReverse: true }, 6).triggeredAt).toBe(-1)
+    expect(blockedRun({ neuralReverse: true, neuralRevMaxM: 0 }).triggeredAt).toBe(-1)
+  })
+
+  it('(c) leg tracking + command helper in the stage == the v3 training stage (back leg chain, car walked along it)', () => {
+    const stage = compile(diskStage())
+    const train = compile(POLICY_STAGE_CODE_V3)
+    const state: Record<string, unknown> = {}
+    const api = blockedApi()
+    let trainState: Record<string, unknown> | null = null
+    let chain: number[][] = []
+    let ends: number[] = []
+    let n = 0
+    let z = 0
+    for (let i = 0; i < 60 * 6 && n < 25; i++) {
+      const spd = trainState ? -3 : 0
+      const inp = { ...mkIn(z, spd), av: mkAv(z, spd) }
+      stage(inp, dt, { neuralMode: 'always', neuralPolicy: 'v3', wV3: genome, neuralVMax: 1000, neuralReverse: true, neuralRevMaxM: 8 }, state, api)
+      const P = state.p as { revLeg?: boolean; revChain: number[][]; revEnds: number[]; steer: number; gas: number }
+      if (trainState) {
+        // identical inputs into the training stage: same chain + legEnds, memory inputs carried over
+        const tin = { ...mkIn(z, spd), actions: {} as Record<string, number> }
+        train(tin, dt, { w: genome, chain, legEnds: ends, cmd: { lmin: 8, tau: 0.6, period: 0.5, noiseDeg: 0, seed: 1 }, gain: 1200 }, trainState, api)
+        expect(inp.actions).toEqual(tin.actions)
+        n++
+        z += spd * dt * 4 // walk the car back (a few mm per frame is enough to move the projection; 4x for a longer path)
+        if (!P.revLeg) break
+      } else if (P.revLeg) {
+        chain = P.revChain
+        ends = P.revEnds
+        trainState = { steer: P.steer, gas: P.gas }
+      }
+    }
+    expect(trainState).not.toBeNull()
+    expect(n).toBeGreaterThan(10)
+  })
+
+  it('(e) handback (neural off) while reversing only at |v| < 1 m/s', () => {
+    const stage = compile(diskStage())
+    const state: Record<string, unknown> = {}
+    // 'auto' with thresholds that switch on at once and off as soon as allowed (clear is always true), so only the reversing guard can hold it on
+    const params = { neuralMode: 'auto', neuralPolicy: 'v3', wV3: aimNet, neuralVMax: 1000, neuralReverse: true, neuralOnOcc: 0, neuralOnT: 0.05, neuralDwell: 0, neuralOffOcc: 2, neuralOffMov: 99, neuralOffConf: 2, neuralOffT: 0.05 }
+    const api = blockedApi()
+    let wasOn = false
+    for (let i = 0; i < 90; i++) {
+      // reversing at 5 m/s: stays on
+      const inp = { ...mkIn(0, -5), av: mkAv(0, -5) }
+      stage(inp, dt, params, state, api)
+      if (i > 12) {
+        wasOn = true
+        expect(state.on).toBe(true)
+      }
+    }
+    expect(wasOn).toBe(true)
+    // a stop request while reversing fast: pedal law to target speed 0 (throttle), still on
+    const slow = { ...mkIn(0, -0.5), av: mkAv(0, -0.5) }
+    stage(slow, dt, params, state, api)
+    expect(state.on).toBe(false)
+    expect((slow.av as unknown as { neural: { justOff: boolean } }).neural.justOff).toBe(true)
+    // forward at the same time: no such guard (v3 forward handback is immediate once clear)
+    const state2: Record<string, unknown> = {}
+    let off = false
+    for (let i = 0; i < 30 && !off; i++) {
+      const inp = { ...mkIn(0, 5), av: mkAv(0, 5) }
+      stage(inp, dt, params, state2, api)
+      off = i > 5 && state2.on === false
+    }
+    expect(off).toBe(true)
+  })
+
+  it('(e2) a watchdog fail while reversing fast brakes to a stop first, then hands back', () => {
+    const stage = compile(diskStage())
+    const state: Record<string, unknown> = {}
+    const params = { neuralMode: 'always', neuralPolicy: 'v3', wV3: aimNet, neuralVMax: 1000, neuralReverse: true, neuralAebT: 0.1 }
+    const api = blockedApi()
+    let pendSeen = false
+    for (let i = 0; i < 40; i++) {
+      // the AEB brakes continuously (fail 'aeb') while the car reverses at 4 m/s
+      const inp = { ...mkIn(0, -4), av: { ...mkAv(0, -4), prevAeb: true } }
+      stage(inp, dt, params, state, api)
+      if (state.pend) {
+        pendSeen = true
+        expect(state.on).toBe(true)
+        expect(inp.actions.throttle).toBeGreaterThan(0)
+        expect(inp.actions.brake).toBe(0)
+      }
+    }
+    expect(pendSeen).toBe(true)
+    const stopped = { ...mkIn(0, -0.4), av: { ...mkAv(0, -0.4), prevAeb: true } }
+    stage(stopped, dt, params, state, api)
+    expect(state.on).toBe(false)
+    expect((stopped.av as unknown as { neural: { why: string } }).neural.why).toBe('aeb')
+  })
+
+  it('(f) the generated file carries both heads (v2 monotone projection + v3 leg tracker) verbatim from the shared strings', () => {
+    const disk = diskStage()
+    expect(disk).toBe(neuralStageFile())
+    expect(disk).toContain('function deriveCmd(')
+    expect(disk).toContain('function deriveCmdV3(')
+    expect(disk).toContain('function legInit(')
+    const v3Head = POLICY_STAGE_CODE_V3.slice(POLICY_STAGE_CODE_V3.indexOf('function legInit('), POLICY_STAGE_CODE_V3.indexOf('function hiddenOf('))
+    expect(disk).toContain(v3Head.replace('function deriveCmd(', 'function deriveCmdV3('))
+  })
 })

@@ -48,3 +48,15 @@ export function readNeuralStageWeights(): number[] {
   if (existsSync(promoted)) return (JSON.parse(readFileSync(promoted, 'utf8')) as { genome: number[] }).genome
   return padV1Genome((JSON.parse(readFileSync(resolve(dir, 'shippedPolicy.json'), 'utf8')) as { genome: number[] }).genome)
 }
+
+/**
+ * Default weights of the v3 policy (`neuralPolicy: 'v3'`, 650 numbers, H = 24): `avNeuralWeightsV3.json`, GENERATED from `shippedPolicyV3.json` by
+ * `tools/policy-evolution/export-av-neural-stage.ts` (so `npm run sync:global-pipeline` alone picks up a new `ship.ts` result). Falls back to
+ * `shippedPolicyV3.json` itself when the generated file is missing. An explicit `neuralWeights` param still wins in the stage.
+ */
+export function readNeuralStageWeightsV3(): number[] {
+  const dir = resolve(moduleDir, '../policyEvolution')
+  const generated = resolve(dir, 'avNeuralWeightsV3.json')
+  const file = existsSync(generated) ? generated : resolve(dir, 'shippedPolicyV3.json')
+  return (JSON.parse(readFileSync(file, 'utf8')) as { genome: number[] }).genome
+}

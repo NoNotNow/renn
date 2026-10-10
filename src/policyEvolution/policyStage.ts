@@ -10,9 +10,11 @@
  *
  * Phase 1 of agent-context/plan-policy-in-av-car.md. `neuralMode` off (default) returns before touching anything: bit-identical to no stage.
  */
-import { genomeLength, N_HIDDEN, N_IN_V2, STAGE_GOAL_V2, STAGE_NET, STAGE_SENSE, stageHead } from './policy'
+import { genomeLength, N_HIDDEN, N_IN_V2, STAGE_CMD_HELPERS_V3, STAGE_GOAL_V2, STAGE_NET, STAGE_SENSE, stageHead } from './policy'
 
 export const AV_NEURAL_STAGE_FILE = 'av-neural.js'
+/** generated copy of shippedPolicyV3.json next to avNeuralWeights.json (by the export script) */
+export const AV_NEURAL_STAGE_WEIGHTS_V3_FILE = 'avNeuralWeightsV3.json'
 
 /** Command defaults inside the AV: the middle of the training ranges (`CMD_LMIN_RANGE` 6-10 m, `CMD_TAU_RANGE` 0.4-0.8 s, refresh 0.2-0.8 s); bearing noise is a training degradation, not part of the rule. */
 export const NEURAL_CMD_DEFAULTS = { lmin: 8, tau: 0.6, period: 0.5 } as const
@@ -22,21 +24,34 @@ function replaceOnce(src: string, find: string, repl: string): string {
   return src.replace(find, repl)
 }
 
+/**
+ * The v3 command helpers (`STAGE_CMD_HELPERS_V3` = shared leg tracker + leg-wise `deriveCmd`), the SAME strings the v3 training stage is built from, with
+ * `deriveCmd` renamed `deriveCmdV3` so they live next to the v2 helpers in one file (the stage picks one per run: `neuralPolicy`).
+ */
+function v3HelpersCode(): string {
+  return replaceOnce(STAGE_CMD_HELPERS_V3, 'function deriveCmd(', 'function deriveCmdV3(')
+}
+
 /** The shared forward code as a callable `policyStep(input, dt, params, state, api)` (writes input.actions, keeps the net inputs in `state.x`). */
 function policyStepCode(): string {
   let sense = STAGE_SENSE
   sense = replaceOnce(sense, 'function transform(input, dt, params, state, api) {', 'function policyStep(input, dt, params, state, api) {')
   let net = STAGE_NET
   net = replaceOnce(net, '  var h = new Array(H)', '  state.x = x\n  var h = new Array(H)')
-  net = replaceOnce(net, '  var u = (vT - ', '  if (params.vMax != null && vT > params.vMax) vT = params.vMax\n  var u = (vT - ')
-  return sense + STAGE_GOAL_V2 + net
+  net = replaceOnce(net, '  var u = (vT - ', '  if (params.vMax != null && vT > params.vMax) vT = params.vMax\n  if (params.noRev && vT < 0) vT = 0\n  state.vT = vT\n  var u = (vT - ')
+  // v3: leg-wise command (deriveCmdV3, defined next to the v2 head; chosen per run by params.v3), v2 keeps the monotone projection
+  const goal = replaceOnce(STAGE_GOAL_V2, 'ac = deriveCmd(', 'ac = (params.v3 ? deriveCmdV3 : deriveCmd)(')
+  return sense + goal + net
 }
 
 export const NEURAL_PARAM_DEFS = [
+  { key: 'neuralPolicy', label: 'Neural policy', type: 'enum', options: [{ value: 'v2' }, { value: 'v3' }], default: 'v2', group: 'Neural', description: "'v2' = the promoted v2 net, forward only (default, bit-identical to worlds without this key); 'v3' = the leg-trained v3 net (same 24 inputs / 2 outputs, H 24, default weights from shippedPolicyV3.json), can reverse when neuralReverse is on." },
+  { key: 'neuralReverse', label: 'Neural: allow reversing (v3)', type: 'boolean', default: false, group: 'Neural', description: 'v3 only. Off: the net never reverses (target speed floored at 0). On: when blocked ahead with the rear rays clear the stage drives a short back leg (5-10 m along the own heading, at most neuralRevMaxM), then the route again.' },
+  { key: 'neuralRevMaxM', label: 'Neural: max reverse distance', type: 'number', default: 12, min: 0, unit: 'm', group: 'Neural', description: 'Cap of the metres reversed in one back leg (v3 with neuralReverse).', advanced: true },
   { key: 'neuralMode', label: 'Neural drive mode', type: 'enum', options: [{ value: 'off' }, { value: 'always' }, { value: 'auto' }], default: 'off', group: 'Neural', description: "'off' = classic stack only (bit-identical); 'always' = the net drives whenever allowed (debug); 'auto' = the net takes over in crowded surroundings and hands back when they clear." },
   { key: 'neuralVMax', label: 'Neural speed cap', type: 'number', default: 30, min: 0, unit: 'm/s', group: 'Neural', description: 'Upper bound of the net target speed while it drives.' },
   { key: 'neuralGain', label: 'Neural pedal gain', type: 'number', default: 1200, min: 1, group: 'Neural', description: 'Actuator acceleration per unit pedal the net was trained on (power / mass of the 4 x 8 car).', advanced: true },
-  { key: 'neuralWeights', label: 'Neural weights', type: 'json', group: 'Neural', description: 'Flat v2 genome (27 H + 2 numbers, H hidden units inferred from the length; 272 for H = 10); default = the weights shipped in the stage params.', advanced: true },
+  { key: 'neuralWeights', label: 'Neural weights', type: 'json', group: 'Neural', description: 'Flat genome (27 H + 2 numbers, H hidden units inferred from the length; 272 for H = 10, 650 for H = 24); default = the weights shipped in the stage params (v2: `w`, v3: `wV3`).', advanced: true },
   { key: 'neuralLmin', label: 'Aim distance (min)', type: 'number', default: NEURAL_CMD_DEFAULTS.lmin, min: 0, unit: 'm', group: 'Neural', advanced: true },
   { key: 'neuralTau', label: 'Aim distance per speed', type: 'number', default: NEURAL_CMD_DEFAULTS.tau, min: 0, unit: 's', group: 'Neural', advanced: true },
   { key: 'neuralPeriod', label: 'Aim refresh period', type: 'number', default: NEURAL_CMD_DEFAULTS.period, min: 0, unit: 's', group: 'Neural', advanced: true },
@@ -70,7 +85,11 @@ const AV_NEURAL_BODY = `
 // hysteresis + dwell). Never ON: manual override, manoeuvre (av.override), hold at the final goal, tracked threats in range, vehicle not ~4 x 8, no aim, cooldown / lockout.
 // Watchdog (forces OFF + cooldown; 3 fails in 30 s lock it out): < neuralStallM m along the command in neuralStallT s, AEB braking for neuralAebT s,
 // hull-ray distance < 0.4 m at > 3 m/s, side speed > 4 m/s, a classic manoeuvre starting while the net drives. Pedal law and gain as in training (neuralGain 1200); target speed capped at neuralVMax.
-// Watch: av.neural (on/off + why), av.neural.n (onS, handovers, fails). Overlay: violet line car -> aim.
+// neuralPolicy 'v3' (+ neuralReverse): the leg-trained v3 net (same inputs/outputs) on a leg-wise chain (the SAME leg tracker + command helper as in training). Forward: the route is ONE leg.
+// Reversing (only with neuralReverse): blocked ahead (|v| < 1.2 m/s, front rays < 3 m, aim not behind) for 1 s with the rear rays (120 / 180 / -120 deg) clear -> a back leg of 5-10 m
+// along the own heading (never more than neuralRevMaxM, never into the rear free distance), then the route again. A net target speed < 0 reads av.neural.dir = 'rev'.
+// Handback while reversing (|v| >= 1 m/s) is deferred: the stage brakes to a stop first. The watchdog's hull-ray test uses the rear rays when reversing.
+// Watch: av.neural (on/off + why), av.neural.n (onS, handovers, fails; v3: dir + reverse metres). av.neural = { on, justOff, why, occ, mov, conf, dir: 'fwd' | 'rev', revM }. Overlay: violet line car -> aim.
 ${'\u0000POLICY_STEP\u0000'}
 function clamp(v, lo, hi) {
   return v < lo ? lo : v > hi ? hi : v
@@ -95,6 +114,28 @@ function newChain(P, ch, px, pz) {
   P.cs = bs
   P.cseg = bi
   P.ct = 1e9
+  if (!P.cr) P.cr = { rs: 1 }
+  P.aim = undefined
+}
+// v3: a fresh leg-wise chain (route = ONE leg; a back leg chain has legEnds): start at the nearest segment of the first leg, like newChain
+function newChainV3(P, ch, ends, px, pz) {
+  var t = legInit(ch, ends)
+  var bd = Infinity
+  for (var i = 0; i < t.legs[0].b; i++) {
+    var ax = ch[i][0], az = ch[i][1]
+    var dx = ch[i + 1][0] - ax, dz = ch[i + 1][1] - az
+    var len2 = dx * dx + dz * dz || 1
+    var u = Math.max(0, Math.min(1, ((px - ax) * dx + (pz - az) * dz) / len2))
+    var d = Math.hypot(px - (ax + u * dx), pz - (az + u * dz))
+    if (d < bd) {
+      bd = d
+      t.seg = i
+      t.s = t.cum[i] + u * Math.sqrt(len2)
+    }
+  }
+  P.lt = t
+  P.ct = 1e9
+  P.lastLi = 0
   if (!P.cr) P.cr = { rs: 1 }
   P.aim = undefined
 }
@@ -123,8 +164,11 @@ function transform(input, dt, params, state, api) {
     api.watch('av.neural', 'off (no av.plan yet: stage priority must be after the motion planner)')
     return {}
   }
-  var w = params.neuralWeights || params.w
+  var v3 = params.neuralPolicy === 'v3'
+  var w = params.neuralWeights || (v3 ? params.wV3 : params.w)
   if (!w || !hiddenOf(w)) return {}
+  var revAllowed = v3 && params.neuralReverse === true
+  var revMax = params.neuralRevMaxM != null ? params.neuralRevMaxM : 12
   var e = av.ego
   var pos = input.position
   if (state.t === undefined) {
@@ -142,11 +186,16 @@ function transform(input, dt, params, state, api) {
     state.aebT = 0
     state.p = {}
     state.last = 'off'
+    state.revM = 0
+    state.blockT = 0
+    state.revCool = 0
+    state.pend = ''
   }
   state.t += dt
   state.dwell += dt
   if (state.cool > 0) state.cool -= dt
   if (state.lock > 0) state.lock -= dt
+  if (state.revCool > 0) state.revCool -= dt
   var P = state.p
   var veh = av.vehicle
   // the REAL body counts too (av.vehicle is max(params, own box), so a small car with 4 x 8 params would pass): the net's hull offsets and pedal gain are those of the 4 x 8 car
@@ -166,12 +215,21 @@ function transform(input, dt, params, state, api) {
   // --- aim chain: av.routePath, else the straight line to carrot / maze goal / target ---
   var chain = null
   var rp = av.routePath
+  // v3: the back leg is done (the tracker moved on to the route leg): back to the route chain (re-projected below)
+  if (P.revLeg && P.lt && P.lt.li >= 1) {
+    P.revLeg = false
+    P.srcRp = null
+    P.fb = null
+    state.revCool = 3
+  }
   if (!why) {
-    if (rp && rp.length > 1) {
+    if (P.revLeg) chain = P.revChain
+    else if (rp && rp.length > 1) {
       if (rp !== P.srcRp) {
         P.srcRp = rp
         P.fb = null
-        newChain(P, rp, pos[0], pos[2])
+        if (v3) newChainV3(P, rp, undefined, pos[0], pos[2])
+        else newChain(P, rp, pos[0], pos[2])
       }
       chain = rp
     } else {
@@ -184,7 +242,8 @@ function transform(input, dt, params, state, api) {
           P.fb = [[pos[0], pos[2]], [tg[0], tg[1]]]
           P.fbS = [pos[0], pos[2]]
           P.fbT = [tg[0], tg[1]]
-          newChain(P, P.fb, pos[0], pos[2])
+          if (v3) newChainV3(P, P.fb, undefined, pos[0], pos[2])
+          else newChain(P, P.fb, pos[0], pos[2])
         }
         chain = P.fb
       }
@@ -239,20 +298,27 @@ function transform(input, dt, params, state, api) {
       pp = state.pp = {
         w: w,
         chain: chain,
+        v3: v3,
+        legEnds: P.revLeg ? P.revEnds : undefined,
+        offM: 6,
         gain: params.neuralGain != null ? params.neuralGain : 1200,
         vMax: params.neuralVMax != null ? params.neuralVMax : 30,
         noise: 0,
         cmd: { lmin: params.neuralLmin != null ? params.neuralLmin : ${NEURAL_CMD_DEFAULTS.lmin}, tau: params.neuralTau != null ? params.neuralTau : ${NEURAL_CMD_DEFAULTS.tau}, period: params.neuralPeriod != null ? params.neuralPeriod : ${NEURAL_CMD_DEFAULTS.period}, noiseDeg: 0, seed: 1 },
       }
     }
+    // v3 without neuralReverse never reverses; with it the metres of one reversal are capped
+    pp.noRev = v3 && (!revAllowed || state.revM >= revMax)
     policyStep(sin, dt, pp, P, api)
     var x = P.x
+    var revving = v3 && state.on && spd < -1
     // trigger inputs from the net's own rays: x = 1 - dist / RANGE (0 = no hit)
     var occR = params.neuralOccR != null ? params.neuralOccR : 12
     var confR = params.neuralConfR != null ? params.neuralConfR : 18
-    var occN = 0, confN = 0, minAll = RANGE
+    var occN = 0, confN = 0, minAll = RANGE, rearD = RANGE
     for (var ri = 0; ri < ANGLES.length; ri++) {
       var rd = x[ri] > 0 ? (1 - x[ri]) * RANGE : RANGE
+      if (ri >= 11 && rd < rearD) rearD = rd
       if (rd < confR) confN++
       if (ri < 11 && rd < occR) occN++
       if (ri < 7 && rd < minF) minF = rd
@@ -266,6 +332,36 @@ function transform(input, dt, params, state, api) {
     var crowded = occ >= (params.neuralOnOcc != null ? params.neuralOnOcc : 0.5) || nMov >= (params.neuralOnMov != null ? params.neuralOnMov : 3) || conf >= (params.neuralOnConf != null ? params.neuralOnConf : 0.6)
     var clear = occ < (params.neuralOffOcc != null ? params.neuralOffOcc : 0.3) && nMov < (params.neuralOffMov != null ? params.neuralOffMov : 2) && conf < (params.neuralOffConf != null ? params.neuralOffConf : 0.4)
     var dwellMin = params.neuralDwell != null ? params.neuralDwell : 2
+    // v3 reversing: metres reversed so far (reset by forward motion), and the trigger for a back leg
+    if (v3) {
+      if (state.on && spd < -0.2) state.revM += -spd * dt
+      else if (spd > 1) state.revM = 0
+      if (state.on && revAllowed && !P.revLeg && !state.pend && state.revCool <= 0 && revMax > 0) {
+        var blocked = Math.abs(spd) < 1.2 && minF < 3 && x[ANGLES.length + 3] > -0.2
+        state.blockT = blocked ? state.blockT + dt : 0
+        if (state.blockT >= 1) {
+          var back = Math.min(10, revMax, rearD - 2)
+          if (back >= Math.min(5, revMax) && P.lt) {
+            var hx = e.fwd[0], hz = e.fwd[2]
+            var hn = Math.hypot(hx, hz) || 1
+            var pts = [[pos[0], pos[2]], [pos[0] - hx / hn * back, pos[2] - hz / hn * back]]
+            // then the rest of the current chain ahead of the car (leg 2 = the route again)
+            for (var ci = P.lt.seg + 1; ci < chain.length; ci++) pts.push(chain[ci])
+            if (pts.length < 3) pts.push([pts[1][0] + hx / hn * 12, pts[1][1] + hz / hn * 12])
+            P.revChain = pts
+            P.revEnds = [1, pts.length - 1]
+            P.revLeg = true
+            state.revM = 0
+            state.blockT = 0
+            newChainV3(P, pts, P.revEnds, pos[0], pos[2])
+            // the stall window starts with the back leg
+            state.wdT = state.t
+            state.wdPos = [pos[0], pos[2]]
+            state.wdAim = null
+          }
+        }
+      } else state.blockT = 0
+    }
     if (state.on) {
       // watchdog
       if (state.wdT === undefined) {
@@ -287,8 +383,16 @@ function transform(input, dt, params, state, api) {
       if (av.prevAeb) state.aebT += dt
       else state.aebT = 0
       if (!failWhy && state.aebT >= (params.neuralAebT != null ? params.neuralAebT : 0.3)) failWhy = 'aeb'
-      if (!failWhy && minAll < 0.4 && Math.abs(spd) > 3) failWhy = 'close'
+      // v3 reversing: the rear rays (120 / 180 / -120 deg) are the ones that matter; forward: all rays as in v2
+      var closeD = v3 && spd < -3 ? rearD : minAll
+      if (!failWhy && closeD < 0.4 && Math.abs(spd) > 3) failWhy = 'close'
       if (!failWhy && Math.abs(x[ANGLES.length + 1]) * 10 > 4) failWhy = 'slide'
+      if (!failWhy && state.pend) failWhy = state.pend
+      if (failWhy && revving) {
+        // never hand a reversing car back (the classic longitudinal stage knows forward only): brake to a stop, then hand back (|v| < 1 m/s)
+        state.pend = failWhy
+        failWhy = ''
+      } else if (failWhy) state.pend = ''
       if (failWhy) {
         state.on = false
         state.dwell = 0
@@ -298,7 +402,7 @@ function transform(input, dt, params, state, api) {
       } else if (mode === 'auto') {
         if (clear) state.candOff += dt
         else state.candOff = 0
-        if (state.candOff >= (params.neuralOffT != null ? params.neuralOffT : 1.5) && state.dwell >= dwellMin) {
+        if (state.candOff >= (params.neuralOffT != null ? params.neuralOffT : 1.5) && state.dwell >= dwellMin && !revving) {
           state.on = false
           state.dwell = 0
           state.candOff = 0
@@ -325,12 +429,29 @@ function transform(input, dt, params, state, api) {
       input.actions.steering_angle = sa.steering_angle
       input.actions.throttle = sa.throttle
       input.actions.brake = sa.brake
+      if (state.pend) {
+        // waiting for |v| < 1 m/s while reversing: target speed 0 through the pedal law
+        input.actions.throttle = clamp(-spd / TAU / (pp.gain || 1200), 0, 1)
+        input.actions.brake = 0
+      }
       state.onS += dt
     }
   }
-  if (!state.on) state.wdT = undefined
+  if (!state.on) {
+    state.wdT = undefined
+    state.pend = ''
+    state.blockT = 0
+    if (P.revLeg) {
+      // handed back during a back leg: the next switch-on starts from the route again
+      P.revLeg = false
+      P.srcRp = null
+      P.fb = null
+    }
+    if (state.revM > 0 && Math.abs(e.speed) < 1) state.revM = 0
+  }
+  var dir = v3 && revAllowed && state.on && P.vT < 0 ? 'rev' : 'fwd'
 
-  av.neural = { on: state.on, justOff: wasOn && !state.on, why: why || failWhy, occ: occ, mov: nMov, conf: conf }
+  av.neural = { on: state.on, justOff: wasOn && !state.on, why: why || failWhy, occ: occ, mov: nMov, conf: conf, dir: dir, revM: v3 ? state.revM : 0 }
   var txt
   if (state.on) txt = 'on ' + (mode === 'always' ? 'always ' : 'crowd ') + 'occ ' + occ.toFixed(2) + ' mov ' + nMov + ' conf ' + conf.toFixed(2)
   else if (why) txt = 'off (' + why + ')'
@@ -339,7 +460,7 @@ function transform(input, dt, params, state, api) {
   else txt = 'off occ ' + occ.toFixed(2) + ' mov ' + nMov + ' conf ' + conf.toFixed(2)
   if (failWhy) state.last = failWhy
   api.watch('av.neural', txt)
-  api.watch('av.neural.n', 'on ' + state.onS.toFixed(1) + ' s, handovers ' + state.handovers + ', fails ' + state.nFail)
+  api.watch('av.neural.n', 'on ' + state.onS.toFixed(1) + ' s, handovers ' + state.handovers + ', fails ' + state.nFail + (v3 ? ', dir ' + dir + ' ' + state.revM.toFixed(1) + ' m' : ''))
   if (state.on && params.neuralDebugDraw !== false && P.aim) {
     // violet: car -> aim point
     api.visualizeLine([pos[0], pos[1] + 1, pos[2]], [P.aim[0], pos[1] + 1, P.aim[1]], '#aa44ff')
@@ -350,7 +471,7 @@ function transform(input, dt, params, state, api) {
 
 /** Full stage source of `av-neural.js` (params block + shared policy code + AV wrapper). */
 export function neuralStageCode(): string {
-  const head = stageHead(N_IN_V2, true)
+  const head = stageHead(N_IN_V2, true) + v3HelpersCode()
   const body = AV_NEURAL_BODY.replace('\u0000POLICY_STEP\u0000', policyStepCode())
   return head + body
 }

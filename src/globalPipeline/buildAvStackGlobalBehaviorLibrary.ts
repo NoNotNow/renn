@@ -1,7 +1,7 @@
 import type { GlobalBehaviorLibrary } from '@/types/globalBehaviorLibrary'
 import type { PipeParamDef, TransformerDef, TransformerPipe } from '@/types/transformer'
 import { flattenPipeStageIds } from '@/utils/transformerPipeResolve'
-import { readAvStackStageCode, readNeuralStageWeights, type AvStackLogicalStage } from '@/globalPipeline/avStackStagePaths'
+import { readAvStackStageCode, readNeuralStageWeights, readNeuralStageWeightsV3, type AvStackLogicalStage } from '@/globalPipeline/avStackStagePaths'
 import { CAR_PRESET } from '@/input/inputPresets'
 import { SHIPPED_GLOBAL_AV_PREFIX } from '@/globalPipeline/shippedGlobalBehaviorLibraryTypes'
 
@@ -76,7 +76,7 @@ function stageDefs(): Record<string, TransformerDef> {
       ...(logical === 'wander'
         ? { params: { acceptRadius: 9, minDistance: 25, maxDistance: 60, giveUpAfter: 45, speed: 10 } }
         : {}),
-      ...(logical === 'neural' ? { params: { w: readNeuralStageWeights() } } : {}),
+      ...(logical === 'neural' ? { params: { w: readNeuralStageWeights(), wV3: readNeuralStageWeightsV3() } } : {}),
       ...(logical === 'mission'
         ? {
             // demo square so a freshly assigned object visibly drives; edit waypoints [[x, z], ...] for your world
