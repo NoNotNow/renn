@@ -163,3 +163,6 @@ Same 24-input direction-only net, trained FROM SCRATCH (no warm start). Episode 
   `shippedPolicyV3.json` (worlds `policy_v3_*` re-exported). HOLDOUT per kind (chains finished / reverse share of time / max reverse): free 23/24 (50 %, 131 m),
   corridor 14/18 (38 %, 26 m), slalom 18/23 (1 %), field 12/20 (1 %), crowd 12/19 (1 %), maze 10/15 (4 %), **bay 0/18 (all crash, reverses only 2 m)**.
   The net reverses where it pays (free, corridor) and drives forward elsewhere; the dead-end bay is unsolved so far.
+- v3 fitness fix (79eda6e): failed episodes keep `V3_FAIL_FACTOR` = 0.5 of their norm. Before, a policy that drove fast into every bay and crashed (bay 0/18)
+  beat one that finished 16/18. Re-shipped run v3 gen ~700 (HOLDOUT kind-evenness 0.995 vs 0.862): bay 16/18 (reverse 80 % of the time, max 90 m),
+  corridor 17/18, free 22/24, maze 12/15, slalom 19/23, crowd 10/19, field 9/20. Field and crowd are now the weak kinds. Training resumed with the fixed fitness.
