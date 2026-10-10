@@ -454,9 +454,9 @@
         "angular": false,
         "perimeter": {
           "center": [
+            45,
             0,
-            0,
-            -250
+            -20
           ],
           "halfExtents": [
             0,
@@ -1778,14 +1778,14 @@
             "manualOverride": true,
             "overrideHold": 1,
             "mazeModule": true,
-            "neuralMode": "auto",
-            "neuralOnOcc": 0.27,
-            "neuralOnConf": 0.35,
-            "neuralOffOcc": 0.15,
-            "neuralOffConf": 0.2,
+            "neuralMode": "always",
             "neuralPolicy": "v3",
             "neuralReverse": true,
-            "neuralVMax": 15
+            "neuralVMax": 15,
+            "neuralRevMaxM": 40,
+            "maneuverEntrySpeed": 0,
+            "stuckTime": 8,
+            "crawlTime": 8
           },
           "enabled": true
         }
@@ -1797,14 +1797,14 @@
       "bodyType": "static",
       "shape": {
         "type": "box",
-        "width": 1,
+        "width": 17,
         "height": 3,
-        "depth": 220
+        "depth": 2
       },
       "position": [
-        -8.3,
+        0,
         1.5,
-        -130
+        -7
       ],
       "rotation": [
         0,
@@ -1819,14 +1819,14 @@
       "bodyType": "static",
       "shape": {
         "type": "box",
-        "width": 1,
+        "width": 2,
         "height": 3,
-        "depth": 220
+        "depth": 12
       },
       "position": [
-        8.3,
+        -7.5,
         1.5,
-        -130
+        0
       ],
       "rotation": [
         0,
@@ -1841,608 +1841,14 @@
       "bodyType": "static",
       "shape": {
         "type": "box",
-        "width": 4,
-        "height": 1.6,
-        "depth": 8
+        "width": 2,
+        "height": 3,
+        "depth": 12
       },
       "position": [
-        -5.75,
-        0.8,
-        -40
-      ],
-      "rotation": [
-        0,
-        0,
+        7.5,
+        1.5,
         0
-      ],
-      "friction": 0.5
-    },
-    {
-      "id": "arena_box_3",
-      "name": "Box 3",
-      "bodyType": "static",
-      "shape": {
-        "type": "box",
-        "width": 4,
-        "height": 1.6,
-        "depth": 8
-      },
-      "position": [
-        5.75,
-        0.8,
-        -46.5
-      ],
-      "rotation": [
-        0,
-        0,
-        0
-      ],
-      "friction": 0.5
-    },
-    {
-      "id": "arena_box_4",
-      "name": "Box 4",
-      "bodyType": "static",
-      "shape": {
-        "type": "box",
-        "width": 4,
-        "height": 1.6,
-        "depth": 8
-      },
-      "position": [
-        -5.75,
-        0.8,
-        -53
-      ],
-      "rotation": [
-        0,
-        0,
-        0
-      ],
-      "friction": 0.5
-    },
-    {
-      "id": "arena_box_5",
-      "name": "Box 5",
-      "bodyType": "static",
-      "shape": {
-        "type": "box",
-        "width": 4,
-        "height": 1.6,
-        "depth": 8
-      },
-      "position": [
-        5.75,
-        0.8,
-        -59.5
-      ],
-      "rotation": [
-        0,
-        0,
-        0
-      ],
-      "friction": 0.5
-    },
-    {
-      "id": "arena_box_6",
-      "name": "Box 6",
-      "bodyType": "static",
-      "shape": {
-        "type": "box",
-        "width": 4,
-        "height": 1.6,
-        "depth": 8
-      },
-      "position": [
-        -5.75,
-        0.8,
-        -66
-      ],
-      "rotation": [
-        0,
-        0,
-        0
-      ],
-      "friction": 0.5
-    },
-    {
-      "id": "arena_box_7",
-      "name": "Box 7",
-      "bodyType": "static",
-      "shape": {
-        "type": "box",
-        "width": 4,
-        "height": 1.6,
-        "depth": 8
-      },
-      "position": [
-        5.75,
-        0.8,
-        -72.5
-      ],
-      "rotation": [
-        0,
-        0,
-        0
-      ],
-      "friction": 0.5
-    },
-    {
-      "id": "arena_box_8",
-      "name": "Box 8",
-      "bodyType": "static",
-      "shape": {
-        "type": "box",
-        "width": 4,
-        "height": 1.6,
-        "depth": 8
-      },
-      "position": [
-        -5.75,
-        0.8,
-        -79
-      ],
-      "rotation": [
-        0,
-        0,
-        0
-      ],
-      "friction": 0.5
-    },
-    {
-      "id": "arena_box_9",
-      "name": "Box 9",
-      "bodyType": "static",
-      "shape": {
-        "type": "box",
-        "width": 4,
-        "height": 1.6,
-        "depth": 8
-      },
-      "position": [
-        5.75,
-        0.8,
-        -85.5
-      ],
-      "rotation": [
-        0,
-        0,
-        0
-      ],
-      "friction": 0.5
-    },
-    {
-      "id": "arena_box_10",
-      "name": "Box 10",
-      "bodyType": "static",
-      "shape": {
-        "type": "box",
-        "width": 4,
-        "height": 1.6,
-        "depth": 8
-      },
-      "position": [
-        -5.75,
-        0.8,
-        -92
-      ],
-      "rotation": [
-        0,
-        0,
-        0
-      ],
-      "friction": 0.5
-    },
-    {
-      "id": "arena_box_11",
-      "name": "Box 11",
-      "bodyType": "static",
-      "shape": {
-        "type": "box",
-        "width": 4,
-        "height": 1.6,
-        "depth": 8
-      },
-      "position": [
-        5.75,
-        0.8,
-        -98.5
-      ],
-      "rotation": [
-        0,
-        0,
-        0
-      ],
-      "friction": 0.5
-    },
-    {
-      "id": "arena_box_12",
-      "name": "Box 12",
-      "bodyType": "static",
-      "shape": {
-        "type": "box",
-        "width": 4,
-        "height": 1.6,
-        "depth": 8
-      },
-      "position": [
-        -5.75,
-        0.8,
-        -105
-      ],
-      "rotation": [
-        0,
-        0,
-        0
-      ],
-      "friction": 0.5
-    },
-    {
-      "id": "arena_box_13",
-      "name": "Box 13",
-      "bodyType": "static",
-      "shape": {
-        "type": "box",
-        "width": 4,
-        "height": 1.6,
-        "depth": 8
-      },
-      "position": [
-        5.75,
-        0.8,
-        -111.5
-      ],
-      "rotation": [
-        0,
-        0,
-        0
-      ],
-      "friction": 0.5
-    },
-    {
-      "id": "arena_box_14",
-      "name": "Box 14",
-      "bodyType": "static",
-      "shape": {
-        "type": "box",
-        "width": 4,
-        "height": 1.6,
-        "depth": 8
-      },
-      "position": [
-        -5.75,
-        0.8,
-        -118
-      ],
-      "rotation": [
-        0,
-        0,
-        0
-      ],
-      "friction": 0.5
-    },
-    {
-      "id": "arena_box_15",
-      "name": "Box 15",
-      "bodyType": "static",
-      "shape": {
-        "type": "box",
-        "width": 4,
-        "height": 1.6,
-        "depth": 8
-      },
-      "position": [
-        5.75,
-        0.8,
-        -124.5
-      ],
-      "rotation": [
-        0,
-        0,
-        0
-      ],
-      "friction": 0.5
-    },
-    {
-      "id": "arena_box_16",
-      "name": "Box 16",
-      "bodyType": "static",
-      "shape": {
-        "type": "box",
-        "width": 4,
-        "height": 1.6,
-        "depth": 8
-      },
-      "position": [
-        -5.75,
-        0.8,
-        -131
-      ],
-      "rotation": [
-        0,
-        0,
-        0
-      ],
-      "friction": 0.5
-    },
-    {
-      "id": "arena_box_17",
-      "name": "Box 17",
-      "bodyType": "static",
-      "shape": {
-        "type": "box",
-        "width": 4,
-        "height": 1.6,
-        "depth": 8
-      },
-      "position": [
-        5.75,
-        0.8,
-        -137.5
-      ],
-      "rotation": [
-        0,
-        0,
-        0
-      ],
-      "friction": 0.5
-    },
-    {
-      "id": "arena_box_18",
-      "name": "Box 18",
-      "bodyType": "static",
-      "shape": {
-        "type": "box",
-        "width": 4,
-        "height": 1.6,
-        "depth": 8
-      },
-      "position": [
-        -5.75,
-        0.8,
-        -144
-      ],
-      "rotation": [
-        0,
-        0,
-        0
-      ],
-      "friction": 0.5
-    },
-    {
-      "id": "arena_box_19",
-      "name": "Box 19",
-      "bodyType": "static",
-      "shape": {
-        "type": "box",
-        "width": 4,
-        "height": 1.6,
-        "depth": 8
-      },
-      "position": [
-        5.75,
-        0.8,
-        -150.5
-      ],
-      "rotation": [
-        0,
-        0,
-        0
-      ],
-      "friction": 0.5
-    },
-    {
-      "id": "arena_box_20",
-      "name": "Box 20",
-      "bodyType": "static",
-      "shape": {
-        "type": "box",
-        "width": 4,
-        "height": 1.6,
-        "depth": 8
-      },
-      "position": [
-        -5.75,
-        0.8,
-        -157
-      ],
-      "rotation": [
-        0,
-        0,
-        0
-      ],
-      "friction": 0.5
-    },
-    {
-      "id": "arena_box_21",
-      "name": "Box 21",
-      "bodyType": "static",
-      "shape": {
-        "type": "box",
-        "width": 4,
-        "height": 1.6,
-        "depth": 8
-      },
-      "position": [
-        5.75,
-        0.8,
-        -163.5
-      ],
-      "rotation": [
-        0,
-        0,
-        0
-      ],
-      "friction": 0.5
-    },
-    {
-      "id": "arena_box_22",
-      "name": "Box 22",
-      "bodyType": "static",
-      "shape": {
-        "type": "box",
-        "width": 4,
-        "height": 1.6,
-        "depth": 8
-      },
-      "position": [
-        -5.75,
-        0.8,
-        -170
-      ],
-      "rotation": [
-        0,
-        0,
-        0
-      ],
-      "friction": 0.5
-    },
-    {
-      "id": "arena_box_23",
-      "name": "Box 23",
-      "bodyType": "static",
-      "shape": {
-        "type": "box",
-        "width": 4,
-        "height": 1.6,
-        "depth": 8
-      },
-      "position": [
-        5.75,
-        0.8,
-        -176.5
-      ],
-      "rotation": [
-        0,
-        0,
-        0
-      ],
-      "friction": 0.5
-    },
-    {
-      "id": "arena_box_24",
-      "name": "Box 24",
-      "bodyType": "static",
-      "shape": {
-        "type": "box",
-        "width": 4,
-        "height": 1.6,
-        "depth": 8
-      },
-      "position": [
-        -5.75,
-        0.8,
-        -183
-      ],
-      "rotation": [
-        0,
-        0,
-        0
-      ],
-      "friction": 0.5
-    },
-    {
-      "id": "arena_box_25",
-      "name": "Box 25",
-      "bodyType": "static",
-      "shape": {
-        "type": "box",
-        "width": 4,
-        "height": 1.6,
-        "depth": 8
-      },
-      "position": [
-        5.75,
-        0.8,
-        -189.5
-      ],
-      "rotation": [
-        0,
-        0,
-        0
-      ],
-      "friction": 0.5
-    },
-    {
-      "id": "arena_box_26",
-      "name": "Box 26",
-      "bodyType": "static",
-      "shape": {
-        "type": "box",
-        "width": 4,
-        "height": 1.6,
-        "depth": 8
-      },
-      "position": [
-        -5.75,
-        0.8,
-        -196
-      ],
-      "rotation": [
-        0,
-        0,
-        0
-      ],
-      "friction": 0.5
-    },
-    {
-      "id": "arena_box_27",
-      "name": "Box 27",
-      "bodyType": "static",
-      "shape": {
-        "type": "box",
-        "width": 4,
-        "height": 1.6,
-        "depth": 8
-      },
-      "position": [
-        5.75,
-        0.8,
-        -202.5
-      ],
-      "rotation": [
-        0,
-        0,
-        0
-      ],
-      "friction": 0.5
-    },
-    {
-      "id": "arena_box_28",
-      "name": "Box 28",
-      "bodyType": "static",
-      "shape": {
-        "type": "box",
-        "width": 4,
-        "height": 1.6,
-        "depth": 8
-      },
-      "position": [
-        -5.75,
-        0.8,
-        -209
-      ],
-      "rotation": [
-        0,
-        0,
-        0
-      ],
-      "friction": 0.5
-    },
-    {
-      "id": "arena_box_29",
-      "name": "Box 29",
-      "bodyType": "static",
-      "shape": {
-        "type": "box",
-        "width": 4,
-        "height": 1.6,
-        "depth": 8
-      },
-      "position": [
-        5.75,
-        0.8,
-        -215.5
       ],
       "rotation": [
         0,
@@ -2461,9 +1867,9 @@
         "height": 0.2
       },
       "position": [
-        0,
+        45,
         -0.09,
-        -250
+        -20
       ],
       "rotation": [
         0,
