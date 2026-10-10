@@ -69,6 +69,8 @@ interface RunFile {
   v2?: boolean
   /** v3 run: fresh nets, v3 episodes, stratified batches, stage curriculum */
   v3?: boolean
+  /** opt-in v3 training speed cap (m/s), persisted so --resume keeps it; absent = uncapped */
+  speedCap?: number
   stage?: StageState | null
   config: EsConfig
   islands: IslandsConfig
@@ -132,7 +134,9 @@ async function main() {
   }
   const train = v2 ? flattenChainKeys(trainGroups) : trainCourseKeys(num(args['train-per-kind'], 30), kinds)
   const holdout = v2 ? flattenChainKeys(holdoutGroups) : holdoutCourseKeys(num(args['holdout-per-kind'], 20), kinds)
-  const fitness: FitnessFn = v3 ? aggregateKindEvenness : v2 ? aggregateEvenness : aggregateFitness
+  // --speed-cap only at creation (persisted); a resume uses the stored value, so a resume without the flag behaves as before
+  const speedCap = resumed ? file!.speedCap : args['speed-cap'] !== undefined ? num(args['speed-cap'], 0) || undefined : undefined
+  const fitness: FitnessFn = v3 ? (m) => aggregateKindEvenness(m, speedCap) : v2 ? aggregateEvenness : aggregateFitness
 
   if (!resumed) {
     const config: EsConfig = {
@@ -155,6 +159,7 @@ async function main() {
       islands,
       v2,
       v3,
+      ...(speedCap ? { speedCap } : {}),
       stage: v3 && !args['no-stage'] ? initialStage({ ...DEFAULT_STAGE, start: num(args['stage-start'], DEFAULT_STAGE.start) }) : null,
       curriculum: v3 || args['no-curriculum'] ? null : initialCurriculum({ ...DEFAULT_CURRICULUM, start: num(args['curriculum-start'], DEFAULT_CURRICULUM.start) }),
       state: initialIslands(config, islands, warm),

@@ -96,12 +96,25 @@ export function aggregateEvenness(metrics: Array<Pick<PolicyEpisodeMetrics, 'key
  */
 export const V3_FAIL_FACTOR = 0.5
 
-export function aggregateKindEvenness(metrics: Array<Pick<PolicyEpisodeMetrics, 'key' | 'norm'> & { outcome?: PolicyEpisodeMetrics['outcome'] }>): number {
+/**
+ * Opt-in speed cap (m/s) on the v3 training fitness: an episode's norm is scaled by min(1, cap / meanSpeed), i.e. the speed part of the reward saturates at `cap`
+ * (norm = progress x meanSpeed / (length x NORM_SPEED)). undefined / <= 0 / missing meanSpeed = off (bit-identical to the uncapped fitness).
+ */
+export function capNorm(norm: number, meanSpeed: number | undefined, speedCap?: number): number {
+  if (!speedCap || !(speedCap > 0) || meanSpeed === undefined || !(meanSpeed > speedCap)) return norm
+  return norm * (speedCap / meanSpeed)
+}
+
+export function aggregateKindEvenness(
+  metrics: Array<Pick<PolicyEpisodeMetrics, 'key' | 'norm'> & { outcome?: PolicyEpisodeMetrics['outcome']; meanSpeed?: number }>,
+  speedCap?: number,
+): number {
   if (!metrics.length) return 0
   const byKind = new Map<string, Array<Pick<PolicyEpisodeMetrics, 'key' | 'norm'>>>()
   for (const raw of metrics) {
     const failed = raw.outcome !== undefined && raw.outcome !== 'finish' && raw.outcome !== 'timeout'
-    const m = failed ? { key: raw.key, norm: raw.norm * V3_FAIL_FACTOR } : raw
+    const norm = capNorm(raw.norm, raw.meanSpeed, speedCap)
+    const m = failed ? { key: raw.key, norm: norm * V3_FAIL_FACTOR } : norm === raw.norm ? raw : { key: raw.key, norm }
     const kind = parseCourseKey(parseChainEpisodeKey(m.key).setupKey).kind
     const list = byKind.get(kind)
     if (list) list.push(m)

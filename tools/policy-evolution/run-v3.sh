@@ -11,8 +11,9 @@ cd "$(dirname "$0")/../.."
 TOTAL=${1:-3000}
 CORES=$( (command -v nproc >/dev/null && nproc) || sysctl -n hw.ncpu)
 WORKERS=${2:-$((CORES > 1 ? CORES - 1 : 1))}
-OUT=training-data/policy-evolution/v3.json
-LOG=training-data/policy-evolution/v3.log
+OUT=${V3_OUT:-training-data/policy-evolution/v3.json}
+LOG=${V3_LOG:-${OUT%.json}.log}
+EXTRA=${V3_EXTRA_ARGS:-}   # e.g. V3_EXTRA_ARGS="--speed-cap 15 --warm FILE" (only used when creating a new OUT; default unchanged)
 DONE=0
 [ -f "$OUT" ] && DONE=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$OUT','utf8')).state.gen)")
 REM=$((TOTAL - DONE))
@@ -20,4 +21,4 @@ if [ "$REM" -le 0 ]; then echo "already at generation $DONE >= $TOTAL"; exit 0; 
 RES=""
 [ "$DONE" -gt 0 ] && RES="--resume"
 echo "v3: generation $DONE -> $TOTAL with $WORKERS workers (log: $LOG)"
-npx tsx tools/policy-evolution/run-islands.ts --v3 --hidden 24 --batch 1 --gens "$REM" --workers "$WORKERS" --seed 21 --out "$OUT" $RES 2>&1 | tee -a "$LOG"
+npx tsx tools/policy-evolution/run-islands.ts --v3 --hidden 24 --batch 1 --gens "$REM" --workers "$WORKERS" --seed 21 --out "$OUT" $RES $EXTRA 2>&1 | tee -a "$LOG"

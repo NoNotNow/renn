@@ -16,7 +16,7 @@ import {
 } from './chains'
 import { v3ReportByKind } from './chainReport'
 import { activeKinds, DEFAULT_STAGE, initialStage, stageBatch, updateStage } from './curriculum'
-import { aggregateEvenness, aggregateKindEvenness } from './es'
+import { aggregateEvenness, aggregateKindEvenness, capNorm } from './es'
 import { runPolicyEpisode, SAFETY_WINDOW_S, STILL_WINDOW_S, v3EpisodeSeconds } from './episode'
 import { pursuitV2, reverserV3 } from './handWired'
 import { LegProgress } from './legs'
@@ -422,5 +422,21 @@ describe('v3 fitness: evenness across kinds', () => {
     const crashed = { key: 'bay:1#0v3', norm: 0.8, outcome: 'crash' as const }
     const finished = { key: 'bay:1#0v3', norm: 0.5, outcome: 'finish' as const }
     expect(aggregateKindEvenness([finished])).toBeGreaterThan(aggregateKindEvenness([crashed]))
+  })
+
+  it('opt-in speed cap: off is bit-identical; on, a 27 m/s finisher no longer beats a 15 m/s finisher', () => {
+    const NS = 10
+    const mk = (speed: number, outcome: 'finish' | 'crash' = 'finish') => ({ key: 'free:1#0v3', norm: (0.9 * speed) / NS, meanSpeed: speed, outcome })
+    const fast = [mk(27)]
+    const slow = [mk(15)]
+    expect(aggregateKindEvenness(fast)).toBeGreaterThan(aggregateKindEvenness(slow))
+    expect(aggregateKindEvenness(fast, undefined)).toBe(aggregateKindEvenness(fast))
+    expect(aggregateKindEvenness(fast, 0)).toBe(aggregateKindEvenness(fast))
+    expect(aggregateKindEvenness(fast, 15)).toBeCloseTo(aggregateKindEvenness(slow, 15), 12)
+    expect(aggregateKindEvenness(slow, 15)).toBe(aggregateKindEvenness(slow))
+    expect(capNorm(0.5, 27, 15)).toBeCloseTo(0.5 * (15 / 27), 12)
+    expect(capNorm(0.5, undefined, 15)).toBe(0.5)
+    // a failure still halves the (capped) norm
+    expect(aggregateKindEvenness([mk(27, 'crash')], 15)).toBeCloseTo(0.5 * aggregateKindEvenness(slow, 15), 12)
   })
 })
