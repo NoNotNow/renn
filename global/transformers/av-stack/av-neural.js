@@ -27,7 +27,8 @@
   {"key":"neuralStallT","label":"Stall window","type":"number","default":3,"min":0,"unit":"s","group":"Neural watchdog","advanced":true},
   {"key":"neuralStallM","label":"Stall: min progress along the command","type":"number","default":2,"min":0,"unit":"m","group":"Neural watchdog","advanced":true},
   {"key":"neuralAebT","label":"AEB fail: continuous braking","type":"number","default":0.3,"min":0,"unit":"s","group":"Neural watchdog","advanced":true},
-  {"key":"neuralDebugDraw","label":"Draw neural aim line","type":"boolean","default":true,"group":"Debug","advanced":true}
+  {"key":"neuralDebugDraw","label":"Draw neural aim line","type":"boolean","default":true,"group":"Debug","advanced":true},
+  {"key":"neuralTint","label":"Tint car while the policy drives","type":"boolean","default":true,"group":"Debug","description":"In-play visual indicator: tint the car mesh violet while the neural policy drives (transformer color output; restored on switch-off)."}
 ]
 */
 var ANGLES = [0,0.17453292519943295,-0.17453292519943295,0.3490658503988659,-0.3490658503988659,0.6108652381980153,-0.6108652381980153,0.9599310885968813,-0.9599310885968813,1.3962634015954636,-1.3962634015954636,2.0943951023931953,-2.0943951023931953,3.141592653589793]
@@ -367,23 +368,35 @@ function registerFail(state, params) {
     state.fails = []
   }
 }
+// in-play visual indicator (neuralTint): while the policy drives, the car mesh is tinted violet (same color as the Builder aim line);
+// the tint survives the stage bailing early, so every exit path runs it and the switch-off returns color: null to restore the base color
+function tintOff(state) {
+  if (!state.tinted) return {}
+  state.tinted = false
+  return { color: null }
+}
 function transform(input, dt, params, state, api) {
   var mode = params.neuralMode
   if (mode !== 'always' && mode !== 'auto') {
     // switched off at runtime: forget the state so a later switch-on starts clean
+    if (state.tinted) {
+      // the tint outlives the state reset: restore the car's color first
+      state.tinted = false
+      return { color: null }
+    }
     if (state.t !== undefined) state.t = undefined
     return {}
   }
   var av = input.av
-  if (!av || !av.ego || !input.actions) return {}
+  if (!av || !av.ego || !input.actions) return tintOff(state)
   if (!av.plan) {
     // the stage must run after the motion planner (library priority 4.55: between the speed planner and the supervisor)
     api.watch('av.neural', 'off (no av.plan yet: stage priority must be after the motion planner)')
-    return {}
+    return tintOff(state)
   }
   var v3 = params.neuralPolicy === 'v3'
   var w = params.neuralWeights || (v3 ? params.wV3 : params.w)
-  if (!w || !hiddenOf(w)) return {}
+  if (!w || !hiddenOf(w)) return tintOff(state)
   var revAllowed = v3 && params.neuralReverse === true
   var revMax = params.neuralRevMaxM != null ? params.neuralRevMaxM : 12
   var e = av.ego
@@ -682,6 +695,10 @@ function transform(input, dt, params, state, api) {
     // violet: car -> aim point
     api.visualizeLine([pos[0], pos[1] + 1, pos[2]], [P.aim[0], pos[1] + 1, P.aim[1]], '#aa44ff')
   }
-  return {}
+  if (state.on && params.neuralTint !== false) {
+    state.tinted = true
+    return { color: [0.67, 0.27, 1] }
+  }
+  return tintOff(state)
 }
 
