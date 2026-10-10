@@ -31,7 +31,8 @@ mazes and crowded situations. Work focused, good tests, learn from past mistakes
 - `v3.json` = uncapped run, **stopped cleanly at gen 1500** (commit f76a5390), resumable with `tools/policy-evolution/run-v3.sh 3000 7`.
   Ship check of its best (gen 1425) with the finish-count gate: **KEEP**, 107 vs 114 finished (field -2, slalom -3, crowd -4 WORSE; bay +1, corridor +2).
 - `v3cap.json` = **speed-capped fork, running** (warm start from v3 gen 1500, `--speed-cap 15`, gen counter and curriculum restart at 0, target 3000,
-  7 workers, log `v3cap.nohup.log` / `v3cap.log`, both git-ignored). Commit `v3cap.json` regularly (first checkpoint d50aff8e). Local Mac session: running since 2026-10-10 ~15:45, ~gen 933 at handoff (see handoff-flee-improvements.md for the resume command and the due ship check).
+  7 workers, log `v3cap.nohup.log` / `v3cap.log`, both git-ignored). Commit `v3cap.json` regularly (first checkpoint d50aff8e). Local Mac session: running since 2026-10-10 ~15:45, resumed at gen 1515 after the ship check below.
+  - Ship check 2026-10-10 evening at **gen 1515**: **KEEP** — candidate fails the HOLDOUT finish-count gate on kind `free` (88 % vs 100 % finished; TRAIN looks strong but HOLDOUT free is clearly worse than tolerance). No policy written; training restarted, next check ~gen 1800-2000 or after 1-2 h more.
 - All earlier runs + logs are copies for reference (run1-5, islands1-2 = v1; v2a, v2b, h10/h24 = v2 screening). `test-results/` stays git-ignored.
 
 ## Local workflow (Mac)
