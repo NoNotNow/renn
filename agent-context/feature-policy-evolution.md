@@ -138,3 +138,7 @@ Browser panel / live playback per generation, MCP tools, comparison against the 
   `av_neural_crowd` world did not reach its goal in time. So the AV library does NOT read `shippedPolicyV2.json`; it reads a separately promoted
   `avNeuralWeights.json` (absent => padded v1). `upgrade-example-worlds-library.ts` now also refreshes the neural stage's `w` param in the example worlds.
 - **Root cause of the slow v2 in the AV (2026-10-10):** the AV stage capped the target speed at `neuralVMax` 12 m/s, training never caps (vT up to 30, net outputs gas ~1 all the time). The pedal law then holds only ~9.3 m/s (net sees speed 0.31 forever with gas memory 1), mean speed 6-8 m/s vs classic 14-18, and after the goal the 12 m/s variant sat stalled 7-9 s. With `neuralVMax` 30: `always` 4/4, 0 contacts (16.3/12.1/8.6/13.6 s), `auto` 4/4 0 contacts total 48.4 s vs classic 48.6 s. Default is now 30; v2 weights promoted as `avNeuralWeights.json`. No retraining needed.
+- v2a continued to generation ~1010 (second 2 h block, then stopped, not restarted): HOLDOUT chains stayed at 45-52/65 since gen ~300 while TRAIN rose
+  to 72-77/97 (overfitting to the TRAIN setups). Best by TRAIN (gen 950) vs the shipped gen-400 policy, paired on HOLDOUT: 35 wins / 42 losses, mean
+  slightly higher -> not clearly better; the shipped (and AV-promoted) gen-400 policy was KEPT. More of the same training does not help; the next
+  lever is more / more varied TRAIN setups (generalisation gap) or capacity, decided by screening runs.
