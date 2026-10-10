@@ -76,7 +76,7 @@ All thresholds are params (tuned on TRAIN only).
 - **Phase 2 - command-following training (v2 inputs):** `command.ts`, `crowd` + `avmaze` kinds, free-command episodes, mover contact, new fitness, tool flags; unit tests (generator determinism, oracle avoids boxes, warm-start equality, mover contact). Screening A (warm start) vs B (scratch) x 2 seeds x 150 gens (~2.7 h), `compare.ts`; one long run of the winner (~2 h, `--resume`); ship into `shippedPolicyV2.json` by the paired HOLDOUT rule.
 - **Phase 3 - A/B in the AV + threshold tuning:** library weights v2; thresholds tuned on TRAIN crowd/maze cases; HOLDOUT table off vs auto vs always. Gate for `auto` in a world: crowd HOLDOUT reached >= classic AND contact frames <= classic (paired interval not worse), maze HOLDOUT not worse beyond noise. Deploy.
 - **Phase 4 - enable + document:** `neuralMode: 'auto'` in worlds that passed (candidates `av_neural_crowd`, `av_maze_escape`, maybe the `self_hunt_flexible` focus car outside pursuit); update `feature-av-stack.md` ("Neural drive mode"), `feature-policy-evolution.md`, `handoff-policy-evolution.md`, `example-worlds.md`; `npm run sync:global-pipeline`; regenerate `av_maze_escape`. Deploy.
-- **Optional Phase 5:** re-rank the top 5-10 snapshots of the long run by the AV A/B on TRAIN crowd cases (final selection only, never ES inside the full stack); experiment: net takes over during distress manoeuvres (`av.needManeuver`) behind its own param.
+- **Phase 5 (v3 policy, forward + reverse): see section 8.** Earlier idea kept: re-rank the top 5-10 snapshots of the long run by the AV A/B on TRAIN crowd cases (final selection only, never ES inside the full stack); experiment: net takes over during distress manoeuvres (`av.needManeuver`) behind its own param.
 
 ## 6. Risks
 - Net may not beat the classic AV in mazes (24/24): off by default, Phase-3 gate, maze trigger switchable on its own.
@@ -92,6 +92,52 @@ All thresholds are params (tuned on TRAIN only).
 2. Success = (a) "the net drives safely to the AV's targets, visible in the worlds" or (b) "net-on measurably better than classic" (then mazes may stay classic)?
 3. Compute budget OK: ~3 h screening + 2 h long run in Phase 2, plus A/B runs (cost measured in Phase 0)?
 4. Speed cap while the net drives (default 12 m/s in crowds) or full 30 m/s with only the AEB as guard?
+
+## 8. Phase 5 — v3 policy in the AV car
+Status 2026-10-10: PLAN only (no code). Read with `spec-command-chains.md` (v3 section) and the Phase-3 A/B in `feature-av-stack.md` ("Neural drive mode").
+
+### 8.1 What v3 adds vs the integrated v2 (checked in `policy.ts`, `policyStage.ts`, `legs.ts`, `shippedPolicyV3.json`)
+- **Network: same interface.** v3 still has 24 inputs (14 rays at 0..180 deg all round, fwd/side speed, yaw rate, aim cos/sin/dist, next cos/sin, prev steer/gas) and 2 outputs (steer, gas). No speed input, no speed command. Only the size differs: `shippedPolicyV3.json` has 650 numbers = H 24 (27 H + 2), v2 in the AV has H 10 (272). `STAGE_HIDDEN` / `hiddenOf` infer H from the length, so the weights are a drop-in swap (`neuralWeights` param or `avNeuralWeights.json`). `POLICY_STAGE_CODE_V3` = v2 net code + only a different command helper (`STAGE_CMD_HELPERS_V3`).
+- **Reverse is in the output and the command, not in new inputs.** gas < 0 maps to target speed `gas * 8` (`V_REV_MAX`), gas > 0 to `gas * 30`; the pedal law brakes/reverses via `u = (vT - v_fwd)/TAU/G`, negative u = brake (car2 reverses when held). The net reverses ONLY when the aim point is behind the car: v3 training chains are made of LEGS (`legs.ts`, `params.legEnds`); a reversal leg puts the aim up to 5-20 m behind the car, leg change refreshes the command at once, aim never beyond the leg end.
+- **Obstacle sensing is the same 14 hull-edge rays as v2** (range 50, `x = 1 - d/50`, hit offsets `hl 4.1 / hw 2.1`). What is new is training: bay, corridor, slalom, field, maze, crowd kinds (stratified, kind-evenness fitness), so rays 120/180/-120 are actually used (reverse out of bays/corridors).
+- **What the AV car feeds today** (`av-neural.js`, v2 `deriveCmd`): aim = point `clamp(lmin + tau*v, lmin, 40)` m ahead on `av.routePath` (monotone projection, fallback carrot/maze goal/target), next = 12 m beyond. It never yields an aim behind the car, so v3 would drive FORWARD ONLY in the AV today (its reverse behaviour is never triggered) and its `next`/aim statistics differ from the training legs. Everything else (rays, ego speeds, prev steer/gas, pedal law with G, `vMax` cap) matches.
+
+### 8.2 Integration steps
+1. **Weights/param switch (no behaviour change):** new binding param `neuralPolicy` (enum `v2` default | `v3`) in `NEURAL_PARAM_DEFS` (`src/policyEvolution/policyStage.ts`), plus `neuralWeightsV3` default from `shippedPolicyV3.json` (resolve in `src/globalPipeline/avStackStagePaths.ts` next to `avNeuralWeights.json`; keep `avNeuralWeights.json` = promoted v2). `neuralWeights` explicit override still wins. Existing worlds carry no `neuralPolicy` -> v2 -> bit-identical (extend the `off`/default bit-identity test).
+2. **Leg-aware command in the stage (`policyStage.ts`):** when `neuralPolicy: v3`, build the stage head with `stageHead(N_IN_V2, true, true)` (pulls `LEG_TRACK_JS` + `STAGE_CMD_HELPERS_V3`) and feed it a chain with `legEnds` instead of the monotone v2 projection. Keep `av.cmd` override as is.
+3. **Where reversal legs come from (design decision, see 8.6):** (a) v3-forward only first: chain = `av.routePath`, ONE leg (identical to training "v2 kinds run as one leg"); (b) then a reverse trigger: when the car is stuck/blocked (watchdog stall, `av.needManeuver`, rays front < ~3 m with the aim ahead blocked) the stage appends a back leg of 5-10 m along the car's own heading (aim behind), then the forward leg again via the route re-plan. Never reverse longer than `neuralRevMaxM` (new param, default 12 m).
+4. **Reverse awareness of the classic stages:** AEB (`av-aeb.js`) probes forward from `e.fwd` only and the supervisor/stuck timers know nothing of reversing. While `av.neural.on` and the net commands gas < 0: AEB must either probe backwards (`-e.fwd`) or stay out of the way; supervisor holds stuck/blocked timers at 0 (already so while on). Watchdog: the stall test (< 2 m along the command) is measured along the command, so a reversal is fine; the "hull ray < 0.4 m at > 3 m/s" fail must be sign-aware (use |v| along the ray, reverse uses rays 120/180/-120).
+5. **Speed cap:** `neuralVMax` already caps vT; set the v3 default to 12-15 m/s (see 8.4). Reverse cap stays `V_REV_MAX` 8.
+6. **Regenerate** `av-neural.js` (`npx tsx tools/policy-evolution/export-av-neural-stage.ts`, `npm run sync:global-pipeline`); the disk == generator test must cover both heads. Overlay/watch: show `av.neural.dir` (fwd/rev) and reverse metres in `av.neural.n`.
+7. **Docs:** `feature-av-stack.md` (Neural drive mode), `feature-policy-evolution.md`, `handoff-policy-evolution.md`, `example-worlds.md`.
+
+### 8.3 Verification plan (headless first, per `.cursor/rules/agent-headless-defined-start.mdc`)
+- Unit/integration (`src/test/scenarios/av-neural.integration.test.ts`): `neuralPolicy` absent = v2 poses bit-identical; v3 stage output == `policyForward` of the 650-genome (like test (e)); v3 command helper == training (`v3.test.ts` parity); reverse leg aims behind, AEB/supervisor behave while reversing.
+- Reset to the defined start every run: load the world from the JSON on disk (`public/exampleWorlds/<id>/`), reset ALL entities to document poses (also movers), fixed seeds; no browser-only Play as primary signal.
+- A/B harness: extend `av-neural-ab.diagnostic.test.ts` / `av-neural-maze-ab.diagnostic.test.ts` (crowd cases TRAIN/HOLDOUT in `avCrowdCases.ts`, maze HOLDOUT-24) with arm `v3` next to `off` / `auto(v2)`. Metrics: reached, time, contact frames, min gap, handovers/min, reverse metres, watchdog fails. Gate (as Phase 3): crowd HOLDOUT reached >= classic AND contact frames <= classic; maze HOLDOUT not worse beyond noise; v3 must also beat v2 `auto` or it stays optional.
+- New cases that only v3 can solve: parked-in bay/dead-end corridor (the car must back out), narrow gate overshot by the planner; classic stack baseline on the same cases.
+- Example worlds: sync into `public/exampleWorlds/<id>/` (never leave edits only in IndexedDB), add a new world e.g. `av_neural_v3` (copy of `av_neural_crowd` with `neuralPolicy: 'v3'`) or flip the param in the existing ones only after the gate; document the rows in `agent-context/example-worlds.md` (rule `agent-mcp-example-world-sync.mdc`; keep ids generic, `agent-mcp-no-project-names.mdc`). Playwright screenshot after the headless pass.
+- Do not run the Phase-5 A/B while a training run occupies the CPU.
+
+### 8.4 Known v3 weaknesses to guard against
+- **It never brakes:** gas ~ +1 almost everywhere, vT ~ 27.5 m/s even in clutter; rare gas < 0 only with an aim behind. Guards: `neuralVMax` cap (12-15 m/s), AEB stays active, watchdog 'aeb' fail, auto trigger only on clutter (not open road at full speed).
+- **Field / crowd losses are forward crashes** (holdout field 65 %, crowd 74 %; reverse share there ~1 %): reverse does not rescue it. Do not sell v3 as better in dense clutter; expected wins are bays/corridors (94 % / 89 %) and free (100 %), slalom 83 %, maze 73 % (below the classic AV 24/24).
+- **Speed-capped retrain `v3cap` is in progress:** wait for it before the A/B (same 24 inputs; if H or the input set changes the swap is no longer a pure weight swap). Plan the A/B arms: v2, v3 (uncapped + `neuralVMax`), v3cap.
+- Reverse is trained at the 4x8 car / pedal gain 1200 only; the reverse hull offsets use the same 4.1/2.1.
+- Training chains have clean, noiseless legs; real routes/carrots jump (replans) -> keep the 0.5 s hold and watch for aim flipping behind the car (spurious reversal).
+
+### 8.5 Risks
+- Spurious reversing in traffic (a rear car behind): no rear-mover logic exists; reverse only with rays 120/180/-120 clear, and cap by `neuralRevMaxM`.
+- Handover into a reversing state: the classic longitudinal stage has actuator bookkeeping for forward only; hand back only at |v| < 1 m/s.
+- Watchdog false positives on short reversals (stall window 3 s).
+- Overfitting to leg statistics: AV sends longer, smoother aims than the synthetic legs.
+
+### 8.6 Open questions for the user
+1. Is v3-forward-only (Step 3a, no reversal, safe speed cap) an acceptable first release, with reversing only as a separate step 3b (stuck recovery)?
+2. Which arm decides: v3 vs the promoted v2 `auto` on the same crowd/maze HOLDOUT, or only "not worse than classic"?
+3. Wait for `v3cap` before any A/B, or A/B the shipped gen1000 now with `neuralVMax`?
+4. Should reversing be allowed in `self_hunt_flexible` (chasers behind) or only in maze/bay worlds?
+5. Is a dedicated v3 world (`av_neural_v3`) preferred over flipping `neuralPolicy` in existing worlds?
 
 ## Critical files
 `src/policyEvolution/policy.ts` (+ new `policyStage.ts`, `command.ts`), `courses.ts`, `episode.ts`;
