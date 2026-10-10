@@ -8,7 +8,7 @@ Read in: this file -> [plan-flee-improvements.md](./plan-flee-improvements.md) (
 
 Two work streams were running in parallel today; both are mid-flight:
 
-1. **v3cap training** (speed-capped fork, `--speed-cap 15`, target gen 3000): RUNNING in the background, ~gen 909 and climbing (PID of run-v3.sh may differ per machine; check `ps aux | grep run-islands`). Log: `training-data/policy-evolution/v3cap.log`, state file `v3cap.json` (tracked; commit it regularly — the working tree has an uncommitted checkpoint).
+1. **v3cap training** (speed-capped fork, `--speed-cap 15`, target gen 3000): RUNNING in the background, ~gen 933 and climbing (PID of run-v3.sh may differ per machine; check `ps aux | grep run-islands`). Log: `training-data/policy-evolution/v3cap.log`, state file `v3cap.json` (tracked; commit it regularly — the working tree has an uncommitted checkpoint).
    - Next: ship check at ~gen 1200-1500 or after ~1-2 h more of training: stop the training processes right after a `gen N` log line (state saves each gen), then `npx tsx tools/policy-evolution/ship.ts training-data/policy-evolution/v3cap.json --v3 --workers 9`, then restart training with the same command. If WROTE (finish-count gate): re-export worlds (`npx tsx tools/renn-mcp/export-policy-drive-example-world.ts`), `npx vitest run src/policyEvolution`, commit, push, deploy.
    - Resume command (same for start/resume): `V3_OUT=training-data/policy-evolution/v3cap.json V3_EXTRA_ARGS="--speed-cap 15 --warm training-data/policy-evolution/v3.json" nohup bash tools/policy-evolution/run-v3.sh 3000 7 > training-data/policy-evolution/v3cap.nohup.log 2>&1 &`
 
