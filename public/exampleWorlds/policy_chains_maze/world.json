@@ -1,0 +1,3446 @@
+{
+  "version": "1.0",
+  "world": {
+    "gravity": [
+      0,
+      -100,
+      0
+    ],
+    "distanceCulling": false,
+    "ambientLight": [
+      0.45,
+      0.45,
+      0.5
+    ],
+    "directionalLight": {
+      "direction": [
+        1,
+        2,
+        1
+      ],
+      "color": [
+        1,
+        0.98,
+        0.9
+      ],
+      "intensity": 1.2
+    },
+    "skyColor": [
+      0.35,
+      0.5,
+      0.75
+    ],
+    "camera": {
+      "control": "follow",
+      "mode": "thirdPerson",
+      "target": "policy_car_body_0",
+      "distance": 40,
+      "height": 60,
+      "cameraTargetLag": 120,
+      "cameraPositionLag": 180
+    }
+  },
+  "transformers": {
+    "policy_drive_0": {
+      "type": "custom",
+      "priority": 5,
+      "enabled": true,
+      "name": "Policy drive",
+      "code": "\nvar ANGLES = [0,0.17453292519943295,-0.17453292519943295,0.3490658503988659,-0.3490658503988659,0.6108652381980153,-0.6108652381980153,0.9599310885968813,-0.9599310885968813,1.3962634015954636,-1.3962634015954636,2.0943951023931953,-2.0943951023931953,3.141592653589793]\nvar N_IN = 24, H = 10, RANGE = 50, VF = 30, VR = 8, TAU = 0.05\nfunction rnd(state) {\n  state.rs = (state.rs + 0x6d2b79f5) >>> 0\n  var t = state.rs\n  t = Math.imul(t ^ (t >>> 15), t | 1)\n  t ^= t + Math.imul(t ^ (t >>> 7), t | 61)\n  return ((t ^ (t >>> 14)) >>> 0) / 4294967296\n}\n\nfunction chainPoint(ch, cum, s) {\n  var n = ch.length\n  if (s <= 0) return ch[0]\n  if (s >= cum[n - 1]) return ch[n - 1]\n  var i = 0\n  while (i < n - 2 && cum[i + 1] < s) i++\n  var t = (s - cum[i]) / ((cum[i + 1] - cum[i]) || 1)\n  return [ch[i][0] + (ch[i + 1][0] - ch[i][0]) * t, ch[i][1] + (ch[i + 1][1] - ch[i][1]) * t]\n}\nfunction deriveCmd(params, state, dt, pos, speed) {\n  var ch = params.chain\n  var cfg = params.cmd || {}\n  var n = ch.length\n  if (!state.cum) {\n    state.cum = [0]\n    for (var q = 1; q < n; q++) state.cum.push(state.cum[q - 1] + Math.hypot(ch[q][0] - ch[q - 1][0], ch[q][1] - ch[q - 1][1]))\n    state.cs = 0\n    state.cseg = 0\n    state.ct = 1e9\n    state.cr = { rs: (cfg.seed >>> 0) || 1 }\n  }\n  var px = pos[0], pz = pos[2]\n  var bestD = Infinity, bestS = state.cs, bestSeg = state.cseg\n  for (var i = Math.max(0, state.cseg - 1); i <= Math.min(n - 2, state.cseg + 2); i++) {\n    var ax = ch[i][0], az = ch[i][1]\n    var dx = ch[i + 1][0] - ax, dz = ch[i + 1][1] - az\n    var len2 = dx * dx + dz * dz || 1\n    var t = Math.max(0, Math.min(1, ((px - ax) * dx + (pz - az) * dz) / len2))\n    var d = Math.hypot(px - (ax + t * dx), pz - (az + t * dz))\n    if (d < bestD) {\n      bestD = d\n      bestS = state.cum[i] + t * Math.sqrt(len2)\n      bestSeg = i\n    }\n  }\n  state.cseg = bestSeg\n  if (bestS > state.cs) state.cs = bestS\n  state.ct += dt\n  if (!state.aim || state.ct >= (cfg.period != null ? cfg.period : 0.5)) {\n    state.ct = 0\n    var total = state.cum[n - 1]\n    var lmin = cfg.lmin != null ? cfg.lmin : 12\n    var L = Math.min(Math.max(lmin + (cfg.tau != null ? cfg.tau : 1.5) * speed, lmin), 40)\n    var sa = Math.min(state.cs + L, total)\n    var a = chainPoint(ch, state.cum, sa)\n    var nd = cfg.noiseDeg != null ? cfg.noiseDeg : 3\n    if (nd > 0) {\n      var e = (rnd(state.cr) * 2 - 1) * nd * Math.PI / 180\n      var c = Math.cos(e), sn = Math.sin(e)\n      var vx = a[0] - px, vz = a[1] - pz\n      a = [px + vx * c - vz * sn, pz + vx * sn + vz * c]\n    }\n    var b = chainPoint(ch, state.cum, Math.min(sa + 12, total))\n    if (Math.hypot(b[0] - a[0], b[1] - a[1]) < 0.5) {\n      var lx = ch[n - 1][0] - ch[n - 2][0], lz = ch[n - 1][1] - ch[n - 2][1]\n      var ll = Math.hypot(lx, lz) || 1\n      b = [a[0] + lx / ll * 12, a[1] + lz / ll * 12]\n    }\n    state.aim = a\n    state.nxt = b\n  }\n  return [state.aim[0], state.aim[1], state.nxt[0], state.nxt[1]]\n}\nfunction transform(input, dt, params, state, api) {\n  var w = params.w\n  var noise = params.noise || 0\n  if (state.rs === undefined) state.rs = (params.noiseSeed >>> 0) || 1\n  if (!w || !input.actions) return {}\n  var up = api.getUpVector(input.rotation)\n  var fwd = api.vec.normalize(api.vec.projectOntoPlane(api.getForwardVector(input.rotation), up))\n  var left = api.vec.normalize(api.vec.cross(up, fwd))\n  var pos = input.position\n  var x = new Array(N_IN)\n  var hl = 4.1, hw = 2.1\n  for (var i = 0; i < ANGLES.length; i++) {\n    var c = Math.cos(ANGLES[i]), s = Math.sin(ANGLES[i])\n    var dir = [fwd[0] * c + left[0] * s, fwd[1] * c + left[1] * s, fwd[2] * c + left[2] * s]\n    var t = Math.min(Math.abs(c) > 1e-6 ? hl / Math.abs(c) : 1e9, Math.abs(s) > 1e-6 ? hw / Math.abs(s) : 1e9)\n    var o = [pos[0] + dir[0] * t, pos[1], pos[2] + dir[2] * t]\n    var r = api.raycast(o, dir, RANGE, { visualize: false })\n    var dist = r.hit ? Math.min(r.distance, RANGE) : RANGE\n    if (noise > 0 && r.hit) {\n      // seeded multiplicative sensor noise (sum of three uniforms ~ unit variance)\n      dist *= 1 + noise * (rnd(state) + rnd(state) + rnd(state) - 1.5) * 2\n      dist = dist < 0 ? 0 : dist > RANGE ? RANGE : dist\n    }\n    x[i] = r.hit ? 1 - dist / RANGE : 0\n  }\n  var n = ANGLES.length\n  x[n] = api.vec.dot(input.velocity, fwd) / 30\n  x[n + 1] = api.vec.dot(input.velocity, left) / 10\n  x[n + 2] = api.vec.dot(input.angularVelocity, up) / 2\n  var cmd = input.av && input.av.cmd\n  var ac\n  if (cmd && cmd.aim) ac = [cmd.aim[0], cmd.aim[1], (cmd.next || cmd.aim)[0], (cmd.next || cmd.aim)[1]]\n  else if (params.chain && params.chain.length > 1) ac = deriveCmd(params, state, dt, pos, Math.abs(api.vec.dot(input.velocity, fwd)))\n  else ac = [pos[0], pos[2], pos[0], pos[2]]\n  var gx = ac[0] - pos[0], gz = ac[1] - pos[2]\n  var gd = Math.hypot(gx, gz) || 1\n  x[n + 3] = (gx * fwd[0] + gz * fwd[2]) / gd\n  x[n + 4] = (gx * left[0] + gz * left[2]) / gd\n  x[n + 5] = Math.min(gd / 60, 1)\n  var tx = ac[2] - ac[0], tz = ac[3] - ac[1]\n  var td = Math.hypot(tx, tz)\n  x[n + 6] = td > 1e-6 ? (tx * fwd[0] + tz * fwd[2]) / td : 1\n  x[n + 7] = td > 1e-6 ? (tx * left[0] + tz * left[2]) / td : 0\n  x[n + 8] = state.steer || 0\n  x[n + 9] = state.gas || 0\n  var h = new Array(H)\n  for (var j = 0; j < H; j++) {\n    var sum = w[H * N_IN + j]\n    for (var k = 0; k < N_IN; k++) sum += w[j * N_IN + k] * x[k]\n    h[j] = Math.tanh(sum)\n  }\n  var o2 = H * N_IN + H\n  var out = [0, 0]\n  for (var q = 0; q < 2; q++) {\n    var sq = w[o2 + 2 * H + q]\n    for (var m = 0; m < H; m++) sq += w[o2 + q * H + m] * h[m]\n    out[q] = Math.tanh(sq)\n  }\n  state.steer = out[0]\n  state.gas = out[1]\n  // car2 treats exactly 0 as \"no steering command\"\n  input.actions.steering_angle = Math.abs(out[0]) < 1e-4 ? 1e-4 : out[0]\n  var vT = out[1] > 0 ? out[1] * VF : out[1] * VR\n  var u = (vT - api.vec.dot(input.velocity, fwd)) / TAU / (params.gain || 1200)\n  u = u > 1 ? 1 : u < -1 ? -1 : u\n  input.actions.throttle = u > 0 ? u : 0\n  input.actions.brake = u < 0 ? -u : 0\n  return {}\n}\n",
+      "params": {
+        "w": [
+          0.49285,
+          -1.41257,
+          -1.0687,
+          1.37066,
+          -0.38099,
+          0.39647,
+          -0.91558,
+          -1.24353,
+          -0.56255,
+          0.50095,
+          0.27222,
+          0.42006,
+          0.72576,
+          0.16938,
+          1.06531,
+          -0.34987,
+          0.46788,
+          -0.64905,
+          -0.63768,
+          -0.63747,
+          -0.24201,
+          -0.10468,
+          0.30516,
+          1.21323,
+          1.50081,
+          -0.39028,
+          -0.5809,
+          -0.10724,
+          0.24204,
+          -0.48706,
+          -0.70324,
+          0.10409,
+          1.09932,
+          -0.10196,
+          0.31953,
+          0.43807,
+          0.60795,
+          -0.13208,
+          -1.05997,
+          -0.41273,
+          0.4637,
+          0.25183,
+          0.40866,
+          0.08056,
+          -0.37857,
+          -0.21336,
+          0.45936,
+          0.12647,
+          0.24338,
+          -0.10903,
+          -1.25215,
+          -0.28121,
+          0.85964,
+          -0.69008,
+          -0.1909,
+          -0.85754,
+          -0.61811,
+          -0.04216,
+          -0.45182,
+          -0.73624,
+          0.18358,
+          0.21285,
+          -0.24406,
+          0.59838,
+          0.7665,
+          1.23575,
+          -0.13014,
+          0.05911,
+          -0.08677,
+          0.8523,
+          -0.30479,
+          0.12946,
+          0.23744,
+          0.88171,
+          -0.42384,
+          0.50852,
+          -0.76492,
+          -0.71806,
+          -1.02412,
+          0.81184,
+          -0.9412,
+          -0.34504,
+          -0.13074,
+          -0.38996,
+          0.89195,
+          0.37672,
+          1.08533,
+          0.61423,
+          0.0738,
+          0.45364,
+          -2.64198,
+          -0.51,
+          -0.69648,
+          0.99463,
+          0.49063,
+          0.32165,
+          -0.58835,
+          -0.87879,
+          -0.59293,
+          0.36456,
+          -0.3072,
+          0.89454,
+          -0.55115,
+          -0.3229,
+          -0.27106,
+          -0.13061,
+          0.10258,
+          -0.82579,
+          1.04259,
+          -0.15584,
+          1.04699,
+          -0.0134,
+          1.6564,
+          -1.32846,
+          -2.01367,
+          -0.43076,
+          0.39969,
+          1.54197,
+          0.03716,
+          0.39724,
+          -0.55317,
+          -1.11327,
+          0.73912,
+          -0.62878,
+          -0.92924,
+          1.22757,
+          -0.62902,
+          0.72756,
+          1.23238,
+          -1.18497,
+          -0.41373,
+          -1.2199,
+          0.33149,
+          -0.19393,
+          -0.69879,
+          -0.99353,
+          0.38104,
+          -0.20818,
+          0.89521,
+          -0.66575,
+          -0.11582,
+          -0.68872,
+          -0.33149,
+          -0.48225,
+          0.19905,
+          -0.01847,
+          -0.00111,
+          -1.22911,
+          0.70263,
+          -1.90612,
+          0.10071,
+          1.83569,
+          -0.31863,
+          0.05477,
+          -0.50151,
+          -0.86402,
+          0.76496,
+          0.72422,
+          -1.50676,
+          -1.21202,
+          1.16803,
+          0.33735,
+          0.84079,
+          0.4832,
+          0.09761,
+          0.3124,
+          0.48591,
+          0.57627,
+          0.14965,
+          0.06288,
+          0.01081,
+          1.01139,
+          1.09457,
+          0.14076,
+          0.63805,
+          1.44293,
+          -0.20153,
+          0.73385,
+          -0.58698,
+          -0.19444,
+          -0.15888,
+          0.05744,
+          -0.76544,
+          -1.10795,
+          -0.38955,
+          -0.83895,
+          -1.92146,
+          0.25131,
+          0.3895,
+          -0.77897,
+          -0.50347,
+          1.05469,
+          -0.73462,
+          1.35769,
+          0.10764,
+          -0.09921,
+          -0.24942,
+          2.10781,
+          -1.27426,
+          0.77318,
+          -0.60742,
+          -0.02839,
+          0.53462,
+          -0.07102,
+          -0.79749,
+          -0.21096,
+          1.69655,
+          0.89803,
+          0.53595,
+          1.90535,
+          0.67284,
+          -0.0261,
+          0.1203,
+          -1.05091,
+          1.45938,
+          -0.26208,
+          -0.32063,
+          -1.22956,
+          0.0062,
+          -1.16735,
+          -0.64227,
+          0.79275,
+          -0.63688,
+          -0.03356,
+          -1.2134,
+          -0.02103,
+          0.45038,
+          -0.46069,
+          -0.5415,
+          0.28484,
+          0.29861,
+          0.38171,
+          0.85903,
+          -0.24037,
+          -1.25879,
+          -2.06445,
+          0.48043,
+          0.41127,
+          -0.29202,
+          0.26142,
+          -1.22198,
+          1.14531,
+          0.50294,
+          -0.83537,
+          0.42589,
+          0.60601,
+          -0.16079,
+          -0.67041,
+          0.31304,
+          0.30299,
+          0.14728,
+          0.06695,
+          -0.08049,
+          -2.04735,
+          -1.46746,
+          -0.85616,
+          0.23875,
+          -1.2412,
+          -2.35555,
+          -0.92917,
+          -0.73388,
+          0.48228,
+          1.62904,
+          -0.48084,
+          -0.15641,
+          -0.87181,
+          0.17455,
+          1.44884,
+          0.70164,
+          -1.66164,
+          0.6387,
+          1.94327
+        ],
+        "chain": [
+          [
+            0,
+            0
+          ],
+          [
+            -9.5,
+            0.1
+          ],
+          [
+            -19,
+            0.2
+          ],
+          [
+            -28.5,
+            0.3
+          ],
+          [
+            -38,
+            0.4
+          ],
+          [
+            -47.5,
+            0.5
+          ]
+        ],
+        "cmd": {
+          "lmin": 9.66454693581909,
+          "tau": 0.6319808271713555,
+          "period": 0.3493368254974485,
+          "noiseDeg": 3,
+          "seed": 2109642752
+        },
+        "gain": 1200
+      }
+    },
+    "policy_car_0": {
+      "type": "car2",
+      "priority": 11,
+      "enabled": true,
+      "params": {
+        "power": 2400,
+        "steeringIntensity": 0.1,
+        "steeringSpeed": 0.51,
+        "lateralGrip": 100,
+        "tireGripSlipSpeedThreshold": 2,
+        "lateralGripSlipScale": 0.3,
+        "jumpImpulse": 200
+      }
+    },
+    "policy_drive_1": {
+      "type": "custom",
+      "priority": 5,
+      "enabled": true,
+      "name": "Policy drive",
+      "code": "\nvar ANGLES = [0,0.17453292519943295,-0.17453292519943295,0.3490658503988659,-0.3490658503988659,0.6108652381980153,-0.6108652381980153,0.9599310885968813,-0.9599310885968813,1.3962634015954636,-1.3962634015954636,2.0943951023931953,-2.0943951023931953,3.141592653589793]\nvar N_IN = 24, H = 10, RANGE = 50, VF = 30, VR = 8, TAU = 0.05\nfunction rnd(state) {\n  state.rs = (state.rs + 0x6d2b79f5) >>> 0\n  var t = state.rs\n  t = Math.imul(t ^ (t >>> 15), t | 1)\n  t ^= t + Math.imul(t ^ (t >>> 7), t | 61)\n  return ((t ^ (t >>> 14)) >>> 0) / 4294967296\n}\n\nfunction chainPoint(ch, cum, s) {\n  var n = ch.length\n  if (s <= 0) return ch[0]\n  if (s >= cum[n - 1]) return ch[n - 1]\n  var i = 0\n  while (i < n - 2 && cum[i + 1] < s) i++\n  var t = (s - cum[i]) / ((cum[i + 1] - cum[i]) || 1)\n  return [ch[i][0] + (ch[i + 1][0] - ch[i][0]) * t, ch[i][1] + (ch[i + 1][1] - ch[i][1]) * t]\n}\nfunction deriveCmd(params, state, dt, pos, speed) {\n  var ch = params.chain\n  var cfg = params.cmd || {}\n  var n = ch.length\n  if (!state.cum) {\n    state.cum = [0]\n    for (var q = 1; q < n; q++) state.cum.push(state.cum[q - 1] + Math.hypot(ch[q][0] - ch[q - 1][0], ch[q][1] - ch[q - 1][1]))\n    state.cs = 0\n    state.cseg = 0\n    state.ct = 1e9\n    state.cr = { rs: (cfg.seed >>> 0) || 1 }\n  }\n  var px = pos[0], pz = pos[2]\n  var bestD = Infinity, bestS = state.cs, bestSeg = state.cseg\n  for (var i = Math.max(0, state.cseg - 1); i <= Math.min(n - 2, state.cseg + 2); i++) {\n    var ax = ch[i][0], az = ch[i][1]\n    var dx = ch[i + 1][0] - ax, dz = ch[i + 1][1] - az\n    var len2 = dx * dx + dz * dz || 1\n    var t = Math.max(0, Math.min(1, ((px - ax) * dx + (pz - az) * dz) / len2))\n    var d = Math.hypot(px - (ax + t * dx), pz - (az + t * dz))\n    if (d < bestD) {\n      bestD = d\n      bestS = state.cum[i] + t * Math.sqrt(len2)\n      bestSeg = i\n    }\n  }\n  state.cseg = bestSeg\n  if (bestS > state.cs) state.cs = bestS\n  state.ct += dt\n  if (!state.aim || state.ct >= (cfg.period != null ? cfg.period : 0.5)) {\n    state.ct = 0\n    var total = state.cum[n - 1]\n    var lmin = cfg.lmin != null ? cfg.lmin : 12\n    var L = Math.min(Math.max(lmin + (cfg.tau != null ? cfg.tau : 1.5) * speed, lmin), 40)\n    var sa = Math.min(state.cs + L, total)\n    var a = chainPoint(ch, state.cum, sa)\n    var nd = cfg.noiseDeg != null ? cfg.noiseDeg : 3\n    if (nd > 0) {\n      var e = (rnd(state.cr) * 2 - 1) * nd * Math.PI / 180\n      var c = Math.cos(e), sn = Math.sin(e)\n      var vx = a[0] - px, vz = a[1] - pz\n      a = [px + vx * c - vz * sn, pz + vx * sn + vz * c]\n    }\n    var b = chainPoint(ch, state.cum, Math.min(sa + 12, total))\n    if (Math.hypot(b[0] - a[0], b[1] - a[1]) < 0.5) {\n      var lx = ch[n - 1][0] - ch[n - 2][0], lz = ch[n - 1][1] - ch[n - 2][1]\n      var ll = Math.hypot(lx, lz) || 1\n      b = [a[0] + lx / ll * 12, a[1] + lz / ll * 12]\n    }\n    state.aim = a\n    state.nxt = b\n  }\n  return [state.aim[0], state.aim[1], state.nxt[0], state.nxt[1]]\n}\nfunction transform(input, dt, params, state, api) {\n  var w = params.w\n  var noise = params.noise || 0\n  if (state.rs === undefined) state.rs = (params.noiseSeed >>> 0) || 1\n  if (!w || !input.actions) return {}\n  var up = api.getUpVector(input.rotation)\n  var fwd = api.vec.normalize(api.vec.projectOntoPlane(api.getForwardVector(input.rotation), up))\n  var left = api.vec.normalize(api.vec.cross(up, fwd))\n  var pos = input.position\n  var x = new Array(N_IN)\n  var hl = 4.1, hw = 2.1\n  for (var i = 0; i < ANGLES.length; i++) {\n    var c = Math.cos(ANGLES[i]), s = Math.sin(ANGLES[i])\n    var dir = [fwd[0] * c + left[0] * s, fwd[1] * c + left[1] * s, fwd[2] * c + left[2] * s]\n    var t = Math.min(Math.abs(c) > 1e-6 ? hl / Math.abs(c) : 1e9, Math.abs(s) > 1e-6 ? hw / Math.abs(s) : 1e9)\n    var o = [pos[0] + dir[0] * t, pos[1], pos[2] + dir[2] * t]\n    var r = api.raycast(o, dir, RANGE, { visualize: false })\n    var dist = r.hit ? Math.min(r.distance, RANGE) : RANGE\n    if (noise > 0 && r.hit) {\n      // seeded multiplicative sensor noise (sum of three uniforms ~ unit variance)\n      dist *= 1 + noise * (rnd(state) + rnd(state) + rnd(state) - 1.5) * 2\n      dist = dist < 0 ? 0 : dist > RANGE ? RANGE : dist\n    }\n    x[i] = r.hit ? 1 - dist / RANGE : 0\n  }\n  var n = ANGLES.length\n  x[n] = api.vec.dot(input.velocity, fwd) / 30\n  x[n + 1] = api.vec.dot(input.velocity, left) / 10\n  x[n + 2] = api.vec.dot(input.angularVelocity, up) / 2\n  var cmd = input.av && input.av.cmd\n  var ac\n  if (cmd && cmd.aim) ac = [cmd.aim[0], cmd.aim[1], (cmd.next || cmd.aim)[0], (cmd.next || cmd.aim)[1]]\n  else if (params.chain && params.chain.length > 1) ac = deriveCmd(params, state, dt, pos, Math.abs(api.vec.dot(input.velocity, fwd)))\n  else ac = [pos[0], pos[2], pos[0], pos[2]]\n  var gx = ac[0] - pos[0], gz = ac[1] - pos[2]\n  var gd = Math.hypot(gx, gz) || 1\n  x[n + 3] = (gx * fwd[0] + gz * fwd[2]) / gd\n  x[n + 4] = (gx * left[0] + gz * left[2]) / gd\n  x[n + 5] = Math.min(gd / 60, 1)\n  var tx = ac[2] - ac[0], tz = ac[3] - ac[1]\n  var td = Math.hypot(tx, tz)\n  x[n + 6] = td > 1e-6 ? (tx * fwd[0] + tz * fwd[2]) / td : 1\n  x[n + 7] = td > 1e-6 ? (tx * left[0] + tz * left[2]) / td : 0\n  x[n + 8] = state.steer || 0\n  x[n + 9] = state.gas || 0\n  var h = new Array(H)\n  for (var j = 0; j < H; j++) {\n    var sum = w[H * N_IN + j]\n    for (var k = 0; k < N_IN; k++) sum += w[j * N_IN + k] * x[k]\n    h[j] = Math.tanh(sum)\n  }\n  var o2 = H * N_IN + H\n  var out = [0, 0]\n  for (var q = 0; q < 2; q++) {\n    var sq = w[o2 + 2 * H + q]\n    for (var m = 0; m < H; m++) sq += w[o2 + q * H + m] * h[m]\n    out[q] = Math.tanh(sq)\n  }\n  state.steer = out[0]\n  state.gas = out[1]\n  // car2 treats exactly 0 as \"no steering command\"\n  input.actions.steering_angle = Math.abs(out[0]) < 1e-4 ? 1e-4 : out[0]\n  var vT = out[1] > 0 ? out[1] * VF : out[1] * VR\n  var u = (vT - api.vec.dot(input.velocity, fwd)) / TAU / (params.gain || 1200)\n  u = u > 1 ? 1 : u < -1 ? -1 : u\n  input.actions.throttle = u > 0 ? u : 0\n  input.actions.brake = u < 0 ? -u : 0\n  return {}\n}\n",
+      "params": {
+        "w": [
+          0.49285,
+          -1.41257,
+          -1.0687,
+          1.37066,
+          -0.38099,
+          0.39647,
+          -0.91558,
+          -1.24353,
+          -0.56255,
+          0.50095,
+          0.27222,
+          0.42006,
+          0.72576,
+          0.16938,
+          1.06531,
+          -0.34987,
+          0.46788,
+          -0.64905,
+          -0.63768,
+          -0.63747,
+          -0.24201,
+          -0.10468,
+          0.30516,
+          1.21323,
+          1.50081,
+          -0.39028,
+          -0.5809,
+          -0.10724,
+          0.24204,
+          -0.48706,
+          -0.70324,
+          0.10409,
+          1.09932,
+          -0.10196,
+          0.31953,
+          0.43807,
+          0.60795,
+          -0.13208,
+          -1.05997,
+          -0.41273,
+          0.4637,
+          0.25183,
+          0.40866,
+          0.08056,
+          -0.37857,
+          -0.21336,
+          0.45936,
+          0.12647,
+          0.24338,
+          -0.10903,
+          -1.25215,
+          -0.28121,
+          0.85964,
+          -0.69008,
+          -0.1909,
+          -0.85754,
+          -0.61811,
+          -0.04216,
+          -0.45182,
+          -0.73624,
+          0.18358,
+          0.21285,
+          -0.24406,
+          0.59838,
+          0.7665,
+          1.23575,
+          -0.13014,
+          0.05911,
+          -0.08677,
+          0.8523,
+          -0.30479,
+          0.12946,
+          0.23744,
+          0.88171,
+          -0.42384,
+          0.50852,
+          -0.76492,
+          -0.71806,
+          -1.02412,
+          0.81184,
+          -0.9412,
+          -0.34504,
+          -0.13074,
+          -0.38996,
+          0.89195,
+          0.37672,
+          1.08533,
+          0.61423,
+          0.0738,
+          0.45364,
+          -2.64198,
+          -0.51,
+          -0.69648,
+          0.99463,
+          0.49063,
+          0.32165,
+          -0.58835,
+          -0.87879,
+          -0.59293,
+          0.36456,
+          -0.3072,
+          0.89454,
+          -0.55115,
+          -0.3229,
+          -0.27106,
+          -0.13061,
+          0.10258,
+          -0.82579,
+          1.04259,
+          -0.15584,
+          1.04699,
+          -0.0134,
+          1.6564,
+          -1.32846,
+          -2.01367,
+          -0.43076,
+          0.39969,
+          1.54197,
+          0.03716,
+          0.39724,
+          -0.55317,
+          -1.11327,
+          0.73912,
+          -0.62878,
+          -0.92924,
+          1.22757,
+          -0.62902,
+          0.72756,
+          1.23238,
+          -1.18497,
+          -0.41373,
+          -1.2199,
+          0.33149,
+          -0.19393,
+          -0.69879,
+          -0.99353,
+          0.38104,
+          -0.20818,
+          0.89521,
+          -0.66575,
+          -0.11582,
+          -0.68872,
+          -0.33149,
+          -0.48225,
+          0.19905,
+          -0.01847,
+          -0.00111,
+          -1.22911,
+          0.70263,
+          -1.90612,
+          0.10071,
+          1.83569,
+          -0.31863,
+          0.05477,
+          -0.50151,
+          -0.86402,
+          0.76496,
+          0.72422,
+          -1.50676,
+          -1.21202,
+          1.16803,
+          0.33735,
+          0.84079,
+          0.4832,
+          0.09761,
+          0.3124,
+          0.48591,
+          0.57627,
+          0.14965,
+          0.06288,
+          0.01081,
+          1.01139,
+          1.09457,
+          0.14076,
+          0.63805,
+          1.44293,
+          -0.20153,
+          0.73385,
+          -0.58698,
+          -0.19444,
+          -0.15888,
+          0.05744,
+          -0.76544,
+          -1.10795,
+          -0.38955,
+          -0.83895,
+          -1.92146,
+          0.25131,
+          0.3895,
+          -0.77897,
+          -0.50347,
+          1.05469,
+          -0.73462,
+          1.35769,
+          0.10764,
+          -0.09921,
+          -0.24942,
+          2.10781,
+          -1.27426,
+          0.77318,
+          -0.60742,
+          -0.02839,
+          0.53462,
+          -0.07102,
+          -0.79749,
+          -0.21096,
+          1.69655,
+          0.89803,
+          0.53595,
+          1.90535,
+          0.67284,
+          -0.0261,
+          0.1203,
+          -1.05091,
+          1.45938,
+          -0.26208,
+          -0.32063,
+          -1.22956,
+          0.0062,
+          -1.16735,
+          -0.64227,
+          0.79275,
+          -0.63688,
+          -0.03356,
+          -1.2134,
+          -0.02103,
+          0.45038,
+          -0.46069,
+          -0.5415,
+          0.28484,
+          0.29861,
+          0.38171,
+          0.85903,
+          -0.24037,
+          -1.25879,
+          -2.06445,
+          0.48043,
+          0.41127,
+          -0.29202,
+          0.26142,
+          -1.22198,
+          1.14531,
+          0.50294,
+          -0.83537,
+          0.42589,
+          0.60601,
+          -0.16079,
+          -0.67041,
+          0.31304,
+          0.30299,
+          0.14728,
+          0.06695,
+          -0.08049,
+          -2.04735,
+          -1.46746,
+          -0.85616,
+          0.23875,
+          -1.2412,
+          -2.35555,
+          -0.92917,
+          -0.73388,
+          0.48228,
+          1.62904,
+          -0.48084,
+          -0.15641,
+          -0.87181,
+          0.17455,
+          1.44884,
+          0.70164,
+          -1.66164,
+          0.6387,
+          1.94327
+        ],
+        "chain": [
+          [
+            160,
+            0
+          ],
+          [
+            159.90635561483566,
+            -8.334350279625225
+          ],
+          [
+            159.81271122967135,
+            -16.66870055925045
+          ],
+          [
+            159.719066844507,
+            -25.003050838875673
+          ],
+          [
+            159.62542245934267,
+            -33.3374011185009
+          ],
+          [
+            159.53177807417836,
+            -41.671751398126126
+          ],
+          [
+            159.28215613547962,
+            -43.4397409267612
+          ],
+          [
+            158.58960920506001,
+            -45.085485996572864
+          ],
+          [
+            157.5,
+            -46.5
+          ],
+          [
+            157.5,
+            -46.5
+          ],
+          [
+            156.08710566702646,
+            -47.57036662494467
+          ],
+          [
+            154.43720273624118,
+            -48.21826740973378
+          ],
+          [
+            152.67351081801286,
+            -48.39531521548196
+          ],
+          [
+            144.61567387867524,
+            -48.096876810321305
+          ],
+          [
+            136.55783693933762,
+            -47.79843840516065
+          ],
+          [
+            128.5,
+            -47.5
+          ]
+        ],
+        "cmd": {
+          "lmin": 7.343020286411047,
+          "tau": 0.5254691981710494,
+          "period": 0.28594533293507995,
+          "noiseDeg": 3,
+          "seed": 469111808
+        },
+        "gain": 1200
+      }
+    },
+    "policy_car_1": {
+      "type": "car2",
+      "priority": 11,
+      "enabled": true,
+      "params": {
+        "power": 2400,
+        "steeringIntensity": 0.1,
+        "steeringSpeed": 0.51,
+        "lateralGrip": 100,
+        "tireGripSlipSpeedThreshold": 2,
+        "lateralGripSlipScale": 0.3,
+        "jumpImpulse": 200
+      }
+    }
+  },
+  "entities": [
+    {
+      "id": "ground",
+      "name": "Ground",
+      "bodyType": "static",
+      "shape": {
+        "type": "plane"
+      },
+      "position": [
+        0,
+        0,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 1
+    },
+    {
+      "id": "policy_car_body_0",
+      "name": "Policy car_0",
+      "bodyType": "dynamic",
+      "shape": {
+        "type": "box",
+        "width": 4,
+        "height": 1,
+        "depth": 8
+      },
+      "position": [
+        0,
+        0.494,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "mass": 2,
+      "restitution": 0.1,
+      "friction": 0.01,
+      "angularDamping": 0.3,
+      "transformers": [
+        "policy_drive_0",
+        "policy_car_0"
+      ]
+    },
+    {
+      "id": "box_0_0",
+      "name": "Box 0_0",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 17,
+        "height": 6,
+        "depth": 1
+      },
+      "position": [
+        -80,
+        3,
+        -88
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_1_0",
+      "name": "Box 1_0",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 17,
+        "height": 6,
+        "depth": 1
+      },
+      "position": [
+        -64,
+        3,
+        -88
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_2_0",
+      "name": "Box 2_0",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 17,
+        "height": 6,
+        "depth": 1
+      },
+      "position": [
+        -48,
+        3,
+        -88
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_3_0",
+      "name": "Box 3_0",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 17,
+        "height": 6,
+        "depth": 1
+      },
+      "position": [
+        -16,
+        3,
+        -88
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_4_0",
+      "name": "Box 4_0",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 17,
+        "height": 6,
+        "depth": 1
+      },
+      "position": [
+        0,
+        3,
+        -88
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_5_0",
+      "name": "Box 5_0",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 17,
+        "height": 6,
+        "depth": 1
+      },
+      "position": [
+        -64,
+        3,
+        -72
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_6_0",
+      "name": "Box 6_0",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 17,
+        "height": 6,
+        "depth": 1
+      },
+      "position": [
+        -32,
+        3,
+        -72
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_7_0",
+      "name": "Box 7_0",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 17,
+        "height": 6,
+        "depth": 1
+      },
+      "position": [
+        -16,
+        3,
+        -72
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_8_0",
+      "name": "Box 8_0",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 17,
+        "height": 6,
+        "depth": 1
+      },
+      "position": [
+        -48,
+        3,
+        -56
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_9_0",
+      "name": "Box 9_0",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 17,
+        "height": 6,
+        "depth": 1
+      },
+      "position": [
+        -32,
+        3,
+        -56
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_10_0",
+      "name": "Box 10_0",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 17,
+        "height": 6,
+        "depth": 1
+      },
+      "position": [
+        -64,
+        3,
+        -40
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_11_0",
+      "name": "Box 11_0",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 17,
+        "height": 6,
+        "depth": 1
+      },
+      "position": [
+        -48,
+        3,
+        -40
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_12_0",
+      "name": "Box 12_0",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 17,
+        "height": 6,
+        "depth": 1
+      },
+      "position": [
+        -16,
+        3,
+        -40
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_13_0",
+      "name": "Box 13_0",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 17,
+        "height": 6,
+        "depth": 1
+      },
+      "position": [
+        -32,
+        3,
+        -24
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_14_0",
+      "name": "Box 14_0",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 17,
+        "height": 6,
+        "depth": 1
+      },
+      "position": [
+        -48,
+        3,
+        -8
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_15_0",
+      "name": "Box 15_0",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 17,
+        "height": 6,
+        "depth": 1
+      },
+      "position": [
+        -32,
+        3,
+        -8
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_16_0",
+      "name": "Box 16_0",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 17,
+        "height": 6,
+        "depth": 1
+      },
+      "position": [
+        -16,
+        3,
+        -8
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_17_0",
+      "name": "Box 17_0",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 17,
+        "height": 6,
+        "depth": 1
+      },
+      "position": [
+        -80,
+        3,
+        8
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_18_0",
+      "name": "Box 18_0",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 17,
+        "height": 6,
+        "depth": 1
+      },
+      "position": [
+        -64,
+        3,
+        8
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_19_0",
+      "name": "Box 19_0",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 17,
+        "height": 6,
+        "depth": 1
+      },
+      "position": [
+        -48,
+        3,
+        8
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_20_0",
+      "name": "Box 20_0",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 17,
+        "height": 6,
+        "depth": 1
+      },
+      "position": [
+        -32,
+        3,
+        8
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_21_0",
+      "name": "Box 21_0",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 17,
+        "height": 6,
+        "depth": 1
+      },
+      "position": [
+        -16,
+        3,
+        8
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_22_0",
+      "name": "Box 22_0",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 17,
+        "height": 6,
+        "depth": 1
+      },
+      "position": [
+        0,
+        3,
+        8
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_23_0",
+      "name": "Box 23_0",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 1,
+        "height": 6,
+        "depth": 17
+      },
+      "position": [
+        -88,
+        3,
+        -80
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_24_0",
+      "name": "Box 24_0",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 1,
+        "height": 6,
+        "depth": 17
+      },
+      "position": [
+        -40,
+        3,
+        -80
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_25_0",
+      "name": "Box 25_0",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 1,
+        "height": 6,
+        "depth": 17
+      },
+      "position": [
+        8,
+        3,
+        -80
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_26_0",
+      "name": "Box 26_0",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 1,
+        "height": 6,
+        "depth": 17
+      },
+      "position": [
+        -88,
+        3,
+        -64
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_27_0",
+      "name": "Box 27_0",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 1,
+        "height": 6,
+        "depth": 17
+      },
+      "position": [
+        -56,
+        3,
+        -64
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_28_0",
+      "name": "Box 28_0",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 1,
+        "height": 6,
+        "depth": 17
+      },
+      "position": [
+        -8,
+        3,
+        -64
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_29_0",
+      "name": "Box 29_0",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 1,
+        "height": 6,
+        "depth": 17
+      },
+      "position": [
+        8,
+        3,
+        -64
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_30_0",
+      "name": "Box 30_0",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 1,
+        "height": 6,
+        "depth": 17
+      },
+      "position": [
+        -88,
+        3,
+        -48
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_31_0",
+      "name": "Box 31_0",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 1,
+        "height": 6,
+        "depth": 17
+      },
+      "position": [
+        8,
+        3,
+        -48
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_32_0",
+      "name": "Box 32_0",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 1,
+        "height": 6,
+        "depth": 17
+      },
+      "position": [
+        -88,
+        3,
+        -32
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_33_0",
+      "name": "Box 33_0",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 1,
+        "height": 6,
+        "depth": 17
+      },
+      "position": [
+        -72,
+        3,
+        -32
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_34_0",
+      "name": "Box 34_0",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 1,
+        "height": 6,
+        "depth": 17
+      },
+      "position": [
+        -40,
+        3,
+        -32
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_35_0",
+      "name": "Box 35_0",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 1,
+        "height": 6,
+        "depth": 17
+      },
+      "position": [
+        -24,
+        3,
+        -32
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_36_0",
+      "name": "Box 36_0",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 1,
+        "height": 6,
+        "depth": 17
+      },
+      "position": [
+        -8,
+        3,
+        -32
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_37_0",
+      "name": "Box 37_0",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 1,
+        "height": 6,
+        "depth": 17
+      },
+      "position": [
+        8,
+        3,
+        -32
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_38_0",
+      "name": "Box 38_0",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 1,
+        "height": 6,
+        "depth": 17
+      },
+      "position": [
+        -88,
+        3,
+        -16
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_39_0",
+      "name": "Box 39_0",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 1,
+        "height": 6,
+        "depth": 17
+      },
+      "position": [
+        -72,
+        3,
+        -16
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_40_0",
+      "name": "Box 40_0",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 1,
+        "height": 6,
+        "depth": 17
+      },
+      "position": [
+        -8,
+        3,
+        -16
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_41_0",
+      "name": "Box 41_0",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 1,
+        "height": 6,
+        "depth": 17
+      },
+      "position": [
+        8,
+        3,
+        -16
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_42_0",
+      "name": "Box 42_0",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 1,
+        "height": 6,
+        "depth": 17
+      },
+      "position": [
+        -88,
+        3,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_43_0",
+      "name": "Box 43_0",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 1,
+        "height": 6,
+        "depth": 17
+      },
+      "position": [
+        -56,
+        3,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_44_0",
+      "name": "Box 44_0",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 1,
+        "height": 6,
+        "depth": 17
+      },
+      "position": [
+        8,
+        3,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "chain_marker_0_0",
+      "name": "Chain 0 marker 0",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 3,
+        "height": 0.3,
+        "depth": 3
+      },
+      "position": [
+        0,
+        9,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "material": {
+        "color": [
+          1,
+          0.25,
+          0.2
+        ],
+        "opacity": 0.9
+      }
+    },
+    {
+      "id": "chain_marker_0_1",
+      "name": "Chain 0 marker 1",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 3,
+        "height": 0.3,
+        "depth": 3
+      },
+      "position": [
+        -9.5,
+        9,
+        0.1
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "material": {
+        "color": [
+          1,
+          0.25,
+          0.2
+        ],
+        "opacity": 0.9
+      }
+    },
+    {
+      "id": "chain_marker_0_2",
+      "name": "Chain 0 marker 2",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 3,
+        "height": 0.3,
+        "depth": 3
+      },
+      "position": [
+        -19,
+        9,
+        0.2
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "material": {
+        "color": [
+          1,
+          0.25,
+          0.2
+        ],
+        "opacity": 0.9
+      }
+    },
+    {
+      "id": "chain_marker_0_3",
+      "name": "Chain 0 marker 3",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 3,
+        "height": 0.3,
+        "depth": 3
+      },
+      "position": [
+        -28.5,
+        9,
+        0.3
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "material": {
+        "color": [
+          1,
+          0.25,
+          0.2
+        ],
+        "opacity": 0.9
+      }
+    },
+    {
+      "id": "chain_marker_0_4",
+      "name": "Chain 0 marker 4",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 3,
+        "height": 0.3,
+        "depth": 3
+      },
+      "position": [
+        -38,
+        9,
+        0.4
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "material": {
+        "color": [
+          1,
+          0.25,
+          0.2
+        ],
+        "opacity": 0.9
+      }
+    },
+    {
+      "id": "chain_marker_0_5",
+      "name": "Chain 0 marker 5",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 3,
+        "height": 0.3,
+        "depth": 3
+      },
+      "position": [
+        -47.5,
+        9,
+        0.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "material": {
+        "color": [
+          1,
+          0.25,
+          0.2
+        ],
+        "opacity": 0.9
+      }
+    },
+    {
+      "id": "policy_car_body_1",
+      "name": "Policy car_1",
+      "bodyType": "dynamic",
+      "shape": {
+        "type": "box",
+        "width": 4,
+        "height": 1,
+        "depth": 8
+      },
+      "position": [
+        160,
+        0.494,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "mass": 2,
+      "restitution": 0.1,
+      "friction": 0.01,
+      "angularDamping": 0.3,
+      "transformers": [
+        "policy_drive_1",
+        "policy_car_1"
+      ]
+    },
+    {
+      "id": "box_0_1",
+      "name": "Box 0_1",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 17,
+        "height": 6,
+        "depth": 1
+      },
+      "position": [
+        80,
+        3,
+        -88
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_1_1",
+      "name": "Box 1_1",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 17,
+        "height": 6,
+        "depth": 1
+      },
+      "position": [
+        96,
+        3,
+        -88
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_2_1",
+      "name": "Box 2_1",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 17,
+        "height": 6,
+        "depth": 1
+      },
+      "position": [
+        112,
+        3,
+        -88
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_3_1",
+      "name": "Box 3_1",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 17,
+        "height": 6,
+        "depth": 1
+      },
+      "position": [
+        144,
+        3,
+        -88
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_4_1",
+      "name": "Box 4_1",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 17,
+        "height": 6,
+        "depth": 1
+      },
+      "position": [
+        160,
+        3,
+        -88
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_5_1",
+      "name": "Box 5_1",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 17,
+        "height": 6,
+        "depth": 1
+      },
+      "position": [
+        96,
+        3,
+        -72
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_6_1",
+      "name": "Box 6_1",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 17,
+        "height": 6,
+        "depth": 1
+      },
+      "position": [
+        128,
+        3,
+        -72
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_7_1",
+      "name": "Box 7_1",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 17,
+        "height": 6,
+        "depth": 1
+      },
+      "position": [
+        144,
+        3,
+        -72
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_8_1",
+      "name": "Box 8_1",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 17,
+        "height": 6,
+        "depth": 1
+      },
+      "position": [
+        112,
+        3,
+        -56
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_9_1",
+      "name": "Box 9_1",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 17,
+        "height": 6,
+        "depth": 1
+      },
+      "position": [
+        128,
+        3,
+        -56
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_10_1",
+      "name": "Box 10_1",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 17,
+        "height": 6,
+        "depth": 1
+      },
+      "position": [
+        96,
+        3,
+        -40
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_11_1",
+      "name": "Box 11_1",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 17,
+        "height": 6,
+        "depth": 1
+      },
+      "position": [
+        112,
+        3,
+        -40
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_12_1",
+      "name": "Box 12_1",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 17,
+        "height": 6,
+        "depth": 1
+      },
+      "position": [
+        144,
+        3,
+        -40
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_13_1",
+      "name": "Box 13_1",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 17,
+        "height": 6,
+        "depth": 1
+      },
+      "position": [
+        128,
+        3,
+        -24
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_14_1",
+      "name": "Box 14_1",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 17,
+        "height": 6,
+        "depth": 1
+      },
+      "position": [
+        112,
+        3,
+        -8
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_15_1",
+      "name": "Box 15_1",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 17,
+        "height": 6,
+        "depth": 1
+      },
+      "position": [
+        128,
+        3,
+        -8
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_16_1",
+      "name": "Box 16_1",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 17,
+        "height": 6,
+        "depth": 1
+      },
+      "position": [
+        144,
+        3,
+        -8
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_17_1",
+      "name": "Box 17_1",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 17,
+        "height": 6,
+        "depth": 1
+      },
+      "position": [
+        80,
+        3,
+        8
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_18_1",
+      "name": "Box 18_1",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 17,
+        "height": 6,
+        "depth": 1
+      },
+      "position": [
+        96,
+        3,
+        8
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_19_1",
+      "name": "Box 19_1",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 17,
+        "height": 6,
+        "depth": 1
+      },
+      "position": [
+        112,
+        3,
+        8
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_20_1",
+      "name": "Box 20_1",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 17,
+        "height": 6,
+        "depth": 1
+      },
+      "position": [
+        128,
+        3,
+        8
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_21_1",
+      "name": "Box 21_1",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 17,
+        "height": 6,
+        "depth": 1
+      },
+      "position": [
+        144,
+        3,
+        8
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_22_1",
+      "name": "Box 22_1",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 17,
+        "height": 6,
+        "depth": 1
+      },
+      "position": [
+        160,
+        3,
+        8
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_23_1",
+      "name": "Box 23_1",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 1,
+        "height": 6,
+        "depth": 17
+      },
+      "position": [
+        72,
+        3,
+        -80
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_24_1",
+      "name": "Box 24_1",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 1,
+        "height": 6,
+        "depth": 17
+      },
+      "position": [
+        120,
+        3,
+        -80
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_25_1",
+      "name": "Box 25_1",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 1,
+        "height": 6,
+        "depth": 17
+      },
+      "position": [
+        168,
+        3,
+        -80
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_26_1",
+      "name": "Box 26_1",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 1,
+        "height": 6,
+        "depth": 17
+      },
+      "position": [
+        72,
+        3,
+        -64
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_27_1",
+      "name": "Box 27_1",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 1,
+        "height": 6,
+        "depth": 17
+      },
+      "position": [
+        104,
+        3,
+        -64
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_28_1",
+      "name": "Box 28_1",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 1,
+        "height": 6,
+        "depth": 17
+      },
+      "position": [
+        152,
+        3,
+        -64
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_29_1",
+      "name": "Box 29_1",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 1,
+        "height": 6,
+        "depth": 17
+      },
+      "position": [
+        168,
+        3,
+        -64
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_30_1",
+      "name": "Box 30_1",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 1,
+        "height": 6,
+        "depth": 17
+      },
+      "position": [
+        72,
+        3,
+        -48
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_31_1",
+      "name": "Box 31_1",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 1,
+        "height": 6,
+        "depth": 17
+      },
+      "position": [
+        168,
+        3,
+        -48
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_32_1",
+      "name": "Box 32_1",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 1,
+        "height": 6,
+        "depth": 17
+      },
+      "position": [
+        72,
+        3,
+        -32
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_33_1",
+      "name": "Box 33_1",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 1,
+        "height": 6,
+        "depth": 17
+      },
+      "position": [
+        88,
+        3,
+        -32
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_34_1",
+      "name": "Box 34_1",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 1,
+        "height": 6,
+        "depth": 17
+      },
+      "position": [
+        120,
+        3,
+        -32
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_35_1",
+      "name": "Box 35_1",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 1,
+        "height": 6,
+        "depth": 17
+      },
+      "position": [
+        136,
+        3,
+        -32
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_36_1",
+      "name": "Box 36_1",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 1,
+        "height": 6,
+        "depth": 17
+      },
+      "position": [
+        152,
+        3,
+        -32
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_37_1",
+      "name": "Box 37_1",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 1,
+        "height": 6,
+        "depth": 17
+      },
+      "position": [
+        168,
+        3,
+        -32
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_38_1",
+      "name": "Box 38_1",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 1,
+        "height": 6,
+        "depth": 17
+      },
+      "position": [
+        72,
+        3,
+        -16
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_39_1",
+      "name": "Box 39_1",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 1,
+        "height": 6,
+        "depth": 17
+      },
+      "position": [
+        88,
+        3,
+        -16
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_40_1",
+      "name": "Box 40_1",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 1,
+        "height": 6,
+        "depth": 17
+      },
+      "position": [
+        152,
+        3,
+        -16
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_41_1",
+      "name": "Box 41_1",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 1,
+        "height": 6,
+        "depth": 17
+      },
+      "position": [
+        168,
+        3,
+        -16
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_42_1",
+      "name": "Box 42_1",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 1,
+        "height": 6,
+        "depth": 17
+      },
+      "position": [
+        72,
+        3,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_43_1",
+      "name": "Box 43_1",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 1,
+        "height": 6,
+        "depth": 17
+      },
+      "position": [
+        104,
+        3,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_44_1",
+      "name": "Box 44_1",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 1,
+        "height": 6,
+        "depth": 17
+      },
+      "position": [
+        168,
+        3,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "chain_marker_1_0",
+      "name": "Chain 1 marker 0",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 3,
+        "height": 0.3,
+        "depth": 3
+      },
+      "position": [
+        160,
+        9,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "material": {
+        "color": [
+          0.2,
+          0.55,
+          1
+        ],
+        "opacity": 0.9
+      }
+    },
+    {
+      "id": "chain_marker_1_1",
+      "name": "Chain 1 marker 1",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 3,
+        "height": 0.3,
+        "depth": 3
+      },
+      "position": [
+        159.90635561483566,
+        9,
+        -8.334350279625225
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "material": {
+        "color": [
+          0.2,
+          0.55,
+          1
+        ],
+        "opacity": 0.9
+      }
+    },
+    {
+      "id": "chain_marker_1_2",
+      "name": "Chain 1 marker 2",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 3,
+        "height": 0.3,
+        "depth": 3
+      },
+      "position": [
+        159.81271122967135,
+        9,
+        -16.66870055925045
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "material": {
+        "color": [
+          0.2,
+          0.55,
+          1
+        ],
+        "opacity": 0.9
+      }
+    },
+    {
+      "id": "chain_marker_1_3",
+      "name": "Chain 1 marker 3",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 3,
+        "height": 0.3,
+        "depth": 3
+      },
+      "position": [
+        159.719066844507,
+        9,
+        -25.003050838875673
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "material": {
+        "color": [
+          0.2,
+          0.55,
+          1
+        ],
+        "opacity": 0.9
+      }
+    },
+    {
+      "id": "chain_marker_1_4",
+      "name": "Chain 1 marker 4",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 3,
+        "height": 0.3,
+        "depth": 3
+      },
+      "position": [
+        159.62542245934267,
+        9,
+        -33.3374011185009
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "material": {
+        "color": [
+          0.2,
+          0.55,
+          1
+        ],
+        "opacity": 0.9
+      }
+    },
+    {
+      "id": "chain_marker_1_5",
+      "name": "Chain 1 marker 5",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 3,
+        "height": 0.3,
+        "depth": 3
+      },
+      "position": [
+        159.53177807417836,
+        9,
+        -41.671751398126126
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "material": {
+        "color": [
+          0.2,
+          0.55,
+          1
+        ],
+        "opacity": 0.9
+      }
+    },
+    {
+      "id": "chain_marker_1_6",
+      "name": "Chain 1 marker 6",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 3,
+        "height": 0.3,
+        "depth": 3
+      },
+      "position": [
+        159.28215613547962,
+        9,
+        -43.4397409267612
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "material": {
+        "color": [
+          0.2,
+          0.55,
+          1
+        ],
+        "opacity": 0.9
+      }
+    },
+    {
+      "id": "chain_marker_1_7",
+      "name": "Chain 1 marker 7",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 3,
+        "height": 0.3,
+        "depth": 3
+      },
+      "position": [
+        158.58960920506001,
+        9,
+        -45.085485996572864
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "material": {
+        "color": [
+          0.2,
+          0.55,
+          1
+        ],
+        "opacity": 0.9
+      }
+    },
+    {
+      "id": "chain_marker_1_8",
+      "name": "Chain 1 marker 8",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 3,
+        "height": 0.3,
+        "depth": 3
+      },
+      "position": [
+        157.5,
+        9,
+        -46.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "material": {
+        "color": [
+          0.2,
+          0.55,
+          1
+        ],
+        "opacity": 0.9
+      }
+    },
+    {
+      "id": "chain_marker_1_9",
+      "name": "Chain 1 marker 9",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 3,
+        "height": 0.3,
+        "depth": 3
+      },
+      "position": [
+        157.5,
+        9,
+        -46.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "material": {
+        "color": [
+          0.2,
+          0.55,
+          1
+        ],
+        "opacity": 0.9
+      }
+    },
+    {
+      "id": "chain_marker_1_10",
+      "name": "Chain 1 marker 10",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 3,
+        "height": 0.3,
+        "depth": 3
+      },
+      "position": [
+        156.08710566702646,
+        9,
+        -47.57036662494467
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "material": {
+        "color": [
+          0.2,
+          0.55,
+          1
+        ],
+        "opacity": 0.9
+      }
+    },
+    {
+      "id": "chain_marker_1_11",
+      "name": "Chain 1 marker 11",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 3,
+        "height": 0.3,
+        "depth": 3
+      },
+      "position": [
+        154.43720273624118,
+        9,
+        -48.21826740973378
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "material": {
+        "color": [
+          0.2,
+          0.55,
+          1
+        ],
+        "opacity": 0.9
+      }
+    },
+    {
+      "id": "chain_marker_1_12",
+      "name": "Chain 1 marker 12",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 3,
+        "height": 0.3,
+        "depth": 3
+      },
+      "position": [
+        152.67351081801286,
+        9,
+        -48.39531521548196
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "material": {
+        "color": [
+          0.2,
+          0.55,
+          1
+        ],
+        "opacity": 0.9
+      }
+    },
+    {
+      "id": "chain_marker_1_13",
+      "name": "Chain 1 marker 13",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 3,
+        "height": 0.3,
+        "depth": 3
+      },
+      "position": [
+        144.61567387867524,
+        9,
+        -48.096876810321305
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "material": {
+        "color": [
+          0.2,
+          0.55,
+          1
+        ],
+        "opacity": 0.9
+      }
+    },
+    {
+      "id": "chain_marker_1_14",
+      "name": "Chain 1 marker 14",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 3,
+        "height": 0.3,
+        "depth": 3
+      },
+      "position": [
+        136.55783693933762,
+        9,
+        -47.79843840516065
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "material": {
+        "color": [
+          0.2,
+          0.55,
+          1
+        ],
+        "opacity": 0.9
+      }
+    },
+    {
+      "id": "chain_marker_1_15",
+      "name": "Chain 1 marker 15",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 3,
+        "height": 0.3,
+        "depth": 3
+      },
+      "position": [
+        128.5,
+        9,
+        -47.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "material": {
+        "color": [
+          0.2,
+          0.55,
+          1
+        ],
+        "opacity": 0.9
+      }
+    }
+  ],
+  "scripts": {},
+  "groups": []
+}
