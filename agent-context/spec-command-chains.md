@@ -52,3 +52,32 @@ chain is driven; EVENLY distributed performance is rewarded. Focused work, no si
   field@0.3/crowd setups (proves chains are drivable and the command pipeline works end to end); report the rate per kind.
 - evenness aggregate: unit test that an uneven candidate scores below an even one with the same mean.
 - warm-start equality (padded v1 == v1); stage forward pass == `policyForward`; episode determinism.
+
+## v3 (agreed with the user 2026-10-10): forward AND backward from the start, free-track pretraining
+User: no speed command, ONLY the direction. Reversing was neglected in training; the target vector must point forward and then backward
+and the car must be rewarded accordingly; this has to be trained FROM THE BEGINNING (fresh nets, no warm start from v1/v2): pretraining on
+a free track first, obstacles later.
+- **Inputs stay direction-only** (v2 layout: aim cos, sin, dist; next-segment cos, sin; no speed input). Hidden size from the capacity screening.
+- **Why the v2 net never reverses** (measured): fitness = progress x speed, stall abort = < 1 m progress in 3 s, instant abort on contact,
+  and no chain ever needs braking or reversing => the net learned "full throttle forward".
+- **Direction chains with reversals:** a chain is a sequence of LEGS; a leg may point back the way the car came (aim behind the car).
+  Short back legs (5-20 m, aim behind within +-30 deg) are cheapest to drive in reverse (turning circle ~10 m), long ones may be turned;
+  both are valid, the reward does not prescribe forward/reverse, it rewards reaching the commanded points quickly. Mix per episode:
+  forward-only legs, reversal legs (back 5-20 m then forward again), lateral offsets (aim 60-120 deg to the side, needs a short reverse +
+  turn or a K-turn), and stop-and-go (aim very close).
+- **Progress on chains that double back:** `RouteProgress` projection is ambiguous on overlapping legs. Measure progress per leg: the leg
+  index only advances when the car is within `reachR` of the leg end (or past it along the leg); progress = completed leg lengths + the
+  projection onto the CURRENT leg only (monotone per leg). Offcourse = distance to the current leg > 6 m.
+- **Stall rule:** stand-still based: |speed| < 0.5 m/s for 3 s (manoeuvres must survive); keep the progress stall as a much longer
+  safety net (no progress for 10 s). Contact still ends the episode (safe driving).
+- **Fitness:** per episode norm = progress^2 / t / (chain length x 10) on the leg-wise progress (unchanged form); evenness aggregate as v2.
+- **Stage A, free track:** a big closed arena (walls far away, e.g. 200 x 200 m, no obstacles), seeded random direction chains of
+  6-12 legs (incl. reversals, lateral targets, stop-and-go). Fresh random nets (start prior: none needed if the reward gives signal;
+  check), islands as before.
+- **Stage B, obstacles:** automatic curriculum: the share of obstacle setups (field/slalom/maze/crowd with chains as in v2, plus NEW
+  reversal setups: dead-end bays to drive into and back out of, and corridors too narrow to U-turn) rises from 0 to ~70 % when the free-track
+  chain finish rate EMA >= 0.7 (step 0.1, like the field curriculum). Free-track episodes stay in the mix (no forgetting).
+- **Tests (minimum):** leg-wise progress on a doubling-back chain (unit); a hand-wired controller that reverses when the aim is behind
+  finishes reversal chains on the free track, one that only drives forward does NOT finish a short back leg as fast (or fails the narrow
+  corridor); stand-still stall vs manoeuvre (a reversing car is not stalled); dead-end and narrow-corridor setups are closed and
+  solvable by the hand-wired reverser; curriculum share rises only with the gate; determinism.
