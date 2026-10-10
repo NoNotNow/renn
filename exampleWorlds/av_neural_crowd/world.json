@@ -34,7 +34,7 @@
       "mode": "thirdPerson",
       "target": "entity_1779823253285_brtkx1p",
       "control": "follow",
-      "distance": 40,
+      "distance": 36,
       "height": 30,
       "cameraTargetLag": 120,
       "cameraPositionLag": 180
@@ -454,9 +454,9 @@
         "angular": false,
         "perimeter": {
           "center": [
-            149.47585844075013,
             0,
-            11.24876900024914
+            0,
+            -250
           ],
           "halfExtents": [
             0,
@@ -945,246 +945,6 @@
         "globalId": "global_av_neural",
         "hash": "1u5pejn"
       }
-    },
-    "fleet_car_1_tf10": {
-      "type": "wanderer",
-      "priority": 0,
-      "enabled": true,
-      "params": {
-        "speed": 2,
-        "jumpDistance": 900,
-        "linear": true,
-        "angular": false,
-        "perimeter": {
-          "center": [
-            -244.97458582016003,
-            0,
-            -2.894016840167396
-          ],
-          "halfExtents": [
-            0,
-            0,
-            0
-          ]
-        },
-        "positionEpsilon": 30,
-        "planar": true,
-        "rotationEpsilon": 20
-      }
-    },
-    "fleet_car_1_tf1": {
-      "type": "car2",
-      "priority": 11,
-      "enabled": true,
-      "params": {
-        "power": 2400,
-        "steeringIntensity": 0.1,
-        "steeringSpeed": 0.51,
-        "lateralGrip": 100,
-        "tireGripSlipSpeedThreshold": 2,
-        "lateralGripSlipScale": 0.3,
-        "jumpImpulse": 200
-      }
-    },
-    "fleet_car_2_tf10": {
-      "type": "wanderer",
-      "priority": 0,
-      "enabled": true,
-      "params": {
-        "speed": 2,
-        "jumpDistance": 900,
-        "linear": true,
-        "angular": false,
-        "perimeter": {
-          "center": [
-            211.79733653700993,
-            0,
-            -319.70722411907366
-          ],
-          "halfExtents": [
-            0,
-            0,
-            0
-          ]
-        },
-        "positionEpsilon": 30,
-        "planar": true,
-        "rotationEpsilon": 20
-      }
-    },
-    "fleet_car_2_tf1": {
-      "type": "car2",
-      "priority": 11,
-      "enabled": true,
-      "params": {
-        "power": 2400,
-        "steeringIntensity": 0.1,
-        "steeringSpeed": 0.51,
-        "lateralGrip": 100,
-        "tireGripSlipSpeedThreshold": 2,
-        "lateralGripSlipScale": 0.3,
-        "jumpImpulse": 200
-      }
-    },
-    "fleet_car_3_tf10": {
-      "type": "wanderer",
-      "priority": 0,
-      "enabled": true,
-      "params": {
-        "speed": 2,
-        "jumpDistance": 900,
-        "linear": true,
-        "angular": false,
-        "perimeter": {
-          "center": [
-            -24.644507169386813,
-            0,
-            251.65186181879852
-          ],
-          "halfExtents": [
-            0,
-            0,
-            0
-          ]
-        },
-        "positionEpsilon": 30,
-        "planar": true,
-        "rotationEpsilon": 20
-      }
-    },
-    "fleet_car_3_tf1": {
-      "type": "car2",
-      "priority": 11,
-      "enabled": true,
-      "params": {
-        "power": 2400,
-        "steeringIntensity": 0.1,
-        "steeringSpeed": 0.51,
-        "lateralGrip": 100,
-        "tireGripSlipSpeedThreshold": 2,
-        "lateralGripSlipScale": 0.3,
-        "jumpImpulse": 200
-      }
-    },
-    "fleet_car_4_tf10": {
-      "type": "wanderer",
-      "priority": 0,
-      "enabled": true,
-      "params": {
-        "speed": 2,
-        "jumpDistance": 900,
-        "linear": true,
-        "angular": false,
-        "perimeter": {
-          "center": [
-            -218.1795291028752,
-            0,
-            -141.41319980980433
-          ],
-          "halfExtents": [
-            0,
-            0,
-            0
-          ]
-        },
-        "positionEpsilon": 30,
-        "planar": true,
-        "rotationEpsilon": 20
-      }
-    },
-    "fleet_car_4_tf1": {
-      "type": "car2",
-      "priority": 11,
-      "enabled": true,
-      "params": {
-        "power": 2400,
-        "steeringIntensity": 0.1,
-        "steeringSpeed": 0.51,
-        "lateralGrip": 100,
-        "tireGripSlipSpeedThreshold": 2,
-        "lateralGripSlipScale": 0.3,
-        "jumpImpulse": 200
-      }
-    },
-    "fleet_car_5_tf10": {
-      "type": "wanderer",
-      "priority": 0,
-      "enabled": true,
-      "params": {
-        "speed": 2,
-        "jumpDistance": 900,
-        "linear": true,
-        "angular": false,
-        "perimeter": {
-          "center": [
-            346.4020286438948,
-            0,
-            -43.104520729215125
-          ],
-          "halfExtents": [
-            0,
-            0,
-            0
-          ]
-        },
-        "positionEpsilon": 30,
-        "planar": true,
-        "rotationEpsilon": 20
-      }
-    },
-    "fleet_car_5_tf1": {
-      "type": "car2",
-      "priority": 11,
-      "enabled": true,
-      "params": {
-        "power": 2400,
-        "steeringIntensity": 0.1,
-        "steeringSpeed": 0.51,
-        "lateralGrip": 100,
-        "tireGripSlipSpeedThreshold": 2,
-        "lateralGripSlipScale": 0.3,
-        "jumpImpulse": 200
-      }
-    },
-    "fleet_car_6_tf10": {
-      "type": "wanderer",
-      "priority": 0,
-      "enabled": true,
-      "params": {
-        "speed": 2,
-        "jumpDistance": 900,
-        "linear": true,
-        "angular": false,
-        "perimeter": {
-          "center": [
-            -249.9461437167583,
-            0,
-            294.98105061233855
-          ],
-          "halfExtents": [
-            0,
-            0,
-            0
-          ]
-        },
-        "positionEpsilon": 30,
-        "planar": true,
-        "rotationEpsilon": 20
-      }
-    },
-    "fleet_car_6_tf1": {
-      "type": "car2",
-      "priority": 11,
-      "enabled": true,
-      "params": {
-        "power": 2400,
-        "steeringIntensity": 0.1,
-        "steeringSpeed": 0.51,
-        "lateralGrip": 100,
-        "tireGripSlipSpeedThreshold": 2,
-        "lateralGripSlipScale": 0.3,
-        "jumpImpulse": 200
-      }
     }
   },
   "assets": {
@@ -1272,13 +1032,13 @@
         "depth": 8
       },
       "position": [
-        -90,
+        0,
         0.494,
-        -90
+        0
       ],
       "rotation": [
         0,
-        -1.9707963267948967,
+        0,
         0
       ],
       "mass": 2,
@@ -1361,10 +1121,16 @@
               -450,
               450
             ],
+            "threatIds": [],
             "passSide": "right",
             "manualOverride": true,
             "overrideHold": 1,
-            "mazeModule": true
+            "mazeModule": true,
+            "neuralMode": "auto",
+            "neuralOnOcc": 0.27,
+            "neuralOnConf": 0.35,
+            "neuralOffOcc": 0.15,
+            "neuralOffConf": 0.2
           },
           "enabled": true
         }
@@ -1376,14 +1142,14 @@
       "bodyType": "static",
       "shape": {
         "type": "box",
-        "width": 41,
-        "height": 1.5,
-        "depth": 1
+        "width": 1,
+        "height": 3,
+        "depth": 220
       },
       "position": [
-        -40,
-        0.75,
-        -40
+        -8.3,
+        1.5,
+        -130
       ],
       "rotation": [
         0,
@@ -1398,14 +1164,14 @@
       "bodyType": "static",
       "shape": {
         "type": "box",
-        "width": 41,
-        "height": 1.5,
-        "depth": 1
+        "width": 1,
+        "height": 3,
+        "depth": 220
       },
       "position": [
-        40,
-        0.75,
-        40
+        8.3,
+        1.5,
+        -130
       ],
       "rotation": [
         0,
@@ -1420,14 +1186,14 @@
       "bodyType": "static",
       "shape": {
         "type": "box",
-        "width": 1,
-        "height": 1.5,
-        "depth": 41
+        "width": 4,
+        "height": 1.6,
+        "depth": 8
       },
       "position": [
-        -45,
-        0.75,
-        30
+        -5.75,
+        0.8,
+        -40
       ],
       "rotation": [
         0,
@@ -1442,14 +1208,14 @@
       "bodyType": "static",
       "shape": {
         "type": "box",
-        "width": 1,
-        "height": 1.5,
-        "depth": 41
+        "width": 4,
+        "height": 1.6,
+        "depth": 8
       },
       "position": [
-        45,
-        0.75,
-        -30
+        5.75,
+        0.8,
+        -46.5
       ],
       "rotation": [
         0,
@@ -1459,658 +1225,603 @@
       "friction": 0.5
     },
     {
-      "id": "fleet_car_1",
-      "name": "fleet_car_1",
-      "bodyType": "dynamic",
+      "id": "arena_box_4",
+      "name": "Box 4",
+      "bodyType": "static",
       "shape": {
         "type": "box",
         "width": 4,
-        "height": 1,
+        "height": 1.6,
         "depth": 8
       },
       "position": [
-        0,
-        0.494,
-        -90
+        -5.75,
+        0.8,
+        -53
       ],
       "rotation": [
         0,
-        1.91242598038469,
+        0,
         0
       ],
-      "mass": 2,
-      "restitution": 0.1,
-      "friction": 0.01,
-      "transformers": [
-        "global_av_input",
-        "global_av_ego",
-        "global_av_perception",
-        "global_av_waypoint_viz",
-        "global_av_route_planner",
-        "global_av_motion_planner",
-        "global_av_speed_planner",
-        "global_av_supervisor",
-        "global_av_control_lateral",
-        "global_av_control_longitudinal",
-        "global_av_neural",
-        "global_av_aeb",
-        "fleet_car_1_tf10",
-        "fleet_car_1_tf1"
-      ],
-      "angularDamping": 0.3,
-      "scale": [
-        1,
-        1,
-        1
-      ],
-      "locked": false,
-      "transformerPipeStack": [
-        {
-          "pipeId": "global_av_autopilot",
-          "params": {
-            "cruiseSpeed": 1000,
-            "curveSmooth": 0.6,
-            "switchMargin": 3,
-            "curveDeadband": 0.004,
-            "vehicleWidth": 4,
-            "vehicleLength": 8,
-            "safetyMargin": 0.5,
-            "maxCurvature": 0.115,
-            "goalTolerance": 5.5,
-            "debugDraw": true,
-            "goalViz": true,
-            "hud": true,
-            "goalReachDist": 31,
-            "obstacleSlowRadius": 1,
-            "minSpeed": 9.4,
-            "comfortDecel": 4,
-            "fwdFovDeg": 70,
-            "goalWatchdog": 10,
-            "staticMap": true,
-            "fieldHeuristic": true,
-            "routeClearance": true,
-            "carrotLive": true,
-            "goalGiveUp": 3,
-            "escapeTriggerHorizon": 3.5,
-            "carrotBend": 0.65,
-            "pocketBrake": true,
-            "budget": "eco",
-            "saver": false,
-            "maneuverRunSpeed": 7,
-            "handbackMargin": 0.9,
-            "fleeStoppedSpeed": 1.5,
-            "wThreat": 30,
-            "threatTurnRate": 1.5,
-            "threatHorizon": 4,
-            "threatAccel": 7,
-            "threatHitFloor": 250,
-            "wRequired": 300,
-            "threatTurnMin": 0.5,
-            "chasedDecel": 9,
-            "gainInit": 1300,
-            "maxAccel": 60,
-            "tau": 0.12,
-            "threatRadius": 2.8,
-            "threatBodyRadius": 4.5,
-            "fleeArea": [
-              -450,
-              450,
-              -450,
-              450
-            ],
-            "passSide": "right",
-            "manualOverride": true,
-            "overrideHold": 1,
-            "mazeModule": true
-          },
-          "enabled": true
-        }
-      ]
+      "friction": 0.5
     },
     {
-      "id": "fleet_car_2",
-      "name": "fleet_car_2",
-      "bodyType": "dynamic",
+      "id": "arena_box_5",
+      "name": "Box 5",
+      "bodyType": "static",
       "shape": {
         "type": "box",
         "width": 4,
-        "height": 1,
+        "height": 1.6,
         "depth": 8
       },
       "position": [
-        90,
-        0.494,
-        -90
+        5.75,
+        0.8,
+        -59.5
       ],
       "rotation": [
         0,
-        -0.48753701961531054,
+        0,
         0
       ],
-      "mass": 2,
-      "restitution": 0.1,
-      "friction": 0.01,
-      "transformers": [
-        "global_av_input",
-        "global_av_ego",
-        "global_av_perception",
-        "global_av_waypoint_viz",
-        "global_av_route_planner",
-        "global_av_motion_planner",
-        "global_av_speed_planner",
-        "global_av_supervisor",
-        "global_av_control_lateral",
-        "global_av_control_longitudinal",
-        "global_av_neural",
-        "global_av_aeb",
-        "fleet_car_2_tf10",
-        "fleet_car_2_tf1"
-      ],
-      "angularDamping": 0.3,
-      "scale": [
-        1,
-        1,
-        1
-      ],
-      "locked": false,
-      "transformerPipeStack": [
-        {
-          "pipeId": "global_av_autopilot",
-          "params": {
-            "cruiseSpeed": 1000,
-            "curveSmooth": 0.6,
-            "switchMargin": 3,
-            "curveDeadband": 0.004,
-            "vehicleWidth": 4,
-            "vehicleLength": 8,
-            "safetyMargin": 0.5,
-            "maxCurvature": 0.115,
-            "goalTolerance": 5.5,
-            "debugDraw": true,
-            "goalViz": true,
-            "hud": true,
-            "goalReachDist": 31,
-            "obstacleSlowRadius": 1,
-            "minSpeed": 9.4,
-            "comfortDecel": 4,
-            "fwdFovDeg": 70,
-            "goalWatchdog": 10,
-            "staticMap": true,
-            "fieldHeuristic": true,
-            "routeClearance": true,
-            "carrotLive": true,
-            "goalGiveUp": 3,
-            "escapeTriggerHorizon": 3.5,
-            "carrotBend": 0.65,
-            "pocketBrake": true,
-            "budget": "eco",
-            "saver": false,
-            "maneuverRunSpeed": 7,
-            "handbackMargin": 0.9,
-            "fleeStoppedSpeed": 1.5,
-            "wThreat": 30,
-            "threatTurnRate": 1.5,
-            "threatHorizon": 4,
-            "threatAccel": 7,
-            "threatHitFloor": 250,
-            "wRequired": 300,
-            "threatTurnMin": 0.5,
-            "chasedDecel": 9,
-            "gainInit": 1300,
-            "maxAccel": 60,
-            "tau": 0.12,
-            "threatRadius": 2.8,
-            "threatBodyRadius": 4.5,
-            "fleeArea": [
-              -450,
-              450,
-              -450,
-              450
-            ],
-            "passSide": "right",
-            "manualOverride": true,
-            "overrideHold": 1,
-            "mazeModule": true
-          },
-          "enabled": true
-        }
-      ]
+      "friction": 0.5
     },
     {
-      "id": "fleet_car_3",
-      "name": "fleet_car_3",
-      "bodyType": "dynamic",
+      "id": "arena_box_6",
+      "name": "Box 6",
+      "bodyType": "static",
       "shape": {
         "type": "box",
         "width": 4,
-        "height": 1,
+        "height": 1.6,
         "depth": 8
       },
       "position": [
-        -90,
-        0.494,
-        0
+        -5.75,
+        0.8,
+        -66
       ],
       "rotation": [
         0,
-        -2.8875000196153118,
+        0,
         0
       ],
-      "mass": 2,
-      "restitution": 0.1,
-      "friction": 0.01,
-      "transformers": [
-        "global_av_input",
-        "global_av_ego",
-        "global_av_perception",
-        "global_av_waypoint_viz",
-        "global_av_route_planner",
-        "global_av_motion_planner",
-        "global_av_speed_planner",
-        "global_av_supervisor",
-        "global_av_control_lateral",
-        "global_av_control_longitudinal",
-        "global_av_neural",
-        "global_av_aeb",
-        "fleet_car_3_tf10",
-        "fleet_car_3_tf1"
-      ],
-      "angularDamping": 0.3,
-      "scale": [
-        1,
-        1,
-        1
-      ],
-      "locked": false,
-      "transformerPipeStack": [
-        {
-          "pipeId": "global_av_autopilot",
-          "params": {
-            "cruiseSpeed": 1000,
-            "curveSmooth": 0.6,
-            "switchMargin": 3,
-            "curveDeadband": 0.004,
-            "vehicleWidth": 4,
-            "vehicleLength": 8,
-            "safetyMargin": 0.5,
-            "maxCurvature": 0.115,
-            "goalTolerance": 5.5,
-            "debugDraw": true,
-            "goalViz": true,
-            "hud": true,
-            "goalReachDist": 31,
-            "obstacleSlowRadius": 1,
-            "minSpeed": 9.4,
-            "comfortDecel": 4,
-            "fwdFovDeg": 70,
-            "goalWatchdog": 10,
-            "staticMap": true,
-            "fieldHeuristic": true,
-            "routeClearance": true,
-            "carrotLive": true,
-            "goalGiveUp": 3,
-            "escapeTriggerHorizon": 3.5,
-            "carrotBend": 0.65,
-            "pocketBrake": true,
-            "budget": "eco",
-            "saver": false,
-            "maneuverRunSpeed": 7,
-            "handbackMargin": 0.9,
-            "fleeStoppedSpeed": 1.5,
-            "wThreat": 30,
-            "threatTurnRate": 1.5,
-            "threatHorizon": 4,
-            "threatAccel": 7,
-            "threatHitFloor": 250,
-            "wRequired": 300,
-            "threatTurnMin": 0.5,
-            "chasedDecel": 9,
-            "gainInit": 1300,
-            "maxAccel": 60,
-            "tau": 0.12,
-            "threatRadius": 2.8,
-            "threatBodyRadius": 4.5,
-            "fleeArea": [
-              -450,
-              450,
-              -450,
-              450
-            ],
-            "passSide": "right",
-            "manualOverride": true,
-            "overrideHold": 1,
-            "mazeModule": true
-          },
-          "enabled": true
-        }
-      ]
+      "friction": 0.5
     },
     {
-      "id": "fleet_car_4",
-      "name": "fleet_car_4",
-      "bodyType": "dynamic",
+      "id": "arena_box_7",
+      "name": "Box 7",
+      "bodyType": "static",
       "shape": {
         "type": "box",
         "width": 4,
-        "height": 1,
+        "height": 1.6,
         "depth": 8
       },
       "position": [
-        0,
-        0.494,
-        0
+        5.75,
+        0.8,
+        -72.5
       ],
       "rotation": [
         0,
-        0.9957222875642758,
+        0,
         0
       ],
-      "mass": 2,
-      "restitution": 0.1,
-      "friction": 0.01,
-      "transformers": [
-        "global_av_input",
-        "global_av_ego",
-        "global_av_perception",
-        "global_av_waypoint_viz",
-        "global_av_route_planner",
-        "global_av_motion_planner",
-        "global_av_speed_planner",
-        "global_av_supervisor",
-        "global_av_control_lateral",
-        "global_av_control_longitudinal",
-        "global_av_neural",
-        "global_av_aeb",
-        "fleet_car_4_tf10",
-        "fleet_car_4_tf1"
-      ],
-      "angularDamping": 0.3,
-      "scale": [
-        1,
-        1,
-        1
-      ],
-      "locked": false,
-      "transformerPipeStack": [
-        {
-          "pipeId": "global_av_autopilot",
-          "params": {
-            "cruiseSpeed": 1000,
-            "curveSmooth": 0.6,
-            "switchMargin": 3,
-            "curveDeadband": 0.004,
-            "vehicleWidth": 4,
-            "vehicleLength": 8,
-            "safetyMargin": 0.5,
-            "maxCurvature": 0.115,
-            "goalTolerance": 5.5,
-            "debugDraw": true,
-            "goalViz": true,
-            "hud": true,
-            "goalReachDist": 31,
-            "obstacleSlowRadius": 1,
-            "minSpeed": 9.4,
-            "comfortDecel": 4,
-            "fwdFovDeg": 70,
-            "goalWatchdog": 10,
-            "staticMap": true,
-            "fieldHeuristic": true,
-            "routeClearance": true,
-            "carrotLive": true,
-            "goalGiveUp": 3,
-            "escapeTriggerHorizon": 3.5,
-            "carrotBend": 0.65,
-            "pocketBrake": true,
-            "budget": "eco",
-            "saver": false,
-            "maneuverRunSpeed": 7,
-            "handbackMargin": 0.9,
-            "fleeStoppedSpeed": 1.5,
-            "wThreat": 30,
-            "threatTurnRate": 1.5,
-            "threatHorizon": 4,
-            "threatAccel": 7,
-            "threatHitFloor": 250,
-            "wRequired": 300,
-            "threatTurnMin": 0.5,
-            "chasedDecel": 9,
-            "gainInit": 1300,
-            "maxAccel": 60,
-            "tau": 0.12,
-            "threatRadius": 2.8,
-            "threatBodyRadius": 4.5,
-            "fleeArea": [
-              -450,
-              450,
-              -450,
-              450
-            ],
-            "passSide": "right",
-            "manualOverride": true,
-            "overrideHold": 1,
-            "mazeModule": true
-          },
-          "enabled": true
-        }
-      ]
+      "friction": 0.5
     },
     {
-      "id": "fleet_car_5",
-      "name": "fleet_car_5",
-      "bodyType": "dynamic",
+      "id": "arena_box_8",
+      "name": "Box 8",
+      "bodyType": "static",
       "shape": {
         "type": "box",
         "width": 4,
-        "height": 1,
+        "height": 1.6,
         "depth": 8
       },
       "position": [
-        90,
-        0.494,
-        0
+        -5.75,
+        0.8,
+        -79
       ],
       "rotation": [
         0,
-        -1.404240712435724,
+        0,
         0
       ],
-      "mass": 2,
-      "restitution": 0.1,
-      "friction": 0.01,
-      "transformers": [
-        "global_av_input",
-        "global_av_ego",
-        "global_av_perception",
-        "global_av_waypoint_viz",
-        "global_av_route_planner",
-        "global_av_motion_planner",
-        "global_av_speed_planner",
-        "global_av_supervisor",
-        "global_av_control_lateral",
-        "global_av_control_longitudinal",
-        "global_av_neural",
-        "global_av_aeb",
-        "fleet_car_5_tf10",
-        "fleet_car_5_tf1"
-      ],
-      "angularDamping": 0.3,
-      "scale": [
-        1,
-        1,
-        1
-      ],
-      "locked": false,
-      "transformerPipeStack": [
-        {
-          "pipeId": "global_av_autopilot",
-          "params": {
-            "cruiseSpeed": 1000,
-            "curveSmooth": 0.6,
-            "switchMargin": 3,
-            "curveDeadband": 0.004,
-            "vehicleWidth": 4,
-            "vehicleLength": 8,
-            "safetyMargin": 0.5,
-            "maxCurvature": 0.115,
-            "goalTolerance": 5.5,
-            "debugDraw": true,
-            "goalViz": true,
-            "hud": true,
-            "goalReachDist": 31,
-            "obstacleSlowRadius": 1,
-            "minSpeed": 9.4,
-            "comfortDecel": 4,
-            "fwdFovDeg": 70,
-            "goalWatchdog": 10,
-            "staticMap": true,
-            "fieldHeuristic": true,
-            "routeClearance": true,
-            "carrotLive": true,
-            "goalGiveUp": 3,
-            "escapeTriggerHorizon": 3.5,
-            "carrotBend": 0.65,
-            "pocketBrake": true,
-            "budget": "eco",
-            "saver": false,
-            "maneuverRunSpeed": 7,
-            "handbackMargin": 0.9,
-            "fleeStoppedSpeed": 1.5,
-            "wThreat": 30,
-            "threatTurnRate": 1.5,
-            "threatHorizon": 4,
-            "threatAccel": 7,
-            "threatHitFloor": 250,
-            "wRequired": 300,
-            "threatTurnMin": 0.5,
-            "chasedDecel": 9,
-            "gainInit": 1300,
-            "maxAccel": 60,
-            "tau": 0.12,
-            "threatRadius": 2.8,
-            "threatBodyRadius": 4.5,
-            "fleeArea": [
-              -450,
-              450,
-              -450,
-              450
-            ],
-            "passSide": "right",
-            "manualOverride": true,
-            "overrideHold": 1,
-            "mazeModule": true
-          },
-          "enabled": true
-        }
-      ]
+      "friction": 0.5
     },
     {
-      "id": "fleet_car_6",
-      "name": "fleet_car_6",
-      "bodyType": "dynamic",
+      "id": "arena_box_9",
+      "name": "Box 9",
+      "bodyType": "static",
       "shape": {
         "type": "box",
         "width": 4,
-        "height": 1,
+        "height": 1.6,
         "depth": 8
       },
       "position": [
-        -90,
-        0.494,
-        90
+        5.75,
+        0.8,
+        -85.5
       ],
       "rotation": [
         0,
-        2.4789815947438614,
+        0,
         0
       ],
-      "mass": 2,
-      "restitution": 0.1,
-      "friction": 0.01,
-      "transformers": [
-        "global_av_input",
-        "global_av_ego",
-        "global_av_perception",
-        "global_av_waypoint_viz",
-        "global_av_route_planner",
-        "global_av_motion_planner",
-        "global_av_speed_planner",
-        "global_av_supervisor",
-        "global_av_control_lateral",
-        "global_av_control_longitudinal",
-        "global_av_neural",
-        "global_av_aeb",
-        "fleet_car_6_tf10",
-        "fleet_car_6_tf1"
+      "friction": 0.5
+    },
+    {
+      "id": "arena_box_10",
+      "name": "Box 10",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 4,
+        "height": 1.6,
+        "depth": 8
+      },
+      "position": [
+        -5.75,
+        0.8,
+        -92
       ],
-      "angularDamping": 0.3,
-      "scale": [
-        1,
-        1,
-        1
+      "rotation": [
+        0,
+        0,
+        0
       ],
-      "locked": false,
-      "transformerPipeStack": [
-        {
-          "pipeId": "global_av_autopilot",
-          "params": {
-            "cruiseSpeed": 1000,
-            "curveSmooth": 0.6,
-            "switchMargin": 3,
-            "curveDeadband": 0.004,
-            "vehicleWidth": 4,
-            "vehicleLength": 8,
-            "safetyMargin": 0.5,
-            "maxCurvature": 0.115,
-            "goalTolerance": 5.5,
-            "debugDraw": true,
-            "goalViz": true,
-            "hud": true,
-            "goalReachDist": 31,
-            "obstacleSlowRadius": 1,
-            "minSpeed": 9.4,
-            "comfortDecel": 4,
-            "fwdFovDeg": 70,
-            "goalWatchdog": 10,
-            "staticMap": true,
-            "fieldHeuristic": true,
-            "routeClearance": true,
-            "carrotLive": true,
-            "goalGiveUp": 3,
-            "escapeTriggerHorizon": 3.5,
-            "carrotBend": 0.65,
-            "pocketBrake": true,
-            "budget": "eco",
-            "saver": false,
-            "maneuverRunSpeed": 7,
-            "handbackMargin": 0.9,
-            "fleeStoppedSpeed": 1.5,
-            "wThreat": 30,
-            "threatTurnRate": 1.5,
-            "threatHorizon": 4,
-            "threatAccel": 7,
-            "threatHitFloor": 250,
-            "wRequired": 300,
-            "threatTurnMin": 0.5,
-            "chasedDecel": 9,
-            "gainInit": 1300,
-            "maxAccel": 60,
-            "tau": 0.12,
-            "threatRadius": 2.8,
-            "threatBodyRadius": 4.5,
-            "fleeArea": [
-              -450,
-              450,
-              -450,
-              450
-            ],
-            "passSide": "right",
-            "manualOverride": true,
-            "overrideHold": 1,
-            "mazeModule": true
-          },
-          "enabled": true
-        }
-      ]
+      "friction": 0.5
+    },
+    {
+      "id": "arena_box_11",
+      "name": "Box 11",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 4,
+        "height": 1.6,
+        "depth": 8
+      },
+      "position": [
+        5.75,
+        0.8,
+        -98.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "arena_box_12",
+      "name": "Box 12",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 4,
+        "height": 1.6,
+        "depth": 8
+      },
+      "position": [
+        -5.75,
+        0.8,
+        -105
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "arena_box_13",
+      "name": "Box 13",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 4,
+        "height": 1.6,
+        "depth": 8
+      },
+      "position": [
+        5.75,
+        0.8,
+        -111.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "arena_box_14",
+      "name": "Box 14",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 4,
+        "height": 1.6,
+        "depth": 8
+      },
+      "position": [
+        -5.75,
+        0.8,
+        -118
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "arena_box_15",
+      "name": "Box 15",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 4,
+        "height": 1.6,
+        "depth": 8
+      },
+      "position": [
+        5.75,
+        0.8,
+        -124.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "arena_box_16",
+      "name": "Box 16",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 4,
+        "height": 1.6,
+        "depth": 8
+      },
+      "position": [
+        -5.75,
+        0.8,
+        -131
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "arena_box_17",
+      "name": "Box 17",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 4,
+        "height": 1.6,
+        "depth": 8
+      },
+      "position": [
+        5.75,
+        0.8,
+        -137.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "arena_box_18",
+      "name": "Box 18",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 4,
+        "height": 1.6,
+        "depth": 8
+      },
+      "position": [
+        -5.75,
+        0.8,
+        -144
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "arena_box_19",
+      "name": "Box 19",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 4,
+        "height": 1.6,
+        "depth": 8
+      },
+      "position": [
+        5.75,
+        0.8,
+        -150.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "arena_box_20",
+      "name": "Box 20",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 4,
+        "height": 1.6,
+        "depth": 8
+      },
+      "position": [
+        -5.75,
+        0.8,
+        -157
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "arena_box_21",
+      "name": "Box 21",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 4,
+        "height": 1.6,
+        "depth": 8
+      },
+      "position": [
+        5.75,
+        0.8,
+        -163.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "arena_box_22",
+      "name": "Box 22",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 4,
+        "height": 1.6,
+        "depth": 8
+      },
+      "position": [
+        -5.75,
+        0.8,
+        -170
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "arena_box_23",
+      "name": "Box 23",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 4,
+        "height": 1.6,
+        "depth": 8
+      },
+      "position": [
+        5.75,
+        0.8,
+        -176.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "arena_box_24",
+      "name": "Box 24",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 4,
+        "height": 1.6,
+        "depth": 8
+      },
+      "position": [
+        -5.75,
+        0.8,
+        -183
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "arena_box_25",
+      "name": "Box 25",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 4,
+        "height": 1.6,
+        "depth": 8
+      },
+      "position": [
+        5.75,
+        0.8,
+        -189.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "arena_box_26",
+      "name": "Box 26",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 4,
+        "height": 1.6,
+        "depth": 8
+      },
+      "position": [
+        -5.75,
+        0.8,
+        -196
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "arena_box_27",
+      "name": "Box 27",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 4,
+        "height": 1.6,
+        "depth": 8
+      },
+      "position": [
+        5.75,
+        0.8,
+        -202.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "arena_box_28",
+      "name": "Box 28",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 4,
+        "height": 1.6,
+        "depth": 8
+      },
+      "position": [
+        -5.75,
+        0.8,
+        -209
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "arena_box_29",
+      "name": "Box 29",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 4,
+        "height": 1.6,
+        "depth": 8
+      },
+      "position": [
+        5.75,
+        0.8,
+        -215.5
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "crowd_goal_marker",
+      "name": "Goal",
+      "bodyType": "static",
+      "shape": {
+        "type": "cylinder",
+        "radius": 5,
+        "height": 0.2
+      },
+      "position": [
+        0,
+        -0.09,
+        -250
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "material": {
+        "color": [
+          1,
+          0.85,
+          0.1
+        ]
+      }
     }
   ],
   "scripts": {},

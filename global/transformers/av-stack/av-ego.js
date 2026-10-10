@@ -224,6 +224,7 @@ function transform(input, dt, params, state, api) {
     av.prevRoute = prevAv.route
     av.prevCarrot = prevAv.carrot
     av.prevRoutePath = prevAv.routePath
+    av.prevAeb = !!prevAv.aeb // av-neural watchdog: the AEB (priority 7) runs after it
     av.prevBlocked = !!(prevAv.plan && (prevAv.plan.blocked || prevAv.plan.override || !(prevAv.plan.free >= 0.9 * prevAv.plan.horizon)))
   }
   // last frame's persistent static map (gapWalls: free run of the escape headings)

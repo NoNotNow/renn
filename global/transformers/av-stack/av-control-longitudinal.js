@@ -48,6 +48,14 @@ function transform(input, dt, params, state, api) {
     if (state.G !== undefined) av.actuator = { G: state.G, D: state.D, samples: state.samples, u: (input.actions.throttle || 0) - (input.actions.brake || 0) }
     return {}
   }
+  // neural drive (av-neural, av.neural.on): the net gives throttle / brake; same bookkeeping as the manual yield (the AEB after this stage still brakes)
+  if (av.neural && av.neural.on) {
+    state.uPrev = 0
+    state.vPrev = e.speed
+    state.lastAct = null
+    if (state.G !== undefined) av.actuator = { G: state.G, D: state.D, samples: state.samples, u: (input.actions.throttle || 0) - (input.actions.brake || 0) }
+    return {}
+  }
   var vDes = av.plan.vDesired || 0
   var selfCal = params.selfCalibrate === true
   var tau = params.tau != null ? params.tau : selfCal ? 0.12 : 0.35
