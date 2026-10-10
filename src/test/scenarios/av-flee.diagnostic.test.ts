@@ -611,7 +611,7 @@ async function oneRun(ref: WorldRef, seed: number, startIdx: number): Promise<{ 
       if (w) {
         if (env.AV_FLEE_TRACE === '1') {
           rows.push(
-            `${t.toFixed(2)} v ${vFwd.toFixed(1)} mode ${mode} lim ${lim} vd ${active ? (g * (Number.isFinite(vm) ? vm : 0)).toFixed(1) : Number(spd.vd ?? 0).toFixed(1)} goal ${kind}@${Math.round(gx)},${Math.round(gz)} age ${(t - (cur?.t0 ?? t)).toFixed(1)} d ${Math.hypot(gx - p[0], gz - p[2]).toFixed(0)} chaser ${dMin.toFixed(0)}m n30 ${n30} n60 ${n60} sup ${supStuck.toFixed(1)}/${supBlocked.toFixed(1)} rtStuck ${Number(rt.stuckT ?? 0).toFixed(1)} free ${String(w['av.plan.free'] ?? '-')} aeb ${String(w['av.aeb'] ?? '-')} man [${String(w['av.maneuver'] ?? '-')}] maze [${String(w['av.maze'] ?? '-').slice(0, 60)}]`,
+            `${t.toFixed(2)} v ${vFwd.toFixed(1)} mode ${mode} lim ${lim} vd ${active ? (g * (Number.isFinite(vm) ? vm : 0)).toFixed(1) : Number(spd.vd ?? 0).toFixed(1)} goal ${kind}@${Math.round(gx)},${Math.round(gz)} age ${(t - (cur?.t0 ?? t)).toFixed(1)} d ${Math.hypot(gx - p[0], gz - p[2]).toFixed(0)} chaser ${dMin.toFixed(0)}m n30 ${n30} n60 ${n60} wdBad ${ego.wd ? String((ego.wd as { bad?: boolean }).bad) : '-'} mzT ${(ego.mzT as number) !== undefined ? (t - (ego.mzT as number)).toFixed(1) : '-'} sup ${supStuck.toFixed(1)}/${supBlocked.toFixed(1)} rtStuck ${Number(rt.stuckT ?? 0).toFixed(1)} free ${String(w['av.plan.free'] ?? '-')} aeb ${String(w['av.aeb'] ?? '-')} man [${String(w['av.maneuver'] ?? '-')}] maze [${String(w['av.maze'] ?? '-').slice(0, 60)}]`,
           )
         }
       }
