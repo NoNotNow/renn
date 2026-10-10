@@ -27,6 +27,8 @@ export interface EpisodeOptions {
   stopOnReach?: boolean
   /** Sim-seconds timeout (default MAZE_EPISODE_SECONDS). */
   seconds?: number
+  /** Optional per-frame probe (diagnostics only; must not touch the sim). */
+  onFrame?: (frame: number) => void
 }
 
 export function mazeEpisodeByKey(key: string): MazeEpisodeSpec {
@@ -69,6 +71,7 @@ export async function runMazeEpisode(sourceWorld: RennWorld, params: Params, ep:
       sim.runFrames(1)
       det.advance(DEFAULT_DT)
       const t = (frame + 1) * DEFAULT_DT
+      opts.onFrame?.(frame)
       const cp = sim.getPosition(ARENA_CAR_ID)
       const q = sim.getRotation(ARENA_CAR_ID)
       const v = sim.getVelocity(ARENA_CAR_ID)
