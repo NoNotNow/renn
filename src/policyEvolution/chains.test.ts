@@ -23,7 +23,7 @@ import { runPolicyEpisode } from './episode'
 import { pursuitV2 } from './handWired'
 import { GENOME_LENGTH, GENOME_LENGTH_V2, N_OUT } from './policy'
 
-const SAMPLE: Array<[CourseKind, number]> = [["slalom", 8], ["field", 8], ["crowd", 8], ["maze", 8]]
+const SAMPLE: Array<[CourseKind, number]> = [["slalom", 8], ["field", 8], ["crowd", 8], ["maze", 8], ["grid", 8]]
 /** polyline sampled every 2 m (directedHausdorff measures vertices only) */
 function densifyForTest(points: Array<[number, number]>): Array<[number, number]> {
   const out: Array<[number, number]> = [points[0]!]

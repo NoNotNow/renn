@@ -39,6 +39,8 @@ export const CLEARANCE: Record<CourseKind, { margins: number[]; min: number }> =
   slalom: { margins: [2.5, 1.5], min: CAR_HALF_WIDTH + 0.5 },
   crowd: { margins: [2.5, 1.5], min: CAR_HALF_WIDTH + 0.5 },
   maze: { margins: [1.5, 1], min: CAR_HALF_WIDTH + 0.25 },
+  // grid: the sealed divider tips (6 m strips) stay impassable at BOTH margins, so the serpentine U-turns are the only lane sequence
+  grid: { margins: [2.5, 1.5], min: CAR_HALF_WIDTH + 0.5 },
 }
 /** smallest clearance any chain keeps (all kinds) */
 export const MIN_CLEARANCE = CAR_HALF_WIDTH + 0.25
@@ -525,7 +527,8 @@ const FAR_Z = -(COURSE_LENGTH - 10)
 
 /**
  * 2-4 end targets as grid cells, in priority order. field / slalom / crowd: left, centre, right at the far end of the track; maze: the real
- * exit cell plus reachable maze cells far from the start (different branches), pairwise >= 2 cells apart.
+ * exit cell plus reachable maze cells far from the start (different branches), pairwise >= 2 cells apart; grid: the serpentine's lane
+ * mouths (1-4 U-turns from the start, the farthest lane first).
  */
 function chooseEnds(kind: CourseKind, course: Course, g: Grid, reach: Int32Array, rng: Rng): Array<[number, number]> {
   const ends: Array<[number, number]> = []
@@ -535,6 +538,20 @@ function chooseEnds(kind: CourseKind, course: Course, g: Grid, reach: Int32Array
     if (ends.every((e) => Math.hypot(centre(g, e[0], e[1])[0] - p[0], centre(g, e[0], e[1])[1] - p[1]) >= END_SEPARATION_M)) ends.push(c)
   }
   if (kind !== 'maze') {
+    if (kind === 'grid') {
+      // the grid is far shorter than COURSE_LENGTH: ends are the serpentine's lane mouths (layout.zFar / zNear), reachable only through the
+      // U-turns; the farthest lane first (it forces the most hairpins: 4, 3, 2, 1)
+      const laneW = course.layout?.laneW ?? 24
+      const zFar = course.layout?.zFar ?? FAR_Z
+      const zNear = course.layout?.zNear ?? 0
+      const lanes = course.layout?.lanes ?? 5
+      for (let i = lanes - 1; i >= 1; i--) {
+        const want: V2 = [i * laneW, i % 2 === 0 ? zFar : zNear]
+        const c = nearestReachable(g, reach, want)
+        if (c && Math.hypot(centre(g, c[0], c[1])[0] - want[0], centre(g, c[0], c[1])[1] - want[1]) <= FAR_TOLERANCE_M) add(c)
+      }
+      return ends
+    }
     const half = 11
     for (const x of [0, -half, half]) {
       const c = nearestReachable(g, reach, [x, FAR_Z])

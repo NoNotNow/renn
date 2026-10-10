@@ -9,8 +9,10 @@ import { cellCentre, generateMaze } from '@/avEvolution/maze/mazeGen'
  *  - `slalom`: a corridor that narrows with distance, staggered pillars from alternating sides, goals in the gaps.
  *  - `maze`: a seeded 6x6 maze; the car starts in a south-row cell, the goal chain follows the shortest route cell by cell to the exit gate
  *    on the north side (the policy has no map: the goal vector is its only hint which way the route turns).
+ *  - `grid` (v3 setup kind, chains only): a walled 5-lane serpentine whose divider tips are staggered so a U-turn at the end of every lane
+ *    is the only way forward; see `gridCourse`.
  */
-export type CourseKind = 'field' | 'slalom' | 'maze' | 'crowd' | 'free' | 'bay' | 'corridor'
+export type CourseKind = 'field' | 'slalom' | 'maze' | 'crowd' | 'free' | 'bay' | 'corridor' | 'grid'
 
 /** The v1 kinds (default sets of the v1 tools). `crowd` is a v2 chain setup kind, see CHAIN_KINDS. */
 export const COURSE_KINDS: readonly CourseKind[] = ['field', 'slalom', 'maze']
@@ -19,8 +21,8 @@ export const CHAIN_KINDS: readonly CourseKind[] = ['field', 'slalom', 'maze', 'c
 /** v3 setup kinds: `free` (big closed arena, direction chains with reversals), `bay` (dead-end bays), `corridor` (too narrow to U-turn); see spec-command-chains.md, section v3. */
 export const REVERSAL_KINDS: readonly CourseKind[] = ['bay', 'corridor']
 export const V3_NEW_KINDS: readonly CourseKind[] = ['free', ...REVERSAL_KINDS]
-/** all v3 kinds in report order: the new free-track / reversal kinds and the v2 obstacle kinds */
-export const V3_KINDS: readonly CourseKind[] = [...V3_NEW_KINDS, ...CHAIN_KINDS]
+/** all v3 kinds in report order: the new free-track / reversal kinds, the v2 obstacle kinds and the grid serpentine */
+export const V3_KINDS: readonly CourseKind[] = [...V3_NEW_KINDS, ...CHAIN_KINDS, 'grid']
 export const isV3NewKind = (k: CourseKind) => V3_NEW_KINDS.includes(k)
 
 export interface CourseBox {
@@ -54,7 +56,7 @@ export interface Course {
 export const COURSE_LENGTH = 400
 export const COURSE_START: V2 = [0, 0]
 
-export const KIND_SALT: Record<CourseKind, number> = { field: 7919, slalom: 104729, maze: 1299709, crowd: 15485863, free: 32452843, bay: 49979687, corridor: 67867967 }
+export const KIND_SALT: Record<CourseKind, number> = { field: 7919, slalom: 104729, maze: 1299709, crowd: 15485863, free: 32452843, bay: 49979687, corridor: 67867967, grid: 86028121 }
 
 /**
  * `kind:seed` = canonical start; `kind:seed~n` = the same course with the n-th seeded random start pose (offset + heading);
@@ -288,6 +290,80 @@ function corridorCourse(rng: Rng): Pick<Course, 'boxes' | 'waypoints' | 'layout'
   return { boxes, waypoints: [], layout: { cw, rear, ahead } }
 }
 
+/** number of lanes of the grid serpentine */
+export const GRID_LANES = 5
+/** lane width range of the grid serpentine (m): >= 24 so the U-turn (two 90 degree corners ~a lane width apart, vs the car's ~20 m min-turn diameter) is sharp but drivable */
+export const GRID_LANE_W_RANGE = [24, 28] as const
+/** lane length range of the grid serpentine (m along -z, open turning tip to open turning tip) */
+export const GRID_LEN_RANGE = [56, 72] as const
+/** width range of the seeded mid-gaps in some dividers (m): >= 10 so the inflated A* (car half width 2 + 2.5 m margin) can pass */
+export const GRID_GAP_RANGE = [10, 13] as const
+/** depth of the OPEN turning strip at a divider tip (m, tip to end wall): the U-turn hairpin corridor */
+export const GRID_STRIP = 20
+/** depth of the SEALED strip at a divider tip (m): no cell inside keeps 2 m + 1.5 m of clearance, the strip cannot be crossed there */
+export const GRID_SEAL = 6
+
+/**
+ * `grid` (v3 setup kind): a closed walled serpentine of GRID_LANES lanes with LOTS OF SHARP U-TURNS. The car starts at the near strip of
+ * lane 0 facing -Z; the divider tips are staggered (GRID_STRIP open / GRID_SEAL sealed, alternating ends), so lane i is only connected to
+ * lane i+1 at ONE end: the serpentine with a U-turn (two ~90 degree corners one lane width apart, >= 24 m turning diameter) at the end of
+ * every lane is the only lane sequence to the far lanes. The seeded mid-gaps in some dividers are narrow detours; the hairpins stay the
+ * dominant task. Chains (chains.ts) end at the lane mouths: 1-4 U-turns per chain.
+ * layout: laneW, len (open tip to open tip), zFar / zNear (the far / near lane mouth lines), lanes.
+ */
+function gridCourse(rng: Rng): Pick<Course, 'boxes' | 'waypoints' | 'layout'> {
+  const laneW = range(rng, GRID_LANE_W_RANGE[0], GRID_LANE_W_RANGE[1])
+  const len = range(rng, GRID_LEN_RANGE[0], GRID_LEN_RANGE[1])
+  const lanes = GRID_LANES
+  const width = lanes * laneW
+  const t = 2
+  // end wall inner faces: GRID_STRIP - 12 behind the start / at -(len - GRID_STRIP + 12) (interior depth len); the divider tips sit
+  // GRID_STRIP (open) or GRID_SEAL (sealed) from them
+  const zBack = GRID_STRIP - 12
+  const zEnd = -(len - GRID_STRIP + 12)
+  const zFar = zEnd + GRID_STRIP / 2
+  const zNear = zBack - GRID_STRIP / 2
+  const boxes: CourseBox[] = []
+  boxes.push({ at: [width / 2, zBack + t / 2], size: [width + 2 * t, t], yawDeg: 0 })
+  boxes.push({ at: [width / 2, zEnd - t / 2], size: [width + 2 * t, t], yawDeg: 0 })
+  const wallTop = zBack + t
+  const wallBot = zEnd - t
+  boxes.push({ at: [-laneW / 2 - t / 2, (wallTop + wallBot) / 2], size: [t, wallTop - wallBot], yawDeg: 0 })
+  boxes.push({ at: [width - laneW / 2 + t / 2, (wallTop + wallBot) / 2], size: [t, wallTop - wallBot], yawDeg: 0 })
+  // dividers: divider i (between lane i and i+1) opens at the far end for even i, at the near end for odd i (the serpentine alternates)
+  const divSpan = (i: number): [number, number] => (i % 2 === 0 ? [zBack - GRID_SEAL, zEnd + GRID_STRIP] : [zBack - GRID_STRIP, zEnd + GRID_SEAL])
+  // 1-2 seeded mid-gaps in distinct dividers of the FAR half (dividers 2..): an early gap would sit on the prefix of every chain and
+  // short-circuit the first hairpins; a late one is a narrow detour that leaves the U-turns dominant
+  const dividers = Array.from({ length: lanes - 1 }, (_, i) => i).filter((i) => i >= 2)
+  for (let i = dividers.length - 1; i > 0; i--) {
+    const j = Math.floor(rng.next() * (i + 1))
+    ;[dividers[i], dividers[j]] = [dividers[j]!, dividers[i]!]
+  }
+  const nGaps = 1 + (rng.next() < 0.5 ? 1 : 0)
+  const gaps = new Map<number, { z: number; w: number }>()
+  for (let i = 0; i < nGaps; i++) gaps.set(dividers[i % dividers.length]!, { z: 0, w: range(rng, GRID_GAP_RANGE[0], GRID_GAP_RANGE[1]) })
+  for (let i = 0; i < lanes - 1; i++) {
+    const x = (i + 0.5) * laneW
+    const [zN, zF] = divSpan(i)
+    const gap = gaps.get(i)
+    if (!gap) {
+      boxes.push({ at: [x, (zN + zF) / 2], size: [1, zN - zF], yawDeg: 0 })
+      continue
+    }
+    gap.z = zN - (0.3 + 0.4 * rng.next()) * (zN - zF)
+    boxes.push({ at: [x, (zN + gap.z + gap.w / 2) / 2], size: [1, gap.z + gap.w / 2 - zN], yawDeg: 0 })
+    boxes.push({ at: [x, (gap.z - gap.w / 2 + zF) / 2], size: [1, zF - (gap.z - gap.w / 2)], yawDeg: 0 })
+  }
+  // the serpentine through the lane centres: the mouths of every lane in driving order, alternating far / near
+  const waypoints: V2[] = []
+  for (let i = 0; i < lanes; i++) {
+    const z = i % 2 === 0 ? zFar : zNear
+    waypoints.push([i * laneW, z])
+    if (i + 1 < lanes) waypoints.push([(i + 1) * laneW, z])
+  }
+  return { boxes, waypoints, layout: { laneW, len, zFar, zNear, lanes } }
+}
+
 const MAZE_CELLS = 6
 const MAZE_PITCH = 16
 
@@ -336,6 +412,7 @@ const START_JITTER: Record<CourseKind, { x: number; z: number; yawDeg: number }>
   free: { x: 15, z: 15, yawDeg: 90 },
   bay: { x: 3, z: 3, yawDeg: 12 },
   corridor: { x: 2, z: 3, yawDeg: 10 },
+  grid: { x: 3, z: 3, yawDeg: 10 },
 }
 
 /** Seeded random start pose for variant >= 1; keeps the car clear of every wall / box (falls back to the canonical start). */
@@ -370,7 +447,9 @@ export function buildCourse(kind: CourseKind, seed: number, variant = 0, difficu
               ? bayCourse(rng)
               : kind === 'corridor'
                 ? corridorCourse(rng)
-                : mazeCourse(seed, rng)
+                : kind === 'grid'
+                  ? gridCourse(rng)
+                  : mazeCourse(seed, rng)
   let length = 0
   let prev: V2 = COURSE_START
   for (const w of body.waypoints) {

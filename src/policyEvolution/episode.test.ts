@@ -39,6 +39,38 @@ describe('courses', () => {
       for (const b of c.boxes) expect(polyGap(hull, rectPoly(b.at[0], b.at[1], 0, b.size[0], b.size[1]))).toBeGreaterThan(0.5)
     }
   })
+
+  it('grid courses: deterministic serpentine of lane centres, U-turn hops a lane wide, start and walls clear of each other', () => {
+    for (let seed = 1; seed <= 8; seed++) {
+      const c = buildCourse('grid', seed)
+      expect(buildCourse('grid', seed)).toEqual(c)
+      const { laneW, lanes, zFar, zNear, len } = c.layout!
+      expect(laneW!).toBeGreaterThanOrEqual(24)
+      expect(laneW!).toBeLessThanOrEqual(28)
+      expect(len!).toBeGreaterThanOrEqual(56)
+      expect(len!).toBeLessThanOrEqual(72)
+      // the serpentine: the mouth of every lane in driving order (far / near alternating), then the crossing to the next lane
+      expect(c.waypoints.length).toBe(2 * (lanes! - 1) + 1)
+      const pts: Array<[number, number]> = [[0, 0], ...c.waypoints]
+      const mouth = (lane: number) => (lane % 2 === 0 ? zFar! : zNear!)
+      for (let i = 0; i < c.waypoints.length; i++) {
+        // waypoint i belongs to lane ceil(i/2) and sits at the mouth z of lane floor(i/2) (the crossing to the next lane)
+        expect(Math.abs(pts[i + 1]![0] - Math.ceil(i / 2) * laneW!)).toBeLessThan(1e-9)
+        expect(pts[i + 1]![1]).toBeCloseTo(mouth(Math.floor(i / 2)), 6)
+      }
+      // route length = the polyline through start and waypoints
+      let length = 0
+      for (let i = 1; i < pts.length; i++) length += Math.hypot(pts[i]![0] - pts[i - 1]![0], pts[i]![1] - pts[i - 1]![1])
+      expect(c.length).toBeCloseTo(length, 6)
+      // every U-turn hop is one lane wide: >= 24 m turning diameter (the car's min turn circle is ~10 m radius, hull 4 x 8 m)
+      for (let i = 1; i < pts.length - 1; i += 2) {
+        expect(Math.hypot(pts[i + 1]![0] - pts[i]![0], pts[i + 1]![1] - pts[i]![1])).toBeCloseTo(laneW!, 6)
+      }
+      // the start hull is clear of every wall / divider, and vice versa
+      const hull = rectPoly(0, 0, 0, 4, 8)
+      for (const b of c.boxes) expect(polyGap(hull, rectPoly(b.at[0], b.at[1], (b.yawDeg * Math.PI) / 180, b.size[0], b.size[1]))).toBeGreaterThan(0.5)
+    }
+  })
 })
 
 describe('start variants', () => {
