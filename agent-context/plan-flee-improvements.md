@@ -95,6 +95,12 @@ User verification of the step-2 world fix on the live site: "same/worse" (deploy
 - Trade-off accepted at 18: time with chaser < 30 m 10.5 -> 17.0 % (sig. up — the car threads the pack at 13.4 m/s instead of rabbiting away; catches unchanged), bad goals 29 % (ns). If the user still dislikes it, try 12 (bad goals 18 %) or attack the maze-waypoint churn (seed 3: maze hold median 0.3 s, `mazeStep` re-waypointing) and the static-wall over-braking (start speeds 29-32 m/s, no chaser near — speed planner permits speeds the AEB clamps; not covered by any fix so far).
 - Gates: hunt-game / hunt-game-score / av-maze-profile / av-evasion / touching-side / av-stack / av-fleet / exampleWorld all green (107 passed); av-maze-scenarios has 3 PRE-EXISTING failures (turnaround-corridor, flee-wall-ahead, flee-aim-wall — identical at HEAD without the stage changes; u-mouth-enter is fixed by A). gapWallMin 40 in the binding is inert (needs gapWalls) — left as documented dead param.
 
+## Round-3 user feedback (2026-10-10 late, live localhost test of the step-3 state)
+
+- Labyrinth: no big visible improvement (matches the residuals above: maze-waypoint churn, bad goals 29 % at switch margin 18).
+- Red flee goal sometimes shows although no chaser is near (untraced lead: goalWatchdog flags the real goal unreachable in the labyrinth -> flee goal stays committed because `fleeRelease` refuses to release while flagged bad; see handoff next-steps 2a).
+- The neural policy never engages in this world — expected: `self_hunt_flexible` does not set `neuralMode` (stage defaults 'off'); the violet policy tint only appears in `av_neural_crowd` / `av_neural_v3`. Enabling the policy here is the pending smart-integration step.
+
 ## Order of work (cheap classic fixes first; every step: baseline name vs variant name, paired compare, then world edit + commit + push + deploy)
 
 1. **Param sweep, no code change**: `AV_FLEE_PARAMS='{"style":"escape","runTotal":true,"mazeManeuverSpeed":4.5,"chasedDecel":7}'` etc. per fix table above, `AV_FLEE_NAME=v1...`; `node tools/av-flee-compare.mjs base v1 v2 ...`.

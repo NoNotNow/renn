@@ -2,6 +2,27 @@
 
 Browser-based 3D game world builder with physics (Rapier), JSON-defined worlds, and JavaScript scripting.
 
+## Commands: policy-evolution training & AV control
+
+```bash
+# training control (tools/policy-evolution/train-ctl.mjs)
+npm run train            # STATUS: what runs, why, current gen, CPU, pids (training + vite dev server)
+npm run train:stop       # stop the training right after a finished generation (no gen lost)
+npm run train:start      # start / resume the training (documented resume command)
+npm run train:restart    # stop + start
+npm run train:ship       # stop -> ship.ts (HOLDOUT finish-count gate) -> start, verdict printed
+
+# AV worlds
+npm run sync:global-pipeline   # after ANY stage-code edit in public/global/transformers/av-stack/
+npm run av:quick               # sync + av-evasion + av-maze scenario suites
+npm run av:health
+
+# AV flee diagnostic (self_hunt_flexible, gated; paired before/after via tools/av-flee-compare.mjs)
+AV_FLEE_DIAG=1 AV_FLEE_SEEDS=1,2,3,4 AV_FLEE_FRAMES=3600 AV_FLEE_NAME=<run-name> npx vitest run src/test/scenarios/av-flee.diagnostic.test.ts
+AV_FLEE_PARAMS='{"escapeSwitch":12}'   # optional param override of the focus car (sweeps)
+node tools/av-flee-compare.mjs <base> <variant> --dir test-results/avflee
+```
+
 ## Stack
 
 - **Vite** + **React** + **TypeScript**
