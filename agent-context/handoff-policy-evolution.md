@@ -1,4 +1,4 @@
-# Handoff: neural driving policy (v1 → v2 → v3), state 2026-10-10 ~12:00 UTC
+# Handoff: neural driving policy (v1 → v2 → v3), state 2026-10-10 ~13:00 UTC (local Mac)
 
 Moving from the cloud session to a LOCAL session on the user's Mac (more cores, no 2 h background limit, no container restarts).
 Branch `claude/autonomous-car-evolution-9p6zt2` (far ahead of `main`; `npm run deploy` publishes the whole branch state to GitHub Pages).
@@ -26,8 +26,12 @@ mazes and crowded situations. Work focused, good tests, learn from past mistakes
   **Weak kinds now: field and crowd (~50 %, crashes).** v3 is NOT in the AV car yet.
 
 ## Run state handed over (TRACKED in git: `training-data/policy-evolution/`)
-- `v3.json` = the live v3 run (islands state, curriculum stage share 0.7, all 7 kinds active), at **generation 1025**; best snapshot
-  gen 1000 (TRAIN 1.18 / HOLDOUT 1.10 under the CURRENT fitness). Not yet compared with the shipped v3 → **first thing to do: ship check**.
+- Shipped v3 = `v3.json` gen 1000 (commit 3774e50e). HOLDOUT finished 114/137 (free 24/24, bay 17, corridor 16/18, field 13/20, slalom 19/23,
+  maze 11/15, crowd 14/19). Weakness (diagnose-v3.ts): never brakes, ~27.5 m/s, field/crowd losses are forward crashes.
+- `v3.json` = uncapped run, **stopped cleanly at gen 1500** (commit f76a5390), resumable with `tools/policy-evolution/run-v3.sh 3000 7`.
+  Ship check of its best (gen 1425) with the finish-count gate: **KEEP**, 107 vs 114 finished (field -2, slalom -3, crowd -4 WORSE; bay +1, corridor +2).
+- `v3cap.json` = **speed-capped fork, running** (warm start from v3 gen 1500, `--speed-cap 15`, gen counter and curriculum restart at 0, target 3000,
+  7 workers, log `v3cap.nohup.log` / `v3cap.log`, both git-ignored). Commit `v3cap.json` regularly (first checkpoint d50aff8e).
 - All earlier runs + logs are copies for reference (run1-5, islands1-2 = v1; v2a, v2b, h10/h24 = v2 screening). `test-results/` stays git-ignored.
 
 ## Local workflow (Mac)
@@ -40,17 +44,24 @@ npx tsx tools/renn-mcp/export-policy-drive-example-world.ts       # after a ship
 npx vitest run src/policyEvolution                               # must be green before commit
 git add -A training-data src/policyEvolution/shippedPolicyV3.json public/exampleWorlds && git commit && git push && npm run deploy
 ```
-Commit `training-data/policy-evolution/v3.json` (+ `v3.log`) regularly so the run can move between machines.
+Capped fork (start / resume, same command; stop with kill of the run-v3.sh/run-islands processes right after a `gen N` log line, state is saved each gen):
+```
+V3_OUT=training-data/policy-evolution/v3cap.json V3_EXTRA_ARGS="--speed-cap 15 --warm training-data/policy-evolution/v3.json" \
+  nohup bash tools/policy-evolution/run-v3.sh 3000 7 > training-data/policy-evolution/v3cap.nohup.log 2>&1 &
+npx tsx tools/policy-evolution/ship.ts training-data/policy-evolution/v3cap.json --v3 --workers 9   # stop training first (uses all cores, ~15 s)
+```
+The ship gate measures uncapped episodes; the finish-count gate is fair for capped nets (finishing is what counts, not speed).
+Commit `v3.json` / `v3cap.json` regularly so runs can move between machines.
 
 ## Next steps (in order)
-1. Ship check of v3 gen 1000 vs shipped (command above); if written: re-export, test, commit, push, deploy, report per kind + reverse usage.
-2. Keep training (`run-v3.sh`), ship check every ~1-2 h of training, deploy when better. Watch the min kind (field/crowd).
-3. If field/crowd plateau: diagnose where episodes end (trace like the v1 field analysis) before changing anything; candidates: more
-   field/crowd setups, curriculum on field density, capacity.
+1. Let `v3cap` train; ship check every ~1-2 h (stop training briefly, or run with `--workers 2`). If WROTE: re-export worlds, vitest, commit, push, deploy.
+2. Compare v3cap vs uncapped on field/crowd (crash counts, `diagnose-v3.ts`). Uncapped v3 regressed after gen 1000 on field/slalom/crowd holdout,
+   so resuming it is lower priority.
+3. If field/crowd still plateau: more field/crowd setups, curriculum on density, capacity.
 4. v3 into the AV car: promote only through the AV A/B gate (crowd cases `AV_NEURAL_AB=1 npx vitest run src/test/scenarios/av-neural-ab.diagnostic.test.ts`,
    mazes `AV_NEURAL_MAZE_AB=1 npx vitest run src/test/scenarios/av-neural-maze-ab.diagnostic.test.ts`). The AV stage infers H from the weight length and
    uses the v2 command (no legs); v3 reversing inside the AV needs the AV-side command to allow backward aims and the AV stage to stop excluding
-   manoeuvres — plan it first (plan-policy-in-av-car.md, Phase 5).
+   manoeuvres — plan written: plan-policy-in-av-car.md section 8 (v3 forward-only + speed cap first, reverse later; 5 open questions).
 5. Open from earlier: in AV mazes the watchdog hands back on 34 of 37 handovers (auto: 1 contact vs 0) → `av_maze_escape` stays off.
 
 ## Lessons / pitfalls (keep)
