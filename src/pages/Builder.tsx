@@ -12,6 +12,7 @@ import SceneView, { type SceneViewHandle } from '@/components/SceneView'
 import BuilderHeader from '@/components/BuilderHeader'
 import PerformanceBoosterDialog from '@/components/PerformanceBoosterDialog'
 import SaveDialog from '@/components/SaveDialog'
+import MazeTrainingDialog from '@/components/MazeTrainingDialog'
 import EntitySidebar from '@/components/EntitySidebar'
 import PropertySidebar from '@/components/PropertySidebar'
 import Workspace from '@/components/Workspace'
@@ -158,6 +159,7 @@ export default function Builder() {
   const [editNavigationMode, setEditNavigationMode] = useLocalStorageState('builderEditNavigationMode', false)
   const [gameFrozen, setGameFrozen] = useState(false)
   const [performanceBoosterOpen, setPerformanceBoosterOpen] = useState(false)
+  const [mazeTrainingOpen, setMazeTrainingOpen] = useState(false)
   const [avEvolutionOpen, setAvEvolutionOpen] = useState(false)
   useEffect(() => installAvEvolutionAgentApi(getAvEvolutionStore()), [])
   const [transformerDocsOpen, setTransformerDocsOpen] = useState(false)
@@ -426,6 +428,25 @@ export default function Builder() {
     reloadWorld,
     loadExampleWorld,
   })
+
+  // Training Mazes dialog → load the exported example world and jump straight into play mode.
+  // Safe as a direct sequential call: loadExampleWorld sets worldRef.current synchronously
+  // (ProjectContext) before handlePlay reads getWorldToSave().
+  const handlePlayExampleWorld = useCallback(
+    async (worldId: string) => {
+      setMazeTrainingOpen(false)
+      try {
+        const { world, assets } = await loadExampleWorldFromPublicBase(import.meta.env.BASE_URL || '/', worldId)
+        handleOpenExampleWorld(world, worldId, assets)
+        uiLogger.select('Builder', 'Play training maze', { worldName: worldId })
+        handlePlay()
+      } catch (err) {
+        console.error('Failed to load example world:', err)
+        alert('Failed to load example world')
+      }
+    },
+    [handleOpenExampleWorld, handlePlay],
+  )
 
   const handleEntityPoseCommit = useCallback(
     (commits: BuilderPoseCommitEntry[]) => {
@@ -764,6 +785,10 @@ export default function Builder() {
         onOpenWorkspace={handleOpenWorkspace}
         selectedEntityCount={selectedEntityIds.length}
         onOpenExampleWorld={handleOpenExampleWorld}
+        onOpenMazeTraining={() => {
+          setMazeTrainingOpen(true)
+          uiLogger.click('Builder', 'Open Training Mazes dialog', {})
+        }}
       />
         </div>
 
@@ -807,6 +832,12 @@ export default function Builder() {
       <TransformerDocs
         isOpen={transformerDocsOpen}
         onClose={() => setTransformerDocsOpen(false)}
+      />
+
+      <MazeTrainingDialog
+        isOpen={mazeTrainingOpen}
+        onClose={() => setMazeTrainingOpen(false)}
+        onPlayExampleWorld={handlePlayExampleWorld}
       />
 
       <div

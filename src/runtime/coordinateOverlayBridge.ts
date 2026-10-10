@@ -1,6 +1,9 @@
 /**
- * Builder coordinate overlay: collects `api.visualizeLine()` calls when wired from SceneView.
- * No-op when `_coordinateFn` is null (Play, tests, or non-visualize gizmo mode).
+ * Coordinate overlay: collects `api.visualizeLine()` calls when wired from SceneView.
+ * Entries render in builder visualize gizmo mode, in play mode when the world sets
+ * `world.world.debugTargetLineEntityId` (SceneView wires the bridge for those worlds), and in
+ * tests when wired manually. No-op when `_coordinateFn` is null (plain play worlds, non-visualize
+ * builder gizmo mode).
  * Entries are cleared at the start of each physics step in `executeTransformers` (so render-only
  * rAF frames keep the last published lines and do not flicker), and when the visualize display
  * entity id changes in `SceneView` `onFrameStart`.

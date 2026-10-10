@@ -1,4 +1,4 @@
-import { useRef, useState, useLayoutEffect, useCallback, useEffect, useSyncExternalStore } from 'react'
+import { useRef, useState, useLayoutEffect, useCallback, useEffect, useMemo, useSyncExternalStore } from 'react'
 import MenuBar from './MenuBar'
 import DropdownMenu, { type MenuItemConfig } from './DropdownMenu'
 import type { RennWorld, Vec3 } from '@/types/world'
@@ -22,6 +22,7 @@ import { agentDevExampleWorldsListApiPath } from '@/agent/agentDevBootstrapParam
 import { discoverExampleWorldIdsFromBuild } from '@/utils/discoverExampleWorldIds'
 import { loadExampleWorldFromPublicBase } from '@/utils/loadExampleWorldFromPublicBase'
 import { setExampleWorldUrlParam } from '@/utils/exampleWorldUrlParam'
+import { MAZE_TRAINING_WORLDS } from '@/policyEvolution/mazeTraining'
 
 const BUILDER_BASE_URL = import.meta.env.BASE_URL || '/'
 
@@ -65,6 +66,8 @@ export interface BuilderHeaderProps {
   onOpenWorkspace?: () => void
   selectedEntityCount?: number
   onOpenExampleWorld?: (worldJson: RennWorld, name: string, assets?: Map<string, Blob>) => void
+  /** Opens the training-mazes gallery dialog (File menu → "Training Mazes…"). */
+  onOpenMazeTraining?: () => void
 }
 
 export default function BuilderHeader({
@@ -102,6 +105,7 @@ export default function BuilderHeader({
   onOpenWorkspace,
   selectedEntityCount: _selectedEntityCount = 0,
   onOpenExampleWorld,
+  onOpenMazeTraining,
 }: BuilderHeaderProps) {
   const {
     projects,
@@ -184,7 +188,16 @@ export default function BuilderHeader({
     [onOpenExampleWorld],
   )
 
-  const exampleWorldsMenuItems: MenuItemConfig[] = exampleWorldIds.map((id) => ({
+  // Pure training worlds (policy_* exports) and the maze training worlds (own dialog) stay out of
+  // the generic Example Worlds submenu.
+  const exampleWorldExcludedIds = useMemo(
+    () => new Set(MAZE_TRAINING_WORLDS.map((spec) => spec.id)),
+    [],
+  )
+  const visibleExampleWorldIds = exampleWorldIds.filter(
+    (id) => !id.startsWith('policy_') && !exampleWorldExcludedIds.has(id),
+  )
+  const exampleWorldsMenuItems: MenuItemConfig[] = visibleExampleWorldIds.map((id) => ({
     type: 'item' as const,
     label: id,
     onClick: () => void handleOpenExampleWorldClick(id),
@@ -210,8 +223,14 @@ export default function BuilderHeader({
     {
       type: 'submenu',
       label: 'Example Worlds',
-      disabled: exampleWorldIds.length === 0,
+      disabled: visibleExampleWorldIds.length === 0,
       items: exampleWorldsMenuItems,
+    },
+    {
+      type: 'item',
+      label: 'Training Mazes…',
+      onClick: onOpenMazeTraining,
+      disabled: !onOpenMazeTraining,
     },
     {
       type: 'item',

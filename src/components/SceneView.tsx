@@ -442,7 +442,10 @@ function SceneViewInner({
   const coordinateOverlayFromWorld =
     typeof debugTargetLineEntityId === 'string' && debugTargetLineEntityId.length > 0
   useEffect(() => {
-    if (playMode || (gizmoMode !== 'visualize' && !coordinateOverlayFromWorld)) {
+    // Play worlds that set `world.debugTargetLineEntityId` keep their visualizeLine entries
+    // (maze training showcase); worlds without the flag behave as before (no overlay in play,
+    // where gizmoMode stays at its 'translate' default).
+    if (gizmoMode !== 'visualize' && !coordinateOverlayFromWorld) {
       setCoordinateOverlayFn(null)
       return
     }
@@ -450,7 +453,7 @@ function SceneViewInner({
     return () => {
       setCoordinateOverlayFn(null)
     }
-  }, [playMode, gizmoMode, sceneKey, version, coordinateOverlayFromWorld])
+  }, [gizmoMode, sceneKey, version, coordinateOverlayFromWorld])
 
   useEffect(() => {
     const entities =

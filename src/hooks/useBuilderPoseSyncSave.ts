@@ -40,7 +40,7 @@ export interface UseBuilderPoseSyncSaveResult {
   saveSnackbarMessage: string | null
   saveDialogDefaultName: string
   handleNew: () => void
-  handleOpenExampleWorld: (worldJson: RennWorld, name: string) => void
+  handleOpenExampleWorld: (worldJson: RennWorld, name: string, assets?: Map<string, Blob>) => void
   handleOpen: (id: string) => void
   handleReload: () => void
   handleSave: () => Promise<void>

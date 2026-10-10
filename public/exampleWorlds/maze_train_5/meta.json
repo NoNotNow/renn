@@ -1,0 +1,16 @@
+{
+  "id": "maze_train_5",
+  "seed": 2005,
+  "name": "Maze Training 5",
+  "candidate": {
+    "policy": "v3",
+    "label": "v3 shipped (gen 1000)",
+    "gen": 1000,
+    "source": "shippedPolicyV3.json"
+  },
+  "bestScore": 156,
+  "chain": {
+    "points": 11,
+    "lengthM": 140.7
+  }
+}
