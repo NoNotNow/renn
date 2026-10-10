@@ -114,9 +114,9 @@ export const NEURAL_CROWD_GOAL_MARKER_ID = 'crowd_goal_marker'
  * gauntlet with `neuralMode: 'auto'` (+ the crowd trigger thresholds above), a flat goal marker and a third-person follow camera.
  * `source` = the lab-loaded `self_hunt_flexible` world (current global library code). Exporter: tools/renn-mcp/export-av-neural-example-world.ts.
  */
-export function buildNeuralCrowdExampleWorld(source: RennWorld): RennWorld {
+export function buildNeuralCrowdExampleWorld(source: RennWorld, extraParams: Record<string, unknown> = {}): RennWorld {
   const c = AV_CROWD_CASES.find((x) => x.name === NEURAL_CROWD_WORLD_CASE)!
-  const spec = withNeuralMode(c.spec(), 'auto', NEURAL_CROWD_TRIGGER)
+  const spec = withNeuralMode(c.spec(), 'auto', { ...NEURAL_CROWD_TRIGGER, ...extraParams })
   const world = buildArenaWorldFrom(source, spec)
   world.entities = [
     ...world.entities,
@@ -127,4 +127,12 @@ export function buildNeuralCrowdExampleWorld(source: RennWorld): RennWorld {
     camera: { mode: 'thirdPerson', target: AV_CAR_SOURCE_ID, control: 'follow', distance: 36, height: 30, cameraTargetLag: 120, cameraPositionLag: 180 },
   }
   return world
+}
+
+/** Binding params of the v3 variant of the example world: the v3 net (forward AND reverse) drives the AV car, capped at 15 m/s. */
+export const NEURAL_V3_WORLD_PARAMS = { neuralPolicy: 'v3', neuralReverse: true, neuralVMax: 15 } as const
+
+/** Same scene as {@link buildNeuralCrowdExampleWorld} with the v3 policy + reversing (`av_neural_v3`). Exporter: tools/renn-mcp/export-av-neural-example-world.ts. */
+export function buildNeuralV3ExampleWorld(source: RennWorld): RennWorld {
+  return buildNeuralCrowdExampleWorld(source, NEURAL_V3_WORLD_PARAMS)
 }
