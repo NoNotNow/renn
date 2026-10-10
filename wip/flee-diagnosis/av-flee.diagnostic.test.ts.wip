@@ -1,0 +1,766 @@
+/**
+ * Flee diagnostic for the fleeing AV car of `self_hunt_flexible` (skipped unless AV_FLEE_DIAG=1).
+ * Measures the four observed weaknesses (see agent-context/plan-flee-improvements.md):
+ *   1. flee goals: switch rate, age / distance at a switch, share that points into a labyrinth / dead end / blocked / long detour
+ *   2. slow driving under pressure: speed and speed-limiter by number of chasers within 30 m
+ *   3. reverse speed: manoeuvre segments, vMax (watch av.maneuver `vm`), gear-change waits
+ *   4. slow episodes after a disturbance (contact / AEB / near miss): duration, mode mix, supervisor / route-planner timers
+ *
+ *   AV_FLEE_DIAG=1 AV_FLEE_SEEDS=1,2,3,4 AV_FLEE_FRAMES=3600 npx vitest run src/test/scenarios/av-flee.diagnostic.test.ts
+ *
+ * Env: AV_FLEE_WORLD (example id, default self_hunt_flexible), AV_FLEE_FOCUS (default entity_1779823253285_brtkx1p),
+ *      AV_FLEE_STARTS=n (n>1: run n defined starts per seed, start 0 = document pose, others = deterministic free spots >= 25 m from walls),
+ *      AV_FLEE_PARAMS='{"style":"escape"}' (override binding params of the focus car, for paired before/after runs),
+ *      AV_FLEE_TRACE=1 (print the 0.25 s trace rows), AV_FLEE_OUT (default test-results/avflee; per-run json + `<name>-all.json`),
+ *      AV_FLEE_START_ONLY=k (run only start k of AV_FLEE_STARTS), AV_FLEE_NAME (file prefix). Every run builds a fresh world from disk (defined start, determinism seed = seed).
+ */
+import { expect, it } from 'vitest'
+import fs from 'node:fs'
+import { loadLabWorld, runLab, liveStageState, watchValues, forwardSpeed, yawOf, type WorldRef } from '@/test/avLab/lab'
+
+const env = process.env
+const enabled = env.AV_FLEE_DIAG === '1'
+const WORLD = env.AV_FLEE_WORLD ?? 'self_hunt_flexible'
+const FOCUS = env.AV_FLEE_FOCUS ?? 'entity_1779823253285_brtkx1p'
+const OUT = env.AV_FLEE_OUT ?? 'test-results/avflee'
+const FPS = 60
+const TRACE_EVERY = 15 // 0.25 s
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Static geometry: inflated occupancy grid (2 m cells) + labyrinth boxes
+// ---------------------------------------------------------------------------------------------------------------------
+const CELL = 2
+const GX0 = -470
+const GZ0 = -470
+const GN = 470 // cells per axis -> -470..470
+const HULL_R = 2.5 // half width 2 + margin 0.5
+
+interface Geo {
+  blocked: Uint8Array
+  mazes: { name: string; x0: number; x1: number; z0: number; z1: number }[]
+}
+
+function cellOf(x: number, z: number): number {
+  const ix = Math.floor((x - GX0) / CELL)
+  const iz = Math.floor((z - GZ0) / CELL)
+  return ix < 0 || iz < 0 || ix >= GN || iz >= GN ? -1 : iz * GN + ix
+}
+
+function buildGeo(world: ReturnType<typeof loadLabWorld>): Geo {
+  const blocked = new Uint8Array(GN * GN)
+  const mazeBox: Record<string, { x0: number; x1: number; z0: number; z1: number }> = {}
+  for (const e of world.entities) {
+    if (e.bodyType !== 'static') continue
+    const s = e.shape as { type?: string; width?: number; depth?: number; radius?: number }
+    const p = e.position as number[]
+    if (s.type !== 'box' && s.type !== 'cylinder') continue
+    if (s.type === 'box' && (s.width ?? 0) > 400) continue // ground slabs
+    const yaw = s.type === 'box' ? ((e.rotation as unknown as number[] | undefined)?.[1] ?? 0) : 0
+    const hw = s.type === 'box' ? (s.width ?? 1) / 2 : (s.radius ?? 0.5)
+    const hd = s.type === 'box' ? (s.depth ?? 1) / 2 : (s.radius ?? 0.5)
+    const c = Math.cos(yaw)
+    const sn = Math.sin(yaw)
+    const ext = Math.abs(c) * hw + Math.abs(sn) * hd + HULL_R
+    const exz = Math.abs(sn) * hw + Math.abs(c) * hd + HULL_R
+    const ix0 = Math.max(0, Math.floor((p[0] - ext - GX0) / CELL))
+    const ix1 = Math.min(GN - 1, Math.floor((p[0] + ext - GX0) / CELL))
+    const iz0 = Math.max(0, Math.floor((p[2] - exz - GZ0) / CELL))
+    const iz1 = Math.min(GN - 1, Math.floor((p[2] + exz - GZ0) / CELL))
+    for (let iz = iz0; iz <= iz1; iz++) {
+      for (let ix = ix0; ix <= ix1; ix++) {
+        const dx = GX0 + (ix + 0.5) * CELL - p[0]
+        const dz = GZ0 + (iz + 0.5) * CELL - p[2]
+        // box frame (three.js rotation about y by `yaw`: world = R(yaw) local)
+        const lx = c * dx - sn * dz
+        const lz = sn * dx + c * dz
+        let d: number
+        if (s.type === 'box') d = Math.hypot(Math.max(Math.abs(lx) - hw, 0), Math.max(Math.abs(lz) - hd, 0))
+        else d = Math.max(0, Math.hypot(dx, dz) - hw)
+        if (d < HULL_R) blocked[iz * GN + ix] = 1
+      }
+    }
+    const m = /^wall maze (\w)/.exec(e.name ?? '')
+    if (m && s.type === 'box') {
+      const k = m[1]
+      const b = (mazeBox[k] ??= { x0: Infinity, x1: -Infinity, z0: Infinity, z1: -Infinity })
+      b.x0 = Math.min(b.x0, p[0] - ext + HULL_R)
+      b.x1 = Math.max(b.x1, p[0] + ext - HULL_R)
+      b.z0 = Math.min(b.z0, p[2] - exz + HULL_R)
+      b.z1 = Math.max(b.z1, p[2] + exz - HULL_R)
+    }
+  }
+  return { blocked, mazes: Object.entries(mazeBox).map(([name, b]) => ({ name, ...b })) }
+}
+
+/** Dijkstra (8-neighbour, costs 10 / 14) from the goal cell; stops when the target cell is settled. Returns metres or Infinity. */
+function pathLen(geo: Geo, from: [number, number], to: [number, number]): number {
+  let s = cellOf(from[0], from[1])
+  let t = cellOf(to[0], to[1])
+  if (s < 0 || t < 0) return Infinity
+  const nearFree = (c: number): number => {
+    if (!geo.blocked[c]) return c
+    const cx = c % GN
+    const cz = (c - cx) / GN
+    for (let r = 1; r <= 4; r++)
+      for (let dz = -r; dz <= r; dz++)
+        for (let dx = -r; dx <= r; dx++) {
+          const x = cx + dx
+          const z = cz + dz
+          if (x < 0 || z < 0 || x >= GN || z >= GN) continue
+          if (!geo.blocked[z * GN + x]) return z * GN + x
+        }
+    return -1
+  }
+  s = nearFree(s)
+  t = nearFree(t)
+  if (s < 0 || t < 0) return Infinity
+  if (s === t) return 0
+  const dist = new Int32Array(GN * GN).fill(1 << 30)
+  // binary heap of (cost, cell)
+  const hc: number[] = []
+  const hn: number[] = []
+  const push = (c: number, n: number) => {
+    let i = hc.length
+    hc.push(c)
+    hn.push(n)
+    while (i > 0) {
+      const p = (i - 1) >> 1
+      if (hc[p] <= hc[i]) break
+      ;[hc[p], hc[i]] = [hc[i], hc[p]]
+      ;[hn[p], hn[i]] = [hn[i], hn[p]]
+      i = p
+    }
+  }
+  const pop = (): [number, number] => {
+    const rc = hc[0]
+    const rn = hn[0]
+    const lc = hc.pop()!
+    const ln = hn.pop()!
+    if (hc.length) {
+      hc[0] = lc
+      hn[0] = ln
+      let i = 0
+      for (;;) {
+        const l = 2 * i + 1
+        const r = l + 1
+        let m = i
+        if (l < hc.length && hc[l] < hc[m]) m = l
+        if (r < hc.length && hc[r] < hc[m]) m = r
+        if (m === i) break
+        ;[hc[m], hc[i]] = [hc[i], hc[m]]
+        ;[hn[m], hn[i]] = [hn[i], hn[m]]
+        i = m
+      }
+    }
+    return [rc, rn]
+  }
+  dist[s] = 0
+  push(0, s)
+  while (hc.length) {
+    const [c, n] = pop()
+    if (c > dist[n]) continue
+    if (n === t) return (c / 10) * CELL
+    const nx = n % GN
+    const nz = (n - nx) / GN
+    for (let dz = -1; dz <= 1; dz++)
+      for (let dx = -1; dx <= 1; dx++) {
+        if (!dx && !dz) continue
+        const x = nx + dx
+        const z = nz + dz
+        if (x < 0 || z < 0 || x >= GN || z >= GN) continue
+        const m = z * GN + x
+        if (geo.blocked[m]) continue
+        if (dx && dz && (geo.blocked[nz * GN + x] || geo.blocked[z * GN + nx])) continue
+        const nc = c + (dx && dz ? 14 : 10)
+        if (nc < dist[m]) {
+          dist[m] = nc
+          push(nc, m)
+        }
+      }
+  }
+  return Infinity
+}
+
+/** Free run (m) of a ray over the inflated grid, capped at max. */
+function freeRun(geo: Geo, x: number, z: number, ang: number, max: number): number {
+  const ux = Math.cos(ang)
+  const uz = Math.sin(ang)
+  for (let d = 0; d <= max; d += CELL) {
+    const c = cellOf(x + ux * d, z + uz * d)
+    if (c < 0) return d
+    if (geo.blocked[c] && d > 0) return d
+  }
+  return max
+}
+
+interface GoalClass {
+  inMaze: string | null
+  blocked: boolean
+  unreachable: boolean
+  detour: number // path length / straight distance (Infinity when unreachable)
+  longRays: number // of 16 rays: free run >= 30 m
+  deadEnd: boolean // in a labyrinth and <= 1 long ray, or enclosed
+}
+
+function classifyGoal(geo: Geo, car: [number, number], goal: [number, number]): GoalClass {
+  let inMaze: string | null = null
+  for (const m of geo.mazes) if (goal[0] >= m.x0 - 6 && goal[0] <= m.x1 + 6 && goal[1] >= m.z0 - 6 && goal[1] <= m.z1 + 6) inMaze = m.name
+  const c = cellOf(goal[0], goal[1])
+  const blocked = c < 0 || !!geo.blocked[c]
+  let longRays = 0
+  if (!blocked) for (let k = 0; k < 16; k++) if (freeRun(geo, goal[0], goal[1], (k * Math.PI) / 8, 30) >= 30) longRays++
+  const straight = Math.hypot(goal[0] - car[0], goal[1] - car[1])
+  const pl = pathLen(geo, car, goal)
+  const detour = pl === Infinity ? Infinity : pl / Math.max(straight, 1)
+  return { inMaze, blocked, unreachable: pl === Infinity, detour, longRays, deadEnd: !blocked && longRays <= 1 && (inMaze !== null || pl === Infinity) }
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------------------------------------------------
+const yawOfQ = yawOf
+const mean = (a: number[]) => (a.length ? a.reduce((s, x) => s + x, 0) / a.length : NaN)
+function pct(a: number[], p: number): number {
+  if (!a.length) return NaN
+  const s = [...a].sort((x, y) => x - y)
+  return s[Math.min(s.length - 1, Math.floor((p / 100) * s.length))]
+}
+const f1 = (x: number) => (Number.isFinite(x) ? x.toFixed(1) : '-')
+function num(s: unknown, re: RegExp): number {
+  const m = typeof s === 'string' ? re.exec(s) : null
+  return m ? Number(m[1]) : NaN
+}
+
+type GoalKind = 'real' | 'maze' | 'gap' | 'ring'
+interface GoalRec {
+  kind: GoalKind
+  t0: number
+  x: number
+  z: number
+  minDist: number
+  cls: GoalClass | null
+  chasersNear0: number
+  reachedAt: number | null
+}
+
+export interface RunSummary {
+  seed: number
+  start: number
+  frames: number
+  meanSpeed: number
+  pathLen: number
+  catches: number
+  [k: string]: unknown
+}
+
+async function oneRun(ref: WorldRef, seed: number, startIdx: number): Promise<{ summary: RunSummary; text: string }> {
+  const world = loadLabWorld(ref)
+  const fe = world.entities.find((e) => e.id === FOCUS)
+  if (!fe) throw new Error('focus not found: ' + FOCUS)
+  const bind = fe.transformerPipeStack?.[0]
+  if (env.AV_FLEE_PARAMS && bind) bind.params = { ...(bind.params ?? {}), ...JSON.parse(env.AV_FLEE_PARAMS) }
+  const threatIds = ((bind?.params?.threatIds as string[] | undefined) ?? []).filter((id) => id !== 'car' && world.entities.some((e) => e.id === id))
+  let chaserPos: (id: string) => number[] = () => [0, 0, 0]
+  const frames = Number(env.AV_FLEE_FRAMES ?? 3600)
+
+  // start variants: start 0 = document pose; others = deterministic free spots (>= 25 m from every wall, >= 70 m from every chaser / prop)
+  const geo: Geo = buildGeo(world)
+  if (startIdx > 0) {
+    let rng = (seed * 7919 + startIdx * 104729) >>> 0
+    const rnd = () => ((rng = (Math.imul(rng, 1664525) + 1013904223) >>> 0) / 4294967296)
+    const dyn = world.entities.filter((e) => e.bodyType === 'dynamic' && e.id !== FOCUS).map((e) => e.position as number[])
+    for (let k = 0; k < 20000; k++) {
+      const x = -380 + rnd() * 760
+      const z = -380 + rnd() * 760
+      let ok = true
+      for (let a = 0; a < 16 && ok; a++) if (freeRun(geo, x, z, (a * Math.PI) / 8, 25) < 25) ok = false
+      if (!ok || dyn.some((p) => Math.hypot(p[0] - x, p[2] - z) < 70)) continue
+      const p0 = fe.position as number[]
+      fe.position = [x, p0[1], z] as typeof fe.position
+      break
+    }
+  }
+
+  const rows: string[] = []
+  const goalEvents: { t: number; from: GoalKind; to: GoalKind; ageOld: number; distToOld: number; minDistOld: number; reachedOld: boolean; chaserMin: number; nNear30: number; newDist: number; turnDeg: number; cls: GoalClass | null }[] = []
+  const goalLife: { kind: GoalKind; dur: number; cls: GoalClass | null; nearest0: number; afterReached: number | null }[] = []
+  let fleeFrames = 0
+  let fleeFar40 = 0
+  let fleeFar60 = 0
+  let cur: GoalRec | null = null
+  let prevHeadingGoal: [number, number] | null = null
+
+  // buckets by number of chasers within 30 m
+  const B = (): { n: number; v: number[]; lim: Record<string, number>; slow: number } => ({ n: 0, v: [], lim: {}, slow: 0 })
+  const byNear: Record<string, ReturnType<typeof B>> = { '0': B(), '1-2': B(), '>=3': B() }
+  const byMode: Record<string, number> = {}
+
+  // slow episodes (speed < 5 m/s start, > 8 m/s end, >= 1 s)
+  interface Slow { t0: number; t1: number; cause: string; maneuverFrames: number; revFrames: number; waitFrames: number; frames: number; contactFrames: number; minChaser: number; nearMax: number; supStuck: number; supBlocked: number; noHandback: number; limits: Record<string, number> }
+  const slowEps: Slow[] = []
+  let slow: Slow | null = null
+  let slowCand = -1
+
+  // manoeuvres
+  interface Man { px: number[]; t0: number; t1: number; frames: number; revFrames: number; fwdFrames: number; waitFrames: number; gearChanges: number; vmSum: number; vmN: number; speedRev: number[]; maze: boolean; turnPlan: boolean; noHandback: boolean; segs: number; startSpeed: number; ownerLim: string }
+  const mans: Man[] = []
+  let man: Man | null = null
+  let prevG = 0
+  const vmHist: Record<string, number> = {}
+  const revSpeeds: number[] = []
+  const vmRev: number[] = []
+
+  // disturbance triggers
+  const trig: { t: number; kind: string; followUpSlowS: number; followUpManS: number; recoveryS: number }[] = []
+  const entries: { t: number; cause: string; speed: number; fleeKind: GoalKind; chaserDist: number; chaserBearing: number; nClose20: number; staticFront: number; staticRear: number; planFree: number; vdBefore: number; supBlocked: number; peakV1s: number; goalBad: boolean; goalDist: number; sinceLastManeuver: number | null }[] = []
+  const lowFree: { pf: number; vd: number; why: string; n30: number; kind: GoalKind }[] = []
+  const trigLog: { t: number; kind: string }[] = []
+  let prevActive = false
+  let prevStuck = 0
+  let prevFirstGear = 0
+  let prevV = 0
+  let prevVd = 0
+  let prevSupBlocked = 0
+  let lastManEnd: number | null = null
+  // over-braking: decelerating > 5 m/s^2 while driving freely (no manoeuvre) and the speed planner wants > v + 2 m/s: AEB / contact / actuator, not the planner
+  interface OB { t0: number; t1: number; v0: number; v1: number; aeb: string; chaser: number; lastF: number }
+  const obEvents: OB[] = []
+  let ob: OB | null = null
+  let obFrames = 0
+  let drivingFrames = 0
+  let prevVf = 0
+  const vHist: number[] = []
+  let prevHard = false
+  let prevClose = false
+  let prevContact = false
+  let lastTrigT = -99
+  let pendingTrig: { t: number; kind: string; slowS: number; manS: number; recT: number | null } | null = null
+
+  let st: Record<string, any> | undefined // eslint-disable-line @typescript-eslint/no-explicit-any
+  const S: Record<string, Record<string, any> | undefined> = {} // eslint-disable-line @typescript-eslint/no-explicit-any
+  let nearestChaserMin = Infinity
+  let frameCount = 0
+  let sumVNear3 = 0
+  void st
+  let vSum = 0
+  let nDrive = 0
+
+  const r = await runLab({
+    world: ref,
+    preparedWorld: world,
+    focus: FOCUS,
+    seed,
+    frames,
+    maxScenes: 0,
+    profile: false,
+    onFrame: ({ frame, sim }) => {
+      S.ego ??= liveStageState(sim, world, FOCUS, 'ego') as Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
+      S.rt ??= liveStageState(sim, world, FOCUS, 'route planner') as Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
+      S.spd ??= liveStageState(sim, world, FOCUS, 'speed planner') as Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
+      S.sup ??= liveStageState(sim, world, FOCUS, 'supervisor') as Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
+      const ego = S.ego
+      const rt = S.rt
+      const spd = S.spd
+      const sup = S.sup
+      if (!ego || !rt || !spd || !sup) return
+      chaserPos = (id) => sim.getPosition(id)
+      const t = frame / FPS
+      const p = sim.getPosition(FOCUS)
+      const q = sim.getRotation(FOCUS)
+      const vFwd = forwardSpeed(q, sim.getVelocity(FOCUS))
+      const w = frame % TRACE_EVERY === 0 ? watchValues(FOCUS) : null
+      // chasers
+      let dMin = Infinity
+      let n30 = 0
+      let n60 = 0
+      for (const id of threatIds) {
+        const cp = chaserPos(id)
+        const d = Math.hypot(cp[0] - p[0], cp[2] - p[2])
+        if (d < dMin) dMin = d
+        if (d < 30) n30++
+        if (d < 60) n60++
+      }
+      if (dMin < nearestChaserMin) nearestChaserMin = dMin
+      frameCount++
+
+      // ----- effective goal --------------------------------------------------------------------------------
+      const fl = ego.flee as { maze?: boolean; gap?: boolean; x: number; z: number } | null | undefined
+      const wd = ego.wd as { x: number; z: number } | undefined
+      let kind: GoalKind = 'real'
+      let gx = wd?.x ?? p[0]
+      let gz = wd?.z ?? p[2]
+      if (fl) {
+        kind = fl.maze ? 'maze' : fl.gap ? 'gap' : 'ring'
+        gx = fl.x
+        gz = fl.z
+      }
+      const isSwitch = !cur || cur.kind !== kind || Math.hypot(cur.x - gx, cur.z - gz) > 8
+      if (cur) {
+        const dc = Math.hypot(cur.x - p[0], cur.z - p[2])
+        cur.minDist = Math.min(cur.minDist, dc)
+        if (cur.reachedAt === null && dc < 25) cur.reachedAt = t
+      }
+      if (kind !== 'real') {
+        fleeFrames++
+        if (dMin > 40) fleeFar40++
+        if (dMin > 60) fleeFar60++
+      }
+      if (isSwitch) {
+        if (cur) {
+          const ageOld = t - cur.t0
+          const distToOld = Math.hypot(cur.x - p[0], cur.z - p[2])
+          const a0 = prevHeadingGoal ? Math.atan2(cur.z - p[2], cur.x - p[0]) : 0
+          const a1 = Math.atan2(gz - p[2], gx - p[0])
+          let dA = Math.abs(a1 - a0)
+          if (dA > Math.PI) dA = 2 * Math.PI - dA
+          goalEvents.push({ t, from: cur.kind, to: kind, ageOld, distToOld, minDistOld: cur.minDist, reachedOld: cur.minDist < 25, chaserMin: dMin, nNear30: n30, newDist: Math.hypot(gx - p[0], gz - p[2]), turnDeg: (dA * 180) / Math.PI, cls: cur.cls })
+          goalLife.push({ kind: cur.kind, dur: ageOld, cls: cur.cls, nearest0: cur.chasersNear0, afterReached: cur.reachedAt === null ? null : t - cur.reachedAt })
+        }
+        // classify new flee-type goals only (real goals are the wanderer's, not the flee layer's choice)
+        const cls = kind === 'real' ? null : classifyGoal(geo, [p[0], p[2]], [gx, gz])
+        cur = { kind, t0: t, x: gx, z: gz, minDist: Math.hypot(gx - p[0], gz - p[2]), cls, chasersNear0: n30, reachedAt: null }
+        prevHeadingGoal = [gx, gz]
+      }
+
+      // ----- speed / limiter / mode -----------------------------------------------------------------------------
+      const active = !!rt.active
+      const lim = active ? 'maneuver' : String(spd.lim ?? '?')
+      const mode = active ? 'maneuver' : fl ? 'flee:' + kind : 'drive'
+      byMode[mode] = (byMode[mode] ?? 0) + 1
+      const bk = n30 === 0 ? '0' : n30 <= 2 ? '1-2' : '>=3'
+      const b = byNear[bk]
+      b.n++
+      b.v.push(vFwd)
+      b.lim[lim] = (b.lim[lim] ?? 0) + 1
+      if (vFwd < 6) b.slow++
+      vSum += vFwd
+      nDrive++
+      void sumVNear3
+
+      // watch derived (4 Hz)
+      let vm = NaN
+      let contactSide = prevContact
+      if (w) {
+        vm = num(w['av.maneuver'], /vm ([\d.]+)/)
+        contactSide = num(w['av.contacts'], /side (\d)/) === 1
+      }
+
+      // ----- manoeuvre episodes ------------------------------------------------------------------------------------
+      const g = active && Array.isArray(rt.segs) && rt.segs[rt.idx] ? (rt.segs[rt.idx].g as number) : 0
+      if (active) {
+        if (!man) {
+          man = { px: [], t0: t, t1: t, frames: 0, revFrames: 0, fwdFrames: 0, waitFrames: 0, gearChanges: 0, vmSum: 0, vmN: 0, speedRev: [], maze: !!rt.maze, turnPlan: !!rt.turnPlan, noHandback: !!rt.noHandbackFrom, segs: Array.isArray(rt.segs) ? rt.segs.length : 0, startSpeed: vFwd, ownerLim: String(spd.lim ?? '?') }
+          prevG = 0
+        }
+        man.frames++
+        man.t1 = t
+        if (frame % 30 === 0) man.px.push(p[0], p[2])
+        if (g < 0) man.revFrames++
+        if (g > 0) man.fwdFrames++
+        if (rt.segStart === null) man.waitFrames++
+        if (g !== 0 && prevG !== 0 && g !== prevG) man.gearChanges++
+        if (g !== 0) prevG = g
+        if (g < 0) {
+          revSpeeds.push(-vFwd)
+          man.speedRev.push(-vFwd)
+        }
+        if (Number.isFinite(vm)) {
+          man.vmSum += vm
+          man.vmN++
+          const key = g < 0 ? 'rev' : 'fwd'
+          const bucket = Math.abs(vm - 3) < 0.06 ? '=3.0 (maneuverSpeed)' : Math.abs(vm - 7) < 0.06 ? '=7.0 (maneuverRunSpeed)' : vm < 3 ? '<3 (sweep/guard/remaining)' : vm < 7 ? '3..7' : '>7'
+          vmHist[key + ' ' + bucket] = (vmHist[key + ' ' + bucket] ?? 0) + 1
+          if (g < 0) vmRev.push(vm)
+        }
+        if (rt.noHandbackFrom) man.noHandback = true
+      } else if (man) {
+        mans.push(man)
+        man = null
+      }
+
+      // ----- manoeuvre entry cause (state of the PREVIOUS frame: begin() resets the route planner's timers) -------------------
+      if (active && !prevActive) {
+        const hd = yawOfQ(q)
+        const fwdX = Math.sin(hd) // yawOf(q) = atan2(fx, fz): forward = (sin y, cos y)
+        const fwdZ = Math.cos(hd)
+        let cd = Infinity
+        let cb = 0
+        let cclose = 0
+        for (const id of threatIds) {
+          const cp = chaserPos(id)
+          const dx = cp[0] - p[0]
+          const dz = cp[2] - p[2]
+          const d = Math.hypot(dx, dz)
+          if (d < cd) {
+            cd = d
+            cb = (Math.atan2(fwdX * dz - fwdZ * dx, fwdX * dx + fwdZ * dz) * 180) / Math.PI
+          }
+          if (d < 20) cclose++
+        }
+        const ang = Math.atan2(fwdZ, fwdX)
+        const front = Math.min(...[-0.3, 0, 0.3].map((da) => freeRun(geo, p[0], p[2], ang + da, 40)))
+        const rear = Math.min(...[-0.3, 0, 0.3].map((da) => freeRun(geo, p[0], p[2], ang + Math.PI + da, 40)))
+        if (env.AV_FLEE_TRACE === '1') rows.push(`ENTRY t ${t.toFixed(2)} pos ${p[0].toFixed(1)},${p[2].toFixed(1)} yawDeg ${((hd * 180) / Math.PI).toFixed(0)} front ${front.toFixed(0)} rear ${rear.toFixed(0)} watch ${JSON.stringify(watchValues(FOCUS)).slice(0, 700)}`)
+        entries.push({
+          t, cause: t < 1.5 ? 'start (initial pose)' : prevStuck > 1.4 ? 'stuck(v<0.25 for 1.5 s)' : prevFirstGear === -1 ? 'route starts in reverse' : 'other',
+          speed: prevV, fleeKind: kind, chaserDist: cd, chaserBearing: cb, nClose20: cclose, staticFront: front, staticRear: rear,
+          planFree: num(watchValues(FOCUS)['av.plan.free'], /^([\d.]+)/), vdBefore: prevVd, supBlocked: prevSupBlocked, peakV1s: Math.max(0, ...vHist), goalBad: !!cur && !!cur.cls && !!(cur.cls.inMaze || cur.cls.deadEnd || cur.cls.blocked || cur.cls.unreachable || cur.cls.detour > 2), goalDist: cur ? Math.hypot(cur.x - p[0], cur.z - p[2]) : NaN, sinceLastManeuver: lastManEnd === null ? null : t - lastManEnd,
+        })
+      }
+      if (!active && prevActive) lastManEnd = t
+      prevActive = active
+      prevStuck = Number(rt.stuckT ?? 0)
+      prevFirstGear = (rt.route as { firstGear?: number } | undefined)?.firstGear ?? 0
+      prevV = vFwd
+      prevVd = Number(spd.vd ?? 0)
+      prevSupBlocked = Number(sup.blockedT ?? 0)
+
+      // ----- low speed by the free-path limit: what is really there? (4 Hz) ---------------------------------------------------
+      if (w && !active && String(spd.lim) === 'free' && vFwd > -1) {
+        const pf = num(w['av.plan.free'], /^([\d.]+)/)
+        const vdv = Number(spd.vd ?? 0)
+        if (Number.isFinite(pf) && vdv < 8) {
+          const hd = yawOfQ(q)
+          const ang = Math.atan2(Math.cos(hd), Math.sin(hd))
+          const sFree = Math.min(...[-0.15, 0, 0.15].map((da) => freeRun(geo, p[0], p[2], ang + da, 60))) - 4
+          let chAhead = Infinity
+          for (const id of threatIds) {
+            const cp = chaserPos(id)
+            const dx = cp[0] - p[0]
+            const dz = cp[2] - p[2]
+            const lon = dx * Math.cos(ang) + dz * Math.sin(ang)
+            const lat = -dx * Math.sin(ang) + dz * Math.cos(ang)
+            if (lon > 0 && lon < 40 && Math.abs(lat) < 6) chAhead = Math.min(chAhead, lon - 4 - 2.5)
+          }
+          const why = sFree < pf + 8 ? 'static wall ahead' : chAhead < pf + 8 ? 'chaser ahead' : 'neither (marks / threat cost)'
+          lowFree.push({ pf, vd: vdv, why, n30, kind })
+        }
+      }
+
+      // ----- over-braking ------------------------------------------------------------------------------------------------------
+      {
+        const vdNow = Number(spd.vd ?? 0)
+        if (!active && vFwd > 3) drivingFrames++
+        const over = !active && prevVf > 3 && (prevVf - vFwd) * FPS > 5 && vdNow > vFwd + 2
+        if (over) {
+          obFrames++
+          if (!ob) ob = { t0: t, t1: t, v0: prevVf, v1: vFwd, aeb: String(watchValues(FOCUS)['av.aeb'] ?? '-'), chaser: dMin, lastF: frame }
+          ob.t1 = t
+          ob.v1 = vFwd
+          ob.lastF = frame
+        } else if (ob && frame - ob.lastF > 6) {
+          obEvents.push(ob)
+          ob = null
+        }
+        prevVf = vFwd
+      }
+
+      // ----- slow episodes + triggers -------------------------------------------------------------------------------
+      const supStuck = Number(sup.stuckT ?? 0)
+      const supBlocked = Number(sup.blockedT ?? 0)
+      const isSlow = Math.abs(vFwd) < 5
+      if (!slow) {
+        if (isSlow) {
+          if (slowCand < 0) slowCand = frame
+          if (frame - slowCand >= FPS * 1 && frame > FPS * 3) {
+            slow = { t0: slowCand / FPS, t1: t, cause: '', maneuverFrames: 0, revFrames: 0, waitFrames: 0, frames: 0, contactFrames: 0, minChaser: dMin, nearMax: n30, supStuck: 0, supBlocked: 0, noHandback: 0, limits: {} }
+          }
+        } else slowCand = -1
+      }
+      if (slow) {
+        slow.frames++
+        slow.t1 = t
+        slow.limits[lim] = (slow.limits[lim] ?? 0) + 1
+        if (active) slow.maneuverFrames++
+        if (g < 0) slow.revFrames++
+        if (active && rt.segStart === null) slow.waitFrames++
+        if (contactSide) slow.contactFrames++
+        slow.minChaser = Math.min(slow.minChaser, dMin)
+        slow.nearMax = Math.max(slow.nearMax, n30)
+        slow.supStuck = Math.max(slow.supStuck, supStuck)
+        slow.supBlocked = Math.max(slow.supBlocked, supBlocked)
+        if (active && rt.noHandbackFrom) slow.noHandback++
+        if (vFwd > 8) {
+          const sl = slow
+          slow = null
+          slowCand = -1
+          sl.cause = sl.maneuverFrames > sl.frames * 0.3 ? 'maneuver' : sl.limits.free > sl.frames * 0.5 ? 'free-limit' : 'other'
+          slowEps.push(sl)
+        }
+      }
+      // hard brake = forward speed drop of > 10 m/s within 1 s (AEB / wall / contact); watch av.aeb is a stale string, so it cannot be used as an edge
+      vHist.push(vFwd)
+      if (vHist.length > FPS) vHist.shift()
+      const hardBrake = vHist.length === FPS && vHist[0] - vFwd > 10
+      if (w) {
+        contactSide = num(w['av.contacts'], /side (\d)/) === 1
+      }
+      {
+        const trigKind = contactSide && !prevContact ? 'contact' : hardBrake && !prevHard ? 'hard-brake' : dMin < 6 && !prevClose ? 'chaser<6m' : ''
+        if (trigKind && t - lastTrigT > 3 && t > 3) {
+          lastTrigT = t
+          trigLog.push({ t, kind: trigKind })
+          if (pendingTrig) trig.push({ t: pendingTrig.t, kind: pendingTrig.kind, followUpSlowS: pendingTrig.slowS, followUpManS: pendingTrig.manS, recoveryS: pendingTrig.recT ?? 20 })
+          pendingTrig = { t, kind: trigKind, slowS: 0, manS: 0, recT: null }
+        }
+        prevHard = hardBrake
+        prevClose = dMin < 6
+        prevContact = contactSide
+      }
+      if (pendingTrig) {
+        if (t - pendingTrig.t <= 20) {
+          if (isSlow) pendingTrig.slowS += 1 / FPS
+          if (active) pendingTrig.manS += 1 / FPS
+          if (pendingTrig.recT === null && t - pendingTrig.t > 0.5 && vFwd > 12) pendingTrig.recT = t - pendingTrig.t
+        } else {
+          trig.push({ t: pendingTrig.t, kind: pendingTrig.kind, followUpSlowS: pendingTrig.slowS, followUpManS: pendingTrig.manS, recoveryS: pendingTrig.recT ?? 20 })
+          pendingTrig = null
+        }
+      }
+
+      if (w) {
+        if (env.AV_FLEE_TRACE === '1') {
+          rows.push(
+            `${t.toFixed(2)} v ${vFwd.toFixed(1)} mode ${mode} lim ${lim} vd ${active ? (g * (Number.isFinite(vm) ? vm : 0)).toFixed(1) : Number(spd.vd ?? 0).toFixed(1)} goal ${kind}@${Math.round(gx)},${Math.round(gz)} age ${(t - (cur?.t0 ?? t)).toFixed(1)} d ${Math.hypot(gx - p[0], gz - p[2]).toFixed(0)} chaser ${dMin.toFixed(0)}m n30 ${n30} n60 ${n60} sup ${supStuck.toFixed(1)}/${supBlocked.toFixed(1)} rtStuck ${Number(rt.stuckT ?? 0).toFixed(1)} free ${String(w['av.plan.free'] ?? '-')} aeb ${String(w['av.aeb'] ?? '-')} man [${String(w['av.maneuver'] ?? '-')}] maze [${String(w['av.maze'] ?? '-').slice(0, 60)}]`,
+          )
+        }
+      }
+    },
+  })
+  if (man) mans.push(man)
+  if (ob) obEvents.push(ob)
+  if (slow) {
+    const sl = slow as Slow
+    sl.cause = 'open-at-end'
+    slowEps.push(sl)
+  }
+  if (cur && goalLife.length >= 0) goalLife.push({ kind: (cur as GoalRec).kind, dur: frames / FPS - (cur as GoalRec).t0, cls: (cur as GoalRec).cls, nearest0: (cur as GoalRec).chasersNear0, afterReached: null })
+
+  // ---- aggregate --------------------------------------------------------------------------------------------------
+  const T = frames / FPS
+  const fleeEv = goalEvents.filter((e) => e.from !== 'real' && e.to !== 'real')
+  const fleeStarts = goalEvents.filter((e) => e.from === 'real' && e.to !== 'real').length
+  const fleeEnds = goalEvents.filter((e) => e.from !== 'real' && e.to === 'real').length
+  const flLife = goalLife.filter((g) => g.kind !== 'real')
+  const classes = flLife.filter((g) => g.cls)
+  const share = (f: (c: GoalClass) => boolean) => (classes.length ? classes.filter((g) => f(g.cls!)).length / classes.length : NaN)
+  const gapHold = flLife.filter((g) => g.kind === 'gap').map((g) => g.dur)
+  const mazeHold = flLife.filter((g) => g.kind === 'maze').map((g) => g.dur)
+  const ringHold = flLife.filter((g) => g.kind === 'ring').map((g) => g.dur)
+  const fleeTime = flLife.reduce((s, g) => s + g.dur, 0)
+  const slowTime = slowEps.reduce((s, e) => s + (e.t1 - e.t0), 0)
+  const manTime = mans.reduce((s, m) => s + (m.t1 - m.t0), 0)
+  const revFrames = mans.reduce((s, m) => s + m.revFrames, 0)
+  const manFrames = mans.reduce((s, m) => s + m.frames, 0)
+  const waitFrames = mans.reduce((s, m) => s + m.waitFrames, 0)
+
+  const lines: string[] = []
+  lines.push(`== FLEE DIAG ${WORLD} seed ${seed} start ${startIdx} ${frames} frames (${T.toFixed(0)} s): mean v ${f1(r.meanSpeed)} (p50 ${f1(r.speedPct.focus[1])}) path ${r.pathLength.toFixed(0)} m catches ${r.catches} minChaserDist ${f1(nearestChaserMin)} m`)
+  lines.push(`W1 goals: ${goalEvents.length} goal changes in ${T.toFixed(0)} s (${((goalEvents.length / T) * 60).toFixed(1)}/min); flee-to-flee switches ${fleeEv.length}, flee starts ${fleeStarts}, flee ends ${fleeEnds}; flee goals ${flLife.length} (gap ${gapHold.length}, maze ${mazeHold.length}, ring ${ringHold.length}); time with a flee goal ${(fleeTime / T * 100).toFixed(0)} %`)
+  lines.push(`   hold time s (median/p10/p90): gap ${f1(pct(gapHold, 50))}/${f1(pct(gapHold, 10))}/${f1(pct(gapHold, 90))}  maze ${f1(pct(mazeHold, 50))}/${f1(pct(mazeHold, 10))}/${f1(pct(mazeHold, 90))}  ring ${f1(pct(ringHold, 50))}/${f1(pct(ringHold, 10))}/${f1(pct(ringHold, 90))}`)
+  lines.push(`   switches (flee->flee): age s median ${f1(pct(fleeEv.map((e) => e.ageOld), 50))} p10 ${f1(pct(fleeEv.map((e) => e.ageOld), 10))}; distance car->old goal at switch median ${f1(pct(fleeEv.map((e) => e.distToOld), 50))} m; old goal NOT reached (min dist >= 25 m) ${(fleeEv.length ? (fleeEv.filter((e) => !e.reachedOld).length / fleeEv.length) * 100 : NaN).toFixed(0)} %; new goal bearing change median ${f1(pct(fleeEv.map((e) => e.turnDeg), 50))} deg, > 90 deg ${(fleeEv.length ? (fleeEv.filter((e) => e.turnDeg > 90).length / fleeEv.length) * 100 : NaN).toFixed(0)} %`)
+  lines.push(`   goal ends (flee->real): reached(<25 m) ${goalEvents.filter((e) => e.from !== 'real' && e.to === 'real' && e.reachedOld).length}/${fleeEnds}; nearest chaser at flee end median ${f1(pct(goalEvents.filter((e) => e.from !== 'real' && e.to === 'real').map((e) => e.chaserMin), 50))} m`)
+  lines.push(`   flee goal quality (n=${classes.length}): in labyrinth ${(share((c) => !!c.inMaze) * 100).toFixed(0)} %, dead end (<=1 long ray in labyrinth/enclosed) ${(share((c) => c.deadEnd) * 100).toFixed(0)} %, inside inflated wall ${(share((c) => c.blocked) * 100).toFixed(0)} %, unreachable ${(share((c) => c.unreachable) * 100).toFixed(0)} %, detour >2x ${(share((c) => c.detour > 2) * 100).toFixed(0)} %, <=2 long rays (corridor/end) ${(share((c) => c.longRays <= 2 && !c.blocked) * 100).toFixed(0)} %`)
+  const bad = classes.filter((g) => g.cls!.inMaze || g.cls!.deadEnd || g.cls!.blocked || g.cls!.unreachable || g.cls!.detour > 2)
+  lines.push(`   any of {labyrinth, dead end, blocked, unreachable, detour>2}: ${(classes.length ? (bad.length / classes.length) * 100 : NaN).toFixed(0)} % of ${classes.length} flee goals`)
+  lines.push(`   modes (% of frames): ${Object.entries(byMode).map(([k, v]) => `${k} ${((v / frames) * 100).toFixed(0)}`).join(', ')}`)
+  for (const k of Object.keys(byNear)) {
+    const b = byNear[k]
+    const limTxt = Object.entries(b.lim).sort((a, c) => c[1] - a[1]).map(([l, n]) => `${l} ${((n / Math.max(1, b.n)) * 100).toFixed(0)}`).join(', ')
+    lines.push(`W2 chasers<30m ${k.padEnd(4)}: ${((b.n / frames) * 100).toFixed(0)} % of time, mean v ${f1(mean(b.v))} p50 ${f1(pct(b.v, 50))} p90 ${f1(pct(b.v, 90))}, v<6: ${(b.n ? (b.slow / b.n) * 100 : NaN).toFixed(0)} %, limiter: ${limTxt}`)
+  }
+  lines.push(`W3 manoeuvres: ${mans.length} (${(manTime / T * 100).toFixed(0)} % of time), median ${f1(pct(mans.map((m) => m.t1 - m.t0), 50))} s p90 ${f1(pct(mans.map((m) => m.t1 - m.t0), 90))} s max ${f1(Math.max(0, ...mans.map((m) => m.t1 - m.t0)))} s; reverse frames ${(manFrames ? (revFrames / manFrames) * 100 : NaN).toFixed(0)} % of manoeuvre time, waiting-for-rest at gear change ${(manFrames ? (waitFrames / manFrames) * 100 : NaN).toFixed(0)} %; gear changes/manoeuvre mean ${f1(mean(mans.map((m) => m.gearChanges)))}; maze-mode ${mans.filter((m) => m.maze).length}, turnPlan ${mans.filter((m) => m.turnPlan).length}, noHandback ${mans.filter((m) => m.noHandback).length}`)
+  lines.push(`   reverse speed |v| m/s: mean ${f1(mean(revSpeeds))} p50 ${f1(pct(revSpeeds, 50))} p90 ${f1(pct(revSpeeds, 90))} max ${f1(Math.max(0, ...revSpeeds))}; commanded cap vm (reverse) mean ${f1(mean(vmRev))} p50 ${f1(pct(vmRev, 50))} p90 ${f1(pct(vmRev, 90))}; vm buckets ${JSON.stringify(vmHist)}`)
+  // W1b persistence / pressure
+  const afterR = flLife.filter((g) => g.afterReached !== null).map((g) => g.afterReached as number)
+  lines.push(`   flee goal persistence: goals that came within 25 m ${afterR.length}/${flLife.length}, then kept for median ${f1(pct(afterR, 50))} s (p90 ${f1(pct(afterR, 90))}); flee-goal time with nearest chaser > 40 m ${(fleeFrames ? (fleeFar40 / fleeFrames) * 100 : NaN).toFixed(0)} %, > 60 m ${(fleeFrames ? (fleeFar60 / fleeFrames) * 100 : NaN).toFixed(0)} %`)
+  for (const kk of ['gap', 'maze', 'ring'] as GoalKind[]) {
+    const cl = flLife.filter((g) => g.kind === kk && g.cls)
+    if (!cl.length) continue
+    const sh = (f: (c: GoalClass) => boolean) => ((cl.filter((g) => f(g.cls!)).length / cl.length) * 100).toFixed(0)
+    lines.push(`   quality of ${kk} goals (n=${cl.length}): labyrinth ${sh((c) => !!c.inMaze)} %, dead end ${sh((c) => c.deadEnd)} %, in wall ${sh((c) => c.blocked)} %, unreachable ${sh((c) => c.unreachable)} %, detour>2 ${sh((c) => c.detour > 2)} %, <=2 long rays ${sh((c) => c.longRays <= 2 && !c.blocked)} %`)
+  }
+  // W3b entry causes
+  const causeCnt = entries.reduce<Record<string, number>>((a, e) => ((a[e.cause] = (a[e.cause] ?? 0) + 1), a), {})
+  lines.push(`W3b manoeuvre entries ${entries.length}: cause ${JSON.stringify(causeCnt)}; speed before median ${f1(pct(entries.map((e) => e.speed), 50))} m/s; plan.free before median ${f1(pct(entries.map((e) => e.planFree).filter(Number.isFinite), 50))} m; vd before median ${f1(pct(entries.map((e) => e.vdBefore), 50))}; flee goal at entry ${JSON.stringify(entries.reduce<Record<string, number>>((a, e) => ((a[e.fleeKind] = (a[e.fleeKind] ?? 0) + 1), a), {}))}`)
+  lines.push(`   at entry: nearest chaser median ${f1(pct(entries.map((e) => e.chaserDist), 50))} m (< 20 m in ${entries.length ? ((entries.filter((e) => e.chaserDist < 20).length / entries.length) * 100).toFixed(0) : '-'} %, |bearing| > 90 deg (behind) in ${entries.length ? ((entries.filter((e) => Math.abs(e.chaserBearing) > 90 && e.chaserDist < 40).length / entries.length) * 100).toFixed(0) : '-'} % of entries with chaser < 40 m); static free run (truth) front median ${f1(pct(entries.map((e) => e.staticFront), 50))} m rear median ${f1(pct(entries.map((e) => e.staticRear), 50))} m; front < 12 m in ${entries.length ? ((entries.filter((e) => e.staticFront < 12).length / entries.length) * 100).toFixed(0) : '-'} %; car was driving > 8 m/s in the second before ${entries.length ? ((entries.filter((e) => e.peakV1s > 8).length / entries.length) * 100).toFixed(0) : '-'} % (peak median ${f1(pct(entries.map((e) => e.peakV1s), 50))}); flee goal flagged bad (labyrinth / dead end / wall / detour) at entry ${entries.filter((e) => e.fleeKind !== 'real' && e.goalBad).length} of ${entries.filter((e) => e.fleeKind !== 'real').length} flee-goal entries; re-entry within 10 s of the previous manoeuvre ${entries.filter((e) => e.sinceLastManeuver !== null && e.sinceLastManeuver < 10).length}/${entries.length}`)
+  // manoeuvre clusters: manoeuvres separated by < 5 s form one 'slow mode' (weakness 4: stays in it and reverses a lot)
+  const clusters: { t0: number; end: number; n: number }[] = []
+  for (const m of mans) {
+    const last = clusters[clusters.length - 1]
+    if (last && m.t0 - last.end < 5) {
+      last.n++
+      last.end = m.t1
+    } else clusters.push({ t0: m.t0, end: m.t1, n: 1 })
+  }
+  const clDur = clusters.map((c) => c.end - c.t0)
+  const clusterList = clusters.map((c) => {
+    const before = trigLog.filter((x) => x.t <= c.t0 + 0.5 && x.t >= c.t0 - 4)
+    const mm = mans.filter((m) => m.t0 >= c.t0 - 1e-6 && m.t1 <= c.end + 1e-6)
+    const fr = mm.reduce((a, m) => a + m.frames, 0)
+    const pts = mm.flatMap((m) => m.px)
+    let maxR = 0
+    for (let i = 2; i + 1 < pts.length; i += 2) maxR = Math.max(maxR, Math.hypot(pts[i] - pts[0], pts[i + 1] - pts[1]))
+    const gearCh = mm.reduce((a, m) => a + m.gearChanges, 0)
+    return { t0: c.t0, dur: c.end - c.t0, n: c.n, maxR, gearCh, revShare: fr ? mm.reduce((a, m) => a + m.revFrames, 0) / fr : null, precededBy: before.length ? before[before.length - 1].kind : (c.t0 < 1.5 ? 'start' : 'none') }
+  })
+  lines.push(`   manoeuvre clusters (gap < 5 s; 'loop' = > 10 s within a 25 m disc): ${clusterList.filter((c) => c.dur > 10 && c.maxR < 25).length} loops of ${clusters.length} (preceded by ${JSON.stringify(clusterList.reduce<Record<string, number>>((a, c) => ((a[c.precededBy] = (a[c.precededBy] ?? 0) + 1), a), {}))}), duration s median ${f1(pct(clDur, 50))} p90 ${f1(pct(clDur, 90))} max ${f1(Math.max(0, ...clDur))}; manoeuvres per cluster mean ${f1(mean(clusters.map((c) => c.n)))}`)
+  const obEv = obEvents.filter((e) => e.v0 - e.v1 > 3)
+  lines.push(`W2c over-braking (decel > 5 m/s^2 in free driving while the speed planner wants > v + 2): ${obFrames} frames = ${(drivingFrames ? (obFrames / drivingFrames) * 100 : NaN).toFixed(1)} % of driving frames, ${obEv.length} events > 3 m/s lost (${((obEv.length / T) * 60).toFixed(1)}/min), speed lost median ${f1(pct(obEv.map((e) => e.v0 - e.v1), 50))} m/s p90 ${f1(pct(obEv.map((e) => e.v0 - e.v1), 90))}, mean start speed ${f1(mean(obEv.map((e) => e.v0)))}, av.aeb watch set at start in ${obEv.length ? ((obEv.filter((e) => e.aeb !== '-').length / obEv.length) * 100).toFixed(0) : '-'} %, nearest chaser at start < 30 m in ${obEv.length ? ((obEv.filter((e) => e.chaser < 30).length / obEv.length) * 100).toFixed(0) : '-'} %`)
+  const lfWhy = lowFree.reduce<Record<string, number>>((a, e) => ((a[e.why] = (a[e.why] ?? 0) + 1), a), {})
+  lines.push(`W2b free-path limit with vDesired < 8 m/s (4 Hz samples, n=${lowFree.length}): explained by ${JSON.stringify(lfWhy)}; plan.free median ${f1(pct(lowFree.map((e) => e.pf), 50))} m; with >=3 chasers<30 m: ${JSON.stringify(lowFree.filter((e) => e.n30 >= 3).reduce<Record<string, number>>((a, e) => ((a[e.why] = (a[e.why] ?? 0) + 1), a), {}))}`)
+  lines.push(`W4 slow episodes (|v|<5 m/s for >=1 s until >8 m/s): ${slowEps.length}, ${(slowTime / T * 100).toFixed(0)} % of time, duration s median ${f1(pct(slowEps.map((e) => e.t1 - e.t0), 50))} p90 ${f1(pct(slowEps.map((e) => e.t1 - e.t0), 90))} max ${f1(Math.max(0, ...slowEps.map((e) => e.t1 - e.t0)))}; cause: ${JSON.stringify(slowEps.reduce<Record<string, number>>((a, e) => ((a[e.cause] = (a[e.cause] ?? 0) + 1), a), {}))}`)
+  lines.push(`   inside slow episodes: manoeuvre ${(slowEps.reduce((s, e) => s + e.frames, 0) ? (slowEps.reduce((s, e) => s + e.maneuverFrames, 0) / slowEps.reduce((s, e) => s + e.frames, 0)) * 100 : NaN).toFixed(0)} % of frames, reverse ${(slowEps.reduce((s, e) => s + e.frames, 0) ? (slowEps.reduce((s, e) => s + e.revFrames, 0) / slowEps.reduce((s, e) => s + e.frames, 0)) * 100 : NaN).toFixed(0)} %, waiting-for-rest ${(slowEps.reduce((s, e) => s + e.frames, 0) ? (slowEps.reduce((s, e) => s + e.waitFrames, 0) / slowEps.reduce((s, e) => s + e.frames, 0)) * 100 : NaN).toFixed(0)} %, contact ${(slowEps.reduce((s, e) => s + e.frames, 0) ? (slowEps.reduce((s, e) => s + e.contactFrames, 0) / slowEps.reduce((s, e) => s + e.frames, 0)) * 100 : NaN).toFixed(0)} %, noHandback ${(slowEps.reduce((s, e) => s + e.frames, 0) ? (slowEps.reduce((s, e) => s + e.noHandback, 0) / slowEps.reduce((s, e) => s + e.frames, 0)) * 100 : NaN).toFixed(0)} %; max supervisor stuckT ${f1(Math.max(0, ...slowEps.map((e) => e.supStuck)))} blockedT ${f1(Math.max(0, ...slowEps.map((e) => e.supBlocked)))}; chasers<30 m max ${Math.max(0, ...slowEps.map((e) => e.nearMax))}`)
+  const trg = pendingTrig ? [...trig, { t: (pendingTrig as { t: number }).t, kind: (pendingTrig as { kind: string }).kind, followUpSlowS: (pendingTrig as { slowS: number }).slowS, followUpManS: (pendingTrig as { manS: number }).manS, recoveryS: (pendingTrig as { recT: number | null }).recT ?? 20 }] : trig
+  lines.push(`   disturbances (contact / hard brake / chaser<6 m): ${trg.length}; within 20 s after: slow ${f1(mean(trg.map((x) => x.followUpSlowS)))} s mean, manoeuvre ${f1(mean(trg.map((x) => x.followUpManS)))} s mean, time to v>12 m/s median ${f1(pct(trg.map((x) => x.recoveryS), 50))} s p90 ${f1(pct(trg.map((x) => x.recoveryS), 90))} s (20 = never within 20 s); by kind ${JSON.stringify(trg.reduce<Record<string, number>>((a, e) => ((a[e.kind] = (a[e.kind] ?? 0) + 1), a), {}))}`)
+  if (env.AV_FLEE_TRACE === '1') lines.push(...rows)
+
+  const summary: RunSummary = {
+    seed, start: startIdx, frames, meanSpeed: r.meanSpeed, pathLen: r.pathLength, catches: r.catches,
+    minChaserDist: nearestChaserMin,
+    goalChangesPerMin: (goalEvents.length / T) * 60,
+    fleeSwitchAgeMedian: pct(fleeEv.map((e) => e.ageOld), 50), fleeSwitchDistMedian: pct(fleeEv.map((e) => e.distToOld), 50),
+    fleeSwitchUnreachedShare: fleeEv.length ? fleeEv.filter((e) => !e.reachedOld).length / fleeEv.length : null,
+    fleeGoals: flLife.length, fleeTimeShare: fleeTime / T,
+    badGoalShare: classes.length ? bad.length / classes.length : null, labyrinthGoalShare: share((c) => !!c.inMaze), deadEndGoalShare: share((c) => c.deadEnd), blockedGoalShare: share((c) => c.blocked), unreachableGoalShare: share((c) => c.unreachable), detourGoalShare: share((c) => c.detour > 2),
+    near: Object.fromEntries(Object.entries(byNear).map(([k, b]) => [k, { timeShare: b.n / frames, meanV: mean(b.v), p50: pct(b.v, 50), slowShare: b.n ? b.slow / b.n : null, limiter: b.lim }])),
+    meanSpeedUnder3: mean(byNear['>=3'].v),
+    maneuvers: mans.length, maneuverTimeShare: manTime / T, revShareOfManeuver: manFrames ? revFrames / manFrames : null, waitShareOfManeuver: manFrames ? waitFrames / manFrames : null,
+    revSpeedMean: mean(revSpeeds), revSpeedP90: pct(revSpeeds, 90), revCapMean: mean(vmRev), vmHist,
+    fleeFar40Share: fleeFrames ? fleeFar40 / fleeFrames : null, fleeFar60Share: fleeFrames ? fleeFar60 / fleeFrames : null, afterReachedMedian: pct(afterR, 50),
+    entryCauses: causeCnt, entryChaserMedian: pct(entries.map((e) => e.chaserDist), 50), entryFrontMedian: pct(entries.map((e) => e.staticFront), 50), lowFreeWhy: lfWhy, lowFreeN: lowFree.length,
+    quality: Object.fromEntries((['gap', 'maze', 'ring'] as GoalKind[]).map((kk) => {
+      const cl = flLife.filter((g) => g.kind === kk && g.cls)
+      const sh = (f: (c: GoalClass) => boolean) => (cl.length ? cl.filter((g) => f(g.cls!)).length / cl.length : null)
+      return [kk, { n: cl.length, labyrinth: sh((c) => !!c.inMaze), deadEnd: sh((c) => c.deadEnd), blocked: sh((c) => c.blocked), unreachable: sh((c) => c.unreachable), detour2: sh((c) => c.detour > 2), le2Rays: sh((c) => c.longRays <= 2 && !c.blocked) }]
+    })),
+    clusterList,
+    entryList: entries.filter((e) => e.t >= 1.5).map((e) => ({ t: e.t, cause: e.cause, speed: e.speed, fleeKind: e.fleeKind, chaserDist: e.chaserDist, nClose20: e.nClose20, staticFront: e.staticFront, staticRear: e.staticRear, planFree: e.planFree, peakV1s: e.peakV1s, goalBad: e.goalBad, goalDist: e.goalDist, sinceLast: e.sinceLastManeuver })),
+    clusterDurMedian: pct(clDur, 50), clusterDurMax: Math.max(0, ...clDur), clusters: clusters.length,
+    overBrakeShare: drivingFrames ? obFrames / drivingFrames : null, overBrakeEventsPerMin: (obEv.length / T) * 60, overBrakeLostMedian: pct(obEv.map((e) => e.v0 - e.v1), 50),
+    slowEpisodes: slowEps.length, slowTimeShare: slowTime / T, slowDurMedian: pct(slowEps.map((e) => e.t1 - e.t0), 50), slowDurP90: pct(slowEps.map((e) => e.t1 - e.t0), 90), slowDurMax: Math.max(0, ...slowEps.map((e) => e.t1 - e.t0)),
+    disturbances: trg.length, recoveryMedian: pct(trg.map((x) => x.recoveryS), 50), slowAfterDisturbance: mean(trg.map((x) => x.followUpSlowS)),
+  }
+  return { summary, text: lines.join('\n') }
+}
+
+it.skipIf(!enabled)('flee diagnostic', async () => {
+  fs.mkdirSync(OUT, { recursive: true })
+  const ref: WorldRef = { exampleId: WORLD }
+  const seeds = (env.AV_FLEE_SEEDS ?? '1,2,3,4').split(',').map(Number)
+  const starts = Number(env.AV_FLEE_STARTS ?? 1)
+  const all: RunSummary[] = []
+  for (const seed of seeds) {
+    for (let s = 0; s < starts; s++) {
+      if (env.AV_FLEE_START_ONLY != null && Number(env.AV_FLEE_START_ONLY) !== s) continue
+      const { summary, text } = await oneRun(ref, seed, s)
+      console.log(text)
+      all.push(summary)
+      fs.writeFileSync(`${OUT}/${env.AV_FLEE_NAME ?? 'flee'}-s${seed}-st${s}.json`, JSON.stringify(summary, null, 1))
+    }
+  }
+  const m = (k: string) => mean(all.map((x) => Number(x[k])).filter(Number.isFinite))
+  console.log(`== ALL ${all.length} runs: mean speed ${f1(m('meanSpeed'))}, mean speed with >=3 chasers<30m ${f1(m('meanSpeedUnder3'))}, catches ${all.reduce((s, x) => s + x.catches, 0)}, goal changes/min ${f1(m('goalChangesPerMin'))}, flee switch age median ${f1(m('fleeSwitchAgeMedian'))} s, bad flee goals ${f1(m('badGoalShare') * 100)} %, slow time ${f1(m('slowTimeShare') * 100)} %, slow episode median ${f1(m('slowDurMedian'))} s, rev speed mean ${f1(m('revSpeedMean'))} m/s, rev cap mean ${f1(m('revCapMean'))}`)
+  fs.writeFileSync(`${OUT}/${env.AV_FLEE_NAME ?? 'flee'}-all.json`, JSON.stringify(all, null, 1))
+  expect(all.length).toBeGreaterThan(0)
+}, 3_600_000)

@@ -85,3 +85,19 @@ cand finished >= shipped finished - max(1, ceil(5 % of n)) (`kindTolerance`). Fi
 - Stage params `neuralPolicy` (v2|v3, default v2), `neuralReverse` (false), `neuralRevMaxM` (12); `av.neural.dir` / `revM`; AEB probes from the rear when reversing (positive stopping u). Details: [feature-av-stack.md](./feature-av-stack.md).
 - World `av_neural_v3` (regenerate: `npx tsx tools/renn-mcp/export-av-neural-example-world.ts [av_neural_v3]`, then `npm run sync:global-pipeline`); on-disk-equals-exporter test + headless run in `src/test/scenarios/av-neural-v3-world.test.ts`.
 - To judge a candidate: A/B arm `v3` in `av-neural-ab.diagnostic.test.ts` / `av-neural-maze-ab.diagnostic.test.ts` with `AV_NEURAL_V3_WEIGHTS=<run json>` (not run in CI, not run yet).
+
+## NEW TASK from the user (posted in the cloud session; not started there — the attempt was stopped): improve the fleeing car in `self_hunt_flexible`
+Long-term goal: improve the AV autopilot pipe of the fleeing car (`entity_1779823253285_brtkx1p`) in `public/exampleWorlds/self_hunt_flexible`.
+Weaknesses the user observed in the browser:
+1. Flee targets are set clumsily: they switch too fast, or persist after being reached; sometimes they point into a maze or a dead end.
+2. The car often gets extremely slow, especially when surrounded by many chasers — exactly when it should be fast.
+3. Reversing is slower than necessary.
+4. After being distracted (near miss / contact / blocked) it enters a mode where it only drives slowly and reverses a lot.
+Wanted: (A) diagnose each weakness with headless measurements in `self_hunt_flexible` (defined start, several seeds; trace flee-goal switches /
+age / dead-end, which limiter sets vDesired under chaser pressure, reverse speed limits, supervisor modes/timers after contact); (B) write
+`agent-context/plan-flee-improvements.md`: root cause + evidence, fix, paired before/after metric + test, risk to `av_maze_escape`, `av_fleet_eco`,
+`self_drive_av`; cheap classic fixes first; then a smart integration strategy where the AV logic sets the target vectors for the neural net (v3,
+forward + reverse) in mazes / dense chasers / instead of the slow manoeuvre mode, with hand-over, fallback, training changes (chasers / moving
+obstacles) and an A/B gate before enabling.
+An unfinished, unverified start of that diagnosis is parked in `wip/flee-diagnosis/` (renamed `.wip` so vitest ignores it; review or discard).
+The cloud session runs nothing any more (no training, no scheduled check-ins, no agents).
