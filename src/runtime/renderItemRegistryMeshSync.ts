@@ -54,6 +54,8 @@ export function disposeMeshHierarchy(mesh: THREE.Mesh): void {
 export function setMeshColor(mesh: THREE.Mesh, r: number, g: number, b: number): void {
   const setColorOn = (mat: THREE.Material) => {
     if ('color' in mat && mat.color instanceof THREE.Color) {
+      // stash the base color once so resetMeshColor can restore it (transformers can only set, never read)
+      if (!mat.userData.colorBaseRgb) mat.userData.colorBaseRgb = [mat.color.r, mat.color.g, mat.color.b]
       mat.color.setRGB(r, g, b)
     }
   }
@@ -67,6 +69,25 @@ export function setMeshColor(mesh: THREE.Mesh, r: number, g: number, b: number):
   } else if (mesh.material) {
     const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
     mats.forEach(setColorOn)
+  }
+}
+
+/** Restore the material colors stashed by setMeshColor (no-op for materials never overridden). */
+export function resetMeshColor(mesh: THREE.Mesh): void {
+  const resetOn = (mat: THREE.Material) => {
+    const base = mat.userData.colorBaseRgb
+    if (base && 'color' in mat && mat.color instanceof THREE.Color) mat.color.setRGB(base[0], base[1], base[2])
+  }
+  if (mesh.userData.usesModel === true || mesh.userData.isTrimeshSource === true) {
+    mesh.traverse((child) => {
+      if (child instanceof THREE.Mesh && child.material) {
+        const mats = Array.isArray(child.material) ? child.material : [child.material]
+        mats.forEach(resetOn)
+      }
+    })
+  } else if (mesh.material) {
+    const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+    mats.forEach(resetOn)
   }
 }
 

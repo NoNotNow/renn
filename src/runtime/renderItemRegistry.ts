@@ -53,6 +53,7 @@ import {
   disposeMeshHierarchy,
   getMeshColor,
   patchEntityAppearanceSync,
+  resetMeshColor,
   setMeshColor,
   syncAllShapeWireframeOverlaysForItems,
   updateEntityMaterialSync,
@@ -638,6 +639,13 @@ export class RenderItemRegistry implements SimulationFramePort, SceneEditPort, E
     setMeshColor(item.mesh, r, g, b)
   }
 
+  /** Restore the material colors stashed by the first setColor (transformer output `color: null`). */
+  resetColor(id: string): void {
+    const item = this.items.get(id)
+    if (!item) return
+    resetMeshColor(item.mesh)
+  }
+
   /** Get mesh color (RGB 0–1). Returns first material color found, or null if none. */
   getColor(id: string): [number, number, number] | null {
     const item = this.items.get(id)
@@ -994,6 +1002,8 @@ export class RenderItemRegistry implements SimulationFramePort, SceneEditPort, E
       }
       if (output.color) {
         this.setColor(item.entity.id, output.color[0], output.color[1], output.color[2])
+      } else if (output.color === null) {
+        this.resetColor(item.entity.id)
       }
     }
   }

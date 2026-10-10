@@ -204,11 +204,15 @@ function sanitizeTransformOutput(raw: unknown): TransformOutput {
   const force = readVec3(o.force)
   const impulse = readVec3(o.impulse)
   const torque = readVec3(o.torque)
-  const color = readVec3(o.color)
   if (force) next.force = cloneVec3Tuple(force)
   if (impulse) next.impulse = cloneVec3Tuple(impulse)
   if (torque) next.torque = cloneVec3Tuple(torque)
-  if (color) next.color = cloneVec3Tuple(color)
+  if (o.color === null) {
+    next.color = null // explicit reset: restore the material color stashed on the first override
+  } else {
+    const color = readVec3(o.color)
+    if (color) next.color = cloneVec3Tuple(color)
+  }
 
   if (typeof o.addRotation === 'undefined') {
     /* leave unset */

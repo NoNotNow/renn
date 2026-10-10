@@ -193,8 +193,8 @@ export interface TransformOutput {
   /** Torque to add (world-space). */
   torque?: Vec3
 
-  /** Optional mesh color override [r,g,b] 0–1. Applied by the render loop for display feedback. */
-  color?: Vec3
+  /** Optional mesh color override [r,g,b] 0–1. Applied by the render loop for display feedback. `null` restores the original material color (stashed on first override). */
+  color?: Vec3 | null
 
   /** If set, add this delta to current body rotation (Euler [x,y,z] rad). Default undefined so other transformers are unaffected. */
   addRotation?: Rotation | null

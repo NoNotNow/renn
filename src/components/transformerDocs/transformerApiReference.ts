@@ -287,11 +287,11 @@ export const TRANSFORM_OUTPUT_SECTION: ApiDocSection = {
     {
       name: 'color',
       signature: 'color?',
-      type: 'Vec3',
+      type: 'Vec3 | null',
       fieldLabelEn: 'Mesh color',
       fieldLabelDe: 'Farbe',
-      en: 'Tint `[r, g, b]` with channels 0–1.',
-      de: 'Färbung `[r, g, b]`, Kanäle 0–1.',
+      en: 'Tint `[r, g, b]` with channels 0–1. `null` restores the original material color (stashed on the first override).',
+      de: 'Färbung `[r, g, b]`, Kanäle 0–1. `null` stellt die ursprüngliche Materialfarbe wieder her (beim ersten Überschreiben gemerkt).',
     },
     {
       name: 'earlyExit',
