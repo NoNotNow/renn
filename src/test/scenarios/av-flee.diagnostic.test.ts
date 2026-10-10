@@ -336,14 +336,8 @@ async function oneRun(ref: WorldRef, seed: number, startIdx: number): Promise<{ 
   let lastTrigT = -99
   let pendingTrig: { t: number; kind: string; slowS: number; manS: number; recT: number | null } | null = null
 
-  let st: Record<string, any> | undefined // eslint-disable-line @typescript-eslint/no-explicit-any
   const S: Record<string, Record<string, any> | undefined> = {} // eslint-disable-line @typescript-eslint/no-explicit-any
   let nearestChaserMin = Infinity
-  let frameCount = 0
-  let sumVNear3 = 0
-  void st
-  let vSum = 0
-  let nDrive = 0
 
   const r = await runLab({
     world: ref,
@@ -381,7 +375,6 @@ async function oneRun(ref: WorldRef, seed: number, startIdx: number): Promise<{ 
         if (d < 60) n60++
       }
       if (dMin < nearestChaserMin) nearestChaserMin = dMin
-      frameCount++
 
       // ----- effective goal --------------------------------------------------------------------------------
       const fl = ego.flee as { maze?: boolean; gap?: boolean; x: number; z: number } | null | undefined
@@ -433,9 +426,6 @@ async function oneRun(ref: WorldRef, seed: number, startIdx: number): Promise<{ 
       b.v.push(vFwd)
       b.lim[lim] = (b.lim[lim] ?? 0) + 1
       if (vFwd < 6) b.slow++
-      vSum += vFwd
-      nDrive++
-      void sumVNear3
 
       // watch derived (4 Hz)
       let vm = NaN
