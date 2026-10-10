@@ -54,6 +54,8 @@ chain is driven; EVENLY distributed performance is rewarded. Focused work, no si
 - warm-start equality (padded v1 == v1); stage forward pass == `policyForward`; episode determinism.
 
 ## v3 (agreed with the user 2026-10-10): forward AND backward from the start, free-track pretraining
+Status: IMPLEMENTED 2026-10-10 (leg-wise progress `legs.ts`, stand-still stall, `free`/`bay`/`corridor` setups + chains `v3Chains.ts`, v3 stage, stage curriculum, `run-islands/ship/compare --v3`, tests `v3.test.ts`); no training run yet. Deviations: episode key `<setup>#<i>v3`; offcourse tolerance 20 m on the free track, 8 m in bays/corridors (6 m for the v2 kinds); v2 kinds run as ONE leg in v3 mode; obstacle kinds join one by one (bay, corridor, slalom, crowd, field, maze) as the share rises.
+**Added by the user later: evenness across KINDS** - v3 fitness = 0.5 mean + 0.5 min over kinds of the per-kind setup-evenness aggregate (`aggregateKindEvenness`), and batches are STRATIFIED (the same number of setups from every kind active in the stage). v2 fitness unchanged.
 User: no speed command, ONLY the direction. Reversing was neglected in training; the target vector must point forward and then backward
 and the car must be rewarded accordingly; this has to be trained FROM THE BEGINNING (fresh nets, no warm start from v1/v2): pretraining on
 a free track first, obstacles later.

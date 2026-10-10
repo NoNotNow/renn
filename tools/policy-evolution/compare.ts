@@ -7,21 +7,25 @@
  *
  * A group may also be `shipped` (no files): the currently shipped policy.
  *
+ * `--v3`: v3 chain episodes of all kinds (free, bay, corridor, field, slalom, maze, crowd; HOLDOUT setups, default 5 per kind), kind-evenness fitness, per kind finish rate,
+ * all-finished setups and REVERSE USAGE (share of time backwards, max reverse distance); `shipped` = shippedPolicyV3.json.
+ *
  * `--v2`: chain episodes (all chains of the first --holdout-per-kind HOLDOUT setups per kind, default 5), evenness fitness; per run the chain finish rate,
  * the share of setups with all chains finished, offcourse and crashes per kind are printed (`shipped` = shippedPolicyV2.json). `--kinds a,b` restricts the kinds.
  */
 import fs from 'node:fs'
 import os from 'node:os'
-import { flattenChainKeys, holdoutChainEpisodes } from '@/policyEvolution/chains'
-import { chainReportByKind, formatChainReport, parseKinds, v2GenomeFromFile, v2Hidden } from '@/policyEvolution/chainReport'
-import { CHAIN_KINDS, COURSE_KINDS, holdoutCourseKeys, parseCourseKey } from '@/policyEvolution/courses'
+import { flattenChainKeys, holdoutChainEpisodes, holdoutV3Episodes } from '@/policyEvolution/chains'
+import { formatV3Report, v3ReportByKind, chainReportByKind, formatChainReport, parseKinds, v2GenomeFromFile, v2Hidden } from '@/policyEvolution/chainReport'
+import { CHAIN_KINDS, COURSE_KINDS, V3_KINDS, holdoutCourseKeys, parseCourseKey } from '@/policyEvolution/courses'
 import type { PolicyEpisodeMetrics } from '@/policyEvolution/episode'
-import { aggregateEvenness, aggregateFitness } from '@/policyEvolution/es'
+import { aggregateEvenness, aggregateFitness, aggregateKindEvenness } from '@/policyEvolution/es'
 import { shippedGenome } from '@/policyEvolution/exampleWorld'
 import { PolicyPool } from './pool'
 
 const argv = process.argv.slice(2)
-const v2 = argv.includes('--v2')
+const v3 = argv.includes('--v3')
+const v2 = v3 || argv.includes('--v2')
 const kindsArg = argv.indexOf('--kinds') >= 0 ? argv[argv.indexOf('--kinds') + 1] : undefined
 const opt = (name: string, d: number) => {
   const i = argv.indexOf(`--${name}`)
@@ -38,17 +42,17 @@ for (let i = 0; i < argv.length; i++) {
       if (!run.best) throw new Error(`${file} has no best policy yet`)
       runs.push({ label: `${file.split('/').pop()} (gen ${run.best.gen})`, genome: v2 ? v2GenomeFromFile(run) : run.best.genome })
     }
-    if (name === 'shipped' && runs.length === 0) runs.push(v2 ? { label: 'shippedPolicyV2.json', genome: v2GenomeFromFile(JSON.parse(fs.readFileSync('src/policyEvolution/shippedPolicyV2.json', 'utf8'))) } : { label: 'shippedPolicy.json', genome: shippedGenome() })
+    if (name === 'shipped' && runs.length === 0) runs.push(v2 ? { label: v3 ? 'shippedPolicyV3.json' : 'shippedPolicyV2.json', genome: v2GenomeFromFile(JSON.parse(fs.readFileSync(v3 ? 'src/policyEvolution/shippedPolicyV3.json' : 'src/policyEvolution/shippedPolicyV2.json', 'utf8'))) } : { label: 'shippedPolicy.json', genome: shippedGenome() })
     if (runs.length === 0) throw new Error(`group ${name} has no runs`)
     groups.push({ name, runs })
-  } else if (argv[i] === '--v2') continue
+  } else if (argv[i] === '--v2' || argv[i] === '--v3') continue
   else if (argv[i]!.startsWith('--')) i++
 }
 if (groups.length === 0) throw new Error('usage: compare.ts --group NAME run.json [run.json ...] [--group ...] [--holdout-per-kind N] [--workers N]')
 
-const kinds = parseKinds(kindsArg, v2 ? CHAIN_KINDS : COURSE_KINDS)
-const keys = v2 ? flattenChainKeys(holdoutChainEpisodes(opt('holdout-per-kind', 5), kinds)) : holdoutCourseKeys(opt('holdout-per-kind', 20), kinds)
-const fitness = v2 ? aggregateEvenness : aggregateFitness
+const kinds = parseKinds(kindsArg, v3 ? V3_KINDS : v2 ? CHAIN_KINDS : COURSE_KINDS)
+const keys = v3 ? flattenChainKeys(holdoutV3Episodes(opt('holdout-per-kind', 5), kinds)) : v2 ? flattenChainKeys(holdoutChainEpisodes(opt('holdout-per-kind', 5), kinds)) : holdoutCourseKeys(opt('holdout-per-kind', 20), kinds)
+const fitness = v3 ? aggregateKindEvenness : v2 ? aggregateEvenness : aggregateFitness
 const pool = new PolicyPool(opt('workers', Math.max(1, os.cpus().length - 1)))
 const evaluate = pool.evaluator()
 const mean = (a: number[]) => a.reduce((s, x) => s + x, 0) / a.length
@@ -70,7 +74,8 @@ try {
       fits.push(f)
       finishes.push(m.filter((x) => x.outcome === 'finish').length / m.length)
       console.log(`  ${g.name.padEnd(12)} ${r.label.padEnd(36)}${v2 ? ` H=${v2Hidden(r.genome)}` : ''} fitness ${f.toFixed(3)}  finished ${v2 ? '' : finishByKind(m)}`)
-      if (v2) console.log(`      ${formatChainReport(chainReportByKind(m, kinds))}`)
+      if (v3) console.log(`    ${formatV3Report(v3ReportByKind(m, kinds))}`)
+      else if (v2) console.log(`      ${formatChainReport(chainReportByKind(m, kinds))}`)
     }
     console.log(`${g.name.padEnd(14)} n=${g.runs.length}  fitness mean ${mean(fits).toFixed(3)} sd ${sd(fits).toFixed(3)} [${Math.min(...fits).toFixed(3)} .. ${Math.max(...fits).toFixed(3)}]  finish rate mean ${(100 * mean(finishes)).toFixed(0)} %`)
   }
