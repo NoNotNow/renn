@@ -35,7 +35,7 @@ mazes and crowded situations. Work focused, good tests, learn from past mistakes
 git pull && npm ci
 npx tsx tools/policy-evolution/bench.ts --per-kind 10            # per-core speed (cloud Xeon 2.1 GHz: ~12-14 ms per sim s under load)
 tools/policy-evolution/run-v3.sh 3000                            # resumable; workers = cores-1; Ctrl+C any time, re-run to continue
-npx tsx tools/policy-evolution/ship.ts training-data/policy-evolution/v3.json --v3 --workers 8   # writes shippedPolicyV3.json only if better (kind evenness, HOLDOUT)
+npx tsx tools/policy-evolution/ship.ts training-data/policy-evolution/v3.json --v3 --workers 8   # writes shippedPolicyV3.json only if the HOLDOUT FINISH-COUNT gate passes (see below)
 npx tsx tools/renn-mcp/export-policy-drive-example-world.ts       # after a ship: re-export the policy worlds
 npx vitest run src/policyEvolution                               # must be green before commit
 git add -A training-data src/policyEvolution/shippedPolicyV3.json public/exampleWorlds && git commit && git push && npm run deploy
@@ -63,3 +63,8 @@ Commit `training-data/policy-evolution/v3.json` (+ `v3.log`) regularly so the ru
 - Never `pkill -f` with a pattern contained in your own command line; use `pkill -f "[v]ite --port NNNN"` as a separate command.
 - Single runs vary; decide with `compare.ts` / `ship.ts` (paired, HOLDOUT) and screening runs (150 gens, several seeds) before long runs.
 - Delegating to subagents worked well with a written spec + "max N lines" reports + "commit early" (cloud restarts killed agents twice).
+
+## Ship gate (v3, `src/policyEvolution/shipGate.ts`, used by `ship.ts --v3`)
+Decides on HOLDOUT finish count, not fitness: ship only if (1) candidate total finished > shipped total (strictly) and (2) per kind
+cand finished >= shipped finished - max(1, ceil(5 % of n)) (`kindTolerance`). Fitness is printed for reference only. 1-episode drops
+(e.g. corridor 17->16) are tolerated, 2 of 18 are not. Unit tests: `src/policyEvolution/shipGate.test.ts`. `--force` still overrides.

@@ -1,7 +1,9 @@
 /**
  * Pick the policy to ship from a run file (best mean policy by TRAIN score), round it and compare it with the currently shipped one on
  * the same TRAIN and HOLDOUT courses. src/policyEvolution/shippedPolicy.json is rewritten only if the candidate has the better HOLDOUT
- * fitness (or with --force). Then regenerate the example world: npx tsx tools/renn-mcp/export-policy-drive-example-world.ts
+ * fitness (or with --force). For `--v3` the gate is instead on HOLDOUT FINISH COUNT (src/policyEvolution/shipGate.ts, `shipDecision`): candidate ships only if
+ * (1) its total finished episodes are STRICTLY higher than the shipped policy's and (2) no kind loses more than tolerance = max(1 episode, ceil(5 % of the kind's
+ * episodes)). Fitness is printed as a report column only. The report lists per kind cand/shipped finished, delta, OK/WORSE, and a verdict line naming the failed condition. Then regenerate the example world: npx tsx tools/renn-mcp/export-policy-drive-example-world.ts
  *
  *   npx tsx tools/policy-evolution/ship.ts test-results/policy-evolution/run2.json [--workers 4] [--train-per-kind 30] [--holdout-per-kind 10] [--force]
  *
@@ -22,6 +24,9 @@ import { chainReportByKind, formatChainReport, parseKinds, v2GenomeFromFile, v2H
 import { CHAIN_KINDS, COURSE_KINDS, V3_KINDS, holdoutCourseKeys, trainCourseKeys } from '@/policyEvolution/courses'
 import { aggregateEvenness, aggregateFitness, aggregateKindEvenness } from '@/policyEvolution/es'
 import { PolicyPool } from './pool'
+import { formatShipDecision, shipDecision } from '@/policyEvolution/shipGate'
+
+export { KIND_TOLERANCE_FRACTION, KIND_TOLERANCE_MIN, kindTolerance, shipDecision } from '@/policyEvolution/shipGate'
 
 const argv = process.argv.slice(2)
 const v3 = argv.includes('--v3')
@@ -88,7 +93,13 @@ if (v2 && currentFile === V1) console.log('no shippedPolicyV2.json yet: comparin
       ties: d.filter((x) => Math.abs(x) <= 1e-9).length,
     }
   }
-  const better = !cur || cand.holdout.fitness > cur.holdout.fitness
+  let better = !cur || cand.holdout.fitness > cur.holdout.fitness
+  let gateReport: string | undefined
+  if (v3 && cur) {
+    const d = shipDecision(cand.holdout.perKind as ReturnType<typeof v3ReportByKind>, cur.holdout.perKind as ReturnType<typeof v3ReportByKind>)
+    better = d.ship
+    gateReport = formatShipDecision(d, cand.holdout.fitness, cur.holdout.fitness)
+  }
   const force = argv.includes('--force')
   if (v3) {
     console.log('CANDIDATE TRAIN\n    ' + formatV3Report(cand.train.perKind as ReturnType<typeof v3ReportByKind>))
@@ -98,12 +109,13 @@ if (v2 && currentFile === V1) console.log('no shippedPolicyV2.json yet: comparin
     console.log('CANDIDATE TRAIN  ' + formatChainReport(cand.train.perKind as ReturnType<typeof chainReportByKind>))
     console.log('CANDIDATE HOLDOUT ' + formatChainReport(cand.holdout.perKind as ReturnType<typeof chainReportByKind>))
   }
+  if (gateReport) console.log(gateReport)
   console.log(JSON.stringify({ candidate: { gen: run.best.gen, ...cand }, shipped: cur, paired, courses: { train: trainKeys.length, holdout: holdoutKeys.length }, better }, null, 2))
   if (better || force) {
     const info = { source: `${runFile} generation ${run.best.gen} (best mean policy by TRAIN fitness)`, ...cand, evaluatedOn: { train: trainKeys.length, holdout: holdoutKeys.length }, genome }
     fs.writeFileSync(SHIPPED, JSON.stringify(info, null, 1) + '\n')
     console.log('WROTE', SHIPPED)
-  } else console.log('kept the shipped policy (candidate is not better on HOLDOUT)')
+  } else console.log('kept the shipped policy (candidate does not pass the HOLDOUT gate)')
 } finally {
   await pool.close()
 }
