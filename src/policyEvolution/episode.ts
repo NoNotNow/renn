@@ -50,6 +50,14 @@ const CAR2_PARAMS = { power: 2400, steeringIntensity: 0.1, steeringSpeed: 0.51, 
 /** `offcourse`: farther than OFF_COURSE_M from the route polyline (a safety net on top of the walls; counts like a crash) */
 export type EpisodeOutcome = 'crash' | 'offcourse' | 'stall' | 'flip' | 'finish' | 'timeout'
 
+/** extra per-frame state handed to `onFrame` (diagnostics): heading `atan2(fx, fz)`, world velocity, forward speed */
+export interface FrameExtra {
+  yaw: number
+  vx: number
+  vz: number
+  vf: number
+}
+
 export interface PolicyEpisodeMetrics {
   key: string
   outcome: EpisodeOutcome
@@ -183,7 +191,7 @@ export function buildPolicyWorld(course: Course, genome: ArrayLike<number>, opts
 export async function runPolicyEpisode(
   genome: ArrayLike<number>,
   key: string,
-  opts: { seconds?: number; noise?: number; stageChain?: V2[]; chainOverride?: Chain; onFrame?: (x: number, z: number, t: number) => void } = {},
+  opts: { seconds?: number; noise?: number; stageChain?: V2[]; chainOverride?: Chain; onFrame?: (x: number, z: number, t: number, extra?: FrameExtra) => void } = {},
 ): Promise<PolicyEpisodeMetrics> {
   const isChain = isChainEpisodeKey(key)
   let course: Course
@@ -240,7 +248,12 @@ export async function runPolicyEpisode(
       t = (frame + 1) * DEFAULT_DT
       const cp = sim.getPosition(POLICY_CAR_ID)
       const q = sim.getRotation(POLICY_CAR_ID)
-      opts.onFrame?.(cp[0], cp[2], t)
+      if (opts.onFrame) {
+        const v = sim.getVelocity(POLICY_CAR_ID)
+        const hx = -(2 * (q.x * q.z + q.w * q.y))
+        const hz = -(1 - 2 * (q.x * q.x + q.y * q.y))
+        opts.onFrame(cp[0], cp[2], t, { yaw: Math.atan2(hx, hz), vx: v[0], vz: v[2], vf: v[0] * hx + v[2] * hz })
+      }
       const progress = route.update(cp[0], cp[2])
       if (v3) {
         const v = sim.getVelocity(POLICY_CAR_ID)
