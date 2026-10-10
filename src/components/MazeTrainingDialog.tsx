@@ -40,7 +40,6 @@ const DEFAULT_WIDTH = 540
 const DEFAULT_HEIGHT = 480
 const MIN_WIDTH = 260
 const MIN_HEIGHT = 120
-const CARD_WIDTH = 160
 /** Pointer travel (px) beyond which a header press counts as a drag, not a click. */
 const DRAG_THRESHOLD_PX = 3
 
@@ -149,6 +148,8 @@ export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld
     Object.fromEntries(MAZE_TRAINING_WORLDS.map((spec) => [spec.id, initialCardState])),
   )
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  /** Run row whose full-width thumbnail is expanded (one at a time; null = all rows single-line). */
+  const [expandedRowId, setExpandedRowId] = useState<string | null>(null)
   const [collapsed, setCollapsed] = useState<boolean>(() => readStoredCollapsed())
   const [size, setSize] = useState<PanelSize>(() => readStoredSize() ?? { width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT })
   const [pos, setPos] = useState<PanelPos>(() => {
@@ -286,6 +287,7 @@ export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld
 
   const handleCardClick = useCallback((id: string) => {
     setSelectedId(id)
+    setExpandedRowId((prev) => (prev === id ? null : id))
   }, [])
 
   const handlePlay = useCallback(
@@ -409,9 +411,8 @@ export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld
             overflow: 'auto',
             padding: 10,
             display: 'flex',
-            flexWrap: 'wrap',
-            gap: 10,
-            alignContent: 'flex-start',
+            flexDirection: 'column',
+            gap: 6,
           }}
         >
           {MAZE_TRAINING_WORLDS.map((spec) => {
@@ -419,83 +420,116 @@ export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld
             const meta = state.meta
             const exported = !state.failed && meta != null
             const selected = selectedId === spec.id
+            const rowExpanded = expandedRowId === spec.id && exported
             return (
               <div
                 key={spec.id}
                 data-testid={`maze-training-card-${spec.id}`}
-                role="button"
-                tabIndex={0}
-                aria-label={spec.name}
-                aria-pressed={selected}
-                onClick={() => handleCardClick(spec.id)}
-                onKeyDown={(e) => e.key === 'Enter' && handleCardClick(spec.id)}
                 style={{
-                  width: CARD_WIDTH,
-                  padding: 8,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: rowExpanded ? 6 : 0,
                   background: theme.bg.section,
                   border: `1px solid ${selected ? theme.button.pickBorder : theme.border.default}`,
                   borderRadius: 8,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 6,
                 }}
               >
                 <div
+                  data-testid={`maze-training-row-${spec.id}`}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={spec.name}
+                  aria-pressed={selected}
+                  aria-expanded={rowExpanded}
+                  onClick={() => handleCardClick(spec.id)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleCardClick(spec.id)}
+                  title={exported ? 'Click to show/hide the run thumbnail' : undefined}
                   style={{
-                    width: '100%',
-                    height: 88,
-                    borderRadius: 6,
-                    overflow: 'hidden',
-                    background: theme.bg.surface,
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center',
+                    gap: 8,
+                    padding: '6px 8px',
+                    cursor: 'pointer',
                   }}
                 >
-                  {exported ? (
-                    <img
-                      data-testid={`maze-training-thumb-${spec.id}`}
-                      src={mazeThumbUrl(spec)}
-                      alt={`${spec.name} thumbnail`}
-                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                      onError={handleThumbError}
-                    />
-                  ) : null}
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: theme.text.primary }}>{spec.name}</span>
-                  <span style={{ fontSize: 11, color: theme.text.secondary }}>seed {spec.seed}</span>
+                  <span
+                    aria-hidden={true}
+                    style={{
+                      color: theme.text.muted,
+                      fontSize: 10,
+                      transform: rowExpanded ? 'rotate(180deg)' : 'none',
+                      transition: 'transform 0.15s ease',
+                    }}
+                  >
+                    &#9662;
+                  </span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: theme.text.primary, whiteSpace: 'nowrap' }}>
+                    {spec.name}
+                  </span>
+                  <span style={{ fontSize: 11, color: theme.text.muted, whiteSpace: 'nowrap' }}>seed {spec.seed}</span>
+                  <div style={{ flex: 1 }} />
                   {exported && meta ? (
                     <>
-                      <span style={{ fontSize: 11, color: theme.text.secondary }}>{meta.candidate.label}</span>
-                      <span style={{ fontSize: 11, color: theme.text.secondary }}>{bestScoreLabel(meta)}</span>
+                      <span style={{ fontSize: 11, color: theme.text.secondary, whiteSpace: 'nowrap' }}>
+                        {bestScoreLabel(meta)}
+                      </span>
                       {routesLabel(meta) ? (
-                        <span style={{ fontSize: 11, color: theme.text.secondary }}>{routesLabel(meta)}</span>
+                        <span style={{ fontSize: 11, color: theme.text.muted, whiteSpace: 'nowrap' }}>
+                          {routesLabel(meta)}
+                        </span>
                       ) : null}
                     </>
                   ) : (
-                    <span style={{ fontSize: 11, color: theme.text.muted }}>not exported yet</span>
+                    <span style={{ fontSize: 11, color: theme.text.muted, whiteSpace: 'nowrap' }}>not exported yet</span>
                   )}
+                  <button
+                    type="button"
+                    data-testid={`maze-training-play-${spec.id}`}
+                    disabled={!exported}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handlePlay(spec.id)
+                    }}
+                    style={{
+                      ...secondaryButtonStyle,
+                      ...(exported ? {} : secondaryButtonStyleDisabled),
+                      ...(exported && selected ? { background: theme.button.pick } : {}),
+                      padding: '3px 10px',
+                      fontSize: 12,
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    Play
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  data-testid={`maze-training-play-${spec.id}`}
-                  disabled={!exported}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handlePlay(spec.id)
-                  }}
-                  style={{
-                    ...secondaryButtonStyle,
-                    ...(exported ? {} : secondaryButtonStyleDisabled),
-                    ...(exported && selected ? { background: theme.button.pick } : {}),
-                    padding: '4px 10px',
-                    fontSize: 12,
-                  }}
-                >
-                  Play
-                </button>
+                {rowExpanded && meta ? (
+                  <div
+                    style={{
+                      padding: '0 8px 8px 8px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 4,
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: '100%',
+                        borderRadius: 6,
+                        overflow: 'hidden',
+                        background: theme.bg.surface,
+                      }}
+                    >
+                      <img
+                        data-testid={`maze-training-thumb-${spec.id}`}
+                        src={mazeThumbUrl(spec)}
+                        alt={`${spec.name} thumbnail (all guidance vectors)`}
+                        style={{ width: '100%', height: 'auto', display: 'block', objectFit: 'contain' }}
+                        onError={handleThumbError}
+                      />
+                    </div>
+                    <span style={{ fontSize: 11, color: theme.text.secondary }}>{meta.candidate.label}</span>
+                  </div>
+                ) : null}
               </div>
             )
           })}
