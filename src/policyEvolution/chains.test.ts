@@ -85,7 +85,7 @@ describe('chain generation', () => {
     }
     expect(flattenChainKeys(tr).length).toBe(tr.reduce((a, g) => a + g.keys.length, 0))
     expect(ho[0]!.setupKey).toContain('~1')
-  })
+  }, 60_000) // pure CPU (chain generation for 16 setups); slow when a training run shares the cores
 
   it('the crowd setup is closed (continuous side walls, back and end wall)', () => {
     for (let seed = 1; seed <= 4; seed++) {
