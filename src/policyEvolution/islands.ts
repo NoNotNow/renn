@@ -1,5 +1,5 @@
 import { createRng, gaussian, type Rng } from '@/avEvolution/core/rng'
-import { inputsOfGenome, N_HIDDEN, N_IN, N_OUT, policyForward } from './policy'
+import { genomeLength, genomeShape, inputsOfGenome, N_HIDDEN, N_IN, N_OUT, policyForward } from './policy'
 import { aggregateFitness, DEFAULT_ES_CONFIG, initialEsState, PolicyEs, type EsConfig, type EsState, type EvaluateGenome, type FitnessFn, type GenerationReport } from './es'
 
 /**
@@ -10,32 +10,32 @@ import { aggregateFitness, DEFAULT_ES_CONFIG, initialEsState, PolicyEs, type EsC
  * otherwise the child would be a broken mixture of unrelated feature orders.
  */
 
-/** Genome layout of a net with `nIn` inputs (v1: N_IN = 16, v2: 24); every helper below derives it from the genome length. */
-const layout = (nIn: number) => {
-  const B1 = N_HIDDEN * nIn
-  const W2 = B1 + N_HIDDEN
-  return { B1, W2, B2: W2 + N_OUT * N_HIDDEN }
+/** Genome layout of a net with `nIn` inputs (v1: N_IN = 16, v2: 24) and H hidden units; every helper below derives both from the genome length (any H). */
+const layout = (nIn: number, H: number) => {
+  const B1 = H * nIn
+  const W2 = B1 + H
+  return { B1, W2, B2: W2 + N_OUT * H }
 }
 const BLOCK = N_IN + 1 + N_OUT
 
 /** Hidden neuron j of a genome as one block: [incoming weights (nIn), bias, outgoing weights (N_OUT)]. */
 export function neuronBlock(g: ArrayLike<number>, j: number): number[] {
-  const nIn = inputsOfGenome(g.length)
-  const { B1, W2 } = layout(nIn)
+  const { nIn, hidden: H } = genomeShape(g.length)
+  const { B1, W2 } = layout(nIn, H)
   const b: number[] = []
   for (let i = 0; i < nIn; i++) b.push(g[j * nIn + i]!)
   b.push(g[B1 + j]!)
-  for (let k = 0; k < N_OUT; k++) b.push(g[W2 + k * N_HIDDEN + j]!)
+  for (let k = 0; k < N_OUT; k++) b.push(g[W2 + k * H + j]!)
   return b
 }
 
 export function setNeuronBlock(g: number[], j: number, b: ArrayLike<number>, sign = 1): void {
-  const nIn = inputsOfGenome(g.length)
-  const { B1, W2 } = layout(nIn)
+  const { nIn, hidden: H } = genomeShape(g.length)
+  const { B1, W2 } = layout(nIn, H)
   for (let i = 0; i < nIn; i++) g[j * nIn + i] = sign * b[i]!
   g[B1 + j] = sign * b[nIn]!
   // tanh is odd: negating a neuron's incoming side and its outgoing weights leaves the function unchanged
-  for (let k = 0; k < N_OUT; k++) g[W2 + k * N_HIDDEN + j] = sign * b[nIn + 1 + k]!
+  for (let k = 0; k < N_OUT; k++) g[W2 + k * H + j] = sign * b[nIn + 1 + k]!
 }
 
 /** Plausible policy inputs (rays mostly clear, speeds, unit goal vector ...) for comparing what hidden neurons compute. */
@@ -60,9 +60,9 @@ export function sampleInputs(n: number, rng: Rng, nIn = N_IN): number[][] {
 }
 
 function hiddenActivations(g: ArrayLike<number>, xs: number[][]): number[][] {
-  const nIn = inputsOfGenome(g.length)
-  const { B1 } = layout(nIn)
-  return Array.from({ length: N_HIDDEN }, (_, j) =>
+  const { nIn, hidden: H } = genomeShape(g.length)
+  const { B1 } = layout(nIn, H)
+  return Array.from({ length: H }, (_, j) =>
     xs.map((x) => {
       let s = g[B1 + j]!
       for (let i = 0; i < nIn; i++) s += g[j * nIn + i]! * x[i]!
@@ -150,21 +150,23 @@ export function alignNeurons(a: ArrayLike<number>, b: ArrayLike<number>, samples
 
 /** Child = parent A where each hidden neuron is, with probability `pB`, replaced by the aligned neuron of parent B (at least one of each). */
 export function crossoverNeurons(a: ArrayLike<number>, b: ArrayLike<number>, rng: Rng, pB = 0.5): number[] {
+  if (a.length !== b.length) throw new Error(`crossoverNeurons: parents differ in size (${a.length} vs ${b.length})`)
+  const { nIn, hidden: H } = genomeShape(a.length)
   const { match, sign } = alignNeurons(a, b)
   const child = Array.from(a)
-  const take = Array.from({ length: N_HIDDEN }, () => rng.next() < pB)
-  if (!take.some(Boolean)) take[Math.floor(rng.next() * N_HIDDEN)] = true
-  if (take.every(Boolean)) take[Math.floor(rng.next() * N_HIDDEN)] = false
-  for (let i = 0; i < N_HIDDEN; i++) if (take[i]) setNeuronBlock(child, i, neuronBlock(b, match[i]!), sign[i]!)
+  const take = Array.from({ length: H }, () => rng.next() < pB)
+  if (!take.some(Boolean)) take[Math.floor(rng.next() * H)] = true
+  if (take.every(Boolean)) take[Math.floor(rng.next() * H)] = false
+  for (let i = 0; i < H; i++) if (take[i]) setNeuronBlock(child, i, neuronBlock(b, match[i]!), sign[i]!)
   // output biases: average of the parents
-  const o2 = layout(inputsOfGenome(a.length)).B2
+  const o2 = layout(nIn, H).B2
   for (let k = 0; k < N_OUT; k++) child[o2 + k] = (a[o2 + k]! + b[o2 + k]!) / 2
   return child
 }
 
-export function freshGenome(rng: Rng, initStd = DEFAULT_ES_CONFIG.initStd, nIn = N_IN): number[] {
-  const g = Array.from({ length: N_HIDDEN * nIn + N_HIDDEN + N_OUT * N_HIDDEN + N_OUT }, () => gaussian(rng) * initStd)
-  const B2 = layout(nIn).B2
+export function freshGenome(rng: Rng, initStd = DEFAULT_ES_CONFIG.initStd, nIn = N_IN, hidden = N_HIDDEN): number[] {
+  const g = Array.from({ length: genomeLength(nIn, hidden) }, () => gaussian(rng) * initStd)
+  const B2 = layout(nIn, hidden).B2
   // start prior (see tools/policy-evolution/run.ts): a positive speed-target bias so random policies at least roll forward
   g[B2 + 1] = 0.5
   return g
@@ -204,7 +206,7 @@ export function initialIslands(esCfg: EsConfig, cfg: IslandsConfig, warm?: Array
   const islands: IslandState[] = []
   for (let k = 0; k < cfg.islands; k++) {
     const es = initialEsState({ ...esCfg, seed: esCfg.seed * 1000 + k })
-    es.theta = warm ? Array.from(warm) : freshGenome(createRng(esCfg.seed * 1000 + k), esCfg.initStd, inputsOfGenome(esCfg.dim))
+    es.theta = warm ? Array.from(warm) : freshGenome(createRng(esCfg.seed * 1000 + k), esCfg.initStd, genomeShape(esCfg.dim).nIn, genomeShape(esCfg.dim).hidden)
     islands.push({ es, age: 0, origin: 'random' })
   }
   return { gen: 0, islands, rngState: rng.getState(), events: [] }
@@ -256,7 +258,7 @@ export class IslandEs {
     const cross = this.rng.next() < this.cfg.pCross
     const genome = cross
       ? crossoverNeurons(this.state.islands[order[0]!]!.es.theta, this.state.islands[order[1]!]!.es.theta, this.rng)
-      : freshGenome(this.rng, this.esCfg.initStd, inputsOfGenome(this.esCfg.dim))
+      : freshGenome(this.rng, this.esCfg.initStd, genomeShape(this.esCfg.dim).nIn, genomeShape(this.esCfg.dim).hidden)
     const es = initialEsState({ ...this.esCfg, seed: this.esCfg.seed * 1000 + worst + this.state.gen })
     es.theta = genome
     this.state.islands[worst] = { es, age: 0, origin: cross ? 'cross' : 'random' }

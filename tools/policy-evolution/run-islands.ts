@@ -14,6 +14,9 @@
  * a v1 genome is padded to v2). `--kinds field,slalom,maze,crowd` restricts the setup kinds (also in v1 mode, where crowd does not exist).
  *   npx tsx tools/policy-evolution/run-islands.ts --v2 --warm src/policyEvolution/shippedPolicy.json --gens 600 --workers 4 --out test-results/policy-evolution/v2.json
  *
+ * `--hidden N` (v2 only): hidden units (default 10). With --warm the warm genome is widened to N (new units: zero outgoing weights, small random incoming ones,
+ * function unchanged); without --warm the networks start random with N. Fresh immigrants / crossover use the run's N.
+ *
  * Options: --islands N (default 3) --pairs N (antithetic pairs PER island, default 8) --epoch N (25) --mature N (75) --p-cross P (0.5)
  *   --sigma --lr --seed --batch N (18) --train-per-kind N (30) --holdout-per-kind N (20) --workers N --out FILE --resume
  *   --no-variants --no-curriculum --curriculum-start D (0)
@@ -29,7 +32,8 @@ import { parseChainEpisodeKey } from '@/policyEvolution/chains'
 import { applyCurriculum, DEFAULT_CURRICULUM, initialCurriculum, updateCurriculum, type CurriculumState } from '@/policyEvolution/curriculum'
 import { aggregateEvenness, aggregateFitness, DEFAULT_ES_CONFIG, type EsConfig, type FitnessFn } from '@/policyEvolution/es'
 import { DEFAULT_ISLANDS, initialIslands, IslandEs, type IslandsConfig, type IslandsState } from '@/policyEvolution/islands'
-import { GENOME_LENGTH, GENOME_LENGTH_V2 } from '@/policyEvolution/policy'
+import { createRng } from '@/avEvolution/core/rng'
+import { GENOME_LENGTH, genomeLengthV2, hiddenOfLength, N_HIDDEN, N_IN_V2, widenHidden } from '@/policyEvolution/policy'
 import { PolicyPool } from './pool'
 
 function parseArgs(argv: string[]) {
@@ -83,8 +87,18 @@ async function main() {
   if (resumed) file = JSON.parse(fs.readFileSync(out, 'utf8')) as RunFile
   const v2 = resumed ? !!file!.v2 : !!args.v2
   const kinds = parseKinds(args.kinds, v2 ? CHAIN_KINDS : COURSE_KINDS)
-  const warm = args.warm ? v2GenomeFromFile(JSON.parse(fs.readFileSync(String(args.warm), 'utf8'))) : undefined
+  let warm = args.warm ? v2GenomeFromFile(JSON.parse(fs.readFileSync(String(args.warm), 'utf8'))) : undefined
   if (warm && !v2) throw new Error('--warm needs --v2')
+  if (args.hidden !== undefined && !v2) throw new Error('--hidden needs --v2')
+  const hiddenArg = args.hidden === undefined ? undefined : Number(args.hidden)
+  if (hiddenArg !== undefined && (!Number.isInteger(hiddenArg) || hiddenArg < 1)) throw new Error(`--hidden must be a positive integer, got ${String(args.hidden)}`)
+  // --hidden N with --warm: the warm genome (v1 padded) is widened to N, function preserved; N below the warm size is refused
+  if (warm && hiddenArg !== undefined && !resumed) {
+    const h0 = hiddenOfLength(warm.length, N_IN_V2)
+    if (hiddenArg < h0) throw new Error(`--hidden ${hiddenArg} is smaller than the warm genome's ${h0} hidden units`)
+    if (hiddenArg > h0) warm = widenHidden(warm, hiddenArg, createRng(num(args.seed, 1) * 31 + 7))
+    console.log(`warm start: hidden ${h0} -> ${hiddenArg}`)
+  }
   const trainGroups = v2 ? trainChainEpisodes(num(args['train-per-kind'], 8), kinds) : []
   const holdoutGroups = v2 ? holdoutChainEpisodes(num(args['holdout-per-kind'], 5), kinds) : []
   const train = v2 ? flattenChainKeys(trainGroups) : trainCourseKeys(num(args['train-per-kind'], 30), kinds)
@@ -94,7 +108,7 @@ async function main() {
   if (!resumed) {
     const config: EsConfig = {
       ...DEFAULT_ES_CONFIG,
-      dim: v2 ? GENOME_LENGTH_V2 : GENOME_LENGTH,
+      dim: v2 ? genomeLengthV2(warm ? hiddenOfLength(warm.length, N_IN_V2) : (hiddenArg ?? N_HIDDEN)) : GENOME_LENGTH,
       pairs: num(args.pairs, 8),
       sigma: num(args.sigma, DEFAULT_ES_CONFIG.sigma),
       lr: num(args.lr, DEFAULT_ES_CONFIG.lr),

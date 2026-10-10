@@ -3,6 +3,7 @@
  * The genome IS the flat weight vector; the only code is one custom transformer stage (a matrix product in front of the
  * unchanged `car2` actuator). No planner, no state machine.
  */
+import { gaussian, type Rng } from '@/avEvolution/core/rng'
 
 /** Ray bearings in degrees from the heading (positive = left); dense in front, sparse behind. */
 export const RAY_ANGLES_DEG = [0, 10, -10, 20, -20, 35, -35, 55, -55, 80, -80, 120, -120, 180] as const
@@ -14,7 +15,12 @@ export const N_IN = N_RAYS + 3 + 3 + 2
 export const N_HIDDEN = 10
 export const N_OUT = 2
 /** layout: W1 (hidden x in), b1, W2 (out x hidden), b2 */
-export const genomeLength = (nIn: number) => N_HIDDEN * nIn + N_HIDDEN + N_OUT * N_HIDDEN + N_OUT
+export const genomeLength = (nIn: number, hidden = N_HIDDEN) => hidden * nIn + hidden + N_OUT * hidden + N_OUT
+/** hidden size of a genome with `nIn` inputs (len = H * (nIn + 1 + N_OUT) + N_OUT); NaN-free: returns 0 when the length fits no integer H >= 1 */
+export const hiddenOfLength = (len: number, nIn: number): number => {
+  const h = (len - N_OUT) / (nIn + 1 + N_OUT)
+  return Number.isInteger(h) && h >= 1 ? h : 0
+}
 export const GENOME_LENGTH = genomeLength(N_IN)
 
 /**
@@ -23,8 +29,47 @@ export const GENOME_LENGTH = genomeLength(N_IN)
  */
 export const N_IN_V2 = N_RAYS + 3 + 3 + 2 + 2
 export const GENOME_LENGTH_V2 = genomeLength(N_IN_V2)
-/** number of network inputs of a genome of this length (v1 or v2 layout) */
-export const inputsOfGenome = (len: number) => (len - N_HIDDEN - N_OUT * N_HIDDEN - N_OUT) / N_HIDDEN
+/**
+ * Shape of a genome from its length alone: v2 (24 inputs, len = 27 H + 2) is tried first, then v1 (16 inputs, len = 19 H + 2); the two only collide
+ * at H multiples of 19 / 27 (len - 2 divisible by 513), far beyond any hidden size used here. Throws for a length that fits neither.
+ */
+export function genomeShape(len: number): { nIn: number; hidden: number } {
+  for (const nIn of [N_IN_V2, N_IN]) {
+    const hidden = hiddenOfLength(len, nIn)
+    if (hidden) return { nIn, hidden }
+  }
+  throw new Error(`genome of ${len} numbers fits no hidden size (v2: 27 H + 2, v1: 19 H + 2)`)
+}
+/** number of network inputs of a genome of this length (v1 or v2 layout, any hidden size) */
+export const inputsOfGenome = (len: number) => genomeShape(len).nIn
+/** hidden size of a v2 genome (len = 27 H + 2); throws when the length is not of that form */
+export function hiddenOfV2(len: number): number {
+  const h = hiddenOfLength(len, N_IN_V2)
+  if (!h) throw new Error(`v2 genome of ${len} numbers: no integer hidden size (len = 27 H + 2)`)
+  return h
+}
+/** length of a v2 genome with `hidden` hidden units */
+export const genomeLengthV2 = (hidden: number) => genomeLength(N_IN_V2, hidden)
+
+/**
+ * Widen a v2 genome to `newH` hidden units WITHOUT changing its function: new units get zero outgoing weights (so they add nothing now) and small
+ * random incoming weights (std 0.1, to break the symmetry so evolution can use them later), zero bias. The old units are copied exactly.
+ */
+export function widenHidden(genome: ArrayLike<number>, newH: number, rng: Rng): number[] {
+  const nIn = N_IN_V2
+  const oldH = hiddenOfV2(genome.length)
+  if (!Number.isInteger(newH) || newH < oldH) throw new Error(`widenHidden: new hidden size ${newH} must be an integer >= ${oldH}`)
+  const out = new Array<number>(genomeLength(nIn, newH)).fill(0)
+  for (let j = 0; j < newH; j++) {
+    for (let i = 0; i < nIn; i++) out[j * nIn + i] = j < oldH ? genome[j * nIn + i]! : gaussian(rng) * 0.1
+    out[newH * nIn + j] = j < oldH ? genome[oldH * nIn + j]! : 0
+  }
+  const o2Old = oldH * nIn + oldH
+  const o2New = newH * nIn + newH
+  for (let k = 0; k < N_OUT; k++) for (let j = 0; j < oldH; j++) out[o2New + k * newH + j] = genome[o2Old + k * oldH + j]!
+  for (let k = 0; k < N_OUT; k++) out[o2New + N_OUT * newH + k] = genome[o2Old + N_OUT * oldH + k]!
+  return out
+}
 
 /**
  * v1 genome -> v2 genome with identical outputs: the two new inputs (next-segment cos, sin) get zero weights, the aim inputs take over
@@ -55,17 +100,19 @@ export const POLICY_STAGE_ID = 'policy_drive'
 export const POLICY_ACTUATOR_ID = 'policy_car'
 
 function forwardN(w: ArrayLike<number>, x: ArrayLike<number>, nIn: number): [number, number] {
-  const h = new Array<number>(N_HIDDEN)
-  for (let j = 0; j < N_HIDDEN; j++) {
-    let s = w[N_HIDDEN * nIn + j]!
+  const H = hiddenOfLength(w.length, nIn)
+  if (!H) throw new Error(`policy forward: genome of ${w.length} numbers has no integer hidden size for ${nIn} inputs`)
+  const h = new Array<number>(H)
+  for (let j = 0; j < H; j++) {
+    let s = w[H * nIn + j]!
     for (let i = 0; i < nIn; i++) s += w[j * nIn + i]! * x[i]!
     h[j] = Math.tanh(s)
   }
-  const o2 = N_HIDDEN * nIn + N_HIDDEN
+  const o2 = H * nIn + H
   const out: [number, number] = [0, 0]
   for (let k = 0; k < N_OUT; k++) {
-    let s = w[o2 + N_OUT * N_HIDDEN + k]!
-    for (let j = 0; j < N_HIDDEN; j++) s += w[o2 + k * N_HIDDEN + j]! * h[j]!
+    let s = w[o2 + N_OUT * H + k]!
+    for (let j = 0; j < H; j++) s += w[o2 + k * H + j]! * h[j]!
     out[k] = Math.tanh(s)
   }
   return out
@@ -167,9 +214,17 @@ function deriveCmd(params, state, dt, pos, speed) {
 }
 `
 
+/** hidden size from the genome length (len = H * (N_IN + 3) + 2); 0 = not an integer H (the stage then does nothing) */
+export const STAGE_HIDDEN = `
+function hiddenOf(w) {
+  var h = (w.length - 2) / (N_IN + 3)
+  return h >= 1 && h === Math.floor(h) ? h : 0
+}
+`
+
 export const stageHead = (nIn: number, v2: boolean) => `
 var ANGLES = ${JSON.stringify(RAY_ANGLES_DEG.map((d) => (d * Math.PI) / 180))}
-var N_IN = ${nIn}, H = ${N_HIDDEN}, RANGE = ${RAY_RANGE}, VF = ${V_FWD_MAX}, VR = ${V_REV_MAX}, TAU = ${TAU_SPEED}${STAGE_RND}${v2 ? STAGE_CMD_HELPERS : ''}`
+var N_IN = ${nIn}, RANGE = ${RAY_RANGE}, VF = ${V_FWD_MAX}, VR = ${V_REV_MAX}, TAU = ${TAU_SPEED}${STAGE_RND}${v2 ? STAGE_CMD_HELPERS : ''}${STAGE_HIDDEN}`
 
 /** rays + own speeds (shared by v1 and v2) */
 export const STAGE_SENSE = `function transform(input, dt, params, state, api) {
@@ -236,7 +291,9 @@ export const STAGE_GOAL_V2 = `  var cmd = input.av && input.av.cmd
 `
 
 /** forward pass + target-speed law + actuator inputs (shared by v1 and v2) */
-export const STAGE_NET = `  var h = new Array(H)
+export const STAGE_NET = `  var H = hiddenOf(w)
+  if (!H) return {}
+  var h = new Array(H)
   for (var j = 0; j < H; j++) {
     var sum = w[H * N_IN + j]
     for (var k = 0; k < N_IN; k++) sum += w[j * N_IN + k] * x[k]

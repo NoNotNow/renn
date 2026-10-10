@@ -13,7 +13,7 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import { flattenChainKeys, holdoutChainEpisodes } from '@/policyEvolution/chains'
-import { chainReportByKind, formatChainReport, parseKinds, v2GenomeFromFile } from '@/policyEvolution/chainReport'
+import { chainReportByKind, formatChainReport, parseKinds, v2GenomeFromFile, v2Hidden } from '@/policyEvolution/chainReport'
 import { CHAIN_KINDS, COURSE_KINDS, holdoutCourseKeys, parseCourseKey } from '@/policyEvolution/courses'
 import type { PolicyEpisodeMetrics } from '@/policyEvolution/episode'
 import { aggregateEvenness, aggregateFitness } from '@/policyEvolution/es'
@@ -69,7 +69,7 @@ try {
       const f = fitness(m)
       fits.push(f)
       finishes.push(m.filter((x) => x.outcome === 'finish').length / m.length)
-      console.log(`  ${g.name.padEnd(12)} ${r.label.padEnd(36)} fitness ${f.toFixed(3)}  finished ${v2 ? '' : finishByKind(m)}`)
+      console.log(`  ${g.name.padEnd(12)} ${r.label.padEnd(36)}${v2 ? ` H=${v2Hidden(r.genome)}` : ''} fitness ${f.toFixed(3)}  finished ${v2 ? '' : finishByKind(m)}`)
       if (v2) console.log(`      ${formatChainReport(chainReportByKind(m, kinds))}`)
     }
     console.log(`${g.name.padEnd(14)} n=${g.runs.length}  fitness mean ${mean(fits).toFixed(3)} sd ${sd(fits).toFixed(3)} [${Math.min(...fits).toFixed(3)} .. ${Math.max(...fits).toFixed(3)}]  finish rate mean ${(100 * mean(finishes)).toFixed(0)} %`)

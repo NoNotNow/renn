@@ -4,7 +4,7 @@ import { aggregateFitness, DEFAULT_ES_CONFIG, type EvaluateGenome } from './es'
 import { alignNeurons, crossoverNeurons, DEFAULT_ISLANDS, freshGenome, initialIslands, IslandEs, neuronBlock, sampleInputs, setNeuronBlock } from './islands'
 import { applyCurriculum, DEFAULT_CURRICULUM, initialCurriculum, updateCurriculum } from './curriculum'
 import { buildCourse, courseKey, parseCourseKey } from './courses'
-import { GENOME_LENGTH, N_HIDDEN, policyForward } from './policy'
+import { genomeLengthV2, GENOME_LENGTH, N_HIDDEN, N_IN_V2, policyForward, policyForwardV2 } from './policy'
 
 /** the same function with the hidden neurons shuffled and some of them sign-flipped */
 function scrambled(g: number[], rng: ReturnType<typeof createRng>): { genome: number[]; perm: number[] } {
@@ -60,6 +60,39 @@ describe('neuron alignment and crossover', () => {
     expect(c).not.toEqual(a)
     expect(c).not.toEqual(b)
     expect(c.length).toBe(GENOME_LENGTH)
+  })
+})
+
+describe('any hidden size (H = 24, v2)', () => {
+  const H = 24
+  it('freshGenome / neuron blocks / alignment / crossover work for H = 24', () => {
+    const rng = createRng(8)
+    const g = freshGenome(rng, 0.5, N_IN_V2, H)
+    expect(g.length).toBe(genomeLengthV2(H))
+    const perm = Array.from({ length: H }, (_, i) => (i * 7 + 3) % H)
+    const sc = g.slice()
+    perm.forEach((src, dst) => setNeuronBlock(sc, dst, neuronBlock(g, src), dst % 3 === 0 ? -1 : 1))
+    const xs = sampleInputs(20, createRng(9), N_IN_V2)
+    for (const x of xs) expect(policyForwardV2(sc, x)[0]).toBeCloseTo(policyForwardV2(g, x)[0], 9)
+    const { match } = alignNeurons(g, sc)
+    match.forEach((m, i) => expect(perm[m]).toBe(i))
+    const child = crossoverNeurons(g, sc, createRng(1))
+    expect(child.length).toBe(g.length)
+    for (const x of xs) expect(policyForwardV2(child, x)[0]).toBeCloseTo(policyForwardV2(g, x)[0], 9)
+    const other = crossoverNeurons(g, freshGenome(createRng(2), 0.5, N_IN_V2, H), createRng(3))
+    expect(other).not.toEqual(g)
+    expect(() => crossoverNeurons(g, freshGenome(createRng(2), 0.5, N_IN_V2, 10), createRng(3))).toThrow()
+  })
+
+  it('immigrants use the run H', () => {
+    const esCfg = { ...DEFAULT_ES_CONFIG, dim: genomeLengthV2(H), pairs: 2, seed: 4 }
+    const cfg = { ...DEFAULT_ISLANDS, pCross: 0 }
+    const isl = new IslandEs(esCfg, cfg, initialIslands(esCfg, cfg))
+    isl.state.islands.forEach((i) => expect(i.es.theta.length).toBe(genomeLengthV2(H)))
+    isl.state.islands.forEach((i) => (i.age = 100))
+    const { event } = isl.reproduce([3, 2, 1])
+    expect(event!.with).toBe('immigrant')
+    expect(isl.state.islands[2]!.es.theta.length).toBe(genomeLengthV2(H))
   })
 })
 

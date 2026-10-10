@@ -3,7 +3,7 @@ import { chainReportByKind, parseKinds, v2GenomeFromFile } from './chainReport'
 import { CHAIN_KINDS } from './courses'
 import { createRng, gaussian } from '@/avEvolution/core/rng'
 import { aggregateEvenness } from './es'
-import { GENOME_LENGTH, GENOME_LENGTH_V2, N_IN, N_IN_V2, N_RAYS, padV1Genome, POLICY_STAGE_CODE, POLICY_STAGE_CODE_V2, policyForward, policyForwardV2 } from './policy'
+import { genomeLengthV2, GENOME_LENGTH, GENOME_LENGTH_V2, hiddenOfV2, N_HIDDEN, N_IN, N_IN_V2, N_RAYS, padV1Genome, POLICY_STAGE_CODE, POLICY_STAGE_CODE_V2, policyForward, policyForwardV2, widenHidden } from './policy'
 import { freshGenome } from './islands'
 
 const dot = (a: number[], b: number[]) => a[0]! * b[0]! + a[1]! * b[1]! + a[2]! * b[2]!
@@ -146,5 +146,59 @@ describe('chain reports', () => {
     expect(() => v2GenomeFromFile({ genome: [1, 2] })).toThrow()
     expect(parseKinds('field,crowd', CHAIN_KINDS)).toEqual(['field', 'crowd'])
     expect(() => parseKinds('nope', CHAIN_KINDS)).toThrow()
+  })
+})
+
+describe('v2 hidden size H (len = 27 H + 2)', () => {
+  const inputs = (rng: ReturnType<typeof createRng>) => Array.from({ length: N_IN_V2 }, () => rng.next() * 2 - 1)
+
+  it('H is inferred from the genome length; non-integer H is refused', () => {
+    expect(hiddenOfV2(GENOME_LENGTH_V2)).toBe(N_HIDDEN)
+    expect(hiddenOfV2(genomeLengthV2(24))).toBe(24)
+    expect(genomeLengthV2(24)).toBe(24 * 27 + 2)
+    expect(() => hiddenOfV2(273)).toThrow()
+    expect(() => policyForwardV2(new Array<number>(273).fill(0), new Array<number>(N_IN_V2).fill(0))).toThrow()
+  })
+
+  it('widenHidden keeps the function EXACTLY: old units copied, new units have zero outgoing weights and small random incoming ones', () => {
+    const rng = createRng(21)
+    const g = freshGenome(createRng(22), 0.5, N_IN_V2)
+    const w = widenHidden(g, 24, createRng(23))
+    expect(w.length).toBe(genomeLengthV2(24))
+    for (let s = 0; s < 30; s++) {
+      const x = inputs(rng)
+      expect(policyForwardV2(w, x)).toEqual(policyForwardV2(g, x))
+    }
+    const H = 24
+    const o2 = H * N_IN_V2 + H
+    for (let k = 0; k < 2; k++) for (let j = N_HIDDEN; j < H; j++) expect(w[o2 + k * H + j]).toBe(0)
+    const incoming = w.slice(N_HIDDEN * N_IN_V2, H * N_IN_V2)
+    expect(incoming.some((v) => v !== 0)).toBe(true)
+    const std = Math.sqrt(incoming.reduce((a, v) => a + v * v, 0) / incoming.length)
+    expect(std).toBeGreaterThan(0.05)
+    expect(std).toBeLessThan(0.2)
+    expect(widenHidden(g, N_HIDDEN, createRng(1))).toEqual(g)
+    expect(() => widenHidden(w, 10, createRng(1))).toThrow()
+  })
+
+  it('the H = 24 stage forward pass equals policyForwardV2; an invalid length leaves the actions untouched', () => {
+    const g = widenHidden(freshGenome(createRng(31), 0.5, N_IN_V2), 24, createRng(32))
+    // make the new units matter: non-zero outgoing weights
+    const o2 = 24 * N_IN_V2 + 24
+    for (let j = N_HIDDEN; j < 24; j++) g[o2 + j] = 0.3 - 0.02 * j
+    const cmd = { aim: [-6, 20], next: [-6, 30] }
+    const { inp, state } = runStage(POLICY_STAGE_CODE_V2, { w: g, gain: 1000 }, () => ({ av: { cmd } }))
+    const gd = Math.hypot(6, 20)
+    const x = [...new Array(N_RAYS).fill(1 - 20 / 50), 6 / 30, 0.3 / 10, 0.4 / 2, 20 / gd, -6 / gd, gd / 60, 1, 0, 0, 0]
+    const [steer, gas] = policyForwardV2(g, x)
+    expect(state.steer).toBeCloseTo(steer, 9)
+    expect(state.gas).toBeCloseTo(gas, 9)
+    expect(inp.actions.steering_angle).toBeCloseTo(Math.abs(steer) < 1e-4 ? 1e-4 : steer, 9)
+    const bad = runStage(POLICY_STAGE_CODE_V2, { w: g.slice(0, g.length - 1), gain: 1000 }, () => ({ av: { cmd } }))
+    expect(bad.inp.actions).toEqual({})
+  })
+
+  it('genome files of any H load as v2', () => {
+    expect(v2GenomeFromFile({ genome: new Array<number>(genomeLengthV2(24)).fill(0) }).length).toBe(genomeLengthV2(24))
   })
 })

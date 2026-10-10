@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { buildAvStackGlobalBehaviorLibrary } from '@/globalPipeline/buildAvStackGlobalBehaviorLibrary'
 import { readNeuralStageWeights, AV_STACK_STAGE_FILES } from '@/globalPipeline/avStackStagePaths'
 import { createRng, gaussian } from '@/avEvolution/core/rng'
-import { GENOME_LENGTH, GENOME_LENGTH_V2, N_IN_V2, N_RAYS, padV1Genome, POLICY_STAGE_CODE_V2, policyForwardV2 } from '@/policyEvolution/policy'
+import { GENOME_LENGTH, GENOME_LENGTH_V2, N_IN_V2, N_RAYS, padV1Genome, POLICY_STAGE_CODE_V2, policyForwardV2, widenHidden } from '@/policyEvolution/policy'
 import { AV_NEURAL_STAGE_FILE, neuralStageFile } from '@/policyEvolution/policyStage'
 import { setAgentObservationWatchActive } from '@/runtime/transformerWatchBridge'
 import { loadLabWorld, watchValues } from '@/test/avLab/lab'
@@ -112,6 +112,21 @@ describe('AV neural drive (a) off = bit-identical', () => {
     expect(always).toEqual(off)
     const { second } = await run(withNeuralMode(spec, 'always'), 2)
     expect(second[1]).toContain('vehicle')
+  }, SCENARIO_TIMEOUT)
+})
+
+describe('AV neural drive with a wider net (H = 24)', () => {
+  it('a widened genome (same function) drives bit-identically to the H = 10 weights', async () => {
+    const base = readNeuralStageWeights()
+    const wide = widenHidden(base, 24, createRng(5))
+    expect(wide.length).toBe(24 * 27 + 2)
+    const a = await poses(withNeuralMode(openRoad(), 'always', { neuralWeights: base }), 6)
+    const b = await poses(withNeuralMode(openRoad(), 'always', { neuralWeights: wide }), 6)
+    const off = await poses(withNeuralMode(openRoad(), 'off'), 6)
+    expect(b).toEqual(a)
+    expect(a).not.toEqual(off)
+    const { second } = await run(withNeuralMode(openRoad(), 'always', { neuralWeights: wide }), 3)
+    expect(second[2]).toMatch(/^on/)
   }, SCENARIO_TIMEOUT)
 })
 

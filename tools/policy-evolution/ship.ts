@@ -8,12 +8,12 @@
  * `--v2`: the run file is a command-chain run (run-islands.ts --v2): TRAIN / HOLDOUT are chain episodes of the first --train-per-kind / --holdout-per-kind
  * accepted setups per kind (all their chains, defaults 8 / 6), fitness is the evenness aggregate and the per-kind chain finish rate, share of setups with all
  * chains finished, offcourse and crashes are reported. Writes src/policyEvolution/shippedPolicyV2.json (compared against it, or against the padded v1 policy if
- * there is none yet). `--kinds field,crowd` restricts the setup kinds.
+ * there is none yet; any hidden size, both sizes are printed and a candidate with a different H may replace it when better on HOLDOUT). `--kinds field,crowd` restricts the setup kinds.
  */
 import fs from 'node:fs'
 import os from 'node:os'
 import { flattenChainKeys, holdoutChainEpisodes, trainChainEpisodes } from '@/policyEvolution/chains'
-import { chainReportByKind, formatChainReport, parseKinds, v2GenomeFromFile } from '@/policyEvolution/chainReport'
+import { chainReportByKind, formatChainReport, parseKinds, v2GenomeFromFile, v2Hidden } from '@/policyEvolution/chainReport'
 import { CHAIN_KINDS, COURSE_KINDS, holdoutCourseKeys, trainCourseKeys } from '@/policyEvolution/courses'
 import { aggregateEvenness, aggregateFitness } from '@/policyEvolution/es'
 import { PolicyPool } from './pool'
@@ -54,6 +54,11 @@ try {
 const currentFile = fs.existsSync(SHIPPED) ? SHIPPED : v2 && fs.existsSync(V1) ? V1 : undefined
 const current = currentFile ? { genome: v2GenomeFromFile(JSON.parse(fs.readFileSync(currentFile, 'utf8'))) } : undefined
 if (v2 && currentFile === V1) console.log('no shippedPolicyV2.json yet: comparing with the padded v1 policy')
+  if (v2) {
+    const hc = v2Hidden(genome)
+    const hs = current ? v2Hidden(current.genome) : undefined
+    console.log(`hidden units: candidate ${hc}, ${currentFile ?? 'no current policy'} ${hs ?? '-'}${hs !== undefined && hs !== hc ? '  (DIFFERENT hidden size: shippedPolicyV2.json will change H if written)' : ''}`)
+  }
   const cur = current ? await score(current.genome) : undefined
   // paired comparison on identical HOLDOUT courses: mean difference of the normalised score with a bootstrap 95 % interval
   let paired: unknown

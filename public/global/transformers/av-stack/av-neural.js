@@ -3,7 +3,7 @@
   {"key":"neuralMode","label":"Neural drive mode","type":"enum","options":[{"value":"off"},{"value":"always"},{"value":"auto"}],"default":"off","group":"Neural","description":"'off' = classic stack only (bit-identical); 'always' = the net drives whenever allowed (debug); 'auto' = the net takes over in crowded surroundings and hands back when they clear."},
   {"key":"neuralVMax","label":"Neural speed cap","type":"number","default":30,"min":0,"unit":"m/s","group":"Neural","description":"Upper bound of the net target speed while it drives."},
   {"key":"neuralGain","label":"Neural pedal gain","type":"number","default":1200,"min":1,"group":"Neural","description":"Actuator acceleration per unit pedal the net was trained on (power / mass of the 4 x 8 car).","advanced":true},
-  {"key":"neuralWeights","label":"Neural weights","type":"json","group":"Neural","description":"Flat v2 genome (272 numbers); default = the weights shipped in the stage params.","advanced":true},
+  {"key":"neuralWeights","label":"Neural weights","type":"json","group":"Neural","description":"Flat v2 genome (27 H + 2 numbers, H hidden units inferred from the length; 272 for H = 10); default = the weights shipped in the stage params.","advanced":true},
   {"key":"neuralLmin","label":"Aim distance (min)","type":"number","default":8,"min":0,"unit":"m","group":"Neural","advanced":true},
   {"key":"neuralTau","label":"Aim distance per speed","type":"number","default":0.6,"min":0,"unit":"s","group":"Neural","advanced":true},
   {"key":"neuralPeriod","label":"Aim refresh period","type":"number","default":0.5,"min":0,"unit":"s","group":"Neural","advanced":true},
@@ -28,7 +28,7 @@
 ]
 */
 var ANGLES = [0,0.17453292519943295,-0.17453292519943295,0.3490658503988659,-0.3490658503988659,0.6108652381980153,-0.6108652381980153,0.9599310885968813,-0.9599310885968813,1.3962634015954636,-1.3962634015954636,2.0943951023931953,-2.0943951023931953,3.141592653589793]
-var N_IN = 24, H = 10, RANGE = 50, VF = 30, VR = 8, TAU = 0.05
+var N_IN = 24, RANGE = 50, VF = 30, VR = 8, TAU = 0.05
 function rnd(state) {
   state.rs = (state.rs + 0x6d2b79f5) >>> 0
   var t = state.rs
@@ -101,6 +101,11 @@ function deriveCmd(params, state, dt, pos, speed) {
   return [state.aim[0], state.aim[1], state.nxt[0], state.nxt[1]]
 }
 
+function hiddenOf(w) {
+  var h = (w.length - 2) / (N_IN + 3)
+  return h >= 1 && h === Math.floor(h) ? h : 0
+}
+
 // AV stack · NEURAL drive mode (Phase 1: v2 policy, 24 inputs, no speed command). GENERATED from src/policyEvolution/policyStage.ts: do not edit by hand.
 // The shipped net (the policy evolved in src/policyEvolution) follows the command the AV stack hands over: the car is projected onto av.routePath
 // (fallback: straight line to av.carrot / maze goal / input.target), aim = clamp(lmin + tau * v, lmin, 40) m ahead along it, next = direction of the
@@ -156,6 +161,8 @@ function policyStep(input, dt, params, state, api) {
   x[n + 7] = td > 1e-6 ? (tx * left[0] + tz * left[2]) / td : 0
   x[n + 8] = state.steer || 0
   x[n + 9] = state.gas || 0
+  var H = hiddenOf(w)
+  if (!H) return {}
   state.x = x
   var h = new Array(H)
   for (var j = 0; j < H; j++) {
@@ -235,7 +242,7 @@ function transform(input, dt, params, state, api) {
     return {}
   }
   var w = params.neuralWeights || params.w
-  if (!w || w.length !== N_IN * H + H + 2 * H + 2) return {}
+  if (!w || !hiddenOf(w)) return {}
   var e = av.ego
   var pos = input.position
   if (state.t === undefined) {

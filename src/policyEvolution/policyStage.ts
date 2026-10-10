@@ -10,7 +10,7 @@
  *
  * Phase 1 of agent-context/plan-policy-in-av-car.md. `neuralMode` off (default) returns before touching anything: bit-identical to no stage.
  */
-import { N_HIDDEN, N_IN_V2, STAGE_GOAL_V2, STAGE_NET, STAGE_SENSE, stageHead } from './policy'
+import { genomeLength, N_HIDDEN, N_IN_V2, STAGE_GOAL_V2, STAGE_NET, STAGE_SENSE, stageHead } from './policy'
 
 export const AV_NEURAL_STAGE_FILE = 'av-neural.js'
 
@@ -36,7 +36,7 @@ export const NEURAL_PARAM_DEFS = [
   { key: 'neuralMode', label: 'Neural drive mode', type: 'enum', options: [{ value: 'off' }, { value: 'always' }, { value: 'auto' }], default: 'off', group: 'Neural', description: "'off' = classic stack only (bit-identical); 'always' = the net drives whenever allowed (debug); 'auto' = the net takes over in crowded surroundings and hands back when they clear." },
   { key: 'neuralVMax', label: 'Neural speed cap', type: 'number', default: 30, min: 0, unit: 'm/s', group: 'Neural', description: 'Upper bound of the net target speed while it drives.' },
   { key: 'neuralGain', label: 'Neural pedal gain', type: 'number', default: 1200, min: 1, group: 'Neural', description: 'Actuator acceleration per unit pedal the net was trained on (power / mass of the 4 x 8 car).', advanced: true },
-  { key: 'neuralWeights', label: 'Neural weights', type: 'json', group: 'Neural', description: 'Flat v2 genome (272 numbers); default = the weights shipped in the stage params.', advanced: true },
+  { key: 'neuralWeights', label: 'Neural weights', type: 'json', group: 'Neural', description: 'Flat v2 genome (27 H + 2 numbers, H hidden units inferred from the length; 272 for H = 10); default = the weights shipped in the stage params.', advanced: true },
   { key: 'neuralLmin', label: 'Aim distance (min)', type: 'number', default: NEURAL_CMD_DEFAULTS.lmin, min: 0, unit: 'm', group: 'Neural', advanced: true },
   { key: 'neuralTau', label: 'Aim distance per speed', type: 'number', default: NEURAL_CMD_DEFAULTS.tau, min: 0, unit: 's', group: 'Neural', advanced: true },
   { key: 'neuralPeriod', label: 'Aim refresh period', type: 'number', default: NEURAL_CMD_DEFAULTS.period, min: 0, unit: 's', group: 'Neural', advanced: true },
@@ -124,7 +124,7 @@ function transform(input, dt, params, state, api) {
     return {}
   }
   var w = params.neuralWeights || params.w
-  if (!w || w.length !== N_IN * H + H + 2 * H + 2) return {}
+  if (!w || !hiddenOf(w)) return {}
   var e = av.ego
   var pos = input.position
   if (state.t === undefined) {
@@ -361,4 +361,5 @@ export function neuralStageFile(): string {
   return `${params}\n${neuralStageCode().replace(/^\n/, '')}\n`
 }
 
-export const NEURAL_GENOME_LENGTH = N_IN_V2 * N_HIDDEN + N_HIDDEN + 2 * N_HIDDEN + 2
+/** genome length of the default hidden size (any 27 H + 2 works) */
+export const NEURAL_GENOME_LENGTH = genomeLength(N_IN_V2, N_HIDDEN)

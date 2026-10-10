@@ -5,7 +5,7 @@ import type { RennWorld } from '@/types/world'
 import { createRng } from '@/avEvolution/core/rng'
 import { buildCourse, buildSetupCourse, parseCourseKey, RouteProgress, COURSE_START, type Course } from './courses'
 import { chainOfEpisode, isChainEpisodeKey, polylineLength } from './chains'
-import { GENOME_LENGTH_V2, POLICY_ACTUATOR_ID, POLICY_STAGE_CODE, POLICY_STAGE_CODE_V2, POLICY_STAGE_ID } from './policy'
+import { hiddenOfLength, N_IN_V2, POLICY_ACTUATOR_ID, POLICY_STAGE_CODE, POLICY_STAGE_CODE_V2, POLICY_STAGE_ID } from './policy'
 
 
 /**
@@ -173,7 +173,7 @@ export async function runPolicyEpisode(
   let course: Course
   let chainPoints: V2[] | undefined
   if (isChain) {
-    if (genome.length !== GENOME_LENGTH_V2) throw new Error(`chain episode ${key} needs a v2 genome (${GENOME_LENGTH_V2} numbers), got ${genome.length}`)
+    if (!hiddenOfLength(genome.length, N_IN_V2)) throw new Error(`chain episode ${key} needs a v2 genome (27 H + 2 numbers), got ${genome.length}`)
     const c = chainOfEpisode(key)
     course = buildSetupCourse(c.setupKey)
     chainPoints = c.chain.points

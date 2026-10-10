@@ -122,6 +122,10 @@ The net follows a DYNAMIC target vector instead of memorising courses. v1 (16 in
   `--kinds field,slalom,maze,crowd`; `--train-per-kind` 8 / `--holdout-per-kind` 5 setups; field curriculum capped at 0.3; `--resume` keeps the mode).
   `ship.ts <run.json> --v2` and `compare.ts --v2 --group ...` use chain episodes + evenness and print per kind: chain finish rate, setups with all chains finished, offcourse, crashes.
   `ship.ts --v2` writes `src/policyEvolution/shippedPolicyV2.json`. `run.ts` (single ES) has no `--v2`.
+- **Hidden size H (`--hidden N`):** a v2 genome has 27 H + 2 numbers (272 = H 10); H is inferred from the length everywhere (`hiddenOfV2`, `policyForwardV2`, training stage `hiddenOf(w)`, AV neural stage; a non-integer H = refuse/off).
+  `widenHidden(genome, newH, rng)` keeps the function exactly (new units: zero outgoing weights, incoming std 0.1). `run-islands.ts --v2 --hidden N`: with `--warm` the warm genome (v1 padded) is widened to N, without it random init with N;
+  crossover/immigrants use the run's H. `ship.ts --v2` prints H of candidate and current `shippedPolicyV2.json` (a different H may replace it when better); `compare.ts --v2` prints `H=` per run and can mix sizes.
+  Screening: `run-islands.ts --v2 --warm src/policyEvolution/shippedPolicyV2.json --hidden 24 --train-per-kind 40 --holdout-per-kind 10 --batch 6 --gens 150 --workers 4 --seed S`.
 - Not done: example worlds / AV integration for v2, dynamic obstacles, a real training run (only 2-3 generation smoke runs so far).
 
 ## Not done yet
