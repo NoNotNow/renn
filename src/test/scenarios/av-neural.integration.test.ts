@@ -76,7 +76,7 @@ describe('AV neural drive: library registration', () => {
     expect(Object.keys(AV_STACK_STAGE_FILES)).toContain('neural')
     const defs = lib.transformerPipes!.global_av_autopilot!.paramDefs!
     expect(defs.find((d) => d.key === 'neuralMode')!.default).toBe('off')
-    expect(defs.find((d) => d.key === 'neuralVMax')!.default).toBe(12)
+    expect(defs.find((d) => d.key === 'neuralVMax')!.default).toBe(30)
     const w = (st.global_av_neural!.params as { w: number[] }).w
     expect(w.length).toBe(GENOME_LENGTH_V2)
     expect(readNeuralStageWeights().length).toBe(GENOME_LENGTH_V2)
@@ -117,7 +117,7 @@ describe('AV neural drive (a) off = bit-identical', () => {
 
 describe('AV neural drive (b) always: the net follows the AV command', () => {
   it('reaches an open-road goal 110 m ahead, mostly under net control, below the speed cap', async () => {
-    const { m, probe } = await run(withNeuralMode(openRoad(), 'always'), 30)
+    const { m, probe } = await run(withNeuralMode(openRoad(), 'always', { neuralVMax: 12 }), 30)
     expect(m.goalReachT).toBeLessThan(25)
     expect(probe.watch.filter((w) => w.startsWith('on')).length / probe.watch.length).toBeGreaterThan(0.5)
     // speed while the net drives: capped at neuralVMax 12 (+ overshoot of the pedal law); the classic car after the goal is not capped

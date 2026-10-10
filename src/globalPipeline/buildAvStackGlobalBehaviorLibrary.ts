@@ -54,7 +54,7 @@ export const AV_GLOBAL_PARAM_DEFS: PipeParamDef[] = [
   { key: 'manualOverride', label: 'Keyboard manual override', type: 'boolean', default: false, group: 'Manual', description: 'Any key press (current play avatar) suspends the autopilot steering / throttle for the hold time; AEB stays active.' },
   { key: 'overrideHold', label: 'Manual override hold', type: 'number', default: 1, min: 0, unit: 's', group: 'Manual', description: 'Seconds after the last key event (restarted while held) the autopilot yields.' },
   { key: 'neuralMode', label: 'Neural drive mode', type: 'enum', options: [{ value: 'off' }, { value: 'always' }, { value: 'auto' }], default: 'off', group: 'Neural', description: "'off' = classic stack only (bit-identical); 'always' = the evolved net drives whenever allowed (debug); 'auto' = it takes over in crowded surroundings and hands back when they clear. Only for the 4 x 8 car of the example worlds." },
-  { key: 'neuralVMax', label: 'Neural speed cap', type: 'number', default: 12, min: 0, unit: 'm/s', group: 'Neural', description: 'Upper bound of the net target speed while it drives.' },
+  { key: 'neuralVMax', label: 'Neural speed cap', type: 'number', default: 30, min: 0, unit: 'm/s', group: 'Neural', description: 'Upper bound of the net target speed while it drives.' },
   { key: 'debugDraw', label: 'Draw debug vectors (Builder visualize mode)', type: 'boolean', default: true, group: 'Debug' },
 ]
 
