@@ -1,9 +1,23 @@
-import { describe, it, expect, vi, afterEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
+import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { fireEvent } from '@testing-library/react'
 import MazeTrainingDialog from './MazeTrainingDialog'
 import { MAZE_TRAINING_WORLDS, type MazeTrainingMeta } from '@/policyEvolution/mazeTraining'
+
+/** Map-backed localStorage stub (jsdom in this setup lacks removeItem). */
+function stubLocalStorage(): Map<string, string> {
+  const storage = new Map<string, string>()
+  vi.stubGlobal('localStorage', {
+    getItem: (key: string) => storage.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      storage.set(key, value)
+    },
+    removeItem: (key: string) => {
+      storage.delete(key)
+    },
+  })
+  return storage
+}
 
 function makeMeta(
   spec: { id: string; seed: number; name: string },
@@ -36,26 +50,71 @@ function stubFetchWithMeta(make: (spec: (typeof MAZE_TRAINING_WORLDS)[number]) =
 }
 
 describe('MazeTrainingDialog', () => {
+  beforeEach(() => {
+    stubLocalStorage()
+  })
+
   afterEach(() => {
     vi.unstubAllGlobals()
   })
 
-  it('renders one list row per registered maze world (list view is the default)', async () => {
+  it('renders the collapsed one-line strip by default (no thumbnails visible)', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('offline') }))
     render(<MazeTrainingDialog isOpen onClose={() => {}} onPlayExampleWorld={() => {}} />)
+    const header = screen.getByTestId('maze-training-panel-header')
+    expect(header).toBeInTheDocument()
+    expect(header).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByText('Training Mazes')).toBeInTheDocument()
+    expect(screen.getByText(`${MAZE_TRAINING_WORLDS.length} runs`)).toBeInTheDocument()
     expect(screen.queryAllByTestId(/^maze-training-card-/)).toHaveLength(0)
+    expect(screen.queryByTestId('maze-training-resize-handle')).not.toBeInTheDocument()
+  })
+
+  it('expands into a thumbnail picker on strip click: all 5 cards with thumbs and meta fields', async () => {
+    const user = userEvent.setup()
+    stubFetchWithMeta((spec) => makeMeta(spec, spec.id === 'maze_train_3' ? null : 123, { forward: 3, reversed: 1 }))
+    render(<MazeTrainingDialog isOpen onClose={() => {}} onPlayExampleWorld={() => {}} />)
+    await user.click(screen.getByTestId('maze-training-panel-header'))
+    expect(screen.getByTestId('maze-training-panel-header')).toHaveAttribute('aria-expanded', 'true')
+    await screen.findAllByText('v3 shipped (gen 1000)')
     for (const spec of MAZE_TRAINING_WORLDS) {
-      expect(screen.getByTestId(`maze-training-row-${spec.id}`)).toBeInTheDocument()
+      const card = screen.getByTestId(`maze-training-card-${spec.id}`)
+      expect(card).toBeInTheDocument()
+      const thumb = screen.getByTestId(`maze-training-thumb-${spec.id}`)
+      expect(thumb).toHaveAttribute('src', expect.stringContaining('thumb.svg'))
       expect(screen.getByText(spec.name)).toBeInTheDocument()
       expect(screen.getByText(`seed ${spec.seed}`)).toBeInTheDocument()
     }
-    expect(screen.getAllByTestId(/^maze-training-row-/)).toHaveLength(MAZE_TRAINING_WORLDS.length)
+    expect(screen.getAllByText('v3 shipped (gen 1000)')).toHaveLength(MAZE_TRAINING_WORLDS.length)
+    expect(screen.getAllByText('Best: 123 pts')).toHaveLength(MAZE_TRAINING_WORLDS.length - 1)
+    expect(screen.getAllByText('Best: —')).toHaveLength(1)
+    expect(screen.getAllByText('3 ways · 1 reversed')).toHaveLength(MAZE_TRAINING_WORLDS.length)
+    expect(screen.getByTestId('maze-training-resize-handle')).toBeInTheDocument()
+  })
+
+  it('Play loads the maze and keeps the panel open and expanded', async () => {
+    const user = userEvent.setup()
+    stubFetchWithMeta((spec) => makeMeta(spec, 10))
+    const onPlay = vi.fn()
+    const onClose = vi.fn()
+    render(<MazeTrainingDialog isOpen onClose={onClose} onPlayExampleWorld={onPlay} />)
+    await user.click(screen.getByTestId('maze-training-panel-header'))
+    await screen.findAllByText('v3 shipped (gen 1000)')
+    expect(screen.getByTestId('maze-training-card-maze_train_3')).toHaveAttribute('aria-pressed', 'false')
+    await user.click(screen.getByTestId('maze-training-play-maze_train_3'))
+    expect(onPlay).toHaveBeenCalledTimes(1)
+    expect(onPlay).toHaveBeenCalledWith('maze_train_3')
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByTestId('maze-training-panel-header')).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByTestId('maze-training-card-maze_train_3')).toHaveAttribute('aria-pressed', 'true')
   })
 
   it('shows "not exported yet" and a disabled play button when meta fetch fails', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('offline') }))
+    const user = userEvent.setup()
     const onPlay = vi.fn()
     render(<MazeTrainingDialog isOpen onClose={() => {}} onPlayExampleWorld={onPlay} />)
+    await user.click(screen.getByTestId('maze-training-panel-header'))
     await waitFor(() => {
       expect(screen.getAllByText('not exported yet')).toHaveLength(MAZE_TRAINING_WORLDS.length)
     })
@@ -66,62 +125,37 @@ describe('MazeTrainingDialog', () => {
     expect(onPlay).not.toHaveBeenCalled()
   })
 
-  it('expands the thumbnail inline on row click and collapses on second click', async () => {
+  it('close X calls onClose', async () => {
     const user = userEvent.setup()
-    stubFetchWithMeta((spec) => makeMeta(spec, 10))
-    render(<MazeTrainingDialog isOpen onClose={() => {}} onPlayExampleWorld={() => {}} />)
-    await screen.findAllByText('Best: 10 pts')
-    expect(screen.queryByTestId('maze-training-thumb-maze_train_2')).not.toBeInTheDocument()
-    const row = screen.getByTestId('maze-training-row-maze_train_2')
-    await user.click(row)
-    const thumb = screen.getByTestId('maze-training-thumb-maze_train_2')
-    expect(thumb).toHaveAttribute('src', expect.stringContaining('thumb.svg'))
-    await user.click(row)
-    expect(screen.queryByTestId('maze-training-thumb-maze_train_2')).not.toBeInTheDocument()
-  })
-
-  it('shows candidate, best score and routes; Play loads the maze and keeps the dialog open', async () => {
-    const user = userEvent.setup()
-    stubFetchWithMeta((spec) => makeMeta(spec, spec.id === 'maze_train_3' ? null : 123, { forward: 3, reversed: 1 }))
-    const onPlay = vi.fn()
     const onClose = vi.fn()
-    render(<MazeTrainingDialog isOpen onClose={onClose} onPlayExampleWorld={onPlay} />)
-    await screen.findAllByText('v3 shipped (gen 1000)')
-    expect(screen.getAllByText('Best: 123 pts')).toHaveLength(4)
-    expect(screen.getAllByText('Best: —')).toHaveLength(1)
-    expect(screen.getAllByText('3 ways · 1 reversed')).toHaveLength(MAZE_TRAINING_WORLDS.length)
-    expect(screen.queryByText('not exported yet')).not.toBeInTheDocument()
-    const row = screen.getByTestId('maze-training-row-maze_train_3')
-    expect(row).toHaveAttribute('aria-pressed', 'false')
-    await user.click(screen.getByTestId('maze-training-play-maze_train_3'))
-    expect(onPlay).toHaveBeenCalledTimes(1)
-    expect(onPlay).toHaveBeenCalledWith('maze_train_3')
-    expect(onClose).not.toHaveBeenCalled()
-    expect(screen.getByTestId('maze-training-row-maze_train_3')).toHaveAttribute('aria-pressed', 'true')
+    render(<MazeTrainingDialog isOpen onClose={onClose} onPlayExampleWorld={() => {}} />)
+    await user.click(screen.getByTestId('maze-training-close'))
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 
-  it('renders rows when the meta.json predates the routes field', async () => {
-    stubFetchWithMeta((spec) => makeMeta(spec, 77))
+  it('collapses back to the strip on a second strip click and persists the state', async () => {
+    const user = userEvent.setup()
+    stubFetchWithMeta((spec) => makeMeta(spec, 5))
     render(<MazeTrainingDialog isOpen onClose={() => {}} onPlayExampleWorld={() => {}} />)
+    const header = screen.getByTestId('maze-training-panel-header')
+    await user.click(header)
+    await screen.findAllByText('Best: 5 pts')
+    expect(screen.getAllByTestId(/^maze-training-card-/)).toHaveLength(MAZE_TRAINING_WORLDS.length)
+    await user.click(header)
+    expect(screen.queryAllByTestId(/^maze-training-card-/)).toHaveLength(0)
+    expect(header).toHaveAttribute('aria-expanded', 'false')
+    expect(window.localStorage.getItem('mazeTrainingPanelCollapsed')).toBe(JSON.stringify(true))
+  })
+
+  it('renders cards when the meta.json predates the routes field', async () => {
+    stubFetchWithMeta((spec) => makeMeta(spec, 77))
+    const user = userEvent.setup()
+    render(<MazeTrainingDialog isOpen onClose={() => {}} onPlayExampleWorld={() => {}} />)
+    await user.click(screen.getByTestId('maze-training-panel-header'))
     await screen.findAllByText('Best: 77 pts')
     expect(screen.queryByText(/reversed/)).not.toBeInTheDocument()
     for (const spec of MAZE_TRAINING_WORLDS) {
-      expect(screen.getByTestId(`maze-training-row-${spec.id}`)).toBeInTheDocument()
-    }
-  })
-
-  it('switches to the cards view behind the header toggle', async () => {
-    const user = userEvent.setup()
-    stubFetchWithMeta((spec) => makeMeta(spec, 5, { forward: 3, reversed: 1 }))
-    render(<MazeTrainingDialog isOpen onClose={() => {}} onPlayExampleWorld={() => {}} />)
-    await screen.findAllByText('Best: 5 pts')
-    expect(screen.queryAllByTestId(/^maze-training-card-/)).toHaveLength(0)
-    await user.click(screen.getByTestId('maze-training-view-cards'))
-    for (const spec of MAZE_TRAINING_WORLDS) {
       expect(screen.getByTestId(`maze-training-card-${spec.id}`)).toBeInTheDocument()
     }
-    await user.click(screen.getByTestId('maze-training-view-list'))
-    expect(screen.queryAllByTestId(/^maze-training-card-/)).toHaveLength(0)
-    expect(screen.getAllByTestId(/^maze-training-row-/)).toHaveLength(MAZE_TRAINING_WORLDS.length)
   })
 })

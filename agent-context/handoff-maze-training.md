@@ -20,11 +20,14 @@ trains on SEVERAL routes (bias removal) — some driven in REVERSE direction (st
   `api.setScore` (HUD) ONLY from car 0; ALL chain/carrot drawing happens from car 0's stage (lines render only for
   `world.debugTargetLineEntityId` = car 0; other carrots via `api.getWorldPosition`). Forward chains green -> orange, REVERSED chains
   blue -> orange (`MAZE_TRAIN_CHAIN_COLORS_REVERSED`). Goal slabs `maze_goal_<i>` float at y 9.
-- **Dialog** (`MazeTrainingDialog.tsx`): LIST view default (rows: name, seed, candidate, `Best: N pts`, `N ways · M reversed`, Play;
-  row click expands the thumb accordion), Cards/List toggle in `headerExtra`, modal resizable (560 px list / 720 px cards).
-  Play = load example world into the BUILDER (`handlePlayExampleWorld` in `Builder.tsx`: NO play navigation, dialog stays open,
-  `setShowGameHud(true)`). The guidance lines render in builder mode because the worlds set `world.debugTargetLineEntityId`
-  (SceneView keeps the overlay wired for such worlds — this was the round-1 change, playMode no longer disables it).
+- **Dialog** (`MazeTrainingDialog.tsx`, round 3): a HALF-TRANSPARENT floating panel (rgba(27,31,42,.55) + backdrop blur,
+  portal to body, NO backdrop/scroll lock — clicks outside reach the scene), MOVABLE (drag the header strip, 3 px drag threshold,
+  viewport-clamped) and RESIZABLE (`useCornerBrResize` bottom-right grip, expanded only). COLLAPSED = one 38 px line
+  ("Training Mazes · 5 runs" + close X); clicking the strip expands the thumbnail picker: 5 cards (thumb.svg, name, seed,
+  candidate, `Best: N pts`, `N ways · M reversed`, Play). Position/size/collapsed persist in localStorage
+  (`mazeTrainingPanelPos` / `mazeTrainingPanelSize` / `mazeTrainingPanelCollapsed`); z-index = theme.zIndex.popover.
+  Play = load example world into the BUILDER (`handlePlayExampleWorld` in `Builder.tsx`: NO play navigation, panel stays open,
+  `setShowGameHud(true)`). The guidance lines render in builder mode because the worlds set `world.debugTargetLineEntityId`.
   The pure training worlds (`policy_*`) and the maze training worlds are FILTERED OUT of the generic Example Worlds submenu.
 - **Measured baseline (shipped v3 gen 1000, per-car, `--score`)**: 14/19 cars clear their route in ~5-10 s.
   Stalls (the maze-training gaps the v3maze run exists to close): train_2 route 3 (rev), train_3 route 0 (fwd, 47 pts) + route 1 (fwd),

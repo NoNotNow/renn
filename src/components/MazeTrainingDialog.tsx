@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from 'react'
-import Modal from './Modal'
+import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import { createPortal } from 'react-dom'
 import { theme } from '@/config/theme'
 import { secondaryButtonStyle, secondaryButtonStyleDisabled } from './sharedStyles'
+import { useCornerBrResize } from '@/hooks/useCornerBrResize'
 import {
   MAZE_TRAINING_WORLDS,
   type MazeTrainingMeta,
@@ -17,8 +18,6 @@ export interface MazeTrainingDialogProps {
   onPlayExampleWorld: (worldId: string) => void
 }
 
-type MazeTrainingView = 'list' | 'cards'
-
 interface MazeCardState {
   meta: MazeTrainingMeta | null
   /** meta.json fetch failed (world not exported yet). */
@@ -27,8 +26,33 @@ interface MazeCardState {
 
 const initialCardState: MazeCardState = { meta: null, failed: false }
 
-const LIST_VIEW_WIDTH = 560
-const CARDS_VIEW_WIDTH = 720
+/** Half-transparent panel fill over `theme.bg.panel` (#1b1f2a at ~0.55 alpha). */
+const PANEL_BG_TRANSLUCENT = 'rgba(27, 31, 42, 0.55)'
+/** Denser translucent strip for the header over the blurred scene. */
+const HEADER_BG_TRANSLUCENT = theme.bg.modalGlassHeader
+
+const POS_STORAGE_KEY = 'mazeTrainingPanelPos'
+const SIZE_STORAGE_KEY = 'mazeTrainingPanelSize'
+const COLLAPSED_STORAGE_KEY = 'mazeTrainingPanelCollapsed'
+
+const STRIP_HEIGHT = 38
+const DEFAULT_WIDTH = 540
+const DEFAULT_HEIGHT = 480
+const MIN_WIDTH = 260
+const MIN_HEIGHT = 120
+const CARD_WIDTH = 160
+/** Pointer travel (px) beyond which a header press counts as a drag, not a click. */
+const DRAG_THRESHOLD_PX = 3
+
+interface PanelPos {
+  x: number
+  y: number
+}
+
+interface PanelSize {
+  width: number
+  height: number
+}
 
 function mazeMetaUrl(spec: MazeTrainingWorldSpec): string {
   return `${BASE_URL}exampleWorlds/${encodeURIComponent(spec.id)}/meta.json`
@@ -50,20 +74,96 @@ function bestScoreLabel(meta: MazeTrainingMeta): string {
   return meta.bestScore == null ? 'Best: —' : `Best: ${meta.bestScore} pts`
 }
 
-const viewToggleStyle: React.CSSProperties = {
-  ...secondaryButtonStyle,
-  padding: '2px 10px',
-  fontSize: 12,
+function readStoredJson(key: string): unknown {
+  try {
+    const raw = window.localStorage.getItem(key)
+    if (!raw) return null
+    return JSON.parse(raw)
+  } catch {
+    return null
+  }
+}
+
+function persistJson(key: string, value: unknown): void {
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value))
+  } catch {
+    /* quota */
+  }
+}
+
+function readStoredPos(): PanelPos | null {
+  const parsed = readStoredJson(POS_STORAGE_KEY) as Partial<PanelPos> | null
+  if (
+    parsed &&
+    typeof parsed.x === 'number' &&
+    Number.isFinite(parsed.x) &&
+    typeof parsed.y === 'number' &&
+    Number.isFinite(parsed.y)
+  ) {
+    return { x: parsed.x, y: parsed.y }
+  }
+  return null
+}
+
+function readStoredSize(): PanelSize | null {
+  const parsed = readStoredJson(SIZE_STORAGE_KEY) as Partial<PanelSize> | null
+  if (
+    parsed &&
+    typeof parsed.width === 'number' &&
+    Number.isFinite(parsed.width) &&
+    parsed.width >= MIN_WIDTH &&
+    typeof parsed.height === 'number' &&
+    Number.isFinite(parsed.height) &&
+    parsed.height >= MIN_HEIGHT
+  ) {
+    return { width: parsed.width, height: parsed.height }
+  }
+  return null
+}
+
+function readStoredCollapsed(): boolean {
+  return readStoredJson(COLLAPSED_STORAGE_KEY) !== false
+}
+
+function defaultPanelPos(width: number): PanelPos {
+  const vw = typeof window !== 'undefined' ? window.innerWidth : 0
+  const vh = typeof window !== 'undefined' ? window.innerHeight : 0
+  const x = vw > 0 ? Math.max(16, vw - width - 24) : 16
+  const y = vh > 0 ? Math.min(64, Math.max(0, vh - STRIP_HEIGHT - 16)) : 16
+  return { x, y }
+}
+
+function clampPosToViewport(pos: PanelPos, panel: { width: number; height: number }): PanelPos {
+  const vw = typeof window !== 'undefined' ? window.innerWidth : 0
+  const vh = typeof window !== 'undefined' ? window.innerHeight : 0
+  if (vw <= 0 || vh <= 0) return pos
+  return {
+    x: Math.min(Math.max(0, pos.x), Math.max(0, vw - panel.width)),
+    y: Math.min(Math.max(0, pos.y), Math.max(0, vh - panel.height)),
+  }
 }
 
 export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld }: MazeTrainingDialogProps) {
   const [cardStates, setCardStates] = useState<Record<string, MazeCardState>>(() =>
     Object.fromEntries(MAZE_TRAINING_WORLDS.map((spec) => [spec.id, initialCardState])),
   )
-  const [view, setView] = useState<MazeTrainingView>('list')
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  /** Accordion: the one list row whose thumbnail is expanded inline. */
-  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [collapsed, setCollapsed] = useState<boolean>(() => readStoredCollapsed())
+  const [size, setSize] = useState<PanelSize>(() => readStoredSize() ?? { width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT })
+  const [pos, setPos] = useState<PanelPos>(() => {
+    const stored = readStoredPos()
+    return stored ?? defaultPanelPos(readStoredSize()?.width ?? DEFAULT_WIDTH)
+  })
+
+  const posRef = useRef(pos)
+  posRef.current = pos
+  const panelRef = useRef<HTMLDivElement>(null)
+  const dragRef = useRef<{ startX: number; startY: number; startPosX: number; startPosY: number; moved: boolean } | null>(null)
+  /** Set when a header drag ended so the trailing click does not toggle the panel. */
+  const suppressClickRef = useRef(false)
+
+  const expanded = !collapsed
 
   useEffect(() => {
     if (!isOpen) return
@@ -90,10 +190,99 @@ export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld
     }
   }, [isOpen])
 
-  const handleRowClick = useCallback((id: string) => {
-    setSelectedId(id)
-    setExpandedId((prev) => (prev === id ? null : id))
+  const toggleCollapsed = useCallback(() => {
+    setCollapsed((prev) => {
+      const next = !prev
+      persistJson(COLLAPSED_STORAGE_KEY, next)
+      return next
+    })
   }, [])
+
+  const handleHeaderPointerDown = useCallback(
+    (e: ReactPointerEvent<HTMLDivElement>) => {
+      if ((e.target as HTMLElement).closest('button')) return
+      e.preventDefault()
+      dragRef.current = {
+        startX: e.clientX,
+        startY: e.clientY,
+        startPosX: posRef.current.x,
+        startPosY: posRef.current.y,
+        moved: false,
+      }
+      e.currentTarget.setPointerCapture?.(e.pointerId)
+    },
+    [],
+  )
+
+  const handleHeaderPointerMove = useCallback(
+    (e: ReactPointerEvent<HTMLDivElement>) => {
+      const drag = dragRef.current
+      if (!drag) return
+      const dx = e.clientX - drag.startX
+      const dy = e.clientY - drag.startY
+      if (!drag.moved && Math.abs(dx) + Math.abs(dy) <= DRAG_THRESHOLD_PX) return
+      drag.moved = true
+      setPos(
+        clampPosToViewport(
+          { x: drag.startPosX + dx, y: drag.startPosY + dy },
+          { width: size.width, height: expanded ? size.height : STRIP_HEIGHT },
+        ),
+      )
+    },
+    [expanded, size.width, size.height],
+  )
+
+  const handleHeaderPointerUp = useCallback(
+    (e: ReactPointerEvent<HTMLDivElement>) => {
+      const drag = dragRef.current
+      if (!drag) return
+      dragRef.current = null
+      e.currentTarget.releasePointerCapture?.(e.pointerId)
+      if (drag.moved) {
+        suppressClickRef.current = true
+        persistJson(POS_STORAGE_KEY, posRef.current)
+      }
+    },
+    [],
+  )
+
+  const handleHeaderClick = useCallback(() => {
+    if (suppressClickRef.current) {
+      suppressClickRef.current = false
+      return
+    }
+    toggleCollapsed()
+  }, [toggleCollapsed])
+
+  const handleHeaderKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault()
+        toggleCollapsed()
+      }
+    },
+    [toggleCollapsed],
+  )
+
+  const resolveStartSize = useCallback(() => {
+    const rect = panelRef.current?.getBoundingClientRect()
+    return {
+      width: rect?.width ?? size.width,
+      height: rect?.height ?? size.height,
+    }
+  }, [size.width, size.height])
+
+  const resizeHandleProps = useCornerBrResize({
+    enabled: isOpen && expanded,
+    minWidth: MIN_WIDTH,
+    minHeight: MIN_HEIGHT,
+    size: { width: size.width, height: size.height },
+    onSizeChange: (next) => {
+      setSize(next)
+      persistJson(SIZE_STORAGE_KEY, next)
+    },
+    resolveStartSize,
+  })
 
   const handleCardClick = useCallback((id: string) => {
     setSelectedId(id)
@@ -111,143 +300,120 @@ export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld
     e.currentTarget.style.display = 'none'
   }, [])
 
-  const headerExtra = (
-    <div style={{ display: 'flex', gap: 6, marginLeft: 12 }} data-testid="maze-training-view-toggle">
-      <button
-        type="button"
-        data-testid="maze-training-view-cards"
-        onClick={() => setView('cards')}
-        style={{
-          ...viewToggleStyle,
-          ...(view === 'cards' ? { background: theme.button.pick } : {}),
-        }}
-      >
-        Cards
-      </button>
-      <button
-        type="button"
-        data-testid="maze-training-view-list"
-        onClick={() => setView('list')}
-        style={{
-          ...viewToggleStyle,
-          ...(view === 'list' ? { background: theme.button.pick } : {}),
-        }}
-      >
-        List
-      </button>
-    </div>
-  )
+  if (!isOpen) return null
 
-  return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title="Training Mazes"
-      width={view === 'list' ? LIST_VIEW_WIDTH : CARDS_VIEW_WIDTH}
-      minWidth={420}
-      resizable
-      headerExtra={headerExtra}
+  const panelHeight = expanded ? size.height : STRIP_HEIGHT
+
+  return createPortal(
+    <div
+      ref={panelRef}
+      data-testid="maze-training-panel"
+      role="dialog"
+      aria-label="Training Mazes"
+      style={{
+        position: 'fixed',
+        left: pos.x,
+        top: pos.y,
+        width: size.width,
+        height: panelHeight,
+        zIndex: theme.zIndex.popover,
+        background: PANEL_BG_TRANSLUCENT,
+        backdropFilter: 'blur(4px)',
+        border: `1px solid ${theme.border.default}`,
+        borderRadius: 8,
+        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+        pointerEvents: 'auto',
+      }}
     >
-      <p style={{ margin: '0 0 12px 0', fontSize: 12, color: theme.text.muted }}>
-        Five playable maze worlds trained with the evolved v3 driving policy. Press Play to load one into the
-        builder — the dialog stays open so you can watch the run behind it.
-      </p>
-      {view === 'list' ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {MAZE_TRAINING_WORLDS.map((spec) => {
-            const state = cardStates[spec.id] ?? initialCardState
-            const meta = state.meta
-            const exported = !state.failed && meta != null
-            const selected = selectedId === spec.id
-            const expanded = expandedId === spec.id && exported
-            const routes = exported && meta ? routesLabel(meta) : null
-            return (
-              <div
-                key={spec.id}
-                data-testid={`maze-training-row-${spec.id}`}
-                role="button"
-                tabIndex={0}
-                aria-pressed={selected}
-                aria-expanded={expanded}
-                aria-label={spec.name}
-                onClick={() => handleRowClick(spec.id)}
-                onKeyDown={(e) => e.key === 'Enter' && handleRowClick(spec.id)}
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  cursor: 'pointer',
-                  background: theme.bg.panel,
-                  border: `1px solid ${selected ? theme.button.pickBorder : theme.border.default}`,
-                  borderRadius: 8,
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px' }}>
-                  <span
-                    aria-hidden={true}
-                    style={{
-                      width: 16,
-                      flexShrink: 0,
-                      color: theme.text.muted,
-                      fontSize: 12,
-                      transform: expanded ? 'rotate(90deg)' : 'none',
-                      transition: 'transform 0.15s ease',
-                    }}
-                  >
-                    &#9656;
-                  </span>
-                  <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: theme.text.primary }}>
-                      {spec.name} <span style={{ fontWeight: 400, color: theme.text.muted }}>seed {spec.seed}</span>
-                    </span>
-                    <span style={{ fontSize: 11, color: theme.text.secondary }}>
-                      {exported && meta ? meta.candidate.label : 'not exported yet'}
-                    </span>
-                  </div>
-                  {exported && meta ? (
-                    <span style={{ fontSize: 12, color: theme.text.secondary, flexShrink: 0 }}>
-                      {bestScoreLabel(meta)}
-                    </span>
-                  ) : null}
-                  {routes ? (
-                    <span style={{ fontSize: 12, color: theme.text.secondary, flexShrink: 0, minWidth: 110 }}>
-                      {routes}
-                    </span>
-                  ) : null}
-                  <button
-                    type="button"
-                    data-testid={`maze-training-play-${spec.id}`}
-                    disabled={!exported}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handlePlay(spec.id)
-                    }}
-                    style={{
-                      ...secondaryButtonStyle,
-                      ...(exported ? {} : secondaryButtonStyleDisabled),
-                      ...(exported && selected ? { background: theme.button.pick } : {}),
-                      flexShrink: 0,
-                    }}
-                  >
-                    Play
-                  </button>
-                </div>
-                {expanded ? (
-                  <div style={{ padding: '0 10px 10px 36px' }}>
-                    <img
-                      data-testid={`maze-training-thumb-${spec.id}`}
-                      src={mazeThumbUrl(spec)}
-                      alt={`${spec.name} thumbnail`}
-                      style={{ width: 160, borderRadius: 6, display: 'block', background: theme.bg.surface }}
-                      onError={handleThumbError}
-                    />
-                  </div>
-                ) : null}
-              </div>
-            )
-          })}
-        </div>
-      ) : (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
+      <div
+        data-testid="maze-training-panel-header"
+        role="button"
+        tabIndex={0}
+        aria-expanded={expanded}
+        aria-label="Training Mazes"
+        title="Drag to move — click to expand/collapse"
+        onPointerDown={handleHeaderPointerDown}
+        onPointerMove={handleHeaderPointerMove}
+        onPointerUp={handleHeaderPointerUp}
+        onPointerCancel={handleHeaderPointerUp}
+        onClick={handleHeaderClick}
+        onKeyDown={handleHeaderKeyDown}
+        style={{
+          height: STRIP_HEIGHT,
+          flexShrink: 0,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          padding: '0 8px 0 10px',
+          background: HEADER_BG_TRANSLUCENT,
+          borderBottom: `1px solid ${theme.border.default}`,
+          cursor: 'grab',
+          userSelect: 'none',
+          touchAction: 'none',
+        }}
+      >
+        <span
+          aria-hidden={true}
+          style={{
+            color: theme.text.muted,
+            fontSize: 11,
+            transform: expanded ? 'rotate(180deg)' : 'none',
+            transition: 'transform 0.15s ease',
+          }}
+        >
+          &#9662;
+        </span>
+        <span style={{ fontSize: 13, fontWeight: 600, color: theme.text.primary, whiteSpace: 'nowrap' }}>
+          Training Mazes
+        </span>
+        <span style={{ fontSize: 11, color: theme.text.muted, whiteSpace: 'nowrap' }}>
+          {MAZE_TRAINING_WORLDS.length} runs
+        </span>
+        <div style={{ flex: 1 }} />
+        <button
+          type="button"
+          data-testid="maze-training-close"
+          onClick={(e) => {
+            e.stopPropagation()
+            onClose()
+          }}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: theme.text.muted,
+            fontSize: 18,
+            lineHeight: 1,
+            cursor: 'pointer',
+            padding: 0,
+            width: 22,
+            height: 22,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderRadius: 4,
+          }}
+          aria-label="Close Training Mazes"
+        >
+          ×
+        </button>
+      </div>
+
+      {expanded ? (
+        <div
+          style={{
+            flex: 1,
+            minHeight: 0,
+            overflow: 'auto',
+            padding: 10,
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 10,
+            alignContent: 'flex-start',
+          }}
+        >
           {MAZE_TRAINING_WORLDS.map((spec) => {
             const state = cardStates[spec.id] ?? initialCardState
             const meta = state.meta
@@ -264,21 +430,21 @@ export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld
                 onClick={() => handleCardClick(spec.id)}
                 onKeyDown={(e) => e.key === 'Enter' && handleCardClick(spec.id)}
                 style={{
-                  width: 200,
-                  padding: 12,
-                  background: theme.bg.panel,
+                  width: CARD_WIDTH,
+                  padding: 8,
+                  background: theme.bg.section,
                   border: `1px solid ${selected ? theme.button.pickBorder : theme.border.default}`,
                   borderRadius: 8,
                   cursor: 'pointer',
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: 8,
+                  gap: 6,
                 }}
               >
                 <div
                   style={{
                     width: '100%',
-                    height: 180,
+                    height: 88,
                     borderRadius: 6,
                     overflow: 'hidden',
                     background: theme.bg.surface,
@@ -289,6 +455,7 @@ export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld
                 >
                   {exported ? (
                     <img
+                      data-testid={`maze-training-thumb-${spec.id}`}
                       src={mazeThumbUrl(spec)}
                       alt={`${spec.name} thumbnail`}
                       style={{ width: '100%', height: '100%', objectFit: 'cover' }}
@@ -297,29 +464,34 @@ export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld
                   ) : null}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  <span style={{ fontSize: 14, fontWeight: 600, color: theme.text.primary }}>{spec.name}</span>
-                  <span style={{ fontSize: 12, color: theme.text.secondary }}>seed {spec.seed}</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: theme.text.primary }}>{spec.name}</span>
+                  <span style={{ fontSize: 11, color: theme.text.secondary }}>seed {spec.seed}</span>
                   {exported && meta ? (
                     <>
-                      <span style={{ fontSize: 12, color: theme.text.secondary }}>{meta.candidate.label}</span>
-                      <span style={{ fontSize: 12, color: theme.text.secondary }}>{bestScoreLabel(meta)}</span>
+                      <span style={{ fontSize: 11, color: theme.text.secondary }}>{meta.candidate.label}</span>
+                      <span style={{ fontSize: 11, color: theme.text.secondary }}>{bestScoreLabel(meta)}</span>
                       {routesLabel(meta) ? (
-                        <span style={{ fontSize: 12, color: theme.text.secondary }}>{routesLabel(meta)}</span>
+                        <span style={{ fontSize: 11, color: theme.text.secondary }}>{routesLabel(meta)}</span>
                       ) : null}
                     </>
                   ) : (
-                    <span style={{ fontSize: 12, color: theme.text.muted }}>not exported yet</span>
+                    <span style={{ fontSize: 11, color: theme.text.muted }}>not exported yet</span>
                   )}
                 </div>
                 <button
                   type="button"
                   data-testid={`maze-training-play-${spec.id}`}
                   disabled={!exported}
-                  onClick={() => handlePlay(spec.id)}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handlePlay(spec.id)
+                  }}
                   style={{
                     ...secondaryButtonStyle,
                     ...(exported ? {} : secondaryButtonStyleDisabled),
                     ...(exported && selected ? { background: theme.button.pick } : {}),
+                    padding: '4px 10px',
+                    fontSize: 12,
                   }}
                 >
                   Play
@@ -328,7 +500,25 @@ export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld
             )
           })}
         </div>
-      )}
-    </Modal>
+      ) : null}
+
+      {expanded ? (
+        <div
+          aria-hidden={true}
+          {...resizeHandleProps}
+          data-testid="maze-training-resize-handle"
+          style={{
+            position: 'absolute',
+            right: 0,
+            bottom: 0,
+            width: 16,
+            height: 16,
+            cursor: 'nwse-resize',
+            touchAction: 'none',
+          }}
+        />
+      ) : null}
+    </div>,
+    document.body,
   )
 }
