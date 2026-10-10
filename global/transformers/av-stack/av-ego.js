@@ -58,6 +58,7 @@
   {"key": "fleeReleaseRun", "type": "number", "default": 80, "group": "Evasion", "unit": "m", "min": 0, "advanced": true},
   {"key": "fleeBadAlign", "type": "number", "default": 1, "group": "Evasion", "min": 0, "max": 1, "description": "Weight of the alignment with the real goal in escape-heading scoring while the goal is flagged unreachable (1 = unchanged).", "advanced": true},
   {"key": "fleeReleaseT", "type": "number", "default": 1, "group": "Evasion", "unit": "s", "min": 0, "advanced": true},
+  {"key": "fleeReleaseNear", "type": "number", "default": 0, "group": "Evasion", "unit": "m", "min": 0, "description": "m, 0 = off: engagement radius of the pursuit sim — a NEW escape only starts while a moving tracked threat is within this distance of the car, and a committed escape goal is released once none is (the release keeps its fleeReleaseT timer as hysteresis; without this, long-range intercept predictions with chasers 60-100 m away start and keep flees that read as 'escape goal with no chaser nearby').", "advanced": true},
   {"key": "gapWalls", "type": "boolean", "default": false, "group": "Evasion", "description": "bool, default OFF; opt-in, needs gapCommit", "advanced": true},
   {"key": "gapWarmup", "type": "number", "default": 0, "group": "Evasion", "unit": "s", "min": 0, "description": "s, 0.1: no commit before the pursuers' velocities are filtered", "advanced": true},
   {"key": "goalOpen", "type": "boolean", "default": true, "group": "Evasion", "description": "bool, default ON; false disables; flee / escape goals only, never mission goals", "advanced": true},
@@ -541,9 +542,31 @@ function fleeGoal(av, thrs, input, params, state, api) {
     if (sim && simThrs.length) simGoalD = escapeSim(simThrs, pos, simYaw, Math.max(0, av.ego.speedF), Math.atan2(g0[2] - pos[2], g0[0] - pos[0]), 0, qTrig)
   }
   var simDanger = sim && simThrs.length > 0 && simGoalD < (params.escapeTrigger != null ? params.escapeTrigger : 16)
+  // fleeReleaseNear as an engagement radius (m, 0 = off, default: always engaged): a moving tracked threat within this distance of the car.
+  // Without it: a NEW escape is not started by the sim's long-range intercept prediction (a chaser 60-100 m away whose predicted path touches the goal
+  // heading), a committed escape goal is released (the fleeRelease timers stay as hysteresis), and on open ground a watchdog-flagged unreachable goal
+  // no longer holds the flee layer on its own — the car retries the real goal (the route planner detours) instead of fleeing from nothing; inside a
+  // confined maze the escape route stays (it is the recovery for an unreachable goal); a threat entering the radius re-arms everything at once.
+  var engaged = true
+  if (params.fleeReleaseNear > 0) {
+    engaged = false
+    var enD2 = params.fleeReleaseNear * params.fleeReleaseNear
+    for (var eni = 0; eni < simThrs.length; eni++) {
+      var envx = simThrs[eni].vx
+      var envz = simThrs[eni].vz
+      if (params.fleeStoppedSpeed > 0 && envx * envx + envz * envz < params.fleeStoppedSpeed * params.fleeStoppedSpeed) continue
+      var endx = simThrs[eni].x - pos[0]
+      var endz = simThrs[eni].z - pos[2]
+      if (endx * endx + endz * endz < enD2) {
+        engaged = true
+        break
+      }
+    }
+  }
+  if (!fl && simDanger && !engaged) simDanger = false
   // fleeRelease (default on, false = off): a committed gap goal is an absolute point ~150 m away that is held until the car is within 25 m of it, i.e. the car flees for many seconds although the pursuers
   // are 50-150 m away and the real goal is safe again (measured: 59 % of the flee frames have the nearest chaser > 40 m away). Release it once the simulated run to the REAL goal keeps
-  // >= fleeReleaseD (30 m, trigger is 16) from every pursuer for fleeReleaseT (1 s) with a clear straight way (the persistent static map shows a free straight run to the goal (fleeReleaseRun 80 m); not while the watchdog says the goal is unreachable): the car drives to its goal again.
+  // >= fleeReleaseD (30 m, trigger is 16) from every pursuer for fleeReleaseT (1 s) with a clear straight way (the persistent static map shows a free straight run to the goal (fleeReleaseRun 80 m); not while the watchdog says the goal is unreachable — except when not engaged, see fleeReleaseNear): the car drives to its goal again.
   // Maze module (mazeModule, default off): in a confined space the open-ground flee logic below is replaced by a waypoint on the least-resistance route to the nearest reachable exit (see mazeStep).
   if (params.mazeModule === true) {
     var mzGoalD = undefined
@@ -594,7 +617,7 @@ function fleeGoal(av, thrs, input, params, state, api) {
     }
     if (fl && fl.maze) fl = state.flee = null
   }
-  if (params.fleeRelease !== false && sim && fl && fl.gap && !bad) {
+  if (params.fleeRelease !== false && sim && fl && fl.gap && (!bad || !engaged)) {
     // direct way: the obstacle-aware field belongs to the FLEE goal while fleeing (the route planner targets it), so the real goal's directness is read from the persistent static map: a free straight run
     // (car half-width + 3.5 m) over min(goal distance, fleeReleaseRun 80 m); an empty map reads as free
     var gdR = Math.hypot(g0[0] - pos[0], g0[2] - pos[2])
@@ -603,7 +626,10 @@ function fleeGoal(av, thrs, input, params, state, api) {
       var rr = Math.min(gdR, params.fleeReleaseRun != null ? params.fleeReleaseRun : 80)
       directGoal = freeRun(wallGrid(av.prevSmap.list, state), pos[0], pos[2], Math.atan2(g0[2] - pos[2], g0[0] - pos[0]), rr, 3.5) >= rr - 2
     }
-    if (directGoal && simGoalD > (params.fleeReleaseD != null ? params.fleeReleaseD : 30) && !danger(g0[0], g0[2]) && now - fl.t0 > (params.escapeHold != null ? params.escapeHold : 1.5)) {
+    // not engaged (no moving tracked threat within fleeReleaseNear): release without the sim's blessing — the pursuit sim keeps a far chaser's
+    // predicted intercept (simGoalD < fleeReleaseD) committed for the goal's whole run although nothing is near; this also ends a goal held only by the
+    // watchdog's unreachable flag (bad). The timers stay as hysteresis; a threat entering the radius re-arms the escape at once.
+    if ((!engaged || (directGoal && simGoalD > (params.fleeReleaseD != null ? params.fleeReleaseD : 30) && !danger(g0[0], g0[2]))) && now - fl.t0 > (params.escapeHold != null ? params.escapeHold : 1.5)) {
       if (fl.rel === undefined) fl.rel = now
       if (now - fl.rel >= (params.fleeReleaseT != null ? params.fleeReleaseT : 1)) {
         state.flee = null
@@ -619,7 +645,7 @@ function fleeGoal(av, thrs, input, params, state, api) {
   }
   if (sim && fl && now - fl.t0 < (params.escapeHold != null ? params.escapeHold : 1.5)) simDanger = true
   if (!sim && fl && fl.gap) fl = state.flee = null
-  if (!bad && !simDanger && !danger(g0[0], g0[2])) {
+  if ((!bad || !engaged) && !simDanger && !danger(g0[0], g0[2])) {
     state.flee = null
     av.fleeing = false
     return
