@@ -88,7 +88,7 @@ describe('MazeTrainingDialog', () => {
     expect(screen.getByTestId('maze-training-resize-handle')).toBeInTheDocument()
   })
 
-  it('a row click expands its full-width thumbnail (all vectors); accordion: one at a time, second click collapses', async () => {
+  it('a row click expands its route tiles (one per way); tiles are individually clickable and select the run target vector', async () => {
     const user = userEvent.setup()
     stubFetchWithMeta((spec) => makeMeta(spec, 123, { forward: 3, reversed: 1 }))
     render(<MazeTrainingDialog isOpen onClose={() => {}} onPlayExampleWorld={() => {}} />)
@@ -96,19 +96,45 @@ describe('MazeTrainingDialog', () => {
     await screen.findAllByText('Best: 123 pts')
     const row1 = screen.getByTestId('maze-training-row-maze_train_1')
     await user.click(row1)
-    const thumb1 = screen.getByTestId('maze-training-thumb-maze_train_1')
-    expect(thumb1).toHaveAttribute('src', expect.stringContaining('thumb.svg'))
-    expect(thumb1).toHaveAttribute('alt', expect.stringContaining('all guidance vectors'))
-    expect(screen.getAllByText('v3 shipped (gen 1000)')).toHaveLength(1)
     expect(row1).toHaveAttribute('aria-expanded', 'true')
-    // clicking another row switches the accordion
-    await user.click(screen.getByTestId('maze-training-row-maze_train_2'))
-    expect(screen.queryByTestId('maze-training-thumb-maze_train_1')).not.toBeInTheDocument()
-    expect(screen.getByTestId('maze-training-thumb-maze_train_2')).toBeInTheDocument()
-    // clicking the same row again collapses to the single line
-    await user.click(screen.getByTestId('maze-training-row-maze_train_2'))
-    expect(screen.queryByTestId('maze-training-thumb-maze_train_2')).not.toBeInTheDocument()
+    // 4 tiles: 3 forward + 1 reversed, each with its own route image
+    for (let i = 0; i < 4; i++) {
+      const tile = screen.getByTestId(`maze-training-route-tile-maze_train_1-${i}`)
+      expect(tile).toBeInTheDocument()
+      const img = screen.getByTestId(`maze-training-thumb-maze_train_1-${i}`)
+      expect(img).toHaveAttribute('src', expect.stringContaining(`route_${i}.svg`))
+    }
+    expect(screen.getByTestId('maze-training-route-tile-maze_train_1-3')).toHaveAttribute(
+      'aria-label',
+      'Maze Training 1 way 4 (reversed)',
+    )
+    expect(screen.getAllByText('v3 shipped (gen 1000)')).toHaveLength(1)
+    // click a tile: it becomes the selected target vector (only one pressed)
+    await user.click(screen.getByTestId('maze-training-route-tile-maze_train_1-2'))
+    expect(screen.getByTestId('maze-training-route-tile-maze_train_1-2')).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByTestId('maze-training-route-tile-maze_train_1-0')).toHaveAttribute('aria-pressed', 'false')
+    // clicking the row line again collapses to the single line
+    await user.click(row1)
+    expect(screen.queryByTestId('maze-training-route-tile-maze_train_1-0')).not.toBeInTheDocument()
     expect(screen.queryByText('v3 shipped (gen 1000)')).not.toBeInTheDocument()
+  })
+
+  it('Play loads the selected route (default 0, tile click changes it)', async () => {
+    const user = userEvent.setup()
+    stubFetchWithMeta((spec) => makeMeta(spec, 10, { forward: 2, reversed: 2 }))
+    const onPlay = vi.fn()
+    render(<MazeTrainingDialog isOpen onClose={() => {}} onPlayExampleWorld={onPlay} />)
+    await user.click(screen.getByTestId('maze-training-panel-header'))
+    await screen.findAllByText('Best: 10 pts')
+    // default: route 0
+    await user.click(screen.getByTestId('maze-training-play-maze_train_3'))
+    expect(onPlay).toHaveBeenCalledWith('maze_train_3', 0)
+    // select way 3 (reversed) via its tile, then play that run
+    await user.click(screen.getByTestId('maze-training-row-maze_train_3'))
+    await user.click(screen.getByTestId('maze-training-route-tile-maze_train_3-3'))
+    await user.click(screen.getByTestId('maze-training-play-maze_train_3'))
+    expect(onPlay).toHaveBeenLastCalledWith('maze_train_3', 3)
+    expect(onPlay).toHaveBeenCalledTimes(2)
   })
 
   it('Play loads the maze and keeps the panel open and expanded', async () => {
@@ -122,7 +148,7 @@ describe('MazeTrainingDialog', () => {
     expect(screen.getByTestId('maze-training-row-maze_train_3')).toHaveAttribute('aria-pressed', 'false')
     await user.click(screen.getByTestId('maze-training-play-maze_train_3'))
     expect(onPlay).toHaveBeenCalledTimes(1)
-    expect(onPlay).toHaveBeenCalledWith('maze_train_3')
+    expect(onPlay).toHaveBeenCalledWith('maze_train_3', 0)
     expect(onClose).not.toHaveBeenCalled()
     expect(screen.getByTestId('maze-training-panel-header')).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByTestId('maze-training-row-maze_train_3')).toHaveAttribute('aria-pressed', 'true')

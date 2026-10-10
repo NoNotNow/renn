@@ -13,6 +13,7 @@ import BuilderHeader from '@/components/BuilderHeader'
 import PerformanceBoosterDialog from '@/components/PerformanceBoosterDialog'
 import SaveDialog from '@/components/SaveDialog'
 import MazeTrainingDialog from '@/components/MazeTrainingDialog'
+import { focusMazeRoute } from '@/policyEvolution/mazeTraining'
 import EntitySidebar from '@/components/EntitySidebar'
 import PropertySidebar from '@/components/PropertySidebar'
 import Workspace from '@/components/Workspace'
@@ -431,14 +432,16 @@ export default function Builder() {
 
   // Training Mazes dialog → load the exported example world into the builder (no play mode):
   // the world sets world.debugTargetLineEntityId, so the guidance chain overlay renders in builder
-  // mode. The dialog stays open; the game HUD is force-enabled so the score watch is visible.
+  // mode. The tile clicked in the dialog focuses the run on that route (target vector): camera,
+  // visualizeLine display entity and HUD score move to the selected route's car (focusMazeRoute).
+  // The dialog stays open; the game HUD is force-enabled so the score watch is visible.
   const handlePlayExampleWorld = useCallback(
-    async (worldId: string) => {
+    async (worldId: string, routeIndex: number) => {
       try {
         const { world, assets } = await loadExampleWorldFromPublicBase(import.meta.env.BASE_URL || '/', worldId)
-        handleOpenExampleWorld(world, worldId, assets)
+        handleOpenExampleWorld(focusMazeRoute(world, routeIndex), worldId, assets)
         setShowGameHud(true)
-        uiLogger.select('Builder', 'Load training maze into builder', { worldName: worldId })
+        uiLogger.select('Builder', 'Load training maze into builder', { worldName: worldId, routeIndex })
       } catch (err) {
         console.error('Failed to load example world:', err)
         alert('Failed to load example world')

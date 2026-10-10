@@ -16,6 +16,7 @@ import {
   MAZE_TRAIN_CHAIN_COLORS_REVERSED,
   MAZE_TRAIN_ROUTES,
   buildMazeTrainingWorld,
+  focusMazeRoute,
   mazeCarId,
   mazeGoalId,
   mazeScoreStageId,
@@ -23,6 +24,7 @@ import {
   mazeTrainingRoutes,
   type MazeRoute,
 } from '@/policyEvolution/mazeTraining'
+import { existsSync } from 'node:fs'
 import { getTransformerWatchEntries, setAgentObservationWatchActive } from '@/runtime/transformerWatchBridge'
 import { DEFAULT_DT, WorldSimulator } from '@/test/helpers/worldSimulator'
 
@@ -162,6 +164,47 @@ describe('maze training worlds', () => {
         }
       })
     }
+  })
+})
+
+// --- route tiles + the load-time route focus (dialog round 5) -------------------------------------------------------
+
+describe('maze training worlds: route tiles and focusMazeRoute', () => {
+  it('route_<i>.svg tile files exist on disk for every route of every world', () => {
+    for (const spec of MAZE_TRAINING_WORLDS) {
+      const { routes } = mazeTrainingRoutes(spec)
+      expect(routes.length).toBeGreaterThanOrEqual(2)
+      for (let i = 0; i < routes.length; i++) {
+        expect(existsSync(join('public/exampleWorlds', spec.id, `route_${i}.svg`))).toBe(true)
+      }
+      expect(existsSync(join('public/exampleWorlds', spec.id, `route_${routes.length}.svg`))).toBe(false)
+    }
+  })
+
+  it('focusMazeRoute: camera + display entity + HUD flag move to the selected route; out-of-range is a no-op', () => {
+    const base = buildMazeTrainingWorld(MAZE_TRAINING_WORLDS[3]!, shippedGenomeV3()!)
+    const count = mazeTrainingRoutes(MAZE_TRAINING_WORLDS[3]!).routes.length
+    expect(count).toBe(5)
+
+    const focused = focusMazeRoute(base, 3)
+    const w = focused as unknown as {
+      world: { camera: { target?: string }; debugTargetLineEntityId?: string }
+      transformers: Record<string, { params?: { hud?: boolean } }>
+    }
+    expect(w.world.camera.target).toBe(mazeCarId(3))
+    expect(w.world.debugTargetLineEntityId).toBe(mazeCarId(3))
+    for (let i = 0; i < count; i++) expect(w.transformers[mazeScoreStageId(i)]?.params?.hud).toBe(i === 3)
+
+    // the neutral on-disk world keeps its default focus (route 0)
+    const neutral = base as unknown as typeof w
+    expect(neutral.world.camera.target).toBe(mazeCarId(0))
+    expect(neutral.transformers[mazeScoreStageId(0)]?.params?.hud).toBe(true)
+    expect(neutral.transformers[mazeScoreStageId(1)]?.params?.hud).toBe(false)
+
+    // out-of-range indices return the world unchanged
+    expect(focusMazeRoute(base, -1)).toEqual(base)
+    expect(focusMazeRoute(base, count)).toEqual(base)
+    expect(focusMazeRoute(base, 99)).toEqual(base)
   })
 })
 

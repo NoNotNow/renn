@@ -14,8 +14,8 @@ const BASE_URL = import.meta.env.BASE_URL || '/'
 export interface MazeTrainingDialogProps {
   isOpen: boolean
   onClose: () => void
-  /** Loads the example world into the builder (Builder implements this; the dialog stays open). */
-  onPlayExampleWorld: (worldId: string) => void
+  /** Loads the example world into the builder focused on the selected route (Builder implements this; the dialog stays open). */
+  onPlayExampleWorld: (worldId: string, routeIndex: number) => void
 }
 
 interface MazeCardState {
@@ -57,8 +57,9 @@ function mazeMetaUrl(spec: MazeTrainingWorldSpec): string {
   return `${BASE_URL}exampleWorlds/${encodeURIComponent(spec.id)}/meta.json`
 }
 
-function mazeThumbUrl(spec: MazeTrainingWorldSpec): string {
-  return `${BASE_URL}exampleWorlds/${encodeURIComponent(spec.id)}/thumb.svg`
+/** Per-route tile image (individually clickable in the expanded row = the run's target vector). */
+function mazeRouteTileUrl(spec: MazeTrainingWorldSpec, routeIndex: number): string {
+  return `${BASE_URL}exampleWorlds/${encodeURIComponent(spec.id)}/route_${routeIndex}.svg`
 }
 
 /** "3 ways · 1 reversed"; null when an older meta.json predates the routes field. */
@@ -150,6 +151,8 @@ export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld
   const [selectedId, setSelectedId] = useState<string | null>(null)
   /** Run row whose full-width thumbnail is expanded (one at a time; null = all rows single-line). */
   const [expandedRowId, setExpandedRowId] = useState<string | null>(null)
+  /** Selected route tile per world (the run's target vector; default route 0). */
+  const [selectedRoutes, setSelectedRoutes] = useState<Record<string, number>>({})
   const [collapsed, setCollapsed] = useState<boolean>(() => readStoredCollapsed())
   const [size, setSize] = useState<PanelSize>(() => readStoredSize() ?? { width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT })
   const [pos, setPos] = useState<PanelPos>(() => {
@@ -293,10 +296,14 @@ export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld
   const handlePlay = useCallback(
     (id: string) => {
       setSelectedId(id)
-      onPlayExampleWorld(id)
+      onPlayExampleWorld(id, selectedRoutes[id] ?? 0)
     },
-    [onPlayExampleWorld],
+    [onPlayExampleWorld, selectedRoutes],
   )
+
+  const handleTileClick = useCallback((worldId: string, routeIndex: number) => {
+    setSelectedRoutes((prev) => ({ ...prev, [worldId]: routeIndex }))
+  }, [])
 
   const handleThumbError = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
     e.currentTarget.style.display = 'none'
@@ -503,29 +510,56 @@ export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld
                   </button>
                 </div>
                 {rowExpanded && meta ? (
-                  <div
-                    style={{
-                      padding: '0 8px 8px 8px',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 4,
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: '100%',
-                        borderRadius: 6,
-                        overflow: 'hidden',
-                        background: theme.bg.surface,
-                      }}
-                    >
-                      <img
-                        data-testid={`maze-training-thumb-${spec.id}`}
-                        src={mazeThumbUrl(spec)}
-                        alt={`${spec.name} thumbnail (all guidance vectors)`}
-                        style={{ width: '100%', height: 'auto', display: 'block', objectFit: 'contain' }}
-                        onError={handleThumbError}
-                      />
+                  <div style={{ padding: '0 8px 8px 8px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <div style={{ display: 'flex', gap: 6, width: '100%' }}>
+                      {Array.from({ length: (meta.routes?.forward ?? 0) + (meta.routes?.reversed ?? 0) }, (_, i) => {
+                        const reversed = i >= (meta.routes?.forward ?? 0)
+                        const tileSelected = (selectedRoutes[spec.id] ?? 0) === i
+                        return (
+                          <div
+                            key={i}
+                            data-testid={`maze-training-route-tile-${spec.id}-${i}`}
+                            role="button"
+                            tabIndex={0}
+                            aria-pressed={tileSelected}
+                            aria-label={`${spec.name} way ${i + 1} (${reversed ? 'reversed' : 'forward'})`}
+                            title={`Way ${i + 1} (${reversed ? 'reversed' : 'forward'}) — select as the run's target vector`}
+                            onClick={() => handleTileClick(spec.id, i)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleTileClick(spec.id, i)}
+                            style={{
+                              flex: 1,
+                              minWidth: 0,
+                              padding: 3,
+                              background: theme.bg.surface,
+                              border: `1px solid ${tileSelected ? theme.button.pickBorder : theme.border.default}`,
+                              borderRadius: 6,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: 3,
+                            }}
+                          >
+                            <img
+                              data-testid={`maze-training-thumb-${spec.id}-${i}`}
+                              src={mazeRouteTileUrl(spec, i)}
+                              alt={`${spec.name} way ${i + 1} (${reversed ? 'reversed' : 'forward'}) thumbnail (all guidance vectors)`}
+                              style={{ width: '100%', height: 'auto', display: 'block', objectFit: 'contain', borderRadius: 4 }}
+                              onError={handleThumbError}
+                            />
+                            <span
+                              style={{
+                                fontSize: 10,
+                                color: tileSelected ? theme.text.primary : theme.text.muted,
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                              }}
+                            >
+                              {tileSelected ? '\u25B8 ' : ''}Way {i + 1} {reversed ? '(rev)' : '(fwd)'}
+                            </span>
+                          </div>
+                        )
+                      })}
                     </div>
                     <span style={{ fontSize: 11, color: theme.text.secondary }}>{meta.candidate.label}</span>
                   </div>

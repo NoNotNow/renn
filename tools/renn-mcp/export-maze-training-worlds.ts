@@ -25,11 +25,9 @@ import {
   MAZE_TRAIN_ROUTES,
   buildMazeTrainingWorld,
   mazeCarId,
-  mazeGoalId,
   mazeScoreStageId,
   mazeTrainingMeta,
   mazeTrainingRoutes,
-  type MazeTrainingWorldSpec,
 } from '../../src/policyEvolution/mazeTraining'
 import type { CourseBox } from '../../src/policyEvolution/courses'
 import type { V2 } from '../../src/avEvolution/eval/geometry'
@@ -198,6 +196,20 @@ async function main(): Promise<void> {
         })),
       ),
     )
+    // per-route tiles: individually clickable in the dialog (select the run's target vector)
+    routes.forEach((route, i) => {
+      writeFileSync(
+        resolve(outDir, `route_${i}.svg`),
+        thumbSvg(course.boxes, [
+          {
+            ox: 0,
+            chain: chains[i]!,
+            color: route.reversed ? MAZE_TRAIN_CHAIN_COLORS_REVERSED.start : MAZE_TRAIN_CHAIN_COLORS.end,
+            startColor: route.reversed ? MAZE_TRAIN_CHAIN_COLORS_REVERSED.start : MAZE_TRAIN_CHAIN_COLORS.start,
+          },
+        ]),
+      )
+    })
   }
   invalidateAgentDevExampleWorldIdCache()
   console.log(`maze training worlds written to public/exampleWorlds/ (--score ${withScore ? 'on' : 'off'})`)

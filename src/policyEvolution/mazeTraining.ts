@@ -560,3 +560,24 @@ export function mazeTrainingMeta(spec: MazeTrainingWorldSpec, routes: MazeRoute[
     routes: { forward: routes.filter((r) => !r.reversed).length, reversed: routes.filter((r) => r.reversed).length },
   }
 }
+
+/**
+ * Focus a loaded maze training world on ONE route (the tile clicked in the dialog = the run's target vector):
+ * the route's car becomes the camera target and the visualizeLine display entity (its score stage draws all chains),
+ * and only its score stage writes the HUD score. Pure JSON transform, applied by the Builder before opening the world.
+ * The world on disk stays neutral (focused on route 0); an out-of-range index is a no-op.
+ */
+export function focusMazeRoute(world: RennWorld, routeIndex: number): RennWorld {
+  const scoreIds = Object.keys((world as { transformers?: Record<string, unknown> }).transformers ?? {})
+    .filter((id) => /^maze_score_(\d+)$/.test(id))
+    .sort((a, b) => Number(a.slice(11)) - Number(b.slice(11)))
+  if (scoreIds.length === 0 || routeIndex < 0 || routeIndex >= scoreIds.length) return world
+  const w = JSON.parse(JSON.stringify(world)) as {
+    world: { camera: { target?: string }; debugTargetLineEntityId?: string }
+    transformers: Record<string, { params?: Record<string, unknown> }>
+  }
+  w.world.camera.target = mazeCarId(routeIndex)
+  w.world.debugTargetLineEntityId = mazeCarId(routeIndex)
+  for (const id of scoreIds) w.transformers[id]!.params!.hud = id === `maze_score_${routeIndex}`
+  return w as unknown as RennWorld
+}
