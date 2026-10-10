@@ -10,12 +10,18 @@ import { cellCentre, generateMaze } from '@/avEvolution/maze/mazeGen'
  *  - `maze`: a seeded 6x6 maze; the car starts in a south-row cell, the goal chain follows the shortest route cell by cell to the exit gate
  *    on the north side (the policy has no map: the goal vector is its only hint which way the route turns).
  */
-export type CourseKind = 'field' | 'slalom' | 'maze' | 'crowd'
+export type CourseKind = 'field' | 'slalom' | 'maze' | 'crowd' | 'free' | 'bay' | 'corridor'
 
 /** The v1 kinds (default sets of the v1 tools). `crowd` is a v2 chain setup kind, see CHAIN_KINDS. */
 export const COURSE_KINDS: readonly CourseKind[] = ['field', 'slalom', 'maze']
 /** Setup kinds of the v2 command-chain training (src/policyEvolution/chains.ts). */
 export const CHAIN_KINDS: readonly CourseKind[] = ['field', 'slalom', 'maze', 'crowd']
+/** v3 setup kinds: `free` (big closed arena, direction chains with reversals), `bay` (dead-end bays), `corridor` (too narrow to U-turn); see spec-command-chains.md, section v3. */
+export const REVERSAL_KINDS: readonly CourseKind[] = ['bay', 'corridor']
+export const V3_NEW_KINDS: readonly CourseKind[] = ['free', ...REVERSAL_KINDS]
+/** all v3 kinds in report order: the new free-track / reversal kinds and the v2 obstacle kinds */
+export const V3_KINDS: readonly CourseKind[] = [...V3_NEW_KINDS, ...CHAIN_KINDS]
+export const isV3NewKind = (k: CourseKind) => V3_NEW_KINDS.includes(k)
 
 export interface CourseBox {
   at: V2
@@ -41,12 +47,14 @@ export interface Course {
   variant: number
   /** field difficulty 0..1 (1 = full density / box size, the default); only `field` reacts to it */
   difficulty: number
+  /** v3 kinds (free / bay / corridor): the seeded layout numbers the chain generator needs (see `bayCourse`, `corridorCourse`) */
+  layout?: Record<string, number>
 }
 
 export const COURSE_LENGTH = 400
 export const COURSE_START: V2 = [0, 0]
 
-const KIND_SALT: Record<CourseKind, number> = { field: 7919, slalom: 104729, maze: 1299709, crowd: 15485863 }
+const KIND_SALT: Record<CourseKind, number> = { field: 7919, slalom: 104729, maze: 1299709, crowd: 15485863, free: 32452843, bay: 49979687, corridor: 67867967 }
 
 /**
  * `kind:seed` = canonical start; `kind:seed~n` = the same course with the n-th seeded random start pose (offset + heading);
@@ -73,9 +81,11 @@ export function parseCourseKey(key: string): { kind: CourseKind; seed: number; v
   const seed = Number(s)
   const variant = v === undefined ? 0 : Number(v)
   const difficulty = d === undefined ? 1 : Number(d)
-  if (!CHAIN_KINDS.includes(kind as CourseKind) || !Number.isInteger(seed) || !Number.isInteger(variant) || variant < 0 || !(difficulty >= 0 && difficulty <= 1)) throw new Error(`bad course key: ${key}`)
+  if (!ALL_KINDS.includes(kind as CourseKind) || !Number.isInteger(seed) || !Number.isInteger(variant) || variant < 0 || !(difficulty >= 0 && difficulty <= 1)) throw new Error(`bad course key: ${key}`)
   return { kind: kind as CourseKind, seed, variant, difficulty }
 }
+
+const ALL_KINDS: readonly CourseKind[] = V3_KINDS
 
 const range = (rng: Rng, lo: number, hi: number) => lo + (hi - lo) * rng.next()
 
@@ -213,6 +223,71 @@ function slalomIslandsCourse(rng: Rng): Pick<Course, 'boxes' | 'waypoints'> {
   return { boxes, waypoints }
 }
 
+/** half size of the free arena: walls stand at +-FREE_HALF (inner faces), nothing inside */
+export const FREE_HALF = 100
+
+/** `free` (v3 stage A): a big closed empty arena; the car starts in the middle. Chains are seeded direction chains (v3Chains.ts). */
+function freeCourse(): Pick<Course, 'boxes' | 'waypoints'> {
+  const h = FREE_HALF
+  const boxes: CourseBox[] = [
+    { at: [0, -(h + 1)], size: [2 * h + 4, 2], yawDeg: 0 },
+    { at: [0, h + 1], size: [2 * h + 4, 2], yawDeg: 0 },
+    { at: [-(h + 1), 0], size: [2, 2 * h + 4], yawDeg: 0 },
+    { at: [h + 1, 0], size: [2, 2 * h + 4], yawDeg: 0 },
+  ]
+  return { boxes, waypoints: [] }
+}
+
+/** the car's turning circle has a radius of ~10 m (steering 0.1 x wheel angle 1 per metre), so a pocket narrower than ~14 m cannot be turned in */
+export const BAY_HALL_HALF = 38
+export const BAY_HALL_BACK_Z = 24
+export const BAY_HALL_FRONT_Z = -62
+
+/**
+ * `bay` (v3 reversal setup): a hall (76 x 86 m, the car starts at the origin facing -Z) whose front wall has one opening, a dead-end bay 12.5-14 m wide and
+ * 20-32 m deep: too narrow for a U-turn (or a three-point turn), so a car that drove in has to reverse out. layout: bx (bay centre x), bw, bd (depth).
+ */
+function bayCourse(rng: Rng): Pick<Course, 'boxes' | 'waypoints' | 'layout'> {
+  const hx = BAY_HALL_HALF
+  const zb = BAY_HALL_BACK_Z
+  const zf = BAY_HALL_FRONT_Z
+  const bw = range(rng, 12.5, 14)
+  const bd = range(rng, 20, 32)
+  const bx = range(rng, -12, 12)
+  const boxes: CourseBox[] = []
+  const t = 2
+  boxes.push({ at: [0, zb + t / 2], size: [2 * hx + 2 * t, t], yawDeg: 0 })
+  for (const side of [-1, 1]) boxes.push({ at: [side * (hx + t / 2), (zb + zf) / 2], size: [t, zb - zf + t], yawDeg: 0 })
+  // front wall left and right of the opening
+  const left0 = -hx - t
+  const left1 = bx - bw / 2
+  boxes.push({ at: [(left0 + left1) / 2, zf - t / 2], size: [left1 - left0, t], yawDeg: 0 })
+  const right0 = bx + bw / 2
+  const right1 = hx + t
+  boxes.push({ at: [(right0 + right1) / 2, zf - t / 2], size: [right1 - right0, t], yawDeg: 0 })
+  // pocket: side walls from the front wall plane to the back wall
+  for (const side of [-1, 1]) boxes.push({ at: [bx + side * (bw / 2 + t / 2), zf - t - bd / 2], size: [t, bd], yawDeg: 0 })
+  boxes.push({ at: [bx, zf - t - bd - t / 2], size: [bw + 2 * t, t], yawDeg: 0 })
+  return { boxes, waypoints: [], layout: { bx, bw, bd, zFront: zf - t, hx, zBack: zb } }
+}
+
+/**
+ * `corridor` (v3 reversal setup): a straight closed corridor 12.5-14 m wide, 22-34 m behind the start and 70-110 m ahead of it, dead ends on both sides:
+ * no U-turn or three-point turn is possible, every direction change has to be driven in reverse. layout: cw (width), rear (m behind the start), ahead (m ahead).
+ */
+function corridorCourse(rng: Rng): Pick<Course, 'boxes' | 'waypoints' | 'layout'> {
+  const cw = range(rng, 12.5, 14)
+  const rear = range(rng, 22, 34)
+  const ahead = range(rng, 70, 110)
+  const t = 2
+  const boxes: CourseBox[] = []
+  const len = rear + ahead
+  for (const side of [-1, 1]) boxes.push({ at: [side * (cw / 2 + t / 2), (rear - ahead) / 2], size: [t, len + 2 * t], yawDeg: 0 })
+  boxes.push({ at: [0, rear + t / 2], size: [cw, t], yawDeg: 0 })
+  boxes.push({ at: [0, -ahead - t / 2], size: [cw, t], yawDeg: 0 })
+  return { boxes, waypoints: [], layout: { cw, rear, ahead } }
+}
+
 const MAZE_CELLS = 6
 const MAZE_PITCH = 16
 
@@ -258,6 +333,9 @@ const START_JITTER: Record<CourseKind, { x: number; z: number; yawDeg: number }>
   slalom: { x: 5, z: 0, yawDeg: 25 },
   maze: { x: 2, z: 2, yawDeg: 20 },
   crowd: { x: 6, z: 0, yawDeg: 25 },
+  free: { x: 15, z: 15, yawDeg: 90 },
+  bay: { x: 3, z: 3, yawDeg: 12 },
+  corridor: { x: 2, z: 3, yawDeg: 10 },
 }
 
 /** Seeded random start pose for variant >= 1; keeps the car clear of every wall / box (falls back to the canonical start). */
@@ -277,8 +355,22 @@ function jitterStart(course: Course): Course {
 
 export function buildCourse(kind: CourseKind, seed: number, variant = 0, difficulty = 1, chainSetup = false): Course {
   const rng = createRng((seed * 2654435761 + KIND_SALT[kind]) >>> 0)
-  const body =
-    kind === 'field' ? fieldCourse(rng, difficulty) : kind === 'slalom' ? (chainSetup ? slalomIslandsCourse(rng) : slalomCourse(rng)) : kind === 'crowd' ? crowdCourse(rng) : mazeCourse(seed, rng)
+  const body: Pick<Course, 'boxes' | 'waypoints'> & Partial<Pick<Course, 'layout' | 'startYawDeg'>> =
+    kind === 'field'
+      ? fieldCourse(rng, difficulty)
+      : kind === 'slalom'
+        ? chainSetup
+          ? slalomIslandsCourse(rng)
+          : slalomCourse(rng)
+        : kind === 'crowd'
+          ? crowdCourse(rng)
+          : kind === 'free'
+            ? freeCourse()
+            : kind === 'bay'
+              ? bayCourse(rng)
+              : kind === 'corridor'
+                ? corridorCourse(rng)
+                : mazeCourse(seed, rng)
   let length = 0
   let prev: V2 = COURSE_START
   for (const w of body.waypoints) {

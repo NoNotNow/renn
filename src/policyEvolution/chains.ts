@@ -1,6 +1,7 @@
 import { pointPolyGap, rectPoly, type V2 } from '@/avEvolution/eval/geometry'
 import { createRng, type Rng } from '@/avEvolution/core/rng'
-import { buildSetupCourse, CHAIN_KINDS, COURSE_LENGTH, COURSE_START, courseKey, parseCourseKey, type Course, type CourseKind } from './courses'
+import { buildSetupCourse, CHAIN_KINDS, COURSE_LENGTH, COURSE_START, courseKey, isV3NewKind, parseCourseKey, V3_KINDS, type Course, type CourseKind } from './courses'
+import { generateV3Chains } from './v3Chains'
 
 /**
  * Command chains (v2, see agent-context/spec-command-chains.md). A SETUP is a closed course geometry + start pose (setup key
@@ -30,6 +31,10 @@ export const CAR_HALF_WIDTH = 2
  * the wider margin, which squeezes the chain into a narrow band so that every corner is a sharp one.
  */
 export const CLEARANCE: Record<CourseKind, { margins: number[]; min: number }> = {
+  // v3 kinds (free / bay / corridor) lay their chains by hand (v3Chains.ts) and do not use the grid planner
+  free: { margins: [2.5], min: CAR_HALF_WIDTH + 0.5 },
+  bay: { margins: [2.5], min: CAR_HALF_WIDTH + 0.5 },
+  corridor: { margins: [2.5], min: CAR_HALF_WIDTH + 0.5 },
   field: { margins: [2.5, 1.5], min: CAR_HALF_WIDTH + 0.5 },
   slalom: { margins: [2.5, 1.5], min: CAR_HALF_WIDTH + 0.5 },
   crowd: { margins: [2.5, 1.5], min: CAR_HALF_WIDTH + 0.5 },
@@ -49,21 +54,29 @@ export interface Chain {
   length: number
   /** index of the end target this chain was generated for */
   endIndex: number
+  /** v3: point indices where the legs end (leg k runs from the previous end, 0 for the first, to this point; see legs.ts); undefined = one leg */
+  legEnds?: number[]
+  /** v3: offcourse tolerance (m) of this chain's episodes; undefined = OFF_CHAIN_M */
+  offM?: number
 }
 
 // --- keys ---------------------------------------------------------------------------------------------------------------------------
 
-export function chainEpisodeKey(setupKey: string, chainIndex: number): string {
-  return `${setupKey}#${chainIndex}`
+/**
+ * Episode key `<setupKey>#<i>` (v2: projection progress, stall = no progress) or `<setupKey>#<i>v3` (v3: leg-wise progress, stand-still stall rule, reverse
+ * usage reported; works for every setup kind, the v2 kinds are then driven as one-leg chains).
+ */
+export function chainEpisodeKey(setupKey: string, chainIndex: number, v3 = false): string {
+  return `${setupKey}#${chainIndex}${v3 ? 'v3' : ''}`
 }
 
-/** `setupKey#i` -> parts; a plain setup key gives chainIndex -1 */
-export function parseChainEpisodeKey(key: string): { setupKey: string; chainIndex: number } {
+/** `setupKey#i[v3]` -> parts; a plain setup key gives chainIndex -1 */
+export function parseChainEpisodeKey(key: string): { setupKey: string; chainIndex: number; v3?: true } {
   const i = key.indexOf('#')
   if (i < 0) return { setupKey: key, chainIndex: -1 }
-  const chainIndex = Number(key.slice(i + 1))
-  if (!Number.isInteger(chainIndex) || chainIndex < 0) throw new Error(`bad chain episode key: ${key}`)
-  return { setupKey: key.slice(0, i), chainIndex }
+  const m = /^(\d+)(v3)?$/.exec(key.slice(i + 1))
+  if (!m) throw new Error(`bad chain episode key: ${key}`)
+  return { setupKey: key.slice(0, i), chainIndex: Number(m[1]), ...(m[2] ? { v3: true as const } : {}) }
 }
 
 export const isChainEpisodeKey = (key: string) => key.includes('#')
@@ -650,6 +663,11 @@ export function chainsForSetup(setupKey: string): Chain[] {
   const hit = chainCache.get(setupKey)
   if (hit) return hit
   let chains: Chain[] = []
+  if (isV3NewKind(parseCourseKey(setupKey).kind)) {
+    chains = generateV3Chains(setupKey)
+    chainCache.set(setupKey, chains)
+    return chains
+  }
   for (const margin of CLEARANCE[parseCourseKey(setupKey).kind].margins) {
     chains = generate(setupKey, margin)
     if (chains.length >= MIN_CHAINS) break
@@ -661,11 +679,11 @@ export function chainsForSetup(setupKey: string): Chain[] {
 }
 
 /** The chain of an episode key `setupKey#i`. */
-export function chainOfEpisode(key: string): { setupKey: string; chainIndex: number; chain: Chain } {
-  const { setupKey, chainIndex } = parseChainEpisodeKey(key)
+export function chainOfEpisode(key: string): { setupKey: string; chainIndex: number; chain: Chain; v3: boolean } {
+  const { setupKey, chainIndex, v3 } = parseChainEpisodeKey(key)
   const chain = chainsForSetup(setupKey)[chainIndex]
   if (!chain) throw new Error(`no chain ${chainIndex} for setup ${setupKey}`)
-  return { setupKey, chainIndex, chain }
+  return { setupKey, chainIndex, chain, v3: !!v3 }
 }
 
 /** All chain episode keys of one setup (empty for a rejected setup). */
@@ -705,7 +723,7 @@ export function capFieldDifficulty(setupKey: string): string {
   return kind === 'field' && difficulty > CHAIN_FIELD_DIFFICULTY ? courseKey(kind, seed, variant, CHAIN_FIELD_DIFFICULTY) : setupKey
 }
 
-export const groupBySetup = (setupKeys: string[]): SetupChains[] => setupKeys.map((setupKey) => ({ setupKey, keys: chainEpisodeKeys(setupKey) }))
+export const groupBySetup = (setupKeys: string[], v3 = false): SetupChains[] => setupKeys.map((setupKey) => ({ setupKey, keys: v3 ? v3EpisodeKeys(setupKey) : chainEpisodeKeys(setupKey) }))
 
 /** TRAIN setups (seeds 1..) with all their chain episodes, grouped by setup. */
 export function trainChainEpisodes(perKind = 6, kinds: readonly CourseKind[] = CHAIN_KINDS): SetupChains[] {
@@ -718,3 +736,18 @@ export function holdoutChainEpisodes(perKind = 6, kinds: readonly CourseKind[] =
 }
 
 export const flattenChainKeys = (groups: SetupChains[]): string[] => groups.flatMap((g) => g.keys)
+
+// --- v3 TRAIN / HOLDOUT ---------------------------------------------------------------------------------------------------------------
+
+/** v3 TRAIN setups (seeds 1..) of the given kinds (any v3 kind), episode keys with the `v3` flag, grouped by setup. */
+export function trainV3Episodes(perKind = 6, kinds: readonly CourseKind[] = V3_KINDS): SetupChains[] {
+  return groupBySetup(acceptedSetupKeys(perKind, kinds, 1), true)
+}
+
+/** v3 HOLDOUT setups (seeds 1001.., random start variant) of the given kinds, grouped by setup. */
+export function holdoutV3Episodes(perKind = 6, kinds: readonly CourseKind[] = V3_KINDS, variant = 1): SetupChains[] {
+  return groupBySetup(acceptedSetupKeys(perKind, kinds, 1001, variant), true)
+}
+
+/** episode keys of one setup in v3 mode */
+export const v3EpisodeKeys = (setupKey: string): string[] => chainsForSetup(setupKey).map((_, i) => chainEpisodeKey(setupKey, i, true))

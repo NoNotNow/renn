@@ -4,6 +4,7 @@
  * unchanged `car2` actuator). No planner, no state machine.
  */
 import { gaussian, type Rng } from '@/avEvolution/core/rng'
+import { LEG_TRACK_JS } from './legs'
 
 /** Ray bearings in degrees from the heading (positive = left); dense in front, sparse behind. */
 export const RAY_ANGLES_DEG = [0, 10, -10, 20, -20, 35, -35, 55, -55, 80, -80, 120, -120, 180] as const
@@ -214,6 +215,62 @@ function deriveCmd(params, state, dt, pos, speed) {
 }
 `
 
+/**
+ * v3 command helpers (replace STAGE_CMD_HELPERS in `POLICY_STAGE_CODE_V3`, same `deriveCmd` name so STAGE_GOAL_V2 is reused unchanged): the chain is split into
+ * LEGS (`params.legEnds`, see legs.ts; none = one leg) and the car is tracked leg-wise with the shared leg tracker. The aim point lies `clamp(lmin + tau speed)` m further
+ * along the CURRENT leg, but never beyond its end (a reversal leg of 5 m puts the aim 5 m behind the car); `next` is the point 12 m beyond the aim, continuing on the
+ * next leg when the aim sits at the leg end. A leg change refreshes the command at once. Speed in the lookahead is |forward speed| (a reversing car looks ahead too).
+ */
+export const STAGE_CMD_HELPERS_V3 = LEG_TRACK_JS + `
+function deriveCmd(params, state, dt, pos, speed) {
+  var cfg = params.cmd || {}
+  if (!state.lt) {
+    state.lt = legInit(params.chain, params.legEnds)
+    state.lt.off = params.offM != null ? params.offM : 6
+    state.ct = 1e9
+    state.lastLi = 0
+    state.cr = { rs: (cfg.seed >>> 0) || 1 }
+  }
+  var t = state.lt
+  var px = pos[0], pz = pos[2]
+  legStep(t, px, pz)
+  if (t.li !== state.lastLi) {
+    state.lastLi = t.li
+    state.ct = 1e9
+  }
+  state.ct += dt
+  if (!state.aim || state.ct >= (cfg.period != null ? cfg.period : 0.5)) {
+    state.ct = 0
+    var leg = t.legs[t.li]
+    var lmin = cfg.lmin != null ? cfg.lmin : 12
+    var L = Math.min(Math.max(lmin + (cfg.tau != null ? cfg.tau : 1.5) * speed, lmin), 40)
+    var sa = Math.min(t.s + L, leg.len)
+    var a = legPoint(t, leg, sa)
+    var nd = cfg.noiseDeg != null ? cfg.noiseDeg : 3
+    if (nd > 0) {
+      var e = (rnd(state.cr) * 2 - 1) * nd * Math.PI / 180
+      var c = Math.cos(e), sn = Math.sin(e)
+      var vx = a[0] - px, vz = a[1] - pz
+      a = [px + vx * c - vz * sn, pz + vx * sn + vz * c]
+    }
+    var b
+    if (sa + 12 > leg.len && t.li < t.legs.length - 1) {
+      var nl = t.legs[t.li + 1]
+      b = legPoint(t, nl, Math.min(sa + 12 - leg.len, nl.len))
+    } else b = legPoint(t, leg, Math.min(sa + 12, leg.len))
+    if (Math.hypot(b[0] - a[0], b[1] - a[1]) < 0.5) {
+      var ch = params.chain
+      var lx = ch[leg.b][0] - ch[leg.b - 1][0], lz = ch[leg.b][1] - ch[leg.b - 1][1]
+      var ll = Math.hypot(lx, lz) || 1
+      b = [a[0] + lx / ll * 12, a[1] + lz / ll * 12]
+    }
+    state.aim = a
+    state.nxt = b
+  }
+  return [state.aim[0], state.aim[1], state.nxt[0], state.nxt[1]]
+}
+`
+
 /** hidden size from the genome length (len = H * (N_IN + 3) + 2); 0 = not an integer H (the stage then does nothing) */
 export const STAGE_HIDDEN = `
 function hiddenOf(w) {
@@ -222,9 +279,9 @@ function hiddenOf(w) {
 }
 `
 
-export const stageHead = (nIn: number, v2: boolean) => `
+export const stageHead = (nIn: number, v2: boolean, v3 = false) => `
 var ANGLES = ${JSON.stringify(RAY_ANGLES_DEG.map((d) => (d * Math.PI) / 180))}
-var N_IN = ${nIn}, RANGE = ${RAY_RANGE}, VF = ${V_FWD_MAX}, VR = ${V_REV_MAX}, TAU = ${TAU_SPEED}${STAGE_RND}${v2 ? STAGE_CMD_HELPERS : ''}${STAGE_HIDDEN}`
+var N_IN = ${nIn}, RANGE = ${RAY_RANGE}, VF = ${V_FWD_MAX}, VR = ${V_REV_MAX}, TAU = ${TAU_SPEED}${STAGE_RND}${v3 ? STAGE_CMD_HELPERS_V3 : v2 ? STAGE_CMD_HELPERS : ''}${STAGE_HIDDEN}`
 
 /** rays + own speeds (shared by v1 and v2) */
 export const STAGE_SENSE = `function transform(input, dt, params, state, api) {
@@ -321,3 +378,6 @@ export const STAGE_NET = `  var H = hiddenOf(w)
 
 export const POLICY_STAGE_CODE = stageHead(N_IN, false) + STAGE_SENSE + STAGE_GOAL_V1 + STAGE_NET
 export const POLICY_STAGE_CODE_V2 = stageHead(N_IN_V2, true) + STAGE_SENSE + STAGE_GOAL_V2 + STAGE_NET
+
+/** v3 training stage: the v2 net on leg-wise chains (params: chain, legEnds, offM, cmd); everything but the command helpers is the v2 code. */
+export const POLICY_STAGE_CODE_V3 = stageHead(N_IN_V2, true, true) + STAGE_SENSE + STAGE_GOAL_V2 + STAGE_NET

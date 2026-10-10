@@ -1,5 +1,6 @@
 import { createRng, gaussian, type Rng } from '@/avEvolution/core/rng'
 import { parseChainEpisodeKey } from './chains'
+import { parseCourseKey } from './courses'
 import type { PolicyEpisodeMetrics } from './episode'
 
 /**
@@ -82,6 +83,24 @@ export function aggregateEvenness(metrics: Array<Pick<PolicyEpisodeMetrics, 'key
   }
   const setupScores = [...bySetup.values()].map((v) => 0.5 * (v.reduce((a, b) => a + b, 0) / v.length) + 0.5 * Math.min(...v))
   return 0.5 * (setupScores.reduce((a, b) => a + b, 0) / setupScores.length) + 0.5 * worstQuarterMean(setupScores)
+}
+
+/**
+ * v3 fitness, evenness ACROSS setup kinds: kindScore = the setup-evenness aggregate (`aggregateEvenness`) over that kind's setups, fitness = 0.5 mean + 0.5 min
+ * of the kind scores over the kinds present in the batch. A net that is great on some kinds and bad on others scores below an even one with the same mean.
+ * `aggregateEvenness` (v2) is unchanged.
+ */
+export function aggregateKindEvenness(metrics: Array<Pick<PolicyEpisodeMetrics, 'key' | 'norm'>>): number {
+  if (!metrics.length) return 0
+  const byKind = new Map<string, Array<Pick<PolicyEpisodeMetrics, 'key' | 'norm'>>>()
+  for (const m of metrics) {
+    const kind = parseCourseKey(parseChainEpisodeKey(m.key).setupKey).kind
+    const list = byKind.get(kind)
+    if (list) list.push(m)
+    else byKind.set(kind, [m])
+  }
+  const scores = [...byKind.values()].map((v) => aggregateEvenness(v))
+  return 0.5 * (scores.reduce((a, b) => a + b, 0) / scores.length) + 0.5 * Math.min(...scores)
 }
 
 /** Centred ranks in [-0.5, 0.5]; ties share their average rank. */
