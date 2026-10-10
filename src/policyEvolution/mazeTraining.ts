@@ -58,6 +58,12 @@ export interface MazeTrainingMeta {
   chain: { points: number; lengthM: number }
   /** how many ways the world trains on: forward routes + routes driven in reverse direction (bias removal) */
   routes: { forward: number; reversed: number }
+  /**
+   * Dialog tile data, aligned with the tile order (forward routes first, then reversed): `w`/`h` = the shared pixel
+   * size of every route_<i>.svg, `pts` = that route's chain polyline in svg pixel space (the dialog overlays the live
+   * active-vector highlight on it), `score` = the route's own best headless score. Optional: older exports predate it.
+   */
+  tileSvg?: { w: number; h: number; routes: Array<{ pts: Array<[number, number]>; score: number | null }> }
 }
 
 /** Route mix per world: several distinct routes through the maze, some of them driven in reverse direction. */
@@ -396,6 +402,7 @@ export const MAZE_SCORE_STAGE_CODE = `function transform(input, dt, params, stat
   api.watch('maze.score', score + ' pts')
   api.watch('maze.prog', state.s.toFixed(1) + ' / ' + total.toFixed(0) + ' m')
   api.watch('maze.speed', v.toFixed(1) + ' m/s')
+  api.watch('maze.seg', String(state.seg))
   if (params.hud) {
     function hexChannel(h, k) {
       return parseInt(h.slice(1 + k * 2, 3 + k * 2), 16)

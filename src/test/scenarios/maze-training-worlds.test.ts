@@ -23,6 +23,7 @@ import {
   mazeTrainingMeta,
   mazeTrainingRoutes,
   type MazeRoute,
+  type MazeTrainingMeta,
 } from '@/policyEvolution/mazeTraining'
 import { existsSync } from 'node:fs'
 import { getTransformerWatchEntries, setAgentObservationWatchActive } from '@/runtime/transformerWatchBridge'
@@ -102,6 +103,27 @@ describe('maze training worlds', () => {
         forward: routes.filter((r) => !r.reversed).length,
         reversed: routes.filter((r) => r.reversed).length,
       })
+      // tileSvg: the dialog tile data, aligned with the tile order (w/h = the shared route_<i>.svg pixel size)
+      const tile = meta.tileSvg as MazeTrainingMeta['tileSvg']
+      expect(tile).toBeTruthy()
+      expect(tile!.w).toBeGreaterThan(0)
+      expect(tile!.h).toBeGreaterThan(0)
+      expect(tile!.routes).toHaveLength(routes.length)
+      tile!.routes.forEach((r, i) => {
+        // pts[j] is chain point j in svg pixel space, so segment j is pts[j] -> pts[j+1]
+        expect(r.pts).toHaveLength(chains[i]!.length)
+        for (const [x, y] of r.pts) {
+          expect(x).toBeGreaterThanOrEqual(0)
+          expect(x).toBeLessThanOrEqual(tile!.w)
+          expect(y).toBeGreaterThanOrEqual(0)
+          expect(y).toBeLessThanOrEqual(tile!.h)
+        }
+        expect(r.score === null || typeof r.score === 'number').toBe(true)
+      })
+      // a --score export measures every route: bestScore is the max of the per-route scores
+      if (meta.bestScore !== null) {
+        expect(Math.max(...tile!.routes.map((r) => r.score as number))).toBe(meta.bestScore)
+      }
     })
 
     it(`${spec.id}: one car + goal slab + score stage per route copy, car 0 draws everything`, () => {
@@ -224,7 +246,7 @@ describe.skipIf(process.env.MAZE_TRAIN_SIM !== '1')('maze training worlds: headl
     it(
       `${spec.id}: EVERY car reaches its goal within ${MAX_SIM_S} s of sim and scores > 0`,
       async () => {
-        const { routes } = mazeTrainingRoutes(spec)
+        const { routes, chains } = mazeTrainingRoutes(spec)
         const world = buildMazeTrainingWorld(spec, genome()!)
         const K = routes.length
         const goalPos = (world.entities as { id: string; position: number[] }[]).filter((e) => e.id.startsWith(MAZE_GOAL_PREFIX)).map((e) => e.position)
@@ -246,12 +268,19 @@ describe.skipIf(process.env.MAZE_TRAIN_SIM !== '1')('maze training worlds: headl
           }
           for (let i = 0; i < K; i++) {
             let score: number | null = null
+            let seg: number | null = null
             for (const e of getTransformerWatchEntries().values()) {
               if (e.entityId === mazeCarId(i) && e.label === 'maze.score') score = Number(/(\d+)/.exec(String(e.value))![1])
+              if (e.entityId === mazeCarId(i) && e.label === 'maze.seg') seg = Number(e.value)
             }
-            console.log(`[maze-train] ${spec.id}: route ${i} (${routes[i]!.reversed ? 'rev' : 'fwd'}): reached ${reachedAt[i] !== null} at ${reachedAt[i]?.toFixed(1) ?? t.toFixed(1)} s, score ${score}`)
+            console.log(`[maze-train] ${spec.id}: route ${i} (${routes[i]!.reversed ? 'rev' : 'fwd'}): reached ${reachedAt[i] !== null} at ${reachedAt[i]?.toFixed(1) ?? t.toFixed(1)} s, score ${score}, seg ${seg}`)
             expect(reachedAt[i]).not.toBeNull()
             expect(score).toBeGreaterThan(0)
+            // the dialog's live active-vector highlight reads maze.seg: the own chain segment index, integer 0..n-2
+            expect(seg).not.toBeNull()
+            expect(Number.isInteger(seg)).toBe(true)
+            expect(seg as number).toBeGreaterThanOrEqual(0)
+            expect(seg as number).toBeLessThanOrEqual(chains[i]!.length - 2)
           }
         } finally {
           sim.dispose()

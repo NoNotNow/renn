@@ -1,21 +1,41 @@
-import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type PointerEvent as ReactPointerEvent,
+} from 'react'
 import { createPortal } from 'react-dom'
 import { theme } from '@/config/theme'
 import { secondaryButtonStyle, secondaryButtonStyleDisabled } from './sharedStyles'
 import { useCornerBrResize } from '@/hooks/useCornerBrResize'
 import {
   MAZE_TRAINING_WORLDS,
+  mazeCarId,
   type MazeTrainingMeta,
   type MazeTrainingWorldSpec,
 } from '@/policyEvolution/mazeTraining'
+import {
+  getTransformerWatchEntriesForEntity,
+  subscribeTransformerWatch,
+  type TransformerWatchEntry,
+} from '@/runtime/transformerWatchBridge'
 
 const BASE_URL = import.meta.env.BASE_URL || '/'
+
+export interface MazeTrainingLiveRun {
+  worldId: string
+  routeIndex: number
+}
 
 export interface MazeTrainingDialogProps {
   isOpen: boolean
   onClose: () => void
   /** Loads the example world into the builder focused on the selected route (Builder implements this; the dialog stays open). */
   onPlayExampleWorld: (worldId: string, routeIndex: number) => void
+  /** Training-maze world+route currently loaded and driving in the Builder (drives the live active-vector overlay and live score). */
+  liveRun?: MazeTrainingLiveRun | null
 }
 
 interface MazeCardState {
@@ -72,6 +92,100 @@ function routesLabel(meta: MazeTrainingMeta): string | null {
 
 function bestScoreLabel(meta: MazeTrainingMeta): string {
   return meta.bestScore == null ? 'Best: —' : `Best: ${meta.bestScore} pts`
+}
+
+interface MazeLiveWatchState {
+  score: number | null
+  seg: number | null
+}
+
+const EMPTY_LIVE_WATCH: MazeLiveWatchState = { score: null, seg: null }
+
+/** Parses the focused car's watch entries ('maze.score' = "123 pts", 'maze.seg' = "3") into a stable live snapshot. */
+function parseLiveWatchEntries(entries: readonly TransformerWatchEntry[]): MazeLiveWatchState {
+  let score: number | null = null
+  let seg: number | null = null
+  for (const entry of entries) {
+    if (entry.label === 'maze.score') {
+      const match = /(\d+)/.exec(entry.value)
+      if (match) score = Number(match[1])
+    } else if (entry.label === 'maze.seg') {
+      const parsed = Number(entry.value)
+      if (Number.isFinite(parsed)) seg = parsed
+    }
+  }
+  return { score, seg }
+}
+
+/** Route's own best headless score; "Score: —" when null or when the meta predates the tileSvg field. */
+function routeScoreLabel(meta: MazeTrainingMeta, routeIndex: number): string {
+  const score = meta.tileSvg?.routes[routeIndex]?.score
+  return score == null ? 'Score: —' : `Score: ${score} pts`
+}
+
+/**
+ * Live active-vector overlay for the focused route's thumbnail: the route's chain polyline dimmed, plus the
+ * segment the run currently drives as a glowing halo+core stroke. Pure render of the parsed live watch state.
+ */
+function LiveRouteVectorOverlay({
+  tileSvg,
+  routeIndex,
+  seg,
+  testId,
+}: {
+  tileSvg: NonNullable<MazeTrainingMeta['tileSvg']>
+  routeIndex: number
+  seg: number | null
+  testId: string
+}) {
+  const route = tileSvg.routes[routeIndex]
+  if (!route || route.pts.length < 2) return null
+  const pts = route.pts
+  const chainPoints = pts.map(([x, y]) => `${x},${y}`).join(' ')
+  const segIndex = seg != null && Number.isFinite(seg) && seg >= 0 && seg + 1 < pts.length ? seg : null
+  const from = segIndex != null ? pts[segIndex] : null
+  const to = segIndex != null ? pts[segIndex + 1] : null
+  return (
+    <svg
+      data-testid={testId}
+      viewBox={`0 0 ${tileSvg.w} ${tileSvg.h}`}
+      preserveAspectRatio="xMidYMid meet"
+      style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
+    >
+      <polyline
+        points={chainPoints}
+        fill="none"
+        stroke={theme.text.muted}
+        strokeWidth={1.5}
+        opacity={0.5}
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
+      {from && to ? (
+        <>
+          <line
+            x1={from[0]}
+            y1={from[1]}
+            x2={to[0]}
+            y2={to[1]}
+            stroke={theme.accent}
+            strokeWidth={6}
+            opacity={0.35}
+            strokeLinecap="round"
+          />
+          <line
+            x1={from[0]}
+            y1={from[1]}
+            x2={to[0]}
+            y2={to[1]}
+            stroke={theme.accent}
+            strokeWidth={2.5}
+            strokeLinecap="round"
+          />
+        </>
+      ) : null}
+    </svg>
+  )
 }
 
 function readStoredJson(key: string): unknown {
@@ -144,7 +258,7 @@ function clampPosToViewport(pos: PanelPos, panel: { width: number; height: numbe
   }
 }
 
-export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld }: MazeTrainingDialogProps) {
+export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld, liveRun = null }: MazeTrainingDialogProps) {
   const [cardStates, setCardStates] = useState<Record<string, MazeCardState>>(() =>
     Object.fromEntries(MAZE_TRAINING_WORLDS.map((spec) => [spec.id, initialCardState])),
   )
@@ -168,6 +282,26 @@ export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld
   const suppressClickRef = useRef(false)
 
   const expanded = !collapsed
+
+  // Live watch of the focused route's car ('maze.score' / 'maze.seg' published by the in-world score stage).
+  // The snapshot must be referentially stable between publishes: the derived value is cached in a ref keyed by
+  // the entity + the entries array identity (the bridge hands out a stable array between publishes).
+  const liveCarId = liveRun != null ? mazeCarId(liveRun.routeIndex) : null
+  const liveWatchRef = useRef<{ carId: string | null; entries: readonly TransformerWatchEntry[]; value: MazeLiveWatchState }>({
+    carId: null,
+    entries: [],
+    value: EMPTY_LIVE_WATCH,
+  })
+  const getLiveWatchSnapshot = useCallback((): MazeLiveWatchState => {
+    if (liveCarId == null) return EMPTY_LIVE_WATCH
+    const entries = getTransformerWatchEntriesForEntity(liveCarId)
+    const cached = liveWatchRef.current
+    if (cached.carId === liveCarId && cached.entries === entries) return cached.value
+    const value = parseLiveWatchEntries(entries)
+    liveWatchRef.current = { carId: liveCarId, entries, value }
+    return value
+  }, [liveCarId])
+  const liveWatch = useSyncExternalStore(subscribeTransformerWatch, getLiveWatchSnapshot)
 
   useEffect(() => {
     if (!isOpen) return
@@ -515,6 +649,7 @@ export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld
                       {Array.from({ length: (meta.routes?.forward ?? 0) + (meta.routes?.reversed ?? 0) }, (_, i) => {
                         const reversed = i >= (meta.routes?.forward ?? 0)
                         const tileSelected = (selectedRoutes[spec.id] ?? 0) === i
+                        const isLiveTile = liveRun != null && liveRun.worldId === spec.id && liveRun.routeIndex === i
                         return (
                           <div
                             key={i}
@@ -530,52 +665,35 @@ export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld
                               flex: 1,
                               minWidth: 0,
                               padding: 3,
-                              background: tileSelected ? theme.booster.tileSelectBg : theme.bg.surface,
+                              background: theme.bg.surface,
                               border: `2px solid ${tileSelected ? theme.accent : theme.border.default}`,
                               borderRadius: 6,
-                              boxShadow: tileSelected
-                                ? '0 0 0 1px rgba(138, 180, 255, 0.45), 0 0 14px rgba(138, 180, 255, 0.35)'
-                                : 'none',
                               cursor: 'pointer',
                               display: 'flex',
                               flexDirection: 'column',
                               gap: 3,
                             }}
                           >
-                            <div style={{ position: 'relative', width: '100%' }}>
+                            <div style={{ position: 'relative', width: '100%', height: '6em' }}>
                               <img
                                 data-testid={`maze-training-thumb-${spec.id}-${i}`}
                                 src={mazeRouteTileUrl(spec, i)}
                                 alt={`${spec.name} way ${i + 1} (${reversed ? 'reversed' : 'forward'}) thumbnail (all guidance vectors)`}
-                                style={{ width: '100%', height: 'auto', display: 'block', objectFit: 'contain', borderRadius: 4 }}
+                                style={{ width: '100%', height: '6em', display: 'block', objectFit: 'contain', borderRadius: 4 }}
                                 onError={handleThumbError}
                               />
-                              {tileSelected ? (
-                                <span
-                                  data-testid={`maze-training-active-vector-${spec.id}`}
-                                  style={{
-                                    position: 'absolute',
-                                    top: 3,
-                                    left: 3,
-                                    fontSize: 10,
-                                    lineHeight: 1.4,
-                                    padding: '1px 5px',
-                                    background: 'rgba(17, 20, 28, 0.85)',
-                                    border: `1px solid ${theme.accent}`,
-                                    borderRadius: 4,
-                                    color: theme.accent,
-                                    whiteSpace: 'nowrap',
-                                    pointerEvents: 'none',
-                                  }}
-                                >
-                                  {`Active \u00B7 Way ${i + 1} \u00B7 ${reversed ? 'rev' : 'fwd'}`}
-                                </span>
+                              {isLiveTile && meta.tileSvg ? (
+                                <LiveRouteVectorOverlay
+                                  tileSvg={meta.tileSvg}
+                                  routeIndex={i}
+                                  seg={liveWatch.seg}
+                                  testId={`maze-training-live-vector-${spec.id}-${i}`}
+                                />
                               ) : null}
                             </div>
                             <span
                               style={{
                                 fontSize: 10,
-                                fontWeight: tileSelected ? 700 : 400,
                                 color: tileSelected ? theme.accent : theme.text.muted,
                                 whiteSpace: 'nowrap',
                                 overflow: 'hidden',
@@ -584,11 +702,29 @@ export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld
                             >
                               {tileSelected ? '\u25B8 ' : ''}Way {i + 1} {reversed ? '(rev)' : '(fwd)'}
                             </span>
+                            <span
+                              style={{
+                                fontSize: 10,
+                                color: theme.text.muted,
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                              }}
+                            >
+                              {routeScoreLabel(meta, i)}
+                            </span>
                           </div>
                         )
                       })}
                     </div>
-                    <span style={{ fontSize: 11, color: theme.text.secondary }}>{meta.candidate.label}</span>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                      <span style={{ fontSize: 11, color: theme.text.secondary }}>{meta.candidate.label}</span>
+                      {liveRun != null && liveRun.worldId === spec.id ? (
+                        <span style={{ fontSize: 11, color: theme.accent, fontWeight: 600, whiteSpace: 'nowrap' }}>
+                          {liveWatch.score == null ? 'Live: -' : `Live: ${liveWatch.score} pts`}
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
                 ) : null}
               </div>

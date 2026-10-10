@@ -14,11 +14,15 @@ export type TransformerWatchEntry = {
 
 const EMPTY_ENTRIES: ReadonlyMap<string, TransformerWatchEntry> = new Map()
 const EMPTY_TARGET_LIST: readonly TransformerWatchEntry[] = []
+const EMPTY_ENTITY_LIST: readonly TransformerWatchEntry[] = []
 
 let entriesByKey: ReadonlyMap<string, TransformerWatchEntry> = EMPTY_ENTRIES
 let entriesByTargetCache: ReadonlyMap<string, readonly TransformerWatchEntry[]> = new Map()
 /** The per-target index is rebuilt on first read after a change (a publish per stage per frame must not rebuild it when nobody reads it). */
 let entriesByTargetDirty = false
+let entriesByEntityCache: ReadonlyMap<string, readonly TransformerWatchEntry[]> = new Map()
+/** Same lazy-rebuild pattern as the per-target index, but keyed by entity only (the reader may not know the stack index). */
+let entriesByEntityDirty = false
 let watchEnabled = false
 /** When true, `api.watch` publishes even if Builder has not enabled the watch panel. */
 let agentObservationWatchActive = false
@@ -42,12 +46,31 @@ function rebuildEntriesByTargetCache(): void {
   entriesByTargetDirty = false
 }
 
+function rebuildEntriesByEntityCache(): void {
+  const next = new Map<string, TransformerWatchEntry[]>()
+  for (const entry of entriesByKey.values()) {
+    const list = next.get(entry.entityId) ?? []
+    list.push(entry)
+    next.set(entry.entityId, list)
+  }
+  const frozen = new Map<string, readonly TransformerWatchEntry[]>()
+  for (const [entityId, list] of next) {
+    list.sort((a, b) =>
+      a.label === b.label ? a.configStackIndex - b.configStackIndex : a.label.localeCompare(b.label),
+    )
+    frozen.set(entityId, list)
+  }
+  entriesByEntityCache = frozen
+  entriesByEntityDirty = false
+}
+
 export function watchEntryKey(entityId: string, configStackIndex: number, label: string): string {
   return `${entityId}:${configStackIndex}:${label}`
 }
 
 function notifyListeners(): void {
   entriesByTargetDirty = true
+  entriesByEntityDirty = true
   for (const l of listeners) l()
 }
 
@@ -144,6 +167,8 @@ export function resetTransformerWatchBridgeForTests(): void {
   entriesByKey = EMPTY_ENTRIES
   entriesByTargetCache = new Map()
   entriesByTargetDirty = false
+  entriesByEntityCache = new Map()
+  entriesByEntityDirty = false
   watchEnabled = false
   agentObservationWatchActive = false
   currentRunId = 0
@@ -165,4 +190,10 @@ export function getTransformerWatchEntriesForTarget(
 ): readonly TransformerWatchEntry[] {
   if (entriesByTargetDirty) rebuildEntriesByTargetCache()
   return entriesByTargetCache.get(`${entityId}:${configStackIndex}`) ?? EMPTY_TARGET_LIST
+}
+
+/** All stored entries of the entity, across every configStackIndex (stable array identity between publishes; sorted by label, then stack index). */
+export function getTransformerWatchEntriesForEntity(entityId: string): readonly TransformerWatchEntry[] {
+  if (entriesByEntityDirty) rebuildEntriesByEntityCache()
+  return entriesByEntityCache.get(entityId) ?? EMPTY_ENTITY_LIST
 }

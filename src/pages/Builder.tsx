@@ -12,7 +12,7 @@ import SceneView, { type SceneViewHandle } from '@/components/SceneView'
 import BuilderHeader from '@/components/BuilderHeader'
 import PerformanceBoosterDialog from '@/components/PerformanceBoosterDialog'
 import SaveDialog from '@/components/SaveDialog'
-import MazeTrainingDialog from '@/components/MazeTrainingDialog'
+import MazeTrainingDialog, { type MazeTrainingLiveRun } from '@/components/MazeTrainingDialog'
 import { focusMazeRoute } from '@/policyEvolution/mazeTraining'
 import EntitySidebar from '@/components/EntitySidebar'
 import PropertySidebar from '@/components/PropertySidebar'
@@ -161,6 +161,8 @@ export default function Builder() {
   const [gameFrozen, setGameFrozen] = useState(false)
   const [performanceBoosterOpen, setPerformanceBoosterOpen] = useState(false)
   const [mazeTrainingOpen, setMazeTrainingOpen] = useState(false)
+  /** Training-maze world+route currently loaded and driving in the builder (live active-vector overlay in the dialog). */
+  const [mazeTrainingLive, setMazeTrainingLive] = useState<MazeTrainingLiveRun | null>(null)
   const [avEvolutionOpen, setAvEvolutionOpen] = useState(false)
   useEffect(() => installAvEvolutionAgentApi(getAvEvolutionStore()), [])
   const [transformerDocsOpen, setTransformerDocsOpen] = useState(false)
@@ -407,7 +409,7 @@ export default function Builder() {
     saveSnackbarMessage,
     saveDialogDefaultName,
     handleNew,
-    handleOpenExampleWorld,
+    handleOpenExampleWorld: handleOpenExampleWorldBase,
     handleOpen,
     handleReload,
     handleSave,
@@ -430,6 +432,16 @@ export default function Builder() {
     loadExampleWorld,
   })
 
+  // Every example-world load path resets the live training highlight; the training-maze play path below re-points
+  // it right after the load call, in the same synchronous flow (so its set wins).
+  const handleOpenExampleWorld = useCallback(
+    (worldJson: Parameters<typeof handleOpenExampleWorldBase>[0], name: string, assets?: Map<string, Blob>) => {
+      setMazeTrainingLive(null)
+      handleOpenExampleWorldBase(worldJson, name, assets)
+    },
+    [handleOpenExampleWorldBase],
+  )
+
   // Training Mazes dialog → load the exported example world into the builder (no play mode):
   // the world sets world.debugTargetLineEntityId, so the guidance chain overlay renders in builder
   // mode. The tile clicked in the dialog focuses the run on that route (target vector): camera,
@@ -440,6 +452,7 @@ export default function Builder() {
       try {
         const { world, assets } = await loadExampleWorldFromPublicBase(import.meta.env.BASE_URL || '/', worldId)
         handleOpenExampleWorld(focusMazeRoute(world, routeIndex), worldId, assets)
+        setMazeTrainingLive({ worldId, routeIndex })
         setShowGameHud(true)
         uiLogger.select('Builder', 'Load training maze into builder', { worldName: worldId, routeIndex })
       } catch (err) {
@@ -672,7 +685,7 @@ export default function Builder() {
   const canRedoHistory = canRedoTextureMaker || editorCanRedo
 
   const traceActive = selectedEntityIds.length === 1 && workspaceOpen
-  const watchActive = selectedEntityIds.length === 1 && workspaceOpen
+  const watchActive = (selectedEntityIds.length === 1 && workspaceOpen) || mazeTrainingOpen
   useEffect(() => {
     if (traceActive) {
       setTransformerTraceTargetEntityId(selectedEntityIds[0]!)
@@ -840,6 +853,11 @@ export default function Builder() {
         isOpen={mazeTrainingOpen}
         onClose={() => setMazeTrainingOpen(false)}
         onPlayExampleWorld={handlePlayExampleWorld}
+        liveRun={
+          mazeTrainingLive && currentProject.id === null && currentProject.name === mazeTrainingLive.worldId
+            ? mazeTrainingLive
+            : null
+        }
       />
 
       <div

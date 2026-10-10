@@ -7,7 +7,8 @@
  * copy side by side, like the world layout; forward chains orange, reversed chains blue).
  * With --score: run each world headless (shipped v3 candidate, up to 120 s sim, all cars drive simultaneously, stop
  * once EVERY car is within MAZE_GOAL_REACH_M of its goal), write the measured bestScore (max over all route cars)
- * into meta.json and print the per-car table.
+ * into meta.json and print the per-car table. meta.json also carries `tileSvg` (per-route chain polylines in route_<i>.svg
+ * pixel space + per-route scores) for the dialog's per-route tiles.
  * Source of truth: src/policyEvolution/mazeTraining.ts. Update the policy: tools/policy-evolution/ship.ts, then re-run.
  */
 import { mkdirSync, writeFileSync } from 'node:fs'
@@ -118,7 +119,13 @@ async function scoreWorld(world: RennWorld, chains: number[][][], vRef: number, 
 const THUMB_H = 220
 const THUMB_MARGIN = 10
 
-function thumbSvg(boxes: CourseBox[], frames: Array<{ ox: number; chain: V2[]; color: string; startColor: string }>): string {
+/** One rendered maze copy: the chain polyline shifted by `ox`, in its direction's color pair. */
+type ThumbFrame = { ox: number; chain: V2[]; color: string; startColor: string }
+
+/** thumbSvg output: the svg markup plus the overlay geometry the dialog tiles need (`w`/`h` = pixel size, `frames[i].pts` = frame i's chain mapped into svg pixel space, rounded like the svg). */
+type ThumbSvg = { svg: string; w: number; h: number; frames: Array<{ pts: Array<[number, number]> }> }
+
+function thumbSvg(boxes: CourseBox[], frames: ThumbFrame[]): ThumbSvg {
   let minX = Infinity
   let maxX = -Infinity
   let minZ = Infinity
@@ -142,6 +149,7 @@ function thumbSvg(boxes: CourseBox[], frames: Array<{ ox: number; chain: V2[]; c
   const oz = THUMB_MARGIN + (THUMB_H - 2 * THUMB_MARGIN - spanZ * scale) / 2
   const mx = (x: number) => Math.round((ox + (x - minX) * scale) * 10) / 10
   const mz = (z: number) => Math.round((oz + (z - minZ) * scale) * 10) / 10
+  const mapped = frames.map((f) => f.chain.map((p) => [mx(p[0] + f.ox), mz(p[1])] as [number, number]))
   const poly = (pts: V2[], o: number) => pts.map((p) => `${mx(p[0] + o)},${mz(p[1])}`).join(' ')
   const lines: string[] = [`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${THUMB_H}" viewBox="0 0 ${width} ${THUMB_H}">`]
   lines.push(`<rect x="0" y="0" width="${width}" height="${THUMB_H}" fill="#10131a"/>`)
@@ -156,7 +164,7 @@ function thumbSvg(boxes: CourseBox[], frames: Array<{ ox: number; chain: V2[]; c
     lines.push(`<circle cx="${mx(f.chain[f.chain.length - 1]![0] + f.ox)}" cy="${mz(f.chain[f.chain.length - 1]![1])}" r="5" fill="#ff4444"/>`)
   }
   lines.push('</svg>')
-  return lines.join('\n') + '\n'
+  return { svg: lines.join('\n') + '\n', w: width, h: THUMB_H, frames: mapped.map((pts) => ({ pts })) }
 }
 
 // --- main ----------------------------------------------------------------------------------------------------------------------------
@@ -176,14 +184,36 @@ async function main(): Promise<void> {
     mkdirSync(outDir, { recursive: true })
     writeFileSync(resolve(outDir, 'world.json'), JSON.stringify(world, null, 2) + '\n')
     let bestScore: number | null = null
+    let routeScores: Array<number | null> = routes.map(() => null)
     if (withScore) {
       const results = await scoreWorld(world, chainsWorld, scoreStage0?.params?.vRef ?? 20, scoreStage0?.params?.bonusRate ?? 5)
       bestScore = Math.max(...results.map((r) => r.score))
+      routeScores = results.map((r) => r.score)
       results.forEach((r, i) => {
         rows.push(`${spec.id.padEnd(13)} ${String(i).padStart(5)}  ${routes[i]!.reversed ? 'rev' : 'fwd'}  ${r.reached ? 'yes' : 'no '}     ${r.seconds.toFixed(1).padStart(5)} s  ${String(r.score).padStart(4)}`)
       })
     }
-    writeFileSync(resolve(outDir, 'meta.json'), JSON.stringify(mazeTrainingMeta(spec, routes, bestScore), null, 2) + '\n')
+    // per-route tiles: individually clickable in the dialog (select the run's target vector); every tile svg shares
+    // one pixel size, and the dialog overlays the live active-vector highlight on tileSvg.routes[i].pts
+    const tileRoutes: Array<{ pts: Array<[number, number]>; score: number | null }> = []
+    let tileW = 0
+    let tileH = 0
+    routes.forEach((route, i) => {
+      const tile = thumbSvg(course.boxes, [
+        {
+          ox: 0,
+          chain: chains[i]!,
+          color: route.reversed ? MAZE_TRAIN_CHAIN_COLORS_REVERSED.start : MAZE_TRAIN_CHAIN_COLORS.end,
+          startColor: route.reversed ? MAZE_TRAIN_CHAIN_COLORS_REVERSED.start : MAZE_TRAIN_CHAIN_COLORS.start,
+        },
+      ])
+      writeFileSync(resolve(outDir, `route_${i}.svg`), tile.svg)
+      tileW = tile.w
+      tileH = tile.h
+      tileRoutes.push({ pts: tile.frames[0]!.pts, score: routeScores[i] })
+    })
+    const tileSvg = { w: tileW, h: tileH, routes: tileRoutes }
+    writeFileSync(resolve(outDir, 'meta.json'), JSON.stringify({ ...mazeTrainingMeta(spec, routes, bestScore), tileSvg }, null, 2) + '\n')
     writeFileSync(
       resolve(outDir, 'thumb.svg'),
       thumbSvg(
@@ -194,22 +224,8 @@ async function main(): Promise<void> {
           color: route.reversed ? MAZE_TRAIN_CHAIN_COLORS_REVERSED.start : MAZE_TRAIN_CHAIN_COLORS.end,
           startColor: route.reversed ? MAZE_TRAIN_CHAIN_COLORS_REVERSED.start : MAZE_TRAIN_CHAIN_COLORS.start,
         })),
-      ),
+      ).svg,
     )
-    // per-route tiles: individually clickable in the dialog (select the run's target vector)
-    routes.forEach((route, i) => {
-      writeFileSync(
-        resolve(outDir, `route_${i}.svg`),
-        thumbSvg(course.boxes, [
-          {
-            ox: 0,
-            chain: chains[i]!,
-            color: route.reversed ? MAZE_TRAIN_CHAIN_COLORS_REVERSED.start : MAZE_TRAIN_CHAIN_COLORS.end,
-            startColor: route.reversed ? MAZE_TRAIN_CHAIN_COLORS_REVERSED.start : MAZE_TRAIN_CHAIN_COLORS.start,
-          },
-        ]),
-      )
-    })
   }
   invalidateAgentDevExampleWorldIdCache()
   console.log(`maze training worlds written to public/exampleWorlds/ (--score ${withScore ? 'on' : 'off'})`)
