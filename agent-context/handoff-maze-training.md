@@ -23,8 +23,9 @@ trains on SEVERAL routes (bias removal) — some driven in REVERSE direction (st
 - **Dialog** (`MazeTrainingDialog.tsx`, round 3): a HALF-TRANSPARENT floating panel (rgba(27,31,42,.55) + backdrop blur,
   portal to body, NO backdrop/scroll lock — clicks outside reach the scene), MOVABLE (drag the header strip, 3 px drag threshold,
   viewport-clamped) and RESIZABLE (`useCornerBrResize` bottom-right grip, expanded only). COLLAPSED = one 38 px line
-  ("Training Mazes · 5 runs" + close X); clicking the strip expands the thumbnail picker: 5 cards (thumb.svg, name, seed,
-  candidate, `Best: N pts`, `N ways · M reversed`, Play). Position/size/collapsed persist in localStorage
+  ("Training Mazes · 5 runs" + close X); clicking the strip expands the run list: 5 SINGLE-LINE rows (name, seed,
+  `Best: N pts`, `N ways · M reversed`, Play); clicking a row expands its thumbnail to the FULL ROW WIDTH (all guidance
+  vectors visible; accordion, one row at a time, second click collapses; candidate label inside the expanded area). Position/size/collapsed persist in localStorage
   (`mazeTrainingPanelPos` / `mazeTrainingPanelSize` / `mazeTrainingPanelCollapsed`); z-index = theme.zIndex.popover.
   Play = load example world into the BUILDER (`handlePlayExampleWorld` in `Builder.tsx`: NO play navigation, panel stays open,
   `setShowGameHud(true)`). The guidance lines render in builder mode because the worlds set `world.debugTargetLineEntityId`.
