@@ -530,26 +530,53 @@ export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld
                               flex: 1,
                               minWidth: 0,
                               padding: 3,
-                              background: theme.bg.surface,
-                              border: `1px solid ${tileSelected ? theme.button.pickBorder : theme.border.default}`,
+                              background: tileSelected ? theme.booster.tileSelectBg : theme.bg.surface,
+                              border: `2px solid ${tileSelected ? theme.accent : theme.border.default}`,
                               borderRadius: 6,
+                              boxShadow: tileSelected
+                                ? '0 0 0 1px rgba(138, 180, 255, 0.45), 0 0 14px rgba(138, 180, 255, 0.35)'
+                                : 'none',
                               cursor: 'pointer',
                               display: 'flex',
                               flexDirection: 'column',
                               gap: 3,
                             }}
                           >
-                            <img
-                              data-testid={`maze-training-thumb-${spec.id}-${i}`}
-                              src={mazeRouteTileUrl(spec, i)}
-                              alt={`${spec.name} way ${i + 1} (${reversed ? 'reversed' : 'forward'}) thumbnail (all guidance vectors)`}
-                              style={{ width: '100%', height: 'auto', display: 'block', objectFit: 'contain', borderRadius: 4 }}
-                              onError={handleThumbError}
-                            />
+                            <div style={{ position: 'relative', width: '100%' }}>
+                              <img
+                                data-testid={`maze-training-thumb-${spec.id}-${i}`}
+                                src={mazeRouteTileUrl(spec, i)}
+                                alt={`${spec.name} way ${i + 1} (${reversed ? 'reversed' : 'forward'}) thumbnail (all guidance vectors)`}
+                                style={{ width: '100%', height: 'auto', display: 'block', objectFit: 'contain', borderRadius: 4 }}
+                                onError={handleThumbError}
+                              />
+                              {tileSelected ? (
+                                <span
+                                  data-testid={`maze-training-active-vector-${spec.id}`}
+                                  style={{
+                                    position: 'absolute',
+                                    top: 3,
+                                    left: 3,
+                                    fontSize: 10,
+                                    lineHeight: 1.4,
+                                    padding: '1px 5px',
+                                    background: 'rgba(17, 20, 28, 0.85)',
+                                    border: `1px solid ${theme.accent}`,
+                                    borderRadius: 4,
+                                    color: theme.accent,
+                                    whiteSpace: 'nowrap',
+                                    pointerEvents: 'none',
+                                  }}
+                                >
+                                  {`Active \u00B7 Way ${i + 1} \u00B7 ${reversed ? 'rev' : 'fwd'}`}
+                                </span>
+                              ) : null}
+                            </div>
                             <span
                               style={{
                                 fontSize: 10,
-                                color: tileSelected ? theme.text.primary : theme.text.muted,
+                                fontWeight: tileSelected ? 700 : 400,
+                                color: tileSelected ? theme.accent : theme.text.muted,
                                 whiteSpace: 'nowrap',
                                 overflow: 'hidden',
                                 textOverflow: 'ellipsis',

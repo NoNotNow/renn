@@ -113,6 +113,13 @@ describe('MazeTrainingDialog', () => {
     await user.click(screen.getByTestId('maze-training-route-tile-maze_train_1-2'))
     expect(screen.getByTestId('maze-training-route-tile-maze_train_1-2')).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByTestId('maze-training-route-tile-maze_train_1-0')).toHaveAttribute('aria-pressed', 'false')
+    // the selected tile marks the active vector on its thumbnail; exactly one overlay exists
+    expect(screen.getByTestId('maze-training-active-vector-maze_train_1')).toHaveTextContent('Active · Way 3 · fwd')
+    expect(screen.getAllByTestId('maze-training-active-vector-maze_train_1')).toHaveLength(1)
+    // clicking a different tile moves the active vector overlay to that thumbnail
+    await user.click(screen.getByTestId('maze-training-route-tile-maze_train_1-1'))
+    expect(screen.getByTestId('maze-training-active-vector-maze_train_1')).toHaveTextContent('Active · Way 2 · fwd')
+    expect(screen.getAllByTestId('maze-training-active-vector-maze_train_1')).toHaveLength(1)
     // clicking the row line again collapses to the single line
     await user.click(row1)
     expect(screen.queryByTestId('maze-training-route-tile-maze_train_1-0')).not.toBeInTheDocument()
