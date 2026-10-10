@@ -79,3 +79,9 @@ Commit `v3.json` / `v3cap.json` regularly so runs can move between machines.
 Decides on HOLDOUT finish count, not fitness: ship only if (1) candidate total finished > shipped total (strictly) and (2) per kind
 cand finished >= shipped finished - max(1, ceil(5 % of n)) (`kindTolerance`). Fitness is printed for reference only. 1-episode drops
 (e.g. corridor 17->16) are tolerated, 2 of 18 are not. Unit tests: `src/policyEvolution/shipGate.test.ts`. `--force` still overrides.
+
+## v3 in the AV car: what exists (2026-10-10)
+
+- Stage params `neuralPolicy` (v2|v3, default v2), `neuralReverse` (false), `neuralRevMaxM` (12); `av.neural.dir` / `revM`; AEB probes from the rear when reversing (positive stopping u). Details: [feature-av-stack.md](./feature-av-stack.md).
+- World `av_neural_v3` (regenerate: `npx tsx tools/renn-mcp/export-av-neural-example-world.ts [av_neural_v3]`, then `npm run sync:global-pipeline`); on-disk-equals-exporter test + headless run in `src/test/scenarios/av-neural-v3-world.test.ts`.
+- To judge a candidate: A/B arm `v3` in `av-neural-ab.diagnostic.test.ts` / `av-neural-maze-ab.diagnostic.test.ts` with `AV_NEURAL_V3_WEIGHTS=<run json>` (not run in CI, not run yet).

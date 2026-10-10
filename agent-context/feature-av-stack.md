@@ -635,3 +635,11 @@ Former literals, now `params.x != null ? params.x : <old>` in the stage (binding
 Not exposed on purpose: crawl watchdog speeds (no maze run changed), supervisor `wantsMove/rest/blocked` speeds (its `needManeuver` flag is read by no stage) and the route-limit near-kappa `vOld` (only used while chased).
 
 These 23 are also declared (advanced) in each stage's `@params` header, which `src/params/avStackParams.test.ts` requires to match the `params.X` reads exactly.
+
+## Neural drive v3 params, reverse-aware AEB (2026-10-10)
+
+Neural stage (`av-neural.js`) binding params added for the v3 net (forward AND reverse; spec: [spec-command-chains.md](./spec-command-chains.md)): `neuralPolicy` `v2|v3` (default `v2`), `neuralReverse` (default `false`; v3 may only back up when true), `neuralRevMaxM` (default 12, metres of backing allowed per manoeuvre). v3 weights come from `params.neuralWeights` or the library param `wV3` (`src/policyEvolution/avNeuralWeightsV3.json`, generated from `shippedPolicyV3.json`); v3 without weights = the stage does nothing. Worlds without the new keys behave exactly as before (v2).
+
+- `av.neural` watch value is an object `{on, justOff, why, occ, mov, conf, dir, revM}`; `dir` = `'fwd'|'rev'` (direction the net currently drives), `revM` = metres reversed in the current manoeuvre.
+- AEB (`av-aeb.js`) is reverse-aware: while `av.neural.on && dir === 'rev'` it probes from the rear along -fwd (rear probe) and the stopping command `u` is positive (brake against the backward motion); otherwise unchanged. Tests: `src/test/scenarios/av-aeb-reverse.test.ts`.
+- Example world `av_neural_v3` (crowd scene + `neuralPolicy: 'v3'`, `neuralReverse: true`, `neuralVMax: 15`), see [example-worlds.md](./example-worlds.md).

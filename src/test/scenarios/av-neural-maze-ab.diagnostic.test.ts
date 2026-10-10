@@ -1,15 +1,17 @@
 /* A/B of the neural drive mode on the maze-escape HOLDOUT-24 (runMazeEpisode, evolved params of av_maze_escape): off vs auto vs always.
  * AV_NEURAL_MAZE_AB=1 npx vitest run src/test/scenarios/av-neural-maze-ab.diagnostic.test.ts
- * Optional: AV_NEURAL_MODES=off,auto  AV_NEURAL_N=6 (first N episodes)  AV_NEURAL_TRIGGER=crowd (use the crowd thresholds for auto; default = library defaults). */
+ * Mode `v3` = auto + neuralPolicy v3 + neuralReverse; AV_NEURAL_V3_WEIGHTS=<run json> (best.genome, e.g. training-data/policy-evolution/v3cap.json) evaluates candidate weights.
+ * Optional: AV_NEURAL_MODES=off,auto,v3 AV_NEURAL_N=6 (first N episodes)  AV_NEURAL_TRIGGER=crowd (use the crowd thresholds for auto; default = library defaults). */
 import { it } from 'vitest'
 import { listMazeEpisodes } from '@/avEvolution/maze/episodes'
 import { MAZE_ESCAPE_DEFAULT_CAR_PARAMS } from '@/avEvolution/maze/exampleWorld'
 import { runMazeEpisode } from '@/avEvolution/eval/episode'
 import { loadLabWorld, watchValues } from '@/test/avLab/lab'
 import { ARENA_CAR_ID } from '@/test/fixtures/avEvasionArena'
+import { v3ArmParams } from '@/test/fixtures/avNeuralV3Arm'
 import { NEURAL_CROWD_TRIGGER } from '@/test/fixtures/avCrowdCases'
 
-const modes = (process.env.AV_NEURAL_MODES ?? 'off,auto,always').split(',') as ('off' | 'always' | 'auto')[]
+const modes = (process.env.AV_NEURAL_MODES ?? 'off,auto,always').split(',') as ('off' | 'always' | 'auto' | 'v3')[]
 const N = Number(process.env.AV_NEURAL_N ?? 24)
 
 function bootstrapCi(d: number[], reps = 5000): [number, number] {
@@ -36,7 +38,7 @@ it.runIf(process.env.AV_NEURAL_MAZE_AB === '1')('neural A/B on the maze HOLDOUT-
       let on = 0
       let frames = 0
       let n = ''
-      const params = { ...MAZE_ESCAPE_DEFAULT_CAR_PARAMS, saver: false, neuralMode: mode, ...(mode === 'auto' && process.env.AV_NEURAL_TRIGGER === 'crowd' ? NEURAL_CROWD_TRIGGER : {}) }
+      const params = { ...MAZE_ESCAPE_DEFAULT_CAR_PARAMS, saver: false, neuralMode: mode === 'v3' ? 'auto' : mode, ...(mode === 'v3' ? v3ArmParams() : {}), ...((mode === 'auto' || mode === 'v3') && process.env.AV_NEURAL_TRIGGER === 'crowd' ? NEURAL_CROWD_TRIGGER : {}) }
       const m = await runMazeEpisode(source, params, ep, {
         onFrame: () => {
           frames++

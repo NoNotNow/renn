@@ -166,3 +166,7 @@ Same 24-input direction-only net, trained FROM SCRATCH (no warm start). Episode 
 - v3 fitness fix (79eda6e): failed episodes keep `V3_FAIL_FACTOR` = 0.5 of their norm. Before, a policy that drove fast into every bay and crashed (bay 0/18)
   beat one that finished 16/18. Re-shipped run v3 gen ~700 (HOLDOUT kind-evenness 0.995 vs 0.862): bay 16/18 (reverse 80 % of the time, max 90 m),
   corridor 17/18, free 22/24, maze 12/15, slalom 19/23, crowd 10/19, field 9/20. Field and crowd are now the weak kinds. Training resumed with the fixed fitness.
+
+## v3 policy inside the AV car (2026-10-10)
+
+`neuralPolicy: 'v3'` runs the v3 net (650 weights, H = 24) in `global_av_neural` (params `neuralReverse`, `neuralRevMaxM`, `neuralVMax`; contract `av.neural.dir/revM` and reverse-aware AEB in [feature-av-stack.md](./feature-av-stack.md)). Default weights = `avNeuralWeightsV3.json` (copied from `shippedPolicyV3.json` by `npm run sync:global-pipeline`, which also writes `wV3` into every example world's neural stage via `tools/renn-mcp/upgrade-example-worlds-library.ts`). Example world: `av_neural_v3`. A/B (diagnostic, skipped by default): `AV_NEURAL_AB=1 AV_NEURAL_MODES=off,auto,v3 npx vitest run src/test/scenarios/av-neural-ab.diagnostic.test.ts` and the maze variant (`AV_NEURAL_MAZE_AB=1`). Evaluate candidate weights without shipping: `AV_NEURAL_V3_WEIGHTS=training-data/policy-evolution/v3cap.json` (reads `best.genome`, passed as `neuralWeights` to the v3 arm only). Helper: `src/test/fixtures/avNeuralV3Arm.ts`.
