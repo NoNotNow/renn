@@ -61,6 +61,28 @@ Evidence: 31-45 % of total time in slow episodes, cause `maneuver` in 94-96 % of
 
 Fix: follow from W2 (fewer AEB standstills) + W1 (less goal churn behind the car). No separate change planned; verify with `slowTimeShare` (target < 15 %), `slowDurMedian`, `clusterDurMax`.
 
+## Step 2 done (2026-10-10): winning params adopted into the world
+
+Sweep (paired vs base, 4 seeds x 60 s, `tools/av-flee-compare.mjs`): v-esc (style escape), v-aeb (chasedDecel 7), v-goal each improved; the combo won clearly and was written into `self_hunt_flexible/world.json` (focus binding): `style: 'escape'`, `runTotal: true`, `mazeManeuverSpeed: 4.5`, `chasedDecel: 7` (was 9), `escapeEvalEvery: 0.6`, `gapWallMin: 40` (was 60).
+
+Paired result (world-fix vs base; bootstrap CI over 4 runs):
+
+| metric | base | world-fix | note |
+|---|---|---|---|
+| mean speed | 10.1 m/s | **20.8 m/s** | 4/0/0, CI [4.5, 15.6] |
+| time with a chaser < 30 m | 47.4 % | **10.5 %** | 4/0/0 |
+| time in manoeuvre | 42.9 % | **12.7 %** | 4/0/0 |
+| time in slow episodes | 30.8 % | **8.0 %** | |
+| manoeuvre cluster max | 24.9 s | **7.3 s** | 4/0/0 |
+| bad flee goals | 39 % | **25 %** | 3/0/0 |
+| reverse speed mean | 4.8 m/s | **5.9 m/s** | 4/0/0 |
+| catches | 1.0/run | 0.25/run | 3/1/0 |
+| flee time with chaser > 60 m | 11 % | 38 % | the car outruns them and keeps the escape goal longer (by design, `fleeRelease`) |
+
+Watch / next: `fleeSwitchAgeMedian` did not improve (2.1 -> 1.4 s; the goal-churn fix needs the gated stage change below), and slow-episode median duration rose (fewer but longer episodes). Hunt-game integration + maze-profile tests on this world stay green (11/11).
+
+
+
 ## Order of work (cheap classic fixes first; every step: baseline name vs variant name, paired compare, then world edit + commit + push + deploy)
 
 1. **Param sweep, no code change**: `AV_FLEE_PARAMS='{"style":"escape","runTotal":true,"mazeManeuverSpeed":4.5,"chasedDecel":7}'` etc. per fix table above, `AV_FLEE_NAME=v1...`; `node tools/av-flee-compare.mjs base v1 v2 ...`.
