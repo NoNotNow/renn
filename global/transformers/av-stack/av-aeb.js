@@ -25,8 +25,11 @@ function transform(input, dt, params, state, api) {
   if (av && (av.preset || av.profile)) params = state.pmP === params && state.pmB === av.preset && state.pmO === av.profile ? state.pm : ((state.pmP = params), (state.pmB = av.preset), (state.pmO = av.profile), (state.pm = Object.assign({}, av.preset, params, av.profile)))
   if (!av || !av.ego) return {}
   var e = av.ego
+  // neural reverse (av-neural, dir 'rev'): the net drives backwards -> probe from the REAR along -fwd with the backward speed; the pedal command is a signed force (u = throttle - brake), so stopping a backward-moving car needs u > 0
+  var rev = !!(av.neural && av.neural.on && av.neural.dir === 'rev')
+  var spd = rev ? -e.speed : e.speed
   // (manual override: a standing car must not be pushed into an obstacle by a held throttle either, so the low-speed exemption does not apply)
-  if (e.speed < (params.aebMinSpeed != null ? params.aebMinSpeed : 0.8) && !av.manual) {
+  if (spd < (params.aebMinSpeed != null ? params.aebMinSpeed : 0.8) && !av.manual) {
     av.aeb = false
     return {}
   }
@@ -36,12 +39,12 @@ function transform(input, dt, params, state, api) {
   var len = (av.vehicle && av.vehicle.length) || params.vehicleLength || 4
   var wid = (av.vehicle && av.vehicle.width) || params.vehicleWidth || 2
   var hw = params.aebHalfWidth != null ? params.aebHalfWidth : Math.max(0.9, wid / 2 - 0.1)
-  var need = (e.speed * e.speed) / (2 * a) + margin
-  var origin = api.vec.offsetAlong(input.position, e.fwd, len / 2 + 0.3)
-  var dirA = e.fwd
+  var need = (spd * spd) / (2 * a) + margin
+  var origin = api.vec.offsetAlong(input.position, e.fwd, rev ? -(len / 2 + 0.3) : len / 2 + 0.3)
+  var dirA = rev ? [-e.fwd[0], -e.fwd[1], -e.fwd[2]] : e.fwd
   // style 'escape' while manoeuvring: the plan curves, a straight ray into the wall the arc turns away from would brake a collision-free manoeuvre (nose 1.5 m from a cylinder, turning away at 5 m/s):
   // look along the chord of the commanded arc instead
-  if (params.style === 'escape' && av.mode === 'maneuver' && av.plan && av.plan.kappa) {
+  if (!rev && params.style === 'escape' && av.mode === 'maneuver' && av.plan && av.plan.kappa) {
     var ang = (av.plan.kappa * (need + len / 2)) / 2
     var ca = Math.cos(ang)
     var sa = Math.sin(ang)
@@ -50,20 +53,24 @@ function transform(input, dt, params, state, api) {
   var hit = api.raycastSpread(origin, dirA, need + 1, hw, 5, { visualize: false })
   av.aeb = false
   var drawOn = params.debugDraw !== false
-  if (drawOn) api.visualizeLine(origin, api.vec.offsetAlong(origin, e.fwd, need), '#b8860b')
+  if (drawOn) api.visualizeLine(origin, api.vec.offsetAlong(origin, dirA, need), '#b8860b')
   if (hit.hit && hit.distance < need) {
-    if (drawOn) api.visualizeLine(origin, api.vec.offsetAlong(origin, e.fwd, hit.distance), '#ff0000')
+    if (drawOn) api.visualizeLine(origin, api.vec.offsetAlong(origin, dirA, hit.distance), '#ff0000')
     av.aeb = true
     // deceleration needed to stop before the hit (at least aebDecel), never more than stops the car within this frame
     var room = Math.max(0.1, hit.distance - 0.2 * margin)
-    var dec = Math.max(a, (e.speed * e.speed) / (2 * room))
-    dec = Math.min(dec, e.speed / Math.max(dt, 1e-3))
+    var dec = Math.max(a, (spd * spd) / (2 * room))
+    dec = Math.min(dec, spd / Math.max(dt, 1e-3))
     var act = av.actuator
     var u
-    if (act && act.G > 0) u = (-dec + act.D) / act.G
+    if (rev) {
+      // reversing: friction opposes the (backward) motion, so the stopping command is positive (throttle), u = (dec - D) / G
+      if (act && act.G > 0) u = Math.max(0, Math.min(1, (dec - act.D) / act.G))
+      else u = Math.min(1, 0.3 + (need - hit.distance) / need)
+    } else if (act && act.G > 0) u = (-dec + act.D) / act.G
     else u = -Math.min(1, 0.3 + (need - hit.distance) / need)
     var cur = (input.actions.throttle || 0) - (input.actions.brake || 0)
-    if (u < cur) {
+    if (rev ? u > cur : u < cur) {
       input.actions.throttle = u > 0 ? u : 0
       input.actions.brake = u < 0 ? Math.min(1, -u) : 0
       // tell the longitudinal controller what was really applied (its actuator identification)

@@ -1782,7 +1782,10 @@
             "neuralOnOcc": 0.27,
             "neuralOnConf": 0.35,
             "neuralOffOcc": 0.15,
-            "neuralOffConf": 0.2
+            "neuralOffConf": 0.2,
+            "neuralPolicy": "v3",
+            "neuralReverse": true,
+            "neuralVMax": 15
           },
           "enabled": true
         }
