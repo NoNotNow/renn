@@ -79,17 +79,42 @@ function latestBestLine() {
   }
 }
 
+/** The agent-facing stats snapshot (written by run-islands every 20 gens + epoch end + resume): the numbers behind the log lines. */
+function latestStatsLines() {
+  try {
+    const st = JSON.parse(readFileSync(resolve(root, 'training-data/policy-evolution/latest-stats.json'), 'utf8'))
+    const islands = st.islands ?? {}
+    const centers = (islands.centers ?? []).map((c) => Number(c).toFixed(2)).join(' ')
+    const ages = (islands.ages ?? []).join(' ')
+    const stage = typeof st.stage?.share === 'number' ? `  stage share ${st.stage.share.toFixed(1)} (free finish ema ${(st.stage.ema ?? 0).toFixed(2)})` : ''
+    const lines = [`  stats:  gen ${st.gen ?? '?'}  centers [${centers}]  ages [${ages}]${stage}  (${st.elapsedSec != null ? `${st.elapsedSec} s, ` : ''}${st.why ?? '?'} at ${st.updatedAt ?? '?'})`]
+    const e = st.epoch
+    if (e) {
+      const tr = e.train ?? {}
+      const ho = e.holdout ?? {}
+      lines.push(`  epoch:  gen ${e.gen}  TRAIN ${(Number(tr.fitness) || 0).toFixed(3)} (${tr.finished ?? '?'}/${tr.total ?? '?'})  HOLDOUT ${(Number(ho.fitness) || 0).toFixed(3)} (${ho.finished ?? '?'}/${ho.total ?? '?'})  best island ${e.bestIsland ?? '?'}`)
+      const kinds = (e.perKind ?? []).map((k) => `${k.kind} ${k.finished}/${k.chains} (crash ${k.crashes ?? 0}, offc ${k.offcourse ?? 0})`).join('  ')
+      if (kinds) lines.push(`          ${kinds}`)
+    }
+    return lines
+  } catch {
+    return null
+  }
+}
+
 function status() {
   const tr = trainProcs()
   const vi = viteProcs()
   const gen = trainGen()
   const best = latestBestLine()
+  const stats = latestStatsLines()
   console.log(`repo: ${root}\n`)
   if (tr.length) {
     const workers = tr.filter((p) => /run-islands/.test(p.cmd)).length
     const cpu = tr.reduce((a, p) => a + Number(p.cpu), 0)
     console.log(`TRAINING  RUNNING  gen ${gen ?? '?'}/${TRAIN.targetGen}  (~${workers} proc, ~${Math.round(cpu)}% CPU total)`)
     console.log(`  why:    ${TRAIN.why}`)
+    if (stats) for (const l of stats) console.log(l)
     console.log(`  last:   ${lastGenLine() ?? '-'}`)
     if (best) console.log(best)
     for (const p of tr) console.log(`  pid ${p.pid}  cpu ${p.cpu}%  up ${p.etime}  ${p.cmd.slice(0, 120)}`)
@@ -97,6 +122,7 @@ function status() {
   } else {
     console.log(`TRAINING  STOPPED  (state gen ${gen ?? '?'}/${TRAIN.targetGen}, resume keeps every finished generation)`)
     console.log(`  why it exists: ${TRAIN.why}`)
+    if (stats) for (const l of stats) console.log(l)
     if (best) console.log(best)
     console.log(`  control: node tools/policy-evolution/train-ctl.mjs start`)
   }

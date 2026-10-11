@@ -1,0 +1,81 @@
+{
+ "schema": "renn.policy-evolution.latest-stats/1",
+ "source": "training-data/policy-evolution/v3mg.json",
+ "policy": "v3",
+ "kinds": [
+  "maze",
+  "grid"
+ ],
+ "gen": 3000,
+ "updatedAt": "2026-10-11T09:32:00.758Z",
+ "elapsedSec": null,
+ "islands": {
+  "centers": [
+   1.833,
+   1.662,
+   1.751
+  ],
+  "ages": [
+   75,
+   400,
+   525
+  ]
+ },
+ "stage": {
+  "share": 0,
+  "ema": 0
+ },
+ "epoch": {
+  "gen": 3000,
+  "scores": [
+   1.517767273622093,
+   1.7312957105681113,
+   2.785886875432442
+  ],
+  "bestIsland": 2,
+  "train": {
+   "fitness": 1.941321948449784,
+   "finished": 39,
+   "total": 43
+  },
+  "holdout": {
+   "fitness": 1.612785548891008,
+   "finished": 18,
+   "total": 23
+  },
+  "perKind": [
+   {
+    "kind": "maze",
+    "finished": 8,
+    "chains": 13,
+    "finishRate": 0.6153846153846154,
+    "setups": 5,
+    "setupsAllFinished": 1,
+    "offcourse": 1,
+    "crashes": 4,
+    "reverseShare": 0,
+    "maxReverseM": 0,
+    "reversedEpisodes": 0
+   },
+   {
+    "kind": "grid",
+    "finished": 10,
+    "chains": 10,
+    "finishRate": 1,
+    "setups": 5,
+    "setupsAllFinished": 5,
+    "offcourse": 0,
+    "crashes": 0,
+    "reverseShare": 0,
+    "maxReverseM": 0,
+    "reversedEpisodes": 0
+   }
+  ]
+ },
+ "best": {
+  "gen": 2400,
+  "train": 2.4166903362044323,
+  "holdout": 2.2668405297430256
+ },
+ "why": "backfill: run finished at gen 3000/3000"
+}

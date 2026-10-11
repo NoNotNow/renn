@@ -28,6 +28,8 @@
  *   --sigma --lr --seed --batch N (18) --train-per-kind N (30) --holdout-per-kind N (20) --workers N --out FILE --resume
  *   --no-variants --no-curriculum --curriculum-start D (0)
  * The best mean policy by TRAIN score (checked at every epoch end) is stored as `best.genome` (same layout as run.ts; ship.ts reads it).
+ * Agent exports (next to --out): latest-best.json on every best change + resume (trial via RENN_V3_GENOME_FILE), and
+ *   latest-stats.json every --stats-every gens (default 20) + every epoch end + resume (--latest-best/--latest-stats override the paths).
  */
 import fs from 'node:fs'
 import os from 'node:os'
@@ -173,6 +175,7 @@ async function main() {
   // agent-facing export of the latest best candidate: one stable path (default <out dir>/latest-best.json),
   // written whenever best changes and once on resume. Trial the candidate without touching the shipped policy:
   //   RENN_V3_GENOME_FILE=<latest-best.json> MAZE_TRAIN_SIM=1 npx vitest run src/test/scenarios/maze-training-worlds.test.ts
+  const t0 = Date.now()
   const latestBest = args['latest-best'] ? String(args['latest-best']) : path.join(path.dirname(out), 'latest-best.json')
   const writeLatestBest = (why: string) => {
     if (!file.best) return
@@ -196,8 +199,40 @@ async function main() {
     )
     console.log(`latest-best -> ${latestBest} (gen ${file.best.gen}, ${why})`)
   }
+  // agent-facing stats snapshot (default <out dir>/latest-stats.json): written every --stats-every generations
+  // (default 20), at every epoch end (the eval numbers change only there) and once on resume — `npm run train`
+  // (train-ctl status) prints these numbers instead of parsing the log.
+  const latestStats = args['latest-stats'] ? String(args['latest-stats']) : path.join(path.dirname(out), 'latest-stats.json')
+  const statsEvery = Math.max(1, num(args['stats-every'], 20))
+  let centers: number[] = []
+  let lastEpoch: Record<string, unknown> | null = null
+  const writeLatestStats = (why: string) => {
+    fs.writeFileSync(
+      latestStats,
+      JSON.stringify(
+        {
+          schema: 'renn.policy-evolution.latest-stats/1',
+          source: out,
+          policy: v3 ? 'v3' : v2 ? 'v2' : 'v1',
+          kinds: [...kinds],
+          ...(file.speedCap ? { speedCap: file.speedCap } : {}),
+          gen: isl.state.gen,
+          updatedAt: new Date().toISOString(),
+          elapsedSec: Math.round((Date.now() - t0) / 1000),
+          islands: { centers, ages: isl.state.islands.map((x) => x.age) },
+          ...(file.stage ? { stage: { share: file.stage.share, ema: file.stage.ema } } : {}),
+          ...(file.curriculum ? { curriculum: { difficulty: file.curriculum.difficulty, ema: file.curriculum.ema } } : {}),
+          epoch: lastEpoch,
+          ...(file.best ? { best: { gen: file.best.gen, train: file.best.train, holdout: file.best.holdout } } : {}),
+          why,
+        },
+        null,
+        1,
+      ) + '\n',
+    )
+  }
+  if (resumed) writeLatestStats('resume')
   if (resumed && file.best) writeLatestBest('resume')
-  const t0 = Date.now()
   try {
     for (let i = 0; i < gens; i++) {
       const g = isl.state.gen
@@ -210,7 +245,8 @@ async function main() {
         if (file.curriculum) keys = applyCurriculum(keys, file.curriculum, g)
       }
       const { reports } = await isl.step(evaluate, keys)
-      const entry: Record<string, unknown> = { gen: isl.state.gen, centers: reports.map((r) => Math.round(r.center * 1000) / 1000), difficulty: file.curriculum?.difficulty }
+      centers = reports.map((r) => Math.round(r.center * 1000) / 1000)
+      const entry: Record<string, unknown> = { gen: isl.state.gen, centers, difficulty: file.curriculum?.difficulty }
       let line = `gen ${isl.state.gen}  centers [${reports.map((r) => r.center.toFixed(2)).join(' ')}] ages [${isl.state.islands.map((x) => x.age).join(' ')}]`
       if (v3 && file.stage) {
         const freeRuns = reports.flatMap((r) => (r.centerMetrics ?? []).filter((m) => parseCourseKey(parseChainEpisodeKey(m.key).setupKey).kind === 'free'))
@@ -241,14 +277,25 @@ async function main() {
         if (v3) line += `\n  HOLDOUT per kind:\n    ${formatV3Report(v3ReportByKind(ho, kinds))}`
         else if (v2) line += `\n  HOLDOUT per kind: ${formatChainReport(chainReportByKind(ho, kinds))}`
         Object.assign(entry, { scores, best, event, train: trainFit, holdout: holdFit })
+        lastEpoch = {
+          gen: isl.state.gen,
+          scores,
+          bestIsland: best,
+          ...(event ? { replaced: event.replaced, by: event.with } : {}),
+          train: { fitness: trainFit, finished: tr.filter((x) => x.outcome === 'finish').length, total: tr.length },
+          holdout: { fitness: holdFit, finished: ho.filter((x) => x.outcome === 'finish').length, total: ho.length },
+          perKind: v3 ? v3ReportByKind(ho, kinds) : v2 ? chainReportByKind(ho, kinds) : [],
+        }
         if (!file.best || trainFit > file.best.train) {
           file.best = { gen: isl.state.gen, island: best, train: trainFit, holdout: holdFit, genome: theta }
           writeLatestBest('new best by TRAIN')
         }
+        writeLatestStats('epoch end')
       }
       file.history.push(entry)
       file.state = isl.state
       fs.writeFileSync(out, JSON.stringify(file))
+      if (isl.state.gen % statsEvery === 0) writeLatestStats(`every ${statsEvery} gens`)
       console.log(`${line}  (${((Date.now() - t0) / 1000).toFixed(0)} s)`)
     }
   } finally {
