@@ -19,7 +19,7 @@ import { flattenChainKeys, holdoutChainEpisodes, holdoutV3Episodes } from '@/pol
 import { formatV3Report, v3ReportByKind, chainReportByKind, formatChainReport, parseKinds, v2GenomeFromFile, v2Hidden } from '@/policyEvolution/chainReport'
 import { CHAIN_KINDS, COURSE_KINDS, V3_KINDS, holdoutCourseKeys, parseCourseKey } from '@/policyEvolution/courses'
 import type { PolicyEpisodeMetrics } from '@/policyEvolution/episode'
-import { aggregateEvenness, aggregateFitness, aggregateKindEvenness } from '@/policyEvolution/es'
+import { aggregateEvenness, aggregateFitness, aggregateKindMin } from '@/policyEvolution/es'
 import { shippedGenome } from '@/policyEvolution/exampleWorld'
 import { PolicyPool } from './pool'
 
@@ -52,7 +52,7 @@ if (groups.length === 0) throw new Error('usage: compare.ts --group NAME run.jso
 
 const kinds = parseKinds(kindsArg, v3 ? V3_KINDS : v2 ? CHAIN_KINDS : COURSE_KINDS)
 const keys = v3 ? flattenChainKeys(holdoutV3Episodes(opt('holdout-per-kind', 5), kinds)) : v2 ? flattenChainKeys(holdoutChainEpisodes(opt('holdout-per-kind', 5), kinds)) : holdoutCourseKeys(opt('holdout-per-kind', 20), kinds)
-const fitness = v3 ? aggregateKindEvenness : v2 ? aggregateEvenness : aggregateFitness
+const fitness = v3 ? aggregateKindMin : v2 ? aggregateEvenness : aggregateFitness
 const pool = new PolicyPool(opt('workers', Math.max(1, os.cpus().length - 1)))
 const evaluate = pool.evaluator()
 const mean = (a: number[]) => a.reduce((s, x) => s + x, 0) / a.length

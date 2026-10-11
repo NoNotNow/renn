@@ -16,7 +16,7 @@ import {
 } from './chains'
 import { v3ReportByKind } from './chainReport'
 import { activeKinds, DEFAULT_STAGE, initialStage, stageBatch, updateStage } from './curriculum'
-import { aggregateEvenness, aggregateKindEvenness, capNorm, devPenaltyNorm, V3_FAIL_FACTOR } from './es'
+import { aggregateKindMin, capNorm, devPenaltyNorm, V3_FAIL_FACTOR } from './es'
 import { runPolicyEpisode, SAFETY_WINDOW_S, STILL_WINDOW_S, v3EpisodeSeconds } from './episode'
 import { pursuitV3, reverserV3 } from './handWired'
 import { LegProgress } from './legs'
@@ -459,22 +459,48 @@ describe('v3 stage curriculum', () => {
   })
 })
 
-describe('v3 fitness: evenness across kinds', () => {
+describe('v3 fitness: weakest link (min over all runs)', () => {
   const m = (setup: string, norm: number) => ({ key: `${setup}#0v3`, norm })
-  it('an uneven candidate scores below an even one with the same overall mean; per-kind min matters', () => {
+  it('weakest link: fitness = the worst run, not the mean', () => {
+    // (i) 4 good runs + 1 catastrophic: the fitness IS the catastrophic run's value (stall = failed: fail share of its peak)
+    const good = [m('free:1', 0.8), m('bay:1', 0.8), m('slalom:1', 0.8), m('field:1', 0.8)]
+    const black = { key: 'maze:1#0v3', norm: 0, peakNorm: 0.02, outcome: 'stall' as const }
+    expect(aggregateKindMin([...good, black])).toBeCloseTo(V3_FAIL_FACTOR * 0.02, 12)
+    // the good runs do not soften the blackout: adding more good episodes changes nothing
+    expect(aggregateKindMin([...good, m('free:9', 0.9), black])).toBeCloseTo(V3_FAIL_FACTOR * 0.02, 12)
+    // a failed worst run pays V3_FAIL_FACTOR on top of its (peak) value
+    expect(aggregateKindMin([...good, { ...black, peakNorm: 0.1, outcome: 'crash' as const }])).toBeCloseTo(V3_FAIL_FACTOR * 0.1, 12)
+  })
+
+  it('a solid-everywhere candidate beats a lucky one with a single blackout (same overall mean)', () => {
+    // (ii) robustness over specialists: identical mean, the blackout decides
+    const solid = [m('free:1', 0.4), m('bay:1', 0.4), m('slalom:1', 0.4), m('field:1', 0.4), m('maze:1', 0.4)]
+    const lucky = [m('free:1', 0.5), m('bay:1', 0.5), m('slalom:1', 0.5), m('field:1', 0.5), m('maze:1', 0)]
+    const mean = (a: typeof solid) => a.reduce((x, y) => x + y.norm, 0) / a.length
+    expect(mean(solid)).toBeCloseTo(mean(lucky), 9)
+    expect(aggregateKindMin(solid)).toBeGreaterThan(aggregateKindMin(lucky))
+    expect(aggregateKindMin(solid)).toBeCloseTo(0.4, 12)
+    expect(aggregateKindMin(lucky)).toBe(0)
+    // an uneven candidate scores below an even one with the same mean
     const even = [m('free:1', 0.5), m('bay:1', 0.5), m('slalom:1', 0.5), m('field:1', 0.5)]
     const uneven = [m('free:1', 0.95), m('bay:1', 0.05), m('slalom:1', 0.95), m('field:1', 0.05)]
-    const mean = (a: typeof even) => a.reduce((x, y) => x + y.norm, 0) / a.length
-    expect(mean(even)).toBeCloseTo(mean(uneven), 9)
-    expect(aggregateKindEvenness(even)).toBeGreaterThan(aggregateKindEvenness(uneven))
-    expect(aggregateKindEvenness(even)).toBeCloseTo(0.5, 9)
-    // a single kind reduces to the setup aggregate
-    expect(aggregateKindEvenness([m('free:1', 0.3), m('free:2', 0.6)])).toBeCloseTo(aggregateEvenness([m('free:1', 0.3), m('free:2', 0.6)]), 9)
-    expect(aggregateKindEvenness([])).toBe(0)
+    expect(aggregateKindMin(even)).toBeGreaterThan(aggregateKindMin(uneven))
+    expect(aggregateKindMin(even)).toBeCloseTo(0.5, 12)
+    // no kind grouping: a single kind reduces to the plain min over its episodes
+    expect(aggregateKindMin([m('free:1', 0.3), m('free:2', 0.6)])).toBeCloseTo(0.3, 12)
+  })
+
+  it('edge cases: empty -> 0, NaN -> 0', () => {
+    // (iii) no episodes: fitness 0, not NaN
+    expect(aggregateKindMin([])).toBe(0)
+    // a NaN episode value counts as a total blackout
+    const good = [m('free:1', 0.8), m('bay:1', 0.8)]
+    expect(aggregateKindMin([...good, { key: 'maze:1#0v3', norm: Number.NaN }])).toBe(0)
+    expect(aggregateKindMin([{ key: 'maze:1#0v3', norm: Number.NaN }])).toBe(0)
     // a crash keeps only V3_FAIL_FACTOR of its norm: fast-and-crashed scores below slower-and-finished
     const crashed = { key: 'bay:1#0v3', norm: 0.8, outcome: 'crash' as const }
     const finished = { key: 'bay:1#0v3', norm: 0.5, outcome: 'finish' as const }
-    expect(aggregateKindEvenness([finished])).toBeGreaterThan(aggregateKindEvenness([crashed]))
+    expect(aggregateKindMin([finished])).toBeGreaterThan(aggregateKindMin([crashed]))
   })
 
   it('opt-in speed cap: off is bit-identical; on, a 27 m/s finisher no longer beats a 15 m/s finisher', () => {
@@ -482,15 +508,15 @@ describe('v3 fitness: evenness across kinds', () => {
     const mk = (speed: number, outcome: 'finish' | 'crash' = 'finish') => ({ key: 'free:1#0v3', norm: (0.9 * speed) / NS, meanSpeed: speed, outcome })
     const fast = [mk(27)]
     const slow = [mk(15)]
-    expect(aggregateKindEvenness(fast)).toBeGreaterThan(aggregateKindEvenness(slow))
-    expect(aggregateKindEvenness(fast, undefined)).toBe(aggregateKindEvenness(fast))
-    expect(aggregateKindEvenness(fast, 0)).toBe(aggregateKindEvenness(fast))
-    expect(aggregateKindEvenness(fast, 15)).toBeCloseTo(aggregateKindEvenness(slow, 15), 12)
-    expect(aggregateKindEvenness(slow, 15)).toBe(aggregateKindEvenness(slow))
+    expect(aggregateKindMin(fast)).toBeGreaterThan(aggregateKindMin(slow))
+    expect(aggregateKindMin(fast, undefined)).toBe(aggregateKindMin(fast))
+    expect(aggregateKindMin(fast, 0)).toBe(aggregateKindMin(fast))
+    expect(aggregateKindMin(fast, 15)).toBeCloseTo(aggregateKindMin(slow, 15), 12)
+    expect(aggregateKindMin(slow, 15)).toBe(aggregateKindMin(slow))
     expect(capNorm(0.5, 27, 15)).toBeCloseTo(0.5 * (15 / 27), 12)
     expect(capNorm(0.5, undefined, 15)).toBe(0.5)
     // a failure still halves the (capped) norm
-    expect(aggregateKindEvenness([mk(27, 'crash')], 15)).toBeCloseTo(0.5 * aggregateKindEvenness(slow, 15), 12)
+    expect(aggregateKindMin([mk(27, 'crash')], 15)).toBeCloseTo(0.5 * aggregateKindMin(slow, 15), 12)
   })
 
   it('deviation penalty: the max distance from the original chain is subtracted from the points as a route fraction', () => {
@@ -503,13 +529,13 @@ describe('v3 fitness: evenness across kinds', () => {
     // same norm and progress, one near the chain, one straying: the strayer scores lower
     const onChain = { key: 'maze:1#0v3', norm: 0.9, outcome: 'finish' as const, length: 100, maxDevOrigM: 0.5 }
     const offChain = { key: 'maze:1#0v3', norm: 0.9, outcome: 'finish' as const, length: 100, maxDevOrigM: 20 }
-    expect(aggregateKindEvenness([onChain])).toBeGreaterThan(aggregateKindEvenness([offChain]))
-    expect(aggregateKindEvenness([offChain])).toBeCloseTo(aggregateKindEvenness([onChain]) - 0.195, 12)
+    expect(aggregateKindMin([onChain])).toBeGreaterThan(aggregateKindMin([offChain]))
+    expect(aggregateKindMin([offChain])).toBeCloseTo(aggregateKindMin([onChain]) - 0.195, 12)
     // a metric without deviation fields pays nothing (hand-built test metrics, pre-penalty run files)
     const plain = { key: 'maze:1#0v3', norm: 0.9, outcome: 'finish' as const }
-    expect(aggregateKindEvenness([plain])).toBe(aggregateKindEvenness([{ ...onChain, maxDevOrigM: 0 }]))
+    expect(aggregateKindMin([plain])).toBe(aggregateKindMin([{ ...onChain, maxDevOrigM: 0 }]))
     // the penalty stacks with the fail factor: an offcourse strayer keeps the fail share of the penalized norm
     const crashed = { key: 'maze:1#0v3', norm: 0.9, outcome: 'offcourse' as const, length: 100, maxDevOrigM: 6 }
-    expect(aggregateKindEvenness([crashed])).toBeCloseTo(V3_FAIL_FACTOR * (0.9 - 0.06), 12)
+    expect(aggregateKindMin([crashed])).toBeCloseTo(V3_FAIL_FACTOR * (0.9 - 0.06), 12)
   })
 })

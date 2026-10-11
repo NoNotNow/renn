@@ -1,6 +1,5 @@
 import { createRng, gaussian, type Rng } from '@/avEvolution/core/rng'
 import { parseChainEpisodeKey } from './chains'
-import { parseCourseKey } from './courses'
 import type { PolicyEpisodeMetrics } from './episode'
 
 /**
@@ -86,9 +85,12 @@ export function aggregateEvenness(metrics: Array<Pick<PolicyEpisodeMetrics, 'key
 }
 
 /**
- * v3 fitness, evenness ACROSS setup kinds: kindScore = the setup-evenness aggregate (`aggregateEvenness`) over that kind's setups, fitness = 0.5 mean + 0.5 min
- * of the kind scores over the kinds present in the batch. A net that is great on some kinds and bad on others scores below an even one with the same mean.
- * `aggregateEvenness` (v2) is unchanged.
+ * v3 fitness, weakest link: a candidate's fitness is the MINIMUM over all its episode values — the worst run decides.
+ * Per-episode value: `peakNorm` (episode.ts) with the opt-in speed cap, times V3_FAIL_FACTOR when the outcome failed;
+ * fallback for metrics without `peakNorm`: the old end-value formula (norm - deviation - touch penalties, floored at 0).
+ * A candidate that aces most courses and catastrophically fails one ranks below one that is merely solid everywhere:
+ * robustness over specialists. No kind grouping, no coverage bonus — a missing kind simply contributes no value, and
+ * the worst run is the worst run. `aggregateEvenness` (v2) is unchanged.
  */
 /**
  * v3: an episode that ends in contact / off the chain / stalled / flipped keeps only this share of its norm. Without it driving into a dead-end
@@ -130,12 +132,17 @@ export function capNorm(norm: number, meanSpeed: number | undefined, speedCap?: 
   return norm * (speedCap / meanSpeed)
 }
 
-export function aggregateKindEvenness(
+/**
+ * Weakest-link fitness for v3: fitness = MIN over all episode values of the batch ("the chain is only as strong as its
+ * weakest link"). The per-episode value is final (peakNorm-based, incl. failFactor / penalties); see the block comment
+ * above. Empty batch -> 0; a non-finite episode value counts as 0.
+ */
+export function aggregateKindMin(
   metrics: Array<Pick<PolicyEpisodeMetrics, 'key' | 'norm'> & { outcome?: PolicyEpisodeMetrics['outcome']; meanSpeed?: number; maxDevOrigM?: number; length?: number; touchWallFrames?: number; touchObjectFrames?: number; peakNorm?: number }>,
   speedCap?: number,
 ): number {
   if (!metrics.length) return 0
-  const byKind = new Map<string, Array<Pick<PolicyEpisodeMetrics, 'key' | 'norm'>>>()
+  let worst = Infinity
   for (const raw of metrics) {
     const failed = raw.outcome !== undefined && raw.outcome !== 'finish' && raw.outcome !== 'timeout'
     // peak semantics: `peakNorm` (episode.ts) is the HIGH-WATER of the per-frame score curve, already minus the
@@ -147,14 +154,10 @@ export function aggregateKindEvenness(
       raw.peakNorm !== undefined
         ? capNorm(raw.peakNorm, raw.meanSpeed, speedCap)
         : Math.max(0, capNorm(raw.norm, raw.meanSpeed, speedCap) - devPenaltyNorm(raw.maxDevOrigM, raw.length) - touchPenaltyNorm(raw.touchWallFrames, raw.touchObjectFrames))
-    const m = failed ? { key: raw.key, norm: norm * V3_FAIL_FACTOR } : { key: raw.key, norm }
-    const kind = parseCourseKey(parseChainEpisodeKey(m.key).setupKey).kind
-    const list = byKind.get(kind)
-    if (list) list.push(m)
-    else byKind.set(kind, [m])
+    const value = Number.isFinite(norm) ? (failed ? norm * V3_FAIL_FACTOR : norm) : 0
+    if (value < worst) worst = value
   }
-  const scores = [...byKind.values()].map((v) => aggregateEvenness(v))
-  return 0.5 * (scores.reduce((a, b) => a + b, 0) / scores.length) + 0.5 * Math.min(...scores)
+  return worst
 }
 
 /** Centred ranks in [-0.5, 0.5]; ties share their average rank. */

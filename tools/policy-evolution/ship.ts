@@ -22,7 +22,7 @@ import { flattenChainKeys, holdoutChainEpisodes, holdoutV3Episodes, trainChainEp
 import { formatV3Report, v3ReportByKind } from '@/policyEvolution/chainReport'
 import { chainReportByKind, formatChainReport, parseKinds, v2GenomeFromFile, v2Hidden } from '@/policyEvolution/chainReport'
 import { CHAIN_KINDS, COURSE_KINDS, V3_KINDS, holdoutCourseKeys, trainCourseKeys } from '@/policyEvolution/courses'
-import { aggregateEvenness, aggregateFitness, aggregateKindEvenness } from '@/policyEvolution/es'
+import { aggregateEvenness, aggregateFitness, aggregateKindMin } from '@/policyEvolution/es'
 import { PolicyPool } from './pool'
 import { formatShipDecision, shipDecision } from '@/policyEvolution/shipGate'
 
@@ -47,7 +47,7 @@ const kindsArg = argv.indexOf('--kinds') > 0 ? argv[argv.indexOf('--kinds') + 1]
 const kinds = parseKinds(kindsArg, v3 ? V3_KINDS : v2 ? CHAIN_KINDS : COURSE_KINDS)
 const trainKeys = v3 ? flattenChainKeys(trainV3Episodes(opt('train-per-kind', 8), kinds)) : v2 ? flattenChainKeys(trainChainEpisodes(opt('train-per-kind', 8), kinds)) : trainCourseKeys(opt('train-per-kind', 6), kinds)
 const holdoutKeys = v3 ? flattenChainKeys(holdoutV3Episodes(opt('holdout-per-kind', 6), kinds)) : v2 ? flattenChainKeys(holdoutChainEpisodes(opt('holdout-per-kind', 6), kinds)) : holdoutCourseKeys(opt('holdout-per-kind', 6), kinds)
-const fitness = v3 ? aggregateKindEvenness : v2 ? aggregateEvenness : aggregateFitness
+const fitness = v3 ? aggregateKindMin : v2 ? aggregateEvenness : aggregateFitness
 
 let holdoutNorms: number[] = []
 async function score(g: number[]) {

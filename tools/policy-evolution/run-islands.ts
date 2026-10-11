@@ -20,8 +20,8 @@
  * v3 (forward AND backward, free-track pretraining, see spec-command-chains.md section v3): `--v3` evolves the 26-input net (v2 inputs + the two touch flags, len = 29 H + 2) FROM SCRATCH (random nets, no warm start unless
  * --warm is given) on v3 chain episodes `<setupKey>#<i>v3` of the kinds free, bay, corridor, field, slalom, maze, crowd (`--kinds` restricts). Stage curriculum: the run starts on
  * the free track only; the obstacle kinds join (bay, corridor, slalom, crowd, field, maze) as the free-track chain finish-rate EMA reaches 0.7 (share 0 -> 0.7 in steps of 0.1;
- * `--no-stage` = all kinds from the start). Batches are STRATIFIED: `--batch N` = setups PER ACTIVE KIND per generation (default 1). Fitness = kind evenness
- * (0.5 mean + 0.5 min over the kinds of the setup-evenness aggregate). State (incl. the stage) is saved every generation, `--resume` continues.
+ * `--no-stage` = all kinds from the start). Batches are STRATIFIED: `--batch N` = setups PER ACTIVE KIND per generation (default 1). Fitness = weakest link
+ * (MIN over all episode values of the batch: the worst run decides). State (incl. the stage) is saved every generation, `--resume` continues.
  *   npx tsx tools/policy-evolution/run-islands.ts --v3 --hidden 24 --batch 1 --gens 600 --workers 4 --out test-results/policy-evolution/v3.json
  *
  * Options: --islands N (default 3) --pairs N (antithetic pairs PER island, default 8) --epoch N (25) --mature N (75) --p-cross P (0.5)
@@ -47,7 +47,7 @@ import { PolicyPool } from './pool'
 import { activeKinds, DEFAULT_STAGE, initialStage, stageBatch, updateStage, type StageState } from '@/policyEvolution/curriculum'
 import { holdoutV3Episodes, trainV3Episodes, v3EpisodeKeys } from '@/policyEvolution/chains'
 import { formatV3Report, v3ReportByKind } from '@/policyEvolution/chainReport'
-import { aggregateKindEvenness } from '@/policyEvolution/es'
+import { aggregateKindMin } from '@/policyEvolution/es'
 import { V3_KINDS, type CourseKind } from '@/policyEvolution/courses'
 
 function parseArgs(argv: string[]) {
@@ -140,7 +140,7 @@ async function main() {
   const holdout = v2 ? flattenChainKeys(holdoutGroups) : holdoutCourseKeys(num(args['holdout-per-kind'], 20), kinds)
   // --speed-cap only at creation (persisted); a resume uses the stored value, so a resume without the flag behaves as before
   const speedCap = resumed ? file!.speedCap : args['speed-cap'] !== undefined ? num(args['speed-cap'], 0) || undefined : undefined
-  const fitness: FitnessFn = v3 ? (m) => aggregateKindEvenness(m, speedCap) : v2 ? aggregateEvenness : aggregateFitness
+  const fitness: FitnessFn = v3 ? (m) => aggregateKindMin(m, speedCap) : v2 ? aggregateEvenness : aggregateFitness
 
   if (!resumed) {
     const config: EsConfig = {
