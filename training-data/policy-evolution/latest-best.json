@@ -3,7 +3,13 @@
  "source": "training-data/policy-evolution/v3mg7.json",
  "policy": "v3",
  "kinds": [
+  "free",
+  "bay",
+  "corridor",
+  "field",
+  "slalom",
   "maze",
+  "crowd",
   "grid"
  ],
  "speedCap": 10,
@@ -1494,6 +1500,6 @@
   0.7548819539632285,
   -0.39203052747210915
  ],
- "why": "new best by TRAIN",
- "updatedAt": "2026-10-11T21:10:14.850Z"
+ "why": "resume",
+ "updatedAt": "2026-10-11T21:42:11.427Z"
 }
