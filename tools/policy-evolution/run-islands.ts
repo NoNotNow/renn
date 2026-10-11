@@ -39,7 +39,7 @@ import { chainReportByKind, formatChainReport, parseKinds, v2GenomeFromFile } fr
 import { CHAIN_KINDS, COURSE_KINDS, COURSE_LENGTH, holdoutCourseKeys, parseCourseKey, trainCourseKeys, withVariant } from '@/policyEvolution/courses'
 import { parseChainEpisodeKey } from '@/policyEvolution/chains'
 import { applyCurriculum, DEFAULT_CURRICULUM, initialCurriculum, updateCurriculum, type CurriculumState } from '@/policyEvolution/curriculum'
-import { aggregateEvenness, aggregateFitness, DEFAULT_ES_CONFIG, type EsConfig, type FitnessFn } from '@/policyEvolution/es'
+import { aggregateEvenness, aggregateFitness, aggregateKindMin, beatsBest, DEFAULT_ES_CONFIG, episodeValues, type EsConfig, type FitnessFn, type FitnessVecFn } from '@/policyEvolution/es'
 import { DEFAULT_ISLANDS, initialIslands, IslandEs, sigmaBoost, type IslandsConfig, type IslandsState } from '@/policyEvolution/islands'
 import { createRng } from '@/avEvolution/core/rng'
 import { GENOME_LENGTH, genomeLength, genomeShape, hiddenOfLength, N_HIDDEN, N_IN_V2, N_IN_V3, padV2Genome, widenHidden } from '@/policyEvolution/policy'
@@ -47,7 +47,6 @@ import { PolicyPool } from './pool'
 import { activeKinds, DEFAULT_STAGE, initialStage, stageBatch, updateStage, type StageState } from '@/policyEvolution/curriculum'
 import { holdoutV3Episodes, trainV3Episodes, v3EpisodeKeys } from '@/policyEvolution/chains'
 import { formatV3Report, v3ReportByKind } from '@/policyEvolution/chainReport'
-import { aggregateKindMin } from '@/policyEvolution/es'
 import { V3_KINDS, type CourseKind } from '@/policyEvolution/courses'
 
 function parseArgs(argv: string[]) {
@@ -79,7 +78,7 @@ interface RunFile {
   curriculum: CurriculumState | null
   state: IslandsState
   history: Array<Record<string, unknown>>
-  best?: { gen: number; island: number; train: number; holdout: number; genome: number[] }
+  best?: { gen: number; island: number; train: number; holdout: number; genome: number[]; trainVec?: number[]; holdoutVec?: number[] }
 }
 
 /** Setup groups of one v2 generation: a rotating window of the TRAIN setups, a start variant per generation, the field curriculum; setups that lose their chains keep the canonical key. */
@@ -141,6 +140,11 @@ async function main() {
   // --speed-cap only at creation (persisted); a resume uses the stored value, so a resume without the flag behaves as before
   const speedCap = resumed ? file!.speedCap : args['speed-cap'] !== undefined ? num(args['speed-cap'], 0) || undefined : undefined
   const fitness: FitnessFn = v3 ? (m) => aggregateKindMin(m, speedCap) : v2 ? aggregateEvenness : aggregateFitness
+  // v3 weakest link as a VECTOR (ascending episode values): its LEXICOGRAPHIC order ranks candidates (ES step),
+  // islands (reproduce) and the stored best — one immediate stall saturates the scalar min to 0 and would make all
+  // early candidates indistinguishable; the vector keeps the gradient (the second-worst run breaks the tie).
+  // The scalar `fitness` (min) stays for reports / display.
+  const fitnessVec: FitnessVecFn | undefined = v3 ? (m) => episodeValues(m, speedCap) : undefined
 
   if (!resumed) {
     const config: EsConfig = {
@@ -170,7 +174,7 @@ async function main() {
       history: [],
     }
   }
-  const isl = new IslandEs(file!.config, file!.islands, file!.state, fitness)
+  const isl = new IslandEs(file!.config, file!.islands, file!.state, fitness, fitnessVec)
   const pool = new PolicyPool(workers)
   const evaluate = pool.evaluator()
   fs.mkdirSync(path.dirname(out), { recursive: true })
@@ -232,7 +236,7 @@ async function main() {
           ...(file.stage ? { stage: { share: file.stage.share, ema: file.stage.ema } } : {}),
           ...(file.curriculum ? { curriculum: { difficulty: file.curriculum.difficulty, ema: file.curriculum.ema } } : {}),
           epoch: lastEpoch,
-          ...(file.best ? { best: { gen: file.best.gen, train: file.best.train, holdout: file.best.holdout } } : {}),
+          ...(file.best ? { best: { gen: file.best.gen, train: file.best.train, holdout: file.best.holdout, ...(file.best.trainVec ? { worst3: file.best.trainVec.slice(0, 3) } : {}) } } : {}),
           why,
         },
         null,
@@ -277,12 +281,22 @@ async function main() {
           : v2
           ? flattenChainKeys(setupBatch(trainGroups, num(args['rank-setups'], 12), g, 9000 + g, null))
           : Array.from({ length: 36 }, (_, j) => withVariant(train[(g * 36 + j) % train.length]!, 9000 + g))
-        const scores = await Promise.all(isl.engines.map(async (e) => fitness(await evaluate(e.state.theta.slice(), rankKeys))))
-        const { best, event } = isl.reproduce(scores)
+        const scoreVecs = await Promise.all(
+          isl.engines.map(async (e) => {
+            const m = await evaluate(e.state.theta.slice(), rankKeys)
+            return fitnessVec ? fitnessVec(m) : [fitness(m)]
+          }),
+        )
+        const scores = scoreVecs.map((v) => v[0] ?? 0)
+        const { best, event } = isl.reproduce(scoreVecs)
         const theta = isl.state.islands[best]!.es.theta.slice()
         const [tr, ho] = await Promise.all([evaluate(theta, train), evaluate(theta, holdout)])
         const trainFit = fitness(tr)
         const holdFit = fitness(ho)
+        // ascending episode-value vectors of the best island on TRAIN / HOLDOUT (v3: the lex tie-breakers; the
+        // scalar min above stays the display number)
+        const trainVec = fitnessVec ? fitnessVec(tr) : [trainFit]
+        const holdoutVec = fitnessVec ? fitnessVec(ho) : [holdFit]
         const fin = (m: typeof tr) => `${m.filter((x) => x.outcome === 'finish').length}/${m.length}`
         line += `\n  EPOCH scores [${scores.map((s) => s.toFixed(3)).join(' ')}] best island ${best}${event ? `, replaced island ${event.replaced} by ${event.with}` : ''}  | TRAIN ${trainFit.toFixed(3)} (${fin(tr)}) HOLDOUT ${holdFit.toFixed(3)} (${fin(ho)})`
         if (v3) line += `\n  HOLDOUT per kind:\n    ${formatV3Report(v3ReportByKind(ho, kinds))}`
@@ -293,12 +307,15 @@ async function main() {
           scores,
           bestIsland: best,
           ...(event ? { replaced: event.replaced, by: event.with } : {}),
-          train: { fitness: trainFit, finished: tr.filter((x) => x.outcome === 'finish').length, total: tr.length },
+          train: { fitness: trainFit, finished: tr.filter((x) => x.outcome === 'finish').length, total: tr.length, ...(fitnessVec ? { worst3: trainVec.slice(0, 3) } : {}) },
           holdout: { fitness: holdFit, finished: ho.filter((x) => x.outcome === 'finish').length, total: ho.length },
           perKind: v3 ? v3ReportByKind(ho, kinds) : v2 ? chainReportByKind(ho, kinds) : [],
         }
-        if (!file.best || trainFit > file.best.train) {
-          file.best = { gen: isl.state.gen, island: best, train: trainFit, holdout: holdFit, genome: theta }
+        // best-update by the LEXICOGRAPHIC order of the train vector (beatsBest): a pre-vector state file's best
+        // keeps its scalar min as a one-element vector, so an old best is beaten at an equal min by any positive
+        // second value — the gen-25 deadlock of `0 > 0 = false` is gone. trainFit (scalar min) stays the display.
+        if (beatsBest(trainVec, file.best)) {
+          file.best = { gen: isl.state.gen, island: best, train: trainFit, holdout: holdFit, genome: theta, trainVec, holdoutVec }
           writeLatestBest('new best by TRAIN')
         }
         writeLatestStats('epoch end')

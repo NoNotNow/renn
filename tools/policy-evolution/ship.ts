@@ -22,7 +22,7 @@ import { flattenChainKeys, holdoutChainEpisodes, holdoutV3Episodes, trainChainEp
 import { formatV3Report, v3ReportByKind } from '@/policyEvolution/chainReport'
 import { chainReportByKind, formatChainReport, parseKinds, v2GenomeFromFile, v2Hidden } from '@/policyEvolution/chainReport'
 import { CHAIN_KINDS, COURSE_KINDS, V3_KINDS, holdoutCourseKeys, trainCourseKeys } from '@/policyEvolution/courses'
-import { aggregateEvenness, aggregateFitness, aggregateKindMin } from '@/policyEvolution/es'
+import { aggregateEvenness, aggregateFitness, aggregateKindMin, episodeValues, lexGreater } from '@/policyEvolution/es'
 import { PolicyPool } from './pool'
 import { formatShipDecision, shipDecision } from '@/policyEvolution/shipGate'
 
@@ -54,7 +54,15 @@ async function score(g: number[]) {
   const [tr, ho] = await Promise.all([evaluate(g, trainKeys), evaluate(g, holdoutKeys)])
   holdoutNorms = ho.map((m) => m.norm)
   const outcomes = (m: typeof tr) => Object.fromEntries(['finish', 'crash', 'offcourse', 'stall', 'flip', 'timeout'].map((o) => [o, m.filter((x) => x.outcome === o).length]))
-  const part = (m: typeof tr) => ({ fitness: fitness(m), meanProgress: m.reduce((a, x) => a + x.progress, 0) / m.length, outcomes: outcomes(m), ...(v3 ? { perKind: v3ReportByKind(m, kinds) } : v2 ? { perKind: chainReportByKind(m, kinds) } : {}) })
+  // v3: `fitness` stays the scalar min (report column); `vec` is the ascending episode-value vector whose
+  // lexicographic order decides comparisons; `worst3` shows the tie-breakers.
+  const part = (m: typeof tr) => ({
+    fitness: fitness(m),
+    ...(v3 ? { vec: episodeValues(m), worst3: episodeValues(m).slice(0, 3) } : {}),
+    meanProgress: m.reduce((a, x) => a + x.progress, 0) / m.length,
+    outcomes: outcomes(m),
+    ...(v3 ? { perKind: v3ReportByKind(m, kinds) } : v2 ? { perKind: chainReportByKind(m, kinds) } : {}),
+  })
   return { train: part(tr), holdout: part(ho) }
 }
 
@@ -93,7 +101,9 @@ if (v2 && currentFile === V1) console.log('no shippedPolicyV2.json yet: comparin
       ties: d.filter((x) => Math.abs(x) <= 1e-9).length,
     }
   }
-  let better = !cur || cand.holdout.fitness > cur.holdout.fitness
+  // v3 comparisons are lexicographic on the holdout episode-value vectors (the scalar min saturates at 0 ties);
+  // for a v3 run with a shipped policy the shipGate finish-count decision below overrides this fallback
+  let better = !cur || (v3 ? lexGreater(cand.holdout.vec ?? [], cur.holdout.vec ?? []) : cand.holdout.fitness > cur.holdout.fitness)
   let gateReport: string | undefined
   if (v3 && cur) {
     const d = shipDecision(cand.holdout.perKind as ReturnType<typeof v3ReportByKind>, cur.holdout.perKind as ReturnType<typeof v3ReportByKind>)

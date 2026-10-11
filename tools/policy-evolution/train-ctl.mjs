@@ -104,7 +104,9 @@ function latestStatsLines() {
     if (e) {
       const tr = e.train ?? {}
       const ho = e.holdout ?? {}
-      lines.push(`  epoch:  gen ${e.gen}  TRAIN ${(Number(tr.fitness) || 0).toFixed(3)} (${tr.finished ?? '?'}/${tr.total ?? '?'})  HOLDOUT ${(Number(ho.fitness) || 0).toFixed(3)} (${ho.finished ?? '?'}/${ho.total ?? '?'})  best island ${e.bestIsland ?? '?'}`)
+      // v3 lexicographic tie-breakers: the 3 worst episode values behind the scalar min fitness
+      const w3 = Array.isArray(tr.worst3) ? `  worst3 [${tr.worst3.map((x) => Number(x).toFixed(3)).join(' ')}]` : ''
+      lines.push(`  epoch:  gen ${e.gen}  TRAIN ${(Number(tr.fitness) || 0).toFixed(3)} (${tr.finished ?? '?'}/${tr.total ?? '?'})${w3}  HOLDOUT ${(Number(ho.fitness) || 0).toFixed(3)} (${ho.finished ?? '?'}/${ho.total ?? '?'})  best island ${e.bestIsland ?? '?'}`)
       const kinds = (e.perKind ?? []).map((k) => `${k.kind} ${k.finished}/${k.chains} (crash ${k.crashes ?? 0}, offc ${k.offcourse ?? 0})`).join('  ')
       if (kinds) lines.push(`          ${kinds}`)
     }

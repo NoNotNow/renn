@@ -19,7 +19,7 @@ import { flattenChainKeys, holdoutChainEpisodes, holdoutV3Episodes } from '@/pol
 import { formatV3Report, v3ReportByKind, chainReportByKind, formatChainReport, parseKinds, v2GenomeFromFile, v2Hidden } from '@/policyEvolution/chainReport'
 import { CHAIN_KINDS, COURSE_KINDS, V3_KINDS, holdoutCourseKeys, parseCourseKey } from '@/policyEvolution/courses'
 import type { PolicyEpisodeMetrics } from '@/policyEvolution/episode'
-import { aggregateEvenness, aggregateFitness, aggregateKindMin } from '@/policyEvolution/es'
+import { aggregateEvenness, aggregateFitness, aggregateKindMin, episodeValues } from '@/policyEvolution/es'
 import { shippedGenome } from '@/policyEvolution/exampleWorld'
 import { PolicyPool } from './pool'
 
@@ -73,7 +73,8 @@ try {
       const f = fitness(m)
       fits.push(f)
       finishes.push(m.filter((x) => x.outcome === 'finish').length / m.length)
-      console.log(`  ${g.name.padEnd(12)} ${r.label.padEnd(36)}${v2 ? ` H=${v2Hidden(r.genome)}` : ''} fitness ${f.toFixed(3)}  finished ${v2 ? '' : finishByKind(m)}`)
+      // v3: the fitness column is the scalar min; worst3 shows the values the lexicographic tie-break ranks by
+      console.log(`  ${g.name.padEnd(12)} ${r.label.padEnd(36)}${v2 ? ` H=${v2Hidden(r.genome)}` : ''} fitness ${f.toFixed(3)}${v3 ? `  worst3 [${episodeValues(m).slice(0, 3).map((x) => x.toFixed(3)).join(' ')}]` : ''}  finished ${v2 ? '' : finishByKind(m)}`)
       if (v3) console.log(`    ${formatV3Report(v3ReportByKind(m, kinds))}`)
       else if (v2) console.log(`      ${formatChainReport(chainReportByKind(m, kinds))}`)
     }

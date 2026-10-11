@@ -16,7 +16,7 @@ import {
 } from './chains'
 import { v3ReportByKind } from './chainReport'
 import { activeKinds, DEFAULT_STAGE, initialStage, stageBatch, updateStage } from './curriculum'
-import { aggregateKindMin, capNorm, devPenaltyNorm, V3_FAIL_FACTOR } from './es'
+import { aggregateKindMin, capNorm, devPenaltyNorm, episodeValues, V3_FAIL_FACTOR } from './es'
 import { runPolicyEpisode, SAFETY_WINDOW_S, STILL_WINDOW_S, v3EpisodeSeconds } from './episode'
 import { pursuitV3, reverserV3 } from './handWired'
 import { LegProgress } from './legs'
@@ -461,6 +461,17 @@ describe('v3 stage curriculum', () => {
 
 describe('v3 fitness: weakest link (min over all runs)', () => {
   const m = (setup: string, norm: number) => ({ key: `${setup}#0v3`, norm })
+
+  it('episodeValues: the ascending episode-value vector behind the min; vec[0] is aggregateKindMin', () => {
+    const ms = [m('free:1', 0.8), m('bay:1', 0.4), { key: 'maze:1#0v3', norm: 0, peakNorm: 0.02, outcome: 'stall' as const }]
+    const v = episodeValues(ms)
+    expect(v).toEqual([...v].sort((a, b) => a - b))
+    expect(v).toHaveLength(3)
+    expect(v[0]).toBeCloseTo(V3_FAIL_FACTOR * 0.02, 12)
+    expect(aggregateKindMin(ms)).toBeCloseTo(v[0]!, 12)
+    expect(episodeValues([])).toEqual([])
+  })
+
   it('weakest link: fitness = the worst run, not the mean', () => {
     // (i) 4 good runs + 1 catastrophic: the fitness IS the catastrophic run's value (stall = failed: fail share of its peak)
     const good = [m('free:1', 0.8), m('bay:1', 0.8), m('slalom:1', 0.8), m('field:1', 0.8)]

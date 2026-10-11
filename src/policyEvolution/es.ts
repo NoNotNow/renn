@@ -59,6 +59,9 @@ export function aggregateFitness(metrics: Pick<PolicyEpisodeMetrics, 'norm'>[]):
 /** Fitness of one genome over a batch of episode metrics (aggregateFitness for v1, aggregateEvenness for chain episodes). */
 export type FitnessFn = (metrics: PolicyEpisodeMetrics[]) => number
 
+/** Vector fitness (v3 weakest link): the candidate's episode values, ASCENDING — compared lexicographically. */
+export type FitnessVecFn = (metrics: PolicyEpisodeMetrics[]) => number[]
+
 /** mean of the worst quarter (at least one value) */
 function worstQuarterMean(values: number[]): number {
   const s = values.slice().sort((a, b) => a - b)
@@ -137,13 +140,12 @@ export function capNorm(norm: number, meanSpeed: number | undefined, speedCap?: 
  * weakest link"). The per-episode value is final (peakNorm-based, incl. failFactor / penalties); see the block comment
  * above. Empty batch -> 0; a non-finite episode value counts as 0.
  */
-export function aggregateKindMin(
-  metrics: Array<Pick<PolicyEpisodeMetrics, 'key' | 'norm'> & { outcome?: PolicyEpisodeMetrics['outcome']; meanSpeed?: number; maxDevOrigM?: number; length?: number; touchWallFrames?: number; touchObjectFrames?: number; peakNorm?: number }>,
-  speedCap?: number,
-): number {
-  if (!metrics.length) return 0
-  let worst = Infinity
-  for (const raw of metrics) {
+export type EpisodeValueMetrics = Array<Pick<PolicyEpisodeMetrics, 'key' | 'norm'> & { outcome?: PolicyEpisodeMetrics['outcome']; meanSpeed?: number; maxDevOrigM?: number; length?: number; touchWallFrames?: number; touchObjectFrames?: number; peakNorm?: number }>
+
+/** The per-episode values behind `aggregateKindMin` (same formula), ASCENDING: vec[0] is the worst run. */
+export function episodeValues(metrics: EpisodeValueMetrics, speedCap?: number): number[] {
+  if (!metrics.length) return []
+  const values = metrics.map((raw) => {
     const failed = raw.outcome !== undefined && raw.outcome !== 'finish' && raw.outcome !== 'timeout'
     // peak semantics: `peakNorm` (episode.ts) is the HIGH-WATER of the per-frame score curve, already minus the
     // penalties accumulated up to that frame (deviation + touches) — the fitness ranks it, not the drained end value,
@@ -154,10 +156,75 @@ export function aggregateKindMin(
       raw.peakNorm !== undefined
         ? capNorm(raw.peakNorm, raw.meanSpeed, speedCap)
         : Math.max(0, capNorm(raw.norm, raw.meanSpeed, speedCap) - devPenaltyNorm(raw.maxDevOrigM, raw.length) - touchPenaltyNorm(raw.touchWallFrames, raw.touchObjectFrames))
-    const value = Number.isFinite(norm) ? (failed ? norm * V3_FAIL_FACTOR : norm) : 0
-    if (value < worst) worst = value
+    return Number.isFinite(norm) ? (failed ? norm * V3_FAIL_FACTOR : norm) : 0
+  })
+  return values.sort((a, b) => a - b)
+}
+
+export function aggregateKindMin(metrics: EpisodeValueMetrics, speedCap?: number): number {
+  return episodeValues(metrics, speedCap)[0] ?? 0
+}
+
+/**
+ * Lexicographic comparison of two ASCENDING episode-value vectors (the weakest-link order): the first differing
+ * position decides — the worst run first, then the second worst, and so on. Vectors of different length (batch sizes
+ * vary, e.g. holdout) are padded with 0: a missing episode counts as the worst case. Returns < 0 when `a` sorts
+ * below `b`, 0 for identical vectors (a tie).
+ */
+export function lexCompare(a: number[], b: number[]): number {
+  const n = Math.max(a.length, b.length)
+  for (let i = 0; i < n; i++) {
+    const x = a[i] ?? 0
+    const y = b[i] ?? 0
+    if (x < y) return -1
+    if (x > y) return 1
   }
-  return worst
+  return 0
+}
+
+/**
+ * Lexicographic improvement of `a` over `b` by more than `eps` (the vector analogue of the old scalar
+ * `score > best + eps`): positions that differ by at most `eps` count as equal, and the FIRST position that differs
+ * by more than `eps` decides — `a` must be higher there. `eps = 0` = strict comparison (any difference decides).
+ */
+export function lexGreater(a: number[], b: number[], eps = 0): boolean {
+  const n = Math.max(a.length, b.length)
+  for (let i = 0; i < n; i++) {
+    const x = a[i] ?? 0
+    const y = b[i] ?? 0
+    if (Math.abs(x - y) > eps) return x > y
+  }
+  return false
+}
+
+/**
+ * Centred ranks in [-0.5, 0.5] from the LEXICOGRAPHIC order of ascending episode-value vectors: the candidates are
+ * sorted by `lexCompare` and the rank positions are centred; identical vectors share their average rank (a tie).
+ * Replaces the scalar `centredRanks(fit)` in the ES step — only the u_i assignment changes, the Adam/gradient path
+ * is untouched.
+ */
+export function lexCentredRanks(vectors: number[][]): number[] {
+  const order = vectors.map((v, i) => [v, i] as const).sort((x, y) => lexCompare(x[0], y[0]))
+  const keys = new Array<number>(vectors.length)
+  let k = 0
+  for (let j = 0; j < order.length; j++) {
+    if (j > 0 && lexCompare(order[j]![0], order[j - 1]![0]) !== 0) k++
+    keys[order[j]![1]] = k
+  }
+  return centredRanks(keys)
+}
+
+/**
+ * v3 best-update: a candidate beats the stored best when its episode-value vector is lexicographically greater
+ * (strict, eps = 0 — like the old `trainFit > file.best.train`). A best from a pre-vector state file carries no
+ * vector: its scalar train score (the old min) becomes a ONE-ELEMENT vector `[train]`, so the old best is beaten by
+ * any candidate that improves the min, or matches it with any positive second value (padding 0: the missing
+ * episodes of the old best count as the worst case). The vector of a stored best cannot be reconstructed from
+ * its genome — re-evaluating it on a different batch would not be comparable.
+ */
+export function beatsBest(trainVec: number[], best?: { train: number; trainVec?: number[] }): boolean {
+  if (!best) return true
+  return lexGreater(trainVec, best.trainVec ?? [best.train], 0)
 }
 
 /** Centred ranks in [-0.5, 0.5]; ties share their average rank. */
@@ -186,7 +253,7 @@ export class PolicyEs {
   state: EsState
   private readonly rng: Rng
 
-  constructor(readonly cfg: EsConfig, state?: EsState, private readonly fitness: FitnessFn = aggregateFitness) {
+  constructor(readonly cfg: EsConfig, state?: EsState, private readonly fitness: FitnessFn = aggregateFitness, private readonly fitnessVec?: FitnessVecFn) {
     this.state = state ?? initialEsState(cfg)
     this.rng = createRng(0)
     this.rng.setState(this.state.rngState)
@@ -205,7 +272,11 @@ export class PolicyEs {
     }
     const [centerMetrics, ...results] = await Promise.all([evaluate(s.theta, keys), ...cands.map((c) => evaluate(c, keys))])
     const fit = results.map((r) => this.fitness(r))
-    const u = centredRanks(fit)
+    // v3 weakest link: ranks from the LEXICOGRAPHIC order of the candidates' episode-value vectors (ties only for
+    // identical vectors) — the scalar min saturates at 0 for one immediate stall and would leave all early candidates
+    // unrankable. Only the u_i assignment changes; the Adam/gradient path below is untouched.
+    const fv = this.fitnessVec
+    const u = fv ? lexCentredRanks(results.map((r) => fv(r))) : centredRanks(fit)
     const grad = new Array<number>(dim).fill(0)
     for (let i = 0; i < pairs; i++) {
       const w = u[2 * i]! - u[2 * i + 1]!

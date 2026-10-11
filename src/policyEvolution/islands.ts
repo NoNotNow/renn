@@ -1,6 +1,6 @@
 import { createRng, gaussian, type Rng } from '@/avEvolution/core/rng'
 import { genomeLength, genomeShape, inputsOfGenome, N_HIDDEN, N_IN, N_IN_V3, N_OUT, policyForward } from './policy'
-import { aggregateFitness, DEFAULT_ES_CONFIG, initialEsState, PolicyEs, type EsConfig, type EsState, type EvaluateGenome, type FitnessFn, type GenerationReport } from './es'
+import { aggregateFitness, DEFAULT_ES_CONFIG, initialEsState, lexCompare, lexGreater, PolicyEs, type EsConfig, type EsState, type EvaluateGenome, type FitnessFn, type FitnessVecFn, type GenerationReport } from './es'
 
 /**
  * Island model on top of the evolution strategy: several independent ES centres ("islands") learn side by side on the same course
@@ -9,10 +9,10 @@ import { aggregateFitness, DEFAULT_ES_CONFIG, initialEsState, PolicyEs, type EsC
  * outgoing weights): the second parent's neurons are first aligned to the first parent's (permutation and sign symmetry of tanh units),
  * otherwise the child would be a broken mixture of unrelated feature orders.
  *
- * Adaptive mutation strength: an island whose epoch-rank score has not improved by more than STAGNATION_EPSILON for more than
- * STAGNATION_EPOCHS consecutive epochs is stagnating; its mutation sigma is boosted (per island, or globally when the best island
- * score stalls) by SIGMA_BOOST_STEP per further stagnant epoch, capped at SIGMA_BOOST_MAX. The first real improvement resets the
- * counter and the sigma to the base level — the boost only ever exists while the stagnation persists.
+ * Adaptive mutation strength: an island whose epoch-rank score VECTOR (ascending episode values) has not lexicographically
+ * improved by more than STAGNATION_EPSILON for more than STAGNATION_EPOCHS consecutive epochs is stagnating; its mutation sigma is boosted (per
+ * island, or globally when the best island score stalls) by SIGMA_BOOST_STEP per further stagnant epoch, capped at SIGMA_BOOST_MAX. The first real
+ * improvement resets the counter and the sigma to the base level — the boost only ever exists while the stagnation persists.
  */
 
 /** Genome layout of a net with `nIn` inputs (v1: N_IN = 22, v2: 24, v3: 26) and H hidden units; every helper below derives both from the genome length (any H). */
@@ -218,6 +218,8 @@ export interface IslandState {
   origin: string
   /** best epoch-rank score seen by this island (stagnation tracking; undefined until its first epoch) */
   bestScore?: number
+  /** best epoch-rank score VECTOR (ascending episode values, lexicographic stagnation tracking; optional: pre-lex state files) */
+  bestScoreVec?: number[]
   /** consecutive epochs without a > STAGNATION_EPSILON improvement of bestScore (sigma boost; optional: pre-boost state files) */
   stagn?: number
 }
@@ -228,6 +230,8 @@ export interface IslandsState {
   rngState: number
   /** best epoch-rank score seen by any island, and consecutive epochs without improvement (global stagnation boost) */
   globalBest?: number
+  /** best epoch-rank score VECTOR of any island (lexicographic global stagnation tracking; optional: pre-lex state files) */
+  globalBestVec?: number[]
   globalStagn?: number
   /** log of replacements: {gen, replaced, with, scores} */
   events: Array<{ gen: number; replaced: number; with: string; scores: number[] }>
@@ -260,9 +264,9 @@ export class IslandEs {
   /** one mutable EsConfig per island (the engines' own objects): only `sigma` is rewritten, from the base sigma and the boost */
   private readonly engineCfgs: EsConfig[]
 
-  constructor(readonly esCfg: EsConfig, readonly cfg: IslandsConfig, public state: IslandsState, private readonly fitness: FitnessFn = aggregateFitness) {
+  constructor(readonly esCfg: EsConfig, readonly cfg: IslandsConfig, public state: IslandsState, private readonly fitness: FitnessFn = aggregateFitness, private readonly fitnessVec?: FitnessVecFn) {
     this.engineCfgs = state.islands.map((_, k) => ({ ...esCfg, seed: esCfg.seed * 1000 + k }))
-    this.engines = state.islands.map((isl, k) => new PolicyEs(this.engineCfgs[k]!, isl.es, fitness))
+    this.engines = state.islands.map((isl, k) => new PolicyEs(this.engineCfgs[k]!, isl.es, fitness, fitnessVec))
     this.rng = createRng(0)
     this.rng.setState(state.rngState)
   }
@@ -293,24 +297,33 @@ export class IslandEs {
   }
 
   /**
-   * Rank the islands by `scores` (higher = better) and, if a mature island exists besides the two best, replace the worst mature one
-   * by a crossover child or a random immigrant. Returns the index of the best island and the event (if any).
+   * Rank the islands by their score VECTORS (ascending episode values; lexicographic order — the worst run decides,
+   * ties break at the second worst, a missing episode pads with 0) and, if a mature island exists besides the two
+   * best, replace the worst mature one by a crossover child or a random immigrant. Returns the index of the best
+   * island and the event (if any).
    *
-   * Also updates the stagnation bookkeeping (per island and global) from `scores` — at every epoch end, even when no island is replaced.
+   * Also updates the stagnation bookkeeping (per island and global) from `scoreVecs` — at every epoch end, even when
+   * no island is replaced. An improvement is a LEXICOGRAPHIC one by more than STAGNATION_EPSILON: positions that
+   * differ by at most the epsilon count as equal, the first position beyond it decides. State files without vectors
+   * (pre-lex) have no stored baseline: the first epoch anchors it and behaves as never stagnant.
    */
-  reproduce(scores: number[]): { best: number; event?: IslandsState['events'][number] } {
+  reproduce(scoreVecs: number[][]): { best: number; event?: IslandsState['events'][number] } {
+    const scores = scoreVecs.map((v) => v[0] ?? 0)
     for (let i = 0; i < this.state.islands.length; i++) {
       const isl = this.state.islands[i]!
-      if (isl.bestScore === undefined || scores[i]! > isl.bestScore + STAGNATION_EPSILON) isl.stagn = 0
+      const vec = scoreVecs[i]!
+      if (isl.bestScoreVec === undefined || lexGreater(vec, isl.bestScoreVec, STAGNATION_EPSILON)) isl.stagn = 0
       else isl.stagn = (isl.stagn ?? 0) + 1
+      if (isl.bestScoreVec === undefined || lexCompare(vec, isl.bestScoreVec) > 0) isl.bestScoreVec = vec
       isl.bestScore = Math.max(scores[i]!, isl.bestScore ?? -Infinity)
     }
-    const top = Math.max(...scores)
-    if (top > (this.state.globalBest ?? -Infinity) + STAGNATION_EPSILON) this.state.globalStagn = 0
-    else this.state.globalStagn = (this.state.globalStagn ?? 0) + 1
-    this.state.globalBest = Math.max(top, this.state.globalBest ?? -Infinity)
-    const order = scores.map((s, i) => [s, i] as const).sort((a, b) => b[0] - a[0]).map((x) => x[1])
+    const order = scoreVecs.map((v, i) => [v, i] as const).sort((a, b) => lexCompare(b[0], a[0])).map((x) => x[1])
     const best = order[0]!
+    const top = scoreVecs[best]!
+    if (this.state.globalBestVec === undefined || lexGreater(top, this.state.globalBestVec, STAGNATION_EPSILON)) this.state.globalStagn = 0
+    else this.state.globalStagn = (this.state.globalStagn ?? 0) + 1
+    if (this.state.globalBestVec === undefined || lexCompare(top, this.state.globalBestVec) > 0) this.state.globalBestVec = top
+    this.state.globalBest = Math.max(...scores, this.state.globalBest ?? -Infinity)
     const candidates = order.slice(2).filter((i) => this.state.islands[i]!.age >= this.cfg.mature)
     if (this.cfg.islands < 3 || candidates.length === 0) return { best }
     const worst = candidates[candidates.length - 1]!
@@ -323,7 +336,7 @@ export class IslandEs {
     this.state.islands[worst] = { es, age: 0, origin: cross ? 'cross' : 'random', stagn: 0 }
     this.engineCfgs[worst] = { ...this.esCfg, seed: this.esCfg.seed * 1000 + worst + this.state.gen }
     this.engineCfgs[worst].sigma = this.esCfg.sigma * this.boost(worst)
-    this.engines[worst] = new PolicyEs(this.engineCfgs[worst], es, this.fitness)
+    this.engines[worst] = new PolicyEs(this.engineCfgs[worst], es, this.fitness, this.fitnessVec)
     this.state.rngState = this.rng.getState()
     const event = { gen: this.state.gen, replaced: worst, with: cross ? 'crossover' : 'immigrant', scores: scores.map((s) => Math.round(s * 1000) / 1000) }
     this.state.events.push(event)

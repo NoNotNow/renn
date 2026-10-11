@@ -90,7 +90,7 @@ describe('any hidden size (H = 24, v2)', () => {
     const isl = new IslandEs(esCfg, cfg, initialIslands(esCfg, cfg))
     isl.state.islands.forEach((i) => expect(i.es.theta.length).toBe(genomeLengthV2(H)))
     isl.state.islands.forEach((i) => (i.age = 100))
-    const { event } = isl.reproduce([3, 2, 1])
+    const { event } = isl.reproduce([[3], [2], [1]])
     expect(event!.with).toBe('immigrant')
     expect(isl.state.islands[2]!.es.theta.length).toBe(genomeLengthV2(H))
   })
@@ -108,7 +108,7 @@ describe('IslandEs', () => {
       await isl.step(evaluate, ['k'])
       if (isl.isEpochEnd()) {
         const scores = await Promise.all(isl.engines.map(async (e) => aggregateFitness(await evaluate(e.state.theta, ['k']))))
-        const { event } = isl.reproduce(scores)
+        const { event } = isl.reproduce(scores.map((s) => [s]))
         bestScore = Math.max(bestScore, ...scores)
         if (event) expect(isl.state.islands[event.replaced]!.age).toBe(0)
       }
@@ -126,6 +126,8 @@ describe('stagnation-driven sigma boost', () => {
   const esCfg = { ...DEFAULT_ES_CONFIG, dim: GENOME_LENGTH, pairs: 2, seed: 3 }
   const cfg = { ...DEFAULT_ISLANDS, epoch: 5, mature: 1000, pCross: 0 }
   const evaluate: EvaluateGenome = async () => [{ norm: 0 } as never]
+  /** scalar epoch scores as one-element score vectors (the shape reproduce expects) */
+  const vecs = (...s: number[]) => s.map((x) => [x])
 
   it('sigmaBoost stays 1 up to STAGNATION_EPOCHS, then grows by SIGMA_BOOST_STEP per stagnant epoch, capped at SIGMA_BOOST_MAX', () => {
     expect(sigmaBoost(undefined)).toBe(1)
@@ -139,7 +141,7 @@ describe('stagnation-driven sigma boost', () => {
   it('no boost while every island improves: counters stay 0, step applies the base sigma', async () => {
     const isl = new IslandEs(esCfg, cfg, initialIslands(esCfg, cfg))
     for (let e = 0; e < STAGNATION_EPOCHS + 2; e++) {
-      isl.reproduce([1 + e, 0.9 + e, 0.8 + e])
+      isl.reproduce(vecs(1 + e, 0.9 + e, 0.8 + e))
       expect(isl.state.islands.every((x) => x.stagn === 0)).toBe(true)
       expect(isl.state.islands.map((_, k) => isl.boost(k))).toEqual([1, 1, 1])
     }
@@ -149,10 +151,10 @@ describe('stagnation-driven sigma boost', () => {
 
   it('a stagnating island boosts its sigma; the first improvement resets it to the base level', async () => {
     const isl = new IslandEs(esCfg, cfg, initialIslands(esCfg, cfg))
-    isl.reproduce([1, 0.5, 0.4])
-    for (let e = 0; e < STAGNATION_EPOCHS; e++) isl.reproduce([1 + 0.1 * (e + 1), 0.5, 0.4])
+    isl.reproduce(vecs(1, 0.5, 0.4))
+    for (let e = 0; e < STAGNATION_EPOCHS; e++) isl.reproduce(vecs(1 + 0.1 * (e + 1), 0.5, 0.4))
     expect(isl.boost(1)).toBe(1) // exactly at the threshold: not yet
-    isl.reproduce([2, 0.5, 0.4])
+    isl.reproduce(vecs(2, 0.5, 0.4))
     expect(isl.boost(1)).toBeCloseTo(SIGMA_BOOST_STEP, 12)
     expect(isl.boost(2)).toBeCloseTo(SIGMA_BOOST_STEP, 12)
     expect(isl.boost(0)).toBe(1)
@@ -160,7 +162,7 @@ describe('stagnation-driven sigma boost', () => {
     expect(isl.engines[1]!.cfg.sigma).toBeCloseTo(esCfg.sigma * SIGMA_BOOST_STEP, 12)
     expect(isl.engines[0]!.cfg.sigma).toBe(esCfg.sigma)
     // island 1 finds an improvement: boost immediately back to normal (no slow decay that could stay stuck high)
-    isl.reproduce([2, 0.9, 0.4])
+    isl.reproduce(vecs(2, 0.9, 0.4))
     expect(isl.state.islands[1]!.stagn).toBe(0)
     expect(isl.boost(1)).toBe(1)
     await isl.step(evaluate, ['k'])
@@ -169,16 +171,16 @@ describe('stagnation-driven sigma boost', () => {
 
   it('the boost is capped at SIGMA_BOOST_MAX during long stagnation', () => {
     const isl = new IslandEs(esCfg, cfg, initialIslands(esCfg, cfg))
-    isl.reproduce([1, 0.5, 0.4])
-    for (let e = 0; e < 20; e++) isl.reproduce([1, 0.5, 0.4])
+    isl.reproduce(vecs(1, 0.5, 0.4))
+    for (let e = 0; e < 20; e++) isl.reproduce(vecs(1, 0.5, 0.4))
     expect(isl.boost(1)).toBe(SIGMA_BOOST_MAX)
     expect(isl.boost(2)).toBe(SIGMA_BOOST_MAX)
   })
 
   it('global stagnation boosts even improving islands while the global best stalls', () => {
     const isl = new IslandEs(esCfg, cfg, initialIslands(esCfg, cfg))
-    isl.reproduce([1, 0.5, 0.4])
-    for (let e = 0; e < STAGNATION_EPOCHS + 1; e++) isl.reproduce([0.9, 0.6 + 0.1 * e, 0.3])
+    isl.reproduce(vecs(1, 0.5, 0.4))
+    for (let e = 0; e < STAGNATION_EPOCHS + 1; e++) isl.reproduce(vecs(0.9, 0.6 + 0.1 * e, 0.3))
     // island 1 improves every epoch, but the GLOBAL best (1.0) never moves: every island gets the boost
     expect(isl.state.islands[1]!.stagn).toBe(0)
     expect(isl.state.globalStagn).toBe(STAGNATION_EPOCHS + 1)
@@ -191,6 +193,45 @@ describe('stagnation-driven sigma boost', () => {
     delete state.globalStagn
     const isl = new IslandEs(esCfg, cfg, state)
     isl.state.islands.forEach((_, k) => expect(isl.boost(k)).toBe(1))
+  })
+
+  it('ranks islands lexicographically: an equal min is decided by the second-worst, a better min dominates', () => {
+    const isl = new IslandEs(esCfg, cfg, initialIslands(esCfg, cfg))
+    isl.state.islands.forEach((x) => (x.age = 1000))
+    const { best, event } = isl.reproduce([[0, 0.9], [0, 0.8], [0.5, 0.1]])
+    expect(best).toBe(2) // the better MIN wins whatever the second values are
+    expect(event!.replaced).toBe(1) // equal mins: the weaker second-worst is the worst mature island
+    expect(event!.scores).toEqual([0, 0, 0.5]) // the event log keeps the scalar mins
+  })
+
+  it('stagnation resets only on a lexicographic improvement beyond STAGNATION_EPSILON (task iv)', () => {
+    const isl = new IslandEs(esCfg, cfg, initialIslands(esCfg, cfg))
+    isl.reproduce([[0, 0.5], [0.1], [0.05]])
+    expect(isl.state.islands[0]!.bestScoreVec).toEqual([0, 0.5])
+    isl.reproduce([[0, 0.5005], [0.1], [0.05]]) // second-worst +0.0005 <= STAGNATION_EPSILON: not an improvement
+    expect(isl.state.islands[0]!.stagn).toBe(1)
+    isl.reproduce([[0, 0.51], [0.1], [0.05]]) // second-worst +0.01 > STAGNATION_EPSILON: improvement -> reset
+    expect(isl.state.islands[0]!.stagn).toBe(0)
+    isl.reproduce([[0, 0.51], [0.1], [0.05]]) // identical vector: stagnant again
+    expect(isl.state.islands[0]!.stagn).toBe(1)
+    isl.reproduce([[0.02, 0.01], [0.1], [0.05]]) // a better MIN (worse rest) is still a lex improvement
+    expect(isl.state.islands[0]!.stagn).toBe(0)
+    expect(isl.state.islands[0]!.bestScoreVec).toEqual([0.02, 0.01])
+  })
+
+  it('state files from before the lex vectors (bestScore/globalBest only) anchor on the first epoch and behave as never stagnant', () => {
+    const state = initialIslands(esCfg, cfg)
+    state.islands.forEach((x) => {
+      x.bestScore = 5
+      delete x.stagn
+    })
+    state.globalBest = 5
+    const isl = new IslandEs(esCfg, cfg, state)
+    isl.reproduce(vecs(1, 1, 1))
+    expect(isl.state.islands.every((x) => x.stagn === 0)).toBe(true)
+    expect(isl.state.islands.every((x) => x.bestScoreVec?.[0] === 1)).toBe(true)
+    expect(isl.state.globalBestVec).toEqual([1])
+    expect(isl.state.islands.every((x) => x.bestScore === 5)).toBe(true) // the scalar fields are left untouched
   })
 })
 
